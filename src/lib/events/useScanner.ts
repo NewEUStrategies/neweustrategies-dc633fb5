@@ -481,7 +481,9 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           return;
         }
         if (mode === "refresh") return;
-        if (isRetryableScanError(error)) {
+        // A temporary lock keeps pending scans retryable, but must not
+        // authorize a cold start from a cached session after an explicit refusal.
+        if (isRetryableScanError(error) && scannerErrorHead(error) !== "device_locked") {
           const cached = await cachedFor(clean);
           if (superseded()) return;
           if (cached !== null) {
@@ -976,6 +978,10 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           throw error;
         }
         if (!isRetryableScanError(error)) throw error;
+        if (scannerErrorHead(error) === "device_locked") {
+          queue(item);
+          return { queued: true, local: null };
+        }
         return queueWithDecision();
       }
     },

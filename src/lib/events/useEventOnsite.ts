@@ -9,6 +9,7 @@
 // TOKEN URZADZENIA NIE WCHODZI DO CACHE. Mutacja wydania zwraca jawny token
 // wywolujacemu, ale nie zapisujemy go w zadnym `queryKey` - React Query trzyma
 // dane w pamieci strony i w devtoolsach, a to nie jest miejsce na poswiadczenie.
+import { useCallback, useState } from "react";
 import {
   useMutation,
   useQuery,
@@ -124,12 +125,13 @@ export function useOnsiteStats(
   eventId: string,
   bucketMinutes = 15,
   enabled = true,
+  poll = true,
 ): UseQueryResult<OnsiteStats> {
   return useQuery({
     queryKey: onsiteKeys.stats(eventId, bucketMinutes),
     queryFn: () => fetchOnsiteStats(eventId, bucketMinutes),
     enabled: enabled && eventId !== "",
-    refetchInterval: enabled && eventId !== "" ? 30_000 : false,
+    refetchInterval: poll && enabled && eventId !== "" ? 30_000 : false,
   });
 }
 
@@ -269,10 +271,21 @@ export function useIssueBadgeBatch(eventId: string) {
  * Eksport leadow uruchamiany przyciskiem, nie zapytaniem: to jednorazowe
  * pobranie danych kontaktowych i nie ma powodu, zeby lezalo w cache.
  */
-export function useLeadExport(
-  eventId: string,
-): UseMutationResult<LeadExportRow[], Error, { sponsorId?: string }> {
-  return useMutation<LeadExportRow[], Error, { sponsorId?: string }>({
-    mutationFn: (input) => fetchLeadScansExport(eventId, input.sponsorId),
-  });
+export function useLeadExport(eventId: string): {
+  isPending: boolean;
+  mutateAsync: (input: { sponsorId?: string }) => Promise<LeadExportRow[]>;
+} {
+  const [pending, setPending] = useState(0);
+  const mutateAsync = useCallback(
+    async (input: { sponsorId?: string }) => {
+      setPending((count) => count + 1);
+      try {
+        return await fetchLeadScansExport(eventId, input.sponsorId);
+      } finally {
+        setPending((count) => count - 1);
+      }
+    },
+    [eventId],
+  );
+  return { isPending: pending > 0, mutateAsync };
 }

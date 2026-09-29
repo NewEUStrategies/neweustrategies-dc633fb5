@@ -147,7 +147,7 @@ vi.mock("@/components/admin/events/molecules/SponsorMaterialDialog", () => ({
 }));
 
 vi.mock("@/lib/events/useEventSponsors", () => ({
-  useSponsorDetail: (sponsorId: string) => {
+  useSponsorDetail: (_eventId: string, sponsorId: string) => {
     h.pytaneOSzczegol.push(sponsorId);
     return { data: h.szczegol, isLoading: h.isLoading, error: h.listError };
   },
@@ -358,7 +358,7 @@ describe("wiersz materialu", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: adres materialu siedzi w kolumnie `materials` typu JSON, a panel
+  // Historia naprawionego defektu: adres materialu siedzi w kolumnie `materials` typu JSON, a panel
   // wstawia go do `href` bez sprawdzenia. Material bez adresu (import, starsza
   // wersja panelu, recznie poprawiony JSON) dostaje `href=""`, czyli kotwice
   // wskazujaca BIEZACA strone: klikniecie przeladowuje panel organizatora.
@@ -367,16 +367,13 @@ describe("wiersz materialu", () => {
   // wiec `aria-label` nie ma juz czego nazwac - w drzewie dostepnosci zostaje
   // bezimienny element. Pozycja bez adresu nie powinna miec kotwicy w ogole.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: material BEZ adresu dostaje kotwice z pustym `href` zamiast wygaszonej ikony",
-    () => {
-      h.szczegol = szczegol([material({ url: null })]);
-      panel();
+  it("materiał bez adresu nie tworzy pustego odnośnika", () => {
+    h.szczegol = szczegol([material({ url: null })]);
+    panel();
 
-      expect(within(wiersz()).queryByRole("link")).toBeNull();
-      expect(wiersz().querySelector("a")).toBeNull();
-    },
-  );
+    expect(within(wiersz()).queryByRole("link")).toBeNull();
+    expect(wiersz().querySelector("a")).toBeNull();
+  });
 });
 
 describe("formularz materialu - styk z panelem", () => {

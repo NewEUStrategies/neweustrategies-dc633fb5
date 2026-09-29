@@ -446,7 +446,7 @@ describe("pasek zapisu, ladunek i „Przywroc branding spolecznosci”", () => {
     expect(call?.arg("p_branding")).toEqual({ appearance: "light", main_action: "#FA9346" });
   });
 
-  // DEFEKT. „Przywroc branding spolecznosci" stoi W PASKU ZAPISU (jako jego
+  // Historia naprawionego defektu. „Przywroc branding spolecznosci" stoi W PASKU ZAPISU (jako jego
   // `leading`), a pasek renderuje sie WYLACZNIE przy `dirty || saving`. Akcja
   // jest wiec niedostepna dokladnie w tym stanie, w ktorym jest potrzebna:
   // wydarzenie ma ZAPISANY branding, nic nie zmieniono i redaktor chce wrocic
@@ -456,7 +456,7 @@ describe("pasek zapisu, ladunek i „Przywroc branding spolecznosci”", () => {
   // Przywrocenie nie jest czescia szkicu (nie odrzuca zmian - CZYSCI zapisane
   // wartosci), wiec jego miejsce jest przy sekcji kolorow, a nie w pasku,
   // ktory pojawia sie warunkowo.
-  it.fails("DEFEKT: „Przywroc branding spolecznosci” jest nieosiagalne bez zmiany", () => {
+  it("przywrócenie brandingu społeczności jest dostępne przed edycją", () => {
     panel({ branding: ZAPISANY });
     // `query`, nie `get`: asercja ma PADAC NA POROWNANIU, a nie na wyjatku
     // z wyszukiwania - inaczej nie widac, czy defekt jest ten, ktory opisano.

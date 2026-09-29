@@ -559,7 +559,7 @@ describe("dostepnosc", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: przelacznik „poziom aktywny" dostaje w kazdym wierszu TE SAMA
+  // Historia naprawionego defektu: przelacznik „poziom aktywny" dostaje w kazdym wierszu TE SAMA
   // etykiete. Molekula `AdminFormSwitchRow` ma nad soba komentarz wprost o tym
   // ryzyku („przelacznik bez powiazania z etykieta czytnik ekranu przy szesciu
   // wierszach mowi szesc razy to samo") - lista poziomow to ryzyko realizuje.
@@ -567,14 +567,14 @@ describe("dostepnosc", () => {
   // KTORY poziom wlasnie zdejmuje ze strony publicznej. axe tego nie zlapie:
   // formalnie kazdy przelacznik MA nazwe. Etykieta powinna niesc nazwe poziomu.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: przelaczniki „aktywny” w dwoch wierszach maja IDENTYCZNA nazwe - czytnik nie mowi, ktorego poziomu dotycza",
-    () => {
-      h.rows = [poziom(), poziom({ id: INNY_POZIOM, name_pl: "Srebrny", key: "silver" })];
-      panel();
+  it("etykieta przełącznika aktywności wskazuje konkretny poziom", () => {
+    h.rows = [poziom(), poziom({ id: INNY_POZIOM, name_pl: "Srebrny", key: "silver" })];
+    panel();
 
-      expect(przelacznik(0).getAttribute("id")).not.toBe(przelacznik(1).getAttribute("id"));
-      expect(screen.getAllByLabelText(`${T}.tiers.dialog.isActive`)).toHaveLength(1);
-    },
-  );
+    expect(przelacznik(0).getAttribute("id")).not.toBe(przelacznik(1).getAttribute("id"));
+    expect(screen.getByLabelText(`${T}.tiers.dialog.isActive: ${poziom().name_pl}`)).toBe(
+      przelacznik(0),
+    );
+    expect(screen.getByLabelText(`${T}.tiers.dialog.isActive: Srebrny`)).toBe(przelacznik(1));
+  });
 });

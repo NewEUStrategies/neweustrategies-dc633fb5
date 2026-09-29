@@ -19,6 +19,8 @@ const VALIDATION = "adminEventTerms.validation.";
 
 export const TERMS_MAX_NAME = 160;
 export const TERMS_MAX_DESCRIPTION = 600;
+export const GROUP_MAX_NAME = 80;
+export const GROUP_MAX_DESCRIPTION = 500;
 export const TERMS_MAX_BODY = 8000;
 export const TERMS_MAX_URL = 500;
 
@@ -135,8 +137,17 @@ export function validateGroupDraft(draft: GroupDraft): Array<TermsFieldError<Gro
   if (draft.id === null && !TERMS_GROUPS_KEY_PATTERN.test(draft.key.trim())) {
     errors.push({ field: "key", messageKey: `${VALIDATION}invalidKey` });
   }
-  if (draft.namePl.trim() === "" || draft.nameEn.trim() === "") {
+  if (
+    [draft.namePl, draft.nameEn].some(
+      (name) => name.trim().length < 2 || name.trim().length > GROUP_MAX_NAME,
+    )
+  ) {
     errors.push({ field: "namePl", messageKey: `${VALIDATION}invalidNames` });
+  }
+  for (const field of ["descriptionPl", "descriptionEn"] as const) {
+    if (draft[field].trim().length > GROUP_MAX_DESCRIPTION) {
+      errors.push({ field, messageKey: `${VALIDATION}invalidDescription` });
+    }
   }
   if (draft.color.trim() !== "" && !HEX_COLOR_PATTERN.test(draft.color.trim())) {
     errors.push({ field: "color", messageKey: `${VALIDATION}invalidColor` });
@@ -244,6 +255,9 @@ export function validateTermDraft(draft: TermDraft): Array<TermsFieldError<TermF
     errors.push({ field: "labelPl", messageKey: `${VALIDATION}invalidLabels` });
   }
   const url = draft.externalUrl.trim();
+  if (url === "" && draft.bodyPl.trim() === "" && draft.bodyEn.trim() === "") {
+    errors.push({ field: "bodyPl", messageKey: `${VALIDATION}contentRequired` });
+  }
   if (url !== "" && !/^https:\/\/[^\s]+$/.test(url)) {
     errors.push({ field: "externalUrl", messageKey: `${VALIDATION}invalidUrl` });
   }

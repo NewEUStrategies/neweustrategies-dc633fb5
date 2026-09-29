@@ -65,13 +65,13 @@ export function AgendaConflictsPanel({ eventId }: { eventId: string }) {
                   {pick(row.session_title_pl, row.session_title_en)}
                 </p>
                 <p className="text-xs text-muted-foreground">{kindLabel(row)}</p>
-                {row.other_session_id === "" ? null : (
+                {!row.other_session_id ? null : (
                   <p className="text-xs text-muted-foreground">
                     {t("adminEventAgenda.conflicts.otherSession")}:{" "}
                     {pick(row.other_title_pl, row.other_title_en)}
                   </p>
                 )}
-                {row.subject_name === "" ? null : (
+                {!row.subject_name ? null : (
                   <p className="text-xs text-muted-foreground">
                     {t("adminEventAgenda.conflicts.subject")}: {row.subject_name}
                   </p>

@@ -512,7 +512,7 @@ describe("znane defekty", () => {
   // który sąsiedni `OnsiteLiveStatsPanel` rozwiązuje myślnikiem. Test opisuje
   // stan DOCELOWY: brak godziny ma być myślnikiem, tak jak wszędzie indziej
   // w module.
-  it.fails("kubełek BEZ godziny powinien pokazać myślnik, a pokazuje „Invalid Date”", () => {
+  it("nieprawidłowa godzina statystyk wyświetla myślnik", () => {
     h.data = pulpit({ histogram: [kubelek({ bucketAt: "" })] });
     panel();
 

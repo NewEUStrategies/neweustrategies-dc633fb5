@@ -825,7 +825,7 @@ describe("useEventOnsite - tabela mutacji: DOKLADNY zasieg uniewaznienia", () =>
 /* ------------------------------------------------------------ defekty --- */
 
 // -----------------------------------------------------------------------------
-// DEFEKT: eksport leadow z DANYMI KONTAKTOWYMI zostaje w cache mutacji.
+// Historia naprawionego defektu: eksport leadow z DANYMI KONTAKTOWYMI zostaje w cache mutacji.
 //
 // Naglowek `useLeadExport` uzasadnia wybor mutacji zdaniem „to jednorazowe
 // pobranie danych kontaktowych i nie ma powodu, zeby lezalo w cache". Wpisu
@@ -841,27 +841,24 @@ describe("useEventOnsite - tabela mutacji: DOKLADNY zasieg uniewaznienia", () =>
 // Naprawa nalezy do produkcji: `gcTime: 0` na tej mutacji albo jawne
 // `reset()` po wydaniu pliku wywolujacemu.
 // -----------------------------------------------------------------------------
-describe("useEventOnsite - znane defekty", () => {
-  it.fails(
-    "eksport leadow obiecuje, ze dane kontaktowe „nie leza w cache”, a `useMutation` trzyma je w cache MUTACJI przez cale `gcTime`",
-    async () => {
-      onsite.fetchLeadScansExport.mockResolvedValue([
-        { first_name: "Anna", last_name: "Testowa", email: "anna@example.org", consent: true },
-      ]);
-      const { result, queryClient } = renderHookWithQueryClient(() => useLeadExport(EVENT_ID));
+describe("useEventOnsite - regresje naprawionych defektów", () => {
+  it("eksport leadów nie pozostawia danych kontaktowych w cache mutacji", async () => {
+    onsite.fetchLeadScansExport.mockResolvedValue([
+      { first_name: "Anna", last_name: "Testowa", email: "anna@example.org", consent: true },
+    ]);
+    const { result, queryClient } = renderHookWithQueryClient(() => useLeadExport(EVENT_ID));
 
-      await act(async () => {
-        await result.current.mutateAsync({});
-      });
+    await act(async () => {
+      await result.current.mutateAsync({});
+    });
 
-      const held = queryClient
-        .getMutationCache()
-        .getAll()
-        .map((mutation) => JSON.stringify(mutation.state.data ?? null))
-        .join(" ");
-      expect(held).not.toContain("anna@example.org");
-    },
-  );
+    const held = queryClient
+      .getMutationCache()
+      .getAll()
+      .map((mutation) => JSON.stringify(mutation.state.data ?? null))
+      .join(" ");
+    expect(held).not.toContain("anna@example.org");
+  });
 });
 
 describe("zgoda na liste offline urzadzenia", () => {

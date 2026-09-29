@@ -131,6 +131,7 @@ export function EventTermDialog({
           />
           <AdminFormTextRow
             label={t("adminEventTerms.terms.dialog.bodyPl")}
+            error={errorFor("bodyPl")}
             value={draft.bodyPl}
             onValueChange={(value) => set("bodyPl", value)}
             maxLength={TERMS_MAX_BODY}

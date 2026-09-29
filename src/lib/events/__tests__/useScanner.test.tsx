@@ -1095,7 +1095,7 @@ describe("useScannerRuntime - oproznianie kolejki w szczegolach", () => {
 /* ------------------------------------------------------------- defekty --- */
 
 // -----------------------------------------------------------------------------
-// DEFEKT: chwilowa blokada urzadzenia GUBI SKAN zamiast wsadzic go do kolejki.
+// Historia naprawionego defektu: chwilowa blokada urzadzenia GUBI SKAN zamiast wsadzic go do kolejki.
 //
 // `useScanner.isRetryable` uznaje za trwaly KAZDY komunikat z rozpoznawalnym
 // prefiksem bazy (`^[a-z][a-z0-9_]*:`). Trafia w to takze `device_locked:`,
@@ -1115,24 +1115,21 @@ describe("useScannerRuntime - oproznianie kolejki w szczegolach", () => {
 // Naprawa nalezy do produkcji: `isRetryable` powinno pytac
 // `scannerOutbox.isPermanentFailure`, zamiast trzymac wlasna, szersza regule.
 // -----------------------------------------------------------------------------
-describe("useScannerRuntime - znane defekty", () => {
-  it.fails(
-    "skan odrzucony CHWILOWA blokada urzadzenia (`device_locked`) powinien trafic do kolejki, a jest gubiony - `isRetryable` uznaje go za odmowe trwala, wbrew `scannerOutbox.PERMANENT_HEADS`",
-    async () => {
-      api.recordCheckinScan.mockRejectedValue(new Error("device_locked: cooling down"));
-      const { result } = await connected();
+describe("useScannerRuntime - regresje naprawionych defektów", () => {
+  it("czasowa blokada urządzenia zachowuje skan w kolejce do ponowienia", async () => {
+    api.recordCheckinScan.mockRejectedValue(new Error("device_locked: cooling down"));
+    const { result } = await connected();
 
-      let outcome: QueuedScanOutcome | SentCheckinOutcome | undefined;
-      await act(async () => {
-        outcome = await result.current.submitCheckin({
-          code: "QR-PO-BLOKADZIE",
-          checkpointId: CHECKPOINT_ID,
-          direction: "in",
-        });
+    let outcome: QueuedScanOutcome | SentCheckinOutcome | undefined;
+    await act(async () => {
+      outcome = await result.current.submitCheckin({
+        code: "QR-PO-BLOKADZIE",
+        checkpointId: CHECKPOINT_ID,
+        direction: "in",
       });
+    });
 
-      expect(outcome).toEqual({ queued: true, local: null });
-      await waitFor(() => expect(result.current.outbox).toHaveLength(1));
-    },
-  );
+    expect(outcome).toEqual({ queued: true, local: null });
+    await waitFor(() => expect(result.current.outbox).toHaveLength(1));
+  });
 });

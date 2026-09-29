@@ -332,38 +332,35 @@ describe("MeetingStatsPanel - obciążenie stolików", () => {
     expect(screen.getByText("0%")).toBeTruthy();
   });
 
-  it.fails(
-    "DEFEKT: stolik WYŁĄCZONY niesie ten sam tekst co czynny - różni je wyłącznie wariant odznaki",
-    async () => {
-      // Molekuła `AdminMetricTile` w tym samym panelu ma to zapisane wprost:
-      // „Ton jest DODATKIEM do treści, nie jej zamiennikiem". Lista samotnych
-      // uczestników, dwie sekcje niżej, tej reguły przestrzega - stan
-      // dostępności ma tam WŁASNE zdanie (`lonelyHasAvailability` /
-      // `lonelyNoAvailability`). Lista stolików nie: `variant="secondary"`
-      // zamiast `outline` to jedyna różnica między stolikiem czynnym
-      // a wyłączonym, więc czytnik ekranu i wydruk ogłaszają oba identycznie.
-      //
-      // Koszt nie jest kosmetyczny. Wyłączony stolik jest najczęstszym powodem,
-      // dla którego umawianie odbija się o `table_inactive` albo `no_free_table`,
-      // a organizator szuka wtedy przyczyny właśnie na tym ekranie.
-      h.stats.mockResolvedValue(
-        statystyki({
-          tables: [
-            stolik({ table_id: "t-1", label: "Stolik 1", is_active: true }),
-            stolik({ table_id: "t-2", label: "Stolik 1", is_active: false }),
-          ],
-        }),
-      );
-      const { container } = renderPanel(<MeetingStatsPanel eventId={WYDARZENIE} />);
-      await screen.findByText(`${BAZA}.title`);
+  it("wyłączony stolik ma tekstowe oznaczenie stanu", async () => {
+    // Molekuła `AdminMetricTile` w tym samym panelu ma to zapisane wprost:
+    // „Ton jest DODATKIEM do treści, nie jej zamiennikiem". Lista samotnych
+    // uczestników, dwie sekcje niżej, tej reguły przestrzega - stan
+    // dostępności ma tam WŁASNE zdanie (`lonelyHasAvailability` /
+    // `lonelyNoAvailability`). Lista stolików nie: `variant="secondary"`
+    // zamiast `outline` to jedyna różnica między stolikiem czynnym
+    // a wyłączonym, więc czytnik ekranu i wydruk ogłaszają oba identycznie.
+    //
+    // Koszt nie jest kosmetyczny. Wyłączony stolik jest najczęstszym powodem,
+    // dla którego umawianie odbija się o `table_inactive` albo `no_free_table`,
+    // a organizator szuka wtedy przyczyny właśnie na tym ekranie.
+    h.stats.mockResolvedValue(
+      statystyki({
+        tables: [
+          stolik({ table_id: "t-1", label: "Stolik 1", is_active: true }),
+          stolik({ table_id: "t-2", label: "Stolik 1", is_active: false }),
+        ],
+      }),
+    );
+    const { container } = renderPanel(<MeetingStatsPanel eventId={WYDARZENIE} />);
+    await screen.findByText(`${BAZA}.title`);
 
-      // Oba wiersze mają CELOWO tę samą etykietę i te same liczby - zostaje
-      // wyłącznie to, co panel dopisuje od siebie.
-      const wiersze = Array.from(container.querySelectorAll("li"));
-      expect(wiersze.length).toBe(2);
-      expect(wiersze[1]?.textContent).not.toBe(wiersze[0]?.textContent);
-    },
-  );
+    // Oba wiersze mają CELOWO tę samą etykietę i te same liczby - zostaje
+    // wyłącznie to, co panel dopisuje od siebie.
+    const wiersze = Array.from(container.querySelectorAll("li"));
+    expect(wiersze.length).toBe(2);
+    expect(wiersze[1]?.textContent).not.toBe(wiersze[0]?.textContent);
+  });
 
   it("wiersz stolika BEZ identyfikatora jest pomijany, a nie renderowany pustym kluczem", async () => {
     h.stats.mockResolvedValue(

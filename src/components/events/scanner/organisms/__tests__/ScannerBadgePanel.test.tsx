@@ -343,47 +343,40 @@ describe("ScannerBadgePanel - dostępność", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKTY. Testy poniżej opisują zachowanie, którego panel NIE MA - i dlatego
-// są `it.fails`. Zieleń któregoś z nich znaczy, że defekt zniknął i test trzeba
-// przepiąć na zwykłe `it`.
+// Regresje: blokada urządzenia i liczba faktycznie wydrukowanych kopii.
+// Oba przypadki muszą przechodzić jako zwykłe testy.
 // ---------------------------------------------------------------------------
-describe("ScannerBadgePanel - defekty", () => {
-  it.fails(
-    "blokada urządzenia z odpowiedzi bazy NIE dociera do operatora (panel odprawy ten sam sygnał pokazuje)",
-    async () => {
-      // `BadgePrintScanResult.deviceLocked` jest parsowane w `scannerApi`
-      // i wyrzucane do kosza w tym panelu. `ScannerCheckinPanel` na ten sam
-      // sygnał woła `toast.error(scannerErrorMessage("device_locked: ..."))`.
-      // Skutek przy stanowisku druku: baza już blokuje urządzenie, a operator
-      // widzi wyłącznie „Wydruk zapisany" - i dowiaduje się o blokadzie dopiero
-      // przy pierwszym skanie, który wróci z odmową, bez wiedzy, że wystarczy
-      // odczekać.
-      printScan.mockResolvedValue(printed({ deviceLocked: true }));
-      mount();
+describe("ScannerBadgePanel - regresje", () => {
+  it("czasowa blokada urządzenia jest widoczna dla operatora druku", async () => {
+    // `BadgePrintScanResult.deviceLocked` jest parsowane w `scannerApi`
+    // i wyrzucane do kosza w tym panelu. `ScannerCheckinPanel` na ten sam
+    // sygnał woła `toast.error(scannerErrorMessage("device_locked: ..."))`.
+    // Skutek przy stanowisku druku: baza już blokuje urządzenie, a operator
+    // widzi wyłącznie „Wydruk zapisany" - i dowiaduje się o blokadzie dopiero
+    // przy pierwszym skanie, który wróci z odmową, bez wiedzy, że wystarczy
+    // odczekać.
+    printScan.mockResolvedValue(printed({ deviceLocked: true }));
+    mount();
 
-      scan("BADGE-15");
-      await screen.findByText("eventScanner.outcomes.printed");
+    scan("BADGE-15");
+    await screen.findByText("eventScanner.outcomes.printed");
 
-      expect(toast.error).toHaveBeenCalledWith(DEVICE_LOCKED_PL);
-    },
-  );
+    expect(toast.error).toHaveBeenCalledWith(DEVICE_LOCKED_PL);
+  });
 
-  it.fails(
-    "liczba sztuk ZAPISANA w rejestrze nie trafia na ekran - widać tylko to, co kliknął operator",
-    async () => {
-      // Rejestr jest dokumentem rozliczenia z drukarnią, a odpowiedź niesie
-      // `copies` (parsowane, z domyślną jedynką). Baza może zapisać INNĄ liczbę
-      // niż wybrana, a wtedy jedyną liczbą na ekranie zostaje wybór z formularza:
-      // operator rozlicza trzy sztuki, rejestr zna jedną, i nikt tego nie widzi
-      // aż do faktury.
-      printScan.mockResolvedValue(printed({ copies: 1, previousPrints: 0 }));
-      mount();
+  it("potwierdzenie wydruku pokazuje liczbę sztuk zwróconą przez bazę", async () => {
+    // Rejestr jest dokumentem rozliczenia z drukarnią, a odpowiedź niesie
+    // `copies` (parsowane, z domyślną jedynką). Baza może zapisać INNĄ liczbę
+    // niż wybrana, a wtedy jedyną liczbą na ekranie zostaje wybór z formularza:
+    // operator rozlicza trzy sztuki, rejestr zna jedną, i nikt tego nie widzi
+    // aż do faktury.
+    printScan.mockResolvedValue(printed({ copies: 1, previousPrints: 0 }));
+    mount();
 
-      fireEvent.click(screen.getByRole("button", { name: "3" }));
-      scan("BADGE-16");
-      await screen.findByText("eventScanner.outcomes.printed");
+    fireEvent.click(screen.getByRole("button", { name: "3" }));
+    scan("BADGE-16");
+    await screen.findByText("eventScanner.outcomes.printed");
 
-      expect(within(resultBlock()).getByText(/eventScanner\.badge\.copies/)).toBeInTheDocument();
-    },
-  );
+    expect(within(resultBlock()).getByText(/eventScanner\.badge\.copies/)).toBeInTheDocument();
+  });
 });

@@ -7,7 +7,8 @@
 // poziomu (`event_sponsor_tier_benefits`), a organizator ustawia je razem
 // z nazwa poziomu - rozdzielenie tych dwoch krokow zostawialoby poziomy bez
 // jednej korzysci.
-import { useEffect, useState } from "react";
+import { useDialogDraftSession } from "@/lib/events/useDialogDraftSession";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,8 @@ import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow"
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import {
-  SPONSOR_MAX_DESCRIPTION,
+  SPONSOR_TIER_MAX_DESCRIPTION,
+  SPONSOR_TIER_MAX_NAME,
   SPONSOR_MAX_NAME,
   emptyTierDraft,
   tierDraftFromRow,
@@ -65,11 +67,11 @@ export function EventSponsorTierDialog({
   const [draft, setDraft] = useState<TierDraft>(() => emptyTierDraft(nextSortOrder, nextRank));
   const [touched, setTouched] = useState(false);
 
-  useEffect(() => {
+  useDialogDraftSession(open, `${eventId}:${tier?.id ?? "new"}`, () => {
     if (!open) return;
     setDraft(tier === null ? emptyTierDraft(nextSortOrder, nextRank) : tierDraftFromRow(tier));
     setTouched(false);
-  }, [open, tier, nextSortOrder, nextRank]);
+  });
 
   const errors = validateTierDraft(draft);
   const errorFor = (field: keyof TierDraft): string | null => {
@@ -125,27 +127,29 @@ export function EventSponsorTierDialog({
             label={t("adminEventSponsors.tiers.dialog.namePl")}
             value={draft.namePl}
             onValueChange={(value) => set("namePl", value)}
-            maxLength={SPONSOR_MAX_NAME}
+            maxLength={SPONSOR_TIER_MAX_NAME}
             error={errorFor("namePl")}
           />
           <AdminFormTextRow
             label={t("adminEventSponsors.tiers.dialog.nameEn")}
             value={draft.nameEn}
             onValueChange={(value) => set("nameEn", value)}
-            maxLength={SPONSOR_MAX_NAME}
+            maxLength={SPONSOR_TIER_MAX_NAME}
           />
           <AdminFormTextRow
             label={t("adminEventSponsors.tiers.dialog.descriptionPl")}
+            error={errorFor("descriptionPl")}
             value={draft.descriptionPl}
             onValueChange={(value) => set("descriptionPl", value)}
-            maxLength={SPONSOR_MAX_DESCRIPTION}
+            maxLength={SPONSOR_TIER_MAX_DESCRIPTION}
             rows={3}
           />
           <AdminFormTextRow
             label={t("adminEventSponsors.tiers.dialog.descriptionEn")}
+            error={errorFor("descriptionEn")}
             value={draft.descriptionEn}
             onValueChange={(value) => set("descriptionEn", value)}
-            maxLength={SPONSOR_MAX_DESCRIPTION}
+            maxLength={SPONSOR_TIER_MAX_DESCRIPTION}
             rows={3}
           />
           <AdminFormTextRow
@@ -158,6 +162,7 @@ export function EventSponsorTierDialog({
           />
           <AdminFormTextRow
             label={t("adminEventSponsors.tiers.dialog.sortOrder")}
+            error={errorFor("sortOrder")}
             value={draft.sortOrder}
             onValueChange={(value) => set("sortOrder", value)}
             inputMode="numeric"

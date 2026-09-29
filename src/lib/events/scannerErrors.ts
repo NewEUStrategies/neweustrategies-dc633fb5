@@ -66,15 +66,15 @@ export function invalidatesSession(error: unknown): boolean {
  * Odmowa z bazy niesie ROZPOZNAWALNY prefiks (`invalid_payload:`,
  * `checkpoint_not_found:` …). Awaria sieci nie niesie żadnego - `fetch` rzuca
  * `TypeError: Failed to fetch`, a przekroczenie terminu `ScannerTimeoutError`
- * bez prefiksu. Dlatego ponawiamy dokładnie to, czego baza nie nazwała po
- * imieniu.
+ * bez prefiksu. Ponawiamy błędy transportu oraz czasową blokadę urządzenia;
+ * po ustąpieniu blokady ten sam skan może być ponownie wysłany.
  */
 export function isRetryableScanError(error: unknown): boolean {
   const message = scannerErrorText(error);
   const separator = message.indexOf(":");
   if (separator === -1) return true;
   const head = message.slice(0, separator).trim();
-  return !/^[a-z][a-z0-9_]*$/.test(head);
+  return head === "device_locked" || !/^[a-z][a-z0-9_]*$/.test(head);
 }
 
 /** Głowa komunikatu (`kod` z `kod: szczegóły`) - pusta, gdy jej nie ma. */

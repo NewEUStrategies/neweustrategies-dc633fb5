@@ -423,7 +423,7 @@ describe("liczby i wiersze poboczne pokazują się tylko wtedy, gdy baza je poda
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: `admin_event_agenda_conflicts` uzupełnia brakujące kolumny
+  // Historia naprawionego defektu: `admin_event_agenda_conflicts` uzupełnia brakujące kolumny
   // literałami `NULL::uuid` / `NULL::text` (trzy z czterech rodzajów nie mają
   // „drugiej sesji"), a panel sprawdza je porównaniem `row.other_session_id === ""`.
   // `null === ""` jest FAŁSZEM, więc warunek nie odcina niczego: sesja poza oknem
@@ -434,30 +434,24 @@ describe("liczby i wiersze poboczne pokazują się tylko wtedy, gdy baza je poda
   // NAPRAWA: warunek musiałby brzmieć `row.other_session_id == null || row.other_session_id === ""`
   // (albo RPC musiałaby oddawać `''` zamiast `NULL`).
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: sesja poza oknem wydarzenia rysuje PUSTY wiersz „druga sesja”, bo RPC oddaje tam NULL",
-    () => {
-      h.rows = [POZA_OKNEM];
-      renderuj();
+  it("brak drugiej sesji nie tworzy pustego wiersza konfliktu", () => {
+    h.rows = [POZA_OKNEM];
+    renderuj();
 
-      expect(screen.queryByText(/conflicts\.otherSession/)).toBeNull();
-    },
-  );
+    expect(screen.queryByText(/conflicts\.otherSession/)).toBeNull();
+  });
 
   // ---------------------------------------------------------------------------
   // DEFEKT BLIŹNIACZY: `overbooked` nie ma podmiotu (`NULL::uuid, NULL::text`
   // w czwartej gałęzi `UNION ALL`), a panel odcina go porównaniem
   // `row.subject_name === ""`. Efekt ten sam: wiersz „Dotyczy:" bez wartości.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: zapisy ponad limit rysują PUSTY wiersz „dotyczy”, bo RPC nie podaje podmiotu",
-    () => {
-      h.rows = [ZAPISY_PONAD_LIMIT];
-      renderuj();
+  it("brak podmiotu konfliktu nie tworzy pustego wiersza", () => {
+    h.rows = [ZAPISY_PONAD_LIMIT];
+    renderuj();
 
-      expect(screen.queryByText(/conflicts\.subject/)).toBeNull();
-    },
-  );
+    expect(screen.queryByText(/conflicts\.subject/)).toBeNull();
+  });
 
   // Pusty NAPIS baza oddaje tylko tam, gdzie kolumna naprawdę jest pusta -
   // i wtedy warunek panelu działa tak, jak go napisano.

@@ -16,7 +16,7 @@
 //   5. WIERSZ MÓWI, CZY OSOBA MA ZAPIS. Brak zapisu to odznaka, a nie cisza -
 //      operator ma zobaczyć powód odmowy, zanim kliknie.
 //
-// DWA DEFEKTY UDOKUMENTOWANE JAKO `it.fails` (opis przy każdym).
+// Dwa naprawione defekty są chronione zwykłymi testami regresyjnymi.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Warstwy danych (`recordManualCheckin`,
 // `parseCheckinOutcome`) - ma własny dom w `lib/events`. (2) Słownika odmów
@@ -602,23 +602,20 @@ describe("kierunek zależy od trybu bramki", () => {
     expect(within(wiersz()).queryByRole("button", { name: `${T}.actions.checkOut` })).toBeNull();
   });
 
-  it.fails(
-    "DEFEKT: bramka `out_only` nie dostaje przycisku wyjścia - jedyna dostępna akcja to wejście, które baza odrzuca jako `denied_direction`",
-    () => {
-      // `CHECKPOINT_DIRECTION_MODES` ma TRZY wartości, a panel rozpoznaje
-      // wyłącznie `in_out` (`selected.direction_mode === "in_out"`). Przy
-      // bramce wyjściowej operator widzi więc sam przycisk „odpraw", a
-      // `_event_checkin_decide` odpowiada na `direction = 'in'` przy
-      // `direction_mode = 'out_only'` wynikiem `denied_direction` - czyli
-      // KAŻDA odprawa przy takiej bramce kończy się odmową, a w dzienniku
-      // rośnie licznik odmów, którego nikt nie umie wytłumaczyć.
-      h.punkty = [punkt({ direction_mode: "out_only" })];
-      panel();
-      przyBramce();
+  it("bramka wyjściowa udostępnia wyjście zgodnie z kierunkiem punktu", () => {
+    // `CHECKPOINT_DIRECTION_MODES` ma TRZY wartości, a panel rozpoznaje
+    // wyłącznie `in_out` (`selected.direction_mode === "in_out"`). Przy
+    // bramce wyjściowej operator widzi więc sam przycisk „odpraw", a
+    // `_event_checkin_decide` odpowiada na `direction = 'in'` przy
+    // `direction_mode = 'out_only'` wynikiem `denied_direction` - czyli
+    // KAŻDA odprawa przy takiej bramce kończy się odmową, a w dzienniku
+    // rośnie licznik odmów, którego nikt nie umie wytłumaczyć.
+    h.punkty = [punkt({ direction_mode: "out_only" })];
+    panel();
+    przyBramce();
 
-      expect(within(wiersz()).getByRole("button", { name: `${T}.actions.checkOut` })).toBeTruthy();
-    },
-  );
+    expect(within(wiersz()).getByRole("button", { name: `${T}.actions.checkOut` })).toBeTruthy();
+  });
 });
 
 describe("wydruk identyfikatora ze stanowiska", () => {
@@ -680,23 +677,20 @@ describe("wydruk identyfikatora ze stanowiska", () => {
     ).toBeDisabled();
   });
 
-  it.fails(
-    "DEFEKT: powód wydruku `desk` jest spoza słownika `BADGE_PRINT_REASONS`, więc baza go MILCZĄCO podmienia",
-    () => {
-      // `event_badge_prints_reason_values` dopuszcza pięć wartości:
-      // first_issue, reprint_lost, reprint_damaged, data_correction,
-      // bulk_preprint. `_event_badge_print_write` normalizuje wszystko inne
-      // (`v_reason NOT IN (...)` -> first_issue albo reprint_lost), więc
-      // wysłany stąd `desk` NIGDY nie trafia do rejestru. Skutek: w panelu
-      // „Identyfikatory" nie da się odróżnić wydruku ze stanowiska odprawy od
-      // wydruku z generatora partii, choć panel udaje, że taki ślad zostawia.
-      panel();
-      fireEvent.click(within(wiersz()).getByRole("button", { name: `${T}.actions.printBadge` }));
+  it("stanowisko odprawy wysyła powód wydruku ze słownika bazy", () => {
+    // `event_badge_prints_reason_values` dopuszcza pięć wartości:
+    // first_issue, reprint_lost, reprint_damaged, data_correction,
+    // bulk_preprint. `_event_badge_print_write` normalizuje wszystko inne
+    // (`v_reason NOT IN (...)` -> first_issue albo reprint_lost), więc
+    // wysłany stąd `desk` NIGDY nie trafia do rejestru. Skutek: w panelu
+    // „Identyfikatory" nie da się odróżnić wydruku ze stanowiska odprawy od
+    // wydruku z generatora partii, choć panel udaje, że taki ślad zostawia.
+    panel();
+    fireEvent.click(within(wiersz()).getByRole("button", { name: `${T}.actions.printBadge` }));
 
-      const powod = (h.wydruki[0] as BadgePrintInput).reason;
-      expect(BADGE_PRINT_REASONS as readonly string[]).toContain(powod);
-    },
-  );
+    const powod = (h.wydruki[0] as BadgePrintInput).reason;
+    expect(BADGE_PRINT_REASONS as readonly string[]).toContain(powod);
+  });
 });
 
 describe("dostępność", () => {

@@ -34,6 +34,9 @@ import {
   SPONSOR_MAX_DESCRIPTION,
   SPONSOR_MAX_NAME,
   SPONSOR_MAX_NOTE,
+  SPONSOR_TIER_MAX_NAME,
+  SPONSOR_TIER_MAX_DESCRIPTION,
+  SPONSOR_MATERIAL_MAX_TITLE,
   emptyMaterialDraft,
   emptySponsorDraft,
   emptyTierDraft,
@@ -210,28 +213,24 @@ describe("limity, ktore panel obiecuje redaktorowi", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: `SPONSOR_MAX_NAME` obsluguje CZTERY kolumny o TRZECH roznych
+  // Historia naprawionego defektu: `SPONSOR_MAX_NAME` obsluguje CZTERY kolumny o TRZECH roznych
   // limitach - nazwe firmy (200), nazwe poziomu (80) i tytul materialu (160).
   // Formularz poziomu wpisuje ten limit do `maxLength`, wiec redaktor moze
   // wpisac 200 znakow, przejsc walidacje klienta i dostac odmowe z bazy.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: nazwa POZIOMU dostaje limit 200 znakow, a baza przyjmuje 80 - formularz obiecuje wiecej, niz baza da zapisac",
-    () => {
-      expect(SPONSOR_MAX_NAME).toBe(betweenRange("event_sponsor_tiers_name_pl_len").max);
-    },
-  );
-
-  it.fails("DEFEKT: tytul MATERIALU dostaje limit 200 znakow, a baza przyjmuje 160", () => {
-    expect(SPONSOR_MAX_NAME).toBe(betweenRange("event_sponsor_materials_title_pl_len").max);
+  it("limit nazwy poziomu jest zgodny z bazą: 80 znaków", () => {
+    expect(SPONSOR_TIER_MAX_NAME).toBe(betweenRange("event_sponsor_tiers_name_pl_len").max);
   });
 
-  it.fails(
-    "DEFEKT: opis POZIOMU dostaje limit 2000 znakow, a baza przyjmuje 1000 - polowa opisu ginie w odmowie",
-    () => {
-      expect(SPONSOR_MAX_DESCRIPTION).toBe(upperBound("event_sponsor_tiers_desc_pl_len"));
-    },
-  );
+  it("limit tytułu materiału jest zgodny z bazą: 160 znaków", () => {
+    expect(SPONSOR_MATERIAL_MAX_TITLE).toBe(
+      betweenRange("event_sponsor_materials_title_pl_len").max,
+    );
+  });
+
+  it("limit opisu poziomu jest zgodny z bazą: 1000 znaków", () => {
+    expect(SPONSOR_TIER_MAX_DESCRIPTION).toBe(upperBound("event_sponsor_tiers_desc_pl_len"));
+  });
 });
 
 /* ------------------------------------------------- reguly walidacji vs CHECK --- */
@@ -243,98 +242,80 @@ describe("walidacja szkicu vs to, co baza naprawde przyjmie", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: komentarz w `sponsorDraft.ts` obiecuje wprost, ze „poziom z limitem
+  // Historia naprawionego defektu: komentarz w `sponsorDraft.ts` obiecuje wprost, ze „poziom z limitem
   // `0` nie przyjmie zadnej [firmy]". Baza tego zdania nie zna:
   // `event_sponsor_tiers_max_companies_positive` wymaga `max_companies > 0`,
   // wiec zero nie jest „poziomem zamknietym”, tylko odmowa przy zapisie.
   // Poziom zamyka sie przelacznikiem `is_active`, nie zerem w limicie.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: limit firm rowny ZERO przechodzi walidacje formularza, a baza wymaga liczby wiekszej od zera",
-    () => {
-      const draft = {
-        ...emptyTierDraft(10, 1),
-        key: "gold",
-        namePl: "Zloty",
-        nameEn: "Gold",
-        maxCompanies: "0",
-      };
-      expect(body("event_sponsor_tiers_max_companies_positive")).toContain("> 0");
-      expect(validateTierDraft(draft).map((error) => error.field)).toContain("maxCompanies");
-    },
-  );
+  it("zerowy limit firm jest odrzucany przed zapisem", () => {
+    const draft = {
+      ...emptyTierDraft(10, 1),
+      key: "gold",
+      namePl: "Zloty",
+      nameEn: "Gold",
+      maxCompanies: "0",
+    };
+    expect(body("event_sponsor_tiers_max_companies_positive")).toContain("> 0");
+    expect(validateTierDraft(draft).map((error) => error.field)).toContain("maxCompanies");
+  });
 
-  it.fails(
-    "DEFEKT: ranga poziomu ponad 1000 przechodzi walidacje, a baza dopuszcza wylacznie 0-1000",
-    () => {
-      const draft = {
-        ...emptyTierDraft(10, 1),
-        key: "gold",
-        namePl: "Zloty",
-        nameEn: "Gold",
-        rank: String(betweenRange("event_sponsor_tiers_rank_range").max + 1),
-      };
-      expect(validateTierDraft(draft).map((error) => error.field)).toContain("rank");
-    },
-  );
+  it("ranga poziomu większa od 1000 jest odrzucana przed zapisem", () => {
+    const draft = {
+      ...emptyTierDraft(10, 1),
+      key: "gold",
+      namePl: "Zloty",
+      nameEn: "Gold",
+      rank: String(betweenRange("event_sponsor_tiers_rank_range").max + 1),
+    };
+    expect(validateTierDraft(draft).map((error) => error.field)).toContain("rank");
+  });
 
-  it.fails(
-    "DEFEKT: jednoznakowa nazwa poziomu przechodzi walidacje, a baza wymaga co najmniej dwoch znakow",
-    () => {
-      const draft = { ...emptyTierDraft(10, 1), key: "gold", namePl: "Z", nameEn: "G" };
-      expect(betweenRange("event_sponsor_tiers_name_pl_len").min).toBe(2);
-      expect(validateTierDraft(draft)).not.toEqual([]);
-    },
-  );
+  it("jednoznakowa nazwa poziomu jest odrzucana przed zapisem", () => {
+    const draft = { ...emptyTierDraft(10, 1), key: "gold", namePl: "Z", nameEn: "G" };
+    expect(betweenRange("event_sponsor_tiers_name_pl_len").min).toBe(2);
+    expect(validateTierDraft(draft)).not.toEqual([]);
+  });
 
-  it.fails(
-    "DEFEKT: jednoznakowy tytul materialu przechodzi walidacje, a baza wymaga co najmniej dwoch znakow",
-    () => {
-      const draft = {
-        ...emptyMaterialDraft(10),
-        titlePl: "A",
-        titleEn: "A",
-        url: "https://przyklad.example.com/a.pdf",
-      };
-      expect(betweenRange("event_sponsor_materials_title_pl_len").min).toBe(2);
-      expect(validateMaterialDraft(draft)).not.toEqual([]);
-    },
-  );
+  it("jednoznakowy tytuł materiału jest odrzucany przed zapisem", () => {
+    const draft = {
+      ...emptyMaterialDraft(10),
+      titlePl: "A",
+      titleEn: "A",
+      url: "https://przyklad.example.com/a.pdf",
+    };
+    expect(betweenRange("event_sponsor_materials_title_pl_len").min).toBe(2);
+    expect(validateMaterialDraft(draft)).not.toEqual([]);
+  });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: adres materialu i adres STRONY FIRMY to dwa rozne ograniczenia.
+  // Historia naprawionego defektu: adres materialu i adres STRONY FIRMY to dwa rozne ograniczenia.
   // Material wolno wskazac sciezka wewnetrzna (`^(https?://|/)`), bo paczki
   // logotypow leza w naszym magazynie - ale `snapshot_website` musi byc pelnym
   // adresem (`^https?://`). Formularz uzywa do obu tej samej funkcji, wiec
   // „/o-nas” wpisane w pole strony firmy przechodzi i wraca odmowa z bazy.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: sciezka wewnetrzna w polu STRONA FIRMY przechodzi walidacje, a baza wymaga pelnego adresu",
-    () => {
-      const draft = {
-        ...emptySponsorDraft(10),
-        companyId: COMPANY,
-        snapshotName: "Firma Alfa",
-        snapshotWebsite: "/o-nas",
-      };
-      expect(pattern("event_sponsors_snapshot_website_shape")).toBe("^https?://");
-      expect(validateSponsorDraft(draft).map((error) => error.field)).toContain("snapshotWebsite");
-    },
-  );
+  it("strona firmy wymaga pełnego adresu zamiast ścieżki względnej", () => {
+    const draft = {
+      ...emptySponsorDraft(10),
+      companyId: COMPANY,
+      snapshotName: "Firma Alfa",
+      snapshotWebsite: "/o-nas",
+    };
+    expect(pattern("event_sponsors_snapshot_website_shape")).toBe("^https?://");
+    expect(validateSponsorDraft(draft).map((error) => error.field)).toContain("snapshotWebsite");
+  });
 
-  it.fails(
-    "DEFEKT: jednoznakowy kraj migawki przechodzi walidacje, a baza wymaga 2-120 znakow",
-    () => {
-      const draft = {
-        ...emptySponsorDraft(10),
-        companyId: COMPANY,
-        snapshotName: "Firma Alfa",
-        snapshotCountry: "P",
-      };
-      expect(betweenRange("event_sponsors_snapshot_country_len").min).toBe(2);
-      expect(validateSponsorDraft(draft)).not.toEqual([]);
-    },
-  );
+  it("jednoznakowy kraj migawki jest odrzucany przed zapisem", () => {
+    const draft = {
+      ...emptySponsorDraft(10),
+      companyId: COMPANY,
+      snapshotName: "Firma Alfa",
+      snapshotCountry: "P",
+    };
+    expect(betweenRange("event_sponsors_snapshot_country_len").min).toBe(2);
+    expect(validateSponsorDraft(draft)).not.toEqual([]);
+  });
 
   // ---------------------------------------------------------------------------
   // DEFEKT ODWROTNY: tu formularz jest OSTRZEJSZY od bazy i zabiera organizatorowi
@@ -343,21 +324,18 @@ describe("walidacja szkicu vs to, co baza naprawde przyjmie", () => {
   // moga byc opublikowani bez poziomu (i tak sie ich publikuje: „Patroni medialni”
   // to sekcja bez podzialu na poziomy). Formularz blokuje kazda role.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: opublikowany PATRON MEDIALNY bez poziomu jest dozwolony przez baze, a formularz go blokuje",
-    () => {
-      const draft = {
-        ...emptySponsorDraft(10),
-        companyId: COMPANY,
-        snapshotName: "Redakcja Przyklad",
-        role: "media_partner" as const,
-        isPublished: true,
-        tierId: "",
-      };
-      expect(body("event_sponsors_published_sponsor_needs_tier")).toContain("role <> 'sponsor'");
-      expect(validateSponsorDraft(draft)).toEqual([]);
-    },
-  );
+  it("patron medialny może być opublikowany bez poziomu sponsorskiego", () => {
+    const draft = {
+      ...emptySponsorDraft(10),
+      companyId: COMPANY,
+      snapshotName: "Redakcja Przyklad",
+      role: "media_partner" as const,
+      isPublished: true,
+      tierId: "",
+    };
+    expect(body("event_sponsors_published_sponsor_needs_tier")).toContain("role <> 'sponsor'");
+    expect(validateSponsorDraft(draft)).toEqual([]);
+  });
 
   it("opublikowany SPONSOR bez poziomu jest blokowany po obu stronach - to zachowanie zostaje", () => {
     const draft = {

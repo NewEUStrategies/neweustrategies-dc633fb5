@@ -177,7 +177,7 @@ export function EventGroupsPanel({ eventId }: { eventId: string }) {
                   <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                   {t("adminEventTerms.groups.editAction")}
                 </Button>
-                {row.is_system ? null : (
+                {row.is_system || row.is_default ? null : (
                   <Button
                     variant="ghost"
                     size="sm"

@@ -990,7 +990,7 @@ describe("zakładka „Wystawcy”", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: zakładka wystawców jest jednocześnie WYSZUKIWARKĄ, ale ma tylko
+  // Historia naprawionego defektu: zakładka wystawców jest jednocześnie WYSZUKIWARKĄ, ale ma tylko
   // JEDEN stan pustki. Po wpisaniu frazy, do której nic nie pasuje, ekran mówi
   // `exhibitors.empty`, czyli „Wydarzenie nie ma jeszcze wystawców." - a to
   // nieprawda o stanie bazy: wystawcy są, tylko nie pasują do filtra.
@@ -1001,7 +1001,7 @@ describe("zakładka „Wystawcy”", () => {
   // pasujących do wyszukiwania." Naprawa to drugi klucz (albo `emptyLabel`
   // zależny od `exhibitorQuery !== ""`), dokładnie jak u uczestników.
   // ---------------------------------------------------------------------------
-  it.fails("DEFEKT: pusty wynik WYSZUKIWANIA wystawców mówi „wydarzenie nie ma wystawców”", () => {
+  it("brak wyników wyszukiwania wystawców ma odrębny komunikat", () => {
     h.sponsors = [sponsorRow()];
     renderuj();
     zakladka(`${W}tabExhibitors`);

@@ -429,12 +429,10 @@ describe("ScannerApp - dostępność", () => {
 });
 
 // ---------------------------------------------------------------------------
-// DEFEKT. Test poniżej opisuje zachowanie, którego organizm NIE MA - i dlatego
-// jest `it.fails`. Zieleń znaczy, że defekt zniknął i test trzeba przepiąć
-// na zwykłe `it`.
+// Regresja: stopka musi zachować prawidłowe zagnieżdżenie HTML.
 // ---------------------------------------------------------------------------
-describe("ScannerApp - defekty", () => {
-  it.fails("stopka ze skrótem wydarzenia nie wkłada bloku do akapitu", () => {
+describe("ScannerApp - regresje", () => {
+  it("stopka skanera ma poprawne zagnieżdżenie HTML", () => {
     // `ScannerApp.tsx` zamyka ekran w `<p>...<Badge/></p>`, a `Badge` renderuje
     // `<div>`. To jest niepoprawny HTML: React zgłasza przy każdym renderze
     // ekranu bramki „<div> cannot be a descendant of <p>", a parser przeglądarki

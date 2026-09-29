@@ -3,7 +3,8 @@
 // ADRES JEST WYMAGANY I SPRAWDZANY. Material bez adresu jest pozycja, ktora na
 // stronie publicznej nie prowadzi nigdzie; dopuszczamy `https://` albo sciezke
 // wewnetrzna, bo paczki logotypow leza w naszym magazynie.
-import { useEffect, useState } from "react";
+import { useDialogDraftSession } from "@/lib/events/useDialogDraftSession";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +19,7 @@ import { AdminFormTextRow } from "@/components/admin/molecules/AdminFormTextRow"
 import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow";
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import {
-  SPONSOR_MAX_NAME,
+  SPONSOR_MATERIAL_MAX_TITLE,
   emptyMaterialDraft,
   materialDraftFromRow,
   materialDraftToInput,
@@ -55,13 +56,13 @@ export function SponsorMaterialDialog({
   const [draft, setDraft] = useState<MaterialDraft>(() => emptyMaterialDraft(nextSortOrder));
   const [touched, setTouched] = useState(false);
 
-  useEffect(() => {
+  useDialogDraftSession(open, `${sponsorId}:${material?.id ?? "new"}`, () => {
     if (!open) return;
     setDraft(
       material === null ? emptyMaterialDraft(nextSortOrder) : materialDraftFromRow(material),
     );
     setTouched(false);
-  }, [open, material, nextSortOrder]);
+  });
 
   const errors = validateMaterialDraft(draft);
   const errorFor = (field: keyof MaterialDraft): string | null => {
@@ -111,14 +112,14 @@ export function SponsorMaterialDialog({
             label={t("adminEventSponsors.sponsors.materials.dialog.titlePl")}
             value={draft.titlePl}
             onValueChange={(value) => set("titlePl", value)}
-            maxLength={SPONSOR_MAX_NAME}
+            maxLength={SPONSOR_MATERIAL_MAX_TITLE}
             error={errorFor("titlePl")}
           />
           <AdminFormTextRow
             label={t("adminEventSponsors.sponsors.materials.dialog.titleEn")}
             value={draft.titleEn}
             onValueChange={(value) => set("titleEn", value)}
-            maxLength={SPONSOR_MAX_NAME}
+            maxLength={SPONSOR_MATERIAL_MAX_TITLE}
           />
           <AdminFormTextRow
             className="sm:col-span-2"

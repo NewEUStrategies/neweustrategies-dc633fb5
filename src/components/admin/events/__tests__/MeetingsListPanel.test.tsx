@@ -646,34 +646,31 @@ describe("KOLIZJA: odwołanie spotkania PO akceptacji", () => {
     expect(h.success).not.toHaveBeenCalled();
   });
 
-  it.fails(
-    "ZAPIS W TOKU NIE BLOKUJE POTWIERDZENIA: drugie kliknięcie wysyła DRUGIE odwołanie",
-    async () => {
-      // Defekt. `confirmCancel` nie patrzy na `setStatusMutation.isPending`,
-      // a przycisk potwierdzenia nie ma `disabled` - dwa kliknięcia w trakcie
-      // trwającego zapisu to dwa wywołania `admin_event_meeting_set_status` dla
-      // TEGO SAMEGO spotkania. Drugie kończy się odmową `meeting_not_active`,
-      // czyli czerwonym komunikatem o błędzie po operacji, która się UDAŁA.
-      // Wzorzec „blokuj przycisk na czas zapisu" stoi obok, w
-      // `ArrangeMeetingDialog` (`!arrange.isPending` w `canSubmit`) i w
-      // `MeetingTableDialog` (`isSaving`), więc ten ekran jest tu wyjątkiem.
-      h.meetings.mockResolvedValue([wiersz({ status: "accepted" })]);
-      h.setStatus.mockReturnValue(nigdy());
-      panel();
-      await screen.findByRole("listitem");
+  it("podwójne kliknięcie wysyła tylko jedno odwołanie spotkania", async () => {
+    // Defekt. `confirmCancel` nie patrzy na `setStatusMutation.isPending`,
+    // a przycisk potwierdzenia nie ma `disabled` - dwa kliknięcia w trakcie
+    // trwającego zapisu to dwa wywołania `admin_event_meeting_set_status` dla
+    // TEGO SAMEGO spotkania. Drugie kończy się odmową `meeting_not_active`,
+    // czyli czerwonym komunikatem o błędzie po operacji, która się UDAŁA.
+    // Wzorzec „blokuj przycisk na czas zapisu" stoi obok, w
+    // `ArrangeMeetingDialog` (`!arrange.isPending` w `canSubmit`) i w
+    // `MeetingTableDialog` (`isSaving`), więc ten ekran jest tu wyjątkiem.
+    h.meetings.mockResolvedValue([wiersz({ status: "accepted" })]);
+    h.setStatus.mockReturnValue(nigdy());
+    panel();
+    await screen.findByRole("listitem");
 
-      fireEvent.click(przycisk(`${L}.cancelAction`));
-      const potwierdz = within(potwierdzenie()).getByRole("button", { name: `${L}.cancelAction` });
-      fireEvent.click(potwierdz);
-      fireEvent.click(potwierdz);
+    fireEvent.click(przycisk(`${L}.cancelAction`));
+    const potwierdz = within(potwierdzenie()).getByRole("button", { name: `${L}.cancelAction` });
+    fireEvent.click(potwierdz);
+    fireEvent.click(potwierdz);
 
-      // `mutate` odpala funkcję mutacji w mikrozadaniu, więc czekamy na PIERWSZE
-      // wywołanie, zanim policzymy wszystkie - inaczej test padałby na zerze,
-      // czyli z innego powodu niż opisany defekt.
-      await waitFor(() => expect(h.setStatus).toHaveBeenCalled());
-      expect(h.setStatus).toHaveBeenCalledTimes(1);
-    },
-  );
+    // `mutate` odpala funkcję mutacji w mikrozadaniu, więc czekamy na PIERWSZE
+    // wywołanie, zanim policzymy wszystkie - inaczej test padałby na zerze,
+    // czyli z innego powodu niż opisany defekt.
+    await waitFor(() => expect(h.setStatus).toHaveBeenCalled());
+    expect(h.setStatus).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("nagłówek i dostępność", () => {

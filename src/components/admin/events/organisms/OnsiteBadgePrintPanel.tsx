@@ -51,7 +51,7 @@ export function OnsiteBadgePrintPanel({
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [selected, setSelected] = useState<Record<string, { printed: boolean }>>({});
   const [templateId, setTemplateId] = useState(NO_TEMPLATE);
 
   const searchQ = useCheckinSearch(eventId, query);
@@ -61,10 +61,7 @@ export function OnsiteBadgePrintPanel({
 
   const templates = templatesQ.data ?? [];
   const rows = searchQ.data ?? [];
-  const selectedIds = useMemo(
-    () => Object.keys(selected).filter((id) => selected[id] === true),
-    [selected],
-  );
+  const selectedIds = useMemo(() => Object.keys(selected), [selected]);
 
   const template = templates.find((row) => row.id === templateId) ?? null;
   const size =
@@ -88,12 +85,17 @@ export function OnsiteBadgePrintPanel({
     [templates, t],
   );
 
-  const reprintRisk = rows.some(
-    (row) => selected[row.person_id] === true && row.badge_printed === true,
-  );
+  const reprintRisk =
+    Object.values(selected).some((person) => person.printed) ||
+    rows.some((row) => selected[row.person_id] !== undefined && row.badge_printed === true);
 
-  const toggle = (personId: string, next: boolean) => {
-    setSelected((current) => ({ ...current, [personId]: next }));
+  const toggle = (personId: string, next: boolean, printed: boolean) => {
+    setSelected((current) => {
+      const selection = { ...current };
+      if (next) selection[personId] = { printed };
+      else delete selection[personId];
+      return selection;
+    });
   };
 
   const run = async () => {
@@ -147,7 +149,7 @@ export function OnsiteBadgePrintPanel({
             eventId,
             personId: card.personId,
             templateId: templateId === NO_TEMPLATE ? undefined : templateId,
-            reason: "initial",
+            reason: "bulk_preprint",
           });
         } catch (error) {
           toast.error(adminOnsiteErrorMessage(error));
@@ -221,8 +223,10 @@ export function OnsiteBadgePrintPanel({
                 return (
                   <li key={row.person_id} className="flex items-center gap-3 p-3">
                     <Checkbox
-                      checked={selected[row.person_id] === true}
-                      onCheckedChange={(next) => toggle(row.person_id, next === true)}
+                      checked={selected[row.person_id] !== undefined}
+                      onCheckedChange={(next) =>
+                        toggle(row.person_id, next === true, row.badge_printed === true)
+                      }
                       aria-label={`${row.first_name} ${row.last_name}`}
                     />
                     <div className="min-w-0 flex-1">
@@ -269,7 +273,7 @@ export function OnsiteBadgePrintPanel({
           onClick={() =>
             setSelected((current) => {
               const next = { ...current };
-              for (const row of rows) next[row.person_id] = true;
+              for (const row of rows) next[row.person_id] = { printed: row.badge_printed === true };
               return next;
             })
           }

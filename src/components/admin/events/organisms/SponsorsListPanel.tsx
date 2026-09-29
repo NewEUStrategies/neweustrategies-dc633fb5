@@ -10,7 +10,7 @@
 //
 // PUBLIKACJA HURTOWA IDZIE JEDNYM RPC. Klikanie przelacznika w dwudziestu
 // wierszach to dwadziescia zapytan i dwadziescia okazji na polowiczny stan.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ChevronDown, Eye, EyeOff, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
@@ -86,6 +86,14 @@ export function SponsorsListPanel({ eventId }: { eventId: string }) {
   const total = rows[0]?.total_count ?? 0;
   const tiers = tiersQ.data ?? [];
   const nextSortOrder = rows.reduce((max, row) => Math.max(max, row.sort_order), 0) + 10;
+
+  useEffect(() => {
+    setSelected([]);
+  }, [eventId, role, published, tierId, search, page, pageSize]);
+
+  useEffect(() => {
+    if (listQ.isSuccess && rows.length === 0 && page > 1) setPage((current) => current - 1);
+  }, [listQ.isSuccess, rows.length, page]);
 
   const fail = (error: unknown) => toast.error(adminSponsorErrorMessage(error));
 

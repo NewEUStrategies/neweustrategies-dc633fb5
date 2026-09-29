@@ -35,7 +35,9 @@ export function MeetingExchangeBoard({ slug }: { slug: string }) {
   const [tab, setTab] = useState("meetings");
 
   const exchange = useMeetingExchange(slug);
-  const meetings = useMyMeetings(slug);
+  const meetings = useMyMeetings(
+    exchange.isSuccess && exchange.data.myRegistrationId !== null ? slug : null,
+  );
 
   if (exchange.isPending) {
     return (

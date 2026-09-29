@@ -285,7 +285,7 @@ describe("MeetingExchangeBoard - blokady są stopniowane, nie binarne", () => {
 });
 
 describe("MeetingExchangeBoard - zapytania puszczane mimo blokady", () => {
-  it.fails("DEFEKT: lista spotkań jest odpytywana także dla osoby NIEZAPISANEJ", async () => {
+  it("osoba niezapisana nie uruchamia zapytania o listę spotkań", async () => {
     // `useMyMeetings(slug)` stoi obok `useMeetingExchange(slug)` i rusza
     // BEZWARUNKOWO - decyzja „czy ten człowiek w ogóle ma tu spotkania"
     // zapada dopiero z odpowiedzi PIERWSZEGO zapytania, a drugie już poszło.

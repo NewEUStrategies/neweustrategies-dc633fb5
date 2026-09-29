@@ -213,7 +213,12 @@ describe("fabryka kluczy pamieci podrecznej", () => {
       "companies",
       "alfa",
     ]);
-    expect(sponsorKeys.detail(PRZYPIECIE)).toEqual(["event-sponsors", "detail", PRZYPIECIE]);
+    expect(sponsorKeys.detail(WYDARZENIE, PRZYPIECIE)).toEqual([
+      "event-sponsors",
+      WYDARZENIE,
+      "detail",
+      PRZYPIECIE,
+    ]);
   });
 
   // KLUCZ LISTY NIESIE CALY FILTR. Dwa filtry to dwie rozne odpowiedzi bazy:
@@ -265,16 +270,18 @@ describe("fabryka kluczy pamieci podrecznej", () => {
     );
   });
 
-  // SZCZEGOL STOI POZA GALEZIA WYDARZENIA - i to jest przyczyna DRUGIEGO
-  // uniewaznienia w `useSponsorMutation`. Bez niego zapis materialu nie
-  // odswiezalby okna, w ktorym ten material wlasnie powstal.
-  it("szczegol przypiecia NIE lezy w galezi wydarzenia - stad drugie uniewaznienie", () => {
-    expect(sponsorKeys.detail(PRZYPIECIE)[1]).toBe("detail");
-    expect(sponsorKeys.detail(PRZYPIECIE)).not.toContain(WYDARZENIE);
+  // Szczegol dzieli galaz z lista i poziomami, wiec jedno uniewaznienie wystarcza.
+  it("szczegol przypiecia lezy w galezi wydarzenia", () => {
+    expect(sponsorKeys.detail(WYDARZENIE, PRZYPIECIE)[2]).toBe("detail");
+    expect(sponsorKeys.detail(WYDARZENIE, PRZYPIECIE).slice(0, 2)).toEqual(
+      sponsorKeys.event(WYDARZENIE),
+    );
   });
 
   it("kazde przypiecie ma wlasny szczegol", () => {
-    expect(sponsorKeys.detail(PRZYPIECIE)).not.toEqual(sponsorKeys.detail(OBCE_PRZYPIECIE));
+    expect(sponsorKeys.detail(WYDARZENIE, PRZYPIECIE)).not.toEqual(
+      sponsorKeys.detail(INNE_WYDARZENIE, OBCE_PRZYPIECIE),
+    );
   });
 });
 
@@ -359,18 +366,20 @@ describe("brama `enabled` - para „pyta / nie pyta”", () => {
   it("szczegol przypiecia z identyfikatorem IDZIE do bazy", async () => {
     const wiersz = szczegolPrzypiecia();
     api.fetchSponsorDetail.mockResolvedValue(wiersz);
-    const { result, queryClient } = renderHookWithQueryClient(() => useSponsorDetail(PRZYPIECIE));
+    const { result, queryClient } = renderHookWithQueryClient(() =>
+      useSponsorDetail(WYDARZENIE, PRZYPIECIE),
+    );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(api.fetchSponsorDetail).toHaveBeenCalledExactlyOnceWith(PRZYPIECIE);
-    expect(queryClient.getQueryData(sponsorKeys.detail(PRZYPIECIE))).toBe(wiersz);
+    expect(queryClient.getQueryData(sponsorKeys.detail(WYDARZENIE, PRZYPIECIE))).toBe(wiersz);
   });
 
   // BRAK PRZYPIECIA TO `null`, NIE PUSTA TABLICA. Okno edycji rozroznia „jeszcze
   // nie wiem" (`undefined`) od „nie ma czego edytowac" (`null`) - od tego zalezy,
   // czy klucz `internal_note` wejdzie do ladunku zapisu.
   it("szczegol nieistniejacego przypiecia oddaje `null`, a nie `undefined`", async () => {
-    const { result } = renderHookWithQueryClient(() => useSponsorDetail(PRZYPIECIE));
+    const { result } = renderHookWithQueryClient(() => useSponsorDetail(WYDARZENIE, PRZYPIECIE));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toBeNull();
@@ -378,14 +387,16 @@ describe("brama `enabled` - para „pyta / nie pyta”", () => {
 
   // PUSTY IDENTYFIKATOR PRZYPIECIA TO STAN „OKNO ZAMKNIETE".
   it("szczegol BEZ identyfikatora przypiecia nie rusza do bazy", async () => {
-    const { result } = renderHookWithQueryClient(() => useSponsorDetail(""));
+    const { result } = renderHookWithQueryClient(() => useSponsorDetail(WYDARZENIE, ""));
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
 
     expect(api.fetchSponsorDetail).not.toHaveBeenCalled();
   });
 
   it("jawne wylaczenie wstrzymuje szczegol - okno zamkniete nie dobiera notatki", async () => {
-    const { result } = renderHookWithQueryClient(() => useSponsorDetail(PRZYPIECIE, false));
+    const { result } = renderHookWithQueryClient(() =>
+      useSponsorDetail(WYDARZENIE, PRZYPIECIE, false),
+    );
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
 
     expect(api.fetchSponsorDetail).not.toHaveBeenCalled();
@@ -456,7 +467,7 @@ describe("odmowa bazy w odczycie", () => {
 
   it("odmowa szczegolu wychodzi z hakiem jako blad", async () => {
     api.fetchSponsorDetail.mockRejectedValue(ODMOWA);
-    const { result } = renderHookWithQueryClient(() => useSponsorDetail(PRZYPIECIE));
+    const { result } = renderHookWithQueryClient(() => useSponsorDetail(WYDARZENIE, PRZYPIECIE));
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect(result.current.data).toBeUndefined();
@@ -771,7 +782,7 @@ describe("mutacje - zasieg uniewaznienia", () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       const klucze = spy.mock.calls.map((call) => call[0]?.queryKey);
-      expect(klucze).toEqual([sponsorKeys.event(WYDARZENIE), [...sponsorKeys.all, "detail"]]);
+      expect(klucze).toEqual([sponsorKeys.event(WYDARZENIE)]);
     },
   );
 
@@ -781,7 +792,7 @@ describe("mutacje - zasieg uniewaznienia", () => {
     client.setQueryData(sponsorKeys.allPages({ eventId: WYDARZENIE }), LISTA_SPONSOROW);
     client.setQueryData(sponsorKeys.tiers(WYDARZENIE), LISTA_POZIOMOW);
     client.setQueryData(sponsorKeys.companies(WYDARZENIE, "alfa"), LISTA_FIRM);
-    client.setQueryData(sponsorKeys.detail(PRZYPIECIE), null);
+    client.setQueryData(sponsorKeys.detail(WYDARZENIE, PRZYPIECIE), null);
     client.setQueryData(sponsorKeys.list({ eventId: INNE_WYDARZENIE }), LISTA_SPONSOROW);
     client.setQueryData(sponsorKeys.allPages({ eventId: INNE_WYDARZENIE }), LISTA_SPONSOROW);
     client.setQueryData(sponsorKeys.tiers(INNE_WYDARZENIE), LISTA_POZIOMOW);
@@ -805,7 +816,7 @@ describe("mutacje - zasieg uniewaznienia", () => {
     expect(zwietrzal(queryClient, sponsorKeys.allPages({ eventId: WYDARZENIE }))).toBe(true);
     expect(zwietrzal(queryClient, sponsorKeys.tiers(WYDARZENIE))).toBe(true);
     expect(zwietrzal(queryClient, sponsorKeys.companies(WYDARZENIE, "alfa"))).toBe(true);
-    expect(zwietrzal(queryClient, sponsorKeys.detail(PRZYPIECIE))).toBe(true);
+    expect(zwietrzal(queryClient, sponsorKeys.detail(WYDARZENIE, PRZYPIECIE))).toBe(true);
   });
 
   it("zapis sponsora NIE rusza listy ani poziomow INNEGO wydarzenia", async () => {
@@ -831,7 +842,7 @@ describe("mutacje - zasieg uniewaznienia", () => {
     posiej(queryClient);
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(zwietrzal(queryClient, sponsorKeys.detail(PRZYPIECIE))).toBe(true);
+    expect(zwietrzal(queryClient, sponsorKeys.detail(WYDARZENIE, PRZYPIECIE))).toBe(true);
     expect(zwietrzal(queryClient, sponsorKeys.list({ eventId: WYDARZENIE }))).toBe(true);
   });
 
@@ -848,7 +859,7 @@ describe("mutacje - zasieg uniewaznienia", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: naglowek `useEventSponsors.ts` obiecuje wprost „UNIEWAZNIAMY GALAZ
+  // Historia naprawionego defektu: naglowek `useEventSponsors.ts` obiecuje wprost „UNIEWAZNIAMY GALAZ
   // WYDARZENIA (...) zapytania innych wydarzen zostaja nietkniete". Drugie
   // uniewaznienie tej obietnicy nie dotrzymuje: `[...sponsorKeys.all, "detail"]`
   // jest przedrostkiem KAZDEGO szczegolu w calej aplikacji, bo klucz szczegolu
@@ -858,14 +869,13 @@ describe("mutacje - zasieg uniewaznienia", () => {
   // Zeby uniewaznienie dalo sie zawezic, klucz szczegolu musialby lezec
   // w galezi wydarzenia (`event(eventId), "detail", sponsorId`).
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: zapis w JEDNYM wydarzeniu wietrzy szczegoly przypiec INNEGO wydarzenia",
-    async () => {
-      const { result, queryClient } = wyslij(useSaveSponsor, { id: PRZYPIECIE });
-      queryClient.setQueryData(sponsorKeys.detail(OBCE_PRZYPIECIE), null);
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  it("zapis sponsora odświeża szczegóły tylko w jego wydarzeniu", async () => {
+    const { result, queryClient } = wyslij(useSaveSponsor, { id: PRZYPIECIE });
+    queryClient.setQueryData(sponsorKeys.detail(INNE_WYDARZENIE, OBCE_PRZYPIECIE), null);
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(zwietrzal(queryClient, sponsorKeys.detail(OBCE_PRZYPIECIE))).toBe(false);
-    },
-  );
+    expect(zwietrzal(queryClient, sponsorKeys.detail(INNE_WYDARZENIE, OBCE_PRZYPIECIE))).toBe(
+      false,
+    );
+  });
 });

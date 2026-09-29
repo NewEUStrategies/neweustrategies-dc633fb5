@@ -26,7 +26,7 @@
 //   7. ROZMIAR KARTY BIERZE SIĘ Z SZABLONU, a bez szablonu - z wartości
 //      zapasowej modułu; jedno i drugie widać w wygenerowanym dokumencie.
 //
-// JEDEN DEFEKT UDOKUMENTOWANY JAKO `it.fails` przy ostrzeżeniu o powtórnym
+// Regresja naprawionego defektu przy ostrzeżeniu o powtórnym
 // wydruku i jeden przy powodzie wydruku (opisy przy przypadkach).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. (1) Składni dokumentu druku i tabel rozmiarów -
@@ -567,30 +567,27 @@ describe("ostrzeżenie o powtórnym wydruku", () => {
     expect(screen.getByText(`${T}.reprintWarning`)).toBeTruthy();
   });
 
-  it.fails(
-    "DEFEKT: ostrzeżenie patrzy TYLKO na widoczne wiersze - osoba zaznaczona w poprzednim wyszukiwaniu zostaje w partii, ale ostrzeżenie o niej znika",
-    () => {
-      // `reprintRisk` liczy się z `rows` (bieżąca strona wyników), a
-      // `selectedIds` żyje dalej po zmianie frazy. Skutek: operator zaznacza
-      // osobę z wydrukiem, szuka kogoś innego - i ostrzeżenie gaśnie, choć
-      // partia nadal obejmuje tamtą osobę. Wydanie ROTUJE jej kod QR, więc
-      // identyfikator, który ma w ręku, przestaje wpuszczać, a nikt jej o tym
-      // nie uprzedził. Licznik obok („zaznaczono: 1") mówi wtedy prawdę,
-      // a ostrzeżenie - nie.
-      h.rows = [osoba({ badge_printed: true })];
-      const { rerender } = panel();
-      szukaj("Kowalska");
-      zaznacz("Anna Kowalska");
-      expect(screen.getByText(`${T}.reprintWarning`)).toBeTruthy();
+  it("ostrzeżenie o ponownym wydruku obejmuje także ukryte zaznaczone osoby", () => {
+    // `reprintRisk` liczy się z `rows` (bieżąca strona wyników), a
+    // `selectedIds` żyje dalej po zmianie frazy. Skutek: operator zaznacza
+    // osobę z wydrukiem, szuka kogoś innego - i ostrzeżenie gaśnie, choć
+    // partia nadal obejmuje tamtą osobę. Wydanie ROTUJE jej kod QR, więc
+    // identyfikator, który ma w ręku, przestaje wpuszczać, a nikt jej o tym
+    // nie uprzedził. Licznik obok („zaznaczono: 1") mówi wtedy prawdę,
+    // a ostrzeżenie - nie.
+    h.rows = [osoba({ badge_printed: true })];
+    const { rerender } = panel();
+    szukaj("Kowalska");
+    zaznacz("Anna Kowalska");
+    expect(screen.getByText(`${T}.reprintWarning`)).toBeTruthy();
 
-      h.rows = [osoba({ person_id: INNA_OSOBA, first_name: "Piotr", last_name: "Nowak" })];
-      rerender(<OnsiteBadgePrintPanel eventId={WYDARZENIE} eventTitle={TYTUL} />);
-      szukaj("Nowak");
+    h.rows = [osoba({ person_id: INNA_OSOBA, first_name: "Piotr", last_name: "Nowak" })];
+    rerender(<OnsiteBadgePrintPanel eventId={WYDARZENIE} eventTitle={TYTUL} />);
+    szukaj("Nowak");
 
-      expect(screen.getByText(`${T}.selected(count=1)`)).toBeTruthy();
-      expect(screen.getByText(`${T}.reprintWarning`)).toBeTruthy();
-    },
-  );
+    expect(screen.getByText(`${T}.selected(count=1)`)).toBeTruthy();
+    expect(screen.getByText(`${T}.reprintWarning`)).toBeTruthy();
+  });
 });
 
 describe("wydanie partii i dokument druku", () => {
@@ -784,27 +781,24 @@ describe("rejestr wydruków po fakcie", () => {
     expect(h.oknoZamkniete).toBe(0);
   });
 
-  it.fails(
-    "DEFEKT: powód wydruku `initial` jest spoza słownika `BADGE_PRINT_REASONS`, więc baza go MILCZĄCO podmienia",
-    async () => {
-      // `event_badge_prints_reason_values` dopuszcza pięć wartości:
-      // first_issue, reprint_lost, reprint_damaged, data_correction,
-      // bulk_preprint. `_event_badge_print_write` normalizuje wszystko inne
-      // (`v_reason NOT IN (...)` -> first_issue albo reprint_lost). Wysłany
-      // stąd `initial` nigdy więc nie dojedzie do rejestru, a partia wydana
-      // hurtowo powinna zapisać się jako `bulk_preprint` - to jest wartość,
-      // którą baza zna i którą panel „Identyfikatory" umie pokazać.
-      panel();
-      szukaj();
-      zaznacz("Anna Kowalska");
-      fireEvent.click(przycisk(`${T}.generate`));
+  it("wydruk partii wysyła powód bulk_preprint", async () => {
+    // `event_badge_prints_reason_values` dopuszcza pięć wartości:
+    // first_issue, reprint_lost, reprint_damaged, data_correction,
+    // bulk_preprint. `_event_badge_print_write` normalizuje wszystko inne
+    // (`v_reason NOT IN (...)` -> first_issue albo reprint_lost). Wysłany
+    // stąd `initial` nigdy więc nie dojedzie do rejestru, a partia wydana
+    // hurtowo powinna zapisać się jako `bulk_preprint` - to jest wartość,
+    // którą baza zna i którą panel „Identyfikatory" umie pokazać.
+    panel();
+    szukaj();
+    zaznacz("Anna Kowalska");
+    fireEvent.click(przycisk(`${T}.generate`));
 
-      await waitFor(() => expect(h.rejestr).toHaveLength(1));
-      expect(BADGE_PRINT_REASONS as readonly string[]).toContain(
-        (h.rejestr[0] as BadgePrintInput).reason,
-      );
-    },
-  );
+    await waitFor(() => expect(h.rejestr).toHaveLength(1));
+    expect(BADGE_PRINT_REASONS as readonly string[]).toContain(
+      (h.rejestr[0] as BadgePrintInput).reason,
+    );
+  });
 });
 
 describe("szablon i rozmiar karty", () => {

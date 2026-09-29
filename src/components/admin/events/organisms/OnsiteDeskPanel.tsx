@@ -99,7 +99,7 @@ export function OnsiteDeskPanel({ eventId }: { eventId: string }) {
         personId: row.person_id,
         templateId: defaultTemplate?.id,
         copies: 1,
-        reason: "desk",
+        reason: row.badge_printed ? "reprint_lost" : "first_issue",
       },
       {
         onSuccess: () => toast.success(t("adminEventOnsite.desk.toasts.badgePrinted")),
@@ -220,11 +220,13 @@ export function OnsiteDeskPanel({ eventId }: { eventId: string }) {
               </div>
 
               <div className="flex items-center gap-1">
-                <Button size="sm" onClick={() => admit(row, "in")} disabled={checkin.isPending}>
-                  <LogIn className="mr-2 h-4 w-4" aria-hidden="true" />
-                  {t("adminEventOnsite.actions.checkIn")}
-                </Button>
-                {selected !== null && selected.direction_mode === "in_out" ? (
+                {selected?.direction_mode !== "out_only" ? (
+                  <Button size="sm" onClick={() => admit(row, "in")} disabled={checkin.isPending}>
+                    <LogIn className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {t("adminEventOnsite.actions.checkIn")}
+                  </Button>
+                ) : null}
+                {selected !== null && selected.direction_mode !== "in_only" ? (
                   <Button
                     size="sm"
                     variant="outline"

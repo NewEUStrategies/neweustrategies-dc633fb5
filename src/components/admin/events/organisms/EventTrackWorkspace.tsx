@@ -586,7 +586,11 @@ export function EventTrackWorkspace({
                   : adminAgendaErrorMessage(sponsorsQ.error)
               }
               isEmpty={sponsors.length === 0}
-              emptyLabel={t("adminEventAgenda.tracks.workspace.exhibitors.empty")}
+              emptyLabel={t(
+                exhibitorQuery.trim()
+                  ? "adminEventAgenda.tracks.workspace.exhibitors.emptySearch"
+                  : "adminEventAgenda.tracks.workspace.exhibitors.empty",
+              )}
             >
               <ul className="rounded-md border border-border/70">
                 {sponsors.map((row) => (

@@ -448,7 +448,7 @@ describe("usuniecie grupy - para „zwykla moze / systemowa nie moze”", () => 
     expect(wiersz("Uczestnicy")).toBeTruthy();
   });
 
-  // DEFEKT (`it.fails`). Organizm gasi przycisk usuniecia WYLACZNIE przy
+  // Dawny defekt, obecnie chroniony zwykłym testem regresyjnym. Organizm gasi przycisk usuniecia WYLACZNIE przy
   // `is_system`. Grupa zalozona recznie i oznaczona jako DOMYSLNA jest
   // `is_system = false`, wiec przycisk zostaje - a baza takiego usuniecia nie
   // blokuje (`admin_event_group_delete` sprawdza tylko `is_system` i liczbe
@@ -457,7 +457,7 @@ describe("usuniecie grupy - para „zwykla moze / systemowa nie moze”", () => 
   // (`admin_event_registration_submit`: „IF v_group_id IS NULL THEN SELECT ...
   // WHERE g.is_default"), czyli uczestnika bez zadnych uprawnien wydarzenia.
   // Poprawka nalezy do produkcji: warunek `row.is_system || row.is_default`.
-  it.fails("grupa domyslna nie ma przycisku usuniecia", () => {
+  it("grupa domyślna nie udostępnia usuwania", () => {
     h.rows = [groupRow({ is_default: true, is_system: false })];
     renderuj();
     expect(within(wiersz("Uczestnicy")).queryByLabelText(`${G}deleteAction`)).toBeNull();

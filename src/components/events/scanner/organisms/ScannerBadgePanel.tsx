@@ -57,6 +57,7 @@ export function ScannerBadgePanel({
       .then((next) => {
         setBusy(false);
         setResult(next);
+        if (next.deviceLocked) toast.error(scannerErrorMessage("device_locked: temporary lock"));
         if (next.outcome === "printed") toast.success(t("eventScanner.outcomes.printed"));
       })
       .catch((error: unknown) => {
@@ -144,6 +145,9 @@ export function ScannerBadgePanel({
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">
                 {t("eventScanner.badge.previousPrints", { count: result.previousPrints })}
+              </Badge>
+              <Badge variant="outline">
+                {t("eventScanner.badge.copies")}: {result.copies}
               </Badge>
               {result.reason !== null && (
                 <Badge variant="secondary">

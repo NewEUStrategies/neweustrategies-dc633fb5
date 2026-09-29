@@ -330,6 +330,7 @@ export const adminEventAgendaPl = {
           cardTitle: "Wykładowcy",
         },
         exhibitors: {
+          emptySearch: "Brak firm pasujących do wyszukiwania.",
           asideTitle: "Wystawcy",
           asideLead:
             "Partnerzy i wystawcy wydarzenia, których możesz powiązać z sesjami tego pasma.",
@@ -832,6 +833,7 @@ export const adminEventAgendaEn = {
           cardTitle: "Speakers",
         },
         exhibitors: {
+          emptySearch: "No companies match your search.",
           asideTitle: "Exhibitors",
           asideLead: "Event partners and exhibitors you can link to the sessions in this strand.",
           searchPlaceholder: "Search among exhibitors",

@@ -252,19 +252,19 @@ describe("AvailabilityWindowDialog - bramka zapisu odwzorowuje CHECK-i bazy", ()
   });
 
   it.each([
-    ["koniec PRZED początkiem", "2026-09-14T13:00", "2026-09-14T09:30"],
-    ["koniec RÓWNY początkowi", "2026-09-14T09:30", "2026-09-14T09:30"],
-    ["okno KRÓTSZE niż 15 minut", "2026-09-14T09:30", "2026-09-14T09:40"],
-    ["okno DŁUŻSZE niż 16 godzin", "2026-09-14T06:00", "2026-09-14T23:00"],
-  ])("%s zatrzymuje zapis i mówi o tym", (_opis, od, do_) => {
+    ["koniec PRZED początkiem", "2026-09-14T13:00", "2026-09-14T09:30", "order"],
+    ["koniec RÓWNY początkowi", "2026-09-14T09:30", "2026-09-14T09:30", "order"],
+    ["okno KRÓTSZE niż 15 minut", "2026-09-14T09:30", "2026-09-14T09:40", "tooShort"],
+    ["okno DŁUŻSZE niż 16 godzin", "2026-09-14T06:00", "2026-09-14T23:00", "tooLong"],
+  ])("%s zatrzymuje zapis i mówi o tym", (_opis, od, do_, problem) => {
     renderDialog({ draft: szkic({ startsAtLocal: od, endsAtLocal: do_ }) });
     expect((pola().zapisz as HTMLButtonElement).disabled).toBe(true);
-    // Dwa wystąpienia: podpowiedź w nagłówku i czerwone zdanie pod stopką.
-    expect(screen.getAllByText(`${BAZA}.durationHint`).length).toBe(2);
+    expect(screen.getAllByText(`${BAZA}.durationHint`).length).toBe(1);
+    expect(screen.getByRole("alert")).toHaveTextContent(`${BAZA}.validation.${problem}`);
     expect(h.submit).not.toHaveBeenCalled();
   });
 
-  it.fails("DEFEKT: KAŻDY powód odrzucenia szkicu dostaje komunikat o DŁUGOŚCI okna", () => {
+  it("błąd kolejności godzin ma odrębny komunikat walidacji", () => {
     // `validateWindowDraft` rozróżnia CZTERY powody (`order`, `tooShort`,
     // `tooLong`, `noteTooLong`) i robi to celowo - każdy prowadzi do innej
     // poprawki. Ekran skleja je w jedno zdanie, i to akurat w to, które już
@@ -287,7 +287,7 @@ describe("AvailabilityWindowDialog - bramka zapisu odwzorowuje CHECK-i bazy", ()
     renderDialog({ draft: szkic() });
     fireEvent.change(pola().notatka, { target: { value: "x".repeat(301) } });
     expect((pola().zapisz as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getAllByText(`${BAZA}.durationHint`).length).toBe(2);
+    expect(screen.getByRole("alert")).toHaveTextContent(`${BAZA}.validation.noteTooLong`);
   });
 
   it.each([

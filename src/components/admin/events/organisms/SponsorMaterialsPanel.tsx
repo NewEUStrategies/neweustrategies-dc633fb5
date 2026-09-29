@@ -55,7 +55,7 @@ export function SponsorMaterialsPanel({
 }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language.startsWith("en");
-  const detailQ = useSponsorDetail(sponsorId);
+  const detailQ = useSponsorDetail(eventId, sponsorId);
   const save = useSaveSponsorMaterial(eventId);
   const remove = useDeleteSponsorMaterial(eventId);
 
@@ -146,15 +146,17 @@ export function SponsorMaterialsPanel({
                 {row.is_published === true ? (
                   <Badge variant="outline">{t("adminEventSponsors.filters.published")}</Badge>
                 ) : null}
-                <a
-                  href={text(row.url)}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                  aria-label={t("adminEventSponsors.sponsors.materials.dialog.url")}
-                >
-                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                </a>
+                {text(row.url).trim() !== "" ? (
+                  <a
+                    href={text(row.url)}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                    aria-label={t("adminEventSponsors.sponsors.materials.dialog.url")}
+                  >
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  </a>
+                ) : null}
                 <Button
                   variant="ghost"
                   size="icon"

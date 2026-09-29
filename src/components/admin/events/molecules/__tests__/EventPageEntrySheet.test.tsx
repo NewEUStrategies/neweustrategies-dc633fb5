@@ -263,7 +263,7 @@ describe("szkic bierze sie z wiersza, i to TYLKO przy otwarciu", () => {
     expect(screen.queryByLabelText(`${E}icon`)).toBeNull();
   });
 
-  // DEFEKT. Naglowek molekuly obiecuje „RESET TYLKO PRZY OTWARCIU", ale efekt
+  // Historia naprawionego defektu. Naglowek molekuly obiecuje „RESET TYLKO PRZY OTWARCIU", ale efekt
   // resetu ma w zaleznosciach `entry`, czyli OBIEKT wiersza - a ten jest nowy
   // przy kazdym odswiezeniu listy z bazy (`admin_event_pages_list` oddaje swieze
   // obiekty). Wystarczy wiec, ze React Query odswiezy liste w tle - przy
@@ -274,7 +274,7 @@ describe("szkic bierze sie z wiersza, i to TYLKO przy otwarciu", () => {
   //
   // Zaleznoscia powinien byc `entry.id` (tozsamosc POZYCJI, nie obiektu) - tak
   // samo, jak panel trzyma `editedId`, a nie wiersz.
-  it.fails("DEFEKT: odswiezenie wiersza pod otwarta szuflada KASUJE wpisany szkic", () => {
+  it("odświeżenie tej samej pozycji menu zachowuje otwarty szkic", () => {
     const { rerender } = renderuj({ entry: entryRow({ menu_label_pl: "Agenda" }) });
     wpisz("menuLabelPl", "Program");
 

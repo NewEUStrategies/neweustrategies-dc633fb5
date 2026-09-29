@@ -366,7 +366,7 @@ describe("co zatrzymuje zapis PRZED zadaniem", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  // DEFEKT (`it.fails`). Baza ma CHECK `event_terms_has_content`: zgoda bez
+  // Dawny defekt, obecnie chroniony zwykłym testem regresyjnym. Baza ma CHECK `event_terms_has_content`: zgoda bez
   // tresci w zadnym jezyku I BEZ odnosnika jest odrzucana, bo to checkbox pod
   // pustym miejscem - uczestnik akceptowalby cos, czego nie da sie przeczytac.
   // `validateTermDraft` tej reguly NIE ZNA, wiec formularz puszcza taki zapis
@@ -375,7 +375,7 @@ describe("co zatrzymuje zapis PRZED zadaniem", () => {
   // wiec `adminTermsFailure` degraduje go do `adminEventTerms.errors.unknown`
   // („Nie udalo sie wykonac operacji"). Redaktor nie ma jak zgadnac, ze
   // brakuje tresci. Poprawka nalezy do produkcji: regula w szkicu zgody.
-  it.fails("zgoda bez tresci i bez odnosnika nie powinna isc do bazy", () => {
+  it("zgoda bez treści i bez odnośnika jest zatrzymywana przed zapisem", () => {
     renderuj();
     wpisz("key", "rodo");
     wpisz("labelPl", "Zgoda na przetwarzanie danych");

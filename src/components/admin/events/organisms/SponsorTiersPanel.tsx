@@ -142,7 +142,7 @@ export function SponsorTiersPanel({ eventId }: { eventId: string }) {
                   : t("adminEventSponsors.tiers.slotsLeft", { count: row.slots_left })}
               </Badge>
               <AdminFormSwitchRow
-                label={t("adminEventSponsors.tiers.dialog.isActive")}
+                label={`${t("adminEventSponsors.tiers.dialog.isActive")}: ${isEn ? row.name_en || row.name_pl : row.name_pl || row.name_en}`}
                 checked={row.is_active}
                 onCheckedChange={(next) => toggleActive(row, next)}
               />

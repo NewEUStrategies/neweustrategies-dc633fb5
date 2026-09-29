@@ -272,7 +272,12 @@ vi.mock("@/components/admin/events/organisms/SponsorMaterialsPanel", () => ({
 vi.mock("@/lib/events/useEventSponsors", () => ({
   useSponsors: (query: SponsorsQuery) => {
     h.zapytania.push(query);
-    return { data: h.rows, isLoading: h.isLoading, error: h.listError };
+    return {
+      data: h.rows,
+      isLoading: h.isLoading,
+      isSuccess: !h.isLoading && h.listError === null,
+      error: h.listError,
+    };
   },
   useSponsorTiers: () => ({ data: h.poziomy, isLoading: false, error: null }),
   useSaveSponsor: () => ({
@@ -902,7 +907,7 @@ describe("odpiecie firmy", () => {
 
 describe("defekty zaznaczenia i stronicowania", () => {
   // ---------------------------------------------------------------------------
-  // DEFEKT: zaznaczenie PRZEZYWA zmiane filtra. `setRole`, `setPublished`,
+  // Historia naprawionego defektu: zaznaczenie PRZEZYWA zmiane filtra. `setRole`, `setPublished`,
   // `setTierId` i pole szukania wracaja na pierwsza strone, ale NIE czyszcza
   // `selected`. Organizator zaznacza trzy firmy na liscie wszystkich, zaweza
   // filtr do „patroni medialni" - i klika „Opublikuj" widzac pasek „Wybrano: 3",
@@ -910,22 +915,19 @@ describe("defekty zaznaczenia i stronicowania", () => {
   // WIERSZE, ktorych nie widac. Zaznaczenie powinno znikac razem z lista,
   // ktorej dotyczylo.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: zaznaczenie przezywa zmiane filtra - publikacja hurtowa dotyka firm, ktorych nie ma na ekranie",
-    () => {
-      panel();
-      zaznacz(0);
+  it("zmiana filtra sponsorów usuwa poprzednie zaznaczenie", () => {
+    panel();
+    zaznacz(0);
 
-      fireEvent.change(screen.getByLabelText(`${T}.filters.role`), {
-        target: { value: "media_partner" },
-      });
+    fireEvent.change(screen.getByLabelText(`${T}.filters.role`), {
+      target: { value: "media_partner" },
+    });
 
-      expect(screen.queryByRole("button", { name: `${T}.actions.publish` })).toBeNull();
-    },
-  );
+    expect(screen.queryByRole("button", { name: `${T}.actions.publish` })).toBeNull();
+  });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: `total` bierze sie z PIERWSZEGO wiersza odpowiedzi
+  // Historia naprawionego defektu: `total` bierze sie z PIERWSZEGO wiersza odpowiedzi
   // (`rows[0]?.total_count ?? 0`). Pusta strona nie ma wiersza, wiec licznik
   // spada do zera - a `AdminPagination` ukrywa sie przy zerze. Organizator,
   // ktory odpial ostatnia firme ze strony nr 2, widzi zdanie „nie przypieto
@@ -933,29 +935,25 @@ describe("defekty zaznaczenia i stronicowania", () => {
   // nr 1. Licznik powinien przezyc pusta strone (albo panel powinien sam
   // cofnac sie o strone).
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: pusta strona nr 2 zeruje licznik i zabiera stopke - nie ma jak wrocic na strone nr 1",
-    () => {
-      h.rows = [przypiecie({ total_count: 25 })];
-      panel();
-      fireEvent.click(screen.getByTestId("strona-nastepna"));
-      expect(stronicowanie()).toHaveAttribute("data-strona", "2");
+  it("pusta strona sponsorów automatycznie wraca na poprzednią stronę", () => {
+    h.rows = [przypiecie({ total_count: 25 })];
+    panel();
+    fireEvent.click(screen.getByTestId("strona-nastepna"));
+    expect(stronicowanie()).toHaveAttribute("data-strona", "2");
 
-      // Odpiecie OSTATNIEJ firmy stojacej na stronie nr 2 - lista wraca pusta,
-      // ale numer strony zostaje na dwojce. Zadnym filtrem tego nie odtworzymy:
-      // kazda zmiana filtra sama cofa panel na pierwsza strone.
-      fireEvent.click(
-        within(wiersz()).getByRole("button", { name: `${T}.sponsors.deleteConfirm` }),
-      );
-      h.rows = [];
-      fireEvent.click(
-        within(okno()).getByRole("button", { name: `${T}.sponsors.dialog.saveAction` }),
-      );
+    // Odpiecie OSTATNIEJ firmy stojacej na stronie nr 2 - lista wraca pusta,
+    // ale numer strony zostaje na dwojce. Zadnym filtrem tego nie odtworzymy:
+    // kazda zmiana filtra sama cofa panel na pierwsza strone.
+    fireEvent.click(within(wiersz()).getByRole("button", { name: `${T}.sponsors.deleteConfirm` }));
+    h.rows = [];
+    fireEvent.click(
+      within(okno()).getByRole("button", { name: `${T}.sponsors.dialog.saveAction` }),
+    );
 
-      expect(wiersze()).toHaveLength(0);
-      expect(Number(stronicowanie().getAttribute("data-lacznie"))).toBeGreaterThan(0);
-    },
-  );
+    expect(wiersze()).toHaveLength(0);
+    expect(stronicowanie()).toHaveAttribute("data-strona", "1");
+    expect(h.zapytania.at(-1)).toMatchObject({ offset: 0 });
+  });
 });
 
 describe("dostepnosc", () => {

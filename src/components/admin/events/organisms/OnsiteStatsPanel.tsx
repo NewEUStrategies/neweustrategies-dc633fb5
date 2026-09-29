@@ -129,10 +129,12 @@ export function OnsiteStatsPanel({ eventId }: { eventId: string }) {
                       return (
                         <li key={bucket.bucketAt} className="flex items-center gap-3 text-xs">
                           <span className="w-16 shrink-0 tabular-nums text-muted-foreground">
-                            {new Date(bucket.bucketAt).toLocaleTimeString(i18n.language, {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            {Number.isFinite(Date.parse(bucket.bucketAt))
+                              ? new Date(bucket.bucketAt).toLocaleTimeString(i18n.language, {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "-"}
                           </span>
                           <span
                             className="h-2 rounded-sm bg-primary/70"
