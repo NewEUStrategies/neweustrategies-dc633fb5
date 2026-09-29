@@ -31,7 +31,7 @@ export async function fetchAdminEventDetail(eventId: string): Promise<AdminEvent
 export async function saveEventGeneral(
   payload: Record<string, string | string[]>,
 ): Promise<string> {
-  const { data, error } = await supabase.rpc("admin_event_general_save", {
+  const { data, error } = await supabase.rpc("admin_event_general_save_v2", {
     p_payload: asJson(payload),
   });
   if (error) throw error;

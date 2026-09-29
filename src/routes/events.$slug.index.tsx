@@ -264,6 +264,14 @@ function EventOverview() {
 
   const ev = eventQ.data;
   const title = lang === "en" ? ev.title_en || ev.title_pl : ev.title_pl || ev.title_en;
+  const subtitle =
+    lang === "en"
+      ? headerQ.data?.subtitle_en || headerQ.data?.subtitle_pl
+      : headerQ.data?.subtitle_pl || headerQ.data?.subtitle_en;
+  const typeLabel =
+    lang === "en"
+      ? headerQ.data?.type_name_en || headerQ.data?.type_name_pl
+      : headerQ.data?.type_name_pl || headerQ.data?.type_name_en;
   // OPIS MA FALLBACK JĘZYKA DOKŁADNIE TAK, JAK TYTUŁ LINIĘ WYŻEJ.
   //
   // Stało tu `lang === "en" ? ev.description_en : ev.description_pl` - bez
@@ -525,7 +533,7 @@ function EventOverview() {
               )}
             </div>
 
-            <EventOverviewTitle>{title}</EventOverviewTitle>
+            <EventOverviewTitle title={title} subtitle={subtitle} typeLabel={typeLabel} />
 
             {descriptionSection === null ? null : descriptionSection.isLocked ? (
               <section id="event-description" className="mt-8 scroll-mt-24">
