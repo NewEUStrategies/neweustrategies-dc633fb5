@@ -42,7 +42,13 @@
 
 import type { ConsentCategory } from "@/lib/ads/consent";
 import { redactTrackedPath } from "./redactTrackedUrl";
-import { GA4_MEASUREMENT_ID, asGa4MeasurementId } from "./tagIds";
+import {
+  ANALYTICS_ANY_HOST_FLAG,
+  ANALYTICS_HOST_PATTERN,
+  GA4_MEASUREMENT_ID,
+  analyticsAllowedHere,
+  asGa4MeasurementId,
+} from "./tagIds";
 
 export { GA4_MEASUREMENT_ID, GOOGLE_ADS_ID, asGa4MeasurementId, asGoogleAdsId } from "./tagIds";
 
