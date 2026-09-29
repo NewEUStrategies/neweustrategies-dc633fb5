@@ -9910,61 +9910,6 @@ export type Database = {
           },
         ]
       }
-      event_registration_refund_jobs: {
-        Row: {
-          id: string
-          tenant_id: string
-          event_id: string
-          payment_order_id: string
-          registration_id: string
-          state: string
-          attempts: number
-          next_attempt_at: string
-          claim_token: string | null
-          claimed_at: string | null
-          provider_refund_id: string | null
-          last_error: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          tenant_id: string
-          event_id: string
-          payment_order_id: string
-          registration_id: string
-          state?: string
-          attempts?: number
-          next_attempt_at?: string
-          claim_token?: string | null
-          claimed_at?: string | null
-          provider_refund_id?: string | null
-          last_error?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          tenant_id?: string
-          event_id?: string
-          payment_order_id?: string
-          registration_id?: string
-          state?: string
-          attempts?: number
-          next_attempt_at?: string
-          claim_token?: string | null
-          claimed_at?: string | null
-          provider_refund_id?: string | null
-          last_error?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          { foreignKeyName: "event_registration_refund_jobs_payment_order_id_fkey"; columns: ["payment_order_id"]; isOneToOne: true; referencedRelation: "payment_orders"; referencedColumns: ["id"] },
-          { foreignKeyName: "event_registration_refund_jobs_registration_id_fkey"; columns: ["registration_id"]; isOneToOne: false; referencedRelation: "event_registrations"; referencedColumns: ["id"] },
-          { foreignKeyName: "event_registration_refund_jobs_tenant_id_event_id_fkey"; columns: ["tenant_id", "event_id"]; isOneToOne: false; referencedRelation: "events"; referencedColumns: ["tenant_id", "id"] }
-        ]
-      }
       event_registrations: {
         Row: {
           answers: Json
@@ -23069,14 +23014,6 @@ export type Database = {
         }
         Returns: number
       }
-      _event_registration_refunds_claim: {
-        Args: { p_limit?: number }
-        Returns: Json
-      }
-      _event_registration_refunds_settle: {
-        Args: { p_job_id: string; p_claim_token: string; p_refund_id: string | null; p_error: string | null }
-        Returns: boolean
-      }
       _event_ticket_revoked_notices_claim: {
         Args: { p_limit?: number }
         Returns: Json
@@ -24793,14 +24730,6 @@ export type Database = {
       admin_event_person_crm_retry: {
         Args: { p_person_id: string }
         Returns: string
-      }
-      admin_event_publish_readiness: {
-        Args: { p_event_id: string }
-        Returns: string[]
-      }
-      admin_event_refund_jobs: {
-        Args: { p_event_id: string }
-        Returns: Json
       }
       admin_event_registration_decide: {
         Args: { p_payload: Json }
