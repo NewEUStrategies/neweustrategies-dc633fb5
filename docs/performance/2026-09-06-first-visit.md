@@ -106,7 +106,13 @@ naprzemiennie na jednym runnerze, z tym samym syntetycznym układem, przeglądar
 i testami. Każda para dotyczy tego samego języka i stanu cache serwera;
 kolejność baza/kandydat zmienia się między parami. Każda wersja ma siedem
 niezależnych próbek na scenariusz. Porównanie median zachowuje dotychczasowe
-limity: +10% i stały margines czasu, +5% dla rozmiarów. Wszystkie surowe wartości
+limity: +10% i stały margines czasu, +5% dla rozmiarów. Przekroczenie progu czasu
+blokuje CI, gdy wzrost potwierdza również jednostronny test permutacyjny par
+(p ≤0,05, wszystkie 128 zamian etykiet siedmiu par, statystyka: średnia różnica
+czasu). Niepotwierdzone przekroczenie ma status `WARN`, zachowuje wszystkie
+wartości i nie jest deklaracją braku regresji. Mała seria ma ograniczoną moc;
+bezwzględne budżety każdej nawigacji pozostają obowiązkowe niezależnie od p.
+Rozmiary nie podlegają testowi statystycznemu. Wszystkie surowe wartości
 są w raporcie porównania. Brakujące, powtórzone i nieporównywalne próbki blokują
 bramkę. Komenda: `node scripts/performance/run-first-visit.mjs --compare ../baseline ../candidate`,
 a następnie `bun run check:first-visit-regression`.

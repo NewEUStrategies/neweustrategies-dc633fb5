@@ -12,6 +12,27 @@ const timingNoiseMs = {
 };
 const sizes = ["jsBytes", "htmlBytes", "inlineCssBytes"];
 
+// Exact one-sided paired permutation test of the mean timing difference.
+// Under the no-change null, each pair's artifact labels are exchangeable.
+// Enumerate all 2^7 sign assignments, including the observed assignment;
+// no random seed, normal approximation, retry or choice of a better run.
+// https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.permutation_test.html
+export function pairedTimingPValue(before, after) {
+  const differences = before.map((value, index) => after[index] - value);
+  const observed = differences.reduce((sum, value) => sum + value, 0);
+  const tolerance = Math.max(1, Math.abs(observed)) * 1e-12;
+  const permutations = 2 ** differences.length;
+  let atLeastAsSlow = 0;
+  for (let mask = 0; mask < permutations; mask++) {
+    const permuted = differences.reduce(
+      (sum, value, index) => sum + (mask & (1 << index) ? value : -value),
+      0,
+    );
+    if (permuted >= observed - tolerance) atLeastAsSlow++;
+  }
+  return atLeastAsSlow / permutations;
+}
+
 export function compareFirstVisitSamples(baseline, candidate, { path, lang, state }) {
   for (const samples of [baseline, candidate]) {
     if (
@@ -38,12 +59,24 @@ export function compareFirstVisitSamples(baseline, candidate, { path, lang, stat
     }
   }
   return [...Object.keys(timingNoiseMs), ...sizes].map((metric) => {
-    const baselineSamples = baseline.map((sample) => sample[metric]);
-    const candidateSamples = candidate.map((sample) => sample[metric]);
+    // Pair by ID even if a caller supplied the rows in a different order.
+    const values = (samples) =>
+      firstVisitSamples.map((id) => samples.find((sample) => sample.sample === id)[metric]);
+    const baselineSamples = values(baseline);
+    const candidateSamples = values(candidate);
     const before = median(baselineSamples);
     const after = median(candidateSamples);
     // Preserve the existing budgets. Better sampling must not hide regressions.
     const limit = sizes.includes(metric) ? before * 1.05 : before * 1.1 + timingNoiseMs[metric];
+    const pValue = sizes.includes(metric)
+      ? null
+      : pairedTimingPValue(baselineSamples, candidateSamples);
+    const verdict =
+      after <= limit
+        ? "within-limit"
+        : pValue !== null && pValue > 0.05
+          ? "unconfirmed-timing-change"
+          : "regression";
     return {
       lang,
       state,
@@ -51,7 +84,9 @@ export function compareFirstVisitSamples(baseline, candidate, { path, lang, stat
       before,
       after,
       limit,
-      pass: after <= limit,
+      pass: verdict !== "regression",
+      verdict,
+      pValue,
       baselineSamples,
       candidateSamples,
     };
@@ -83,7 +118,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   writeFileSync("reports/first-visit-comparison.json", JSON.stringify(rows, null, 2) + "\n");
   for (const row of rows) {
     console.log(
-      `${row.pass ? "PASS" : "FAIL"} ${row.lang}/${row.state} ${row.metric}: ${row.before.toFixed(1)} -> ${row.after.toFixed(1)} (limit ${row.limit.toFixed(1)}; baseline [${row.baselineSamples.join(", ")}], candidate [${row.candidateSamples.join(", ")}])`,
+      `${row.verdict === "unconfirmed-timing-change" ? "WARN" : row.pass ? "PASS" : "FAIL"} ${row.lang}/${row.state} ${row.metric}: ${row.before.toFixed(1)} -> ${row.after.toFixed(1)} (limit ${row.limit.toFixed(1)}${row.pValue === null ? "" : `; paired p=${row.pValue.toFixed(4)}`}; baseline [${row.baselineSamples.join(", ")}], candidate [${row.candidateSamples.join(", ")}])`,
     );
   }
   if (rows.some((row) => !row.pass)) process.exitCode = 1;

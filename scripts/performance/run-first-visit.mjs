@@ -2,7 +2,12 @@ import { spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import { firstVisitCases, firstVisitComparisonPlan } from "./firstVisitPlan.ts";
+import {
+  firstVisitCases,
+  firstVisitComparisonPlan,
+  firstVisitEnvironment,
+  firstVisitReportDirectory,
+} from "./firstVisitPlan.ts";
 
 const require = createRequire(import.meta.url);
 const cli = require.resolve("@playwright/test/cli");
@@ -21,12 +26,10 @@ const artifacts = mode
         baseline: process.env.NES_PERFORMANCE_BASELINE === "1",
       },
     ];
-const reportDirectory = (baseline) =>
-  baseline ? "reports/first-visit-baseline" : "reports/first-visit";
 rmSync("reports/first-visit-comparison.json", { force: true });
 for (const artifact of artifacts) {
   // Never allow a previous/partial run to supply a missing sample.
-  rmSync(reportDirectory(artifact.baseline), { recursive: true, force: true });
+  rmSync(firstVisitReportDirectory(artifact.baseline), { recursive: true, force: true });
 }
 
 function run(artifact, name, suite, grep) {
@@ -45,10 +48,7 @@ function run(artifact, name, suite, grep) {
       stdio: "inherit",
       env: {
         ...process.env,
-        NES_PERFORMANCE_ARTIFACT_ROOT: artifact.artifactRoot,
-        NES_PERFORMANCE_BASELINE: artifact.baseline ? "1" : "0",
-        NES_PERFORMANCE_REPORT_DIR: reportDirectory(artifact.baseline),
-        NES_PERFORMANCE_CASE: `${artifact.baseline ? "baseline" : "candidate"}-${name}`,
+        ...firstVisitEnvironment(artifact, name),
       },
     },
   );

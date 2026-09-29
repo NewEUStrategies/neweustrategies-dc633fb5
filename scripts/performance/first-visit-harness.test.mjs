@@ -5,8 +5,57 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { compareFirstVisitSamples } from "./compare-first-visit.mjs";
-import { firstVisitCases, firstVisitComparisonPlan, firstVisitSamples } from "./firstVisitPlan.ts";
+import { compareFirstVisitSamples, pairedTimingPValue } from "./compare-first-visit.mjs";
+import {
+  firstVisitCases,
+  firstVisitComparisonPlan,
+  firstVisitEnvironment,
+  firstVisitSamples,
+} from "./firstVisitPlan.ts";
+import { fixtureResponse } from "./homeFixture.ts";
+import { popupFixtureSettings } from "./popupFixture.ts";
+
+test("isolated reports preserve the scenario identifier used by the SSR popup fixture", async () => {
+  const saved = new Map(
+    Object.keys(
+      firstVisitEnvironment({ artifactRoot: "/candidate", baseline: false }, "manual"),
+    ).map((key) => [key, process.env[key]]),
+  );
+  const outputs = new Set();
+  try {
+    for (const baseline of [true, false]) {
+      for (const name of ["en-warm-1", "popup-first-render"]) {
+        const side = baseline ? "baseline" : "candidate";
+        Object.assign(
+          process.env,
+          firstVisitEnvironment({ artifactRoot: `/${side}`, baseline }, name),
+        );
+        const { default: config } = await import(
+          `../../playwright.performance.config.ts?${side}-${name}`
+        );
+        assert.equal(config.outputDir, `test-results-performance/${side}-${name}`);
+        assert.equal(
+          config.reporter[1][1].outputFile,
+          `reports/first-visit-playwright/${side}-${name}.json`,
+        );
+        outputs.add(config.outputDir);
+        const reply = await fixtureResponse(
+          new Request("http://127.0.0.1:4199/rest/v1/newsletter_settings"),
+        );
+        assert.deepEqual(
+          await reply.json(),
+          name === "popup-first-render" ? [popupFixtureSettings] : [],
+        );
+      }
+    }
+    assert.equal(outputs.size, 4);
+  } finally {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
 
 const expected = { path: "/en", lang: "en", state: "warm" };
 const samples = () =>
@@ -105,6 +154,7 @@ test("the reported 176 -> 312 ms FCP regression still fails with the original li
   const fcp = rows.find((row) => row.metric === "fcpMs");
   assert.equal(fcp.limit, 293.6);
   assert.equal(fcp.pass, false);
+  assert.equal(fcp.pValue, 1 / 128);
   assert.deepEqual(fcp.baselineSamples, Array(7).fill(176));
   assert.deepEqual(fcp.candidateSamples, Array(7).fill(312));
   assert.ok(rows.filter((row) => row.metric !== "fcpMs").every((row) => row.pass));
@@ -130,12 +180,56 @@ test("unchanged budgets tolerate isolated outliers but reject a consistent regre
     );
     assert.ok(Math.abs(row.limit - limit) < 0.00001);
     assert.equal(row.pass, true);
-    candidate[3][metric] = limit + 1;
+    // A timing regression must be repeatable, not just a split in a noisy
+    // distribution. Byte budgets remain unconditional at the original +5%.
+    if (metric.endsWith("Ms")) {
+      for (const sample of candidate) sample[metric] = limit + 1;
+    } else candidate[3][metric] = limit + 1;
     row = compareFirstVisitSamples(original, candidate, expected).find(
       (row) => row.metric === metric,
     );
     assert.equal(row.pass, false);
   }
+});
+
+test("paired evidence distinguishes unchanged, faster and consistently slower timings", () => {
+  const before = [100, 200, 300, 400, 500, 600, 700];
+  assert.equal(pairedTimingPValue(before, before), 1);
+  assert.equal(
+    pairedTimingPValue(
+      before,
+      before.map((value) => value - 50),
+    ),
+    1,
+  );
+  assert.equal(
+    pairedTimingPValue(
+      before,
+      before.map((value) => value + 50),
+    ),
+    1 / 128,
+  );
+  // Only one of seven observations slowed down: not evidence of a consistent change.
+  assert.equal(pairedTimingPValue(before, [1000, ...before.slice(1)]), 0.5);
+});
+
+test("the identical-artifact LCP split remains visible as a warning, with all observations", () => {
+  // Job 109552266025: application JS/HTML/CSS were identical on both sides.
+  const before = [840, 876, 856, 856, 1256, 856, 880];
+  const after = [1160, 924, 1236, 1228, 860, 1160, 852];
+  const baseline = samples().map((row, index) => ({ ...row, lcpMs: before[index] }));
+  const candidate = samples().map((row, index) => ({ ...row, lcpMs: after[index] }));
+  const rows = compareFirstVisitSamples(baseline, candidate, expected);
+  const lcp = rows.find((row) => row.metric === "lcpMs");
+  assert.equal(lcp.before, 856);
+  assert.equal(lcp.after, 1160);
+  assert.equal(lcp.limit, 1041.6);
+  assert.equal(lcp.pValue, 19 / 128);
+  assert.equal(lcp.verdict, "unconfirmed-timing-change");
+  assert.equal(lcp.pass, true);
+  assert.deepEqual(lcp.baselineSamples, before);
+  assert.deepEqual(lcp.candidateSamples, after);
+  assert.deepEqual(compareFirstVisitSamples(baseline, [...candidate].reverse(), expected), rows);
 });
 
 test("the CLI writes all 32 comparisons and exits nonzero for a regression or missing file", () => {

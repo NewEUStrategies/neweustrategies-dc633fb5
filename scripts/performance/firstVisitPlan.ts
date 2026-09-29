@@ -7,6 +7,23 @@ export const firstVisitPages = [
 ] as const;
 export const firstVisitCacheStates = ["cold", "warm"] as const;
 
+export const firstVisitReportDirectory = (baseline: boolean) =>
+  baseline ? "reports/first-visit-baseline" : "reports/first-visit";
+
+export function firstVisitEnvironment(
+  artifact: { artifactRoot: string; baseline: boolean },
+  measurementCase: string,
+) {
+  return {
+    NES_PERFORMANCE_ARTIFACT_ROOT: artifact.artifactRoot,
+    NES_PERFORMANCE_BASELINE: artifact.baseline ? "1" : "0",
+    NES_PERFORMANCE_REPORT_DIR: firstVisitReportDirectory(artifact.baseline),
+    // The fixture uses this identifier to select scenario-specific SSR data.
+    // Keep output-file namespacing in the Playwright config instead.
+    NES_PERFORMANCE_CASE: measurementCase,
+  };
+}
+
 export function firstVisitCases() {
   return firstVisitSamples.flatMap((sample) =>
     firstVisitPages.flatMap((page) =>
