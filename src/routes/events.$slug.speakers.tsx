@@ -21,9 +21,7 @@ import { useTranslation } from "react-i18next";
 
 import { publicEventBySlugQueryOptions } from "@/lib/community/publicQueries";
 import { uiLang } from "@/lib/i18n/format";
-import {
-  EVENT_PORTAL_CONTENT_WIDE_CLASS,
-} from "@/components/events/public/atoms/EventPortalContent";
+import { EVENT_PORTAL_CONTENT_WIDE_CLASS } from "@/components/events/public/atoms/EventPortalContent";
 import { EventModulePage } from "@/components/events/public/molecules/EventModulePage";
 import { EventSpeakersGrid } from "@/components/events/public/organisms/EventSpeakersGrid";
 import {
@@ -83,7 +81,11 @@ function EventSpeakersTab() {
   } | null>(null);
 
   return (
-    <EventModulePage slug={slug} module="speakers" contentClassName={EVENT_PORTAL_CONTENT_WIDE_CLASS}>
+    <EventModulePage
+      slug={slug}
+      module="speakers"
+      contentClassName={EVENT_PORTAL_CONTENT_WIDE_CLASS}
+    >
       <EventSpeakersGrid
         eventId={eventId}
         onSelect={(speaker) =>

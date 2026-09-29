@@ -18,9 +18,10 @@ import { getStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/st
 export type RefundResult = { ok: true; adjustmentId: string | null } | { ok: false; error: string };
 
 /** Dozwolone przez nas powody korekty - trafiają do `metadata`, bo enum Stripe jest węższy. */
-export type RefundReason = "oversold" | "duplicate" | "error";
+export type RefundReason = "oversold" | "duplicate" | "error" | "registration_rejected";
 
 const REASON_TEXT: Record<RefundReason, string> = {
+  registration_rejected: "The organiser rejected the paid event registration",
   oversold: "Event sold out before payment was fulfilled",
   duplicate: "Duplicate payment",
   error: "Fulfilment error",
@@ -28,6 +29,7 @@ const REASON_TEXT: Record<RefundReason, string> = {
 
 /** Enum akceptowany przez `stripe.refunds.create` - węższy niż nasze powody domenowe. */
 const STRIPE_REFUND_REASON: Record<RefundReason, Stripe.RefundCreateParams.Reason> = {
+  registration_rejected: "requested_by_customer",
   oversold: "requested_by_customer",
   duplicate: "duplicate",
   error: "requested_by_customer",

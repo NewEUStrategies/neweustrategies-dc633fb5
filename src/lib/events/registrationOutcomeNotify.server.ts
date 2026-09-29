@@ -180,9 +180,9 @@ const ORGANIZER_ALERTS: Readonly<
     },
     body: {
       pl: (v) =>
-        `${v.lead}uczestnik zapłacił za bilet wymagający akceptacji - przyjmij albo odrzuć zgłoszenie (odmowa wymaga zwrotu płatności).`,
+        `${v.lead}uczestnik zapłacił za bilet wymagający akceptacji - przyjmij albo odrzuć zgłoszenie (odmowa zleca zwrot; sprawdź dziennik zwrotów przy płatności grupowej).`,
       en: (v) =>
-        `${v.lead}the attendee paid for a ticket that needs approval - approve or decline (declining requires a refund).`,
+        `${v.lead}the attendee paid for a ticket that needs approval - approve or decline (declining queues a refund; check the refund journal for group payments).`,
     },
   },
   closed: {
@@ -192,9 +192,9 @@ const ORGANIZER_ALERTS: Readonly<
     },
     body: {
       pl: (v) =>
-        `${v.lead}wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Zwróć płatność w panelu płatności.`,
+        `${v.lead}wpłata dotarła do zgłoszenia odwołanego albo odrzuconego. Sprawdź dziennik zwrotów po odrzuceniu; anulowanie i zwrot części grupy rozlicz w panelu płatności.`,
       en: (v) =>
-        `${v.lead}a payment reached a cancelled or rejected registration. Refund it in the payments panel.`,
+        `${v.lead}a payment reached a cancelled or rejected registration. Check the rejection refund journal; handle cancellation and partial group refunds in the payments panel.`,
     },
   },
 };

@@ -22,6 +22,7 @@ type ErrorCopy = {
   /** Etykiety skrótów nawigacyjnych na stronie 404. */
   notFoundLinks: { home: string; analyses: string; pricing: string; quiz: string; contact: string };
   contactSupport: string;
+  renderErrorTitle: string;
   errorTitle: string;
   errorBody: string;
   tryAgain: string;
@@ -68,6 +69,7 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
       contact: "Kontakt",
     },
     contactSupport: "Napisz do nas",
+    renderErrorTitle: "Błąd wyświetlania",
     errorTitle: "Nie udało się załadować strony",
     errorBody: "Coś poszło nie tak po naszej stronie. Odśwież stronę lub wróć na stronę główną.",
     tryAgain: "Spróbuj ponownie",
@@ -155,6 +157,7 @@ const COPY: Record<"pl" | "en", ErrorCopy> = {
       contact: "Contact",
     },
     contactSupport: "Contact support",
+    renderErrorTitle: "Render error",
     errorTitle: "This page didn't load",
     errorBody: "Something went wrong on our end. Try refreshing or head back home.",
     tryAgain: "Try again",

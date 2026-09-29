@@ -66,7 +66,12 @@ describe("SpeakerProfileCard - SSR i hydratacja", () => {
 
   for (const view of [
     <SpeakerProfileCard key="static" speaker={speaker()} lang="pl" />,
-    <SpeakerProfileCard key="interactive" speaker={speaker()} lang="en" onSelect={() => undefined} />,
+    <SpeakerProfileCard
+      key="interactive"
+      speaker={speaker()}
+      lang="en"
+      onSelect={() => undefined}
+    />,
     <SpeakerProfileCard
       key="fallback"
       speaker={speaker({ avatar_url: null, card_photo_url: null })}

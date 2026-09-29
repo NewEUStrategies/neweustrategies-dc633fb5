@@ -227,7 +227,7 @@ const ZAPIS_POZYCJI = "admin_event_page_upsert";
 const ODPIECIE = "admin_event_page_detach";
 const KOLEJNOSC = "admin_event_pages_reorder";
 const UTWORZENIE = "admin_event_page_create";
-const ZAPIS_USTAWIEN = "admin_event_general_save";
+const ZAPIS_USTAWIEN = "admin_event_general_save_v2";
 const GRUPY = "admin_event_groups_list";
 
 /** Wiersz listy podstron. `module: null` = zwykla pozycja zalozona przez redakcje. */
@@ -451,7 +451,7 @@ describe("uklad strony glownej i tryb prezentacji - jeden pasek zapisu", () => {
   // ze uklad strony glownej jest juz zmieniony - a on zostal, jaki byl.
   it("odmowa zapisu mowi o odmowie i NIE mowi jednoczesnie, ze zapisano", async () => {
     h.rows = [strona({ page_slug: "prasa" })];
-    h.rpc?.setError(ZAPIS_USTAWIEN, "permission denied for function admin_event_general_save");
+    h.rpc?.setError(ZAPIS_USTAWIEN, "permission denied for function admin_event_general_save_v2");
     await panel();
 
     fireEvent.click(przelacznik("event-home-advanced"));

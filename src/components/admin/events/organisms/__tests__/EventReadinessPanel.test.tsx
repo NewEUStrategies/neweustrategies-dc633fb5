@@ -30,7 +30,7 @@
 // ja w calosci i idzie tu PRAWDZIWA. Przedmiotem dowodu jest droga „cztery RPC
 // -> raport -> wiersz ze skrotem", a nie sam rachunek.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
@@ -70,6 +70,7 @@ const R = "adminEvents.studio.readiness.";
 /** Komplet zrodel gotowosci - i ANI JEDNEGO wiecej. */
 const RPC_GOTOWOSCI = [
   "admin_event_agenda_conflicts",
+  "admin_event_publish_readiness",
   "admin_event_rooms_list",
   "admin_event_seat_maps_list",
   "admin_event_sessions_list",
@@ -103,6 +104,7 @@ function planuj(
 ): void {
   const puste = (ile: number): Record<string, string>[] =>
     Array.from({ length: ile }, (_unused, index) => ({ id: `wiersz-${index}` }));
+  stub().setData("admin_event_publish_readiness", []);
   stub().setData("admin_event_sessions_list", options.sesje ?? []);
   stub().setData("admin_event_rooms_list", puste(options.sale ?? 0));
   stub().setData("admin_event_agenda_conflicts", puste(options.kolizje ?? 0));
@@ -300,5 +302,45 @@ describe("EventReadinessPanel - plan sali", () => {
     await poczekaj(4);
     expect(await screen.findByText(`${R}allDone`)).toBeInTheDocument();
     expect(stub().names()).not.toContain("admin_event_seat_maps_list");
+  });
+});
+
+describe("EventReadinessPanel - unavailable data", () => {
+  it("does not claim readiness before the requests complete", () => {
+    planuj();
+    panel({ status: "draft" });
+    expect(screen.getByRole("status")).toHaveTextContent(`${R}loading`);
+    expect(screen.queryByText(`${R}readyToPublish`)).toBeNull();
+  });
+
+  it.each(RPC_GOTOWOSCI)("fails closed when %s fails and retries the reads", async (rpc) => {
+    planuj();
+    stub().setError(rpc, "unavailable");
+    panel({ status: "draft" });
+    expect(await screen.findByRole("alert")).toHaveTextContent(`${R}loadError`);
+    expect(screen.queryByText(`${R}readyToPublish`)).toBeNull();
+    stub().setData(rpc, []);
+    fireEvent.click(screen.getByRole("button", { name: `${R}retry` }));
+    expect(await screen.findByText(`${R}readyToPublish`)).toBeInTheDocument();
+    expect(stub().callsFor(rpc)).toHaveLength(2);
+  });
+
+  it.each([null, ["new_unknown_policy"]])(
+    "rejects an invalid policy response: %j",
+    async (data) => {
+      planuj();
+      stub().setData("admin_event_publish_readiness", data);
+      panel({ status: "draft" });
+      expect(await screen.findByRole("alert")).toHaveTextContent(`${R}loadError`);
+      expect(screen.queryByText(`${R}readyToPublish`)).toBeNull();
+    },
+  );
+
+  it("shows database blockers even when the local rows look complete", async () => {
+    planuj();
+    stub().setData("admin_event_publish_readiness", ["timezone"]);
+    panel({ status: "draft" });
+    expect(await screen.findByText(`${R}blocked(count=1)`)).toBeInTheDocument();
+    expect(screen.getByText(`${R}checks.timezone(count=0)`)).toBeInTheDocument();
   });
 });

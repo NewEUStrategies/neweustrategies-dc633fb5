@@ -26,6 +26,31 @@ import i18n from "@/lib/i18n";
 
 export const adminEventRegistrationPl = {
   adminEventRegistration: {
+    refundJournal: {
+      title: "Zwroty po odrzuceniu zgłoszenia",
+      description:
+        "Ostatnie 100 zwrotów. Odrzucenie opłaconego zgłoszenia zleca zwrot automatycznie. Zwrot wspólnej płatności, gdy część grupy nadal uczestniczy, wymaga decyzji organizatora w panelu płatności.",
+      refresh: "Odśwież zwroty",
+      loadError: "Nie udało się pobrać zwrotów. Spróbuj ponownie.",
+      loading: "Ładowanie zwrotów",
+      empty: "Brak zleceń zwrotu.",
+      unnamed: "Uczestnik",
+      order: "Zamówienie: {{id}}",
+      attempts: "Próby: {{count}}",
+      reviewHint:
+        "Ta płatność obejmuje aktywne zgłoszenia. Rozlicz zwrot częściowy w panelu płatności.",
+      failedHint:
+        "Sprawdź dziennik płatności. System ponawia do 10 prób; dalsza obsługa wymaga interwencji.",
+      states: {
+        pending: "Oczekuje",
+        processing: "Przetwarzanie",
+        submitted: "Zlecono operatorowi płatności",
+        completed: "Zwrot potwierdzony",
+        failed: "Błąd zwrotu",
+        cancelled: "Zlecenie wycofane",
+        needs_review: "Wymaga decyzji",
+      },
+    },
     nav: {
       sectionTitle: "Zapisy",
       sectionsNavLabel: "Sekcje zapisów wydarzenia",
@@ -1250,6 +1275,31 @@ export const adminEventRegistrationPl = {
 
 export const adminEventRegistrationEn = {
   adminEventRegistration: {
+    refundJournal: {
+      title: "Refunds after registration rejection",
+      description:
+        "Latest 100 refunds. Rejecting a paid registration queues an automatic refund. A shared payment with active group members requires an organiser decision in the payments panel.",
+      refresh: "Refresh refunds",
+      loadError: "Could not load refunds. Please retry.",
+      loading: "Loading refunds",
+      empty: "No refund requests.",
+      unnamed: "Attendee",
+      order: "Order: {{id}}",
+      attempts: "Attempts: {{count}}",
+      reviewHint:
+        "This payment covers active registrations. Arrange a partial refund in the payments panel.",
+      failedHint:
+        "Check the payment log. The system retries up to 10 times; further action requires intervention.",
+      states: {
+        pending: "Pending",
+        processing: "Processing",
+        submitted: "Submitted to the payment provider",
+        completed: "Refund confirmed",
+        failed: "Refund failed",
+        cancelled: "Request withdrawn",
+        needs_review: "Needs a decision",
+      },
+    },
     nav: {
       sectionTitle: "Registrations",
       sectionsNavLabel: "Event registration sections",

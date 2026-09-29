@@ -29,6 +29,7 @@ const EXCLUDED: Readonly<Record<string, string>> = {
   "check:bundle": "mierzy artefakt buildu (.output) - wymaga `bun run build`",
   "check:chunks": "graf chunków z artefaktu buildu",
   "check:entry-purity": "chunk startowy z artefaktu buildu",
+  "check:server-entry-purity": "artefakt serwera po buildzie; wymagane w jobie build",
   "check:platform-coverage": "instrumentowany pomiar i rachunek wykonania testów - job test w CI",
   "check:db-contract": "sonduje Data API - wymaga SUPABASE_URL i klucza",
   // Ta sama klasa co `check:db-contract`: bramka PO WDROŻENIU, pyta wdrożoną

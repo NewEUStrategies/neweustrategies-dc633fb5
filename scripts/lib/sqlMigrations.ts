@@ -16,6 +16,17 @@ import { join } from "node:path";
 
 export const MIGRATIONS_DIR = "supabase/migrations";
 
+/** Ordered canonical SQL. The migration-lane gate verifies Drizzle twins before CI replay. */
+export function loadMigrationFiles(): { file: string; sql: string }[] {
+  return readdirSync(MIGRATIONS_DIR)
+    .filter((file) => file.endsWith(".sql"))
+    .sort()
+    .map((file) => ({
+      file,
+      sql: stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8")),
+    }));
+}
+
 export interface FnDef {
   /** `schema.nazwa/liczba_parametrow` - klucz stanu koncowego. */
   readonly key: string;
@@ -212,14 +223,10 @@ function splitTopLevel(list: string): string[] {
  * naruszenia (4 falszywe trafienia w 20260724100000).
  */
 export function extractLatestDefinitions(): Map<string, FnDef> {
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
   const createRe = /CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([A-Za-z0-9_."]+)\s*\(/gi;
   const latest = new Map<string, FnDef>();
 
-  for (const file of files) {
-    const sql = stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
+  for (const { file, sql } of loadMigrationFiles()) {
     createRe.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = createRe.exec(sql)) !== null) {
@@ -280,15 +287,11 @@ export function extractLatestDefinitions(): Map<string, FnDef> {
  * podstawiona przez wczesniejszy trigger BEFORE mija taka bramke bez sladu.
  */
 export function extractLatestTriggerDefinitions(): Map<string, TriggerDef> {
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((f) => f.endsWith(".sql"))
-    .sort();
   const createRe =
     /CREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?TRIGGER\s+([A-Za-z0-9_."]+)([\s\S]*?);/gi;
   const latest = new Map<string, TriggerDef>();
 
-  for (const file of files) {
-    const sql = stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8"));
+  for (const { file, sql } of loadMigrationFiles()) {
     createRe.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = createRe.exec(sql)) !== null) {

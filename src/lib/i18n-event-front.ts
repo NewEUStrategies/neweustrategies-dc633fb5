@@ -163,6 +163,7 @@ export const eventFrontPl = {
       // -------------------------------------------------------------------
       tabsLabel: "Zakładki wydarzenia",
       breadcrumbEvents: "Wydarzenia",
+      breadcrumbLabel: "Ścieżka nawigacji",
       moduleEyebrow: "Sekcja wydarzenia",
       tabs: {
         overview: "Strona główna",
@@ -858,6 +859,7 @@ export const eventFrontEn = {
       // Polish side for the full reasoning.
       tabsLabel: "Event tabs",
       breadcrumbEvents: "Events",
+      breadcrumbLabel: "Breadcrumb navigation",
       moduleEyebrow: "Event section",
       tabs: {
         overview: "Event home",

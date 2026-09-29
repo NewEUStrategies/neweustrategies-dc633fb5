@@ -18,6 +18,7 @@
 // It is SSR-safe: React renders the fallback when a boundary catches during
 // server rendering, so a single malformed widget can no longer 500 the page.
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { errorCopy } from "@/lib/errorCopy";
 import { reportPlatformError } from "@/lib/platform-error-reporting";
 
 interface Props {
@@ -108,7 +109,7 @@ export class RenderErrorBoundary extends Component<Props, State> {
           overflowWrap: "anywhere",
         }}
       >
-        <strong>Render error</strong> · {this.props.label}: {error.message}
+        <strong>{errorCopy().renderErrorTitle}</strong> · {this.props.label}: {error.message}
       </div>
     );
   }

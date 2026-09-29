@@ -530,9 +530,12 @@ INSERT INTO public.event_session_signups (tenant_id, event_id, session_id, user_
 INSERT INTO public.event_session_saves (tenant_id, event_id, session_id, user_id) VALUES
   ('77777777-7777-7777-7777-777777777777', '77100000-0000-0000-0000-000000000003',
    '77300000-0000-0000-0000-000000000003', '77000000-0000-0000-0000-000000000032');
-INSERT INTO public.event_rsvps (tenant_id, event_id, user_id, status) VALUES
-  ('77777777-7777-7777-7777-777777777777', '77100000-0000-0000-0000-000000000003',
-   '77000000-0000-0000-0000-000000000032', 'going');
+-- Paid admission now creates the legacy projection itself.
+SELECT pg_temp.assert(EXISTS(SELECT 1 FROM public.event_rsvps
+  WHERE tenant_id = '77777777-7777-7777-7777-777777777777'
+    AND event_id = '77100000-0000-0000-0000-000000000003'
+    AND user_id = '77000000-0000-0000-0000-000000000032' AND status = 'going'),
+  '77/paid: paid group admission creates RSVP before refund');
 
 DO $$
 DECLARE

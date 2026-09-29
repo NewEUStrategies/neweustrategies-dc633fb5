@@ -246,10 +246,7 @@ describe("SpeakerProfileCard - redakcyjny katalog", () => {
 
   it("odrzuca niebezpieczny adres", () => {
     const { container } = render(
-      <SpeakerProfileCard
-        speaker={speaker({ card_cta_url: "javascript:alert(1)" })}
-        lang="pl"
-      />,
+      <SpeakerProfileCard speaker={speaker({ card_cta_url: "javascript:alert(1)" })} lang="pl" />,
     );
     expect(screen.queryByRole("link")).toBeNull();
     expect(container.innerHTML).not.toContain("javascript:");

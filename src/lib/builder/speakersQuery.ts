@@ -222,7 +222,10 @@ async function fetchPublicSpeakers(input: {
  * prelegentow, wiec blad daje po prostu karty bez logo.
  */
 export async function fetchLogos(
-  call: () => PromiseLike<{ data: { speaker_profile_id: string; logo_url: string }[] | null; error: unknown }>,
+  call: () => PromiseLike<{
+    data: { speaker_profile_id: string; logo_url: string }[] | null;
+    error: unknown;
+  }>,
 ): Promise<Map<string, string>> {
   try {
     const { data, error } = await call();

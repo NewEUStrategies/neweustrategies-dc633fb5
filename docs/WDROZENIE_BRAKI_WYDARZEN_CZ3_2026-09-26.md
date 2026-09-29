@@ -162,6 +162,12 @@ kodem - również.
 
 ## 5. Poza zakresem
 
+Aktualizacja kodu z 2026-09-29: migracja `20260929113000` dodaje zawiadomienie
+o zamknięciu pojedynczego gościa, kolejkę zwrotów po odrzuceniu oraz RSVP po
+opłaconym awansie. Poniższa lista opisuje stan historyczny tej części wdrożenia.
+Wspólna płatność grupy z nadal aktywnymi uczestnikami wymaga rozliczenia częściowego
+w panelu płatności; jej stan jest widoczny w dzienniku zwrotów wydarzenia.
+
 - Zamknięcia pojedynczego gościa (organizator odrzuca albo anuluje jednego
   gościa, gość wycofuje się sam, zwrot na wierszu gościa) nie wysyłają
   zawiadomienia - to decyzja o jednym wierszu, a nie o grupie.

@@ -23,6 +23,7 @@ import {
   type AdminEventDetailRow,
   type EventStatus,
 } from "@/lib/events/eventDetailApi";
+import { publicationReadinessKey } from "@/lib/events/usePublishReadiness";
 import { adminEventKeys } from "@/lib/events/useAdminEvents";
 
 export const eventDetailKeys = {
@@ -47,6 +48,7 @@ function useDetailInvalidation(eventId: string): () => void {
   const qc = useQueryClient();
   return () => {
     void qc.invalidateQueries({ queryKey: eventDetailKeys.one(eventId) });
+    void qc.invalidateQueries({ queryKey: publicationReadinessKey(eventId) });
     void qc.invalidateQueries({ queryKey: adminEventKeys.all });
     // Stara lista w sekcji spolecznosci czyta te same wiersze.
     void qc.invalidateQueries({ queryKey: ["admin-community-events"] });

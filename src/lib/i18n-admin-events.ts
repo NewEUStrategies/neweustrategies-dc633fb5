@@ -525,6 +525,9 @@ export const adminEventsPl = {
       errors: {
         notFound:
           "Tego wydarzenia nie ma w tej organizacji. Wróć na listę i otwórz je jeszcze raz.",
+        invalidEventType: "Wybierz aktywny rodzaj wydarzenia w tej organizacji.",
+        publishBlocked:
+          "Uzupełnij blokujące braki wskazane w panelu gotowości na pulpicie wydarzenia.",
         invalidEvent: "Brakuje identyfikatora wydarzenia. Otwórz wydarzenie z listy jeszcze raz.",
         invalidTitles: "Tytuł jest wymagany w obu językach. Uzupełnij PL i EN, zanim zapiszesz.",
         invalidSlug: "Adres może mieć od 3 do 120 znaków: małe litery, cyfry i myślniki.",
@@ -1005,6 +1008,10 @@ export const adminEventsPl = {
       },
 
       readiness: {
+        loading: "Sprawdzanie gotowości…",
+        loadError:
+          "Nie udało się sprawdzić gotowości. Publikacja wymaga poprawnego odczytu danych.",
+        retry: "Sprawdź ponownie",
         title: "Gotowość do publikacji",
         description:
           "Warunki liczą się ze stanu wydarzenia. Blokada wstrzymuje publikację, ostrzeżenie tylko mówi, że strona będzie niepełna.",
@@ -1681,6 +1688,8 @@ export const adminEventsEn = {
       errors: {
         notFound:
           "This event does not exist in this organisation. Go back to the list and open it again.",
+        invalidEventType: "Choose an active event type in this organisation.",
+        publishBlocked: "Resolve the blocking items in the readiness panel on the event dashboard.",
         invalidEvent: "The event id is missing. Open the event from the list again.",
         invalidTitles: "The title is required in both languages. Fill in PL and EN before saving.",
         invalidSlug: "The address takes 3 to 120 characters: lowercase letters, digits and dashes.",
@@ -2100,6 +2109,9 @@ export const adminEventsEn = {
       },
 
       readiness: {
+        loading: "Checking readiness…",
+        loadError: "Readiness could not be checked. Publication requires a successful data read.",
+        retry: "Check again",
         title: "Publication readiness",
         description:
           "The conditions are derived from the state of the event. A blocker holds the publication back, a warning only says the page will be incomplete.",

@@ -203,7 +203,9 @@ export interface SpeakerRoleInstitution {
  * typowe stanowisko na poczatku, aby karta nadal pokazala dwa fakty, np.
  * „Prezes Zarzadu IPN" -> „Prezes Zarzadu" + „IPN".
  */
-function splitCopiedAffiliation(value: string): Pick<SpeakerRoleInstitution, "position" | "institution"> {
+function splitCopiedAffiliation(
+  value: string,
+): Pick<SpeakerRoleInstitution, "position" | "institution"> {
   const commaParts = value.split(/\s*[,;|]\s*/, 2);
   const commaPosition = textOrNull(commaParts[0]);
   const commaInstitution = textOrNull(commaParts[1]);
@@ -362,7 +364,8 @@ export function speakerCardDraftErrors(
   else if (photoUrl !== "" && !/^https:\/\/\S+$/.test(photoUrl)) errors.photoUrl = "photoShape";
   const logoUrl = draft.institutionLogoUrl.trim();
   if (codePoints(logoUrl) > SPEAKER_CARD_URL_MAX) errors.institutionLogoUrl = "urlTooLong";
-  else if (logoUrl !== "" && !/^https:\/\/\S+$/.test(logoUrl)) errors.institutionLogoUrl = "photoShape";
+  else if (logoUrl !== "" && !/^https:\/\/\S+$/.test(logoUrl))
+    errors.institutionLogoUrl = "photoShape";
   if (draft.color.trim() !== "" && hexColorOrNull(draft.color) === null)
     errors.color = "colorShape";
   return errors;

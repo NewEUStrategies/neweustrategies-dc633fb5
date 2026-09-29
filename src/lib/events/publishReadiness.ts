@@ -92,6 +92,8 @@ export interface ReadinessSession {
 
 export interface ReadinessInput {
   event: ReadinessEvent;
+  /** Authoritative blockers from the publication RPC, including database-only validation. */
+  publicationBlockers?: readonly ReadinessCheckKey[];
   sessions: readonly ReadinessSession[];
   conflictCount: number;
   roomCount: number;
@@ -137,7 +139,8 @@ export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
 
   const startsAt = event.startsAt ? Date.parse(event.startsAt) : Number.NaN;
   const endsAt = event.endsAt ? Date.parse(event.endsAt) : Number.NaN;
-  const scheduleOk = Number.isFinite(startsAt) && (!Number.isFinite(endsAt) || endsAt > startsAt);
+  const scheduleOk =
+    Number.isFinite(startsAt) && (!event.endsAt || (Number.isFinite(endsAt) && endsAt > startsAt));
 
   const liveSessions = sessions.filter((session) => session.status !== "cancelled");
   const draftSessions = liveSessions.filter((session) => session.status !== "published");
@@ -205,6 +208,12 @@ export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
     ...seatingChecks,
   ];
 
+  for (const item of checks) {
+    if (input.publicationBlockers?.includes(item.key)) {
+      item.passed = false;
+      item.severity = "blocker";
+    }
+  }
   const failed = checks.filter((item) => !item.passed);
   const blockers = failed.filter((item) => item.severity === "blocker");
   const warnings = failed.filter((item) => item.severity === "warning");

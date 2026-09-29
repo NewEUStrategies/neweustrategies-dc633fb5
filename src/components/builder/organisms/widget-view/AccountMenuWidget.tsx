@@ -410,7 +410,6 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
           (sesja -> profil -> powitanie). Powitania i imienia NIE ucinamy -
           pełny tekst zawsze widoczny. */}
       <span className="hidden sm:inline-block min-w-[9rem] shrink-0 whitespace-nowrap text-right align-middle">
-
         {triggerLabel}
       </span>
     </button>
@@ -477,9 +476,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         <span className="flex-1 min-w-0">
           <span className="account-menu-title block truncate">{entry.label}</span>
           {entry.desc ? (
-            <span className="account-menu-subtitle block line-clamp-2">
-              {entry.desc}
-            </span>
+            <span className="account-menu-subtitle block line-clamp-2">{entry.desc}</span>
           ) : null}
         </span>
         <ChevronRight
@@ -705,9 +702,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
                       {displayName || user.email}
                     </span>
                     {displayName && (
-                      <span className="account-menu-subtitle block truncate">
-                        {user.email}
-                      </span>
+                      <span className="account-menu-subtitle block truncate">{user.email}</span>
                     )}
                   </span>
                 </div>
