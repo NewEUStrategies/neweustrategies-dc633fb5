@@ -48,3 +48,28 @@ export function asGoogleAdsId(value: unknown): string {
   const id = value.trim().toUpperCase();
   return GOOGLE_ADS_ID_RE.test(id) ? id : "";
 }
+
+/**
+ * Hosty, na których tag Google wolno uruchomić. Podgląd (lovableproject.com,
+ * lovable.app, localhost) NIE przekazuje danych - inaczej testy redakcji
+ * i agenta zanieczyszczałyby statystyki GA4 i konwersje Google Ads.
+ */
+export const ANALYTICS_HOST_PATTERN = /^(www\.)?neweuropeanstrategies\.com$/i;
+
+/**
+ * Flaga globalna wyłączająca bramkę hosta - ustawia ją wyłącznie setup testów
+ * (jsdom działa na `localhost`). Ustawienie jej w cudzej przeglądarce nie daje
+ * żadnych uprawnień: najwyżej ta przeglądarka wysyła własne odsłony.
+ */
+export const ANALYTICS_ANY_HOST_FLAG = "__NES_GA_ANY_HOST__";
+
+export function isAnalyticsHost(hostname: string | null | undefined): boolean {
+  return typeof hostname === "string" && ANALYTICS_HOST_PATTERN.test(hostname.trim());
+}
+
+/** Czy bieżąca karta może przekazywać dane do Google (tylko przeglądarka). */
+export function analyticsAllowedHere(): boolean {
+  if (typeof window === "undefined") return false;
+  const flag: unknown = Reflect.get(window, ANALYTICS_ANY_HOST_FLAG);
+  return flag === true || isAnalyticsHost(window.location.hostname);
+}

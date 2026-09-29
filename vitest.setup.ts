@@ -54,3 +54,9 @@ if (typeof navigator !== "undefined") {
     navigator.sendBeacon = () => true;
   }
 }
+
+// Tag Google działa tylko na neweuropeanstrategies.com (tagIds.ts); jsdom
+// stoi na localhost, więc suity tagów zdejmują bramkę hosta flagą.
+if (typeof window !== "undefined") {
+  Reflect.set(window, "__NES_GA_ANY_HOST__", true);
+}
