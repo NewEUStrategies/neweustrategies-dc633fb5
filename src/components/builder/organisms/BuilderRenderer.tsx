@@ -1,3 +1,5 @@
+import { columnImageSlot } from "@/lib/builder/imageSlot";
+import { BuilderImageSlotContext, useBuilderImageSlot } from "@/lib/builder/imageSlotContext";
 // Read-only renderer for public pages. Applies all Section settings
 // (layout, background layers, overlay, border, shape dividers, typography).
 import {
@@ -244,8 +246,8 @@ export function BuilderRenderer({
   const rootRef = useRef<HTMLDivElement | null>(null);
   // Pierwszy render MUSI byc deterministyczny (desktop-first), inaczej SSR
   // wyemituje "desktop", a pierwszy render kliencki na telefonie policzy
-  // "mobile" (rozjazd hydratacji + CLS). Rzeczywiste urzadzenie ustawia
-  // useIsomorphicLayoutEffect ponizej (przed malowaniem na kliencie).
+  // "mobile" (rozjazd hydratacji). CSS ustala pierwszy mobilny układ,
+  // a pomiar kontenera aktualizuje stan po hydratacji.
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? "desktop");
   // Keep normalized node identities stable through viewport/context updates.
   // Editors replace the document immutably when its content changes.
@@ -505,6 +507,7 @@ const RenderSection = memo(function RenderSection({
   lang: "pl" | "en";
   device: Device;
 }) {
+  const parentSlot = useBuilderImageSlot();
   const accessCtx = useAccessContext();
   const tabsCfg = section.tabs;
   const tabsEnabled = !!(tabsCfg?.enabled && tabsCfg.items && tabsCfg.items.length > 0);
@@ -608,12 +611,10 @@ const RenderSection = memo(function RenderSection({
       {typoCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(typoCss) }} />}
       {(() => {
         const mobileOrderCss = visibleCols
-          .filter(
-            (c): c is ColumnNode => c.kind === "column" && typeof c.order?.mobile === "number",
-          )
+          .filter((c): c is ColumnNode => c.kind === "column" && !!c.order)
           .map(
             (c) =>
-              `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order!.mobile};}`,
+              `[data-sec-id="${section.id}"] [data-col-id="${c.id}"]{order:${c.order?.mobile ?? 0} !important;}`,
           )
           .join("");
         return mobileOrderCss ? (
@@ -715,7 +716,11 @@ const RenderSection = memo(function RenderSection({
                     {c.kind === "inner-section" ? (
                       <RenderInner inner={c} lang={lang} device={device} />
                     ) : (
-                      <RenderColumn column={c} lang={lang} device={device} />
+                      <BuilderImageSlotContext.Provider
+                        value={columnImageSlot(section, c, visibleCols, parentSlot)}
+                      >
+                        <RenderColumn column={c} lang={lang} device={device} />
+                      </BuilderImageSlotContext.Provider>
                     )}
                   </div>
                 );
@@ -739,6 +744,7 @@ const RenderInner = memo(function RenderInner({
   lang: "pl" | "en";
   device: Device;
 }) {
+  const parentSlot = useBuilderImageSlot();
   const accessCtx = useAccessContext();
   // Ten poziom był jedynym, który pomijał advanced.access - sekcje (318),
   // kolumny najwyższego poziomu (494) i widgety (733) bramkują od dawna, więc
@@ -785,7 +791,11 @@ const RenderInner = memo(function RenderInner({
                 gridColumn: device === "mobile" ? "auto" : `span ${resolveSpan(c.span, device, 6)}`,
               }}
             >
-              <RenderColumn column={c} lang={lang} device={device} />
+              <BuilderImageSlotContext.Provider
+                value={columnImageSlot(inner, c, columns, parentSlot)}
+              >
+                <RenderColumn column={c} lang={lang} device={device} />
+              </BuilderImageSlotContext.Provider>
             </div>
           ))}
         </div>

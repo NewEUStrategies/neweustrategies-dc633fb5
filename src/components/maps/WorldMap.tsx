@@ -1,3 +1,4 @@
+import "@/components/charts/chart-styles.css";
 // Mapa świata z animowanymi łukami połączeń.
 //
 // WIERNE ODWZOROWANIE komponentu źródłowego (`WorldMap` z framer-motion +

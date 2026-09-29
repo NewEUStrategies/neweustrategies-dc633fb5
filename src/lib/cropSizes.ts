@@ -64,11 +64,14 @@ export const IMAGE_QUALITY = 88;
 
 /**
  * Jakosc malych wariantow `srcSet` (<= 640 px). Przy tej szerokosci pikseli jest
- * tak gesto, ze artefakty q78 sa niewidoczne, a plik chudnie o kilkanascie
+ * tak gesto, ze artefakty q76 sa niewidoczne, a plik chudnie o kilkanascie
  * procent - to dokladnie te kandydaty, ktore telefon pobiera jako obraz LCP.
- * Duze warianty zostaja na 88, bo tam kompresja jest juz widoczna.
+ * Duże zdjęcia responsywne używają q80; kadry i awatary zachowują q88.
  */
-export const IMAGE_QUALITY_SMALL = 78;
+export const IMAGE_QUALITY_SMALL = 76;
+
+/** Responsive editorial photos: explicit crop/avatar quality stays at 88. */
+export const RESPONSIVE_IMAGE_QUALITY = 80;
 
 /** Gorna granica (wlacznie) szerokosci uznawanej za "maly wariant". */
 export const SMALL_VARIANT_MAX_WIDTH = 640;
@@ -81,14 +84,14 @@ export const SMALL_VARIANT_MAX_WIDTH = 640;
  * indziej oznaczaloby preload innego kandydata niz malowany - podwojny transfer.
  */
 export function qualityForWidth(width: number): number {
-  return width <= SMALL_VARIANT_MAX_WIDTH ? IMAGE_QUALITY_SMALL : IMAGE_QUALITY;
+  return width <= SMALL_VARIANT_MAX_WIDTH ? IMAGE_QUALITY_SMALL : RESPONSIVE_IMAGE_QUALITY;
 }
 
 export function buildTransformedImageUrl(
   src: string,
   size: { width: number; height: number; resize?: "cover" | "contain" | "fill" },
 ): string {
-  if (!src) return src;
+  if (!src || /\.svg(?:[?#]|$)/i.test(src)) return src;
   const resize = size.resize ?? "cover";
   try {
     const url = src.startsWith("/") ? new URL(src, PUBLIC_MEDIA_ORIGIN) : new URL(src);
@@ -164,7 +167,7 @@ export function buildScaledImageUrl(
   width: number,
   quality = qualityForWidth(width),
 ): string {
-  if (!src) return src;
+  if (!src || /\.svg(?:[?#]|$)/i.test(src)) return src;
   try {
     const url = src.startsWith("/") ? new URL(src, PUBLIC_MEDIA_ORIGIN) : new URL(src);
     // Markowy adres `/media/<ścieżka>` obsługuje te same warianty rozmiarowe -
@@ -214,7 +217,7 @@ export function buildImageSrcSet(
   widths: readonly number[] = RESPONSIVE_WIDTHS,
   quality?: number,
 ): string {
-  if (!isSupabaseStorageUrl(src)) return "";
+  if (!isSupabaseStorageUrl(src) || /\.svg(?:[?#]|$)/i.test(src)) return "";
   // Bez jawnej jakosci kazdy kandydat dostaje swoja (male warianty taniej) -
   // jawna wartosc obowiazuje caly zestaw, bo wolajacy wie lepiej.
   return widths

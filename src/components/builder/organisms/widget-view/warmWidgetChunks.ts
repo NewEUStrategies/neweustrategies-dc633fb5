@@ -1,3 +1,4 @@
+import { afterPageLoad } from "@/lib/performance/afterPageLoad";
 // Rozgrzewanie najczęstszych leniwych chunków widgetów PO hydratacji.
 //
 // PO CO. Podział widgetów po typie (lazyWidgets) zdejmuje ich kod z chunku
@@ -6,7 +7,7 @@
 // kontekstów; sprawdzają je testy pierwszej wizyty. Przy nawigacji SPA granica montowana w
 // tranzycji NA NOWEJ stronie może pokazać pusty fallback, dopóki chunk się nie
 // pobierze (uwaga z recenzji PR #240). Zamiast wracać do eager (odtworzyłoby to
-// 442 kB źródeł w entry), po pierwszym malowaniu dociągamy w czasie BEZCZYNNOŚCI
+// 442 kB źródeł w entry), po zakończeniu ładowania strony dociągamy w czasie BEZCZYNNOŚCI
 // chunki typów, które niosą główną ścieżkę czytelniczą: tekst (RichHtmlView),
 // listingi wpisów (PostListView) i dynamiczne tagi szablonu wpisu
 // (DynamicTagWidgets). Po rozgrzaniu nawigacja SPA montuje je z cache HTTP -
@@ -27,13 +28,9 @@ function saveDataRequested(): boolean {
 
 type Defer = (run: () => void) => void;
 
-/** `requestIdleCallback` z fallbackiem czasowym (Safari nie wspiera rIC). */
+/** Wait for load before considering CPU idle; images may still be in flight. */
 const idleDefer: Defer = (run) => {
-  if (typeof requestIdleCallback === "function") {
-    requestIdleCallback(() => run(), { timeout: 4000 });
-    return;
-  }
-  setTimeout(run, 1500);
+  afterPageLoad(run, 4000);
 };
 
 /**

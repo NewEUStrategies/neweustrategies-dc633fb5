@@ -74,7 +74,7 @@ const CB_ACCENT_BAR = "bg-[color:var(--cb-accent,var(--primary))]";
 
 const LINK = cn(
   "font-medium underline underline-offset-4 transition-colors",
-  "text-[color:var(--cb-accent,var(--primary))]",
+  "text-[color:var(--cb-fg,var(--card-foreground))]",
   "decoration-[color:var(--cb-accent,var(--primary))]/40 hover:decoration-[color:var(--cb-accent,var(--primary))]",
 );
 
@@ -133,7 +133,7 @@ function ConsentMark({
       style={{ width: px, height: px }}
       className={cn(
         "grid shrink-0 place-items-center overflow-hidden rounded-lg",
-        "bg-[color:var(--cb-accent,var(--primary))]/10 text-[color:var(--cb-accent,var(--primary))]",
+        "bg-[color:var(--cb-accent,var(--primary))]/10 text-[color:var(--cb-fg,var(--card-foreground))]",
         "ring-1 ring-[color:var(--cb-accent,var(--primary))]/20",
         className,
       )}
@@ -220,7 +220,7 @@ function CategoryRow({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className={TX.heading}>{name}</p>
             {locked && (
-              <span className="rounded bg-[color:var(--cb-accent,var(--primary))]/12 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[color:var(--cb-accent,var(--primary))]">
+              <span className="rounded bg-[color:var(--cb-accent,var(--primary))]/12 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[color:var(--cb-fg,var(--card-foreground))]">
                 {requiredLabel}
               </span>
             )}
@@ -483,7 +483,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
           {t.policyLabel}
         </a>
       ) : (
-        <span className="font-medium text-[color:var(--cb-accent,var(--primary))]">
+        <span className="font-medium text-[color:var(--cb-fg,var(--card-foreground))]">
           {t.policyLabel}
         </span>
       )}{" "}
@@ -787,7 +787,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
                         <tbody className="divide-y divide-[color:var(--cb-border,var(--border))]">
                           {vendors.map((v) => (
                             <tr key={`${v.kind}:${v.name}`} className="align-top">
-                              <td className="max-w-[10rem] break-words whitespace-normal px-3 py-2 font-mono text-[color:var(--cb-accent,var(--primary))]">
+                              <td className="max-w-[10rem] break-words whitespace-normal px-3 py-2 font-mono text-[color:var(--cb-fg,var(--card-foreground))]">
                                 {v.name}
                                 {v.auto && (
                                   <span className="ml-1 rounded bg-[color:var(--cb-accent,var(--primary))]/12 px-1 py-0.5 font-sans text-[9px] uppercase">

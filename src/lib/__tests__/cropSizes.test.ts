@@ -30,6 +30,7 @@ import {
   deleteCropSize,
   IMAGE_QUALITY,
   IMAGE_QUALITY_SMALL,
+  RESPONSIVE_IMAGE_QUALITY,
   SMALL_VARIANT_MAX_WIDTH,
   qualityForWidth,
   RESPONSIVE_WIDTHS,
@@ -159,12 +160,12 @@ describe("buildImageSrcSet", () => {
     expect(parts[0]).toMatch(/width=320.* 320w$/);
     expect(parts[1]).toMatch(/width=640.* 640w$/);
   });
-  it("mały kandydat dostaje 78, duży 88 - jakość jest funkcją szerokości", () => {
+  it("mały kandydat dostaje 76, duży 80 - jakość jest funkcją szerokości", () => {
     // Sedno F27: 9 kandydatów jechało na q88, także 320w. Najtańsze warianty
     // obsługują telefon, gdzie każde kilkadziesiąt kB przekłada się na LCP.
     const parts = buildImageSrcSet(OBJ, [320, 1280]).split(", ");
-    expect(new URL(parts[0].split(" ")[0]).searchParams.get("quality")).toBe("78");
-    expect(new URL(parts[1].split(" ")[0]).searchParams.get("quality")).toBe("88");
+    expect(new URL(parts[0].split(" ")[0]).searchParams.get("quality")).toBe("76");
+    expect(new URL(parts[1].split(" ")[0]).searchParams.get("quality")).toBe("80");
   });
 
   it("jawna jakość obowiązuje cały zestaw, bez różnicowania", () => {
@@ -257,11 +258,11 @@ describe("IMAGE_QUALITY", () => {
 });
 
 describe("qualityForWidth", () => {
-  it("≤ 640 px schodzi na 78, powyżej trzyma 88", () => {
+  it("≤ 640 px używa 76, duże zdjęcia responsywne 80", () => {
     expect(qualityForWidth(320)).toBe(IMAGE_QUALITY_SMALL);
     expect(qualityForWidth(SMALL_VARIANT_MAX_WIDTH)).toBe(IMAGE_QUALITY_SMALL);
-    expect(qualityForWidth(SMALL_VARIANT_MAX_WIDTH + 1)).toBe(IMAGE_QUALITY);
-    expect(qualityForWidth(2400)).toBe(IMAGE_QUALITY);
+    expect(qualityForWidth(SMALL_VARIANT_MAX_WIDTH + 1)).toBe(RESPONSIVE_IMAGE_QUALITY);
+    expect(qualityForWidth(2400)).toBe(RESPONSIVE_IMAGE_QUALITY);
   });
 
   it("próg jest domknięty od góry - 640 to jeszcze mały wariant", () => {
@@ -422,4 +423,10 @@ describe("deleteCropSize", () => {
     stub().setResponse("custom_crop_sizes", fail("wiersz w użyciu"));
     await expect(deleteCropSize("cs-1")).rejects.toThrow("wiersz w użyciu");
   });
+});
+
+it("does not send vector logos to the raster transformation service", () => {
+  const svg = OBJ.replace("cover.jpg", "logo.svg");
+  expect(buildScaledImageUrl(svg, 768)).toBe(svg);
+  expect(buildImageSrcSet(svg)).toBe("");
 });

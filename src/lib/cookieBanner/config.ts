@@ -1,3 +1,4 @@
+import { readableForeground } from "@/lib/a11y/contrast";
 // Admin-configurable cookie banner overrides.
 // Stored in site_settings[key="cookie_banner_config"]. Empty string values
 // inherit from the current theme, so a fresh install works with zero setup.
@@ -164,7 +165,14 @@ export function bannerStyleVars(colors: CookieBannerColors): React.CSSProperties
   if (colors.foreground) style["--cb-fg"] = colors.foreground;
   if (colors.muted) style["--cb-muted"] = colors.muted;
   if (colors.border) style["--cb-border"] = colors.border;
-  if (colors.accent) style["--cb-accent"] = colors.accent;
-  if (colors.accentForeground) style["--cb-accent-fg"] = colors.accentForeground;
+  // The global primary palette is editable independently of its foreground.
+  // Use the contrast-tested brand pair for unset banner colors.
+  style["--cb-accent"] = colors.accent || "var(--brand)";
+  style["--cb-accent-fg"] = colors.accent
+    ? readableForeground(colors.accent, colors.accentForeground || "var(--brand-foreground)")
+    : "var(--brand-foreground)";
+  if (colors.surface && colors.foreground) {
+    style["--cb-fg"] = readableForeground(colors.surface, colors.foreground);
+  }
   return style as React.CSSProperties;
 }

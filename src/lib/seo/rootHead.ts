@@ -45,12 +45,9 @@ export type RootLinkDescriptor = Record<string, string>;
 /**
  * Wszystkie `<link>` korzenia dokumentu.
  *
- * DWA PRECONNECTY DO JEDNEGO ORIGINU NIE SĄ DUPLIKATEM: przeglądarka kluczuje
- * połączenia parą (origin, tryb poświadczeń). Wariant `anonymous` rozgrzewa
- * pulę CORS (fetch supabase-js), a każdy `<img>` okładki idzie w trybie
- * no-cors i bez drugiego wpisu płaciłby pełny handshake na zimno.
- * Router deduplikuje `links` wyłącznie po głębokiej równości całego tagu,
- * więc oba przechodzą - i tak ma zostać.
+ * Media load through the same-origin /media/ proxy. Only the anonymous CORS
+ * connection used by the Supabase API needs warming; a second image socket
+ * is unused. Keep the HTTP Link hint in the same credentials mode.
  */
 export function rootDocumentLinks(
   lang: AppLang,
@@ -66,7 +63,6 @@ export function rootDocumentLinks(
     ...fontPreloadLinks(lang, { latin: assets.fontLatin, latinExt: assets.fontLatinExt }),
     { rel: "dns-prefetch", href: SUPABASE_PRECONNECT_ORIGIN },
     { rel: "preconnect", href: SUPABASE_PRECONNECT_ORIGIN, crossOrigin: "anonymous" },
-    { rel: "preconnect", href: SUPABASE_PRECONNECT_ORIGIN },
     ...feedDiscoveryLinks(origin),
   ];
 }
@@ -112,9 +108,8 @@ export function dictionaryPreloadLinkHeaderValue(chunkUrl: string | null): strin
 export function rootLinkHeaderValues(lang: AppLang, assets: RootAssets): string[] {
   return [
     `<${assets.appCss}>; rel="preload"; as="style"`,
-    // Tryb z poświadczeniami, tak jak `<img>` - odpowiednik trzeciego
-    // `<link rel=preconnect>` wyżej.
-    `<${SUPABASE_PRECONNECT_ORIGIN}>; rel="preconnect"`,
+    // Same anonymous CORS socket as the document hint.
+    `<${SUPABASE_PRECONNECT_ORIGIN}>; rel="preconnect"; crossorigin="anonymous"`,
     ...fontPreloadLinkHeaderValues(lang, {
       latin: assets.fontLatin,
       latinExt: assets.fontLatinExt,

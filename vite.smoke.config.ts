@@ -38,6 +38,7 @@ export default defineConfig({
   // smoke-testem; bez tego override'u smoke omijał całą warstwę wrappera.
   tanstackStart: {
     server: { entry: "server" },
+    router: { routeFileIgnorePattern: "(__tests__|__snapshots__)|\\.(test|spec)\\.[jt]sx?$" },
   },
   vite: {
     // Parytet z vite.config.ts: bez tej wtyczki artefakt smoke'owy nie niesie

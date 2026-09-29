@@ -1,3 +1,4 @@
+import { useBuilderImageSlot } from "./imageSlotContext";
 // Slider widget - styled variants. Self-contained renderer (no external slider
 // library). Variants share data resolution (post bindings, fallback covers,
 // autoplay, drag), and each variant renders the slides differently.
@@ -6,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { buildImageSrcSet, buildTransformedImageUrl } from "@/lib/cropSizes";
-import { SLIDER_FULL_BLEED_SIZES, SLIDER_SPLIT_SIZES, sliderMultiCardSizes } from "./sliderSizes";
+import { SLIDER_FULL_BLEED_SIZES, sliderImageSizes } from "./sliderSizes";
 import { useResolvedPostRefs } from "./contentRefs";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
 import { CAROUSEL_DEFAULTS, useCarouselDefaults } from "@/lib/theme/carouselDefaults";
@@ -327,6 +328,14 @@ function ResilientSliderImage({
   alwaysVisible = false,
 }: ResilientSliderImageProps) {
   const imgRef = useRef<HTMLImageElement | null>(null);
+  // Opacity does not stop native lazy loading for stacked slides. Only give
+  // the browser a real URL after this slide has first become visible. Keep
+  // previously shown images mounted so crossfades and backwards navigation work.
+  const [requested, setRequested] = useState(active || alwaysVisible);
+  const shouldLoad = active || alwaysVisible || requested;
+  useEffect(() => {
+    if (active || alwaysVisible) setRequested(true);
+  }, [active, alwaysVisible]);
 
   const originalSrc = safeImageUrl(src) || src;
   const fallback = fallbackSrc && fallbackSrc !== originalSrc ? fallbackSrc : placeholderSrc;
@@ -338,25 +347,25 @@ function ResilientSliderImage({
 
   useEffect(() => {
     const img = imgRef.current;
-    if (!img) return;
+    if (!img || !shouldLoad) return;
     if (img.complete && img.naturalWidth === 0) {
       onBrokenSource(originalSrc);
       setDisplaySrc(fallback);
     }
-  }, [displaySrc, fallback, onBrokenSource, originalSrc]);
+  }, [displaySrc, fallback, onBrokenSource, originalSrc, shouldLoad]);
 
   const visible = alwaysVisible || active;
   // Responsive candidates for Supabase-storage covers: hero sliders previously
   // downloaded the full-resolution original on every device - the single
   // biggest LCP cost on slider homepages. buildImageSrcSet returns "" for
   // non-transformable (external/fallback) URLs, so those keep plain `src`.
-  const srcSet = buildImageSrcSet(displaySrc);
+  const srcSet = shouldLoad ? buildImageSrcSet(displaySrc) : "";
   return (
     <img
       ref={imgRef}
-      src={displaySrc}
+      src={shouldLoad ? displaySrc : undefined}
       srcSet={srcSet || undefined}
-      sizes={srcSet ? sizes : undefined}
+      sizes={srcSet ? `${priority ? "" : "auto, "}${sizes}` : undefined}
       alt=""
       draggable={false}
       data-fill-image
@@ -395,6 +404,15 @@ const truncate = (s: string, max: number) =>
   s.length > max ? s.slice(0, Math.max(0, max - 1)).trimEnd() + "…" : s;
 
 const SHARED_STYLES = `
+.eh-slider { container-type: inline-size; }
+.eh-multi-track { --eh-visible-columns: var(--eh-columns, 3); }
+@container (max-width: 1024px) {
+  .eh-multi-track { --eh-visible-columns: min(2, var(--eh-columns, 3)); }
+}
+@container (max-width: 640px) {
+  .eh-multi-track { --eh-visible-columns: 1; }
+}
+
 /* Stała wysokość bloku tytułu - widget nie zmienia wymiaru między slajdami.
    Osobna rezerwa pod dekorację jest krytyczna: bez niej overflow obcina dolne
    piksele podkreślenia ostatniej z 3 linii i optycznie zmienia jego grubość. */
@@ -700,6 +718,7 @@ function DotsNav({ count, active, onSelect, onPrev, onNext, compact = false }: D
 // ------------------------------------------------------------------
 
 export function SliderRender({ config, lang, preview = false }: RenderProps) {
+  const imageSlot = useBuilderImageSlot();
   const rawItems = useMemo(() => config.items || [], [config.items]);
   const postIds = useMemo(
     () => rawItems.map((it) => (it && it.postId ? it.postId : null)),
@@ -1047,6 +1066,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     endDrag,
     navigateTo,
     columns,
+    imageSizes: sliderImageSizes(variant, configuredColumns, imageSlot),
     nav,
     showExcerpt,
     showAuthor,
@@ -1062,7 +1082,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
       data-hide-cover={showCover ? undefined : "true"}
       data-show-title={showTitle ? "true" : "false"}
       data-author-display={author.mode}
-      style={{ "--eh-speed": `${speedMs}ms` } as CSSProperties}
+      style={{ "--eh-speed": `${speedMs}ms`, "--eh-columns": configuredColumns } as CSSProperties}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -1112,6 +1132,7 @@ type VariantProps = {
   endDrag: (e: React.PointerEvent<HTMLDivElement>) => void;
   navigateTo: (href?: string) => void;
   columns: 1 | 2 | 3 | 4;
+  imageSizes: string;
   nav: NavStyleResolved;
   showExcerpt: boolean;
   showAuthor: boolean;
@@ -1168,6 +1189,7 @@ function EditorialHeroVariant(p: VariantProps) {
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
               active={i === p.safeIdx}
               priority={i === 0}
+              sizes={p.imageSizes}
               onBrokenSource={p.markImageFailed}
             />
           ))}
@@ -1302,10 +1324,13 @@ function useContainerWidth(
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const measure = () => setWidth(el.getBoundingClientRect().width);
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(measure);
+    if (typeof ResizeObserver === "undefined") {
+      setWidth(el.getBoundingClientRect().width);
+      return;
+    }
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) setWidth(entry.contentRect.width);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, [ref, remeasureKey]);
@@ -1315,11 +1340,10 @@ function useContainerWidth(
 function MultiCardVariant(p: VariantProps) {
   // Card has its own ratio - use 4/3 visual ratio per slide image.
   const dragging = p.dragRef.current.active;
-  const cols = p.columns;
   const gapPx = 16;
-  const cardWidth = `calc((100% - ${(cols - 1) * gapPx}px) / ${cols})`;
+  const cardWidth = `calc((100% - (var(--eh-visible-columns) - 1) * ${gapPx}px) / var(--eh-visible-columns))`;
   // Krok = szerokość karty + odstęp, czyli (100% + gap) / cols.
-  const trackTransform = `translateX(calc(${-p.safeIdx} * (100% + ${gapPx}px) / ${cols} + ${p.dragDx}px))`;
+  const trackTransform = `translateX(calc(${-p.safeIdx} * (100% + ${gapPx}px) / var(--eh-visible-columns) + ${p.dragDx}px))`;
   return (
     <div className="relative eh-multi-card">
       <div
@@ -1364,7 +1388,7 @@ function MultiCardVariant(p: VariantProps) {
                         // bez priority ładowała się leniwie mimo pozycji
                         // above-the-fold (jedyny wariant slidera bez eager).
                         priority={i === 0}
-                        sizes={sliderMultiCardSizes(p.columns)}
+                        sizes={p.imageSizes}
                         onBrokenSource={p.markImageFailed}
                         className="eh-hover-zoom absolute inset-0 w-full h-full object-cover"
                       />
@@ -1507,6 +1531,7 @@ function CinematicOverlayVariant(p: VariantProps) {
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
               active={i === p.safeIdx}
               priority={i === 0}
+              sizes={p.imageSizes}
               onBrokenSource={p.markImageFailed}
             />
           ))}
@@ -1641,7 +1666,7 @@ function SplitFeatureVariant(p: VariantProps) {
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
               active={i === p.safeIdx}
               priority={i === 0}
-              sizes={SLIDER_SPLIT_SIZES}
+              sizes={p.imageSizes}
               onBrokenSource={p.markImageFailed}
             />
           ))}
@@ -1770,6 +1795,7 @@ function MinimalStripVariant(p: VariantProps) {
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
               active={i === p.safeIdx}
               priority={i === 0}
+              sizes={p.imageSizes}
               onBrokenSource={p.markImageFailed}
             />
           ))}

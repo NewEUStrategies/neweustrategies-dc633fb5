@@ -25,10 +25,13 @@ import { render, screen } from "@testing-library/react";
 /** Licznik żądań modułu pełnego rejestru - dzielony z atrapą (hoisted). */
 const rejestr = vi.hoisted(() => ({ zazadany: 0 }));
 
-vi.mock("../DynamicIconFull", () => {
-  rejestr.zazadany += 1;
+vi.mock("../lazyNamedIcon", async () => {
+  const { lazy } = await import("react");
   return {
-    default: ({ iconKey }: { iconKey: string }) => <span data-testid="pelny">{iconKey}</span>,
+    lazyNamedIcon: (iconKey: string) => {
+      rejestr.zazadany += 1;
+      return lazy(async () => ({ default: () => <span data-testid="pelny">{iconKey}</span> }));
+    },
   };
 });
 

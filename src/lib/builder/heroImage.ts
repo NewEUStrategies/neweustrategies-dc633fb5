@@ -1,3 +1,4 @@
+import { columnImageSlot, type ImageSlot } from "./imageSlot";
 // Preload LCP dla dokumentów buildera (strona główna, strony publiczne).
 //
 // Wpisy mają kontrakt loader->head() z preloadem okładki od dawna ($.tsx +
@@ -69,12 +70,13 @@ function sliderPreload(
   widget: WidgetNode,
   queryClient: QueryClient,
   lang: Lang,
+  slot?: ImageSlot,
 ): ImagePreloadInput | null {
   const c = widget.content;
   if (!asBool(c.showCover, true)) return null;
   const variant = asOneOf(c.variant, SLIDER_VARIANT_VALUES, "editorial-hero");
   const columns = Math.round(asNumInRange(c.columns, 3, 1, 4));
-  const sizes = sliderImageSizes(variant, columns);
+  const sizes = sliderImageSizes(variant, columns, slot);
 
   let firstImage = "";
   let fallbackCount = 3;
@@ -178,10 +180,11 @@ function widgetPreload(
   widget: WidgetNode,
   queryClient: QueryClient,
   lang: Lang,
+  slot?: ImageSlot,
 ): ImagePreloadInput | null {
   switch (widget.type) {
     case "slider":
-      return sliderPreload(widget, queryClient, lang);
+      return sliderPreload(widget, queryClient, lang, slot);
     case "image":
       return imageWidgetPreload(widget);
     case "dark-featured-card":
@@ -214,22 +217,28 @@ function visibleChildren(section: SectionNode): SectionChild[] {
   return children.filter((child) => !child.tabId || child.tabId === initialTabId);
 }
 
-function sectionWidgetsInPaintOrder(section: SectionNode): WidgetNode[] {
-  const out: WidgetNode[] = [];
-  for (const child of visibleChildren(section)) {
+function sectionWidgetsInPaintOrder(
+  section: SectionNode,
+): Array<{ widget: WidgetNode; slot: ImageSlot }> {
+  const out: Array<{ widget: WidgetNode; slot: ImageSlot }> = [];
+  const children = visibleChildren(section);
+  for (const child of children) {
     if (child.kind === "column") {
-      (child.children ?? []).forEach((w) => {
-        if (w) out.push(w);
+      const slot = columnImageSlot(section, child, children);
+      (child.children ?? []).forEach((widget) => {
+        if (widget?.kind === "widget") out.push({ widget, slot });
       });
-      continue;
+    } else {
+      (child.columns ?? []).forEach((column) => {
+        if (!column) return;
+        const slot = columnImageSlot(child, column, child.columns ?? []);
+        (column.children ?? []).forEach((widget) => {
+          if (widget?.kind === "widget") out.push({ widget, slot });
+        });
+      });
     }
-    (child.columns ?? []).forEach((column) =>
-      (column?.children ?? []).forEach((w) => {
-        if (w) out.push(w);
-      }),
-    );
   }
-  return out.filter((w) => w.kind === "widget");
+  return out;
 }
 
 /**
@@ -250,9 +259,9 @@ export function builderHeroPreload(
       // Sekcje eksperymentów A/B: wariant losuje się na kliencie, więc SSR
       // nie wie, który obraz zostanie pokazany - ostrożnie odpuszczamy.
       if (section.advanced?.abTest) continue;
-      for (const widget of sectionWidgetsInPaintOrder(section)) {
+      for (const { widget, slot } of sectionWidgetsInPaintOrder(section)) {
         if (hiddenOnDesktop(widget)) continue;
-        const preload = widgetPreload(widget, queryClient, lang);
+        const preload = widgetPreload(widget, queryClient, lang, slot);
         if (preload) return preload;
       }
     }

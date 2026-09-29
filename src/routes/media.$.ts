@@ -61,6 +61,19 @@ function imageTransform(url: URL): URLSearchParams | null {
   return params;
 }
 
+// Uploads and WP imports use unique keys; replacements receive a new URL.
+// Keep short revalidation for human-named files that may be overwritten.
+function mediaCacheControl(path: string): string {
+  const file = path.split("/").at(-1) ?? "";
+  const versioned =
+    /^(?:[a-f0-9]{32,64}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}|(?:avatar-)?\d{13}-[a-z0-9]+)\.[a-z0-9]+$/i.test(
+      file,
+    );
+  return versioned
+    ? "public, max-age=31536000, s-maxage=31536000, immutable"
+    : "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800";
+}
+
 async function serveMedia(request: Request, splat: string): Promise<Response> {
   const storagePath = mediaStoragePath(`/media/${splat}`);
   const storageOrigin = process.env.SUPABASE_URL;
@@ -92,7 +105,7 @@ async function serveMedia(request: Request, splat: string): Promise<Response> {
   }
 
   const headers = new Headers({
-    "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+    "Cache-Control": mediaCacheControl(storagePath),
     "X-Content-Type-Options": "nosniff",
     // Treść zależy od `Accept` (WebP kontra format oryginału). Bez `Vary` cache
     // brzegowy podałby WebP przeglądarce, która go nie obsługuje.

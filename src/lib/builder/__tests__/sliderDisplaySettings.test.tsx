@@ -1011,3 +1011,25 @@ describe("slider - pauza automatu pod kursorem", () => {
     expect(container.textContent).toContain("Slajd 2");
   });
 });
+
+describe("slider network priority", () => {
+  it.each(["editorial-hero", "cinematic-overlay", "minimal-strip", "split-feature"] as const)(
+    "%s requests a hidden full-size slide only when selected",
+    (variant) => {
+      const { container } = renderSlider({
+        variant,
+        items: [ITEMS[0], { ...ITEMS[0], image: "https://cdn.x/2.jpg" }],
+        showAuthor: false,
+      });
+      const images = container.querySelectorAll<HTMLImageElement>("img[data-fill-image]");
+      expect(images[0]).toHaveAttribute("src", ITEMS[0].image);
+      expect(images[0]).toHaveAttribute("loading", "eager");
+      expect(images[1]).not.toHaveAttribute("src");
+      expect(images[1]).not.toHaveAttribute("srcset");
+      fireEvent.click(container.querySelector<HTMLButtonElement>(".eh-next")!);
+      expect(images[1]).toHaveAttribute("src", "https://cdn.x/2.jpg");
+      expect(images[0]).toHaveAttribute("src", ITEMS[0].image);
+      expect(images[1]).toHaveAttribute("loading", "lazy");
+    },
+  );
+});

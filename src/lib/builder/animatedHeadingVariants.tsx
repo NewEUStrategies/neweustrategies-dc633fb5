@@ -1,3 +1,4 @@
+import { readableBrandText } from "@/lib/a11y/contrast";
 // Animated heading widget - separate from the regular "heading" widget.
 // Two modes:
 //  • highlight: a single emphasized phrase with an SVG shape drawn over/under
@@ -651,7 +652,7 @@ export function AnimatedHeadingRender({
   const align = config.align ?? "left";
 
   const color = config.color || "currentColor";
-  const accent = config.accentColor || "var(--primary, hsl(220 90% 56%))";
+  const accent = readableBrandText(config.accentColor);
 
   const durationMs = Math.max(300, config.durationMs ?? 1600);
   const delayMs = Math.max(0, config.delayMs ?? 200);

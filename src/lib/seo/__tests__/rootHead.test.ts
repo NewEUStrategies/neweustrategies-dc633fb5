@@ -50,11 +50,11 @@ describe("parytet `<link>` i nagłówka `Link`", () => {
     );
   });
 
-  it("host obrazów jest rozgrzewany w OBU zestawach", () => {
+  it("połączenie API jest rozgrzewane w OBU zestawach w tym samym trybie CORS", () => {
     const links = rootDocumentLinks("pl", ORIGIN, ASSETS);
     expect(hrefs(links, "preconnect")).toContain(SUPABASE_PRECONNECT_ORIGIN);
     expect(rootLinkHeaderValues("pl", ASSETS)).toContain(
-      `<${SUPABASE_PRECONNECT_ORIGIN}>; rel="preconnect"`,
+      `<${SUPABASE_PRECONNECT_ORIGIN}>; rel="preconnect"; crossorigin="anonymous"`,
     );
   });
 
@@ -136,18 +136,14 @@ describe("preload chunku słownika - nagłówek TAK, `<link>` NIE", () => {
 });
 
 describe("zestaw `<link>` korzenia", () => {
-  it("dwa preconnecty do jednego originu to NIE duplikat", () => {
-    // Przeglądarka kluczuje połączenia parą (origin, tryb poświadczeń):
-    // `anonymous` rozgrzewa pulę CORS (fetch supabase-js), a `<img>` okładek
-    // idzie w trybie no-cors i bez drugiego wpisu płaci handshake na zimno.
-    // Ten test istnieje, żeby nikt ich nie „posprzątał" jako duplikatu.
+  it("rozgrzewa tylko CORS: obrazy korzystają z same-origin /media", () => {
     const links = rootDocumentLinks("pl", ORIGIN, ASSETS);
     const preconnects = links.filter(
       (l) => l.rel === "preconnect" && l.href === SUPABASE_PRECONNECT_ORIGIN,
     );
-    expect(preconnects).toHaveLength(2);
+    expect(preconnects).toHaveLength(1);
     expect(preconnects.filter((l) => l.crossOrigin === "anonymous")).toHaveLength(1);
-    expect(preconnects.filter((l) => l.crossOrigin === undefined)).toHaveLength(1);
+    expect(preconnects.filter((l) => l.crossOrigin === undefined)).toHaveLength(0);
   });
 
   it("dns-prefetch poprzedza preconnect do tego samego hosta", () => {

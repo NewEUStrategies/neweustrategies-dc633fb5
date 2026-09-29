@@ -6,12 +6,12 @@
 // MegaPanelView, czyli chrome nagłówka). Teraz:
 //   1. wyselekcjonowany zestaw ikon (imports nazwane -> tree-shaking) pokrywa
 //      typowe ikony menu/treści i renderuje się synchronicznie,
-//   2. nieznane nazwy dociągają pełny rejestr Reactowym lazy() z osobnego
-//      chunka (DynamicIconFull) - jednorazowo, poza ścieżką krytyczną.
+//   2. pozostałe nazwy dociągają jedną z 16 porcji danych SVG przez lazy().
+//      Pełny katalog pozostaje wyłącznie w pickerze administracyjnym.
 // Fallback Suspense rezerwuje dokładnie wymiar ikony (size), więc doładowanie
-// nie powoduje przesunięcia układu (CLS = 0). Na serwerze lazy() renderuje się
-// synchronicznie, więc SSR HTML zawsze zawiera właściwą ikonę.
-import { lazy, Suspense } from "react";
+// nie zmienia zarezerwowanego miejsca. SSR może poczekać na tę samą porcję danych.
+import { Suspense } from "react";
+import { lazyNamedIcon } from "./lazyNamedIcon";
 import {
   // - zestaw bazowy (nawigacja/UI) -
   ArrowLeft,
@@ -294,8 +294,6 @@ const CURATED: Record<string, IconComponent> = {
  */
 export const CURATED_ICON_KEYS: readonly string[] = Object.keys(CURATED);
 
-const DynamicIconFull = lazy(() => import("./DynamicIconFull"));
-
 // Indeks case-insensitive: konsumenci zapisują nazwy różnie (kebab-case w DB
 // powiadomień/menu, PascalCase w configu account-menu) - "log-in", "LogIn" i
 // "login" mają trafić w ten sam komponent.
@@ -371,6 +369,7 @@ export function DynamicIcon({ name, allowFull = true, ...rest }: DynamicIconProp
 
   // Rezerwacja wymiaru na czas dociągania chunka - identyczna z boxem ikony
   // lucide (kwadrat `size`, domyślnie 24), więc zero przesunięcia układu.
+  const LazyIcon = lazyNamedIcon(key);
   const size = rest.size ?? 24;
   const fallback = (
     <span
@@ -380,7 +379,7 @@ export function DynamicIcon({ name, allowFull = true, ...rest }: DynamicIconProp
   );
   return (
     <Suspense fallback={fallback}>
-      <DynamicIconFull iconKey={key} {...rest} />
+      <LazyIcon {...rest} />
     </Suspense>
   );
 }
