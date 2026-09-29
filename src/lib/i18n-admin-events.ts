@@ -1183,6 +1183,7 @@ export const adminEventsPl = {
     // opisują SKUTEK, a nie zakaz.
     general: {
       errors: {
+        eventTypeRequired: "Wybierz rodzaj wydarzenia.",
         titleRequired: "Tytuł jest wymagany w obu językach.",
         slugInvalid: "Adres może mieć od 3 do 120 znaków: małe litery, cyfry i myślniki.",
         startsAtRequired: "Podaj datę początku wydarzenia.",
@@ -2227,6 +2228,7 @@ export const adminEventsEn = {
 
     general: {
       errors: {
+        eventTypeRequired: "Choose an event type.",
         titleRequired: "The title is required in both languages.",
         slugInvalid: "The address takes 3 to 120 characters: lowercase letters, digits and dashes.",
         startsAtRequired: "Give the event start date.",
