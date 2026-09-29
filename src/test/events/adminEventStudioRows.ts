@@ -41,7 +41,7 @@ export function adminEventDetailRow(
     description_pl: "Bezpieczenstwo energetyczne Europy Srodkowej.",
     early_rsvp_rank: 0,
     ends_at: "2026-09-01T15:00:00.000Z",
-    event_type_id: "",
+    event_type_id: "event-type-1",
     external_registration_url: "",
     features: {},
     format: "onsite",
