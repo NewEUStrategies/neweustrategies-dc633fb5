@@ -80,12 +80,10 @@ export async function runRegistrationRefunds(
       {
         p_job_id: row.id,
         p_claim_token: row.claim_token,
-        p_refund_id: refund.ok ? refund.adjustmentId : null,
-        p_error: refund.ok
-          ? refund.adjustmentId
-            ? null
-            : "missing_provider_refund_id"
-          : refund.error,
+        p_refund_id: sqlNullable(refund.ok ? refund.adjustmentId : null),
+        p_error: sqlNullable(
+          refund.ok ? (refund.adjustmentId ? null : "missing_provider_refund_id") : refund.error,
+        ),
       },
     );
     if (settleError) throw settleError;
