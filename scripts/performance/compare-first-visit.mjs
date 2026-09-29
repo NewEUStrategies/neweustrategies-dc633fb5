@@ -1,4 +1,6 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import { firstVisitCacheStates, firstVisitPages, firstVisitSamples } from "./firstVisitPlan.ts";
 
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 const timingNoiseMs = {
@@ -9,38 +11,80 @@ const timingNoiseMs = {
   interactionCompleteMs: 150,
 };
 const sizes = ["jsBytes", "htmlBytes", "inlineCssBytes"];
-const rows = [];
-for (const lang of ["pl", "en"]) {
-  for (const state of ["cold", "warm"]) {
-    const read = (directory) =>
-      [1, 2, 3].map((sample) => {
-        const value = JSON.parse(
-          readFileSync(`${directory}/${lang}-${state}-${sample}.json`, "utf8"),
-        );
-        if (value.cache !== (state === "cold" ? "MISS" : "HIT") || value.cacheState !== state) {
-          throw new Error(`Incomparable cache state: ${directory}/${lang}-${state}-${sample}`);
-        }
-        return value;
-      });
-    const baseline = read("reports/first-visit-baseline");
-    const candidate = read("reports/first-visit");
-    for (const metric of [...Object.keys(timingNoiseMs), ...sizes]) {
-      const values = [...baseline, ...candidate].map((sample) => sample[metric]);
+
+export function compareFirstVisitSamples(baseline, candidate, { path, lang, state }) {
+  for (const samples of [baseline, candidate]) {
+    if (
+      samples.length !== firstVisitSamples.length ||
+      new Set(samples.map((row) => row.sample)).size !== firstVisitSamples.length
+    ) {
+      throw new Error(`${firstVisitSamples.length} distinct samples required for ${lang}/${state}`);
+    }
+    for (const row of samples) {
       if (
-        !values.every((value) => typeof value === "number" && Number.isFinite(value) && value > 0)
+        !firstVisitSamples.includes(row.sample) ||
+        row.path !== path ||
+        row.cacheState !== state ||
+        row.cache !== (state === "cold" ? "MISS" : "HIT") ||
+        row.browserCache !== "cold-routing-disables-http-cache"
       ) {
-        throw new Error(`Missing or invalid ${metric} in ${lang}/${state}`);
+        throw new Error(`Incomparable sample in ${lang}/${state}`);
       }
-      const before = median(baseline.map((sample) => sample[metric]));
-      const after = median(candidate.map((sample) => sample[metric]));
-      const limit = sizes.includes(metric) ? before * 1.05 : before * 1.1 + timingNoiseMs[metric];
-      rows.push({ lang, state, metric, before, after, limit, pass: after <= limit });
+      for (const metric of [...Object.keys(timingNoiseMs), ...sizes]) {
+        if (typeof row[metric] !== "number" || !Number.isFinite(row[metric]) || row[metric] <= 0) {
+          throw new Error(`Missing or invalid ${metric} in ${lang}/${state}`);
+        }
+      }
     }
   }
+  return [...Object.keys(timingNoiseMs), ...sizes].map((metric) => {
+    const baselineSamples = baseline.map((sample) => sample[metric]);
+    const candidateSamples = candidate.map((sample) => sample[metric]);
+    const before = median(baselineSamples);
+    const after = median(candidateSamples);
+    // Preserve the existing budgets. Better sampling must not hide regressions.
+    const limit = sizes.includes(metric) ? before * 1.05 : before * 1.1 + timingNoiseMs[metric];
+    return {
+      lang,
+      state,
+      metric,
+      before,
+      after,
+      limit,
+      pass: after <= limit,
+      baselineSamples,
+      candidateSamples,
+    };
+  });
 }
-writeFileSync("reports/first-visit-comparison.json", JSON.stringify(rows, null, 2) + "\n");
-for (const row of rows)
-  console.log(
-    `${row.pass ? "PASS" : "FAIL"} ${row.lang}/${row.state} ${row.metric}: ${row.before.toFixed(1)} -> ${row.after.toFixed(1)} (limit ${row.limit.toFixed(1)})`,
-  );
-if (rows.some((row) => !row.pass)) process.exitCode = 1;
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  rmSync("reports/first-visit-comparison.json", { force: true });
+  const rows = [];
+  for (const { path, lang } of firstVisitPages) {
+    for (const state of firstVisitCacheStates) {
+      const read = (directory) =>
+        firstVisitSamples.map((sample) =>
+          JSON.parse(readFileSync(`${directory}/${lang}-${state}-${sample}.json`, "utf8")),
+        );
+      rows.push(
+        ...compareFirstVisitSamples(
+          read("reports/first-visit-baseline"),
+          read("reports/first-visit"),
+          {
+            path,
+            lang,
+            state,
+          },
+        ),
+      );
+    }
+  }
+  writeFileSync("reports/first-visit-comparison.json", JSON.stringify(rows, null, 2) + "\n");
+  for (const row of rows) {
+    console.log(
+      `${row.pass ? "PASS" : "FAIL"} ${row.lang}/${row.state} ${row.metric}: ${row.before.toFixed(1)} -> ${row.after.toFixed(1)} (limit ${row.limit.toFixed(1)}; baseline [${row.baselineSamples.join(", ")}], candidate [${row.candidateSamples.join(", ")}])`,
+    );
+  }
+  if (rows.some((row) => !row.pass)) process.exitCode = 1;
+}

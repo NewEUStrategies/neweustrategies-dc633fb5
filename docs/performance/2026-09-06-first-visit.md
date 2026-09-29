@@ -101,8 +101,15 @@ FCP, LCP, gotowość i zakończenie kliknięcia od początku nawigacji. Nie odej
 czasu czekania na pierwszy HTML. Zapisuje JSON, screenshoty oraz trace awarii.
 Osobne testy sprawdzają obliczone style typografii dla desktop/tablet/mobile.
 
-Workflow `first-visit.yml` buduje i mierzy wersję bazową oraz kandydata kolejno
-na jednym runnerze, z tym samym syntetycznym układem, przeglądarką i testami.
+Workflow `first-visit.yml` najpierw buduje oba artefakty, potem mierzy je
+naprzemiennie na jednym runnerze, z tym samym syntetycznym układem, przeglądarką
+i testami. Każda para dotyczy tego samego języka i stanu cache serwera;
+kolejność baza/kandydat zmienia się między parami. Każda wersja ma siedem
+niezależnych próbek na scenariusz. Porównanie median zachowuje dotychczasowe
+limity: +10% i stały margines czasu, +5% dla rozmiarów. Wszystkie surowe wartości
+są w raporcie porównania. Brakujące, powtórzone i nieporównywalne próbki blokują
+bramkę. Komenda: `node scripts/performance/run-first-visit.mjs --compare ../baseline ../candidate`,
+a następnie `bun run check:first-visit-regression`.
 Wcześniejsze próby na osobnych runnerach nie służą do wyliczania przyspieszenia.
 Obie wersje muszą pokazać treść i
 obsłużyć kliknięcie. Nowe budżety blokują kandydata: TTFB <2 s, FCP/LCP <2,5 s,
@@ -125,8 +132,11 @@ przebiegu nie wolno przedstawiać jako zaliczenia całej bramki. Wynik po
 dodatkowej poprawce znajduje się w tabeli na początku tego dokumentu.
 
 To kontrolowane laboratorium bez throttlingu, nie produkcyjny p75 ani INP.
-Nowy kontekst oznacza zimny cache przeglądarki; kolejne próby rozgrzewają cache
-serwera. Obrazy zastępuje jeden prosty SVG, aby odciąć zmienność CDN; nie mierzy
+Każda próbka uruchamia nowy proces serwera i przeglądarkę. `cold` oznacza
+pierwsze żądanie dokumentu (MISS), a `warm` poprzedza jedno żądanie HTTP
+rozgrzewające wyłącznie cache dokumentu na serwerze (HIT). Cache przeglądarki
+jest zimny w obu scenariuszach; routing Playwright dodatkowo wyłącza cache HTTP.
+`warm` nie jest pomiarem ponownej wizyty z zasobami zachowanymi w przeglądarce. Obrazy zastępuje jeden prosty SVG, aby odciąć zmienność CDN; nie mierzy
 to kosztu dekodowania zdjęć produkcyjnych. API używa wyłącznie syntetycznych
 identyfikatorów, treści i adresów. Zachowuje reprezentatywną strukturę oraz
 typografię buildera. Repozytorium nie zawiera zrzutu danych produkcji. Fixture

@@ -16,7 +16,7 @@ jobs:
   first-visit:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Sequential measurements on ONE runner avoid comparing different CPUs.
+    # Build both artifacts first, then alternate equivalent cases on ONE runner.
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,6 +42,9 @@ jobs:
           ln -s ../candidate/node_modules harness/node_modules
           cd harness
           bunx playwright install --with-deps chromium
+      - name: Verify the measurement and comparison contract
+        working-directory: harness
+        run: node --test scripts/performance/first-visit-harness.test.mjs
       - name: Build baseline
         working-directory: baseline
         run: |
@@ -50,26 +53,6 @@ jobs:
         env:
           VITE_SUPABASE_URL: http://127.0.0.1:4199
           VITE_SUPABASE_PUBLISHABLE_KEY: performance-fixture
-      - name: Measure baseline with the same content and interaction assertions
-        working-directory: harness
-        run: bun run test:e2e:performance
-        env:
-          NES_PERFORMANCE_ARTIFACT_ROOT: ${{ github.workspace }}/baseline
-          NES_PERFORMANCE_BASELINE: "1"
-      - name: Upload baseline evidence
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: first-visit-baseline
-          path: |
-            harness/reports/first-visit/
-            harness/reports/first-visit-comparison.json
-            harness/reports/first-visit-playwright/
-            harness/test-results-performance/
-          retention-days: 14
-      - name: Preserve baseline for the relative regression gate
-        working-directory: harness
-        run: cp -R reports/first-visit reports/first-visit-baseline
       - name: Build candidate
         if: ${{ !cancelled() }}
         working-directory: candidate
@@ -77,15 +60,9 @@ jobs:
         env:
           VITE_SUPABASE_URL: http://127.0.0.1:4199
           VITE_SUPABASE_PUBLISHABLE_KEY: performance-fixture
-      - name: Gate candidate paint, layout and first interaction
-        if: ${{ !cancelled() }}
+      - name: Measure paired baseline and candidate samples
         working-directory: harness
-        run: |
-          rm -rf reports/first-visit
-          bun run test:e2e:performance
-        env:
-          NES_PERFORMANCE_ARTIFACT_ROOT: ${{ github.workspace }}/candidate
-          NES_PERFORMANCE_BASELINE: "0"
+        run: node scripts/performance/run-first-visit.mjs --compare ../baseline ../candidate
       - name: Gate cold entry across public platform catalogs
         if: ${{ !cancelled() }}
         working-directory: harness
@@ -96,6 +73,16 @@ jobs:
       - name: Compare equivalent cold and warm samples
         working-directory: harness
         run: bun run check:first-visit-regression
+      - name: Upload baseline evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: first-visit-baseline
+          path: |
+            harness/reports/first-visit-baseline/
+            harness/reports/first-visit-playwright/baseline-*.json
+            harness/test-results-performance/baseline-*/
+          retention-days: 14
       - name: Upload candidate evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
