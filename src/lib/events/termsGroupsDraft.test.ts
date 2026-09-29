@@ -56,9 +56,9 @@ const termRow = {
 describe("groupDraft", () => {
   it("wymaga klucza tylko dla nowej grupy", () => {
     const fresh = emptyGroupDraft(10);
-    expect(validateGroupDraft({ ...fresh, namePl: "A", nameEn: "A" }).map((e) => e.field)).toEqual([
-      "key",
-    ]);
+    expect(
+      validateGroupDraft({ ...fresh, namePl: "AA", nameEn: "AA" }).map((e) => e.field),
+    ).toEqual(["key"]);
     const existing = groupDraftFromRow(groupRow);
     expect(validateGroupDraft({ ...existing, key: "" })).toEqual([]);
   });
@@ -191,6 +191,7 @@ describe("liczby w szkicu - para „pustka przechodzi / smiec zatrzymuje”", ()
       key: "rodo",
       labelPl: "Zgoda",
       labelEn: "Consent",
+      bodyPl: "Treść zgody",
       sortOrder: "",
     };
     expect(validateTermDraft(dobry)).toEqual([]);

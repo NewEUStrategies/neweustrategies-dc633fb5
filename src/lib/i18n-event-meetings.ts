@@ -210,6 +210,12 @@ export const eventMeetingsPl = {
         dialogEdit: "Edycja okna dostępności",
         removeConfirm: "Usunąć to okno dostępności?",
         durationHint: "Okno musi trwać od 15 minut do 16 godzin.",
+        validation: {
+          order: "Koniec okna musi przypadać po jego początku.",
+          tooShort: "Okno musi trwać co najmniej 15 minut.",
+          tooLong: "Okno może trwać najwyżej 16 godzin.",
+          noteTooLong: "Notatka może mieć najwyżej 300 znaków.",
+        },
       },
       meetings: {
         incoming: "Do Ciebie",
@@ -458,6 +464,12 @@ export const eventMeetingsEn = {
         dialogEdit: "Edit availability window",
         removeConfirm: "Remove this availability window?",
         durationHint: "A window must last between 15 minutes and 16 hours.",
+        validation: {
+          order: "The window must end after it starts.",
+          tooShort: "The window must last at least 15 minutes.",
+          tooLong: "The window can last at most 16 hours.",
+          noteTooLong: "The note can contain at most 300 characters.",
+        },
       },
       meetings: {
         incoming: "To you",

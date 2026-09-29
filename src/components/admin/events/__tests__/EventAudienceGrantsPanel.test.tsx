@@ -1034,7 +1034,7 @@ describe("dowód nadania krótszy niż trzy znaki", () => {
     expect(h.saveInputs).toHaveLength(1);
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // REGRESJA NAPRAWIONEGO DEFEKTU. Poniżej opis pierwotnego zachowania.
   //
   // Okno sprawdza WYŁĄCZNIE `draft.evidence.trim() === ""`
   // (`EventAudienceGrantsPanel.tsx:138`), więc podstawa dwuznakowa przechodzi
@@ -1044,7 +1044,7 @@ describe("dowód nadania krótszy niż trzy znaki", () => {
   // wydarzeniem ta odmowa wygląda jak awaria, nie jak brakujący znak.
   // Poprawka należy do produkcji: próg trzech znaków po stronie okna, z tym
   // samym komunikatem co przy pustce.
-  it.fails("podstawa dwuznakowa NIE dojeżdża do bazy - okno zatrzymuje ją na miejscu", () => {
+  it("dwuznakowa podstawa ulgi jest zatrzymywana przed zapisem", () => {
     renderuj();
     const okno = otworzOkno();
     wypelnij(okno, { evidence: "ok" });
@@ -1055,7 +1055,7 @@ describe("dowód nadania krótszy niż trzy znaki", () => {
   // TA SAMA DZIURA OD DRUGIEJ STRONY: baza liczy długość PO `btrim`, a warstwa
   // `audienceGrantsApi` przycina podstawę przed wysłaniem. Wpis z samych spacji
   // i dwóch liter ma dla bazy dwa znaki, choć w polu widać ich pięć.
-  it.fails("podstawa, która po przycięciu ma dwa znaki, też jest zatrzymana", () => {
+  it("podstawa ulgi jest walidowana po przycięciu spacji", () => {
     renderuj();
     const okno = otworzOkno();
     wypelnij(okno, { evidence: "  ok  " });

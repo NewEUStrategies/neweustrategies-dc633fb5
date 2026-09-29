@@ -39,7 +39,8 @@ import {
 } from "@/lib/events/termsGroupsApi";
 import {
   TERMS_MAX_BODY,
-  TERMS_MAX_DESCRIPTION,
+  GROUP_MAX_DESCRIPTION,
+  GROUP_MAX_NAME,
   TERMS_MAX_NAME,
 } from "@/lib/events/termsGroupsDraft";
 import {
@@ -253,7 +254,7 @@ describe("limity dlugosci formularza vs CHECK-i bazy", () => {
     expect(TERMS_MAX_NAME).toBeLessThanOrEqual(checkMaxLength("event_terms_label_pl_len"));
   });
 
-  // DEFEKT. `TERMS_MAX_NAME` obsluguje DWA pola o roznych limitach w bazie:
+  // Historia naprawionego defektu. `TERMS_MAX_NAME` obsluguje DWA pola o roznych limitach w bazie:
   // etykiete zgody (300) i nazwe grupy (80). Pole nazwy grupy wpuszcza wiec
   // 160 znakow, a baza odrzuca wszystko powyzej 80 naruszeniem
   // `event_groups_name_pl_len`. Komunikat takiej odmowy NIE MA glowy w formacie
@@ -261,14 +262,14 @@ describe("limity dlugosci formularza vs CHECK-i bazy", () => {
   // `adminEventTerms.errors.unknown` - organizator dostaje „Nie udalo sie
   // wykonac operacji" i nie ma jak zgadnac, ze chodzi o dlugosc nazwy.
   // Poprawka nalezy do produkcji: osobna stala dla nazwy grupy.
-  it.fails("limit pola nazwy GRUPY nie moze przekraczac limitu bazy (160 > 80)", () => {
-    expect(TERMS_MAX_NAME).toBeLessThanOrEqual(checkMaxLength("event_groups_name_pl_len"));
+  it("limit nazwy grupy jest zgodny z limitem bazy: 80 znaków", () => {
+    expect(GROUP_MAX_NAME).toBe(checkMaxLength("event_groups_name_pl_len"));
   });
 
-  // DEFEKT, ta sama klasa: opis grupy w formularzu ma 600 znakow, a
+  // Historia naprawionego defektu, ta sama klasa: opis grupy w formularzu ma 600 znakow, a
   // `event_groups_desc_pl_len` przyjmuje 500.
-  it.fails("limit pola opisu GRUPY nie moze przekraczac limitu bazy (600 > 500)", () => {
-    expect(TERMS_MAX_DESCRIPTION).toBeLessThanOrEqual(checkMaxLength("event_groups_desc_pl_len"));
+  it("limit opisu grupy jest zgodny z limitem bazy: 500 znaków", () => {
+    expect(GROUP_MAX_DESCRIPTION).toBe(checkMaxLength("event_groups_desc_pl_len"));
   });
 });
 

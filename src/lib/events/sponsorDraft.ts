@@ -7,8 +7,8 @@
 // rozjezdza sie przy pierwszej zmianie limitu w migracji.
 //
 // PUSTY TEKST TO BRAK WARTOSCI, NIE ZERO ANI PUSTY NAPIS. Poziom bez limitu firm
-// przyjmie kazda firme; poziom z limitem `0` nie przyjmie zadnej. To dwa rozne
-// zdania i formularz nie ma prawa ich sklejac.
+// przyjmie kazda firme; limit liczbowy musi byc dodatni. Poziom zamykamy
+// przelacznikiem is_active, nie zerem w limicie.
 //
 // WALIDACJA STOI PRZED RPC, ALE GO NIE ZASTEPUJE. Baza dalej pilnuje limitow,
 // unikalnosci klucza i tego, ze opublikowany sponsor ma poziom
@@ -27,6 +27,11 @@ export const SPONSOR_KEY_PATTERN = /^[a-z][a-z0-9_]{1,48}$/;
 export const SPONSOR_HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 export const SPONSOR_MAX_NAME = 200;
 export const SPONSOR_MAX_DESCRIPTION = 2000;
+export const SPONSOR_TIER_MAX_NAME = 80;
+export const SPONSOR_TIER_MAX_DESCRIPTION = 1000;
+export const SPONSOR_MATERIAL_MAX_TITLE = 160;
+export const SPONSOR_MAX_COUNTRY = 120;
+export const SPONSOR_TIER_MAX_RANK = 1000;
 export const SPONSOR_MAX_NOTE = 2000;
 export const SPONSOR_MAX_COMPANIES = 1000;
 
@@ -154,8 +159,17 @@ export function validateTierDraft(draft: TierDraft): Array<SponsorFieldError<Tie
   if (draft.id === null && !SPONSOR_KEY_PATTERN.test(draft.key.trim())) {
     errors.push({ field: "key", messageKey: `${PREFIX}invalidKey` });
   }
-  if (draft.namePl.trim() === "" || draft.nameEn.trim() === "") {
+  if (
+    [draft.namePl, draft.nameEn].some(
+      (name) => name.trim().length < 2 || name.trim().length > SPONSOR_TIER_MAX_NAME,
+    )
+  ) {
     errors.push({ field: "namePl", messageKey: `${PREFIX}invalidNames` });
+  }
+  for (const field of ["descriptionPl", "descriptionEn"] as const) {
+    if (draft[field].trim().length > SPONSOR_TIER_MAX_DESCRIPTION) {
+      errors.push({ field, messageKey: `${PREFIX}invalidTierDescription` });
+    }
   }
   if (
     draft.accentColor.trim() !== "" &&
@@ -164,11 +178,15 @@ export function validateTierDraft(draft: TierDraft): Array<SponsorFieldError<Tie
     errors.push({ field: "accentColor", messageKey: `${PREFIX}invalidColor` });
   }
   const limit = intOrNull(draft.maxCompanies);
-  if (limit === false || (limit !== null && limit > SPONSOR_MAX_COMPANIES)) {
-    errors.push({ field: "maxCompanies", messageKey: `${PREFIX}invalidNumber` });
+  if (limit === false || (limit !== null && (limit < 1 || limit > SPONSOR_MAX_COMPANIES))) {
+    errors.push({ field: "maxCompanies", messageKey: `${PREFIX}invalidCompanyLimit` });
   }
-  if (intOrNull(draft.rank) === false || intOrNull(draft.sortOrder) === false) {
-    errors.push({ field: "rank", messageKey: `${PREFIX}invalidNumber` });
+  const rank = intOrNull(draft.rank);
+  if (rank === false || (rank !== null && rank > SPONSOR_TIER_MAX_RANK)) {
+    errors.push({ field: "rank", messageKey: `${PREFIX}invalidRank` });
+  }
+  if (intOrNull(draft.sortOrder) === false) {
+    errors.push({ field: "sortOrder", messageKey: `${PREFIX}invalidNumber` });
   }
   const emptyBenefit = draft.benefits.some(
     (benefit) => benefit.labelPl.trim() === "" || benefit.labelEn.trim() === "",
@@ -293,11 +311,18 @@ export function validateSponsorDraft(draft: SponsorDraft): Array<SponsorFieldErr
   if (draft.snapshotName.trim() === "") {
     errors.push({ field: "snapshotName", messageKey: `${PREFIX}invalidName` });
   }
-  if (draft.isPublished && draft.tierId.trim() === "") {
+  if (draft.isPublished && draft.role === "sponsor" && draft.tierId.trim() === "") {
     errors.push({ field: "tierId", messageKey: `${PREFIX}sponsorTierRequired` });
   }
-  if (draft.snapshotWebsite.trim() !== "" && !isSponsorUrl(draft.snapshotWebsite)) {
-    errors.push({ field: "snapshotWebsite", messageKey: `${PREFIX}invalidUrl` });
+  if (
+    draft.snapshotWebsite.trim() !== "" &&
+    !/^https?:\/\/[^\s]+$/.test(draft.snapshotWebsite.trim())
+  ) {
+    errors.push({ field: "snapshotWebsite", messageKey: `${PREFIX}invalidWebsite` });
+  }
+  const country = draft.snapshotCountry.trim();
+  if (country !== "" && (country.length < 2 || country.length > SPONSOR_MAX_COUNTRY)) {
+    errors.push({ field: "snapshotCountry", messageKey: `${PREFIX}invalidCountry` });
   }
   if (draft.snapshotLogoUrl.trim() !== "" && !isSponsorUrl(draft.snapshotLogoUrl)) {
     errors.push({ field: "snapshotLogoUrl", messageKey: `${PREFIX}invalidUrl` });
@@ -374,7 +399,11 @@ export function validateMaterialDraft(
   draft: MaterialDraft,
 ): Array<SponsorFieldError<MaterialField>> {
   const errors: Array<SponsorFieldError<MaterialField>> = [];
-  if (draft.titlePl.trim() === "" || draft.titleEn.trim() === "") {
+  if (
+    [draft.titlePl, draft.titleEn].some(
+      (title) => title.trim().length < 2 || title.trim().length > SPONSOR_MATERIAL_MAX_TITLE,
+    )
+  ) {
     errors.push({ field: "titlePl", messageKey: `${PREFIX}invalidTitles` });
   }
   if (!isSponsorUrl(draft.url)) {

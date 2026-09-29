@@ -135,7 +135,7 @@ export function EventAudienceGrantsPanel({ eventId }: { eventId: string }) {
       setFormError(t("adminEventRegistration.audienceGrants.errors.subjectRequired"));
       return;
     }
-    if (draft.evidence.trim() === "") {
+    if (draft.evidence.trim().length < 3) {
       setFormError(t("adminEventRegistration.audienceGrants.errors.evidenceRequired"));
       return;
     }

@@ -55,7 +55,7 @@ import { ensureAdsFunnelI18n } from "@/lib/i18n-admin-event-ads-funnel";
 /** Procent do wyswietlenia albo `null` - bez zaokraglania w gore do zera. */
 function percent(value: number | null | undefined): string | null {
   if (value === null || value === undefined || !Number.isFinite(value)) return null;
-  return `${Math.round(value)}%`;
+  return value > 0 && value < 1 ? "<1%" : `${Math.round(value)}%`;
 }
 
 export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
@@ -83,7 +83,7 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
   const meetingsQ = useMeetingStats(eventId);
   // Odprawa odswieza sie sama co pol minuty w swoim module; tutaj wystarcza
   // odczyt na wejscie - analityke czyta sie po wydarzeniu, nie przy bramce.
-  const onsiteQ = useOnsiteStats(eventId, 60);
+  const onsiteQ = useOnsiteStats(eventId, 60, true, false);
 
   const counts = countsQ.data ?? null;
   const onsite = onsiteQ.data ?? null;
@@ -93,6 +93,21 @@ export function EventAnalyticsPanel({ row }: { row: AdminEventDetailRow }) {
 
   return (
     <EventStudioPage title={t("adminEvents.studio.sections.analytics")}>
+      {[countsQ, sessionsQ, meetingsQ, onsiteQ].some((query) => query.isError) ? (
+        <div role="alert" className="flex items-center gap-3 text-sm text-destructive">
+          <p>{t("adminEvents.studio.analytics.loadError")}</p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              for (const query of [countsQ, sessionsQ, meetingsQ, onsiteQ]) {
+                if (query.isError) void query.refetch();
+              }
+            }}
+          >
+            {t("adminEvents.studio.analytics.retry")}
+          </Button>
+        </div>
+      ) : null}
       <EventStudioRow
         label={t("adminEvents.studio.analytics.registrations")}
         description={t("adminEvents.studio.analytics.registrationsDescription")}

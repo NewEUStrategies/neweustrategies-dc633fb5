@@ -156,6 +156,16 @@ export function EventBrandingPanel({ row }: { row: AdminEventDetailRow }) {
         </div>
       </EventStudioRow>
 
+      <button
+        type="button"
+        onClick={() =>
+          setDraft({ ...EMPTY_EVENT_BRANDING, colors: { ...EMPTY_EVENT_BRANDING.colors } })
+        }
+        className="text-xs text-brand underline underline-offset-2"
+      >
+        {t("adminEvents.branding.resetToCommunity")}
+      </button>
+
       <EventStudioSaveBar
         dirty={dirty}
         saving={save.isPending}
@@ -165,17 +175,6 @@ export function EventBrandingPanel({ row }: { row: AdminEventDetailRow }) {
         savingLabel={t("adminEvents.studio.actions.saving")}
         onSave={submit}
         onDiscard={() => setDraft(saved)}
-        leading={
-          <button
-            type="button"
-            onClick={() =>
-              setDraft({ ...EMPTY_EVENT_BRANDING, colors: { ...EMPTY_EVENT_BRANDING.colors } })
-            }
-            className="text-xs text-brand underline underline-offset-2"
-          >
-            {t("adminEvents.branding.resetToCommunity")}
-          </button>
-        }
       />
     </EventStudioPage>
   );

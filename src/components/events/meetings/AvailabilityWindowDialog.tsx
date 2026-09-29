@@ -156,8 +156,8 @@ export function AvailabilityWindowDialog({
         </DialogFooter>
 
         {problem !== null && problem !== "incomplete" ? (
-          <p className="text-xs text-destructive">
-            {t("eventMeetings.participant.availability.durationHint")}
+          <p role="alert" className="text-xs text-destructive">
+            {t(`eventMeetings.participant.availability.validation.${problem}`)}
           </p>
         ) : null}
       </DialogContent>

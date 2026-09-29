@@ -59,7 +59,7 @@ vi.mock("@/lib/events/useEventSponsors", () => ({
     if (enabled) h.szukaneFrazy.push(q);
     return { data: h.firmy, isLoading: false, error: null };
   },
-  useSponsorDetail: (_sponsorId: string, enabled: boolean) => {
+  useSponsorDetail: (_eventId: string, _sponsorId: string, enabled: boolean) => {
     h.szczegolWlaczony.push(enabled);
     return {
       data: h.szczegolGotowy ? { internal_note: h.notatka } : undefined,
@@ -359,7 +359,7 @@ describe("otwarcie okna i tryb", () => {
 
 describe("wyszukiwarka firm z CRM", () => {
   // ---------------------------------------------------------------------------
-  // DEFEKT: `isNew` czyta sie ze SZKICU (`draft.id === null`), a szkic startuje
+  // Historia naprawionego defektu: `isNew` czyta sie ze SZKICU (`draft.id === null`), a szkic startuje
   // pusty i dopiero EFEKT wpisuje do niego wiersz sponsora. Przez jeden render
   // okno edycji uchodzi wiec za „nowe przypiecie” i odpala wyszukiwarke firm
   // w CRM - zapytanie, ktorego nikt nie zobaczy, bo lista wynikow w trybie
@@ -367,14 +367,11 @@ describe("wyszukiwarka firm z CRM", () => {
   // zbednych zapytan do CRM-u na jedna sesje redakcyjna. Tryb powinien wynikac
   // z PROPA `sponsor`, a nie ze stanu, ktory dopiero ma zostac ustawiony.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: okno EDYCJI odpala jedno zapytanie do wyszukiwarki firm CRM, zanim efekt wpisze szkic",
-    () => {
-      renderuj({ sponsor: przypiecie() });
+  it("edycja istniejącego sponsora nie uruchamia wyszukiwarki CRM", () => {
+    renderuj({ sponsor: przypiecie() });
 
-      expect(h.szukaneFrazy).toEqual([]);
-    },
-  );
+    expect(h.szukaneFrazy).toEqual([]);
+  });
 
   it("wpisana fraza jedzie do warstwy zapytan", () => {
     renderuj();
@@ -718,24 +715,21 @@ describe("zapis w toku i wyjscie z okna", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: `nextSortOrder` liczy sie z listy sponsorow, a lista odswieza sie
+  // Historia naprawionego defektu: `nextSortOrder` liczy sie z listy sponsorow, a lista odswieza sie
   // po kazdej mutacji modulu i przy powrocie fokusa do okna przegladarki.
   // Efekt czyszczacy szkic ma ja w tablicy zaleznosci, wiec taka zmiana kasuje
   // wybrana firme i cala wpisana migawke - bez zadnego komunikatu.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: odswiezenie listy sponsorow w tle (zmiana `nextSortOrder`) CZYSCI wybrana firme i migawke",
-    () => {
-      const { przerysuj } = renderuj({ nextSortOrder: 20 });
-      wybierzFirme("Alfa");
-      fireEvent.change(opisPl(), { target: { value: "Opis na strone" } });
+  it("odświeżenie kolejności sponsorów zachowuje wybraną firmę i migawkę", () => {
+    const { przerysuj } = renderuj({ nextSortOrder: 20 });
+    wybierzFirme("Alfa");
+    fireEvent.change(opisPl(), { target: { value: "Opis na strone" } });
 
-      przerysuj({ nextSortOrder: 30 });
+    przerysuj({ nextSortOrder: 30 });
 
-      expect(nazwaNaStronie()).toHaveValue("Alfa sp. z o.o.");
-      expect(opisPl()).toHaveValue("Opis na strone");
-    },
-  );
+    expect(nazwaNaStronie()).toHaveValue("Alfa sp. z o.o.");
+    expect(opisPl()).toHaveValue("Opis na strone");
+  });
 });
 
 describe("dostepnosc", () => {

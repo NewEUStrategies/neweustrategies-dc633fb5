@@ -564,8 +564,8 @@ describe("EventAnalyticsPanel - drogowskaz do ruchu na stronie", () => {
   });
 });
 
-describe("EventAnalyticsPanel - REJESTR DEFEKTOW", () => {
-  // DEFEKT: komentarz przy `useOnsiteStats(eventId, 60)` obiecuje „odczyt na
+describe("EventAnalyticsPanel - regresje naprawionych defektów", () => {
+  // Historia naprawionego defektu: komentarz przy `useOnsiteStats(eventId, 60)` obiecuje „odczyt na
   // wejscie - analityke czyta sie po wydarzeniu, nie przy bramce", ale trzeci
   // argument hooka (`enabled`) zostal domyslny, a razem z nim
   // `refetchInterval: 30_000`. Otwarta zakladka analityki odpytuje wiec ciezkie
@@ -573,29 +573,26 @@ describe("EventAnalyticsPanel - REJESTR DEFEKTOW", () => {
   // odprawy juz nie ma. KONSEKWENCJA: pulpit zostawiony na ekranie w biurze
   // generuje 120 wywolan agregatu na godzine na kazdej otwartej karcie, a
   // komentarz w kodzie mowi, ze nie generuje zadnego - wiec nikt tego nie szuka.
-  it.fails(
-    "DEFEKT: pulpit odpytuje odprawe co 30 sekund, choc komentarz obiecuje jeden odczyt na wejscie",
-    async () => {
-      vi.useFakeTimers();
-      planujKomplet(stub());
-      panel();
+  it("analityka nie odpytuje statystyk odprawy co 30 sekund", async () => {
+    vi.useFakeTimers();
+    planujKomplet(stub());
+    panel();
 
-      // Odczyt wejsciowy. Bez `waitFor`, bo ono liczy WLASNY, prawdziwy zegar
-      // i pod sztucznymi timerami czekaloby do konca limitu.
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1);
-      });
-      const przedCzekaniem = stub().callsFor("admin_event_onsite_stats").length;
-      expect(przedCzekaniem).toBe(1);
+    // Odczyt wejsciowy. Bez `waitFor`, bo ono liczy WLASNY, prawdziwy zegar
+    // i pod sztucznymi timerami czekaloby do konca limitu.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    const przedCzekaniem = stub().callsFor("admin_event_onsite_stats").length;
+    expect(przedCzekaniem).toBe(1);
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(31_000);
-      });
-      expect(stub().callsFor("admin_event_onsite_stats")).toHaveLength(przedCzekaniem);
-    },
-  );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(31_000);
+    });
+    expect(stub().callsFor("admin_event_onsite_stats")).toHaveLength(przedCzekaniem);
+  });
 
-  // DEFEKT: ODMOWA BAZY WYGLADA DOKLADNIE TAK SAMO JAK WCZYTYWANIE. Wszystkie
+  // Historia naprawionego defektu: ODMOWA BAZY WYGLADA DOKLADNIE TAK SAMO JAK WCZYTYWANIE. Wszystkie
   // cztery zapytania moga zostac odrzucone (brak roli, wygasla sesja, awaria
   // RPC), a pulpit nadal pokazuje czternascie kresek - czyli to samo, co przez
   // pierwsze polsekundy kazdego wejscia. Ekran nie ma ZADNEGO sygnalu bledu:
@@ -604,37 +601,34 @@ describe("EventAnalyticsPanel - REJESTR DEFEKTOW", () => {
   // chwili uznaje, ze wydarzenie „nie ma jeszcze danych" - czyli wyciaga
   // wniosek merytoryczny z awarii. To ta sama zasada, ktora naglowek panelu
   // stosuje do zera: „nie wiem" i „nie udalo sie" to rozne odpowiedzi.
-  it.fails(
-    "DEFEKT: odmowa czterech RPC daje ekran nieodrozniallny od wczytywania - zaden sygnal bledu",
-    async () => {
-      h.wiecznePending = true;
-      const { container: wczytywanie, unmount } = panel();
-      await waitFor(() => expect(screen.getAllByText(KRESKA)).toHaveLength(14));
-      const tekstWczytywania = wczytywanie.textContent ?? "";
-      unmount();
+  it("analityka odróżnia błąd od trwającego odczytu", async () => {
+    h.wiecznePending = true;
+    const { container: wczytywanie, unmount } = panel();
+    await waitFor(() => expect(screen.getAllByText(KRESKA)).toHaveLength(14));
+    const tekstWczytywania = wczytywanie.textContent ?? "";
+    unmount();
 
-      h.wiecznePending = false;
-      for (const name of RPC_PULPITU) {
-        stub().setError(name, "permission denied for function", "42501");
-      }
-      const { container: odmowa } = panel();
-      await waitFor(() =>
-        expect(stub().callsFor("admin_event_registrations_counts").length).toBeGreaterThan(0),
-      );
-      await waitFor(() => expect(screen.getAllByText(KRESKA)).toHaveLength(14));
+    h.wiecznePending = false;
+    for (const name of RPC_PULPITU) {
+      stub().setError(name, "permission denied for function", "42501");
+    }
+    const { container: odmowa } = panel();
+    await waitFor(() =>
+      expect(stub().callsFor("admin_event_registrations_counts").length).toBeGreaterThan(0),
+    );
+    await waitFor(() => expect(screen.getAllByText(KRESKA)).toHaveLength(14));
 
-      expect(odmowa.textContent ?? "").not.toBe(tekstWczytywania);
-    },
-  );
+    expect(odmowa.textContent ?? "").not.toBe(tekstWczytywania);
+  });
 
-  // DEFEKT: `percent()` zaokragla przez `Math.round`, wiec kazdy niezerowy
+  // Historia naprawionego defektu: `percent()` zaokragla przez `Math.round`, wiec kazdy niezerowy
   // odsetek ponizej 0,5% laduje na kaflu jako „0%". Przy duzej gieldzie spotkan
   // (jedno przyjete zaproszenie na trzysta rozstrzygnietych) pulpit mowi
   // „0% przyjetych zaproszen" obok kafla „Spotkania odbyte: 1" - dwie liczby
   // z tego samego wiersza przecza sobie nawzajem. KONSEKWENCJA: to samo
   // splaszczenie, przed ktorym broni sie naglowek panelu przy kresce - realny
   // pomiar zamieniony w „nic sie nie wydarzylo".
-  it.fails("DEFEKT: niezerowy odsetek ponizej 0,5% pokazuje sie jako „0%”", async () => {
+  it("niezerowy odsetek poniżej 0,5% nie jest wyświetlany jako zero", async () => {
     planujKomplet(stub());
     stub().setData("admin_event_meeting_stats", meetingStats({ held: 1, acceptance_rate: 0.33 }));
     panel();

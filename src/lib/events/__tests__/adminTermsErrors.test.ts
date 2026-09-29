@@ -92,7 +92,7 @@ describe("para rol: kto moze wejsc na ekran i kto nie moze", () => {
     expect(failure.params).toEqual({});
   });
 
-  // DEFEKT ZAREJESTROWANY, NIE NAPRAWIONY (`it.fails`).
+  // REGRESJA NAPRAWIONEGO DEFEKTU. Poniżej opis pierwotnego zachowania.
   //
   // Zdanie pod kluczem `forbidden` obiecuje redaktorowi dostep: PL „Ten ekran
   // jest dostepny wylacznie dla redakcji i administracji.", EN „…available to
@@ -103,7 +103,7 @@ describe("para rol: kto moze wejsc na ekran i kto nie moze", () => {
   // Redaktor czyta wiec po odmowie, ze ekran jest dla niego - i idzie szukac
   // awarii tam, gdzie jej nie ma. Poprawka nalezy do produkcji: tekst w obu
   // nakladkach ma nazwac administracje, a nie redakcje.
-  it.fails("zdanie odmowy NIE obiecuje redaktorowi dostepu do ekranu", () => {
+  it("komunikat odmowy wskazuje dostęp wyłącznie dla administracji", () => {
     expect(adminTermsFailure(new Error("forbidden: admin role required")).key).toBe(
       `${PREFIX}forbidden`,
     );

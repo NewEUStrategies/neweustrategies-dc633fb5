@@ -125,7 +125,10 @@ export function MeetingStatsPanel({ eventId }: { eventId: string }) {
                   </p>
                 </div>
                 <Badge variant={table.isActive ? "outline" : "secondary"} className="text-[11px]">
-                  {pctLabel(table.utilisationPct)}
+                  <span>{pctLabel(table.utilisationPct)}</span>
+                  {!table.isActive ? (
+                    <span>{t("adminEventMeetings.errors.tableInactive")}</span>
+                  ) : null}
                 </Badge>
               </li>
             ))}

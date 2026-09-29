@@ -10,6 +10,7 @@
 //
 // MIGAWKA JEST EDYTOWALNA SWIADOMIE. To ona jedzie na strone publiczna; wpisana
 // recznie przestaje byc nadpisywana odswiezaniem z CRM-u.
+import { useDialogDraftSession } from "@/lib/events/useDialogDraftSession";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Search } from "lucide-react";
@@ -35,6 +36,7 @@ import {
   SPONSOR_MAX_DESCRIPTION,
   SPONSOR_MAX_NAME,
   SPONSOR_MAX_NOTE,
+  SPONSOR_MAX_COUNTRY,
   emptySponsorDraft,
   sponsorDraftFromRow,
   sponsorDraftToInput,
@@ -83,16 +85,16 @@ export function EventSponsorDialog({
   const [companyQuery, setCompanyQuery] = useState("");
 
   const isNew = draft.id === null;
-  const companiesQ = useSponsorCompanySearch(eventId, companyQuery, open && isNew);
+  const companiesQ = useSponsorCompanySearch(eventId, companyQuery, open && sponsor === null);
 
   // NOTATKA WEWNETRZNA NIE JEDZIE Z LISTA - i to jest decyzja bazy, nie
   // przeoczenie: `admin_event_sponsors_list` jej nie oddaje, zeby nie wozic
   // tresci handlowych przez ekran, ktory ich nie pokazuje. Dialog edycji jednak
   // MA pole notatki, wiec musi ja dobrac osobno - inaczej redaktor widzi puste
   // pole tam, gdzie notatka istnieje, i nie wie, ze pisze po czyms.
-  const detailQ = useSponsorDetail(sponsor?.id ?? "", open && sponsor !== null);
+  const detailQ = useSponsorDetail(eventId, sponsor?.id ?? "", open && sponsor !== null);
 
-  useEffect(() => {
+  useDialogDraftSession(open, `${eventId}:${sponsor?.id ?? "new"}`, () => {
     if (!open) return;
     setDraft(
       sponsor === null
@@ -101,7 +103,7 @@ export function EventSponsorDialog({
     );
     setTouched(false);
     setCompanyQuery("");
-  }, [open, sponsor, nextSortOrder, defaultTierId]);
+  });
 
   // Notatka dojezdza po wierszu listy, wiec wpisujemy ja OSOBNYM efektem i tylko
   // wtedy, gdy szkic jej jeszcze nie zna. Warunek chroni to, co redaktor zdazyl
@@ -311,7 +313,8 @@ export function EventSponsorDialog({
             label={t("adminEventSponsors.sponsors.dialog.snapshotCountry")}
             value={draft.snapshotCountry}
             onValueChange={(value) => set("snapshotCountry", value)}
-            maxLength={80}
+            maxLength={SPONSOR_MAX_COUNTRY}
+            error={errorFor("snapshotCountry")}
           />
           <AdminFormTextRow
             label={t("adminEventSponsors.sponsors.dialog.snapshotWebsite")}

@@ -250,9 +250,9 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
         />
       )}
 
-      <p className="pb-6 text-center text-xs text-muted-foreground">
+      <div className="pb-6 text-center text-xs text-muted-foreground">
         <Badge variant="outline">{session.event.slug ?? ""}</Badge>
-      </p>
+      </div>
     </div>
   );
 }

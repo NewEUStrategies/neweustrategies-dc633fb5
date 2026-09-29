@@ -17,7 +17,7 @@
 // FREKWENCJA JEST ODWRACALNA, ODWOŁANIE NIE. Dlatego „odbyło się" idzie jednym
 // kliknięciem, a odwołanie przechodzi przez potwierdzenie z polem powodu -
 // powód zobaczą obie strony.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { CalendarPlus, CheckCircle2, UserX, XCircle } from "lucide-react";
@@ -83,6 +83,7 @@ export function MeetingsListPanel({ eventId }: { eventId: string }) {
   const [page, setPage] = useState(0);
   const [cancelled, setCancelled] = useState<AdminMeetingRow | null>(null);
   const [reason, setReason] = useState("");
+  const cancelInFlight = useRef(false);
 
   const tablesQ = useMeetingTables(eventId);
   const query = useMemo(
@@ -126,10 +127,14 @@ export function MeetingsListPanel({ eventId }: { eventId: string }) {
   };
 
   const confirmCancel = () => {
-    if (cancelled === null) return;
+    if (cancelled === null || setStatusMutation.isPending || cancelInFlight.current) return;
+    cancelInFlight.current = true;
     setStatusMutation.mutate(
       { meetingId: cancelled.id, status: "cancelled", reason: reason.trim() || null },
       {
+        onSettled: () => {
+          cancelInFlight.current = false;
+        },
         onSuccess: () => {
           toast.success(t("adminEventMeetings.toasts.meetingCancelled"));
           setCancelled(null);
@@ -348,7 +353,11 @@ export function MeetingsListPanel({ eventId }: { eventId: string }) {
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("adminEventMeetings.tables.cancelAction")}</AlertDialogCancel>
-            <Button variant="destructive" onClick={confirmCancel}>
+            <Button
+              variant="destructive"
+              onClick={confirmCancel}
+              disabled={setStatusMutation.isPending}
+            >
               {t("adminEventMeetings.list.cancelAction")}
             </Button>
           </AlertDialogFooter>

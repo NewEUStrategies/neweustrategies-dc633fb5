@@ -361,7 +361,7 @@ describe("walidacja pozostalych pol", () => {
     fireEvent.click(zapisz());
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByText(`${BLAD}invalidNumber`)).toBeTruthy();
+    expect(screen.getByText(`${BLAD}invalidCompanyLimit`)).toBeTruthy();
   });
 
   it("ranga, ktora nie jest liczba, zatrzymuje zapis", () => {
@@ -554,7 +554,7 @@ describe("zapis w toku i wyjscie z okna", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: efekt czyszczacy szkic ma w tablicy zaleznosci `nextSortOrder`
+  // Historia naprawionego defektu: efekt czyszczacy szkic ma w tablicy zaleznosci `nextSortOrder`
   // i `nextRank`, a te licza sie z listy poziomow. Kazde odswiezenie listy
   // (przelacznik „aktywny” w innym wierszu, powrot fokusa do okna przegladarki,
   // zapis innego uzytkownika) zmienia te liczby i CZYSCI wypelniony formularz.
@@ -562,18 +562,15 @@ describe("zapis w toku i wyjscie z okna", () => {
   // Podpowiedzi porzadkowe powinny wchodzic do szkicu przy OTWARCIU okna,
   // a nie przy kazdej zmianie propa.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: odswiezenie listy poziomow w tle (zmiana `nextRank`) CZYSCI wypelniony formularz",
-    () => {
-      const { przerysuj } = renderuj({ nextSortOrder: 20, nextRank: 2 });
-      wypelnijMinimum("platinum", "Platynowy", "Platinum");
+  it("odświeżenie rangi poziomów zachowuje otwarty szkic", () => {
+    const { przerysuj } = renderuj({ nextSortOrder: 20, nextRank: 2 });
+    wypelnijMinimum("platinum", "Platynowy", "Platinum");
 
-      przerysuj({ nextRank: 3 });
+    przerysuj({ nextRank: 3 });
 
-      expect(klucz()).toHaveValue("platinum");
-      expect(nazwaPl()).toHaveValue("Platynowy");
-    },
-  );
+    expect(klucz()).toHaveValue("platinum");
+    expect(nazwaPl()).toHaveValue("Platynowy");
+  });
 });
 
 describe("dostepnosc", () => {

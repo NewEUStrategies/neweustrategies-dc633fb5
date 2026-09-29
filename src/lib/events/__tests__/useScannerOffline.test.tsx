@@ -388,6 +388,23 @@ describe("zimny start i sesja z pamięci urządzenia", () => {
     expect(result.current.clockOffsetMs).toBe(4000);
   });
 
+  it("czasowa blokada zachowuje skan bez lokalnego przyznania wejścia", async () => {
+    const { result } = await withRoster();
+    api.recordCheckinScan.mockRejectedValue(new Error("device_locked: cooling down"));
+    let outcome: Awaited<ReturnType<typeof result.current.submitCheckin>> | undefined;
+    await act(async () => {
+      outcome = await result.current.submitCheckin({
+        code: CODE,
+        checkpointId: CP,
+        direction: "in",
+      });
+    });
+    expect(outcome).toEqual({ queued: true, local: null });
+    expect(result.current.outbox).toHaveLength(1);
+    expect(result.current.outbox[0].offlineAdmitted).toBeUndefined();
+    expect(store.log).toEqual([]);
+  });
+
   it("odmowa NAZWANA przez bazę (nie sieć) nie podnosi sesji z pamięci", async () => {
     store.session = cached(TOKEN);
     api.bootstrapScanner.mockRejectedValue(new Error("device_locked: cooling down"));

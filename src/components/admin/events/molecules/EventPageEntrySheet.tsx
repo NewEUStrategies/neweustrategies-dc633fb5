@@ -18,7 +18,8 @@
 // PUSTY WYBOR GRUP ZNACZY „WSZYSCY", TAKZE GOSCIE - i to jest jedyna rzecz na
 // tym ekranie, ktorej nie da sie odgadnac z samej kontrolki, wiec stoi
 // w podpowiedzi nad lista, a nie w dokumentacji.
-import { useEffect, useState } from "react";
+import { useDialogDraftSession } from "@/lib/events/useDialogDraftSession";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -95,11 +96,11 @@ export function EventPageEntrySheet({
 
   // RESET TYLKO PRZY OTWARCIU: szuflada otwarta nad inna pozycja jest nowa
   // praca, a nie ciagiem poprzedniej.
-  useEffect(() => {
+  useDialogDraftSession(open, entry?.id ?? "new", () => {
     if (!open || entry === null) return;
     setDraft(draftFrom(entry));
     setTouched(false);
-  }, [open, entry]);
+  });
 
   const set = <K extends keyof EntryDraft>(key: K, value: EntryDraft[K]) =>
     setDraft((previous) => (previous === null ? previous : { ...previous, [key]: value }));

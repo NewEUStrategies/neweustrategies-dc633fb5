@@ -57,8 +57,8 @@ import { AdminFormEnumRow } from "@/components/admin/molecules/AdminFormEnumRow"
 import { AdminFormSwitchRow } from "@/components/admin/molecules/AdminFormSwitchRow";
 import { uiLang } from "@/lib/i18n/format";
 import {
-  TERMS_MAX_DESCRIPTION,
-  TERMS_MAX_NAME,
+  GROUP_MAX_DESCRIPTION,
+  GROUP_MAX_NAME,
   emptyGroupDraft,
   groupDraftFromRow,
   groupDraftToInput,
@@ -221,27 +221,29 @@ export function EventGroupDialog({
                 label={t("adminEventTerms.groups.dialog.namePl")}
                 value={draft.namePl}
                 onValueChange={(value) => set("namePl", value)}
-                maxLength={TERMS_MAX_NAME}
+                maxLength={GROUP_MAX_NAME}
                 error={errorFor("namePl")}
               />
               <AdminFormTextRow
                 label={t("adminEventTerms.groups.dialog.nameEn")}
                 value={draft.nameEn}
                 onValueChange={(value) => set("nameEn", value)}
-                maxLength={TERMS_MAX_NAME}
+                maxLength={GROUP_MAX_NAME}
               />
               <AdminFormTextRow
                 label={t("adminEventTerms.groups.dialog.descriptionPl")}
+                error={errorFor("descriptionPl")}
                 value={draft.descriptionPl}
                 onValueChange={(value) => set("descriptionPl", value)}
-                maxLength={TERMS_MAX_DESCRIPTION}
+                maxLength={GROUP_MAX_DESCRIPTION}
                 rows={3}
               />
               <AdminFormTextRow
                 label={t("adminEventTerms.groups.dialog.descriptionEn")}
+                error={errorFor("descriptionEn")}
                 value={draft.descriptionEn}
                 onValueChange={(value) => set("descriptionEn", value)}
-                maxLength={TERMS_MAX_DESCRIPTION}
+                maxLength={GROUP_MAX_DESCRIPTION}
                 rows={3}
               />
               <AdminFormTextRow

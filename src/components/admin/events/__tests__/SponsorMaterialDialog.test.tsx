@@ -409,23 +409,20 @@ describe("zapis w toku i wyjscie z okna", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // DEFEKT: `nextSortOrder` liczy sie z listy materialow, ktora odswieza sie
+  // Historia naprawionego defektu: `nextSortOrder` liczy sie z listy materialow, ktora odswieza sie
   // po KAZDEJ mutacji modulu (zapis innego materialu, publikacja sponsora,
   // powrot fokusa do okna przegladarki). Efekt czyszczacy szkic ma ja w tablicy
   // zaleznosci, wiec taka zmiana kasuje wpisany adres i tytuly bez slowa.
   // ---------------------------------------------------------------------------
-  it.fails(
-    "DEFEKT: odswiezenie listy materialow w tle (zmiana `nextSortOrder`) CZYSCI wypelniony formularz",
-    () => {
-      const { przerysuj } = renderuj({ nextSortOrder: 30 });
-      wypelnijMinimum();
+  it("odświeżenie kolejności materiałów zachowuje otwarty szkic", () => {
+    const { przerysuj } = renderuj({ nextSortOrder: 30 });
+    wypelnijMinimum();
 
-      przerysuj({ nextSortOrder: 40 });
+    przerysuj({ nextSortOrder: 40 });
 
-      expect(tytulPl()).toHaveValue("Paczka logotypow");
-      expect(adres()).toHaveValue("https://przyklad.example.com/materialy.zip");
-    },
-  );
+    expect(tytulPl()).toHaveValue("Paczka logotypow");
+    expect(adres()).toHaveValue("https://przyklad.example.com/materialy.zip");
+  });
 });
 
 describe("dostepnosc", () => {

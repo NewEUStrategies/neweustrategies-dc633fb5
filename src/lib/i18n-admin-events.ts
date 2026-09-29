@@ -950,6 +950,8 @@ export const adminEventsPl = {
       },
 
       analytics: {
+        loadError: "Nie udało się wczytać części statystyk. Wyświetlone dane mogą być nieaktualne.",
+        retry: "Spróbuj ponownie",
         registrations: "Zgłoszenia",
         registrationsDescription:
           "Liczby z modułu zapisów - te same, które widzisz na liście zgłoszeń. Kreska znaczy „jeszcze nie wiadomo”, a nie zero.",
@@ -2043,6 +2045,8 @@ export const adminEventsEn = {
       },
 
       analytics: {
+        loadError: "Some statistics could not be loaded. Displayed data may be outdated.",
+        retry: "Try again",
         registrations: "Registrations",
         registrationsDescription:
           "Numbers from the registrations module - the same ones the registrations list shows. A dash means “not known yet”, not zero.",

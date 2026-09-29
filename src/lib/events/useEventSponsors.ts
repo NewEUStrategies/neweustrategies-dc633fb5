@@ -60,7 +60,8 @@ export const sponsorKeys = {
   tiers: (eventId: string) => [...sponsorKeys.event(eventId), "tiers"] as const,
   companies: (eventId: string, q: string) =>
     [...sponsorKeys.event(eventId), "companies", q] as const,
-  detail: (sponsorId: string) => [...sponsorKeys.all, "detail", sponsorId] as const,
+  detail: (eventId: string, sponsorId: string) =>
+    [...sponsorKeys.event(eventId), "detail", sponsorId] as const,
 };
 
 export function useSponsors(
@@ -101,13 +102,14 @@ export function useSponsorTiers(
 }
 
 export function useSponsorDetail(
+  eventId: string,
   sponsorId: string,
   enabled = true,
 ): UseQueryResult<EventSponsorDetailRow | null> {
   return useQuery({
-    queryKey: sponsorKeys.detail(sponsorId),
+    queryKey: sponsorKeys.detail(eventId, sponsorId),
     queryFn: () => fetchSponsorDetail(sponsorId),
-    enabled: enabled && sponsorId !== "",
+    enabled: enabled && eventId !== "" && sponsorId !== "",
   });
 }
 
@@ -133,7 +135,6 @@ function useSponsorMutation<TInput, TResult>(
     mutationFn: run,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: sponsorKeys.event(eventId) });
-      void queryClient.invalidateQueries({ queryKey: [...sponsorKeys.all, "detail"] });
     },
   });
 }

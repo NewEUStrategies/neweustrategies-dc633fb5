@@ -124,7 +124,7 @@ function pct(source: Bag, key: string): number | null {
   const value = source[key];
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   if (value < 0 || value > 100) return null;
-  return Math.round(value);
+  return value;
 }
 
 function str(source: Bag, key: string): string | null {
