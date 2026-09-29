@@ -1,5 +1,11 @@
 import { expect, test, type Request as BrowserRequest } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import {
+  firstVisitCacheStates,
+  firstVisitPages,
+  firstVisitSamples,
+} from "../scripts/performance/firstVisitPlan";
 import {
   fixtureImage,
   fixtureResponse,
@@ -22,12 +28,9 @@ declare global {
 // Same production artifact, synthetic homepage with representative builder
 // layout, controlled 40 ms DB round trips and one SVG. Lab budgets, not production
 // p75 or a claim about reader networks. Blank/degraded HTML cannot pass.
-for (const [path, lang] of [
-  ["/", "pl"],
-  ["/en", "en"],
-] as const) {
-  for (const cacheState of ["cold", "warm"] as const) {
-    for (const sample of [1, 2, 3]) {
+for (const { path, lang } of firstVisitPages) {
+  for (const cacheState of firstVisitCacheStates) {
+    for (const sample of firstVisitSamples) {
       test(`first visit ${lang}, ${cacheState}, sample ${sample}`, async ({
         page,
         request,
@@ -152,6 +155,8 @@ for (const [path, lang] of [
           }).observe({ type: "layout-shift", buffered: true });
         });
         if (cacheState === "warm") {
+          // This primes only the server's document cache. Each case has a new
+          // browser context, and page.route also disables its HTTP cache.
           const warmup = await request.get(path, { headers: { "accept-language": lang } });
           expect(warmup.status()).toBe(200);
           expect(warmup.headers()["x-nes-cache"]).toBe("MISS");
@@ -237,6 +242,7 @@ for (const [path, lang] of [
           path,
           sample,
           cacheState,
+          browserCache: "cold-routing-disables-http-cache",
           cache: response!.headers()["x-nes-cache"],
           serverTiming: response!.headers()["server-timing"],
           htmlBytes: Buffer.byteLength(html),
@@ -247,9 +253,10 @@ for (const [path, lang] of [
           ...scriptAccounting,
         };
         console.log("FIRST_VISIT " + JSON.stringify(result));
-        mkdirSync("reports/first-visit", { recursive: true });
+        const reportDirectory = process.env.NES_PERFORMANCE_REPORT_DIR ?? "reports/first-visit";
+        mkdirSync(reportDirectory, { recursive: true });
         writeFileSync(
-          `reports/first-visit/${lang}-${cacheState}-${sample}.json`,
+          join(reportDirectory, `${lang}-${cacheState}-${sample}.json`),
           JSON.stringify(result, null, 2) + "\n",
         );
         await testInfo.attach("first-visit", {
