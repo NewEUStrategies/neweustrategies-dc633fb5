@@ -404,7 +404,7 @@ const truncate = (s: string, max: number) =>
   s.length > max ? s.slice(0, Math.max(0, max - 1)).trimEnd() + "…" : s;
 
 const SHARED_STYLES = `
-.eh-slider { container-type: inline-size; }
+.eh-slider[data-variant="multi-card"] { container-type: inline-size; }
 .eh-multi-track { --eh-visible-columns: var(--eh-columns, 3); }
 @container (max-width: 1024px) {
   .eh-multi-track { --eh-visible-columns: min(2, var(--eh-columns, 3)); }
@@ -1079,6 +1079,7 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
     <div
       ref={rootRef}
       className={`w-full h-full min-h-0 eh-slider ${instanceId}`}
+      data-variant={variant}
       data-hide-cover={showCover ? undefined : "true"}
       data-show-title={showTitle ? "true" : "false"}
       data-author-display={author.mode}

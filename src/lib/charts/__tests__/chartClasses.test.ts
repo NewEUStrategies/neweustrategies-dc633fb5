@@ -31,9 +31,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 
 const KATALOG = "src/components/charts";
-const css =
-  readFileSync("src/styles.css", "utf8") +
-  readFileSync("src/components/charts/chart-styles.css", "utf8");
+const css = readFileSync("src/styles.css", "utf8");
 
 /**
  * Klasy istniejące WYŁĄCZNIE jako uchwyt zapytania, z powodem. Lista jest

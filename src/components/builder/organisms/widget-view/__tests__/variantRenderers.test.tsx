@@ -1172,7 +1172,9 @@ describe("SliderRender", () => {
       expect(imgs).toHaveLength(2);
       for (const img of imgs) {
         expect((img as HTMLImageElement).style.opacity).toBe("1");
-        expect(img.getAttribute("sizes")).toBe(sliderMultiCardSizes(2));
+        expect(img.getAttribute("sizes")).toBe(
+          `${img.getAttribute("loading") === "lazy" ? "auto, " : ""}${sliderMultiCardSizes(2)}`,
+        );
       }
     });
 
@@ -1231,6 +1233,7 @@ describe("SliderRender", () => {
       // Slajd bez adresu dostaje okładkę zapasową od razu - to dowód, że
       // zapytanie o fallbacki zdążyło się rozstrzygnąć.
       await waitFor(() => expect(imgs()[0].getAttribute("src")).toBe(STORAGE_COVER_2));
+      fireEvent.click(navButton(container, "next"));
       fireEvent.error(imgs()[1]);
       expect(imgs()[1].getAttribute("src")).toBe(STORAGE_COVER_2);
     });
@@ -1253,6 +1256,7 @@ describe("SliderRender", () => {
       // Pierwszy slajd dostaje okładkę zapasową z bazy - to dowód, że
       // zapytanie o fallbacki zdążyło się rozstrzygnąć.
       await waitFor(() => expect(imgs()[0].getAttribute("src")).toBe(STORAGE_COVER));
+      fireEvent.click(navButton(container, "next"));
       fireEvent.error(imgs()[1]);
       expect(imgs()[1].getAttribute("src")).toContain("data:image/svg+xml");
     });
@@ -1274,6 +1278,8 @@ describe("SliderRender", () => {
       await waitFor(() =>
         expect(container.querySelectorAll("img.eh-img")[0].getAttribute("src")).toBe(STORAGE_COVER),
       );
+      expect(container.querySelectorAll("img.eh-img")[1]).not.toHaveAttribute("src");
+      for (let i = 1; i < 4; i++) fireEvent.click(navButton(container, "next"));
       const src = Array.from(container.querySelectorAll("img.eh-img")).map((i) =>
         i.getAttribute("src"),
       );

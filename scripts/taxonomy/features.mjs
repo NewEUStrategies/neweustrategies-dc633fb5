@@ -589,7 +589,9 @@ export const FEATURES_3 = [
     // dokumentów buildera (ich hero żyje w drzewie sekcji, więc kontrakt
     // loader->head() z wpisów ich nie obejmował), podmiana miniatury per wpis
     // i wybór rozmiaru wariantu.
-    patterns: [/^src\/lib\/builder\/(heroImage|thumbnailOverrides|widgetImageSizes)\.ts$/],
+    patterns: [
+      /^src\/lib\/builder\/(heroImage|thumbnailOverrides|widgetImageSizes|imageSlot|imageSlotContext)\.tsx?$/,
+    ],
   },
   {
     key: "cms-builder-fields",

@@ -1,3 +1,4 @@
+import { routeSplitBehavior } from "./scripts/lib/routeCodeSplitting";
 import { widgetChunkPlugin } from "./scripts/lib/widgetChunkPlugin";
 // @lovable.dev/vite-tanstack-config already includes the following - do NOT add them manually
 // or the app will break with duplicate plugins:
@@ -87,6 +88,7 @@ export default defineConfig({
     // zmianie przebudowuje routeTree.gen.ts => pełny "program reload" w dev,
     // co objawia się migotaniem / niestabilnym renderowaniem podglądu.
     router: {
+      codeSplittingOptions: { splitBehavior: routeSplitBehavior },
       routeFileIgnorePattern: "(__tests__|__snapshots__)|\\.(test|spec)\\.[jt]sx?$",
     },
   },

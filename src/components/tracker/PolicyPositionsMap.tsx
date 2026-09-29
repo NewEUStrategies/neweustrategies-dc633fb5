@@ -1,4 +1,3 @@
-import "@/components/charts/chart-styles.css";
 // Explorer stanowisk państw członkowskich UE dla dossier trackera.
 //
 // Wzorzec "EU Coalition Explorer" (ECFR): mapa choropletowa Europy koduje

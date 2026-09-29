@@ -904,7 +904,9 @@ describe("SliderRender - rozstrzyganie treści slajdu", () => {
           },
         ],
       });
-      expect(container.querySelector("img[data-fill-image]")?.getAttribute("sizes")).toBe("50vw");
+      expect(container.querySelector("img[data-fill-image]")?.getAttribute("sizes")).toBe(
+        "(max-width: 640px) 100vw, 50vw",
+      );
     });
   });
 

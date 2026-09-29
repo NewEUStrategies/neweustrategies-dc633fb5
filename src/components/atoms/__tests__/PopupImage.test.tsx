@@ -16,7 +16,7 @@ describe("popup media delivery", () => {
     const img = container.querySelector("img")!;
     expect(img.getAttribute("src")).toBe("/media/tenant/photo.jpg");
     expect(img.getAttribute("srcset")).toContain(
-      "/media/tenant/photo.jpg?width=320&resize=contain&quality=78 320w",
+      "/media/tenant/photo.jpg?width=320&resize=contain&quality=76 320w",
     );
     expect(img.getAttribute("sizes")).toBe("300px");
     expect(img.getAttribute("loading")).toBe("eager");

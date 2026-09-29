@@ -10,6 +10,7 @@ bun.lock
 routeTree.gen.ts
 src/lib/icons/lucideIconNodes.generated.ts
 src/lib/icons/chunks/*.json
+src/lib/icons/iconNames.generated.json
 # Snapshot bramek autoryzacji generowany z supabase/migrations przez
 # scripts/generate-authz-snapshot.ts - jedna bramka na linię, żeby diff pokazywał
 # dokładnie tę, która zmieniła zbiór ról. Prettier rozbiłby to na setki linii i

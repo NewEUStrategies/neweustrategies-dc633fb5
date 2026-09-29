@@ -227,7 +227,7 @@ describe("typografia zakresowa", () => {
       expect(wezly.indexOf(el)).toBeLessThan(pierwszaKolumna);
     }
     const css = style.map((el) => el.textContent).join("\n");
-    expect(css).toContain('[data-sec-id="a"] [data-col-id="a-c"]{order:2;}');
+    expect(css).toContain('[data-sec-id="a"] [data-col-id="a-c"]{order:2 !important;}');
   });
 
   it("wartość z bazy NIE potrafi zamknąć elementu <style>", () => {

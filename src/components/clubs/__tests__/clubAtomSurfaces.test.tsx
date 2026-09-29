@@ -440,7 +440,7 @@ describe("ClubCover - wariant card", () => {
     const image = container.querySelector("img");
     expect(image?.getAttribute("loading")).toBe("lazy");
     expect(image?.getAttribute("sizes")).toBe(
-      "(min-width: 1024px) 22rem, (min-width: 640px) 50vw, 100vw",
+      "auto, (min-width: 1024px) 22rem, (min-width: 640px) 50vw, 100vw",
     );
     expect(container.firstElementChild?.getAttribute("class")).toContain("rounded-t-lg");
   });

@@ -7,18 +7,6 @@ const chunks = [
   () => import("./chunks/icons-1.json"),
   () => import("./chunks/icons-2.json"),
   () => import("./chunks/icons-3.json"),
-  () => import("./chunks/icons-4.json"),
-  () => import("./chunks/icons-5.json"),
-  () => import("./chunks/icons-6.json"),
-  () => import("./chunks/icons-7.json"),
-  () => import("./chunks/icons-8.json"),
-  () => import("./chunks/icons-9.json"),
-  () => import("./chunks/icons-10.json"),
-  () => import("./chunks/icons-11.json"),
-  () => import("./chunks/icons-12.json"),
-  () => import("./chunks/icons-13.json"),
-  () => import("./chunks/icons-14.json"),
-  () => import("./chunks/icons-15.json"),
 ];
 const cache = new Map<string, ComponentType<LucideProps>>();
 
@@ -38,6 +26,15 @@ function isIconNode(value: unknown): value is IconNode {
   );
 }
 
+async function loadNode(name: string): Promise<IconNode | null> {
+  const module = await chunks[iconChunkIndex(name)]();
+  const registry: Record<string, unknown> = module.default;
+  const node = registry[name];
+  // Historical aliases point to a canonical entry instead of duplicating SVGs.
+  if (typeof node === "string") return loadNode(node);
+  return isIconNode(node) ? node : null;
+}
+
 /** Public content pays for one small data chunk, not the complete icon picker. */
 export function lazyNamedIcon(key: string): ComponentType<LucideProps> {
   const name = key
@@ -48,10 +45,8 @@ export function lazyNamedIcon(key: string): ComponentType<LucideProps> {
   let icon = cache.get(name);
   if (!icon) {
     icon = lazy(async () => {
-      const module = await chunks[iconChunkIndex(name)]();
-      const registry: Record<string, unknown> = module.default;
-      const node = registry[name];
-      return { default: isIconNode(node) ? createLucideIcon(name, node) : HelpCircle };
+      const node = await loadNode(name);
+      return { default: node ? createLucideIcon(name, node) : HelpCircle };
     });
     cache.set(name, icon);
   }

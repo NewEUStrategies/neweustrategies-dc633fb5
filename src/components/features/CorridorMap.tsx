@@ -1,4 +1,3 @@
-import "@/components/charts/chart-styles.css";
 // Mapa korytarzy transportowych/infrastrukturalnych - tło choropletowe
 // (te same zasoby public/geo/*.json co ChoroplethMap) z narysowanymi
 // korytarzami (linie lon/lat rzutowane metadanymi `proj` zasobu) i markerami

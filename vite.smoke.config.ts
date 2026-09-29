@@ -1,3 +1,4 @@
+import { routeSplitBehavior } from "./scripts/lib/routeCodeSplitting";
 import { widgetChunkPlugin } from "./scripts/lib/widgetChunkPlugin";
 // Wariant SMOKE-TESTOWY builda: identyczna konfiguracja jak vite.config.ts,
 // ale nitro celuje w node-server zamiast cloudflare-module, więc produkcyjny
@@ -38,7 +39,10 @@ export default defineConfig({
   // smoke-testem; bez tego override'u smoke omijał całą warstwę wrappera.
   tanstackStart: {
     server: { entry: "server" },
-    router: { routeFileIgnorePattern: "(__tests__|__snapshots__)|\\.(test|spec)\\.[jt]sx?$" },
+    router: {
+      codeSplittingOptions: { splitBehavior: routeSplitBehavior },
+      routeFileIgnorePattern: "(__tests__|__snapshots__)|\\.(test|spec)\\.[jt]sx?$",
+    },
   },
   vite: {
     // Parytet z vite.config.ts: bez tej wtyczki artefakt smoke'owy nie niesie

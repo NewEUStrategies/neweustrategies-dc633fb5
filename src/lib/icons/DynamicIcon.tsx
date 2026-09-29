@@ -6,12 +6,11 @@
 // MegaPanelView, czyli chrome nagłówka). Teraz:
 //   1. wyselekcjonowany zestaw ikon (imports nazwane -> tree-shaking) pokrywa
 //      typowe ikony menu/treści i renderuje się synchronicznie,
-//   2. pozostałe nazwy dociągają jedną z 16 porcji danych SVG przez lazy().
+//   2. pozostałe nazwy dociągają jedną z 8 porcji danych SVG przez lazy().
 //      Pełny katalog pozostaje wyłącznie w pickerze administracyjnym.
 // Fallback Suspense rezerwuje dokładnie wymiar ikony (size), więc doładowanie
 // nie zmienia zarezerwowanego miejsca. SSR może poczekać na tę samą porcję danych.
-import { Suspense } from "react";
-import { lazyNamedIcon } from "./lazyNamedIcon";
+import { lazy, Suspense } from "react";
 import {
   // - zestaw bazowy (nawigacja/UI) -
   ArrowLeft,
@@ -150,6 +149,8 @@ import {
   UsersRound,
   type LucideProps,
 } from "lucide-react";
+
+const DynamicIconChunk = lazy(() => import("./DynamicIconChunk"));
 
 export type IconName = string;
 
@@ -369,7 +370,6 @@ export function DynamicIcon({ name, allowFull = true, ...rest }: DynamicIconProp
 
   // Rezerwacja wymiaru na czas dociągania chunka - identyczna z boxem ikony
   // lucide (kwadrat `size`, domyślnie 24), więc zero przesunięcia układu.
-  const LazyIcon = lazyNamedIcon(key);
   const size = rest.size ?? 24;
   const fallback = (
     <span
@@ -379,7 +379,7 @@ export function DynamicIcon({ name, allowFull = true, ...rest }: DynamicIconProp
   );
   return (
     <Suspense fallback={fallback}>
-      <LazyIcon {...rest} />
+      <DynamicIconChunk iconKey={key} {...rest} />
     </Suspense>
   );
 }
