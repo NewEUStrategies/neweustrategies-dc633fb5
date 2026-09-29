@@ -3,8 +3,11 @@ import { Toaster as Sonner } from "sonner";
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 const Toaster = ({ ...props }: ToasterProps) => {
+  // PL/EN are LTR. Automatic detection calls getComputedStyle(html) during
+  // render, flushing pending page-wide styles even with no notifications.
   return (
     <Sonner
+      dir="ltr"
       className="toaster group"
       toastOptions={{
         classNames: {

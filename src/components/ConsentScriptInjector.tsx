@@ -16,7 +16,7 @@ import {
   type MarketingConfig,
 } from "@/lib/analytics/config";
 import { useEffectiveConsent } from "@/lib/ads/consent";
-import { whenIdle } from "@/lib/ads/idle";
+import { afterPageLoad } from "@/lib/performance/afterPageLoad";
 import {
   bootstrapGa4,
   ga4ConsentUpdate,
@@ -209,7 +209,7 @@ export function ConsentScriptInjector() {
   //
   // ROZDZIELENIE POLECEŃ OD SKRYPTU. `bootstrapGa4` wypycha polecenia do
   // `window.dataLayer` SYNCHRONICZNIE (albo rozpoznaje, że zrobił to już snippet
-  // SSR), a sam plik gtag.js dociąga dopiero przy bezczynności. Semantyka zgody
+  // SSR), a sam plik gtag.js czeka na load, klatkę i bezczynność. Semantyka zgody
   // nie zmienia się ani o krok: `consent default`/`update` siedzą w warstwie
   // danych, którą skrypt przetwarza od początku, gdy dojedzie.
   useEffect(() => {
@@ -217,7 +217,7 @@ export function ConsentScriptInjector() {
     let cancelIdle: (() => void) | null = null;
     bootstrapGa4(ga4Id, GOOGLE_ADS_ID, {
       scheduleScript: (load) => {
-        cancelIdle = whenIdle(load, GTAG_IDLE_TIMEOUT_MS);
+        cancelIdle = afterPageLoad(load, GTAG_IDLE_TIMEOUT_MS);
       },
     });
     return () => cancelIdle?.();

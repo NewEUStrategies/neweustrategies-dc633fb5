@@ -249,7 +249,7 @@ function renderInjector() {
  * Od 2026-09-20 `ConsentScriptInjector` rozdziela dwie rzeczy, które wcześniej
  * robił naraz: POLECENIA (`consent default/update`, `config`) idą do
  * `window.dataLayer` synchronicznie w efekcie, a SAM PLIK z googletagmanager.com
- * dociąga `whenIdle(…, 2000)` - ~90 KB obcego originu nie ma prawa konkurować
+ * dociąga `afterPageLoad(…, 2000)` - skrypt obcego originu nie ma konkurować
  * z LCP i pierwszą interakcją (audyt CWV, F20). Asercje na `dataLayer` zostają
  * więc synchroniczne; asercje na WĘZLE `<script data-ga4-tag>` muszą przejść
  * przez to okno. `whenIdle` bez `requestIdleCallback` (happy-dom) degraduje do
@@ -257,6 +257,7 @@ function renderInjector() {
  */
 async function poBezczynnosci(): Promise<void> {
   await act(async () => {
+    window.dispatchEvent(new Event("load"));
     await new Promise((resolve) => setTimeout(resolve, 80));
   });
 }
@@ -464,6 +465,24 @@ describe("ConsentScriptInjector - loadery analityki", () => {
 
     await poBezczynnosci();
     expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(1);
+  });
+
+  it("keeps consent commands synchronous while the document is still loading", async () => {
+    const readyState = vi.spyOn(document, "readyState", "get").mockReturnValue("loading");
+    try {
+      setAnalytics({ ga4_measurement_id: GA4_ID });
+      grant({ analytics: true });
+      renderInjector();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      });
+      expect(consentUpdate()).toMatchObject({ analytics_storage: "granted" });
+      expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
+      await poBezczynnosci();
+      expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(1);
+    } finally {
+      readyState.mockRestore();
+    }
   });
 
   it("zgoda odwiedzającego aktualizuje Consent Mode zamiast wstrzykiwać drugi tag", async () => {

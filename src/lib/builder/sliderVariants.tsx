@@ -667,6 +667,7 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
 }
 
 interface DotsNavProps {
+  lang: "pl" | "en";
   count: number;
   active: number;
   onSelect: (i: number) => void;
@@ -674,35 +675,41 @@ interface DotsNavProps {
   onNext?: () => void;
   compact?: boolean;
 }
-function DotsNav({ count, active, onSelect, onPrev, onNext, compact = false }: DotsNavProps) {
+function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = false }: DotsNavProps) {
   if (count <= 1) return null;
   return (
     <div className={`flex items-center justify-center gap-3 ${compact ? "mt-2" : "mt-3"}`}>
       {onPrev && (
         <button
           type="button"
-          aria-label="Poprzedni"
+          aria-label={lang === "en" ? "Previous slide" : "Poprzedni slajd"}
           onClick={onPrev}
           className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         {Array.from({ length: count }).map((_, i) => (
           <button
             key={i}
             type="button"
-            aria-label={`Slajd ${i + 1}`}
+            aria-label={`${lang === "en" ? "Slide" : "Slajd"} ${i + 1}`}
+            aria-current={i === active ? "true" : undefined}
             onClick={() => onSelect(i)}
-            className={`rounded-full transition-all ${i === active ? "w-2.5 h-2.5 bg-foreground" : "w-2 h-2 bg-foreground/25 hover:bg-foreground/50"}`}
-          />
+            className="group inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <span
+              aria-hidden="true"
+              className={`rounded-full transition-all ${i === active ? "w-2.5 h-2.5 bg-foreground" : "w-2 h-2 bg-foreground/25 group-hover:bg-foreground/50"}`}
+            />
+          </button>
         ))}
       </div>
       {onNext && (
         <button
           type="button"
-          aria-label="Następny"
+          aria-label={lang === "en" ? "Next slide" : "Następny slajd"}
           onClick={onNext}
           className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition"
         >
@@ -1292,6 +1299,7 @@ function EditorialHeroVariant(p: VariantProps) {
       </div>
 
       <DotsNav
+        lang={p.lang}
         count={p.items.length}
         active={p.safeIdx}
         onSelect={p.setIdx}
@@ -1480,6 +1488,7 @@ function MultiCardVariant(p: VariantProps) {
         </div>
       </div>
       <DotsNav
+        lang={p.lang}
         count={Math.max(1, p.items.length - (p.columns - 1))}
         active={p.safeIdx}
         onSelect={p.setIdx}
@@ -1600,18 +1609,24 @@ function CinematicOverlayVariant(p: VariantProps) {
         )}
         {/* Dots inside */}
         {p.items.length > 1 && (
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-2 flex items-center gap-2">
+          <div className="absolute left-1/2 -translate-x-1/2 bottom-2 flex items-center gap-1">
             {p.items.map((_, i) => (
               <button
                 key={i}
                 type="button"
-                aria-label={`Slajd ${i + 1}`}
+                aria-label={`${p.lang === "en" ? "Slide" : "Slajd"} ${i + 1}`}
+                aria-current={i === p.safeIdx ? "true" : undefined}
                 onClick={(e) => {
                   e.stopPropagation();
                   p.setIdx(i);
                 }}
-                className={`rounded-full transition-all ${i === p.safeIdx ? "w-2.5 h-2.5 bg-white" : "w-2 h-2 bg-white/50 hover:bg-white/80"}`}
-              />
+                className="group inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`rounded-full transition-all ${i === p.safeIdx ? "w-2.5 h-2.5 bg-white" : "w-2 h-2 bg-white/50 group-hover:bg-white/80"}`}
+                />
+              </button>
             ))}
           </div>
         )}
@@ -1742,6 +1757,7 @@ function SplitFeatureVariant(p: VariantProps) {
         )}
 
         <DotsNav
+          lang={p.lang}
           count={p.items.length}
           active={p.safeIdx}
           onSelect={p.setIdx}
@@ -1846,7 +1862,8 @@ function MinimalStripVariant(p: VariantProps) {
             <button
               key={i}
               type="button"
-              aria-label={`Slajd ${i + 1}`}
+              aria-label={`${p.lang === "en" ? "Slide" : "Slajd"} ${i + 1}`}
+              aria-current={i === p.safeIdx ? "true" : undefined}
               onClick={() => p.setIdx(i)}
               className={`relative shrink-0 overflow-hidden transition-all ${i === p.safeIdx ? "ring-2 ring-foreground" : "ring-1 ring-border opacity-70 hover:opacity-100"}`}
               style={{ width: 96, aspectRatio: "4 / 3", borderRadius: 4 }}

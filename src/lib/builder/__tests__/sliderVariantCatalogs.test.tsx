@@ -513,24 +513,8 @@ describe("SliderRender - chrom nawigacji przy jednym slajdzie", () => {
     expect(nextButton(en)?.getAttribute("aria-label")).toBe("Next slide");
   });
 
-  // DEFEKT: NAWIGACJA KROPKAMI MÓWI PO POLSKU TAKŻE W WIDOKU ANGIELSKIM.
-  //
-  // WEJŚCIE: `<SliderRender lang="en">` z trzema slajdami, wariant domyślny.
-  // CO PSUJE: `DotsNav` (sliderVariants.tsx:658-694) w ogóle nie dostaje
-  //   propsa `lang` i wpisuje etykiety na sztywno: aria-label="Poprzedni",
-  //   "Następny" oraz `Slajd ${i + 1}`. To samo dotyczy kropek wewnątrz
-  //   wariantu cinematic-overlay (linia 1561) i przycisków paska miniatur
-  //   (linia 1805). W TYM SAMYM pliku `NavArrows` (linie 1189-1190)
-  //   lokalizuje etykiety poprawnie, więc to niekonsekwencja, a nie decyzja.
-  // KONSEKWENCJA: czytelnik anglojęzycznego wydania słyszy w czytniku ekranu
-  //   polskie etykiety, których nie rozumie, a jedyna nawigacja tego widgetu
-  //   dostępna z klawiatury przestaje być dla niego opisana. Dług jest
-  //   zarejestrowany budżetem 3 w `src/lib/ci/monolingualUserText.ts`, ale
-  //   nie naprawiony.
-  // WYMAGANA POPRAWKA: `DotsNav` (i obie kopie kropek w wariantach) ma
-  //   przyjmować `lang` i wybierać parę PL/EN dokładnie tak, jak robi to
-  //   `NavArrows` - "Slide N" / "Previous" / "Next" dla lang="en".
-  it.fails("DEFEKT: kropki nawigacji muszą mieć angielskie etykiety przy lang=en", () => {
+  // All navigation controls use the widget locale.
+  it("kropki nawigacji mają angielskie etykiety przy lang=en", () => {
     const { container } = renderSlider({}, "en");
     expect(container.querySelector('button[aria-label="Slide 1"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="Slajd 1"]')).toBeNull();

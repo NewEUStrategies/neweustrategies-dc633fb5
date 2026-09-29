@@ -260,14 +260,17 @@ export function BuilderRenderer({
     // React's DOM writes forced layout in every nested renderer. Observe the
     // computed size instead; this also handles narrow editor preview frames.
     const onWindowResize = () => updateWidth(window.innerWidth);
-    onWindowResize();
     let ro: ResizeObserver | null = null;
     if (el && typeof ResizeObserver !== "undefined") {
       ro = new ResizeObserver(([entry]) => {
-        if (entry) updateWidth(entry.contentRect.width || window.innerWidth);
+        // The observer supplies its initial size before paint. Reading the
+        // viewport first forced layout and scheduled a second device update.
+        // Hidden renderers wait for their first non-zero observation.
+        if (entry && entry.contentRect.width > 0) updateWidth(entry.contentRect.width);
       });
       ro.observe(el);
     } else {
+      onWindowResize();
       window.addEventListener("resize", onWindowResize);
     }
     return () => {

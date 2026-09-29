@@ -629,22 +629,8 @@ describe("slider - pasek miniatur wariantu minimal-strip", () => {
   });
 
   // DEFEKT: ETYKIETY DOSTĘPNOŚCI SLIDERA SĄ WYŁĄCZNIE PO POLSKU.
-  //
-  // WEJSCIE: ten sam widget wyrenderowany z `lang="en"` - czyli angielska
-  //   wersja strony, na której slider jest dwujęzyczny (tytuły i zajawki
-  //   przełączają się poprawnie).
-  // CO PSUJE: `aria-label` miniatur jest wpisany w kod jako `Slajd ${i + 1}`
-  //   (src/lib/builder/sliderVariants.tsx:1805), tak samo jak etykiety kropek
-  //   (:679, :1561) i tekst pustego stanu (:931). W TYM SAMYM pliku strzałki
-  //   nawigacji lokalizują się poprawnie ("Previous slide" / "Poprzedni
-  //   slajd", :1191-1192), więc to niekonsekwencja, a nie decyzja projektowa;
-  //   dług jest zarejestrowany budżetem w src/lib/ci/monolingualUserText.ts.
-  // KONSEKWENCJA: czytnik ekranu na anglojęzycznej stronie czyta polskie
-  //   słowo "Slajd" w środku angielskiego interfejsu - jedyni użytkownicy,
-  //   którzy tę etykietę w ogóle słyszą, dostają ją w obcym języku.
-  // WYMAGANA POPRAWKA: komplet PL i EN wybierany po propsie `lang`,
-  //   dokładnie tak jak robią to `NavArrows` w tym samym pliku.
-  it.fails("DEFEKT: etykiety miniatur są po angielsku przy lang=en", () => {
+  // Labels follow the same locale as the slide content and arrow controls.
+  it("etykiety miniatur są po angielsku przy lang=en", () => {
     const { container } = renderStrip({}, "en");
     expect(thumbsOf(container)[0].getAttribute("aria-label")).not.toMatch(/^Slajd/);
   });
@@ -959,13 +945,13 @@ describe("slider - chrom nawigacji nie uruchamia nawigacji slajdu", () => {
       const activeDot = (): number =>
         Array.from(
           container.querySelectorAll<HTMLElement>('button[aria-label^="Slajd"]'),
-        ).findIndex(
-          (dot) => dot.className.includes("bg-foreground") && !dot.className.includes("/25"),
-        );
+        ).findIndex((dot) => dot.getAttribute("aria-current") === "true");
       expect(activeDot()).toBe(0);
-      fireEvent.click(within(container).getByLabelText("Następny"));
+      const dotsNav = container.querySelector('button[aria-current="true"]')!.parentElement!
+        .parentElement!;
+      fireEvent.click(within(dotsNav).getByLabelText("Następny slajd"));
       expect(activeDot()).toBe(1);
-      fireEvent.click(within(container).getByLabelText("Poprzedni"));
+      fireEvent.click(within(dotsNav).getByLabelText("Poprzedni slajd"));
       expect(activeDot()).toBe(0);
     },
   );

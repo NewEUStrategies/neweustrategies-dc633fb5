@@ -142,7 +142,7 @@ describe("źródło szerokości", () => {
     }
   });
 
-  it("zerowa szerokość kontenera spada na window.innerWidth", () => {
+  it("zerowa szerokość kontenera zachowuje urządzenie SSR do obserwacji widocznego elementu", () => {
     setWindowWidth(1600);
     const restore = stubClientWidth(0);
     try {

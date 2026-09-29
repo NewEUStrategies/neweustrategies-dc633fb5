@@ -1121,7 +1121,9 @@ describe("PieChart - kontrast palety w OBU motywach", () => {
   // happy-dom nie liczy stylów, więc reguła color-contrast w axe jest
   // wyłączona (`src/test/axe.ts`). Kontrast liczymy wprost z tokenów -
   // ten sam wzorzec, co `src/lib/__tests__/brandContrast.test.ts`.
-  const css = readFileSync("src/styles.css", "utf8");
+  const css = ["src/styles.css", "src/components/charts/charts.css"]
+    .map((path) => readFileSync(path, "utf8"))
+    .join("\n");
   const LIGHT = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
   const DARK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
 

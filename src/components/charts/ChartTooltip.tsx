@@ -1,3 +1,4 @@
+import "./charts.css";
 // TOOLTIP DANYCH - mówi ILE. Druga, całkowicie osobna funkcja to tooltip
 // OBJAŚNIAJĄCY (`MetricTooltip`), który mówi CO TO ZNACZY i wisi przy nazwie
 // wskaźnika, nie nad punktem. Mieszanie ich w jeden dymek daje ścianę tekstu
