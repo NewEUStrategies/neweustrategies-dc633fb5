@@ -185,10 +185,9 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
             </span>
           ) : null}
         </span>
-        {speaker.is_expert || (speaker.tracks ?? []).length > 0 ? (
+        {speaker.is_expert ? (
           <span className="mt-auto flex flex-wrap items-center gap-2 pt-5">
-            {speaker.is_expert && <SpeakerExpertBadge lang={lang} />}
-            <SpeakerTrackChips tracks={speaker.tracks ?? []} lang={lang} />
+            <SpeakerExpertBadge lang={lang} />
           </span>
         ) : null}
       </span>
