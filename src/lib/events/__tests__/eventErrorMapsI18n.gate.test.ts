@@ -281,6 +281,8 @@ const KODY_UCZESTNIKA = [
 
 /** Studio wydarzenia - `eventDetailApi`, `eventPagesApi`. */
 const KODY_STUDIA = [
+  "invalid_event_type",
+  "publish_blocked",
   // admin_event_general_save
   "cover_required",
   "external_url_invalid",

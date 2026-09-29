@@ -818,13 +818,19 @@ describe("speakerOrganizationLine", () => {
 describe("splitSpeakerRoleInstitution", () => {
   it("wycina instytucje powtorzona w stanowisku i oddaje oba fakty", () => {
     expect(
-      splitSpeakerRoleInstitution("Prezes Centralnego Portu Komunikacyjnego", "Centralny Port Komunikacyjny"),
+      splitSpeakerRoleInstitution(
+        "Prezes Centralnego Portu Komunikacyjnego",
+        "Centralny Port Komunikacyjny",
+      ),
     ).toEqual({ position: "Prezes", institution: "Centralny Port Komunikacyjny" });
   });
 
   it("rozdziela stanowisko z przecinkiem przed instytucja", () => {
     expect(
-      splitSpeakerRoleInstitution("Członek Zarządu, Polish Offshore Wind Energy Society", "Polish Offshore Wind Energy Society"),
+      splitSpeakerRoleInstitution(
+        "Członek Zarządu, Polish Offshore Wind Energy Society",
+        "Polish Offshore Wind Energy Society",
+      ),
     ).toEqual({ position: "Członek Zarządu", institution: "Polish Offshore Wind Energy Society" });
   });
 
@@ -854,7 +860,10 @@ describe("splitSpeakerRoleInstitution", () => {
   });
 
   it("bez instytucji albo bez stanowiska oddaje to, co przyszlo", () => {
-    expect(splitSpeakerRoleInstitution("Prezes", null)).toEqual({ position: "Prezes", institution: "" });
+    expect(splitSpeakerRoleInstitution("Prezes", null)).toEqual({
+      position: "Prezes",
+      institution: "",
+    });
     expect(splitSpeakerRoleInstitution("", "NASK")).toEqual({ position: "", institution: "NASK" });
     expect(splitSpeakerRoleInstitution(null, null)).toEqual({ position: "", institution: "" });
   });

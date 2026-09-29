@@ -194,11 +194,7 @@ export function EventPreviewLiveModule({
       return <EmptyNote text={t("adminEvents.studio.preview.moduleEmptySpeakers")} />;
     return (
       <>
-        <EventSpeakersGridView
-          speakers={data.speakers}
-          lang={lang}
-          onSelect={setSelectedSpeaker}
-        />
+        <EventSpeakersGridView speakers={data.speakers} lang={lang} onSelect={setSelectedSpeaker} />
         {selectedSpeaker !== null ? (
           <SpeakerProfileDialog
             userId={selectedSpeaker.user_id}

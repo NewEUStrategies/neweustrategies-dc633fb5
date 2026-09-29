@@ -655,8 +655,39 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
   },
   {
     tag: "0105_payment_orders_guard_service_role_detection",
-    drizzleOnly:
-      "Poprawka produkcyjna po probnym zakupie 2026-09-28: straznik payment_orders rozpoznaje service_role po request.jwt.claims i GUC role (webhook Stripe nie mogl oznaczyc zamowienia jako oplacone) oraz event_my_registrations podaje cene biletu dla nieoplaconych zgloszen. Tylko pas drizzle.",
+    twin: "20260929095900_payment_orders_guard_service_role_detection.sql",
+  },
+  {
+    tag: "0106_event_seed_pages_on_publish",
+    twin: "20260929100000_event_seed_pages_on_publish.sql",
+  },
+  {
+    tag: "0107_event_participant_features_require_payment",
+    twin: "20260929100100_event_participant_features_require_payment.sql",
+  },
+  {
+    tag: "0108_speaker_institution_logo",
+    twin: "20260929100200_speaker_institution_logo.sql",
+  },
+  {
+    tag: "0109_speaker_logo_crm_fallback",
+    twin: "20260929100300_speaker_logo_crm_fallback.sql",
+  },
+  {
+    tag: "0110_event_identity_subtitles_and_type",
+    twin: "20260929100400_event_identity_subtitles_and_type.sql",
+  },
+  {
+    tag: "0111_event_general_type_without_legacy_kind_sync",
+    twin: "20260929100500_event_general_type_without_legacy_kind_sync.sql",
+  },
+  {
+    tag: "0112_event_publication_readiness",
+    twin: "20260929110000_event_publication_readiness.sql",
+  },
+  {
+    tag: "0113_event_participation_lifecycle",
+    twin: "20260929113000_event_participation_lifecycle.sql",
   },
 ];
 

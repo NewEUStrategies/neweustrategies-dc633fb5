@@ -74,7 +74,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { registerMediaUpload } from "@/lib/media.functions";
 import { IMAGE_ACCEPT_ATTR, IMAGE_MIME, uploadAndRegisterMedia } from "@/lib/media/upload";
 import { useEventGroups } from "@/lib/events/useEventTermsGroups";
-import { createEventSpeakerPerson, saveEventSpeakerLogo, type EventSpeakerUpsertResult } from "@/lib/admin/community";
+import {
+  createEventSpeakerPerson,
+  saveEventSpeakerLogo,
+  type EventSpeakerUpsertResult,
+} from "@/lib/admin/community";
 import {
   EMPTY_SPEAKER_CARD_DRAFT,
   speakerCardDraftErrors,

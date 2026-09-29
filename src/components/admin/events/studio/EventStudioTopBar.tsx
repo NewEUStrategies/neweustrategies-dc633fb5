@@ -24,7 +24,7 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { CalendarDays, ChevronDown, Loader2, Play } from "@/lib/lucide-shim";
+import { CalendarDays, ChevronDown, Loader2, Play, RefreshCw } from "@/lib/lucide-shim";
 import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -66,7 +66,13 @@ export function EventStudioTopBar({
   onStatusChange,
   createMode = false,
   section = null,
+  canPublish = true,
+  publishReason,
+  onRefreshReadiness,
 }: {
+  canPublish?: boolean;
+  publishReason?: string;
+  onRefreshReadiness?: () => void;
   status: EventStatus;
   isBusy: boolean;
   previewOpen: boolean;
@@ -154,7 +160,7 @@ export function EventStudioTopBar({
                 // wydarzeniu, ktore wlasnie odwolal. Menu ZOSTAJE otwieralne,
                 // bo chip jest takze jedynym miejscem, w ktorym widac biezacy
                 // stan wiersza.
-                disabled={value === status || isBusy}
+                disabled={value === status || isBusy || (value === "published" && !canPublish)}
                 className={cn(
                   "flex w-full items-center rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted",
                   value === status && "font-medium text-muted-foreground",
@@ -188,6 +194,25 @@ export function EventStudioTopBar({
         {t(previewLabelKey)}
       </Button>
 
+      {publishReason && (
+        <span id="event-publish-reason" className="sr-only">
+          {publishReason}
+        </span>
+      )}
+      {!canPublish && !createMode && onRefreshReadiness && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          aria-label={t("adminEvents.studio.readiness.retry")}
+          aria-describedby={publishReason ? "event-publish-reason" : undefined}
+          title={publishReason}
+          onClick={onRefreshReadiness}
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+        </Button>
+      )}
+
       {/* PUBLIKACJA JEST OBRYSOWANA, NIE WYPELNIONA - i to jest cala regula
           hierarchii tego paska. Wzorzec trzyma w pasku gornym wylacznie
           akcje obrysowane, a wypelniony akcent rezerwuje dla akcji glownej
@@ -204,7 +229,8 @@ export function EventStudioTopBar({
         variant="outline"
         size="sm"
         className="h-8 border-brand text-xs text-brand hover:bg-brand/10 hover:text-brand"
-        disabled={createMode || isBusy || status === "published"}
+        disabled={createMode || isBusy || status === "published" || !canPublish}
+        aria-describedby={publishReason ? "event-publish-reason" : undefined}
         onClick={() => onStatusChange("published")}
       >
         {isBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}

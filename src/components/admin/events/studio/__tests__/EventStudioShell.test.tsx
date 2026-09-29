@@ -179,6 +179,7 @@ function rama(pathname = sciezka("overview")) {
 function planuj(overrides: Partial<AdminEventDetailRow> = {}): void {
   stub().setData("admin_event_detail", [adminEventDetailRow(overrides)]);
   stub().setData("admin_event_pages_list", []);
+  stub().setData("admin_event_publish_readiness", []);
 }
 
 /** Adres odnosnika o podanej tresci - `null`, gdy odnosnika nie ma. */
@@ -334,6 +335,7 @@ describe("EventStudioShell - trzy rozne odpowiedzi zamiast jednej", () => {
   it("WYDARZENIE NIEISTNIEJACE dostaje wlasne zdanie, inne niz odmowa roli", async () => {
     stub().setData("admin_event_detail", []);
     stub().setData("admin_event_pages_list", []);
+    stub().setData("admin_event_publish_readiness", []);
     rama();
 
     expect(await screen.findByText(NIE_ZNALEZIONO)).toBeInTheDocument();
@@ -347,6 +349,7 @@ describe("EventStudioShell - trzy rozne odpowiedzi zamiast jednej", () => {
     // trzecia, klamliwa odpowiedzia.
     stub().setError("admin_event_detail", "forbidden: not an event admin", "42501");
     stub().setData("admin_event_pages_list", []);
+    stub().setData("admin_event_publish_readiness", []);
     const { container } = rama();
 
     expect(await screen.findByText(NIE_ZNALEZIONO)).toBeInTheDocument();

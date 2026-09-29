@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import { AdminCatalogListState } from "@/components/admin/molecules/AdminCatalogListState";
 import { RegistrationDecideDialog } from "@/components/admin/events/molecules/RegistrationDecideDialog";
+import { RegistrationRefundJournal } from "@/components/admin/events/molecules/RegistrationRefundJournal";
 import { adminRegistrationErrorMessage } from "@/lib/events/adminRegistrationErrors";
 import { notifyEventRegistrationDecision } from "@/lib/events/registrationNotify.functions";
 import { registrationsCsvFileName, registrationsToCsv } from "@/lib/events/registrationsCsv";
@@ -474,6 +475,8 @@ export function RegistrationsListPanel({
           <p className="text-sm font-semibold">{seatsLabel()}</p>
         </div>
       </header>
+
+      <RegistrationRefundJournal eventId={eventId} />
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[16rem] flex-1 space-y-1.5">

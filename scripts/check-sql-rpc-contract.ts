@@ -23,13 +23,7 @@ import {
   type ClientSource,
   type RpcDefinition,
 } from "../src/lib/ci/rpcContract";
-import type { MigrationFile } from "../src/lib/ci/dbContract";
-import {
-  MIGRATIONS_DIR,
-  extractLatestDefinitions,
-  stripSqlComments,
-  stripTsComments,
-} from "./lib/sqlMigrations";
+import { loadMigrationFiles, extractLatestDefinitions, stripTsComments } from "./lib/sqlMigrations";
 
 /** Katalogi ze źródłami, które mogą wołać `supabase.rpc(...)`. */
 const CLIENT_ROOTS = ["src", "scripts", "e2e"];
@@ -64,16 +58,6 @@ function walk(dir: string, out: string[]): string[] {
   return out;
 }
 
-function loadMigrations(): MigrationFile[] {
-  return readdirSync(MIGRATIONS_DIR)
-    .filter((file) => file.endsWith(".sql"))
-    .sort()
-    .map((file) => ({
-      file,
-      sql: stripSqlComments(readFileSync(join(MIGRATIONS_DIR, file), "utf8")),
-    }));
-}
-
 function loadClients(): ClientSource[] {
   return CLIENT_ROOTS.filter((root) => existsSync(root))
     .flatMap((root) => walk(root, []))
@@ -94,7 +78,7 @@ function loadDefinitions(): RpcDefinition[] {
 
 function main(): void {
   const report = analyzeRpcContract({
-    migrations: loadMigrations(),
+    migrations: loadMigrationFiles(),
     definitions: loadDefinitions(),
     clients: loadClients(),
     externalRpcs: EXTERNAL_RPCS,

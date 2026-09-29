@@ -440,11 +440,16 @@ export async function fetchEventSpeakers(eventId: string): Promise<EventSpeakerE
   if (error) throw new Error(error.message);
   if (!Array.isArray(data)) return [];
   // Logo instytucji ma osobny odczyt - nie zmienia kontraktu listy.
-  const logoById = await fetchLogos(() => supabase.rpc("admin_event_speaker_logos", { p_event_id: eventId }));
+  const logoById = await fetchLogos(() =>
+    supabase.rpc("admin_event_speaker_logos", { p_event_id: eventId }),
+  );
   return data
     .filter((row): row is Record<string, unknown> => row !== null && typeof row === "object")
     .map(mapSpeakerRow)
-    .map((row) => ({ ...row, card_institution_logo_url: logoById.get(row.speaker_profile_id) ?? null }));
+    .map((row) => ({
+      ...row,
+      card_institution_logo_url: logoById.get(row.speaker_profile_id) ?? null,
+    }));
 }
 
 /** Dane osoby BEZ konta, zbierane w popupie „Nowy prelegent". */
@@ -586,7 +591,10 @@ export async function saveEventSpeakerCard(input: EventSpeakerCardInput): Promis
 }
 
 /** Logo instytucji na karcie prelegenta; pusty napis czysci logo. */
-export async function saveEventSpeakerLogo(speakerProfileId: string, logoUrl: string): Promise<void> {
+export async function saveEventSpeakerLogo(
+  speakerProfileId: string,
+  logoUrl: string,
+): Promise<void> {
   const { error } = await supabase.rpc("admin_event_speaker_logo_save", {
     p_payload: { speaker_profile_id: speakerProfileId, logo_url: logoUrl.trim() },
   });

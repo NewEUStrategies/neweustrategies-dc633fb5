@@ -3,7 +3,7 @@
 //
 // PO CO TEN PLIK ISTNIEJE. Kazde z dziesieciu pol tego ekranu ma DRUGIE miejsce
 // zycia w bazie: raz jako CHECK na `events`, raz jako `RAISE EXCEPTION`
-// w `admin_event_general_save`. Modul czysty (`registrationSettingsDraft`) ma
+// w `admin_event_general_save_v2`. Modul czysty (`registrationSettingsDraft`) ma
 // wlasny plik testowy i dowodzi tabel regul - ale zaden test nie dowodzil, ze
 // EKRAN tych regul uzywa. Roznica jest namacalna: reguly, ktore istnieja
 // w module, a nie sa wpiete w formularz, konczą sie surowym
@@ -35,7 +35,7 @@
 // Radiksa - pod happy-dom nie maja pelnego API wskaznika, wiec stoja tu atrapy
 // o tym samym kontrakcie.
 //
-// ZAWEZENIE NAJEMCA. Zapis idzie przez RPC `admin_event_general_save`, wiec
+// ZAWEZENIE NAJEMCA. Zapis idzie przez RPC `admin_event_general_save_v2`, wiec
 // asertujemy NAZWE FUNKCJI i LADUNEK; samo zawezenie tenantem siedzi w SQL
 // (`assert_editor_tenant`) i pilnuje go bramka `check:sql-tenant-scope`.
 //
@@ -131,7 +131,7 @@ const { EventRegistrationSettingsPanel } =
   await import("@/components/admin/events/organisms/EventRegistrationSettingsPanel");
 
 const R = "adminEvents.studio.registrationSettings.";
-const ZAPIS_RPC = "admin_event_general_save";
+const ZAPIS_RPC = "admin_event_general_save_v2";
 
 /**
  * KOLUMNY LICZBOWE, KTORE BAZA ODDAJE JAKO `NULL`.
@@ -826,7 +826,7 @@ describe("EventRegistrationSettingsPanel - ladunek zapisu", () => {
     expect(ladunek().join_url).toBe("https://transmisja.example.org/kongres");
   });
 
-  it("idzie DOKLADNIE JEDNO wywolanie i pod nazwa `admin_event_general_save`", async () => {
+  it("idzie DOKLADNIE JEDNO wywolanie i pod nazwa `admin_event_general_save_v2`", async () => {
     // Zawezenie tenantem siedzi w SQL (`assert_editor_tenant`) - tutaj
     // pilnujemy nazwy funkcji, bo pomylka w niej omija cala te bramke.
     panel();

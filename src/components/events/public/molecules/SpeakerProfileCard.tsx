@@ -1,3 +1,4 @@
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 // Redakcyjna karta prelegenta wspólna dla strony publicznej i podglądu studia.
 // Karta pokazuje pełny portret oraz rozdziela stanowisko od instytucji. Jeżeli
 // profil ma treść, cały główny obszar otwiera wspólny dialog profilu.
@@ -6,12 +7,17 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { AppLink } from "@/components/atoms/AppLink";
+import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
 import { buildTransformedImageUrl } from "@/lib/cropSizes";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import { speakerHasProfileToShow } from "@/lib/builder/speakerRow";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
-import { speakerCardAction, speakerCardPhoto, splitSpeakerRoleInstitution } from "@/lib/events/speakerCard";
+import {
+  speakerCardAction,
+  speakerCardPhoto,
+  splitSpeakerRoleInstitution,
+} from "@/lib/events/speakerCard";
 
 const PREVIEW_MARKER = '[data-builder-renderer="widget-props-preview"]';
 /** Zdjęcie jest KWADRATOWE - jedna miara na szerokość i wysokość kadru. */
@@ -119,9 +125,19 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
   const { position, institution } = splitSpeakerRoleInstitution(role, speaker.company);
   const logoUrl = speaker.card_institution_logo_url?.trim() || null;
 
-  const FactLine = ({ label, value, emphasized }: { label: string; value: string; emphasized: boolean }) => (
+  const FactLine = ({
+    label,
+    value,
+    emphasized,
+  }: {
+    label: string;
+    value: string;
+    emphasized: boolean;
+  }) => (
     <span className="block">
-      <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">{label}</span>
+      <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">
+        {label}
+      </span>
       <span
         title={value}
         className={
@@ -158,7 +174,10 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
               <span className="mt-1 flex min-w-0 items-center gap-3">
                 {logoUrl !== null ? <InstitutionLogo url={logoUrl} name={institution} /> : null}
                 {institution !== "" ? (
-                  <span title={institution} className="block min-w-0 text-sm font-normal leading-snug text-muted-foreground">
+                  <span
+                    title={institution}
+                    className="block min-w-0 text-sm font-normal leading-snug text-muted-foreground"
+                  >
                     {institution}
                   </span>
                 ) : null}
@@ -166,9 +185,10 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
             </span>
           ) : null}
         </span>
-        {speaker.is_expert ? (
+        {speaker.is_expert || (speaker.tracks ?? []).length > 0 ? (
           <span className="mt-auto flex flex-wrap items-center gap-2 pt-5">
-            <SpeakerExpertBadge lang={lang} />
+            {speaker.is_expert && <SpeakerExpertBadge lang={lang} />}
+            <SpeakerTrackChips tracks={speaker.tracks ?? []} lang={lang} />
           </span>
         ) : null}
       </span>
@@ -223,7 +243,10 @@ export function SpeakerProfileCard({
             className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-42"
           >
             {action.label ?? t("eventFront.speakers.card.linkAction", { lng: lang })}
-            <span className="sr-only"> {t("eventFront.speakers.card.opensInNewTab", { lng: lang })}</span>
+            <span className="sr-only">
+              {" "}
+              {t("eventFront.speakers.card.opensInNewTab", { lng: lang })}
+            </span>
           </a>
         ) : (
           <AppLink
@@ -237,3 +260,5 @@ export function SpeakerProfileCard({
     </article>
   );
 }
+
+ensureEventFrontI18n();

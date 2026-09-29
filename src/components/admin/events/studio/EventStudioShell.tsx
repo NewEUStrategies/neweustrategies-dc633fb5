@@ -34,6 +34,7 @@ import {
 import { asEventFormat } from "@/lib/events/eventTypes";
 import { adminEventStudioErrorMessage } from "@/lib/events/adminEventStudioErrors";
 import { useAdminEventDetail, useSetEventStatus } from "@/lib/events/useAdminEventDetail";
+import { usePublishReadiness } from "@/lib/events/usePublishReadiness";
 import { useAdminEventPages } from "@/lib/events/useAdminEventPages";
 import { eventPreviewMenu } from "@/lib/events/eventPagesApi";
 import type { EventStatus } from "@/lib/events/eventDetailApi";
@@ -89,6 +90,9 @@ export function EventStudioShell({
   // odmowe. Pytanie, na ktore z gory znamy odpowiedz „forbidden", nie leci.
   const pagesQ = useAdminEventPages(isAdmin ? eventId : "");
   const setStatus = useSetEventStatus(eventId);
+  const publicationQ = usePublishReadiness(isAdmin ? eventId : "");
+  const canPublish =
+    publicationQ.isSuccess && !publicationQ.isFetching && publicationQ.data.length === 0;
   // PODGLĄD JEST ZAMKNIĘTY NA WEJŚCIU. Studio to panel zarządzania wydarzeniem;
   // podgląd strony publicznej otwarty domyślnie zasłaniał cały panel (sidebar
   // sekcji, pulpit, formularze) i po utworzeniu szkicu wyglądał jak jedyny
@@ -206,6 +210,7 @@ export function EventStudioShell({
     activeSection === null ? null : eventFeatureHidingSection(features, activeSection);
 
   const changeStatus = (next: EventStatus) => {
+    if (next === "published" && !canPublish) return;
     setStatus.mutate(next, {
       onSuccess: () => toast.success(t(`adminEvents.studio.toasts.status.${next}`)),
       onError: (error) => toast.error(adminEventStudioErrorMessage(error)),
@@ -222,6 +227,21 @@ export function EventStudioShell({
     <div className="admin-compact flex min-h-screen flex-col bg-background">
       <EventStudioTopBar
         status={status}
+        canPublish={canPublish}
+        publishReason={
+          canPublish
+            ? undefined
+            : t(
+                publicationQ.isError
+                  ? "adminEvents.studio.readiness.loadError"
+                  : publicationQ.isPending || publicationQ.isFetching
+                    ? "adminEvents.studio.readiness.loading"
+                    : "adminEvents.studio.errors.publishBlocked",
+              )
+        }
+        onRefreshReadiness={() => {
+          void publicationQ.refetch();
+        }}
         isBusy={setStatus.isPending}
         previewOpen={previewOpen}
         onTogglePreview={() => setPreviewOpen((value) => !value)}

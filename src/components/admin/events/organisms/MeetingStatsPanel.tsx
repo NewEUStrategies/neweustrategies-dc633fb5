@@ -1,3 +1,4 @@
+import { ensureI18n as ensureAdminMeetingsI18n } from "@/lib/i18n-admin-event-meetings";
 // Organizm: statystyki giełdy spotkań 1-1.
 //
 // LICZBY SĄ POGRUPOWANE PO PYTANIU, NA KTÓRE ODPOWIADAJĄ, a nie po tabeli,
@@ -28,6 +29,7 @@ function pctLabel(value: number | null): string {
 }
 
 export function MeetingStatsPanel({ eventId }: { eventId: string }) {
+  ensureAdminMeetingsI18n();
   const { t, i18n } = useTranslation();
   const statsQ = useMeetingStats(eventId);
 

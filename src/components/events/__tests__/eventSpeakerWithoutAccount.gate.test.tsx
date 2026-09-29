@@ -169,6 +169,7 @@ function planRows(rows: Record<string, unknown>[]): void {
 beforeEach(() => {
   h.rpc = supabaseRpcStub();
   planRows([personRow(), accountRow()]);
+  h.rpc.setData("event_speaker_logos_public", []);
   // Dialog profilu na wydarzeniu pyta o opublikowane materiały osoby (po
   // nakładce z wiersza) - osoba bez konta ma nakładkę, więc ma o co zapytać.
   h.rpc.setData("event_speaker_materials_public", []);
@@ -201,7 +202,7 @@ describe("źródło „event” czyta projekcję, która zna osoby bez konta", (
     render(<EventSpeakersSection eventId={EVENT_ID} lang="pl" />, { wrapper });
     await screen.findByText(PERSON.name);
 
-    expect(h.rpc?.names()).toEqual(["event_speakers_public"]);
+    expect(h.rpc?.names()).toEqual(["event_speakers_public", "event_speaker_logos_public"]);
   });
 
   it("wiersz ze STAREGO RPC nie ma jak trafić na stronę", async () => {
@@ -280,10 +281,15 @@ describe("klik w osobę bez konta ma co pokazać", () => {
     expect(within(dialog).getByText(PERSON.topic)).toBeInTheDocument();
     // Osoba bez konta nie ma po czym dociągać profilu - dialog NIE MOŻE
     // odpalić `get_public_speakers` z listą `p_user_ids`, bo nie ma czego tam
-    // wpisać, a puste zapytanie oddałoby KATALOG. Jedyne dodatkowe pytanie to
+    // wpisać, a puste zapytanie oddałoby KATALOG. Po odczycie logotypów listy
+    // jedyne dodatkowe pytanie otwartego dialogu to
     // materiały z TEGO wydarzenia - po nakładce, która dla tej osoby istnieje.
     await waitFor(() =>
-      expect(h.rpc?.names()).toEqual(["event_speakers_public", "event_speaker_materials_public"]),
+      expect(h.rpc?.names()).toEqual([
+        "event_speakers_public",
+        "event_speaker_logos_public",
+        "event_speaker_materials_public",
+      ]),
     );
     expect(h.rpc?.lastCall("event_speaker_materials_public")?.arg("p_event_id")).toBe(EVENT_ID);
   });

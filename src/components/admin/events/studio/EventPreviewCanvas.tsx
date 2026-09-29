@@ -271,9 +271,7 @@ export function EventPreviewCanvas({
     (lang === "en" ? model.titleEn || model.titlePl : model.titlePl || model.titleEn) ||
     t("adminEvents.studio.preview.untitled");
   const subtitle =
-    lang === "en"
-      ? model.subtitleEn || model.subtitlePl
-      : model.subtitlePl || model.subtitleEn;
+    lang === "en" ? model.subtitleEn || model.subtitlePl : model.subtitlePl || model.subtitleEn;
   const typeLabel =
     lang === "en" ? model.typeNameEn || model.typeNamePl : model.typeNamePl || model.typeNameEn;
   const description =
@@ -576,7 +574,9 @@ export function EventPreviewCanvas({
         />
       ) : (
         <EventPortalContent
-          className={eventModuleOf(page.module) !== null ? EVENT_PORTAL_CONTENT_WIDE_CLASS : undefined}
+          className={
+            eventModuleOf(page.module) !== null ? EVENT_PORTAL_CONTENT_WIDE_CLASS : undefined
+          }
         >
           <div data-testid="event-preview-page">
             {/* SCIEZKA PODSTRONY JEST CHROME'M PODGLADU, nie trescia strony:
@@ -604,7 +604,12 @@ export function EventPreviewCanvas({
                   hasDocument={page.document !== null}
                 >
                   {page.document === null ? null : (
-                    <BuilderRenderer doc={page.document} lang={lang} device={device} editorPreview />
+                    <BuilderRenderer
+                      doc={page.document}
+                      lang={lang}
+                      device={device}
+                      editorPreview
+                    />
                   )}
                 </EventModuleHero>
                 <div className="mt-8">

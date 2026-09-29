@@ -1,3 +1,5 @@
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 // Molekuła: NAGŁÓWEK ZAKŁADKI MODUŁOWEJ (wariant „centrowana, lekka elewacja")
 // - okruszki + karta z gradientowym paskiem, kaflą ikony nad tytułem, nazwą
 // wydarzenia w pigułce i miękkim cieniem.
@@ -16,11 +18,7 @@
 import type { ComponentType, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  Breadcrumbs,
-  CRUMB_PILL_CLASS,
-  CRUMB_SEPARATOR_CLASS,
-} from "@/components/Breadcrumbs";
+import { Breadcrumbs, CRUMB_PILL_CLASS, CRUMB_SEPARATOR_CLASS } from "@/components/Breadcrumbs";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 import {
   CalendarDays,
@@ -33,6 +31,8 @@ import {
 } from "@/lib/lucide-shim";
 import type { EventModule } from "@/lib/events/eventModules";
 import { cn } from "@/lib/utils";
+
+ensureEventFrontI18n();
 
 const MODULE_ICONS: Partial<Record<EventModule, ComponentType<{ className?: string }>>> = {
   participants: Users,
@@ -83,7 +83,7 @@ export function EventModuleHero({
       {breadcrumbLinks ? (
         <Breadcrumbs items={crumbs} className="mb-6" />
       ) : (
-        <nav aria-label="breadcrumb" className="mb-6 min-w-0">
+        <nav aria-label={t("eventFront.header.breadcrumbLabel")} className="mb-6 min-w-0">
           <ol className={CRUMB_PILL_CLASS}>
             {crumbs.map((crumb, index) => {
               const isLast = index === crumbs.length - 1;
@@ -155,3 +155,5 @@ export function EventModuleHero({
 function ChevronRightStatic() {
   return <ChevronRight className={cn(CRUMB_SEPARATOR_CLASS, "shrink-0")} aria-hidden="true" />;
 }
+
+ensureEventFrontI18n();

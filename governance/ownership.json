@@ -87,6 +87,7 @@
   "identyfikatoryPrzekrojowe": {
     "komentarz": "Identyfikatory obecne w ponad 20% migracji albo semantycznie przekrojowe. Nie punktują w warstwie 1 (zaśmiecałyby atrybucję); są konsultowane dopiero w warstwie 2, gdy nic konkretnego nie trafiło.",
     "tier2": {
+      "events": "wydarzenia",
       "profiles": "tozsamosc-i-uprawnienia",
       "tenants": "tozsamosc-i-uprawnienia",
       "current_tenant_id": "tozsamosc-i-uprawnienia",

@@ -58,6 +58,8 @@ const OPUBLIKOWANE = "adminEvents.list.status.published";
 const ODWOLANE = "adminEvents.list.status.cancelled";
 
 interface Nadpisania {
+  canPublish?: boolean;
+  publishReason?: string;
   status?: EventStatus;
   isBusy?: boolean;
   previewOpen?: boolean;
@@ -77,6 +79,8 @@ function pasek(nadpisania: Nadpisania = {}) {
       onStatusChange={onStatusChange}
       createMode={nadpisania.createMode}
       section={nadpisania.section}
+      canPublish={nadpisania.canPublish}
+      publishReason={nadpisania.publishReason}
     />,
   );
   return { onStatusChange, onTogglePreview, container };
@@ -94,6 +98,18 @@ afterEach(() => {
 });
 
 describe("EventStudioTopBar - publikacja", () => {
+  it("blocks both publication paths and exposes the readiness reason", () => {
+    const { onStatusChange } = pasek({ canPublish: false, publishReason: "readiness-unavailable" });
+    const publish = screen.getByRole("button", { name: PUBLIKUJ });
+    expect(publish).toBeDisabled();
+    expect(publish).toHaveAccessibleDescription("readiness-unavailable");
+    fireEvent.click(publish);
+    otworzMenuStanu(SZKIC);
+    const published = screen.getByRole("button", { name: OPUBLIKOWANE });
+    expect(published).toBeDisabled();
+    fireEvent.click(published);
+    expect(onStatusChange).not.toHaveBeenCalled();
+  });
   it("publikuje szkic jednym kliknieciem i nie zgaduje stanu docelowego", () => {
     const { onStatusChange } = pasek({ status: "draft" });
 

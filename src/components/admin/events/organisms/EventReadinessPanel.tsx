@@ -11,6 +11,8 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { AlertTriangle, Check, ChevronRight, ShieldCheck } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { usePublishReadiness } from "@/lib/events/usePublishReadiness";
 import { Badge } from "@/components/ui/badge";
 import { EventStudioRow } from "@/components/admin/events/studio/EventStudioSection";
 import { EVENT_STUDIO_ROUTES } from "@/lib/events/eventStudioNav";
@@ -32,6 +34,7 @@ export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
   ensureAdminEventsI18n();
   const { t } = useTranslation();
   const eventId = row.id;
+  const publicationQ = usePublishReadiness(eventId);
 
   const sessionsQ = useEventSessions({ ...DEFAULT_SESSIONS_QUERY, eventId });
   const roomsQ = useEventRooms(eventId);
@@ -61,14 +64,69 @@ export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
           status: row.status,
           registrationMode: row.registration_mode,
         },
+        publicationBlockers: publicationQ.data,
         sessions: sessionsQ.data ?? [],
         conflictCount: conflictsQ.data?.length ?? 0,
         roomCount: roomsQ.data?.length ?? 0,
         ticketTypeCount: ticketsQ.data?.length ?? 0,
         seatingUnseated: seatingOn ? unseatedOnPublishedMaps(seatMapsQ.data ?? []) : null,
       }),
-    [row, sessionsQ.data, conflictsQ.data, roomsQ.data, ticketsQ.data, seatingOn, seatMapsQ.data],
+    [
+      row,
+      publicationQ.data,
+      sessionsQ.data,
+      conflictsQ.data,
+      roomsQ.data,
+      ticketsQ.data,
+      seatingOn,
+      seatMapsQ.data,
+    ],
   );
+
+  const sources = [
+    publicationQ,
+    sessionsQ,
+    roomsQ,
+    conflictsQ,
+    ticketsQ,
+    ...(seatingOn ? [seatMapsQ] : []),
+  ];
+  const failed = sources.some((query) => query.isError);
+  const loading = sources.some((query) => !query.isSuccess || query.isFetching);
+  if (failed || loading) {
+    return (
+      <EventStudioRow
+        label={t("adminEvents.studio.readiness.title")}
+        description={t("adminEvents.studio.readiness.description")}
+      >
+        <div
+          role={failed ? "alert" : "status"}
+          aria-busy={loading && !failed}
+          className="rounded-md border border-border p-3 text-sm"
+        >
+          <p>
+            {t(
+              failed
+                ? "adminEvents.studio.readiness.loadError"
+                : "adminEvents.studio.readiness.loading",
+            )}
+          </p>
+          {failed && (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-2"
+              onClick={() => {
+                void Promise.all(sources.map((query) => query.refetch()));
+              }}
+            >
+              {t("adminEvents.studio.readiness.retry")}
+            </Button>
+          )}
+        </div>
+      </EventStudioRow>
+    );
+  }
 
   const published = row.status === "published";
   const pending = report.checks.filter((item) => !item.passed);

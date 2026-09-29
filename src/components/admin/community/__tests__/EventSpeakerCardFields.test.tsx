@@ -62,7 +62,14 @@ const { EventSpeakerCardFields } =
 
 ensureCommunityEventsI18n();
 
-const EMPTY: SpeakerCardDraft = { photoUrl: "", labelPl: "", labelEn: "", url: "", color: "", institutionLogoUrl: "" };
+const EMPTY: SpeakerCardDraft = {
+  photoUrl: "",
+  labelPl: "",
+  labelEn: "",
+  url: "",
+  color: "",
+  institutionLogoUrl: "",
+};
 
 const onChange = vi.fn<(next: SpeakerCardDraft) => void>();
 

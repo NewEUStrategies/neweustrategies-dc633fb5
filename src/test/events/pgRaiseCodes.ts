@@ -27,34 +27,19 @@
 // OSTATNIA DEFINICJA WYGRYWA - dokładnie tak, jak przy `supabase db push`.
 // Funkcje modułu bywają przepisywane kilka razy (plik opisowy, potem migracja
 // panelu z UUID-em w nazwie) i obowiązuje ta późniejsza.
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const MIGRATIONS_DIR = join(process.cwd(), "supabase", "migrations");
+import { extractLatestDefinitions } from "../../../scripts/lib/sqlMigrations";
 const API_DIR = join(process.cwd(), "src", "lib", "events");
 
 /** Ciało funkcji w stanie po odtworzeniu całego łańcucha migracji. */
 function readFunctionBodies(): Map<string, string> {
   const out = new Map<string, string>();
-  const files = readdirSync(MIGRATIONS_DIR)
-    .filter((name) => name.endsWith(".sql"))
-    .sort();
-  for (const file of files) {
-    const sql = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
-    const head = /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z0-9_]+)\s*\(/gi;
-    for (const match of sql.matchAll(head)) {
-      // Ciało jest w cudzysłowie dolarowym, a tag bywa różny: `$$`, `$fn$`,
-      // `$function$`. Szukamy PIERWSZEGO otwarcia po nagłówku (dalej stoi lista
-      // argumentów i `RETURNS`, więc okno jest z zapasem) i jego domknięcia.
-      const window = sql.slice(match.index, match.index + 4000);
-      const open = /\$([a-z0-9_]*)\$/i.exec(window);
-      if (open === null) continue;
-      const tag = open[0];
-      const start = match.index + open.index + tag.length;
-      const end = sql.indexOf(tag, start);
-      if (end === -1) continue;
-      out.set(match[1], sql.slice(start, end));
-    }
+  for (const def of extractLatestDefinitions().values()) {
+    const name = def.name.replace(/^public\./, "");
+    // All overloads can be reached by a client RPC; preserve each body's codes.
+    out.set(name, `${out.get(name) ?? ""}\n${def.body}`);
   }
   return out;
 }

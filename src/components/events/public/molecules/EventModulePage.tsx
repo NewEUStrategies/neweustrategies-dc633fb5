@@ -1,3 +1,4 @@
+import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 // Molekuła: POWIERZCHNIA ZAKŁADKI MODUŁOWEJ - wstęp redagowany w studiu, a pod
 // nim dane z bazy.
 //
@@ -163,3 +164,5 @@ function ModuleDocument({ page, lang }: { page: PageData; lang: "pl" | "en" }) {
     </div>
   );
 }
+
+ensureEventFrontI18n();

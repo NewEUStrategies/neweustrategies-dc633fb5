@@ -1,22 +1,19 @@
-// Zadanie w tle: oferty z listy rezerwowej, przekazania i zwroty (F3/F4).
-//
-// ZAŚLEPKA FOUNDATION. Harmonogram (`jobsTick.server.ts`, `community-cron.ts`)
-// woła tę funkcję od pierwszego dnia, żeby tor B wymieniał wyłącznie treść
-// modułu, a nie pliki harmonogramu (kontrakt C.0.2). Sygnatura jest zamrożona:
-// `(admin, opts) => Promise<ParticipantJobResult>`. Do czasu wymiany zadanie
-// nic nie robi i mówi o tym wprost (`note: "stub"`).
+// Durable refunds requested by organiser rejection, serviced by both existing schedulers.
 import type { SupabaseClient } from "@supabase/supabase-js";
-
 import type { Database } from "@/integrations/supabase/types";
-import {
-  EMPTY_JOB_RESULT,
-  type ParticipantJobOptions,
-  type ParticipantJobResult,
-} from "@/lib/events/jobs/types";
+import { runRegistrationRefunds } from "@/lib/events/registrationRefunds.server";
+import type { ParticipantJobOptions, ParticipantJobResult } from "@/lib/events/jobs/types";
 
 export async function runEventTicketLifecycle(
-  _admin: SupabaseClient<Database>,
-  _opts: ParticipantJobOptions,
+  admin: SupabaseClient<Database>,
+  opts: ParticipantJobOptions,
 ): Promise<ParticipantJobResult> {
-  return { ...EMPTY_JOB_RESULT, note: "stub" };
+  const result = await runRegistrationRefunds(admin, opts.limit ?? 10, opts.deadlineAt);
+  return {
+    claimed: result.claimed,
+    sent: result.submitted,
+    failed: result.failed,
+    skipped: result.deferred,
+    note: "registration_refunds",
+  };
 }
