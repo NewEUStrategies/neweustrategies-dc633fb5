@@ -547,7 +547,7 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
     }
   }
 
-  async function mountRoot() {
+  async function mountRoot(settle = true) {
     const { render } = await import("@testing-library/react");
     const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
     const Root = Route.options.component as unknown as () => React.ReactElement;
@@ -557,7 +557,7 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
         <Root />
       </QueryClientProvider>,
     );
-    await flush();
+    if (settle) await flush();
   }
 
   /**
@@ -607,7 +607,7 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
 
   it("deferred overlays become ready without rerendering the page outlet", async () => {
     h.outletRenders = 0;
-    await mountRoot();
+    await mountRoot(false);
     const renders = h.outletRenders;
     expect(renders).toBeGreaterThan(0);
     await overlayBoundarySettled();

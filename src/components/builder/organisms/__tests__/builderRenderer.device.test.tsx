@@ -102,11 +102,13 @@ describe("źródło szerokości", () => {
       },
     );
     const geometry = vi.spyOn(HTMLElement.prototype, "clientWidth", "get");
-    setWindowWidth(1600);
+    const viewportRead = vi.fn(() => 1600);
+    Object.defineProperty(window, "innerWidth", { configurable: true, get: viewportRead });
     const { container, unmount } = renderWithQueryClient(
       <BuilderRenderer doc={doc([simpleSection("a")])} lang="pl" />,
     );
     expect(geometry).not.toHaveBeenCalled();
+    expect(viewportRead).not.toHaveBeenCalled();
     const target = container.querySelector("[data-builder-renderer]")!;
     act(() => {
       report?.(
@@ -124,6 +126,7 @@ describe("źródło szerokości", () => {
     });
     expect(urzadzenie(container)).toBe("mobile");
     expect(geometry).not.toHaveBeenCalled();
+    expect(viewportRead).not.toHaveBeenCalled();
     unmount();
     geometry.mockRestore();
     vi.unstubAllGlobals();

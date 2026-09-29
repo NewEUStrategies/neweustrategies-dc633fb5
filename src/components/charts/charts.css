@@ -94,7 +94,7 @@
    jedzie atrybutem per punkt. Reguła CSS na `r` nadpisałaby atrybut (CSS wygrywa
    z prezentacyjnym atrybutem SVG) i rój z pięciuset obserwacji rysowałby się
    plamkami dla dziesięciu - czyli jednolitą kluchą.
-   
+
    Obwódka w kolorze płyty rozdziela plamki nachodzące na siebie bez zmiany
    koloru grupy; jej grubość idzie z tego samego tokena co obwódka markera,
    żeby oba rodzaje kropek czytały się jako jeden system. */
