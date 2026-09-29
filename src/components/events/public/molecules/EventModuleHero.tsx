@@ -1,5 +1,4 @@
 import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
-import { ensureI18n as ensureEventFrontI18n } from "@/lib/i18n-event-front";
 // Molekuła: NAGŁÓWEK ZAKŁADKI MODUŁOWEJ (wariant „centrowana, lekka elewacja")
 // - okruszki + karta z gradientowym paskiem, kaflą ikony nad tytułem, nazwą
 // wydarzenia w pigułce i miękkim cieniem.

@@ -799,6 +799,20 @@
       "when": 1790681400000,
       "tag": "0113_event_participation_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 114,
+      "version": "7",
+      "when": 1790681203693,
+      "tag": "0114_event_publication_readiness",
+      "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1790681306868,
+      "tag": "0115_event_participation_lifecycle",
+      "breakpoints": true
     }
   ]
 }
