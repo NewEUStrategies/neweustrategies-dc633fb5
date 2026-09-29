@@ -310,6 +310,9 @@ export default defineConfig({
               // startup size, graph and browser boot remain blocking gates.
               experimentalMinChunkSize: 2048,
               manualChunks(id: string, meta: Rollup.ManualChunkMeta) {
+                // Keep the lazy toaster with its SDK: automatic merging of
+                // tiny chunks must not pull Sonner back into the boot entry.
+                if (id.endsWith("/src/components/ui/sonner.tsx")) return "vendor-sonner";
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
                 // WEJŚCIOWEGO do nazwanego chunku. Gdy `manualChunks` przypisze
