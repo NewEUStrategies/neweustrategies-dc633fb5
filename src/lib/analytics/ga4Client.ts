@@ -197,7 +197,7 @@ export function resolveBrowserGa4Id(input: {
  */
 export function gtag(...args: unknown[]): void {
   const w = win();
-  if (!w) return;
+  if (!w || !analyticsAllowedHere()) return;
   const layer = layerOf(w);
   if (typeof w.gtag === "function") {
     (w.gtag as GtagFn)(...args);
@@ -263,7 +263,11 @@ export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string
     configs.push(`gtag('config',${JSON.stringify(ga4)},{send_page_view:false});`);
   }
 
+  // Bramka hosta W SAMYM snippecie: dokument z cache brzegowego jest ten sam
+  // dla każdego hosta, więc decyzja musi zapaść w przeglądarce.
+  const hostGate = `if(window.${ANALYTICS_ANY_HOST_FLAG}===true||${ANALYTICS_HOST_PATTERN.toString()}.test(location.hostname)){`;
   return [
+    hostGate,
     "window.dataLayer=window.dataLayer||[];",
     "function gtag(){window.dataLayer.push(arguments);}window.gtag=gtag;",
     "gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'denied',personalization_storage:'denied',security_storage:'granted',wait_for_update:500});",
@@ -275,6 +279,7 @@ export function ga4SsrSnippet(measurementId: string, adsId: string = ""): string
     // rzut w którymkolwiek poleceniu nie zostawił fałszywej informacji
     // „SSR skonfigurował strumień".
     `window.${SSR_TAG_GLOBAL}=${JSON.stringify(ga4 || ads)};`,
+    "}",
   ].join("");
 }
 
@@ -324,7 +329,8 @@ export function bootstrapGa4(
   const ga4 = measurementId.trim();
   const ads = adsId.trim();
   const primary = ga4 || ads;
-  if (!w || !primary) return;
+  // Podgląd i hosty spoza produkcji: ani poleceń, ani gtag.js.
+  if (!w || !primary || !analyticsAllowedHere()) return;
   if (bootstrappedPrimary === primary && bootstrappedGa4 === ga4) {
     // Ponowny montaż tą samą parą identyfikatorów: polecenia są już w warstwie
     // danych, ale ZAPLANOWANE dociągnięcie skryptu mogło zostać anulowane razem
