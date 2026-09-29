@@ -157,6 +157,9 @@ export function validateEventGeneralDraft(
 ): readonly EventGeneralFieldError[] {
   const errors: EventGeneralFieldError[] = [];
 
+  if (draft.eventTypeId.trim() === "") {
+    errors.push({ field: "eventTypeId", messageKey: `${VALIDATION}eventTypeRequired` });
+  }
   if (draft.titlePl.trim() === "") {
     errors.push({ field: "titlePl", messageKey: `${VALIDATION}titleRequired` });
   }

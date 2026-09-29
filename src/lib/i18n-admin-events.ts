@@ -626,6 +626,10 @@ export const adminEventsPl = {
         basicsDescription:
           "Nazwa, adres publiczny i termin. To te dane trafiają do katalogu, do wyszukiwarek i do każdego e-maila o wydarzeniu.",
         nameLabel: "Nazwa wydarzenia",
+        typeLabel: "Rodzaj wydarzenia",
+        typePlaceholder: "Wybierz rodzaj wydarzenia",
+        subtitleLabel: "Podtytuł",
+        subtitleHint: "Krótkie rozwinięcie nazwy, wyświetlane jako osobny wiersz nagłówka.",
         urlLabel: "Adres publiczny",
         urlHint:
           "Zmiana adresu opublikowanego wydarzenia psuje linki w wysłanych już e-mailach i postach - stare adresy przestają prowadzić do strony.",
@@ -1754,6 +1758,10 @@ export const adminEventsEn = {
         basicsDescription:
           "Name, public address and dates. This is what goes to the catalogue, to search engines and to every e-mail about the event.",
         nameLabel: "Event name",
+        typeLabel: "Event type",
+        typePlaceholder: "Choose an event type",
+        subtitleLabel: "Subtitle",
+        subtitleHint: "A short extension of the name, displayed as a separate header line.",
         urlLabel: "Public address",
         urlHint:
           "Changing the address of a published event breaks the links already sent in e-mails and posts - the old addresses stop leading to the page.",
