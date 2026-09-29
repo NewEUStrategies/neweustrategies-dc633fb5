@@ -45,6 +45,22 @@ W tym środowisku nie udostępniono powyższych poświadczeń. Test nie został 
 
 `bun run measure:events:scanner` mierzy 10 000 operacji kolejki skanów z kontrolą przepełnienia. To pomiar CPU logiki kolejki; nie obejmuje kamery, IndexedDB, sieci ani ergonomii telefonu.
 
-Lokalny replay PostgreSQL/WASM przechodzi wszystkie pliki uprzęży, które nie wymagają `dblink`, w tym nowe testy publikacji i cyklu zwrotu. Pliki współbieżności `20_registration`, `66_seating_lock_order` oraz `75_paid_no_seat_waitlist` wymagają zwykłego PostgreSQL w CI. Pełny lokalny TypeScript przekracza dostępną stertę 6 GB; nie oznacza to przejścia bramki typów.
+Lokalny replay PostgreSQL/WASM przechodzi wszystkie pliki uprzęży, które nie wymagają `dblink`, w tym nowe testy publikacji i cyklu zwrotu. Pełny `pg-harness` ze zwykłym PostgreSQL, obejmujący również współbieżność, przeszedł w [CI PR #417](https://github.com/NewEUStrategies/neweustrategies-dc633fb5/actions/runs/36559996264). To wynik testowej bazy, nie potwierdzenie wdrożenia na produkcji.
+
+Pomiar PostgreSQL/WASM na 50 000 syntetycznych zgłoszeń: pierwsze 50 wierszy 545 ms, ostatnie 50 wierszy 737 ms, wyszukanie jednego zgłoszenia 19 ms, eksport 200 wierszy 580 ms. Są to czasy jednego lokalnego przebiegu w WASM, bez sieci i renderowania; nie należy traktować ich jako SLA produkcji. Warto dalej profilować wyliczenia pełnego zbioru przed stronicowaniem na natywnym PostgreSQL. Pomiar CPU kolejki 10 000 skanów: p95 około 0,033 ms; kontrola pojemności 500 wpisów odrzuciła 9500 nadmiarowych operacji zgodnie z kontraktem.
+
+Pełny lokalny TypeScript przekracza dostępną stertę 6 GB. CI PR #417 wskazało zdublowany import w `EventModuleHero`; poprawka kontrolna usuwa duplikat, a ostateczny wynik bramki typów należy sprawdzić na nowym PR.
 
 KSeF pozostaje rejestrem ręcznym. Automatyczna wysyłka, odbiór statusów i ponowienia to oddzielne rozszerzenie wymagające kontraktu integracji, poświadczeń oraz środowiska testowego. Ten zestaw zmian go nie uruchamia. Przegląd fizycznych urządzeń i pomiar pierwszego ładowania rzeczywistego wdrożenia również pozostają do wykonania na środowisku testowym.
+
+## Naprawy kontrolne po scaleniu PR #417
+
+Nowa gałąź uwzględnia również późniejsze zmiany z `main`, w tym wygenerowane typy bazy oraz zapisy wdrożenia Drizzle 0114/0115, identyczne z 0112/0113. Nie przepisuje już wdrożonych migracji.
+
+- Powiadomienia są testowane według aktualnego procesu zwrotów. Kontrakt Checkout rozróżnia bilet organizatora i cyfrowy produkt operatora, wraz z kodem podatkowym produktu cyfrowego.
+- Test listy zgłoszeń izoluje nowy dziennik zwrotów, który ma własne testy odczytu, błędu i ponowienia. Zachowana jest kontrola przekazania identyfikatora wydarzenia.
+- Podgląd karty testuje obecny pełny portret, formularz i klawiaturę. Karta zachowuje dane ścieżek dla czytnika ekranu bez widocznych etykiet, zgodnie z nowym wyglądem na `main`. Asercje parytetu faktów pozostają aktywne. Nazwa dostępna linku zawiera osobę i informację o nowej karcie.
+- Przywrócona stała szerokość podpisu menu konta zapobiega przesuwaniu nagłówka po pobraniu profilu i powitania.
+- Dwa scenariusze pgTAP czyszczą JWT poprzedniego uczestnika przed zasiewem kolejnego wydarzenia jako właściciel testowej bazy. Kontrole uprawnień produkcyjnych pozostają bez zmian.
+- Fabryki ikon są oznaczone jako pozbawione skutków ubocznych, a oba presety buildu scalają drobne chunki przy tej samej wartości 2048 bajtów. Uproszczenie sześciu list selektorów CSS do `:is(...)` zachowuje ich specyficzność. Budżety bundla nie zostały podniesione.
+- Testy ponowienia gotowości, lokalizacji tytułów i otwierania/zamykania profilu w podglądzie uzupełniają brakujące scenariusze. Lokalny zestaw 227 testów osiągnął 100% instrukcji, linii i funkcji oraz 99,38% gałęzi pięciu sprawdzanych komponentów; spełnia wszystkie dotychczasowe progi tych plików.

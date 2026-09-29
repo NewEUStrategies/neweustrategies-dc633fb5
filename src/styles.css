@@ -2696,11 +2696,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
 [data-builder-renderer] * {
   min-width: 0;
 }
-[data-builder-renderer] video,
-[data-builder-renderer] iframe,
-[data-builder-renderer] svg,
-[data-builder-renderer] canvas,
-[data-builder-renderer] object {
+[data-builder-renderer] :is(video, iframe, svg, canvas, object) {
   max-width: 100%;
   height: auto;
 }
@@ -3030,16 +3026,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
     padding: 4px 6px !important;
   }
   /* Typography: prevent overflow + scale down headings */
-  [data-builder-renderer] h1,
-  [data-builder-renderer] h2,
-  [data-builder-renderer] h3,
-  [data-builder-renderer] h4,
-  [data-builder-renderer] h5,
-  [data-builder-renderer] h6,
-  [data-builder-renderer] p,
-  [data-builder-renderer] a,
-  [data-builder-renderer] span,
-  [data-builder-renderer] li {
+  [data-builder-renderer] :is(h1, h2, h3, h4, h5, h6, p, a, span, li) {
     overflow-wrap: break-word;
     word-break: normal;
     hyphens: manual;
@@ -3591,12 +3578,7 @@ body:has([data-page-template="landing"]) footer[data-site-footer] {
    ============================================================ */
 .cf-shell,
 .cf-shell *,
-.cf-shell input,
-.cf-shell textarea,
-.cf-shell select,
-.cf-shell button,
-.cf-shell label,
-.cf-shell a {
+.cf-shell :is(input, textarea, select, button, label, a) {
   font-family:
     "Red Hat Display",
     system-ui,

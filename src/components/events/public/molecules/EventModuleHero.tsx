@@ -154,5 +154,3 @@ export function EventModuleHero({
 function ChevronRightStatic() {
   return <ChevronRight className={cn(CRUMB_SEPARATOR_CLASS, "shrink-0")} aria-hidden="true" />;
 }
-
-ensureEventFrontI18n();

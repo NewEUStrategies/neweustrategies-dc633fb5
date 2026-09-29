@@ -7,9 +7,9 @@
 //      odswiezeniu listy w tle, ktore nadpisaloby to, co redaktor wpisuje.
 //   2. PODGLAD TO PRAWDZIWA KARTA (`SpeakerProfileCard`) karmiona szkicem:
 //      napis redakcji widac na przycisku, zanim cokolwiek pojdzie do bazy,
-//      a klik w zdjecie rozwija karte tak, jak zrobi to uczestnik.
+//      a pelny portret jest widoczny od razu, tak jak u uczestnika.
 //   3. SCIEZKI SA TYLKO DO ODCZYTU - chipy albo zdanie „brak sesji", nigdy pole.
-//   4. ZAPIS WYSYLA WSZYSTKIE PIEC POL, takze PUSTE: pusty napis znaczy
+//   4. ZAPIS WYSYLA WSZYSTKIE SZESC POL, takze PUSTE: pusty napis znaczy
 //      „wyczysc", wiec skasowany adres przycisku musi dojechac do bazy.
 //   5. PO ZAPISIE: oba klucze cache (lista panelu i podglad studia), toast
 //      i zamkniecie; BLAD BAZY na ekranie w `role="alert"`, dialog otwarty.
@@ -309,7 +309,7 @@ describe("EventSpeakerCardDialog - sciezki i podglad", () => {
     expect(within(card).getByText("Analityczka rynków zmyślonych")).toBeInTheDocument();
     expect(within(card).getByText("Wyższa Szkoła Spraw Zmyślonych")).toBeInTheDocument();
     expect(within(card).getByText("Ekonomia")).toBeInTheDocument();
-    expect(card).toHaveAttribute("data-state", "collapsed");
+    expect(card.querySelector("img")).toHaveAttribute("width", "480");
   });
 
   it("napis i adres redakcji widac na przycisku podgladu, zanim cokolwiek pojdzie do bazy", () => {
@@ -335,25 +335,17 @@ describe("EventSpeakerCardDialog - sciezki i podglad", () => {
     expect(within(previewCard()).getByRole("link")).toHaveTextContent("Więcej");
   });
 
-  it("klik w zdjecie podgladu rozwija karte i zwija ja drugim kliknieciem", () => {
+  it("pelny portret redakcji jest widoczny bez rozwijania i nie zamyka podgladu", () => {
     renderDialog(entry({ card_photo_url: "https://cdn.example.com/karta.jpg" }));
-    const photo = within(previewCard()).getByRole("button", {
-      name: "Rozwiń kartę: Halszka Borowik",
-    });
-    expect(photo).toHaveAttribute("aria-expanded", "false");
-
-    fireEvent.click(photo);
-    expect(previewCard()).toHaveAttribute("data-state", "expanded");
-    const expanded = within(previewCard()).getByRole("button", {
-      name: "Zwiń kartę: Halszka Borowik",
-    });
-    expect(expanded).toHaveAttribute("aria-expanded", "true");
-    // Rozwinieta karta laduje zdjecie KARTY od redakcji, nie zdjecie osoby.
-    const sources = Array.from(previewCard().querySelectorAll("img")).map((img) => img.src);
-    expect(sources.some((src) => src.includes("karta.jpg"))).toBe(true);
-
-    fireEvent.click(expanded);
-    expect(previewCard()).toHaveAttribute("data-state", "collapsed");
+    const photo = previewCard().querySelector("img");
+    expect(photo).not.toBeNull();
+    expect(photo).toHaveAttribute("width", "480");
+    expect(photo).toHaveAttribute("height", "480");
+    expect(photo?.getAttribute("src")).toContain("karta.jpg");
+    expect(within(previewCard()).queryByRole("button")).toBeNull();
+    fireEvent.click(photo!);
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(saveEventSpeakerCard).not.toHaveBeenCalled();
   });
 
   it("osoba BEZ konta i bez adresu: podglad nie ma przycisku akcji", () => {
@@ -367,7 +359,9 @@ describe("EventSpeakerCardDialog - sciezki i podglad", () => {
 
   it("osoba Z KONTEM bez adresu: podglad pokazuje przycisk profilu (i nic nie psuje)", () => {
     renderDialog(entry({ user_id: "u-1", person_id: null, display_name: "Anna Konto" }));
-    const profile = within(previewCard()).getByRole("button", { name: "Profil: Anna Konto" });
+    const profile = within(previewCard()).getByRole("button", {
+      name: "Otwórz profil: Anna Konto",
+    });
     // Podglad nie nawiguje nigdzie - klik nie zamyka dialogu i nie zapisuje.
     fireEvent.click(profile);
     expect(onOpenChange).not.toHaveBeenCalled();
@@ -421,7 +415,7 @@ describe("EventSpeakerCardDialog - zapis", () => {
     expect(saveButton()).toBeDisabled();
   });
 
-  it("zapis wysyla WSZYSTKIE piec pol - puste jako pusty napis, nie brak klucza", async () => {
+  it("zapis wysyla WSZYSTKIE szesc pol - puste jako pusty napis, nie brak klucza", async () => {
     renderDialog();
     fireEvent.change(input("Napis na przycisku PL"), { target: { value: "Zapisz się" } });
     fireEvent.click(saveButton());
@@ -550,47 +544,22 @@ describe("EventSpeakerCardDialog - klawiatura i jezyk podgladu", () => {
     vi.restoreAllMocks();
   });
 
-  it("Escape na ROZWINIETEJ karcie podgladu zwija karte, a NIE zamyka dialogu", () => {
-    // Zamkniecie dialogu tym klawiszem przepadloby niezapisane pola karty.
-    renderDialog(entry({ card_cta_label_pl: "Niezapisane" }));
-    fireEvent.click(
-      within(previewCard()).getByRole("button", { name: "Rozwiń kartę: Halszka Borowik" }),
-    );
-    const expanded = within(previewCard()).getByRole("button", {
-      name: "Zwiń kartę: Halszka Borowik",
-    });
-    expect(previewCard()).toHaveAttribute("data-state", "expanded");
+  it.each(["portret", "dialog"])(
+    "Escape po kliknieciu w %s zamyka dialog bez zapisu, bo karta nie ma osobnego stanu rozwijania",
+    (target) => {
+      renderDialog(entry({ card_cta_label_pl: "Niezapisane" }));
+      const element =
+        target === "portret" ? previewCard().querySelector("img")! : screen.getByRole("dialog");
+      fireEvent.click(element);
+      expect(onOpenChange).not.toHaveBeenCalled();
+      expect(input("Napis na przycisku PL").value).toBe("Niezapisane");
 
-    fireEvent.keyDown(expanded, { key: "Escape", code: "Escape" });
+      fireEvent.keyDown(element, { key: "Escape", code: "Escape" });
 
-    expect(onOpenChange).not.toHaveBeenCalled();
-    expect(previewCard()).toHaveAttribute("data-state", "collapsed");
-    expect(input("Napis na przycisku PL").value).toBe("Niezapisane");
-    // Fokus zostaje na zdjeciu - klawiatura nie gubi miejsca.
-    expect(document.activeElement).toBe(
-      within(previewCard()).getByRole("button", { name: "Rozwiń kartę: Halszka Borowik" }),
-    );
-
-    // Na ZWINIETEJ karcie Escape znow zamyka dialog.
-    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape", code: "Escape" });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("Escape przy rozwinietym podgladzie, gdy fokus jest na samym dialogu (Safari), zwija karte", () => {
-    // Safari i Firefox na macOS nie daja fokusu przyciskowi po kliknieciu - cel
-    // klawisza to wtedy dialog, nie karta. Dialog i tak nie moze sie zamknac.
-    renderDialog(entry({ card_cta_label_pl: "Niezapisane" }));
-    fireEvent.click(
-      within(previewCard()).getByRole("button", { name: "Rozwiń kartę: Halszka Borowik" }),
-    );
-    expect(previewCard()).toHaveAttribute("data-state", "expanded");
-
-    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape", code: "Escape" });
-
-    expect(onOpenChange).not.toHaveBeenCalled();
-    expect(previewCard()).toHaveAttribute("data-state", "collapsed");
-    expect(input("Napis na przycisku PL").value).toBe("Niezapisane");
-  });
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      expect(saveEventSpeakerCard).not.toHaveBeenCalled();
+    },
+  );
 
   it("wewnetrzny link w podgladzie nie nawiguje - niezapisany szkic zostaje w panelu", () => {
     renderDialog(
@@ -691,9 +660,8 @@ describe("EventSpeakerCardDialog - klawiatura i jezyk podgladu", () => {
     expect(within(card).queryByText("Zapisz się")).toBeNull();
     expect(within(card).getByText("Economy")).toBeInTheDocument();
     // Napisy samej karty tez po angielsku - nie tylko tresc redakcji.
-    expect(
-      within(card).getByRole("button", { name: "Expand card: Halszka Borowik" }),
-    ).toBeInTheDocument();
+    expect(within(card).getByText("Position")).toBeInTheDocument();
+    expect(within(card).getByText("Organisation")).toBeInTheDocument();
     // Sekcja sciezek w formularzu i pola mowia dalej jezykiem panelu.
     expect(within(tracksSection()).getByText("Ekonomia")).toBeInTheDocument();
     expect(within(tracksSection()).queryByText("Economy")).toBeNull();

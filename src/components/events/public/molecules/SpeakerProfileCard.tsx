@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { AppLink } from "@/components/atoms/AppLink";
+import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
 import { buildTransformedImageUrl } from "@/lib/cropSizes";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
@@ -184,6 +185,11 @@ function CardBody({ speaker, lang }: { speaker: PublicSpeakerRow; lang: "pl" | "
             </span>
           ) : null}
         </span>
+        {/* Keep the editorial card free of visible track chips while retaining
+            the same session facts for assistive technology and the preview. */}
+        <span className="sr-only">
+          <SpeakerTrackChips tracks={speaker.tracks ?? []} lang={lang} />
+        </span>
         {speaker.is_expert ? (
           <span className="mt-auto flex flex-wrap items-center gap-2 pt-5">
             <SpeakerExpertBadge lang={lang} />
@@ -207,6 +213,12 @@ export function SpeakerProfileCard({
   const name = speaker.display_name?.trim() ?? "";
   const canOpenProfile = onSelect !== undefined && speakerHasProfileToShow(speaker);
   const action = speakerCardAction(speaker, lang, false);
+  const actionLabel = action?.label ?? t("eventFront.speakers.card.linkAction", { lng: lang });
+  const actionFor = t("eventFront.speakers.card.actionFor", {
+    label: actionLabel,
+    name,
+    lng: lang,
+  });
   const content = <CardBody speaker={speaker} lang={lang} />;
   let main: ReactNode = (
     <div className="group/speaker flex h-full w-full gap-5 px-2 py-3 sm:gap-6">{content}</div>
@@ -235,12 +247,13 @@ export function SpeakerProfileCard({
             href={action.href}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label={`${actionFor} ${t("eventFront.speakers.card.opensInNewTab", { lng: lang })}`}
             onClick={(event) => {
               if (event.currentTarget.closest(PREVIEW_MARKER)) event.preventDefault();
             }}
             className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-42"
           >
-            {action.label ?? t("eventFront.speakers.card.linkAction", { lng: lang })}
+            {actionLabel}
             <span className="sr-only">
               {" "}
               {t("eventFront.speakers.card.opensInNewTab", { lng: lang })}
@@ -249,9 +262,10 @@ export function SpeakerProfileCard({
         ) : (
           <AppLink
             href={action.href}
+            aria-label={actionFor}
             className="ml-37 mt-1 w-fit text-xs font-semibold text-brand-ink underline-offset-4 hover:underline sm:ml-42"
           >
-            {action.label ?? t("eventFront.speakers.card.linkAction", { lng: lang })}
+            {actionLabel}
           </AppLink>
         )
       ) : null}

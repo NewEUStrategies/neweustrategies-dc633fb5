@@ -299,6 +299,8 @@ SELECT throws_ok(
 -- platne wydarzenie z nietknieta pula. Miejsce w kolejce to REZERWACJA
 -- oplacona biletem.
 RESET ROLE;
+-- Fixture publication is a system operation, not an attendee publication.
+SELECT set_config('request.jwt.claims', '{}', true);
 INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, kind, starts_at,
                            visibility, min_tier_rank, status, ticket_price_cents, capacity)
 VALUES ('b1444444-0000-0000-0000-0000000000d1', (SELECT public.public_tenant_id()),

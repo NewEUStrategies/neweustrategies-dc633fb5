@@ -37,11 +37,12 @@
 // tu atrapami, ktore ZAPISUJA otrzymane wlasciwosci. Przedmiotem dowodu jest ROZDZIELNIK: ktory
 // modul dostaje ktore fakty i z jakimi ograniczeniami.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { axeViolations, summarize } from "@/test/axe";
 import type { AgendaSession } from "@/lib/events/agendaSurface";
 import type { PreviewTrackChip } from "@/lib/events/previewLiveData";
+import type { ComponentProps } from "react";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
 import type { AttendeeEntry } from "@/lib/events/publicEventApi";
 import type { PublicSponsorTier } from "@/lib/events/sponsorsSurface";
@@ -55,6 +56,9 @@ const h = vi.hoisted(() => ({
   /** Poziomy partnerow i napis plakietki przekazane widokowi sekcji. */
   partnerzy: [] as { ilu: number; draftLabel: string | undefined }[],
   lang: "pl",
+  dialog: null as ComponentProps<
+    typeof import("@/components/events/SpeakerProfileDialog").SpeakerProfileDialog
+  > | null,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -70,9 +74,37 @@ vi.mock("@/components/events/public/molecules/AgendaSessionCard", () => ({
 }));
 
 vi.mock("@/components/events/public/organisms/EventSpeakersGrid", () => ({
-  EventSpeakersGridView: (props: { speakers: readonly PublicSpeakerRow[]; lang: string }) => {
+  EventSpeakersGridView: (props: {
+    speakers: readonly PublicSpeakerRow[];
+    lang: string;
+    onSelect: (speaker: PublicSpeakerRow) => void;
+  }) => {
     h.prelegenci.push({ ilu: props.speakers.length, lang: props.lang });
-    return <div data-testid="prelegenci" />;
+    return (
+      <div data-testid="prelegenci">
+        {props.speakers.map((speaker) => (
+          <button key={speaker.speaker_profile_id} onClick={() => props.onSelect(speaker)}>
+            {speaker.speaker_profile_id}
+          </button>
+        ))}
+      </div>
+    );
+  },
+}));
+
+vi.mock("@/components/events/SpeakerProfileDialog", () => ({
+  SpeakerProfileDialog: (
+    props: ComponentProps<
+      typeof import("@/components/events/SpeakerProfileDialog").SpeakerProfileDialog
+    >,
+  ) => {
+    h.dialog = props;
+    return (
+      <div role="dialog" aria-label="Podgląd profilu">
+        <button onClick={() => props.onOpenChange(false)}>Zamknij profil</button>
+        <button onClick={() => props.onOpenChange(true)}>Pozostaw otwarty</button>
+      </div>
+    );
   },
 }));
 
@@ -231,6 +263,7 @@ afterEach(() => {
   h.uczestnicy = [];
   h.partnerzy = [];
   h.lang = "pl";
+  h.dialog = null;
 });
 
 describe("EventPreviewLiveModule - program", () => {
@@ -335,6 +368,40 @@ describe("EventPreviewLiveModule - prelegenci i uczestnicy", () => {
     expect(screen.getByTestId("prelegenci")).toBeInTheDocument();
     expect(h.prelegenci.at(-1)).toEqual({ ilu: 2, lang: "pl" });
   });
+
+  it.each([false, true])(
+    "przekazuje pełne fakty do profilu i pozwala go zamknąć (puste pola: %s)",
+    (empty) => {
+      h.lang = "en";
+      const row: PublicSpeakerRow = {
+        ...prelegent("p-1"),
+        display_name: empty ? null : "Anna Kowalska",
+        job_title: empty ? null : "Analityczka",
+        avatar_url: empty ? null : "https://example.org/photo.jpg",
+        bio_en: "Speaker biography",
+      };
+      modul("speakers", { speakers: [row] });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "p-1" }));
+      expect(screen.getByRole("dialog", { name: "Podgląd profilu" })).toBeInTheDocument();
+      expect(h.dialog).toMatchObject({
+        row,
+        userId: "",
+        lang: "en",
+        open: true,
+        fallback: {
+          name: empty ? "" : "Anna Kowalska",
+          role: empty ? "" : "Analityczka",
+          photo: empty ? undefined : "https://example.org/photo.jpg",
+        },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Pozostaw otwarty" }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Zamknij profil" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(screen.getByTestId("prelegenci")).toBeInTheDocument();
+    },
+  );
 
   it("BEZ UCZESTNIKOW zdanie, Z UCZESTNIKAMI produkcyjny katalog", () => {
     const puste = modul("participants");

@@ -36,6 +36,14 @@ const fetchMenu = vi.fn<(slug: string) => Promise<EventMenuItem[]>>();
 const askedSegments: string[][] = [];
 const docFn = vi.fn<() => Promise<ResolvedContent | null>>();
 const language = { current: "pl" };
+const eventFn = vi.fn<() => Promise<{ title_pl: string; title_en: string } | null>>();
+
+vi.mock("@/lib/community/publicQueries", () => ({
+  publicEventBySlugQueryOptions: (slug: string) => ({
+    queryKey: ["event", slug],
+    queryFn: () => eventFn(),
+  }),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -91,7 +99,11 @@ vi.mock("@/components/Footnotes", () => ({
 // okruszki na martwy znacznik z liczbą pozycji.
 vi.mock("@/components/Breadcrumbs", () => ({
   Breadcrumbs: ({ items }: { items: Array<{ label: string }> }) => (
-    <nav data-testid="breadcrumb" data-items={items.length} />
+    <nav
+      data-testid="breadcrumb"
+      data-items={items.length}
+      data-labels={JSON.stringify(items.map((item) => item.label))}
+    />
   ),
 }));
 
@@ -218,6 +230,7 @@ beforeEach(() => {
     }),
   ]);
   docFn.mockResolvedValue(pageDocument());
+  eventFn.mockResolvedValue(null);
 });
 
 describe("EventModulePage - wstęp z CMS-a nad danymi zakładki", () => {
@@ -410,4 +423,38 @@ describe("EventModulePage - brak wstępu nie jest awarią zakładki", () => {
     await waitFor(() => expect(docFn).toHaveBeenCalledTimes(1));
     expect(screen.queryByTestId("renderer-tresci")).not.toBeInTheDocument();
   });
+});
+
+describe("EventModulePage - język tytułów i okruszków", () => {
+  it.each([
+    ["pl", "Kongres", "Congress", "Uczestnicy", "Participants", "Kongres", "Uczestnicy"],
+    ["en", "Kongres", "Congress", "Uczestnicy", "Participants", "Congress", "Participants"],
+    ["pl", "", "Congress", "", "Participants", "Congress", "Participants"],
+    ["en", "Kongres", "", "Uczestnicy", "", "Kongres", "Uczestnicy"],
+  ])(
+    "%s: brak tłumaczenia nie gubi nazwy wydarzenia ani pozycji menu",
+    async (lang, titlePl, titleEn, labelPl, labelEn, title, label) => {
+      language.current = lang;
+      eventFn.mockResolvedValue({ title_pl: titlePl, title_en: titleEn });
+      fetchMenu.mockResolvedValue([
+        menuItem({
+          id: "m1",
+          path: "/events/kongres/participants",
+          module: "participants",
+          labelPl,
+          labelEn,
+        }),
+      ]);
+      renderModule();
+      await waitFor(() =>
+        expect(screen.getByTestId("breadcrumb")).toHaveAttribute("data-items", "3"),
+      );
+      expect(JSON.parse(screen.getByTestId("breadcrumb").getAttribute("data-labels")!)).toEqual([
+        "eventFront.header.breadcrumbEvents",
+        title,
+        label,
+      ]);
+      expect(screen.getByTestId("dane-zakladki")).toBeInTheDocument();
+    },
+  );
 });
