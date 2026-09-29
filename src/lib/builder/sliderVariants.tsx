@@ -581,8 +581,9 @@ const SHARED_STYLES = `
 [data-widget-explicit-height="true"] .eh-slider .eh-card-content { flex: 0 1 auto; min-height: 0; overflow: hidden; }
 [data-widget-explicit-height="true"] .eh-slider .eh-card-media img,
 [data-widget-explicit-height="true"] .eh-slider .eh-card-media .eh-hover-zoom { width: 100%; height: 100%; object-fit: cover; }
-@media (max-width: 1024px) { .eh-slider .eh-card { width: calc((100% - 16px) / 2) !important; } }
-@media (max-width: 640px) { .eh-slider .eh-card { width: 100% !important; } .eh-slider .eh-track { gap: 12px !important; } }
+/* Liczbę kolumn na węższych szerokościach liczy JS (effectiveSliderColumns)
+   z szerokości KONTENERA - szerokość karty i przesunięcie toru muszą wynikać
+   z tej samej wartości, inaczej na telefonie slajdy rozjeżdżają się z kropkami. */
 `;
 
 interface NavArrowsProps {
@@ -883,7 +884,10 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   useEffect(() => {
     setIdx(0);
   }, [items.length]);
-  const columns = Math.round(asNumInRange(config.columns, 3, 1, 4)) as 1 | 2 | 3 | 4;
+  const configuredColumns = Math.round(asNumInRange(config.columns, 3, 1, 4)) as 1 | 2 | 3 | 4;
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const containerWidth = useContainerWidth(rootRef, items.length);
+  const columns = effectiveSliderColumns(configuredColumns, containerWidth);
   const visibleCount = variant === "multi-card" ? columns : 1;
   const stepCount = Math.max(1, items.length - (variant === "multi-card" ? visibleCount - 1 : 0));
   // Pauza autoplay pod kursorem (globalny default z możliwością nadpisania);
@@ -918,7 +922,6 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   // Hooks nawigacji PRZED wczesnym returnem pustego slidera - React wymaga
   // identycznej kolejności hooków w kazdym renderze (rules-of-hooks).
   const router = useRouter({ warn: false });
-  const rootRef = useRef<HTMLDivElement | null>(null);
 
   if (items.length === 0) {
     return (
@@ -1280,13 +1283,43 @@ function EditorialHeroVariant(p: VariantProps) {
 // Variant: Multi-card carousel (3-up, 2-up on tablet, 1-up on mobile)
 // ------------------------------------------------------------------
 
+/** Kolumny karuzeli dla danej szerokości kontenera (null = jeszcze nie zmierzono). */
+export function effectiveSliderColumns(
+  configured: 1 | 2 | 3 | 4,
+  width: number | null,
+): 1 | 2 | 3 | 4 {
+  if (width === null || width <= 0) return configured;
+  if (width <= 640) return 1;
+  if (width <= 1024) return configured > 2 ? 2 : configured;
+  return configured;
+}
+
+function useContainerWidth(
+  ref: React.RefObject<HTMLDivElement | null>,
+  remeasureKey: number,
+): number | null {
+  const [width, setWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setWidth(el.getBoundingClientRect().width);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, remeasureKey]);
+  return width;
+}
+
 function MultiCardVariant(p: VariantProps) {
   // Card has its own ratio - use 4/3 visual ratio per slide image.
   const dragging = p.dragRef.current.active;
   const cols = p.columns;
   const gapPx = 16;
   const cardWidth = `calc((100% - ${(cols - 1) * gapPx}px) / ${cols})`;
-  const trackTransform = `translateX(calc(${-p.safeIdx * (100 / cols)}% + ${p.dragDx}px))`;
+  // Krok = szerokość karty + odstęp, czyli (100% + gap) / cols.
+  const trackTransform = `translateX(calc(${-p.safeIdx} * (100% + ${gapPx}px) / ${cols} + ${p.dragDx}px))`;
   return (
     <div className="relative eh-multi-card">
       <div
