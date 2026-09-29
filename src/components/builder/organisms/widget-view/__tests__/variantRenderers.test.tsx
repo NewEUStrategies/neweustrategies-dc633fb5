@@ -202,9 +202,9 @@ describe("SliderRender", () => {
     expect(screen.getByText("Slajd 1")).toBeTruthy();
     expect(screen.getByText("Analiza")).toBeTruthy();
     expect(screen.getByText(/Anna/)).toBeTruthy();
-    fireEvent.click(screen.getByLabelText("Następny"));
+    fireEvent.click(screen.getAllByLabelText("Następny slajd").at(-1)!);
     expect(screen.getByText("Slajd 2")).toBeTruthy();
-    fireEvent.click(screen.getByLabelText("Poprzedni"));
+    fireEvent.click(screen.getAllByLabelText("Poprzedni slajd").at(-1)!);
     fireEvent.click(screen.getByLabelText("Slajd 3"));
     expect(screen.getByText("Slajd 3")).toBeTruthy();
   });
@@ -580,8 +580,8 @@ describe("SliderRender", () => {
 
     it("nazywa strzałki po angielsku przy lang=en", () => {
       const { container } = wrap(<SliderRender config={{ items, autoplay: false }} lang="en" />);
-      expect(within(container).getByLabelText("Next slide")).toBeTruthy();
-      expect(within(container).getByLabelText("Previous slide")).toBeTruthy();
+      expect(within(container).getAllByLabelText("Next slide")[0]).toBeTruthy();
+      expect(within(container).getAllByLabelText("Previous slide")[0]).toBeTruthy();
     });
 
     // DEFEKT: DOMYŚLNE KOLORY DAJĄ BIAŁĄ STRZAŁKĘ NA BIAŁYM PRZYCISKU.
@@ -613,20 +613,8 @@ describe("SliderRender", () => {
       },
     );
 
-    // DEFEKT: PASEK POD SLIDEREM MÓWI PO POLSKU NIEZALEŻNIE OD JĘZYKA WIDOKU.
-    //
-    // WEJŚCIE: `SliderRender` z `lang="en"` i trzema slajdami.
-    // CO PSUJE: `DotsNav` ma etykiety wpisane na sztywno po polsku -
-    //   "Poprzedni" (:667), "Następny" (:688) i `Slajd ${i + 1}` (:679);
-    //   tak samo kropki wariantu cinematic (:1561) i miniatury minimal-strip
-    //   (:1805). W TYM SAMYM pliku `NavArrows` lokalizuje etykiety poprawnie
-    //   (:1191-1192), więc to niekonsekwencja, nie decyzja projektowa.
-    // KONSEKWENCJA: czytnik ekranu na anglojęzycznej wersji serwisu czyta
-    //   polskie nazwy przycisków - jedyna treść slidera, której przełącznik
-    //   języka nie dotyczy.
-    // WYMAGANA POPRAWKA: te same etykiety mają być parą PL/EN wybieraną po
-    //   propsie `lang`, dokładnie jak w `NavArrows`.
-    it.fails("DEFEKT: kropki slidera MUSZĄ mieć etykiety w języku widoku", () => {
+    // Regresja: kropki i strzałki używają tego samego języka widoku.
+    it("kropki slidera mają etykiety w języku widoku", () => {
       const { container } = wrap(
         <SliderRender config={{ items: plainSlides, autoplay: false }} lang="en" />,
       );
@@ -1051,7 +1039,7 @@ describe("SliderRender", () => {
       act(() => {
         vi.advanceTimersByTime(8000);
       });
-      expect(within(container).getByLabelText("Slajd 3").className).toContain("w-2.5");
+      expect(within(container).getByLabelText("Slajd 3").getAttribute("aria-current")).toBe("true");
     });
 
     it("sprząta interwał po odmontowaniu widgetu", () => {

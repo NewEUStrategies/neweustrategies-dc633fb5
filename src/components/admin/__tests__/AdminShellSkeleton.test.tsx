@@ -27,7 +27,7 @@
 // „zero przesunięcia" jest tu niemierzalne z definicji. Mierzymy DWIE rzeczy,
 // które źródła ustalają: (1) że obie powłoki deklarują te same klasy i ten sam
 // korzeń, (2) że ARKUSZ WIDZI SZKIELET TAK SAMO jak powłokę - bo o szerokości
-// paska w wariancie `style-4` decyduje `styles.css` (`width: 3.5rem !important`),
+// paska w wariancie `style-4` decyduje `admin-styles.css` (`width: 3.5rem !important`),
 // a nie klasa Tailwinda. Pomiar CLS należy do RUM-u i do testów przeglądarkowych.
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
@@ -49,7 +49,7 @@ import { hasSsrDisabled } from "@/lib/ci/publicRouteLoaders";
 const SHELL_SOURCE = readFileSync("src/components/admin/AdminShell.tsx", "utf8");
 const SKELETON_SOURCE = readFileSync("src/components/admin/AdminShellSkeleton.tsx", "utf8");
 const ROUTE_SOURCE = readFileSync("src/routes/admin.tsx", "utf8");
-const SITE_CSS = readFileSync("src/styles.css", "utf8");
+const SITE_CSS = readFileSync("src/admin-styles.css", "utf8");
 
 /** Wszystkie warianty paska z panelu wyglądu - źródło listy, nie kopia. */
 const ALL_STYLES: SidebarStyle[] = SIDEBAR_STYLES.map((entry) => entry.id);
@@ -148,7 +148,7 @@ describe("wariant paska najemcy steruje geometrią szkieletu", () => {
 // ARKUSZ MUSI WIDZIEĆ SZKIELET TAK SAMO JAK POWŁOKĘ.
 //
 // To jest druga połowa defektu i była niewidoczna w klasach Tailwinda.
-// `styles.css` nadaje paskowi wymiary przez `aside[data-sidebar="sidebar"]
+// `admin-styles.css` nadaje paskowi wymiary przez `aside[data-sidebar="sidebar"]
 // [data-sidebar-style="..."]`: `style-4` dostaje `width: 3.5rem !important`
 // (56 px - ani `w-56`, ani `w-12`), a `style-3` margines `0.75rem` i niższy
 // ekran. Szkielet bez tej pary atrybutów maluje inny prostokąt niż powłoka,

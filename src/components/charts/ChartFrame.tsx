@@ -1,4 +1,3 @@
-import "./charts.css";
 // Rama wykresu: karta w stylistyce platformy, nagłówek z opcjonalnym
 // tooltipem objaśniającym wskaźnik, legenda, przełączany widok tabeli danych
 // (kanał dostępności - tooltip NIGDY nie jest jedyną drogą do wartości)
