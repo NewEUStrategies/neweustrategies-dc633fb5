@@ -651,7 +651,7 @@ function RailButton({
   return (
     <button
       onClick={onClick}
-      className={`relative w-full flex flex-col items-center gap-1.5 py-4 pl-4 pr-2 text-[11px] font-medium transition-colors ${
+      className={`relative w-full flex flex-col items-center gap-1.5 py-4 pl-3 pr-1.5 text-[11px] font-medium transition-colors ${
         active ? "text-primary" : "text-muted-foreground hover:text-foreground"
       }`}
     >
