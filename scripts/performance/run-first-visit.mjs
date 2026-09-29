@@ -31,7 +31,9 @@ for (const lang of ["pl", "en"]) {
 }
 const suites = ["dock-panels"];
 // The base artifact intentionally predates the first-use loading contract.
-if (process.env.NES_PERFORMANCE_BASELINE !== "1") suites.push("on-demand-overlays");
+if (process.env.NES_PERFORMANCE_BASELINE !== "1") {
+  suites.push("on-demand-overlays", "popup-first-render");
+}
 for (const suite of suites) {
   const result = spawnSync(
     process.execPath,

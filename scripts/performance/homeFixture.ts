@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { popupFixtureSettings } from "./popupFixture.ts";
 
 type Row = Record<string, unknown>;
 interface HomeFixture {
@@ -154,6 +155,10 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
       throw new Error("Fixture rejects database writes");
     let rows: Row[];
     switch (name) {
+      case "newsletter_settings":
+        rows =
+          process.env.NES_PERFORMANCE_CASE === "popup-first-render" ? [popupFixtureSettings] : [];
+        break;
       case "tenants":
         rows = [
           { id: "performance-tenant", slug: "performance", domain: "127.0.0.1", is_default: true },
