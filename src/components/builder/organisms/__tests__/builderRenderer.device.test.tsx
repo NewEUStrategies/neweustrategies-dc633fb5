@@ -3,9 +3,8 @@
 // ── CO TU MA DOWÓD ─────────────────────────────────────────────────────────
 // * `deviceForWidth` na obu progach (768 i 1024) - od WEWNĘTRZNEJ strony każdej
 //   granicy, bo pomylenie `<` z `<=` to klasyczny defekt o jeden piksel,
-// * źródło szerokości: renderer WOLI `clientWidth` korzenia (kanwa admina
-//   renderuje stronę w ramce 390 px) i tylko przy zerze spada na
-//   `window.innerWidth`,
+// * szerokość kontenera pochodzi z ResizeObserver bez synchronicznego
+//   odczytu geometrii; przy braku obserwatora używamy window.innerWidth,
 // * `ResizeObserver` - obecny (obserwacja kontenera) i NIEOBECNY (gałąź
 //   `typeof ResizeObserver === "undefined"`, którą happy-dom wybiera domyślnie),
 // * nasłuch `resize` na oknie,
@@ -20,7 +19,7 @@
 // * wstrzyknięty `@media (max-width: 767px)` z kolejnością kolumn.
 //
 // ── CZEGO TU ŚWIADOMIE NIE MA ──────────────────────────────────────────────
-// Korekta urządzenia siedzi w `useLayoutEffect`, więc synchroniczny `render()`
+// Korekta urządzenia siedzi w `useEffect`, więc synchroniczny `render()`
 // z testing-library pokazuje już stan PO korekcie. Zamierzonego PIERWSZEGO
 // renderu „desktop-first" (który chroni hydratację przed rozjazdem) tą drogą
 // zobaczyć nie można - dowodzi go osobno `renderToString` w tym samym pliku.
@@ -90,6 +89,46 @@ describe("progi szerokości (deviceForWidth)", () => {
 });
 
 describe("źródło szerokości", () => {
+  it("uses the observer result without synchronously reading clientWidth", () => {
+    let report: ResizeObserverCallback | undefined;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          report = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const geometry = vi.spyOn(HTMLElement.prototype, "clientWidth", "get");
+    setWindowWidth(1600);
+    const { container, unmount } = renderWithQueryClient(
+      <BuilderRenderer doc={doc([simpleSection("a")])} lang="pl" />,
+    );
+    expect(geometry).not.toHaveBeenCalled();
+    const target = container.querySelector("[data-builder-renderer]")!;
+    act(() => {
+      report?.(
+        [
+          {
+            target,
+            contentRect: new DOMRect(0, 0, 390, 100),
+            borderBoxSize: [{ inlineSize: 390, blockSize: 100 }],
+            contentBoxSize: [{ inlineSize: 390, blockSize: 100 }],
+            devicePixelContentBoxSize: [],
+          },
+        ],
+        new ResizeObserver(() => {}),
+      );
+    });
+    expect(urzadzenie(container)).toBe("mobile");
+    expect(geometry).not.toHaveBeenCalled();
+    unmount();
+    geometry.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
   it("szerokość KONTENERA wygrywa z oknem (ramka podglądu 390 px w panelu)", () => {
     setWindowWidth(1600);
     const restore = stubClientWidth(390);
@@ -139,7 +178,9 @@ describe("reakcja na zmianę rozmiaru", () => {
     expect(urzadzenie(container)).toBe("mobile");
   });
 
-  it("nasłuch `resize` na oknie przelicza urządzenie", () => {
+  it("bez obserwatora nasłuch resize na oknie przelicza urządzenie", () => {
+    observers.restore();
+    Reflect.deleteProperty(globalThis, "ResizeObserver");
     setWindowWidth(1600);
     const { container } = renderWithQueryClient(
       <BuilderRenderer doc={doc([simpleSection("a")])} lang="pl" />,
@@ -169,7 +210,9 @@ describe("reakcja na zmianę rozmiaru", () => {
     expect(urzadzenie(container)).toBe("desktop");
   });
 
-  it("odmontowanie zdejmuje nasłuch okna (brak wycieku po nawigacji SPA)", () => {
+  it("odmontowanie zdejmuje zapasowy nasłuch okna", () => {
+    observers.restore();
+    Reflect.deleteProperty(globalThis, "ResizeObserver");
     setWindowWidth(1600);
     const spyAdd = vi.spyOn(window, "addEventListener");
     const spyRemove = vi.spyOn(window, "removeEventListener");
@@ -189,7 +232,7 @@ describe("PIERWSZY render jest desktop-first (dowód przez renderToString)", () 
     // Determinizm pierwszego renderu to warunek hydratacji: gdyby klient policzył
     // „mobile" już w pierwszym przejściu, HTML z serwera i z przeglądarki byłyby
     // różne. `render()` z testing-library tego nie pokaże, bo korekta siedzi
-    // w `useLayoutEffect` i wykonuje się przed powrotem z `render`.
+    // w `useEffect` i wykonuje się przed powrotem z `render`.
     setWindowWidth(390);
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const html = renderToString(

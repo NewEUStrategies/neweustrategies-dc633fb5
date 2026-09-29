@@ -20,7 +20,11 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
 
 import { supabase } from "@/integrations/supabase/client";
-import { NotificationsBell } from "@/components/notifications/NotificationsBell";
+const NotificationsBell = lazy(() =>
+  import("@/components/notifications/NotificationsBell").then((m) => ({
+    default: m.NotificationsBell,
+  })),
+);
 
 // Lazy: the chat bundle (incl. its i18n resources) loads only for signed-in
 // users, keeping the guest header untouched and the widget graph decoupled.
@@ -782,7 +786,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       </Popover>
       {session ? (
         <span className="relative inline-flex overflow-visible pr-1.5 sm:pr-2">
-          <NotificationsBell />
+          <Suspense fallback={null}>
+            <NotificationsBell />
+          </Suspense>
         </span>
       ) : null}
     </div>

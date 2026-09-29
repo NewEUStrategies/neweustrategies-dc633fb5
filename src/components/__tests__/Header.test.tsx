@@ -1241,6 +1241,21 @@ describe("Header - histereza scrolla i pomiar wymiarów", () => {
     expect(header.style.getPropertyValue("--hdr-tt")).toBe("40px");
     expect(header.style.getPropertyValue("--hdr-extra")).toBe("10px");
 
+    // Re-measuring an expanded, unchanged header must not invalidate its
+    // styles before the geometry read (the production forced-reflow case).
+    const metricsChanges: MutationRecord[] = [];
+    const mutations = new MutationObserver((records) => metricsChanges.push(...records));
+    mutations.observe(header, { attributes: true, attributeFilter: ["data-metrics"] });
+    const writeStyle = vi.spyOn(header.style, "setProperty");
+    await act(async () => {
+      window.dispatchEvent(new Event("resize"));
+      vi.advanceTimersByTime(400);
+    });
+    expect([...metricsChanges, ...mutations.takeRecords()]).toEqual([]);
+    expect(writeStyle).not.toHaveBeenCalled();
+    mutations.disconnect();
+    writeStyle.mockRestore();
+
     // Nieudany pomiar (chrome bez wysokości) NIE kasuje poprzedniej wartości.
     setHeight(chrome, 0);
     act(() => {

@@ -49,6 +49,7 @@ import {
   POST_LIST_FLEX_LEAD_SIZES,
   POST_LIST_GRID_COVER_SIZES,
   WIDGET_MEDIA_SPLIT_SIZES,
+  imageWidgetSizes,
 } from "@/lib/builder/widgetImageSizes";
 
 function getStr(c: WidgetContent, key: string): string {
@@ -117,7 +118,7 @@ function sliderPreload(
  * wybiera się motywem czytelnika (nieznanym na serwerze), a logo podmienia
  * się na asset z ustawień - w obu przypadkach preload zgadywałby.
  */
-function imageWidgetPreload(widget: WidgetNode): ImagePreloadInput | null {
+function imageWidgetPreload(widget: WidgetNode, slot?: ImageSlot): ImagePreloadInput | null {
   const c = widget.content;
   const src = safeImageUrl(getStr(c, "src"));
   const srcDark = safeImageUrl(getStr(c, "srcDark"));
@@ -133,7 +134,7 @@ function imageWidgetPreload(widget: WidgetNode): ImagePreloadInput | null {
   ) {
     return null;
   }
-  return preloadOf(src, WIDGET_MEDIA_SPLIT_SIZES);
+  return preloadOf(src, imageWidgetSizes(c, slot));
 }
 
 function darkFeaturedCardPreload(widget: WidgetNode): ImagePreloadInput | null {
@@ -186,7 +187,7 @@ function widgetPreload(
     case "slider":
       return sliderPreload(widget, queryClient, lang, slot);
     case "image":
-      return imageWidgetPreload(widget);
+      return imageWidgetPreload(widget, slot);
     case "dark-featured-card":
       return darkFeaturedCardPreload(widget);
     case "post-list":

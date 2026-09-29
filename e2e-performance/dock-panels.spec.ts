@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import {
   authStorageKey,
+  DOCK_CALENDAR_DATE,
   DOCK_MARKERS,
   DOCK_REQUIRED_TABLES,
   DOCK_ROUND_TRIP_MS,
@@ -74,6 +75,7 @@ const PANELS = [
   { tool: "todos", marker: DOCK_MARKERS.todos },
   { tool: "notes", marker: DOCK_MARKERS.notes },
   { tool: "saved", marker: DOCK_MARKERS.saved },
+  { tool: "calendar", marker: DOCK_MARKERS.calendar },
 ] as const;
 
 /**
@@ -201,6 +203,7 @@ test.describe("otwieranie paneli doku", () => {
 
   for (const panel of PANELS) {
     test(`panel ${panel.tool}: zimno i po rozgrzaniu`, async ({ page }, testInfo) => {
+      if (panel.tool === "calendar") await page.clock.setFixedTime(new Date(DOCK_CALENDAR_DATE));
       const sink: Sink = { unknown: [], errors: [] };
       await routeBackend(page, sink);
       await seedSession(page);

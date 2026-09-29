@@ -21,12 +21,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, act, fireEvent, within } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
+  warmWidgets: vi.fn(),
   preloadRoute: vi.fn(() => Promise.resolve()),
   navigate: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({ preloadRoute: h.preloadRoute, navigate: h.navigate }),
+}));
+
+vi.mock("@/components/builder/organisms/widget-view/warmWidgetChunks", () => ({
+  warmCommonWidgetChunks: h.warmWidgets,
 }));
 
 import { AppLink } from "../AppLink";
@@ -68,6 +73,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   h.preloadRoute.mockClear();
   h.navigate.mockClear();
+  h.warmWidgets.mockClear();
 });
 
 afterEach(() => {
@@ -79,6 +85,7 @@ describe("AppLink - opóźnienie intencji", () => {
   it("samo najechanie NIE preloaduje - dopiero 60 ms spoczynku", () => {
     const { anchor, href } = renderLink();
 
+    expect(h.warmWidgets).not.toHaveBeenCalled();
     fireEvent.mouseEnter(anchor);
     // Klatka, w której kursor dopiero wjechał na kartę, należy do przewijania.
     tick(DELAY_MS - 1);
@@ -87,6 +94,7 @@ describe("AppLink - opóźnienie intencji", () => {
     tick(1);
     expect(h.preloadRoute).toHaveBeenCalledTimes(1);
     expect(h.preloadRoute).toHaveBeenCalledWith({ href });
+    expect(h.warmWidgets).toHaveBeenCalledTimes(1);
   });
 
   it("wyjazd kursora PRZED progiem kasuje odliczanie", () => {

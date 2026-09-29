@@ -706,7 +706,7 @@ describe("__root head()", () => {
     expect(r.meta[0]).toEqual({
       name: "viewport",
       content:
-        "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
+        "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
     });
     expect(r.meta.length).toBeGreaterThan(1);
     expect(r.links.some((l) => l.rel === "stylesheet")).toBe(true);

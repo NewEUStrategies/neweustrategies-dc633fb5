@@ -437,44 +437,34 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
         delete el.dataset.metrics;
         return;
       }
-      // Zdejmujemy data-metrics na czas odczytu: bez niego nie działa ani
-      // skalowanie, ani zwijanie tickera, ani narzucona wysokość, więc mierzymy
-      // wartości naturalne niezależnie od tego, czy header jest właśnie
-      // zwinięty. Wszystko dzieje się synchronicznie, bez malowania pomiędzy,
-      // a żadna z tych właściwości nie ma tranzycji - nic nie zdąży drgnąć.
+      // In the expanded header the measured boxes are already natural.
+      // Toggling data-metrics first invalidated the entire header, then the
+      // geometry reads forced a synchronous layout on each hydration/resize.
+      // Only undo compact styles when measuring an actually collapsed header.
       const previous = el.dataset.metrics;
-      delete el.dataset.metrics;
-      // POMIAR UŁAMKOWY, NIE `offsetHeight`.
-      //
-      // `offsetHeight` zwraca liczbę CAŁKOWITĄ, a chrome nagłówka ma wysokość
-      // ułamkową: pas „na czasie" to `h-10`, czyli 2,5 rem, a repo skaluje
-      // `root font-size` płynnie (przy 1280 px 1 rem = 15 px, więc pas ma
-      // 37,5 + 1 px ramki). Zaokrąglenie wracało jako narzucona `height`
-      // headera, czyli układ dostawał wysokość o ułamek piksela INNĄ niż
-      // naturalna - i całe `<main>` drgało dokładnie w chwili, gdy pojawiało
-      // się `data-metrics="ready"`.
-      //
-      // Ten ułamek piksela był DROGI, choć sam z siebie niewidoczny:
-      // `<main>` stawało się elementem NIESTABILNYM, więc jego pole wchodziło
-      // do „impact region" przesunięcia liczonego w tej samej klatce.
-      // Przesunięcie treści strony o ~100 px (reflow po podmianie kroju)
-      // z 0,015 robiło się wtedy 0,13 - i tak padał próg CLS w CI.
-      //
-      // `getBoundingClientRect()` daje wartość ułamkową. Transform i `zoom`
-      // fałszowałyby ten odczyt, ale oba wiszą na `data-metrics`, które
-      // zdejmujemy linijkę wyżej - mierzymy więc pudełko bez skalowania.
+      const resetCompact = previous === "ready" && el.dataset.scrolled === "true";
+      if (resetCompact) delete el.dataset.metrics;
+      // Keep fractional dimensions: rounding moves the content below the header.
       const natural = chrome.getBoundingClientRect().height;
       const ticker = chrome.querySelector<HTMLElement>(".cms-trending");
       const tickerHeight = ticker ? ticker.getBoundingClientRect().height : 0;
       // Ułamki potrafią dać mikroskopijnie ujemną różnicę - strażnik niżej
       // (`extra >= 0`) ma pilnować sensu pomiaru, nie błędu zmiennoprzecinkowego.
-      const extra = Math.max(0, el.getBoundingClientRect().height - natural);
+      const extra =
+        previous === "ready" && !resetCompact
+          ? parseFloat(el.style.getPropertyValue("--hdr-extra")) || 0
+          : Math.max(0, el.getBoundingClientRect().height - natural);
 
       if (natural > 0 && tickerHeight >= 0 && tickerHeight < natural && extra >= 0) {
-        el.style.setProperty("--hdr-nat", `${natural}px`);
-        el.style.setProperty("--hdr-tt", `${tickerHeight}px`);
-        el.style.setProperty("--hdr-extra", `${extra}px`);
-        el.dataset.metrics = "ready";
+        for (const [name, value] of [
+          ["--hdr-nat", natural],
+          ["--hdr-tt", tickerHeight],
+          ["--hdr-extra", extra],
+        ] as const) {
+          const next = `${value}px`;
+          if (el.style.getPropertyValue(name) !== next) el.style.setProperty(name, next);
+        }
+        if (el.dataset.metrics !== "ready") el.dataset.metrics = "ready";
       } else if (previous) {
         el.dataset.metrics = previous;
       }

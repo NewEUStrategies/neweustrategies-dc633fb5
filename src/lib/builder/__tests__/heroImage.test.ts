@@ -172,7 +172,9 @@ describe("builderHeroPreload", () => {
       "pl",
     );
     expect(single?.href).toBe(COVER);
-    expect(single?.imageSizes).toBe(WIDGET_MEDIA_SPLIT_SIZES);
+    expect(single?.imageSizes).toBe(
+      imageSlotSizes({ desktop: { vw: 100, cap: 1140 }, tablet: { vw: 100, cap: 1140 } }),
+    );
 
     const dark = builderHeroPreload(
       docWith([

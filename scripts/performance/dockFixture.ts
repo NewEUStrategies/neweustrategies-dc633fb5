@@ -35,6 +35,7 @@ type Row = Record<string, unknown>;
 
 /** Stałe opóźnienie jednej podróży do bazy - patrz nagłówek. */
 export const DOCK_ROUND_TRIP_MS = 120;
+export const DOCK_CALENDAR_DATE = "2026-06-15T12:00:00.000Z";
 
 export const DOCK_USER_ID = "00000000-0000-4000-8000-00000000d0ck";
 export const DOCK_TENANT_ID = "performance-tenant";
@@ -55,6 +56,7 @@ export const DOCK_MARKERS = {
   todos: "Zadanie pomiarowe 1",
   notes: "Notatka pomiarowa 1",
   saved: "Do przeczytania 1",
+  calendar: "Wydarzenie kalendarza pomiarowego",
 } as const;
 
 /**
@@ -165,6 +167,7 @@ export const DOCK_REQUIRED_TABLES = [
   "user_notes",
   "user_bookmarks",
   "user_read_later",
+  "events",
 ] as const;
 
 export function isDockBackend(url: string): boolean {
@@ -290,6 +293,33 @@ export async function dockFixtureResponse(
   }
 
   const name = url.pathname.replace(/^\/rest\/v1\//, "");
+  // Only the member calendar's bounded month query gets this event. Public
+  // event listings keep the same fixture as SSR, avoiding hydration drift.
+  if (name === "events" && url.searchParams.has("starts_at")) {
+    if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    const inRange = url.searchParams
+      .getAll("starts_at")
+      .every((filter) =>
+        filter.startsWith("gte.")
+          ? DOCK_CALENDAR_DATE >= filter.slice(4)
+          : filter.startsWith("lt.") && DOCK_CALENDAR_DATE < filter.slice(3),
+      );
+    return {
+      response: Response.json(
+        inRange
+          ? [
+              {
+                id: "calendar-event-1",
+                slug: "calendar-fixture",
+                title_pl: DOCK_MARKERS.calendar,
+                title_en: "Calendar measurement event",
+                starts_at: DOCK_CALENDAR_DATE,
+              },
+            ]
+          : [],
+      ),
+    };
+  }
   const rows = MEMBER_TABLES[name];
   if (rows !== undefined) {
     if (delayMs) await new Promise((resolve) => setTimeout(resolve, delayMs));
