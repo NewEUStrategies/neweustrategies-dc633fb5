@@ -36,6 +36,8 @@ export function adminEventDetailRow(
     cover_url: "https://cdn.example.org/kongres/okladka.jpg",
     created_at: "2026-05-01T10:00:00.000Z",
     description_en: "Energy security across Central Europe.",
+    subtitle_en: "",
+    subtitle_pl: "",
     description_pl: "Bezpieczenstwo energetyczne Europy Srodkowej.",
     early_rsvp_rank: 0,
     ends_at: "2026-09-01T15:00:00.000Z",

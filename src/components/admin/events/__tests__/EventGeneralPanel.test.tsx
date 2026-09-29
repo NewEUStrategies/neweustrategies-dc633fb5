@@ -237,6 +237,8 @@ function detailRow(overrides: Partial<AdminEventDetailRow> = {}): AdminEventDeta
     cover_url: "https://cdn.test/okladka.png",
     created_at: "",
     description_en: "Expert breakfast on energy.",
+    subtitle_en: "",
+    subtitle_pl: "",
     description_pl: "Śniadanie eksperckie o energetyce.",
     early_rsvp_rank: 0,
     ends_at: "2026-09-01T15:00:00.000Z",

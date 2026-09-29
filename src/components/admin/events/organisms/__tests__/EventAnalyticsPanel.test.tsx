@@ -109,6 +109,8 @@ function detailRow(overrides: Partial<AdminEventDetailRow> = {}): AdminEventDeta
     cover_url: "",
     created_at: "",
     description_en: "",
+    subtitle_en: "",
+    subtitle_pl: "",
     description_pl: "",
     early_rsvp_rank: 0,
     ends_at: "2026-09-01T15:00:00.000Z",
