@@ -7,7 +7,6 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { AppLink } from "@/components/atoms/AppLink";
-import { SpeakerTrackChips } from "@/components/events/SpeakerTrackChips";
 import { SpeakerExpertBadge } from "@/components/events/SpeakerExpertBadge";
 import { buildTransformedImageUrl } from "@/lib/cropSizes";
 import type { PublicSpeakerRow } from "@/lib/builder/speakersQuery";
