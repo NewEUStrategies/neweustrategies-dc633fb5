@@ -9,7 +9,8 @@ import { safeImageUrl } from "@/lib/sanitizePure";
 import { getStr, type Lang } from "./frame";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { useAboveFold } from "@/lib/builder/aboveFold";
-import { WIDGET_MEDIA_SPLIT_SIZES } from "@/lib/builder/widgetImageSizes";
+import { imageDimensionPx, imageWidgetSizes } from "@/lib/builder/widgetImageSizes";
+import { useBuilderImageSlot } from "@/lib/builder/imageSlotContext";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { AppLink } from "@/components/atoms/AppLink";
 import { ResizableImageWrap } from "./resizeWrappers";
@@ -66,6 +67,7 @@ export function ImageWidget({
   // priorytetem. Wyłącznie wariant jednoźródłowy - przy parze light/dark oba
   // obrazy są w DOM (jeden schowany CSS-em), więc eager podwajałby transfer.
   const aboveFold = useAboveFold();
+  const sizes = imageWidgetSizes(c, useBuilderImageSlot());
   const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
   const caption = getStr(c, `caption_${lang}`) || getStr(c, "caption_pl");
   const variant = getStr(c, "variant") || "default";
@@ -76,12 +78,7 @@ export function ImageWidget({
   // treści (`width`/`maxWidth`/`height`, tak siały domyślne chrome: logo
   // stopki "180px"). Druga droga była wcześniej IGNOROWANA, więc logo dostawało
   // `width: 100%` i rozlewało się na całą kolumnę stopki - wbrew ustawieniu.
-  const pxLen = (value: unknown): number => {
-    if (typeof value === "number") return Number.isFinite(value) && value > 0 ? value : 0;
-    if (typeof value !== "string") return 0;
-    const m = /^\s*(\d+(?:\.\d+)?)\s*px\s*$/i.exec(value) ?? /^\s*(\d+(?:\.\d+)?)\s*$/.exec(value);
-    return m ? Number(m[1]) : 0;
-  };
+  const pxLen = imageDimensionPx;
   const widthPx = pxLen(c.widthPx) || pxLen(c.width);
   const maxWidthPx = pxLen(c.maxWidthPx) || pxLen(c.maxWidth);
   const heightPx = pxLen(c.heightPx) || pxLen(c.height);
@@ -167,7 +164,7 @@ export function ImageWidget({
   const isFramed = !!ratioCss;
   const imgCls = isFramed
     ? `absolute inset-0 block h-full w-full ${variantCls}`
-    : `block ${variantCls}${isLogo ? " site-logo-img" : ""}`;
+    : `block ${variantCls}${isLogo ? " site-logo-img" : ""}${heightPx > 0 ? " h-[var(--img-h)]" : ""}`;
   const hoverEffect: import("@/components/atoms/OptimizedImage").HoverEffect =
     isLogo || variant === "zoom-hover" ? "none" : "zoom";
   const applyLogoFallback = (event: SyntheticEvent<HTMLImageElement>) => {
@@ -183,7 +180,8 @@ export function ImageWidget({
         src={lightSrc}
         alt={alt}
         responsive
-        sizes={WIDGET_MEDIA_SPLIT_SIZES}
+        sizes={sizes}
+        autoSizes={isFramed}
         className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-light`}
         style={fgImgStyle}
         onError={applyLogoFallback}
@@ -194,7 +192,8 @@ export function ImageWidget({
         src={darkSrc}
         alt={alt}
         responsive
-        sizes={WIDGET_MEDIA_SPLIT_SIZES}
+        sizes={sizes}
+        autoSizes={isFramed}
         className={`${imgCls} ${isFramed ? "widget-media-fg" : ""} gc-img-dark`}
         style={fgImgStyle}
         onError={applyLogoFallback}
@@ -207,7 +206,8 @@ export function ImageWidget({
       src={theme === "dark" ? darkSrc : lightSrc}
       alt={alt}
       responsive
-      sizes={WIDGET_MEDIA_SPLIT_SIZES}
+      sizes={sizes}
+      autoSizes={isFramed}
       priority={aboveFold}
       className={`${imgCls} widget-media-fg`}
       style={fgImgStyle}
@@ -220,7 +220,8 @@ export function ImageWidget({
       src={theme === "dark" ? darkSrc : lightSrc}
       alt={alt}
       responsive
-      sizes={WIDGET_MEDIA_SPLIT_SIZES}
+      sizes={sizes}
+      autoSizes={isFramed}
       priority={aboveFold}
       className={imgCls}
       style={imgStyle}
@@ -258,13 +259,23 @@ export function ImageWidget({
     framedImgEl
   );
   return (
-    <figure className={`space-y-2 flex flex-col ${figureAlign}`}>
+    <figure className={`w-full space-y-2 flex flex-col ${figureAlign}`}>
       <ResizableImageWrap
         enabled={showResize}
         currentPx={widthPx > 0 ? widthPx : undefined}
         onCommit={(px) => onContentChange?.("widthPx", Math.round(px))}
       >
-        {linkedImg}
+        {/* Give the hover/link wrapper a definite width. Lazy images using
+            sizes="auto" have size containment: a centred flex child must not
+            shrink to their intrinsic 300px fallback instead of the column. */}
+        <div
+          style={{
+            width: heightPx > 0 && widthPx <= 0 && !ratioCss ? "auto" : wrapperStyle.width,
+            maxWidth: "100%",
+          }}
+        >
+          {linkedImg}
+        </div>
       </ResizableImageWrap>
       {caption && <figcaption className="cms-meta text-center">{caption}</figcaption>}
     </figure>

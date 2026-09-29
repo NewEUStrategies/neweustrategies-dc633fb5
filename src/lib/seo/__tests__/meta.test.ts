@@ -154,7 +154,7 @@ describe("buildRootHead", () => {
     const en = buildRootHead("en");
     expect(en.find((m) => m.charSet === "utf-8")).toBeDefined();
     expect(find(en, "name", "viewport")?.content).toBe(
-      "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content",
+      "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
     );
     expect(find(en, "property", "og:type")?.content).toBe("website");
     expect(find(en, "property", "og:locale")?.content).toBe("en_US");

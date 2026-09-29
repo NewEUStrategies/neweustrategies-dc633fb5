@@ -1,4 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
+import { warmCommonWidgetChunks } from "@/components/builder/organisms/widget-view/warmWidgetChunks";
 import {
   forwardRef,
   useCallback,
@@ -111,6 +112,9 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
     preloadTimer.current = setTimeout(() => {
       preloadTimer.current = null;
       if (!claimPreload(clientHref, Date.now())) return;
+      // Prepare reading widgets only after navigation intent, not on every
+      // page load. This keeps unused article chunks out of the initial visit.
+      warmCommonWidgetChunks();
       void router.preloadRoute({ href: clientHref } as never).catch(() => undefined);
     }, PRELOAD_DELAY_MS);
   };

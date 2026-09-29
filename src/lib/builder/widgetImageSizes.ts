@@ -2,9 +2,37 @@
 // (poza sliderem - ten ma własny lib/builder/sliderSizes.ts). Współdzielone
 // przez renderery widgetów i budowniczego preloadu LCP (heroImage), żeby
 // `imagesizes` preloadu było bajtowo identyczne z `<img sizes>` renderu.
-// Świadomie ZERO zależności - moduł trafia do grafu loaderów tras.
+// Wyłącznie czyste helpery - bez zależności od Reacta i rendererów widgetów.
+import { imageSlotSizes, type ImageSlot } from "./imageSlot";
+import type { WidgetContent } from "./types";
 
-/** Widget "image" i dark-featured-card: pełna szerokość na mobile, ~pół na desktopie. */
+export function imageDimensionPx(value: unknown): number {
+  if (typeof value === "number") return Number.isFinite(value) && value > 0 ? value : 0;
+  if (typeof value !== "string") return 0;
+  const match = /^\s*(\d+(?:\.\d+)?)\s*(?:px)?\s*$/i.exec(value);
+  return match ? Number(match[1]) : 0;
+}
+
+/** Image widgets fill their builder column unless the editor caps the width.
+ * Shared with the SSR preload; these hints change downloaded pixels, not CSS. */
+export function imageWidgetSizes(content: WidgetContent, slot?: ImageSlot): string {
+  const widths = [
+    imageDimensionPx(content.widthPx) || imageDimensionPx(content.width),
+    imageDimensionPx(content.maxWidthPx) || imageDimensionPx(content.maxWidth),
+  ].filter((width) => width > 0);
+  if (!widths.length) return imageSlotSizes(slot);
+  const cap = Math.min(...widths);
+  const limit = (device: "desktop" | "tablet") => ({
+    vw: slot?.[device].vw ?? 100,
+    cap: Math.min(slot?.[device].cap ?? Infinity, cap),
+  });
+  return imageSlotSizes({ desktop: limit("desktop"), tablet: limit("tablet") }).replace(
+    "(max-width: 767px) 100vw",
+    `(max-width: 767px) min(100vw, ${cap}px)`,
+  );
+}
+
+/** Dark-featured-card: pełna szerokość na mobile, ~pół na desktopie. */
 export const WIDGET_MEDIA_SPLIT_SIZES = "(max-width: 767px) 100vw, 50vw";
 
 /** Post-lista, siatka kart 1-4 kolumny (card / minimal / overlay / boxed-grid). */

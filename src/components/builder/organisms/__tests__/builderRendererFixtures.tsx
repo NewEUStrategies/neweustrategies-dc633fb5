@@ -154,12 +154,24 @@ export function stubObservers(): ObserverStubs {
     thresholds: number[] = [];
   }
   class RoStub {
-    constructor(cb: () => void) {
-      roCallbacks.push(cb);
+    private targets = new Set<Element>();
+    constructor(private cb: (entries: Array<{ target: Element; contentRect: DOMRect }>) => void) {
+      roCallbacks.push(() => this.fire());
     }
-    observe = vi.fn();
-    unobserve = vi.fn();
-    disconnect = vi.fn();
+    fire() {
+      this.cb(
+        [...this.targets].map((target) => ({
+          target,
+          contentRect: new DOMRect(0, 0, target.clientWidth || window.innerWidth, 100),
+        })),
+      );
+    }
+    observe = vi.fn((target: Element) => {
+      this.targets.add(target);
+      this.fire();
+    });
+    unobserve = vi.fn((target: Element) => this.targets.delete(target));
+    disconnect = vi.fn(() => this.targets.clear());
   }
 
   Object.defineProperty(globalThis, "IntersectionObserver", {

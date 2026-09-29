@@ -10,7 +10,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -61,7 +60,6 @@ import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
 import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
-import { warmCommonWidgetChunks } from "./widget-view/warmWidgetChunks";
 import { AboveFoldProvider } from "@/lib/builder/aboveFold";
 import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
@@ -74,14 +72,6 @@ import {
   useExperimentAssignments,
   type AbVariant,
 } from "@/lib/builder/experiments";
-// SSR has no viewport, so the first render is "desktop". On a phone the client
-// must correct to "mobile" - running that correction in a *layout* effect lands
-// it synchronously before the browser paints, so the user never sees a
-// desktop->mobile flash and the (mobile-only) re-render is imperceptible.
-// useLayoutEffect warns under SSR, so fall back to useEffect there (it never
-// runs on the server anyway).
-const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
-
 function resolveSpan(
   span: ResponsiveValue<number> | undefined,
   device: Device,
@@ -256,43 +246,37 @@ export function BuilderRenderer({
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
   const { debug, isPrimary } = useBuilderDebug();
 
-  useIsomorphicLayoutEffect(() => {
+  useEffect(() => {
     if (device) {
       setViewportDevice(device);
       return;
     }
     const el = rootRef.current;
-    // Prefer container width (handles being rendered inside a 390px canvas
-    // preview frame in the admin). Fall back to window width.
-    const measure = () => {
-      const w = el?.clientWidth && el.clientWidth > 0 ? el.clientWidth : window.innerWidth;
-      // A viewport correction can arrive before a lazy widget hydrates.
-      // Keep its server DOM while React waits for the chunk; an urgent update
-      // would discard the boundary and temporarily show its empty fallback.
-      startTransition(() => setViewportDevice(deviceForWidth(w)));
+    const updateWidth = (width: number) => {
+      // Preserve pending SSR widget boundaries during viewport corrections.
+      startTransition(() => setViewportDevice(deviceForWidth(width)));
     };
-    measure();
+    // CSS handles the first responsive paint. Reading clientWidth after
+    // React's DOM writes forced layout in every nested renderer. Observe the
+    // computed size instead; this also handles narrow editor preview frames.
+    const onWindowResize = () => updateWidth(window.innerWidth);
+    onWindowResize();
     let ro: ResizeObserver | null = null;
     if (el && typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(measure);
+      ro = new ResizeObserver(([entry]) => {
+        if (entry) updateWidth(entry.contentRect.width || window.innerWidth);
+      });
       ro.observe(el);
+    } else {
+      window.addEventListener("resize", onWindowResize);
     }
-    window.addEventListener("resize", measure);
     return () => {
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", onWindowResize);
       ro?.disconnect();
     };
   }, [device]);
 
   const effectiveDevice = device ?? viewportDevice;
-
-  // Po hydratacji dociągnij w czasie bezczynności chunki najczęstszych typów
-  // widgetów (tekst, listingi, tagi wpisu) - nawigacja SPA montuje je wtedy
-  // z cache zamiast pokazywać pusty fallback granicy Suspense. Szczegóły i
-  // uzasadnienie: widget-view/warmWidgetChunks.ts (recenzja PR #240).
-  useEffect(() => {
-    warmCommonWidgetChunks();
-  }, []);
 
   return (
     <UsedPostIdsProvider>

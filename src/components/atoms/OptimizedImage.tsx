@@ -24,6 +24,9 @@ type OptimizedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, "loading" |
   responsive?: boolean;
   responsiveWidths?: readonly number[];
   sizes?: string;
+  /** Auto sizes require a reserved image box. Natural-ratio images need
+   * explicit sizes so size containment does not replace their intrinsic ratio. */
+  autoSizes?: boolean;
   quality?: number;
 };
 
@@ -49,6 +52,7 @@ export function OptimizedImage({
   responsive = false,
   responsiveWidths = RESPONSIVE_WIDTHS,
   sizes,
+  autoSizes = true,
   quality,
   className,
   style,
@@ -110,7 +114,7 @@ export function OptimizedImage({
       {...rest}
       src={finalSrc}
       srcSet={srcSet || undefined}
-      sizes={srcSet ? `${priority ? "" : "auto, "}${sizes ?? "100vw"}` : sizes}
+      sizes={srcSet ? `${!priority && autoSizes ? "auto, " : ""}${sizes ?? "100vw"}` : sizes}
       alt={alt}
       width={width}
       height={height}

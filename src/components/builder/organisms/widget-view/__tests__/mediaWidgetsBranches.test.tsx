@@ -9,6 +9,10 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetNode, WidgetType, WidgetContent } from "@/lib/builder/types";
+import { AboveFoldProvider } from "@/lib/builder/aboveFold";
+import { BuilderImageSlotContext } from "@/lib/builder/imageSlotContext";
+import { imageWidgetSizes } from "@/lib/builder/widgetImageSizes";
+import type { ImageSlot } from "@/lib/builder/imageSlot";
 
 const db = vi.hoisted(() => ({ tables: {} as Record<string, unknown[]> }));
 
@@ -58,19 +62,23 @@ let nextId = 0;
 function renderNode(
   type: WidgetType,
   content: WidgetContent,
-  opts: { lang?: "pl" | "en"; editable?: boolean } = {},
+  opts: { lang?: "pl" | "en"; editable?: boolean; aboveFold?: boolean; slot?: ImageSlot } = {},
 ) {
   const node: WidgetNode = { id: `mw-${nextId++}`, kind: "widget", type, content };
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <WidgetView
-        node={node}
-        lang={opts.lang ?? "pl"}
-        device="desktop"
-        editable={opts.editable ?? false}
-        onContentChange={opts.editable ? () => {} : undefined}
-      />
+      <AboveFoldProvider aboveFold={opts.aboveFold ?? false}>
+        <BuilderImageSlotContext.Provider value={opts.slot}>
+          <WidgetView
+            node={node}
+            lang={opts.lang ?? "pl"}
+            device="desktop"
+            editable={opts.editable ?? false}
+            onContentChange={opts.editable ? () => {} : undefined}
+          />
+        </BuilderImageSlotContext.Provider>
+      </AboveFoldProvider>
     </QueryClientProvider>,
   );
 }
@@ -152,6 +160,33 @@ describe("PostsSliderWidget - profile autorów slajdów", () => {
 });
 
 describe("ImageWidget - logo strony i fallbacki", () => {
+  it.each([false, true])("preserves column sizes and loading policy aboveFold=%s", (aboveFold) => {
+    const slot: ImageSlot = { desktop: { vw: 50, cap: 680 }, tablet: { vw: 100, cap: 900 } };
+    const content = {
+      src: "https://p.supabase.co/storage/v1/object/public/covers/full.jpg",
+      href: "/raporty",
+    };
+    const { container } = renderNode("image", content, { slot, aboveFold });
+    const img = container.querySelector("img")!;
+    expect(img).toHaveAttribute("sizes", imageWidgetSizes(content, slot));
+    expect(img.getAttribute("srcset")).toContain("/render/image/public/");
+    expect(img).toHaveAttribute("loading", aboveFold ? "eager" : "lazy");
+    expect(img).toHaveAttribute("fetchpriority", aboveFold ? "high" : "auto");
+    expect(container.querySelector("figure")).toHaveClass("w-full");
+    expect(container.querySelector("a")?.parentElement?.style.width).toBe("100%");
+  });
+
+  it("uses auto sizes only when a frame reserves the image dimensions", () => {
+    const { container } = renderNode("image", {
+      src: "https://p.supabase.co/storage/v1/object/public/covers/framed.jpg",
+      ratio: "16/9",
+    });
+    expect(container.querySelector("img")).toHaveAttribute("sizes", "auto, 100vw");
+    expect(container.querySelector("[data-widget-media]")?.getAttribute("style")).toContain(
+      "aspect-ratio: 16 / 9",
+    );
+  });
+
   const themeOptions = {
     key: "theme_options",
     value: {

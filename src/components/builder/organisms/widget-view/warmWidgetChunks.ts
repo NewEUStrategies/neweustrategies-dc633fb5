@@ -1,21 +1,8 @@
 import { afterPageLoad } from "@/lib/performance/afterPageLoad";
-// Rozgrzewanie najczęstszych leniwych chunków widgetów PO hydratacji.
-//
-// PO CO. Podział widgetów po typie (lazyWidgets) zdejmuje ich kod z chunku
-// wejściowego, a SSR dostarcza treść granic Suspense przy pierwszym wejściu.
-// Zachowanie tej treści do końca hydratacji zależy też od aktualizacji
-// kontekstów; sprawdzają je testy pierwszej wizyty. Przy nawigacji SPA granica montowana w
-// tranzycji NA NOWEJ stronie może pokazać pusty fallback, dopóki chunk się nie
-// pobierze (uwaga z recenzji PR #240). Zamiast wracać do eager (odtworzyłoby to
-// 442 kB źródeł w entry), po zakończeniu ładowania strony dociągamy w czasie BEZCZYNNOŚCI
-// chunki typów, które niosą główną ścieżkę czytelniczą: tekst (RichHtmlView),
-// listingi wpisów (PostListView) i dynamiczne tagi szablonu wpisu
-// (DynamicTagWidgets). Po rozgrzaniu nawigacja SPA montuje je z cache HTTP -
-// bez pustego kadru i bez podatku w chunku wejściowym.
-//
-// CZEGO CELOWO NIE ROBIMY: nie rozgrzewamy widgetów chrome (search-button,
-// account-link, menu językowe) - te renderują się już na BIEŻĄCEJ stronie,
-// więc React pobiera ich chunki w trakcie hydratacji bez naszej pomocy.
+// Reading widget code is warmed after sustained hover/focus on an internal
+// AppLink. Warming all six modules at hydration downloaded article renderers
+// on the homepage even when no article was opened. React.lazy still fetches
+// widgets needed by the current page; intent warming helps the next navigation.
 
 /** Jedno odroczenie na proces - kolejne wywołania są bezkosztowe. */
 let scheduled = false;
@@ -34,8 +21,8 @@ const idleDefer: Defer = (run) => {
 };
 
 /**
- * Zaplanuj rozgrzanie wspólnych chunków widgetów. Wołane z efektu w
- * BuilderRenderer (czyli na każdej stronie publicznej i w kanwie), działa raz.
+ * Zaplanuj rozgrzanie wspólnych chunków widgetów po intencji nawigacji.
+ * Działa raz na sesję aplikacji.
  * `defer` jest wstrzykiwalne wyłącznie dla testów.
  */
 export function warmCommonWidgetChunks(defer: Defer = idleDefer): void {
