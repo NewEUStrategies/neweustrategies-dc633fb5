@@ -23,8 +23,11 @@ const EVENT_ID = "11111111-1111-1111-1111-111111111111";
 
 /** Szkic, ktory przechodzi walidacje - punkt odniesienia dla wszystkich prob. */
 const VALID: EventGeneralDraft = {
+  eventTypeId: "11111111-2222-4333-8444-555555555555",
   titlePl: "Kongres Nowych Strategii",
   titleEn: "New Strategies Congress",
+  subtitlePl: "Wyzwania dla Europy",
+  subtitleEn: "Challenges for Europe",
   slug: "kongres-2026",
   startsAt: "2026-09-14T08:00:00.000Z",
   endsAt: "2026-09-15T16:00:00.000Z",

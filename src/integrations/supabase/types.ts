@@ -12550,6 +12550,8 @@ export type Database = {
           starts_at: string
           status: string
           street_address: string | null
+          subtitle_en: string | null
+          subtitle_pl: string | null
           support_email: string | null
           tenant_id: string
           ticket_currency: string
@@ -12609,6 +12611,8 @@ export type Database = {
           starts_at: string
           status?: string
           street_address?: string | null
+          subtitle_en?: string | null
+          subtitle_pl?: string | null
           support_email?: string | null
           tenant_id?: string
           ticket_currency?: string
@@ -12668,6 +12672,8 @@ export type Database = {
           starts_at?: string
           status?: string
           street_address?: string | null
+          subtitle_en?: string | null
+          subtitle_pl?: string | null
           support_email?: string | null
           tenant_id?: string
           ticket_currency?: string
@@ -24220,6 +24226,8 @@ export type Database = {
           starts_at: string
           status: string
           street_address: string
+          subtitle_en: string
+          subtitle_pl: string
           support_email: string
           ticket_currency: string
           ticket_price_cents: number
@@ -24256,6 +24264,10 @@ export type Database = {
         Returns: Json
       }
       admin_event_general_save: { Args: { p_payload: Json }; Returns: string }
+      admin_event_general_save_v2: {
+        Args: { p_payload: Json }
+        Returns: string
+      }
       admin_event_group_delete: { Args: { _id: string }; Returns: boolean }
       admin_event_group_member_set: {
         Args: { p_payload: Json }
@@ -25882,6 +25894,8 @@ export type Database = {
           starts_at: string
           status: string
           street_address: string | null
+          subtitle_en: string | null
+          subtitle_pl: string | null
           support_email: string | null
           tenant_id: string
           ticket_currency: string
@@ -26017,6 +26031,8 @@ export type Database = {
           starts_at: string
           status: string
           street_address: string | null
+          subtitle_en: string | null
+          subtitle_pl: string | null
           support_email: string | null
           tenant_id: string
           ticket_currency: string
@@ -28837,6 +28853,8 @@ export type Database = {
           speakers_count: number
           sponsors_count: number
           starts_at: string
+          subtitle_en: string
+          subtitle_pl: string
           ticket_currency: string
           ticket_price_cents: number
           tier_locked: boolean

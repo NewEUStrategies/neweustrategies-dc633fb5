@@ -58,6 +58,18 @@ vi.mock("react-i18next", async () =>
 );
 vi.mock("@/lib/i18n-admin-events", () => ({ ensureI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
+vi.mock("@/lib/events/useEventTypes", () => ({
+  useEventTypes: () => ({
+    data: [
+      {
+        id: "event-type-1",
+        key: "conference",
+        name_pl: "Konferencja",
+        name_en: "Conference",
+      },
+    ],
+  }),
+}));
 
 // Mapowanie odmów bazy ma własny plik testowy, a jego prawdziwa wersja ciągnie
 // pełną instancję i18n. Tutaj liczy się wyłącznie to, że panel pokazuje TO,
@@ -240,7 +252,7 @@ function detailRow(overrides: Partial<AdminEventDetailRow> = {}): AdminEventDeta
     description_pl: "Śniadanie eksperckie o energetyce.",
     early_rsvp_rank: 0,
     ends_at: "2026-09-01T15:00:00.000Z",
-    event_type_id: "",
+    event_type_id: "event-type-1",
     external_registration_url: "",
     features: {},
     format: "onsite",
@@ -274,6 +286,8 @@ function detailRow(overrides: Partial<AdminEventDetailRow> = {}): AdminEventDeta
     timezone: "Europe/Warsaw",
     title_en: "Energy Congress",
     title_pl: "Kongres Energetyczny",
+    subtitle_en: "Challenges for Europe",
+    subtitle_pl: "Wyzwania dla Europy",
     type_accent_color: "",
     type_icon: "",
     type_key: "in_person",

@@ -68,8 +68,11 @@ export const EVENT_PAGES_DISPLAY_MODES = ["list", "grid"] as const;
 export type EventPagesDisplayMode = (typeof EVENT_PAGES_DISPLAY_MODES)[number];
 
 export interface EventGeneralDraft {
+  eventTypeId: string;
   titlePl: string;
   titleEn: string;
+  subtitlePl: string;
+  subtitleEn: string;
   slug: string;
   startsAt: string;
   endsAt: string;
@@ -113,8 +116,11 @@ export function eventGeneralDraftFromRow(row: Record<string, unknown>): EventGen
     ? normalizeEventLanguages(row["languages"].filter((v): v is string => typeof v === "string"))
     : [];
   return {
+    eventTypeId: text(row["event_type_id"]),
     titlePl: text(row["title_pl"]),
     titleEn: text(row["title_en"]),
+    subtitlePl: text(row["subtitle_pl"]),
+    subtitleEn: text(row["subtitle_en"]),
     slug: text(row["slug"]),
     startsAt: text(row["starts_at"]),
     endsAt: text(row["ends_at"]),
@@ -151,6 +157,9 @@ export function validateEventGeneralDraft(
 ): readonly EventGeneralFieldError[] {
   const errors: EventGeneralFieldError[] = [];
 
+  if (draft.eventTypeId.trim() === "") {
+    errors.push({ field: "eventTypeId", messageKey: `${VALIDATION}eventTypeRequired` });
+  }
   if (draft.titlePl.trim() === "") {
     errors.push({ field: "titlePl", messageKey: `${VALIDATION}titleRequired` });
   }
@@ -253,8 +262,11 @@ export function eventGeneralPayload(
   const videoId = draft.videoId.trim();
   return {
     id: eventId,
+    event_type_id: draft.eventTypeId.trim(),
     title_pl: draft.titlePl.trim(),
     title_en: draft.titleEn.trim(),
+    subtitle_pl: draft.subtitlePl.trim(),
+    subtitle_en: draft.subtitleEn.trim(),
     slug: draft.slug.trim().toLowerCase(),
     starts_at: draft.startsAt.trim(),
     ends_at: draft.endsAt.trim(),

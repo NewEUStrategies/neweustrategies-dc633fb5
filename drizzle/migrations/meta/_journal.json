@@ -771,6 +771,20 @@
       "when": 1790589969172,
       "tag": "0109_speaker_logo_crm_fallback",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1790666040844,
+      "tag": "0110_event_identity_subtitles_and_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 111,
+      "version": "7",
+      "when": 1790666340498,
+      "tag": "0111_event_general_type_without_legacy_kind_sync",
+      "breakpoints": true
     }
   ]
 }

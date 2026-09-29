@@ -58,6 +58,7 @@ import {
 import { eventLanguageOptions } from "@/lib/events/eventLanguages";
 import { EVENT_FORMATS, EVENT_FORMAT_LABEL_KEYS, type EventFormat } from "@/lib/events/eventTypes";
 import { useSaveEventGeneral } from "@/lib/events/useAdminEventDetail";
+import { useEventTypes } from "@/lib/events/useEventTypes";
 import type { AdminEventDetailRow } from "@/lib/events/eventDetailApi";
 import { timeZoneOptions } from "@/lib/events/timeZoneOptions";
 import { uiLang } from "@/lib/i18n/format";
@@ -70,6 +71,8 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
   ensureAdminEventsI18n();
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
+  const eventTypesQ = useEventTypes();
+  const eventTypes = eventTypesQ.data ?? [];
 
   // Wiersz RPC jest typem generowanym (alias literalu obiektu), wiec wchodzi
   // wprost tam, gdzie modul czysty prosi o `Record<string, unknown>` - bez
@@ -101,8 +104,12 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
 
   // Podglad na zywo dostaje TEN szkic, nie odpowiedz z bazy.
   useSyncEventPreview({
+    typeNamePl: eventTypes.find((type) => type.id === draft.eventTypeId)?.name_pl ?? "",
+    typeNameEn: eventTypes.find((type) => type.id === draft.eventTypeId)?.name_en ?? "",
     titlePl: draft.titlePl,
     titleEn: draft.titleEn,
+    subtitlePl: draft.subtitlePl,
+    subtitleEn: draft.subtitleEn,
     slug: draft.slug,
     startsAt: draft.startsAt,
     endsAt: draft.endsAt,
@@ -153,6 +160,21 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
         label={t("adminEvents.studio.general.basics")}
         description={t("adminEvents.studio.general.basicsDescription")}
       >
+        <AdminFormEnumRow<string>
+          id="event-type"
+          label={t("adminEvents.studio.general.typeLabel")}
+          value={draft.eventTypeId}
+          placeholder={t("adminEvents.studio.general.typePlaceholder")}
+          options={eventTypes.map((type) => type.id)}
+          labelFor={(id) => {
+            const type = eventTypes.find((candidate) => candidate.id === id);
+            if (type === undefined) return id;
+            return (lang === "en" ? type.name_en : type.name_pl) || type.key;
+          }}
+          error={errorFor("eventTypeId")}
+          onValueChange={(value) => set("eventTypeId", value)}
+        />
+
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <Label htmlFor="event-name">{t("adminEvents.studio.general.nameLabel")}</Label>
@@ -170,6 +192,21 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
               {t("adminEvents.general.errors.titleRequired")}
             </p>
           )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="event-subtitle">{t("adminEvents.studio.general.subtitleLabel")}</Label>
+          <Input
+            id="event-subtitle"
+            value={textLang === "pl" ? draft.subtitlePl : draft.subtitleEn}
+            maxLength={EVENT_GENERAL_MAX_TITLE}
+            onChange={(event) =>
+              set(textLang === "pl" ? "subtitlePl" : "subtitleEn", event.target.value)
+            }
+          />
+          <p className="text-xs text-muted-foreground">
+            {t("adminEvents.studio.general.subtitleHint")}
+          </p>
         </div>
 
         <div className="space-y-1.5">

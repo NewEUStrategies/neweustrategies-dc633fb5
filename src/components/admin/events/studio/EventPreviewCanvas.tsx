@@ -270,6 +270,12 @@ export function EventPreviewCanvas({
   const title =
     (lang === "en" ? model.titleEn || model.titlePl : model.titlePl || model.titleEn) ||
     t("adminEvents.studio.preview.untitled");
+  const subtitle =
+    lang === "en"
+      ? model.subtitleEn || model.subtitlePl
+      : model.subtitlePl || model.subtitleEn;
+  const typeLabel =
+    lang === "en" ? model.typeNameEn || model.typeNamePl : model.typeNamePl || model.typeNameEn;
   const description =
     lang === "en"
       ? model.descriptionEn || model.descriptionPl
@@ -418,7 +424,7 @@ export function EventPreviewCanvas({
                 videoId={model.videoId}
               />
 
-              <EventOverviewTitle>{title}</EventOverviewTitle>
+              <EventOverviewTitle title={title} subtitle={subtitle} typeLabel={typeLabel} />
 
               {description === "" ? null : (
                 <EventOverviewDescription>{description}</EventOverviewDescription>

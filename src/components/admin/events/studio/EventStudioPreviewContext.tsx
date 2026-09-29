@@ -72,8 +72,12 @@ export interface EventPreviewPage {
 }
 
 export interface EventPreviewModel {
+  typeNamePl: string;
+  typeNameEn: string;
   titlePl: string;
   titleEn: string;
+  subtitlePl: string;
+  subtitleEn: string;
   slug: string;
   startsAt: string;
   endsAt: string;
@@ -98,8 +102,12 @@ export interface EventPreviewModel {
 }
 
 export const EMPTY_EVENT_PREVIEW: EventPreviewModel = {
+  typeNamePl: "",
+  typeNameEn: "",
   titlePl: "",
   titleEn: "",
+  subtitlePl: "",
+  subtitleEn: "",
   slug: "",
   startsAt: "",
   endsAt: "",

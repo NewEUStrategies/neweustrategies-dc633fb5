@@ -77,8 +77,30 @@ export function EventOverviewLayout({
  * trasa miała `text-3xl`, podgląd studia `text-4xl`. Nikt tego nie zauważył, bo
  * dwa niezależne rysunki nie mają jak się o to pokłócić.
  */
-export function EventOverviewTitle({ children }: { children: ReactNode }) {
-  return <h1 className="mt-3 text-3xl font-bold tracking-tight">{children}</h1>;
+export function EventOverviewTitle({
+  title,
+  subtitle,
+  typeLabel,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+  typeLabel?: ReactNode;
+}) {
+  return (
+    <header className="mx-auto mt-7 max-w-3xl text-center">
+      {typeLabel ? (
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{typeLabel}</p>
+      ) : null}
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+        {title}
+      </h1>
+      {subtitle ? (
+        <p className="mx-auto mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+          {subtitle}
+        </p>
+      ) : null}
+    </header>
+  );
 }
 
 /**

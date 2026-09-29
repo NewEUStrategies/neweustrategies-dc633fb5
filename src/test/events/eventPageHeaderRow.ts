@@ -30,6 +30,8 @@ export function eventPageHeaderRow(overrides: Partial<EventPageHeader> = {}): Ev
     slug: "kongres-strategii",
     title_pl: "Kongres Strategii Europejskich",
     title_en: "European Strategies Congress",
+    subtitle_pl: "",
+    subtitle_en: "",
     description_pl: "Dwa dni rozmów o bezpieczeństwie gospodarczym.",
     description_en: "Two days on economic security.",
     starts_at: "2099-09-15T08:00:00.000Z",

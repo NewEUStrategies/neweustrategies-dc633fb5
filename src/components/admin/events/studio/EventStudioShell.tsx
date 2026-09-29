@@ -120,8 +120,12 @@ export function EventStudioShell({
       .join(", ");
     return {
       ...EMPTY_EVENT_PREVIEW,
+      typeNamePl: row.type_name_pl ?? "",
+      typeNameEn: row.type_name_en ?? "",
       titlePl: row.title_pl ?? "",
       titleEn: row.title_en ?? "",
+      subtitlePl: row.subtitle_pl ?? "",
+      subtitleEn: row.subtitle_en ?? "",
       slug: row.slug ?? "",
       startsAt: row.starts_at ?? "",
       endsAt: row.ends_at ?? "",
