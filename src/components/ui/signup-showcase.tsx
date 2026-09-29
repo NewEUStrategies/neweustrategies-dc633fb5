@@ -10,6 +10,8 @@
 // żeby jasny gradient nie dawał białego tekstu na białym tle.
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArrowRight } from "lucide-react";
+import { PopupImage } from "@/components/atoms/PopupImage";
+import { popupGallerySizes } from "@/lib/newsletter/popupImages";
 import {
   galleryBackground,
   isDarkSurface,
@@ -44,6 +46,8 @@ interface Props {
   nextLabel: string;
   /** Podgląd w adminie wyłącza auto-rotację, żeby edycja podpisów nie skakała. */
   autoRotate?: boolean;
+  panelMaxWidth?: number;
+  panelSplit?: "half" | "gallery-wide" | "form-wide";
 }
 
 /** Rozmieszczenie kafli w siatce referencyjnej zależnie od liczby zdjęć. */
@@ -89,9 +93,12 @@ export function SignupShowcase({
   dotLabel,
   nextLabel,
   autoRotate = true,
+  panelMaxWidth = 1040,
+  panelSplit = "half",
 }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
-  const count = images.length;
+  const tiles = useMemo(() => images.slice(0, 4), [images]);
+  const count = tiles.length;
 
   useEffect(() => {
     if (!autoRotate || count < 2) return;
@@ -106,7 +113,7 @@ export function SignupShowcase({
     if (activeIndex >= count) setActiveIndex(0);
   }, [activeIndex, count]);
 
-  const active = images[Math.min(activeIndex, Math.max(0, count - 1))];
+  const active = tiles[Math.min(activeIndex, Math.max(0, count - 1))];
   // Atrament liczymy z bazy gradientu (gradFrom). Gdy jest to `color-mix(...)`,
   // luminancja jest nieznana - traktujemy powierzchnię jak ciemną, bo domyślna
   // baza galerii to tło panelu.
@@ -126,7 +133,8 @@ export function SignupShowcase({
     ["--nl-muted" as string]: inkMuted,
   } as CSSProperties;
 
-  const tiles = useMemo(() => images.slice(0, 4), [images]);
+  const imageSizes = (index: number) =>
+    popupGallerySizes(panelMaxWidth, panelSplit, design.paddingPx, design.grid, count, index);
 
   const brandRow =
     showBrand && (design.showLogo || brand) ? (
@@ -150,8 +158,9 @@ export function SignupShowcase({
             pokazujemy wbudowany znak, żeby nagłówek galerii nie był pusty. */}
         {design.showLogo &&
           (logoUrl ? (
-            <img
+            <PopupImage
               src={logoUrl}
+              sizes="200px"
               alt={brand || "logo"}
               data-showcase-logo=""
               className="w-auto max-w-[200px] object-contain"
@@ -202,16 +211,17 @@ export function SignupShowcase({
             podpis oraz hasło - dokładnie ten defekt widać było w podglądzie. */}
         {design.grid === "single" ? (
           <div className="absolute inset-0 z-10 overflow-hidden" style={{ borderRadius: radius }}>
-            {tiles.map((img, index) => (
-              <img
-                key={`${img.url}-${index}`}
-                src={img.url}
+            {active && (
+              <PopupImage
+                key={active.url}
+                src={active.url}
+                sizes={imageSizes(activeIndex)}
+                fetchPriority="high"
                 alt=""
-                loading="lazy"
-                className="absolute inset-0 h-full w-full object-cover transition-opacity duration-700"
-                style={{ opacity: index === activeIndex ? 1 : 0, borderRadius: radius }}
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ borderRadius: radius }}
               />
-            ))}
+            )}
             {design.showCorners && <FocusCorners active radiusPx={radiusPx} />}
           </div>
         ) : (
@@ -227,6 +237,8 @@ export function SignupShowcase({
               <ShowcaseTile
                 key={`${img.url}-${index}`}
                 src={img.url}
+                sizes={imageSizes(index)}
+                priority={index === 0}
                 active={index === activeIndex}
                 dim={design.inactiveDim}
                 showCorners={design.showCorners}
@@ -317,7 +329,7 @@ export function SignupShowcase({
           "flex shrink-0 items-center gap-1.5 " + (alignLeft ? "self-start" : "self-center")
         }
       >
-        {images.slice(0, 4).map((_, index) => (
+        {tiles.map((_, index) => (
           <button
             key={index}
             type="button"
@@ -361,6 +373,8 @@ export function SignupShowcase({
 // a11y), więc nie wprowadzamy kolejnych elementów do kolejności tabulacji.
 function ShowcaseTile({
   src,
+  sizes,
+  priority,
   active,
   dim,
   showCorners,
@@ -368,6 +382,8 @@ function ShowcaseTile({
   placement,
 }: {
   src: string;
+  sizes: string;
+  priority: boolean;
   active: boolean;
   dim: number;
   showCorners: boolean;
@@ -380,11 +396,12 @@ function ShowcaseTile({
       className="relative overflow-visible"
       style={{ ...placement, borderRadius: `${radiusPx}px`, zIndex: active ? 10 : 0 }}
     >
-      <img
+      <PopupImage
         src={src}
+        sizes={sizes}
+        fetchPriority={priority ? "high" : "auto"}
         alt=""
-        loading="lazy"
-        className="absolute inset-0 h-full w-full object-cover transition-all duration-700"
+        className="absolute inset-0 h-full w-full object-cover transition-[opacity,filter] duration-700"
         style={{
           borderRadius: `${radiusPx}px`,
           opacity: active ? 1 : 1 - inactive * 0.6,

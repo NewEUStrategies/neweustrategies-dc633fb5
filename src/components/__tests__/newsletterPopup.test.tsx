@@ -12,6 +12,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { axeViolations, summarize } from "@/test/axe";
+import type { PopupContent } from "@/lib/newsletter/popupContent";
 
 interface SignUpArgs {
   email: string;
@@ -24,6 +25,7 @@ const h = vi.hoisted(() => ({
   theme: "dark" as "dark" | "light",
   pathname: "/artykul/analiza",
   settings: null as unknown,
+  loadContent: null as (() => Promise<PopupContent>) | null,
   track: vi.fn<(payload: Record<string, unknown>) => void>(),
   release: vi.fn<() => void>(),
   requestSlot: vi.fn<(id: string, opts: Record<string, unknown>) => Promise<() => void>>(),
@@ -51,6 +53,13 @@ vi.mock("@/lib/newsletter/popupTelemetry", () => ({
   trackNewsletterPopupEvent: h.track,
   newsletterPopupSessionId: () => "test-session",
 }));
+vi.mock("@/lib/newsletter/popupContent", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/newsletter/popupContent")>();
+  return {
+    loadPopupContent: (settings: NewsletterSettings) =>
+      h.loadContent?.() ?? original.loadPopupContent(settings),
+  };
+});
 vi.mock("@/hooks/useNewsletterSettings", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/hooks/useNewsletterSettings")>()),
   useNewsletterSettings: () => ({ data: h.settings }),
@@ -114,6 +123,7 @@ function popupSettings(over: Partial<NewsletterSettings> = {}): NewsletterSettin
 async function flush() {
   await act(async () => {
     await Promise.resolve();
+    await vi.dynamicImportSettled();
   });
 }
 
@@ -182,6 +192,7 @@ beforeEach(() => {
   h.language = "pl";
   h.theme = "dark";
   h.pathname = "/artykul/analiza";
+  h.loadContent = null;
   h.track.mockReset();
   h.release.mockReset();
   h.cancelSlot.mockReset();
@@ -759,5 +770,96 @@ describe("NewsletterPopup: modal lifecycle regressions", () => {
     view.remount();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(h.release).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Slow/failed chunks must never produce an empty, focus-stealing modal.
+describe("NewsletterPopup: complete first render", () => {
+  const ready: PopupContent = {
+    kind: "form",
+    Component: () => <input aria-label="ready form" />,
+  };
+
+  it("keeps the page usable until content is ready, then opens with the complete form", async () => {
+    let resolveContent: (value: PopupContent) => void = () => {};
+    h.loadContent = () =>
+      new Promise((resolve) => {
+        resolveContent = resolve;
+      });
+    const overflow = document.body.style.overflow;
+    await mount({ popup_delay_seconds: 1 });
+    const trigger = screen.getByTestId("wyzwalacz");
+    trigger.focus();
+    await advance(1000);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.body.style.overflow).toBe(overflow);
+    expect(document.activeElement).toBe(trigger);
+    expect(h.requestSlot).not.toHaveBeenCalled();
+    await act(async () => resolveContent(ready));
+    expect(dialog()).toContainElement(screen.getByLabelText("ready form"));
+    expect(dialog().querySelector('[aria-busy="true"]')).toBeNull();
+    expect(h.track).toHaveBeenCalledWith(expect.objectContaining({ event: "open" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.body.style.overflow).toBe(overflow);
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("cancels preparation on navigation before the chunk arrives", async () => {
+    let resolveContent: (value: PopupContent) => void = () => {};
+    h.loadContent = () =>
+      new Promise((resolve) => {
+        resolveContent = resolve;
+      });
+    const view = await mount({ popup_delay_seconds: 1 });
+    await advance(1000);
+    h.pathname = "/login";
+    view.remount();
+    await flush();
+    await act(async () => resolveContent(ready));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(h.requestSlot).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed speculative import at the real trigger", async () => {
+    h.loadContent = vi
+      .fn<() => Promise<PopupContent>>()
+      .mockRejectedValueOnce(new Error("temporary network error"))
+      .mockResolvedValueOnce(ready);
+    await mount();
+    await advance(14_000);
+    expect(h.loadContent).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await advance(1000);
+    expect(h.loadContent).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText("ready form")).toBeInTheDocument();
+  });
+
+  it("reports an import failure without taking the overlay slot or locking the page", async () => {
+    h.loadContent = vi.fn<() => Promise<PopupContent>>().mockRejectedValue(new Error("offline"));
+    const overflow = document.body.style.overflow;
+    await mount({ popup_delay_seconds: 1 });
+    await advance(1000);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.body.style.overflow).toBe(overflow);
+    expect(h.requestSlot).not.toHaveBeenCalled();
+    expect(h.track).toHaveBeenCalledWith(
+      expect.objectContaining({ event: "error", errorCode: "content_load_failed" }),
+    );
+  });
+
+  it("does not prepare content for disabled, dismissed or login surfaces", async () => {
+    h.loadContent = vi.fn<() => Promise<PopupContent>>().mockResolvedValue(ready);
+    await mount({ popup_enabled: false });
+    await advance(60_000);
+    cleanup();
+    localStorage.setItem(LS_KEY, String(Date.now()));
+    await mount();
+    await advance(60_000);
+    cleanup();
+    localStorage.clear();
+    h.pathname = "/login";
+    await mount();
+    await advance(60_000);
+    expect(h.loadContent).not.toHaveBeenCalled();
   });
 });

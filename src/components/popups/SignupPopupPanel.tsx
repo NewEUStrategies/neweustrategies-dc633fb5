@@ -74,7 +74,8 @@ export function SignupPopupPanel({
   // tytułem pokazywał się po angielsku BEZ tytułu. `pickLocalized` schodzi wtedy
   // na drugi język (żądany -> drugi -> ""), więc treść zawsze jest.
   const images = (settings.popup_showcase_images ?? [])
-    .filter((img) => Boolean(img?.url))
+    .filter((img) => Boolean(img?.url?.trim()))
+    .slice(0, 4)
     .map((img) => ({
       url: img.url,
       caption: pickLocalized(img, "caption", lang),
@@ -151,6 +152,8 @@ export function SignupPopupPanel({
       >
         <SignupShowcase
           images={images}
+          panelMaxWidth={design.panel.maxWidthPx}
+          panelSplit={design.panel.split}
           design={design.gallery}
           palette={palette}
           brand={brand}

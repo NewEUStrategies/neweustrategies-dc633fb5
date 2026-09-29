@@ -6,7 +6,7 @@
 // Triggery: delay / scroll / exit-intent. Frequency gating w localStorage.
 // Paleta: ciemna / jasna / automatyczna (motyw strony) - patrz popupDesign.
 // Mountowany globalnie w __root.tsx.
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
@@ -19,30 +19,16 @@ import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { useBodyScrollLock } from "@/lib/a11y/useBodyScrollLock";
 import { useTheme } from "@/components/ThemeProvider";
 import { requestOverlaySlot, cancelOverlayRequest } from "@/lib/overlayCoordinator";
+import { whenIdle } from "@/lib/ads/idle";
+import { loadPopupContent, type PopupContent } from "@/lib/newsletter/popupContent";
+import { warmPopupImages, POPUP_COVER_SIZES, POPUP_SIDE_SIZES } from "@/lib/newsletter/popupImages";
+import { PopupImage } from "@/components/atoms/PopupImage";
 import {
   effectivePopupMode,
   popupPaletteVars,
   resolvePopupDesign,
   resolvePopupPalette,
 } from "@/lib/newsletter/popupDesign";
-
-const PopupSignupForm = lazy(() =>
-  import("@/components/PopupSignupForm").then((m) => ({ default: m.PopupSignupForm })),
-);
-const SignupPopupPanel = lazy(() =>
-  import("@/components/popups/SignupPopupPanel").then((m) => ({ default: m.SignupPopupPanel })),
-);
-const NewsletterDocRenderer = lazy(() =>
-  import("@/components/newsletter/NewsletterDocRenderer").then((m) => ({
-    default: m.NewsletterDocRenderer,
-  })),
-);
-
-// Forms are downloaded only when the popup actually opens. Trigger timing,
-// consent coordination and the close controls remain available in this shell.
-const popupFallback = (
-  <div aria-busy="true" className="h-24 rounded-md bg-muted/40 animate-pulse" />
-);
 
 const LS_KEY = "nl_popup_last";
 
@@ -53,7 +39,12 @@ let shownThisSession = false;
 
 function shouldShow(freqDays: number): boolean {
   if (typeof window === "undefined") return false;
-  const raw = window.localStorage.getItem(LS_KEY);
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(LS_KEY);
+  } catch {
+    return true;
+  }
   if (!raw) return true;
   const ts = Number(raw);
   if (!Number.isFinite(ts)) return true;
@@ -76,6 +67,7 @@ export function NewsletterPopup() {
 
   const loc = useLocation();
   const [open, setOpen] = useState(false);
+  const [content, setContent] = useState<PopupContent | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const releaseSlotRef = useRef<(() => void) | null>(null);
   useFocusTrap(panelRef, open);
@@ -119,7 +111,12 @@ export function NewsletterPopup() {
     // przełącznik popupu w Admin -> Popupy.
     if (!s?.popup_enabled) return;
 
-    if (loc.pathname.startsWith("/admin") || loc.pathname.startsWith("/auth")) return;
+    if (
+      loc.pathname.startsWith("/admin") ||
+      loc.pathname.startsWith("/auth") ||
+      loc.pathname.startsWith("/login")
+    )
+      return;
     if (shownThisSession) return;
     if (!shouldShow(s.popup_frequency_days)) return;
 
@@ -136,27 +133,77 @@ export function NewsletterPopup() {
     let onScroll: (() => void) | null = null;
     let onMouseLeave: ((e: MouseEvent) => void) | null = null;
     let disposed = false;
+    let triggered = false;
+    let prepared: Promise<PopupContent> | null = null;
+    let warmTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelWarm: (() => void) | undefined;
+    const prepare = () => {
+      if (!prepared) {
+        warmPopupImages(s);
+        prepared = loadPopupContent(s).catch((error: unknown) => {
+          prepared = null;
+          throw error;
+        });
+      }
+      return prepared;
+    };
+    // Use the existing trigger delay as preparation time. Data-saver visitors
+    // only download resources when the trigger actually fires. No SSR fetch
+    // or initial hydration work is added to the root route.
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
+      .connection;
+    if (!connection?.saveData) {
+      warmTimer = setTimeout(
+        () => {
+          cancelWarm = whenIdle(() => {
+            void prepare().catch(() => {});
+          }, 500);
+        },
+        s.popup_trigger === "delay"
+          ? Math.max(0, Math.max(1, s.popup_delay_seconds) * 1000 - 1500)
+          : 1000,
+      );
+    }
 
     // The trigger only ASKS to open - the overlay coordinator defers the
     // grant behind the consent banner / another marketing overlay.
     const trigger = () => {
-      void requestOverlaySlot("newsletter-popup", { marketing: true, priority: 0 }).then(
-        (release) => {
-          if (disposed) {
-            release();
-            return;
-          }
-          shownThisSession = true;
-          releaseSlotRef.current = release;
-          setOpen(true);
+      if (triggered) return;
+      triggered = true;
+      // A complete panel (including its close button and focus targets) must
+      // be ready before taking over the page. Failed imports leave it usable.
+      void prepare()
+        .then((ready) => {
+          if (disposed) return;
+          return requestOverlaySlot("newsletter-popup", { marketing: true, priority: 0 }).then(
+            (release) => {
+              if (disposed) {
+                release();
+                return;
+              }
+              shownThisSession = true;
+              releaseSlotRef.current = release;
+              setContent(ready);
+              setOpen(true);
+              trackNewsletterPopupEvent({
+                event: "open",
+                lang: lang,
+                layout: s.popup_layout,
+                source: "popup",
+              });
+            },
+          );
+        })
+        .catch(() => {
+          if (disposed) return;
           trackNewsletterPopupEvent({
-            event: "open",
-            lang: lang,
+            event: "error",
+            lang,
             layout: s.popup_layout,
             source: "popup",
+            errorCode: "content_load_failed",
           });
-        },
-      );
+        });
     };
 
     if (s.popup_trigger === "delay") {
@@ -187,6 +234,8 @@ export function NewsletterPopup() {
       disposed = true;
       cancelOverlayRequest("newsletter-popup");
       if (timer) clearTimeout(timer);
+      if (warmTimer) clearTimeout(warmTimer);
+      cancelWarm?.();
       if (onScroll) window.removeEventListener("scroll", onScroll);
       if (onMouseLeave) document.removeEventListener("mouseleave", onMouseLeave);
     };
@@ -199,6 +248,7 @@ export function NewsletterPopup() {
   const close = useCallback(() => {
     markDismissed();
     setOpen(false);
+    setContent(null);
     releaseSlotRef.current?.();
     releaseSlotRef.current = null;
   }, []);
@@ -207,7 +257,7 @@ export function NewsletterPopup() {
   // a link to /login must not leave the signup modal above the new page.
   useEffect(() => {
     if (releaseSlotRef.current) close();
-  }, [loc.pathname, s?.popup_enabled, close]);
+  }, [loc.pathname, s?.popup_enabled, s?.popup_layout, s?.popup_doc, close]);
 
   useEffect(
     () => () => {
@@ -226,7 +276,7 @@ export function NewsletterPopup() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close]);
 
-  if (!s?.popup_enabled || !open) return null;
+  if (!s?.popup_enabled || !open || !content) return null;
   // Popup nie zamyka się sam: po udanym zapisie zostaje otwarty z komunikatem
   // sukcesu, a użytkownik zamyka go świadomie (X lub Esc).
   const onSuccess = () => {
@@ -250,6 +300,24 @@ export function NewsletterPopup() {
     ...popupPaletteVars(palette, radiusPx),
   };
 
+  const popupBody =
+    content.kind === "showcase" ? (
+      <content.Component
+        settings={s}
+        lang={lang}
+        mode={mode}
+        onClose={close}
+        onSuccess={onSuccess}
+        titleId="nl-popup-title"
+      />
+    ) : content.kind === "document" ? (
+      s.popup_doc ? (
+        <content.Component doc={s.popup_doc} settings={s} lang={lang} source="popup" />
+      ) : null
+    ) : (
+      <content.Component settings={s} lang={lang} onSuccess={onSuccess} />
+    );
+
   return (
     <div
       role="dialog"
@@ -271,16 +339,7 @@ export function NewsletterPopup() {
           style={{ maxWidth: `${design.panel.maxWidthPx}px` }}
           onClick={(e) => e.stopPropagation()}
         >
-          <Suspense fallback={popupFallback}>
-            <SignupPopupPanel
-              settings={s}
-              lang={lang}
-              mode={mode}
-              onClose={close}
-              onSuccess={onSuccess}
-              titleId="nl-popup-title"
-            />
-          </Suspense>
+          {popupBody}
         </div>
       ) : (
         <div
@@ -307,21 +366,26 @@ export function NewsletterPopup() {
 
           {s.popup_doc ? (
             <div className="p-6 lg:p-8 space-y-3 md:max-h-[92vh] md:overflow-y-auto">
-              <Suspense fallback={popupFallback}>
-                <NewsletterDocRenderer doc={s.popup_doc} settings={s} lang={lang} source="popup" />
-              </Suspense>
+              {popupBody}
             </div>
           ) : split ? (
             <>
               <div
                 className="relative h-40 sm:h-56 md:h-auto md:min-h-[560px] bg-cover bg-center"
                 style={{
-                  backgroundImage: s.popup_side_image_url
-                    ? `url(${s.popup_side_image_url})`
-                    : `linear-gradient(135deg, ${palette.gradFrom}, ${palette.gradTo})`,
+                  backgroundImage: `linear-gradient(135deg, ${palette.gradFrom}, ${palette.gradTo})`,
                 }}
                 aria-hidden="true"
               >
+                {s.popup_side_image_url && (
+                  <PopupImage
+                    src={s.popup_side_image_url}
+                    sizes={POPUP_SIDE_SIZES}
+                    fetchPriority="high"
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                )}
                 {!s.popup_side_image_url && (
                   <div className="absolute inset-0 flex items-center justify-center p-6 md:p-8 text-center">
                     <div className="space-y-2">
@@ -359,18 +423,19 @@ export function NewsletterPopup() {
                     {desc}
                   </p>
                 )}
-                <Suspense fallback={popupFallback}>
-                  <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
-                </Suspense>
+                {popupBody}
               </div>
             </>
           ) : (
             <>
               {s.popup_cover_url && (
-                <img
+                <PopupImage
                   src={s.popup_cover_url}
+                  sizes={POPUP_COVER_SIZES}
+                  fetchPriority="high"
                   alt=""
-                  loading="lazy"
+                  width={800}
+                  height={350}
                   className="w-full aspect-[16/7] object-cover"
                 />
               )}
@@ -383,9 +448,7 @@ export function NewsletterPopup() {
                     {desc}
                   </p>
                 )}
-                <Suspense fallback={popupFallback}>
-                  <PopupSignupForm settings={s} lang={lang} onSuccess={onSuccess} />
-                </Suspense>
+                {popupBody}
               </div>
             </>
           )}
