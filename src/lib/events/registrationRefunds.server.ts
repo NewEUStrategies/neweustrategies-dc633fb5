@@ -94,3 +94,11 @@ export async function runRegistrationRefunds(
   }
   return result;
 }
+
+/**
+ * Generated RPC args mark plpgsql text params as non-null, but the SQL settle
+ * contract relies on NULL (`p_error IS NULL`). PostgREST forwards JSON null.
+ */
+function sqlNullable(value: string | null): string {
+  return value as string;
+}
