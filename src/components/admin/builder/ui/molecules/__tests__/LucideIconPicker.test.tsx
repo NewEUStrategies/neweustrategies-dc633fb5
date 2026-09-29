@@ -23,26 +23,19 @@ vi.mock("react-i18next", async () => {
 vi.mock("@/lib/icons/DynamicIcon", () => ({
   DynamicIcon: ({ name }: { name: string }) => <span data-icon={name} />,
 }));
-vi.mock("@/lib/icons/lucideIconNodes.generated", () => ({
-  LUCIDE_ICON_NODES: {
-    // strzałki
-    "arrow-right": [],
-    "chevron-down": [],
-    // układ
-    "layout-grid": [],
-    // tekst
-    type: [],
-    // media
-    film: [],
-    // pogoda
-    "cloud-sun": [],
-    // bez kategorii -> „inne”
-    "neweu-logo": [],
-    // nazwy odrzucane przez filtr katalogu
-    ArrowRight: [],
-    icon_with_underscore: [],
-    "icon.with.dot": [],
-  },
+vi.mock("@/lib/icons/iconNames.generated.json", () => ({
+  default: [
+    "arrow-right",
+    "chevron-down",
+    "layout-grid",
+    "type",
+    "film",
+    "cloud-sun",
+    "neweu-logo",
+    "ArrowRight",
+    "icon_with_underscore",
+    "icon.with.dot",
+  ],
 }));
 
 function renderPicker(initial?: string) {

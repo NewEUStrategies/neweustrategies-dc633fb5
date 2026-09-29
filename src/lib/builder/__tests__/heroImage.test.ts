@@ -1,3 +1,4 @@
+import { imageSlotSizes } from "../imageSlot";
 // Testy budowniczego preloadu LCP dokumentów buildera. Klucz: PARYTET
 // deskryptora z tym, co realnie maluje widget (sizes ze wspólnych modułów,
 // srcSet z buildImageSrcSet) oraz ostrożność - lepiej zero preloadu niż zły.
@@ -7,7 +8,7 @@ import { builderHeroPreload } from "@/lib/builder/heroImage";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
-import { SLIDER_FULL_BLEED_SIZES, sliderMultiCardSizes } from "@/lib/builder/sliderSizes";
+import { sliderMultiCardSizes } from "@/lib/builder/sliderSizes";
 import {
   POST_LIST_CLASSIC_COVER_SIZES,
   POST_LIST_FLEX_LEAD_SIZES,
@@ -98,7 +99,9 @@ describe("builderHeroPreload", () => {
       "pl",
     );
     expect(preload?.href).toBe(COVER);
-    expect(preload?.imageSizes).toBe(SLIDER_FULL_BLEED_SIZES);
+    expect(preload?.imageSizes).toBe(
+      imageSlotSizes({ desktop: { vw: 100, cap: 1140 }, tablet: { vw: 100, cap: 1140 } }),
+    );
     expect(preload?.imageSrcSet).toContain("/storage/v1/render/image/public/");
   });
 
@@ -111,7 +114,9 @@ describe("builderHeroPreload", () => {
       qc,
       "pl",
     );
-    expect(preload?.imageSizes).toBe(sliderMultiCardSizes(3));
+    expect(preload?.imageSizes).toBe(
+      sliderMultiCardSizes(3, { desktop: { vw: 100, cap: 1140 }, tablet: { vw: 100, cap: 1140 } }),
+    );
   });
 
   it("slider (tryb posts) bez rozgrzanego cache: null - nie zgadujemy", () => {
@@ -301,7 +306,9 @@ describe("builderHeroPreload - slider: obraz zapasowy i odmowy", () => {
       "pl",
     );
     expect(preload?.href).toBe(fallback);
-    expect(preload?.imageSizes).toBe(SLIDER_FULL_BLEED_SIZES);
+    expect(preload?.imageSizes).toBe(
+      imageSlotSizes({ desktop: { vw: 100, cap: 1140 }, tablet: { vw: 100, cap: 1140 } }),
+    );
   });
 
   it("wpis bez okładki i PUSTY zapas: null zamiast zgadywania", () => {
@@ -348,7 +355,9 @@ describe("builderHeroPreload - slider: obraz zapasowy i odmowy", () => {
       qc,
       "pl",
     );
-    expect(preload?.imageSizes).toBe(sliderMultiCardSizes(4));
+    expect(preload?.imageSizes).toBe(
+      sliderMultiCardSizes(4, { desktop: { vw: 100, cap: 1140 }, tablet: { vw: 100, cap: 1140 } }),
+    );
   });
 
   it("nieznany wariant slidera spada na wariant domyślny, a nie na null", () => {
@@ -360,7 +369,9 @@ describe("builderHeroPreload - slider: obraz zapasowy i odmowy", () => {
       qc,
       "pl",
     );
-    expect(preload?.imageSizes).toBe(SLIDER_FULL_BLEED_SIZES);
+    expect(preload?.imageSizes).toBe(
+      imageSlotSizes({ desktop: { vw: 100, cap: 1140 }, tablet: { vw: 100, cap: 1140 } }),
+    );
   });
 });
 

@@ -15,9 +15,15 @@ import { render, screen } from "@testing-library/react";
 
 // Pełny rejestr to leniwy chunk z wygenerowanym plikiem danych - podmieniamy go
 // znacznikiem, żeby test mierzył DECYZJĘ resolwera, a nie cudzy zbiór ikon.
-vi.mock("../DynamicIconFull", () => ({
-  default: ({ iconKey }: { iconKey: string }) => <span data-testid="pelny">{iconKey}</span>,
-}));
+vi.mock("../lazyNamedIcon", async () => {
+  const { lazy } = await import("react");
+  return {
+    lazyNamedIcon: (iconKey: string) =>
+      lazy(async () => ({
+        default: () => <span data-testid="pelny">{iconKey}</span>,
+      })),
+  };
+});
 
 import { DynamicIcon } from "../DynamicIcon";
 
@@ -82,7 +88,7 @@ describe("DynamicIcon - nazwy spoza zestawu", () => {
     await screen.findByTestId("pelny");
   });
 
-  it("dociąga PEŁNY rejestr i przekazuje mu klucz PascalCase", async () => {
+  it("dociąga porcję ikon wskazaną kluczem PascalCase", async () => {
     render(<DynamicIcon name="alarm-clock-check" />);
     expect(await screen.findByTestId("pelny")).toHaveTextContent("AlarmClockCheck");
   });

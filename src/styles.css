@@ -9,6 +9,10 @@
    must not be converted into production CSS by the raw-text scanner. */
 @source not "../src/**/__tests__/**";
 @source not "../src/test/**";
+/* Icon names and SVG paths are data, not Tailwind class names. */
+@source not "../src/lib/icons/lucideIconNodes.generated.ts";
+@source not "../src/lib/icons/iconNames.generated.json";
+@source not "../src/lib/icons/chunks/**";
 @import "tw-animate-css";
 
 /* UnreadBadge: neutralizuje `font-size: 14px !important` z reguł
@@ -314,26 +318,10 @@ body {
   --input: oklch(0.9 0.005 80);
   --ring: oklch(0.18 0 0);
   --brand: #fa9346;
-  --brand-foreground: oklch(1 0 0);
-  /* Marka jako TEKST na jasnym tle. UWAGA: ten token jest w motywie jasnym
-     RÓWNY --brand, czyli #fa9346 - a to jest 2,25:1 na płycie i 2,09:1 na tle
-     strony, więc NIE PRZECHODZI progu tekstowego AA. Jest to decyzja
-     właściciela marki (2026-09-06), nie przeoczenie, i strażnik
-     src/lib/__tests__/brandContrast.test.ts pilnuje wyłącznie tego, że token
-     jest tym uzgodnionym kolorem.
-
-     KONSEKWENCJA JEST PRAKTYCZNA I DOTYCZY KAŻDEGO UŻYCIA: pomarańcz marki na
-     jasnym tle nie może być JEDYNYM nośnikiem informacji ani nieść samego
-     tekstu bez podkładu. Wolno nim wypełnić powierzchnię pod ciemnym tuszem
-     (tusz na #fa9346 ma 8,06:1) i podbić element wyróżniony już pozycją albo
-     etykietą. Gdy audyt wymaga czytelnego TEKSTU w tym odcieniu na jasnym
-     tle, są na to dwa policzone warianty: --chart-accent-audit-graphic
-     (#cb7032, próg grafiki i tekstu dużego) i --chart-accent-audit (#ab5517,
-     próg tekstu normalnego). Wcześniejsza wersja tego komentarza twierdziła,
-     że token JEST już takim ciemniejszym atramentem o 4,75:1 - nie był i nie
-     jest, a komentarz obiecujący zgodność, której nie ma, jest gorszy od
-     braku komentarza. */
-  --brand-ink: #fa9346;
+  --brand-foreground: #141414;
+  /* Orange fills keep the brand color. Text on light surfaces needs the
+     darker ink; the foreground on orange buttons is dark for WCAG AA. */
+  --brand-ink: #a94e0b;
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
      rozmowy. Text sits on the darker stop for guaranteed WCAG AA. */

@@ -110,7 +110,7 @@ export function OptimizedImage({
       {...rest}
       src={finalSrc}
       srcSet={srcSet || undefined}
-      sizes={srcSet ? (sizes ?? "100vw") : sizes}
+      sizes={srcSet ? `${priority ? "" : "auto, "}${sizes ?? "100vw"}` : sizes}
       alt={alt}
       width={width}
       height={height}

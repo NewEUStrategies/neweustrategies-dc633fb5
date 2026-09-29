@@ -1,3 +1,4 @@
+import { afterPageLoad } from "../lib/performance/afterPageLoad";
 import { LoginPopupHost } from "../components/LoginPopupHost";
 import { CommandPaletteHost } from "../components/search/CommandPaletteHost";
 import { ExpertRequestDialogHost } from "../components/chat/ExpertRequestDialogHost";
@@ -267,7 +268,7 @@ function useOverlayGates(): { consentReady: boolean; overlaysReady: boolean } {
   }, []);
 
   useEffect(() => {
-    const cancel = whenIdle(() => setOverlaysReady(true), OVERLAY_IDLE_TIMEOUT_MS);
+    const cancel = afterPageLoad(() => setOverlaysReady(true), OVERLAY_IDLE_TIMEOUT_MS);
     return cancel;
   }, []);
 
@@ -281,7 +282,7 @@ function useOverlayGates(): { consentReady: boolean; overlaysReady: boolean } {
  *   1. `onFirstToast` z `lib/notify.ts` - NATYCHMIAST, gdy toast pada wcześniej
  *      niż bezczynność. Bez tego toast ze ścieżki bootowania przepadłby
  *      (sonner nie odtwarza historii nowym subskrybentom);
- *   2. `whenIdle(…, 3000)` - bezwarunkowo, bo most `lib/notify.ts` widzi
+ *   2. `afterPageLoad(…, 3000)` - bezwarunkowo, bo most `lib/notify.ts` widzi
  *      WYŁĄCZNIE swoich wołających, a `import { toast } from "sonner"` wprost
  *      robi w tym repozytorium kilkaset modułów (m.in. akcje przy wpisie).
  *      Gdyby montaż zależał tylko od mostu, ich toasty ginęłyby bez śladu.
@@ -294,7 +295,7 @@ function useToasterWanted(): boolean {
   useEffect(() => {
     if (wanted) return;
     const stopListening = onFirstToast(() => setWanted(true));
-    const cancelIdle = whenIdle(() => setWanted(true), OVERLAY_IDLE_TIMEOUT_MS);
+    const cancelIdle = afterPageLoad(() => setWanted(true), OVERLAY_IDLE_TIMEOUT_MS);
     return () => {
       stopListening();
       cancelIdle();

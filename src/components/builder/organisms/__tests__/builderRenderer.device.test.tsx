@@ -322,8 +322,10 @@ describe("resolveOrder - kolejność kolumn", () => {
     );
     const css = [...container.querySelectorAll("style")].map((s) => s.textContent).join("\n");
     expect(css).toContain("@media (max-width: 767px)");
-    expect(css).toContain('[data-sec-id="s"] [data-col-id="o-pelna"]{order:1;}');
-    // Kolumny bez `order.mobile` nie dokładają reguł.
+    expect(css).toContain('[data-sec-id="s"] [data-col-id="o-pelna"]{order:1 !important;}');
+    // Desktopowy porządek jest zerowany na telefonie już przed hydratacją.
+    expect(css).toContain('[data-col-id="o-bez-tabletu"]{order:0 !important;}');
+    // Kolumny bez żadnej kolejności nie wymagają reguły.
     expect(css).not.toContain('data-col-id="o-brak"');
   });
 

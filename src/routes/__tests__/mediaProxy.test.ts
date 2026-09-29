@@ -206,3 +206,23 @@ it("wyjątek dla 304 nie rozszczelnił mapowania błędów magazynu", async () =
     expect(await response.text()).toBe("Not found");
   }
 });
+
+it.each([
+  "wp-import/cccd064123456789abcdef1234567890.webp",
+  "widgets/1780000000000-5jgrel.webp",
+  "logo/1780000000000-zx9she.svg",
+  "profiles/avatar-1780000000000-random.png",
+])("caches versioned media for a year: %s", async (path) => {
+  h.fetch.mockResolvedValue(new Response("image"));
+  const response = await serve("GET", path, {}, "?width=640&resize=contain&quality=80");
+  expect(response.headers.get("cache-control")).toBe(
+    "public, max-age=31536000, s-maxage=31536000, immutable",
+  );
+});
+
+it("revalidates mutable named media instead of pinning stale content", async () => {
+  h.fetch.mockResolvedValue(new Response("image"));
+  const response = await serve("GET", "logo/current.svg");
+  expect(response.headers.get("cache-control")).toContain("max-age=3600,");
+  expect(response.headers.get("cache-control")).not.toContain("immutable");
+});

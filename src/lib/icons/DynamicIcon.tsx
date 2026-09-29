@@ -6,11 +6,10 @@
 // MegaPanelView, czyli chrome nagłówka). Teraz:
 //   1. wyselekcjonowany zestaw ikon (imports nazwane -> tree-shaking) pokrywa
 //      typowe ikony menu/treści i renderuje się synchronicznie,
-//   2. nieznane nazwy dociągają pełny rejestr Reactowym lazy() z osobnego
-//      chunka (DynamicIconFull) - jednorazowo, poza ścieżką krytyczną.
+//   2. pozostałe nazwy dociągają jedną z 8 porcji danych SVG przez lazy().
+//      Pełny katalog pozostaje wyłącznie w pickerze administracyjnym.
 // Fallback Suspense rezerwuje dokładnie wymiar ikony (size), więc doładowanie
-// nie powoduje przesunięcia układu (CLS = 0). Na serwerze lazy() renderuje się
-// synchronicznie, więc SSR HTML zawsze zawiera właściwą ikonę.
+// nie zmienia zarezerwowanego miejsca. SSR może poczekać na tę samą porcję danych.
 import { lazy, Suspense } from "react";
 import {
   // - zestaw bazowy (nawigacja/UI) -
@@ -150,6 +149,8 @@ import {
   UsersRound,
   type LucideProps,
 } from "lucide-react";
+
+const DynamicIconChunk = lazy(() => import("./DynamicIconChunk"));
 
 export type IconName = string;
 
@@ -294,8 +295,6 @@ const CURATED: Record<string, IconComponent> = {
  */
 export const CURATED_ICON_KEYS: readonly string[] = Object.keys(CURATED);
 
-const DynamicIconFull = lazy(() => import("./DynamicIconFull"));
-
 // Indeks case-insensitive: konsumenci zapisują nazwy różnie (kebab-case w DB
 // powiadomień/menu, PascalCase w configu account-menu) - "log-in", "LogIn" i
 // "login" mają trafić w ten sam komponent.
@@ -380,7 +379,7 @@ export function DynamicIcon({ name, allowFull = true, ...rest }: DynamicIconProp
   );
   return (
     <Suspense fallback={fallback}>
-      <DynamicIconFull iconKey={key} {...rest} />
+      <DynamicIconChunk iconKey={key} {...rest} />
     </Suspense>
   );
 }

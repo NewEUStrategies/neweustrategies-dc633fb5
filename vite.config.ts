@@ -1,3 +1,4 @@
+import { routeSplitBehavior } from "./scripts/lib/routeCodeSplitting";
 import { widgetChunkPlugin } from "./scripts/lib/widgetChunkPlugin";
 // @lovable.dev/vite-tanstack-config already includes the following - do NOT add them manually
 // or the app will break with duplicate plugins:
@@ -87,6 +88,7 @@ export default defineConfig({
     // zmianie przebudowuje routeTree.gen.ts => pełny "program reload" w dev,
     // co objawia się migotaniem / niestabilnym renderowaniem podglądu.
     router: {
+      codeSplittingOptions: { splitBehavior: routeSplitBehavior },
       routeFileIgnorePattern: "(__tests__|__snapshots__)|\\.(test|spec)\\.[jt]sx?$",
     },
   },
@@ -308,6 +310,9 @@ export default defineConfig({
               // startup size, graph and browser boot remain blocking gates.
               experimentalMinChunkSize: 2048,
               manualChunks(id: string, meta: Rollup.ManualChunkMeta) {
+                // Keep the lazy toaster with its SDK: automatic merging of
+                // tiny chunks must not pull Sonner back into the boot entry.
+                if (id.endsWith("/src/components/ui/sonner.tsx")) return "vendor-sonner";
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
                 // WEJŚCIOWEGO do nazwanego chunku. Gdy `manualChunks` przypisze

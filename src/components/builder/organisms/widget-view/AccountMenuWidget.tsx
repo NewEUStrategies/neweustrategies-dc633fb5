@@ -424,7 +424,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       <span className="text-muted-foreground/40" aria-hidden>
         |
       </span>
-      <span style={{ color: "var(--brand)" }}>{signUpLabel}</span>
+      <span style={{ color: "var(--brand-ink)" }}>{signUpLabel}</span>
     </button>
   );
 

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 // Katalog nazw z wygenerowanych danych ikon (klucze kebab-case) - bez
 // jakichkolwiek importów rejestru lucide-react, które materializowałyby
 // pełny zestaw ikon w bundlu entry (patrz lib/icons/DynamicIconFull).
-import { LUCIDE_ICON_NODES } from "@/lib/icons/lucideIconNodes.generated";
+import iconNames from "@/lib/icons/iconNames.generated.json";
 // Same NAZWY zestawu kuratorowanego - czyste dane, bez `lucide-react`, więc
 // import nie dokłada do grafu ani jednej ikony (patrz curatedIconNames.ts).
 import { isCuratedIconName } from "@/lib/icons/curatedIconNames";
@@ -32,9 +32,7 @@ import "@/lib/i18n-builder";
 let _allIconNames: string[] | null = null;
 function getAllIconNames(): string[] {
   if (_allIconNames) return _allIconNames;
-  _allIconNames = Object.keys(LUCIDE_ICON_NODES)
-    .filter((k) => /^[a-z0-9-]+$/.test(k))
-    .sort();
+  _allIconNames = iconNames.filter((k) => /^[a-z0-9-]+$/.test(k)).sort();
   return _allIconNames;
 }
 

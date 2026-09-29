@@ -69,3 +69,6 @@ writeFileSync(
 console.log(
   `✓ ${OUT}: ${names.length} ikon + ${Object.keys(aliases).length} aliasów (pominięto ${failed}), lucide-react v${version}`,
 );
+
+// Keep the public per-bucket registry aligned with the editor catalogue.
+await import("./generate-icon-chunks.mjs");
