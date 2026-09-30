@@ -51,10 +51,12 @@ export interface FloatingInputProps extends React.InputHTMLAttributes<HTMLInputE
   labelEditTarget?: string;
 }
 
-let __fidCounter = 0;
 function useFallbackId(prefix: string, provided?: string) {
-  const [id] = React.useState(() => provided ?? `${prefix}-${++__fidCounter}`);
-  return id;
+  // A module counter depends on request/render order, which differs during
+  // streamed SSR and selective hydration. useId follows the React tree so
+  // labels and validation messages retain the same association on both sides.
+  const id = React.useId();
+  return provided ?? `${prefix}-${id}`;
 }
 
 export const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(

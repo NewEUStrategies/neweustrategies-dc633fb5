@@ -160,6 +160,7 @@ export type BuilderSectionQuery =
   | ReturnType<typeof ratedListQueryOptions>
   | ReturnType<typeof sliderFallbackImagesQueryOptions>
   | ReturnType<typeof sliderPostsQueryOptions>
+  | ReturnType<typeof sliderAuthorsQueryOptions>
   | ReturnType<typeof menuWithItemsQueryOptions>
   | ReturnType<typeof eventsListQueryOptions>
   | ReturnType<typeof eventByIdQueryOptions>
@@ -355,7 +356,16 @@ export function pendingSectionQueries(
   section: SectionNode,
   lang: Lang,
 ): BuilderSectionQuery[] {
-  return sectionQueryOptionsList(section, lang).filter((options) => {
+  const optionsList = sectionQueryOptionsList(section, lang);
+  // Authors depend on the resolved posts. Include them on the gate's retry so
+  // the streamed hero and the hydrated cache agree on the byline as well.
+  for (const widget of collectSectionWidgets(section)) {
+    if (widget.type !== "slider" || !sliderUsesPostsSource(widget.content)) continue;
+    const posts = queryClient.getQueryData(sliderPostsQueryOptions(widget.content, lang).queryKey);
+    const authorIds = sliderAuthorIds(posts);
+    if (authorIds.length > 0) optionsList.push(sliderAuthorsQueryOptions(authorIds));
+  }
+  return optionsList.filter((options) => {
     const status = queryClient.getQueryState(options.queryKey)?.status;
     return status !== "success" && status !== "error";
   });

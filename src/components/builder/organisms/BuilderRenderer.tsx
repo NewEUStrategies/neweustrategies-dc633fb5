@@ -99,13 +99,13 @@ interface Props {
   lang: "pl" | "en";
   device?: Device;
   /**
-   * Suspense-stream below-the-fold sections instead of rendering the whole
+   * Suspense-stream unresolved data sections instead of blocking the whole
    * document into the SSR shell. Off by default (chrome / admin previews render
    * eagerly); the public content + homepage routes opt in to keep cold-render
    * TTFB flat as documents grow. See lib/builder/sectionStreaming.
    */
   stream?: boolean;
-  /** Leading sections rendered eagerly above the fold when `stream` is on. */
+  /** Leading sections whose images receive above-fold loading priority. */
   aboveFoldCount?: number;
   /**
    * Builder-canvas mode: show every A/B variant side by side (with badges)
@@ -378,13 +378,7 @@ const SectionsList = memo(function SectionsList({
           // SSR) oznaczają swoje widgety jako kandydatów LCP: pierwszy obraz
           // widgetu dostaje eager + fetchpriority=high zamiast lazy.
           <AboveFoldProvider key={s.id} aboveFold={index < aboveFoldCount}>
-            <StreamingSection
-              section={s}
-              lang={lang}
-              index={index}
-              aboveFoldCount={aboveFoldCount}
-              enabled={stream}
-            >
+            <StreamingSection section={s} lang={lang} enabled={stream}>
               {abTag && !editorPreview && assignments ? (
                 <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
                   {rendered}

@@ -348,6 +348,30 @@ describe("WidgetView - powłoka: wyrównanie i wewnętrzna kolumna", () => {
     expect(inner.style.maxWidth).toBe("100%");
   });
 
+  it.each(["image", "slider", "video", "gallery", "map"] as const)(
+    "%s reserves full column width even before media/content loads",
+    (type) => {
+      const { container } = renderNode(type, {}, { style: { align: { desktop: "left" } } });
+      const inner = shell(container).firstElementChild as HTMLElement;
+      expect(inner.style.width).toBe("100%");
+      expect(inner.style.alignSelf).toBe("flex-start");
+    },
+  );
+
+  it("retains an authored media content width", () => {
+    const { container } = renderNode(
+      "image",
+      {},
+      {
+        style: { align: { desktop: "center" } },
+        advanced: { contentMaxWidth: 240 },
+      },
+    );
+    const inner = shell(container).firstElementChild as HTMLElement;
+    expect(inner.style.width).toBe("100%");
+    expect(inner.style.maxWidth).toBe("240px");
+  });
+
   it("widget strukturalny (separator) NIE dostaje kolumny shrink-to-content", () => {
     const { container } = renderNode("divider", {}, { style: { align: { desktop: "center" } } });
     const first = shell(container).firstElementChild as HTMLElement;

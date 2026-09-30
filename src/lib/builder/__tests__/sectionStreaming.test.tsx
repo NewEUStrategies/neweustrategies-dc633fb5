@@ -124,6 +124,55 @@ describe("ServerSectionGate", () => {
     expect(screen.getByText("CONTENT")).toBeTruthy();
     expect(screen.queryByText("FALLBACK")).toBeNull();
   });
+
+  it("does not commit a hero without its dependent author data", async () => {
+    const section = withWidgets([makeWidget("slider", { content: { source: "posts" } })]);
+    let releasePosts!: () => void;
+    let releaseAuthors!: () => void;
+    const postsReady = new Promise<void>((resolve) => {
+      releasePosts = resolve;
+    });
+    const authorsReady = new Promise<void>((resolve) => {
+      releaseAuthors = resolve;
+    });
+    const prefetch = vi.spyOn(qc, "prefetchQuery").mockImplementation(async (options) => {
+      const queryKey = options.queryKey;
+      if (queryKey[0] === "builder-slider-posts") {
+        await postsReady;
+        qc.setQueryData(queryKey, [{ id: "post", author_id: "author" }]);
+      } else if (queryKey[0] === "builder-slider-authors") {
+        await authorsReady;
+        qc.setQueryData(queryKey, { author: { name: "Test Author", avatar: "", slug: "test" } });
+      } else {
+        qc.setQueryData(queryKey, []);
+      }
+    });
+    try {
+      render(
+        <Suspense fallback={<span>FALLBACK</span>}>
+          <ServerSectionGate section={section} lang="pl">
+            <span>CONTENT</span>
+          </ServerSectionGate>
+        </Suspense>,
+        { wrapper: wrapper(qc) },
+      );
+      await act(async () => {
+        releasePosts();
+      });
+      expect(screen.getByText("FALLBACK")).toBeTruthy();
+      expect(screen.queryByText("CONTENT")).toBeNull();
+      await act(async () => {
+        releaseAuthors();
+      });
+      expect(screen.getByText("CONTENT")).toBeTruthy();
+      expect(screen.queryByText("FALLBACK")).toBeNull();
+    } finally {
+      releasePosts();
+      releaseAuthors();
+      prefetch.mockRestore();
+      qc.clear();
+    }
+  });
 });
 
 describe("shouldStreamSection (eager-vs-stream decision)", () => {
@@ -131,31 +180,20 @@ describe("shouldStreamSection (eager-vs-stream decision)", () => {
   const staticSection = withWidgets([makeWidget("heading")]);
 
   it("does not stream when streaming is disabled", () => {
-    expect(shouldStreamSection(dataSection, "pl", 9, 3, false)).toBe(false);
+    expect(shouldStreamSection(dataSection, "pl", false)).toBe(false);
   });
 
-  it("renders above-the-fold data sections eagerly (index < aboveFoldCount)", () => {
-    // $.tsx-style: leading sections are prefetched in the loader, so they stay
-    // eager to land the hero's data in the shell.
-    expect(shouldStreamSection(dataSection, "pl", 1, 3, true)).toBe(false);
+  it("gates first-fold data too when the bounded loader did not finish", () => {
+    expect(shouldStreamSection(dataSection, "pl", true)).toBe(true);
   });
 
   it("streams below-the-fold data sections", () => {
-    expect(shouldStreamSection(dataSection, "pl", 9, 3, true)).toBe(true);
+    expect(shouldStreamSection(dataSection, "pl", true)).toBe(true);
   });
 
   it("never streams a section without data-bound queries (static hero stays eager)", () => {
-    // Even at index 0 with aboveFoldCount 0, a query-less section is eager, so
-    // the homepage hero is never delayed by streaming.
-    expect(shouldStreamSection(staticSection, "pl", 0, 0, true)).toBe(false);
-  });
-
-  it("streams every data-bound section when aboveFoldCount is 0 (homepage)", () => {
-    // The homepage cannot prefetch above the fold in its loader, so it passes
-    // aboveFoldCount={0}: the very first data-bound section must stream through
-    // the server gate (server-rendered data in the CDN-cached HTML) rather than
-    // render eagerly and flash a client-fetched skeleton.
-    expect(shouldStreamSection(dataSection, "pl", 0, 0, true)).toBe(true);
+    // Static content has nothing to await.
+    expect(shouldStreamSection(staticSection, "pl", true)).toBe(false);
   });
 });
 
@@ -167,13 +205,7 @@ describe("StreamingSection", () => {
 
   it("renders eagerly when streaming is disabled", () => {
     render(
-      <StreamingSection
-        section={withWidgets([makeWidget("post-list")])}
-        lang="pl"
-        index={9}
-        aboveFoldCount={3}
-        enabled={false}
-      >
+      <StreamingSection section={withWidgets([makeWidget("post-list")])} lang="pl" enabled={false}>
         {child}
       </StreamingSection>,
     );
@@ -182,13 +214,7 @@ describe("StreamingSection", () => {
 
   it("renders above-the-fold sections eagerly", () => {
     render(
-      <StreamingSection
-        section={withWidgets([makeWidget("post-list")])}
-        lang="pl"
-        index={1}
-        aboveFoldCount={3}
-        enabled
-      >
+      <StreamingSection section={withWidgets([makeWidget("post-list")])} lang="pl" enabled>
         {child}
       </StreamingSection>,
     );
@@ -197,13 +223,7 @@ describe("StreamingSection", () => {
 
   it("renders below-the-fold sections that have no data queries eagerly", () => {
     render(
-      <StreamingSection
-        section={withWidgets([makeWidget("heading")])}
-        lang="pl"
-        index={9}
-        aboveFoldCount={3}
-        enabled
-      >
+      <StreamingSection section={withWidgets([makeWidget("heading")])} lang="pl" enabled>
         {child}
       </StreamingSection>,
     );
@@ -212,13 +232,7 @@ describe("StreamingSection", () => {
 
   it("keeps the client render intact for below-the-fold data sections", () => {
     render(
-      <StreamingSection
-        section={withWidgets([makeWidget("post-list")])}
-        lang="pl"
-        index={9}
-        aboveFoldCount={3}
-        enabled
-      >
+      <StreamingSection section={withWidgets([makeWidget("post-list")])} lang="pl" enabled>
         {child}
       </StreamingSection>,
     );
@@ -239,7 +253,7 @@ describe("StreamingSection", () => {
       throw new Promise<void>(() => {});
     }
     const { container } = render(
-      <StreamingSection section={section} lang="pl" index={9} aboveFoldCount={3} enabled>
+      <StreamingSection section={section} lang="pl" enabled>
         <NigdyNieGotowe />
       </StreamingSection>,
     );
@@ -395,50 +409,20 @@ describe("ServerSectionGate - wyczerpanie budżetu", () => {
     expect(qc.getQueryState(deadKey)?.status).not.toBe("success");
   });
 
-  // DEFEKT: BUDŻET SEKCJI NIE JEST TWARDY - ZBIÓR ZAPYTAŃ KURCZY SIĘ I LIMIT
-  // STARTUJE OD NOWA.
-  //
-  // WEJSCIE: sekcja nad zgięciem z DWOMA zapytaniami o różnych kluczach
-  //   (tu: dwie post-listy o różnym `limit`; w produkcji równie dobrze slider,
-  //   który sam wystawia zapytanie o wpisy ORAZ o obrazy zapasowe). Jedno
-  //   zapytanie rozstrzyga w oknie budżetu, drugie wisi - czyli dokładnie
-  //   scenariusz częściowej awarii, na który limit ma być odpowiedzią.
-  // CO PSUJE: rekord budżetu jest kluczowany ZBIOREM kluczy oczekujących -
-  //   `sectionGateKey` (src/lib/builder/sectionStreaming.tsx:66-72) skleja
-  //   `lang:sectionId:klucz1|klucz2`. Po wyczerpaniu limitu React ponawia
-  //   render, `pendingSectionQueries` (:142) pomija zapytanie, które już się
-  //   udało, więc zbiór kurczy się do JEDNEGO klucza - i `sectionGateKey`
-  //   zwraca INNY łańcuch. `records.get(key)` (:147) nie znajduje rekordu,
-  //   powstaje świeży z `exhausted: false`, a `createBoundedSectionPrefetch`
-  //   (:156) uzbraja PEŁNE 2 s od nowa. Zapytanie skasowane przez
-  //   `removeDeadSectionQueries` jest przy okazji tworzone ponownie.
-  // KONSEKWENCJA: komentarz przy stałej obiecuje „hard cap for a single
-  //   below-the-fold section”, a faktyczny czas trzymania dokumentu to 2 s
-  //   RAZY liczba różnych momentów, w których cokolwiek się rozstrzygnie.
-  //   Sekcja z trzema zapytaniami schodzącymi po kolei blokuje dehydratację
-  //   routera na 6 s zamiast 2 s - i to na cold renderze, czyli dokładnie
-  //   wtedy, gdy TTFB jest jedyną rzeczą, której ten moduł miał bronić.
-  // WYMAGANA POPRAWKA: kluczować rekord budżetu TOŻSAMOŚCIĄ sekcji
-  //   (`lang:section.id`), a nie migawką zbioru kluczy oczekujących - wtedy
-  //   `exhausted` przeżywa skurczenie zbioru i limit obowiązuje raz na sekcję.
-  it.fails(
-    "DEFEKT: po 2 s sekcja MUSI być przepuszczona także wtedy, gdy część zapytań zdążyła",
-    async () => {
-      const section = mixedSection("budzet-4b");
-      const [settledKey] = sectionQueryOptionsList(section, "pl").map(
-        (o) => o.queryKey as QueryKey,
-      );
-      mockPrefetch(settledKey);
-      renderGate(section);
+  // Regression: partial success must not reset the section deadline.
+  it("po 2 s sekcja MUSI być przepuszczona także wtedy, gdy część zapytań zdążyła", async () => {
+    const section = mixedSection("budzet-4b");
+    const [settledKey] = sectionQueryOptionsList(section, "pl").map((o) => o.queryKey as QueryKey);
+    mockPrefetch(settledKey);
+    renderGate(section);
 
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(SERVER_SECTION_STREAM_BUDGET_MS);
-      });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SERVER_SECTION_STREAM_BUDGET_MS);
+    });
 
-      expect(screen.queryByText("FALLBACK")).toBeNull();
-      expect(screen.getByText("CONTENT")).toBeTruthy();
-    },
-  );
+    expect(screen.queryByText("FALLBACK")).toBeNull();
+    expect(screen.getByText("CONTENT")).toBeTruthy();
+  });
 
   it("raz wyczerpana sekcja NIE zawiesza się drugi raz przy ponownym montowaniu", async () => {
     // Pamięć wyczerpania jest trzymana per QueryClient (WeakMap), więc kolejny

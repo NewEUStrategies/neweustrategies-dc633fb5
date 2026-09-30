@@ -11,6 +11,37 @@ afterEach(() => {
   document.documentElement.classList.remove("dark");
 });
 
+it("does not rerender every theme consumer when hydration keeps the same theme", async () => {
+  localStorage.setItem("theme", "light");
+  let renders = 0;
+  function Content() {
+    const { theme } = useTheme();
+    renders += 1;
+    return <article data-theme={theme}>Server article</article>;
+  }
+  const view = (
+    <ThemeProvider>
+      <Content />
+    </ThemeProvider>
+  );
+  const host = document.createElement("div");
+  host.innerHTML = renderToString(view);
+  document.body.append(host);
+  const original = host.querySelector("article");
+  renders = 0;
+  const errors: unknown[] = [];
+  const root = hydrateRoot(host, view, { onRecoverableError: (error) => errors.push(error) });
+  try {
+    await act(async () => {});
+    expect(errors).toEqual([]);
+    expect(host.querySelector("article")).toBe(original);
+    expect(renders).toBe(1);
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
+
 it("keeps visible content during an early theme change while a descendant suspends", async () => {
   let ready = false;
   let release!: () => void;

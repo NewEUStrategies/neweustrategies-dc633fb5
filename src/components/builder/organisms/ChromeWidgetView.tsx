@@ -352,9 +352,11 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   const alignShrinkWrapStyle: CSSProperties | undefined = needsAlignShrinkWrap
     ? {
         alignSelf: styleAlignItems,
-        // Search bar must fill its column so the input area is long enough;
-        // shrinking it to the content width produces a 166 px unusable field.
-        width: isSearchButton ? "100%" : "auto",
+        // Media and their loading placeholders have percentage widths, often
+        // with absolutely positioned children. Shrink-to-content collapses
+        // that box until an image/text arrives, shifting everything below it.
+        // Explicit contentMaxWidth is still handled by innerShellStyle above.
+        width: isSearchButton || isMedia ? "100%" : "auto",
         maxWidth: "100%",
         minWidth: 0,
         display: "flex",
@@ -1073,6 +1075,24 @@ const UNKNOWN_WIDGET_MIN_HEIGHT = 40;
 // i wszystko, co ciągnie, zostało poza chunkiem wejściowym.
 const LazyWidgetView = lazy(() => import("./WidgetView").then((m) => ({ default: m.WidgetView })));
 
+// Frame subscriptions (theme/global-widget/typography) can update before this
+// chunk hydrates. Keep the unchanged props behind a memo boundary so those
+// updates cannot replace already-painted server content with a 40 px fallback.
+const DeferredWidgetView = memo(function DeferredWidgetView(props: WidgetViewProps) {
+  return (
+    <Suspense
+      fallback={
+        <div
+          data-chrome-widget-pending={props.node.type}
+          style={{ minHeight: UNKNOWN_WIDGET_MIN_HEIGHT, width: "100%" }}
+        />
+      }
+    >
+      <LazyWidgetView {...props} />
+    </Suspense>
+  );
+});
+
 export const ChromeWidgetView = memo(function ChromeWidgetView(props: WidgetViewProps) {
   const frame = useWidgetFrame(props);
   const { node, lang, effectiveMode, editable, onContentChange, activeTypography, wrap } = frame;
@@ -1090,18 +1110,7 @@ export const ChromeWidgetView = memo(function ChromeWidgetView(props: WidgetView
   const chrome = renderChromeWidget(frame);
   if (chrome !== undefined) return chrome;
 
-  return (
-    <Suspense
-      fallback={
-        <div
-          data-chrome-widget-pending={node.type}
-          style={{ minHeight: UNKNOWN_WIDGET_MIN_HEIGHT, width: "100%" }}
-        />
-      }
-    >
-      <LazyWidgetView {...props} />
-    </Suspense>
-  );
+  return <DeferredWidgetView {...props} />;
 });
 
 ChromeWidgetView.displayName = "ChromeWidgetView";
