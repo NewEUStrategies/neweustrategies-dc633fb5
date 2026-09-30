@@ -59,7 +59,7 @@ CPU profiling mapped a long application call to `siteYear()` in the shared copyr
 
 Validation:
 
-- 24 tests passed: `siteYear.test.ts` and `ssrRenderSafety.test.tsx`. Includes half-day comparisons against Intl throughout ordinary, leap and century years, the exact Warsaw New Year boundary, SSR timezone independence and unavailable-Intl fallback.
+- 25 tests passed: `siteYear.test.ts` and `ssrRenderSafety.test.tsx`. Includes half-day comparisons against Intl throughout ordinary, leap and century years, the exact Warsaw New Year boundary, SSR timezone independence, default clock argument and unavailable-Intl fallback. The test clock is fixed, as required by the repository's clock-freeze gate.
 - Focused ESLint and Prettier passed.
 - Isolated Chromium cold-process comparison, five alternating runs per implementation, 4x CPU throttling: baseline first-call median **93.4 ms**, candidate **0.6 ms**. Baseline samples: 93.4, 56.7, 142.2, 59.8, 102.3 ms; candidate: 0, 0, 0.6, 0.8, 0.8 ms. Each browser process loaded only the transpiled `format.ts` module, then timed one September copyright-year call. This isolates the mechanism; it is **not** a whole-page TBT reduction or a new PSI score.
 
@@ -74,3 +74,12 @@ Validation:
 All five slider variants previously observed their container and stored its raw width in React state, although only multi-card navigation uses the measured column count. The four single-slide variants now avoid this observer entirely. Multi-card stores the responsive breakpoint and ignores subsequent width notifications within that breakpoint. CSS still sets full-width media and card geometry before hydration; image sizes, image loading priorities, manual navigation and autoplay are unchanged.
 
 Validation: four focused test files passed (141 passing tests and 5 existing expected failures). New behavioral coverage checks navigation in all four single-slide variants, tablet/mobile/desktop pagination, no React commits for same-breakpoint width changes, updated configured columns, empty-to-populated widgets and observer cleanup when switching variants/unmounting. Existing image `sizes` and display-setting tests remain green. Focused ESLint and Prettier passed.
+
+### Validation handoff
+
+- TypeScript checking the changed files and their dependencies passed. The full local check exhausted its 6144 MB Node heap; CI completed the full typecheck successfully on `174ad5e`.
+- Runtime changes are in `59f78b2` and `174ad5e`. The latter passed the full build/bundle gates, 8 artifact boot tests, regular E2E job, database harnesses and Lighthouse blocking gates. Lighthouse still emits performance/LCP warnings: green CI is not evidence of reaching 85. The CI clock-freeze gate caught the new year test importing a function with a default clock argument; the follow-up fixes the test clock and explicitly covers that default, without relaxing the gate.
+- Consult the current PR checks for full build, coverage, seeded E2E, Lighthouse, paired first-visit and CMS-widget results before proceeding. Do not infer that these are green from local focused tests.
+- Further high-impact work remains: attribute the React hydration cost to actual application components, evaluate splitting feature-specific CSS with route/SSR coverage, and investigate Google tag startup while preserving configured consent and conversion semantics. The copyright/slider changes alone do not establish the 85+ target.
+- Concrete hydration candidate: `ChromeWidgetView` creates a frame before falling back to `DeferredWidgetView`; the full `WidgetView` creates another frame. The profile includes `useWidgetFrame` and typography-rule generation. Removing duplicate work must preserve the memoized lazy boundary from PR #423, which prevents early subscription updates from discarding streamed SSR content. Do not pass an unstable frame object across that boundary without a slow-hydration regression test.
+- The captured homepage HTML contains 13 builder sections and 51 inline styles (132896 raw CSS bytes). Footer layout already uses `.cv-auto`; other below-fold sections are candidates for measured layout containment, with anchor navigation, focus, sticky/fixed descendants, editor previews and CLS checked before enabling it. These are investigation candidates, not implemented optimizations.

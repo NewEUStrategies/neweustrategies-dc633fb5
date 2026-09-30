@@ -1,9 +1,16 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SITE_TIME_ZONE, siteYear } from "../format";
 
+beforeEach(() => {
+  vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-09-30T23:30:00.000Z"));
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe("siteYear", () => {
+  it("uses the current year when no timestamp is supplied", () => {
+    expect(siteYear()).toBe(2026);
+  });
+
   it("matches the editorial timezone throughout ordinary, leap and century years", () => {
     const reference = new Intl.DateTimeFormat("en-CA", {
       timeZone: SITE_TIME_ZONE,

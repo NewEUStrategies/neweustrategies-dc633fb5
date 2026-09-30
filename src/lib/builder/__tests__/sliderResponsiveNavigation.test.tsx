@@ -85,6 +85,8 @@ describe("responsive slider navigation", () => {
       expect(observer.subscriptions).toHaveLength(0);
       expect(container.querySelector(".eh-slider")?.classList.contains("w-full")).toBe(true);
       fireEvent.click(dots(container)[1]);
+      expect(dots(container)[1].getAttribute("aria-current")).toBe("true");
+      expect(dots(container)[0].getAttribute("aria-current")).toBeNull();
       expect(container.querySelector('img[src*="/2.jpg"]')).not.toBeNull();
     },
   );
