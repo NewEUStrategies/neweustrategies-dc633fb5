@@ -355,11 +355,14 @@ export function pendingSectionQueries(
   queryClient: QueryClient,
   section: SectionNode,
   lang: Lang,
+  widgets: WidgetNode[] = collectSectionWidgets(section),
 ): BuilderSectionQuery[] {
-  const optionsList = sectionQueryOptionsList(section, lang);
+  // The server gate supplies the renderable subset; loader/cache warming keeps
+  // its existing whole-section scope. Use the same subset for dependent data.
+  const optionsList = widgets.flatMap((widget) => widgetQueryOptionsList(widget, lang));
   // Authors depend on the resolved posts. Include them on the gate's retry so
   // the streamed hero and the hydrated cache agree on the byline as well.
-  for (const widget of collectSectionWidgets(section)) {
+  for (const widget of widgets) {
     if (widget.type !== "slider" || !sliderUsesPostsSource(widget.content)) continue;
     const posts = queryClient.getQueryData(sliderPostsQueryOptions(widget.content, lang).queryKey);
     const authorIds = sliderAuthorIds(posts);

@@ -15,6 +15,13 @@
 // Wartości są jawnie testowe ("Stub …") i nie mogą przypominać danych próbki
 // kontekstu wpisu (`PLACEHOLDER_POST_CTX`) - inaczej bramka wycieku próbki
 // zaczęłaby zgłaszać trafienia z własnego stubu.
+import type {
+  ClubCardRow,
+  ClubHubArticleRow,
+  ClubHubCommentRow,
+  ClubHubMemberRow,
+  ClubThreadTeaserRow,
+} from "@/lib/builder/clubsQuery";
 
 /** Jeden „wiersz wszystkiego”: post, kategoria, tag, wydarzenie, prelegent. */
 export const UNIVERSAL_ROW: Readonly<Record<string, unknown>> = {
@@ -83,11 +90,66 @@ export const UNIVERSAL_ROW: Readonly<Record<string, unknown>> = {
   price_cents: 1000,
   currency: "PLN",
   interval: "month",
-};
+
+  // --- club RPCs: populated rows must satisfy the renderer contracts ---
+  tagline_pl: "Stub klub.",
+  tagline_en: "Stub club.",
+  icon: null,
+  accent_color: null,
+  policy_area: "security",
+  member_count: 3,
+  thread_count: 3,
+  visibility: "public",
+  thread_id: "stub-thread",
+  thread_slug: "stub-thread",
+  thread_title: "Stub thread",
+  title: "Stub thread",
+  excerpt: "Stub excerpt.",
+  body: "Stub comment.",
+  club_slug: "stub-club",
+  club_name_pl: "Stub klub",
+  club_name_en: "Stub club",
+  author_name: "Stub Author",
+  author_avatar: "https://example.org/stub-avatar.jpg",
+  reply_count: 2,
+  reaction_count: 1,
+  like_count: 1,
+  last_reply_at: "2026-01-02T09:00:00.000Z",
+  current_company: "Stub co.",
+  role: "member",
+  joined_at: "2026-01-01T09:00:00.000Z",
+  verified: true,
+  total_count: 3,
+} satisfies Record<string, unknown> &
+  ClubCardRow &
+  ClubHubArticleRow &
+  ClubHubCommentRow &
+  ClubHubMemberRow &
+  ClubThreadTeaserRow;
 
 /** Trzy wiersze - dość, żeby karuzele, siatki i paginacja miały co pokazać. */
 export const UNIVERSAL_ROWS: ReadonlyArray<Readonly<Record<string, unknown>>> = [
-  { ...UNIVERSAL_ROW, id: "stub-1", slug: "stub-1" },
-  { ...UNIVERSAL_ROW, id: "stub-2", slug: "stub-2", title_pl: "Stub tytuł 2" },
-  { ...UNIVERSAL_ROW, id: "stub-3", slug: "stub-3", title_pl: "Stub tytuł 3" },
+  {
+    ...UNIVERSAL_ROW,
+    id: "stub-1",
+    slug: "stub-1",
+    user_id: "stub-user-1",
+    thread_id: "stub-thread-1",
+  },
+  {
+    ...UNIVERSAL_ROW,
+    id: "stub-2",
+    slug: "stub-2",
+    user_id: "stub-user-2",
+    thread_id: "stub-thread-2",
+    title_pl: "Stub tytuł 2",
+  },
+  {
+    ...UNIVERSAL_ROW,
+    id: "stub-3",
+    slug: "stub-3",
+    user_id: "stub-user-3",
+    thread_id: "stub-thread-3",
+    title_pl: "Stub tytuł 3",
+  },
 ];

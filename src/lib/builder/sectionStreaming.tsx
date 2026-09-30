@@ -6,7 +6,9 @@
 import { Suspense, type ReactElement, type ReactNode } from "react";
 import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import type { SectionNode } from "@/lib/builder/types";
+import type { Device, SectionNode } from "@/lib/builder/types";
+import { useAccessContext } from "@/lib/builder/accessControl";
+import { collectRenderableSectionWidgets } from "@/lib/builder/sectionVisibility";
 import type { Lang } from "@/lib/builder/postListQuery";
 import {
   pendingSectionQueries,
@@ -117,14 +119,18 @@ function createBoundedSectionPrefetch(
 export function ServerSectionGate({
   section,
   lang,
+  device = "desktop",
   children,
 }: {
   section: SectionNode;
   lang: Lang;
+  device?: Device;
   children: ReactNode;
 }): ReactElement {
   const queryClient = useQueryClient();
-  const pending = pendingSectionQueries(queryClient, section, lang);
+  const accessCtx = useAccessContext();
+  const widgets = collectRenderableSectionWidgets(section, device, accessCtx);
+  const pending = pendingSectionQueries(queryClient, section, lang, widgets);
   if (pending.length > 0) {
     const pendingKeys = pending.map((options) => options.queryKey);
     const key = `${lang}:${section.id}`;
@@ -195,6 +201,7 @@ export function SectionStreamSkeleton({
 interface StreamingSectionProps {
   section: SectionNode;
   lang: Lang;
+  device?: Device;
   /** Master switch - when false, behaves exactly like the pre-streaming renderer. */
   enabled: boolean;
   /** The already-error-boundaried section content. */
@@ -215,6 +222,7 @@ export function shouldStreamSection(section: SectionNode, lang: Lang, enabled: b
 export function StreamingSection({
   section,
   lang,
+  device,
   enabled,
   children,
 }: StreamingSectionProps): ReactElement {
@@ -231,7 +239,7 @@ export function StreamingSection({
     <RenderErrorBoundary label={`stream-section:${section.id}`} fallback={null}>
       <Suspense fallback={<SectionStreamSkeleton minHeight={estimateSectionHeight(section)} />}>
         {IS_SSR ? (
-          <ServerSectionGate section={section} lang={lang}>
+          <ServerSectionGate section={section} lang={lang} device={device}>
             {children}
           </ServerSectionGate>
         ) : (

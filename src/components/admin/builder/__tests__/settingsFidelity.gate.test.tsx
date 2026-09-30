@@ -47,6 +47,9 @@ import {
   WIDGET_PROBE_STATES,
 } from "@/lib/builder/ci/settingsFidelityGate";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
+import { installWidgetGateFetch, WidgetGateRouter } from "@/test/widgetGateEnvironment";
+
+installWidgetGateFetch();
 
 // Podział kodu (`React.lazy`) zamieniony na importy statyczne. Bez tego pierwszy
 // render 33 widgetów pokazuje fallback Suspense, a ich odczyty treści nigdy nie
@@ -169,15 +172,7 @@ vi.mock("@tanstack/react-router", async (orig) => {
   const actual = await orig<typeof import("@tanstack/react-router")>();
   return {
     ...actual,
-    Link: ({
-      to,
-      children,
-      ...rest
-    }: { to?: unknown; children?: unknown } & Record<string, unknown>) => (
-      <a href={typeof to === "string" ? to : "#"} {...rest}>
-        {children as never}
-      </a>
-    ),
+    Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
   };
 });
 
@@ -286,11 +281,13 @@ function measurePanel(type: WidgetType, probes: ReadonlyArray<ContentProbe>): Si
     try {
       renderToStaticMarkup(
         <QueryClientProvider client={client}>
-          <WidgetContentFields
-            widget={nodeOf(type, tracked)}
-            lang={PROBE_LANG}
-            setContent={() => {}}
-          />
+          <WidgetGateRouter>
+            <WidgetContentFields
+              widget={nodeOf(type, tracked)}
+              lang={PROBE_LANG}
+              setContent={() => {}}
+            />
+          </WidgetGateRouter>
         </QueryClientProvider>,
       );
     } finally {
@@ -351,10 +348,13 @@ async function measureRenderer(
       try {
         render(
           <QueryClientProvider client={client}>
-            <CurrentPostProvider value={scenario.ctx}>
-              <WidgetView node={nodeOf(type, tracked)} lang={PROBE_LANG} device={DEVICE} />
-            </CurrentPostProvider>
+            <WidgetGateRouter>
+              <CurrentPostProvider value={scenario.ctx}>
+                <WidgetView node={nodeOf(type, tracked)} lang={PROBE_LANG} device={DEVICE} />
+              </CurrentPostProvider>
+            </WidgetGateRouter>
           </QueryClientProvider>,
+          { onCaughtError: (error) => renderErrors.push({ type, error }) },
         );
         await settleReads(log);
       } finally {
@@ -386,6 +386,7 @@ interface WidgetMeasurement {
 }
 
 const MEASURED = new Map<WidgetType, WidgetMeasurement>();
+const renderErrors: Array<{ type: WidgetType; error: unknown }> = [];
 
 /**
  * Rozmiary zbiorów odczytów PER STRONA - do wyceny wkładu stanu próbki.
@@ -455,6 +456,10 @@ beforeAll(async () => {
   await measureAll();
   writeReports();
 }, 900_000);
+
+it("renders every fidelity probe without errors caught by widget boundaries", () => {
+  expect(renderErrors).toEqual([]);
+});
 
 /**
  * Artefakty bramki.
