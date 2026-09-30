@@ -3,6 +3,19 @@ import { evaluateAccess, type AccessContext } from "./accessControl";
 import { isKnownWidgetType } from "./schema";
 import { hiddenOnDevice } from "@/components/builder/organisms/widget-view/frame";
 
+/** One widget predicate for the renderer and the server's query collector. */
+export function isRenderedWidget(
+  widget: WidgetNode,
+  device: Device,
+  accessCtx: AccessContext,
+): boolean {
+  return (
+    isKnownWidgetType(widget.type) &&
+    !hiddenOnDevice(widget.advanced, device) &&
+    evaluateAccess(widget.advanced?.access, accessCtx)
+  );
+}
+
 /** Shared by the renderer's initial displayTabId and the server-only data gate. */
 export function initialSectionTabId(section: SectionNode): string | undefined {
   const tabs = section.tabs;
@@ -24,12 +37,7 @@ export function collectRenderableSectionWidgets(
   const collectColumn = (column: ColumnNode) => {
     if (!column || !evaluateAccess(column.advanced?.access, accessCtx)) return;
     for (const widget of Array.isArray(column.children) ? column.children : []) {
-      if (
-        widget &&
-        isKnownWidgetType(widget.type) &&
-        !hiddenOnDevice(widget.advanced, device) &&
-        evaluateAccess(widget.advanced?.access, accessCtx)
-      ) {
+      if (widget && isRenderedWidget(widget, device, accessCtx)) {
         widgets.push(widget);
       }
     }

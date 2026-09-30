@@ -28,14 +28,13 @@ import type {
   ResponsiveValue,
 } from "@/lib/builder/types";
 import { BuilderWidgetNode } from "@/components/builder/organisms/BuilderWidgetNode";
-// `hiddenOnDevice` czytamy z modułu ŹRÓDŁOWEGO, nie przez re-eksport z
+// Pomocniki ramki (także w `isRenderedWidget`) czytamy z modułu źródłowego, nie przez re-eksport z
 // `WidgetView`: re-eksport był statyczną krawędzią do pełnego dyspozytora
 // widgetów, więc każdy dokument z nagłówkiem ciągnął go do chunku wejściowego
 // nawet wtedy, gdy renderuje wyłącznie widgety chrome (audyt CWV, F17).
 import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
-  hiddenOnDevice,
 } from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { afterPrerendering } from "@/lib/prerender";
@@ -62,10 +61,10 @@ import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate"
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { AboveFoldProvider } from "@/lib/builder/aboveFold";
 import { useBuilderDebug } from "@/lib/builder/builderDebug";
-import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
+import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import { StreamingSection } from "@/lib/builder/sectionStreaming";
-import { initialSectionTabId } from "@/lib/builder/sectionVisibility";
+import { initialSectionTabId, isRenderedWidget } from "@/lib/builder/sectionVisibility";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import {
   isSectionVisibleForAssignments,
@@ -799,11 +798,7 @@ const RenderColumn = memo(function RenderColumn({
   const visibleChildren = useMemo(
     () =>
       (Array.isArray(column.children) ? column.children : []).filter(
-        (w): w is NonNullable<typeof w> =>
-          !!w &&
-          isKnownWidgetType(w.type) &&
-          !hiddenOnDevice(w.advanced, device) &&
-          evaluateAccess(w.advanced?.access, accessCtx),
+        (w): w is NonNullable<typeof w> => !!w && isRenderedWidget(w, device, accessCtx),
       ),
     [column.children, device, accessCtx],
   );

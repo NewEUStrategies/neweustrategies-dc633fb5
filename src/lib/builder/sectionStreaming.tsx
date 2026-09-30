@@ -210,6 +210,8 @@ interface StreamingSectionProps {
 
 /** Static sections need no data gate. Warm data sections never suspend. */
 export function shouldStreamSection(section: SectionNode, lang: Lang, enabled: boolean): boolean {
+  // Keep the boundary stable across viewport/auth/tab changes during hydration.
+  // Only ServerSectionGate filters the queries by the current render context.
   return enabled && sectionQueryOptionsList(section, lang).length > 0;
 }
 

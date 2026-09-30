@@ -12,7 +12,13 @@ import {
   StreamingSection,
   shouldStreamSection,
 } from "@/lib/builder/sectionStreaming";
-import { sectionQueryOptionsList, widgetQueryOptionsList } from "@/lib/builder/prefetch";
+import {
+  pendingSectionQueries,
+  sectionQueryOptionsList,
+  widgetQueryOptionsList,
+} from "@/lib/builder/prefetch";
+import { GUEST_ACCESS_CONTEXT, type AccessContext } from "@/lib/builder/accessControl";
+import { collectRenderableSectionWidgets } from "@/lib/builder/sectionVisibility";
 import {
   SECTION_STREAM_MIN_HEIGHT,
   estimateSectionHeight,
@@ -156,6 +162,92 @@ describe("ServerSectionGate", () => {
     }
   });
 
+  it.each([
+    "desktop-only on mobile",
+    "inaccessible widget",
+    "inactive tab",
+    "inaccessible column",
+    "inaccessible inner column",
+  ])("does not wait for a pending query from %s", (scenario) => {
+    const visible = makeWidget("post-list");
+    const excluded = makeWidget("slider", { content: { source: "posts" } });
+    const section = withWidgets([visible, excluded]);
+    const device: Device = "mobile";
+    const renderedWidgets = () =>
+      collectRenderableSectionWidgets(section, device, GUEST_ACCESS_CONTEXT);
+    if (scenario === "desktop-only on mobile") {
+      excluded.advanced = { hideOn: { mobile: true, tablet: true } };
+    } else if (scenario === "inaccessible widget") {
+      excluded.advanced = { access: { auth: "user" } };
+    } else {
+      section.children = [
+        { kind: "column", id: "visible", span: { desktop: 12 }, children: [visible] },
+        { kind: "column", id: "excluded", span: { desktop: 12 }, children: [excluded] },
+      ];
+      if (scenario === "inactive tab") {
+        section.tabs = {
+          enabled: true,
+          items: [
+            { id: "inactive", label_pl: "Inactive" },
+            { id: "active", label_pl: "Active" },
+          ],
+          defaultTabId: "active",
+        };
+        section.children[1].tabId = "inactive";
+      } else if (scenario === "inaccessible column") {
+        section.children[1].advanced = { access: { auth: "user" } };
+      } else {
+        section.children[1] = {
+          kind: "inner-section",
+          id: "inner",
+          columns: [
+            {
+              kind: "column",
+              id: "inner-excluded",
+              span: { desktop: 12 },
+              advanced: { access: { auth: "user" } },
+              children: [excluded],
+            },
+          ],
+        };
+      }
+    }
+    sectionQueryOptionsList(withWidgets([visible]), "pl").forEach((options) =>
+      qc.setQueryData(options.queryKey, []),
+    );
+    const [excludedQuery] = sectionQueryOptionsList(withWidgets([excluded]), "pl");
+    // Simulate a query already started by the unfiltered loader. The render
+    // gate must neither wait for it nor cancel unrelated loader work.
+    void qc
+      .fetchQuery({
+        queryKey: excludedQuery.queryKey,
+        queryFn: () => new Promise<never>(() => {}),
+      })
+      .catch(() => undefined);
+    const prefetch = vi.spyOn(qc, "prefetchQuery").mockResolvedValue(undefined);
+    try {
+      render(
+        <Suspense fallback={<span>FALLBACK</span>}>
+          <ServerSectionGate section={section} lang="pl" device={device}>
+            <span>CONTENT</span>
+          </ServerSectionGate>
+        </Suspense>,
+        { wrapper: wrapper(qc) },
+      );
+      expect(screen.getByText("CONTENT")).toBeTruthy();
+      expect(screen.queryByText("FALLBACK")).toBeNull();
+      expect(prefetch).not.toHaveBeenCalled();
+      expect(qc.getQueryState(excludedQuery.queryKey)?.fetchStatus).toBe("fetching");
+      expect(pendingSectionQueries(qc, section, "pl", renderedWidgets())).toEqual([]);
+      // A settled hidden slider can also have unresolved dependent authors.
+      qc.setQueryData(excludedQuery.queryKey, [{ id: "post", author_id: "author" }]);
+      expect(pendingSectionQueries(qc, section, "pl", renderedWidgets())).toEqual([]);
+    } finally {
+      prefetch.mockRestore();
+      qc.clear();
+    }
+  });
+
   it("suspends until pending queries settle, then streams the children", async () => {
     const section = withWidgets([makeWidget("post-list")]);
     // Hold the suspended fetch open until the test releases it, so the fallback
@@ -242,6 +334,60 @@ describe("ServerSectionGate", () => {
   });
 });
 
+describe("render-aware section queries", () => {
+  const device: Device = "mobile";
+
+  it.each([
+    { enabled: true, defaultTabId: undefined, selected: "first" },
+    { enabled: true, defaultTabId: "missing", selected: "first" },
+    { enabled: true, defaultTabId: "second", selected: "second" },
+    { enabled: false, defaultTabId: "second", selected: "both" },
+  ])("honors initial tab selection: %j", ({ enabled, defaultTabId, selected }) => {
+    const first = makeWidget("post-list");
+    const second = makeWidget("slider", { content: { source: "posts" } });
+    const section = withWidgets([]);
+    section.tabs = {
+      enabled,
+      defaultTabId,
+      items: [
+        { id: "first", label_pl: "First" },
+        { id: "second", label_pl: "Second" },
+      ],
+    };
+    section.children = [
+      { kind: "column", id: "first", tabId: "first", span: { desktop: 12 }, children: [first] },
+      {
+        kind: "inner-section",
+        id: "second",
+        tabId: "second",
+        columns: [{ kind: "column", id: "inner", span: { desktop: 12 }, children: [second] }],
+      },
+    ];
+    const keys = collectRenderableSectionWidgets(section, device, GUEST_ACCESS_CONTEXT)
+      .flatMap((widget) => widgetQueryOptionsList(widget, "pl"))
+      .map((options) => options.queryKey);
+    const expected =
+      selected === "both" ? [first, second] : selected === "first" ? [first] : [second];
+    expect(keys).toEqual(
+      sectionQueryOptionsList(withWidgets(expected), "pl").map((options) => options.queryKey),
+    );
+  });
+
+  it("collects an accessible widget only on a device where it renders", () => {
+    const widget = makeWidget("post-list", {
+      advanced: { hideOn: { mobile: true }, access: { auth: "user", roles: ["admin"] } },
+    });
+    const section = withWidgets([widget]);
+    const authorized: AccessContext = { isAuthenticated: true, roles: ["admin"] };
+    expect(collectRenderableSectionWidgets(section, "mobile", GUEST_ACCESS_CONTEXT)).toEqual([]);
+    expect(collectRenderableSectionWidgets(section, "desktop", authorized)).toEqual([widget]);
+    expect(collectRenderableSectionWidgets(section, "mobile", authorized)).toEqual([]);
+    expect(collectRenderableSectionWidgets(section, "desktop", GUEST_ACCESS_CONTEXT)).toEqual([]);
+    // Visibility controls the awaited queries, never the document's Suspense shape.
+    expect(shouldStreamSection(section, "pl", true)).toBe(true);
+  });
+});
+
 describe("shouldStreamSection (eager-vs-stream decision)", () => {
   const dataSection = withWidgets([makeWidget("post-list")]);
   const staticSection = withWidgets([makeWidget("heading")]);
@@ -269,6 +415,23 @@ describe("StreamingSection", () => {
   // server gate is never mounted: every branch must render its children, proving
   // streaming never regresses the client/hydration render path.
   const child = <span>CONTENT</span>;
+
+  it("retains mounted content when the last data widget becomes hidden on mobile", () => {
+    const section = withWidgets([
+      makeWidget("post-list", { advanced: { hideOn: { mobile: true } } }),
+      makeWidget("heading"),
+    ]);
+    const view = (device: Device) => (
+      <StreamingSection section={section} lang="pl" device={device} enabled>
+        {child}
+      </StreamingSection>
+    );
+    const { rerender } = render(view("desktop"));
+    const original = screen.getByText("CONTENT");
+    rerender(view("mobile"));
+    expect(screen.getByText("CONTENT")).toBe(original);
+    expect(original.isConnected).toBe(true);
+  });
 
   it("renders eagerly when streaming is disabled", () => {
     render(
