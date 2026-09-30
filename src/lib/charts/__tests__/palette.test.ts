@@ -62,12 +62,13 @@ import {
 // `src/components/charts/__tests__/pieChart.test.tsx`, żeby oba testy patrzyły
 // na dokładnie te same napisy.
 // ---------------------------------------------------------------------------
-const css = readFileSync("src/styles.css", "utf8");
+const css = ["src/styles.css", "src/components/charts/charts.css"]
+  .map((path) => readFileSync(path, "utf8"))
+  .join("\n");
 const LIGHT_BLOCK = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
 const DARK_BLOCK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
-// Blok druku stoi PO `@layer base`, czyli poza cięciem powyżej - i właśnie
-// dlatego potrzebuje własnego zakresu. Bez niego jedyny zestaw tokenów
-// wykresu, którego nikt nie pilnuje, to ten, który idzie na papier.
+// Tokeny druku są w arkuszu wykresów dołączanym przez styles.css. W złożonym
+// źródle niżej mają własny zakres, osobny od tokenów jasnych i ciemnych.
 const PRINT_BLOCK = css.slice(css.indexOf("@media print {"));
 
 function token(block: string, name: string): string {

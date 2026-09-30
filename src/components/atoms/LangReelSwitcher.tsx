@@ -79,7 +79,7 @@ export function LangReelSwitcher({ label, className }: { label: string; classNam
     <button
       type="button"
       onClick={() => switchTo(target)}
-      aria-label={`${label}: ${target.toUpperCase()}`}
+      aria-label={`${label}: ${current.toUpperCase()} ${target.toUpperCase()}`}
       title={`${label}: ${target.toUpperCase()}`}
       className={cn(
         "lang-switch shrink-0 rounded-[6px] bg-[#f4f4f2] p-[2px] dark:bg-[#27272a]",

@@ -766,7 +766,7 @@ describe("Header - warianty językowe", () => {
       screen.getByRole("button", { name: dict("pl", "common.toggleTheme") }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: `${dict("pl", "mobileDrawer.language")}: EN` }),
+      screen.getByRole("button", { name: `${dict("pl", "mobileDrawer.language")}: PL EN` }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("builder")).toHaveAttribute("data-lang", "pl");
     fireEvent.click(screen.getByRole("button", { name: dict("pl", "common.openSearch") }));
@@ -784,7 +784,7 @@ describe("Header - warianty językowe", () => {
       screen.getByRole("button", { name: dict("en", "common.openSearch") }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: `${dict("en", "mobileDrawer.language")}: PL` }),
+      screen.getByRole("button", { name: `${dict("en", "mobileDrawer.language")}: EN PL` }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("builder")).toHaveAttribute("data-lang", "en");
     fireEvent.click(screen.getByRole("button", { name: dict("en", "common.openSearch") }));
@@ -800,7 +800,7 @@ describe("Header - warianty językowe", () => {
     await settleLazyOverlay();
 
     fireEvent.click(
-      screen.getByRole("button", { name: `${dict("pl", "mobileDrawer.language")}: EN` }),
+      screen.getByRole("button", { name: `${dict("pl", "mobileDrawer.language")}: PL EN` }),
     );
 
     expect(h.languageChanges).toEqual(["en"]);

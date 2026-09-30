@@ -465,7 +465,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // plan 3.3). Był to jedyny obcy origin w `<head>`, bez `preconnect`,
         // ~90 KB parse+execute - a `src/router.tsx` czeka `setTimeout(0)` przed
         // hydratacją, więc makrozadanie hydratacji stawało ZA nim. Dociąga go
-        // `ConsentScriptInjector` przez `whenIdle(…, 2000)` po `markAppReady()`;
+        // `ConsentScriptInjector` przez `afterPageLoad(…, 2000)` po `markAppReady()`;
         // polecenia z tego okna czekają w `window.dataLayer` (natywna kolejka
         // gtag.js), więc ani zgoda, ani pierwsza odsłona nie giną.
         // Hosty Google zostają w CSP (`start.ts`) - skrypt nadal się wczytuje,
@@ -964,6 +964,37 @@ function ClientObservability() {
   return null;
 }
 
+/** Overlay readiness changes independently from the page. Keeping these
+ * subscriptions here avoids rerendering the router, theme and content tree
+ * every time a deferred overlay becomes ready. */
+function DeferredRootOverlays() {
+  // Bramki nakładek (F19) - patrz `useOverlayGates` / `useToasterWanted`.
+  // Wszystkie startują na `false`, czyli SSR i pierwszy render klienta emitują
+  // dokładnie to samo (null), a `React.lazy` nie startuje `import()` w commicie
+  // hydratacji.
+  const { consentReady, overlaysReady } = useOverlayGates();
+  const toasterWanted = useToasterWanted();
+  const consentPreviewRequested = useConsentPreviewRequested();
+
+  return (
+    <>
+      <Suspense fallback={null}>
+        {/* Baner zgód: OPÓŹNIONY (rAF + bezczynność), nigdy WARUNKOWY -
+                patrz kontrakt w `useOverlayGates`. */}
+        {consentReady ? <ConsentBanner /> : null}
+        {/* Panel podglądu zgód dociągał swój chunk na KAŻDEJ stronie, choć
+                renderuje cokolwiek wyłącznie przy `?consent-preview=1`
+                (`isConsentPreviewRequested`). Ten sam warunek, tylko
+                PRZED montażem - dla zwykłego czytelnika chunk nie powstaje. */}
+        {consentPreviewRequested ? <ConsentPreviewPanel /> : null}
+        {overlaysReady ? <NewsletterPopup /> : null}
+        {overlaysReady ? <PopupHost /> : null}
+      </Suspense>
+      <Suspense fallback={null}>{toasterWanted ? <Toaster /> : null}</Suspense>
+    </>
+  );
+}
+
 function RootComponent() {
   const router = useRouter();
 
@@ -1061,14 +1092,6 @@ function RootComponent() {
   // once per request on the server, so a mount-stable memo is correct.
   const renderI18n = useMemo(() => getRenderI18n(), []);
 
-  // Bramki nakładek (F19) - patrz `useOverlayGates` / `useToasterWanted`.
-  // Wszystkie startują na `false`, czyli SSR i pierwszy render klienta emitują
-  // dokładnie to samo (null), a `React.lazy` nie startuje `import()` w commicie
-  // hydratacji.
-  const { consentReady, overlaysReady } = useOverlayGates();
-  const toasterWanted = useToasterWanted();
-  const consentPreviewRequested = useConsentPreviewRequested();
-
   return (
     <I18nextProvider i18n={renderI18n}>
       <ClientObservability />
@@ -1092,24 +1115,12 @@ function RootComponent() {
             </GlobalAudioPlayerProvider>
           </ErrorBoundary>
           <ConsentScriptInjector />
-          <Suspense fallback={null}>
-            {/* Baner zgód: OPÓŹNIONY (rAF + bezczynność), nigdy WARUNKOWY -
-                patrz kontrakt w `useOverlayGates`. */}
-            {consentReady ? <ConsentBanner /> : null}
-            {/* Panel podglądu zgód dociągał swój chunk na KAŻDEJ stronie, choć
-                renderuje cokolwiek wyłącznie przy `?consent-preview=1`
-                (`isConsentPreviewRequested`). Ten sam warunek, tylko
-                PRZED montażem - dla zwykłego czytelnika chunk nie powstaje. */}
-            {consentPreviewRequested ? <ConsentPreviewPanel /> : null}
-            {overlaysReady ? <NewsletterPopup /> : null}
-            {overlaysReady ? <PopupHost /> : null}
-          </Suspense>
+          <DeferredRootOverlays />
           <LoginPopupHost />
           <CommandPaletteHost />
           <UnsavedChangesGuardHost />
           <AppDialogHost />
           <ExpertRequestDialogHost />
-          <Suspense fallback={null}>{toasterWanted ? <Toaster /> : null}</Suspense>
         </AuthProvider>
       </ThemeProvider>
     </I18nextProvider>

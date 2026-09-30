@@ -10,6 +10,8 @@ it("keeps accessible colors and corrects white labels on the orange brand fill",
 });
 
 it("uses readable ink for brand text without replacing other editorial colors", () => {
+  expect(readableBrandText("#f97316")).toBe("var(--brand-ink)");
+  expect(contrastRatio("#a94e0b", "#f8f6f4")).toBeGreaterThan(4.5);
   expect(readableBrandText("#FA9346")).toBe("var(--brand-ink)");
   expect(readableBrandText("var(--brand)")).toBe("var(--brand-ink)");
   expect(readableBrandText("#123456")).toBe("#123456");

@@ -10,7 +10,7 @@
 // i faktura muszą mieć trwałego właściciela, a webhook operatora przypina
 // skutki płatności do `user_id`.
 import { useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useHydrated } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { LogIn, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,6 +51,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export function GuestCheckoutGate({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
+  const hydrated = useHydrated();
   const lang = useLang();
   const c = COPY[lang === "en" ? "en" : "pl"];
   const [email, setEmail] = useState("");
@@ -58,7 +59,10 @@ export function GuestCheckoutGate({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
 
-  if (loading) {
+  // Auth can settle while this lazy route is still hydrating. Its first
+  // client render must match the server's loading shell, even then. Unlike
+  // a mount effect, useHydrated is already true on client-only navigation.
+  if (!hydrated || loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <div

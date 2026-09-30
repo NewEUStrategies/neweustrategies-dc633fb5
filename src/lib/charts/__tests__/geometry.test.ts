@@ -35,7 +35,9 @@ import {
 } from "@/lib/charts/geometry";
 import { SMOOTHING_MIN_POINTS } from "@/lib/charts/smooth";
 
-const css = readFileSync("src/styles.css", "utf8");
+const css = ["src/styles.css", "src/components/charts/charts.css"]
+  .map((path) => readFileSync(path, "utf8"))
+  .join("\n");
 const LIGHT_BLOCK = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
 const DARK_BLOCK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
 

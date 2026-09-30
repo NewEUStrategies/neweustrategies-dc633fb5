@@ -435,7 +435,9 @@ describe("ChoroplethMap - kraje bez danych", () => {
     // z `src/styles.css`: w bloku `.dark` --muted == --card, więc kraje bez
     // danych zniknęłyby całkowicie. Fill jedzie w `style`, nie w atrybucie,
     // bo var() w atrybutach prezentacyjnych SVG nie jest wspierany wszędzie.
-    const css = readFileSync("src/styles.css", "utf8");
+    const css = ["src/styles.css", "src/components/charts/charts.css"]
+      .map((path) => readFileSync(path, "utf8"))
+      .join("\n");
     const dark = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
     const token = (name: string): string =>
       dark.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim() ?? "";
@@ -753,7 +755,9 @@ describe("ChoroplethMap - dostępność", () => {
 });
 
 describe("ChoroplethMap - motyw jasny i ciemny", () => {
-  const css = readFileSync("src/styles.css", "utf8");
+  const css = ["src/styles.css", "src/components/charts/charts.css"]
+    .map((path) => readFileSync(path, "utf8"))
+    .join("\n");
   const LIGHT = css.slice(css.indexOf(":root,"), css.indexOf(".dark {"));
   const DARK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
 

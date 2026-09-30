@@ -1,3 +1,5 @@
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 // GuestCheckoutGate: TRZECIE wejście do logowania w tej aplikacji.
 //
 // DLACZEGO TEN PLIK POWSTAJE. Audyt pokrycia opisał obszar jako "portal
@@ -534,3 +536,30 @@ describe("GuestCheckoutGate - defekty zgłoszone", () => {
     expect(sendButton()).toHaveAttribute("type", "submit");
   });
 });
+
+it.each([false, true])(
+  "hydrates safely when auth settles before the checkout chunk (signed in: %s)",
+  async (signedIn) => {
+    h.loading = true;
+    const view = (
+      <GuestCheckoutGate>
+        <p>{CHILD_TEXT}</p>
+      </GuestCheckoutGate>
+    );
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(view);
+    document.body.appendChild(host);
+    h.loading = false;
+    h.session = signedIn ? { user: { id: "member" } } : null;
+    const errors: unknown[] = [];
+    const root = hydrateRoot(host, view, { onRecoverableError: (error) => errors.push(error) });
+    try {
+      await flush();
+      expect(errors).toEqual([]);
+      expect(host.textContent).toContain(signedIn ? CHILD_TEXT : PL.signIn);
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  },
+);

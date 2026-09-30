@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -21,13 +22,17 @@ import {
 } from "@/lib/theme/themeChoice";
 
 const STORAGE_KEY = THEME_STORAGE_KEY;
+const SERVER_THEME: Theme = "light";
+// React selects the hydration snapshot per consumer; no external event is
+// needed. Keep this shared UI primitive independent of the router.
+const subscribeToHydration = () => () => undefined;
 
 const ThemeContext = createContext<{
   theme: Theme;
   toggle: () => void;
   setTheme: (t: Theme) => void;
 }>({
-  theme: "light",
+  theme: SERVER_THEME,
   toggle: () => {},
   setTheme: () => {},
 });
@@ -66,7 +71,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // already applies the stored class before first paint, so starting "light"
   // causes no visual flash; state adopts the stored value right after
   // hydration in the effect below.
-  const [theme, setThemeState] = useState<Theme>("light");
+  const [theme, setThemeState] = useState<Theme>(SERVER_THEME);
 
   useEffect(() => {
     startTransition(() => setThemeState(readStored()));
@@ -128,4 +133,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-export const useTheme = () => useContext(ThemeContext);
+export function useTheme() {
+  const context = useContext(ThemeContext);
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
+  // A lazy widget can hydrate after an already interactive header changes the
+  // theme. It still needs the server's snapshot for that first render; using
+  // the live context can add/remove its style nodes and discard the SSR tree.
+  return useMemo(
+    () => (hydrated ? context : { ...context, theme: SERVER_THEME }),
+    [context, hydrated],
+  );
+}

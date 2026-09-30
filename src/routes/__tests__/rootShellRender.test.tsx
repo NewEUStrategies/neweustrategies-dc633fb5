@@ -63,6 +63,7 @@ const h = vi.hoisted(() => ({
    * trasa NIE pokazuje RouteLoadingSkeleton"), na prawdziwym routerze.
    */
   outletSuspends: false,
+  outletRenders: 0,
   /** Zgłoszenia z `ErrorComponent` - atrapa zamiast beaconu, patrz niżej. */
   platformErrors: [] as { error: unknown; context: unknown }[],
   /** Tabele, o które poddrzewo korzenia REALNIE pyta - lista z pomiaru. */
@@ -101,6 +102,7 @@ vi.mock("@tanstack/react-router", async (o) => {
     HeadContent: () => null,
     Scripts: () => null,
     Outlet: () => {
+      h.outletRenders += 1;
       // Obietnica, która NIGDY się nie rozstrzyga - granica `Suspense` zostaje
       // więc na fallbacku i test może go zobaczyć. Rozstrzygająca się obietnica
       // dałaby wyścig: React zdążyłby przemalować na treść przed asercją.
@@ -545,7 +547,7 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
     }
   }
 
-  async function mountRoot() {
+  async function mountRoot(settle = true) {
     const { render } = await import("@testing-library/react");
     const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query");
     const Root = Route.options.component as unknown as () => React.ReactElement;
@@ -555,7 +557,7 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
         <Root />
       </QueryClientProvider>,
     );
-    await flush();
+    if (settle) await flush();
   }
 
   /**
@@ -588,6 +590,7 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
   }
 
   beforeEach(() => {
+    Object.defineProperty(window, "top", { configurable: true, value: window });
     h.search = {};
     h.player = { track: null, status: "idle" };
     h.subscribed.length = 0;
@@ -600,6 +603,17 @@ describe("bramki leniwych nakładek i usług tła korzenia", () => {
     cleanup();
     Reflect.deleteProperty(window, "top");
     vi.clearAllMocks();
+  });
+
+  it("deferred overlays become ready without rerendering the page outlet", async () => {
+    h.outletRenders = 0;
+    await mountRoot(false);
+    const renders = h.outletRenders;
+    expect(renders).toBeGreaterThan(0);
+    await overlayBoundarySettled();
+    const { screen } = await import("@testing-library/react");
+    await screen.findByTestId("toaster");
+    expect(h.outletRenders).toBe(renders);
   });
 
   it("poza iframem NIE dociąga ani watchdoga podglądu, ani heartbeatu sesji", async () => {

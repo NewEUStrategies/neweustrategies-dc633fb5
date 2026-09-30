@@ -1,0 +1,906 @@
+/* ============================================================
+   Wykresy i mapy danych (silnik SVG - src/components/charts)
+   ------------------------------------------------------------
+   W KODZIE RYSUJĄCYM NIE MA ANI JEDNEGO HEXA - wszystko idzie przez tokeny
+   --chart-*, dzięki czemu tryb ciemny, wymuszony jasny canvas buildera
+   i druk działają bez jednej gałęzi w komponencie. Dlatego kropka
+   obserwacji ma `fill: var(--card)`, a nie `#fff`: przy przełączeniu motywu
+   sama staje się ciemna i nadal odcina się od linii. Jeśli w silniku pojawi
+   się hex, tryb ciemny jest już zepsuty (pilnuje tego asercja
+   `not.toMatch(/(fill|stroke)="#/)` w testach wykresów).
+
+   CZCIONKA schodzi z panelu admina: --chart-font -> --font-sans ->
+   --brand-font-body. Ustawiona RAZ na .neh-chart, więc każdy <text> w SVG
+   dziedziczy ją przez kaskadę - wykres nie ma prawa mieć własnej rodziny,
+   bo wtedy przestaje należeć do strony.
+
+   ANIMACJE: czasy i krzywe z tabeli specyfikacji, nie z wyczucia. Animacja
+   ma JEDNO uzasadnienie - utrzymać ciągłość obiektu, gdy dane się zmieniają;
+   bez tej funkcji rozprasza i po drugim obejrzeniu irytuje. Wejście
+   400-600 ms, kaskada 20-40 ms na element ale ŁĄCZNIE nie więcej niż 500 ms
+   (przy czterdziestu słupkach schodzimy do 8-12 ms - patrz --neh-step).
+   Nie animujemy osi, siatki, etykiet ani legendy.
+
+   Wejście odpala hook useRevealOnScroll: SSR renderuje stan KOŃCOWY
+   (crawler i przeglądarka bez JS widzą pełny wykres), klasa .neh-armed
+   pojawia się dopiero gdy element jest POZA viewportem, a .neh-run
+   uruchamia przejście przy wejściu w widok. Elementy widoczne od razu przy
+   załadowaniu nigdy nie są chowane - zero migotania.
+   ============================================================ */
+.neh-chart {
+  /* Wejście: 500 ms mieści się w korytarzu 400-600 ms. Krzywa
+     cubic-bezier(0.22, 1, 0.36, 1) hamuje mocniej na końcu niż poprzednia
+     (0.22, 0.61, 0.36, 1), więc ruch kończy się spokojniej. */
+  --neh-anim-ms: 500ms;
+  --neh-anim-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Przejście między stanami danych: 350 ms z krzywą standardową. */
+  --neh-state-ms: 350ms;
+  --neh-state-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  /* Podświetlenie pod kursorem i pojawienie tooltipa. */
+  --neh-hover-ms: 150ms;
+  --neh-tip-ms: 120ms;
+  /* Zwłoka pola pod linią. Pole wchodzi RAZEM z rysowaniem linii, a nie po
+     nim jak odczyty spod `.neh-fade` - uzasadnienie przy regule `.neh-area`. */
+  --neh-area-delay: 120ms;
+  /* Krok kaskady. Nadpisywany inline przez silnik, gdy słupków jest tyle,
+     że 40 ms na element przekroczyłoby budżet 500 ms na całość. */
+  --neh-step: 40ms;
+
+  font-family: var(--chart-font, var(--font-sans));
+  font-weight: var(--chart-label-weight, 500);
+}
+
+/* Karta wykresu: jeden promień z tokena i cień dwuwarstwowy. W motywie
+   ciemnym --chart-shadow jest `none`, a wysokość niesie jaśniejsza
+   powierzchnia plus obramowanie 1 px - cień symuluje przesłonięcie światła,
+   a na ciemnym tle nie ma czego przesłaniać. */
+.neh-chart {
+  border-radius: var(--chart-radius, 6px);
+  box-shadow: var(--chart-shadow, none);
+}
+
+/* GRUBOŚĆ KRESKI I ROZMIAR KROPKI IDĄ Z TOKENÓW, nie z atrybutów SVG - dzięki
+   temu korekta irradiacji w trybie ciemnym (jasny obiekt na ciemnym tle wydaje
+   się grubszy niż ciemny na jasnym o tych samych wymiarach) dzieje się bez ani
+   jednej gałęzi w JavaScripcie, a wydruk wraca do wartości jasnych sam.
+   Atrybuty w SVG niosą wartość jasną jako AWARYJNĄ: gdyby arkusz jeszcze nie
+   dojechał, linia ma grubość 2 px, a nie zero. */
+.neh-chart .neh-line {
+  stroke-width: var(--chart-stroke, 2px);
+}
+.neh-chart .neh-dot {
+  r: var(--chart-dot, 2.8px);
+  stroke-width: var(--chart-dot-ring, 1.6px);
+}
+/* PROMIEŃ MARKERA JEST JEDYNĄ DOZWOLONĄ ZMIANĄ GEOMETRII pod kursorem, i to
+   dlatego, że promień markera NIE KODUJE WARTOŚCI - koduje ją jego POZYCJA.
+   Wszystko, co niesie wartość, musi zostać nieruchome: żadnego rośnięcia
+   słupka, wysuwania łuku z pierścienia, zmiany promienia zaokrąglenia ani
+   szerokości. Rosnący pod kursorem słupek przez chwilę pokazuje wartość,
+   której nie ma.
+
+   Jeden piksel, nie półtora: tyle wystarcza, żeby marker dało się zauważyć,
+   a im mniejsza zmiana, tym mniejsze ryzyko, że oko odczyta ją jako
+   przesunięcie punktu. */
+.neh-chart .neh-dot[data-active="true"] {
+  r: calc(var(--chart-dot, 2.8px) + 1px);
+}
+/* PLAMKA ROJU - ta sama obwódka co marker obserwacji, ale BEZ narzuconego
+   promienia, i to jest cała różnica wobec `.neh-dot`.
+
+   `.neh-dot` dostaje `r` z tokena, bo marker linii ma jeden rozmiar dla całego
+   wykresu. Promień plamki roju liczy MODEL: przy większej liczbie obserwacji
+   plamki muszą zmaleć, żeby rój się zmieścił i nie zlał w plamę, więc wartość
+   jedzie atrybutem per punkt. Reguła CSS na `r` nadpisałaby atrybut (CSS wygrywa
+   z prezentacyjnym atrybutem SVG) i rój z pięciuset obserwacji rysowałby się
+   plamkami dla dziesięciu - czyli jednolitą kluchą.
+
+   Obwódka w kolorze płyty rozdziela plamki nachodzące na siebie bez zmiany
+   koloru grupy; jej grubość idzie z tego samego tokena co obwódka markera,
+   żeby oba rodzaje kropek czytały się jako jeden system. */
+.neh-chart .neh-bee-dot {
+  stroke-width: var(--chart-dot-ring, 1.6px);
+  transition: r var(--neh-anim-ms, 500ms) var(--neh-anim-ease, ease-out);
+}
+/* NAZWA ROJU jest TOŻSAMOŚCIĄ grupy, nie odniesieniem, więc idzie mocniejszym
+   stopniem wagi - tym samym, co nazwa serii przy końcu linii. Liczebność roju
+   obok niej zostaje na stopniu bazowym: mówi ILE obserwacji, a nie CZEGO
+   dotyczą, i gdyby miała tę samą wagę, oko czytałoby ją jako część nazwy. */
+.neh-chart .neh-bee-label {
+  font-weight: var(--chart-label-weight-strong, 600);
+}
+/* Waga pisma z tokenów, TRZY STOPNIE, nie jeden.
+   Reguła na `text` jest podstawą (etykiety osi, kategorie), a elementy
+   mocniejsze mają WŁASNE tokeny - inaczej blankietowa reguła zdjęłaby
+   emfazę z sumy pierścienia i z etykiet wartości, bo CSS wygrywa
+   z atrybutem prezentacyjnym SVG. Na ciemnym każdy stopień jest o pół
+   kroku cieńszy (irradiacja): jasny krój na ciemnym tle wygląda grubiej. */
+.neh-chart text {
+  font-weight: var(--chart-label-weight, 500);
+}
+.neh-chart .neh-value-label {
+  font-weight: var(--chart-label-weight-strong, 600);
+}
+.neh-chart .neh-total-label {
+  font-weight: var(--chart-label-weight-total, 700);
+}
+
+/* Linie: rysowanie pociągnięciem (dash-offset). Długość ścieżki jest
+   normalizowana przez pathLength="1" po stronie SVG. */
+.neh-chart .neh-line {
+  stroke-dasharray: none;
+}
+.neh-armed .neh-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.neh-run .neh-line {
+  transition: stroke-dashoffset var(--neh-anim-ms) var(--neh-anim-ease);
+  stroke-dashoffset: 0;
+}
+
+/* Seria w slocie POZA zestawem bezpiecznym dla daltonizmu (7-8) dostaje
+   kreskowanie jako DRUGI nośnik różnicy: jej odcień jest od slotów 1-2
+   oddalony o ~10-12 jednostek CIELAB po symulacji, czyli za mało, żeby sam
+   kolor ją odróżnił. Kreskowanie wyłącza animację rysowania pociągnięciem -
+   dash-offset i dash-array to ta sama właściwość i nie da się mieć obu. */
+.neh-chart .neh-line-pattern,
+.neh-armed .neh-line-pattern,
+.neh-run .neh-line-pattern {
+  stroke-dasharray: var(--chart-series-dash, 7 4);
+  stroke-dashoffset: 0;
+  transition: none;
+}
+
+/* Pola (area), znaczniki punktów i etykiety: miękkie wejście. Opóźnienie
+   jest krótsze od czasu rysowania linii, więc punkty dojeżdżają razem z nią,
+   a nie po niej. */
+.neh-armed .neh-fade {
+  opacity: 0;
+}
+.neh-run .neh-fade {
+  transition: opacity var(--neh-state-ms) ease var(--neh-anim-ms);
+  opacity: 1;
+}
+
+/* POLE POD LINIĄ MA WŁASNY ZEGAR, oddzielony od `.neh-fade`, i to jest cała
+   różnica między wykresem, który się rysuje, a wykresem, który się składa
+   z gotowych kawałków.
+
+   `.neh-fade` czeka na koniec rysowania linii (opóźnienie = --neh-anim-ms),
+   bo niesie ODCZYTY: znaczniki punktów i etykiety wartości. Odczyt ma prawo
+   pojawić się dopiero wtedy, gdy jest już przy czym stanąć - kropka nad
+   linią, której jeszcze nie ma, wisi w pustce.
+
+   Pole nie jest odczytem, tylko drugą stroną tej samej linii, więc wchodzi
+   RAZEM z nią: opóźnienie 120 ms to około jednej czwartej czasu rysowania,
+   czyli tyle, żeby linia zdążyła wyjść z lewej krawędzi i poprowadzić ruch,
+   a powierzchnia narastała za nią, a nie doklejała się na końcu.
+
+   Czas narastania to pełne --neh-anim-ms, nie krótszy --neh-state-ms: pole
+   ma domknąć się dokładnie z linią, a nie przed nią. */
+.neh-armed .neh-area {
+  opacity: 0;
+}
+.neh-run .neh-area {
+  transition: opacity var(--neh-anim-ms) var(--neh-anim-ease) var(--neh-area-delay, 120ms);
+  opacity: 1;
+}
+
+/* Słupki/kolumny rosną od linii bazowej - wysokość NIESIE ZNACZENIE, więc
+   animujemy ją, a nie przezroczystość. transform-box: fill-box +
+   transform-origin sprawiają, że każdy znacznik skaluje się od własnej
+   krawędzi. */
+.neh-chart .neh-bar {
+  transform-box: fill-box;
+}
+/* GRUBOŚĆ OBWÓDKI SŁUPKA z tokena, nie z atrybutu prezentacyjnego: `var()`
+   w atrybutach SVG nie jest wspierane wszędzie, a nierozwiązana grubość to
+   obwódka domyślna 1 px, czyli bez korekty irradiacji. Obwódka nie jest
+   dekoracją, tylko funkcją - wypełnienie o niskim kontraście albo rozmyte
+   gradientem nie daje ostrej pozycji końca słupka, a solidna krawędź ją
+   przywraca. To z niej odczytuje się wartość. */
+.neh-chart .neh-bar[data-edged="true"] {
+  stroke-width: var(--chart-bar-edge, 1.5px);
+  stroke-linejoin: round;
+}
+/* STAN POD KURSOREM, wariant blady. Wypełnienie NIE SKACZE do tokena - to
+   byłaby zmiana tożsamości, nie stanu; idzie o jeden stopień w stronę
+   nasycenia, a obwódka na czysty token przy niezmienionej grubości. Skok
+   spokój/hover to 1,16-1,22:1, czyli wyczuwalny, ale nie zmieniający wagi
+   wizualnej wykresu.
+
+   TYLKO WARIANT BLADY, i to jest decyzja. Specyfikacja definiuje krok hoveru
+   dla bladego wnętrza; w wariancie gradientowym i solidnym wypełnienie jest
+   już nasycone, a wymyślanie dla niego własnego kroku groziłoby zmianą
+   POSTRZEGANEJ WARTOŚCI - tam afordancją zostaje podświetlenie pasa kategorii
+   i powiększony znacznik. Reguła nadrzędna mówi, że hover zmienia stan
+   powierzchni, nigdy kodowanie.
+
+   Przejście na `fill` i `stroke`, nigdy na geometrii: nic, co niesie wartość,
+   nie może się ruszyć. */
+.neh-chart .neh-bar[data-style="pale"] {
+  transition:
+    fill var(--neh-hover-ms, 150ms) ease-out,
+    stroke var(--neh-hover-ms, 150ms) ease-out;
+}
+.neh-chart .neh-bar[data-style="pale"][data-active="true"] {
+  fill: var(--neh-bar-hover);
+  stroke: var(--neh-bar-token);
+}
+/* WSPÓLNY JĘZYK WYKRESÓW SŁUPKOWYCH: dokładnie jak pie/donut - spokojne,
+   jaśniejsze wnętrze i wyraźniejsza krawędź tej samej rodziny koloru.
+   Selektor opiera się na roli danych, więc nie obejmuje dekoracyjnych nakładek
+   wzoru ani innych prostokątów technicznych wykresu. */
+.neh-chart
+  :is(
+    [data-role="bar"],
+    [data-role="segment"],
+    [data-role="bin"],
+    [data-role="leg"],
+    [data-role="waterfall-step"]
+  ) {
+  fill: var(--neh-unified-inner);
+  stroke: var(--neh-unified-edge);
+  stroke-width: var(--chart-bar-edge, 1.5px);
+  stroke-linejoin: round;
+}
+.neh-chart
+  :is(
+    [data-role="bar"],
+    [data-role="segment"],
+    [data-role="bin"],
+    [data-role="leg"]
+  )[data-active="true"] {
+  fill: var(--neh-bar-hover, var(--neh-unified-inner));
+  stroke: var(--neh-bar-token, var(--neh-unified-edge));
+}
+.neh-armed .neh-bar {
+  transform: scaleY(0);
+  transform-origin: bottom;
+}
+/* Słupek ujemny rośnie w DRUGĄ stronę - od tej samej bazy, ale w dół.
+   Bez tego pas ujemny wjeżdżał od swojego dolnego końca, czyli od wartości,
+   a nie od zera, i przez pół sekundy pokazywał nieprawdę. */
+.neh-armed .neh-bar-negative {
+  transform-origin: top;
+}
+.neh-armed .neh-bar-h {
+  transform: scaleX(0);
+  transform-origin: left;
+}
+.neh-armed .neh-bar-h.neh-bar-negative {
+  transform-origin: right;
+}
+.neh-run .neh-bar,
+.neh-run .neh-bar-h {
+  transition: transform var(--neh-anim-ms) var(--neh-anim-ease);
+  transition-delay: calc(var(--neh-i, 0) * var(--neh-step, 40ms));
+  transform: scale(1);
+}
+
+/* Wykres kołowy: delikatne wejście całej tarczy. Obrotu NIE animujemy
+   powyżej kilku stopni - obrót wykresu jest ruchem bez znaczenia
+   informacyjnego. */
+.neh-armed .neh-pie-group {
+  transform: rotate(-4deg) scale(0.97);
+  transform-origin: center;
+  opacity: 0;
+}
+.neh-run .neh-pie-group {
+  transition:
+    transform var(--neh-anim-ms) var(--neh-anim-ease),
+    opacity var(--neh-state-ms) ease;
+  transform: rotate(0deg) scale(1);
+  opacity: 1;
+}
+
+/* Mapa-choropleta: kraje wchodzą falą przez opacity. */
+.neh-armed .neh-map-countries {
+  opacity: 0;
+}
+.neh-run .neh-map-countries {
+  transition: opacity var(--neh-anim-ms) ease;
+  opacity: 1;
+}
+.neh-chart .neh-country {
+  stroke: var(--card);
+  stroke-width: 0.6;
+  transition:
+    fill-opacity var(--neh-hover-ms) ease-out,
+    stroke-width var(--neh-hover-ms) ease-out;
+}
+.neh-chart .neh-country[data-active="true"] {
+  stroke: var(--foreground);
+  stroke-width: 1.2;
+}
+.neh-chart .neh-country:focus-visible {
+  outline: none;
+  stroke: var(--chart-accent);
+  stroke-width: 1.4;
+}
+
+/* WYCINEK TARCZY. Wskazanie i fokus zmieniają POWIERZCHNIĘ, nie kodowanie:
+   wypełnienie idzie o jeden krok w stronę nasycenia, obwódka na czysty token
+   serii, a grubość obwódki i geometria łuku zostają bez zmian. Wcześniejsza
+   wersja wysuwała wskazany wycinek 4 px na zewnątrz - to zmieniało długość
+   łuku przy krawędzi zewnętrznej i zawyżało udział, czyli robiło dokładnie
+   to, czego zabrania zasada o niezmiennym kodowaniu. */
+.neh-chart .neh-slice {
+  /* GRUBOŚĆ OBWÓDKI Z TOKENA, tak samo jak w słupku: 1,5 px na jasnym
+     i 1,25 px na ciemnym, bo jasna linia na ciemnym tle optycznie grubieje.
+     Bez tej deklaracji łuk brał domyślną grubość SVG, czyli 1 px w obu
+     motywach - a obwódka jest w wariancie bladym JEDYNYM nośnikiem koloru
+     serii (wnętrze ma do płyty 1,20-1,28:1), więc jej ścienienie o trzecią
+     część realnie osłabia rozróżnienie kategorii. W atrybucie prezentacyjnym
+     tego podać nie można, bo `var()` nie jest tam wspierane wszędzie. */
+  stroke-width: var(--chart-bar-edge, 1.5px);
+  transition:
+    fill var(--neh-hover-ms) ease-out,
+    stroke var(--neh-hover-ms) ease-out;
+}
+.neh-chart .neh-slice[data-active="true"] {
+  fill: var(--neh-arc-hover);
+  stroke: var(--neh-arc-token);
+}
+/* Obramowanie fokusu: linia CIĄGŁA 2 px z odstępem 2 px, wyłącznie dla
+   `:focus-visible`, więc kliknięcie wskaźnikiem go nie wywołuje. Na łuku
+   prostokąt obramowania jest tylko przybliżeniem kształtu, ale fokus MUSI
+   być widoczny niezależnie od tego, czy czytelnik rozpozna zmianę
+   powierzchni - a zmiana powierzchni jest tu identyczna jak przy hoverze,
+   więc sama nie odróżnia klawiatury od wskaźnika. */
+.neh-chart .neh-slice:focus {
+  outline: none;
+}
+.neh-chart .neh-slice:focus-visible {
+  outline: none;
+  stroke: var(--foreground);
+}
+
+/* TABELA KLUCZA obok pierścienia. Wskazany wiersz oznaczony WAGĄ FONTU
+   i promocją koloru liczb z recesywnego na pełny tusz - nigdy tłem: wash pod
+   bladą próbką koloru zmieniałby przez kontrast jednoczesny jej wygląd, czyli
+   podświetlenie fałszowałoby klucz. Szerokości kolumn są stałe (`colgroup`
+   w komponencie), więc pogrubienie nie rozpycha tabeli. */
+.neh-chart .neh-pie-key tr[data-active="true"] th,
+.neh-chart .neh-pie-key tr[data-active="true"] td {
+  font-weight: 650;
+  color: var(--foreground);
+}
+
+/* PROWADNICA JEST LINIĄ CIĄGŁĄ, i to jest zmiana wobec wcześniejszej wersji
+   tego arkusza, która kreskowała ją 2 4. Trzy powody, wszystkie praktyczne:
+
+   - kreskowana obwódka wokół elementu czyta się w konwencji interfejsu jako
+     ZAZNACZENIE DO PRZENIESIENIA albo stan nieukończony, a nie jako
+     podświetlenie danych;
+   - kreska 1 px na współrzędnej niecałkowitej ALIASUJE - przy skalowaniu SVG
+     albo na ekranie o innym DPR zamienia się w nierówny szereg plamek
+     o zmiennej gęstości, co wygląda na artefakt renderu;
+   - kreskowanie wprowadza RYTM, który konkuruje z rytmem samych danych; przy
+     siedmiu i więcej punktach obserwacji oko zaczyna czytać kreski jako
+     trzeci szereg.
+
+   Kolor osi ma do płyty 1,40:1, więc linia ciągła i tak jest recesywna - nie
+   musi być przerywana, żeby nie dominowała. Ta sama reguła obejmuje separator
+   strefy prognozy, łączniki między słupkami mostka i obramowanie focusu:
+   jedyną dozwoloną nieciągłością zostaje kreskowanie strefy prognozy jako
+   TEKSTURY POWIERZCHNI, a to nie jest linia. */
+.neh-chart .neh-crosshair {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+  stroke-dasharray: none;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* ŁĄCZNIK MIĘDZY SŁUPKAMI MOSTKA ma własną klasę, a nie klasę prowadnicy,
+   bo nie jest afordancją interakcji: rysuje się zawsze, także bez kursora,
+   i pokazuje, że słupek WISI na poprzednim, a nie stoi na zerze. Wspólna
+   klasa z prowadnicą znaczyłaby, że zmiana wyglądu podświetlenia po cichu
+   zmienia rusztowanie mostka. Linia ciągła 1 px w kolorze osi - jak każde
+   rusztowanie w tym silniku. */
+.neh-chart .neh-connector {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* Kreskowanie strefy prognozy jest ALTERNATYWĄ dla płaskiego tintu, nie
+   dodatkiem: na ekranie widoczny jest tint, na papierze kreskowanie (patrz
+   blok @media print). Dwa nośniki tej samej powierzchni naraz dałyby strefę
+   ciemniejszą od zamierzonej i konkurującą z danymi. */
+.neh-chart .neh-zone-hatch {
+  display: none;
+}
+
+/* Separator strefy prognozy - pionowa, ciągła linia w kolorze osi. Prognoza
+   MUSI być odróżniona wizualnie od historii, inaczej wykres podaje
+   interpolację za pomiar. */
+.neh-chart .neh-forecast-divider {
+  stroke: var(--chart-axis);
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+/* Tooltip. Pozycjonowany translate3d z JS. W motywie jasnym jest ODWRÓCONY
+   wobec płyty (ciemny prostokąt na białym tle jest czytelny), w ciemnym
+   PODNIESIONY, nie odwrócony - lustrzane odwrócenie dałoby jasny prostokąt,
+   który świeci jak latarka i rozbija wykres. Cień zostaje w obu motywach,
+   bo tooltip realnie pływa nad treścią i to jedyne miejsce, gdzie cień na
+   ciemnym tle ma sens jako sygnał oderwania. */
+.neh-tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  pointer-events: none;
+  min-width: 8rem;
+  max-width: 20rem;
+  border: 1px solid var(--chart-tip-border, transparent);
+  border-radius: var(--chart-radius, 6px);
+  background: var(--chart-tip-bg);
+  color: var(--chart-tip-ink);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+  padding: 8px 12px;
+  font-family: var(--chart-font, var(--font-sans));
+  font-size: 0.75rem;
+  line-height: 1.35;
+  animation: neh-tip-in var(--neh-tip-ms, 120ms) ease-out;
+  will-change: transform;
+}
+@keyframes neh-tip-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Tooltip OBJAŚNIAJĄCY wskaźnik. Renderowany portalem do <body>, więc nie
+   jest w zasięgu `.neh-chart` i musi mieć własną deklarację czcionki i tokenów
+   - dziedziczenie tu nie sięga. Stałe pięć pól w siatce dwukolumnowej:
+   nazwa pola po lewej ma ustaloną szerokość, żeby wartości zaczynały się
+   w jednej linii i oko znajdowało właściwy wiersz bez czytania. */
+.neh-metric-tip {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  border: 1px solid var(--chart-tip-border, var(--border));
+  border-radius: var(--chart-radius, 6px);
+  background: var(--chart-tip-bg);
+  color: var(--chart-tip-ink);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+  padding: 12px;
+  font-family: var(--chart-font, var(--font-sans));
+  font-size: 0.75rem;
+  line-height: 1.45;
+  transition: opacity var(--neh-tip-ms, 120ms) ease-out;
+}
+.neh-metric-tip-name {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.neh-metric-tip-expansion {
+  margin-top: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--chart-tip-border, var(--border));
+  opacity: 0.75;
+}
+.neh-metric-tip-rows {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+}
+.neh-metric-tip-row {
+  display: grid;
+  grid-template-columns: minmax(0, 5.5rem) minmax(0, 1fr);
+  gap: 8px;
+}
+.neh-metric-tip-row dt {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+.neh-metric-tip-row dd {
+  margin: 0;
+}
+/* Wywołanie tooltipa objaśniającego. Kursor pomocy, bo to nie jest link -
+   nic nie nawiguje. */
+.neh-metric-trigger {
+  cursor: help;
+}
+
+/* PODKŁAD AKCENTU ZAWSZE Z OBRAMOWANIEM, i to jest cała treść tej klasy.
+   Kontrast #fff4ed do tła strony #f8f6f4 wynosi 1,003:1 - identyczna jasność
+   przy różnicy samego odcienia. Taka krawędź nie istnieje w skali szarości,
+   w druku jednobarwnym ani dla odbiorcy z achromatopsją: podkład działa jako
+   podkład (ciemny tusz ma na nim 16,78:1), ale POWIERZCHNI NIE WYZNACZA.
+   Dlatego tło i obramowanie idą razem, jedną klasą - kto użyje samego tokena,
+   dostanie prostokąt bez granicy, i nie da się tego zauważyć na ekranie.
+
+   Ciekawostka użytkowa: #fff4ed na bieli daje 1,082:1, a pasmo #fa9346 przy
+   10% krycia 1,084:1 - praktycznie ten sam ton, więc oba są wymienne. */
+.neh-accent-bg {
+  background: var(--chart-accent-bg);
+  /* OBRAMOWANIE Z WARIANTU AUDYTOWEGO GRAFIKI, i to jest dokładnie ten
+     przypadek, dla którego on istnieje: linia, która ma NIEŚĆ GRANICĘ SAMA,
+     musi przejść próg 3,0:1. #cb7032 ma 3,30:1 na tle strony i 3,29:1 na
+     samym podkładzie; jaśniejszy #fdb078 miałby 1,67:1, czyli granicę tak
+     samo niewidoczną jak sama zmiana tła. W ciemnym motywie ten token jest
+     równy akcentowi (6,86:1 na podniesionej powierzchni), więc jedna
+     deklaracja obsługuje oba tryby. */
+  border: 1px solid var(--chart-accent-audit-graphic);
+  border-radius: var(--chart-radius);
+}
+
+/* Interaktywne obszary trafień - większe niż znaczniki (>=24px). */
+.neh-chart .neh-hit {
+  fill: transparent;
+  stroke: none;
+  outline: none;
+  cursor: pointer;
+}
+/* OBRAMOWANIE FOCUSU: linia CIĄGŁA 2 px w tuszu trzecim, odsunięta o 2 px od
+   kształtu. Ciągła, nie kreskowana - kreskowana ramka wygląda jak zaznaczenie
+   w edytorze, nie jak wskaźnik focusu. Tusz trzeci, bo ramka musi odciąć się
+   ZARÓWNO od bladego wypełnienia słupka (1,20-1,28:1 do płyty), JAK i od samej
+   płyty; kolor akcentu tego nie robi, bo na jasnym tle ma 2,09:1.
+
+   WYŁĄCZNIE `:focus-visible`, czyli tylko przy nawigacji klawiaturą. Ramka
+   pod kursorem jest wizualnym szumem: stan jest już w pełni zakomunikowany
+   zmianą samego elementu, a druga obwódka wokół kolumny dodaje trzecią
+   krawędź do kształtu, który ma już dwie. */
+.neh-chart .neh-canvas:focus-visible,
+.neh-chart .neh-hit:focus-visible {
+  outline: 2px solid var(--muted-foreground);
+  outline-offset: 2px;
+  border-radius: var(--chart-radius);
+}
+/* Bez `:focus-visible` obszar rysunku nie dostaje NICZEGO - ani obramowania
+   domyślnego przeglądarki (które bywa cienką kreską ginącą na płycie), ani
+   cienia. Kliknięcie wskaźnikiem w wykres nie jest nawigacją. */
+.neh-chart .neh-canvas:focus {
+  outline: none;
+}
+/* Podświetlenie pasa kategorii jest AFORDANCJĄ STREFY TRAFIENIA, nie
+   podświetleniem danych - dlatego jest dodatkiem, nigdy przygaszeniem. Wzorzec
+   "wyróżnij jeden, wygaś resztę" jest tu niedopuszczalny i wynika to z liczb,
+   nie z gustu: blade wypełnienia siedzą na 1,20-1,28:1 do płyty, więc każde
+   obniżenie krycia sprowadza je do niewidoczności, a obwódki mają nad progiem
+   3,0:1 zapas od 0,15 do 8,66 i przy części odcieni spadłyby poniżej. */
+.neh-chart .neh-hit[data-active="true"] {
+  fill: color-mix(in oklab, var(--foreground) 6%, transparent);
+}
+
+/* Reduced motion: stan końcowy natychmiast - żadnych przejść. Obowiązkowo
+   i bez wyjątku, bo dla części czytelników animacja wywołuje realny
+   dyskomfort fizyczny. */
+@media (prefers-reduced-motion: reduce) {
+  .neh-armed .neh-line {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .neh-armed .neh-line-pattern {
+    stroke-dasharray: var(--chart-series-dash, 7 4);
+  }
+  .neh-armed .neh-fade,
+  .neh-armed .neh-area,
+  .neh-armed .neh-pie-group,
+  .neh-armed .neh-map-countries {
+    opacity: 1;
+    transform: none;
+  }
+  .neh-armed .neh-bar,
+  .neh-armed .neh-bar-h {
+    transform: scale(1);
+  }
+  .neh-run .neh-line,
+  .neh-run .neh-fade,
+  .neh-run .neh-area,
+  .neh-run .neh-bar,
+  .neh-run .neh-bar-h,
+  .neh-run .neh-pie-group,
+  .neh-run .neh-map-countries {
+    transition: none;
+  }
+  /* ZNIKA PRZEJŚCIE, NIE STAN. Podświetlenie i tooltip pojawiają się
+     natychmiast - wyłączenie samej informacji zamiast animacji jest błędem,
+     który zabiera funkcję komuś, kto poprosił tylko o spokój. Dlatego tu
+     zerujemy wyłącznie `transition`, a reguły `[data-active]` zostają
+     nietknięte. */
+  .neh-chart .neh-bar,
+  .neh-chart .neh-bar[data-style="pale"],
+  .neh-chart .neh-slice,
+  .neh-chart .neh-country,
+  .neh-chart .neh-dot,
+  .neh-chart .neh-bee-dot {
+    transition: none;
+  }
+  .neh-tooltip,
+  .neh-metric-tip {
+    animation: none;
+  }
+}
+
+/* ============================================================
+   DRUK I EKSPORT: WYKRES ZAWSZE NA TOKENACH JASNYCH
+   ------------------------------------------------------------
+   Wykres w trybie ciemnym drukuje się jako czarna plama - zużywa toner
+   i traci czytelność. Gorzej: arkusz druku wymusza białe tło strony, ale
+   NIE przedefiniowuje tokenów, więc przy `html.dark` etykiety osi, tytuł
+   i suma pierścienia jechały niemal białym tekstem na białym papierze.
+   Ten blok odtwarza pełny zestaw jasnych tokenów wykresu w zasięgu
+   `.dark`, więc PDF wpisu (FloatingShareBar woła window.print()) i wydruk
+   panelu wychodzą tak samo jak wykres na ekranie w trybie jasnym.
+
+   Blok stoi tutaj, PO `@layer base`, celowo: bramka palety czyta bloki
+   `:root,` i `.dark` przez cięcie pliku do `@layer base`, więc tokeny
+   druku nie mogą trafić w żaden z tych zakresów.
+
+   print-color-adjust: exact jest tu konieczne, bo przeglądarki domyślnie
+   wygaszają tła w druku - bez tego próbki legendy i pasek legendy mapy
+   znikają z papieru, czyli wykres zachowuje znaczniki i traci klucz.
+   ============================================================ */
+@media print {
+  .dark .neh-chart,
+  .dark .neh-tooltip {
+    --chart-1: #03346e;
+    --chart-2: #fa9346;
+    --chart-3: #58a537;
+    --chart-4: #8c56d4;
+    --chart-5: #2bbbd7;
+    --chart-6: #bb8760;
+    --chart-7: #5f6c98;
+    --chart-8: #607456;
+    --chart-9: #7b2525;
+    --chart-10: #4b9391;
+    --chart-11: #232c31;
+    --chart-12: #cd393b;
+    --chart-13: #15334d;
+    --chart-14: #6929c4;
+    --chart-15: #f7dd14;
+    --chart-16: #7f2020;
+    --chart-17: #6d9e51;
+    --chart-18: #ed985f;
+    --chart-19: #9cc6db;
+    --chart-20: #c95792;
+    --chart-21: #e50046;
+    --chart-22: #ffdab3;
+    --chart-23: #d4bdac;
+    --chart-24: #dca47c;
+    --chart-25: #b80000;
+    --chart-26: #ff788d;
+    --chart-27: #b88950;
+    --chart-1t: #03346e;
+    --chart-2t: #b95e00;
+    --chart-3t: #3a870e;
+    --chart-4t: #8c56d4;
+    --chart-5t: #008297;
+    --chart-6t: #9d6b45;
+    --chart-7t: #5f6c98;
+    --chart-8t: #607456;
+    --chart-9t: #7b2525;
+    --chart-10t: #398180;
+    --chart-11t: #232c31;
+    --chart-12t: #cd393b;
+    --chart-13t: #15334d;
+    --chart-14t: #6929c4;
+    --chart-15t: #867700;
+    --chart-16t: #7f2020;
+    --chart-17t: #538236;
+    --chart-18t: #b16125;
+    --chart-19t: #547c8f;
+    --chart-20t: #bf4e89;
+    --chart-21t: #e50046;
+    --chart-22t: #91704c;
+    --chart-23t: #877363;
+    --chart-24t: #9f6b44;
+    --chart-25t: #b80000;
+    --chart-26t: #cb4961;
+    --chart-27t: #9b6d34;
+    --chart-ink-1: #ffffff;
+    --chart-ink-2: #12161c;
+    --chart-ink-3: #12161c;
+    --chart-ink-4: #ffffff;
+    --chart-ink-5: #12161c;
+    --chart-ink-6: #12161c;
+    --chart-ink-7: #ffffff;
+    --chart-ink-8: #ffffff;
+    --chart-ink-9: #ffffff;
+    --chart-ink-10: #12161c;
+    --chart-ink-11: #ffffff;
+    --chart-ink-12: #ffffff;
+    --chart-ink-13: #ffffff;
+    --chart-ink-14: #ffffff;
+    --chart-ink-15: #12161c;
+    --chart-ink-16: #ffffff;
+    --chart-ink-17: #12161c;
+    --chart-ink-18: #12161c;
+    --chart-ink-19: #12161c;
+    --chart-ink-20: #12161c;
+    --chart-ink-21: #ffffff;
+    --chart-ink-22: #12161c;
+    --chart-ink-23: #12161c;
+    --chart-ink-24: #12161c;
+    --chart-ink-25: #ffffff;
+    --chart-ink-26: #12161c;
+    --chart-ink-27: #12161c;
+    --chart-positive: #1b6f8c;
+    --chart-negative: #ef5454;
+    --chart-positive-text: #1b6f8c;
+    --chart-negative-text: #ae413f;
+    --chart-ink-positive: #ffffff;
+    --chart-ink-negative: #12161c;
+    --chart-accent-bg: #fff4ed;
+    --chart-band-1: 0.07;
+    --chart-band-2: 0.16;
+    --chart-band-3: 0.13;
+    --chart-band-4: 0.1;
+    --chart-band-5: 0.15;
+    --chart-band-6: 0.13;
+    --chart-band-7: 0.1;
+    --chart-band-8: 0.1;
+    --chart-band-9: 0.07;
+    --chart-band-10: 0.12;
+    --chart-band-11: 0.07;
+    --chart-band-12: 0.09;
+    --chart-band-13: 0.07;
+    --chart-band-14: 0.08;
+    --chart-band-15: 0.36;
+    --chart-band-16: 0.07;
+    --chart-band-17: 0.13;
+    --chart-band-18: 0.16;
+    --chart-band-19: 0.22;
+    --chart-band-20: 0.11;
+    --chart-band-21: 0.07;
+    --chart-band-22: 0.47;
+    --chart-band-23: 0.23;
+    --chart-band-24: 0.18;
+    --chart-band-25: 0.07;
+    --chart-band-26: 0.14;
+    --chart-band-27: 0.13;
+    --chart-band-positive: 0.09;
+    --chart-band-negative: 0.11;
+    --chart-zone: #12161c;
+    --chart-zone-alpha: 0.022;
+    --chart-grid: #ecede8;
+    --chart-axis: #d9dbd4;
+    --chart-seq-min: #e0eaf2;
+    --chart-seq-max: #00375f;
+    --chart-stroke: 2px;
+    --chart-dot: 2.8px;
+    --chart-dot-ring: 1.6px;
+    --chart-label-weight: 500;
+    --chart-label-weight-strong: 600;
+    --chart-label-weight-total: 700;
+    --chart-shadow: none;
+    --chart-tip-bg: #ffffff;
+    --chart-tip-border: #d9dbd4;
+    --chart-tip-ink: #12161c;
+    /* Powierzchnie i tekst, wobec których paleta jest zwalidowana. Bez nich
+       kropka obserwacji (fill: var(--card)) zostałaby ciemna na białym
+       papierze, a etykiety osi jechałyby jasną szarością. */
+    --card: #ffffff;
+    --popover: #ffffff;
+    --foreground: #12161c;
+    --muted-foreground: #6b7482;
+    --border: #d9dbd4;
+    --secondary: #ecede8;
+  }
+  .neh-chart {
+    box-shadow: none;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  /* Tabela danych jest JEDYNYM artefaktem, który przeżywa utratę koloru
+     w druku, a jako `hidden` nie trafiała na papier wcale. Na wydruku
+     pokazujemy ją zawsze - czytelnik dostaje liczby, nawet jeśli drukarka
+     jest czarno-biała. Przycisk przełącznika i tooltip na papierze nie mają
+     sensu, więc schodzą. */
+  .neh-chart [data-chart-table][hidden] {
+    display: block !important;
+  }
+  .neh-chart [data-chart-table-toggle] {
+    display: none !important;
+  }
+  .neh-tooltip {
+    display: none !important;
+  }
+
+  /* ---- W DRUKU SŁUPKI I ŁUKI SĄ SOLIDNE ----
+     Wariant blady stoi na tym, że wnętrze ma do płyty 1,20-1,28:1, a granicę
+     niesie obwódka. Na papierze ten układ się rozpada: 1,2:1 nie ma czym się
+     odbić od bieli (a drukarka jeszcze to spłaszcza rastrem), więc zostaje
+     sama obwódka 1,5 px - kształt zdefiniowany wyłącznie cienkim konturem,
+     który przy kilku słupkach obok siebie czyta się jak rysunek techniczny,
+     nie jak dane. Wypełnienie w czystym tokenie drukuje się jako jednolita
+     szarość o wyraźnej wartości i porównanie długości wraca.
+
+     PRZEZ ARKUSZ, NIE PRZEZ GAŁĄŹ W JS, i to jest istotne: wariant jest
+     ustawieniem autora, a druk nie może go zmieniać w danych. Podstawienie
+     idzie własnościami `--neh-bar-token` / `--neh-arc-token`, które komponent
+     kładzie na każdym elemencie - dzięki temu jedna reguła obsługuje wszystkie
+     sloty bez znajomości numeru, także te dołożone później. Atrybuty prezentacyjne `fill`
+     i `stroke` ustępują dowolnej regule CSS, więc nadpisanie działa. */
+  /* STAN AKTYWNY WYPISANY OSOBNO, i to nie jest nadmiarowość. Media query
+     NIE dodaje specyficzności, więc o wyniku decyduje sam selektor:
+     `.neh-bar[data-style="pale"][data-active="true"]` z bloku ekranowego jest
+     bardziej specyficzny niż `.neh-bar[data-style="pale"]` tutaj i wygrywał.
+     Wydruk zrobiony przy podświetlonym elemencie (fokus klawiaturą, potem
+     Ctrl+P) wychodził więc z bladym wypełnieniem hover i obwódką w tokenie,
+     czyli dokładnie tym, co ten blok ma zastąpić. */
+  .neh-chart .neh-bar[data-style="pale"],
+  .neh-chart .neh-bar[data-style="pale"][data-active="true"],
+  .neh-chart .neh-bar[data-style="gradient"],
+  .neh-chart .neh-bar[data-style="gradient"][data-active="true"] {
+    fill: var(--neh-bar-token);
+    stroke: none;
+  }
+  .neh-chart .neh-slice,
+  .neh-chart .neh-slice[data-active="true"] {
+    fill: var(--neh-arc-token);
+    stroke: none;
+  }
+  /* Liczba w łuku przechodzi na TUSZ SLOTU, bo leży teraz na nasyconym
+     kolorze: tusz semantyczny ma na granacie 2,25:1, a ink slotu 8,07:1.
+     Na ekranie jest odwrotnie i dlatego to nadpisanie jest tylko tutaj. */
+  .neh-chart .neh-arc-label {
+    fill: var(--neh-arc-ink);
+  }
+
+  /* ---- STREFA PROGNOZY: KRESKOWANIE ZAMIAST PŁASKIEGO TINTU ----
+     Tint 2,2% szarości nie ma na papierze czym się odbić od bieli, więc
+     prognoza traciła jeden z TRZECH nośników odróżnienia od historii
+     i zostawała z pasmem oraz separatorem. Kreskowanie 45 stopni zostaje, bo
+     linia ma krawędź - i jest to jedyne miejsce w silniku, gdzie tekstura jest
+     uzasadniona. Oba prostokąty są w drzewie zawsze, bo identyfikator wzoru
+     jest unikalny per instancja wykresu i CSS nie umie go wskazać w `fill`. */
+  .neh-chart .neh-zone-tint {
+    display: none;
+  }
+  .neh-chart .neh-zone-hatch {
+    display: inline;
+  }
+
+  /* STAN KOŃCOWY WYMUSZONY, tak samo jak przy prefers-reduced-motion.
+     Wejście wykresu jest uzbrajane klasą .neh-armed dla elementów POZA
+     viewportem i odpalane obserwatorem przy wejściu w widok. Na papierze
+     obserwator nigdy nie odpala: drukarka nie przewija strony. Wykres
+     stojący niżej na stronie wychodził więc z drukarki jako pusta karta
+     z osiami - linia miała stroke-dasharray: 1 (czyli była niewidoczna),
+     słupki scaleY(0), a etykiety opacity: 0. Wydruk musi pokazywać dane
+     bez względu na to, co czytelnik miał na ekranie. */
+  .neh-armed .neh-line {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+  .neh-armed .neh-line-pattern {
+    stroke-dasharray: var(--chart-series-dash, 7 4);
+  }
+  .neh-armed .neh-fade,
+  .neh-armed .neh-area,
+  .neh-armed .neh-pie-group,
+  .neh-armed .neh-map-countries {
+    opacity: 1;
+    transform: none;
+  }
+  .neh-armed .neh-bar,
+  .neh-armed .neh-bar-h {
+    transform: scale(1);
+  }
+  .neh-run .neh-line,
+  .neh-run .neh-fade,
+  .neh-run .neh-area,
+  .neh-run .neh-bar,
+  .neh-run .neh-bar-h,
+  .neh-run .neh-pie-group,
+  .neh-run .neh-map-countries {
+    transition: none;
+  }
+}

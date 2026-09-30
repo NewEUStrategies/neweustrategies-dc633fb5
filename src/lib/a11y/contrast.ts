@@ -27,7 +27,7 @@ export function readableForeground(background: string, preferred: string): strin
 
 /** Brand fills stay orange; text uses the theme's readable orange ink. */
 export function readableBrandText(color: string | undefined): string {
-  return !color || /^(?:#fa9346|var\(--(?:brand|primary)\))$/i.test(color.trim())
+  return !color || /^(?:#fa9346|#f97316|var\(--(?:brand|primary)\))$/i.test(color.trim())
     ? "var(--brand-ink)"
     : color;
 }
