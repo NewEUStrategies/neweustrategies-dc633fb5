@@ -181,11 +181,10 @@ export function useWidgetFrame({
   // renders immediately). The hook returns false during SSR + first client
   // render, so hydration stays byte-identical and the flip happens one commit
   // after mount - before the IntersectionObserver would have fired anyway.
-  const reducedMotion = usePrefersReducedMotion();
-  const motion =
-    !reducedMotion && node.advanced?.animation && node.advanced.animation !== "none"
-      ? node.advanced.animation
-      : undefined;
+  const animation = node.advanced?.animation;
+  const hasAnimation = !!animation && animation !== "none";
+  const reducedMotion = usePrefersReducedMotion(hasAnimation);
+  const motion = !reducedMotion && hasAnimation ? animation : undefined;
 
   const { ref: motionRef, inView } = useInView<HTMLDivElement>({
     enabled: !!motion,

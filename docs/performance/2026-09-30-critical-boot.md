@@ -97,3 +97,12 @@ Content-only types now go straight to the existing memoized lazy boundary. The f
 - 95 focused tests passed, including existing SSR parity, deferred hydration and column geometry cases. Focused lint and the performance-test TypeScript check passed.
 - The slow-first-fold browser test now holds the content-dispatcher chunk after releasing the rest of the application. Both Chromium cases passed at 390/1440 px: streamed post titles survived, no fallback replaced them, the hero retained its full-column width and position, no hydration errors occurred, and CLS stayed below 0.1. This local run used Vite and fixture responses; it verifies behavior and geometry, not production performance. CI repeats this test against production artifacts.
 - The shared homepage fixture has 48 widgets, seven of these content-only types: the structural change removes seven redundant frame setups (55 → 48), not half the whole page's CPU. Paired production-artifact timing remains the performance gate; no new PSI score is claimed.
+
+### Motion preferences: observe only features that use them
+
+`usePrefersReducedMotion()` now accepts an optional `enabled` flag, defaulting to the existing behavior. Widget frames enable it only for configured entrance animations; sections enable it only for active tabs. Plain content no longer creates media-query listeners or reacts to preference changes that cannot affect its rendering. Animation users elsewhere (maps, carousels and lightboxes) retain their default observation.
+
+- The shared fixture contains 48 widgets without entrance animations and 14 sections without tabs. Those frame/section listeners are unnecessary; this is a structural reduction, not a measured whole-page CPU saving.
+- Live accessibility changes, enabling/disabling animation features, cleanup, re-enabling after an OS preference change and the initial SSR/client snapshot are covered. Integration tests check actual widget animation styles and tab activation.
+- Six focused suites passed: 131 passing tests and three existing expected failures. Existing animated widget presets, reduced-motion tab navigation, post carousels and world maps remain covered. Focused formatting/lint passed (four existing React-refresh warnings).
+- TypeScript checking both continuation changes and their dependencies passed (`ChromeWidgetView`, `BuilderRenderer`, the hook and their changed tests). Full build, coverage and production-artifact gates still run in CI; no budgets or score thresholds were changed.

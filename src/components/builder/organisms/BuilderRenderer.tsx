@@ -506,7 +506,7 @@ const RenderSection = memo(function RenderSection({
   const [displayTabId, setDisplayTabId] = useState<string>(initialTabId);
   const [tabPhase, setTabPhase] = useState<"in" | "out">("in");
   const TAB_FADE_MS = 180;
-  const prefersReducedMotion = usePrefersReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion(tabsEnabled);
   const tabTransitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleTabSelect = (id: string) => {
     if (id === activeTabId) return;

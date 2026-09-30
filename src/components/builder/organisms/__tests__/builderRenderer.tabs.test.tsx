@@ -85,6 +85,28 @@ const widoczneKolumny = (container: HTMLElement) =>
   [...container.querySelectorAll("[data-column-slot]")].map((el) => el.getAttribute("data-col-id"));
 
 describe("warunek włączenia zakładek", () => {
+  it("nie obserwuje preferencji ruchu w sekcjach bez zakładek", () => {
+    const media = vi.spyOn(window, "matchMedia");
+    try {
+      const { rerender, queryClient } = renderWithQueryClient(
+        <BuilderRenderer doc={doc([sekcjaZZakladkami({ enabled: false })])} lang="pl" />,
+      );
+      const motionQueries = () =>
+        media.mock.calls.filter(([query]) => query === "(prefers-reduced-motion: reduce)");
+      expect(motionQueries()).toHaveLength(0);
+      expect(screen.queryByRole("tablist")).toBeNull();
+      rerender(
+        <QueryClientProvider client={queryClient}>
+          <BuilderRenderer doc={doc([sekcjaZZakladkami()])} lang="pl" />
+        </QueryClientProvider>,
+      );
+      expect(motionQueries()).toHaveLength(1);
+      expect(screen.getByRole("tablist")).toBeTruthy();
+    } finally {
+      media.mockRestore();
+    }
+  });
+
   it("enabled + pozycje = pasek zakładek i panel z rolą tabpanel", () => {
     const { container } = renderWithQueryClient(
       <BuilderRenderer doc={doc([sekcjaZZakladkami()])} lang="pl" />,

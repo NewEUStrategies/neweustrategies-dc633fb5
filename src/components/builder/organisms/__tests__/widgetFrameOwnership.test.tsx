@@ -58,10 +58,28 @@ afterEach(() => {
   cleanup();
   sessionStorage.clear();
   document.querySelectorAll('[id^="builder-live-typography-style-"]').forEach((el) => el.remove());
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
 describe("content widget frame ownership", () => {
+  it("observes motion preferences only when the widget has an entrance animation", () => {
+    const media = vi.spyOn(window, "matchMedia");
+    const heading: WidgetNode = { ...node, type: "heading", content: { text_pl: "Visible" } };
+    const { container, update } = setup(heading);
+    const motionQueries = () =>
+      media.mock.calls.filter(([query]) => query === "(prefers-reduced-motion: reduce)");
+    const frame = () => container.querySelector<HTMLElement>("[data-w-id]")!;
+    expect(frame().textContent).toContain("Visible");
+    expect(motionQueries()).toHaveLength(0);
+    update({ ...heading, advanced: { animation: "fade" } });
+    expect(motionQueries()).toHaveLength(1);
+    expect(frame().style.transition).toContain("opacity");
+    update({ ...heading, advanced: { animation: "none" } });
+    expect(frame().style.transition).toBe("");
+    expect(frame().textContent).toContain("Visible");
+  });
+
   it("creates one frame subscription and one typography stylesheet per content widget", async () => {
     const { container, unmount } = setup();
     await waitFor(() =>
