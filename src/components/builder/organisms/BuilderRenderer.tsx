@@ -28,14 +28,13 @@ import type {
   ResponsiveValue,
 } from "@/lib/builder/types";
 import { BuilderWidgetNode } from "@/components/builder/organisms/BuilderWidgetNode";
-// `hiddenOnDevice` czytamy z modułu ŹRÓDŁOWEGO, nie przez re-eksport z
+// Pomocniki ramki (także w `isRenderedWidget`) czytamy z modułu źródłowego, nie przez re-eksport z
 // `WidgetView`: re-eksport był statyczną krawędzią do pełnego dyspozytora
 // widgetów, więc każdy dokument z nagłówkiem ciągnął go do chunku wejściowego
 // nawet wtedy, gdy renderuje wyłącznie widgety chrome (audyt CWV, F17).
 import {
   AUTO_SIZE_WIDGETS,
   COMPACT_WIDGET_TYPES,
-  hiddenOnDevice,
 } from "@/components/builder/organisms/widget-view/frame";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
 import { afterPrerendering } from "@/lib/prerender";
@@ -62,8 +61,9 @@ import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate"
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
 import { AboveFoldProvider } from "@/lib/builder/aboveFold";
 import { useBuilderDebug } from "@/lib/builder/builderDebug";
-import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
+import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
+import { initialSectionTabId, isRenderedWidget } from "@/lib/builder/renderVisibility";
 import { StreamingSection } from "@/lib/builder/sectionStreaming";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import {
@@ -378,7 +378,12 @@ const SectionsList = memo(function SectionsList({
           // SSR) oznaczają swoje widgety jako kandydatów LCP: pierwszy obraz
           // widgetu dostaje eager + fetchpriority=high zamiast lazy.
           <AboveFoldProvider key={s.id} aboveFold={index < aboveFoldCount}>
-            <StreamingSection section={s} lang={lang} enabled={stream}>
+            <StreamingSection
+              section={s}
+              lang={lang}
+              enabled={stream}
+              renderContext={{ device, accessContext: accessCtx }}
+            >
               {abTag && !editorPreview && assignments ? (
                 <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
                   {rendered}
@@ -492,13 +497,7 @@ const RenderSection = memo(function RenderSection({
   const accessCtx = useAccessContext();
   const tabsCfg = section.tabs;
   const tabsEnabled = !!(tabsCfg?.enabled && tabsCfg.items && tabsCfg.items.length > 0);
-  const firstTabId = tabsEnabled ? tabsCfg!.items[0].id : "";
-  const initialTabId =
-    tabsEnabled &&
-    tabsCfg!.defaultTabId &&
-    tabsCfg!.items.some((t) => t.id === tabsCfg!.defaultTabId)
-      ? tabsCfg!.defaultTabId
-      : firstTabId;
+  const initialTabId = initialSectionTabId(section);
   const [activeTabId, setActiveTabId] = useState<string>(initialTabId);
   // Tab-switch animation: krótkie fade-out starej treści, podmiana, fade-in
   // nowej. `activeTabId` steruje paskiem zakładek (natychmiast), a
@@ -805,10 +804,7 @@ const RenderColumn = memo(function RenderColumn({
     () =>
       (Array.isArray(column.children) ? column.children : []).filter(
         (w): w is NonNullable<typeof w> =>
-          !!w &&
-          isKnownWidgetType(w.type) &&
-          !hiddenOnDevice(w.advanced, device) &&
-          evaluateAccess(w.advanced?.access, accessCtx),
+          !!w && isRenderedWidget(w, { device, accessContext: accessCtx }),
       ),
     [column.children, device, accessCtx],
   );

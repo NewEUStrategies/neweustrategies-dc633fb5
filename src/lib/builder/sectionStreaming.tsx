@@ -7,6 +7,8 @@ import { Suspense, type ReactElement, type ReactNode } from "react";
 import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { SectionNode } from "@/lib/builder/types";
+import { GUEST_ACCESS_CONTEXT } from "./accessControl";
+import type { SectionRenderContext } from "./renderVisibility";
 import type { Lang } from "@/lib/builder/postListQuery";
 import {
   pendingSectionQueries,
@@ -25,6 +27,10 @@ import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
  * - and its render-phase prefetch - is eliminated from the client bundle.
  */
 const IS_SSR: boolean = import.meta.env.SSR;
+const DEFAULT_RENDER_CONTEXT: SectionRenderContext = {
+  device: "desktop",
+  accessContext: GUEST_ACCESS_CONTEXT,
+};
 
 /**
  * Hard cap for a single below-the-fold section's render-phase prefetch. This is
@@ -117,14 +123,16 @@ function createBoundedSectionPrefetch(
 export function ServerSectionGate({
   section,
   lang,
+  renderContext = DEFAULT_RENDER_CONTEXT,
   children,
 }: {
   section: SectionNode;
   lang: Lang;
+  renderContext?: SectionRenderContext;
   children: ReactNode;
 }): ReactElement {
   const queryClient = useQueryClient();
-  const pending = pendingSectionQueries(queryClient, section, lang);
+  const pending = pendingSectionQueries(queryClient, section, lang, renderContext);
   if (pending.length > 0) {
     const pendingKeys = pending.map((options) => options.queryKey);
     const key = `${lang}:${section.id}`;
@@ -195,6 +203,7 @@ export function SectionStreamSkeleton({
 interface StreamingSectionProps {
   section: SectionNode;
   lang: Lang;
+  renderContext?: SectionRenderContext;
   /** Master switch - when false, behaves exactly like the pre-streaming renderer. */
   enabled: boolean;
   /** The already-error-boundaried section content. */
@@ -202,8 +211,13 @@ interface StreamingSectionProps {
 }
 
 /** Static sections need no data gate. Warm data sections never suspend. */
-export function shouldStreamSection(section: SectionNode, lang: Lang, enabled: boolean): boolean {
-  return enabled && sectionQueryOptionsList(section, lang).length > 0;
+export function shouldStreamSection(
+  section: SectionNode,
+  lang: Lang,
+  enabled: boolean,
+  renderContext: SectionRenderContext = DEFAULT_RENDER_CONTEXT,
+): boolean {
+  return enabled && sectionQueryOptionsList(section, lang, renderContext).length > 0;
 }
 
 /**
@@ -216,6 +230,7 @@ export function StreamingSection({
   section,
   lang,
   enabled,
+  renderContext = DEFAULT_RENDER_CONTEXT,
   children,
 }: StreamingSectionProps): ReactElement {
   // The loader's first-fold prefetch is bounded, so "above the fold" does not
@@ -223,7 +238,7 @@ export function StreamingSection({
   // the same server gate. Warm sections still render into the initial shell;
   // a cold hero streams real HTML instead of committing an empty widget while
   // the query stream later hydrates the client with a different result.
-  if (!shouldStreamSection(section, lang, enabled)) {
+  if (!shouldStreamSection(section, lang, enabled, renderContext)) {
     return <>{children}</>;
   }
 
@@ -231,7 +246,7 @@ export function StreamingSection({
     <RenderErrorBoundary label={`stream-section:${section.id}`} fallback={null}>
       <Suspense fallback={<SectionStreamSkeleton minHeight={estimateSectionHeight(section)} />}>
         {IS_SSR ? (
-          <ServerSectionGate section={section} lang={lang}>
+          <ServerSectionGate section={section} lang={lang} renderContext={renderContext}>
             {children}
           </ServerSectionGate>
         ) : (

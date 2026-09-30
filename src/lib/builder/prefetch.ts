@@ -43,6 +43,7 @@ import {
 } from "@/lib/builder/speakersQuery";
 import { worldMapProfileIds } from "@/lib/builder/worldMapContent";
 import { collectProfileSpeakerIds, parseScheduleDays } from "@/lib/events/schedule";
+import { collectRenderedSectionWidgets, type SectionRenderContext } from "./renderVisibility";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
 /** A single cache target for a widget: its query key + matching stale-time. */
@@ -337,8 +338,15 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
 }
 
 /** Flatten every data-bound query a section's widgets feed into one list. */
-export function sectionQueryOptionsList(section: SectionNode, lang: Lang): BuilderSectionQuery[] {
-  return collectSectionWidgets(section).flatMap((widget) => widgetQueryOptionsList(widget, lang));
+export function sectionQueryOptionsList(
+  section: SectionNode,
+  lang: Lang,
+  renderContext?: SectionRenderContext,
+): BuilderSectionQuery[] {
+  const widgets = renderContext
+    ? collectRenderedSectionWidgets(section, renderContext)
+    : collectSectionWidgets(section);
+  return widgets.flatMap((widget) => widgetQueryOptionsList(widget, lang));
 }
 
 /**
@@ -355,11 +363,15 @@ export function pendingSectionQueries(
   queryClient: QueryClient,
   section: SectionNode,
   lang: Lang,
+  renderContext?: SectionRenderContext,
 ): BuilderSectionQuery[] {
-  const optionsList = sectionQueryOptionsList(section, lang);
+  const widgets = renderContext
+    ? collectRenderedSectionWidgets(section, renderContext)
+    : collectSectionWidgets(section);
+  const optionsList = widgets.flatMap((widget) => widgetQueryOptionsList(widget, lang));
   // Authors depend on the resolved posts. Include them on the gate's retry so
   // the streamed hero and the hydrated cache agree on the byline as well.
-  for (const widget of collectSectionWidgets(section)) {
+  for (const widget of widgets) {
     if (widget.type !== "slider" || !sliderUsesPostsSource(widget.content)) continue;
     const posts = queryClient.getQueryData(sliderPostsQueryOptions(widget.content, lang).queryKey);
     const authorIds = sliderAuthorIds(posts);
