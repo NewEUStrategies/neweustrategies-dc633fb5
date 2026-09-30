@@ -68,4 +68,9 @@ Validation:
 - Lighthouse's headline LCP and long-task diagnostics use simulated timing. Its network-request table and observed LCP breakdown use trace timing. Do not subtract timestamps between those models. In the supplied report, all initial assets started together after the document; the hero was initially high priority and preloaded. A later DOM snapshot shows the previous slide after autoplay.
 - HAR replay is useful for CPU attribution, but missing replay responses fell back to network and some images had not loaded. Do not report its LCP as equivalent to production PSI.
 - A naive React DevTools commit walk that counts `PerformedWork` flags overcounts reused fibers with stale flags. Do not use those counts as proof of excessive component renders.
-- Next implementation candidate: only the multi-card slider needs container-width measurement. Other slider variants currently subscribe to ResizeObserver and rerender on width changes unnecessarily.
+
+### Slider measurement: subscribe only where navigation needs it
+
+All five slider variants previously observed their container and stored its raw width in React state, although only multi-card navigation uses the measured column count. The four single-slide variants now avoid this observer entirely. Multi-card stores the responsive breakpoint and ignores subsequent width notifications within that breakpoint. CSS still sets full-width media and card geometry before hydration; image sizes, image loading priorities, manual navigation and autoplay are unchanged.
+
+Validation: four focused test files passed (141 passing tests and 5 existing expected failures). New behavioral coverage checks navigation in all four single-slide variants, tablet/mobile/desktop pagination, no React commits for same-breakpoint width changes, updated configured columns, empty-to-populated widgets and observer cleanup when switching variants/unmounting. Existing image `sizes` and display-setting tests remain green. Focused ESLint and Prettier passed.
