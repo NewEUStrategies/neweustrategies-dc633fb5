@@ -76,6 +76,6 @@ for (const measurement of plan) {
 for (const artifact of artifacts) {
   const suites = artifact.baseline
     ? ["dock-panels"]
-    : ["dock-panels", "on-demand-overlays", "popup-first-render"];
+    : ["dock-panels", "on-demand-overlays", "popup-first-render", "slow-first-fold"];
   for (const suite of suites) run(artifact, suite, suite);
 }

@@ -135,16 +135,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-  const hydrated = useSyncExternalStore(
+  const theme = useSyncExternalStore(
     subscribeToHydration,
-    () => true,
-    () => false,
+    () => context.theme,
+    () => SERVER_THEME,
   );
   // A lazy widget can hydrate after an already interactive header changes the
   // theme. It still needs the server's snapshot for that first render; using
   // the live context can add/remove its style nodes and discard the SSR tree.
   return useMemo(
-    () => (hydrated ? context : { ...context, theme: SERVER_THEME }),
-    [context, hydrated],
+    // Subscribe to the value, not a false -> true hydration flag. On the
+    // default light theme there is nothing to update: forcing another render
+    // in every CMS widget adds synchronous work and can hide lazy content.
+    () => (theme === context.theme ? context : { ...context, theme }),
+    [context, theme],
   );
 }

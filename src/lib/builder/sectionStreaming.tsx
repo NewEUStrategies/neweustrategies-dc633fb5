@@ -1,26 +1,8 @@
-// Suspense-streaming of below-the-fold builder sections.
-//
-// Why: edge-cached content routes warm the WHOLE builder document server-side
-// (see prefetch.prefetchCachedRouteQueries). For cache HITS that is ideal - the
-// CDN replays a fully server-rendered body. But a cache MISS (cold render) pays
-// for every section's data before the first byte ships, so TTFB grows with the
-// document length.
-//
-// This module keeps the above-the-fold sections eager (rendered into the
-// initial SSR shell with their data) and wraps each below-the-fold,
-// data-bound section in a `<Suspense>` boundary backed by a server-only gate.
-// React's streaming renderer flushes the shell immediately and then streams
-// each below-the-fold section's resolved HTML as its data settles - so TTFB
-// tracks the above-the-fold cost only, never the whole document, while the
-// rendered output (and therefore the cached body and what crawlers see) stays
-// byte-for-byte complete.
-//
-// Client behaviour is deliberately unchanged: the gate exists only on the
-// server (tree-shaken out of the client bundle via `import.meta.env.SSR`), so
-// the browser hydrates the streamed HTML directly - widgets read the
-// streamed/dehydrated query cache (no refetch flash), and `useSectionPreload`
-// keeps its scroll-driven, lazy prefetch for client-side navigations and any
-// budget-fallback tail.
+// Data-bound sections use a bounded server-only Suspense gate. Loader-prefetched
+// data renders immediately; queries that missed the loader deadline stream real
+// HTML without delaying the shell. This includes the first fold: emitting a
+// pending widget there while its data completes in the query stream makes the
+// hydrated client disagree with the HTML and rebuild the section.
 import { Suspense, type ReactElement, type ReactNode } from "react";
 import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -54,6 +36,7 @@ export const SERVER_SECTION_STREAM_BUDGET_MS = 2_000;
 
 type SectionGateRecord = {
   exhausted: boolean;
+  deadlineAt: number;
   promise?: Promise<void>;
 };
 
@@ -65,14 +48,6 @@ function safeKey(key: QueryKey): string {
   } catch {
     return String(key);
   }
-}
-
-function sectionGateKey(
-  section: SectionNode,
-  lang: Lang,
-  pendingKeys: readonly QueryKey[],
-): string {
-  return `${lang}:${section.id}:${pendingKeys.map(safeKey).join("|")}`;
 }
 
 function recordsFor(queryClient: QueryClient): Map<string, SectionGateRecord> {
@@ -107,18 +82,24 @@ function createBoundedSectionPrefetch(
   ).then(() => undefined);
 
   const budget = new Promise<void>((resolve) => {
-    timer = setTimeout(() => {
-      record.exhausted = true;
-      void queryClient.cancelQueries({
-        predicate: (query) => pendingKeySet.has(safeKey(query.queryKey)),
-      });
-      removeDeadSectionQueries(queryClient, pendingKeys);
-      resolve();
-    }, SERVER_SECTION_STREAM_BUDGET_MS);
+    timer = setTimeout(
+      () => {
+        record.exhausted = true;
+        void queryClient.cancelQueries({
+          predicate: (query) => pendingKeySet.has(safeKey(query.queryKey)),
+        });
+        removeDeadSectionQueries(queryClient, pendingKeys);
+        resolve();
+      },
+      Math.max(0, record.deadlineAt - Date.now()),
+    );
   });
 
   return Promise.race([work, budget]).finally(() => {
     if (timer !== undefined) clearTimeout(timer);
+    // The next render may discover dependent data (slider authors). It gets
+    // the remaining section budget, never another full two seconds.
+    record.promise = undefined;
   });
 }
 
@@ -146,9 +127,12 @@ export function ServerSectionGate({
   const pending = pendingSectionQueries(queryClient, section, lang);
   if (pending.length > 0) {
     const pendingKeys = pending.map((options) => options.queryKey);
-    const key = sectionGateKey(section, lang, pendingKeys);
+    const key = `${lang}:${section.id}`;
     const records = recordsFor(queryClient);
-    const record = records.get(key) ?? { exhausted: false };
+    const record = records.get(key) ?? {
+      exhausted: false,
+      deadlineAt: Date.now() + SERVER_SECTION_STREAM_BUDGET_MS,
+    };
     records.set(key, record);
 
     if (record.exhausted) {
@@ -211,49 +195,15 @@ export function SectionStreamSkeleton({
 interface StreamingSectionProps {
   section: SectionNode;
   lang: Lang;
-  /** Zero-based position of this section in the document. */
-  index: number;
-  /** Leading sections rendered eagerly into the SSR shell (above the fold). */
-  aboveFoldCount: number;
   /** Master switch - when false, behaves exactly like the pre-streaming renderer. */
   enabled: boolean;
   /** The already-error-boundaried section content. */
   children: ReactNode;
 }
 
-/**
- * Whether a section is Suspense-streamed (server gate) rather than rendered
- * eagerly into the SSR shell. A section streams only when all three hold:
- *  - streaming is enabled,
- *  - it sits at or below the eager above-the-fold window (`index >= aboveFoldCount`), and
- *  - it has at least one data-bound query to await.
- *
- * So `aboveFoldCount` is the eager-render budget, and every streaming caller
- * keeps it NON-ZERO: `$.tsx` (posts + all public pages) and, since 2026-09-01,
- * the homepage both prefetch their leading `ABOVE_FOLD_SECTION_COUNT` sections
- * in the loader and render exactly that window eagerly, so the hero's data is
- * in the shell. No caller passes `0`.
- *
- * (Do 2026-09-01 stało tu zdanie, że „strona główna przekazuje `0`, żeby
- * strumieniować każdą sekcję z danymi" - nieprawda w obie strony: strona główna
- * nie strumieniowała wtedy w ogóle, a dziś używa domyślnego okna 3 sekcji.
- * Zapisane, żeby nieprawdziwy komentarz nie wrócił po cichu.)
- *
- * Static sections (no queries) stay eager regardless, so the hero shell is
- * never delayed.
- *
- * Pure + side-effect free so the eager/stream decision is unit-testable without
- * rendering or an SSR environment.
- */
-export function shouldStreamSection(
-  section: SectionNode,
-  lang: Lang,
-  index: number,
-  aboveFoldCount: number,
-  enabled: boolean,
-): boolean {
-  if (!enabled || index < aboveFoldCount) return false;
-  return sectionQueryOptionsList(section, lang).length > 0;
+/** Static sections need no data gate. Warm data sections never suspend. */
+export function shouldStreamSection(section: SectionNode, lang: Lang, enabled: boolean): boolean {
+  return enabled && sectionQueryOptionsList(section, lang).length > 0;
 }
 
 /**
@@ -265,12 +215,15 @@ export function shouldStreamSection(
 export function StreamingSection({
   section,
   lang,
-  index,
-  aboveFoldCount,
   enabled,
   children,
 }: StreamingSectionProps): ReactElement {
-  if (!shouldStreamSection(section, lang, index, aboveFoldCount, enabled)) {
+  // The loader's first-fold prefetch is bounded, so "above the fold" does not
+  // guarantee that its data is ready. Always put data-bound sections behind
+  // the same server gate. Warm sections still render into the initial shell;
+  // a cold hero streams real HTML instead of committing an empty widget while
+  // the query stream later hydrates the client with a different result.
+  if (!shouldStreamSection(section, lang, enabled)) {
     return <>{children}</>;
   }
 

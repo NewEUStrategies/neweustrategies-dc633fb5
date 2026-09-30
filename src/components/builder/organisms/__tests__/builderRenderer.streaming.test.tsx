@@ -177,14 +177,13 @@ describe("strumieniowanie sekcji na ścieżce KLIENCKIEJ", () => {
 
   it("decyzja eager/stream jest czystą funkcją dokumentu, nie renderu", () => {
     // Ten sam predykat, którego używa `StreamingSection`. Sekcja statyczna nie
-    // strumieniuje NIGDY (hero nie może czekać), sekcja z danymi tylko poniżej
-    // okna czołowego i tylko przy włączonym `stream`.
+    // strumieniuje NIGDY; każda sekcja z danymi ma bramkę przy włączonym
+    // `stream`, także gdy prefetch pierwszego ekranu przekroczył budżet.
     const statyczna = dokument.sections[0];
     const zDanymi = dokument.sections[4];
-    expect(shouldStreamSection(statyczna, "pl", 0, 0, true)).toBe(false);
-    expect(shouldStreamSection(zDanymi, "pl", 4, 3, true)).toBe(true);
-    expect(shouldStreamSection(zDanymi, "pl", 4, 3, false)).toBe(false);
-    expect(shouldStreamSection(zDanymi, "pl", 1, 3, true)).toBe(false);
+    expect(shouldStreamSection(statyczna, "pl", true)).toBe(false);
+    expect(shouldStreamSection(zDanymi, "pl", true)).toBe(true);
+    expect(shouldStreamSection(zDanymi, "pl", false)).toBe(false);
   });
 
   it.each([false, true])("stream=%s daje IDENTYCZNY zestaw sekcji w DOM", (stream) => {

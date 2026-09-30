@@ -6,7 +6,12 @@ const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
   const request = new Request(input, init);
   if (isFixtureBackend(request.url)) {
-    return fixtureResponse(request, { delayMs: 40 });
+    // Deliberately miss the 600 ms loader deadline without hanging the backend.
+    // The first-fold section must still stream real HTML and hydrate intact.
+    const slowPosts =
+      process.env.NES_PERFORMANCE_CASE === "slow-first-fold" &&
+      new URL(request.url).pathname === "/rest/v1/posts";
+    return fixtureResponse(request, { delayMs: slowPosts ? 900 : 40 });
   }
   return realFetch(input, init);
 };
