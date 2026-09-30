@@ -7,9 +7,9 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { useHydrated } from "@tanstack/react-router";
 
 import {
   applyTheme,
@@ -23,6 +23,9 @@ import {
 
 const STORAGE_KEY = THEME_STORAGE_KEY;
 const SERVER_THEME: Theme = "light";
+// React selects the hydration snapshot per consumer; no external event is
+// needed. Keep this shared UI primitive independent of the router.
+const subscribeToHydration = () => () => undefined;
 
 const ThemeContext = createContext<{
   theme: Theme;
@@ -132,7 +135,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-  const hydrated = useHydrated();
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
   // A lazy widget can hydrate after an already interactive header changes the
   // theme. It still needs the server's snapshot for that first render; using
   // the live context can add/remove its style nodes and discard the SSR tree.
