@@ -10,17 +10,18 @@ User requested an early draft PR and incremental commits so another session can 
 
 Base commit: `174b3efdea3fddf7b154678e46c55e5467dee1da` (PR #423 merged).
 Reports captured at 2026-09-30 15:57 UTC:
+
 - [Mobile](https://pagespeed.web.dev/analysis/https-neweuropeanstrategies-com/fto8sf9zdh?hl=pl&form_factor=mobile)
 - [Desktop](https://pagespeed.web.dev/analysis/https-neweuropeanstrategies-com/fto8sf9zdh?hl=pl&form_factor=desktop)
 
-| Metric | Mobile | Desktop |
-| --- | ---: | ---: |
-| Performance | 48 | 74 |
-| FCP | 2476 ms | 621 ms |
-| LCP (simulated) | 5401 ms | 981 ms |
-| TBT | 898 ms | 368 ms |
-| CLS | 0 | 0.0000015 |
-| Speed Index | 8800 ms | 3434 ms |
+| Metric          |  Mobile |   Desktop |
+| --------------- | ------: | --------: |
+| Performance     |      48 |        74 |
+| FCP             | 2476 ms |    621 ms |
+| LCP (simulated) | 5401 ms |    981 ms |
+| TBT             |  898 ms |    368 ms |
+| CLS             |       0 | 0.0000015 |
+| Speed Index     | 8800 ms |   3434 ms |
 
 The previous layout stability fix is reflected in both reports. The remaining dominant costs are JavaScript execution, style/layout and mobile image loading.
 
@@ -36,7 +37,7 @@ The previous layout stability fix is reflected in both reports. The remaining do
 ## Work stages
 
 1. **Diagnosis in progress:** inspect live startup requests and CPU profile; map React work to app components, and determine why the carousel changes the LCP candidate.
-2. **Implementation pending:** commit one verified improvement at a time, with its mechanism and affected shared surfaces documented below.
+2. **Implementation in progress:** commit one verified improvement at a time, with its mechanism and affected shared surfaces documented below.
 3. **Verification pending:** compare baseline/candidate under the same fixtures and browser settings, exercise public/authenticated paths, run unchanged CI gates, and keep raw metric improvements separate from deployed PSI scores.
 4. **Production target pending:** do not claim 85 until deployment and fresh mobile/desktop PSI measurements confirm it. This PR is not authorization to merge or deploy.
 
@@ -50,4 +51,21 @@ The previous layout stability fix is reflected in both reports. The remaining do
 
 ## Implemented changes and verification
 
-No runtime changes yet. This first commit records the measured baseline and work plan so the work is already reviewable and recoverable in GitHub.
+### Copyright year: avoid unnecessary cold Intl initialization
+
+CPU profiling mapped a long application call to `siteYear()` in the shared copyright widget. Constructor instrumentation found **one** `Intl.DateTimeFormat` construction, taking 80.8 ms under 4x CPU throttling. This is cold initialization, not repeated formatter construction; adding a formatter cache would not remove that first-call cost.
+
+`siteYear()` now returns the UTC year away from January 1 / December 31, when Warsaw and UTC must have the same year. At the year boundary it retains the actual IANA timezone rules; pre-AD dates retain Intl era handling. No localized date/time formatting or event timezone behavior changes.
+
+Validation:
+
+- 24 tests passed: `siteYear.test.ts` and `ssrRenderSafety.test.tsx`. Includes half-day comparisons against Intl throughout ordinary, leap and century years, the exact Warsaw New Year boundary, SSR timezone independence and unavailable-Intl fallback.
+- Focused ESLint and Prettier passed.
+- Isolated Chromium cold-process comparison, five alternating runs per implementation, 4x CPU throttling: baseline first-call median **93.4 ms**, candidate **0.6 ms**. Baseline samples: 93.4, 56.7, 142.2, 59.8, 102.3 ms; candidate: 0, 0, 0.6, 0.8, 0.8 ms. Each browser process loaded only the transpiled `format.ts` module, then timed one September copyright-year call. This isolates the mechanism; it is **not** a whole-page TBT reduction or a new PSI score.
+
+### Diagnostic cautions for continuation
+
+- Lighthouse's headline LCP and long-task diagnostics use simulated timing. Its network-request table and observed LCP breakdown use trace timing. Do not subtract timestamps between those models. In the supplied report, all initial assets started together after the document; the hero was initially high priority and preloaded. A later DOM snapshot shows the previous slide after autoplay.
+- HAR replay is useful for CPU attribution, but missing replay responses fell back to network and some images had not loaded. Do not report its LCP as equivalent to production PSI.
+- A naive React DevTools commit walk that counts `PerformedWork` flags overcounts reused fibers with stale flags. Do not use those counts as proof of excessive component renders.
+- Next implementation candidate: only the multi-card slider needs container-width measurement. Other slider variants currently subscribe to ResizeObserver and rerender on width changes unnecessarily.
