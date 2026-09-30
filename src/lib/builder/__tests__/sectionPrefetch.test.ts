@@ -476,7 +476,7 @@ function viewSource(file: string): string {
 
 /** Sekcja spod zgięcia: index === aboveFoldCount, czyli pierwsza strumieniowa. */
 function streamsWithData(widget: WidgetNode): boolean {
-  return shouldStreamSection(makeSection([widget]), "pl", 3, 3, true);
+  return shouldStreamSection(makeSection([widget]), "pl", true);
 }
 
 describe("ogon punktu 4 - taksonomie (categories / tags)", () => {
