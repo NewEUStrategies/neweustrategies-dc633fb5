@@ -43,7 +43,6 @@ import {
 } from "@/lib/builder/speakersQuery";
 import { worldMapProfileIds } from "@/lib/builder/worldMapContent";
 import { collectProfileSpeakerIds, parseScheduleDays } from "@/lib/events/schedule";
-import { collectRenderedSectionWidgets, type SectionRenderContext } from "./renderVisibility";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 
 /** A single cache target for a widget: its query key + matching stale-time. */
@@ -338,15 +337,8 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
 }
 
 /** Flatten every data-bound query a section's widgets feed into one list. */
-export function sectionQueryOptionsList(
-  section: SectionNode,
-  lang: Lang,
-  renderContext?: SectionRenderContext,
-): BuilderSectionQuery[] {
-  const widgets = renderContext
-    ? collectRenderedSectionWidgets(section, renderContext)
-    : collectSectionWidgets(section);
-  return widgets.flatMap((widget) => widgetQueryOptionsList(widget, lang));
+export function sectionQueryOptionsList(section: SectionNode, lang: Lang): BuilderSectionQuery[] {
+  return collectSectionWidgets(section).flatMap((widget) => widgetQueryOptionsList(widget, lang));
 }
 
 /**
@@ -363,11 +355,10 @@ export function pendingSectionQueries(
   queryClient: QueryClient,
   section: SectionNode,
   lang: Lang,
-  renderContext?: SectionRenderContext,
+  widgets: WidgetNode[] = collectSectionWidgets(section),
 ): BuilderSectionQuery[] {
-  const widgets = renderContext
-    ? collectRenderedSectionWidgets(section, renderContext)
-    : collectSectionWidgets(section);
+  // The server gate supplies the renderable subset; loader/cache warming keeps
+  // its existing whole-section scope. Use the same subset for dependent data.
   const optionsList = widgets.flatMap((widget) => widgetQueryOptionsList(widget, lang));
   // Authors depend on the resolved posts. Include them on the gate's retry so
   // the streamed hero and the hydrated cache agree on the byline as well.

@@ -63,8 +63,8 @@ import { AboveFoldProvider } from "@/lib/builder/aboveFold";
 import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
-import { initialSectionTabId, isRenderedWidget } from "@/lib/builder/renderVisibility";
 import { StreamingSection } from "@/lib/builder/sectionStreaming";
+import { initialSectionTabId, isRenderedWidget } from "@/lib/builder/sectionVisibility";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import {
   isSectionVisibleForAssignments,
@@ -378,12 +378,7 @@ const SectionsList = memo(function SectionsList({
           // SSR) oznaczają swoje widgety jako kandydatów LCP: pierwszy obraz
           // widgetu dostaje eager + fetchpriority=high zamiast lazy.
           <AboveFoldProvider key={s.id} aboveFold={index < aboveFoldCount}>
-            <StreamingSection
-              section={s}
-              lang={lang}
-              enabled={stream}
-              renderContext={{ device, accessContext: accessCtx }}
-            >
+            <StreamingSection section={s} lang={lang} device={device} enabled={stream}>
               {abTag && !editorPreview && assignments ? (
                 <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
                   {rendered}
@@ -497,7 +492,7 @@ const RenderSection = memo(function RenderSection({
   const accessCtx = useAccessContext();
   const tabsCfg = section.tabs;
   const tabsEnabled = !!(tabsCfg?.enabled && tabsCfg.items && tabsCfg.items.length > 0);
-  const initialTabId = initialSectionTabId(section);
+  const initialTabId = initialSectionTabId(section) ?? "";
   const [activeTabId, setActiveTabId] = useState<string>(initialTabId);
   // Tab-switch animation: krótkie fade-out starej treści, podmiana, fade-in
   // nowej. `activeTabId` steruje paskiem zakładek (natychmiast), a
@@ -803,8 +798,7 @@ const RenderColumn = memo(function RenderColumn({
   const visibleChildren = useMemo(
     () =>
       (Array.isArray(column.children) ? column.children : []).filter(
-        (w): w is NonNullable<typeof w> =>
-          !!w && isRenderedWidget(w, { device, accessContext: accessCtx }),
+        (w): w is NonNullable<typeof w> => !!w && isRenderedWidget(w, device, accessCtx),
       ),
     [column.children, device, accessCtx],
   );

@@ -28,6 +28,9 @@ import { WIDGETS, makeWidget } from "@/lib/builder/registry";
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import { CurrentPostProvider, type CurrentPostCtx } from "@/lib/content-model/postContext";
 import { SAMPLE_POST_TOKENS, findSampleLeak } from "@/lib/builder/ci/sampleTokens";
+import { installWidgetGateFetch, WidgetGateRouter } from "@/test/widgetGateEnvironment";
+
+installWidgetGateFetch();
 
 // Podział kodu (React.lazy) zamieniony na importy statyczne - bez tego pierwszy
 // render leniwych widgetów pokazuje fallback Suspense i synchroniczne asercje
@@ -96,15 +99,7 @@ vi.mock("@tanstack/react-router", async (orig) => {
   const actual = await orig<typeof import("@tanstack/react-router")>();
   return {
     ...actual,
-    Link: ({
-      to,
-      children,
-      ...rest
-    }: { to?: unknown; children?: unknown } & Record<string, unknown>) => (
-      <a href={typeof to === "string" ? to : "#"} {...rest}>
-        {children as never}
-      </a>
-    ),
+    Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
   };
 });
 
@@ -152,7 +147,11 @@ function renderWidget(type: WidgetType, lang: (typeof LANGS)[number], surface: S
       view
     );
   try {
-    const { container } = render(<QueryClientProvider client={client}>{tree}</QueryClientProvider>);
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <WidgetGateRouter>{tree}</WidgetGateRouter>
+      </QueryClientProvider>,
+    );
     // `innerHTML`, nie `textContent`: próbka wycieka też przez atrybuty
     // (`alt`, `title`, `href`, `aria-label`), nie tylko przez węzły tekstowe.
     return container.innerHTML;

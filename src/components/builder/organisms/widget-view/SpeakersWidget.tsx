@@ -621,7 +621,7 @@ function SpeakerCard({
       aria-pressed={bookmarked}
       title={bookmarkLabel}
       className={
-        "absolute right-2 top-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-md transition-all duration-200 " +
+        "absolute right-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-md transition-all duration-200 " +
         (bookmarked
           ? "bg-[color:var(--speakers-accent)] text-white shadow-md"
           : "bg-background/80 text-foreground/80 hover:bg-background hover:text-[color:var(--speakers-accent)]")
@@ -631,16 +631,16 @@ function SpeakerCard({
     </button>
   );
 
-  const body = (
+  return (
     <article
       className={
-        "group relative flex h-full flex-col overflow-hidden rounded-[12px] border border-border/60 bg-card text-card-foreground shadow-sm transition-all duration-300 " +
+        "group relative isolate flex h-full flex-col overflow-hidden rounded-[12px] border border-border/60 bg-card text-card-foreground shadow-sm transition-all duration-300 " +
         (href
           ? "hover:-translate-y-1 hover:shadow-lg hover:shadow-[color:var(--speakers-accent)]/10 hover:border-[color:var(--speakers-accent)]/40"
           : "") +
-        (href ? "" : ` ${enterClass}`)
+        ` ${enterClass}`
       }
-      style={href ? undefined : enterStyle}
+      style={enterStyle}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
         {photo ? (
@@ -674,8 +674,6 @@ function SpeakerCard({
             {category}
           </span>
         )}
-
-        {bookmarkBtn}
       </div>
 
       <div className="flex flex-1 flex-col gap-1.5 p-4">
@@ -719,32 +717,22 @@ function SpeakerCard({
           <p className="cms-meta mt-1 line-clamp-3 text-muted-foreground">{description}</p>
         )}
       </div>
+      {/* Profile/link and bookmark are siblings: nested controls break SSR hydration. */}
+      {onOpenProfile ? (
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          className="absolute inset-0 z-10 h-full w-full rounded-[12px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--speakers-accent)]/60"
+          aria-label={name || undefined}
+        />
+      ) : href ? (
+        <AppLink
+          href={href}
+          className="absolute inset-0 z-10 rounded-[12px] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[color:var(--speakers-accent)]/60"
+          aria-label={name || undefined}
+        />
+      ) : null}
+      {bookmarkBtn}
     </article>
   );
-
-  if (onOpenProfile) {
-    return (
-      <button
-        type="button"
-        onClick={onOpenProfile}
-        className="block h-full w-full rounded-[6px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/60"
-        aria-label={name || undefined}
-      >
-        {body}
-      </button>
-    );
-  }
-  if (href) {
-    return (
-      <AppLink
-        href={href}
-        className={`block h-full rounded-[12px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--speakers-accent)]/60 ${enterClass}`}
-        style={enterStyle}
-        aria-label={name || undefined}
-      >
-        {body}
-      </AppLink>
-    );
-  }
-  return body;
 }
