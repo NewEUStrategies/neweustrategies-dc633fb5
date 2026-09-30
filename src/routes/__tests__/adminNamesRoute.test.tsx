@@ -1659,18 +1659,34 @@ describe("admin.names - import CSV: zatwierdzenie", () => {
     expect(writeChains("insert")).toHaveLength(1);
   });
 
-  it("pasek postępu pokazuje licznik zrobionych i rozbicie na trzy wyniki", async () => {
+  it("pasek postępu pokazuje wynik importu i znika po czterech sekundach", async () => {
     await stageImport(
       `${CSV_HEADER}\n` +
         `radomila,Radomiła,Radomiło,,,,,female,false,Polska,\n` +
         `zenobia,Zenobia,,Zenobią,,,,female,false,Polska,\n`,
       [nameRow({ name: "Zenobia", vocative_pl: "Zenobio" })],
     );
-    fireEvent.click(buttonByText("Zatwierdź import"));
-    await waitFor(() => expect(lastToast("success")).toContain("Import"));
+    // The completed progress indicator must disappear without relying on
+    // another test taking long enough for a real timer to fire.
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        fireEvent.click(buttonByText("Zatwierdź import"));
+      });
+      expect(lastToast("success")).toContain("dodano 1, uzupełniono 1, pominięto 0");
+      expect(bodyText()).toContain("Import w toku");
+      expect(bodyText()).toContain("2/2");
 
-    expect(bodyText()).toContain("Import w toku");
-    expect(bodyText()).toContain("2/2");
+      act(() => void vi.advanceTimersByTime(3999));
+      expect(bodyText()).toContain("Import w toku");
+      act(() => void vi.advanceTimersByTime(1));
+      expect(bodyText()).not.toContain("Import w toku");
+      expect(dataRows()).toHaveLength(1);
+      expect(writeChains("insert")).toHaveLength(1);
+      expect(writeChains("update")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("KONTROLA DODATNIA: odrzucony `insert` jest liczony jako POMINIĘTY, a komunikat mówi „sukces”", async () => {
