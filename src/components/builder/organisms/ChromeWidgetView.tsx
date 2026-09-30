@@ -66,6 +66,7 @@ import {
 import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import { SiteMenu } from "@/components/menu/SiteMenu";
 import { renderSimpleWidget, ResizableBox } from "./widget-view/SimpleWidgets";
+import { requiresFullWidgetView } from "./widget-view/fullWidgetTypes";
 import {
   SocialMailIcon,
   socialGlyphBoxStyle,
@@ -180,11 +181,10 @@ export function useWidgetFrame({
   // renders immediately). The hook returns false during SSR + first client
   // render, so hydration stays byte-identical and the flip happens one commit
   // after mount - before the IntersectionObserver would have fired anyway.
-  const reducedMotion = usePrefersReducedMotion();
-  const motion =
-    !reducedMotion && node.advanced?.animation && node.advanced.animation !== "none"
-      ? node.advanced.animation
-      : undefined;
+  const animation = node.advanced?.animation;
+  const hasAnimation = !!animation && animation !== "none";
+  const reducedMotion = usePrefersReducedMotion(hasAnimation);
+  const motion = !reducedMotion && hasAnimation ? animation : undefined;
 
   const { ref: motionRef, inView } = useInView<HTMLDivElement>({
     enabled: !!motion,
@@ -1093,7 +1093,7 @@ const DeferredWidgetView = memo(function DeferredWidgetView(props: WidgetViewPro
   );
 });
 
-export const ChromeWidgetView = memo(function ChromeWidgetView(props: WidgetViewProps) {
+function FramedChromeWidgetView(props: WidgetViewProps) {
   const frame = useWidgetFrame(props);
   const { node, lang, effectiveMode, editable, onContentChange, activeTypography, wrap } = frame;
 
@@ -1111,6 +1111,19 @@ export const ChromeWidgetView = memo(function ChromeWidgetView(props: WidgetView
   if (chrome !== undefined) return chrome;
 
   return <DeferredWidgetView {...props} />;
+}
+
+export const ChromeWidgetView = memo(function ChromeWidgetView(props: WidgetViewProps) {
+  // The full dispatcher owns the frame for content widgets. Do not build a
+  // discarded frame here: it duplicates theme/global-widget/typography
+  // subscriptions, CSS generation and motion observers during hydration.
+  // Keep hooks in the separate chrome component so editor type changes stay
+  // valid. WidgetView also handles a live global changing to a chrome type.
+  return requiresFullWidgetView(props.node.type) ? (
+    <DeferredWidgetView {...props} />
+  ) : (
+    <FramedChromeWidgetView {...props} />
+  );
 });
 
 ChromeWidgetView.displayName = "ChromeWidgetView";

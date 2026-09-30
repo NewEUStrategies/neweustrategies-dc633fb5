@@ -912,8 +912,12 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   }, [items.length]);
   const configuredColumns = Math.round(asNumInRange(config.columns, 3, 1, 4)) as 1 | 2 | 3 | 4;
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const containerWidth = useContainerWidth(rootRef, items.length);
-  const columns = effectiveSliderColumns(configuredColumns, containerWidth);
+  const columns = useContainerColumns(
+    rootRef,
+    configuredColumns,
+    variant === "multi-card",
+    items.length,
+  );
   const visibleCount = variant === "multi-card" ? columns : 1;
   const stepCount = Math.max(1, items.length - (variant === "multi-card" ? visibleCount - 1 : 0));
   // Pauza autoplay pod kursorem (globalny default z możliwością nadpisania);
@@ -1325,25 +1329,39 @@ export function effectiveSliderColumns(
   return configured;
 }
 
-function useContainerWidth(
+function useContainerColumns(
   ref: React.RefObject<HTMLDivElement | null>,
+  configured: 1 | 2 | 3 | 4,
+  enabled: boolean,
   remeasureKey: number,
-): number | null {
-  const [width, setWidth] = useState<number | null>(null);
+): 1 | 2 | 3 | 4 {
+  // CSS container queries already size the cards before hydration. Only the
+  // multi-card navigation needs a matching column count in JS. Store the
+  // breakpoint, not every pixel of width, to avoid rerendering slide trees
+  // while the container resizes within the same layout.
+  const [columnLimit, setColumnLimit] = useState<1 | 2 | 3 | 4 | null>(null);
   useEffect(() => {
+    if (!enabled) return;
     const el = ref.current;
     if (!el) return;
+    let measuredLimit: 1 | 2 | 3 | 4 | null = null;
+    const measure = (width: number) => {
+      const next = effectiveSliderColumns(4, width);
+      if (next === measuredLimit) return;
+      measuredLimit = next;
+      setColumnLimit(next);
+    };
     if (typeof ResizeObserver === "undefined") {
-      setWidth(el.getBoundingClientRect().width);
+      measure(el.getBoundingClientRect().width);
       return;
     }
     const ro = new ResizeObserver(([entry]) => {
-      if (entry) setWidth(entry.contentRect.width);
+      if (entry) measure(entry.contentRect.width);
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [ref, remeasureKey]);
-  return width;
+  }, [ref, enabled, remeasureKey]);
+  return enabled ? (Math.min(configured, columnLimit ?? configured) as 1 | 2 | 3 | 4) : configured;
 }
 
 function MultiCardVariant(p: VariantProps) {

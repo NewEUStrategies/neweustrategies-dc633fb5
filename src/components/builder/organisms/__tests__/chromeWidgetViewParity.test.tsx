@@ -19,6 +19,7 @@ import { defaultDocFor } from "@/lib/builder/chromeDefaults";
 import type { BuilderDocument, WidgetNode, WidgetType } from "@/lib/builder/types";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import { ChromeWidgetView } from "@/components/builder/organisms/ChromeWidgetView";
+import { FULL_WIDGET_TYPES } from "../widget-view/fullWidgetTypes";
 
 // Ten sam zabieg, co w `typographyMapping.test.tsx`: rejestr leniwy zamieniamy
 // na lustro eager, bo `renderToStaticMarkup` nie umie poczekać na `React.lazy`.
@@ -89,6 +90,19 @@ function markup(Component: typeof WidgetView | typeof ChromeWidgetView, node: Wi
 }
 
 describe("ChromeWidgetView == WidgetView dla typów chrome", () => {
+  it("routes exactly the content-only cases without importing the full dispatcher eagerly", async () => {
+    const { readFileSync } = await import("node:fs");
+    const cases = (path: string) =>
+      [...readFileSync(path, "utf8").matchAll(/^ {4}case "([^"]+)":/gm)].map((match) => match[1]);
+    const root = "src/components/builder/organisms/";
+    expect([...FULL_WIDGET_TYPES].sort()).toEqual(cases(`${root}WidgetView.tsx`).sort());
+    const eager = new Set([
+      ...cases(`${root}ChromeWidgetView.tsx`),
+      ...cases(`${root}widget-view/SimpleWidgets.tsx`),
+    ]);
+    expect(FULL_WIDGET_TYPES.filter((type) => eager.has(type))).toEqual([]);
+  });
+
   it("domyślne dokumenty chrome nie są puste (inaczej bramka mierzy nic)", () => {
     expect(CHROME_WIDGETS.length).toBeGreaterThan(20);
   });

@@ -141,15 +141,23 @@ export function formatDateOnly(
  * tę samą liczbę dla tej samej chwili.
  */
 export function siteYear(nowMs: number = Date.now()): number {
+  const date = new Date(nowMs);
+  const utcYear = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  // Only the days bordering New Year can have a different year in Warsaw
+  // and UTC. Avoid starting the browser's Intl/ICU machinery just to render
+  // a copyright year during hydration; retain real timezone rules at the
+  // boundary (and Intl's era handling for dates before year 1).
+  const nearNewYear = (month === 0 && day === 1) || (month === 11 && day === 31);
+  if (utcYear > 0 && !nearNewYear) return utcYear;
   try {
     return Number.parseInt(
-      new Intl.DateTimeFormat("en-CA", { timeZone: SITE_TIME_ZONE, year: "numeric" }).format(
-        new Date(nowMs),
-      ),
+      new Intl.DateTimeFormat("en-CA", { timeZone: SITE_TIME_ZONE, year: "numeric" }).format(date),
       10,
     );
   } catch {
-    return new Date(nowMs).getUTCFullYear();
+    return utcYear;
   }
 }
 
