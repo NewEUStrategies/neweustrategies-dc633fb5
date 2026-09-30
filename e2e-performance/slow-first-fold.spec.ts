@@ -14,7 +14,7 @@ interface ShiftSample {
 }
 declare global {
   interface Window {
-    __slowFold: { title?: Element; shifts: ShiftSample[]; cls: number };
+    __slowFold: { title?: Element; contentTitle?: Element; shifts: ShiftSample[]; cls: number };
   }
 }
 
@@ -35,6 +35,11 @@ for (const width of [390, 1440]) {
     let releaseScripts!: () => void;
     const scriptsReady = new Promise<void>((resolve) => {
       releaseScripts = resolve;
+    });
+    let releaseWidget!: () => void;
+    let widgetChunkRequested = false;
+    const widgetReady = new Promise<void>((resolve) => {
+      releaseWidget = resolve;
     });
     await page.route("**/*", async (route) => {
       const request = route.request();
@@ -57,7 +62,17 @@ for (const width of [390, 1440]) {
         return route.fulfill({ body: "", contentType: "application/javascript" });
       if (request.resourceType() === "image")
         return route.fulfill({ body: fixtureImage, contentType: homeFixture.fixture_image_type });
-      if (request.resourceType() === "script") await scriptsReady;
+      if (request.resourceType() === "script") {
+        await scriptsReady;
+        if (
+          /\/(?:assets\/WidgetView-[^/]+\.js|src\/components\/builder\/organisms\/WidgetView\.tsx)$/.test(
+            new URL(request.url()).pathname,
+          )
+        ) {
+          widgetChunkRequested = true;
+          await widgetReady;
+        }
+      }
       await route.continue();
     });
     await page.addInitScript(() => {
@@ -116,8 +131,25 @@ for (const width of [390, 1440]) {
       });
       // Catch shrink-to-content media even when title text has a smaller width.
       expect(initial.image.width).toBeGreaterThan(initial.widget.width * 0.95);
+      const contentTitle = page
+        .locator("main [data-w-id]:not(:has(.eh-slider)) .cms-post-title")
+        .first();
+      await expect(contentTitle).toHaveText(String(homeFixture.posts[0].title_pl));
+      await contentTitle.evaluate((element) => {
+        window.__slowFold.contentTitle = element;
+      });
       releaseScripts();
+      // Let chrome hydrate and update subscriptions while the content
+      // dispatcher is still downloading. Its SSR must survive that interval.
+      await expect.poll(() => widgetChunkRequested, { timeout: testInfo.timeout }).toBe(true);
       await page.waitForFunction(() => window.__nesAppReady === true);
+      expect(
+        await contentTitle.evaluate((element) => element === window.__slowFold.contentTitle),
+      ).toBe(true);
+      await expect(page.locator("main [data-chrome-widget-pending]")).toHaveCount(0);
+      releaseWidget();
+      // The JS device update is deliberately deferred until its pending
+      // subtree can hydrate; responsive CSS already lays out the SSR correctly.
       await expect(page.locator("main [data-builder-renderer]").first()).toHaveAttribute(
         "data-device",
         width < 768 ? "mobile" : "desktop",
@@ -128,6 +160,7 @@ for (const width of [390, 1440]) {
         const state = window.__slowFold;
         return {
           retained: element.querySelector(".cms-post-title") === state.title,
+          contentRetained: state.contentTitle?.isConnected === true,
           rect: element.closest("[data-widget-id]")!.getBoundingClientRect().toJSON(),
           shifts: state.shifts,
           cls: state.cls,
@@ -140,11 +173,13 @@ for (const width of [390, 1440]) {
       });
       expect(errors).toEqual([]);
       expect(settled.retained).toBe(true);
+      expect(settled.contentRetained).toBe(true);
       expect(Math.abs(settled.rect.width - initial.widget.width)).toBeLessThanOrEqual(1);
       expect(Math.abs(settled.rect.y - initial.widget.y)).toBeLessThanOrEqual(1);
       expect(settled.cls).toBeLessThan(0.1);
     } finally {
       releaseScripts();
+      releaseWidget();
     }
   });
 }
