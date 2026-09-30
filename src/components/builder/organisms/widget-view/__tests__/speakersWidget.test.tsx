@@ -5,6 +5,8 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetNode, WidgetContent } from "@/lib/builder/types";
 
@@ -131,6 +133,61 @@ describe("speakers widget", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Zapisani/ }));
     expect(screen.getByText("Speaker 1")).toBeTruthy();
     expect(screen.queryByText("Speaker 2")).toBeNull();
+  });
+
+  it("keeps profile and bookmark buttons separate and independently usable", async () => {
+    const { container } = renderSpeakers(
+      { speakers: [speaker(1, { user_id: "u-1" })] },
+      "node-actions",
+    );
+    const profile = screen.getByRole("button", { name: "Speaker 1" });
+    const bookmark = screen.getByRole("button", { name: "Dodaj do zakładek" });
+    expect(profile.contains(bookmark)).toBe(false);
+    expect(container.querySelector("button button, a button")).toBeNull();
+
+    fireEvent.click(bookmark);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(window.localStorage.getItem("cms:speakers:bookmarks:node-actions")).toBe('["sp-1"]');
+    expect(
+      screen.getByRole("button", { name: "Usuń z zakładek" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+
+    fireEvent.click(profile);
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+  });
+
+  it("hydrates the server-rendered card without replacing its DOM", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    const node: WidgetNode = {
+      id: "speaker-hydration",
+      kind: "widget",
+      type: "speakers",
+      content: { speakers: [speaker(1, { user_id: "u-1" })] },
+    };
+    const view = (
+      <QueryClientProvider client={client}>
+        <WidgetView node={node} lang="pl" device="desktop" editable={false} />
+      </QueryClientProvider>
+    );
+    const host = document.createElement("div");
+    host.innerHTML = renderToString(view);
+    document.body.append(host);
+    const serverCard = host.querySelector("article");
+    const errors: unknown[] = [];
+    let root: ReturnType<typeof hydrateRoot> | undefined;
+    try {
+      expect(serverCard).not.toBeNull();
+      expect(host.querySelector("button button, a button")).toBeNull();
+      await act(async () => {
+        root = hydrateRoot(host, view, { onRecoverableError: (error) => errors.push(error) });
+      });
+      expect(errors).toEqual([]);
+      expect(host.querySelector("article")).toBe(serverCard);
+    } finally {
+      await act(async () => root?.unmount());
+      host.remove();
+      client.clear();
+    }
   });
 
   it("paginates with the load-more button", () => {
@@ -424,7 +481,7 @@ describe("speakers widget - warianty językowe i gałęzie odmowy", () => {
     const img = container.querySelector("img");
     expect(img).not.toBeNull();
     expect(img?.getAttribute("alt")).toBe("");
-    const card = container.querySelector("div.grid > button") as HTMLButtonElement;
+    const card = container.querySelector("div.grid > article > button") as HTMLButtonElement;
     expect(card.getAttribute("aria-label")).toBeNull();
 
     // Dialog otwiera się nawet bez danych zastępczych (nazwisko/rola/zdjęcie
