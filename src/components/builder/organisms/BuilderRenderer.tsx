@@ -65,6 +65,7 @@ import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc, isKnownWidgetType } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import { StreamingSection } from "@/lib/builder/sectionStreaming";
+import { initialSectionTabId } from "@/lib/builder/sectionVisibility";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import {
   isSectionVisibleForAssignments,
@@ -378,7 +379,7 @@ const SectionsList = memo(function SectionsList({
           // SSR) oznaczają swoje widgety jako kandydatów LCP: pierwszy obraz
           // widgetu dostaje eager + fetchpriority=high zamiast lazy.
           <AboveFoldProvider key={s.id} aboveFold={index < aboveFoldCount}>
-            <StreamingSection section={s} lang={lang} enabled={stream}>
+            <StreamingSection section={s} lang={lang} device={device} enabled={stream}>
               {abTag && !editorPreview && assignments ? (
                 <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
                   {rendered}
@@ -492,13 +493,7 @@ const RenderSection = memo(function RenderSection({
   const accessCtx = useAccessContext();
   const tabsCfg = section.tabs;
   const tabsEnabled = !!(tabsCfg?.enabled && tabsCfg.items && tabsCfg.items.length > 0);
-  const firstTabId = tabsEnabled ? tabsCfg!.items[0].id : "";
-  const initialTabId =
-    tabsEnabled &&
-    tabsCfg!.defaultTabId &&
-    tabsCfg!.items.some((t) => t.id === tabsCfg!.defaultTabId)
-      ? tabsCfg!.defaultTabId
-      : firstTabId;
+  const initialTabId = initialSectionTabId(section) ?? "";
   const [activeTabId, setActiveTabId] = useState<string>(initialTabId);
   // Tab-switch animation: krótkie fade-out starej treści, podmiana, fade-in
   // nowej. `activeTabId` steruje paskiem zakładek (natychmiast), a

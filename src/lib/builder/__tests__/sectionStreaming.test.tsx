@@ -4,7 +4,7 @@ import { render, screen, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, type QueryKey } from "@tanstack/react-query";
 // Initialize the shared i18n instance so useTranslation resolves in the skeleton.
 import "@/lib/i18n";
-import type { SectionNode, WidgetNode } from "@/lib/builder/types";
+import type { Device, SectionNode, WidgetNode } from "@/lib/builder/types";
 import {
   SERVER_SECTION_STREAM_BUDGET_MS,
   ServerSectionGate,
@@ -12,7 +12,7 @@ import {
   StreamingSection,
   shouldStreamSection,
 } from "@/lib/builder/sectionStreaming";
-import { sectionQueryOptionsList } from "@/lib/builder/prefetch";
+import { sectionQueryOptionsList, widgetQueryOptionsList } from "@/lib/builder/prefetch";
 import {
   SECTION_STREAM_MIN_HEIGHT,
   estimateSectionHeight,
@@ -87,6 +87,73 @@ describe("ServerSectionGate", () => {
     );
     expect(screen.getByText("CONTENT")).toBeTruthy();
     expect(screen.queryByText("FALLBACK")).toBeNull();
+  });
+
+  it.each([
+    ["desktop-only widget on mobile", "mobile", "post-list"],
+    ["inaccessible widget", "desktop", "post-list"],
+    ["inactive tab", "desktop", "post-list"],
+    ["desktop-only widget on mobile", "mobile", "slider"],
+    ["inaccessible widget", "desktop", "slider"],
+    ["inactive tab", "desktop", "slider"],
+  ] as const)("does not wait for a slow %s (%s, %s)", (reason, device: Device, type) => {
+    const hidden = makeWidget(type, {
+      content: type === "slider" ? { source: "posts" } : {},
+      advanced:
+        reason === "desktop-only widget on mobile"
+          ? { hideOn: { mobile: true } }
+          : reason === "inaccessible widget"
+            ? { access: { auth: "user" } }
+            : {},
+    });
+    if (type === "slider") {
+      // Primary data already arrived, but the hidden slider's author query
+      // would still suspend if the dependent-query loop used all widgets.
+      for (const options of widgetQueryOptionsList(hidden, "pl")) {
+        qc.setQueryData(options.queryKey, [{ id: "post", author_id: "hidden-author" }]);
+      }
+    }
+    const section = withWidgets([makeWidget("heading"), hidden]);
+    if (reason === "inactive tab") {
+      section.tabs = {
+        enabled: true,
+        items: [
+          { id: "inactive", label_pl: "Inactive" },
+          { id: "active", label_pl: "Active" },
+        ],
+        defaultTabId: "active",
+      };
+      section.children = [
+        { kind: "column", id: "shared", span: { desktop: 12 }, children: [makeWidget("heading")] },
+        {
+          kind: "column",
+          id: "inactive",
+          span: { desktop: 12 },
+          tabId: "inactive",
+          children: [hidden],
+        },
+      ];
+    }
+    const prefetch = vi
+      .spyOn(qc, "prefetchQuery")
+      .mockImplementation(() => new Promise<void>(() => {}));
+    try {
+      render(
+        <Suspense fallback={<span>FALLBACK</span>}>
+          <ServerSectionGate section={section} lang="pl" device={device}>
+            <span>CONTENT</span>
+          </ServerSectionGate>
+        </Suspense>,
+        { wrapper: wrapper(qc) },
+      );
+      // No clock advance or query release: unrelated data must not delay the shell.
+      expect(screen.queryByText("FALLBACK")).toBeNull();
+      expect(screen.getByText("CONTENT")).toBeTruthy();
+      expect(prefetch).not.toHaveBeenCalled();
+    } finally {
+      prefetch.mockRestore();
+      qc.clear();
+    }
   });
 
   it("suspends until pending queries settle, then streams the children", async () => {
