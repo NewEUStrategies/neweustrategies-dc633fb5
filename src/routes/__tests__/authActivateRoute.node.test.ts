@@ -71,7 +71,10 @@ describe("/auth/activate - poprawny link", () => {
     expect(target.searchParams.get("type")).toBe("invite");
   });
 
-  it.each(["invite", "magiclink", "signup", "recovery", "email_change"])(
+  // Dokładnie to, co może wydać `generateLink` dla `invite` i `magiclink`
+  // (ustalone ze źródła Supabase Auth - patrz komentarz przy ALLOWED_TYPES).
+  // "signup" to `magiclink` dla konta, którego dostawca nie znalazł.
+  it.each(["invite", "magiclink", "signup"])(
     "przepuszcza typ z listy zamkniętej: %s",
     async (type) => {
       const target = location(await activate(`?token=${TOKEN}&type=${type}`));
@@ -101,6 +104,16 @@ describe("/auth/activate - odmowa ląduje na istniejącej stronie z kodem błęd
       `?token=${encodeURIComponent(`${TOKEN}&type=recovery`)}`,
     ],
     ["typ spoza listy", `?token=${TOKEN}&type=admin`],
+    // Regresja 2026-10-01: wcześniej przepuszczane. `recovery` logował
+    // i kierował na /welcome z pominięciem ustawienia nowego hasła.
+    ["recovery (reset hasła ma własną trasę)", `?token=${TOKEN}&type=recovery`],
+    ["email_change (nikt go tu nie wysyła)", `?token=${TOKEN}&type=email_change`],
+    ["email (OTP, nie link zaproszenia)", `?token=${TOKEN}&type=email`],
+    [
+      "email_change_new (typ generateLink spoza zaproszeń)",
+      `?token=${TOKEN}&type=email_change_new`,
+    ],
+    ["wielkość liter ma znaczenie (INVITE)", `?token=${TOKEN}&type=INVITE`],
     ["pusty typ", `?token=${TOKEN}&type=`],
   ])("%s -> /auth/callback?error=invalid_link", async (_label, query) => {
     const res = await activate(query);

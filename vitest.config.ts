@@ -3075,6 +3075,11 @@ export default defineConfig({
         //     otp_expired`) kręcił spinnerem przez pełne 8 s,
         //   * sesja widziana przez zdarzenie I sondowanie wołała `navigate`
         //     dwa razy, a sondowanie biegło dalej do odmontowania.
+        // Ten sam PR zawęził też listę typów `/auth/activate` do tego, co
+        // wydaje `generateLink` dla zaproszeń (invite / magiclink / signup,
+        // ustalone ze źródła Supabase Auth), i pilnuje, że błąd w adresie
+        // powrotu nie wyrzuca zalogowanego użytkownika na komunikat
+        // o nieważnym linku (supabase-js zostawia wtedy zapisaną sesję).
         // Oba pliki są małe (19 i 30 linii), więc próg poniżej 100 byłby
         // nieodróżnialny od 100 - jak przy `loginPopupBus.ts`.
         "src/routes/auth.activate.ts": {

@@ -17,8 +17,30 @@
 // linku, tak samo jak dla błędu zwróconego przez dostawcę.
 import { createFileRoute } from "@tanstack/react-router";
 
-/** Typy weryfikacji, które wolno przepuścić - lista zamknięta. */
-const ALLOWED_TYPES = new Set(["invite", "magiclink", "signup", "recovery", "email_change"]);
+/**
+ * Typy weryfikacji, które wolno przepuścić - DOKŁADNIE te, które może wydać
+ * jedyny nadawca tego linku (`src/lib/admin/invitations.functions.ts`:
+ * `generateLink({ type: "invite" })`, a przy istniejącym koncie
+ * `generateLink({ type: "magiclink" })`, typ brany z `verification_type`).
+ *
+ * USTALONE ZE ŹRÓDŁA Supabase Auth (github.com/supabase/auth, master ce9a8ee,
+ * 2026-09-22; to samo zachowanie od v2.0.0), 2026-10-01:
+ *   - `invite` zwraca zawsze "invite" (`internal/api/mail.go`: odpowiedź to
+ *     `VerificationType: params.Type`, ścieżka zaproszenia go nie przepisuje);
+ *   - `magiclink` zwraca "magiclink" dla KAŻDEGO istniejącego konta
+ *     (potwierdzonego i nie), ale "signup", gdy Supabase konta nie znajdzie -
+ *     `mail.go`: `case mail.MagicLinkVerification: params.Type =
+ *     mail.SignupVerification`. U nas to rzadkie (konto usunięte między
+ *     odczytem a wysyłką, konto wyłącznie SSO), ale osiągalne - dlatego
+ *     "signup" ZOSTAJE na liście. Lista bez niego psułaby właśnie ten link.
+ *
+ * USUNIĘTE 2026-10-01: "recovery" i "email_change". Żaden nadawca ich tu nie
+ * wysyła, a oba łamały kontrakt strony powrotu: link `recovery` logował
+ * i kierował na /welcome, z pominięciem ustawienia nowego hasła (reset hasła
+ * ma własną trasę `/reset-password`, na którą `resetPasswordForEmail` kieruje
+ * bezpośrednio). Typ spoza listy dostaje tę samą odmowę co zły token.
+ */
+const ALLOWED_TYPES = new Set(["invite", "magiclink", "signup"]);
 
 /** Token dostawcy to bezpieczny alfabet URL - odrzucamy wszystko inne. */
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,512}$/;

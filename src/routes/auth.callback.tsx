@@ -4,11 +4,19 @@
 // stronę powitalną z listą benefitów jego planu. Wcześniej ten adres nie
 // istniał i link z maila kończył się stroną 404.
 //
-// BŁĄD W ADRESIE = KOMUNIKAT OD RAZU. Dostawca przy wygasłym lub zużytym
-// tokenie wraca tu z `#error=...&error_code=otp_expired`, a nasza trasa
-// `/auth/activate` przy odrzuconym linku - z `?error=...`. Wcześniej oba
-// przypadki kręciły spinnerem przez pełne MAX_WAIT_MS, choć z adresu było
-// wiadomo od pierwszej klatki, że sesji nie będzie.
+// BŁĄD W ADRESIE = JEDNO SPRAWDZENIE SESJI, POTEM KOMUNIKAT. Dostawca przy
+// wygasłym lub zużytym tokenie wraca tu z `#error=...&error_code=otp_expired`,
+// a nasza trasa `/auth/activate` przy odrzuconym linku - z `?error=...`.
+// Wcześniej oba przypadki kręciły spinnerem przez pełne MAX_WAIT_MS.
+// Błąd w adresie mówi jednak tylko, że TEN link nie dał sesji - nie, że sesji
+// nie ma. supabase-js celowo zostawia zapisaną sesję przy nieudanym logowaniu
+// z adresu (`GoTrueClient._initialize`: "Don't remove existing session on URL
+// login failure. A failed attempt (e.g. reused magic link) shouldn't
+// invalidate a valid session"). Najczęstszy przypadek to zalogowany już
+// użytkownik, który klika to samo zaproszenie drugi raz - ma trafić na
+// /welcome, a nie dostać polecenie proszenia administratora o nowy link.
+// Dlatego przy błędzie sprawdzamy sesję RAZ (bez sondowania) i dopiero jej
+// brak pokazuje komunikat.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -35,15 +43,14 @@ function AuthCallbackPage() {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
   const isEn = i18n.language?.startsWith("en");
-  // Błąd z adresu rozstrzyga się raz, przy wejściu. Przekroczenie czasu to
-  // osobny stan: po nim subskrypcja sesji zostaje, więc spóźniona sesja nadal
-  // przenosi na stronę powitalną.
-  const [failedOnArrival] = useState(() => urlCarriesError(window.location));
-  const [timedOut, setTimedOut] = useState(false);
-  const failed = failedOnArrival || timedOut;
+  // Błąd z adresu rozstrzyga się raz, przy wejściu - zmienia tylko to, czy
+  // sesję sprawdzamy raz, czy sondujemy do MAX_WAIT_MS.
+  const [urlError] = useState(() => urlCarriesError(window.location));
+  // Komunikat o nieważnym linku. Subskrypcja sesji zostaje także po nim, więc
+  // spóźniona sesja nadal przenosi na stronę powitalną.
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (failedOnArrival) return;
     let cancelled = false;
     let poll = 0;
     const started = Date.now();
@@ -61,26 +68,34 @@ function AuthCallbackPage() {
       if (session?.user) goWelcome();
     });
 
-    poll = window.setInterval(() => {
-      void supabase.auth.getSession().then(({ data }) => {
-        if (cancelled) return;
-        if (data.session?.user) {
-          goWelcome();
-          return;
-        }
-        if (Date.now() - started > MAX_WAIT_MS) {
-          window.clearInterval(poll);
-          setTimedOut(true);
-        }
-      });
-    }, POLL_MS);
+    // Odrzucony odczyt sesji traktujemy jak jej brak: przy błędzie w adresie
+    // to i tak komunikat, a przy sondowaniu - kolejna próba.
+    const decide = (hasUser: boolean) => {
+      if (cancelled) return;
+      if (hasUser) {
+        goWelcome();
+        return;
+      }
+      if (urlError || Date.now() - started > MAX_WAIT_MS) {
+        window.clearInterval(poll);
+        setFailed(true);
+      }
+    };
+    const check = () =>
+      supabase.auth.getSession().then(
+        ({ data }) => decide(Boolean(data.session?.user)),
+        () => decide(false),
+      );
+
+    if (urlError) void check();
+    else poll = window.setInterval(() => void check(), POLL_MS);
 
     return () => {
       cancelled = true;
       window.clearInterval(poll);
       sub.subscription.unsubscribe();
     };
-  }, [navigate, failedOnArrival]);
+  }, [navigate, urlError]);
 
   return (
     <div className="container mx-auto flex min-h-[50vh] max-w-lg flex-col items-center justify-center gap-3 px-4 text-center">

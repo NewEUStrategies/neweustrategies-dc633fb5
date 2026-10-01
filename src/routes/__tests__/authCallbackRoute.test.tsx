@@ -10,7 +10,13 @@
 //   * po MAX_WAIT_MS bez sesji strona mówi, że link jest nieważny, i przestaje
 //     sondować; spóźniona sesja nadal przenosi dalej,
 //   * błąd w adresie (`?error=` z `/auth/activate`, `#error_code=` od dostawcy)
-//     daje komunikat OD RAZU, bez 8 sekund spinnera i bez sondowania,
+//     to JEDNO sprawdzenie sesji zamiast 8 sekund sondowania: brak sesji daje
+//     komunikat od razu, a ISTNIEJĄCA sesja przenosi na `/welcome` - supabase-js
+//     nie kasuje zapisanej sesji przy nieudanym logowaniu z adresu, więc
+//     zalogowany użytkownik klikający drugi raz to samo zaproszenie nie może
+//     dostać polecenia proszenia administratora o nowy link (regresja wykryta
+//     w przeglądzie PR #429 i odtworzona na prawdziwym supabase-js 2.116),
+//   * odrzucony odczyt sesji to brak sesji, nie nieobsłużony wyjątek,
 //   * po odmontowaniu nic nie nawiguje i nic nie zostaje zasubskrybowane.
 //
 // Komponent renderujemy wprost z `Route.options.component`: jedyną zależnością
@@ -183,35 +189,137 @@ describe("/auth/callback - przekroczenie czasu", () => {
   });
 });
 
+const ERROR_URLS = [
+  ["odmowa z /auth/activate (?error=invalid_link)", "/auth/callback?error=invalid_link"],
+  [
+    "brak konfiguracji (?error=activation_unavailable)",
+    "/auth/callback?error=activation_unavailable",
+  ],
+  [
+    "wygasły token u dostawcy (#error=...&error_code=otp_expired)",
+    "/auth/callback#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
+  ],
+  ["sam kod błędu we fragmencie", "/auth/callback#error_code=otp_expired"],
+] as const;
+
 describe("/auth/callback - błąd w adresie powrotu", () => {
-  it.each([
-    ["odmowa z /auth/activate (?error=invalid_link)", "/auth/callback?error=invalid_link"],
-    [
-      "brak konfiguracji (?error=activation_unavailable)",
-      "/auth/callback?error=activation_unavailable",
-    ],
-    [
-      "wygasły token u dostawcy (#error=...&error_code=otp_expired)",
-      "/auth/callback#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
-    ],
-    ["sam kod błędu we fragmencie", "/auth/callback#error_code=otp_expired"],
-  ])("%s -> komunikat od razu, bez subskrypcji i bez sondowania", async (_label, url) => {
-    mount(url);
+  it.each(ERROR_URLS)(
+    "%s, brak sesji -> komunikat po jednym sprawdzeniu, bez sondowania",
+    async (_label, url) => {
+      mount(url);
+      await act(() => vi.advanceTimersByTimeAsync(0));
+
+      expect(screen.getByRole("heading", { name: "Link aktywacyjny jest nieważny" })).toBeTruthy();
+      expect(screen.queryByText("Aktywujemy Twoje konto…")).toBeNull();
+      expect(h.getSession).toHaveBeenCalledTimes(1);
+
+      // Żadnego sondowania przez MAX_WAIT_MS - jedno sprawdzenie rozstrzyga.
+      await act(() => vi.advanceTimersByTimeAsync(MAX_WAIT_MS + POLL_MS));
+      expect(h.getSession).toHaveBeenCalledTimes(1);
+      expect(h.navigate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(ERROR_URLS)(
+    "%s, ISTNIEJĄCA sesja -> /welcome, bez komunikatu o nieważnym linku",
+    async (_label, url) => {
+      // Regresja z przeglądu PR #429: zalogowany użytkownik klika drugi raz
+      // to samo zaproszenie, dostawca odsyła `otp_expired`, a supabase-js
+      // zostawia zapisaną sesję. Ten użytkownik ma trafić na stronę powitalną.
+      h.getSession.mockImplementation(() => sessionResult(SESSION));
+      mount(url);
+      await act(() => vi.advanceTimersByTimeAsync(0));
+
+      expect(h.navigate).toHaveBeenCalledTimes(1);
+      expect(h.navigate).toHaveBeenCalledWith(WELCOME);
+      expect(screen.queryByRole("heading")).toBeNull();
+    },
+  );
+
+  it("istniejąca sesja z INITIAL_SESSION przy błędzie w adresie -> jedna nawigacja", async () => {
+    let resolveCheck: (value: Awaited<ReturnType<typeof sessionResult>>) => void = () => {};
+    h.getSession.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        }),
+    );
+    mount("/auth/callback#error_code=otp_expired");
+
+    emitAuth("INITIAL_SESSION", SESSION);
+    expect(h.navigate).toHaveBeenCalledTimes(1);
+    expect(h.navigate).toHaveBeenCalledWith(WELCOME);
+
+    // Spóźniona odpowiedź jednorazowego sprawdzenia nie dokłada komunikatu
+    // ani drugiej nawigacji.
+    await act(async () => {
+      resolveCheck({ data: { session: null }, error: null });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(h.navigate).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("heading")).toBeNull();
+  });
+
+  it("odrzucony odczyt sesji przy błędzie w adresie -> komunikat, nie wyjątek", async () => {
+    h.getSession.mockImplementation(() => Promise.reject(new Error("storage unavailable")));
+    mount("/auth/callback?error=invalid_link");
+    await act(() => vi.advanceTimersByTimeAsync(0));
 
     expect(screen.getByRole("heading", { name: "Link aktywacyjny jest nieważny" })).toBeTruthy();
-    expect(screen.queryByText("Aktywujemy Twoje konto…")).toBeNull();
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
 
-    await act(() => vi.advanceTimersByTimeAsync(MAX_WAIT_MS + POLL_MS));
-    expect(h.onAuthStateChange).not.toHaveBeenCalled();
-    expect(h.getSession).not.toHaveBeenCalled();
+  it("spóźniona sesja po komunikacie z błędu w adresie nadal przenosi na /welcome", async () => {
+    mount("/auth/callback#error_code=otp_expired");
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(screen.getByRole("heading")).toBeTruthy();
+
+    emitAuth("SIGNED_IN", SESSION);
+    expect(h.navigate).toHaveBeenCalledWith(WELCOME);
+    expect(h.unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it("odmontowanie przed odpowiedzią sprawdzenia -> ani nawigacji, ani komunikatu", async () => {
+    let resolveCheck: (value: Awaited<ReturnType<typeof sessionResult>>) => void = () => {};
+    h.getSession.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        }),
+    );
+    const view = mount("/auth/callback?error=invalid_link");
+    view.unmount();
+    expect(h.unsubscribe).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveCheck({ data: { session: SESSION }, error: null });
+      await vi.advanceTimersByTimeAsync(0);
+    });
     expect(h.navigate).not.toHaveBeenCalled();
   });
 
   it("token sesji we fragmencie (sukces dostawcy) NIE jest traktowany jak błąd", async () => {
     mount("/auth/callback#access_token=abc&refresh_token=def&type=invite");
+    await act(() => vi.advanceTimersByTimeAsync(POLL_MS * 2));
 
     expect(screen.getByText("Aktywujemy Twoje konto…")).toBeTruthy();
     expect(h.onAuthStateChange).toHaveBeenCalledTimes(1);
+    // Ścieżka bez błędu sonduje, a nie sprawdza raz.
+    expect(h.getSession).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("/auth/callback - odrzucony odczyt sesji podczas sondowania", () => {
+  it("nie kończy oczekiwania przed czasem i po MAX_WAIT_MS pokazuje komunikat", async () => {
+    h.getSession.mockImplementation(() => Promise.reject(new Error("storage unavailable")));
+    mount();
+
+    await act(() => vi.advanceTimersByTimeAsync(POLL_MS * 4));
+    expect(screen.getByText("Aktywujemy Twoje konto…")).toBeTruthy();
+
+    await act(() => vi.advanceTimersByTimeAsync(MAX_WAIT_MS));
+    expect(screen.getByRole("heading", { name: "Link aktywacyjny jest nieważny" })).toBeTruthy();
+    expect(h.navigate).not.toHaveBeenCalled();
   });
 });
 
