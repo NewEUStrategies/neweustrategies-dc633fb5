@@ -12,16 +12,33 @@
 // ROZSZERZENIEM o widgety treściowe - dlatego `WidgetView` importuje stąd
 // `useWidgetFrame` i `renderChromeWidget`, a nie odwrotnie. Gdyby ramka została
 // w `WidgetView`, każdy import chrome wciągałby z powrotem cały dyspozytor i
-// cała zmiana nie miałaby sensu. W drugą stronę biegnie WYŁĄCZNIE `import()`
-// dynamiczny (fallback dla nieznanego typu), który bundler tnie na chunk.
+// cała zmiana nie miałaby sensu. W drugą stronę W PRZEGLĄDARCE biegnie
+// WYŁĄCZNIE `import()` dynamiczny (fallback dla nieznanego typu), który bundler
+// tnie na chunk. Na SERWERZE dyspozytor jest importowany statycznie (patrz
+// `fullWidgetView` niżej) - kompilator Start usuwa tę gałąź z bundla klienta.
 //
 // PARYTET HTML
 // Ramka i gałęzie typów są tu FIZYCZNIE tym samym kodem, którego używa
 // `WidgetView` - nie kopią. Dzięki temu SSR chrome jest bajt w bajt taki sam
 // niezależnie od wybranego dyspozytora (zero CLS), co przypina test
 // `__tests__/chromeWidgetViewParity.test.tsx`.
-import { lazy, memo, Suspense, useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  lazy,
+  memo,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentType,
+  type CSSProperties,
+} from "react";
+import { createIsomorphicFn } from "@tanstack/react-start";
 import type { WidgetNode, Device, WidgetTypography } from "@/lib/builder/types";
+// Server-only reference to the full dispatcher (see `fullWidgetView`). The
+// Start compiler erases the `.server()` arm from the browser build, so this
+// import never reaches the entry chunk; `check:entry-purity` and `check:bundle`
+// verify the compiled split.
+import { WidgetView as ServerWidgetView } from "./WidgetView";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import {
@@ -1071,14 +1088,41 @@ export function renderChromeWidget(frame: WidgetFrame): React.ReactNode | undefi
  */
 const UNKNOWN_WIDGET_MIN_HEIGHT = 40;
 
-// Jedyne wejście do pełnego dyspozytora - DYNAMICZNE, żeby `WidgetView`
-// i wszystko, co ciągnie, zostało poza chunkiem wejściowym.
-const LazyWidgetView = lazy(() => import("./WidgetView").then((m) => ({ default: m.WidgetView })));
+// Jedyne wejście do pełnego dyspozytora. W PRZEGLĄDARCE dynamiczne, żeby
+// `WidgetView` i wszystko, co ciągnie, zostało poza chunkiem wejściowym.
+//
+// NA SERWERZE STATYCZNE (2026-10-01, docs/performance/2026-10-01-first-visit-lcp-streaming.md).
+// `React.lazy` zawiesza się przy PIERWSZYM renderze w procesie, a SSR
+// strumieniowy wypycha powłokę zanim ten import się rozwiąże: każdy widget
+// treści (post-list, tailored-must-reads...) wychodził do przeglądarki jako
+// 40-pikselowy placeholder, a jego HTML dojeżdżał na końcu dokumentu i był
+// wstawiany skryptem `$RC` po sparsowaniu całej powłoki. Cache brzegowy
+// utrwalał ten kształt na każdy ciepły HIT. Zmierzone: LCP karty pierwszej
+// sekcji = czas podmiany + 50-110 ms (272 albo 552-680 ms zamiast FCP),
+// przesunięcie 0,0168 przy każdej podmianie. Bundel SSR i tak zawiera
+// dyspozytor, więc po stronie serwera renderujemy go synchronicznie; granica
+// Suspense zostaje, bo klient nadal hydruje ją leniwym chunkiem.
+const getServerWidgetView = createIsomorphicFn()
+  .server((): ComponentType<WidgetViewProps> | null => ServerWidgetView)
+  .client((): ComponentType<WidgetViewProps> | null => null);
+const ClientWidgetView = lazy(() =>
+  import("./WidgetView").then((m) => ({ default: m.WidgetView })),
+);
+let resolvedFullWidgetView: ComponentType<WidgetViewProps> | null = null;
+// Rozstrzygane przy pierwszym renderze, nie przy ładowaniu modułu: statyczny
+// import tworzy cykl ChromeWidgetView <-> WidgetView, więc w zależności od
+// tego, który moduł wszedł pierwszy, `ServerWidgetView` może być jeszcze
+// niezainicjalizowane podczas ewaluacji tego pliku.
+function fullWidgetView(): ComponentType<WidgetViewProps> {
+  resolvedFullWidgetView ??= getServerWidgetView() ?? ClientWidgetView;
+  return resolvedFullWidgetView;
+}
 
 // Frame subscriptions (theme/global-widget/typography) can update before this
 // chunk hydrates. Keep the unchanged props behind a memo boundary so those
 // updates cannot replace already-painted server content with a 40 px fallback.
 const DeferredWidgetView = memo(function DeferredWidgetView(props: WidgetViewProps) {
+  const FullWidgetView = fullWidgetView();
   return (
     <Suspense
       fallback={
@@ -1088,7 +1132,7 @@ const DeferredWidgetView = memo(function DeferredWidgetView(props: WidgetViewPro
         />
       }
     >
-      <LazyWidgetView {...props} />
+      <FullWidgetView {...props} />
     </Suspense>
   );
 });

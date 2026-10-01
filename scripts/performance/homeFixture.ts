@@ -11,6 +11,7 @@ interface HomeFixture {
   "menu-items": Row[];
   "home-body": Row[];
   fixture_image_type: string;
+  fixture_cover_image_type: string;
 }
 
 // Synthetic homepage with representative builder geometry and typography.
@@ -18,9 +19,27 @@ interface HomeFixture {
 export const homeFixture = JSON.parse(
   readFileSync(new URL("../../e2e/fixtures/first-visit.json", import.meta.url), "utf8"),
 ) as HomeFixture;
+// Logos and icons: a 279-byte vector, as in production.
 export const fixtureImage = readFileSync(
   new URL("../../e2e/fixtures/first-visit-cover.svg", import.meta.url),
 );
+// Slider hero and post covers: a 1600×900 raster with photo-like entropy
+// (gradients, skyline, grain; 112,795 bytes, generated deterministically).
+// Chrome drops images below 0.05 bits per displayed pixel from LCP, and the
+// vector at the hero size (598×336) is 0.011 bpp: with it the first-visit gate
+// measured the small card (0.052 bpp at 275×155), never the hero. The raster is
+// ≈4.5 bpp at the hero size, so the gate measures the same element as
+// production covers do (docs/performance/2026-10-01-first-visit-lcp-streaming.md, 2.5).
+export const fixtureCoverImage = readFileSync(
+  new URL("../../e2e/fixtures/first-visit-cover.jpg", import.meta.url),
+);
+
+/** Fixture bytes for an intercepted image request: raster for `.jpg` URLs, vector otherwise. */
+export function fixtureImageFor(url: string): { body: Buffer; contentType: string } {
+  return /\.jpe?g$/i.test(new URL(url).pathname)
+    ? { body: fixtureCoverImage, contentType: homeFixture.fixture_cover_image_type }
+    : { body: fixtureImage, contentType: homeFixture.fixture_image_type };
+}
 const emptyTables = new Set([
   "categories",
   "tags",
