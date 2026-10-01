@@ -22155,10 +22155,6 @@ export type Database = {
       }
       _coupon_probe_guard: { Args: never; Returns: undefined }
       _coupon_probe_miss: { Args: never; Returns: undefined }
-      _coupon_refusal: {
-        Args: { p_amount_cents: number; p_error: string }
-        Returns: Json
-      }
       _crm_source_type_rank: {
         Args: { p_source_type: string }
         Returns: number
@@ -31258,7 +31254,16 @@ export type Database = {
           _currency: string
           _plan_id: string
         }
-        Returns: Json
+        Returns: {
+          coupon_id: string
+          discount_cents: number
+          discount_kind: string
+          discount_percent: number
+          error: string
+          final_cents: number
+          label: string
+          ok: boolean
+        }[]
       }
       validate_event_ticket_coupon: {
         Args: {
@@ -31268,7 +31273,16 @@ export type Database = {
           _event_id: string
           _ticket_type_id: string
         }
-        Returns: Json
+        Returns: {
+          coupon_id: string
+          discount_cents: number
+          discount_kind: string
+          discount_percent: number
+          error: string
+          final_cents: number
+          label: string
+          ok: boolean
+        }[]
       }
       verification_domain_badges: {
         Args: {
