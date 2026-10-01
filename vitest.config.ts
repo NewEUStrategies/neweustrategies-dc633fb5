@@ -3061,6 +3061,39 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // ── MAGIC LINK: /auth/activate -> dostawca -> /auth/callback ─────────
+        // 2026-10-01. Wydanie 12 (rozdz. 16.6) pokazało funkcjonalność
+        // "portal logowania (hasło, magic link)" na 72,47% linii z DWOMA
+        // plikami na zerze - to były właśnie te dwie trasy (19 + 30 = 49
+        // niepokrytych linii, dokładnie tyle, ile raport). Razem niosą CAŁĄ
+        // ścieżkę linku z zaproszenia: ładny adres na naszej domenie i stronę
+        // powrotu, która zamienia token na sesję.
+        // Zero ukrywało trzy defekty, naprawione razem z testami:
+        //   * odmowa w `/auth/activate` szła na `/auth?error=...`, a trasy
+        //     `/auth` nie ma - przycięty link kończył się 404,
+        //   * `/auth/callback` przy błędzie od dostawcy (`#error_code=
+        //     otp_expired`) kręcił spinnerem przez pełne 8 s,
+        //   * sesja widziana przez zdarzenie I sondowanie wołała `navigate`
+        //     dwa razy, a sondowanie biegło dalej do odmontowania.
+        // Ten sam PR zawęził też listę typów `/auth/activate` do tego, co
+        // wydaje `generateLink` dla zaproszeń (invite / magiclink / signup,
+        // ustalone ze źródła Supabase Auth), i pilnuje, że błąd w adresie
+        // powrotu nie wyrzuca zalogowanego użytkownika na komunikat
+        // o nieważnym linku (supabase-js zostawia wtedy zapisaną sesję).
+        // Oba pliki są małe (19 i 30 linii), więc próg poniżej 100 byłby
+        // nieodróżnialny od 100 - jak przy `loginPopupBus.ts`.
+        "src/routes/auth.activate.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/auth.callback.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
         // MfaChallenge.tsx MA SWÓJ WPIS WYŻEJ (100/100/100/90) i NIE POWTARZA
         // GO TUTAJ. Do 2026-08-22 ten sam klucz stał w tym pliku DWA RAZY,
         // a ponieważ w literale obiektu wygrywa wpis PÓŹNIEJSZY, obowiązywała

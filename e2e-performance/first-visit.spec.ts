@@ -1,6 +1,9 @@
 import { expect, test, type Request as BrowserRequest } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { installFirstVisitLcpObserver } from "../scripts/performance/firstVisitLcp";
+import { installFirstVisitMainThreadObserver } from "../scripts/performance/firstVisitMainThread";
+import { installFirstVisitStreamingObserver } from "../scripts/performance/firstVisitStreaming";
 import {
   firstVisitCacheStates,
   firstVisitPages,
@@ -17,7 +20,6 @@ declare global {
   interface Window {
     __firstVisit: {
       readyAt: number | null;
-      lcp: number;
       cls: number;
       shifts: Array<{ at: number; value: number; nodes: string[] }>;
       serverTitle?: Element;
@@ -93,8 +95,11 @@ for (const { path, lang } of firstVisitPages) {
           )
             errors.push(message.text());
         });
+        await page.addInitScript(installFirstVisitLcpObserver);
+        await page.addInitScript(installFirstVisitMainThreadObserver);
+        await page.addInitScript(installFirstVisitStreamingObserver);
         await page.addInitScript(() => {
-          window.__firstVisit = { readyAt: null, lcp: 0, cls: 0, shifts: [] };
+          window.__firstVisit = { readyAt: null, cls: 0, shifts: [] };
           const serverContent = new MutationObserver(() => {
             const title = document.querySelector("main .cms-post-title");
             if (title) {
@@ -113,9 +118,6 @@ for (const { path, lang } of firstVisitPages) {
                 window.__firstVisit.readyAt = performance.now();
             },
           });
-          new PerformanceObserver((list) => {
-            for (const entry of list.getEntries()) window.__firstVisit.lcp = entry.startTime;
-          }).observe({ type: "largest-contentful-paint", buffered: true });
           let sessionStart = 0;
           let lastShift = 0;
           let sessionValue = 0;
@@ -177,7 +179,7 @@ for (const { path, lang } of firstVisitPages) {
         const beforeInteraction = await page.evaluate(() => ({
           at: performance.now(),
           cls: window.__firstVisit.cls,
-          lcp: window.__firstVisit.lcp,
+          lcp: window.__firstVisitLcp.read().lcpMs,
         }));
         // A painted shell/ready flag alone is insufficient: exercise its handler.
         const darkBefore = await page
@@ -202,7 +204,6 @@ for (const { path, lang } of firstVisitPages) {
             fcpMs: performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? 0,
             readyMs: window.__firstVisit.readyAt,
             interactionCompleteMs: performance.now(),
-            lcpMs: window.__firstVisit.lcp,
             cls: window.__firstVisit.cls,
             shifts: window.__firstVisit.shifts,
             serverTitleRetained: window.__firstVisit.serverTitle?.isConnected ?? false,
@@ -230,9 +231,27 @@ for (const { path, lang } of firstVisitPages) {
               endMs: entry.responseEnd,
             }));
           return {
+            // The theme click already ends native LCP candidate collection.
+            // Read after the existing script accounting wait so late observer
+            // delivery cannot turn a newer paint into an artificially fast LCP.
+            ...window.__firstVisitLcp.read(),
+            // Main-thread windows explain a candidate painted long after its
+            // bytes arrived. Tasks after beforeInteraction.at belong to the
+            // interaction and script accounting, not to the first paint.
+            ...window.__firstVisitMainThread.read(),
+            // Streamed widget placeholders: a first-fold widget whose swappedAt
+            // is after fcpMs was not part of the first paint at all.
+            ...window.__firstVisitStreaming.read(),
             jsAccountingAtMs: performance.now(),
             jsBytes: scripts.reduce((sum, entry) => sum + entry.bytes, 0),
             scripts,
+            paintResources: resources
+              .filter((entry) => /\.(?:woff2?|svg|css)(?:\?|$)/.test(entry.name))
+              .map((entry) => ({
+                url: entry.name,
+                start: entry.startTime,
+                end: entry.responseEnd,
+              })),
           };
         });
         const inlineStyles = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map(
