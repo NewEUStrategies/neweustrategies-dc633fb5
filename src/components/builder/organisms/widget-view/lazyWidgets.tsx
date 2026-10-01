@@ -45,9 +45,16 @@
 // progress-carousel, rich-html (normalizeRichHtml -> node-html-parser, 202 kB
 // źródła!), search-button, account-link, speakers, team-member,
 // author-profile-card, interactive-circle, toc, pricing, dynamiczne tagi
-// wpisu, lightbox galerii i slider z wpisów. SSR wypełnia każdą granicę
-// Suspense na serwerze, więc HTML i LCP są identyczne - odroczony jest
-// wyłącznie transfer JS na kliencie.
+// wpisu, lightbox galerii i slider z wpisów.
+//
+// 2026-10-01: NIEPRAWDĄ było zdanie „SSR wypełnia każdą granicę Suspense na
+// serwerze, więc HTML i LCP są identyczne". Przy SSR strumieniowym `React.lazy`
+// zawiesza się przy PIERWSZYM renderze w procesie, powłoka wychodzi z pustą
+// granicą, a HTML widgetu dojeżdża na końcu dokumentu (szczegóły i pomiar:
+// docs/performance/2026-10-01-first-visit-lcp-streaming.md). Dlatego widgety
+// czytelnicze z `serverReadingWidgets` niżej są na serwerze statyczne, a
+// dyspozytor `WidgetView` jest statyczny w `ChromeWidgetView`. Odroczony jest
+// wyłącznie transfer JS na kliencie; reszta rejestru nadal strumieniuje.
 import { lazy, type ComponentProps, type ComponentType } from "react";
 import { withSuspense } from "./lazySuspense";
 import { createIsomorphicFn } from "@tanstack/react-start";
@@ -137,6 +144,7 @@ import { ContactFormView as ServerContactFormView } from "@/components/blocks/Co
 import { PostsSliderWidget as ServerPostsSliderWidget } from "./PostsSliderWidget";
 import { RatedListView as ServerRatedListView } from "./RatedListView";
 import { SectionLabelWidgetView as ServerSectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
+import { TailoredMustReadsView as ServerTailoredMustReadsView } from "./TailoredMustReadsView";
 
 // Let the Start compiler erase server imports, including their side effects.
 // A plain SSR ternary left ~20 KiB of side-effect dependencies in browser boot.
@@ -148,6 +156,7 @@ const getServerReadingWidgets = createIsomorphicFn()
     PostsSliderWidget: ServerPostsSliderWidget,
     RatedListView: ServerRatedListView,
     SectionLabelWidgetView: ServerSectionLabelWidgetView,
+    TailoredMustReadsView: ServerTailoredMustReadsView,
   }))
   .client(() => null);
 const serverReadingWidgets = getServerReadingWidgets();
@@ -390,9 +399,13 @@ const PostListViewLazy = serverReadingWidgets
     ) as ComponentType<ComponentProps<typeof PostListViewImpl>>);
 export const PostListView = withSuspense(PostListViewLazy);
 
-const TailoredMustReadsViewLazy = lazy(() =>
-  import("./TailoredMustReadsView").then((m) => ({ default: m.TailoredMustReadsView })),
-) as ComponentType<ComponentProps<typeof TailoredMustReadsViewImpl>>;
+// Lista czytelnicza strony głównej: na serwerze statyczna jak post-list, bo
+// jej granica strumieniowała się tak samo (pomiar 2026-10-01, widget …002b).
+const TailoredMustReadsViewLazy = serverReadingWidgets
+  ? serverReadingWidgets.TailoredMustReadsView
+  : (lazy(() =>
+      import("./TailoredMustReadsView").then((m) => ({ default: m.TailoredMustReadsView })),
+    ) as ComponentType<ComponentProps<typeof TailoredMustReadsViewImpl>>);
 export const TailoredMustReadsView = withSuspense(TailoredMustReadsViewLazy);
 
 const PostsSliderWidgetLazy = serverReadingWidgets

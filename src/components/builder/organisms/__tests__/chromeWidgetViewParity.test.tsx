@@ -158,11 +158,22 @@ describe("ChromeWidgetView == WidgetView dla typów chrome", () => {
 
   it("nieznany typ NIE jest renderowany w chrome na sztywno - idzie przez granicę leniwą", async () => {
     // `React.lazy` nie rozwiąże się w `renderToStaticMarkup`, więc sprawdzamy
-    // kontrakt na poziomie modułu: pełny dyspozytor wchodzi tu WYŁĄCZNIE
-    // dynamicznym `import()`, bo tylko taka krawędź wypada z chunku wejściowego.
+    // kontrakt na poziomie modułu: do PRZEGLĄDARKI pełny dyspozytor wchodzi tu
+    // WYŁĄCZNIE dynamicznym `import()`, bo tylko taka krawędź wypada z chunku
+    // wejściowego. Statyczny import jest dozwolony tylko jako referencja
+    // serwerowa (`ServerWidgetView`) użyta w gałęzi `.server(` funkcji
+    // izomorficznej - kompilator Start wycina ją z bundla klienta, co pilnują
+    // `check:entry-purity` i `check:bundle`; SSR musi renderować dyspozytor
+    // synchronicznie, bo strumieniowa powłoka nie czeka na `React.lazy`
+    // (docs/performance/2026-10-01-first-visit-lcp-streaming.md).
     const { readFileSync } = await import("node:fs");
     const src = readFileSync("src/components/builder/organisms/ChromeWidgetView.tsx", "utf8");
     expect(src).toMatch(/import\(\s*"\.\/WidgetView"\s*\)/);
-    expect(src).not.toMatch(/^import\s+[^;]*from\s+"\.\/WidgetView";/m);
+    expect(src.match(/^import\s+[^;]*from\s+"\.\/WidgetView";/gm)).toEqual([
+      'import { WidgetView as ServerWidgetView } from "./WidgetView";',
+    ]);
+    const code = src.replace(/\/\/.*$/gm, "");
+    expect(code.match(/\bServerWidgetView\b/g)).toHaveLength(2);
+    expect(code).toMatch(/\.server\([\s\S]*?=>\s*ServerWidgetView\)/);
   });
 });
