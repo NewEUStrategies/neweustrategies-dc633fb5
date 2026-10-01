@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import { test } from "node:test";
 import { installFirstVisitLcpObserver } from "./firstVisitLcp.ts";
+import { installFirstVisitMainThreadObserver } from "./firstVisitMainThread.ts";
+import { installFirstVisitStreamingObserver } from "./firstVisitStreaming.ts";
 import { compareFirstVisitSamples, pairedTimingPValue } from "./compare-first-visit.mjs";
 import {
   firstVisitCases,
@@ -161,6 +163,159 @@ test("LCP reads pending records before callback delivery and drains each record 
     [272, 552],
   );
   assert.deepEqual(read(), final, "takeRecords must not duplicate delivered candidates");
+});
+
+function mainThreadHarness() {
+  let observer;
+  const fontListeners = [];
+  let now = 900;
+  class FakeObserver {
+    queued = [];
+    constructor(callback) {
+      this.callback = callback;
+      observer = this;
+    }
+    observe(options) {
+      assert.equal(options.type, "longtask");
+      assert.equal(options.buffered, true);
+    }
+    takeRecords() {
+      return this.queued.splice(0);
+    }
+    deliver(entries) {
+      this.callback({ getEntries: () => entries });
+    }
+  }
+  const window = {};
+  // Exercise the same closure-free serialization as page.addInitScript.
+  runInNewContext(`(${installFirstVisitMainThreadObserver.toString()})()`, {
+    window,
+    performance: { now: () => now },
+    PerformanceObserver: FakeObserver,
+    document: {
+      fonts: {
+        addEventListener: (type, listener) => fontListeners.push({ type, listener }),
+      },
+    },
+  });
+  return {
+    observer,
+    fontsLoadingDone: (at) => {
+      now = at;
+      for (const { type, listener } of fontListeners) if (type === "loadingdone") listener();
+    },
+    read: () => structuredClone(window.__firstVisitMainThread.read()),
+  };
+}
+
+test("main-thread windows keep every long task once and time each font loading cycle", () => {
+  const { observer, fontsLoadingDone, read } = mainThreadHarness();
+  assert.deepEqual(read(), { longTasks: [], fontsLoadingDoneMs: [] });
+  observer.deliver([{ startTime: 250, duration: 290, name: "self", entryType: "longtask" }]);
+  fontsLoadingDone(540);
+  observer.queued.push({ startTime: 600, duration: 55, name: "self", entryType: "longtask" });
+  const first = read();
+  assert.deepEqual(first, {
+    longTasks: [
+      { start: 250, duration: 290 },
+      { start: 600, duration: 55 },
+    ],
+    fontsLoadingDoneMs: [540],
+  });
+  fontsLoadingDone(1400);
+  const final = read();
+  assert.deepEqual(final.longTasks, first.longTasks, "takeRecords must not duplicate tasks");
+  assert.deepEqual(final.fontsLoadingDoneMs, [540, 1400]);
+  assert.deepEqual(first.fontsLoadingDoneMs, [540], "earlier snapshots must remain unchanged");
+});
+
+function streamingHarness() {
+  let observer;
+  let now = 100;
+  class Element {
+    constructor({ pending = null, widgetId = null, children = [] } = {}) {
+      this.pending = pending;
+      this.widgetId = widgetId;
+      this.children = children;
+    }
+    hasAttribute(name) {
+      return name === "data-chrome-widget-pending" && this.pending !== null;
+    }
+    getAttribute(name) {
+      if (name === "data-chrome-widget-pending") return this.pending;
+      if (name === "data-widget-id") return this.widgetId;
+      return null;
+    }
+    closest(selector) {
+      assert.equal(selector, "[data-widget-id]");
+      return this.widgetId === null ? null : this;
+    }
+    querySelectorAll(selector) {
+      assert.equal(selector, "[data-chrome-widget-pending]");
+      return this.children.filter((child) => child.pending !== null);
+    }
+  }
+  class FakeMutationObserver {
+    constructor(callback) {
+      this.callback = callback;
+      observer = this;
+    }
+    observe(target, options) {
+      // The options object comes from the vm realm: compare fields, not prototypes.
+      assert.equal(options.childList, true);
+      assert.equal(options.subtree, true);
+      assert.ok(target);
+    }
+    deliver(records, at) {
+      now = at;
+      this.callback(records);
+    }
+  }
+  const window = {};
+  // Exercise the same closure-free serialization as page.addInitScript.
+  runInNewContext(`(${installFirstVisitStreamingObserver.toString()})()`, {
+    window,
+    document: {},
+    Element,
+    MutationObserver: FakeMutationObserver,
+    performance: { now: () => now },
+  });
+  return {
+    Element,
+    observer,
+    read: () => structuredClone(window.__firstVisitStreaming.read()),
+  };
+}
+
+test("streamed widget placeholders record their parse time and the swap that replaced them", () => {
+  const { Element, observer, read } = streamingHarness();
+  assert.deepEqual(read(), { pendingWidgets: [] });
+  const widget = new Element({ widgetId: "00000000-0000-0000-0000-00000000001d" });
+  const placeholder = new Element({ pending: "post-list", widgetId: widget.widgetId });
+  const nested = new Element({ pending: "section-label" });
+  const wrapper = new Element({ children: [nested] });
+  const text = { nodeType: 3 };
+  observer.deliver([{ addedNodes: [placeholder, text], removedNodes: [] }], 259);
+  observer.deliver([{ addedNodes: [wrapper], removedNodes: [] }], 260);
+  observer.deliver([{ addedNodes: [placeholder], removedNodes: [] }], 261);
+  const parsed = read();
+  assert.deepEqual(parsed, {
+    pendingWidgets: [
+      {
+        widgetId: "00000000-0000-0000-0000-00000000001d",
+        type: "post-list",
+        insertedAt: 259,
+        swappedAt: null,
+      },
+      { widgetId: null, type: "section-label", insertedAt: 260, swappedAt: null },
+    ],
+  });
+  observer.deliver([{ addedNodes: [], removedNodes: [placeholder, text] }], 478);
+  observer.deliver([{ addedNodes: [], removedNodes: [placeholder] }], 900);
+  const swapped = read();
+  assert.equal(swapped.pendingWidgets[0].swappedAt, 478, "the first removal is the swap");
+  assert.equal(swapped.pendingWidgets[1].swappedAt, null);
+  assert.equal(parsed.pendingWidgets[0].swappedAt, null, "earlier snapshots must remain unchanged");
 });
 
 test("every comparison pairs the same case and alternates order without skipping samples", () => {

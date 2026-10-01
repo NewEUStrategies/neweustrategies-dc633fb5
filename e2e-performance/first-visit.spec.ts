@@ -2,6 +2,8 @@ import { expect, test, type Request as BrowserRequest } from "@playwright/test";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { installFirstVisitLcpObserver } from "../scripts/performance/firstVisitLcp";
+import { installFirstVisitMainThreadObserver } from "../scripts/performance/firstVisitMainThread";
+import { installFirstVisitStreamingObserver } from "../scripts/performance/firstVisitStreaming";
 import {
   firstVisitCacheStates,
   firstVisitPages,
@@ -94,6 +96,8 @@ for (const { path, lang } of firstVisitPages) {
             errors.push(message.text());
         });
         await page.addInitScript(installFirstVisitLcpObserver);
+        await page.addInitScript(installFirstVisitMainThreadObserver);
+        await page.addInitScript(installFirstVisitStreamingObserver);
         await page.addInitScript(() => {
           window.__firstVisit = { readyAt: null, cls: 0, shifts: [] };
           const serverContent = new MutationObserver(() => {
@@ -231,6 +235,13 @@ for (const { path, lang } of firstVisitPages) {
             // Read after the existing script accounting wait so late observer
             // delivery cannot turn a newer paint into an artificially fast LCP.
             ...window.__firstVisitLcp.read(),
+            // Main-thread windows explain a candidate painted long after its
+            // bytes arrived. Tasks after beforeInteraction.at belong to the
+            // interaction and script accounting, not to the first paint.
+            ...window.__firstVisitMainThread.read(),
+            // Streamed widget placeholders: a first-fold widget whose swappedAt
+            // is after fcpMs was not part of the first paint at all.
+            ...window.__firstVisitStreaming.read(),
             jsAccountingAtMs: performance.now(),
             jsBytes: scripts.reduce((sum, entry) => sum + entry.bytes, 0),
             scripts,
