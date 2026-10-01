@@ -6,14 +6,14 @@ Kryterium akceptacji z audytu brzmi: „trzydziesta pierwsza próba z jednego IP
 
 ## 1. Mechanizm defektu (stan przed naprawą)
 
-| Droga | Kto mógł wołać | Co zdradzała |
-| --- | --- | --- |
-| `validate_b2b_coupon` (`20260922220000:61-87`) | PUBLIC i anon (GRANT `20260919094000:92`, PUBLIC nigdy nie odebrany), authenticated | Wszystkie odmowy oddawały `coupon_id`, nazwę, rodzaj i procent. `event_not_eligible` (`:80-81`) różniło kod wydarzenia od pudła, `inactive` - kod wyłączony. |
-| `validate_event_ticket_coupon` (`:89-118`) | authenticated | Kod innego wydarzenia i kod tylko planowy dawały powód różny od pudła, z id i nazwą. |
-| `event_coupon_revealed_tickets(uuid, text)` (`:122-147`) | anon | Pusta lista albo lista biletów, czyli wprost: kod istnieje albo nie. |
-| `event_admission_quote` (`20260926110001:177-215`) | authenticated | `coupon_other_event` różne od `coupon_unknown`. Sprawdzane po ważności, więc wygasły kod innego wydarzenia odpowiadał `coupon_expired`. |
-| `resolveStripeDiscount` (`src/utils/payments.functions.ts`) | każdy, bez sesji | Kluczem serwisowym zwracała surowy powód z bazy, a przy trafieniu tworzyła obiekty rabatu u dostawcy. |
-| `quoteEventTicketCheckout`, `createCheckoutOrder`, `createPlanCheckoutSession` | zalogowany | Surowy powód z bazy. |
+| Droga                                                                          | Kto mógł wołać                                                                      | Co zdradzała                                                                                                                                                 |
+| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `validate_b2b_coupon` (`20260922220000:61-87`)                                 | PUBLIC i anon (GRANT `20260919094000:92`, PUBLIC nigdy nie odebrany), authenticated | Wszystkie odmowy oddawały `coupon_id`, nazwę, rodzaj i procent. `event_not_eligible` (`:80-81`) różniło kod wydarzenia od pudła, `inactive` - kod wyłączony. |
+| `validate_event_ticket_coupon` (`:89-118`)                                     | authenticated                                                                       | Kod innego wydarzenia i kod tylko planowy dawały powód różny od pudła, z id i nazwą.                                                                         |
+| `event_coupon_revealed_tickets(uuid, text)` (`:122-147`)                       | anon                                                                                | Pusta lista albo lista biletów, czyli wprost: kod istnieje albo nie.                                                                                         |
+| `event_admission_quote` (`20260926110001:177-215`)                             | authenticated                                                                       | `coupon_other_event` różne od `coupon_unknown`. Sprawdzane po ważności, więc wygasły kod innego wydarzenia odpowiadał `coupon_expired`.                      |
+| `resolveStripeDiscount` (`src/utils/payments.functions.ts`)                    | każdy, bez sesji                                                                    | Kluczem serwisowym zwracała surowy powód z bazy, a przy trafieniu tworzyła obiekty rabatu u dostawcy.                                                        |
+| `quoteEventTicketCheckout`, `createCheckoutOrder`, `createPlanCheckoutSession` | zalogowany                                                                          | Surowy powód z bazy.                                                                                                                                         |
 
 Żadna z tych dróg nie przechodziła przez limiter, więc nic nie ograniczało zgadywania.
 
@@ -56,6 +56,7 @@ Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` m
   - `resolveStripeDiscount`.
 
   Wycena i kasa wielokrotnie ponawiają walidację w jednej legalnej sesji. Tam pilnuje kubełek pudeł w bazie, który nie liczy trafień.
+
 - **`eventCodeReveal.functions.ts` / `.server.ts`.** Publiczna funkcja POST. Najemca pochodzi z zaufanego hosta i trafia do RPC jawnie. Odmowa limitu i awaria mają osobne powody, nigdy nie wracają jako pusta lista.
 - **`couponPreview.functions.ts` / `.server.ts`.** Funkcja POST za `requireSupabaseAuth`. Walidację wykonuje klient z JWT kupującego, czyli ten sam najemca i ten sam limit na osobę co w `createPlanCheckoutSession`. Do przeglądarki wraca wynik bez `coupon_id` i bez nazwy, także przy sukcesie.
 - **DB-owe `rate_limited` w wycenie i kasie.** Normalizuje je `codeProbeRpcError` / `isCodeProbeRateLimited` w `src/lib/billing/coupons.ts`. Kończy się wyjątkiem o stałej treści albo, w kasie planu, własnym powodem. Nigdy nie wraca jako odmowa kodu (`mode: "coupon"`), bo po takiej odmowie kasa zdejmuje kod z pamięci i płaci pełną cenę.
@@ -82,15 +83,15 @@ Walidacja z JWT zalogowanego działa w obu układach.
 
 ## 4. Pomiary i granice weryfikacji
 
-| Sprawdzenie | Wynik |
-| --- | --- |
-| `supabase/tests/event_code_guessing_test.sql` (lokalny runner pgTAP na pełnym schemacie) | 37/37 |
-| Pozostałe pliki pgTAP z kuponami i ACL (`coupon_effects_after_payment`, `security_definer_tenant_scope`, `event_participant_foundation`, `member_slug_non_author_visibility`) | zielone |
-| Pełna suita pgTAP (lokalnie) | 110 plików OK, 6 czerwonych. Wszystkie 6 to braki tego środowiska: `unaccent`, `pg_net`, atrapa `pgvector`, RLS atrapy storage. Nie dotyczą funkcji kodów. |
-| `scripts/events-harness/run.sh` | OK, 172 migracje i 3855 asercji. Asercja 71 przepisana z `coupon_other_event` na `coupon_unknown`. |
-| Migracja zastosowana ponownie na tej samej bazie (oba pasy) | bez błędów |
-| vitest: dotknięte moduły i bramki (lane parity, rozmiar migracji, plan pgTAP, i18n key drift / parity, mapy błędów wydarzeń) | zielone |
-| Pokrycie plików z progiem 98%, które zmieniłem | `RegistrationPayAction` 99,29/99,37/100/100, `checkout.functions` 100, `eventTicketPricing.server` 100, `EventPackagesPurchase` 100, `EventTicketPurchase` 100. Nowe moduły dostały własne progi. |
+| Sprawdzenie                                                                                                                                                                   | Wynik                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `supabase/tests/event_code_guessing_test.sql` (lokalny runner pgTAP na pełnym schemacie)                                                                                      | 37/37                                                                                                                                                                                             |
+| Pozostałe pliki pgTAP z kuponami i ACL (`coupon_effects_after_payment`, `security_definer_tenant_scope`, `event_participant_foundation`, `member_slug_non_author_visibility`) | zielone                                                                                                                                                                                           |
+| Pełna suita pgTAP (lokalnie)                                                                                                                                                  | 110 plików OK, 6 czerwonych. Wszystkie 6 to braki tego środowiska: `unaccent`, `pg_net`, atrapa `pgvector`, RLS atrapy storage. Nie dotyczą funkcji kodów.                                        |
+| `scripts/events-harness/run.sh`                                                                                                                                               | OK, 172 migracje i 3855 asercji. Asercja 71 przepisana z `coupon_other_event` na `coupon_unknown`.                                                                                                |
+| Migracja zastosowana ponownie na tej samej bazie (oba pasy)                                                                                                                   | bez błędów                                                                                                                                                                                        |
+| vitest: dotknięte moduły i bramki (lane parity, rozmiar migracji, plan pgTAP, i18n key drift / parity, mapy błędów wydarzeń)                                                  | zielone                                                                                                                                                                                           |
+| Pokrycie plików z progiem 98%, które zmieniłem                                                                                                                                | `RegistrationPayAction` 99,29/99,37/100/100, `checkout.functions` 100, `eventTicketPricing.server` 100, `EventPackagesPurchase` 100, `EventTicketPurchase` 100. Nowe moduły dostały własne progi. |
 
 Granice weryfikacji:
 

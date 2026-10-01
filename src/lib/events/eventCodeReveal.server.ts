@@ -24,8 +24,7 @@ import { currentTenantHost } from "@/lib/http/requestHost";
 import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 
 export type EventCodeRevealResult =
-  | { ok: true; ticketIds: string[] }
-  | { ok: false; reason: "rate_limited" | "error" };
+  { ok: true; ticketIds: string[] } | { ok: false; reason: "rate_limited" | "error" };
 
 export async function revealTicketsForEventCode(
   eventId: string,

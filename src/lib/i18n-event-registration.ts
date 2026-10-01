@@ -615,7 +615,8 @@ export const eventRegistrationEn = {
       revealApply: "Show tickets",
       revealFound: "Tickets revealed: {{count}}.",
       revealNone: "This code does not reveal any tickets.",
-      revealRateLimited: "Too many code attempts in a short time. Wait a few minutes and try again.",
+      revealRateLimited:
+        "Too many code attempts in a short time. Wait a few minutes and try again.",
       revealError: "We could not check the code right now. Please try again in a moment.",
       paying: "Opening checkout...",
       amountDue: "Amount due: {{amount}}",
