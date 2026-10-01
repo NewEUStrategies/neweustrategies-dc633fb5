@@ -98,9 +98,7 @@ describe("AnimatedHeadingRender", () => {
     const { container } = render(
       <AnimatedHeadingRender config={{ highlight: "do nas", accentColor: "#dc2626" }} />,
     );
-    expect(container.querySelector("h2 > span")?.getAttribute("style")).toContain(
-      "color: #dc2626",
-    );
+    expect(container.querySelector("h2 > span")?.getAttribute("style")).toContain("color: #dc2626");
   });
 
   it("renders every shape in highlight mode", () => {
