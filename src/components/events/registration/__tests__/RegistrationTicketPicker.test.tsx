@@ -32,12 +32,15 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 
 import type { RegistrationFormTicket } from "@/lib/events/registrationFormSurface";
 import { recallEventCode } from "@/lib/events/eventCodeMemory";
-import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { DZIEN, freezeClock, relativeIso } from "@/test/time";
+
+type RevealArg = { data: { eventId: string; code: string } };
+type RevealResult =
+  { ok: true; ticketIds: string[] } | { ok: false; reason: "rate_limited" | "error" };
 
 const h = vi.hoisted(() => ({
   lang: "pl" as "pl" | "en",
-  rpc: null as SupabaseRpcStub | null,
+  reveal: vi.fn<(arg: RevealArg) => Promise<RevealResult>>(),
   onChange: vi.fn<(ticketId: string) => void>(),
 }));
 
@@ -45,13 +48,15 @@ vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
 );
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    rpc: (name: string, args?: Record<string, unknown>) => {
-      if (h.rpc === null) throw new Error("test: atrapa RPC nie zostala ustawiona");
-      return h.rpc.rpc(name, args);
-    },
-  },
+// Odslanianie idzie przez funkcje serwerowa z limitem prob (20261001100000) -
+// atrapujemy jej granice; komponent wola ja przez `useServerFn`.
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  useServerFn: (fn: unknown) => fn,
+}));
+
+vi.mock("@/lib/events/eventCodeReveal.functions", () => ({
+  revealEventCodeTickets: (arg: RevealArg) => h.reveal(arg),
 }));
 
 import { RegistrationTicketPicker } from "@/components/events/registration/RegistrationTicketPicker";
@@ -62,7 +67,6 @@ freezeClock();
 
 const L = "eventRegistration.labels";
 const P = "eventRegistration.payment";
-const REVEAL_RPC = "event_coupon_revealed_tickets";
 const EVENT_ID = "11111111-1111-1111-1111-111111111111";
 
 function bilet(patch: Partial<RegistrationFormTicket> = {}): RegistrationFormTicket {
@@ -139,8 +143,8 @@ const poleKodu = (): HTMLElement => screen.getByPlaceholderText(`${P}.promoPlace
 
 beforeEach(() => {
   h.lang = "pl";
-  h.rpc = supabaseRpcStub();
-  h.rpc.setData(REVEAL_RPC, ["t-vip"]);
+  h.reveal.mockReset();
+  h.reveal.mockResolvedValue({ ok: true, ticketIds: ["t-vip"] });
   h.onChange.mockReset();
   window.sessionStorage.clear();
   naAdresie("");
@@ -460,14 +464,13 @@ describe("bilety ukryte i kod dostępu", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealFound(count=1)`);
     expect(screen.getByRole("radio", { name: /Bilet VIP/ })).toBeInTheDocument();
-    const call = h.rpc?.lastCall(REVEAL_RPC);
-    expect(call?.arg("p_event_id")).toBe(EVENT_ID);
-    expect(call?.arg("p_code")).toBe("VIP10");
+    expect(h.reveal).toHaveBeenCalledTimes(1);
+    expect(h.reveal.mock.lastCall?.[0]).toEqual({ data: { eventId: EVENT_ID, code: "VIP10" } });
     expect(recallEventCode(EVENT_ID)).toBe("VIP10");
   });
 
   it("kod, który niczego nie odsłania, mówi to zdaniem, a bilet zostaje ukryty", async () => {
-    h.rpc?.setData(REVEAL_RPC, []);
+    h.reveal.mockResolvedValue({ ok: true, ticketIds: [] });
     wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
 
     fireEvent.change(poleKodu(), { target: { value: "zly" } });
@@ -483,7 +486,7 @@ describe("bilety ukryte i kod dostępu", () => {
     fireEvent.change(poleKodu(), { target: { value: "   " } });
     fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
 
-    expect(h.rpc?.callsFor(REVEAL_RPC)).toHaveLength(0);
+    expect(h.reveal).not.toHaveBeenCalled();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(recallEventCode(EVENT_ID)).toBe("");
   });
@@ -494,14 +497,15 @@ describe("bilety ukryte i kod dostępu", () => {
 
     expect(await screen.findByRole("radio", { name: /Bilet VIP/ })).toBeInTheDocument();
     expect(poleKodu()).toHaveValue("VIP10");
-    expect(h.rpc?.lastCall(REVEAL_RPC)?.arg("p_code")).toBe("VIP10");
+    // Kod z linku przychodzi malymi literami - do serwera idzie znormalizowany.
+    expect(h.reveal.mock.lastCall?.[0].data.code).toBe("VIP10");
   });
 
   it("kod z linku bez znanego wydarzenia niczego nie odpytuje", () => {
     naAdresie("?code=vip10");
     wybor({ tickets: [bilet(), UKRYTY] });
 
-    expect(h.rpc?.callsFor(REVEAL_RPC)).toHaveLength(0);
+    expect(h.reveal).not.toHaveBeenCalled();
     expect(screen.queryByRole("radio", { name: /Bilet VIP/ })).not.toBeInTheDocument();
   });
 
@@ -511,5 +515,84 @@ describe("bilety ukryte i kod dostępu", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealFound(count=1)`);
     expect(screen.getAllByRole("radio", { name: /Bilet VIP/ })).toHaveLength(1);
+  });
+});
+
+describe("limit prob kodow i awaria odslaniania (20261001100000)", () => {
+  it("odmowa limitu ma WLASNE zdanie - nie udaje kodu, ktory niczego nie odslania", async () => {
+    h.reveal.mockResolvedValue({ ok: false, reason: "rate_limited" });
+    wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
+
+    fireEvent.change(poleKodu(), { target: { value: "vip10" } });
+    fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
+
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent(`${P}.revealRateLimited`);
+    expect(status).not.toHaveTextContent(`${P}.revealNone`);
+    expect(screen.queryByRole("radio", { name: /Bilet VIP/ })).not.toBeInTheDocument();
+  });
+
+  it("awaria serwera to revealError, nie revealNone (to nie orzeczenie o kodzie)", async () => {
+    h.reveal.mockResolvedValue({ ok: false, reason: "error" });
+    wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
+
+    fireEvent.change(poleKodu(), { target: { value: "vip10" } });
+    fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealError`);
+  });
+
+  it("wyjatek transportu to tez revealError", async () => {
+    h.reveal.mockRejectedValue(new Error("Failed to fetch"));
+    wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
+
+    fireEvent.change(poleKodu(), { target: { value: "vip10" } });
+    fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealError`);
+  });
+
+  it("odmowa limitu nie zabiera biletow odslonietych wczesniej poprawnym kodem", async () => {
+    wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
+    fireEvent.change(poleKodu(), { target: { value: "vip10" } });
+    fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
+    expect(await screen.findByRole("radio", { name: /Bilet VIP/ })).toBeInTheDocument();
+
+    h.reveal.mockResolvedValue({ ok: false, reason: "rate_limited" });
+    fireEvent.change(poleKodu(), { target: { value: "inny" } });
+    fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
+
+    expect(await screen.findByText(`${P}.revealRateLimited`)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Bilet VIP/ })).toBeInTheDocument();
+  });
+
+  it("drugie klikniecie w trakcie pytania nie wysyla drugiej proby z limitu", async () => {
+    let release: (value: RevealResult) => void = () => undefined;
+    h.reveal.mockImplementation(
+      () =>
+        new Promise<RevealResult>((resolve) => {
+          release = resolve;
+        }),
+    );
+    wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
+
+    fireEvent.change(poleKodu(), { target: { value: "vip10" } });
+    const button = screen.getByRole("button", { name: `${P}.revealApply` });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(h.reveal).toHaveBeenCalledTimes(1);
+    expect(button).toBeDisabled();
+    release({ ok: true, ticketIds: ["t-vip"] });
+    expect(await screen.findByRole("radio", { name: /Bilet VIP/ })).toBeInTheDocument();
+    expect(button).not.toBeDisabled();
+  });
+
+  it("kod dluzszy niz 64 znaki (z linku) nie trafia do serwera i nie zjada limitu", async () => {
+    naAdresie(`?code=${"a".repeat(65)}`);
+    wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
+
+    expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealNone`);
+    expect(h.reveal).not.toHaveBeenCalled();
   });
 });

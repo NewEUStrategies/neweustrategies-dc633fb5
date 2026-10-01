@@ -26,6 +26,7 @@ import {
   ga4RemoveFromCart,
 } from "@/lib/analytics/ga4Ecommerce";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { isCodeProbeRateLimited } from "@/lib/billing/coupons";
 import { sendEventFunnelStep } from "@/lib/events/eventFunnelBeacon";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
@@ -86,8 +87,9 @@ export function CartPanel() {
         return;
       }
       void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
-    } catch {
-      toast.error(t("cart.payError"));
+    } catch (error: unknown) {
+      // Limit prób kodów to nie zły kod i nie awaria płatności.
+      toast.error(isCodeProbeRateLimited(error) ? t("cart.promoRateLimited") : t("cart.payError"));
     } finally {
       setBusyId(null);
     }

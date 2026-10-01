@@ -598,6 +598,43 @@ describe("EventPackagesPurchase - wycena i zamówienie", () => {
     );
   });
 
+  it("limit prób kodów przy zakupie mówi o limicie, nie „operacja się nie udała”", async () => {
+    // Zakup liczy wycenę ponownie, a straznik kodow (`_coupon_probe_guard`)
+    // rzuca wtedy `rate_limited: ...` bez prefiksu `refused_`.
+    api.purchasePackage.mockRejectedValueOnce(
+      new Error("rate_limited: too many code attempts, try again later"),
+    );
+    renderPurchase();
+    await pick(/Pakiet firmowy/);
+    await waitFor(() => expect(buyButton()).toBeEnabled());
+    fireEvent.click(buyButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("eventPackages.quoteReasons.rate_limited"),
+    );
+  });
+
+  it("wycena odrzucona limitem prób mówi o limicie i nie pozwala kupić", async () => {
+    api.quoteAdmission.mockRejectedValue(
+      new Error("rate_limited: too many code attempts, try again later"),
+    );
+    renderPurchase();
+    await pick(/Pakiet firmowy/);
+
+    expect(await screen.findByText("eventPackages.quoteReasons.rate_limited")).toBeInTheDocument();
+    expect(buyButton()).toBeDisabled();
+  });
+
+  it("awaria wyceny to zdanie, a nie wczytywanie bez końca", async () => {
+    api.quoteAdmission.mockRejectedValue(new Error("PGRST301: JWT expired"));
+    renderPurchase();
+    await pick(/Pakiet firmowy/);
+
+    expect(await screen.findByText("eventPackages.quoteReasons.unknown")).toBeInTheDocument();
+    expect(screen.queryByText("eventPackages.loading")).toBeNull();
+    expect(buyButton()).toBeDisabled();
+  });
+
   it("odmowa zakupu mówi zdaniem ze słownika, a nieznana - zdaniem ogólnym", async () => {
     // Głowa komunikatu plpgsql (`sold_out: ...`) jest kluczem, nie treścią dla
     // człowieka; klucz spoza listy nie może udawać znanego powodu, bo

@@ -655,8 +655,10 @@ BEGIN
     '71/kod: kod po koncu waznosci - coupon_expired');
   v_q := public.event_admission_quote(jsonb_build_object(
     'package_id', '71900000-0000-0000-0000-0000000000a5', 'coupon_code', 'PAK-INNE-WYD'));
-  PERFORM pg_temp.assert(v_q->>'reason' = 'coupon_other_event',
-    '71/kod: kod innego wydarzenia - coupon_other_event');
+  -- Kod INNEGO wydarzenia jest dla tego wydarzenia nieodroznialny od pudla
+  -- (20261001100000): `coupon_other_event` mowil, ze taki kod istnieje.
+  PERFORM pg_temp.assert(v_q->>'reason' = 'coupon_unknown',
+    '71/kod: kod innego wydarzenia wyglada jak nieznany - coupon_unknown');
   v_q := public.event_admission_quote(jsonb_build_object(
     'package_id', '71900000-0000-0000-0000-0000000000a5', 'coupon_code', 'PAK-TYLKO-P3'));
   PERFORM pg_temp.assert(v_q->>'reason' = 'coupon_other_package',

@@ -345,6 +345,21 @@ describe("awaria tworzenia sesji nie przenosi nigdzie kupującego", () => {
     expect(screen.queryByTestId("checkout-dialog")).toBeNull();
   });
 
+  it("limit prób kodów z bazy to zdanie o limicie, nie „płatności nieskonfigurowane”", async () => {
+    h.checkout.mockRejectedValue(
+      new Error("rate_limited: too many code attempts, try again later"),
+    );
+    renderPurchase();
+    fireEvent.click(await buyButton());
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(
+        realT("pl")("eventPackages.quoteReasons.rate_limited"),
+      ),
+    );
+    expect(h.toastError).not.toHaveBeenCalledWith(realT("pl")("checkout.paymentsNotConfigured"));
+    expect(h.navigate).not.toHaveBeenCalled();
+  });
+
   it("niezalogowany nie zakłada zamówienia, tylko dostaje prośbę o logowanie", async () => {
     h.session = null;
     renderPurchase();

@@ -118,6 +118,23 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
     });
   });
 
+  it("limit prób kodów z bazy idzie wyjątkiem o stałej treści, nie odmową kodu", async () => {
+    // Odmowa KODU (`ok:false`) kazałaby kasie zdjąć kod z pamięci i zapłacić
+    // pełną cenę - limit prób to nie orzeczenie o kodzie.
+    rpcResponses.set(
+      "validate_event_ticket_coupon",
+      fail("rate_limited: too many code attempts, try again later"),
+    );
+
+    const thrown = await applyEventTicketCoupon(client(), couponInput()).catch(
+      (error: unknown) => error,
+    );
+    expect(thrown).toBeInstanceOf(Error);
+    expect(thrown).toMatchObject({
+      message: "rate_limited: too many code attempts, try again later",
+    });
+  });
+
   it("kod procentowy bez procentu w odpowiedzi nie udaje procentu", async () => {
     rpcResponses.set(
       "validate_event_ticket_coupon",

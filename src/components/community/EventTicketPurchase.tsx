@@ -30,6 +30,7 @@ import { Ticket, CheckCircle2, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { createCheckoutOrder } from "@/lib/billing/checkout.functions";
+import { isCodeProbeRateLimited } from "@/lib/billing/coupons";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { LazyEmbeddedCheckoutDialog } from "@/components/checkout/LazyEmbeddedCheckoutDialog";
 import { AddToCartButton } from "@/components/cart/atoms/AddToCartButton";
@@ -171,8 +172,14 @@ export function EventTicketPurchase({
         return;
       }
       void navigate({ to: "/checkout/success", search: { order: res.orderId, mock: 1 } });
-    } catch {
-      toast.error(t("checkout.paymentsNotConfigured"));
+    } catch (error: unknown) {
+      // Limit prób kodów (baza odmawia, zanim spojrzy na kod) to nie awaria
+      // płatności ani zły kod - mówimy, że trzeba odczekać.
+      toast.error(
+        isCodeProbeRateLimited(error)
+          ? t("eventPackages.quoteReasons.rate_limited")
+          : t("checkout.paymentsNotConfigured"),
+      );
     } finally {
       setBusy(false);
     }

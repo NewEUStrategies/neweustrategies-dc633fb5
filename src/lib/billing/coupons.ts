@@ -29,14 +29,25 @@ export interface B2bCouponRow {
 export interface ValidateCouponResult {
   ok: boolean;
   /**
-   * Powód odmowy. Wszystkie warianty poza `technical_error` są ORZECZENIEM
-   * O KUPONIE i pochodzą z RPC `validate_b2b_coupon`.
+   * Powód odmowy. Wszystkie warianty poza `technical_error` i `rate_limited`
+   * są ORZECZENIEM O KUPONIE i pochodzą z RPC `validate_b2b_coupon`.
    *
    * `technical_error` jest inny z zasady: to brak orzeczenia. Zerwana sieć,
    * odmowa uprawnień do funkcji i awaria bazy NIE mówią nic o kodzie, który
    * klient wpisał, a wcześniej wszystkie mapowały się na `not_found` - czyli
    * na nieprawdziwe zdanie o pieniądzach („tego kuponu nie ma"), po którym
    * klient płaci pełną cenę albo rezygnuje.
+   *
+   * `rate_limited` to TEŻ brak orzeczenia: limit prób kodów (po IP i po
+   * koncie, patrz `codeProbeLimit.server.ts` i `_coupon_probe_guard` w bazie)
+   * odmawia ZANIM ktokolwiek spojrzy na kod. Pokazanie go jako „nie ma takiego
+   * kodu" kłamałoby o ważnym kuponie tak samo jak dawne `not_found` z awarii.
+   *
+   * `per_user_limit_reached` i `no_discount` baza zwracała od dawna, ale typ
+   * ich nie znał - ekran nie miał dla nich klucza i nie mówił NIC, czyli
+   * inaczej niż przy pudle. Od 20261001100000 kod przypięty do wydarzeń,
+   * nieaktywny albo z innego najemcy to zwykłe `not_found`; `inactive` zostaje
+   * w typie tylko dla bazy sprzed tej migracji (kod idzie przed migracją).
    */
   error:
     | null
@@ -47,8 +58,11 @@ export interface ValidateCouponResult {
     | "not_yet_valid"
     | "expired"
     | "limit_reached"
+    | "per_user_limit_reached"
     | "plan_not_eligible"
+    | "no_discount"
     | "currency_mismatch"
+    | "rate_limited"
     | "technical_error";
   coupon_id: string | null;
   discount_cents: number;
@@ -92,7 +106,55 @@ export const COUPON_ERROR_I18N_KEY: Record<NonNullable<ValidateCouponResult["err
   not_yet_valid: "coupon.error.notYetValid",
   expired: "coupon.error.expired",
   limit_reached: "coupon.error.limitReached",
+  per_user_limit_reached: "coupon.error.perUserLimitReached",
   plan_not_eligible: "coupon.error.planNotEligible",
+  no_discount: "coupon.error.noDiscount",
   currency_mismatch: "coupon.error.currencyMismatch",
+  rate_limited: "coupon.error.rateLimited",
   technical_error: "coupon.error.technicalError",
 };
+
+/**
+ * Głowa komunikatu odmowy limitu prób kodów. Tę samą głowę rzuca baza
+ * (`_coupon_probe_guard`: `rate_limited: too many code attempts, ...`) i ten
+ * sam napis niesie `Error`, którym serwer przekazuje odmowę do przeglądarki.
+ */
+export const CODE_PROBE_RATE_LIMITED = "rate_limited";
+
+const CODE_PROBE_RATE_LIMITED_MESSAGE = `${CODE_PROBE_RATE_LIMITED}: too many code attempts, try again later`;
+
+function errorMessageOf(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return typeof error.message === "string" ? error.message : "";
+  }
+  return "";
+}
+
+/**
+ * Czy błąd to odmowa LIMITU PRÓB kodów - z bazy (obiekt błędu PostgREST,
+ * zwykły obiekt `{ message }`) albo z serwera aplikacji (`Error`).
+ *
+ * Czytamy głowę komunikatu, bo tylko ona jest kontraktem: plpgsql dokleja po
+ * dwukropku zdanie po angielsku, a PostgREST oddaje błąd jako zwykły obiekt,
+ * nie `Error`.
+ */
+export function isCodeProbeRateLimited(error: unknown): boolean {
+  return errorMessageOf(error).trim().toLowerCase().startsWith(CODE_PROBE_RATE_LIMITED);
+}
+
+/**
+ * Błąd RPC kodu przygotowany do rzucenia z funkcji serwerowej.
+ *
+ * Odmowę limitu z bazy zamieniamy na zwykły `Error` z JEDNĄ stałą treścią
+ * (`rate_limited: ...`): przeglądarka czyta ją jednym słownikiem
+ * (`ticketCheckoutRefusal`, `isCodeProbeRateLimited`) i nie dostaje pól
+ * `hint`/`details` błędu PostgREST. Dzięki temu odmowa limitu nigdy nie
+ * wygląda jak odmowa KODU (ekran kasy zdejmowałby wtedy kod z pamięci
+ * i płacił pełną cenę) ani jak „płatności nieskonfigurowane". Każdy inny błąd
+ * wraca BEZ ZMIAN - ta funkcja nie zmienia zachowania żadnej innej awarii.
+ */
+export function codeProbeRpcError(error: unknown): unknown {
+  return isCodeProbeRateLimited(error) ? new Error(CODE_PROBE_RATE_LIMITED_MESSAGE) : error;
+}
