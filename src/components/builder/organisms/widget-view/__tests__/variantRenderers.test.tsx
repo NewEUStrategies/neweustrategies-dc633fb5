@@ -99,7 +99,7 @@ describe("AnimatedHeadingRender", () => {
       <AnimatedHeadingRender config={{ highlight: "do nas", accentColor: "#dc2626" }} />,
     );
     expect(container.querySelector("h2 > span")?.getAttribute("style")).toContain(
-      "color: rgb(220, 38, 38)",
+      "color: #dc2626",
     );
   });
 
