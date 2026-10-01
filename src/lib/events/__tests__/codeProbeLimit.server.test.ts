@@ -6,8 +6,8 @@
 //   2. LICZBY Z AUDYTU - 30 prób na 10 minut: trzydziesta pierwsza w oknie to
 //      odmowa (sam licznik `rate_limit_hit` sprawdza pgTAP).
 //   3. SUROWY ADRES W `rate_limits` - podmiot ma być solonym skrótem.
-//   4. TOŻSAMOŚĆ PRZED KUBEŁKIEM IP - zablokowany adres nie może kosztować
-//      weryfikacji tokenu.
+//   4. PRÓG IP ZALEŻNY OD SESJI - anonim 30, wołający z sesją 120 (biuro
+//      i sieć konferencyjna za jednym adresem), a konto ma własny kubełek 30.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
@@ -40,6 +40,7 @@ vi.mock("@/lib/auth/optionalUser.server", () => ({
 import {
   CODE_PROBE_IP_SCOPE,
   CODE_PROBE_RATE_LIMIT,
+  CODE_PROBE_SIGNED_IN_IP_MAX,
   CODE_PROBE_USER_SCOPE,
   allowCodeProbe,
   allowCodeProbeForRequest,
@@ -56,15 +57,28 @@ beforeEach(() => {
 });
 
 describe("allowCodeProbe", () => {
-  it("30 prób na 10 minut, oba kubełki fail-closed", async () => {
+  it("anonim: 30 prób na 10 minut z adresu, fail-closed (31. próba to odmowa)", async () => {
     expect(CODE_PROBE_RATE_LIMIT).toEqual({ max: 30, windowMinutes: 10 });
+    expect(await allowCodeProbe(headers("192.0.2.7"), async () => null)).toBe(true);
+
+    expect(h.rateCalls).toEqual([
+      expect.objectContaining({
+        scope: CODE_PROBE_IP_SCOPE,
+        max: 30,
+        windowMinutes: 10,
+        failClosed: true,
+      }),
+    ]);
+  });
+
+  it("z sesją: próg IP 120, a konto ma własny kubełek 30 - oba fail-closed", async () => {
+    expect(CODE_PROBE_SIGNED_IN_IP_MAX).toBe(120);
     expect(await allowCodeProbe(headers("192.0.2.7"), async () => "user-1")).toBe(true);
 
-    expect(h.rateCalls).toHaveLength(2);
-    for (const call of h.rateCalls) {
-      expect(call).toMatchObject({ max: 30, windowMinutes: 10, failClosed: true });
-    }
-    expect(h.rateCalls.map((c) => c.scope)).toEqual([CODE_PROBE_IP_SCOPE, CODE_PROBE_USER_SCOPE]);
+    expect(h.rateCalls).toEqual([
+      expect.objectContaining({ scope: CODE_PROBE_IP_SCOPE, max: 120, failClosed: true }),
+      expect.objectContaining({ scope: CODE_PROBE_USER_SCOPE, max: 30, failClosed: true }),
+    ]);
   });
 
   it("podmiot to solony skrót - ani adres, ani identyfikator konta nie trafia do licznika", async () => {
@@ -84,13 +98,11 @@ describe("allowCodeProbe", () => {
     expect(h.rateCalls[0]!.subjectId).not.toBe(h.rateCalls[1]!.subjectId);
   });
 
-  it("odmowa kubełka IP kończy pracę, zanim serwer ustali tożsamość", async () => {
+  it("odmowa kubełka IP kończy pracę przed kubełkiem konta", async () => {
     h.allowed["coupon_probe.ip"] = false;
-    const resolve = vi.fn(async () => "user-1");
 
-    expect(await allowCodeProbe(headers("192.0.2.7"), resolve)).toBe(false);
-    expect(resolve).not.toHaveBeenCalled();
-    expect(h.rateCalls).toHaveLength(1);
+    expect(await allowCodeProbe(headers("192.0.2.7"), async () => "user-1")).toBe(false);
+    expect(h.rateCalls.map((c) => c.scope)).toEqual([CODE_PROBE_IP_SCOPE]);
   });
 
   it("anonim ma tylko kubełek IP", async () => {

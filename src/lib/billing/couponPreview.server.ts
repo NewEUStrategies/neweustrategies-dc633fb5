@@ -20,6 +20,7 @@ import {
   COUPON_ERROR_I18N_KEY,
   isCodeProbeRateLimited,
   normalizeCouponCode,
+  parseCouponVerdict,
   type ValidateCouponResult,
 } from "@/lib/billing/coupons";
 import { allowCodeProbe } from "@/lib/events/codeProbeLimit.server";
@@ -90,7 +91,7 @@ export async function previewPlanCouponForUser(
       input.amountCents,
     );
   }
-  const row = (data ?? [])[0];
+  const row = parseCouponVerdict(data);
   if (!row) return null;
   if (!row.ok) return refusal(knownError(row.error), input.amountCents);
   return {

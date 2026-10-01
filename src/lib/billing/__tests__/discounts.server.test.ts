@@ -22,11 +22,17 @@ import { ok, supabaseFromStub } from "@/test/supabaseChain";
 
 // --- granica 1: klient Supabase (RPC walidacji + tabela definicji) ----------
 
+/**
+ * Werdykt `validate_b2b_coupon`. Od 20261001210000 baza oddaje go jako JEDEN
+ * obiekt jsonb, wcześniej jako wiersz zbioru - `seed` przyjmuje oba kształty.
+ * Pola są opcjonalne, bo przypadki niżej celowo podają werdykty niepełne.
+ */
 interface ValidationRow {
   ok: boolean;
   error?: string | null;
   coupon_id?: string;
   discount_cents?: number | null;
+  final_cents?: number | null;
 }
 
 const db = vi.hoisted(() => ({
@@ -122,7 +128,7 @@ function couponDefinition(overrides: Partial<CouponDefinition> = {}): CouponDefi
 /** Ustawia odpowiedź RPC walidacji oraz wiersz definicji kuponu. */
 function seed(
   options: {
-    validation?: ValidationRow[] | null;
+    validation?: ValidationRow | ValidationRow[] | null;
     validationError?: string;
     definition?: CouponDefinition | null;
   } = {},
@@ -137,7 +143,7 @@ function seed(
     : {
         data:
           options.validation === undefined
-            ? [{ ok: true, coupon_id: TENANT_COUPON_ID, discount_cents: 980 }]
+            ? [{ ok: true, coupon_id: TENANT_COUPON_ID, discount_cents: 980, final_cents: 3920 }]
             : options.validation,
         error: null,
       };
@@ -196,7 +202,11 @@ describe("rabat WAŻNY", () => {
   });
 
   it("kwota rabatu pochodzi z RPC (źródło prawdy), nie z definicji ani od klienta", async () => {
-    seed({ validation: [{ ok: true, coupon_id: TENANT_COUPON_ID, discount_cents: 1234 }] });
+    seed({
+      validation: [
+        { ok: true, coupon_id: TENANT_COUPON_ID, discount_cents: 1234, final_cents: 3666 },
+      ],
+    });
 
     const result = await resolveDiscountForCoupon(INPUT);
 
@@ -204,7 +214,11 @@ describe("rabat WAŻNY", () => {
   });
 
   it("brak kwoty w odpowiedzi RPC daje zero, a nie `undefined` w podsumowaniu", async () => {
-    seed({ validation: [{ ok: true, coupon_id: TENANT_COUPON_ID, discount_cents: null }] });
+    seed({
+      validation: [
+        { ok: true, coupon_id: TENANT_COUPON_ID, discount_cents: null, final_cents: 4900 },
+      ],
+    });
 
     const result = await resolveDiscountForCoupon(INPUT);
 
@@ -331,6 +345,77 @@ describe("ODMOWY z walidacji kuponu - każdy powód osobno", () => {
     expect(db.rpcCalls).toEqual([]);
     expect(stripe.envs).toEqual([]);
   });
+});
+
+// ===========================================================================
+describe("werdykt jako JEDEN obiekt jsonb (od 20261001210000)", () => {
+  // Po migracji walidator oddaje obiekt zamiast zbioru wierszy (PostgREST nie
+  // może wtedy przefiltrować wyniku i wycofać zapisanego pudła). Nakładka ma
+  // czytać go DOKŁADNIE tak jak dawny `[wiersz]` - inaczej po wdrożeniu
+  // migracji żaden kod nie dawałby rabatu, a klient płaciłby pełną cenę.
+  const VALID: ValidationRow = {
+    ok: true,
+    coupon_id: TENANT_COUPON_ID,
+    discount_cents: 980,
+    final_cents: 3920,
+  };
+
+  it("ważny kupon jako obiekt: ten sam rabat u operatora co przy wierszu", async () => {
+    seed({ validation: VALID });
+
+    const result = await resolveDiscountForCoupon(INPUT);
+
+    expect(result).toEqual({
+      ok: true,
+      discountId: "promo_NES20",
+      error: null,
+      discountCents: 980,
+    });
+    expect(db.current!.lastChain("b2b_coupons")!.argsOf("eq")).toEqual(["id", TENANT_COUPON_ID]);
+    expect(stripe.couponArgs).toEqual([
+      {
+        duration: "once",
+        percent_off: 20,
+        metadata: { source: "nes_b2b_coupons", code: "NES20" },
+      },
+    ]);
+  });
+
+  it("odmowa jako obiekt: ten sam powód i NIC u operatora", async () => {
+    seed({ validation: { ok: false, error: "expired" } });
+
+    const result = await resolveDiscountForCoupon(INPUT);
+
+    expect(result).toEqual({ ok: false, discountId: null, error: "expired", discountCents: 0 });
+    expect(stripe.listArgs).toEqual([]);
+    expect(stripe.couponArgs).toEqual([]);
+    expect(stripe.promoArgs).toEqual([]);
+  });
+
+  it.each([
+    ["coupon_id", "obiekt"],
+    ["final_cents", "obiekt"],
+    ["coupon_id", "wiersz"],
+    ["final_cents", "wiersz"],
+  ] as const)(
+    "sukces bez `%s` (%s) to `not_found` - rabat u operatora NIE powstaje",
+    async (key, shape) => {
+      // Bez `coupon_id` nie ma czyjej definicji czytać (dawniej szło `eq("id",
+      // undefined)`), a bez kwoty końcowej werdykt nie jest pełny. Rabat
+      // założony u operatora z takiej odpowiedzi żyłby dalej pod tym kodem.
+      const verdict: ValidationRow = { ...VALID };
+      delete verdict[key];
+      seed({ validation: shape === "obiekt" ? verdict : [verdict] });
+
+      const result = await resolveDiscountForCoupon(INPUT);
+
+      expect(result).toEqual({ ok: false, discountId: null, error: "not_found", discountCents: 0 });
+      expect(db.current!.chainsFor("b2b_coupons")).toHaveLength(0);
+      expect(stripe.envs).toEqual([]);
+      expect(stripe.couponArgs).toEqual([]);
+      expect(stripe.promoArgs).toEqual([]);
+    },
+  );
 });
 
 // ===========================================================================

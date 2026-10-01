@@ -158,3 +158,80 @@ export function isCodeProbeRateLimited(error: unknown): boolean {
 export function codeProbeRpcError(error: unknown): unknown {
   return isCodeProbeRateLimited(error) ? new Error(CODE_PROBE_RATE_LIMITED_MESSAGE) : error;
 }
+
+/** Werdykt walidatora kodu po stronie serwera: sukces niesie kod, odmowa - wyłącznie powód. */
+export type CouponVerdict =
+  | {
+      ok: true;
+      error: null;
+      coupon_id: string;
+      discount_cents: number;
+      final_cents: number;
+      label: string | null;
+      discount_kind: string | null;
+      discount_percent: number | null;
+    }
+  | {
+      ok: false;
+      error: string | null;
+      coupon_id: null;
+      discount_cents: 0;
+      final_cents: number;
+      label: null;
+      discount_kind: null;
+      discount_percent: null;
+    };
+
+function field(source: object, key: string): unknown {
+  return Object.hasOwn(source, key) ? Reflect.get(source, key) : undefined;
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function textOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+/**
+ * Werdykt `validate_b2b_coupon` / `validate_event_ticket_coupon` z odpowiedzi RPC.
+ *
+ * DWA KSZTAŁTY NA OKNO WDROŻENIA. Od migracji 20261001210000 walidator oddaje
+ * JEDEN obiekt jsonb (wynik skalarny - PostgREST nie przefiltruje go i nie wycofa
+ * zapisu pudła zależnie od odpowiedzi); wcześniej oddawał zbiór wierszy. Kod
+ * aplikacji idzie razem z migracją albo przed nią, więc czyta oba.
+ *
+ * SUKCES BEZ `coupon_id` ALBO KWOTY KOŃCOWEJ TO BRAK WERDYKTU (`null`), a nie
+ * rabat: wołający traktuje go jak „nie ma takiego kodu", czyli bez obniżki ceny.
+ * Brak samej kwoty rabatu to rabat zero - też bez obniżki.
+ */
+export function parseCouponVerdict(data: unknown): CouponVerdict | null {
+  const raw: unknown = Array.isArray(data) ? data[0] : data;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+  if (field(raw, "ok") !== true) {
+    return {
+      ok: false,
+      error: textOrNull(field(raw, "error")),
+      coupon_id: null,
+      discount_cents: 0,
+      final_cents: finiteNumber(field(raw, "final_cents")) ?? 0,
+      label: null,
+      discount_kind: null,
+      discount_percent: null,
+    };
+  }
+  const couponId = textOrNull(field(raw, "coupon_id"));
+  const finalCents = finiteNumber(field(raw, "final_cents"));
+  if (couponId === null || finalCents === null) return null;
+  return {
+    ok: true,
+    error: null,
+    coupon_id: couponId,
+    discount_cents: finiteNumber(field(raw, "discount_cents")) ?? 0,
+    final_cents: finalCents,
+    label: textOrNull(field(raw, "label")),
+    discount_kind: textOrNull(field(raw, "discount_kind")),
+    discount_percent: finiteNumber(field(raw, "discount_percent")),
+  };
+}

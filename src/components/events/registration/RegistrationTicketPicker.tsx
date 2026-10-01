@@ -110,7 +110,11 @@ export function RegistrationTicketPicker({
     const fromUrl = params.get("code");
     if (fromUrl) {
       setCode(fromUrl.toUpperCase());
-      void applyCode(fromUrl);
+      // Kod z linku zawsze trafia do pamięci (kasa liczy nim rabat), ale serwer
+      // pytamy tylko wtedy, gdy jest co odsłaniać: link rabatowy na wydarzenie
+      // bez ukrytych biletów zjadałby próbę z limitu przy każdym wejściu.
+      if (eventId) rememberEventCode(eventId, fromUrl);
+      if (hasHidden) void applyCode(fromUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -146,7 +150,7 @@ export function RegistrationTicketPicker({
           </button>
         </div>
       )}
-      {revealNote && (
+      {eventId && hasHidden && revealNote && (
         <p role="status" className="text-xs text-muted-foreground">
           {revealNote}
         </p>

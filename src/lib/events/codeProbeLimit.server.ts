@@ -9,10 +9,9 @@
 // legalnej sesji - tam pilnuje kubełek PUDEŁ w bazie (`_coupon_probe_guard`,
 // migracja 20261001100000), który nie liczy trafień.
 //
-// DWA KUBEŁKI, NAJPIERW IP. Kubełek po adresie łapie anonima i farmę kont za
-// jednym adresem; kubełek po koncie łapie jedno konto rozproszone po wielu
-// adresach. Odmowa kubełka IP kończy pracę, ZANIM serwer zapyta o tożsamość
-// albo o cokolwiek w bazie poza samym licznikiem.
+// DWA KUBEŁKI. Kubełek po adresie łapie anonima i farmę kont za jednym
+// adresem; kubełek po koncie łapie jedno konto rozproszone po wielu adresach.
+// Odmowa kończy pracę, ZANIM serwer zapyta o cokolwiek w bazie poza licznikiem.
 //
 // FAIL-CLOSED. Awaria licznika nie może zdjąć ochrony przed zgadywaniem - przy
 // błędzie `rate_limit_hit` odmawiamy (jak `sponsorReport.server.ts`).
@@ -32,30 +31,39 @@ import { requestRateSubject } from "@/lib/server/rateSubject.server";
  */
 export const CODE_PROBE_RATE_LIMIT = { max: 30, windowMinutes: 10 } as const;
 
+/**
+ * Próg kubełka IP dla wołającego Z SESJĄ. Za jednym adresem siedzi biuro albo
+ * sieć konferencyjna: trzydzieści sprawdzeń kodu na dziesięć minut dzieliłaby
+ * cała sala, a podgląd kuponu planu i odsłonięcie biletu to dla wielu osób
+ * jedyna droga do kodu. Zalogowanego pilnują jego własne kubełki (prób w TS
+ * i pudeł w bazie - po 30 na 10 minut); kubełek IP ma dla niego tylko zatrzymać
+ * farmę kont za jednym adresem. Anonim zostaje przy 30 - to kryterium audytu.
+ */
+export const CODE_PROBE_SIGNED_IN_IP_MAX = 120;
+
 export const CODE_PROBE_IP_SCOPE = "coupon_probe.ip";
 export const CODE_PROBE_USER_SCOPE = "coupon_probe.user";
 
 /**
  * Czy wolno zadać kolejne pytanie o kod.
  *
- * `resolveUserId` jest leniwe celowo: tożsamość (weryfikacja tokenu) liczymy
- * dopiero PO przejściu kubełka IP, więc zablokowany adres nie kosztuje nawet
- * zapytania do serwera uwierzytelniania. `null` = anonim, bez drugiego kubełka.
+ * Tożsamość ustalamy PRZED kubełkiem IP, bo od niej zależy jego próg. Licznik IP
+ * jest jeden: anonim dostaje odmowę od 31. pytania z adresu, wołający z sesją
+ * od 121. `null` = anonim, bez kubełka konta.
  */
 export async function allowCodeProbe(
   headers: Headers | null | undefined,
   resolveUserId: () => Promise<string | null>,
 ): Promise<boolean> {
+  const userId = await resolveUserId();
   const ipAllowed = await rateLimit({
     scope: CODE_PROBE_IP_SCOPE,
     subjectId: requestRateSubject(headers),
-    max: CODE_PROBE_RATE_LIMIT.max,
+    max: userId === null ? CODE_PROBE_RATE_LIMIT.max : CODE_PROBE_SIGNED_IN_IP_MAX,
     windowMinutes: CODE_PROBE_RATE_LIMIT.windowMinutes,
     failClosed: true,
   });
   if (!ipAllowed) return false;
-
-  const userId = await resolveUserId();
   if (userId === null) return true;
   return rateLimit({
     scope: CODE_PROBE_USER_SCOPE,

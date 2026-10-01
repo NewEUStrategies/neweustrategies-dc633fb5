@@ -218,6 +218,66 @@ describe("previewPlanCouponForUser", () => {
   });
 });
 
+describe("previewPlanCouponForUser - werdykt jako JEDEN obiekt jsonb (od 20261001210000)", () => {
+  // Po migracji walidator oddaje obiekt zamiast zbioru wierszy. Podgląd ma
+  // czytać go tak samo jak dawny `[wiersz]` - inaczej po wdrożeniu migracji
+  // każdy ważny kod wyglądałby na ekranie jak brak odpowiedzi, a klient
+  // płaciłby pełną cenę mimo kuponu, który kasa by przyjęła.
+  const SUCCESS = {
+    ok: true,
+    error: null,
+    coupon_id: "eeeeeeee-0000-4000-8000-00000000000e",
+    discount_cents: 1_000,
+    final_cents: 9_000,
+    label: "Partner CEE",
+    discount_kind: "percent",
+    discount_percent: 10,
+  };
+
+  it("sukces jako obiekt: rabat jak przy wierszu, bez coupon_id i nazwy kodu", async () => {
+    h.rpc.mockResolvedValue({ data: SUCCESS, error: null });
+    const fromObject = await previewPlanCouponForUser(supabase, USER, input());
+    h.rpc.mockResolvedValue({ data: [SUCCESS], error: null });
+    const fromRow = await previewPlanCouponForUser(supabase, USER, input());
+
+    expect(fromObject).toEqual({
+      ok: true,
+      error: null,
+      coupon_id: null,
+      discount_cents: 1_000,
+      final_cents: 9_000,
+      label: null,
+      discount_kind: "percent",
+      discount_percent: 10,
+    });
+    expect(fromObject).toEqual(fromRow);
+  });
+
+  it("odmowa jako obiekt wraca oczyszczona, z kwotą nietkniętą", async () => {
+    h.rpc.mockResolvedValue({
+      data: { ...refusal("expired"), coupon_id: "x", label: "Stary", discount_percent: 30 },
+      error: null,
+    });
+    expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(refusal("expired"));
+  });
+
+  it.each([
+    ["coupon_id", "obiekt"],
+    ["final_cents", "obiekt"],
+    ["coupon_id", "wiersz"],
+    ["final_cents", "wiersz"],
+  ] as const)("sukces bez `%s` (%s) to brak werdyktu (null), a nie rabat", async (key, shape) => {
+    // Podgląd i tak nie oddaje `coupon_id`, ale bez niego kasa odrzuci kod
+    // jako `not_found` - ekran nie może więc obiecać rabatu, którego nie
+    // będzie. Bez kwoty końcowej nie ma czego pokazać jako „do zapłaty".
+    const verdict: Partial<typeof SUCCESS> = { ...SUCCESS };
+    delete verdict[key];
+    h.rpc.mockResolvedValue({ data: shape === "obiekt" ? verdict : [verdict], error: null });
+
+    expect(await previewPlanCouponForUser(supabase, USER, input())).toBeNull();
+  });
+});
+
 describe("previewPlanCoupon (deklaracja)", () => {
   it("handler woła warstwę serwerową klientem i kontem z middleware", async () => {
     expect(

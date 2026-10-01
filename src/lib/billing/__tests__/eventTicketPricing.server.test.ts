@@ -220,6 +220,116 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
   });
 });
 
+describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 20261001210000)", () => {
+  // Po migracji walidator oddaje obiekt zamiast zbioru wierszy (PostgREST nie
+  // może wtedy przefiltrować wyniku i wycofać zapisanego pudła). Wycena ma
+  // czytać go DOKŁADNIE tak jak dawny `[wiersz]` - inaczej po wdrożeniu
+  // migracji każdy ważny kod biletu kończyłby się odmową `not_found`.
+  const FIXED = {
+    ok: true,
+    coupon_id: COUPON_ID,
+    discount_cents: 2000,
+    final_cents: 28000,
+    discount_kind: "fixed",
+    discount_percent: null,
+  };
+
+  it("kod kwotowy jako obiekt: to samo rozbicie na miejsca co przy wierszu", async () => {
+    rpcResponses.set("validate_event_ticket_coupon", ok(FIXED));
+    const fromObject = await applyEventTicketCoupon(client(), couponInput());
+    rpcResponses.set("validate_event_ticket_coupon", ok([FIXED]));
+    const fromRow = await applyEventTicketCoupon(client(), couponInput());
+
+    // Trzy miejsca po 100 zł, kod 20 zł zdejmuje się z KAŻDEGO miejsca.
+    expect(fromObject).toEqual({
+      ok: true,
+      couponId: COUPON_ID,
+      kind: "fixed",
+      percent: null,
+      discountCents: 6000,
+      finalCents: 24000,
+      perSeatCents: 2000,
+    });
+    expect(fromObject).toEqual(fromRow);
+  });
+
+  it("kod procentowy jako obiekt: procent i kwoty z bazy, bez kwoty na miejsce", async () => {
+    rpcResponses.set(
+      "validate_event_ticket_coupon",
+      ok({
+        ...FIXED,
+        discount_kind: "percent",
+        discount_percent: 10,
+        discount_cents: 3000,
+        final_cents: 27000,
+      }),
+    );
+
+    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+      ok: true,
+      couponId: COUPON_ID,
+      kind: "percent",
+      percent: 10,
+      discountCents: 3000,
+      finalCents: 27000,
+      perSeatCents: null,
+    });
+  });
+
+  it("odmowa jako obiekt niesie powód z bazy; bez powodu schodzi na `not_found`", async () => {
+    rpcResponses.set(
+      "validate_event_ticket_coupon",
+      ok({ ok: false, error: "expired", coupon_id: null, discount_cents: 0, final_cents: 0 }),
+    );
+    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+      ok: false,
+      error: "expired",
+    });
+
+    rpcResponses.set("validate_event_ticket_coupon", ok({ ok: false, error: null }));
+    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+      ok: false,
+      error: "not_found",
+    });
+  });
+
+  it.each([
+    ["coupon_id", "obiekt"],
+    ["final_cents", "obiekt"],
+    ["coupon_id", "wiersz"],
+    ["final_cents", "wiersz"],
+  ] as const)("sukces bez `%s` (%s) to `not_found`, a nie rabat", async (key, shape) => {
+    // `ok: true` bez kuponu nie wskazuje, czyje użycie kasa ma potem
+    // zarezerwować, a bez kwoty końcowej nie ma od czego liczyć minimum
+    // transakcji. Przepuszczenie go dałoby bilet tańszy bez żadnego kodu.
+    const verdict: Partial<typeof FIXED> = { ...FIXED };
+    delete verdict[key];
+    rpcResponses.set("validate_event_ticket_coupon", ok(shape === "obiekt" ? verdict : [verdict]));
+
+    expect(await applyEventTicketCoupon(client(), couponInput())).toEqual({
+      ok: false,
+      error: "not_found",
+    });
+  });
+
+  it("podgląd: sukces bez `coupon_id` jako obiekt daje cenę bez rabatu i powód `not_found`", async () => {
+    const { coupon_id: _missing, ...withoutCouponId } = FIXED;
+    rpcResponses.set("validate_event_ticket_coupon", ok(withoutCouponId));
+
+    const quote = await quoteEventTicketOrder(client(), {
+      eventId: EVENT_ID,
+      ticketTypeId: TICKET_ID,
+      registrationId: null,
+      couponCode: "minus20",
+    });
+
+    expect(quote.couponError).toBe("not_found");
+    expect(quote.coupon).toBeNull();
+    expect(quote.discountCents).toBe(0);
+    expect(quote.totalCents).toBe(quote.subtotalCents);
+  });
+});
+
 describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
   it("bez kodu: suma, waluta i brak kodu - bez pytania o kod i o grupę", async () => {
     const quote = await quoteEventTicketOrder(client(), {

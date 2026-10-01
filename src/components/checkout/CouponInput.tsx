@@ -1,7 +1,12 @@
 // Widget wpisania kodu kuponu B2B na stronie checkout. Waliduje live przez
-// validate_b2b_coupon (RPC), pokazuje kwotę rabatu i zwraca kod + rabat do
-// rodzica, który dopnie je do createCheckoutOrder. Serwer i tak re-waliduje.
-import { useState } from "react";
+// serwerowy podgląd (`previewPlanCoupon` za `useValidateCoupon`), pokazuje kwotę
+// rabatu i zwraca kod + rabat do rodzica, który dopnie je do kasy. Serwer i tak
+// waliduje ponownie.
+//
+// JEDNO PYTANIE NARAZ. Każde sprawdzenie kodu zjada próbę z limitu (IP i konto),
+// więc przytrzymany Enter albo szybkie podwójne kliknięcie nie może wysłać serii
+// pytań - strażnik w refie łapie też drugie zdarzenie z tej samej klatki.
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BadgePercent, Loader2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,18 +34,24 @@ export function CouponInput({ planId, amountCents, currency, onChange }: Props) 
     null,
   );
   const { validate, loading } = useValidateCoupon({ planId, amountCents, currency });
+  const inFlight = useRef(false);
 
   const apply = async () => {
     const norm = normalizeCouponCode(code);
-    if (!norm) return;
-    const result = await validate(norm);
-    if (result?.ok) {
-      const payload = { code: norm, result };
-      setApplied(payload);
-      onChange(payload);
-    } else {
-      setApplied({ code: norm, result: result! });
-      onChange(null);
+    if (!norm || inFlight.current) return;
+    inFlight.current = true;
+    try {
+      const result = await validate(norm);
+      if (result?.ok) {
+        const payload = { code: norm, result };
+        setApplied(payload);
+        onChange(payload);
+      } else {
+        setApplied({ code: norm, result: result! });
+        onChange(null);
+      }
+    } finally {
+      inFlight.current = false;
     }
   };
 
@@ -98,6 +109,8 @@ export function CouponInput({ planId, amountCents, currency, onChange }: Props) 
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
+                // Autopowtórzenie przytrzymanego klawisza to nie nowa decyzja.
+                if (e.repeat) return;
                 void apply();
               }
             }}

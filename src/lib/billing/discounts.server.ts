@@ -11,6 +11,7 @@
 // Moduł server-only - importuj wyłącznie z handlera serwerowego.
 import type Stripe from "stripe";
 import { getStripeClient, getStripeErrorMessage, type StripeEnv } from "@/lib/stripe.server";
+import { parseCouponVerdict } from "@/lib/billing/coupons";
 
 export interface StripeDiscountResolution {
   readonly ok: boolean;
@@ -112,7 +113,7 @@ export async function resolveDiscountForCoupon(params: {
     console.error("[payments] coupon validation failed", error.message);
     return fail("not_found");
   }
-  const row = (rows ?? [])[0];
+  const row = parseCouponVerdict(rows);
   if (!row || !row.ok) return fail(String(row?.error ?? "not_found"));
 
   const { data: coupon } = await supabaseAdmin

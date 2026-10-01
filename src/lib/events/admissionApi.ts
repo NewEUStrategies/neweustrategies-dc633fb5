@@ -215,7 +215,7 @@ const TICKET_CHECKOUT_REFUSALS: ReadonlyArray<readonly [string, TicketCheckoutRe
  * kupujacemu czegos, czego nie sprawdzilismy.
  */
 export function ticketCheckoutRefusal(error: unknown): TicketCheckoutRefusal {
-  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const message = messageOf(error);
   const head = message.trim().toLowerCase();
   if (head === "") return "unknown";
   for (const [needle, reason] of TICKET_CHECKOUT_REFUSALS) {
@@ -236,11 +236,31 @@ export function ticketCheckoutRefusal(error: unknown): TicketCheckoutRefusal {
  * `null` = to nie jest odmowa wyceny (inne bledy maja wlasny slownik).
  */
 export function packagePurchaseRefusal(error: unknown): AdmissionQuoteReason | null {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = messageOf(error);
   const match = /^refused_([a-z_]+)/.exec(message.trim());
   if (match === null) return null;
   const reason = reasonOf(match[1]);
   return reason === "unknown" ? null : reason;
+}
+
+/**
+ * Tresc bledu niezaleznie od ksztaltu: `Error`, napis albo ZWYKLY OBIEKT
+ * `{ message }` - tak supabase-js oddaje blad PostgREST (bez `throwOnError` to
+ * nie jest `Error`). Wczesniej czytalismy tylko `Error`, wiec kazda odmowa bazy
+ * z przegladarki (`refused_*`, limit prob kodow) konczyla sie zdaniem ogolnym.
+ */
+function messageOf(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return typeof error.message === "string" ? error.message : "";
+  }
+  return "";
+}
+
+/** Blad RPC jako `Error` z ta sama trescia - dalej czyta go jeden slownik. */
+function rpcError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(messageOf(error) || "unknown");
 }
 
 /** Klucz i18n zdania dla odmowy - jeden zbior nazw po obu stronach. */
@@ -256,7 +276,7 @@ export async function quoteAdmission(input: AdmissionQuoteInput): Promise<Admiss
   if (code !== "") payload.coupon_code = code;
 
   const { data, error } = await supabase.rpc("event_admission_quote", { p_payload: payload });
-  if (error) throw error;
+  if (error) throw rpcError(error);
   return parseAdmissionQuote(data);
 }
 
@@ -300,8 +320,15 @@ export async function purchasePackage(input: PackagePurchaseInput): Promise<Pack
   if (input.couponCode.trim() !== "") payload.coupon_code = input.couponCode.trim();
 
   const { data, error } = await supabase.rpc("event_package_purchase", { p_payload: payload });
-  if (error) throw error;
+  if (error) throw rpcError(error);
   const row = record(data);
+  // Odmowe `coupon_unknown` baza zwraca WARTOSCIA (20261001210000), bo wyjatek
+  // wycofalby zapisane pudlo w kubelku limitu prob. Dla ekranu to ta sama
+  // odmowa co dawniej - `refused_<powod>`, czytana przez `packagePurchaseRefusal`.
+  if (row.ok === false) {
+    const reason = text(row.reason) || "unknown";
+    throw new Error(`refused_${reason}: ${reason}`);
+  }
   const orderId = text(row.order_id);
   if (orderId === "") {
     // Zamowienie moglo powstac, ale bez identyfikatora nie umiemy pokazac ani

@@ -17,7 +17,9 @@
 //   5. BILET UKRYTY WIDAĆ TYLKO Z LINKU (`?ticket=klucz`) albo PO KODZIE.
 //      Pole kodu pojawia się wyłącznie, gdy jest co odsłaniać; kod idzie do
 //      bazy znormalizowany, zostaje zapamiętany dla kasy, a wynik jest
-//      ogłoszony zdaniem. Kod z linku (`?code=`) działa bez klikania.
+//      ogłoszony zdaniem. Kod z linku (`?code=`) działa bez klikania, ale
+//      serwer pyta tylko wydarzenie z ukrytymi biletami - na zwykłym kod
+//      trafia wyłącznie do pamięci kasy, bez próby z limitu.
 //      Bilet z linku, który kod też odsłania, nie pojawia się dwa razy.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Reguł wyboru (`isTicketSelectable`,
@@ -28,7 +30,7 @@
 // ATRAPUJEMY WYŁĄCZNIE GRANICĘ: `supabase.rpc` (odsłanianie kodem). Pamięć kodu
 // (`sessionStorage`) jest prawdziwa i czytamy ją tym, czym czyta ją kasa.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import type { RegistrationFormTicket } from "@/lib/events/registrationFormSurface";
 import { recallEventCode } from "@/lib/events/eventCodeMemory";
@@ -499,6 +501,43 @@ describe("bilety ukryte i kod dostępu", () => {
     expect(poleKodu()).toHaveValue("VIP10");
     // Kod z linku przychodzi malymi literami - do serwera idzie znormalizowany.
     expect(h.reveal.mock.lastCall?.[0].data.code).toBe("VIP10");
+  });
+
+  it("kod z linku na wydarzeniu BEZ ukrytych biletow trafia do pamieci kasy, ale nie zjada proby z limitu", async () => {
+    // Link rabatowy na zwykle wydarzenie: nie ma czego odslaniac, wiec pytanie
+    // serwera byloby czysta strata proby z limitu przy kazdym wejsciu. Kod
+    // i tak musi dojechac do kasy - liczy nim rabat.
+    naAdresie("?code=vip10");
+    wybor({ tickets: [bilet()], eventId: EVENT_ID });
+    await act(async () => {});
+
+    expect(h.reveal).not.toHaveBeenCalled();
+    expect(recallEventCode(EVENT_ID)).toBe("VIP10");
+    // Bez pola kodu nie ma tez zdania o kodzie - „nic nie odslania" na
+    // wydarzeniu bez ukrytych biletow brzmialoby jak „kod jest zly".
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(`${P}.promoPlaceholder`)).not.toBeInTheDocument();
+  });
+
+  it("zdanie o kodzie znika razem z polem, gdy ukrytych biletow juz nie ma", async () => {
+    const { rerender } = wybor({ tickets: [bilet(), UKRYTY], eventId: EVENT_ID });
+    fireEvent.change(poleKodu(), { target: { value: "vip10" } });
+    fireEvent.click(screen.getByRole("button", { name: `${P}.revealApply` }));
+    expect(await screen.findByRole("status")).toHaveTextContent(`${P}.revealFound(count=1)`);
+
+    rerender(
+      <RegistrationTicketPicker
+        tickets={[bilet()]}
+        value={null}
+        lang={h.lang}
+        invalid={false}
+        eventId={EVENT_ID}
+        onChange={h.onChange}
+      />,
+    );
+
+    expect(screen.queryByPlaceholderText(`${P}.promoPlaceholder`)).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("kod z linku bez znanego wydarzenia niczego nie odpytuje", () => {
