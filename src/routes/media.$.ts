@@ -2,6 +2,7 @@
 // technicznego hosta magazynu, a pliki nadal korzystają z jego trwałości i cache.
 import { createFileRoute } from "@tanstack/react-router";
 import { mediaStoragePath } from "@/lib/media/publicUrl";
+import { withMediaCache } from "@/lib/http/mediaCache.server";
 
 const PASSTHROUGH_HEADERS = ["content-type", "content-length", "etag", "last-modified"] as const;
 // Odpowiedź 304 nie niesie ciała, więc `Content-Type`/`Content-Length` opisywałyby
@@ -90,6 +91,10 @@ async function serveMedia(request: Request, splat: string): Promise<Response> {
       : `/storage/v1/object/public/media/${encodedPath}`,
     storageOrigin,
   );
+  return withMediaCache(request, upstream, () => fetchMedia(request, upstream, storagePath));
+}
+
+async function fetchMedia(request: Request, upstream: URL, storagePath: string): Promise<Response> {
   const response = await fetch(upstream, {
     method: request.method === "HEAD" ? "HEAD" : "GET",
     headers: upstreamHeaders(request),

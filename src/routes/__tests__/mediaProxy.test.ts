@@ -226,3 +226,31 @@ it("revalidates mutable named media instead of pinning stale content", async () 
   expect(response.headers.get("cache-control")).toContain("max-age=3600,");
   expect(response.headers.get("cache-control")).not.toContain("immutable");
 });
+
+it("shares normalized image transformations across visitors without fetching storage again", async () => {
+  const entries = new Map<string, Response>();
+  vi.stubGlobal("caches", {
+    default: {
+      match: async (key: Request) => entries.get(key.url)?.clone(),
+      put: async (key: Request, response: Response) => {
+        entries.set(key.url, new Response(await response.arrayBuffer(), response));
+      },
+    },
+  });
+  h.fetch.mockImplementation(
+    async () =>
+      new Response("image", {
+        headers: { "content-type": "image/webp", "content-length": "5" },
+      }),
+  );
+  const headers = { accept: "image/webp" };
+  const first = await serve("GET", "tenant/cover.webp", headers, "?width=9999&unused=1");
+  expect(await first.text()).toBe("image");
+  await vi.waitFor(() => expect(entries.size).toBe(1));
+  const second = await serve("GET", "tenant/cover.webp", headers, "?unused=2&width=4000");
+  expect(await second.text()).toBe("image");
+  expect(h.fetch).toHaveBeenCalledTimes(1);
+  await serve("GET", "tenant/cover.webp", headers, "?width=320");
+  expect(h.fetch).toHaveBeenCalledTimes(2);
+  await vi.waitFor(() => expect(entries.size).toBe(2));
+});
