@@ -28657,7 +28657,7 @@ export type Database = {
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_coupon_revealed_tickets: {
-        Args: { p_code: string; p_event_id: string }
+        Args: { p_code: string; p_event_id: string; p_tenant: string }
         Returns: string[]
       }
       event_discussions: { Args: { p_slug: string }; Returns: Json }

@@ -761,8 +761,14 @@ const pl = {
       notYetValid: "Ten kupon nie jest jeszcze ważny.",
       expired: "Ten kupon wygasł.",
       limitReached: "Wykorzystano limit użyć tego kuponu.",
+      perUserLimitReached: "Ten kupon został już przez Ciebie wykorzystany.",
       planNotEligible: "Ten kupon nie obowiązuje na wybrany plan.",
+      noDiscount: "Ten kod nie daje rabatu na ten zakup.",
       currencyMismatch: "Waluta kuponu nie pasuje do zamówienia.",
+      // Odmowa LIMITU PRÓB, nie orzeczenie o kodzie - zdanie nie może
+      // brzmieć jak „kod nieprawidłowy".
+      rateLimited:
+        "Zbyt wiele prób kodu w krótkim czasie. Odczekaj kilka minut i spróbuj ponownie - to nie znaczy, że kod jest nieprawidłowy.",
       technicalError:
         "Nie udało się sprawdzić kuponu - spróbuj ponownie za chwilę. To nie znaczy, że kod jest nieprawidłowy.",
     },
@@ -1532,8 +1538,12 @@ const en: ProfileEn = {
       notYetValid: "This coupon is not valid yet.",
       expired: "This coupon has expired.",
       limitReached: "This coupon has reached its usage limit.",
+      perUserLimitReached: "You have already used this coupon.",
       planNotEligible: "This coupon does not apply to the selected plan.",
+      noDiscount: "This code gives no discount on this purchase.",
       currencyMismatch: "Coupon currency does not match this order.",
+      rateLimited:
+        "Too many code attempts in a short time. Wait a few minutes and try again - it does not mean the code is invalid.",
       technicalError:
         "We could not check this coupon - please try again in a moment. It does not mean the code is invalid.",
     },

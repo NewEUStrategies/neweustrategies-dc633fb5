@@ -213,6 +213,10 @@ export const eventRegistrationPl = {
       revealApply: "Pokaż bilety",
       revealFound: "Odsłonięto bilety: {{count}}.",
       revealNone: "Ten kod nie odsłania żadnych biletów.",
+      // Limit prób i awaria to NIE orzeczenie o kodzie - inaczej niż `revealNone`.
+      revealRateLimited:
+        "Zbyt wiele prób kodu w krótkim czasie. Odczekaj kilka minut i spróbuj ponownie.",
+      revealError: "Nie udało się teraz sprawdzić kodu. Spróbuj ponownie za chwilę.",
       paying: "Otwieramy kasę...",
       amountDue: "Do zapłaty: {{amount}}",
       amountDuePlusTax: "Do zapłaty: {{amount}} + podatek",
@@ -416,6 +420,9 @@ export const eventRegistrationPl = {
       group_seats_unavailable:
         "Nie udało się policzyć miejsc w zamówieniu grupowym. Spróbuj ponownie za chwilę.",
       payments_unavailable: "Płatności są chwilowo niedostępne. Spróbuj później.",
+      // Limit prób kodów (baza albo serwer) - kod zostaje w polu, nic nie
+      // przepadło; zdanie nie mówi o kodzie nic poza tym, że trzeba odczekać.
+      rate_limited: "Zbyt wiele prób w krótkim czasie. Odczekaj kilka minut i spróbuj ponownie.",
       unknown: "Nie udało się wycenić. Spróbuj ponownie.",
     },
     errors: {
@@ -608,6 +615,8 @@ export const eventRegistrationEn = {
       revealApply: "Show tickets",
       revealFound: "Tickets revealed: {{count}}.",
       revealNone: "This code does not reveal any tickets.",
+      revealRateLimited: "Too many code attempts in a short time. Wait a few minutes and try again.",
+      revealError: "We could not check the code right now. Please try again in a moment.",
       paying: "Opening checkout...",
       amountDue: "Amount due: {{amount}}",
       amountDuePlusTax: "Amount due: {{amount}} + tax",
@@ -798,6 +807,7 @@ export const eventRegistrationEn = {
       group_seats_unavailable:
         "We could not count the seats in this group order. Please try again in a moment.",
       payments_unavailable: "Payments are temporarily unavailable. Please try again later.",
+      rate_limited: "Too many attempts in a short time. Wait a few minutes and try again.",
       unknown: "We could not price this. Please try again.",
     },
     errors: {

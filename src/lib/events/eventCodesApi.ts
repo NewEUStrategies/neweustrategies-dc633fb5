@@ -6,6 +6,10 @@
 // (validate_event_ticket_coupon -> kupon Stripe na różnicę ceny).
 // Zapis bezpośredni: RLS `b2b_coupons_staff_all` wpuszcza tylko admin/editor,
 // a `tenant_id` wypełnia baza.
+//
+// Moduł jest PANELEM ORGANIZATORA. Publiczne odsłonięcie biletów kodem stoi
+// osobno (`eventCodeReveal.functions.ts`): idzie przez serwer z limitem prób,
+// a import funkcji serwerowej stąd wciągałby ją do paczki panelu.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeCouponCode } from "@/lib/billing/coupons";
@@ -225,16 +229,4 @@ export function useDeleteEventCode(eventId: string) {
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: key(eventId) }),
   });
-}
-
-/** Publiczne: identyfikatory ukrytych biletów odsłanianych przez kod. */
-export async function fetchRevealedTickets(eventId: string, code: string): Promise<string[]> {
-  const norm = normalizeCouponCode(code);
-  if (!norm) return [];
-  const { data, error } = await supabase.rpc("event_coupon_revealed_tickets", {
-    p_event_id: eventId,
-    p_code: norm,
-  });
-  if (error) return [];
-  return data ?? [];
 }

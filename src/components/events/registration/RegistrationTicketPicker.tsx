@@ -11,7 +11,15 @@
 //
 // NATYWNE `radio`, a nie przyciski: klawiatura, czytnik ekranu i walidacja
 // grupy dzialaja bez jednej linii naszego kodu.
-import { useEffect, useState } from "react";
+//
+// KOD ODSLANIA BILETY PRZEZ SERWER (`revealEventCodeTickets`), nie przez RPC
+// z przegladarki: serwer liczy limit prob (po IP i po koncie), bo odpowiedz
+// „ten kod cos odslania" mowi, ze kod istnieje. Odmowa limitu i awaria maja
+// WLASNE zdania - „ten kod nic nie odslania" powiedziane w czasie awarii
+// albo blokady to nieprawda o waznym kodzie. Przycisk stoi wylaczony, dopoki
+// pytanie jest w drodze: podwojne klikniecie to dwie proby z limitu.
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { Check, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -21,8 +29,9 @@ import {
   visibleTickets,
   type RegistrationFormTicket,
 } from "@/lib/events/registrationFormSurface";
+import { normalizeCouponCode } from "@/lib/billing/coupons";
 import { formatMoney } from "@/lib/billing/types";
-import { fetchRevealedTickets } from "@/lib/events/eventCodesApi";
+import { revealEventCodeTickets } from "@/lib/events/eventCodeReveal.functions";
 import { rememberEventCode } from "@/lib/events/eventCodeMemory";
 import { formatEventDateTime } from "@/lib/events/timezone";
 import { ensureEventRegistrationI18n } from "@/lib/i18n-event-registration";
@@ -51,18 +60,48 @@ export function RegistrationTicketPicker({
   const [revealed, setRevealed] = useState<string[]>([]);
   const [code, setCode] = useState("");
   const [revealNote, setRevealNote] = useState<string | null>(null);
+  const [revealing, setRevealing] = useState(false);
+  // Stan przycisku dochodzi do DOM dopiero po renderze - straznik w refie
+  // zatrzymuje tez drugie pytanie wyslane w tej samej klatce.
+  const inFlight = useRef(false);
+  const reveal = useServerFn(revealEventCodeTickets);
   const hasHidden = tickets.some((ticket) => ticket.isHidden === true);
 
   const applyCode = async (raw: string) => {
-    if (!eventId || raw.trim() === "") return;
+    if (!eventId || raw.trim() === "" || inFlight.current) return;
     rememberEventCode(eventId, raw);
-    const ids = await fetchRevealedTickets(eventId, raw);
-    setRevealed(ids);
-    setRevealNote(
-      ids.length > 0
-        ? t("eventRegistration.payment.revealFound", { count: ids.length })
-        : t("eventRegistration.payment.revealNone"),
-    );
+    // Kod dluzszy niz 64 znaki nie istnieje w bazie (baza odpowiada na niego
+    // pusta lista) - mowimy to bez pytania serwera i bez proby z limitu.
+    if (normalizeCouponCode(raw).length > 64) {
+      setRevealed([]);
+      setRevealNote(t("eventRegistration.payment.revealNone"));
+      return;
+    }
+    inFlight.current = true;
+    setRevealing(true);
+    try {
+      const result = await reveal({ data: { eventId, code: raw } });
+      if (result.ok) {
+        setRevealed(result.ticketIds);
+        setRevealNote(
+          result.ticketIds.length > 0
+            ? t("eventRegistration.payment.revealFound", { count: result.ticketIds.length })
+            : t("eventRegistration.payment.revealNone"),
+        );
+      } else {
+        // Odsloniete wczesniej bilety zostaja - odmowa nie mowi nic o tamtym kodzie.
+        setRevealNote(
+          result.reason === "rate_limited"
+            ? t("eventRegistration.payment.revealRateLimited")
+            : t("eventRegistration.payment.revealError"),
+        );
+      }
+    } catch {
+      setRevealNote(t("eventRegistration.payment.revealError"));
+    } finally {
+      inFlight.current = false;
+      setRevealing(false);
+    }
   };
 
   useEffect(() => {
@@ -99,7 +138,9 @@ export function RegistrationTicketPicker({
           <button
             type="button"
             onClick={() => void applyCode(code)}
-            className="h-10 rounded-[6px] border border-border px-4 text-sm font-medium hover:bg-muted"
+            disabled={revealing}
+            aria-busy={revealing ? true : undefined}
+            className="h-10 rounded-[6px] border border-border px-4 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
           >
             {t("eventRegistration.payment.revealApply")}
           </button>
