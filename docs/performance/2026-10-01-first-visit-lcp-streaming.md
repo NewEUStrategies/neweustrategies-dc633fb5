@@ -160,7 +160,43 @@ waits until it ends. The 0.03 paired p-value of the failed run compares seven
 coin flips per side; identical artifacts produce this split far more often
 than the nominal 5 %.
 
-### 2.4 Fixture note: which element the gate measures
+### 2.4 Confirmation on the CI runner (`3c1bec9`, job 110556000311, 32/32 PASS)
+
+The first run with `pendingWidgets` and `longTasks` reproduces the mechanism
+in all 56 samples. Every sample lists exactly four pending widgets: `…001d`,
+`…001f`, `…0024` (`post-list`, all three in the first section) and `…002b`
+(`tailored-must-reads`). The final LCP candidate is the `…001d` image in
+56/56, with `loadTime` = `swappedAt` + 30…50 ms and LCP = `swappedAt` +
+50…110 ms. Warm `/en` (ms):
+
+| side      | s   | FCP | placeholder parsed | swapped | image loadTime | LCP | shift at | long task at swap |
+| --------- | --- | --: | -----------------: | ------: | -------------: | --: | -------- | ----------------- |
+| baseline  | 1   | 208 |                 92 |     574 |            603 | 680 | 638      |                   |
+| baseline  | 2   | 288 |                223 |     346 |            356 | 400 | 367      |                   |
+| baseline  | 3   | 316 |                200 |     239 |            260 | 316 | none     |                   |
+| baseline  | 4   | 296 |                124 |     227 |            239 | 296 | 255      | 183 (84)          |
+| baseline  | 5   | 204 |                 92 |     290 |            307 | 368 | 328      | 288 (50)          |
+| baseline  | 6   | 252 |                127 |     566 |            589 | 640 | 250, 622 | 566 (55)          |
+| baseline  | 7   | 312 |                106 |     245 |            257 | 312 | 273      | 206 (78)          |
+| candidate | 1   | 292 |                226 |     350 |            372 | 428 | 395      | 342 (64)          |
+| candidate | 2   | 208 |                185 |     546 |            573 | 624 | 601      | 546 (52)          |
+| candidate | 3   | 168 |                146 |     272 |            283 | 336 | 291      |                   |
+| candidate | 4   | 288 |                163 |     217 |            235 | 288 | none     |                   |
+| candidate | 5   | 292 |                226 |     346 |            353 | 400 | 358      |                   |
+| candidate | 6   | 216 |                149 |     560 |            586 | 660 | 262, 627 | 560 (56)          |
+| candidate | 7   | 296 |                225 |     348 |            370 | 432 | 401      | 340 (76)          |
+
+The placeholder is parsed at 92–226 ms; the swap follows after 40–125 ms
+(early mode) or 320–480 ms (late mode), nothing in between. When the swap
+precedes the first paint the image is the only candidate, LCP = FCP and there
+is no shift (baseline 3, candidate 4). The 0.0146–0.0168 shift sits 55–70 ms
+after every late swap. In six of the eight late samples of this run (warm and
+cold) a 50–73 ms long task starts within 0.5 ms of `swappedAt`, i.e. the swap
+is the first thing the main thread does after the block. `fontsLoadingDoneMs`
+(three cycles per sample, warm ≈ 260–420 / 560–640 / 880–980 ms) shows no
+relation to the early/late split, so the font swap is not the trigger.
+
+### 2.5 Fixture note: which element the gate measures
 
 Chrome excludes images below 0.05 bits per pixel from LCP. The 279-byte
 `first-visit-cover.svg` is 0.011 bpp at the slider hero size (598×336) and
@@ -204,4 +240,4 @@ measure the same element as production (follow-up, changes all 32 baselines).
    environment secret is required. The 90/85 targets remain unconfirmed; the
    last known values (2026-10-01 09:15 UTC) were 80 desktop / 68 mobile. This
    PR deploys nothing, so there is no "after deployment" state to measure yet.
-3. **Fixture entropy** (section 2.4), after the runtime fix.
+3. **Fixture entropy** (section 2.5), after the runtime fix.
