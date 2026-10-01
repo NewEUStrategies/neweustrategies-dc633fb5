@@ -10,7 +10,7 @@ import {
   firstVisitSamples,
 } from "../scripts/performance/firstVisitPlan";
 import {
-  fixtureImage,
+  fixtureImageFor,
   fixtureResponse,
   homeFixture,
   isFixtureBackend,
@@ -28,8 +28,9 @@ declare global {
 }
 
 // Same production artifact, synthetic homepage with representative builder
-// layout, controlled 40 ms DB round trips and one SVG. Lab budgets, not production
-// p75 or a claim about reader networks. Blank/degraded HTML cannot pass.
+// layout, controlled 40 ms DB round trips, one SVG for logos and icons and one
+// raster cover for the hero and the cards. Lab budgets, not production p75 or a
+// claim about reader networks. Blank/degraded HTML cannot pass.
 for (const { path, lang } of firstVisitPages) {
   for (const cacheState of firstVisitCacheStates) {
     for (const sample of firstVisitSamples) {
@@ -77,12 +78,9 @@ for (const { path, lang } of firstVisitPages) {
                 body: await reply.text(),
               });
             }
-            // Stable test image, no external CDN variance in before/after.
+            // Stable test images, no external CDN variance in before/after.
             if (req.resourceType() === "image" && new URL(req.url()).hostname !== "127.0.0.1") {
-              return route.fulfill({
-                body: fixtureImage,
-                contentType: homeFixture.fixture_image_type,
-              });
+              return route.fulfill(fixtureImageFor(req.url()));
             }
             await route.continue();
           },
@@ -246,7 +244,7 @@ for (const { path, lang } of firstVisitPages) {
             jsBytes: scripts.reduce((sum, entry) => sum + entry.bytes, 0),
             scripts,
             paintResources: resources
-              .filter((entry) => /\.(?:woff2?|svg|css)(?:\?|$)/.test(entry.name))
+              .filter((entry) => /\.(?:woff2?|svg|jpe?g|css)(?:\?|$)/.test(entry.name))
               .map((entry) => ({
                 url: entry.name,
                 start: entry.startTime,

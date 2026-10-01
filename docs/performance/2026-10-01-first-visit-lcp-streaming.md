@@ -196,14 +196,44 @@ is the first thing the main thread does after the block. `fontsLoadingDoneMs`
 (three cycles per sample, warm ≈ 260–420 / 560–640 / 880–980 ms) shows no
 relation to the early/late split, so the font swap is not the trigger.
 
-### 2.5 Fixture note: which element the gate measures
+### 2.5 Fixture: which element the gate measures
 
 Chrome excludes images below 0.05 bits per pixel from LCP. The 279-byte
 `first-visit-cover.svg` is 0.011 bpp at the slider hero size (598×336) and
-0.052 bpp at the card size (275×155), so the gate measures the small card and
-never sees the hero's paint. Production covers are raster; the hero would be
-the candidate there. A raster fixture of realistic entropy would make the gate
-measure the same element as production (follow-up, changes all 32 baselines).
+0.052 bpp at the card size (275×155), so up to the runtime fix the gate
+measured the small card and never saw the hero's paint. Production covers are
+raster; the hero is the candidate there.
+
+Resolved in the second commit of the runtime-fix PR: the slider items, the
+home-body image widget and the eight post covers now point at
+`e2e/fixtures/first-visit-cover.jpg` (1600×900, 112,795 bytes, a
+deterministic synthetic photo: gradients, skyline, grain; ≈4.5 bpp at the hero
+size). `fixtureImageFor()` in `scripts/performance/homeFixture.ts` serves the
+raster for `.jpg` URLs and the vector for everything else, so logos and social
+icons stay a small SVG as in production. `paintResources` in each sample now
+lists the `.jpg` entry. Only `first-visit.spec.ts` serves the raster; the other
+performance suites keep the vector for every image, so their budgets are
+untouched. Both arms of the comparison run the candidate's spec and fixture,
+so the 32 paired comparisons stay paired, and the absolute budgets are
+unchanged.
+
+Local check (smoke artifact of the runtime fix, 28 samples): the LCP element
+is the slider hero (`img.eh-img`, widget `…0021`, 200,853 px²) in every
+sample, with a single LCP candidate per sample; `pendingWidgets` is empty and
+CLS is 0.0000–0.0014 everywhere (the 0.0168 swap shift is gone).
+
+| case       | FCP median | LCP median | LCP − FCP per sample       | cover bytes at | image load at |
+| ---------- | ---------: | ---------: | -------------------------- | -------------: | ------------: |
+| `/en` warm |        280 |        380 | 88, 100, 0, 68, 108, 72, 0 |        118–173 |       239–334 |
+| `/` warm   |        296 |        352 | 0, 0, 0, 0, 48, 100, 92    |        123–162 |       206–352 |
+| `/en` cold |       1128 |       1128 | 76, 0, 0, 0, 0, 0, 0       |        850–961 |      994–1092 |
+| `/` cold   |       1108 |       1124 | 0, 72, 0, 64, 0, 0, 84     |       870–1003 |     1028–1226 |
+
+LCP is now either the first paint or the first frame after the hero's
+(asynchronous) decode completes, 50–110 ms after its bytes: with
+`decoding="async"` Chrome paints the page before the 1600×900 raster is
+decoded. That is the hero's real cost and what production readers see on a
+cover of this size; the vector never showed it.
 
 ## 3. Instrumentation added in this continuation
 
@@ -240,4 +270,5 @@ measure the same element as production (follow-up, changes all 32 baselines).
    environment secret is required. The 90/85 targets remain unconfirmed; the
    last known values (2026-10-01 09:15 UTC) were 80 desktop / 68 mobile. This
    PR deploys nothing, so there is no "after deployment" state to measure yet.
-3. **Fixture entropy** (section 2.5), after the runtime fix.
+3. **Fixture entropy** (section 2.5): done in the second commit of the
+   runtime-fix PR; the gate measures the slider hero from that commit on.

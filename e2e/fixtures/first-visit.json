@@ -1690,7 +1690,7 @@
                       "items": [
                         {
                           "href": "",
-                          "image": "https://fixture.invalid/image.svg",
+                          "image": "https://fixture.invalid/cover.jpg",
                           "author": "",
                           "cta_en": "",
                           "cta_pl": "",
@@ -1705,7 +1705,7 @@
                         },
                         {
                           "href": "",
-                          "image": "https://fixture.invalid/image.svg",
+                          "image": "https://fixture.invalid/cover.jpg",
                           "author": "",
                           "cta_en": "",
                           "cta_pl": "",
@@ -1720,7 +1720,7 @@
                         },
                         {
                           "href": "",
-                          "image": "https://fixture.invalid/image.svg",
+                          "image": "https://fixture.invalid/cover.jpg",
                           "author": "",
                           "cta_en": "",
                           "cta_pl": "",
@@ -2005,7 +2005,7 @@
                     "kind": "widget",
                     "type": "image",
                     "content": {
-                      "src": "https://fixture.invalid/image.svg",
+                      "src": "https://fixture.invalid/cover.jpg",
                       "alt_en": "",
                       "alt_pl": ""
                     }
@@ -2721,7 +2721,7 @@
       "title_en": "Analysis 1: the latest developments and perspectives for the future of Europe",
       "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
       "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
-      "cover_image_url": "https://fixture.invalid/image.svg",
+      "cover_image_url": "https://fixture.invalid/cover.jpg",
       "published_at": "2026-09-06T00:00:00Z",
       "author_id": null,
       "parent_page_id": null,
@@ -2737,7 +2737,7 @@
       "title_en": "Analysis 2: the latest developments and perspectives for the future of Europe",
       "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
       "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
-      "cover_image_url": "https://fixture.invalid/image.svg",
+      "cover_image_url": "https://fixture.invalid/cover.jpg",
       "published_at": "2026-09-06T00:00:00Z",
       "author_id": null,
       "parent_page_id": null,
@@ -2753,7 +2753,7 @@
       "title_en": "Analysis 3: the latest developments and perspectives for the future of Europe",
       "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
       "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
-      "cover_image_url": "https://fixture.invalid/image.svg",
+      "cover_image_url": "https://fixture.invalid/cover.jpg",
       "published_at": "2026-09-06T00:00:00Z",
       "author_id": null,
       "parent_page_id": null,
@@ -2769,7 +2769,7 @@
       "title_en": "Analysis 4: the latest developments and perspectives for the future of Europe",
       "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
       "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
-      "cover_image_url": "https://fixture.invalid/image.svg",
+      "cover_image_url": "https://fixture.invalid/cover.jpg",
       "published_at": "2026-09-06T00:00:00Z",
       "author_id": null,
       "parent_page_id": null,
@@ -2785,7 +2785,7 @@
       "title_en": "Analysis 5: the latest developments and perspectives for the future of Europe",
       "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
       "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
-      "cover_image_url": "https://fixture.invalid/image.svg",
+      "cover_image_url": "https://fixture.invalid/cover.jpg",
       "published_at": "2026-09-06T00:00:00Z",
       "author_id": null,
       "parent_page_id": null,
@@ -2801,7 +2801,7 @@
       "title_en": "Analysis 6: the latest developments and perspectives for the future of Europe",
       "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
       "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
-      "cover_image_url": "https://fixture.invalid/image.svg",
+      "cover_image_url": "https://fixture.invalid/cover.jpg",
       "published_at": "2026-09-06T00:00:00Z",
       "author_id": null,
       "parent_page_id": null,
@@ -2817,7 +2817,7 @@
       "title_en": "Analysis 7: the latest developments and perspectives for the future of Europe",
       "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
       "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
-      "cover_image_url": "https://fixture.invalid/image.svg",
+      "cover_image_url": "https://fixture.invalid/cover.jpg",
       "published_at": "2026-09-06T00:00:00Z",
       "author_id": null,
       "parent_page_id": null,
@@ -2833,7 +2833,7 @@
       "title_en": "Analysis 8: the latest developments and perspectives for the future of Europe",
       "excerpt_pl": "Przykładowe omówienie wydarzeń, ich znaczenia oraz możliwych kierunków zmian. Materiał demonstracyjny do porównania działania interfejsu.",
       "excerpt_en": "A sample discussion of recent developments, their significance and possible directions of change. Demonstration content for comparing interface performance.",
-      "cover_image_url": "https://fixture.invalid/image.svg",
+      "cover_image_url": "https://fixture.invalid/cover.jpg",
       "published_at": "2026-09-06T00:00:00Z",
       "author_id": null,
       "parent_page_id": null,
@@ -3864,5 +3864,6 @@
       }
     }
   ],
-  "fixture_image_type": "image/svg+xml"
+  "fixture_image_type": "image/svg+xml",
+  "fixture_cover_image_type": "image/jpeg"
 }

@@ -16,7 +16,7 @@ import {
   firstVisitEnvironment,
   firstVisitSamples,
 } from "./firstVisitPlan.ts";
-import { fixtureResponse } from "./homeFixture.ts";
+import { fixtureImageFor, fixtureResponse, homeFixture } from "./homeFixture.ts";
 import { popupFixtureSettings } from "./popupFixture.ts";
 
 test("isolated reports preserve the scenario identifier used by the SSR popup fixture", async () => {
@@ -568,4 +568,36 @@ test("the CLI writes all 32 comparisons and exits nonzero for a regression or mi
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("the hero and the cards get a raster cover above Chrome's LCP entropy threshold", () => {
+  // Chrome ignores LCP candidates below 0.05 bits per displayed pixel. The
+  // slider hero slot is 598×336 and the post card slot 275×155 (section 2.5 of
+  // docs/performance/2026-10-01-first-visit-lcp-streaming.md).
+  const bitsPerPixel = (bytes, width, height) => (bytes * 8) / (width * height);
+  const cover = fixtureImageFor("https://fixture.invalid/cover.jpg?width=640");
+  assert.equal(cover.contentType, "image/jpeg");
+  assert.deepEqual(
+    [...cover.body.subarray(0, 3)],
+    [0xff, 0xd8, 0xff],
+    "JPEG start-of-image marker",
+  );
+  assert.ok(bitsPerPixel(cover.body.length, 598, 336) > 1, "the cover must count at the hero size");
+  const logo = fixtureImageFor("https://fixture.invalid/image.svg");
+  assert.equal(logo.contentType, "image/svg+xml");
+  assert.match(logo.body.toString("utf8"), /<svg/);
+  assert.ok(bitsPerPixel(logo.body.length, 275, 155) < 0.1, "logos stay a small vector");
+  // Every content image in the fixture must resolve to the raster; the logos
+  // and icons keep the vector, as in production.
+  assert.ok(homeFixture.posts.length > 0);
+  for (const post of homeFixture.posts) {
+    assert.equal(fixtureImageFor(String(post.cover_image_url)).contentType, "image/jpeg");
+  }
+  const hero = JSON.stringify(homeFixture["home-body"]).match(/"image":"([^"]+)"/g) ?? [];
+  assert.ok(hero.length >= 3, "the slider has at least three items");
+  for (const item of hero) {
+    assert.equal(fixtureImageFor(item.slice('"image":"'.length, -1)).contentType, "image/jpeg");
+  }
+  const logos = JSON.stringify(homeFixture.settings).match(/"main":"([^"]+)"/) ?? [];
+  assert.equal(fixtureImageFor(logos[1] ?? "").contentType, "image/svg+xml");
 });
