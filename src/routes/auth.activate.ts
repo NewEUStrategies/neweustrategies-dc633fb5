@@ -8,6 +8,13 @@
 //
 // Nie ma tu żadnego sekretu ani decyzji dostępowej: token nadal weryfikuje
 // dostawca, a my jedynie nie pokazujemy jego adresu w treści maila.
+//
+// ODMOWA LĄDUJE NA /auth/callback, NIE NA /auth. Do 2026-10-01 oba
+// przekierowania błędu wskazywały `/auth?error=...`, a trasy `/auth` w tej
+// aplikacji nie ma (wejście do konta to `/login`) - odbiorca uszkodzonego lub
+// przyciętego przez klienta poczty linku dostawał 404 zamiast wyjaśnienia.
+// `/auth/callback` czyta `?error=` i od razu pokazuje komunikat o nieważnym
+// linku, tak samo jak dla błędu zwróconego przez dostawcę.
 import { createFileRoute } from "@tanstack/react-router";
 
 /** Typy weryfikacji, które wolno przepuścić - lista zamknięta. */
@@ -27,20 +34,29 @@ export const Route = createFileRoute("/auth/activate")({
         const type = url.searchParams.get("type") ?? "invite";
         const origin = process.env.PUBLIC_APP_URL ?? APP_URL;
 
+        // `new URL(ścieżka, origin)`, a nie sklejanie napisów: PUBLIC_APP_URL
+        // z końcowym ukośnikiem dawał wcześniej `//auth/...`.
+        const callback = new URL("/auth/callback", origin);
+        const failure = (code: string) => {
+          const target = new URL(callback);
+          target.searchParams.set("error", code);
+          return Response.redirect(target.toString(), 302);
+        };
+
         if (!TOKEN_RE.test(token) || !ALLOWED_TYPES.has(type)) {
-          return Response.redirect(`${origin}/auth?error=invalid_link`, 302);
+          return failure("invalid_link");
         }
 
         const supabaseUrl = process.env.SUPABASE_URL;
         if (!supabaseUrl) {
           console.error("[auth-activate] SUPABASE_URL not configured");
-          return Response.redirect(`${origin}/auth?error=activation_unavailable`, 302);
+          return failure("activation_unavailable");
         }
 
         const verify = new URL("/auth/v1/verify", supabaseUrl);
         verify.searchParams.set("token", token);
         verify.searchParams.set("type", type);
-        verify.searchParams.set("redirect_to", `${origin}/auth/callback`);
+        verify.searchParams.set("redirect_to", callback.toString());
 
         return new Response(null, {
           status: 302,
