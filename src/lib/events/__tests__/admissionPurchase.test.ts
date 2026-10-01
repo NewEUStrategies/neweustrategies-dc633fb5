@@ -27,6 +27,13 @@
 //    POLECIEC WYJATKIEM. Zamiana ktorejkolwiek z tych dwoch na „wycena zerowa"
 //    jest najgorsza pomylka tego ekranu.
 //
+// 4) BLAD Z PRZEGLADARKI JEST ZWYKLYM OBIEKTEM. Bez `throwOnError` supabase-js
+//    oddaje blad PostgREST jako `JSON.parse` ciala odpowiedzi
+//    (`{ code, message, details, hint }`), a nie jako `Error`. Wspolna atrapa
+//    (`setError`) buduje `Error`, wiec sama nie pokaze, ze odmowa bazy
+//    (`refused_*`, limit prob kodow) dojezdza do ekranu jako zdanie, a nie
+//    jako „cos poszlo nie tak" - stad `setPlainError` nizej.
+//
 // ATRAPA OBEJMUJE WYLACZNIE KLIENTA SUPABASE - modul, ktory pokrywamy, jest
 // wykonywany naprawde.
 //
@@ -34,15 +41,29 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 
+/** Blad PostgREST w ksztalcie, w jakim supabase-js oddaje go przegladarce. */
+interface PlainPostgrestError {
+  code: string;
+  message: string;
+  details: string | null;
+  hint: string | null;
+}
+
 const h = vi.hoisted(() => ({
   rpc: null as SupabaseRpcStub | null,
+  /** Funkcje, ktorych odpowiedz atrapa podmienia na blad-zwykly-obiekt. */
+  plainErrors: new Map<string, PlainPostgrestError>(),
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    rpc: (name: string, args?: Record<string, unknown>) => {
+    rpc: async (name: string, args?: Record<string, unknown>) => {
       if (h.rpc === null) throw new Error("test: atrapa RPC nie zostala ustawiona");
-      return h.rpc.rpc(name, args);
+      // Wywolanie zapisuje zawsze wspolna atrapa - asercje ladunku dzialaja
+      // tak samo dla obu ksztaltow bledu.
+      const result = await h.rpc.rpc(name, args);
+      const plain = h.plainErrors.get(name);
+      return plain === undefined ? result : { data: null, error: plain };
     },
   },
 }));
@@ -90,8 +111,40 @@ const purchased = {
   status: "pending",
 };
 
+/**
+ * Zaplanuj odmowe bazy w ksztalcie z przegladarki: zwykly obiekt, nie `Error`.
+ * Odpowiedz z danymi tylko zapisuje wywolanie - zwrotke podmienia atrapa klienta.
+ */
+function setPlainError(name: string, error: PlainPostgrestError): void {
+  rpc().setData(name, null);
+  h.plainErrors.set(name, error);
+}
+
+/** Limit prob kodow dokladnie tak, jak oddaje go PostgREST (`RAISE` = P0001). */
+const RATE_LIMITED: PlainPostgrestError = {
+  code: "P0001",
+  message: "rate_limited: too many code attempts, try again later",
+  details: null,
+  hint: null,
+};
+
+/**
+ * Odrzucenie jako wartosc. `rejects.toThrow(/.../)` nie wystarcza: chai
+ * porownuje wtedy samo `message`, wiec przepuscilby tez zwykly obiekt - a tu
+ * sprawdzamy wlasnie, czy z warstwy danych leci `Error`.
+ */
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+  throw new Error("test: obietnica miala zostac odrzucona");
+}
+
 beforeEach(() => {
   h.rpc = supabaseRpcStub();
+  h.plainErrors.clear();
 });
 
 /* ------------------------------------------------------------- wycena --- */
@@ -351,5 +404,142 @@ describe("purchasePackage - odczyt potwierdzenia", () => {
     rpc().setData("event_package_purchase", { seats: 10 });
 
     await expect(api.purchasePackage(buyer)).rejects.toThrow();
+  });
+});
+
+/* ------------------------------------- odmowa zakupu zwrocona wartoscia --- */
+
+describe("purchasePackage - odmowa zwrocona WARTOSCIA", () => {
+  // Nieznany kod przy zakupie baza ZWRACA jako `{ ok: false, reason }`
+  // (20261001100000), bo wyjatek wycofalby zapisane pudlo w kubelku limitu prob
+  // i zakup pakietu bylby nieograniczona wyrocznia kodow. Taka zwrotka nie ma
+  // `order_id` - gdyby przeszla jak sukces, ekran dostalby blad „nieczytelna
+  // odpowiedz" zamiast zdania o kodzie, a gdyby ktos kiedys poluzowal prog
+  // `order_id`, potwierdzenie zamowienia, ktorego nie ma.
+  it("`{ ok: false, reason: coupon_unknown }` to odmowa `refused_coupon_unknown`, nie potwierdzenie", async () => {
+    rpc().setData("event_package_purchase", { ok: false, reason: "coupon_unknown" });
+
+    const error = await rejectionOf(api.purchasePackage(buyer));
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) return;
+    expect(error.message.startsWith("refused_coupon_unknown")).toBe(true);
+    // Ekran czyta te sama odmowe co przy wyjatku `refused_<powod>` - zdanie
+    // o nieznanym kodzie, a nie „operacja sie nie udala".
+    expect(api.packagePurchaseRefusal(error)).toBe("coupon_unknown");
+    expect(rpc().names()).toEqual(["event_package_purchase"]);
+  });
+
+  // Odmowa bez nazwy powodu (albo z powodem, ktory nie jest napisem) nadal jest
+  // ODMOWA - tylko bez zdania ze slownika wyceny. Nie wolno jej zgadywac jako
+  // `coupon_unknown` ani przepuscic jako zakupu.
+  it("odmowa bez powodu to `refused_unknown` i zdanie ogolne, a nie zgadywany powod", async () => {
+    for (const refused of [{ ok: false }, { ok: false, reason: 42 }]) {
+      rpc().setData("event_package_purchase", refused);
+
+      const error = await rejectionOf(api.purchasePackage(buyer));
+      expect(error, JSON.stringify(refused)).toBeInstanceOf(Error);
+      if (!(error instanceof Error)) return;
+      expect(error.message.startsWith("refused_unknown"), JSON.stringify(refused)).toBe(true);
+      expect(api.packagePurchaseRefusal(error), JSON.stringify(refused)).toBeNull();
+    }
+  });
+
+  // Sukces zakupu NIE MA klucza `ok` (`20261001100000`, `RETURN
+  // jsonb_build_object('order_id', ...)`), wiec nowy prog musi patrzec na
+  // `ok === false`, a nie na „brak `ok: true`" - inaczej kazdy udany zakup
+  // zamienialby sie w odmowe z pieniedzmi juz zarezerwowanymi w bazie.
+  it("udany zakup - z `ok: true` i bez klucza `ok` - przechodzi bez zmian", async () => {
+    for (const confirmed of [purchased, { ...purchased, ok: true }]) {
+      rpc().setData("event_package_purchase", confirmed);
+
+      const result = await api.purchasePackage(buyer);
+      expect(result, JSON.stringify(confirmed)).toEqual({
+        orderId: ORDER_ID,
+        seats: 10,
+        currency: "PLN",
+        totalCents: 225000,
+        discountCents: 25000,
+        status: "pending",
+      });
+    }
+  });
+});
+
+/* -------------------------------------- blad PostgREST jako zwykly obiekt --- */
+
+describe("blad PostgREST jako zwykly obiekt - ksztalt z przegladarki", () => {
+  // Limit prob kodow (`_coupon_probe_guard`) rzuca `rate_limited: ...` (P0001)
+  // zanim baza spojrzy na kod. Przed poprawka `quoteAdmission` rzucalo dalej
+  // ZWYKLY OBIEKT; `ticketCheckoutRefusal` czytalo tylko `Error`, wiec kupujacy
+  // widzial „nie udalo sie wycenic" zamiast „odczekaj chwile".
+  it("wycena odrzucona limitem prob leci `Error` z ta sama trescia i czyta sie `rate_limited`", async () => {
+    setPlainError("event_admission_quote", RATE_LIMITED);
+
+    const error = await rejectionOf(
+      api.quoteAdmission({ packageId: PACKAGE_ID, couponCode: "PARTNER2026" }),
+    );
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) return;
+    expect(error.message).toBe(RATE_LIMITED.message);
+    expect(api.ticketCheckoutRefusal(error)).toBe("rate_limited");
+    // Ladunek jest ten sam co przy bledzie-`Error`: atrapa nic nie zgubila.
+    expect(payloadOf("event_admission_quote").coupon_code).toBe("PARTNER2026");
+  });
+
+  // Zakup liczy wycene ponownie, wiec limit prob moze pasc dopiero przy
+  // kliknieciu „Kup". To NIE jest odmowa `refused_*` - ma wlasne zdanie.
+  it("zakup odrzucony limitem prob leci `Error` i czyta sie `rate_limited`, nie `refused_*`", async () => {
+    setPlainError("event_package_purchase", RATE_LIMITED);
+
+    const error = await rejectionOf(api.purchasePackage(buyer));
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) return;
+    expect(error.message).toBe(RATE_LIMITED.message);
+    expect(api.ticketCheckoutRefusal(error)).toBe("rate_limited");
+    expect(api.packagePurchaseRefusal(error)).toBeNull();
+  });
+
+  // Pozostale odmowy zakupu baza nadal RZUCA (`refused_<powod>: <powod>`), wiec
+  // z przegladarki tez przychodza zwyklym obiektem. Zdanie o wygaslym kodzie
+  // ma dojechac tak samo jak z wyjatku zbudowanego w tescie.
+  it("rzucone `refused_coupon_expired` ze zwyklego obiektu czyta sie jako `coupon_expired`", async () => {
+    setPlainError("event_package_purchase", {
+      code: "P0001",
+      message: "refused_coupon_expired: coupon_expired",
+      details: null,
+      hint: null,
+    });
+
+    const error = await rejectionOf(api.purchasePackage(buyer));
+    expect(error).toBeInstanceOf(Error);
+    expect(api.packagePurchaseRefusal(error)).toBe("coupon_expired");
+  });
+
+  // Blad bez tresci (zerwane polaczenie, pusta odpowiedz) nie moze zamienic
+  // sie w `Error` z pustym komunikatem - pusty komunikat nie mowi nic ani
+  // logom, ani slownikowi. `unknown` daje zdanie „sprobuj ponownie".
+  it("blad bez tresci leci `Error(unknown)`, a nie pustym komunikatem", async () => {
+    setPlainError("event_admission_quote", {
+      code: "08006",
+      message: "",
+      details: null,
+      hint: null,
+    });
+
+    const error = await rejectionOf(api.quoteAdmission({ packageId: PACKAGE_ID }));
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) return;
+    expect(error.message).toBe("unknown");
+    expect(api.ticketCheckoutRefusal(error)).toBe("unknown");
+  });
+
+  // `Error` (galaz `throwOnError`, atrapa `setError`) przechodzi BEZ
+  // przepakowania - kod SQLSTATE i nazwa zostaja dla logow.
+  it("blad, ktory juz jest `Error`, przechodzi ten sam - z kodem SQLSTATE", async () => {
+    rpc().setError("event_package_purchase", "42501: permission denied for function", "42501");
+
+    const error = await rejectionOf(api.purchasePackage(buyer));
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toMatchObject({ name: "PostgrestError", code: "42501" });
   });
 });

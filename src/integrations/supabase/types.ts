@@ -31248,16 +31248,7 @@ export type Database = {
           _currency: string
           _plan_id: string
         }
-        Returns: {
-          coupon_id: string
-          discount_cents: number
-          discount_kind: string
-          discount_percent: number
-          error: string
-          final_cents: number
-          label: string
-          ok: boolean
-        }[]
+        Returns: Json
       }
       validate_event_ticket_coupon: {
         Args: {
@@ -31267,16 +31258,7 @@ export type Database = {
           _event_id: string
           _ticket_type_id: string
         }
-        Returns: {
-          coupon_id: string
-          discount_cents: number
-          discount_kind: string
-          discount_percent: number
-          error: string
-          final_cents: number
-          label: string
-          ok: boolean
-        }[]
+        Returns: Json
       }
       verification_domain_badges: {
         Args: {

@@ -21,7 +21,7 @@
 // wobec swoich sąsiadów, nie wobec ich atrap.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Database, Tables } from "@/integrations/supabase/types";
+import type { Tables } from "@/integrations/supabase/types";
 import {
   fail,
   ok,
@@ -134,7 +134,21 @@ const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions")
 
 // --- kształty ---------------------------------------------------------------
 
-type CouponVerdict = Database["public"]["Functions"]["validate_b2b_coupon"]["Returns"][number];
+/**
+ * Werdykt `validate_b2b_coupon` w kształcie, który zwraca baza. Od migracji
+ * 20261001100000 typy generowane mówią `Json` (wynik skalarny), więc kształt
+ * pól trzymamy tu jawnie - te same klucze czyta `parseCouponVerdict`.
+ */
+interface CouponVerdict {
+  ok: boolean;
+  coupon_id: string | null;
+  discount_cents: number | null;
+  discount_kind: string | null;
+  discount_percent: number | null;
+  error: string | null;
+  final_cents: number | null;
+  label: string | null;
+}
 
 type PlanQuote = Pick<
   Tables<"access_plans">,

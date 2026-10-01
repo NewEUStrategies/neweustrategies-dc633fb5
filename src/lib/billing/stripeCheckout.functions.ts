@@ -4,7 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { CHECKOUT_LOCALES } from "@/lib/billing/checkoutLocale";
-import { isCodeProbeRateLimited } from "@/lib/billing/coupons";
+import { isCodeProbeRateLimited, parseCouponVerdict } from "@/lib/billing/coupons";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 
 const envSchema = z.enum(["sandbox", "live"]);
@@ -70,7 +70,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         }
         throw validateErr;
       }
-      const row = (rows ?? [])[0];
+      const row = parseCouponVerdict(rows);
       if (!row || !row.ok) {
         return { ok: false as const, error: (row?.error ?? "not_found") as string };
       }

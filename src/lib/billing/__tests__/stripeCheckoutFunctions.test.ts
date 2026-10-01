@@ -113,7 +113,24 @@ const { createPlanCheckoutSession, createAdhocCheckoutSession } =
 
 // --- kształty ---------------------------------------------------------------
 
-type CouponVerdict = Database["public"]["Functions"]["validate_b2b_coupon"]["Returns"][number];
+/**
+ * Odpowiedź `validate_b2b_coupon` - te same pola, które baza składa w werdykt.
+ *
+ * Typ jest LOKALNY, bo od 20261001100000 walidator oddaje jeden obiekt jsonb
+ * i wygenerowane typy mówią o nim tylko `Json`. Pola zostają te same co
+ * w dawnym wierszu zbioru, więc te same atrapy grają w obu kształtach: jako
+ * obiekt (po migracji) i jako `[wiersz]` (baza sprzed migracji).
+ */
+interface CouponVerdict {
+  ok: boolean;
+  coupon_id: string | null;
+  discount_cents: number | null;
+  discount_kind: string | null;
+  discount_percent: number | null;
+  error: string | null;
+  final_cents: number | null;
+  label: string | null;
+}
 
 /** Kolumny planu, które czyta TEN silnik (`select` w kodzie). */
 type PlanQuote = Pick<Tables<"access_plans">, "id" | "price_cents" | "currency" | "active">;
@@ -170,6 +187,16 @@ function couponRefused(reason: string): CouponVerdict {
     final_cents: 0,
     label: "",
   };
+}
+
+/**
+ * Werdykt POZYTYWNY z dziurą: bez kuponu albo bez kwoty końcowej. Baza takiego
+ * nie wystawia - to kształt zepsutej odpowiedzi, którą kasa ma odrzucić.
+ */
+function couponOkWithout(key: "coupon_id" | "final_cents"): Partial<CouponVerdict> {
+  const verdict: Partial<CouponVerdict> = couponOk();
+  delete verdict[key];
+  return verdict;
 }
 
 // --- atrapa klienta ---------------------------------------------------------
@@ -474,6 +501,70 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
 
     expect(result).toEqual({ ok: false, error: "limit_reached" });
   });
+});
+
+describe("createPlanCheckoutSession - werdykt jako JEDEN obiekt jsonb (od 20261001100000)", () => {
+  // Po migracji walidator oddaje obiekt zamiast zbioru wierszy. Ten silnik ma
+  // czytać go tak samo jak drugi (`checkout.functions.ts`) i tak samo jak
+  // dawny `[wiersz]` - inaczej po wdrożeniu migracji ważny kupon dawałby tu
+  // `not_found`, a w drugim silniku rabat.
+  it("ważny kupon jako obiekt: rabat u operatora, rezerwacja i audyt jak przy wierszu", async () => {
+    rpcResponses.set("validate_b2b_coupon", ok(couponOk()));
+
+    const result = await planCall({ couponCode: "PARTNER-CEE" });
+
+    expect(result.ok).toBe(true);
+    expect(stripeCall("coupons.create")?.args[0]).toMatchObject({
+      amount_off: 1000,
+      currency: "pln",
+      duration: "once",
+    });
+    expect(lastSession()?.discounts).toEqual([{ coupon: "coupon_1" }]);
+    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+      _coupon_id: COUPON_ID,
+      _applied_cents: 1000,
+      _original_cents: 4900,
+    });
+    expect(orderMetadata()).toEqual({
+      coupon_code: "PARTNER-CEE",
+      coupon_id: COUPON_ID,
+      coupon_discount_cents: 1000,
+      original_amount_cents: 4900,
+    });
+  });
+
+  it("odmowa jako obiekt: sesja i zamówienie NIE powstają, powód z bazy", async () => {
+    rpcResponses.set("validate_b2b_coupon", ok(couponRefused("expired")));
+
+    const result = await planCall({ couponCode: "PARTNER-CEE" });
+
+    expect(result).toEqual({ ok: false, error: "expired" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it.each([
+    ["coupon_id", "obiekt"],
+    ["final_cents", "obiekt"],
+    ["coupon_id", "wiersz"],
+    ["final_cents", "wiersz"],
+  ] as const)(
+    "sukces bez `%s` (%s) to `not_found`: bez zamówienia, rabatu u operatora i rezerwacji",
+    async (key, shape) => {
+      // `ok: true` bez kuponu nie wskazuje, czyje użycie zarezerwować, a bez
+      // kwoty końcowej werdykt nie jest pełny. Przepuszczenie go dałoby rabat
+      // u operatora, którego baza nie przypisała do żadnego kuponu.
+      const verdict = couponOkWithout(key);
+      rpcResponses.set("validate_b2b_coupon", ok(shape === "obiekt" ? verdict : [verdict]));
+
+      const result = await planCall({ couponCode: "PARTNER-CEE" });
+
+      expect(result).toEqual({ ok: false, error: "not_found" });
+      expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+      expect(stripeCall("coupons.create")).toBeUndefined();
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    },
+  );
 });
 
 describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie", () => {

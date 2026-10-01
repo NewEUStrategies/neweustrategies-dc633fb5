@@ -207,6 +207,23 @@ function percentCode(percent: number) {
   };
 }
 
+/**
+ * Ten sam werdykt w kształcie od 20261001100000: JEDEN obiekt jsonb zamiast
+ * `[wiersz]`. Kwoty liczy ta sama atrapa, więc różni się wyłącznie kształt -
+ * opcjonalnie bez pola, bez którego werdykt nie jest pełny.
+ */
+function asJsonbObject(
+  planned: (args: Record<string, unknown>) => SupabaseResult,
+  without?: "coupon_id" | "final_cents",
+) {
+  return (args: Record<string, unknown>): SupabaseResult => {
+    const rows = planned(args).data;
+    const row: unknown = Array.isArray(rows) ? rows[0] : rows;
+    if (typeof row !== "object" || row === null) return ok(row);
+    return ok(Object.fromEntries(Object.entries(row).filter(([key]) => key !== without)));
+  };
+}
+
 function orderInsert(): Record<string, unknown> {
   return (chain.lastChain("payment_orders")?.argsOf("insert")?.[0] ?? {}) as Record<
     string,
@@ -386,6 +403,62 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
     expect(result).toEqual({ ok: false, mode: "coupon", error: "ticket_not_eligible" });
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
+});
+
+describe("createCheckoutOrder - werdykt kodu jako JEDEN obiekt jsonb (od 20261001100000)", () => {
+  // Po migracji `validate_event_ticket_coupon` oddaje obiekt zamiast zbioru
+  // wierszy. Kasa biletu ma liczyć z niego DOKŁADNIE to samo co z `[wiersz]`:
+  // inaczej po wdrożeniu migracji kod -20 zł dawałby odmowę `not_found` albo
+  // zamówienie w pełnej cenie mimo kodu przyjętego przez bazę.
+  it("kod -20 zł jako obiekt na 3 × 100 zł: 240 zł, audyt i rezerwacja 60 zł", async () => {
+    rpcResponses.set("validate_event_ticket_coupon", asJsonbObject(fixedCode(2000)));
+
+    const result = await call({ coupon_code: "minus20" });
+
+    expect(result).toMatchObject({ ok: true, mode: "stripe" });
+    expect(orderInsert().amount_cents).toBe(24000);
+    expect(metadata()).toMatchObject({
+      coupon_id: COUPON_ID,
+      coupon_discount_cents: 6000,
+      coupon_discount_per_seat_cents: 2000,
+      original_amount_cents: 30000,
+    });
+    expect(rpcArgs("redeem_b2b_coupon")).toMatchObject({
+      _coupon_id: COUPON_ID,
+      _applied_cents: 6000,
+      _original_cents: 30000,
+    });
+    expect(stripeCoupons()).toEqual([expect.objectContaining({ amount_off: 6000 })]);
+  });
+
+  it("odmowa jako obiekt wraca z POWODEM bazy i nie zakłada zamówienia", async () => {
+    rpcResponses.set(
+      "validate_event_ticket_coupon",
+      ok({ ok: false, error: "ticket_not_eligible", coupon_id: COUPON_ID }),
+    );
+
+    const result = await call({ coupon_code: "INNYBILET" });
+
+    expect(result).toEqual({ ok: false, mode: "coupon", error: "ticket_not_eligible" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it.each(["coupon_id", "final_cents"] as const)(
+    "sukces bez `%s` to `not_found`: bez zamówienia, rezerwacji i kuponu u operatora",
+    async (key) => {
+      // `ok: true` bez kuponu nie wskazuje, czyje użycie zarezerwować, a bez
+      // kwoty końcowej nie ma od czego liczyć minimum transakcji. Kasa, która
+      // by go przepuściła, sprzedałaby bilet taniej bez żadnego kodu.
+      rpcResponses.set("validate_event_ticket_coupon", asJsonbObject(fixedCode(2000), key));
+
+      const result = await call({ coupon_code: "minus20" });
+
+      expect(result).toEqual({ ok: false, mode: "coupon", error: "not_found" });
+      expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+      expect(stripeCoupons()).toEqual([]);
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------

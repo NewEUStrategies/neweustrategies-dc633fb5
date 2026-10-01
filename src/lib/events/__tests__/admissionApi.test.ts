@@ -139,6 +139,30 @@ describe("packagePurchaseRefusal - odmowa zakupu przeniesiona z wyceny", () => {
     expect(packagePurchaseRefusal(new Error("refused_moon_phase: x"))).toBeNull();
     expect(packagePurchaseRefusal(new Error("sold_out: no packages left"))).toBeNull();
   });
+
+  // Bez `throwOnError` supabase-js oddaje blad PostgREST jako ZWYKLY OBIEKT
+  // `{ code, message, details, hint }`. Wczesniej `String(error)` dawalo z niego
+  // „[object Object]", wiec kazda odmowa zakupu z przegladarki konczyla sie
+  // zdaniem ogolnym zamiast „kod wygasl".
+  it("czyta `refused_<powód>` ze zwykłego obiektu `{ message }` tak samo jak z wyjątku", () => {
+    expect(packagePurchaseRefusal({ message: "refused_coupon_expired: x" })).toBe("coupon_expired");
+    expect(
+      packagePurchaseRefusal({
+        code: "P0001",
+        message: "refused_coupon_exhausted: coupon_exhausted",
+        details: null,
+        hint: null,
+      }),
+    ).toBe("coupon_exhausted");
+  });
+
+  // Obiekt bez tresci (albo z `message`, ktory nie jest napisem) nie jest
+  // odmowa wyceny - `null` oddaje go slownikowi bledow zakupu, a nie zgaduje.
+  it("obiekt bez `message` to `null`, a nie zgadywany powód", () => {
+    for (const shapeless of [{ code: "P0001" }, { message: 42 }, { message: null }, {}]) {
+      expect(packagePurchaseRefusal(shapeless), JSON.stringify(shapeless)).toBeNull();
+    }
+  });
 });
 
 describe("słownik odmów - PL i EN mają zdanie dla każdego powodu", () => {
@@ -223,6 +247,28 @@ describe("ticketCheckoutRefusal", () => {
     expect(ticketCheckoutRefusal(null)).toBe("unknown");
     expect(ticketCheckoutRefusal("")).toBe("unknown");
     expect(ticketCheckoutRefusal({ code: 42 })).toBe("unknown");
+  });
+
+  // Blad PostgREST z przegladarki to ZWYKLY OBIEKT, nie `Error`. Kasa i ekran
+  // pakietu dostaja go czasem prosto z klienta - slownik ma czytac `message`
+  // niezaleznie od ksztaltu, inaczej limit prob kodow czytalby sie jako
+  // „nie udalo sie wycenic", a wyprzedanie jako blad nieznany.
+  it("czyta `message` ze zwyklego obiektu tak samo jak z wyjatku", () => {
+    expect(ticketCheckoutRefusal({ message: "ticket_sold_out" })).toBe("sold_out");
+    expect(
+      ticketCheckoutRefusal({
+        code: "P0001",
+        message: "rate_limited: too many code attempts, try again later",
+        details: null,
+        hint: null,
+      }),
+    ).toBe("rate_limited");
+  });
+
+  it("obiekt bez tresci daje `unknown`, a nie dopasowanie do „[object Object]”", () => {
+    for (const shapeless of [{ code: "P0001" }, { message: 42 }, { message: null }, {}]) {
+      expect(ticketCheckoutRefusal(shapeless), JSON.stringify(shapeless)).toBe("unknown");
+    }
   });
 
   it("kazdy powod kasowy ma klucz w TYM SAMYM zbiorze nazw", () => {

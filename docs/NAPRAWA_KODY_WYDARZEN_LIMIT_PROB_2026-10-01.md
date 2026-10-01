@@ -23,7 +23,7 @@ Przy okazji wyszedł drugi problem. `redeem_b2b_coupon_with_effects` została wy
 
 ### Baza
 
-Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` ma bliźniaka w pasie drizzle (`0116_event_code_guessing_lockdown.sql`, wpis w dzienniku idx 116, `when` 1790848800000) i wpis w `MIGRATION_LANES`. Robi siedem rzeczy.
+Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` ma bliźniaka w pasie drizzle (`0116_event_code_guessing_lockdown.sql`, wpis w dzienniku idx 116, `when` 1790848800000) i wpis w `MIGRATION_LANES`. Robi osiem rzeczy.
 
 1. **Kubełek pudeł na użytkownika.**
    - Funkcje: `_coupon_probe_bucket`, `_coupon_probe_guard`, `_coupon_probe_miss`.
@@ -36,7 +36,8 @@ Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` m
 3. **`validate_b2b_coupon` i `validate_event_ticket_coupon`.**
    - Są teraz VOLATILE, bo PostgREST wykonuje funkcje STABLE w transakcji tylko do odczytu, a zapis pudła jest zapisem.
    - Strażnik działa przed wyszukaniem kodu.
-   - Kod nieznany, wyłączony, z obcego najemcy, przypięty do innego zakresu albo do innego wydarzenia daje ten sam wiersz `not_found` i jest liczony jako pudło.
+   - Kod nieznany, wyłączony, z obcego najemcy, przypięty do innego zakresu albo do innego wydarzenia daje tę samą odpowiedź `not_found` i jest liczony jako pudło.
+   - Wynik to **jeden obiekt `jsonb`, a nie zbiór wierszy**. Funkcję zwracającą tabelę przeglądarka mogła wywołać z filtrem `?error=neq.not_found` i nagłówkiem `Accept: application/vnd.pgrst.object+json`. Przy pudle zostawało 0 wierszy, PostgREST odpowiadał 406 i wycofywał transakcję razem z zapisem pudła, a istniejący kod zwracał wiersz. Wyniku skalarnego PostgREST nie filtruje. Zmiana typu wyniku wymaga `DROP FUNCTION`, więc uprawnienia stawiamy od nowa.
    - Odróżnialne powody zostają tylko tam, gdzie kupujący ma kod w ręku i potrzebuje zdania: `not_yet_valid`, `expired`, `limit_reached`, `per_user_limit_reached`, `plan_not_eligible` (na ścieżce planu), `ticket_not_eligible` (na ścieżce biletu), `no_discount`, `currency_mismatch`. Żaden z nich nie niesie danych kodu.
    - `validate_b2b_coupon` traci EXECUTE dla PUBLIC i anon.
    - `authenticated` zachowuje EXECUTE: kasa woła walidację klientem z JWT kupującego, bo potrzebuje `auth.uid()` (limit na osobę) i najemcy z profilu. Ten sam JWT pozwala przeglądarce wołać ją bezpośrednio, dlatego limit siedzi w bazie.
@@ -45,8 +46,9 @@ Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` m
    - VOLATILE zamiast STABLE;
    - strażnik przed wyszukaniem kodu;
    - kod innego wydarzenia daje `coupon_unknown` z pudłem i jest sprawdzany przed ważnością.
-6. **`redeem_b2b_coupon_with_effects`.** Ponownie traci EXECUTE dla PUBLIC, anon i authenticated. REVOKE jest warunkowy (`to_regprocedure`), bo baza harnessu wydarzeń tej funkcji nie modeluje.
-7. **Idempotencja.** CREATE OR REPLACE, DROP ... IF EXISTS i bezstanowe REVOKE/GRANT, więc ponowne zastosowanie niczego nie zmienia.
+6. **`event_package_purchase`.** Pełne ciało z `20260926130000`, zmienione w jednym miejscu: odmowa `coupon_unknown` z wyceny wraca wartością `{ok:false, reason}`, a nie wyjątkiem. Wyjątek wycofywał pudło zapisane przez wycenę, więc zakup pakietu był nieograniczoną wyrocznią. Pozostałe odmowy niczego nie zliczają i nadal rzucają `refused_<powód>`.
+7. **`redeem_b2b_coupon_with_effects`.** Ponownie traci EXECUTE dla PUBLIC, anon i authenticated. REVOKE jest warunkowy (`to_regprocedure`), bo baza harnessu wydarzeń tej funkcji nie modeluje.
+8. **Idempotencja.** CREATE OR REPLACE, DROP ... IF EXISTS i bezstanowe REVOKE/GRANT, więc ponowne zastosowanie niczego nie zmienia.
 
 ### Serwer (TS)
 
@@ -57,14 +59,18 @@ Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` m
 
   Wycena i kasa wielokrotnie ponawiają walidację w jednej legalnej sesji. Tam pilnuje kubełek pudeł w bazie, który nie liczy trafień.
 
+  Próg kubełka IP zależy od sesji. Anonim dostaje odmowę od 31. pytania z adresu (kryterium audytu), a wołający z sesją od 121. Za jednym adresem siedzi biuro albo sieć konferencyjna, a podgląd kuponu planu i odsłonięcie biletu to dla wielu osób jedyna droga do kodu. Zalogowanego pilnują jego własne kubełki: 30 prób w TS i 30 pudeł w bazie.
+
 - **`eventCodeReveal.functions.ts` / `.server.ts`.** Publiczna funkcja POST. Najemca pochodzi z zaufanego hosta i trafia do RPC jawnie. Odmowa limitu i awaria mają osobne powody, nigdy nie wracają jako pusta lista.
 - **`couponPreview.functions.ts` / `.server.ts`.** Funkcja POST za `requireSupabaseAuth`. Walidację wykonuje klient z JWT kupującego, czyli ten sam najemca i ten sam limit na osobę co w `createPlanCheckoutSession`. Do przeglądarki wraca wynik bez `coupon_id` i bez nazwy, także przy sukcesie.
+- **Werdykt walidatora** czyta jeden parser, `parseCouponVerdict` w `src/lib/billing/coupons.ts`. Przyjmuje oba kształty, obiekt `jsonb` po migracji i zbiór wierszy przed nią, bo kod może iść przed migracją. Sukces bez `coupon_id` albo kwoty końcowej traktuje jak „nie ma takiego kodu”, czyli bez obniżki.
 - **DB-owe `rate_limited` w wycenie i kasie.** Normalizuje je `codeProbeRpcError` / `isCodeProbeRateLimited` w `src/lib/billing/coupons.ts`. Kończy się wyjątkiem o stałej treści albo, w kasie planu, własnym powodem. Nigdy nie wraca jako odmowa kodu (`mode: "coupon"`), bo po takiej odmowie kasa zdejmuje kod z pamięci i płaci pełną cenę.
 
 ### Przeglądarka
 
-- **`useValidateCoupon`** woła serwerowy podgląd zamiast RPC.
-- **`RegistrationTicketPicker`** woła serwerowe odsłonięcie. Ma osobne zdania dla limitu (`revealRateLimited`) i awarii (`revealError`). Przycisk jest wyłączony, dopóki pytanie jest w drodze, więc podwójne kliknięcie nie zużywa dwóch prób. Kod dłuższy niż 64 znaki nie trafia do serwera.
+- **`useValidateCoupon`** woła serwerowy podgląd zamiast RPC. `CouponInput` wysyła jedno pytanie naraz: strażnik w refie i ignorowanie autopowtórzenia Entera.
+- **`admissionApi`** zamienia błąd PostgREST na `Error`. supabase-js oddaje go jako zwykły obiekt, więc wcześniej każda odmowa bazy na ekranie pakietów kończyła się zdaniem ogólnym. `ticketCheckoutRefusal` i `packagePurchaseRefusal` czytają też zwykłe obiekty. Odmowę zakupu zwróconą wartością tłumaczą na dotychczasowe `refused_<powód>`.
+- **`RegistrationTicketPicker`** woła serwerowe odsłonięcie. Ma osobne zdania dla limitu (`revealRateLimited`) i awarii (`revealError`). Przycisk jest wyłączony, dopóki pytanie jest w drodze, więc podwójne kliknięcie nie zużywa dwóch prób. Kod dłuższy niż 64 znaki nie trafia do serwera. Link `?code=` zawsze zapisuje kod do pamięci kasy, ale serwer pyta tylko wtedy, gdy wydarzenie ma ukryte bilety. Bez tego link rabatowy zużywałby próbę przy każdym wejściu.
 - **Komunikat o limicie zamiast mylących komunikatów:**
   - `RegistrationPayAction` pokazuje limit przez `ticketCheckoutRefusal` i powód `rate_limited`. Kod zostaje w polu, a płatności bez kodu nie ma.
   - `checkout.$planId` pokazuje limit zamiast „płatności nieskonfigurowane”.
@@ -85,10 +91,10 @@ Walidacja z JWT zalogowanego działa w obu układach.
 
 | Sprawdzenie                                                                                                                                                                   | Wynik                                                                                                                                                                                             |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `supabase/tests/event_code_guessing_test.sql` (lokalny runner pgTAP na pełnym schemacie)                                                                                      | 37/37                                                                                                                                                                                             |
+| `supabase/tests/event_code_guessing_test.sql` (lokalny runner pgTAP na pełnym schemacie; wcześniejsza wersja z 37 asercjami była zielona w CI na Supabase)                    | 47/47. Obejmuje: skalarny wynik funkcji zliczających pudło, wygasły kod innego wydarzenia, pudła dla kodów spoza zakresu, 31. zakup pakietu z kodem.                                              |
 | Pozostałe pliki pgTAP z kuponami i ACL (`coupon_effects_after_payment`, `security_definer_tenant_scope`, `event_participant_foundation`, `member_slug_non_author_visibility`) | zielone                                                                                                                                                                                           |
 | Pełna suita pgTAP (lokalnie)                                                                                                                                                  | 110 plików OK, 6 czerwonych. Wszystkie 6 to braki tego środowiska: `unaccent`, `pg_net`, atrapa `pgvector`, RLS atrapy storage. Nie dotyczą funkcji kodów.                                        |
-| `scripts/events-harness/run.sh`                                                                                                                                               | OK, 172 migracje i 3855 asercji. Asercja 71 przepisana z `coupon_other_event` na `coupon_unknown`.                                                                                                |
+| `scripts/events-harness/run.sh` (także job `pg-harness` w CI)                                                                                                                 | OK, 172 migracje i 3855 asercji. Asercja 71 przepisana z `coupon_other_event` na `coupon_unknown`.                                                                                                |
 | Migracja zastosowana ponownie na tej samej bazie (oba pasy)                                                                                                                   | bez błędów                                                                                                                                                                                        |
 | vitest: dotknięte moduły i bramki (lane parity, rozmiar migracji, plan pgTAP, i18n key drift / parity, mapy błędów wydarzeń)                                                  | zielone                                                                                                                                                                                           |
 | Pokrycie plików z progiem 98%, które zmieniłem                                                                                                                                | `RegistrationPayAction` 99,29/99,37/100/100, `checkout.functions` 100, `eventTicketPricing.server` 100, `EventPackagesPurchase` 100, `EventTicketPurchase` 100. Nowe moduły dostały własne progi. |
@@ -110,4 +116,5 @@ Zgodnie z konwencją weryfikatora i dokumentu audytu nie ruszam. Rozdział 16.8 
 
 - **Ukryte bilety są w publicznym ładunku i da się je kupić bez kodu.** `event_registration_form` (`20260923110000:95-102`) oddaje anonimowi także bilety z `is_hidden`. Ukrywa je dopiero przeglądarka (`registrationFormSurface.ts`, `?ticket=<klucz>`), a `event_register` nie sprawdza `is_hidden` ani `reveals_hidden`. Odsłanianie chroni więc tajemnicę kodu, nie samych biletów. To osobny defekt modelu dostępu.
 - **`redeem_b2b_coupon` przyjmuje dowolne `coupon_id` od zalogowanego**, także bez zamówienia. Posiadacz ważnego kodu może z sukcesu walidacji wziąć `coupon_id` i wyczerpać `max_redemptions`. Pakietowa wycena (`event_admission_quote`) oddaje `coupon_id` przy sukcesie wprost do przeglądarki. Rezerwacja powinna wymagać zamówienia wołającego w stanie `pending`.
-- **Ten sam adres IP to wspólny kubełek.** Sieć konferencyjna albo NAT biura dzielą 30 prób na 10 minut na odsłanianie i podgląd. Kasa i wycena tego kubełka nie używają, więc legalny zakup z kodem go nie zjada.
+- **Ten sam adres IP to wspólny kubełek.** Odsłonięcie biletu z linku `?code=` i podgląd kuponu na stronie kasy planu (jedyna droga do rabatu planu) liczą się do kubełka IP. Trafienia też się liczą. Anonim ma 30 pytań na 10 minut z adresu, wołający z sesją 120. Kasa wydarzenia i wycena tego kubełka nie używają.
+- **Prefer `tx=rollback` w PostgREST.** Wynik skalarny zamyka wycofanie transakcji zależne od odpowiedzi. Bezwarunkowe wycofanie przez nagłówek `Prefer: tx=rollback` działa tylko wtedy, gdy konfiguracja PostgREST na to pozwala (`db-tx-end` z `allow-override`). Domyślna konfiguracja PostgREST (`db-tx-end = commit`) na to nie pozwala. Konfiguracji projektu Supabase nie sprawdzałem. Nawet przy dozwolonym nadpisaniu wycofanie byłoby bezwarunkowe, więc nie daje informacji o kodzie, za to zdejmuje pudło. Warto to sprawdzić w konfiguracji projektu.

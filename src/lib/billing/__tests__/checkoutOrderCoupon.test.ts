@@ -72,8 +72,24 @@ const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions")
 
 // --- kształty z wygenerowanych typów ---------------------------------------
 
-/** Wiersz odpowiedzi `validate_b2b_coupon` - kontrakt bazy, nie zmyślony. */
-type CouponVerdict = Database["public"]["Functions"]["validate_b2b_coupon"]["Returns"][number];
+/**
+ * Odpowiedź `validate_b2b_coupon` - te same pola, które baza składa w werdykt.
+ *
+ * Typ jest LOKALNY, bo od 20261001100000 walidator oddaje jeden obiekt jsonb
+ * i wygenerowane typy mówią o nim tylko `Json`. Pola zostają te same co
+ * w dawnym wierszu zbioru, więc te same atrapy grają w obu kształtach: jako
+ * obiekt (po migracji) i jako `[wiersz]` (baza sprzed migracji).
+ */
+interface CouponVerdict {
+  ok: boolean;
+  coupon_id: string | null;
+  discount_cents: number | null;
+  discount_kind: string | null;
+  discount_percent: number | null;
+  error: string | null;
+  final_cents: number | null;
+  label: string | null;
+}
 
 type PlanQuote = Pick<
   Tables<"access_plans">,
@@ -138,6 +154,16 @@ function couponRefused(reason: string): CouponVerdict {
     final_cents: 0,
     label: "",
   };
+}
+
+/**
+ * Werdykt POZYTYWNY z dziurą: bez kuponu albo bez kwoty końcowej. Baza takiego
+ * nie wystawia - to kształt zepsutej odpowiedzi, którą kasa ma odrzucić.
+ */
+function couponOkWithout(key: "coupon_id" | "final_cents"): Partial<CouponVerdict> {
+  const verdict: Partial<CouponVerdict> = couponOk();
+  delete verdict[key];
+  return verdict;
 }
 
 // --- atrapa klienta ---------------------------------------------------------
@@ -422,6 +448,75 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
     expect(result.ok).toBe(true);
     expect(insertedOrder()?.amount_cents).toBe(50);
   });
+});
+
+describe("createCheckoutOrder - werdykt jako JEDEN obiekt jsonb (od 20261001100000)", () => {
+  // Po migracji walidator oddaje obiekt zamiast zbioru wierszy (PostgREST nie
+  // może wtedy przefiltrować wyniku i wycofać zapisanego pudła). Kasa ma się
+  // zachować DOKŁADNIE tak samo jak przy `[wiersz]`: inaczej ważny kupon po
+  // wdrożeniu migracji kończyłby się odmową `not_found` albo, gorzej,
+  // zamówieniem w pełnej cenie mimo obiecanego rabatu.
+  it("ważny kupon jako obiekt: ta sama kwota, audyt i rezerwacja co przy wierszu", async () => {
+    rpcResponses.set("validate_b2b_coupon", ok(couponOk()));
+
+    const result = await call(planPayload());
+
+    expect(result.ok).toBe(true);
+    expect(insertedOrder()?.amount_cents).toBe(3900);
+    expect(orderMetadata()).toMatchObject({
+      coupon_code: "PARTNER-CEE",
+      coupon_id: COUPON_ID,
+      coupon_discount_cents: 1000,
+      original_amount_cents: 4900,
+    });
+    expect(rpcArgs("redeem_b2b_coupon")).toEqual({
+      _coupon_id: COUPON_ID,
+      _order_id: "order-1",
+      _applied_cents: 1000,
+      _original_cents: 4900,
+      _currency: "PLN",
+    });
+  });
+
+  it("odmowa jako obiekt zatrzymuje zamówienie z powodem z bazy", async () => {
+    rpcResponses.set("validate_b2b_coupon", ok(couponRefused("expired")));
+
+    const result = await call(planPayload());
+
+    expect(result).toEqual({ ok: false, mode: "coupon", error: "expired" });
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+    expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+  });
+
+  it("odmowa jako obiekt BEZ powodu schodzi na `not_found`", async () => {
+    rpcResponses.set("validate_b2b_coupon", ok({ ...couponRefused(""), error: null }));
+
+    const result = await call(planPayload());
+
+    expect(result).toEqual({ ok: false, mode: "coupon", error: "not_found" });
+  });
+
+  it.each([
+    ["coupon_id", "obiekt"],
+    ["final_cents", "obiekt"],
+    ["coupon_id", "wiersz"],
+    ["final_cents", "wiersz"],
+  ] as const)(
+    "sukces bez `%s` (%s) to `not_found`: bez zamówienia, rezerwacji i rabatu",
+    async (key, shape) => {
+      // `ok: true` bez kuponu nie wskazuje, czyje użycie zarezerwować, a bez
+      // kwoty końcowej nie wiadomo, ile pobrać. Przepuszczenie go dałoby
+      // zamówienie z rabatem przypisanym do nikogo albo z kwotą `undefined`.
+      const verdict = couponOkWithout(key);
+      rpcResponses.set("validate_b2b_coupon", ok(shape === "obiekt" ? verdict : [verdict]));
+
+      const result = await call(planPayload());
+
+      expect(result).toEqual({ ok: false, mode: "coupon", error: "not_found" });
+      expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+      expect(rpcCalls.map((c) => c.fn)).not.toContain("redeem_b2b_coupon");
+    },
+  );
 });
 
 describe("createCheckoutOrder - przegrany wyścig o ostatnie użycie kuponu", () => {

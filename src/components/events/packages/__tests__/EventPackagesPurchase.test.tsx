@@ -139,6 +139,17 @@ function quoteOk(over: Partial<AdmissionQuoteOk> = {}): AdmissionQuoteOk {
   };
 }
 
+/**
+ * Limit prób kodów DOKŁADNIE tak, jak supabase-js oddaje go bez `throwOnError`:
+ * `JSON.parse` ciała odpowiedzi PostgREST, zwykły obiekt - nie `Error`.
+ */
+const RATE_LIMITED_PLAIN = {
+  code: "P0001",
+  message: "rate_limited: too many code attempts, try again later",
+  details: null,
+  hint: null,
+};
+
 function quoteRefused(reason: AdmissionQuoteReason): AdmissionQuote {
   return { ok: false, reason, detail: {} };
 }
@@ -623,6 +634,52 @@ describe("EventPackagesPurchase - wycena i zamówienie", () => {
 
     expect(await screen.findByText("eventPackages.quoteReasons.rate_limited")).toBeInTheDocument();
     expect(buyButton()).toBeDisabled();
+  });
+
+  // Te same dwa limity, ale w KSZTAŁCIE Z PRZEGLĄDARKI: bez `throwOnError`
+  // supabase-js oddaje błąd PostgREST jako zwykły obiekt, nie `Error`. Ekran
+  // mapuje go przez `ticketCheckoutRefusal`, który dawniej czytał tylko
+  // `Error` - limit prób czytał się wtedy jako „nie udało się wycenić".
+  it("limit prób przy zakupie jako zwykły obiekt PostgREST nadal mówi o limicie", async () => {
+    api.purchasePackage.mockRejectedValueOnce(RATE_LIMITED_PLAIN);
+    renderPurchase();
+    await pick(/Pakiet firmowy/);
+    await waitFor(() => expect(buyButton()).toBeEnabled());
+    fireEvent.click(buyButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("eventPackages.quoteReasons.rate_limited"),
+    );
+    expect(toast.error).not.toHaveBeenCalledWith("eventPackages.errors.unknown");
+  });
+
+  it("wycena odrzucona limitem jako zwykły obiekt PostgREST mówi o limicie i nie pozwala kupić", async () => {
+    api.quoteAdmission.mockRejectedValue(RATE_LIMITED_PLAIN);
+    renderPurchase();
+    await pick(/Pakiet firmowy/);
+
+    expect(await screen.findByText("eventPackages.quoteReasons.rate_limited")).toBeInTheDocument();
+    expect(screen.queryByText("eventPackages.quoteReasons.unknown")).toBeNull();
+    expect(buyButton()).toBeDisabled();
+  });
+
+  // Odmowa `refused_<powód>` rzucona przez bazę też przychodzi zwykłym
+  // obiektem - zdanie o kodzie wyczerpanym ma dojechać tak samo jak z `Error`.
+  it("odmowa `refused_*` jako zwykły obiekt PostgREST mówi zdaniem wyceny", async () => {
+    api.purchasePackage.mockRejectedValueOnce({
+      code: "P0001",
+      message: "refused_coupon_exhausted: coupon_exhausted",
+      details: null,
+      hint: null,
+    });
+    renderPurchase();
+    await pick(/Pakiet firmowy/);
+    await waitFor(() => expect(buyButton()).toBeEnabled());
+    fireEvent.click(buyButton());
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("eventPackages.quoteReasons.coupon_exhausted"),
+    );
   });
 
   it("awaria wyceny to zdanie, a nie wczytywanie bez końca", async () => {

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { codeProbeRpcError } from "@/lib/billing/coupons";
+import { codeProbeRpcError, parseCouponVerdict } from "@/lib/billing/coupons";
 import { periodEndFor } from "@/lib/billing/entitlement";
 import { mockCheckoutAllowed } from "@/lib/billing/mockMode.server";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
@@ -287,7 +287,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         });
         // Limit prób kodów to wyjątek, nie odmowa kodu (`codeProbeRpcError`).
         if (validateErr) throw codeProbeRpcError(validateErr);
-        const row = (rows ?? [])[0];
+        const row = parseCouponVerdict(rows);
         if (!row || !row.ok) {
           return {
             ok: false as const,
