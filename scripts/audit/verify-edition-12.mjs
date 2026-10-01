@@ -255,10 +255,89 @@ assert(
   "Z10: publicCatchAllRoute wrócił do linii bazowej",
 );
 
-/* --- rachunek sumienia (16.16): błędy wydania 11 --- */
+/* --- nowe defekty wysokie od krytyka kompletności (16.8): mechanizm po kodzie --- */
+// Kody wydarzeń: anon dostaje wyrocznię istnienia kodu, a przeglądarka woła RPC z pominięciem limitera.
+{
+  const kody = "supabase/migrations/20260922220000_event_ticket_codes.sql";
+  const m = read(kody);
+  assert(
+    m.includes(
+      "GRANT EXECUTE ON FUNCTION public.event_coupon_revealed_tickets(uuid, text) TO anon",
+    ),
+    "kody wydarzeń: event_coupon_revealed_tickets bez GRANT dla anon - przepisać 16.8",
+  );
+  assert(
+    /IF array_length\(c\.event_ids,1\) IS NOT NULL THEN\s*RETURN QUERY SELECT false,'event_not_eligible'::text,c\.id,0,_amount_cents,c\.name/.test(
+      m,
+    ),
+    "kody wydarzeń: validate_b2b_coupon nie oddaje już coupon_id i nazwy - przepisać 16.8",
+  );
+  const pozniejsze = fs
+    .readdirSync(`${ROOT}/supabase/migrations`)
+    .filter((f) => f.endsWith(".sql") && f > path.basename(kody))
+    .filter((f) =>
+      /CREATE OR REPLACE FUNCTION public\.(validate_b2b_coupon|event_coupon_revealed_tickets)\b/.test(
+        read(`supabase/migrations/${f}`),
+      ),
+    );
+  rowne(pozniejsze.length, 0, "późniejsze redefinicje funkcji kodów wydarzeń");
+  for (const [plik, rpc] of [
+    ["src/hooks/useValidateCoupon.ts", "validate_b2b_coupon"],
+    ["src/lib/events/eventCodesApi.ts", "event_coupon_revealed_tickets"],
+  ]) {
+    const t = read(plik);
+    assert(
+      t.includes(`supabase.rpc("${rpc}"`) && !/rateLimit|rate_limit/.test(t),
+      `kody wydarzeń: ${plik} nie woła już ${rpc} wprost albo ma limiter - przepisać 16.8`,
+    );
+  }
+}
+// Alert o sporze: odbiorcy bez filtra najemcy; poprawny wariant istnieje, ale nikt go nie woła.
+{
+  const r = read("src/lib/billing/refunds.server.ts");
+  const i = r.indexOf("async function alertAdminsAboutDispute(");
+  const cialo = i > 0 ? r.slice(i, r.indexOf("\n}\n", i)) : "";
+  assert(
+    cialo.includes('.from("user_roles")') &&
+      cialo.includes('.eq("role", "admin")') &&
+      !cialo.includes('.eq("tenant_id"'),
+    "alert o sporze: alertAdminsAboutDispute filtruje już najemcę - przepisać 16.8",
+  );
+  const wolajacy = prod.filter(
+    (f) =>
+      f !== "src/lib/events/tenantAdminAlert.server.ts" && read(f).includes("notifyTenantAdmins"),
+  );
+  rowne(wolajacy.length, 0, "pliki produkcyjne wołające notifyTenantAdmins");
+}
+wDokumencie("Nowych defektów potwierdzonych po próbie obalenia: 169");
+
+/* --- plan naprawczy (16.15): treść każdej pozycji, nie sam nagłówek --- */
+{
+  const surowy = fs.readFileSync(DOC, "utf8");
+  const i = surowy.indexOf("### 16.15.");
+  const plan = surowy.slice(i, surowy.indexOf("### 16.16.", i));
+  const pozycje = [...plan.matchAll(/^\d+\. (.*)$/gm)].map((m) => m[1]);
+  rowne(pozycje.length, 13, "pozycje planu 16.15");
+  assert(
+    pozycje.length > 0 && pozycje.every((p) => /^\*\*[^*]{8,}\*\*/.test(p)),
+    "16.15: pozycja planu bez tytułu",
+  );
+  for (const tytul of [
+    "Zaproszenie nie może przenieść cudzego konta między najemcami",
+    "Kody wydarzeń: limit prób i jedna odpowiedź dla pudła",
+    "Alert o sporze tylko do administratorów najemcy, którego dotyczy",
+  ]) {
+    assert(plan.includes(`**${tytul}**`), `16.15 bez pozycji: ${tytul}`);
+  }
+}
+
+/* --- rachunek sumienia (16.16): błędy wydania 11 i własne błędy tego wydania --- */
 // TZ był przypięty w CI już w wydaniu 11 - dziś też.
 assert(/^\s*TZ: UTC/m.test(read(".github/workflows/ci.yml")), "ci.yml bez TZ: UTC");
 wDokumencie("Asercji pgTAP było 1 921, nie 1 973");
+wDokumencie(
+  "Pierwsza publikacja tego rozdziału miała plan naprawczy z jedenastoma pustymi pozycjami",
+);
 
 /* --- pomiar pokrycia (16.4-16.6): liczby z przebiegu, ktorego ten skrypt nie powtarza -
    sprawdza tylko, czy dokument i README mowia to samo --- */
