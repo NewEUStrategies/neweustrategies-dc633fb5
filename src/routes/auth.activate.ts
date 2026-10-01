@@ -13,8 +13,9 @@
 // przekierowania błędu wskazywały `/auth?error=...`, a trasy `/auth` w tej
 // aplikacji nie ma (wejście do konta to `/login`) - odbiorca uszkodzonego lub
 // przyciętego przez klienta poczty linku dostawał 404 zamiast wyjaśnienia.
-// `/auth/callback` czyta `?error=` i od razu pokazuje komunikat o nieważnym
-// linku, tak samo jak dla błędu zwróconego przez dostawcę.
+// `/auth/callback` czyta `?error=`, raz sprawdza sesję i pokazuje komunikat
+// o nieważnym linku tylko wtedy, gdy jej nie ma (zalogowany użytkownik trafia
+// na /welcome) - tak samo jak dla błędu zwróconego przez dostawcę.
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
@@ -30,9 +31,13 @@ import { createFileRoute } from "@tanstack/react-router";
  *   - `magiclink` zwraca "magiclink" dla KAŻDEGO istniejącego konta
  *     (potwierdzonego i nie), ale "signup", gdy Supabase konta nie znajdzie -
  *     `mail.go`: `case mail.MagicLinkVerification: params.Type =
- *     mail.SignupVerification`. U nas to rzadkie (konto usunięte między
- *     odczytem a wysyłką, konto wyłącznie SSO), ale osiągalne - dlatego
- *     "signup" ZOSTAJE na liście. Lista bez niego psułaby właśnie ten link.
+ *     mail.SignupVerification`. U nas to rzadkie: wywołanie `invite` musi
+ *     najpierw paść (np. `email_exists` dla potwierdzonego konta albo błąd
+ *     przejściowy), a do chwili wywołania `magiclink` Supabase musi przestać
+ *     widzieć konto. Konto wyłącznie SSO TU NIE TRAFIA - Supabase pomija
+ *     wiersze `is_sso_user`, więc `invite` tworzy nowe konto i zwraca
+ *     "invite". Rzadkie, ale osiągalne - dlatego "signup" ZOSTAJE na liście.
+ *     Lista bez niego psułaby właśnie ten link.
  *
  * USUNIĘTE 2026-10-01: "recovery" i "email_change". Żaden nadawca ich tu nie
  * wysyła, a oba łamały kontrakt strony powrotu: link `recovery` logował

@@ -53,6 +53,7 @@ import { Route } from "@/routes/auth.callback";
 
 const MAX_WAIT_MS = 8_000;
 const POLL_MS = 250;
+const ERROR_CHECK_DEADLINE_MS = 1_500;
 
 const SESSION = { user: { id: "u-1" } } as Session;
 const WELCOME = { to: "/welcome", search: { mode: undefined }, replace: true };
@@ -172,7 +173,7 @@ describe("/auth/callback - przekroczenie czasu", () => {
 
   it("nie poddaje się przed czasem - tuż przed granicą wciąż czeka", async () => {
     mount();
-    await act(() => vi.advanceTimersByTimeAsync(MAX_WAIT_MS));
+    await act(() => vi.advanceTimersByTimeAsync(MAX_WAIT_MS - 1));
 
     expect(screen.getByText("Aktywujemy Twoje konto…")).toBeTruthy();
     expect(screen.queryByRole("heading")).toBeNull();
@@ -306,6 +307,84 @@ describe("/auth/callback - błąd w adresie powrotu", () => {
     expect(h.onAuthStateChange).toHaveBeenCalledTimes(1);
     // Ścieżka bez błędu sonduje, a nie sprawdza raz.
     expect(h.getSession).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("/auth/callback - twardy limit czasu niezależny od getSession()", () => {
+  // Zgłoszenie z weryfikacji PR #429, odtworzone na prawdziwym supabase-js
+  // 2.116: przy WYGASŁEJ zapisanej sesji `getSession()` odświeża token
+  // i ponawia nieudane odświeżenie (5xx, błąd sieci) przez ~25 s. Limit
+  // liczony wewnątrz odpowiedzi trzymał wtedy spinner przez cały ten czas.
+  function pendingSession() {
+    let resolveCheck: (value: Awaited<ReturnType<typeof sessionResult>>) => void = () => {};
+    h.getSession.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        }),
+    );
+    return (value: Awaited<ReturnType<typeof sessionResult>>) => resolveCheck(value);
+  }
+
+  it("błąd w adresie + wiszące sprawdzenie: bez sondowania, komunikat po limicie, spóźniona sesja nadal przenosi", async () => {
+    const resolveCheck = pendingSession();
+    mount("/auth/callback#error_code=otp_expired");
+
+    await act(() => vi.advanceTimersByTimeAsync(ERROR_CHECK_DEADLINE_MS - 1));
+    expect(screen.getByText("Aktywujemy Twoje konto…")).toBeTruthy();
+
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByRole("heading", { name: "Link aktywacyjny jest nieważny" })).toBeTruthy();
+
+    // Przy błędzie w adresie JEDNO sprawdzenie - także wtedy, gdy wisi.
+    // (Wersja, która przy błędzie sondowała, wołała tu getSession ~34 razy.)
+    await act(() => vi.advanceTimersByTimeAsync(MAX_WAIT_MS + POLL_MS));
+    expect(h.getSession).toHaveBeenCalledTimes(1);
+    expect(h.navigate).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveCheck({ data: { session: SESSION }, error: null });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(h.navigate).toHaveBeenCalledTimes(1);
+    expect(h.navigate).toHaveBeenCalledWith(WELCOME);
+  });
+
+  it("sondowanie z wiszącymi odczytami kończy się komunikatem dokładnie po MAX_WAIT_MS", async () => {
+    pendingSession();
+    mount();
+
+    await act(() => vi.advanceTimersByTimeAsync(MAX_WAIT_MS - 1));
+    expect(screen.queryByRole("heading")).toBeNull();
+
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByRole("heading", { name: "Link aktywacyjny jest nieważny" })).toBeTruthy();
+
+    // Po komunikacie sondowanie stoi.
+    const calls = h.getSession.mock.calls.length;
+    await act(() => vi.advanceTimersByTimeAsync(POLL_MS * 8));
+    expect(h.getSession).toHaveBeenCalledTimes(calls);
+  });
+
+  it("nawigacja kasuje limit - po przejściu na /welcome komunikat już się nie pojawi", async () => {
+    pendingSession();
+    mount("/auth/callback?error=invalid_link");
+    emitAuth("SIGNED_IN", SESSION);
+    expect(h.navigate).toHaveBeenCalledWith(WELCOME);
+
+    await act(() => vi.advanceTimersByTimeAsync(MAX_WAIT_MS * 2));
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(h.navigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("odmontowanie kasuje limit - nic nie ustawia stanu po zniknięciu strony", async () => {
+    pendingSession();
+    const view = mount("/auth/callback#error_code=otp_expired");
+    view.unmount();
+
+    await act(() => vi.advanceTimersByTimeAsync(MAX_WAIT_MS * 2));
+    expect(h.navigate).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 

@@ -31,6 +31,15 @@ export const Route = createFileRoute("/auth/callback")({
 
 const MAX_WAIT_MS = 8_000;
 const POLL_MS = 250;
+/**
+ * Twardy limit jednego sprawdzenia sesji przy błędzie w adresie. Odczyt sesji
+ * zwykle trwa milisekundy (localStorage), ale przy WYGASŁEJ zapisanej sesji
+ * `getSession()` odświeża token, a supabase-js ponawia nieudane odświeżenie
+ * (5xx, błąd sieci) z narastającą przerwą - zmierzone na 2.116: ~25 s
+ * spinnera. Limit nie czeka na tę odpowiedź; jeśli sesja jednak dojdzie,
+ * subskrypcja nadal przeniesie użytkownika dalej.
+ */
+const ERROR_CHECK_DEADLINE_MS = 1_500;
 
 /** Czy adres powrotu niesie błąd - w zapytaniu (nasza trasa) albo we fragmencie (dostawca). */
 function urlCarriesError(location: Location): boolean {
@@ -53,7 +62,7 @@ function AuthCallbackPage() {
   useEffect(() => {
     let cancelled = false;
     let poll = 0;
-    const started = Date.now();
+    let deadline = 0;
 
     // Jedna nawigacja na wejście: zdarzenie sesji i sondowanie mogą zobaczyć
     // użytkownika w tym samym oknie, a każde z nich wołało `navigate` osobno.
@@ -61,7 +70,16 @@ function AuthCallbackPage() {
       if (cancelled) return;
       cancelled = true;
       window.clearInterval(poll);
+      window.clearTimeout(deadline);
       void navigate({ to: "/welcome", search: { mode: undefined }, replace: true });
+    };
+
+    // Komunikat NIE wypisuje subskrypcji - spóźniona sesja nadal przenosi.
+    const fail = () => {
+      if (cancelled) return;
+      window.clearInterval(poll);
+      window.clearTimeout(deadline);
+      setFailed(true);
     };
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -69,30 +87,28 @@ function AuthCallbackPage() {
     });
 
     // Odrzucony odczyt sesji traktujemy jak jej brak: przy błędzie w adresie
-    // to i tak komunikat, a przy sondowaniu - kolejna próba.
-    const decide = (hasUser: boolean) => {
-      if (cancelled) return;
-      if (hasUser) {
-        goWelcome();
-        return;
-      }
-      if (urlError || Date.now() - started > MAX_WAIT_MS) {
-        window.clearInterval(poll);
-        setFailed(true);
-      }
-    };
+    // to komunikat, a przy sondowaniu - kolejna próba.
     const check = () =>
       supabase.auth.getSession().then(
-        ({ data }) => decide(Boolean(data.session?.user)),
-        () => decide(false),
+        ({ data }) => {
+          if (data.session?.user) goWelcome();
+          else if (urlError) fail();
+        },
+        () => {
+          if (urlError) fail();
+        },
       );
 
+    // Limit czasu liczony zegarem, nie wewnątrz odpowiedzi `getSession()` -
+    // wiszące odświeżenie tokenu nie może trzymać spinnera w nieskończoność.
+    deadline = window.setTimeout(fail, urlError ? ERROR_CHECK_DEADLINE_MS : MAX_WAIT_MS);
     if (urlError) void check();
     else poll = window.setInterval(() => void check(), POLL_MS);
 
     return () => {
       cancelled = true;
       window.clearInterval(poll);
+      window.clearTimeout(deadline);
       sub.subscription.unsubscribe();
     };
   }, [navigate, urlError]);
