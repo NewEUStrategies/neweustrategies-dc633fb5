@@ -1,4 +1,3 @@
-import { readableBrandText } from "@/lib/a11y/contrast";
 // Animated heading widget - separate from the regular "heading" widget.
 // Two modes:
 //  • highlight: a single emphasized phrase with an SVG shape drawn over/under
@@ -241,6 +240,17 @@ export interface AnimatedHeadingConfig {
   linkBefore?: AnimatedHeadingLink;
   linkHighlight?: AnimatedHeadingLink;
   linkAfter?: AnimatedHeadingLink;
+}
+
+/**
+ * Animated shapes are a decorative brand accent, not body copy. Keep the
+ * luminous brand orange in both themes instead of replacing it with the
+ * darker light-mode text ink.
+ */
+export function animatedHeadingAccent(color: string | undefined): string {
+  return !color || /^(?:#fa9346|#f97316|var\(--(?:brand|primary)\))$/i.test(color.trim())
+    ? "var(--brand)"
+    : color;
 }
 
 export interface AnimatedHeadingLink {
@@ -652,7 +662,7 @@ export function AnimatedHeadingRender({
   const align = config.align ?? "left";
 
   const color = config.color || "currentColor";
-  const accent = readableBrandText(config.accentColor);
+  const accent = animatedHeadingAccent(config.accentColor);
 
   const durationMs = Math.max(300, config.durationMs ?? 1600);
   const delayMs = Math.max(0, config.delayMs ?? 200);

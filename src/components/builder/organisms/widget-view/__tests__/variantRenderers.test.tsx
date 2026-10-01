@@ -82,6 +82,27 @@ afterEach(() => {
 });
 
 describe("AnimatedHeadingRender", () => {
+  it("uses the same luminous brand accent in light and dark themes", () => {
+    for (const accentColor of [undefined, "#fa9346", "#f97316", "var(--brand)"]) {
+      const { container, unmount } = render(
+        <AnimatedHeadingRender config={{ highlight: "do nas", accentColor }} />,
+      );
+      expect(container.querySelector("h2 > span")?.getAttribute("style")).toContain(
+        "color: var(--brand)",
+      );
+      unmount();
+    }
+  });
+
+  it("preserves a custom non-brand accent", () => {
+    const { container } = render(
+      <AnimatedHeadingRender config={{ highlight: "do nas", accentColor: "#dc2626" }} />,
+    );
+    expect(container.querySelector("h2 > span")?.getAttribute("style")).toContain(
+      "color: #dc2626",
+    );
+  });
+
   it("renders every shape in highlight mode", () => {
     for (const { value } of ANIMATED_SHAPES) {
       const { container } = render(
