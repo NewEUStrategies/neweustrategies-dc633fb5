@@ -3,6 +3,7 @@ import { runAfterResponse } from "./waitUntil.server";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const CONDITIONAL_HEADERS = ["range", "if-range", "if-none-match", "if-modified-since"];
+const FORCE_REVALIDATION = /(?:^|,)\s*(?:no-cache|no-store|max-age\s*=\s*"?0"?)\s*(?:,|$)/i;
 
 /** Cache full public images across Worker isolates in the same colo. Browser
  * Cache-Control alone does not populate the Worker's Cache API. Keep exact
@@ -17,6 +18,8 @@ export async function withMediaCache(
   if (
     !cache ||
     request.method !== "GET" ||
+    FORCE_REVALIDATION.test(request.headers.get("cache-control") ?? "") ||
+    /(?:^|,)\s*no-cache\s*(?:,|$)/i.test(request.headers.get("pragma") ?? "") ||
     CONDITIONAL_HEADERS.some((header) => request.headers.has(header))
   ) {
     return load();

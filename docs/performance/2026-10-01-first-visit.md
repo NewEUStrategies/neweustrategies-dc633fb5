@@ -46,7 +46,8 @@ The route now uses the existing per-colo Cache API adapter for full image GETs.
   and the exact Accept header. Negotiation remains upstream-owned.
 - Only successful images with a known positive Content-Length up to 5 MiB are
   stored. The production hero and logo have these headers.
-- HEAD, range and conditional requests retain the existing storage path.
+- HEAD, range, conditional and explicit cache-bypass requests (no-cache,
+  no-store, max-age=0 or Pragma: no-cache) retain the existing storage path.
   Partial responses, failures, video and unknown/large bodies are not stored.
 - Writes run under the existing `runAfterResponse`/`waitUntil` helper; they do
   not delay the response. Read/write failures fail open.
@@ -78,7 +79,7 @@ and parsing reduction, not a promised Lighthouse point increase.
 ## Verification and remaining measurement
 
 Regression tests cover cross-visitor image reuse, key isolation, normalized
-transform reuse, HEAD/conditional/range bypass, errors, bounded image admission,
+transform reuse, HEAD/conditional/range and forced-refresh bypass, errors, bounded image admission,
 nonblocking writes, plain-text sanitization, list loading/updates, synchronous
 SSR, footnotes and hydration without replacing the server list DOM.
 

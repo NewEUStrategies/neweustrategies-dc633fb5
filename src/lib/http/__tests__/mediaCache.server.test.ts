@@ -100,6 +100,24 @@ describe("public media colo cache", () => {
   });
 
   it.each([
+    ["cache-control", "no-cache"],
+    ["cache-control", "no-store"],
+    ["cache-control", 'max-age="0"'],
+    ["cache-control", "public, MAX-AGE=0"],
+    ["pragma", "no-cache"],
+  ])("honors cache bypass for a cached image: %s: %s", async (header, value) => {
+    await withMediaCache(request(), source, load);
+    await flush();
+    match.mockClear();
+    put.mockClear();
+    await withMediaCache(request({ [header]: value }), source, load);
+    await flush();
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(match).not.toHaveBeenCalled();
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it.each([
     [206, "image/webp", "5"],
     [404, "image/webp", "5"],
     [502, "image/webp", "5"],
