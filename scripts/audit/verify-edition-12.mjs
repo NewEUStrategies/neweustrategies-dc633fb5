@@ -43,16 +43,47 @@ const lines = (t) => {
   return t.endsWith("\n") ? n - 1 : n;
 };
 
-const doc = norm(fs.readFileSync(DOC, "utf8"));
-const readme = norm(fs.readFileSync(README, "utf8"));
+const docSurowy = fs.readFileSync(DOC, "utf8");
+const doc = norm(docSurowy);
+const readmeSurowy = fs.readFileSync(README, "utf8");
+const readme = norm(readmeSurowy);
+// README jest dwujęzyczne, więc każde twierdzenie sprawdzam w części, której dotyczy: fragment
+// szukany w całym pliku przechodzi, gdy zestarzała się tylko jedna z dwóch wersji językowych.
+const podzialReadme = readmeSurowy.indexOf("\n# English version");
+const czesciReadme =
+  podzialReadme < 0
+    ? { PL: readmeSurowy, EN: "" }
+    : { PL: readmeSurowy.slice(0, podzialReadme), EN: readmeSurowy.slice(podzialReadme) };
 let zielone = 0;
 const czerwone = [];
 const assert = (warunek, opis) => (warunek ? zielone++ : czerwone.push(opis));
 const rowne = (jest, ma, opis) => assert(jest === ma, `${opis}: jest ${jest}, dokument mówi ${ma}`);
 const wDokumencie = (fragment) =>
   assert(doc.includes(norm(fragment)), `dokument nie zawiera: ${fragment}`);
-const wReadme = (fragment) =>
-  assert(readme.includes(norm(fragment)), `README nie zawiera: ${fragment}`);
+const wReadme = (jezyk, fragment) =>
+  assert(
+    norm(czesciReadme[jezyk]).includes(norm(fragment)),
+    `README (${jezyk}) nie zawiera: ${fragment}`,
+  );
+assert(podzialReadme > 0, 'README: brak nagłówka „# English version" - części się nie rozdzielą');
+// Wiersze tabeli markdown spod wiersza nagłówka pasującego do `naglowek` (bez nagłówka i separatora),
+// komórki po norm(). Tabela kończy się na pierwszej linii, która nie zaczyna się od `|`.
+const tabelaPod = (tekst, naglowek) => {
+  const linie = tekst.split("\n");
+  const start = linie.findIndex((l) => naglowek.test(l));
+  if (start < 0) return [];
+  const wiersze = [];
+  for (const l of linie.slice(start + 2)) {
+    if (!l.startsWith("|")) break;
+    wiersze.push(
+      l
+        .split("|")
+        .slice(1, -1)
+        .map((c) => norm(c).trim()),
+    );
+  }
+  return wiersze;
+};
 
 /* --- skala: jedna definicja (rozdz. 16.2) --- */
 const isTest = (f) => /(^|\/)__tests__\/|\.test\.|\.spec\./.test(f);
@@ -62,12 +93,9 @@ const zrodla = walk(`${ROOT}/src`)
   .filter(isSrc);
 const prod = zrodla.filter((f) => !isTest(f));
 const testy = zrodla.filter(isTest);
+const wierszeProd = prod.reduce((s, f) => s + lines(read(f)), 0);
 rowne(prod.length, 4031, "pliki produkcyjne");
-rowne(
-  prod.reduce((s, f) => s + lines(read(f)), 0),
-  860585,
-  "wiersze kodu produkcyjnego",
-);
+rowne(wierszeProd, 860585, "wiersze kodu produkcyjnego");
 rowne(testy.length, 2999, "pliki testowe");
 rowne(
   prod.filter((f) => f.startsWith("src/routes/") && !f.endsWith("routeTree.gen.ts")).length,
@@ -81,38 +109,41 @@ rowne(
 );
 const pkg = JSON.parse(read("package.json"));
 rowne(Object.keys(pkg.scripts).length, 91, "skrypty package.json");
-rowne(Object.keys(pkg.scripts).filter((s) => s.startsWith("check:")).length, 50, "bramki check:*");
+const bramki = Object.keys(pkg.scripts).filter((s) => s.startsWith("check:")).length;
+rowne(bramki, 50, "bramki check:*");
 rowne(
   fs.readdirSync(`${ROOT}/src/lib/ci`).filter((f) => f.endsWith(".ts")).length,
   53,
   "moduły src/lib/ci",
 );
-rowne(
-  fs.readdirSync(`${ROOT}/supabase/migrations`).filter((f) => f.endsWith(".sql")).length,
-  1059,
-  "migracje supabase",
-);
-rowne(
-  fs.readdirSync(`${ROOT}/drizzle/migrations`).filter((f) => f.endsWith(".sql")).length,
-  146,
-  "migracje drizzle (SQL)",
-);
-rowne(
-  fs.readdirSync(`${ROOT}`).filter((f) => /^playwright\..*config\.ts$/.test(f)).length,
-  6,
-  "konfiguracje Playwrighta",
-);
+const plikiSql = (dir) => fs.readdirSync(`${ROOT}/${dir}`).filter((f) => f.endsWith(".sql")).length;
+const migracjeSupabase = plikiSql("supabase/migrations");
+const migracjeDrizzle = plikiSql("drizzle/migrations");
+rowne(migracjeSupabase, 1059, "migracje supabase");
+rowne(migracjeDrizzle, 146, "migracje drizzle (SQL)");
+const konfiguracjePw = fs
+  .readdirSync(`${ROOT}`)
+  .filter((f) => /^playwright\..*config\.ts$/.test(f));
+rowne(konfiguracjePw.length, 6, "konfiguracje Playwrighta");
 wDokumencie("4 031");
 wDokumencie("860 585");
 
 /* --- pgTAP i RLS liczone bibliotekami repozytorium --- */
-const { analyzePgTapFile } = await import(`${ROOT}/src/lib/ci/pgTapPlan.ts`);
+const { analyzePgTapFile, isPgTapFileBroken } = await import(`${ROOT}/src/lib/ci/pgTapPlan.ts`);
 const pgtap = fs.readdirSync(`${ROOT}/supabase/tests`).filter((f) => f.endsWith(".sql"));
-let planned = 0;
-for (const f of pgtap) planned += analyzePgTapFile(f, read(`supabase/tests/${f}`)).planned ?? 0;
+// Sumuję asercje znalezione w plikach, nie obietnice `plan(N)`. 16.10 twierdzi też, że w każdym
+// pliku `planned = counted` i jest `finish()` - plik, który tego nie spełnia, to osobna czerwień.
+const analizyPgTap = pgtap.map((f) => analyzePgTapFile(f, read(`supabase/tests/${f}`)));
+const asercjePgTap = analizyPgTap.reduce((s, a) => s + a.counted, 0);
+const zepsutePgTap = analizyPgTap.filter(isPgTapFileBroken).map((a) => a.file);
 rowne(pgtap.length, 115, "pliki pgTAP");
-rowne(planned, 2093, "asercje pgTAP (analizator repo)");
+rowne(asercjePgTap, 2093, "asercje pgTAP (analizator repo, policzone w plikach)");
+assert(
+  zepsutePgTap.length === 0,
+  `pgTAP: plan(N) niezgodny z asercjami albo brak plan()/finish(): ${zepsutePgTap.join(", ")}`,
+);
 wDokumencie("115 / 2 093");
+wDokumencie("analizator repo: `planned = counted` w każdym pliku");
 const { extractLatestPolicies } = await import(`${ROOT}/src/lib/ci/rlsPolicies.ts`);
 const { stripSqlComments } = await import(`${ROOT}/scripts/lib/sqlMigrations.ts`);
 const migracje = fs
@@ -122,7 +153,8 @@ const migracje = fs
   .map((file) => ({ file, sql: stripSqlComments(read(`supabase/migrations/${file}`)) }));
 const polityki = extractLatestPolicies(migracje);
 rowne(polityki.size, 666, "polityki RLS w stanie końcowym");
-rowne(new Set([...polityki.values()].map((p) => p.table)).size, 291, "tabele z politykami");
+const tabeleRls = new Set([...polityki.values()].map((p) => p.table)).size;
+rowne(tabeleRls, 291, "tabele z politykami");
 wDokumencie("666 / 291");
 
 /* --- progi pokrycia: ile i ile martwych --- */
@@ -384,10 +416,9 @@ wDokumencie(
 for (const fragment of ["97,03%", "95,83%", "96,06%", "91,78%", "79 399", "2 992"]) {
   wDokumencie(fragment);
 }
-wReadme("97,03% linii i 95,83% funkcji");
-wReadme("97.03% of lines and 95.83% of functions");
+wReadme("PL", "97,03% linii i 95,83% funkcji");
+wReadme("EN", "97.03% of lines and 95.83% of functions");
 wDokumencie("**323 funkcjonalności**");
-wReadme("**323**");
 // 19 czerwonych przypadkow w pomiarze to zaslepka xlsx - zrodlo blokady musi byc nazwane.
 wDokumencie("cdn.sheetjs.com");
 for (const r of [
@@ -402,8 +433,82 @@ for (const r of [
   wDokumencie(r);
 }
 
+/* --- README: tabela metryk, każdy wiersz osobno w części polskiej i angielskiej ---
+   Liczby biorę z drzewa (wyżej) i z rejestru modułów `scripts/taxonomy/moduleMap.mjs`. Dwie biorę
+   z dokumentu, bo skrypt ich nie mierzy: funkcjonalności to wiersze tabeli 16.6, a pliki i testy
+   Playwrighta to sumy tabeli konfiguracji z 16.10 (`playwright test --list` nie jest tu powtarzane),
+   więc ta tabela musi wymieniać dokładnie konfiguracje, które są w repo. */
+const { MODULES, CROSS_CUTTING } = await import(`${ROOT}/scripts/taxonomy/moduleMap.mjs`);
+const odNaglowka = (naglowek) => {
+  const i = docSurowy.indexOf(naglowek);
+  return i < 0 ? "" : docSurowy.slice(i);
+};
+const funkcjonalnosci = tabelaPod(
+  odNaglowka("### 16.6."),
+  /^\|\s*Moduł\s*\|\s*Funkcjonalność\s*\|/,
+).length;
+rowne(funkcjonalnosci, 323, "funkcjonalności (wiersze tabeli 16.6)");
+const tabelaPw = tabelaPod(
+  odNaglowka("### 16.10."),
+  /^\|\s*Konfiguracja\s*\|\s*Pliki\s*\|\s*Testy\s*\|/,
+);
+rowne(
+  [...konfiguracjePw].sort().join(", "),
+  tabelaPw
+    .map(([k]) => k.replace(/`/g, ""))
+    .sort()
+    .join(", "),
+  "konfiguracje Playwrighta w tabeli 16.10",
+);
+const liczba = (komorka) => Number(komorka.replace(/\s/g, ""));
+const e2ePliki = tabelaPw.reduce((s, w) => s + liczba(w[1]), 0);
+const e2eTesty = tabelaPw.reduce((s, w) => s + liczba(w[2]), 0);
+wDokumencie(`${e2eTesty} / ${e2ePliki} / ${konfiguracjePw.length}`);
+const METRYKI = [
+  ["Moduły domenowe", "Domain modules", [MODULES.length, CROSS_CUTTING.length]],
+  ["Udokumentowane funkcjonalności", "Documented functionalities", [funkcjonalnosci]],
+  ["Pliki kodu produkcyjnego", "Production source files", [prod.length, wierszeProd]],
+  ["Pliki testowe", "Test files", [testy.length]],
+  ["Testy warstwy danych (pgTAP)", "Data-layer tests (pgTAP)", [pgtap.length, asercjePgTap]],
+  [
+    "Testy ścieżek użytkownika (Playwright)",
+    "User-journey tests (Playwright)",
+    [e2ePliki, e2eTesty, konfiguracjePw.length],
+  ],
+  ["Bramki jakości w CI (`check:*`)", "Quality gates in CI (`check:*`)", [bramki]],
+  ["Progi pokrycia per ścieżka", "Per-path coverage thresholds", [klucze.length]],
+  ["Migracje bazy danych", "Database migrations", [migracjeSupabase, migracjeDrizzle]],
+  ["Polityki RLS w stanie końcowym", "RLS policies in final state", [polityki.size, tabeleRls]],
+];
+// Separator tysięcy zależy od języka: „4 031" po polsku, „4,031" po angielsku.
+const LICZBY = { PL: /\d{1,3}(?: \d{3})+|\d+/g, EN: /\d{1,3}(?:,\d{3})+|\d+/g };
+for (const [jezyk, kolumna, naglowek] of [
+  ["PL", 0, /^\|\s*Wymiar\s*\|\s*Stan\s*\|/],
+  ["EN", 1, /^\|\s*Dimension\s*\|\s*State\s*\|/],
+]) {
+  const tabela = new Map(tabelaPod(czesciReadme[jezyk], naglowek));
+  assert(
+    tabela.size === METRYKI.length,
+    `README (${jezyk}): tabela metryk ma ${tabela.size} wierszy, skrypt sprawdza ${METRYKI.length}`,
+  );
+  for (const metryka of METRYKI) {
+    const etykieta = metryka[kolumna];
+    const stan = tabela.get(norm(etykieta).trim());
+    const repo = metryka[2].join(" / ");
+    const mowi =
+      stan === undefined
+        ? "brak wiersza"
+        : [...stan.matchAll(LICZBY[jezyk])].map((m) => liczba(m[0].replace(/,/g, ""))).join(" / ");
+    assert(
+      mowi === repo,
+      `README (${jezyk}) „${etykieta}": repo daje ${repo}, README mówi ${mowi}`,
+    );
+  }
+}
+
 /* --- higiena (16.14) --- */
-wReadme("istanbul");
+wReadme("PL", "istanbul");
+wReadme("EN", "istanbul");
 assert(!/providerem v8/.test(readme), "README nadal mówi o providerze v8");
 assert(
   read("docs/ARCHITECTURE.md").includes(

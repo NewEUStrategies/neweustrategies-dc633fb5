@@ -688,7 +688,7 @@ Do tego pięć istniejących testów przepiętych na funkcję platformową (A4),
 - **Nie regeneruj migawki autoryzacji ani typów na ślepo** - tylko po zamierzonej zmianie i z wyjaśnionym diffem.
 - **Nie przepinaj `assertAdmin` na `requireAdmin`** w tym PR - zmieniłbyś przy okazji wymóg MFA (`aal2`) dla
   administratorów.
-- **Nie ruszaj `scripts/audit/verify-edition-12.mjs`.** Jego asercja Z2 (`:171-188`) szuka wzorca tekstowego przed
+- **Nie ruszaj `scripts/audit/verify-edition-12.mjs`.** Jego asercja Z2 (`:203-220`) szuka wzorca tekstowego przed
   `profiles.upsert`, nie zachowania - zależnie od tego, gdzie postawisz decyzję, zrobi się czerwona albo zostanie
   zielona. Uruchom go i podaj wynik w PR-ze; w obu przypadkach to materiał dla następnego wydania audytu.
 
