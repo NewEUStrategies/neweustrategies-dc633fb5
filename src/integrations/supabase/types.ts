@@ -22149,6 +22149,12 @@ export type Database = {
         Args: { _tenant_id: string; p_base: string }
         Returns: string
       }
+      _coupon_probe_bucket: {
+        Args: { p_uid: string }
+        Returns: Record<string, unknown>
+      }
+      _coupon_probe_guard: { Args: never; Returns: undefined }
+      _coupon_probe_miss: { Args: never; Returns: undefined }
       _crm_source_type_rank: {
         Args: { p_source_type: string }
         Returns: number
