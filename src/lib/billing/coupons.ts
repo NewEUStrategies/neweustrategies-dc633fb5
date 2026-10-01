@@ -197,7 +197,7 @@ function textOrNull(value: unknown): string | null {
 /**
  * Werdykt `validate_b2b_coupon` / `validate_event_ticket_coupon` z odpowiedzi RPC.
  *
- * DWA KSZTAŁTY NA OKNO WDROŻENIA. Od migracji 20261001100000 walidator oddaje
+ * DWA KSZTAŁTY NA OKNO WDROŻENIA. Od migracji 20261001210000 walidator oddaje
  * JEDEN obiekt jsonb (wynik skalarny - PostgREST nie przefiltruje go i nie wycofa
  * zapisu pudła zależnie od odpowiedzi); wcześniej oddawał zbiór wierszy. Kod
  * aplikacji idzie razem z migracją albo przed nią, więc czyta oba.

@@ -208,7 +208,7 @@ function percentCode(percent: number) {
 }
 
 /**
- * Ten sam werdykt w kształcie od 20261001100000: JEDEN obiekt jsonb zamiast
+ * Ten sam werdykt w kształcie od 20261001210000: JEDEN obiekt jsonb zamiast
  * `[wiersz]`. Kwoty liczy ta sama atrapa, więc różni się wyłącznie kształt -
  * opcjonalnie bez pola, bez którego werdykt nie jest pełny.
  */
@@ -405,7 +405,7 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
   });
 });
 
-describe("createCheckoutOrder - werdykt kodu jako JEDEN obiekt jsonb (od 20261001100000)", () => {
+describe("createCheckoutOrder - werdykt kodu jako JEDEN obiekt jsonb (od 20261001210000)", () => {
   // Po migracji `validate_event_ticket_coupon` oddaje obiekt zamiast zbioru
   // wierszy. Kasa biletu ma liczyć z niego DOKŁADNIE to samo co z `[wiersz]`:
   // inaczej po wdrożeniu migracji kod -20 zł dawałby odmowę `not_found` albo

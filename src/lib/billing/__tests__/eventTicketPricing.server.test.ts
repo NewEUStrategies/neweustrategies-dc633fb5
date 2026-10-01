@@ -220,7 +220,7 @@ describe("applyEventTicketCoupon - zła odpowiedź bazy NIE jest rabatem", () =>
   });
 });
 
-describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 20261001100000)", () => {
+describe("applyEventTicketCoupon - werdykt jako JEDEN obiekt jsonb (od 20261001210000)", () => {
   // Po migracji walidator oddaje obiekt zamiast zbioru wierszy (PostgREST nie
   // może wtedy przefiltrować wyniku i wycofać zapisanego pudła). Wycena ma
   // czytać go DOKŁADNIE tak jak dawny `[wiersz]` - inaczej po wdrożeniu

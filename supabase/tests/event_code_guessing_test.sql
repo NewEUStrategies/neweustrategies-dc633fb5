@@ -1,5 +1,7 @@
 -- pgTAP: kody wydarzen i kupony - limit prob i jedna odpowiedz dla pudla
--- (migracja 20261001100000_event_code_guessing_lockdown, blizniak drizzle 0116).
+-- (migracje 20261001100000_event_code_guessing_lockdown, blizniak drizzle 0116,
+-- i 20261001210000_event_code_scalar_verdicts, blizniak drizzle 0118: wynik
+-- skalarny walidatorow i zakup pakietu bez wyjatku po pudle).
 --
 -- DEFEKT (audyt wydania 12, 16.8 i 16.15 pkt 6): `validate_b2b_coupon` byl
 -- wykonywalny dla PUBLIC i anon, `event_coupon_revealed_tickets` dla anon,

@@ -47,7 +47,7 @@ describe("codeProbeRpcError", () => {
 
 // Werdykt walidatora kodu czytany z odpowiedzi RPC (`parseCouponVerdict`).
 //
-// CO PSUJE SIĘ BEZ TYCH TESTÓW: od 20261001100000 walidator oddaje JEDEN obiekt
+// CO PSUJE SIĘ BEZ TYCH TESTÓW: od 20261001210000 walidator oddaje JEDEN obiekt
 // jsonb, a przed migracją - zbiór wierszy. Czytnik, który zna tylko jeden
 // kształt, w oknie wdrożenia widzi „brak werdyktu" przy każdym ważnym kodzie
 // (klient płaci pełną cenę) albo - gorzej - bierze pół-sukces bez `coupon_id`

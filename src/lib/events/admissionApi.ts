@@ -322,7 +322,7 @@ export async function purchasePackage(input: PackagePurchaseInput): Promise<Pack
   const { data, error } = await supabase.rpc("event_package_purchase", { p_payload: payload });
   if (error) throw rpcError(error);
   const row = record(data);
-  // Odmowe `coupon_unknown` baza zwraca WARTOSCIA (20261001100000), bo wyjatek
+  // Odmowe `coupon_unknown` baza zwraca WARTOSCIA (20261001210000), bo wyjatek
   // wycofalby zapisane pudlo w kubelku limitu prob. Dla ekranu to ta sama
   // odmowa co dawniej - `refused_<powod>`, czytana przez `packagePurchaseRefusal`.
   if (row.ok === false) {

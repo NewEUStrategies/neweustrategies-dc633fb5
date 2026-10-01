@@ -827,6 +827,13 @@
       "when": 1790885149915,
       "tag": "0117_20261001100000_event_code_guessing_lockdown",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1790888400000,
+      "tag": "0118_event_code_scalar_verdicts",
+      "breakpoints": true
     }
   ]
 }

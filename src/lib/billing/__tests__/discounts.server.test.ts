@@ -23,7 +23,7 @@ import { ok, supabaseFromStub } from "@/test/supabaseChain";
 // --- granica 1: klient Supabase (RPC walidacji + tabela definicji) ----------
 
 /**
- * Werdykt `validate_b2b_coupon`. Od 20261001100000 baza oddaje go jako JEDEN
+ * Werdykt `validate_b2b_coupon`. Od 20261001210000 baza oddaje go jako JEDEN
  * obiekt jsonb, wcześniej jako wiersz zbioru - `seed` przyjmuje oba kształty.
  * Pola są opcjonalne, bo przypadki niżej celowo podają werdykty niepełne.
  */
@@ -348,7 +348,7 @@ describe("ODMOWY z walidacji kuponu - każdy powód osobno", () => {
 });
 
 // ===========================================================================
-describe("werdykt jako JEDEN obiekt jsonb (od 20261001100000)", () => {
+describe("werdykt jako JEDEN obiekt jsonb (od 20261001210000)", () => {
   // Po migracji walidator oddaje obiekt zamiast zbioru wierszy (PostgREST nie
   // może wtedy przefiltrować wyniku i wycofać zapisanego pudła). Nakładka ma
   // czytać go DOKŁADNIE tak jak dawny `[wiersz]` - inaczej po wdrożeniu

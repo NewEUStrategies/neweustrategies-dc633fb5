@@ -22155,6 +22155,10 @@ export type Database = {
       }
       _coupon_probe_guard: { Args: never; Returns: undefined }
       _coupon_probe_miss: { Args: never; Returns: undefined }
+      _coupon_refusal: {
+        Args: { p_amount_cents: number; p_error: string }
+        Returns: Json
+      }
       _crm_source_type_rank: {
         Args: { p_source_type: string }
         Returns: number

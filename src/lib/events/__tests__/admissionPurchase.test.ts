@@ -411,7 +411,7 @@ describe("purchasePackage - odczyt potwierdzenia", () => {
 
 describe("purchasePackage - odmowa zwrocona WARTOSCIA", () => {
   // Nieznany kod przy zakupie baza ZWRACA jako `{ ok: false, reason }`
-  // (20261001100000), bo wyjatek wycofalby zapisane pudlo w kubelku limitu prob
+  // (20261001210000), bo wyjatek wycofalby zapisane pudlo w kubelku limitu prob
   // i zakup pakietu bylby nieograniczona wyrocznia kodow. Taka zwrotka nie ma
   // `order_id` - gdyby przeszla jak sukces, ekran dostalby blad „nieczytelna
   // odpowiedz" zamiast zdania o kodzie, a gdyby ktos kiedys poluzowal prog
@@ -444,7 +444,7 @@ describe("purchasePackage - odmowa zwrocona WARTOSCIA", () => {
     }
   });
 
-  // Sukces zakupu NIE MA klucza `ok` (`20261001100000`, `RETURN
+  // Sukces zakupu NIE MA klucza `ok` (`20261001210000`, `RETURN
   // jsonb_build_object('order_id', ...)`), wiec nowy prog musi patrzec na
   // `ok === false`, a nie na „brak `ok: true`" - inaczej kazdy udany zakup
   // zamienialby sie w odmowe z pieniedzmi juz zarezerwowanymi w bazie.

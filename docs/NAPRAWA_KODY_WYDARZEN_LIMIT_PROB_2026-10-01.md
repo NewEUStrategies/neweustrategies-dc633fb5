@@ -1,6 +1,6 @@
 # Naprawa: kody wydarzeń i kupony - limit prób i jedna odpowiedź dla pudła (2026-10-01)
 
-Zamyka pozycję 16.15 pkt 6 audytu wydania 12 (`docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md:9298`), czyli defekt 16.8 (`:8805-8810`, wiersz tabeli `:8831`). HEAD pomiaru: `3830690`.
+Zamyka pozycję 16.15 pkt 6 audytu wydania 12 (`docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md:9298`), czyli defekt 16.8 (`:8805-8810`, wiersz tabeli `:8831`). HEAD pomiaru pierwszej rundy: `3830690`. Druga runda (poprawki po przeglądzie) była mierzona na `main` `478cd75` z tą gałęzią.
 
 Kryterium akceptacji z audytu brzmi: „trzydziesta pierwsza próba z jednego IP w oknie kończy się odmową, a odpowiedź dla kodu z innego wydarzenia jest nieodróżnialna od pudła”.
 
@@ -23,7 +23,12 @@ Przy okazji wyszedł drugi problem. `redeem_b2b_coupon_with_effects` została wy
 
 ### Baza
 
-Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` ma bliźniaka w pasie drizzle (`0116_event_code_guessing_lockdown.sql`, wpis w dzienniku idx 116, `when` 1790848800000) i wpis w `MIGRATION_LANES`. Robi osiem rzeczy.
+Naprawa idzie dwiema migracjami, obie z bliźniakiem w pasie drizzle i wpisem w `MIGRATION_LANES`:
+
+- `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` (bliźniak `0116_event_code_guessing_lockdown.sql`, idx 116). Weszła z #430 w stanie `8e81b23` i jest już wdrożona, czego śladem jest zapis wdrożenia `0117_20261001100000_event_code_guessing_lockdown.sql`. Nie jest edytowana, bo Supabase śledzi wersję, nie treść.
+- `supabase/migrations/20261001210000_event_code_scalar_verdicts.sql` (bliźniak `0118_event_code_scalar_verdicts.sql`, idx 118, `when` 1790888400000). To poprawka w przód po przeglądzie: wynik skalarny walidatorów (punkt 3) i zakup pakietu bez wyjątku po pudle (punkt 6).
+
+Razem robią osiem rzeczy.
 
 1. **Kubełek pudeł na użytkownika.**
    - Funkcje: `_coupon_probe_bucket`, `_coupon_probe_guard`, `_coupon_probe_miss`.
@@ -37,7 +42,7 @@ Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` m
    - Są teraz VOLATILE, bo PostgREST wykonuje funkcje STABLE w transakcji tylko do odczytu, a zapis pudła jest zapisem.
    - Strażnik działa przed wyszukaniem kodu.
    - Kod nieznany, wyłączony, z obcego najemcy, przypięty do innego zakresu albo do innego wydarzenia daje tę samą odpowiedź `not_found` i jest liczony jako pudło.
-   - Wynik to **jeden obiekt `jsonb`, a nie zbiór wierszy**. Funkcję zwracającą tabelę przeglądarka mogła wywołać z filtrem `?error=neq.not_found` i nagłówkiem `Accept: application/vnd.pgrst.object+json`. Przy pudle zostawało 0 wierszy, PostgREST odpowiadał 406 i wycofywał transakcję razem z zapisem pudła, a istniejący kod zwracał wiersz. Wyniku skalarnego PostgREST nie filtruje. Zmiana typu wyniku wymaga `DROP FUNCTION`, więc uprawnienia stawiamy od nowa.
+   - Wynik to **jeden obiekt `jsonb`, a nie zbiór wierszy** (`20261001210000`). Funkcję zwracającą tabelę przeglądarka mogła wywołać z filtrem `?error=neq.not_found` i nagłówkiem `Accept: application/vnd.pgrst.object+json`. Przy pudle zostawało 0 wierszy, PostgREST odpowiadał 406 i wycofywał transakcję razem z zapisem pudła, a istniejący kod zwracał wiersz. Wyniku skalarnego PostgREST nie filtruje. Zmiana typu wyniku wymaga `DROP FUNCTION`, więc uprawnienia stawiamy od nowa.
    - Odróżnialne powody zostają tylko tam, gdzie kupujący ma kod w ręku i potrzebuje zdania: `not_yet_valid`, `expired`, `limit_reached`, `per_user_limit_reached`, `plan_not_eligible` (na ścieżce planu), `ticket_not_eligible` (na ścieżce biletu), `no_discount`, `currency_mismatch`. Żaden z nich nie niesie danych kodu.
    - `validate_b2b_coupon` traci EXECUTE dla PUBLIC i anon.
    - `authenticated` zachowuje EXECUTE: kasa woła walidację klientem z JWT kupującego, bo potrzebuje `auth.uid()` (limit na osobę) i najemcy z profilu. Ten sam JWT pozwala przeglądarce wołać ją bezpośrednio, dlatego limit siedzi w bazie.
@@ -46,7 +51,7 @@ Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` m
    - VOLATILE zamiast STABLE;
    - strażnik przed wyszukaniem kodu;
    - kod innego wydarzenia daje `coupon_unknown` z pudłem i jest sprawdzany przed ważnością.
-6. **`event_package_purchase`.** Pełne ciało z `20260926130000`, zmienione w jednym miejscu: odmowa `coupon_unknown` z wyceny wraca wartością `{ok:false, reason}`, a nie wyjątkiem. Wyjątek wycofywał pudło zapisane przez wycenę, więc zakup pakietu był nieograniczoną wyrocznią. Pozostałe odmowy niczego nie zliczają i nadal rzucają `refused_<powód>`.
+6. **`event_package_purchase`** (`20261001210000`). Pełne ciało z `20260926130000`, zmienione w jednym miejscu: odmowa `coupon_unknown` z wyceny wraca wartością `{ok:false, reason}`, a nie wyjątkiem. Wyjątek wycofywał pudło zapisane przez wycenę, więc zakup pakietu był nieograniczoną wyrocznią. Pozostałe odmowy niczego nie zliczają i nadal rzucają `refused_<powód>`.
 7. **`redeem_b2b_coupon_with_effects`.** Ponownie traci EXECUTE dla PUBLIC, anon i authenticated. REVOKE jest warunkowy (`to_regprocedure`), bo baza harnessu wydarzeń tej funkcji nie modeluje.
 8. **Idempotencja.** CREATE OR REPLACE, DROP ... IF EXISTS i bezstanowe REVOKE/GRANT, więc ponowne zastosowanie niczego nie zmienia.
 
@@ -80,12 +85,11 @@ Migracja `supabase/migrations/20261001100000_event_code_guessing_lockdown.sql` m
 
 ## 3. Kolejność wdrożenia
 
-Kod i migracja idą razem. Między nimi odsłanianie biletów odpowiada błędem, nigdy złymi danymi:
+**`20261001100000` (wdrożona z #430).** Kod i migracja szły razem. Między nimi odsłanianie biletów odpowiadało błędem, nigdy złymi danymi: stary kod przeglądarki wołał wersję dwuargumentową, której po migracji już nie ma, a nowy kod serwera wołał wersję z `p_tenant`, której przed migracją jeszcze nie było. Walidacja z JWT zalogowanego działała w obu układach.
 
-- stary kod przeglądarki woła wersję dwuargumentową, której po migracji już nie ma;
-- nowy kod serwera woła wersję z `p_tenant`, której przed migracją jeszcze nie ma.
+**`20261001210000`: najpierw publikacja kodu, potem migracja.** Kod z #430 (`8e81b23`) czyta wynik walidatora jako `(rows ?? [])[0]`. Na obiekcie `jsonb` daje to `undefined`, więc każdy poprawny kupon zostałby odrzucony jako `not_found`. Jest to bezpieczne (nie ma rabatu bez podstawy), ale kupony przestałyby działać. Kod z drugiej rundy czyta oba kształty (`parseCouponVerdict`) i obie odpowiedzi zakupu pakietu, więc po jego publikacji migrację można zastosować w dowolnym momencie.
 
-Walidacja z JWT zalogowanego działa w obu układach.
+**Okno ryzyka do czasu zastosowania `20261001210000`.** Produkcja działa dziś na wersji z #430. Dwie luki z punktów 3 i 6 są więc otwarte dla zalogowanego: filtr PostgREST z nagłówkiem `object+json` wycofuje zapis pudła, a zakup pakietu z nieznanym kodem wycofuje go wyjątkiem. Anonim nie ma do nich dostępu, bo EXECUTE odebrała już `20261001100000`.
 
 ## 4. Pomiary i granice weryfikacji
 
@@ -94,8 +98,9 @@ Walidacja z JWT zalogowanego działa w obu układach.
 | `supabase/tests/event_code_guessing_test.sql` (lokalny runner pgTAP na pełnym schemacie; wcześniejsza wersja z 37 asercjami była zielona w CI na Supabase)                    | 47/47. Obejmuje: skalarny wynik funkcji zliczających pudło, wygasły kod innego wydarzenia, pudła dla kodów spoza zakresu, 31. zakup pakietu z kodem.                                              |
 | Pozostałe pliki pgTAP z kuponami i ACL (`coupon_effects_after_payment`, `security_definer_tenant_scope`, `event_participant_foundation`, `member_slug_non_author_visibility`) | zielone                                                                                                                                                                                           |
 | Pełna suita pgTAP (lokalnie)                                                                                                                                                  | 110 plików OK, 6 czerwonych. Wszystkie 6 to braki tego środowiska: `unaccent`, `pg_net`, atrapa `pgvector`, RLS atrapy storage. Nie dotyczą funkcji kodów.                                        |
-| `scripts/events-harness/run.sh` (także job `pg-harness` w CI)                                                                                                                 | OK, 172 migracje i 3855 asercji. Asercja 71 przepisana z `coupon_other_event` na `coupon_unknown`.                                                                                                |
+| `scripts/events-harness/run.sh` (także job `pg-harness` w CI)                                                                                                                 | OK, 173 migracje (z `20261001210000`) i 3855 asercji. Asercja 71 przepisana z `coupon_other_event` na `coupon_unknown`.                                                                           |
 | Migracja zastosowana ponownie na tej samej bazie (oba pasy)                                                                                                                   | bez błędów                                                                                                                                                                                        |
+| Świeża baza w kolejności produkcji (`20261001100000` z #430, potem `20261001210000`), potem drugie zastosowanie `20261001210000`                                              | bez błędów, pgTAP 47/47 po każdym przebiegu                                                                                                                                                       |
 | vitest: dotknięte moduły i bramki (lane parity, rozmiar migracji, plan pgTAP, i18n key drift / parity, mapy błędów wydarzeń)                                                  | zielone                                                                                                                                                                                           |
 | Pokrycie plików z progiem 98%, które zmieniłem                                                                                                                                | `RegistrationPayAction` 99,29/99,37/100/100, `checkout.functions` 100, `eventTicketPricing.server` 100, `EventPackagesPurchase` 100, `EventTicketPurchase` 100. Nowe moduły dostały własne progi. |
 

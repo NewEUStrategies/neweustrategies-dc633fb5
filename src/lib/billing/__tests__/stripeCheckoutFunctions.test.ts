@@ -116,7 +116,7 @@ const { createPlanCheckoutSession, createAdhocCheckoutSession } =
 /**
  * Odpowiedź `validate_b2b_coupon` - te same pola, które baza składa w werdykt.
  *
- * Typ jest LOKALNY, bo od 20261001100000 walidator oddaje jeden obiekt jsonb
+ * Typ jest LOKALNY, bo od 20261001210000 walidator oddaje jeden obiekt jsonb
  * i wygenerowane typy mówią o nim tylko `Json`. Pola zostają te same co
  * w dawnym wierszu zbioru, więc te same atrapy grają w obu kształtach: jako
  * obiekt (po migracji) i jako `[wiersz]` (baza sprzed migracji).
@@ -503,7 +503,7 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
   });
 });
 
-describe("createPlanCheckoutSession - werdykt jako JEDEN obiekt jsonb (od 20261001100000)", () => {
+describe("createPlanCheckoutSession - werdykt jako JEDEN obiekt jsonb (od 20261001210000)", () => {
   // Po migracji walidator oddaje obiekt zamiast zbioru wierszy. Ten silnik ma
   // czytać go tak samo jak drugi (`checkout.functions.ts`) i tak samo jak
   // dawny `[wiersz]` - inaczej po wdrożeniu migracji ważny kupon dawałby tu

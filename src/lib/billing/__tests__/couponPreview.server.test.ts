@@ -218,7 +218,7 @@ describe("previewPlanCouponForUser", () => {
   });
 });
 
-describe("previewPlanCouponForUser - werdykt jako JEDEN obiekt jsonb (od 20261001100000)", () => {
+describe("previewPlanCouponForUser - werdykt jako JEDEN obiekt jsonb (od 20261001210000)", () => {
   // Po migracji walidator oddaje obiekt zamiast zbioru wierszy. Podgląd ma
   // czytać go tak samo jak dawny `[wiersz]` - inaczej po wdrożeniu migracji
   // każdy ważny kod wyglądałby na ekranie jak brak odpowiedzi, a klient

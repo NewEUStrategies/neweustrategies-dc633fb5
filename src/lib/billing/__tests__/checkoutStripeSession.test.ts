@@ -136,7 +136,7 @@ const { createCheckoutOrder } = await import("@/lib/billing/checkout.functions")
 
 /**
  * Werdykt `validate_b2b_coupon` w kształcie, który zwraca baza. Od migracji
- * 20261001100000 typy generowane mówią `Json` (wynik skalarny), więc kształt
+ * 20261001210000 typy generowane mówią `Json` (wynik skalarny), więc kształt
  * pól trzymamy tu jawnie - te same klucze czyta `parseCouponVerdict`.
  */
 interface CouponVerdict {

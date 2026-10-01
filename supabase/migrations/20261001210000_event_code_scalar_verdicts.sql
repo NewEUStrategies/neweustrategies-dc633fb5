@@ -47,11 +47,14 @@
 -- ZADEN WOLAJACY SQL: walidatorow nie wola zadna funkcja w bazie ani funkcja
 -- edge (sprawdzone grepem po `supabase/`), wiec DROP niczego nie zrywa.
 --
--- KOLEJNOSC WDROZENIA. Kod aplikacji czyta wynik walidatora w obu ksztaltach
--- (zbior wierszy sprzed tej migracji i obiekt jsonb po niej -
--- `parseCouponVerdict` w `src/lib/billing/coupons.ts`) i obie odpowiedzi
--- zakupu pakietu (wyjatek `refused_coupon_unknown` i wartosc z `reason`),
--- wiec kod i migracja moga wejsc w dowolnej kolejnosci.
+-- KOLEJNOSC WDROZENIA: NAJPIERW KOD, POTEM TA MIGRACJA. Kod wdrozony razem
+-- z 20261001100000 (main 8e81b23) czyta wynik walidatora jako
+-- `(rows ?? [])[0]`; na obiekcie jsonb to `undefined`, wiec KAZDY poprawny kod
+-- zostalby odrzucony jako `not_found` (bez rabatu - bezpiecznie, ale kupony
+-- przestalyby dzialac). Kod z tej poprawki czyta oba ksztalty
+-- (`parseCouponVerdict` w `src/lib/billing/coupons.ts`) i obie odpowiedzi
+-- zakupu pakietu (wyjatek `refused_coupon_unknown` i wartosc z `reason`), wiec
+-- po jego publikacji migracja moze wejsc w dowolnym momencie.
 --
 -- IDEMPOTENTNA: CREATE OR REPLACE, DROP ... IF EXISTS i bezstanowe
 -- REVOKE/GRANT - drugi przebieg niczego nie zmienia (Lovable potrafi zastosowac
