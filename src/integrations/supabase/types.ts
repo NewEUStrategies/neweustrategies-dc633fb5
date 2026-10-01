@@ -22149,6 +22149,12 @@ export type Database = {
         Args: { _tenant_id: string; p_base: string }
         Returns: string
       }
+      _coupon_probe_bucket: {
+        Args: { p_uid: string }
+        Returns: Record<string, unknown>
+      }
+      _coupon_probe_guard: { Args: never; Returns: undefined }
+      _coupon_probe_miss: { Args: never; Returns: undefined }
       _crm_source_type_rank: {
         Args: { p_source_type: string }
         Returns: number
@@ -28657,7 +28663,7 @@ export type Database = {
       event_checkin_record: { Args: { p_payload: Json }; Returns: Json }
       event_checkin_resolve: { Args: { p_payload: Json }; Returns: Json }
       event_coupon_revealed_tickets: {
-        Args: { p_code: string; p_event_id: string }
+        Args: { p_code: string; p_event_id: string; p_tenant: string }
         Returns: string[]
       }
       event_discussions: { Args: { p_slug: string }; Returns: Json }
