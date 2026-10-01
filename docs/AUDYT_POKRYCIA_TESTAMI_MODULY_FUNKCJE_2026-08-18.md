@@ -9224,18 +9224,38 @@ albo usunięto; rozliczenie przypadek po przypadku robią tory modułów w 16.9.
 (`ci.yml:19`, od 2026-09-06 - patrz rachunek sumienia); lokalny przebieg dalej zależy od zegara maszyny.
 Ten pomiar szedł na maszynie w UTC (`/etc/localtime -> Etc/UTC`), więc jest równoważny z CI.
 
-**Testy wychodzą do sieci - a widać to tylko dlatego, że to środowisko je blokuje.** Proxy tej sesji odpowiada 403
-na każdy host spoza listy, i te odpowiedzi zostały w logach shardów: 19 żądań `OPTIONS` do
-`https://api.nbp.pl/api/exchangerates/rates/A/EUR/?format=json` (shardy 2, 3, 4, 6 i 9), **60 żądań do produkcyjnej
-domeny `neweuropeanstrategies.com`** (`/`, `/robots.txt`, `/llms.txt`, `/sitemap.xml`, po 15 razy, shard 7) i dwa
-`GET https://google.com/preferences/source?q=neweuropeanstrategies.com` (shard 1). W CI, gdzie sieć jest otwarta, te
-same testy pytają prawdziwy NBP i prawdziwą stronę produkcyjną - wynik testu zależy wtedy od stanu internetu i od
-treści `robots.txt` na produkcji. Globalny setup osłania wyłącznie `navigator.sendBeacon` (`vitest.setup.ts:24-54`,
-z komentarzem, że happy-dom wykonuje go jako prawdziwe żądanie); `fetch` i `XMLHttpRequest` happy-domu nie mają
-żadnej osłony. Źródło żądań do domeny produkcyjnej potwierdziłem rejestratorem (nakładka na `fetch`, XHR i moduły
-`http`/`https`, zapisująca adres i test, który właśnie biegnie): to `src/routes/__tests__/adminSeoHubRoutes.test.tsx`,
-piętnaście przypadków kokpitu `/admin/seo/`, każdy po cztery adresy, i pięć dalszych przypadków, które pytają
-`localhost:3000`.
+**Testy wychodzą do sieci: 11 zewnętrznych hostów, 20 plików testowych, 93 wywołania na jeden przebieg.**
+Zmierzyłem to osobnym, pełnym przebiegiem suity bez pomiaru pokrycia (cztery shardy, `TZ=UTC`) z rejestratorem
+nałożonym na `fetch`, XHR i moduły `http`/`https`. Rejestrator zapisuje host, adres i test, który właśnie biegnie,
+i niczego nie blokuje; wywołanie widziane naraz przez `fetch` i przez moduł `https` liczę raz. Wyjścia dzielą się
+na dwa mechanizmy:
+
+- **Kod pod testem woła sieć, a test jej nie podmienia - 79 wywołań, trzy hosty.** Największe:
+  `neweuropeanstrategies.com`, 60 wywołań z jednego pliku, `src/routes/__tests__/adminSeoHubRoutes.test.tsx`. Karta
+  fundamentów technicznych kokpitu SEO sonduje domenę kanoniczną pod czterema ścieżkami
+  (`TechnicalFoundationCard.tsx:37-43`: `/sitemap.xml`, `/robots.txt`, `/llms.txt`, `/`), a test podmienia kilkanaście
+  modułów, ale nie `fetch`. W CI, gdzie sieć jest otwarta, wynik tych piętnastu przypadków zależy od tego, co
+  produkcja zwraca w danej minucie; tutaj proxy odmawia i kod schodzi na same-origin `localhost:3000` (20 dalszych
+  wywołań). Drugie: `api.nbp.pl`, 17 wywołań z dziesięciu plików (m.in. `platformPaywallRoute`,
+  `AdminMembershipWorkspace`, `membershipJoin`, `TierCard`, `displayCurrencyApprox`) - kurs EUR z `fxRate.ts:26`.
+  Jeden plik o tym wie (`-fx-rate.test.ts:30` ustawia kolejność, „bez której suita wychodziłaby do api.nbp.pl"),
+  pozostałe dziesięć nie. Trzecie: `przyklad.test` z `cacheBusting.test.ts` - domena zarezerwowana, więc kończy się
+  na DNS, ale nadal jest próbą wyjścia.
+- **happy-dom sam pobiera zasoby, bo nikt mu tego nie wyłączył - 14 wywołań, osiem hostów.** Konfiguracja nie
+  ustawia `disableIframePageLoading` ani `disableCSSFileLoading`, więc środowisko nawiguje ramki i pobiera arkusze:
+  YouTube i YouTube-nocookie (6, bloki i widgety wideo), `nes-quiz.com/embed` (3, `quizRoute.test.tsx`),
+  `maps.google.com`, `view.officeapps.live.com` i `cdn.example` (podgląd mediów i widget mapy), `fonts.googleapis.com`
+  (panel właściwości widgetu) i `google.com/preferences/source` (odznaka preferowanego źródła). Repozytorium zna ten
+  mechanizm: `LazyQuizIframe.test.tsx:3-7` wyłącza ładowanie ramek lokalnie i pisze wprost „Test jednostkowy nie ma
+  prawa dotykać sieci". Ta reguła żyje jednak w jednym pliku, a globalny setup (`vitest.setup.ts:24-56`) osłania
+  wyłącznie `navigator.sendBeacon`.
+
+**Niestabilności między przebiegami nie ma.** Przebieg sieciowy dał 79 330 zielonych, 19 czerwonych i 50 pominiętych -
+co do przypadku to samo, co przebieg z pokryciem (78 974 zielone plus 356 „expected fail", te same 19 czerwonych od
+zaślepki `xlsx`). Dwa przebiegi nie dowodzą stabilności, ale żaden test nie zmienił wyniku. Naprawa sieci jest tania:
+globalne `environmentOptions.happyDOM.settings` z wyłączonym ładowaniem ramek, arkuszy i skryptów oraz domyślna
+podmiana `fetch` w `vitest.setup.ts`, która rzuca na hoście spoza listy dozwolonych. Wtedy każdy nowy test, który
+wyjdzie do sieci, zapali się od razu, a nie w dniu, w którym zmieni się `robots.txt` na produkcji.
 
 ### 16.13. Zlecenia wydania 11: 45 pozycji, 34 wykonane, 5 częściowo, 6 nie
 
@@ -9280,9 +9300,10 @@ procent komponentu, a nie pliku funkcji serwerowych, którego dotyczyło zleceni
 8. **Stempel poczty transakcyjnej z kontekstu wysyłki; uzbrojenie runnera pod bramką platformową** - zamyka: Z4 (resztka), Z3 (bliźniak). `send.ts:208-227` ma brać najemcę z kontekstu wysyłki, nie z `email_resolve_tenant_for_address`; `runSchedulerTickNow` (`scheduler.functions.ts:282-297`) ma przechodzić przez tę samą allowlistę i bramkę co `updateJobRunnerSettings`.
 9. **Dwa inwarianty, które nie biegną nigdzie, i fałszywe zdanie w konfiguracji** - zamyka: Z9. Poświadczenia dla kroku testowego albo przeniesienie sond do joba `post-deploy`; strażnik sprawdzający kształt wartości, nie niepustość; skreślenie zdania z `vitest.config.ts:5840`.
 10. **Zamrożenie zegara per blok, a linia bazowa naprawdę tylko w dół** - zamyka: Z10 i 15 nowych wpisów. Lokalne `vi.useFakeTimers()` przestaje się liczyć jako zamrożenie, antywzorzec łapie `new Date(Date.now())`; przywrócić `publicCatchAllRoute` i `deliverabilityPanels` do linii bazowej; nowy wpis w `clockFreezeBaseline.ts` tylko z uzasadnieniem w PR.
-11. **Test ścieżki płatnego uczestnika w harmonogramie** - zamyka: warstwa e2e. `integration/events/paid-lifecycle.spec.ts` to jedyny test pełnej ścieżki pieniądza (zakup, webhook, bilet, faktura, odprawa, zwrot) - dziś nie biegnie nigdzie. Cotygodniowy workflow na dedykowanym sandboksie.
-12. **Taksonomia dla nowych powierzchni publicznych i pięć martwych progów** - zamyka: pomiar. Reguły `classifyPath` dla stron prawnych, `/people` i `/organization` (dziś wpadają do modułu 20 i powłoki panelu); usunąć pięć progów na nieistniejące pliki z `vitest.config.ts`.
-13. **Higiena: ARCHITECTURE, UMOWA, RUNBOOK, statusy zleceń** - zamyka: pozycje 18-20 planu wydania 11. Opis potoku CI jako równoległych jobów spiętych `release-gate`; liczby w UMOWIE i RUNBOOKU zastąpione odwołaniem do `check:ownership`; każdy `PROMPT_*.md` ze statusem wykonania.
+11. **Testy bez sieci: osłona w setupie zamiast reguły w jednym pliku** - zamyka: determinizm (16.12). W `vitest.config.ts` globalne `environmentOptions.happyDOM.settings` z `disableIframePageLoading`, `disableCSSFileLoading` i `disableJavaScriptFileLoading`; w `vitest.setup.ts` domyślna podmiana `fetch`, która rzuca na hoście spoza listy dozwolonych (wzorzec: osłona `navigator.sendBeacon`, `:24-56`). Pierwsze do poprawy: `adminSeoHubRoutes.test.tsx` (60 wywołań domeny produkcyjnej na przebieg) i dziesięć plików, które pytają `api.nbp.pl`. Test: przebieg z rejestratorem sieci daje zero hostów zewnętrznych.
+12. **Test ścieżki płatnego uczestnika w harmonogramie** - zamyka: warstwa e2e. `integration/events/paid-lifecycle.spec.ts` to jedyny test pełnej ścieżki pieniądza (zakup, webhook, bilet, faktura, odprawa, zwrot) - dziś nie biegnie nigdzie. Cotygodniowy workflow na dedykowanym sandboksie.
+13. **Taksonomia dla nowych powierzchni publicznych i pięć martwych progów** - zamyka: pomiar. Reguły `classifyPath` dla stron prawnych, `/people` i `/organization` (dziś wpadają do modułu 20 i powłoki panelu); usunąć pięć progów na nieistniejące pliki z `vitest.config.ts`.
+14. **Higiena: ARCHITECTURE, UMOWA, RUNBOOK, statusy zleceń** - zamyka: pozycje 18-20 planu wydania 11. Opis potoku CI jako równoległych jobów spiętych `release-gate`; liczby w UMOWIE i RUNBOOKU zastąpione odwołaniem do `check:ownership`; każdy `PROMPT_*.md` ze statusem wykonania.
 
 ### 16.16. Rachunek sumienia wydania 12
 

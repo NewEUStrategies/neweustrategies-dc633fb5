@@ -317,7 +317,7 @@ wDokumencie("Nowych defektów potwierdzonych po próbie obalenia: 169");
   const i = surowy.indexOf("### 16.15.");
   const plan = surowy.slice(i, surowy.indexOf("### 16.16.", i));
   const pozycje = [...plan.matchAll(/^\d+\. (.*)$/gm)].map((m) => m[1]);
-  rowne(pozycje.length, 13, "pozycje planu 16.15");
+  rowne(pozycje.length, 14, "pozycje planu 16.15");
   assert(
     pozycje.length > 0 && pozycje.every((p) => /^\*\*[^*]{8,}\*\*/.test(p)),
     "16.15: pozycja planu bez tytułu",
@@ -326,10 +326,50 @@ wDokumencie("Nowych defektów potwierdzonych po próbie obalenia: 169");
     "Zaproszenie nie może przenieść cudzego konta między najemcami",
     "Kody wydarzeń: limit prób i jedna odpowiedź dla pudła",
     "Alert o sporze tylko do administratorów najemcy, którego dotyczy",
+    "Testy bez sieci: osłona w setupie zamiast reguły w jednym pliku",
   ]) {
     assert(plan.includes(`**${tytul}**`), `16.15 bez pozycji: ${tytul}`);
   }
 }
+
+/* --- sieć w testach (16.12): mechanizm po kodzie; liczby wywołań pochodzą z przebiegu
+   z rejestratorem, którego ten skrypt nie powtarza --- */
+{
+  const karta = read("src/components/admin/seo/TechnicalFoundationCard.tsx");
+  assert(
+    karta.includes('const PROBE_PATHS = ["/sitemap.xml", "/robots.txt", "/llms.txt", "/"]') &&
+      karta.includes("const targets = [`${CANONICAL_SITE_ORIGIN}${path}`, path];"),
+    "sieć: karta fundamentów nie sonduje już domeny kanonicznej - przepisać 16.12",
+  );
+  assert(
+    !/stubGlobal\(\s*["']fetch|globalThis\.fetch\s*=|spyOn\(\s*globalThis\s*,\s*["']fetch/.test(
+      read("src/routes/__tests__/adminSeoHubRoutes.test.tsx"),
+    ),
+    "sieć: adminSeoHubRoutes podmienia już fetch - przepisać 16.12",
+  );
+  assert(
+    read("src/lib/billing/fxRate.ts").includes(
+      'const NBP_URL = "https://api.nbp.pl/api/exchangerates/rates/A/EUR/?format=json";',
+    ),
+    "sieć: fxRate nie pyta już NBP - przepisać 16.12",
+  );
+  assert(
+    !/disableIframePageLoading|disableCSSFileLoading/.test(cfg),
+    "sieć: vitest.config.ts wyłącza już ładowanie zasobów happy-dom - przepisać 16.12",
+  );
+  assert(
+    !/stubGlobal\(\s*["']fetch|globalThis\.fetch\s*=/.test(read("vitest.setup.ts")),
+    "sieć: vitest.setup.ts osłania już fetch - przepisać 16.12",
+  );
+  assert(
+    read("src/components/quiz/__tests__/LazyQuizIframe.test.tsx").includes(
+      "Test jednostkowy nie ma prawa dotykać sieci",
+    ),
+    "sieć: zniknęła lokalna reguła z LazyQuizIframe.test.tsx",
+  );
+}
+wDokumencie("11 zewnętrznych hostów, 20 plików testowych, 93 wywołania na jeden przebieg");
+wDokumencie("79 330 zielonych, 19 czerwonych i 50 pominiętych");
 
 /* --- rachunek sumienia (16.16): błędy wydania 11 i własne błędy tego wydania --- */
 // TZ był przypięty w CI już w wydaniu 11 - dziś też.
