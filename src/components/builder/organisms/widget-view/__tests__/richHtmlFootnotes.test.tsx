@@ -5,7 +5,8 @@
 //           widget odzyskuje je z DOM i również montuje tooltipy.
 // Live wygrywa nad baked (stan autora jest źródłem prawdy).
 import { describe, it, expect, afterEach } from "vitest";
-import { render, fireEvent, cleanup, screen } from "@testing-library/react";
+import { Suspense } from "react";
+import { act, render, fireEvent, cleanup, screen, waitFor } from "@testing-library/react";
 import { RichHtmlView } from "../RichHtmlView";
 
 afterEach(cleanup);
@@ -44,14 +45,25 @@ describe("RichHtmlView - przypisy live ([fn]...[/fn])", () => {
 });
 
 describe("RichHtmlView - przypisy baked (migracja WP)", () => {
-  it("recovers notes from the baked footnotes list and mounts tooltips", () => {
+  it("recovers notes from the baked footnotes list and mounts tooltips", async () => {
     const baked = [
       '<p>Stary wpis<sup class="fn-ref"><a href="#fn-1" id="fnref-1" data-fn="1">[1]</a></sup>.</p>',
       '<ol data-footnotes-list="">',
       '<li id="fn-1"><span>Przypis z migracji</span></li>',
       "</ol>",
     ].join("");
-    const { container } = render(<RichHtmlView html={baked} />);
+    const { container } = render(
+      <Suspense fallback={null}>
+        <RichHtmlView html={baked} />
+      </Suspense>,
+    );
+
+    // Production's widget boundary also waits for the list-normalizer chunk.
+    // Flush its mount effects before focusing the recovered footnote marker.
+    await act(async () => {
+      await import("../RichHtmlListView");
+    });
+    await waitFor(() => expect(container.querySelector('a[data-fn="1"]')).not.toBeNull());
 
     const marker = container.querySelector('a[data-fn="1"]');
     expect(marker).not.toBeNull();
@@ -71,10 +83,13 @@ describe("RichHtmlView - treść bez przypisów", () => {
     expect(host.style.color).toBe("#333");
   });
 
-  it("renders decorative status icons while preserving readable labels", () => {
+  it("renders decorative status icons while preserving readable labels", async () => {
     const { container } = render(
-      <RichHtmlView html="<ul><li>✅ Gotowe</li></ul>" className="cms-rich-content" />,
+      <Suspense fallback={null}>
+        <RichHtmlView html="<ul><li>✅ Gotowe</li></ul>" className="cms-rich-content" />
+      </Suspense>,
     );
+    await screen.findByText("Gotowe");
     expect(container.querySelector(".cms-inline-status-icon--success")).not.toBeNull();
     expect(container.textContent).toContain("Gotowe");
   });
