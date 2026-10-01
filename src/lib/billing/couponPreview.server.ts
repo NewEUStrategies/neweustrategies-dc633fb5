@@ -70,6 +70,11 @@ export async function previewPlanCouponForUser(
   userId: string,
   input: PlanCouponPreviewInput,
 ): Promise<ValidateCouponResult | null> {
+  // Kwota, której nie da się zrabatować, to ta sama odpowiedź, którą dawało RPC
+  // - bez pytania bazy i bez próby z limitu (kod nie jest tu w ogóle oceniany).
+  if (input.amountCents <= 0) {
+    return refusal("invalid_amount", Math.max(input.amountCents, 0));
+  }
   const allowed = await allowCodeProbe(requestHeaders(), async () => userId);
   if (!allowed) return refusal("rate_limited", input.amountCents);
 

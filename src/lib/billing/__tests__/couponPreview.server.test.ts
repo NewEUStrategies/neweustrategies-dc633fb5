@@ -200,6 +200,18 @@ describe("previewPlanCouponForUser", () => {
     expect(await previewPlanCouponForUser(supabase, USER, input())).toEqual(refusal("not_found"));
   });
 
+  it("kwota <= 0 to invalid_amount bez bazy i bez próby z limitu (jak dawniej RPC)", async () => {
+    expect(await previewPlanCouponForUser(supabase, USER, { ...input(), amountCents: 0 })).toEqual({
+      ...refusal("invalid_amount"),
+      final_cents: 0,
+    });
+    expect(
+      await previewPlanCouponForUser(supabase, USER, { ...input(), amountCents: -5 }),
+    ).toMatchObject({ error: "invalid_amount", final_cents: 0 });
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(h.probeUsers).toEqual([]);
+  });
+
   it("pusta odpowiedź RPC to null, nie wynik-widmo", async () => {
     h.rpc.mockResolvedValue({ data: [], error: null });
     expect(await previewPlanCouponForUser(supabase, USER, input())).toBeNull();
@@ -235,7 +247,7 @@ describe("previewPlanCoupon (deklaracja)", () => {
       { code: "", planId: null, amountCents: 100, currency: "PLN" },
       { code: "A".repeat(65), planId: null, amountCents: 100, currency: "PLN" },
       { code: "RABAT", planId: "x", amountCents: 100, currency: "PLN" },
-      { code: "RABAT", planId: null, amountCents: 0, currency: "PLN" },
+      { code: "RABAT", planId: null, amountCents: 1.5, currency: "PLN" },
       { code: "RABAT", planId: null, amountCents: 100, currency: "PL" },
     ]) {
       expect(() => validateServerFnInput(previewPlanCoupon, bad)).toThrow();

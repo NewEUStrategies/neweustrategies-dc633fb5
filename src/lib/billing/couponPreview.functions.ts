@@ -21,7 +21,8 @@ const Input = z.object({
   /** Kod w bazie ma najwyżej 64 znaki - dłuższy nie ma czego szukać. */
   code: z.string().trim().min(1).max(64),
   planId: z.string().uuid().nullable(),
-  amountCents: z.number().int().positive(),
+  /** Kwota <= 0 przechodzi - odpowiedź `invalid_amount` składa serwer, jak dawniej RPC. */
+  amountCents: z.number().int(),
   currency: z.string().trim().length(3),
 });
 

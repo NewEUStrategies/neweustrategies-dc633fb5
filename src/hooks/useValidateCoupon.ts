@@ -50,6 +50,22 @@ export function useValidateCoupon({
         setResult(empty);
         return empty;
       }
+      // Dłuższego kodu nie przyjmie ani podgląd, ani kasa (`max(64)`), więc
+      // takiego kuponu w praktyce nie ma - mówimy to bez sieci i bez próby z limitu.
+      if (normalized.length > 64) {
+        const missing: ValidateCouponResult = {
+          ok: false,
+          error: "not_found",
+          coupon_id: null,
+          discount_cents: 0,
+          final_cents: amountCents,
+          label: null,
+          discount_kind: null,
+          discount_percent: null,
+        };
+        setResult(missing);
+        return missing;
+      }
       setLoading(true);
       try {
         // Brak planu idzie jako `null`; serwer zamienia go na zerowy UUID,

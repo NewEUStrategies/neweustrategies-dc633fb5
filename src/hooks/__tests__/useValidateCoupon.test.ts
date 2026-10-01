@@ -88,6 +88,18 @@ describe("kontrakt wywolania funkcji serwerowej", () => {
     expect(out).toMatchObject({ ok: false, error: "empty_code", final_cents: 49_900 });
   });
 
+  it("kod dluzszy niz 64 znaki to pudlo bez sieci (kasa i tak go nie przyjmie)", async () => {
+    const { result } = setup();
+
+    let out: unknown;
+    await act(async () => {
+      out = await result.current.validate("A".repeat(65));
+    });
+
+    expect(rpc.calls).toEqual([]);
+    expect(out).toMatchObject({ ok: false, error: "not_found", final_cents: 49_900 });
+  });
+
   it("przekazuje plan, kwote i walute bez zmian - klient nie dyktuje kwoty koncowej", async () => {
     const { result } = setup();
 
