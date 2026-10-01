@@ -609,6 +609,39 @@ describe("RegistrationPayAction - klik do kasy", () => {
     expect(screen.queryByText("eventPackages.quoteReasons.sold_out")).not.toBeInTheDocument();
   });
 
+  it("limit prób kodów w podglądzie to zdanie o limicie - kod z pamięci ZOSTAJE", async () => {
+    // Baza odmawia wyceny z kodem, zanim spojrzy na kod (`_coupon_probe_guard`).
+    // To nie odmowa kodu: kod nie może zniknąć z pola po cichu.
+    memory.code = "VIP";
+    quote.mockRejectedValue(new Error("rate_limited: too many code attempts, try again later"));
+    renderAction();
+
+    expect(await screen.findByText("eventPackages.quoteReasons.rate_limited")).toBeInTheDocument();
+    expect(promoInput().value).toBe("VIP");
+    expect(
+      screen.queryByText("eventRegistration.payment.promoRememberedDropped(code=VIP)"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("eventRegistration.payment.promoError")).not.toBeInTheDocument();
+  });
+
+  it("limit prób kodów w kasie: zdanie o limicie i ŻADNEJ płatności bez kodu", async () => {
+    memory.code = "VIP";
+    quote.mockImplementation(({ data }: { data: { coupon_code?: string } }) =>
+      data.coupon_code ? new Promise(() => {}) : Promise.resolve(quoteResult()),
+    );
+    checkout.mockRejectedValue(new Error("rate_limited: too many code attempts, try again later"));
+    renderAction();
+
+    click(PAY);
+
+    expect(await screen.findByText("eventPackages.quoteReasons.rate_limited")).toBeInTheDocument();
+    // Jedno wywołanie, z kodem - kasa nie ponawia „bez kodu" jak przy odmowie kodu z pamięci.
+    expect(checkout).toHaveBeenCalledTimes(1);
+    expect(checkout.mock.calls[0]?.[0]).toHaveProperty("data.coupon_code", "VIP");
+    expect(screen.queryByTestId("checkout-modal")).not.toBeInTheDocument();
+    expect(promoInput().value).toBe("VIP");
+  });
+
   it("tryb mock prowadzi na stronę potwierdzenia zamówienia", async () => {
     checkout.mockResolvedValue({ ok: true, mode: "mock", orderId: "o-1", url: "/x" });
     renderAction();

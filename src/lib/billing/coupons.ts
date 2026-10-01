@@ -147,14 +147,13 @@ export function isCodeProbeRateLimited(error: unknown): boolean {
 /**
  * Błąd RPC kodu przygotowany do rzucenia z funkcji serwerowej.
  *
- * DLACZEGO NIE `throw error`. Błąd PostgREST to zwykły obiekt, a transport
- * TanStack Start rzuca w przeglądarce WYŁĄCZNIE instancje `Error` - zwykły
- * obiekt dociera jako ZWYKŁA ODPOWIEDŹ. Odmowa limitu udawałaby wtedy wycenę
- * bez pól (ekran kasy zdejmował kod z pamięci i płacił pełną cenę) albo
- * „płatności nieskonfigurowane". Dlatego odmowę limitu zamieniamy na `Error`
- * z tą samą głową (`rate_limited: ...`), a ekran czyta ją jednym słownikiem
- * (`ticketCheckoutRefusal`, `isCodeProbeRateLimited`). Każdy inny błąd wraca
- * BEZ ZMIAN - ta funkcja nie zmienia zachowania żadnej innej awarii.
+ * Odmowę limitu z bazy zamieniamy na zwykły `Error` z JEDNĄ stałą treścią
+ * (`rate_limited: ...`): przeglądarka czyta ją jednym słownikiem
+ * (`ticketCheckoutRefusal`, `isCodeProbeRateLimited`) i nie dostaje pól
+ * `hint`/`details` błędu PostgREST. Dzięki temu odmowa limitu nigdy nie
+ * wygląda jak odmowa KODU (ekran kasy zdejmowałby wtedy kod z pamięci
+ * i płacił pełną cenę) ani jak „płatności nieskonfigurowane". Każdy inny błąd
+ * wraca BEZ ZMIAN - ta funkcja nie zmienia zachowania żadnej innej awarii.
  */
 export function codeProbeRpcError(error: unknown): unknown {
   return isCodeProbeRateLimited(error) ? new Error(CODE_PROBE_RATE_LIMITED_MESSAGE) : error;

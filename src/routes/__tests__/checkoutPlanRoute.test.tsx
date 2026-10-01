@@ -461,6 +461,22 @@ describe("trasa /checkout/$planId - sesja płatności", () => {
     expect(screen.queryByTestId("checkout-frame")).not.toBeInTheDocument();
   });
 
+  it("limit prób kodów mówi „odczekaj”, a nie „płatności nieskonfigurowane”", async () => {
+    signedInBuyer();
+    h.planCheckout.mockResolvedValue({ ok: false, error: "rate_limited" });
+    await mount();
+
+    fireEvent.click(await screen.findByRole("button", { name: /Zapłać/ }));
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(expect.stringContaining("Zbyt wiele prób kodu")),
+    );
+    expect(h.toast.error.mock.calls.flat().join(" ")).not.toContain(
+      "nie jest jeszcze skonfigurowana",
+    );
+    expect(screen.queryByTestId("checkout-frame")).not.toBeInTheDocument();
+  });
+
   it("awaria po stronie operatora nie pokazuje surowego błędu i odblokowuje przycisk", async () => {
     signedInBuyer();
     h.planCheckout.mockRejectedValue(new Error("stripe: secret key rotated"));

@@ -6462,6 +6462,38 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+        // Limit prob kodow i jedna odpowiedz dla pudla (20261001100000): nowe
+        // moduly sondy kodu dostaja wlasne progi od pierwszego dnia.
+        "src/lib/billing/couponPreview.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/billing/couponPreview.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        "src/lib/events/codeProbeLimit.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/eventCodeReveal.functions.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/events/eventCodeReveal.server.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
         "src/lib/billing/eventTicketQuote.functions.ts": {
           statements: 98,
           functions: 98,

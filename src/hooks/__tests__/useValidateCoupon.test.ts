@@ -6,47 +6,65 @@
 // czyli poza warstwa TypeScript (`it.fails` przechodzi tylko dopoki asercja
 // pada, wiec zapali sie sam, gdy migracja powstanie).
 //
-// ATRAPUJEMY GRANICE: klienta Supabase. Normalizacja kodu i mapowanie wyniku
-// biegna prawdziwe.
+// ATRAPUJEMY GRANICE: funkcje serwerowa `previewPlanCoupon` (od 20261001100000
+// przegladarka nie wola juz `validate_b2b_coupon` - limit prob stoi na
+// serwerze). Normalizacja kodu i mapowanie wyniku biegna prawdziwe. Zamiane
+// braku planu na zerowy UUID i oczyszczenie wyniku testuje
+// `src/lib/billing/__tests__/couponPreview.server.test.ts`.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { act, renderHook } from "@testing-library/react";
 
 const rpc = vi.hoisted(() => ({
-  calls: [] as { name: string; args: Record<string, unknown> }[],
-  result: { data: [] as unknown[] | null, error: null as unknown },
+  calls: [] as Record<string, unknown>[],
+  result: null as unknown,
   throws: null as Error | null,
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    rpc: async (name: string, args: Record<string, unknown>) => {
-      rpc.calls.push({ name, args });
-      if (rpc.throws) throw rpc.throws;
-      return rpc.result;
-    },
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  useServerFn: (fn: unknown) => fn,
+}));
+
+vi.mock("@/lib/billing/couponPreview.functions", () => ({
+  previewPlanCoupon: async ({ data }: { data: Record<string, unknown> }) => {
+    rpc.calls.push(data);
+    if (rpc.throws) throw rpc.throws;
+    return rpc.result;
   },
 }));
 
 import { useValidateCoupon } from "@/hooks/useValidateCoupon";
 import { COUPON_ERROR_I18N_KEY } from "@/lib/billing/coupons";
 
-const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 const PLAN = "11111111-1111-1111-1111-111111111111";
 
 function setup(planId: string | null = PLAN) {
   return renderHook(() => useValidateCoupon({ planId, amountCents: 49_900, currency: "PLN" }));
 }
 
+function refusal(error: string) {
+  return {
+    ok: false,
+    error,
+    coupon_id: null,
+    discount_cents: 0,
+    final_cents: 49_900,
+    label: null,
+    discount_kind: null,
+    discount_percent: null,
+  };
+}
+
 beforeEach(() => {
   rpc.calls = [];
-  rpc.result = { data: [], error: null };
+  rpc.result = null;
   rpc.throws = null;
 });
 
 // ---------------------------------------------------------------------------
-describe("kontrakt wywolania RPC", () => {
+describe("kontrakt wywolania funkcji serwerowej", () => {
   it("normalizuje kod przed wyslaniem", async () => {
     const { result } = setup();
 
@@ -54,8 +72,8 @@ describe("kontrakt wywolania RPC", () => {
       await result.current.validate("  rabat-10  ");
     });
 
-    expect(rpc.calls[0]!.name).toBe("validate_b2b_coupon");
-    expect(rpc.calls[0]!.args["_code"]).toBe("RABAT-10");
+    expect(rpc.calls).toHaveLength(1);
+    expect(rpc.calls[0]!["code"]).toBe("RABAT-10");
   });
 
   it("pusty kod NIE dotyka sieci - odpowiedz powstaje lokalnie", async () => {
@@ -70,29 +88,33 @@ describe("kontrakt wywolania RPC", () => {
     expect(out).toMatchObject({ ok: false, error: "empty_code", final_cents: 49_900 });
   });
 
-  it("przekazuje kwote i walute bez zmian - klient nie dyktuje kwoty koncowej", async () => {
+  it("przekazuje plan, kwote i walute bez zmian - klient nie dyktuje kwoty koncowej", async () => {
     const { result } = setup();
 
     await act(async () => {
       await result.current.validate("RABAT");
     });
 
-    expect(rpc.calls[0]!.args).toMatchObject({ _amount_cents: 49_900, _currency: "PLN" });
+    expect(rpc.calls[0]).toEqual({
+      code: "RABAT",
+      planId: PLAN,
+      amountCents: 49_900,
+      currency: "PLN",
+    });
   });
 
-  it("BRAK planu jest wysylany jako ZEROWY UUID, nie jako NULL", async () => {
+  it("BRAK planu idzie do serwera jako null (zerowy UUID sklada serwer)", async () => {
     const { result } = setup(null);
 
     await act(async () => {
       await result.current.validate("RABAT");
     });
 
-    // Utrwalenie faktycznego zachowania obejscia z `useValidateCoupon.ts`.
-    expect(rpc.calls[0]!.args["_plan_id"]).toBe(ZERO_UUID);
+    expect(rpc.calls[0]!["planId"]).toBeNull();
   });
 
   it("`reset()` czysci wynik", async () => {
-    rpc.result = { data: [{ ok: true, error: null, coupon_id: "c1" }], error: null };
+    rpc.result = { ...refusal("not_found"), ok: true, error: null };
     const { result } = setup();
     await act(async () => {
       await result.current.validate("RABAT");
@@ -106,8 +128,8 @@ describe("kontrakt wywolania RPC", () => {
     expect(result.current.result).toBeNull();
   });
 
-  it("pusta odpowiedz RPC daje null, nie wynik-widmo", async () => {
-    rpc.result = { data: [], error: null };
+  it("pusta odpowiedz serwera daje null, nie wynik-widmo", async () => {
+    rpc.result = null;
     const { result } = setup();
 
     let out: unknown;
@@ -116,6 +138,36 @@ describe("kontrakt wywolania RPC", () => {
     });
 
     expect(out).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("limit prob kodow (20261001100000)", () => {
+  it("odmowa limitu przychodzi jako rate_limited, nie jako pudlo", async () => {
+    rpc.result = refusal("rate_limited");
+    const { result } = setup();
+
+    let out: { error: string | null } | null = null;
+    await act(async () => {
+      out = (await result.current.validate("RABAT")) as { error: string | null };
+    });
+
+    expect(out!.error).toBe("rate_limited");
+    expect(result.current.result).toMatchObject({ ok: false, final_cents: 49_900 });
+  });
+
+  it("odmowa limitu ma wlasny klucz i18n - inny niz zly kod i awaria", () => {
+    expect(COUPON_ERROR_I18N_KEY.rate_limited).toBe("coupon.error.rateLimited");
+    expect(COUPON_ERROR_I18N_KEY.rate_limited).not.toBe(COUPON_ERROR_I18N_KEY.not_found);
+    expect(COUPON_ERROR_I18N_KEY.rate_limited).not.toBe(COUPON_ERROR_I18N_KEY.technical_error);
+  });
+
+  it("powody, ktorych ekran dawniej nie znal, maja teraz zdanie", () => {
+    // Wczesniej `per_user_limit_reached` i `no_discount` dawaly `undefined`
+    // w mapie, wiec ekran nie mowil nic - inaczej niz przy pudle.
+    expect(COUPON_ERROR_I18N_KEY.per_user_limit_reached).toBe("coupon.error.perUserLimitReached");
+    expect(COUPON_ERROR_I18N_KEY.no_discount).toBe("coupon.error.noDiscount");
+    expect(Object.keys(COUPON_ERROR_I18N_KEY)).not.toContain("event_not_eligible");
   });
 });
 
@@ -154,8 +206,8 @@ describe("DEFEKT 1 (NAPRAWIONY): blad techniczny nie udaje juz 'kupon nieprawidl
     expect(out!.error).toBe("technical_error");
   });
 
-  it("blad RPC (np. brak uprawnien) JEST odrozniony od literowki w kodzie", async () => {
-    rpc.result = { data: null, error: new Error("permission denied for function") };
+  it("awaria po stronie serwera (np. brak uprawnien RPC) JEST odrozniona od literowki w kodzie", async () => {
+    rpc.result = refusal("technical_error");
     const { result } = setup();
 
     let out: { error: string | null } | null = null;
@@ -261,16 +313,17 @@ describe("DEFEKT 2: zerowy UUID NIE jest przez RPC traktowany jak NULL", () => {
     expect(body).toMatch(/NULLIF\s*\(\s*_plan_id/i);
   });
 
-  it("klient i RPC rozjezdzaja sie: klient sle zerowy UUID, RPC czyta go jako konkretny plan", async () => {
+  it("klient i RPC rozjezdzaja sie: brak planu konczy jako zerowy UUID, RPC czyta go jako konkretny plan", async () => {
+    // Od 20261001100000 zerowy UUID sklada serwer (`couponPreview.server.ts`,
+    // test w `couponPreview.server.test.ts`) - hook wysyla `null`.
     const { result } = setup(null);
     await act(async () => {
       await result.current.validate("RABAT");
     });
 
-    const sent = rpc.calls[0]!.args["_plan_id"];
     const body = latestValidateCouponBody();
 
-    expect(sent).toBe(ZERO_UUID);
+    expect(rpc.calls[0]!["planId"]).toBeNull();
     expect(body).not.toMatch(/NULLIF\s*\(\s*_plan_id/i);
   });
 });

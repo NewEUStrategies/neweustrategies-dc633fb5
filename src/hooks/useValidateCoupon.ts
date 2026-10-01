@@ -1,8 +1,13 @@
-// Live-walidacja kuponu B2B po stronie klienta - RPC validate_b2b_coupon jest
-// GRANTED do authenticated/anon i stable (bez skutków ubocznych). Serwer i tak
-// waliduje ponownie w createCheckoutOrder oraz atomowo rezerwuje przy checkout.
+// Live-walidacja kuponu B2B na stronie kasy planu.
+//
+// PRZEZ SERWER, NIE RPC Z PRZEGLĄDARKI. Odpowiedź walidacji mówi, czy kod
+// istnieje, więc stoi za limitem prób (IP + konto) w funkcji serwerowej
+// `previewPlanCoupon`; `validate_b2b_coupon` nie jest już wykonywalny dla anon
+// (migracja 20261001100000). Wynik jest podglądem - serwer i tak waliduje
+// ponownie w `createPlanCheckoutSession` i atomowo rezerwuje użycie przy kasie.
 import { useCallback, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { previewPlanCoupon } from "@/lib/billing/couponPreview.functions";
 import type { ValidateCouponResult } from "@/lib/billing/coupons";
 import { normalizeCouponCode } from "@/lib/billing/coupons";
 
@@ -26,6 +31,7 @@ export function useValidateCoupon({
 }: UseValidateCouponArgs): UseValidateCouponReturn {
   const [result, setResult] = useState<ValidateCouponResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const preview = useServerFn(previewPlanCoupon);
 
   const validate = useCallback(
     async (code: string): Promise<ValidateCouponResult | null> => {
@@ -46,28 +52,21 @@ export function useValidateCoupon({
       }
       setLoading(true);
       try {
-        // Typy Supabase widzą _plan_id jako non-nullable; RPC ma OK z NULL,
-        // dlatego przekazujemy pusty string dla braku planu jak dla planu.
-        const args = {
-          _code: normalized,
-          _plan_id: planId ?? "00000000-0000-0000-0000-000000000000",
-          _amount_cents: amountCents,
-          _currency: currency,
-        };
-        const { data, error } = await supabase.rpc("validate_b2b_coupon", args);
-        if (error) throw error;
-        const row = ((data ?? []) as ValidateCouponResult[])[0] ?? null;
+        // Brak planu idzie jako `null`; serwer zamienia go na zerowy UUID,
+        // jak dotąd robiła przeglądarka.
+        const row = await preview({
+          data: { code: normalized, planId, amountCents, currency },
+        });
         setResult(row);
         return row;
       } catch {
         // AWARIA NIE JEST ORZECZENIEM O KUPONIE. Zerwane połączenie, odmowa
-        // uprawnień do funkcji i błąd bazy trafiają tu razem z literówką
-        // w kodzie - ale tylko literówka znaczy „takiego kuponu nie ma".
-        // Wcześniej `catch` mapował KAŻDY wyjątek na `not_found`, więc klient
-        // z ważnym kuponem, który trafił na sekundę awarii, dostawał
-        // nieprawdziwą informację o pieniądzach i płacił pełną cenę.
-        // Kwota końcowa zostaje NIETKNIĘTA (awaria nie ma prawa obniżyć ceny),
-        // a autorytetem rabatu i tak jest serwer (`createCheckoutOrder`).
+        // uprawnień i błąd serwera trafiają tu razem - ale tylko odpowiedź
+        // serwera mówi, czy kod istnieje. Wcześniej `catch` mapował KAŻDY
+        // wyjątek na `not_found`, więc klient z ważnym kuponem, który trafił
+        // na sekundę awarii, dostawał nieprawdziwą informację o pieniądzach
+        // i płacił pełną cenę. Kwota końcowa zostaje NIETKNIĘTA (awaria nie ma
+        // prawa obniżyć ceny), a autorytetem rabatu i tak jest serwer.
         const failure: ValidateCouponResult = {
           ok: false,
           error: "technical_error",
@@ -84,7 +83,7 @@ export function useValidateCoupon({
         setLoading(false);
       }
     },
-    [planId, amountCents, currency],
+    [preview, planId, amountCents, currency],
   );
 
   const reset = useCallback(() => setResult(null), []);

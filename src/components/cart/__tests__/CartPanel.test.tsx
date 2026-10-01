@@ -546,6 +546,20 @@ describe("nieudana próba płatności nie zostawia kupującego w zawieszeniu", (
     expect(screen.getAllByTestId("cart-line")).toHaveLength(1);
   });
 
+  it("limit prób kodów z bazy to zdanie o limicie, nie ogólna awaria płatności", async () => {
+    h.checkout.mockRejectedValue(
+      new Error("rate_limited: too many code attempts, try again later"),
+    );
+    renderPanel([item()]);
+
+    fireEvent.click(screen.getByRole("button", { name: realT("pl")("cart.pay") }));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith(realT("pl")("cart.promoRateLimited")),
+    );
+    expect(h.toastError).not.toHaveBeenCalledWith(realT("pl")("cart.payError"));
+  });
+
   it("po nieudanej próbie przycisk wraca do gry", async () => {
     h.checkout.mockResolvedValue({ ok: false, mode: "provider" });
     renderPanel([item()]);

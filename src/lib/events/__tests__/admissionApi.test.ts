@@ -196,6 +196,9 @@ describe("ticketCheckoutRefusal", () => {
     ["registration_not_payable:seats_unavailable", "group_seats_unavailable"],
     ["Error: registration_not_payable:seats_unavailable", "group_seats_unavailable"],
     ["billing_unconfigured", "payments_unavailable"],
+    // Limit prob kodow z bazy (`_coupon_probe_guard`) - wlasny powod, nie
+    // „nieznany blad" i nie odmowa kodu.
+    ["rate_limited: too many code attempts, try again later", "rate_limited"],
   ];
 
   for (const [message, reason] of cases) {

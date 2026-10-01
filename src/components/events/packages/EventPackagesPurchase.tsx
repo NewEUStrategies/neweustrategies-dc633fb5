@@ -34,6 +34,7 @@ import { packageInviteUrl } from "@/lib/events/packagesApi";
 import {
   admissionQuoteMessageKey,
   packagePurchaseRefusal,
+  ticketCheckoutRefusal,
   type EventPackageOfferRow,
   type MyPackageOrderRow,
 } from "@/lib/events/admissionApi";
@@ -249,6 +250,7 @@ export function EventPackagesPurchase({ slug }: { slug: string }) {
           <QuoteSummary
             quote={quote}
             isLoading={quoteQ.isLoading}
+            error={quoteQ.isError ? quoteQ.error : null}
             locale={locale}
             fallbackCurrency={selected.currency}
           />
@@ -303,6 +305,11 @@ function purchaseErrorMessage(error: unknown, t: (key: string) => string): strin
   // zakup miedzy wycena a kliknieciem) ma zdanie ze slownika wyceny.
   const refusal = packagePurchaseRefusal(error);
   if (refusal !== null) return t(admissionQuoteMessageKey(refusal));
+  // Limit prob kodow (`_coupon_probe_guard`) rzuca wycena wewnatrz zakupu -
+  // zdanie o limicie, nie ogolne „operacja sie nie udala".
+  if (ticketCheckoutRefusal(error) === "rate_limited") {
+    return t(admissionQuoteMessageKey("rate_limited"));
+  }
   const message = error instanceof Error ? error.message : String(error);
   // Glowa komunikatu = wszystko przed PIERWSZYM dwukropkiem.
   const head = message.replace(/:[\s\S]*$/, "").trim();
@@ -376,15 +383,25 @@ function PackageCard({
 function QuoteSummary({
   quote,
   isLoading,
+  error,
   locale,
   fallbackCurrency,
 }: {
   quote: ReturnType<typeof useAdmissionQuote>["data"] | null;
   isLoading: boolean;
+  /** Blad wyceny. Bez tej galezi awaria (np. limit prob kodow) krecila sie jak ladowanie bez konca. */
+  error: unknown;
   locale: string;
   fallbackCurrency: string;
 }) {
   const { t } = useTranslation();
+  if (!isLoading && error !== null && error !== undefined) {
+    return (
+      <p role="status" className="text-sm text-destructive">
+        {t(admissionQuoteMessageKey(ticketCheckoutRefusal(error)))}
+      </p>
+    );
+  }
   if (isLoading || quote === null || quote === undefined) {
     return (
       <p className="flex items-center gap-2 text-sm text-muted-foreground">

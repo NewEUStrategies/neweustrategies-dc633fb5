@@ -408,6 +408,18 @@ describe("createPlanCheckoutSession - kupon: ta sama ścieżka co w drugim silni
     );
   });
 
+  it("limit prób kodów z bazy wraca WŁASNYM powodem, nie wyjątkiem „płatności nieskonfigurowane”", async () => {
+    rpcResponses.set(
+      "validate_b2b_coupon",
+      fail("rate_limited: too many code attempts, try again later"),
+    );
+
+    expect(await planCall({ couponCode: "PARTNER-CEE" })).toEqual({
+      ok: false,
+      error: "rate_limited",
+    });
+  });
+
   it("ważny kupon zakłada u operatora rabat jednorazowy o kwocie z BAZY", async () => {
     await planCall({ couponCode: "PARTNER-CEE" });
 

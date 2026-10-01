@@ -130,6 +130,9 @@ function CheckoutPage() {
       if (!result.ok) {
         if (result.error === "not_found" || result.error === "limit_reached") {
           toast.error(t("checkout.applyFailed"));
+        } else if (result.error === "rate_limited") {
+          // Limit prób kodów - to nie brak konfiguracji płatności.
+          toast.error(t("coupon.error.rateLimited"));
         } else {
           toast.error(t("checkout.paymentsNotConfigured"));
         }

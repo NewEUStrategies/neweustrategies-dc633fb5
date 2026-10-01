@@ -375,6 +375,17 @@ describe("createCheckoutOrder - odmowy kuponu (powód pochodzi z bazy)", () => {
     await expect(call(planPayload())).rejects.toThrow("validate_b2b_coupon");
   });
 
+  it("limit prób kodów z bazy to wyjątek o stałej treści - nie odmowa kuponu `mode: coupon`", async () => {
+    rpcResponses.set(
+      "validate_b2b_coupon",
+      fail("rate_limited: too many code attempts, try again later"),
+    );
+
+    await expect(call(planPayload())).rejects.toThrow(
+      "rate_limited: too many code attempts, try again later",
+    );
+  });
+
   it("rabat schodzący poniżej minimum operatora jest odrzucany", async () => {
     // Rabat 100% dawałby zamówienie na zero, którego dostawca i tak nie
     // przyjmie - a które w trybie mock nadałoby dostęp za darmo.

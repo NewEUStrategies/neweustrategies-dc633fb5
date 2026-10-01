@@ -4,6 +4,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { CHECKOUT_LOCALES } from "@/lib/billing/checkoutLocale";
+import { isCodeProbeRateLimited } from "@/lib/billing/coupons";
 import { resolveReturnUrl } from "@/lib/http/resolveReturnUrl";
 
 const envSchema = z.enum(["sandbox", "live"]);
@@ -61,7 +62,14 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
         _amount_cents: plan.price_cents,
         _currency: plan.currency,
       });
-      if (validateErr) throw validateErr;
+      // Limit prób kodów (`_coupon_probe_guard`) wraca WŁASNYM powodem: strona
+      // kasy mówi wtedy „odczekaj", a nie „płatności nieskonfigurowane".
+      if (validateErr) {
+        if (isCodeProbeRateLimited(validateErr)) {
+          return { ok: false as const, error: "rate_limited" };
+        }
+        throw validateErr;
+      }
       const row = (rows ?? [])[0];
       if (!row || !row.ok) {
         return { ok: false as const, error: (row?.error ?? "not_found") as string };

@@ -37,6 +37,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/integrations/supabase/types";
+import { codeProbeRpcError } from "@/lib/billing/coupons";
 import { groupCouponDiscount } from "@/lib/events/groupOrderPricing";
 import { ticketAmountCents } from "@/lib/events/ticketAllowance";
 import type { TicketTaxMode } from "@/lib/events/ticketTaxGroup";
@@ -346,7 +347,10 @@ export async function applyEventTicketCoupon(
     _amount_cents: input.amountCents,
     _currency: input.currency,
   });
-  if (error) throw error;
+  // Limit prób kodów (`rate_limited` z `_coupon_probe_guard`) to NIE odmowa
+  // kodu: idzie wyjątkiem, który wycena i kasa pokazują jako limit, a nie jako
+  // „zły kod" - inaczej ekran zdjąłby kod z pamięci i zapłacił pełną cenę.
+  if (error) throw codeProbeRpcError(error);
   const row = (rows ?? [])[0];
   if (!row || !row.ok) return { ok: false, error: row?.error ?? "not_found" };
   // Zamówienie grupowe: kod kwotowy zdejmuje swoją kwotę z KAŻDEGO miejsca

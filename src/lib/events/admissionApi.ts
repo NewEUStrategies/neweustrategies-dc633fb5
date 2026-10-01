@@ -35,6 +35,9 @@ export const ADMISSION_QUOTE_REASONS = [
   "coupon_expired",
   "coupon_exhausted",
   "coupon_used_by_you",
+  // Od 20261001100000 baza tego powodu juz nie zwraca (kod innego wydarzenia
+  // to `coupon_unknown`, nieodroznialny od pudla). Zostaje na okno wdrozenia,
+  // w ktorym kod aplikacji wyprzedza migracje.
   "coupon_other_event",
   "coupon_other_ticket_type",
   "coupon_other_package",
@@ -162,6 +165,10 @@ export const TICKET_CHECKOUT_ONLY_REASONS = [
   // Odbior biletu z puli dla zgloszenia, ktore czeka na akceptacje organizatora
   // (ta sama regula przyjecia, co wplata Stripe) - pula zostaje nietknieta.
   "plan_ticket_awaiting_approval",
+  // Limit prob kodow (`_coupon_probe_guard`, 20261001100000): baza odmawia
+  // wyceny i kasy z kodem, zanim spojrzy na kod. To NIE jest odmowa kodu -
+  // kod zostaje w polu, a zdanie mowi tylko, ze trzeba odczekac.
+  "rate_limited",
 ] as const;
 export type TicketCheckoutOnlyReason = (typeof TICKET_CHECKOUT_ONLY_REASONS)[number];
 
@@ -197,6 +204,7 @@ const TICKET_CHECKOUT_REFUSALS: ReadonlyArray<readonly [string, TicketCheckoutRe
   ["sign_in_required", "account_required"],
   ["billing_unconfigured", "payments_unavailable"],
   ["payments_not_configured", "payments_unavailable"],
+  ["rate_limited", "rate_limited"],
 ];
 
 /**

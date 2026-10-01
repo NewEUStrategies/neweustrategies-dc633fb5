@@ -31,6 +31,8 @@ const pl = {
     promoHint:
       "Rabat nalicza serwer tuż przed utworzeniem zamówienia - kwota w kasie jest ostateczna.",
     promoError: "Kod rabatowy jest nieprawidłowy lub wygasł.",
+    promoRateLimited:
+      "Zbyt wiele prób kodu w krótkim czasie. Odczekaj kilka minut i spróbuj ponownie.",
     aria: { label: "Mój koszyk", count: "Pozycje w koszyku: {{count}}" },
   },
   myEvents: {
@@ -238,6 +240,7 @@ const en: typeof pl = {
     promoHint:
       "The discount is calculated server-side right before the order is created - the checkout amount is final.",
     promoError: "This promo code is invalid or expired.",
+    promoRateLimited: "Too many code attempts in a short time. Wait a few minutes and try again.",
     aria: { label: "My cart", count: "Items in cart: {{count}}" },
   },
   myEvents: {

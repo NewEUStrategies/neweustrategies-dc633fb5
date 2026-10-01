@@ -25,6 +25,7 @@ const h = vi.hoisted(() => ({
   preview: vi.fn(),
   createClient: vi.fn(),
   returnUrl: vi.fn(),
+  allowProbe: vi.fn(),
 }));
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFnHarness")).serverFnStubModule(),
@@ -46,6 +47,7 @@ vi.mock("@/lib/billing/subscriptionProvider.server", () => ({
   updateSubscriptionQuantity: h.seats,
 }));
 vi.mock("@/lib/billing/discounts.server", () => ({ resolveDiscountForCoupon: h.discount }));
+vi.mock("@/lib/events/codeProbeLimit.server", () => ({ allowCodeProbeForRequest: h.allowProbe }));
 vi.mock("@/lib/billing/selfSync.server", () => ({ syncUserSubscriptionsFromProvider: h.sync }));
 vi.mock("@/lib/billing/paymentMethod.server", () => ({
   fetchPaymentMethodPreview: h.paymentMethod,
@@ -91,6 +93,7 @@ beforeEach(() => {
   for (const fn of [h.change, h.cancel, h.unpause, h.revertCancellation])
     fn.mockResolvedValue({ ok: true });
   h.seats.mockResolvedValue({ ok: true, quantity: 5 });
+  h.allowProbe.mockResolvedValue(true);
   h.sync.mockResolvedValue({ synced: 2 });
   h.paymentMethod.mockResolvedValue({ brand: "visa", last4: "4242" });
   h.discount.mockResolvedValue({ discountId: "promo_valid" });
@@ -226,7 +229,23 @@ describe("catalog and discount resolution", () => {
     });
     expect(h.discount).toHaveBeenCalledWith({ ...coupon, code: "SUMMER", currency: "PLN" });
     expect(serverFnMiddlewareNames(payments.resolveStripeDiscount)).toEqual([]);
+    expect(h.allowProbe).toHaveBeenCalledTimes(1);
     await expect(invoke("resolveStripeDiscount", { ...coupon, amountCents: 0 })).rejects.toThrow();
+  });
+  it("a code probe over the attempt limit is refused before the database and the provider", async () => {
+    // Publiczna sonda kodu: limit prob (IP + konto, fail-closed) stoi PRZED
+    // walidacja kluczem serwisowym, ktorej kubelek pudel w bazie nie liczy.
+    h.allowProbe.mockResolvedValue(false);
+    expect(
+      await invoke("resolveStripeDiscount", {
+        code: "SUMMER",
+        planId: "00000000-0000-4000-8000-000000000001",
+        amountCents: 1000,
+        currency: "PLN",
+        environment: "sandbox",
+      }),
+    ).toEqual({ ok: false, discountId: null, error: "rate_limited", discountCents: 0 });
+    expect(h.discount).not.toHaveBeenCalled();
   });
 });
 

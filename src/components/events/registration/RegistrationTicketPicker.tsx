@@ -80,7 +80,7 @@ export function RegistrationTicketPicker({
     inFlight.current = true;
     setRevealing(true);
     try {
-      const result = await reveal({ data: { eventId, code: raw } });
+      const result = await reveal({ data: { eventId, code: normalizeCouponCode(raw) } });
       if (result.ok) {
         setRevealed(result.ticketIds);
         setRevealNote(

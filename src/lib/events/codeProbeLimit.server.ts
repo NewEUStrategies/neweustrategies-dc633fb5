@@ -19,6 +19,9 @@
 //
 // SOLONY SKRÓT, NIE ADRES. `requestRateSubject` zapisuje w `rate_limits`
 // skrót z solą: wyciek tej tabeli nie daje listy adresów IP ani kont.
+import { getRequest } from "@tanstack/react-start/server";
+
+import { optionalUserIdFromRequest } from "@/lib/auth/optionalUser.server";
 import { rateLimit } from "@/lib/server/rate-limit.server";
 import { requestRateSubject } from "@/lib/server/rateSubject.server";
 
@@ -61,4 +64,21 @@ export async function allowCodeProbe(
     windowMinutes: CODE_PROBE_RATE_LIMIT.windowMinutes,
     failClosed: true,
   });
+}
+
+/**
+ * `allowCodeProbe` dla BIEŻĄCEGO żądania publicznej funkcji serwerowej: adres
+ * z nagłówków żądania, konto z sesji, gdy jest (bez sesji - sam kubełek IP).
+ *
+ * Brak kontekstu żądania nie znosi limitu: `requestRateSubject(null)` wpada do
+ * wspólnego kubełka „adres nieznany", a nie omija bramki.
+ */
+export async function allowCodeProbeForRequest(): Promise<boolean> {
+  let headers: Headers | null = null;
+  try {
+    headers = getRequest().headers;
+  } catch {
+    headers = null;
+  }
+  return allowCodeProbe(headers, optionalUserIdFromRequest);
 }
