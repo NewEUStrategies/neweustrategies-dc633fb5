@@ -89,6 +89,22 @@ export function compareFirstVisitSamples(baseline, candidate, { path, lang, stat
       pValue,
       baselineSamples,
       candidateSamples,
+      ...(metric === "lcpMs"
+        ? {
+            attribution: Object.fromEntries(
+              [
+                ["baseline", baseline],
+                ["candidate", candidate],
+              ].map(([side, samples]) => [
+                side,
+                firstVisitSamples.map((sample) => ({
+                  sample,
+                  entries: samples.find((row) => row.sample === sample).lcpEntries ?? [],
+                })),
+              ]),
+            ),
+          }
+        : {}),
     };
   });
 }
@@ -120,6 +136,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.log(
       `${row.verdict === "unconfirmed-timing-change" ? "WARN" : row.pass ? "PASS" : "FAIL"} ${row.lang}/${row.state} ${row.metric}: ${row.before.toFixed(1)} -> ${row.after.toFixed(1)} (limit ${row.limit.toFixed(1)}${row.pValue === null ? "" : `; paired p=${row.pValue.toFixed(4)}`}; baseline [${row.baselineSamples.join(", ")}], candidate [${row.candidateSamples.join(", ")}])`,
     );
+    if (row.metric === "lcpMs" && row.verdict !== "within-limit") {
+      console.log(`LCP_ATTRIBUTION ${row.lang}/${row.state} ${JSON.stringify(row.attribution)}`);
+    }
   }
   if (rows.some((row) => !row.pass)) process.exitCode = 1;
 }

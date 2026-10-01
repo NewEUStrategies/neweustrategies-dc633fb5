@@ -4,7 +4,9 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { test } from "node:test";
+import { installFirstVisitLcpObserver } from "./firstVisitLcp.ts";
 import { compareFirstVisitSamples, pairedTimingPValue } from "./compare-first-visit.mjs";
 import {
   firstVisitCases,
@@ -74,6 +76,92 @@ const samples = () =>
     htmlBytes: 380000,
     inlineCssBytes: 132000,
   }));
+
+function lcpHarness() {
+  let observer;
+  class FakeObserver {
+    queued = [];
+    constructor(callback) {
+      this.callback = callback;
+      observer = this;
+    }
+    observe(options) {
+      assert.equal(options.type, "largest-contentful-paint");
+      assert.equal(options.buffered, true);
+    }
+    takeRecords() {
+      return this.queued.splice(0);
+    }
+    deliver(entries) {
+      this.callback({ getEntries: () => entries });
+    }
+  }
+  const window = {};
+  // Exercise the same closure-free serialization as page.addInitScript.
+  runInNewContext(`(${installFirstVisitLcpObserver.toString()})()`, {
+    window,
+    performance: { now: () => 900 },
+    PerformanceObserver: FakeObserver,
+  });
+  return { observer, read: () => structuredClone(window.__firstVisitLcp.read()) };
+}
+
+test("LCP retains image and text attribution without retaining live DOM elements", () => {
+  const { observer, read } = lcpHarness();
+  const element = {
+    tagName: "IMG",
+    id: "cover",
+    getAttribute: () => "cover-image",
+    closest: () => ({ getAttribute: () => "hero-widget" }),
+  };
+  const image = {
+    startTime: 272,
+    renderTime: 272,
+    loadTime: 180,
+    size: 250000,
+    url: "https://fixture.invalid/image.svg",
+    element,
+  };
+  observer.deliver([image]);
+  const first = read();
+  assert.equal(first.lcpMs, 272, "observer delivery time must not replace paint time");
+  assert.deepEqual(first.lcpEntries[0], {
+    startTime: 272,
+    renderTime: 272,
+    loadTime: 180,
+    observedAt: 900,
+    size: 250000,
+    url: "https://fixture.invalid/image.svg",
+    element: { tagName: "IMG", id: "cover", className: "cover-image", widgetId: "hero-widget" },
+  });
+  image.element = null;
+  element.id = "changed-after-paint";
+  observer.deliver([
+    { ...image, startTime: 552, renderTime: 552, loadTime: 0, url: "", element: null },
+  ]);
+  const final = read();
+  assert.equal(final.lcpMs, 552);
+  assert.equal(final.lcpEntries.length, 2);
+  assert.deepEqual(final.lcpEntries[0], first.lcpEntries[0]);
+  assert.equal(final.lcpEntries[1].element, null);
+  assert.equal(final.lcpEntries[1].url, "");
+  assert.equal(first.lcpEntries.length, 1, "earlier snapshots must remain unchanged");
+});
+
+test("LCP reads pending records before callback delivery and drains each record only once", () => {
+  const { observer, read } = lcpHarness();
+  assert.deepEqual(read(), { lcpMs: 0, lcpEntries: [] });
+  const entry = { startTime: 272, renderTime: 272, loadTime: 0, size: 400, url: "", element: null };
+  observer.deliver([entry]);
+  observer.queued.push({ ...entry, startTime: 552, renderTime: 552, size: 800 });
+  const final = read();
+  assert.equal(final.lcpMs, 552);
+  assert.deepEqual(
+    final.lcpEntries.map((candidate) => candidate.startTime),
+    [272, 552],
+  );
+  assert.deepEqual(read(), final, "takeRecords must not duplicate delivered candidates");
+});
 
 test("every comparison pairs the same case and alternates order without skipping samples", () => {
   const plan = firstVisitComparisonPlan("/baseline", "/candidate");
@@ -232,6 +320,50 @@ test("the identical-artifact LCP split remains visible as a warning, with all ob
   assert.deepEqual(compareFirstVisitSamples(baseline, [...candidate].reverse(), expected), rows);
 });
 
+test("the reported PR 429 warm LCP regression still fails without relaxing its budget", () => {
+  const before = [596, 284, 264, 268, 272, 260, 276];
+  const after = [552, 564, 552, 336, 596, 552, 272];
+  const baseline = samples().map((row, index) => ({ ...row, lcpMs: before[index] }));
+  const candidate = samples().map((row, index) => ({ ...row, lcpMs: after[index] }));
+  const lcp = compareFirstVisitSamples(baseline, candidate, expected).find(
+    (row) => row.metric === "lcpMs",
+  );
+  assert.equal(lcp.before, 272);
+  assert.equal(lcp.after, 552);
+  assert.ok(Math.abs(lcp.limit - 399.2) < 0.00001);
+  assert.equal(lcp.pValue, 4 / 128);
+  assert.equal(lcp.verdict, "regression");
+  assert.equal(lcp.pass, false);
+});
+
+test("LCP comparison preserves attribution in sample order, including unavailable elements", () => {
+  const baseline = samples().map((row) => ({
+    ...row,
+    lcpEntries: [{ startTime: row.lcpMs, element: null, url: "" }],
+  }));
+  const candidate = samples().map((row) => ({
+    ...row,
+    lcpEntries: [{ startTime: row.lcpMs, element: { widgetId: `widget-${row.sample}` } }],
+  }));
+  const lcp = compareFirstVisitSamples(
+    [...baseline].reverse(),
+    [...candidate].reverse(),
+    expected,
+  ).find((row) => row.metric === "lcpMs");
+  for (const [side, rows] of [
+    ["baseline", baseline],
+    ["candidate", candidate],
+  ]) {
+    assert.deepEqual(
+      lcp.attribution[side],
+      rows.map((row) => ({
+        sample: row.sample,
+        entries: row.lcpEntries,
+      })),
+    );
+  }
+});
+
 test("the CLI writes all 32 comparisons and exits nonzero for a regression or missing file", () => {
   const directory = mkdtempSync(join(tmpdir(), "first-visit-gate-"));
   const cli = fileURLToPath(new URL("./compare-first-visit.mjs", import.meta.url));
@@ -264,6 +396,17 @@ test("the CLI writes all 32 comparisons and exits nonzero for a regression or mi
     const failed = run();
     assert.equal(failed.status, 1);
     assert.match(failed.stdout, /FAIL en\/warm fcpMs/);
+    for (const sample of firstVisitSamples) {
+      const path = join(directory, `reports/first-visit/en-warm-${sample}.json`);
+      const row = JSON.parse(readFileSync(path, "utf8"));
+      row.lcpMs = 900;
+      row.lcpEntries = [{ startTime: 900, element: { widgetId: "late-cover" } }];
+      writeFileSync(path, JSON.stringify(row));
+    }
+    const lcpFailed = run();
+    assert.equal(lcpFailed.status, 1);
+    assert.match(lcpFailed.stdout, /FAIL en\/warm lcpMs/);
+    assert.match(lcpFailed.stdout, /LCP_ATTRIBUTION en\/warm .*late-cover/);
     rmSync(join(directory, "reports/first-visit/en-warm-7.json"));
     assert.equal(run().status, 1);
     assert.equal(existsSync(report), false, "a failed run must not leave a stale comparison");
