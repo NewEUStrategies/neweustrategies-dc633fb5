@@ -29017,6 +29017,16 @@ export type Database = {
       }
       event_scanner_bootstrap: { Args: { p_payload: Json }; Returns: Json }
       event_scanner_roster: { Args: { p_payload: Json }; Returns: Json }
+      event_seat_state: {
+        Args: { p_event_id: string }
+        Returns: {
+          capacity: number
+          event_id: string
+          going: number
+          seats_left: number
+          waitlist: number
+        }[]
+      }
       event_sections: {
         Args: { p_slug: string }
         Returns: {

@@ -357,6 +357,8 @@ export function SearchButtonWidget({
 
   // Dyktowanie frazy: transkrypcja płynie do pola (live results reagują same
   // przez debounce wyżej); przy wyłączonych live results finał odpala search.
+  const [voiceChecked, setVoiceChecked] = useState(false);
+  useEffect(() => setVoiceChecked(true), []);
   const voice = useVoiceSearch({
     lang: lang === "en" ? "en" : "pl",
     onText: (text) => {
@@ -465,6 +467,9 @@ export function SearchButtonWidget({
   // `useVoiceSearch` rozstrzyga możliwości przeglądarki dopiero w efekcie po
   // hydratacji. Rezerwa zmieniała się więc pod już namalowanym polem.
   const trailingPad = q ? 108 : 84;
+  // Mikrofon i separator są widoczne od pierwszej klatki; ukrywamy je dopiero,
+  // gdy po hydratacji wiadomo, że przeglądarka nie obsługuje dyktowania.
+  const hideVoice = voiceChecked && !voice.supported;
 
   return (
     <div
@@ -592,7 +597,7 @@ export function SearchButtonWidget({
           <span
             aria-hidden
             className="h-6 w-px shrink-0 bg-border"
-            style={voice.supported ? undefined : { visibility: "hidden" }}
+            style={hideVoice ? { visibility: "hidden" } : undefined}
           />
           <button
             type="button"
@@ -601,8 +606,8 @@ export function SearchButtonWidget({
             aria-label={voice.listening ? t("voice_stop") : t("voice")}
             title={voice.listening ? t("voice_stop") : t("voice")}
             data-voice-unsupported={voice.supported ? undefined : ""}
-            inert={!voice.supported}
-            style={voice.supported ? undefined : { visibility: "hidden" }}
+            inert={hideVoice}
+            style={hideVoice ? { visibility: "hidden" } : undefined}
             className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
           >
             <LucideIcons.Mic

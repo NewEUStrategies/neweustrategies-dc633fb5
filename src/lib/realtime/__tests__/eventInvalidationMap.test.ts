@@ -70,6 +70,7 @@ describe("eventInvalidationMap", () => {
     ["profile", "event-registrations"],
     ["account-menu", "my-events"],
     ["event-rsvp-counts"],
+    eventId === null ? ["event-seat-state"] : ["event-seat-state", eventId],
     ["public-event"],
     eventId === null ? ["event-seating"] : ["event-seating", eventId],
     eventId === null

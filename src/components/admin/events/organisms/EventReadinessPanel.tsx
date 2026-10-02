@@ -63,12 +63,15 @@ export function EventReadinessPanel({ row }: EventReadinessPanelProps) {
           descriptionEn: row.description_en,
           status: row.status,
           registrationMode: row.registration_mode,
+          // Kolumna jest NULL-owalna, choć generator typuje ją jako `number`.
+          ticketPriceCents: Number.isFinite(row.ticket_price_cents) ? row.ticket_price_cents : null,
         },
         publicationBlockers: publicationQ.data,
         sessions: sessionsQ.data ?? [],
         conflictCount: conflictsQ.data?.length ?? 0,
         roomCount: roomsQ.data?.length ?? 0,
-        ticketTypeCount: ticketsQ.data?.length ?? 0,
+        // Nieaktywny typ nie sprzedaje: `event_register` liczy tylko `is_active`.
+        ticketTypeCount: (ticketsQ.data ?? []).filter((ticket) => ticket.is_active).length,
         seatingUnseated: seatingOn ? unseatedOnPublishedMaps(seatMapsQ.data ?? []) : null,
       }),
     [

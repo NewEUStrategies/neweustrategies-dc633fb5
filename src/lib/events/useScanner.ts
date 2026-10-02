@@ -34,6 +34,9 @@
 //     kolejki razem z tą decyzją.
 //   * WYNIK SYNCHRONIZACJI NIE GINIE. Rozbieżność decyzji offline z bazą idzie
 //     na listę konfliktów, trwała odmowa na listę odrzuconych (obie trwałe).
+//     Odrzucona pozycja schodzi z kolejki DOPIERO po trwałym zapisie listy
+//     odrzuconych (`transferRejected`) - kolejka i lista to dwie bazy
+//     IndexedDB, a lista bywa tylko w pamięci karty (prywatne okno).
 //   * ZEGAR. `server_now` z konfiguracji daje przesunięcie zegara urządzenia;
 //     czas skanu jest nim korygowany, a ekran ostrzega przy dużej odchyłce.
 //
@@ -61,10 +64,13 @@ import {
   appendRejected,
   dueItems,
   enqueueScanWithOverflow,
+  markRejected,
   outboxCounts,
+  reconcileRejected,
   rejectAll,
   withFailure,
   withoutItem,
+  withoutItems,
   type OutboxCounts,
   type OutboxItem,
   type RejectedScan,
@@ -104,10 +110,10 @@ import {
 } from "@/lib/events/scannerSession";
 import {
   invalidatesSession,
-  isRetryableScanError,
+  scanErrorKind,
   scannerErrorHead,
   scannerErrorText,
-} from "@/lib/events/scannerErrors";
+} from "@/lib/events/scannerErrorKind";
 import {
   appendDecisionLog,
   buildRosterIndex,
@@ -119,6 +125,7 @@ import {
 } from "@/lib/events/scannerRoster";
 import { appendConflict, detectConflict, type ScanConflict } from "@/lib/events/scannerSyncIssues";
 import { sha256Hex } from "@/lib/events/scannerHash";
+import { newClientScanUid } from "@/lib/events/clientScanUid";
 import type { CheckinDirection } from "@/lib/events/onsiteEnums";
 
 /** Co ile próbować opróżnić kolejkę, gdy coś w niej stoi. */
@@ -215,17 +222,6 @@ export interface ScannerRuntime {
   lastFlush: FlushReport | null;
 }
 
-function newScanId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  // Awaryjnie, gdy `crypto.randomUUID` nie istnieje: identyfikator ma być
-  // niepowtarzalny w obrębie JEDNEGO urządzenia, bo tylko tam służy za klucz
-  // idempotencji - kolizja między urządzeniami nie ma jak wystąpić, skoro
-  // baza dokłada do klucza identyfikator urządzenia.
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
-}
-
 function isOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
@@ -308,14 +304,37 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
     [markOfflinePersistence],
   );
 
+  /** Dopisuje odrzucone; obietnica mówi, czy lista przeżyje zamknięcie karty. */
   const commitRejected = useCallback(
-    (added: readonly RejectedScan[]) => {
+    (added: readonly RejectedScan[]): Promise<boolean> => {
       const next = appendRejected(rejectedRef.current, added);
       rejectedRef.current = next;
       setRejected(next);
-      void saveRejected(next).then(markOfflinePersistence);
+      return saveRejected(next).then(() => {
+        markOfflinePersistence();
+        return isOfflineStoragePersistent();
+      });
     },
     [markOfflinePersistence],
+  );
+
+  /**
+   * Odrzucone przechodzą z kolejki na listę odrzuconych. Pozycje są już
+   * ZAMROŻONE w kolejce (nie jadą do bazy) i schodzą z niej dopiero, gdy lista
+   * zapisała się trwale. Lista tylko w pamięci karty = pozycje zostają
+   * w kolejce jako „wymaga uwagi" z powodem i przeżywają zamknięcie karty.
+   */
+  const transferRejected = useCallback(
+    (added: readonly RejectedScan[]) => {
+      if (added.length === 0) return;
+      void commitRejected(added).then((durable) => {
+        if (!durable) return;
+        const ids = added.map((entry) => entry.item.id);
+        const next = withoutItems(outboxRef.current, ids);
+        if (next.length !== outboxRef.current.length) persist(next);
+      });
+    },
+    [commitRejected, persist],
   );
 
   const commitConflict = useCallback(
@@ -372,12 +391,14 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       if (!ownsQueue) return;
       void (outboxLoadRef.current ?? Promise.resolve()).then(() => {
         // Nowe parowanie w międzyczasie - kolejka należy już do niego.
-        if (pairingRef.current !== generation || outboxRef.current.length === 0) return;
-        commitRejected(rejectAll(outboxRef.current, message, new Date().toISOString()));
-        persist([]);
+        if (pairingRef.current !== generation) return;
+        const entries = rejectAll(outboxRef.current, message, new Date().toISOString());
+        if (entries.length === 0) return;
+        persist(markRejected(outboxRef.current, entries));
+        transferRejected(entries);
       });
     },
-    [commitRejected, persist],
+    [persist, transferRejected],
   );
 
   /**
@@ -387,7 +408,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
    */
   const credentialPaused = useCallback(
     (error: unknown): boolean => {
-      if (scannerErrorHead(error) !== "device_inactive") return false;
+      if (scanErrorKind(error) !== "paused") return false;
       forgetRoster();
       return true;
     },
@@ -481,9 +502,10 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           return;
         }
         if (mode === "refresh") return;
-        // A temporary lock keeps pending scans retryable, but must not
-        // authorize a cold start from a cached session after an explicit refusal.
-        if (isRetryableScanError(error) && scannerErrorHead(error) !== "device_locked") {
+        // Zimny start z sesji w pamięci wyłącznie po awarii TRANSPORTU. Blokada
+        // czasowa zostawia skany do ponowienia, ale jest jawną odpowiedzią
+        // bazy - nie może otwierać skanera z sesji, której baza nie potwierdziła.
+        if (scanErrorKind(error) === "transport") {
           const cached = await cachedFor(clean);
           if (superseded()) return;
           if (cached !== null) {
@@ -550,19 +572,31 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
 
   // Odrzucone i konflikty z poprzedniej zmiany - scalone z tym, co mogło
   // przybyć, zanim odczyt wrócił.
+  //
+  // Po obu odczytach kolejka i lista są UZGADNIANE: pozycja zamrożona trwałą
+  // odmową, której lista nie przechowała (karta zamknięta przed zapisem listy),
+  // wraca na listę; pozycja, którą lista już ma, schodzi z kolejki.
   useEffect(() => {
-    void Promise.all([loadRejected(), loadConflicts()]).then(
-      ([storedRejected, storedConflicts]) => {
-        const nextRejected = appendRejected(storedRejected, rejectedRef.current);
-        rejectedRef.current = nextRejected;
-        setRejected(nextRejected);
-        const nextConflicts = conflictsRef.current.reduce(appendConflict, storedConflicts);
-        conflictsRef.current = nextConflicts;
-        setConflicts(nextConflicts);
-        markOfflinePersistence();
-      },
-    );
-  }, [markOfflinePersistence]);
+    void Promise.all([
+      loadRejected(),
+      loadConflicts(),
+      outboxLoadRef.current ?? Promise.resolve(),
+    ]).then(([storedRejected, storedConflicts]) => {
+      const nextRejected = appendRejected(storedRejected, rejectedRef.current);
+      rejectedRef.current = nextRejected;
+      setRejected(nextRejected);
+      const nextConflicts = conflictsRef.current.reduce(appendConflict, storedConflicts);
+      conflictsRef.current = nextConflicts;
+      setConflicts(nextConflicts);
+      markOfflinePersistence();
+
+      const { orphans, settled } = reconcileRejected(outboxRef.current, nextRejected);
+      if (settled.length > 0 && isOfflineStoragePersistent()) {
+        persist(withoutItems(outboxRef.current, settled));
+      }
+      transferRejected(orphans);
+    });
+  }, [markOfflinePersistence, persist, transferRejected]);
 
   // Sesja podniesiona z pamięci - potwierdzamy ją w bazie przy każdej okazji
   // (powrót sieci i tykający odstęp). Nieudana próba w trybie `refresh` nic
@@ -769,8 +803,8 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
           // dobijać się nią dwadzieścia razy albo zniknąć po cichu.
           const all = rejectAll(outboxRef.current, message, new Date().toISOString());
           rejectedCount += all.length;
-          commitRejected(all);
-          persist([]);
+          persist(markRejected(outboxRef.current, all));
+          transferRejected(all);
           credentialFailed(error);
           return;
         }
@@ -781,7 +815,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         persist(failure.queue);
         if (failure.rejected !== null) {
           rejectedCount += 1;
-          commitRejected([failure.rejected]);
+          transferRejected([failure.rejected]);
         }
         if (expired) credentialFailed(error);
       }
@@ -801,7 +835,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         });
       }
     });
-  }, [persist, commitConflict, commitRejected, credentialFailed, credentialPaused]);
+  }, [persist, commitConflict, transferRejected, credentialFailed, credentialPaused]);
 
   // Powrót sieci i tykający odstęp - patrz nagłówek. Wygasłe poświadczenie
   // też wysyła: baza przyjmuje skany sprzed terminu jeszcze przez 72 h.
@@ -837,8 +871,9 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       const { queue: next, overflow } = enqueueScanWithOverflow(outboxRef.current, item);
       persist(next);
       // Wypchnięte przepełnieniem nie znikają - idą na listę odrzuconych.
+      // Pozycja już zamrożona jest na tej liście, więc `rejectAll` ją pomija.
       if (overflow.length > 0) {
-        commitRejected(rejectAll(overflow, OUTBOX_OVERFLOW, new Date().toISOString()));
+        void commitRejected(rejectAll(overflow, OUTBOX_OVERFLOW, new Date().toISOString()));
       }
     },
     [persist, commitRejected],
@@ -901,7 +936,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       const activeToken = tokenRef.current;
       if (activeToken === null) throw new Error("invalid_device_token: no session");
       assertNotExpired();
-      const id = newScanId();
+      const id = newClientScanUid();
       const atMs = Date.now() + clockOffsetRef.current;
       const scannedAt = new Date(atMs).toISOString();
 
@@ -973,15 +1008,18 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         // z telefonu od razu, a nie dopiero przy następnej wysyłce kolejki.
         // Wstrzymanie zdejmuje samą listę - sesja czeka na „Wznów".
         if (credentialPaused(error)) throw error;
-        if (invalidatesSession(error)) {
+        const kind = scanErrorKind(error);
+        if (kind === "session") {
           credentialFailed(error);
           throw error;
         }
-        if (!isRetryableScanError(error)) throw error;
-        if (scannerErrorHead(error) === "device_locked") {
+        // Blokada czasowa: skan czeka w kolejce, ale BEZ decyzji z listy offline -
+        // baza odpowiedziała, tylko jeszcze nie przyjmuje skanów z tego urządzenia.
+        if (kind === "locked") {
           queue(item);
           return { queued: true, local: null };
         }
+        if (kind !== "transport") throw error;
         return queueWithDecision();
       }
     },
@@ -999,7 +1037,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       assertNotExpired();
       const scannedAt = correctedNowIso(clockOffsetRef.current);
       const item: OutboxItem = {
-        id: newScanId(),
+        id: newClientScanUid(),
         kind: "lead",
         code: input.code,
         checkpointId: null,
@@ -1032,11 +1070,12 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
         return { queued: false, result };
       } catch (error: unknown) {
         if (credentialPaused(error)) throw error;
-        if (invalidatesSession(error)) {
+        const kind = scanErrorKind(error);
+        if (kind === "session") {
           credentialFailed(error);
           throw error;
         }
-        if (!isRetryableScanError(error)) throw error;
+        if (kind !== "transport" && kind !== "locked") throw error;
         queue(item);
         return { queued: true, local: null };
       }

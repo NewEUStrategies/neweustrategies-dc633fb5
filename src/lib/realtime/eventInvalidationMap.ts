@@ -459,6 +459,9 @@ function registrationEventKeys(event: DomainEventRow): QueryKey[] {
     ["profile", "event-registrations"],
     ["account-menu", "my-events"],
     ["event-rsvp-counts"],
+    // Stan miejsc strony (`event_seat_state`) liczy takze pule zgloszen -
+    // przyjecie albo anulowanie zmienia liczbe wolnych miejsc.
+    eventId === "" ? ["event-seat-state"] : ["event-seat-state", eventId],
     ["public-event"],
     eventId === "" ? ["event-seating"] : ["event-seating", eventId],
   ];
@@ -556,6 +559,7 @@ const eventKeysList: QueryKey[] = [
   ["public-events"],
   ["public-event"],
   ["event-rsvp-counts"],
+  ["event-seat-state"],
   ["admin-community-events"],
   ["admin-community-stats"],
 ];

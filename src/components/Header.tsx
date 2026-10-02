@@ -110,16 +110,23 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   useFocusTrap(drawerPanelRef, open);
 
-  // Close the drawer on route change and lock body scroll while open.
+  // Close the drawer on route change and lock the page behind it while open.
+  // Lock both scrolling roots: on iOS, body overflow alone still lets the
+  // document move when a finger reaches the edge of a portalized drawer.
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
   useEffect(() => {
     if (typeof document === "undefined") return;
-    const prev = document.body.style.overflow;
-    if (open) document.body.style.overflow = "hidden";
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    if (open) {
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+    }
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
     };
   }, [open]);
   useEffect(() => {
@@ -287,7 +294,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
             />
             <div
               ref={drawerPanelRef}
-              className="absolute inset-y-0 right-0 w-[min(88vw,360px)] bg-background shadow-2xl border-l border-border flex flex-col animate-in slide-in-from-right"
+              className="absolute inset-y-0 right-0 flex min-h-0 w-[min(88vw,360px)] flex-col overflow-hidden border-l border-border bg-background shadow-2xl animate-in slide-in-from-right"
             >
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
                 <span className="text-sm font-bold tracking-wider uppercase text-muted-foreground">
