@@ -1532,7 +1532,13 @@ describe("admin.settings.cookie-banner - kolory, treści PL/EN i podgląd", () =
     expect(pickers.length).toBeGreaterThan(0);
     const picker = h.props.AdminColorPicker;
     expect(picker.placeholder).toBeTruthy();
-    expect(String(picker.ariaLabel)).toContain("wybierz kolor");
+    // Etykieta wybieraka idzie przez i18n panelu i niesie nazwę pola - ostatni
+    // wybierak w drzewie to „Akcent - tekst".
+    expect(picker.ariaLabel).toBe(
+      translateKey("adminCookieBanner.colors.pickAria", {
+        label: translateKey("adminCookieBanner.colors.accentForeground"),
+      }),
+    );
     // Wybierak NIE dopuszcza przezroczystości - baner musi być czytelny.
     expect(picker.allowTransparent).toBe(false);
   });
@@ -1652,7 +1658,7 @@ describe("admin.settings.cookie-banner - kolory, treści PL/EN i podgląd", () =
     // potwierdzenia jedno omyłkowe kliknięcie kasuje pracę prawnika.
     await mountBanner2({ copy: { pl: { title: "Mój tytuł" }, en: { title: "Mine" } } });
     const restore = Array.from(document.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Przywróć domyślne"),
+      button.textContent?.includes(translateKey("adminCookieBanner.restoreDefaults")),
     );
     if (!restore) throw new Error("test: brak przycisku przywrócenia");
 
@@ -1669,7 +1675,7 @@ describe("admin.settings.cookie-banner - kolory, treści PL/EN i podgląd", () =
   it("PRZYWRÓCENIE domyślnych po potwierdzeniu podmienia treści na domyślne", async () => {
     await mountBanner2({ copy: { pl: { title: "Mój tytuł" }, en: { title: "Mine" } } });
     const restore = Array.from(document.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Przywróć domyślne"),
+      button.textContent?.includes(translateKey("adminCookieBanner.restoreDefaults")),
     );
     if (!restore) throw new Error("test: brak przycisku przywrócenia");
 
@@ -1695,7 +1701,7 @@ describe("admin.settings.cookie-banner - kolory, treści PL/EN i podgląd", () =
   it("podgląd DA SIĘ ZAMKNĄĆ - nakładka nie może uwięzić administratora", async () => {
     await mountBanner2();
     const preview = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent === "Podgląd",
+      (button) => button.textContent === translateKey("adminCookieBanner.preview"),
     );
     if (!preview) throw new Error("test: brak przycisku podglądu");
     fireEvent.click(preview);

@@ -425,7 +425,13 @@ describe("monolingualUserText - self-test na realnym src/", () => {
     // To nie jest nowy dług: liczbę wystąpień trzyma asercja wyżej (suma), a
     // rozkład per plik - ratchet w `monolingualUserText.ts`, gdzie ruch jest
     // udokumentowany. Sufit sumy ZOSTAJE na 713 i nadal może tylko maleć.
+    //
+    // 2026-10-02: 164 -> 161 PLIKÓW. Panel `/admin/settings/cookie-banner`
+    // (trasa + `CookieBannerBrandingSection` + `DetectedElementsPanel`, razem
+    // 47 wystąpień) przeszedł w całości na nakładkę `i18n-admin-cookie-banner`,
+    // więc trzy pliki zeszły do zera i wypadły z listy - to jest spłata długu,
+    // nie przeprowadzka.
     expect(report.total).toBeLessThanOrEqual(713);
-    expect(baseline.size).toBe(164);
+    expect(baseline.size).toBe(161);
   });
 });

@@ -28,6 +28,7 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { localizedPath } from "@/lib/i18n/localePath";
 import {
   useCookieBannerConfig,
+  bannerLinkHref,
   bannerStyleVars,
   clampCookieBannerLogoSize,
   type CookieBannerCopy,
@@ -493,17 +494,23 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
         {tr("common.dataProcessingTerms")}
       </a>
       .{/* Dodatkowe odnośniki z panelu admina (np. regulamin, RODO, kontakt). */}
-      {(banner.links ?? [])
-        .filter((l) => l.url && pickLocalized(l, "label", uiLanguage))
-        .map((l) => (
+      {/* Adres idzie przez `bannerLinkHref`: ścieżka wewnętrzna dostaje prefiks
+          języka banera (jak polityka i zasady obok), niedozwolony schemat
+          wypada w całości. */}
+      {(banner.links ?? []).flatMap((l) => {
+        const href = bannerLinkHref(l.url, uiLanguage);
+        const label = pickLocalized(l, "label", uiLanguage);
+        if (!href || !label) return [];
+        return [
           <span key={l.id}>
             {" "}
-            <a href={l.url} className={LINK}>
-              {pickLocalized(l, "label", uiLanguage)}
+            <a href={href} className={LINK}>
+              {label}
             </a>
             .
-          </span>
-        ))}
+          </span>,
+        ];
+      })}
     </>
   );
 

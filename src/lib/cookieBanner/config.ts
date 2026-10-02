@@ -4,6 +4,7 @@ import { readableForeground } from "@/lib/a11y/contrast";
 // inherit from the current theme, so a fresh install works with zero setup.
 
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { localizedPath, type AppLang } from "@/lib/i18n/localePath";
 
 export type CookieBannerColors = {
   surface: string;
@@ -46,6 +47,45 @@ export type CookieBannerLogo = {
   /** Rozmiar kafla w px (24-72). */
   size: number;
 };
+
+/** Schematy, które odnośnik z panelu może nieść wprost - wszystko inne odpada. */
+const BANNER_LINK_SCHEMES: ReadonlySet<string> = new Set(["http", "https", "mailto", "tel"]);
+
+/**
+ * Adres dodatkowego odnośnika banera DLA JĘZYKA, w którym baner się wyświetla,
+ * albo `null`, gdy adresu nie wolno pokazać.
+ *
+ * DLACZEGO. Odnośnik z panelu szedł do `href` dosłownie, więc gość czytający
+ * baner po angielsku (`/en/...`) klikał „/cookies" i lądował na POLSKIEJ
+ * wersji strony - mimo że wszystkie pozostałe odnośniki banera (polityka
+ * prywatności, zasady przetwarzania) idą przez `localizedPath`. Adres nie był
+ * też w żaden sposób sprawdzany: `javascript:` wpisane w panelu trafiało do
+ * banera wyświetlanego KAŻDEMU odwiedzającemu.
+ *
+ * REGUŁY:
+ *   * ścieżka wewnętrzna (`/cookies`, także bez wiodącego `/`) dostaje prefiks
+ *     języka według `localizedPath` - ta sama reguła co reszta serwisu, łącznie
+ *     z powierzchniami, które prefiksu nie dostają nigdy (`/admin`, `/api`, ...);
+ *     zapytanie i kotwica jadą za ścieżką bez zmian;
+ *   * ścieżka JUŻ z prefiksem (`/en/cookies`) jest sprowadzana do języka banera,
+ *     więc wersja polska nie prowadzi na stronę angielską;
+ *   * adres zewnętrzny `http(s)://`, `mailto:`, `tel:` i adres bez schematu
+ *     (`//host`) - bez zmian;
+ *   * sama kotwica / samo zapytanie (`#sekcja`, `?a=b`) - bez zmian;
+ *   * każdy inny schemat (`javascript:`, `data:`, `vbscript:`, ...) i pusty
+ *     adres - `null`: baner pomija taki odnośnik.
+ */
+export function bannerLinkHref(url: string | null | undefined, lang: AppLang): string | null {
+  const value = (url ?? "").trim();
+  if (value === "") return null;
+  if (value.startsWith("//") || value.startsWith("#") || value.startsWith("?")) return value;
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(value);
+  if (scheme) return BANNER_LINK_SCHEMES.has(scheme[1].toLowerCase()) ? value : null;
+  const cut = value.search(/[?#]/);
+  const path = cut === -1 ? value : value.slice(0, cut);
+  const rest = cut === -1 ? "" : value.slice(cut);
+  return `${localizedPath(path, lang)}${rest}`;
+}
 
 /** Dodatkowy odnośnik prawny pokazywany pod treścią banera. */
 export type CookieBannerLink = {
