@@ -30862,6 +30862,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      save_menu_items: {
+        Args: { p_items: Json; p_menu_key: string }
+        Returns: number
+      }
       search_autosuggest: {
         Args: { _limit?: number; _q: string }
         Returns: {
