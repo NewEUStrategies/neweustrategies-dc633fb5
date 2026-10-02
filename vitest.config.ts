@@ -4537,24 +4537,38 @@ export default defineConfig({
           lines: 100,
           branches: 94,
         },
-        // ttsStage: reguła etapu syntezy i etykiet transportu - zwraca KLUCZ
-        // i18n, nie napis, więc jest w pełni pokrywalna bez renderu.
-        // GLOBALNY ODTWARZACZ: 4,8% -> 100% linii. Jedyny plik modułu, przez
-        // który przechodzi KAŻDE kliknięcie „odsłuchaj": woła płatną syntezę,
-        // trzyma cache blobów i pamięta pozycję odsłuchu. Czyste moduły
-        // wyprowadzone z niego wcześniej miały po 100%, ale SKŁAD - kolejność
-        // etapów, anulowanie starego pobrania, zapis pozycji przy podmianie
-        // źródła, arbitraż z innymi odtwarzaczami - żył bez ani jednego testu.
+        // GLOBALNY ODTWARZACZ: 4,8% -> 100% linii. Przez ten odtwarzacz
+        // przechodzi KAŻDE kliknięcie „odsłuchaj": woła płatną syntezę, trzyma
+        // cache blobów i pamięta pozycję odsłuchu. Czyste moduły wyprowadzone
+        // z niego wcześniej miały po 100%, ale SKŁAD - kolejność etapów,
+        // anulowanie starego pobrania, zapis pozycji przy podmianie źródła,
+        // arbitraż z innymi odtwarzaczami - żył bez ani jednego testu.
         //
-        // Niedobite gałęzie to obronne `catch`-e wokół API przeglądarki
-        // (nieudany `seek` na nietypowym źródle, brak `MediaMetadata`) oraz
-        // ścieżka SSR, w której `window` nie istnieje.
-        "src/lib/audio/global-player.tsx": {
+        // Od 2026-10-02 odtwarzacz to DWA pliki i każdy ma własną podłogę.
+        // Po podziale skład przeszedł do silnika, a podłoga została wyłącznie
+        // na powłoce - silnik, czyli prawie cała logika, nie miał żadnej.
+        //
+        // SILNIK: niedobite gałęzie to obronne strażniki `if (!audio)` (element
+        // powstaje w pierwszym efekcie, zanim czytelnik może cokolwiek
+        // kliknąć), ścieżka SSR, w której `window` nie istnieje, i puste
+        // fragmenty strumienia.
+        "src/lib/audio/global-player-engine.tsx": {
           statements: 98,
           functions: 100,
           lines: 100,
           branches: 88,
         },
+        // POWŁOKA: fasada i leniwa granica silnika - 100% w każdej mierze.
+        // Zimne `download`, tempo przed silnikiem i awaria chunku mają własne
+        // testy w `globalPlayerShell.test.tsx`.
+        "src/lib/audio/global-player.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // ttsStage: reguła etapu syntezy i etykiet transportu - zwraca KLUCZ
+        // i18n, nie napis, więc jest w pełni pokrywalna bez renderu.
         "src/lib/audio/ttsStage.ts": {
           statements: 100,
           functions: 100,

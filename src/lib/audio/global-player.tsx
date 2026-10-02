@@ -28,7 +28,11 @@ import {
   type ErrorInfo,
   type ReactNode,
 } from "react";
-import { DEFAULT_PLAYBACK_RATE, clampPlaybackRate } from "@/lib/audio/playbackRate";
+import {
+  DEFAULT_PLAYBACK_RATE,
+  clampPlaybackRate,
+  writeStoredPlaybackRate,
+} from "@/lib/audio/playbackRate";
 
 export interface AudioTrackMeta {
   postId: string;
@@ -187,8 +191,8 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
   // inna wartość tutaj dałaby mrugnięcie przycisku w chwili przejęcia.
   const [pending, setPending] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  // Tempo ustawione przed silnikiem - silnik czyta zapisaną preferencję sam,
-  // tutaj tylko odbicie w UI (patrz `setPlaybackRate` fasady).
+  // Tempo ustawione przed silnikiem - odbicie w UI; trwała preferencja idzie
+  // do localStorage (patrz `setPlaybackRate` fasady).
   const [facadeRate, setFacadeRate] = useState(DEFAULT_PLAYBACK_RATE);
   // Ref, nie stan: kolejkę czyta silnik w efekcie montażu, a jej zmiana nie ma
   // prawa przerenderować całej strony pod providerem.
@@ -221,9 +225,14 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         if (meta) requestEngine({ kind: "download", meta });
       },
       playbackRate: facadeRate,
-      // Preferencję tempa utrwala dopiero silnik (wspólny zapis w localStorage
-      // dzieje się przy pierwszym nagraniu) - tu wystarczy odbicie w UI.
-      setPlaybackRate: (rate) => setFacadeRate(clampPlaybackRate(rate)),
+      // Zapis w localStorage, nie tylko odbicie w UI: silnik przy montażu czyta
+      // WYŁĄCZNIE zapisaną preferencję, więc samo odbicie przepadało w chwili
+      // przejęcia i pierwsze nagranie grało w domyślnym tempie.
+      setPlaybackRate: (rate) => {
+        const clamped = clampPlaybackRate(rate);
+        writeStoredPlaybackRate(clamped);
+        setFacadeRate(clamped);
+      },
       close: () => {
         setPending(false);
         setLoadError(null);

@@ -12,7 +12,8 @@
 //   3. ZIMNE KLIKNIĘCIE: `loadAndPlay` przez fasadę natychmiast zgłasza
 //      `loading` + etap `preparing` (ten sam stan, który silnik przyjmuje
 //      przed pobraniem nagrania), dociąga silnik, a ten wykonuje
-//      zakolejkowane polecenie - synteza rusza, nagranie gra;
+//      zakolejkowane polecenie - synteza rusza, nagranie gra. To samo dla
+//      `download`, a tempo ustawione na fasadzie przechodzi na silnik;
 //   4. AWARIA CHUNKU silnika kończy się stanem `error` fasady, a nie wyjątkiem
 //      do globalnej granicy błędu.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,6 +40,7 @@ type ShellModule = typeof import("@/lib/audio/global-player");
 /** Minimalna atrapa elementu audio - liczy wyłącznie SAM FAKT utworzenia i `play()`. */
 class FakeAudio extends EventTarget {
   static created = 0;
+  static last: FakeAudio | null = null;
   preload = "";
   defaultPlaybackRate = 1;
   playbackRate = 1;
@@ -51,6 +53,7 @@ class FakeAudio extends EventTarget {
   constructor() {
     super();
     FakeAudio.created += 1;
+    FakeAudio.last = this;
   }
   get src(): string {
     return this.attrs.get("src") ?? "";
@@ -119,6 +122,7 @@ const realRevokeObjectURL = URL.revokeObjectURL;
 beforeEach(() => {
   api = null;
   FakeAudio.created = 0;
+  FakeAudio.last = null;
   window.localStorage.clear();
   vi.stubGlobal("Audio", FakeAudio);
   URL.createObjectURL = vi.fn(() => "blob:x");
@@ -251,6 +255,68 @@ describe("zimne kliknięcie", () => {
     await vi.dynamicImportSettled();
     expect(FakeAudio.created).toBe(0);
     expect(screen.getByTestId("status").textContent).toBe("idle");
+  });
+
+  it("`download` z wpisem budzi silnik, a ten pobiera plik - jedna synteza, bez odtwarzania", async () => {
+    mountShell();
+    // Atrapa wyłącznie dla kotwicy pobrania - React dalej tworzy prawdziwe węzły.
+    const anchor = document.createElement("a");
+    anchor.click = vi.fn();
+    const realCreate = document.createElement.bind(document);
+    const create = vi
+      .spyOn(document, "createElement")
+      .mockImplementation((tag: string, options?: ElementCreationOptions) =>
+        tag === "a" ? anchor : realCreate(tag, options),
+      );
+    // Wpis spoza pozostałych testów: cache blobów żyje na poziomie modułu,
+    // a tu trzeba dowieść syntezy, nie trafienia w cache.
+    const report: AudioTrackMeta = { postId: "p7", lang: "en", title: "Raport", postHref: "/p7" };
+    act(() => {
+      void api!.download(report);
+    });
+    await vi.dynamicImportSettled();
+    await waitFor(() => expect(anchor.click).toHaveBeenCalledTimes(1));
+    create.mockRestore();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/public/post-tts");
+    expect(JSON.parse(String(init.body))).toEqual({ postId: "p7", lang: "en" });
+    expect(anchor.download).toBe("Raport.mp3");
+    // Pobranie to nie odsłuch: element powstał, ale nic nie zagrało, a po
+    // przejęciu przez silnik stan wraca do bezczynnego.
+    expect(FakeAudio.last?.playCalls).toBe(0);
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("idle"));
+  });
+
+  it("`download` BEZ wpisu NIE budzi silnika - przed nim nie ma bieżącego nagrania", async () => {
+    mountShell();
+    await act(async () => {
+      await api!.download();
+    });
+    await vi.dynamicImportSettled();
+    expect(FakeAudio.created).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("status").textContent).toBe("idle");
+  });
+
+  it("TEMPO ustawione na fasadzie przechodzi na silnik - pierwsze nagranie gra w nim", async () => {
+    // REGRESJA: fasada trzymała tempo wyłącznie w swoim stanie, a silnik przy
+    // montażu czyta TYLKO zapisaną preferencję - wybór czytelnika przepadał
+    // w chwili przejęcia i pierwsze nagranie szło w domyślnym 1×.
+    mountShell();
+    act(() => api!.setPlaybackRate(1.6));
+    // Przycięte do dozwolonego kroku i od razu widoczne - bez budzenia silnika.
+    expect(api!.playbackRate).toBe(1.5);
+    expect(FakeAudio.created).toBe(0);
+
+    act(() => {
+      void api!.loadAndPlay(META);
+    });
+    await vi.dynamicImportSettled();
+    await waitFor(() => expect(screen.getByTestId("status").textContent).toBe("playing"));
+    expect(api!.playbackRate).toBe(1.5);
+    expect(FakeAudio.last?.playbackRate).toBe(1.5);
+    expect(FakeAudio.last?.defaultPlaybackRate).toBe(1.5);
   });
 });
 
