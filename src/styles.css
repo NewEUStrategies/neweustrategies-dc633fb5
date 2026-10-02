@@ -9309,5 +9309,5 @@ input[type="reset"],
    Kontenery zawierające pole wyszukiwania nie mogą go przycinać. */
 header :has(.builder-search-widget),
 [data-builder-renderer] .overflow-hidden:has(> * .builder-search-widget) {
-  overflow: visible;
+  overflow: visible !important;
 }
