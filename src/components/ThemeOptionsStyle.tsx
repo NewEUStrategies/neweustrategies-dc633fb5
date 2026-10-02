@@ -136,7 +136,6 @@ function themeOptionsCss(cfg: Cfg): string {
     button[role="switch"][data-state="checked"] {
       background: var(--to-toggle-on);
     }
-    label:has(+ button[role="switch"]),
     button[role="switch"] + label,
     [data-toggle-label] {
       font-size: var(--to-toggle-label-size);

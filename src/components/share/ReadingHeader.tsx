@@ -117,6 +117,19 @@ export function ReadingHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // `--reading-header-h` w styles.css potrzebuje na <html> informacji „pasek
+  // czytania jest w dokumencie" (scroll-padding-top kotwic). Dawał ją selektor
+  // `html:has([data-reading-header])`, ale sama obecność `:has()` w arkuszu
+  // mnożyła koszt każdego pełnego przeliczenia stylu ~70x (pomiar 2026-10-02),
+  // więc flaga jest ustawiana jawnie przy montażu i zdejmowana przy odmontowaniu.
+  // W HTML-u SSR flagi nie ma: do hydratacji kotwice liczą odstęp wyłącznie od
+  // paska serwisu (pasek czytania i tak pojawia się dopiero po przewinięciu).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.setAttribute("data-reading-header-active", "");
+    return () => root.removeAttribute("data-reading-header-active");
+  }, []);
+
   useEffect(() => {
     if (!menuOpen) return;
     const onClick = (e: MouseEvent) => {
@@ -208,13 +221,14 @@ export function ReadingHeader({
            of the widget must stay visible so it is never clipped by columns or
            sections with overflow:hidden in the builder/public wrapper.
 
-           WYJĄTEK: sam wiersz paska (data-reading-row). Reguła :has() łapała
-           też jego, bo widget siedzi w środku - i zdejmowała mu poziomy clip,
-           czyli dokładnie to zabezpieczenie, które ma trzymać pasek w
-           szerokości ekranu. Wiersz przycina więc w poziomie, a w pionie
-           zostaje widoczny, żeby popover nadal mógł wyjechać w dół. */
-        [data-reading-header] :has(> .builder-search-widget):not([data-reading-row]),
-        [data-reading-header] :has(.builder-search-widget):not([data-reading-row]) {
+           WYJĄTEK: sam wiersz paska (data-reading-row). Znacznik przodków
+           (data-search-overflow, ustawiany przez SearchButtonWidget) obejmuje
+           też jego, bo widget siedzi w środku - a zdjęcie poziomego clipa to
+           dokładnie to zabezpieczenie, które ma trzymać pasek w szerokości
+           ekranu. Wiersz przycina więc w poziomie, a w pionie zostaje
+           widoczny, żeby popover nadal mógł wyjechać w dół. Bez ":has()":
+           patrz SearchButtonWidget (koszt przeliczeń stylu). */
+        [data-reading-header] [data-search-overflow]:not([data-reading-row]) {
           overflow: visible !important;
         }
         [data-reading-header] [data-reading-row] {

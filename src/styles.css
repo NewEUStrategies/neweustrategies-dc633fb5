@@ -2047,9 +2047,14 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
 }
 /* When a title delegates the underline to an inner `.cms-title-underline`
    span, the heading itself must NOT paint its own full-width line.
-   Selektor bez `>` - w niektórych wariantach span jest zagnieżdżony głębiej. */
-.cms-post-title:has(.cms-title-underline),
-.cms-post-title:has(.cms-title-underline):hover {
+   Nagłówek, który renderuje ten span, niesie modyfikator
+   `.cms-post-title--delegated` (PostListView, sliderVariants,
+   TailoredMustReadsView, PodcastLatestView). Wcześniej robił to
+   `.cms-post-title:has(.cms-title-underline)` - ZAKAZ `:has()` W PUBLICZNYM
+   CSS, patrz nagłówek sekcji "Koszt selektorów" i bramka
+   `src/lib/ci/__tests__/noHasSelectors.test.ts`. */
+.cms-post-title.cms-post-title--delegated,
+.cms-post-title.cms-post-title--delegated:hover {
   background-image: none;
   padding-bottom: 0;
 }
@@ -2073,15 +2078,11 @@ a:active > * > .cms-title-underline {
   }
 }
 
-/* Prevent double underline on any anchor wrapping a .cms-post-title */
-a:has(.cms-post-title),
-a:has(.cms-post-title):hover,
-a:has(.cms-post-title):focus,
-a:has(.cms-title-underline),
-a:has(.cms-title-underline):hover,
-a:has(.cms-title-underline):focus {
-  text-decoration: none !important;
-}
+/* Dawna asekuracja "a:has(.cms-post-title) { text-decoration: none }" została
+   usunięta razem z całym `:has()` (pomiar 2026-10-02). Odnośniki nie mają w tym
+   arkuszu żadnego globalnego podkreślenia (preflight: `text-decoration: inherit`;
+   jedyne reguły z `underline` to `.glossary-term` i linki w zgodach
+   formularzy), więc podwójne podkreślenie nie ma skąd powstać. */
 
 @media (prefers-reduced-motion: reduce) {
   .cms-post-title {
@@ -2427,10 +2428,15 @@ select option {
  * wrapper:
  *   data-page-header-override="hidden"   -> hide site header
  *   data-page-template="landing"         -> hide header + footer
+ * Decyzję podejmuje SiteChrome z loaderData dopasowanej trasy
+ * (`item.header_override`, `item.template_type`) i wypisuje ją na
+ * [data-site-shell] jako data-chrome-header / data-chrome-footer - w SSR
+ * i na kliencie tak samo. Wcześniej robił to `body:has([data-page-...])`;
+ * sama obecność `:has()` w arkuszu mnożyła koszt każdego pełnego
+ * przeliczenia stylu ~70x (0,5 ms -> 35 ms, pomiar 2026-10-02).
  * ============================================================ */
-body:has([data-page-header-override="hidden"]) header[data-site-header],
-body:has([data-page-template="landing"]) header[data-site-header],
-body:has([data-page-template="landing"]) footer[data-site-footer] {
+[data-site-shell][data-chrome-header="hidden"] > header[data-site-header],
+[data-site-shell][data-chrome-footer="hidden"] > footer[data-site-footer] {
   display: none !important;
 }
 
@@ -4170,9 +4176,12 @@ input.icon-input-with-action {
     cursor: pointer;
   }
 
-  /* Field labels — checkbox/radio wrapper alignment */
+  /* Field labels — checkbox/radio wrapper alignment. Etykieta opakowująca
+     natywny checkbox/radio nosi klasę `.cms-check-label` (opt-in); dawne
+     `label:has(> input[type=checkbox])` nie pasowało do żadnego markupu w
+     repozytorium, a `:has()` jest w publicznym CSS zakazane. */
   :where(.cf-shell, .cms-widget-form, .nl-shell, .auth-shell, .join-us-shell)
-    :where(label):has(> input[type="checkbox"], > input[type="radio"]) {
+    :where(label.cms-check-label) {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
@@ -5209,11 +5218,11 @@ textarea::placeholder {
   transition: all 0.4s ease;
 }
 
-.dlb-label:has(.dlb-input:checked) {
+.dlb-label[data-state="active"] {
   width: 57px;
   animation: dlb-installed 0.4s ease 3.5s forwards;
 }
-.dlb-label:has(.dlb-input:checked)::before {
+.dlb-label[data-state="active"]::before {
   animation: dlb-rotate 3s ease-in-out 0.4s forwards;
 }
 .dlb-input:checked + .dlb-circle {
@@ -5309,8 +5318,8 @@ textarea::placeholder {
   .dlb-title,
   .dlb-input:checked + .dlb-circle,
   .dlb-input:checked ~ .dlb-title-done,
-  .dlb-label:has(.dlb-input:checked),
-  .dlb-label:has(.dlb-input:checked)::before,
+  .dlb-label[data-state="active"],
+  .dlb-label[data-state="active"]::before,
   .dlb-input:checked + .dlb-circle::before {
     animation: none !important;
     transition: none !important;
@@ -6844,17 +6853,20 @@ header[data-site-header][data-metrics="ready"]
    (0 px, gdy header nie jest sticky), --reading-header-h opisuje pasek czytania
    wpisu, który wtedy przejmuje górną krawędź. Kotwica odsuwa się od tego z nich,
    który jest wyższy - bez max() na wpisie skok do nagłówka (spis treści,
-   #kotwica z adresu) chowałby go pod paskiem czytania. */
-html:has([data-reading-header]) {
+   #kotwica z adresu) chowałby go pod paskiem czytania.
+   Flagę `data-reading-header-active` ustawia ReadingHeader przy montażu (i zdejmuje
+   przy odmontowaniu) - dawny `html:has([data-reading-header])` był jedną z 38
+   reguł `:has()`, których sama obecność mnożyła koszt przeliczeń stylu ~70x. */
+html[data-reading-header-active] {
   --reading-header-h: 40px;
 }
 @media (min-width: 640px) {
-  html:has([data-reading-header]) {
+  html[data-reading-header-active] {
     --reading-header-h: 44px;
   }
 }
 @media (min-width: 1024px) {
-  html:has([data-reading-header]) {
+  html[data-reading-header-active] {
     --reading-header-h: 48px;
   }
 }
@@ -8217,7 +8229,7 @@ html.dark.club-navy body {
 .nlp .lov-check[data-state="indeterminate"] .lov-check__svg {
   stroke: var(--nl-cb-checked, var(--nl-accent));
 }
-.nlp label:has(.lov-check) {
+.nlp label.nl-check-label {
   color: var(--nl-cb-label, var(--nl-muted));
 }
 .nlp .nl-consent a {
@@ -8560,7 +8572,7 @@ sup.fn-ref {
 .cms-block-list-editor__item,
 .cms-rich-content
   :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
+  > li:not(.task-list-item) {
   position: relative;
   display: grid;
   grid-template-columns: var(--cms-list-marker-col, 1.65rem) minmax(0, 1fr);
@@ -8573,8 +8585,8 @@ sup.fn-ref {
 .cms-block-list-editor__item + .cms-block-list-editor__item,
 .cms-rich-content
   :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox"]))
-  + li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
+  > li:not(.task-list-item)
+  + li:not(.task-list-item) {
   margin-top: 0.4em;
 }
 .cms-content-list .cms-list-content,
@@ -8654,7 +8666,7 @@ sup.fn-ref {
  * pseudo-marker CSS musi zniknąć - inaczej numeracja nakłada się na siebie. */
 .cms-rich-content
   :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:is(:has(> .cms-list-number), :has(> .cms-list-bullet))::before {
+  > li.cms-list-item::before {
   content: none !important;
   display: none !important;
 }
@@ -8664,12 +8676,12 @@ sup.fn-ref {
 }
 .cms-rich-content
   ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox"])) {
+  > li:not(.task-list-item) {
   counter-increment: cms-ordered-list;
 }
 .cms-rich-content
   ol:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
+  > li:not(.task-list-item)::before {
   box-sizing: border-box;
   content: counter(cms-ordered-list);
   grid-column: 1;
@@ -8695,7 +8707,7 @@ sup.fn-ref {
 }
 .cms-rich-content
   ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
+  > li:not(.task-list-item)::before {
   content: "";
   grid-column: 1;
   grid-row: 1;
@@ -8711,7 +8723,7 @@ sup.fn-ref {
 }
 .cms-rich-content
   ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox"])):hover::before {
+  > li:not(.task-list-item):hover::before {
   transform: scale(1.3);
   background: var(--cms-list-accent, #fa9346);
 }
@@ -8723,7 +8735,7 @@ sup.fn-ref {
 .cms-rich-content
   ul:not(.task-list):not(.contains-task-list)
   ul:not(.task-list):not(.contains-task-list)
-  > li:not(.task-list-item):not(:has(> input[type="checkbox"]))::before {
+  > li:not(.task-list-item)::before {
   width: 5px !important;
   height: 5px !important;
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 5px) / 2);
@@ -8950,9 +8962,11 @@ select:not([multiple]):not([size]) option,
 .cms-rich-content .nes-benefits > .nes-benefits__item::marker {
   content: none;
 }
-/* Otoczka RichHtmlView w kolumnie buildera kurczy się (flex + align),
-   a lista korzyści ma wypełniać pełną szerokość kolumny. */
-.prose:has(> .nes-benefits) {
+/* Lista korzyści ma wypełniać pełną szerokość kolumny. Dawne
+   `.prose:has(> .nes-benefits)` poszerzało otoczkę; bez `:has()` pełną
+   szerokość dostaje sama lista (markup `.nes-benefits` pochodzi wyłącznie
+   z treści redakcyjnych, w kodzie repozytorium nie występuje). */
+.prose > .nes-benefits {
   width: 100%;
   max-width: 100%;
 }

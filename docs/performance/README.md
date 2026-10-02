@@ -9,6 +9,9 @@ człowiek, żeby zaczęło być widać.
 Diagnoza źródłowa: [`docs/AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md`](../AUDYT_CWV_ZIMNE_OTWARCIE_2026-09-20.md)
 (wada **F40 - luka pomiarowa**, wiersze **0.2** i **0.3** „Fali 0").
 
+Przyczyny wyniku PageSpeed 49/74 krok po kroku (koszt `:has()`, bundel bootu,
+arkusz, LCP) i plan do 85/95: [`2026-10-02-pagespeed-przyczyny.md`](./2026-10-02-pagespeed-przyczyny.md).
+
 ---
 
 ## 1. RUM - Core Web Vitals z przeglądarek czytelników

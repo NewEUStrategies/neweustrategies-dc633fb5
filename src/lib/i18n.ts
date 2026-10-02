@@ -141,13 +141,19 @@ if (!i18n.isInitialized) {
         setClientLang(lang);
         window.localStorage.setItem(STORAGE_KEY, lang);
         writeLangCookieClient(lang);
-        document.documentElement.setAttribute("lang", lang);
+        // Zapis tylko przy realnej zmianie: ustawienie tej samej wartości też
+        // unieważnia style całego dokumentu (atrybut na <html>).
+        if (document.documentElement.getAttribute("lang") !== lang) {
+          document.documentElement.setAttribute("lang", lang);
+        }
       } catch {
         /* ignore */
       }
     });
     try {
-      document.documentElement.setAttribute("lang", i18n.language);
+      if (document.documentElement.getAttribute("lang") !== i18n.language) {
+        document.documentElement.setAttribute("lang", i18n.language);
+      }
       // Backfill the preference cookie if missing. Prefer an auto-detected
       // browser language (Polish -> pl, anything else -> en) so a first-time
       // visitor's preference is captured before the homepage redirect runs.
