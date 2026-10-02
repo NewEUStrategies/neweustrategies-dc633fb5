@@ -54,6 +54,34 @@ import { supabase } from "@/integrations/supabase/client";
 // gdzie skończył. Tutaj zostaje wyłącznie skład.
 
 /**
+ * Nieudana odpowiedź serwera, której treść NIE jest komunikatem dla czytelnika.
+ * Ciało błędu `/api/public/post-tts` to techniczny JSON po angielsku
+ * (`{"error":"Post not found"}`) - wcześniej trafiał dosłownie do toastu.
+ * Ten błąd niesie sam kod, a `loadAndPlay` zostawia `error` pusty, więc
+ * widżety pokazują zdanie ze słownika w języku materiału.
+ */
+class AudioHttpError extends Error {
+  constructor(status: number) {
+    super(`HTTP ${status}`);
+    this.name = "AudioHttpError";
+  }
+}
+
+/**
+ * Jedyne komunikaty, które `error` przekazuje czytelnikowi: limity dostawcy
+ * (402/429). Każda inna awaria - kod HTTP, padnięta sieć („Failed to fetch",
+ * „Load failed", „NetworkError when attempting…" zależnie od przeglądarki),
+ * błąd elementu `<audio>` - zostawia `error` pusty, a widżet sięga po zdanie
+ * ze słownika w języku materiału.
+ */
+class AudioReaderMessage extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AudioReaderMessage";
+  }
+}
+
+/**
  * Wybór źródła audio dla wpisu w danym języku. Gdy wgrany jest MP3 dla tego
  * języka - pobieramy plik bezpośrednio (GET, ElevenLabs pomijany). W przeciwnym
  * razie odpalamy TTS przez `/api/public/post-tts` z payloadem `{ postId, lang }`.
@@ -194,10 +222,14 @@ export function GlobalAudioEngine({ onValue, commandsRef }: GlobalAudioEnginePro
       // błąd odtwarzania, więc nie pokazujemy go czytelnikowi.
       if (!audio.getAttribute("src")) return;
       setStatus("error");
-      setError("Nie udało się odtworzyć audio");
+      // Komunikat ze słownika widżetu (w języku materiału), nie stały polski.
+      setError(null);
     });
     audioRef.current = audio;
     return () => {
+      // Pobranie w toku nie ma już komu oddać nagrania - przerywamy je,
+      // zamiast pozwolić mu dokończyć i odłożyć blob do cache po odmontowaniu.
+      fetchAbortRef.current?.abort();
       audio.pause();
       audio.removeAttribute("src");
       audio.load();
@@ -258,15 +290,14 @@ export function GlobalAudioEngine({ onValue, commandsRef }: GlobalAudioEnginePro
         if (!res.ok) {
           // Wyczerpany limit / rate-limit dostają jednoznaczne, dwujęzyczne
           // komunikaty (402 = przekroczony budżet TTS, 429 = zbyt częste próby).
-          // Pozostałe błędy zachowują dotychczasowe zachowanie (treść serwera).
+          // Pozostałe kody: bez treści serwera (patrz `AudioHttpError`).
           if (res.status === 402) {
-            throw new Error("Wyczerpano limit lektora / TTS quota exceeded");
+            throw new AudioReaderMessage("Wyczerpano limit lektora / TTS quota exceeded");
           }
           if (res.status === 429) {
-            throw new Error("Zbyt wiele prób, spróbuj za chwilę / Too many attempts");
+            throw new AudioReaderMessage("Zbyt wiele prób, spróbuj za chwilę / Too many attempts");
           }
-          const msg = await res.text().catch(() => "");
-          throw new Error(msg || `HTTP ${res.status}`);
+          throw new AudioHttpError(res.status);
         }
 
         // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
@@ -399,7 +430,7 @@ export function GlobalAudioEngine({ onValue, commandsRef }: GlobalAudioEnginePro
         // Przerwane przez nowszy loadAndPlay - nie pokazujemy błędu.
         if (e instanceof Error && e.name === "AbortError") return;
         setStatus("error");
-        setError(e instanceof Error ? e.message : "Błąd ładowania audio");
+        setError(e instanceof AudioReaderMessage ? e.message : null);
       }
     },
     [track, fetchBlob],
