@@ -98,6 +98,7 @@ describe("AccountMenuWidget", () => {
     const trigger = screen.getByRole("button", { name: "Zaloguj / Załóż konto" });
     expect(trigger).toHaveTextContent("Zaloguj");
     expect(trigger).toHaveTextContent("Załóż konto");
+    expect(screen.getByText("Załóż konto")).toHaveStyle({ color: "var(--brand)" });
 
     fireEvent.click(trigger);
     const cennik = await screen.findByText("Cennik");

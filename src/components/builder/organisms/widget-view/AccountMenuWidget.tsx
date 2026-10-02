@@ -428,7 +428,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       <span className="text-muted-foreground/40" aria-hidden>
         |
       </span>
-      <span style={{ color: "var(--brand-ink)" }}>{signUpLabel}</span>
+      {/* To dekoracyjny akcent widgetu, więc także w jasnym motywie zachowuje
+          właściwy pomarańcz marki zamiast ciemniejszego koloru tekstowego. */}
+      <span style={{ color: "var(--brand)" }}>{signUpLabel}</span>
     </button>
   );
 
