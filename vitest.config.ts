@@ -1014,11 +1014,13 @@ export default defineConfig({
         // 90 -> 80): the v8 remap reports 95.23% stmts / 81.03% branches on
         // the unchanged file and the gate was already red on main after the
         // #43 merge - identical numbers with and without this cleanup.
+        // 2026-10-02 (istanbul, moduł 1): 100% instrukcji, 93,81% gałęzi -
+        // podłoga podniesiona do zmierzonej, zaokrąglonej w dół.
         "src/components/PostLayoutRenderer.tsx": {
-          statements: 95,
+          statements: 100,
           functions: 100,
           lines: 100,
-          branches: 80,
+          branches: 93,
         },
         // RUM aggregator + thresholds: pure, fully exercised.
         "src/lib/observability/aggregate.ts": {
@@ -4723,12 +4725,6 @@ export default defineConfig({
           functions: 100,
           lines: 100,
           branches: 91,
-        },
-        "src/components/PostLayoutRenderer.tsx": {
-          statements: 100,
-          functions: 100,
-          lines: 100,
-          branches: 93,
         },
         "src/lib/postLayouts.ts": {
           statements: 100,
