@@ -61,6 +61,7 @@ import { cn } from "@/lib/utils";
 import { htmlToPlainText } from "@/lib/sanitizePure";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useTheme } from "@/components/ThemeProvider";
+import { ensureI18n as ensureProfileI18n } from "@/lib/i18n-profile";
 import { ensureI18n as ensureProfileExtras2I18n } from "@/lib/i18n-profile-extras2";
 import { ensureI18n as ensureProfileIntentI18n } from "@/lib/i18n-profile-intent";
 import { setGuestPreview } from "@/lib/profile/guestPreviewStore";
@@ -119,11 +120,16 @@ export const Route = createFileRoute("/profile/")({
 
 function ProfileInline() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
+  // `i18n-profile` wciąga też layout /profile, ale ekran awarii odczytu
+  // (`profile.inline.loadFailed`) nie może zależeć od tego, kto akurat
+  // zarejestrował słownik wcześniej.
+  ensureProfileI18n();
   ensureProfileExtras2I18n();
   ensureProfileIntentI18n();
   const { t } = useTranslation();
   const { user, roles, session, isAdmin } = useAuth();
-  const { data, loading, saveField, upload, progress, status } = useProfileEditor();
+  const { data, loading, loadFailed, reload, saveField, upload, progress, status } =
+    useProfileEditor();
   const { tab: tabFromUrl, intro: introFromUrl } = Route.useSearch();
   const [previewAsGuest, setPreviewAsGuest] = useState(false);
   const [tab, setTab] = useState<TabKey>(tabFromUrl ?? "about");
@@ -203,6 +209,25 @@ function ProfileInline() {
     return (
       <div className="flex min-h-[40vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  // TRZECI stan wiersza profilu: odczyt padł i nie ma potwierdzonych danych.
+  // Pusty pulpit wyglądałby DOKŁADNIE jak konto świeżo założone („Dodaj
+  // firmę", „Dodaj telefon"), a każde pole inline zapraszałoby do zapisu
+  // nadpisującego prawdziwe dane - więc w tym stanie nie ma ani jednego
+  // edytora, jest komunikat i ponowienie odczytu.
+  if (loadFailed) {
+    return (
+      <div
+        role="alert"
+        className="mx-auto flex min-h-[40vh] w-full max-w-md flex-col items-center justify-center gap-3 text-center"
+      >
+        <p className="text-sm text-muted-foreground">{t("profile.inline.loadFailed")}</p>
+        <Button type="button" variant="outline" size="sm" onClick={reload}>
+          {t("profile.inline.retry")}
+        </Button>
       </div>
     );
   }

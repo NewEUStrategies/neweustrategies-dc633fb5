@@ -8,6 +8,7 @@
 import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { CANONICAL_SITE_HOSTS, crawlerPublishOrigin } from "@/lib/http/host";
+import { FEED_CACHE_CONTROL_EMPTY } from "@/lib/seo/feedCache";
 import type { RedirectIndex } from "@/lib/seo/redirects";
 
 // Alias nazwy utrzymany dla czytelności wywołań w trasach sitemapy; źródłem
@@ -60,6 +61,34 @@ export const SITEMAP_CACHE_HEADERS = {
   // seo_noindex, redirect) propagują się bez ręcznego odświeżania cache.
   "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate",
 } as const;
+
+/**
+ * Nagłówki indeksu i shardu ZDEGRADOWANEGO: bez tenanta (host
+ * podglądowy/lokalny albo pusty/nieosiągalny katalog domen) albo - dla indeksu -
+ * z tenantem, którego WSZYSTKIE sekcje treści wyszły puste, albo przy
+ * CZĘŚCIOWEJ awarii: choć jedna sekcja rzuciła przy odczycie (kolektory
+ * w `sitemapEntries.server.ts` oddają dla niej `[]`, ale zgłaszają ją
+ * w `failedSections`) albo nie doszły ustawienia news-sitemap.
+ *
+ * Dokument zdegradowany to sam statyczny szkielet (`core`), więc jest z
+ * definicji NIEPEŁNY. Z `stale-while-revalidate=1800` brzeg podawałby go jako
+ * „wystarczająco świeży" jeszcze pół godziny po powrocie bazy - indeks bez
+ * shardów treści, czyli crawler bez nowych adresów. Ten sam kontrakt, co kanał
+ * pusty w `lib/seo/feedCache.ts`: minuta na brzegu, zero SWR, rewalidacja
+ * u klienta. Koszt dla tenanta, który legalnie nie ma jeszcze treści, to jedno
+ * zapytanie na minutę.
+ */
+export const SITEMAP_DEGRADED_CACHE_HEADERS = {
+  "Content-Type": "application/xml; charset=utf-8",
+  "Cache-Control": FEED_CACHE_CONTROL_EMPTY,
+} as const;
+
+/** Nagłówki odpowiedzi mapy: pełne dla dokumentu kompletnego, krótkie dla zdegradowanego. */
+export function sitemapCacheHeaders(
+  degraded: boolean,
+): typeof SITEMAP_CACHE_HEADERS | typeof SITEMAP_DEGRADED_CACHE_HEADERS {
+  return degraded ? SITEMAP_DEGRADED_CACHE_HEADERS : SITEMAP_CACHE_HEADERS;
+}
 
 /**
  * Rozstrzygnięcie tenanta dla powierzchni mapy.

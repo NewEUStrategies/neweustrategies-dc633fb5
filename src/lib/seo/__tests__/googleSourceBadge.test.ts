@@ -17,16 +17,19 @@
 //      wyłącznik `mobile` - z dowodem, że ukrycie na jednym breakpoincie NIE
 //      ukrywa drugiego.
 //   5. HOOK `useGoogleSourceBadgeConfig` na prawdziwej ścieżce odczytu
-//      (`useSiteSetting` -> `deepMerge` -> atrapa PostgREST, ZERO sieci):
+//      (`siteSettingsQueryOptions` -> bramka Zod
+//      `normalizeGoogleSourceBadgeConfig` -> atrapa PostgREST, ZERO sieci):
 //      wartość BRAK -> dokładnie obiekt domyślny; wartość CZĘŚCIOWA ->
-//      deep-merge, w którym zagnieżdżone `logo`/`desktop`/`mobile` NIE zostają
-//      `undefined`; wartość USZKODZONA (zły typ, `align` spoza zbioru,
-//      margines poza 0-48, rozmiar poza 10-32) -> BEZ wyjątku; oraz brak
-//      QueryClientProvidera -> domyślki i ZERO odczytów bazy.
-//   6. DEFEKT klasy „Header crash": `deepMerge` chroni przed BRAKUJĄCYM
-//      kluczem zagnieżdżonym, ale nie przed zapisanym JAWNIE `null`, a ten
-//      czytnik nie ma schematu Zod, więc nie spada na domyślki (patrz
-//      `it.fails` na końcu pliku).
+//      uzupełnienie z domyślek, w którym zagnieżdżone `logo`/`desktop`/`mobile`
+//      NIE zostają `undefined`; wartość USZKODZONA (zły typ, `align` spoza
+//      zbioru, margines poza 0-48, rozmiar poza 10-32) -> BEZ wyjątku i z
+//      polem spadającym na SWOJĄ domyślkę; oraz brak QueryClientProvidera ->
+//      domyślki i ZERO odczytów bazy.
+//   6. STRAŻNIK klasy „Header crash": zapisane JAWNIE `null` w miejscu
+//      sekcji (`logo`/`desktop`/`mobile`) albo liczba w miejscu adresu nie
+//      dociera do komponentu - bramka odczytu ma `.catch` per pole, więc
+//      jedno złe pole spada na domyślkę, a reszta zapisu redakcji zostaje
+//      (patrz sekcja „uszkodzone klucze ZAGNIEŻDŻONE" na końcu pliku).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE
 //   - `src/components/seo/__tests__/GooglePreferredSourceBadge.test.tsx` -
@@ -37,12 +40,12 @@
 //     komponentu (atrybuty `data-*`, `<img>`, klasy). Tutaj nie renderuję
 //     ANI JEDNEGO komponentu; wchodzę wyłącznie w wejścia, których tamten plik
 //     nie ma: kodowanie domeny, pełna macierz klamr, `null` z bazy w miejscu
-//     napisu, wyłącznik `desktop`, hook i deep-merge.
+//     napisu, wyłącznik `desktop`, hook i bramka odczytu.
 //   - `src/lib/__tests__` dla `useSiteSetting`/`deepMerge` - kontrakt bulk
 //     query, `staleTime`, kolejka niepotwierdzonych zapisów i ochrona przed
-//     zatruciem prototypu należą do tamtej warstwy. Tutaj przez `useSiteSetting`
+//     zatruciem prototypu należą do tamtej warstwy. Tutaj przez bulk query
 //     przechodzę PRAWDZIWIE tylko po to, żeby uszkodzona wartość dotarła do
-//     badge dokładnie tak, jak dotrze w produkcji.
+//     bramki badge dokładnie tak, jak dotrze w produkcji.
 //   - `src/lib/seo/__tests__/googleSourceBadgeAnalytics.test.ts` - podwójny
 //     beacon kliknięcia (osobny moduł, osobny plik).
 //   - `src/routes/admin.settings.google-source.tsx` - formularz zapisu.
@@ -79,9 +82,11 @@ import {
   clampMargin,
   googlePreferredSourceUrl,
   isBadgeVisible,
+  normalizeGoogleSourceBadgeConfig,
   placementStyle,
   resolveBadgeHref,
   resolveBadgeLogo,
+  resolveGoogleSourceBadgeConfig,
   useGoogleSourceBadgeConfig,
   type GoogleSourceBadgeConfig,
   type GoogleSourceBadgeLogo,
@@ -124,13 +129,13 @@ function planSettings(rows: ReadonlyArray<{ key: string; value: unknown }>): voi
  * Odczyt konfiguracji PRZEZ HOOK z zapisaną w bazie wartością.
  *
  * Czekanie jest na ZMIANIE TOŻSAMOŚCI wyniku, nie na `setTimeout`: przy braku
- * danych `resolveSetting` oddaje sam obiekt domyślny, a po deep-merge nowy -
- * więc `not.toBe(GOOGLE_SOURCE_BADGE_DEFAULTS)` jest deterministycznym
- * sygnałem „wiersz z bazy już wpłynął".
+ * danych `resolveGoogleSourceBadgeConfig` oddaje sam obiekt domyślny, a po
+ * walidacji obiektu z bazy nowy - więc `not.toBe(GOOGLE_SOURCE_BADGE_DEFAULTS)`
+ * jest deterministycznym sygnałem „wiersz z bazy już wpłynął".
  *
  * To jest jedyna droga, którą wartość NIEZGODNA Z TYPEM (`null` w miejscu
- * napisu, `align: "middle"`) trafia do helperów bez ani jednego rzutowania w
- * teście - dokładnie tak, jak trafia w produkcji.
+ * napisu, `align: "middle"`) trafia do bramki odczytu bez ani jednego
+ * rzutowania w teście - dokładnie tak, jak trafia w produkcji.
  */
 async function readStoredConfig(stored: unknown): Promise<GoogleSourceBadgeConfig> {
   planSettings([{ key: GOOGLE_SOURCE_BADGE_SETTINGS_KEY, value: stored }]);
@@ -364,7 +369,7 @@ describe("useGoogleSourceBadgeConfig", () => {
     expect(stub().chainsFor("site_settings")).toHaveLength(1);
   });
 
-  it("wartość CZĘŚCIOWA jest deep-mergowana - żaden klucz zagnieżdżony nie ginie", async () => {
+  it("wartość CZĘŚCIOWA jest uzupełniana z domyślek przez bramkę - żaden klucz zagnieżdżony nie ginie", async () => {
     const config = await readStoredConfig({
       url_pl: "https://pl.example/preferred",
       desktop: { align: "center" },
@@ -372,14 +377,15 @@ describe("useGoogleSourceBadgeConfig", () => {
     expect(config.url_pl).toBe("https://pl.example/preferred");
     expect(config.url_en).toBe(DEFAULT_URL);
     expect(config.desktop.align).toBe("center");
-    // Rodzeństwo w nadpisanym obiekcie ZOSTAJE - to jest sedno deep-merge'u.
+    // Rodzeństwo w nadpisanym obiekcie ZOSTAJE - schemat bramki
+    // (`normalizeGoogleSourceBadgeConfig`) uzupełnia każde brakujące pole.
     expect(config.desktop.variant).toBe(GOOGLE_SOURCE_BADGE_DEFAULTS.desktop.variant);
     expect(config.desktop.enabled).toBe(true);
     expect(config.desktop.marginTop).toBe(0);
     expect(config.mobile).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.mobile);
     expect(config.logo).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.logo);
     for (const key of ["enabled", "url_pl", "url_en", "logo", "desktop", "mobile"] as const) {
-      expect(config[key], `klucz ${key} zniknął po deep-merge`).not.toBeUndefined();
+      expect(config[key], `klucz ${key} zniknął po bramce odczytu`).not.toBeUndefined();
     }
   });
 
@@ -402,7 +408,7 @@ describe("useGoogleSourceBadgeConfig", () => {
     expect(isBadgeVisible(config, "desktop")).toBe(true);
   });
 
-  it("wartość USZKODZONA nie rzuca - helpery kleją ją do bezpiecznych wartości", async () => {
+  it("wartość USZKODZONA nie rzuca - bramka klei każde pole do bezpiecznej wartości", async () => {
     const config = await readStoredConfig({
       // Wartości spoza dozwolonego zbioru i poza zakresem, dokładnie w takim
       // kształcie, w jakim mogą leżeć w kolumnie JSON po ręcznej edycji.
@@ -410,30 +416,40 @@ describe("useGoogleSourceBadgeConfig", () => {
       logo: { size: 99, light: "", dark: "" },
       desktop: { align: "middle", variant: "neon", marginTop: 999, marginBottom: -3, marginX: 60 },
     });
-    expect(alignClass(config.desktop.align)).toBe("justify-start");
+    // `align` spoza zbioru spada na domyślkę DESKTOPU ("end"), a nie na
+    // zapasowe `justify-start` z `alignClass` - do helpera dociera już
+    // wartość poprawna.
+    expect(config.desktop.align).toBe(GOOGLE_SOURCE_BADGE_DEFAULTS.desktop.align);
+    expect(alignClass(config.desktop.align)).toBe("justify-end");
+    // Marginesy i rozmiar są klamrowane JUŻ w bramce, tą samą klamrą co w
+    // renderze - piksele są identyczne jak przed bramką.
+    expect(config.desktop).toMatchObject({ marginTop: 48, marginBottom: 0, marginX: 48 });
     expect(placementStyle(config.desktop)).toEqual({
       marginTop: 48,
       marginBottom: 0,
       marginLeft: 48,
       marginRight: 48,
     });
+    expect(config.logo.size).toBe(32);
     expect(clampLogoSize(config.logo.size)).toBe(32);
-    // Wariant spoza zbioru NIE spada na „default" - komponent traktuje go jak
-    // wariant nieznany (ani `icon`, ani `compact`), czyli renderuje pełny.
-    expect(config.desktop.variant).toBe("neon");
-    // Adres zapisany jako liczba nie jest napisem, więc `resolveBadgeHref`
-    // rzuca - przypinam FAKTYCZNY stan, patrz `it.fails` niżej.
-    expect(() => resolveBadgeHref(config, "pl")).toThrow(TypeError);
+    // ŚWIADOMA DECYZJA: wariant spoza zbioru spada na wariant domyślny TEGO
+    // breakpointu - `data-variant` i zdarzenie analityczne nie niosą
+    // wartości, której nie da się ustawić w panelu.
+    expect(config.desktop.variant).toBe("default");
+    // Adres zapisany jako liczba spada na domyślny panel Google - bez wyjątku.
+    expect(config.url_pl).toBe(DEFAULT_URL);
+    expect(resolveBadgeHref(config, "pl")).toBe(DEFAULT_URL);
   });
 
-  it('null w miejscu adresu spada na panel Google (ramię `?? ""`)', async () => {
+  it("null w miejscu adresu spada na domyślny panel Google już w bramce", async () => {
     const config = await readStoredConfig({ url_pl: null, url_en: null });
-    expect(config.url_pl).toBeNull();
+    expect(config.url_pl).toBe(DEFAULT_URL);
+    expect(config.url_en).toBe(DEFAULT_URL);
     expect(resolveBadgeHref(config, "pl")).toBe(DEFAULT_URL);
     expect(resolveBadgeHref(config, "en")).toBe(DEFAULT_URL);
   });
 
-  it('null w miejscu logotypu spada na wbudowany sygnet (ramię `?.trim() ?? ""`)', async () => {
+  it("null w miejscu logotypu spada na wbudowany sygnet", async () => {
     const oba = await readStoredConfig({ logo: { light: null, dark: null } });
     expect(resolveBadgeLogo(oba.logo, "light")).toBeNull();
     expect(resolveBadgeLogo(oba.logo, "dark")).toBeNull();
@@ -443,63 +459,212 @@ describe("useGoogleSourceBadgeConfig", () => {
   });
 });
 
-describe("uszkodzone klucze ZAGNIEŻDŻONE - stan faktyczny i defekt", () => {
-  it("STAN FAKTYCZNY: jawny null zagnieżdżony przechodzi przez deep-merge i wywraca helpery", async () => {
-    // To jest przypięcie, nie życzenie. `deepMerge` scala tylko obiekty proste,
-    // więc zapisane JAWNIE `null` NADPISUJE domyślny podobiekt, a
-    // `resolveSetting` bez schematu Zod nie ma czym tego odrzucić.
-    const brakLogo = await readStoredConfig({ logo: null });
-    expect(brakLogo.logo).toBeNull();
-    expect(() => resolveBadgeLogo(brakLogo.logo, "light")).toThrow(TypeError);
-
-    const brakDesktop = await readStoredConfig({ desktop: null });
-    expect(brakDesktop.desktop).toBeNull();
-    expect(() => isBadgeVisible(brakDesktop, "desktop")).toThrow(TypeError);
-
-    const brakMobile = await readStoredConfig({ mobile: null });
-    expect(brakMobile.mobile).toBeNull();
-    expect(() => isBadgeVisible(brakMobile, "mobile")).toThrow(TypeError);
+describe("uszkodzone klucze ZAGNIEŻDŻONE - strażnik bramki odczytu", () => {
+  it("jawny null w logo/desktop/mobile spada na domyślki, a nie zostaje nullem", async () => {
+    // KONSEKWENCJA, przed którą ten test chroni: `site_settings.google_source_badge`
+    // to kolumna JSON edytowana z panelu (i migracjami). Zapis `{"logo": null}`
+    // albo `{"desktop": null}` - naturalny wynik „wyczyść sekcję" w formularzu
+    // i typowy efekt starszego kształtu wpisu - dawał wcześniej
+    // `TypeError: Cannot read properties of null` w
+    // `GooglePreferredSourceBadge` (`config.logo.size`, `config[device]`),
+    // czyli DOKŁADNIE tę klasę awarii, którą komentarz w `useSiteSetting.ts`
+    // opisuje jako „root cause of the recent Header crash": biały ekran na
+    // stopce i na każdym artykule, na CAŁYM serwisie, po jednym zapisie w
+    // panelu. Bramka `normalizeGoogleSourceBadgeConfig` ma `.catch` na każdej
+    // sekcji, więc null zamienia się w sekcję domyślną.
+    const config = await readStoredConfig({ logo: null, desktop: null, mobile: null });
+    expect(config.logo).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.logo);
+    expect(config.desktop).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.desktop);
+    expect(config.mobile).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.mobile);
+    expect(resolveBadgeLogo(config.logo, "light")).toBeNull();
+    expect(isBadgeVisible(config, "desktop")).toBe(true);
+    expect(isBadgeVisible(config, "mobile")).toBe(true);
   });
 
-  it.fails(
-    "DEFEKT: jawny null w logo/desktop/mobile POWINIEN spaść na domyślki, a nie zostać nullem",
-    async () => {
-      // KONSEKWENCJA DLA UŻYTKOWNIKA: `site_settings.google_source_badge` to
-      // kolumna JSON edytowana z panelu (i migracjami). Zapis `{"logo": null}`
-      // albo `{"desktop": null}` - a to jest naturalny wynik „wyczyść sekcję"
-      // w formularzu i typowy efekt starszego kształtu wpisu - przechodzi
-      // przez `deepMerge` NIETKNIĘTY, bo scalane są wyłącznie obiekty proste.
-      // `useGoogleSourceBadgeConfig` woła `resolveSetting` BEZ schematu Zod,
-      // więc nie ma bramki, która odrzuciłaby taką wartość. Skutkiem jest
-      // `TypeError: Cannot read properties of null` w
-      // `GooglePreferredSourceBadge` (`config.logo.size`, `config[device]`) -
-      // czyli DOKŁADNIE ta klasa awarii, którą komentarz w `useSiteSetting.ts`
-      // opisuje jako „root cause of the recent Header crash": biały ekran na
-      // stopce i na każdym artykule, na CAŁYM serwisie, po jednym zapisie w
-      // panelu.
-      //
-      // NAPRAWA (w produkcji, nie w teście): przekazać do `resolveSetting`
-      // schemat Zod konfiguracji badge - `resolveSetting` sam spada wtedy na
-      // `GOOGLE_SOURCE_BADGE_DEFAULTS` przy nieudanym parsowaniu. Ten test
-      // zostaje czerwony do tej zmiany, a po niej `it.fails` wywali się
-      // natychmiast, bo warunek zacznie być spełniony.
-      const config = await readStoredConfig({ logo: null, desktop: null, mobile: null });
-      expect(config.logo).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.logo);
-      expect(config.desktop).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.desktop);
-      expect(config.mobile).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.mobile);
+  it.each<[string, unknown]>([
+    ["null", null],
+    ["tablica", []],
+    ["napis", "ukryj"],
+    ["liczba", 0],
+    ["boolean", false],
+  ])("sekcja zapisana jako %s spada na sekcję domyślną", (_case, value) => {
+    for (const key of ["logo", "desktop", "mobile"] as const) {
+      const config = normalizeGoogleSourceBadgeConfig({ [key]: value });
+      expect(config[key], `sekcja ${key}`).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS[key]);
+    }
+  });
+
+  it("adres zapisany jako liczba daje adres domyślny, a nie wyjątek", async () => {
+    // KONSEKWENCJA, przed którą ten test chroni: pole adresu w panelu jest
+    // tekstowe, ale wartość w JSON-ie może być liczbą (import, migracja,
+    // ręczna edycja wiersza). `resolveBadgeHref` robił wtedy `raw.trim()` na
+    // liczbie i rzucał `TypeError` - a badge stoi w stopce, więc wyjątek
+    // leciał na KAŻDEJ stronie serwisu, nie tylko w panelu.
+    const config = await readStoredConfig({ url_pl: 12345 });
+    expect(resolveBadgeHref(config, "pl")).toBe(DEFAULT_URL);
+  });
+
+  it("strażnik `typeof` w helperach działa także BEZ bramki (szkic z panelu)", () => {
+    // Helpery są publiczne: podgląd w adminie i przyszli konsumenci mogą podać
+    // obiekt, który bramki nie widział. Tu wartość niezgodna z typem idzie
+    // wprost do helpera - świadome rzutowanie, bo to jest sedno testu.
+    const broken = {
+      ...GOOGLE_SOURCE_BADGE_DEFAULTS,
+      url_pl: 12345,
+      url_en: null,
+    } as unknown as GoogleSourceBadgeConfig;
+    expect(resolveBadgeHref(broken, "pl")).toBe(DEFAULT_URL);
+    expect(resolveBadgeHref(broken, "en")).toBe(DEFAULT_URL);
+    const brokenLogo = {
+      light: 7,
+      dark: { url: "x" },
+      size: 18,
+    } as unknown as GoogleSourceBadgeLogo;
+    expect(resolveBadgeLogo(brokenLogo, "light")).toBeNull();
+    expect(resolveBadgeLogo(brokenLogo, "dark")).toBeNull();
+    expect(resolveBadgeLogo(null, "dark")).toBeNull();
+    expect(resolveBadgeLogo(undefined, "light")).toBeNull();
+  });
+
+  it("JEDNO złe pole spada na swoją domyślkę - reszta zapisu redakcji zostaje", () => {
+    // Odporność per pole, a nie „wszystko albo nic": `resolveSetting` ze
+    // schematem oddałby przy jednym złym polu CAŁE domyślki i skasował np.
+    // własny adres EN i logotyp redakcji.
+    const config = normalizeGoogleSourceBadgeConfig({
+      url_pl: 12345,
+      url_en: "https://en.example/preferred",
+      logo: { light: "l.png", dark: null, size: "duży" },
+      desktop: { enabled: false, variant: "icon", align: 42 },
+      mobile: { variant: "neon", marginTop: "24" },
+    });
+    expect(config.url_pl).toBe(DEFAULT_URL);
+    expect(config.url_en).toBe("https://en.example/preferred");
+    expect(config.logo).toEqual({ light: "l.png", dark: "", size: 14 });
+    expect(config.desktop).toEqual({
+      ...GOOGLE_SOURCE_BADGE_DEFAULTS.desktop,
+      enabled: false,
+      variant: "icon",
+    });
+    // Wariant mobilny spada na domyślkę MOBILE ("compact"), nie desktopu.
+    // Margines jako liczba w napisie nadal przechodzi (ta sama klamra co dotąd).
+    expect(config.mobile).toEqual({
+      ...GOOGLE_SOURCE_BADGE_DEFAULTS.mobile,
+      variant: "compact",
+      marginTop: 24,
+    });
+  });
+
+  // KONSEKWENCJA, przed którą ten test chroni: zapis wyłącznika jako `null`
+  // albo `0` (migracja, ręczna edycja JSON-a) przed bramką GASIŁ badge, a po
+  // pierwszej wersji bramki (`z.boolean().catch(true)`) badge POJAWIAŁ się na
+  // każdej stronie serwisu wbrew intencji wyłączenia (fail-open).
+  it.each([0, null, "false", "0", " FALSE "])(
+    "jednoznacznie fałszywy zapis wyłącznika (%j) GASI badge (fail-closed)",
+    (value) => {
+      const config = normalizeGoogleSourceBadgeConfig({
+        enabled: value,
+        desktop: { enabled: value },
+      });
+      expect(config.enabled).toBe(false);
+      expect(config.desktop.enabled).toBe(false);
+      expect(isBadgeVisible(config, "desktop")).toBe(false);
+      expect(isBadgeVisible(config, "mobile")).toBe(false);
     },
   );
 
-  it.fails("DEFEKT: adres zapisany jako liczba wywraca `resolveBadgeHref`", async () => {
-    // KONSEKWENCJA DLA UŻYTKOWNIKA: pole adresu w panelu jest tekstowe, ale
-    // wartość w JSON-ie może być liczbą (import, migracja, ręczna edycja
-    // wiersza). `resolveBadgeHref` robi wtedy `raw.trim()` na liczbie i rzuca
-    // `TypeError`, zamiast spaść na `googlePreferredSourceUrl()`. Badge stoi w
-    // stopce, więc wyjątek leci na KAŻDEJ stronie serwisu, a nie tylko w
-    // panelu. Naprawa: schemat Zod przy `resolveSetting` (albo strażnik
-    // `typeof raw === "string"` w `resolveBadgeHref`) - wtedy uszkodzony wpis
-    // daje adres domyślny, a nie biały ekran.
-    const config = await readStoredConfig({ url_pl: 12345 });
-    expect(resolveBadgeHref(config, "pl")).toBe(DEFAULT_URL);
+  it.each([1, "true", "1"])(
+    "jednoznacznie prawdziwy zapis wyłącznika (%j) włącza badge",
+    (value) => {
+      const config = normalizeGoogleSourceBadgeConfig({
+        enabled: value,
+        mobile: { enabled: value },
+      });
+      expect(config.enabled).toBe(true);
+      expect(config.mobile.enabled).toBe(true);
+    },
+  );
+
+  it("niejednoznaczny albo BRAKUJĄCY wyłącznik spada na domyślkę (widoczny)", () => {
+    // Negatyw: fail-closed dotyczy wyłącznie zapisów jednoznacznie fałszywych.
+    // Brak klucza (częściowy zapis) nie może gasić badge.
+    for (const value of ["nie", {}, [], 2, undefined]) {
+      const config = normalizeGoogleSourceBadgeConfig({
+        enabled: value,
+        desktop: { enabled: value },
+      });
+      expect(config.enabled, `enabled=${String(value)}`).toBe(true);
+      expect(config.desktop.enabled, `desktop.enabled=${String(value)}`).toBe(true);
+    }
+    expect(normalizeGoogleSourceBadgeConfig({}).enabled).toBe(true);
+    expect(normalizeGoogleSourceBadgeConfig({ enabled: false }).enabled).toBe(false);
+  });
+
+  it("poprawny, pełny zapis przechodzi BEZ ZMIAN (bramka niczego nie poprawia na siłę)", () => {
+    const stored: GoogleSourceBadgeConfig = {
+      enabled: false,
+      url_pl: "https://pl.example/p",
+      url_en: "https://en.example/p",
+      logo: { light: "l.png", dark: "d.png", size: 24 },
+      desktop: {
+        enabled: false,
+        variant: "icon",
+        align: "center",
+        marginTop: 4,
+        marginBottom: 8,
+        marginX: 12,
+      },
+      mobile: {
+        enabled: true,
+        variant: "default",
+        align: "end",
+        marginTop: 48,
+        marginBottom: 0,
+        marginX: 1,
+      },
+    };
+    expect(normalizeGoogleSourceBadgeConfig(stored)).toEqual(stored);
+    // Puste napisy to poprawne wartości („wbudowany sygnet") - nie są
+    // zamieniane na nic innego.
+    expect(normalizeGoogleSourceBadgeConfig({ logo: { light: "", dark: "" } }).logo).toEqual(
+      GOOGLE_SOURCE_BADGE_DEFAULTS.logo,
+    );
+  });
+
+  it("klucze spoza kształtu nie przechodzą przez bramkę", () => {
+    const config = normalizeGoogleSourceBadgeConfig({
+      legacy_flag: true,
+      desktop: { color: "red" },
+    }) as unknown as Record<string, unknown>;
+    expect(config).not.toHaveProperty("legacy_flag");
+    expect(config.desktop).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.desktop);
+  });
+
+  it.each<[string, unknown]>([
+    ["brak wpisu", undefined],
+    ["null", null],
+    ["napis", "włączony"],
+    ["liczba", 1],
+  ])(
+    "wiersz zapisany jako %s daje TĘ SAMĄ referencję domyślek (stabilna tożsamość)",
+    (_case, value) => {
+      const map = value === undefined ? {} : { [GOOGLE_SOURCE_BADGE_SETTINGS_KEY]: value };
+      expect(resolveGoogleSourceBadgeConfig(map)).toBe(GOOGLE_SOURCE_BADGE_DEFAULTS);
+    },
+  );
+
+  it("tablica w miejscu całego wpisu daje domyślki, a nie wyjątek", () => {
+    const map = { [GOOGLE_SOURCE_BADGE_SETTINGS_KEY]: [1, 2, 3] };
+    expect(resolveGoogleSourceBadgeConfig(map)).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS);
+    expect(resolveGoogleSourceBadgeConfig(undefined)).toBe(GOOGLE_SOURCE_BADGE_DEFAULTS);
+  });
+
+  it("hook liczy bramkę RAZ na zmianę mapy - kolejne rendery dostają tę samą referencję", async () => {
+    planSettings([{ key: GOOGLE_SOURCE_BADGE_SETTINGS_KEY, value: { enabled: false } }]);
+    const { result, rerender } = renderHookWithQueryClient(() => useGoogleSourceBadgeConfig());
+    await waitFor(() => expect(result.current).not.toBe(GOOGLE_SOURCE_BADGE_DEFAULTS));
+    const first = result.current;
+    rerender();
+    rerender();
+    expect(result.current).toBe(first);
   });
 });

@@ -2,6 +2,9 @@
 // przez connector gateway. Wywołuje server function `inspectGscUrl`, prezentuje status
 // indeksowania, pokrycie, mobile-usability i rich-results dla wybranej ścieżki.
 // Pełne wsparcie i18n (PL/EN) oraz warstwa fallbackowa dla braku konfiguracji GSC.
+// i18n-overlay-imports: pomijamy @/lib/i18n-admin-extras (rejestruje ją layout /admin -
+// `ensureI18n` w `routes/admin.tsx`; słownik jest na liście HEAVY_DICTIONARIES
+// w `scripts/check-entry-purity.ts`, więc nie dociągamy go do kolejnego chunka)
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -200,7 +203,14 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
 
       <div className="grid gap-2 md:grid-cols-[1fr_auto]">
         <Select value={activeSite ?? undefined} onValueChange={(v) => setSiteUrl(v)}>
-          <SelectTrigger className="h-9 rounded-[6px]">
+          {/* Rola `combobox` NIE bierze nazwy z treści (wybranej wartości), więc
+              bez etykiety czytnik ogłasza samo „pole listy" - operator nie wie,
+              że przełącza właściwość Search Console, i może sprawdzić złą
+              domenę. Nazwa = CO wybieramy; wybrana wartość dochodzi z treści. */}
+          <SelectTrigger
+            className="h-9 rounded-[6px]"
+            aria-label={t("admin.seo.gsc.propertyLabel")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

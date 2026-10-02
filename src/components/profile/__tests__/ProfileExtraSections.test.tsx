@@ -163,6 +163,11 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: h.language.current } }),
 }));
 
+// Nakładka `uploadArea.*` rejestruje się side-effectem na REALNEJ instancji
+// i18next, której atrapa `react-i18next` wyżej nie wystawia - a `t()` i tak
+// zwraca tu sam klucz.
+vi.mock("@/lib/i18n-upload-area", () => ({}));
+
 import {
   AwardsSection,
   CvSection,
@@ -615,6 +620,28 @@ describe("CvSection", () => {
     pickFile(10 * 1024 * 1024 + 1);
 
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("Max 10MB"));
+    expect(h.storageUploads).toHaveLength(0);
+  });
+
+  it("upuszczony plik spoza .pdf/.doc/.docx daje komunikat i nie woła Storage", async () => {
+    // Obszar wgrywania odrzuca upuszczenie po `accept` PRZED `onUpload` - bez
+    // `onRejectedFiles` CV w .odt znikało bez toastu i bez błędu.
+    const client = makeClient();
+    render(<CvSection userId={USER} tenantId={TENANT_A} editable />, {
+      wrapper: wrapperFor(client),
+    });
+    await screen.findByText("profile.sections.cvEmpty");
+    const area = document.querySelector<HTMLElement>('[data-slot="upload-area"]');
+    if (area === null) throw new Error("test: brak obszaru wgrywania CV");
+
+    fireEvent.drop(area, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["x"], "cv.odt", { type: "application/vnd.oasis.opendocument.text" })],
+      },
+    });
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("uploadArea.badType"));
     expect(h.storageUploads).toHaveLength(0);
   });
 

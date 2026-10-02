@@ -244,9 +244,14 @@ function AdminNamesPage() {
       return clamped;
     });
   };
+  // Zegar zgaszenia paska postępu importu - ten sam wzorzec co przy stronicowaniu.
+  // Bez sprzątania 4-sekundowy timer odpalał `setImportProgress` po odmontowaniu
+  // panelu (w suicie: po zamknięciu środowiska testu, `window is not defined`).
+  const importProgressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
       if (pageChangeTimer.current) clearTimeout(pageChangeTimer.current);
+      if (importProgressTimer.current) clearTimeout(importProgressTimer.current);
     },
     [],
   );
@@ -378,7 +383,8 @@ function AdminNamesPage() {
         ? `Import: dodano ${prog.added}, uzupełniono ${prog.merged}, pominięto ${prog.skipped}`
         : `Import: added ${prog.added}, merged ${prog.merged}, skipped ${prog.skipped}`,
     );
-    setTimeout(() => setImportProgress(null), 4000);
+    if (importProgressTimer.current) clearTimeout(importProgressTimer.current);
+    importProgressTimer.current = setTimeout(() => setImportProgress(null), 4000);
   };
 
   if (loading) return null;

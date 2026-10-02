@@ -14,6 +14,7 @@
 //                  truncate the snippet, so we warn without blocking.
 import { serpDescriptionMetric, serpTitleMetric, type SerpMetric } from "@/lib/seo/serp";
 import { metaDescription } from "@/lib/routing/publicSegments";
+import { applyTitleSuffix } from "@/lib/seo/fields";
 import type { SeoPanelValue } from "@/components/admin/seo/SeoPanel";
 
 type SeoIssueSeverity = "error" | "warning";
@@ -41,6 +42,15 @@ interface ValidateInput {
   slug: string;
   titleCharLimit: number;
   descriptionCharLimit: number;
+  /**
+   * Sufiks marki z ustawień SEO (`effectiveTitleSuffix`). Head() i podgląd
+   * SERP doklejają go do tytułu WYPROWADZONEGO (pusty `seo_title_*`), więc
+   * ostrzeżenie o ucięciu musi mierzyć tytuł RAZEM z nim - inaczej fallback
+   * ~460 px przechodził jako „dobry", choć z sufiksem Google go ucina.
+   * Nadpisanie z panelu idzie do Google bez sufiksu (`applyTitleSuffix`).
+   * Brak/null = zachowanie bez sufiksu.
+   */
+  titleSuffix?: string | null;
 }
 
 function resolveTitle(
@@ -48,11 +58,11 @@ function resolveTitle(
   value: SeoPanelValue,
   fallback: { pl: string; en: string },
   slug: string,
-): string {
+): { title: string; isOverride: boolean } {
   const override = (lang === "en" ? value.seo_title_en : value.seo_title_pl)?.trim();
-  if (override) return override;
+  if (override) return { title: override, isOverride: true };
   const derived = lang === "en" ? fallback.en || fallback.pl : fallback.pl || fallback.en;
-  return derived || slug;
+  return { title: derived || slug, isOverride: false };
 }
 
 function resolveDescription(
@@ -91,13 +101,25 @@ function makeIssue(
 
 /** Compute the full set of SEO issues for a SeoPanel snapshot. */
 export function validateSeoPanel(input: ValidateInput): SeoIssue[] {
-  const { value, fallbackTitle, fallbackDescription, slug, titleCharLimit, descriptionCharLimit } =
-    input;
+  const {
+    value,
+    fallbackTitle,
+    fallbackDescription,
+    slug,
+    titleCharLimit,
+    descriptionCharLimit,
+    titleSuffix,
+  } = input;
   const issues: SeoIssue[] = [];
   for (const lang of ["pl", "en"] as const) {
-    const title = resolveTitle(lang, value, fallbackTitle, slug);
+    const { title, isOverride } = resolveTitle(lang, value, fallbackTitle, slug);
+    // Opis wyprowadzony bierze tytuł BEZ sufiksu - tak samo jak panel i head().
     const description = resolveDescription(lang, value, fallbackDescription, title);
-    const t = makeIssue(lang, "title", title, titleCharLimit, serpTitleMetric(title));
+    // Mierzony jest tytuł, który naprawdę trafia do Google. `applyTitleSuffix`
+    // nie dokleja sufiksu powyżej 120 znaków, a limit pola (160) jest wyższy,
+    // więc sufiks nie może zamienić ostrzeżenia w błąd blokujący zapis.
+    const served = applyTitleSuffix(title, titleSuffix, isOverride);
+    const t = makeIssue(lang, "title", served, titleCharLimit, serpTitleMetric(served));
     if (t) issues.push(t);
     const d = makeIssue(
       lang,

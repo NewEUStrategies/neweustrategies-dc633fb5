@@ -15,6 +15,10 @@
 //   3. PREFILL ZAPISUJE SIĘ TYLKO WTEDY, GDY COŚ UZUPEŁNIŁ. Bezwarunkowy UPDATE
 //      przy każdym montażu formularza to zapis na `profiles` przy każdym wejściu
 //      na stronę - i stempel `updated_at`, przez który profil udaje świeży.
+//   4. AWARIA ODCZYTU BLOKUJE ZAPIS. „Zapisz" wysyła WSZYSTKIE pola naraz,
+//      więc formularz po nieudanym RPC (wartości startowe = puste napisy)
+//      wyczyściłby jednym kliknięciem całą tożsamość. Awaria ma komunikat
+//      z ponowieniem, a zapis rusza dopiero po udanym odczycie.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { PROFILE_IDS, xhrStub } from "@/test/profile/fixtures";
@@ -260,6 +264,50 @@ describe("odczyt własnego wiersza", () => {
 
     expect(screen.getByLabelText("profile.account.firstName")).toHaveValue("");
     expect(updateCount()).toBe(0);
+  });
+
+  it("AWARIA odczytu: komunikat, zablokowany zapis i ZERO UPDATE-ów", async () => {
+    // Reguła 4. Pusty formularz po błędzie RPC wyglądał jak profil do
+    // uzupełnienia, a „Zapisz" nadpisywał prawdziwe dane pustymi napisami.
+    h.rpc.mockResolvedValue({ data: null, error: { message: "permission denied", code: "42501" } });
+    render(<AccountIdentityPanel />);
+    await waitFor(() => expect(h.rpc).toHaveBeenCalled());
+    await act(async () => {});
+
+    expect(screen.getByRole("alert").textContent).toContain("profile.account.loadFailed");
+    const button = screen.getByRole("button", { name: "profile.account.save" });
+    expect(button).toBeDisabled();
+    // Zatwierdzenie z pominięciem przycisku (Enter w polu) też nie przechodzi.
+    const form = document.querySelector("form");
+    if (!form) throw new Error("test: brak formularza w drzewie");
+    fireEvent.submit(form);
+    await act(async () => {});
+    expect(updateCount()).toBe(0);
+  });
+
+  it("ponowienie po awarii czyta wiersz jeszcze raz i odblokowuje zapis", async () => {
+    h.rpc.mockResolvedValueOnce({ data: null, error: { message: "network" } });
+    h.rpc.mockResolvedValue({ data: [ownProfileRow()], error: null });
+    render(<AccountIdentityPanel />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "profile.account.retry" }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("profile.account.firstName")).toHaveValue("Anna"),
+    );
+    expect(h.rpc).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "profile.account.save" })).not.toBeDisabled();
+  });
+
+  it("przed odpowiedzią RPC zapis jest zablokowany (formularz trzyma jeszcze puste napisy)", async () => {
+    // Odczyt w locie: kliknięcie „Zapisz" wysłałoby wartości startowe.
+    h.rpc.mockReturnValue(new Promise(() => undefined));
+    render(<AccountIdentityPanel />);
+
+    expect(screen.getByRole("button", { name: "profile.account.save" })).toBeDisabled();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("bez sesji nie woła RPC", () => {
@@ -625,6 +673,33 @@ describe("wysyłka zdjęć po kadrowaniu", () => {
     await act(async () => {
       await Promise.resolve();
     });
+    expect(h.signedPaths).toHaveLength(0);
+  });
+
+  it("upuszczony plik spoza dozwolonych typów daje komunikat, nie ciszę ani kadrowanie", async () => {
+    // Obszar wgrywania filtruje upuszczenie po `accept` i NIE oddaje takiego
+    // pliku do `onAvatarFile`/`onCoverFile`. Bez obsługi odrzucenia awatar
+    // w HEIC znikał bez śladu - wyglądało to jak awaria wgrywania.
+    await renderPanel();
+    const areas = document.querySelectorAll<HTMLElement>('[data-slot="upload-area"]');
+    expect(areas).toHaveLength(2);
+
+    fireEvent.drop(areas[0], {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["x"], "zdjecie.heic", { type: "image/heic" })],
+      },
+    });
+    fireEvent.drop(areas[1], {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["x"], "baner.gif", { type: "image/gif" })],
+      },
+    });
+
+    expect(h.toastError).toHaveBeenCalledWith('uploadArea.badType {"name":"zdjecie.heic"}');
+    expect(h.toastError).toHaveBeenCalledWith('uploadArea.badType {"name":"baner.gif"}');
+    expect(screen.queryByTestId("crop-confirm")).not.toBeInTheDocument();
     expect(h.signedPaths).toHaveLength(0);
   });
 

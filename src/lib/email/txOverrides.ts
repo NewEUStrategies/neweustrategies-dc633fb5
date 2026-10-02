@@ -144,7 +144,18 @@ export function useTxOverrides(): TxOverrides {
   return parseTxOverrides(raw);
 }
 
-/** Zapis nadpisań treści. */
+/**
+ * Zapis nadpisań treści.
+ *
+ * Zakres najemcy trzyma baza, nie ładunek: `tenant_id` bierze się z DEFAULT-u
+ * `public_tenant_id()` (dla zalogowanego bez poświadczonego hosta - najemca
+ * domowy z profilu), a polityki INSERT/UPDATE wpuszczają wyłącznie
+ * `tenant_id = current_tenant_id()`. Zapis trafia więc do wiersza najemcy
+ * admina, czyli tego, który czytają podgląd (`resolveUserTenantId`) i sender
+ * (najemca organizacji), a próba zapisu pod cudzym najemcą kończy się błędem
+ * RLS, nie cichym nadpisaniem. `onConflict` odpowiada kluczowi głównemu
+ * (tenant_id, key) - tak jak w każdym innym upsercie `site_settings`.
+ */
 export function useSaveTxOverrides() {
   const qc = useQueryClient();
   return useMutation({

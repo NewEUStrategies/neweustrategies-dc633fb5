@@ -135,14 +135,20 @@ function readNoticeList(value: unknown, key: string): SeatNotice[] {
   return out;
 }
 
-/** Język odbiorcy z zapisu do newslettera - domyślnie polski. */
-async function recipientLang(email: string): Promise<"pl" | "en"> {
+/**
+ * Język odbiorcy z zapisu do newslettera - domyślnie polski.
+ *
+ * Zapis jest unikalny na (tenant_id, lower(email)), więc ten sam adres może
+ * mieć subskrypcję u kilku najemców. Klient serwisowy widzi je wszystkie: bez
+ * zawężenia `maybeSingle()` dostawał kilka wierszy i po cichu wracał do
+ * polskiego, a przy jednym wierszu - brał język z newslettera CUDZEJ
+ * organizacji. Najemca miejsca rozstrzyga, który zapis jest właściwy.
+ */
+async function recipientLang(email: string, tenantId: string | null): Promise<"pl" | "en"> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin
-    .from("newsletter_subscribers")
-    .select("language")
-    .eq("email", email)
-    .maybeSingle();
+  let query = supabaseAdmin.from("newsletter_subscribers").select("language").eq("email", email);
+  if (tenantId) query = query.eq("tenant_id", tenantId);
+  const { data } = await query.maybeSingle();
   return data?.language === "en" ? "en" : "pl";
 }
 
@@ -159,12 +165,19 @@ export async function notifySeatAccessChanges(input: {
   if (entered.length === 0 && lost.length === 0) return { graceSent: 0, endedSent: 0 };
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // Najemca z tego samego wiersza co nazwa - bez dodatkowego zapytania. Mail
+  // idzie w imieniu ORGANIZACJI, więc to jej najemca wybiera treść redakcji,
+  // listę wykluczeń i ślad w dzienniku. Bez niego `sendTxEmail` zgadywałby
+  // najemcę z adresu, a ten dla zaproszonego bez konta albo z kontem u dwóch
+  // najemców kończy się najemcą domyślnym - mail organizacji A z treścią
+  // cudzej redakcji.
   const { data: org } = await supabaseAdmin
     .from("member_organizations")
-    .select("name")
+    .select("name, tenant_id")
     .eq("id", input.orgId)
     .maybeSingle();
   const orgName = org?.name ?? null;
+  const tenantId = org?.tenant_id ?? null;
 
   const { sendTxEmail, formatDate } = await import("@/lib/email/transactional.server");
 
@@ -172,10 +185,11 @@ export async function notifySeatAccessChanges(input: {
   let endedSent = 0;
 
   for (const seat of entered) {
-    const lang = await recipientLang(seat.email);
+    const lang = await recipientLang(seat.email, tenantId);
     const res = await sendTxEmail({
       type: "team_seat_grace",
       to: seat.email,
+      tenantId,
       lang,
       subjectName: orgName,
       details: [
@@ -203,10 +217,11 @@ export async function notifySeatAccessChanges(input: {
   }
 
   for (const seat of lost) {
-    const lang = await recipientLang(seat.email);
+    const lang = await recipientLang(seat.email, tenantId);
     const res = await sendTxEmail({
       type: "team_seat_access_ended",
       to: seat.email,
+      tenantId,
       lang,
       subjectName: orgName,
       details: orgName
@@ -317,9 +332,12 @@ export async function sendSeatGraceReminders(
   const horizon = new Date(now + (maxDay + 1) * DAY_MS).toISOString();
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // `tenant_id` miejsca (NOT NULL, nadawany z organizacji) jedzie tym samym
+  // zapytaniem - przypomnienie wybiera treść redakcji i listę wykluczeń
+  // najemcy organizacji, nawet gdy odczyt nazw organizacji niżej się nie uda.
   const { data, error } = await supabaseAdmin
     .from("organization_seats")
-    .select("id, org_id, invited_email, grace_until")
+    .select("id, org_id, tenant_id, invited_email, grace_until")
     .eq("status", "grace")
     .not("grace_until", "is", null)
     .gt("grace_until", new Date(now).toISOString())
@@ -359,12 +377,14 @@ export async function sendSeatGraceReminders(
     if (!email) continue;
     const orgName = orgNames.get(row.org_id) ?? null;
 
-    const lang = await recipientLang(email);
+    const tenantId = row.tenant_id ?? null;
+    const lang = await recipientLang(email, tenantId);
     const until = formatDate(graceUntil, lang);
 
     const res = await sendTxEmail({
       type: "team_seat_grace_reminder",
       to: email,
+      tenantId,
       lang,
       subjectName: orgName,
       details: [

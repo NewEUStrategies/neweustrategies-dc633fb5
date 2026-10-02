@@ -44,7 +44,8 @@
 // - `LazyQuizIframe` i `QuizBackground` biegną PRAWDZIWE - mają własne pliki
 //   testowe, ale tu są treścią, o którą cała trasa istnieje.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import type { ComponentType } from "react";
 
 const h = vi.hoisted(() => ({
   /** Etykiety WSZYSTKICH odczytów bazy - podstawa dowodu „zero zapytań". */
@@ -113,8 +114,22 @@ vi.mock("@/components/Footer", () => ({
 // dla całej aplikacji - to nie treść tej trasy i nie da się tego rozgrzać
 // per-trasa, więc atrapujemy sam atom (ma własne testy). Dzięki temu pomiar
 // „zero odczytów" niżej mierzy odczyty TREŚCI, a nie współdzielony cache ikon.
+// Atrapa zachowuje się jak atom przy PUSTEJ bibliotece: rysuje ikonę zapasową
+// podaną przez trasę - a to jest jedyna ikona, jaką trasa sama dostarcza.
 vi.mock("@/components/atoms/BrandIcon", () => ({
-  BrandIcon: () => <span data-testid="brand-icon" aria-hidden="true" />,
+  BrandIcon: ({
+    name,
+    fallback: Fallback,
+    className,
+  }: {
+    name: string;
+    fallback: ComponentType<{ className?: string }>;
+    className?: string;
+  }) => (
+    <span data-testid="brand-icon" data-icon={name} aria-hidden="true">
+      <Fallback className={className} />
+    </span>
+  ),
 }));
 
 import "@/test/i18nReal";
@@ -269,6 +284,56 @@ describe("trasa /quiz - panel udostępniania", () => {
 
     await waitFor(() => expect(h.copied).toHaveLength(1));
     expect(h.toasts).toContain("Link skopiowany do schowka");
+  });
+
+  it("potwierdzenie „Skopiowano!” gaśnie po dwóch sekundach i przycisk wraca do kopiowania", async () => {
+    // Potwierdzenie, które nie gaśnie, kłamie przy NASTĘPNYM kliknięciu -
+    // czytelnik nie odróżni drugiego skopiowania od pierwszego.
+    await mount();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fireEvent.click(screen.getAllByLabelText("Kopiuj link")[0]);
+      await waitFor(() =>
+        expect(screen.getAllByLabelText("Skopiowano!").length).toBeGreaterThan(0),
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2_000);
+      });
+
+      expect(screen.queryByLabelText("Skopiowano!")).not.toBeInTheDocument();
+      expect(screen.getAllByLabelText("Kopiuj link").length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("każdy kanał ma ikonę - WhatsApp dostaje WŁASNĄ, bo zestaw ikon jej nie ma", async () => {
+    // Przy pustej bibliotece ikon przycisk bez ikony zapasowej byłby pustym
+    // kwadratem w panelu złożonym z samych ikon (etykiety są ukryte < lg).
+    await mount();
+
+    const whatsapp = screen.getAllByLabelText("WhatsApp")[0];
+    expect(whatsapp.querySelector("svg path")).not.toBeNull();
+    for (const label of ["Kopiuj link", "LinkedIn", "Facebook", "Messenger", "E-mail"]) {
+      expect(screen.getAllByLabelText(label)[0].querySelector("svg"), label).not.toBeNull();
+    }
+  });
+
+  it("zmiana stanu panelu NIE przemontowuje ikony WhatsAppa", async () => {
+    // TEST REGRESYJNY. Ikona była strzałką tworzoną w renderze, czyli przy
+    // każdym renderze NOWYM typem komponentu - React wymieniał jej węzeł DOM
+    // przy każdej zmianie stanu panelu (tu: potwierdzenie kopiowania).
+    await mount();
+    const copy = screen.getAllByLabelText("Kopiuj link")[0];
+    const panel = copy.closest("aside");
+    if (!panel) throw new Error("test: przycisk kopiowania poza panelem");
+    const before = within(panel).getByLabelText("WhatsApp").querySelector("svg");
+
+    fireEvent.click(copy);
+    await waitFor(() => expect(within(panel).getByLabelText("Skopiowano!")).toBeInTheDocument());
+
+    expect(within(panel).getByLabelText("WhatsApp").querySelector("svg")).toBe(before);
   });
 
   it("odmowa schowka daje komunikat, a nie cichy brak reakcji", async () => {

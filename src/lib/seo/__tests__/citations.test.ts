@@ -130,24 +130,57 @@ describe("citationMetaTags - autorzy", () => {
     expect(meta.every((m) => m.content.trim().length > 0)).toBe(true);
   });
 
-  // DEFEKT (rozjazd z `src/lib/citations/format.ts`). Tam `nameParts` ma jawny
-  // fallback z komentarzem "samo imię bez nazwiska - traktujemy je jak family,
-  // aby autor nie zniknął z cytatu"; tutaj `authorName` sprawdza tylko
-  // `lastName`, a potem `displayName` - autor z wypełnionym WYŁĄCZNIE
-  // `first_name` (mononim albo niedokończony profil) wypada bez śladu.
-  it("PRZYPIĘCIE STANU FAKTYCZNEGO: autor z samym imieniem nie daje tagu", () => {
-    const meta = tags({ authors: [author({ firstName: "Platon" })] });
-    expect(contents(meta, "citation_author")).toEqual([]);
-  });
-
-  // KONSEKWENCJA: ten sam wpis ma autora w boksie "Cytuj tę analizę" (Chicago
-  // /APA/BibTeX z format.ts) i NIE ma go w tagach Highwire, więc Google Scholar
-  // widzi pozycję bez autora - taka trafia do indeksu jako anonimowa albo
-  // wypada z niego cicho, a redakcja nie ma gdzie tego zobaczyć.
-  // Produkcji na tym etapie nie ruszamy.
-  it.fails("autor z samym imieniem POWINIEN trafić do citation_author", () => {
+  // STRAŻNIK braku autora w Highwire. `nameParts` w `src/lib/citations/format.ts`
+  // ma jawny fallback "samo imię bez nazwiska - traktujemy je jak family, aby
+  // autor nie zniknął z cytatu"; `authorName` też emituje samo imię, gdy nic
+  // lepszego nie ma.
+  // KONSEKWENCJA, przed którą ten test chroni: autor z wypełnionym WYŁĄCZNIE
+  // `first_name` (mononim albo niedokończony profil) był w boksie "Cytuj tę
+  // analizę" (Chicago/APA/BibTeX), a NIE było go w tagach Highwire - Google
+  // Scholar widział pozycję bez autora, która trafiała do indeksu jako
+  // anonimowa albo wypadała z niego cicho, a redakcja nie miała gdzie tego
+  // zobaczyć.
+  it("autor z samym imieniem trafia do citation_author verbatim (mononim)", () => {
     const meta = tags({ authors: [author({ firstName: "Platon" })] });
     expect(contents(meta, "citation_author")).toEqual(["Platon"]);
+  });
+
+  it("samo imię jest obcinane z białych znaków i NIE dostaje wiszącego przecinka", () => {
+    const meta = tags({ authors: [author({ firstName: "  Platon  " })] });
+    expect(contents(meta, "citation_author")).toEqual(["Platon"]);
+  });
+
+  // KONSEKWENCJA, przed którą ten test chroni: profil z samym `first_name`
+  // i pełnym `display_name` (np. rejestracja zbierająca tylko imię) dawał
+  // w <head> mononim "Anna" zamiast "Anna Kowalska" - Scholar tracił nazwisko,
+  // po którym dopasowuje autora, choć było w profilu.
+  it("displayName ma pierwszeństwo przed samym imieniem (pełne imię i nazwisko)", () => {
+    const meta = tags({
+      authors: [author({ firstName: "Anna", displayName: "Anna Kowalska" })],
+    });
+    expect(contents(meta, "citation_author")).toEqual(["Anna Kowalska"]);
+  });
+
+  it("samo imię jest ostatnim fallbackiem - displayName z białych znaków go nie blokuje", () => {
+    const meta = tags({ authors: [author({ firstName: "Platon", displayName: "   " })] });
+    expect(contents(meta, "citation_author")).toEqual(["Platon"]);
+  });
+
+  it("imię z samych białych znaków NIE blokuje spadku na displayName", () => {
+    // Negatyw: naprawa mononimu nie może emitować pustego tagu ani przesłaniać
+    // displayName imieniem, którego realnie nie ma.
+    const meta = tags({ authors: [author({ firstName: "   ", displayName: "Zespół NES" })] });
+    expect(contents(meta, "citation_author")).toEqual(["Zespół NES"]);
+  });
+
+  it("mononim obok pełnego autora zachowuje kolejność emisji", () => {
+    const meta = tags({
+      authors: [
+        author({ firstName: "Anna", lastName: "Kowalska" }),
+        author({ firstName: "Platon" }),
+      ],
+    });
+    expect(contents(meta, "citation_author")).toEqual(["Kowalska, Anna", "Platon"]);
   });
 
   it("białe znaki wokół imienia i nazwiska są obcinane", () => {

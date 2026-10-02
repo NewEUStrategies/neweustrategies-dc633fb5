@@ -3,7 +3,7 @@
 // Przeglądarka (`src/lib/views/postDwell.ts`) wysyła tu `sendBeacon`em czas
 // AKTYWNEGO czytania odsłony, którą `useRecordPostView` już policzył pod zgodą
 // analityczną. Zapis idzie przez RPC `record_post_dwell` (WYŁĄCZNIE
-// service_role, migracja 20261002120000), które trafia najnowszą odsłonę
+// service_role, migracja 20261002200000), które trafia najnowszą odsłonę
 // (wpis, viewer_hash) najemcy z ostatnich 2 h, przyjmuje tylko wartość większą
 // od zapisanej i przycina ją do czasu, jaki od tej odsłony upłynął. Z tych
 // zapisów powstaje mediana `related_posts_dwell` - sygnał dwell rekomendacji.

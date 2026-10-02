@@ -66,7 +66,7 @@ export interface WeightSignalDescriptor {
  * 2026-10-02 `dwell` stał tu jako „sygnał bez źródła" (wyszarzony suwak
  * z powodem), bo silnik mnożył jego wagę przez pusty sygnał. Źródłem jest
  * teraz mediana czasu aktywnego czytania z `post_views.dwell_ms`
- * (`related_posts_dwell`, migracja 20261002120000) - agregat odsłon liczonych
+ * (`related_posts_dwell`, migracja 20261002200000) - agregat odsłon liczonych
  * pod zgodą analityczną, a nie historia czytania konkretnych osób. Kto doda
  * ósmy sygnał, dodaje go RAZEM ze źródłem danych: panel nie pokazuje pokrętła,
  * za którym nic nie stoi.

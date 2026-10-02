@@ -19,8 +19,9 @@
 // CZEGO ŚWIADOMIE NIE DUBLUJE:
 //   * nie liczy szerokości pikselowej ani nie testuje samej funkcji obcinającej
 //     w oderwaniu - to kontrakt `src/lib/seo/__tests__/serp.test.ts` („returns
-//     short strings unchanged and truncates long ones with ellipsis"); tutaj
-//     dowodem jest to, co trafia do DOM podglądu,
+//     short strings unchanged and truncates long ones with ellipsis" oraz cały
+//     blok „truncateToPx - granica słowa": interpunkcja, NBSP, twarde cięcie
+//     jednego długiego słowa); tutaj dowodem jest to, co trafia do DOM podglądu,
 //   * nie sprawdza rozwiązywania tytułu/opisu z rekordu (sufiksy, spadek po
 //     `excerpt`) - komponent dostaje wartości JUŻ rozwiązane; to warstwa
 //     `src/lib/seo/__tests__/meta.test.ts`,
@@ -49,8 +50,8 @@ const DESC_VERY_LONG =
 /**
  * Napis dobrany tak, żeby budżet pikselowy skończył się DOKŁADNIE na spacji:
  * 50 znaków „a" (28 jednostek) + spacja (28,42) mieszczą się w budżecie 29
- * jednostek, a następne „W" go przekracza. To jedyny przypadek, w którym
- * `trimEnd()` w `truncateToPx` ma cokolwiek do roboty.
+ * jednostek, a następne „W" go przekracza. Cięcie nie musi się cofać - zostaje
+ * tylko zdjęcie wiszącego odstępu przed wielokropkiem.
  */
 const TITLE_CUT_ON_SPACE = `${"a".repeat(50)} WWWWW`;
 
@@ -129,8 +130,8 @@ describe("SerpPreview - obcinka pikselowa tytułu i opisu", () => {
   });
 
   it("gdy budżet kończy się na spacji, przed wielokropkiem nie zostaje spacja", () => {
-    // Zmierzone zachowanie `trimEnd()`: obcięcie wypada za spacją, a podgląd
-    // pokazuje pełne słowo + wielokropek, bez wiszącego odstępu.
+    // Obcięcie wypada za spacją, a podgląd pokazuje pełne słowo + wielokropek,
+    // bez wiszącego odstępu.
     const snippet = renderSnippet({
       title: TITLE_CUT_ON_SPACE,
       description: DESC_SHORT,
@@ -141,47 +142,50 @@ describe("SerpPreview - obcinka pikselowa tytułu i opisu", () => {
     expect(lastWordIsWhole(TITLE_CUT_ON_SPACE, snippet.title)).toBe(true);
   });
 
-  it("ZMIERZONE zachowanie: obcięcie w środku wyrazu, gdy budżet kończy się w słowie", () => {
-    // Przypięcie stanu faktycznego (patrz `it.fails` poniżej): `trimEnd()` ucina
-    // tylko odstępy, więc kiedy budżet wypada w środku słowa, słowo zostaje
-    // rozerwane. Gdy ktoś to naprawi, ten test zapali się jako pierwszy.
+  // STRAŻNIK REGRESJI (dawniej `it.fails`): `truncateToPx` cofa cięcie do
+  // ostatniej granicy słowa mieszczącej się w budżecie RAZEM z wielokropkiem.
+  // Wcześniej rozrywał wyraz w połowie („...i przyszlos…" z „przyszlosc").
+  // KONSEKWENCJA, gdyby wróciło: redakcja widzi w podglądzie inny snippet niż
+  // Google - zatwierdza tytuł na podstawie obrazu, który w wynikach
+  // wyszukiwania nigdy nie wystąpi, a rozerwany wyraz w panelu bywa czytany
+  // jako literówka i „naprawiany" przez skracanie poprawnego tytułu.
+  it("obcięcie tytułu cofa się do granicy słowa zamiast rozrywać wyraz", () => {
     const snippet = renderSnippet({
       title: TITLE_VERY_LONG,
       description: DESC_SHORT,
       path: "",
     });
-    expect(snippet.title).toBe("Polska prezydencja w Radzie Unii Europejskiej i przyszlos…");
-    expect(lastWordIsWhole(TITLE_VERY_LONG, snippet.title)).toBe(false);
+    expect(lastWordIsWhole(TITLE_VERY_LONG, snippet.title)).toBe(true);
+    // Zmierzony wynik: „przyszlosc" się nie mieści, więc snippet kończy się
+    // na poprzednim CAŁYM słowie, a nie na „przyszlos".
+    expect(snippet.title).toBe("Polska prezydencja w Radzie Unii Europejskiej i…");
+    expect(snippet.title).not.toContain("przyszlos");
   });
 
-  // DEFEKT: `truncateToPx` obcina po jednostce znaku i tylko `trimEnd()`, więc
-  // rozrywa wyraz w połowie („...i przyszlos…" z „przyszlosc"). Google urywa
-  // snippet na granicy słowa. KONSEKWENCJA: redakcja widzi w podglądzie inny
-  // snippet niż Google - zatwierdza tytuł na podstawie obrazu, który w wynikach
-  // wyszukiwania nigdy nie wystąpi, a rozerwany wyraz w panelu bywa czytany
-  // jako literówka i „naprawiany" przez skracanie poprawnego tytułu.
-  it.fails(
-    "DEFEKT: obcięcie tytułu rozrywa wyraz w połowie zamiast cofnąć się do granicy słowa",
-    () => {
-      const snippet = renderSnippet({
-        title: TITLE_VERY_LONG,
-        description: DESC_SHORT,
-        path: "",
-      });
-      expect(lastWordIsWhole(TITLE_VERY_LONG, snippet.title)).toBe(true);
-    },
-  );
-
-  // DEFEKT: ten sam mechanizm dotyczy opisu, który ma szerszy budżet i jest
-  // dłuższy, więc rozerwanie wyrazu jest tam jeszcze bardziej widoczne.
-  // KONSEKWENCJA: redakcja widzi w podglądzie inny snippet niż Google.
-  it.fails("DEFEKT: obcięcie opisu również rozrywa wyraz w połowie", () => {
+  // STRAŻNIK REGRESJI (dawniej `it.fails`): ten sam mechanizm dla opisu,
+  // który ma szerszy budżet i jest dłuższy, więc rozerwanie wyrazu byłoby tam
+  // jeszcze bardziej widoczne. KONSEKWENCJA, gdyby wróciło: redakcja widzi
+  // w podglądzie inny snippet niż Google.
+  it("obcięcie opisu również kończy się na całym słowie", () => {
     const snippet = renderSnippet({
       title: TITLE_SHORT,
       description: DESC_VERY_LONG,
       path: "",
     });
     expect(lastWordIsWhole(DESC_VERY_LONG, snippet.description)).toBe(true);
+    expect(snippet.description.endsWith("…")).toBe(true);
+    expect(snippet.description).not.toMatch(/[\s,]…$/);
+  });
+
+  it("jedno słowo dłuższe niż budżet (np. wklejony URL) dostaje twarde cięcie, nie pustkę", () => {
+    // Kontrola przed nadgorliwością: nie ma granicy słowa, do której można by
+    // się cofnąć, więc podgląd nie może zostać z samym „…" ani pustą linią.
+    const url = `https://example.com/${"segment".repeat(20)}`;
+    const snippet = renderSnippet({ title: url, description: DESC_SHORT, path: "" });
+    expect(snippet.title).toBe(truncateToPx(url, 20, SERP_TITLE_LIMIT_PX));
+    expect(snippet.title.startsWith("https://example.com/")).toBe(true);
+    expect(snippet.title.endsWith("…")).toBe(true);
+    expect(snippet.title.length).toBeGreaterThan(20);
   });
 
   it("pusty tytuł: podgląd bierze spadek i pokazuje pustą linię tytułu", () => {

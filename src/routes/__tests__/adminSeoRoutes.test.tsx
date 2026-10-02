@@ -21,11 +21,14 @@
 //
 // Ten plik pokrywa to, czego bramka CELOWO nie dotyka - STAN i SKLEJENIE:
 //
-//   1. TRZY STANY LISTY, a nie dwa. `/admin/seo/content` renderuje jeden komunikat
-//      pustki (`adminSeoHub.noResults`) i jeden „ładowanie” (`admin.loading`)
-//      wybierane warunkiem `rows.length ? ... : ...`. Odczyt, który PADŁ,
-//      zostawia `rows` puste - czyli awaria wygląda dokładnie jak trwające
-//      ładowanie. To jest przedmiot `it.fails` niżej.
+//   1. CZTERY STANY LISTY, rozróżnialne: ładowanie (`admin.loading`), AWARIA
+//      ODCZYTU (`adminSeoHub.contentReadError` + „Spróbuj ponownie”), pusta baza
+//      (`adminSeoHub.contentEmpty`) i brak trafień filtra (`adminSeoHub.noResults`).
+//      Do 2026-10 padnięty odczyt zostawiał `rows` puste i tabela mówiła
+//      „ładowanie” w nieskończoność - tę naprawę pilnuje strażnik regresji niżej.
+//   1a. LISTA PRZYCIĘTA LIMITEM jest oznaczona („pokazano X z Y”, kafelki
+//      „częściowe”); lista o nieznanej liczności - też, bo „nie wiem” to nie
+//      „komplet”.
 //   2. FILTRY I WYSZUKIWANIE jako czysta funkcja stanu: pięć kafelków-filtrów
 //      (każdy przełączalny i wyłączalny powtórnym kliknięciem), filtr rodzaju,
 //      szukanie po tytule PL, tytule EN i slugu.
@@ -74,6 +77,17 @@ const h = vi.hoisted(() => ({
   posts: undefined as unknown[] | undefined,
   /** Wiersze `pages`. */
   pages: undefined as unknown[] | undefined,
+  /**
+   * Liczność oddawana przez PostgREST (`count: "exact"`) per tabela.
+   * Brak wpisu = liczba wierszy (lista kompletna); `null` = baza nie podała.
+   */
+  counts: {} as Record<string, number | null>,
+  /** Błąd odczytu tabel treści (null = odczyt się udaje). */
+  readError: null as Error | null,
+  /** Gdy ustawione - `readError` dotyczy WYŁĄCZNIE tej tabeli. */
+  failOnly: null as string | null,
+  /** Obietnica wstrzymująca odpowiedź tabel treści (null = od razu). */
+  hold: null as Promise<void> | null,
   /** Tabele, o które trasa faktycznie zapytała. */
   tables: [] as string[],
   /** Wynik `listGscSites`. */
@@ -118,19 +132,34 @@ vi.mock("@/hooks/useAuth", () => ({
 }));
 
 // Klient Supabase: łańcuch PostgREST dla `posts` i `pages`. `undefined` w stanie
-// znaczy „brak danych”, czyli to samo, co zostawia po sobie PADNIĘTY odczyt -
-// i właśnie ta nieodróżnialność jest przedmiotem `it.fails` niżej.
+// znaczy „brak wierszy bez błędu” (trasa schodzi na pustą listę), a PADNIĘTY
+// odczyt odtwarza `readError` - te dwa stany trasa ma teraz rozróżniać.
+// `count` odtwarza liczność z `count: "exact"`; stan zaczytujemy w `then`,
+// żeby ponowienie po awarii widziało stan ustawiony PO pierwszym odczycie.
 vi.mock("@/integrations/supabase/client", () => {
   const chain = (table: string) => {
-    const rows = table === "posts" ? h.posts : h.pages;
     const link: Record<string, unknown> = {};
     const self = () => link;
     for (const method of ["select", "eq", "is", "order", "limit"]) {
       link[method] = self;
     }
     link.then = (
-      resolve: (value: { data: unknown[] | undefined; error: null }) => unknown,
-    ): unknown => resolve({ data: rows, error: null });
+      resolve: (value: {
+        data: unknown[] | undefined | null;
+        error: Error | null;
+        count: number | null;
+      }) => unknown,
+    ): unknown => {
+      const answer = () => {
+        const rows = table === "posts" ? h.posts : h.pages;
+        if (h.readError && (h.failOnly === null || h.failOnly === table)) {
+          return resolve({ data: null, error: h.readError, count: null });
+        }
+        const count = table in h.counts ? (h.counts[table] ?? null) : (rows?.length ?? 0);
+        return resolve({ data: rows, error: null, count });
+      };
+      return h.hold ? h.hold.then(answer) : answer();
+    };
     return link;
   };
   return {
@@ -302,6 +331,10 @@ function contentRow(overrides: Record<string, unknown> = {}): Record<string, unk
 beforeEach(() => {
   h.posts = [];
   h.pages = [];
+  h.counts = {};
+  h.readError = null;
+  h.hold = null;
+  h.failOnly = null;
   h.tables = [];
   h.gscSites = { configured: true, sites: [{ siteUrl: "https://neweuropeanstrategies.com/" }] };
   h.gscSitesError = null;
@@ -352,42 +385,134 @@ describe("/admin/seo/content - przegląd treści", () => {
     });
   });
 
-  it("stan PUSTY (obie tabele bez wierszy) pokazuje klucz `admin.loading`", async () => {
-    // To jest stan faktyczny, nie postulowany: warunek w trasie to
-    // `rows.length ? t("adminSeoHub.noResults") : t("admin.loading")`, więc przy
-    // zerowej liczbie wierszy - także po odczycie zakończonym! - panel mówi
-    // „ładowanie”. Przypinamy to, żeby naprawa od razu wywaliła test.
+  it("stan PUSTY po UDANYM odczycie mówi „brak treści”, nie „ładowanie”", async () => {
+    // Do 2026-10 warunek brzmiał `rows.length ? noResults : admin.loading`, więc
+    // serwis bez treści wisiał na „ładowaniu” także po zakończonym odczycie.
     h.posts = [];
     h.pages = [];
     await mount();
     await waitFor(() => {
-      expect(screen.getByText("admin.loading")).toBeTruthy();
+      expect(screen.getByText("adminSeoHub.contentEmpty")).toBeTruthy();
     });
+    expect(screen.queryByText("admin.loading")).toBeNull();
+    expect(document.querySelector("[data-seo-read-error]")).toBeNull();
   });
 
-  it.fails(
-    "DEFEKT: awaria odczytu jest NIEROZRÓŻNIALNA od trwającego ładowania i od pustej bazy",
-    async () => {
-      // KONSEKWENCJA. `useQuery` w tej trasie nie ma ŻADNEJ obsługi `error`:
-      // `const { data: posts } = useQuery(...)`. Gdy odczyt padnie (odebrany
-      // grant, awaria PostgREST, zerwana sieć), `posts` zostaje `undefined`,
-      // `rows` jest puste i tabela renderuje „admin.loading” - wieczne
-      // ładowanie bez żadnego komunikatu. Redakcja widzi kręcący się panel
-      // i wnioskuje, że serwis nie ma treści albo że „coś się zacięło”;
-      // nikt nie dowiaduje się, że przegląd SEO nie działa. Zadanie wymaga
-      // stanu błędu ODRĘBNEGO od pustki - tego stanu tu nie ma.
-      //
-      // NAPRAWA (poza zakresem: nie zmieniamy produkcji, żeby test przeszedł):
-      // odczytać `isError` z obu zapytań i wyświetlić komunikat błędu, tak jak
-      // robi to `/admin/seo/search-console` (`sitesQuery.error`).
-      h.posts = undefined;
-      h.pages = undefined;
-      await mount();
-      await waitFor(() => {
-        expect(screen.queryByText("admin.loading"), "awaria nie może udawać ładowania").toBeNull();
-      });
-    },
-  );
+  it("odpowiedź bez wierszy i bez błędu (`data` puste) to też pusta baza, nie awaria", async () => {
+    h.posts = undefined;
+    h.pages = undefined;
+    await mount();
+    await waitFor(() => expect(screen.getByText("adminSeoHub.contentEmpty")).toBeTruthy());
+    expect(document.querySelector("[data-seo-read-error]")).toBeNull();
+  });
+
+  it("w trakcie odczytu tabela mówi „ładowanie” - i nic więcej", async () => {
+    // Negatyw dla stanu błędu: niedojechany odczyt NIE jest awarią ani pustką.
+    let release = () => {};
+    h.hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    h.posts = [contentRow()];
+    h.pages = [];
+    await mount();
+    await waitFor(() => expect(h.tables).toContain("posts"));
+    expect(screen.getByText("admin.loading")).toBeTruthy();
+    expect(screen.queryByText("adminSeoHub.contentEmpty")).toBeNull();
+    expect(document.querySelector("[data-seo-read-error]")).toBeNull();
+    // Ani dopisku „częściowe” - w locie liczność jest nieznana, ale to nie alarm.
+    expect(document.querySelector("[data-seo-partial]")).toBeNull();
+
+    release();
+    await waitFor(() => expect(screen.getAllByTestId("score-pill")).toHaveLength(1));
+    expect(screen.queryByText("admin.loading")).toBeNull();
+  });
+
+  it("awaria odczytu ma WŁASNY stan - odrębny od ładowania i od pustej bazy", async () => {
+    // KONSEKWENCJA (strażnik regresji). Gdy odczyt padnie (odebrany grant,
+    // awaria PostgREST, zerwana sieć), redakcja ma zobaczyć, że przegląd SEO
+    // nie działa. Wcześniej `useQuery` w tej trasie nie miało ŻADNEJ obsługi
+    // `error`: `rows` zostawało puste, a tabela renderowała „admin.loading” -
+    // wieczne ładowanie bez komunikatu, z którego redakcja wnioskowała, że
+    // serwis nie ma treści albo że „coś się zacięło”.
+    h.readError = new Error("PostgREST padł");
+    await mount();
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain("adminSeoHub.contentReadError");
+    });
+    expect(screen.queryByText("admin.loading"), "awaria nie może udawać ładowania").toBeNull();
+    expect(screen.queryByText("adminSeoHub.contentEmpty"), "ani pustej bazy").toBeNull();
+    expect(screen.queryByText("adminSeoHub.noResults")).toBeNull();
+    // Kafelki z zerami po awarii nie mogą udawać listy „częściowej” - to
+    // inny stan, komunikowany wyżej.
+    expect(document.querySelector("[data-seo-partial]")).toBeNull();
+  });
+
+  it("awaria JEDNEJ tabeli przy wierszach drugiej też jest pokazana", async () => {
+    // Połowa listy z kafelkami policzonymi z połowy wyglądałaby jak komplet -
+    // komunikat nie może zależeć od tego, czy tabela niżej jest pusta.
+    h.readError = new Error("PostgREST padł");
+    h.failOnly = "posts";
+    h.pages = [contentRow({ id: "pg", slug: "strona" })];
+    await mount();
+    await waitFor(() => expect(screen.getAllByTestId("score-pill")).toHaveLength(1));
+    expect(screen.getByRole("alert").textContent).toContain("adminSeoHub.contentReadError");
+  });
+
+  it("„Spróbuj ponownie” ponawia odczyt i po sukcesie znika komunikat awarii", async () => {
+    h.readError = new Error("PostgREST padł");
+    await mount();
+    await waitFor(() => expect(screen.getByText("adminSeoHub.contentRetry")).toBeTruthy());
+    const asked = h.tables.length;
+
+    h.readError = null;
+    h.posts = [contentRow()];
+    fireEvent.click(screen.getByText("adminSeoHub.contentRetry"));
+
+    await waitFor(() => expect(screen.getAllByTestId("score-pill")).toHaveLength(1));
+    expect(h.tables.length).toBeGreaterThan(asked);
+    expect(document.querySelector("[data-seo-read-error]")).toBeNull();
+  });
+
+  it("lista PRZYCIĘTA limitem jest oznaczona: „pokazano X z Y” i kafelki „częściowe”", async () => {
+    // Liczność z bazy większa niż liczba pobranych wierszy - kafelki liczą się
+    // z części, a ekran ma to powiedzieć zamiast udawać komplet.
+    h.posts = [contentRow({ id: "a", slug: "a" }), contentRow({ id: "b", slug: "b" })];
+    h.pages = [contentRow({ id: "pg", slug: "pg" })];
+    h.counts = { posts: 1200 };
+    await mount();
+    await waitFor(() => {
+      expect(screen.getByText("adminSeoHub.coverageTruncated(shown=3,total=1201)")).toBeTruthy();
+    });
+    expect(document.querySelector("[data-seo-coverage]")?.getAttribute("data-seo-coverage")).toBe(
+      "truncated",
+    );
+    // Każdy z pięciu kafelków niesie dopisek - wszystkie liczą się z tej samej listy.
+    expect(document.querySelectorAll("[data-seo-partial]")).toHaveLength(5);
+  });
+
+  it("lista KOMPLETNA (liczność == pobrane) nie dostaje żadnej flagi", async () => {
+    h.posts = [contentRow({ id: "a", slug: "a" })];
+    h.pages = [contentRow({ id: "pg", slug: "pg" })];
+    h.counts = { posts: 1, pages: 1 };
+    await mount();
+    await waitFor(() => expect(screen.getAllByTestId("score-pill")).toHaveLength(2));
+    expect(document.querySelector("[data-seo-coverage]")).toBeNull();
+    expect(document.querySelector("[data-seo-partial]")).toBeNull();
+  });
+
+  it("brak liczności (`count: null`) to stan NIEZNANY, nie komplet", async () => {
+    h.posts = [contentRow()];
+    h.pages = [];
+    h.counts = { posts: null };
+    await mount();
+    await waitFor(() => {
+      expect(screen.getByText("adminSeoHub.coverageUnknown(shown=1)")).toBeTruthy();
+    });
+    expect(document.querySelector("[data-seo-coverage]")?.getAttribute("data-seo-coverage")).toBe(
+      "unknown",
+    );
+    expect(document.querySelectorAll("[data-seo-partial]").length).toBeGreaterThan(0);
+  });
 
   it("wiersze z OBU tabel trafiają do tabeli, strony przed wpisami", async () => {
     h.pages = [contentRow({ id: "pg-1", slug: "o-nas", title_pl: "O nas" })];

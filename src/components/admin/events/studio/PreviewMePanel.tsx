@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { MyEventProfileForm } from "@/components/events/participant/molecules/MyEventProfileForm";
 import { MyEventPublicPreview } from "@/components/events/participant/molecules/MyEventPublicPreview";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchOwnProfileRow } from "@/lib/profile/ownProfile";
 import { ProfileTabsNav } from "@/components/profile/shell/ProfileShell";
 import { useMyEventProfile } from "@/lib/events/useMyEventPanel";
 import type { MyAccountSnapshot, MyEventProfile } from "@/lib/events/myEventProfileApi";
@@ -100,7 +100,7 @@ function profileFromAccount(account: MyAccountSnapshot): MyEventProfile {
  * `event_my_event_profile` wymaga adresu publicznego wydarzenia i kartoteki na
  * tym wydarzeniu; superadmin ogladajacy SZKIC nie ma ani jednego, wiec podglad
  * spadal na rysunek przykladowy („Anna Kowalska"). Ten odczyt bierze WLASNY
- * wiersz `profiles` (RLS oddaje tylko `auth.uid()`), zeby redaktor widzial
+ * wiersz `profiles` (`get_own_profile()` oddaje tylko `auth.uid()`), zeby redaktor widzial
  * siebie od pierwszego wejscia w podglad.
  */
 function useEditorAccount(userId: string | null): MyAccountSnapshot | null {
@@ -109,14 +109,10 @@ function useEditorAccount(userId: string | null): MyAccountSnapshot | null {
     enabled: userId !== null,
     staleTime: 60_000,
     queryFn: async (): Promise<MyAccountSnapshot | null> => {
-      const { data } = await supabase
-        .from("profiles")
-        // Literal selekcji, nie `*`: `profiles` ma granty kolumnowe.
-        .select(
-          "first_name, last_name, email, phone, job_title, current_company_id, current_company, specialization, seeking_pl, seeking_en, offering_pl, offering_en, avatar_url, bio_pl, bio_en, linkedin_url, website_url, twitter_url, facebook_url, instagram_url",
-        )
-        .eq("id", userId as string)
-        .maybeSingle();
+      // `get_own_profile()`, nie select na `profiles`: `email`, `phone`
+      // i `current_company_id` nie mają grantu SELECT dla `authenticated`, więc
+      // select z nimi kończył się 42501 i podgląd zawsze spadał na rysunek.
+      const data = await fetchOwnProfileRow();
       if (data === null) return null;
       const links: MyAccountSnapshot["socialLinks"] = {};
       if (typeof data.linkedin_url === "string" && data.linkedin_url !== "")

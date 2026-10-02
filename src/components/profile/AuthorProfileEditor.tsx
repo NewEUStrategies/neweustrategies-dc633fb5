@@ -492,6 +492,9 @@ export function AuthorProfileEditor({ userId, tenantId, mode }: AuthorProfileEdi
                 setPendingFile(files[0]);
                 setCropOpen(true);
               }}
+              onRejectedFiles={(files) =>
+                toast.error(t("uploadArea.badType", { name: files.map((f) => f.name).join(", ") }))
+              }
               preview={
                 data.avatar_url ? (
                   <img

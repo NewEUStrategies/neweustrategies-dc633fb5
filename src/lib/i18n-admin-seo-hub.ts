@@ -41,6 +41,16 @@ const pl = {
     tileContent: "Treści",
     tileMissingDesc: "Bez opisu",
     tileDefaultImage: "Domyślna karta",
+    // --- Stan odczytu treści (kokpit i zakładka „Treści") ---
+    coverageTruncated:
+      "Pokazano {{shown}} z {{total}} treści - liczniki obejmują tylko pobraną część.",
+    coverageUnknown:
+      "Nie udało się ustalić łącznej liczby treści ({{shown}} pobranych) - liczniki mogą nie obejmować wszystkiego.",
+    coveragePartialTag: "częściowe",
+    contentReadError:
+      "Nie udało się wczytać treści - liczniki i tabela nie pokazują teraz stanu serwisu.",
+    contentRetry: "Spróbuj ponownie",
+    contentEmpty: "Serwis nie ma jeszcze żadnych wpisów ani stron.",
     sectionBrand: "Marka w wyszukiwarce",
     sectionContent: "Treści",
     sectionShortcuts: "Skróty",
@@ -67,6 +77,16 @@ const pl = {
     foundationLlmsDisabled: "Wyłączony w ustawieniach technicznych SEO.",
     foundationLangPresent: 'Strona główna deklaruje lang="{{value}}".',
     foundationLangMissing: "Znacznik html nie ma atrybutu lang.",
+    // --- Origin publiczny tenanta (karta fundamentów, podglądy, linki „na żywo") ---
+    foundationCrossHost: "Nie do sprawdzenia z tego hosta - otwórz plik na {{value}}.",
+    foundationCrossHostNote:
+      "Panel jest otwarty na innym hoście niż {{value}}. Przeglądarka nie odczyta stąd plików tego serwisu, więc karta ich nie ocenia - sprawdź je linkiem „Otwórz”.",
+    foundationOriginFailed:
+      "Nie udało się ustalić domeny publicznej serwisu, więc karta nie sprawdza plików - inaczej pokazałaby stan plików innego serwisu.",
+    foundationOriginRetry: "Spróbuj ponownie",
+    noPublicDomain:
+      "Ten serwis nie ma jeszcze własnej domeny publicznej. Adresy, linki do walidatorów i stan plików pojawią się po przypisaniu domeny.",
+    noPublicDomainHost: "(brak domeny)",
     allGood: "Brak problemów - konfiguracja marki jest kompletna.",
     fixIt: "Popraw",
     openHomepage: "Otwórz zakładkę strony głównej",
@@ -203,6 +223,16 @@ const en: typeof pl = {
     tileContent: "Content",
     tileMissingDesc: "No description",
     tileDefaultImage: "Default card",
+    // --- Content read state (dashboard and the "Content" tab) ---
+    coverageTruncated:
+      "Showing {{shown}} of {{total}} items - the counters cover only the fetched part.",
+    coverageUnknown:
+      "The total number of items could not be determined ({{shown}} fetched) - the counters may not cover everything.",
+    coveragePartialTag: "partial",
+    contentReadError:
+      "Content could not be loaded - the counters and the table do not show the site's state right now.",
+    contentRetry: "Try again",
+    contentEmpty: "The site has no posts or pages yet.",
     sectionBrand: "Brand in search",
     sectionContent: "Content",
     sectionShortcuts: "Shortcuts",
@@ -229,6 +259,16 @@ const en: typeof pl = {
     foundationLlmsDisabled: "Disabled in the technical SEO settings.",
     foundationLangPresent: 'The homepage declares lang="{{value}}".',
     foundationLangMissing: "The html tag has no lang attribute.",
+    // --- Tenant's public origin (foundation card, previews, live links) ---
+    foundationCrossHost: "Cannot be checked from this host - open the file on {{value}}.",
+    foundationCrossHostNote:
+      "The panel is open on a host other than {{value}}. The browser cannot read this site's files from here, so the card does not assess them - check them with the “Open” link.",
+    foundationOriginFailed:
+      "The site's public domain could not be determined, so the card does not check the files - otherwise it would show another site's files.",
+    foundationOriginRetry: "Try again",
+    noPublicDomain:
+      "This site does not have its own public domain yet. Addresses, validator links and file status will appear once a domain is assigned.",
+    noPublicDomainHost: "(no domain)",
     allGood: "No problems - the brand setup is complete.",
     fixIt: "Fix",
     openHomepage: "Open the homepage tab",

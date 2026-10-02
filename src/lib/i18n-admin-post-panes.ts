@@ -71,6 +71,12 @@ const pl = {
       accessSaved: "Zapisano dostęp",
       passwordRemoved: "Hasło usunięte",
       loading: "Wczytywanie…",
+      loadError: "Nie udało się wczytać ustawień dostępu.",
+      loadErrorHelper:
+        "Zapis jest zablokowany, dopóki odczyt się nie powiedzie - inaczej panel nadpisałby istniejącą regułę (np. paywall) wartościami domyślnymi.",
+      retry: "Spróbuj ponownie",
+      staleRule:
+        "Reguła dostępu zmieniła się w międzyczasie. Wczytano aktualną wersję - powtórz zmianę.",
       title: "Dostęp / Paywall",
       saveAccess: "Zapisz dostęp",
       mode: "Tryb",
@@ -580,6 +586,12 @@ const en = {
       accessSaved: "Access saved",
       passwordRemoved: "Password removed",
       loading: "Loading…",
+      loadError: "Couldn't load the access settings.",
+      loadErrorHelper:
+        "Saving is blocked until the settings load - otherwise the panel would overwrite the existing rule (e.g. a paywall) with defaults.",
+      retry: "Try again",
+      staleRule:
+        "The access rule changed in the meantime. The current version has been loaded - please repeat your change.",
       title: "Access / Paywall",
       saveAccess: "Save access",
       mode: "Mode",

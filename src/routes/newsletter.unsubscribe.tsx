@@ -2,6 +2,10 @@
 // Pierwszy GET walidacyjnie sprawdza token, dopiero kliknięcie „Potwierdź wypisanie"
 // wysyła POST i finalizuje operację (zapobiega niechcianym wypisom przez
 // prefetch/skanery URL w klientach pocztowych).
+//
+// Mail nie linkuje tu wprost: stopka i nagłówek List-Unsubscribe wskazują
+// endpoint API (`@/lib/newsletter/unsubscribeUrl`), który GET z przeglądarki
+// przekierowuje 303 na tę stronę, a one-click klienta pocztowego wykonuje sam.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,10 +13,14 @@ import { CheckCircle2, XCircle, Loader2, MailX } from "lucide-react";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { buildContentHead, SITE_NAME } from "@/lib/seo/meta";
+import {
+  NEWSLETTER_UNSUBSCRIBE_API_PATH,
+  NEWSLETTER_UNSUBSCRIBE_PAGE_PATH,
+} from "@/lib/newsletter/unsubscribeUrl";
 
 export const Route = createFileRoute("/newsletter/unsubscribe")({
   head: () => {
-    const url = getRequestUrl() || "/newsletter/unsubscribe";
+    const url = getRequestUrl() || NEWSLETTER_UNSUBSCRIBE_PAGE_PATH;
     const lang = activeLang(url);
     const title = lang === "en" ? `Unsubscribe - ${SITE_NAME}` : `Wypisz się - ${SITE_NAME}`;
     return buildContentHead({
@@ -49,7 +57,7 @@ function Page() {
       setState("invalid");
       return;
     }
-    fetch(`/api/public/newsletter/unsubscribe?token=${encodeURIComponent(token)}`, {
+    fetch(`${NEWSLETTER_UNSUBSCRIBE_API_PATH}?token=${encodeURIComponent(token)}`, {
       headers: { Accept: "application/json" },
     })
       .then(async (r) => {
@@ -76,7 +84,7 @@ function Page() {
   async function confirm() {
     setBusy(true);
     try {
-      const r = await fetch("/api/public/newsletter/unsubscribe", {
+      const r = await fetch(NEWSLETTER_UNSUBSCRIBE_API_PATH, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),

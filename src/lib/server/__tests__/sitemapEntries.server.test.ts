@@ -698,12 +698,21 @@ describe("degradacja odczytu - pustka kontra awaria", () => {
       plan[tabela] = { odmowa: odmowaWszedzie };
     }
     const db = atrapaAdmina(plan);
-    const mapa = await collectAllSitemapSections(db.admin, TENANT, ORIGIN);
+    const { sections: mapa, failedSections } = await collectAllSitemapSections(
+      db.admin,
+      TENANT,
+      ORIGIN,
+    );
     for (const sekcja of SITEMAP_SECTIONS) {
       if (sekcja === "core") continue;
       expect(mapa.get(sekcja)).toEqual([]);
     }
     expect(locs(mapa.get("core") ?? [])).toEqual(HUBY_CORE);
+    // Pustka z AWARII jest jawna: każda sekcja treści trafia na listę awarii,
+    // `core` (bez bazy) - nigdy.
+    expect([...failedSections].sort()).toEqual(
+      SITEMAP_SECTIONS.filter((sekcja) => sekcja !== "core").sort(),
+    );
   });
 
   it("odmowa bazy zostawia ślad z nazwą sekcji", async () => {
@@ -737,18 +746,33 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
 
   it("bez tenanta zostaje sam szkielet core i ani jednego zapytania", async () => {
     const db = atrapaAdmina({});
-    const mapa = await collectAllSitemapSections(db.admin, null, ORIGIN);
+    const { sections: mapa, failedSections } = await collectAllSitemapSections(
+      db.admin,
+      null,
+      ORIGIN,
+    );
     expect([...mapa.keys()]).toEqual(["core"]);
     expect(locs(mapa.get("core") ?? [])).toEqual(HUBY_CORE);
     expect(db.zadania).toEqual([]);
+    // Żaden odczyt nie ruszył, więc nie ma awarii - o degradacji indeksu
+    // rozstrzyga trasa po braku tenanta.
+    expect(failedSections).toEqual([]);
   });
 
   it("zwraca KAŻDĄ sekcję rejestru - indeks liczy shardy z tej mapy", async () => {
     const db = atrapaAdmina(pelnyPlan());
-    const mapa = await collectAllSitemapSections(db.admin, TENANT, ORIGIN);
+    const { sections: mapa, failedSections } = await collectAllSitemapSections(
+      db.admin,
+      TENANT,
+      ORIGIN,
+    );
     expect([...mapa.keys()].sort()).toEqual([...SITEMAP_SECTIONS].sort());
     expect(locs(mapa.get("posts") ?? [])).toEqual([`${ORIGIN}/analizy/akt-o-uslugach`]);
     expect(locs(mapa.get("pages") ?? [])).toEqual([`${ORIGIN}/analizy`]);
+    // Kontrola dodatnia listy awarii: sekcje LEGALNIE puste (tags, podcasts…)
+    // nie są awarią - inaczej każdy tenant bez podcastów dostawałby TTL
+    // zdegradowany.
+    expect(failedSections).toEqual([]);
   });
 
   it("mapa ścieżek stron powstaje RAZ na całe wywołanie, nie raz na sekcję", async () => {
@@ -760,14 +784,47 @@ describe("collectAllSitemapSections - mapa dla indeksu", () => {
 
   it("awaria jednej sekcji nie zabiera adresów pozostałym", async () => {
     const db = atrapaAdmina({ ...pelnyPlan(), posts: { wiersze: { slug: "nie-tablica" } } });
-    const mapa = await collectAllSitemapSections(db.admin, TENANT, ORIGIN);
+    const { sections: mapa, failedSections } = await collectAllSitemapSections(
+      db.admin,
+      TENANT,
+      ORIGIN,
+    );
     expect(mapa.get("posts")).toEqual([]);
+    // CZĘŚCIOWA awaria jest odróżnialna od pustej sekcji - trasa indeksu
+    // podaje na tej podstawie krótki TTL.
+    expect(failedSections).toEqual(["posts"]);
     expect(locs(mapa.get("taxonomy") ?? [])).toEqual([`${ORIGIN}/category/prawo`]);
     expect(locs(mapa.get("core") ?? [])).toEqual(HUBY_CORE);
     expect(ostrzezenia).toHaveBeenCalledWith(
       '[seo] sitemap section "posts" read failed:',
       expect.any(TypeError),
     );
+  });
+
+  it("odmowa bazy w jednej sekcji trafia na listę awarii, zdrowe sekcje zostają", async () => {
+    const db = atrapaAdmina({
+      ...pelnyPlan(),
+      categories: { odmowa: { message: "permission denied for table categories", code: "42501" } },
+    });
+    const { sections: mapa, failedSections } = await collectAllSitemapSections(
+      db.admin,
+      TENANT,
+      ORIGIN,
+    );
+    expect(failedSections).toEqual(["taxonomy"]);
+    expect(mapa.get("taxonomy")).toEqual([]);
+    expect(locs(mapa.get("posts") ?? [])).toEqual([`${ORIGIN}/analizy/akt-o-uslugach`]);
+  });
+
+  it("awaria mapy ścieżek stron oznacza OBIE sekcje, które z niej korzystają", async () => {
+    // `pages` i `posts` dzielą jeden odczyt ścieżek (`pagePathsOnce`) - jego
+    // awaria zabiera adresy obu, więc obie muszą być na liście.
+    const db = atrapaAdmina({
+      ...pelnyPlan(),
+      pages: { odmowa: { message: "permission denied for table pages", code: "42501" } },
+    });
+    const { failedSections } = await collectAllSitemapSections(db.admin, TENANT, ORIGIN);
+    expect([...failedSections].sort()).toEqual(["pages", "posts"]);
   });
 
   it("mapa ścieżek korzysta z jednego wywołania wsadowego", async () => {

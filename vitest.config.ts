@@ -7621,15 +7621,15 @@ export default defineConfig({
           branches: 86,
         },
         "src/components/admin/podcasts/EpisodeLayerEditors.tsx": {
-          statements: 93,
-          functions: 92,
-          lines: 92,
+          statements: 98,
+          functions: 98,
+          lines: 98,
           branches: 89,
         },
         "src/components/admin/podcasts/PodcastShowsPane.tsx": {
-          statements: 93,
-          functions: 92,
-          lines: 93,
+          statements: 98,
+          functions: 98,
+          lines: 98,
           branches: 83,
         },
         // GAŁĘZIE 57, i to NIE jest bramka wyłączona (rozdz. 6.1 audytu),
@@ -7651,19 +7651,19 @@ export default defineConfig({
         // i wykrywaniem czasu trwania z pliku audio). Zmierzone 93,24% linii
         // / 88,10% funkcji po dołożeniu testu atrapy `Audio`.
         "src/components/admin/podcasts/EpisodeEditorPane.tsx": {
-          statements: 88,
-          functions: 84,
-          lines: 89,
-          branches: 88,
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 89,
         },
 
         // Trasa po ekstrakcji - POWŁOKA. Zlecenie żądało >= 50 / 45 / 40;
         // zmierzone 89,29% linii / 75% funkcji / 81,82% gałęzi.
         "src/routes/admin.podcasts.tsx": {
-          statements: 85,
-          functions: 71,
-          lines: 85,
-          branches: 77,
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 86,
         },
 
         // Trzy pliki, które audyt wydania 8 wskazał jako JEDYNE poniżej 100%
@@ -7688,6 +7688,190 @@ export default defineConfig({
           functions: 98,
           lines: 98,
           branches: 94,
+        },
+
+        // ---------------------------------------------------------------
+        // MODUŁ 07 - kampania 2026-10-02: dziesięć funkcjonalności z tabeli
+        // wydania 12 audytu (rozdz. 16.6), linie modułu 92,59% -> 100%
+        // (4 373/4 373), funkcje 85,59% -> 100% (1 540/1 540). Taksonomia
+        // tych wierszy jest kodem: `FEATURES_7` w `scripts/taxonomy/features.mjs`.
+        //
+        // REGUŁA PROGÓW jak w części II kampanii 2026-09-02: metryka zmierzona
+        // na 100% dostaje 98, każda inna `floor(zmierzone - 4)`. Pomiar istanbul
+        // zawężony do testów dotykających plików modułu (323 pliki testowe),
+        // więc pełna suita może dać wyłącznie wartości wyższe. Wpisy, które
+        // istniały wcześniej (panele podcastów wyżej), podniesione tą samą
+        // regułą - żaden nie w dół.
+        // ---------------------------------------------------------------
+        // Programy badawcze.
+        "src/routes/admin.research-programs.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 74,
+        },
+        "src/routes/admin.programs.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 73,
+        },
+        "src/routes/programs.$slug.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        "src/routes/programs.index.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        "src/lib/programs/adminForm.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Tracker legislacyjny.
+        "src/routes/admin.tracker.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 79,
+        },
+        "src/routes/admin.tracker-guide.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/tracker.$slug.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 85,
+        },
+        "src/routes/tracker.index.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 77,
+        },
+        // Web stories.
+        "src/routes/admin.web-stories.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 87,
+        },
+        "src/routes/web-stories.$slug.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // Biblioteka członkowska i słowniczek.
+        "src/routes/admin.glossary.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        "src/routes/admin.library.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 76,
+        },
+        // Huby ekspertów (panel i katalog).
+        "src/routes/admin.expert-requests.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/admin.expert-layouts.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 84,
+        },
+        "src/routes/experts.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // Proces arkuszy.
+        "src/lib/files/spreadsheet.worker.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/files/spreadsheetWorker.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/files/spreadsheetCore.ts": {
+          statements: 91,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // Podcast.
+        "src/routes/podcast.$slug.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 81,
+        },
+        "src/routes/podcasts.index.tsx": {
+          statements: 91,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        "src/routes/podcasts.$show.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 98,
+          branches: 84,
+        },
+        // Relacje na żywo, Q&A i quiz.
+        "src/routes/admin.live-blog.tsx": {
+          statements: 88,
+          functions: 98,
+          lines: 98,
+          branches: 81,
+        },
+        "src/routes/live.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 85,
+        },
+        "src/routes/qa.$slug.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 89,
+        },
+        "src/routes/qa.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        "src/routes/quiz.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 87,
         },
         // ── CMS BUILDER: CZTERY NAJSŁABSZE POWIERZCHNIE (kampania 2026-09-04) ──
         // Wszystkie progi niżej są ZMIERZONE tym samym przebiegiem:

@@ -13,16 +13,17 @@
 //   2. KAŻDY RODZAJ UWAGI O NAGŁÓWKACH DOJEŻDŻA DO WIERSZA Z PARAMETRAMI.
 //      Osiem rodzajów `HeadingIssue["kind"]` ma osiem różnych kluczy i18n,
 //      a numer pozycji (`pos`), fragment tekstu (`snip`), liczba wystąpień
-//      (`count`, `extra`) i skok poziomów (`from`/`to`) są jedyną informacją,
+//      (`count`) i skok poziomów (`from`/`to`) są jedyną informacją,
 //      po której redaktor znajduje FIZYCZNE miejsce w treści. Cichy zanik
 //      parametru zamienia konkretną uwagę ("H1 numer 4: ...") w bezużyteczne
 //      "jest źle" - a długi łańcuch `else if` w komponencie nie ma żadnego
 //      zabezpieczenia typu na to, że rodzaj trafi w swoją gałąź.
-//   3. DWA DEFEKTY PRODUKCYJNE OPISANE JAKO `it.fails` (stan pożądany, nie
-//      obecny): stan "NIE UDAŁO SIĘ SPRAWDZIĆ" nie jest odróżniony od "BRAK
-//      UWAG" (klasa defektu, która w tym repo wracała już trzykrotnie) oraz
-//      polski napis wpisany na sztywno w parametrze `extra`, który trafia do
-//      angielskiego wariantu panelu.
+//   3. DWA DAWNE DEFEKTY, TERAZ STRAŻNICY REGRESJI: stan "NIE SPRAWDZONO"
+//      (treść bez nagłówków) jest odróżniony od "BRAK UWAG" - klasa defektu,
+//      która w tym repo wracała już trzykrotnie - oraz uwaga o pustym
+//      nagłówku mówi, KTÓRY nagłówek jest pusty (`{{pos}}` i formy mnogie po
+//      `count` w słowniku zamiast polskiego dopisku `extra` sklejanego w
+//      komponencie).
 //
 // Asercje idą po KLUCZACH i18n (atrapa `reactI18nextStub` zwraca klucz, a
 // parametry dokleja jako `klucz(param=wartość,...)` alfabetycznie), nie po
@@ -39,9 +40,11 @@
 //     policzone, jako dane wejściowe podsumowania.
 //   - `validateHeadings` (`src/lib/seo/headingValidation.ts`) - nie powtarzamy
 //     jego reguł jednostkowych (który HTML daje który rodzaj uwagi). Prawdziwy
-//     walidator pojawia się tu tylko dwa razy i tylko po to, żeby pokazać, że
-//     ŻADNA policzona uwaga nie ginie po drodze do listy, oraz żeby nazwać
-//     źródło niejednoznaczności w `it.fails`.
+//     walidator pojawia się tu tylko po to, żeby pokazać, że ŻADNA policzona
+//     uwaga nie ginie po drodze do listy, oraz żeby pokazać, że `headingCount`
+//     z `analyzeHeadings` jest sygnałem, na którym stoi stan "nie sprawdzono".
+//   - `SeoValidationSummary.i18n.test.tsx` - tam PRAWDZIWE i18next renderuje
+//     te same parametry ze słownika PL i EN (tu atrapa tylko je wypisuje).
 //   - `SeoTextField.test.tsx` / `SerpMeter.test.tsx` - ostrzeżenia POJEDYNCZEGO
 //     pola przy wpisywaniu; podsumowanie jest zbiorcze i nie ma stanu.
 //   - `e2e/seo.spec.ts` - ten plik NIE styka się z e2e. Cała suita e2e SEO
@@ -59,7 +62,12 @@ vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18n
 import { SeoValidationSummary } from "@/components/admin/seo/SeoValidationSummary";
 import { axeViolations, summarize } from "@/test/axe";
 import type { SeoIssue } from "@/lib/seo/validation";
-import { validateHeadings, type HeadingIssue } from "@/lib/seo/headingValidation";
+import {
+  analyzeHeadings,
+  validateHeadings,
+  type HeadingIssue,
+  type HeadingIssueLang,
+} from "@/lib/seo/headingValidation";
 
 const K = {
   errorHeading: "admin.seo.validation.errorHeading",
@@ -89,10 +97,20 @@ function heading(kind: HeadingIssue["kind"], over: Partial<HeadingIssue> = {}): 
   return { lang: "pl", kind, severity: "warning", ...over };
 }
 
-function renderSummary(issues: SeoIssue[], headingIssues?: HeadingIssue[]) {
+function renderSummary(
+  issues: SeoIssue[],
+  headingIssues?: HeadingIssue[],
+  uncheckedHeadingLangs?: HeadingIssueLang[],
+) {
   return headingIssues === undefined
     ? render(<SeoValidationSummary issues={issues} />)
-    : render(<SeoValidationSummary issues={issues} headingIssues={headingIssues} />);
+    : render(
+        <SeoValidationSummary
+          issues={issues}
+          headingIssues={headingIssues}
+          uncheckedHeadingLangs={uncheckedHeadingLangs}
+        />,
+      );
 }
 
 /** Treść wierszy listy uwag - kontraktem jest tekst wiersza, nie kształt DOM. */
@@ -231,22 +249,21 @@ describe("SeoValidationSummary - każdy rodzaj uwagi o nagłówkach osobno", () 
       `${H}.skippedLevel(from=3,pos= (#6),snip=,to=5)`,
     ],
     [
-      // Dopisek o łącznej liczbie jest składany w komponencie z polskiego
-      // napisu, ale prawdziwe i18next go WYRZUCA (klucz nie ma `{{extra}}`) -
-      // widać go tylko w atrapie. Rozjazd kod<->słownik opisany pod tabelą.
-      "empty_heading z licznikiem > 1 (gałąź `extra`)",
+      // Licznik jedzie jako `count` (wybór formy mnogiej w słowniku), a nie
+      // jako polski dopisek sklejany w komponencie.
+      "empty_heading z licznikiem > 1",
       heading("empty_heading", { count: 3, position: 2 }),
-      `${H}.emptyHeading(extra= (łącznie 3),pos= (#2))`,
+      `${H}.emptyHeading(count=3,pos= (#2))`,
     ],
     [
-      "empty_heading z licznikiem 1 - bez dopisku o łącznej liczbie",
+      "empty_heading z licznikiem 1",
       heading("empty_heading", { count: 1, position: 2 }),
-      `${H}.emptyHeading(extra=,pos= (#2))`,
+      `${H}.emptyHeading(count=1,pos= (#2))`,
     ],
     [
-      "empty_heading BEZ licznika i bez pozycji",
+      "empty_heading BEZ licznika i bez pozycji - domyślka 1 (jest przynajmniej jeden)",
       heading("empty_heading"),
-      `${H}.emptyHeading(extra=,pos=)`,
+      `${H}.emptyHeading(count=1,pos=)`,
     ],
     [
       "duplicate_heading z pozycją i fragmentem",
@@ -285,84 +302,90 @@ describe("SeoValidationSummary - każdy rodzaj uwagi o nagłówkach osobno", () 
     expect(rows()).toEqual([`PL - ${K.headingLabel}: ${expectedText}`]);
   });
 
-  // ROZJAZD KOD <-> SŁOWNIK, nie polski wtręt w interfejsie EN.
+  // KOD <-> SŁOWNIK: KAŻDY parametr, który komponent liczy, ma miejsce w
+  // wartości klucza.
   //
-  // Poprzednia wersja tego pliku oskarżała komponent o wstrzykiwanie polskiego
-  // napisu ` (łącznie N)` do komunikatu anglojęzycznego redaktora. To jest
-  // NIEPRAWDA i warto wiedzieć, dlaczego, bo pułapka jest ogólna: atrapa
-  // `translateKey` z `@/test/i18nStub` DOKLEJA wszystkie parametry do klucza
-  // (`klucz(param=wartość)`), żeby asercja widziała, co kod przekazał. Prawdziwe
-  // i18next robi coś odwrotnego - parametr bez `{{miejsca}}` w wartości klucza
-  // jest po cichu WYRZUCANY. Napis ` (łącznie 3)` nie dociera więc do żadnego
-  // interfejsu, ani polskiego, ani angielskiego; widać go WYŁĄCZNIE w teście.
-  // Test oparty na tym, co dokleiła atrapa, dowodziłby zachowania atrapy.
-  //
-  // DEFEKT JEST INNY I JEST REALNY: `empty_heading` to jedyny rodzaj uwagi,
-  // przy którym pozycja nagłówka jest LICZONA I PRZEKAZANA, a potem ginie.
-  // Wartość klucza `admin.seo.validation.emptyHeading` (PL i EN) nie ma ani
-  // `{{pos}}`, ani `{{extra}}` - podczas gdy `duplicateHeading`, `extraH1`,
-  // `shoutyHeading`, `tooLongHeading` i `skippedLevel` mają `{{pos}}` i mówią
-  // redakcji, KTÓRY nagłówek poprawić.
+  // Pułapka, przed którą chroni ta sekcja, jest ogólna: atrapa `translateKey`
+  // z `@/test/i18nStub` DOKLEJA wszystkie parametry do klucza
+  // (`klucz(param=wartość)`), a prawdziwe i18next robi coś odwrotnego -
+  // parametr bez `{{miejsca}}` w wartości klucza jest po cichu WYRZUCANY. Tak
+  // ginęła pozycja pustego nagłówka: komponent ją liczył i przekazywał, a
+  // słownik nie miał `{{pos}}`, więc redakcja czytała "Pusty nagłówek w
+  // treści" bez wskazania, KTÓRY. Dawny polski dopisek ` (łącznie N)` w
+  // parametrze `extra` też nie docierał do żadnego interfejsu - widać go było
+  // WYŁĄCZNIE w teście. Teraz licznik jest `count` (formy mnogie w słowniku),
+  // a pozycja `{{pos}}` w każdej formie.
   //
   // Fakt czytamy ze SŁOWNIKA jako tekstu (`readFileSync`, wzorzec bramek
   // w `src/routes/__tests__/adminRouteAuthority.gate.test.ts`), a nie przez
   // import - ten plik mockuje `react-i18next`, a `i18n-admin-extras.ts` sięga
   // przez `./i18n` właśnie do niego, więc import domknąłby cykl i ZAWIESIŁ
   // plik testowy bez komunikatu (patrz ostrzeżenie w `@/test/i18nStub`).
+  // Prawdziwe renderowanie tych wartości dowodzi `SeoValidationSummary.i18n.test.tsx`.
   const DICTIONARY = "src/lib/i18n-admin-extras.ts";
 
-  it("pozycja i licznik pustego nagłówka są przekazywane do i18n - to nie jest luka po stronie komponentu", () => {
-    renderSummary([], [heading("empty_heading", { count: 3, position: 2 })]);
-    // Komponent robi swoje: oba parametry lecą do `t()`.
-    expect(rows()[0]).toContain("pos= (#2)");
-    expect(rows()[0]).toContain("extra= (łącznie 3)");
-  });
-
-  it("słownik NIE ma miejsca na te parametry - stan faktyczny, przypięty na wartości klucza", () => {
-    const dictionary = readFileSync(DICTIONARY, "utf8");
-    const emptyHeadingValues = [...dictionary.matchAll(/emptyHeading:\s*("(?:[^"\\]|\\.)*")/g)].map(
+  /** Wartości klucza (PL i EN, w kolejności pliku) - po dokładnej nazwie klucza. */
+  function dictionaryValues(dictionary: string, key: string): string[] {
+    return [...dictionary.matchAll(new RegExp(`\\b${key}:\\s*("(?:[^"\\\\]|\\\\.)*")`, "g"))].map(
       (m) => m[1],
     );
-    // Dwie wartości: PL i EN. Kanarek zasięgu - gdyby regex przestał trafiać,
-    // asercje niżej przechodziłyby na pustej liście i nic nie dowodziły.
-    expect(emptyHeadingValues, `brak klucza emptyHeading w ${DICTIONARY}`).toHaveLength(2);
-    for (const value of emptyHeadingValues) {
-      expect(value, "emptyHeading nie interpoluje pozycji").not.toContain("{{pos}}");
-      expect(value, "emptyHeading nie interpoluje licznika").not.toContain("{{extra}}");
-    }
+  }
+
+  it("pozycja i licznik pustego nagłówka są przekazywane do i18n jako `pos` i `count`", () => {
+    renderSummary([], [heading("empty_heading", { count: 3, position: 2 })]);
+    expect(rows()[0]).toContain("pos= (#2)");
+    expect(rows()[0]).toContain("count=3");
+    // Negatywny: żadnego tekstu w konkretnym języku sklejanego w komponencie.
+    expect(rows()[0]).not.toContain("łącznie");
+    expect(rows()[0]).not.toContain("extra=");
   });
 
-  it("pozostałe rodzaje uwag o nagłówkach POKAZUJĄ pozycję - to z nimi `empty_heading` się rozjeżdża", () => {
+  it("uwaga o pustym nagłówku mówi, KTÓRY nagłówek jest pusty - każda forma klucza ma {{pos}}", () => {
+    // STRAŻNIK dawnego defektu. KONSEKWENCJA regresji: przy wpisie z
+    // kilkunastoma sekcjami uwaga nie mówi gdzie, więc redaktor przechodzi
+    // wpis ręcznie albo ignoruje uwagę.
     const dictionary = readFileSync(DICTIONARY, "utf8");
-    // Bez tej asercji „brak {{pos}}" mógłby znaczyć „ten panel nigdy nie
-    // pokazuje pozycji", czyli spójną decyzję projektową, a nie rozjazd.
-    for (const key of ["duplicateHeading", "extraH1", "shoutyHeading"]) {
-      const values = [
-        ...dictionary.matchAll(new RegExp(`${key}:\\s*("(?:[^"\\\\]|\\\\.)*")`, "g")),
-      ].map((m) => m[1]);
-      expect(values.length, `brak klucza ${key} w ${DICTIONARY}`).toBeGreaterThan(0);
-      expect(
-        values.some((v) => v.includes("{{pos}}")),
-        `${key} bez {{pos}}`,
-      ).toBe(true);
+    // Stary klucz bez form mnogich nie może wrócić obok nowych - i18next
+    // wybrałby go dla brakującej formy i pozycja znowu by zginęła.
+    expect(dictionaryValues(dictionary, "emptyHeading")).toEqual([]);
+    const forms = ["one", "few", "many", "other"].flatMap((form) =>
+      dictionaryValues(dictionary, `emptyHeading_${form}`),
+    );
+    // PL ma cztery formy, EN dwie (one/other). Kanarek zasięgu - gdyby regex
+    // przestał trafiać, asercje niżej przechodziłyby na pustej liście.
+    expect(forms, `brak form emptyHeading_* w ${DICTIONARY}`).toHaveLength(6);
+    for (const value of forms) {
+      expect(value, "emptyHeading bez {{pos}}").toContain("{{pos}}");
     }
   });
 
-  // Stan POŻĄDANY: redakcja dowiaduje się, KTÓRY nagłówek jest pusty.
-  // KONSEKWENCJA obecnego stanu: przy wpisie z kilkunastoma sekcjami uwaga
-  // „Pusty nagłówek w treści - usuń lub uzupełnij." nie mówi gdzie, więc
-  // redaktor przechodzi wpis ręcznie albo ignoruje uwagę. Naprawa należy do
-  // słownika i produkcji (dopisać `{{pos}}` do obu wersji klucza), nie do testu.
-  it.fails(
-    "DEFEKT: uwaga o pustym nagłówku nie mówi, KTÓRY nagłówek jest pusty, choć pozycja jest policzona",
-    () => {
-      const dictionary = readFileSync(DICTIONARY, "utf8");
-      const values = [...dictionary.matchAll(/emptyHeading:\s*("(?:[^"\\]|\\.)*")/g)].map(
-        (m) => m[1],
-      );
-      expect(values.every((v) => v.includes("{{pos}}"))).toBe(true);
-    },
-  );
+  it("formy mnogie pustego nagłówka podają liczbę, forma pojedyncza nie musi", () => {
+    const dictionary = readFileSync(DICTIONARY, "utf8");
+    for (const form of ["few", "many", "other"]) {
+      for (const value of dictionaryValues(dictionary, `emptyHeading_${form}`)) {
+        expect(value, `emptyHeading_${form} bez {{count}}`).toContain("{{count}}");
+      }
+    }
+  });
+
+  it("KAŻDY rodzaj uwagi, który niesie pozycję, pokazuje ją w obu językach", () => {
+    const dictionary = readFileSync(DICTIONARY, "utf8");
+    for (const key of [
+      "duplicateHeading",
+      "extraH1",
+      "shoutyHeading",
+      "skippedLevel",
+      "tooLongHeading_one",
+      "tooLongHeading_other",
+    ]) {
+      const values = dictionaryValues(dictionary, key);
+      expect(values, `brak klucza ${key} w ${DICTIONARY}`).toHaveLength(2);
+      for (const value of values) {
+        expect(value, `${key} bez {{pos}}`).toContain("{{pos}}");
+        expect(value, `${key} bez {{snip}}`).toContain("{{snip}}");
+      }
+    }
+  });
 
   it("uwagi wchodzą do listy w KOLEJNOŚCI podania: najpierw meta, potem nagłówki", () => {
     renderSummary(
@@ -373,7 +396,7 @@ describe("SeoValidationSummary - każdy rodzaj uwagi o nagłówkach osobno", () 
     expect(rows()).toEqual([
       `PL - ${K.titleLabel}: admin.seo.validation.warnLine(chars=70,px=640,pxLimit=600)`,
       `PL - ${K.headingLabel}: admin.seo.validation.missingH1`,
-      `PL - ${K.headingLabel}: admin.seo.validation.emptyHeading(extra= (łącznie 2),pos= (#5))`,
+      `PL - ${K.headingLabel}: admin.seo.validation.emptyHeading(count=2,pos= (#5))`,
     ]);
   });
 });
@@ -493,35 +516,89 @@ describe("SeoValidationSummary - komplet uwag z prawdziwego walidatora", () => {
       expect(row).toMatch(new RegExp(`^PL - ${K.headingLabel}: admin\\.seo\\.validation\\.`));
     }
   });
+});
 
-  // DEFEKT PRODUKTU, nie luka testu. Podsumowanie zna wyłącznie DWIE listy
-  // uwag i nie ma żadnego sygnału "czy walidacja w ogóle się wykonała".
-  // `validateHeadings` zwraca pustą listę zarówno wtedy, gdy treść jest czysta,
-  // jak i wtedy, gdy NIE MA CZEGO SPRAWDZAĆ (brak nagłówków - `headings.length
-  // === 0` kończy funkcję natychmiast); tak samo pusta lista przychodzi, gdy
-  // panel montuje się przed policzeniem uwag albo gdy liczenie padnie.
-  // KONSEKWENCJA: redakcja dostaje ZIELONE "wszystkie pola mieszczą się w
-  // limitach Google" jako potwierdzenie czegoś, czego nikt nie sprawdził -
-  // i publikuje wpis bez H1, z pustym opisem, w przekonaniu, że przeszedł
-  // kontrolę. Test opisuje stan POŻĄDANY (dwa różne stany = dwa różne
-  // komunikaty) i dlatego jest oznaczony `it.fails`. Naprawa należy do
-  // produkcji (osobny stan "nie sprawdzono"), nie do testu.
-  it.fails(
-    "DEFEKT: podsumowanie pokazuje zielone „brak uwag” także wtedy, gdy walidacja NIE ZOSTAŁA WYKONANA - redakcja dostaje fałszywe potwierdzenie",
-    () => {
-      const nieSprawdzone = validateHeadings("pl", { html: "" });
-      const sprawdzoneCzyste = validateHeadings("pl", {
-        html: "<h1>Tytuł</h1><h2>Sekcja</h2><h3>Podsekcja</h3>",
-      });
-      // Oba wejścia dają pustą listę - walidator sam nie odróżnia tych stanów.
-      expect(nieSprawdzone).toEqual([]);
-      expect(sprawdzoneCzyste).toEqual([]);
+describe("SeoValidationSummary - stan „nie sprawdzono” to nie „brak uwag”", () => {
+  const OK_UNCHECKED = "admin.seo.validation.headingsUnchecked";
 
-      const bezWalidacji = renderSummary([], nieSprawdzone).container.textContent;
-      cleanup();
-      const poWalidacji = renderSummary([], sprawdzoneCzyste).container.textContent;
+  /** Kontener podsumowania - kontraktem jest `data-state`, nie klasa CSS. */
+  function box(): HTMLElement {
+    const el = document.querySelector<HTMLElement>("[data-state]");
+    if (!el) throw new Error("brak kontenera podsumowania");
+    return el;
+  }
 
-      expect(bezWalidacji).not.toBe(poWalidacji);
-    },
-  );
+  it("treść bez nagłówków i czysta treść dają RÓŻNE komunikaty", () => {
+    // STRAŻNIK dawnego defektu. `validateHeadings` zwraca pustą listę w obu
+    // przypadkach; różnicę niesie dopiero `headingCount` z `analyzeHeadings`,
+    // a panel przekazuje ją jako `uncheckedHeadingLangs`. KONSEKWENCJA
+    // regresji: redakcja dostaje ZIELONE "wszystkie pola mieszczą się w
+    // limitach Google" jako potwierdzenie czegoś, czego nikt nie sprawdził, i
+    // publikuje wpis bez nagłówków w przekonaniu, że przeszedł kontrolę.
+    const nieSprawdzone = analyzeHeadings("pl", { html: "" }, { rendersTitleAsH1: true });
+    const sprawdzoneCzyste = analyzeHeadings(
+      "pl",
+      { html: "<h2>Sekcja</h2><h3>Podsekcja</h3>" },
+      { rendersTitleAsH1: true },
+    );
+    expect(nieSprawdzone.issues).toEqual([]);
+    expect(sprawdzoneCzyste.issues).toEqual([]);
+    expect(nieSprawdzone.headingCount).toBe(0);
+    expect(sprawdzoneCzyste.headingCount).toBeGreaterThan(0);
+
+    const bezWalidacji = renderSummary([], nieSprawdzone.issues, ["pl"]);
+    const tekstBez = bezWalidacji.container.textContent;
+    expect(box()).toHaveAttribute("data-state", "unchecked");
+    cleanup();
+    const poWalidacji = renderSummary([], sprawdzoneCzyste.issues, []);
+    expect(box()).toHaveAttribute("data-state", "ok");
+
+    expect(tekstBez).not.toBe(poWalidacji.container.textContent);
+  });
+
+  it("stan „nie sprawdzono”: rola status, BEZ zielonego potwierdzenia, z nazwanymi językami", () => {
+    renderSummary([], [], ["pl", "en"]);
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("data-state", "unchecked");
+    // Pola meta nadal przeszły - to zdanie zostaje, ale obok stoi powód,
+    // dla którego struktura nagłówków NIE została potwierdzona.
+    expect(within(status).getByText(K.ok)).toBeInTheDocument();
+    expect(within(status).getByText(`${OK_UNCHECKED}(langs=PL, EN)`)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+  });
+
+  it("uwagi + niesprawdzony język: lista bez zmian, notatka POD listą, nie jako wiersz", () => {
+    // Notatka nie jest uwagą - nie może podbić licznika wierszy ani poziomu
+    // istotności bloku (to nadal zwykłe ostrzeżenie).
+    renderSummary([meta({ severity: "warning" })], [heading("missing_h1")], ["en"]);
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("data-state", "warning");
+    expect(rows()).toHaveLength(2);
+    expect(within(status).getByText(`${OK_UNCHECKED}(langs=EN)`)).toBeInTheDocument();
+    for (const row of rows()) expect(row).not.toContain(OK_UNCHECKED);
+  });
+
+  it("błąd + niesprawdzony język: rola alert zostaje, notatka też", () => {
+    renderSummary([meta()], [], ["pl"]);
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveAttribute("data-state", "error");
+    expect(within(alert).getByText(`${OK_UNCHECKED}(langs=PL)`)).toBeInTheDocument();
+  });
+
+  it.each<[string, HeadingIssueLang[] | undefined]>([
+    ["pusta lista języków", []],
+    ["prop pominięty", undefined],
+  ])("%s: zwykłe zielone „brak uwag” bez notatki (negatywny)", (_opis, langs) => {
+    renderSummary([], [], langs);
+    expect(box()).toHaveAttribute("data-state", "ok");
+    expect(screen.getByText(K.ok)).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(OK_UNCHECKED))).not.toBeInTheDocument();
+  });
+
+  it("stan „nie sprawdzono” nie ma naruszeń axe", async () => {
+    const { container } = renderSummary([], [], ["pl", "en"]);
+    const naruszenia = await axeViolations(container);
+    expect(naruszenia, summarize(naruszenia)).toEqual([]);
+  });
 });

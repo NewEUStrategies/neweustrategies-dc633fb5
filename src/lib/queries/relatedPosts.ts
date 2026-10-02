@@ -43,7 +43,7 @@ const POPULARITY_SAMPLE = 50;
  * dokładnie to okno obiecuje redakcji podpowiedź suwaka
  * (`adminRelatedPosts.engine.dwellHint` w `i18n-admin-related-posts`). Próg
  * pięciu pomiarów, o którym mówi ta sama podpowiedź, stoi w SQL
- * (`related_posts_dwell`, migracja 20261002120000) - zmiana któregokolwiek
+ * (`related_posts_dwell`, migracja 20261002200000) - zmiana któregokolwiek
  * z nich bez zmiany podpowiedzi to panel opisujący inny silnik, niż działa.
  */
 const DWELL_WINDOW_DAYS = 28;

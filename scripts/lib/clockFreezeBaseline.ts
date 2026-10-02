@@ -72,7 +72,7 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/newsletter/builder/__tests__/WidgetPreview.test.tsx", 1],
   ["src/components/admin/newsletter/system-emails/__tests__/SystemEmailsPanel.test.tsx", 4],
   ["src/components/admin/newsletter/system-emails/__tests__/systemEmailsRules.test.ts", 5],
-  ["src/components/admin/podcasts/__tests__/EpisodeEditorPane.test.tsx", 7],
+  ["src/components/admin/podcasts/__tests__/EpisodeEditorPane.test.tsx", 6],
   ["src/components/admin/podcasts/__tests__/EpisodeEditorPaneAudio.test.tsx", 1],
   ["src/components/admin/podcasts/__tests__/EpisodesListPane.test.tsx", 3],
   ["src/components/admin/post-editor/molecules/__tests__/PostSponsoredCard.disclosure.test.tsx", 1],
@@ -265,9 +265,7 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/routes/__tests__/eventShellLoader.test.ts", 3],
   ["src/routes/__tests__/legalComplianceRoutes.test.tsx", 1],
   ["src/routes/__tests__/libraryRoute.test.tsx", 1],
-  ["src/routes/__tests__/podcastEpisodeRoute.test.tsx", 6],
   ["src/routes/__tests__/podcastShowRoute.test.tsx", 5],
-  ["src/routes/__tests__/programsPublicRoutes.test.tsx", 3],
   ["src/routes/__tests__/qaSessionsRoutes.test.tsx", 7],
   ["src/routes/__tests__/webStoriesRoutes.test.tsx", 4],
   // 2026-09-21 - CIĄG DALSZY PLANU CWV: dwa NOWE testy tras publicznych, ten sam

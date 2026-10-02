@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { layoutOgTitle, ogCardStoragePath, wrapText, type MeasureFn } from "@/lib/seo/ogCard";
+import { describe, expect, it, vi } from "vitest";
+import {
+  fitSingleLine,
+  layoutOgTitle,
+  OG_CARD_MAX_TEXT_WIDTH,
+  ogCardStoragePath,
+  wrapText,
+  type MeasureFn,
+} from "@/lib/seo/ogCard";
 
 // Deterministic measurer: every character is 0.5em wide.
 const measure: MeasureFn = (text, fontSize) => text.length * fontSize * 0.5;
@@ -144,5 +151,91 @@ describe("ogCardStoragePath - klucze obiektów", () => {
     // ścieżkę "og-cards/post-.png" - JEDEN wspólny obiekt dla wszystkich
     // wpisów bez id, więc wołający MUSI podać id.
     expect(ogCardStoragePath(kind, entityId)).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fitSingleLine - jedna linia kickera (nazwa sekcji/kategorii z TREŚCI). Ta
+// sama miara 0.5em: przy 20 px znak ma 10 px, budżet 100 px = 10 znaków.
+// ---------------------------------------------------------------------------
+describe("fitSingleLine", () => {
+  it("tekst mieszczący się w budżecie wraca BEZ zmian (także dokładnie na granicy)", () => {
+    expect(fitSingleLine("abc", 100, 20, measure)).toBe("abc");
+    expect(fitSingleLine("abcdefghij", 100, 20, measure)).toBe("abcdefghij");
+  });
+
+  it("za długi tekst: najdłuższy prefiks + elipsa, razem w budżecie", () => {
+    // 11 znaków > 10: zostaje 9 znaków treści + "…" = dokładnie 100 px.
+    expect(fitSingleLine("abcdefghijk", 100, 20, measure)).toBe("abcdefghi…");
+    const line = fitSingleLine("x".repeat(500), 100, 20, measure);
+    expect(line).toBe(`${"x".repeat(9)}…`);
+    expect(measure(line, 20)).toBeLessThanOrEqual(100);
+  });
+
+  it("nie zostawia wiszącej spacji ani interpunkcji przed elipsą", () => {
+    // Prefiks 9 znaków to "abcd efg " - spacja przed elipsą jest zwijana.
+    expect(fitSingleLine("abcd efg hijk", 100, 20, measure)).toBe("abcd efg…");
+    // Za przecinkiem same spacje: zwinięte razem z przecinkiem.
+    expect(fitSingleLine("abcd,     ijklmnop", 100, 20, measure)).toBe("abcd…");
+  });
+
+  it("nie rozcina emoji z jednego code pointu na samotny surogat", () => {
+    // Miara liczy jednostki UTF-16, więc emoji (2 jednostki) „waży" 20 px.
+    const line = fitSingleLine("ab🚀🚀🚀🚀🚀🚀", 100, 20, measure);
+    expect(line.endsWith("…")).toBe(true);
+    expect(line.slice(0, -1)).toMatch(/^ab(?:🚀)*$/u);
+    expect(measure(line, 20)).toBeLessThanOrEqual(100);
+  });
+
+  // Klastry grafemów. Miara liczy jednostki UTF-16: rodzina 👨‍👩‍👧 to 8
+  // jednostek (3 emoji po 2 + 2 ZWJ), flaga 🇵🇱 to 4 (dwie litery regionalne
+  // po 2). Cięcie po code pointach (dawne Array.from) dawało tu odpowiednio
+  // "AB👨‍👩‍👧" + wiszący ZWJ i samotną literę regionalną (prostokąt z „P").
+  it("nie rozcina sekwencji ZWJ: rodzina zostaje cała albo wypada w całości", () => {
+    const text = "AB👨‍👩‍👧👨‍👩‍👧";
+    // 120 px = 12 jednostek: "AB" + rodzina + "…" = 11 mieści się, druga nie.
+    expect(fitSingleLine(text, 120, 20, measure)).toBe("AB👨‍👩‍👧…");
+    // 100 px = 10 jednostek: rodzina z elipsą (11) już się nie mieści.
+    expect(fitSingleLine(text, 100, 20, measure)).toBe("AB…");
+    for (const budget of [40, 60, 80, 100, 120, 140, 160, 180]) {
+      const line = fitSingleLine(text, budget, 20, measure);
+      expect(line).not.toMatch(/‍…$/u);
+      expect(line === text || /^AB(?:👨‍👩‍👧)*…$/u.test(line)).toBe(true);
+      expect(measure(line, 20)).toBeLessThanOrEqual(budget);
+    }
+  });
+
+  it("nie rozcina flagi na samotną literę regionalną", () => {
+    // 80 px = 8 jednostek: "A" + 🇵🇱 + "…" = 6; cięcie po code pointach
+    // zmieściłoby jeszcze jedną literę regionalną (8) i rozbiło drugą flagę.
+    expect(fitSingleLine("A🇵🇱🇵🇱🇵🇱", 80, 20, measure)).toBe("A🇵🇱…");
+  });
+
+  it("emoji z selektorem VS16 (❤️) nie traci własnego selektora przed elipsą", () => {
+    // ❤️ = U+2764 U+FE0F (2 jednostki). Zwijanie wiszącego U+FE0F działa na
+    // CAŁYCH grafemach, więc nie obcina selektora z ❤️ (wersja tekstowa ❤).
+    expect(fitSingleLine("ab❤️❤️❤️❤️❤️❤️", 80, 20, measure)).toBe("ab❤️❤️…");
+  });
+
+  it("bez Intl.Segmenter: fallback na code pointy bez wiszącego ZWJ przed elipsą", () => {
+    const fakeIntl = Object.create(Intl) as typeof Intl;
+    Object.defineProperty(fakeIntl, "Segmenter", { value: undefined });
+    vi.stubGlobal("Intl", fakeIntl);
+    try {
+      // 70 px = 7 jednostek: prefiks "AB👨" + ZWJ - ZWJ jest zwijany.
+      expect(fitSingleLine("AB👨‍👩‍👧👨‍👩‍👧", 70, 20, measure)).toBe("AB👨…");
+      // Bez segmentera zwykły tekst skraca się tak samo jak z nim.
+      expect(fitSingleLine("abcd efg hijk", 100, 20, measure)).toBe("abcd efg…");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("budżet, w którym nie mieści się nawet elipsa, daje pusty napis (bez pętli)", () => {
+    expect(fitSingleLine("abcdef", 5, 20, measure)).toBe("");
+  });
+
+  it("budżet kickera to szerokość karty minus oba marginesy", () => {
+    expect(OG_CARD_MAX_TEXT_WIDTH).toBe(1040);
   });
 });

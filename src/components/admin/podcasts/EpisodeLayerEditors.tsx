@@ -3,9 +3,9 @@
 //
 // Cztery listy o tym samym szkielecie: karta z przyciskiem „Dodaj", wiersze
 // z uchwytem i koszem, pusty stan. Logika jest w trzech operacjach na tablicy
-// (dodaj / zmień po indeksie / usuń po indeksie) i to one są tu przedmiotem
-// dowodu: pomyłka w indeksie zmienia CUDZY wiersz, a `filter` po tożsamości
-// obiektu gubi wiersze o identycznej treści.
+// (dodaj / zmień po indeksie / usuń po indeksie, wspólne `indexedRowOps`)
+// i to one są tu przedmiotem dowodu: pomyłka w indeksie zmienia CUDZY
+// wiersz, a `filter` po tożsamości obiektu gubi wiersze o identycznej treści.
 //
 // Stan trzyma edytor odcinka (`EpisodeEditorPane`) - te komponenty są
 // bezstanowe z założenia, bo „Zapisz" wysyła CAŁY zestaw warstw jednym
@@ -21,6 +21,26 @@ import type { PodcastChapter, PodcastQuote, PodcastResource } from "@/lib/podcas
 import { formatDuration, parseDuration } from "@/lib/podcast/types";
 import type { PersonDraft, ProfileOption } from "@/lib/podcast/shape";
 import { ensureI18n as ensureAdminPodcastsI18n } from "@/lib/i18n-admin-podcasts";
+
+/**
+ * Trzy operacje na tablicy warstwy - dodaj / zmień po indeksie / usuń po
+ * indeksie - JEDEN raz dla czterech edytorów. Były czterema kopiami tych
+ * samych trzech domknięć, a to dokładnie to miejsce, w którym pomyłka
+ * w indeksie zmienia CUDZY wiersz: poprawka w jednej kopii nie dochodziła
+ * do trzech pozostałych. Operacje idą przez aktualizator stanu (`prev`), bo
+ * dwa szybkie kliknięcia w jednym renderze nie mogą zgubić pierwszego.
+ */
+function indexedRowOps<T extends object>(
+  setRows: React.Dispatch<React.SetStateAction<T[]>>,
+  blank: () => T,
+) {
+  return {
+    update: (i: number, patch: Partial<T>) =>
+      setRows((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row))),
+    remove: (i: number) => setRows((prev) => prev.filter((_, idx) => idx !== i)),
+    add: () => setRows((prev) => [...prev, blank()]),
+  };
+}
 
 export function SectionCard({
   title,
@@ -88,11 +108,12 @@ export function PeopleEditor({
 }) {
   ensureAdminPodcastsI18n();
   const { t } = useTranslation();
-  const update = (i: number, patch: Partial<PersonDraft>) =>
-    setPeople((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
-  const remove = (i: number) => setPeople((prev) => prev.filter((_, idx) => idx !== i));
-  const add = () =>
-    setPeople((prev) => [...prev, { profile_id: null, display_name: "", role: "guest", url: "" }]);
+  const { update, remove, add } = indexedRowOps<PersonDraft>(setPeople, () => ({
+    profile_id: null,
+    display_name: "",
+    role: "guest",
+    url: "",
+  }));
 
   return (
     <SectionCard
@@ -169,10 +190,11 @@ export function ChaptersEditor({
 }) {
   ensureAdminPodcastsI18n();
   const { t } = useTranslation();
-  const update = (i: number, patch: Partial<PodcastChapter>) =>
-    setChapters((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
-  const remove = (i: number) => setChapters((prev) => prev.filter((_, idx) => idx !== i));
-  const add = () => setChapters((prev) => [...prev, { start: 0, title_pl: "", title_en: "" }]);
+  const { update, remove, add } = indexedRowOps<PodcastChapter>(setChapters, () => ({
+    start: 0,
+    title_pl: "",
+    title_en: "",
+  }));
 
   return (
     <SectionCard
@@ -222,10 +244,11 @@ export function QuotesEditor({
 }) {
   ensureAdminPodcastsI18n();
   const { t } = useTranslation();
-  const update = (i: number, patch: Partial<PodcastQuote>) =>
-    setQuotes((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
-  const remove = (i: number) => setQuotes((prev) => prev.filter((_, idx) => idx !== i));
-  const add = () => setQuotes((prev) => [...prev, { text_pl: "", text_en: "", attribution: "" }]);
+  const { update, remove, add } = indexedRowOps<PodcastQuote>(setQuotes, () => ({
+    text_pl: "",
+    text_en: "",
+    attribution: "",
+  }));
 
   return (
     <SectionCard
@@ -274,11 +297,12 @@ export function ResourcesEditor({
 }) {
   ensureAdminPodcastsI18n();
   const { t } = useTranslation();
-  const update = (i: number, patch: Partial<PodcastResource>) =>
-    setResources((prev) => prev.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
-  const remove = (i: number) => setResources((prev) => prev.filter((_, idx) => idx !== i));
-  const add = () =>
-    setResources((prev) => [...prev, { label_pl: "", label_en: "", url: "", kind: "source" }]);
+  const { update, remove, add } = indexedRowOps<PodcastResource>(setResources, () => ({
+    label_pl: "",
+    label_en: "",
+    url: "",
+    kind: "source",
+  }));
 
   return (
     <SectionCard

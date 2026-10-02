@@ -7,11 +7,16 @@
 // mieszka w czystym module `@/lib/seo/contentStatus`, a ten ekran wyłącznie
 // pobiera wiersze i renderuje. Tytuł strony i podtytuł kokpitu rysuje układ,
 // więc zostaje tu sam podtytuł opisujący TĘ zakładkę.
+//
+// CZTERY STANY LISTY, nie dwa: ładowanie, AWARIA ODCZYTU (komunikat
+// + „Spróbuj ponownie"), pusta baza i brak trafień filtra. Do 2026-10 padnięty
+// odczyt zostawiał `rows` puste i tabela mówiła „ładowanie" w nieskończoność -
+// redakcja nie miała jak się dowiedzieć, że przegląd SEO nie działa.
+// Odczyt (zapytanie, limity, liczność) dzieli z kokpitem `@/lib/seo/seoContentQuery`.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import {
@@ -23,34 +28,34 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/admin/atoms/StatusBadge";
 import { SeoScorePill } from "@/components/admin/seo/SeoScorePill";
+import {
+  ContentCoverageNotice,
+  ContentReadError,
+  PartialTag,
+} from "@/components/admin/seo/ContentCoverageNotice";
 import { Check, File, Newspaper, X } from "@/lib/lucide-shim";
 import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
-import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
 import {
   seoContentStatus,
   summarizeSeoStatuses,
   type SeoContentStatus,
-  type SeoStatusInput,
 } from "@/lib/seo/contentStatus";
+import {
+  seoContentCoverage,
+  seoContentQueryOptions,
+  type SeoContentRow,
+} from "@/lib/seo/seoContentQuery";
 
 export const Route = createFileRoute("/admin/seo/content")({
   component: SeoContentOverview,
   head: () => ({ meta: [{ title: "SEO - Przegląd treści" }] }),
 });
 
-interface ContentRow extends SeoStatusInput {
-  id: string;
-  slug: string;
-  status: string;
-}
-
 interface OverviewRow {
   kind: "post" | "page";
-  row: ContentRow;
+  row: SeoContentRow;
   status: SeoContentStatus;
 }
-
-const CONTENT_SELECT = `id, slug, status, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, ${SEO_FIELDS_SELECT}`;
 
 type KindFilter = "all" | "post" | "page";
 type SeoFilter = "all" | "missing_description" | "default_image" | "noindex" | "overrides";
@@ -78,46 +83,34 @@ function SeoContentOverview() {
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [seoFilter, setSeoFilter] = useState<SeoFilter>("all");
 
-  const { data: posts } = useQuery({
-    queryKey: ["admin-seo-posts", tenantId],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<ContentRow[]> => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select(CONTENT_SELECT)
-        .eq("tenant_id", tenantId)
-        .is("deleted_at", null)
-        .order("published_at", { ascending: false, nullsFirst: false })
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-  const { data: pages } = useQuery({
-    queryKey: ["admin-seo-pages", tenantId],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<ContentRow[]> => {
-      const { data, error } = await supabase
-        .from("pages")
-        .select(CONTENT_SELECT)
-        .eq("tenant_id", tenantId)
-        .is("deleted_at", null)
-        .order("menu_order")
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const postsQuery = useQuery(seoContentQueryOptions("posts", tenantId));
+  const pagesQuery = useQuery(seoContentQueryOptions("pages", tenantId));
+  const posts = postsQuery.data;
+  const pages = pagesQuery.data;
+  // Awaria KTÓREJKOLWIEK tabeli to awaria przeglądu: połowa listy z kafelkami
+  // policzonymi z połowy wyglądałaby jak komplet.
+  const readFailed = postsQuery.isError || pagesQuery.isError;
+  const loading = !readFailed && (postsQuery.isPending || pagesQuery.isPending);
+  const coverage = useMemo(() => seoContentCoverage([posts, pages]), [posts, pages]);
+  // Dopisek „częściowe" przy kafelkach tylko po udanym odczycie OBU tabel -
+  // w trakcie ładowania „nieznane" byłoby fałszywym alarmem, a awarię
+  // komunikuje osobny stan błędu.
+  const partial = !loading && !readFailed && coverage.state !== "complete";
+  // Ponawiamy WYŁĄCZNIE tabelę, która padła - udany odczyt drugiej zostaje w cache.
+  const retryContent = () => {
+    if (postsQuery.isError) void postsQuery.refetch();
+    if (pagesQuery.isError) void pagesQuery.refetch();
+  };
 
   const rows = useMemo<OverviewRow[]>(() => {
     const assess =
       (kind: "post" | "page") =>
-      (row: ContentRow): OverviewRow => ({
+      (row: SeoContentRow): OverviewRow => ({
         kind,
         row,
         status: seoContentStatus(row),
       });
-    return [...(pages ?? []).map(assess("page")), ...(posts ?? []).map(assess("post"))];
+    return [...(pages?.rows ?? []).map(assess("page")), ...(posts?.rows ?? []).map(assess("post"))];
   }, [posts, pages]);
 
   const filtered = useMemo(() => {
@@ -215,10 +208,19 @@ function SeoContentOverview() {
             } ${tile.filter ? "cursor-pointer" : "cursor-default"}`}
           >
             <div className={`text-2xl font-bold tabular-nums ${tile.tone}`}>{tile.value}</div>
-            <div className="text-[11px] text-muted-foreground mt-0.5">{tile.label}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              {tile.label}
+              {partial ? <PartialTag /> : null}
+            </div>
           </button>
         ))}
       </div>
+
+      {readFailed ? (
+        <ContentReadError onRetry={retryContent} />
+      ) : partial ? (
+        <ContentCoverageNotice coverage={coverage} />
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <Input
@@ -318,10 +320,16 @@ function SeoContentOverview() {
                 </td>
               </tr>
             ))}
-            {!filtered.length && (
+            {/* Przy awarii bez żadnego wiersza pusta tabela nic nie dopowiada -
+                stan mówi komunikat błędu nad nią, nie „ładowanie" ani „pusto". */}
+            {!filtered.length && !(readFailed && !rows.length) && (
               <tr>
                 <td colSpan={7} className="p-6 text-center text-muted-foreground">
-                  {rows.length ? t("adminSeoHub.noResults") : t("admin.loading")}
+                  {rows.length
+                    ? t("adminSeoHub.noResults")
+                    : loading
+                      ? t("admin.loading")
+                      : t("adminSeoHub.contentEmpty")}
                 </td>
               </tr>
             )}

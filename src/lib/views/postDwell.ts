@@ -1,5 +1,5 @@
 // Pomiar czasu AKTYWNEGO czytania wpisu - źródło sygnału dwell silnika
-// rekomendacji (`related_posts_dwell`, migracja 20261002120000).
+// rekomendacji (`related_posts_dwell`, migracja 20261002200000).
 //
 // CO MIERZYMY. Czas, w którym karta jest widoczna, a czytelnik był aktywny
 // (przewinięcie strony, klawisz, dotyk, ruch wskaźnika) nie dawniej niż

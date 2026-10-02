@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useId, useState, type ChangeEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FloatingInput, FloatingTextarea } from "@/components/ui/floating-input";
@@ -22,8 +21,70 @@ import {
   type WebStoryStatus,
 } from "@/lib/web-stories/types";
 import { adminToast } from "@/lib/adminToasts";
+import { replaceStrokeLetters } from "@/lib/text/strokeLetters";
 
+// BEZ WŁASNEJ POWŁOKI PANELU. `admin.tsx` rysuje `<AdminShell>` wokół KAŻDEJ
+// trasy `/admin/*` (poza studiem wydarzeń), więc `<AdminShell hideSidebar>`
+// tutaj dawał DRUGĄ, zagnieżdżoną powłokę: drugi `<main id="main-content">`
+// (zduplikowane `id`, kotwica „przejdź do treści" trafiała w zewnętrzny),
+// pływający przełącznik języka nad paskiem bocznym, który ma już własny,
+// do tego podwójny padding i drugi komplet zapytań powłoki (ustawienia,
+// liczniki klubów). Ta sama naprawa co w `admin.events.tsx`: trasa oddaje
+// sam kontent.
 export const Route = createFileRoute("/admin/web-stories")({ component: Page });
+
+/** Klucz listy panelu i PREFIKS publicznej przestrzeni historii (`lib/queries/webStories`). */
+const ADMIN_KEY = ["admin", "web-stories"] as const;
+const PUBLIC_KEY = ["web-stories"] as const;
+
+/**
+ * Slug adresu historii. Transliteracja liter z przekreśleniem (`ł` -> `l`) idzie
+ * PRZED rozkładem NFD i zdjęciem znaków diakrytycznych, a te - przed zamianą
+ * reszty na dywizy. Wcześniej zostawał sam ostatni krok, więc każda polska
+ * litera stawała się dywizem: „Szczyt w Gdańsku" dawało `szczyt-w-gda-sku`,
+ * „Łódź" - `d`. Świadomie BEZ limitu długości (w przeciwieństwie do
+ * `slugifyTaxonomy`): slug istniejącej historii przechodzi tędy przy KAŻDYM
+ * zapisie, a obcięcie zmieniłoby opublikowany adres.
+ */
+function storySlug(raw: string): string {
+  return replaceStrokeLetters(raw.toLowerCase())
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Czas wyświetlania planszy: CAŁKOWITA liczba sekund 2..30, puste pole = 6.
+ * Zaokrąglenie nie jest kosmetyką: `StoryPageSchema` wymaga `int()`, a
+ * `safeParsePages` przy JEDNEJ złej planszy odrzuca CAŁĄ tablicę - wpisane
+ * „2.5" kasowało więc po zapisie wszystkie strony historii - publicznie i w tym
+ * edytorze, gdzie dodanie planszy i kolejny zapis nadpisywały już oryginał.
+ */
+function clampDuration(raw: string): number {
+  return Math.round(Math.max(2, Math.min(30, Number(raw) || 6)));
+}
+
+/** Kopia z jednym polem podmienionym; typ wartości jest związany z kluczem (bez rzutowań). */
+function withField<T, K extends keyof T>(target: T, key: K, value: T[K]): T {
+  const next = { ...target };
+  next[key] = value;
+  return next;
+}
+
+type TextChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>;
+type StoryTextKey = "slug" | "title_pl" | "title_en" | "description_pl" | "description_en";
+type PageTextKey =
+  | "media_url"
+  | "poster_url"
+  | "title_pl"
+  | "title_en"
+  | "caption_pl"
+  | "caption_en"
+  | "cta_label_pl"
+  | "cta_label_en"
+  | "cta_href";
+type SetPageField = <K extends keyof StoryPage>(key: K, value: StoryPage[K]) => void;
 
 type Row = Pick<WebStory, "id" | "slug" | "title_pl" | "title_en" | "status" | "cover_url"> & {
   published_at: string | null;
@@ -38,7 +99,7 @@ function Page() {
   const [editing, setEditing] = useState<WebStory | null>(null);
 
   const { data: rows } = useQuery({
-    queryKey: ["admin", "web-stories"],
+    queryKey: ADMIN_KEY,
     queryFn: async (): Promise<Row[]> => {
       const { data, error } = await supabase
         .from("web_stories")
@@ -56,10 +117,14 @@ function Page() {
         .select("*")
         .eq("id", id)
         .maybeSingle();
-      if (error || !data) throw error ?? new Error("Not found");
+      if (error) throw error;
+      if (!data) throw new Error(adminToast.error());
       return { ...data, status: data.status as WebStoryStatus, pages: safeParsePages(data.pages) };
     },
     onSuccess: (d) => setEditing(d),
+    // Bez tego klik w tytuł po odmowie RLS albo padniętym transporcie nie robił
+    // NIC - ani edytora, ani słowa. Pozostałe mutacje tej trasy miały toast.
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const newDraft = (): WebStory => ({
@@ -81,11 +146,7 @@ function Page() {
 
   const save = useMutation({
     mutationFn: async (s: WebStory) => {
-      const slug = (s.slug || s.title_pl)
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
+      const slug = storySlug(s.slug || s.title_pl);
       if (!slug) throw new Error(t("adminMiscRoutes.webStories.errSlug"));
       if (!s.pages.length) throw new Error(t("adminMiscRoutes.webStories.errPages"));
       const payload = {
@@ -112,8 +173,8 @@ function Page() {
       }
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "web-stories"] });
-      qc.invalidateQueries({ queryKey: ["web-stories"] });
+      qc.invalidateQueries({ queryKey: ADMIN_KEY });
+      qc.invalidateQueries({ queryKey: PUBLIC_KEY });
       toast.success(adminToast.saved());
       setEditing(null);
     },
@@ -126,91 +187,97 @@ function Page() {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "web-stories"] });
+      // OBA klucze, jak przy zapisie: bez publicznego czytelnik w tej samej
+      // sesji dalej widział usuniętą historię na liście i trafiał w 404.
+      qc.invalidateQueries({ queryKey: ADMIN_KEY });
+      qc.invalidateQueries({ queryKey: PUBLIC_KEY });
       toast.success(adminToast.deleted());
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <AdminShell hideSidebar>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="font-display text-2xl">Web Stories</h1>
-          <Button onClick={() => setEditing(newDraft())}>
-            <Plus className="w-4 h-4 mr-2" />
-            {t("adminMiscRoutes.webStories.newStory")}
-          </Button>
-        </div>
-
-        {editing ? (
-          <Editor
-            s={editing}
-            onCancel={() => setEditing(null)}
-            onSave={(s) => save.mutate(s)}
-            saving={save.isPending}
-          />
-        ) : (
-          <section className="bg-card border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="text-xs text-muted-foreground border-b border-border">
-                <tr>
-                  <th className="text-left p-2 w-12"></th>
-                  <th className="text-left p-2">{t("adminMiscRoutes.webStories.colTitle")}</th>
-                  <th className="text-left p-2">Slug</th>
-                  <th className="text-left p-2">Status</th>
-                  <th className="p-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows?.map((r) => (
-                  <tr key={r.id} className="border-b border-border/60">
-                    <td className="p-2">
-                      {r.cover_url ? (
-                        <img src={r.cover_url} alt="" className="w-10 h-14 object-cover rounded" />
-                      ) : (
-                        <div className="w-10 h-14 bg-muted rounded" />
-                      )}
-                    </td>
-                    <td className="p-2">
-                      <button
-                        className="hover:underline text-left"
-                        onClick={() => loadOne.mutate(r.id)}
-                      >
-                        {r.title_pl}
-                      </button>
-                    </td>
-                    <td className="p-2 font-mono text-xs text-muted-foreground">{r.slug}</td>
-                    <td className="p-2">
-                      <span className="text-xs px-2 py-0.5 rounded bg-muted">{r.status}</span>
-                    </td>
-                    <td className="p-2 text-right">
-                      <button
-                        onClick={() => {
-                          if (confirm(t("adminMiscRoutes.webStories.confirmRemove")))
-                            remove.mutate(r.id);
-                        }}
-                        className="text-xs text-destructive hover:underline"
-                      >
-                        <Trash2 className="w-3 h-3 inline mr-1" />
-                        {t("adminMiscRoutes.webStories.remove")}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {!rows?.length && (
-                  <tr>
-                    <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                      {t("adminMiscRoutes.webStories.empty")}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </section>
-        )}
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-2xl">Web Stories</h1>
+        <Button onClick={() => setEditing(newDraft())}>
+          <Plus className="w-4 h-4 mr-2" />
+          {t("adminMiscRoutes.webStories.newStory")}
+        </Button>
       </div>
-    </AdminShell>
+
+      {editing ? (
+        // `key` PRZEMONTOWUJE edytor przy zmianie edytowanej historii. Edytor
+        // trzyma kopię roboczą w `useState(s)`, który czyta `s` TYLKO przy
+        // montażu - „Nowa historia" klikniętą w trakcie edycji zostawiała na
+        // ekranie poprzednią, a zapis szedł UPDATE-em w nią.
+        <Editor
+          key={editing.id || editing.created_at}
+          s={editing}
+          onCancel={() => setEditing(null)}
+          onSave={(s) => save.mutate(s)}
+          saving={save.isPending}
+        />
+      ) : (
+        <section className="bg-card border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="text-xs text-muted-foreground border-b border-border">
+              <tr>
+                <th className="text-left p-2 w-12"></th>
+                <th className="text-left p-2">{t("adminMiscRoutes.webStories.colTitle")}</th>
+                <th className="text-left p-2">Slug</th>
+                <th className="text-left p-2">Status</th>
+                <th className="p-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows?.map((r) => (
+                <tr key={r.id} className="border-b border-border/60">
+                  <td className="p-2">
+                    {r.cover_url ? (
+                      <img src={r.cover_url} alt="" className="w-10 h-14 object-cover rounded" />
+                    ) : (
+                      <div className="w-10 h-14 bg-muted rounded" />
+                    )}
+                  </td>
+                  <td className="p-2">
+                    <button
+                      className="hover:underline text-left"
+                      onClick={() => loadOne.mutate(r.id)}
+                    >
+                      {r.title_pl}
+                    </button>
+                  </td>
+                  <td className="p-2 font-mono text-xs text-muted-foreground">{r.slug}</td>
+                  <td className="p-2">
+                    <span className="text-xs px-2 py-0.5 rounded bg-muted">{r.status}</span>
+                  </td>
+                  <td className="p-2 text-right">
+                    <button
+                      onClick={() => {
+                        if (confirm(t("adminMiscRoutes.webStories.confirmRemove")))
+                          remove.mutate(r.id);
+                      }}
+                      className="text-xs text-destructive hover:underline"
+                    >
+                      <Trash2 className="w-3 h-3 inline mr-1" />
+                      {t("adminMiscRoutes.webStories.remove")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!rows?.length && (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                    {t("adminMiscRoutes.webStories.empty")}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </div>
   );
 }
 
@@ -226,14 +293,23 @@ function Editor({
   saving: boolean;
 }) {
   const { t } = useTranslation();
+  const statusId = useId();
   const [d, setD] = useState<WebStory>(s);
   const [activePage, setActivePage] = useState(0);
-  const upd = (patch: Partial<WebStory>) => setD({ ...d, ...patch });
-  const updPage = (i: number, patch: Partial<StoryPage>) => {
-    const next = [...d.pages];
-    next[i] = { ...next[i], ...patch };
-    setD({ ...d, pages: next });
-  };
+  const setField = <K extends keyof WebStory>(key: K, value: WebStory[K]) =>
+    setD((prev) => withField(prev, key, value));
+  // JEDEN binder zamiast kopii domknięcia przy każdym polu tekstowym: klucz
+  // pola jest jedynym, co je różni, a pomyłka w kopii (`title_en` wpięty pod
+  // pole PL) nie daje żadnego błędu - tylko treść w złym języku.
+  const text = (key: StoryTextKey) => ({
+    value: d[key],
+    onChange: (e: TextChange) => setField(key, e.target.value),
+  });
+  const setPageField: SetPageField = (key, value) =>
+    setD((prev) => ({
+      ...prev,
+      pages: prev.pages.map((page, k) => (k === activePage ? withField(page, key, value) : page)),
+    }));
   const movePage = (i: number, dir: -1 | 1) => {
     const j = i + dir;
     if (j < 0 || j >= d.pages.length) return;
@@ -258,17 +334,14 @@ function Editor({
   return (
     <section className="bg-card border border-border rounded-lg p-5 space-y-5">
       <div className="grid sm:grid-cols-3 gap-3">
-        <FloatingInput
-          label="Slug"
-          value={d.slug}
-          onChange={(e) => upd({ slug: e.target.value })}
-        />
+        <FloatingInput label="Slug" {...text("slug")} />
         <div>
-          <Label>Status</Label>
+          <Label htmlFor={statusId}>Status</Label>
           <select
+            id={statusId}
             className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
             value={d.status}
-            onChange={(e) => upd({ status: e.target.value as WebStoryStatus })}
+            onChange={(e) => setField("status", e.target.value as WebStoryStatus)}
           >
             <option value="draft">{t("adminMiscRoutes.webStories.statusDraft")}</option>
             <option value="published">{t("adminMiscRoutes.webStories.statusPublished")}</option>
@@ -278,7 +351,7 @@ function Editor({
         <FloatingInput
           label={t("adminMiscRoutes.webStories.cover")}
           value={d.cover_url ?? ""}
-          onChange={(e) => upd({ cover_url: e.target.value || null })}
+          onChange={(e) => setField("cover_url", e.target.value || null)}
         />
       </div>
 
@@ -288,16 +361,11 @@ function Editor({
           <TabsTrigger value="en">🇬🇧 EN</TabsTrigger>
         </TabsList>
         <TabsContent value="pl" className="space-y-3 mt-4">
-          <FloatingInput
-            label={t("adminMiscRoutes.webStories.title")}
-            value={d.title_pl}
-            onChange={(e) => upd({ title_pl: e.target.value })}
-          />
+          <FloatingInput label={t("adminMiscRoutes.webStories.title")} {...text("title_pl")} />
           <FloatingTextarea
             label={t("adminMiscRoutes.webStories.description")}
             rows={2}
-            value={d.description_pl}
-            onChange={(e) => upd({ description_pl: e.target.value })}
+            {...text("description_pl")}
           />
         </TabsContent>
         <TabsContent value="en" className="space-y-3 mt-4">
@@ -306,16 +374,11 @@ function Editor({
               sztywno „Title" i „Description" dawały panel mówiący dwoma
               językami naraz, niezależnie od języka wybranego przez
               redaktora. */}
-          <FloatingInput
-            label={t("adminMiscRoutes.webStories.title")}
-            value={d.title_en}
-            onChange={(e) => upd({ title_en: e.target.value })}
-          />
+          <FloatingInput label={t("adminMiscRoutes.webStories.title")} {...text("title_en")} />
           <FloatingTextarea
             label={t("adminMiscRoutes.webStories.description")}
             rows={2}
-            value={d.description_en}
-            onChange={(e) => upd({ description_en: e.target.value })}
+            {...text("description_en")}
           />
         </TabsContent>
       </Tabs>
@@ -370,145 +433,7 @@ function Editor({
             ))}
           </ul>
 
-          {cur && (
-            <div className="space-y-3 border border-border rounded-lg p-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <Label>{t("adminMiscRoutes.webStories.background")}</Label>
-                  <select
-                    className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
-                    value={cur.background}
-                    onChange={(e) =>
-                      updPage(activePage, { background: e.target.value as StoryPage["background"] })
-                    }
-                  >
-                    <option value="image">{t("adminMiscRoutes.webStories.bgImage")}</option>
-                    <option value="video">{t("adminMiscRoutes.webStories.bgVideo")}</option>
-                    <option value="color">{t("adminMiscRoutes.webStories.bgColor")}</option>
-                  </select>
-                </div>
-                <div>
-                  <Label>{t("adminMiscRoutes.webStories.textPosition")}</Label>
-                  <select
-                    className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
-                    value={cur.text_position}
-                    onChange={(e) =>
-                      updPage(activePage, {
-                        text_position: e.target.value as StoryPage["text_position"],
-                      })
-                    }
-                  >
-                    <option value="top">{t("adminMiscRoutes.webStories.posTop")}</option>
-                    <option value="center">{t("adminMiscRoutes.webStories.posCenter")}</option>
-                    <option value="bottom">{t("adminMiscRoutes.webStories.posBottom")}</option>
-                  </select>
-                </div>
-                <div>
-                  <Label>{t("adminMiscRoutes.webStories.align")}</Label>
-                  <select
-                    className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
-                    value={cur.text_align}
-                    onChange={(e) =>
-                      updPage(activePage, { text_align: e.target.value as StoryPage["text_align"] })
-                    }
-                  >
-                    <option value="left">{t("adminMiscRoutes.webStories.alignLeft")}</option>
-                    <option value="center">{t("adminMiscRoutes.webStories.alignCenter")}</option>
-                    <option value="right">{t("adminMiscRoutes.webStories.alignRight")}</option>
-                  </select>
-                </div>
-              </div>
-
-              {cur.background === "color" ? (
-                <div>
-                  <Label>{t("adminMiscRoutes.webStories.bgColorLabel")}</Label>
-                  <AdminColorPicker
-                    value={cur.color}
-                    onChange={(v) => updPage(activePage, { color: v ?? "#000000" })}
-                    allowTransparent={false}
-                    allowReset={false}
-                  />
-                </div>
-              ) : (
-                <>
-                  <FloatingInput
-                    label={
-                      cur.background === "video"
-                        ? t("adminMiscRoutes.webStories.mediaUrlVideo")
-                        : t("adminMiscRoutes.webStories.mediaUrlImage")
-                    }
-                    value={cur.media_url}
-                    onChange={(e) => updPage(activePage, { media_url: e.target.value })}
-                  />
-                  {cur.background === "video" && (
-                    <FloatingInput
-                      label={t("adminMiscRoutes.webStories.poster")}
-                      value={cur.poster_url}
-                      onChange={(e) => updPage(activePage, { poster_url: e.target.value })}
-                    />
-                  )}
-                </>
-              )}
-
-              <div className="grid grid-cols-2 gap-3">
-                <FloatingInput
-                  label={t("adminMiscRoutes.webStories.titlePl")}
-                  value={cur.title_pl}
-                  onChange={(e) => updPage(activePage, { title_pl: e.target.value })}
-                />
-                <FloatingInput
-                  label={t("adminMiscRoutes.webStories.titleEn")}
-                  value={cur.title_en}
-                  onChange={(e) => updPage(activePage, { title_en: e.target.value })}
-                />
-                <FloatingTextarea
-                  label={t("adminMiscRoutes.webStories.captionPl")}
-                  rows={2}
-                  value={cur.caption_pl}
-                  onChange={(e) => updPage(activePage, { caption_pl: e.target.value })}
-                />
-                <FloatingTextarea
-                  label={t("adminMiscRoutes.webStories.captionEn")}
-                  rows={2}
-                  value={cur.caption_en}
-                  onChange={(e) => updPage(activePage, { caption_en: e.target.value })}
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <FloatingInput
-                  label="CTA PL"
-                  value={cur.cta_label_pl}
-                  onChange={(e) => updPage(activePage, { cta_label_pl: e.target.value })}
-                />
-                <FloatingInput
-                  label="CTA EN"
-                  value={cur.cta_label_en}
-                  onChange={(e) => updPage(activePage, { cta_label_en: e.target.value })}
-                />
-                <FloatingInput
-                  label={t("adminMiscRoutes.webStories.ctaLink")}
-                  value={cur.cta_href}
-                  onChange={(e) => updPage(activePage, { cta_href: e.target.value })}
-                />
-              </div>
-
-              <div className="w-40">
-                <Label>{t("adminMiscRoutes.webStories.duration")}</Label>
-                <Input
-                  type="number"
-                  min={2}
-                  max={30}
-                  value={cur.duration_seconds}
-                  onChange={(e) =>
-                    updPage(activePage, {
-                      duration_seconds: Math.max(2, Math.min(30, Number(e.target.value) || 6)),
-                    })
-                  }
-                />
-              </div>
-            </div>
-          )}
+          {cur && <PageFields page={cur} setField={setPageField} />}
         </div>
       </div>
 
@@ -522,5 +447,126 @@ function Editor({
         </Button>
       </div>
     </section>
+  );
+}
+
+/** Pola AKTYWNEJ planszy. `page` jest tu zawsze obecne - strażnik stoi u wołającego. */
+function PageFields({ page, setField }: { page: StoryPage; setField: SetPageField }) {
+  const { t } = useTranslation();
+  const backgroundId = useId();
+  const positionId = useId();
+  const alignId = useId();
+  const durationId = useId();
+  const text = (key: PageTextKey) => ({
+    value: page[key],
+    onChange: (e: TextChange) => setField(key, e.target.value),
+  });
+
+  return (
+    <div className="space-y-3 border border-border rounded-lg p-4">
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <Label htmlFor={backgroundId}>{t("adminMiscRoutes.webStories.background")}</Label>
+          <select
+            id={backgroundId}
+            className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+            value={page.background}
+            onChange={(e) => setField("background", e.target.value as StoryPage["background"])}
+          >
+            <option value="image">{t("adminMiscRoutes.webStories.bgImage")}</option>
+            <option value="video">{t("adminMiscRoutes.webStories.bgVideo")}</option>
+            <option value="color">{t("adminMiscRoutes.webStories.bgColor")}</option>
+          </select>
+        </div>
+        <div>
+          <Label htmlFor={positionId}>{t("adminMiscRoutes.webStories.textPosition")}</Label>
+          <select
+            id={positionId}
+            className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+            value={page.text_position}
+            onChange={(e) =>
+              setField("text_position", e.target.value as StoryPage["text_position"])
+            }
+          >
+            <option value="top">{t("adminMiscRoutes.webStories.posTop")}</option>
+            <option value="center">{t("adminMiscRoutes.webStories.posCenter")}</option>
+            <option value="bottom">{t("adminMiscRoutes.webStories.posBottom")}</option>
+          </select>
+        </div>
+        <div>
+          <Label htmlFor={alignId}>{t("adminMiscRoutes.webStories.align")}</Label>
+          <select
+            id={alignId}
+            className="w-full px-3 py-2 rounded border border-input bg-background text-sm"
+            value={page.text_align}
+            onChange={(e) => setField("text_align", e.target.value as StoryPage["text_align"])}
+          >
+            <option value="left">{t("adminMiscRoutes.webStories.alignLeft")}</option>
+            <option value="center">{t("adminMiscRoutes.webStories.alignCenter")}</option>
+            <option value="right">{t("adminMiscRoutes.webStories.alignRight")}</option>
+          </select>
+        </div>
+      </div>
+
+      {page.background === "color" ? (
+        <div>
+          <Label>{t("adminMiscRoutes.webStories.bgColorLabel")}</Label>
+          <AdminColorPicker
+            value={page.color}
+            onChange={(v) => setField("color", v ?? "#000000")}
+            allowTransparent={false}
+            allowReset={false}
+          />
+        </div>
+      ) : (
+        <>
+          <FloatingInput
+            label={
+              page.background === "video"
+                ? t("adminMiscRoutes.webStories.mediaUrlVideo")
+                : t("adminMiscRoutes.webStories.mediaUrlImage")
+            }
+            {...text("media_url")}
+          />
+          {page.background === "video" && (
+            <FloatingInput label={t("adminMiscRoutes.webStories.poster")} {...text("poster_url")} />
+          )}
+        </>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <FloatingInput label={t("adminMiscRoutes.webStories.titlePl")} {...text("title_pl")} />
+        <FloatingInput label={t("adminMiscRoutes.webStories.titleEn")} {...text("title_en")} />
+        <FloatingTextarea
+          label={t("adminMiscRoutes.webStories.captionPl")}
+          rows={2}
+          {...text("caption_pl")}
+        />
+        <FloatingTextarea
+          label={t("adminMiscRoutes.webStories.captionEn")}
+          rows={2}
+          {...text("caption_en")}
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <FloatingInput label="CTA PL" {...text("cta_label_pl")} />
+        <FloatingInput label="CTA EN" {...text("cta_label_en")} />
+        <FloatingInput label={t("adminMiscRoutes.webStories.ctaLink")} {...text("cta_href")} />
+      </div>
+
+      <div className="w-40">
+        <Label htmlFor={durationId}>{t("adminMiscRoutes.webStories.duration")}</Label>
+        <Input
+          id={durationId}
+          type="number"
+          min={2}
+          max={30}
+          step={1}
+          value={page.duration_seconds}
+          onChange={(e) => setField("duration_seconds", clampDuration(e.target.value))}
+        />
+      </div>
+    </div>
   );
 }

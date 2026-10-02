@@ -9,6 +9,7 @@ import { ArrowLeft, Bell, BellOff, ExternalLink, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RouteErrorFallback } from "@/components/molecules/RouteErrorFallback";
+import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurrentTier, tierHasFeature } from "@/lib/billing/tiers";
 import {
@@ -37,6 +38,7 @@ import { ensureI18n as ensureTrackerI18n } from "@/lib/i18n-tracker";
 import { ClubAnchorThreads } from "@/components/clubs/organisms/ClubAnchorThreads";
 import { uiLocale } from "@/lib/i18n/format";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { setCacheControlHeader } from "@/lib/http/responseHeaders";
 
 /** Budżet DRUGIEJ fali (oś czasu). Krótszy niż domyślny budżet odpornego
@@ -79,6 +81,16 @@ export const Route = createFileRoute("/tracker/$slug")({
   // obserwacji (dana czytelnika, nie treść - nie ma prawa wejść do cache'a
   // wspólnego). Zapadka na dzisiejszej liczbie odczytów klienckich stoi
   // w `trackerDossierRoute.test.tsx`.
+  //
+  // `degraded` JEDZIE DO KOMPONENTU (naprawa 2026-10-02) i dotyczy WYŁĄCZNIE
+  // tożsamości dossier. Wcześniej loader oddawał samo `{ item }`, więc render
+  // zdegradowany padał w gałąź `!item` i pokazywał „Nie znaleziono dossier." -
+  // na HTTP 200 z `noindex`, czyli zdanie, które w tym stanie jest NIEPRAWDĄ
+  // (dossier istnieje, nie odpowiedziała baza). Do tego zapytanie z błędem nie
+  // jest dehydrowane (`shouldDehydrateQuery` przepuszcza tylko sukces), więc
+  // pierwszy render klienta szedł w gałąź „ładowanie" - inną niż HTML
+  // z serwera, czyli rozjazd hydratacji. Blip samej osi czasu NIE ustawia tej
+  // flagi: dossier jest wtedy w pełni prawdziwe, a oś ma własny pusty stan.
   loader: async ({ params, context }) => {
     const queryClient = context.queryClient;
     let item: PolicyItem | null = null;
@@ -94,6 +106,7 @@ export const Route = createFileRoute("/tracker/$slug")({
       setCacheControlHeader(resilientCacheControl(false));
       throw notFound();
     }
+    let timelineDegraded = false;
     if (item) {
       const updates = await loadResilient(
         queryClient,
@@ -101,10 +114,10 @@ export const Route = createFileRoute("/tracker/$slug")({
         NO_UPDATES,
         { budgetMs: TIMELINE_BUDGET_MS },
       );
-      degraded = degraded || updates.degraded;
+      timelineDegraded = updates.degraded;
     }
-    setCacheControlHeader(resilientCacheControl(degraded));
-    return { item };
+    setCacheControlHeader(resilientCacheControl(degraded || timelineDegraded));
+    return { item, degraded };
   },
   head: ({ loaderData, params }) => {
     const url = getRequestUrl() || `/tracker/${params.slug}`;
@@ -291,6 +304,14 @@ function TrackerDetail() {
 
   const itemQ = useItemBySlug(slug);
   const item = itemQ.data;
+  // Gałąź degradacji stoi POD odczytem zapytania: to obserwator `useItemBySlug`
+  // odpala refetch po hydratacji, a hak tylko patrzy na jego stempel
+  // (`lib/ssr/useDegradedUntilHealed.ts`).
+  const { degraded: ssrDegraded } = Route.useLoaderData();
+  const { degraded, retry } = useDegradedUntilHealed(
+    itemBySlugQueryOptions(slug).queryKey,
+    ssrDegraded,
+  );
   const updatesQ = useItemUpdates(item?.id);
   const positionsQ = useItemPositions(item?.id);
   const relatedQ = useRelatedItems(item?.id);
@@ -302,14 +323,21 @@ function TrackerDetail() {
   const currentTier = useCurrentTier();
   const canMonitor = tierHasFeature(currentTier.data?.features ?? null, "regulatory_monitoring");
 
-  if (itemQ.isLoading) {
+  // DEGRADACJA MÓWI PRAWDĘ (zamiast „nie znaleziono") i leczy się sama: hak
+  // oddaje flagę loadera na serwerze i w pierwszym renderze klienta (ten sam
+  // HTML po obu stronach), a po hydratacji - stan zapytania. Gałęzi
+  // „ładowanie" już tu nie ma: czysty render ma dossier w cache'u z loadera,
+  // a zdegradowany czeka na refetch POD tym komunikatem, nie pod spinnerem.
+  if (degraded) {
     return (
-      <div className="container mx-auto max-w-3xl px-4 py-12 text-sm">{t("tracker.loading")}</div>
+      <div className="container mx-auto max-w-3xl px-4 py-12">
+        <DegradedDataNotice variant="page" onRetry={retry} />
+      </div>
     );
   }
-  // Ta gałąź zostaje mimo `notFound()` w loaderze: dosięga jej render
-  // ZDEGRADOWANY (backend nie odpowiedział, więc loader świadomie nie rzucił
-  // 404) oraz odświeżenie z komponentu, które zastaje dossier już wycofane.
+  // Ta gałąź zostaje mimo `notFound()` w loaderze: dosięga jej odświeżenie
+  // z komponentu, które zastaje dossier już wycofane (np. refetch po
+  // wyleczeniu degradacji, który wrócił CZYSTO pusty).
   if (!item) return <TrackerNotFound />;
 
   const title = lang === "en" ? item.title_en || item.title_pl : item.title_pl || item.title_en;

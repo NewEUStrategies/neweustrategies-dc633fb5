@@ -3,7 +3,7 @@
 // JEDEN PLIK NA OBA KOŃCE (wzorem `events/eventFunnelWire.ts`). Pomiar
 // (`postDwell.ts`) wysyła ładunek w granicach z tego pliku, a endpoint waliduje
 // go TĄ SAMĄ funkcją - kształt nie rozjedzie się bez czerwonego testu. Baza
-// sprawdza wszystko jeszcze raz (`record_post_dwell`, migracja 20261002120000),
+// sprawdza wszystko jeszcze raz (`record_post_dwell`, migracja 20261002200000),
 // bo endpoint jest publiczny i bez podpisu: tu odrzucamy śmieci tanio.
 //
 // Plik jest CELOWO bez importów: siedzi w grafie trasy serwerowej, więc nie może

@@ -1,6 +1,6 @@
 -- pgTAP: sygnal dwell silnika rekomendacji (post_views.dwell_ms).
 --
--- Weryfikuje migracje 20261002120000_post_views_dwell_signal.sql:
+-- Weryfikuje migracje 20261002200000_post_views_dwell_signal.sql:
 --   1. kolumna i jej zakres (0..30 min, NULL = brak zgloszenia);
 --   2. zapis `record_post_dwell` jest WYLACZNIE dla service_role - anon nie moze
 --      ominac limitera beaconu wolaniem PostgREST wprost;

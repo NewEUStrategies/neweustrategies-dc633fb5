@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   emailCategoryForLabel,
   suppressionBlocks,
+  suppressionBlocksSignup,
   suppressionSkipReason,
   TX_EMAIL_CATEGORY,
   txEmailCategory,
@@ -152,5 +153,28 @@ describe("suppressionSkipReason", () => {
   it("buduje stabilny kod przyczyny do logu", () => {
     expect(suppressionSkipReason("hard_bounce")).toBe("suppressed:hard_bounce");
     expect(suppressionSkipReason("complaint")).toBe("suppressed:complaint");
+  });
+});
+
+describe("suppressionBlocksSignup - zapis z formularza", () => {
+  it("wypis ustępuje wyłącznie zapisowi przez double opt-in", () => {
+    expect(
+      suppressionBlocksSignup({ reason: "unsubscribe", scope: "permanent", doubleOptIn: true }),
+    ).toBe(false);
+    expect(
+      suppressionBlocksSignup({ reason: "unsubscribe", scope: "permanent", doubleOptIn: false }),
+    ).toBe(true);
+  });
+
+  it("pozostałe powody trwałe zatrzymują zapis także z double opt-in", () => {
+    for (const reason of ALL_REASONS.filter((r) => r !== "unsubscribe")) {
+      expect(suppressionBlocksSignup({ reason, scope: "permanent", doubleOptIn: true })).toBe(true);
+    }
+  });
+
+  it("blokada czasowa nie zatrzymuje zapisu", () => {
+    expect(
+      suppressionBlocksSignup({ reason: "soft_bounce", scope: "transient", doubleOptIn: false }),
+    ).toBe(false);
   });
 });

@@ -40,6 +40,26 @@ import {
 } from "@/lib/podcast/queries";
 import { ensureI18n as ensureAdminPodcastsI18n } from "@/lib/i18n-admin-podcasts";
 
+/**
+ * Języki treści programu - kolejność zakładek. Obie zakładki rysuje jedna
+ * lista pól, więc kolumna PL nie może dostać wartości z zakładki EN (cztery
+ * przepisane domknięcia `onChange` tego nie gwarantowały).
+ */
+const SHOW_LANGS = ["pl", "en"] as const;
+
+/**
+ * Adresy programu na platformach - jako DANE. Trzy pola różniły się dotąd
+ * wyłącznie kolumną, etykietą i podpowiedzią, a każde miało własne,
+ * przepisane domknięcie `onChange`. Nazwy platform są nazwami własnymi, nie
+ * tekstem interfejsu, więc nie idą przez słownik. Pusty ciąg zamienia na
+ * `null` dopiero `buildShowPayload` - tutaj pole trzyma to, co wpisano.
+ */
+const PLATFORM_URL_FIELDS = [
+  { key: "spotify_url", label: "Spotify URL", placeholder: "https://open.spotify.com/show/…" },
+  { key: "apple_url", label: "Apple URL", placeholder: "https://podcasts.apple.com/…" },
+  { key: "youtube_url", label: "YouTube URL", placeholder: undefined },
+] as const;
+
 export function PodcastShowsPane({ onClose }: { onClose: () => void }) {
   ensureAdminPodcastsI18n();
   const { t } = useTranslation();
@@ -218,34 +238,31 @@ function ShowEditor({
           <TabsTrigger value="pl">🇵🇱 {t("adminPodcasts.tabPolish")}</TabsTrigger>
           <TabsTrigger value="en">🇬🇧 {t("adminPodcasts.tabEnglish")}</TabsTrigger>
         </TabsList>
-        <TabsContent value="pl" className="space-y-3 mt-4">
-          <div>
-            <Label>{t("adminPodcasts.showEditor.fieldTitle")}</Label>
-            <Input value={d.title_pl} onChange={(e) => upd({ title_pl: e.target.value })} />
-          </div>
-          <div>
-            <Label>{t("adminPodcasts.showEditor.fieldDescription")}</Label>
-            <Textarea
-              rows={3}
-              value={d.description_pl}
-              onChange={(e) => upd({ description_pl: e.target.value })}
-            />
-          </div>
-        </TabsContent>
-        <TabsContent value="en" className="space-y-3 mt-4">
-          <div>
-            <Label>{t("adminPodcasts.showEditor.fieldTitle")}</Label>
-            <Input value={d.title_en} onChange={(e) => upd({ title_en: e.target.value })} />
-          </div>
-          <div>
-            <Label>{t("adminPodcasts.showEditor.fieldDescription")}</Label>
-            <Textarea
-              rows={3}
-              value={d.description_en}
-              onChange={(e) => upd({ description_en: e.target.value })}
-            />
-          </div>
-        </TabsContent>
+        {SHOW_LANGS.map((lang) => (
+          <TabsContent key={lang} value={lang} className="space-y-3 mt-4">
+            <div>
+              <Label htmlFor={`show-title-${lang}`}>
+                {t("adminPodcasts.showEditor.fieldTitle")}
+              </Label>
+              <Input
+                id={`show-title-${lang}`}
+                value={d[`title_${lang}`]}
+                onChange={(e) => upd({ [`title_${lang}`]: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor={`show-description-${lang}`}>
+                {t("adminPodcasts.showEditor.fieldDescription")}
+              </Label>
+              <Textarea
+                id={`show-description-${lang}`}
+                rows={3}
+                value={d[`description_${lang}`]}
+                onChange={(e) => upd({ [`description_${lang}`]: e.target.value })}
+              />
+            </div>
+          </TabsContent>
+        ))}
       </Tabs>
 
       <div className="grid sm:grid-cols-2 gap-3">
@@ -278,29 +295,17 @@ function ShowEditor({
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3">
-        <div>
-          <Label>Spotify URL</Label>
-          <Input
-            value={d.spotify_url ?? ""}
-            onChange={(e) => upd({ spotify_url: e.target.value })}
-            placeholder="https://open.spotify.com/show/…"
-          />
-        </div>
-        <div>
-          <Label>Apple URL</Label>
-          <Input
-            value={d.apple_url ?? ""}
-            onChange={(e) => upd({ apple_url: e.target.value })}
-            placeholder="https://podcasts.apple.com/…"
-          />
-        </div>
-        <div>
-          <Label>YouTube URL</Label>
-          <Input
-            value={d.youtube_url ?? ""}
-            onChange={(e) => upd({ youtube_url: e.target.value })}
-          />
-        </div>
+        {PLATFORM_URL_FIELDS.map(({ key, label, placeholder }) => (
+          <div key={key}>
+            <Label htmlFor={`show-${key}`}>{label}</Label>
+            <Input
+              id={`show-${key}`}
+              value={d[key] ?? ""}
+              onChange={(e) => upd({ [key]: e.target.value })}
+              placeholder={placeholder}
+            />
+          </div>
+        ))}
       </div>
 
       <MediaPickerDialog

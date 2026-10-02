@@ -11,7 +11,7 @@ import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/li
 import { SITE_NAME } from "@/lib/seo/meta";
 import { buildRssXml } from "@/lib/seo/rss";
 import { rssResponseHeaders } from "@/lib/seo/feedCache";
-import { parseSeoSettings } from "@/lib/seo/settings";
+import { parseSeoSettings, siteNameOverride } from "@/lib/seo/settings";
 import {
   fetchSeoSettingsValue,
   fetchTrackerFeedSources,
@@ -72,14 +72,20 @@ export async function trackerFeedResponse(): Promise<Response> {
     : { items: [], updates: [] };
   const feedItems = buildTrackerFeedItems({ items, updates, origin, lang, limit });
   const channel = trackerFeedChannelText(lang);
+  // Nazwa serwisu z ustawień SEO (już pobranych wyżej) - to samo źródło, co
+  // `og:site_name`, `WebSite.name`, /rss.xml i /live/rss.xml; stała marki tylko
+  // jako zapas (brak tenanta albo puste pole). Wcześniej ten kanał jako jedyny
+  // z rodziny RSS podpisywał się stałą, więc czytnik pokazywał inną nazwę niż
+  // ta, którą redakcja ustawiła w /admin/seo/homepage.
+  const siteName = siteNameOverride(settings) || SITE_NAME;
 
   const xml = buildRssXml({
-    title: `${channel.title} - ${SITE_NAME}`,
+    title: `${channel.title} - ${siteName}`,
     description: channel.description,
     siteUrl: `${origin}${localizedPath(TRACKER_HUB_PATH, lang)}`,
     feedUrl: `${origin}${localizedPath(TRACKER_FEED_PATH, lang)}`,
     language: lang,
-    copyright: `© ${new Date().getFullYear()} ${SITE_NAME}`,
+    copyright: `© ${new Date().getFullYear()} ${siteName}`,
     items: feedItems,
   });
 

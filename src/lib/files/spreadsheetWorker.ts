@@ -1,14 +1,13 @@
 import type { SheetResult } from "./officeParse";
-import type {
-  SpreadsheetOp,
-  SpreadsheetRequest,
-  SpreadsheetResponse,
-  SpreadsheetResults,
-  SpreadsheetRows,
-  WritableCell,
+import {
+  SPREADSHEET_MAX_BYTES,
+  type SpreadsheetOp,
+  type SpreadsheetRequest,
+  type SpreadsheetResponse,
+  type SpreadsheetResults,
+  type SpreadsheetRows,
+  type WritableCell,
 } from "./spreadsheetProtocol";
-
-const MAX_BYTES = 20 * 1024 * 1024;
 
 /**
  * Termin na odpowiedź procesu. Podgląd dotyczy CUDZEGO pliku z załącznika, więc
@@ -33,7 +32,7 @@ function callSpreadsheetWorker<Op extends SpreadsheetOp>(
   request: SpreadsheetRequest & { op: Op },
   signal?: AbortSignal,
 ): Promise<SpreadsheetResults[Op]> {
-  if ("buffer" in request && request.buffer.byteLength > MAX_BYTES) {
+  if ("buffer" in request && request.buffer.byteLength > SPREADSHEET_MAX_BYTES) {
     return Promise.reject(new Error("spreadsheet:file-limit"));
   }
   if (signal?.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));

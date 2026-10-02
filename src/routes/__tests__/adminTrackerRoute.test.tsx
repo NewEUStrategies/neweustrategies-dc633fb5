@@ -38,8 +38,21 @@
 //
 // PODWÓJNE UNIEWAŻNIANIE JEST WIĘC KONSEKWENCJĄ, NIE NIEDBALSTWEM: skoro panel
 // ma własną przestrzeń kluczy, każdy zapis musi ruszyć DWA prefiksy - swój
-// i publiczny. Trzy testy niżej pilnują dokładnie tego.
+// i publiczny. I to publiczny W CAŁOŚCI, w jakiej zapis go zmienia: wpis osi
+// czasu z etapem przestawia TRIGGEREM etap dossier (strona, lista, statystyki,
+// feed zmian), a stanowiska czyta też macierz explorera pod kluczem
+// `positions-bulk`. Do tej pracy oba zapisy unieważniały tylko klucz własnego
+// dossier - testy regresyjne niżej dowodzą tego po STANIE cache'u.
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// DWIE REGUŁY EDYTORA (od tej pracy):
+//   * KAŻDE POLE TRAFIA DO SWOJEJ KOLUMNY. Pola tekstowe mają jeden binder
+//     (różnią się tylko kluczem), więc zamiana kluczy nie daje błędu - tylko
+//     dossier z treścią w złej kolumnie. Test tabelaryczny wypełnia wszystkie
+//     pola RÓŻNYMI wartościami i porównuje CAŁY ładunek.
+//   * KAŻDE POLE MA NAZWĘ DOSTĘPNĄ. Etykiety stały obok pól bez `htmlFor`, więc
+//     edytor był dla czytnika ekranu listą bezimiennych pól; `getByLabelText`
+//     w teście tabelarycznym jest też dowodem tej naprawy.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - DOSTĘPU: `/admin` przepuszcza tylko `isStaff`, a prawo zapisu do tabel
@@ -55,8 +68,9 @@
 // - ETAPÓW I OBSZARÓW: `STAGE_LABELS`, `POLICY_AREAS`, `EU_COUNTRIES`,
 //   `STANCE_META` to dane słownikowe z własnymi asercjami.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
+import type { QueryClient } from "@tanstack/react-query";
 import type { RecordedChain, SupabaseFromStub } from "@/test/supabaseChain";
 
 const ITEM_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -129,6 +143,7 @@ import { EU_COUNTRIES } from "@/lib/tracker/euCountries";
 
 const PATH = "/admin/tracker";
 const GUIDE_PATH = "/admin/tracker-guide";
+const SLUG = "akt-o-odpornosci";
 
 function db(): SupabaseFromStub {
   if (!h.db) throw new Error("test: atrapa bazy nie została ustawiona");
@@ -179,6 +194,36 @@ function chainWith(table: string, method: string): RecordedChain {
 }
 
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
+const change = (el: HTMLElement, value: string) => fireEvent.change(el, { target: { value } });
+
+/** Pierwszy argument ogniwa `method` z łańcucha tabeli - twardy błąd, gdy go nie ma. */
+function payloadOf(table: string, method: string): unknown {
+  return chainWith(table, method).argsOf(method)?.[0];
+}
+
+/**
+ * Zasiewa w kliencie zapytań wpisy PUBLICZNEJ przestrzeni trackera - takie,
+ * jakie zostawia w tej samej sesji wizyta na stronie dossier, liście, feedzie
+ * zmian i w explorerze. Brak obserwatorów = brak refetchu, więc `isInvalidated`
+ * po zapisie jest czystym dowodem, KTÓRE z nich zapis unieważnił.
+ */
+const PUBLIC_ENTRIES = {
+  item: ["tracker", "item", SLUG],
+  items: ["tracker", "items", "all", "all", 12],
+  updates: ["tracker", "updates", ITEM_ID],
+  recent: ["tracker", "recent-updates", 40],
+  stats: ["tracker", "stats"],
+  positions: ["tracker", "positions", ITEM_ID],
+  positionsBulk: ["tracker", "positions-bulk", `${ITEM_ID},${OTHER_ITEM_ID}`],
+} as const;
+
+function seedPublicCache(client: QueryClient): void {
+  for (const key of Object.values(PUBLIC_ENTRIES)) client.setQueryData(key, []);
+}
+
+function invalidated(client: QueryClient, key: readonly unknown[]): boolean | undefined {
+  return client.getQueryState(key)?.isInvalidated;
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -375,6 +420,111 @@ describe("admin.tracker - zapis dossier", () => {
   });
 });
 
+describe("admin.tracker - pola edytora dossier", () => {
+  async function openNew() {
+    await mount();
+    await screen.findByText(/Akt o odporności cyfrowej/);
+    fireEvent.click(button("adminTracker.newDossier"));
+    await screen.findByLabelText("Slug");
+  }
+
+  /** [etykieta pola, wpisana wartość] - wartości RÓŻNE, żeby zamiana kluczy była widoczna. */
+  const TEXT_FIELDS = [
+    ["Slug", "  akt-o-danych  "],
+    ["adminTracker.reference", " COM(2026) 7 "],
+    ["adminTracker.titlePl", " Akt o danych "],
+    ["adminTracker.titleEn", " Data Act "],
+    ["adminTracker.summaryPl", "Streszczenie PL"],
+    ["adminTracker.summaryEn", "Summary EN"],
+    ["adminTracker.rapporteur", "Anna Nowak (S&D)"],
+    ["adminTracker.leadCommittee", "ITRE"],
+    ["adminTracker.commissionDg", "DG CNECT"],
+    ["adminTracker.nextMilestonePl", "Głosowanie plenarne"],
+    ["adminTracker.nextMilestoneEn", "Plenary vote"],
+    ["adminTracker.sourceUrl", " https://example.org/akt "],
+  ] as const;
+
+  it("każde pole edytora trafia do SWOJEJ kolumny ładunku - przycięte", async () => {
+    await openNew();
+    for (const [label, value] of TEXT_FIELDS) change(screen.getByLabelText(label), value);
+    change(screen.getByLabelText("adminTracker.area"), "digital");
+    change(screen.getByLabelText("adminTracker.stage"), "trilogue");
+    change(screen.getByLabelText("adminTracker.importance"), "3");
+    change(screen.getByLabelText("Status"), "published");
+    change(screen.getByLabelText("milestone-date"), "2026-11-05");
+    fireEvent.click(button("adminTracker.save"));
+
+    await waitFor(() =>
+      expect(chainsFor("eu_policy_items").some((c) => c.has("insert"))).toBe(true),
+    );
+    // `toEqual` na CAŁYM ładunku: brak pola to błąd, nadmiarowe pole (np.
+    // `tenant_id`) też. `importance` jedzie liczbą - kolumna jest `integer`
+    // z CHECK 1..3, a ciąg „3" byłby rzutowaniem po stronie bazy.
+    expect(payloadOf("eu_policy_items", "insert")).toEqual({
+      slug: "akt-o-danych",
+      reference: "COM(2026) 7",
+      title_pl: "Akt o danych",
+      title_en: "Data Act",
+      summary_pl: "Streszczenie PL",
+      summary_en: "Summary EN",
+      policy_area: "digital",
+      stage: "trilogue",
+      importance: 3,
+      status: "published",
+      rapporteur: "Anna Nowak (S&D)",
+      committee: "ITRE",
+      lead_dg: "DG CNECT",
+      next_milestone_pl: "Głosowanie plenarne",
+      next_milestone_en: "Plenary vote",
+      next_milestone_at: "2026-11-05",
+      source_url: "https://example.org/akt",
+    });
+  });
+
+  it("edycja BEZ zmian oddaje wartości dossier i nie zamienia `null` w pusty ciąg", async () => {
+    // `itemToDraft` zamienia `null` na "" (pola formularza), a `nullifyEmpty`
+    // z powrotem. Pęknięcie którejś połowy zapisuje przy KAŻDYM „zapisz"
+    // puste ciągi w kolumnach opcjonalnych - a pusty `next_milestone_at` to
+    // błąd rzutowania na `date`.
+    db().setResponse("eu_policy_items", (chain) =>
+      chain.has("select")
+        ? ok([item({ rapporteur: "Ewa Wiśniewska (EPP)", next_milestone_at: "2026-12-01" })])
+        : ok([]),
+    );
+    await mount();
+    await screen.findByText(/Akt o odporności cyfrowej/);
+    fireEvent.click(button("adminTracker.edit"));
+
+    expect(screen.getByLabelText("adminTracker.titlePl")).toHaveValue("Akt o odporności cyfrowej");
+    fireEvent.click(button("adminTracker.save"));
+
+    await waitFor(() =>
+      expect(chainsFor("eu_policy_items").some((c) => c.has("update"))).toBe(true),
+    );
+    expect(payloadOf("eu_policy_items", "update")).toMatchObject({
+      slug: SLUG,
+      reference: "COM(2026) 100",
+      rapporteur: "Ewa Wiśniewska (EPP)",
+      next_milestone_at: "2026-12-01",
+      source_url: null,
+      committee: null,
+      lead_dg: null,
+      next_milestone_pl: null,
+    });
+  });
+
+  it("anulowanie zamyka edytor BEZ zapisu", async () => {
+    await openNew();
+    change(screen.getByLabelText("Slug"), "porzucony-szkic");
+    fireEvent.click(button("adminTracker.cancel"));
+
+    expect(screen.queryByLabelText("Slug")).toBeNull();
+    expect(chainsFor("eu_policy_items").some((c) => c.has("insert") || c.has("update"))).toBe(
+      false,
+    );
+  });
+});
+
 describe("admin.tracker - stanowiska państw członkowskich", () => {
   async function openPositions() {
     const view = await mount();
@@ -449,6 +599,116 @@ describe("admin.tracker - stanowiska państw członkowskich", () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: ["admin", "tracker-positions", ITEM_ID] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tracker", "positions", ITEM_ID] });
   });
+
+  it("zapis stanowisk unieważnia też MACIERZ explorera (`positions-bulk`)", async () => {
+    // Regresja: explorer czyta stanowiska wielu dossier pod kluczem
+    // `["tracker", "positions-bulk", <id,...>]`, którego prefiks
+    // `["tracker", "positions"]` NIE łapie (inny drugi element). Macierz
+    // w tej samej sesji pokazywała stanowisko sprzed zapisu.
+    const view = await openPositions();
+    seedPublicCache(view.queryClient);
+    fireEvent.click(button("adminTracker.savePositions"));
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminTracker.positionsSaved"));
+    expect(invalidated(view.queryClient, PUBLIC_ENTRIES.positions)).toBe(true);
+    expect(invalidated(view.queryClient, PUBLIC_ENTRIES.positionsBulk)).toBe(true);
+  });
+
+  it("wyczyszczenie ISTNIEJĄCEGO stanowiska to DELETE tego kraju, a nie upsert 'none'", async () => {
+    // „none" jest wyłącznie etykietą interfejsu; w bazie stanowisko „brak"
+    // to BRAK WIERSZA. Kraje, które stanowiska nie miały i nadal nie mają,
+    // nie mogą trafić ani do upsertu, ani do usunięcia.
+    const [first, second] = EU_COUNTRIES;
+    db().setResponse("eu_policy_positions", (chain) =>
+      chain.has("select")
+        ? ok([
+            {
+              item_id: ITEM_ID,
+              country_code: first.code,
+              stance: "support",
+              note_pl: null,
+              note_en: null,
+            },
+            {
+              item_id: ITEM_ID,
+              country_code: second.code,
+              stance: "oppose",
+              note_pl: "Sprzeciw",
+              note_en: null,
+            },
+          ])
+        : ok([]),
+    );
+    await openPositions();
+    const stance = screen.getByLabelText(`${first.code} - adminTracker.stance`);
+    await waitFor(() => expect(stance).toHaveValue("support"));
+    change(stance, "none");
+    fireEvent.click(button("adminTracker.savePositions"));
+
+    await waitFor(() =>
+      expect(chainsFor("eu_policy_positions").some((c) => c.has("delete"))).toBe(true),
+    );
+    const del = chainWith("eu_policy_positions", "delete");
+    expect(del.argsOf("eq")).toEqual(["item_id", ITEM_ID]);
+    expect(del.argsOf("in")).toEqual(["country_code", [first.code]]);
+    // Drugi kraj ZOSTAJE - z notatką z bazy, nie z pustym draftem.
+    const rows = payloadOf("eu_policy_positions", "upsert");
+    expect(rows).toEqual([
+      {
+        item_id: ITEM_ID,
+        country_code: second.code,
+        stance: "oppose",
+        note_pl: "Sprzeciw",
+        note_en: null,
+        tenant_id: ZERO_UUID,
+      },
+    ]);
+  });
+
+  it("notatki stanowiska jadą PRZYCIĘTE, a puste jako `null`", async () => {
+    const code = EU_COUNTRIES[0].code;
+    await openPositions();
+    change(screen.getByLabelText(`${code} - adminTracker.stance`), "support");
+    change(screen.getByLabelText(`${code} - adminTracker.notePl`), "  Popiera z zastrzeżeniami  ");
+    change(screen.getByLabelText(`${code} - adminTracker.noteEn`), "   ");
+    fireEvent.click(button("adminTracker.savePositions"));
+
+    await waitFor(() =>
+      expect(chainsFor("eu_policy_positions").some((c) => c.has("upsert"))).toBe(true),
+    );
+    expect(payloadOf("eu_policy_positions", "upsert")).toEqual([
+      expect.objectContaining({
+        country_code: code,
+        note_pl: "Popiera z zastrzeżeniami",
+        note_en: null,
+      }),
+    ]);
+  });
+
+  it("błąd zapisu stanowisk daje komunikat i NIE zamyka okna", async () => {
+    // Zamknięcie okna po błędzie wyrzuca 27 wierszy wpisanych stanowisk.
+    db().setResponse("eu_policy_positions", (chain) =>
+      chain.has("upsert") ? fail("test: odmowa zapisu stanowisk", "42501") : ok([]),
+    );
+    await openPositions();
+    change(screen.getByLabelText(`${EU_COUNTRIES[0].code} - adminTracker.stance`), "support");
+    fireEvent.click(button("adminTracker.savePositions"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("test: odmowa zapisu stanowisk"));
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("dialog", { name: "adminTracker.memberStatePositions" }),
+    ).toBeInTheDocument();
+  });
+
+  it("anulowanie okna stanowisk zamyka je BEZ zapisu", async () => {
+    await openPositions();
+    change(screen.getByLabelText(`${EU_COUNTRIES[0].code} - adminTracker.stance`), "support");
+    fireEvent.click(button("adminTracker.cancel"));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(chainsFor("eu_policy_positions").some((c) => c.has("upsert"))).toBe(false);
+  });
 });
 
 describe("admin.tracker - powiązania aktów", () => {
@@ -477,17 +737,96 @@ describe("admin.tracker - powiązania aktów", () => {
     expect(chain.argsOf("eq")).toEqual(["item_id", ITEM_ID]);
   });
 
-  it("dodanie powiązania bez wybranego dossier NIE puka do bazy", async () => {
-    // `if (!targetId) return` przed zapytaniem: upsert z pustym
-    // `related_item_id` to naruszenie klucza obcego, czyli błąd bazy
-    // w miejscu, w którym wystarczy nic nie robić.
+  it("dodanie powiązania bez wybranego dossier jest ZABLOKOWANE i nie puka do bazy", async () => {
+    // Barierą jest wyłączony przycisk (`disabled={!targetId}`); `if (!targetId)`
+    // w mutacji to druga linia obrony. Upsert z pustym `related_item_id` to
+    // naruszenie klucza obcego, czyli błąd bazy w miejscu, w którym wystarczy
+    // nic nie robić.
     await openLinks();
     await waitFor(() => expect(chainsFor("eu_policy_links").length).toBe(1));
+
+    expect(button("adminTracker.addLink")).toBeDisabled();
+    fireEvent.click(button("adminTracker.addLink"));
+    expect(chainsFor("eu_policy_links").some((c) => c.has("upsert"))).toBe(false);
+  });
+
+  it("kandydaci do powiązania NIE obejmują samego dossier ani już powiązanych", async () => {
+    // Krawędź do samego siebie nie ma sensu, a ponowne dodanie istniejącej
+    // przestawiłoby po cichu jej typ relacji (upsert po `item_id,related_item_id`).
+    const THIRD_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    db().setResponse("eu_policy_items", (chain) =>
+      chain.has("select")
+        ? ok([
+            item(),
+            item({ id: OTHER_ITEM_ID, slug: "akt-o-danych", title_pl: "Akt o danych" }),
+            item({ id: THIRD_ID, slug: "akt-o-chmurze", title_pl: "Akt o chmurze" }),
+          ])
+        : ok([]),
+    );
+    db().setResponse("eu_policy_links", (chain) =>
+      chain.has("select") ? ok([{ related_item_id: OTHER_ITEM_ID, relation: "amends" }]) : ok([]),
+    );
+    await mount();
+    await screen.findByText(/Akt o odporności cyfrowej/);
+    fireEvent.click(screen.getAllByRole("button", { name: "adminTracker.links" })[0]);
+    await screen.findByRole("button", { name: "adminTracker.remove" });
+
+    const dialog = screen.getByRole("dialog", { name: "adminTracker.relatedFiles" });
+    const target = within(dialog).getByLabelText("adminTracker.dossier");
+    const offered = Array.from(target.querySelectorAll("option")).map((o) => o.value);
+    expect(offered).toEqual([THIRD_ID]);
+    // Istniejąca krawędź jest pokazana TYTUŁEM drugiej strony, z typem relacji.
+    expect(within(dialog).getByText("Akt o danych")).toBeInTheDocument();
+    expect(within(dialog).getByText("amends", { selector: "span" })).toBeInTheDocument();
+  });
+
+  it("dodanie powiązania niesie OBA końce, relację i zerowy tenant; sukces czyści wybór", async () => {
+    // Zaślepka tenanta z tych samych powodów co przy stanowiskach - nadpisuje
+    // ją trigger `tg_eu_policy_link_pin`. Unieważnienie obejmuje klucz panelu
+    // i publiczną listę „powiązane akty" TEGO dossier.
+    db().setResponse("eu_policy_items", (chain) =>
+      chain.has("select")
+        ? ok([item(), item({ id: OTHER_ITEM_ID, slug: "akt-o-danych", title_pl: "Akt o danych" })])
+        : ok([]),
+    );
+    const view = await mount();
+    await screen.findByText(/Akt o odporności cyfrowej/);
+    fireEvent.click(screen.getAllByRole("button", { name: "adminTracker.links" })[0]);
+    await waitFor(() => expect(chainsFor("eu_policy_links").length).toBe(1));
+    const spy = vi.spyOn(view.queryClient, "invalidateQueries");
+    change(screen.getByLabelText("adminTracker.dossier"), OTHER_ITEM_ID);
+    change(screen.getByLabelText("adminTracker.relation"), "implements");
     fireEvent.click(button("adminTracker.addLink"));
 
     await waitFor(() =>
-      expect(chainsFor("eu_policy_links").some((c) => c.has("upsert"))).toBe(false),
+      expect(chainsFor("eu_policy_links").some((c) => c.has("upsert"))).toBe(true),
     );
+    const upsert = chainWith("eu_policy_links", "upsert");
+    expect(upsert.argsOf("upsert")).toEqual([
+      {
+        item_id: ITEM_ID,
+        related_item_id: OTHER_ITEM_ID,
+        relation: "implements",
+        tenant_id: ZERO_UUID,
+      },
+      { onConflict: "item_id,related_item_id" },
+    ]);
+    await waitFor(() => expect(button("adminTracker.addLink")).toBeDisabled());
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["admin", "tracker-links", ITEM_ID] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["tracker", "links", ITEM_ID] });
+  });
+
+  it("błąd dodania powiązania daje komunikat i zostawia wybór", async () => {
+    db().setResponse("eu_policy_links", (chain) =>
+      chain.has("upsert") ? fail("test: dossier innego obszaru", "P0001") : ok([]),
+    );
+    await openLinks();
+    await waitFor(() => expect(chainsFor("eu_policy_links").length).toBe(1));
+    change(screen.getByLabelText("adminTracker.dossier"), OTHER_ITEM_ID);
+    fireEvent.click(button("adminTracker.addLink"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("test: dossier innego obszaru"));
+    expect(screen.getByLabelText("adminTracker.dossier")).toHaveValue(OTHER_ITEM_ID);
   });
 
   it("usunięcie powiązania filtruje po OBU końcach krawędzi", async () => {
@@ -511,12 +850,74 @@ describe("admin.tracker - powiązania aktów", () => {
   });
 });
 
+describe("admin.tracker - powiązania aktów: odmowa i zamknięcie", () => {
+  async function openLinksWithEdge() {
+    db().setResponse("eu_policy_items", (chain) =>
+      chain.has("select")
+        ? ok([item(), item({ id: OTHER_ITEM_ID, slug: "akt-o-danych", title_pl: "Akt o danych" })])
+        : ok([]),
+    );
+    await mount();
+    await screen.findByText(/Akt o odporności cyfrowej/);
+    fireEvent.click(screen.getAllByRole("button", { name: "adminTracker.links" })[0]);
+    await screen.findByRole("dialog", { name: "adminTracker.relatedFiles" });
+  }
+
+  it("odmowa usunięcia powiązania daje komunikat, a krawędź zostaje na liście", async () => {
+    db().setResponse("eu_policy_links", (chain) =>
+      chain.has("delete")
+        ? fail("test: odmowa usunięcia krawędzi", "42501")
+        : ok([{ related_item_id: OTHER_ITEM_ID, relation: "related" }]),
+    );
+    await openLinksWithEdge();
+    fireEvent.click(await screen.findByRole("button", { name: "adminTracker.remove" }));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("test: odmowa usunięcia krawędzi"),
+    );
+    const dialog = screen.getByRole("dialog", { name: "adminTracker.relatedFiles" });
+    expect(within(dialog).getByText("Akt o danych")).toBeInTheDocument();
+  });
+
+  it("krawędź do dossier SPOZA listy panelu pokazuje identyfikator i da się ją usunąć", async () => {
+    // Lista panelu ma limit 200 wierszy, a druga strona krawędzi bywa starsza.
+    // Bez zapasowej etykiety wiersz byłby pusty - redakcja nie wiedziałaby,
+    // co usuwa, ani nie miałaby jak zdjąć krawędzi do dossier, którego nie widzi.
+    const FAR_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    db().setResponse("eu_policy_links", (chain) =>
+      chain.has("select") ? ok([{ related_item_id: FAR_ID, relation: "supersedes" }]) : ok([]),
+    );
+    await openLinksWithEdge();
+    const dialog = screen.getByRole("dialog", { name: "adminTracker.relatedFiles" });
+
+    expect(await within(dialog).findByText(FAR_ID)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "adminTracker.remove" }));
+    await waitFor(() =>
+      expect(chainsFor("eu_policy_links").some((c) => c.has("delete"))).toBe(true),
+    );
+    expect(chainWith("eu_policy_links", "delete").argsOf("eq")).toEqual(["item_id", ITEM_ID]);
+  });
+
+  it("zamknięcie okna powiązań nie pisze niczego", async () => {
+    db().setResponse("eu_policy_links", () => ok([]));
+    await openLinksWithEdge();
+    fireEvent.click(button("adminTracker.close"));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(chainsFor("eu_policy_links").some((c) => c.has("upsert") || c.has("delete"))).toBe(
+      false,
+    );
+  });
+});
+
 describe("admin.tracker - wpis osi czasu", () => {
   async function openUpdate() {
     const view = await mount();
     await screen.findByText(/Akt o odporności cyfrowej/);
     fireEvent.click(button("adminTracker.update"));
-    await screen.findByRole("dialog");
+    // Okno ma NAZWĘ dostępną, jak dwa pozostałe okna panelu - do tej pracy było
+    // jedynym bezimiennym `role="dialog"` na tej trasie.
+    await screen.findByRole("dialog", { name: "adminTracker.addUpdate" });
     return view;
   }
 
@@ -557,15 +958,19 @@ describe("admin.tracker - wpis osi czasu", () => {
     });
   });
 
-  it("wpis z etapem unieważnia klucz osi czasu I klucz listy panelu", async () => {
-    // Etap dossier przestawia TRIGGER w bazie, więc lista panelu też jest po
-    // zapisie nieaktualna - stąd drugie unieważnienie. Bez niego redakcja
-    // widzi stary etap i dodaje ten sam wpis ponownie.
+  it("wpis z etapem unieważnia CAŁĄ publiczną przestrzeń trackera i listę panelu", async () => {
+    // Regresja: zapis unieważniał tylko `["tracker", "updates", itemId]`. Etap
+    // dossier przestawia jednak TRIGGER w bazie, więc w tej samej sesji
+    // nieaktualne zostawały strona dossier (pasek postępu na starym etapie pod
+    // nowym wpisem osi), lista z filtrem etapu, statystyki etapów explorera
+    // i globalny feed zmian, do którego nowy wpis należy.
     const view = await openUpdate();
+    seedPublicCache(view.queryClient);
     const spy = vi.spyOn(view.queryClient, "invalidateQueries");
     const areas = screen.getAllByRole("textbox");
     fireEvent.change(areas[0], { target: { value: "Rada przyjęła stanowisko" } });
     fireEvent.change(areas[1], { target: { value: "Council adopted its position" } });
+    change(screen.getByLabelText("adminTracker.stageChangeOptional"), "trilogue");
     fireEvent.click(button("adminTracker.publish"));
 
     await waitFor(() =>
@@ -573,8 +978,60 @@ describe("admin.tracker - wpis osi czasu", () => {
         "adminTracker.updatePublishedFollowersWereNotified",
       ),
     );
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["tracker", "updates", ITEM_ID] });
+    for (const key of [
+      PUBLIC_ENTRIES.updates,
+      PUBLIC_ENTRIES.item,
+      PUBLIC_ENTRIES.items,
+      PUBLIC_ENTRIES.recent,
+      PUBLIC_ENTRIES.stats,
+    ]) {
+      expect(invalidated(view.queryClient, key), JSON.stringify(key)).toBe(true);
+    }
     expect(spy).toHaveBeenCalledWith({ queryKey: ["admin", "tracker-items"] });
+  });
+
+  it("etap i źródło wpisu trafiają do ładunku: etap wprost, źródło przycięte", async () => {
+    // Etap jest tym, co uruchamia trigger i powiadomienia; źródło - jedynym
+    // odnośnikiem przy wpisie na stronie publicznej i w kanale RSS.
+    await openUpdate();
+    const areas = screen.getAllByRole("textbox");
+    fireEvent.change(areas[0], { target: { value: "Trilog rozpoczęty" } });
+    fireEvent.change(areas[1], { target: { value: "Trilogue started" } });
+    change(screen.getByLabelText("adminTracker.stageChangeOptional"), "trilogue");
+    change(screen.getByLabelText("adminTracker.sourceUrl"), "  https://example.org/trilog  ");
+    fireEvent.click(button("adminTracker.publish"));
+
+    await waitFor(() =>
+      expect(chainsFor("eu_policy_updates").some((c) => c.has("insert"))).toBe(true),
+    );
+    expect(payloadOf("eu_policy_updates", "insert")).toMatchObject({
+      stage_to: "trilogue",
+      source_url: "https://example.org/trilog",
+    });
+  });
+
+  it("błąd publikacji wpisu daje komunikat i NIE zamyka okna z notatkami", async () => {
+    db().setResponse("eu_policy_updates", () => fail("test: notatka za krótka", "23514"));
+    await openUpdate();
+    const areas = screen.getAllByRole("textbox");
+    fireEvent.change(areas[0], { target: { value: "Rada przyjęła stanowisko" } });
+    fireEvent.change(areas[1], { target: { value: "Council adopted its position" } });
+    fireEvent.click(button("adminTracker.publish"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("test: notatka za krótka"));
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("adminTracker.updateNotePl")).toHaveValue(
+      "Rada przyjęła stanowisko",
+    );
+  });
+
+  it("anulowanie wpisu zamyka okno BEZ zapisu", async () => {
+    await openUpdate();
+    fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "Szkic notatki" } });
+    fireEvent.click(button("adminTracker.cancel"));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(chainsFor("eu_policy_updates").some((c) => c.has("insert"))).toBe(false);
   });
 });
 
@@ -584,7 +1041,9 @@ describe("admin.tracker-guide - dokumentacja panelu", () => {
     // języku. Strażnik `isStep` jest jedynym miejscem, które chroni render
     // przed kształtem, którego `returnObjects: true` nie gwarantuje - a przy
     // stubie i18n `t()` oddaje ciąg, więc lista kroków jest PUSTA i strona
-    // musi to wytrzymać bez wywalenia się.
+    // musi to wytrzymać bez wywalenia się. Kroki na PRAWDZIWYM słowniku (oba
+    // języki, parytet liczby kroków, wpis o złym kształcie) dowodzi
+    // `adminTrackerGuideRoute.test.tsx`.
     const view = await renderRoute({
       route: TrackerGuideRoute,
       path: GUIDE_PATH,

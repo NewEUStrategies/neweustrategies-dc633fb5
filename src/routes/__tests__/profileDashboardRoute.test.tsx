@@ -9,12 +9,12 @@
 //
 //   1. TRZY ROZŁĄCZNE STANY WIERSZA PROFILU. Oczekiwanie na odczyt to
 //      wskaźnik, a nie pusty formularz. Profil PUSTY to zaproszenie do
-//      uzupełnienia. AWARIA odczytu MUSI być czymś trzecim - a nie jest, i to
-//      jest pierwszy zgłoszony tu defekt: `useProfileEditor` nie ma kanału
-//      błędu, więc nieudany odczyt renderuje się DOKŁADNIE jak konto świeżo
-//      założone („Nienazwany", „Dodaj firmę", „Dodaj telefon"). Człowiek,
-//      który dwa lata temu wypełnił profil, widzi go pustego i uzupełnia
-//      drugi raz - albo zgłasza utratę danych.
+//      uzupełnienia. AWARIA odczytu jest czymś trzecim: komunikat z
+//      ponowieniem i ZERO edytorów. Do niedawna `useProfileEditor` nie miał
+//      kanału błędu, a jego select prosił o kolumny bez grantu (42501), więc
+//      KAŻDE wejście renderowało się jak konto świeżo założone („Nienazwany",
+//      „Dodaj firmę", „Dodaj telefon") - człowiek z wypełnionym profilem
+//      uzupełniał go drugi raz, nadpisując dane, albo zgłaszał ich utratę.
 //   2. LICZNIKI AKTYWNOŚCI NIE WOLNO ZMYŚLAĆ. Cztery kafle („zakładki",
 //      „autorzy", „kategorie", „tagi") czytają `count` z czterech zapytań
 //      liczących i sklejają go z zerem przez `?? 0`. Skutek: licznik, który
@@ -107,6 +107,10 @@ const h = vi.hoisted(() => ({
   profile: null as ProfileEditorRow | null,
   /** `loading` z `useProfileEditor` - odczyt wiersza profilu w locie. */
   profileLoading: false,
+  /** `loadFailed` z `useProfileEditor` - odczyt padł, brak potwierdzonego wiersza. */
+  profileLoadFailed: false,
+  /** Liczba wywołań `reload()` - ponowienie odczytu z ekranu awarii. */
+  reloads: 0,
   status: { avatar: "idle", cover: "idle" } as Record<UploadKind, UploadStatus>,
   progress: { avatar: 0, cover: 0 } as Record<UploadKind, number>,
   /** Wywołania `saveField` - pole i wartość, w kolejności. */
@@ -148,6 +152,7 @@ vi.mock("@/lib/smoothAnchorScroll", () => ({
   replaceHashPreservingRouterState: () => undefined,
 }));
 
+vi.mock("@/lib/i18n-profile", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/i18n-profile-extras2", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/i18n-profile-intent", () => ({ ensureI18n: () => undefined }));
 
@@ -174,8 +179,8 @@ vi.mock("@/hooks/useAuth", () => {
 });
 
 // Wiersz profilu: hook ma własny plik testowy, więc tu jest atrapą oddającą
-// DOKŁADNIE jego kontrakt - w tym brak kanału błędu (`data` spada na wiersz
-// pusty, `loading` gaśnie), co jest przedmiotem pierwszego `it.fails`.
+// DOKŁADNIE jego kontrakt - w tym kanał błędu: przy awarii `data` to wiersz
+// pusty, `loading` zgasło, a rozstrzyga `loadFailed`.
 vi.mock("@/lib/profile/useProfileEditor", () => ({
   useProfileEditor: () => ({
     get data() {
@@ -183,6 +188,12 @@ vi.mock("@/lib/profile/useProfileEditor", () => ({
     },
     get loading() {
       return h.profileLoading;
+    },
+    get loadFailed() {
+      return h.profileLoadFailed;
+    },
+    reload: () => {
+      h.reloads += 1;
     },
     get status() {
       return h.status;
@@ -514,6 +525,8 @@ beforeEach(() => {
   h.isAdmin = false;
   h.profile = filledRow();
   h.profileLoading = false;
+  h.profileLoadFailed = false;
+  h.reloads = 0;
   h.status = { avatar: "idle", cover: "idle" };
   h.progress = { avatar: 0, cover: 0 };
   h.saved = [];
@@ -616,26 +629,44 @@ describe("trzy rozłączne stany wiersza profilu", () => {
     expect(screen.getAllByText("profile.inline.addLocation").length).toBeGreaterThan(0);
   });
 
-  it.fails(
-    "DEFEKT: AWARIA odczytu profilu wygląda DOKŁADNIE jak konto świeżo założone",
-    async () => {
-      // CO JEST NIE TAK. `useProfileEditor` (src/lib/profile/useProfileEditor.ts:102-103)
-      // oddaje `data = query.data ?? EMPTY` i `loading = !!uid && query.isLoading`,
-      // czyli po ODRZUCONYM zapytaniu `data` to wiersz pusty, a `loading` już
-      // zgasło. Trasa (src/routes/profile.index.tsx:181-188) zna wyłącznie te dwa
-      // stany, więc nie ma z czego narysować trzeciego.
-      //
-      // KONSEKWENCJA DLA UŻYTKOWNIKA. Blip PostgREST-a pokazuje osobie
-      // z uzupełnionym profilem „Nienazwany", „Dodaj firmę", „Dodaj telefon"
-      // i pusty adres e-mail w kontakcie. Część ludzi uzupełni profil po raz
-      // drugi (nadpisując dane optymistycznym zapisem), część zgłosi utratę
-      // danych. Naprawa: kanał błędu w hooku + osobny stan w trasie.
-      h.profile = EMPTY_ROW;
-      await mount();
-      // Awaria MUSI dać coś innego niż zaproszenie do uzupełnienia.
-      expect(screen.queryByText("profile.inline.addCompany")).toBeNull();
-    },
-  );
+  it("AWARIA odczytu to TRZECI stan: komunikat, a nie zaproszenie do uzupełnienia", async () => {
+    // Hook przy awarii oddaje wiersz PUSTY (to samo `data`, co dla konta świeżo
+    // założonego) - jedynym rozróżnieniem jest `loadFailed`. Gdyby trasa go nie
+    // czytała, osoba z uzupełnionym profilem zobaczyłaby „Dodaj firmę"
+    // i „Dodaj telefon", a pierwszy zapis pola nadpisałby jej prawdziwe dane.
+    h.profile = EMPTY_ROW;
+    h.profileLoadFailed = true;
+    await mount();
+
+    expect(screen.getByRole("alert").textContent).toContain("profile.inline.loadFailed");
+    expect(screen.queryByText("profile.inline.addCompany")).toBeNull();
+    expect(screen.queryByText("profile.tabs.about")).toBeNull();
+  });
+
+  it("AWARIA odczytu nie zostawia ANI JEDNEGO edytora, przez który dałoby się zapisać", async () => {
+    // Zapis z formularza bez potwierdzonego wiersza to dokładnie ta ścieżka,
+    // którą pusty profil nadpisywał dane. Brak edytorów zamyka ją w interfejsie
+    // (hook ma drugą zaporę - patrz `useProfileEditor.test.tsx`).
+    h.profile = EMPTY_ROW;
+    h.profileLoadFailed = true;
+    await mount();
+
+    expect(document.querySelector("[data-testid^='inline:']")).toBeNull();
+    expect(document.querySelector("[data-testid^='area:']")).toBeNull();
+    expect(document.querySelector("input[type='file']")).toBeNull();
+    expect(h.saved).toHaveLength(0);
+  });
+
+  it("ponowienie z ekranu awarii woła `reload` hooka", async () => {
+    // Awaria bez wyjścia (poza pełnym przeładowaniem strony) to ślepa uliczka -
+    // a przyczyną bywa chwilowy blip sieci.
+    h.profile = EMPTY_ROW;
+    h.profileLoadFailed = true;
+    await mount();
+
+    fireEvent.click(screen.getByRole("button", { name: "profile.inline.retry" }));
+    expect(h.reloads).toBe(1);
+  });
 
   it("odznaka weryfikacji pojawia się tylko dla profilu z datą weryfikacji", async () => {
     // Odznaka to sygnał zaufania - narysowana bez podkładu w bazie jest

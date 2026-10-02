@@ -13,7 +13,7 @@ Wybrana droga: **(a) domknięcie kontraktu**. Sześć z siedmiu wag, `use_idf` i
 
 ## 2. Co zmienia naprawa
 
-### Baza (`supabase/migrations/20261002120000_post_views_dwell_signal.sql`, bliźniak `drizzle/migrations/0124_post_views_dwell_signal.sql`)
+### Baza (`supabase/migrations/20261002200000_post_views_dwell_signal.sql`, bliźniak `drizzle/migrations/0129_post_views_dwell_signal.sql`)
 
 - `post_views.dwell_ms integer NULL` z CHECK 0..30 min. NULL znaczy „brak zgłoszenia", nie zero. Nowego identyfikatora nie ma: czas trafia do wiersza odsłony, który już istnieje pod zgodą analityczną.
 - `record_post_dwell(_tenant_id, _post_id, _viewer_hash, _dwell_ms) RETURNS boolean` - SECURITY DEFINER, `search_path = public, pg_temp`, EXECUTE **wyłącznie** `service_role`. Trafia najnowszą odsłonę (wpis, `viewer_hash`) najemcy z ostatnich 2 h. Wartość tylko rośnie (GREATEST), więc powtórzony beacon i kolejne zgłoszenia są idempotentne. Zgłoszenie jest przycięte do 30 min i do czasu, jaki od odsłony realnie upłynął (+5 s), więc świeżo nabita odsłona nie dostanie od razu maksimum.

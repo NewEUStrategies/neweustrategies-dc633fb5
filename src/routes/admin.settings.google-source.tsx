@@ -4,7 +4,7 @@
 // publiczny badge czyta te same wartości przez useSiteSetting().
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSettings, useDraft } from "@/lib/admin/useSettings";
 import { Field, Text, Checkbox, SaveBar } from "@/components/admin/settings/fields";
 import { GoogleSourceBadgeDeviceSection } from "@/components/admin/google-source/GoogleSourceBadgeDeviceSection";
@@ -16,6 +16,7 @@ import {
   GOOGLE_SOURCE_BADGE_SETTINGS_KEY,
   clampLogoSize,
   googlePreferredSourceUrl,
+  normalizeGoogleSourceBadgeConfig,
   type GoogleSourceBadgeConfig,
 } from "@/lib/seo/googleSourceBadge";
 
@@ -35,7 +36,17 @@ function GoogleSourceSettings() {
     GOOGLE_SOURCE_BADGE_SETTINGS_KEY,
     GOOGLE_SOURCE_BADGE_DEFAULTS,
   );
-  const [draft, setDraft] = useDraft(query.data);
+  // `useSettings` scala wiersz z domyślkami przez `deepMerge` BEZ schematu, a
+  // tam jawny `null` nadpisuje domyślny podobiekt - zapisane `{"logo": null}`
+  // albo `{"desktop": null}` wywracało formularz (`draft.logo.light`,
+  // `draft.desktop.*`), czyli jedyne miejsce, w którym redakcja może taki
+  // wiersz naprawić. Szkic startuje więc z tej samej bramki odczytu co
+  // publiczny badge: każde uszkodzone pole spada na SWOJĄ domyślkę.
+  const loaded = useMemo(
+    () => (query.data ? normalizeGoogleSourceBadgeConfig(query.data) : undefined),
+    [query.data],
+  );
+  const [draft, setDraft] = useDraft(loaded);
   const [previewTheme, setPreviewTheme] = useState<"light" | "dark">("light");
 
   if (!draft) return <p className="text-sm text-muted-foreground">{t("admin.loading")}</p>;
