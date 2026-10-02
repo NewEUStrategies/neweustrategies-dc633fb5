@@ -244,7 +244,7 @@ describe("loadEventSeatState - arytmetyka miejsc", () => {
   it.each(["PGRST202", "42883"])(
     "okno wdrożenia (%s): bez nowej funkcji liczy dawną regułą, zamiast stawać",
     async (code) => {
-      // Kod może wejść przed migracją 20261002200000. Kasa nie może wtedy
+      // Kod może wejść przed migracją 20261002210000. Kasa nie może wtedy
       // stanąć dla wszystkich biletów - liczymy tak jak przed zmianą.
       const stub = supabaseClientStub();
       stub.setRpc("event_seat_state", fail("Could not find the function", code));

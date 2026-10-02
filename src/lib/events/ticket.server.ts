@@ -9,7 +9,7 @@
 // liczył wyłącznie pulę legacy (`get_event_rsvp_counts`), więc wydarzenie
 // zapełniane formularzem zgłoszeń miało na jednej stronie dwie liczby miejsc,
 // a kasa sprzedawała bilet na miejsce, którego reguła bazy już nie widzi
-// (migracja 20261002200000). Jedno wywołanie zamiast dwóch: pojemność jedzie
+// (migracja 20261002210000). Jedno wywołanie zamiast dwóch: pojemność jedzie
 // w tym samym wierszu.
 //
 // KLIENT PUBLICZNY NIESIE HOSTA. `public_tenant_id()` rozpoznaje najemcę po
@@ -24,7 +24,7 @@ import type { EventSeatState, MyEventTicket } from "./ticketTypes";
 
 /**
  * PostgREST nie zna funkcji albo Postgres jej nie ma - migracja
- * 20261002200000 jeszcze nie weszła. Tylko w tym oknie wdrożenia liczymy
+ * 20261002210000 jeszcze nie weszła. Tylko w tym oknie wdrożenia liczymy
  * dawną regułą (pula legacy), żeby kasa nie stanęła; każdy inny błąd odczytu
  * miejsc RZUCA - bramka sprzedaży nie może czytać awarii jako „bez limitu".
  */

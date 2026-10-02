@@ -127,7 +127,7 @@ export interface SeatStateRow {
 }
 
 /**
- * Wiersz `event_seat_state` (20261002200000) - RPC zwraca TABLICĘ, kod czyta
+ * Wiersz `event_seat_state` (20261002210000) - RPC zwraca TABLICĘ, kod czyta
  * `[0]`. Domyślnie `seats_left = capacity - going`, czyli tak, jak liczy baza,
  * gdy obie pule są zgodne; przypadki rozjazdu pul podają `seats_left` wprost.
  */

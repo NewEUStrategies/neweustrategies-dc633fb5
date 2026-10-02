@@ -706,8 +706,8 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     twin: "20261002110000_profile_slug_always_set.sql",
   },
   {
-    tag: "0129_event_seat_state_single_source",
-    twin: "20261002200000_event_seat_state_single_source.sql",
+    tag: "0131_event_seat_state_single_source",
+    twin: "20261002210000_event_seat_state_single_source.sql",
   },
 ];
 

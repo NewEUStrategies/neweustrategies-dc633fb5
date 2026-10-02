@@ -1,5 +1,5 @@
 -- ============================================================================
--- 99 event_seat_state (20261002200000): JEDNA regula liczenia wolnych miejsc.
+-- 99 event_seat_state (20261002210000): JEDNA regula liczenia wolnych miejsc.
 --
 -- Strona wydarzenia i bramka sprzedazy biletu liczyly miejsca WYLACZNIE z puli
 -- legacy (`get_event_rsvp_counts`), a naglowek strony - regula
