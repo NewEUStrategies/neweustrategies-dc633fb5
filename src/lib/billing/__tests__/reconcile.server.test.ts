@@ -1181,3 +1181,295 @@ describe("izolacja najemcy w uzgadnianiu", () => {
     ).toHaveLength(1);
   });
 });
+
+// Przypisanie obiektu operatora do najemcy po WŁASNYM identyfikatorze obiektu.
+//
+// Sesja checkoutu, subskrypcja i płatność (PaymentIntent) przychodzą jako
+// obiekt, którego `id` JEST identyfikatorem wiążącym - nie mają pola
+// `session`/`subscription`/`payment_intent` wskazującego na siebie. Gdyby sonda
+// patrzyła wyłącznie na pola-odwołania, własne zdarzenie najemcy znikało z
+// raportu (nierozstrzygnięte), a naprawa wracała jako `skipped` - czyli klient
+// zapłacił, dostępu nie ma, a panel twierdzi, że nie ma czego naprawiać.
+describe("przynależność po identyfikatorze samego obiektu", () => {
+  /** Wiersz `subscriptions` najemcy - status zgodny z operatorem, poza sondą rozjazdów. */
+  const ownedSubscriptionRow = (over: Record<string, unknown> = {}) => ({
+    tenant_id: TENANT,
+    environment: "sandbox",
+    provider_subscription_id: "sub_wlasna",
+    provider_customer_id: null,
+    status: "active",
+    updated_at: "2026-08-05T08:00:00.000Z",
+    ...over,
+  });
+
+  beforeEach(() => {
+    // Domyślne dopasowanie po subskrypcji (z głównego `beforeEach`) musi
+    // zniknąć - dowodzimy, że własność potwierdza WŁAŚCIWA kolumna.
+    setSingle("subscriptions", null);
+    stripe.subscriptionRetrieve.mockResolvedValue({ id: "sub_wlasna", status: "active" });
+  });
+
+  it("raport: zdarzenie sesji checkoutu przypisuje się po `provider_session_id`", async () => {
+    stripe.eventsList.mockResolvedValue({
+      data: [
+        {
+          id: "evt_sesja",
+          type: "checkout.session.completed",
+          created: EVENT_CREATED,
+          data: { object: { id: "cs_wlasna", object: "checkout.session", customer: null } },
+        },
+      ],
+      has_more: false,
+    });
+    setRows("payment_orders", [
+      owningOrderRow({ provider_customer_id: null, provider_session_id: "cs_wlasna" }),
+    ]);
+
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
+
+    expect(report.issues.map((i) => [i.reference, i.reason])).toEqual([
+      ["evt_sesja", "event_missing"],
+    ]);
+    expect(argsOf("payment_orders", "in")).toContainEqual(["provider_session_id", ["cs_wlasna"]]);
+  });
+
+  it("raport: ta sama sesja w zamówieniu OBCEGO najemcy nie trafia do raportu", async () => {
+    stripe.eventsList.mockResolvedValue({
+      data: [
+        {
+          id: "evt_sesja_obca",
+          type: "checkout.session.completed",
+          created: EVENT_CREATED,
+          data: { object: { id: "cs_obca", object: "checkout.session", customer: null } },
+        },
+      ],
+      has_more: false,
+    });
+    setRows("payment_orders", [
+      owningOrderRow({
+        tenant_id: FOREIGN_TENANT,
+        provider_customer_id: null,
+        provider_session_id: "cs_obca",
+      }),
+    ]);
+
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
+
+    expect(report.issues).toEqual([]);
+    expect(report.scannedEvents).toBe(0);
+  });
+
+  it("raport: zdarzenie subskrypcji przypisuje się po jej WŁASNYM identyfikatorze", async () => {
+    // `customer.subscription.updated` niesie obiekt Subscription - pole
+    // `subscription` nie istnieje, a wiązaniem jest samo `id`.
+    stripe.eventsList.mockResolvedValue({
+      data: [
+        {
+          id: "evt_sub",
+          type: "customer.subscription.updated",
+          created: EVENT_CREATED,
+          data: { object: { id: "sub_wlasna", object: "subscription", customer: null } },
+        },
+      ],
+      has_more: false,
+    });
+    setRows("subscriptions", [ownedSubscriptionRow()]);
+
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
+
+    expect(report.issues.map((i) => [i.kind, i.reference, i.reason])).toEqual([
+      ["event", "evt_sub", "event_missing"],
+    ]);
+    expect(argsOf("subscriptions", "in")).toContainEqual([
+      "provider_subscription_id",
+      ["sub_wlasna"],
+    ]);
+  });
+
+  it("raport: zdarzenie bez obiektu nie da się przypisać - nie wchodzi ani do raportu, ani do licznika", async () => {
+    // Bez obiektu nie ma identyfikatorów, po których można by ustalić
+    // właściciela. Zgłoszenie takiego zdarzenia jako `event_missing` byłoby
+    // zgadywaniem - na wspólnym koncie to najpewniej cudze zdarzenie.
+    stripe.eventsList.mockResolvedValue({
+      data: [
+        { id: "evt_bez_danych", type: "invoice.paid", created: EVENT_CREATED, data: {} },
+        {
+          id: "evt_pusty_obiekt",
+          type: "invoice.paid",
+          created: EVENT_CREATED,
+          data: { object: null },
+        },
+      ],
+      has_more: false,
+    });
+
+    const report = await buildReconcileReport("sandbox", 72, TENANT);
+
+    expect(report.issues).toEqual([]);
+    expect(report.scannedEvents).toBe(0);
+    // Nic do rozstrzygnięcia = żadnego zapytania o właściciela.
+    expect(argsOf("payment_orders", "in")).toEqual([["status", ["pending", "processing"]]]);
+    expect(argsOf("subscriptions", "in")).toEqual([]);
+  });
+
+  it("naprawa: sesja checkoutu WŁASNEGO zamówienia idzie do dyspozytora", async () => {
+    // Najczęstszy przypadek naprawy: `checkout.session.completed` nie dotarł,
+    // klient zapłacił, a zamówienie wisi. Sesja gościa nie ma ani klienta,
+    // ani subskrypcji - jedynym wiązaniem jest `provider_session_id`.
+    stripe.eventsRetrieve.mockResolvedValue({
+      id: "evt_sesja",
+      type: "checkout.session.completed",
+      created: EVENT_CREATED,
+      data: { object: { id: "cs_wlasna", object: "checkout.session", customer: null } },
+    });
+    setRows("payment_orders", [
+      owningOrderRow({ provider_customer_id: null, provider_session_id: "cs_wlasna" }),
+    ]);
+
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_sesja", TENANT);
+
+    expect(outcome).toEqual({ reference: "evt_sesja", status: "processed", error: null });
+    expect(hook.dispatch).toHaveBeenCalledTimes(1);
+    expect(argsOf("payment_orders", "eq")).toEqual(
+      expect.arrayContaining([
+        ["tenant_id", TENANT],
+        ["environment", "sandbox"],
+        ["provider_session_id", "cs_wlasna"],
+      ]),
+    );
+  });
+
+  it("naprawa: sesja checkoutu z zamówieniem OBCEGO najemcy kończy się `skipped` bez wysyłki", async () => {
+    stripe.eventsRetrieve.mockResolvedValue({
+      id: "evt_sesja_obca",
+      type: "checkout.session.completed",
+      created: EVENT_CREATED,
+      data: { object: { id: "cs_obca", object: "checkout.session", customer: null } },
+    });
+    setRows("payment_orders", [
+      owningOrderRow({
+        tenant_id: FOREIGN_TENANT,
+        provider_customer_id: null,
+        provider_session_id: "cs_obca",
+      }),
+    ]);
+
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_sesja_obca", TENANT);
+
+    expect(outcome).toEqual({ reference: "evt_sesja_obca", status: "skipped", error: null });
+    expect(hook.normalize).not.toHaveBeenCalled();
+    expect(hook.claim).not.toHaveBeenCalled();
+    expect(hook.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("naprawa: klient bez subskrypcji (zakup jednorazowy) potwierdza własność przez ZAMÓWIENIE", async () => {
+    // Faktura za zakup jednorazowy niesie klienta, ale ten klient nie ma
+    // subskrypcji. Sonda musi zajrzeć do zamówień - inaczej naprawa własnego
+    // zakupu najemcy wracała jako `skipped`.
+    //
+    // Wiersze idą przez FILTRUJĄCĄ atrapę (nie `#single`), więc dowodem jest
+    // dopasowanie po najemcy i kliencie, a nie podstawiony wynik.
+    stripe.eventsRetrieve.mockResolvedValue({
+      id: "evt_faktura",
+      type: "invoice.paid",
+      created: EVENT_CREATED,
+      data: { object: { id: "in_jednorazowa", object: "invoice", customer: "cus_jednorazowy" } },
+    });
+    setRows("payment_orders", [
+      owningOrderRow({ id: "ord_jednorazowe", provider_customer_id: "cus_jednorazowy" }),
+    ]);
+
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_faktura", TENANT);
+
+    expect(outcome).toEqual({ reference: "evt_faktura", status: "processed", error: null });
+    expect(hook.dispatch).toHaveBeenCalledTimes(1);
+    expect(argsOf("subscriptions", "eq")).toContainEqual([
+      "provider_customer_id",
+      "cus_jednorazowy",
+    ]);
+    expect(argsOf("payment_orders", "eq")).toEqual(
+      expect.arrayContaining([
+        ["tenant_id", TENANT],
+        ["environment", "sandbox"],
+        ["provider_customer_id", "cus_jednorazowy"],
+      ]),
+    );
+  });
+
+  it("naprawa: ten sam klient w zamówieniu OBCEGO najemcy kończy się `skipped` bez wysyłki", async () => {
+    // Para do przypadku wyżej: gdyby sonda zamówień zgubiła filtr najemcy,
+    // admin jednego obszaru odtwarzałby cudzą fakturę (dostęp, dokumenty,
+    // poczta) znając sam identyfikator zdarzenia.
+    stripe.eventsRetrieve.mockResolvedValue({
+      id: "evt_faktura_obca",
+      type: "invoice.paid",
+      created: EVENT_CREATED,
+      data: { object: { id: "in_obca", object: "invoice", customer: "cus_obcy" } },
+    });
+    setRows("payment_orders", [
+      owningOrderRow({
+        id: "ord_obce",
+        tenant_id: FOREIGN_TENANT,
+        provider_customer_id: "cus_obcy",
+      }),
+    ]);
+
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_faktura_obca", TENANT);
+
+    expect(outcome).toEqual({ reference: "evt_faktura_obca", status: "skipped", error: null });
+    expect(hook.normalize).not.toHaveBeenCalled();
+    expect(hook.claim).not.toHaveBeenCalled();
+    expect(hook.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("naprawa: płatność (PaymentIntent) wiąże się po WŁASNYM identyfikatorze, przed normalizacją", async () => {
+    // Identyfikator zdarzenia przychodzi od klienta, więc może wskazywać
+    // dowolny typ - także zdarzenie płatności. Bramka przynależności stoi
+    // PRZED normalizacją: obca płatność nie dociera nawet do parsera.
+    const piEvent = (id: string) => ({
+      id: `evt_${id}`,
+      type: "payment_intent.succeeded",
+      created: EVENT_CREATED,
+      data: { object: { id, object: "payment_intent", customer: null } },
+    });
+    setRows("payment_orders", [
+      owningOrderRow({ provider_customer_id: null, provider_payment_intent_id: "pi_wlasna" }),
+      owningOrderRow({
+        id: "ord_obce",
+        tenant_id: FOREIGN_TENANT,
+        provider_customer_id: null,
+        provider_payment_intent_id: "pi_obca",
+      }),
+    ]);
+
+    stripe.eventsRetrieve.mockResolvedValue(piEvent("pi_obca"));
+    const obca = await repairReconcileIssue("sandbox", "event", "evt_pi_obca", TENANT);
+    expect(obca).toEqual({ reference: "evt_pi_obca", status: "skipped", error: null });
+    expect(hook.normalize).not.toHaveBeenCalled();
+
+    stripe.eventsRetrieve.mockResolvedValue(piEvent("pi_wlasna"));
+    await repairReconcileIssue("sandbox", "event", "evt_pi_wlasna", TENANT);
+    expect(hook.normalize).toHaveBeenCalledWith(piEvent("pi_wlasna"));
+    expect(argsOf("payment_orders", "eq")).toContainEqual([
+      "provider_payment_intent_id",
+      "pi_wlasna",
+    ]);
+  });
+
+  it("naprawa: zdarzenie bez obiektu kończy się `skipped` bez pytania bazy i bez wysyłki", async () => {
+    // Nie ma czego przypisać, więc nie ma czego odtwarzać - fail-closed.
+    stripe.eventsRetrieve.mockResolvedValue({
+      id: "evt_bez_danych",
+      type: "invoice.paid",
+      created: EVENT_CREATED,
+      data: {},
+    });
+
+    const outcome = await repairReconcileIssue("sandbox", "event", "evt_bez_danych", TENANT);
+
+    expect(outcome).toEqual({ reference: "evt_bez_danych", status: "skipped", error: null });
+    expect(db.state.calls.filter((c) => c.method === "from")).toEqual([]);
+    expect(hook.normalize).not.toHaveBeenCalled();
+    expect(hook.dispatch).not.toHaveBeenCalled();
+  });
+});
