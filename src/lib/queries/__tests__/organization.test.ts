@@ -43,6 +43,7 @@ vi.mock("@/integrations/supabase/client", async () => {
 
 import {
   ORGANIZATION_PEOPLE_LIMIT,
+  isCompanyOrganizationSlug,
   organizationCompanyNames,
   organizationDescription,
   organizationName,
@@ -116,6 +117,27 @@ describe("rozstrzyganie termu organizacji", () => {
       });
   });
 
+  it("brakujące kolumny opcjonalne termu schodzą do `null`, a nie do `undefined`", async () => {
+    // Widok i JSON-LD rozpoznają „brak" po `null` - `undefined` przepuściłby
+    // pole do danych strukturalnych jako `"logo": undefined`.
+    baza().setResponse(
+      "categories",
+      ok({ id: "t", slug: "nato", name_pl: "NATO", name_en: "NATO" }),
+    );
+    funkcje().setData("crm_company_brand", []);
+    const wynik = await klient().fetchQuery(organizationQueryOptions("nato", "pl"));
+    expect(wynik?.term).toEqual({
+      id: "t",
+      slug: "nato",
+      name_pl: "NATO",
+      name_en: "NATO",
+      description_pl: null,
+      description_en: null,
+      logo_url: null,
+      color: null,
+    });
+  });
+
   it("czyta komplet kolumn wizytówki, nie tylko nazwę", async () => {
     baza().setResponse("categories", ok(WIERSZ_TERMU));
     funkcje().setData("crm_company_brand", [MARKA]);
@@ -133,6 +155,85 @@ describe("rozstrzyganie termu organizacji", () => {
     baza().setResponse("categories", fail("odmowa odczytu categories", "42501"));
     await expect(klient().fetchQuery(organizationQueryOptions("nato", "pl"))).rejects.toThrow(
       "odmowa odczytu categories",
+    );
+  });
+});
+
+describe("firma z kartoteki (slug `org-<uuid>`)", () => {
+  const ID = "6f1c2b9e-1d2a-4c3b-8e7f-0a1b2c3d4e5f";
+  const SLUG = `org-${ID}`;
+  const WIERSZ_FIRMY = {
+    id: ID,
+    kind: "organization",
+    label: "  Instytut   Badań  ",
+    subtitle: "Think tank",
+    logo_url: "https://cdn.example/instytut.png",
+    website: "instytut.example",
+  };
+
+  it("rozpoznaje WYŁĄCZNIE prefiks z pełnym UUID - reszta jest termem", () => {
+    expect(isCompanyOrganizationSlug(SLUG)).toBe(true);
+    expect(isCompanyOrganizationSlug(`org-${ID.toUpperCase()}`)).toBe(true);
+    // „org-" bez identyfikatora i zwykły slug zaczynający się od „org" to termy.
+    expect(isCompanyOrganizationSlug("org-")).toBe(false);
+    expect(isCompanyOrganizationSlug("org-nato")).toBe(false);
+    expect(isCompanyOrganizationSlug("organizacja-narodow")).toBe(false);
+    expect(isCompanyOrganizationSlug("nato")).toBe(false);
+  });
+
+  it("pyta RPC wzmianek, NIE taksonomię, i markę bierze z tego samego wiersza", async () => {
+    funkcje().setData("get_mention_target", [WIERSZ_FIRMY]);
+    const wynik = await klient().fetchQuery(organizationQueryOptions(SLUG, "pl"));
+    expect(funkcje().lastCall("get_mention_target")?.arg("_slug")).toBe(SLUG);
+    // Drugie zapytanie o markę byłoby pytaniem o to samo - kartoteka już ją oddała.
+    expect(funkcje().callsFor("crm_company_brand")).toHaveLength(0);
+    expect(baza().lastChain("categories")).toBeUndefined();
+    expect(wynik).toEqual({
+      term: {
+        id: ID,
+        slug: SLUG,
+        name_pl: "Instytut Badań",
+        name_en: "Instytut Badań",
+        description_pl: null,
+        description_en: null,
+        logo_url: "https://cdn.example/instytut.png",
+        color: null,
+      },
+      brand: {
+        name: "Instytut Badań",
+        logoUrl: "https://cdn.example/instytut.png",
+        website: "instytut.example",
+        branch: "Think tank",
+      },
+    });
+  });
+
+  it("wiersz bez etykiety dostaje nazwę ze sluga, a puste pola marki znikają", async () => {
+    funkcje().setData("get_mention_target", [
+      { ...WIERSZ_FIRMY, label: "   ", subtitle: null, logo_url: "", website: null },
+    ]);
+    const wynik = await klient().fetchQuery(organizationQueryOptions(SLUG, "en"));
+    expect(wynik?.term.name_en).toBe(SLUG);
+    expect(wynik?.term.logo_url).toBeNull();
+    expect(wynik?.brand).toEqual({ name: SLUG, logoUrl: null, website: null, branch: null });
+  });
+
+  it("wzmianka OSOBY pod tym samym slugiem nie udaje organizacji - to 404", async () => {
+    funkcje().setData("get_mention_target", [{ ...WIERSZ_FIRMY, kind: "person" }]);
+    expect(await klient().fetchQuery(organizationQueryOptions(SLUG, "pl"))).toBeNull();
+  });
+
+  it("brak wiersza to 404, a pusta odpowiedź bazy też", async () => {
+    funkcje().setData("get_mention_target", []);
+    expect(await klient().fetchQuery(organizationQueryOptions(SLUG, "pl"))).toBeNull();
+    funkcje().setData("get_mention_target", null);
+    expect(await klient().fetchQuery(organizationQueryOptions(SLUG, "pl"))).toBeNull();
+  });
+
+  it("ODMOWA RPC LECI W GÓRĘ - trasa ma zdegradować, a nie zrobić 404", async () => {
+    funkcje().setError("get_mention_target", "odmowa wykonania funkcji", "42501");
+    await expect(klient().fetchQuery(organizationQueryOptions(SLUG, "pl"))).rejects.toThrow(
+      "odmowa wykonania funkcji",
     );
   });
 });
@@ -168,6 +269,15 @@ describe("marka z kartoteki CRM", () => {
     expect(wynik?.term.slug).toBe("nato");
   });
 
+  it("pusta odpowiedź kartoteki to pudło, a wiersz bez nazwy bierze nazwę z pytania", async () => {
+    funkcje().setResponse("crm_company_brand", (call) =>
+      call.arg("p_name") === TERM.name_pl ? ok(null) : ok([{ ...MARKA, name: "  " }]),
+    );
+    const wynik = await klient().fetchQuery(organizationQueryOptions("nato", "pl"));
+    expect(wynik?.brand?.name).toBe(TERM.name_en);
+    expect(wynik?.brand?.logoUrl).toBe(MARKA.logo_url);
+  });
+
   it("AWARIA KARTOTEKI NIE WYWRACA PROFILU - marka jest dekoracją tożsamości", async () => {
     funkcje().setError("crm_company_brand", "odmowa wykonania funkcji", "42501");
     const wynik = await klient().fetchQuery(organizationQueryOptions("nato", "pl"));
@@ -199,6 +309,11 @@ describe("osoby organizacji", () => {
     expect(organizationPeopleQueryOptions(["B", "A", "B"]).queryKey).toEqual(
       organizationPeopleQueryOptions(["A", "B"]).queryKey,
     );
+  });
+
+  it("pusta odpowiedź profili to pusta sekcja, nie błąd", async () => {
+    baza().setResponse("profiles_public", ok(null));
+    expect(await klient().fetchQuery(organizationPeopleQueryOptions(["NATO"]))).toEqual([]);
   });
 
   it("odmowa odczytu profili LECI W GÓRĘ, zamiast udawać zero osób", async () => {

@@ -214,6 +214,44 @@ describe("nagłówek profilu organizacji", () => {
     expect(org.subjectOf).toBeUndefined();
   });
 
+  it("teksty nagłówka mówią językiem ADRESU - także zastępcze", () => {
+    // Do 2026-10-02 te napisy siedziały w trasie jako warunki `isEn ? … : …`,
+    // a nakładka i18n trzymała ich martwe kopie. Dziś jedno źródło:
+    // `ORGANIZATION_PAGE_COPY` (head() nie ma `t()` i nie może ciągnąć słownika).
+    const noDescription = {
+      org: { term: { ...TERM, description_pl: null, description_en: null }, brand: null },
+      page: 2,
+    };
+    const crumbsOf = (result: ReturnType<HeadFn>) =>
+      (
+        jsonLd(result).find((n) => n["@type"] === "BreadcrumbList") as {
+          itemListElement: { name: string }[];
+        }
+      ).itemListElement.map((i) => i.name);
+
+    state.requestUrl = "/en/organization/nato?page=2";
+    const en = orgHead(noDescription);
+    expect(title(en)).toBe("NATO - organization (page 2)");
+    expect(metaByName(en, "description")).toBe(
+      "NATO - organization profile at New European Strategies.",
+    );
+    expect(crumbsOf(en).slice(1)).toEqual(["Organizations", "NATO"]);
+
+    state.requestUrl = "/organization/nato?page=2";
+    const pl = orgHead(noDescription);
+    expect(title(pl)).toBe("NATO - organizacja (strona 2)");
+    expect(metaByName(pl, "description")).toBe(
+      "NATO - profil organizacji w New European Strategies.",
+    );
+    expect(crumbsOf(pl).slice(1)).toEqual(["Organizacje", "NATO"]);
+  });
+
+  it("bez danych loadera nazwa zastępcza też jest w języku adresu", () => {
+    state.requestUrl = "/en/organization/nie-ma";
+    const result = head(OrganizationRoute, { params: { slug: "nie-ma" }, loaderData: undefined });
+    expect(title(result)).toBe("Organization - organization");
+  });
+
   it("bez danych loadera nagłówek nadal ma tytuł", () => {
     const result = head(OrganizationRoute, { params: { slug: "nie-ma" }, loaderData: undefined });
     expect(title(result).length).toBeGreaterThan(0);

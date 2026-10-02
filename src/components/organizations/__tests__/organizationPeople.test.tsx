@@ -25,7 +25,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import type { OrganizationPerson } from "@/lib/queries/organization";
 
 const state = vi.hoisted(() => ({
-  people: [] as OrganizationPerson[],
+  /** `undefined` = zapytanie jeszcze w locie (albo wyłączone przy braku nazw). */
+  people: [] as OrganizationPerson[] | undefined,
   keys: [] as unknown[],
 }));
 
@@ -118,6 +119,34 @@ describe("sekcja osób organizacji", () => {
     expect(img?.getAttribute("src")).toBe("https://cdn.example/a.jpg");
     // Nazwisko stoi obok - powtórzone w `alt` czytnik przeczytałby dwa razy.
     expect(img?.getAttribute("alt")).toBe("");
+  });
+
+  it("dopóki zapytanie leci, sekcji NIE MA - zamiast pustego nagłówka", () => {
+    // Sekcja hydratuje się po stronie klienta (filtr po nieindeksowanej
+    // kolumnie nie ma prawa stać na ścieżce TTFB), więc stan „bez danych"
+    // jest pierwszym, który widzi każdy czytelnik.
+    state.people = undefined;
+    pokaz();
+    expect(document.body.textContent).toBe("");
+  });
+
+  it("inicjały: jedno słowo daje jedną literę, polskie znaki są wielkie", () => {
+    state.people = [
+      osoba({ slug: "ewa", name: "Ewa" }),
+      osoba({ slug: "lz", name: "łukasz żak" }),
+      // Interpunkcja dzieli człony, ale sama nie jest inicjałem.
+      osoba({ slug: "am", name: "Anna-Maria O'Neil" }),
+    ];
+    pokaz();
+    expect(screen.getByText("E")).toBeTruthy();
+    expect(screen.getByText("ŁŻ")).toBeTruthy();
+    expect(screen.getByText("AN")).toBeTruthy();
+  });
+
+  it("nazwa bez liter i cyfr dostaje znak zapytania, a nie pusty krążek", () => {
+    state.people = [osoba({ slug: "x", name: "— · —" })];
+    pokaz();
+    expect(screen.getByText("?")).toBeTruthy();
   });
 
   it("odznakę weryfikacji dostaje tylko profil zweryfikowany", () => {

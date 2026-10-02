@@ -3,7 +3,7 @@
 // a `head()` zostaje w shellu trasy, czyli w chunku wejściowym KAŻDEGO
 // czytelnika. Import `organization.ts` ciągnął tam klienta zapytań profilu
 // (4,6 KB przed minifikacją, pomiar entry 2026-10-02) dla dwóch funkcji na
-// stringach. `organization.ts` re-eksportuje wszystko, co tu mieszka.
+// stringach. `organization.ts` re-eksportuje term i jego teksty.
 
 /** Term organizacji - dokładnie te kolumny `categories`, które widać na stronie. */
 export interface OrganizationTerm {
@@ -37,3 +37,44 @@ export function organizationDescription(term: OrganizationTerm, lang: "pl" | "en
   const secondary = lang === "en" ? term.description_pl : term.description_en;
   return cleanText(primary) ?? cleanText(secondary);
 }
+
+/** Teksty profilu organizacji, których potrzebuje `head()`. */
+export interface OrganizationPageCopy {
+  /** Nazwa zastępcza, gdy loader nie oddał organizacji (degradacja, 404). */
+  readonly fallbackName: string;
+  /** Człon tytułu karty: „NATO - organizacja". */
+  readonly titleSuffix: string;
+  /** Słowo przed numerem strony listy w tytule: „(strona 3)". */
+  readonly pageLabel: string;
+  /** Pierwszy okruszek - ten sam w JSON-LD i w widocznej nawigacji. */
+  readonly breadcrumb: string;
+  /** Opis meta, gdy term nie ma własnego. */
+  readonly descriptionFallback: (name: string) => string;
+}
+
+/**
+ * Teksty `head()` jako stała mapa PL/EN, a nie słownik i18n - z dwóch powodów,
+ * tych samych co w `lib/clubs/applyHead.ts`: `head()` biegnie poza drzewem
+ * Reacta (język bierzemy z adresu, nie z singletona i18next) i zostaje
+ * w shellu trasy, czyli w chunku wejściowym każdego czytelnika - import
+ * `i18n-organizations` wciągnąłby tam cały słownik profilu. Do 2026-10-02 te
+ * same napisy siedziały w trasie jako warunki `isEn ? … : …`, a nakładka miała
+ * ich martwe kopie; dziś nakładka czyta okruszek STĄD, więc widoczna
+ * nawigacja i dane strukturalne nie mogą się rozjechać.
+ */
+export const ORGANIZATION_PAGE_COPY: Readonly<Record<"pl" | "en", OrganizationPageCopy>> = {
+  pl: {
+    fallbackName: "Organizacja",
+    titleSuffix: "organizacja",
+    pageLabel: "strona",
+    breadcrumb: "Organizacje",
+    descriptionFallback: (name) => `${name} - profil organizacji w New European Strategies.`,
+  },
+  en: {
+    fallbackName: "Organization",
+    titleSuffix: "organization",
+    pageLabel: "page",
+    breadcrumb: "Organizations",
+    descriptionFallback: (name) => `${name} - organization profile at New European Strategies.`,
+  },
+};

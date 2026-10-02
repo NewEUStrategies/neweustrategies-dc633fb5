@@ -1,4 +1,5 @@
 import i18n from "./i18n";
+import { ORGANIZATION_PAGE_COPY } from "./queries/organizationTerm";
 
 // Pakiet i18n publicznego profilu organizacji (/organization/$slug).
 //
@@ -13,7 +14,8 @@ const pl = {
   organization: {
     // Nagłówek
     tagline: "Profil organizacji",
-    breadcrumb: "Organizacje",
+    // Z mapy `head()`: ten sam okruszek stoi w JSON-LD `BreadcrumbList`.
+    breadcrumb: ORGANIZATION_PAGE_COPY.pl.breadcrumb,
     // Pigułki meta - renderują się WYŁĄCZNIE przy niepustej wartości
     branch: "Branża",
     website: "Strona WWW",
@@ -27,10 +29,9 @@ const pl = {
     verified: "Profil zweryfikowany",
     postsHeading: "Publikacje",
     postsEmpty: "Nie ma jeszcze publikacji powiązanych z tą organizacją.",
-    // SEO
-    seoDescriptionFallback: "{{name}} - profil organizacji w New European Strategies.",
-    seoTitleSuffix: "organizacja",
-    pageSuffix: "strona {{page}}",
+    // Komunikat degradacji i tytuł ekranu błędu trasy. Teksty `head()` (tytuł,
+    // opis zastępczy, numer strony) NIE mieszkają tutaj: `head()` nie ma `t()`
+    // - patrz `ORGANIZATION_PAGE_COPY` w `queries/organizationTerm.ts`.
     loadFailed: "Nie udało się załadować profilu organizacji",
   },
 };
@@ -38,7 +39,7 @@ const pl = {
 const en = {
   organization: {
     tagline: "Organization profile",
-    breadcrumb: "Organizations",
+    breadcrumb: ORGANIZATION_PAGE_COPY.en.breadcrumb,
     branch: "Industry",
     website: "Website",
     postsCount_one: "{{count}} publication",
@@ -48,21 +49,23 @@ const en = {
     verified: "Verified profile",
     postsHeading: "Publications",
     postsEmpty: "No publications linked to this organization yet.",
-    seoDescriptionFallback: "{{name}} - organization profile at New European Strategies.",
-    seoTitleSuffix: "organization",
-    pageSuffix: "page {{page}}",
     loadFailed: "Couldn't load the organization profile",
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
-
-export {};
-
 /**
- * No-op wołany w komponencie zamiast side-effectowego importu modułu - ten sam
- * wzorzec co `i18n-experts`. Nazwane wiązanie pozwala splitterowi przenieść
- * słownik do chunka trasy, zamiast trzymać go w eager-owym grafie wejściowym.
+ * Jawna rejestracja wołana w komponencie - ten sam wzorzec co `i18n-experts`.
+ * Nazwane wiązanie pozwala splitterowi przenieść słownik do chunka trasy,
+ * a wywołanie w komponencie trzyma rejestrację przy życiu także wtedy, gdy
+ * Vite albo Nitro wytrzęsą efekt uboczny modułu. Do 2026-10-02 `ensureI18n()`
+ * był tu pustą funkcją, a słownik rejestrował wyłącznie efekt uboczny importu
+ * - jedyna nakładka z tym starym wzorcem (audyt, wydanie 12).
  */
-export function ensureI18n(): void {}
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+ensureI18n();

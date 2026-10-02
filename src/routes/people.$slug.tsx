@@ -9,7 +9,9 @@ import { AuthGate } from "@/components/profile/AuthGate";
 import { MemberProfileView } from "@/components/people/organisms/MemberProfileView";
 import { useAuth } from "@/hooks/useAuth";
 import { memberProfileQueryOptions } from "@/lib/profile/memberProfile";
-import { ensureI18n, memberProfileEn, memberProfilePl } from "@/lib/i18n-member-profile";
+// `head()` czyta stałą mapę, nie słownik - inaczej słownik jechałby w entry.
+import { MEMBER_PROFILE_HEAD } from "@/lib/profile/memberProfileHead";
+import { ensureI18n } from "@/lib/i18n-member-profile";
 import { currentLang } from "@/lib/i18n/localeRuntime";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -18,15 +20,15 @@ import { SITE_NAME } from "@/lib/seo/meta";
 export const Route = createFileRoute("/people/$slug")({
   head: ({ params }) => {
     const lang = activeLang(getRequestUrl() || `/people/${params.slug}`);
-    const copy = lang === "en" ? memberProfileEn.memberProfile : memberProfilePl.memberProfile;
-    const title = `${copy.metaTitle} - ${SITE_NAME}`;
+    const copy = MEMBER_PROFILE_HEAD[lang];
+    const title = `${copy.title} - ${SITE_NAME}`;
     return {
       meta: [
         { title },
-        { name: "description", content: copy.metaDescription },
+        { name: "description", content: copy.description },
         { name: "robots", content: "noindex, nofollow" },
         { property: "og:title", content: title },
-        { property: "og:description", content: copy.metaDescription },
+        { property: "og:description", content: copy.description },
         { property: "og:type", content: "profile" },
         { name: "twitter:card", content: "summary" },
       ],

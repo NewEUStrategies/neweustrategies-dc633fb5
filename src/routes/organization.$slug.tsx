@@ -11,7 +11,13 @@
 // Stan adresu (?page/?sort) jest DOKŁADNIE taki sam jak w archiwum taksonomii -
 // lista publikacji to ten sam pivot i ta sama paginacja, więc nie wolno jej
 // dawać drugiej, niezgodnej gramatyki URL-a.
-import { createFileRoute, notFound, useNavigate, useRouter } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  notFound,
+  useNavigate,
+  useRouter,
+  type ErrorComponentProps,
+} from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useTransition } from "react";
 import { useTranslation } from "react-i18next";
@@ -31,18 +37,24 @@ import { currentLang } from "@/lib/i18n/localeRuntime";
 import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/archives";
 import {
   ORGANIZATION_PAGE_SIZE,
+  isCompanyOrganizationSlug,
   organizationCompanyNames,
   organizationQueryOptions,
   type OrganizationData,
 } from "@/lib/queries/organization";
 // Z `organizationTerm`, nie z `organization`: `head()` zostaje w shellu trasy
 // (chunk wejściowy), a moduł zapytań ciągnie klienta profilu organizacji.
-import { organizationDescription, organizationName } from "@/lib/queries/organizationTerm";
+import {
+  ORGANIZATION_PAGE_COPY,
+  organizationDescription,
+  organizationName,
+} from "@/lib/queries/organizationTerm";
 import { activeLang } from "@/lib/seo/head";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { buildContentHead, SITE_CANONICAL_ORIGIN, splitUrl } from "@/lib/seo/meta";
 import { getRequestUrl } from "@/lib/seo/request";
 import { loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
+import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 
 const NO_STORE = contentCacheControl({ preview: true });
 
@@ -75,25 +87,34 @@ export const Route = createFileRoute("/organization/$slug")({
   loaderDeps: ({ search }) => ({ page: search.page ?? 1, sort: search.sort ?? "newest" }),
   loader: async ({ params, context, deps }) => {
     const lang = currentLang();
+    // FIRMA Z KARTOTEKI (`org-<uuid>`) nie ma pivotu publikacji, więc archiwum
+    // nie jest dla niej pytane wcale. Do 2026-10-02 było: kategoria o slugu
+    // `org-<uuid>` nie istnieje, archiwum oddawało `null`, a loader czytał to
+    // jako awarię listy - każdy profil firmy szedł z `no-store` i płacił
+    // zbędny odczyt `categories` na ścieżce TTFB.
+    //
     // Lista publikacji nie zależy od tożsamości (pivot rezolwuje się po slugu),
     // więc jedzie RÓWNOLEGLE, a nie kolejną falą na ścieżce TTFB.
+    //
     // Obsługa odrzucenia wisi na promisie OD RAZU, a nie dopiero po
     // rozstrzygnięciu tożsamości. Gdyby archiwum padło, zanim `loadResilient`
     // skończy, między jednym a drugim byłby moment bez handlera - a nieobsłużone
     // odrzucenie w SSR ubija workera i zamienia żądanie w 500, choć intencją
     // jest degradacja do pustej listy.
-    const postsPromise = context.queryClient
-      .ensureQueryData(
-        taxonomyArchiveQueryOptions("category", params.slug, {
-          page: deps.page,
-          pageSize: ORGANIZATION_PAGE_SIZE,
-          sort: deps.sort,
-        }),
-      )
-      .then(
-        (data) => data,
-        () => null,
-      );
+    const postsPromise = isCompanyOrganizationSlug(params.slug)
+      ? null
+      : context.queryClient
+          .ensureQueryData(
+            taxonomyArchiveQueryOptions("category", params.slug, {
+              page: deps.page,
+              pageSize: ORGANIZATION_PAGE_SIZE,
+              sort: deps.sort,
+            }),
+          )
+          .then(
+            (data) => data,
+            () => null,
+          );
     const identity = await loadResilient(
       context.queryClient,
       organizationQueryOptions(params.slug, lang),
@@ -115,7 +136,9 @@ export const Route = createFileRoute("/organization/$slug")({
     // NIEPEŁNY, a wspólny nagłówek utrwaliłby go na brzegu na czas świeżości
     // PLUS okno `stale-while-revalidate` - czyli czytelnik dostawałby profil
     // bez dorobku długo po tym, jak archiwum wróciło do zdrowia.
-    const archive = await postsPromise;
+    //
+    // `undefined` = listy nie ma z definicji (firma), `null` = nie dojechała.
+    const archive = postsPromise === null ? undefined : await postsPromise;
     setCacheControlHeader(resilientCacheControl(archive === null));
     return {
       org: identity.data,
@@ -140,20 +163,17 @@ export const Route = createFileRoute("/organization/$slug")({
         ? request.pathname
         : request.toString();
     const lang = activeLang(url);
-    const isEn = lang === "en";
-    const name = org ? organizationName(org.term, lang) : isEn ? "Organization" : "Organizacja";
+    const copy = ORGANIZATION_PAGE_COPY[lang];
+    const name = org ? organizationName(org.term, lang) : copy.fallbackName;
     const descRaw = org ? organizationDescription(org.term, lang) : null;
     const description =
       (descRaw ?? "")
         .replace(/<[^>]+>/g, " ")
         .replace(/\s+/g, " ")
         .trim()
-        .slice(0, 160) ||
-      (isEn
-        ? `${name} - organization profile at New European Strategies.`
-        : `${name} - profil organizacji w New European Strategies.`);
-    const baseTitle = isEn ? `${name} - organization` : `${name} - organizacja`;
-    const title = page > 1 ? `${baseTitle} (${isEn ? "page" : "strona"} ${page})` : baseTitle;
+        .slice(0, 160) || copy.descriptionFallback(name);
+    const baseTitle = `${name} - ${copy.titleSuffix}`;
+    const title = page > 1 ? `${baseTitle} (${copy.pageLabel} ${page})` : baseTitle;
 
     const head = buildContentHead({
       url,
@@ -173,9 +193,8 @@ export const Route = createFileRoute("/organization/$slug")({
     const { origin, path } = splitUrl(url);
     const originAbs = origin || SITE_CANONICAL_ORIGIN;
     const absUrl = `${originAbs}${path}`;
-    const crumbsLabel = isEn ? "Organizations" : "Organizacje";
     const breadcrumbs = breadcrumbListJsonLd(
-      [{ label: crumbsLabel, href: "/search" }, { label: name }],
+      [{ label: copy.breadcrumb, href: "/search" }, { label: name }],
       originAbs,
       lang,
     );
@@ -209,45 +228,53 @@ export const Route = createFileRoute("/organization/$slug")({
   component: OrganizationProfilePage,
   pendingComponent: () => <ArchiveSkeleton />,
   notFoundComponent: PublicNotFound,
-  errorComponent: (props) => (
-    <RouteErrorFallback
-      {...props}
-      title={
-        activeLang() === "en"
-          ? "Failed to load the organization profile"
-          : "Nie udało się załadować profilu organizacji"
-      }
-    />
-  ),
+  errorComponent: OrganizationErrorFallback,
 });
+
+/** Ekran błędu trasy. Splitter wydziela go do własnego chunka, więc - inaczej
+ *  niż `head()` - może czytać słownik nakładki zamiast warunków po języku. */
+function OrganizationErrorFallback(props: ErrorComponentProps) {
+  ensureOrganizationsI18n();
+  const { t } = useTranslation();
+  return <RouteErrorFallback {...props} title={t("organization.loadFailed")} />;
+}
 
 function OrganizationProfilePage() {
   // Rejestracja słownika w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureOrganizationsI18n();
   const { slug } = Route.useParams();
   const { page = 1, sort = "newest" } = Route.useSearch();
-  const { degraded, lang } = Route.useLoaderData();
+  const { degraded: initialDegraded, lang } = Route.useLoaderData();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const { data } = useSuspenseQuery(organizationQueryOptions(slug, lang));
+  const identity = organizationQueryOptions(slug, lang);
+  const { data } = useSuspenseQuery(identity);
+  // Flaga z loadera jest niezmienna przez całe życie dopasowania, a zasiew
+  // fallbacku refetchuje się po hydratacji. Bez tego haka profil, którego dane
+  // dojechały sekundę po blipie, zostawał pod komunikatem awarii (i bez
+  // przycisku ponowienia) aż do następnej nawigacji.
+  const { degraded, retry } = useDegradedUntilHealed(identity.queryKey, initialDegraded);
+  const company = isCompanyOrganizationSlug(slug);
   // Lista jest WTÓRNA: `useQuery`, nie `useSuspenseQuery` - jej awaria ma zostać
   // pustą sekcją z automatycznym ponowieniem, a nie wywróconym profilem.
-  const archiveQ = useQuery(
-    taxonomyArchiveQueryOptions("category", slug, {
+  // Firma z kartoteki listy nie ma, więc i zapytania nie ma.
+  const archiveQ = useQuery({
+    ...taxonomyArchiveQueryOptions("category", slug, {
       page,
       pageSize: ORGANIZATION_PAGE_SIZE,
       sort,
     }),
-  );
+    enabled: !company,
+  });
 
   // Kolejność jest istotna: przy degradacji NIE WIEMY, czy organizacja istnieje,
   // więc nigdy nie pokazujemy „nie znaleziono".
   if (degraded) {
     return (
       <div className="container mx-auto max-w-4xl px-4 py-10">
-        <DegradedDataNotice title={t("organization.loadFailed")} />
+        <DegradedDataNotice title={t("organization.loadFailed")} onRetry={retry} />
       </div>
     );
   }
@@ -278,7 +305,11 @@ function OrganizationProfilePage() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <div className="mx-auto w-full max-w-[1200px] px-4 pt-6 lg:px-8">
-        <Breadcrumbs items={[{ label: name }]} />
+        {/* Te same okruszki co `BreadcrumbList` w `head()` - dane strukturalne
+            nie mogą deklarować poziomu, którego czytelnik nie widzi. */}
+        <Breadcrumbs
+          items={[{ label: t("organization.breadcrumb"), href: "/search" }, { label: name }]}
+        />
       </div>
       <OrganizationProfile data={data} lang={lang} total={total}>
         <OrganizationPeople
@@ -286,17 +317,21 @@ function OrganizationProfilePage() {
           heading={t("organization.peopleHeading")}
           verifiedLabel={t("organization.verified")}
         />
-        <OrganizationPosts
-          posts={posts}
-          page={page}
-          totalPages={totalPages}
-          lang={lang}
-          heading={t("organization.postsHeading")}
-          emptyText={t("organization.postsEmpty")}
-          isPending={isPending || archiveQ.isPending}
-          onPageChange={onPageChange}
-          hrefFor={hrefFor}
-        />
+        {/* Firma z kartoteki nie ma pivotu publikacji: „nie ma JESZCZE
+            publikacji" byłoby obietnicą, której nic nie spełni. */}
+        {company ? null : (
+          <OrganizationPosts
+            posts={posts}
+            page={page}
+            totalPages={totalPages}
+            lang={lang}
+            heading={t("organization.postsHeading")}
+            emptyText={t("organization.postsEmpty")}
+            isPending={isPending || archiveQ.isPending}
+            onPageChange={onPageChange}
+            hrefFor={hrefFor}
+          />
+        )}
       </OrganizationProfile>
     </div>
   );
