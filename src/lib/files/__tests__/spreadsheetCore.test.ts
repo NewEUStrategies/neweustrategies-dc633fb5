@@ -4,9 +4,9 @@ import {
   decodeSpreadsheet,
   handleSpreadsheetRequest,
   readSpreadsheetRows,
-  SPREADSHEET_MAX_BYTES,
   writeSpreadsheet,
 } from "../spreadsheetCore";
+import { SPREADSHEET_MAX_BYTES } from "../spreadsheetProtocol";
 
 function workbook(rows: unknown[][], count = 1): ArrayBuffer {
   const book = XLSX.utils.book_new();

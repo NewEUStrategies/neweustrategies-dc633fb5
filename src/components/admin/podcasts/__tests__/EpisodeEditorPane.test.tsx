@@ -12,6 +12,12 @@
 //   * przełącznik publikacji, który zmienia tylko status bez daty, wypuszcza
 //     odcinek do kanału RSS bez `pubDate`.
 //
+// OSIEM PÓL DWUJĘZYCZNYCH RYSUJE JEDNA LISTA (`LOCALIZED_FIELDS`), a nie osiem
+// przepisanych domknięć - dlatego dowodem jest tu TABELA „zakładka + etykieta
+// -> kolumna", w której każdy wiersz sprawdza też, że POZOSTAŁE siedem kolumn
+// nie drgnęło. To jest dokładnie ta pomyłka, której ręczne domknięcia nie
+// zdradzały: tytuł PL zapisany w kolumnie EN.
+//
 // CZEGO ŚWIADOMIE NIE DUBLUJE: czterech edytorów warstw (mają własny plik),
 // kontraktu zapytań (`queries.test.ts`), kształtu payloadu (`shape.test.ts`)
 // ani mechaniki Radiksa.
@@ -25,7 +31,7 @@
 // `EpisodeEditorPaneAudio.test.tsx` - osobnym pliku, bo wymaga własnej atrapy
 // globalnej, której nie chcemy zakładać na wszystkie testy edytora.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { Podcast, PodcastShow } from "@/lib/podcast/types";
 import type { EpisodeBundle } from "@/lib/podcast/shape";
@@ -130,6 +136,8 @@ const { EpisodeEditorPane } = await import("@/components/admin/podcasts/EpisodeE
 const db = () => stubs.from as ReturnType<typeof supabaseFromStub>;
 
 const EPISODE_ID = "22222222-2222-4222-8222-222222222222";
+/** Data publikacji odcinka, który już BYŁ w kanale - przełączniki jej nie ruszają. */
+const PUBLISHED_AT = "2026-02-01T00:00:00.000Z";
 
 const SHOWS: PodcastShow[] = [
   {
@@ -269,6 +277,48 @@ describe("obsada wczytana z bazy", () => {
   });
 });
 
+describe("pola dwujezyczne: zakladka + etykieta -> kolumna", () => {
+  const BILINGUAL = [
+    "title_pl",
+    "excerpt_pl",
+    "show_notes_pl",
+    "transcript_pl",
+    "title_en",
+    "excerpt_en",
+    "show_notes_en",
+    "transcript_en",
+  ] as const;
+
+  const CASES = [
+    ["pl", "adminPodcasts.editor.fieldTitle", "title_pl"],
+    ["pl", "adminPodcasts.editor.excerpt", "excerpt_pl"],
+    ["pl", "adminPodcasts.editor.showNotes", "show_notes_pl"],
+    ["pl", "adminPodcasts.editor.transcript", "transcript_pl"],
+    ["en", "adminPodcasts.editor.fieldTitle", "title_en"],
+    ["en", "adminPodcasts.editor.excerpt", "excerpt_en"],
+    ["en", "adminPodcasts.editor.showNotes", "show_notes_en"],
+    ["en", "adminPodcasts.editor.transcript", "transcript_en"],
+  ] as const;
+
+  it.each(CASES)("zakladka %s, pole %s -> kolumna %s i TYLKO ona", (lang, label, column) => {
+    const original = episode({ transcript_pl: "Transkrypcja PL", transcript_en: "Transcript EN" });
+    const { onSave } = mount(original);
+    const tab = document.querySelector(`[data-tab-content="${lang}"]`);
+    if (!(tab instanceof HTMLElement)) throw new Error(`test: brak zakladki ${lang}`);
+
+    fireEvent.change(within(tab).getByLabelText(label), {
+      target: { value: `Nowa wartosc ${column}` },
+    });
+    fireEvent.click(screen.getByText("common.save"));
+
+    const saved = onSave.mock.calls[0][0].episode;
+    expect(saved[column]).toBe(`Nowa wartosc ${column}`);
+    for (const other of BILINGUAL.filter((key) => key !== column)) {
+      expect(saved[other], `kolumna ${other} nie miala prawa sie zmienic`).toBe(original[other]);
+    }
+  });
+});
+
 describe("zestaw zapisu", () => {
   it("kazde zmienione pole dojezdza do zestawu, PL i EN osobno", () => {
     const { onSave } = mount();
@@ -309,9 +359,7 @@ describe("zestaw zapisu", () => {
   it("wycofanie publikacji wraca do szkicu i ZOSTAWIA date", () => {
     // Data zostaje świadomie: cofnięcie publikacji nie ma kasować informacji,
     // kiedy odcinek był w kanale.
-    const { onSave } = mount(
-      episode({ status: "published", published_at: "2026-02-01T00:00:00.000Z" }),
-    );
+    const { onSave } = mount(episode({ status: "published", published_at: PUBLISHED_AT }));
     const publishRow = screen
       .getByText("adminPodcasts.editor.publishNow")
       .closest("div.rounded-md");
@@ -321,7 +369,20 @@ describe("zestaw zapisu", () => {
     fireEvent.click(screen.getByText("common.save"));
     expect(onSave.mock.calls[0][0].episode).toMatchObject({
       status: "draft",
-      published_at: "2026-02-01T00:00:00.000Z",
+      published_at: PUBLISHED_AT,
+    });
+  });
+
+  it("status wybrany z listy (np. archiwum) trafia do zestawu i NIE rusza daty", () => {
+    // Archiwizacja zdejmuje odcinek z kanału, ale nie przepisuje historii:
+    // data publikacji zostaje, bo mówi, kiedy odcinek BYŁ w kanale.
+    const { onSave } = mount(episode({ status: "published", published_at: PUBLISHED_AT }));
+    // Kolejność pól formularza: [status, program, kategoria].
+    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "archived" } });
+    fireEvent.click(screen.getByText("common.save"));
+    expect(onSave.mock.calls[0][0].episode).toMatchObject({
+      status: "archived",
+      published_at: PUBLISHED_AT,
     });
   });
 
@@ -366,6 +427,9 @@ describe("podglad na zywo", () => {
     // Zapowiedź EN jest w podglądzie ORAZ w polu formularza - liczy się to,
     // że podgląd ją w ogóle pokazuje, a nie w ilu miejscach stoi.
     expect(screen.getAllByText("Excerpt EN").length).toBeGreaterThan(0);
+    // Powrót na PL działa tak samo - przełącznik nie jest jednokierunkowy.
+    fireEvent.click(screen.getByText("PL"));
+    expect(screen.getByRole("heading", { level: 3 }).textContent).toBe("Odcinek pierwszy");
   });
 
   it("pusty tytul daje zapas ze slownika, a nie pusty naglowek", () => {

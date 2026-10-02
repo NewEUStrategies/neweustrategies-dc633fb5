@@ -29,6 +29,7 @@ import {
 import type { PublicEvent } from "@/lib/community/publicQueries";
 import type { Podcast } from "@/lib/podcast/types";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { eventTimeZoneLabel, formatEventDateTime } from "@/lib/events/timezone";
 import { safeAccent, accentRgba, readableTextColor } from "@/lib/programs/visual";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
@@ -149,7 +150,7 @@ export const Route = createFileRoute("/programs/$slug")({
   notFoundComponent: PublicNotFound,
   // Nagłówek błędu ze SŁOWNIKA - patrz `programs.index.tsx`: `errorComponent`
   // renderuje się jak każdy inny komponent, więc `t()` jest tu dostępne.
-  errorComponent: (props) => <ProgramDetailError {...props} />,
+  errorComponent: ProgramDetailError,
 });
 
 function ProgramDetailError(props: ErrorComponentProps) {
@@ -302,10 +303,16 @@ function PodcastCard({ podcast, lang }: { podcast: Podcast; lang: "pl" | "en" })
 
 function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
   const title = pickLocalized(event, "title", lang);
-  const when = new Date(event.starts_at).toLocaleString(lang === "en" ? "en-GB" : "pl-PL", {
+  // W STREFIE WYDARZENIA (`events.timezone`), nie maszyny: SSR biegnie w UTC,
+  // przeglądarka w strefie czytelnika - `toLocaleString` bez `timeZone` drukował
+  // inną godzinę po obu stronach (rozjazd hydratacji) i żadna nie była godziną
+  // wydarzenia. Kontrakt: `lib/events/timezone.ts`. Etykieta strefy stoi OBOK
+  // godziny (jak na `/events`): godzinę bez strefy czytelnik czyta jako swoją.
+  const when = formatEventDateTime(event.starts_at, event.timezone, lang, {
     dateStyle: "medium",
     timeStyle: "short",
   });
+  const zone = eventTimeZoneLabel(event.starts_at, event.timezone, lang);
   return (
     <Link
       to="/events/$slug"
@@ -314,7 +321,7 @@ function EventCard({ event, lang }: { event: PublicEvent; lang: "pl" | "en" }) {
     >
       <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
         <CalendarClock className="w-3.5 h-3.5" aria-hidden="true" />
-        {when}
+        {zone === "" ? when : `${when} (${zone})`}
       </span>
       <p className="font-medium leading-snug">{title}</p>
       {event.location && <p className="text-sm text-muted-foreground">{event.location}</p>}

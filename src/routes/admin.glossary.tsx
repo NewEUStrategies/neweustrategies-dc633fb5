@@ -1,6 +1,15 @@
 // Panel słowniczka pojęć (A7): /admin/glossary - CRUD terminów PL/EN.
 // Mutacje przez RLS (glossary staff manage); publiczna strona /glossary
 // i tooltipy we wpisach czytają tę samą tabelę.
+//
+// BEZ WŁASNEGO `<AdminShell>`: trasa jest dzieckiem layoutu `/admin`, który
+// SAM owija `<Outlet/>` w powłokę panelu. Druga powłoka dawała drugi pasek
+// boczny w kolumnie treści i drugi `<main id="main-content">` (zduplikowany
+// cel linku „przejdź do treści").
+//
+// BEZ `tenant_id` W INSERCIE - świadomie: kolumna ma `DEFAULT current_tenant_id()`,
+// a polityka „glossary staff manage" sprawdza `WITH CHECK (tenant_id =
+// current_tenant_id())` (migracja 20260720134000_glossary_terms.sql).
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +19,6 @@ import { BookOpen, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { slugifyTaxonomy } from "@/lib/content/taxonomySlug";
 import { glossaryTermsQueryOptions, type GlossaryTerm } from "@/lib/queries/glossary";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,9 +41,12 @@ function GlossaryAdmin() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
-  const { data: terms } = useQuery(glossaryTermsQueryOptions());
+  const termsQuery = glossaryTermsQueryOptions();
+  const { data: terms } = useQuery(termsQuery);
 
-  const invalidate = () => void qc.invalidateQueries({ queryKey: ["public", "glossary-terms"] });
+  // Klucz z tych samych opcji, które czyta lista i strona publiczna - literał
+  // przepisany tutaj rozjechałby się po cichu przy zmianie klucza.
+  const invalidate = () => void qc.invalidateQueries({ queryKey: termsQuery.queryKey });
 
   const addM = useMutation({
     mutationFn: async () => {
@@ -76,88 +87,86 @@ function GlossaryAdmin() {
   };
 
   return (
-    <AdminShell>
-      <div className="p-4 lg:p-6 max-w-4xl mx-auto space-y-6">
-        <h1 className="font-display text-xl inline-flex items-center gap-2">
-          <BookOpen className="w-5 h-5 text-brand" aria-hidden="true" />
-          {t("admin.glossary.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground -mt-3">{t("admin.glossary.hint")}</p>
+    <div className="p-4 lg:p-6 max-w-4xl mx-auto space-y-6">
+      <h1 className="font-display text-xl inline-flex items-center gap-2">
+        <BookOpen className="w-5 h-5 text-brand" aria-hidden="true" />
+        {t("admin.glossary.title")}
+      </h1>
+      <p className="text-sm text-muted-foreground -mt-3">{t("admin.glossary.hint")}</p>
 
-        <div className="rounded-lg border border-border bg-card p-4 space-y-2">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Input
-              value={draft.term_pl}
-              onChange={(e) => setDraft((d) => ({ ...d, term_pl: e.target.value }))}
-              placeholder={t("admin.glossary.termPl")}
-              maxLength={140}
-            />
-            <Input
-              value={draft.term_en}
-              onChange={(e) => setDraft((d) => ({ ...d, term_en: e.target.value }))}
-              placeholder={t("admin.glossary.termEn")}
-              maxLength={140}
-            />
-          </div>
-          <Textarea
-            value={draft.definition_pl}
-            onChange={(e) => setDraft((d) => ({ ...d, definition_pl: e.target.value }))}
-            placeholder={t("admin.glossary.defPl")}
-            rows={2}
-            maxLength={600}
+      <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Input
+            value={draft.term_pl}
+            onChange={(e) => setDraft((d) => ({ ...d, term_pl: e.target.value }))}
+            placeholder={t("admin.glossary.termPl")}
+            maxLength={140}
           />
-          <Textarea
-            value={draft.definition_en}
-            onChange={(e) => setDraft((d) => ({ ...d, definition_en: e.target.value }))}
-            placeholder={t("admin.glossary.defEn")}
-            rows={2}
-            maxLength={600}
+          <Input
+            value={draft.term_en}
+            onChange={(e) => setDraft((d) => ({ ...d, term_en: e.target.value }))}
+            placeholder={t("admin.glossary.termEn")}
+            maxLength={140}
           />
-          <Button
-            size="sm"
-            disabled={!draft.term_pl.trim() || !draft.definition_pl.trim() || addM.isPending}
-            onClick={() => addM.mutate()}
-          >
-            <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
-            {t("admin.glossary.add")}
-          </Button>
         </div>
-
-        <ul className="divide-y divide-border rounded-lg border border-border bg-card">
-          {(terms ?? []).map((term) => (
-            <li key={term.id} className="flex items-start justify-between gap-3 p-3">
-              <div className="min-w-0">
-                <p className="font-medium">
-                  {term.term_pl}
-                  {term.term_en && term.term_en !== term.term_pl && (
-                    <span className="ml-2 text-xs text-muted-foreground">EN: {term.term_en}</span>
-                  )}
-                </p>
-                <p className="text-sm text-muted-foreground mt-0.5 break-words">
-                  {term.definition_pl}
-                </p>
-                {term.definition_en && (
-                  <p className="text-xs text-muted-foreground mt-0.5 break-words">
-                    EN: {term.definition_en}
-                  </p>
-                )}
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 w-7 p-0 shrink-0"
-                aria-label={t("admin.glossary.deleteConfirm")}
-                onClick={() => void remove(term)}
-              >
-                <Trash2 className="w-3.5 h-3.5 text-destructive" aria-hidden="true" />
-              </Button>
-            </li>
-          ))}
-          {(terms ?? []).length === 0 && (
-            <li className="p-4 text-sm text-muted-foreground">{t("admin.glossary.empty")}</li>
-          )}
-        </ul>
+        <Textarea
+          value={draft.definition_pl}
+          onChange={(e) => setDraft((d) => ({ ...d, definition_pl: e.target.value }))}
+          placeholder={t("admin.glossary.defPl")}
+          rows={2}
+          maxLength={600}
+        />
+        <Textarea
+          value={draft.definition_en}
+          onChange={(e) => setDraft((d) => ({ ...d, definition_en: e.target.value }))}
+          placeholder={t("admin.glossary.defEn")}
+          rows={2}
+          maxLength={600}
+        />
+        <Button
+          size="sm"
+          disabled={!draft.term_pl.trim() || !draft.definition_pl.trim() || addM.isPending}
+          onClick={() => addM.mutate()}
+        >
+          <Plus className="w-4 h-4 mr-1" aria-hidden="true" />
+          {t("admin.glossary.add")}
+        </Button>
       </div>
-    </AdminShell>
+
+      <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+        {(terms ?? []).map((term) => (
+          <li key={term.id} className="flex items-start justify-between gap-3 p-3">
+            <div className="min-w-0">
+              <p className="font-medium">
+                {term.term_pl}
+                {term.term_en && term.term_en !== term.term_pl && (
+                  <span className="ml-2 text-xs text-muted-foreground">EN: {term.term_en}</span>
+                )}
+              </p>
+              <p className="text-sm text-muted-foreground mt-0.5 break-words">
+                {term.definition_pl}
+              </p>
+              {term.definition_en && (
+                <p className="text-xs text-muted-foreground mt-0.5 break-words">
+                  EN: {term.definition_en}
+                </p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 shrink-0"
+              aria-label={t("admin.glossary.deleteConfirm")}
+              onClick={() => void remove(term)}
+            >
+              <Trash2 className="w-3.5 h-3.5 text-destructive" aria-hidden="true" />
+            </Button>
+          </li>
+        ))}
+        {(terms ?? []).length === 0 && (
+          <li className="p-4 text-sm text-muted-foreground">{t("admin.glossary.empty")}</li>
+        )}
+      </ul>
+    </div>
   );
 }

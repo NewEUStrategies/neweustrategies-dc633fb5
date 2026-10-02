@@ -699,8 +699,10 @@ export const FEATURES_3 = [
  * wyszło, że wiersze sumowały się do 110 plików przy 112 w module. Jeden
  * z dwóch brakujących to `admin.newsletter.deliverability.tsx`, który do
  * modułu 7 w ogóle nie należy (wyjątek w `moduleMap.mjs`), drugi to
- * `spreadsheetProtocol.ts` - kontrakt wiadomości procesu arkuszy, bez ani
- * jednej instrukcji, więc niewidoczny w procentach, ale nadal plik modułu.
+ * `spreadsheetProtocol.ts` - kontrakt wiadomości procesu arkuszy, w dniu
+ * pomiaru audytu bez ani jednej instrukcji (same typy), więc niewidoczny
+ * w procentach, ale nadal plik modułu. Od 2026-10-02 niesie też wspólny limit
+ * rozmiaru pliku obu stron procesu.
  * Nazwy wierszy są nazwami z tabeli audytu, liczności plików też
  * (4/9/4/7/16/20/6/31/7/6 + kontrakt procesu).
  */

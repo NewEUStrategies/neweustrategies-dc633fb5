@@ -14,7 +14,7 @@
 // usunięcia (`routes/__tests__/adminPodcastsRoute.test.tsx` przechodzi ją
 // przez całą powłokę panelu).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 
 const h = vi.hoisted(() => ({
@@ -253,6 +253,35 @@ describe("formularz istniejacego programu", () => {
     expect(callsOf("podcast_shows", "eq")).toEqual([["id", "s1"]]);
   });
 
+  it.each([
+    ["pl", "adminPodcasts.showEditor.fieldTitle", "title_pl"],
+    ["pl", "adminPodcasts.showEditor.fieldDescription", "description_pl"],
+    ["en", "adminPodcasts.showEditor.fieldTitle", "title_en"],
+    ["en", "adminPodcasts.showEditor.fieldDescription", "description_en"],
+  ] as const)("zakladka %s, pole %s -> kolumna %s i TYLKO ona", async (lang, label, column) => {
+    // Obie zakładki rysuje jedna lista pól (`SHOW_LANGS`). Opis polski
+    // zapisany w kolumnie EN to seria, która po angielsku przedstawia się
+    // po polsku - i nic w panelu tego nie sygnalizuje.
+    mount([SHOW]);
+    fireEvent.click(await screen.findByText("Raport Baltycki"));
+    await waitFor(() => expect(screen.getByText("common.save")).toBeTruthy());
+    const tab = document.querySelector(`[data-tab-content="${lang}"]`);
+    if (!(tab instanceof HTMLElement)) throw new Error(`test: brak zakladki ${lang}`);
+    fireEvent.change(within(tab).getByLabelText(label), {
+      target: { value: `Nowa wartosc ${column}` },
+    });
+    fireEvent.click(screen.getByText("common.save"));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminToast.saved"));
+
+    const [[payload]] = callsOf("podcast_shows", "update");
+    const saved = payload as Record<string, unknown>;
+    expect(saved[column]).toBe(`Nowa wartosc ${column}`);
+    for (const other of ["title_pl", "title_en", "description_pl", "description_en"] as const) {
+      if (other === column) continue;
+      expect(saved[other], `kolumna ${other} nie miala prawa sie zmienic`).toBe(SHOW[other]);
+    }
+  });
+
   it("edycja istniejacego programu NIE wymaga tenanta (asymetria zamierzona)", async () => {
     // Odcinek wymaga tenanta zawsze, program tylko przy tworzeniu - RLS
     // przepuszcza tę edycję, więc panel nie ma jej blokować.
@@ -305,20 +334,48 @@ describe("okladka i adresy platform", () => {
     fireEvent.change(screen.getByDisplayValue("https://cdn.example.org/stara.png"), {
       target: { value: "" },
     });
-    fireEvent.change(screen.getByPlaceholderText("https://podcasts.apple.com/…"), {
+    fireEvent.change(screen.getByLabelText("Apple URL"), {
       target: { value: "https://podcasts.example.org/seria" },
     });
-    const youtube = screen
-      .getAllByRole("textbox")
-      .find((field) => field.getAttribute("value") === null && !field.getAttribute("placeholder"));
-    if (youtube) fireEvent.change(youtube, { target: { value: "https://youtube.example.org/c" } });
+    // Pole YouTube po ETYKIECIE. Dawniej szukane było heurystyką „pole bez
+    // wartości i bez podpowiedzi" opakowaną w `if` - heurystyka nie trafiała,
+    // `if` przemilczał chybienie, a asercja nie sprawdzała `youtube_url`,
+    // więc test obiecywał w tytule coś, czego nie dowodził.
+    fireEvent.change(screen.getByLabelText("YouTube URL"), {
+      target: { value: "https://youtube.example.org/c" },
+    });
     fireEvent.click(screen.getByText("common.save"));
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminToast.saved"));
     const [[payload]] = callsOf("podcast_shows", "update");
     expect(payload).toMatchObject({
       cover_image_url: null,
       apple_url: "https://podcasts.example.org/seria",
+      youtube_url: "https://youtube.example.org/c",
     });
+  });
+
+  it.each([
+    ["Spotify URL", "spotify_url"],
+    ["Apple URL", "apple_url"],
+    ["YouTube URL", "youtube_url"],
+  ] as const)("pole %s pisze do kolumny %s i TYLKO do niej", async (label, column) => {
+    // Trzy pola platform rysuje jedna lista (`PLATFORM_URL_FIELDS`); tabela
+    // pilnuje, że żadne nie pisze do cudzej kolumny.
+    mount([SHOW]);
+    fireEvent.click(await screen.findByText("Raport Baltycki"));
+    await waitFor(() => expect(screen.getByText("common.save")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText(label), {
+      target: { value: `https://platforma.example.org/${column}` },
+    });
+    fireEvent.click(screen.getByText("common.save"));
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminToast.saved"));
+    const [[payload]] = callsOf("podcast_shows", "update");
+    const platforms = payload as Record<string, unknown>;
+    expect(platforms[column]).toBe(`https://platforma.example.org/${column}`);
+    for (const other of ["spotify_url", "apple_url", "youtube_url"].filter((c) => c !== column)) {
+      // Puste pole platformy idzie jako NULL (`buildShowPayload`), nie `""`.
+      expect(platforms[other], `kolumna ${other} nie miala prawa sie zmienic`).toBeNull();
+    }
   });
 
   it("potwierdzenie usuniecia programu kasuje go miekko", async () => {

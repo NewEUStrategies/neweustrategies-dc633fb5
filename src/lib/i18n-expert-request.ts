@@ -110,6 +110,7 @@ export const expertRequestPl = {
       filter: "Status",
       filterAll: "Wszystkie",
       countTotal: "Łącznie: {{count}}",
+      columnActions: "Akcje",
     },
     profile: {
       title: "Zapytania do ekspertów",
@@ -230,6 +231,7 @@ export const expertRequestEn = {
       filter: "Status",
       filterAll: "All",
       countTotal: "Total: {{count}}",
+      columnActions: "Actions",
     },
     profile: {
       title: "Expert requests",

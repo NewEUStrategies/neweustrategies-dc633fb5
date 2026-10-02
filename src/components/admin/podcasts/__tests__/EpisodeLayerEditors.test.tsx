@@ -251,9 +251,14 @@ describe("ChaptersEditor", () => {
     fireEvent.change(screen.getAllByPlaceholderText("Title (EN)")[1], {
       target: { value: "Second part" },
     });
-    expect(spy.value[1].title_en).toBe("Second part");
+    fireEvent.change(
+      screen.getAllByPlaceholderText("adminPodcasts.chapters.titlePlPlaceholder")[0],
+      { target: { value: "Wstep poprawiony" } },
+    );
+    expect(spy.value[1]).toEqual({ start: 60, title_pl: "Druga", title_en: "Second part" });
+    expect(spy.value[0]).toEqual({ start: 0, title_pl: "Wstep poprawiony", title_en: "Intro" });
     fireEvent.click(screen.getAllByLabelText("adminPodcasts.rowRemove")[1]);
-    expect(spy.value.map((c) => c.title_pl)).toEqual(["Wstep"]);
+    expect(spy.value.map((c) => c.title_pl)).toEqual(["Wstep poprawiony"]);
   });
 });
 
@@ -363,8 +368,22 @@ describe("ResourcesEditor", () => {
     fireEvent.change(screen.getAllByPlaceholderText("Label (EN)")[0], {
       target: { value: "First" },
     });
-    expect(spy.value[1].url).toBe("https://example.org/raport");
-    expect(spy.value[0].label_en).toBe("First");
+    fireEvent.change(
+      screen.getAllByPlaceholderText("adminPodcasts.resources.labelPlPlaceholder")[1],
+      { target: { value: "Drugie - raport" } },
+    );
+    expect(spy.value[1]).toEqual({
+      label_pl: "Drugie - raport",
+      label_en: "",
+      url: "https://example.org/raport",
+      kind: "related",
+    });
+    expect(spy.value[0]).toEqual({
+      label_pl: "Pierwsze",
+      label_en: "First",
+      url: "",
+      kind: "source",
+    });
     fireEvent.click(screen.getAllByLabelText("adminPodcasts.rowRemove")[1]);
     expect(spy.value.map((r) => r.label_pl)).toEqual(["Pierwsze"]);
   });

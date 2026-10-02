@@ -125,8 +125,10 @@ describe("skrzynka ODEBRANYCH", () => {
     await waitFor(() =>
       expect(h.resolveSpy).toHaveBeenCalledWith({ requestId: "req-1", action: "decline" }),
     );
+    // `declined`, nie `decline`: słownik nie zna klucza z gołą nazwą akcji, więc
+    // dawna asercja przypinała toast z surowym kluczem zamiast komunikatu.
     await waitFor(() =>
-      expect(h.toastSuccess).toHaveBeenCalledWith("expertRequest.status.decline"),
+      expect(h.toastSuccess).toHaveBeenCalledWith("expertRequest.status.declined"),
     );
   });
 

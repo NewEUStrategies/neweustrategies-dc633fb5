@@ -11,6 +11,16 @@
 // wartości logiczne, `null`, `Date` i `ArrayBuffer`.
 import type { SheetResult } from "./officeParse";
 
+/**
+ * Twardy limit rozmiaru pliku arkusza - JEDNO źródło dla obu stron procesu.
+ * Strona odrzuca za duży bufor, zanim w ogóle uruchomi proces (żadnej kopii
+ * 20+ MB przez structured clone), a rdzeń w procesie sprawdza go ponownie, bo
+ * jest wołany także bez tej bramki. Do 2026-10-02 strona miała własną kopię
+ * tej liczby (`spreadsheetCore` ciągnie `xlsx`, więc nie wolno go importować
+ * w głównym wątku) - dwie liczby, które mogły się rozjechać po cichu.
+ */
+export const SPREADSHEET_MAX_BYTES = 20 * 1024 * 1024;
+
 /** Komórka, jaką oddaje `sheet_to_json({ header: 1, raw: true, cellDates: true })`. */
 export type SpreadsheetCell = string | number | boolean | Date | null;
 

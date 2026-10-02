@@ -31,9 +31,14 @@
 //      relacji tenanta w jednej liście.
 //   3. BLOK Z INNEGO POSTU JEST CZYSZCZONY Z ADRESU. Deep-link z edytora może
 //      nieść blok, którego wybrany post nie ma; zostawiony w adresie dałby
-//      pustą relację bez wyjaśnienia.
+//      pustą relację bez wyjaśnienia. ALE DOPIERO, GDY BLOKI POSTU SĄ ZNANE:
+//      do 2026-10-02 efekt czyścił blok, zanim lista postów w ogóle dojechała
+//      (wyłączone zapytanie ma w TanStack Query v5 `isLoading === false`),
+//      więc deep-link do jednego z KILKU bloków tracił wskazany blok.
 //   4. ZAPIS NIESIE `tenant_id` I OBA IDENTYFIKATORY. Wpis bez nich nie
 //      wyświetli się w żadnej relacji, a mimo to zajmie miejsce w tabeli.
+//      Z tego samego powodu formularz publikacji stoi WYŁĄCZNIE przy bloku
+//      potwierdzonym w treści wybranego postu - nie przy dowolnej parze z adresu.
 //   5. USUNIĘCIE PYTA. Wpis relacji na żywo jest publikacją - poszedł już do
 //      czytelników i do kanału RSS relacji.
 //
@@ -45,9 +50,9 @@
 // - KANAŁU RSS RELACJI: `live_.rss[.]xml.ts` ma kontrakt degradacji
 //   w `feedRoutesDegradation.test.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import type { RecordedChain, SupabaseFromStub } from "@/test/supabaseChain";
+import type { RecordedChain, SupabaseFromStub } from "@/test/supabase/chain";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const POST_ID = "22222222-2222-4222-8222-222222222222";
@@ -63,6 +68,8 @@ const h = vi.hoisted(() => ({
   /** Wynik RPC `get_post_for_edit` - dokument bloków wybranego postu. */
   postForEdit: null as unknown,
   rpcCalls: [] as { name: string; args?: Record<string, unknown> }[],
+  /** Zapora RPC bloków - odpowiedź czeka, aż test ją zwolni (`null` = od razu). */
+  rpcGate: null as Promise<void> | null,
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -86,7 +93,7 @@ vi.mock("@/hooks/useAuth", () => ({
   },
 }));
 vi.mock("@/integrations/supabase/client", async () => {
-  const { supabaseFromStub } = await import("@/test/supabaseChain");
+  const { supabaseFromStub } = await import("@/test/supabase/chain");
   const db = supabaseFromStub();
   h.db = db;
   return {
@@ -94,6 +101,7 @@ vi.mock("@/integrations/supabase/client", async () => {
       from: db.from,
       rpc: async (name: string, args?: Record<string, unknown>) => {
         h.rpcCalls.push({ name, args });
+        if (h.rpcGate) await h.rpcGate;
         return { data: h.postForEdit, error: null };
       },
     },
@@ -110,15 +118,27 @@ vi.mock("@/components/ui/switch", async () => {
   return radixSwitchStub(react);
 });
 // Radixowy AlertDialog montuje treść w portalu ze strażnikiem fokusu; atrapa
-// zachowuje jedyną rzecz, na której stoją asercje: treść JEST w drzewie
-// wyłącznie gdy `open`, a `AlertDialogAction` wywołuje `onClick`.
+// zachowuje to, na czym stoją asercje: treść JEST w drzewie wyłącznie gdy
+// `open`, `AlertDialogAction` wywołuje `onClick`, a `AlertDialogCancel`
+// zamyka okno TAK JAK RADIX - przez `onOpenChange(false)` okna, w którym stoi.
 vi.mock("@/components/ui/alert-dialog", async () => {
   const react = await import("react");
   const Box = ({ children }: { children?: ReactNode }) =>
     react.createElement("div", null, children as never);
+  const dialog: { onOpenChange?: (open: boolean) => void } = {};
   return {
-    AlertDialog: ({ open, children }: { open?: boolean; children?: ReactNode }) =>
-      open ? react.createElement("div", { role: "alertdialog" }, children as never) : null,
+    AlertDialog: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open?: boolean;
+      onOpenChange?: (open: boolean) => void;
+      children?: ReactNode;
+    }) => {
+      dialog.onOpenChange = onOpenChange;
+      return open ? react.createElement("div", { role: "alertdialog" }, children as never) : null;
+    },
     AlertDialogContent: Box,
     AlertDialogHeader: Box,
     AlertDialogFooter: Box,
@@ -126,13 +146,17 @@ vi.mock("@/components/ui/alert-dialog", async () => {
       react.createElement("h2", null, children as never),
     AlertDialogDescription: Box,
     AlertDialogCancel: ({ children }: { children?: ReactNode }) =>
-      react.createElement("button", { type: "button" }, children as never),
+      react.createElement(
+        "button",
+        { type: "button", onClick: () => dialog.onOpenChange?.(false) },
+        children as never,
+      ),
     AlertDialogAction: ({ onClick, children }: { onClick?: () => void; children?: ReactNode }) =>
       react.createElement("button", { type: "button", onClick }, children as never),
   };
 });
 
-import { ok, fail } from "@/test/supabaseChain";
+import { ok, fail } from "@/test/supabase/chain";
 import { renderRoute, routeHead, routeSearchValidator } from "@/test/routeHarness";
 import { Route as LiveBlogRoute } from "@/routes/admin.live-blog";
 
@@ -177,6 +201,22 @@ function blocksWithOne(id = BLOCK_ID) {
   ];
 }
 
+/** Dokument bloków postu z DWOMA blokami relacji - auto-wybór nie zadziała. */
+function blocksWithTwo() {
+  return [
+    {
+      blocks_data: {
+        pl: {
+          blocks: [
+            { type: "liveblog", id: BLOCK_ID, data: { title: "Relacja poranna" } },
+            { type: "liveblog", id: OTHER_BLOCK_ID, data: { title: "Relacja wieczorna" } },
+          ],
+        },
+      },
+    },
+  ];
+}
+
 async function mount(search = "") {
   return renderRoute({ route: LiveBlogRoute, path: PATH, initialEntry: `${PATH}${search}` });
 }
@@ -215,6 +255,16 @@ async function openRelation(search = `?postId=${POST_ID}&blockId=${BLOCK_ID}`) {
  *  pola znaleźć się nie da - rozpoznajemy je po `placeholder`. */
 const bodyField = () => screen.getByPlaceholderText("<p>...</p>");
 
+/** Pole tytułu NOWEGO wpisu - po etykiecie sekcji (Label bez `htmlFor`). */
+function draftTitleField(): HTMLInputElement {
+  const field = screen
+    .getByText("adminMiscRoutes.liveBlog.titleOptional")
+    .closest("div")
+    ?.querySelector("input");
+  if (!(field instanceof HTMLInputElement)) throw new Error("test: brak pola tytułu wpisu");
+  return field;
+}
+
 /** Lista wyboru rozpoznana po zestawie opcji - twardy błąd zamiast `null`. */
 function selectWithOption(value: string): HTMLElement {
   const found = screen
@@ -229,6 +279,7 @@ beforeEach(() => {
   h.tenantId = TENANT;
   h.postForEdit = blocksWithOne();
   h.rpcCalls = [];
+  h.rpcGate = null;
   db().reset();
   db().setResponse("posts", () => ok([post()]));
   db().setResponse("live_blog_entries", (chain) => (chain.has("select") ? ok([entry()]) : ok([])));
@@ -380,9 +431,9 @@ describe("admin.live-blog - wybór postu i bloku", () => {
 describe("admin.live-blog - lista wpisów", () => {
   it("wpisy są porządkowane od najnowszego - relacja czyta się z góry", async () => {
     await openRelation();
-    // Odczyt może pobiec DWA razy: efekt czyści blok spoza listy, a potem
-    // wybiera jedyny dostępny - drugie przejście jest częścią zachowania,
-    // więc asercja idzie na łańcuch, nie na ich liczbę.
+    // Asercja idzie na łańcuch, nie na liczbę odczytów: liczba przejść zależy
+    // od tego, kiedy dojadą bloki (do 2026-10-02 efekt czyścił blok przed ich
+    // odczytem i wybierał go ponownie - patrz blok „deep-link czeka").
     await waitFor(() => expect(db().chainsFor("live_blog_entries").length).toBeGreaterThan(0));
 
     expect(chainWith("live_blog_entries", "select").argsOf("order")).toEqual([
@@ -460,6 +511,26 @@ describe("admin.live-blog - publikacja wpisu", () => {
     expect(typeof (payload as { occurred_at: unknown }).occurred_at).toBe("string");
   });
 
+  it("tytuł i przypięcie z formularza jadą w ładunku, a sukces je CZYŚCI", async () => {
+    // Przypięty wpis wisi na szczycie relacji u czytelnika - przełącznik,
+    // który nie dojeżdża do ładunku, publikuje wpis w złym miejscu osi.
+    await openRelation();
+    fireEvent.change(draftTitleField(), { target: { value: "Głosowanie" } });
+    fireEvent.change(bodyField(), { target: { value: "<p>Wynik: 27 za.</p>" } });
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(button("adminMiscRoutes.liveBlog.publish"));
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminToasts.added"));
+    expect(chainWith("live_blog_entries", "insert").argsOf("insert")?.[0]).toMatchObject({
+      title: "Głosowanie",
+      pinned: true,
+    });
+    // Następny wpis zaczyna od zera - odziedziczone przypięcie przykleiłoby
+    // na górze relacji DWA wpisy.
+    expect(draftTitleField()).toHaveValue("");
+    expect(screen.getByRole("switch")).not.toBeChecked();
+  });
+
   it("udana publikacja czyści formularz i unieważnia klucz PANELU", async () => {
     // ROZDZIAŁ KLUCZY, o którym mówi nagłówek pliku: panel unieważnia SWÓJ
     // klucz (`["liveBlogEntries", ...]`). Klucz czytelnika
@@ -525,6 +596,58 @@ describe("admin.live-blog - edycja, przypięcie i usunięcie wpisu", () => {
       body_html: "<p>Otwarcie obrad - sprostowanie.</p>",
     });
     expect(update.argsOf("eq")).toEqual(["id", ENTRY_ID]);
+  });
+
+  it("wyczyszczony tytuł w edycji zapisuje NULL, a nowy tytuł - siebie", async () => {
+    // `""` w kolumnie tytułu renderuje się u czytelnika jako pusty nagłówek
+    // wpisu; brak tytułu to `null`, tak samo jak przy publikacji.
+    await openRelation();
+    await screen.findByText("Otwarcie obrad");
+    fireEvent.click(button("adminMiscRoutes.liveBlog.edit"));
+    const editTitle = screen.getByPlaceholderText("adminMiscRoutes.liveBlog.titleOptional");
+    fireEvent.change(editTitle, { target: { value: "" } });
+    fireEvent.click(button("common.save"));
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminToasts.saved"));
+    expect(chainWith("live_blog_entries", "update").argsOf("update")?.[0]).toMatchObject({
+      title: null,
+    });
+
+    fireEvent.click(button("adminMiscRoutes.liveBlog.edit"));
+    fireEvent.change(screen.getByPlaceholderText("adminMiscRoutes.liveBlog.titleOptional"), {
+      target: { value: "Otwarcie obrad - godz. 9:00" },
+    });
+    fireEvent.click(button("common.save"));
+    await waitFor(() =>
+      expect(
+        db()
+          .chainsFor("live_blog_entries")
+          .filter((c) => c.has("update"))
+          .map((c) => (c.argsOf("update")?.[0] as { title: unknown }).title),
+      ).toEqual([null, "Otwarcie obrad - godz. 9:00"]),
+    );
+  });
+
+  it("Anuluj w edycji zamyka edytor BEZ zapisu i wraca do podglądu wpisu", async () => {
+    await openRelation();
+    await screen.findByText("Otwarcie obrad");
+    fireEvent.click(button("adminMiscRoutes.liveBlog.edit"));
+    fireEvent.change(screen.getByPlaceholderText("adminMiscRoutes.liveBlog.titleOptional"), {
+      target: { value: "Porzucona poprawka" },
+    });
+    // W edycji są DWA „Anuluj" w drzewie (edytor i zamknięte pytanie
+    // o usunięcie nie renderuje się) - bierzemy ten, który jest.
+    fireEvent.click(button("common.cancel"));
+
+    expect(
+      screen.queryByPlaceholderText("adminMiscRoutes.liveBlog.titleOptional"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Przewodniczący otworzył sesję.")).toBeInTheDocument();
+    expect(
+      db()
+        .chainsFor("live_blog_entries")
+        .some((c) => c.has("update")),
+    ).toBe(false);
   });
 
   it("edycja z pustą treścią jest odrzucana przed zapytaniem", async () => {
@@ -609,11 +732,147 @@ describe("admin.live-blog - edycja, przypięcie i usunięcie wpisu", () => {
     await screen.findByRole("alertdialog");
     fireEvent.click(button("common.cancel"));
 
+    // Okno ZAMYKA SIĘ (`onOpenChange(false)` czyści wskazany wpis) - otwarte
+    // z zapamiętanym identyfikatorem skasowałoby go przy następnym kliknięciu.
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(
       db()
         .chainsFor("live_blog_entries")
         .some((c) => c.has("delete")),
     ).toBe(false);
+  });
+});
+
+describe("admin.live-blog - deep-link czeka na listę bloków (test regresyjny)", () => {
+  it("deep-link do JEDNEGO z KILKU bloków ZOSTAJE w adresie", async () => {
+    // TEST REGRESYJNY. Przy pierwszym renderze lista postów jeszcze leci, więc
+    // slug wybranego postu jest nieznany, a zapytanie o bloki - wyłączone.
+    // Efekt czytał wtedy „zero bloków" jako prawdę i czyścił `blockId`
+    // z adresu. Post z jednym blokiem odzyskiwał go auto-wyborem; post z kilkoma
+    // zostawał bez wskazanej relacji, choć link z edytora był poprawny.
+    h.postForEdit = blocksWithTwo();
+    const view = await openRelation(`?postId=${POST_ID}&blockId=${OTHER_BLOCK_ID}`);
+    await settleNavigation();
+
+    expect(view.search().blockId).toBe(OTHER_BLOCK_ID);
+    expect(await screen.findByText("adminMiscRoutes.liveBlog.newEntry")).toBeInTheDocument();
+  });
+
+  it("dopóki bloki wybranego postu nie są znane, panel NIE twierdzi, że ich nie ma", async () => {
+    // Ten sam defekt, drugi objaw: ostrzeżenie „post nie ma bloku relacji"
+    // mrugało przy KAŻDYM wejściu z deep-linku, bo stan „lista postów jeszcze
+    // leci" wyglądał dla trasy tak samo jak „post nie ma bloków".
+    let releasePosts: () => void = () => undefined;
+    const postsArrived = new Promise<void>((resolve) => {
+      releasePosts = resolve;
+    });
+    db().setResponse("posts", async () => {
+      await postsArrived;
+      return ok([post()]);
+    });
+    const view = await mount(`?postId=${POST_ID}`);
+    await waitFor(() => expect(db().chainsFor("posts").length).toBe(1));
+
+    expect(screen.queryByText(/adminMiscRoutes\.liveBlog\.noBlockWarning/)).toBeNull();
+    // Kolejność list: [post, blok, język] - wybór bloku czeka na bloki.
+    expect(screen.getAllByRole("combobox")[1]).toBeDisabled();
+
+    await act(async () => {
+      releasePosts();
+      await postsArrived;
+    });
+    // KONTROLA DODATNIA: po dojechaniu bloków trasa rozstrzyga normalnie -
+    // jedyny blok zostaje wybrany automatycznie.
+    await waitFor(() => expect(view.search().blockId).toBe(BLOCK_ID));
+  });
+});
+
+describe("admin.live-blog - formularz tylko dla bloku POTWIERDZONEGO w poście", () => {
+  it("po zmianie postu formularz znika, dopóki bloki nowego postu nie dojadą", async () => {
+    // TEST REGRESYJNY. Wybór innego postu zostawia w adresie STARY blok
+    // (celowo - deep-link z edytora niesie tylko blok). Do 2026-10-02
+    // formularz publikacji był w tym oknie aktywny, więc „Opublikuj" zapisywał
+    // wpis do pary (nowy post, stary blok), której nie wyświetli żadna relacja.
+    db().setResponse("posts", () =>
+      ok([post(), post({ id: OTHER_POST_ID, slug: "druga-relacja", title_pl: "Druga relacja" })]),
+    );
+    const view = await openRelation();
+    expect(await screen.findByText("adminMiscRoutes.liveBlog.newEntry")).toBeInTheDocument();
+
+    let releaseBlocks: () => void = () => undefined;
+    h.rpcGate = new Promise<void>((resolve) => {
+      releaseBlocks = resolve;
+    });
+    h.postForEdit = blocksWithOne(OTHER_BLOCK_ID);
+    fireEvent.change(selectWithOption(OTHER_POST_ID), { target: { value: OTHER_POST_ID } });
+    await settleNavigation();
+
+    expect(view.search()).toMatchObject({ postId: OTHER_POST_ID, blockId: BLOCK_ID });
+    expect(screen.queryByText("adminMiscRoutes.liveBlog.newEntry")).toBeNull();
+    expect(screen.queryByRole("button", { name: "adminMiscRoutes.liveBlog.publish" })).toBeNull();
+
+    await act(async () => {
+      releaseBlocks();
+    });
+    await settleNavigation();
+    // Stary blok spoza nowego postu wypada z adresu, a jedyny blok nowego
+    // postu wchodzi auto-wyborem - i dopiero wtedy wraca formularz.
+    await waitFor(() => expect(view.search().blockId).toBe(OTHER_BLOCK_ID));
+    expect(await screen.findByText("adminMiscRoutes.liveBlog.newEntry")).toBeInTheDocument();
+  });
+
+  it("bloki bez tytułu dostają RÓŻNE numery, także gdy leżą w różnych wersjach językowych", async () => {
+    // TEST REGRESYJNY. Licznik zapasowej etykiety startował od zera w KAŻDYM
+    // dokumencie językowym, więc blok tylko w wersji EN dostawał drugie
+    // „Live blog #1" - dwie nieodróżnialne pozycje w liście wyboru.
+    h.postForEdit = [
+      {
+        blocks_data: {
+          pl: { blocks: [{ type: "liveblog", id: BLOCK_ID }] },
+          en: { blocks: [{ type: "liveblog", id: OTHER_BLOCK_ID, data: { title: "  " } }] },
+        },
+      },
+    ];
+    await openRelation(`?postId=${POST_ID}`);
+
+    const blockSelect = selectWithOption(OTHER_BLOCK_ID);
+    const labels = within(blockSelect)
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(labels).toEqual(["Live blog #1", "Live blog #2"]);
+  });
+});
+
+describe("admin.live-blog - wybór bloku i języka z list", () => {
+  it("wybór bloku z listy ląduje w ADRESIE, a lista niesie nazwy relacji", async () => {
+    // Post z kilkoma relacjami nie ma auto-wyboru - redaktor wybiera blok
+    // ręcznie, a wybór musi trafić do adresu (REGUŁA 1), bo panel jest
+    // przekazywany między dyżurnymi redaktorami linkiem.
+    h.postForEdit = blocksWithTwo();
+    const view = await openRelation(`?postId=${POST_ID}`);
+    const blockSelect = selectWithOption(OTHER_BLOCK_ID);
+    expect(view.search().blockId).toBeUndefined();
+    expect(within(blockSelect).getByText("Relacja wieczorna")).toBeInTheDocument();
+
+    fireEvent.change(blockSelect, { target: { value: OTHER_BLOCK_ID } });
+    await settleNavigation();
+
+    await waitFor(() => expect(view.search().blockId).toBe(OTHER_BLOCK_ID));
+  });
+
+  it("wybór języka z listy przestawia adres i filtr odczytu wpisów", async () => {
+    const view = await openRelation();
+    fireEvent.change(selectWithOption("en"), { target: { value: "en" } });
+    await settleNavigation();
+
+    await waitFor(() => expect(view.search().lang).toBe("en"));
+    await waitFor(() =>
+      expect(
+        db()
+          .chainsFor("live_blog_entries")
+          .some((c) => c.calls.some((call) => call.method === "eq" && call.args[1] === "en")),
+      ).toBe(true),
+    );
   });
 });
 

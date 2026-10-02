@@ -4,7 +4,7 @@ import {
   runSpreadsheetWorker,
   writeSpreadsheetInWorker,
 } from "../spreadsheetWorker";
-import type { SpreadsheetRequest } from "../spreadsheetProtocol";
+import { SPREADSHEET_MAX_BYTES, type SpreadsheetRequest } from "../spreadsheetProtocol";
 
 class FakeWorker {
   static latest: FakeWorker;
@@ -62,12 +62,32 @@ describe("spreadsheet worker lifecycle", () => {
     await expect(promise).rejects.toThrow("spreadsheet:preview-unavailable");
   });
   it("rejects an oversized file before starting a worker", async () => {
-    await expect(runSpreadsheetWorker(new ArrayBuffer(20 * 1024 * 1024 + 1))).rejects.toThrow(
+    const constructed = vi.fn();
+    vi.stubGlobal(
+      "Worker",
+      class extends FakeWorker {
+        constructor() {
+          super();
+          constructed();
+        }
+      },
+    );
+    await expect(runSpreadsheetWorker(new ArrayBuffer(SPREADSHEET_MAX_BYTES + 1))).rejects.toThrow(
       "spreadsheet:file-limit",
     );
     await expect(
-      readSpreadsheetRowsInWorker(new ArrayBuffer(20 * 1024 * 1024 + 1)),
+      readSpreadsheetRowsInWorker(new ArrayBuffer(SPREADSHEET_MAX_BYTES + 1)),
     ).rejects.toThrow("spreadsheet:file-limit");
+    expect(constructed).not.toHaveBeenCalled();
+  });
+  it("accepts a file of exactly the shared limit - the same boundary the worker core applies", async () => {
+    // The page and the worker core read ONE constant from the protocol; an
+    // off-by-one here would refuse a file the core accepts (or the reverse).
+    const buffer = new ArrayBuffer(SPREADSHEET_MAX_BYTES);
+    const promise = runSpreadsheetWorker(buffer);
+    expect(FakeWorker.latest.postMessage).toHaveBeenCalledWith({ op: "preview", buffer });
+    FakeWorker.latest.onmessage?.({ data: { ok: true, result: [] } });
+    await expect(promise).resolves.toEqual([]);
   });
   it("does not start a worker for an already aborted request", async () => {
     const controller = new AbortController();
