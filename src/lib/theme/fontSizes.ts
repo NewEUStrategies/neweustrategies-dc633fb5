@@ -9,8 +9,11 @@ import { notifyError, notifySuccess } from "@/lib/notify";
 import { z } from "zod";
 import { deepMerge } from "@/lib/deepMerge";
 import { commitSiteSettingWrite, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+// Klucz wiersza żyje w lekkim module (czyta go `<ThemeFontSizesStyle/>` bez
+// importu schematu i generatora); re-eksport trzyma dotychczasowy kontrakt.
+import { FONT_SIZES_KEY } from "./fontSizesKey";
 
-export const FONT_SIZES_KEY = "font_sizes";
+export { FONT_SIZES_KEY };
 
 const clamp = (min: number, max: number) => z.coerce.number().min(min).max(max).step(1);
 
@@ -134,11 +137,19 @@ export const HEADING_LEVELS: readonly HeadingLevel[] = [
   "h6",
 ] as const;
 
-function loadFromMap(map: Record<string, unknown>): FontSizesSettings {
-  const raw = map[FONT_SIZES_KEY] ?? {};
-  const merged = deepMerge(FONT_SIZES_DEFAULTS, raw as Record<string, unknown>);
+/**
+ * Surowy wiersz `font_sizes` (albo jego brak) -> zwalidowane ustawienia.
+ * Ta sama ścieżka co w `useFontSizes`; eksportowana dla generatora
+ * `<ThemeFontSizesStyle/>`, który dostaje surowy wiersz z mapy ustawień.
+ */
+export function fontSizesFromRaw(raw: unknown): FontSizesSettings {
+  const merged = deepMerge(FONT_SIZES_DEFAULTS, (raw ?? {}) as Record<string, unknown>);
   const parsed = FontSizesSchema.safeParse(merged);
   return parsed.success ? parsed.data : FONT_SIZES_DEFAULTS;
+}
+
+function loadFromMap(map: Record<string, unknown>): FontSizesSettings {
+  return fontSizesFromRaw(map[FONT_SIZES_KEY]);
 }
 
 /**

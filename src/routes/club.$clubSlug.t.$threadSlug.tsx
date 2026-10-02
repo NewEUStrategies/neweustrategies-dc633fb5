@@ -128,7 +128,8 @@ import { ClubThreadWorkspace } from "@/components/clubs/organisms/ClubThreadWork
 import { ClubPageFrame } from "@/components/clubs/organisms/ClubPageFrame";
 import { useClubThreadWorkspace } from "@/lib/clubs/useClubWorkspace";
 import { EMPTY_WORKSPACE_SUMMARY } from "@/lib/clubs/workspaceTypes";
-import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
+import { buildClubHead } from "@/lib/clubs/clubHead";
+import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { formatDateTime } from "@/lib/i18n/format";
 import {
   buildClubReplyTree,

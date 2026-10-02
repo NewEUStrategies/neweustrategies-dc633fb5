@@ -1245,14 +1245,20 @@ function EditorialHeroVariant(p: VariantProps) {
           (href ? (
             <AppLink href={href} className="inline-block w-full">
               <div className="eh-title-clamp">
-                <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
+                <h3
+                  className="cms-post-title cms-post-title--delegated text-foreground"
+                  style={p.titleStyle}
+                >
                   <span className="cms-title-underline">{title || "\u00A0"}</span>
                 </h3>
               </div>
             </AppLink>
           ) : (
             <div className="eh-title-clamp">
-              <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
+              <h3
+                className="cms-post-title cms-post-title--delegated text-foreground"
+                style={p.titleStyle}
+              >
                 <span className="cms-title-underline">{title || "\u00A0"}</span>
               </h3>
             </div>
@@ -1443,7 +1449,7 @@ function MultiCardVariant(p: VariantProps) {
                     (href ? (
                       <AppLink href={href} className="block">
                         <h3
-                          className="cms-post-title text-foreground line-clamp-2"
+                          className="cms-post-title cms-post-title--delegated text-foreground line-clamp-2"
                           style={p.titleStyle}
                         >
                           <span className="cms-title-underline">{title || "\u00A0"}</span>
@@ -1451,7 +1457,7 @@ function MultiCardVariant(p: VariantProps) {
                       </AppLink>
                     ) : (
                       <h3
-                        className="cms-post-title text-foreground line-clamp-2"
+                        className="cms-post-title cms-post-title--delegated text-foreground line-clamp-2"
                         style={p.titleStyle}
                       >
                         <span className="cms-title-underline">{title || "\u00A0"}</span>
@@ -1583,7 +1589,10 @@ function CinematicOverlayVariant(p: VariantProps) {
               </span>
             )}
             {p.showTitle && (
-              <h3 className="cms-post-title drop-shadow" style={p.titleStyle}>
+              <h3
+                className="cms-post-title cms-post-title--delegated drop-shadow"
+                style={p.titleStyle}
+              >
                 <span className="cms-title-underline">{title || "\u00A0"}</span>
               </h3>
             )}
@@ -1727,12 +1736,18 @@ function SplitFeatureVariant(p: VariantProps) {
         {p.showTitle &&
           (href ? (
             <AppLink href={href} className="block">
-              <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
+              <h3
+                className="cms-post-title cms-post-title--delegated text-foreground"
+                style={p.titleStyle}
+              >
                 <span className="cms-title-underline">{title || "\u00A0"}</span>
               </h3>
             </AppLink>
           ) : (
-            <h3 className="cms-post-title text-foreground" style={p.titleStyle}>
+            <h3
+              className="cms-post-title cms-post-title--delegated text-foreground"
+              style={p.titleStyle}
+            >
               <span className="cms-title-underline">{title || "\u00A0"}</span>
             </h3>
           ))}
@@ -1855,7 +1870,10 @@ function MinimalStripVariant(p: VariantProps) {
             </span>
           )}
           {p.showTitle && (
-            <h3 className="cms-post-title line-clamp-2" style={p.titleStyle}>
+            <h3
+              className="cms-post-title cms-post-title--delegated line-clamp-2"
+              style={p.titleStyle}
+            >
               <span className="cms-title-underline">{title || "\u00A0"}</span>
             </h3>
           )}

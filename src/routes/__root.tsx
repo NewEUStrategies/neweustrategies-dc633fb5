@@ -60,7 +60,9 @@ import { syncI18nToRequest, getRenderI18n } from "../lib/i18n";
 import { supabasePublicConfigScript } from "../lib/supabasePublicConfig";
 import { currentLang } from "../lib/i18n/localeRuntime";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
-import { FriendlyErrorPage } from "../components/error/FriendlyErrorPage";
+// Ekran błędu za leniwą granicą - nie należy do udanego pierwszego renderu
+// (uzasadnienie i kontrakt SSR: components/error/LazyFriendlyErrorPage.tsx).
+import { LazyFriendlyErrorPage } from "../components/error/LazyFriendlyErrorPage";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { AuthProvider, useAuth } from "../hooks/useAuth";
 import { IconPackSync } from "../components/IconPackSync";
@@ -87,7 +89,9 @@ import { headerTickerQueryOptions } from "../lib/views/headerTickerQuery";
 import { resolveActiveTickerConfig } from "../lib/views/tickerVariants";
 import { designTokensQueryOptions } from "../lib/builder/designTokens";
 import { globalColorsQueryOptions } from "../hooks/useGlobalColors";
-import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColors";
+// Lekki moduł z pustym domyślnym - nie `globalColors.ts` (44 kB katalogu
+// slotów), który od 2026-10 dociera do przeglądarki wyłącznie leniwie.
+import { EMPTY_GLOBAL_COLORS } from "../lib/builder/globalColorsValue";
 import type { HeaderSettings } from "../components/Header";
 import type { BuilderDocument } from "../lib/builder/types";
 import { defaultDocFor } from "../lib/builder/chromeDefaults";
@@ -343,7 +347,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     reportPlatformError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
-  return <FriendlyErrorPage error={error} reset={reset} />;
+  return <LazyFriendlyErrorPage error={error} reset={reset} />;
 }
 
 /**
@@ -465,7 +469,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         // plan 3.3). Był to jedyny obcy origin w `<head>`, bez `preconnect`,
         // ~90 KB parse+execute - a `src/router.tsx` czeka `setTimeout(0)` przed
         // hydratacją, więc makrozadanie hydratacji stawało ZA nim. Dociąga go
-        // `ConsentScriptInjector` przez `afterPageLoad(…, 2000)` po `markAppReady()`;
+        // `ConsentScriptInjector` wg polityki z `lib/analytics/gtagLoadPolicy.ts`
+        // (2026-10-02): przy pierwszej interakcji, przy zapisanej decyzji o
+        // zgodzie albo po `load` i okresie bez długich zadań (limit 8 s);
         // polecenia z tego okna czekają w `window.dataLayer` (natywna kolejka
         // gtag.js), więc ani zgoda, ani pierwsza odsłona nie giną.
         // Hosty Google zostają w CSP (`start.ts`) - skrypt nadal się wczytuje,

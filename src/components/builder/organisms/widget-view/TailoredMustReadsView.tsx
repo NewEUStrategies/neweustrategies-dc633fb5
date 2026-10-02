@@ -246,7 +246,7 @@ export function TailoredMustReadsView({ c, lang }: { c: WidgetContent; lang: Lan
                   ) : null}
                   <AppLink href={href} className="min-w-0">
                     <div className="tmr-title-clamp">
-                      <h3 className="cms-post-title font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
+                      <h3 className="cms-post-title cms-post-title--delegated font-display text-base font-semibold leading-snug transition-colors group-hover:text-primary sm:text-lg">
                         <span className="cms-title-underline">{title}</span>
                       </h3>
                     </div>

@@ -3,7 +3,9 @@
 // nested component throwing on bad data) so the whole app never goes blank.
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { reportPlatformError } from "@/lib/platform-error-reporting";
-import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
+// Leniwa granica: ekran błędu nie należy do udanego pierwszego renderu, a ta
+// klasa montuje się w `__root` na każdej stronie (patrz LazyFriendlyErrorPage).
+import { LazyFriendlyErrorPage } from "@/components/error/LazyFriendlyErrorPage";
 
 interface Props {
   children: ReactNode;
@@ -35,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
   render(): ReactNode {
     if (this.state.error) {
       if (this.props.fallback) return this.props.fallback(this.state.error, this.reset);
-      return <FriendlyErrorPage error={this.state.error} reset={this.reset} />;
+      return <LazyFriendlyErrorPage error={this.state.error} reset={this.reset} />;
     }
     return this.props.children;
   }

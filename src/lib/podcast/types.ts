@@ -198,19 +198,9 @@ export function podcastTitle(p: Pick<Podcast, "title_pl" | "title_en">, lang: "p
   return (lang === "en" ? p.title_en : p.title_pl) || p.title_pl || p.title_en || "";
 }
 
-export function showTitle(
-  s: Pick<PodcastShow, "title_pl" | "title_en">,
-  lang: "pl" | "en",
-): string {
-  return (lang === "en" ? s.title_en : s.title_pl) || s.title_pl || s.title_en || "";
-}
-
-export function showDescription(
-  s: Pick<PodcastShow, "description_pl" | "description_en">,
-  lang: "pl" | "en",
-): string {
-  return (lang === "en" ? s.description_en : s.description_pl) || s.description_pl || "";
-}
+// `showTitle`/`showDescription` mieszkają w `showCopy.ts` (shell trasy
+// `/podcasts/$show` czyta je w `head()` i nie może ciągnąć schematów zod).
+export { showTitle, showDescription } from "./showCopy";
 
 /** Rola uczestnika w języku UI. */
 export function personRoleLabel(role: PodcastPerson["role"], lang: "pl" | "en"): string {

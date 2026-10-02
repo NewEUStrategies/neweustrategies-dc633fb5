@@ -28,6 +28,12 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { CompanyBrand } from "@/lib/mentions/useCompanyBrand";
 import { decodeOrganizationMentionSlug } from "@/lib/mentions/mentionTargets";
+import {
+  cleanText as clean,
+  organizationDescription,
+  organizationName,
+  type OrganizationTerm,
+} from "./organizationTerm";
 
 /** Rozmiar strony listy publikacji na profilu organizacji. Mniejszy niż pełne
  *  archiwum - profil to wizytówka, a nie katalog całego dorobku. */
@@ -39,17 +45,9 @@ export const ORGANIZATION_PAGE_SIZE = 12;
  *  stronie klienta). */
 export const ORGANIZATION_PEOPLE_LIMIT = 12;
 
-/** Term organizacji - dokładnie te kolumny `categories`, które widać na stronie. */
-export interface OrganizationTerm {
-  id: string;
-  slug: string;
-  name_pl: string;
-  name_en: string;
-  description_pl: string | null;
-  description_en: string | null;
-  logo_url: string | null;
-  color: string | null;
-}
+// Term i jego teksty mieszkają w `organizationTerm.ts` (shell trasy czyta je
+// w `head()` i nie może ciągnąć klienta zapytań do chunku wejściowego).
+export { organizationDescription, organizationName, type OrganizationTerm };
 
 /** Komplet tożsamości profilu: term + (opcjonalna) marka z kartoteki CRM. */
 export interface OrganizationData {
@@ -71,26 +69,6 @@ const TERM_COLS = "id, slug, name_pl, name_en, description_pl, description_en, l
 
 const PEOPLE_COLS =
   "slug, display_name, first_name, last_name, avatar_url, job_title, specialization, verified_at";
-
-function clean(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const text = value.replace(/\s+/g, " ").trim();
-  return text === "" ? null : text;
-}
-
-/** Nazwa organizacji w języku strony, z fallbackiem na drugi wariant. */
-export function organizationName(term: OrganizationTerm, lang: "pl" | "en"): string {
-  const primary = lang === "en" ? term.name_en : term.name_pl;
-  const secondary = lang === "en" ? term.name_pl : term.name_en;
-  return clean(primary) ?? clean(secondary) ?? term.slug;
-}
-
-/** Opis w języku strony. `null` = element opisu znika w całości. */
-export function organizationDescription(term: OrganizationTerm, lang: "pl" | "en"): string | null {
-  const primary = lang === "en" ? term.description_en : term.description_pl;
-  const secondary = lang === "en" ? term.description_pl : term.description_en;
-  return clean(primary) ?? clean(secondary);
-}
 
 /**
  * Nazwy, pod którymi ta organizacja może stać w snapshocie `current_company`.

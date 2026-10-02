@@ -33,11 +33,14 @@ import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 // mobilnej). Jako zasób React 19 wypisuje się raz na dokument zamiast raz
 // na instancję i trafia do <head>, więc obowiązuje już przy pierwszej klatce.
 const SEARCH_WIDGET_CSS = `
-/* Wymuszamy overflow: visible i wysoki z-index na całym łańcuchu
-   przodków widgetu, żeby chip floating-labela nie był przycinany
-   przez kolumny/sekcje headera z overflow: hidden. */
-:where(*):has(> .builder-search-widget),
-:where(*):has(.builder-search-widget) {
+/* Wymuszamy overflow: visible na całym łańcuchu przodków widgetu, żeby
+   chip floating-labela nie był przycinany przez kolumny/sekcje headera
+   z overflow: hidden. Przodków oznacza efekt w widgecie
+   (data-search-overflow); dawny selektor ":where(*):has(.builder-search-widget)"
+   był jedną z reguł ":has()", których sama obecność w dokumencie mnożyła
+   koszt każdego pełnego przeliczenia stylu ~70x (pomiar 2026-10-02).
+   Wiersz paska czytania ([data-reading-row]) musi zachować poziomy clip. */
+[data-search-overflow]:not([data-reading-row]) {
   overflow: visible !important;
 }
 .builder-search-widget {
@@ -208,6 +211,28 @@ export function SearchButtonWidget({
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const reqIdRef = useRef(0);
+
+  // Przodkowie widgetu dostają znacznik `data-search-overflow`, którym arkusz
+  // SEARCH_WIDGET_CSS zdejmuje im `overflow: hidden` (popover wyszukiwarki jest
+  // szerszy niż pole i wyjeżdża poza kolumnę nagłówka). Robił to selektor
+  // `:where(*):has(.builder-search-widget)`, ale sama OBECNOŚĆ reguły `:has()`
+  // w dokumencie podnosiła koszt KAŻDEGO pełnego przeliczenia stylu z ~0,5 ms
+  // do ~35 ms (desktop, 1x CPU, 1260 elementów; przy 4x CPU telefonu ~300 ms),
+  // a strona główna robi po hydratacji kilkanaście takich przeliczeń
+  // (pomiar 2026-10-02, docs/performance). Pomijamy wiersz paska czytania
+  // ([data-reading-row]) - on MUSI przycinać w poziomie (horizontalPanGuard).
+  // Znaczniki zostają po odmontowaniu, tak jak dawna reguła działała trwale;
+  // przed hydratacją popover i tak nie może się otworzyć, więc brak znacznika
+  // w HTML-u SSR niczego nie zmienia w pierwszym malowaniu.
+  useEffect(() => {
+    let el = wrapRef.current?.parentElement ?? null;
+    while (el && el !== document.body && el !== document.documentElement) {
+      if (!el.hasAttribute("data-reading-row") && !el.hasAttribute("data-search-overflow")) {
+        el.setAttribute("data-search-overflow", "");
+      }
+      el = el.parentElement;
+    }
+  }, []);
   const listboxId = useId();
   const optionId = (i: number): string => `${listboxId}-opt-${i}`;
   const t = (k: string): string => i18n.t(`search.widget.${k}`, { lng: lang }) as string;
