@@ -149,12 +149,17 @@ export function introductionRow(overrides: Partial<IntroductionRow> = {}): Intro
     requester_id: "user-requester",
     requester_name: "Marek Requester",
     requester_avatar: "",
+    // Slugi CELOWO różne od id: test, który pomyli jedno z drugim, ma się
+    // wywrócić, a nie przejść dlatego, że id też wygląda jak slug.
+    requester_slug: "marek-requester",
     bridge_id: NETWORK_IDS.bridge,
     bridge_name: "Jan Kowalski",
     bridge_avatar: "",
+    bridge_slug: "jan-kowalski",
     target_id: NETWORK_IDS.peer,
     target_name: PEER_NAME,
     target_avatar: "",
+    target_slug: "anna-nowak",
     ...overrides,
   };
 }

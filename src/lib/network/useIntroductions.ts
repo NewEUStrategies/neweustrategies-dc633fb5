@@ -31,7 +31,21 @@ import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 
 type Fns = Database["public"]["Functions"];
-export type IntroductionRow = Fns["my_introduction_requests"]["Returns"][number];
+type IntroductionRowRaw = Fns["my_introduction_requests"]["Returns"][number];
+
+/** Kolumny sluga trzech stron (20261002100000). */
+type PartySlugColumn = "requester_slug" | "target_slug" | "bridge_slug";
+
+/**
+ * Wiersz `my_introduction_requests` z UCZCIWYM typem sluga. Generator typuje
+ * kolumny tekstowe RETURNS TABLE jako `string`, ale baza oddaje tu NULL zawsze,
+ * gdy /people/<slug> nie rozwiązałoby tej osoby dla wołającego (brak sluga,
+ * profil niewidoczny) - a klient nie może wtedy linkować. Typ wymusza więc
+ * obsługę braku w miejscu użycia zamiast cichego `/people/null`.
+ */
+export type IntroductionRow = Omit<IntroductionRowRaw, PartySlugColumn> & {
+  [K in PartySlugColumn]: string | null;
+};
 
 /**
  * Rola z perspektywy zalogowanego użytkownika. WYMAGANA i bez wartości "all".

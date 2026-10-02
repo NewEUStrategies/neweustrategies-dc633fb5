@@ -697,6 +697,10 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0118_event_code_scalar_verdicts",
     twin: "20261001210000_event_code_scalar_verdicts.sql",
   },
+  {
+    tag: "0120_introductions_party_slugs",
+    twin: "20261002100000_introductions_party_slugs.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

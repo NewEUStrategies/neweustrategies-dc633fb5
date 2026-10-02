@@ -1,4 +1,5 @@
--- pgTAP: przepływ wprowadzeń (migracje 20260724120000 i 20260913171000).
+-- pgTAP: przepływ wprowadzeń (migracje 20260724120000, 20260913171000
+-- i 20261002100000).
 --
 -- Sprawdza naprawione ścieżki: most 'forward' -> 'forwarded' i widoczność dla
 -- targetu z avatarem mostu; proszący 'withdraw' -> 'withdrawn'; brak ścieżki
@@ -28,7 +29,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(15);
+SELECT plan(23);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -327,6 +328,137 @@ SELECT throws_ok(
       'Zupelnie nowa prosba ponad limitem dobowym.')$$,
   'rate limited',
   'limit: NOWA prośba ponad limitem nadal odpada (kolejność nie luzuje kwoty)'
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Slug stron: to, co karta linkuje, MUSI rozwiązać /people/<slug> (20261002100000)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Do 20261002100000 RPC nie zwracało żadnego sluga, a karta podstawiała trasie
+-- /people/$slug identyfikator osoby. `get_member_profile` szuka wyłącznie po
+-- slugu (20260924100000:34-36), więc każdy link w każdej z trzech ról kończył
+-- się kartą "Nie znaleziono profilu". Ten blok zamyka łańcuch, którego nie
+-- pokrywał żaden test: WYJŚCIE `my_introduction_requests` -> WEJŚCIE
+-- `get_member_profile`. Sama obecność kolumny nie wystarcza - asercje pytają,
+-- czy zwrócony slug ROZWIĄZUJE właściwą osobę dla tego samego wołającego.
+--
+-- Trójka R3 -> B3 -> T3 z relacjami R3-B3 i B3-T3. Tylko cel ma `discoverable`:
+-- most i proszący są widoczni dla drugiej strony WYŁĄCZNIE przez połączenie,
+-- więc test pokrywa obie gałęzie bramki `get_member_profile` (połączenie dla
+-- bridge/target, discoverable dla requester). Trójki A1/B1/C1 nie da się tu
+-- użyć: nie jest połączona ani widoczna, więc padałaby na widoczności, nie na
+-- slugu.
+RESET ROLE;
+
+INSERT INTO auth.users (id, email) VALUES
+  ('d0000000-0000-0000-0000-0000000000a3', 'r3@intro.test'),
+  ('d0000000-0000-0000-0000-0000000000b3', 'b3@intro.test'),
+  ('d0000000-0000-0000-0000-0000000000c3', 't3@intro.test');
+
+INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable, slug) VALUES
+  ('d0000000-0000-0000-0000-0000000000a3', 'r3@intro.test', 'Requester 3',
+   'd1a11111-1111-1111-1111-111111111111', false, 'intro-r3'),
+  ('d0000000-0000-0000-0000-0000000000b3', 'b3@intro.test', 'Bridge 3',
+   'd1a11111-1111-1111-1111-111111111111', false, 'intro-b3'),
+  ('d0000000-0000-0000-0000-0000000000c3', 't3@intro.test', 'Target 3',
+   'd1a11111-1111-1111-1111-111111111111', true, 'intro-t3');
+
+-- Jak wyżej: wstawka w 'pending', dopiero potem przejście na 'accepted'.
+INSERT INTO public.user_connections (requester_id, addressee_id) VALUES
+  ('d0000000-0000-0000-0000-0000000000a3', 'd0000000-0000-0000-0000-0000000000b3'),
+  ('d0000000-0000-0000-0000-0000000000b3', 'd0000000-0000-0000-0000-0000000000c3');
+UPDATE public.user_connections
+   SET status = 'accepted', responded_at = now()
+ WHERE requester_id IN ('d0000000-0000-0000-0000-0000000000a3',
+                        'd0000000-0000-0000-0000-0000000000b3');
+
+-- Przekazana prośba - tylko taką widzi rola `target`.
+INSERT INTO public.introduction_requests
+  (id, tenant_id, requester_id, bridge_id, target_id, message, status) VALUES
+  ('11110000-0000-0000-0000-000000000003', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000a3', 'd0000000-0000-0000-0000-0000000000b3',
+   'd0000000-0000-0000-0000-0000000000c3', 'Prosze o wprowadzenie do celu numer trzy.',
+   'pending');
+UPDATE public.introduction_requests SET status = 'forwarded'
+ WHERE id = '11110000-0000-0000-0000-000000000003';
+
+SET LOCAL ROLE authenticated;
+
+-- ── Most widzi proszącego (widoczność przez połączenie) ────────────────────
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000b3","role":"authenticated"}', true);
+SELECT is(
+  (SELECT requester_slug FROM public.my_introduction_requests('bridge')
+     WHERE id = '11110000-0000-0000-0000-000000000003'),
+  'intro-r3',
+  'bridge: RPC zwraca slug proszącego'
+);
+SELECT is(
+  (SELECT public.get_member_profile(requester_slug) ->> 'id'
+     FROM public.my_introduction_requests('bridge')
+    WHERE id = '11110000-0000-0000-0000-000000000003'),
+  'd0000000-0000-0000-0000-0000000000a3',
+  'bridge: slug proszącego ROZWIĄZUJE /people/<slug> na tę samą osobę'
+);
+-- Mechanizm defektu wprost: id nie jest slugiem.
+SELECT ok(
+  public.get_member_profile('d0000000-0000-0000-0000-0000000000a3') IS NULL,
+  'bridge: /people/<uuid> NIE rozwiązuje profilu - stąd slug, a nie id'
+);
+
+-- ── Proszący widzi cel (widoczność przez discoverable) ─────────────────────
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
+SELECT is(
+  (SELECT public.get_member_profile(target_slug) ->> 'id'
+     FROM public.my_introduction_requests('requester')
+    WHERE id = '11110000-0000-0000-0000-000000000003'),
+  'd0000000-0000-0000-0000-0000000000c3',
+  'requester: slug celu ROZWIĄZUJE /people/<slug> na cel'
+);
+
+-- ── Cel widzi most (widoczność przez połączenie) ───────────────────────────
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000c3","role":"authenticated"}', true);
+SELECT is(
+  (SELECT public.get_member_profile(bridge_slug) ->> 'id'
+     FROM public.my_introduction_requests('target')
+    WHERE id = '11110000-0000-0000-0000-000000000003'),
+  'd0000000-0000-0000-0000-0000000000b3',
+  'target: slug mostu ROZWIĄZUJE /people/<slug> na most'
+);
+
+-- ── Slug, który by się NIE rozwiązał, nie wychodzi z bazy ───────────────────
+-- Cel zdejmuje `discoverable` PO przekazaniu prośby. Proszący nie jest z nim
+-- połączony (z definicji wprowadzenia), więc /people/intro-t3 skończyłoby się
+-- 404 - RPC ma oddać NULL, żeby karta pokazała tekst, a nie martwy link.
+RESET ROLE;
+UPDATE public.profiles SET discoverable = false
+ WHERE id = 'd0000000-0000-0000-0000-0000000000c3';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
+SELECT ok(
+  (SELECT target_slug IS NULL AND target_name = 'Target 3'
+     FROM public.my_introduction_requests('requester')
+    WHERE id = '11110000-0000-0000-0000-000000000003'),
+  'requester: cel bez discoverable - slug NULL (bez martwego linku), nazwa zostaje'
+);
+
+-- Profil bez sluga (fikstura A1/B1/C1 nie ma sluga) - NULL, a nie '' ani id.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
+SELECT ok(
+  (SELECT bridge_slug IS NULL
+     FROM public.my_introduction_requests('target')
+    WHERE id = '11110000-0000-0000-0000-000000000001'),
+  'target: most bez sluga - bridge_slug NULL, nigdy zastępcze id'
+);
+
+-- DROP + CREATE zeruje ACL - REVOKE z 20260724111107 trzeba było postawić znowu.
+SELECT ok(
+  NOT has_function_privilege('anon', 'public.my_introduction_requests(text)', 'EXECUTE'),
+  'acl: anon nie wykonuje my_introduction_requests'
 );
 
 SELECT * FROM finish();

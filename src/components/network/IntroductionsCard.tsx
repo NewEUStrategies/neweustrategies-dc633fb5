@@ -44,6 +44,18 @@ function statusChipClass(status: string): string {
   }
 }
 
+/**
+ * Slug, pod którym /people/<slug> rozwiąże osobę, albo `null` - wtedy wiersz
+ * pokazuje sam tekst. NIGDY id: `get_member_profile` szuka wyłącznie po slugu
+ * (20260924100000:34-36), więc `/people/<uuid>` zawsze kończył się kartą
+ * "Nie znaleziono profilu". Baza oddaje slug tylko wtedy, gdy profil się
+ * rozwiąże (20261002100000); `?.` łapie też bazę sprzed tej migracji, na której
+ * kolumny nie ma wcale.
+ */
+function linkableSlug(slug: string | null | undefined): string | null {
+  return slug?.trim() ? slug : null;
+}
+
 function Row({ row, role }: { row: IntroductionRow; role: Role }) {
   const { t } = useTranslation();
   const respond = useRespondIntroduction();
@@ -78,8 +90,22 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
       : role === "requester"
         ? row.target_avatar
         : row.bridge_avatar;
-  const otherId =
-    role === "bridge" ? row.requester_id : role === "requester" ? row.target_id : row.bridge_id;
+  const otherSlug = linkableSlug(
+    role === "bridge"
+      ? row.requester_slug
+      : role === "requester"
+        ? row.target_slug
+        : row.bridge_slug,
+  );
+
+  const avatarClass =
+    "h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-muted";
+  const avatar = otherAvatar ? (
+    <img src={otherAvatar} alt="" className="h-full w-full object-cover" loading="lazy" />
+  ) : (
+    <UserIcon className="mx-auto h-5 w-5 translate-y-2.5 text-muted-foreground" />
+  );
+  const nameClass = "truncate text-sm font-semibold text-foreground";
 
   return (
     // `id` w formacie, którego oczekuje producent powiadomień
@@ -89,26 +115,26 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
       className="scroll-mt-24 rounded-md border border-border bg-background/60 p-3"
     >
       <div className="flex items-start gap-3">
-        <Link
-          to="/people/$slug"
-          params={{ slug: otherId }}
-          className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-muted"
-        >
-          {otherAvatar ? (
-            <img src={otherAvatar} alt="" className="h-full w-full object-cover" loading="lazy" />
-          ) : (
-            <UserIcon className="mx-auto h-5 w-5 translate-y-2.5 text-muted-foreground" />
-          )}
-        </Link>
+        {otherSlug ? (
+          <Link to="/people/$slug" params={{ slug: otherSlug }} className={avatarClass}>
+            {avatar}
+          </Link>
+        ) : (
+          <div className={avatarClass}>{avatar}</div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to="/people/$slug"
-              params={{ slug: otherId }}
-              className="truncate text-sm font-semibold text-foreground hover:underline"
-            >
-              {otherName}
-            </Link>
+            {otherSlug ? (
+              <Link
+                to="/people/$slug"
+                params={{ slug: otherSlug }}
+                className={cn(nameClass, "hover:underline")}
+              >
+                {otherName}
+              </Link>
+            ) : (
+              <span className={nameClass}>{otherName}</span>
+            )}
             <span
               className={cn(
                 "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",

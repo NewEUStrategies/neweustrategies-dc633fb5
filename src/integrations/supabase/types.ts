@@ -30202,16 +30202,19 @@ export type Database = {
           bridge_avatar: string
           bridge_id: string
           bridge_name: string
+          bridge_slug: string
           created_at: string
           id: string
           message: string
           requester_avatar: string
           requester_id: string
           requester_name: string
+          requester_slug: string
           status: string
           target_avatar: string
           target_id: string
           target_name: string
+          target_slug: string
         }[]
       }
       my_network_counts: {
