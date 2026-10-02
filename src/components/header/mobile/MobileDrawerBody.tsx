@@ -36,7 +36,10 @@ export function MobileDrawerBody({ builderDoc, onNavigate }: Props) {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain isolate [&_*]:max-w-full">
+    <div
+      data-mobile-drawer-scroller
+      className="relative isolate min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] [&_*]:max-w-full"
+    >
       {cfg.section_order.map((section) => (
         <div key={section} className="relative z-10 isolate">
           {renderers[section]()}
