@@ -27,7 +27,8 @@
 // kiedy to czyta i co z tego przepuszcza dalej.
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { clubHeadLoader, toClubHeadSource } from "@/lib/clubs/clubHead";
+import { toClubHeadSource } from "@/lib/clubs/clubHead";
+import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { clubViewRow } from "@/test/clubs/fixtures";
 

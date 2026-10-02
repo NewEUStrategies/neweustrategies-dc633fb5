@@ -68,13 +68,38 @@ export async function impersonateUser(targetUserId: string, targetLabel: string)
   });
 }
 
+/**
+ * Powrót do sesji super admina.
+ *
+ * FAIL-CLOSED. `setSession` NIE rzuca przy porażce - oddaje `{ error }`
+ * (wygasły albo unieważniony refresh token super admina). Wcześniej wynik nie
+ * był czytany: stan i baner były czyszczone, a przeglądarka ZOSTAWAŁA
+ * zalogowana jako podszywany użytkownik - bez banera, czyli bez żadnego
+ * sygnału, że kolejne kliknięcia idą na cudze konto. Teraz nieudany powrót
+ * kończy się lokalnym wylogowaniem (`scope: "local"` - tylko ta karta; globalne
+ * unieważniłoby WSZYSTKIE sesje podszywanej osoby).
+ *
+ * Audyt zamyka wyłącznie aktor (`endImpersonation` filtruje po
+ * `actor_user_id`), więc da się go zamknąć tylko po UDANYM powrocie; po
+ * porażce wiersz zostaje otwarty - i to jest prawda o tym, co się stało.
+ */
 export async function stopImpersonation(): Promise<void> {
   const state = getImpersonationState();
   if (!state) return;
+  let restored = false;
   try {
-    await supabase.auth.setSession(state.original);
+    const { error } = await supabase.auth.setSession(state.original);
+    restored = !error;
+  } catch {
+    restored = false;
+  }
+  try {
+    if (restored) {
+      await endImpersonation({ data: { sessionId: state.sessionId } }).catch(() => undefined);
+    } else {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    }
   } finally {
-    await endImpersonation({ data: { sessionId: state.sessionId } }).catch(() => undefined);
     setImpersonationState(null);
   }
 }

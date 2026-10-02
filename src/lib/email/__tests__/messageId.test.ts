@@ -26,6 +26,8 @@ describe("deterministicMessageId", () => {
     const b = await deterministicMessageId("order-2");
 
     expect(a).not.toBe(b);
+    // Różne, ale oba nadal poprawnymi identyfikatorami - nie np. pusty napis.
+    expect([a, b].every((id) => UUID_V4.test(id))).toBe(true);
   });
 
   it("wynik ma kształt UUID v4 (wersja i wariant ustawione)", async () => {

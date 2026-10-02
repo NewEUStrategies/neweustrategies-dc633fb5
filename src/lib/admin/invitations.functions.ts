@@ -388,17 +388,38 @@ async function performSend(
     // Slug liczymy zatem wyłącznie dla konta, które jeszcze go nie ma. Zmiana
     // adresu istniejącego profilu to osobna decyzja (mapowanie stary -> nowy
     // plus przekierowania), nie skutek uboczny wysłania zaproszenia.
-    const { data: existingProfile } = await supabaseAdmin
+    const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
       .from("profiles")
-      .select("slug")
+      .select("slug, tenant_id")
       .eq("id", authUserId)
       .maybeSingle();
+    // Awaria odczytu NIE MOŻE czytać się jak „profilu nie ma": wtedy niżej
+    // zapisalibyśmy najemcę zaproszenia na konto, którego najemcy nie znamy.
+    if (existingProfileError) throw new Error(existingProfileError.message);
+
+    // GRANICA NAJEMCY. `findAuthUserIdByEmail` przeszukuje CAŁY katalog kont
+    // (nie ma w nim najemców), a hydracja niżej pisze kluczem serwisowym
+    // `profiles.tenant_id`, `author_profiles` i rolę w najemcy zapraszającego.
+    // Bez tego porównania administrator obszaru A, który zaprosił adres osoby
+    // z obszaru B, PRZENOSIŁ jej konto do A (audyt pokrycia, wydanie 12, 16.8:
+    // jedyny defekt krytyczny wydania). Konto z obcego najemcy to odmowa -
+    // przeniesienie konta między obszarami jest osobną operacją, nie skutkiem
+    // ubocznym wysłania zaproszenia. Profil bez najemcy (konto osierocone)
+    // wolno dowiązać - nie należy do nikogo, kogo dałoby się skrzywdzić.
+    if (existingProfile?.tenant_id && existingProfile.tenant_id !== inv.tenant_id) {
+      throw new Error("account_in_other_tenant");
+    }
     const slug = existingProfile?.slug ?? slugify(displayName);
 
     // Hydrate profile + author_profile + user_role. UPSERT nadpisuje wymienione
     // kolumny danymi z zaproszenia; wyjątkiem jest `slug` (wyżej), bo ten jest
     // publicznym adresem, a nie polem formularza.
-    await supabaseAdmin.from("profiles").upsert(
+    //
+    // WYNIK KAŻDEGO ZAPISU JEST SPRAWDZANY. Wcześniej trzy `upsert` niżej
+    // szły bez odczytu `error`, więc odmowa bazy (RLS, kolizja sluga, brak
+    // kolumny) kończyła się mailem z linkiem do konta bez profilu albo bez
+    // roli - i zaproszeniem oznaczonym jako „wysłane".
+    const { error: profileWriteError } = await supabaseAdmin.from("profiles").upsert(
       {
         id: authUserId,
         tenant_id: inv.tenant_id,
@@ -423,6 +444,7 @@ async function performSend(
       },
       { onConflict: "id", ignoreDuplicates: false },
     );
+    if (profileWriteError) throw new Error(`profile_write_failed:${profileWriteError.message}`);
 
     const orgFunctions: { pl: string; en: string }[] = [];
     if (meta.programLabel_pl || meta.programLabel_en) {
@@ -432,7 +454,7 @@ async function performSend(
       });
     }
 
-    await supabaseAdmin.from("author_profiles").upsert(
+    const { error: authorWriteError } = await supabaseAdmin.from("author_profiles").upsert(
       {
         user_id: authUserId,
         tenant_id: inv.tenant_id,
@@ -450,13 +472,15 @@ async function performSend(
       },
       { onConflict: "user_id" },
     );
+    if (authorWriteError) throw new Error(`author_write_failed:${authorWriteError.message}`);
 
-    await supabaseAdmin
+    const { error: roleWriteError } = await supabaseAdmin
       .from("user_roles")
       .upsert(
         { user_id: authUserId, role: inv.role, tenant_id: inv.tenant_id },
         { onConflict: "user_id,role", ignoreDuplicates: true },
       );
+    if (roleWriteError) throw new Error(`role_write_failed:${roleWriteError.message}`);
 
     // E-mail zaproszenia wysyłamy ZAWSZE własną ścieżką: dla trybu
     // magic_link niesie link aktywacyjny (generateLink - Supabase go tylko

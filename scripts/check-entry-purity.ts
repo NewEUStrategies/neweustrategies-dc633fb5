@@ -271,6 +271,34 @@ const HEAVY_MODULES: readonly HeavyDictionary[] = [
       "head() trasy prawnej czyta wyłącznie lib/legal/meta.ts - wspólna stała " +
       "head+komponent ląduje w module ?tsr-shared, czyli w entry (patrz meta.ts)",
   },
+  // 2026-10-02 (audyt PSI, TBT 343 ms): generatory CSS bloków `<style>`
+  // korzenia zeszły z bootu. Serwer liczy CSS, klient przepisuje blok z HTML-a
+  // po skrócie `data-css-hash` i dociąga generator przez `import()` dopiero
+  // przy zmianie danych (components/theme/useDeferredStyleCss.ts). Każda
+  // statyczna krawędź z komponentu korzenia, hooka zapytania albo loadera
+  // wciąga te moduły z powrotem - stąd po jednym znaczniku na moduł
+  // (literał z katalogu slotów / podpowiedzi / emitowanej zmiennej).
+  {
+    label: "lib/builder/globalColors (katalog slotów + generator, ~44 kB źródeł)",
+    markers: ["Header - Icons & Menu"],
+    remedy:
+      "typ i `EMPTY_GLOBAL_COLORS` importuj z `lib/builder/globalColorsValue`; generator " +
+      "wyłącznie w `theme/css/designTokensCss.ts` (gałąź `.server()` + `import()`)",
+  },
+  {
+    label: "lib/theme/themeDesign (schemat + generator Theme Design, ~22 kB źródeł)",
+    markers: ["Kolory pól tekstowych (muted)", "--td-bh-size:"],
+    remedy:
+      "klucze importuj z `lib/theme/themeDesignKeys`; generator wyłącznie w " +
+      "`theme/css/themeDesignCss.ts` (gałąź `.server()` + `import()`)",
+  },
+  {
+    label: "lib/theme/fontSizes (schemat + generator rozmiarów czcionek, ~7,5 kB źródeł)",
+    markers: ["--sp-heading-top:"],
+    remedy:
+      "klucz importuj z `lib/theme/fontSizesKey`; generator wyłącznie w " +
+      "`theme/css/themeFontSizesCss.ts` (gałąź `.server()` + `import()`)",
+  },
 ];
 
 const CLIENT_DIR =

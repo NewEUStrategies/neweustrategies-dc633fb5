@@ -1,37 +1,34 @@
-// Globalny odtwarzacz audio TTS artykułów. Trzyma jedną instancję
-// HTMLAudioElement na cały czas życia aplikacji (provider mount w __root),
-// dzięki czemu użytkownik może nawigować między stronami bez utraty ciągłości
-// odtwarzania. Ładowanie audio idzie przez `/api/public/post-tts`, blob URL
-// jest keszowany per postId+lang, żeby pobieranie MP3 nie generowało audio
-// drugi raz.
+// Globalny odtwarzacz audio TTS artykułów - POWŁOKA.
+//
+// Provider montuje się w `__root` na KAŻDEJ stronie, a do 2026-10-02 niósł
+// w chunku wejściowym cały silnik (~13,7 kB źródeł: element `<audio>`,
+// fetcher TTS ze strumieniowaniem postępu, cache blobów, pamięć pozycji,
+// Media Session), choć anonimowy czytelnik strony głównej nigdy go nie woła.
+// Tutaj zostaje wyłącznie to, co MUSI istnieć od pierwszego renderu: typy,
+// kontekst, hook i bezczynna fasada. Silnik (`global-player-engine.tsx`)
+// dociąga się `React.lazy` dopiero przy pierwszym użyciu (`loadAndPlay`,
+// `download`), a do tego czasu fasada zgłasza stan „loading" dla czekającego
+// nagrania - czyli przycisk „odsłuchaj" reaguje natychmiast, tak jak dotąd.
+//
+// PARYTET SSR: serwer i pierwszy render klienta widzą IDENTYCZNE poddrzewo
+// (`Provider` + `null` + dzieci). Silnik wchodzi wyłącznie po interakcji,
+// nigdy w hydratacji. Silnik NIE OWIJA dzieci - jest bezgłowym rodzeństwem,
+// które publikuje swoją wartość do powłoki; gdyby stanął nad dziećmi, jego
+// montaż przemontowałby całą stronę (zmiana typu węzła nad `<Outlet>`).
 import {
+  Component,
+  Suspense,
   createContext,
+  lazy,
   useCallback,
   useContext,
-  useEffect,
-  useId,
   useMemo,
   useRef,
   useState,
+  type ErrorInfo,
   type ReactNode,
 } from "react";
-import { announcePlayback, subscribePlayback } from "@/lib/audio/playbackBus";
-import {
-  DEFAULT_PLAYBACK_RATE,
-  clampPlaybackRate,
-  readStoredPlaybackRate,
-  writeStoredPlaybackRate,
-} from "@/lib/audio/playbackRate";
-import { cacheKey, getCachedBlob, sanitizeFilename, setCachedBlob } from "@/lib/audio/blobCache";
-import {
-  POSITION_SAVE_INTERVAL,
-  clearStoredPosition,
-  isRestorablePosition,
-  positionKey,
-  readStoredPosition,
-  writeStoredPosition,
-} from "@/lib/audio/positionMemory";
-import { supabase } from "@/integrations/supabase/client";
+import { DEFAULT_PLAYBACK_RATE, clampPlaybackRate } from "@/lib/audio/playbackRate";
 
 export interface AudioTrackMeta {
   postId: string;
@@ -75,11 +72,11 @@ export interface TtsProgress {
   elapsedMs: number;
 }
 
-interface AudioTrackState extends AudioTrackMeta {
+export interface AudioTrackState extends AudioTrackMeta {
   blobUrl: string;
 }
 
-interface GlobalPlayerContextValue {
+export interface GlobalPlayerContextValue {
   status: AudioStatus;
   track: AudioTrackState | null;
   currentTime: number;
@@ -103,7 +100,7 @@ interface GlobalPlayerContextValue {
   download: (meta?: AudioTrackMeta) => Promise<void>;
 }
 
-const INITIAL_TTS: TtsProgress = {
+export const INITIAL_TTS: TtsProgress = {
   stage: "idle",
   percent: 0,
   bytes: 0,
@@ -111,602 +108,150 @@ const INITIAL_TTS: TtsProgress = {
   elapsedMs: 0,
 };
 
-const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
-
 /**
- * Nieudana odpowiedź serwera, której treść NIE jest komunikatem dla czytelnika.
- * Ciało błędu `/api/public/post-tts` to techniczny JSON po angielsku
- * (`{"error":"Post not found"}`) - wcześniej trafiał dosłownie do toastu.
- * Ten błąd niesie sam kod, a `loadAndPlay` zostawia `error` pusty, więc
- * widżety pokazują zdanie ze słownika w języku materiału.
+ * Polecenie wydane fasadzie, ZANIM silnik się załadował. Silnik wykonuje je
+ * w kolejności zaraz po utworzeniu elementu `<audio>` - czyli kliknięcie
+ * „odsłuchaj" na zimnym starcie kończy się odtwarzaniem, a nie zgubionym
+ * gestem. Zarówno `play`, jak i `download` wołają dziś płatną syntezę przez
+ * ten sam fetcher silnika, więc oba muszą czekać na niego, nie na siebie.
  */
-class AudioHttpError extends Error {
-  constructor(status: number) {
-    super(`HTTP ${status}`);
-    this.name = "AudioHttpError";
-  }
+export type PendingAudioCommand =
+  { kind: "play"; meta: AudioTrackMeta } | { kind: "download"; meta: AudioTrackMeta };
+
+export const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
+
+/** Bezczynna wartość - wspólna dla fasady, SSR i renderu poza providerem. */
+const IDLE_VALUE: GlobalPlayerContextValue = {
+  status: "idle",
+  track: null,
+  currentTime: 0,
+  duration: 0,
+  progress: 0,
+  error: null,
+  tts: INITIAL_TTS,
+  isActive: () => false,
+  loadAndPlay: async () => {},
+  toggle: async () => {},
+  seek: () => {},
+  seekPct: () => {},
+  skip: () => {},
+  playbackRate: DEFAULT_PLAYBACK_RATE,
+  setPlaybackRate: () => {},
+  close: () => {},
+  download: async () => {},
+};
+
+// Silnik poza chunkiem wejściowym. Nazwany eksport -> `default`, jak reszta
+// leniwych granic w `__root`.
+const GlobalAudioEngine = lazy(() =>
+  import("./global-player-engine").then((m) => ({ default: m.GlobalAudioEngine })),
+);
+
+interface EngineGateProps {
+  children: ReactNode;
+  onLoadError: (error: Error) => void;
 }
 
 /**
- * Jedyne komunikaty, które `error` przekazuje czytelnikowi: limity dostawcy
- * (402/429). Każda inna awaria - kod HTTP, padnięta sieć („Failed to fetch",
- * „Load failed", „NetworkError when attempting…" zależnie od przeglądarki),
- * błąd elementu `<audio>` - zostawia `error` pusty, a widżet sięga po zdanie
- * ze słownika w języku materiału.
+ * Granica wyłącznie dla NIEUDANEGO POBRANIA CHUNKU silnika (sieć padła między
+ * bootem a kliknięciem). Bez niej wyjątek `React.lazy` szedłby do globalnej
+ * granicy błędu w `__root` i podmieniał całą, poprawnie wyrenderowaną stronę
+ * na ekran awarii - za niedostępny odtwarzacz. Tu kończy się stanem `error`
+ * fasady, który pasek audio pokazuje jako toast.
  */
-class AudioReaderMessage extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "AudioReaderMessage";
-  }
-}
+class EngineLoadGate extends Component<EngineGateProps, { failed: boolean }> {
+  state = { failed: false };
 
-// Cache blobów narracji (z limitem i zwalnianiem URL-i), pamięć pozycji
-// odtwarzania i nazwa pliku pobrania żyją w czystych modułach obok:
-// `lib/audio/blobCache` i `lib/audio/positionMemory`. Są tam testowane bez
-// montowania providera, elementu `<audio>` i fetchera TTS - a to one decydują
-// o wycieku pamięci w długiej sesji czytania i o tym, czy czytelnik wróci tam,
-// gdzie skończył. Tutaj zostaje wyłącznie skład.
-
-/**
- * Wybór źródła audio dla wpisu w danym języku. Gdy wgrany jest MP3 dla tego
- * języka - pobieramy plik bezpośrednio (GET, ElevenLabs pomijany). W przeciwnym
- * razie odpalamy TTS przez `/api/public/post-tts` z payloadem `{ postId, lang }`.
- * Eksportowane, żeby móc testować kryterium "fallback do ElevenLabs tylko gdy
- * brak wgranego audio dla danego języka" bez montowania całego providera.
- *
- * KONTRAKT: payload to DOKŁADNIE `{ postId, lang }`. Głos i model są kanoniczne
- * per wpis i rozstrzyga je wyłącznie serwer (redakcja albo ustawienia najemcy) -
- * klient nie ma czym poprosić o inny wariant, więc nie ma czym zwielokrotnić
- * płatnej syntezy ani plików w cache (audyt 2026-08-03).
- */
-export function resolveAudioFetch(
-  postId: string,
-  lang: "pl" | "en",
-  audioUrl: string | null | undefined,
-  accessToken?: string | null,
-): { url: string; init: RequestInit; usesElevenLabs: boolean } {
-  const trimmed = audioUrl?.trim();
-  if (trimmed) {
-    return { url: trimmed, init: { method: "GET" }, usesElevenLabs: false };
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
   }
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  // Forward the caller's session so the server can enforce the paywall: gated
-  // (members/paid) posts are synthesized only for an entitled, authenticated
-  // reader. Anonymous requests for public posts still work (no token needed).
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-  return {
-    url: "/api/public/post-tts",
-    init: {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ postId, lang }),
-    },
-    usesElevenLabs: true,
-  };
+
+  componentDidCatch(error: Error, _info: ErrorInfo): void {
+    this.props.onLoadError(error);
+  }
+
+  render(): ReactNode {
+    return this.state.failed ? null : this.props.children;
+  }
 }
 
 export function GlobalAudioPlayerProvider({ children }: { children: ReactNode }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [status, setStatus] = useState<AudioStatus>("idle");
-  const [track, setTrack] = useState<AudioTrackState | null>(null);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [tts, setTts] = useState<TtsProgress>(INITIAL_TTS);
-  // Tempo: stan startuje od domyślnego (SSR-parity), zapisana preferencja
-  // wchodzi w efekcie tworzącym element audio (klient-only). Ref trzyma
-  // aktualną wartość dla listenerów elementu (bez stale closure).
-  const [playbackRate, setPlaybackRateState] = useState<number>(DEFAULT_PLAYBACK_RATE);
-  const playbackRateRef = useRef<number>(DEFAULT_PLAYBACK_RATE);
+  // Wartość opublikowana przez silnik - od pierwszej publikacji jest JEDYNYM
+  // źródłem prawdy; fasada służy tylko do chwili jego załadowania.
+  const [engineValue, setEngineValue] = useState<GlobalPlayerContextValue | null>(null);
+  const [engineWanted, setEngineWanted] = useState(false);
+  // Czytelnik czeka na silnik: fasada zgłasza `loading` + etap `preparing`,
+  // czyli DOKŁADNIE pierwszy stan, który silnik sam przyjmuje w `loadAndPlay`
+  // przed pobraniem nagrania (`isActive` jest tam `false` aż do `setTrack`).
+  // Parytet z silnikiem jest ważniejszy niż „ładniejszy" stan przejściowy:
+  // inna wartość tutaj dałaby mrugnięcie przycisku w chwili przejęcia.
+  const [pending, setPending] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Tempo ustawione przed silnikiem - silnik czyta zapisaną preferencję sam,
+  // tutaj tylko odbicie w UI (patrz `setPlaybackRate` fasady).
+  const [facadeRate, setFacadeRate] = useState(DEFAULT_PLAYBACK_RATE);
+  // Ref, nie stan: kolejkę czyta silnik w efekcie montażu, a jej zmiana nie ma
+  // prawa przerenderować całej strony pod providerem.
+  const commandsRef = useRef<PendingAudioCommand[]>([]);
 
-  // Unikalny identyfikator tego playera na szynie arbitrażu odtwarzania.
-  const playerId = useId();
-  const playerIdRef = useRef(playerId);
-  // Kontroler przerywający trwające pobieranie TTS przy szybkiej zmianie wpisu.
-  const fetchAbortRef = useRef<AbortController | null>(null);
-  // Klucz localStorage dla pozycji aktualnie załadowanego materiału.
-  const posKeyRef = useRef<string | null>(null);
-  // Pozycja do przywrócenia po załadowaniu metadanych (null gdy nic nie czeka).
-  const pendingRestoreRef = useRef<number | null>(null);
-  // Znacznik czasu ostatniego zapisu pozycji (throttle).
-  const lastSaveRef = useRef(0);
-
-  // Lazy audio element - tworzymy w efekcie, żeby nie ruszać `Audio` w SSR.
-  useEffect(() => {
-    if (audioRef.current || typeof window === "undefined") return;
-    const audio = new Audio();
-    audio.preload = "none";
-    // Zapisana preferencja tempa: default+ratio na obu polach, bo załadowanie
-    // nowego źródła resetuje playbackRate do defaultPlaybackRate.
-    const storedRate = readStoredPlaybackRate();
-    audio.defaultPlaybackRate = storedRate;
-    audio.playbackRate = storedRate;
-    playbackRateRef.current = storedRate;
-    setPlaybackRateState(storedRate);
-
-    const persistPosition = (t: number) => {
-      const key = posKeyRef.current;
-      if (!key || pendingRestoreRef.current !== null) return;
-      if (isRestorablePosition(t, audio.duration)) writeStoredPosition(key, t);
-    };
-
-    audio.addEventListener("play", () => {
-      setStatus("playing");
-      // Ogłaszamy start - inne odtwarzacze (PodcastPlayer) się zatrzymają.
-      announcePlayback(playerIdRef.current);
-    });
-    audio.addEventListener("pause", () => {
-      if (!audio.ended) {
-        setStatus("paused");
-        persistPosition(audio.currentTime);
-      }
-    });
-    audio.addEventListener("ended", () => {
-      setStatus("paused");
-      setCurrentTime(0);
-      // Materiał wysłuchany do końca - kasujemy zapamiętaną pozycję.
-      const key = posKeyRef.current;
-      if (key) clearStoredPosition(key);
-    });
-    audio.addEventListener("loadedmetadata", () => {
-      setDuration(audio.duration || 0);
-      // Nowe źródło może zresetować tempo - przywróć preferencję czytelnika.
-      audio.playbackRate = playbackRateRef.current;
-      // Jednorazowe przywrócenie pozycji dla świeżo załadowanego materiału.
-      const restore = pendingRestoreRef.current;
-      if (restore !== null) {
-        if (isRestorablePosition(restore, audio.duration)) {
-          try {
-            audio.currentTime = restore;
-            setCurrentTime(restore);
-          } catch {
-            /* seek może się nie udać dla niektórych źródeł - ignorujemy */
-          }
-        }
-        pendingRestoreRef.current = null;
-      }
-    });
-    audio.addEventListener("timeupdate", () => {
-      setCurrentTime(audio.currentTime);
-      // Throttlowany zapis pozycji (co ~POSITION_SAVE_INTERVAL ms).
-      const now = Date.now();
-      if (now - lastSaveRef.current >= POSITION_SAVE_INTERVAL) {
-        lastSaveRef.current = now;
-        persistPosition(audio.currentTime);
-      }
-    });
-    audio.addEventListener("error", () => {
-      // `src = ""` (zamknięcie playera, odmontowanie) każe przeglądarce
-      // załadować ADRES DOKUMENTU jako media i emituje `error` - to nie jest
-      // błąd odtwarzania, więc nie pokazujemy go czytelnikowi.
-      if (!audio.getAttribute("src")) return;
-      setStatus("error");
-      // Komunikat ze słownika widżetu (w języku materiału), nie stały polski.
-      setError(null);
-    });
-    audioRef.current = audio;
-    return () => {
-      // Pobranie w toku nie ma już komu oddać nagrania - przerywamy je,
-      // zamiast pozwolić mu dokończyć i odłożyć blob do cache po odmontowaniu.
-      fetchAbortRef.current?.abort();
-      audio.pause();
-      audio.removeAttribute("src");
-      audio.load();
-    };
+  const requestEngine = useCallback((command: PendingAudioCommand) => {
+    commandsRef.current.push(command);
+    setPending(true);
+    setLoadError(null);
+    setEngineWanted(true);
   }, []);
 
-  // Arbitraż odtwarzania: gdy zagra inny player, pauzujemy globalny.
-  useEffect(() => {
-    const unsubscribe = subscribePlayback((activeId) => {
-      if (activeId !== playerId) audioRef.current?.pause();
-    });
-    return unsubscribe;
-  }, [playerId]);
-
-  const fetchBlob = useCallback(
-    async (postId: string, lang: "pl" | "en", audioUrl?: string | null): Promise<string> => {
-      const key = cacheKey(postId, lang);
-      const cached = getCachedBlob(key);
-      if (cached) {
-        setTts({
-          stage: "cached",
-          percent: 100,
-          bytes: 0,
-          totalBytes: null,
-          elapsedMs: 0,
-        });
-        return cached;
-      }
-
-      // Szybka zmiana wpisu ⇒ anulujemy poprzednie pobieranie, żeby nie ścigały
-      // się równoległe fetch-e. Zachowujemy zwykły, same-origin POST (bez CORS).
-      fetchAbortRef.current?.abort();
-      const controller = new AbortController();
-      fetchAbortRef.current = controller;
-
-      const startedAt = performance.now();
-      setTts({
-        stage: "preparing",
-        percent: 0,
-        bytes: 0,
-        totalBytes: null,
-        elapsedMs: 0,
-      });
-
-      try {
-        // Wybór źródła: wgrany MP3 (bezpośredni GET) albo TTS (ElevenLabs).
-        // Helper `resolveAudioFetch` gwarantuje, że dla języka z wgranym plikiem
-        // ElevenLabs nie jest wywoływany - kryterium weryfikowane przez testy.
-        const { data: sessionData } = await supabase.auth.getSession();
-        const src = resolveAudioFetch(
-          postId,
-          lang,
-          audioUrl,
-          sessionData.session?.access_token ?? null,
-        );
-        const res = await fetch(src.url, { ...src.init, signal: controller.signal });
-
-        if (!res.ok) {
-          // Wyczerpany limit / rate-limit dostają jednoznaczne, dwujęzyczne
-          // komunikaty (402 = przekroczony budżet TTS, 429 = zbyt częste próby).
-          // Pozostałe kody: bez treści serwera (patrz `AudioHttpError`).
-          if (res.status === 402) {
-            throw new AudioReaderMessage("Wyczerpano limit lektora / TTS quota exceeded");
-          }
-          if (res.status === 429) {
-            throw new AudioReaderMessage("Zbyt wiele prób, spróbuj za chwilę / Too many attempts");
-          }
-          throw new AudioHttpError(res.status);
-        }
-
-        // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
-        const totalHeader = res.headers.get("content-length");
-        const totalBytes = totalHeader ? Number(totalHeader) : null;
-        setTts({
-          stage: "synthesizing",
-          percent: 0,
-          bytes: 0,
-          totalBytes,
-          elapsedMs: performance.now() - startedAt,
-        });
-
-        // Preferuj streaming reader, żeby móc pokazać progress. Fallback do
-        // `res.blob()` gdy body nie jest czytelne (np. stary browser).
-        let blob: Blob;
-        const body = res.body;
-        if (body && typeof body.getReader === "function") {
-          const reader = body.getReader();
-          const chunks: Uint8Array[] = [];
-          let received = 0;
-          // ŚWIADOMIE BEZ FLAGI „ogłoszono streaming". Do 2026-09-14 stała tu
-          // zmienna `announcedStreaming`, ustawiana na `true` przy pierwszym
-          // fragmencie i nigdy niczytana - sugerowała jednorazowe przejście
-          // w etap `streaming`, którego nie ma i którego BYĆ NIE MOŻE:
-          // `setTts` niżej niesie `percent`, `bytes` i `elapsedMs`, czyli jest
-          // aktualizacją POSTĘPU. Zabramkowanie go pierwszym fragmentem
-          // zamroziłoby pasek na zerze. Zostaje wywołanie przy każdym
-          // fragmencie, znika martwy warunek, który obiecywał co innego.
-          for (;;) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            if (value) {
-              chunks.push(value);
-              received += value.byteLength;
-              setTts({
-                stage: "streaming",
-                percent:
-                  totalBytes && totalBytes > 0
-                    ? Math.min(99, Math.round((received / totalBytes) * 100))
-                    : 0,
-                bytes: received,
-                totalBytes,
-                elapsedMs: performance.now() - startedAt,
-              });
-            }
-          }
-          blob = new Blob(chunks as BlobPart[], { type: "audio/mpeg" });
-        } else {
-          blob = await res.blob();
-        }
-
-        const url = URL.createObjectURL(blob);
-        // Cache + zwolnienie starego/eksmitowanego bloba (chronimy aktywny).
-        setCachedBlob(key, url, audioRef.current?.src ?? null);
-        setTts({
-          stage: "ready",
-          percent: 100,
-          bytes: blob.size,
-          totalBytes: totalBytes ?? blob.size,
-          elapsedMs: performance.now() - startedAt,
-        });
-        return url;
-      } catch (e) {
-        // Przerwane przez nowsze żądanie - cicho, nowe pobieranie steruje UI.
-        if (controller.signal.aborted) throw e;
-        setTts({
-          stage: "error",
-          percent: 0,
-          bytes: 0,
-          totalBytes: null,
-          elapsedMs: performance.now() - startedAt,
-        });
-        throw e;
-      } finally {
-        if (fetchAbortRef.current === controller) fetchAbortRef.current = null;
-      }
-    },
-    [],
-  );
-
-  const loadAndPlay = useCallback(
-    async (meta: AudioTrackMeta) => {
-      const audio = audioRef.current;
-      if (!audio) return;
-      // Jeśli ten sam track ⇒ tylko play.
-      if (track && track.postId === meta.postId && track.lang === meta.lang) {
-        try {
-          await audio.play();
-        } catch {
-          /* auto-play może być zablokowany - user musi kliknąć jeszcze raz */
-        }
-        return;
-      }
-      // Zapisz pozycję wychodzącego materiału zanim podmienimy źródło (zmiana
-      // `src` nie zawsze emituje zdarzenie `pause`).
-      if (
-        posKeyRef.current &&
-        !audio.ended &&
-        isRestorablePosition(audio.currentTime, audio.duration)
-      ) {
-        writeStoredPosition(posKeyRef.current, audio.currentTime);
-      }
-      const key = positionKey(meta.postId, meta.lang);
-      setStatus("loading");
-      setError(null);
-      try {
-        const blobUrl = await fetchBlob(meta.postId, meta.lang, meta.audioUrl ?? null);
-        audio.src = blobUrl;
-        // Zaplanuj jednorazowe przywrócenie pozycji po `loadedmetadata`.
-        posKeyRef.current = key;
-        pendingRestoreRef.current = readStoredPosition(key);
-        lastSaveRef.current = 0;
-        setTrack({ ...meta, blobUrl });
-        setCurrentTime(0);
-        setDuration(0);
-        // ODMOWA AUTOPLAY NIE JEST BŁĘDEM POBIERANIA. Odtwarzanie stoi POZA
-        // `try` pobrania, bo iOS i Safari odrzucają `play()` bez gestu
-        // użytkownika - a wtedy nagranie JEST gotowe i wystarczy kliknąć drugi
-        // raz. Wcześniej odmowa wpadała do tego samego `catch` co padnięta sieć
-        // i czytelnik dostawał komunikat o niepowodzeniu przy sprawnym audio.
-        // Pozostałe ścieżki (`toggle`, to samo nagranie drugi raz) pochłaniały
-        // ją od początku - teraz zachowanie jest jednakowe wszędzie.
-        try {
-          await audio.play();
-        } catch {
-          setStatus("paused");
-        }
-      } catch (e) {
-        // Przerwane przez nowszy loadAndPlay - nie pokazujemy błędu.
-        if (e instanceof Error && e.name === "AbortError") return;
-        setStatus("error");
-        setError(e instanceof AudioReaderMessage ? e.message : null);
-      }
-    },
-    [track, fetchBlob],
-  );
-
-  const toggle = useCallback(async () => {
-    const audio = audioRef.current;
-    if (!audio || !track) return;
-    if (audio.paused) {
-      try {
-        await audio.play();
-      } catch {
-        /* noop */
-      }
-    } else {
-      audio.pause();
-    }
-  }, [track]);
-
-  const seek = useCallback((seconds: number) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.currentTime = Math.max(0, Math.min(audio.duration || 0, seconds));
+  const onEngineLoadError = useCallback((error: Error) => {
+    console.error("[global-player] nie udało się załadować silnika audio", error);
+    setLoadError("Nie udało się załadować odtwarzacza / Audio player failed to load");
+    setPending(false);
+    commandsRef.current = [];
   }, []);
 
-  const seekPct = useCallback((pct: number) => {
-    const audio = audioRef.current;
-    if (!audio || !audio.duration) return;
-    audio.currentTime = (Math.max(0, Math.min(100, pct)) / 100) * audio.duration;
-  }, []);
-
-  const skip = useCallback(
-    (deltaSeconds: number) => {
-      const audio = audioRef.current;
-      if (!audio) return;
-      seek(audio.currentTime + deltaSeconds);
-    },
-    [seek],
-  );
-
-  const setPlaybackRate = useCallback((rate: number) => {
-    const clamped = clampPlaybackRate(rate);
-    playbackRateRef.current = clamped;
-    setPlaybackRateState(clamped);
-    writeStoredPlaybackRate(clamped);
-    const audio = audioRef.current;
-    if (audio) {
-      audio.playbackRate = clamped;
-      audio.defaultPlaybackRate = clamped;
-    }
-  }, []);
-
-  const close = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      // Zapisz pozycję zanim wyczyścimy źródło (zdarzenie `pause` bywa
-      // asynchroniczne i currentTime zdąży się wyzerować).
-      const key = posKeyRef.current;
-      if (key && !audio.ended && isRestorablePosition(audio.currentTime, audio.duration)) {
-        writeStoredPosition(key, audio.currentTime);
-      }
-      audio.pause();
-      // Czyścimy źródło bez `src = ""` - pusty string ładuje adres dokumentu
-      // jako media i emituje fałszywy `error`.
-      audio.removeAttribute("src");
-      audio.load();
-    }
-    posKeyRef.current = null;
-    pendingRestoreRef.current = null;
-    setTrack(null);
-    setStatus("idle");
-    setCurrentTime(0);
-    setDuration(0);
-    setError(null);
-  }, []);
-
-  const download = useCallback(
-    async (meta?: AudioTrackMeta) => {
-      const target: AudioTrackMeta | AudioTrackState | null = meta ?? track;
-      if (!target) return;
-      const existingBlob = (target as AudioTrackState).blobUrl;
-      const url =
-        existingBlob ?? (await fetchBlob(target.postId, target.lang, target.audioUrl ?? null));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${sanitizeFilename(target.title)}.mp3`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    },
-    [track, fetchBlob],
-  );
-
-  const isActive = useCallback(
-    (postId: string, lang: "pl" | "en") =>
-      !!track && track.postId === postId && track.lang === lang,
-    [track],
-  );
-
-  // Media Session API - lockscreen / klawisze multimedialne + metadane na
-  // mobile. Feature-detect + no-op na SSR / w nieobsługiwanych przeglądarkach.
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
-    const ms = navigator.mediaSession;
-    if (!track) {
-      ms.metadata = null;
-      ms.playbackState = "none";
-      return;
-    }
-    try {
-      ms.metadata = new MediaMetadata({
-        title: track.title,
-        artist: track.author ?? undefined,
-      });
-    } catch {
-      /* MediaMetadata niedostępne - pomijamy metadane */
-    }
-    ms.playbackState = status === "playing" ? "playing" : "paused";
-    const setHandler = (action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
-      try {
-        ms.setActionHandler(action, handler);
-      } catch {
-        /* akcja nieobsługiwana w tej przeglądarce */
-      }
-    };
-    setHandler("play", () => {
-      void audioRef.current?.play();
-    });
-    setHandler("pause", () => {
-      audioRef.current?.pause();
-    });
-    setHandler("seekbackward", () => {
-      const a = audioRef.current;
-      if (a) seek(a.currentTime - 15);
-    });
-    setHandler("seekforward", () => {
-      const a = audioRef.current;
-      if (a) seek(a.currentTime + 15);
-    });
-    setHandler("seekto", (details) => {
-      if (typeof details.seekTime === "number") seek(details.seekTime);
-    });
-  }, [track, status, seek]);
-
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-
-  const value = useMemo<GlobalPlayerContextValue>(
+  const facade = useMemo<GlobalPlayerContextValue>(
     () => ({
-      status,
-      track,
-      currentTime,
-      duration,
-      progress,
-      error,
-      tts,
-      isActive,
-      loadAndPlay,
-      toggle,
-      seek,
-      seekPct,
-      skip,
-      playbackRate,
-      setPlaybackRate,
-      close,
-      download,
+      ...IDLE_VALUE,
+      status: loadError ? "error" : pending ? "loading" : "idle",
+      error: loadError,
+      tts: pending ? { ...INITIAL_TTS, stage: "preparing" } : INITIAL_TTS,
+      loadAndPlay: async (meta) => requestEngine({ kind: "play", meta }),
+      // Bez `meta` nie ma czego pobrać - silnik nie został jeszcze załadowany,
+      // więc nie ma też bieżącego nagrania.
+      download: async (meta) => {
+        if (meta) requestEngine({ kind: "download", meta });
+      },
+      playbackRate: facadeRate,
+      // Preferencję tempa utrwala dopiero silnik (wspólny zapis w localStorage
+      // dzieje się przy pierwszym nagraniu) - tu wystarczy odbicie w UI.
+      setPlaybackRate: (rate) => setFacadeRate(clampPlaybackRate(rate)),
+      close: () => {
+        setPending(false);
+        setLoadError(null);
+      },
     }),
-    [
-      status,
-      track,
-      currentTime,
-      duration,
-      progress,
-      error,
-      tts,
-      isActive,
-      loadAndPlay,
-      toggle,
-      seek,
-      seekPct,
-      skip,
-      playbackRate,
-      setPlaybackRate,
-      close,
-      download,
-    ],
+    [facadeRate, loadError, pending, requestEngine],
   );
 
-  return <GlobalPlayerContext.Provider value={value}>{children}</GlobalPlayerContext.Provider>;
+  // Stałe DWA sloty dzieci (`null | silnik`, dzieci), żeby montaż silnika nie
+  // przesunął indeksu `children` i nie przemontował poddrzewa strony.
+  return (
+    <GlobalPlayerContext.Provider value={engineValue ?? facade}>
+      {engineWanted ? (
+        <EngineLoadGate onLoadError={onEngineLoadError}>
+          <Suspense fallback={null}>
+            <GlobalAudioEngine onValue={setEngineValue} commandsRef={commandsRef} />
+          </Suspense>
+        </EngineLoadGate>
+      ) : null}
+      {children}
+    </GlobalPlayerContext.Provider>
+  );
 }
 
 export function useGlobalAudioPlayer(): GlobalPlayerContextValue {
   const ctx = useContext(GlobalPlayerContext);
-  if (!ctx) {
-    // Fallback no-op - używane w SSR / poza providerem, żeby nie wybuchać.
-    return {
-      status: "idle",
-      track: null,
-      currentTime: 0,
-      duration: 0,
-      progress: 0,
-      error: null,
-      tts: INITIAL_TTS,
-      isActive: () => false,
-
-      loadAndPlay: async () => {},
-      toggle: async () => {},
-      seek: () => {},
-      seekPct: () => {},
-      skip: () => {},
-      playbackRate: DEFAULT_PLAYBACK_RATE,
-      setPlaybackRate: () => {},
-      close: () => {},
-      download: async () => {},
-    };
-  }
-  return ctx;
+  // Fallback no-op - używane w SSR / poza providerem, żeby nie wybuchać.
+  return ctx ?? IDLE_VALUE;
 }
 
 export function formatAudioTime(sec: number): string {

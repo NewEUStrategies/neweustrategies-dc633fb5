@@ -44,11 +44,13 @@ import {
   plansByTierKey,
   planTierBenefits,
   recurringPlans,
-  sanitizeAudienceKey,
   sortTiers,
   tiersForAudience,
   type BillingInterval,
 } from "@/lib/pricing/selectors";
+// Z `audienceKey`, nie z `selectors`: `validateSearch` zostaje w shellu trasy
+// (chunk wejściowy), a `selectors` ciągnie całą logikę cen i `billing/tiers`.
+import { sanitizeAudienceKey } from "@/lib/pricing/audienceKey";
 import { AudienceSwitcher } from "@/components/pricing/molecules/AudienceSwitcher";
 import { audiencePanelId, audienceTabId } from "@/components/pricing/audienceMeta";
 import { IntervalToggle } from "@/components/pricing/molecules/IntervalToggle";

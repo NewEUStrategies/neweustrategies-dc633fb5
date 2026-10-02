@@ -698,7 +698,7 @@ function ConsentCheckboxField({
   const [checked, setChecked] = useState(false);
   return (
     <div className="sm:col-span-2">
-      <label className="widget-align-row nl-fineprint flex cursor-pointer items-center gap-2">
+      <label className="widget-align-row nl-fineprint nl-check-label flex cursor-pointer items-center gap-2">
         <Checkbox
           checked={checked}
           onCheckedChange={(v) => setChecked(v === true)}

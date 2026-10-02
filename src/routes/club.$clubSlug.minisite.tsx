@@ -13,7 +13,8 @@ import { useCurrentTier } from "@/lib/billing/tiers";
 import { useClubBySlug, useClubThreads, useMyClubInvitations } from "@/lib/clubs/useClubs";
 import { resolveClubMinisiteAccess } from "@/lib/clubs/minisiteAccess";
 import { ClubMinisite } from "@/components/clubs/organisms/ClubMinisite";
-import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
+import { buildClubHead } from "@/lib/clubs/clubHead";
+import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/$clubSlug/minisite")({

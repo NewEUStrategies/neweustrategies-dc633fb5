@@ -326,7 +326,10 @@ export function PostListView({
             )}
             <div className="min-w-0">
               {title(p) && (
-                <h3 className="cms-post-title line-clamp-2" style={tStyle}>
+                <h3
+                  className="cms-post-title cms-post-title--delegated line-clamp-2"
+                  style={tStyle}
+                >
                   <TitleSpan title={title(p)} post={p} lang={lang} />
                 </h3>
               )}
@@ -406,7 +409,10 @@ export function PostListView({
                 className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-0" : "pr-10 sm:pr-12 lg:pr-0"}`}
               >
                 {title(p) && (
-                  <h3 className="cms-post-title line-clamp-3" style={tStyle}>
+                  <h3
+                    className="cms-post-title cms-post-title--delegated line-clamp-3"
+                    style={tStyle}
+                  >
                     <TitleSpan title={title(p)} post={p} lang={lang} />
                   </h3>
                 )}
@@ -490,7 +496,10 @@ export function PostListView({
                 className={`relative z-10 ${idxSide === "left" ? "pl-10 sm:pl-12 lg:pl-1" : "pr-10 sm:pr-12 lg:pr-1"}`}
               >
                 {title(p) && (
-                  <h3 className="cms-post-title line-clamp-3" style={tStyle}>
+                  <h3
+                    className="cms-post-title cms-post-title--delegated line-clamp-3"
+                    style={tStyle}
+                  >
                     <TitleSpan title={title(p)} post={p} lang={lang} />
                   </h3>
                 )}
@@ -539,7 +548,7 @@ export function PostListView({
               />
             )}
             {title(p) && (
-              <h3 className="cms-post-title line-clamp-3" style={tStyle}>
+              <h3 className="cms-post-title cms-post-title--delegated line-clamp-3" style={tStyle}>
                 <TitleSpan title={title(p)} post={p} lang={lang} />
               </h3>
             )}
@@ -575,7 +584,7 @@ export function PostListView({
           )}
           {title(lead) && (
             <h3
-              className="cms-post-title text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
+              className="cms-post-title cms-post-title--delegated text-[1.35em] line-clamp-3 transition-colors group-hover:text-brand"
               style={tStyle}
             >
               <TitleSpan title={title(lead)} post={lead} lang={lang} />
@@ -611,7 +620,7 @@ export function PostListView({
                 )}
                 {title(p) && (
                   <h3
-                    className="cms-post-title line-clamp-3 transition-colors group-hover:text-brand"
+                    className="cms-post-title cms-post-title--delegated line-clamp-3 transition-colors group-hover:text-brand"
                     style={tStyle}
                   >
                     <TitleSpan title={title(p)} post={p} lang={lang} />
@@ -652,7 +661,7 @@ export function PostListView({
             <div className="min-w-0 flex flex-col justify-center py-0.5">
               {title(p) && (
                 <h3
-                  className="cms-post-title line-clamp-2 transition-colors group-hover:text-brand"
+                  className="cms-post-title cms-post-title--delegated line-clamp-2 transition-colors group-hover:text-brand"
                   style={tStyle}
                 >
                   <TitleSpan title={title(p)} post={p} lang={lang} />
@@ -883,7 +892,7 @@ function PostCard({
         <div className="absolute inset-x-0 bottom-0 p-3 sm:p-4 text-white">
           {title && (
             <h3
-              className="cms-post-title line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
+              className="cms-post-title cms-post-title--delegated line-clamp-2 sm:line-clamp-3 drop-shadow-[0_1px_2px_rgba(0,0,0,0.55)]"
               style={titleStyle}
             >
               <TitleSpan title={title} post={p} lang={lang} />
@@ -913,7 +922,7 @@ function PostCard({
           />
         )}
         {title && (
-          <h3 className="cms-post-title line-clamp-2" style={titleStyle}>
+          <h3 className="cms-post-title cms-post-title--delegated line-clamp-2" style={titleStyle}>
             <TitleSpan title={title} post={p} lang={lang} />
           </h3>
         )}
@@ -943,7 +952,10 @@ function PostCard({
       )}
       <div className="p-3">
         {title && (
-          <h3 className="cms-post-title mb-1.5 line-clamp-2" style={titleStyle}>
+          <h3
+            className="cms-post-title cms-post-title--delegated mb-1.5 line-clamp-2"
+            style={titleStyle}
+          >
             <TitleSpan title={title} post={p} lang={lang} />
           </h3>
         )}

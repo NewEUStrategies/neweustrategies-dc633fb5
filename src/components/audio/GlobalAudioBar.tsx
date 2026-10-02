@@ -267,7 +267,7 @@ export function GlobalAudioBar() {
                     className={[
                       "relative h-4 flex-1 flex items-center group",
                       "rounded-full",
-                      "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand has-[:focus-visible]:ring-offset-2 has-[:focus-visible]:ring-offset-background",
+                      "focus-within:ring-2 focus-within:ring-brand focus-within:ring-offset-2 focus-within:ring-offset-background",
                     ].join(" ")}
                   >
                     <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-muted" />

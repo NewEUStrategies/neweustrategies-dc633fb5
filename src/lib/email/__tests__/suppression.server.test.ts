@@ -16,6 +16,7 @@
 // o tłumienia przed wysyłką, z jakim argumentem pyta i co robi z odpowiedzią -
 // w tym z odpowiedzią BŁĘDNĄ.
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { freezeClock } from "@/test/time";
 
 import {
   applyDeliveryEvent,
@@ -28,6 +29,10 @@ import {
   unsubscribeByToken,
   type ApplyDeliveryEventInput,
 } from "../suppression.server";
+
+// Zegar zamrożony: `occurredAt` zdarzeń dostawcy to literał daty, a kod pod
+// testem stempluje czas `new Date()` - bramka `check:clock-freeze`.
+freezeClock();
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 

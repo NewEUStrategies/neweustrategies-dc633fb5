@@ -34,15 +34,15 @@ import {
   ClubAnchorPicker,
   type ClubAnchorValue,
 } from "@/components/clubs/molecules/ClubAnchorPicker";
-import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
+import { buildClubHead } from "@/lib/clubs/clubHead";
+import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { newIdempotencyKey } from "@/lib/http/idempotency";
 import { useThreadDraft } from "@/lib/clubs/useThreadDraft";
 import { formatDateTime, uiLang } from "@/lib/i18n/format";
-import {
-  CLUB_THREAD_KINDS,
-  type ClubAttributionMode,
-  type ClubThreadKind,
-} from "@/lib/clubs/types";
+import type { ClubAttributionMode } from "@/lib/clubs/types";
+// Z `threadKinds`, nie z `types`: `validateSearch` zostaje w shellu trasy
+// (chunk wejściowy), a cały `types.ts` to 13 KB kodu klubowego dla każdego.
+import { CLUB_THREAD_KINDS, type ClubThreadKind } from "@/lib/clubs/threadKinds";
 // Reguły kompozytora (progi pól, dziedziczenie atrybucji, widoczność pól,
 // payload mutacji) mieszkają w czystym module - patrz jego nagłówek.
 import {

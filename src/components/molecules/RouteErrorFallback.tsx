@@ -3,7 +3,9 @@
 // wyglądają identycznie i zawierają instrukcję „co kliknąć”.
 import { useEffect } from "react";
 import { type ErrorComponentProps } from "@tanstack/react-router";
-import { FriendlyErrorPage } from "@/components/error/FriendlyErrorPage";
+// Leniwa granica - jeden statyczny import ekranu błędu z pliku trasy wraca
+// do chunku wejściowego razem z całym `routeTree.gen.ts`.
+import { LazyFriendlyErrorPage } from "@/components/error/LazyFriendlyErrorPage";
 
 interface RouteErrorFallbackProps extends ErrorComponentProps {
   /** Opcjonalny nagłówek nad komunikatem błędu (np. "Nie udało się załadować profilu"). */
@@ -24,7 +26,7 @@ export function RouteErrorFallback({
   }, [error]);
 
   return (
-    <FriendlyErrorPage
+    <LazyFriendlyErrorPage
       error={error}
       reset={reset}
       title={title}
