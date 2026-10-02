@@ -77,11 +77,6 @@ interface IdleWindow {
   cancelIdleCallback?: (handle: number) => void;
 }
 
-interface LongTaskLike {
-  startTime: number;
-  duration: number;
-}
-
 function now(): number {
   return typeof performance !== "undefined" && typeof performance.now === "function"
     ? performance.now()
@@ -101,7 +96,9 @@ function observeLongTasks(): { lastEnd: () => number; disconnect: () => void } {
   }
   try {
     const observer = new PerformanceObserver((list) => {
-      for (const entry of list.getEntries() as unknown as LongTaskLike[]) {
+      // `PerformanceEntry` niesie `startTime` i `duration` - rzutowanie zbędne
+      // (`check:unknown-casts`).
+      for (const entry of list.getEntries()) {
         lastEnd = Math.max(lastEnd, entry.startTime + entry.duration);
       }
     });

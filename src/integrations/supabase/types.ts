@@ -17620,6 +17620,7 @@ export type Database = {
       }
       post_views: {
         Row: {
+          dwell_ms: number | null
           id: string
           post_id: string
           tenant_id: string
@@ -17628,6 +17629,7 @@ export type Database = {
           viewer_hash: string
         }
         Insert: {
+          dwell_ms?: number | null
           id?: string
           post_id: string
           tenant_id: string
@@ -17636,6 +17638,7 @@ export type Database = {
           viewer_hash: string
         }
         Update: {
+          dwell_ms?: number | null
           id?: string
           post_id?: string
           tenant_id?: string
@@ -30734,6 +30737,15 @@ export type Database = {
         }
         Returns: number
       }
+      record_post_dwell: {
+        Args: {
+          _dwell_ms: number
+          _post_id: string
+          _tenant_id: string
+          _viewer_hash: string
+        }
+        Returns: boolean
+      }
       record_post_tts_rendition: {
         Args: {
           _byte_size: number
@@ -30789,6 +30801,13 @@ export type Database = {
           redemption_count: number
           redemptions_remaining: number
           valid: boolean
+        }[]
+      }
+      related_posts_dwell: {
+        Args: { _days?: number; _limit?: number }
+        Returns: {
+          median_dwell_ms: number
+          post_id: string
         }[]
       }
       related_posts_signals: { Args: { _since_days?: number }; Returns: Json }

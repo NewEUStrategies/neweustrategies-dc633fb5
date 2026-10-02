@@ -4619,6 +4619,28 @@ export default defineConfig({
           lines: 100,
           branches: 100,
         },
+        // SYGNAŁ DWELL REKOMENDACJI (zlecenie modułu 1, A1): pomiar czasu
+        // czytania w przeglądarce, wspólny kontrakt beaconu i trasa zapisu.
+        // Podłogi z pomiaru, zaokrąglone w dół: pomiar i kontrakt 100%, trasa
+        // 95,83% instrukcji i 92,85% gałęzi.
+        "src/lib/views/postDwell.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/views/postDwellWire.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/api/public/post-dwell.ts": {
+          statements: 95,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
         // TRASA `/api/tts`: 22,72% -> 100% linii (2026-10-02). Do tej daty
         // testowany był wyłącznie `normalizeTtsInput`; dziś `-tts.test.ts`
         // przechodzi cały uchwyt POST - sesję, RPC `is_staff`, dwuoknowy

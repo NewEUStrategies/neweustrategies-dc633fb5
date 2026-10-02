@@ -489,8 +489,11 @@ export const FEATURES_3 = [
     // 6 -> 7: dołożony `themed.ts` (rozstrzyganie wartości per tryb light/dark).
     // Bez niego wiersz o kolorach nie zawiera reguł wyboru koloru w ciemnym
     // motywie.
+    // 7 -> 8: dołożony `globalColorsValue.ts` (typ wartości i pusty domyślny
+    // wydzielone z `globalColors.ts` dla chunku wejściowego, 81d84b1). To ta
+    // sama wartość kolorów globalnych, tylko w lżejszym module.
     patterns: [
-      /^src\/lib\/builder\/(designTokens|globalColors|cssColor|autoInvertColor|liveTypography|typographyCss|themed)\.ts$/,
+      /^src\/lib\/builder\/(designTokens|globalColors|globalColorsValue|cssColor|autoInvertColor|liveTypography|typographyCss|themed)\.ts$/,
     ],
   },
   {

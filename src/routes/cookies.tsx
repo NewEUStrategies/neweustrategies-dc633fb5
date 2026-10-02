@@ -81,12 +81,12 @@ const CATEGORIES: ReadonlyArray<CategoryCopy> = [
     examples: {
       pl: [
         "Google Analytics 4 (_ga, _gid)",
-        "post_views (własna baza)",
+        "post_views (własna baza, w tym czas aktywnego czytania wpisu)",
         "nes.event-funnel.sent (sessionStorage, lejek wydarzenia)",
       ],
       en: [
         "Google Analytics 4 (_ga, _gid)",
-        "post_views (own database)",
+        "post_views (own database, including active reading time on the article)",
         "nes.event-funnel.sent (sessionStorage, event funnel)",
       ],
     },

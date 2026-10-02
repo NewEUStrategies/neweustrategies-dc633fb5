@@ -31,6 +31,11 @@ export function useRecordPostView(postId: string | undefined | null, authorId?: 
   useEffect(() => {
     if (!postId || fired.current === postId) return;
     let t: number | undefined;
+    // Pomiar czasu czytania tej odsłony (sygnał dwell rekomendacji) - stan
+    // WYŁĄCZNIE w domknięciu efektu, nie w module: każdy wpis ma własny pomiar,
+    // a odmontowanie albo przejście na inny wpis domyka i wysyła swój.
+    let stopDwell: (() => void) | undefined;
+    let disposed = false;
     // Strona prerenderowana spekulacyjnie (Speculation Rules) nie jest
     // odsłoną - odliczanie rusza dopiero po aktywacji (prerenderingchange).
     const stopPrerenderWait = afterPrerendering(() => {
@@ -53,9 +58,22 @@ export function useRecordPostView(postId: string | undefined | null, authorId?: 
           // rank by reloading it (best-effort; anon views still count as designed).
           const isAuthor = !!userId && !!authorIdRef.current && userId === authorIdRef.current;
           if (!isAuthor) {
-            recordRef.current({ data: { postId, viewerHash: getViewerHash() } }).catch(() => {
+            const viewerHash = getViewerHash();
+            recordRef.current({ data: { postId, viewerHash } }).catch(() => {
               /* silent: view counts are best-effort */
             });
+            // Czas AKTYWNEGO czytania zgłaszamy dla TEJ odsłony i pod TYM samym
+            // `viewer_hash` - stąd zgoda, wykluczenie autora i identyfikator są
+            // dokładnie te same co przy liczniku, bez żadnego nowego klucza.
+            // Moduł jedzie leniwie: ten hook siedzi w chunku wejściowym trasy
+            // wpisu, który stoi tuż pod progiem `check:bundle`.
+            void import("@/lib/views/postDwell")
+              .then(({ startPostDwell }) => {
+                if (!disposed) stopDwell = startPostDwell(postId, viewerHash);
+              })
+              .catch(() => {
+                /* silent: dwell is best-effort, like the view itself */
+              });
           }
           // The view counter runs as anon and can't attribute the read to the user,
           // so record the signed-in user's read history here (owner-RLS, authed
@@ -90,8 +108,10 @@ export function useRecordPostView(postId: string | undefined | null, authorId?: 
       }, 1500);
     });
     return () => {
+      disposed = true;
       stopPrerenderWait();
       if (t !== undefined) window.clearTimeout(t);
+      stopDwell?.();
     };
   }, [postId]);
 }

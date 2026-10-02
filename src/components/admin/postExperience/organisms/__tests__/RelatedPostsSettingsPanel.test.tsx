@@ -393,6 +393,32 @@ describe("RelatedPostsSettingsPanel - co idzie do bazy", () => {
     expect(savedRow().weight_categories).toBe(RELATED_POSTS_DEFAULTS.weight_categories);
   });
 
+  it("suwak DWELL jest czynny i jego waga trafia do bazy - sygnał ma źródło danych", async () => {
+    // Do 2026-10-02 ten suwak był wyszarzony z powodem „brak źródła", bo silnik
+    // mnożył jego wagę przez pusty sygnał. Teraz źródłem jest mediana
+    // `post_views.dwell_ms`, więc pokrętło musi DZIAŁAĆ jak sześć pozostałych.
+    renderPanel({ weight_dwell: 2 });
+    fireEvent.mouseDown(tab("engine"));
+    const dwell = screen.getByRole("slider", { name: "adminRelatedPosts.engine.dwell" });
+    expect(dwell).not.toHaveAttribute("data-disabled");
+    expect(dwell).toHaveAttribute("tabindex", "0");
+    expect(screen.queryByText("adminRelatedPosts.engine.dwellInactive")).toBeNull();
+    fireEvent.keyDown(dwell, { key: "ArrowRight" });
+    fireEvent.click(
+      screen.getByRole("button", { name: /adminRelatedPosts\.actions\.saveWeights/ }),
+    );
+    await waitFor(() => expect(writeChains()).toHaveLength(1));
+    expect(savedRow().weight_dwell).toBe(3);
+  });
+
+  it("ŻADEN z siedmiu suwaków silnika nie jest wyłączony", () => {
+    renderPanel();
+    fireEvent.mouseDown(tab("engine"));
+    const thumbs = screen.getAllByRole("slider");
+    expect(thumbs).toHaveLength(7);
+    for (const thumb of thumbs) expect(thumb).not.toHaveAttribute("data-disabled");
+  });
+
   it("wyjątek POZA klasą błędu zapisu też daje komunikat, a nie cichą porażkę", async () => {
     // `rpc` odrzucone (padła sieć, wygasł token) nie przechodzi przez
     // `RelatedPostsSaveError`, więc panel musi mieć gałąź awaryjną.
