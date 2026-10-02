@@ -1,6 +1,10 @@
 // Admin: zarządzanie programami/projektami/departamentami huba eksperta oraz
 // przypisywaniem ekspertów (członków) z funkcją PL/EN. Zapisy idą wprost do
 // tabel programs / program_members - RLS wymaga roli admin/editor tenanta.
+//
+// UWAGA: `research_programs` (panel /admin/research-programs) jest od migracji
+// 20260815110844 WIDOKIEM na `programs` - wspólne reguły zapisu obu paneli
+// mieszkają w `lib/programs/adminForm.ts`.
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,8 +33,17 @@ import {
 import { Plus, Trash2, Pencil, Users, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/appDialogs";
+import {
+  PROGRAM_SLUG_PATTERN,
+  bindDraft,
+  invalidateProgramReaders,
+  writeOrToast,
+} from "@/lib/programs/adminForm";
 import { ensureI18n as ensureExpertsI18n } from "@/lib/i18n-experts";
 import { ensureI18n as ensureAdminProgramsI18n } from "@/lib/i18n-admin-programs";
+// `programs.loadError` - komunikat nieudanego odczytu listy programów (ten sam
+// wiersz `programs` czyta panel landingów; bez dublowania klucza w słowniku).
+import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
 export const Route = createFileRoute("/admin/programs")({
   component: AdminPrograms,
 });
@@ -58,6 +71,15 @@ interface MemberRow {
   avatar_url: string | null;
 }
 
+/** Wersja robocza przypisania; role przycinane przy zapisie, puste -> NULL. */
+interface MemberDraft {
+  user_id: string;
+  role_pl: string;
+  role_en: string;
+}
+
+const EMPTY_MEMBER: MemberDraft = { user_id: "", role_pl: "", role_en: "" };
+
 interface UserOption {
   id: string;
   display_name: string | null;
@@ -79,6 +101,7 @@ function AdminPrograms() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureExpertsI18n();
   ensureAdminProgramsI18n();
+  ensureProgramsI18n();
   const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const tp = (k: string, opts?: Record<string, unknown>) => t(`adminPrograms.${k}`, opts);
@@ -93,6 +116,8 @@ function AdminPrograms() {
         .select(
           "id, slug, name_pl, name_en, kind, description_pl, description_en, is_active, sort_order",
         )
+        // Klucz cache niesie `tenantId` - zapytanie mówi to samo jawnie.
+        .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data ?? []) as ProgramRow[];
@@ -103,6 +128,7 @@ function AdminPrograms() {
   const [form, setForm] = useState<Omit<ProgramRow, "id">>(EMPTY_PROGRAM);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [membersFor, setMembersFor] = useState<ProgramRow | null>(null);
+  const field = bindDraft(form, setForm, "p");
 
   const openCreate = () => {
     setEditing(null);
@@ -117,7 +143,7 @@ function AdminPrograms() {
   };
 
   const saveProgram = async () => {
-    if (!/^[a-z0-9-]{2,80}$/.test(form.slug)) {
+    if (!PROGRAM_SLUG_PATTERN.test(form.slug)) {
       toast.error(tp("validation.slug"));
       return;
     }
@@ -126,32 +152,31 @@ function AdminPrograms() {
       return;
     }
     const payload = { ...form, tenant_id: tenantId };
-    const res = editing
-      ? await supabase.from("programs").update(payload).eq("id", editing.id)
-      : await supabase.from("programs").insert(payload);
-    if (res.error) {
-      toast.error(res.error.message);
-      return;
-    }
+    const saved = await writeOrToast(
+      editing
+        ? supabase.from("programs").update(payload).eq("id", editing.id)
+        : supabase.from("programs").insert(payload),
+    );
+    if (!saved) return;
     toast.success(t("expert.saved"));
     setDialogOpen(false);
-    qc.invalidateQueries({ queryKey: ["admin-programs"] });
-    qc.invalidateQueries({ queryKey: ["public", "experts-directory"] });
+    invalidateProgramReaders(qc);
   };
 
   const removeProgram = async (p: ProgramRow) => {
     const ok = await confirmDialog({
       title: tp("remove.title"),
       description: tp("remove.description", { name: lang === "en" ? p.name_en : p.name_pl }),
+      // Usunięcie kaskaduje: przypisania ekspertów ORAZ landing programu
+      // (zespół, projekty, partnerzy, materiały) - ten sam wiersz `programs`.
+      destructive: true,
     });
     if (!ok) return;
-    const { error } = await supabase.from("programs").delete().eq("id", p.id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
+    if (!(await writeOrToast(supabase.from("programs").delete().eq("id", p.id)))) return;
     toast.success(t("expert.saved"));
-    qc.invalidateQueries({ queryKey: ["admin-programs"] });
+    // Ten sam zestaw co przy zapisie: usunięty program znika też z filtra
+    // katalogu ekspertów i z listy tagowania w edytorze wpisu.
+    invalidateProgramReaders(qc);
   };
 
   const KIND_LABEL: Record<ProgramKind, string> = {
@@ -182,6 +207,15 @@ function AdminPrograms() {
             <div key={i} className="h-16 animate-pulse rounded-md bg-muted/60" />
           ))}
         </div>
+      ) : programsQ.isError ? (
+        // Odmowa odczytu to nie „brak programów" - stan pusty kazałby redakcji
+        // dodać program, który już istnieje (konflikt slugu).
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/5 p-4 text-sm"
+        >
+          {t("programs.loadError")}
+        </p>
       ) : (programsQ.data ?? []).length === 0 ? (
         <p className="rounded-md border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
           {tp("empty")}
@@ -233,40 +267,24 @@ function AdminPrograms() {
           </DialogHeader>
           <div className="grid gap-3">
             <div className="grid gap-1.5">
-              <Label htmlFor="p-slug">Slug</Label>
-              <Input
-                id="p-slug"
-                value={form.slug}
-                onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                placeholder="np. bezpieczenstwo-europejskie"
-              />
+              <Label htmlFor={field.id("slug")}>Slug</Label>
+              <Input {...field.text("slug")} placeholder="np. bezpieczenstwo-europejskie" />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label htmlFor="p-name-pl">{tp("dialog.namePl")}</Label>
-                <Input
-                  id="p-name-pl"
-                  value={form.name_pl}
-                  onChange={(e) => setForm({ ...form, name_pl: e.target.value })}
-                />
+                <Label htmlFor={field.id("name_pl")}>{tp("dialog.namePl")}</Label>
+                <Input {...field.text("name_pl")} />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="p-name-en">{tp("dialog.nameEn")}</Label>
-                <Input
-                  id="p-name-en"
-                  value={form.name_en}
-                  onChange={(e) => setForm({ ...form, name_en: e.target.value })}
-                />
+                <Label htmlFor={field.id("name_en")}>{tp("dialog.nameEn")}</Label>
+                <Input {...field.text("name_en")} />
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5">
-                <Label>{tp("dialog.kindLabel")}</Label>
-                <Select
-                  value={form.kind}
-                  onValueChange={(v) => setForm({ ...form, kind: v as ProgramKind })}
-                >
-                  <SelectTrigger>
+                <Label htmlFor={field.id("kind")}>{tp("dialog.kindLabel")}</Label>
+                <Select {...field.choice("kind")}>
+                  <SelectTrigger id={field.id("kind")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -277,38 +295,20 @@ function AdminPrograms() {
                 </Select>
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="p-order">{tp("dialog.order")}</Label>
-                <Input
-                  id="p-order"
-                  type="number"
-                  value={form.sort_order}
-                  onChange={(e) => setForm({ ...form, sort_order: Number(e.target.value) || 0 })}
-                />
+                <Label htmlFor={field.id("sort_order")}>{tp("dialog.order")}</Label>
+                <Input type="number" {...field.number("sort_order")} />
               </div>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="p-desc-pl">{tp("dialog.descPl")}</Label>
-              <Textarea
-                id="p-desc-pl"
-                rows={2}
-                value={form.description_pl ?? ""}
-                onChange={(e) => setForm({ ...form, description_pl: e.target.value })}
-              />
+              <Label htmlFor={field.id("description_pl")}>{tp("dialog.descPl")}</Label>
+              <Textarea rows={2} {...field.text("description_pl")} />
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="p-desc-en">{tp("dialog.descEn")}</Label>
-              <Textarea
-                id="p-desc-en"
-                rows={2}
-                value={form.description_en ?? ""}
-                onChange={(e) => setForm({ ...form, description_en: e.target.value })}
-              />
+              <Label htmlFor={field.id("description_en")}>{tp("dialog.descEn")}</Label>
+              <Textarea rows={2} {...field.text("description_en")} />
             </div>
             <label className="flex items-center gap-2 text-sm">
-              <Switch
-                checked={form.is_active}
-                onCheckedChange={(v) => setForm({ ...form, is_active: v })}
-              />
+              <Switch {...field.flag("is_active")} />
               {tp("dialog.active")}
             </label>
           </div>
@@ -344,9 +344,8 @@ function ProgramMembersDialog({
   const { t } = useTranslation();
   const tp = (k: string) => t(`adminPrograms.${k}`);
   const qc = useQueryClient();
-  const [addUserId, setAddUserId] = useState<string>("");
-  const [rolePl, setRolePl] = useState("");
-  const [roleEn, setRoleEn] = useState("");
+  const [draft, setDraft] = useState<MemberDraft>(EMPTY_MEMBER);
+  const field = bindDraft(draft, setDraft, "pm");
 
   const membersQ = useQuery({
     queryKey: ["admin-program-members", program.id],
@@ -414,38 +413,35 @@ function ProgramMembersDialog({
   );
   const candidates = (candidatesQ.data ?? []).filter((u) => !assignedIds.has(u.id));
 
+  // Przypisanie eksperta zmienia DWIE powierzchnie publiczne: jego stronę
+  // i katalog (filtr po programie) - dodanie i wypisanie unieważniają to samo.
+  const invalidateMemberReaders = () => {
+    void qc.invalidateQueries({ queryKey: ["admin-program-members", program.id] });
+    void qc.invalidateQueries({ queryKey: ["public", "expert"] });
+    void qc.invalidateQueries({ queryKey: ["public", "experts-directory"] });
+  };
+
   const addMember = async () => {
-    if (!addUserId) return;
-    const { error } = await supabase.from("program_members").insert({
+    if (!draft.user_id) return;
+    const request = supabase.from("program_members").insert({
       program_id: program.id,
-      user_id: addUserId,
-      role_pl: rolePl.trim() || null,
-      role_en: roleEn.trim() || null,
+      user_id: draft.user_id,
+      role_pl: draft.role_pl.trim() || null,
+      role_en: draft.role_en.trim() || null,
     });
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setAddUserId("");
-    setRolePl("");
-    setRoleEn("");
-    qc.invalidateQueries({ queryKey: ["admin-program-members", program.id] });
-    qc.invalidateQueries({ queryKey: ["public", "expert"] });
-    qc.invalidateQueries({ queryKey: ["public", "experts-directory"] });
+    if (!(await writeOrToast(request))) return;
+    setDraft(EMPTY_MEMBER);
+    invalidateMemberReaders();
   };
 
   const removeMember = async (userId: string) => {
-    const { error } = await supabase
+    const request = supabase
       .from("program_members")
       .delete()
       .eq("program_id", program.id)
       .eq("user_id", userId);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["admin-program-members", program.id] });
-    qc.invalidateQueries({ queryKey: ["public", "expert"] });
+    if (!(await writeOrToast(request))) return;
+    invalidateMemberReaders();
   };
 
   return (
@@ -491,7 +487,7 @@ function ProgramMembersDialog({
 
         <div className="mt-2 grid gap-2 rounded-md border border-dashed border-border p-3">
           <Label className="text-sm font-medium">{tp("membersDialog.addExpert")}</Label>
-          <Select value={addUserId} onValueChange={setAddUserId}>
+          <Select {...field.choice("user_id")}>
             <SelectTrigger>
               <SelectValue placeholder={tp("membersDialog.selectUser")} />
             </SelectTrigger>
@@ -504,18 +500,10 @@ function ProgramMembersDialog({
             </SelectContent>
           </Select>
           <div className="grid gap-2 sm:grid-cols-2">
-            <Input
-              placeholder={tp("membersDialog.rolePl")}
-              value={rolePl}
-              onChange={(e) => setRolePl(e.target.value)}
-            />
-            <Input
-              placeholder={tp("membersDialog.roleEn")}
-              value={roleEn}
-              onChange={(e) => setRoleEn(e.target.value)}
-            />
+            <Input placeholder={tp("membersDialog.rolePl")} {...field.text("role_pl")} />
+            <Input placeholder={tp("membersDialog.roleEn")} {...field.text("role_en")} />
           </div>
-          <Button size="sm" disabled={!addUserId} onClick={() => void addMember()}>
+          <Button size="sm" disabled={!draft.user_id} onClick={() => void addMember()}>
             <Plus className="mr-1 h-4 w-4" />
             {tp("membersDialog.assign")}
           </Button>

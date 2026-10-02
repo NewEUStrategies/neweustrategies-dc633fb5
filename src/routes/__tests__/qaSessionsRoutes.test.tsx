@@ -44,7 +44,7 @@
 //   WŁASNY kontrakt (loader, `head()`, 404, mutacje), który wykonuje się
 //   niezależnie od tego, czy rodzic renderuje dziecko.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
   /** Wiersze `qa_sessions` ze WSZYSTKICH obszarów roboczych. */
@@ -57,6 +57,8 @@ const h = vi.hoisted(() => ({
   settings: {} as Record<string, unknown>,
   /** Opóźnienie odczytu `site_settings` w ms - POWOLNOŚĆ, nie awaria. */
   settingsDelayMs: 0,
+  /** Zapora odczytu sesji po slugu - odpowiedź czeka, aż test ją zwolni. */
+  sessionGate: null as Promise<void> | null,
   /** Tenant PRZEGLĄDANEJ domeny - atrapa polityki `public_tenant_id()`. */
   tenantId: "tenant-a",
   /** Tabele i RPC, których wywołanie ma paść (blip backendu). */
@@ -119,7 +121,8 @@ vi.mock("@/integrations/supabase/client", async () => {
     const eq = filters(chain.calls);
     if (eq.has("slug")) {
       h.reads.push("qa_sessions:slug");
-      return ok(visible.find((row) => row.slug === eq.get("slug")) ?? null);
+      const found = ok(visible.find((row) => row.slug === eq.get("slug")) ?? null);
+      return h.sessionGate ? h.sessionGate.then(() => found) : found;
     }
     h.reads.push("qa_sessions:list");
     return ok(visible.filter((row) => row.status !== "draft"));
@@ -208,6 +211,7 @@ import type { RouteHeadResult } from "@/test/routeHarness";
 import { axeViolations, summarize } from "@/test/axe";
 import { COMMUNITY_MODULES_KEY } from "@/lib/community/modulesSettings";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import { publicQaSessionQueryOptions } from "@/lib/community/publicQueries";
 import { Route as QaListRoute } from "@/routes/qa";
 import { Route as QaSessionRoute } from "@/routes/qa.$slug";
 
@@ -263,15 +267,19 @@ function freshClient(): QueryClient {
   return new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
 }
 
+/** Wynik loadera listy `/qa` w części, na której stoją asercje. */
+interface ListLoaderResult {
+  sessions: unknown[];
+  degraded: boolean;
+}
+
 /** Loader listy `/qa` jako funkcja - STRAŻNIK, nie rzutowanie. */
 function listLoader(): (ctx: {
   context: { queryClient: QueryClient };
-}) => Promise<{ sessions: unknown[] }> {
+}) => Promise<ListLoaderResult> {
   const loader: unknown = QaListRoute.options.loader;
   if (typeof loader !== "function") throw new Error("test: trasa /qa nie ma loadera");
-  return loader as (ctx: {
-    context: { queryClient: QueryClient };
-  }) => Promise<{ sessions: unknown[] }>;
+  return loader as (ctx: { context: { queryClient: QueryClient } }) => Promise<ListLoaderResult>;
 }
 
 async function mountList(queryClient?: QueryClient) {
@@ -344,6 +352,7 @@ beforeEach(async () => {
   h.posts = [];
   h.settings = modules();
   h.settingsDelayMs = 0;
+  h.sessionGate = null;
   h.tenantId = "tenant-a";
   h.broken = new Set<string>();
   h.failOnce = new Set<string>();
@@ -605,6 +614,24 @@ describe("trasa /qa - nagłówek i dane strukturalne listy", () => {
     expect(ssr.sessions).toHaveLength(1);
   });
 
+  it("odmowa odczytu USTAWIEŃ nie wywraca loadera - lista idzie na domyślkach, ZDEGRADOWANA", async () => {
+    // Bramka modułu czyta konfigurację. Gdyby jej błąd wywracał loader, blip
+    // `site_settings` zabierałby czytelnikowi całą listę sesji. Render na
+    // domyślkach modułu nie jest jednak prawdą tenanta, więc wychodzi jako
+    // `degraded` - to on zdejmuje stronę z brzegu CDN.
+    h.broken.add("site_settings");
+    const failed = await listLoader()({ context: { queryClient: freshClient() } });
+
+    expect(failed.sessions).toHaveLength(1);
+    expect(failed.degraded).toBe(true);
+
+    // KONTROLA DODATNIA: te same sesje przy czytelnych ustawieniach NIE są
+    // degradacją - inaczej każdy render listy szedłby z `no-store`.
+    h.broken.delete("site_settings");
+    const clean = await listLoader()({ context: { queryClient: freshClient() } });
+    expect(clean.degraded).toBe(false);
+  });
+
   it("loader NIE wywraca trasy, gdy odczyt sesji padnie", async () => {
     // Loader ma `try/catch` i oddaje pustą listę - markup listy jest
     // opcjonalny, a metatagi muszą wyjść zawsze.
@@ -680,6 +707,37 @@ describe("trasa /qa/$slug - sesja, pytania i odpowiedzi", () => {
 
     expect(
       await screen.findByText("Nikt jeszcze nie zadał pytania - bądź pierwszy."),
+    ).toBeInTheDocument();
+  });
+
+  it("sesja bez danych W TRAKCIE pobierania to „Ładowanie...”, a nie komunikat awarii", async () => {
+    // Komponent nie może zakładać, że loader zasiał cache: wpis zapytania
+    // bywa usuwany (GC po odejściu z trasy, reset cache) i komponent zostaje
+    // wtedy z wpisem bez danych, który dopiero się pobiera. O tym, co widzi
+    // czytelnik, decyduje KOLEJNOŚĆ gałęzi - „brak danych" przed „trwa
+    // pobieranie" pokazałby fałszywe „Nie udało się pobrać danych.".
+    const view = await mountSession();
+    await screen.findByRole("heading", { level: 1, name: "Pytania o energetykę 2026" });
+    let release: () => void = () => undefined;
+    h.sessionGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await act(async () => {
+      void view.queryClient.resetQueries({
+        queryKey: publicQaSessionQueryOptions(SLUG).queryKey,
+        exact: true,
+      });
+    });
+
+    expect(screen.getByText("Ładowanie...")).toBeInTheDocument();
+    expect(screen.queryByText("Nie udało się pobrać danych.")).toBeNull();
+
+    await act(async () => {
+      release();
+    });
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Pytania o energetykę 2026" }),
     ).toBeInTheDocument();
   });
 
@@ -867,6 +925,37 @@ describe("trasa /qa/$slug - pytanie idzie przez RPC, nie insertem", () => {
       ]),
     );
     expect(h.successToasts).toEqual(["Dziękujemy - pytanie trafiło do moderacji."]);
+  });
+
+  it("zaznaczone „Pytaj anonimowo” jedzie do RPC, a sukces CZYŚCI formularz", async () => {
+    // REGUŁA 4 od strony formularza: flaga anonimowości jest jedynym, co
+    // dzieli pytanie podpisane od niepodpisanego - musi dojechać do RPC.
+    // Po wysłaniu formularz wraca do zera, bo odziedziczona anonimowość
+    // podpisałaby (albo NIE podpisała) następne pytanie wbrew woli autora.
+    h.userId = "user-1";
+    await mountSession();
+    const textarea = await screen.findByPlaceholderText("Twoje pytanie...");
+    const anonymous = screen.getByRole("checkbox", { name: "Pytaj anonimowo" });
+
+    fireEvent.change(textarea, { target: { value: "Kto zapłaci za magazyny energii?" } });
+    fireEvent.click(anonymous);
+    expect(anonymous).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Wyślij pytanie" }));
+
+    await waitFor(() =>
+      expect(h.asked).toEqual([
+        {
+          p_session_id: SESSION_ID,
+          p_body: "Kto zapłaci za magazyny energii?",
+          p_anonymous: true,
+        },
+      ]),
+    );
+    await waitFor(() => expect(textarea).toHaveValue(""));
+    expect(screen.getByRole("checkbox", { name: "Pytaj anonimowo" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
   });
 
   it("pytanie krótsze niż pięć znaków NIE idzie do bazy", async () => {

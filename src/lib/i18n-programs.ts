@@ -47,7 +47,16 @@ export const programsPl = {
   // Panel /admin/research-programs. Blok przeniesiony z programsEn, gdzie
   // trafil omylkowo (Object.assign nadpisywal go wersja angielska, a PL
   // zostawal bez kluczy - pilnuje tego i18nSupportBundles.test.ts).
-  adminPrograms: {
+  //
+  // WŁASNA PRZESTRZEŃ `adminResearchPrograms`, NIE `adminPrograms`. Tę drugą
+  // rejestruje `i18n-admin-programs.ts` (panel /admin/programs), a
+  // `addResourceBundle(..., deep, overwrite)` scala oba drzewa w JEDNO: liść
+  // nadpisuje gałąź i odwrotnie. Po wizycie w obu panelach
+  // `adminPrograms.members` było albo napisem „Członkowie" (i zakładka zespołu
+  // tutaj pokazywała gołe klucze), albo obiektem (i tamten przycisk mówił
+  // „returned an object instead of string"), a `title`/`subtitle`/`empty`
+  // pokazywały tekst cudzego panelu. Pilnuje: adminProgramsDictionaries.test.ts.
+  adminResearchPrograms: {
     title: "Landing programów badawczych",
     subtitle: "Pełne strony programów (teza, zespół, projekty, partnerzy, wybrane treści).",
     newProgram: "Nowy program",
@@ -159,8 +168,8 @@ export const programsEn = {
 };
 
 // English shares the top-level structure via addition below
-const adminProgramsEn = {
-  adminPrograms: {
+const adminResearchProgramsEn = {
+  adminResearchPrograms: {
     title: "Research program landings",
     subtitle: "Full program landing pages (thesis, team, projects, partners, curated content).",
     newProgram: "New program",
@@ -230,7 +239,7 @@ const adminProgramsEn = {
   },
 };
 
-Object.assign(programsEn, adminProgramsEn);
+Object.assign(programsEn, adminResearchProgramsEn);
 
 // Explicit registration must survive both Vite and Nitro tree shaking.
 // Keep the legacy side-effect import contract, and avoid repeated deep merges.

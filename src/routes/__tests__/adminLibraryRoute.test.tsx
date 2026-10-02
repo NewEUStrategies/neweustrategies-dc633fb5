@@ -26,6 +26,8 @@
 //   5. RANGA WARSTWY JEST LICZBĄ, nie napisem. `min_tier_rank` steruje bramką
 //      pobrania; wartość z listy wyboru przechodzi przez `Number(...)`, więc
 //      napis „10" zapisany wprost dałby porównanie leksykograficzne w bazie.
+//   6. EDYCJA ZAPISUJE TO, CO WPISANO W OKNIE EDYCJI, a odmowa (uploadu albo
+//      zapisu metadanych) nie zamyka okna i nie udaje sukcesu.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - PODMIANY PLIKU: cała choreografia (i porzucenie okna) ma asercje
@@ -38,7 +40,7 @@
 //   `member_resources` i do bucketu egzekwuje RLS + polityki Storage; warstw
 //   pilnuje `src/routes/__tests__/adminRouteAuthority.gate.test.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { MemberResourceRow, ResourceInput } from "@/lib/admin/library";
 
 const RESOURCE_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -259,6 +261,23 @@ describe("admin.library - wiersz materiału", () => {
 
     expect(screen.getByText("1.5 KB")).toBeInTheDocument();
     expect(screen.getByText("-")).toBeInTheDocument();
+  });
+
+  it("duże pliki dostają MB i GB, a skala kończy się na GB zamiast wyjść poza jednostki", async () => {
+    // Pętla dzielenia bez górnej granicy tablicy jednostek dałaby dla plików
+    // ≥ 1 TB napis „1.0 undefined". Archiwum nagrań z wydarzeń potrafi tyle mieć.
+    h.rows = [
+      resource({ id: "mb", title_pl: "Prezentacja", file_size: 5 * 1024 * 1024 }),
+      resource({ id: "gb", title_pl: "Nagranie", file_size: 3 * 1024 ** 3 }),
+      resource({ id: "tb", title_pl: "Archiwum", file_size: 2 * 1024 ** 4 }),
+    ];
+    await mount();
+    await screen.findByText("Prezentacja");
+
+    expect(screen.getByText("5.0 MB")).toBeInTheDocument();
+    expect(screen.getByText("3.0 GB")).toBeInTheDocument();
+    expect(screen.getByText("2048.0 GB")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("undefined");
   });
 
   it("licznik pobrań jest widoczny - to jedyny sygnał, czy materiał żyje", async () => {
@@ -482,6 +501,48 @@ describe("admin.library - nowy materiał", () => {
     expect(h.creates).toEqual([]);
   });
 
+  it("zapis niesie opisy (puste → `null`), kategorię, kolejność i publikację z formularza", async () => {
+    // Opis z samych spacji zapisany jako ciąg daje w bibliotece członkowskiej
+    // pusty akapit pod tytułem; kolejność spoza liczby (`e`, pusty input)
+    // musi spaść na 0, a nie na `NaN`, które baza odrzuci.
+    await openNew();
+    pickFile();
+    await waitFor(() => expect(h.uploads).toHaveLength(1));
+    const dialog = screen.getByRole("dialog");
+    const texts = within(dialog).getAllByRole("textbox");
+    fireEvent.change(texts[0], { target: { value: "Nowy raport" } });
+    fireEvent.change(texts[1], { target: { value: "New report" } });
+    fireEvent.change(texts[2], { target: { value: "  Streszczenie dla członków  " } });
+    fireEvent.change(texts[3], { target: { value: "   " } });
+    const category = within(dialog)
+      .getAllByRole("combobox")
+      .find((el) => el.querySelector('option[value="brief"]'));
+    if (!category) throw new Error("test: brak listy wyboru kategorii");
+    fireEvent.change(category, { target: { value: "brief" } });
+    const sortOrder = within(dialog).getByRole("spinbutton");
+    fireEvent.change(sortOrder, { target: { value: "7" } });
+    fireEvent.click(within(dialog).getByRole("switch"));
+    fireEvent.click(button("adminLibrary.save"));
+
+    await waitFor(() => expect(h.creates).toHaveLength(1));
+    expect(h.creates[0]).toMatchObject({
+      description_pl: "Streszczenie dla członków",
+      description_en: null,
+      category: "brief",
+      sort_order: 7,
+      published: false,
+    });
+  });
+
+  it("kolejność, której nie da się odczytać jako liczby, spada na 0", async () => {
+    await openNew();
+    const sortOrder = within(screen.getByRole("dialog")).getByRole("spinbutton");
+    fireEvent.change(sortOrder, { target: { value: "5" } });
+    fireEvent.change(sortOrder, { target: { value: "" } });
+
+    expect(sortOrder).toHaveValue(0);
+  });
+
   it("błąd zapisu metadanych NIE zamyka okna i NIE kasuje wgranego pliku", async () => {
     // Wersja robocza i wgrany obiekt muszą przeżyć odmowę bazy - inaczej
     // redakcja wgrywa plik po raz drugi i wpisuje metadane od zera.
@@ -497,5 +558,83 @@ describe("admin.library - nowy materiał", () => {
     await waitFor(() => expect(h.toastError).toHaveBeenCalled());
     expect(screen.getByLabelText("adminLibrary.chooseFileUpload")).toBeInTheDocument();
     expect(h.removedObjects).toEqual([]);
+  });
+});
+
+describe("admin.library - edycja materiału", () => {
+  async function openEdit() {
+    await mount();
+    await screen.findByText("Raport kwartalny");
+    fireEvent.click(button("adminLibrary.editResource"));
+    return screen.findByRole("dialog");
+  }
+
+  it("zapis niesie PRZYCIĘTE metadane z okna edycji, bez pól pliku", async () => {
+    // REGUŁA 6. Okno edycji zasiewa się z wiersza; zmiana, która nie
+    // dojeżdża do `updateResource`, to edycja udająca zapis.
+    const dialog = await openEdit();
+    const texts = within(dialog).getAllByRole("textbox");
+    expect(texts[0]).toHaveValue("Raport kwartalny");
+    fireEvent.change(texts[0], { target: { value: "  Raport roczny  " } });
+    fireEvent.change(texts[2], { target: { value: "Podsumowanie roku" } });
+    fireEvent.click(button("adminLibrary.save"));
+
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+    expect(h.updates[0].id).toBe(RESOURCE_ID);
+    expect(h.updates[0].patch).toMatchObject({
+      title_pl: "Raport roczny",
+      title_en: "Quarterly report",
+      description_pl: "Podsumowanie roku",
+      description_en: null,
+    });
+    expect(h.updates[0].patch).not.toHaveProperty("file_path");
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("adminLibrary.changesSaved"));
+  });
+
+  it("wyczyszczony tytuł blokuje zapis edycji", async () => {
+    // Materiał bez tytułu w jednym języku wychodzi w bibliotece tego języka
+    // jako pusty wiersz z przyciskiem pobrania.
+    const dialog = await openEdit();
+    fireEvent.change(within(dialog).getAllByRole("textbox")[1], { target: { value: "  " } });
+
+    expect(button("adminLibrary.save")).toBeDisabled();
+  });
+
+  it("błąd uploadu podmiany pokazuje komunikat i ZOSTAWIA obecny plik", async () => {
+    // Odmowa bucketu nie może zostawić okna w stanie „nowy plik zastąpi
+    // obecny" - zapis wskazałby wtedy obiekt, którego nie ma.
+    h.uploadError = new Error("test: bucket odrzucił podmianę");
+    const dialog = await openEdit();
+    fireEvent.change(within(dialog).getByLabelText("adminLibrary.chooseReplacementFile"), {
+      target: { files: [new File(["x"], "nowy.pdf", { type: "application/pdf" })] },
+    });
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("test: bucket odrzucił podmianę"),
+    );
+    expect(within(dialog).getByText("adminLibrary.canReplaceFileDownloadCounter")).toBeVisible();
+    fireEvent.click(button("adminLibrary.save"));
+    await waitFor(() => expect(h.updates).toHaveLength(1));
+    expect(h.updates[0].patch).not.toHaveProperty("file_path");
+  });
+
+  it("błąd zapisu edycji pokazuje komunikat, NIE chwali i NIE zamyka okna", async () => {
+    h.updateError = new Error("test: odmowa polityki member_resources");
+    const dialog = await openEdit();
+    fireEvent.click(button("adminLibrary.save"));
+
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("test: odmowa polityki member_resources"),
+    );
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(dialog).toBeInTheDocument();
+  });
+
+  it("błąd zapisu bez komunikatu spada na klucz `couldSave`, nie na pusty toast", async () => {
+    h.updateError = "odmowa bez obiektu Error";
+    await openEdit();
+    fireEvent.click(button("adminLibrary.save"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("adminLibrary.couldSave"));
   });
 });

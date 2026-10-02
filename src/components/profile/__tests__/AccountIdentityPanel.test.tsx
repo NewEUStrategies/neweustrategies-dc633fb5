@@ -628,6 +628,33 @@ describe("wysyłka zdjęć po kadrowaniu", () => {
     expect(h.signedPaths).toHaveLength(0);
   });
 
+  it("upuszczony plik spoza dozwolonych typów daje komunikat, nie ciszę ani kadrowanie", async () => {
+    // Obszar wgrywania filtruje upuszczenie po `accept` i NIE oddaje takiego
+    // pliku do `onAvatarFile`/`onCoverFile`. Bez obsługi odrzucenia awatar
+    // w HEIC znikał bez śladu - wyglądało to jak awaria wgrywania.
+    await renderPanel();
+    const areas = document.querySelectorAll<HTMLElement>('[data-slot="upload-area"]');
+    expect(areas).toHaveLength(2);
+
+    fireEvent.drop(areas[0], {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["x"], "zdjecie.heic", { type: "image/heic" })],
+      },
+    });
+    fireEvent.drop(areas[1], {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["x"], "baner.gif", { type: "image/gif" })],
+      },
+    });
+
+    expect(h.toastError).toHaveBeenCalledWith('uploadArea.badType {"name":"zdjecie.heic"}');
+    expect(h.toastError).toHaveBeenCalledWith('uploadArea.badType {"name":"baner.gif"}');
+    expect(screen.queryByTestId("crop-confirm")).not.toBeInTheDocument();
+    expect(h.signedPaths).toHaveLength(0);
+  });
+
   it("zamknięcie kadrowania bez potwierdzenia nie wysyła nic", async () => {
     await renderPanel();
 

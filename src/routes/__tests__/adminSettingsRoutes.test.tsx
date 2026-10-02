@@ -311,7 +311,10 @@ import { translateKey } from "@/test/i18nStub";
 import { SEO_SETTINGS_KEY } from "@/lib/seo/settings";
 import { COOKIE_BANNER_SETTINGS_KEY } from "@/lib/cookieBanner/config";
 import { MOBILE_BOTTOM_BAR_SETTINGS_KEY } from "@/lib/mobileBottomBar/config";
-import { GOOGLE_SOURCE_BADGE_SETTINGS_KEY } from "@/lib/seo/googleSourceBadge";
+import {
+  GOOGLE_SOURCE_BADGE_DEFAULTS,
+  GOOGLE_SOURCE_BADGE_SETTINGS_KEY,
+} from "@/lib/seo/googleSourceBadge";
 import type { OgPrepareResult } from "@/lib/media/ogImage";
 import { Route as LayoutRoute } from "@/routes/admin.settings";
 import { Route as IndexRoute } from "@/routes/admin.settings.index";
@@ -1048,6 +1051,49 @@ describe("admin.settings.google-source - odznaka źródła preferowanego", () =>
     await waitFor(() => expect(saveButton()).toBeTruthy());
     fireEvent.click(saveButton() as HTMLButtonElement);
     await waitFor(() => expect(lastSave(GOOGLE_SOURCE_BADGE_SETTINGS_KEY)).toBeTruthy());
+  });
+
+  // KONSEKWENCJA, przed którą ten test chroni: `useSettings` scala wiersz
+  // z domyślkami BEZ schematu (jawny `null` nadpisuje domyślny podobiekt -
+  // atrapa powyżej robi to samo na pierwszym poziomie), więc zapisane
+  // `{"logo": null}` albo `{"desktop": null}` wywracało formularz
+  // (`draft.logo.light`, `draft.desktop.*`) - czyli JEDYNE miejsce, w którym
+  // redakcja może taki wiersz naprawić. Szkic startuje teraz z bramki odczytu
+  // `normalizeGoogleSourceBadgeConfig`.
+  it("uszkodzony wiersz ({logo:null, desktop:null, url_pl: liczba}) NIE wywraca panelu - pola pokazują domyślki", async () => {
+    h.rows[GOOGLE_SOURCE_BADGE_SETTINGS_KEY] = {
+      logo: null,
+      desktop: null,
+      url_pl: 12345,
+      url_en: "https://en.example/preferred",
+    };
+    await mount(GoogleSourceRoute, "/admin/settings/google-source");
+    await waitFor(() => expect(saveButton()).toBeTruthy());
+
+    // Uszkodzone sekcje i pola spadają na SWOJE domyślki...
+    const sections = screen.getAllByTestId("GoogleSourceBadgeDeviceSection");
+    expect(sections).toHaveLength(2);
+    // Atrapa trzyma propsy OSTATNIEGO renderu, więc sekcję desktop czytamy ze
+    // szkicu przekazanego do podglądu (ten sam obiekt `draft`).
+    const preview = h.props.GooglePreferredSourceBadge?.configOverride as
+      Record<string, unknown> | undefined;
+    expect(preview?.desktop).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.desktop);
+    expect(preview?.logo).toEqual(GOOGLE_SOURCE_BADGE_DEFAULTS.logo);
+    expect(h.props.CoverImagePicker?.value).toBe(GOOGLE_SOURCE_BADGE_DEFAULTS.logo.dark);
+    const [urlPl, urlEn] = textInputs();
+    expect(urlPl?.value).toBe(GOOGLE_SOURCE_BADGE_DEFAULTS.url_pl);
+    // ...a poprawne pole zapisu redakcji zostaje (negatyw: bramka nie kasuje całości).
+    expect(urlEn?.value).toBe("https://en.example/preferred");
+    const size = document.querySelector<HTMLInputElement>('input[type="number"]');
+    expect(size?.value).toBe(String(GOOGLE_SOURCE_BADGE_DEFAULTS.logo.size));
+
+    // Zapis utrwala NAPRAWIONY kształt - wiersz przestaje być uszkodzony.
+    fireEvent.click(saveButton() as HTMLButtonElement);
+    await waitFor(() => expect(lastSave(GOOGLE_SOURCE_BADGE_SETTINGS_KEY)).toBeTruthy());
+    expect(lastSave(GOOGLE_SOURCE_BADGE_SETTINGS_KEY)).toEqual({
+      ...GOOGLE_SOURCE_BADGE_DEFAULTS,
+      url_en: "https://en.example/preferred",
+    });
   });
 });
 

@@ -6,10 +6,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import {
+  fitSingleLine,
   layoutOgTitle,
   ogCardStoragePath,
   OG_CARD_COLORS,
   OG_CARD_HEIGHT,
+  OG_CARD_MAX_TEXT_WIDTH,
   OG_CARD_PADDING,
   OG_CARD_WIDTH,
   type OgCardInput,
@@ -17,6 +19,7 @@ import {
 
 const TITLE_FONT = "Red Hat Display";
 const FONT_STACK = `"${TITLE_FONT}", "Segoe UI", Arial, sans-serif`;
+const KICKER_FONT_SIZE = 26;
 
 async function ensureFontsLoaded(): Promise<void> {
   try {
@@ -61,13 +64,26 @@ async function renderOgCard(input: OgCardInput): Promise<Blob> {
 
   let y = OG_CARD_PADDING + 40;
 
-  // Kicker (section/category).
+  // Kicker (section/category). Its text comes from content, so it is measured
+  // in its OWN font (600, not the title's 700) and ellipsized to one line -
+  // drawn raw, a long category name ran past the right edge of the card.
+  // Measured AFTER upper-casing: that is the string that lands on the canvas.
   const kicker = input.kicker?.trim();
   if (kicker) {
-    ctx.font = `600 26px ${FONT_STACK}`;
+    const measureKicker = (text: string, fontSizePx: number): number => {
+      ctx.font = `600 ${fontSizePx}px ${FONT_STACK}`;
+      return ctx.measureText(text).width;
+    };
+    const line = fitSingleLine(
+      kicker.toUpperCase(),
+      OG_CARD_MAX_TEXT_WIDTH,
+      KICKER_FONT_SIZE,
+      measureKicker,
+    );
+    ctx.font = `600 ${KICKER_FONT_SIZE}px ${FONT_STACK}`;
     ctx.fillStyle = OG_CARD_COLORS.kicker;
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(kicker.toUpperCase(), OG_CARD_PADDING, y);
+    ctx.fillText(line, OG_CARD_PADDING, y);
     y += 56;
   }
 

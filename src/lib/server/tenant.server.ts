@@ -18,6 +18,13 @@
 //     nothing to cross-leak). Any other unknown host resolves to null and the
 //     surface answers 404 / "Disallow: /" - an unclaimed domain must never
 //     advertise, serve or index a tenant's content to crawlers.
+//     When there is no tenant but crawlerDegradeIsSafe() holds (preview host,
+//     empty/unreachable directory), the host-addressed surfaces - sitemap.xml
+//     and its shards, rss.xml, news-sitemap.xml, the tracker/live/podcast
+//     feeds and, since 2026-10, llms.txt - serve a static, tenant-free
+//     skeleton instead of 404. llms.txt narrows that arm further: only the
+//     brand host and preview hosts get the degraded guide, and it carries no
+//     usage grant (see routes/llms[.]txt.ts).
 //
 // The full tenant directory is tiny and changes rarely, so it is cached per
 // isolate with a short TTL (same pattern as the redirect rules cache) and
@@ -342,7 +349,10 @@ export async function resolveTenantIdForHost(
 /**
  * CRAWLER plane: fail-closed host -> tenant resolution for the surfaces
  * crawlers consume and cache (sitemap.xml, rss.xml, news-sitemap.xml,
- * llms.txt, robots.txt) and for the redirect/404 middleware.
+ * llms.txt, robots.txt) and for the redirect/404 middleware. A null result is
+ * split by crawlerDegradeIsSafe() into fail-closed (404) and degradation
+ * (static skeleton) - llms.txt shares that degrade arm since 2026-10, limited
+ * to the brand and preview hosts.
  *
  * The default-tenant fallback applies ONLY when the ambiguity is harmless:
  *   * the host is a local/platform preview (admins test the default site), or
@@ -407,7 +417,10 @@ export async function resolveCrawlerTenantIdForHost(
  *   * degradacja - host podglądu/lokalny albo katalog pusty/niedostępny (np.
  *     baza nieosiągalna w CI z placeholderowym Supabase): nie ma czego
  *     wyciekać, więc sitemap/rss mogą podać statyczny szkielet zamiast 404 -
- *     ta funkcja zwraca true.
+ *     ta funkcja zwraca true. llms.txt korzysta z tego samego członu (od
+ *     2026-10), ale dodatkowo zawęża go do hosta marki i hosta podglądu: przy
+ *     nieosiągalnym katalogu wynik jest true dla KAŻDEGO hosta, a przewodnik
+ *     nazywa serwis, więc na domenie innego tenanta byłby niejednoznaczny.
  * Utrzymywane razem z resolveCrawlerTenantForHost, żeby predykat
  * bezpieczeństwa był jeden.
  */

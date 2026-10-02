@@ -12,9 +12,17 @@
 //      service-role, `data: null` - nigdy wyjątek na ścieżce SSR, a przy
 //      ciepłym cache STARE reguły dalej działają (obrona przed 500 na każdym
 //      żądaniu),
-//   4. filtr `shouldLog404` i dwie ścieżki zapisu monitora (update wpisu
-//      istniejącego vs upsert nowego), obcinanie do 2048, `referer`/`referrer`
-//      oraz to, że błąd zapisu NIE wywraca odpowiedzi.
+//   4. filtr `shouldLog404` i zapis monitora JEDNYM atomowym RPC
+//      `record_seo_404` (zero select/update/upsert na `seo_404_hits`, także
+//      przy równoległych 404 na tę samą ścieżkę), obcinanie do limitu bazy
+//      (500), `referer`/`referrer` oraz to, że błąd zapisu - wyjątek,
+//      odrzucenie albo `{ error }` - NIE wywraca odpowiedzi,
+//   5. licznik trafień reguły: `record_redirect_hit` z id reguły WEJŚCIOWEJ,
+//      zaplanowany za odpowiedzią (`runAfterResponse`), nigdy na ścieżce
+//      żądania; HEAD i pudło nie liczą, 410 liczy,
+//   6. dławienie licznika: najwyżej 5 zapisów jednej reguły na 10 s w izolacie
+//      (seria skanera WP na wildcard 410 nie zamienia się w setki UPDATE-ów
+//      tego samego wiersza), budżet per reguła, odnawiany po oknie.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE
 //   * `redirectsServerSwr.test.ts` - kontrakt stale-while-revalidate cache
@@ -34,8 +42,10 @@
 //     `Location`). Ten plik nie wykonuje ani jednego żądania HTTP na żywym
 //     serwerze i nie sprawdza nagłówków odpowiedzi - mierzy DECYZJĘ funkcji,
 //     zanim ktokolwiek zbuduje z niej odpowiedź.
-//   * RLS i RPC (`seo_404_hits`) - to domena pgTAP; tutaj PostgREST jest
-//     atrapą.
+//   * RLS i ciała RPC (`redirects`, `seo_404_hits`, atomowość upsertu,
+//     uprawnienia EXECUTE) - to domena pgTAP
+//     (`supabase/tests/redirects_seo_404_tenant_rls_test.sql`); tutaj
+//     PostgREST jest atrapą, a dowodem jest KSZTAŁT wywołania.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pgError } from "@/test/supabaseChain";
 import {
@@ -59,10 +69,13 @@ interface Reply {
   error: Error | null;
 }
 
-/** Jedno zapytanie zapisane przez atrapę - test czyta z niego payload i filtry. */
+/**
+ * Jedno zapytanie zapisane przez atrapę - test czyta z niego payload i filtry.
+ * Dla `kind: "rpc"` pole `table` niesie NAZWĘ FUNKCJI, a `payload` jej argumenty.
+ */
 interface RecordedOp {
   table: string;
-  kind: "select" | "update" | "upsert";
+  kind: "select" | "update" | "upsert" | "rpc";
   columns: string | null;
   payload: Record<string, unknown> | null;
   options: Record<string, unknown> | null;
@@ -102,9 +115,15 @@ const mockState = vi.hoisted(() => {
     clientThrows: false,
     /** Samo zapytanie rzuca (klient wybuchł na `from`). */
     fromThrows: false,
-    /** `hits` istniejącego wpisu w `seo_404_hits`; null = wpisu nie ma. */
-    existingHits: null as number | null,
-    writeFailure: "none" as "none" | "throw" | "reject",
+    /**
+     * Awaria RPC: `throw` - klient wybucha synchronicznie, `reject` -
+     * obietnica odrzuca, `error` - PostgREST oddaje `{ error }` (najczęstszy
+     * realny przypadek: brak uprawnień, timeout instrukcji).
+     */
+    rpcFailure: "none" as "none" | "throw" | "reject" | "error",
+    /** Odpowiedź RPC jest wstrzymana do ręcznego `releaseRpc()`. */
+    rpcHeld: false,
+    heldRpc: [] as Array<() => void>,
   };
 
   function redirectsReply(): Promise<Reply> {
@@ -112,17 +131,22 @@ const mockState = vi.hoisted(() => {
     return Promise.resolve({ data: state.redirectRows, error: null });
   }
 
-  function hitsReply(): Promise<Reply> {
-    return Promise.resolve({
-      data: state.existingHits === null ? null : { hits: state.existingHits },
-      error: null,
-    });
+  function rpcReply(fn: string): Promise<Reply> {
+    if (state.rpcFailure === "reject") {
+      return Promise.reject(new Error(`${fn}: PostgREST odrzucił wywołanie`));
+    }
+    const reply: Reply =
+      state.rpcFailure === "error"
+        ? { data: null, error: new Error(`${fn}: permission denied`) }
+        : { data: null, error: null };
+    if (!state.rpcHeld) return Promise.resolve(reply);
+    return new Promise((resolve) => state.heldRpc.push(() => resolve(reply)));
   }
 
-  function writeReply(): Promise<Reply> {
-    if (state.writeFailure === "reject") {
-      return Promise.reject(new Error("seo_404_hits: PostgREST odrzucił zapis"));
-    }
+  // Zapis do `seo_404_hits` przez builder tabeli to od 2026-10-02 REGRESJA
+  // (read-then-write gubił zliczenia) - atrapa dalej go umie, żeby test mógł
+  // policzyć takie operacje i dowieść, że jest ich ZERO.
+  function legacyReply(): Promise<Reply> {
     return Promise.resolve({ data: null, error: null });
   }
 
@@ -155,7 +179,7 @@ const mockState = vi.hoisted(() => {
               return redirectsReply();
             },
             maybeSingle() {
-              return hitsReply();
+              return legacyReply();
             },
           };
           return builder;
@@ -170,16 +194,13 @@ const mockState = vi.hoisted(() => {
             filters: {},
             limit: null,
           });
-          if (state.writeFailure === "throw") {
-            throw new Error("seo_404_hits: klient wybuchł na update");
-          }
           const builder: UpdateBuilder = {
             eq(column, value) {
               op.filters[column] = value;
               return builder;
             },
             then(onFulfilled, onRejected) {
-              return writeReply().then(onFulfilled, onRejected);
+              return legacyReply().then(onFulfilled, onRejected);
             },
           };
           return builder;
@@ -194,12 +215,23 @@ const mockState = vi.hoisted(() => {
             filters: {},
             limit: null,
           });
-          if (state.writeFailure === "throw") {
-            throw new Error("seo_404_hits: klient wybuchł na upsert");
-          }
-          return writeReply();
+          return legacyReply();
         },
       };
+    },
+    rpc(fn: string, args: Record<string, unknown>): Promise<Reply> {
+      if (state.fromThrows) throw new Error("klient service-role wybuchł na zapytaniu");
+      record({
+        table: fn,
+        kind: "rpc",
+        columns: null,
+        payload: args,
+        options: null,
+        filters: {},
+        limit: null,
+      });
+      if (state.rpcFailure === "throw") throw new Error(`${fn}: klient wybuchł na rpc`);
+      return rpcReply(fn);
     },
   };
 
@@ -249,8 +281,8 @@ vi.mock("@/lib/seo/redirects", async (importOriginal) => {
 
 const HOST = "neweuropeanstrategies.com";
 const TENANT_ID = "t-nes";
-/** Kod produkcyjny woła `Date.now()` i `new Date().toISOString()` - czas jest ustalony. */
-const NOW_ISO = "2026-02-03T10:15:00.000Z";
+/** Limit `left(..., 500)` z ciała `record_seo_404` - aplikacja tnie do tej samej długości. */
+const SEO_404_DB_LIMIT = 500;
 
 function rule(source: string, target: string, status = 301): RedirectRow {
   return { id: `r${source}`, source_path: source, target_path: target, status_code: status };
@@ -291,8 +323,16 @@ function opsFor(table: string): RecordedOp[] {
   return mockState.ops.filter((op) => op.table === table);
 }
 
-function opOfKind(kind: RecordedOp["kind"]): RecordedOp | undefined {
-  return mockState.ops.find((op) => op.kind === kind);
+/** Wywołania RPC o danej nazwie, w kolejności. */
+function rpcCalls(fn: string): RecordedOp[] {
+  return mockState.ops.filter((op) => op.kind === "rpc" && op.table === fn);
+}
+
+/** Argumenty JEDYNEGO wywołania `record_seo_404` (test pada, gdy jest ich inna liczba). */
+function only404Args(): Record<string, unknown> | null {
+  const calls = rpcCalls("record_seo_404");
+  expect(calls).toHaveLength(1);
+  return calls[0]?.payload ?? null;
 }
 
 beforeEach(() => {
@@ -309,8 +349,9 @@ beforeEach(() => {
   mockState.redirectError = null;
   mockState.clientThrows = false;
   mockState.fromThrows = false;
-  mockState.existingHits = null;
-  mockState.writeFailure = "none";
+  mockState.rpcFailure = "none";
+  mockState.rpcHeld = false;
+  mockState.heldRpc = [];
 });
 
 afterEach(() => {
@@ -411,10 +452,12 @@ describe("resolveRedirectForRequest - bramki wejściowe", () => {
 
     expect(opsFor("redirects")).toHaveLength(1);
     // Odświeżenie indeksu jest rejestrowane w `waitUntil`, nie porzucane -
-    // workerd inaczej ucina je razem z domknięciem odpowiedzi.
-    // Both the index refresh and its shared snapshot finish under waitUntil.
-    expect(mockState.background).toHaveLength(2);
+    // workerd inaczej ucina je razem z domknięciem odpowiedzi. W tle są:
+    // odświeżenie indeksu, jego migawka współdzielona i DWA liczniki trafień
+    // (po jednym na przekierowane żądanie).
+    expect(mockState.background).toHaveLength(4);
     await Promise.all(mockState.background);
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(2);
   });
 
   it("dwa RÓWNOLEGŁE żądania na zimnym izolacie dzielą jeden odczyt (single-flight)", async () => {
@@ -680,7 +723,7 @@ describe("maybeLog404 - filtr shouldLog404", () => {
   it.each(TYPY_TRESCI)("$nazwa -> zapis: $zapis", async ({ typ, zapis }) => {
     await maybeLog404(request("/nie-ma"), response(404, typ));
 
-    expect(opsFor("seo_404_hits").length > 0).toBe(zapis);
+    expect(rpcCalls("record_seo_404").length > 0).toBe(zapis);
   });
 
   it.each(["/admin/nie-ma", "/api/nie-ma", "/_"])(
@@ -710,7 +753,7 @@ describe("maybeLog404 - filtr shouldLog404", () => {
   it("ścieżka bez rozszerzenia trafia do monitora", async () => {
     await maybeLog404(request("/o-nas-2019"), html404());
 
-    expect(opsFor("seo_404_hits")).not.toHaveLength(0);
+    expect(rpcCalls("record_seo_404")).toHaveLength(1);
   });
 
   it("ścieżka dłuższa niż 2048 znaków nie trafia do monitora", async () => {
@@ -730,65 +773,70 @@ describe("maybeLog404 - filtr shouldLog404", () => {
   });
 });
 
-describe("maybeLog404 - zapis wpisu", () => {
-  it("wpis ISTNIEJĄCY jest inkrementowany przez update (hits + 1, last_seen)", async () => {
-    mockState.existingHits = 3;
-
+describe("maybeLog404 - zapis wpisu atomowym RPC record_seo_404", () => {
+  it("trafienie to JEDNO wywołanie RPC z tenantem hosta i ścieżką", async () => {
     await maybeLog404(request("/o-nas-2019"), html404());
 
-    const read = opsFor("seo_404_hits")[0];
-    expect(read.columns).toBe("hits");
-    expect(read.filters).toEqual({ tenant_id: TENANT_ID, path: "/o-nas-2019" });
-
-    const update = opOfKind("update");
-    expect(update?.payload).toEqual({ hits: 4, last_seen: NOW_ISO, last_referrer: null });
-    expect(update?.filters).toEqual({ tenant_id: TENANT_ID, path: "/o-nas-2019" });
-    expect(opOfKind("upsert")).toBeUndefined();
+    expect(only404Args()).toEqual({ _tenant_id: TENANT_ID, _path: "/o-nas-2019" });
+    // Zero operacji na tabeli: inkrementację robi baza (ON CONFLICT ... hits + 1).
+    expect(opsFor("seo_404_hits")).toHaveLength(0);
   });
 
-  it("wpis NOWY jest zakładany przez upsert (hits: 1, onConflict tenant_id,path)", async () => {
-    mockState.existingHits = null;
+  it("dwa RÓWNOLEGŁE 404 na tę samą ścieżkę to dwa RPC i ZERO read-then-write", async () => {
+    // Stary zapis czytał `hits` i pisał `hits + 1`: dwa żądania, które
+    // przeczytały to samo `hits = 3`, zapisywały oba `4` - jedno trafienie
+    // ginęło. Odpowiedź RPC jest tu WSTRZYMANA, więc oba wywołania są
+    // w locie naraz - dokładnie okno, w którym stary kod gubił zliczenie.
+    mockState.rpcHeld = true;
 
-    await maybeLog404(request("/o-nas-2019"), html404());
+    const first = maybeLog404(request("/o-nas-2019"), html404());
+    const second = maybeLog404(request("/o-nas-2019"), html404());
+    await vi.waitFor(() => expect(rpcCalls("record_seo_404")).toHaveLength(2));
+    for (const release of mockState.heldRpc) release();
+    await Promise.all([first, second]);
 
-    const upsert = opOfKind("upsert");
-    expect(upsert?.payload).toEqual({
-      tenant_id: TENANT_ID,
-      path: "/o-nas-2019",
-      hits: 1,
-      first_seen: NOW_ISO,
-      last_seen: NOW_ISO,
-      last_referrer: null,
-    });
-    // Bez `onConflict` równoległe żądania na tę samą ścieżkę wywalałyby
-    // konflikt klucza (tenant_id, path) zamiast scalić wpis.
-    expect(upsert?.options).toEqual({ onConflict: "tenant_id,path" });
-    expect(opOfKind("update")).toBeUndefined();
+    expect(rpcCalls("record_seo_404").map((op) => op.payload)).toEqual([
+      { _tenant_id: TENANT_ID, _path: "/o-nas-2019" },
+      { _tenant_id: TENANT_ID, _path: "/o-nas-2019" },
+    ]);
+    // Dowód braku wyścigu po stronie aplikacji: ani jednego select/update/
+    // upsert na `seo_404_hits` - aplikacja nie zna i nie przesyła `hits`.
+    expect(opsFor("seo_404_hits")).toHaveLength(0);
+    expect(mockState.ops.every((op) => op.kind === "rpc")).toBe(true);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("query jest ZACHOWANE w zapisanej ścieżce (shortlink WP to osobny wpis)", async () => {
     await maybeLog404(request("/?p=123"), html404());
 
-    expect(opOfKind("upsert")?.payload).toMatchObject({ path: "/?p=123" });
+    expect(only404Args()).toMatchObject({ _path: "/?p=123" });
   });
 
-  it("zapisywana ścieżka (pathname + search) jest obcinana do 2048 znaków", async () => {
-    const pathname = `/${"a".repeat(2000)}`;
+  it("ścieżka (pathname + search) jest obcinana do limitu BAZY (500), nie do 2048", async () => {
+    // `record_seo_404` i tak robi `left(_path, 500)`; obcięcie w aplikacji do
+    // innej długości dawało dwa źródła prawdy o tym, który wpis jest „tym".
+    const pathname = `/${"a".repeat(450)}`;
     const search = `?${"b".repeat(300)}`;
 
     await maybeLog404(request(`${pathname}${search}`), html404());
 
-    const payload = opOfKind("upsert")?.payload;
-    const path = payload?.path;
-    expect(typeof path).toBe("string");
-    expect(String(path)).toHaveLength(2048);
-    expect(String(path).startsWith(pathname)).toBe(true);
+    const path = String(only404Args()?._path);
+    expect(path).toHaveLength(SEO_404_DB_LIMIT);
+    expect(path.startsWith(`${pathname}?`)).toBe(true);
+  });
+
+  it("ścieżka krótsza niż limit przechodzi bez zmian (kontrola przed nad-obcinaniem)", async () => {
+    const path = `/${"a".repeat(SEO_404_DB_LIMIT - 1)}`;
+
+    await maybeLog404(request(path), html404());
+
+    expect(only404Args()?._path).toBe(path);
   });
 
   const REFERERY: ReadonlyArray<{
     nazwa: string;
     naglowki: Record<string, string>;
-    oczekiwany: string | null;
+    oczekiwany: string | undefined;
   }> = [
     {
       nazwa: "referer obecny",
@@ -805,49 +853,290 @@ describe("maybeLog404 - zapis wpisu", () => {
       naglowki: { referer: "https://a.example/1", referrer: "https://b.example/2" },
       oczekiwany: "https://a.example/1",
     },
-    { nazwa: "oba nieobecne", naglowki: {}, oczekiwany: null },
+    // Brak referera = argument POMINIĘTY (DEFAULT NULL), a RPC robi
+    // `COALESCE(EXCLUDED.last_referrer, h.last_referrer)`: wejście bez
+    // referera NIE kasuje ostatniego znanego źródła ruchu.
+    { nazwa: "oba nieobecne", naglowki: {}, oczekiwany: undefined },
   ];
 
-  it.each(REFERERY)("$nazwa -> last_referrer", async ({ naglowki, oczekiwany }) => {
+  it.each(REFERERY)("$nazwa -> _referrer", async ({ naglowki, oczekiwany }) => {
     await maybeLog404(requestWithHeaders("/o-nas-2019", naglowki), html404());
 
-    expect(opOfKind("upsert")?.payload).toMatchObject({ last_referrer: oczekiwany });
+    const args = only404Args();
+    expect(args?._referrer).toBe(oczekiwany);
+    expect(args !== null && "_referrer" in args).toBe(oczekiwany !== undefined);
   });
 
-  it("referer dłuższy niż 2048 znaków jest obcinany", async () => {
+  it("referer dłuższy niż limit bazy (500) jest obcinany", async () => {
     const referer = `https://x.example/${"a".repeat(3000)}`;
 
     await maybeLog404(requestWithHeaders("/o-nas-2019", { referer }), html404());
 
-    const stored = opOfKind("upsert")?.payload?.last_referrer;
-    expect(typeof stored).toBe("string");
-    expect(String(stored)).toHaveLength(2048);
-    expect(referer.startsWith(String(stored))).toBe(true);
+    const stored = String(only404Args()?._referrer);
+    expect(stored).toHaveLength(SEO_404_DB_LIMIT);
+    expect(referer.startsWith(stored)).toBe(true);
   });
 
   // KLUCZOWA ASERCJA SEKCJI: monitor 404 jest telemetrią. Gdyby jego błąd
   // wychodził na zewnątrz, middleware wywróciłby ODPOWIEDŹ, którą właśnie
   // opisuje - z 404 zrobiłoby się 500.
-  it("wyjątek klienta przy zapisie NIE wychodzi z maybeLog404", async () => {
-    mockState.writeFailure = "throw";
+  it.each([
+    { tryb: "throw" as const, opis: "wyjątek klienta przy wywołaniu RPC" },
+    { tryb: "reject" as const, opis: "odrzucona obietnica RPC" },
+    { tryb: "error" as const, opis: "odpowiedź RPC z polem error" },
+  ])("$opis NIE wychodzi z maybeLog404 i trafia do ostrzeżenia", async ({ tryb }) => {
+    mockState.rpcFailure = tryb;
 
     await expect(maybeLog404(request("/o-nas-2019"), html404())).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith("[seo-404] log failed:", expect.any(Error));
   });
 
-  it("odrzucona obietnica zapisu NIE wychodzi z maybeLog404", async () => {
-    mockState.writeFailure = "reject";
+  it("nieudany import klienta service-role też jest połknięty", async () => {
+    mockState.clientThrows = true;
 
     await expect(maybeLog404(request("/o-nas-2019"), html404())).resolves.toBeUndefined();
-    expect(warn).toHaveBeenCalled();
+    expect(mockState.ops).toHaveLength(0);
+    expect(warn).toHaveBeenCalledWith("[seo-404] log failed:", expect.any(Error));
   });
 
-  it("wyjątek przy INKREMENTACJI istniejącego wpisu też jest połknięty", async () => {
-    mockState.existingHits = 7;
-    mockState.writeFailure = "reject";
+  it("udany zapis nie loguje niczego (kontrola negatywna ostrzeżenia)", async () => {
+    await maybeLog404(request("/o-nas-2019"), html404());
 
-    await expect(maybeLog404(request("/o-nas-2019"), html404())).resolves.toBeUndefined();
-    expect(opOfKind("update")?.payload).toMatchObject({ hits: 8 });
-    expect(warn).toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveRedirectForRequest - licznik trafień reguły (record_redirect_hit)", () => {
+  /** Domyka całe tło żądania; rzuca, gdyby którakolwiek praca w tle odrzuciła. */
+  async function drainBackground(): Promise<void> {
+    await expect(Promise.all(mockState.background)).resolves.toBeDefined();
+  }
+
+  it("trafienie planuje JEDNO wywołanie RPC z id reguły, ZA odpowiedzią", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+    // Odpowiedź RPC wstrzymana: gdyby licznik stał na ścieżce żądania,
+    // `resolveRedirectForRequest` nigdy by nie wróciła.
+    mockState.rpcHeld = true;
+
+    await expect(resolveRedirectForRequest(request("/stary"))).resolves.toEqual({
+      target: "/nowy",
+      status: 301,
+    });
+
+    await vi.waitFor(() => expect(rpcCalls("record_redirect_hit")).toHaveLength(1));
+    expect(rpcCalls("record_redirect_hit")[0]?.payload).toEqual({ _id: "r/stary" });
+    for (const release of mockState.heldRpc) release();
+    await drainBackground();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("w łańcuchu A->B->C liczona jest reguła WEJŚCIOWA (A), nie końcowa", async () => {
+    mockState.redirectRows = [rule("/a", "/b"), rule("/b", "/c", 302)];
+
+    await expect(resolveRedirectForRequest(request("/a"))).resolves.toEqual({
+      target: "/c",
+      status: 302,
+    });
+    await drainBackground();
+
+    // Cel i kod z reguły końcowej, licznik na regule, w którą wszedł czytelnik.
+    expect(rpcCalls("record_redirect_hit").map((op) => op.payload)).toEqual([{ _id: "r/a" }]);
+  });
+
+  it("dopasowanie przez prefiks języka liczy regułę kanoniczną", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+
+    await expect(resolveRedirectForRequest(request("/en/stary"))).resolves.toEqual({
+      target: "/en/nowy",
+      status: 301,
+    });
+    await drainBackground();
+
+    expect(rpcCalls("record_redirect_hit").map((op) => op.payload)).toEqual([{ _id: "r/stary" }]);
+  });
+
+  it("410 Gone też jest liczone (usunięty adres wciąż dostaje ruch)", async () => {
+    mockState.redirectRows = [rule("/usuniete", "/", 410)];
+
+    await expect(resolveRedirectForRequest(request("/usuniete"))).resolves.toEqual({
+      target: "",
+      status: 410,
+    });
+    await drainBackground();
+
+    expect(rpcCalls("record_redirect_hit").map((op) => op.payload)).toEqual([
+      { _id: "r/usuniete" },
+    ]);
+  });
+
+  it("HEAD przekierowuje, ale NIE liczy (ruch narzędzi, nie czytelników)", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+
+    await expect(resolveRedirectForRequest(request("/stary", { method: "HEAD" }))).resolves.toEqual(
+      { target: "/nowy", status: 301 },
+    );
+    await drainBackground();
+
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(0);
+  });
+
+  it("pudło na niepustym indeksie nie wywołuje RPC", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+
+    await expect(resolveRedirectForRequest(request("/inny-adres"))).resolves.toBeNull();
+    await drainBackground();
+
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(0);
+  });
+
+  it("pętla odrzucona przez matcher nie jest liczona jako trafienie", async () => {
+    mockState.redirectRows = [rule("/a", "/b"), rule("/b", "/a")];
+
+    await expect(resolveRedirectForRequest(request("/a"))).resolves.toBeNull();
+    await drainBackground();
+
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(0);
+  });
+
+  it("id pochodzi z indeksu tenanta HOSTA żądania", async () => {
+    // Funkcja SQL aktualizuje po samym `id` - izolację daje to, że id bierze
+    // się wyłącznie z odczytu przefiltrowanego tenantem hosta.
+    mockState.tenantsByHost.set("drugi.example", "t-drugi");
+    mockState.redirectRows = [{ ...rule("/stary", "/nowy"), id: "id-drugiego-tenanta" }];
+
+    await resolveRedirectForRequest(request("/stary", { host: "drugi.example" }));
+    await drainBackground();
+
+    expect(opsFor("redirects")[0]?.filters).toEqual({ tenant_id: "t-drugi", is_enabled: true });
+    expect(rpcCalls("record_redirect_hit").map((op) => op.payload)).toEqual([
+      { _id: "id-drugiego-tenanta" },
+    ]);
+  });
+
+  it.each([
+    { tryb: "throw" as const, opis: "wyjątek klienta" },
+    { tryb: "reject" as const, opis: "odrzucona obietnica" },
+    { tryb: "error" as const, opis: "odpowiedź z polem error" },
+  ])("awaria RPC ($opis) nie zmienia przekierowania i jest połknięta", async ({ tryb }) => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+    mockState.rpcFailure = tryb;
+
+    await expect(resolveRedirectForRequest(request("/stary"))).resolves.toEqual({
+      target: "/nowy",
+      status: 301,
+    });
+    await drainBackground();
+
+    expect(warn).toHaveBeenCalledWith("[redirects] hit accounting failed:", expect.any(Error));
+  });
+
+  it("zwykły ruch (poniżej progu okna) jest liczony DOKŁADNIE: każde żądanie to jedno RPC", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+
+    await resolveRedirectForRequest(request("/stary"));
+    await resolveRedirectForRequest(request("/stary?utm=x"));
+    await drainBackground();
+
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(2);
+  });
+});
+
+describe("resolveRedirectForRequest - dławienie licznika trafień (seria skanera)", () => {
+  /** Budżet zapisów jednej reguły w oknie - lustro stałej modułu. */
+  const ZAPISY_NA_OKNO = 5;
+  /** Długość okna - lustro stałej modułu. */
+  const OKNO_MS = 10_000;
+
+  async function drainBackground(): Promise<void> {
+    await expect(Promise.all(mockState.background)).resolves.toBeDefined();
+  }
+
+  it("seria GET-ów na wildcard 410 /wp-content/* daje najwyżej 5 zapisów w oknie, a każda odpowiedź to nadal 410", async () => {
+    // Kształt produkcyjny: reguła z migracji 20260801152304, w którą biją skanery WP.
+    mockState.redirectRows = [rule("/wp-content/*", "/", 410)];
+
+    for (let i = 0; i < 50; i += 1) {
+      await expect(
+        resolveRedirectForRequest(request(`/wp-content/plugins/p${i}/readme`)),
+      ).resolves.toEqual({ target: "", status: 410 });
+    }
+    await drainBackground();
+
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(ZAPISY_NA_OKNO);
+    expect(new Set(rpcCalls("record_redirect_hit").map((op) => op.payload?._id))).toEqual(
+      new Set(["r/wp-content/*"]),
+    );
+  });
+
+  it("po upływie okna budżet się odnawia (licznik nie zamiera na stałe)", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+
+    for (let i = 0; i < ZAPISY_NA_OKNO + 3; i += 1) {
+      await resolveRedirectForRequest(request("/stary"));
+    }
+    // Tuż przed końcem okna - nadal zdławione.
+    vi.setSystemTime(Date.now() + OKNO_MS - 1);
+    await resolveRedirectForRequest(request("/stary"));
+    await drainBackground();
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(ZAPISY_NA_OKNO);
+
+    // Granica okna - nowe okno, nowy budżet.
+    vi.setSystemTime(Date.now() + 1);
+    await resolveRedirectForRequest(request("/stary"));
+    await drainBackground();
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(ZAPISY_NA_OKNO + 1);
+  });
+
+  it("budżet jest PER REGUŁA: seria na jednej nie zjada liczenia drugiej", async () => {
+    mockState.redirectRows = [rule("/wp-json/*", "/", 410), rule("/stary", "/nowy")];
+
+    for (let i = 0; i < 20; i += 1) {
+      await resolveRedirectForRequest(request(`/wp-json/wp/v2/users/${i}`));
+    }
+    await resolveRedirectForRequest(request("/stary"));
+    await drainBackground();
+
+    const ids = rpcCalls("record_redirect_hit").map((op) => op.payload?._id);
+    expect(ids.filter((id) => id === "r/wp-json/*")).toHaveLength(ZAPISY_NA_OKNO);
+    expect(ids.filter((id) => id === "r/stary")).toHaveLength(1);
+  });
+
+  it("HEAD nie zużywa budżetu okna (nie jest liczone w ogóle)", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+
+    for (let i = 0; i < 10; i += 1) {
+      await resolveRedirectForRequest(request("/stary", { method: "HEAD" }));
+    }
+    for (let i = 0; i < ZAPISY_NA_OKNO; i += 1) {
+      await resolveRedirectForRequest(request("/stary"));
+    }
+    await drainBackground();
+
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(ZAPISY_NA_OKNO);
+  });
+
+  it("zdławione trafienie nie planuje żadnej pracy w tle", async () => {
+    mockState.redirectRows = [rule("/stary", "/nowy")];
+    for (let i = 0; i < ZAPISY_NA_OKNO; i += 1) {
+      await resolveRedirectForRequest(request("/stary"));
+    }
+    await drainBackground();
+    const pracePrzed = mockState.background.length;
+
+    await resolveRedirectForRequest(request("/stary"));
+
+    expect(mockState.background).toHaveLength(pracePrzed);
+  });
+
+  it("tysiące różnych reguł nie blokują liczenia nowej (sufit pamięci zwalnia miejsce)", async () => {
+    // Sufit mapy to 2 000 wpisów; 2 100 reguł przekracza go o 100.
+    const reguly = Array.from({ length: 2_100 }, (_, i) => rule(`/stary-${i}`, "/nowy"));
+    mockState.redirectRows = reguly;
+
+    for (const r of reguly) await resolveRedirectForRequest(request(r.source_path));
+    await drainBackground();
+
+    // Każda reguła dostała swój pierwszy zapis - przepełnienie nie gubi liczenia.
+    expect(rpcCalls("record_redirect_hit")).toHaveLength(2_100);
   });
 });

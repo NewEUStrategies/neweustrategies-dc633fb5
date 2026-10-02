@@ -20,17 +20,24 @@
 // ŻADNEJ WŁASNEJ REGUŁY OCENY. Audyt marki liczy `@/lib/seo/brandAudit`, a stan
 // treści `@/lib/seo/contentStatus` - te same moduły, których używają zakładki
 // szczegółowe. Druga kopia reguły oznaczałaby kokpit i zakładkę mówiące
-// o tej samej treści co innego.
+// o tej samej treści co innego. Z tego samego powodu ODCZYT treści (kolumny,
+// kolejność, limity, liczność) pochodzi z `@/lib/seo/seoContentQuery`, wspólnego
+// z zakładką „Treści" - kafelki mówią wprost, gdy lista została przycięta
+// albo odczyt padł, zamiast liczyć z części jak z całości.
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { useSettings } from "@/lib/admin/useSettings";
 import { SeoScorePill } from "@/components/admin/seo/SeoScorePill";
 import { BrandFindingList } from "@/components/admin/seo/BrandFindingList";
 import { TechnicalFoundationCard } from "@/components/admin/seo/TechnicalFoundationCard";
+import {
+  ContentCoverageNotice,
+  ContentReadError,
+  PartialTag,
+} from "@/components/admin/seo/ContentCoverageNotice";
 import { ExternalLink } from "@/lib/lucide-shim";
 import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
 import {
@@ -39,14 +46,13 @@ import {
   countBySeverity,
   type BrandFinding,
 } from "@/lib/seo/brandAudit";
-import { SEO_FIELDS_SELECT } from "@/lib/seo/fields";
 import {
   seoContentStatus,
   seoGrade,
   summarizeSeoStatuses,
   type SeoContentStatus,
-  type SeoStatusInput,
 } from "@/lib/seo/contentStatus";
+import { seoContentCoverage, seoContentQueryOptions } from "@/lib/seo/seoContentQuery";
 import {
   DEFAULT_SEO_SETTINGS,
   SEO_SETTINGS_KEY,
@@ -69,9 +75,6 @@ export const Route = createFileRoute("/admin/seo/")({
   head: () => ({ meta: [{ title: "SEO - Kokpit" }] }),
 });
 
-/** Te same kolumny, co w zakładce „Treści" - jedno zapytanie, jedna prawda. */
-const CONTENT_SELECT = `id, slug, status, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, ${SEO_FIELDS_SELECT}`;
-
 /** Czy ta treść jest „gotowa": ma oba opisy i własną kartę. */
 function isContentComplete(status: SeoContentStatus): boolean {
   return (
@@ -88,13 +91,17 @@ interface Tile {
   tone: string;
 }
 
-function TileGrid({ tiles }: { tiles: readonly Tile[] }) {
+/** `partial` = liczby policzone z niepełnej listy - każdy kafelek to mówi. */
+function TileGrid({ tiles, partial = false }: { tiles: readonly Tile[]; partial?: boolean }) {
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {tiles.map((tile) => (
         <div key={tile.key} className="rounded-lg border border-border bg-card p-3">
           <div className={`text-2xl font-bold tabular-nums ${tile.tone}`}>{tile.value}</div>
-          <div className="mt-0.5 text-[11px] text-muted-foreground">{tile.label}</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
+            {tile.label}
+            {partial ? <PartialTag /> : null}
+          </div>
         </div>
       ))}
     </div>
@@ -111,37 +118,25 @@ function SeoDashboard() {
   const { query } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);
   const settings = query.data;
 
-  const { data: posts } = useQuery({
-    queryKey: ["admin-seo-posts", tenantId],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<SeoStatusInput[]> => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select(CONTENT_SELECT)
-        .eq("tenant_id", tenantId)
-        .is("deleted_at", null)
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-  const { data: pages } = useQuery({
-    queryKey: ["admin-seo-pages", tenantId],
-    enabled: !!tenantId,
-    queryFn: async (): Promise<SeoStatusInput[]> => {
-      const { data, error } = await supabase
-        .from("pages")
-        .select(CONTENT_SELECT)
-        .eq("tenant_id", tenantId)
-        .is("deleted_at", null)
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const postsQuery = useQuery(seoContentQueryOptions("posts", tenantId));
+  const pagesQuery = useQuery(seoContentQueryOptions("pages", tenantId));
+  const posts = postsQuery.data;
+  const pages = pagesQuery.data;
+  const contentReadFailed = postsQuery.isError || pagesQuery.isError;
+  const contentSettled = !postsQuery.isPending && !pagesQuery.isPending;
+  const coverage = useMemo(() => seoContentCoverage([posts, pages]), [posts, pages]);
+  // Kafelki są „częściowe", gdy lista jest przycięta albo jej liczności nie da
+  // się ustalić - ale dopiero po udanym odczycie obu tabel (awarię komunikuje
+  // osobny stan, a w trakcie ładowania „nieznane" byłoby fałszywym alarmem).
+  const contentPartial = contentSettled && !contentReadFailed && coverage.state !== "complete";
+  // Ponawiamy WYŁĄCZNIE tabelę, która padła - udany odczyt drugiej zostaje w cache.
+  const retryContent = () => {
+    if (postsQuery.isError) void postsQuery.refetch();
+    if (pagesQuery.isError) void pagesQuery.refetch();
+  };
 
   const statuses = useMemo(
-    () => [...(pages ?? []), ...(posts ?? [])].map((row) => seoContentStatus(row)),
+    () => [...(pages?.rows ?? []), ...(posts?.rows ?? [])].map((row) => seoContentStatus(row)),
     [posts, pages],
   );
   const contentSummary = useMemo(() => summarizeSeoStatuses(statuses), [statuses]);
@@ -266,7 +261,16 @@ function SeoDashboard() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionContent")}</h2>
+        {contentReadFailed ? (
+          // Zera w kafelkach niżej NIE są stanem serwisu - odczyt padł. Bez
+          // tego komunikatu kokpit raportowałby „0 treści bez opisu" jako
+          // dobrą wiadomość.
+          <ContentReadError onRetry={retryContent} />
+        ) : contentPartial ? (
+          <ContentCoverageNotice coverage={coverage} />
+        ) : null}
         <TileGrid
+          partial={contentPartial}
           tiles={[
             {
               key: "total",

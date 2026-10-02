@@ -3,12 +3,16 @@
 // Ustawienia zapisywane w `expert_layout_settings` per tenant; ekspert może
 // pojedyncze pola nadpisać na własnej stronie /author/$slug inline-edytorem
 // (ExpertLayoutInlineEditor) - merge robi `mergeExpertLayout`.
+//
+// BEZ WŁASNEGO `<AdminShell>`: trasa jest dzieckiem layoutu `/admin`, który
+// SAM owija `<Outlet/>` w powłokę panelu. Zagnieżdżona `<AdminShell hideSidebar>`
+// dawała drugi `<main id="main-content">` w kolumnie treści i pływający drugi
+// przełącznik języka (`AdminLangBar`).
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { adminToast } from "@/lib/adminToasts";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { ensureI18n as ensureAdminLayoutsI18n } from "@/lib/i18n-admin-layouts";
 import { ExpertLayoutPreview } from "@/components/admin/ExpertLayoutPreview";
 import { ExpertPresetThumb } from "@/components/experts/ExpertPresetThumb";
@@ -41,11 +45,9 @@ function Page() {
 
   if (!local) {
     return (
-      <AdminShell hideSidebar>
-        <div className="p-6 text-sm text-muted-foreground">
-          {t("adminLayouts.expertLayouts.loading")}
-        </div>
-      </AdminShell>
+      <div className="p-6 text-sm text-muted-foreground">
+        {t("adminLayouts.expertLayouts.loading")}
+      </div>
     );
   }
 
@@ -111,247 +113,235 @@ function Page() {
   };
 
   return (
-    <AdminShell hideSidebar>
-      <div className="mx-auto max-w-[1200px] space-y-8 p-4 md:p-6">
-        <header className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="font-display text-xl">{t("adminLayouts.expertLayouts.pageTitle")}</h1>
-            <p className="text-xs text-muted-foreground">{t("adminLayouts.expertLayouts.intro")}</p>
-          </div>
-          <button
-            onClick={onSave}
-            disabled={save.isPending}
-            className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm disabled:opacity-60"
-          >
-            {save.isPending ? t("adminLayouts.expertLayouts.saving") : t("common.save")}
-          </button>
-        </header>
+    <div className="mx-auto max-w-[1200px] space-y-8 p-4 md:p-6">
+      <header className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="font-display text-xl">{t("adminLayouts.expertLayouts.pageTitle")}</h1>
+          <p className="text-xs text-muted-foreground">{t("adminLayouts.expertLayouts.intro")}</p>
+        </div>
+        <button
+          onClick={onSave}
+          disabled={save.isPending}
+          className="bg-brand text-brand-foreground px-4 py-2 rounded text-sm disabled:opacity-60"
+        >
+          {save.isPending ? t("adminLayouts.expertLayouts.saving") : t("common.save")}
+        </button>
+      </header>
 
-        {/* Presety - 8 wariantów */}
-        <section className="space-y-2">
-          <div className="flex items-baseline justify-between gap-3 flex-wrap">
-            <h2 className="font-display text-base">
-              {t("adminLayouts.expertLayouts.defaultPreset")}
-            </h2>
-            <span className="text-[11px] text-muted-foreground">
-              {t("adminLayouts.expertLayouts.selectedPrefix")}{" "}
-              <b>
-                {(() => {
-                  const sel = EXPERT_LAYOUT_PRESETS.find((p) => p.id === local.default_preset);
-                  return isEn ? sel?.label_en : sel?.label_pl;
-                })()}
-              </b>
-            </span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {EXPERT_LAYOUT_PRESETS.map((p) => {
-              const active = local.default_preset === p.id;
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => upd({ default_preset: p.id })}
-                  aria-pressed={active}
-                  className={`text-left p-3 rounded-lg border-2 transition shadow-sm ${
-                    active
-                      ? "border-brand ring-2 ring-brand/30 bg-brand/5"
-                      : "border-border hover:border-brand/60 bg-card"
-                  }`}
-                >
-                  <ExpertPresetThumb id={p.id} />
-                  <p className="mt-2.5 text-[13px] font-semibold text-foreground">
-                    {isEn ? p.label_en : p.label_pl}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground leading-snug mt-1">
-                    {isEn ? p.description_en : p.description_pl}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Widoczność + kolejność sekcji */}
-        <section className="space-y-2">
+      {/* Presety - 8 wariantów */}
+      <section className="space-y-2">
+        <div className="flex items-baseline justify-between gap-3 flex-wrap">
           <h2 className="font-display text-base">
-            {t("adminLayouts.expertLayouts.sectionsHeading")}
+            {t("adminLayouts.expertLayouts.defaultPreset")}
           </h2>
-          <p className="text-[11px] text-muted-foreground">
-            {t("adminLayouts.expertLayouts.sectionsHint")}
-          </p>
-          <ul className="divide-y divide-border/60 rounded-md border border-border">
-            {order.map((key, idx) => (
-              <li key={key} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="tabular-nums text-muted-foreground w-5 shrink-0">
-                    {idx + 1}.
-                  </span>
-                  <span className="truncate">
-                    {t(`adminLayouts.expertLayouts.sections.${key}`)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => moveSection(idx, -1)}
-                    disabled={idx === 0}
-                    className="px-1.5 py-0.5 rounded border border-border text-[11px] disabled:opacity-40"
-                    aria-label={t("adminLayouts.expertLayouts.moveUp")}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveSection(idx, 1)}
-                    disabled={idx === order.length - 1}
-                    className="px-1.5 py-0.5 rounded border border-border text-[11px] disabled:opacity-40"
-                    aria-label={t("adminLayouts.expertLayouts.moveDown")}
-                  >
-                    ↓
-                  </button>
-                  <Toggle
-                    checked={isVisible(key)}
-                    onChange={(v) => setVisibility(key, v)}
-                    label=""
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-          {order.length !== EXPERT_SECTIONS.length && (
-            <button
-              type="button"
-              onClick={() => upd({ section_order: DEFAULT_EXPERT_SECTION_ORDER })}
-              className="text-[11px] text-brand hover:underline"
-            >
-              {t("adminLayouts.expertLayouts.restoreOrder")}
-            </button>
-          )}
-        </section>
+          <span className="text-[11px] text-muted-foreground">
+            {t("adminLayouts.expertLayouts.selectedPrefix")}{" "}
+            <b>
+              {(() => {
+                const sel = EXPERT_LAYOUT_PRESETS.find((p) => p.id === local.default_preset);
+                return isEn ? sel?.label_en : sel?.label_pl;
+              })()}
+            </b>
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {EXPERT_LAYOUT_PRESETS.map((p) => {
+            const active = local.default_preset === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => upd({ default_preset: p.id })}
+                aria-pressed={active}
+                className={`text-left p-3 rounded-lg border-2 transition shadow-sm ${
+                  active
+                    ? "border-brand ring-2 ring-brand/30 bg-brand/5"
+                    : "border-border hover:border-brand/60 bg-card"
+                }`}
+              >
+                <ExpertPresetThumb id={p.id} />
+                <p className="mt-2.5 text-[13px] font-semibold text-foreground">
+                  {isEn ? p.label_en : p.label_pl}
+                </p>
+                <p className="text-[11px] text-muted-foreground leading-snug mt-1">
+                  {isEn ? p.description_en : p.description_pl}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
-        {/* Wycentrowanie + szerokość */}
-        <section className="grid md:grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <h2 className="font-display text-base mb-1">
-              {t("adminLayouts.expertLayouts.centeringHeading")}
-            </h2>
-            <Toggle
-              label={t("adminLayouts.expertLayouts.centerHero")}
-              checked={local.center_hero}
-              onChange={(v) => upd({ center_hero: v })}
-            />
-            <Toggle
-              label={t("adminLayouts.expertLayouts.centerDetails")}
-              checked={local.center_details}
-              onChange={(v) => upd({ center_details: v })}
-            />
-          </div>
+      {/* Widoczność + kolejność sekcji */}
+      <section className="space-y-2">
+        <h2 className="font-display text-base">
+          {t("adminLayouts.expertLayouts.sectionsHeading")}
+        </h2>
+        <p className="text-[11px] text-muted-foreground">
+          {t("adminLayouts.expertLayouts.sectionsHint")}
+        </p>
+        <ul className="divide-y divide-border/60 rounded-md border border-border">
+          {order.map((key, idx) => (
+            <li key={key} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="tabular-nums text-muted-foreground w-5 shrink-0">{idx + 1}.</span>
+                <span className="truncate">{t(`adminLayouts.expertLayouts.sections.${key}`)}</span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => moveSection(idx, -1)}
+                  disabled={idx === 0}
+                  className="px-1.5 py-0.5 rounded border border-border text-[11px] disabled:opacity-40"
+                  aria-label={t("adminLayouts.expertLayouts.moveUp")}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveSection(idx, 1)}
+                  disabled={idx === order.length - 1}
+                  className="px-1.5 py-0.5 rounded border border-border text-[11px] disabled:opacity-40"
+                  aria-label={t("adminLayouts.expertLayouts.moveDown")}
+                >
+                  ↓
+                </button>
+                <Toggle checked={isVisible(key)} onChange={(v) => setVisibility(key, v)} label="" />
+              </div>
+            </li>
+          ))}
+        </ul>
+        {order.length !== EXPERT_SECTIONS.length && (
+          <button
+            type="button"
+            onClick={() => upd({ section_order: DEFAULT_EXPERT_SECTION_ORDER })}
+            className="text-[11px] text-brand hover:underline"
+          >
+            {t("adminLayouts.expertLayouts.restoreOrder")}
+          </button>
+        )}
+      </section>
 
-          <div className="space-y-1">
-            <h2 className="font-display text-base mb-1">
-              {t("adminLayouts.expertLayouts.widthTypoHeading")}
-            </h2>
-            <label className="block text-xs">
+      {/* Wycentrowanie + szerokość */}
+      <section className="grid md:grid-cols-2 gap-6">
+        <div className="space-y-1">
+          <h2 className="font-display text-base mb-1">
+            {t("adminLayouts.expertLayouts.centeringHeading")}
+          </h2>
+          <Toggle
+            label={t("adminLayouts.expertLayouts.centerHero")}
+            checked={local.center_hero}
+            onChange={(v) => upd({ center_hero: v })}
+          />
+          <Toggle
+            label={t("adminLayouts.expertLayouts.centerDetails")}
+            checked={local.center_details}
+            onChange={(v) => upd({ center_details: v })}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <h2 className="font-display text-base mb-1">
+            {t("adminLayouts.expertLayouts.widthTypoHeading")}
+          </h2>
+          <label className="block text-xs">
+            <span className="text-muted-foreground">
+              {t("adminLayouts.expertLayouts.maxWidth")}
+            </span>
+            <input
+              type="number"
+              min={880}
+              max={1600}
+              value={local.max_width}
+              onChange={(e) =>
+                upd({ max_width: Math.max(880, Math.min(1600, Number(e.target.value) || 1200)) })
+              }
+              className="w-full px-2 py-1.5 rounded border border-input bg-background text-xs mt-1"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <label className="text-xs">
               <span className="text-muted-foreground">
-                {t("adminLayouts.expertLayouts.maxWidth")}
+                {t("adminLayouts.expertLayouts.nameMobile")}
               </span>
               <input
                 type="number"
-                min={880}
-                max={1600}
-                value={local.max_width}
-                onChange={(e) =>
-                  upd({ max_width: Math.max(880, Math.min(1600, Number(e.target.value) || 1200)) })
-                }
-                className="w-full px-2 py-1.5 rounded border border-input bg-background text-xs mt-1"
+                min={20}
+                max={80}
+                value={local.name_size_base}
+                onChange={(e) => upd({ name_size_base: Number(e.target.value) || 36 })}
+                className="w-full px-2 py-1 rounded border border-input bg-background text-xs mt-1"
               />
             </label>
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <label className="text-xs">
-                <span className="text-muted-foreground">
-                  {t("adminLayouts.expertLayouts.nameMobile")}
-                </span>
-                <input
-                  type="number"
-                  min={20}
-                  max={80}
-                  value={local.name_size_base}
-                  onChange={(e) => upd({ name_size_base: Number(e.target.value) || 36 })}
-                  className="w-full px-2 py-1 rounded border border-input bg-background text-xs mt-1"
-                />
-              </label>
-              <label className="text-xs">
-                <span className="text-muted-foreground">
-                  {t("adminLayouts.expertLayouts.nameDesktop")}
-                </span>
-                <input
-                  type="number"
-                  min={24}
-                  max={96}
-                  value={local.name_size_lg}
-                  onChange={(e) => upd({ name_size_lg: Number(e.target.value) || 48 })}
-                  className="w-full px-2 py-1 rounded border border-input bg-background text-xs mt-1"
-                />
-              </label>
-            </div>
+            <label className="text-xs">
+              <span className="text-muted-foreground">
+                {t("adminLayouts.expertLayouts.nameDesktop")}
+              </span>
+              <input
+                type="number"
+                min={24}
+                max={96}
+                value={local.name_size_lg}
+                onChange={(e) => upd({ name_size_lg: Number(e.target.value) || 48 })}
+                className="w-full px-2 py-1 rounded border border-input bg-background text-xs mt-1"
+              />
+            </label>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Kolory */}
-        <section className="space-y-2">
-          <h2 className="font-display text-base">
-            {t("adminLayouts.expertLayouts.colorsHeading")}
-          </h2>
-          <p className="text-[11px] text-muted-foreground">
-            {t("adminLayouts.expertLayouts.colorsHint")}
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            <ColorField
-              label={t("adminLayouts.expertLayouts.heroBgLight")}
-              value={local.hero_bg_color}
-              onChange={(v) => upd({ hero_bg_color: v })}
-            />
-            <ColorField
-              label={t("adminLayouts.expertLayouts.heroBgDark")}
-              value={local.hero_bg_color_dark}
-              onChange={(v) => upd({ hero_bg_color_dark: v })}
-            />
-            <ColorField
-              label={t("adminLayouts.expertLayouts.heroTextLight")}
-              value={local.hero_text_color}
-              onChange={(v) => upd({ hero_text_color: v })}
-            />
-            <ColorField
-              label={t("adminLayouts.expertLayouts.heroTextDark")}
-              value={local.hero_text_color_dark}
-              onChange={(v) => upd({ hero_text_color_dark: v })}
-            />
-            <ColorField
-              label={t("adminLayouts.expertLayouts.accentLight")}
-              value={local.accent_color}
-              onChange={(v) => upd({ accent_color: v })}
-            />
-            <ColorField
-              label={t("adminLayouts.expertLayouts.accentDark")}
-              value={local.accent_color_dark}
-              onChange={(v) => upd({ accent_color_dark: v })}
-            />
-            <ColorField
-              label={t("adminLayouts.expertLayouts.bioBulletLight")}
-              value={local.bio_bullet_color}
-              onChange={(v) => upd({ bio_bullet_color: v })}
-            />
-            <ColorField
-              label={t("adminLayouts.expertLayouts.bioBulletDark")}
-              value={local.bio_bullet_color_dark}
-              onChange={(v) => upd({ bio_bullet_color_dark: v })}
-            />
-          </div>
-        </section>
+      {/* Kolory */}
+      <section className="space-y-2">
+        <h2 className="font-display text-base">{t("adminLayouts.expertLayouts.colorsHeading")}</h2>
+        <p className="text-[11px] text-muted-foreground">
+          {t("adminLayouts.expertLayouts.colorsHint")}
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          <ColorField
+            label={t("adminLayouts.expertLayouts.heroBgLight")}
+            value={local.hero_bg_color}
+            onChange={(v) => upd({ hero_bg_color: v })}
+          />
+          <ColorField
+            label={t("adminLayouts.expertLayouts.heroBgDark")}
+            value={local.hero_bg_color_dark}
+            onChange={(v) => upd({ hero_bg_color_dark: v })}
+          />
+          <ColorField
+            label={t("adminLayouts.expertLayouts.heroTextLight")}
+            value={local.hero_text_color}
+            onChange={(v) => upd({ hero_text_color: v })}
+          />
+          <ColorField
+            label={t("adminLayouts.expertLayouts.heroTextDark")}
+            value={local.hero_text_color_dark}
+            onChange={(v) => upd({ hero_text_color_dark: v })}
+          />
+          <ColorField
+            label={t("adminLayouts.expertLayouts.accentLight")}
+            value={local.accent_color}
+            onChange={(v) => upd({ accent_color: v })}
+          />
+          <ColorField
+            label={t("adminLayouts.expertLayouts.accentDark")}
+            value={local.accent_color_dark}
+            onChange={(v) => upd({ accent_color_dark: v })}
+          />
+          <ColorField
+            label={t("adminLayouts.expertLayouts.bioBulletLight")}
+            value={local.bio_bullet_color}
+            onChange={(v) => upd({ bio_bullet_color: v })}
+          />
+          <ColorField
+            label={t("adminLayouts.expertLayouts.bioBulletDark")}
+            value={local.bio_bullet_color_dark}
+            onChange={(v) => upd({ bio_bullet_color_dark: v })}
+          />
+        </div>
+      </section>
 
-        <ExpertLayoutPreview settings={local} savedAt={savedAt} />
-      </div>
-    </AdminShell>
+      <ExpertLayoutPreview settings={local} savedAt={savedAt} />
+    </div>
   );
 }
 

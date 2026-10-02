@@ -13,6 +13,7 @@ import {
   type SiteNavigationItem,
 } from "@/lib/seo/jsonld";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
+import { FOOTER_LINKS, labelFor } from "@/lib/seo/footerNavigation";
 
 describe("safeJsonLd", () => {
   it("neutralizes </script> breakout attempts (stored XSS guard)", () => {
@@ -124,8 +125,9 @@ describe("breadcrumbListJsonLd", () => {
 // ---------------------------------------------------------------------------
 
 describe("siteNavigationJsonLd", () => {
-  // Cały builder (jsonld.ts:96-116) był martwy pomiarowo, mimo że emituje go
-  // head() strony głównej (routes/index.tsx:350).
+  // Cały builder był martwy pomiarowo, mimo że emituje go head() strony
+  // głównej (`src/routes/index.tsx`, karmiony kanonicznymi hrefami
+  // `FOOTER_LINKS` BEZ prefiksu języka).
   const nav: SiteNavigationItem[] = [
     { name: "Analizy", href: "/analizy" },
     { name: "Regulamin", href: "/regulamin" },
@@ -178,15 +180,21 @@ describe("siteNavigationJsonLd", () => {
       url: "http://legacy.example/a",
     },
     {
-      // FAKT PRZYPIĘTY: test to `href.startsWith("http")`, nie rozbiór schematu,
-      // więc slug zaczynający się od "http" wyszedłby jako adres RELATYWNY -
-      // nieważny w JSON-LD. Dziś nieszkodliwe: wszystkie hrefy w FOOTER_LINKS
-      // zaczynają się od "/" (lib/seo/footerNavigation.ts), ale gałąź jest tu
-      // opisana, żeby przyszły slug typu "httpster" nie przeszedł niezauważony.
-      name: "slug zaczynający się od 'http' jest brany za adres absolutny",
+      // STRAŻNIK: adres absolutny to WYŁĄCZNIE `http(s)://` (ta sama reguła co
+      // w `breadcrumbListJsonLd`), a nie `href.startsWith("http")` - slug
+      // zaczynający się od "http" wychodził wcześniej jako adres RELATYWNY,
+      // nieważny w JSON-LD.
+      name: "slug zaczynający się od 'http' to ścieżka wewnętrzna, nie adres absolutny",
       href: "httpster",
-      url: "httpster",
+      url: `${ORIGIN}/httpster`,
     },
+    {
+      name: "HTTPS:// wielkimi literami też jest absolutne",
+      href: "HTTPS://X.com/nes",
+      url: "HTTPS://X.com/nes",
+    },
+    { name: "pusty href to strona główna", href: "", url: `${ORIGIN}/` },
+    { name: "kotwica bez ścieżki zostaje na stronie głównej", href: "#a", url: `${ORIGIN}/#a` },
   ])("url pozycji - $name", ({ href, url }) => {
     const ld = siteNavigationJsonLd(ORIGIN, [{ name: "n", href }], "pl") as NavGraph;
     expect(ld.itemListElement[0]?.url).toBe(url);
@@ -197,35 +205,126 @@ describe("siteNavigationJsonLd", () => {
     expect(ld.itemListElement).toEqual([]);
   });
 
-  it("render EN dostaje nazwy EN, ale adresy PL (stan faktyczny)", () => {
-    // Ten builder - w odróżnieniu od breadcrumbListJsonLd w tym samym pliku -
-    // NIE przepuszcza hrefów przez localizedPath().
+  it("render EN lokalizuje adresy: inLanguage=en wskazuje wersje /en/...", () => {
+    // KONSEKWENCJA, przed którą ten test chroni: na /en strona główna
+    // emitowała graf nawigacji z inLanguage "en" i nazwami EN, ale adresami
+    // renderu PL. Crawler czytający ten graf dostawał z angielskiej strony
+    // komplet linków do polskich wersji - sprzeczny sygnał wobec hreflangów i
+    // breadcrumbów TEJ SAMEJ strony (breadcrumbListJsonLd lokalizuje ścieżki),
+    // a angielskie podstrony nie dostawały z nawigacji żadnego sygnału.
     const ld = siteNavigationJsonLd(
       ORIGIN,
-      [{ name: "Analyses", href: "/analizy" }],
+      [
+        { name: "Analyses", href: "/analizy" },
+        { name: "Interviews", href: "/category/wywiady" },
+        { name: "X", href: "https://x.com/nes" },
+      ],
       "en",
     ) as NavGraph;
     expect(ld.inLanguage).toBe("en");
-    expect(ld.itemListElement[0]?.url).toBe(`${ORIGIN}/analizy`);
+    expect(ld.itemListElement.map((i) => i.url)).toEqual([
+      `${ORIGIN}/en/analizy`,
+      `${ORIGIN}/en/category/wywiady`,
+      "https://x.com/nes",
+    ]);
   });
 
-  it.fails(
-    "DEFEKT: nawigacja stopki w JSON-LD renderu EN wskazuje adresy PL, choć deklaruje inLanguage=en",
-    () => {
-      // KONSEKWENCJA: na /en strona główna emituje graf nawigacji z inLanguage
-      // "en" i nazwami EN, ale adresami renderu PL. Crawler czytający ten graf
-      // dostaje z angielskiej strony komplet linków do polskich wersji - to
-      // sprzeczny sygnał wobec hreflangów i breadcrumbów TEJ SAMEJ strony
-      // (breadcrumbListJsonLd lokalizuje ścieżki, jsonld.ts:164), a angielskie
-      // podstrony nie dostają z nawigacji żadnego sygnału.
-      const ld = siteNavigationJsonLd(
-        ORIGIN,
-        [{ name: "Analyses", href: "/analizy" }],
-        "en",
-      ) as NavGraph;
-      expect(ld.itemListElement[0]?.url).toBe(`${ORIGIN}/en/analizy`);
+  it("render PL zostawia ścieżki bez prefiksu (negatyw - brak nadkorekty)", () => {
+    const ld = siteNavigationJsonLd(ORIGIN, nav, "pl") as NavGraph;
+    expect(ld.itemListElement.map((i) => i.url)).toEqual([
+      `${ORIGIN}/analizy`,
+      `${ORIGIN}/regulamin`,
+      "https://x.com/nes",
+    ]);
+  });
+
+  it.each([
+    {
+      name: "href już prefiksowany /en NIE dostaje drugiego prefiksu",
+      href: "/en/analizy",
+      lang: "en" as const,
+      url: `${ORIGIN}/en/analizy`,
     },
-  );
+    {
+      // KONSEKWENCJA, przed którą ten przypadek chroni: graf z inLanguage "pl"
+      // wskazywał adres "/en/...", czyli ten sam sprzeczny sygnał językowy co
+      // w EN, tylko w odwrotnym kierunku. Lokalizacja jest teraz identyczna
+      // jak w `breadcrumbListJsonLd` (obcy prefiks zdejmowany).
+      name: "href prefiksowany /en w renderze PL traci obcy prefiks",
+      href: "/en/analizy",
+      lang: "pl" as const,
+      url: `${ORIGIN}/analizy`,
+    },
+    {
+      name: "strona główna EN (/en) w renderze PL to strona główna PL",
+      href: "/en",
+      lang: "pl" as const,
+      url: `${ORIGIN}/`,
+    },
+    {
+      name: "href prefiksowany /en z query w renderze PL zachowuje query",
+      href: "/en/search?q=nato",
+      lang: "pl" as const,
+      url: `${ORIGIN}/search?q=nato`,
+    },
+    { name: "strona główna EN to /en", href: "/", lang: "en" as const, url: `${ORIGIN}/en` },
+    {
+      name: "ścieżka bez ukośnika w EN dostaje ukośnik i prefiks",
+      href: "regulamin",
+      lang: "en" as const,
+      url: `${ORIGIN}/en/regulamin`,
+    },
+    {
+      name: "query zostaje za ścieżką, prefiks idzie przed nią",
+      href: "/search?q=nato",
+      lang: "en" as const,
+      url: `${ORIGIN}/en/search?q=nato`,
+    },
+    {
+      name: "fragment zostaje za ścieżką",
+      href: "/o-nas#zespol",
+      lang: "en" as const,
+      url: `${ORIGIN}/en/o-nas#zespol`,
+    },
+    {
+      name: "powierzchnia nielokalizowana (/sitemap.xml) zostaje bez prefiksu",
+      href: "/sitemap.xml",
+      lang: "en" as const,
+      url: `${ORIGIN}/sitemap.xml`,
+    },
+    {
+      name: "powierzchnia nielokalizowana z query (/admin?x=1) zostaje bez prefiksu",
+      href: "/admin?x=1",
+      lang: "en" as const,
+      url: `${ORIGIN}/admin?x=1`,
+    },
+    {
+      name: "adres absolutny w EN zostaje bez zmian",
+      href: "https://x.com/nes",
+      lang: "en" as const,
+      url: "https://x.com/nes",
+    },
+  ])("lokalizacja - $name", ({ href, lang, url }) => {
+    const ld = siteNavigationJsonLd(ORIGIN, [{ name: "n", href }], lang) as NavGraph;
+    expect(ld.itemListElement[0]?.url).toBe(url);
+  });
+
+  it("FOOTER_LINKS w renderze EN: każdy adres ma DOKŁADNIE jeden prefiks /en", () => {
+    // Kontrakt z jedynym wywołaniem produkcyjnym (`src/routes/index.tsx`), które
+    // podaje kanoniczne hrefy bez prefiksu - zero "/en/en/" i zero adresów PL.
+    const items = FOOTER_LINKS.map((l) => ({ name: labelFor(l, "en"), href: l.href }));
+    const ld = siteNavigationJsonLd(ORIGIN, items, "en") as NavGraph;
+    expect(ld.itemListElement).toHaveLength(FOOTER_LINKS.length);
+    ld.itemListElement.forEach((el, i) => {
+      expect(el.url).toBe(`${ORIGIN}/en${FOOTER_LINKS[i]?.href}`);
+      expect(el.url).not.toContain("/en/en");
+    });
+  });
+
+  it("render bez originu daje ścieżki względne z prefiksem języka", () => {
+    const ld = siteNavigationJsonLd("", [{ name: "n", href: "/analizy" }], "en") as NavGraph;
+    expect(ld.itemListElement[0]?.url).toBe("/en/analizy");
+  });
 });
 
 describe("organizationJsonLd - contactPoint", () => {

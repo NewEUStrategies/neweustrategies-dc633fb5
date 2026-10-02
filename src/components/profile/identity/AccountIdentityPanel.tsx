@@ -26,6 +26,7 @@ import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { ImageCropDialog, CROP_PRESETS } from "@/components/media/ImageCropDialog";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
+import "@/lib/i18n-upload-area";
 
 type Gender = "male" | "female" | "neutral";
 
@@ -439,6 +440,11 @@ export function AccountIdentityPanel() {
                 onAvatarUrlChange={(url) => setData({ ...data, avatar_url: url })}
                 onCoverUrlChange={(url) => setData({ ...data, cover_url: url })}
                 accept={ACCEPT}
+                onRejectedFiles={(files) =>
+                  toast.error(
+                    t("uploadArea.badType", { name: files.map((f) => f.name).join(", ") }),
+                  )
+                }
                 onAvatarFile={(file) => {
                   setPendingFile(file);
                   setCropKind("avatar");

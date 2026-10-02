@@ -3,11 +3,15 @@
 // with exact numbers (chars / cap, px / Google budget) so editors can fix
 // snippets before they ship. Blocking rows (hard character caps) are styled
 // as errors; pixel-budget overflows render as warnings.
+// "Nothing to check" is NOT "checked, no issues": languages whose content has
+// no headings yet (`uncheckedHeadingLangs`) get an explicit note, and without
+// any issue rows the box drops the green check for a neutral state - the
+// editor must not read an unrun heading check as a passed one.
 import { useTranslation } from "react-i18next";
-import { Check } from "@/lib/lucide-shim";
+import { Check, Info } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import type { SeoIssue } from "@/lib/seo/validation";
-import type { HeadingIssue } from "@/lib/seo/headingValidation";
+import type { HeadingIssue, HeadingIssueLang } from "@/lib/seo/headingValidation";
 import { SeverityBadge, severityLiveRole } from "@/components/admin/seo/atoms/SeverityBadge";
 
 const LANG_LABEL: Record<SeoIssue["lang"], string> = { pl: "PL", en: "EN" };
@@ -15,10 +19,26 @@ const LANG_LABEL: Record<SeoIssue["lang"], string> = { pl: "PL", en: "EN" };
 interface SeoValidationSummaryProps {
   issues: SeoIssue[];
   headingIssues?: HeadingIssue[];
+  /**
+   * Languages whose heading structure could not be checked (no headings in
+   * the content). Omitted / empty = every language that was passed in
+   * `headingIssues` was actually checked.
+   */
+  uncheckedHeadingLangs?: HeadingIssueLang[];
 }
 
-export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidationSummaryProps) {
+export function SeoValidationSummary({
+  issues,
+  headingIssues = [],
+  uncheckedHeadingLangs = [],
+}: SeoValidationSummaryProps) {
   const { t } = useTranslation();
+  const uncheckedNote =
+    uncheckedHeadingLangs.length > 0
+      ? t("admin.seo.validation.headingsUnchecked", {
+          langs: uncheckedHeadingLangs.map((lang) => LANG_LABEL[lang]).join(", "),
+        })
+      : null;
   const all: Array<{ key: string; severity: "error" | "warning"; text: string }> = [];
 
   for (const issue of issues) {
@@ -64,10 +84,9 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
         snip,
       });
     } else if (h.kind === "empty_heading") {
-      text = t("admin.seo.validation.emptyHeading", {
-        pos,
-        extra: h.count && h.count > 1 ? ` (łącznie ${h.count})` : "",
-      });
+      // `count` picks the plural form (one empty heading vs N of them), `pos`
+      // points at the first one - both are interpolated by the dictionary.
+      text = t("admin.seo.validation.emptyHeading", { count: h.count ?? 1, pos });
     } else if (h.kind === "duplicate_heading") {
       text = t("admin.seo.validation.duplicateHeading", { pos, snip });
     } else if (h.kind === "too_long_heading") {
@@ -83,9 +102,27 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
   }
 
   if (all.length === 0) {
+    if (uncheckedNote) {
+      // Meta fields passed, but the heading check had nothing to run on:
+      // neutral styling, no check mark - and the reason spelled out.
+      return (
+        <div
+          role="status"
+          data-state="unchecked"
+          className="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-[11px] text-muted-foreground"
+        >
+          <Info className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+          <div className="space-y-0.5">
+            <span className="block">{t("admin.seo.validation.ok")}</span>
+            <span className="block">{uncheckedNote}</span>
+          </div>
+        </div>
+      );
+    }
     return (
       <div
         role="status"
+        data-state="ok"
         className="flex items-center gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-700 dark:text-emerald-300"
       >
         <Check className="h-3.5 w-3.5" aria-hidden />
@@ -97,6 +134,7 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
   return (
     <div
       role={severityLiveRole(hasError ? "error" : "warning")}
+      data-state={hasError ? "error" : "warning"}
       className={cn(
         "space-y-1 rounded-md border px-3 py-2 text-[11px]",
         hasError
@@ -112,6 +150,7 @@ export function SeoValidationSummary({ issues, headingIssues = [] }: SeoValidati
           </li>
         ))}
       </ul>
+      {uncheckedNote ? <p className="opacity-80">{uncheckedNote}</p> : null}
     </div>
   );
 }

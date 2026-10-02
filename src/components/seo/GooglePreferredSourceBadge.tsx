@@ -3,6 +3,7 @@
 // Włącznik, adresy PL/EN, logo (jasne/ciemne) oraz zachowanie na desktopie i
 // mobile pochodzą z Admin → Ustawienia → Preferowane źródło Google.
 // Docs: https://blog.google/products-and-platforms/products/search/preferred-sources/
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import googleG from "@/assets/google-g.png.asset.json";
 import { SITE_NAME } from "@/lib/seo/meta";
@@ -12,6 +13,7 @@ import {
   alignClass,
   clampLogoSize,
   isBadgeVisible,
+  normalizeGoogleSourceBadgeConfig,
   placementStyle,
   resolveBadgeHref,
   resolveBadgeLogo,
@@ -30,7 +32,11 @@ export {
 export interface GooglePreferredSourceBadgeProps {
   /** Breakpoint, dla którego czytamy ustawienia wariantu i marginesów. */
   device?: GoogleSourceBadgeDevice;
-  /** Podgląd w adminie - niezapisany szkic konfiguracji. */
+  /**
+   * Podgląd w adminie - niezapisany szkic konfiguracji. Przechodzi przez TĘ
+   * SAMĄ bramkę co odczyt z bazy: szkic zbudowany z uszkodzonego wiersza
+   * (np. `logo: null`) nie wywraca podglądu.
+   */
   configOverride?: GoogleSourceBadgeConfig;
   /** Wymuszenie motywu logotypu (podgląd w adminie). */
   themeOverride?: "light" | "dark";
@@ -49,7 +55,11 @@ export function GooglePreferredSourceBadge({
   const { t, i18n } = useTranslation();
   const stored = useGoogleSourceBadgeConfig();
   const { theme } = useTheme();
-  const config = configOverride ?? stored;
+  const override = useMemo(
+    () => (configOverride ? normalizeGoogleSourceBadgeConfig(configOverride) : null),
+    [configOverride],
+  );
+  const config = override ?? stored;
 
   if (!isBadgeVisible(config, device)) return null;
 

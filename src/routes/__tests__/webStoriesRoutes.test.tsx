@@ -692,6 +692,24 @@ describe("trasa /web-stories/$slug - klawiatura przeglądarki chodzi po REGULE",
     expect(screen.getByRole("heading", { level: 1, name: "Zima bez gazu" })).toBeInTheDocument();
   });
 
+  it("zamkniętą historię da się ODTWORZYĆ PONOWNIE - i rusza od pierwszej planszy", async () => {
+    // Przycisk na okładce jest jedyną drogą powrotu do przeglądarki po
+    // zamknięciu (Escape, krzyżyk, koniec historii). Ponowne otwarcie montuje
+    // przeglądarkę od zera, więc czytelnik nie ląduje w środku historii na
+    // planszy, na której ją porzucił.
+    await mountStory();
+    const first = await screen.findByRole("dialog");
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(await within(first).findByText("Plansza druga")).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: /Odtwórz historię/ }));
+
+    const reopened = await screen.findByRole("dialog");
+    expect(within(reopened).getByText("Plansza pierwsza")).toBeInTheDocument();
+  });
+
   it("SPACJA przełącza pauzę i BLOKUJE domyślne przewinięcie strony", async () => {
     // Bez `preventDefault` przeglądarka przewija stronę POD pełnoekranową
     // historią - czytelnik wraca z zamknięcia w innym miejscu dokumentu.

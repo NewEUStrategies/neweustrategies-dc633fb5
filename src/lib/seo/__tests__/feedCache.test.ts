@@ -15,6 +15,7 @@ import {
   FEED_CACHE_CONTROL_EMPTY,
   FEED_CACHE_CONTROL_FULL,
   LIVE_FEED_CACHE_CONTROL_FULL,
+  LLMS_TXT_CACHE_CONTROL_FULL,
   feedCacheControl,
   rssResponseHeaders,
 } from "@/lib/seo/feedCache";
@@ -78,6 +79,24 @@ describe("feedCacheControl - wyjątek relacji na żywo", () => {
     expect(LIVE_FEED_CACHE_CONTROL_FULL).toBe(
       "public, max-age=60, s-maxage=120, stale-while-revalidate=600",
     );
+  });
+});
+
+describe("feedCacheControl - wyjątek llms.txt", () => {
+  it("pełny przewodnik zachowuje DOKŁADNIE TTL, który stał wcześniej w trasie", () => {
+    // Wydzielenie literału z `llms[.]txt.ts` nie jest zmianą zachowania
+    // przewodnika pełnego.
+    expect(feedCacheControl(15, LLMS_TXT_CACHE_CONTROL_FULL)).toBe(
+      "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate",
+    );
+  });
+
+  it("przewodnik zdegradowany spada na TEN SAM TTL pusty co kanały - bez SWR", () => {
+    // To jest właściwa zmiana: przewodnik bez artykułów (brak tenanta albo
+    // czytnik zdegradował do `[]`) nie może być podawany przez brzeg jako
+    // stale przez pół godziny po powrocie bazy.
+    expect(feedCacheControl(0, LLMS_TXT_CACHE_CONTROL_FULL)).toBe(FEED_CACHE_CONTROL_EMPTY);
+    expect(FEED_CACHE_CONTROL_EMPTY).not.toContain("stale-while-revalidate");
   });
 });
 

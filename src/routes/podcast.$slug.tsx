@@ -12,7 +12,13 @@ import {
 } from "@/lib/queries/podcasts";
 import { supabase } from "@/integrations/supabase/client";
 import { PODCAST_SHOW_FIELDS } from "@/lib/queries/podcasts";
-import type { Podcast, PodcastPerson, PodcastSettings, PodcastShow } from "@/lib/podcast/types";
+import type {
+  Podcast,
+  PodcastPerson,
+  PodcastResource,
+  PodcastSettings,
+  PodcastShow,
+} from "@/lib/podcast/types";
 import { anyDegraded, loadResilient, resilientCacheControl } from "@/lib/ssr/resilientLoad";
 import { notFoundIfClean } from "@/lib/ssr/notFoundIfClean";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
@@ -154,14 +160,19 @@ export const Route = createFileRoute("/podcast/$slug")({
   head: ({ loaderData }) => {
     const p = loaderData?.podcast;
     if (!p) return { meta: [{ title: "Podcast" }] };
-    const title = p.title_pl || p.title_en || "Podcast";
     const url = getRequestUrl() || `/podcast/${p.slug}`;
     const lang = activeLang(url);
+    // TYTUŁ I ZAJAWKA W JĘZYKU ADRESU - tymi samymi pickerami, co nagłówek
+    // `<h1>` i lead w komponencie. Do 2026-10-02 stało tu `title_pl ||
+    // title_en`, więc `/en/podcast/...` wychodził z polskim `<title>`,
+    // `og:title`, opisem i nazwą w JSON-LD nad angielską treścią strony
+    // (a `hreflang` obiecywał wersję angielską).
+    const title = podcastTitle(p, lang) || "Podcast";
     const origin = splitUrl(url).origin || SITE_CANONICAL_ORIGIN;
     // Odcinek bez zajawki: opis marki zamiast pustego <meta name="description">
     // (stary ręczny head w ogóle pomijał wtedy ten tag - fallback jest lepszy
     // dla SERP niż brak i niż pusty content).
-    const excerpt = (p.excerpt_pl || p.excerpt_en || "").slice(0, 300);
+    const excerpt = pickLocalized(p, "excerpt", lang).slice(0, 300);
     const description = excerpt || siteDescription(lang, origin);
     // Pełny kontrakt <head> przez buildContentHead (canonical, hreflang,
     // twitter:card, og:url, og:image z fallbackiem marki) - ręczne meta go nie
@@ -255,6 +266,44 @@ function PodcastNotice({ messageKey }: { messageKey: string }) {
   return <div className="container mx-auto p-8 text-sm text-muted-foreground">{t(messageKey)}</div>;
 }
 
+/**
+ * Lista linków jednej kategorii materiałów odcinka (źródła albo „powiązane").
+ * Obie kolumny miały dotąd po kopii tego samego znacznika - różniły się
+ * wyłącznie nagłówkiem i zbiorem wierszy. Pusta kategoria nie zostawia
+ * osieroconego nagłówka.
+ */
+function ResourceLinks({
+  heading,
+  resources,
+  lang,
+}: {
+  heading: string;
+  resources: PodcastResource[];
+  lang: "pl" | "en";
+}) {
+  if (resources.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <h2 className="font-display text-lg">{heading}</h2>
+      <ul className="space-y-1.5">
+        {resources.map((r, i) => (
+          <li key={i}>
+            <a
+              href={r.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-start gap-1.5 text-sm text-primary hover:underline"
+            >
+              <ExternalLink className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>{pickPair(pickLocalized(r, "label", lang), r.url)}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function PodcastSinglePage() {
   const { slug } = Route.useParams();
   const { degraded: initialDegraded } = Route.useLoaderData();
@@ -311,6 +360,14 @@ function PodcastSinglePage() {
 
   const sources = resources.filter((r) => r.kind === "source");
   const related = resources.filter((r) => r.kind === "related");
+  // Platformy subskrypcji jako DANE, nie cztery skopiowane kotwice - ta sama
+  // kolejność i ten sam znacznik, co dotąd; pusty adres po prostu wypada.
+  const subscribeLinks = [
+    { label: "Spotify", url: settings?.spotify_url },
+    { label: "Apple Podcasts", url: settings?.apple_url },
+    { label: "Google", url: settings?.google_url },
+    { label: "RSS", url: settings?.rss_url },
+  ].filter((link): link is { label: string; url: string } => !!link.url);
 
   const copyQuote = async (text: string, attribution: string, idx: number) => {
     const body = attribution ? `„${text}" - ${attribution}` : `„${text}"`;
@@ -377,51 +434,19 @@ function PodcastSinglePage() {
         }}
       />
 
-      {(settings?.spotify_url ||
-        settings?.apple_url ||
-        settings?.google_url ||
-        settings?.rss_url) && (
+      {subscribeLinks.length > 0 && (
         <nav className="flex flex-wrap gap-2 text-xs">
-          {settings.spotify_url && (
+          {subscribeLinks.map((link) => (
             <a
-              href={settings.spotify_url}
+              key={link.label}
+              href={link.url}
               target="_blank"
               rel="noopener noreferrer"
               className="px-3 py-1.5 rounded-full border border-border hover:bg-muted"
             >
-              Spotify
+              {link.label}
             </a>
-          )}
-          {settings.apple_url && (
-            <a
-              href={settings.apple_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 rounded-full border border-border hover:bg-muted"
-            >
-              Apple Podcasts
-            </a>
-          )}
-          {settings.google_url && (
-            <a
-              href={settings.google_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 rounded-full border border-border hover:bg-muted"
-            >
-              Google
-            </a>
-          )}
-          {settings.rss_url && (
-            <a
-              href={settings.rss_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 rounded-full border border-border hover:bg-muted"
-            >
-              RSS
-            </a>
-          )}
+          ))}
         </nav>
       )}
 
@@ -566,52 +591,16 @@ function PodcastSinglePage() {
 
       {(sources.length > 0 || related.length > 0) && (
         <section className="grid gap-6 sm:grid-cols-2">
-          {sources.length > 0 && (
-            <div className="space-y-2">
-              <h2 className="font-display text-lg">{t("podcastNetwork.sourcesHeading")}</h2>
-              <ul className="space-y-1.5">
-                {sources.map((r, i) => {
-                  const label = pickPair(pickLocalized(r, "label", lang), r.url);
-                  return (
-                    <li key={i}>
-                      <a
-                        href={r.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-start gap-1.5 text-sm text-primary hover:underline"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                        <span>{label}</span>
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-          {related.length > 0 && (
-            <div className="space-y-2">
-              <h2 className="font-display text-lg">{t("podcastNetwork.relatedHeading")}</h2>
-              <ul className="space-y-1.5">
-                {related.map((r, i) => {
-                  const label = pickPair(pickLocalized(r, "label", lang), r.url);
-                  return (
-                    <li key={i}>
-                      <a
-                        href={r.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-start gap-1.5 text-sm text-primary hover:underline"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                        <span>{label}</span>
-                      </a>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
+          <ResourceLinks
+            heading={t("podcastNetwork.sourcesHeading")}
+            resources={sources}
+            lang={lang}
+          />
+          <ResourceLinks
+            heading={t("podcastNetwork.relatedHeading")}
+            resources={related}
+            lang={lang}
+          />
         </section>
       )}
 

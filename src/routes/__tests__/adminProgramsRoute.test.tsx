@@ -11,10 +11,13 @@
 // GŁÓWNY PRZEDMIOT DOWODU: UNIEWAŻNIANIE CACHE PO STRONIE PUBLICZNEJ.
 // Ten panel jest źródłem danych dla DWÓCH powierzchni publicznych:
 // katalogu ekspertów (`["public", "experts-directory"]`) i strony
-// pojedynczego eksperta (`["public", "expert"]`). Zapis, który unieważnia
-// tylko klucz panelu, daje redakcji wrażenie wykonanej pracy i zostawia
-// czytelnikowi stary katalog. Ten plik przybija, które zapisy robią to
-// poprawnie, i PRZYPINA dwa, które tego nie robią.
+// pojedynczego eksperta (`["public", "expert"]`) - a od migracji
+// 20260815110844 także dla stron `/programs` i listy programów do tagowania
+// w edytorze wpisu (`["programs", ...]`), bo `research_programs` jest widokiem
+// na `programs`. Zapis, który unieważnia tylko klucz panelu, daje redakcji
+// wrażenie wykonanej pracy i zostawia czytelnikowi stary katalog. Dwa zapisy,
+// które tego nie robiły (usunięcie programu, wypisanie członka), były tu
+// przypięte jako `it.fails` - naprawione 2026-10, testy są zwykłymi `it`.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - DOSTĘPU: `/admin` przepuszcza tylko `isStaff`, a prawo zapisu do
@@ -22,7 +25,7 @@
 //   najemcy); warstw pilnuje `adminRouteAuthority.gate.test.ts`.
 // - KATALOGU EKSPERTÓW: `experts.tsx` i `ExpertPicker` mają własne testy.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { RecordedChain, SupabaseFromStub } from "@/test/supabaseChain";
 
@@ -44,6 +47,7 @@ const h = vi.hoisted(() => ({
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("@/lib/i18n-experts", () => ({ ensureI18n: () => undefined }));
 vi.mock("@/lib/i18n-admin-programs", () => ({ ensureI18n: () => undefined }));
+vi.mock("@/lib/i18n-programs", () => ({ ensureI18n: () => undefined }));
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/lib/appDialogs", () => ({
   confirmDialog: (request: Record<string, unknown>) => {
@@ -82,13 +86,34 @@ vi.mock("@/components/ui/switch", async () => {
   const { radixSwitchStub } = await import("@/test/reactStubs");
   return radixSwitchStub(react);
 });
+// Treść w drzewie WYŁĄCZNIE gdy `open`; „Close" odpowiada X z `DialogContent`
+// (w produkcji `sr-only` „Close") i woła `onOpenChange(false)`.
 vi.mock("@/components/ui/dialog", async () => {
   const react = await import("react");
   const Box = ({ children }: { children?: ReactNode }) =>
     react.createElement("div", null, children as never);
   return {
-    Dialog: ({ open, children }: { open?: boolean; children?: ReactNode }) =>
-      open ? react.createElement("div", { role: "dialog" }, children as never) : null,
+    Dialog: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open?: boolean;
+      onOpenChange?: (next: boolean) => void;
+      children?: ReactNode;
+    }) =>
+      open
+        ? react.createElement(
+            "div",
+            { role: "dialog" },
+            react.createElement(
+              "button",
+              { type: "button", onClick: () => onOpenChange?.(false) },
+              "Close",
+            ),
+            children as never,
+          )
+        : null,
     DialogContent: Box,
     DialogHeader: Box,
     DialogFooter: Box,
@@ -100,6 +125,7 @@ vi.mock("@/components/ui/dialog", async () => {
 
 import { ok, fail } from "@/test/supabaseChain";
 import { renderRoute, routeMeta } from "@/test/routeHarness";
+import { PROGRAM_ROW_READERS } from "@/lib/programs/adminForm";
 import { Route as ProgramsRoute } from "@/routes/admin.programs";
 
 const PATH = "/admin/programs";
@@ -177,10 +203,14 @@ describe("admin.programs - kontekst obszaru roboczego i sklejenie", () => {
     expect(db().chains).toEqual([]);
   });
 
-  it("lista jest porządkowana kolumną `sort_order`, a klucz cache niesie tenanta", async () => {
+  it("lista jest porządkowana kolumną `sort_order`, a klucz cache I ZAPYTANIE niosą tenanta", async () => {
+    // NAPRAWIONE 2026-10: klucz niósł `tenantId`, zapytanie nie - zakres
+    // wyznaczał sam RLS, a polityka „public read" przepuszcza też opublikowane
+    // programy obszaru z adresu hosta.
     const view = await mount();
     await screen.findByText("Polityka klimatu");
 
+    expect(chainWith("programs", "select").argsOf("eq")).toEqual(["tenant_id", TENANT]);
     expect(chainWith("programs", "select").argsOf("order")).toEqual([
       "sort_order",
       { ascending: true },
@@ -201,11 +231,16 @@ describe("admin.programs - kontekst obszaru roboczego i sklejenie", () => {
     expect(button("adminPrograms.newProgram")).toBeInTheDocument();
   });
 
-  it("awaria odczytu nie wywala panelu - nagłówek i akcja dodania zostają", async () => {
+  it("awaria odczytu nie wywala panelu i NIE udaje pustej listy", async () => {
+    // NAPRAWIONE 2026-10: odmowa odczytu dawała `adminPrograms.empty`
+    // („Brak programów. Dodaj pierwszy."), więc redakcja dodawała program,
+    // który już istnieje - i odbijała się od unikalności slugu.
     db().setResponse("programs", () => fail("test: odmowa odczytu programs", "42501"));
     await mount();
 
-    expect(await screen.findByText("admin.nav.programs")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("programs.loadError");
+    expect(screen.queryByText("adminPrograms.empty")).toBeNull();
+    expect(screen.getByText("admin.nav.programs")).toBeInTheDocument();
     expect(button("adminPrograms.newProgram")).toBeInTheDocument();
   });
 
@@ -301,8 +336,63 @@ describe("admin.programs - zapis programu", () => {
       kind: "program",
       is_active: true,
     });
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["admin-programs"] });
-    expect(spy).toHaveBeenCalledWith({ queryKey: DIRECTORY_KEY });
+    // Wszyscy czytelnicy wiersza `programs`, nie tylko dwa klucze: nowy program
+    // musi być od razu do wybrania w edytorze wpisu (`["programs", tenantId]`)
+    // i widoczny na `/programs` - to ten sam wiersz.
+    expect(spy.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([...PROGRAM_ROW_READERS]);
+  });
+
+  it("pola okna programu lądują w SWOICH kolumnach ładunku", async () => {
+    // Para etykieta -> kolumna jest kontraktem. Opisy PL/EN są bliźniakami
+    // o tym samym typie, a `kind` decyduje, gdzie wpis wychodzi na stronie
+    // eksperta.
+    await openCreate();
+    const typed: ReadonlyArray<readonly [label: string, value: string]> = [
+      ["Slug", "klimat"],
+      ["adminPrograms.dialog.namePl", "Klimat"],
+      ["adminPrograms.dialog.nameEn", "Climate"],
+      ["adminPrograms.dialog.kindLabel", "department"],
+      ["adminPrograms.dialog.order", "3"],
+      ["adminPrograms.dialog.descPl", "Opis po polsku"],
+      ["adminPrograms.dialog.descEn", "Description in English"],
+    ];
+    for (const [label, value] of typed) {
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    }
+    fireEvent.click(screen.getByLabelText("adminPrograms.dialog.active"));
+    fireEvent.click(button("adminPrograms.dialog.save"));
+
+    await waitFor(() =>
+      expect(
+        db()
+          .chainsFor("programs")
+          .some((c) => c.has("insert")),
+      ).toBe(true),
+    );
+    expect(chainWith("programs", "insert").argsOf("insert")?.[0]).toEqual({
+      slug: "klimat",
+      name_pl: "Klimat",
+      name_en: "Climate",
+      kind: "department",
+      description_pl: "Opis po polsku",
+      description_en: "Description in English",
+      is_active: false,
+      sort_order: 3,
+      tenant_id: TENANT,
+    });
+  });
+
+  it("„Anuluj” zamyka okno BEZ zapisu", async () => {
+    await openCreate();
+    fireEvent.change(slugField(), { target: { value: "klimat" } });
+    fireEvent.click(button("adminPrograms.dialog.cancel"));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(
+      db()
+        .chainsFor("programs")
+        .some((c) => c.has("insert") || c.has("update")),
+    ).toBe(false);
   });
 
   it("edycja jedzie UPDATE po identyfikatorze, nie INSERTEM", async () => {
@@ -351,7 +441,12 @@ describe("admin.programs - usunięcie programu", () => {
     clickRowTrash();
 
     await waitFor(() => expect(h.confirmCalls).toHaveLength(1));
-    expect(h.confirmCalls[0]).toMatchObject({ title: "adminPrograms.remove.title" });
+    // `destructive`: usunięcie kaskaduje na przypisania ekspertów i na landing
+    // programu (ten sam wiersz `programs`) - przycisk ma to mówić kolorem.
+    expect(h.confirmCalls[0]).toMatchObject({
+      title: "adminPrograms.remove.title",
+      destructive: true,
+    });
     expect(String(h.confirmCalls[0].description)).toContain("Polityka klimatu");
   });
 
@@ -384,31 +479,13 @@ describe("admin.programs - usunięcie programu", () => {
     expect(chainWith("programs", "delete").argsOf("eq")).toEqual(["id", PROGRAM_ID]);
   });
 
-  it("KONTROLA DODATNIA: usunięcie unieważnia dziś TYLKO klucz panelu", async () => {
-    // Dzisiejsze zachowanie, przybite, żeby przypięty niżej defekt nie był
-    // „testem przechodzącym na brakującym wywołaniu".
-    const view = await mount();
-    await screen.findByText("Polityka klimatu");
-    const spy = vi.spyOn(view.queryClient, "invalidateQueries");
-    clickRowTrash();
-
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
-    expect(spy).toHaveBeenCalledWith({ queryKey: ["admin-programs"] });
-    expect(spy).not.toHaveBeenCalledWith({ queryKey: DIRECTORY_KEY });
-  });
-
-  it.fails("usunięcie programu MUSI unieważnić katalog ekspertów", async () => {
-    // DEFEKT PRODUKCYJNY (nienaprawiony w tej pracy: poprawka to jedna linia,
-    // ale zmienia zachowanie cache na powierzchni publicznej, więc należy do
-    // pracy nad katalogiem ekspertów, nie do pracy nad pokryciem).
-    //
-    // ASYMETRIA JEST CAŁYM DOWODEM: `saveProgram` unieważnia DWA klucze
-    // (`["admin-programs"]` i `["public", "experts-directory"]`),
-    // a `removeProgram` tylko pierwszy. Konsekwencja: redakcja usuwa program,
-    // panel pokazuje to natychmiast, a katalog ekspertów w tej samej sesji
-    // przeglądarki dalej oferuje filtr po programie, którego już nie ma -
-    // klik w ten filtr daje pustą listę bez wyjaśnienia. Cache publiczny
-    // odświeży się dopiero po wygaśnięciu wpisu.
+  it("usunięcie programu unieważnia katalog ekspertów i resztę czytelników wiersza", async () => {
+    // NAPRAWIONE 2026-10 (było przypięte `it.fails`). ASYMETRIA BYŁA CAŁYM
+    // DOWODEM: `saveProgram` unieważniał katalog ekspertów, `removeProgram` -
+    // tylko klucz panelu. Redakcja usuwała program, panel pokazywał to od
+    // razu, a katalog ekspertów w tej samej sesji dalej oferował filtr po
+    // programie, którego już nie ma - klik dawał pustą listę bez wyjaśnienia.
+    // Dziś obie ścieżki biorą tę samą listę (`PROGRAM_ROW_READERS`).
     const view = await mount();
     await screen.findByText("Polityka klimatu");
     const spy = vi.spyOn(view.queryClient, "invalidateQueries");
@@ -416,6 +493,21 @@ describe("admin.programs - usunięcie programu", () => {
 
     await waitFor(() => expect(h.toastSuccess).toHaveBeenCalled());
     expect(spy).toHaveBeenCalledWith({ queryKey: DIRECTORY_KEY });
+    expect(spy.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([...PROGRAM_ROW_READERS]);
+  });
+
+  it("odmowa bazy przy usuwaniu: komunikat bazy, bez pochwały i bez unieważnienia", async () => {
+    db().setResponse("programs", (chain) =>
+      chain.has("delete") ? fail("test: odmowa polityki RLS", "42501") : ok([program()]),
+    );
+    const view = await mount();
+    await screen.findByText("Polityka klimatu");
+    const spy = vi.spyOn(view.queryClient, "invalidateQueries");
+    clickRowTrash();
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("test: odmowa polityki RLS"));
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(spy).not.toHaveBeenCalled();
   });
 });
 
@@ -495,7 +587,7 @@ describe("admin.programs - członkowie programu", () => {
           .some((c) => c.has("insert")),
       ).toBe(true),
     );
-    expect(chainWith("program_members", "insert").argsOf("insert")?.[0]).toMatchObject({
+    expect(chainWith("program_members", "insert").argsOf("insert")?.[0]).toEqual({
       program_id: PROGRAM_ID,
       user_id: USER_ID,
       role_pl: null,
@@ -504,6 +596,89 @@ describe("admin.programs - członkowie programu", () => {
     expect(spy).toHaveBeenCalledWith({ queryKey: ["admin-program-members", PROGRAM_ID] });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["public", "expert"] });
     expect(spy).toHaveBeenCalledWith({ queryKey: DIRECTORY_KEY });
+  });
+
+  async function chooseCandidate() {
+    await waitFor(() =>
+      expect(document.querySelector(`option[value="${USER_ID}"]`)).not.toBeNull(),
+    );
+    const candidateSelect = screen
+      .getAllByRole("combobox")
+      .find((el) => el.querySelector(`option[value="${USER_ID}"]`));
+    if (!candidateSelect) throw new Error("test: brak kandydata na liście");
+    fireEvent.change(candidateSelect, { target: { value: USER_ID } });
+  }
+
+  it("funkcja PL/EN jedzie PRZYCIĘTA (same spacje -> NULL), a po sukcesie formularz jest pusty", async () => {
+    // Funkcja eksperta wychodzi pod jego nazwiskiem na stronie programu;
+    // spacje wklejone z CV nie mogą udawać funkcji, a pozostawiona wersja
+    // robocza po zapisie zachęca do drugiego, zdublowanego przypisania.
+    h.users = [{ id: USER_ID, display_name: "Jan Testowy", email: "jan@example.org" }];
+    await openMembers();
+    await chooseCandidate();
+    fireEvent.change(screen.getByPlaceholderText("adminPrograms.membersDialog.rolePl"), {
+      target: { value: "  Starszy analityk  " },
+    });
+    fireEvent.change(screen.getByPlaceholderText("adminPrograms.membersDialog.roleEn"), {
+      target: { value: "   " },
+    });
+    fireEvent.click(button("adminPrograms.membersDialog.assign"));
+
+    await waitFor(() =>
+      expect(
+        db()
+          .chainsFor("program_members")
+          .some((c) => c.has("insert")),
+      ).toBe(true),
+    );
+    expect(chainWith("program_members", "insert").argsOf("insert")?.[0]).toMatchObject({
+      role_pl: "Starszy analityk",
+      role_en: null,
+    });
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText("adminPrograms.membersDialog.rolePl")).toHaveValue(""),
+    );
+    expect(button("adminPrograms.membersDialog.assign")).toBeDisabled();
+  });
+
+  it("odmowa bazy przy przypisaniu zostawia wersję roboczą i nic nie unieważnia", async () => {
+    h.users = [{ id: USER_ID, display_name: "Jan Testowy", email: "jan@example.org" }];
+    db().setResponse("program_members", (chain) =>
+      chain.has("insert") ? fail("test: odmowa polityki RLS", "42501") : ok([]),
+    );
+    const view = await openMembers();
+    const spy = vi.spyOn(view.queryClient, "invalidateQueries");
+    await chooseCandidate();
+    fireEvent.change(screen.getByPlaceholderText("adminPrograms.membersDialog.rolePl"), {
+      target: { value: "Analityk" },
+    });
+    fireEvent.click(button("adminPrograms.membersDialog.assign"));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("test: odmowa polityki RLS"));
+    expect(screen.getByPlaceholderText("adminPrograms.membersDialog.rolePl")).toHaveValue(
+      "Analityk",
+    );
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("okno członków zamyka się i stopką, i X - bez zapisu", async () => {
+    // Dwie drogi wyjścia, jedna reguła: zamknięcie niczego nie zapisuje.
+    await openMembers();
+    fireEvent.click(button("adminPrograms.membersDialog.close"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    const people = screen.getAllByRole("button").find((b) => b.querySelector("svg.lucide-users"));
+    if (!people) throw new Error("test: brak przycisku członków w wierszu programu");
+    fireEvent.click(people);
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", { name: "Close" }),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(
+      db()
+        .chainsFor("program_members")
+        .some((c) => c.has("insert") || c.has("delete")),
+    ).toBe(false);
   });
 
   it("usunięcie członka filtruje po OBU kolumnach klucza złożonego", async () => {
@@ -569,25 +744,16 @@ describe("admin.programs - członkowie programu", () => {
     return spy;
   }
 
-  it("KONTROLA DODATNIA: wypisanie członka unieważnia dziś stronę eksperta, ale NIE katalog", async () => {
+  it("wypisanie członka unieważnia stronę eksperta I katalog - to samo co przypisanie", async () => {
+    // NAPRAWIONE 2026-10 (było przypięte `it.fails`), ta sama klasa co przy
+    // usuwaniu programu: `addMember` unieważniał TRZY klucze (panel, strona
+    // eksperta, katalog), `removeMember` tylko dwa - gubił katalog. Ekspert
+    // wypisany z programu zostawał w wynikach filtra tego programu, a na jego
+    // stronie programu już nie było - sprzeczność dwóch stron publicznych.
     const spy = await removeMemberFlow();
 
+    await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: DIRECTORY_KEY }));
     expect(spy).toHaveBeenCalledWith({ queryKey: ["public", "expert"] });
-    expect(spy).not.toHaveBeenCalledWith({ queryKey: DIRECTORY_KEY });
-  });
-
-  it.fails("wypisanie członka MUSI unieważnić katalog ekspertów", async () => {
-    // DEFEKT PRODUKCYJNY, ta sama klasa co przy usuwaniu programu i ta sama
-    // asymetria: `addMember` unieważnia TRZY klucze (panel, strona eksperta,
-    // katalog), `removeMember` tylko dwa - gubi katalog.
-    //
-    // KONSEKWENCJA. Katalog ekspertów filtruje po programach, więc ekspert
-    // wypisany z programu zostaje w wynikach filtra tego programu. Czytelnik
-    // klika „Polityka klimatu", widzi tam osobę, która już się nią nie
-    // zajmuje, wchodzi na jej stronę - i tam programu nie ma. Sprzeczność
-    // między dwiema stronami publicznymi tego samego serwisu.
-    const spy = await removeMemberFlow();
-
-    expect(spy).toHaveBeenCalledWith({ queryKey: DIRECTORY_KEY });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["admin-program-members", PROGRAM_ID] });
   });
 });

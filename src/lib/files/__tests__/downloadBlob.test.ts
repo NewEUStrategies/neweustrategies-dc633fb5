@@ -3,12 +3,11 @@
 // STAWKI: (1) adres `blob:` zwalniany PO sekundzie, nie od razu - natychmiastowe
 // `revokeObjectURL` gubi plik w Safari i części Chromium; (2) kotwica nie
 // zostaje w dokumencie; (3) BOM tylko na żądanie (CSV dla Excela), bo
-// kalendarzom i parserom szkodzi; (4) bajty base64 trafiają do pliku 1:1.
+// kalendarzom i parserom szkodzi; (4) bajty base64 trafiają do pliku PDF 1:1.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   OBJECT_URL_REVOKE_DELAY_MS,
-  downloadBase64File,
   downloadBase64Pdf,
   downloadBlob,
   downloadTextFile,
@@ -52,14 +51,15 @@ describe("downloadBlob", () => {
   });
 });
 
-describe("downloadBase64File / downloadBase64Pdf", () => {
-  it("bajty 1:1 i typ MIME", async () => {
-    downloadBase64File(btoa("\u0000ÿ%PDF"), "a.bin", "application/octet-stream");
-    expect(created[0].type).toBe("application/octet-stream");
+describe("downloadBase64Pdf", () => {
+  it("bajty 1:1 - także 0x00 i 0xFF, których nie wolno zgubić w dekodowaniu", async () => {
+    // Binarny PDF niesie bajty spoza ASCII w strumieniach; dekodowanie przez
+    // tekst (UTF-8) zamieniłoby 0xFF na dwa bajty i zepsuło plik.
+    downloadBase64Pdf(btoa("\u0000ÿ%PDF"), "faktura.pdf");
     expect([...new Uint8Array(await created[0].arrayBuffer())]).toEqual([0, 255, 37, 80, 68, 70]);
   });
 
-  it("PDF", () => {
+  it("typ `application/pdf` i nazwa pliku z wywołania", () => {
     downloadBase64Pdf(btoa("%PDF-1.7"), "certyfikat.pdf");
     expect(created[0].type).toBe("application/pdf");
     expect(clicked[0].download).toBe("certyfikat.pdf");

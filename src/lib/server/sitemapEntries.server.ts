@@ -423,35 +423,60 @@ export async function collectSitemapSection(
   }
 }
 
+/** Wynik zbierania wszystkich sekcji dla indeksu mapy. */
+export interface SitemapSectionsResult {
+  /** Adresy per sekcja - sekcja, której odczyt padł, jest tu PUSTA (`[]`). */
+  sections: Map<SitemapSection, SitemapEntry[]>;
+  /**
+   * Sekcje, których odczyt RZUCIŁ (i zdegradował do `[]`). Bez tej listy
+   * indeks nie odróżnia awarii od sekcji legalnie pustej: częściowa awaria
+   * (jedna sekcja padła, reszta ma treść) dostawała TTL pełny ze
+   * `stale-while-revalidate`, więc brzeg podawał mapę bez całej sekcji przez
+   * pół godziny po powrocie bazy. Pusta lista = wszystkie odczyty doszły.
+   */
+  failedSections: readonly SitemapSection[];
+}
+
 /**
  * Adresy WSZYSTKICH sekcji - potrzebne indeksowi, który musi znać liczbę adresów,
  * żeby policzyć shardy. Mapa ścieżek stron budowana raz na całe wywołanie.
+ *
+ * Awaria jednej sekcji NIE zabiera adresów pozostałym (sekcja dostaje `[]`),
+ * ale trafia do `failedSections` - trasa indeksu podaje wtedy krótki TTL
+ * odpowiedzi zdegradowanej (patrz `sitemapCacheHeaders`).
  */
 export async function collectAllSitemapSections(
   admin: DbClient,
   tenantId: string | null,
   origin: string,
-): Promise<Map<SitemapSection, SitemapEntry[]>> {
-  const out = new Map<SitemapSection, SitemapEntry[]>();
-  out.set("core", coreSitemapEntries(origin));
+): Promise<SitemapSectionsResult> {
+  const sections = new Map<SitemapSection, SitemapEntry[]>();
+  sections.set("core", coreSitemapEntries(origin));
   // Bez tenanta (tryb degradacji) nie ma czego czytać - zostaje sam szkielet.
-  if (!tenantId) return out;
+  // To nie jest awaria odczytu (żaden odczyt nie ruszył), więc lista awarii
+  // jest pusta; o degradacji indeksu rozstrzyga trasa po braku tenanta.
+  if (!tenantId) return { sections, failedSections: [] };
 
   const pagePaths = pagePathsOnce(admin, tenantId);
-  const sections = Object.keys(COLLECTORS) as Array<Exclude<SitemapSection, "core">>;
+  const names = Object.keys(COLLECTORS) as Array<Exclude<SitemapSection, "core">>;
   const results = await Promise.all(
-    sections.map(async (section) => {
+    names.map(async (section) => {
       try {
-        return [
+        return {
           section,
-          await COLLECTORS[section]({ admin, tenantId, origin, pagePaths }),
-        ] as const;
+          entries: await COLLECTORS[section]({ admin, tenantId, origin, pagePaths }),
+          failed: false,
+        };
       } catch (e) {
         console.warn(`[seo] sitemap section "${section}" read failed:`, e);
-        return [section, [] as SitemapEntry[]] as const;
+        return { section, entries: [] as SitemapEntry[], failed: true };
       }
     }),
   );
-  for (const [section, entries] of results) out.set(section, entries);
-  return out;
+  const failedSections: SitemapSection[] = [];
+  for (const { section, entries, failed } of results) {
+    sections.set(section, entries);
+    if (failed) failedSections.push(section);
+  }
+  return { sections, failedSections };
 }
