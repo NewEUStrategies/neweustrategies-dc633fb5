@@ -85,7 +85,7 @@ const pl = {
         "Bonus z odsłon w ostatnich 28 dniach, skalowany względem najpopularniejszego wpisu serwisu. Liczy się z listy 50 najczęściej czytanych - kandydat spoza niej dostaje 0.",
       dwell: "Dwell (czas czytania)",
       dwellHint:
-        "Bonus z mediany czasu aktywnego czytania wpisu w ostatnich 28 dniach (karta widoczna, czytelnik aktywny; tylko odsłony po zgodzie analitycznej), skalowany względem wpisu czytanego najdłużej. Wpis z mniej niż 5 pomiarami dostaje 0. Dłuższe teksty mają naturalnie dłuższą medianę.",
+        "Bonus z mediany czasu aktywnego czytania wpisu w ostatnich 28 dniach (karta widoczna, czytelnik aktywny; tylko odsłony po zgodzie analitycznej), skalowany względem wpisu czytanego najdłużej. Liczy się z listy 500 najdłużej czytanych wpisów z co najmniej 5 pomiarami - kandydat spoza niej dostaje 0. Dłuższe teksty mają naturalnie dłuższą medianę.",
       personalization: "Personalizacja",
       personalizationHint:
         "Dopasowanie do profilu zainteresowań zalogowanego użytkownika (kategorie + tagi z historii). Działa wyłącznie po zgodzie na personalizację i przy braku sygnału GPC.",
@@ -178,7 +178,7 @@ const en = {
         "Bonus from views over the last 28 days, scaled against the site's most-read post. Drawn from the top 50 most-read - a candidate outside it scores 0.",
       dwell: "Dwell (reading time)",
       dwellHint:
-        "Bonus from the median engaged reading time on the article over the last 28 days (tab visible, reader active; only views with analytics consent), scaled against the site's longest-read post. A post with fewer than 5 measurements scores 0. Longer texts naturally have a longer median.",
+        "Bonus from the median engaged reading time on the article over the last 28 days (tab visible, reader active; only views with analytics consent), scaled against the site's longest-read post. Drawn from the 500 longest-read posts with at least 5 measurements - a candidate outside it scores 0. Longer texts naturally have a longer median.",
       personalization: "Personalization",
       personalizationHint:
         "Match against the signed-in reader's interest profile (categories + tags from history). Applies only with personalization consent and no GPC signal.",

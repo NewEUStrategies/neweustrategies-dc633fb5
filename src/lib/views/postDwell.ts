@@ -2,7 +2,7 @@
 // rekomendacji (`related_posts_dwell`, migracja 20261002120000).
 //
 // CO MIERZYMY. Czas, w którym karta jest widoczna, a czytelnik był aktywny
-// (przewinięcie, klawisz, dotyk, ruch wskaźnika) nie dawniej niż
+// (przewinięcie strony, klawisz, dotyk, ruch wskaźnika) nie dawniej niż
 // `DWELL_IDLE_CUTOFF_MS` temu. Każda przerwa między zdarzeniami liczy się
 // najwyżej do tego progu: czytanie jednego ekranu bez dotykania myszy zostaje
 // policzone, karta zostawiona na noc - nie. Karta otwarta w tle (Ctrl+klik) nie
@@ -17,13 +17,13 @@
 // PRYWATNOŚĆ. Moduł startuje WYŁĄCZNIE dla odsłony, którą `useRecordPostView`
 // już policzył pod zgodą analityczną, i zgłasza ją tym samym `viewer_hash`, pod
 // którym ta odsłona leży w `post_views` - żadnego nowego identyfikatora ani
-// klucza w magazynie przeglądarki. Zgodę czytamy JESZCZE RAZ przy wysyłce:
-// wycofana w trakcie czytania zatrzymuje zgłoszenia od razu.
+// klucza w magazynie przeglądarki. Zgodę czytamy JESZCZE RAZ przy wysyłce,
+// a jej wycofanie w trakcie czytania kończy pomiar od razu i bez wysyłki.
 //
 // ŁADOWANY LENIWIE (`import()` w `useRecordPostView`): hook siedzi w chunku
 // wejściowym trasy wpisu, a ten stoi tuż pod progiem `check:bundle`. Pomiar
 // rusza po policzeniu odsłony, więc dociągnięcie kodu nic nie spóźnia.
-import { hasAnalyticsConsent } from "@/lib/ads/consent";
+import { hasAnalyticsConsent, subscribeConsentChange } from "@/lib/ads/consent";
 import { sendBeaconPayload } from "@/lib/observability/report";
 import {
   DWELL_MAX_MS,
@@ -35,7 +35,19 @@ import {
 /** Najdłuższa przerwa między zdarzeniami, która jeszcze liczy się jako czytanie. */
 export const DWELL_IDLE_CUTOFF_MS = 30_000;
 
-const ACTIVITY_EVENTS = ["scroll", "wheel", "keydown", "pointerdown", "pointermove", "touchstart"];
+/**
+ * Zdarzenia WEJŚCIA czytelnika - łapane w fazie capture na `window`, więc
+ * dochodzą z każdego elementu strony.
+ *
+ * `scroll` CELOWO NIE MA NA TEJ LIŚCIE. Przewinięcie elementu nie bąbelkuje,
+ * ale słuchacz capture na `window` i tak je dostaje - także przewinięcie, którego
+ * nie zrobił człowiek: karuzela z autoodtwarzaniem (`PostListCarousel`
+ * woła `scrollTo` co kilka sekund) albo `scrollIntoView` slidera. Taka karta
+ * zostawiona na pierwszym planie nigdy nie przekroczyłaby progu bezczynności
+ * i nabijałaby czas aż do sufitu. Przewinięcie STRONY łapie osobny słuchacz
+ * bez capture (niżej) - dostaje wyłącznie bąbelkujący `scroll` dokumentu.
+ */
+const INPUT_EVENTS = ["wheel", "keydown", "pointerdown", "pointermove", "touchstart"];
 
 /** Granice świata przeglądarki - wstrzykiwane, żeby test nie potrzebował zegara ani DOM-u. */
 export interface PostDwellDeps {
@@ -43,6 +55,8 @@ export interface PostDwellDeps {
   doc: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">;
   win: Pick<Window, "addEventListener" | "removeEventListener">;
   hasConsent: () => boolean;
+  /** Sygnał „zgoda się zmieniła" (baner, inna karta, GPC); zwraca odpięcie. */
+  onConsentChange: (listener: () => void) => () => void;
   send: (payload: PostDwellPayload) => void;
 }
 
@@ -64,6 +78,7 @@ function browserDeps(): PostDwellDeps {
     doc: document,
     win: window,
     hasConsent: hasAnalyticsConsent,
+    onConsentChange: subscribeConsentChange,
     send: sendDwell,
   };
 }
@@ -116,17 +131,39 @@ export function startPostDwell(
     flush();
   };
 
-  const listen = { capture: true, passive: true } as const;
-  for (const type of ACTIVITY_EVENTS) deps.win.addEventListener(type, onActivity, listen);
+  const input = { capture: true, passive: true } as const;
+  const pageScroll = { passive: true } as const;
+
+  const detach = (): void => {
+    stopped = true;
+    for (const type of INPUT_EVENTS) deps.win.removeEventListener(type, onActivity, input);
+    deps.win.removeEventListener("scroll", onActivity, pageScroll);
+    deps.doc.removeEventListener("visibilitychange", onVisibility);
+    deps.win.removeEventListener("pagehide", onPageHide, { capture: true });
+    offConsent();
+  };
+
+  // WYCOFANIE ZGODY KOŃCZY POMIAR OD RAZU I BEZ WYSYŁKI. Samo sprawdzenie
+  // w `flush` nie wystarcza: czas liczony dalej po wycofaniu poleciałby pod
+  // starym `viewer_hash`, gdyby czytelnik jeszcze na tej stronie udzielił
+  // zgody ponownie - pomiar okresu, na który zgody nie było.
+  const onConsent = (): void => {
+    if (stopped || deps.hasConsent()) return;
+    detach();
+    engaged = 0;
+    last = null;
+  };
+
+  for (const type of INPUT_EVENTS) deps.win.addEventListener(type, onActivity, input);
+  deps.win.addEventListener("scroll", onActivity, pageScroll);
   deps.doc.addEventListener("visibilitychange", onVisibility);
   deps.win.addEventListener("pagehide", onPageHide, { capture: true });
+  // `detach` woła `offConsent` dopiero po tym przypisaniu - nigdy wcześniej.
+  const offConsent = deps.onConsentChange(onConsent);
 
   return () => {
     if (stopped) return;
-    stopped = true;
-    for (const type of ACTIVITY_EVENTS) deps.win.removeEventListener(type, onActivity, listen);
-    deps.doc.removeEventListener("visibilitychange", onVisibility);
-    deps.win.removeEventListener("pagehide", onPageHide, { capture: true });
+    detach();
     closeSegment();
     flush();
   };

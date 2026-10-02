@@ -49,11 +49,17 @@ const POPULARITY_SAMPLE = 50;
 const DWELL_WINDOW_DAYS = 28;
 
 /**
- * Ile wpisów z medianą czasu czytania bierzemy do sygnału. Funkcja klamruje do
- * 500; 200 to więcej niż pula kandydatów pod jednym artykułem (100), więc
- * kandydat bez wartości to wpis bez dość pomiarów, a nie ofiara sufitu.
+ * Ile wpisów z medianą czasu czytania bierzemy do sygnału - twardy sufit
+ * `related_posts_dwell` (500).
+ *
+ * To jest 500 NAJDŁUŻEJ czytanych wpisów TENANTA, nie kandydatów spod artykułu:
+ * funkcja tnie po medianie malejąco, bo snapshot jest wspólny dla całego serwisu
+ * (osobny klucz cache, patrz niżej). Kandydat spoza tej listy dostaje 0 - tak jak
+ * wpis z mniej niż pięcioma pomiarami - i mówi o tym podpowiedź suwaka, tak samo
+ * jak przy popularności (lista 50 najczęściej czytanych). Odcina to wyłącznie
+ * najkrócej czytane wpisy, których wkład po normalizacji i tak byłby bliski zera.
  */
-const DWELL_SAMPLE = 200;
+const DWELL_SAMPLE = 500;
 
 /**
  * Strojenie silnika v2 - dokładnie te pola, którymi steruje /admin/related-posts.

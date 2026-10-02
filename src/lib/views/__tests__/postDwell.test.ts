@@ -14,7 +14,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({ consent: true }));
-vi.mock("@/lib/ads/consent", () => ({ hasAnalyticsConsent: () => h.consent }));
+vi.mock("@/lib/ads/consent", () => ({
+  hasAnalyticsConsent: () => h.consent,
+  subscribeConsentChange: () => () => {},
+}));
 
 import { DWELL_IDLE_CUTOFF_MS, startPostDwell, type PostDwellDeps } from "@/lib/views/postDwell";
 import {
@@ -35,12 +38,15 @@ interface Harness {
   show: () => void;
   pagehide: () => void;
   consent: (v: boolean) => void;
+  /** Liczba podpiętych słuchaczy zmiany zgody - dowód odpięcia. */
+  consentListeners: () => number;
 }
 
 function harness(start: "visible" | "hidden" = "visible"): Harness {
   let clock = 0;
   let consent = true;
   const sent: PostDwellPayload[] = [];
+  const consentListeners = new Set<() => void>();
   const doc = Object.assign(new EventTarget(), {
     visibilityState: start as DocumentVisibilityState,
   });
@@ -50,6 +56,10 @@ function harness(start: "visible" | "hidden" = "visible"): Harness {
     doc: doc as unknown as PostDwellDeps["doc"],
     win: win as unknown as PostDwellDeps["win"],
     hasConsent: () => consent,
+    onConsentChange: (listener) => {
+      consentListeners.add(listener);
+      return () => consentListeners.delete(listener);
+    },
     send: (p) => sent.push(p),
   };
   return {
@@ -70,7 +80,9 @@ function harness(start: "visible" | "hidden" = "visible"): Harness {
     pagehide: () => win.dispatchEvent(new Event("pagehide")),
     consent: (v) => {
       consent = v;
+      for (const listener of [...consentListeners]) listener();
     },
+    consentListeners: () => consentListeners.size,
   };
 }
 
@@ -174,6 +186,54 @@ describe("startPostDwell - zgoda i cykl życia", () => {
     expect(t.sent).toHaveLength(0);
   });
 
+  it("WYCOFANIE zgody kończy pomiar bez wysyłki - ponowna zgoda nie przywraca starego czasu", () => {
+    // Czas liczony po wycofaniu poleciałby pod starym `viewer_hash`, gdyby
+    // czytelnik udzielił zgody ponownie na tej samej stronie.
+    const t = harness();
+    const stop = startPostDwell(POST, HASH, t.deps);
+    t.at(10_000);
+    t.activity();
+    t.consent(false);
+    expect(t.consentListeners()).toBe(0);
+    t.at(15_000);
+    t.consent(true);
+    t.activity();
+    t.at(40_000);
+    t.hide();
+    t.pagehide();
+    stop();
+    expect(t.sent).toHaveLength(0);
+  });
+
+  it("zmiana zgody, która jej NIE odbiera, nie przerywa pomiaru", () => {
+    const t = harness();
+    startPostDwell(POST, HASH, t.deps);
+    t.at(6_000);
+    t.consent(true);
+    t.at(9_000);
+    t.pagehide();
+    expect(t.sent[0]?.dwellMs).toBe(9_000);
+  });
+
+  it("spóźniony sygnał zgody po zatrzymaniu niczego nie wskrzesza", () => {
+    // Subskrypcja, która nie odpina się przy zatrzymaniu (inny emiter), nie może
+    // ani wysłać, ani wyzerować już zgłoszonej sumy.
+    const t = harness();
+    let late: () => void = () => {};
+    const stop = startPostDwell(POST, HASH, {
+      ...t.deps,
+      onConsentChange: (listener) => {
+        late = listener;
+        return () => {};
+      },
+    });
+    t.at(5_000);
+    stop();
+    t.consent(false);
+    late();
+    expect(t.sent).toEqual([{ postId: POST, viewerHash: HASH, dwellMs: 5_000 }]);
+  });
+
   it("zatrzymanie domyka odcinek, wysyła sumę i odpina nasłuch", () => {
     const t = harness();
     const stop = startPostDwell(POST, HASH, t.deps);
@@ -244,6 +304,38 @@ describe("startPostDwell - domyślne granice przeglądarki", () => {
     expect(url).toBe(POST_DWELL_ENDPOINT);
     expect(init.keepalive).toBe(true);
     expect(JSON.parse(String(init.body))).toMatchObject({ dwellMs: 3_000 });
+  });
+
+  it("przewinięcie ELEMENTU (np. karuzela z autoodtwarzaniem) nie jest aktywnością czytelnika", async () => {
+    // Bezczynna karta z karuzelą przewijaną skryptem co kilka sekund: bez tej
+    // ściany każda klatka zerowałaby licznik bezczynności, a pomiar szedłby aż do
+    // sufitu 30 minut.
+    const beacon = vi.fn((_url: string, _body?: BodyInit | null) => true);
+    setSendBeacon(beacon);
+    const karuzela = document.createElement("div");
+    document.body.appendChild(karuzela);
+    const stop = startPostDwell(POST, HASH);
+    for (let i = 0; i < 60; i += 1) {
+      vi.advanceTimersByTime(5_000);
+      karuzela.dispatchEvent(new Event("scroll", { bubbles: false }));
+    }
+    stop();
+    karuzela.remove();
+    const body = beacon.mock.calls[0]?.[1] as Blob;
+    expect(JSON.parse(await body.text()).dwellMs).toBe(DWELL_IDLE_CUTOFF_MS);
+  });
+
+  it("przewinięcie STRONY (bąbelkujący scroll dokumentu) jest aktywnością", async () => {
+    const beacon = vi.fn((_url: string, _body?: BodyInit | null) => true);
+    setSendBeacon(beacon);
+    const stop = startPostDwell(POST, HASH);
+    for (let i = 0; i < 4; i += 1) {
+      vi.advanceTimersByTime(20_000);
+      document.dispatchEvent(new Event("scroll", { bubbles: true }));
+    }
+    stop();
+    const body = beacon.mock.calls[0]?.[1] as Blob;
+    expect(JSON.parse(await body.text()).dwellMs).toBe(80_000);
   });
 
   it("bez zgody analitycznej domyślna granica nie wysyła nic", () => {

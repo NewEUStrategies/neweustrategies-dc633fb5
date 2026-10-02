@@ -28,9 +28,9 @@ Wybrana droga: **(a) domknięcie kontraktu**. Sześć z siedmiu wag, `use_idf` i
 
 ### Przeglądarka
 
-- `src/lib/views/postDwell.ts` - pomiar czasu **aktywnego** czytania: karta widoczna, a przerwa między zdarzeniami (przewinięcie, klawisz, dotyk, wskaźnik) liczy się najwyżej do 30 s. Karta w tle nie nabija niczego. Zgłasza narastającą sumę przy schowaniu karty, `pagehide` i odmontowaniu; zgodę analityczną sprawdza jeszcze raz przy wysyłce. Bez `setInterval`, zegar `performance.now()`.
+- `src/lib/views/postDwell.ts` - pomiar czasu **aktywnego** czytania: karta widoczna, a przerwa między zdarzeniami (przewinięcie strony, klawisz, dotyk, wskaźnik) liczy się najwyżej do 30 s. Karta w tle nie nabija niczego. Przewinięcie ELEMENTU (karuzela z autoodtwarzaniem, `scrollIntoView` slidera) nie jest aktywnością - inaczej bezczynna karta z karuzelą nabijałaby czas do sufitu. Zgłasza narastającą sumę przy schowaniu karty, `pagehide` i odmontowaniu; zgodę analityczną sprawdza przy wysyłce, a jej wycofanie kończy pomiar od razu i bez wysyłki. Bez `setInterval`, zegar `performance.now()`.
 - `src/hooks/useRecordPostView.ts` - pomiar rusza wyłącznie za policzoną odsłoną (ta sama zgoda, to samo wykluczenie autora, ten sam `viewer_hash`) i jest domykany przy odmontowaniu. Moduł pomiaru jest ładowany leniwie (`import()`), bo hook siedzi w chunku wejściowym trasy wpisu, który stoi tuż pod progiem `check:bundle`.
-- `src/lib/queries/relatedPosts.ts` - `relatedDwellQueryOptions` (klucz tenanta, nie artykułu; normalizacja względem najdłużej czytanego wpisu, jak popularność), podany do scoringu jako `dwellByPost`.
+- `src/lib/queries/relatedPosts.ts` - `relatedDwellQueryOptions` (klucz tenanta, nie artykułu; normalizacja względem najdłużej czytanego wpisu, jak popularność), podany do scoringu jako `dwellByPost`. Pobiera 500 najdłużej czytanych wpisów tenanta (sufit funkcji); kandydat spoza tej listy dostaje 0, o czym mówi podpowiedź suwaka - tak samo jak przy popularności (lista 50).
 
 ### Panel i teksty
 

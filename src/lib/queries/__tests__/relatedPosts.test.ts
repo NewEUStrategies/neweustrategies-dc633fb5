@@ -1546,6 +1546,9 @@ describe("sygnał dwell: mediana czasu czytania przez `related_posts_dwell`", ()
     );
     expect(wywolanie("related_posts_dwell").keys()).toEqual(["_days", "_limit"]);
     expect(wywolanie("related_posts_dwell").arg("_days")).toBe(28);
+    // Sufit funkcji (500), nie mniej: lista to najdłużej czytane wpisy TENANTA,
+    // więc każde zaniżenie wycina kandydatów, którzy mają dość pomiarów.
+    expect(wywolanie("related_posts_dwell").arg("_limit")).toBe(500);
     expect(baza().chainsFor("post_views")).toHaveLength(0);
   });
 
