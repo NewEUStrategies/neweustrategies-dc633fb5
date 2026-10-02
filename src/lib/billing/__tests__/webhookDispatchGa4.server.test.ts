@@ -17,6 +17,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
+import { FIXED_NOW_ISO, freezeClock } from "@/test/time";
 import type { TransactionData } from "@/lib/billing/webhookDispatch.server";
 
 const h = vi.hoisted(() => ({
@@ -62,7 +63,7 @@ async function paid(data: TransactionData) {
     eventType: "transaction.completed",
     data,
     environment: "live",
-    occurredAt: "2026-10-02T10:00:00.000Z",
+    occurredAt: FIXED_NOW_ISO,
   });
 }
 
@@ -74,6 +75,9 @@ function eqs(table: string): unknown[][] {
     .flatMap((chain) => chain.calls.filter((call) => call.method === "eq"))
     .map((call) => [...call.args]);
 }
+
+// Zamrożenie na poziomie pliku (`freezeClock` sam rejestruje before/afterEach).
+freezeClock();
 
 beforeEach(() => {
   db = supabaseFromStub();
