@@ -1,13 +1,14 @@
 // Server functions dla menedżera menu.
 // - `listMenus` + `getMenuWithItems` - odczyt publiczny (host-aware przez RLS
 //   `menus_read_public` / `menu_items_read_public`).
-// - `saveMenu` - zapis chroniony `requireSupabaseAuth` + hard-guard staff.
-//   Strategia zapisu: wewnątrz jednej transakcji nie da się zrobić z klienta
-//   PostgREST-owego, więc robimy delete-all + insert-all sekwencyjnie na
-//   user-scoped kliencie (RLS filtruje po tenant_id menu, więc dane innych
-//   tenantów są nietykalne).
+// - `saveMenu` - zapis chroniony `requireSupabaseAuth`. Całe drzewo idzie
+//   JEDNYM wywołaniem RPC `save_menu_items` (migracja 20261002190000), które
+//   kasuje stare pozycje i wstawia nowe w jednej transakcji, z bramką roli
+//   i zakresem tenanta w bazie. Do 02.10.2026 był tu delete-all + insert
+//   poziomami jako osobne żądania PostgREST - błąd w połowie zostawiał
+//   publicznie puste albo obcięte menu.
 import { createServerFn } from "@tanstack/react-start";
-import { edgeTtlCache } from "@/lib/ssrCache";
+import { edgeTtlCache, invalidateEdgeTtlCache } from "@/lib/ssrCache";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { fetchWithTenantHost } from "@/integrations/supabase/tenant-host-fetch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -91,6 +92,15 @@ export const listMenus = createServerFn({ method: "GET" }).handler(
 
 const getMenuInputSchema = z.object({ key: z.string().min(1).max(64) });
 
+/**
+ * Klucz migawki menu w `edgeTtlCache`. Jedna definicja dla odczytu i dla
+ * unieważnienia po zapisie - rozjazd tych dwóch napisów nie jest błędem
+ * kompilacji, tylko cichym „zapis nie odświeża menu".
+ */
+export function menuCacheKey(key: string): string {
+  return `menu-with-items:${key}`;
+}
+
 export const getMenuWithItems = createServerFn({ method: "GET" })
   .validator((input: unknown) => getMenuInputSchema.parse(input))
   .handler(async ({ data }): Promise<MenuWithItems | null> => {
@@ -101,7 +111,7 @@ export const getMenuWithItems = createServerFn({ method: "GET" })
     // i to w t0, o gniazdo współdzielone z resztą odczytów korzenia. 60 s
     // świeżości = zmiany menu w adminie widoczne niemal od razu, a w stanie
     // ustalonym koszt to zero dodatkowych zapytań.
-    return edgeTtlCache(`menu-with-items:${data.key}`, 60_000, () => fetchMenuWithItems(data.key));
+    return edgeTtlCache(menuCacheKey(data.key), 60_000, () => fetchMenuWithItems(data.key));
   });
 
 export async function fetchMenuWithItems(
@@ -157,100 +167,89 @@ export async function fetchMenuWithItems(
 }
 
 /**
- * Klient użytkownika (z sesją) - `from` do tabel i `rpc` do bramek ról.
- * Kształt jest zawężony strukturalnie, żeby test mógł podać atrapę bez
- * odtwarzania całego `SupabaseClient`.
+ * Klient użytkownika (z sesją). Zapis to jedno wywołanie RPC, więc z całego
+ * klienta potrzebne jest wyłącznie `rpc` - zawężenie do jednej metody, a nie
+ * własny opis klienta: kontrakt zostaje TEN SAM co w produkcji (wygenerowane
+ * typy `Database` pilnują nazwy funkcji i argumentów), a test nadal może podać
+ * atrapę zamiast całego klienta. Brak `from` w typie jest celowy - zapis menu
+ * NIE ma prawa wrócić do osobnych `delete`/`insert` na tabeli.
  */
-/**
- * Klient użytkownika (z sesją) - `from` do tabel i `rpc` do bramek ról.
- * Zawężenie do dwóch metod, a nie własny opis łańcucha PostgREST: dzięki temu
- * kontrakt jest TEN SAM co w produkcji (wygenerowane typy `Database` pilnują
- * nazw tabel i kolumn), a test nadal może podać atrapę zamiast całego klienta.
- */
-export type MenuWriteClient = Pick<SupabaseClient<Database>, "from" | "rpc">;
+export type MenuWriteClient = Pick<SupabaseClient<Database>, "rpc">;
+
+/** Błąd RPC w kształcie, który czyta mapowanie komunikatów. */
+interface SaveMenuRpcError {
+  message: string;
+  code?: string;
+}
 
 /**
- * Zapis menu: bramka roli, wyczyszczenie starych pozycji, wstawienie nowych
- * POZIOMAMI (BFS).
+ * Komunikaty dla edytora z błędów bazy. Bramka roli i rozstrzygnięcie menu
+ * żyją teraz w `save_menu_items`, więc te same czytelne komunikaty, które
+ * dotąd składał kod aplikacji, odtwarzamy z kodów/treści wyjątków funkcji.
+ */
+function saveMenuError(error: SaveMenuRpcError, menuKey: string): Error {
+  // 42501 to także „permission denied for function" (brak EXECUTE) - dla
+  // edytora to ta sama odmowa.
+  if (error.code === "42501" || /forbidden|not_authenticated/i.test(error.message)) {
+    return new Error("Forbidden: staff role required");
+  }
+  if (/menu_not_found/.test(error.message)) {
+    return new Error(`Menu '${menuKey}' nie istnieje`);
+  }
+  return new Error(`save menu: ${error.message}`);
+}
+
+/**
+ * Zapis menu: CAŁE drzewo jednym wywołaniem `save_menu_items`, czyli w jednej
+ * transakcji - stare pozycje znikają wyłącznie razem z wstawieniem nowych.
  *
- * DLACZEGO POZIOMAMI: `parent_id` wskazuje wiersz z tej samej partii, a klucz
- * obcy sprawdzany jest per wiersz - wstawienie wszystkiego naraz wywala się na
- * dziecku, które wyprzedziło rodzica.
+ * DLACZEGO RPC, A NIE ŁAŃCUCH ŻĄDAŃ: każde żądanie PostgREST to osobna
+ * transakcja. Stary przebieg (bramka -> odczyt menu -> `delete` wszystkich
+ * pozycji -> `insert` poziomami BFS) zatwierdzał skasowanie, zanim cokolwiek
+ * wstawił, więc błąd sieci, limit czasu albo naruszenie ograniczenia w jednej
+ * pozycji zostawiał menu PUSTE albo OBCIĘTE - publicznie i bez odtworzenia.
+ * Przy okazji znika od trzech do sześciu sekwencyjnych fal round-tripów
+ * (zależnie od głębokości drzewa): zostaje jedna.
  *
- * SIEROTA (pozycja wskazująca rodzica nieobecnego w payloadzie) zapisuje się
- * na NAJWYŻSZYM poziomie: mapowanie `local_id -> uuid` nie zna takiego rodzica,
- * więc `parent_id` wychodzi `null`. Zgadza się to z tym, co edytor pokazuje po
- * poprawce z 18.08.2026 - pozycja jest widoczna u góry drzewa i tam też ląduje.
- * (Komentarz w tym miejscu twierdził wcześniej, że taki wpis „nigdy nie zostanie
- * wstawiony" - nieprawda, wpis wchodzi jako pozycja najwyższego poziomu.)
+ * Bramka roli (admin/editor w tenancie domowym), zakres tenanta, mapowanie
+ * `local_id -> uuid` i rodziców (SIEROTA ląduje na najwyższym poziomie,
+ * pozycja w pierścieniu nie jest zapisywana - jak dotąd w BFS) oraz blokada
+ * na równoległe zapisy żyją w funkcji bazy; tu zostaje transport, komunikaty
+ * i odświeżenie migawki.
+ *
+ * `invalidate` jest parametrem z wartością domyślną z tego samego powodu co
+ * klient: produkcja nie zmienia zachowania, a test sprawdza, że migawkę
+ * unieważnia WYŁĄCZNIE udany zapis.
  */
 export async function saveMenuItems(
   supabase: MenuWriteClient,
-  userId: string,
   data: SaveMenuInput,
-  makeId: () => string = () => crypto.randomUUID(),
+  invalidate: (cacheKey: string) => Promise<void> = invalidateEdgeTtlCache,
 ): Promise<{ ok: true }> {
-  const client = supabase;
+  const { data: saved, error } = await supabase.rpc("save_menu_items", {
+    p_menu_key: data.menu_key,
+    p_items: data.items,
+  });
+  if (error) throw saveMenuError(error, data.menu_key);
 
-  // Twarda bramka staff (admin/editor). RLS też to wymusi, ale komunikat
-  // „Forbidden" jest czytelniejszy niż 42501 z bazy.
-  const [{ data: isAdmin }, { data: isEditor }] = await Promise.all([
-    client.rpc("has_role", { _user_id: userId, _role: "admin" }),
-    client.rpc("has_role", { _user_id: userId, _role: "editor" }),
-  ]);
-  if (!isAdmin && !isEditor) throw new Error("Forbidden: staff role required");
-
-  const { data: menu, error: menuErr } = await client
-    .from("menus")
-    .select("id, tenant_id")
-    .eq("key", data.menu_key)
-    .maybeSingle();
-  if (menuErr) throw new Error(`menu lookup: ${menuErr.message}`);
-  if (!menu) throw new Error(`Menu '${data.menu_key}' nie istnieje`);
-
-  // Wyczyść stare pozycje. RLS ograniczy do tenanta użytkownika.
-  const { error: delErr } = await client.from("menu_items").delete().eq("menu_id", menu.id);
-  if (delErr) throw new Error(`delete items: ${delErr.message}`);
-
-  if (data.items.length === 0) return { ok: true };
-
-  // Mapuj local_id -> nowe UUID, żeby zachować hierarchię.
-  const localToUuid = new Map<string, string>();
-  for (const it of data.items) localToUuid.set(it.local_id, makeId());
-
-  const rows = data.items.map((it) => ({
-    id: localToUuid.get(it.local_id)!,
-    menu_id: menu.id,
-    parent_id: it.parent_local_id ? (localToUuid.get(it.parent_local_id) ?? null) : null,
-    position: it.position,
-    item_type: it.item_type,
-    ref_id: it.ref_id,
-    label_pl: it.label_pl,
-    label_en: it.label_en,
-    href: it.href,
-    target: it.target,
-    css_class: it.css_class,
-    visibility: it.visibility,
-    icon: it.icon,
-    mega_enabled: it.mega_enabled,
-    mega_config: it.mega_config,
-  }));
-
-  const byParent = new Map<string | null, typeof rows>();
-  for (const r of rows) {
-    const k = r.parent_id;
-    const arr = byParent.get(k) ?? [];
-    arr.push(r);
-    byParent.set(k, arr);
+  // Mniej zapisanych niż wysłanych = pozycje w pierścieniu `parent_local_id`.
+  // Edytor ich nie pokazuje, więc zapis ich nie wstawia (tak było i w BFS) -
+  // ale po cichu znikać nie powinny, stąd ślad w logu serwera.
+  if (typeof saved === "number" && saved < data.items.length) {
+    console.warn(
+      `[saveMenu] '${data.menu_key}': pominięto ${data.items.length - saved} pozycji spoza drzewa (pierścień rodziców)`,
+    );
   }
-  const queue: (string | null)[] = [null];
-  while (queue.length) {
-    const parent = queue.shift() ?? null;
-    const batch = byParent.get(parent) ?? [];
-    if (batch.length === 0) continue;
-    const { error: insErr } = await client.from("menu_items").insert(batch);
-    if (insErr) throw new Error(`insert items: ${insErr.message}`);
-    for (const r of batch) queue.push(r.id);
+
+  // Menu jest w `edgeTtlCache` (60 s świeżości + migawka kolonii), więc bez
+  // tego edytor po „Zapisz" i powrocie na ekran wczytałby STARE menu z tego
+  // izolatu - a kolejny zapis cofnąłby właśnie zapisane zmiany. Best-effort:
+  // inne izolaty dogania TTL, a porażka unieważnienia nie może zamienić
+  // ZATWIERDZONEGO zapisu w komunikat o błędzie.
+  try {
+    await invalidate(menuCacheKey(data.menu_key));
+  } catch (e) {
+    console.warn("[saveMenu] unieważnienie migawki menu nie powiodło się", e);
   }
   return { ok: true };
 }
@@ -259,5 +258,5 @@ export const saveMenu = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => saveMenuInputSchema.parse(input))
   .handler(async ({ data, context }): Promise<{ ok: true }> =>
-    saveMenuItems(context.supabase, context.userId, data as SaveMenuInput),
+    saveMenuItems(context.supabase, data as SaveMenuInput),
   );
