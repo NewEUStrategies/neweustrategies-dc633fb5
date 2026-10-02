@@ -28,6 +28,7 @@ import {
   PROFILE_INTENT_TEXT_MAX,
   type ProfileIntentCode,
 } from "@/lib/profile/intents";
+import { fetchOwnProfileRow } from "@/lib/profile/ownProfile";
 
 /** Edytowalna część warstwy intencji - dokładnie to, co zapisuje formularz. */
 export interface ProfileIntentDraft {
@@ -58,13 +59,6 @@ export const EMPTY_INTENT_DRAFT: ProfileIntentDraft = {
 export const profileIntentKey = (uid: string | null | undefined) =>
   ["profile-intent", uid ?? "anon"] as const;
 
-// Literał, nie `[...].join(", ")`: PostgREST-owy typ selekcji jest wyprowadzany
-// z LITERAŁU stringa, a wynik złożenia tablicy to zwykły `string` - wtedy
-// `data` schodzi do GenericStringError i cały kształt wiersza znika.
-// Nigdy `*` - profiles ma kolumnowe granty i kolumny PII bez grantu.
-const PROFILE_FIELDS =
-  "avatar_url, display_name, first_name, last_name, job_title, current_company, location, specialization, bio_pl, bio_en, open_to, seeking_pl, seeking_en, offering_pl, offering_en, intent_updated_at, completeness_score" as const;
-
 function text(value: string | null | undefined): string {
   return typeof value === "string" ? value : "";
 }
@@ -81,10 +75,14 @@ export function useProfileIntent(): UseQueryResult<ProfileIntentState> {
     queryFn: async (): Promise<ProfileIntentState> => {
       if (!uid) throw new Error("Not authenticated");
 
+      // Wiersz profilu idzie przez `get_own_profile()`, nie selectem na
+      // `profiles`: miernik kompletności liczy `location`, a ta kolumna nie ma
+      // grantu SELECT dla `authenticated` - select z nią kończył się 42501
+      // i cała sekcja intencji znikała po cichu (patrz `ownProfile.ts`).
       // Liczniki tabel dzieci: `head: true` + `count: exact` nie ściąga
       // wierszy - potrzebujemy wyłącznie liczby (progi kompletności).
-      const [profileRes, skillsRes, expRes, eduRes] = await Promise.all([
-        supabase.from("profiles").select(PROFILE_FIELDS).eq("id", uid).maybeSingle(),
+      const [row, skillsRes, expRes, eduRes] = await Promise.all([
+        fetchOwnProfileRow(),
         supabase
           .from("profile_skills")
           .select("id", { count: "exact", head: true })
@@ -98,8 +96,6 @@ export function useProfileIntent(): UseQueryResult<ProfileIntentState> {
           .select("id", { count: "exact", head: true })
           .eq("user_id", uid),
       ]);
-      if (profileRes.error) throw profileRes.error;
-      const row = profileRes.data;
       if (!row) throw new Error("Profile row not found");
 
       const openTo = normalizeProfileIntents(row.open_to);

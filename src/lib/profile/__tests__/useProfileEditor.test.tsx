@@ -1,7 +1,13 @@
 // Edytor profilu „w miejscu" - warstwa danych. Stała na ZERZE pokrycia, a jest
 // jedynym miejscem, przez które przechodzi KAŻDA edycja pola profilu i wysyłka
-// avatara/okładki. Trzy rzeczy, których złamanie kosztuje dane albo prywatność:
+// avatara/okładki. Rzeczy, których złamanie kosztuje dane albo prywatność:
 //
+//   0. ODCZYT PRZEZ `get_own_profile()`, NIE SELECTEM NA `profiles`. Edytor
+//      rysuje `phone`, `location`, `gender`, `current_company_id` - kolumny
+//      celowo BEZ grantu SELECT dla `authenticated`. Select z nimi PostgREST
+//      odrzuca w CAŁOŚCI (42501), więc pulpit /profile wstawał pusty przy
+//      każdym wejściu. Awaria odczytu jest przy tym OSOBNYM stanem
+//      (`loadFailed`), a nie pustym wierszem, i blokuje zapis.
 //   1. KANONICZNE BIO. Pole `bio` w tym hooku to `profiles.bio_pl` na drucie.
 //      Gdyby zapis poszedł do starej kolumny `bio`, edytor jednopolowy
 //      i edytor PL/EN pisałyby w dwa różne miejsca - użytkownik zobaczyłby
@@ -28,6 +34,7 @@ import {
   supabaseFromStub,
   xhrStub,
 } from "@/test/profile/fixtures";
+import type { SupabaseRpcStub } from "@/test/supabase";
 
 const h = vi.hoisted(() => ({
   auth: { uid: "user-me" as string | null },
@@ -35,15 +42,22 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
 }));
 
-const stubs = vi.hoisted(() => ({ from: null as unknown, storage: null as unknown }));
+const stubs = vi.hoisted(() => ({
+  from: null as unknown,
+  storage: null as unknown,
+  rpc: null as unknown,
+}));
 
 vi.mock("@/integrations/supabase/client", async () => {
   const fixtures = await import("@/test/profile/fixtures");
+  const { supabaseRpcStub } = await import("@/test/supabase");
   const from = fixtures.supabaseFromStub();
   const store = fixtures.storageStub();
+  const rpc = supabaseRpcStub();
   stubs.from = from;
   stubs.storage = store;
-  return { supabase: { from: from.from, storage: store.storage } };
+  stubs.rpc = rpc;
+  return { supabase: { from: from.from, storage: store.storage, rpc: rpc.rpc } };
 });
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -54,12 +68,20 @@ vi.mock("sonner", () => ({
   toast: { error: (m: string) => h.toastError(m), success: (m: string) => h.toastSuccess(m) },
 }));
 
-import { profileEditorKey, useProfileEditor } from "../useProfileEditor";
+import { profileEditorKey, useProfileEditor, type ProfileEditorField } from "../useProfileEditor";
 
 type FromStub = ReturnType<typeof supabaseFromStub>;
 type StorageStub = ReturnType<typeof storageStub>;
 const db = () => stubs.from as FromStub;
 const store = () => stubs.storage as StorageStub;
+const rpc = () => stubs.rpc as SupabaseRpcStub;
+
+const OWN_PROFILE_RPC = "get_own_profile";
+
+/** Zaplanuj odpowiedź `get_own_profile()` - SETOF, więc wiersz idzie w tablicy. */
+function planOwnRow(row: object | null): void {
+  rpc().setData(OWN_PROFILE_RPC, row ? [row] : []);
+}
 
 function makeClient(): QueryClient {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -76,7 +98,7 @@ async function mountEditor(
   row: ReturnType<typeof profileEditorRow> | null = profileEditorRow(),
   client: QueryClient = makeClient(),
 ) {
-  db().setResponse("profiles", ok(row));
+  planOwnRow(row);
   const hook = renderHook(() => useProfileEditor(), { wrapper: wrapperFor(client) });
   await waitFor(() => expect(hook.result.current.loading).toBe(false));
   return { hook, client };
@@ -90,6 +112,7 @@ beforeEach(() => {
   h.toastSuccess.mockReset();
   db().reset();
   store().reset();
+  rpc().reset();
 });
 
 afterEach(() => {
@@ -98,21 +121,38 @@ afterEach(() => {
 });
 
 describe("odczyt profilu", () => {
-  it("czyta wiersz zawężony do własnego id i nigdy przez `*`", async () => {
+  it("czyta własny wiersz przez `get_own_profile()` BEZ argumentów, nie selectem na `profiles`", async () => {
+    // Punkt 0 z nagłówka. Zakres to `auth.uid()` po stronie bazy - argument
+    // z id użytkownika byłby jedynie furtką do podmiany. A select na `profiles`
+    // z kolumnami prywatnymi to 42501 dla całego zapytania.
     const { hook } = await mountEditor();
 
     expect(hook.result.current.data.display_name).toBe("Anna Nowak");
-    const chain = db().lastChain("profiles");
-    expect(chain?.argsOf("eq")).toEqual(["id", PROFILE_IDS.me]);
-    // `profiles` ma kolumnowe granty i kolumny PII bez grantu - `*` sypie 403
-    // albo (gorzej) wciąga kolumny, których interfejs nie ma prawa widzieć.
-    expect(String(chain?.argsOf("select")?.[0] ?? "")).not.toContain("*");
+    expect(hook.result.current.data.phone).toBe("+32 2 000 00 00");
+    expect(rpc().names()).toEqual([OWN_PROFILE_RPC]);
+    expect(rpc().lastCall(OWN_PROFILE_RPC)?.keys()).toEqual([]);
+    expect(db().chainsFor("profiles")).toHaveLength(0);
+  });
+
+  it("do cache trafiają WYŁĄCZNIE pola edytora, nie `email` ani `prefs` z RPC", async () => {
+    // `get_own_profile()` oddaje cały wiersz. Edytor nie rysuje adresu
+    // logowania ani preferencji - trzymanie ich w React Query przez 30 minut
+    // gcTime to dane prywatne rozlane szerzej, niż ktokolwiek ich potrzebuje.
+    const client = makeClient();
+    planOwnRow({ ...profileEditorRow(), email: "anna@example.test", prefs: { a: 1 } });
+    const hook = renderHook(() => useProfileEditor(), { wrapper: wrapperFor(client) });
+
+    await waitFor(() => expect(hook.result.current.loading).toBe(false));
+    const cached = client.getQueryData(profileEditorKey(PROFILE_IDS.me));
+    expect(cached).not.toHaveProperty("email");
+    expect(cached).not.toHaveProperty("prefs");
+    expect(cached).not.toHaveProperty("bio_pl");
   });
 
   it("KANONICZNE bio bierze się z `bio_pl`, nie ze starej kolumny `bio`", async () => {
     // Rozjazd tych dwóch kolumn oznacza dwa różne opisy tej samej osoby
     // w zależności od tego, którą powierzchnię użytkownik otworzy.
-    db().setResponse("profiles", ok({ ...profileEditorRow(), bio: "STARE", bio_pl: "NOWE" }));
+    planOwnRow({ ...profileEditorRow(), bio: "STARE", bio_pl: "NOWE" });
     const hook = renderHook(() => useProfileEditor(), { wrapper: wrapperFor(makeClient()) });
 
     await waitFor(() => expect(hook.result.current.loading).toBe(false));
@@ -120,7 +160,7 @@ describe("odczyt profilu", () => {
   });
 
   it("spada na starą kolumnę `bio`, gdy `bio_pl` jest puste (konta przed migracją)", async () => {
-    db().setResponse("profiles", ok({ ...profileEditorRow(), bio: "STARE", bio_pl: null }));
+    planOwnRow({ ...profileEditorRow(), bio: "STARE", bio_pl: null });
     const hook = renderHook(() => useProfileEditor(), { wrapper: wrapperFor(makeClient()) });
 
     await waitFor(() => expect(hook.result.current.loading).toBe(false));
@@ -128,7 +168,7 @@ describe("odczyt profilu", () => {
   });
 
   it("brak obu kolumn daje `null`, nie napis „null”", async () => {
-    db().setResponse("profiles", ok({ ...profileEditorRow(), bio: null, bio_pl: null }));
+    planOwnRow({ ...profileEditorRow(), bio: null, bio_pl: null });
     const hook = renderHook(() => useProfileEditor(), { wrapper: wrapperFor(makeClient()) });
 
     await waitFor(() => expect(hook.result.current.loading).toBe(false));
@@ -139,15 +179,66 @@ describe("odczyt profilu", () => {
     const { hook } = await mountEditor(null);
     expect(hook.result.current.data.display_name).toBeNull();
     expect(hook.result.current.data.tenant_id).toBeNull();
+    // Konto bez wiersza to prawdziwa pustka - zaproszenie do uzupełnienia.
+    expect(hook.result.current.loadFailed).toBe(false);
   });
 
-  it("błąd odczytu nie zostawia formularza w stanie „wczytywanie”", async () => {
-    db().setResponse("profiles", fail("permission denied"));
+  it("AWARIA odczytu (42501) to `loadFailed`, a nie pusty profil", async () => {
+    // Sedno defektu: odrzucony odczyt i konto świeżo założone dawały DOKŁADNIE
+    // ten sam wynik hooka, więc trasa nie miała z czego narysować trzeciego
+    // stanu - i zapraszała do uzupełnienia profilu, który jest uzupełniony.
+    rpc().setError(OWN_PROFILE_RPC, "permission denied for table profiles", "42501");
     const hook = renderHook(() => useProfileEditor(), { wrapper: wrapperFor(makeClient()) });
 
-    await waitFor(() => expect(hook.result.current.loading).toBe(false));
-    // Formularz dostaje pusty wiersz zamiast wisieć na spinnerze.
+    await waitFor(() => expect(hook.result.current.loadFailed).toBe(true));
+    // Nie wisi na spinnerze...
+    expect(hook.result.current.loading).toBe(false);
+    // ...a `data` jest pustym wierszem wyłącznie po to, żeby render nie padł.
     expect(hook.result.current.data.display_name).toBeNull();
+  });
+
+  it("po AWARII odczytu `saveField` NIE pisze do bazy", async () => {
+    // Druga zapora (pierwsza: trasa nie rysuje edytorów). Zapis pola przy
+    // pustym formularzu „uzupełnia" wartość, którą człowiek już ma.
+    rpc().setError(OWN_PROFILE_RPC, "permission denied for table profiles", "42501");
+    const client = makeClient();
+    const hook = renderHook(() => useProfileEditor(), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(hook.result.current.loadFailed).toBe(true));
+
+    await act(async () => {
+      await hook.result.current.saveField("phone", "+48 600 000 000");
+    });
+
+    expect(db().chainsFor("profiles")).toHaveLength(0);
+    // Cache nie dostaje „optymistycznego" wiersza złożonego z pustki.
+    expect(client.getQueryData(profileEditorKey(PROFILE_IDS.me))).toBeUndefined();
+  });
+
+  it("`reload` po awarii ponawia odczyt i gasi stan awarii", async () => {
+    rpc().setError(OWN_PROFILE_RPC, "network");
+    const hook = renderHook(() => useProfileEditor(), { wrapper: wrapperFor(makeClient()) });
+    await waitFor(() => expect(hook.result.current.loadFailed).toBe(true));
+
+    planOwnRow(profileEditorRow());
+    act(() => hook.result.current.reload());
+
+    await waitFor(() => expect(hook.result.current.data.display_name).toBe("Anna Nowak"));
+    expect(hook.result.current.loadFailed).toBe(false);
+    expect(rpc().callsFor(OWN_PROFILE_RPC)).toHaveLength(2);
+  });
+
+  it("nieudane odświeżenie W TLE zostawia potwierdzone dane i nie zgłasza awarii", async () => {
+    // Blip sieci przy odświeżeniu nie może zasłonić prawdziwego wiersza
+    // ekranem błędu - dane są, tylko nie najświeższe.
+    const { hook } = await mountEditor();
+    rpc().setError(OWN_PROFILE_RPC, "network");
+
+    act(() => hook.result.current.reload());
+
+    await waitFor(() => expect(rpc().callsFor(OWN_PROFILE_RPC)).toHaveLength(2));
+    await waitFor(() => expect(hook.result.current.loading).toBe(false));
+    expect(hook.result.current.loadFailed).toBe(false);
+    expect(hook.result.current.data.display_name).toBe("Anna Nowak");
   });
 
   it("bez zalogowanego użytkownika nie odpytuje bazy i nie wisi na spinnerze", async () => {
@@ -156,7 +247,9 @@ describe("odczyt profilu", () => {
 
     await Promise.resolve();
     expect(db().chains).toHaveLength(0);
+    expect(rpc().calls).toHaveLength(0);
     expect(hook.result.current.loading).toBe(false);
+    expect(hook.result.current.loadFailed).toBe(false);
   });
 });
 
@@ -275,6 +368,18 @@ describe("saveField", () => {
       location: null,
     });
     expect(h.toastError).toHaveBeenCalledWith("boom");
+  });
+
+  it("pola BEZ grantu UPDATE (`tenant_id`, `verified_at`) nie przechodzą przez typ `saveField`", () => {
+    // Asercja czasu kompilacji (sprawdza ją `tsc` na plikach testów): rola
+    // `authenticated` nie ma UPDATE na tych kolumnach, więc wywołanie
+    // `saveField("tenant_id", ...)` kończyłoby się 42501 dopiero w przeglądarce.
+    // Literały `false`/`true` niżej nie skompilują się, gdy typ się rozszerzy.
+    type Writable<F extends string> = F extends ProfileEditorField ? true : false;
+    const tenant: Writable<"tenant_id"> = false;
+    const verified: Writable<"verified_at"> = false;
+    const phone: Writable<"phone"> = true;
+    expect([tenant, verified, phone]).toEqual([false, false, true]);
   });
 
   it("bez sesji nie pisze do bazy", async () => {

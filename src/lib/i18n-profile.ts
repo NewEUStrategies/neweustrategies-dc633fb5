@@ -181,6 +181,11 @@ const pl = {
       save: "Zapisz zmiany",
       saved: "Zapisano",
       saveError: "Nie udało się zapisać",
+      // Formularze /profile/edit po nieudanym odczycie: zapis zablokowany,
+      // żeby puste pola nie nadpisały prawdziwych danych.
+      loadFailed:
+        "Nie udało się wczytać danych profilu. Zapis jest wstrzymany, żeby puste pola nie nadpisały Twoich danych.",
+      retry: "Spróbuj ponownie",
       tip: {
         displayName:
           "Tak będziesz widoczny/a publicznie - przy komentarzach, wpisach i w nagłówku powitania. Nie musi to być prawdziwe imię.",
@@ -222,6 +227,10 @@ const pl = {
       addAvatar: "Dodaj zdjęcie",
       changeAvatar: "Zmień",
       avatarSize: "400 × 400 px",
+      // Awaria odczytu pulpitu /profile - osobny stan, nie pusty formularz.
+      loadFailed:
+        "Nie udało się wczytać Twojego profilu. Twoje dane są bezpieczne - niczego nie zmieniliśmy.",
+      retry: "Spróbuj ponownie",
     },
 
     security: {
@@ -961,6 +970,9 @@ const en: ProfileEn = {
       save: "Save changes",
       saved: "Saved",
       saveError: "Could not save",
+      loadFailed:
+        "Could not load your profile data. Saving is paused so empty fields don't overwrite your details.",
+      retry: "Try again",
       tip: {
         displayName:
           "How you appear publicly - on comments, posts and in the welcome header. Doesn't have to be your real name.",
@@ -1001,6 +1013,8 @@ const en: ProfileEn = {
       addAvatar: "Add photo",
       changeAvatar: "Change",
       avatarSize: "400 × 400 px",
+      loadFailed: "We couldn't load your profile. Your data is safe - nothing was changed.",
+      retry: "Try again",
     },
 
     security: {
