@@ -8,13 +8,16 @@
 // zgody. Dzięki `wait_for_update` tag wstrzymuje wysyłkę na moment, żeby nie
 // wyprzedzić decyzji zapisanej w localStorage.
 //
-// SAM SKRYPT gtag.js JEST ODROCZONY ZA BEZCZYNNOŚĆ (audyt CWV 2026-09-20, F20).
-// `<head>` niesie wyłącznie inline'owy snippet (~1,3 kB): warstwa danych, zgoda
-// domyślna i `config`. Plik z googletagmanager.com dociąga `ConsentScriptInjector`
-// przez `whenIdle(…, 2000)` PO `markAppReady()`, bo ~90 KB parse+execute z obcego
-// originu w oknie hydratacji konkurowało z LCP i pierwszą interakcją. Polecenia
-// z tego okna czekają w `window.dataLayer` - to natywna kolejka gtag.js, nie nasz
-// bufor: skrypt po załadowaniu przetwarza warstwę od początku, więc nic nie ginie.
+// SAM SKRYPT gtag.js JEST ODROCZONY (audyt CWV 2026-09-20, F20; polityka
+// 2026-10-02). `<head>` niesie wyłącznie inline'owy snippet (~1,3 kB): warstwa
+// danych, zgoda domyślna i `config`. Plik z googletagmanager.com dociąga
+// `ConsentScriptInjector` przez `scheduleGtagLoad` (`gtagLoadPolicy.ts`): na
+// pierwszą interakcję, jawną decyzję o zgodzie albo bezczynność po load bez
+// długich zadań - bo ~90 KB parse+execute z obcego originu w oknie hydratacji
+// konkurowało z LCP i pierwszą interakcją, a sama bezczynność 2 s po load na
+// mobile wciąż trafiała w TBT/TTI. Polecenia z tego okna czekają w
+// `window.dataLayer` - to natywna kolejka gtag.js, nie nasz bufor: skrypt po
+// załadowaniu przetwarza warstwę od początku, więc nic nie ginie.
 //
 // JEDEN TAG, DWA MIEJSCA DOCELOWE. gtag.js ładuje się RAZ, identyfikatorem
 // strumienia GA4 (`?id=G-…`): po nim weryfikator Google rozpoznaje instalację
@@ -251,7 +254,7 @@ export function ga4ConsentUpdate(categories: Record<ConsentCategory, boolean>): 
  * (`ga4PageView`), inaczej pierwsza odsłona byłaby zdublowana przy nawigacji SPA.
  *
  * SAM gtag.js NIE JEST już ładowany z `<head>`: dociąga go bootstrap kliencki
- * po bezczynności (F20). Do tego czasu polecenia czekają w `window.dataLayer` -
+ * na sygnał polityki `gtagLoadPolicy.ts` (F20). Do tego czasu polecenia czekają w `window.dataLayer` -
  * to natywna kolejka gtag.js, a nie nasz bufor: skrypt po załadowaniu
  * przetwarza całą warstwę od początku, więc zgoda i odsłony z okna hydratacji
  * docierają w oryginalnej kolejności.
@@ -302,7 +305,8 @@ function injectGtagScript(primary: string): void {
 /**
  * Kiedy wolno dociągnąć gtag.js. Domyślnie natychmiast (wołający spoza ścieżki
  * bootowania nie musi o tym wiedzieć); `ConsentScriptInjector` podaje tu
- * `whenIdle`, żeby transfer obcego originu wypadł poza okno hydratacji.
+ * politykę `scheduleGtagLoad` (interakcja / decyzja o zgodzie / bezczynność po
+ * load), żeby transfer obcego originu wypadł poza okno hydratacji i TBT.
  */
 export interface Ga4BootstrapOptions {
   scheduleScript?: (load: () => void) => void;
@@ -394,7 +398,7 @@ export function resetGa4BootstrapForTests(): void {
  * `ConsentScriptInjector` - ginęła.
  *
  * SKONFIGUROWANY NIE ZNACZY WCZYTANY i to jest tu świadome: od 2026-09-20
- * gtag.js dociąga się po bezczynności, więc zdarzenia z okna hydratacji trafią
+ * gtag.js dociąga się odroczony (`gtagLoadPolicy.ts`), więc zdarzenia z okna hydratacji trafią
  * do `window.dataLayer` i poczekają w niej na skrypt. Bramkowanie ich na
  * obecności skryptu kasowałoby dokładnie te odsłony, dla których ta kolejka
  * istnieje.

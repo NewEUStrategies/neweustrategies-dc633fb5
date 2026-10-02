@@ -18,7 +18,7 @@
 //      czytelnikowi nie mówi.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 const h = vi.hoisted(() => ({
   getSession: vi.fn(async () => ({ data: { session: null } })),
@@ -29,11 +29,14 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import {
-  GlobalAudioPlayerProvider,
+  GlobalPlayerContext,
   formatAudioTime,
   useGlobalAudioPlayer,
   type AudioTrackMeta,
+  type GlobalPlayerContextValue,
+  type PendingAudioCommand,
 } from "@/lib/audio/global-player";
+import { GlobalAudioEngine } from "@/lib/audio/global-player-engine";
 import { resetBlobCache } from "@/lib/audio/blobCache";
 import { POSITION_SAVE_INTERVAL, positionKey } from "@/lib/audio/positionMemory";
 
@@ -171,8 +174,26 @@ function Probe() {
   );
 }
 
+/**
+ * Silnik zamontowany OD RAZU, bez leniwej powłoki. Przedmiotem TEGO pliku jest
+ * skład silnika (etapy syntezy, cache, pozycja, transport); leniwą granicę
+ * powłoki - fasadę, kolejkę poleceń, parytet SSR - dowodzi osobno
+ * `globalPlayerShell.test.tsx`. Dzieci wchodzą dopiero po pierwszej publikacji
+ * wartości, żeby sonda od pierwszego renderu czytała API silnika, nie atrapę.
+ */
+function EagerEngineProvider({ children }: { children: ReactNode }) {
+  const [value, setValue] = useState<GlobalPlayerContextValue | null>(null);
+  const commandsRef = useRef<PendingAudioCommand[]>([]);
+  return (
+    <GlobalPlayerContext.Provider value={value}>
+      <GlobalAudioEngine onValue={setValue} commandsRef={commandsRef} />
+      {value ? children : null}
+    </GlobalPlayerContext.Provider>
+  );
+}
+
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <GlobalAudioPlayerProvider>{children}</GlobalAudioPlayerProvider>
+  <EagerEngineProvider>{children}</EagerEngineProvider>
 );
 
 const META: AudioTrackMeta = {
@@ -213,6 +234,8 @@ afterEach(() => {
 async function mount() {
   render(<Probe />, { wrapper });
   await waitFor(() => expect(FakeAudio.last).not.toBeNull());
+  // Sonda pojawia się dopiero z opublikowaną wartością silnika (patrz wyżej).
+  await waitFor(() => expect(screen.getByTestId("status")).toBeTruthy());
 }
 
 /** Uruchamia nagranie i domyka `loadedmetadata`, jak zrobiłaby przeglądarka. */

@@ -46,6 +46,10 @@ const harness = vi.hoisted(() => ({
   mounted: true,
   analytics: {} as object,
   marketing: {} as object,
+  /** Czy decyzja zgody jest ZAPISANA (`hasConsentDecision`). */
+  decided: false,
+  /** Słuchacze `subscribeConsentChange` - test budzi ich przez `poDecyzjiZgody`. */
+  consentListeners: new Set<() => void>(),
 }));
 
 // Atrapa czytnika site_settings: oddaje spadki komponentu nadpisane wartościami
@@ -59,8 +63,10 @@ vi.mock("@/lib/useSiteSetting", () => ({
   },
 }));
 
-// Atrapa zgód: sam hak `useEffectiveConsent` (prawdziwy dociąga klienta
-// Supabase i localStorage - tu liczy się wyłącznie bramka).
+// Atrapa zgód: hak `useEffectiveConsent` (prawdziwy dociąga klienta Supabase
+// i localStorage - tu liczy się wyłącznie bramka) oraz para
+// `subscribeConsentChange` + `hasConsentDecision`, z której polityka
+// dociągania gtag.js (`scheduleGtagLoad`) czyta sygnał „jawna decyzja".
 vi.mock("@/lib/ads/consent", () => ({
   useEffectiveConsent: () => ({
     categories: harness.categories,
@@ -69,6 +75,11 @@ vi.mock("@/lib/ads/consent", () => ({
     gpc: { active: false, source: "none" },
     gpcHonored: false,
   }),
+  hasConsentDecision: () => harness.decided,
+  subscribeConsentChange: (listener: () => void) => {
+    harness.consentListeners.add(listener);
+    return () => harness.consentListeners.delete(listener);
+  },
 }));
 
 import { ConsentScriptInjector } from "@/components/ConsentScriptInjector";
@@ -243,19 +254,41 @@ function renderInjector() {
 }
 
 /**
- * Przepuszcza okno bezczynności, w którym dociąga się gtag.js.
+ * Przepuszcza sygnał polityki dociągania gtag.js - tu: PIERWSZĄ INTERAKCJĘ.
  *
  * DLACZEGO TO JEST POTRZEBNE (i dlaczego nie jest to test „z opóźnieniem").
  * Od 2026-09-20 `ConsentScriptInjector` rozdziela dwie rzeczy, które wcześniej
  * robił naraz: POLECENIA (`consent default/update`, `config`) idą do
  * `window.dataLayer` synchronicznie w efekcie, a SAM PLIK z googletagmanager.com
- * dociąga `afterPageLoad(…, 2000)` - skrypt obcego originu nie ma konkurować
- * z LCP i pierwszą interakcją (audyt CWV, F20). Asercje na `dataLayer` zostają
- * więc synchroniczne; asercje na WĘZLE `<script data-ga4-tag>` muszą przejść
- * przez to okno. `whenIdle` bez `requestIdleCallback` (happy-dom) degraduje do
- * `setTimeout(…, 32)` - 80 ms to zapas na obie ścieżki.
+ * dociąga polityka `scheduleGtagLoad` (`@/lib/analytics/gtagLoadPolicy`) -
+ * skrypt obcego originu nie ma konkurować z LCP, hydratacją ani pierwszą
+ * interakcją. Do 2026-10-02 sygnałem było `afterPageLoad(…, 2000)` (sam
+ * `load` + bezczynność), od 2026-10-02 - NAJWCZEŚNIEJSZY z: pierwszej
+ * interakcji, jawnej decyzji o zgodzie, bezczynności po load bez długich zadań
+ * (2-8 s; szczegóły i testy w `gtagLoadPolicy.test.ts`). Asercje na `dataLayer`
+ * zostają więc synchroniczne; asercje na WĘZLE `<script data-ga4-tag>` muszą
+ * przejść przez ten sygnał. Pasywny `pointerdown` jest najtańszy: dociągnięcie
+ * schodzi po klatce i jednym makrozadaniu (rAF -> setTimeout 0) - 80 ms to
+ * zapas na obie ścieżki happy-dom.
  */
-async function poBezczynnosci(): Promise<void> {
+async function poInterakcji(): Promise<void> {
+  await act(async () => {
+    window.dispatchEvent(new Event("pointerdown"));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  });
+}
+
+/** Zapisana decyzja odwiedzającego - sygnał (b) polityki, bez żadnej interakcji. */
+async function poDecyzjiZgody(): Promise<void> {
+  await act(async () => {
+    harness.decided = true;
+    for (const listener of harness.consentListeners) listener();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+  });
+}
+
+/** Sam `load` dokumentu i chwila ciszy - od 2026-10-02 to już NIE jest sygnał. */
+async function poSamymLoad(): Promise<void> {
   await act(async () => {
     window.dispatchEvent(new Event("load"));
     await new Promise((resolve) => setTimeout(resolve, 80));
@@ -292,6 +325,8 @@ beforeEach(() => {
   harness.mounted = true;
   harness.analytics = {};
   harness.marketing = {};
+  harness.decided = false;
+  harness.consentListeners.clear();
   fetchSpy.mockClear();
   vi.stubGlobal("fetch", fetchSpy);
   Reflect.deleteProperty(window, "__consentTestMarker");
@@ -368,7 +403,7 @@ describe("ConsentScriptInjector - kontrakt 1: bez zgody nie ma skryptu", () => {
       ad_storage: "denied",
     });
     expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(0);
-    await poBezczynnosci();
+    await poInterakcji();
     expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
   });
 
@@ -442,14 +477,14 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     expect(configEntry(GA4_ID)).toBeDefined();
     expect(consentDefault()).toMatchObject({ analytics_storage: "denied" });
 
-    await poBezczynnosci();
+    await poInterakcji();
     const tag = document.head.querySelectorAll<HTMLScriptElement>("script[data-ga4-tag]");
     expect(tag).toHaveLength(1);
     expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
     expect(tag[0].async).toBe(true);
   });
 
-  it("tag Google NIE jest dociągany w oknie hydratacji - dopiero po bezczynności (F20)", async () => {
+  it("tag Google NIE jest dociągany w oknie hydratacji ani tuż po load - dopiero na sygnał polityki (F20)", async () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
     grant({ analytics: true });
 
@@ -463,8 +498,50 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     expect(configEntry(GA4_ID)).toBeDefined();
     expect(consentUpdate()).toMatchObject({ analytics_storage: "granted" });
 
-    await poBezczynnosci();
+    // Sam `load` już NIE wystarcza (do 2026-10-02 wystarczał: `afterPageLoad(…,
+    // 2000)`): na mobile to okno wciąż trafiało w TBT/TTI. Bez interakcji
+    // skrypt dojedzie dopiero po progu bezczynności (2-8 s - poza tym testem).
+    await poSamymLoad();
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
+
+    await poInterakcji();
     expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(1);
+  });
+
+  it("jawna decyzja o zgodzie dociąga tag bez interakcji (decyzja z innej karty też liczy się jako sygnał)", async () => {
+    setAnalytics({ ga4_measurement_id: GA4_ID });
+
+    renderInjector();
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
+
+    await poDecyzjiZgody();
+    const tag = document.head.querySelectorAll<HTMLScriptElement>("script[data-ga4-tag]");
+    expect(tag).toHaveLength(1);
+    expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
+  });
+
+  it("zmiana zgody BEZ zapisanej decyzji (podgląd, GPC) nie jest sygnałem dociągnięcia", async () => {
+    setAnalytics({ ga4_measurement_id: GA4_ID });
+
+    renderInjector();
+    await act(async () => {
+      // `subscribeConsentChange` budzi się, ale `hasConsentDecision()` zostaje false.
+      for (const listener of harness.consentListeners) listener();
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
+  });
+
+  it("odmontowanie odpina nasłuch decyzji o zgodzie (inaczej odpięty efekt dociągałby tag)", async () => {
+    setAnalytics({ ga4_measurement_id: GA4_ID });
+
+    const view = renderInjector();
+    expect(harness.consentListeners.size).toBe(1);
+    view.unmount();
+    expect(harness.consentListeners.size).toBe(0);
+
+    await poDecyzjiZgody();
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
   });
 
   it("keeps consent commands synchronous while the document is still loading", async () => {
@@ -478,7 +555,7 @@ describe("ConsentScriptInjector - loadery analityki", () => {
       });
       expect(consentUpdate()).toMatchObject({ analytics_storage: "granted" });
       expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
-      await poBezczynnosci();
+      await poInterakcji();
       expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(1);
     } finally {
       readyState.mockRestore();
@@ -491,7 +568,7 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     const view = renderInjector();
     grant({ analytics: true });
     view.rerender(<ConsentScriptInjector />);
-    await poBezczynnosci();
+    await poInterakcji();
 
     expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
     expect(consentUpdate()).toMatchObject({
@@ -507,7 +584,7 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     setAnalytics({ ga4_measurement_id: "G-" + "X".repeat(70) });
 
     expect(() => renderInjector()).not.toThrow();
-    await poBezczynnosci();
+    await poInterakcji();
 
     // Domyślne = brak wpisu z panelu, więc bootstrap idzie ze stałą wdrożenia.
     expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
@@ -871,7 +948,7 @@ describe("ConsentScriptInjector - kontrakt 4: zmiana konfiguracji przeładowuje 
 
     setAnalytics({ ga4_measurement_id: "G-TEST111111" });
     view.rerender(<ConsentScriptInjector />);
-    await poBezczynnosci();
+    await poInterakcji();
 
     // Skrypt gtag.js jest DOKŁADNIE JEDEN - zmiana strumienia to nowa
     // konfiguracja w `dataLayer`, nigdy drugi tag (drugi tag = drugi ping

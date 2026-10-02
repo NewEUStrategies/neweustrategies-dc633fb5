@@ -50,7 +50,8 @@ import {
 import type { ClubMemberRole } from "@/lib/clubs/types";
 import { useClubBySlug, useClubMembers, useSetClubMemberRole } from "@/lib/clubs/useClubs";
 import { useClubRosterSignal } from "@/lib/clubs/useClubNetwork";
-import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
+import { buildClubHead } from "@/lib/clubs/clubHead";
+import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { formatDateShort, formatNumber, uiLang, uiLocale } from "@/lib/i18n/format";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";

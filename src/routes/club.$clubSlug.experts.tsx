@@ -9,7 +9,8 @@ import { useTranslation } from "react-i18next";
 import { ClubWorkspaceLayout } from "@/components/clubs/organisms/ClubWorkspaceLayout";
 import { ClubExpertsScreen } from "@/components/clubs/organisms/ClubExpertsScreen";
 import { useAuth } from "@/hooks/useAuth";
-import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
+import { buildClubHead } from "@/lib/clubs/clubHead";
+import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { uiLocale } from "@/lib/i18n/format";
 import { ensureClubI18n } from "@/lib/i18n-club";
 

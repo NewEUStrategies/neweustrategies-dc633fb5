@@ -32,11 +32,12 @@ import { taxonomyArchiveQueryOptions, type ArchiveSort } from "@/lib/queries/arc
 import {
   ORGANIZATION_PAGE_SIZE,
   organizationCompanyNames,
-  organizationDescription,
-  organizationName,
   organizationQueryOptions,
   type OrganizationData,
 } from "@/lib/queries/organization";
+// Z `organizationTerm`, nie z `organization`: `head()` zostaje w shellu trasy
+// (chunk wejściowy), a moduł zapytań ciągnie klienta profilu organizacji.
+import { organizationDescription, organizationName } from "@/lib/queries/organizationTerm";
 import { activeLang } from "@/lib/seo/head";
 import { breadcrumbListJsonLd, safeJsonLd } from "@/lib/seo/jsonld";
 import { buildContentHead, SITE_CANONICAL_ORIGIN, splitUrl } from "@/lib/seo/meta";

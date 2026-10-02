@@ -7,7 +7,10 @@ import { isServer } from "@tanstack/router-core/isServer";
 import { routeTree } from "./routeTree.gen";
 import { addLangPrefix, stripLangPrefix } from "./lib/i18n/localePath";
 import { currentLang } from "./lib/i18n/localeRuntime";
-import { FriendlyErrorPage } from "./components/error/FriendlyErrorPage";
+// Ekrany błędu NIE należą do udanego pierwszego renderu - `React.lazy`
+// (wewnątrz wrappera) trzyma je poza chunkiem wejściowym; SSR strony błędu
+// nadal działa, bo lazy renderuje się w strumieniu (test: router.test.tsx).
+import { LazyFriendlyErrorPage } from "./components/error/LazyFriendlyErrorPage";
 import { errorCopy } from "./lib/errorCopy";
 import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
 import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
@@ -22,13 +25,13 @@ import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
 //   - Reconnect refetch: recover gracefully after a network drop.
 //   - Mutations retry 0: side-effects must be explicit.
 function DefaultErrorComponent({ error, reset }: ErrorComponentProps) {
-  return <FriendlyErrorPage error={error} reset={reset} />;
+  return <LazyFriendlyErrorPage error={error} reset={reset} />;
 }
 
 function DefaultNotFoundComponent() {
   const copy = errorCopy();
   return (
-    <FriendlyErrorPage
+    <LazyFriendlyErrorPage
       error={{ status: 404, message: "not found" }}
       title={copy.notFoundTitle}
       footer={copy.notFoundBody}

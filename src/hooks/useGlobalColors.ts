@@ -4,11 +4,10 @@ import { toJson } from "@/lib/builder/types";
 import { useMutation, useQuery, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyError, notifySuccess } from "@/lib/notify";
-import {
-  EMPTY_GLOBAL_COLORS,
-  type GlobalColorsValue,
-  globalColorsToCss,
-} from "@/lib/builder/globalColors";
+// Lekki moduł z kształtem wartości, NIE `globalColors.ts`: ten hook jest na
+// ścieżce bootowania (loader korzenia), a tamten moduł to 44 kB katalogu slotów
+// i generatora CSS, który ma dojeżdżać do przeglądarki wyłącznie leniwie.
+import { EMPTY_GLOBAL_COLORS, type GlobalColorsValue } from "@/lib/builder/globalColorsValue";
 import { fetchSiteDesignTokensRow } from "@/lib/builder/designTokens";
 
 const QUERY_KEY = ["site_global_colors"] as const;
@@ -50,5 +49,3 @@ export function useSaveGlobalColors() {
     onError: (e: Error) => notifyError(e.message || "Błąd zapisu kolorów"),
   });
 }
-
-export { globalColorsToCss };

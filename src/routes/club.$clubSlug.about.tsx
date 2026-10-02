@@ -30,7 +30,8 @@ import {
   myClubNotifyLevel,
 } from "@/lib/clubs/aboutView";
 import { ClubErrorNotice } from "@/components/clubs/molecules/ClubErrorNotice";
-import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
+import { buildClubHead } from "@/lib/clubs/clubHead";
+import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";

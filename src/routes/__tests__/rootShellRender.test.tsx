@@ -477,7 +477,7 @@ describe("RootComponent - korzeń aplikacji zamontowany po stronie klienta", () 
 // a nie stan routera.
 describe("ErrorComponent korzenia", () => {
   it("renderuje przyjazny ekran i ZGŁASZA błąd do obserwowalności", async () => {
-    const { render, cleanup } = await import("@testing-library/react");
+    const { render, cleanup, waitFor } = await import("@testing-library/react");
     h.platformErrors.length = 0;
     const EC = Route.options.errorComponent as unknown as (p: {
       error: Error;
@@ -491,9 +491,12 @@ describe("ErrorComponent korzenia", () => {
     const error = new Error("boom");
     try {
       render(<EC error={error} reset={() => (resetCalls += 1)} />);
+      // Ekran stoi za `React.lazy` (poza chunkiem wejściowym): pierwszy render
+      // to bezsłowna rezerwacja miejsca, treść wchodzi po rozwiązaniu modułu.
+      await vi.dynamicImportSettled();
       // Sama obecność ekranu: rola `alert` albo jakikolwiek tekst - pytamy
       // o strukturę, nie o copy.
-      expect(document.body.textContent).not.toBe("");
+      await waitFor(() => expect(document.body.textContent).not.toBe(""));
       expect(consoleError).toHaveBeenCalled();
       // KONTRAKT ZGŁOSZENIA: bez tego błąd korzenia jest niewidoczny dla
       // operatora - strona pokazuje ekran, a telemetria milczy.

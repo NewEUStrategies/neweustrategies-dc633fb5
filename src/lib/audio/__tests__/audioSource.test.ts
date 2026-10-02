@@ -3,7 +3,8 @@
 // `resolveAudioFetch`, jak i realny przepływ przez `fetch` (mock global.fetch)
 // - w ten sposób łapiemy regresje we wszystkich ścieżkach playera.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveAudioFetch } from "@/lib/audio/global-player";
+// Wybór źródła mieszka w SILNIKU (ładowanym leniwie), nie w powłoce providera.
+import { resolveAudioFetch } from "@/lib/audio/global-player-engine";
 
 describe("resolveAudioFetch (kryterium ElevenLabs fallback)", () => {
   afterEach(() => {

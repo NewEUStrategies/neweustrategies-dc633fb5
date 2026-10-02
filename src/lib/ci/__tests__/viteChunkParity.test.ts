@@ -60,6 +60,19 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     expect(smoke).toContain("chunkInventoryPlugin(true)");
   });
 
+  it("podział boot/reszta dla radix i lucide pochodzi z JEDNEGO helpera", () => {
+    // Klasyfikacja osiągalności (scripts/lib/bootVendorSplit.ts) jest poza
+    // wycinanym ciałem manualChunks - parytet ciała nie wystarczy, jeśli jedna
+    // konfiguracja importowałaby inną implementację pod tą samą nazwą.
+    const helperImport =
+      'import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";';
+    expect(main).toContain(helperImport);
+    expect(smoke).toContain(helperImport);
+    for (const chunk of ["vendor-radix-boot", "vendor-lucide-boot"]) {
+      expect(manualChunksBlock(main, "vite.config.ts")).toContain(chunk);
+    }
+  });
+
   it("reguła vendorowa pomija moduł WEJŚCIOWY (pułapka zapadania się chunku)", () => {
     // Bez tej linii `manualChunks` może przypisać entry do nazwanego chunku,
     // a wtedy Rollup wciąga cały ten chunk z powrotem do entry - bez ostrzeżenia.
