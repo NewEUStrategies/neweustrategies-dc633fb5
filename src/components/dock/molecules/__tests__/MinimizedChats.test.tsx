@@ -42,6 +42,7 @@ import {
 } from "@/test/chat/fixtures";
 import {
   MINIMIZED_VISIBLE_LIMIT,
+  MOBILE_MINIMIZED_VISIBLE_LIMIT,
   minimizedChatsStore,
   type MinimizedChat,
 } from "@/lib/chat/minimizedChats";
@@ -332,14 +333,47 @@ describe("przepełnienie szyny", () => {
     );
 
     // Magazyn dokłada na początek, więc widoczne są DWIE ostatnio zminimalizowane.
-    const visible = screen.getAllByTestId("avatar");
+    const desktopRail = document.querySelector(".sm\\:flex");
+    if (!desktopRail) throw new Error("test: brak desktopowej szyny rozmów");
+    const visible = within(desktopRail as HTMLElement).getAllByTestId("avatar");
     expect(visible).toHaveLength(MINIMIZED_VISIBLE_LIMIT);
     expect(visible.map((node) => node.getAttribute("data-name"))).toEqual([
       "Iwona Grabska",
       "Bartosz Mielnik",
     ]);
-    expect(screen.queryByText("Rafał Dębski")).toBeNull();
     expect(screen.getByText("+2")).toBeTruthy();
+  });
+
+  it("na mobile pokazuje maksymalnie trzy kwadratowe dymki bez elementu +N", () => {
+    renderRail();
+    minimize(
+      { id: "rozmowa-a", name: "Rafał Dębski" },
+      { id: "rozmowa-b", name: "Lidia Ostoja" },
+      { id: "rozmowa-c", name: "Bartosz Mielnik" },
+      { id: "rozmowa-d", name: "Iwona Grabska" },
+    );
+
+    const mobileRail = document.querySelector<HTMLElement>("[data-mobile-minimized-chats]");
+    if (!mobileRail) throw new Error("test: brak mobilnych dymków rozmów");
+    const avatars = within(mobileRail).getAllByTestId("avatar");
+    expect(avatars).toHaveLength(MOBILE_MINIMIZED_VISIBLE_LIMIT);
+    expect(avatars.map((node) => node.getAttribute("data-name"))).toEqual([
+      "Iwona Grabska",
+      "Bartosz Mielnik",
+      "Lidia Ostoja",
+    ]);
+    expect(within(mobileRail).queryByText(/^\+/)).toBeNull();
+  });
+
+  it("na mobilnym dymku pokazuje licznik nieprzeczytanych tylko tej rozmowy", () => {
+    h.views = [conversationView({ me: { unread_count: 7 } })];
+    h.peers = peerProfileMap();
+    renderRail();
+    minimize({ id: CHAT_IDS.conversation, name: PEER_NAME });
+
+    const mobileRail = document.querySelector<HTMLElement>("[data-mobile-minimized-chats]");
+    if (!mobileRail) throw new Error("test: brak mobilnych dymków rozmów");
+    expect(within(mobileRail).getByText("7")).toHaveAttribute("data-minimized-chat-unread");
   });
 
   it("jedna ukryta rozmowa dostaje formę POJEDYNCZĄ, nie mnogą", () => {

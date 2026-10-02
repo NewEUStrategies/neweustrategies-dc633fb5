@@ -25,6 +25,7 @@ import { conversationDisplay } from "@/lib/chat/display";
 import { useConversations, usePeerProfiles } from "@/lib/chat/useConversations";
 import {
   MINIMIZED_VISIBLE_LIMIT,
+  MOBILE_MINIMIZED_VISIBLE_LIMIT,
   minimizedChatsStore,
   useMinimizedChats,
   type MinimizedChat,
@@ -59,8 +60,15 @@ function MinimizedChatsRail({ chats, onOpenInbox }: RailProps) {
     return map;
   }, [views, peersQ.data]);
 
+  const liveViews = useMemo(() => {
+    const map = new Map<string, (typeof views)[number]>();
+    for (const view of views) map.set(view.conversation.id, view);
+    return map;
+  }, [views]);
+
   const visible = chats.slice(0, MINIMIZED_VISIBLE_LIMIT);
   const overflow = chats.length - visible.length;
+  const mobileVisible = chats.slice(0, MOBILE_MINIMIZED_VISIBLE_LIMIT);
 
   const restore = (id: string) => {
     minimizedChatsStore.restore(id);
@@ -68,12 +76,62 @@ function MinimizedChatsRail({ chats, onOpenInbox }: RailProps) {
   };
 
   return (
-    <div className="pointer-events-auto absolute bottom-0 left-1.5 top-0 flex items-center gap-1.5">
-      {visible.map((chat) => (
-        <span
-          key={chat.id}
-          className="wd-pill flex h-6 max-w-[132px] items-center gap-1 rounded-md border border-border bg-muted/60 py-0 pl-0.5 pr-0.5 text-[11px] font-medium leading-none"
-        >
+    <>
+      <div
+        data-mobile-minimized-chats
+        className="pointer-events-auto absolute bottom-full right-3 mb-2 flex items-center justify-end gap-2 sm:hidden"
+      >
+        {mobileVisible.map((chat) => {
+          const view = liveViews.get(chat.id);
+          const liveDisplay = view
+            ? conversationDisplay(view, peersQ.data, t("chat.group.circle"))
+            : null;
+          const avatarUrl = liveDisplay?.avatarUrl ?? chat.avatarUrl;
+          const unread = view?.me.unread_count ?? 0;
+          const unreadLabel = t("chat.unread", { count: unread });
+
+          return (
+            <button
+              key={chat.id}
+              type="button"
+              onClick={() => restore(chat.id)}
+              onPointerEnter={prefetchChatWindow}
+              onPointerDown={prefetchChatWindow}
+              onFocus={prefetchChatWindow}
+              title={t("dock.chat.restore", { name: chat.name })}
+              aria-label={
+                unread > 0
+                  ? `${t("dock.chat.restore", { name: chat.name })}. ${unreadLabel}`
+                  : t("dock.chat.restore", { name: chat.name })
+              }
+              className="relative block rounded-[6px] bg-card shadow-lg ring-1 ring-border/60 transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ChatAvatar
+                name={chat.name}
+                avatarUrl={avatarUrl}
+                size="lg"
+                className="rounded-[6px]"
+              />
+              {unread > 0 ? (
+                <span
+                  data-minimized-chat-unread
+                  className="absolute -right-1 -top-1 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[6px] bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground ring-2 ring-background"
+                  aria-hidden="true"
+                >
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="pointer-events-auto absolute bottom-0 left-1.5 top-0 hidden items-center gap-1.5 sm:flex">
+        {visible.map((chat) => (
+          <span
+            key={chat.id}
+            className="wd-pill flex h-6 max-w-[132px] items-center gap-1 rounded-md border border-border bg-muted/60 py-0 pl-0.5 pr-0.5 text-[11px] font-medium leading-none"
+          >
           <button
             type="button"
             onClick={() => restore(chat.id)}
@@ -103,20 +161,21 @@ function MinimizedChatsRail({ chats, onOpenInbox }: RailProps) {
           >
             <X className="h-3 w-3" aria-hidden />
           </button>
-        </span>
-      ))}
-      {overflow > 0 ? (
-        <button
-          type="button"
-          onClick={onOpenInbox}
-          title={t("dock.chat.minimizedMore", { count: overflow })}
-          aria-label={t("dock.chat.minimizedMore", { count: overflow })}
-          className="wd-pill flex h-6 items-center rounded-md border border-border bg-muted/60 px-2 text-[11px] font-semibold leading-none text-muted-foreground hover:text-foreground"
-        >
-          +{overflow}
-        </button>
-      ) : null}
-    </div>
+          </span>
+        ))}
+        {overflow > 0 ? (
+          <button
+            type="button"
+            onClick={onOpenInbox}
+            title={t("dock.chat.minimizedMore", { count: overflow })}
+            aria-label={t("dock.chat.minimizedMore", { count: overflow })}
+            className="wd-pill flex h-6 items-center rounded-md border border-border bg-muted/60 px-2 text-[11px] font-semibold leading-none text-muted-foreground hover:text-foreground"
+          >
+            +{overflow}
+          </button>
+        ) : null}
+      </div>
+    </>
   );
 }
 
