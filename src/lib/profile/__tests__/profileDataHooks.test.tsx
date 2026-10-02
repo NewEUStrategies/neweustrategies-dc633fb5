@@ -4,8 +4,11 @@
 //   usePublicExposure  - błąd RPC musi dać `null` („nie wiemy”), NIGDY `false`.
 //                        Fałszywe „jesteś prywatny” to dokładnie ten błąd,
 //                        którego ten moduł miał się pozbyć.
-//   useProfileIntent   - jedno zapytanie na intencję I kompletność, zapis
-//                        zawężony `.eq("id", uid)`, kody spoza katalogu odsiane.
+//   useProfileIntent   - jedno zapytanie na intencję I kompletność, wiersz
+//                        przez `get_own_profile()` (miernik liczy `location`,
+//                        kolumnę BEZ grantu SELECT - select na `profiles`
+//                        dawał 42501), zapis zawężony `.eq("id", uid)`, kody
+//                        spoza katalogu odsiane.
 //   useHeaderProfile   - JEDEN round-trip na cały nagłówek, nigdy `select("*")`
 //                        (tabela `profiles` ma kolumnowe granty i kolumny PII).
 //   badges             - klucz cache stabilizowany POSORTOWANĄ listą, bo
@@ -75,12 +78,23 @@ function wrapperFor(client: QueryClient) {
   };
 }
 
+/**
+ * Zaplanuj odpowiedź `get_own_profile()` (SETOF - wiersz w tablicy). Inne RPC
+ * dostają jawną odmowę: niezaplanowane wywołanie ma wywalić test, a nie udawać
+ * poprawny odczyt.
+ */
+function planOwnProfile(result: SupabaseResult): void {
+  h.rpc.mockImplementation((fn: string) =>
+    Promise.resolve(fn === "get_own_profile" ? result : fail(`test: niezaplanowane RPC ${fn}`)),
+  );
+}
+
 /** Zaplanuj odpowiedzi wszystkich czterech zapytań `useProfileIntent`. */
 function planIntent(
   row: ReturnType<typeof profileIntentRow> | null,
   counts: { skills?: number; experiences?: number; education?: number } = {},
 ): void {
-  db().setResponse("profiles", ok(row));
+  planOwnProfile(ok(row ? [row] : []));
   db().setResponse("profile_skills", okCount(counts.skills ?? 0));
   db().setResponse("profile_experiences", okCount(counts.experiences ?? 0));
   db().setResponse("profile_education", okCount(counts.education ?? 0));
@@ -482,7 +496,7 @@ describe("useProfileIntent", () => {
   });
 
   it("brak licznika w odpowiedzi schodzi na zero, nie na NaN w interfejsie", async () => {
-    db().setResponse("profiles", ok(profileIntentRow()));
+    planOwnProfile(ok([profileIntentRow()]));
     // Odpowiedź bez pola `count` (starszy PostgREST / błąd planu zapytania).
     db().setResponse("profile_skills", ok(null));
     db().setResponse("profile_experiences", ok(null));
@@ -545,20 +559,25 @@ describe("useProfileIntent", () => {
     expect(result.current.data?.offeringEn).toBe("Doradztwo");
   });
 
-  it("NIGDY nie wybiera `*` z tabeli `profiles`", async () => {
-    planIntent(profileIntentRow());
+  it("czyta wiersz przez `get_own_profile()` BEZ argumentów, nie selectem na `profiles`", async () => {
+    // Miernik kompletności liczy `location` - kolumnę bez grantu SELECT dla
+    // `authenticated`. Select z nią PostgREST odrzuca w CAŁOŚCI (42501),
+    // a sekcja intencji na błędzie znika - użytkownik tracił miernik po cichu.
+    planIntent(profileIntentRow({ location: "Bruksela" }));
     const { result } = renderHook(() => useProfileIntent(), {
       wrapper: wrapperFor(makeClient()),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const select = String(db().lastChain("profiles")?.argsOf("select")?.[0] ?? "");
-    expect(select).not.toContain("*");
-    expect(select).toContain("completeness_score");
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.rpc).toHaveBeenCalledWith("get_own_profile", undefined);
+    expect(db().chainsFor("profiles")).toHaveLength(0);
+    // `location` z RPC naprawdę dochodzi do oceny kompletności.
+    expect(result.current.data?.status.fields.location).toBe(true);
   });
 
   it("błąd odczytu profilu podnosi się do wołającego", async () => {
-    db().setResponse("profiles", fail("permission denied"));
+    planOwnProfile(fail("permission denied"));
     db().setResponse("profile_skills", okCount(0));
     db().setResponse("profile_experiences", okCount(0));
     db().setResponse("profile_education", okCount(0));

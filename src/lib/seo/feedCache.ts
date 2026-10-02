@@ -47,10 +47,24 @@ export const LIVE_FEED_CACHE_CONTROL_FULL =
   "public, max-age=60, s-maxage=120, stale-while-revalidate=600";
 
 /**
+ * TTL PEŁNEGO `llms.txt`. Przewodnik dla asystentów AI odzwierciedla najnowsze
+ * wpisy i ustawienia redakcji bez ręcznego czyszczenia cache: rewalidacja
+ * per-request u klienta, minuta na brzegu i pół godziny jako stale. Literał
+ * stał wcześniej wprost w trasie; wydzielony, bo `llms.txt` przechodzi przez
+ * ten sam kontrakt pełny/pusty co kanały (`feedCacheControl`), a wtedy jest
+ * drugim - obok relacji na żywo - uzasadnionym wyjątkiem od
+ * `FEED_CACHE_CONTROL_FULL`.
+ */
+export const LLMS_TXT_CACHE_CONTROL_FULL =
+  "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate";
+
+/**
  * TTL kanału PUSTEGO. `max-age=0` + `must-revalidate` u klienta, minuta na
  * brzegu, ZERO `stale-while-revalidate` - pustka nie może być podawana jako
- * „wystarczająco świeża". Ten sam kształt, co nagłówek indeksu sitemapy,
- * który jest dziś jedyną poprawną odpowiedzią zdegradowaną w repozytorium.
+ * „wystarczająco świeża". Ten sam nagłówek dostaje zdegradowany indeks i shard
+ * sitemapy (`SITEMAP_DEGRADED_CACHE_HEADERS` w `sitemapRequest.server.ts`)
+ * oraz `llms.txt` bez artykułów albo bez sekcji - jeden kontrakt odpowiedzi
+ * zdegradowanej dla wszystkich powierzchni maszynowych adresowanych hostem.
  */
 export const FEED_CACHE_CONTROL_EMPTY = "public, max-age=0, s-maxage=60, must-revalidate";
 
@@ -65,7 +79,8 @@ export const FEED_CACHE_CONTROL_EMPTY = "public, max-age=0, s-maxage=60, must-re
  *
  * @param itemCount liczba pozycji, które kanał faktycznie wyemitował
  * @param whenFull TTL kanału pełnego - domyślnie standardowy; relacja na żywo
- *   podaje tu `LIVE_FEED_CACHE_CONTROL_FULL`
+ *   podaje tu `LIVE_FEED_CACHE_CONTROL_FULL`, `llms.txt` -
+ *   `LLMS_TXT_CACHE_CONTROL_FULL`
  */
 export function feedCacheControl(
   itemCount: number,

@@ -8,9 +8,10 @@
 //     granicą 4 znaków, bo to ona decyduje, kiedy panel zaczyna pytać serwer,
 //   * ładunek żądania jest dokładnie ten, którego oczekuje walidator server
 //     function (w tym `limit: 8`),
-//   * trzy różne stany pustki nie mylą się ze sobą: BRAK WARUNKÓW (`hint`),
-//     ODCZYT W TOKU (`loading`) i ZERO DOPASOWAŃ (`empty`) - redakcja musi
-//     wiedzieć, czy nie ma sugestii, czy jeszcze ich nie policzono,
+//   * cztery różne stany bez listy nie mylą się ze sobą: BRAK WARUNKÓW
+//     (`hint`), ODCZYT W TOKU (`loading`), ZERO DOPASOWAŃ (`empty`) i AWARIA
+//     ODCZYTU (`error` z przyciskiem `retry`) - redakcja musi wiedzieć, czy
+//     nie ma sugestii, czy jeszcze ich nie policzono, czy narzędzie nie działa,
 //   * tytuł kandydata wybierany jest po języku panelu, ze spadkiem na
 //     `title_pl` i dalej na `slug` - wpis bez tłumaczenia nie może zniknąć z
 //     listy jako pusty wiersz bez etykiety,
@@ -317,16 +318,77 @@ describe("InternalLinkSuggestions - stany odczytu", () => {
     // Odwrotna asercja jest tu sensem testu: „nic nie znaleziono" i „jeszcze
     // szukam" to dla redakcji dwie różne informacje.
     expect(screen.queryByText("admin.seo.linkSuggestions.loading")).not.toBeInTheDocument();
+    // Negatyw stanu awarii: poprawny pusty wynik NIE jest błędem.
+    expect(screen.queryByText("admin.seo.linkSuggestions.error")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("InternalLinkSuggestions - awaria odczytu ma własny stan", () => {
+  // KONSEKWENCJA, której pilnuje ten blok: awaria pokazana jako `empty`
+  // („brak dopasowań") uczy redakcję, że nie ma do czego linkować, choć to
+  // narzędzie nie działa. Server function rzuca przy błędzie zapytania
+  // `LinkSuggestionsQueryError` (treść `E_LINK_SUGGESTIONS_QUERY: <etap>`) -
+  // widget musi to pokazać jako błąd, a nie jako pustkę.
+  it.each([
+    { nazwa: "awaria zapytania w server function", blad: "E_LINK_SUGGESTIONS_QUERY: fts" },
+    { nazwa: "dowolny inny wyjątek (np. sieć)", blad: "Failed to fetch" },
+  ])("$nazwa daje stan `error`, nie `empty`", async ({ blad }) => {
+    h.suggest.mockRejectedValue(new Error(blad));
+    renderWithQueryClient(<InternalLinkSuggestions {...PUSTY_EDYTOR} tagIds={[TAG_ID]} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("admin.seo.linkSuggestions.error"),
+    );
+    expect(screen.queryByText("admin.seo.linkSuggestions.empty")).not.toBeInTheDocument();
+    expect(screen.queryByText("admin.seo.linkSuggestions.loading")).not.toBeInTheDocument();
+    // Widget się nie wywraca - nagłówek zostaje.
+    expect(screen.getByText("admin.seo.linkSuggestions.title")).toBeInTheDocument();
+    // Treść wyjątku nie trafia do panelu - komunikat idzie przez i18n.
+    expect(screen.queryByText(blad)).not.toBeInTheDocument();
   });
 
-  it("błąd server function nie wywraca widgetu - zostaje komunikat o pustce", async () => {
-    h.suggest.mockRejectedValue(new Error("brak profilu tenanta"));
+  it("`retry` ponawia odczyt, a udany wynik zastępuje stan błędu listą", async () => {
+    h.suggest.mockRejectedValueOnce(new Error("E_LINK_SUGGESTIONS_QUERY: categories"));
+    h.suggest.mockResolvedValueOnce([sugestia()]);
     renderWithQueryClient(<InternalLinkSuggestions {...PUSTY_EDYTOR} tagIds={[TAG_ID]} />);
+
+    const ponow = await waitFor(() =>
+      screen.getByRole("button", { name: "admin.seo.linkSuggestions.retry" }),
+    );
+    expect(h.suggest).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(ponow);
+
+    await waitFor(() => expect(screen.getByText("Reforma WPR")).toBeInTheDocument());
+    expect(h.suggest).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("`retry` zakończone poprawnym ZEREM wyników przechodzi w `empty`, nie zostaje w `error`", async () => {
+    h.suggest.mockRejectedValueOnce(new Error("E_LINK_SUGGESTIONS_QUERY: posts"));
+    h.suggest.mockResolvedValueOnce([]);
+    renderWithQueryClient(<InternalLinkSuggestions {...PUSTY_EDYTOR} tagIds={[TAG_ID]} />);
+
+    fireEvent.click(
+      await waitFor(() => screen.getByRole("button", { name: "admin.seo.linkSuggestions.retry" })),
+    );
 
     await waitFor(() =>
       expect(screen.getByText("admin.seo.linkSuggestions.empty")).toBeInTheDocument(),
     );
-    expect(screen.getByText("admin.seo.linkSuggestions.title")).toBeInTheDocument();
+    expect(screen.queryByText("admin.seo.linkSuggestions.error")).not.toBeInTheDocument();
+  });
+
+  it("brak warunków włączających ma pierwszeństwo - bez odczytu nie ma czego zgłaszać", async () => {
+    h.suggest.mockRejectedValue(new Error("E_LINK_SUGGESTIONS_QUERY: profile"));
+    renderWithQueryClient(<InternalLinkSuggestions {...PUSTY_EDYTOR} />);
+
+    await waitFor(() =>
+      expect(screen.getByText("admin.seo.linkSuggestions.hint")).toBeInTheDocument(),
+    );
+    expect(h.suggest).toHaveBeenCalledTimes(0);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
@@ -554,6 +616,17 @@ describe("InternalLinkSuggestions - dostępność", () => {
     );
 
     await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(2));
+    const naruszenia = await axeViolations(container);
+    expect(naruszenia, summarize(naruszenia)).toEqual([]);
+  });
+
+  it("stan `error` jest dostępny (komunikat w `alert`, przycisk ponowienia z nazwą)", async () => {
+    h.suggest.mockRejectedValue(new Error("E_LINK_SUGGESTIONS_QUERY: tags"));
+    const { container } = renderWithQueryClient(
+      <InternalLinkSuggestions {...PUSTY_EDYTOR} tagIds={[TAG_ID]} />,
+    );
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     const naruszenia = await axeViolations(container);
     expect(naruszenia, summarize(naruszenia)).toEqual([]);
   });

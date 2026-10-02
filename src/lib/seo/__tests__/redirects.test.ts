@@ -160,8 +160,12 @@ describe("CSV round-trip", () => {
 // ---------------------------------------------------------------------------
 // ETAP 4: gałęzie matchera i importu CSV, których nie dotyka ani ten plik, ani
 // `redirectLangAware.test.ts`, `redirectsServerSwr.test.ts`,
-// `redirectsServerRequest.test.ts` (redirects.ts: 63, 89, 94, 123, 153, 188,
-// 198-200, 277, 354-357, 362-369, 400).
+// `redirectsServerRequest.test.ts`: zwijanie "\" w źródle i celu, wyjątki
+// parsera URL, limit 2048, cel-katalog główny wildcardu, zatrzymanie łańcucha
+// (cel absolutny, hop wieloznaczny), degradacja kodu statusu, pętla po
+// ponownym prefiksowaniu języka i wiersze wadliwe importu CSV. (Numery linii
+// `redirects.ts`, które tu wcześniej stały, rozjechały się z kodem przy
+// pierwszej zmianie pliku - nazwy gałęzi się nie rozjeżdżają.)
 // ---------------------------------------------------------------------------
 describe("normalizeSourcePath / normalizeTargetPath - wejścia wrogie i za długie", () => {
   it("zwija odwrotny ukośnik w CELU na ścieżkę tego samego serwisu", () => {
@@ -174,24 +178,57 @@ describe("normalizeSourcePath / normalizeTargetPath - wejścia wrogie i za dług
     expect(normalizeTargetPath("/\\\\evil.example")).toBe("/evil.example");
   });
 
-  it("źródło z odwrotnym ukośnikiem trafia na KATALOG GŁÓWNY (stan faktyczny)", () => {
-    // FAKT ZMIERZONY: `normalizeSourcePath` puszcza wejście przez `new URL()`
-    // ZANIM zadziała `cleanPathname`, a parser URL czyta "/\x" jako "//x", czyli
-    // adres protokołowo-relatywny z hostem "x" i ścieżką "/". Zostaje samo "/".
-    expect(normalizeSourcePath("/\\evil.example")).toBe("/");
-    expect(normalizeSourcePath("/\\evil.example/stary-wpis")).toBe("/stary-wpis");
+  it("źródło z odwrotnym ukośnikiem NIE staje się regułą dla strony głównej", () => {
+    // KONSEKWENCJA, przed którą chroni ten test: wiersz importu CSV
+    // `/\stary-wpis,/nowy` (ukośniki odwrotne trafiają do eksportów z Windows
+    // i z WP) normalizował się do źródła "/", bo `new URL()` czytał "/\x" jak
+    // "//x" (host "x", ścieżka "/") ZANIM zadziałał `cleanPathname`. Import
+    // cicho zakładał przekierowanie STRONY GŁÓWNEJ na "/nowy" - cały ruch
+    // z wejścia na domenę uciekał na jedną podstronę, a operator widział
+    // w panelu regułę, której nie napisał. Źródło przechodzi teraz przez to
+    // samo zwijanie co cel, PRZED parserem URL.
+    expect(normalizeSourcePath("/\\stary-wpis")).toBe("/stary-wpis");
+    expect(normalizeSourcePath("\\stary-wpis\\")).toBe("/stary-wpis");
+    expect(normalizeSourcePath("/kat\\stary-wpis")).toBe("/kat/stary-wpis");
   });
 
-  it.fails("DEFEKT: źródło z odwrotnym ukośnikiem staje się regułą dla strony głównej", () => {
-    // KONSEKWENCJA DLA UŻYTKOWNIKA: wiersz importu CSV `/\stary-wpis,/nowy`
-    // (ukośniki odwrotne trafiają do eksportów z Windows i z WP) NIE jest
-    // odrzucany - normalizuje się do źródła "/", więc import cicho zakłada
-    // przekierowanie STRONY GŁÓWNEJ serwisu na "/nowy". Cały ruch z wejścia
-    // na domenę ucieka na jedną podstronę, a operator widzi w panelu regułę,
-    // której nie napisał.
-    // Ten sam znak w CELU jest obsłużony poprawnie (test wyżej) - poprawka to
-    // przepuszczenie źródła przez to samo zwijanie PRZED `new URL()`.
-    expect(normalizeSourcePath("/\\stary-wpis")).toBe("/stary-wpis");
+  it("udawany host za odwrotnym ukośnikiem zostaje ŚCIEŻKĄ tego serwisu", () => {
+    // Ta sama semantyka co dla celu: `\\evil.example\a` to ścieżka
+    // "/evil.example/a", a nie host - nic nie znika i nic nie przechodzi
+    // w regułę dla "/".
+    expect(normalizeSourcePath("\\\\evil.example\\a")).toBe("/evil.example/a");
+    expect(normalizeSourcePath("/\\evil.example")).toBe("/evil.example");
+    expect(normalizeSourcePath("/\\evil.example/stary-wpis")).toBe("/evil.example/stary-wpis");
+    expect(normalizeSourcePath("/\\\\evil")).toBe("/evil");
+  });
+
+  it.each(["\\", "/\\", "\\\\", " \\ ", "\\/\\"])(
+    "odrzuca źródło %j zbudowane z samych ukośników z odwrotnym (nic użytecznego nie zostaje)",
+    (raw) => {
+      // Uszkodzona komórka eksportu, nie świadoma reguła dla katalogu
+      // głównego - ta jest najdroższą możliwą pomyłką, więc wymaga zapisu
+      // wprost.
+      expect(normalizeSourcePath(raw)).toBeNull();
+    },
+  );
+
+  it("katalog główny zapisany WPROST nadal jest przyjmowany (kontrola negatywna)", () => {
+    expect(normalizeSourcePath("/")).toBe("/");
+    expect(normalizeSourcePath("https://old.example.com/")).toBe("/");
+    expect(normalizeSourcePath("/?p=123")).toBe("/?p=123");
+    // Zapytanie przy ścieżce z "\" ratuje regułę: "?p=1" jest użyteczne.
+    expect(normalizeSourcePath("\\?p=1")).toBe("/?p=1");
+  });
+
+  it("odwrotny ukośnik w ZAPYTANIU zostaje dosłowny (dopasowanie query jest bajtowe)", () => {
+    expect(normalizeSourcePath("/a?x=\\b")).toBe("/a?x=\\b");
+    expect(normalizeSourcePath("\\a?x=\\b")).toBe("/a?x=\\b");
+    // Fragment po "#" i tak odpada, więc jego "\" nie zmienia ścieżki.
+    expect(normalizeSourcePath("/a#x\\y")).toBe("/a");
+  });
+
+  it("pełny URL z odwrotnymi ukośnikami w ścieżce daje ścieżkę tego URL-a", () => {
+    expect(normalizeSourcePath("https://old.example.com\\a\\b")).toBe("/a/b");
   });
 
   it("odrzuca źródło dłuższe niż limit kolumny (2048 znaków)", () => {
@@ -235,6 +272,9 @@ describe("matchRedirect - gałęzie brzegowe reguł", () => {
     const hit = matchRedirect(index, "/chain");
     expect(hit?.target).toBe("https://nes.example/new");
     expect(hit?.rule.source_path).toBe("/ext");
+    // Reguła WEJŚCIOWA zostaje zapamiętana obok końcowej - to na nią idzie
+    // licznik trafień w panelu.
+    expect(hit?.entryRule.source_path).toBe("/chain");
     // Zapytanie dolepia się także do celu absolutnego (nie ma w nim "?").
     expect(matchRedirect(index, "/chain", "?utm=nl")?.target).toBe(
       "https://nes.example/new?utm=nl",
@@ -266,6 +306,45 @@ describe("matchRedirect - gałęzie brzegowe reguł", () => {
     // Cel z "/*" jest wzorcem, nie adresem - doklejenie go dałoby Location z
     // gwiazdką w ścieżce.
     expect(matchRedirect(index, "/a1")?.target).toBe("/b1");
+  });
+});
+
+describe("matchRedirect - reguła wejściowa (entryRule) dla licznika trafień", () => {
+  const index = buildRedirectIndex([
+    rule({ source_path: "/a", target_path: "/b" }),
+    rule({ source_path: "/b", target_path: "/c", status_code: 302 }),
+    rule({ source_path: "/sam", target_path: "/cel" }),
+    rule({ source_path: "/stara-sekcja/*", target_path: "/nowa/*" }),
+    rule({ source_path: "/usuniete", target_path: "/", status_code: 410 }),
+    rule({ source_path: "/do-usunietego", target_path: "/usuniete" }),
+  ]);
+
+  it("bez łańcucha reguła wejściowa i końcowa to ta sama reguła", () => {
+    const hit = matchRedirect(index, "/sam");
+    expect(hit?.entryRule).toBe(hit?.rule);
+    expect(hit?.entryRule.id).toBe("/sam");
+  });
+
+  it("w łańcuchu wejściowa to dopasowana, końcowa wyznacza cel i kod", () => {
+    const hit = matchRedirect(index, "/a");
+    expect(hit?.entryRule.id).toBe("/a");
+    expect(hit?.rule.id).toBe("/b");
+    expect(hit?.target).toBe("/c");
+    expect(hit?.statusCode).toBe(302);
+  });
+
+  it("łańcuch kończący się na 410 zapamiętuje regułę wejściową", () => {
+    const hit = matchRedirect(index, "/do-usunietego");
+    expect(hit?.gone).toBe(true);
+    expect(hit?.entryRule.id).toBe("/do-usunietego");
+    expect(hit?.rule.id).toBe("/usuniete");
+  });
+
+  it("wildcard i prefiks języka niosą regułę wejściową dalej", () => {
+    expect(matchRedirect(index, "/stara-sekcja/x")?.entryRule.id).toBe("/stara-sekcja/*");
+    const lang = matchRedirectForPath(index, "/en/a");
+    expect(lang?.target).toBe("/en/c");
+    expect(lang?.entryRule.id).toBe("/a");
   });
 });
 
@@ -355,6 +434,23 @@ describe("parseRedirectsCsv - wiersze niepełne i wadliwe", () => {
 
   it("z pliku pełnego wadliwych wierszy nie powstaje ANI JEDEN wiersz-śmieć", () => {
     expect(result.rows.map((r) => r.source_path)).toEqual(["/e", "/g"]);
+  });
+
+  it("wiersz ze źródłem z odwrotnym ukośnikiem dostaje SWOJĄ ścieżkę, nie stronę główną", () => {
+    const out = parseRedirectsCsv(["/\\stary-wpis,/nowy,301", "\\kat\\wpis,/inny"].join("\n"));
+    expect(out.issues).toEqual([]);
+    expect(out.rows.map((r) => r.source_path)).toEqual(["/stary-wpis", "/kat/wpis"]);
+    // Żaden wiersz nie zakłada przekierowania katalogu głównego.
+    expect(out.rows.some((r) => r.source_path === "/")).toBe(false);
+  });
+
+  it("wiersz ze źródłem z samych ukośników odwrotnych jest odrzucany jako invalid_source", () => {
+    const out = parseRedirectsCsv(["\\,/nowy,301", "/\\,/nowy,301", "/ok,/nowy,301"].join("\n"));
+    expect(out.issues).toEqual([
+      { line: 1, reason: "invalid_source" },
+      { line: 2, reason: "invalid_source" },
+    ]);
+    expect(out.rows.map((r) => r.source_path)).toEqual(["/ok"]);
   });
 
   it("przyjmuje cel absolutny, gdy host jest na allowliście", () => {

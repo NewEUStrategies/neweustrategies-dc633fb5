@@ -41,6 +41,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Tables } from "@/integrations/supabase/types";
 import { rewriteTrackingLinks, trackingPixelImg } from "@/lib/newsletter/tracking";
 import { signTrackingToken, signTrackingLink } from "@/lib/newsletter/trackingToken.server";
+import { newsletterUnsubscribeUrl } from "@/lib/newsletter/unsubscribeUrl";
 import { parseEmailDoc, type EmailDoc } from "@/lib/newsletter/emailDoc";
 import { renderEmailHtml } from "@/lib/newsletter/renderEmailHtml";
 import {
@@ -913,9 +914,14 @@ async function runCampaignSend(
             });
             return;
           }
+          // Ten sam adres idzie do stopki i do nagłówka List-Unsubscribe, a
+          // wskazuje ENDPOINT (handler POST), nie stronę: klient pocztowy
+          // POST-uje one-click (RFC 8058) wprost na adres z nagłówka, a strona
+          // SPA takiego żądania nie obsługuje. Klik w stopkę (GET z
+          // przeglądarki) endpoint przekierowuje 303 na przyjazną stronę.
           const unsubscribeUrl =
             sub.unsubscribe_token && origin
-              ? `${origin}/newsletter/unsubscribe?token=${encodeURIComponent(sub.unsubscribe_token)}`
+              ? newsletterUnsubscribeUrl(origin, sub.unsubscribe_token)
               : null;
           const html = renderCampaignHtml(
             rawHtml,

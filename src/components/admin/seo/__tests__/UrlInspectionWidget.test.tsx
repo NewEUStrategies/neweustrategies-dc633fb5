@@ -660,7 +660,7 @@ describe("UrlInspectionWidget - błędy inspekcji", () => {
 });
 
 describe("UrlInspectionWidget - dostępność", () => {
-  it("widok z wynikiem nie ma innych naruszeń axe niż nazwa przełącznika właściwości", async () => {
+  it("widok z wynikiem nie ma żadnych naruszeń axe", async () => {
     givenInspection(
       indexedPayload({
         inspectionResult: {
@@ -672,25 +672,44 @@ describe("UrlInspectionWidget - dostępność", () => {
     const { container } = await renderReady();
     await runInspection();
 
-    // `select-name`/`button-name` na przełączniku właściwości jest osobnym,
-    // udokumentowanym niżej defektem - tu pilnujemy, że nie ma NIC INNEGO
-    // (nazwy przycisku i linku, kolejność nagłówków, poprawność ARIA).
-    const violations = await axeViolations(container, { "button-name": { enabled: false } });
+    // Pełny zestaw reguł, bez wyłączeń: nazwy przycisku, linku i przełącznika
+    // właściwości, kolejność nagłówków, poprawność ARIA.
+    const violations = await axeViolations(container);
     expect(summarize(violations)).toBe("");
   });
 
-  it.fails(
-    "defekt: przełącznik właściwości GSC nie ma dostępnej nazwy (axe: button-name)",
-    async () => {
-      // KONSEKWENCJA: `SelectTrigger` renderuje `role=\"combobox\"`, a ta rola
-      // NIE bierze nazwy z treści, więc czytnik ekranu ogłasza „pole listy"
-      // bez informacji, CZEGO dotyczy wybór - operator na czytniku nie wie,
-      // że przełącza właściwość Search Console, i może odpalić inspekcję dla
-      // złej domeny. Naprawa to jedna linia w produkcji: `aria-label` (albo
-      // powiązana etykieta) na `SelectTrigger`. Do tego czasu ten zapis trzyma
-      // fakt na widoku - bez zmieniania zachowania produkcyjnego pod test.
-      const { container } = await renderReady();
-      expect(await axeViolations(container)).toEqual([]);
-    },
-  );
+  // STRAŻNIK REGRESJI (dawniej `it.fails`, axe: button-name). KONSEKWENCJA,
+  // gdyby wróciło: `SelectTrigger` renderuje `role="combobox"`, a ta rola NIE
+  // bierze nazwy z treści, więc czytnik ekranu ogłasza „pole listy" bez
+  // informacji, CZEGO dotyczy wybór - operator na czytniku nie wie, że
+  // przełącza właściwość Search Console, i może odpalić inspekcję dla złej
+  // domeny.
+  it("przełącznik właściwości GSC ma dostępną nazwę (axe: button-name)", async () => {
+    const { container } = await renderReady();
+    expect(await axeViolations(container)).toEqual([]);
+    // Nazwa mówi, CO jest wybierane - z i18n, nie z wybranej wartości (adres
+    // właściwości zmienia się przy przełączeniu, a nazwa kontrolki nie może).
+    expect(
+      screen.getByRole("combobox", { name: "admin.seo.gsc.propertyLabel" }),
+    ).toBeInTheDocument();
+  });
+
+  it("nazwa przełącznika NIE zmienia się po wyborze innej właściwości", async () => {
+    // Kontrola przed nadgorliwością: etykieta nie może „zjeść" wybranej
+    // wartości z widoku ani pójść za nią - wartość nadal widać w przełączniku.
+    givenSites([site("https://example.com"), site("sc-domain:inna.example")]);
+    await renderReady();
+    const trigger = screen.getByRole("combobox", { name: "admin.seo.gsc.propertyLabel" });
+    expect(trigger).toHaveTextContent("https://example.com");
+
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(2));
+    fireEvent.click(screen.getByRole("option", { name: "sc-domain:inna.example" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "admin.seo.gsc.propertyLabel" }),
+      ).toHaveTextContent("sc-domain:inna.example"),
+    );
+  });
 });

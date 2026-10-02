@@ -16,9 +16,11 @@
 //      w chwili, w ktorej redaktor jeszcze niczego nie zapisal.
 //   3. ZAPYTANIE O KARTOTEKE LECI DLA GOSCIA. `event_my_event_profile` czyta
 //      TOZSAMOSC WOLAJACEGO; bez sesji nie ma czego czytac.
-//   4. ODCZYT PROFILU BIERZE `*`. Tabela `profiles` ma granty KOLUMNOWE, wiec
-//      gwiazdka konczy sie odmowa calego odczytu - a podglad cicho spada na
-//      rysunek przykladowy zamiast pokazac redaktorowi jego samego.
+//   4. ODCZYT PROFILU SELECTEM NA `profiles`. Tabela ma granty KOLUMNOWE, a
+//      `email`, `phone` i `current_company_id` nie maja grantu SELECT, wiec
+//      select z nimi (albo `*`) konczy sie odmowa calego odczytu - a podglad
+//      cicho spada na rysunek przykladowy. Wlasny wiersz idzie przez
+//      `get_own_profile()`.
 //   5. KONTAKT DOMYSLNIE PUBLICZNY. Profil platformy nie niesie zgod - te zyja
 //      w kartotece wydarzenia, ktorej jeszcze nie ma. Podglad nie moze
 //      sugerowac zgody, ktorej nikt nie wydal.
@@ -36,7 +38,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import { axeViolations, summarize } from "@/test/axe";
-import { ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
+import { supabaseFromStub, type SupabaseFromStub } from "@/test/supabase/chain";
 import type {
   MyAccountSnapshot,
   MyEventPanelState,
@@ -45,6 +47,9 @@ import type {
 
 const h = vi.hoisted(() => ({
   db: null as SupabaseFromStub | null,
+  /** Wiersz oddawany przez `get_own_profile()`; `null` = brak wiersza. */
+  wlasnyWiersz: null as Record<string, string | null> | null,
+  rpc: [] as string[],
   zalogowany: true,
   /** Odpowiedz atrapy hooka kartoteki wydarzenia. */
   panel: null as MyEventPanelState | null,
@@ -61,6 +66,10 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (table: string) => {
       if (h.db === null) throw new Error("test: atrapa lancucha nie zostala ustawiona");
       return h.db.from(table);
+    },
+    rpc: (fn: string) => {
+      h.rpc.push(fn);
+      return Promise.resolve({ data: h.wlasnyWiersz ? [h.wlasnyWiersz] : [], error: null });
     },
   },
 }));
@@ -116,9 +125,6 @@ const { PreviewMePanel } = await import("@/components/admin/events/studio/Previe
 const ME = "eventMe.";
 const SLUG = "kongres-energetyczny";
 
-/** Kolumny, ktore odczyt profilu MUSI wymienic z nazwy - `profiles` ma granty kolumnowe. */
-const KOLUMNY_PROFILU = ["first_name", "last_name", "email", "avatar_url", "linkedin_url"];
-
 function Provider({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -159,7 +165,7 @@ function profil(overrides: Partial<MyEventProfile> = {}): MyEventProfile {
   };
 }
 
-/** Wiersz `profiles` zalogowanego redaktora - w ksztalcie odczytu kolumnowego. */
+/** Wiersz `profiles` zalogowanego redaktora - w ksztalcie `get_own_profile()`. */
 function wierszProfilu(): Record<string, string | null> {
   return {
     first_name: "Jan",
@@ -193,7 +199,8 @@ beforeEach(() => {
   h.wywolania = [];
   h.formularze = [];
   h.karty = [];
-  h.db.setResponse("profiles", ok(null));
+  h.wlasnyWiersz = null;
+  h.rpc = [];
 });
 
 afterEach(cleanup);
@@ -225,7 +232,7 @@ describe("PreviewMePanel - bramka zapytania o kartoteke", () => {
     panel();
 
     await waitFor(() => expect(screen.getByTestId("formularz")).toBeInTheDocument());
-    expect(h.db?.chainsFor("profiles")).toHaveLength(0);
+    expect(h.rpc).toHaveLength(0);
   });
 });
 
@@ -241,7 +248,7 @@ describe("PreviewMePanel - kolejnosc zrodel tozsamosci", () => {
   it("BEZ KARTOTEKI wchodzi PROFIL PLATFORMY redaktora, a nie rysunek przykladowy", async () => {
     // To jest defekt, ktory ten odczyt zamknal: superadmin ogladajacy szkic nie
     // ma kartoteki na wydarzeniu, wiec podglad pokazywal mu „Anne Kowalska".
-    h.db?.setResponse("profiles", ok(wierszProfilu()));
+    h.wlasnyWiersz = wierszProfilu();
     panel();
 
     expect(await screen.findByText(`${ME}previewSource.account`)).toBeInTheDocument();
@@ -259,19 +266,14 @@ describe("PreviewMePanel - kolejnosc zrodel tozsamosci", () => {
     expect(h.formularze.at(-1)?.maKonto).toBe(false);
   });
 
-  it("odczyt profilu wymienia KOLUMNY Z NAZWY i pyta o WLASNY wiersz", async () => {
-    // `profiles` ma granty kolumnowe - `select("*")` konczy sie odmowa calego
-    // odczytu, a podglad cicho spada na rysunek przykladowy.
-    h.db?.setResponse("profiles", ok(wierszProfilu()));
+  it("odczyt profilu idzie przez `get_own_profile()`, nie selectem na `profiles`", async () => {
+    // Select z kolumnami bez grantu konczy sie odmowa calego odczytu, a podglad
+    // cicho spada na rysunek przykladowy.
+    h.wlasnyWiersz = wierszProfilu();
     panel();
 
-    await waitFor(() => expect(h.db?.lastChain("profiles")).toBeDefined());
-    const lancuch = h.db?.lastChain("profiles");
-    const select = String(lancuch?.argsOf("select")?.[0] ?? "");
-    expect(select).not.toBe("*");
-    for (const kolumna of KOLUMNY_PROFILU) expect(select).toContain(kolumna);
-    expect(lancuch?.argsOf("eq")).toEqual(["id", "11111111-1111-4111-8111-111111111111"]);
-    expect(lancuch?.has("maybeSingle")).toBe(true);
+    await waitFor(() => expect(h.rpc).toContain("get_own_profile"));
+    expect(h.db?.chainsFor("profiles")).toHaveLength(0);
   });
 });
 
@@ -355,7 +357,7 @@ describe("PreviewMePanel - dostepnosc", () => {
     await screen.findByTestId("formularz");
     // Odczyt profilu platformy domyka sie asynchronicznie - axe ma ogladac
     // ekran po ustaniu przerysowan, a nie w polowie wczytywania.
-    await waitFor(() => expect(h.db?.lastChain("profiles")).toBeDefined());
+    await waitFor(() => expect(h.rpc).toContain("get_own_profile"));
     const formularz = await axeViolations(container);
     expect(formularz, summarize(formularz)).toEqual([]);
 

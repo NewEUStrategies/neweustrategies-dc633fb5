@@ -36,7 +36,8 @@
 //   `src/integrations/supabase/__tests__/tenantHostFetch.test.ts`. Tutaj
 //   dowodzimy SKUTKU, którego tamten plik nie widzi.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import type { ReactNode } from "react";
 
 const h = vi.hoisted(() => ({
   /** Wiersze `profile_badges` ze WSZYSTKICH obszarów roboczych. */
@@ -64,6 +65,8 @@ const h = vi.hoisted(() => ({
   requestUrl: "https://nes.example.org/experts",
   /** Nagłówki `Cache-Control`, jakie ustawił loader. */
   cacheControl: [] as string[],
+  /** Propsy, jakie `errorComponent` trasy oddał wspólnemu ekranowi błędu. */
+  errorFallback: [] as { title?: string; error?: unknown }[],
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -94,6 +97,16 @@ vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
   appendLinkHeader: () => {},
   readRouteCacheDirective: () => null,
+}));
+
+// Wspólny ekran błędu ciągnie router (`useRouter`, `Link`) i raportowanie
+// błędów platformy - ma własne testy. Tu jest SONDĄ: dowodem jest to, JAKI
+// tytuł i JAKI błąd trasa mu przekazuje.
+vi.mock("@/components/molecules/RouteErrorFallback", () => ({
+  RouteErrorFallback: (props: { title?: string; error?: unknown }) => {
+    h.errorFallback.push(props);
+    return <div data-testid="ekran-bledu" data-title={props.title} />;
+  },
 }));
 
 // Radix Select nie otwiera listy pod happy-dom (potrzebuje realnego wskaźnika
@@ -195,6 +208,7 @@ beforeEach(async () => {
   h.broken = false;
   h.requestUrl = "https://nes.example.org/experts";
   h.cacheControl = [];
+  h.errorFallback = [];
 });
 
 afterEach(async () => {
@@ -584,5 +598,57 @@ describe("trasa /experts - nagłówek dokumentu", () => {
     const robots = (routeHead(ExpertsRoute).meta ?? []).filter((e) => e.name === "robots");
 
     expect(robots).toEqual([]);
+  });
+});
+
+/** Komponent stanu trasy (oczekiwanie, błąd) w kształcie, który tu wołamy. */
+type RouteStateComponent = (props: { error?: unknown; reset?: () => void }) => ReactNode;
+
+/**
+ * STRAŻNIK, nie rzutowanie: bez niego opcja trasy zawęża się do `Function`,
+ * a jej wywołanie oddaje `any`.
+ */
+function isRouteState(value: unknown): value is RouteStateComponent {
+  return typeof value === "function";
+}
+
+function routeState(value: unknown, what: string): RouteStateComponent {
+  if (!isRouteState(value)) throw new Error(`test: trasa nie ma ${what}`);
+  return value;
+}
+
+describe("trasa /experts - stany przejściowe", () => {
+  it("ekran oczekiwania to SZKIELET SIATKI ukryty przed czytnikiem, a nie pusty ekran", () => {
+    // Szkielet trzyma wysokość strony, więc karty nie przeskakują po dojściu
+    // danych; `aria-hidden`, bo nawigację ogłasza `RouteProgress`, a sześć
+    // pustych kafli czytanych na głos to szum.
+    const Pending = routeState(ExpertsRoute.options.pendingComponent, "ekranu oczekiwania");
+    const { container } = render(<>{Pending({})}</>);
+
+    const skeleton = container.firstElementChild;
+    expect(skeleton).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelectorAll(".skeleton-shimmer").length).toBeGreaterThan(0);
+  });
+
+  it("ekran błędu nazywa rzecz po imieniu po polsku i PRZEKAZUJE błąd dalej", () => {
+    // Bez tytułu wspólny ekran mówi „coś poszło nie tak" - czytelnik nie wie,
+    // czego dotyczyła awaria. Błąd musi dojechać, bo ekran go klasyfikuje
+    // i raportuje (sam komunikat nigdy nie trafia do czytelnika).
+    const ErrorScreen = routeState(ExpertsRoute.options.errorComponent, "ekranu błędu");
+    const failure = new Error("test: katalog padł");
+    render(<>{ErrorScreen({ error: failure, reset: () => undefined })}</>);
+
+    expect(screen.getByTestId("ekran-bledu").dataset.title).toBe(
+      "Nie udało się załadować ekspertów",
+    );
+    expect(h.errorFallback.at(-1)?.error).toBe(failure);
+  });
+
+  it("prefiks /en w ADRESIE daje angielski tytuł ekranu błędu", () => {
+    h.requestUrl = "https://nes.example.org/en/experts";
+    const ErrorScreen = routeState(ExpertsRoute.options.errorComponent, "ekranu błędu");
+    render(<>{ErrorScreen({ error: new Error("test: katalog padł") })}</>);
+
+    expect(screen.getByTestId("ekran-bledu").dataset.title).toBe("Failed to load experts");
   });
 });

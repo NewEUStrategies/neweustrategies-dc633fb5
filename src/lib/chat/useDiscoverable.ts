@@ -7,6 +7,7 @@ import "@/lib/i18n-chat";
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { fetchOwnProfileRow } from "@/lib/profile/ownProfile";
 
 const key = (uid: string | undefined) => ["chat", "discoverable", uid ?? "anon"] as const;
 
@@ -106,13 +107,10 @@ export function useHideAvatar(): UseQueryResult<boolean> {
     enabled: !!user,
     staleTime: 60_000,
     queryFn: async (): Promise<boolean> => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("hide_avatar")
-        .eq("id", user?.id ?? "")
-        .maybeSingle();
-      if (error) throw error;
-      return data?.hide_avatar ?? false;
+      // `hide_avatar` nie ma grantu SELECT dla `authenticated` - własną
+      // wartość czyta się przez `get_own_profile()`.
+      const row = await fetchOwnProfileRow();
+      return row?.hide_avatar ?? false;
     },
   });
 }

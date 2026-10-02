@@ -64,18 +64,103 @@ const TARGETS: Record<string, string[]> = {
 /** Wyłącznie dla testu wtyczki: kontrakt typ -> moduły bez uruchamiania builda. */
 export const WIDGET_CHUNK_TARGETS: Readonly<Record<string, readonly string[]>> = TARGETS;
 
+/**
+ * Wszystkie sufiksy modułów z `TARGETS`, bez powtórzeń. `generateBundle`
+ * normalizuje id każdego modułu RAZ i porównuje je z tą listą - wcześniej
+ * pętla szła typ -> sufiks -> chunk -> moduł i powtarzała `replaceAll` dla
+ * każdego id tyle razy, ile wpisów ma mapa (z powtórzeniami: `post-list`
+ * i `carousel` dzielą moduły, `slider` i `image-slider` też). Kolejność
+ * adresów w wyniku jest ta sama co przedtem: sufiksy w kolejności z `TARGETS`,
+ * chunki w kolejności bundla.
+ */
+const ALL_SUFFIXES = [...new Set(Object.values(TARGETS).flat())];
+
+const TARGET_MODULE = "/src/lib/seo/widgetPreloads.ts";
+
+/** Kształt środowiska Vite, z którego korzysta wtyczka (reszta nas nie dotyczy). */
+type BuildEnvironmentLike = { config: { consumer?: string; base?: string } };
+
+/**
+ * Środowisko builda z kontekstu hooka. W prawdziwym buildzie Vite 6+ wstrzykuje
+ * `this.environment` do każdego hooka Rollupa; w teście jednostkowym hooki są
+ * wołane bez niego - wtedy zwracamy `undefined` i wtyczka wraca do heurystyki
+ * po katalogu wyjściowym.
+ */
+function environmentOf(ctx: unknown): BuildEnvironmentLike | undefined {
+  const env = (ctx as { environment?: BuildEnvironmentLike } | null | undefined)?.environment;
+  return env && typeof env === "object" && env.config ? env : undefined;
+}
+
+/**
+ * Czy ten `generateBundle` należy do bundla PRZEGLĄDARKI. Rozstrzyga
+ * `consumer` środowiska, nie nazwa katalogu: heurystyka `/client|public/`
+ * na ABSOLUTNEJ ścieżce `options.dir` łapała też katalog serwera, gdy
+ * w ścieżce repozytorium stało słowo `public`/`client`, i gubiła klienta,
+ * gdy `outDir` nazywał się inaczej (np. `dist/browser`). Heurystyka zostaje
+ * wyłącznie jako zapas dla wywołań bez środowiska.
+ */
+function isClientBundle(ctx: unknown, dir: string | undefined): boolean {
+  const env = environmentOf(ctx);
+  if (env) return env.config.consumer === "client";
+  return /client|public/.test(dir ?? "");
+}
+
+/**
+ * Prefiks adresu chunku. Nagłówek `Link` musi nieść adres BEZWZGLĘDNY,
+ * a chunki leżą pod `base` z konfiguracji - na sztywno wpisane `/` dawało
+ * martwe hinty przy `base: "/app/"`. Baza względna (`./`, `""`) nie ma sensu
+ * dla odpowiedzi SSR, więc wtedy zostaje korzeń domeny.
+ */
+function publicBase(base: string | undefined): string {
+  if (!base || !(base.startsWith("/") || /^https?:\/\//.test(base))) return "/";
+  return base.endsWith("/") ? base : `${base}/`;
+}
+
 /** Discover the exact assets of this deployment, including nested lazy renderers. */
 export function widgetChunkPlugin(): Plugin {
+  /**
+   * Nazwy zapisane przez `generateBundle` PRZEGLĄDARKI, czytane przez
+   * `transform` SERWERA. Działa tylko dlatego, że oba środowiska dzielą JEDNĄ
+   * instancję wtyczki (TanStack Start: `builder.sharedPlugins: true`, nitro:
+   * `builder.sharedConfigBuild: true`) i klient buduje się PRZED serwerem
+   * (`buildStartViteEnvironments`). Dowód na prawdziwym buildzie:
+   * `widgetChunkPluginBuild.test.ts`.
+   */
   const discovered: Record<string, string[]> = {};
   return {
     name: "nes:widget-chunks",
     apply: "build",
     enforce: "pre",
     transform(code, id) {
-      if (!id.replaceAll("\\", "/").endsWith("/src/lib/seo/widgetPreloads.ts")) return null;
-      if (!Object.keys(discovered).length) return null;
+      if (!id.replaceAll("\\", "/").endsWith(TARGET_MODULE)) return null;
+      const env = environmentOf(this);
+      const serverSide = env !== undefined && env.config.consumer !== "client";
+      if (!Object.keys(discovered).length) {
+        // W bundlu PRZEGLĄDARKI to stan oczekiwany: nazwy powstają dopiero
+        // w jego własnym `generateBundle`, a klient tej mapy nie czyta (nagłówek
+        // `Link` jest wyłącznie serwerowy). W buildzie SERWERA znaczy to, że
+        // klient nie zbudował się przed nim (inna kolejność środowisk, osobne
+        // instancje wtyczki) - placeholder `{}` pojedzie na produkcję i hintów
+        // nie będzie. Nie blokujemy wdrożenia o hint wydajnościowy, ale mówimy
+        // to GŁOŚNO, zamiast milczeć.
+        if (serverSide) {
+          this.warn(
+            "nes:widget-chunks - brak nazw chunków przeglądarki w buildzie serwera; " +
+              "WIDGET_CHUNK_URLS zostaje puste i hinty modulepreload widgetów NIE zostaną wysłane",
+          );
+        }
+        return null;
+      }
       const placeholder = /(WIDGET_CHUNK_URLS\s*:[^=]+?=\s*)\{\}/;
       if (!placeholder.test(code)) this.error("Missing WIDGET_CHUNK_URLS placeholder");
+      if (serverSide && Object.values(discovered).every((urls) => urls.length === 0)) {
+        // Mapa jest, ale ŻADEN typ nie trafił w żaden chunk (wszystkie widgety
+        // wciągnięte do chunku wejściowego, zmiana kształtu id modułów) - ten sam
+        // efekt co brak podmiany, więc ten sam głośny sygnał.
+        this.warn(
+          "nes:widget-chunks - żaden typ widgetu nie dostał chunku; hinty modulepreload NIE zostaną wysłane",
+        );
+      }
       return {
         code: code.replace(
           placeholder,
@@ -85,20 +170,24 @@ export function widgetChunkPlugin(): Plugin {
       };
     },
     generateBundle(options, bundle) {
-      if (!/client|public/.test(options.dir ?? "")) return;
-      for (const [type, suffixes] of Object.entries(TARGETS)) {
-        const urls = new Set<string>();
-        for (const suffix of suffixes) {
-          for (const output of Object.values(bundle)) {
-            if (output.type !== "chunk" || output.isEntry) continue;
-            if (
-              Object.keys(output.modules).some((id) => id.replaceAll("\\", "/").endsWith(suffix))
-            ) {
-              urls.add(`/${output.fileName}`);
-            }
+      if (!isClientBundle(this, options.dir)) return;
+      const prefix = publicBase(environmentOf(this)?.config.base);
+      // Jedno przejście po bundlu: sufiks -> adresy chunków w kolejności bundla.
+      const urlsBySuffix = new Map<string, string[]>(ALL_SUFFIXES.map((s) => [s, []]));
+      for (const output of Object.values(bundle)) {
+        if (output.type !== "chunk" || output.isEntry) continue;
+        const url = `${prefix}${output.fileName}`;
+        for (const moduleId of Object.keys(output.modules)) {
+          const normalized = moduleId.replaceAll("\\", "/");
+          for (const [suffix, urls] of urlsBySuffix) {
+            if (normalized.endsWith(suffix) && !urls.includes(url)) urls.push(url);
           }
         }
-        discovered[type] = [...urls];
+      }
+      for (const [type, suffixes] of Object.entries(TARGETS)) {
+        discovered[type] = [
+          ...new Set(suffixes.flatMap((suffix) => urlsBySuffix.get(suffix) ?? [])),
+        ];
       }
     },
   };

@@ -3,6 +3,9 @@
 // zachowanie bez zmian: RPC get_own_profile, update profiles, avatar/cover
 // z kadrowaniem, sekcja prywatności/powiadomień.
 import { useTranslation } from "react-i18next";
+// Słownik `profile.account.*` (w tym komunikat awarii odczytu) rejestruje się
+// efektem ubocznym importu - wprost, nie przypadkiem przez inny moduł chunka.
+import "@/lib/i18n-profile";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
@@ -95,6 +98,10 @@ export function AccountIdentityPanel() {
     gender: null,
   });
   const [busy, setBusy] = useState(false);
+  // Stan odczytu własnego wiersza. Formularz zapisuje WSZYSTKIE pola naraz,
+  // więc zapis przed udanym odczytem (albo po nieudanym) nadpisałby prawdziwe
+  // dane pustymi napisami z wartości startowych - stąd zapis tylko w `ready`.
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [progress, setProgress] = useState<Record<"avatar" | "cover", number>>({
     avatar: 0,
@@ -114,8 +121,17 @@ export function AccountIdentityPanel() {
     // of a direct profiles select: the personal PII columns (contact_email,
     // phone, gender, location) are no longer granted to `authenticated`
     // role-wide, so they can only be read for one's own row through this RPC.
-    const { data: ownRows } = await supabase.rpc("get_own_profile");
+    const { data: ownRows, error: readErr } = await supabase.rpc("get_own_profile");
+    if (readErr) {
+      // Odświeżenie po wysyłce zdjęcia też tu trafia: jeśli formularz ma już
+      // potwierdzone dane, zostają - blokujemy tylko formularz bez odczytu.
+      setLoadState((s) => (s === "ready" ? s : "failed"));
+      return;
+    }
     const row = ownRows?.[0];
+    // Brak wiersza (świeża rejestracja przed triggerem) to NIE awaria: pusty
+    // formularz jest wtedy prawdą, a UPDATE i tak nie trafi w żaden wiersz.
+    setLoadState("ready");
     if (!row) return;
 
     // Prefill empty profile fields from auth signup metadata
@@ -227,7 +243,7 @@ export function AccountIdentityPanel() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || loadState !== "ready") return;
     setBusy(true);
     const { error } = await supabase
       .from("profiles")
@@ -266,6 +282,26 @@ export function AccountIdentityPanel() {
           <CardTitle>{t("profile.nav.account")}</CardTitle>
         </CardHeader>
         <CardContent>
+          {loadState === "failed" ? (
+            <div
+              role="alert"
+              className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-destructive/40 bg-destructive/5 px-4 py-3"
+            >
+              <p className="text-sm text-destructive">{t("profile.account.loadFailed")}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (!user) return;
+                  setLoadState("loading");
+                  void refresh(user.id);
+                }}
+              >
+                {t("profile.account.retry")}
+              </Button>
+            </div>
+          ) : null}
           <form className="grid gap-5" onSubmit={save}>
             {/* Prywatność i widoczność przeniosły się do huba /profile/privacy
                 (§10 audytu IA). Mieszkały tutaj, w środku formularza tożsamości,
@@ -473,7 +509,11 @@ export function AccountIdentityPanel() {
               />
             </section>
 
-            <Button type="submit" disabled={busy} title={t("profile.account.tip.save")}>
+            <Button
+              type="submit"
+              disabled={busy || loadState !== "ready"}
+              title={t("profile.account.tip.save")}
+            >
               {t("profile.account.save")}
             </Button>
           </form>

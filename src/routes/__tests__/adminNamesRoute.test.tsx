@@ -1689,6 +1689,27 @@ describe("admin.names - import CSV: zatwierdzenie", () => {
     }
   });
 
+  it("odmontowanie panelu SPRZĄTA zegar paska postępu - nic nie odpala po zamknięciu", async () => {
+    // Regresja z CI (shard 4, PR #437): 4-sekundowy `setTimeout` zgaszenia
+    // paska nie był czyszczony, więc odpalał `setImportProgress` po
+    // odmontowaniu - w suicie już po zamknięciu środowiska testu, jako
+    // nieobsłużony `ReferenceError: window is not defined`, który oblewał
+    // cały shard przy zielonych testach.
+    await stageImport(`${CSV_HEADER}\nradomila,Radomiła,Radomiło,,,,,female,false,Polska,\n`);
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        fireEvent.click(buttonByText("Zatwierdź import"));
+      });
+      expect(bodyText()).toContain("Import w toku");
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      cleanup();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("KONTROLA DODATNIA: odrzucony `insert` jest liczony jako POMINIĘTY, a komunikat mówi „sukces”", async () => {
     // Stan faktyczny, przypięty świadomie - defekt zgłoszony niżej.
     db().setResponse(TABLE, (chain) => {

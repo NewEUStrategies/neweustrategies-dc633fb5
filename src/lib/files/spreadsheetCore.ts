@@ -1,14 +1,14 @@
 import * as XLSX from "xlsx";
 import type { SheetResult } from "./officeParse";
-import type {
-  SpreadsheetCell,
-  SpreadsheetRequest,
-  SpreadsheetResults,
-  SpreadsheetRows,
-  WritableCell,
+import {
+  SPREADSHEET_MAX_BYTES,
+  type SpreadsheetCell,
+  type SpreadsheetRequest,
+  type SpreadsheetResults,
+  type SpreadsheetRows,
+  type WritableCell,
 } from "./spreadsheetProtocol";
 
-export const SPREADSHEET_MAX_BYTES = 20 * 1024 * 1024;
 export const SPREADSHEET_MAX_ROWS = 1000;
 const MAX_COLUMNS = 100;
 const MAX_SHEETS = 10;

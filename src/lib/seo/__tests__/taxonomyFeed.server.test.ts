@@ -16,7 +16,9 @@
 //      dla każdego rodzaju osobno.
 //   4) JĘZYK Z PREFIKSU ADRESU (+ spadek na język domyślny przy zniekształconym
 //      adresie) i KAŻDE ramię spadków tytułu/opisu wpisu oraz opisu kanału.
-//   5) ORIGIN (host + `x-forwarded-proto`), nagłówki cache i escaping XML.
+//   5) ORIGIN (wspólna reguła `crawlerPublishOrigin`: host + `x-forwarded-proto`,
+//      host podglądu/aliasu i brak hosta -> origin kanoniczny), nazwę serwisu
+//      z ustawień SEO, nagłówki cache i escaping XML.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE:
 //   - `rss.test.ts` - format samego dokumentu RSS (`buildRssXml`, `xmlEscape`,
@@ -52,7 +54,7 @@ const state = vi.hoisted(() => ({
   tenantId: null as string | null,
   // Surowy blob z `site_settings` - `parseSeoSettings` przyjmuje `unknown`,
   // więc atrapa podaje albo brak wiersza (null), albo częściowe ustawienia.
-  settings: null as { rss_enabled?: boolean; rss_item_count?: number } | null,
+  settings: null as { rss_enabled?: boolean; rss_item_count?: number; site_name?: string } | null,
   taxonomy: null as TaxonomyFeedMeta | null,
   posts: [] as PublishedPostRow[],
   settingsCalls: [] as string[],
@@ -408,24 +410,74 @@ describe("taxonomyFeedResponse - opis kanału", () => {
     expect(await feedXml()).toContain("<description>Analizy polityki cyfrowej UE</description>");
   });
 
-  it("ZMIERZONE zachowanie: pusta nazwa PL daje tytuł kanału bez nazwy", async () => {
-    // Przypięcie stanu faktycznego (patrz `it.fails` poniżej) - gdy ktoś dopisze
-    // spadek nazwy PL na EN, ten test zapali się pierwszy.
-    state.taxonomy = taxonomyMeta({ name_pl: "", description_pl: "", description_en: null });
+  it("STRAŻNIK: kanał PL spada na nazwę EN, gdy nazwa PL jest pusta", async () => {
+    // KONSEKWENCJA, którą ten test zamyka (do 2026-10 przypięta jako `it.fails`
+    // obok zielonego testu stanu faktycznego): nazwa kanału PL brała samo
+    // `taxonomy.name_pl`, bez spadku na `name_en` - spadek istniał TYLKO
+    // w gałęzi EN. Taksonomia opisana wyłącznie po angielsku (import, program
+    // prowadzony w EN) wystawiała na kanale PL tytuł " - New European
+    // Strategies" i opis "Najnowsze analizy: " - a czytniki RSS zapisują tytuł
+    // kanału trwale przy subskrypcji, więc późniejsza poprawka treści go nie
+    // naprawiała.
+    state.taxonomy = taxonomyMeta({ name_pl: "" });
     const xml = await feedXml();
-    expect(xml).toContain("<title> - New European Strategies</title>");
-    expect(xml).toContain("<description>Najnowsze analizy: </description>");
+    expect(xml).toContain("<title>Digital policy - New European Strategies</title>");
+    expect(xml).not.toContain("<title> - New European Strategies</title>");
   });
 
-  // DEFEKT: nazwa kanału dla PL to samo `taxonomy.name_pl`, bez spadku na
-  // `name_en` - spadek istnieje TYLKO w gałęzi EN (i, dla pozycji, w obie
-  // strony). KONSEKWENCJA: taksonomia opisana wyłącznie po angielsku (import,
-  // program prowadzony w EN) wystawia na kanale PL tytuł " - New European
-  // Strategies" i opis "Najnowsze analizy: " - czytniki RSS zapisują ten tytuł
-  // trwale przy subskrypcji, więc późniejsza poprawka treści go nie naprawi.
-  it.fails("DEFEKT: kanał PL nie spada na nazwę EN, gdy nazwa PL jest pusta", async () => {
-    state.taxonomy = taxonomyMeta({ name_pl: "" });
-    expect(await feedXml()).toContain("<title>Digital policy - New European Strategies</title>");
+  it("PL: pusta nazwa PL i brak opisów - zdanie domyślne niesie nazwę EN, nie pustkę", async () => {
+    // Opis domyślny jest składany z TEJ SAMEJ nazwy co tytuł, więc spadek nazwy
+    // musi dotrzeć także tutaj - inaczej kanał miałby tytuł, ale opis
+    // "Najnowsze analizy: ".
+    state.taxonomy = taxonomyMeta({ name_pl: "", description_pl: "", description_en: null });
+    const xml = await feedXml();
+    expect(xml).toContain("<description>Najnowsze analizy: Digital policy</description>");
+    expect(xml).not.toContain("<description>Najnowsze analizy: </description>");
+  });
+
+  it("PL: pusta nazwa PL, ale opis EN - opis spada na description_en, tytuł na name_en", async () => {
+    state.taxonomy = taxonomyMeta({ name_pl: "", description_pl: "" });
+    const xml = await feedXml();
+    expect(xml).toContain("<title>Digital policy - New European Strategies</title>");
+    expect(xml).toContain("<description>EU digital policy analyses</description>");
+  });
+
+  it("EN: pusta nazwa EN i brak opisów - zdanie domyślne EN niesie nazwę PL", async () => {
+    // Lustro przypadku PL wyżej - spadek jest symetryczny w obu gałęziach.
+    state.request = feedRequest(`/en/category/${SLUG}/rss.xml`);
+    state.taxonomy = taxonomyMeta({ name_en: "", description_pl: null, description_en: "" });
+    const xml = await feedXml();
+    expect(xml).toContain("<title>Polityka cyfrowa - New European Strategies</title>");
+    expect(xml).toContain("<description>Latest analyses: Polityka cyfrowa</description>");
+  });
+
+  it.each([
+    { lang: "pl", path: `/category/${SLUG}/rss.xml`, sentence: "Najnowsze analizy" },
+    { lang: "en", path: `/en/category/${SLUG}/rss.xml`, sentence: "Latest analyses" },
+  ])(
+    "$lang: OBIE nazwy puste spadają na slug - nigdy na tytuł bez nazwy",
+    async ({ path, sentence }) => {
+      // Ostatnia deska, jak dla tytułu pozycji: slug jest zawsze niepusty, bo
+      // to po nim taksonomia została znaleziona.
+      state.request = feedRequest(path);
+      state.taxonomy = taxonomyMeta({
+        name_pl: "",
+        name_en: "",
+        description_pl: null,
+        description_en: null,
+      });
+      const xml = await feedXml();
+      expect(xml).toContain(`<title>${SLUG} - New European Strategies</title>`);
+      expect(xml).toContain(`<description>${sentence}: ${SLUG}</description>`);
+    },
+  );
+
+  it("kontrola negatywna: wypełniona nazwa PL WYGRYWA z EN - spadek nie podmienia języka", async () => {
+    // Bez tej kontroli naprawa wyżej „przechodziłaby" także wtedy, gdyby kanał
+    // PL zawsze brał nazwę EN.
+    const xml = await feedXml();
+    expect(xml).toContain("<title>Polityka cyfrowa - New European Strategies</title>");
+    expect(xml).not.toContain("<title>Digital policy");
   });
 });
 
@@ -441,15 +493,39 @@ describe("taxonomyFeedResponse - origin odpowiedzi", () => {
     expect(await feedXml()).toContain("<link>http://nes.example/category/polityka-cyfrowa</link>");
   });
 
-  it("brak zaufanego hosta daje PUSTY origin, a nie adresy cudzego hosta", async () => {
-    // Niezaufany nagłówek Host nie może wejść do treści kanału - lepszy adres
-    // relatywny niż kanał reklamujący domenę podszywającą się pod nas.
+  it("brak zaufanego hosta daje origin KANONICZNY, a nie adresy cudzego hosta", async () => {
+    // Niezaufany nagłówek Host nie może wejść do treści kanału. Do 2026-10
+    // origin był wtedy PUSTY, a kanał miał adresy względne - których czytnik
+    // RSS nie umie rozwiązać (RSS 2.0 wymaga absolutnego `<link>`). Teraz
+    // obowiązuje wspólna reguła powierzchni crawlera (`crawlerPublishOrigin`):
+    // pusty host daje origin kanoniczny marki, jak w /rss.xml i mapie strony.
     state.trustedHost = null;
     const xml = await feedXml();
-    expect(xml).toContain("<link>/category/polityka-cyfrowa</link>");
-    expect(xml).toContain('href="/category/polityka-cyfrowa/rss.xml"');
+    expect(xml).toContain(
+      "<link>https://neweuropeanstrategies.com/category/polityka-cyfrowa</link>",
+    );
+    expect(xml).toContain(
+      'href="https://neweuropeanstrategies.com/category/polityka-cyfrowa/rss.xml"',
+    );
     expect(xml).not.toContain("nes.example");
+    expect(xml, "żadnego adresu względnego w kanale").not.toContain("<link>/");
   });
+
+  it.each(["localhost", "localhost:3000", "abc.workers.dev"])(
+    "host podglądu/aliasu (%s) publikuje adresy na originie KANONICZNYM",
+    async (host) => {
+      // Ta sama klasa błędu, którą `crawlerPublishOrigin` zamknął dla mapy
+      // strony i llms.txt: kanał zbudowany na podglądzie linkował
+      // `https://localhost/...`, czyli adres, którego nikt z zewnątrz nie
+      // otworzy - a czytnik zapisuje go przy subskrypcji.
+      state.trustedHost = host;
+      const xml = await feedXml();
+      expect(xml).toContain(
+        "<link>https://neweuropeanstrategies.com/category/polityka-cyfrowa</link>",
+      );
+      expect(xml).not.toContain(host);
+    },
+  );
 });
 
 describe("taxonomyFeedResponse - nagłówki i stopka kanału", () => {
@@ -466,6 +542,24 @@ describe("taxonomyFeedResponse - nagłówki i stopka kanału", () => {
     expect(response.headers.get("Cache-Control")).toBe(
       "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400",
     );
+  });
+
+  it("nazwa serwisu z ustawień SEO trafia do tytułu kanału i do copyright", async () => {
+    // To samo źródło, co `og:site_name` i `WebSite.name` (`site_name`
+    // z /admin/seo/homepage) - ustawienia są już pobrane, więc bez
+    // dodatkowego odczytu.
+    state.settings = { rss_enabled: true, rss_item_count: 30, site_name: "Redakcja Testowa" };
+    const xml = await feedXml();
+    expect(xml).toContain("<title>Polityka cyfrowa - Redakcja Testowa</title>");
+    expect(xml).toContain("<copyright>© 2026 Redakcja Testowa</copyright>");
+    expect(xml).not.toContain("New European Strategies");
+  });
+
+  it("nazwa serwisu z samych spacji spada na stałą marki, nie na pusty sufiks", async () => {
+    state.settings = { rss_enabled: true, rss_item_count: 30, site_name: "   " };
+    const xml = await feedXml();
+    expect(xml).toContain("<title>Polityka cyfrowa - New European Strategies</title>");
+    expect(xml).toContain("<copyright>© 2026 New European Strategies</copyright>");
   });
 
   it("copyright stempluje rok z zegara systemowego", async () => {

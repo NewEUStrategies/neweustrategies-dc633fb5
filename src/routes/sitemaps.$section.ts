@@ -9,10 +9,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { parseSitemapShard, shardSlice } from "@/lib/seo/sitemapIndex";
 import { buildUrlsetXml, expandSitemapUrls } from "@/lib/seo/sitemapXml";
 import {
-  SITEMAP_CACHE_HEADERS,
   loadRedirectIndex,
   resolveSitemapTenant,
   sameOriginHostsFor,
+  sitemapCacheHeaders,
   sitemapRequestContext,
 } from "@/lib/server/sitemapRequest.server";
 
@@ -46,7 +46,9 @@ export const Route = createFileRoute("/sitemaps/$section")({
         // publikacji, a 404 czyści wpis z raportu.
         if (slice.length === 0) return new Response("Unknown sitemap", { status: 404 });
 
-        return new Response(buildUrlsetXml(slice), { headers: SITEMAP_CACHE_HEADERS });
+        // Szkielet `core` bez tenanta to odpowiedź zdegradowana - krótki TTL
+        // bez `stale-while-revalidate` (patrz `sitemapCacheHeaders`).
+        return new Response(buildUrlsetXml(slice), { headers: sitemapCacheHeaders(!tenantId) });
       },
     },
   },

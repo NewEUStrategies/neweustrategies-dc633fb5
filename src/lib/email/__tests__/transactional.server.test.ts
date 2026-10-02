@@ -512,10 +512,18 @@ describe("nadpisania treści z panelu", () => {
     return { value: { team_seat_grace: { pl: fields } } };
   }
 
+  /**
+   * Mail z treścią edytowalną w kształcie, w jakim wysyła go nadawca miejsc
+   * zespołowych: z najemcą ORGANIZACJI. Tylko taki najemca wybiera redakcję.
+   */
+  function seatInput(over: Partial<TxSendInput> = {}): TxSendInput {
+    return txInput({ type: "team_seat_grace", tenantId: TENANT, ...over });
+  }
+
   it("temat ustawiony w panelu wygrywa z domyślnym - redakcja nie musi czekać na wdrożenie", async () => {
     db.setResponse("site_settings", ok(overrides({ subject: "Zostały {daysLeft} dni dostępu" })));
 
-    await sendTxEmail(txInput({ type: "team_seat_grace", bodyVars: { daysLeft: 5 } }));
+    await sendTxEmail(seatInput({ bodyVars: { daysLeft: 5 } }));
 
     expect(queuedText("subject")).toBe("Zostały 5 dni dostępu");
     expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
@@ -534,8 +542,7 @@ describe("nadpisania treści z panelu", () => {
     );
 
     await sendTxEmail(
-      txInput({
-        type: "team_seat_grace",
+      seatInput({
         metaName: "Anna",
         bodyVars: {
           orgName: "Fundacja Test",
@@ -557,7 +564,7 @@ describe("nadpisania treści z panelu", () => {
       ok(overrides({ cta: "Przedłuż dostęp", extra: "Płatność rozliczymy proporcjonalnie." })),
     );
 
-    await sendTxEmail(txInput({ type: "team_seat_grace", ctaPath: "/konto" }));
+    await sendTxEmail(seatInput({ ctaPath: "/konto" }));
 
     expect(queuedText("html")).toContain("Przedłuż dostęp");
     expect(queuedText("html")).toContain("Płatność rozliczymy proporcjonalnie.");
@@ -566,7 +573,7 @@ describe("nadpisania treści z panelu", () => {
   it("puste pole w panelu to brak nadpisania, a nie pusty nagłówek w mailu", async () => {
     db.setResponse("site_settings", ok(overrides({ heading: "   ", subject: "" })));
 
-    await sendTxEmail(txInput({ type: "team_seat_grace" }));
+    await sendTxEmail(seatInput());
 
     expect(queuedText("subject").length).toBeGreaterThan(0);
     expect(queuedText("html").length).toBeGreaterThan(0);
@@ -575,10 +582,88 @@ describe("nadpisania treści z panelu", () => {
   it("awaria odczytu nadpisań nie zatrzymuje maila - wychodzi treść domyślna", async () => {
     db.setResponse("site_settings", fail("permission denied", "42501"));
 
-    const result = await sendTxEmail(txInput({ type: "team_seat_grace" }));
+    const result = await sendTxEmail(seatInput());
 
     expect(result).toEqual({ ok: true });
     expect(queuedText("subject").length).toBeGreaterThan(0);
+    expect(db.chainsFor("site_settings")).toHaveLength(1);
+  });
+
+  // GRANICA NAJEMCY. Sender czyta nadpisania kluczem serwisowym (ponad RLS),
+  // a `site_settings` trzyma osobny wiersz na (tenant_id, key). Atrapa poniżej
+  // odpowiada jak Postgres z dwiema organizacjami: zapytanie bez filtra
+  // `tenant_id` dostaje wiersz OBCEJ redakcji - tak wyglądał błąd w produkcji.
+  //
+  // Resolver adresu zwraca tu najemcę B, bo tak zachowuje się produkcyjne
+  // `email_resolve_tenant_for_address` dla zaproszonego bez konta albo z kontem
+  // u dwóch najemców: oddaje `email_default_tenant_id()`, nigdy NULL. Dlatego
+  // redakcję wybiera wyłącznie najemca podany przez nadawcę.
+  describe("zakres najemcy treści", () => {
+    const SUBJECTS: Record<string, string> = {
+      [TENANT]: "Temat redakcji A",
+      [OTHER_TENANT]: "Temat redakcji B",
+    };
+
+    /** Filtr `tenant_id` zapytania o ustawienia albo `undefined`, gdy go nie ma. */
+    function tenantFilter(chain: { calls: { method: string; args: readonly unknown[] }[] }) {
+      return chain.calls.find((c) => c.method === "eq" && c.args[0] === "tenant_id")?.args[1];
+    }
+
+    beforeEach(() => {
+      rpc.setData("email_resolve_tenant_for_address", OTHER_TENANT);
+      db.setResponse("site_settings", (chain) => {
+        const tenant = tenantFilter(chain);
+        const subject = typeof tenant === "string" ? SUBJECTS[tenant] : SUBJECTS[OTHER_TENANT];
+        return ok(subject ? overrides({ subject }) : null);
+      });
+    });
+
+    it("mail organizacji A wychodzi z treścią redakcji A, choć adres rozstrzyga się do najemcy domyślnego", async () => {
+      await sendTxEmail(seatInput());
+
+      expect(queuedText("subject")).toBe("Temat redakcji A");
+      expect(tenantFilter(db.lastChain("site_settings")!)).toBe(TENANT);
+      // Ten sam najemca w ładunku kolejki, a resolver adresu nie jest pytany.
+      expect(queuedPayload().tenant_id).toBe(TENANT);
+      expect(rpc.callsFor("email_resolve_tenant_for_address")).toHaveLength(0);
+    });
+
+    it("znany najemca wysyłki wyznacza zakres treści - ten sam, który jedzie w ładunku kolejki", async () => {
+      await sendTxEmail(seatInput({ tenantId: OTHER_TENANT }));
+
+      expect(queuedText("subject")).toBe("Temat redakcji B");
+      expect(queuedPayload().tenant_id).toBe(OTHER_TENANT);
+      expect(tenantFilter(db.lastChain("site_settings")!)).toBe(OTHER_TENANT);
+    });
+
+    it("bez najemcy nadawcy: treść domyślna, choć resolver oddaje najemcę domyślnego - adres nie wybiera redakcji", async () => {
+      const result = await sendTxEmail(txInput({ type: "team_seat_grace" }));
+
+      expect(result).toEqual({ ok: true });
+      expect(queuedText("subject")).not.toContain("Temat redakcji");
+      expect(db.chainsFor("site_settings")).toHaveLength(0);
+      // Rozstrzygnięcie z adresu zostaje tam, gdzie jest na miejscu: lista
+      // wykluczeń i ślad w kolejce.
+      expect(rpc.callsFor("email_resolve_tenant_for_address")).toHaveLength(1);
+      expect(queuedPayload().tenant_id).toBe(OTHER_TENANT);
+    });
+
+    it("błąd RPC rozstrzygania najemcy też kończy się treścią domyślną, bez odczytu ustawień", async () => {
+      rpc.setError("email_resolve_tenant_for_address", "statement timeout", "57014");
+
+      const result = await sendTxEmail(txInput({ type: "team_seat_grace" }));
+
+      expect(result).toEqual({ ok: true });
+      expect(queuedText("subject")).not.toContain("Temat redakcji");
+      expect(db.chainsFor("site_settings")).toHaveLength(0);
+    });
+
+    it("typ bez treści edytowalnej nie pyta o ustawienia - zbędny round-trip na każdej wysyłce", async () => {
+      await sendTxEmail(txInput({ type: "payment_failed" }));
+
+      expect(db.chainsFor("site_settings")).toHaveLength(0);
+      expect(rpc.callsFor("enqueue_email")).toHaveLength(1);
+    });
   });
 });
 

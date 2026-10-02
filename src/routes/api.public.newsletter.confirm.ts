@@ -88,6 +88,16 @@ export const Route = createFileRoute("/api/public/newsletter/confirm")({
           return Response.json({ ok: false, error: "expired" }, { status: 410 });
         }
 
+        // Potwierdzony ponowny zapis zdejmuje wcześniejszy wypis z listy
+        // wykluczeń, ZANIM wiersz stanie się `subscribed`: inaczej kampanie
+        // i mail powitalny (kategoria `bulk`) pomijałyby potwierdzonego
+        // subskrybenta. Nieudane zdjęcie nie zmienia niczego, więc ponowny klik
+        // w ten sam link ponawia całość.
+        const { releaseUnsubscribeOnOptIn } = await import("@/lib/email/suppression.server");
+        if (!(await releaseUnsubscribeOnOptIn(supabaseAdmin, sub.tenant_id, sub.email))) {
+          return Response.json({ ok: false, error: "confirm_failed" }, { status: 500 });
+        }
+
         // Token zostaje w rekordzie po potwierdzeniu - to on czyni operację
         // idempotentną (re-klik trafia w gałąź "already" zamiast 404). Po
         // sukcesie jest bezużyteczny: potwierdza już potwierdzoną subskrypcję.

@@ -12,6 +12,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { rateLimitIpSubject } from "@/lib/http/rateLimit";
+import { newsletterUnsubscribeUrl } from "@/lib/newsletter/unsubscribeUrl";
 import { z } from "zod";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
@@ -255,11 +256,20 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     // ani wiersza `pending` - inaczej formularz na stronie byłby obejściem
     // całej higieny listy (i kanałem do odbudowy złej reputacji domeny).
     // Blokady CZASOWE (soft bounce, wygasają w 1-8 dni) nie blokują zapisu:
-    // problem był chwilowy, a nowy zapis jest świeżym dowodem zgody.
+    // problem był chwilowy, a nowy zapis jest świeżym dowodem zgody. Wypis
+    // (`unsubscribe`) ustępuje nowemu zapisowi tylko przez double opt-in -
+    // patrz suppressionBlocksSignup.
     {
-      const { fetchSuppressedEmails } = await import("@/lib/email/suppression.server");
+      const [{ fetchSuppressedEmails }, { suppressionBlocksSignup }] = await Promise.all([
+        import("@/lib/email/suppression.server"),
+        import("@/lib/email/suppressionPolicy"),
+      ]);
       const hits = await fetchSuppressedEmails(supabaseAdmin, tenantId, [email]);
-      if (hits.get(email)?.scope === "permanent") {
+      const hit = hits.get(email);
+      if (
+        hit &&
+        suppressionBlocksSignup({ reason: hit.reason, scope: hit.scope, doubleOptIn: doi })
+      ) {
         return { ok: false, error: "suppressed" };
       }
     }
@@ -406,8 +416,10 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       .eq("tenant_id", tenantId)
       .eq("email", email)
       .maybeSingle();
+    // Ten sam adres co w kampaniach (endpoint, nie strona) - patrz
+    // `@/lib/newsletter/unsubscribeUrl`.
     const unsubscribeUrl = subRow?.unsubscribe_token
-      ? `${originFromRequest()}/newsletter/unsubscribe?token=${encodeURIComponent(subRow.unsubscribe_token)}`
+      ? newsletterUnsubscribeUrl(originFromRequest(), subRow.unsubscribe_token)
       : null;
     const mail = buildDoiEmail(displayName, data.language, confirmUrl, unsubscribeUrl);
     // Use the tenant's configured sender when set; otherwise sendEmail() falls

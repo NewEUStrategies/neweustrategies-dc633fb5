@@ -216,10 +216,25 @@ describe("useExpertRequestsEnabled", () => {
 
 describe("useHideAvatar", () => {
   it("brak wiersza to NIE maskuj (domyślnie avatar widoczny)", async () => {
-    db().setResponse("profiles", ok(null));
+    h.rpc.mockImplementation(() => rpcOk([]));
     const { result } = renderHook(() => useHideAvatar(), { wrapper: wrapperFor(makeClient()) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toBe(false);
+  });
+
+  it("czyta własną wartość przez `get_own_profile()` - kolumna nie ma grantu SELECT", async () => {
+    h.rpc.mockImplementation(() => rpcOk([{ id: "user-me", hide_avatar: true }]));
+    const { result } = renderHook(() => useHideAvatar(), { wrapper: wrapperFor(makeClient()) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBe(true);
+    expect(h.rpc).toHaveBeenCalledWith("get_own_profile", undefined);
+    expect(db().chainsFor("profiles")).toHaveLength(0);
+  });
+
+  it("błąd odczytu to błąd, a nie „niemaskowany”", async () => {
+    h.rpc.mockImplementation(() => rpcFail("permission denied"));
+    const { result } = renderHook(() => useHideAvatar(), { wrapper: wrapperFor(makeClient()) });
+    await waitFor(() => expect(result.current.isError).toBe(true));
   });
 
   it("zapis unieważnia OBIE powierzchnie, na których avatar się pokazuje", async () => {

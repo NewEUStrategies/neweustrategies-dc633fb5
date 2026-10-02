@@ -86,6 +86,27 @@ function detectAudioDuration(url: string): Promise<number | null> {
   });
 }
 
+/** Języki treści odcinka - kolejność zakładek edytora. */
+const EDITOR_LANGS = ["pl", "en"] as const;
+
+/**
+ * Pola dwujęzyczne odcinka jako DANE: nazwa kolumny bez sufiksu języka,
+ * etykieta i wysokość pola (`0` = jednowierszowe). Osiem pól w dwóch
+ * zakładkach było dotąd ośmioma ręcznie przepisanymi domknięciami `onChange`
+ * - a pomyłka w jednym z nich zapisuje tytuł PL w kolumnie EN bez żadnego
+ * sygnału w interfejsie.
+ */
+const LOCALIZED_FIELDS = [
+  { field: "title", labelKey: "adminPodcasts.editor.fieldTitle", rows: 0 },
+  { field: "excerpt", labelKey: "adminPodcasts.editor.excerpt", rows: 2 },
+  { field: "show_notes", labelKey: "adminPodcasts.editor.showNotes", rows: 5 },
+  { field: "transcript", labelKey: "adminPodcasts.editor.transcript", rows: 5 },
+] as const;
+
+/** Kolumna odcinka sklejona z pola i języka - wyłącznie istniejące kolumny. */
+type LocalizedEpisodeColumn =
+  `${(typeof LOCALIZED_FIELDS)[number]["field"]}_${(typeof EDITOR_LANGS)[number]}`;
+
 export function EpisodeEditorPane({
   p,
   shows,
@@ -112,6 +133,8 @@ export function EpisodeEditorPane({
   const [resources, setResources] = useState<PodcastResource[]>(() => parseResources(p.resources));
   const [people, setPeople] = useState<PersonDraft[]>([]);
   const upd = (patch: Partial<Podcast>) => setD((prev) => ({ ...prev, ...patch }));
+  const updLocalized = (column: LocalizedEpisodeColumn, value: string) =>
+    setD((prev) => ({ ...prev, [column]: value }));
 
   // Kategorie (specjalizacje) i profile do wyboru prowadzących/gości.
   const { data: categories } = useAdminPodcastCategories();
@@ -229,71 +252,39 @@ export function EpisodeEditorPane({
               <TabsTrigger value="pl">🇵🇱 {t("adminPodcasts.tabPolish")}</TabsTrigger>
               <TabsTrigger value="en">🇬🇧 {t("adminPodcasts.tabEnglish")}</TabsTrigger>
             </TabsList>
-            <TabsContent value="pl" className="space-y-3 mt-4">
-              <div>
-                <Label>{t("adminPodcasts.editor.fieldTitle")}</Label>
-                <Input value={d.title_pl} onChange={(e) => upd({ title_pl: e.target.value })} />
-              </div>
-              <div>
-                <Label>{t("adminPodcasts.editor.excerpt")}</Label>
-                <Textarea
-                  rows={2}
-                  value={d.excerpt_pl}
-                  onChange={(e) => upd({ excerpt_pl: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>{t("adminPodcasts.editor.showNotes")}</Label>
-                <Textarea
-                  rows={5}
-                  value={d.show_notes_pl}
-                  onChange={(e) => upd({ show_notes_pl: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>{t("adminPodcasts.editor.transcript")}</Label>
-                <Textarea
-                  rows={5}
-                  value={d.transcript_pl}
-                  onChange={(e) => upd({ transcript_pl: e.target.value })}
-                />
-              </div>
-            </TabsContent>
             {/* Zakładka EN nosi TE SAME etykiety, co PL - etykieta opisuje POLE,
                 a zakładka mówi, w jakim języku jest treść. Dotąd stały tu
                 literały angielskie, czyli polski redaktor widział w jednej
                 zakładce „Tytuł", a w drugiej „Title" - i tylko w tej drugiej
-                interfejs przestawał być po polsku. */}
-            <TabsContent value="en" className="space-y-3 mt-4">
-              <div>
-                <Label>{t("adminPodcasts.editor.fieldTitle")}</Label>
-                <Input value={d.title_en} onChange={(e) => upd({ title_en: e.target.value })} />
-              </div>
-              <div>
-                <Label>{t("adminPodcasts.editor.excerpt")}</Label>
-                <Textarea
-                  rows={2}
-                  value={d.excerpt_en}
-                  onChange={(e) => upd({ excerpt_en: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>{t("adminPodcasts.editor.showNotes")}</Label>
-                <Textarea
-                  rows={5}
-                  value={d.show_notes_en}
-                  onChange={(e) => upd({ show_notes_en: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>{t("adminPodcasts.editor.transcript")}</Label>
-                <Textarea
-                  rows={5}
-                  value={d.transcript_en}
-                  onChange={(e) => upd({ transcript_en: e.target.value })}
-                />
-              </div>
-            </TabsContent>
+                interfejs przestawał być po polsku. Obie zakładki rysuje teraz
+                JEDNA lista pól (`LOCALIZED_FIELDS`), więc rozjechać się nie mogą. */}
+            {EDITOR_LANGS.map((lang) => (
+              <TabsContent key={lang} value={lang} className="space-y-3 mt-4">
+                {LOCALIZED_FIELDS.map(({ field, labelKey, rows }) => {
+                  const column: LocalizedEpisodeColumn = `${field}_${lang}`;
+                  const id = `pod-${field}-${lang}`;
+                  return (
+                    <div key={field}>
+                      <Label htmlFor={id}>{t(labelKey)}</Label>
+                      {rows === 0 ? (
+                        <Input
+                          id={id}
+                          value={d[column]}
+                          onChange={(e) => updLocalized(column, e.target.value)}
+                        />
+                      ) : (
+                        <Textarea
+                          id={id}
+                          rows={rows}
+                          value={d[column]}
+                          onChange={(e) => updLocalized(column, e.target.value)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </TabsContent>
+            ))}
           </Tabs>
 
           <div className="grid sm:grid-cols-3 gap-3">

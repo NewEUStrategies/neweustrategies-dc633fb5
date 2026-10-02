@@ -4,14 +4,28 @@
 // FAKTYCZNIE widzi pod tym adresem: samą stronę, wynik Google (`site:`),
 // kartę czytaną przez Facebooka i kartę czytaną przez LinkedIna. Wszystko
 // w nowym oknie, żeby niezapisany formularz nie zniknął pod nawigacją.
+//
+// ADRES JEST PER-TENANT: origin liczy `useTenantPublicOrigin()` (domena
+// tenanta z bazy, inaczej reguła `crawlerPublishOrigin` dla hosta karty), więc
+// admin tenanta z własną domeną nie wysyła walidatorów na stronę marki.
+// Molekuła liczy origin SAMA, a nie bierze go propem - jest osadzona także
+// w panelu SEO edytora treści, i każdy rodzic musiałby inaczej pamiętać o tym
+// samym argumencie.
+//
+// TENANT BEZ PUBLICZNEJ DOMENY (`origin === null`) nie dostaje linków na
+// markę: zamiast adresu i walidatorów molekuła mówi, że adresu jeszcze nie ma.
 import { useTranslation } from "react-i18next";
 import { ExternalLink } from "@/lib/lucide-shim";
+import { useTenantPublicOrigin } from "@/lib/seo/useTenantPublicOrigin";
 import {
   facebookDebuggerUrl,
   googleResultUrl,
   linkedinInspectorUrl,
   livePageUrl,
 } from "@/lib/seo/liveValidatorLinks";
+// Komunikat o braku domeny mieszka w nakładce kokpitu - molekuła jest osadzona
+// także w edytorze treści, gdzie nakładka nie musi być już wczytana.
+import "@/lib/i18n-admin-seo-hub";
 
 interface LivePreviewLinksProps {
   /** Ścieżka bez originu, np. "" (strona główna), "en", "blog/moj-wpis". */
@@ -25,7 +39,15 @@ const LINK_CLASS =
 
 export function LivePreviewLinks({ path, className }: LivePreviewLinksProps) {
   const { t } = useTranslation();
-  const url = livePageUrl(path);
+  const origin = useTenantPublicOrigin();
+  if (origin === null) {
+    return (
+      <p className={`text-xs text-muted-foreground ${className ?? ""}`} data-live-no-domain>
+        {t("adminSeoHub.noPublicDomain")}
+      </p>
+    );
+  }
+  const url = livePageUrl(path, origin);
   const targets: readonly {
     readonly key: string;
     readonly href: string;

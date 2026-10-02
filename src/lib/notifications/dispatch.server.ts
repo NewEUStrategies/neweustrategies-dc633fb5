@@ -46,10 +46,19 @@ interface RecipientProfile {
 async function recipientsFor(userIds: string[]): Promise<Map<string, RecipientProfile>> {
   const map = new Map<string, RecipientProfile>();
   if (userIds.length === 0) return map;
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("profiles")
     .select("id, prefs, tenant_id")
     .in("id", userIds);
+  // Profil niesie wyłącznie język i tenant, więc jego awaria degraduje do
+  // języka domyślnego zamiast przerywać wysyłkę. Rzucenie byłoby tu gorsze od
+  // błędu: digest jest już ostemplowany przez claim_due_digests
+  // (digest_last_sent_at), więc wyjątek po claimie zgubiłby całe jego okno.
+  // Degradacja jest jednak GŁOŚNA - pusty wynik bez logu wyglądał dokładnie
+  // jak "nikt nie ustawił języka".
+  if (error) {
+    console.error("[community] odczyt profili odbiorców nie powiódł się - język domyślny", error);
+  }
   for (const row of data ?? []) {
     const prefs = (row.prefs ?? {}) as Record<string, unknown>;
     map.set(row.id, {
@@ -222,12 +231,62 @@ function recipientKey(tenantId: string, userId: string): string {
   return `${tenantId}|${userId}`;
 }
 
+/** Wynik jednego zadania - kształt elementu `p_reports` w report_push_jobs. */
+interface PushJobReport {
+  id: number;
+  ok: boolean;
+  dead: boolean;
+}
+
+/**
+ * Finalizuje partię JEDNYM RPC (report_push_jobs, migracja 20261002190300)
+ * zamiast round-tripu na zadanie: przy partii 100 zadań to było 100 żądań
+ * PostgREST na każdy tick, w falach po REPORT_CONCURRENCY.
+ *
+ * Raport per zadanie zostaje jako siatka, bo błąd raportu nie może zabrać
+ * partii: zadanie bez raportu zostaje w 'pending' i idzie ponownie, czyli
+ * odbiorca dostaje duplikat pusha. Zbiorcze RPC to jedna instrukcja UPDATE
+ * (wszystko albo nic), więc po jego błędzie przechodzimy na raport per
+ * zadanie, gdzie awaria jednego wiersza nie dotyka reszty. Ta sama siatka
+ * pokrywa okno wdrożenia, w którym kod wyprzedza migrację (PGRST202).
+ * Powtórzenie raportu po wywołaniu zbiorczym, które jednak doszło (zerwana
+ * odpowiedź), jest nieszkodliwe: ten sam raport daje ten sam status.
+ */
+async function reportPushJobs(reports: readonly PushJobReport[]): Promise<void> {
+  if (reports.length === 0) return;
+  try {
+    const { error } = await supabaseAdmin.rpc("report_push_jobs", {
+      // Kopia literałem, nie `reports` wprost: interfejs nie ma niejawnej
+      // sygnatury indeksu, więc nie pasuje do `Json` z wygenerowanych typów.
+      p_reports: reports.map(({ id, ok, dead }) => ({ id, ok, dead })),
+    });
+    if (error) throw error;
+    return;
+  } catch (err) {
+    console.error("[community] report_push_jobs - przejście na raport per zadanie", err);
+  }
+  await mapWithConcurrency(reports, REPORT_CONCURRENCY, async (report) => {
+    try {
+      const { error } = await supabaseAdmin.rpc("report_push_job", {
+        p_id: report.id,
+        p_ok: report.ok,
+        p_dead: report.dead,
+      });
+      if (error) throw error;
+    } catch (err) {
+      console.error("[community] report_push_job", err);
+    }
+  });
+}
+
 /**
  * Zdejmuje partię zadań push i wysyła do WSZYSTKICH żywych subskrypcji
  * odbiorcy W TYM TENANCIE. Zadanie jest 'sent', gdy dotarło do >=1 endpointu;
  * 'dead', gdy odbiorca nie ma już żadnej żywej subskrypcji albo żądanie nigdy
  * nie przejdzie (413/400). Endpointy 404/410 są trwale oznaczane
  * (mark_push_subscription_failed) - jednym RPC na endpoint, nie na zadanie.
+ * Błąd odczytu subskrypcji rzuca BEZ raportu: zajęta partia wraca do kolejki
+ * z backoffem claimu, zamiast umrzeć jako "odbiorca bez urządzeń".
  */
 export async function processPushJobs(
   limit = 100,
@@ -247,7 +306,7 @@ export async function processPushJobs(
 
   const userIds = [...new Set(jobs.map((j) => j.user_id))];
   const tenantIds = [...new Set(jobs.map((j) => j.tenant_id))];
-  const [{ data: subs }, recipients] = await Promise.all([
+  const [{ data: subs, error: subsError }, recipients] = await Promise.all([
     supabaseAdmin
       .from("push_subscriptions")
       .select("tenant_id, user_id, endpoint, p256dh, auth")
@@ -256,6 +315,37 @@ export async function processPushJobs(
       .is("failed_at", null),
     recipientsFor(userIds),
   ]);
+
+  // Błąd odczytu urządzeń NIE jest "brakiem urządzeń". `subs ?? []` zamieniało
+  // go w pustą listę, więc każde zadanie partii wyglądało jak odbiorca bez
+  // żywej subskrypcji i szło w 'dead' (devices === 0) - cała zajęta partia
+  // przepadała bez jednej próby wysyłki. Dlatego NIE raportujemy niczego:
+  // claim_push_jobs przesunął już next_attempt_at (to jest dzierżawa), więc
+  // zadania bez raportu wracają do kolejki z backoffem - ta sama ścieżka, co
+  // crash dyspozytora.
+  //
+  // Koszt jest jawny: claim podbił też `attempts`, więc nieudany odczyt zużywa
+  // próbę z budżetu 8 i wydłuża backoff (aż do 64 min). Awaria dłuższa niż
+  // ~2 h (1+2+...+64 min) zostawia zadania z wyczerpanym budżetem - po
+  // powrocie dostają jedną realną próbę, a pierwsza porażka przechodnia daje
+  // 'dead'. Próby NIE oddajemy osobnym RPC, bo przyrost `attempts` jest
+  // jedynym hamulcem kolejki: claim bierze najstarsze id, a backoff liczy się
+  // z `attempts`. Partia, której odczyt pada z powodu samej partii (np. długość
+  // filtra IN), a nie całej bazy, po zwrocie próby wracałaby co minutę na
+  // czoło kolejki i głodziła nowsze zadania. Push jest kanałem ulotnym
+  // (powiadomienie in-app zostaje), więc ~2-godzinne okno życia to właściwa
+  // granica, a nie strata do odrobienia.
+  //
+  // Rzucamy, bo taki jest kontrakt wołających (runJobStep w jobsTick, step w
+  // community-cron): błąd ląduje w logu przebiegów, a scheduler świeci
+  // czerwono z konkretną przyczyną.
+  if (subsError) {
+    console.error("[community] push: odczyt push_subscriptions nie powiódł się", subsError);
+    throw new Error(
+      `push_subscriptions: ${subsError.message} - zadania wracają do kolejki bez raportu ` +
+        `(liczba zadań: ${jobs.length})`,
+    );
+  }
 
   const devicesByRecipient = new Map<string, PushDevice[]>();
   for (const sub of subs ?? []) {
@@ -287,15 +377,15 @@ export async function processPushJobs(
     }
   }
 
-  const reports = jobs.map((job) => {
+  const reports = jobs.map((job): PushJobReport => {
     const entry = tally.get(job.id);
     const devices = deviceCountByJob.get(job.id) ?? 0;
     const allGone = devices > 0 && (entry?.gone ?? 0) >= devices;
     const ok = entry?.ok ?? false;
     return {
-      p_id: job.id,
-      p_ok: ok,
-      p_dead: !ok && (devices === 0 || allGone || !!entry?.permanent),
+      id: job.id,
+      ok,
+      dead: !ok && (devices === 0 || allGone || !!entry?.permanent),
     };
   });
 
@@ -310,34 +400,29 @@ export async function processPushJobs(
   if (orphaned.length > 0) {
     const keys = [...new Set(orphaned.map((job) => recipientKey(job.tenant_id, job.user_id)))];
     console.warn(
-      `[community] push: ${orphaned.length} zadan bez ani jednego urzadzenia ` +
-        `(kolejka widziala subskrypcje, dyspozytor nie) - klucze tenant|user: ${keys.join(", ")}`,
+      `[community] push: zadania bez ani jednego urzadzenia (liczba: ${orphaned.length}; ` +
+        `kolejka widziala subskrypcje, dyspozytor nie) - klucze tenant|user: ${keys.join(", ")}`,
     );
   }
 
-  // Błąd JEDNEGO raportu nie może zabrać reszty partii: zadania zostałyby w
-  // 'pending' i poszłyby ponownie, czyli odbiorca dostałby duplikat pusha.
+  // Oznaczenie martwych endpointów i finalizacja zadań dotyczą różnych tabel i
+  // są best-effort, więc idą równolegle zamiast jedno po drugim.
   const deadEndpoints = laneResults.filter((lane) => lane.gone).map((lane) => lane.endpoint);
-  await mapWithConcurrency(deadEndpoints, REPORT_CONCURRENCY, async (endpoint) => {
-    try {
-      const { error: rpcError } = await supabaseAdmin.rpc("mark_push_subscription_failed", {
-        p_endpoint: endpoint,
-      });
-      if (rpcError) throw rpcError;
-    } catch (err) {
-      console.error("[community] mark_push_subscription_failed", err);
-    }
-  });
-  await mapWithConcurrency(reports, REPORT_CONCURRENCY, async (report) => {
-    try {
-      const { error: rpcError } = await supabaseAdmin.rpc("report_push_job", report);
-      if (rpcError) throw rpcError;
-    } catch (err) {
-      console.error("[community] report_push_job", err);
-    }
-  });
+  await Promise.all([
+    mapWithConcurrency(deadEndpoints, REPORT_CONCURRENCY, async (endpoint) => {
+      try {
+        const { error: rpcError } = await supabaseAdmin.rpc("mark_push_subscription_failed", {
+          p_endpoint: endpoint,
+        });
+        if (rpcError) throw rpcError;
+      } catch (err) {
+        console.error("[community] mark_push_subscription_failed", err);
+      }
+    }),
+    reportPushJobs(reports),
+  ]);
 
-  return { claimed: jobs.length, sent: reports.filter((r) => r.p_ok).length };
+  return { claimed: jobs.length, sent: reports.filter((r) => r.ok).length };
 }
 
 /**

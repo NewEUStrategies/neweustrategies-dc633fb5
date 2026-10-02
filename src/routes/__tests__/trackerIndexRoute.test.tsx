@@ -704,6 +704,31 @@ describe("trasa /tracker - zapadka na liczbie zapytań pierwszego malowania", ()
   });
 });
 
+/** `pendingComponent` trasy jako komponent - STRAŻNIK, nie rzutowanie. */
+function routePendingComponent(): () => ReactElement {
+  const component: unknown = TrackerIndexRoute.options.pendingComponent;
+  if (typeof component !== "function") throw new Error("test: trasa nie ma pendingComponent");
+  return component as () => ReactElement;
+}
+
+describe("trasa /tracker - stan oczekiwania zimnej nawigacji", () => {
+  it("pokazuje szkielet W KSZTAŁCIE STRONY, ukryty przed czytnikiem ekranu", () => {
+    // Zimna nawigacja klienta czeka na loader. Bez `pendingComponent` ekran
+    // jest pusty (a potem cała siatka wskakuje naraz - przesunięcie układu);
+    // szkielet jest dekoracją, więc NIE może być ogłaszany jako treść -
+    // nawigację ogłasza `RouteProgress`.
+    const Pending = routePendingComponent();
+    const { container } = render(<Pending />);
+    const root = container.firstElementChild;
+
+    expect(root).toHaveAttribute("aria-hidden", "true");
+    // Ten sam kontener co strona (max-w-5xl) i siatka kart sm:grid-cols-2.
+    expect(root).toHaveClass("max-w-5xl");
+    expect(container.querySelector(".sm\\:grid-cols-2")?.children.length).toBeGreaterThan(0);
+    expect(container.textContent).toBe("");
+  });
+});
+
 /** `errorComponent` trasy jako komponent - STRAŻNIK, nie rzutowanie. */
 function routeErrorComponent(): (props: { error: Error; reset: () => void }) => ReactElement {
   const component: unknown = TrackerIndexRoute.options.errorComponent;
