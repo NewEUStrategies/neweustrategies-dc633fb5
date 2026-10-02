@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { UploadArea } from "@/components/ui/upload-area";
 import { Label } from "@/components/ui/label";
+import "@/lib/i18n-upload-area";
 
 /* ------------------------------------------------------------------ */
 /* Generic section card                                                */
@@ -742,6 +743,9 @@ type CvFile = {
   uploaded_at: string;
 };
 
+/** Typy CV przyjmowane przez OBA pola (obszar wgrywania i podmiana w nagłówku). */
+const CV_ACCEPT = ".pdf,.doc,.docx";
+
 export function CvSection({
   userId,
   tenantId,
@@ -838,7 +842,7 @@ export function CvSection({
             {uploading ? t("profile.actions.uploading") : t("profile.sections.cvUpload")}
             <input
               type="file"
-              accept=".pdf,.doc,.docx"
+              accept={CV_ACCEPT}
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -894,8 +898,11 @@ export function CvSection({
           busyLabel={t("profile.actions.uploading")}
           busy={uploading}
           icons={[FileText, Upload]}
-          accept=".pdf,.doc,.docx"
+          accept={CV_ACCEPT}
           onFiles={(files) => void onUpload(files[0])}
+          onRejectedFiles={(files) =>
+            toast.error(t("uploadArea.badType", { name: files.map((f) => f.name).join(", ") }))
+          }
         />
       ) : (
         <p className="text-sm italic text-muted-foreground">{t("profile.sections.cvEmpty")}</p>

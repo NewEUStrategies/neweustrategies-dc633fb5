@@ -1109,6 +1109,25 @@ describe("wysyłka avatara - każdy koniec nieudany ma komunikat", () => {
     expect(avatarImg().getAttribute("src")).toBe(`https://cdn.example/${files().publicPaths[0]}`);
   });
 
+  it("upuszczony plik spoza dozwolonych typów daje komunikat, nie ciszę ani kadrowanie", async () => {
+    // Obszar wgrywania odrzuca upuszczony GIF po `accept` i nie oddaje go do
+    // `onFiles` - bez `onRejectedFiles` autor nie dowiadywał się niczego.
+    planLoad({ row: authorRow() });
+    await renderEditor();
+    const area = document.querySelector<HTMLElement>('[data-slot="upload-area"]');
+    if (area === null) throw new Error("test: brak obszaru wgrywania avatara");
+
+    fireEvent.drop(area, {
+      dataTransfer: {
+        types: ["Files"],
+        files: [new File(["x"], "portret.gif", { type: "image/gif" })],
+      },
+    });
+
+    expect(h.toastError).toHaveBeenCalledWith('uploadArea.badType {"name":"portret.gif"}');
+    expect(screen.queryByTestId("crop-confirm")).not.toBeInTheDocument();
+  });
+
   it("wejście pliku BEZ wybranego pliku nie otwiera kadrowania", async () => {
     // Anulowanie systemowego okna wyboru daje zdarzenie `change` z pustą listą.
     planLoad({ row: authorRow() });
