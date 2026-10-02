@@ -13,19 +13,34 @@
 // ETYKIETY WCHODZĄ PROPSAMI. Ten komponent obsługuje dwie powierzchnie o
 // osobnych przestrzeniach tłumaczeń (kluby i komentarze pod artykułami).
 // Gdyby sam wołał `t()`, wciągnąłby overlay jednej z nich do chunku drugiej.
-import { useState, type ReactNode } from "react";
+//
+// NIEROZWIĄZANA FIRMA TO NADAL FIRMA. Slug `org-<uuid>` rozpoznajemy po samym
+// slugu, bez katalogu: wcześniej wzmianka firmy, której katalog nie rozwiązał
+// (rekord usunięty, katalog jeszcze się ładuje, brak dostawcy), schodziła na
+// gałąź osoby - etykieta z UUID („Org 1b2c…"), link `/people/org-<uuid>`
+// i karta osoby w dymku. Teraz dostaje ikonę firmy, etykietę „Firma", adres
+// `/organization/org-<uuid>` (ta trasa sama rozpoznaje prefiks) i kartę firmy.
+//
+// TRASA OSOBY ZALEŻY OD POWIERZCHNI. Kluby są przestrzenią członkowską, więc
+// prowadzą na `/people/<slug>`. Komentarze pod artykułami czyta anonim - dla
+// niego `/people` to bramka logowania z `noindex`. Tam wzmianka idzie na
+// `/author/<slug>`: autor dostaje publiczny hub, a członek bez roli autora -
+// trwałe 301 na `/people` (rozstrzyga trasa, tymi samymi regułami widoczności).
+import { useState, type ComponentPropsWithRef, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { BadgeCheck, Building2, UserRound } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
+import { useMentionProfile, type MentionProfilePreview } from "@/lib/mentions/useMentionProfile";
 import {
   identityLine,
+  nameInitials,
   slugToDisplayName,
   type MentionEntity,
   type MentionOrg,
   type MentionPerson,
 } from "@/lib/mentions/directory";
+import { decodeOrganizationMentionSlug } from "@/lib/mentions/mentionTargets";
 import { cn } from "@/lib/utils";
 
 /** Napisy dymka - dostarcza je powierzchnia, wraz ze swoją przestrzenią kluczy. */
@@ -38,18 +53,26 @@ export interface MentionTagLabels {
   verified: string;
   /** Odnośnik w stopce dymka organizacji. */
   viewOrg: string;
+  /** Etykieta firmy, której katalog nie rozwiązał (zamiast UUID ze sluga). */
+  organization: string;
 }
 
-function initials(name: string): string {
-  const parts = name
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (parts.length === 0) return "?";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
-  return (first + last).toLocaleUpperCase("pl-PL");
+/** Trasa profilu osoby: członkowska (`/people`) albo publiczna (`/author`). */
+export type MentionProfileRoute = "people" | "author";
+
+/** Odnośnik do osoby. Dwie jawne gałęzie, bo drzewo tras typuje `to`. Musi
+ *  przekazywać propsy i ref dalej - jest dzieckiem `HoverCardTrigger asChild`,
+ *  a Radix dokleja wyzwalaczowi zdarzenia, `data-state` i ref kotwicy dymka. */
+function PersonLink({
+  route,
+  slug,
+  ...rest
+}: { route: MentionProfileRoute; slug: string } & Omit<ComponentPropsWithRef<"a">, "href">) {
+  return route === "author" ? (
+    <Link to="/author/$slug" params={{ slug }} {...rest} />
+  ) : (
+    <Link to="/people/$slug" params={{ slug }} {...rest} />
+  );
 }
 
 /**
@@ -65,16 +88,13 @@ export function MentionAvatar({
   name,
   avatarUrl,
   variant = "inline",
-  rounded = "full",
 }: {
   name: string;
   avatarUrl: string | null;
   variant?: "inline" | "card";
-  rounded?: "full" | "lg";
 }) {
   const size = variant === "inline" ? "h-[1.15em] w-[1.15em] text-[0.6em]" : "h-10 w-10 text-xs";
-  const shape = rounded === "full" ? "rounded-full" : "rounded-lg";
-  const base = `${size} ${shape} shrink-0 select-none overflow-hidden ring-1 ring-border/60`;
+  const base = `${size} rounded-full shrink-0 select-none overflow-hidden ring-1 ring-border/60`;
   if (avatarUrl !== null && avatarUrl !== "") {
     return (
       <img
@@ -93,7 +113,7 @@ export function MentionAvatar({
       className={`${base} grid place-items-center bg-primary/10 font-semibold text-primary`}
       data-mention-avatar=""
     >
-      {variant === "card" ? initials(name) : <UserRound className="h-[0.8em] w-[0.8em]" />}
+      {variant === "card" ? nameInitials(name) : <UserRound className="h-[0.8em] w-[0.8em]" />}
     </span>
   );
 }
@@ -103,12 +123,14 @@ export function MentionAvatar({
 export function MentionPersonCard({
   person,
   labels,
+  profileRoute = "people",
 }: {
   person: Pick<
     MentionPerson,
     "slug" | "name" | "avatarUrl" | "jobTitle" | "company" | "bio" | "verified"
   >;
   labels: MentionTagLabels;
+  profileRoute?: MentionProfileRoute;
 }) {
   const identity = identityLine(person.jobTitle, person.company);
   return (
@@ -133,13 +155,13 @@ export function MentionPersonCard({
       {person.bio !== null && person.bio !== "" ? (
         <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">{person.bio}</p>
       ) : null}
-      <Link
-        to="/people/$slug"
-        params={{ slug: person.slug }}
+      <PersonLink
+        route={profileRoute}
+        slug={person.slug}
         className="inline-block text-xs font-medium text-primary hover:underline"
       >
         {labels.viewProfile}
-      </Link>
+      </PersonLink>
     </div>
   );
 }
@@ -183,18 +205,35 @@ export function MentionOrgCard({ org, labels }: { org: MentionOrg; labels: Menti
   );
 }
 
-/** Dymek osoby dociągany leniwie - dla wzmianek, których katalog nie rozwiązał
- *  (np. profil widoczny dopiero po zalogowaniu). */
-function LazyPersonCard({
+/** Podgląd celu z `get_mention_target` -> firma do karty organizacji. Podpis
+ *  firmy to jej branża - dokładnie to, co karta pokazuje jako opis. */
+function orgFromPreview(preview: MentionProfilePreview): MentionOrg {
+  return {
+    kind: "org",
+    slug: preview.slug,
+    id: preview.id,
+    name: preview.name,
+    logoUrl: preview.logoUrl,
+    description: preview.company,
+    website: preview.website,
+  };
+}
+
+/** Dymek dociągany leniwie - dla wzmianek, których katalog nie rozwiązał
+ *  (np. profil widoczny dopiero po zalogowaniu). Karta idzie za RODZAJEM
+ *  celu z bazy, a nie za domysłem ze sluga. */
+function LazyMentionCard({
   slug,
   lang,
   labels,
   open,
+  profileRoute,
 }: {
   slug: string;
   lang: "pl" | "en";
   labels: MentionTagLabels;
   open: boolean;
+  profileRoute: MentionProfileRoute;
 }) {
   const profile = useMentionProfile(slug, lang, open);
   if (profile.isPending) {
@@ -211,7 +250,10 @@ function LazyPersonCard({
   if (profile.data === null || profile.data === undefined) {
     return <p className="text-xs text-muted-foreground">{labels.noProfile}</p>;
   }
-  return <MentionPersonCard person={profile.data} labels={labels} />;
+  if (profile.data.kind === "organization") {
+    return <MentionOrgCard org={orgFromPreview(profile.data)} labels={labels} />;
+  }
+  return <MentionPersonCard person={profile.data} labels={labels} profileRoute={profileRoute} />;
 }
 
 /**
@@ -225,6 +267,7 @@ export function PersonHoverCard({
   lang,
   labels,
   testId = "mention-preview",
+  profileRoute = "people",
   children,
 }: {
   slug: string;
@@ -232,6 +275,7 @@ export function PersonHoverCard({
   lang: "pl" | "en";
   labels: MentionTagLabels;
   testId?: string;
+  profileRoute?: MentionProfileRoute;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -239,12 +283,18 @@ export function PersonHoverCard({
     <HoverCard openDelay={200} closeDelay={120} open={open} onOpenChange={setOpen}>
       <HoverCardTrigger asChild>{children}</HoverCardTrigger>
       <HoverCardContent className="w-72" data-testid={testId}>
-        {entity !== null && entity.kind === "org" ? (
+        {entity === null ? (
+          <LazyMentionCard
+            slug={slug}
+            lang={lang}
+            labels={labels}
+            open={open}
+            profileRoute={profileRoute}
+          />
+        ) : entity.kind === "org" ? (
           <MentionOrgCard org={entity} labels={labels} />
-        ) : entity !== null ? (
-          <MentionPersonCard person={entity} labels={labels} />
         ) : (
-          <LazyPersonCard slug={slug} lang={lang} labels={labels} open={open} />
+          <MentionPersonCard person={entity} labels={labels} profileRoute={profileRoute} />
         )}
       </HoverCardContent>
     </HoverCard>
@@ -253,7 +303,8 @@ export function PersonHoverCard({
 
 /**
  * Wzmianka w biegu tekstu. `entity` pochodzi z katalogu powierzchni; gdy go
- * nie ma, etykietą jest uczytelniony slug, a dymek dociąga profil sam.
+ * nie ma, etykietą jest uczytelniony slug (osoba) albo „Firma" (slug
+ * `org-<uuid>`), a dymek dociąga cel sam.
  */
 export function MentionTag({
   slug,
@@ -263,6 +314,7 @@ export function MentionTag({
   className,
   testId = "mention-preview",
   showCompany = true,
+  profileRoute = "people",
 }: {
   slug: string;
   entity: MentionEntity | null;
@@ -272,22 +324,32 @@ export function MentionTag({
   testId?: string;
   /** Firma w linii tekstu. Dymek pokazuje ją zawsze, gdy jest w profilu. */
   showCompany?: boolean;
+  /** Dokąd prowadzi osoba - patrz nagłówek pliku. */
+  profileRoute?: MentionProfileRoute;
 }) {
-  const isOrg = entity !== null && entity.kind === "org";
-  const name = entity !== null ? entity.name : slugToDisplayName(slug);
-  const company = entity !== null && entity.kind === "person" ? entity.company : null;
-  const avatarUrl = entity !== null && entity.kind === "person" ? entity.avatarUrl : null;
+  const person = entity !== null && entity.kind === "person" ? entity : null;
+  // Slug firmy: z katalogu, a bez niego - rozpoznany po prefiksie `org-<uuid>`.
+  const orgId = entity === null ? decodeOrganizationMentionSlug(slug) : null;
+  const orgSlug = entity?.kind === "org" ? entity.slug : orgId !== null ? `org-${orgId}` : null;
+  const name =
+    entity !== null
+      ? entity.name
+      : orgSlug !== null
+        ? labels.organization
+        : slugToDisplayName(slug);
+  const company = person?.company ?? null;
+  const linkClass = cn("font-medium text-primary hover:underline", className);
 
   const chip: ReactNode = (
     <span className="inline-flex items-center gap-1 align-baseline">
-      {isOrg ? (
+      {orgSlug !== null ? (
         <Building2
           className="h-[1.05em] w-[1.05em] shrink-0"
           aria-hidden="true"
           data-mention-avatar=""
         />
       ) : (
-        <MentionAvatar name={name} avatarUrl={avatarUrl} />
+        <MentionAvatar name={name} avatarUrl={person?.avatarUrl ?? null} />
       )}
       <span>{name}</span>
       {showCompany && company !== null ? (
@@ -296,30 +358,29 @@ export function MentionTag({
     </span>
   );
 
-  const trigger =
-    entity !== null && entity.kind === "org" ? (
-      <Link
-        to="/organization/$slug"
-        params={{ slug: entity.slug }}
-        data-mention-org={entity.slug}
-        className={cn("font-medium text-primary hover:underline", className)}
-      >
-        {chip}
-      </Link>
-    ) : (
-      <Link
-        to="/people/$slug"
-        params={{ slug }}
-        data-mention={slug}
-        className={cn("font-medium text-primary hover:underline", className)}
-      >
-        {chip}
-      </Link>
-    );
-
   return (
-    <PersonHoverCard slug={slug} entity={entity} lang={lang} labels={labels} testId={testId}>
-      {trigger}
+    <PersonHoverCard
+      slug={slug}
+      entity={entity}
+      lang={lang}
+      labels={labels}
+      testId={testId}
+      profileRoute={profileRoute}
+    >
+      {orgSlug !== null ? (
+        <Link
+          to="/organization/$slug"
+          params={{ slug: orgSlug }}
+          data-mention-org={orgSlug}
+          className={linkClass}
+        >
+          {chip}
+        </Link>
+      ) : (
+        <PersonLink route={profileRoute} slug={slug} data-mention={slug} className={linkClass}>
+          {chip}
+        </PersonLink>
+      )}
     </PersonHoverCard>
   );
 }

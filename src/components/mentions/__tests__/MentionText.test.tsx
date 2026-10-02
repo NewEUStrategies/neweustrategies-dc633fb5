@@ -7,9 +7,13 @@
 //     Regresja jest cicha - powrót do `raw` wygląda w przeglądarce „normalnie".
 // (2) PRZED NAZWĄ STOI AWATAR. Element z `data-mention-avatar` jest PIERWSZYM
 //     dzieckiem wyzwalacza; bez niego wzmianka zlewa się z resztą zdania.
-// (3) CEL I KLUCZ ZOSTAJĄ TECHNICZNE. Link prowadzi do `/people/<slug>`, a slug
+// (3) CEL I KLUCZ ZOSTAJĄ TECHNICZNE. Link prowadzi do `/author/<slug>`, a slug
 //     w `data-mention` jest małymi literami - spójnie z `process_mentions`,
-//     które po tej samej postaci rozsyła powiadomienia.
+//     które po tej samej postaci rozsyła powiadomienia. `/author`, NIE
+//     `/people`: komentarze pod artykułem czyta anonim, a `/people` to dla
+//     niego bramka logowania z `noindex`. Trasa `/author` sama oddaje 301 na
+//     `/people`, gdy osoba nie ma roli autora (audyt, wydanie 12: defekt
+//     `MentionTag.tsx:311`).
 // (4) TREŚĆ POZOSTAJE TEKSTEM. Budujemy węzły React, więc wrogi wpis nie
 //     wstrzykuje znaczników, a adres e-mail nie staje się wzmianką.
 // (5) DYMEK NALEŻY DO TEJ POWIERZCHNI: `data-testid="comment-mention-preview"`
@@ -133,13 +137,15 @@ describe("MentionText - wzmianka bez nicku", () => {
     expect(mentionFor("anna-nowak").textContent).toBe("Anna Nowak");
   });
 
-  it("niesie kanoniczny slug i prowadzi do profilu autora", () => {
+  it("niesie kanoniczny slug i prowadzi do PUBLICZNEGO profilu autora", () => {
     render(<MentionText body="thanks @Alice for this" />);
     const link = mentionFor("alice");
 
     // Widoczna etykieta ma wielką literę, klucz notyfikacji - małą.
     expect(link).toHaveAttribute("data-mention", "alice");
-    expect(link).toHaveAttribute("href", "/people/alice");
+    // Regresja, którą to łapie: anonim klikający wzmiankę w publicznym
+    // komentarzu lądował na bramce logowania `/people` zamiast na hubie autora.
+    expect(link).toHaveAttribute("href", "/author/alice");
   });
 
   it("przed nazwą stoi awatar (pierwsze dziecko wyzwalacza)", () => {
@@ -211,9 +217,11 @@ describe("MentionText - dymek powierzchni komentarzy", () => {
     const card = await openCard(mentionFor("alice"));
 
     expect(within(card).getByText("Alice Kowalska")).toBeInTheDocument();
+    // Stopka dymka idzie tą samą trasą co wyzwalacz - inaczej dymek
+    // przywracałby bramkę logowania, którą wyzwalacz właśnie ominął.
     expect(within(card).getByRole("link", { name: "mentions.viewProfile" })).toHaveAttribute(
       "href",
-      "/people/alice",
+      "/author/alice",
     );
   });
 
@@ -266,6 +274,26 @@ describe("MentionText - wzmianka firmy", () => {
     expect(link?.getAttribute("href")).toBe(
       "/organization/org-123e4567-e89b-12d3-a456-426614174000",
     );
+  });
+
+  it("NIEROZWIĄZANA firma zostaje firmą: etykieta przestrzeni, cel organizacji", () => {
+    // Regresja, którą to łapie (audyt, wydanie 12: `MentionTag.tsx:277`):
+    // katalog nie zna firmy (rekord usunięty, katalog jeszcze się ładuje), więc
+    // wzmianka schodziła na gałąź osoby - etykieta „Org 123e4567 …" z UUID
+    // i link `/author/org-<uuid>`, czyli 404 udające wzmiankę człowieka.
+    state.entity = null;
+
+    const { container } = render(
+      <MentionText body="cc @org-123e4567-e89b-12d3-a456-426614174000" />,
+    );
+    const link = container.querySelector<HTMLElement>("a[data-mention-org]");
+
+    expect(link?.textContent).toBe("mentions.organization");
+    expect(link?.getAttribute("href")).toBe(
+      "/organization/org-123e4567-e89b-12d3-a456-426614174000",
+    );
+    expect(container.querySelector("a[data-mention]")).toBeNull();
+    expect(container.textContent).not.toContain("123e4567");
   });
 
   it("etykietą jest NAZWA firmy, nigdy identyfikator ze sluga", () => {

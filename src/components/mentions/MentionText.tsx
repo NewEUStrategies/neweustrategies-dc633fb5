@@ -37,11 +37,15 @@ function CommentMention({ slug, className }: { slug: string; className?: string 
       lang={uiLang(i18n.language)}
       className={className}
       testId="comment-mention-preview"
+      // Komentarze pod artykułem czyta anonim: `/people` to dla niego bramka
+      // logowania z `noindex`, `/author` - publiczny hub albo 301 na `/people`.
+      profileRoute="author"
       labels={{
         noProfile: t("mentions.noProfile"),
         viewProfile: t("mentions.viewProfile"),
         verified: t("mentions.verified"),
         viewOrg: t("mentions.viewOrg"),
+        organization: t("mentions.organization"),
       }}
     />
   );

@@ -49,10 +49,36 @@ export type MentionDirectory = ReadonlyMap<string, MentionEntity>;
 /** Pusty katalog - stała, żeby nie tworzyć nowej mapy przy każdym renderze. */
 export const EMPTY_DIRECTORY: MentionDirectory = new Map<string, MentionEntity>();
 
-function trimText(value: unknown, max: number): string | null {
+/**
+ * Tekst z wiersza bazy: zwinięte białe znaki, przycięty do `max`, a pusty albo
+ * nie-napis to `null`. Wspólne dla katalogu, dymka (`useMentionProfile`) i marki
+ * firmy (`useCompanyBrand`) - trzy kopie tej samej funkcji rozjechałyby się
+ * przy pierwszej poprawce tylko w jednej z nich.
+ */
+export function trimText(value: unknown, max: number = Number.POSITIVE_INFINITY): string | null {
   if (typeof value !== "string") return null;
   const text = value.replace(/\s+/g, " ").trim();
   return text === "" ? null : text.slice(0, max);
+}
+
+/**
+ * Inicjały do awatara zastępczego: pierwsza litera pierwszego i ostatniego
+ * słowa („Jan Kowalski" -> „JK"). Wcześniej lista podpowiedzi brała DWIE
+ * PIERWSZE LITERY nazwy („Jan Kowalski" -> „JA") - czyli coś, co wygląda jak
+ * inicjały, ale nimi nie jest. Znaki spoza liter i cyfr nie liczą się jako słowo.
+ */
+export function nameInitials(name: string): string {
+  const words = name
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) return "?";
+  const edges = words.length > 1 ? [...words.slice(0, 1), ...words.slice(-1)] : words;
+  return edges
+    .map((word) => word.charAt(0))
+    .join("")
+    .toLocaleUpperCase("pl-PL");
 }
 
 /**
@@ -188,11 +214,4 @@ export function identityLine(
   return [jobTitle, company].filter(
     (part): part is string => typeof part === "string" && part !== "",
   );
-}
-
-/** Adres organizacji. Term ma już WŁASNY profil publiczny (/organization/$slug),
- *  więc wzmianka prowadzi do wizytówki instytucji, a nie do wyszukiwarki
- *  przefiltrowanej po jej identyfikatorze. */
-export function orgHref(org: MentionOrg): string {
-  return `/organization/${encodeURIComponent(org.slug)}`;
 }

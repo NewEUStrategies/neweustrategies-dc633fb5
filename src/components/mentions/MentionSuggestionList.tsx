@@ -2,13 +2,26 @@
 //
 // Wydzielona z `MentionTextarea`, żeby komentarze i pola "wiadomość"
 // w widgetach formularzy renderowały DOKŁADNIE tę samą listę.
+//
+// RODZAJ CELU JEST OGŁASZANY. Czytnik ekranu słyszy „Jan Kowalski, Osoba"
+// albo „ACME, Firma". Wcześniej ta etykieta siedziała WEWNĄTRZ awatara
+// z `aria-hidden`, czyli była ukryta razem z nim - osoba i firma o tej samej
+// nazwie brzmiały identycznie.
+//
+// JEDEN ZNAK ZASTĘPCZY W AWATARZE. Osoba bez zdjęcia dostaje ikonę - tak jak
+// wzmianka w biegu tekstu (`MentionAvatar`), bo litery tuż obok pełnego
+// nazwiska czytają się jak literówka. Wcześniej wchodziła ikona I dwie
+// pierwsze litery naraz. Inicjały (prawdziwe, z `nameInitials`) zostają
+// w podglądzie celu, gdzie awatar stoi osobno.
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Building2, UserRound } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { nameInitials } from "@/lib/mentions/directory";
 import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
 import type { MentionSuggestion } from "@/lib/mentions/useMentionSuggestions";
 import { ensureI18n } from "@/lib/i18n-mentions";
+import { uiLang } from "@/lib/i18n/format";
 
 ensureI18n();
 
@@ -34,7 +47,7 @@ function SuggestionPreview({ slug, lang }: { slug: string; lang: "pl" | "en" }) 
     data.kind === "organization" ? (
       <Building2 className="h-4 w-4" aria-hidden="true" />
     ) : (
-      data.name.slice(0, 2).toLocaleUpperCase()
+      nameInitials(data.name)
     );
   return (
     <div className="space-y-2">
@@ -64,6 +77,27 @@ function SuggestionPreview({ slug, lang }: { slug: string; lang: "pl" | "en" }) 
   );
 }
 
+/** Awatar wiersza: zdjęcie osoby albo logo firmy, a bez obrazka - ikona
+ *  rodzaju. Dekoracja: rodzaj ogłasza tekst wiersza, nie awatar. */
+function SuggestionAvatar({ suggestion }: { suggestion: MentionSuggestion }) {
+  const image = suggestion.avatarUrl || suggestion.logoUrl;
+  return (
+    <span
+      aria-hidden="true"
+      data-suggestion-avatar=""
+      className="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
+    >
+      {image ? (
+        <img src={image} alt="" className="h-full w-full object-cover" />
+      ) : suggestion.kind === "organization" ? (
+        <Building2 className="h-3.5 w-3.5" />
+      ) : (
+        <UserRound className="h-3.5 w-3.5" />
+      )}
+    </span>
+  );
+}
+
 export function MentionSuggestionList({
   listId,
   suggestions,
@@ -73,7 +107,7 @@ export function MentionSuggestionList({
   onChoose,
 }: MentionSuggestionListProps) {
   const { t, i18n } = useTranslation();
-  const lang = (i18n.language ?? "pl").startsWith("en") ? "en" : "pl";
+  const lang = uiLang(i18n.language);
   const [previewSlug, setPreviewSlug] = useState<string | null>(null);
   return (
     <ul
@@ -110,32 +144,15 @@ export function MentionSuggestionList({
             <HoverCard open={previewSlug === s.slug} openDelay={250}>
               <HoverCardTrigger asChild>
                 <span className="flex min-w-0 flex-1 items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
-                  >
-                    {s.avatarUrl || s.logoUrl ? (
-                      <img
-                        src={s.avatarUrl ?? s.logoUrl ?? ""}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : s.kind === "organization" ? (
-                      <Building2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    ) : (
-                      <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
-                    )}
+                  <SuggestionAvatar suggestion={s} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{s.name}</span>
                     <span className="sr-only">
+                      {", "}
                       {s.kind === "organization"
                         ? t("mentions.organization")
                         : t("mentions.person")}
                     </span>
-                    {s.avatarUrl || s.logoUrl || s.kind === "organization"
-                      ? null
-                      : s.name.slice(0, 2).toUpperCase()}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{s.name}</span>
                     {/* BEZ NICKU. Wcześniej stał tu `@slug` - przy firmach
                         dosłownie `@org-<uuid>`, czyli napis, który nikomu nic
                         nie mówi. Zostaje sam podpis, a gdy go nie ma, wiersz
