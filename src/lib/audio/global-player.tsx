@@ -113,6 +113,20 @@ const INITIAL_TTS: TtsProgress = {
 
 const GlobalPlayerContext = createContext<GlobalPlayerContextValue | null>(null);
 
+/**
+ * Nieudana odpowiedź serwera, której treść NIE jest komunikatem dla czytelnika.
+ * Ciało błędu `/api/public/post-tts` to techniczny JSON po angielsku
+ * (`{"error":"Post not found"}`) - wcześniej trafiał dosłownie do toastu.
+ * Ten błąd niesie sam kod, a `loadAndPlay` zostawia `error` pusty, więc
+ * widżety pokazują zdanie ze słownika w języku materiału.
+ */
+class AudioHttpError extends Error {
+  constructor(status: number) {
+    super(`HTTP ${status}`);
+    this.name = "AudioHttpError";
+  }
+}
+
 // Cache blobów narracji (z limitem i zwalnianiem URL-i), pamięć pozycji
 // odtwarzania i nazwa pliku pobrania żyją w czystych modułach obok:
 // `lib/audio/blobCache` i `lib/audio/positionMemory`. Są tam testowane bez
@@ -258,6 +272,9 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
     });
     audioRef.current = audio;
     return () => {
+      // Pobranie w toku nie ma już komu oddać nagrania - przerywamy je,
+      // zamiast pozwolić mu dokończyć i odłożyć blob do cache po odmontowaniu.
+      fetchAbortRef.current?.abort();
       audio.pause();
       audio.removeAttribute("src");
       audio.load();
@@ -318,15 +335,14 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         if (!res.ok) {
           // Wyczerpany limit / rate-limit dostają jednoznaczne, dwujęzyczne
           // komunikaty (402 = przekroczony budżet TTS, 429 = zbyt częste próby).
-          // Pozostałe błędy zachowują dotychczasowe zachowanie (treść serwera).
+          // Pozostałe kody: bez treści serwera (patrz `AudioHttpError`).
           if (res.status === 402) {
             throw new Error("Wyczerpano limit lektora / TTS quota exceeded");
           }
           if (res.status === 429) {
             throw new Error("Zbyt wiele prób, spróbuj za chwilę / Too many attempts");
           }
-          const msg = await res.text().catch(() => "");
-          throw new Error(msg || `HTTP ${res.status}`);
+          throw new AudioHttpError(res.status);
         }
 
         // Nagłówki dostępne → ElevenLabs zaczął strumieniować bajty.
@@ -459,7 +475,13 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         // Przerwane przez nowszy loadAndPlay - nie pokazujemy błędu.
         if (e instanceof Error && e.name === "AbortError") return;
         setStatus("error");
-        setError(e instanceof Error ? e.message : "Błąd ładowania audio");
+        setError(
+          e instanceof AudioHttpError
+            ? null
+            : e instanceof Error
+              ? e.message
+              : "Błąd ładowania audio",
+        );
       }
     },
     [track, fetchBlob],

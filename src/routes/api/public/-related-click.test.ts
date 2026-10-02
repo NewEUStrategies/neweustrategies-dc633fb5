@@ -1,3 +1,11 @@
+// @vitest-environment node
+//
+// ŚRODOWISKO NODE, NIE HAPPY-DOM. `Request` z happy-dom wycina nagłówki
+// zakazane w przeglądarce (`Origin`, `Sec-Fetch-Site`) - a to dokładnie te,
+// po których bramka CSRF rozpoznaje cudzą stronę. Endpoint i tak biegnie na
+// serwerze, więc `Request` z Node jest tym prawdziwym (wzorzec
+// `-sponsor-event.test.ts`).
+//
 // Beacon kliknięć w rekomendacje: POST /api/public/related-click.
 //
 // PO CO. Trasa nie miała ŻADNEGO testu, a jest publicznym ZAPISEM do
@@ -6,14 +14,16 @@
 // spoczywa na handlerze: walidacja Zod, limiter per `viewer_hash`, zgodność
 // tenanta obu wpisów i kształt odpowiedzi błędu.
 //
-// Trzy zapory, których pilnuje ten plik po wydaniu domykającym granicę publiczną:
+// Zapory, których pilnuje ten plik po wydaniu domykającym granicę publiczną:
 //   1. 500 NIE oddaje komunikatu Postgresa - na ścieżce bez sesji nazwy tabel,
 //      kolumn i ograniczeń są darmową mapą schematu dla dalszego ataku.
-//   2. Preflight odbija Origin wyłącznie dla domen ZAREJESTROWANYCH w katalogu
-//      tenantów (albo hostów podglądu). `Access-Control-Allow-Origin: *`
-//      pozwalał obcej stronie wykonać POST przeglądarką swojego gościa: wiersz
-//      z `viewer_hash` liczonym z adresu i user-agenta OFIARY powstawał.
-//   3. `viewer_hash` liczony ze WSPÓLNEJ definicji „kto dzwoni" - pierwszy wpis
+//   2. POST z OBCEGO originu dostaje 403. Sam preflight niczego nie bronił:
+//      `text/plain` z ciałem JSON go nie wymaga, a handler czyta ciało bez
+//      względu na `Content-Type` - obca strona wysyłała więc POST przeglądarką
+//      swojego gościa i wiersz z `viewer_hash` OFIARY powstawał.
+//   3. Preflight odbija Origin wyłącznie według tej samej reguły co POST: host
+//      żądania albo domena ZAREJESTROWANA w katalogu tenantów.
+//   4. `viewer_hash` liczony ze WSPÓLNEJ definicji „kto dzwoni" - pierwszy wpis
 //      `x-forwarded-for` pochodzi od klienta, więc kubełek po nim kluczowany
 //      rotował się jednym nagłówkiem.
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -39,6 +49,10 @@ const h = vi.hoisted(() => {
     posts: new Map<string, { tenant_id: string }>(),
     inserted: [] as Record<string, unknown>[],
     insertError: null as { message: string } | null,
+    /** Awaria licznika limitera - PostgREST oddaje wtedy `count: null`. */
+    countError: null as { message: string } | null,
+    /** Tabele, których dotknął handler - bramka CSRF ma stać PRZED bazą. */
+    tables: [] as string[],
     tenantDomains: ["redakcja.example.test"] as string[],
   };
 
@@ -54,6 +68,7 @@ const h = vi.hoisted(() => {
   // czytelnikom cudzego serwisu. Atrapa, która ignoruje filtr, nie dowodzi
   // zawężenia; ta go wymusza.
   function from(table: string): unknown {
+    state.tables.push(table);
     const filters = new Map<string, unknown>();
     const builder: Record<string, unknown> = {};
     const self = () => builder;
@@ -77,10 +92,19 @@ const h = vi.hoisted(() => {
       return { error: state.insertError };
     };
     builder.then = (
-      onFulfilled: (value: { count: number; data: null; error: null }) => unknown,
+      onFulfilled: (value: {
+        count: number | null;
+        data: null;
+        error: { message: string } | null;
+      }) => unknown,
     ) => {
       if (table !== "related_post_clicks") {
         throw new Error(`test: nieoczekiwany odczyt tabeli "${table}"`);
+      }
+      if (state.countError) {
+        return Promise.resolve({ count: null, data: null, error: state.countError }).then(
+          onFulfilled,
+        );
       }
       const tenant = String(filters.get("tenant_id") ?? "");
       const viewer = String(filters.get("viewer_hash") ?? "");
@@ -134,12 +158,14 @@ function body(patch: Record<string, unknown> = {}): Record<string, unknown> {
   return { sourcePostId: SOURCE_ID, targetPostId: TARGET_ID, ...patch };
 }
 
+const BEACON_URL = "https://redakcja.example.test/api/public/related-click";
+
 function post(
   payload: unknown,
-  options: { raw?: string; headers?: Record<string, string> } = {},
+  options: { raw?: string; headers?: Record<string, string>; url?: string } = {},
 ): Promise<Response> {
   return POST({
-    request: new Request("https://redakcja.example.test/api/public/related-click", {
+    request: new Request(options.url ?? BEACON_URL, {
       method: "POST",
       headers: {
         "cf-connecting-ip": "203.0.113.10",
@@ -152,17 +178,15 @@ function post(
 }
 
 /**
- * Żądanie preflightu w minimalnym kształcie: handler OPTIONS czyta z niego
- * WYŁĄCZNIE `Origin`. Pełnego `new Request` tu nie użyjemy, bo `Origin` jest
- * nazwą zabronioną dla kodu strony (w produkcji ustawia go przeglądarka
- * gościa), a implementacja DOM w teście po prostu ją wycina - test budowany na
- * `new Request` „przechodziłby" na braku nagłówka.
+ * Żądanie preflightu. Domyślny cel to INNY host niż domeny tenantów
+ * zasiewane w testach - inaczej każdy origin „przechodziłby" jako własny
+ * host żądania, a nie jako domena z katalogu.
  */
-function preflightRequest(origin?: string): Request {
-  const headers: Record<string, string> = origin ? { origin } : {};
-  return {
-    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
-  } as unknown as Request;
+function preflightRequest(
+  origin?: string,
+  url = "https://nes.example.test/api/public/related-click",
+): Request {
+  return new Request(url, { method: "OPTIONS", headers: origin ? { origin } : {} });
 }
 
 /** Ostatni zapisany wiersz w kształcie, o który pytają asercje. */
@@ -189,6 +213,8 @@ beforeEach(() => {
   ]);
   h.state.inserted = [];
   h.state.insertError = null;
+  h.state.countError = null;
+  h.state.tables = [];
   h.state.tenantDomains = ["redakcja.example.test"];
 });
 
@@ -210,6 +236,19 @@ describe("zapis kliknięcia", () => {
     await post(body(), { headers: { "cf-connecting-ip": "203.0.113.42" } });
 
     expect(lastInserted().viewer_hash).not.toContain("203.0.113.42");
+  });
+
+  it("brak `user-agent` nie wywala zapisu - hash liczy się z samego adresu", async () => {
+    const res = await POST({
+      request: new Request(BEACON_URL, {
+        method: "POST",
+        headers: { "cf-connecting-ip": "203.0.113.10" },
+        body: JSON.stringify(body()),
+      }),
+    });
+
+    expect(res.status).toBe(202);
+    expect(lastInserted().viewer_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 });
 
@@ -305,6 +344,18 @@ describe("limiter", () => {
     const [first, second] = h.state.inserted as unknown as InsertedRow[];
     expect(first.viewer_hash).toBe(second.viewer_hash);
   });
+
+  it("awaria LICZNIKA nie gasi beaconu - `count: null` liczy się jak zero", async () => {
+    // Świadomy fail-open: to telemetria, nie bramka dostępu. Gdyby `null`
+    // porównywać wprost, `null >= 30` jest fałszem i wynik byłby ten sam - ale
+    // jawne `?? 0` mówi, że to decyzja, nie przypadek.
+    h.state.countError = { message: "statement timeout" };
+
+    const res = await post(body());
+
+    expect(res.status).toBe(202);
+    expect(h.state.inserted).toHaveLength(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -360,6 +411,8 @@ describe("granica publiczna", () => {
   });
 
   it("preflight ZNANEJ domeny tenanta odbija Origin i ustawia `Vary: Origin`", async () => {
+    // Cel to `nes.example.test`, origin - zarejestrowany mikrosite: przechodzi
+    // KATALOGIEM, a nie jako własny host żądania.
     const res = await OPTIONS({ request: preflightRequest("https://redakcja.example.test") });
 
     expect(res.status).toBe(204);
@@ -377,10 +430,26 @@ describe("granica publiczna", () => {
     expect(res.headers.get("Vary")).toBe("Origin");
   });
 
-  it("preflight hosta PODGLĄDU przechodzi - lokalny dev nie ma domeny w katalogu", async () => {
-    const res = await OPTIONS({ request: preflightRequest("http://localhost:5173") });
+  it("lokalny dev przechodzi jako TEN SAM HOST - port się nie liczy, katalog niepotrzebny", async () => {
+    h.state.tenantDomains = [];
+    const res = await OPTIONS({
+      request: preflightRequest(
+        "http://localhost:5173",
+        "http://localhost:3000/api/public/related-click",
+      ),
+    });
 
     expect(res.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:5173");
+    expect(res.headers.get("Access-Control-Allow-Headers")).toBe("content-type");
+  });
+
+  it("CUDZY host podglądu nie dostaje CORS - `*.pages.dev` może założyć każdy", async () => {
+    // Do tego wydania preflight przepuszczał KAŻDY host z `isPreviewHost`,
+    // czyli także darmową subdomenę `pages.dev` atakującego.
+    const res = await OPTIONS({ request: preflightRequest("https://zlodziej.pages.dev") });
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
   });
 
   it("preflight bez Origin i z Originem niebędącym adresem nie wywala się na wyjątku", async () => {
@@ -391,5 +460,95 @@ describe("granica publiczna", () => {
     expect(bare.headers.get("Access-Control-Allow-Origin")).toBeNull();
     expect(broken.status).toBe(204);
     expect(broken.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// BRAMKA CSRF ZAPISU.
+//
+// Do tego wydania POST nie czytał ani `Origin`, ani `Sec-Fetch-Site`, a komentarz
+// nad preflightem powoływał się na „gate tenanta w POST", którego nie było.
+// Każdy przypadek „obcy origin" niżej zwracał przed naprawą 202 i zapisywał
+// wiersz - czyli dokładnie sfabrykowany klik z `viewer_hash` ofiary.
+describe("bramka CSRF zapisu", () => {
+  it("POST z OBCEGO originu dostaje 403 i nie dotyka bazy", async () => {
+    const res = await post(body(), { headers: { origin: "https://zlodziej.example" } });
+
+    expect(res.status).toBe(403);
+    expect(await res.text()).toBe("Forbidden origin");
+    expect(h.state.inserted).toHaveLength(0);
+    // Odrzucenie PRZED odczytem wpisów i licznikiem: fałszywka nie kosztuje
+    // ani jednego zapytania.
+    expect(h.state.tables).toEqual([]);
+  });
+
+  it("Origin = host żądania przechodzi także bez wpisu w katalogu tenantów", async () => {
+    h.state.tenantDomains = [];
+
+    const own = await post(body(), { headers: { origin: "https://redakcja.example.test" } });
+    const www = await post(body(), { headers: { origin: "https://www.redakcja.example.test" } });
+
+    expect(own.status).toBe(202);
+    expect(www.status).toBe(202);
+    expect(h.state.inserted).toHaveLength(2);
+  });
+
+  it("za pośrednikiem Origin zgodny z `X-Forwarded-Host` przechodzi, choć adres niesie host wewnętrzny", async () => {
+    // Porównanie z samym `request.url` odrzucałoby tu KAŻDY prawdziwy beacon.
+    h.state.tenantDomains = [];
+
+    const res = await post(body(), {
+      url: "https://worker-7.internal.example/api/public/related-click",
+      headers: {
+        origin: "https://redakcja.example.test",
+        "x-forwarded-host": "redakcja.example.test, edge.internal.example",
+      },
+    });
+
+    expect(res.status).toBe(202);
+    expect(h.state.inserted).toHaveLength(1);
+  });
+
+  it("mikrosite z KATALOGU tenantów przechodzi, nawet gdy przeglądarka mówi `cross-site`", async () => {
+    h.state.tenantDomains = ["mikrosite.example.test"];
+
+    const res = await post(body(), {
+      headers: { origin: "https://mikrosite.example.test", "sec-fetch-site": "cross-site" },
+    });
+
+    expect(res.status).toBe(202);
+    expect(h.state.inserted).toHaveLength(1);
+  });
+
+  it("cudzy host PODGLĄDU nie jest wyjątkiem - `*.pages.dev` może założyć każdy", async () => {
+    const res = await post(body(), { headers: { origin: "https://zlodziej.pages.dev" } });
+
+    expect(res.status).toBe(403);
+    expect(h.state.inserted).toHaveLength(0);
+  });
+
+  it("`Origin: null` (piaskownica) i origin bez hosta są odrzucane", async () => {
+    const sandbox = await post(body(), { headers: { origin: "null" } });
+    const hostless = await post(body(), { headers: { origin: "file:///etc/passwd" } });
+
+    expect(sandbox.status).toBe(403);
+    expect(hostless.status).toBe(403);
+    expect(h.state.inserted).toHaveLength(0);
+  });
+
+  it("brak Origin przy `Sec-Fetch-Site: cross-site` dostaje 403", async () => {
+    const res = await post(body(), { headers: { "sec-fetch-site": "cross-site" } });
+
+    expect(res.status).toBe(403);
+    expect(h.state.inserted).toHaveLength(0);
+  });
+
+  it("brak Origin bez sygnału cross-site przechodzi jak dotąd (starsze przeglądarki)", async () => {
+    const bare = await post(body());
+    const sameOrigin = await post(body(), { headers: { "sec-fetch-site": "same-origin" } });
+
+    expect(bare.status).toBe(202);
+    expect(sameOrigin.status).toBe(202);
+    expect(h.state.inserted).toHaveLength(2);
   });
 });

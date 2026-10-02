@@ -564,6 +564,91 @@ describe("SidebarListenCard", () => {
   });
 });
 
+describe("SidebarListenCard - suwak wskaźnikiem i zwalnianie podglądu metadanych", () => {
+  function mount(props: Record<string, unknown> = {}) {
+    return renderWithQuery(
+      <SidebarListenCard postId={POST} lang="pl" title="Analiza" readMinutes={10} {...props} />,
+    );
+  }
+
+  it("puszczenie suwaka WSKAŹNIKIEM zatwierdza pozycję od razu i czyści gest", () => {
+    const player = playerStub({ status: "playing", duration: 600, currentTime: 30 });
+    h.player = player;
+    mount();
+
+    const slider = screen.getByRole("slider");
+    fireEvent.change(slider, { target: { value: "240" } });
+    fireEvent.pointerUp(slider);
+    expect(player.seek).toHaveBeenCalledWith(240);
+
+    fireEvent.blur(slider);
+    expect(player.seek).toHaveBeenCalledTimes(1);
+  });
+
+  // REGRESJA: sprzątanie zdejmowało `src`, ale bez `load()` - a samo zdjęcie
+  // atrybutu NIE przerywa pobierania elementu medialnego. Limit 8 s tylko
+  // ignorował wynik, a zapytanie o plik szło dalej.
+  it("po odczycie metadanych element jest ZWALNIANY - pobieranie przerwane", async () => {
+    h.player = playerStub({ activePostId: null });
+    const audio = przechwycAudio();
+    mount({ audioUrl: "https://cdn.example/a.mp3" });
+    const el = audio[0];
+    const load = vi.spyOn(el, "load");
+    Object.defineProperty(el, "duration", { configurable: true, value: 754 });
+
+    await act(async () => {
+      el.dispatchEvent(new Event("loadedmetadata"));
+    });
+
+    expect(screen.getByText(/12:34/)).toBeInTheDocument();
+    expect(el.getAttribute("src")).toBeNull();
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("po 8 s bez metadanych karta przestaje czekać, przerywa pobieranie i zostaje przy szacunku", async () => {
+    vi.useFakeTimers();
+    try {
+      h.player = playerStub({ activePostId: null });
+      const audio = przechwycAudio();
+      mount({ audioUrl: "https://cdn.example/wolny.mp3" });
+      const el = audio[0];
+      const load = vi.spyOn(el, "load");
+      expect(el.getAttribute("src")).toBe("https://cdn.example/wolny.mp3");
+
+      act(() => {
+        vi.advanceTimersByTime(8000);
+      });
+      expect(el.getAttribute("src")).toBeNull();
+      expect(load).toHaveBeenCalledTimes(1);
+
+      // Spóźnione metadane po limicie nie nadpisują już widoku.
+      Object.defineProperty(el, "duration", { configurable: true, value: 754 });
+      act(() => {
+        el.dispatchEvent(new Event("loadedmetadata"));
+      });
+      expect(screen.getByText(/ok\. 12 min/)).toBeInTheDocument();
+      expect(screen.queryByText(/12:34/)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("odmontowanie karty w trakcie odczytu przerywa pobieranie (raz, bez drugiego `load`)", () => {
+    h.player = playerStub({ activePostId: null });
+    const audio = przechwycAudio();
+    const view = mount({ audioUrl: "https://cdn.example/a.mp3" });
+    const el = audio[0];
+    const load = vi.spyOn(el, "load");
+
+    view.unmount();
+    // Spóźnione zdarzenie po odmontowaniu nie zwalnia elementu drugi raz.
+    el.dispatchEvent(new Event("loadedmetadata"));
+
+    expect(el.getAttribute("src")).toBeNull();
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("SidebarListenCard - wariant mobilny (full-width)", () => {
   function mount(props: Record<string, unknown> = {}) {
     return renderWithQuery(
@@ -945,6 +1030,36 @@ describe("GlobalAudioBar", () => {
 
     fireEvent.blur(screen.getByRole("slider"));
     expect(player.seek).not.toHaveBeenCalled();
+  });
+
+  it("przycisk odtwarzania PRZEŁĄCZA bieżące nagranie, nie ładuje go od nowa", async () => {
+    const player = playerStub({ track, status: "playing", duration: 600 });
+    h.player = player;
+    await mountReady();
+
+    await act(async () => {
+      screen.getByRole("button", { name: "Pauza", pressed: true }).click();
+    });
+
+    expect(player.toggle).toHaveBeenCalledTimes(1);
+    expect(player.loadAndPlay).not.toHaveBeenCalled();
+  });
+
+  it("puszczenie suwaka wskaźnikiem i klawisz zatwierdzają pozycję od razu", async () => {
+    const player = playerStub({ track, status: "playing", duration: 600, currentTime: 30 });
+    h.player = player;
+    await mountReady();
+
+    const slider = screen.getByRole("slider");
+    fireEvent.change(slider, { target: { value: "300" } });
+    fireEvent.pointerUp(slider);
+    fireEvent.change(slider, { target: { value: "120" } });
+    fireEvent.keyUp(slider, { key: "ArrowLeft" });
+    // Gest jest czyszczony po każdym zatwierdzeniu - blur nie dubluje `seek`.
+    fireEvent.blur(slider);
+
+    expect(player.seek.mock.calls).toEqual([[300], [120]]);
+    expect(slider).toHaveAttribute("aria-valuemax", "600");
   });
 
   it("błąd BEZ komunikatu od playera pokazuje zdanie w JĘZYKU MATERIAŁU", async () => {

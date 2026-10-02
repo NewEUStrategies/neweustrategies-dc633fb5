@@ -53,6 +53,12 @@ interface PostTtsRequest {
   lang?: TtsLang;
 }
 
+// Bez terminu zawieszone połączenie z dostawcą trzymało wpis koalescencji
+// w nieskończoność - KAŻDY kolejny czytelnik tego wpisu w izolacie czekał
+// na tę samą, nigdy nierozstrzygniętą obietnicę. Po terminie obietnica
+// odrzuca, `finally` zwalnia klucz, a czytelnik dostaje 502 i może ponowić.
+export const POST_TTS_UPSTREAM_TIMEOUT_MS = 90_000;
+
 function jsonError(status: number, message: string, extra?: Record<string, string>): Response {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -384,6 +390,7 @@ async function handlePostTtsRequest(request: Request): Promise<Response> {
             use_speaker_boost: true,
           },
         }),
+        signal: AbortSignal.timeout(POST_TTS_UPSTREAM_TIMEOUT_MS),
       });
 
       if (!upstream.ok) {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   PLAYBACK_RATES,
   DEFAULT_PLAYBACK_RATE,
@@ -8,9 +8,15 @@ import {
   nextPlaybackRate,
   formatPlaybackRate,
 } from "../playbackRate";
+import { memoryStorage, withStorage } from "@/test/postExperience/fixtures";
 
 beforeEach(() => {
   window.localStorage.clear();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("clampPlaybackRate", () => {
@@ -43,6 +49,46 @@ describe("trwałość localStorage", () => {
 
   it("brak zapisu = domyślna", () => {
     expect(readStoredPlaybackRate()).toBe(DEFAULT_PLAYBACK_RATE);
+  });
+
+  // Podmiana magazynu przez `withStorage` - pod happy-dom `localStorage` jest
+  // Proxy i szpieg na prototypie nie dociera do kodu (patrz fixtures).
+  it("zablokowany magazyn (tryb prywatny, SecurityError) przy ODCZYCIE daje domyślną", () => {
+    const hostile = memoryStorage();
+    hostile.setItem("audio-rate", "1.5");
+    const getItem = vi.fn(() => {
+      throw new DOMException("access denied", "SecurityError");
+    });
+    Object.defineProperty(hostile, "getItem", { value: getItem });
+    withStorage(hostile, () => {
+      expect(readStoredPlaybackRate()).toBe(DEFAULT_PLAYBACK_RATE);
+    });
+    expect(getItem).toHaveBeenCalledWith("audio-rate");
+  });
+
+  it("pełny magazyn przy ZAPISIE nie wywraca playera i nie zostawia zapisu", () => {
+    const blocked = memoryStorage({ blockWrites: true });
+    withStorage(blocked, () => {
+      expect(() => writeStoredPlaybackRate(1.75)).not.toThrow();
+      expect(readStoredPlaybackRate()).toBe(DEFAULT_PLAYBACK_RATE);
+    });
+    expect(blocked.length).toBe(0);
+  });
+
+  it("zapis PRZYCINA tempo do dozwolonej wartości, zanim trafi do magazynu", () => {
+    writeStoredPlaybackRate(1.3);
+    expect(window.localStorage.getItem("audio-rate")).toBe("1.25");
+    expect(readStoredPlaybackRate()).toBe(1.25);
+  });
+
+  it("na serwerze (bez `window`) odczyt daje domyślną, a zapis jest bezczynny", () => {
+    window.localStorage.setItem("audio-rate", "1.5");
+    vi.stubGlobal("window", undefined);
+    const ssrRead = readStoredPlaybackRate();
+    writeStoredPlaybackRate(2);
+    vi.unstubAllGlobals();
+    expect(ssrRead).toBe(DEFAULT_PLAYBACK_RATE);
+    expect(window.localStorage.getItem("audio-rate")).toBe("1.5");
   });
 });
 

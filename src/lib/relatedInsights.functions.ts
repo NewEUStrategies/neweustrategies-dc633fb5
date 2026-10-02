@@ -92,30 +92,26 @@ export const getRelatedInsights = createServerFn({ method: "POST" })
     if (roleErr) throw new Error(roleErr.message);
     if (!isAdmin) throw new Error("Forbidden: admin role required");
 
-    try {
-      // Najemca NIE jest parametrem: RPC bierze go z assert_admin_tenant()
-      // (profil wołającego), więc podmiana uuid w żądaniu nic nie daje.
-      const { data: rpcData, error } = await context.supabase.rpc("related_posts_signals", {
-        _since_days: data.days,
-      });
-      if (error) throw new Error(error.message);
-      if (!rpcData) return { ...EMPTY, summary: { ...EMPTY.summary, window_days: data.days } };
-      // RPC zwraca jsonb - już parsowany przez PostgREST do JS-owego obiektu.
-      const r = rpcData as unknown as Partial<RelatedInsightsResult>;
-      return {
-        summary: r.summary ?? { ...EMPTY.summary, window_days: data.days },
-        top_categories: r.top_categories ?? [],
-        top_tags: r.top_tags ?? [],
-        tag_cooccurrence: r.tag_cooccurrence ?? [],
-        popularity: r.popularity ?? [],
-        click_pairs: r.click_pairs ?? [],
-        hub_targets: r.hub_targets ?? [],
-      };
-    } catch (e) {
-      console.warn(
-        "[related-insights] read failed, returning empty:",
-        e instanceof Error ? e.message : e,
-      );
-      return { ...EMPTY, summary: { ...EMPTY.summary, window_days: data.days } };
-    }
+    // Najemca NIE jest parametrem: RPC bierze go z assert_admin_tenant()
+    // (profil wołającego), więc podmiana uuid w żądaniu nic nie daje.
+    const { data: rpcData, error } = await context.supabase.rpc("related_posts_signals", {
+      _since_days: data.days,
+    });
+    // Awaria leci W GÓRĘ, nie w pusty raport. Do 2026-10 handler łapał każdy
+    // błąd i oddawał zera - panel (`RelatedPostsAnalytics`) rysował wtedy „Brak
+    // danych w oknie", czyli twierdzenie o pomiarze, którego nie było, a jego
+    // karta „odczyt padł" była nieosiągalna z produkcji.
+    if (error) throw new Error(error.message);
+    if (!rpcData) return { ...EMPTY, summary: { ...EMPTY.summary, window_days: data.days } };
+    // RPC zwraca jsonb - już parsowany przez PostgREST do JS-owego obiektu.
+    const r = rpcData as unknown as Partial<RelatedInsightsResult>;
+    return {
+      summary: r.summary ?? { ...EMPTY.summary, window_days: data.days },
+      top_categories: r.top_categories ?? [],
+      top_tags: r.top_tags ?? [],
+      tag_cooccurrence: r.tag_cooccurrence ?? [],
+      popularity: r.popularity ?? [],
+      click_pairs: r.click_pairs ?? [],
+      hub_targets: r.hub_targets ?? [],
+    };
   });

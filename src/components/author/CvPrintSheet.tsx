@@ -10,7 +10,7 @@
 //     nietknięty, bo reguły są zawężone do tej klasy.
 // Tytuł dokumentu na czas druku ustawiamy na "CV - <imię>", żeby domyślna
 // nazwa pliku PDF była sensowna.
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -19,7 +19,7 @@ import type { AppLang } from "@/lib/i18n/localePath";
 import "@/lib/i18n-author-cv";
 import { FileDown } from "lucide-react";
 import type { AuthorCv } from "@/lib/queries/authorCv";
-import { formatDate, uiLocale } from "@/lib/i18n/format";
+import { DATE_ONLY_TIME_ZONE, formatDate } from "@/lib/i18n/format";
 
 export interface CvPrintIdentity {
   name: string;
@@ -31,36 +31,64 @@ export interface CvPrintIdentity {
   profileUrl?: string | null;
 }
 
-function range(
+/**
+ * Miesiąc i rok z kolumny DATE (daty CV nie mają chwili). Formatujemy w UTC -
+ * w strefie maszyny „2020-03-01" to w Nowym Jorku jeszcze luty, a serwer (UTC)
+ * i przeglądarka czytelnika drukowałyby różne miesiące. Śmieć z bazy -> "".
+ */
+export function formatCvMonth(
+  value: string | null,
+  lang: AppLang,
+  month: "short" | "long",
+): string {
+  if (!value) return "";
+  return formatDate(`${value.slice(0, 10)}T00:00:00Z`, lang, {
+    year: "numeric",
+    month,
+    timeZone: DATE_ONLY_TIME_ZONE,
+  });
+}
+
+const dateMs = (value: string | null): number =>
+  value ? Date.parse(`${value.slice(0, 10)}T00:00:00Z`) : Number.NaN;
+
+/** Zakres dat pozycji CV - wspólny dla profilu i arkusza PDF. */
+export function formatCvDateRange(
   start: string | null,
   end: string | null,
   isCurrent: boolean | null,
   lang: AppLang,
   t: TFunction,
 ): string {
-  const fmt = (d: string | null) => {
-    if (!d) return "";
-    const parsed = new Date(d);
-    if (Number.isNaN(parsed.getTime())) return "";
-    return formatDate(parsed, lang, { year: "numeric", month: "short" });
-  };
-  const s = fmt(start);
-  const e = isCurrent ? t("authorCv.present") : fmt(end);
+  // Edytor profilu nie pilnuje kolejności dat, więc odwrócony zakres
+  // pokazujemy chronologicznie zamiast „sty 2021 - maj 2018".
+  const reversed = !isCurrent && dateMs(end) < dateMs(start);
+  const s = formatCvMonth(reversed ? end : start, lang, "short");
+  const e = isCurrent
+    ? t("authorCv.present")
+    : formatCvMonth(reversed ? start : end, lang, "short");
   if (s && e) return `${s} - ${e}`;
   return s || e;
 }
 
 export function useCvPrint(name: string) {
   const cleanupRef = useRef<(() => void) | null>(null);
+  const frameRef = useRef<number | null>(null);
 
   useEffect(
     () => () => {
+      // Wyjście ze strony przed klatką druku nie może otworzyć okna drukowania
+      // nad stroną, na której arkusza już nie ma.
+      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
       cleanupRef.current?.();
     },
     [],
   );
 
   return useCallback(() => {
+    // Drugie kliknięcie przed `afterprint` zapamiętałoby jako „poprzedni" tytuł
+    // już podmieniony „CV - …" i po druku zostawiło go w karcie na stałe.
+    cleanupRef.current?.();
     const root = document.documentElement;
     const prevTitle = document.title;
     root.classList.add("cv-print-mode");
@@ -75,7 +103,11 @@ export function useCvPrint(name: string) {
     window.addEventListener("afterprint", cleanup);
     // Drukujemy w następnej klatce, żeby przeglądarka zdążyła zastosować
     // klasę print-mode do arkusza przed zrzutem strony.
-    window.requestAnimationFrame(() => window.print());
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = null;
+      window.print();
+    });
   }, [name]);
 }
 
@@ -95,6 +127,13 @@ export function CvDownloadButton({ identity }: { identity: CvPrintIdentity }) {
   );
 }
 
+// Portal dopiero po hydratacji: serwer nie ma `document` i oddaje null, a
+// portal w pierwszym renderze klienta to niezgodność hydratacji - React
+// porzuca wtedy HTML serwera i renderuje drzewo profilu od zera.
+const noopSubscribe = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
+
 export function CvPrintSheet({
   identity,
   cv,
@@ -104,7 +143,8 @@ export function CvPrintSheet({
 }): React.ReactPortal | null {
   const { t } = useTranslation();
   const lang = useLang();
-  if (typeof document === "undefined") return null;
+  const canPortal = useSyncExternalStore(noopSubscribe, clientSnapshot, serverSnapshot);
+  if (!canPortal) return null;
 
   const { experiences, education, skills, awards, hobbies } = cv;
   const contactBits = [identity.contactEmail, identity.websiteUrl].filter(Boolean) as string[];
@@ -131,7 +171,7 @@ export function CvPrintSheet({
                 {e.company ? ` · ${e.company}` : ""}
               </h3>
               <p className="cv-print-meta">
-                {[range(e.start_date, e.end_date, e.is_current, lang, t), e.location]
+                {[formatCvDateRange(e.start_date, e.end_date, e.is_current, lang, t), e.location]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -150,7 +190,7 @@ export function CvPrintSheet({
               <p className="cv-print-meta">
                 {[
                   [e.degree, e.field].filter(Boolean).join(" · "),
-                  range(e.start_date, e.end_date, null, lang, t),
+                  formatCvDateRange(e.start_date, e.end_date, null, lang, t),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -181,17 +221,7 @@ export function CvPrintSheet({
             <article key={a.id}>
               <h3>{a.title}</h3>
               <p className="cv-print-meta">
-                {[
-                  a.issuer,
-                  a.awarded_at
-                    ? new Date(a.awarded_at).toLocaleDateString(uiLocale(lang), {
-                        year: "numeric",
-                        month: "long",
-                      })
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
+                {[a.issuer, formatCvMonth(a.awarded_at, lang, "long")].filter(Boolean).join(" · ")}
               </p>
               {a.description && <p className="cv-print-desc">{a.description}</p>}
             </article>

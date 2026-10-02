@@ -21,13 +21,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { authorCvQueryOptions, type AuthorCv } from "@/lib/queries/authorCv";
-import { formatDate, uiLocale } from "@/lib/i18n/format";
+import { safeUrl } from "@/lib/sanitizePure";
 import { useAuth } from "@/hooks/useAuth";
 import { useConnectionStatuses } from "@/lib/network/useConnections";
 import { useSkillEndorsements, useToggleEndorsement } from "@/lib/network/useEndorsements";
 import {
   CvDownloadButton,
   CvPrintSheet,
+  formatCvDateRange,
+  formatCvMonth,
   type CvPrintIdentity,
 } from "@/components/author/CvPrintSheet";
 
@@ -36,25 +38,6 @@ interface Props {
   /** Tożsamość do nagłówka arkusza PDF; bez niej przycisk eksportu nie
    *  jest pokazywany (arkusz bez imienia byłby bezużyteczny). */
   printIdentity?: CvPrintIdentity;
-}
-
-function formatDateRange(
-  start: string | null,
-  end: string | null,
-  isCurrent: boolean | null,
-  lang: AppLang,
-  t: TFunction,
-): string {
-  const fmt = (d: string | null) => {
-    if (!d) return "";
-    const parsed = new Date(d);
-    if (Number.isNaN(parsed.getTime())) return "";
-    return formatDate(parsed, lang, { year: "numeric", month: "short" });
-  };
-  const s = fmt(start);
-  const e = isCurrent ? t("authorCv.present") : fmt(end);
-  if (s && e) return `${s} - ${e}`;
-  return s || e;
 }
 
 export function AuthorCvSections({ userId, printIdentity }: Props): React.ReactElement | null {
@@ -78,18 +61,21 @@ export function AuthorCvSections({ userId, printIdentity }: Props): React.ReactE
       {printIdentity && <CvPrintSheet identity={printIdentity} cv={data} />}
       {experiences.length > 0 && <ExperienceSection items={experiences} lang={lang} t={t} />}
       {education.length > 0 && <EducationSection items={education} lang={lang} t={t} />}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {skills.length > 0 && (
-          <div className="lg:col-span-2">
-            <SkillsSection items={skills} t={t} authorId={userId ?? null} />
-          </div>
-        )}
-        {hobbies.length > 0 && (
-          <div>
-            <HobbiesSection items={hobbies} t={t} />
-          </div>
-        )}
-      </div>
+      {/* Pusta siatka dokładałaby odstęp `space-y-10` bez żadnej treści. */}
+      {skills.length + hobbies.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {skills.length > 0 && (
+            <div className="lg:col-span-2">
+              <SkillsSection items={skills} t={t} authorId={userId ?? null} />
+            </div>
+          )}
+          {hobbies.length > 0 && (
+            <div>
+              <HobbiesSection items={hobbies} t={t} />
+            </div>
+          )}
+        </div>
+      )}
       {awards.length > 0 && <AwardsSection items={awards} lang={lang} t={t} />}
     </section>
   );
@@ -145,7 +131,7 @@ function ExperienceSection({
                   {e.company && <span className="text-muted-foreground">· {e.company}</span>}
                 </div>
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground mt-0.5">
-                  <span>{formatDateRange(e.start_date, e.end_date, e.is_current, lang, t)}</span>
+                  <span>{formatCvDateRange(e.start_date, e.end_date, e.is_current, lang, t)}</span>
                   {e.location && (
                     <span className="inline-flex items-center gap-1">
                       <MapPin className="w-3 h-3" />
@@ -197,7 +183,7 @@ function EducationSection({
                 </div>
               )}
               <div className="text-xs text-muted-foreground mt-0.5">
-                {formatDateRange(e.start_date, e.end_date, null, lang, t)}
+                {formatCvDateRange(e.start_date, e.end_date, null, lang, t)}
               </div>
               {e.description && (
                 <p className="text-sm text-muted-foreground mt-2 whitespace-pre-line">
@@ -234,7 +220,8 @@ function SkillsSection({
       <SectionHeader icon={Sparkles} title={t("authorCv.skills")} />
       <div className="space-y-4">
         {groups.map(([category, list]) => (
-          <div key={category || "default"}>
+          // Prefiks odróżnia kategorię nazwaną „default" od grupy bez kategorii.
+          <div key={category ? `cat-${category}` : "uncategorized"}>
             {category && (
               <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
                 {category}
@@ -392,6 +379,10 @@ function AwardsSection({
       <SectionHeader icon={Award} title={t("authorCv.awards")} />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {items.map((a) => {
+          // Adres wpisuje autor profilu bez walidacji - link tylko dla
+          // bezpiecznego schematu, reszta zostaje zwykłą kartą.
+          const href = a.url ? safeUrl(a.url, "") : "";
+          const awardedAt = formatCvMonth(a.awarded_at, lang, "long");
           const inner = (
             <>
               <div className="flex items-start gap-2">
@@ -403,16 +394,9 @@ function AwardsSection({
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-sm">{a.title}</h3>
                   {a.issuer && <div className="text-xs text-muted-foreground">{a.issuer}</div>}
-                  {a.awarded_at && (
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(a.awarded_at).toLocaleDateString(uiLocale(lang), {
-                        year: "numeric",
-                        month: "long",
-                      })}
-                    </div>
-                  )}
+                  {awardedAt && <div className="text-xs text-muted-foreground">{awardedAt}</div>}
                 </div>
-                {a.url && <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                {href && <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
               </div>
               {a.description && (
                 <p className="text-xs text-muted-foreground mt-2 whitespace-pre-line">
@@ -421,10 +405,10 @@ function AwardsSection({
               )}
             </>
           );
-          return a.url ? (
+          return href ? (
             <a
               key={a.id}
-              href={a.url}
+              href={href}
               target="_blank"
               rel="noreferrer"
               className="rounded-lg border border-border bg-card p-4 hover:border-brand transition-colors"

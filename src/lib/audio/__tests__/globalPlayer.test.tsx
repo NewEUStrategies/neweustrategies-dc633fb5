@@ -15,7 +15,8 @@
 //   3. PAMIĘĆ POZYCJI. Wznowienie tam, gdzie skończył, i wyczyszczenie zapisu
 //      po wysłuchaniu do końca.
 //   4. LIMITY DOSTAWCY. 402 i 429 mają WŁASNE komunikaty - „HTTP 402" nic
-//      czytelnikowi nie mówi.
+//      czytelnikowi nie mówi. Pozostałe kody NIE niosą treści serwera: to
+//      techniczny JSON, a widżet ma pokazać zdanie ze słownika.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -241,6 +242,62 @@ describe("useGlobalAudioPlayer - kontrakt kontekstu", () => {
     expect(FakeAudio.last).toBeNull();
   });
 
+  it("poza providerem KAŻDA akcja jest bezczynna: bez syntezy, bez zapisu, bez wyjątku", async () => {
+    // Komponent odsłuchu wyrenderowany poza drzewem `__root` (SSR, wyspa
+    // poza providerem) może zostać kliknięty - atrapa nie może wtedy ani
+    // wybuchnąć, ani po cichu zapłacić za syntezę.
+    let outside: ReturnType<typeof useGlobalAudioPlayer> | undefined;
+    const Orphan = () => {
+      outside = useGlobalAudioPlayer();
+      return null;
+    };
+    render(<Orphan />);
+    if (!outside) throw new Error("hook nie zwrócił wartości");
+    const orphan = outside;
+
+    await expect(orphan.loadAndPlay(META)).resolves.toBeUndefined();
+    await expect(orphan.toggle()).resolves.toBeUndefined();
+    await expect(orphan.download(META)).resolves.toBeUndefined();
+    orphan.seek(30);
+    orphan.seekPct(50);
+    orphan.skip(15);
+    orphan.setPlaybackRate(2);
+    orphan.close();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(window.localStorage.length).toBe(0);
+    expect(orphan.playbackRate).toBe(1);
+    expect(orphan.tts.stage).toBe("idle");
+  });
+
+  it("ODMONTOWANIE providera przerywa pobieranie w toku - nagranie nie trafia do cache", async () => {
+    let signal: AbortSignal | undefined;
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          signal = init.signal ?? undefined;
+          signal?.addEventListener("abort", () => {
+            const abort = new Error("aborted");
+            abort.name = "AbortError";
+            reject(abort);
+          });
+        }),
+    );
+    const view = render(<Probe />, { wrapper });
+    await waitFor(() => expect(FakeAudio.last).not.toBeNull());
+    let pending: Promise<void> | undefined;
+    act(() => {
+      pending = api?.loadAndPlay(META);
+    });
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    view.unmount();
+
+    expect(signal?.aborted).toBe(true);
+    await expect(pending).resolves.toBeUndefined();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
   it("provider startuje w stanie bezczynnym, bez nagrania i bez błędu", async () => {
     await mount();
     expect(at("status")).toBe("idle");
@@ -387,24 +444,24 @@ describe("błędy dostawcy - komunikat musi coś znaczyć", () => {
     expect(at("error")).toContain("prób");
   });
 
-  it("inny błąd przekazuje TREŚĆ z serwera, gdy jest", async () => {
-    fetchMock.mockResolvedValue(failResponse(500, "provider padl"));
+  // REGRESJA: ciało błędu `/api/public/post-tts` to JSON po angielsku
+  // (`{"error":"Post not found"}`) i trafiało DOSŁOWNIE do toastu czytelnika,
+  // a błąd bez treści - jako „HTTP 503". `error` zostaje teraz pusty, więc
+  // widżety sięgają po zdanie ze słownika w języku materiału (te gałęzie
+  // pilnuje `components/audio/__tests__/audioOrganisms.test.tsx`).
+  it.each([
+    [404, '{"error":"Post not found"}'],
+    [502, '{"error":"TTS upstream failed"}'],
+    [503, ""],
+  ])("odpowiedź %i NIE przekazuje czytelnikowi treści serwera", async (status, body) => {
+    fetchMock.mockResolvedValue(failResponse(status, body));
     await mount();
     await act(async () => {
       await api?.loadAndPlay(META);
     });
-    expect(at("error")).toBe("provider padl");
-    expect(at("stage")).toBe("error");
-  });
-
-  it("błąd BEZ treści degraduje do kodu HTTP - nigdy do pustego komunikatu", async () => {
-    fetchMock.mockResolvedValue(failResponse(503, ""));
-    await mount();
-    await act(async () => {
-      await api?.loadAndPlay(META);
-    });
-    expect(at("error")).toBe("HTTP 503");
     expect(at("status")).toBe("error");
+    expect(at("stage")).toBe("error");
+    expect(at("error")).toBe("");
   });
 
   it("padnięta sieć kończy się stanem błędu, nie zawieszeniem na `preparing`", async () => {
