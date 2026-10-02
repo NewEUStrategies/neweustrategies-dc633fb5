@@ -29,7 +29,15 @@ export interface RedirectRule {
 }
 
 export interface RedirectMatch {
+  /** Reguła KOŃCOWA łańcucha - to ona wyznacza cel i kod odpowiedzi. */
   rule: RedirectRule;
+  /**
+   * Reguła WEJŚCIOWA - ta, którą dopasował adres żądania (przy braku
+   * łańcucha to ta sama reguła co `rule`). Liczniki trafień w panelu
+   * (`hit_count`) idą na nią: odpowiadają na pytanie „czy na TEN stary adres
+   * ktoś jeszcze wchodzi", od którego zależy decyzja o usunięciu reguły.
+   */
+  entryRule: RedirectRule;
   /** Final destination (path + preserved query, or an absolute URL). */
   target: string;
   /** True when the terminal rule is a 410 Gone. */
@@ -76,6 +84,17 @@ function cleanPathname(pathname: string): string {
 export function normalizeSourcePath(raw: string): string | null {
   let input = raw.trim();
   if (!input) return null;
+  // Odwrotny ukośnik zwijamy PRZED `new URL()`, a nie dopiero w
+  // `cleanPathname`: parser WHATWG czyta "/\x" jak "//x", czyli adres
+  // protokołowo-relatywny z hostem "x" i ścieżką "/" - wiersz CSV
+  // `/\stary-wpis,/nowy` (eksporty z Windows i z WP) cicho stawał się regułą
+  // dla STRONY GŁÓWNEJ. Zwijamy tylko część przed "?"/"#": zapytanie zostaje
+  // dosłowne (dopasowanie "?p=123" jest bajtowe). Ta sama semantyka co dla
+  // celów - "\" to "/" w tej samej witrynie.
+  const pathEnd = input.search(/[?#]/);
+  const head = pathEnd === -1 ? input : input.slice(0, pathEnd);
+  const hadBackslash = head.includes("\\");
+  if (hadBackslash) input = `${head.replace(/\\/g, "/")}${input.slice(head.length)}`;
   // "//a/b" would parse as a protocol-relative URL (host "a") - collapse the
   // leading slashes so it is treated as the path it was meant to be.
   if (/^\/\//.test(input)) input = `/${input.replace(/^\/+/, "")}`;
@@ -89,6 +108,11 @@ export function normalizeSourcePath(raw: string): string | null {
     return null;
   }
   const cleaned = cleanPathname(pathname);
+  // Wejście zbudowane z samych ukośników, w którym był "\" ("\", "/\", "\\"),
+  // to uszkodzona komórka eksportu, a nie świadoma reguła dla "/": reguła
+  // strony głównej to najdroższa pomyłka, więc katalog główny przyjmujemy
+  // tylko zapisany wprost ("/", "/?p=1", "https://host/").
+  if (hadBackslash && cleaned === "/" && !search) return null;
   if (cleaned.includes("*") && !isWildcardSource(cleaned)) return null;
   const normalized = `${cleaned}${search}`;
   return normalized.length > 2048 ? null : normalized;
@@ -198,7 +222,7 @@ function resolveChain(
   const statusCode: RedirectStatusCode = isRedirectStatusCode(rule.status_code)
     ? rule.status_code
     : 301;
-  return { rule, target, gone, statusCode };
+  return { rule, entryRule: first.rule, target, gone, statusCode };
 }
 
 /**

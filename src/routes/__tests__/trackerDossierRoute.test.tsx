@@ -26,6 +26,12 @@
 //   5. PANEL NIE OFERUJE AKCJI, KTÓRĄ BAZA ODRZUCI. Obserwowanie wymaga
 //      planu Pro (RLS na `eu_policy_follows`) - bez niego trasa NIE PRÓBUJE
 //      insertu, tylko kieruje na ofertę; a insert MUSI nieść jawny tenant.
+//   6. DEGRADACJA MÓWI PRAWDĘ I LECZY SIĘ SAMA. Blip odczytu dossier to nie
+//      „nie znaleziono": strona 200 z `noindex` pokazuje komunikat awarii
+//      z ponowieniem, a refetch po hydratacji (albo „spróbuj ponownie")
+//      podmienia go na dossier bez nawigacji. Do tej pracy ten stan
+//      renderował ekran 404 - na serwerze - i „ładowanie" w pierwszym
+//      renderze klienta (rozjazd hydratacji).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - `src/lib/tracker/queries.ts` biegnie tu PRAWDZIWY (atrapowany jest tylko
@@ -71,6 +77,8 @@ const h = vi.hoisted(() => ({
   authTenantId: null as string | null,
   /** Powierzchnie, których odczyt ma paść (blip backendu). */
   broken: new Set<string>(),
+  /** Powierzchnie, których odczyt pada TYLKO RAZ - blip, który mija przed refetchem. */
+  failOnce: new Set<string>(),
   /** Etykiety odczytów w kolejności - podstawa pomiaru fal loadera. */
   reads: [] as string[],
   /** Adres żądania widziany przez `head()`. */
@@ -79,6 +87,8 @@ const h = vi.hoisted(() => ({
   cacheControl: [] as string[],
   /** Komunikaty podane do `toast.info` / `toast.error`. */
   toasts: [] as string[],
+  /** Akcje dołączone do toastów (np. „zobacz plany") - do wywołania w teście. */
+  toastActions: [] as { label: string; onClick: () => void }[],
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -99,6 +109,9 @@ vi.mock("@/integrations/supabase/client", async () => {
 
   stub.setResponse("eu_policy_items", (chain) => {
     h.reads.push("eu_policy_items");
+    if (h.failOnce.delete("eu_policy_items")) {
+      return fail("test: tabela eu_policy_items chwilowo niedostepna");
+    }
     if (h.broken.has("eu_policy_items")) return fail("test: tabela eu_policy_items niedostepna");
     const eq = eqMap(chain.calls);
     const row = h.items
@@ -178,7 +191,10 @@ vi.mock("@/lib/http/responseHeaders", () => ({
 
 vi.mock("sonner", () => ({
   toast: {
-    info: (message: string) => void h.toasts.push(message),
+    info: (message: string, options?: { action?: { label: string; onClick: () => void } }) => {
+      h.toasts.push(message);
+      if (options?.action) h.toastActions.push(options.action);
+    },
     error: (message: string) => void h.toasts.push(message),
     success: (message: string) => void h.toasts.push(message),
   },
@@ -341,7 +357,7 @@ function jsonLdNode(head: RouteHeadResult, type: string): Record<string, unknown
 type DossierLoader = (ctx: {
   context: { queryClient: QueryClient };
   params: { slug: string };
-}) => Promise<{ item: Record<string, unknown> | null }>;
+}) => Promise<{ item: Record<string, unknown> | null; degraded: boolean }>;
 
 function dossierLoader(): DossierLoader {
   const loader: unknown = DossierRoute.options.loader;
@@ -368,10 +384,12 @@ beforeEach(async () => {
   h.user = null;
   h.authTenantId = null;
   h.broken = new Set<string>();
+  h.failOnce = new Set<string>();
   h.reads = [];
   h.requestUrl = `https://nes.example.org/tracker/${SLUG}`;
   h.cacheControl = [];
   h.toasts = [];
+  h.toastActions = [];
 });
 
 afterEach(async () => {
@@ -465,6 +483,64 @@ describe("trasa /tracker/$slug - sklejenie i treść dossier", () => {
   });
 });
 
+describe("trasa /tracker/$slug - etap terminalny i powiązane akty", () => {
+  it("dossier WYCOFANE pokazuje etykietę etapu zamiast paska postępu", async () => {
+    // Pasek sześciu etapów dla wycofanego aktu sugerowałby, że procedura
+    // trwa i stoi na którymś z nich - a ona się skończyła.
+    h.items = [item({ stage: "withdrawn" })];
+    await mount();
+
+    expect(screen.getByText("Wycofane")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: /Postęp procedury legislacyjnej/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("powiązane akty linkują do dossier PO SLUGU, z typem relacji i etapem", async () => {
+    h.links = [
+      {
+        related_item_id: "22222222-2222-4222-8222-222222222222",
+        relation: "amends",
+        eu_policy_items: {
+          slug: "akt-o-danych",
+          title_pl: "Akt o danych",
+          title_en: "Data Act",
+          stage: "in_force",
+          status: "published",
+        },
+      },
+    ];
+    await mount();
+
+    const link = await screen.findByRole("link", { name: /Akt o danych/ });
+    expect(link).toHaveAttribute("href", "/tracker/akt-o-danych");
+    expect(link).toHaveTextContent("Nowelizuje");
+    expect(link).toHaveTextContent("Obowiązuje");
+  });
+
+  it("po angielsku powiązany akt bierze angielski tytuł i etykietę relacji", async () => {
+    await i18n.changeLanguage("en");
+    h.links = [
+      {
+        related_item_id: "22222222-2222-4222-8222-222222222222",
+        relation: "implements",
+        eu_policy_items: {
+          slug: "akt-o-danych",
+          title_pl: "Akt o danych",
+          title_en: "Data Act",
+          stage: "adopted",
+          status: "published",
+        },
+      },
+    ];
+    await mount();
+
+    const link = await screen.findByRole("link", { name: /Data Act/ });
+    expect(link).toHaveTextContent("Implements");
+    expect(link).not.toHaveTextContent("Akt o danych");
+  });
+});
+
 describe("trasa /tracker/$slug - 404 kontra degradacja", () => {
   it("nieistniejący slug kończy się 404, a nie stroną 200 z komunikatem", async () => {
     // `notFound()` w loaderze jest jedyną rzeczą, która trzyma ten adres poza
@@ -526,6 +602,78 @@ describe("trasa /tracker/$slug - 404 kontra degradacja", () => {
     ).rejects.toBeTruthy();
 
     expect(h.cacheControl.at(-1)).not.toContain("no-store");
+  });
+});
+
+describe("trasa /tracker/$slug - degradacja mówi prawdę i leczy się sama", () => {
+  const DEGRADED_TEXT = "Ta sekcja chwilowo nie ma danych";
+
+  it("REGUŁA 6: blip odczytu dossier daje komunikat awarii z ponowieniem, NIE „nie znaleziono”", async () => {
+    // Regresja: loader oddawał samo `{ item: null }`, więc ten stan szedł
+    // w gałąź `!item` - czytelnik żywego dossier czytał „Nie znaleziono
+    // dossier." i nie miał powodu ponawiać.
+    h.broken.add("eu_policy_items");
+    await mount();
+
+    expect(await screen.findByText(DEGRADED_TEXT)).toBeInTheDocument();
+    expect(screen.queryByText("Nie znaleziono dossier.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeInTheDocument();
+  });
+
+  it("loader oddaje flagę degradacji TOŻSAMOŚCI - a czysty odczyt jej nie podnosi", async () => {
+    h.broken.add("eu_policy_items");
+    const broken = await dossierLoader()({
+      context: { queryClient: freshClient() },
+      params: { slug: SLUG },
+    });
+    h.broken.delete("eu_policy_items");
+    const clean = await dossierLoader()({
+      context: { queryClient: freshClient() },
+      params: { slug: SLUG },
+    });
+
+    expect(broken).toMatchObject({ item: null, degraded: true });
+    expect(clean.degraded).toBe(false);
+  });
+
+  it("blip SAMEJ osi czasu nie zamienia dossier w komunikat awarii", async () => {
+    // Flaga dotyczy tożsamości. Oś czasu ma własny pusty stan, a nagłówek
+    // cache'a i tak wychodzi `no-store` - dossier jest w pełni prawdziwe.
+    h.broken.add("eu_policy_updates");
+    const data = await dossierLoader()({
+      context: { queryClient: freshClient() },
+      params: { slug: SLUG },
+    });
+
+    expect(data.degraded).toBe(false);
+    expect(h.cacheControl.at(-1)).toContain("no-store");
+  });
+
+  it("SSR zdegradowany + UDANY refetch: komunikat znika, dossier się renderuje", async () => {
+    // Pierwszy render niesie komunikat - ten sam, który wyszedł z serwera
+    // (parytet hydratacji); przełączenie przychodzi z refetchem obserwatora.
+    h.failOnce.add("eu_policy_items");
+    const view = await mount();
+
+    expect(view.getByText(DEGRADED_TEXT)).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /Akt o rynkach danych/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(DEGRADED_TEXT)).toBeNull();
+  });
+
+  it("„spróbuj ponownie” pyta backend JESZCZE RAZ i leczy stronę bez nawigacji", async () => {
+    h.broken.add("eu_policy_items");
+    const view = await mount();
+    const retry = await screen.findByRole("button", { name: "Spróbuj ponownie" });
+
+    h.broken.delete("eu_policy_items");
+    fireEvent.click(retry);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: /Akt o rynkach danych/ }),
+    ).toBeInTheDocument();
+    expect(view.currentPath()).toBe(`/tracker/${SLUG}`);
   });
 });
 
@@ -595,6 +743,20 @@ describe("trasa /tracker/$slug - obserwowanie za bramką planu", () => {
 
     expect(h.followInserts).toEqual([]);
     expect(h.toasts).toContain("Monitoring regulacyjny z alertami jest częścią planu Pro.");
+  });
+
+  it("oferta w komunikacie PROWADZI na cennik - akcja toastu nawiguje na /pricing", async () => {
+    // Komunikat bez drogi do planu to ślepa uliczka: czytelnik wie, czego mu
+    // brakuje, ale nie ma gdzie kliknąć. Akcja jest jedynym wejściem.
+    h.user = { id: USER_ID };
+    h.authTenantId = TENANT_A;
+    h.tier = { features: { regulatory_monitoring: false } };
+    const view = await mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Obserwuj" }));
+
+    expect(h.toastActions).toHaveLength(1);
+    h.toastActions[0].onClick();
+    await waitFor(() => expect(view.currentPath()).toBe("/pricing"));
   });
 
   it("ODOBSERWOWAĆ można zawsze - także bez planu Pro", async () => {

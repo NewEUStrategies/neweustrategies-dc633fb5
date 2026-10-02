@@ -40,7 +40,7 @@
 //   strona OGŁASZA ten kanał w `<head>` i w treści.
 // - PARYTETU SŁOWNIKA PL/EN: `src/lib/__tests__/i18nPodcasts.test.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 const { TENANT_A, TENANT_B, SHOW_ID, OTHER_SHOW_ID, SLUG } = vi.hoisted(() => ({
   TENANT_A: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -74,6 +74,8 @@ const h = vi.hoisted(() => ({
   cacheControl: [] as string[],
   /** Wartości nagłówka HTTP `Link` (preload okładki programu). */
   linkHeaders: [] as string[],
+  /** Czy okruszki mają RZUCIĆ w renderze (awaria renderu, nie odczytu). */
+  breadcrumbsThrow: false,
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -125,6 +127,20 @@ vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
   readRouteCacheDirective: () => null,
 }));
+
+// Okruszki są pierwszym elementem strony programu i nie niosą danych - atrapa
+// przepuszcza prawdziwy komponent, dopóki test nie zażąda awarii renderu.
+vi.mock("@/components/Breadcrumbs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/Breadcrumbs")>();
+  const Real = actual.Breadcrumbs;
+  return {
+    ...actual,
+    Breadcrumbs: (props: Parameters<typeof Real>[0]) => {
+      if (h.breadcrumbsThrow) throw new Error("test: okruszki wywrocily render programu");
+      return <Real {...props} />;
+    },
+  };
+});
 
 import "@/test/i18nReal";
 import { QueryClient } from "@tanstack/react-query";
@@ -260,6 +276,7 @@ beforeEach(async () => {
   h.requestUrl = `https://nes.example.org/podcasts/${SLUG}`;
   h.cacheControl = [];
   h.linkHeaders = [];
+  h.breadcrumbsThrow = false;
 });
 
 afterEach(async () => {
@@ -316,6 +333,53 @@ describe("trasa /podcasts/$show - sklejenie i treść programu", () => {
       "href",
       `/podcasts/${SLUG}/rss.xml`,
     );
+  });
+
+  it("linki platform idą w STAŁEJ kolejności przed kanałem RSS, a puste wypadają", async () => {
+    // Pusty adres platformy to martwy przycisk „Apple Podcasts" prowadzący
+    // donikąd; zewnętrzne platformy otwierają się w nowej karcie bez
+    // przekazania `window.opener`.
+    h.shows = [
+      show({
+        spotify_url: "https://open.example.org/show/europa",
+        apple_url: null,
+        youtube_url: "https://video.example.org/europa",
+      }),
+    ];
+    await mount();
+
+    const nav = screen.getByRole("link", { name: "Spotify" }).closest("nav");
+    if (!nav) throw new Error("test: linki platform poza <nav>");
+    const links = within(nav).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual(["Spotify", "YouTube", "RSS"]);
+    expect(links[0]).toHaveAttribute("target", "_blank");
+    expect(links[0]).toHaveAttribute("rel", "noopener noreferrer");
+    // Własny kanał serwisu NIE otwiera nowej karty - to nie jest platforma.
+    expect(links[2]).not.toHaveAttribute("target");
+  });
+
+  it("awaria RENDERU strony programu daje wspólny ekran błędu, a ponowienie go leczy", async () => {
+    // Inna awaria niż blip odczytu (ten ma render zdegradowany): wyjątek
+    // w drzewie trasy. Bez granicy błędu zostaje pusty dokument.
+    h.breadcrumbsThrow = true;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mount();
+
+    // Przycisk bierzemy ŚWIEŻO tuż przed kliknięciem: granica błędu routera
+    // rysuje ekran od nowa po zmianie stanu routera, więc węzeł z `findBy`
+    // bywa już odpięty - a klik w odpięty węzeł nie robi niczego.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Spróbuj ponownie" })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("heading", { level: 1, name: "Europa o energii" })).toBeNull();
+
+    h.breadcrumbsThrow = false;
+    fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Europa o energii" }),
+    ).toBeInTheDocument();
   });
 
   it("prowadzący serii są liczeni RAZ, choć występują w wielu odcinkach", async () => {

@@ -41,7 +41,8 @@
 //     nie ma ani `<head>`, ani SSR, ani jednego żądania sieciowego: handler
 //     jest wołany wprost przez `routeServerHandlers`.
 //   * `src/lib/seo/__tests__/ogImage.test.ts` - semantyka `ogVersionFromIso` i
-//     `withOgVersion` (doklejanie `?v=`, no-op dla `data:` i URL z `?`). Tutaj
+//     `withOgVersion` (doklejanie `?v=` PRZED `#fragmentem`, podmiana query
+//     złożonego z samego `v=`, no-op dla `data:` i URL z obcym query). Tutaj
 //     sprawdzana jest tylko LICZBA, którą webhook raportuje wołającemu.
 //   * `src/routes/author.$slug.tsx` - użycie wersji w `head()` profilu autora.
 //   * RLS i uprawnienia `profiles` - domena pgTAP; PostgREST jest tu atrapą.

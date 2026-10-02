@@ -66,12 +66,12 @@ export const Route = createFileRoute("/programs/")({
     };
   },
   component: ProgramsIndex,
-  pendingComponent: () => <ArchiveSkeleton />,
+  pendingComponent: ArchiveSkeleton,
   // Nagłówek błędu idzie ze SŁOWNIKA: `errorComponent` renderuje się jak każdy
   // inny komponent, więc `t()` jest tu dostępne. Wersja z `activeLang()` była
   // drugim, równoległym zestawem literałów - bramka parytetu PL/EN nie miała
   // czego porównać, a angielska gałąź mówiła coś innego niż słownik.
-  errorComponent: (props) => <ProgramsIndexError {...props} />,
+  errorComponent: ProgramsIndexError,
 });
 
 function ProgramsIndexError(props: ErrorComponentProps) {

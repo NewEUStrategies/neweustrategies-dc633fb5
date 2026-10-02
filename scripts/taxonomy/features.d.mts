@@ -4,6 +4,7 @@ export interface FeatureDefinition {
   patterns: RegExp[];
 }
 export const FEATURES_3: FeatureDefinition[];
+export const FEATURES_7: FeatureDefinition[];
 export const FEATURES_16: FeatureDefinition[];
 export const FEATURES_21: FeatureDefinition[];
 export const FEATURES: Map<number, FeatureDefinition[]>;

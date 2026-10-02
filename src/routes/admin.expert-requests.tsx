@@ -1,5 +1,9 @@
+// Panel `/admin/expert-requests` - przegląd i rozstrzyganie „Zapytań do
+// eksperta" całego obszaru roboczego. Autoryzację, granicę tenanta i przejścia
+// statusu egzekwuje RPC (`resolve_expert_request`, SECURITY DEFINER); panel
+// tylko relayuje intencję i tłumaczy odmowę na klucz i18n.
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,6 +28,7 @@ import {
   type ExpertRequestRow,
 } from "@/lib/chat/useExpertRequests";
 import { expertRequestErrorI18nKey } from "@/lib/chat/expertRequestErrors";
+import { EXPERT_REQUEST_RESULT_STATUS } from "@/lib/chat/expertRequestStatus";
 import { ensureI18n as ensureExpertRequestI18n } from "@/lib/i18n-expert-request";
 
 export const Route = createFileRoute("/admin/expert-requests")({
@@ -39,17 +44,22 @@ export const Route = createFileRoute("/admin/expert-requests")({
 
 const STATUSES = ["pending", "approved", "declined", "answered", "cancelled"] as const;
 
+type AdminAction = "approve" | "decline";
+
 function AdminExpertRequests() {
   ensureExpertRequestI18n();
   const { t } = useTranslation();
+  const filterId = useId();
   const [status, setStatus] = useState<string>("pending");
   const q = useAdminExpertRequests(status === "all" ? null : status);
   const resolve = useResolveExpertRequest();
 
-  async function act(row: ExpertRequestRow, action: "approve" | "decline" | "answered") {
+  async function act(row: ExpertRequestRow, action: AdminAction) {
     try {
       const res = await resolve.mutateAsync({ requestId: row.id, action });
-      toast.success(t(`expertRequest.status.${res?.status ?? action}`));
+      toast.success(
+        t(`expertRequest.status.${res?.status ?? EXPERT_REQUEST_RESULT_STATUS[action]}`),
+      );
     } catch (error) {
       toast.error(t(expertRequestErrorI18nKey(error)));
     }
@@ -65,11 +75,14 @@ function AdminExpertRequests() {
       </header>
 
       <div className="flex items-center gap-3">
-        <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <label
+          htmlFor={filterId}
+          className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+        >
           {t("expertRequest.admin.filter")}
         </label>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="h-9 w-56 rounded-[6px]">
+          <SelectTrigger id={filterId} className="h-9 w-56 rounded-[6px]">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -91,8 +104,9 @@ function AdminExpertRequests() {
           <TableHeader>
             <TableRow>
               <TableHead>{t("expertRequest.fields.subject")}</TableHead>
-              <TableHead>{t("expertRequest.status.pending")}</TableHead>
-              <TableHead className="text-right">-</TableHead>
+              {/* Ta sama etykieta wymiaru „status”, co filtr nad tabelą. */}
+              <TableHead>{t("expertRequest.admin.filter")}</TableHead>
+              <TableHead className="text-right">{t("expertRequest.admin.columnActions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -114,6 +128,7 @@ function AdminExpertRequests() {
                         size="sm"
                         variant="outline"
                         className="rounded-[6px]"
+                        disabled={resolve.isPending}
                         onClick={() => act(row, "decline")}
                       >
                         {t("expertRequest.actions.decline")}
@@ -121,6 +136,7 @@ function AdminExpertRequests() {
                       <Button
                         size="sm"
                         className="rounded-[6px]"
+                        disabled={resolve.isPending}
                         onClick={() => act(row, "approve")}
                       >
                         {t("expertRequest.actions.approve")}

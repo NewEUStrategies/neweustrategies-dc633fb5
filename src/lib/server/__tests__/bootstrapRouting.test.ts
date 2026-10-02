@@ -4,9 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({
   rows: { tenants: [] as unknown[], redirects: [] as unknown[] },
   from: vi.fn(),
+  // Licznik trafień reguł (`record_redirect_hit`) idzie za odpowiedzią przez
+  // RPC. Bez tej atrapy każde przekierowanie w tym pliku kończyło licznik
+  // gałęzią błędu i zaśmiecało stderr TypeErrorem, który zagłuszał realne
+  // ostrzeżenia. Ten plik dowodzi routingu i migawek, nie licznika.
+  rpc: vi.fn(async () => ({ data: null, error: null })),
   background: [] as Promise<unknown>[],
 }));
-vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: h.from } }));
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: { from: h.from, rpc: h.rpc },
+}));
 vi.mock("@/lib/http/waitUntil.server", () => ({
   runAfterResponse: (work: Promise<unknown>) => h.background.push(work),
 }));

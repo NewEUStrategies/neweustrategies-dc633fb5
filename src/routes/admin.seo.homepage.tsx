@@ -33,6 +33,8 @@ import { SeoTextField } from "@/components/admin/seo/SeoTextField";
 import { SerpPreview } from "@/components/admin/seo/SerpPreview";
 import { BrandFindingList } from "@/components/admin/seo/BrandFindingList";
 import { LivePreviewLinks } from "@/components/admin/seo/LivePreviewLinks";
+import { useTenantPublicOrigin } from "@/lib/seo/useTenantPublicOrigin";
+import { displayHost } from "@/lib/seo/socialNetworks";
 import { ensureI18n } from "@/lib/i18n-admin-seo-hub";
 import { auditBrandSeo, type BrandFinding } from "@/lib/seo/brandAudit";
 // Jedna definicja tego, czym jest tryb strony głównej - ta sama funkcja, której
@@ -118,6 +120,14 @@ function SeoHomepageTab() {
   const siteNameAlternateId = useId();
   const { query, save } = useSettings<SeoSettings>(SEO_SETTINGS_KEY, DEFAULT_SEO_SETTINGS);
   const [draft, setDraft] = useDraft<SeoSettings>(query.data);
+  // Host w linii adresu podglądu Google = host, na który prowadzą linki
+  // „na żywo" pod nim. Bez tego tenant z własną domeną widział w podglądzie
+  // host marki, a obok link do własnej strony - dwa różne adresy jednej strony.
+  // `null` = tenant bez publicznej domeny: jawny zapis „brak domeny", nie host
+  // marki (a `undefined` dałby w `SerpPreview` właśnie host marki).
+  const publicOrigin = useTenantPublicOrigin();
+  const previewHost =
+    publicOrigin === null ? t("adminSeoHub.noPublicDomainHost") : displayHost(publicOrigin);
 
   // Ustawienia czytania odczytujemy WYŁĄCZNIE po to, by wiedzieć, czy stroną
   // główną nie jest strona z CMS-a (patrz zapytanie niżej). Ten ekran ich nie
@@ -228,6 +238,15 @@ function SeoHomepageTab() {
         </p>
       )}
 
+      {publicOrigin === null ? (
+        <p
+          className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400"
+          data-seo-no-domain
+        >
+          {t("adminSeoHub.noPublicDomain")}
+        </p>
+      ) : null}
+
       <section className="rounded-lg border border-border bg-card p-4">
         <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionIdentity")}</h2>
         <Field
@@ -332,6 +351,7 @@ function SeoHomepageTab() {
                   title={resolveTitle(lang)}
                   description={resolveDescription(lang)}
                   siteName={effectiveSiteName}
+                  host={previewHost}
                   path={lang === "en" ? "en" : ""}
                 />
                 {/* Wyjścia „na żywo": ten sam adres, który rysuje podgląd. */}

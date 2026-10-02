@@ -25,7 +25,12 @@
 //      czytelnik nie widzi do wygaśnięcia `staleTime`.
 //   5. USUNIĘCIE PROGRAMU WYMAGA POTWIERDZENIA. Program niesie odcinki,
 //      a panel nie ma ekranu przywracania - kliknięcie „Usuń" bez pytania
-//      zdejmuje z publicznej strony całą serię.
+//      zdejmuje z publicznej strony całą serię. Anulowanie pytania zamyka je
+//      i niczego nie kasuje.
+//   6. JEDNA POWŁOKA PANELU. Powłokę (`AdminShell`) rysuje layout `/admin`;
+//      trasa, która dokłada własną, daje drugi `<main id="main-content">`,
+//      pływający przełącznik języka obok paska bocznego i drugi komplet
+//      zapytań powłoki. Tak było tu do 2026-10-02 (`<AdminShell hideSidebar>`).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE: pól edytora (osiemnaście pól i cztery warstwy
 // mają asercje przy komponentach), kształtu payloadu (`shape.test.ts`),
@@ -69,7 +74,8 @@ vi.mock("@/hooks/useAuth", () => ({
   }),
 }));
 // Rama panelu ciągnie nawigację, motyw, liczniki klubów i ustawienia witryny -
-// przedmiotem dowodu jest treść panelu, nie rama.
+// przedmiotem dowodu jest treść panelu, nie rama. Atrapa zostawia jednak
+// ZNACZNIK, bo reguła 6 liczy, ile powłok rysuje się wokół treści.
 vi.mock("@/components/admin/AdminShell", () => ({
   AdminShell: ({ children }: { children?: ReactNode }) => (
     <div data-testid="admin-shell">{children}</div>
@@ -133,11 +139,24 @@ vi.mock("@/components/ui/tooltip", () => ({
   TooltipTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   TooltipContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
+// `AlertDialogCancel` w Radiksie zamyka okno przez `onOpenChange(false)` -
+// atrapa odtwarza dokładnie to wywołanie. Uchwyt bierzemy W RENDERZE
+// najbliższego `AlertDialog` (render idzie w głąb, więc anuluj należy do
+// okna, w którym stoi), bo w drzewie panelu bywają dwa okna naraz.
 vi.mock("@/components/ui/alert-dialog", () => {
-  const state = { open: false };
+  const state: { open: boolean; onOpenChange?: (open: boolean) => void } = { open: false };
   return {
-    AlertDialog: ({ open, children }: { open: boolean; children?: ReactNode }) => {
+    AlertDialog: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open: boolean;
+      onOpenChange?: (open: boolean) => void;
+      children?: ReactNode;
+    }) => {
       state.open = open;
+      state.onOpenChange = onOpenChange;
       return (
         <div data-testid="alert" data-open={String(open)}>
           {children}
@@ -150,11 +169,14 @@ vi.mock("@/components/ui/alert-dialog", () => {
     AlertDialogFooter: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     AlertDialogTitle: ({ children }: { children?: ReactNode }) => <h3>{children}</h3>,
     AlertDialogDescription: ({ children }: { children?: ReactNode }) => <p>{children}</p>,
-    AlertDialogCancel: ({ children }: { children?: ReactNode }) => (
-      <button type="button" data-testid="alert-cancel">
-        {children}
-      </button>
-    ),
+    AlertDialogCancel: ({ children }: { children?: ReactNode }) => {
+      const close = state.onOpenChange;
+      return (
+        <button type="button" data-testid="alert-cancel" onClick={() => close?.(false)}>
+          {children}
+        </button>
+      );
+    },
     AlertDialogAction: ({ children, onClick }: { children?: ReactNode; onClick?: () => void }) => (
       <button type="button" data-testid="alert-confirm" onClick={onClick}>
         {children}
@@ -383,6 +405,28 @@ describe("przelaczanie widokow panelu", () => {
     expect((restored as HTMLInputElement).value).toBe("baltyku");
   });
 
+  it("Nowy odcinek otwiera PUSTY edytor, a Anuluj wraca na liste bez zapisu", async () => {
+    // Edytor jest czwartym stanem tego samego ekranu: pasek przycisków
+    // i lista znikają, bo drugi „Nowy odcinek" w trakcie edycji wyrzucałby
+    // niezapisany szkic bez pytania.
+    await mountPanel();
+    await waitFor(() => expect(screen.getByText("Sondaz na Baltyku")).toBeTruthy());
+    fireEvent.click(screen.getByText("adminPodcasts.newEpisode"));
+
+    await waitFor(() => expect(screen.getByText("adminPodcasts.editor.newTitle")).toBeTruthy());
+    expect(screen.queryByText("adminPodcasts.editor.editTitle")).toBeNull();
+    expect(screen.queryByText("adminPodcasts.newEpisode")).toBeNull();
+    expect(screen.queryByText("adminPodcasts.statAll")).toBeNull();
+    // Szkic jest pusty - nie dziedziczy niczego po odcinku z listy.
+    expect(screen.queryByDisplayValue("sondaz-na-baltyku")).toBeNull();
+
+    fireEvent.click(screen.getByText("common.cancel"));
+    await waitFor(() => expect(screen.getByText("adminPodcasts.statAll")).toBeTruthy());
+    expect(screen.queryByText("adminPodcasts.editor.newTitle")).toBeNull();
+    expect(callsOf("podcasts", "insert")).toEqual([]);
+    expect(callsOf("podcasts", "update")).toEqual([]);
+  });
+
   it("filtr statusu odsiewa odcinek, ktory nie pasuje", async () => {
     await mountPanel();
     await waitFor(() => expect(screen.getByText("Sondaz na Baltyku")).toBeTruthy());
@@ -476,6 +520,23 @@ describe("usuwanie wymaga potwierdzenia", () => {
     expect(invalidatedKeys(spy)).toEqual([["admin", "podcast-shows"], ["podcast-shows"]]);
   });
 
+  it("ANULOWANIE pytania o odcinek zamyka je i niczego nie kasuje", async () => {
+    // Zamknięcie okna (Anuluj, Escape, klik w tło) idzie w Radiksie przez
+    // `onOpenChange(false)`. Gdyby trasa go nie obsłużyła, okno zostałoby
+    // otwarte z identyfikatorem odcinka - a kolejne „Usuń" w tym oknie
+    // skasowałoby odcinek wskazany WCZEŚNIEJ.
+    await mountPanel();
+    await waitFor(() => expect(screen.getByText("Sondaz na Baltyku")).toBeTruthy());
+    fireEvent.click(screen.getAllByText("adminPodcasts.remove")[0]);
+    await waitFor(() => expect(screen.getByText("adminPodcasts.confirmEpisodeTitle")).toBeTruthy());
+
+    fireEvent.click(screen.getByTestId("alert-cancel"));
+
+    await waitFor(() => expect(screen.queryByText("adminPodcasts.confirmEpisodeTitle")).toBeNull());
+    expect(callsOf("podcasts", "update")).toEqual([]);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
   it("Usun przy odcinku takze najpierw pyta, a potwierdzenie kasuje miekko", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     await mountPanel(queryClient);
@@ -501,6 +562,25 @@ describe("usuwanie wymaga potwierdzenia", () => {
 // ---------------------------------------------------------------------------
 
 describe("powloka trasy", () => {
+  it("trasa NIE rysuje wlasnej powloki - robi to layout `/admin`", async () => {
+    // REGUŁA 6, test regresyjny. Do 2026-10-02 treść panelu stała w
+    // `<AdminShell hideSidebar>`, a layout `/admin` i tak owija każdą trasę
+    // panelu swoją powłoką - wychodziły dwie: drugi `<main id="main-content">`,
+    // drugi przełącznik języka i drugi komplet zapytań powłoki.
+    await mountPanel();
+    await waitFor(() => expect(screen.getByText("adminPodcasts.title")).toBeTruthy());
+
+    expect(screen.queryAllByTestId("admin-shell")).toHaveLength(0);
+  });
+
+  it("KONTROLA DODATNIA: layout `/admin` rysuje powloke dokladnie raz", async () => {
+    // Bez tej pary test wyżej przechodziłby też wtedy, gdyby atrapa powłoki
+    // przestała się renderować - a to nie jest „jedna powłoka", tylko żadna.
+    await renderRoute({ route: AdminLayoutRoute, path: "/admin", initialEntry: "/admin" });
+
+    await waitFor(() => expect(screen.getAllByTestId("admin-shell")).toHaveLength(1));
+  });
+
   it("plik trasy NIE importuje klienta supabase (warstwa danych jest w lib)", async () => {
     // Regresja architektury: to jedno zdanie pilnuje, żeby 2072 linie zapytań
     // nie wróciły do trasy przy najbliższej „szybkiej poprawce".

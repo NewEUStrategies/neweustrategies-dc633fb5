@@ -1,11 +1,24 @@
 // Widget "Sugerowane linki wewnętrzne" w edytorze wpisów.
 // Woła server function `suggestInternalLinks` i pozwala szybko skopiować
 // ścieżkę do wpisu lub otworzyć podgląd. Wspiera PL/EN i18n.
+//
+// Awaria odczytu (server fn rzuca `LinkSuggestionsQueryError` przy błędzie
+// zapytania, albo pada sieć) ma WŁASNY stan `error` z przyciskiem ponowienia -
+// nie wolno jej pokazać jako `empty`, bo „brak dopasowań" przy niedziałającym
+// narzędziu oducza redakcję linkowania wewnętrznego.
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Link as LinkIcon, Copy, ArrowRight, Loader2, Sparkles } from "@/lib/lucide-shim";
+import {
+  AlertTriangle,
+  Link as LinkIcon,
+  Copy,
+  ArrowRight,
+  Loader2,
+  RefreshCw,
+  Sparkles,
+} from "@/lib/lucide-shim";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { suggestInternalLinks } from "@/lib/seo/linkSuggestions.functions";
@@ -149,6 +162,24 @@ export function InternalLinkSuggestions(props: Props) {
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
           {t("admin.seo.linkSuggestions.loading")}
+        </div>
+      ) : q.isError ? (
+        <div className="flex items-center justify-between gap-2">
+          <p role="alert" className="text-[11px] text-destructive flex items-center gap-1.5">
+            <AlertTriangle className="h-3 w-3" aria-hidden />
+            {t("admin.seo.linkSuggestions.error")}
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-[11px]"
+            disabled={q.isFetching}
+            onClick={() => void q.refetch()}
+          >
+            <RefreshCw className="h-3 w-3" aria-hidden />
+            {t("admin.seo.linkSuggestions.retry")}
+          </Button>
         </div>
       ) : (
         <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">

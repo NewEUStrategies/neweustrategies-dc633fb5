@@ -55,6 +55,17 @@ export const CARVE_OUTS = [
   // w module 16, ani jako funkcjonalność, bo wiersze modułu 7 mówią o typach
   // treści, a nie o panelu społeczności.
   { module: 16, pattern: /^src\/routes\/admin\.community\.(qa|polls)/ },
+  // Panel dostarczalności newslettera. Łapacz tras MODUŁU 7 ma człon `live`,
+  // a „de-LIVE-rability" go zawiera - więc pierwsze trafienie oddawało tę
+  // trasę „Typom treści specjalnych" cztery wiersze przed modułem 11
+  // (`^src/routes/.*newsletter`). Audyt rozstrzygnął to w uzupełnieniu
+  // 2026-09-02 do rozdz. 9.1 („ta trasa należy do modułu 11"), ale mapa
+  // w kodzie liczyła dalej po staremu: wiersz modułu 7 miał jeden plik, którego
+  // nie obejmowała żadna z jego funkcjonalności. Wyjątek jest szerszy niż jedna
+  // trasa, bo KAŻDA trasa newslettera należy do modułu 11 - dziś tylko ta
+  // jedna wpadała gdzie indziej, a następne `admin.newsletter.live-*` wpadłoby
+  // tak samo.
+  { module: 11, pattern: /^src\/routes\/admin\.newsletter\./ },
   // FUNKCJE UCZESTNIKA F1-F5 (spec B.11-4): tory A/B/C dopisują wyjątki
   // WYŁĄCZNIE do swojego bloku `carve-outs` i WYŁĄCZNIE razem z plikiem, który
   // czyni regułę żywą (martwa reguła oblewa `check:feature-taxonomy`).

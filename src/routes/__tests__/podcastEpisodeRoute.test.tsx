@@ -10,7 +10,7 @@
 // pierwszym malowaniu jest własnością SKLEJENIA loadera z `useQuery`. Dlatego
 // wszystko poniżej idzie przez `renderRoute`, czyli przez prawdziwy router.
 //
-// PIĘĆ REGUŁ, KTÓRYCH ZŁAMANIE KOSZTUJE:
+// SZEŚĆ REGUŁ, KTÓRYCH ZŁAMANIE KOSZTUJE:
 //
 //   1. NIEISTNIEJĄCY SLUG TO 404, NIE PUSTA STRONA. Odcinek zbudowany wokół
 //      `undefined` wystawiłby crawlerowi HTTP 200 z pustym artykułem, a taki
@@ -29,6 +29,10 @@
 //      hydratacji na publicznej stronie treściowej - pod budżetami platformy
 //      (ROOT_WARM_BUDGET_MS 2500, SSR_DB_DEADLINE_MS 8000, limit 6
 //      równoległych subrequestów na żądanie na Workers).
+//   6. NAGŁÓWEK MÓWI JĘZYKIEM ADRESU, NIE ZAWSZE PO POLSKU. Do 2026-10-02
+//      `head()` brał `title_pl || title_en` i `excerpt_pl || excerpt_en`
+//      niezależnie od języka adresu, więc `/en/podcast/...` miał polski
+//      `<title>`, `og:title`, opis i nazwę w JSON-LD nad angielską treścią.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - WARSTWY ZAPYTAŃ: `src/lib/queries/podcasts.ts` biegnie tu PRAWDZIWA
@@ -41,7 +45,7 @@
 //   z listy rozdziałów).
 // - PARYTETU SŁOWNIKA PL/EN: `src/lib/__tests__/i18nPodcasts.test.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 
 // Identyfikatory przez `vi.hoisted`, nie przez zwykle `const`: fabryki
 // `vi.mock` I bloki `vi.hoisted` sa wciagane NAD importy, wiec `vi.hoisted`
@@ -86,6 +90,8 @@ const h = vi.hoisted(() => ({
   playerProps: {} as Record<string, unknown>,
   /** Sekundy przekazane do `seek` zarejestrowanego przez odtwarzacz. */
   seeks: [] as number[],
+  /** Czy atrapa odtwarzacza ma RZUCIĆ w renderze (awaria renderu trasy). */
+  playerThrows: false,
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -154,6 +160,7 @@ vi.mock("@/lib/http/responseHeaders", () => ({
 // by tego nie pokazało.
 vi.mock("@/components/atoms/PodcastPlayer", () => ({
   PodcastPlayer: (props: Record<string, unknown>) => {
+    if (h.playerThrows) throw new Error("test: odtwarzacz wywrocil render");
     h.playerProps = props;
     const register = props.registerSeek;
     if (typeof register === "function") {
@@ -288,6 +295,7 @@ beforeEach(async () => {
   h.cacheControl = [];
   h.playerProps = {};
   h.seeks = [];
+  h.playerThrows = false;
 });
 
 afterEach(async () => {
@@ -398,6 +406,235 @@ describe("trasa /podcast/$slug - sklejenie i treść odcinka", () => {
   });
 });
 
+describe("trasa /podcast/$slug - osoby, materiały i linki subskrypcji", () => {
+  it("osoba z profilem prowadzi do strony AUTORA, z adresem - na zewnątrz, bez obu - bez linku", async () => {
+    // Trzy rodzaje obsady to trzy różne obietnice: profil w serwisie (link
+    // wewnętrzny, z awatarem), gość z własną stroną (nowa karta, bez
+    // przekazania `window.opener`) i gość bez niczego (tekst, nie martwy link).
+    h.people = [
+      personRow({
+        profiles: { slug: "zofia-wiatrak", display_name: null, avatar_url: null },
+      }),
+      personRow({
+        id: "person-2",
+        display_name: "Jan Bryza",
+        role: "guest",
+        url: "https://bryza.example.org",
+      }),
+      personRow({ id: "person-3", display_name: "Ewa Szron", role: "guest" }),
+    ];
+    await mount();
+
+    const author = await screen.findByRole("link", { name: /Zofia Wiatrak/ });
+    expect(author).toHaveAttribute("href", "/author/zofia-wiatrak");
+    const external = screen.getByRole("link", { name: /Jan Bryza/ });
+    expect(external).toHaveAttribute("href", "https://bryza.example.org");
+    expect(external).toHaveAttribute("target", "_blank");
+    expect(external).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getByText("Ewa Szron").closest("a")).toBeNull();
+  });
+
+  it("linki subskrypcji idą w STAŁEJ kolejności, a puste adresy wypadają", async () => {
+    h.settings = {
+      tenant_id: TENANT_A,
+      spotify_url: "https://open.example.org/nes",
+      apple_url: "",
+      google_url: "https://podcasts.example.org/nes",
+      rss_url: "https://nes.example.org/podcast/rss.xml",
+    };
+    await mount();
+
+    const nav = (await screen.findByRole("link", { name: "Spotify" })).closest("nav");
+    if (!nav) throw new Error("test: linki subskrypcji poza <nav>");
+    const links = within(nav).getAllByRole("link");
+    expect(links.map((link) => link.textContent)).toEqual(["Spotify", "Google", "RSS"]);
+    expect(links.map((link) => link.getAttribute("target"))).toEqual([
+      "_blank",
+      "_blank",
+      "_blank",
+    ]);
+  });
+
+  it("bez żadnego adresu platformy nie zostaje pusty pasek subskrypcji", async () => {
+    h.settings = { tenant_id: TENANT_A, spotify_url: null, apple_url: null };
+    await mount();
+    await screen.findByRole("heading", { level: 1, name: "Rozmowa o energii" });
+
+    expect(screen.queryByRole("link", { name: "Spotify" })).toBeNull();
+    expect(screen.queryByRole("navigation")).toBeNull();
+  });
+
+  it("źródła i materiały powiązane mają OSOBNE nagłówki, a etykieta spada na adres", async () => {
+    // Materiał bez etykiety w obu językach nadal musi być klikalny - pusty
+    // tekst linku to dla czytnika ekranu link bez nazwy.
+    h.episodes = [
+      episode({
+        resources: [
+          { label_pl: "Raport", label_en: "Report", url: "https://example.org/r", kind: "source" },
+          { label_pl: "", label_en: "", url: "https://example.org/powiazane", kind: "related" },
+        ],
+      }),
+    ];
+    await mount();
+
+    const sources = (await screen.findByRole("heading", { name: "Źródła" })).parentElement;
+    const related = screen.getByRole("heading", { name: "Materiały dodatkowe" }).parentElement;
+    if (!sources || !related) throw new Error("test: brak kolumn materiałów");
+    expect(within(sources).getByRole("link", { name: "Raport" })).toHaveAttribute(
+      "href",
+      "https://example.org/r",
+    );
+    expect(
+      within(related).getByRole("link", { name: "https://example.org/powiazane" }),
+    ).toHaveAttribute("target", "_blank");
+    expect(within(sources).queryByText("https://example.org/powiazane")).toBeNull();
+  });
+
+  it("odcinek z samymi źródłami nie zostawia osieroconego nagłówka „powiązanych”", async () => {
+    h.episodes = [
+      episode({
+        resources: [
+          { label_pl: "Raport", label_en: "Report", url: "https://example.org/r", kind: "source" },
+        ],
+      }),
+    ];
+    await mount();
+
+    expect(await screen.findByRole("heading", { name: "Źródła" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Materiały dodatkowe" })).toBeNull();
+  });
+
+  it("„więcej z programu” NIE poleca bieżącego odcinka i pokazuje najwyżej cztery", async () => {
+    // Rekomendacja odcinka, którego czytelnik właśnie słucha, to zmarnowany
+    // kafelek; pięć i więcej rozciąga sekcję pod całą treścią strony.
+    h.episodes = [
+      episode(),
+      ...[1, 2, 3, 4, 5].map((n) =>
+        episode({
+          id: `00000000-0000-4000-8000-00000000000${n}`,
+          slug: `odcinek-${n}`,
+          title_pl: `Odcinek ${n}`,
+          episode_number: n,
+          cover_image_url: n === 1 ? "https://cdn.example.org/okladka-1.jpg" : null,
+        }),
+      ),
+    ];
+    await mount();
+
+    const heading = await screen.findByRole("heading", { name: "Więcej z tego programu" });
+    const section = heading.closest("section");
+    if (!section) throw new Error("test: brak sekcji rekomendacji");
+    const tiles = within(section).getAllByRole("link");
+    expect(tiles.map((tile) => tile.getAttribute("href"))).toEqual([
+      "/podcast/odcinek-1",
+      "/podcast/odcinek-2",
+      "/podcast/odcinek-3",
+      "/podcast/odcinek-4",
+    ]);
+    expect(within(section).queryByText("Rozmowa o energii")).toBeNull();
+    expect(within(tiles[0]).getByText("Sezon 2 · Odc. 1")).toBeInTheDocument();
+  });
+});
+
+describe("trasa /podcast/$slug - kopiowanie cytatu", () => {
+  const writes: string[] = [];
+  let clipboardFails = false;
+
+  beforeEach(() => {
+    writes.length = 0;
+    clipboardFails = false;
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          if (clipboardFails) throw new Error("test: schowek odmowil");
+          writes.push(text);
+        },
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Przycisk kopiowania cytatu o danej treści - po jego `<figure>`. */
+  function copyButtonOf(text: string): HTMLElement {
+    const figure = screen.getByText(text).closest("figure");
+    if (!figure) throw new Error(`test: cytat "${text}" poza <figure>`);
+    return within(figure).getByRole("button", { name: "Kopiuj cytat" });
+  }
+
+  it("do schowka idzie cytat w cudzysłowie, atrybucja i tytuł odcinka", async () => {
+    // Cytat wklejony w social media bez źródła jest cytatem znikąd - tytuł
+    // odcinka jest jedynym śladem, skąd pochodzi.
+    h.episodes = [
+      episode({
+        quotes: [
+          { text_pl: "Zima jest testem.", text_en: "Winter is a test.", attribution: "Anna Mróz" },
+          { text_pl: "Sieć to system.", text_en: "The grid is a system.", attribution: "" },
+        ],
+      }),
+    ];
+    await mount();
+
+    fireEvent.click(copyButtonOf("Zima jest testem."));
+    await waitFor(() => expect(writes).toHaveLength(1));
+    fireEvent.click(copyButtonOf("Sieć to system."));
+    await waitFor(() => expect(writes).toHaveLength(2));
+
+    expect(writes).toEqual([
+      '„Zima jest testem." - Anna Mróz\n\nRozmowa o energii',
+      '„Sieć to system."\n\nRozmowa o energii',
+    ]);
+  });
+
+  it("potwierdzenie skopiowania stoi przy TYM cytacie i gaśnie po dwóch sekundach", async () => {
+    h.episodes = [
+      episode({
+        quotes: [
+          { text_pl: "Zima jest testem.", text_en: "", attribution: "" },
+          { text_pl: "Sieć to system.", text_en: "", attribution: "" },
+        ],
+      }),
+    ];
+    await mount();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    fireEvent.click(copyButtonOf("Sieć to system."));
+    await waitFor(() =>
+      expect(copyButtonOf("Sieć to system.").querySelector(".lucide-check")).not.toBeNull(),
+    );
+    expect(copyButtonOf("Zima jest testem.").querySelector(".lucide-check")).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(copyButtonOf("Sieć to system.").querySelector(".lucide-check")).toBeNull();
+    expect(copyButtonOf("Sieć to system.").querySelector(".lucide-copy")).not.toBeNull();
+  });
+
+  it("odmowa schowka nie wywraca strony i nie udaje sukcesu", async () => {
+    // Schowek odmawia w realnych warunkach (brak zgody, kontekst bez HTTPS).
+    clipboardFails = true;
+    h.episodes = [
+      episode({ quotes: [{ text_pl: "Zima jest testem.", text_en: "", attribution: "" }] }),
+    ];
+    await mount();
+
+    fireEvent.click(copyButtonOf("Zima jest testem."));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(writes).toEqual([]);
+    expect(copyButtonOf("Zima jest testem.").querySelector(".lucide-check")).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Rozmowa o energii" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("trasa /podcast/$slug - stan pusty i brak odcinka", () => {
   it("odcinek bez rozdziałów, cytatów, osób i notatek nadal się renderuje", async () => {
     // To normalny stan redakcyjny (świeżo wgrane audio), a nie awaria. Sekcje
@@ -439,6 +676,25 @@ describe("trasa /podcast/$slug - stan pusty i brak odcinka", () => {
     expect(screen.queryByText("Nie znaleziono odcinka.")).not.toBeInTheDocument();
     // Render zdegradowany nie ma prawa utrwalić się na brzegu.
     expect(h.cacheControl.at(-1)).toContain("no-store");
+  });
+
+  it("awaria RENDERU odcinka kończy się komunikatem trasy, a nie białą stroną", async () => {
+    // Granica błędu trasy jest jedynym, co stoi między wyjątkiem w drzewie
+    // odcinka a pustym dokumentem; komunikat idzie ze słownika.
+    h.playerThrows = true;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mount();
+
+    // `waitFor`, nie `findBy`: granica błędu routera resetuje się po zmianie
+    // stanu routera i rysuje komunikat od nowa, więc odnaleziony węzeł bywa
+    // już odpięty - liczy się to, że komunikat STOI w dokumencie.
+    await waitFor(() =>
+      expect(
+        screen.getByText("Nie udało się wczytać odcinka. Spróbuj ponownie później."),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
   });
 
   it("po angielsku komunikat 404 też jest angielski", async () => {
@@ -506,6 +762,33 @@ describe("trasa /podcast/$slug - nagłówek dokumentu", () => {
     expect(metaContent(head, "httpEquiv", "content-language")).toBe("en");
     const feed = (head.links ?? []).find((link) => link.type === "application/rss+xml");
     expect(feed?.title).toBe("NES Podcast - RSS");
+  });
+
+  it("na adresie /en tytuł, og:title, opis i JSON-LD są ANGIELSKIE (reguła 6)", async () => {
+    // TEST REGRESYJNY. `<h1>` i lead strony były angielskie, a `head()` brał
+    // zawsze polską kolumnę - wynik wyszukiwania i karta udostępnienia
+    // anglojęzycznej wersji mówiły po polsku.
+    h.requestUrl = `https://nes.example.org/en/podcast/${SLUG}`;
+    const head = routeHead(EpisodeRoute, { loaderData: { podcast: episode() } });
+
+    expect(headTitle(head)).toBe("A conversation on energy · Podcast");
+    expect(metaContent(head, "property", "og:title")).toBe("A conversation on energy");
+    expect(metaContent(head, "name", "description")).toBe("Where Europe gets power in winter.");
+    const jsonLd = (head.scripts ?? []).find((s) => s.type === "application/ld+json");
+    expect(JSON.parse(jsonLd?.children ?? "null")).toMatchObject({
+      name: "A conversation on energy",
+      description: "Where Europe gets power in winter.",
+    });
+  });
+
+  it("odcinek BEZ angielskiej wersji na /en spada na polską, a nie na pusty tytuł", async () => {
+    h.requestUrl = `https://nes.example.org/en/podcast/${SLUG}`;
+    const head = routeHead(EpisodeRoute, {
+      loaderData: { podcast: episode({ title_en: "", excerpt_en: "   " }) },
+    });
+
+    expect(headTitle(head)).toBe("Rozmowa o energii · Podcast");
+    expect(metaContent(head, "name", "description")).toBe("Skąd Europa bierze prąd zimą.");
   });
 
   it("na adresie bez prefiksu tytuł kanału RSS jest polski", async () => {

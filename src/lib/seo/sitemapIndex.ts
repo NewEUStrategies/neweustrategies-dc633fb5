@@ -78,6 +78,14 @@ export function sitemapShardPath(section: SitemapSection, shard: number): string
  * shardu. Zwraca `null` dla nieznanej sekcji, złego sufiksu i numeru <= 1
  * podanego jawnie (`posts-1.xml` nie jest adresem kanonicznym - shard pierwszy
  * mieszka pod `posts.xml`), żeby jeden shard nie był dostępny pod dwoma URL-ami.
+ *
+ * Z tego samego powodu numer musi być zapisany KANONICZNIE - dokładnie tak,
+ * jak wypisze go `sitemapShardFile` (`String(shard)`). Zero wiodące
+ * (`posts-02.xml`) dawało wcześniej `Number("02") === 2`, czyli bajt w bajt tę
+ * samą mapę pod drugim adresem; ten sam warunek odcina też numer, który
+ * przekracza precyzję `Number` (zaokrąglony do innej liczby niż zapisana).
+ * Znaki `+`, `.`, spacje i zapis wykładniczy odpadają już na wyrażeniu
+ * regularnym (`\d+` to wyłącznie cyfry ASCII).
  */
 export function parseSitemapShard(raw: string): { section: SitemapSection; shard: number } | null {
   if (!raw.endsWith(".xml")) return null;
@@ -89,6 +97,7 @@ export function parseSitemapShard(raw: string): { section: SitemapSection; shard
   if (shardRaw === undefined) return { section, shard: 1 };
   const shard = Number(shardRaw);
   if (!Number.isInteger(shard) || shard < 2) return null;
+  if (String(shard) !== shardRaw) return null;
   return { section, shard };
 }
 

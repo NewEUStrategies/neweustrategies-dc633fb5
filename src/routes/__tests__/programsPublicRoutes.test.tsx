@@ -1,27 +1,28 @@
-// Dwie trasy PUBLICZNE programów badawczych: `/programs` (katalog, 0 z 28
-// linii) i `/programs/$slug` (landing, 0 z 73 linii, 0 z 23 funkcji).
+// Dwie trasy PUBLICZNE programów badawczych: `/programs` (katalog) i
+// `/programs/$slug` (landing).
 //
 // DLACZEGO W JEDNYM PLIKU. Obie stoją na tym samym module zapytań
 // (`src/lib/queries/programs.ts`) i na tym samym słowniku (`i18n-programs`),
-// a dowód, który ma sens, jest w KONTRAŚCIE między nimi: katalog rozdziela
-// „pusto" od „nie dojechało", a landing tego NIE ROBI - i to jest defekt
-// przypięty niżej (`it.fails`), nie różnica gustu. Trzymanie tych dwóch tras
-// w osobnych plikach schowałoby ten kontrast.
+// a dowód, który ma sens, jest w KONTRAŚCIE między nimi: obie muszą
+// rozdzielać „pusto" od „nie dojechało" (landing długo tego nie robił - defekt
+// W8, zamknięty, opis niżej). Trzymanie tych dwóch tras w osobnych plikach
+// schowałoby ten kontrast.
 //
-// CZTERY REGUŁY, KTÓRYCH ZŁAMANIE KOSZTUJE:
+// PIĘĆ REGUŁ, KTÓRYCH ZŁAMANIE KOSZTUJE:
 //
 //   1. NIEISTNIEJĄCY SLUG TO 404, NIE PUSTA STRONA PROGRAMU. Landing zbudowany
 //      wokół `undefined` wystawiłby crawlerowi HTTP 200 z pustym szkieletem.
-//   2. AWARIA BACKENDU NIE JEST 404 (przypięte niżej jako defekt). Landing
-//      robi dziś `catch(() => null)` i zaraz potem `throw notFound()`, więc
-//      minutowy blip zamienia ŻYWY program w twarde 404 - a 404 wyrzuca adres
-//      z indeksu wyszukiwarki. Siostrzana trasa `/podcasts/$show` rozstrzyga
-//      to samo pytanie POPRAWNIE (trzy rozdzielone stany), więc kontrakt jest
-//      w repozytorium już zapisany - tylko nie tutaj.
+//   2. AWARIA BACKENDU NIE JEST 404 (defekt W8, zamknięty). Minutowy blip nie
+//      może zamienić ŻYWEGO programu w twarde 404 - a 404 wyrzuca adres
+//      z indeksu wyszukiwarki. Wzór: siostrzana `/podcasts/$show` (trzy
+//      rozdzielone stany: wiersz / `null` / „nie wiemy").
 //   3. NAGŁÓWEK NIESIE NAZWĘ I OPIS W OBU JĘZYKACH, a wersja bez danych
 //      loadera musi wyjść z indeksu (`noindex, follow`) zamiast zostawiać
 //      w nim pusty tytuł.
 //   4. TREŚĆ JEDNEGO OBSZARU ROBOCZEGO NIE WYCHODZI NA HOŚCIE DRUGIEGO.
+//   5. WYJĄTEK SPOZA WARSTWY ODPORNEJ KOŃCZY SIĘ STRONĄ BŁĘDU SERWISU
+//      z nagłówkiem ze SŁOWNIKA programów (nie surowym ekranem routera),
+//      a ponowienie biegnie loader jeszcze raz.
 //
 // ATRAPOWANE SĄ WYŁĄCZNIE GRANICE: klient Supabase, adres żądania, nagłówki
 // odpowiedzi oraz dwa organizmy, które NIE NALEŻĄ do tych tras i mają własne
@@ -34,13 +35,15 @@
 // - KANAŁU RSS PROGRAMU: `programs.$slug.rss[.]xml.ts` ma kontrakt
 //   w `feedRoutesDegradation.test.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
-const { TENANT_A, TENANT_B, PROGRAM_ID, SLUG } = vi.hoisted(() => ({
+const { TENANT_A, TENANT_B, PROGRAM_ID, SLUG, CATEGORY_ID, PAGE_ID } = vi.hoisted(() => ({
   TENANT_A: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
   TENANT_B: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
   PROGRAM_ID: "55555555-5555-4555-8555-555555555555",
   SLUG: "bezpieczenstwo-europy",
+  CATEGORY_ID: "77777777-7777-4777-8777-777777777777",
+  PAGE_ID: "88888888-8888-4888-8888-888888888888",
 }));
 
 const h = vi.hoisted(() => ({
@@ -76,6 +79,22 @@ const h = vi.hoisted(() => ({
   cacheControl: [] as string[],
   /** Wartości nagłówka HTTP `Link` (preload hero programu). */
   linkHeaders: [] as string[],
+  /**
+   * Wyjątek rzucany przez `setCacheControlHeader` - awaria POZA warstwą
+   * odporną (`loadResilient` łapie wyłącznie odczyt danych), np. nagłówki
+   * odpowiedzi już wysłane. `null` = nagłówki działają.
+   */
+  headerFailure: null as Error | null,
+  /** Wiersze `posts` dla raportów flagowych (odczyt bez `limit`). */
+  flagshipPosts: [] as Record<string, unknown>[],
+  /** Wiersze `posts` dla najnowszych publikacji kategorii (odczyt z `limit`). */
+  latestPosts: [] as Record<string, unknown>[],
+  /** Wiersze `post_categories` (wpisy kategorii programu). */
+  categoryPosts: [] as Record<string, unknown>[],
+  /** Wynik RPC `page_full_paths` - ścieżki stron-rodziców wpisów. */
+  pagePaths: [] as Record<string, unknown>[],
+  /** Bramka zawieszająca RPC składu - odczyt landingu „w locie". */
+  rpcGate: null as Promise<void> | null,
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -129,15 +148,31 @@ vi.mock("@/integrations/supabase/client", async () => {
     h.reads.push("events");
     return ok(h.events);
   });
+  stub.setResponse("posts", (chain) => {
+    const latest = chain.has("limit");
+    h.reads.push(latest ? "posts:latest" : "posts:flagship");
+    return ok(latest ? h.latestPosts : h.flagshipPosts);
+  });
+  stub.setResponse("post_categories", () => {
+    h.reads.push("post_categories");
+    return ok(h.categoryPosts);
+  });
   return {
     supabase: {
       from: stub.from,
       rpc: async (name: string) => {
         h.reads.push(`rpc:${name}`);
+        if (h.rpcGate) await h.rpcGate;
         if (h.broken.has(`rpc:${name}`)) {
           return { data: null, error: { message: "test: rpc niedostepne", code: "42501" } };
         }
-        return { data: name === "get_program_members" ? h.members : [], error: null };
+        const data =
+          name === "get_program_members"
+            ? h.members
+            : name === "page_full_paths"
+              ? h.pagePaths
+              : [];
+        return { data, error: null };
       },
     },
   };
@@ -149,7 +184,10 @@ vi.mock("@/lib/seo/request", () => ({
 }));
 vi.mock("@/lib/http/responseHeaders", () => ({
   appendLinkHeader: (value: string) => void h.linkHeaders.push(value),
-  setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
+  setCacheControlHeader: (value: string) => {
+    if (h.headerFailure) throw h.headerFailure;
+    h.cacheControl.push(value);
+  },
   readRouteCacheDirective: () => null,
 }));
 // GRANICE, KTÓRE NIE NALEŻĄ DO TYCH TRAS. Oba organizmy mają własne zapytania
@@ -172,6 +210,12 @@ import { renderRoute, routeHead, type RouteHeadResult } from "@/test/routeHarnes
 import { axeViolations, summarize } from "@/test/axe";
 import { Route as ProgramsIndexRoute } from "@/routes/programs.index";
 import { Route as ProgramDetailRoute } from "@/routes/programs.$slug";
+import { freezeClock } from "@/test/time";
+
+// Zegar ZAMROŻONY dla całego pliku: fikstury niosą daty kalendarzowe (wpis,
+// termin wydarzenia), a trasa formatuje je modułami czytającymi zegar. Bez
+// zamrożenia każdy z tych literałów jest bombą `check:clock-freeze`.
+freezeClock();
 
 const INDEX_PATH = "/programs/";
 const DETAIL_PATH = "/programs/$slug";
@@ -202,6 +246,26 @@ function program(patch: Record<string, unknown> = {}): Record<string, unknown> {
     status: "published",
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-05-01T00:00:00.000Z",
+    ...patch,
+  };
+}
+
+/** Wiersz `posts` w kształcie `POST_COLS` warstwy zapytań. Tytuły ZMYŚLONE. */
+function post(patch: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: "post-1",
+    slug: "raport",
+    title_pl: "Raport",
+    title_en: "Report",
+    excerpt_pl: null,
+    excerpt_en: null,
+    cover_image_url: null,
+    published_at: "2026-09-01T08:00:00.000Z",
+    parent_page_id: PAGE_ID,
+    author_id: null,
+    is_sponsored: false,
+    sponsored_kind: null,
+    sponsored_affiliate: false,
     ...patch,
   };
 }
@@ -263,6 +327,12 @@ beforeEach(async () => {
   h.requestUrl = "https://nes.example.org/programs";
   h.cacheControl = [];
   h.linkHeaders = [];
+  h.headerFailure = null;
+  h.flagshipPosts = [];
+  h.latestPosts = [];
+  h.categoryPosts = [];
+  h.pagePaths = [];
+  h.rpcGate = null;
 });
 
 afterEach(async () => {
@@ -619,9 +689,155 @@ describe("trasa /programs/$slug - sklejenie i treść landingu", () => {
     const violations = await axeViolations(view.container);
     expect(violations, summarize(violations)).toEqual([]);
   });
+
+  it("raporty flagowe i najnowsze publikacje prowadzą pod adres ze ścieżki strony-rodzica", async () => {
+    // Dwa źródła wpisów, dwie sekcje: raporty flagowe wybiera redakcja
+    // (`research_program_items`), najnowsze publikacje płyną z KATEGORII
+    // programu. Obie karty muszą prowadzić pod adres rozwiązany ścieżką
+    // strony-rodzica - link `/blog/...` dla wpisu z `/analizy` to 404.
+    h.programs = [program({ category_id: CATEGORY_ID })];
+    h.items = [
+      {
+        item_type: "flagship_post",
+        post_id: "post-1",
+        podcast_id: null,
+        event_id: null,
+        sort_order: 0,
+      },
+    ];
+    h.flagshipPosts = [
+      post({ id: "post-1", slug: "raport-o-odstraszaniu", title_pl: "Raport o odstraszaniu" }),
+    ];
+    h.categoryPosts = [{ post_id: "post-2" }];
+    h.latestPosts = [
+      post({ id: "post-2", slug: "komentarz-o-budzetach", title_pl: "Komentarz o budżetach" }),
+    ];
+    h.pagePaths = [{ page_id: PAGE_ID, full_path: "analizy" }];
+    await mountDetail();
+
+    expect(screen.getByRole("heading", { level: 2, name: "Raporty flagowe" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Raport o odstraszaniu/ })).toHaveAttribute(
+      "href",
+      "/analizy/raport-o-odstraszaniu",
+    );
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Najnowsze publikacje" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Komentarz o budżetach/ })).toHaveAttribute(
+      "href",
+      "/analizy/komentarz-o-budzetach",
+    );
+  });
+
+  it("termin wydarzenia jest w STREFIE WYDARZENIA, nie maszyny renderującej", async () => {
+    // NAPRAWIONE 2026-10. Karta robiła `toLocaleString` BEZ `timeZone`, więc
+    // SSR (Workers, UTC) i przeglądarka (strefa czytelnika) drukowały różne
+    // godziny - rozjazd hydratacji - a żadna nie była godziną wydarzenia.
+    // 17:00 UTC w Tokio to 02:00 NASTĘPNEGO dnia; maszyna testowa nie stoi
+    // w Tokio, więc wersja bez strefy wydarzenia oblewa ten test. Etykieta
+    // strefy stoi obok godziny - jak na liście `/events`.
+    h.items = [
+      { item_type: "event", post_id: null, podcast_id: null, event_id: "ev-tokio", sort_order: 0 },
+    ];
+    h.events = [
+      {
+        id: "ev-tokio",
+        slug: "seminarium-w-tokio",
+        title_pl: "Seminarium w Tokio",
+        title_en: "A seminar in Tokyo",
+        starts_at: "2026-10-01T17:00:00.000Z",
+        timezone: "Asia/Tokyo",
+        location: null,
+      },
+    ];
+    await mountDetail();
+
+    expect(screen.getByRole("link", { name: /Seminarium w Tokio/ })).toHaveTextContent(
+      "2 paź 2026, 02:00 (GMT+9)",
+    );
+  });
+
+  it("brak danych W TRAKCIE ponownego pobrania to pusty placeholder, nie miękkie 404", async () => {
+    // Dopasowanie trasy potrafi przeżyć wpis cache zapytania (router oddaje
+    // zapamiętany match, a `gcTime` zapytania już minął) - landing montuje się
+    // wtedy bez danych, z odczytem w locie. `PublicNotFound` w tym oknie
+    // mignąłby czytelnikowi „nie ma takiej strony" na żywym programie.
+    const view = await mountDetail();
+    await screen.findByRole("heading", { level: 1, name: "Bezpieczeństwo Europy" });
+    let release = (): void => undefined;
+    h.rpcGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await act(async () => {
+      void view.queryClient.resetQueries({ queryKey: ["programs", "landing", SLUG] });
+    });
+
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Nie znaleziono strony" })).toBeNull();
+
+    h.rpcGate = null;
+    release();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Bezpieczeństwo Europy" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("trasy programów - wyjątek loadera spoza warstwy odpornej", () => {
+  // `loadResilient` łapie awarię ODCZYTU DANYCH; wyjątek z innej warstwy
+  // loadera (tu: nagłówki odpowiedzi) dochodzi do `errorComponent` trasy.
+  // Bez podpiętego komponentu router pokazuje własny, angielski ekran
+  // „Something went wrong!" - bez słownika i bez drogi ponowienia.
+  // Granica błędu routera montuje stronę błędu dwa razy (stan dopasowania,
+  // potem `CatchBoundary`), więc asercja czeka na STAN, a nie na pierwszy węzeł.
+  const errorHeading = (name: string) =>
+    waitFor(() => expect(screen.getByRole("heading", { level: 1, name })).toBeInTheDocument());
+
+  it("/programs: strona błędu ma nagłówek ze SŁOWNIKA, a ponowienie leczy katalog", async () => {
+    h.headerFailure = new Error("test: nagłówki odpowiedzi już wysłane");
+    await mountIndex();
+
+    await errorHeading("Nie udało się załadować programów");
+
+    h.headerFailure = null;
+    fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Bezpieczeństwo Europy" }),
+    ).toBeInTheDocument();
+  });
+
+  it("/programs/$slug: nagłówek strony błędu mówi o PROGRAMIE, w obu językach", async () => {
+    h.headerFailure = new Error("test: nagłówki odpowiedzi już wysłane");
+    await mountDetail();
+    await errorHeading("Nie udało się załadować programu");
+
+    cleanup();
+    await i18n.changeLanguage("en");
+    setClientLang("en");
+    await mountDetail();
+    await errorHeading("Couldn't load this program");
+  });
 });
 
 describe("trasa /programs/$slug - brak programu i izolacja obszarów", () => {
+  it("program zdjęty z publikacji W TRAKCIE oglądania daje 404, nie pusty szkielet", async () => {
+    // Loader rozstrzyga 404 tylko na wejściu. Kolejny odczyt (ponowienie,
+    // odświeżenie po `staleTime`) może wrócić CZYSTYM `null` - redakcja
+    // właśnie wycofała program. Landing zbudowany wokół `null` byłby pustą
+    // stroną z HTTP 200 w oczach czytelnika.
+    const view = await mountDetail();
+    await screen.findByRole("heading", { level: 1, name: "Bezpieczeństwo Europy" });
+    h.programs = [];
+    await act(async () => {
+      await view.queryClient.refetchQueries({ queryKey: ["programs", "landing", SLUG] });
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Nie znaleziono strony" })).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole("heading", { level: 1, name: "Bezpieczeństwo Europy" })).toBeNull();
+  });
+
   it("nieistniejący slug kończy się STRONĄ 404, nie pustym landingiem", async () => {
     await mountDetail("nie-ma-takiego-programu");
 

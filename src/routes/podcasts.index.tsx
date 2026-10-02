@@ -97,7 +97,7 @@ export const Route = createFileRoute("/podcasts/")({
   // Nagłówek błędu też idzie ze słownika: `errorComponent` renderuje się jak
   // każdy inny komponent, więc `t()` jest tu dostępne - literał był jedynym
   // miejscem na tej trasie, które mówiło po polsku do wszystkich.
-  errorComponent: (props) => <PodcastsIndexError {...props} />,
+  errorComponent: PodcastsIndexError,
 });
 
 function PodcastsIndexError(props: ErrorComponentProps) {

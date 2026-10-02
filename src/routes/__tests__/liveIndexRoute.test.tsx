@@ -23,6 +23,9 @@
 //   3. DEGRADACJA MÓWI PRAWDĘ. Pusta lista i „nic nie dojechało" wyglądają
 //      identycznie, a to dwie różne prawdy.
 //   4. RELACJA INNEGO OBSZARU ROBOCZEGO NIE POJAWIA SIĘ NA TYM HOŚCIE.
+//   5. AWARIA RENDERU TO NIE PUSTY EKRAN. Wyjątek w drzewie trasy kończy się
+//      ekranem błędu z tytułem w języku ADRESU, a zimna nawigacja -
+//      szkieletem listy, nie białą stroną.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - KANAŁU RSS `/live/rss.xml`: pełny kontrakt degradacji i TTL ma
@@ -38,7 +41,7 @@
 //   `src/components/blocks/__tests__/liveBlogBlock.test.tsx`. Poniżej jest
 //   za to ZAPADKA na tym, że INDEKS kanału NIE otwiera - patrz uzasadnienie.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 
 const h = vi.hoisted(() => ({
   /** Wiersze `live_blog_entries` (post_id, occurred_at). */
@@ -59,6 +62,8 @@ const h = vi.hoisted(() => ({
   channelNames: [] as string[],
   /** Ile kanałów zostało zamkniętych przez `removeChannel`. */
   removedChannels: 0,
+  /** Czy okruszki mają RZUCIĆ w renderze (awaria renderu, nie odczytu). */
+  breadcrumbsThrow: false,
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -110,6 +115,20 @@ vi.mock("@/lib/http/responseHeaders", () => ({
   appendLinkHeader: () => {},
   readRouteCacheDirective: () => null,
 }));
+
+// Okruszki są pierwszym elementem indeksu i nie niosą danych - atrapa
+// przepuszcza prawdziwy komponent, dopóki test nie zażąda awarii renderu.
+vi.mock("@/components/Breadcrumbs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/Breadcrumbs")>();
+  const Real = actual.Breadcrumbs;
+  return {
+    ...actual,
+    Breadcrumbs: (props: Parameters<typeof Real>[0]) => {
+      if (h.breadcrumbsThrow) throw new Error("test: okruszki wywrocily render indeksu");
+      return <Real {...props} />;
+    },
+  };
+});
 
 import "@/test/i18nReal";
 import { QueryClient } from "@tanstack/react-query";
@@ -203,6 +222,7 @@ beforeEach(async () => {
   h.cacheControl = [];
   h.channelNames = [];
   h.removedChannels = 0;
+  h.breadcrumbsThrow = false;
 });
 
 afterEach(async () => {
@@ -375,6 +395,52 @@ describe("trasa /live - stan pusty i render zdegradowany", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: /Szczyt energetyczny/ }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("trasa /live - awaria renderu i stan oczekiwania", () => {
+  /** Ekran błędu trasy: nagłówek o tej nazwie I treść awarii, nie degradacji. */
+  async function errorScreenTitled(title: string): Promise<void> {
+    await waitFor(() => expect(screen.getByRole("heading", { name: title })).toBeInTheDocument());
+    // To NIE jest render zdegradowany (ten ma ten sam tytuł po polsku) -
+    // tylko ekran awarii z treścią ogólną.
+    expect(screen.queryByText("Ta sekcja chwilowo nie ma danych")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 1, name: /Relacje na żywo/ })).toBeNull();
+  }
+
+  it("wyjątek w drzewie indeksu daje ekran błędu z tytułem, a nie pustą stronę", async () => {
+    h.breadcrumbsThrow = true;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mount();
+
+    await errorScreenTitled("Nie udało się załadować relacji");
+  });
+
+  it("tytuł ekranu błędu idzie za językiem ADRESU, nie instancji i18n", async () => {
+    // Instancja i18next jest wspólna dla równoległych żądań SSR, więc język
+    // ekranu błędu rozstrzyga prefiks adresu (`activeLang()`), tak samo jak
+    // w `head()`. Instancja zostaje tu CELOWO polska.
+    h.breadcrumbsThrow = true;
+    h.requestUrl = "https://nes.example.org/en/live";
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mount();
+
+    await errorScreenTitled("Failed to load live blogs");
+  });
+
+  it("zimna nawigacja dostaje szkielet LISTY ukryty przed czytnikiem ekranu", () => {
+    // Szkielet jest dekoracją (nawigację ogłasza `RouteProgress`), więc nie
+    // może dodawać czytnikowi sześciu pustych „kart" - ale musi mieć kształt
+    // listy, inaczej dojście danych przebudowuje układ strony.
+    const Pending = LiveRoute.options.pendingComponent;
+    if (typeof Pending !== "function") throw new Error("test: /live nie ma stanu oczekiwania");
+    const { container } = render(<Pending />);
+
+    const root = container.firstElementChild;
+    expect(root).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelectorAll(".rounded-xl.border")).toHaveLength(6);
   });
 });
 

@@ -12,7 +12,7 @@
 // To, co zostaje w trasie po wyprowadzeniu zapytań, nie jest ozdobą - to
 // STAN WERSJI ROBOCZEJ i to, CZY ZMIANY W OGÓLE DOJADĄ DO ZAPISU.
 //
-// CZTERY REGUŁY, KTÓRYCH ZŁAMANIE KOSZTUJE:
+// PIĘĆ REGUŁ, KTÓRYCH ZŁAMANIE KOSZTUJE:
 //
 //   1. WERSJA ROBOCZA JEST JEDNORAZOWO ZASIEWANA Z BAZY. Efekt kopiujący
 //      `data` do `local` ma warunek `!local` - odświeżenie zapytania w tle
@@ -29,6 +29,13 @@
 //   4. BŁĄD ZAPISU NIE UDAJE SUKCESU. Panel po nieudanym zapisie pokazujący
 //      „zapisano" zostawia administratora w przekonaniu, że globalne
 //      ustawienia stron WSZYSTKICH ekspertów są już zmienione.
+//   5. TRASA NIE MONTUJE WŁASNEJ POWŁOKI PANELU. Layout `/admin` SAM owija
+//      `<Outlet/>` w `<AdminShell>`; trasa owijała się DRUGI raz
+//      (`<AdminShell hideSidebar>` w stanie wczytywania i w widoku głównym),
+//      co dawało drugi `<main id="main-content">` w kolumnie treści
+//      (zduplikowane id celu „przejdź do treści") i pływający drugi
+//      przełącznik języka `AdminLangBar`. NAPRAWIONE; atrapa `AdminShell`
+//      niżej jest SONDĄ liczącą montaże.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - DOSTĘPU. Ta trasa NIE MA własnej bramki roli - i to jest poprawne:
@@ -63,6 +70,8 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
   /** Ile razy trasa zarejestrowała swój słownik (chunk trasy, nie entry). */
   ensureI18nCalls: 0,
+  /** Ile razy zamontowano `AdminShell` - SONDA reguły 5. */
+  shellRenders: 0,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -85,12 +94,15 @@ vi.mock("@/hooks/useExpertLayoutSettings", () => ({
     isPending: h.savePending,
   }),
 }));
-// Powłoka panelu ciągnie nawigację, sesję i tenanta - przedmiotem dowodu jest
-// zawartość trasy, nie powłoka (ma własne testy przy `AdminShell`).
+// SONDA reguły 5, nie ozdoba: po naprawie trasa NIE importuje powłoki, więc
+// ta atrapa nie powinna być wywołana ani razu. Powrót `<AdminShell>` do trasy
+// podbija licznik i czerwieni test - bez montowania prawdziwej powłoki (ta
+// ciągnie nawigację, sesję i tenanta, i ma własne testy przy `AdminShell`).
 vi.mock("@/components/admin/AdminShell", () => ({
-  AdminShell: ({ children }: { children?: ReactNode }) => (
-    <div data-testid="admin-shell">{children}</div>
-  ),
+  AdminShell: ({ children }: { children?: ReactNode }) => {
+    h.shellRenders += 1;
+    return <div data-testid="admin-shell">{children}</div>;
+  },
 }));
 // Sonda, nie ozdoba: podgląd renderuje REALNEGO eksperta z bazy, a dowodem
 // jest tu WYŁĄCZNIE to, jakie ustawienia dostał (wersja robocza czy zapisana).
@@ -176,6 +188,7 @@ beforeEach(() => {
   h.savePending = false;
   h.previewProps = [];
   h.ensureI18nCalls = 0;
+  h.shellRenders = 0;
 });
 
 afterEach(() => cleanup());
@@ -234,6 +247,22 @@ describe("admin.expert-layouts - sklejenie trasy i stan pusty", () => {
     await mount();
 
     expect(h.ensureI18nCalls).toBeGreaterThan(0);
+  });
+
+  it("NIE montuje własnej powłoki panelu - ani we wczytywaniu, ani w widoku głównym", async () => {
+    // REGUŁA 5 (regresja). Przed naprawą oba stany owijały się
+    // w `<AdminShell hideSidebar>` WEWNĄTRZ powłoki layoutu `/admin`.
+    h.settings = null;
+    const loading = await mount();
+    expect(screen.getByText("adminLayouts.expertLayouts.loading")).toBeInTheDocument();
+    expect(h.shellRenders).toBe(0);
+    loading.unmount();
+
+    h.settings = settings();
+    await mount();
+    expect(saveButton()).toBeInTheDocument();
+    expect(h.shellRenders).toBe(0);
+    expect(screen.queryByTestId("admin-shell")).toBeNull();
   });
 
   it("panel nie zostawia w nagłówku pustego tytułu", async () => {
@@ -371,6 +400,59 @@ describe("admin.expert-layouts - zapis: ładunek, nie DOM", () => {
     ).toBeDisabled();
   });
 
+  it("przestawienie sekcji w dół zamienia ją z NASTĘPNĄ, a nie z poprzednią", async () => {
+    // Strzałka w dół z kierunkiem pomylonym na `-1` robiłaby to samo co
+    // strzałka w górę - na pierwszej sekcji byłaby zablokowana, a na
+    // pozostałych przesuwała sekcję w przeciwną stronę niż obiecuje ikona.
+    await mount();
+    fireEvent.click(
+      within(
+        sectionRow(DEFAULT_EXPERT_SECTION_ORDER[0]),
+        '[aria-label="adminLayouts.expertLayouts.moveDown"]',
+      ),
+    );
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.savePayloads).toHaveLength(1));
+    const order = lastPayload()?.section_order ?? [];
+    expect(order.slice(0, 2)).toEqual([
+      DEFAULT_EXPERT_SECTION_ORDER[1],
+      DEFAULT_EXPERT_SECTION_ORDER[0],
+    ]);
+    expect(order.slice(2)).toEqual(DEFAULT_EXPERT_SECTION_ORDER.slice(2));
+  });
+
+  it("niepełna zapisana kolejność daje „przywróć” i przywraca PEŁNĄ kolejność domyślną", async () => {
+    // Wiersz zapisany przed dodaniem nowej sekcji niesie krótszą tablicę -
+    // brakujących sekcji nie ma w panelu, więc nie da się ich ani ukryć, ani
+    // przestawić. Jedyną drogą powrotu jest przycisk przywrócenia.
+    h.settings = settings({ section_order: DEFAULT_EXPERT_SECTION_ORDER.slice(0, 3) });
+    await mount();
+    expect(screen.queryByText("adminLayouts.expertLayouts.sections.cv")).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "adminLayouts.expertLayouts.restoreOrder" }),
+    );
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.savePayloads).toHaveLength(1));
+    expect(lastPayload()?.section_order).toEqual(DEFAULT_EXPERT_SECTION_ORDER);
+    expect(screen.getByText("adminLayouts.expertLayouts.sections.cv")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "adminLayouts.expertLayouts.restoreOrder" }),
+    ).toBeNull();
+  });
+
+  it("pełna kolejność NIE pokazuje przycisku przywrócenia", async () => {
+    // Przycisk przy pełnej kolejności kasowałby jednym kliknięciem ręczne
+    // ustawienie administratora - bez żadnej korzyści.
+    await mount();
+
+    expect(
+      screen.queryByRole("button", { name: "adminLayouts.expertLayouts.restoreOrder" }),
+    ).toBeNull();
+  });
+
   it("udany zapis pokazuje toast i STEMPLUJE podgląd nowym czasem", async () => {
     // `savedAt` jest sygnałem dla podglądu, że dane w bazie się zmieniły
     // (przeładowuje eksperta). Brak stempla to podgląd, który po zapisie
@@ -410,6 +492,19 @@ describe("admin.expert-layouts - zapis: ładunek, nie DOM", () => {
     expect(shown).toContain("adminLayouts.expertLayouts.saveErrorToast");
   });
 
+  it("błąd bez komunikatu dostaje zapasowy tekst z KLUCZA, a nie `undefined`", async () => {
+    // Odrzucenie wartością spoza `Error` (np. obiekt z sieci) nie ma
+    // `message` - wstawka `{{msg}}` bez zapasu dawałaby „undefined" w toaście.
+    h.saveError = { code: "PGRST000" };
+    await mount();
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(h.toastError).toHaveBeenCalledWith(
+      "adminLayouts.expertLayouts.saveErrorToast(msg=adminLayouts.expertLayouts.saveFailed)",
+    );
+  });
+
   it("w trakcie zapisu przycisk jest zablokowany i mówi o zapisywaniu", async () => {
     // Drugi klik w trwający zapis to drugi `upsert` na tym samym wierszu -
     // wyścig o wiersz, który ma jedną wersję na obszar roboczy.
@@ -422,7 +517,108 @@ describe("admin.expert-layouts - zapis: ładunek, nie DOM", () => {
   });
 });
 
+describe("admin.expert-layouts - wycentrowanie i typografia", () => {
+  /** Przełącznik z etykietą - przycisk `aria-pressed` w `<label>` z tym tekstem. */
+  function labelledToggle(labelKey: string): HTMLElement {
+    const label = screen.getByText(labelKey).closest("label");
+    if (!(label instanceof HTMLElement)) throw new Error(`test: brak przełącznika "${labelKey}"`);
+    return within(label, "button[aria-pressed]");
+  }
+
+  it("każdy przełącznik wycentrowania pisze do SWOJEJ kolumny", async () => {
+    // Dwa przełączniki obok siebie z zamienionymi polami wycentrowałyby
+    // szczegóły zamiast hero - na stronach wszystkich ekspertów naraz.
+    await mount();
+    fireEvent.click(labelledToggle("adminLayouts.expertLayouts.centerHero"));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.savePayloads).toHaveLength(1));
+    expect(lastPayload()).toMatchObject({ center_hero: true, center_details: false });
+
+    fireEvent.click(labelledToggle("adminLayouts.expertLayouts.centerDetails"));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.savePayloads).toHaveLength(2));
+    expect(lastPayload()).toMatchObject({ center_hero: true, center_details: true });
+  });
+
+  it("wyczyszczone pole rozmiaru nazwy spada na domyślne 36/48 px, nie na 0", async () => {
+    // `Number("")` to 0, a nazwa eksperta z `font-size: 0` znika z hero.
+    h.settings = settings({ name_size_base: 40, name_size_lg: 56 });
+    await mount();
+    fireEvent.change(screen.getByLabelText("adminLayouts.expertLayouts.nameMobile"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("adminLayouts.expertLayouts.nameDesktop"), {
+      target: { value: "" },
+    });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.savePayloads).toHaveLength(1));
+    expect(lastPayload()).toMatchObject({ name_size_base: 36, name_size_lg: 48 });
+  });
+
+  it("rozmiar nazwy wpisany przez administratora jedzie do ładunku jako liczba", async () => {
+    await mount();
+    fireEvent.change(screen.getByLabelText("adminLayouts.expertLayouts.nameMobile"), {
+      target: { value: "30" },
+    });
+    fireEvent.change(screen.getByLabelText("adminLayouts.expertLayouts.nameDesktop"), {
+      target: { value: "64" },
+    });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.savePayloads).toHaveLength(1));
+    expect(lastPayload()).toMatchObject({ name_size_base: 30, name_size_lg: 64 });
+  });
+});
+
 describe("admin.expert-layouts - kolory hero", () => {
+  /** Próbnik koloru (`type=color`) po etykiecie pola - etykieta jest KLUCZEM. */
+  function colorPicker(labelKey: string): HTMLElement {
+    const picker = document.querySelector(`input[type="color"][aria-label="${labelKey}"]`);
+    if (!(picker instanceof HTMLElement)) throw new Error(`test: brak próbnika "${labelKey}"`);
+    return picker;
+  }
+
+  // Osiem pól koloru to osiem domknięć `onChange` przepisanych ręcznie -
+  // pomyłka w jednym zapisuje kolor tła w kolumnie tekstu (biały tekst na
+  // białym tle) albo kolor trybu jasnego w kolumnie ciemnego.
+  it.each([
+    ["heroBgLight", "hero_bg_color"],
+    ["heroBgDark", "hero_bg_color_dark"],
+    ["heroTextLight", "hero_text_color"],
+    ["heroTextDark", "hero_text_color_dark"],
+    ["accentLight", "accent_color"],
+    ["accentDark", "accent_color_dark"],
+    ["bioBulletLight", "bio_bullet_color"],
+    ["bioBulletDark", "bio_bullet_color_dark"],
+  ] as const)("pole %s pisze do kolumny %s i do żadnej innej", async (labelKey, column) => {
+    await mount();
+    fireEvent.change(colorPicker(`adminLayouts.expertLayouts.${labelKey}`), {
+      target: { value: "#abcdef" },
+    });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.savePayloads).toHaveLength(1));
+    const payload = lastPayload() ?? {};
+    expect(payload[column]).toBe("#abcdef");
+    const others = Object.entries(payload).filter(
+      ([key, value]) => key !== column && value === "#abcdef",
+    );
+    expect(others).toEqual([]);
+  });
+
+  it("przycisk „✕” zeruje kolor do `null` (powrót do koloru z motywu)", async () => {
+    h.settings = settings({ accent_color: "#123456" });
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "adminLayouts.expertLayouts.clear" }));
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.savePayloads).toHaveLength(1));
+    expect(lastPayload()?.accent_color).toBeNull();
+    expect(screen.queryByRole("button", { name: "adminLayouts.expertLayouts.clear" })).toBeNull();
+  });
+
   it("wyczyszczenie pola koloru daje `null`, a nie pusty ciąg", async () => {
     // Pusty ciąg w kolumnie koloru trafia do zmiennej CSS jako `""`,
     // a przeglądarka bierze wtedy kolor odziedziczony - czyli inny niż

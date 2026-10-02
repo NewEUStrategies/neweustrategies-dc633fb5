@@ -20,7 +20,7 @@ import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/li
 import { SITE_NAME } from "@/lib/seo/meta";
 import { buildRssXml, plainText, type RssItem } from "@/lib/seo/rss";
 import { LIVE_FEED_CACHE_CONTROL_FULL, rssResponseHeaders } from "@/lib/seo/feedCache";
-import { parseSeoSettings } from "@/lib/seo/settings";
+import { parseSeoSettings, siteNameOverride } from "@/lib/seo/settings";
 import {
   fetchLiveCoverageEntries,
   fetchSeoSettingsValue,
@@ -87,8 +87,11 @@ export const Route = createFileRoute("/live_/rss.xml")({
             };
           });
 
+        // Nazwa serwisu z ustawień SEO (już pobranych wyżej) - to samo źródło,
+        // co `og:site_name` i `WebSite.name`; stała marki tylko jako zapas.
+        const siteName = siteNameOverride(settings) || SITE_NAME;
         const xml = buildRssXml({
-          title: lang === "en" ? `Live coverage - ${SITE_NAME}` : `Relacje na żywo - ${SITE_NAME}`,
+          title: lang === "en" ? `Live coverage - ${siteName}` : `Relacje na żywo - ${siteName}`,
           description:
             lang === "en"
               ? "Live updates from ongoing coverage of key European events."
@@ -96,7 +99,7 @@ export const Route = createFileRoute("/live_/rss.xml")({
           siteUrl: `${origin}${localizedPath("/live", lang)}`,
           feedUrl: `${origin}${localizedPath("/live/rss.xml", lang)}`,
           language: lang,
-          copyright: `© ${new Date().getFullYear()} ${SITE_NAME}`,
+          copyright: `© ${new Date().getFullYear()} ${siteName}`,
           items,
         });
 

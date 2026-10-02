@@ -4,8 +4,13 @@
 // przypisań ekspertów. Tutaj: pełny landing (teza, zakres, pytania badawcze,
 // zespół z liderem, projekty, partnerzy, wybrane raporty flagowe,
 // podcasty i wydarzenia).
+//
+// UWAGA: od migracji 20260815110844 `research_programs` jest WIDOKIEM na
+// `programs`, więc oba panele piszą te same wiersze - wspólne reguły zapisu
+// (slug, reakcja na odmowę bazy, unieważniane klucze) żyją w
+// `lib/programs/adminForm.ts`.
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,15 +39,37 @@ import { Plus, Trash2, Pencil, Users, Layers, Handshake, Star } from "lucide-rea
 import { toast } from "sonner";
 import { confirmDialog } from "@/lib/appDialogs";
 import { PROGRAM_ICONS } from "@/lib/programs/icons";
+import {
+  PROGRAM_SLUG_PATTERN,
+  bindDraft,
+  invalidateProgramReaders,
+  writeOrToast,
+  type WriteResult,
+} from "@/lib/programs/adminForm";
 import { ProgramIcon } from "@/components/programs/ProgramIcon";
 import { ensureI18n as ensureProgramsI18n } from "@/lib/i18n-programs";
 export const Route = createFileRoute("/admin/research-programs")({
   component: AdminResearchPrograms,
 });
 
+type Lang = "pl" | "en";
 type Status = "draft" | "published" | "archived";
 type ProjectStatus = "planned" | "active" | "completed";
 type ItemType = "flagship_post" | "podcast" | "event";
+
+const STATUSES: readonly Status[] = ["draft", "published", "archived"];
+const PROJECT_STATUSES: readonly ProjectStatus[] = ["planned", "active", "completed"];
+/** Etykieta typu wybranego materiału - klucz w `adminResearchPrograms.items`. */
+const ITEM_TYPE_LABEL: Record<ItemType, string> = {
+  flagship_post: "items.flagshipPost",
+  podcast: "items.podcast",
+  event: "items.event",
+};
+const ICON_NAMES = Object.keys(PROGRAM_ICONS);
+/** Wartość listy kategorii oznaczająca „brak" - w kolumnie ląduje `NULL`. */
+const NO_CATEGORY = "none";
+/** Prefiks landingów publicznych - niosą zespół, projekty, partnerów i materiały. */
+const PUBLIC_LANDINGS_KEY = ["programs", "landing"] as const;
 
 interface ProgramRow {
   id: string;
@@ -64,6 +91,8 @@ interface ProgramRow {
   status: Status;
 }
 
+type ProgramForm = Omit<ProgramRow, "id" | "tenant_id">;
+
 interface MemberRow {
   program_id: string;
   profile_id: string;
@@ -73,6 +102,8 @@ interface MemberRow {
   sort_order: number;
   display_name?: string | null;
 }
+
+type MemberDraft = Pick<MemberRow, "profile_id" | "member_role_pl" | "member_role_en" | "is_lead">;
 
 interface ProjectRow {
   id: string;
@@ -86,6 +117,8 @@ interface ProjectRow {
   sort_order: number;
 }
 
+type ProjectDraft = Omit<ProjectRow, "id" | "program_id" | "sort_order">;
+
 interface PartnerRow {
   id: string;
   program_id: string;
@@ -94,6 +127,8 @@ interface PartnerRow {
   url: string | null;
   sort_order: number;
 }
+
+type PartnerDraft = Omit<PartnerRow, "id" | "program_id" | "sort_order">;
 
 interface ItemRow {
   id: string;
@@ -105,7 +140,13 @@ interface ItemRow {
   sort_order: number;
 }
 
-const EMPTY: Omit<ProgramRow, "id" | "tenant_id"> = {
+interface ItemDraft {
+  item_type: ItemType;
+  /** UUID rekordu - ląduje w kolumnie odpowiadającej `item_type`. */
+  target: string;
+}
+
+const EMPTY: ProgramForm = {
   slug: "",
   name_pl: "",
   name_en: "",
@@ -122,13 +163,52 @@ const EMPTY: Omit<ProgramRow, "id" | "tenant_id"> = {
   sort_order: 0,
   status: "draft",
 };
+const EMPTY_MEMBER: MemberDraft = {
+  profile_id: "",
+  member_role_pl: null,
+  member_role_en: null,
+  is_lead: false,
+};
+const EMPTY_PROJECT: ProjectDraft = {
+  name_pl: "",
+  name_en: "",
+  summary_pl: null,
+  summary_en: null,
+  project_status: "active",
+  url: null,
+};
+const EMPTY_PARTNER: PartnerDraft = { name: "", logo_url: null, url: null };
+const EMPTY_ITEM: ItemDraft = { item_type: "flagship_post", target: "" };
+
+/** Tłumaczenia panelu: `t`, język treści i skrót do przestrzeni panelu. */
+function usePanelT() {
+  const { t, i18n } = useTranslation();
+  const lang: Lang = i18n.language === "en" ? "en" : "pl";
+  return { t, lang, tp: (k: string) => t(`adminResearchPrograms.${k}`) };
+}
+
+/** Pole formularza z etykietą powiązaną z kontrolką (`htmlFor` = `id` pola). */
+function Field({
+  htmlFor,
+  label,
+  children,
+}: {
+  htmlFor: string;
+  label: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={htmlFor}>{label}</Label>
+      {children}
+    </div>
+  );
+}
 
 function AdminResearchPrograms() {
   // Rejestracja słowników w chunku trasy (nie w entry) - patrz lib/i18n-*.
   ensureProgramsI18n();
-  const { t, i18n } = useTranslation();
-  const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
-  const tp = (k: string) => t(`adminPrograms.${k}`);
+  const { t, lang, tp } = usePanelT();
 
   const tenantId = useRequiredTenant();
   const qc = useQueryClient();
@@ -136,11 +216,15 @@ function AdminResearchPrograms() {
   const programsQ = useQuery({
     queryKey: ["admin-research-programs", tenantId],
     queryFn: async (): Promise<ProgramRow[]> => {
+      // Filtr po tenancie jest JAWNY, a nie zostawiony RLS: klucz cache niesie
+      // `tenantId`, więc zapytanie musi mówić to samo - polityka „public read"
+      // przepuszcza też opublikowane programy obszaru z adresu hosta.
       const { data, error } = await supabase
         .from("research_programs")
         .select(
           "id, tenant_id, slug, name_pl, name_en, tagline_pl, tagline_en, scope_pl, scope_en, research_questions, icon, accent_color, hero_image_url, category_id, contact_email, sort_order, status",
         )
+        .eq("tenant_id", tenantId)
         .order("sort_order", { ascending: true })
         .order("name_pl", { ascending: true });
       if (error) throw error;
@@ -161,6 +245,7 @@ function AdminResearchPrograms() {
       const { data, error } = await supabase
         .from("categories")
         .select("id, slug, name_pl, name_en")
+        .eq("tenant_id", tenantId)
         .order("name_pl", { ascending: true });
       if (error) throw error;
       return (data ?? []) as { id: string; slug: string; name_pl: string; name_en: string }[];
@@ -168,9 +253,11 @@ function AdminResearchPrograms() {
   });
 
   const [editing, setEditing] = useState<ProgramRow | null>(null);
-  const [form, setForm] = useState<Omit<ProgramRow, "id" | "tenant_id">>(EMPTY);
+  const [form, setForm] = useState<ProgramForm>(EMPTY);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [manageFor, setManageFor] = useState<ProgramRow | null>(null);
+  const field = bindDraft(form, setForm, "rp");
+  const accent = field.text("accent_color");
 
   const openCreate = () => {
     setEditing(null);
@@ -185,7 +272,7 @@ function AdminResearchPrograms() {
   };
 
   const saveProgram = async () => {
-    if (!/^[a-z0-9-]{2,80}$/.test(form.slug)) {
+    if (!PROGRAM_SLUG_PATTERN.test(form.slug)) {
       toast.error(tp("errSlug"));
       return;
     }
@@ -202,17 +289,15 @@ function AdminResearchPrograms() {
       ),
     };
 
-    const { error } = editing
-      ? await supabase.from("research_programs").update(payload).eq("id", editing.id)
-      : await supabase.from("research_programs").insert(payload);
-
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
+    const saved = await writeOrToast(
+      editing
+        ? supabase.from("research_programs").update(payload).eq("id", editing.id)
+        : supabase.from("research_programs").insert(payload),
+    );
+    if (!saved) return;
     toast.success(tp("saved"));
     setDialogOpen(false);
-    qc.invalidateQueries({ queryKey: ["admin-research-programs"] });
+    invalidateProgramReaders(qc);
   };
 
   const deleteProgram = async (p: ProgramRow) => {
@@ -223,18 +308,12 @@ function AdminResearchPrograms() {
       destructive: true,
     });
     if (!ok) return;
-    const { error } = await supabase.from("research_programs").delete().eq("id", p.id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
+    if (!(await writeOrToast(supabase.from("research_programs").delete().eq("id", p.id)))) return;
     toast.success(tp("deleted"));
-
-    qc.invalidateQueries({ queryKey: ["admin-research-programs"] });
+    invalidateProgramReaders(qc);
   };
 
   const rows = programsQ.data ?? [];
-  const iconNames = Object.keys(PROGRAM_ICONS);
 
   return (
     <div className="mx-auto max-w-[1200px] p-4 lg:p-8">
@@ -255,6 +334,15 @@ function AdminResearchPrograms() {
             <div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
           ))}
         </div>
+      ) : programsQ.isError ? (
+        // „Nie udało się odczytać" to nie „brak programów": stan pusty po
+        // odmowie RLS kazałby redakcji tworzyć program, który już istnieje.
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm"
+        >
+          {t("programs.loadError")}
+        </p>
       ) : rows.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
           {tp("empty")}
@@ -293,7 +381,7 @@ function AdminResearchPrograms() {
                       : "bg-amber-500/10 text-amber-700 dark:text-amber-300")
                 }
               >
-                {p.status}
+                {t(`admin.status.${p.status}`)}
               </span>
               <Button variant="ghost" size="sm" onClick={() => setManageFor(p)}>
                 <Users className="mr-1 h-4 w-4" />
@@ -318,175 +406,111 @@ function AdminResearchPrograms() {
 
           <div className="grid gap-4">
             <div className="grid gap-2 md:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label>Slug</Label>
-                <Input
-                  value={form.slug}
-                  onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
-                  placeholder="np. bezpieczenstwo-europy"
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Status</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm((f) => ({ ...f, status: v as Status }))}
-                >
-                  <SelectTrigger>
+              <Field htmlFor={field.id("slug")} label="Slug">
+                <Input {...field.text("slug")} placeholder="np. bezpieczenstwo-europy" />
+              </Field>
+              <Field htmlFor={field.id("status")} label="Status">
+                <Select {...field.choice("status")}>
+                  <SelectTrigger id={field.id("status")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">draft</SelectItem>
-                    <SelectItem value="published">published</SelectItem>
-                    <SelectItem value="archived">archived</SelectItem>
+                    {STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {t(`admin.status.${s}`)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
             </div>
 
             <div className="grid gap-2 md:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label>Nazwa (PL)</Label>
-                <Input
-                  value={form.name_pl}
-                  onChange={(e) => setForm((f) => ({ ...f, name_pl: e.target.value }))}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Name (EN)</Label>
-                <Input
-                  value={form.name_en}
-                  onChange={(e) => setForm((f) => ({ ...f, name_en: e.target.value }))}
-                />
-              </div>
+              <Field htmlFor={field.id("name_pl")} label="Nazwa (PL)">
+                <Input {...field.text("name_pl")} />
+              </Field>
+              <Field htmlFor={field.id("name_en")} label="Name (EN)">
+                <Input {...field.text("name_en")} />
+              </Field>
             </div>
 
             <div className="grid gap-2 md:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label>{tp("field.taglinePl")}</Label>
-                <Textarea
-                  rows={2}
-                  value={form.tagline_pl ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, tagline_pl: e.target.value || null }))}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Tagline (EN)</Label>
-                <Textarea
-                  rows={2}
-                  value={form.tagline_en ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, tagline_en: e.target.value || null }))}
-                />
-              </div>
+              <Field htmlFor={field.id("tagline_pl")} label={tp("field.taglinePl")}>
+                <Textarea rows={2} {...field.optionalText("tagline_pl")} />
+              </Field>
+              <Field htmlFor={field.id("tagline_en")} label="Tagline (EN)">
+                <Textarea rows={2} {...field.optionalText("tagline_en")} />
+              </Field>
             </div>
 
             <div className="grid gap-2 md:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label>{tp("field.scopePl")}</Label>
-                <Textarea
-                  rows={4}
-                  value={form.scope_pl ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, scope_pl: e.target.value || null }))}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Scope (EN)</Label>
-                <Textarea
-                  rows={4}
-                  value={form.scope_en ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, scope_en: e.target.value || null }))}
-                />
-              </div>
+              <Field htmlFor={field.id("scope_pl")} label={tp("field.scopePl")}>
+                <Textarea rows={4} {...field.optionalText("scope_pl")} />
+              </Field>
+              <Field htmlFor={field.id("scope_en")} label="Scope (EN)">
+                <Textarea rows={4} {...field.optionalText("scope_en")} />
+              </Field>
             </div>
 
             <ResearchQuestionsEditor
               value={form.research_questions}
               onChange={(next) => setForm((f) => ({ ...f, research_questions: next }))}
-              lang={lang}
             />
 
             <div className="grid gap-2 md:grid-cols-3">
-              <div className="grid gap-1.5">
-                <Label>{tp("field.icon")}</Label>
-                <Select
-                  value={form.icon}
-                  onValueChange={(v) => setForm((f) => ({ ...f, icon: v }))}
-                >
-                  <SelectTrigger>
+              <Field htmlFor={field.id("icon")} label={tp("field.icon")}>
+                <Select {...field.choice("icon")}>
+                  <SelectTrigger id={field.id("icon")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="max-h-72">
-                    {iconNames.map((n) => (
+                    {ICON_NAMES.map((n) => (
                       <SelectItem key={n} value={n}>
                         {n}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>{tp("field.accent")}</Label>
+              </Field>
+              <Field htmlFor={accent.id} label={tp("field.accent")}>
                 <div className="flex items-center gap-2">
+                  {/* Próbnik koloru i pole tekstowe piszą TĘ SAMĄ kolumnę;
+                      etykieta wskazuje pole tekstowe (ono ma `id`). */}
                   <Input
                     type="color"
-                    value={form.accent_color}
-                    onChange={(e) => setForm((f) => ({ ...f, accent_color: e.target.value }))}
+                    value={accent.value}
+                    onChange={accent.onChange}
                     className="h-9 w-16 p-1"
                   />
-                  <Input
-                    value={form.accent_color}
-                    onChange={(e) => setForm((f) => ({ ...f, accent_color: e.target.value }))}
-                  />
+                  <Input {...accent} />
                 </div>
-              </div>
-              <div className="grid gap-1.5">
-                <Label>{tp("field.sort")}</Label>
-                <Input
-                  type="number"
-                  value={form.sort_order}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, sort_order: Number(e.target.value) || 0 }))
-                  }
-                />
-              </div>
+              </Field>
+              <Field htmlFor={field.id("sort_order")} label={tp("field.sort")}>
+                <Input type="number" {...field.number("sort_order")} />
+              </Field>
             </div>
 
             <div className="grid gap-2 md:grid-cols-2">
-              <div className="grid gap-1.5">
-                <Label>{tp("field.hero")}</Label>
-                <Input
-                  value={form.hero_image_url ?? ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, hero_image_url: e.target.value || null }))
-                  }
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>{tp("field.contactEmail")}</Label>
-                <Input
-                  type="email"
-                  value={form.contact_email ?? ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, contact_email: e.target.value || null }))
-                  }
-                />
-              </div>
+              <Field htmlFor={field.id("hero_image_url")} label={tp("field.hero")}>
+                <Input {...field.optionalText("hero_image_url")} />
+              </Field>
+              <Field htmlFor={field.id("contact_email")} label={tp("field.contactEmail")}>
+                <Input type="email" {...field.optionalText("contact_email")} />
+              </Field>
             </div>
 
-            <div className="grid gap-1.5">
-              <Label>{tp("field.contentCategory")}</Label>
-
+            <Field htmlFor={field.id("category_id")} label={tp("field.contentCategory")}>
               <Select
-                value={form.category_id ?? "none"}
+                value={form.category_id ?? NO_CATEGORY}
                 onValueChange={(v) =>
-                  setForm((f) => ({ ...f, category_id: v === "none" ? null : v }))
+                  setForm((f) => ({ ...f, category_id: v === NO_CATEGORY ? null : v }))
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger id={field.id("category_id")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">{tp("field.none")}</SelectItem>
+                  <SelectItem value={NO_CATEGORY}>{tp("field.none")}</SelectItem>
                   {(categoriesQ.data ?? []).map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {lang === "pl" ? c.name_pl : c.name_en}{" "}
@@ -495,7 +519,7 @@ function AdminResearchPrograms() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </Field>
           </div>
 
           <DialogFooter>
@@ -507,9 +531,7 @@ function AdminResearchPrograms() {
         </DialogContent>
       </Dialog>
 
-      {manageFor && (
-        <ManageContentDialog program={manageFor} onClose={() => setManageFor(null)} lang={lang} />
-      )}
+      {manageFor && <ManageContentDialog program={manageFor} onClose={() => setManageFor(null)} />}
     </div>
   );
 }
@@ -522,16 +544,11 @@ function ResearchQuestionsEditor({
 }: {
   value: { pl: string; en: string }[];
   onChange: (next: { pl: string; en: string }[]) => void;
-  lang: "pl" | "en";
 }) {
-  const { t } = useTranslation();
-  const tp = (k: string) => t(`adminPrograms.${k}`);
-  const add = () => onChange([...(value ?? []), { pl: "", en: "" }]);
-  const update = (i: number, key: "pl" | "en", v: string) => {
-    const next = [...value];
-    next[i] = { ...next[i], [key]: v };
-    onChange(next);
-  };
+  const { tp } = usePanelT();
+  const add = () => onChange([...value, { pl: "", en: "" }]);
+  const update = (i: number, key: "pl" | "en", v: string) =>
+    onChange(value.map((q, idx) => (idx === i ? { ...q, [key]: v } : q)));
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i));
 
   return (
@@ -569,23 +586,30 @@ function ResearchQuestionsEditor({
 
 /* -------------------- Manage sub-resources (members / projects / partners / items) -------------------- */
 
-function ManageContentDialog({
-  program,
-  onClose,
-  lang,
-}: {
-  program: ProgramRow;
-  onClose: () => void;
-  lang: "pl" | "en";
-}) {
-  const { t } = useTranslation();
-  const tp = (k: string) => t(`adminPrograms.${k}`);
+/**
+ * Zapis zasobu podrzędnego programu. Odmowa bazy - toast i NIC więcej (wersja
+ * robocza zostaje). Sukces - `onSaved`, potem unieważnienie klucza ZAKŁADKI
+ * (zawężonego programem) i landingów publicznych, które niosą ten sam zespół,
+ * projekty, partnerów i materiały.
+ */
+function useChildWrite(cacheKey: string, programId: string) {
+  const qc = useQueryClient();
+  return async (request: PromiseLike<WriteResult>, onSaved?: () => void): Promise<void> => {
+    if (!(await writeOrToast(request))) return;
+    onSaved?.();
+    void qc.invalidateQueries({ queryKey: [cacheKey, programId] });
+    void qc.invalidateQueries({ queryKey: PUBLIC_LANDINGS_KEY });
+  };
+}
+
+function ManageContentDialog({ program, onClose }: { program: ProgramRow; onClose: () => void }) {
+  const { tp, lang } = usePanelT();
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {tp("programContent")}: {program.name_pl}
+            {tp("programContent")}: {lang === "pl" ? program.name_pl : program.name_en}
           </DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="members" className="w-full">
@@ -605,16 +629,16 @@ function ManageContentDialog({
           </TabsList>
 
           <TabsContent value="members">
-            <MembersTab programId={program.id} lang={lang} />
+            <MembersTab programId={program.id} />
           </TabsContent>
           <TabsContent value="projects">
-            <ProjectsTab programId={program.id} lang={lang} />
+            <ProjectsTab programId={program.id} />
           </TabsContent>
           <TabsContent value="partners">
-            <PartnersTab programId={program.id} lang={lang} />
+            <PartnersTab programId={program.id} />
           </TabsContent>
           <TabsContent value="items">
-            <ItemsTab programId={program.id} lang={lang} />
+            <ItemsTab programId={program.id} />
           </TabsContent>
         </Tabs>
       </DialogContent>
@@ -624,10 +648,9 @@ function ManageContentDialog({
 
 /* ----- Team members ----- */
 
-function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
-  const { t } = useTranslation();
-  const tp = (k: string) => t(`adminPrograms.${k}`);
-  const qc = useQueryClient();
+function MembersTab({ programId }: { programId: string }) {
+  const { tp, lang } = usePanelT();
+  const write = useChildWrite("admin-rp-members", programId);
 
   const membersQ = useQuery({
     queryKey: ["admin-rp-members", programId],
@@ -675,67 +698,50 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
     },
   });
 
-  const [selectedUser, setSelectedUser] = useState<string>("");
-  const [rolePl, setRolePl] = useState("");
-  const [roleEn, setRoleEn] = useState("");
-  const [isLead, setIsLead] = useState(false);
+  const [draft, setDraft] = useState<MemberDraft>(EMPTY_MEMBER);
+  const field = bindDraft(draft, setDraft, "rp-member");
 
-  const addMember = async () => {
-    if (!selectedUser) return;
-    const { error } = await supabase.from("research_program_members").insert({
-      program_id: programId,
-      profile_id: selectedUser,
-      member_role_pl: rolePl || null,
-      member_role_en: roleEn || null,
-      is_lead: isLead,
-      sort_order: (membersQ.data?.length ?? 0) + 1,
-    });
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setSelectedUser("");
-    setRolePl("");
-    setRoleEn("");
-    setIsLead(false);
-    qc.invalidateQueries({ queryKey: ["admin-rp-members", programId] });
+  const members = membersQ.data ?? [];
+  const memberIds = new Set(members.map((m) => m.profile_id));
+  const available = (usersQ.data ?? []).filter((u) => !memberIds.has(u.id));
+
+  const addMember = () => {
+    if (!draft.profile_id) return;
+    void write(
+      supabase.from("research_program_members").insert({
+        ...draft,
+        program_id: programId,
+        sort_order: members.length + 1,
+      }),
+      () => setDraft(EMPTY_MEMBER),
+    );
   };
 
-  const removeMember = async (profileId: string) => {
-    const { error } = await supabase
-      .from("research_program_members")
-      .delete()
-      .eq("program_id", programId)
-      .eq("profile_id", profileId);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["admin-rp-members", programId] });
-  };
+  // Klucz złożony (`program_id`, `profile_id`): filtr po samym profilu
+  // dotknąłby tej osoby we WSZYSTKICH programach obszaru.
+  const removeMember = (profileId: string) =>
+    void write(
+      supabase
+        .from("research_program_members")
+        .delete()
+        .eq("program_id", programId)
+        .eq("profile_id", profileId),
+    );
 
-  const toggleLead = async (profileId: string, next: boolean) => {
-    const { error } = await supabase
-      .from("research_program_members")
-      .update({ is_lead: next })
-      .eq("program_id", programId)
-      .eq("profile_id", profileId);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["admin-rp-members", programId] });
-  };
-
-  const users = usersQ.data ?? [];
-  const alreadyIds = new Set((membersQ.data ?? []).map((m) => m.profile_id));
-  const available = useMemo(() => users.filter((u) => !alreadyIds.has(u.id)), [users, alreadyIds]);
+  const toggleLead = (profileId: string, next: boolean) =>
+    void write(
+      supabase
+        .from("research_program_members")
+        .update({ is_lead: next })
+        .eq("program_id", programId)
+        .eq("profile_id", profileId),
+    );
 
   return (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2 rounded-lg border border-border p-3">
         <div className="grid gap-2 md:grid-cols-2">
-          <Select value={selectedUser} onValueChange={setSelectedUser}>
+          <Select {...field.choice("profile_id")}>
             <SelectTrigger>
               <SelectValue placeholder={tp("members.selectUser")} />
             </SelectTrigger>
@@ -748,29 +754,21 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
-            <Switch checked={isLead} onCheckedChange={setIsLead} id="is-lead" />
-            <Label htmlFor="is-lead">{tp("members.lead")}</Label>
+            <Switch {...field.flag("is_lead")} />
+            <Label htmlFor={field.id("is_lead")}>{tp("members.lead")}</Label>
           </div>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
-          <Input
-            placeholder={tp("members.rolePl")}
-            value={rolePl}
-            onChange={(e) => setRolePl(e.target.value)}
-          />
-          <Input
-            placeholder={tp("members.roleEn")}
-            value={roleEn}
-            onChange={(e) => setRoleEn(e.target.value)}
-          />
+          <Input placeholder={tp("members.rolePl")} {...field.optionalText("member_role_pl")} />
+          <Input placeholder={tp("members.roleEn")} {...field.optionalText("member_role_en")} />
         </div>
-        <Button onClick={addMember} disabled={!selectedUser}>
+        <Button onClick={addMember} disabled={!draft.profile_id}>
           <Plus className="mr-1 h-4 w-4" /> {tp("members.addMember")}
         </Button>
       </div>
 
       <ul className="grid gap-2">
-        {(membersQ.data ?? []).map((m) => (
+        {members.map((m) => (
           <li
             key={m.profile_id}
             className="flex flex-wrap items-center gap-3 rounded-md border border-border p-2"
@@ -791,7 +789,7 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
             </Button>
           </li>
         ))}
-        {(membersQ.data ?? []).length === 0 && (
+        {members.length === 0 && (
           <p className="text-sm text-muted-foreground">{tp("members.empty")}</p>
         )}
       </ul>
@@ -801,10 +799,9 @@ function MembersTab({ programId, lang }: { programId: string; lang: "pl" | "en" 
 
 /* ----- Projects ----- */
 
-function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en" }) {
-  const { t } = useTranslation();
-  const tp = (k: string) => t(`adminPrograms.${k}`);
-  const qc = useQueryClient();
+function ProjectsTab({ programId }: { programId: string }) {
+  const { t, tp, lang } = usePanelT();
+  const write = useChildWrite("admin-rp-projects", programId);
 
   const q = useQuery({
     queryKey: ["admin-rp-projects", programId],
@@ -821,99 +818,61 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
     },
   });
 
-  const [draft, setDraft] = useState<Omit<ProjectRow, "id" | "program_id">>({
-    name_pl: "",
-    name_en: "",
-    summary_pl: null,
-    summary_en: null,
-    project_status: "active",
-    url: null,
-    sort_order: 0,
-  });
+  const [draft, setDraft] = useState<ProjectDraft>(EMPTY_PROJECT);
+  const field = bindDraft(draft, setDraft, "rp-project");
+  const rows = q.data ?? [];
 
-  const addProject = async () => {
+  const addProject = () => {
     if (!draft.name_pl.trim() || !draft.name_en.trim()) {
       toast.error(tp("projects.nameRequired"));
       return;
     }
-    const { error } = await supabase.from("research_program_projects").insert({
-      ...draft,
-      program_id: programId,
-      sort_order: (q.data?.length ?? 0) + 1,
-    });
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setDraft({
-      name_pl: "",
-      name_en: "",
-      summary_pl: null,
-      summary_en: null,
-      project_status: "active",
-      url: null,
-      sort_order: 0,
-    });
-    qc.invalidateQueries({ queryKey: ["admin-rp-projects", programId] });
+    void write(
+      supabase.from("research_program_projects").insert({
+        ...draft,
+        program_id: programId,
+        sort_order: rows.length + 1,
+      }),
+      () => setDraft(EMPTY_PROJECT),
+    );
   };
 
-  const removeProject = async (id: string) => {
-    const { error } = await supabase.from("research_program_projects").delete().eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["admin-rp-projects", programId] });
-  };
+  const removeProject = (id: string) =>
+    void write(supabase.from("research_program_projects").delete().eq("id", id));
 
   return (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2 rounded-lg border border-border p-3">
         <div className="grid gap-2 md:grid-cols-2">
-          <Input
-            placeholder={tp("projects.namePl")}
-            value={draft.name_pl}
-            onChange={(e) => setDraft((d) => ({ ...d, name_pl: e.target.value }))}
-          />
-          <Input
-            placeholder={tp("projects.nameEn")}
-            value={draft.name_en}
-            onChange={(e) => setDraft((d) => ({ ...d, name_en: e.target.value }))}
-          />
+          <Input placeholder={tp("projects.namePl")} {...field.text("name_pl")} />
+          <Input placeholder={tp("projects.nameEn")} {...field.text("name_en")} />
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           <Textarea
             rows={2}
             placeholder={tp("projects.summaryPl")}
-            value={draft.summary_pl ?? ""}
-            onChange={(e) => setDraft((d) => ({ ...d, summary_pl: e.target.value || null }))}
+            {...field.optionalText("summary_pl")}
           />
           <Textarea
             rows={2}
             placeholder={tp("projects.summaryEn")}
-            value={draft.summary_en ?? ""}
-            onChange={(e) => setDraft((d) => ({ ...d, summary_en: e.target.value || null }))}
+            {...field.optionalText("summary_en")}
           />
         </div>
         <div className="grid gap-2 md:grid-cols-2">
-          <Select
-            value={draft.project_status}
-            onValueChange={(v) => setDraft((d) => ({ ...d, project_status: v as ProjectStatus }))}
-          >
+          <Select {...field.choice("project_status")}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="planned">planned</SelectItem>
-              <SelectItem value="active">active</SelectItem>
-              <SelectItem value="completed">completed</SelectItem>
+              {PROJECT_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {t(`programs.projectStatus.${s}`)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Input
-            placeholder="URL"
-            value={draft.url ?? ""}
-            onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value || null }))}
-          />
+          <Input placeholder="URL" {...field.optionalText("url")} />
         </div>
         <Button onClick={addProject}>
           <Plus className="mr-1 h-4 w-4" /> {tp("projects.addProject")}
@@ -921,12 +880,14 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
       </div>
 
       <ul className="grid gap-2">
-        {(q.data ?? []).map((p) => (
+        {rows.map((p) => (
           <li key={p.id} className="flex items-center gap-3 rounded-md border border-border p-2">
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">
                 {lang === "pl" ? p.name_pl : p.name_en}{" "}
-                <span className="text-xs text-muted-foreground">[{p.project_status}]</span>
+                <span className="text-xs text-muted-foreground">
+                  [{t(`programs.projectStatus.${p.project_status}`)}]
+                </span>
               </p>
               {(p.summary_pl || p.summary_en) && (
                 <p className="truncate text-xs text-muted-foreground">
@@ -946,10 +907,9 @@ function ProjectsTab({ programId, lang }: { programId: string; lang: "pl" | "en"
 
 /* ----- Partners ----- */
 
-function PartnersTab({ programId }: { programId: string; lang: "pl" | "en" }) {
-  const { t } = useTranslation();
-  const tp = (k: string) => t(`adminPrograms.${k}`);
-  const qc = useQueryClient();
+function PartnersTab({ programId }: { programId: string }) {
+  const { tp } = usePanelT();
+  const write = useChildWrite("admin-rp-partners", programId);
 
   const q = useQuery({
     queryKey: ["admin-rp-partners", programId],
@@ -964,56 +924,32 @@ function PartnersTab({ programId }: { programId: string; lang: "pl" | "en" }) {
     },
   });
 
-  const [draft, setDraft] = useState<Omit<PartnerRow, "id" | "program_id">>({
-    name: "",
-    logo_url: null,
-    url: null,
-    sort_order: 0,
-  });
+  const [draft, setDraft] = useState<PartnerDraft>(EMPTY_PARTNER);
+  const field = bindDraft(draft, setDraft, "rp-partner");
+  const rows = q.data ?? [];
 
-  const add = async () => {
+  const add = () => {
     if (!draft.name.trim()) return;
-    const { error } = await supabase.from("research_program_partners").insert({
-      ...draft,
-      program_id: programId,
-      sort_order: (q.data?.length ?? 0) + 1,
-    });
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setDraft({ name: "", logo_url: null, url: null, sort_order: 0 });
-    qc.invalidateQueries({ queryKey: ["admin-rp-partners", programId] });
+    void write(
+      supabase.from("research_program_partners").insert({
+        ...draft,
+        program_id: programId,
+        sort_order: rows.length + 1,
+      }),
+      () => setDraft(EMPTY_PARTNER),
+    );
   };
 
-  const remove = async (id: string) => {
-    const { error } = await supabase.from("research_program_partners").delete().eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["admin-rp-partners", programId] });
-  };
+  const remove = (id: string) =>
+    void write(supabase.from("research_program_partners").delete().eq("id", id));
 
   return (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2 rounded-lg border border-border p-3">
         <div className="grid gap-2 md:grid-cols-3">
-          <Input
-            placeholder={tp("partners.name")}
-            value={draft.name}
-            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-          />
-          <Input
-            placeholder={tp("partners.logoUrl")}
-            value={draft.logo_url ?? ""}
-            onChange={(e) => setDraft((d) => ({ ...d, logo_url: e.target.value || null }))}
-          />
-          <Input
-            placeholder="URL"
-            value={draft.url ?? ""}
-            onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value || null }))}
-          />
+          <Input placeholder={tp("partners.name")} {...field.text("name")} />
+          <Input placeholder={tp("partners.logoUrl")} {...field.optionalText("logo_url")} />
+          <Input placeholder="URL" {...field.optionalText("url")} />
         </div>
         <Button onClick={add}>
           <Plus className="mr-1 h-4 w-4" /> {tp("partners.addPartner")}
@@ -1021,7 +957,7 @@ function PartnersTab({ programId }: { programId: string; lang: "pl" | "en" }) {
       </div>
 
       <ul className="grid gap-2">
-        {(q.data ?? []).map((p) => (
+        {rows.map((p) => (
           <li key={p.id} className="flex items-center gap-3 rounded-md border border-border p-2">
             {p.logo_url && (
               <img src={p.logo_url} alt="" className="h-8 w-8 rounded object-contain" />
@@ -1039,10 +975,9 @@ function PartnersTab({ programId }: { programId: string; lang: "pl" | "en" }) {
 
 /* ----- Curated items (flagship posts / podcasts / events) ----- */
 
-function ItemsTab({ programId }: { programId: string; lang: "pl" | "en" }) {
-  const { t } = useTranslation();
-  const tp = (k: string) => t(`adminPrograms.${k}`);
-  const qc = useQueryClient();
+function ItemsTab({ programId }: { programId: string }) {
+  const { tp } = usePanelT();
+  const write = useChildWrite("admin-rp-items", programId);
 
   const q = useQuery({
     queryKey: ["admin-rp-items", programId],
@@ -1057,56 +992,47 @@ function ItemsTab({ programId }: { programId: string; lang: "pl" | "en" }) {
     },
   });
 
-  const [type, setType] = useState<ItemType>("flagship_post");
-  const [targetId, setTargetId] = useState("");
+  const [draft, setDraft] = useState<ItemDraft>(EMPTY_ITEM);
+  const field = bindDraft(draft, setDraft, "rp-item");
+  const rows = q.data ?? [];
 
-  const add = async () => {
-    if (!targetId.trim()) return;
-    const payload: Partial<ItemRow> & { program_id: string; item_type: ItemType } = {
-      program_id: programId,
-      item_type: type,
-      post_id: type === "flagship_post" ? targetId : null,
-      podcast_id: type === "podcast" ? targetId : null,
-      event_id: type === "event" ? targetId : null,
-      sort_order: (q.data?.length ?? 0) + 1,
-    };
-    const { error } = await supabase.from("research_program_items").insert(payload);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    setTargetId("");
-    qc.invalidateQueries({ queryKey: ["admin-rp-items", programId] });
+  const add = () => {
+    // UUID wklejony ze spacją na brzegu to błąd składni typu `uuid` w bazie -
+    // do kolumny jedzie wartość PRZYCIĘTA, ta sama, którą sprawdza warunek.
+    const target = draft.target.trim();
+    if (!target) return;
+    const type = draft.item_type;
+    void write(
+      supabase.from("research_program_items").insert({
+        program_id: programId,
+        item_type: type,
+        post_id: type === "flagship_post" ? target : null,
+        podcast_id: type === "podcast" ? target : null,
+        event_id: type === "event" ? target : null,
+        sort_order: rows.length + 1,
+      }),
+      () => setDraft((d) => ({ ...d, target: "" })),
+    );
   };
 
-  const remove = async (id: string) => {
-    const { error } = await supabase.from("research_program_items").delete().eq("id", id);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    qc.invalidateQueries({ queryKey: ["admin-rp-items", programId] });
-  };
+  const remove = (id: string) =>
+    void write(supabase.from("research_program_items").delete().eq("id", id));
 
   return (
     <div className="grid gap-4 py-4">
       <div className="grid gap-2 rounded-lg border border-border p-3">
         <div className="grid gap-2 md:grid-cols-[180px_1fr_auto]">
-          <Select value={type} onValueChange={(v) => setType(v as ItemType)}>
+          <Select {...field.choice("item_type")}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="flagship_post">{tp("items.flagshipPost")}</SelectItem>
-              <SelectItem value="podcast">{tp("items.podcast")}</SelectItem>
-              <SelectItem value="event">{tp("items.event")}</SelectItem>
+              <SelectItem value="flagship_post">{tp(ITEM_TYPE_LABEL.flagship_post)}</SelectItem>
+              <SelectItem value="podcast">{tp(ITEM_TYPE_LABEL.podcast)}</SelectItem>
+              <SelectItem value="event">{tp(ITEM_TYPE_LABEL.event)}</SelectItem>
             </SelectContent>
           </Select>
-          <Input
-            placeholder={tp("items.recordUuid")}
-            value={targetId}
-            onChange={(e) => setTargetId(e.target.value)}
-          />
+          <Input placeholder={tp("items.recordUuid")} {...field.text("target")} />
           <Button onClick={add}>
             <Plus className="mr-1 h-4 w-4" /> {tp("add")}
           </Button>
@@ -1115,9 +1041,11 @@ function ItemsTab({ programId }: { programId: string; lang: "pl" | "en" }) {
       </div>
 
       <ul className="grid gap-2">
-        {(q.data ?? []).map((it) => (
+        {rows.map((it) => (
           <li key={it.id} className="flex items-center gap-3 rounded-md border border-border p-2">
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{it.item_type}</span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+              {tp(ITEM_TYPE_LABEL[it.item_type])}
+            </span>
             <code className="flex-1 truncate text-xs">
               {it.post_id ?? it.podcast_id ?? it.event_id}
             </code>

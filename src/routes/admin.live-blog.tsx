@@ -57,7 +57,11 @@ export const Route = createFileRoute("/admin/live-blog")({
       {error.message}
     </div>
   ),
-  notFoundComponent: () => <div className="p-6">404</div>,
+  // BEZ `notFoundComponent` - świadomie. Stał tu ekran „404", którego nic nie
+  // mogło wywołać: trasa nie rzuca `notFound()`, a nieznany adres POD nią
+  // (`/admin/live-blog/x`) router oddaje najgłębszej dopasowanej trasie Z
+  // DZIEĆMI (`findGlobalNotFoundRouteId`), czyli layoutowi `/admin` - nigdy
+  // liściowi.
 });
 
 interface EntryRow {
@@ -82,7 +86,14 @@ interface LiveBlogBlockOption {
   label: string;
 }
 
-/** Znajdź bloki typu "liveblog" w dokumencie blocks_data postu (dowolny język). */
+/**
+ * Znajdź bloki typu "liveblog" w dokumencie blocks_data postu (dowolny język).
+ *
+ * NUMER ZAPASOWEJ ETYKIETY JEST WSPÓLNY DLA CAŁEJ LISTY, nie per dokument
+ * językowy. Licznik żył dawniej wewnątrz `scan`, więc blok bez tytułu, który
+ * jest tylko w wersji EN, dostawał drugie „Live blog #1" obok polskiego -
+ * dwie nieodróżnialne pozycje w liście wyboru bloku.
+ */
 function findLiveBlogBlocks(blocksData: unknown): LiveBlogBlockOption[] {
   const found: LiveBlogBlockOption[] = [];
   const seen = new Set<string>();
@@ -90,17 +101,15 @@ function findLiveBlogBlocks(blocksData: unknown): LiveBlogBlockOption[] {
     if (!doc || typeof doc !== "object") return;
     const blocks = (doc as { blocks?: unknown }).blocks;
     if (!Array.isArray(blocks)) return;
-    let n = 0;
     for (const b of blocks) {
       if (!b || typeof b !== "object") continue;
       const type = (b as { type?: unknown }).type;
       const id = (b as { id?: unknown }).id;
       if (type === "liveblog" && typeof id === "string" && !seen.has(id)) {
         seen.add(id);
-        n += 1;
         const data = (b as { data?: { title?: unknown } }).data;
         const title = typeof data?.title === "string" && data.title.trim() ? data.title.trim() : "";
-        found.push({ id, label: title || `Live blog #${n}` });
+        found.push({ id, label: title || `Live blog #${found.length + 1}` });
       }
     }
   };
@@ -125,7 +134,7 @@ function LiveBlogAdmin() {
   const lang: "pl" | "en" = search.lang ?? "pl";
 
   // Lista postów do wyboru (kolumny nie-gated - bez treści).
-  const { data: posts = [] } = useQuery({
+  const { data: posts = [], isFetched: postsFetched } = useQuery({
     queryKey: ["admin", "live-blog", "posts", tenantId],
     enabled: !!tenantId,
     queryFn: async (): Promise<PostOption[]> => {
@@ -151,7 +160,7 @@ function LiveBlogAdmin() {
   // Bloki live-blog wybranego postu (przez SECURITY DEFINER RPC - blocks_data
   // jest niedostępne bezpośrednim selectem dla roli authenticated). RPC
   // przyjmuje slug postu.
-  const { data: blockOptions = [], isLoading: blocksLoading } = useQuery({
+  const { data: blockOptions = [], isFetched: blocksFetched } = useQuery({
     queryKey: ["admin", "live-blog", "blocks", selectedSlug],
     enabled: !!selectedSlug,
     queryFn: async (): Promise<LiveBlogBlockOption[]> => {
@@ -163,6 +172,15 @@ function LiveBlogAdmin() {
       return findLiveBlogBlocks((row as { blocks_data?: unknown } | null)?.blocks_data);
     },
   });
+  // LISTA BLOKÓW JEST ROZSTRZYGNIĘTA dopiero, gdy odczyt bloków WYBRANEGO
+  // postu się zakończył - albo gdy lista postów dojechała i tego postu na niej
+  // nie ma (nie ma czego czytać). Dawniej stało tu `isLoading` zapytania
+  // bloków, a zapytanie WYŁĄCZONE (slug nieznany, bo lista postów jeszcze
+  // leci) ma w TanStack Query v5 `isLoading === false`. Skutek: przy każdym
+  // wejściu z deep-linku efekt niżej widział „zero bloków", czyścił `blockId`
+  // z adresu i dopiero potem dojeżdżały bloki - post z jednym blokiem leczył
+  // się auto-wyborem, a post z kilkoma tracił wskazany blok bez śladu.
+  const blocksLoading = !(blocksFetched || (postsFetched && !selectedSlug));
 
   // Deep-link z edytora bloku niesie tylko blockId (edytor bloku nie zna id
   // postu). Po wczytaniu bloków wybranego postu: zachowany blockId spoza tego
@@ -181,7 +199,13 @@ function LiveBlogAdmin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.postId, search.blockId, blocksLoading, blockOptions]);
 
-  const enabled = !!search.postId && !!search.blockId;
+  // Odczyt i ZAPIS wpisów dopiero dla bloku POTWIERDZONEGO w treści postu.
+  // Samo „oba identyfikatory są w adresie" nie wystarczało: po zmianie postu
+  // w liście adres niesie przez chwilę nowy post ze STARYM blokiem, a
+  // formularz publikacji był w tym oknie aktywny - „Opublikuj" zapisywał
+  // wpis do pary (post, blok), której żadna relacja nie wyświetli.
+  const blockConfirmed = blockOptions.some((b) => b.id === search.blockId);
+  const enabled = !!search.postId && !!search.blockId && blockConfirmed;
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["liveBlogEntries", search.postId, search.blockId, lang] as const,
     enabled,

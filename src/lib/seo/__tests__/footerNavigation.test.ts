@@ -197,10 +197,12 @@ describe("labelFor", () => {
 
 describe("inwarianty ręcznie utrzymywanej mapy", () => {
   it("każdy href jest ścieżką WEWNĘTRZNĄ zaczynającą się od /", () => {
-    // KONSEKWENCJA złego wpisu: `siteNavigationJsonLd` prefiksuje originem
-    // tylko adresy, które NIE zaczynają się od "http". Adres bezwzględny albo
-    // protokołowo-względny („//evil.example") wjechałby do grafu nawigacji
-    // Google jako link na obcą domenę, podpisany naszym `@id`.
+    // KONSEKWENCJA złego wpisu: `siteNavigationJsonLd` przepuszcza adres
+    // `http(s)://` bez zmian, a każdy inny traktuje jako ścieżkę wewnętrzną
+    // (origin + prefiks języka renderu). Adres bezwzględny wjechałby do grafu
+    // nawigacji Google jako link na obcą domenę, podpisany naszym `@id`, a
+    // protokołowo-względny („//evil.example") - jako zniekształcona ścieżka
+    // typu `https://serwis//evil.example` (w EN: `/en//evil.example`).
     for (const link of FOOTER_LINKS) {
       expect(link.href.startsWith("/"), `href poza serwisem: ${link.href}`).toBe(true);
       expect(link.href.startsWith("//"), `adres protokołowo-względny: ${link.href}`).toBe(false);

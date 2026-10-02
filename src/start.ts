@@ -320,6 +320,11 @@ async function recordEdgeRoutingPhase(request: Request, durationMs: number): Pro
  * WP migrations and letting the admin at /admin/redirects actually do
  * something. Failures are swallowed: the SSR chain must not depend on a DB
  * lookup succeeding for every document.
+ *
+ * Licznik trafień reguły (`record_redirect_hit`) planuje sam
+ * `resolveRedirectForRequest` - pod `runAfterResponse`, ZA odpowiedzią -
+ * więc ten middleware nie czeka na niego i zegar `edge-routing` niżej go nie
+ * obejmuje.
  */
 const redirectMiddleware = createMiddleware().server(async ({ request, next }) => {
   if (isInternalPlatformPath(new URL(request.url).pathname)) return next();

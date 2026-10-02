@@ -12,10 +12,18 @@
 // każdego bez `isStaff` na `/login` - jedna bramka dla wszystkich tras panelu
 // (patrz `routes/__tests__/adminRouteAuthority.gate.test.ts`). Ten plik jej nie
 // dubluje i nie różnicuje uprawnień wewnątrz panelu.
+//
+// POWŁOKI TEŻ NIE MA - i to jest naprawa, nie przeoczenie. Layout `/admin`
+// renderuje `<AdminShell><Outlet/></AdminShell>` dla każdej trasy panelu poza
+// studiem wydarzeń, więc stojący tu dawniej `<AdminShell hideSidebar>` był
+// DRUGĄ powłoką w pierwszej: drugi `<main id="main-content">` (zdublowane id,
+// skip-link trafiał w zewnętrzny), pływający `AdminLangBar` obok paska
+// bocznego, który ma już własny przełącznik języka, podwójny padding treści
+// i drugi komplet zapytań powłoki. Ten sam błąd usunięto wcześniej z
+// `admin.events.tsx`. Treść panelu jest tu zwykłym fragmentem.
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AdminShell } from "@/components/admin/AdminShell";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -85,7 +93,7 @@ function Page() {
   const remove = useSoftDeleteAdminEpisode();
 
   return (
-    <AdminShell hideSidebar>
+    <>
       <div className="space-y-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -165,6 +173,6 @@ function Page() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </AdminShell>
+    </>
   );
 }

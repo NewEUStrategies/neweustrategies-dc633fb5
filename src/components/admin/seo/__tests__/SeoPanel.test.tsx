@@ -23,7 +23,20 @@
 //      `null` (puste/spacje), bo w bazie te kolumny są nullable i "  " jest
 //      wartością, która przechodzi do `<link rel=canonical>`.
 //   7. Uwagi o nagłówkach: drzewo bloków wygrywa nad HTML, a `rendersTitleAsH1`
-//      znaczy, że H1 w treści jest DUPLIKATEM (layout rysuje własny H1).
+//      znaczy, że H1 w treści jest DUPLIKATEM (layout rysuje własny H1) i że
+//      hierarchię liczy się OD tego H1 (treść od H3 to przeskok 1 -> 3).
+//      Język bez nagłówków trafia do podsumowania jako "nie sprawdzono", a
+//      skan idzie per język i po NAPISACH (rodzic podaje nowy obiekt
+//      `contentHtml` przy każdym renderze - skan nie może iść za nim).
+//      Język BEZ ŻADNEJ treści (brak tłumaczenia EN) nie jest "niesprawdzony" -
+//      chyba że żaden język nie ma treści (świeży szkic).
+//   8. Przełącznik noindex ma dostępną nazwę z widocznej etykiety (axe czysty).
+//   9. HOST W PODGLĄDZIE GOOGLE jest hostem TENANTA (`useTenantPublicOrigin`),
+//      nie stałym hostem marki - tenant na własnej domenie widzi swój adres.
+//  10. Walidacja snippetów liczy się po POLACH, które czyta `validateSeoPanel`,
+//      a nie po obiekcie `value` (rodzic podaje nowy literał przy każdym
+//      renderze); zestaw czytanych pól jest PRZYPIĘTY, żeby lista zależności
+//      memo nie rozjechała się z walidatorem.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE:
 //   - `RobotsTxtPreview.test.tsx` - polityka robots.txt (inna powierzchnia).
@@ -48,7 +61,8 @@ import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react
 import { QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { axeViolations, summarize } from "@/test/axe";
-import { SITE_NAME } from "@/lib/seo/meta";
+import { SITE_CANONICAL_ORIGIN, SITE_NAME } from "@/lib/seo/meta";
+import { CANONICAL_SITE_ORIGIN } from "@/lib/http/host";
 import type { SeoIssue } from "@/lib/seo/validation";
 import type { SeoPanelValue } from "@/components/admin/seo/SeoPanel";
 
@@ -87,6 +101,12 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn<(error: unknown) => void>(),
   imageSlot: null as ImageSlotProbeProps | null,
   inspection: null as UrlInspectionProbeProps | null,
+  /** Każde wywołanie skanera nagłówków: język i HTML, który dostał. */
+  headingScans: [] as Array<{ lang: string; html: string | null | undefined }>,
+  /** Origin zwracany przez `useTenantPublicOrigin` (null = tenant bez adresu publicznego). */
+  tenantOrigin: "https://neweuropeanstrategies.com" as string | null,
+  /** Liczba wywołań `validateSeoPanel` (dowód memoizacji po polach). */
+  seoValidations: 0,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -114,6 +134,38 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@/lib/toastError", () => ({ toastError: h.toastError }));
+
+// Skaner nagłówków zostaje PRAWDZIWY - podsłuchujemy tylko, ILE razy i z
+// czym panel go woła (dowód memoizacji per język).
+vi.mock("@/lib/seo/headingValidation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/seo/headingValidation")>();
+  return {
+    ...actual,
+    analyzeHeadings: (...args: Parameters<typeof actual.analyzeHeadings>) => {
+      h.headingScans.push({ lang: args[0], html: args[1].html });
+      return actual.analyzeHeadings(...args);
+    },
+  };
+});
+
+// Walidator snippetów zostaje PRAWDZIWY - liczymy tylko wywołania.
+vi.mock("@/lib/seo/validation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/seo/validation")>();
+  return {
+    ...actual,
+    validateSeoPanel: (...args: Parameters<typeof actual.validateSeoPanel>) => {
+      h.seoValidations += 1;
+      return actual.validateSeoPanel(...args);
+    },
+  };
+});
+
+// Origin tenanta: atrapa HOOKA. Reguła originu i odczyt `tenants.domain` mają
+// własne testy (`lib/seo/__tests__/tenantPublicOrigin.test.ts`,
+// `useTenantPublicOrigin.test.tsx`); tu dowodzę tylko, że panel z nim jedzie.
+vi.mock("@/lib/seo/useTenantPublicOrigin", () => ({
+  useTenantPublicOrigin: () => h.tenantOrigin,
+}));
 
 // Atrapa `ImageSlot`: pole tekstowe zamiast całego uploadera - potwierdza
 // przekazane propy i pozwala dowieść normalizacji wartości do `null`.
@@ -204,6 +256,10 @@ function renderPanel(o: PanelOverrides = {}) {
 /** Ścieżka przekazana widgetowi inspekcji URL - jedyne wyjście `previewPath`. */
 const inspectionPath = () => h.inspection?.path;
 
+/** Kontener podsumowania walidacji (panel ma też inne regiony `status`). */
+const summaryBox = () =>
+  screen.getByText("admin.seo.validation.ok").closest<HTMLElement>("[data-state]");
+
 const generateButton = () => screen.getByRole("button", { name: "admin.seo.og.generate" });
 
 /** Aktywna zakładka języka (Radix rozmontowuje nieaktywną sekcję). */
@@ -225,6 +281,9 @@ beforeEach(() => {
   h.toastError.mockReset();
   h.imageSlot = null;
   h.inspection = null;
+  h.headingScans.length = 0;
+  h.tenantOrigin = CANONICAL_SITE_ORIGIN;
+  h.seoValidations = 0;
 });
 
 afterEach(cleanup);
@@ -303,6 +362,25 @@ describe("SeoPanel - emisja uwag do rodzica", () => {
     rerenderPanel({ onIssuesChange, onChange });
     await waitFor(() => expect(onIssuesChange).toHaveBeenCalledTimes(3));
     expect(onIssuesChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it("pusty tytuł: fallback mieszczący się w budżecie, ale ucinany Z SUFIKSEM marki, daje uwagę i ostrzeżenie pola", async () => {
+    // ~460 px samego fallbacku to „dobry" tytuł; z sufiksem marki (domyślne
+    // ustawienia: włączony, = nazwa serwisu) przekracza 600 px. Panel i pole
+    // mają mierzyć to, co pójdzie do Google, a nie sam fallback.
+    const FALLBACK = "Polska prezydencja w Radzie Unii Europejskiej";
+    const onIssuesChange = vi.fn<(issues: SeoIssue[]) => void>();
+    renderPanel({ onIssuesChange, fallbackTitle: { pl: FALLBACK, en: FALLBACK } });
+
+    await waitFor(() =>
+      expect(onIssuesChange).toHaveBeenLastCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({ lang: "pl", kind: "title", severity: "warning" }),
+        ]),
+      ),
+    );
+    // Pole tytułu (puste) ogłasza ostrzeżenie pikselowe dla fallbacku z sufiksem.
+    expect(screen.getAllByText("admin.seo.field.warnPixel").length).toBeGreaterThan(0);
   });
 
   it("brak `onIssuesChange` nie wywraca panelu (opcjonalne wywołanie)", async () => {
@@ -713,6 +791,115 @@ describe("SeoPanel - uwagi o strukturze nagłówków", () => {
     expect(screen.queryByText(/admin\.seo\.validation\.headingLabel/)).not.toBeInTheDocument();
   });
 
+  it("treść od H3 to przeskok od H1 UKŁADU (rendersTitleAsH1 uczestniczy w hierarchii)", () => {
+    // Dawny martwy punkt: panel woła walidator z `rendersTitleAsH1: true`,
+    // a dziura H1 (układ) -> H3 (treść) przechodziła jako "brak uwag".
+    renderPanel({ contentHtml: { pl: "<h3>Start</h3><h4>Dalej</h4>", en: null } });
+    expect(
+      screen.getByText(
+        'PL - admin.seo.validation.headingLabel: admin.seo.validation.skippedLevel(from=1,pos= (#1),snip= - "Start",to=3)',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("nagłówek z treści zastępczej <iframe> nie robi przeskoku w panelu", () => {
+    renderPanel({
+      contentHtml: { pl: "<h2>Sekcja</h2><iframe><h5>Widget</h5></iframe>", en: "<h2>S</h2>" },
+    });
+    expect(screen.queryByText(/admin\.seo\.validation\.skippedLevel/)).not.toBeInTheDocument();
+    expect(screen.getByText("admin.seo.validation.ok")).toBeInTheDocument();
+  });
+
+  it("bez nagłówków w obu językach podsumowanie mówi „nie sprawdzono (PL, EN)”, nie zielone ok", () => {
+    renderPanel();
+    expect(summaryBox()).toHaveAttribute("data-state", "unchecked");
+    expect(
+      screen.getByText("admin.seo.validation.headingsUnchecked(langs=PL, EN)"),
+    ).toBeInTheDocument();
+  });
+
+  it("nagłówki tylko po polsku: niesprawdzony jest WYŁĄCZNIE angielski", () => {
+    renderPanel({ contentHtml: { pl: "<h2>Sekcja</h2>", en: "<p>Bez nagłówków</p>" } });
+    expect(
+      screen.getByText("admin.seo.validation.headingsUnchecked(langs=EN)"),
+    ).toBeInTheDocument();
+  });
+
+  it("brak tłumaczenia EN (null) to NIE „nie sprawdzono” - wpis tylko po polsku dostaje zielone ok", () => {
+    // STRAŻNIK: wcześniej każdy wpis bez wersji EN stał na stałe w stanie
+    // "nie sprawdzono (EN)", choć sprawdzać nie było czego.
+    renderPanel({ contentHtml: { pl: "<h2>Sekcja</h2>", en: null } });
+    expect(summaryBox()).toHaveAttribute("data-state", "ok");
+    expect(screen.queryByText(/admin\.seo\.validation\.headingsUnchecked/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { opis: "pusty napis", en: "" },
+    { opis: "pusty akapit edytora", en: "<p></p>" },
+    { opis: "sam &nbsp;", en: "<p>&nbsp;</p>" },
+  ])("EN = $opis to też brak treści, nie niesprawdzona kontrola", ({ en }) => {
+    renderPanel({ contentHtml: { pl: "<h2>Sekcja</h2>", en } });
+    expect(summaryBox()).toHaveAttribute("data-state", "ok");
+  });
+
+  it("PL z tekstem bez nagłówków i bez EN: niesprawdzony jest WYŁĄCZNIE PL", () => {
+    renderPanel({ contentHtml: { pl: "<p>Sam akapit</p>", en: null } });
+    expect(
+      screen.getByText("admin.seo.validation.headingsUnchecked(langs=PL)"),
+    ).toBeInTheDocument();
+  });
+
+  it("świeży szkic (żaden język nie ma treści): oba języki „nie sprawdzono”", () => {
+    renderPanel({ contentHtml: { pl: "<p></p>", en: null } });
+    expect(summaryBox()).toHaveAttribute("data-state", "unchecked");
+    expect(
+      screen.getByText("admin.seo.validation.headingsUnchecked(langs=PL, EN)"),
+    ).toBeInTheDocument();
+  });
+
+  it("drzewo bloków z nagłówkami sprawdza OBA języki - zielone ok bez notatki (negatywny)", () => {
+    renderPanel({ contentBlocks: [{ type: "heading", data: { level: 2, text: "Sekcja" } }] });
+    expect(summaryBox()).toHaveAttribute("data-state", "ok");
+    expect(screen.queryByText(/admin\.seo\.validation\.headingsUnchecked/)).not.toBeInTheDocument();
+  });
+
+  it("skan nagłówków idzie per język i po NAPISACH, nie po obiekcie `contentHtml`", () => {
+    // Edytory podają `contentHtml={{ pl, en }}` - nowy obiekt przy KAŻDYM
+    // renderze. Zależność od obiektu skanowała obie treści przy każdym
+    // uderzeniu w klawiaturę w dowolnym polu formularza.
+    const { rerenderPanel } = renderPanel({
+      contentHtml: { pl: "<h2>A</h2>", en: "<h2>B</h2>" },
+    });
+    expect(h.headingScans).toEqual([
+      { lang: "pl", html: "<h2>A</h2>" },
+      { lang: "en", html: "<h2>B</h2>" },
+    ]);
+
+    h.headingScans.length = 0;
+    // Nowy obiekt, te same napisy, inna niezwiązana zmiana => ZERO skanów.
+    rerenderPanel({ contentHtml: { pl: "<h2>A</h2>", en: "<h2>B</h2>" }, ogKicker: "Analizy" });
+    expect(h.headingScans).toEqual([]);
+
+    // Zmiana treści PL => skan WYŁĄCZNIE PL.
+    rerenderPanel({ contentHtml: { pl: "<h2>A2</h2>", en: "<h2>B</h2>" } });
+    expect(h.headingScans).toEqual([{ lang: "pl", html: "<h2>A2</h2>" }]);
+
+    h.headingScans.length = 0;
+    rerenderPanel({ contentHtml: { pl: "<h2>A2</h2>", en: "<h2>B2</h2>" } });
+    expect(h.headingScans).toEqual([{ lang: "en", html: "<h2>B2</h2>" }]);
+  });
+
+  it("zmiana drzewa bloków skanuje OBA języki (bloki nie są per język)", () => {
+    const html = { pl: "<h2>A</h2>", en: "<h2>B</h2>" };
+    const { rerenderPanel } = renderPanel({ contentHtml: html, contentBlocks: [] });
+    h.headingScans.length = 0;
+    rerenderPanel({
+      contentHtml: { ...html },
+      contentBlocks: [{ type: "heading", data: { level: 2, text: "Blok" } }],
+    });
+    expect(h.headingScans.map((c) => c.lang)).toEqual(["pl", "en"]);
+  });
+
   it("uwagi o nagłówkach jadą razem z uwagami o snippetach", () => {
     renderPanel({
       value: { seo_title_pl: "a".repeat(80) },
@@ -723,36 +910,181 @@ describe("SeoPanel - uwagi o strukturze nagłówków", () => {
   });
 });
 
-describe("SeoPanel - dostępność", () => {
-  it.fails(
-    "DEFEKT: przełącznik noindex nie ma dostępnej nazwy, więc axe zgłasza button-name",
-    async () => {
-      // KONSEKWENCJA: `Switch` z Radiksa renderuje `<button role="switch">`, a
-      // stojąca obok `<Label>` nie ma `htmlFor` (i nie ma czego wskazać - guzik
-      // nie dostaje `id`). Czytnik ekranu czyta "przełącznik, niezaznaczony"
-      // BEZ NAZWY - przy najbardziej niszczącym przełączniku w całym panelu
-      // (noindex wypisuje stronę z Google). Naprawa to `aria-label` /
-      // `aria-labelledby` na `Switch` w `SeoPanel.tsx`, więc test zostaje
-      // czerwony do czasu zmiany produkcji.
-      const { container } = renderPanel();
-      await waitFor(() => expect(inspectionPath()).toBe("blog/moj-wpis"));
-      const violations = await axeViolations(container);
-      expect(violations, summarize(violations)).toEqual([]);
-    },
-  );
+describe("SeoPanel - host w podglądzie Google", () => {
+  const BRAND_HOST = SITE_CANONICAL_ORIGIN.replace(/^https?:\/\//, "");
 
-  it("poza tym defektem panel nie ma ŻADNYCH naruszeń axe", async () => {
-    // Nie wyłączam reguły `button-name` - lista naruszeń jest PRZYPIĘTA do
-    // jednego znanego węzła, więc każde nowe naruszenie (albo drugi
-    // nieopisany przełącznik) wywali ten test, a nie schowa się pod flagą.
+  it("tenant na własnej domenie widzi SWÓJ host, nie host marki", async () => {
+    // STRAŻNIK: panel renderował `<SerpPreview>` bez `host`, więc tenant z
+    // własną domeną oglądał nad swoim wpisem adres marki.
+    h.tenantOrigin = "https://analizy.example.org";
+    renderPanel();
+    expect(await screen.findByText("analizy.example.org › blog › moj-wpis")).toBeInTheDocument();
+    expect(screen.queryByText(`${BRAND_HOST} › blog › moj-wpis`)).not.toBeInTheDocument();
+  });
+
+  it("zakładka EN ma ten sam host tenanta z prefiksem `en`", async () => {
+    h.language = "en";
+    h.tenantOrigin = "https://analizy.example.org";
+    renderPanel();
+    expect(
+      await screen.findByText("analizy.example.org › en › blog › moj-wpis"),
+    ).toBeInTheDocument();
+  });
+
+  it("marka / tenant bez własnej domeny: host kanoniczny marki", async () => {
+    h.tenantOrigin = CANONICAL_SITE_ORIGIN;
+    renderPanel();
+    expect(await screen.findByText(`${BRAND_HOST} › blog › moj-wpis`)).toBeInTheDocument();
+  });
+
+  it("tenant bez publicznego adresu (null) NIE dostaje hosta marki (negatywny)", async () => {
+    h.tenantOrigin = null;
+    renderPanel();
+    await waitFor(() => expect(inspectionPath()).toBe("blog/moj-wpis"));
+    expect(screen.getByText("› blog › moj-wpis")).toBeInTheDocument();
+    expect(
+      screen.queryByText(new RegExp(BRAND_HOST.replace(/\./g, "\\."))),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("SeoPanel - walidacja snippetów po polach, nie po obiekcie", () => {
+  /** Pola `value`, od których zależy memo walidacji w panelu. */
+  const SLEDZONE_POLA = [
+    "seo_description_en",
+    "seo_description_pl",
+    "seo_title_en",
+    "seo_title_pl",
+  ];
+
+  it("validateSeoPanel czyta z `value` DOKŁADNIE pola śledzone przez memo panelu", async () => {
+    // STRAŻNIK dryfu: gdy walidator zacznie czytać inne pole (np. noindex),
+    // memo panelu by go nie śledziło - ten test pada pierwszy.
+    const { validateSeoPanel } =
+      await vi.importActual<typeof import("@/lib/seo/validation")>("@/lib/seo/validation");
+    const czytane = new Set<string>();
+    const sonda = (value: SeoPanelValue) =>
+      new Proxy(value, {
+        get(target, key, receiver) {
+          if (typeof key === "string") czytane.add(key);
+          return Reflect.get(target, key, receiver) as unknown;
+        },
+      });
+    const reszta = {
+      fallbackTitle: { pl: "Tytul", en: "Title" },
+      fallbackDescription: { pl: null, en: null },
+      slug: "s",
+      titleCharLimit: 160,
+      descriptionCharLimit: 320,
+    };
+    validateSeoPanel({ ...reszta, value: sonda(EMPTY_VALUE) });
+    validateSeoPanel({
+      ...reszta,
+      value: sonda({
+        ...EMPTY_VALUE,
+        seo_title_pl: "a",
+        seo_title_en: "b",
+        seo_description_pl: "c",
+        seo_description_en: "d",
+        seo_canonical_url: "https://x.test/",
+        seo_noindex: true,
+        seo_og_image_url: "https://x.test/a.png",
+        og_image_generated_url: "https://x.test/b.png",
+      }),
+    });
+    expect([...czytane].sort()).toEqual(SLEDZONE_POLA);
+  });
+
+  it("nowy obiekt `value` z tymi samymi polami NIE przelicza walidacji", () => {
+    const { rerenderPanel } = renderPanel({ value: { seo_title_pl: "A" } });
+    expect(h.seoValidations).toBeGreaterThan(0);
+    h.seoValidations = 0;
+
+    // Nowy literał, te same napisy + niezwiązana zmiana => ZERO przeliczeń.
+    rerenderPanel({ value: { seo_title_pl: "A" }, ogKicker: "Analizy" });
+    expect(h.seoValidations).toBe(0);
+
+    // Pola, których walidator nie czyta, też nie przeliczają.
+    rerenderPanel({
+      value: {
+        seo_title_pl: "A",
+        seo_canonical_url: "https://x.test/",
+        seo_og_image_url: "https://x.test/a.png",
+      },
+    });
+    expect(h.seoValidations).toBe(0);
+
+    // Zmiana śledzonego pola => dokładnie jedno przeliczenie.
+    rerenderPanel({ value: { seo_title_pl: "B" } });
+    expect(h.seoValidations).toBe(1);
+
+    // Zmiana tytułu zastępczego też przelicza (fallbacki są w zależnościach).
+    rerenderPanel({ value: { seo_title_pl: "B" }, fallbackTitle: { pl: "Inny", en: "Title EN" } });
+    expect(h.seoValidations).toBe(2);
+  });
+
+  it("wynik walidacji jest ten sam co dla pełnego `value` (negatywny dla zawężenia)", async () => {
+    const { validateSeoPanel } =
+      await vi.importActual<typeof import("@/lib/seo/validation")>("@/lib/seo/validation");
+    const onIssuesChange = vi.fn<(issues: SeoIssue[]) => void>();
+    const value: Partial<SeoPanelValue> = {
+      seo_title_pl: "a".repeat(80),
+      seo_description_en: "d".repeat(330),
+      seo_noindex: true,
+      seo_canonical_url: "https://x.test/",
+    };
+    renderPanel({ value, onIssuesChange });
+    await waitFor(() => expect(onIssuesChange).toHaveBeenCalled());
+    expect(onIssuesChange).toHaveBeenLastCalledWith(
+      validateSeoPanel({
+        value: { ...EMPTY_VALUE, ...value },
+        fallbackTitle: { pl: "Tytul PL", en: "Title EN" },
+        fallbackDescription: { pl: "Opis PL", en: "Description EN" },
+        slug: "moj-wpis",
+        titleCharLimit: 160,
+        descriptionCharLimit: 320,
+      }),
+    );
+  });
+});
+
+describe("SeoPanel - dostępność", () => {
+  it("panel nie ma ŻADNYCH naruszeń axe (przełącznik noindex ma dostępną nazwę)", async () => {
+    // STRAŻNIK dawnego defektu: `Switch` z Radiksa renderuje
+    // `<button role="switch">`, a stojąca obok `<Label>` nie była z nim
+    // powiązana. KONSEKWENCJA regresji: czytnik ekranu czyta "przełącznik,
+    // niezaznaczony" BEZ NAZWY - przy najbardziej niszczącym przełączniku w
+    // całym panelu (noindex wypisuje stronę z Google). Żadna reguła axe nie
+    // jest wyłączona ponad wspólne minimum z `@/test/axe`.
     const { container } = renderPanel();
     await waitFor(() => expect(inspectionPath()).toBe("blog/moj-wpis"));
     const violations = await axeViolations(container);
-    expect(
-      violations.map((v) => v.id),
-      summarize(violations),
-    ).toEqual(["button-name"]);
-    expect(violations[0].nodes).toHaveLength(1);
-    expect(violations[0].nodes[0].html).toContain('role="switch"');
+    expect(violations, summarize(violations)).toEqual([]);
+  });
+
+  it("nazwa przełącznika to WIDOCZNA etykieta, a opis to podpowiedź pod nią", () => {
+    // Nazwa wiązana z widoczną etykietą (a nie osobny `aria-label`), więc
+    // zmiana tłumaczenia etykiety nie rozjedzie tego, co widać, z tym, co słychać.
+    renderPanel();
+    const toggle = screen.getByRole("switch", { name: "admin.seo.noindexLabel" });
+    expect(toggle).toHaveAccessibleDescription("admin.seo.noindexHint");
+    expect(toggle).not.toHaveAttribute("aria-label");
+  });
+
+  it("dwa panele na jednej stronie nie dzielą identyfikatorów etykiety (negatywny)", () => {
+    // `useId` daje unikalne id per instancja - stałe id sprawiłoby, że drugi
+    // przełącznik czytałby etykietę pierwszego.
+    renderWithQueryClient(
+      <>
+        {panel({})}
+        {panel({ entity: { kind: "page", id: "page-2" } })}
+      </>,
+    );
+    const toggles = screen.getAllByRole("switch", { name: "admin.seo.noindexLabel" });
+    expect(toggles).toHaveLength(2);
+    expect(toggles[0].id).not.toBe(toggles[1].id);
+    expect(toggles[0].getAttribute("aria-labelledby")).not.toBe(
+      toggles[1].getAttribute("aria-labelledby"),
+    );
   });
 });

@@ -92,4 +92,52 @@ describe("GooglePreferredSourceBadge", () => {
       }),
     );
   });
+
+  it("szkic z uszkodzonymi sekcjami (configOverride) renderuje się na domyślkach zamiast rzucać", () => {
+    // Podgląd w adminie podaje szkic zbudowany z wiersza bazy - jawne `null`
+    // w sekcji wywracało `config.logo.size`/`config[device]`. Ten sam szkic
+    // przechodzi teraz przez bramkę odczytu co publiczny badge.
+    const broken = {
+      ...GOOGLE_SOURCE_BADGE_DEFAULTS,
+      url_pl: 12345,
+      logo: null,
+      desktop: null,
+    } as unknown as GoogleSourceBadgeConfig;
+    render(<GooglePreferredSourceBadge configOverride={broken} />);
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", googlePreferredSourceUrl());
+    expect(link).toHaveAttribute("data-variant", GOOGLE_SOURCE_BADGE_DEFAULTS.desktop.variant);
+    const img = link.querySelector("img");
+    expect(img).toHaveAttribute("width", String(GOOGLE_SOURCE_BADGE_DEFAULTS.logo.size));
+  });
+
+  it("wariant spoza zbioru renderuje wariant domyślny breakpointu (data-variant i analityka)", () => {
+    const config = {
+      ...GOOGLE_SOURCE_BADGE_DEFAULTS,
+      mobile: { ...GOOGLE_SOURCE_BADGE_DEFAULTS.mobile, variant: "neon" },
+    } as unknown as GoogleSourceBadgeConfig;
+    render(<GooglePreferredSourceBadge device="mobile" configOverride={config} />);
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("data-variant", "compact");
+    fireEvent.click(link);
+    expect(trackMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        meta: expect.objectContaining({ device: "mobile", variant: "compact" }),
+      }),
+    );
+  });
+
+  it("poprawny szkic przechodzi bez zmian - własny adres i wariant ikonowy zostają", () => {
+    render(
+      <GooglePreferredSourceBadge
+        configOverride={cfg({
+          url_pl: "https://pl.example/preferred",
+          desktop: { ...GOOGLE_SOURCE_BADGE_DEFAULTS.desktop, variant: "icon" },
+        })}
+      />,
+    );
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", "https://pl.example/preferred");
+    expect(link).toHaveAttribute("data-variant", "icon");
+  });
 });

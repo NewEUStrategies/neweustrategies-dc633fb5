@@ -98,10 +98,31 @@ export interface SiteNavigationItem {
 }
 
 /**
+ * Adres pozycji nawigacji w języku renderu. Absolutny `http(s)://` zostaje bez
+ * zmian (ta sama reguła co w `breadcrumbListJsonLd`); ścieżka względna jest
+ * lokalizowana przez `localizedPath` - idempotentnie w OBU kierunkach, tak jak
+ * w `breadcrumbListJsonLd`: w EN dostaje dokładnie jeden prefiks "/en" (nigdy
+ * "/en/en"), w PL obcy prefiks jest zdejmowany ("/en/x" -> "/x"), a
+ * powierzchnie nielokalizowane ("/admin", "/sitemap.xml") zostają, jakie są.
+ * Query i fragment nie biorą udziału w decyzji o prefiksie.
+ */
+function navigationItemUrl(origin: string, href: string, lang: Lang): string {
+  if (/^https?:\/\//i.test(href)) return href;
+  const cut = href.search(/[?#]/);
+  const path = cut === -1 ? href : href.slice(0, cut);
+  const suffix = cut === -1 ? "" : href.slice(cut);
+  return absoluteUrl(origin, `${localizedPath(path, lang)}${suffix}`);
+}
+
+/**
  * SiteNavigationElement graph - ujawnia crawlerom kluczowe linki stopki
  * (Editorial / Topics / Community / Institute / Legal). ItemList z ListItem
  * o typie SiteNavigationElement jest wzorcem rekomendowanym w schema.org do
  * opisania nawigacji globalnej strony.
+ *
+ * Hrefy to kanoniczne ścieżki BEZ prefiksu (`FOOTER_LINKS`) - są lokalizowane
+ * per język renderu, tak jak w `breadcrumbListJsonLd`: graf z `inLanguage: "en"`
+ * wskazuje adresy "/en/...", a nie wersje PL.
  */
 export function siteNavigationJsonLd(
   origin: string,
@@ -118,9 +139,7 @@ export function siteNavigationJsonLd(
       "@type": "SiteNavigationElement",
       position: i + 1,
       name: item.name,
-      url: item.href.startsWith("http")
-        ? item.href
-        : `${origin}${item.href.startsWith("/") ? item.href : `/${item.href}`}`,
+      url: navigationItemUrl(origin, item.href, lang),
     })),
   };
 }
