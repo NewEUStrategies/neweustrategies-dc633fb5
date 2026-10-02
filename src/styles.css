@@ -9307,7 +9307,7 @@ input[type="reset"],
 /* Wyszukiwarka w nagłówku: kolumny i sekcje buildera mają `overflow-hidden`,
    które przed hydratacją przycinało pływającą etykietę i obwódkę fokusu.
    Kontenery zawierające pole wyszukiwania nie mogą go przycinać. */
-header .overflow-hidden:has(.builder-search-widget),
+header :has(.builder-search-widget),
 [data-builder-renderer] .overflow-hidden:has(> * .builder-search-widget) {
   overflow: visible;
 }
