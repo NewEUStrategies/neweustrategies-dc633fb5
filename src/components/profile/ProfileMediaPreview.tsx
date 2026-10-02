@@ -27,6 +27,13 @@ interface Props {
   onCoverFile: (file: File) => void;
   /** Dozwolone typy plików (`accept`) - lista MIME, nie wildcard. */
   accept?: string;
+  /**
+   * Pliki UPUSZCZONE poza `accept` (oba pola). Prop jest WYMAGANY celowo:
+   * obszar wgrywania odrzuca taki plik przed `onAvatarFile`/`onCoverFile`,
+   * więc bez tego wywołania upuszczenie HEIC albo GIF kończyło się ciszą -
+   * żadnego toastu, żadnego kadrowania. Komunikat pokazuje rodzic.
+   */
+  onRejectedFiles: (files: File[]) => void;
   t: (k: string, v?: Record<string, unknown>) => string;
 }
 
@@ -76,6 +83,7 @@ export function ProfileMediaPreview({
   onAvatarFile,
   onCoverFile,
   accept,
+  onRejectedFiles,
   t,
 }: Props) {
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || displayName || "";
@@ -144,6 +152,7 @@ export function ProfileMediaPreview({
           icons={[ImageIcon, Upload]}
           accept={accept}
           onFiles={(files) => onAvatarFile(files[0])}
+          onRejectedFiles={onRejectedFiles}
           footer={
             <div className="grid gap-2">
               <Input
@@ -169,6 +178,7 @@ export function ProfileMediaPreview({
           icons={[PanelTop, Upload]}
           accept={accept}
           onFiles={(files) => onCoverFile(files[0])}
+          onRejectedFiles={onRejectedFiles}
           footer={
             <div className="grid gap-2">
               <Input
