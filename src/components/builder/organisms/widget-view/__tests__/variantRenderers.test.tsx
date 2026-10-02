@@ -88,7 +88,7 @@ describe("AnimatedHeadingRender", () => {
         <AnimatedHeadingRender config={{ highlight: "do nas", accentColor }} />,
       );
       expect(container.querySelector("h2 > span")?.getAttribute("style")).toContain(
-        "color: var(--brand)",
+        "color: var(--widget-orange-accent)",
       );
       unmount();
     }

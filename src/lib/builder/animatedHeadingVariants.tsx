@@ -249,7 +249,7 @@ export interface AnimatedHeadingConfig {
  */
 export function animatedHeadingAccent(color: string | undefined): string {
   return !color || /^(?:#fa9346|#f97316|var\(--(?:brand|primary)\))$/i.test(color.trim())
-    ? "var(--brand)"
+    ? "var(--widget-orange-accent)"
     : color;
 }
 

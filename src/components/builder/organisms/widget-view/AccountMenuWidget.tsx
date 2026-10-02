@@ -430,7 +430,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       </span>
       {/* To dekoracyjny akcent widgetu, więc także w jasnym motywie zachowuje
           właściwy pomarańcz marki zamiast ciemniejszego koloru tekstowego. */}
-      <span style={{ color: "var(--brand)" }}>{signUpLabel}</span>
+      <span style={{ color: "var(--widget-orange-accent)" }}>{signUpLabel}</span>
     </button>
   );
 

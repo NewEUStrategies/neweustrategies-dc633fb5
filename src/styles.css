@@ -322,6 +322,7 @@ body {
   --ring: oklch(0.18 0 0);
   --brand: #fa9346;
   --brand-foreground: #141414;
+  --widget-orange-accent: #fa9346;
   /* Orange fills keep the brand color. Text on light surfaces needs the
      darker ink; the foreground on orange buttons is dark for WCAG AA. */
   --brand-ink: #a94e0b;
