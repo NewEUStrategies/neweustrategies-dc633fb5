@@ -3,6 +3,7 @@ import { adminEventsEn, adminEventsPl } from "@/lib/i18n-admin-events";
 import {
   READINESS_CHECK_KEYS,
   buildPublishReadiness,
+  sellsTicketsThroughForm,
   type ReadinessCheckKey,
   type ReadinessEvent,
   type ReadinessInput,
@@ -22,7 +23,8 @@ const completeEvent: ReadinessEvent = {
   descriptionPl: "Opis",
   descriptionEn: "Description",
   status: "draft",
-  registrationMode: "free",
+  registrationMode: "rsvp",
+  ticketPriceCents: null,
 };
 
 function input(overrides: Partial<ReadinessInput> = {}): ReadinessInput {
@@ -103,19 +105,68 @@ describe("buildPublishReadiness", () => {
     expect(conflicts?.section).toBe("contentConflicts");
   });
 
-  it("wymaga typu biletu tylko przy płatnej rejestracji", () => {
-    const free = buildPublishReadiness(input());
-    expect(failedKeys(free)).not.toContain("tickets");
+  it("wymaga typu biletu, gdy FORMULARZ ma pobrać opłatę, a nie ma czym", () => {
+    // Formularz zgłoszeń pobiera opłatę WYŁĄCZNIE ceną typu biletu. Cena
+    // w ustawieniach bez aktywnego typu = `event_register` wydaje wejściówkę
+    // z `payment_status = 'not_required'`, czyli za darmo.
+    const priced = { ...completeEvent, registrationMode: "form", ticketPriceCents: 25_000 };
+    const report = buildPublishReadiness(input({ event: priced }));
+    const tickets = report.checks.find((item) => item.key === "tickets");
+    expect(tickets).toMatchObject({
+      passed: false,
+      severity: "warning",
+      section: "registrationTickets",
+      count: 0,
+    });
+    // Ostrzeżenie, nie blokada - baza (`admin_event_publish_readiness`) nie
+    // zatrzymuje na tym publikacji, a panel nie może obiecywać więcej niż ona.
+    expect(report.canPublish).toBe(true);
 
-    const paid = buildPublishReadiness(
-      input({ event: { ...completeEvent, registrationMode: "paid" } }),
-    );
-    expect(failedKeys(paid)).toContain("tickets");
+    const withTicket = buildPublishReadiness(input({ event: priced, ticketTypeCount: 2 }));
+    expect(failedKeys(withTicket)).not.toContain("tickets");
+  });
 
-    const paidWithTicket = buildPublishReadiness(
-      input({ event: { ...completeEvent, registrationMode: "paid" }, ticketTypeCount: 2 }),
+  it("formularz bezpłatny nie potrzebuje typu biletu", () => {
+    for (const ticketPriceCents of [null, 0]) {
+      const report = buildPublishReadiness(
+        input({ event: { ...completeEvent, registrationMode: "form", ticketPriceCents } }),
+      );
+      expect(failedKeys(report)).not.toContain("tickets");
+    }
+  });
+
+  it.each(["rsvp", "external", "none"])(
+    "tryb %s z ceną NIE wymaga typu biletu - opłata nie idzie przez formularz",
+    (registrationMode) => {
+      // `rsvp` płaci ceną wydarzenia w kasie biletu (bez typów), `external`
+      // sprzedaje u organizatora, `none` nie zapisuje wcale.
+      const report = buildPublishReadiness(
+        input({ event: { ...completeEvent, registrationMode, ticketPriceCents: 25_000 } }),
+      );
+      expect(failedKeys(report)).not.toContain("tickets");
+    },
+  );
+
+  it("nieistniejący tryb `paid` nie włącza pozycji - reguła nie zgaduje po nazwie", () => {
+    // Regresja: wcześniej warunek brzmiał `registrationMode !== "paid"`, a CHECK
+    // w bazie zna tylko rsvp / form / external / none - pozycja była ZAWSZE
+    // spełniona i nigdy nie zgłosiła braku typów biletów.
+    const report = buildPublishReadiness(
+      input({ event: { ...completeEvent, registrationMode: "paid", ticketPriceCents: null } }),
     );
-    expect(failedKeys(paidWithTicket)).not.toContain("tickets");
+    expect(failedKeys(report)).not.toContain("tickets");
+  });
+
+  it("sellsTicketsThroughForm - jedno zdanie reguły", () => {
+    expect(
+      sellsTicketsThroughForm({ ...completeEvent, registrationMode: "form", ticketPriceCents: 1 }),
+    ).toBe(true);
+    expect(
+      sellsTicketsThroughForm({ ...completeEvent, registrationMode: "form", ticketPriceCents: -5 }),
+    ).toBe(false);
+    expect(
+      sellsTicketsThroughForm({ ...completeEvent, registrationMode: null, ticketPriceCents: 100 }),
+    ).toBe(false);
   });
 });
 
