@@ -42,6 +42,7 @@ import {
 } from "@/test/chat/fixtures";
 import {
   MINIMIZED_VISIBLE_LIMIT,
+  MOBILE_MINIMIZED_VISIBLE_LIMIT,
   minimizedChatsStore,
   type MinimizedChat,
 } from "@/lib/chat/minimizedChats";
@@ -116,7 +117,15 @@ function minimize(...chats: MinimizedChat[]): void {
 
 /** Pigułka po nazwie dostępnej przycisku przywracania. */
 function restoreButton(name: string): HTMLElement {
-  return screen.getByLabelText(dockPl.dock.chat.restore.replace("{{name}}", name));
+  const desktopRail = document.querySelector<HTMLElement>("[data-desktop-minimized-chats]");
+  if (!desktopRail) throw new Error("test: brak desktopowej szyny rozmów");
+  return within(desktopRail).getByLabelText(dockPl.dock.chat.restore.replace("{{name}}", name));
+}
+
+function desktopAvatar(): HTMLElement {
+  const desktopRail = document.querySelector<HTMLElement>("[data-desktop-minimized-chats]");
+  if (!desktopRail) throw new Error("test: brak desktopowej szyny rozmów");
+  return within(desktopRail).getByTestId("avatar");
 }
 
 function overflowLabel(form: "one" | "few" | "many", count: number): string {
@@ -253,7 +262,7 @@ describe("zdjęcie rozmówcy", () => {
     renderRail();
     minimize({ id: CHAT_IDS.conversation, name: PEER_NAME, avatarUrl: STORED_AVATAR });
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe(LIVE_AVATAR);
+    expect(desktopAvatar().getAttribute("data-url")).toBe(LIVE_AVATAR);
   });
 
   it("bez wpisu na liście rozmów zostaje zapamiętany URL - to jest cała rola zapasu", () => {
@@ -264,14 +273,14 @@ describe("zdjęcie rozmówcy", () => {
     const first = renderRail();
     minimize({ id: CHAT_IDS.conversation, name: PEER_NAME, avatarUrl: STORED_AVATAR });
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe(STORED_AVATAR);
+    expect(desktopAvatar().getAttribute("data-url")).toBe(STORED_AVATAR);
     expect(h.peerQueries.at(-1)).toEqual([]);
     first.unmount();
 
     h.views = [];
     renderRail();
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe(STORED_AVATAR);
+    expect(desktopAvatar().getAttribute("data-url")).toBe(STORED_AVATAR);
   });
 
   it("dopóki profile się nie wczytały, zapas też przeżywa", () => {
@@ -282,7 +291,7 @@ describe("zdjęcie rozmówcy", () => {
     renderRail();
     minimize({ id: CHAT_IDS.conversation, name: PEER_NAME, avatarUrl: STORED_AVATAR });
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe(STORED_AVATAR);
+    expect(desktopAvatar().getAttribute("data-url")).toBe(STORED_AVATAR);
   });
 
   it("profil BEZ zdjęcia gasi zapas - pigułka wraca do inicjału", () => {
@@ -293,7 +302,7 @@ describe("zdjęcie rozmówcy", () => {
     renderRail();
     minimize({ id: CHAT_IDS.conversation, name: PEER_NAME, avatarUrl: STORED_AVATAR });
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe("");
+    expect(desktopAvatar().getAttribute("data-url")).toBe("");
   });
 
   it("krąg nie ma zdjęcia na żywo, więc korzysta z zapasu", () => {
@@ -302,7 +311,7 @@ describe("zdjęcie rozmówcy", () => {
     renderRail();
     minimize({ id: CHAT_IDS.group, name: "Krąg energetyczny", avatarUrl: STORED_AVATAR });
 
-    const avatar = screen.getByTestId("avatar");
+    const avatar = desktopAvatar();
     expect(avatar.getAttribute("data-name")).toBe("Krąg energetyczny");
     expect(avatar.getAttribute("data-url")).toBe(STORED_AVATAR);
   });
@@ -332,14 +341,47 @@ describe("przepełnienie szyny", () => {
     );
 
     // Magazyn dokłada na początek, więc widoczne są DWIE ostatnio zminimalizowane.
-    const visible = screen.getAllByTestId("avatar");
+    const desktopRail = document.querySelector("[data-desktop-minimized-chats]");
+    if (!desktopRail) throw new Error("test: brak desktopowej szyny rozmów");
+    const visible = within(desktopRail as HTMLElement).getAllByTestId("avatar");
     expect(visible).toHaveLength(MINIMIZED_VISIBLE_LIMIT);
     expect(visible.map((node) => node.getAttribute("data-name"))).toEqual([
       "Iwona Grabska",
       "Bartosz Mielnik",
     ]);
-    expect(screen.queryByText("Rafał Dębski")).toBeNull();
     expect(screen.getByText("+2")).toBeTruthy();
+  });
+
+  it("na mobile pokazuje maksymalnie trzy kwadratowe dymki bez elementu +N", () => {
+    renderRail();
+    minimize(
+      { id: "rozmowa-a", name: "Rafał Dębski" },
+      { id: "rozmowa-b", name: "Lidia Ostoja" },
+      { id: "rozmowa-c", name: "Bartosz Mielnik" },
+      { id: "rozmowa-d", name: "Iwona Grabska" },
+    );
+
+    const mobileRail = document.querySelector<HTMLElement>("[data-mobile-minimized-chats]");
+    if (!mobileRail) throw new Error("test: brak mobilnych dymków rozmów");
+    const avatars = within(mobileRail).getAllByTestId("avatar");
+    expect(avatars).toHaveLength(MOBILE_MINIMIZED_VISIBLE_LIMIT);
+    expect(avatars.map((node) => node.getAttribute("data-name"))).toEqual([
+      "Iwona Grabska",
+      "Bartosz Mielnik",
+      "Lidia Ostoja",
+    ]);
+    expect(within(mobileRail).queryByText(/^\+/)).toBeNull();
+  });
+
+  it("na mobilnym dymku pokazuje licznik nieprzeczytanych tylko tej rozmowy", () => {
+    h.views = [conversationView({ me: { unread_count: 7 } })];
+    h.peers = peerProfileMap();
+    renderRail();
+    minimize({ id: CHAT_IDS.conversation, name: PEER_NAME });
+
+    const mobileRail = document.querySelector<HTMLElement>("[data-mobile-minimized-chats]");
+    if (!mobileRail) throw new Error("test: brak mobilnych dymków rozmów");
+    expect(within(mobileRail).getByText("7")).toHaveAttribute("data-minimized-chat-unread");
   });
 
   it("jedna ukryta rozmowa dostaje formę POJEDYNCZĄ, nie mnogą", () => {
