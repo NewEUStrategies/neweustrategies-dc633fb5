@@ -613,7 +613,9 @@ export const FEATURES_3 = [
     name: "CMS: chrome witryny w builderze (nagłówek, menu, stopka)",
     // WIERSZ NOWY. Edycja nagłówka/menu/stopki serwisu jako dokumentów
     // buildera - powierzchnia, której redaktor nie myli z treścią strony.
-    patterns: [/^src\/lib\/builder\/(chromeDefaults|siteSettingsLiveSync)\.tsx?$/],
+    // `searchOverflow` (#448): znacznik SSR, który zdejmuje przycinanie
+    // z kontenerów nagłówka niosących pole wyszukiwania - część chrome.
+    patterns: [/^src\/lib\/builder\/(chromeDefaults|siteSettingsLiveSync|searchOverflow)\.tsx?$/],
   },
   {
     key: "cms-builder-ci",
