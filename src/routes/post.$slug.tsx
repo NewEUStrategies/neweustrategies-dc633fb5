@@ -44,7 +44,8 @@ export const Route = createFileRoute("/post/$slug")({
       statusCode: 301,
     });
   },
-  component: () => null,
+  // Bez `component`: loader ZAWSZE rzuca (301/302 albo błąd do
+  // `errorComponent`), więc komponent trasy nie ma kiedy się wyrenderować.
   notFoundComponent: PublicNotFound,
   errorComponent: LegacyPostError,
 });

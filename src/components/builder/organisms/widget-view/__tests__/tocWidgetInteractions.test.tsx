@@ -48,6 +48,20 @@ describe("TocWidget - kliknięcia w wariantach grid i sidebar", () => {
     expect(window.location.hash).toBe("#sekcja-side");
   });
 
+  it("rewriting the hash keeps the router's history entry state", () => {
+    // REGRESJA: `replaceState(null, …)` kasował `__TSR_key`/`__TSR_index`
+    // TanStack Routera - przywracanie scrolla i kierunek nawigacji psuły się
+    // po każdym kliknięciu w spis treści.
+    const routerState = { __TSR_index: 3, __TSR_key: "k-wpis" };
+    window.history.replaceState(routerState, "", "/wpis/analiza");
+    mountTarget("sekcja-stan");
+    renderWidget({ variant: "grid", items_pl: ["#sekcja-stan | Sekcja Stan"] });
+
+    fireEvent.click(screen.getByRole("link", { name: /Sekcja Stan/ }));
+    expect(window.location.hash).toBe("#sekcja-stan");
+    expect(window.history.state).toEqual(routerState);
+  });
+
   it("does nothing when the anchor target is missing from the DOM", () => {
     renderWidget({ variant: "grid", items_pl: ["#nie-istnieje | Widmo"] });
     fireEvent.click(screen.getByRole("link", { name: /Widmo/ }));

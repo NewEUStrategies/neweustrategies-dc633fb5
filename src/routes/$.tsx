@@ -48,7 +48,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listCustomMetaDefs } from "@/lib/customMeta";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
 import { buildBreadcrumbs, type BreadcrumbItem } from "@/lib/breadcrumbs";
-import { resolveReadMinutes } from "@/lib/readingTime";
+import { excerptForReadingTime, resolveReadMinutes } from "@/lib/readingTime";
 import { useReadingTimeSettings } from "@/hooks/useReadingTimeSettings";
 import { useUnlockedContent } from "@/hooks/useUnlockedContent";
 import { usePasswordUnlock } from "@/hooks/usePasswordUnlock";
@@ -1163,7 +1163,7 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             sources: {
               html: processedHtml,
               docs: [doc, blocksDoc],
-              extraText: post?.excerpt_pl || post?.excerpt_en || undefined,
+              extraText: excerptForReadingTime(post?.excerpt_pl, post?.excerpt_en, lang),
             },
             lang,
             settings: readingTimeSettings,

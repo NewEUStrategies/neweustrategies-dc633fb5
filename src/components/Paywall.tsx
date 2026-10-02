@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import type { ContentAccessRule, AccessPlan } from "@/hooks/useContentAccess";
+import type { PasswordUnlockFailure, PasswordVerifyResult } from "@/hooks/usePasswordUnlock";
 // Jeden silnik pieniędzy dla całego lejka: ten sam locale-aware formatter co
 // /pricing i checkout (poprzedni, lokalny formatMoney hardkodował pl-PL, więc
 // anglojęzyczny czytelnik widział polskie formatowanie cen na paywallu).
@@ -46,8 +47,8 @@ type Props = {
   lang: "pl" | "en";
   /** Raw text content for auto-teaser when no manual teaser set */
   fallbackText?: string | null;
-  /** Fired by password mode after a successful verify with the unlocked body. */
-  onPasswordVerify?: (password: string) => Promise<boolean>;
+  /** Password mode: server-side verify; a refusal says WHY (wrong password vs. limit/outage). */
+  onPasswordVerify?: (password: string) => Promise<PasswordVerifyResult>;
   /** Async loading indicator forwarded from the parent's password unlock hook. */
   passwordVerifying?: boolean;
   /** Metering paywalla: konfiguracja tenantu (jeśli włączona). */
@@ -60,6 +61,10 @@ type Props = {
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_SECONDS = 30;
+
+/** Wynik zapytania oznaczony kluczem, dla którego powstał (patrz efekty niżej). */
+type Loaded<T> = { key: string; value: T; failed: boolean };
+type HintRow = { hint_pl: string | null; hint_en: string | null };
 
 export function Paywall({
   rule,
@@ -79,11 +84,10 @@ export function Paywall({
   const [checkoutSecret, setCheckoutSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [password, setPassword] = useState("");
-  const [pwdError, setPwdError] = useState(false);
+  const [pwdError, setPwdError] = useState<PasswordUnlockFailure | null>(null);
   const [attempts, setAttempts] = useState(0);
   const [lockUntil, setLockUntil] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
-  const [hint, setHint] = useState<string | null>(null);
   const teaser =
     (lang === "pl" ? rule.teaser_pl : rule.teaser_en) ||
     (fallbackText ? buildAutoTeaser(fallbackText) : "");
@@ -102,48 +106,102 @@ export function Paywall({
     if (lockUntil !== null && now >= lockUntil) {
       setLockUntil(null);
       setAttempts(0);
-      setPwdError(false);
+      setPwdError(null);
     }
   }, [now, lockUntil]);
 
-  const [plans, setPlans] = useState<AccessPlan[]>([]);
+  // Oba zapytania ściany zapisują wynik razem z kluczem, dla którego wyszły,
+  // a render bierze go tylko przy zgodnym kluczu. Trasa `$` nie przemontowuje
+  // Paywalla między wpisami, więc: spóźniona odpowiedź dla poprzednich
+  // plan_ids/wpisu nie nadpisze nowszej (flaga anulowania), a reguła bez
+  // planów nie pokaże planów poprzedniego wpisu. Błąd zapytania (lub odrzucona
+  // obietnica) daje stan z ponowieniem zamiast ściany bez oferty.
+  //
+  // Plany widzi wyłącznie zalogowany (zakup wiąże zamówienie z kontem), więc
+  // anonim - najczęstszy gość ściany - nie wysyła zapytania, którego wyniku i
+  // tak by nie zobaczył. Klucz to lista id (uuid nie zawiera przecinka).
+  const signedIn = !!session;
+  const plansKey =
+    rule.mode === "paid" && signedIn && rule.plan_ids.length > 0 ? rule.plan_ids.join(",") : null;
+  const [plansLoad, setPlansLoad] = useState<Loaded<AccessPlan[]> | null>(null);
+  const [plansAttempt, setPlansAttempt] = useState(0);
   useEffect(() => {
-    if (rule.mode !== "paid" || rule.plan_ids.length === 0) return;
+    if (!plansKey) return;
+    let cancelled = false;
+    const settle = (value: AccessPlan[], failed: boolean) => {
+      if (!cancelled) setPlansLoad({ key: plansKey, value, failed });
+    };
     supabase
       .from("access_plans")
       .select("*")
-      .in("id", rule.plan_ids)
+      .in("id", plansKey.split(","))
       .eq("active", true)
       .order("sort_order")
-      .then(({ data }) => setPlans((data as AccessPlan[]) ?? []));
-  }, [rule.plan_ids, rule.mode]);
+      .then(
+        ({ data, error }) => settle(error ? [] : ((data as AccessPlan[]) ?? []), !!error),
+        () => settle([], true),
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [plansKey, plansAttempt]);
+  const plansState = plansLoad && plansLoad.key === plansKey ? plansLoad : null;
+  const plans = plansState?.value ?? [];
+  const plansFailed = plansState?.failed ?? false;
+  const retryPlans = () => {
+    setPlansLoad(null);
+    setPlansAttempt((n) => n + 1);
+  };
 
-  // Load hint for password mode (never returns the hash).
+  // Podpowiedź hasła (RPC nigdy nie zwraca hasha). Wiersz niesie oba języki,
+  // więc zmiana języka wybiera wariant w renderze bez ponownego zapytania.
+  const hintKey =
+    rule.mode === "password" && rule.entity_id ? `${rule.entity_type}:${rule.entity_id}` : null;
+  const [hintLoad, setHintLoad] = useState<Loaded<HintRow | null> | null>(null);
+  const [hintAttempt, setHintAttempt] = useState(0);
   useEffect(() => {
-    if (rule.mode !== "password" || !rule.entity_id) return;
+    if (!hintKey) return;
+    let cancelled = false;
+    const settle = (value: HintRow | null, failed: boolean) => {
+      if (!cancelled) setHintLoad({ key: hintKey, value, failed });
+    };
     supabase
       .rpc("get_password_hint", {
         _entity_type: rule.entity_type,
         _entity_id: rule.entity_id,
       })
-      .then(({ data }) => {
-        const row = Array.isArray(data) ? data[0] : null;
-        setHint((lang === "pl" ? row?.hint_pl : row?.hint_en) ?? null);
-      });
-  }, [rule.mode, rule.entity_type, rule.entity_id, lang]);
+      .then(
+        ({ data, error }) =>
+          settle(!error && Array.isArray(data) ? (data[0] ?? null) : null, !!error),
+        () => settle(null, true),
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [hintKey, hintAttempt, rule.entity_type, rule.entity_id]);
+  const hintState = hintLoad && hintLoad.key === hintKey ? hintLoad : null;
+  const hint = (lang === "pl" ? hintState?.value?.hint_pl : hintState?.value?.hint_en) || null;
+  const hintFailed = hintState?.failed ?? false;
+  const retryHint = () => {
+    setHintLoad(null);
+    setHintAttempt((n) => n + 1);
+  };
 
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!onPasswordVerify || !password.trim() || passwordVerifying || locked) return;
-    const ok = await onPasswordVerify(password);
-    if (ok) {
-      setPwdError(false);
+    const result = await onPasswordVerify(password);
+    if (result.ok) {
+      setPwdError(null);
       setAttempts(0);
       return;
     }
+    setPwdError(result.reason);
+    // Limit serwera i awaria weryfikacji to nie "złe hasło": nie palą lokalnej
+    // próby i zostawiają wpisane hasło do ponownego wysłania.
+    if (result.reason !== "invalid") return;
     const next = attempts + 1;
     setAttempts(next);
-    setPwdError(true);
     setPassword("");
     if (next >= MAX_ATTEMPTS) {
       setLockUntil(Date.now() + LOCKOUT_SECONDS * 1000);
@@ -279,6 +337,19 @@ export function Paywall({
                   <span className="font-medium">{t("paywall.passwordHintLabel")}</span> {hint}
                 </p>
               )}
+              {hintFailed && (
+                <p role="status" className="text-xs text-muted-foreground">
+                  {t("paywall.hintLoadFailed")}{" "}
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    onClick={retryHint}
+                  >
+                    {t("paywall.retry")}
+                  </Button>
+                </p>
+              )}
               <div className="flex gap-2">
                 <Input
                   type="password"
@@ -286,13 +357,17 @@ export function Paywall({
                   value={password}
                   onChange={(e) => {
                     setPassword(e.target.value);
-                    if (pwdError) setPwdError(false);
+                    if (pwdError) setPwdError(null);
                   }}
                   placeholder={t("paywall.passwordPlaceholder")}
-                  aria-invalid={pwdError}
+                  aria-invalid={pwdError === "invalid"}
                   aria-label={t("paywall.passwordPlaceholder")}
                   disabled={passwordVerifying || locked}
-                  className={pwdError ? "border-destructive focus-visible:ring-destructive/40" : ""}
+                  className={
+                    pwdError === "invalid"
+                      ? "border-destructive focus-visible:ring-destructive/40"
+                      : ""
+                  }
                 />
                 <Button
                   type="submit"
@@ -320,7 +395,7 @@ export function Paywall({
                   <Lock className="h-3.5 w-3.5 shrink-0" />
                   <span>{t("paywall.passwordLocked", { seconds: secondsLeft })}</span>
                 </div>
-              ) : pwdError ? (
+              ) : pwdError === "invalid" ? (
                 <div
                   role="alert"
                   className="flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
@@ -331,6 +406,15 @@ export function Paywall({
                       {t("paywall.passwordAttemptsLeft", { count: attemptsLeft })}
                     </span>
                   )}
+                </div>
+              ) : pwdError ? (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+                >
+                  {pwdError === "rate_limited"
+                    ? t("paywall.passwordRateLimited")
+                    : t("paywall.passwordFailed")}
                 </div>
               ) : null}
             </form>
@@ -374,6 +458,17 @@ export function Paywall({
           {/* Paid - logged in, show plans + one-time */}
           {session && rule.mode === "paid" && (
             <div className="space-y-4">
+              {plansFailed && (
+                <div
+                  role="alert"
+                  className="mx-auto flex max-w-md flex-col items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                >
+                  <span>{t("paywall.plansLoadFailed")}</span>
+                  <Button type="button" size="sm" variant="outline" onClick={retryPlans}>
+                    {t("paywall.retry")}
+                  </Button>
+                </div>
+              )}
               {plans.length > 0 && (
                 <div className="grid sm:grid-cols-2 gap-3 max-w-2xl mx-auto text-left">
                   {plans.map((p) => {

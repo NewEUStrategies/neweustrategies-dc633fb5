@@ -19,9 +19,10 @@ const blocks = (n: number): BodyParts => ({
 });
 
 describe("isGatedMode", () => {
-  it("treats members and paid as gated", () => {
+  it("treats members, paid and password as gated", () => {
     expect(isGatedMode("members")).toBe(true);
     expect(isGatedMode("paid")).toBe(true);
+    expect(isGatedMode("password")).toBe(true);
   });
   it("treats public / nullish as open", () => {
     expect(isGatedMode("public")).toBe(false);
@@ -44,6 +45,18 @@ describe("hasRenderableBody", () => {
   it("ignores empty builder/blocks shells", () => {
     expect(hasRenderableBody(builder(0))).toBe(false);
     expect(hasRenderableBody({ ...EMPTY_BODY, blocks_data: { pl: { blocks: [] } } })).toBe(false);
+  });
+  it("skips null / non-object locale entries in blocks_data instead of throwing", () => {
+    // Częściowo przetłumaczony wpis: brakujący język bywa zapisany jako null.
+    expect(hasRenderableBody({ ...EMPTY_BODY, blocks_data: { pl: null, en: "legacy" } })).toBe(
+      false,
+    );
+    expect(
+      hasRenderableBody({
+        ...EMPTY_BODY,
+        blocks_data: { pl: null, en: { blocks: [{ id: "1" }] } },
+      }),
+    ).toBe(true);
   });
 });
 

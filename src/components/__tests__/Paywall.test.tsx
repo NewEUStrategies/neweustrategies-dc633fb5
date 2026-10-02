@@ -12,6 +12,7 @@
 // zamiast routera, atomy fixtures z src/test/paywall.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fail, ok, type SupabaseResult } from "@/test/supabaseChain";
 import {
   PAYWALL_IDS,
   accessPlan,
@@ -26,7 +27,8 @@ import {
   type MeterState,
   type MeteringSettings,
 } from "@/lib/access/metering";
-import type { ContentAccessRule } from "@/hooks/useContentAccess";
+import type { AccessPlan, ContentAccessRule } from "@/hooks/useContentAccess";
+import type { PasswordVerifyResult } from "@/hooks/usePasswordUnlock";
 
 type CheckoutResult =
   | { ok: true; mode: "stripe"; clientSecret: string }
@@ -43,6 +45,9 @@ const h = vi.hoisted(() => ({
     active: boolean;
     order: string;
   }>,
+  // Odpowiedź zapytania o plany - domyślnie `h.plans`; testy błędów i wyścigów
+  // podmieniają ją na odmowę, odrzucenie albo odroczoną obietnicę.
+  planResponse: vi.fn(),
   rpc: vi.fn(),
   navigate: vi.fn(),
   checkout: vi.fn(),
@@ -89,7 +94,7 @@ vi.mock("@/integrations/supabase/client", () => ({
           eq: (_c: string, active: boolean) => ({
             order: (order: string) => {
               h.planQueries.push({ table, ids, active, order });
-              return Promise.resolve({ data: h.plans });
+              return h.planResponse(ids);
             },
           }),
         }),
@@ -105,7 +110,7 @@ interface RenderProps {
   rule?: ContentAccessRule;
   lang?: "pl" | "en";
   fallbackText?: string | null;
-  onPasswordVerify?: (password: string) => Promise<boolean>;
+  onPasswordVerify?: (password: string) => Promise<PasswordVerifyResult>;
   passwordVerifying?: boolean;
   meterSettings?: MeteringSettings | null;
   meterApplies?: boolean;
@@ -115,6 +120,21 @@ interface RenderProps {
 function renderPaywall(props: RenderProps = {}) {
   const { rule = accessRule(), lang = "pl", ...rest } = props;
   return render(<Paywall rule={rule} lang={lang} {...rest} />);
+}
+
+/** Wynik weryfikacji hasła w kontrakcie usePasswordUnlock.verify. */
+const accept = (): Promise<PasswordVerifyResult> => Promise.resolve({ ok: true });
+const refuse =
+  (reason: "invalid" | "rate_limited" | "failed") => (): Promise<PasswordVerifyResult> =>
+    Promise.resolve({ ok: false, reason });
+
+/** Obietnica rozstrzygana ręcznie - do wyścigów odpowiedzi. */
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
 
 /** Kolejność CTA mierzona treścią linków - primary stoi pierwszy w DOM. */
@@ -127,6 +147,7 @@ beforeEach(() => {
   h.plans = [];
   h.hint = null;
   h.planQueries = [];
+  h.planResponse.mockReset().mockImplementation(() => Promise.resolve(ok(h.plans)));
   h.rpc.mockReset().mockImplementation(() => Promise.resolve({ data: h.hint ? [h.hint] : [] }));
   h.navigate.mockClear();
   h.checkout.mockReset();
@@ -277,6 +298,24 @@ describe("Paywall - teaser", () => {
     expect(teaser.textContent).not.toContain("<p>");
   });
 
+  it("krótki fallback (poniżej 120 znaków) idzie w całości, bez cięcia", () => {
+    renderPaywall({
+      rule: accessRule({ mode: "paid" }),
+      fallbackText: "<p>Krótki   lead artykułu.</p>",
+    });
+    expect(screen.getByText(/Krótki lead/).textContent).toBe("Krótki lead artykułu.…");
+  });
+
+  it("tekst bez granicy zdania tnie się na długości celu, a nie na pierwszej kropce", () => {
+    // Kropka na 10. znaku leży przed progiem 60 znaków - cięcie do niej
+    // dałoby zajawkę z jednego słowa, więc zostaje cięcie na 120 znakach.
+    const fallbackText = `Wstęp. ${"x".repeat(300)}`;
+    renderPaywall({ rule: accessRule({ mode: "paid" }), fallbackText });
+    const teaser = screen.getByText(/^Wstęp\./);
+    expect(teaser.textContent).toBe(`${fallbackText.slice(0, 120)}…`);
+    expect(teaser.textContent).toHaveLength(121);
+  });
+
   it("bez teasera i bez fallbacku nie renderuje pustej zajawki", () => {
     const { container } = renderPaywall({ rule: accessRule({ mode: "paid" }) });
     expect(container.querySelector(".prose")).toBeNull();
@@ -289,7 +328,7 @@ describe("Paywall - hasło", () => {
 
   it("pobiera podpowiedź przez RPC (nigdy hash) i pokazuje ją w języku czytelnika", async () => {
     h.hint = { hint_pl: "Nazwa konferencji", hint_en: "Conference name" };
-    renderPaywall({ rule: passwordRule(), onPasswordVerify: () => Promise.resolve(false) });
+    renderPaywall({ rule: passwordRule(), onPasswordVerify: refuse("invalid") });
     expect(h.rpc).toHaveBeenCalledWith("get_password_hint", {
       _entity_type: "post",
       _entity_id: PAYWALL_IDS.entity,
@@ -300,13 +339,13 @@ describe("Paywall - hasło", () => {
     renderPaywall({
       rule: passwordRule(),
       lang: "en",
-      onPasswordVerify: () => Promise.resolve(false),
+      onPasswordVerify: refuse("invalid"),
     });
     expect(await screen.findByText("Conference name")).toBeInTheDocument();
   });
 
   it("puste hasło nie wychodzi do weryfikacji (przycisk zablokowany)", () => {
-    const verify = vi.fn(() => Promise.resolve(true));
+    const verify = vi.fn(accept);
     renderPaywall({ rule: passwordRule(), onPasswordVerify: verify });
     const submit = screen.getByRole("button", { name: k("paywall.passwordSubmit") });
     expect(submit).toBeDisabled();
@@ -315,7 +354,7 @@ describe("Paywall - hasło", () => {
   });
 
   it("błędne hasło: komunikat, licznik pozostałych prób i wyczyszczone pole", async () => {
-    const verify = vi.fn(() => Promise.resolve(false));
+    const verify = vi.fn(refuse("invalid"));
     renderPaywall({ rule: passwordRule(), onPasswordVerify: verify });
     const input = screen.getByLabelText(k("paywall.passwordPlaceholder"));
     fireEvent.change(input, { target: { value: "zle-haslo" } });
@@ -330,8 +369,8 @@ describe("Paywall - hasło", () => {
   });
 
   it("poprawne hasło zeruje błąd i licznik prób", async () => {
-    let ok = false;
-    const verify = vi.fn(() => Promise.resolve(ok));
+    let correct = false;
+    const verify = vi.fn(() => (correct ? accept() : refuse("invalid")()));
     renderPaywall({ rule: passwordRule(), onPasswordVerify: verify });
     const input = screen.getByLabelText(k("paywall.passwordPlaceholder"));
 
@@ -339,7 +378,7 @@ describe("Paywall - hasło", () => {
     fireEvent.click(screen.getByRole("button", { name: k("paywall.passwordSubmit") }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
 
-    ok = true;
+    correct = true;
     fireEvent.change(input, { target: { value: "sezamie-otworz-sie" } });
     fireEvent.click(screen.getByRole("button", { name: k("paywall.passwordSubmit") }));
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
@@ -347,7 +386,7 @@ describe("Paywall - hasło", () => {
 
   it("po pięciu próbach blokuje formularz na 30 s i sam go odblokowuje", async () => {
     vi.useFakeTimers();
-    const verify = vi.fn(() => Promise.resolve(false));
+    const verify = vi.fn(refuse("invalid"));
     renderPaywall({ rule: passwordRule(), onPasswordVerify: verify });
     const input = screen.getByLabelText(k("paywall.passwordPlaceholder"));
     const submit = () =>
@@ -374,7 +413,7 @@ describe("Paywall - hasło", () => {
   });
 
   it("w trakcie weryfikacji pokazuje spinner i nie przyjmuje kolejnych prób", () => {
-    const verify = vi.fn(() => Promise.resolve(true));
+    const verify = vi.fn(accept);
     renderPaywall({ rule: passwordRule(), onPasswordVerify: verify, passwordVerifying: true });
     expect(screen.getByText(k("paywall.passwordChecking"))).toBeInTheDocument();
     const input = screen.getByLabelText(k("paywall.passwordPlaceholder"));
@@ -548,6 +587,18 @@ describe("Paywall - plany i zakup (zalogowany, tryb paid)", () => {
     expect(container.textContent).toContain(formatMoney(2500, "PLN", "pl"));
   });
 
+  it("plany dwutygodniowe i kwartalne mają własne etykiety interwału", async () => {
+    h.plans = [
+      accessPlan({ id: "plan-2w", name_pl: "Próbny", interval: "two_weeks" }),
+      accessPlan({ id: "plan-q", name_pl: "Kwartalny", interval: "quarter", sort_order: 2 }),
+    ];
+    renderPaywall({ rule: accessRule({ mode: "paid", plan_ids: ["plan-2w", "plan-q"] }) });
+    expect(await screen.findByText("Próbny")).toBeInTheDocument();
+    expect(screen.getByText(k("paywall.perTwoWeeks"))).toBeInTheDocument();
+    expect(screen.getByText(k("paywall.perQuarter"))).toBeInTheDocument();
+    expect(screen.queryByText(k("paywall.perMonth"))).not.toBeInTheDocument();
+  });
+
   it("plan one_time: etykieta jednorazowości i bez badge'a triala mimo trial_days", async () => {
     // Trial ma sens dla cyklu odnowień - jednorazowy zakup z "14 dni za darmo"
     // byłby obietnicą bez mechaniki (nie ma czego przedłużyć po trialu).
@@ -563,5 +614,199 @@ describe("Paywall - plany i zakup (zalogowany, tryb paid)", () => {
     expect(await screen.findByText("Wieczysty")).toBeInTheDocument();
     expect(screen.getByText(k("paywall.oneTime"))).toBeInTheDocument();
     expect(screen.queryByText(k("paywall.trialBadge", { days: 14 }))).not.toBeInTheDocument();
+  });
+});
+
+describe("Paywall - weryfikacja hasła: odmowa to nie zawsze złe hasło", () => {
+  const passwordRule = () =>
+    accessRule({ mode: "password", entity_type: "post", entity_id: PAYWALL_IDS.entity });
+
+  async function submitWith(value: string) {
+    const input = screen.getByLabelText(k("paywall.passwordPlaceholder"));
+    fireEvent.change(input, { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: k("paywall.passwordSubmit") }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    return input;
+  }
+
+  it("serwerowy limit prób: osobny komunikat, bez palenia lokalnych prób i bez blokady", async () => {
+    const verify = vi.fn(refuse("rate_limited"));
+    renderPaywall({ rule: passwordRule(), onPasswordVerify: verify });
+
+    const input = await submitWith("poprawne-haslo");
+    expect(screen.getByRole("alert")).toHaveTextContent(k("paywall.passwordRateLimited"));
+    expect(screen.queryByText(k("paywall.passwordWrong"))).not.toBeInTheDocument();
+    // Hasło mogło być poprawne - zostaje w polu i nie jest oznaczane jako błędne.
+    expect(input).toHaveValue("poprawne-haslo");
+    expect(input).toHaveAttribute("aria-invalid", "false");
+
+    // Pięć odmów limitu nie uruchamia lokalnej blokady 30 s (ta jest na złe hasła).
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: k("paywall.passwordSubmit") }));
+      });
+    }
+    expect(verify).toHaveBeenCalledTimes(5);
+    expect(input).not.toBeDisabled();
+    expect(screen.queryByText(/paywall\.passwordLocked/)).not.toBeInTheDocument();
+  });
+
+  it("awaria weryfikacji: komunikat ponowienia, a następne złe hasło zostawia 4 próby", async () => {
+    let reason: "failed" | "invalid" = "failed";
+    const verify = vi.fn(() => refuse(reason)());
+    renderPaywall({ rule: passwordRule(), onPasswordVerify: verify });
+
+    const input = await submitWith("haslo");
+    expect(screen.getByRole("alert")).toHaveTextContent(k("paywall.passwordFailed"));
+    expect(input).toHaveValue("haslo");
+
+    // Pisanie czyści komunikat awarii tak samo jak komunikat złego hasła.
+    fireEvent.change(input, { target: { value: "haslo2" } });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    reason = "invalid";
+    fireEvent.click(screen.getByRole("button", { name: k("paywall.passwordSubmit") }));
+    await waitFor(() => expect(screen.getByText(k("paywall.passwordWrong"))).toBeInTheDocument());
+    // Awaria nie zjadła próby: po pierwszym PRAWDZIWYM błędzie zostają 4 z 5.
+    expect(screen.getByText(k("paywall.passwordAttemptsLeft", { count: 4 }))).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+});
+
+describe("Paywall - podpowiedź hasła: błąd, ponowienie, wyścig, język", () => {
+  const ruleFor = (entityId: string) =>
+    accessRule({ mode: "password", entity_type: "post", entity_id: entityId });
+
+  it("odmowa RPC: informacja z ponowieniem, formularz hasła działa dalej", async () => {
+    h.rpc.mockResolvedValueOnce(fail("permission denied for function get_password_hint"));
+    renderPaywall({ rule: ruleFor(PAYWALL_IDS.entity), onPasswordVerify: accept });
+
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent(k("paywall.hintLoadFailed"));
+    // Treść błędu serwera nigdy nie trafia do czytelnika.
+    expect(document.body.textContent).not.toContain("permission denied");
+    expect(screen.getByLabelText(k("paywall.passwordPlaceholder"))).not.toBeDisabled();
+
+    h.hint = { hint_pl: "Rok założenia", hint_en: "Founding year" };
+    fireEvent.click(screen.getByRole("button", { name: k("paywall.retry") }));
+    expect(await screen.findByText("Rok założenia")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(h.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("odrzucona obietnica RPC daje ten sam stan błędu (bez nieobsłużonego wyjątku)", async () => {
+    h.rpc.mockRejectedValueOnce(new Error("Failed to fetch"));
+    renderPaywall({ rule: ruleFor(PAYWALL_IDS.entity), onPasswordVerify: accept });
+    expect(await screen.findByRole("status")).toHaveTextContent(k("paywall.hintLoadFailed"));
+    expect(document.body.textContent).not.toContain("Failed to fetch");
+  });
+
+  it("spóźniona podpowiedź poprzedniego wpisu nie nadpisuje podpowiedzi bieżącego", async () => {
+    const slow = deferred<SupabaseResult<{ hint_pl: string; hint_en: string }[]>>();
+    h.rpc
+      .mockImplementationOnce(() => slow.promise)
+      .mockImplementationOnce(() =>
+        Promise.resolve(ok([{ hint_pl: "Wpis B", hint_en: "Post B" }])),
+      );
+    const view = renderPaywall({ rule: ruleFor("post-a"), onPasswordVerify: accept });
+    view.rerender(<Paywall rule={ruleFor("post-b")} lang="pl" onPasswordVerify={accept} />);
+    expect(await screen.findByText("Wpis B")).toBeInTheDocument();
+
+    await act(async () => {
+      slow.resolve(ok([{ hint_pl: "Wpis A", hint_en: "Post A" }]));
+    });
+    expect(screen.getByText("Wpis B")).toBeInTheDocument();
+    expect(screen.queryByText("Wpis A")).not.toBeInTheDocument();
+  });
+
+  it("zmiana języka wybiera wariant podpowiedzi bez ponownego RPC", async () => {
+    h.hint = { hint_pl: "Nazwa konferencji", hint_en: "Conference name" };
+    const rule = ruleFor(PAYWALL_IDS.entity);
+    const view = renderPaywall({ rule, onPasswordVerify: accept });
+    expect(await screen.findByText("Nazwa konferencji")).toBeInTheDocument();
+
+    view.rerender(<Paywall rule={rule} lang="en" onPasswordVerify={accept} />);
+    expect(screen.getByText("Conference name")).toBeInTheDocument();
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Paywall - plany: błąd, ponowienie, wyścig i zbędne zapytania", () => {
+  const paidRule = (planIds: string[]) => accessRule({ mode: "paid", plan_ids: planIds });
+
+  beforeEach(() => {
+    h.session = { user: { id: PAYWALL_IDS.user } };
+  });
+
+  it("odmowa access_plans: zrozumiały błąd z ponowieniem zamiast ściany bez oferty", async () => {
+    h.planResponse.mockResolvedValueOnce(fail("permission denied for table access_plans"));
+    h.plans = [accessPlan()];
+    renderPaywall({ rule: paidRule([PAYWALL_IDS.plan]) });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(k("paywall.plansLoadFailed"));
+    expect(document.body.textContent).not.toContain("permission denied");
+    // Wyjście z lejka zostaje: pełny cennik obok komunikatu.
+    expect(screen.getByRole("link", { name: new RegExp(k("paywall.seeAllPlans")) })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: k("paywall.retry") }));
+    expect(await screen.findByText("Miesięczny")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(h.planQueries).toHaveLength(2);
+  });
+
+  it("odrzucona obietnica zapytania daje ten sam stan błędu", async () => {
+    h.planResponse.mockRejectedValueOnce(new Error("Failed to fetch"));
+    renderPaywall({ rule: paidRule([PAYWALL_IDS.plan]) });
+    expect(await screen.findByRole("alert")).toHaveTextContent(k("paywall.plansLoadFailed"));
+    expect(screen.queryByRole("link", { name: k("paywall.subscribe") })).not.toBeInTheDocument();
+  });
+
+  it("zmiana plan_ids w trakcie pobierania: starsza odpowiedź nie nadpisuje nowszej", async () => {
+    const slow = deferred<SupabaseResult<AccessPlan[]>>();
+    h.planResponse
+      .mockImplementationOnce(() => slow.promise)
+      .mockImplementationOnce(() =>
+        Promise.resolve(ok([accessPlan({ id: PAYWALL_IDS.planAlt, name_pl: "Roczny" })])),
+      );
+    const view = renderPaywall({ rule: paidRule([PAYWALL_IDS.plan]) });
+    view.rerender(<Paywall rule={paidRule([PAYWALL_IDS.planAlt])} lang="pl" />);
+    expect(await screen.findByText("Roczny")).toBeInTheDocument();
+
+    await act(async () => {
+      slow.resolve(ok([accessPlan({ name_pl: "Miesięczny" })]));
+    });
+    expect(screen.getByText("Roczny")).toBeInTheDocument();
+    expect(screen.queryByText("Miesięczny")).not.toBeInTheDocument();
+    expect(h.planQueries.map((q) => q.ids)).toEqual([[PAYWALL_IDS.plan], [PAYWALL_IDS.planAlt]]);
+  });
+
+  it("reguła bez planów nie pokazuje planów poprzedniego wpisu", async () => {
+    h.plans = [accessPlan()];
+    const view = renderPaywall({ rule: paidRule([PAYWALL_IDS.plan]) });
+    expect(await screen.findByText("Miesięczny")).toBeInTheDocument();
+
+    view.rerender(
+      <Paywall rule={accessRule({ mode: "paid", plan_ids: [], entity_id: "post-2" })} lang="pl" />,
+    );
+    expect(screen.queryByText("Miesięczny")).not.toBeInTheDocument();
+    expect(h.planQueries).toHaveLength(1);
+  });
+
+  it("anonim nie wysyła zapytania o plany, których i tak nie zobaczy", () => {
+    h.session = null;
+    h.plans = [accessPlan()];
+    renderPaywall({ rule: paidRule([PAYWALL_IDS.plan]) });
+    expect(h.planQueries).toEqual([]);
+    expect(screen.getByText(k("paywall.signin"))).toBeInTheDocument();
+  });
+
+  it("nowa tożsamość obiektu reguły z tymi samymi planami nie powtarza zapytania", async () => {
+    h.plans = [accessPlan()];
+    const view = renderPaywall({ rule: paidRule([PAYWALL_IDS.plan]) });
+    expect(await screen.findByText("Miesięczny")).toBeInTheDocument();
+    view.rerender(<Paywall rule={paidRule([PAYWALL_IDS.plan])} lang="pl" />);
+    expect(screen.getByText("Miesięczny")).toBeInTheDocument();
+    expect(h.planQueries).toHaveLength(1);
   });
 });

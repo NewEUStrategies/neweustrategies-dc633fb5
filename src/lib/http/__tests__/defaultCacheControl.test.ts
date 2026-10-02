@@ -166,6 +166,60 @@ describe("planDefaultCacheControl - dyrektywa trasy", () => {
     expect(planDefaultCacheControl(req("/blog"), res(), own)).toBe(own);
   });
 
+  describe("trwałe przekierowanie (301/308) - dyrektywa trasy dociera na drut", () => {
+    // Dyrektywa `post.$slug.tsx` (audyt CWV 2026-09-20, F13). Do 2026-10-02
+    // każda odpowiedź nie-200 kończyła się `null`, więc 301 z głównego adresu
+    // własnych listingów wychodziło BEZ Cache-Control.
+    const PERMANENT = cacheControlHeader({
+      cacheable: true,
+      browserMaxAge: 300,
+      sharedMaxAge: 3_600,
+      staleWhileRevalidate: 86_400,
+    });
+    const moved = (status = 301) => res(status, { location: "/sekcja/wpis" });
+
+    it.each([301, 308])("%i z Location niesie dyrektywę trasy", (status) => {
+      const plan = planDefaultCacheControl(req("/post/wpis"), moved(status), PERMANENT);
+      expect(plan).toBe(PERMANENT);
+      expect(plan).toContain("s-maxage=3600");
+    });
+
+    it("bez dyrektywy trasy przekierowanie zostaje nietknięte (polityka treści się NIE rozciąga)", () => {
+      expect(planDefaultCacheControl(req("/post/wpis"), moved(301))).toBeNull();
+      expect(planDefaultCacheControl(req("/post/wpis"), moved(301), null)).toBeNull();
+    });
+
+    it("tymczasowe 302/307 i 301 bez Location nie dostają publicznej dyrektywy", () => {
+      expect(planDefaultCacheControl(req("/post/wpis"), moved(302), PERMANENT)).toBeNull();
+      expect(planDefaultCacheControl(req("/post/wpis"), moved(307), PERMANENT)).toBeNull();
+      expect(planDefaultCacheControl(req("/post/wpis"), res(301, {}), PERMANENT)).toBeNull();
+    });
+
+    it("bariera sesji i deny-lista obowiązują także dla przekierowania", () => {
+      expect(
+        planDefaultCacheControl(
+          req("/post/wpis", { authorization: "Bearer t" }),
+          moved(),
+          PERMANENT,
+        ),
+      ).toBeNull();
+      expect(
+        planDefaultCacheControl(
+          req("/post/wpis", { cookie: "sb-access-token=abc" }),
+          moved(),
+          PERMANENT,
+        ),
+      ).toBeNull();
+      expect(planDefaultCacheControl(req("/profile/stary"), moved(), PERMANENT)).toBeNull();
+    });
+
+    it("własny nagłówek na odpowiedzi i opt-out trasy nadal wygrywają", () => {
+      const own = res(301, { location: "/x", "cache-control": "max-age=60" });
+      expect(planDefaultCacheControl(req("/post/wpis"), own, PERMANENT)).toBeNull();
+      expect(planDefaultCacheControl(req("/post/wpis"), moved(), NO_STORE)).toBe(NO_STORE);
+    });
+  });
+
   it("POWIERZCHNIA ŻYWA wyprzedza czystą dyrektywę trasy", () => {
     // Strona CMS opublikowana pod /live/<slug> jedzie przez `$.tsx`, który
     // deklaruje politykę TREŚCI (180 s świeżości w magazynie). Gdyby dyrektywa

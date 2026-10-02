@@ -172,17 +172,17 @@ describe("PostOverlayMeta - nakładka meta nad okładką", () => {
     expect(container.textContent).toMatch(/min/);
   });
 
-  it("PIN: uszkodzona data daje etykietę BEZ wartości, nie wyjątek i nie Invalid Date", () => {
-    // `fmtDate` ma `try/catch` z zamiarem pokazania surowej wartości, ale
+  it("uszkodzona data wraca SUROWA - nie wyjątek, nie Invalid Date, nie pusta etykieta", () => {
     // `formatDate` z `lib/i18n/format` nie RZUCA dla nieparsowalnego wejścia -
-    // zwraca pusty napis. `catch` jest więc martwy, a czytelnik widzi
-    // „Opublikowano:" bez daty. Zachowanie przypięte: nakładka nie wywala się
-    // i nie pokazuje „Invalid Date", co jest ważniejsze od samego fallbacku.
+    // zwraca pusty napis, więc dawny `try/catch` w `fmtDate` był martwy, a
+    // czytelnik widział „Opublikowano:" bez daty. Teraz pusty wynik oddaje
+    // wartość z bazy (ta sama umowa co `formatDateOnly`).
     const { container } = renderWithQuery(
       <PostOverlayMeta lang="pl" author={null} publishedAt="nie-data" readMinutes={null} />,
     );
     expect(container.textContent).not.toContain("Invalid");
-    expect(container.textContent).toContain("Opublikowano");
+    expect(container.querySelector("time")).toHaveTextContent("nie-data");
+    expect(container.querySelector("time")).toHaveAttribute("dateTime", "nie-data");
   });
 
   it("wariant angielski prefiksuje adres autora `/en/`", () => {

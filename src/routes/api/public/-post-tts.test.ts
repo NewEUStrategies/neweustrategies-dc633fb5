@@ -61,6 +61,8 @@ const h = vi.hoisted(() => {
     authedClients: { url: string; key: string; authorization?: string }[];
     rpcCalls: { fn: string; args: Record<string, unknown> }[];
     entitlement: QueryResult;
+    /** PRAWDZIWA koalescencja zamiast przezroczystej - dla dowodu o terminie. */
+    realCoalesce: boolean;
   } = {
     lookups: {},
     ops: [],
@@ -88,6 +90,7 @@ const h = vi.hoisted(() => {
     authedClients: [],
     rpcCalls: [],
     entitlement: { data: null, error: null },
+    realCoalesce: false,
   };
 
   interface Chain extends PromiseLike<QueryResult> {
@@ -192,12 +195,15 @@ vi.mock("@/lib/server/tts.server", async (importOriginal) => {
     resolveCanonicalTtsPlan: async () => h.state.plan,
     recordTtsRendition: async (input: unknown) => void h.state.recorded.push(input),
     // Koalescencja jest przezroczysta w teście: wywołujemy fabrykę raz.
-    coalesceTtsSynthesis: async (_key: string, run: () => Promise<ArrayBuffer>) => run(),
+    // Wyjątek: dowód o terminie syntezy potrzebuje prawdziwej mapy w toku.
+    coalesceTtsSynthesis: async (key: string, run: () => Promise<ArrayBuffer>) =>
+      h.state.realCoalesce ? actual.coalesceTtsSynthesis(key, run) : run(),
   };
 });
 
 import { routeServerHandlers } from "@/test/routeHarness";
-import { __handleForTests as handle, Route } from "./post-tts";
+import { inflightTtsSynthesisCount } from "@/lib/server/tts.server";
+import { __handleForTests as handle, POST_TTS_UPSTREAM_TIMEOUT_MS, Route } from "./post-tts";
 
 const POST_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -258,6 +264,7 @@ beforeEach(() => {
   h.state.authedClients.length = 0;
   h.state.rpcCalls.length = 0;
   h.state.entitlement = { data: null, error: null };
+  h.state.realCoalesce = false;
   h.storageOps.length = 0;
   h.state.tenantId = "ten_1";
   h.state.host = "example.com";
@@ -927,6 +934,63 @@ describe("post-tts - błędy dostawcy", () => {
     const res = await handle(req({ postId: POST_ID, lang: "pl" }));
     expect(res.status).toBe(502);
     expect(h.state.fetchCalls).toHaveLength(1);
+  });
+});
+
+// REGRESJA: żądanie do ElevenLabs nie miało terminu. Zawieszone połączenie
+// trzymało wpis koalescencji w nieskończoność, więc KAŻDY kolejny czytelnik
+// tego wpisu w izolacie dołączał do obietnicy, która nigdy się nie rozstrzygnie.
+describe("post-tts - termin syntezy", () => {
+  it("zawieszony dostawca po terminie daje 502 wszystkim czekającym i zwalnia wpis", async () => {
+    h.state.realCoalesce = true;
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const deadlines: AbortController[] = [];
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+      const controller = new AbortController();
+      deadlines.push(controller);
+      return controller.signal;
+    });
+    const signals: (AbortSignal | null | undefined)[] = [];
+    h.state.fetchImpl = (_url, init) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init.signal;
+        signals.push(signal);
+        if (signal) signal.addEventListener("abort", () => reject(signal.reason));
+      });
+
+    // Czytelnicy po kolei, nie naraz: atrapa bazy trzyma JEDEN kursor tabeli,
+    // więc dwa przeplecione odczyty dostałyby cudze wyniki. Drugi startuje,
+    // gdy pierwszy już wisi na dostawcy - i dochodzi do koalescencji tuż po
+    // limicie per wpis (makrozadanie opróżnia resztę mikrozadań).
+    const first = handle(req({ postId: POST_ID, lang: "pl" }));
+    await vi.waitFor(() => expect(signals).toHaveLength(1));
+    const second = handle(req({ postId: POST_ID, lang: "pl" }));
+    await vi.waitFor(() =>
+      expect(h.state.rateLimitCalls.filter((c) => c.scope === "post-tts:post:hour")).toHaveLength(
+        2,
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(timeout).toHaveBeenCalledTimes(1);
+    expect(timeout).toHaveBeenCalledWith(POST_TTS_UPSTREAM_TIMEOUT_MS);
+    expect(signals).toEqual([deadlines[0]?.signal]);
+    expect(inflightTtsSynthesisCount()).toBe(1);
+
+    deadlines[0]?.abort(new DOMException("The operation timed out.", "TimeoutError"));
+    const [a, b] = await Promise.all([first, second]);
+    expect([a.status, b.status]).toEqual([502, 502]);
+    expect(inflightTtsSynthesisCount()).toBe(0);
+    expect(logged).toHaveBeenCalledWith(
+      "[post-tts] synthesis failed:",
+      deadlines[0]?.signal.reason,
+    );
+
+    // Następny czytelnik zaczyna ŚWIEŻĄ syntezę, zamiast czekać na martwą.
+    h.state.fetchImpl = async () => new Response(new ArrayBuffer(8), { status: 200 });
+    const third = await handle(req({ postId: POST_ID, lang: "pl" }));
+    expect(third.status).toBe(200);
+    expect(h.state.fetchCalls).toHaveLength(2);
   });
 });
 

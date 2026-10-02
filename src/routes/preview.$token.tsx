@@ -15,6 +15,7 @@ import { PostContentStyle } from "@/components/PostContentStyle";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { prepareContentForRender } from "@/lib/content/prepareContent";
 import { FootnotesList, FootnoteTooltips } from "@/components/Footnotes";
+import { formatDateTime } from "@/lib/i18n/format";
 
 const COPY = {
   pl: {
@@ -84,7 +85,9 @@ function PreviewPage() {
     ? (localized[lang] ?? localized.pl ?? localized.en ?? null)
     : null;
   const rawHtml = lang === "en" ? post.content_en || post.content_pl : post.content_pl;
-  const expires = new Date(post.expires_at).toLocaleString(lang === "en" ? "en-GB" : "pl-PL");
+  // Strefa serwisu, nie maszyny: SSR (Workers, UTC) i przeglądarka redaktora
+  // drukowały inną godzinę wygaśnięcia, a React porzucał wtedy serwerowy HTML.
+  const expires = formatDateTime(post.expires_at, lang);
 
   // Ta sama pre-transformacja co na produkcyjnym /$slug: [fn] rozwijane pod
   // wspólnym licznikiem, sekcja przypisów + tooltips zamontowane na dole.

@@ -1,4 +1,5 @@
-// Fire-and-forget post-view recording. Triggers once per (post, mount).
+// Fire-and-forget post-view recording. Triggers once per (post, mount) - also
+// under StrictMode's double effect run.
 // The 5-min anti-spam window lives server-side in `record_post_view`.
 import { useEffect, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -29,13 +30,17 @@ export function useRecordPostView(postId: string | undefined | null, authorId?: 
 
   useEffect(() => {
     if (!postId || fired.current === postId) return;
-    fired.current = postId;
     let t: number | undefined;
     // Strona prerenderowana spekulacyjnie (Speculation Rules) nie jest
     // odsłoną - odliczanie rusza dopiero po aktywacji (prerenderingchange).
     const stopPrerenderWait = afterPrerendering(() => {
       // 1.5 s delay - filters out instant back/forward navigation.
       t = window.setTimeout(() => {
+        // Znacznik stawiamy dopiero przy STRZALE, nie przy planowaniu. StrictMode
+        // (domyślny klient TanStack Start) montuje efekt dwa razy: cleanup kasuje
+        // pierwszy timer, a znacznik postawiony przy planowaniu kazał drugiemu
+        // przebiegowi wyjść bez nowego - w dev odsłona nie liczyła się nigdy.
+        fired.current = postId;
         const userId = userIdRef.current;
         // `post_views.viewer_hash` łączy odsłony jednej osoby między sesjami,
         // a /cookies deklaruje `post_views` w kategorii „analityka” - bez tej
