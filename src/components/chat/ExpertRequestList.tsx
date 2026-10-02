@@ -18,6 +18,7 @@ import {
   type ExpertRequestRow,
 } from "@/lib/chat/useExpertRequests";
 import { expertRequestErrorI18nKey } from "@/lib/chat/expertRequestErrors";
+import { EXPERT_REQUEST_RESULT_STATUS } from "@/lib/chat/expertRequestStatus";
 import { ExpertRequestCancelDialog } from "@/components/chat/ExpertRequestCancelDialog";
 import "@/lib/i18n-expert-request";
 
@@ -49,7 +50,7 @@ export function ExpertRequestList({
       toast.success(
         action === "cancel"
           ? t("expertRequest.confirmCancel.doneToast")
-          : t(`expertRequest.status.${action === "approve" ? "approved" : action}`),
+          : t(`expertRequest.status.${EXPERT_REQUEST_RESULT_STATUS[action]}`),
       );
     } catch (error) {
       toast.error(t(expertRequestErrorI18nKey(error)));

@@ -279,7 +279,7 @@ function ShowPage() {
     { url: show.spotify_url, label: "Spotify" },
     { url: show.apple_url, label: "Apple Podcasts" },
     { url: show.youtube_url, label: "YouTube" },
-  ].filter((l) => !!l.url);
+  ].filter((l): l is { url: string; label: string } => !!l.url);
 
   return (
     <article className="container mx-auto px-4 py-10 max-w-4xl space-y-10">
@@ -318,7 +318,7 @@ function ShowPage() {
             {subscribeLinks.map((l) => (
               <a
                 key={l.label}
-                href={l.url as string}
+                href={l.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-full border border-border hover:bg-muted"

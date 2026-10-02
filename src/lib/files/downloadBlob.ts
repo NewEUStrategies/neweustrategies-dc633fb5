@@ -27,17 +27,16 @@ export function downloadBlob(blob: Blob, fileName: string): void {
   setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_DELAY_MS);
 }
 
-/** Plik z danych base64 (odpowiedź funkcji serwerowej). */
-export function downloadBase64File(base64: string, fileName: string, mimeType: string): void {
+/**
+ * PDF z base64 (odpowiedź funkcji serwerowej) - faktura, certyfikat. Bajty
+ * trafiają do pliku 1:1; to jedyne pobranie z base64 w aplikacji, więc nie ma
+ * osobnej, uogólnionej wersji z typem MIME z parametru.
+ */
+export function downloadBase64Pdf(base64: string, fileName: string): void {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  downloadBlob(new Blob([bytes], { type: mimeType }), fileName);
-}
-
-/** PDF z base64 - faktura, certyfikat. */
-export function downloadBase64Pdf(base64: string, fileName: string): void {
-  downloadBase64File(base64, fileName, "application/pdf");
+  downloadBlob(new Blob([bytes], { type: "application/pdf" }), fileName);
 }
 
 /**

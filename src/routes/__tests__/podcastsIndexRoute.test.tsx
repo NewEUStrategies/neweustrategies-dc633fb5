@@ -26,6 +26,10 @@
 //      wyłącznie po ręcznym wklejeniu adresu - czytniki i Apple nie znają
 //      naszej konwencji URL.
 //   5. TREŚĆ JEDNEGO OBSZARU ROBOCZEGO NIE WYCHODZI NA HOŚCIE DRUGIEGO.
+//   6. PONOWIENIE PYTA TYLKO O TO, CO PADŁO. Trzy zapytania katalogu leczą się
+//      niezależnie; przycisk „Spróbuj ponownie" nie może przeładować dwóch
+//      zdrowych, żeby dociągnąć trzecie. A awaria RENDERU (nie odczytu) ma
+//      własny ekran błędu z tytułem trasy - nie pusty dokument.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 // - 404: ta trasa go NIE MA i mieć nie powinna - `/podcasts` istnieje zawsze,
@@ -36,7 +40,7 @@
 //   `feedRoutesDegradation.test.ts`; tutaj dowodem jest samo OGŁOSZENIE kanału.
 // - PARYTETU SŁOWNIKA PL/EN: `src/lib/__tests__/i18nPodcasts.test.ts`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
 const { TENANT_A, TENANT_B, SHOW_ID } = vi.hoisted(() => ({
   TENANT_A: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -65,6 +69,8 @@ const h = vi.hoisted(() => ({
   requestUrl: "https://nes.example.org/podcasts",
   /** Wartości `Cache-Control`, jakie loader ustawił na odpowiedzi. */
   cacheControl: [] as string[],
+  /** Czy okładka programu ma RZUCIĆ w renderze (awaria renderu, nie odczytu). */
+  coverThrows: false,
 }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -112,6 +118,22 @@ vi.mock("@/lib/http/responseHeaders", () => ({
   setCacheControlHeader: (value: string) => void h.cacheControl.push(value),
   readRouteCacheDirective: () => null,
 }));
+
+// Okładka karty programu to jedyny atom katalogu, który da się wywrócić bez
+// psucia danych: atrapa przepuszcza prawdziwy komponent, dopóki test nie
+// zażąda awarii renderu - wtedy w drzewie trasy leci wyjątek, a dowodem jest
+// to, co pokaże granica błędu.
+vi.mock("@/components/atoms/OptimizedImage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/atoms/OptimizedImage")>();
+  const Real = actual.OptimizedImage;
+  return {
+    ...actual,
+    OptimizedImage: (props: Parameters<typeof Real>[0]) => {
+      if (h.coverThrows) throw new Error("test: okladka wywrocila render katalogu");
+      return <Real {...props} />;
+    },
+  };
+});
 
 import "@/test/i18nReal";
 import { QueryClient } from "@tanstack/react-query";
@@ -229,6 +251,7 @@ beforeEach(async () => {
   h.delayMs = 0;
   h.requestUrl = "https://nes.example.org/podcasts";
   h.cacheControl = [];
+  h.coverThrows = false;
 });
 
 afterEach(async () => {
@@ -347,6 +370,60 @@ describe("trasa /podcasts - pusto kontra nie dojechało", () => {
     await mount();
 
     await waitFor(() => expect(screen.getByText("Couldn't load podcasts")).toBeInTheDocument());
+  });
+
+  it("ponowienie pyta TYLKO o zapytanie, które padło, i leczy katalog bez nawigacji", async () => {
+    // REGUŁA 6. Programy i statystyki dojechały - przeładowanie ich razem
+    // z listą odcinków to dwa zbędne round-tripy na każde kliknięcie.
+    h.broken.add("podcasts");
+    await mount();
+    const button = await screen.findByRole("button", { name: "Spróbuj ponownie" });
+    const before = [...h.reads];
+
+    h.broken.delete("podcasts");
+    fireEvent.click(button);
+
+    expect(await screen.findByRole("link", { name: /Zima bez gazu/ })).toBeInTheDocument();
+    expect(screen.queryByText("Nie udało się załadować podcastów")).toBeNull();
+    const retried = h.reads.slice(before.length);
+    expect(retried).toContain("podcasts:latest");
+    expect(retried).not.toContain("podcast_shows:published");
+    expect(retried).not.toContain("podcasts:stats");
+  });
+
+  it("awaria RENDERU katalogu daje ekran błędu z TYTUŁEM trasy, a ponowienie go leczy", async () => {
+    // To jest inna awaria niż blip odczytu (ten ma render zdegradowany):
+    // wyjątek w drzewie trasy. Bez tytułu wspólny ekran mówi „nie udało się
+    // załadować strony" - czytelnik nie wie nawet, której.
+    h.coverThrows = true;
+    h.shows = [show({ cover_image_url: "https://cdn.example.org/okladka-programu.jpg" })];
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mount();
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Nie udało się załadować listy" })).toBeTruthy(),
+    );
+    expect(screen.queryByRole("heading", { level: 2, name: "Programy" })).toBeNull();
+
+    h.coverThrows = false;
+    fireEvent.click(screen.getByRole("button", { name: "Spróbuj ponownie" }));
+
+    expect(await screen.findByRole("heading", { level: 2, name: "Programy" })).toBeInTheDocument();
+  });
+
+  it("po angielsku tytuł ekranu błędu renderu też jest angielski", async () => {
+    await i18n.changeLanguage("en");
+    setClientLang("en");
+    h.coverThrows = true;
+    h.shows = [show({ cover_image_url: "https://cdn.example.org/okladka-programu.jpg" })];
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await mount();
+
+    await waitFor(() =>
+      expect(screen.getByRole("heading", { name: "Couldn't load the list" })).toBeTruthy(),
+    );
   });
 
   it("degradacja JEDNEGO z trzech zapytań już zdejmuje render ze wspólnego cache'a", async () => {

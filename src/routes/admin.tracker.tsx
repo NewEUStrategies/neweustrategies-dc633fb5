@@ -1,7 +1,7 @@
 // Panel trackera legislacyjnego: CRUD dossier + dodawanie aktualizacji do osi
 // czasu. Aktualizacja z ustawionym etapem przestawia etap dossier (trigger DB)
 // i wysyła alert obserwującym - stąd wyraźny komunikat po zapisie.
-import { useState } from "react";
+import { useId, useState, type ChangeEvent, type ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ensureI18n as ensureAdminTrackerI18n } from "@/lib/i18n-admin-tracker";
@@ -53,6 +53,17 @@ const EMPTY_ITEM = {
   status: "draft",
 };
 type ItemDraft = typeof EMPTY_ITEM;
+/** Pola szkicu niosące TEKST - wszystkie poza `importance`. */
+type StringField = {
+  [K in keyof ItemDraft]: ItemDraft[K] extends string ? K : never;
+}[keyof ItemDraft];
+
+/** Kopia z jednym polem podmienionym; typ wartości jest związany z kluczem (bez rzutowań). */
+function withField<T, K extends keyof T>(target: T, key: K, value: T[K]): T {
+  const next = { ...target };
+  next[key] = value;
+  return next;
+}
 
 function itemToDraft(it: PolicyItem): ItemDraft {
   return {
@@ -105,6 +116,13 @@ function AdminTrackerPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ItemDraft>(EMPTY_ITEM);
   const set = (patch: Partial<ItemDraft>) => setDraft((d) => ({ ...d, ...patch }));
+  // JEDEN binder zamiast kilkunastu kopii domknięcia `onChange`: pola różnią
+  // się wyłącznie kluczem, a pomyłka w kopii (np. `title_en` wpięty pod pole
+  // PL) nie daje żadnego błędu - tylko dossier z tytułem w złym języku.
+  const bind = (key: StringField) => ({
+    value: draft[key],
+    onValueChange: (value: string) => setDraft((d) => withField(d, key, value)),
+  });
 
   const runTick = useServerFn(runTrackerTickNow);
   const runTickMut = useMutation({
@@ -212,134 +230,67 @@ function AdminTrackerPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
-              <Field label="Slug">
-                <Input
-                  value={draft.slug}
-                  onChange={(e) => set({ slug: e.target.value })}
-                  placeholder="ai-act"
-                />
-              </Field>
-              <Field label={t("adminTracker.reference")}>
-                <Input
-                  value={draft.reference}
-                  onChange={(e) => set({ reference: e.target.value })}
-                  placeholder="COM(2026) 123"
-                />
-              </Field>
-              <Field label={t("adminTracker.titlePl")}>
-                <Input value={draft.title_pl} onChange={(e) => set({ title_pl: e.target.value })} />
-              </Field>
-              <Field label={t("adminTracker.titleEn")}>
-                <Input value={draft.title_en} onChange={(e) => set({ title_en: e.target.value })} />
-              </Field>
-              <Field label={t("adminTracker.summaryPl")}>
-                <Textarea
-                  rows={2}
-                  value={draft.summary_pl}
-                  onChange={(e) => set({ summary_pl: e.target.value })}
-                />
-              </Field>
-              <Field label={t("adminTracker.summaryEn")}>
-                <Textarea
-                  rows={2}
-                  value={draft.summary_en}
-                  onChange={(e) => set({ summary_en: e.target.value })}
-                />
-              </Field>
+              <TextField label="Slug" placeholder="ai-act" {...bind("slug")} />
+              <TextField
+                label={t("adminTracker.reference")}
+                placeholder="COM(2026) 123"
+                {...bind("reference")}
+              />
+              <TextField label={t("adminTracker.titlePl")} {...bind("title_pl")} />
+              <TextField label={t("adminTracker.titleEn")} {...bind("title_en")} />
+              <TextField label={t("adminTracker.summaryPl")} multiline {...bind("summary_pl")} />
+              <TextField label={t("adminTracker.summaryEn")} multiline {...bind("summary_en")} />
             </div>
             <div className="grid gap-3 md:grid-cols-4">
-              <Field label={t("adminTracker.area")}>
-                <Select value={draft.policy_area} onValueChange={(v) => set({ policy_area: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {POLICY_AREAS.map((a) => (
-                      <SelectItem key={a.key} value={a.key}>
-                        {lang === "pl" ? a.pl : a.en}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label={t("adminTracker.stage")}>
-                <Select value={draft.stage} onValueChange={(v) => set({ stage: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STAGE_LABELS.map((s) => (
-                      <SelectItem key={s.key} value={s.key}>
-                        {lang === "pl" ? s.pl : s.en}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label={t("adminTracker.importance")}>
-                <Select
-                  value={String(draft.importance)}
-                  onValueChange={(v) => set({ importance: Number(v) })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1 - {t("adminTracker.low")}</SelectItem>
-                    <SelectItem value="2">2 - {t("adminTracker.medium")}</SelectItem>
-                    <SelectItem value="3">3 - {t("adminTracker.key")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Status">
-                <Select value={draft.status} onValueChange={(v) => set({ status: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">draft</SelectItem>
-                    <SelectItem value="published">published</SelectItem>
-                    <SelectItem value="archived">archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
+              <ChoiceField label={t("adminTracker.area")} {...bind("policy_area")}>
+                {POLICY_AREAS.map((a) => (
+                  <SelectItem key={a.key} value={a.key}>
+                    {lang === "pl" ? a.pl : a.en}
+                  </SelectItem>
+                ))}
+              </ChoiceField>
+              <ChoiceField label={t("adminTracker.stage")} {...bind("stage")}>
+                {STAGE_LABELS.map((s) => (
+                  <SelectItem key={s.key} value={s.key}>
+                    {lang === "pl" ? s.pl : s.en}
+                  </SelectItem>
+                ))}
+              </ChoiceField>
+              <ChoiceField
+                label={t("adminTracker.importance")}
+                value={String(draft.importance)}
+                onValueChange={(v) => set({ importance: Number(v) })}
+              >
+                <SelectItem value="1">1 - {t("adminTracker.low")}</SelectItem>
+                <SelectItem value="2">2 - {t("adminTracker.medium")}</SelectItem>
+                <SelectItem value="3">3 - {t("adminTracker.key")}</SelectItem>
+              </ChoiceField>
+              <ChoiceField label="Status" {...bind("status")}>
+                <SelectItem value="draft">draft</SelectItem>
+                <SelectItem value="published">published</SelectItem>
+                <SelectItem value="archived">archived</SelectItem>
+              </ChoiceField>
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              <Field label={t("adminTracker.rapporteur")}>
-                <Input
-                  value={draft.rapporteur}
-                  onChange={(e) => set({ rapporteur: e.target.value })}
-                  placeholder="Jan Kowalski (EPP)"
-                />
-              </Field>
-              <Field label={t("adminTracker.leadCommittee")}>
-                <Input
-                  value={draft.committee}
-                  onChange={(e) => set({ committee: e.target.value })}
-                  placeholder="LIBE"
-                />
-              </Field>
-              <Field label={t("adminTracker.commissionDg")}>
-                <Input
-                  value={draft.lead_dg}
-                  onChange={(e) => set({ lead_dg: e.target.value })}
-                  placeholder="DG CNECT"
-                />
-              </Field>
+              <TextField
+                label={t("adminTracker.rapporteur")}
+                placeholder="Jan Kowalski (EPP)"
+                {...bind("rapporteur")}
+              />
+              <TextField
+                label={t("adminTracker.leadCommittee")}
+                placeholder="LIBE"
+                {...bind("committee")}
+              />
+              <TextField
+                label={t("adminTracker.commissionDg")}
+                placeholder="DG CNECT"
+                {...bind("lead_dg")}
+              />
             </div>
             <div className="grid gap-3 md:grid-cols-3">
-              <Field label={t("adminTracker.nextMilestonePl")}>
-                <Input
-                  value={draft.next_milestone_pl}
-                  onChange={(e) => set({ next_milestone_pl: e.target.value })}
-                />
-              </Field>
-              <Field label={t("adminTracker.nextMilestoneEn")}>
-                <Input
-                  value={draft.next_milestone_en}
-                  onChange={(e) => set({ next_milestone_en: e.target.value })}
-                />
-              </Field>
+              <TextField label={t("adminTracker.nextMilestonePl")} {...bind("next_milestone_pl")} />
+              <TextField label={t("adminTracker.nextMilestoneEn")} {...bind("next_milestone_en")} />
               <Field label={t("adminTracker.milestoneDate")}>
                 <AdminDatePicker
                   value={draft.next_milestone_at || null}
@@ -349,12 +300,7 @@ function AdminTrackerPage() {
                 />
               </Field>
             </div>
-            <Field label={t("adminTracker.sourceUrl")}>
-              <Input
-                value={draft.source_url}
-                onChange={(e) => set({ source_url: e.target.value })}
-              />
-            </Field>
+            <TextField label={t("adminTracker.sourceUrl")} {...bind("source_url")} />
             <div className="flex gap-2">
               <Button disabled={saveItem.isPending} onClick={() => saveItem.mutate()}>
                 <Save className="mr-1.5 h-4 w-4" aria-hidden="true" />
@@ -406,12 +352,83 @@ function AdminTrackerPage() {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * Etykieta nad polem. `htmlFor` jest opcjonalne tylko dla pól, które niosą
+ * nazwę same (`AdminDatePicker` ma własne `aria-label`) - każde inne pole
+ * dostaje identyfikator z `TextField` / `ChoiceField`. Do tej pracy etykiety
+ * NIE były powiązane z polami, więc czytnik ekranu czytał edytor dossier jako
+ * kilkanaście bezimiennych „pól edycji" i „przycisków".
+ */
+function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor?: string;
+  children: ReactNode;
+}) {
   return (
     <div>
-      <Label className="text-xs">{label}</Label>
+      <Label htmlFor={htmlFor} className="text-xs">
+        {label}
+      </Label>
       <div className="mt-1">{children}</div>
     </div>
+  );
+}
+
+type TextChange = ChangeEvent<HTMLInputElement | HTMLTextAreaElement>;
+
+/** Pole tekstowe z etykietą powiązaną przez `useId`; `multiline` = dwuwierszowe pole opisu. */
+function TextField({
+  label,
+  value,
+  onValueChange,
+  placeholder,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  placeholder?: string;
+  multiline?: boolean;
+}) {
+  const id = useId();
+  const onChange = (e: TextChange) => onValueChange(e.target.value);
+  return (
+    <Field label={label} htmlFor={id}>
+      {multiline ? (
+        <Textarea id={id} rows={2} value={value} onChange={onChange} />
+      ) : (
+        <Input id={id} value={value} onChange={onChange} placeholder={placeholder} />
+      )}
+    </Field>
+  );
+}
+
+/** Lista wyboru z etykietą powiązaną z wyzwalaczem (`SelectTrigger id`). */
+function ChoiceField({
+  label,
+  value,
+  onValueChange,
+  children,
+}: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <Field label={label} htmlFor={id}>
+      <Select value={value} onValueChange={onValueChange}>
+        <SelectTrigger id={id}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
+    </Field>
   );
 }
 
@@ -509,6 +526,11 @@ function PositionsButton({ itemId, label }: { itemId: string; label: string }) {
       setOpen(false);
       void qc.invalidateQueries({ queryKey: ["admin", "tracker-positions", itemId] });
       void qc.invalidateQueries({ queryKey: ["tracker", "positions", itemId] });
+      // Macierz explorera (`/tracker/explorer`) czyta te same wiersze pod
+      // WŁASNYM kluczem (`positions-bulk` z posortowanych id), którego prefiks
+      // `["tracker", "positions"]` nie łapie - bez tego wiersza macierz w tej
+      // samej sesji pokazywała stanowisko sprzed zapisu.
+      void qc.invalidateQueries({ queryKey: ["tracker", "positions-bulk"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -785,7 +807,13 @@ function AddUpdateButton({ itemId, label }: { itemId: string; label: string }) {
       setStageTo("none");
       setSourceUrl("");
       setOpen(false);
-      void qc.invalidateQueries({ queryKey: ["tracker", "updates", itemId] });
+      // CAŁY prefiks publiczny, nie tylko oś czasu tego dossier. Wpis z etapem
+      // przestawia etap dossier TRIGGEREM w bazie, więc nieaktualne są też
+      // strona dossier (`["tracker", "item", slug]`), lista i statystyki etapów,
+      // a nowy wpis należy do globalnego feedu zmian (`recent-updates`). Z samym
+      // kluczem osi publiczna strona pokazywała w tej samej sesji nowy wpis
+      // „Rada -> Trilog" nad paskiem postępu wciąż stojącym na Radzie.
+      void qc.invalidateQueries({ queryKey: ["tracker"] });
       void qc.invalidateQueries({ queryKey: ["admin", "tracker-items"] });
     },
     onError: (err: Error) => toast.error(err.message),
@@ -804,33 +832,39 @@ function AddUpdateButton({ itemId, label }: { itemId: string; label: string }) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
+      aria-label={t("adminTracker.addUpdate")}
     >
       <div className="w-full max-w-lg space-y-3 rounded-lg bg-background p-5 shadow-lg">
         <h3 className="text-base font-semibold">{t("adminTracker.addUpdate")}</h3>
-        <Field label={t("adminTracker.updateNotePl")}>
-          <Textarea rows={2} value={notePl} onChange={(e) => setNotePl(e.target.value)} />
-        </Field>
-        <Field label={t("adminTracker.updateNoteEn")}>
-          <Textarea rows={2} value={noteEn} onChange={(e) => setNoteEn(e.target.value)} />
-        </Field>
-        <Field label={t("adminTracker.stageChangeOptional")}>
-          <Select value={stageTo} onValueChange={setStageTo}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("adminTracker.stageChange")}</SelectItem>
-              {STAGE_LABELS.map((s) => (
-                <SelectItem key={s.key} value={s.key}>
-                  {lang === "pl" ? s.pl : s.en}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label={t("adminTracker.sourceUrl")}>
-          <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
-        </Field>
+        <TextField
+          label={t("adminTracker.updateNotePl")}
+          multiline
+          value={notePl}
+          onValueChange={setNotePl}
+        />
+        <TextField
+          label={t("adminTracker.updateNoteEn")}
+          multiline
+          value={noteEn}
+          onValueChange={setNoteEn}
+        />
+        <ChoiceField
+          label={t("adminTracker.stageChangeOptional")}
+          value={stageTo}
+          onValueChange={setStageTo}
+        >
+          <SelectItem value="none">{t("adminTracker.stageChange")}</SelectItem>
+          {STAGE_LABELS.map((s) => (
+            <SelectItem key={s.key} value={s.key}>
+              {lang === "pl" ? s.pl : s.en}
+            </SelectItem>
+          ))}
+        </ChoiceField>
+        <TextField
+          label={t("adminTracker.sourceUrl")}
+          value={sourceUrl}
+          onValueChange={setSourceUrl}
+        />
         <div className="flex gap-2">
           <Button
             disabled={save.isPending || notePl.trim().length < 3 || noteEn.trim().length < 3}
