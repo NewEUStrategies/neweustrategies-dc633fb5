@@ -82,7 +82,9 @@ describe("MessageComposerField - skróty klawiszowe", () => {
     render(<Harness initial="punkt" />);
     const box = screen.getByLabelText("Wiadomość") as HTMLTextAreaElement;
     select(box, 0, 5);
-    fireEvent.keyDown(box, { key: "8", ctrlKey: true, shiftKey: true });
+    // Kształt zdarzenia z przeglądarki: przy Shifcie `key` to „*", a cyfrę
+    // niesie dopiero `code`. `key: "8"` z Shiftem nie istnieje poza testem.
+    fireEvent.keyDown(box, { key: "*", code: "Digit8", ctrlKey: true, shiftKey: true });
     expect(box.value).toBe("- punkt");
   });
 
