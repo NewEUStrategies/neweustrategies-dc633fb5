@@ -458,6 +458,77 @@ describe("/search - nawigacja klawiaturą po podpowiedziach", () => {
     await waitFor(() => expect(view.search().q).toBe("Raport roczny"));
   });
 
+  // REGRESJA (wyd. 11): zakładka kubełka żyła w autosuggeście, a strzałki
+  // w trasie liczyły CAŁĄ listę - pod zakładką „Tematyka" strzałka zaznaczała
+  // schowany tytuł, a Enter nawigował pod podpowiedź, której nie było widać.
+  async function openMixed() {
+    h.suggestData = [
+      sug({ id: "s-1", label_pl: "Raport roczny" }),
+      // Region nie ma publicznego archiwum - wybór filtruje /search (tag
+      // ze slugiem poszedłby na /tag/<slug>, poza tę trasę).
+      sug({ kind: "region", id: "r-1", slug: "baltyk", label_pl: "Bałtyk" }),
+      sug({ kind: "region", id: "r-2", slug: "balkany", label_pl: "Bałkany" }),
+    ];
+    const view = await mount("/search");
+    fireEvent.change(phraseInput(), { target: { value: "ra" } });
+    fireEvent.focus(phraseInput());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 250));
+    });
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBe(3));
+    return view;
+  }
+
+  /** Zakładka kubełka W POPOVERZE (strona ma też zakładki sekcji o tych nazwach). */
+  const suggestTab = (name: RegExp) =>
+    screen.getAllByRole("tab", { name }).find((el) => el.closest("form"))!;
+
+  it("pod ZAKŁADKĄ kubełka strzałki chodzą WYŁĄCZNIE po widocznych wierszach", async () => {
+    await openMixed();
+    fireEvent.mouseDown(suggestTab(/Tematyka/));
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBe(2));
+    fireEvent.keyDown(phraseInput(), { key: "ArrowDown" });
+    await waitFor(() =>
+      expect(phraseInput()).toHaveAttribute("aria-activedescendant", "search-suggest-opt-1"),
+    );
+    fireEvent.keyDown(phraseInput(), { key: "ArrowDown" });
+    fireEvent.keyDown(phraseInput(), { key: "ArrowDown" });
+    // Zawinięcie wraca na PIERWSZY WIDOCZNY (opt-1), a nie na schowany opt-0.
+    await waitFor(() =>
+      expect(phraseInput()).toHaveAttribute("aria-activedescendant", "search-suggest-opt-1"),
+    );
+    fireEvent.keyDown(phraseInput(), { key: "ArrowUp" });
+    await waitFor(() =>
+      expect(phraseInput()).toHaveAttribute("aria-activedescendant", "search-suggest-opt-2"),
+    );
+  });
+
+  it("ENTER pod zakładką wybiera WIDOCZNĄ podpowiedź", async () => {
+    const view = await openMixed();
+    fireEvent.mouseDown(suggestTab(/Tematyka/));
+    fireEvent.keyDown(phraseInput(), { key: "ArrowDown" });
+    await act(async () => {
+      fireEvent.keyDown(phraseInput(), { key: "Enter" });
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(view.search()).toMatchObject({ q: "Bałtyk", region: "r-1" }));
+  });
+
+  it("zmiana zakładki ZDEJMUJE wybór, który zakładka schowała - Enter go nie wybierze", async () => {
+    const view = await openMixed();
+    fireEvent.keyDown(phraseInput(), { key: "ArrowDown" });
+    await waitFor(() =>
+      expect(phraseInput()).toHaveAttribute("aria-activedescendant", "search-suggest-opt-0"),
+    );
+    fireEvent.mouseDown(suggestTab(/Tematyka/));
+    await waitFor(() => expect(phraseInput()).not.toHaveAttribute("aria-activedescendant"));
+    await act(async () => {
+      fireEvent.keyDown(phraseInput(), { key: "Enter" });
+      await Promise.resolve();
+    });
+    expect(view.search().q).not.toBe("Raport roczny");
+  });
+
   it("klawisze nawigacji są NIEAKTYWNE, gdy lista jest zamknięta", async () => {
     await mount("/search?q=raport");
     fireEvent.keyDown(phraseInput(), { key: "ArrowDown" });

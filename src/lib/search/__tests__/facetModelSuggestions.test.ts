@@ -12,10 +12,14 @@ import { describe, it, expect } from "vitest";
 import type { AutosuggestItem } from "@/lib/queries/archives";
 import { parseSearchParams } from "@/lib/search/searchParams";
 import {
+  bucketSuggestions,
+  effectiveSuggestTab,
   orderSuggestions,
   searchHref,
+  stepSuggestion,
   suggestBucketOf,
   suggestionHref,
+  visibleSuggestionIndices,
   SUGGEST_BUCKET_LABELS,
 } from "@/lib/search/facetModel";
 
@@ -250,5 +254,66 @@ describe("suggestionHref - kontrakt z validateSearch trasy", () => {
       "/search?q=Niemiecki",
     );
     expect(suggestionHref(it0({ kind: "lang", id: null, slug: "en" }))).toBe("/search?lang=en");
+  });
+});
+
+// Numeracja i zakładki mega-boxa: wspólne dla renderu wierszy (SearchAutosuggest)
+// i klawiatury rodzica (routes/search.tsx). Rozjazd = strzałka na schowanym
+// wierszu albo Enter pod podpowiedź, której nie widać.
+describe("bucketSuggestions / zakładki kubełków", () => {
+  const mixed = (): AutosuggestItem[] => [
+    it0({ kind: "author", id: "a" }),
+    it0({ kind: "post", id: "p1" }),
+    it0({ kind: "topic", id: "t" }),
+    it0({ kind: "post", id: "p2" }),
+  ];
+
+  it("numeruje CIĄGLE w kolejności kubełków, zachowując kolejność wewnątrz kubełka", () => {
+    const flat = bucketSuggestions(mixed());
+    expect(flat.map((e) => [e.item.id, e.bucket, e.index])).toEqual([
+      ["p1", "titles", 0],
+      ["p2", "titles", 1],
+      ["t", "topics", 2],
+      ["a", "peopleOrg", 3],
+    ]);
+    // Kontrakt dla klawiatury: pozycja na liście == indeks opcji.
+    flat.forEach((e, i) => expect(e.index).toBe(i));
+  });
+
+  it("na liście już uporządkowanej numeracja = pozycja (tak dostaje ją trasa)", () => {
+    const ordered = orderSuggestions(mixed());
+    expect(bucketSuggestions(ordered).map((e) => e.item)).toEqual(ordered);
+  });
+
+  it("wybrany kubełek BEZ wierszy w bieżącym zbiorze wraca do „wszystko”", () => {
+    const noTopics = [it0({ kind: "post", id: "p" }), it0({ kind: "author", id: "a" })];
+    expect(effectiveSuggestTab(noTopics, "topics")).toBe("all");
+    expect(effectiveSuggestTab(noTopics, "peopleOrg")).toBe("peopleOrg");
+    expect(effectiveSuggestTab([], "titles")).toBe("all");
+    expect(effectiveSuggestTab(noTopics, "all")).toBe("all");
+  });
+
+  it("widoczne indeksy pod zakładką są GLOBALNE, a pusty kubełek nie wygasza listy", () => {
+    expect(visibleSuggestionIndices(mixed(), "all")).toEqual([0, 1, 2, 3]);
+    expect(visibleSuggestionIndices(mixed(), "titles")).toEqual([0, 1]);
+    expect(visibleSuggestionIndices(mixed(), "peopleOrg")).toEqual([3]);
+    expect(visibleSuggestionIndices(mixed(), "contentTypes")).toEqual([0, 1, 2, 3]);
+  });
+
+  it("stepSuggestion chodzi po widocznych z zawijaniem w obie strony", () => {
+    const visible = [1, 3, 4];
+    expect(stepSuggestion(visible, -1, 1)).toBe(1);
+    expect(stepSuggestion(visible, -1, -1)).toBe(4);
+    expect(stepSuggestion(visible, 1, 1)).toBe(3);
+    expect(stepSuggestion(visible, 4, 1)).toBe(1);
+    expect(stepSuggestion(visible, 1, -1)).toBe(4);
+    // Wybór schowany zmianą zakładki startuje od brzegu, nie „obok" schowanego.
+    expect(stepSuggestion(visible, 2, 1)).toBe(1);
+    expect(stepSuggestion(visible, 2, -1)).toBe(4);
+  });
+
+  it("stepSuggestion na pustej liście nie wskazuje niczego", () => {
+    expect(stepSuggestion([], 0, 1)).toBe(-1);
+    expect(stepSuggestion([], -1, -1)).toBe(-1);
   });
 });
