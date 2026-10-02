@@ -918,6 +918,13 @@
       "when": 1790972264945,
       "tag": "0130_20261002200000_post_views_dwell_signal",
       "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1790976343086,
+      "tag": "0131_20261002210000_event_seat_state_single_source",
+      "breakpoints": true
     }
   ]
 }
