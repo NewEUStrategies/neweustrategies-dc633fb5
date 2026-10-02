@@ -357,6 +357,8 @@ export function SearchButtonWidget({
 
   // Dyktowanie frazy: transkrypcja płynie do pola (live results reagują same
   // przez debounce wyżej); przy wyłączonych live results finał odpala search.
+  const [voiceChecked, setVoiceChecked] = useState(false);
+  useEffect(() => setVoiceChecked(true), []);
   const voice = useVoiceSearch({
     lang: lang === "en" ? "en" : "pl",
     onText: (text) => {
