@@ -24,8 +24,8 @@
 //      dlaczego cudza wypowiedź wygląda inaczej niż w chwili publikacji.
 //   4. UJAWNIENIE AUTORA - ŁADUNEK I WYNIK. Próg powodu jest w
 //      `moderationRules.ts`; tutaj jest złożenie ładunku (z PRZYCIĘTYM powodem)
-//      i odnośnik do profilu ujawnionej osoby, który istnieje TYLKO wtedy, gdy
-//      RPC oddał slug.
+//      i odnośnik do KARTY UŻYTKOWNIKA w panelu po id autora (nie do profilu
+//      publicznego - patrz `revealAuthorCardLink`).
 //
 // DLACZEGO TO NIE MOŻE ZOSTAĆ W JSX-IE. Każda z tych reguł psuje się CICHO:
 // dziennik z oknem czasu policzonym po filtrach pokazuje prawdziwe wiersze
@@ -331,8 +331,29 @@ export function revealAuthorVars(
   return { targetType: target.targetType, targetId: target.targetId, reason: reason.trim() };
 }
 
-/** Odnośnik do profilu ujawnionej osoby albo `null`, gdy RPC nie dał sluga. */
-export function revealProfileHref(profileSlug: string | null): string | null {
-  if (profileSlug === null || profileSlug.trim() === "") return null;
-  return `/profile/${profileSlug}`;
+/**
+ * Cel odnośnika po ujawnieniu: KARTA UŻYTKOWNIKA w panelu, po id - albo
+ * `null`, gdy RPC nie oddał id.
+ *
+ * Do tej zmiany był to sklejony napis `/profile/<slug>`, a takiej trasy nie
+ * ma (pod /profile są wyłącznie statyczne podstrony) - każde "Otwórz profil"
+ * kończyło się 404. Profil publiczny też nie jest właściwym celem: ujawnia
+ * wyłącznie admin tenanta (`can_reveal_author` = `is_club_admin`), a autor
+ * wpisu anonimowego to zwykle członek bez `discoverable` i bez połączenia
+ * z adminem:
+ *   * `/people/<slug>` - `get_member_profile` nie ma gałęzi personelu
+ *     (wlasny / discoverable / polaczeni) -> "Nie znaleziono profilu";
+ *   * `/author/<slug>` otwarte w NOWEJ KARCIE renderuje SSR bez sesji
+ *     (`profiles_public` anonimowo) -> 404;
+ *   * konto może nie mieć sluga wcale.
+ * `/admin/users/$id` czyta `admin_get_user`: admin / super_admin tego samego
+ * tenanta, bez warunku widoczności i bez sluga - te same drzwi co ujawnienie
+ * (pgTAP `club_reveal_author_admin_card_test.sql`). Kształt `{to, params}`,
+ * nie napis: trasę typuje drzewo tras, więc literówka nie przejdzie `tsc`.
+ */
+export function revealAuthorCardLink(
+  authorId: string | null | undefined,
+): { to: "/admin/users/$id"; params: { id: string } } | null {
+  const id = authorId?.trim() ?? "";
+  return id === "" ? null : { to: "/admin/users/$id", params: { id } };
 }

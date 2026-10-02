@@ -18,6 +18,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { cfpExportSection, type CfpExportSectionId } from "@/lib/events/cfpExportSection";
+import { INTRODUCTION_ROLES, type IntroductionRole } from "@/lib/network/introductionRoles";
+import type { Database } from "@/integrations/supabase/types";
 import {
   EXPORT_MESSAGE_LIMIT,
   EXPORT_PROFILE_VIEWERS_LIMIT,
@@ -38,6 +40,8 @@ const ROW_LIMIT = EXPORT_ROW_LIMIT;
 const MESSAGE_LIMIT = EXPORT_MESSAGE_LIMIT;
 
 type SectionResult = { data: unknown; error: { message: string } | null };
+type IntroductionRpcRow =
+  Database["public"]["Functions"]["my_introduction_requests"]["Returns"][number];
 
 export const exportMyData = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -49,16 +53,64 @@ export const exportMyData = createServerFn({ method: "POST" })
     // po 50 - eksport skleja strony do rozsądnego sufitu, jawnie mapując pola
     // (stabilny kontrakt jak niżej).
     const fetchNetworkPages = async <Row>(
-      fetchPage: (offset: number) => PromiseLike<{ data: Row[] | null; error: unknown }>,
+      fetchPage: (
+        offset: number,
+      ) => PromiseLike<{ data: Row[] | null; error: { message: string } | null }>,
       mapRow: (row: Row) => JsonValue,
     ): Promise<SectionResult> => {
       const rows: JsonValue[] = [];
       for (let offset = 0; offset < ROW_LIMIT; offset += 50) {
         const { data, error } = await fetchPage(offset);
-        if (error) return { data: null, error: { message: String(error) } };
+        // `error.message`, nie `String(error)`: supabase-js oddaje błąd jako
+        // sparsowany JSON (zwykły obiekt), więc `String` dawało "[object Object]".
+        if (error) return { data: null, error: { message: error.message } };
         rows.push(...(data ?? []).map(mapRow));
         if (!data || data.length < 50) break;
       }
+      return { data: rows, error: null };
+    };
+
+    // Wprowadzenia: `my_introduction_requests` rozstrzyga JEDNĄ rolę na
+    // wywołanie i nie ma wartości "wszystkie". Do 2026-10-02 eksport wołał je
+    // z `p_role: "all"`, które wpadało w `CASE p_role ... ELSE FALSE` - plik
+    // zawsze dostawał `[]`, pusty pod podpisem kompletu. Od 20261002100000
+    // rola spoza trzech to błąd 22023 (trafiłby do `errors`, nie w ciszę).
+    // Teraz trzy wywołania, te same co karta /profile (IntroductionsCard), a
+    // rola jest typem z `INTRODUCTION_ROLES`, więc "all" nie da się tu wpisać.
+    //
+    // Rola celu widzi wyłącznie prośby PRZEKAZANE (prywatność proszącego
+    // i mostu) - reszta zostaje w bazie: manifest.excluded.introductions_not_forwarded.
+    // Bez deduplikacji: CHECK `introduction_requests_check` wyklucza tę samą
+    // osobę w dwóch rolach jednego wiersza, więc zbiory ról są rozłączne.
+    // Błąd dowolnej roli oblewa CAŁĄ sekcję - jak strona w `fetchNetworkPages`.
+    // Pola jawnie: bez awatarów i bez par slug / trasa (zależą od bieżącej
+    // widoczności profilu dla wołającego - to pomoc nawigacyjna karty, nie
+    // dana o osobie).
+    const fetchIntroductions = async (
+      fetchRole: (
+        role: IntroductionRole,
+      ) => PromiseLike<{ data: IntroductionRpcRow[] | null; error: { message: string } | null }>,
+    ): Promise<SectionResult> => {
+      const byRole = await Promise.all(
+        INTRODUCTION_ROLES.map(async (role) => ({ role, ...(await fetchRole(role)) })),
+      );
+      const failed = byRole.find((result) => result.error !== null);
+      if (failed?.error) return { data: null, error: { message: failed.error.message } };
+      const rows: JsonValue[] = byRole.flatMap(({ role, data }) =>
+        (data ?? []).map((row) => ({
+          role,
+          id: row.id,
+          status: row.status,
+          message: row.message,
+          created_at: row.created_at,
+          requester_id: row.requester_id,
+          requester_name: row.requester_name,
+          bridge_id: row.bridge_id,
+          bridge_name: row.bridge_name,
+          target_id: row.target_id,
+          target_name: row.target_name,
+        })),
+      );
       return { data: rows, error: null };
     };
 
@@ -261,7 +313,9 @@ export const exportMyData = createServerFn({ method: "POST" })
           requested_at: row.requested_at,
         }),
       ),
-      network_introductions: supabase.rpc("my_introduction_requests", { p_role: "all" }),
+      network_introductions: fetchIntroductions((role) =>
+        supabase.rpc("my_introduction_requests", { p_role: role }),
+      ),
       recommendations_received: supabase.rpc("list_recommendations", { p_recipient: userId }),
       recommendations_written: supabase
         .from("profile_recommendations")

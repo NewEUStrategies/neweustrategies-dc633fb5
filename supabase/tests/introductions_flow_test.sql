@@ -29,7 +29,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(23);
+SELECT plan(28);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -388,10 +388,10 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"d0000000-0000-0000-0000-0000000000b3","role":"authenticated"}', true);
 SELECT is(
-  (SELECT requester_slug FROM public.my_introduction_requests('bridge')
+  (SELECT ARRAY[requester_slug, requester_route] FROM public.my_introduction_requests('bridge')
      WHERE id = '11110000-0000-0000-0000-000000000003'),
-  'intro-r3',
-  'bridge: RPC zwraca slug proszącego'
+  ARRAY['intro-r3', 'people'],
+  'bridge: RPC zwraca slug proszącego i trasę /people (nie-autor, połączony)'
 );
 SELECT is(
   (SELECT public.get_member_profile(requester_slug) ->> 'id'
@@ -439,10 +439,10 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claims',
   '{"sub":"d0000000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
 SELECT ok(
-  (SELECT target_slug IS NULL AND target_name = 'Target 3'
+  (SELECT target_slug IS NULL AND target_route IS NULL AND target_name = 'Target 3'
      FROM public.my_introduction_requests('requester')
     WHERE id = '11110000-0000-0000-0000-000000000003'),
-  'requester: cel bez discoverable - slug NULL (bez martwego linku), nazwa zostaje'
+  'requester: cel bez discoverable - slug i trasa NULL (bez martwego linku), nazwa zostaje'
 );
 
 -- Profil bez sluga (fikstura A1/B1/C1 nie ma sluga) - NULL, a nie '' ani id.
@@ -453,6 +453,91 @@ SELECT ok(
      FROM public.my_introduction_requests('target')
     WHERE id = '11110000-0000-0000-0000-000000000001'),
   'target: most bez sluga - bridge_slug NULL, nigdy zastępcze id'
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Eksport RODO: trzy role zamiast 'all' (src/lib/profile/export.functions.ts)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Eksport wołał `my_introduction_requests('all')`, a funkcja rozstrzyga rolę
+-- przez `CASE ... ELSE FALSE` - sekcja `network_introductions` była od
+-- początku pustą listą bez błędu. Eksport woła teraz trzy role i skleja
+-- wyniki BEZ deduplikacji, więc kontrakt bazy, na którym to stoi, jest tu
+-- przypięty: role w jednym wierszu są rozłączne (CHECK), trzy wywołania dają
+-- komplet próśb osoby, cel nadal nie widzi próśb nieprzekazanych, a rola
+-- spoza trzech jest BŁĘDEM (20261002100000), nie cichą pustą listą.
+RESET ROLE;
+
+INSERT INTO auth.users (id, email) VALUES
+  ('d0000000-0000-0000-0000-0000000000e4', 'x4@intro.test');
+INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
+  ('d0000000-0000-0000-0000-0000000000e4', 'x4@intro.test', 'Export X',
+   'd1a11111-1111-1111-1111-111111111111');
+
+INSERT INTO public.introduction_requests
+  (id, tenant_id, requester_id, bridge_id, target_id, message, status, created_at) VALUES
+  ('11110000-0000-0000-0000-0000000000e1', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000e4', 'd0000000-0000-0000-0000-0000000000b1',
+   'd0000000-0000-0000-0000-0000000000c1', 'X prosi most B1 o wprowadzenie do C1.', 'pending',
+   now() - interval '1 day'),
+  ('11110000-0000-0000-0000-0000000000e2', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000a1', 'd0000000-0000-0000-0000-0000000000e4',
+   'd0000000-0000-0000-0000-0000000000c1', 'A1 prosi X (most) o wprowadzenie do C1.', 'declined',
+   now() - interval '2 day'),
+  ('11110000-0000-0000-0000-0000000000e3', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000a1', 'd0000000-0000-0000-0000-0000000000b1',
+   'd0000000-0000-0000-0000-0000000000e4', 'A1 przez B1 do X - przekazana dalej.', 'forwarded',
+   now() - interval '3 day'),
+  ('11110000-0000-0000-0000-0000000000e4', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000c1', 'd0000000-0000-0000-0000-0000000000b1',
+   'd0000000-0000-0000-0000-0000000000e4', 'C1 przez B1 do X - ODRZUCONA-POUFNE.', 'declined',
+   now() - interval '4 day'),
+  ('11110000-0000-0000-0000-0000000000e5', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000d1', 'd0000000-0000-0000-0000-0000000000b1',
+   'd0000000-0000-0000-0000-0000000000e4', 'D1 przez B1 do X - OCZEKUJE-POUFNE.', 'pending',
+   now() - interval '5 day');
+
+SELECT throws_ok(
+  $$INSERT INTO public.introduction_requests (tenant_id, requester_id, bridge_id, target_id, message)
+    VALUES ('d1a11111-1111-1111-1111-111111111111',
+            'd0000000-0000-0000-0000-0000000000e4', 'd0000000-0000-0000-0000-0000000000e4',
+            'd0000000-0000-0000-0000-0000000000c1', 'Ta sama osoba jako proszacy i most.')$$,
+  '23514', NULL,
+  'check: jedna osoba nie ma dwóch ról w jednym wierszu - role eksportu są rozłączne'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000e4","role":"authenticated"}', true);
+
+SELECT results_eq(
+  $$SELECT r.role, m.id
+      FROM unnest(ARRAY['requester', 'bridge', 'target']) WITH ORDINALITY AS r(role, ord)
+     CROSS JOIN LATERAL public.my_introduction_requests(r.role) AS m
+     ORDER BY r.ord, m.created_at DESC$$,
+  $$VALUES ('requester', '11110000-0000-0000-0000-0000000000e1'::uuid),
+           ('bridge',    '11110000-0000-0000-0000-0000000000e2'::uuid),
+           ('target',    '11110000-0000-0000-0000-0000000000e3'::uuid)$$,
+  'eksport: trzy role dają komplet próśb osoby, każdą DOKŁADNIE raz'
+);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.my_introduction_requests('target')
+    WHERE status <> 'forwarded'),
+  0,
+  'eksport: cel nie widzi prośby odrzuconej ani oczekującej (art. 15 ust. 4)'
+);
+
+SELECT throws_ok(
+  $$SELECT * FROM public.my_introduction_requests('all')$$,
+  '22023', NULL,
+  'rola: "all" to błąd 22023, nie cicha pusta lista'
+);
+
+SELECT throws_ok(
+  $$SELECT * FROM public.my_introduction_requests(NULL)$$,
+  '22023', NULL,
+  'rola: NULL to błąd 22023, nie cicha pusta lista'
 );
 
 -- DROP + CREATE zeruje ACL - REVOKE z 20260724111107 trzeba było postawić znowu.

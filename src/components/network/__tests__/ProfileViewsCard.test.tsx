@@ -155,7 +155,35 @@ describe("ProfileViewsCard - lista widzów i prywatność", () => {
     renderCard();
     expect(screen.getByText(PEER_NAME)).toBeInTheDocument();
     expect(screen.getByText("Analityk - NES")).toBeInTheDocument();
-    expect(screen.getByRole("link")).toHaveAttribute("href", `/author/${NETWORK_IDS.peer}`);
+    // Slug i trasa z bazy, nie `viewer_id`: /author/<uuid> omijał
+    // przekierowanie nie-autora na /people, a po F5 dawał trwałe 404.
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/people/anna-nowak");
+    expect(screen.getByRole("link").getAttribute("href")).not.toContain(NETWORK_IDS.peer);
+  });
+
+  it("widz-autor z publicznym hubem: trasa 'author' z bazy -> /author/<slug>", () => {
+    setViewers([profileViewerRow({ viewer_link: { route: "author", slug: "anna-nowak" } })]);
+    renderCard();
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/author/anna-nowak");
+  });
+
+  it("widz publiczny, którego żadna trasa nie pokaże: nazwa bez linku, bez zastępczego id", () => {
+    setViewers([profileViewerRow({ viewer_link: null })]);
+    renderCard();
+    expect(screen.getByText(PEER_NAME)).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("widz anonimowy z linkiem w wierszu (obrona w głębi): nadal bez linku i z maską", () => {
+    setViewers([
+      profileViewerRow({
+        viewer_mode: "anonymous",
+        viewer_link: { route: "people", slug: "anna-nowak" },
+      }),
+    ]);
+    renderCard();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByText(PEER_NAME)).not.toBeInTheDocument();
   });
 
   it("widz anonimowy: maska nazwy, brak podpisu, brak linku do profilu", () => {
@@ -183,8 +211,8 @@ describe("ProfileViewsCard - lista widzów i prywatność", () => {
     expect(screen.getByText(k("network.profileViews.anonymousViewer"))).toBeInTheDocument();
   });
 
-  it("widz publiczny bez id: nazwa bez linku", () => {
-    setViewers([profileViewerRow({ viewer_id: "" })]);
+  it("konto widza usunięte (id i link NULL): nazwa bez linku", () => {
+    setViewers([profileViewerRow({ viewer_id: null, viewer_link: null })]);
     renderCard();
     expect(screen.getByText(PEER_NAME)).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();

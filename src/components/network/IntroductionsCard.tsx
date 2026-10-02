@@ -6,7 +6,6 @@
 // Wszystko na jednym RPC (`my_introduction_requests`) w trzech wywołaniach.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import {
   Check,
   Clock,
@@ -29,6 +28,8 @@ import { toastError } from "@/lib/toastError";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-network";
 import { introductionAnchorId } from "@/lib/network/anchors";
+import { toProfileLink } from "@/lib/profile/profileLink";
+import { ProfileRouteLink } from "@/components/profile/ProfileRouteLink";
 
 type Role = "bridge" | "requester" | "target";
 
@@ -42,18 +43,6 @@ function statusChipClass(status: string): string {
     default:
       return "bg-amber-500/10 text-amber-700 dark:text-amber-400";
   }
-}
-
-/**
- * Slug, pod którym /people/<slug> rozwiąże osobę, albo `null` - wtedy wiersz
- * pokazuje sam tekst. NIGDY id: `get_member_profile` szuka wyłącznie po slugu
- * (20260924100000:34-36), więc `/people/<uuid>` zawsze kończył się kartą
- * "Nie znaleziono profilu". Baza oddaje slug tylko wtedy, gdy profil się
- * rozwiąże (20261002100000); `?.` łapie też bazę sprzed tej migracji, na której
- * kolumny nie ma wcale.
- */
-function linkableSlug(slug: string | null | undefined): string | null {
-  return slug?.trim() ? slug : null;
 }
 
 function Row({ row, role }: { row: IntroductionRow; role: Role }) {
@@ -90,13 +79,18 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
       : role === "requester"
         ? row.target_avatar
         : row.bridge_avatar;
-  const otherSlug = linkableSlug(
+  // Link do drugiej strony z pary (slug, trasa) wyliczonej w bazie
+  // (20261002100000) - NIGDY id. Do tej zmiany karta podawała `/people/$slug`
+  // identyfikator, a `get_member_profile` szuka wyłącznie po slugu
+  // (20260924100000:34-36): każde kliknięcie kończyło się kartą "Nie
+  // znaleziono profilu". Brak trasy (profil niewidoczny, brak sluga, baza
+  // sprzed migracji) = sam tekst.
+  const otherLink =
     role === "bridge"
-      ? row.requester_slug
+      ? toProfileLink(row.requester_slug, row.requester_route)
       : role === "requester"
-        ? row.target_slug
-        : row.bridge_slug,
-  );
+        ? toProfileLink(row.target_slug, row.target_route)
+        : toProfileLink(row.bridge_slug, row.bridge_route);
 
   const avatarClass =
     "h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-muted";
@@ -115,26 +109,18 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
       className="scroll-mt-24 rounded-md border border-border bg-background/60 p-3"
     >
       <div className="flex items-start gap-3">
-        {otherSlug ? (
-          <Link to="/people/$slug" params={{ slug: otherSlug }} className={avatarClass}>
-            {avatar}
-          </Link>
-        ) : (
-          <div className={avatarClass}>{avatar}</div>
-        )}
+        <ProfileRouteLink link={otherLink} className={avatarClass} fallback="div">
+          {avatar}
+        </ProfileRouteLink>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            {otherSlug ? (
-              <Link
-                to="/people/$slug"
-                params={{ slug: otherSlug }}
-                className={cn(nameClass, "hover:underline")}
-              >
-                {otherName}
-              </Link>
-            ) : (
-              <span className={nameClass}>{otherName}</span>
-            )}
+            <ProfileRouteLink
+              link={otherLink}
+              className={nameClass}
+              linkClassName="hover:underline"
+            >
+              {otherName}
+            </ProfileRouteLink>
             <span
               className={cn(
                 "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",

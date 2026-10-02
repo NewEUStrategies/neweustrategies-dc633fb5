@@ -6,7 +6,6 @@ import * as React from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Quote, Loader2, Check, EyeOff, Trash2 } from "lucide-react";
-import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -45,6 +44,7 @@ import { toast } from "sonner";
 import "@/lib/i18n-network";
 import { recommendationAnchorId } from "@/lib/network/anchors";
 import { useAnchorScroll } from "@/lib/network/useAnchorScroll";
+import { ProfileRouteLink } from "@/components/profile/ProfileRouteLink";
 
 interface Props {
   recipientId: string;
@@ -191,13 +191,14 @@ function RecommendationCard({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2">
-            <Link
-              to="/author/$slug"
-              params={{ slug: rec.author_id }}
-              className="font-semibold hover:text-brand"
+            {/* Trasa i slug z bazy - nie `author_id` (patrz Recommendation.author_link). */}
+            <ProfileRouteLink
+              link={rec.author_link}
+              className="font-semibold"
+              linkClassName="hover:text-brand"
             >
               {rec.author_name}
-            </Link>
+            </ProfileRouteLink>
             {rec.author_headline && (
               <span className="text-xs text-muted-foreground">· {rec.author_headline}</span>
             )}

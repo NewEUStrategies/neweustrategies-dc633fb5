@@ -30038,6 +30038,8 @@ export type Database = {
           author_headline: string
           author_id: string
           author_name: string
+          author_route: string
+          author_slug: string
           body: string
           created_at: string
           id: string
@@ -30206,6 +30208,7 @@ export type Database = {
           bridge_avatar: string
           bridge_id: string
           bridge_name: string
+          bridge_route: string
           bridge_slug: string
           created_at: string
           id: string
@@ -30213,11 +30216,13 @@ export type Database = {
           requester_avatar: string
           requester_id: string
           requester_name: string
+          requester_route: string
           requester_slug: string
           status: string
           target_avatar: string
           target_id: string
           target_name: string
+          target_route: string
           target_slug: string
         }[]
       }
@@ -30253,6 +30258,8 @@ export type Database = {
           viewed_at: string
           viewer_id: string
           viewer_mode: string
+          viewer_route: string
+          viewer_slug: string
         }[]
       }
       my_resource_downloads: {

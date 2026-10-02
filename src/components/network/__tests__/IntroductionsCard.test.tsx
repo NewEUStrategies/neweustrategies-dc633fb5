@@ -287,6 +287,7 @@ const UUID_IDS = {
 } as const;
 
 type SlugColumn = "requester_slug" | "target_slug" | "bridge_slug";
+type RouteColumn = "requester_route" | "target_route" | "bridge_route";
 
 const ROLE_LINKS: ReadonlyArray<{
   role: IntroductionRole;
@@ -370,6 +371,25 @@ describe("IntroductionsCard - odnośniki do profilu (slug, nie id)", () => {
     expect(document.querySelector("img")).toHaveAttribute("src", "https://cdn.test/r.png");
     expect(document.querySelector("a")).toBeNull();
   });
+
+  it.each(ROLE_LINKS)("$role: trasa 'author' (autor z publicznym hubem) -> /author/<slug>", (c) => {
+    const routeColumn = c.slugColumn.replace("_slug", "_route") as RouteColumn;
+    renderRole(c, { [routeColumn]: "author" });
+
+    const authorHref = c.href.replace("/people/", "/author/");
+    expect(screen.getByRole("link", { name: c.name })).toHaveAttribute("href", authorHref);
+    expect(peopleHrefs()).toEqual([]);
+  });
+
+  it.each([null, "", "admin"])(
+    "trasa %j (brak albo nieznana) - bez linku, mimo poprawnego sluga",
+    (route) => {
+      renderRole(ROLE_LINKS[0], { requester_route: route });
+
+      expect(screen.queryByRole("link", { name: "Marek Requester" })).not.toBeInTheDocument();
+      expect(document.querySelector("a")).toBeNull();
+    },
+  );
 
   it("id w kształcie sluga też nie trafia do adresu, gdy slug jest pusty", () => {
     renderRole(ROLE_LINKS[0], { requester_id: NETWORK_IDS.me, requester_slug: null });

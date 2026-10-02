@@ -164,6 +164,12 @@ const EXCLUSION_FORBIDDEN_TOKENS: Readonly<Record<string, readonly string[]>> = 
   // (`event_cfp_export_my_data` ich nie oddaje). Emiter nie może sięgnąć po
   // tabelę ocen ani po kolumnę notatki bokiem RPC.
   event_cfp_assessments: ['.from("event_cfp_reviews")', "decision_note", "comment_private"],
+  // Nieprzekazane prośby o wprowadzenie: RLS `intro_read` oddaje celowi
+  // WSZYSTKIE wiersze z jego `target_id` (także odrzucone i oczekujące, razem
+  // z treścią prośby), więc odczyt tabeli wprost złamałby wyłączenie. Emiter
+  // ma iść przez `my_introduction_requests`, które rolę celu zawęża do
+  // `status = 'forwarded'`.
+  introductions_not_forwarded: ['.from("introduction_requests")'],
   // Logi bezpieczeństwa i ślad audytowy - art. 17 ust. 3 lit. e.
   security_and_audit_logs: [
     "auth_attempts",

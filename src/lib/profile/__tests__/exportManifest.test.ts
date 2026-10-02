@@ -218,6 +218,16 @@ describe("wyłączenia", () => {
     expect(ids).toContain("attachment_binaries");
   });
 
+  it("nazywa wyłączenie nieprzekazanych próśb o wprowadzenie - rola celu widzi tylko przekazane", () => {
+    // Bez tego wpisu osoba, o której wprowadzenie ktoś prosił, a most odmówił,
+    // dostawałaby plik podpisany jako komplet bez śladu, że taka kategoria
+    // danych istnieje (art. 15 ust. 1) i dlaczego jej nie ma (ust. 4).
+    const exclusion = EXPORT_EXCLUSIONS.find((e) => e.id === "introductions_not_forwarded");
+    expect(exclusion, "wyłączenie musi być nazwane w pliku").toBeDefined();
+    expect(exclusion?.reason_pl).toMatch(/art\. 15 ust\. 4/);
+    expect(exclusion?.reason_en).toMatch(/art\. 15\(4\)/);
+  });
+
   it("nie używa myślnika typograficznego w treści dla użytkownika", () => {
     for (const exclusion of EXPORT_EXCLUSIONS) {
       expect(exclusion.reason_pl).not.toContain("—");

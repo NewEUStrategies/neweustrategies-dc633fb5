@@ -6,10 +6,10 @@
 //     prywatni w ogóle nie trafiają na listę.
 //   - kontroler mojego trybu prywatności (public/anonymous/private).
 // Klient nie zna id anonimowego widza, więc awatar/nazwa są ukryte;
-// dla publicznych widzów link prowadzi do /author/{slug|id}.
+// dla publicznych widzów link prowadzi tam, gdzie baza wskaże (`viewer_link`:
+// /author albo /people po slugu, 20261002100000) - nigdy po id.
 import { useTranslation } from "react-i18next";
 import { Eye, User as UserIcon } from "lucide-react";
-import { Link } from "@tanstack/react-router";
 import {
   Select,
   SelectContent,
@@ -25,6 +25,7 @@ import {
   type ProfileViewMode,
   type ProfileViewer,
 } from "@/lib/network/useProfileViews";
+import { ProfileRouteLink } from "@/components/profile/ProfileRouteLink";
 import "@/lib/i18n-network";
 
 function relativeTime(iso: string, t: ReturnType<typeof useTranslation>["t"]): string {
@@ -66,14 +67,15 @@ function ViewerRow({ viewer }: { viewer: ProfileViewer }) {
     </div>
   );
 
-  if (!isAnon && viewer.viewer_id) {
-    return (
-      <Link to="/author/$slug" params={{ slug: viewer.viewer_id }} className="block no-underline">
-        {inner}
-      </Link>
-    );
-  }
-  return <div>{inner}</div>;
+  return (
+    <ProfileRouteLink
+      link={isAnon ? null : viewer.viewer_link}
+      linkClassName="block no-underline"
+      fallback="div"
+    >
+      {inner}
+    </ProfileRouteLink>
+  );
 }
 
 export function ProfileViewsCard() {

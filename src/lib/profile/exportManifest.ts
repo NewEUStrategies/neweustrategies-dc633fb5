@@ -238,6 +238,13 @@ export const EXPORT_EXCLUSIONS: readonly ExportExclusion[] = [
       "Reviewers' scores and comments about your talk submission, the organiser's internal decision note and your co-speakers' contact details (e-mail address, job title, company). They are assessments written by other people and data of other people - GDPR art. 15(4). The decision, its date, the organiser's feedback and the aggregated score after the decision ARE exported. Individual reviews are provided on request to the data protection officer.",
   },
   {
+    id: "introductions_not_forwarded",
+    reason_pl:
+      "Prośby o wprowadzenie do Ciebie, których osoba pośrednicząca nie przekazała dalej (odrzucone, wycofane albo wciąż oczekujące). Do chwili przekazania prośba jest korespondencją między proszącym a pośrednikiem i platforma celowo nie pokazuje jej osobie, której dotyczy - art. 15 ust. 4 RODO. Eksportujemy wszystkie prośby, które wysłałeś, wszystkie, w których pośredniczyłeś, oraz te przekazane do Ciebie. Pozostałe udostępniamy na wniosek skierowany do inspektora ochrony danych.",
+    reason_en:
+      "Introduction requests about you that the intermediary did not pass on (declined, withdrawn or still pending). Until it is forwarded, a request is correspondence between the requester and the intermediary, and the platform deliberately does not show it to the person it is about - GDPR art. 15(4). We export every request you sent, every request you brokered and the requests forwarded to you. The rest are provided on request to the data protection officer.",
+  },
+  {
     id: "attachment_binaries",
     reason_pl:
       "Treść binarna załączników i plików CV. W eksporcie są metadane i ścieżki w magazynie plików - same pliki pobierzesz z rozmowy lub z profilu, w oryginalnym formacie.",

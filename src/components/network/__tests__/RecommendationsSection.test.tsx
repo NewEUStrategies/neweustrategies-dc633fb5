@@ -186,15 +186,44 @@ describe("RecommendationsSection - karta rekomendacji", () => {
   it("autor linkuje na profil, obok nagłówek i rodzaj relacji", () => {
     h.rows = [recommendationRow()];
     renderSection();
+    // Slug z bazy, nie `author_id`: /author/<uuid> omijał przekierowanie
+    // nie-autora na /people (porównuje tylko slug), a po F5 dawał 404.
     expect(screen.getByRole("link", { name: "Ewa Autorka" })).toHaveAttribute(
       "href",
-      "/author/user-author",
+      "/author/ewa-autorka",
     );
     expect(screen.getByText("· Ekspertka ds. klimatu")).toBeInTheDocument();
     expect(
       screen.getByText(new RegExp(k("network.recommendations.relationshipOptions.colleague"))),
     ).toBeInTheDocument();
     expect(screen.getByText(/Współpraca wzorowa/)).toBeInTheDocument();
+  });
+
+  it("trasa 'people' z bazy: nazwisko prowadzi na /people/<slug>, nie na hub", () => {
+    h.rows = [recommendationRow({ author_link: { route: "people", slug: "ewa-autorka" } })];
+    renderSection();
+    expect(screen.getByRole("link", { name: "Ewa Autorka" })).toHaveAttribute(
+      "href",
+      "/people/ewa-autorka",
+    );
+  });
+
+  it("baza nie dała trasy: nazwisko jako tekst, BEZ linku i bez zastępczego id", () => {
+    h.rows = [recommendationRow({ author_link: null })];
+    renderSection();
+    expect(screen.getByText("Ewa Autorka")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ewa Autorka" })).not.toBeInTheDocument();
+    expect(document.querySelector('a[href*="user-author"]')).toBeNull();
+  });
+
+  it("gość na publicznym hubie dostaje link do autora z publicznym hubem", () => {
+    h.user = null;
+    h.rows = [recommendationRow()];
+    renderSection();
+    expect(screen.getByRole("link", { name: "Ewa Autorka" })).toHaveAttribute(
+      "href",
+      "/author/ewa-autorka",
+    );
   });
 
   it("bez awatara: inicjały autora; z awatarem: obraz", () => {

@@ -26,6 +26,7 @@
 // i co widać po awarii.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   Check,
@@ -119,7 +120,7 @@ import {
   moderatorEditInitial,
   moderatorEditVars,
   revealAuthorVars,
-  revealProfileHref,
+  revealAuthorCardLink,
   unbanMemberVars,
   type RevealAuthorTarget,
 } from "@/lib/clubs/adminModerationDesk";
@@ -675,9 +676,7 @@ function RevealAuthorDialog({
   const { t } = useTranslation();
   const revealM = useRevealClubAuthor();
   const [reason, setReason] = useState("");
-  const [result, setResult] = useState<{ displayName: string; profileSlug: string | null } | null>(
-    null,
-  );
+  const [result, setResult] = useState<{ authorId: string; displayName: string } | null>(null);
 
   const accepted = revealReasonAccepted(reason);
 
@@ -698,13 +697,13 @@ function RevealAuthorDialog({
           toast.error(t("adminClubs.moderation.revealEmpty"));
           return;
         }
-        setResult({ displayName: data.displayName, profileSlug: data.profileSlug });
+        setResult({ authorId: data.authorId, displayName: data.displayName });
       },
       onError: () => toast.error(t("adminClubs.moderation.revealFailed")),
     });
   };
 
-  const profileHref = result === null ? null : revealProfileHref(result.profileSlug);
+  const cardLink = result === null ? null : revealAuthorCardLink(result.authorId);
 
   return (
     <Dialog open={target !== null} onOpenChange={close}>
@@ -753,15 +752,18 @@ function RevealAuthorDialog({
               {t("adminClubs.moderation.revealResult")}
             </p>
             <p className="text-lg font-semibold">{result.displayName}</p>
-            {profileHref !== null ? (
-              <a
-                href={profileHref}
+            {/* Karta w panelu po id, nie profil publiczny (revealAuthorCardLink).
+                Nowa karta celowo: dialog i kolejka zostają na miejscu. */}
+            {cardLink !== null ? (
+              <Link
+                to={cardLink.to}
+                params={cardLink.params}
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm text-primary underline underline-offset-2"
               >
                 {t("adminClubs.moderation.revealOpenProfile")}
-              </a>
+              </Link>
             ) : null}
             <p className="text-xs text-amber-800 dark:text-amber-200">
               {t("adminClubs.moderation.revealLogged")}

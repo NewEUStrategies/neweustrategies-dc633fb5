@@ -698,8 +698,8 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     twin: "20261001210000_event_code_scalar_verdicts.sql",
   },
   {
-    tag: "0120_introductions_party_slugs",
-    twin: "20261002100000_introductions_party_slugs.sql",
+    tag: "0120_profile_link_routes",
+    twin: "20261002100000_profile_link_routes.sql",
   },
 ];
 

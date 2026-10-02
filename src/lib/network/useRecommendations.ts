@@ -21,6 +21,7 @@ import {
 } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { toProfileLink, type ProfileLink } from "@/lib/profile/profileLink";
 
 /** Status moderacji rekomendacji (CHECK profile_recommendations.status). */
 export type RecommendationStatus = "pending" | "published" | "declined" | "hidden";
@@ -63,6 +64,14 @@ export interface Recommendation {
   body: string;
   status: RecommendationStatus;
   created_at: string;
+  /**
+   * Dokąd prowadzi nazwisko autora - para (trasa, slug) z bazy
+   * (`author_slug` / `author_route`, 20261002100000), wyliczona dla TEGO
+   * oglądającego. `null` = nie linkuj. Nigdy `author_id`: `/author/<uuid>`
+   * omijał przekierowanie nie-autora na /people (porównuje tylko slug), a po
+   * F5 kończył się trwałym 404.
+   */
+  author_link: ProfileLink | null;
 }
 
 const STATUSES: readonly RecommendationStatus[] = ["pending", "published", "declined", "hidden"];
@@ -85,6 +94,9 @@ type ListRow = {
   body: string | null;
   status: string | null;
   created_at: string;
+  // Opcjonalne: na bazie sprzed 20261002100000 kolumn nie ma wcale.
+  author_slug?: string | null;
+  author_route?: string | null;
 };
 
 function toRecommendation(row: ListRow): Recommendation {
@@ -99,6 +111,7 @@ function toRecommendation(row: ListRow): Recommendation {
     body: row.body ?? "",
     status: toStatus(row.status),
     created_at: row.created_at,
+    author_link: toProfileLink(row.author_slug, row.author_route),
   };
 }
 
