@@ -180,7 +180,7 @@ describe("parsePostDwellBeacon - kształt ładunku", () => {
     ["za krótki viewer_hash", beacon({ viewerHash: "krotki" })],
     ["za długi viewer_hash", beacon({ viewerHash: "a".repeat(65) })],
     ["viewer_hash ze spacją", beacon({ viewerHash: "0123456789 abcdef" })],
-    ["viewer_hash nie-napis", beacon({ viewerHash: 12345678901234567 })],
+    ["viewer_hash nie-napis", beacon({ viewerHash: 1234567890123456 })],
     ["czas jako napis", beacon({ dwellMs: "45000" })],
     ["czas ułamkowy", beacon({ dwellMs: 1500.5 })],
     ["czas poniżej sekundy", beacon({ dwellMs: 999 })],

@@ -101,7 +101,7 @@ import {
   type RecordedChain,
   type SupabaseFromStub,
   type SupabaseResult,
-} from "@/test/supabaseChain";
+} from "@/test/supabase/chain";
 import type { RecordedRpc, SupabaseRpcStub } from "@/test/supabase/rpc";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 import { RELATED_POSTS_DEFAULTS } from "@/lib/relatedPosts";
