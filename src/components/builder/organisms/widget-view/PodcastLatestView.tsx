@@ -145,7 +145,7 @@ export function PodcastLatestView({ c, lang }: Props) {
             <Link
               to="/podcast/$slug"
               params={{ slug: p.slug }}
-              className="cms-post-title line-clamp-2 block"
+              className="cms-post-title cms-post-title--delegated line-clamp-2 block"
             >
               <span className="cms-title-underline">{podcastTitle(p, lang)}</span>
             </Link>

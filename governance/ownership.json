@@ -382,6 +382,8 @@
         "posts",
         "publish_due_",
         "redirects$",
+        "record_redirect_hit$",
+        "record_seo_404$",
         "regions$",
         "related_posts_",
         "search_",

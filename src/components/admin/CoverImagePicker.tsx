@@ -31,10 +31,12 @@ const MAX_COVER_BYTES = 10 * 1024 * 1024;
 
 type DevicePreview = "desktop" | "tablet" | "mobile";
 
-const DEVICE_FRAMES: Record<DevicePreview, { aspect: string; maxWidth: string; label: string }> = {
-  desktop: { aspect: "16 / 9", maxWidth: "100%", label: "Desktop" },
-  tablet: { aspect: "4 / 3", maxWidth: "62%", label: "Tablet" },
-  mobile: { aspect: "9 / 16", maxWidth: "34%", label: "Mobile" },
+// Etykiety urządzeń idą przez słownik (`uploadArea.devices.*`) - wcześniej
+// stały tu po angielsku i panel po polsku pokazywał „Desktop/Mobile".
+const DEVICE_FRAMES: Record<DevicePreview, { aspect: string; maxWidth: string }> = {
+  desktop: { aspect: "16 / 9", maxWidth: "100%" },
+  tablet: { aspect: "4 / 3", maxWidth: "62%" },
+  mobile: { aspect: "9 / 16", maxWidth: "34%" },
 };
 import { MediaPickerDialog } from "@/components/admin/media/MediaPickerDialog";
 import { useTranslation } from "react-i18next";
@@ -102,7 +104,7 @@ export function CoverImagePicker({
       onChange(publicUrl);
       setUrlDraft(publicUrl);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload error");
+      setError(e instanceof Error && e.message ? e.message : t("uploadArea.uploadError"));
     } finally {
       setUploading(false);
     }
@@ -133,8 +135,8 @@ export function CoverImagePicker({
                   type="button"
                   onClick={() => setDevice(d)}
                   aria-pressed={active}
-                  aria-label={DEVICE_FRAMES[d].label}
-                  title={DEVICE_FRAMES[d].label}
+                  aria-label={t(`uploadArea.devices.${d}`)}
+                  title={t(`uploadArea.devices.${d}`)}
                   className={`h-6 w-7 inline-flex items-center justify-center rounded-sm transition-colors ${
                     active
                       ? "bg-background text-foreground shadow-sm"
@@ -147,7 +149,7 @@ export function CoverImagePicker({
             })}
           </div>
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            {DEVICE_FRAMES[device].label} - {DEVICE_FRAMES[device].aspect.replace(" / ", ":")}
+            {t(`uploadArea.devices.${device}`)} - {DEVICE_FRAMES[device].aspect.replace(" / ", ":")}
           </span>
         </div>
         <div className="relative rounded-md border border-border bg-[linear-gradient(45deg,hsl(var(--muted)/0.6)_25%,transparent_25%,transparent_75%,hsl(var(--muted)/0.6)_75%),linear-gradient(45deg,hsl(var(--muted)/0.6)_25%,transparent_25%,transparent_75%,hsl(var(--muted)/0.6)_75%)] [background-position:0_0,6px_6px] [background-size:12px_12px] p-3 flex justify-center">

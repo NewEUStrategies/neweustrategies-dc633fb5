@@ -25,6 +25,10 @@ import {
   XCircle,
 } from "@/lib/lucide-shim";
 import { inspectGscUrl, listGscSites, type GscSite } from "@/lib/analytics/gsc.functions";
+// Klucze `admin.seo.*` tego widżetu mieszkają w nakładce `i18n-admin-extras`.
+// Bez jawnego importu słownik trafiał tu tylko przypadkiem (kotwica w
+// `routes/admin.tsx`) - bramka `check:i18n-overlay-imports`.
+import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 
 interface Props {
   /** Ścieżka strony bez slasha wiodącego, np. "analizy/example". */
@@ -106,6 +110,7 @@ function VerdictBadge({ verdict }: { verdict: string | undefined }) {
 }
 
 export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
+  ensureAdminExtrasI18n();
   const { t } = useTranslation();
   const listSites = useServerFn(listGscSites);
   const inspect = useServerFn(inspectGscUrl);

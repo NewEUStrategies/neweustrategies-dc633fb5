@@ -648,16 +648,9 @@ export function toClubInviteError(error: unknown): ClubInviteError | null {
 // Etap A3: tematy i odpowiedzi
 // ---------------------------------------------------------------------------
 
-/** Rodzaj tematu. To NIE jest etykieta - zmienia cykl zycia (V1 §1.3). */
-export const CLUB_THREAD_KINDS = [
-  "discussion",
-  "question",
-  "position",
-  "resource",
-  "announcement",
-  "poll",
-] as const;
-export type ClubThreadKind = (typeof CLUB_THREAD_KINDS)[number];
+// Rodzaj tematu mieszka w `threadKinds.ts` (shell trasy kompozytora czyta go
+// w `validateSearch` i nie może ciągnąć całego tego modułu do bootu).
+export { CLUB_THREAD_KINDS, type ClubThreadKind } from "./threadKinds";
 
 export const CLUB_THREAD_STATUSES = [
   "pending",

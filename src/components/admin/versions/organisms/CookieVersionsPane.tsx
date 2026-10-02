@@ -17,6 +17,7 @@ import {
   COOKIE_BANNER_DEFAULTS,
   COOKIE_BANNER_SETTINGS_KEY,
   bannerStyleVars,
+  resolveBannerCopy,
   useCookieBannerConfig,
   type CookieBannerConfig,
 } from "@/lib/cookieBanner/config";
@@ -64,7 +65,11 @@ export function CookieVersionsPane({ lang }: { lang: "pl" | "en" }) {
     [revisions.data, selectedId],
   );
   const config = selected ? asConfig(selected.value) : current;
-  const copy = config.copy[previewLang];
+  // Ta sama reguła co baner na stronie (`resolveBannerCopy`): puste pole treści
+  // = brzmienie domyślne. Bez niej podgląd „tak zobaczy to odwiedzający"
+  // pokazywał pusty nagłówek i przyciski bez nazwy, których odwiedzający nie
+  // widzi. Przywrócenie zapisuje rewizję bez zmian (`asConfig`).
+  const copy = resolveBannerCopy(config.copy[previewLang], previewLang);
 
   const restore = useMutation({
     mutationFn: async (value: CookieBannerConfig) => {

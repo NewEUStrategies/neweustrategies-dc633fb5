@@ -30,16 +30,38 @@ const WorkspaceDock = lazy(() =>
  * header and footer without each route having to wire them up.
  */
 export function SiteChrome({ children }: { children: ReactNode }) {
-  const { pathname, ownChrome, contentKind } = useRouterState({
+  const { pathname, ownChrome, contentKind, hideHeader, hideFooter } = useRouterState({
     select: (s) => {
       // Wpis vs strona statyczna nie wynika z URL-a (catch-all $) - czytamy
       // kind z loaderData dopasowanej trasy, by baner nagłówka dostał właściwy
       // typ strony reklamowej (post/page) zamiast generycznego "all".
       let kind: "post" | "page" | null = null;
+      // Strony CMS wyłączają chrome deklaratywnie (`header_override: "hidden"`
+      // chowa nagłówek, szablon `landing` chowa nagłówek i stopkę). Decyzja
+      // zapada TUTAJ, z tych samych loaderData (public.ts rozwiązuje już
+      // dziedziczenie header_override po microsite), i wychodzi na
+      // [data-site-shell] jako data-chrome-header / data-chrome-footer, które
+      // czyta styles.css. Wcześniej robił to selektor
+      // `body:has([data-page-header-override="hidden"])` - sama obecność
+      // `:has()` w arkuszu mnożyła koszt każdego pełnego przeliczenia stylu
+      // ~70x (pomiar 2026-10-02). SSR i klient liczą to identycznie, więc
+      // nagłówek nie miga.
+      let hideHeader = false;
+      let hideFooter = false;
       for (const m of s.matches) {
-        const ld = m.loaderData as { kind?: string } | undefined;
+        const ld = m.loaderData as
+          | {
+              kind?: string;
+              item?: { header_override?: string | null; template_type?: string | null } | null;
+            }
+          | undefined;
         if (ld?.kind === "post" || ld?.kind === "page") {
           kind = ld.kind;
+          if (ld.kind === "page") {
+            const landing = ld.item?.template_type === "landing";
+            hideHeader = landing || ld.item?.header_override === "hidden";
+            hideFooter = landing;
+          }
           break;
         }
       }
@@ -49,6 +71,8 @@ export function SiteChrome({ children }: { children: ReactNode }) {
           (m) => (m.staticData as { ownChrome?: boolean } | undefined)?.ownChrome === true,
         ),
         contentKind: kind,
+        hideHeader,
+        hideFooter,
       };
     },
   });
@@ -87,7 +111,12 @@ export function SiteChrome({ children }: { children: ReactNode }) {
       // data-site-shell: stabilny uchwyt dla reguł, które muszą znać wysokość
       // powłoki strony - m.in. rezerwacja miejsca pod paskiem doku
       // (styles.css, html[data-mbb="on"]), która obniża min-height o zajęty pas.
-      <div data-site-shell className="flex min-h-screen flex-col">
+      <div
+        data-site-shell
+        data-chrome-header={hideHeader ? "hidden" : undefined}
+        data-chrome-footer={hideFooter ? "hidden" : undefined}
+        className="flex min-h-screen flex-col"
+      >
         <SkipToContentLink />
         <ImpersonationBanner />
         <RouteProgress />

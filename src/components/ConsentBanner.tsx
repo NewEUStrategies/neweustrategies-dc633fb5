@@ -28,7 +28,10 @@ import { useSiteSetting } from "@/lib/useSiteSetting";
 import { localizedPath } from "@/lib/i18n/localePath";
 import {
   useCookieBannerConfig,
+  bannerLinkHref,
   bannerStyleVars,
+  resolveBannerCopy,
+  clampCookieBannerLogoSize,
   type CookieBannerCopy,
   type CookieBannerConfig,
 } from "@/lib/cookieBanner/config";
@@ -252,14 +255,16 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
   const saved = useCookieBannerConfig();
   const banner = configOverride ?? saved;
-  const t: CookieBannerCopy = banner.copy[uiLanguage];
+  // Puste pole treści z panelu wraca do brzmienia domyślnego - patrz
+  // `resolveBannerCopy` (panel pokazuje to brzmienie jako podpowiedź).
+  const t: CookieBannerCopy = resolveBannerCopy(banner.copy?.[uiLanguage], uiLanguage);
   const { theme } = useTheme();
   const effectiveTheme = themeOverride ?? (theme === "dark" ? "dark" : "light");
   const brandMark = useBrandMarkUrl(effectiveTheme);
   const logoSrc =
     (effectiveTheme === "dark" ? banner.logo.dark || banner.logo.light : banner.logo.light) ||
     brandMark;
-  const logoSize = banner.logo.size || 36;
+  const logoSize = clampCookieBannerLogoSize(banner.logo.size);
 
   // Deklaracja elementów: rejestr + realnie wykryte klucze przeglądarki.
   // Skan biegnie po stronie klienta, dopiero gdy użytkownik otworzy szczegóły.
@@ -492,17 +497,23 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
         {tr("common.dataProcessingTerms")}
       </a>
       .{/* Dodatkowe odnośniki z panelu admina (np. regulamin, RODO, kontakt). */}
-      {(banner.links ?? [])
-        .filter((l) => l.url && pickLocalized(l, "label", uiLanguage))
-        .map((l) => (
+      {/* Adres idzie przez `bannerLinkHref`: ścieżka wewnętrzna dostaje prefiks
+          języka banera (jak polityka i zasady obok), niedozwolony schemat
+          wypada w całości. */}
+      {(banner.links ?? []).flatMap((l) => {
+        const href = bannerLinkHref(l.url, uiLanguage);
+        const label = pickLocalized(l, "label", uiLanguage);
+        if (!href || !label) return [];
+        return [
           <span key={l.id}>
             {" "}
-            <a href={l.url} className={LINK}>
-              {pickLocalized(l, "label", uiLanguage)}
+            <a href={href} className={LINK}>
+              {label}
             </a>
             .
-          </span>
-        ))}
+          </span>,
+        ];
+      })}
     </>
   );
 

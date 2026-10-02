@@ -4549,7 +4549,18 @@ export default defineConfig({
         // Niedobite gałęzie to obronne `catch`-e wokół API przeglądarki
         // (nieudany `seek` na nietypowym źródle, brak `MediaMetadata`) oraz
         // ścieżka SSR, w której `window` nie istnieje.
+        // 2026-10-02: odtwarzacz rozcięty na POWŁOKĘ (`global-player.tsx`,
+        // w chunku wejściowym każdej strony) i SILNIK ładowany przy pierwszym
+        // odtworzeniu (`global-player-engine.tsx`). Podłoga poprzedniego
+        // pliku przechodzi na silnik, który niesie jego logikę; powłoka -
+        // fasada, kolejka poleceń, granica awarii chunku - stoi na 100%.
         "src/lib/audio/global-player.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/audio/global-player-engine.tsx": {
           statements: 98,
           functions: 100,
           lines: 100,

@@ -5,6 +5,7 @@
 // `--ring`, `--card`, itd.) - dzięki temu kolor zmieniony w admin panelu
 // natychmiast wpływa na wygląd całej strony produkcyjnej (przyciski, linki,
 // tło, ramki, itd.).
+import { EMPTY_GLOBAL_COLORS, type GlobalColorsValue } from "./globalColorsValue";
 
 export interface GlobalColorSlot {
   /** Stabilny identyfikator. */
@@ -776,25 +777,11 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
   },
 ];
 
-export type GlobalColorsValue = Record<
-  string,
-  {
-    light?: string;
-    dark?: string;
-    hoverLight?: string;
-    hoverDark?: string;
-    fontFamily?: string;
-    fontSize?: string;
-    /** "normal" | "500" | "600" | "700" */
-    fontWeight?: string;
-    /** "normal" | "italic" */
-    fontStyle?: string;
-    /** "none" | "underline" */
-    textDecoration?: string;
-  }
->;
-
-export const EMPTY_GLOBAL_COLORS: GlobalColorsValue = {};
+// Kształt wartości i pusty domyślny żyją w `globalColorsValue.ts` (lekki moduł
+// dla hooka zapytania i loadera korzenia - uzasadnienie w jego nagłówku);
+// re-eksport trzyma dotychczasowy kontrakt tego modułu i jedną tożsamość stałej.
+export { EMPTY_GLOBAL_COLORS };
+export type { GlobalColorsValue };
 
 /**
  * Czy dany slot powinien mieć dodatkową parę pickerów Hover (light + dark).

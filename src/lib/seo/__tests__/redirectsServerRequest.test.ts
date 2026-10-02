@@ -48,6 +48,7 @@
 //     PostgREST jest atrapą, a dowodem jest KSZTAŁT wywołania.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pgError } from "@/test/supabaseChain";
+import { advanceClock } from "@/test/time";
 import {
   getRedirectIndexForTenant,
   invalidateRedirectCache,
@@ -1075,13 +1076,13 @@ describe("resolveRedirectForRequest - dławienie licznika trafień (seria skaner
       await resolveRedirectForRequest(request("/stary"));
     }
     // Tuż przed końcem okna - nadal zdławione.
-    vi.setSystemTime(Date.now() + OKNO_MS - 1);
+    advanceClock(OKNO_MS - 1);
     await resolveRedirectForRequest(request("/stary"));
     await drainBackground();
     expect(rpcCalls("record_redirect_hit")).toHaveLength(ZAPISY_NA_OKNO);
 
     // Granica okna - nowe okno, nowy budżet.
-    vi.setSystemTime(Date.now() + 1);
+    advanceClock(1);
     await resolveRedirectForRequest(request("/stary"));
     await drainBackground();
     expect(rpcCalls("record_redirect_hit")).toHaveLength(ZAPISY_NA_OKNO + 1);

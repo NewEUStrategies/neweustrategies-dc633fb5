@@ -100,10 +100,17 @@ export async function updateResource(
 }
 
 export async function deleteResource(id: string, filePath: string | null): Promise<void> {
-  // Najpierw obiekt storage (best-effort), potem wiersz metadanych.
-  if (filePath) {
-    await supabase.storage.from(RESOURCE_BUCKET).remove([filePath]);
-  }
+  // NAJPIERW WIERSZ METADANYCH, POTEM PLIK (best-effort).
+  //
+  // Kolejność była odwrotna: obiekt znikał z bucketu, a dopiero potem padało
+  // usunięcie wiersza (RLS, brak sieci) - i biblioteka członków zostawała
+  // z pozycją, której pobranie kończy się błędem, bez śladu w panelu, że coś
+  // poszło nie tak. Metadane są źródłem prawdy (patrz `removeResourceObject`):
+  // osierocony obiekt to tylko szum w buckecie, osierocony wiersz to zepsuty
+  // materiał u czytelnika.
   const { error } = await supabase.from("member_resources").delete().eq("id", id);
   if (error) throw error;
+  if (filePath) {
+    await removeResourceObject(filePath);
+  }
 }

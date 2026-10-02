@@ -4,6 +4,7 @@ import { readableForeground } from "@/lib/a11y/contrast";
 // inherit from the current theme, so a fresh install works with zero setup.
 
 import { useSiteSetting } from "@/lib/useSiteSetting";
+import { localizedPath, type AppLang } from "@/lib/i18n/localePath";
 
 export type CookieBannerColors = {
   surface: string;
@@ -47,6 +48,64 @@ export type CookieBannerLogo = {
   size: number;
 };
 
+/** Schematy, które odnośnik z panelu może nieść wprost - wszystko inne odpada. */
+const BANNER_LINK_SCHEMES: ReadonlySet<string> = new Set(["http", "https", "mailto", "tel"]);
+
+/**
+ * Adres dodatkowego odnośnika banera DLA JĘZYKA, w którym baner się wyświetla,
+ * albo `null`, gdy adresu nie wolno pokazać.
+ *
+ * DLACZEGO. Odnośnik z panelu szedł do `href` dosłownie, więc gość czytający
+ * baner po angielsku (`/en/...`) klikał „/cookies" i lądował na POLSKIEJ
+ * wersji strony - mimo że wszystkie pozostałe odnośniki banera (polityka
+ * prywatności, zasady przetwarzania) idą przez `localizedPath`. Adres nie był
+ * też w żaden sposób sprawdzany: `javascript:` wpisane w panelu trafiało do
+ * banera wyświetlanego KAŻDEMU odwiedzającemu.
+ *
+ * REGUŁY:
+ *   * ścieżka wewnętrzna (`/cookies`, także bez wiodącego `/`) dostaje prefiks
+ *     języka według `localizedPath` - ta sama reguła co reszta serwisu, łącznie
+ *     z powierzchniami, które prefiksu nie dostają nigdy (`/admin`, `/api`, ...);
+ *     zapytanie i kotwica jadą za ścieżką bez zmian;
+ *   * ścieżka JUŻ z prefiksem (`/en/cookies`) jest sprowadzana do języka banera,
+ *     więc wersja polska nie prowadzi na stronę angielską;
+ *   * adres zewnętrzny `http(s)://`, `mailto:`, `tel:` i adres bez schematu
+ *     (`//host`) - bez zmian;
+ *   * sama kotwica / samo zapytanie (`#sekcja`, `?a=b`) - bez zmian;
+ *   * każdy inny schemat (`javascript:`, `data:`, `vbscript:`, ...) i pusty
+ *     adres - `null`: baner pomija taki odnośnik.
+ */
+export function bannerLinkHref(url: string | null | undefined, lang: AppLang): string | null {
+  const value = (url ?? "").trim();
+  if (value === "") return null;
+  if (value.startsWith("#") || value.startsWith("?")) return value;
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(value);
+  if (scheme) return BANNER_LINK_SCHEMES.has(scheme[1].toLowerCase()) ? value : null;
+  // Ścieżkę rozwiązujemy TAK, JAK ZROBI TO PRZEGLĄDARKA, zanim dołożymy prefiks
+  // języka. Przeglądarka traktuje `\` jak `/` i skleja `..`, więc bez tego
+  // `/\evil.example` było w wersji PL adresem ZEWNĘTRZNYM (`//evil.example`),
+  // a w EN wewnętrznym (`/en/\evil.example`), a `/en/../cookies` w wersji EN
+  // prowadziło na `/cookies`, czyli na stronę polską. Adres, który po
+  // rozwiązaniu wychodzi poza serwis (`//host`), zostaje bez zmian - jak każdy
+  // adres zewnętrzny - więc obie wersje banera prowadzą w to samo miejsce.
+  const base = "https://banner-link.invalid";
+  let resolved: URL;
+  try {
+    // `\cookies` przeglądarka czyta jak `/cookies`, więc wiodący ukośnik
+    // dokładamy tylko adresowi, który nie zaczyna się od żadnego z nich.
+    resolved = new URL(/^[/\\]/.test(value) ? value : `/${value}`, base);
+  } catch {
+    return null;
+  }
+  if (resolved.origin !== base) return value;
+  // Pusty człon ścieżki (`/en//cookies`, `..//x`, `/.//x`) zostaje w `pathname`
+  // jako `//`. Po zdjęciu prefiksu `/en` wersja PL dostawała `//cookies` -
+  // adres BEZ SCHEMATU, czyli wyjście z serwisu - a EN zostawała wewnątrz.
+  // Sklejone ukośniki: ścieżka zawsze wewnętrzna, w obu wersjach ta sama.
+  const pathname = resolved.pathname.replace(/\/{2,}/g, "/");
+  return `${localizedPath(pathname, lang)}${resolved.search}${resolved.hash}`;
+}
+
 /** Dodatkowy odnośnik prawny pokazywany pod treścią banera. */
 export type CookieBannerLink = {
   id: string;
@@ -74,6 +133,26 @@ export const COOKIE_BANNER_LOGO_DEFAULTS: CookieBannerLogo = {
   dark: "",
   size: 36,
 };
+
+export const COOKIE_BANNER_LOGO_SIZE_MIN = 24;
+export const COOKIE_BANNER_LOGO_SIZE_MAX = 72;
+
+/**
+ * Rozmiar kafla logo w zakresie 24-72 px, który panel obiecuje w podpowiedzi.
+ *
+ * Do tej poprawki zakres był wyłącznie atrybutem `min`/`max` pola liczbowego -
+ * czyli NIE był egzekwowany ani przy zapisie, ani przy renderze: wpisane
+ * „500" zapisywało się i baner na KAŻDEJ stronie rysował kafel 500 px.
+ * Wartość spoza liczb (pusta, `NaN`) wraca do domyślnych 36 px.
+ */
+export function clampCookieBannerLogoSize(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return COOKIE_BANNER_LOGO_DEFAULTS.size;
+  return Math.min(
+    COOKIE_BANNER_LOGO_SIZE_MAX,
+    Math.max(COOKIE_BANNER_LOGO_SIZE_MIN, Math.round(parsed)),
+  );
+}
 
 export const COOKIE_BANNER_COLOR_DEFAULTS: CookieBannerColors = {
   surface: "",
@@ -153,6 +232,27 @@ export const COOKIE_BANNER_DEFAULTS: CookieBannerConfig = {
 };
 
 export const COOKIE_BANNER_SETTINGS_KEY = "cookie_banner_config";
+
+/**
+ * Treść banera w danym języku z powrotem do brzmień DOMYŚLNYCH dla pól pustych.
+ *
+ * Panel pokazuje brzmienia domyślne jako podpowiedzi w polach treści. Bez tej
+ * reguły podpowiedź kłamała: wyczyszczone pole zapisywało się jako `""`,
+ * a baner rysował przycisk bez nazwy (niedostępny dla czytnika ekranu) albo
+ * pusty nagłówek. Pole z samych spacji też jest puste.
+ */
+export function resolveBannerCopy(
+  copy: Partial<CookieBannerCopy> | null | undefined,
+  lang: AppLang,
+): CookieBannerCopy {
+  const defaults = COOKIE_BANNER_DEFAULTS.copy[lang];
+  const out = { ...defaults };
+  for (const key of Object.keys(defaults) as (keyof CookieBannerCopy)[]) {
+    const value = copy?.[key];
+    if (typeof value === "string" && value.trim() !== "") out[key] = value;
+  }
+  return out;
+}
 
 export function useCookieBannerConfig(): CookieBannerConfig {
   return useSiteSetting<CookieBannerConfig>(COOKIE_BANNER_SETTINGS_KEY, COOKIE_BANNER_DEFAULTS);

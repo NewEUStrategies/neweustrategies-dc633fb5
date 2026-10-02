@@ -15,31 +15,33 @@ import {
   type AnalyticsConfig,
   type MarketingConfig,
 } from "@/lib/analytics/config";
-import { useEffectiveConsent } from "@/lib/ads/consent";
-import { afterPageLoad } from "@/lib/performance/afterPageLoad";
+import { hasConsentDecision, subscribeConsentChange, useEffectiveConsent } from "@/lib/ads/consent";
 import {
   bootstrapGa4,
   ga4ConsentUpdate,
   GOOGLE_ADS_ID,
   resolveBrowserGa4Id,
 } from "@/lib/analytics/ga4Client";
+import { scheduleGtagLoad } from "@/lib/analytics/gtagLoadPolicy";
 
 type CleanupFn = () => void;
 
 const MARK_ATTR = "data-consent-owner";
 
 /**
- * Ile najdłużej czekamy z DOCIĄGNIĘCIEM gtag.js po rozstrzygnięciu zgody.
- *
- * Nie dotyczy poleceń (zgoda domyślna, `config`, odsłony) - te idą do
- * `window.dataLayer` natychmiast i czekają tam na skrypt. Odroczony jest
- * wyłącznie transfer + parse ~90 KB z obcego originu, który do 2026-09-20
- * biegł w oknie hydratacji, czyli wprost przeciwko LCP i pierwszej interakcji
- * (audyt CWV, F20). 2 000 ms to ta sama skala, co inne odroczenia bootu w
- * `__root.tsx` (cache-busting i heartbeat: 3 000 ms), ale krótsza - pomiar ma
- * ruszyć, gdy tylko główny wątek zwolni, a nie „kiedyś".
+ * Jawna decyzja o zgodzie jako sygnał dla polityki dociągania gtag.js
+ * (`scheduleGtagLoad`, sygnał (b)). `subscribeConsentChange` budzi się też przy
+ * podglądzie, GPC i zmianie w innej karcie - filtrem jest `hasConsentDecision`:
+ * liczy się wyłącznie ZAPISANA decyzja odwiedzającego (baner, panel preferencji,
+ * ta sama decyzja z innej karty). Decyzja zastana przy montażu (powracający
+ * odwiedzający) NIE jest sygnałem - inaczej skrypt wracałby do okna hydratacji
+ * dokładnie dla tych, którzy zgodzili się już wcześniej.
  */
-const GTAG_IDLE_TIMEOUT_MS = 2_000;
+function onConsentDecision(fire: () => void): () => void {
+  return subscribeConsentChange(() => {
+    if (hasConsentDecision()) fire();
+  });
+}
 
 function removeMarked(owner: string) {
   if (typeof document === "undefined") return;
@@ -209,18 +211,23 @@ export function ConsentScriptInjector() {
   //
   // ROZDZIELENIE POLECEŃ OD SKRYPTU. `bootstrapGa4` wypycha polecenia do
   // `window.dataLayer` SYNCHRONICZNIE (albo rozpoznaje, że zrobił to już snippet
-  // SSR), a sam plik gtag.js czeka na load, klatkę i bezczynność. Semantyka zgody
-  // nie zmienia się ani o krok: `consent default`/`update` siedzą w warstwie
-  // danych, którą skrypt przetwarza od początku, gdy dojedzie.
+  // SSR), a sam plik gtag.js czeka na sygnał polityki `scheduleGtagLoad`:
+  // pierwszą interakcję, jawną decyzję o zgodzie albo bezczynność po load bez
+  // długich zadań (z twardym limitem). Do 2026-10-02 było to `afterPageLoad(…,
+  // 2000)`, które na mobile wciąż trafiało w okno TBT/TTI. Semantyka zgody nie
+  // zmienia się ani o krok: `consent default`/`update` siedzą w warstwie danych,
+  // którą skrypt przetwarza od początku, gdy dojedzie. Kompromis (odwiedzający
+  // bez interakcji, który wychodzi przed progiem bezczynności, nie wysyła
+  // `page_view`) jest opisany w nagłówku `gtagLoadPolicy.ts`.
   useEffect(() => {
     if (!mounted || !ga4Id) return;
-    let cancelIdle: (() => void) | null = null;
+    let cancelLoad: (() => void) | null = null;
     bootstrapGa4(ga4Id, GOOGLE_ADS_ID, {
       scheduleScript: (load) => {
-        cancelIdle = afterPageLoad(load, GTAG_IDLE_TIMEOUT_MS);
+        cancelLoad = scheduleGtagLoad(load, { onDecision: onConsentDecision });
       },
     });
-    return () => cancelIdle?.();
+    return () => cancelLoad?.();
   }, [mounted, ga4Id]);
 
   useEffect(() => {

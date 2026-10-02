@@ -149,8 +149,11 @@ describe("CoverImagePicker - ramki urządzeń", () => {
   it("start jest na desktopie: 16/9 i wciśnięty przycisk Desktop", () => {
     const { view } = mountPicker(SAVED_URL);
 
-    expect(screen.getByRole("button", { name: "Desktop" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText("Desktop - 16:9")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "uploadArea.devices.desktop" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText("uploadArea.devices.desktop - 16:9")).toBeInTheDocument();
     expect(frame(view.container).style.aspectRatio).toBe("16 / 9");
     expect(frame(view.container).style.maxWidth).toBe("100%");
   });
@@ -158,22 +161,25 @@ describe("CoverImagePicker - ramki urządzeń", () => {
   it("przełącznik zmienia PROPORCJE podglądu, nie tylko podświetlenie", () => {
     const { view } = mountPicker(SAVED_URL);
 
-    fireEvent.click(screen.getByRole("button", { name: "Tablet" }));
+    fireEvent.click(screen.getByRole("button", { name: "uploadArea.devices.tablet" }));
 
-    expect(screen.getByText("Tablet - 4:3")).toBeInTheDocument();
+    expect(screen.getByText("uploadArea.devices.tablet - 4:3")).toBeInTheDocument();
     expect(frame(view.container).style.aspectRatio).toBe("4 / 3");
     expect(frame(view.container).style.maxWidth).toBe("62%");
-    expect(screen.getByRole("button", { name: "Desktop" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "uploadArea.devices.desktop" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Mobile" }));
+    fireEvent.click(screen.getByRole("button", { name: "uploadArea.devices.mobile" }));
 
-    expect(screen.getByText("Mobile - 9:16")).toBeInTheDocument();
+    expect(screen.getByText("uploadArea.devices.mobile - 9:16")).toBeInTheDocument();
     expect(frame(view.container).style.aspectRatio).toBe("9 / 16");
     expect(frame(view.container).style.maxWidth).toBe("34%");
-    expect(screen.getByRole("button", { name: "Mobile" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "uploadArea.devices.mobile" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });
 

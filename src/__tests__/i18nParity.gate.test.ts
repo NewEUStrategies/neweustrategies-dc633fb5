@@ -38,6 +38,11 @@ const GATED_PREFIXES = [
   // flagi warstw), więc brak tłumaczenia oznaczałby surowy klucz na ekranie
   // audytu - to musi być bramkowane, nie tylko raportowane.
   "adminPermissions",
+  // Panel cookie bannera (`/admin/settings/cookie-banner`) był do 2026-10-02
+  // w całości po polsku (47 napisów zamrożonych w ratchecie jednojęzycznym).
+  // Po przeniesieniu do nakładki `i18n-admin-cookie-banner.ts` wchodzi pod
+  // twardą bramkę od razu, żeby dług nie narósł z powrotem.
+  "adminCookieBanner",
   // Sieć kontaktów: cała powierzchnia ma dwie wersje językowe w UI, a jej
   // komunikaty (ciche odmowy, limity zaproszeń, zgłoszenia do moderacji)
   // decydują o tym, co użytkownik rozumie ze swojej prywatności. Rozjazd

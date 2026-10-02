@@ -7,31 +7,72 @@
 // z domyślnych slotów, więc dawne `return null` znaczyło "SSR bez kolorów
 // globalnych, klient z kolorami" - czyli zmiana typografii i barw całego
 // dokumentu tuż po hydratacji (audyt CWV, F29a).
+//
+// GENERATOR POZA BOOTEM KLIENTA (audyt PSI 2026-10-02). `globalColors.ts` to
+// 44 kB katalogu slotów - największy pojedynczy moduł aplikacji w chunku
+// wejściowym. Serwer liczy CSS synchronicznie (gałąź `.server()`, wycinana
+// z bundla przeglądarki razem z importem generatora), klient przy hydratacji
+// przepisuje gotowy blok z HTML-a, a generator dociąga przez `import()`
+// dopiero przy zmianie danych (zapis w panelu, zapytanie po terminie SSR).
+// Szczegóły i kontrakt hydratacji: `theme/useDeferredStyleCss`.
 import { useMemo } from "react";
-import { useDesignTokens, tokensToCss, EMPTY_TOKENS } from "@/lib/builder/designTokens";
-import { useGlobalColors, globalColorsToCss } from "@/hooks/useGlobalColors";
-import { EMPTY_GLOBAL_COLORS } from "@/lib/builder/globalColors";
-import { useFontScale, fontScaleToCss } from "@/hooks/useFontScale";
-import { EMPTY_FONT_SCALE } from "@/lib/theme/fontScale";
+import { createIsomorphicFn } from "@tanstack/react-start";
 import { hardenStyleCss } from "@/lib/sanitizePure";
+import { useDesignTokens, EMPTY_TOKENS } from "@/lib/builder/designTokens";
+import { useGlobalColors } from "@/hooks/useGlobalColors";
+import { EMPTY_GLOBAL_COLORS } from "@/lib/builder/globalColorsValue";
+import { useFontScale } from "@/hooks/useFontScale";
+import { EMPTY_FONT_SCALE } from "@/lib/theme/fontScale";
+import { useDeferredStyleCss, type StyleGenerator } from "@/components/theme/useDeferredStyleCss";
+import {
+  designTokensStyleCss as serverDesignTokensStyleCss,
+  type DesignTokensStyleInput,
+} from "@/components/theme/css/designTokensCss";
+
+const MARKER = "data-brand-tokens";
+
+// Kompilator Start wycina gałąź `.server()` z bundla przeglądarki razem
+// z nieużywanym już importem generatora (wzorzec: widget-view/lazySliderRender).
+const getServerGenerate = createIsomorphicFn()
+  .server((): StyleGenerator<DesignTokensStyleInput> | null => serverDesignTokensStyleCss)
+  .client((): StyleGenerator<DesignTokensStyleInput> | null => null);
+const serverGenerate = getServerGenerate();
+
+const loadGenerate = () =>
+  import("@/components/theme/css/designTokensCss").then((m) => m.designTokensStyleCss);
 
 export function DesignTokensStyle() {
   const { data: tokens } = useDesignTokens();
   const { data: globals } = useGlobalColors();
   // Tabela rozmiarów czcionek (admin → Wygląd → Rozmiary czcionek).
   const { data: fontScale } = useFontScale();
-  // Stored token/colour/font values are interpolated into this CSS; harden it
-  // so an injected `</style>` can't break out into HTML. `useMemo` trzyma
-  // budowanie i utwardzanie CSS poza ciałem renderu - komponent siedzi przy
-  // korzeniu aplikacji, więc przeliczał się przy KAŻDYM renderze drzewa.
-  const css = useMemo(
-    () =>
-      hardenStyleCss(
-        tokensToCss(tokens ?? EMPTY_TOKENS) +
-          globalColorsToCss(globals ?? EMPTY_GLOBAL_COLORS) +
-          fontScaleToCss(fontScale ?? EMPTY_FONT_SCALE),
-      ),
+  // Stabilna tożsamość wejścia: skrót liczy się tylko przy zmianie danych,
+  // a nie przy każdym renderze korzenia aplikacji.
+  const input = useMemo<DesignTokensStyleInput>(
+    () => ({
+      tokens: tokens ?? EMPTY_TOKENS,
+      globals: globals ?? EMPTY_GLOBAL_COLORS,
+      fontScale: fontScale ?? EMPTY_FONT_SCALE,
+    }),
     [tokens, globals, fontScale],
   );
-  return <style data-brand-tokens dangerouslySetInnerHTML={{ __html: css }} />;
+  const { css, hash } = useDeferredStyleCss({
+    marker: MARKER,
+    input,
+    serverGenerate,
+    loadGenerate,
+  });
+  // `hardenStyleCss` jest idempotentne: na migawce z SSR (już utwardzonej
+  // przez generator) to no-op, więc HTML serwera i klienta pozostają
+  // identyczne - a bramka `check:dangerous-html` ma dowód w TYM pliku.
+  const html = useMemo(() => hardenStyleCss(css), [css]);
+  // `data-css-hash` czyta `readStyleSnapshot` (STYLE_HASH_ATTR); bez skrótu
+  // (render bez SSR) atrybutu nie ma, tak jak w starszym HTML-u z brzegu.
+  return (
+    <style
+      data-brand-tokens
+      data-css-hash={hash || undefined}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 }

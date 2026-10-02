@@ -25,6 +25,7 @@ import type { Rollup } from "vite";
 import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
 import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
+import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
 
 // `minify: true` jak w produkcyjnym vite.config.ts - smoke ma odwzorowywać
 // realny artefakt (różni się wyłącznie presetem: node-server zamiast
@@ -191,15 +192,22 @@ export default defineConfig({
                 ) {
                   return "vendor-tanstack";
                 }
-                // Ikony w JEDNYM chunku vendorowym. Bez tej reguły Rollup
-                // rozsypywał je na dziesiątki 300-400-bajtowych plików (każda
-                // ikona współdzielona przez >=2 leniwe chunki dostawała własny)
-                // - 45 takich odprysków kosztowało ~22 KB gzip samego
+                // Ikony w DWÓCH chunkach vendorowych, nie w dziesiątkach plików.
+                // Bez reguły Rollup rozsypywał je na 300-400-bajtowe odpryski
+                // (każda ikona współdzielona przez >=2 leniwe chunki dostawała
+                // własny) - 45 takich plików kosztowało ~22 KB gzip samego
                 // narzutu nagłówków, bo pliki tej wielkości praktycznie się nie
-                // kompresują. Jeden chunk jest też trwale cache'owalny: zestaw
-                // ikon zmienia się rzadziej niż kod aplikacji. Domknięcie
-                // trywialne - lucide-react importuje wyłącznie React.
-                if (id.includes("/node_modules/lucide-react/")) return "vendor-lucide";
+                // kompresują. Od 2026-10-02 podział wg osiągalności przy boocie
+                // (scripts/lib/bootVendorSplit.ts - tam pułapka barrela lucide):
+                // `vendor-lucide-boot` = ikony importowane PO NAZWIE przez
+                // bootowe moduły aplikacji (chrome, lucide-shim, powłoki tras)
+                // + runtime (createLucideIcon/Icon); `vendor-lucide` = reszta,
+                // ładowana dopiero z leniwymi trasami. Domknięcie: ikony
+                // niebootowe importują runtime z `-boot`, nigdy odwrotnie; poza
+                // tym oba chunki importują wyłącznie React.
+                if (id.includes("/node_modules/lucide-react/")) {
+                  return isBootLucideModule(id, meta) ? "vendor-lucide-boot" : "vendor-lucide";
+                }
                 // Heavy controls are not required by the public header. Keep
                 // their implementations out of the shared primitive chunk;
                 // dependencies still share vendor-radix and vendor-react.
@@ -214,13 +222,21 @@ export default defineConfig({
                   return `vendor-radix-${group}`;
                 }
                 // Radix + jego sidecary (scroll-lock, aria-hidden, floating-ui)
-                // w JEDNYM chunku - patrz zasada domknięcia wyżej.
+                // - patrz zasada domknięcia wyżej. Od 2026-10-02 rozcięte na
+                // część bootową i resztę: entry potrzebuje z tej rodziny TYLKO
+                // `react-slot` (components/ui/button.tsx) i jego zależność
+                // react-compose-refs, a płacił 38 KB gzip za dialogi, tooltipy
+                // i floating-ui na każdej stronie publicznej. Zbiór bootowy =
+                // domknięcie statyczne z entry (scripts/lib/bootVendorSplit.ts),
+                // więc `vendor-radix-boot` z definicji nie importuje z
+                // `vendor-radix`; krawędź biegnie wyłącznie reszta -> boot,
+                // cyklu nie ma (bramka check:chunks po buildzie).
                 if (
                   /\/node_modules\/(@radix-ui|@floating-ui|aria-hidden|react-remove-scroll|react-remove-scroll-bar|react-style-singleton|use-callback-ref|use-sidecar|get-nonce)\//.test(
                     id,
                   )
                 ) {
-                  return "vendor-radix";
+                  return isBootModule(id, meta) ? "vendor-radix-boot" : "vendor-radix";
                 }
                 if (
                   /\/node_modules\/(i18next|react-i18next|html-parse-stringify|void-elements)\//.test(

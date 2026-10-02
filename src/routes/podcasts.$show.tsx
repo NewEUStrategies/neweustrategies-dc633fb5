@@ -28,12 +28,13 @@ import {
   podcastTitle,
   podcastEpisodeLabel,
   formatDuration,
-  showTitle,
-  showDescription,
   type Podcast,
   type PodcastPerson,
   type PodcastShow,
 } from "@/lib/podcast/types";
+// Z `showCopy`, nie z `types`: `head()` zostaje w shellu trasy (chunk
+// wejściowy), a `types.ts` niesie schematy zod całego modułu podcastów.
+import { showTitle, showDescription } from "@/lib/podcast/showCopy";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import {

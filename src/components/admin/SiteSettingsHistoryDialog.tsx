@@ -75,6 +75,12 @@ export function SiteSettingsHistoryDialog({
     try {
       await onRestore(selected.value);
       onOpenChange(false);
+    } catch {
+      // Porażkę zgłasza WOŁAJĄCY (mutacja zapisu ma własny toast błędu), a okno
+      // zostaje otwarte, żeby dało się spróbować ponownie. Bez tego `catch`
+      // odrzucenie wyciekało jako NIEOBSŁUŻONE (`onClick={handleRestore}` nie
+      // odbiera obietnicy), a nasłuch `unhandledrejection` w obserwowalności
+      // beaconował fałszywy „nieobsłużony błąd JS" przy każdej odmowie zapisu.
     } finally {
       setRestoring(false);
     }

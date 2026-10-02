@@ -28,8 +28,9 @@
 // Druga atrapa to sama integracja router<->query: podstawiamy dokładnie te dwa
 // haki, które `router.tsx` owija.
 import { describe, expect, it, vi } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import type { QueryClient } from "@tanstack/react-query";
+import { errorCopy } from "@/lib/errorCopy";
 
 const h = vi.hoisted(() => ({
   /** Przełącznik gałęzi SSR/klient - jedyny precedens w repo: homeRoute.test.tsx. */
@@ -477,17 +478,31 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
   });
 });
 
+/**
+ * Ekrany błędu stoją za `React.lazy` (poza chunkiem wejściowym), więc render
+ * serwerowy jest STRUMIENIEM: `renderToStaticMarkup` oddałby sam fallback
+ * (rezerwację miejsca), a prawdziwa treść dojeżdża po rozwiązaniu modułu -
+ * `allReady` to dokładnie ta chwila. To jest zarazem dowód, że strona błędu
+ * nadal renderuje się po stronie serwera w całości.
+ */
+async function renderSsr(element: React.ReactElement): Promise<string> {
+  const stream = await renderToReadableStream(element);
+  await stream.allReady;
+  return new Response(stream).text();
+}
+
 describe("getRouter - domyślne ekrany błędu", () => {
-  it("defaultNotFoundComponent renderuje przyjazny ekran 404 z copy z errorCopy", () => {
+  it("defaultNotFoundComponent renderuje przyjazny ekran 404 z copy z errorCopy", async () => {
     const NotFound = getRouter().options.defaultNotFoundComponent!;
-    const html = renderToStaticMarkup(<NotFound data={undefined} isNotFound routeId="__root__" />);
+    const html = await renderSsr(<NotFound data={undefined} isNotFound routeId="__root__" />);
     expect(html).toContain("<h1");
+    expect(html).toContain(errorCopy().notFoundTitle);
     expect(html.length).toBeGreaterThan(50);
   });
 
-  it("defaultErrorComponent renderuje przyjazny ekran błędu, nie surowy stack", () => {
+  it("defaultErrorComponent renderuje przyjazny ekran błędu, nie surowy stack", async () => {
     const ErrorScreen = getRouter().options.defaultErrorComponent!;
-    const html = renderToStaticMarkup(
+    const html = await renderSsr(
       <ErrorScreen
         error={new Error("TAJNY-STACK-Z-SERWERA")}
         reset={() => {}}
@@ -496,6 +511,7 @@ describe("getRouter - domyślne ekrany błędu", () => {
     );
     // Ekran błędu nie może wycieknąć treści wyjątku do użytkownika.
     expect(html).not.toContain("TAJNY-STACK-Z-SERWERA");
+    expect(html).toContain("<h1");
     expect(html.length).toBeGreaterThan(50);
   });
 });
