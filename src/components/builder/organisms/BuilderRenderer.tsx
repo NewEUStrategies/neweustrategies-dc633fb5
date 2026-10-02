@@ -564,7 +564,9 @@ const RenderSection = memo(function RenderSection({
   );
   // Opakowania z `overflow-hidden` nad widgetem wyszukiwarki dostają znacznik
   // już w HTML-u SSR (`@/lib/builder/searchOverflow`) - zamiast `:has()`.
-  const hostsSearch = allChildren.some(childHostsSearchWidget);
+  // `visibleCols`: kolumna nieaktywnej zakładki nie renderuje widgetu.
+  const searchScope = { device, accessCtx };
+  const hostsSearch = visibleCols.some((c) => childHostsSearchWidget(c, searchScope));
   const videoUrl =
     section.background?.type === "video"
       ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
@@ -694,7 +696,9 @@ const RenderSection = memo(function RenderSection({
                     key={c.id}
                     data-column-slot
                     data-col-id={c.id}
-                    data-search-overflow={searchOverflowAttr(childHostsSearchWidget(c))}
+                    data-search-overflow={searchOverflowAttr(
+                      childHostsSearchWidget(c, searchScope),
+                    )}
                     className="min-w-0 max-w-full overflow-hidden"
                     style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
                   >
@@ -741,7 +745,8 @@ const RenderInner = memo(function RenderInner({
   );
   const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   const innerKind = isPeopleSectionKind(columns) ? "people" : "";
-  const hostsSearch = columns.some(childHostsSearchWidget);
+  const searchScope = { device, accessCtx };
+  const hostsSearch = columns.some((c) => childHostsSearchWidget(c, searchScope));
   return (
     <div
       data-section-kind={innerKind || undefined}
@@ -777,7 +782,7 @@ const RenderInner = memo(function RenderInner({
             <div
               key={c.id}
               data-column-slot
-              data-search-overflow={searchOverflowAttr(childHostsSearchWidget(c))}
+              data-search-overflow={searchOverflowAttr(childHostsSearchWidget(c, searchScope))}
               className="min-w-0 max-w-full overflow-hidden"
               style={{
                 gridColumn: device === "mobile" ? "auto" : `span ${resolveSpan(c.span, device, 6)}`,

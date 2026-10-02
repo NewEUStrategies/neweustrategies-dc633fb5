@@ -35,8 +35,10 @@ import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 const SEARCH_WIDGET_CSS = `
 /* Wymuszamy overflow: visible na całym łańcuchu przodków widgetu, żeby
    chip floating-labela nie był przycinany przez kolumny/sekcje headera
-   z overflow: hidden. Przodków oznacza efekt w widgecie
-   (data-search-overflow); dawny selektor ":where(*):has(.builder-search-widget)"
+   z overflow: hidden. Znacznik (data-search-overflow) wypisuje już SSR
+   renderer buildera (lib/builder/searchOverflow), resztę przodków oznacza
+   efekt w widgecie po hydratacji; ta sama reguła stoi w styles.css, bo ten
+   arkusz przychodzi z leniwym chunkiem. Dawny selektor ":where(*):has(.builder-search-widget)"
    był jedną z reguł ":has()", których sama obecność w dokumencie mnożyła
    koszt każdego pełnego przeliczenia stylu ~70x (pomiar 2026-10-02).
    Wiersz paska czytania ([data-reading-row]) musi zachować poziomy clip. */
@@ -221,9 +223,11 @@ export function SearchButtonWidget({
   // a strona główna robi po hydratacji kilkanaście takich przeliczeń
   // (pomiar 2026-10-02, docs/performance). Pomijamy wiersz paska czytania
   // ([data-reading-row]) - on MUSI przycinać w poziomie (horizontalPanGuard).
-  // Znaczniki zostają po odmontowaniu, tak jak dawna reguła działała trwale;
-  // przed hydratacją popover i tak nie może się otworzyć, więc brak znacznika
-  // w HTML-u SSR niczego nie zmienia w pierwszym malowaniu.
+  // Znaczniki zostają po odmontowaniu, tak jak dawna reguła działała trwale.
+  // Opakowania buildera (sekcja, kontener, wiersz, slot, ramka widgetu) dostają
+  // znacznik już w HTML-u SSR (`@/lib/builder/searchOverflow`) - bez niego
+  // pierwsza klatka ucinała pływającą etykietę i obwódkę fokusu. Ten efekt
+  // domyka przodków spoza renderera, których SSR nie zna.
   useEffect(() => {
     let el = wrapRef.current?.parentElement ?? null;
     while (el && el !== document.body && el !== document.documentElement) {

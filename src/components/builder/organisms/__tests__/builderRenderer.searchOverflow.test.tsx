@@ -20,9 +20,11 @@ import { BuilderRenderer } from "../BuilderRenderer";
 import {
   column,
   doc,
+  hideOn,
   innerSection,
   section,
   stubObservers,
+  tabsConfig,
   widget,
 } from "./builderRendererFixtures";
 
@@ -149,5 +151,47 @@ describe("znacznik z SSR nad widgetem wyszukiwarki", () => {
     const menuFrame = root.querySelector('[data-w-id="w-menu"]')!;
     const menuSlot = menuFrame.closest("[data-column-slot]")!;
     expect(menuSlot.hasAttribute("data-search-overflow")).toBe(false);
+  });
+});
+
+// Dawna reguła `:has()` pytała DOM - widget, którego renderer nie wyrenderuje,
+// nie zdejmował nikomu clipa. Znacznik liczony z danych musi odsiewać tak samo.
+describe("wyszukiwarka, która się nie renderuje, nie zdejmuje clipa", () => {
+  it("ukryta na desktopie (hideOn) - SSR renderuje desktop, więc bez znacznika", () => {
+    const root = ssr(
+      doc([
+        section("hdr", [
+          column("logo", [widget("w-logo", "heading")]),
+          column("search", [
+            widget("w-search", "search-button", {
+              content: {},
+              advanced: hideOn({ desktop: true }),
+            }),
+          ]),
+        ]),
+      ]),
+    );
+    expect(root.querySelector('[data-w-id="w-search"]')).toBeNull();
+    expect(root.querySelector("[data-search-overflow]")).toBeNull();
+  });
+
+  it("w kolumnie nieaktywnej zakładki - sekcja i wiersz zachowują clip", () => {
+    const root = ssr(
+      doc([
+        section(
+          "tabbed",
+          [
+            column("k-t1", [widget("w-t1", "heading")], { tabId: "t1" }),
+            column("k-t2", [widget("w-search", "search-button", { content: {} })], {
+              tabId: "t2",
+            }),
+          ],
+          { tabs: tabsConfig([{ id: "t1" }, { id: "t2" }]) },
+        ),
+      ]),
+    );
+    expect(root.querySelector('[data-w-id="w-t1"]')).not.toBeNull();
+    expect(root.querySelector('[data-w-id="w-search"]')).toBeNull();
+    expect(root.querySelector("[data-search-overflow]")).toBeNull();
   });
 });
