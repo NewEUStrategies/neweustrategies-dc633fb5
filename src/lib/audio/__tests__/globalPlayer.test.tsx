@@ -40,6 +40,7 @@ import {
 import { GlobalAudioEngine } from "@/lib/audio/global-player-engine";
 import { resetBlobCache } from "@/lib/audio/blobCache";
 import { POSITION_SAVE_INTERVAL, positionKey } from "@/lib/audio/positionMemory";
+import { announcePlayback } from "@/lib/audio/playbackBus";
 
 /**
  * Atrapa elementu audio.
@@ -134,10 +135,12 @@ function streamedBody(chunks: Uint8Array[]) {
 
 function okResponse(opts: { contentLength?: string | null; chunks?: Uint8Array[] } = {}) {
   const chunks = opts.chunks ?? [new Uint8Array([1, 2, 3, 4])];
+  // `null` znaczy „serwer nie podał długości" - nie „domyślna długość".
+  const length = opts.contentLength === undefined ? "4" : opts.contentLength;
   return {
     ok: true,
     status: 200,
-    headers: { get: (k: string) => (k === "content-length" ? (opts.contentLength ?? "4") : null) },
+    headers: { get: (k: string) => (k === "content-length" ? length : null) },
     body: streamedBody(chunks),
     blob: async () => new Blob(["fallback"], { type: "audio/mpeg" }),
     text: async () => "",
@@ -389,9 +392,34 @@ describe("loadAndPlay - synteza i etapy", () => {
   });
 
   it("BEZ nagłówka długości postęp zostaje na zerze, ale etap się zmienia", async () => {
-    fetchMock.mockResolvedValue(okResponse({ contentLength: null }));
+    // Strumień wstrzymany po pierwszym fragmencie - etap `streaming` da się
+    // odczytać, zanim `ready` nadpisze postęp na 100%. Z nagłówkiem „4" ten
+    // sam fragment dałby 99%.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    const body = {
+      getReader: () => ({
+        read: async () => {
+          reads += 1;
+          if (reads === 1) return { done: false, value: new Uint8Array(4) };
+          await gate;
+          return { done: true };
+        },
+      }),
+    };
+    fetchMock.mockResolvedValue({ ...okResponse({ contentLength: null }), body } as Response);
     await mount();
-    await play();
+    let pending: Promise<void> | undefined;
+    act(() => {
+      pending = api?.loadAndPlay(META);
+    });
+    await waitFor(() => expect(at("stage")).toBe("streaming"));
+    expect(at("percent")).toBe("0");
+    await act(async () => {
+      release();
+      await pending;
+    });
     expect(at("stage")).toBe("ready");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -635,6 +663,17 @@ describe("transport: pauza, przewijanie, tempo", () => {
       await api?.toggle();
     });
     expect(at("status")).toBe("playing");
+  });
+
+  it("ARBITRAŻ: gdy rusza INNY odtwarzacz, globalny pauzuje - gra tylko jeden", async () => {
+    await mount();
+    await play();
+    // Własne ogłoszenie przy starcie (zdarzenie `play`) nie pauzuje samego siebie.
+    expect(audio().paused).toBe(false);
+    expect(at("status")).toBe("playing");
+    act(() => announcePlayback("podcast-player"));
+    expect(audio().paused).toBe(true);
+    expect(at("status")).toBe("paused");
   });
 
   it("`toggle` BEZ nagrania nic nie robi - nie ma czego przełączać", async () => {

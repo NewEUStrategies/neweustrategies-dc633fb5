@@ -46,6 +46,13 @@ import {
 } from "@/lib/audio/positionMemory";
 import { supabase } from "@/integrations/supabase/client";
 
+// Cache blobów narracji (z limitem i zwalnianiem URL-i), pamięć pozycji
+// odtwarzania i nazwa pliku pobrania żyją w czystych modułach obok:
+// `lib/audio/blobCache` i `lib/audio/positionMemory`. Są tam testowane bez
+// montowania providera, elementu `<audio>` i fetchera TTS - a to one decydują
+// o wycieku pamięci w długiej sesji czytania i o tym, czy czytelnik wróci tam,
+// gdzie skończył. Tutaj zostaje wyłącznie skład.
+
 /**
  * Nieudana odpowiedź serwera, której treść NIE jest komunikatem dla czytelnika.
  * Ciało błędu `/api/public/post-tts` to techniczny JSON po angielsku
@@ -73,13 +80,6 @@ class AudioReaderMessage extends Error {
     this.name = "AudioReaderMessage";
   }
 }
-
-// Cache blobów narracji (z limitem i zwalnianiem URL-i), pamięć pozycji
-// odtwarzania i nazwa pliku pobrania żyją w czystych modułach obok:
-// `lib/audio/blobCache` i `lib/audio/positionMemory`. Są tam testowane bez
-// montowania providera, elementu `<audio>` i fetchera TTS - a to one decydują
-// o wycieku pamięci w długiej sesji czytania i o tym, czy czytelnik wróci tam,
-// gdzie skończył. Tutaj zostaje wyłącznie skład.
 
 /**
  * Wybór źródła audio dla wpisu w danym języku. Gdy wgrany jest MP3 dla tego
