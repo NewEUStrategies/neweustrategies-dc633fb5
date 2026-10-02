@@ -42,6 +42,10 @@ test.describe("SEO surfaces", () => {
     expect((await request.get("/sitemaps/nie-ma-takiej-sekcji.xml")).status()).toBe(404);
     // Shard pierwszy mieszka pod "core.xml" - "-1" byloby duplikatem adresu.
     expect((await request.get("/sitemaps/core-1.xml")).status()).toBe(404);
+    // Niekanoniczny zapis numeru (zero wiodace) to ten sam shard pod drugim
+    // adresem - duplikat w raporcie "Sitemapy". Jedyny poprawny zapis to
+    // "posts-2.xml"; "posts-02.xml" musi byc 404 niezaleznie od liczby wpisow.
+    expect((await request.get("/sitemaps/posts-02.xml")).status()).toBe(404);
   });
 
   test("sitemap-index.xml redirects to the canonical index", async ({ request }) => {

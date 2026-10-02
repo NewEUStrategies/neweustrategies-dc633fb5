@@ -16,10 +16,13 @@
 //      licznik z ucinaniem, które robi przeglądarka.
 //   3. DWA POZIOMY OSTRZEŻEŃ SĄ ROZŁĄCZNE. Twardy limit znaków to BŁĄD
 //      (`aria-invalid` + `role="alert"`, wpis dalej nie wejdzie), a przekroczony
-//      budżet pikselowy Google to OSTRZEŻENIE (tylko `aria-describedby`, pole
-//      zostaje w pełni edytowalne - Google utnie snippet, ale wpisu nie
-//      odrzuci). Zlanie ich w jedno albo blokuje legalny wpis, albo przemilcza
-//      ucięcie w SERP-ie.
+//      budżet pikselowy Google to OSTRZEŻENIE (`aria-describedby` + STAŁY
+//      region `role="status"`, bez `aria-invalid`; pole zostaje w pełni
+//      edytowalne - Google utnie snippet, ale wpisu nie odrzuci). Zlanie ich
+//      w jedno albo blokuje legalny wpis, albo przemilcza ucięcie w SERP-ie.
+//      Ostrzeżenie liczy się od wartości SKUTECZNEJ (także od fallbacku przy
+//      pustym polu) i jest ogłaszane przy ZMIANIE stanu, nie przy każdym
+//      naciśnięciu klawisza.
 //   Dodatkowo: kontrakt `onChange` - puste pole oddaje `null`, nie `""`, bo
 //   `null` znaczy "brak nadpisania, dziedzicz fallback".
 //
@@ -46,6 +49,8 @@ vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18n
 
 import { SeoTextField } from "@/components/admin/seo/SeoTextField";
 import { serpTitleMetric, serpDescriptionMetric } from "@/lib/seo/serp";
+import { applyTitleSuffix } from "@/lib/seo/fields";
+import { DEFAULT_SEO_SETTINGS, effectiveTitleSuffix } from "@/lib/seo/settings";
 
 afterEach(cleanup);
 
@@ -220,42 +225,289 @@ describe("SeoTextField - miękkie przekroczenie budżetu pikselowego", () => {
     expect(onChange).toHaveBeenCalledWith(`${WIDE}W`);
   });
 
-  it.fails("DEFEKT: ostrzeżenie pikselowe nie jest ogłaszane czytnikowi (brak role=status)", () => {
-    // KONSEKWENCJA: ostrzeżenie pojawia się DOPIERO w trakcie pisania, czyli
-    // gdy pole ma już fokus. `aria-describedby` czytnik ogłasza przy WEJŚCIU
-    // w pole, więc osoba niewidząca dopisuje znaki i nigdy nie słyszy, że
-    // snippet zostanie ucięty - a pasek px jest dla niej niedostępny.
-    // Projekt ma na to własną konwencję: `severityLiveRole("warning")`
-    // (atoms/SeverityBadge.tsx) mówi wprost `role="status"` dla ostrzeżeń.
-    // Poprawka to jedna linia w produkcji - zgłoszona, nie wprowadzona.
+  // STRAŻNIK REGRESJI (dawniej `it.fails`): ostrzeżenie pikselowe siedzi
+  // w regionie `role="status"` - konwencja projektu `severityLiveRole("warning")`
+  // (atoms/SeverityBadge.tsx). KONSEKWENCJA, gdyby wróciło: ostrzeżenie
+  // pojawia się DOPIERO w trakcie pisania, czyli gdy pole ma już fokus.
+  // `aria-describedby` czytnik ogłasza przy WEJŚCIU w pole, więc osoba
+  // niewidząca dopisuje znaki i nigdy nie słyszy, że snippet zostanie ucięty -
+  // a pasek px jest dla niej niedostępny.
+  it("ostrzeżenie pikselowe jest ogłaszane czytnikowi (role=status, uprzejmie)", () => {
     mount({ value: WIDE, maxLength: WIDE_MAX });
-    expect(screen.getByRole("status")).toHaveTextContent("admin.seo.field.warnPixel");
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("admin.seo.field.warnPixel");
+    // To ten sam element, na który wskazuje pole - jeden komunikat, nie dwa.
+    expect(field().getAttribute("aria-describedby")).toBe(status.id);
+    // Ostrzeżenie nie przerywa czytnika: żadnego `alert` ani `assertive`.
+    expect(status).not.toHaveAttribute("aria-live", "assertive");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it.fails("DEFEKT: puste pole z fallbackiem PONAD budżetem pikselowym nie ostrzega wcale", () => {
-    // KONSEKWENCJA: `overPixelBudget` wymaga `raw.length > 0`, a mierzony jest
-    // `raw.trim() || fallback`. Przy pustym polu Google i tak dostanie
-    // FALLBACK - i utnie go w wynikach - a pole milczy. Redakcja dowie się
-    // o ucięciu tylko wtedy, gdy sama odczyta pasek px. Dosypanie jednego
-    // odstępu do pola natychmiast pokazuje to samo ostrzeżenie o tym samym
-    // (niezmienionym!) tekście - patrz kontrola dodatnia poniżej.
+  it("region status ISTNIEJE (pusty) przed ostrzeżeniem - inaczej pierwsza zmiana przepada", () => {
+    // Czytniki ogłaszają ZMIANĘ treści regionu, który już jest w drzewie
+    // dostępności. Region wstawiony razem z treścią bywa przemilczany, więc
+    // przejście "w normie -> za długi" musi trafić do TEGO SAMEGO elementu.
+    const { rerender, onChange } = mount({ value: "Krótki tytuł", maxLength: WIDE_MAX });
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+    expect(field()).not.toHaveAttribute("aria-describedby");
+
+    rerender(
+      <SeoTextField
+        label="Tytuł SEO"
+        kind="title"
+        value={WIDE}
+        fallback={TITLE_FALLBACK}
+        maxLength={WIDE_MAX}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toHaveTextContent("admin.seo.field.warnPixel");
+
+    // I z powrotem: skrócenie wpisu czyści region (stan "w normie" też jest
+    // zmianą stanu), a pole traci powiązanie z komunikatem.
+    rerender(
+      <SeoTextField
+        label="Tytuł SEO"
+        kind="title"
+        value="Krótki tytuł"
+        fallback={TITLE_FALLBACK}
+        maxLength={WIDE_MAX}
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByRole("status")).toBe(status);
+    expect(status).toBeEmptyDOMElement();
+    expect(field()).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("kolejne znaki przy TRWAJĄCYM ostrzeżeniu nie dotykają regionu (brak spamu czytnika)", () => {
+    // Każda mutacja treści regionu `status` to nowe ogłoszenie. Gdyby węzeł
+    // tekstowy był podmieniany przy każdym renderze, czytnik powtarzałby
+    // "Za długi dla Google" po każdym naciśnięciu klawisza.
+    const { rerender, onChange } = mount({ value: WIDE, maxLength: WIDE_MAX });
+    const status = screen.getByRole("status");
+    const textNode = status.firstChild;
+    expect(textNode).not.toBeNull();
+    const mutations: MutationRecord[] = [];
+    const observer = new MutationObserver((records) => mutations.push(...records));
+    observer.observe(status, { childList: true, characterData: true, subtree: true });
+
+    for (const extra of ["W", "WW", "WWW"]) {
+      rerender(
+        <SeoTextField
+          label="Tytuł SEO"
+          kind="title"
+          value={`${WIDE}${extra}`}
+          fallback={TITLE_FALLBACK}
+          maxLength={WIDE_MAX}
+          onChange={onChange}
+        />,
+      );
+    }
+    expect(mutations.concat(observer.takeRecords())).toHaveLength(0);
+    expect(status.firstChild).toBe(textNode);
+    expect(status).toHaveTextContent("admin.seo.field.warnPixel");
+
+    // Kontrola sondy: ZMIANA stanu (wpis wraca do normy) jest mutacją, którą
+    // obserwator widzi - zero powyżej nie jest więc ślepotą obserwatora.
+    rerender(
+      <SeoTextField
+        label="Tytuł SEO"
+        kind="title"
+        value="Krótki tytuł"
+        fallback={TITLE_FALLBACK}
+        maxLength={WIDE_MAX}
+        onChange={onChange}
+      />,
+    );
+    const afterChange = mutations.concat(observer.takeRecords());
+    observer.disconnect();
+    expect(afterChange.length).toBeGreaterThan(0);
+    expect(status).toBeEmptyDOMElement();
+  });
+
+  it("twardy limit wygrywa także w regionie status: pusty status, jeden alert", () => {
+    // Wpis szeroki I na twardym limicie: komunikat ma być JEDEN (błąd), więc
+    // region ostrzeżenia zostaje pusty, a pole wskazuje na alert.
+    const value = "W".repeat(TITLE_MAX);
+    expect(serpTitleMetric(value).grade).toBe("long");
+    mount({ value });
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    const alert = screen.getByRole("alert");
+    expect(field().getAttribute("aria-describedby")).toBe(alert.id);
+    expect(screen.queryByText("admin.seo.field.warnPixel")).not.toBeInTheDocument();
+  });
+
+  // STRAŻNIK REGRESJI (dawniej `it.fails`): `overPixelBudget` liczy się od
+  // wartości SKUTECZNEJ (`raw.trim() || fallback`), tej samej, którą mierzy
+  // pasek. KONSEKWENCJA, gdyby wróciło `raw.length > 0`: przy pustym polu
+  // Google i tak dostaje FALLBACK - i utnie go w wynikach - a pole milczy.
+  // Redakcja dowiedziałaby się o ucięciu tylko z samodzielnego odczytu paska px.
+  it("puste pole z fallbackiem PONAD budżetem pikselowym ostrzega", () => {
     expect(serpTitleMetric(WIDE).grade).toBe("long");
     mount({ value: null, fallback: WIDE });
-    expect(screen.getByText("admin.seo.field.warnPixel")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("admin.seo.field.warnPixel");
+    expect(field().getAttribute("aria-describedby")).toBe(screen.getByRole("status").id);
+    // Ostrzeżenie, nie błąd: puste pole nie jest nieprawidłowe.
+    expect(field()).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("kontrola dodatnia: dziś ten sam pomiar ostrzega tylko, gdy w polu stoi znak", () => {
-    // Zapis stanu faktycznego, żeby oba `it.fails` nie były jedynym śladem:
-    // przy pustym polu ostrzeżenia NIE MA, a przy samym odstępie JEST - mimo
-    // że w obu przypadkach mierzony jest dokładnie ten sam fallback.
+  it("puste pole i pole z samym odstępem ostrzegają TAK SAMO - mierzą ten sam fallback", () => {
+    // Dawniej przy `null` ostrzeżenia nie było, a przy " " było - mimo że
+    // w obu przypadkach mierzony był dokładnie ten sam fallback.
     const { unmount } = mount({ value: null, fallback: WIDE });
-    expect(screen.queryByText("admin.seo.field.warnPixel")).not.toBeInTheDocument();
+    expect(screen.getByText("admin.seo.field.warnPixel")).toBeInTheDocument();
     expect(screen.getByText("admin.seo.meter.long")).toBeInTheDocument();
     unmount();
 
     mount({ value: " ", fallback: WIDE });
     expect(screen.getByText("admin.seo.field.warnPixel")).toBeInTheDocument();
     expect(counter().textContent).toBe(`1/${TITLE_MAX}`);
+  });
+
+  it("kontrola negatywna: puste pole z fallbackiem W NORMIE nie ostrzega", () => {
+    // Poprawka nie może zamienić każdego pustego pola w ostrzeżenie - tylko
+    // to, którego fallback faktycznie wychodzi poza budżet.
+    expect(serpTitleMetric(TITLE_FALLBACK).grade).toBe("good");
+    mount({ value: null });
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(screen.queryByText("admin.seo.field.warnPixel")).not.toBeInTheDocument();
+    expect(field()).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("kontrola negatywna: własny KRÓTKI wpis wygrywa z długim fallbackiem - bez ostrzeżenia", () => {
+    // Mierzony jest wpis redakcji, nie fallback, gdy wpis istnieje.
+    mount({ value: "Krótki tytuł", fallback: WIDE, maxLength: WIDE_MAX });
+    expect(screen.queryByText("admin.seo.field.warnPixel")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("opis: puste pole z długim fallbackiem ostrzega na budżecie OPISU", () => {
+    const longDescription = "Bezpieczeństwo energetyczne Europy Środkowej ".repeat(5);
+    expect(serpDescriptionMetric(longDescription).grade).toBe("long");
+    // Ten sam tekst nie może być "long" tylko dlatego, że zmierzono go jak tytuł.
+    mount({
+      kind: "description",
+      label: "Opis SEO",
+      value: null,
+      fallback: longDescription,
+      maxLength: 320,
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("admin.seo.field.warnPixel");
+  });
+
+  it("opis: tekst 'long' jako TYTUŁ, ale w normie jako OPIS - pole opisu milczy", () => {
+    // Dopiero ten przypadek rozróżnia budżety: gdyby pole opisu mierzyło
+    // `serpTitleMetric` (600 px przy 20 px), ten tekst by ostrzegał.
+    const text = "Bezpieczeństwo energetyczne Europy Środkowej i Wschodniej po 2027 roku";
+    expect(serpTitleMetric(text).grade).toBe("long");
+    expect(serpDescriptionMetric(text).grade).not.toBe("long");
+    const { unmount } = mount({
+      kind: "description",
+      label: "Opis SEO",
+      value: null,
+      fallback: text,
+      maxLength: 320,
+    });
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    unmount();
+
+    mount({ kind: "description", label: "Opis SEO", value: text, maxLength: 320 });
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(screen.queryByText("admin.seo.field.warnPixel")).not.toBeInTheDocument();
+  });
+});
+
+// Tonacja ramki pola. Czerwień (`border-destructive`) jest zarezerwowana dla
+// BŁĘDU i dla WŁASNEGO wpisu redakcji ponad budżetem. KONSEKWENCJA czerwieni
+// przy fallbacku: fallback opisu (`metaDescription`, do 160 znaków zajawki)
+// ma zwykle ~1150 px przy limicie 960 px, więc w większości wpisów pole opisu
+// świeci na czerwono zaraz po otwarciu edytora, choć nikt go nie dotykał.
+describe("SeoTextField - tonacja ramki", () => {
+  const RED = "border-destructive/70";
+  const WIDE = "W".repeat(60);
+
+  it("puste pole z długim fallbackiem: ostrzeżenie w regionie status, BEZ czerwonej ramki", () => {
+    mount({ value: null, fallback: WIDE });
+    expect(screen.getByRole("status")).toHaveTextContent("admin.seo.field.warnPixel");
+    expect(field()).not.toHaveClass(RED);
+    cleanup();
+
+    const longDescription = "Bezpieczeństwo energetyczne Europy Środkowej ".repeat(5);
+    mount({
+      kind: "description",
+      label: "Opis SEO",
+      value: null,
+      fallback: longDescription,
+      maxLength: 320,
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("admin.seo.field.warnPixel");
+    expect(field()).not.toHaveClass(RED);
+  });
+
+  it("pole z samym odstępem traktowane jak puste - też bez czerwieni", () => {
+    mount({ value: "   ", fallback: WIDE });
+    expect(screen.getByText("admin.seo.field.warnPixel")).toBeInTheDocument();
+    expect(field()).not.toHaveClass(RED);
+  });
+
+  it("kontrola: WŁASNY wpis ponad budżetem pikselowym zostaje czerwony", () => {
+    mount({ value: WIDE, maxLength: 90 });
+    expect(field()).toHaveClass(RED);
+  });
+
+  it("kontrola: twardy limit znaków zostaje czerwony", () => {
+    mount({ value: "i".repeat(TITLE_MAX) });
+    expect(field()).toHaveClass(RED);
+    expect(field()).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("kontrola: stan neutralny nie ma czerwieni", () => {
+    mount({ value: "Krótki tytuł" });
+    expect(field()).not.toHaveClass(RED);
+  });
+});
+
+// Tytuł, który NAPRAWDĘ idzie do Google przy pustym polu, to fallback RAZEM
+// z sufiksem marki (`applyTitleSuffix(..., titleIsOverride=false)` w head()
+// i w podglądzie SERP nad polem). KONSEKWENCJA pomiaru samego fallbacku:
+// „Polska prezydencja w Radzie Unii Europejskiej" ma ~460 px („good"), ale
+// z domyślnym sufiksem ~737 px - Google i podgląd ucinają, a pole milczy.
+describe("SeoTextField - mierzony fallback (measuredFallback)", () => {
+  const FALLBACK = "Polska prezydencja w Radzie Unii Europejskiej";
+  const WITH_SUFFIX = applyTitleSuffix(FALLBACK, effectiveTitleSuffix(DEFAULT_SEO_SETTINGS), false);
+
+  it("fixture: fallback w normie, ten sam fallback z sufiksem ponad budżetem", () => {
+    expect(serpTitleMetric(FALLBACK).grade).toBe("good");
+    expect(WITH_SUFFIX).not.toBe(FALLBACK);
+    expect(serpTitleMetric(WITH_SUFFIX).grade).toBe("long");
+  });
+
+  it("puste pole mierzy measuredFallback i ostrzega; placeholder zostaje bez sufiksu", () => {
+    mount({ value: null, fallback: FALLBACK, measuredFallback: WITH_SUFFIX, maxLength: 160 });
+    expect(screen.getByRole("status")).toHaveTextContent("admin.seo.field.warnPixel");
+    const metric = serpTitleMetric(WITH_SUFFIX);
+    expect(measuredPx()).toBe(`${metric.px}px / ${metric.limitPx}px`);
+    expect(field()).toHaveAttribute("placeholder", FALLBACK);
+    // Licznik dalej liczy WEJŚCIE (puste), nie mierzony tekst.
+    expect(counter().textContent).toBe("0/160");
+  });
+
+  it("kontrola: bez measuredFallback mierzony jest sam fallback (zachowanie domyślne)", () => {
+    mount({ value: null, fallback: FALLBACK, maxLength: 160 });
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    const metric = serpTitleMetric(FALLBACK);
+    expect(measuredPx()).toBe(`${metric.px}px / ${metric.limitPx}px`);
+  });
+
+  it("kontrola: własny wpis redakcji wygrywa - sufiks nie jest doklejany do nadpisania", () => {
+    mount({ value: FALLBACK, fallback: "x", measuredFallback: WITH_SUFFIX, maxLength: 160 });
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    const metric = serpTitleMetric(FALLBACK);
+    expect(measuredPx()).toBe(`${metric.px}px / ${metric.limitPx}px`);
   });
 });
 
@@ -325,6 +577,7 @@ describe("SeoTextField - dostępność", () => {
     ["stan neutralny", { value: "Krótki tytuł" }],
     ["twardy limit (role=alert)", { value: "i".repeat(TITLE_MAX) }],
     ["ostrzeżenie pikselowe", { value: "W".repeat(60), maxLength: 90 }],
+    ["ostrzeżenie z fallbacku przy pustym polu", { value: null, fallback: "W".repeat(60) }],
   ] satisfies Array<[string, Partial<Omit<FieldProps, "onChange">>]>)(
     "brak naruszeń axe: %s",
     async (_opis, props) => {

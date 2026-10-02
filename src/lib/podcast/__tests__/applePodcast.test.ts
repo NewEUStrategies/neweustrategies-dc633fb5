@@ -110,9 +110,9 @@ describe("applePodcastGaps - każdy brak osobno", () => {
       ["blocking:category:categoryUnknown"],
     ],
     [
-      // `normalizeAppleCategory` używa `in`, więc „constructor" przechodzi tam
-      // jako znana kategoria (defekt przypięty w applePodcastCategories.test).
-      // Reguła gotowości pyta TABLICĘ nazw, więc jest na to odporna.
+      // `normalizeAppleCategory` sprawdza własne klucze mapy
+      // (`isAppleCategory`/`Object.hasOwn`), a reguła gotowości pyta TABLICĘ
+      // nazw - obie warstwy są odporne na nazwy z prototypu Object.
       "kategoria z prototypu Object nie jest kategorią Apple",
       { category: "constructor" },
       ["blocking:category:categoryUnknown"],

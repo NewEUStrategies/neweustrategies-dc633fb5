@@ -11,6 +11,12 @@
 // Nieznana wartość degraduje do domyślnej (`DEFAULT_APPLE_CATEGORY`) zamiast
 // wywracać feed - kanał bez `<itunes:category>` jest nieprzyjmowany, więc
 // zawsze lepiej wyemitować poprawną kategorię domyślną niż żadną.
+//
+// Mapa jest zwykłym literałem obiektowym, więc KAŻDY odczyt idzie przez
+// `isAppleCategory` (`Object.hasOwn`), a nie przez `in` / `MAP[klucz]`: te
+// drugie chodzą po łańcuchu prototypu i przepuściłyby "toString",
+// "constructor" czy "__proto__" jako kategorie Apple (a "constructor" z
+// podkategorią wywracał /podcast/rss.xml błędem 500).
 
 /** Kategorie Apple wraz z podkategoriami (stan taksonomii Apple 2026). */
 const APPLE_PODCAST_CATEGORIES: Readonly<Record<string, readonly string[]>> = {
@@ -110,9 +116,17 @@ export interface AppleCategory {
   readonly subcategory: string | null;
 }
 
+/**
+ * Czy wartość jest WŁASNYM kluczem taksonomii Apple (bez łańcucha prototypu).
+ * Porównanie jest dokładne - Apple nie przyjmuje "news" za "News".
+ */
+export function isAppleCategory(category: unknown): category is string {
+  return typeof category === "string" && Object.hasOwn(APPLE_PODCAST_CATEGORIES, category);
+}
+
 /** Podkategorie danej kategorii (puste, gdy Apple ich nie definiuje). */
 export function appleSubcategories(category: string): readonly string[] {
-  return APPLE_PODCAST_CATEGORIES[category] ?? [];
+  return isAppleCategory(category) ? APPLE_PODCAST_CATEGORIES[category] : [];
 }
 
 /**
@@ -125,7 +139,7 @@ export function normalizeAppleCategory(
   subcategory: string | null | undefined,
 ): AppleCategory {
   const cat = (category ?? "").trim();
-  if (!(cat in APPLE_PODCAST_CATEGORIES)) {
+  if (!isAppleCategory(cat)) {
     return { category: DEFAULT_APPLE_CATEGORY, subcategory: DEFAULT_APPLE_SUBCATEGORY };
   }
   const sub = (subcategory ?? "").trim();

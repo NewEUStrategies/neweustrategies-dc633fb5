@@ -3,7 +3,8 @@
 //
 // Zestaw minimalny wg wytycznych Scholar (inclusion guidelines):
 //   - citation_title,
-//   - citation_author (po jednym tagu na autora, "Nazwisko, Imię"),
+//   - citation_author (po jednym tagu na autora, "Nazwisko, Imię"; potem
+//     displayName; mononim verbatim jako ostatni fallback),
 //   - citation_publication_date + citation_online_date (YYYY/MM/DD),
 //   - citation_journal_title (serwis w roli wydawnictwa - konwencja przyjęta
 //     przez think-tanki: Brookings/Bruegel emitują dokładnie tak),
@@ -33,13 +34,25 @@ function scholarDate(iso: string): string | null {
   return `${d.getUTCFullYear()}/${mm}/${dd}`;
 }
 
-/** "Nazwisko, Imię" (preferowane przez Scholar); fallback: displayName. */
+/**
+ * "Nazwisko, Imię" (preferowane przez Scholar); fallback: displayName, a na
+ * końcu samo imię.
+ *
+ * Samo imię bez nazwiska (mononim albo niedokończony profil) jest OSTATNIM
+ * ramieniem: gdy profil ma displayName, ten zwykle niesie pełne imię i nazwisko
+ * ("Anna Kowalska"), a Google Scholar dopasowuje autorów po nazwisku - mononim
+ * "Anna" byłby dla niego gorszym sygnałem niż pełny displayName. Gdy displayName
+ * brak, imię trafia do tagu VERBATIM, żeby autor nie zniknął z Highwire, choć
+ * boks „Cytuj tę analizę" (`nameParts` w `src/lib/citations/format.ts`) go
+ * pokazuje. Kolejność imię/displayName różni się tu świadomie od `nameParts`.
+ */
 function authorName(author: CitationAuthor): string | null {
   const first = author.firstName?.trim() ?? "";
   const last = author.lastName?.trim() ?? "";
   if (last) return first ? `${last}, ${first}` : last;
   const display = author.displayName?.trim() ?? "";
-  return display || null;
+  if (display) return display;
+  return first || null;
 }
 
 /** Buduje listę meta citation_* w formacie head() TanStack Start. */

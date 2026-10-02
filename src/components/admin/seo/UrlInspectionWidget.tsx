@@ -200,7 +200,14 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
 
       <div className="grid gap-2 md:grid-cols-[1fr_auto]">
         <Select value={activeSite ?? undefined} onValueChange={(v) => setSiteUrl(v)}>
-          <SelectTrigger className="h-9 rounded-[6px]">
+          {/* Rola `combobox` NIE bierze nazwy z treści (wybranej wartości), więc
+              bez etykiety czytnik ogłasza samo „pole listy" - operator nie wie,
+              że przełącza właściwość Search Console, i może sprawdzić złą
+              domenę. Nazwa = CO wybieramy; wybrana wartość dochodzi z treści. */}
+          <SelectTrigger
+            className="h-9 rounded-[6px]"
+            aria-label={t("admin.seo.gsc.propertyLabel")}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

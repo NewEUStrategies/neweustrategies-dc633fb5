@@ -501,38 +501,62 @@ describe("generateAndUploadOgCard - kicker", () => {
     expect(karta.teksty[0]?.y).toBe(OG_CARD_PADDING + 40 + 72);
   });
 
-  it.fails("DEFEKT: długi kicker wyjeżdża za prawą krawędź karty", async () => {
-    // Kicker to nazwa sekcji/kategorii pochodząca z TREŚCI, więc jej długość
-    // ustala redakcja, a nie kod. Renderer rysuje go jednak BEZ pomiaru i bez
-    // skrótu - w przeciwieństwie do tytułu, który przechodzi przez `wrapText`
-    // („rather than overflowing the canvas"). KONSEKWENCJA DLA UŻYTKOWNIKA:
-    // każda karta takiej kategorii ma kicker ucięty krawędzią kadru w połowie
-    // wyrazu na wszystkich portalach społecznościowych - i nie widać tego w
-    // panelu, bo podgląd pokazuje tekst, nie kadr.
-    await generuj({
-      kicker:
-        "Analizy polityki przemysłowej i konkurencyjności gospodarki Unii Europejskiej w perspektywie 2030",
-    });
+  // STRAŻNIK REGRESJI (dawny defekt: kicker rysowany BEZ pomiaru i bez
+  // skrótu). Kicker to nazwa sekcji/kategorii pochodząca z TREŚCI, więc jej
+  // długość ustala redakcja, a nie kod. KONSEKWENCJA, której pilnuje: bez
+  // pomiaru każda karta takiej kategorii ma kicker ucięty krawędzią kadru w
+  // połowie wyrazu na wszystkich portalach społecznościowych - i nie widać tego
+  // w panelu, bo podgląd pokazuje tekst, nie kadr.
+  const DLUGI_KICKER =
+    "Analizy polityki przemysłowej i konkurencyjności gospodarki Unii Europejskiej w perspektywie 2030";
+
+  it("długi kicker mieści się w budżecie linii i kończy elipsą", async () => {
+    await generuj({ kicker: DLUGI_KICKER });
     const kicker = ostatniaKarta().teksty[0];
-    const prawaKrawedzTekstu = (kicker?.x ?? 0) + szerokoscTekstu(kicker?.text ?? "", 26);
-    expect(prawaKrawedzTekstu).toBeLessThanOrEqual(OG_CARD_WIDTH - OG_CARD_PADDING);
+    const tekst = kicker?.text ?? "";
+
+    expect(kicker?.rozmiar).toBe(26);
+    expect(kicker?.kolor).toBe(OG_CARD_COLORS.kicker);
+    expect((kicker?.x ?? 0) + szerokoscTekstu(tekst, 26)).toBeLessThanOrEqual(
+      OG_CARD_WIDTH - OG_CARD_PADDING,
+    );
+    expect(tekst.endsWith("…")).toBe(true);
+    // Skrót to PREFIKS wersalików, a nie inny tekst - i bez wiszącej spacji.
+    expect(DLUGI_KICKER.toUpperCase().startsWith(tekst.slice(0, -1))).toBe(true);
+    expect(tekst.endsWith(" …")).toBe(false);
+    // 1040 px / (26 px * 0.5) = 80 znaków razem z elipsą - wykorzystany cały
+    // budżet, a nie przycięcie „na zapas".
+    expect(Array.from(tekst)).toHaveLength(80);
   });
 
-  it("stan faktyczny: długi kicker idzie na płótno w całości, bez skrótu", async () => {
-    // ZIELONY zapis stanu faktycznego: po naprawie powyższego defektu ten test
-    // padnie razem z odblokowaniem `it.fails` - i to jest jego cel.
-    const dlugi =
-      "Analizy polityki przemysłowej i konkurencyjności gospodarki Unii Europejskiej w perspektywie 2030";
-    await generuj({ kicker: dlugi });
-    const kicker = ostatniaKarta().teksty[0];
+  it("kicker jest mierzony WERSALIKAMI na SWOIM foncie (600 26px), nie fontem tytułu", async () => {
+    await generuj({ kicker: DLUGI_KICKER });
+    const pomiaryKickera = ostatniaKarta().pomiary.filter((p) => p.text.startsWith("ANALIZY"));
 
-    expect(kicker?.text).toBe(dlugi.toUpperCase());
-    expect(kicker?.text.endsWith("…")).toBe(false);
-    // Kicker NIE jest mierzony: `measureText` widzi wyłącznie tekst tytułu.
-    expect(ostatniaKarta().pomiary.some((p) => p.text.includes("ANALIZY"))).toBe(false);
-    expect((kicker?.x ?? 0) + szerokoscTekstu(kicker?.text ?? "", 26)).toBeGreaterThan(
-      OG_CARD_WIDTH,
+    expect(pomiaryKickera.length).toBeGreaterThan(0);
+    expect(pomiaryKickera.every((p) => p.rozmiar === 26)).toBe(true);
+    // Wyszukiwanie binarne: kilka pomiarów, nie po jednym na każdy ucięty znak
+    // (tekst ma 97 znaków, budżet 80 - liniowe przycinanie dałoby ~18).
+    expect(pomiaryKickera.length).toBeLessThanOrEqual(10);
+    // Tytuł po kickerze nadal mierzony i rysowany fontem tytułu - pomiar
+    // kickera nie zostawia kontekstu na swoim foncie.
+    expect(ostatniaKarta().teksty[1]?.font).toBe(
+      '700 72px "Red Hat Display", "Segoe UI", Arial, sans-serif',
     );
+  });
+
+  it("krótki kicker zostaje BEZ zmian - skrót nie ingeruje, gdy tekst się mieści", async () => {
+    await generuj({ kicker: "Analizy polityki" });
+
+    expect(ostatniaKarta().teksty[0]?.text).toBe("ANALIZY POLITYKI");
+  });
+
+  it("kicker dokładnie na granicy budżetu (80 znaków) nie dostaje elipsy", async () => {
+    // 80 * 26 * 0.5 = 1040 px = budżet: "<=" musi przepuścić bez skrótu.
+    const naGranicy = "a".repeat(80);
+    await generuj({ kicker: naGranicy });
+
+    expect(ostatniaKarta().teksty[0]?.text).toBe("A".repeat(80));
   });
 });
 

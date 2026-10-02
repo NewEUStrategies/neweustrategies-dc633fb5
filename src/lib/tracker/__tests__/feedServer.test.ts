@@ -216,3 +216,52 @@ describe("trackerFeedResponse - protokół żądania", () => {
     expect(xml).toContain("http://nes.example/tracker");
   });
 });
+
+describe("trackerFeedResponse - nazwa serwisu z ustawień SEO", () => {
+  // Rodzina kanałów RSS (/rss.xml, /live/rss.xml, kanały taksonomii) podpisuje
+  // się redakcyjnym `site_name` z /admin/seo/homepage - tym samym polem, co
+  // `og:site_name` i `WebSite.name`. Tracker jako jedyny został przy stałej
+  // marki. Zegar zamrożony, bo copyright niesie rok.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-12T10:00:00.000Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("tytuł i copyright kanału biorą `site_name` z ustawień", async () => {
+    h.seoSettings = { rss_enabled: true, rss_item_count: 20, site_name: "Redakcja Testowa" };
+    const xml = await (await trackerFeedResponse()).text();
+    expect(xml).toContain("<title>Tracker legislacyjny UE - Redakcja Testowa</title>");
+    expect(xml).toContain("<copyright>© 2026 Redakcja Testowa</copyright>");
+    expect(xml).not.toContain("New European Strategies");
+  });
+
+  it("kanał angielski też bierze `site_name`", async () => {
+    h.request = request("/en/tracker/rss.xml");
+    h.seoSettings = { rss_enabled: true, rss_item_count: 20, site_name: "Redakcja Testowa" };
+    const xml = await (await trackerFeedResponse()).text();
+    expect(xml).toContain("<title>EU legislative tracker - Redakcja Testowa</title>");
+  });
+
+  it.each([
+    ["brak pola", { rss_enabled: true, rss_item_count: 20 }],
+    ["same spacje", { rss_enabled: true, rss_item_count: 20, site_name: "   " }],
+  ])("%s -> zapas na stałą marki", async (_label, settings) => {
+    h.seoSettings = settings;
+    const xml = await (await trackerFeedResponse()).text();
+    expect(xml).toContain("<title>Tracker legislacyjny UE - New European Strategies</title>");
+    expect(xml).toContain("<copyright>© 2026 New European Strategies</copyright>");
+  });
+
+  it("degradacja bez tenanta nie czyta ustawień i zostaje przy stałej marki", async () => {
+    h.tenantId = null;
+    h.degradeSafe = true;
+    h.seoSettings = { rss_enabled: true, site_name: "Redakcja Innego Tenanta" };
+    const xml = await (await trackerFeedResponse()).text();
+    expect(xml).toContain("<title>Tracker legislacyjny UE - New European Strategies</title>");
+    expect(xml).not.toContain("Redakcja Innego Tenanta");
+  });
+});
