@@ -23151,6 +23151,7 @@ export type Database = {
         }
         Returns: number
       }
+      _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
       _suggest_score: {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
@@ -30612,10 +30613,9 @@ export type Database = {
           last_90: number
         }[]
       }
-      profiles_generate_unique_slug: {
-        Args: { _base: string }
-        Returns: string
-      }
+      profiles_generate_unique_slug:
+        | { Args: { _base: string }; Returns: string }
+        | { Args: { _base: string; _exclude_id: string }; Returns: string }
       profiles_needing_embeddings: {
         Args: { _limit?: number; _min_completeness?: number }
         Returns: {
