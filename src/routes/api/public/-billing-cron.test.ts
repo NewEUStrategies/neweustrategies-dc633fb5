@@ -151,6 +151,7 @@ function section(payload: Record<string, unknown>, key: string): Record<string, 
 
 interface SubSeed {
   user_id: string;
+  tenant_id: string;
   price_id: string;
   status: string;
   current_period_end: string | null;
@@ -169,6 +170,8 @@ interface SeatSeed {
 function sub(overrides: Partial<SubSeed> = {}): SubSeed {
   return {
     user_id: "user-1",
+    // Najemca subskrypcji zawęża odwzorowanie ceny na plan (`resolvePlanForPrice`).
+    tenant_id: "tenant-alfa",
     price_id: "plus_monthly",
     status: "active",
     current_period_end: iso(3),

@@ -15,7 +15,18 @@ const h = vi.hoisted(() => {
     calls: { method: string; args: unknown[] }[];
   } = { maybeSingleQueue: [], writeResult: { data: null, error: null }, calls: [] };
   const chain: any = {};
-  for (const m of ["from", "update", "insert", "upsert", "select", "eq", "neq", "in"]) {
+  for (const m of [
+    "from",
+    "update",
+    "insert",
+    "upsert",
+    "select",
+    "eq",
+    "neq",
+    "in",
+    "order",
+    "limit",
+  ]) {
     chain[m] = (...args: unknown[]) => {
       state.calls.push({ method: m, args });
       return chain;
@@ -165,6 +176,27 @@ describe("grantEntitlement", () => {
     expect(findLast("eq")?.args).toEqual(["id", "sub_row_1"]);
     // Refresh path, not insert.
     expect(find("insert")).toBeFalsy();
+  });
+
+  it("odczyt istniejącego uprawnienia przeżywa DUPLIKAT external_ref (order + limit 1)", async () => {
+    // Baza nie egzekwuje unikalności `user_subscriptions.external_ref`. Gołe
+    // `maybeSingle()` na dwóch wierszach to PGRST116 -> wyjątek -> webhook
+    // ponawiany bez końca. Zawężenie do jednego wiersza robi zapytanie, nie
+    // nadzieja na czyste dane.
+    h.state.maybeSingleQueue = [
+      { data: { interval: "month" }, error: null },
+      { data: { id: "sub_row_1" }, error: null },
+    ];
+
+    await grantEntitlement(subOrder, "sub_dup");
+
+    const methods = h.state.calls.map((c) => c.method);
+    const lookupAt = h.state.calls.findIndex(
+      (c) => c.method === "eq" && c.args[0] === "external_ref",
+    );
+    expect(methods.slice(lookupAt + 1, lookupAt + 3)).toEqual(["order", "limit"]);
+    expect(h.state.calls[lookupAt + 1]?.args).toEqual(["created_at", { ascending: true }]);
+    expect(h.state.calls[lookupAt + 2]?.args).toEqual([1]);
   });
 
   it("falls back to the order id as external ref when none is provided", async () => {

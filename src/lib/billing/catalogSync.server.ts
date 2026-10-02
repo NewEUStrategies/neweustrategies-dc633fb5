@@ -170,15 +170,6 @@ async function findPriceByLookupKey(
   return res.data[0] ?? null;
 }
 
-/** Okres próbny zapisany w metadanych ceny - odczyt dla checkoutu. */
-export async function trialDaysForPrice(env: StripeEnv, priceId: string): Promise<number | null> {
-  const stripe = await getStripeClient(env);
-  const price = await findPriceByLookupKey(stripe, priceId);
-  const raw = price?.metadata?.["trial_days"];
-  const days = raw ? Number(raw) : NaN;
-  return Number.isFinite(days) && days > 0 ? days : null;
-}
-
 async function syncOne(
   stripe: Stripe,
   entry: CatalogPriceEntry,

@@ -19,6 +19,11 @@ export interface PurchaseContext {
   environment: "sandbox" | "live";
   /** Status subskrypcji u operatora; domyślnie `active`. */
   status?: ProviderSubscriptionStatus;
+  /**
+   * Najemca z wiersza `subscriptions`, gdy wołający go zna - oszczędza odczyt
+   * profilu przy odwzorowaniu ceny na plan (`PlanScope`).
+   */
+  tenantId?: string | null;
 }
 
 interface ResolvedPlan {
@@ -28,17 +33,68 @@ interface ResolvedPlan {
   currency: string | null;
 }
 
-/** Mapuje czytelny identyfikator ceny dostawcy na plan z `access_plans`. */
-export async function resolvePlanForPrice(priceId: string): Promise<ResolvedPlan | null> {
+/**
+ * Zakres najemcy dla odwzorowania ceny na plan. `tenantId` wygrywa (wiersz
+ * subskrypcji / zamówienia już go niesie); bez niego najemca idzie z profilu
+ * `userId`. Oba puste = najemca nieznany, czyli brak planu.
+ */
+export interface PlanScope {
+  tenantId?: string | null;
+  userId?: string | null;
+}
+
+async function scopeTenant(scope: PlanScope): Promise<string | null> {
+  if (scope.tenantId) return scope.tenantId;
+  if (!scope.userId) return null;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", scope.userId)
+    .maybeSingle();
+  if (error) throw new Error(`plan scope lookup failed: ${error.message}`);
+  return data?.tenant_id ?? null;
+}
+
+/**
+ * Mapuje czytelny identyfikator ceny dostawcy na plan z `access_plans`
+ * NAJEMCY, którego dotyczy zdarzenie.
+ *
+ * DLACZEGO ZAKRES JEST WYMAGANY. Katalog cen jest jeden na konto operatora
+ * (`plus_monthly` znaczy to samo w każdym obszarze roboczym), a plany są per
+ * najemca. Zapytanie po samym `tier_key` + `interval` z `.limit(1)` i bez
+ * `ORDER BY` oddawało PIERWSZY LEPSZY aktywny plan całego wdrożenia: przy
+ * dwóch najemcach z planem „Plus" uprawnienie, mail i dzwonek mogły dostać
+ * `plan_id`/`tenant_id` obcej organizacji - i to różnej przy kolejnych
+ * zdarzeniach tej samej subskrypcji (audyt wyd. 11/12: „odwzorowanie ceny
+ * operatora na plan nie jest zawężone do najemcy ani deterministyczne").
+ *
+ * KOLEJNOŚĆ JAWNA (`sort_order`, potem `created_at`, potem `id`): dwa aktywne
+ * plany tego samego progu w jednym najemcy to stan dopuszczalny (np. wariant
+ * dla innej grupy odbiorców), więc wybór musi być powtarzalny.
+ */
+export async function resolvePlanForPrice(
+  priceId: string,
+  scope: PlanScope,
+): Promise<ResolvedPlan | null> {
   const entry = catalogEntryByPriceId(priceId);
   if (!entry) return null;
+  const tenantId = await scopeTenant(scope);
+  if (!tenantId) {
+    console.warn("[payments] plan lookup without tenant scope - skipped", { priceId });
+    return null;
+  }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("access_plans")
     .select("id, tenant_id, price_cents, currency")
+    .eq("tenant_id", tenantId)
     .eq("tier_key", entry.tierKey)
     .eq("interval", entry.interval)
     .eq("active", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`plan lookup failed: ${error.message}`);
@@ -222,7 +278,10 @@ async function subscribePremiumNewsletter(params: {
 /** Nowa subskrypcja: dostęp + mail + CRM + newsletter + powiadomienie. */
 export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> {
   const entry = catalogEntryByPriceId(ctx.priceId);
-  const plan = await resolvePlanForPrice(ctx.priceId);
+  const plan = await resolvePlanForPrice(ctx.priceId, {
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+  });
   if (!plan || !entry) {
     console.warn("[payments] no local plan for price", ctx.priceId);
     return;
@@ -293,9 +352,17 @@ function proratedDifferenceCents(
 export async function applyPlanChangeEffects(
   ctx: PurchaseContext & { previousPriceId: string | null; direction: "upgrade" | "downgrade" },
 ): Promise<void> {
-  const plan = await resolvePlanForPrice(ctx.priceId);
+  const plan = await resolvePlanForPrice(ctx.priceId, {
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+  });
   if (!plan) return;
-  const previous = ctx.previousPriceId ? await resolvePlanForPrice(ctx.previousPriceId) : null;
+  const previous = ctx.previousPriceId
+    ? await resolvePlanForPrice(ctx.previousPriceId, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+      })
+    : null;
 
   await syncEntitlementState({
     userId: ctx.userId,
@@ -346,7 +413,10 @@ export async function applyPlanChangeEffects(
 
 /** Rezygnacja: dostęp do końca okresu + mail + ankieta retencyjna. */
 export async function applyCancellationEffects(ctx: PurchaseContext): Promise<void> {
-  const plan = await resolvePlanForPrice(ctx.priceId);
+  const plan = await resolvePlanForPrice(ctx.priceId, {
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+  });
   if (!plan) return;
 
   // Dostęp gaśnie z końcem opłaconego okresu - uprawnienie musi to odzwierciedlać.
@@ -386,6 +456,8 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
 /** Stan subskrypcji zgłoszony przez operatora w zdarzeniu `subscription.updated`. */
 export interface StatusTransitionContext {
   userId: string;
+  /** Najemca z wiersza `subscriptions` - patrz `PurchaseContext.tenantId`. */
+  tenantId?: string | null;
   priceId: string;
   subscriptionId: string;
   periodEnd: string | null;
@@ -401,7 +473,10 @@ export interface StatusTransitionContext {
 export async function applyStatusTransitionEffects(ctx: StatusTransitionContext): Promise<void> {
   if (ctx.previousStatus === ctx.status) return;
   const entry = catalogEntryByPriceId(ctx.priceId);
-  const plan = await resolvePlanForPrice(ctx.priceId);
+  const plan = await resolvePlanForPrice(ctx.priceId, {
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+  });
   if (!entry || !plan) return;
 
   if (ctx.status === "paused") {

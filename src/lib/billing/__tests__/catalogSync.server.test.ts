@@ -77,7 +77,6 @@ import { BILLING_CATALOG } from "@/lib/billing/catalog";
 import {
   healCatalogOnce,
   syncBillingCatalog,
-  trialDaysForPrice,
   type CatalogSyncReport,
 } from "@/lib/billing/catalogSync.server";
 
@@ -529,32 +528,24 @@ describe("syncBillingCatalog - błędy operatora i konfiguracji", () => {
   });
 });
 
-describe("trialDaysForPrice", () => {
-  it("czyta okres próbny z metadanych ceny u operatora", async () => {
+describe("odczyt ceny u operatora", () => {
+  it("sync pyta o cenę po `lookup_key` z rozwiniętymi progami", async () => {
+    // Ten kontrakt pilnował wcześniej test `trialDaysForPrice` - pomocnika
+    // usuniętego jako martwy (audyt wyd. 12: nikt go nie wołał, a checkout
+    // bierze trial z `access_plans.trial_days`). Zapytanie zostało, bo idzie
+    // przez nie sync: `data.tiers` rozwijamy zawsze, bo bez tego cena
+    // schodkowa (próg wolumenowy Zespołu) wyglądałaby jak cena bez progów
+    // i sync odtwarzałby ją w kółko.
     h.remotePrices["plus_monthly"] = remotePlusMonthly({ metadata: { trial_days: "14" } });
 
-    expect(await trialDaysForPrice("sandbox", "plus_monthly")).toBe(14);
-    // `data.tiers` rozwijamy zawsze: bez tego cena schodkowa (próg wolumenowy
-    // Zespołu) wyglądałaby jak cena bez progów i sync odtwarzałby ją w kółko.
+    await syncBillingCatalog("sandbox");
+
     expect(h.priceList).toHaveBeenCalledWith({
       lookup_keys: ["plus_monthly"],
       active: true,
       limit: 1,
       expand: ["data.tiers"],
     });
-  });
-
-  it("brak ceny, brak metadanych lub wartość niedodatnia = brak triala", async () => {
-    expect(await trialDaysForPrice("sandbox", "nieznana_cena")).toBeNull();
-
-    h.remotePrices["plus_monthly"] = remotePlusMonthly();
-    expect(await trialDaysForPrice("sandbox", "plus_monthly")).toBeNull();
-
-    h.remotePrices["plus_monthly"] = remotePlusMonthly({ metadata: { trial_days: "0" } });
-    expect(await trialDaysForPrice("sandbox", "plus_monthly")).toBeNull();
-
-    h.remotePrices["plus_monthly"] = remotePlusMonthly({ metadata: { trial_days: "bzdura" } });
-    expect(await trialDaysForPrice("sandbox", "plus_monthly")).toBeNull();
   });
 });
 

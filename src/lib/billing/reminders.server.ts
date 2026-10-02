@@ -31,6 +31,7 @@ export interface ReminderRunResult {
 
 interface SubRow {
   user_id: string;
+  tenant_id: string;
   price_id: string;
   status: string;
   current_period_end: string | null;
@@ -55,7 +56,7 @@ async function loadDueSubscriptions(from: string, to: string, limit: number): Pr
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
     .select(
-      "user_id, price_id, status, current_period_end, cancel_at_period_end, provider_subscription_id",
+      "user_id, tenant_id, price_id, status, current_period_end, cancel_at_period_end, provider_subscription_id",
     )
     .in("status", ["active", "trialing", "past_due", "canceled"])
     .gte("current_period_end", from)
@@ -89,7 +90,10 @@ export async function runBillingReminders(
     }
     const ending = row.status === "canceled" || row.cancel_at_period_end === true;
     try {
-      const plan = await resolvePlanForPrice(row.price_id);
+      const plan = await resolvePlanForPrice(row.price_id, {
+        tenantId: row.tenant_id,
+        userId: row.user_id,
+      });
       // Liczymy WIADOMOŚCI, KTÓRE POSZŁY, a nie wywołania wysyłki. Wcześniej
       // licznik rósł zaraz po wywołaniu fail-soft `notifyReminderEmail`, więc
       // przy padniętej poczcie przebieg raportował dziesiątki przypomnień,

@@ -251,7 +251,11 @@ function subEvent(
   };
 }
 
-/** Domyślne odczyty: istniejąca subskrypcja, plan, profil, lead w CRM. */
+/**
+ * Domyślne odczyty: istniejąca subskrypcja, plan, profil, lead w CRM.
+ * Wiersz subskrypcji niesie `tenant_id` - z niego obsługa zawęża
+ * odwzorowanie ceny na plan do najemcy (`resolvePlanForPrice`).
+ */
 function seed(
   existing: Record<string, unknown> | null,
   extra?: Partial<Record<string, QueryResult[]>>,
@@ -302,7 +306,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("pauza: wstrzymuje uprawnienie, oznacza CRM i powiadamia użytkownika", async () => {
-    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
     h.event.value = subEvent("customer.subscription.updated", {
       status: "paused",
       startsAt: "2026-07-01T00:00:00Z",
@@ -335,7 +339,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
 
   it("wznowienie po pauzie: przywraca dostęp, czyści znacznik CRM i powiadamia", async () => {
     seed(
-      { user_id: "u1", price_id: "pro_monthly", status: "paused" },
+      { user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "paused" },
       {
         crm_leads: [
           { data: { id: "lead_1", tags: ["customer", "subscription:paused"] }, error: null },
@@ -375,7 +379,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
     ];
     for (const [stripeType, status] of cases) {
       h.state.ops = [];
-      seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+      seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
       h.event.value = subEvent(stripeType, {
         status,
         startsAt: "2026-07-01T00:00:00Z",
@@ -422,7 +426,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("past_due: nie odbiera dostępu, ale zapisuje stan w panelu", async () => {
-    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
     h.event.value = subEvent("customer.subscription.updated", {
       status: "past_due",
       startsAt: "2026-07-01T00:00:00Z",
@@ -436,7 +440,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("nowy okres rozliczeniowy: przenosi datę końca do uprawnienia", async () => {
-    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
     h.event.value = subEvent("customer.subscription.updated", {
       status: "active",
       startsAt: "2026-08-01T00:00:00Z",
@@ -457,7 +461,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("zdarzenie stanu bez pozycji cennika korzysta z ceny zapisanej przy subskrypcji", async () => {
-    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
     h.event.value = subEvent("customer.subscription.updated", {
       eventId: "evt_no_items",
       status: "paused",
@@ -475,6 +479,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   it("rezygnacja: dostęp do końca okresu, CRM na 'archived', mail i ankieta", async () => {
     seed({
       user_id: "u1",
+      tenant_id: "ten_1",
       price_id: "pro_monthly",
       current_period_end: "2099-01-01T00:00:00Z",
       status: "active",
@@ -505,6 +510,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   it("rezygnacja po zakończonym okresie odbiera uprawnienie", async () => {
     seed({
       user_id: "u1",
+      tenant_id: "ten_1",
       price_id: "pro_monthly",
       current_period_end: "2020-01-01T00:00:00Z",
       status: "active",
@@ -517,7 +523,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("duplikat zdarzenia nie dotyka żadnej warstwy", async () => {
-    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
     h.state.write = { data: null, error: { code: "23505", message: "duplicate" } };
     h.event.value = subEvent("customer.subscription.updated", { status: "paused" });
 
@@ -528,7 +534,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
   });
 
   it("każde obsłużone zdarzenie ląduje w rejestrze webhooków (/admin/billing)", async () => {
-    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
     h.event.value = subEvent("customer.subscription.updated", { status: "active" });
 
     await handle(req());
@@ -548,7 +554,7 @@ describe("webhook operatora płatności - synchronizacja end-to-end", () => {
     // proces dożyje mikrozadania. Ten przypadek pilnuje OBU zdań naraz -
     // że praca została zarejestrowana jako „po odpowiedzi" ORAZ że doszła do
     // końca z właściwym środowiskiem.
-    seed({ user_id: "u1", price_id: "pro_monthly", status: "active" });
+    seed({ user_id: "u1", tenant_id: "ten_1", price_id: "pro_monthly", status: "active" });
     h.event.value = subEvent("customer.subscription.updated", {
       status: "active",
       startsAt: "2026-07-01T00:00:00Z",

@@ -188,7 +188,15 @@ function seed(options: SeedOptions = {}): void {
     ok(
       profileEmail === null
         ? null
-        : { email: profileEmail, first_name: "Jan", display_name: null, prefs: {} },
+        : // `tenant_id` zawęża odwzorowanie ceny na plan do najemcy konta
+          // (`resolvePlanForPrice` - audyt wyd. 11/12).
+          {
+            email: profileEmail,
+            first_name: "Jan",
+            display_name: null,
+            prefs: {},
+            tenant_id: "tenant-alfa",
+          },
     ),
   );
   stub.setResponse("newsletter_subscribers", ok({ language: "pl" }));

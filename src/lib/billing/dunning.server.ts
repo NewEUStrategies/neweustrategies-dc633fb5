@@ -114,7 +114,10 @@ export async function applyPaymentFailedEffects(ctx: DunningContext): Promise<vo
     .eq("provider_subscription_id", ctx.subscriptionId)
     .eq("environment", ctx.environment);
 
-  const plan = await resolvePlanForPrice(sub.price_id);
+  const plan = await resolvePlanForPrice(sub.price_id, {
+    tenantId: sub.tenant_id,
+    userId: sub.user_id,
+  });
 
   await notifyPaymentEmail({
     kind: "payment_failed",
@@ -163,7 +166,10 @@ export async function applyPaymentRecoveredEffects(ctx: DunningContext): Promise
   // Potwierdzenie wysyłamy tylko wtedy, gdy realnie odzyskaliśmy płatność.
   if ((sub.payment_failure_count ?? 0) === 0) return;
 
-  const plan = await resolvePlanForPrice(sub.price_id);
+  const plan = await resolvePlanForPrice(sub.price_id, {
+    tenantId: sub.tenant_id,
+    userId: sub.user_id,
+  });
 
   await notifyPaymentEmail({
     kind: "payment_recovered",

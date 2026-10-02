@@ -119,6 +119,37 @@ export async function assertAdmin(
 }
 
 /**
+ * Bramka narzędzi, które ODTWARZAJĄ zdarzenia operatora albo czytają dziennik
+ * webhooków: rola `super_admin` w obszarze wołającego, potem najemca z jego
+ * profilu (skonfrontowany z hostem żądania) - kolejność jak w `assertAdmin`.
+ *
+ * Poprzeczka odtwarza politykę RLS dziennika - „payment_webhook_events admin
+ * read" to `USING (tenant_id = current_tenant_id() AND is_super_admin())` -
+ * bo ścieżki serwerowe czytają go spod `service_role`, z pominięciem RLS.
+ * JEDNA bramka dla ponowienia z dziennika (`webhookRetry.functions`) i dla
+ * uzgadniania (`reconcile.functions`): wcześniej uzgadnianie, które czyta ten
+ * sam dziennik i odtwarza zdarzenie tą samą ścieżką, stało o szczebel niżej
+ * (`admin`) - audyt wyd. 12, 16.8.
+ *
+ * Fail-closed: `null` z RPC (brak wiersza roli, brak grantu na funkcję) ani
+ * żadna wartość prawdziwa-ale-nie-`true` nie przechodzi jako zgoda. Nie ma
+ * gałęzi „super admin widzi wszystko": `is_super_admin()` w bazie samo jest
+ * zawężone do `current_tenant_id()`.
+ */
+export async function assertSuperAdmin(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<{ tenantId: string }> {
+  const { data, error } = await supabase.rpc("has_role", {
+    _user_id: userId,
+    _role: "super_admin",
+  });
+  if (error || data !== true) throw new Error("forbidden");
+  const { assertCallerTenantMatchesHost } = await import("@/lib/server/callerTenant.server");
+  return { tenantId: await assertCallerTenantMatchesHost(supabase, userId) };
+}
+
+/**
  * Alias zgodnościowy dla wołających, którzy jawnie proszą o najemcę.
  * Po ujednoliceniu `assertAdmin` sam go oddaje, więc obie nazwy znaczą JEDNO
  * i to samo - osobna implementacja byłaby drugim źródłem prawdy, czyli

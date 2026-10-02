@@ -36,27 +36,16 @@ const retrySchema = z.object({
 
 /**
  * Bramka obu funkcji: rola `super_admin` w obszarze wołającego, a potem najemca
- * z jego profilu (skonfrontowany z hostem żądania).
- *
- * Kolejność jest wiążąca - rola PRZED dotknięciem czegokolwiek - i nie ma tu
- * gałęzi wyjątku: `is_super_admin()` w bazie samo jest zawężone do
- * `current_tenant_id()`, więc „super admin widzi wszystko" byłoby cofnięciem
- * całej poprawki, a nie udogodnieniem.
+ * z jego profilu (skonfrontowany z hostem żądania). Implementacja jest wspólna
+ * z uzgadnianiem (`assertSuperAdmin` w `diagnostics.server`), bo oba narzędzia
+ * czytają ten sam dziennik i odtwarzają zdarzenia tą samą ścieżką.
  */
 async function assertSuperAdminTenant(
   supabase: SupabaseClient<Database>,
   userId: string,
 ): Promise<string> {
-  const { data, error } = await supabase.rpc("has_role", {
-    _user_id: userId,
-    _role: "super_admin",
-  });
-  // Fail-closed: `null` z RPC (brak wiersza roli, brak grantu na funkcję) ani
-  // żadna wartość prawdziwa-ale-nie-`true` nie może przejść jako zgoda.
-  if (error || data !== true) throw new Error("forbidden");
-
-  const { assertCallerTenantMatchesHost } = await import("@/lib/server/callerTenant.server");
-  return assertCallerTenantMatchesHost(supabase, userId);
+  const { assertSuperAdmin } = await import("@/lib/billing/diagnostics.server");
+  return (await assertSuperAdmin(supabase, userId)).tenantId;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
