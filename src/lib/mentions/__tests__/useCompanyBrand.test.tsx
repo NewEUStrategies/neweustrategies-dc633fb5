@@ -18,8 +18,8 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: rpcMock } })
 
 import { useCompanyBrand } from "@/lib/mentions/useCompanyBrand";
 
-function wrapper() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function wrapper(retry: number | false = false) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry, retryDelay: 0 } } });
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
@@ -98,7 +98,9 @@ describe("useCompanyBrand", () => {
   it("błąd RPC jest błędem zapytania - bez ponawiania", async () => {
     rpcMock.mockResolvedValue({ data: null, error: new Error("boom") });
 
-    const { result } = renderHook(() => useCompanyBrand("ACME", true), { wrapper: wrapper() });
+    // Klient z WŁĄCZONYM ponawianiem (jak w aplikacji: `retry: 1` w routerze) -
+    // jedno wywołanie może wynikać wyłącznie z `retry: false` samego haka.
+    const { result } = renderHook(() => useCompanyBrand("ACME", true), { wrapper: wrapper(3) });
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(rpcMock).toHaveBeenCalledTimes(1);

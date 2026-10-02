@@ -197,6 +197,40 @@ describe("ComposerShell - skróty w polu treści", () => {
     expect(body().value).toBe("tekst");
   });
 
+  it("w trakcie kompozycji IME skrót NIE rusza treści", () => {
+    // Regresja, którą to łapie: Ctrl+I w japońskim IME Microsoftu (konwersja na
+    // katakanę) wstawiał „__" i przepisywał wartość w środku kompozycji.
+    render(<Harness />);
+    selectAll(body());
+
+    const composing = new KeyboardEvent("keydown", {
+      key: "i",
+      code: "KeyI",
+      ctrlKey: true,
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    const notCancelled = body().dispatchEvent(composing);
+    fireEvent.keyDown(body(), { key: "Process", code: "KeyI", ctrlKey: true, keyCode: 229 });
+
+    expect(notCancelled).toBe(true);
+    expect(body().value).toBe("tekst");
+  });
+
+  it("na Macu sam Ctrl zostaje edycją systemową, a Cmd formatuje", () => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    render(<Harness />);
+    selectAll(body());
+
+    // Ctrl+E to w polu tekstowym macOS „koniec linii" - nie wolno go przejąć.
+    expect(fireEvent.keyDown(body(), { key: "e", code: "KeyE", ctrlKey: true })).toBe(true);
+    expect(body().value).toBe("tekst");
+
+    fireEvent.keyDown(body(), { key: "e", code: "KeyE", metaKey: true });
+    expect(body().value).toBe("`tekst`");
+  });
+
   it("formatowanie, które przebiłoby limit, nie wchodzi wcale", () => {
     render(<Harness initial="abc" maxLength={5} />);
     selectAll(body());

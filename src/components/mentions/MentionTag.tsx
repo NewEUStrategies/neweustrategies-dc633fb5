@@ -23,9 +23,14 @@
 //
 // TRASA OSOBY ZALEŻY OD POWIERZCHNI. Kluby są przestrzenią członkowską, więc
 // prowadzą na `/people/<slug>`. Komentarze pod artykułami czyta anonim - dla
-// niego `/people` to bramka logowania z `noindex`. Tam wzmianka idzie na
-// `/author/<slug>`: autor dostaje publiczny hub, a członek bez roli autora -
-// trwałe 301 na `/people` (rozstrzyga trasa, tymi samymi regułami widoczności).
+// niego `/people` to bramka logowania z `noindex`. Tam wzmianka ROZWIĄZANA
+// przez katalog idzie na `/author/<slug>`: katalog czyta `profiles_public`,
+// czyli to samo źródło, z którego `/author` składa hub i liczy werdykt 301,
+// więc czytelnik dostaje publiczny hub autora albo 301 na `/people` dla
+// członka bez roli autora. Osoba, której katalog NIE rozwiązał, zostaje na
+// `/people`: dla gościa `/author` byłoby wtedy gwarantowanym 404 (trasa
+// świadomie nie zdradza ukrytych profili), a `/people` daje bramkę logowania,
+// po której członek widzi kartę.
 import { useState, type ComponentPropsWithRef, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { BadgeCheck, Building2, UserRound } from "lucide-react";
@@ -324,10 +329,13 @@ export function MentionTag({
   testId?: string;
   /** Firma w linii tekstu. Dymek pokazuje ją zawsze, gdy jest w profilu. */
   showCompany?: boolean;
-  /** Dokąd prowadzi osoba - patrz nagłówek pliku. */
+  /** Dokąd prowadzi osoba ROZWIĄZANA przez katalog - patrz nagłówek pliku. */
   profileRoute?: MentionProfileRoute;
 }) {
   const person = entity !== null && entity.kind === "person" ? entity : null;
+  // Trasa publiczna tylko dla osoby rozwiązanej - patrz nagłówek pliku.
+  const personRoute: MentionProfileRoute =
+    profileRoute === "author" && person !== null ? "author" : "people";
   // Slug firmy: z katalogu, a bez niego - rozpoznany po prefiksie `org-<uuid>`.
   const orgId = entity === null ? decodeOrganizationMentionSlug(slug) : null;
   const orgSlug = entity?.kind === "org" ? entity.slug : orgId !== null ? `org-${orgId}` : null;
@@ -365,7 +373,7 @@ export function MentionTag({
       lang={lang}
       labels={labels}
       testId={testId}
-      profileRoute={profileRoute}
+      profileRoute={personRoute}
     >
       {orgSlug !== null ? (
         <Link
@@ -377,7 +385,7 @@ export function MentionTag({
           {chip}
         </Link>
       ) : (
-        <PersonLink route={profileRoute} slug={slug} data-mention={slug} className={linkClass}>
+        <PersonLink route={personRoute} slug={slug} data-mention={slug} className={linkClass}>
           {chip}
         </PersonLink>
       )}

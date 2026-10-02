@@ -20,8 +20,8 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: rpcMock } })
 
 import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
 
-function wrapper() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function wrapper(retry: number | false = false) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry, retryDelay: 0 } } });
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
@@ -165,8 +165,10 @@ describe("useMentionProfile", () => {
   it("błąd RPC jest błędem zapytania - bez ponawiania", async () => {
     rpcMock.mockResolvedValue({ data: null, error: new Error("boom") });
 
+    // Klient z WŁĄCZONYM ponawianiem (jak w aplikacji: `retry: 1` w routerze) -
+    // jedno wywołanie może wynikać wyłącznie z `retry: false` samego haka.
     const { result } = renderHook(() => useMentionProfile("anna-nowak", "pl", true), {
-      wrapper: wrapper(),
+      wrapper: wrapper(3),
     });
 
     await waitFor(() => expect(result.current.isError).toBe(true));

@@ -226,10 +226,15 @@ export function ComposerShell({
   );
 
   // Skróty klawiszowe działają dokładnie tak samo jak kliknięcie w pasek -
-  // ale wyłącznie w polu treści tej powłoki, nie w polach obok (temat, imię).
+  // ale wyłącznie w polu treści tej powłoki, nie w polach obok (temat, imię),
+  // i nigdy w trakcie kompozycji IME (klawisz należy wtedy do edytora
+  // metody wprowadzania, a zmiana wartości pola przerwałaby kompozycję).
+  // Platformę czytamy tu wprost, a nie z `apple`: obsługa zdarzeń biegnie
+  // wyłącznie w przeglądarce, także przed końcem hydratacji.
   const handleShortcut = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.defaultPrevented || e.target !== textareaRef.current) return;
-    const id = matchMarkdownShortcut(e);
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    const id = matchMarkdownShortcut(e, { apple: isAppleShortcutPlatform() });
     const item = id === null ? undefined : TOOLBAR_BY_ID.get(id);
     if (item === undefined) return;
     e.preventDefault();

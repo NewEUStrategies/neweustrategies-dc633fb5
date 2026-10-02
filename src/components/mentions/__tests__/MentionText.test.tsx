@@ -7,13 +7,13 @@
 //     Regresja jest cicha - powrót do `raw` wygląda w przeglądarce „normalnie".
 // (2) PRZED NAZWĄ STOI AWATAR. Element z `data-mention-avatar` jest PIERWSZYM
 //     dzieckiem wyzwalacza; bez niego wzmianka zlewa się z resztą zdania.
-// (3) CEL I KLUCZ ZOSTAJĄ TECHNICZNE. Link prowadzi do `/author/<slug>`, a slug
-//     w `data-mention` jest małymi literami - spójnie z `process_mentions`,
-//     które po tej samej postaci rozsyła powiadomienia. `/author`, NIE
-//     `/people`: komentarze pod artykułem czyta anonim, a `/people` to dla
-//     niego bramka logowania z `noindex`. Trasa `/author` sama oddaje 301 na
-//     `/people`, gdy osoba nie ma roli autora (audyt, wydanie 12: defekt
-//     `MentionTag.tsx:311`).
+// (3) CEL I KLUCZ ZOSTAJĄ TECHNICZNE. Slug w `data-mention` jest małymi
+//     literami - spójnie z `process_mentions`, które po tej samej postaci
+//     rozsyła powiadomienia. Osoba ROZWIĄZANA przez katalog prowadzi do
+//     `/author/<slug>`, NIE do `/people`: komentarze pod artykułem czyta
+//     anonim, a `/people` to dla niego bramka logowania z `noindex` (audyt,
+//     wydanie 12: defekt `MentionTag.tsx:311`). Osoba NIEROZWIĄZANA zostaje
+//     na `/people` - dla gościa `/author` byłoby gwarantowanym 404.
 // (4) TREŚĆ POZOSTAJE TEKSTEM. Budujemy węzły React, więc wrogi wpis nie
 //     wstrzykuje znaczników, a adres e-mail nie staje się wzmianką.
 // (5) DYMEK NALEŻY DO TEJ POWIERZCHNI: `data-testid="comment-mention-preview"`
@@ -66,6 +66,17 @@ vi.mock("@/lib/mentions/useMentionProfile", () => ({
 }));
 
 import { MentionText } from "@/components/mentions/MentionText";
+
+const ALICE: MentionEntity = {
+  kind: "person",
+  slug: "alice",
+  name: "Alice Kowalska",
+  avatarUrl: null,
+  jobTitle: null,
+  company: null,
+  bio: null,
+  verified: false,
+};
 
 beforeEach(() => {
   state.lang = "pl";
@@ -137,7 +148,8 @@ describe("MentionText - wzmianka bez nicku", () => {
     expect(mentionFor("anna-nowak").textContent).toBe("Anna Nowak");
   });
 
-  it("niesie kanoniczny slug i prowadzi do PUBLICZNEGO profilu autora", () => {
+  it("niesie kanoniczny slug; osoba z katalogu prowadzi do PUBLICZNEGO profilu", () => {
+    state.entity = ALICE;
     render(<MentionText body="thanks @Alice for this" />);
     const link = mentionFor("alice");
 
@@ -146,6 +158,15 @@ describe("MentionText - wzmianka bez nicku", () => {
     // Regresja, którą to łapie: anonim klikający wzmiankę w publicznym
     // komentarzu lądował na bramce logowania `/people` zamiast na hubie autora.
     expect(link).toHaveAttribute("href", "/author/alice");
+  });
+
+  it("osoba, której katalog NIE rozwiązał, zostaje na `/people` (bramka, nie 404)", () => {
+    // Regresja, którą to łapie: wszystkie osoby na `/author`. Katalog czyta
+    // `profiles_public` - to samo źródło, z którego `/author` składa hub i liczy
+    // 301 - więc osoba nierozwiązana dla gościa to na `/author` pewne 404.
+    render(<MentionText body="thanks @alice" />);
+
+    expect(mentionFor("alice")).toHaveAttribute("href", "/people/alice");
   });
 
   it("przed nazwą stoi awatar (pierwsze dziecko wyzwalacza)", () => {
@@ -217,11 +238,11 @@ describe("MentionText - dymek powierzchni komentarzy", () => {
     const card = await openCard(mentionFor("alice"));
 
     expect(within(card).getByText("Alice Kowalska")).toBeInTheDocument();
-    // Stopka dymka idzie tą samą trasą co wyzwalacz - inaczej dymek
-    // przywracałby bramkę logowania, którą wyzwalacz właśnie ominął.
+    // Stopka dymka idzie tą samą trasą co wyzwalacz: nierozwiązana osoba
+    // zostaje na `/people` także w dymku.
     expect(within(card).getByRole("link", { name: "mentions.viewProfile" })).toHaveAttribute(
       "href",
-      "/author/alice",
+      "/people/alice",
     );
   });
 

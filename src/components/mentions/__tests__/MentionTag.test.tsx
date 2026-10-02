@@ -20,8 +20,9 @@
 //     firmą: ikona, etykieta „Firma" i karta organizacji z leniwego podglądu -
 //     wcześniej schodziła na gałąź osoby z UUID w etykiecie.
 // (4a) TRASA OSOBY NALEŻY DO POWIERZCHNI. Domyślnie `/people` (kluby), a przy
-//     `profileRoute="author"` (publiczne komentarze) - `/author`, i to RAZEM ze
-//     stopką dymka, także dymka dociąganego leniwie.
+//     `profileRoute="author"` (publiczne komentarze) osoba ROZWIĄZANA idzie na
+//     `/author` razem ze stopką dymka. Nierozwiązana zostaje na `/people` -
+//     w wyzwalaczu i w dymku dociąganym leniwie - bo `/author` dałoby gościowi 404.
 // (5) WERYFIKACJA JEST OGŁOSZONA CZYTNIKOWI, nie tylko kolorem ikony.
 // (6) PUSTE POLA NIE ZOSTAWIAJĄ PUSTYCH AKAPITÓW - brak biogramu i brak linii
 //     tożsamości mają ZNIKAĆ, a nie renderować się jako pusty `line-clamp`.
@@ -649,10 +650,11 @@ describe("MentionTag - trasa profilu osoby", () => {
     );
   });
 
-  it("stopka dymka dociąganego leniwie też idzie trasą powierzchni", async () => {
-    // Regresja, którą to łapie: trasa przekazana wyzwalaczowi, ale nie karcie
-    // z leniwego podglądu - anonim omija bramkę w treści i trafia na nią
-    // z dymka.
+  it("NIEROZWIĄZANA osoba zostaje na `/people` - w wyzwalaczu i w dymku", async () => {
+    // Regresja, którą to łapie: `/author` dla wzmianki, której katalog nie
+    // rozwiązał. Katalog czyta `profiles_public`, z którego `/author` składa hub
+    // i liczy 301, więc taka osoba to dla gościa pewne 404 zamiast bramki
+    // logowania. Dymek dociągnięty leniwie nie może tego cofnąć.
     state.profile = { data: preview({ jobTitle: "Analityczka" }), isPending: false };
     render(
       <MentionTag
@@ -663,12 +665,13 @@ describe("MentionTag - trasa profilu osoby", () => {
         profileRoute="author"
       />,
     );
+    expect(tagFor("anna-nowak")).toHaveAttribute("href", "/people/anna-nowak");
     const card = await openCard(tagFor("anna-nowak"));
 
     expect(within(card).getByText("Analityczka")).toBeInTheDocument();
     expect(within(card).getByRole("link", { name: LABELS.viewProfile })).toHaveAttribute(
       "href",
-      "/author/anna-nowak",
+      "/people/anna-nowak",
     );
   });
 

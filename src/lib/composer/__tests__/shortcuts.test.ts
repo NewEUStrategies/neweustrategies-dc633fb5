@@ -8,6 +8,10 @@
 //     ale łacińska litera na innym klawiszu (Dvorak: `key: "x"` na `KeyB`)
 //     zostaje swoją literą - Ctrl+X ma dalej wycinać.
 // (3) BEZ `code` (zdarzenia syntetyczne) działa dopasowanie po `key`.
+// (4) NAZWA KLAWISZA TO NIE ZNAK. „Process" (IME), „Dead", „Unidentified"
+//     nie idą po `code` - inaczej Ctrl+I w japońskim IME formatowałby tekst
+//     w środku kompozycji.
+// (5) NA APPLE SKRÓTEM JEST TYLKO CMD - Ctrl+E/K/B to tam systemowa edycja.
 //
 // Przypadki po samym `key` (Ctrl/Cmd, Alt, Cmd+Ctrl, podpowiedzi) ma
 // `src/components/forms/__tests__/MessageComposerShortcuts.test.tsx`.
@@ -49,6 +53,36 @@ describe("matchMarkdownShortcut - zdarzenia z przeglądarki", () => {
     expect(matchMarkdownShortcut(ev({ key: "л", code: "KeyK" }))).toBe("link");
   });
 
+  it("cyrylica z Shiftem: litera innego pisma na fizycznej kropce to cytat", () => {
+    // Układ rosyjski: fizyczna kropka to „ю", z Shiftem „Ю".
+    expect(matchMarkdownShortcut(ev({ key: "Ю", code: "Period", shiftKey: true }))).toBe("quote");
+  });
+
+  it.each(["Process", "Dead", "Unidentified"])(
+    "`key` %s (nazwa, nie znak) nie dopasowuje się po fizycznym klawiszu",
+    (key) => {
+      // Regresja, którą to łapie: Ctrl+I w IME Microsoftu (konwersja na
+      // katakanę) przychodzi jako `key: "Process"`, `code: "KeyI"`.
+      expect(matchMarkdownShortcut(ev({ key, code: "KeyI" }))).toBeNull();
+      expect(matchMarkdownShortcut(ev({ key, code: "Digit8", shiftKey: true }))).toBeNull();
+    },
+  );
+
+  it("Dvorak z Shiftem: Ctrl+Shift+V (wklej bez formatowania) nie jest cytatem", () => {
+    // Fizyczna kropka to na Dvoraku „v". Łacińska litera nigdy nie idzie po `code`.
+    expect(matchMarkdownShortcut(ev({ key: "V", code: "Period", shiftKey: true }))).toBeNull();
+    expect(
+      matchMarkdownShortcut(
+        ev({ key: "V", code: "Period", shiftKey: true, ctrlKey: false, metaKey: true }),
+      ),
+    ).toBeNull();
+  });
+
+  it("Dvorak bez Shiftu: kropka na fizycznym E nie jest kodem", () => {
+    // Bez Shiftu wiązania są literami - zastępuje je wyłącznie litera innego pisma.
+    expect(matchMarkdownShortcut(ev({ key: ".", code: "KeyE" }))).toBeNull();
+  });
+
   it("Dvorak: łacińska litera na fizycznym B zostaje swoją literą", () => {
     // Fizyczne `KeyB` to na Dvoraku „x" - Ctrl+X ma wyciąć, nie pogrubić.
     expect(matchMarkdownShortcut(ev({ key: "x", code: "KeyB" }))).toBeNull();
@@ -59,6 +93,23 @@ describe("matchMarkdownShortcut - zdarzenia z przeglądarki", () => {
   it("zdarzenie bez `code` dopasowuje się po samym znaku", () => {
     expect(matchMarkdownShortcut(ev({ key: "e" }))).toBe("code");
     expect(matchMarkdownShortcut(ev({ key: "*", shiftKey: true }))).toBeNull();
+  });
+});
+
+describe("matchMarkdownShortcut - platforma Apple", () => {
+  it("Cmd formatuje", () => {
+    expect(
+      matchMarkdownShortcut(ev({ key: "b", ctrlKey: false, metaKey: true }), { apple: true }),
+    ).toBe("bold");
+  });
+
+  it.each(["e", "k", "b"])("sam Ctrl+%s zostaje systemową edycją macOS", (key) => {
+    // Regresja, którą to łapie: Ctrl+E (koniec linii) wstawiał „``" w komentarzu.
+    expect(matchMarkdownShortcut(ev({ key }), { apple: true })).toBeNull();
+  });
+
+  it("poza Apple Ctrl formatuje jak dotąd", () => {
+    expect(matchMarkdownShortcut(ev({ key: "e" }), { apple: false })).toBe("code");
   });
 });
 

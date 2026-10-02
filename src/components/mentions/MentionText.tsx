@@ -38,7 +38,9 @@ function CommentMention({ slug, className }: { slug: string; className?: string 
       className={className}
       testId="comment-mention-preview"
       // Komentarze pod artykułem czyta anonim: `/people` to dla niego bramka
-      // logowania z `noindex`, `/author` - publiczny hub albo 301 na `/people`.
+      // logowania z `noindex`. Osoba z katalogu idzie więc na `/author`
+      // (publiczny hub albo 301 na `/people`); nierozwiązana zostaje na
+      // `/people`, bo `/author` dałoby gościowi 404 - patrz `MentionTag`.
       profileRoute="author"
       labels={{
         noProfile: t("mentions.noProfile"),
