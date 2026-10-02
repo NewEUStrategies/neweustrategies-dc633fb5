@@ -412,6 +412,11 @@ function AdminShellInner({
   };
 
   // Skrót klawiaturowy: Cmd/Ctrl+K ustawia fokus na wyszukiwarce panelu.
+  // Faza PRZECHWYTYWANIA: globalna paleta (`useCommandPaletteShortcut`) słucha
+  // na tym samym oknie i ustępuje, gdy zdarzenie jest już `defaultPrevented`.
+  // W fazie bąbelkowania kolejność zależała od tego, który nasłuch zarejestrował
+  // się pierwszy (wejście wprost na /admin vs przejście z witryny), więc raz
+  // wygrywał panel, a raz paleta.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -420,8 +425,8 @@ function AdminShellInner({
         searchRef.current?.select();
       }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () => window.removeEventListener("keydown", onKey, { capture: true });
   }, []);
 
   const handleSignOut = async () => {

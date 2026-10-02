@@ -5,7 +5,8 @@
 // pliku nie było wykonanych ani razu.
 //
 // ZAKRES. Komponent jest sterowany: rodzic (`routes/search.tsx`) trzyma frazę,
-// `activeIndex` i obsługę klawiatury, a tu żyje render + lokalny stan zakładki.
+// `activeIndex`, obsługę klawiatury i zakładkę kubełka, a tu żyje sam render.
+// `Auto` niżej gra rolę rodzica dla zakładki (stan + `onTabChange`).
 // Dlatego NIE MA tu testów strzałek/Enter/Escape ani zamykania kliknięciem poza
 // obszarem - tego kodu w tym pliku nie ma, a test „nawigacji klawiaturą" na
 // komponencie bez nasłuchu klawiatury dowodziłby wyłącznie tego, że nic się nie
@@ -17,7 +18,7 @@
 // nie słownik - repo zdjęło już raz 47 takich asercji.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { createRef } from "react";
+import { createRef, useState, type ComponentProps } from "react";
 import type { AutosuggestItem } from "@/lib/queries/archives";
 import { ok, supabaseFromStub } from "@/test/supabaseChain";
 
@@ -35,7 +36,19 @@ vi.mock("@/integrations/supabase/client", async () => {
 import "@/test/i18nReal";
 import "@/lib/i18n-search";
 import { SearchAutosuggest, RecentSearchesList } from "../SearchAutosuggest";
+import type { SuggestTab } from "@/lib/search/facetModel";
 import { SuggestRow } from "../SuggestListView";
+
+/** Rodzic dla zakładki: komponent jej nie trzyma, więc test robi to, co trasa. */
+function Auto(
+  props: Omit<ComponentProps<typeof SearchAutosuggest>, "tab" | "onTabChange"> & {
+    initialTab?: SuggestTab;
+  },
+) {
+  const { initialTab = "all", ...rest } = props;
+  const [tab, setTab] = useState<SuggestTab>(initialTab);
+  return <SearchAutosuggest {...rest} tab={tab} onTabChange={setTab} />;
+}
 
 const item = (p: Partial<AutosuggestItem>): AutosuggestItem => ({
   kind: "post",
@@ -73,7 +86,7 @@ afterEach(() => {
 describe("SearchAutosuggest - render pustego zbioru", () => {
   it("nie renderuje NICZEGO dla pustej listy (popover nie może mrugnąć pustą ramką)", () => {
     const { container } = render(
-      <SearchAutosuggest items={[]} activeIndex={-1} lang="pl" onPick={noop} query="energia" />,
+      <Auto items={[]} activeIndex={-1} lang="pl" onPick={noop} query="energia" />,
     );
     expect(container).toBeEmptyDOMElement();
   });
@@ -81,9 +94,7 @@ describe("SearchAutosuggest - render pustego zbioru", () => {
 
 describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
   it("układa kubełki w kolejności tytuły → rodzaje treści → tematyka → osoby", () => {
-    render(
-      <SearchAutosuggest items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     const listbox = screen.getByRole("listbox");
     const options = within(listbox).getAllByRole("option");
     expect(options.map((o) => o.textContent?.trim())).toEqual([
@@ -95,9 +106,7 @@ describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
   });
 
   it("nadaje opcjom CIĄGŁY indeks przez granice kubełków - kontrakt z klawiaturą rodzica", () => {
-    render(
-      <SearchAutosuggest items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     const options = screen.getAllByRole("option");
     expect(options.map((o) => o.id)).toEqual([
       "search-suggest-opt-0",
@@ -109,9 +118,7 @@ describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
   });
 
   it("zaznacza DOKŁADNIE jedną opcję wskazaną przez activeIndex", () => {
-    render(
-      <SearchAutosuggest items={oneOfEach()} activeIndex={2} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={2} lang="pl" onPick={noop} query="e" />);
     const selected = screen
       .getAllByRole("option")
       .filter((o) => o.getAttribute("aria-selected") === "true");
@@ -121,9 +128,7 @@ describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
   });
 
   it("activeIndex poza zakresem nie zaznacza niczego (rodzic startuje od -1)", () => {
-    render(
-      <SearchAutosuggest items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     expect(
       screen.getAllByRole("option").filter((o) => o.getAttribute("aria-selected") === "true"),
     ).toHaveLength(0);
@@ -134,7 +139,7 @@ describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
       item({ kind: "post", id: "p-1", slug: "a", label_pl: "A" }),
       item({ kind: "post", id: "p-2", slug: "b", label_pl: "B" }),
     ];
-    render(<SearchAutosuggest items={items} activeIndex={-1} lang="pl" onPick={noop} query="a" />);
+    render(<Auto items={items} activeIndex={-1} lang="pl" onPick={noop} query="a" />);
     // "Tytuły" pada dwa razy: raz jako zakładka, raz jako nagłówek grupy.
     expect(screen.getAllByText("Tytuły")).toHaveLength(2);
     // Licznik grupy i licznik zakładki - oba pokazują 2.
@@ -144,7 +149,7 @@ describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
 
   it("wiersz prowadzi pod adres z modelu i pokazuje rodzaj treści", () => {
     render(
-      <SearchAutosuggest
+      <Auto
         items={[
           item({
             kind: "post",
@@ -169,25 +174,23 @@ describe("SearchAutosuggest - język", () => {
   it("po angielsku bierze label_en, po polsku label_pl", () => {
     const items = [item({ kind: "post", label_pl: "Polski tytuł", label_en: "English title" })];
     const { rerender } = render(
-      <SearchAutosuggest items={items} activeIndex={-1} lang="pl" onPick={noop} query="x" />,
+      <Auto items={items} activeIndex={-1} lang="pl" onPick={noop} query="x" />,
     );
     expect(screen.getByText("Polski tytuł")).toBeInTheDocument();
-    rerender(
-      <SearchAutosuggest items={items} activeIndex={-1} lang="en" onPick={noop} query="x" />,
-    );
+    rerender(<Auto items={items} activeIndex={-1} lang="en" onPick={noop} query="x" />);
     expect(screen.getByText("English title")).toBeInTheDocument();
     expect(screen.getAllByText("Titles")).toHaveLength(2);
   });
 
   it("brak tłumaczenia etykiety spada na drugi język, nie na pusty wiersz", () => {
     const items = [item({ kind: "post", label_pl: "", label_en: "Only English" })];
-    render(<SearchAutosuggest items={items} activeIndex={-1} lang="pl" onPick={noop} query="x" />);
+    render(<Auto items={items} activeIndex={-1} lang="pl" onPick={noop} query="x" />);
     expect(screen.getByText("Only English")).toBeInTheDocument();
   });
 
   it("wpis bez jakiejkolwiek etykiety renderuje wiersz, a nie wywala listy", () => {
     const items = [item({ kind: "post", label_pl: "", label_en: "" })];
-    render(<SearchAutosuggest items={items} activeIndex={-1} lang="pl" onPick={noop} query="x" />);
+    render(<Auto items={items} activeIndex={-1} lang="pl" onPick={noop} query="x" />);
     expect(screen.getAllByRole("option")).toHaveLength(1);
   });
 });
@@ -195,7 +198,7 @@ describe("SearchAutosuggest - język", () => {
 describe("SearchAutosuggest - zakładki kubełków", () => {
   it("bez frazy NIE MA paska zakładek ani stopki (popover „ostatnie wyszukiwania”)", () => {
     render(
-      <SearchAutosuggest
+      <Auto
         items={oneOfEach()}
         activeIndex={-1}
         lang="pl"
@@ -210,9 +213,7 @@ describe("SearchAutosuggest - zakładki kubełków", () => {
   });
 
   it("pokazuje zakładkę „Wszystko” i po jednej na NIEPUSTY kubełek", () => {
-    render(
-      <SearchAutosuggest items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     const names = screen.getAllByRole("tab").map((t) => t.textContent);
     expect(names).toHaveLength(5);
     expect(names[0]).toContain("Wszystko");
@@ -221,7 +222,7 @@ describe("SearchAutosuggest - zakładki kubełków", () => {
 
   it("pomija zakładkę kubełka bez wpisów", () => {
     render(
-      <SearchAutosuggest
+      <Auto
         items={[item({ kind: "post", label_pl: "Tylko tytuł" })]}
         activeIndex={-1}
         lang="pl"
@@ -235,9 +236,7 @@ describe("SearchAutosuggest - zakładki kubełków", () => {
   });
 
   it("wybór zakładki zawęża listę do jednego kubełka i przełącza aria-selected", () => {
-    render(
-      <SearchAutosuggest items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     const topics = screen.getByRole("tab", { name: /Tematyka/ });
     fireEvent.mouseDown(topics);
     expect(topics).toHaveAttribute("aria-selected", "true");
@@ -248,21 +247,71 @@ describe("SearchAutosuggest - zakładki kubełków", () => {
   });
 
   it("zawężenie NIE PRZENUMEROWUJE opcji - indeks zostaje globalny", () => {
-    render(
-      <SearchAutosuggest items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Osoby i organizacje/ }));
     // Autor jest czwarty w porządku globalnym - po zawężeniu nadal ma indeks 3.
     expect(screen.getByRole("option").id).toBe("search-suggest-opt-3");
   });
 
   it("powrót na „Wszystko” przywraca komplet", () => {
-    render(
-      <SearchAutosuggest items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Tematyka/ }));
     expect(screen.getAllByRole("option")).toHaveLength(1);
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Wszystko/ }));
+    expect(screen.getAllByRole("option")).toHaveLength(4);
+  });
+
+  // REGRESJA (wyd. 11): zakładka żyła w `useState` komponentu i nie patrzyła
+  // na zbiór podpowiedzi. Wybrana „Tematyka", a potem nowa fraza bez żadnego
+  // tematu: lista pusta (każdy kubełek odcięty), a pasek nie pokazywał już
+  // zakładki „Tematyka" - nie było czego odkliknąć.
+  it("NOWY zbiór bez wybranego kubełka NIE WYGASZA listy - widok wraca do „Wszystko”", () => {
+    const { rerender } = render(
+      <Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
+    );
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Tematyka/ }));
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    const noTopics = [
+      item({ kind: "post", id: "p-9", slug: "nato", label_pl: "NATO na wschodzie" }),
+      item({ kind: "author", id: "a-9", slug: "anna", label_pl: "Anna Nowak" }),
+    ];
+    rerender(<Auto items={noTopics} activeIndex={-1} lang="pl" onPick={noop} query="na" />);
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(screen.getByRole("tab", { name: /Wszystko/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("wybór, który w nowym zbiorze NADAL ma wiersze, zostaje (pisanie dalej nie resetuje)", () => {
+    const { rerender } = render(
+      <Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
+    );
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Tematyka/ }));
+    const more = [
+      ...oneOfEach(),
+      item({ kind: "topic", id: "t-2", slug: "energetyka", label_pl: "Energetyka" }),
+    ];
+    rerender(<Auto items={more} activeIndex={-1} lang="pl" onPick={noop} query="ene" />);
+    expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual([
+      expect.stringContaining("Energia"),
+      expect.stringContaining("Energetyka"),
+    ]);
+  });
+
+  it("klik zakładki NIE zmienia stanu sam - oddaje wybór rodzicowi", () => {
+    const onTabChange = vi.fn();
+    render(
+      <SearchAutosuggest
+        items={oneOfEach()}
+        activeIndex={-1}
+        lang="pl"
+        tab="all"
+        onTabChange={onTabChange}
+        onPick={noop}
+        query="e"
+      />,
+    );
+    fireEvent.mouseDown(screen.getByRole("tab", { name: /Osoby i organizacje/ }));
+    expect(onTabChange).toHaveBeenCalledWith("peopleOrg");
+    // Rodzic nie przestawił zakładki - lista bez zmian.
     expect(screen.getAllByRole("option")).toHaveLength(4);
   });
 });
@@ -280,9 +329,7 @@ describe("SearchAutosuggest - wybór wpisu", () => {
 
   const renderOne = (onPick: (it: AutosuggestItem) => void) => {
     const it0 = picked();
-    render(
-      <SearchAutosuggest items={[it0]} activeIndex={-1} lang="pl" onPick={onPick} query="r" />,
-    );
+    render(<Auto items={[it0]} activeIndex={-1} lang="pl" onPick={onPick} query="r" />);
     return it0;
   };
 
@@ -325,7 +372,7 @@ describe("SearchAutosuggest - wybór wpisu", () => {
 
   it("hrefFor nadpisuje cel wiersza - /search podaje adres scalony z filtrami", () => {
     render(
-      <SearchAutosuggest
+      <Auto
         items={[picked()]}
         activeIndex={-1}
         lang="pl"
@@ -342,7 +389,7 @@ describe("SearchAutosuggest - stopka frazy", () => {
   it("„zobacz wszystkie” oddaje PRZYCIĘTĄ frazę", () => {
     const onSubmitPhrase = vi.fn();
     render(
-      <SearchAutosuggest
+      <Auto
         items={oneOfEach()}
         activeIndex={-1}
         lang="pl"
@@ -357,7 +404,7 @@ describe("SearchAutosuggest - stopka frazy", () => {
 
   it("bez onSubmitPhrase nie ma wiersza „zobacz wszystkie”, ale stopka operatorów zostaje", () => {
     render(
-      <SearchAutosuggest
+      <Auto
         items={oneOfEach()}
         activeIndex={-1}
         lang="pl"
@@ -373,22 +420,14 @@ describe("SearchAutosuggest - stopka frazy", () => {
   });
 
   it("bez obu wywołań zwrotnych stopki nie ma wcale", () => {
-    render(
-      <SearchAutosuggest
-        items={oneOfEach()}
-        activeIndex={-1}
-        lang="pl"
-        onPick={noop}
-        query="energia"
-      />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="energia" />);
     expect(screen.queryByText("Operatory")).not.toBeInTheDocument();
     expect(screen.getAllByRole("tab").length).toBeGreaterThan(0);
   });
 
   it("link „zaawansowane” niesie bieżącą frazę", () => {
     render(
-      <SearchAutosuggest
+      <Auto
         items={oneOfEach()}
         activeIndex={-1}
         lang="pl"
@@ -405,7 +444,7 @@ describe("SearchAutosuggest - stopka frazy", () => {
 
   it("jawny advHref wygrywa z adresem wyliczonym z frazy", () => {
     render(
-      <SearchAutosuggest
+      <Auto
         items={oneOfEach()}
         activeIndex={-1}
         lang="pl"
@@ -433,7 +472,7 @@ describe("SearchAutosuggest - wstawianie operatorów", () => {
     const ref = createRef<HTMLInputElement>();
     Object.defineProperty(ref, "current", { value: input, writable: true });
     render(
-      <SearchAutosuggest
+      <Auto
         items={oneOfEach()}
         activeIndex={-1}
         lang="pl"
@@ -480,7 +519,7 @@ describe("SearchAutosuggest - wstawianie operatorów", () => {
   it("bez refa inputa klik operatora jest bezpiecznym no-opem", () => {
     const onSetQuery = vi.fn();
     render(
-      <SearchAutosuggest
+      <Auto
         items={oneOfEach()}
         activeIndex={-1}
         lang="pl"
@@ -504,7 +543,7 @@ describe("SearchAutosuggest - avatary autorów", () => {
   it("dociąga avatar autora i pokazuje go zamiast ikony", async () => {
     stubs.from?.setResponse("profiles_public", ok([{ id: "a-1", avatar_url: "/av/jan.webp" }]));
     const { container } = render(
-      <SearchAutosuggest
+      <Auto
         items={[item({ kind: "author", id: "a-1", slug: "jan", label_pl: "Jan" })]}
         activeIndex={-1}
         lang="pl"
@@ -521,7 +560,7 @@ describe("SearchAutosuggest - avatary autorów", () => {
   it("autor bez avatara zostaje przy ikonie - brak pustego <img>", async () => {
     stubs.from?.setResponse("profiles_public", ok([{ id: "a-1", avatar_url: null }]));
     const { container } = render(
-      <SearchAutosuggest
+      <Auto
         items={[item({ kind: "author", id: "a-1", slug: "jan", label_pl: "Jan" })]}
         activeIndex={-1}
         lang="pl"
@@ -535,7 +574,7 @@ describe("SearchAutosuggest - avatary autorów", () => {
 
   it("lista bez autorów NIE odpytuje bazy", () => {
     render(
-      <SearchAutosuggest
+      <Auto
         items={[item({ kind: "post", label_pl: "Raport" })]}
         activeIndex={-1}
         lang="pl"

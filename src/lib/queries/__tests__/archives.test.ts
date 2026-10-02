@@ -1460,6 +1460,14 @@ describe("wyszukiwanie: telemetria fraz", () => {
     expect(funkcje().callsFor("log_search_query")).toHaveLength(0);
   });
 
+  it("DOŁADOWANIE kolejnej strony nie liczy frazy drugi raz", async () => {
+    planujWyszukiwanie({ trafienia: ok([trafienie("p1")]), oznaczenia: ok([]) });
+    await klient().fetchQuery(searchQueryOptions({ q: "unia" }));
+    await klient().fetchQuery(searchQueryOptions({ q: "unia" }, SEARCH_PAGE_SIZE * 2));
+    await klient().fetchQuery(searchQueryOptions({ q: "unia" }, SEARCH_PAGE_SIZE * 3));
+    expect(funkcje().callsFor("log_search_query")).toHaveLength(1);
+  });
+
   it("awaria telemetrii nie może zabrać użytkownikowi wyników", async () => {
     planujWyszukiwanie({ trafienia: ok([trafienie("p1")]), oznaczenia: ok([]) });
     funkcje().setResponse("log_search_query", () => {

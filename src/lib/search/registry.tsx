@@ -1,7 +1,7 @@
 // Static command registry for the global command palette.
-// All labels are bilingual (PL/EN). Navigation commands carry a TanStack
-// Router `to` path; action commands carry a `run` callback (resolved at
-// invocation time inside the palette).
+// All labels are bilingual (PL/EN). Every command is a navigation command with
+// a TanStack Router `to` path - the palette has no imperative actions (the
+// former `run` callback and the "actions"/"content" sections had no entries).
 import type { ReactNode } from "react";
 import {
   Home,
@@ -21,8 +21,7 @@ import {
   Clock,
 } from "@/lib/lucide-shim";
 
-export type CommandSection =
-  "navigation" | "admin" | "settings" | "appearance" | "account" | "actions" | "content";
+export type CommandSection = "navigation" | "admin" | "settings" | "appearance" | "account";
 
 export interface PaletteCommand {
   id: string;
@@ -36,10 +35,8 @@ export interface PaletteCommand {
   /** Extra tokens the matcher should consider. */
   keywords_pl?: string[];
   keywords_en?: string[];
-  /** Navigation target (TSR path). Either `to` OR `run` MUST be set. */
-  to?: string;
-  /** Imperative action - executed when the user presses Enter. */
-  run?: () => void | Promise<void>;
+  /** Navigation target (TSR path). Required: a command without it does nothing. */
+  to: string;
   /** True when this command requires an admin role. */
   adminOnly?: boolean;
   /** True when this command requires an authenticated user. */
@@ -361,28 +358,25 @@ const STATIC_COMMANDS: PaletteCommand[] = [
   },
 ];
 
-export interface BuildHaystackInput {
-  cmd: PaletteCommand;
-  lang: "pl" | "en";
-}
-
 /**
  * Combine localized labels + hints + keywords + path into a single string the
  * fuzzy matcher consumes. We include BOTH languages so a Polish user searching
- * with English keywords (e.g. "pages") still finds it, and vice-versa.
+ * with English keywords (e.g. "pages") still finds it, and vice-versa - which
+ * is also why the index takes no language (the former `lang` field was ignored).
  */
-export function buildHaystack({ cmd }: BuildHaystackInput): string {
+export function buildHaystack(cmd: PaletteCommand): string {
   return [
     cmd.label_pl,
     cmd.label_en,
-    cmd.hint_pl ?? "",
-    cmd.hint_en ?? "",
+    cmd.hint_pl,
+    cmd.hint_en,
     ...(cmd.keywords_pl ?? []),
     ...(cmd.keywords_en ?? []),
-    cmd.to ?? "",
+    cmd.to,
   ]
-    .join(" ")
-    .trim();
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
 }
 
 export function visibleCommands(opts: {

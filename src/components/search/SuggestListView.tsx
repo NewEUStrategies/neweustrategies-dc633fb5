@@ -91,9 +91,10 @@ export function SuggestRow({
   onHover,
 }: SuggestRowProps) {
   // Domyślną akcją mousedown jest przeniesienie fokusu na kotwicę (`tabIndex=-1`
-  // tego NIE blokuje). Popover podpowiedzi na /search zamyka się na `onBlur`
-  // inputa, więc bez tego fokus wychodzi z pola, lista odmontowuje się przed
-  // `mouseup` i nie dochodzi ani `click`, ani otwarcie w nowej karcie.
+  // tego NIE blokuje). Fokus ma zostać w polu frazy (combobox +
+  // aria-activedescendant): po otwarciu wiersza w nowej karcie użytkownik pisze
+  // dalej bez ponownego klikania w pole. Popover /search zamyka klik POZA
+  // formularzem, a nie utrata fokusu - patrz `routes/search.tsx`.
   // Tylko przycisk główny: dla prawego zabranie domyślnej akcji potrafi w części
   // przeglądarek zdusić menu kontekstowe („otwórz w nowej karcie").
   const preserveFocus = (e: ReactMouseEvent<HTMLAnchorElement>) => {

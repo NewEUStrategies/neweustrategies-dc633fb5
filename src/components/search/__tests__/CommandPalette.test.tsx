@@ -27,7 +27,21 @@ vi.mock("@/lib/search/search.functions", () => ({ globalSearch: h.globalSearch }
 
 import "@/test/i18nReal";
 import "@/lib/i18n-search";
+import { useState } from "react";
 import { CommandPalette } from "../CommandPalette";
+import { useCommandPaletteShortcut } from "../useCommandPaletteShortcut";
+
+/**
+ * Paleta jest STEROWANA: stan otwarcia i skrót trzyma `CommandPaletteHost`.
+ * Harness robi dokładnie to samo, tylko bez leniwego ładowania chunku (to
+ * sprawdza `CommandPaletteHost.test.tsx`) - tryb niekontrolowany z własnym,
+ * drugim nasłuchem skrótu został usunięty.
+ */
+function Palette() {
+  const [open, setOpen] = useState(false);
+  useCommandPaletteShortcut(open, setOpen);
+  return <CommandPalette open={open} onOpenChange={setOpen} />;
+}
 
 const hit = (p: Partial<SearchHit> = {}): SearchHit => ({
   kind: "post",
@@ -90,12 +104,12 @@ afterEach(() => {
 
 describe("CommandPalette - otwieranie i zamykanie", () => {
   it("startuje ZAMKNIĘTA - nie może przykrywać strony po wejściu", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     expect(isOpen()).toBe(false);
   });
 
   it("Ctrl+K otwiera, a drugi Ctrl+K zamyka", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     expect(isOpen()).toBe(true);
     open();
@@ -103,7 +117,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
   });
 
   it("⌘K działa tak samo jak Ctrl+K (macOS)", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     act(() => {
       fireEvent.keyDown(window, { key: "K", metaKey: true });
     });
@@ -111,7 +125,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
   });
 
   it("samo „k” bez modyfikatora NIE otwiera palety", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     act(() => {
       fireEvent.keyDown(window, { key: "k" });
     });
@@ -119,7 +133,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
   });
 
   it("„/” otwiera paletę, gdy fokus jest poza polem tekstowym", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     act(() => {
       fireEvent.keyDown(window, { key: "/" });
     });
@@ -127,7 +141,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
   });
 
   it("„/” w polu tekstowym NIE otwiera palety - to zwykły znak", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     const field = document.createElement("input");
     document.body.appendChild(field);
     act(() => {
@@ -138,7 +152,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
   });
 
   it("„/” w polu wielowierszowym też nie otwiera palety", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     const area = document.createElement("textarea");
     document.body.appendChild(area);
     act(() => {
@@ -149,7 +163,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
   });
 
   it("„/” w liście rozwijanej nie otwiera palety", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     const select = document.createElement("select");
     document.body.appendChild(select);
     act(() => {
@@ -160,7 +174,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
   });
 
   it("„/” w edytowalnym bloku (contenteditable) nie otwiera palety", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     const div = document.createElement("div");
     div.contentEditable = "true";
     Object.defineProperty(div, "isContentEditable", { value: true });
@@ -173,7 +187,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
   });
 
   it("„/” przy JUŻ OTWARTEJ palecie nie przechwytuje znaku (można szukać „a/b”)", async () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("a");
     act(() => {
@@ -184,7 +198,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
 
   it("odmontowanie zdejmuje globalny nasłuch klawiatury", () => {
     const remove = vi.spyOn(window, "removeEventListener");
-    const { unmount } = render(<CommandPalette />);
+    const { unmount } = render(<Palette />);
     unmount();
     expect(remove).toHaveBeenCalledWith("keydown", expect.any(Function));
   });
@@ -192,7 +206,7 @@ describe("CommandPalette - otwieranie i zamykanie", () => {
 
 describe("CommandPalette - widoczność komend per rola", () => {
   it("gość widzi nawigację publiczną, ale ŻADNEGO adresu panelu", () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     expect(hasRow("Blog")).toBe(true);
     expect(hasRow("Panel administratora")).toBe(false);
@@ -201,7 +215,7 @@ describe("CommandPalette - widoczność komend per rola", () => {
 
   it("zalogowany widzi sekcję konta, nadal bez panelu", () => {
     h.auth.current = { isAdmin: false, user: { id: "u-1" } };
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     expect(hasRow("Mój profil")).toBe(true);
     expect(hasRow("Panel administratora")).toBe(false);
@@ -209,14 +223,14 @@ describe("CommandPalette - widoczność komend per rola", () => {
 
   it("admin widzi komendy panelu", () => {
     h.auth.current = { isAdmin: true, user: { id: "u-1" } };
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     expect(hasRow("Panel administratora")).toBe(true);
   });
 
   it("pusta fraza pokazuje listę POPULARNYCH, przyciętą do ośmiu", () => {
     h.auth.current = { isAdmin: true, user: { id: "u-1" } };
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     expect(screen.getByText("Popularne")).toBeInTheDocument();
   });
@@ -225,7 +239,7 @@ describe("CommandPalette - widoczność komend per rola", () => {
 describe("CommandPalette - filtrowanie w trakcie pisania", () => {
   it("zawęża listę komend do pasujących", async () => {
     h.auth.current = { isAdmin: true, user: { id: "u-1" } };
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("cennik");
     expect(hasRow("Cennik")).toBe(true);
@@ -234,7 +248,7 @@ describe("CommandPalette - filtrowanie w trakcie pisania", () => {
 
   it("znajduje komendę po SŁOWIE KLUCZOWYM z drugiego języka", async () => {
     h.auth.current = { isAdmin: true, user: { id: "u-1" } };
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     // „Strony" mają keywords_en: ["strony"] i label_en „Pages".
     await type("pages");
@@ -246,7 +260,7 @@ describe("CommandPalette - filtrowanie w trakcie pisania", () => {
     // nie znajdowało „Bezpieczeństwo konta" - przy jednoczesnym `unaccent`
     // w bazie, więc ta sama fraza znajdowała TREŚĆ, ale nie komendę.
     h.auth.current = { isAdmin: true, user: { id: "u-1" } };
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("platnosci");
     expect(hasRow("Płatności")).toBe(true);
@@ -261,7 +275,7 @@ describe("CommandPalette - filtrowanie w trakcie pisania", () => {
     // dopisana do wartości wiersza. Test jedzie przez cały komponent, więc
     // sprawdza obie naraz.
     h.auth.current = { isAdmin: true, user: { id: "u-1" } };
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("Płatności".normalize("NFD"));
     expect(hasRow("Płatności")).toBe(true);
@@ -269,14 +283,14 @@ describe("CommandPalette - filtrowanie w trakcie pisania", () => {
 
   it("znajduje komendę po fragmencie ŚCIEŻKI", async () => {
     h.auth.current = { isAdmin: true, user: { id: "u-1" } };
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("/admin/media");
     expect(hasRow("Media")).toBe(true);
   });
 
   it("fraza bez trafień pokazuje stan pusty z podpowiedzią, nie białą płachtę", async () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("zzzzqqqq");
     await waitFor(() =>
@@ -287,7 +301,7 @@ describe("CommandPalette - filtrowanie w trakcie pisania", () => {
 
 describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
   it("jeden znak NIE odpytuje serwera, tylko prosi o dłuższą frazę", async () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("a");
     expect(h.globalSearch).not.toHaveBeenCalled();
@@ -297,14 +311,14 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
   });
 
   it("od dwóch znaków odpytuje serwer z limitem", async () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     expect(h.globalSearch).toHaveBeenCalledWith({ data: { q: "raport", limit: 8 } });
   });
 
   it("DEBOUNCE: szybkie pisanie daje JEDNO zapytanie, nie jedno na znak", async () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     const input = paletteInput();
     fireEvent.change(input, { target: { value: "ra" } });
@@ -319,7 +333,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
 
   it("pokazuje trafienia treści z adresem", async () => {
     h.globalSearch.mockResolvedValue({ hits: [hit()] });
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     await waitFor(() => expect(hasRow("Raport roczny")).toBe(true));
@@ -339,7 +353,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
         }),
       ],
     });
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     await waitFor(() => expect(hasRow("Raport strategiczny")).toBe(true));
@@ -357,7 +371,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
     h.globalSearch.mockResolvedValue({
       hits: [hit({ id: "pg-1", slug: "o-nas", title_pl: "O nas", href: "/post/o-nas" })],
     });
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     await waitFor(() => expect(h.globalSearch).toHaveBeenCalled());
@@ -366,7 +380,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
 
   it("trafienie bez tytułu spada na slug, a nie na pusty wiersz", async () => {
     h.globalSearch.mockResolvedValue({ hits: [hit({ title_pl: "", title_en: "" })] });
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     await waitFor(() => expect(hasRow("raport-roczny")).toBe(true));
@@ -374,7 +388,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
 
   it("brak polskiego tytułu spada na angielski", async () => {
     h.globalSearch.mockResolvedValue({ hits: [hit({ title_pl: "" })] });
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     await waitFor(() => expect(hasRow("Annual report")).toBe(true));
@@ -382,7 +396,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
 
   it("BŁĄD serwera nie wywraca palety - komendy zostają, treści znikają", async () => {
     h.globalSearch.mockRejectedValue(new Error("500"));
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("cennik");
     await waitFor(() => expect(hasRow("Cennik")).toBe(true));
@@ -395,7 +409,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
       .mockImplementationOnce(() => new Promise<{ hits: SearchHit[] }>((r) => (resolveOld = r)))
       .mockResolvedValueOnce({ hits: [hit({ id: "new", title_pl: "Nowy wynik" })] });
 
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("stara");
     await type("nowa");
@@ -411,7 +425,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
 
   it("skrócenie frazy poniżej progu czyści trafienia treści", async () => {
     h.globalSearch.mockResolvedValue({ hits: [hit()] });
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     await waitFor(() => expect(hasRow("Raport roczny")).toBe(true));
@@ -422,7 +436,7 @@ describe("CommandPalette - wyszukiwanie treści na serwerze", () => {
 
 describe("CommandPalette - wybór", () => {
   it("wybór komendy nawiguje pod jej adres i ZAMYKA paletę", async () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     fireEvent.click(rows("Cennik")[0]);
     await waitFor(() => expect(h.navigate).toHaveBeenCalledWith({ to: "/pricing" }));
@@ -431,7 +445,7 @@ describe("CommandPalette - wybór", () => {
 
   it("wybór trafienia treści nawiguje pod jego permalink", async () => {
     h.globalSearch.mockResolvedValue({ hits: [hit()] });
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     await waitFor(() => expect(hasRow("Raport roczny")).toBe(true));
@@ -440,7 +454,7 @@ describe("CommandPalette - wybór", () => {
   });
 
   it("zamknięcie CZYŚCI frazę - ponowne otwarcie zaczyna od pustego pola", async () => {
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     expect(paletteInput()).toHaveValue("raport");
@@ -451,7 +465,7 @@ describe("CommandPalette - wybór", () => {
 
   it("zamknięcie czyści też trafienia treści (nie mrugają przy następnym otwarciu)", async () => {
     h.globalSearch.mockResolvedValue({ hits: [hit()] });
-    render(<CommandPalette />);
+    render(<Palette />);
     open();
     await type("raport");
     await waitFor(() => expect(hasRow("Raport roczny")).toBe(true));

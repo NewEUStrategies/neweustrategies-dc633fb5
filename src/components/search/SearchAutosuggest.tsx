@@ -1,9 +1,9 @@
 // Autosuggest pod polem frazy na stronie /search. Renderuje IDENTYCZNY
 // mega-box jak widget nagłówkowy (SearchButtonWidget): pasek zakładek,
 // grupowana lista wierszy, stopka operatorów, wiersz „zobacz wszystkie".
-// Rodzic steruje frazą, klawiaturą i nawigacją (combobox/listbox +
-// aria-activedescendant); tu tylko render + lokalny stan zakładki.
-import { useMemo, useState, type RefObject } from "react";
+// Rodzic steruje frazą, klawiaturą, nawigacją (combobox/listbox +
+// aria-activedescendant) i ZAKŁADKĄ kubełka - tu wyłącznie render.
+import { useMemo, type RefObject } from "react";
 import i18n from "@/lib/i18n";
 import {
   ArrowRight,
@@ -18,13 +18,16 @@ import {
 import { AppLink } from "@/components/atoms/AppLink";
 import type { AutosuggestItem } from "@/lib/queries/archives";
 import {
-  suggestBucketOf,
+  bucketSuggestions,
+  effectiveSuggestTab,
   suggestionHref,
   SUGGEST_BUCKET_ORDER,
   SUGGEST_BUCKET_LABELS,
   AUTOSUGGEST_LISTBOX_ID,
   autosuggestOptionId,
+  type BucketedSuggestion,
   type SuggestBucket,
+  type SuggestTab,
 } from "@/lib/search/facetModel";
 import { SuggestGroupHeader, SuggestRow, SuggestListShell } from "./SuggestListView";
 import { useAuthorAvatars } from "@/lib/search/useAuthorAvatars";
@@ -33,6 +36,11 @@ interface Props {
   items: AutosuggestItem[];
   activeIndex: number;
   lang: "pl" | "en";
+  /** Wybrana zakładka kubełka. Trzyma ją RODZIC, bo to on prowadzi strzałki
+   *  i Enter - przy stanie lokalnym klawiatura chodziła po wierszach, których
+   *  zakładka nie pokazywała, a Enter wybierał niewidoczną podpowiedź. */
+  tab: SuggestTab;
+  onTabChange: (tab: SuggestTab) => void;
   /** Księgowość wyboru (historia, zamknięcie popovera). NIE nawiguje -
    *  nawigację robi `href` wiersza, wspólny z obsługą klawiatury rodzica. */
   onPick: (item: AutosuggestItem) => void;
@@ -59,18 +67,12 @@ const BUCKET_ICON: Record<SuggestBucket, typeof FileText> = {
   peopleOrg: Users,
 };
 
-interface BucketedItem {
-  item: AutosuggestItem;
-  bucket: SuggestBucket;
-  index: number;
-}
-
-type TabKey = "all" | SuggestBucket;
-
 export function SearchAutosuggest({
   items,
   activeIndex,
   lang,
+  tab: selectedTab,
+  onTabChange,
   onPick,
   hrefFor = suggestionHref,
   query = "",
@@ -79,20 +81,15 @@ export function SearchAutosuggest({
   onSubmitPhrase,
   advHref,
 }: Props) {
-  const [tab, setTab] = useState<TabKey>("all");
   const authorAvatars = useAuthorAvatars(items);
+  // Zakładka wyprowadzona z BIEŻĄCYCH kubełków: wybór, który w nowym zbiorze
+  // nie ma wierszy, nie może wygasić całej listy.
+  const tab = effectiveSuggestTab(items, selectedTab);
 
   const grouped = useMemo(() => {
-    const g = new Map<SuggestBucket, BucketedItem[]>();
+    const g = new Map<SuggestBucket, BucketedSuggestion[]>();
     for (const b of SUGGEST_BUCKET_ORDER) g.set(b, []);
-    for (const it of items) {
-      const b = suggestBucketOf(it.kind);
-      g.get(b)!.push({ item: it, bucket: b, index: 0 });
-    }
-    let idx = 0;
-    for (const b of SUGGEST_BUCKET_ORDER) {
-      for (const entry of g.get(b)!) entry.index = idx++;
-    }
+    for (const entry of bucketSuggestions(items)) g.get(entry.bucket)!.push(entry);
     return g;
   }, [items]);
 
@@ -143,7 +140,7 @@ export function SearchAutosuggest({
                 aria-selected={isActive}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  setTab(k);
+                  onTabChange(k);
                 }}
                 className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[10px] font-medium leading-none transition-all ${
                   isActive

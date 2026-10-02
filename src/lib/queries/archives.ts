@@ -595,9 +595,11 @@ export const searchQueryOptions = (
 
       // Telemetria zapytań (fundament podpowiedzi/trendów) - fire-and-forget,
       // odporna na brak funkcji przed wdrożeniem migracji. Logujemy tylko realne
-      // frazy, nie czyste przeglądanie po filtrach.
+      // frazy, nie czyste przeglądanie po filtrach - i tylko PIERWSZĄ stronę:
+      // „pokaż więcej" to to samo zapytanie z większym `_limit`, więc każde
+      // doładowanie liczyło frazę jeszcze raz i pompowało „popularne frazy".
       const qTrim = filters.q.trim();
-      if (qTrim.length >= 2) {
+      if (qTrim.length >= 2 && limit <= SEARCH_PAGE_SIZE) {
         void supabase
           .rpc("log_search_query", { _q: qTrim, _lang: currentLang(), _results: total })
           .then(

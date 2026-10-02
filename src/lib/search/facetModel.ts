@@ -353,6 +353,54 @@ export function orderSuggestions(items: AutosuggestItem[]): AutosuggestItem[] {
   });
 }
 
+/** Zakładka mega-boxa podpowiedzi: wszystko albo jeden kubełek. */
+export type SuggestTab = "all" | SuggestBucket;
+
+/** Podpowiedź z kubełkiem i GLOBALNYM indeksem opcji (id `autosuggestOptionId`). */
+export interface BucketedSuggestion {
+  item: AutosuggestItem;
+  bucket: SuggestBucket;
+  index: number;
+}
+
+/** Podpowiedzi w kolejności renderu (kubełek po kubełku, wewnątrz kubełka
+ *  kolejność wejścia) z ciągłym indeksem. JEDNO źródło numeracji dla renderu
+ *  wierszy i dla klawiatury rodzica - `flat[i].index === i`. */
+export function bucketSuggestions(items: AutosuggestItem[]): BucketedSuggestion[] {
+  const flat: BucketedSuggestion[] = [];
+  for (const bucket of SUGGEST_BUCKET_ORDER) {
+    for (const item of items) {
+      if (suggestBucketOf(item.kind) === bucket) flat.push({ item, bucket, index: flat.length });
+    }
+  }
+  return flat;
+}
+
+/** Zakładka faktycznie pokazana. Wybrany kubełek, który w NOWYM zbiorze
+ *  podpowiedzi nie ma wierszy, wraca do „wszystko" - inaczej lista byłaby
+ *  pusta, a pasek nie pokazywałby nawet zakładki, z której da się wrócić. */
+export function effectiveSuggestTab(items: AutosuggestItem[], tab: SuggestTab): SuggestTab {
+  if (tab === "all") return "all";
+  return items.some((it) => suggestBucketOf(it.kind) === tab) ? tab : "all";
+}
+
+/** Globalne indeksy wierszy widocznych pod zakładką (po `effectiveSuggestTab`). */
+export function visibleSuggestionIndices(items: AutosuggestItem[], tab: SuggestTab): number[] {
+  const shown = effectiveSuggestTab(items, tab);
+  return bucketSuggestions(items)
+    .filter((e) => shown === "all" || e.bucket === shown)
+    .map((e) => e.index);
+}
+
+/** Krok strzałki po WIDOCZNYCH wierszach, z zawijaniem. Indeks spoza listy
+ *  (brak wyboru albo wiersz schowany zmianą zakładki) startuje od brzegu. */
+export function stepSuggestion(visible: number[], current: number, dir: 1 | -1): number {
+  if (visible.length === 0) return -1;
+  const pos = visible.indexOf(current);
+  if (pos === -1) return dir === 1 ? visible[0] : visible[visible.length - 1];
+  return visible[(pos + dir + visible.length) % visible.length];
+}
+
 /** Kolejność parametrów w adresie `/search` = kolejność pól schematu adresu.
  *  Wyprowadzona, nie przepisana: dopisanie pola do `searchParamsSchema` od razu
  *  obejmuje serializację, więc nie da się dodać parametru, który ginie w URL-u. */
@@ -391,7 +439,8 @@ export interface SuggestionHrefOptions {
  *    adresu nie ma, a `/post/<slug>` odesłałby na `/blog`),
  *  - strona → `/<slug>`, autor → `/author/<slug>`,
  *  - kategoria/tag/seria/program → publiczna strona archiwum, jeśli mamy slug,
- *  - pozostałe wymiary taksonomii i wymiary wyliczane → `/search` z filtrem.
+ *  - pozostałe wymiary taksonomii i wymiary wyliczane → `/search` z filtrem
+ *    (taksonomia DOKŁADA wartość do wyboru z `base` - patrz niżej).
  *  Termy taksonomii bez publicznej strony identyfikuje ID (parametry
  *  spec/type/… trafiają do RPC jako uuid[] - slug w URL wywracał zapytanie),
  *  więc term BEZ id szuka po samej nazwie zamiast budować zepsuty filtr. */
@@ -444,7 +493,15 @@ export function suggestionHref(it: AutosuggestItem, opts: SuggestionHrefOptions 
   if (kind === "year" && it.slug) return toSearch({ year: it.slug });
 
   const param = (DIM_PARAM as Record<string, keyof SearchUrl>)[kind];
-  if (param && it.id) return toSearch(withPhrase({ [param]: it.id }));
+  if (param && it.id) {
+    // Wymiar taksonomii jest multi-selectem (OR wewnątrz wymiaru): wybór
+    // z podpowiedzi DOKŁADA wartość do zaznaczonych w panelu faset. Łatka
+    // `[param]: it.id` kasowała je po cichu, choć scalanie z `base` istnieje
+    // właśnie po to, żeby podpowiedź nie gubiła stanu wyszukiwarki.
+    const chosen = splitDimValues(opts.base?.[param] as string | undefined);
+    const merged = joinDimValues(chosen.includes(it.id) ? chosen : [...chosen, it.id]);
+    return toSearch(withPhrase({ [param]: merged }));
+  }
   return label ? toSearch({ q: label }) : toSearch({});
 }
 
