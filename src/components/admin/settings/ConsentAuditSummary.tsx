@@ -3,7 +3,7 @@
 // Dane wyłącznie z utwardzonych RPC (bramka admina + zakres najemca po stronie
 // bazy) - komponent nie dotyka `user_consent_events` bezpośrednio.
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { ShieldCheck } from "lucide-react";
 import { listConsentDecisions, listConsentStats } from "@/lib/admin/consentAudit.functions";
@@ -12,6 +12,9 @@ import { ensureI18n } from "@/lib/i18n-admin-consent-audit";
 ensureI18n();
 
 const WINDOWS = [7, 30, 90] as const;
+/** Sufit strony dziennika - ten sam, co `ConsentDecisionsQuerySchema.limit.max`. */
+const DECISIONS_PAGE = 25;
+const DECISIONS_MAX = 200;
 
 function formatDate(value: string | null, lang: string): string {
   if (!value) return "-";
@@ -41,7 +44,7 @@ function KeyChip({ label, tone }: { label: string; tone: "granted" | "denied" })
 export function ConsentAuditSummary() {
   const { t, i18n } = useTranslation();
   const [days, setDays] = useState<number>(30);
-  const [limit, setLimit] = useState<number>(25);
+  const [limit, setLimit] = useState<number>(DECISIONS_PAGE);
 
   const stats = useQuery({
     queryKey: ["admin", "consent-stats", days],
@@ -50,6 +53,9 @@ export function ConsentAuditSummary() {
   const decisions = useQuery({
     queryKey: ["admin", "consent-decisions", limit],
     queryFn: () => listConsentDecisions({ data: { limit, offset: 0 } }),
+    // „Pokaż więcej" zmienia klucz zapytania. Bez poprzednich danych dziennik
+    // znikał na czas doczytywania i operator tracił miejsce, w którym czytał.
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -223,10 +229,12 @@ export function ConsentAuditSummary() {
         </table>
       </div>
 
-      {decisions.data && decisions.data.length >= limit && (
+      {/* Przy sufitcie 200 przycisk nie ma już czego doczytać - wcześniej
+          zostawał widoczny i klik nie robił nic. */}
+      {decisions.data && decisions.data.length >= limit && limit < DECISIONS_MAX && (
         <button
           type="button"
-          onClick={() => setLimit((n) => Math.min(n + 25, 200))}
+          onClick={() => setLimit((n) => Math.min(n + DECISIONS_PAGE, DECISIONS_MAX))}
           className="mt-3 rounded-md border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
         >
           {t("adminConsentAudit.decisions.more")}

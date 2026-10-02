@@ -266,9 +266,11 @@ describe("ponowny zapis po wypisie", () => {
   it("ponowny klik po potwierdzeniu nie dotyka listy wykluczeń", async () => {
     db.setResponse(SUBSCRIBERS, ok(pendingRow({ status: "subscribed" })));
 
-    await get();
+    const res = await get();
 
     expect(db.chainsFor(SUPPRESSIONS)).toHaveLength(0);
+    // Gałąź „already" - a nie błąd, który też ominąłby listę wykluczeń.
+    await expect(res.json()).resolves.toEqual({ ok: true, already: true });
   });
 });
 

@@ -22,6 +22,10 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { suggestInternalLinks } from "@/lib/seo/linkSuggestions.functions";
+// Klucze `admin.seo.*` tego widżetu mieszkają w nakładce `i18n-admin-extras`.
+// Bez jawnego importu słownik trafiał tu tylko przypadkiem (kotwica w
+// `routes/admin.tsx`) - bramka `check:i18n-overlay-imports`.
+import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 
 interface Props {
   postId: string | null;
@@ -34,6 +38,7 @@ interface Props {
 }
 
 export function InternalLinkSuggestions(props: Props) {
+  ensureAdminExtrasI18n();
   const { t, i18n } = useTranslation();
   const call = useServerFn(suggestInternalLinks);
 

@@ -11,6 +11,7 @@ export const adminToast = {
   added: () => i18n.t("adminToasts.added"),
   updated: () => i18n.t("adminToasts.updated"),
   error: () => i18n.t("adminToasts.error"),
+  saveFailed: () => i18n.t("adminToasts.saveFailed"),
   nameRequired: () => i18n.t("adminToasts.nameRequired"),
   keyRequired: () => i18n.t("adminToasts.keyRequired"),
   emptyContent: () => i18n.t("adminToasts.emptyContent"),

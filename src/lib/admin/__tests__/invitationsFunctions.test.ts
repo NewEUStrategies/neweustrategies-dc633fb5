@@ -112,6 +112,16 @@ const h = vi.hoisted(() => ({
    * więc hydracja policzy go z nazwy.
    */
   existingProfileSlug: null as string | null,
+  /**
+   * Najemca, do którego konto JUŻ należy (`profiles.tenant_id`). `null` =
+   * profil bez najemcy albo brak profilu. Różny od najemcy zaproszenia =
+   * konto z OBCEGO obszaru roboczego - hydracja ma wtedy odmówić.
+   */
+  existingProfileTenant: null as string | null,
+  /** Awaria odczytu istniejącego profilu (slug + najemca). */
+  existingProfileError: null as { message: string } | null,
+  /** Odmowa zapisu hydracji per tabela (`profiles`, `author_profiles`, `user_roles`). */
+  upsertErrors: {} as Record<string, { message: string }>,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -174,7 +184,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
     from: (table: string) => ({
       upsert: (row: unknown, options?: unknown) => {
         h.adminWrites.push({ table, row, options });
-        return Promise.resolve({ data: null, error: null });
+        return Promise.resolve({ data: null, error: h.upsertErrors[table] ?? null });
       },
       select: () => {
         // Łańcuch obsługuje dwa użycia: listę profili (`.in()` → wynik po await)
@@ -190,14 +200,19 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         // `maybeSingle` obsługuje DWA odczyty i muszą się różnić po tabeli:
         // slug istniejącego profilu (hydracja czyta go, żeby NIE nadpisać
         // publicznego adresu) oraz wiersz subskrypcji zapraszanego.
-        chain["maybeSingle"] = () =>
-          Promise.resolve({
+        chain["maybeSingle"] = () => {
+          if (table === "profiles" && h.existingProfileError) {
+            return Promise.resolve({ data: null, error: h.existingProfileError });
+          }
+          const hasProfile = h.existingProfileSlug !== null || h.existingProfileTenant !== null;
+          return Promise.resolve({
             data:
-              table === "profiles" && h.existingProfileSlug
-                ? { slug: h.existingProfileSlug }
+              table === "profiles" && hasProfile
+                ? { slug: h.existingProfileSlug, tenant_id: h.existingProfileTenant }
                 : null,
             error: null,
           });
+        };
         return chain;
       },
     }),
@@ -343,6 +358,9 @@ beforeEach(() => {
   h.listUsersPages = [];
   h.listUsersError = null;
   h.existingProfileSlug = null;
+  h.existingProfileTenant = null;
+  h.existingProfileError = null;
+  h.upsertErrors = {};
   h.claimError = null;
   h.inviteLinkFails = false;
   h.hashedToken = null;
@@ -1384,6 +1402,140 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
 // ---------------------------------------------------------------------------
 // 6. WYSYŁKA ZBIORCZA I PONOWIENIE PO ADRESIE.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// 5a. GRANICA NAJEMCY W WYSYŁCE - naprawa defektu krytycznego wydania 12.
+//
+// `findAuthUserIdByEmail` przeszukuje CAŁY katalog kont, a hydracja pisze
+// kluczem serwisowym `profiles.tenant_id`, profil autora i rolę w najemcy
+// ZAPRASZAJĄCEGO. Do tej poprawki zaproszenie adresu osoby z obszaru B
+// wysłane przez administratora obszaru A przenosiło jej konto do A.
+// ---------------------------------------------------------------------------
+
+describe("sendInvitation - konto z obcego najemcy nie jest przepinane", () => {
+  beforeEach(() => {
+    grantAdmin();
+  });
+
+  function withInvitation(row: InvitationRow): void {
+    db.setResponse("user_invitations", (chain) => (chain.has("update") ? ok(null) : ok(row)));
+    db.setResponse("audit_log", ok(null));
+  }
+
+  async function send(): Promise<{ ok: boolean; error?: string }> {
+    return callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+  }
+
+  function failedUpdate(): { status: string; last_error: string } | undefined {
+    return db
+      .chainsFor("user_invitations")
+      .find((chain) => chain.has("update"))
+      ?.argsOf("update")?.[0] as { status: string; last_error: string } | undefined;
+  }
+
+  it("konto znalezione w katalogu, ale należące do INNEGO najemcy - odmowa bez żadnego zapisu", async () => {
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.existingProfileTenant = IDS.otherTenant;
+    const result = await send();
+    expect(result).toMatchObject({ ok: false, error: "account_in_other_tenant" });
+    // Ani profil, ani profil autora, ani rola nie zostały dotknięte...
+    expect(h.adminWrites).toEqual([]);
+    // ...konto nie powstało drugi raz, a mail nie wyszedł.
+    expect(h.authCalls.filter((call) => call.kind === "create")).toHaveLength(0);
+    expect(h.emails).toHaveLength(0);
+    expect(failedUpdate()).toMatchObject({
+      status: "failed",
+      last_error: "account_in_other_tenant",
+    });
+  });
+
+  it("ponowna wysyłka zaproszenia powiązanego z kontem, które PRZESZŁO do innego najemcy - też odmowa", async () => {
+    withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
+    h.existingProfileTenant = IDS.otherTenant;
+    const result = await send();
+    expect(result.error).toBe("account_in_other_tenant");
+    expect(h.adminWrites).toEqual([]);
+  });
+
+  it("konto w TYM SAMYM najemcy jest dowiązywane jak dotąd (kontrola dodatnia)", async () => {
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.existingProfileTenant = IDS.tenant;
+    h.existingProfileSlug = "nowa-osoba";
+    const result = await send();
+    expect(result.ok).toBe(true);
+    const profileWrite = h.adminWrites.find((write) => write.table === "profiles");
+    expect(profileWrite?.row).toMatchObject({
+      id: IDS.existingUser,
+      tenant_id: IDS.tenant,
+      slug: "nowa-osoba",
+    });
+  });
+
+  it("profil BEZ najemcy (konto osierocone) wolno dowiązać", async () => {
+    withInvitation(invitationRow());
+    h.existingAuthUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.existingProfileTenant = null;
+    h.existingProfileSlug = "sierota";
+    const result = await send();
+    expect(result.ok).toBe(true);
+    expect(h.adminWrites.map((write) => write.table)).toEqual([
+      "profiles",
+      "author_profiles",
+      "user_roles",
+    ]);
+  });
+
+  it("awaria odczytu istniejącego profilu NIE czyta się jak „profilu nie ma” - nic nie jest zapisywane", async () => {
+    withInvitation(invitationRow({ auth_user_id: IDS.existingUser }));
+    h.existingProfileError = { message: "permission denied for table profiles" };
+    const result = await send();
+    expect(result).toMatchObject({ ok: false, error: "permission denied for table profiles" });
+    expect(h.adminWrites).toEqual([]);
+    expect(h.emails).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5b. WYNIK ZAPISÓW HYDRACJI - odmowa bazy nie może kończyć się „wysłano".
+// ---------------------------------------------------------------------------
+
+describe("sendInvitation - odmowa zapisu hydracji przerywa wysyłkę", () => {
+  beforeEach(() => {
+    grantAdmin();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("update") ? ok(null) : ok(invitationRow()),
+    );
+    db.setResponse("audit_log", ok(null));
+  });
+
+  async function send(): Promise<{ ok: boolean; error?: string }> {
+    return callServerFn(sendInvitation, { data: { id: IDS.invitation }, context: context() });
+  }
+
+  it.each([
+    ["profiles", "profile_write_failed", ["profiles"]],
+    ["author_profiles", "author_write_failed", ["profiles", "author_profiles"]],
+    ["user_roles", "role_write_failed", ["profiles", "author_profiles", "user_roles"]],
+  ] as const)(
+    "odmowa zapisu `%s` kończy się `%s`, bez maila i bez statusu „sent”",
+    async (table, prefix, attempted) => {
+      h.upsertErrors = { [table]: { message: "new row violates row-level security policy" } };
+      const result = await send();
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe(`${prefix}:new row violates row-level security policy`);
+      // Zapisy PO odmowie nie są już próbowane.
+      expect(h.adminWrites.map((write) => write.table)).toEqual(attempted);
+      expect(h.emails).toHaveLength(0);
+      const statuses = db
+        .chainsFor("user_invitations")
+        .filter((chain) => chain.has("update"))
+        .map((chain) => (chain.argsOf("update")?.[0] as { status: string }).status);
+      expect(statuses).toEqual(["failed"]);
+    },
+  );
+});
 
 describe("sendInvitationsBulk - wysyłka partii", () => {
   beforeEach(() => {

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { emitSiteSettingsInvalidate } from "@/lib/builder/siteSettingsLiveSync";
 import { deepMerge } from "@/lib/deepMerge";
+import { adminToast } from "@/lib/adminToasts";
 
 type Json = string | number | boolean | null | { [k: string]: Json } | Json[];
 export type SettingsRecord = { [k: string]: Json };
@@ -64,9 +65,11 @@ export function useSettings<T extends SettingsRecord>(key: string, defaults: T) 
         }),
       );
       emitSiteSettingsInvalidate();
-      toast.success("Zapisano");
+      // Komunikat w języku INTERFEJSU - hook obsługuje wszystkie panele
+      // `/admin/settings/*`, a te mają już wersję angielską.
+      toast.success(adminToast.saved());
     },
-    onError: (e: Error) => toast.error(e.message || "Błąd zapisu"),
+    onError: (e: Error) => toast.error(e.message || adminToast.saveFailed()),
   });
 
   return { query, save };

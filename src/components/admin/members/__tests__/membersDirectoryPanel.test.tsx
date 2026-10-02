@@ -51,6 +51,7 @@ const result = {
       subscriptionPeriodEnd: null,
       paidCents: 24900,
       currency: "PLN",
+      paidOther: [] as { cents: number; currency: string }[],
       lastPaymentAt: "2026-02-03T10:00:00.000Z",
       paymentsCount: 2,
       crmLeadId: "33333333-3333-4333-8333-333333333333",
@@ -103,6 +104,31 @@ describe("MembersDirectoryPanel", () => {
     expect(await screen.findByText("Manual grant")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Members" })).toBeInTheDocument();
     await i18n.changeLanguage("pl");
+  });
+
+  it("kwoty w różnych walutach są pokazane OSOBNO, nie jako jedna suma", async () => {
+    await i18n.changeLanguage("pl");
+    env.result = {
+      ...result,
+      rows: [
+        {
+          ...result.rows[0],
+          paidCents: 7000,
+          currency: "EUR",
+          paidOther: [{ cents: 10000, currency: "PLN" }],
+        },
+      ],
+    };
+    renderWithQueryClient(<MembersDirectoryPanel />);
+    await screen.findByText("Ana Nowak");
+    const eur = new Intl.NumberFormat("pl-PL", { style: "currency", currency: "EUR" }).format(70);
+    const pln = new Intl.NumberFormat("pl-PL", { style: "currency", currency: "PLN" }).format(100);
+    const cell = screen.getByText(
+      (_, element) => element?.tagName === "TD" && (element.textContent ?? "").includes(" + "),
+    );
+    // Intl wstawia twarde spacje - porównujemy po normalizacji białych znaków.
+    const norm = (value: string) => value.replace(/\s+/g, " ");
+    expect(norm(cell.textContent ?? "")).toBe(norm(`${eur} + ${pln}`));
   });
 
   it("otwiera dialog ręcznej zmiany planu", async () => {
