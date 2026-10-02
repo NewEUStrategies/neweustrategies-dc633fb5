@@ -689,9 +689,120 @@ export const FEATURES_3 = [
   },
 ];
 
-/** Taksonomia funkcjonalności per moduł. Dziś kompletna dla modułów 3, 16 i 21. */
+/**
+ * Funkcjonalności MODUŁU 7 („Typy treści specjalne"), w kolejności
+ * rozstrzygania (pierwsze trafienie wygrywa).
+ *
+ * Moduł dołączył jako czwarty z tego samego powodu co trzy poprzednie: tabela
+ * wydania 12 audytu (rozdz. 16.6) niesie dziesięć wierszy tego modułu, ale
+ * reguł, które je produkują, nikt nie opublikował - a przy przeliczaniu
+ * wyszło, że wiersze sumowały się do 110 plików przy 112 w module. Jeden
+ * z dwóch brakujących to `admin.newsletter.deliverability.tsx`, który do
+ * modułu 7 w ogóle nie należy (wyjątek w `moduleMap.mjs`), drugi to
+ * `spreadsheetProtocol.ts` - kontrakt wiadomości procesu arkuszy, bez ani
+ * jednej instrukcji, więc niewidoczny w procentach, ale nadal plik modułu.
+ * Nazwy wierszy są nazwami z tabeli audytu, liczności plików też
+ * (4/9/4/7/16/20/6/31/7/6 + kontrakt procesu).
+ */
+export const FEATURES_7 = [
+  {
+    key: "special-sheets",
+    name: "Proces arkuszy i pobieranie plików",
+    // Jedyna kopia `xlsx` w aplikacji żyje w procesie arkuszy; kontrakt
+    // wiadomości stoi tym samym wierszem, bo zmienia się razem z procesem.
+    // Pobieranie plików zbudowanych w przeglądarce idzie tu, bo to ten sam
+    // kierunek przepływu: bajty z przeglądarki do pliku użytkownika.
+    patterns: [
+      /^src\/lib\/files\/(spreadsheet\.worker|spreadsheetCore|spreadsheetWorker|spreadsheetProtocol|downloadBlob)\.ts$/,
+    ],
+  },
+  {
+    key: "special-file-library",
+    name: "Biblioteka plików",
+    // Czytnik dokumentów (PDF, DOCX, arkusze, CSV) - reguły stanu, parsery
+    // i widok. Po wierszu procesu arkuszy, bo dzielą katalog `lib/files`.
+    patterns: [/^src\/lib\/files\//, /^src\/components\/files\//],
+  },
+  {
+    key: "special-programs",
+    name: "Programy badawcze",
+    // Obie tabele programów: uproszczone `programs` (tagowanie treści)
+    // i pełne `research_programs` (landing think-tanku) - jedna powierzchnia
+    // dla redaktora, dwa panele.
+    patterns: [
+      /^src\/lib\/programs\//,
+      /^src\/components\/programs\//,
+      /^src\/routes\/(admin\.)?(research-)?programs[.$]/,
+    ],
+  },
+  {
+    key: "special-member-library",
+    name: "Biblioteka członkowska i słowniczek",
+    patterns: [/^src\/routes\/(admin\.)?(library|glossary)\.tsx$/],
+  },
+  {
+    key: "special-web-stories",
+    name: "Web stories",
+    patterns: [
+      /^src\/lib\/web-stories\//,
+      /^src\/components\/web-stories\//,
+      /^src\/routes\/(admin\.)?web-stories[.$]/,
+    ],
+  },
+  {
+    key: "special-tracker",
+    name: "Tracker legislacyjny",
+    patterns: [
+      /^src\/lib\/tracker\//,
+      /^src\/components\/tracker\//,
+      /^src\/routes\/(admin\.)?tracker[.$-]/,
+    ],
+  },
+  {
+    key: "special-podcast",
+    name: "Podcast",
+    patterns: [
+      /^src\/lib\/podcast\//,
+      /^src\/components\/podcast\//,
+      /^src\/components\/admin\/podcasts\//,
+      /^src\/routes\/(admin\.)?podcasts?[.$]/,
+    ],
+  },
+  {
+    key: "special-live-qa-polls",
+    name: "Relacje na żywo, Q&A i ankiety",
+    // Publiczne powierzchnie i panel relacji na żywo. Panele Q&A i ankiet
+    // SPOŁECZNOŚCI należą do modułu 16 (wyjątek w `moduleMap.mjs`).
+    patterns: [/^src\/routes\/(admin\.live-blog|live[._]|polls\.|qa[.$])/],
+  },
+  {
+    key: "special-experts",
+    name: "Huby ekspertów",
+    // Także hub ekspertów klubu i zapytania do ekspertów z profilu - to ten
+    // sam katalog osób i ten sam przepływ zapytania, tylko w innym kontekście.
+    patterns: [
+      /^src\/lib\/experts\//,
+      /^src\/components\/experts\//,
+      /^src\/components\/admin\/experts\//,
+      /^src\/routes\/.*expert/,
+    ],
+  },
+  {
+    key: "special-quiz-maps",
+    name: "Quiz / mapy",
+    patterns: [
+      /^src\/components\/quiz\//,
+      /^src\/lib\/maps\//,
+      /^src\/components\/maps\//,
+      /^src\/routes\/quiz\.tsx$/,
+    ],
+  },
+];
+
+/** Taksonomia funkcjonalności per moduł. Dziś kompletna dla modułów 3, 7, 16 i 21. */
 export const FEATURES = new Map([
   [3, FEATURES_3],
+  [7, FEATURES_7],
   [16, FEATURES_16],
   [21, FEATURES_21],
 ]);
