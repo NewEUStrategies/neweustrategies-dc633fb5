@@ -4,6 +4,10 @@
 // API działa dla anonimowych uzytkowników i tam, gdzie nagrywanie nie jest
 // dostępne (np. brak MediaRecorder / mikrofonu).
 //
+// Anonim idzie w Web Speech OD RAZU, przed prośbą o mikrofon: `/api/stt`
+// odpowiada mu 401, więc nagranie bez sesji kończyło się w próżni - mikrofon
+// świecił, użytkownik mówił, a fraza nigdy nie wracała do pola.
+//
 // UX: jedno nagranie na start(). Podczas nagrywania `listening=true`. Po
 // zatrzymaniu (ponowne kliknięcie / cisza) idzie POST na /api/stt i wynik
 // płynie do onText/onFinal.
@@ -52,6 +56,17 @@ function speechRecognitionCtor(): SpeechRecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+/** Czy jest sesja z tokenem - warunek serwerowej transkrypcji (`/api/stt`
+ *  wymaga zalogowania). Błąd odczytu sesji = brak sesji. */
+async function hasSession(): Promise<boolean> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return !!data.session?.access_token;
+  } catch {
+    return false;
+  }
+}
+
 function canRecord(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -95,9 +110,28 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
   const silenceTimerRef = useRef<number | null>(null);
   const hardStopTimerRef = useRef<number | null>(null);
   const speechRecRef = useRef<SpeechRecognitionLike | null>(null);
+  /** Start w locie (sesja, zgoda na mikrofon) - drugi toggle w tym oknie
+   *  otwierałby DRUGI strumień, a pierwszego nikt by już nie zamknął. */
+  const startingRef = useRef(false);
+  /** Hook zamontowany. Każde `await` w starcie i w transkrypcji może skończyć
+   *  się już po opuszczeniu strony - wtedy wynik trzeba wyrzucić. */
+  const aliveRef = useRef(true);
 
   useEffect(() => {
-    setSupported(canRecord() || speechRecognitionCtor() !== null);
+    aliveRef.current = true;
+    const speech = speechRecognitionCtor() !== null;
+    const record = canRecord();
+    setSupported(speech || record);
+    if (speech || !record) return;
+    // Bez Web Speech jedyną drogą jest serwerowe STT, a ono wymaga sesji -
+    // anonim dostałby przycisk, który nic nie robi.
+    let cancelled = false;
+    void hasSession().then((ok) => {
+      if (!cancelled && !ok) setSupported(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const cleanup = useCallback(() => {
@@ -117,6 +151,7 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
 
   useEffect(
     () => () => {
+      aliveRef.current = false;
       speechRecRef.current?.abort();
       speechRecRef.current = null;
       try {
@@ -221,6 +256,11 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
     } catch {
       return false;
     }
+    if (!aliveRef.current) {
+      // Zgoda przyszła po odmontowaniu - nikt już nie zamknie tego strumienia.
+      stream.getTracks().forEach((t) => t.stop());
+      return false;
+    }
     const mime = pickMimeType();
     let recorder: MediaRecorder;
     try {
@@ -242,11 +282,15 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
       chunksRef.current = [];
       recorderRef.current = null;
       cleanup();
+      // Odmontowanie zatrzymuje rekorder, a to też odpala `onstop`. Wysyłka
+      // po opuszczeniu strony paliłaby kredyty, a `onFinal` (submit frazy)
+      // nawigowałby z powrotem na /search spod innej strony.
+      if (!aliveRef.current) return;
       if (blob.size < 1500) return; // za krótkie / cisza
       setBusy(true);
       try {
         const text = await uploadForTranscription(blob);
-        if (text) {
+        if (text && aliveRef.current) {
           onTextRef.current(text);
           onFinalRef.current?.(text);
         }
@@ -342,7 +386,7 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
   }, [cleanup, stopRecording, uploadForTranscription]);
 
   const toggle = useCallback(() => {
-    if (busy) return;
+    if (busy || startingRef.current) return;
     if (speechRecRef.current) {
       speechRecRef.current.stop();
       return;
@@ -351,9 +395,16 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
       stopRecording();
       return;
     }
+    startingRef.current = true;
     void (async () => {
-      const ok = await startRecording();
-      if (!ok) startWebSpeechFallback();
+      try {
+        // Nagrywamy tylko wtedy, gdy ktoś to przepisze: anonim od razu
+        // dostaje rozpoznawanie w przeglądarce.
+        const ok = (await hasSession()) && aliveRef.current && (await startRecording());
+        if (!ok && aliveRef.current) startWebSpeechFallback();
+      } finally {
+        startingRef.current = false;
+      }
     })();
   }, [busy, startRecording, startWebSpeechFallback, stopRecording]);
 
