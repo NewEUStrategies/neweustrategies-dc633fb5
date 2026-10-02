@@ -701,6 +701,10 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0120_profile_link_routes",
     twin: "20261002100000_profile_link_routes.sql",
   },
+  {
+    tag: "0121_profile_slug_always_set",
+    twin: "20261002110000_profile_slug_always_set.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

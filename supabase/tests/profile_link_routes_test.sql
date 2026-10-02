@@ -48,7 +48,9 @@ INSERT INTO auth.users (id, email) SELECT id, lower(k) || '@plr.test' FROM plr_w
 -- B  nie-autor discoverable;  C  nie-autor ukryty, połączony z R;
 -- D  nie-autor z odznaką eksperta (publiczna obecność), ukryty: /author/<slug>
 --    po F5 przekierowuje na /people, które go nie rozwiąże;
--- E  autor bez sluga;  W  discoverable z pustym slugiem;
+-- E  autor zapisany BEZ sluga, W discoverable z PUSTYM slugiem - od
+--    20261002110000 wyzwalacz nadaje obu slug z nazwy ("plr-e", "plr-w"),
+--    wiec link jest, a nie znika;
 -- F  discoverable, przegląda w trybie anonimowym;  V  zwykły członek.
 INSERT INTO public.profiles (id, email, display_name, slug, tenant_id, discoverable, profile_view_mode)
 SELECT w.id, lower(w.k) || '@plr.test', 'PLR ' || w.k, w.slug, (SELECT home FROM plr_ctx),
@@ -164,11 +166,11 @@ SELECT is(pg_temp.plr_rec('D'), ARRAY[NULL, NULL]::text[],
   'gość: nie-autor z odznaką -> bez linku (/author przekierowałby na bramkę /people)');
 SELECT is(
   (SELECT count(*)::int FROM public.list_recommendations((SELECT id FROM plr_who WHERE k = 'R')) l
-    WHERE l.author_id IN (SELECT id FROM plr_who WHERE k IN ('H', 'B', 'C', 'E', 'W'))
+    WHERE l.author_id IN (SELECT id FROM plr_who WHERE k IN ('H', 'B', 'C', 'W'))
       AND (l.author_slug IS NOT NULL OR l.author_route IS NOT NULL)),
   0,
   'gość: nikt bez publicznego huba nie dostaje linku (gość nie otworzy /people)');
-SELECT is(pg_temp.plr_rec_parity(), ARRAY[1, 0],
+SELECT is(pg_temp.plr_rec_parity(), ARRAY[2, 0],
   'gość: każda zwrócona trasa naprawdę pokazuje tę osobę');
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -188,7 +190,7 @@ SELECT is(pg_temp.plr_rec('C'), ARRAY[NULL, NULL]::text[],
   'członek: ukryty, niepołączony -> bez linku');
 SELECT is(pg_temp.plr_rec('D'), ARRAY[NULL, NULL]::text[],
   'członek: nie-autor z odznaką, którego /people nie rozwiąże -> bez linku');
-SELECT is(pg_temp.plr_rec_parity(), ARRAY[3, 0],
+SELECT is(pg_temp.plr_rec_parity(), ARRAY[5, 0],
   'członek: każda zwrócona trasa naprawdę pokazuje tę osobę');
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -199,12 +201,12 @@ SELECT set_config('request.jwt.claims',
 SELECT is(pg_temp.plr_rec('C'), ARRAY['plr-connected', 'people'],
   'właściciel: połączony autor rekomendacji -> /people/<slug>');
 SELECT is(
-  (SELECT count(*)::int FROM public.list_recommendations((SELECT id FROM plr_who WHERE k = 'R')) l
-    WHERE l.author_id IN (SELECT id FROM plr_who WHERE k IN ('E', 'W'))
-      AND (l.author_slug IS NOT NULL OR l.author_route IS NOT NULL)),
-  0,
-  'właściciel: brak sluga albo pusty slug -> bez linku, nigdy zastępcze id');
-SELECT is(pg_temp.plr_rec_parity(), ARRAY[4, 0],
+  (SELECT array_agg(l.author_slug || ':' || l.author_route ORDER BY l.author_slug)
+     FROM public.list_recommendations((SELECT id FROM plr_who WHERE k = 'R')) l
+    WHERE l.author_id IN (SELECT id FROM plr_who WHERE k IN ('E', 'W'))),
+  ARRAY['plr-e:author', 'plr-w:people'],
+  'właściciel: zapis bez sluga / z pustym slugiem -> slug z nazwy (20261002110000), nigdy id');
+SELECT is(pg_temp.plr_rec_parity(), ARRAY[6, 0],
   'właściciel: każda zwrócona trasa naprawdę pokazuje tę osobę');
 SELECT ok(NOT EXISTS (
     SELECT 1 FROM public.list_recommendations((SELECT id FROM plr_who WHERE k = 'R')) l
@@ -224,8 +226,8 @@ SELECT is(pg_temp.plr_view('H'), ARRAY['plr-invited-author', 'people'],
   'widzowie: autor bez publicznej obecności -> /people, nie /author');
 SELECT is(pg_temp.plr_view('D'), ARRAY[NULL, NULL]::text[],
   'widzowie: nie-autor z odznaką, którego /people nie rozwiąże -> bez linku');
-SELECT is(pg_temp.plr_view('W'), ARRAY[NULL, NULL]::text[],
-  'widzowie: pusty slug -> bez linku');
+SELECT is(pg_temp.plr_view('W'), ARRAY['plr-w', 'people'],
+  'widzowie: zapis z pustym slugiem -> slug z nazwy i link na /people');
 SELECT is(
   (SELECT ARRAY[count(*),
                 count(*) FILTER (WHERE v.viewer_id IS NOT NULL OR v.viewer_slug IS NOT NULL
@@ -240,7 +242,7 @@ SELECT is(
                                    AND NOT pg_temp.plr_route_ok(v.viewer_route, v.viewer_slug, v.viewer_id))
                 + count(*) FILTER (WHERE (v.viewer_route IS NULL) <> (v.viewer_slug IS NULL))]::int[]
      FROM public.my_profile_viewers(100) v),
-  ARRAY[4, 0],
+  ARRAY[5, 0],
   'widzowie: każda zwrócona trasa naprawdę pokazuje tę osobę');
 
 SELECT * FROM finish();

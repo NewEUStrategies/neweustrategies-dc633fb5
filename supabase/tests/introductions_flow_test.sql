@@ -445,14 +445,15 @@ SELECT ok(
   'requester: cel bez discoverable - slug i trasa NULL (bez martwego linku), nazwa zostaje'
 );
 
--- Profil bez sluga (fikstura A1/B1/C1 nie ma sluga) - NULL, a nie '' ani id.
+-- Most, którego cel nie zobaczy (A1/B1/C1: bez połączeń i bez discoverable;
+-- slug B1 nadaje wyzwalacz 20261002110000) - NULL, a nie '' ani id.
 SELECT set_config('request.jwt.claims',
   '{"sub":"d0000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
 SELECT ok(
   (SELECT bridge_slug IS NULL
      FROM public.my_introduction_requests('target')
     WHERE id = '11110000-0000-0000-0000-000000000001'),
-  'target: most bez sluga - bridge_slug NULL, nigdy zastępcze id'
+  'target: most, którego cel nie zobaczy - bridge_slug NULL, nigdy zastępcze id'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════

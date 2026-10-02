@@ -848,6 +848,13 @@
       "when": 1790935200000,
       "tag": "0120_profile_link_routes",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1790938800000,
+      "tag": "0121_profile_slug_always_set",
+      "breakpoints": true
     }
   ]
 }

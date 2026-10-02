@@ -5,7 +5,7 @@
 -- publicznego. Ten plik przybija kontrakt MIEDZY dwoma RPC, od ktorego to
 -- zalezy: kto moze ujawnic (`club_moderator_reveal_author`, can_reveal_author =
 -- is_club_admin), ten otworzy karte (`admin_get_user`) - takze dla czlonka
--- bez `discoverable`, bez polaczenia z adminem i BEZ sluga. Kto ujawnic nie
+-- bez `discoverable` i bez polaczenia z adminem. Kto ujawnic nie
 -- moze (redaktor), ten karty tez nie dostaje.
 -- ============================================================================
 BEGIN;
@@ -23,7 +23,7 @@ VALUES ('bbbbbbbb-0000-0000-0000-000000000001', 'admin@reveal.local'),
        ('bbbbbbbb-0000-0000-0000-000000000003', 'member@reveal.local')
 ON CONFLICT (id) DO NOTHING;
 
--- Czlonek: NIE discoverable, bez polaczen, BEZ sluga - najgorszy przypadek
+-- Czlonek: NIE discoverable, bez polaczen, zapisany bez sluga - najgorszy przypadek
 -- dla kazdego odnosnika opartego o profil publiczny.
 INSERT INTO public.profiles (id, tenant_id, display_name, slug, discoverable)
 VALUES ('bbbbbbbb-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Admin R', 'admin-r-reveal', true),
@@ -92,15 +92,18 @@ SELECT is(
   'bbbbbbbb-0000-0000-0000-000000000003'::uuid,
   'ujawnienie oddaje id autora - klucz odnosnika /admin/users/$id'
 );
+-- Slug jest (od 20261002110000 kazdy profil dostaje go z nazwy), ale profil
+-- publiczny i tak nie pokaze adminowi ujawnionego czlonka: get_member_profile
+-- nie ma galezi personelu. Dlatego kluczem odnosnika jest id, nie slug.
 SELECT is(
-  (SELECT profile_slug FROM revealed),
+  (SELECT public.get_member_profile(profile_slug) FROM revealed),
   NULL,
-  'konto bez sluga: slug NIE moze byc kluczem odnosnika po ujawnieniu'
+  'profil publiczny nie pokaze adminowi ujawnionego czlonka - slug NIE moze byc kluczem odnosnika'
 );
 SELECT is(
   (SELECT id FROM public.admin_get_user((SELECT author_id FROM revealed))),
   'bbbbbbbb-0000-0000-0000-000000000003'::uuid,
-  'ujawniajacy admin otwiera karte autora: bez discoverable, bez polaczenia, bez sluga'
+  'ujawniajacy admin otwiera karte autora: bez discoverable i bez polaczenia'
 );
 SELECT * FROM finish();
 ROLLBACK;
