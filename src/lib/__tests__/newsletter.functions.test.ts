@@ -486,7 +486,9 @@ describe("double opt-in WŁĄCZONY", () => {
 
     await subscribeToNewsletter({ data: input() });
 
-    expect(String(sentMail().html)).toContain("/newsletter/unsubscribe?token=unsub-tok");
+    // Ten sam adres co w kampaniach: ENDPOINT z handlerem POST, nie strona SPA
+    // (`@/lib/newsletter/unsubscribeUrl`).
+    expect(String(sentMail().html)).toContain("/api/public/newsletter/unsubscribe?token=unsub-tok");
     // Link potwierdzenia jest w tym samym mailu - jeden mail, dwie drogi.
     expect(String(sentMail().html)).toContain("/newsletter/confirm");
   });

@@ -12,6 +12,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { rateLimitIpSubject } from "@/lib/http/rateLimit";
+import { newsletterUnsubscribeUrl } from "@/lib/newsletter/unsubscribeUrl";
 import { z } from "zod";
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/resend";
@@ -406,8 +407,10 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
       .eq("tenant_id", tenantId)
       .eq("email", email)
       .maybeSingle();
+    // Ten sam adres co w kampaniach (endpoint, nie strona) - patrz
+    // `@/lib/newsletter/unsubscribeUrl`.
     const unsubscribeUrl = subRow?.unsubscribe_token
-      ? `${originFromRequest()}/newsletter/unsubscribe?token=${encodeURIComponent(subRow.unsubscribe_token)}`
+      ? newsletterUnsubscribeUrl(originFromRequest(), subRow.unsubscribe_token)
       : null;
     const mail = buildDoiEmail(displayName, data.language, confirmUrl, unsubscribeUrl);
     // Use the tenant's configured sender when set; otherwise sendEmail() falls

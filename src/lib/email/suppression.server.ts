@@ -236,9 +236,13 @@ export interface UnsubscribeResult {
 
 /**
  * Wypis jednym kliknięciem. Cała praca (zużycie tokenu, blokada na liście
- * kanonicznej, zdjęcie subskrypcji przez trigger) dzieje się w JEDNEJ
- * transakcji SQL - inaczej przerwanie w połowie zostawiałoby adres wypisany z
- * newslettera, ale bez blokady zatrzymującej digesty, albo odwrotnie.
+ * kanonicznej, zdjęcie subskrypcji) dzieje się w JEDNEJ transakcji SQL -
+ * inaczej przerwanie w połowie zostawiałoby adres wypisany z newslettera, ale
+ * bez blokady zatrzymującej digesty, albo odwrotnie. Wspólne dla obu torów
+ * wypisu: /email/unsubscribe (token globalny i per subskrybent) oraz
+ * /api/public/newsletter/unsubscribe (stopka i nagłówek List-Unsubscribe
+ * kampanii). Nieudana blokada wycofuje całość i wraca jako `error`
+ * (komunikat bazy - wołający NIE oddaje go klientowi).
  */
 export async function unsubscribeByToken(
   admin: DbClient,
