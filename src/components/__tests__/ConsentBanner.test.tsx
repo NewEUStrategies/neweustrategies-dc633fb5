@@ -348,3 +348,15 @@ describe("ConsentBanner - dodatkowe odnośniki z panelu idą za językiem banera
     await i18n.changeLanguage("pl");
   });
 });
+
+describe("ConsentBanner - puste pole treści z panelu", () => {
+  it("wyczyszczony przycisk dostaje brzmienie domyślne zamiast pustej nazwy", () => {
+    const cleared = {
+      ...COOKIE_BANNER_DEFAULTS,
+      copy: { ...COOKIE_BANNER_DEFAULTS.copy, pl: { ...PL, acceptAll: "", title: " " } },
+    };
+    render(<ConsentBanner configOverride={cleared} />);
+    expect(screen.getByRole("button", { name: PL.acceptAll })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: PL.title })).toBeInTheDocument();
+  });
+});

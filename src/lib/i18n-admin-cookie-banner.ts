@@ -15,7 +15,6 @@ import i18n from "@/lib/i18n";
 
 const pl = {
   adminCookieBanner: {
-    headTitle: "Cookie banner - Ustawienia",
     title: "Cookie banner",
     subtitle:
       "Kolory, treści (PL/EN) oraz mechanizmy zgody. Zmiany są widoczne na żywo po zapisie.",
@@ -115,13 +114,13 @@ const pl = {
         keys: "Wykryte klucze",
       },
       autoBadge: "auto",
+      serverStorage: "serwer",
     },
   },
 };
 
 const en: typeof pl = {
   adminCookieBanner: {
-    headTitle: "Cookie banner - Settings",
     title: "Cookie consent banner",
     subtitle:
       "Colours, copy (PL/EN) and consent mechanisms. Changes go live on the site right after saving.",
@@ -221,6 +220,7 @@ const en: typeof pl = {
         keys: "Detected keys",
       },
       autoBadge: "auto-detected",
+      serverStorage: "server",
     },
   },
 };

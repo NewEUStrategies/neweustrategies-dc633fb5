@@ -30,6 +30,7 @@ import {
   useCookieBannerConfig,
   bannerLinkHref,
   bannerStyleVars,
+  resolveBannerCopy,
   clampCookieBannerLogoSize,
   type CookieBannerCopy,
   type CookieBannerConfig,
@@ -254,7 +255,9 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
   const privacy = useSiteSetting<PrivacyConfig>("privacy", PRIVACY_DEFAULTS);
   const saved = useCookieBannerConfig();
   const banner = configOverride ?? saved;
-  const t: CookieBannerCopy = banner.copy[uiLanguage];
+  // Puste pole treści z panelu wraca do brzmienia domyślnego - patrz
+  // `resolveBannerCopy` (panel pokazuje to brzmienie jako podpowiedź).
+  const t: CookieBannerCopy = resolveBannerCopy(banner.copy?.[uiLanguage], uiLanguage);
   const { theme } = useTheme();
   const effectiveTheme = themeOverride ?? (theme === "dark" ? "dark" : "light");
   const brandMark = useBrandMarkUrl(effectiveTheme);

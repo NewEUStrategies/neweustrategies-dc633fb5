@@ -14,6 +14,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { COOKIE_BANNER_DEFAULTS } from "@/lib/cookieBanner/config";
 
+const h = vi.hoisted(() => ({ requestUrl: "" }));
+
+vi.mock("@/lib/seo/request", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/seo/request")>()),
+  getRequestUrl: () => h.requestUrl,
+}));
+vi.mock("@/lib/i18n/localeRuntime", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/i18n/localeRuntime")>()),
+  // Ścieżka bez prefiksu = język domyślny; ciasteczko języka nie wchodzi w grę.
+  currentLang: () => "pl",
+}));
+
 vi.mock("@/lib/admin/useSettings", () => ({
   useSettings: () => ({
     query: { data: COOKIE_BANNER_DEFAULTS },
@@ -116,16 +128,22 @@ describe("/admin/settings/cookie-banner - język interfejsu", () => {
     }
   });
 
-  it("tytuł karty przeglądarki jest w języku interfejsu", async () => {
+  it("tytuł karty: język z ŻĄDANIA (activeLang), nie z singletonu i18next", async () => {
     const head = Route.options.head;
     if (!head) throw new Error("trasa bez head()");
     const title = () => {
       const meta = (head as () => { meta: Record<string, unknown>[] })().meta;
       return meta.find((item) => "title" in item)?.title;
     };
+    h.requestUrl = "/admin/settings/cookie-banner";
     expect(title()).toBe("Cookie banner - Ustawienia");
-    await i18n.changeLanguage("en");
+    h.requestUrl = "/en/admin/settings/cookie-banner";
     expect(title()).toBe("Cookie banner - Settings");
+    // Zmiana języka instancji i18next NIE przestawia tytułu - na serwerze ta
+    // instancja jest wspólna dla równoległych żądań.
+    h.requestUrl = "/admin/settings/cookie-banner";
+    await i18n.changeLanguage("en");
+    expect(title()).toBe("Cookie banner - Ustawienia");
   });
 });
 

@@ -90,7 +90,13 @@ export function DetectedElementsPanel() {
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap">{item.kind}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {/* Nazwy magazynów przeglądarki są nazwami technicznymi
+                              (`cookie`, `localStorage`); tłumaczymy tylko „server". */}
+                          {item.kind === "server"
+                            ? t("adminCookieBanner.detected.serverStorage")
+                            : item.kind}
+                        </td>
                         <td className="px-3 py-2 text-muted-foreground">
                           {pickLocalized(item, "purpose", lang)}
                         </td>

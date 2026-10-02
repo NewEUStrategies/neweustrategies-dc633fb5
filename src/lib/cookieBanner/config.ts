@@ -78,13 +78,27 @@ const BANNER_LINK_SCHEMES: ReadonlySet<string> = new Set(["http", "https", "mail
 export function bannerLinkHref(url: string | null | undefined, lang: AppLang): string | null {
   const value = (url ?? "").trim();
   if (value === "") return null;
-  if (value.startsWith("//") || value.startsWith("#") || value.startsWith("?")) return value;
+  if (value.startsWith("#") || value.startsWith("?")) return value;
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(value);
   if (scheme) return BANNER_LINK_SCHEMES.has(scheme[1].toLowerCase()) ? value : null;
-  const cut = value.search(/[?#]/);
-  const path = cut === -1 ? value : value.slice(0, cut);
-  const rest = cut === -1 ? "" : value.slice(cut);
-  return `${localizedPath(path, lang)}${rest}`;
+  // Ścieżkę rozwiązujemy TAK, JAK ZROBI TO PRZEGLĄDARKA, zanim dołożymy prefiks
+  // języka. Przeglądarka traktuje `\` jak `/` i skleja `..`, więc bez tego
+  // `/\evil.example` było w wersji PL adresem ZEWNĘTRZNYM (`//evil.example`),
+  // a w EN wewnętrznym (`/en/\evil.example`), a `/en/../cookies` w wersji EN
+  // prowadziło na `/cookies`, czyli na stronę polską. Adres, który po
+  // rozwiązaniu wychodzi poza serwis (`//host`), zostaje bez zmian - jak każdy
+  // adres zewnętrzny - więc obie wersje banera prowadzą w to samo miejsce.
+  const base = "https://banner-link.invalid";
+  let resolved: URL;
+  try {
+    // `\cookies` przeglądarka czyta jak `/cookies`, więc wiodący ukośnik
+    // dokładamy tylko adresowi, który nie zaczyna się od żadnego z nich.
+    resolved = new URL(/^[/\\]/.test(value) ? value : `/${value}`, base);
+  } catch {
+    return null;
+  }
+  if (resolved.origin !== base) return value;
+  return `${localizedPath(resolved.pathname, lang)}${resolved.search}${resolved.hash}`;
 }
 
 /** Dodatkowy odnośnik prawny pokazywany pod treścią banera. */
@@ -213,6 +227,27 @@ export const COOKIE_BANNER_DEFAULTS: CookieBannerConfig = {
 };
 
 export const COOKIE_BANNER_SETTINGS_KEY = "cookie_banner_config";
+
+/**
+ * Treść banera w danym języku z powrotem do brzmień DOMYŚLNYCH dla pól pustych.
+ *
+ * Panel pokazuje brzmienia domyślne jako podpowiedzi w polach treści. Bez tej
+ * reguły podpowiedź kłamała: wyczyszczone pole zapisywało się jako `""`,
+ * a baner rysował przycisk bez nazwy (niedostępny dla czytnika ekranu) albo
+ * pusty nagłówek. Pole z samych spacji też jest puste.
+ */
+export function resolveBannerCopy(
+  copy: Partial<CookieBannerCopy> | null | undefined,
+  lang: AppLang,
+): CookieBannerCopy {
+  const defaults = COOKIE_BANNER_DEFAULTS.copy[lang];
+  const out = { ...defaults };
+  for (const key of Object.keys(defaults) as (keyof CookieBannerCopy)[]) {
+    const value = copy?.[key];
+    if (typeof value === "string" && value.trim() !== "") out[key] = value;
+  }
+  return out;
+}
 
 export function useCookieBannerConfig(): CookieBannerConfig {
   return useSiteSetting<CookieBannerConfig>(COOKIE_BANNER_SETTINGS_KEY, COOKIE_BANNER_DEFAULTS);

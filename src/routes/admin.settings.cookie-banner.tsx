@@ -8,7 +8,6 @@
 // `COOKIE_BANNER_DEFAULTS.copy[lang]`). Administrator z interfejsem po polsku
 // edytujący wersję angielską widzi więc polskie etykiety i angielskie
 // przykłady - bo to jest angielski baner.
-import i18n from "@/lib/i18n";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
@@ -27,16 +26,25 @@ import { CookieBannerBrandingSection } from "@/components/admin/cookie-banner/Co
 import { DetectedElementsPanel } from "@/components/admin/cookie-banner/DetectedElementsPanel";
 import { requestConsentPreferences } from "@/lib/ads/consent";
 import { ensureI18n } from "@/lib/i18n-admin-cookie-banner";
-
-ensureI18n();
+import { activeLang } from "@/lib/seo/head";
+import { getRequestUrl } from "@/lib/seo/request";
 
 export const Route = createFileRoute("/admin/settings/cookie-banner")({
-  head: () => ({
-    meta: [
-      { title: i18n.t("adminCookieBanner.headTitle") },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
-  }),
+  // `head()` biegnie POZA drzewem Reacta, a `i18n.language` jest na serwerze
+  // singletonem współdzielonym przez równoległe żądania - więc język bierzemy
+  // z żądania (`activeLang`), a tekst jest dwujęzycznym literałem (wzorzec
+  // `admin.i18n.tsx`). Słownika panelu tu celowo NIE używamy: `head()` zostaje
+  // w głównym drzewie tras, więc import nakładki na tym poziomie wciągnąłby ją
+  // do paczki wejściowej każdej strony publicznej.
+  head: () => {
+    const lang = activeLang(getRequestUrl() || "/admin/settings/cookie-banner");
+    return {
+      meta: [
+        { title: lang === "en" ? "Cookie banner - Settings" : "Cookie banner - Ustawienia" },
+        { name: "robots", content: "noindex, nofollow" },
+      ],
+    };
+  },
   component: CookieBannerSettings,
 });
 
@@ -90,6 +98,7 @@ function CopyEditor({
       </p>
       <Field label={field("title")}>
         <Text
+          lang={lang}
           value={copy.title}
           onChange={(e) => set("title", e.target.value)}
           placeholder={example.title}
@@ -97,6 +106,7 @@ function CopyEditor({
       </Field>
       <Field label={field("intro")}>
         <textarea
+          lang={lang}
           value={copy.intro}
           onChange={(e) => set("intro", e.target.value)}
           placeholder={example.intro}
@@ -106,6 +116,7 @@ function CopyEditor({
       </Field>
       <Field label={field("compactMessage")}>
         <Text
+          lang={lang}
           value={copy.compactMessage}
           onChange={(e) => set("compactMessage", e.target.value)}
           placeholder={example.compactMessage}
@@ -113,6 +124,7 @@ function CopyEditor({
       </Field>
       <Field label={field("policyLabel")}>
         <Text
+          lang={lang}
           value={copy.policyLabel}
           onChange={(e) => set("policyLabel", e.target.value)}
           placeholder={example.policyLabel}
@@ -121,41 +133,49 @@ function CopyEditor({
       <Field label={t("adminCookieBanner.copy.fields.buttons")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Text
+            lang={lang}
             value={copy.acceptAll}
             onChange={(e) => set("acceptAll", e.target.value)}
             placeholder={example.acceptAll}
           />
           <Text
+            lang={lang}
             value={copy.rejectAll}
             onChange={(e) => set("rejectAll", e.target.value)}
             placeholder={example.rejectAll}
           />
           <Text
+            lang={lang}
             value={copy.saveSelection}
             onChange={(e) => set("saveSelection", e.target.value)}
             placeholder={example.saveSelection}
           />
           <Text
+            lang={lang}
             value={copy.customize}
             onChange={(e) => set("customize", e.target.value)}
             placeholder={example.customize}
           />
           <Text
+            lang={lang}
             value={copy.showDetails}
             onChange={(e) => set("showDetails", e.target.value)}
             placeholder={example.showDetails}
           />
           <Text
+            lang={lang}
             value={copy.hideDetails}
             onChange={(e) => set("hideDetails", e.target.value)}
             placeholder={example.hideDetails}
           />
           <Text
+            lang={lang}
             value={copy.showVendors}
             onChange={(e) => set("showVendors", e.target.value)}
             placeholder={example.showVendors}
           />
           <Text
+            lang={lang}
             value={copy.hideVendors}
             onChange={(e) => set("hideVendors", e.target.value)}
             placeholder={example.hideVendors}
@@ -165,21 +185,25 @@ function CopyEditor({
       <Field label={t("adminCookieBanner.copy.fields.categories")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <Text
+            lang={lang}
             value={copy.categoryNecessary}
             onChange={(e) => set("categoryNecessary", e.target.value)}
             placeholder={example.categoryNecessary}
           />
           <Text
+            lang={lang}
             value={copy.categoryFunctional}
             onChange={(e) => set("categoryFunctional", e.target.value)}
             placeholder={example.categoryFunctional}
           />
           <Text
+            lang={lang}
             value={copy.categoryAnalytics}
             onChange={(e) => set("categoryAnalytics", e.target.value)}
             placeholder={example.categoryAnalytics}
           />
           <Text
+            lang={lang}
             value={copy.categoryMarketing}
             onChange={(e) => set("categoryMarketing", e.target.value)}
             placeholder={example.categoryMarketing}
@@ -188,6 +212,7 @@ function CopyEditor({
       </Field>
       <Field label={field("descNecessary")}>
         <textarea
+          lang={lang}
           value={copy.descNecessary}
           onChange={(e) => set("descNecessary", e.target.value)}
           placeholder={example.descNecessary}
@@ -197,6 +222,7 @@ function CopyEditor({
       </Field>
       <Field label={field("descFunctional")}>
         <textarea
+          lang={lang}
           value={copy.descFunctional}
           onChange={(e) => set("descFunctional", e.target.value)}
           placeholder={example.descFunctional}
@@ -206,6 +232,7 @@ function CopyEditor({
       </Field>
       <Field label={field("descAnalytics")}>
         <textarea
+          lang={lang}
           value={copy.descAnalytics}
           onChange={(e) => set("descAnalytics", e.target.value)}
           placeholder={example.descAnalytics}
@@ -215,6 +242,7 @@ function CopyEditor({
       </Field>
       <Field label={field("descMarketing")}>
         <textarea
+          lang={lang}
           value={copy.descMarketing}
           onChange={(e) => set("descMarketing", e.target.value)}
           placeholder={example.descMarketing}
@@ -227,6 +255,9 @@ function CopyEditor({
 }
 
 function CookieBannerSettings() {
+  // Rejestracja nakładki w komponencie (nie na poziomie modułu) - ta sama
+  // reguła co `admin.permissions.tsx`: słownik jedzie chunkiem trasy panelu.
+  ensureI18n();
   const { t } = useTranslation();
   const { query, save } = useSettings<CookieBannerConfig>(
     COOKIE_BANNER_SETTINGS_KEY,
