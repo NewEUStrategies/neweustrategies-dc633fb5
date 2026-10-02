@@ -31,12 +31,8 @@ vi.mock("react-i18next", () => ({
 vi.mock("@/lib/i18n/useLang", () => ({ useLang: () => h.lang }));
 
 import { realT } from "@/test/i18nReal";
-import {
-  CvDownloadButton,
-  CvPrintSheet,
-  formatCvDateRange,
-  formatCvMonth,
-} from "@/components/author/CvPrintSheet";
+import { CvDownloadButton, CvPrintSheet } from "@/components/author/CvPrintSheet";
+import { formatCvDateRange, formatCvMonth } from "@/components/author/cvDates";
 
 h.fixedT = realT;
 

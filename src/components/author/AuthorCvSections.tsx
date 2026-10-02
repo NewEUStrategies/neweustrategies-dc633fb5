@@ -28,10 +28,9 @@ import { useSkillEndorsements, useToggleEndorsement } from "@/lib/network/useEnd
 import {
   CvDownloadButton,
   CvPrintSheet,
-  formatCvDateRange,
-  formatCvMonth,
   type CvPrintIdentity,
 } from "@/components/author/CvPrintSheet";
+import { formatCvDateRange, formatCvMonth } from "@/components/author/cvDates";
 
 interface Props {
   userId: string | null | undefined;

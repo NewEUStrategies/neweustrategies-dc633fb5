@@ -15,7 +15,12 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, Copy, Quote } from "@/lib/lucide-shim";
-import { buildCitations, type CitationAuthor, type CitationLang } from "@/lib/citations/format";
+import {
+  buildCitations,
+  localAccessDate,
+  type CitationAuthor,
+  type CitationLang,
+} from "@/lib/citations/format";
 import { SITE_NAME } from "@/lib/seo/meta";
 import "@/lib/i18n-post-experience";
 
@@ -53,10 +58,11 @@ export function CitationBox({
   const t = (key: string) => translate(`postExperience.citation.${key}`, { lng: lang });
   const headingId = useId();
 
-  // Data dostępu czytelnika - wyłącznie po stronie klienta (patrz nagłówek).
+  // Data dostępu czytelnika - wyłącznie po stronie klienta (patrz nagłówek),
+  // w JEGO strefie czasowej, nie w UTC.
   const [accessedOn, setAccessedOn] = useState<string | null>(null);
   useEffect(() => {
-    setAccessedOn(new Date().toISOString().slice(0, 10));
+    setAccessedOn(localAccessDate(new Date()));
   }, []);
 
   const citations = useMemo(

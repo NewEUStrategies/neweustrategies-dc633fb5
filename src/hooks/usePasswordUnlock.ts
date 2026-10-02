@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { unlockContentPassword } from "@/lib/auth/bruteforce.functions";
 import type { BodyParts } from "@/lib/access/gating";
@@ -53,7 +53,10 @@ export function usePasswordUnlock(
   // Body i stan "w toku" niosą klucz bytu, dla którego powstały: trasa `$` nie
   // przemontowuje strony między wpisami, więc bez tego treść odblokowana na
   // wpisie A (albo spóźniona odpowiedź dla A) renderowałaby się na wpisie B.
-  const [unlocked, setUnlocked] = useState<{ key: string; body: BodyParts } | null>(null);
+  // MAPA, nie jedno miejsce: spóźniona odpowiedź dla A nie może wyprzeć body B
+  // odblokowanego w międzyczasie (cicho, z hasła zapamiętanego w karcie).
+  const [unlocked, setUnlocked] = useState<Readonly<Record<string, BodyParts>>>({});
+  const unlockedKeys = useRef(new Set<string>());
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const runUnlock = useServerFn(unlockContentPassword);
 
@@ -70,15 +73,14 @@ export function usePasswordUnlock(
         if (!row || row.ok !== true) {
           result = { ok: false, reason: "invalid" };
         } else {
-          setUnlocked({
-            key,
-            body: {
-              content_pl: row.content_pl ?? null,
-              content_en: row.content_en ?? null,
-              builder_data: row.builder_data ?? null,
-              blocks_data: row.blocks_data ?? null,
-            },
-          });
+          const body: BodyParts = {
+            content_pl: row.content_pl ?? null,
+            content_en: row.content_en ?? null,
+            builder_data: row.builder_data ?? null,
+            blocks_data: row.blocks_data ?? null,
+          };
+          unlockedKeys.current.add(key);
+          setUnlocked((prev) => ({ ...prev, [key]: body }));
           rememberPassword(key, password);
           result = { ok: true };
         }
@@ -95,8 +97,10 @@ export function usePasswordUnlock(
   );
 
   // Silent re-unlock on mount when a valid password sits in sessionStorage.
+  // Wpis odblokowany już w tej sesji (powrót A -> B -> A) nie pyta serwera
+  // drugi raz - body czeka w mapie.
   useEffect(() => {
-    if (!enabled || !storageKey) return;
+    if (!enabled || !storageKey || unlockedKeys.current.has(storageKey)) return;
     const cached = cachedPassword(storageKey);
     if (!cached) return;
     void verify(cached).then((result) => {
@@ -106,7 +110,7 @@ export function usePasswordUnlock(
     });
   }, [enabled, storageKey, verify]);
 
-  const body = unlocked !== null && unlocked.key === storageKey ? unlocked.body : null;
+  const body = storageKey ? (unlocked[storageKey] ?? null) : null;
   const loading = pendingKey !== null && pendingKey === storageKey;
   return { body, verify, loading };
 }

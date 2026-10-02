@@ -20,7 +20,7 @@ vi.mock("react-i18next", async () => {
   return reactI18nextStub();
 });
 vi.mock("@/components/admin/postExperience/organisms/RelatedPostsSettingsPanel", () => ({
-  RelatedPostsSettingsPanel: () => <h1>panel rekomendacji</h1>,
+  RelatedPostsSettingsPanel: () => null,
 }));
 vi.mock("@/components/molecules/RouteErrorFallback", () => ({
   RouteErrorFallback: (props: Record<string, unknown>) => {
@@ -39,12 +39,12 @@ beforeEach(() => {
 });
 
 describe("/admin/related-posts", () => {
-  it("komponentem trasy jest panel konfiguracji silnika", () => {
-    const Component = options.component as () => ReactNode;
-    render(<>{Component()}</>);
-
+  it("komponentem trasy jest panel konfiguracji silnika, z własnym 404 i granicą błędu", () => {
+    // Render atrapy panelu nic by tu nie dowiódł - liczy się TOŻSAMOŚĆ
+    // komponentu; zachowanie obu ekranów zastępczych sprawdzają przypadki niżej.
     expect(options.component).toBe(RelatedPostsSettingsPanel);
-    expect(screen.getByRole("heading", { name: "panel rekomendacji" })).toBeInTheDocument();
+    expect(options.notFoundComponent).toBeTypeOf("function");
+    expect(options.errorComponent).toBeTypeOf("function");
   });
 
   it("brak dopasowania ma własny, przetłumaczony ekran", () => {

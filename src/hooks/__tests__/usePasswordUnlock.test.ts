@@ -250,9 +250,36 @@ describe("usePasswordUnlock - treść należy do wpisu", () => {
 
     rerender({ id: POST_B, on: true });
     expect(result.current.body).toBeNull();
-    // Powrót na A pokazuje treść A - odblokowanie dotyczyło właśnie tego wpisu.
+    // Powrót na A pokazuje treść A - odblokowanie dotyczyło właśnie tego wpisu -
+    // i NIE pyta serwera drugi raz (body czeka w mapie, hasło zostaje w karcie).
     rerender({ id: POST_A, on: true });
     expect(result.current.body?.content_pl).toBe("<p>Treść A</p>");
+    expect(h.unlock).toHaveBeenCalledTimes(1);
+    expect(window.sessionStorage.getItem(keyFor(POST_A))).toBe("haslo-a");
+  });
+
+  it("spóźniona odpowiedź dla A nie wypiera body B odblokowanego w międzyczasie", async () => {
+    const slowA = deferred<UnlockRow>();
+    h.unlock.mockReturnValueOnce(slowA.promise).mockResolvedValueOnce(granted("<p>Treść B</p>"));
+    window.sessionStorage.setItem(keyFor(POST_B), "haslo-b");
+    const { result, rerender } = mount(POST_A);
+    let verdictA: Promise<unknown> = Promise.resolve();
+    act(() => {
+      verdictA = result.current.verify("haslo-a");
+    });
+
+    // B odblokowuje się CICHO z hasła karty, zanim wróci odpowiedź dla A.
+    rerender({ id: POST_B, on: true });
+    await waitFor(() => expect(result.current.body?.content_pl).toBe("<p>Treść B</p>"));
+
+    await act(async () => {
+      slowA.resolve(granted("<p>Treść A</p>"));
+      await verdictA;
+    });
+    expect(result.current.body?.content_pl).toBe("<p>Treść B</p>");
+    rerender({ id: POST_A, on: true });
+    expect(result.current.body?.content_pl).toBe("<p>Treść A</p>");
+    expect(h.unlock).toHaveBeenCalledTimes(2);
   });
 
   it("spóźniona odpowiedź dla A po przejściu na B nie odblokowuje B ani nie trzyma loading", async () => {
