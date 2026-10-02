@@ -144,6 +144,29 @@ describe("CookieVersionsPane - podgląd", () => {
     expect(screen.getByText(COOKIE_BANNER_DEFAULTS.copy.pl.categoryNecessary)).toBeInTheDocument();
   });
 
+  it("PUSTE pole treści w podglądzie = brzmienie domyślne, tak jak w banerze na stronie", async () => {
+    // Panel zapisuje wyczyszczone pole jako "". Baner na stronie
+    // (`resolveBannerCopy`) pokazuje wtedy brzmienie domyślne, więc podgląd
+    // „tak zobaczy to odwiedzający" nie może pokazywać pustego nagłówka
+    // i przycisków bez nazwy. Przywrócenie zapisuje migawkę BEZ zmian.
+    const pl = { ...COOKIE_BANNER_DEFAULTS.copy.pl, title: "", acceptAll: "   " };
+    h.revisions = [
+      revision({
+        value: { ...COOKIE_BANNER_DEFAULTS, copy: { ...COOKIE_BANNER_DEFAULTS.copy, pl } },
+      }),
+    ];
+    renderWithQueryClient(<CookieVersionsPane lang="pl" />);
+    fireEvent.click(screen.getByText("Anna Kowalska"));
+
+    expect(screen.getByText(COOKIE_BANNER_DEFAULTS.copy.pl.title)).toBeInTheDocument();
+    expect(screen.getByText(COOKIE_BANNER_DEFAULTS.copy.pl.acceptAll)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Przywróć tę wersję"));
+    await waitFor(() => expect(h.upsertArgs.length).toBeGreaterThan(0));
+    const [payload] = h.upsertArgs[0] as [{ value: { copy: { pl: { title: string } } } }];
+    expect(payload.value.copy.pl.title).toBe("");
+  });
+
   it("migawka NIE BĘDĄCA obiektem wraca do wartości domyślnych", () => {
     h.revisions = [revision({ value: "śmieci" })];
     renderWithQueryClient(<CookieVersionsPane lang="pl" />);

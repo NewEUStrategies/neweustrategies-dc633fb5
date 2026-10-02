@@ -98,7 +98,12 @@ export function bannerLinkHref(url: string | null | undefined, lang: AppLang): s
     return null;
   }
   if (resolved.origin !== base) return value;
-  return `${localizedPath(resolved.pathname, lang)}${resolved.search}${resolved.hash}`;
+  // Pusty człon ścieżki (`/en//cookies`, `..//x`, `/.//x`) zostaje w `pathname`
+  // jako `//`. Po zdjęciu prefiksu `/en` wersja PL dostawała `//cookies` -
+  // adres BEZ SCHEMATU, czyli wyjście z serwisu - a EN zostawała wewnątrz.
+  // Sklejone ukośniki: ścieżka zawsze wewnętrzna, w obu wersjach ta sama.
+  const pathname = resolved.pathname.replace(/\/{2,}/g, "/");
+  return `${localizedPath(pathname, lang)}${resolved.search}${resolved.hash}`;
 }
 
 /** Dodatkowy odnośnik prawny pokazywany pod treścią banera. */

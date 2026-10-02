@@ -122,7 +122,9 @@ a `javascript:` trafiało do `href`. `bannerLinkHref(url, lang)`
 - ścieżka wewnętrzna dostaje prefiks języka odwiedzającego (`localizedPath`),
   po rozwiązaniu tak jak przeglądarka (`\` -> `/`, sklejanie `..`), więc
   `/en/../cookies` nie ucieka na stronę polską, a `/\host` prowadzi w to samo
-  miejsce w obu wersjach;
+  miejsce w obu wersjach; pusty człon ścieżki (`/en//cookies`, `..//x`) jest
+  sklejany - wcześniej wersja PL dostawała `//cookies`, czyli adres bez
+  schematu prowadzący poza serwis;
 - dozwolone schematy: `http`, `https`, `mailto`, `tel`; każdy inny (w tym
   `javascript:` z tabulatorem w środku) - odnośnik nie jest pokazywany;
 - etykieta w języku banera (`pickLocalized`), pusty odnośnik pomijany;
@@ -130,7 +132,9 @@ a `javascript:` trafiało do `href`. `bannerLinkHref(url, lang)`
   a adres niedozwolony oznacza `aria-invalid` z wyjaśnieniem; pusty stan
   linkuje do `/admin/settings/privacy` (strona polityki prywatności);
 - `resolveBannerCopy`: puste pole treści wraca do brzmienia domyślnego -
-  podpowiedzi w panelu przestały obiecywać coś, czego baner nie robił.
+  podpowiedzi w panelu przestały obiecywać coś, czego baner nie robił; ta sama
+  reguła w podglądzie historii wersji (`CookieVersionsPane`, „tak zobaczy to
+  odwiedzający"), przywrócenie zapisuje migawkę bez zmian.
 
 ---
 
@@ -148,9 +152,10 @@ a `javascript:` trafiało do `href`. `bannerLinkHref(url, lang)`
 | `components/admin/settings/__tests__/ConsentAuditSummary.test.tsx`                 | rejestr zgód w panelu (0% -> pokryty), N12                                             |     13 |
 | `lib/cookieBanner/__tests__/registryScan.test.ts`                                  | skaner deklaracji cookie, N10                                                          |     40 |
 | `components/admin/cookie-banner/__tests__/cookieBannerPanels.test.tsx`             | branding banera i „Wykryte elementy" (0% -> pokryte), N11, PL/EN, rozwiązane adresy    |     29 |
-| `lib/cookieBanner/__tests__/bannerLinkHref.test.ts`                                | lokalizacja i walidacja odnośników banera, `resolveBannerCopy` (rozdz. 2.5)            |     34 |
+| `lib/cookieBanner/__tests__/bannerLinkHref.test.ts`                                | lokalizacja i walidacja odnośników banera, `resolveBannerCopy` (rozdz. 2.5)            |     41 |
 | `routes/__tests__/adminCookieBannerI18n.test.tsx`                                  | trasa z PRAWDZIWYM słownikiem: PL/EN, przykłady wg wersji, tytuł karty z żądania       |      6 |
 | `components/__tests__/ConsentBanner.test.tsx` (rozszerzony)                        | odnośniki banera wg języka, odrzucony `javascript:`, puste pole treści                 |     +3 |
+| `components/admin/versions/__tests__/CookieVersionsPane.test.tsx` (rozszerzony)    | podgląd historii: puste pole treści = brzmienie domyślne, przywrócenie bez zmian       |     +1 |
 | `components/admin/google-source/__tests__/GoogleSourceBadgeDeviceSection.test.tsx` | sekcja urządzenia Google Source (0% -> pokryta)                                        |      4 |
 | `components/admin/settings/__tests__/FontPicker.test.tsx`                          | wybór kroju                                                                            |     10 |
 | `lib/admin/__tests__/useSiteSettingsRevisions.test.tsx`                            | historia rewizji ustawień                                                              |      5 |
@@ -196,3 +201,10 @@ Dwa przypięcia `it.fails` zdjęte (N4, N13), jedno dopisane (niżej).
   urządzeń w `CoverImagePicker.test.tsx`, które sprawdzały dawne literały
   „Desktop/Tablet/Mobile" - poprawione na klucze `uploadArea.devices.*`, jak
   reszta tego pliku (atrapa `t` oddaje klucz). `tsc --noEmit` czysto.
+- Przegląd adwersaryjny części 2 (trzy soczewki: odnośniki i bezpieczeństwo,
+  i18n/SSR, regresje w kodzie wspólnym; każde znalezisko weryfikowane osobno):
+  dwa potwierdzone i naprawione (pusty człon ścieżki, podgląd historii wersji);
+  odrzucone: podwójny prefiks `/en/en/...` (adres i tak 404, zmiana poprawia
+  stan), tytuł karty po przełączeniu języka bez nawigacji (wcześniej tytuł nie
+  szedł za językiem wcale). Nowe testy obu napraw oblewają na kodzie sprzed
+  poprawki (8 czerwonych), z poprawką zielone.

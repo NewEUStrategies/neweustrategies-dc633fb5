@@ -62,6 +62,31 @@ describe("bannerLinkHref - ścieżka rozwiązana TAK, JAK ZROBI TO PRZEGLĄDARKA
     expect(en?.startsWith("/en")).toBe(false);
   });
 
+  it.each([
+    ["/en//cookies", "/cookies"],
+    ["/en//evil.example", "/evil.example"],
+    ["en//evil.example", "/evil.example"],
+    ["/EN/\\evil.example", "/evil.example"],
+    ["..//evil.example", "/evil.example"],
+    ["/.//evil.example", "/evil.example"],
+    ["/cookies/..//evil.example", "/evil.example"],
+  ])(
+    "pusty człon ścieżki `%s` nie robi z odnośnika adresu bez schematu (`//host`) w żadnej wersji",
+    (url, path) => {
+      // Wcześniej PL dawało `//evil.example` - przeglądarka otwiera to jako
+      // https://evil.example/ - a EN zostawało wewnątrz serwisu (`/en//...`).
+      const pl = bannerLinkHref(url, "pl");
+      const en = bannerLinkHref(url, "en");
+      expect(pl).toBe(path);
+      expect(en).toBe(`/en${path}`);
+      for (const href of [pl, en]) {
+        expect(new URL(href ?? "", "https://serwis.example/post/x").origin).toBe(
+          "https://serwis.example",
+        );
+      }
+    },
+  );
+
   it("tabulator w środku `javascript:` nie robi z adresu skryptu - zostaje ścieżką", () => {
     // Przeglądarka usuwa tabulatory z adresu, więc `java\tscript:` wykonałoby się.
     expect(bannerLinkHref("java\tscript:alert(1)", "pl")).toBe("/javascript:alert(1)");
