@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 interface SendCall {
   type: string;
   to: string;
+  tenantId?: string | null;
   lang: string;
   subjectName: string | null;
   idempotencyKey: string;
@@ -32,6 +33,8 @@ const h = vi.hoisted(() => {
     selects: Record<string, { data: unknown; error: { message: string } | null }>;
     /** Zapisy UPDATE per tabela. */
     updates: Array<{ table: string; values: unknown }>;
+    /** Każde zapytanie: tabela, wybrane kolumny i filtry równościowe. */
+    queries: Array<{ table: string; columns?: string; eq: Array<[string, unknown]> }>;
     updateResult: { data: unknown; error: { message: string } | null };
     /** Wysłane maile + klucze idempotencji już „zużyte". */
     sent: SendCall[];
@@ -44,6 +47,7 @@ const h = vi.hoisted(() => {
     rpcCalls: [],
     selects: {},
     updates: [],
+    queries: [],
     updateResult: { data: [], error: null },
     sent: [],
     usedKeys: new Set(),
@@ -65,18 +69,26 @@ vi.mock("@/integrations/supabase/client.server", () => {
   }
   const makeQuery = (table: string): Query => {
     let mode: "select" | "update" = "select";
+    const record: (typeof h.state.queries)[number] = { table, eq: [] };
+    h.state.queries.push(record);
     const result = () =>
       mode === "update"
         ? h.state.updateResult
         : (h.state.selects[table] ?? { data: [], error: null });
     const query: Query = {
-      select: () => query,
+      select: (columns?: string) => {
+        record.columns = columns;
+        return query;
+      },
       update: (values: unknown) => {
         mode = "update";
         h.state.updates.push({ table, values });
         return query;
       },
-      eq: () => query,
+      eq: (column: string, value: unknown) => {
+        record.eq.push([column, value]);
+        return query;
+      },
       in: () => query,
       not: () => query,
       gt: () => query,
@@ -128,14 +140,19 @@ const PER_SEAT_PRICE = "team_monthly_seat";
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
 const SEAT_ID = "22222222-2222-4222-8222-222222222222";
 const DAY = 86_400_000;
+const TENANT = "44444444-4444-4444-8444-444444444444";
 
 const iso = (offsetMs: number): string => new Date(Date.now() + offsetMs).toISOString();
+
+/** Zapytania do tabeli w kolejności wykonania. */
+const queriesOf = (table: string) => h.state.queries.filter((q) => q.table === table);
 
 beforeEach(() => {
   h.state.rpc = {};
   h.state.rpcCalls = [];
   h.state.selects = {};
   h.state.updates = [];
+  h.state.queries = [];
   h.state.updateResult = { data: [], error: null };
   h.state.sent = [];
   h.state.usedKeys = new Set();
@@ -418,6 +435,67 @@ describe("notifySeatAccessChanges", () => {
     // Druga próba trafia w ten sam klucz idempotencji -> wiadomość pominięta.
     expect(second.graceSent).toBe(0);
   });
+
+  // GRANICA NAJEMCY. Mail idzie w imieniu organizacji, a `sendTxEmail` bez
+  // podanego najemcy zgaduje go z adresu (`email_resolve_tenant_for_address`),
+  // co dla zaproszonego bez konta albo z kontem u dwóch najemców kończy się
+  // najemcą DOMYŚLNYM - i treścią jego redakcji. Atrapa wysyłki niczego nie
+  // rozstrzyga, więc dowodem jest wyłącznie to, co nadawca jej podał.
+  it("oba maile niosą najemcę ORGANIZACJI z tego samego odczytu co nazwa", async () => {
+    h.state.selects.member_organizations = {
+      data: [{ name: "Acme", tenant_id: TENANT }],
+      error: null,
+    };
+    await notifySeatAccessChanges({
+      orgId: ORG_ID,
+      reconcile: {
+        entered_grace: [{ seat_id: SEAT_ID, email: "anna@example.test" }],
+        lost_access: [{ seat_id: "seat-2", email: "bartek@example.test" }],
+      },
+    });
+
+    expect(h.state.sent.map((m) => [m.type, m.tenantId])).toEqual([
+      ["team_seat_grace", TENANT],
+      ["team_seat_access_ended", TENANT],
+    ]);
+    // Zero dodatkowego round-tripu: najemca przyszedł razem z nazwą.
+    const orgQueries = queriesOf("member_organizations");
+    expect(orgQueries).toHaveLength(1);
+    expect(orgQueries[0].columns).toContain("tenant_id");
+  });
+
+  it("język bierze się z zapisu do newslettera TEGO najemcy, nie cudzej organizacji", async () => {
+    // Zapis jest unikalny na (tenant_id, email): bez zawężenia ten sam adres u
+    // dwóch najemców dawał dwa wiersze, a pojedynczy cudzy - cudzy język.
+    h.state.selects.member_organizations = {
+      data: [{ name: "Acme", tenant_id: TENANT }],
+      error: null,
+    };
+    h.state.selects.newsletter_subscribers = { data: [{ language: "en" }], error: null };
+    await notifySeatAccessChanges({
+      orgId: ORG_ID,
+      reconcile: { entered_grace: [{ seat_id: SEAT_ID, email: "anna@example.test" }] },
+    });
+
+    expect(queriesOf("newsletter_subscribers")[0].eq).toEqual([
+      ["email", "anna@example.test"],
+      ["tenant_id", TENANT],
+    ]);
+    expect(h.state.sent[0].lang).toBe("en");
+  });
+
+  it("nieodczytana organizacja: najemca nieznany (null), a nie zgadnięty", async () => {
+    // `null` zostawia senderowi rozstrzygnięcie listy wykluczeń z adresu, a
+    // treść redakcji wraca wtedy do domyślnej - patrz `TxSendInput.tenantId`.
+    h.state.selects.member_organizations = { data: null, error: { message: "boom" } };
+    await notifySeatAccessChanges({
+      orgId: ORG_ID,
+      reconcile: { lost_access: [{ seat_id: SEAT_ID, email: "bartek@example.test" }] },
+    });
+
+    expect(h.state.sent[0].tenantId).toBeNull();
+    expect(queriesOf("newsletter_subscribers")[0].eq).toEqual([["email", "bartek@example.test"]]);
+  });
 });
 
 describe("expireSeatGrace", () => {
@@ -469,10 +547,17 @@ describe("expireSeatGrace", () => {
 
 describe("sendSeatGraceReminders", () => {
   const seatRow = (
-    over: Partial<{ id: string; org_id: string; invited_email: string; grace_until: string }>,
+    over: Partial<{
+      id: string;
+      org_id: string;
+      tenant_id: string;
+      invited_email: string;
+      grace_until: string;
+    }>,
   ) => ({
     id: "seat-1",
     org_id: ORG_ID,
+    tenant_id: TENANT,
     invited_email: "anna@example.test",
     grace_until: iso(7 * DAY),
     ...over,
@@ -514,6 +599,23 @@ describe("sendSeatGraceReminders", () => {
     expect(result.sent).toBe(1);
     expect(h.state.sent[0].type).toBe("team_seat_grace_reminder");
     expect(h.state.sent[0].details.at(-1)).toEqual({ label: "Pozostało", value: "7 dni" });
+  });
+
+  it("przypomnienie niesie najemcę MIEJSCA - także gdy odczyt organizacji padnie", async () => {
+    // Najemca jedzie tym samym zapytaniem co miejsce, więc błąd odczytu nazw
+    // organizacji nie zamienia go w zgadywanie z adresu odbiorcy.
+    h.state.selects.organization_seats = {
+      data: [seatRow({ grace_until: iso(6 * DAY + DAY / 2) })],
+      error: null,
+    };
+    h.state.selects.member_organizations = { data: null, error: { message: "boom" } };
+
+    const result = await sendSeatGraceReminders([7]);
+
+    expect(result.sent).toBe(1);
+    expect(h.state.sent[0].tenantId).toBe(TENANT);
+    expect(queriesOf("organization_seats")[0].columns).toContain("tenant_id");
+    expect(queriesOf("newsletter_subscribers")[0].eq).toContainEqual(["tenant_id", TENANT]);
   });
 
   it("dzień przed końcem mówi „1 dzień”, a nie „1 dni”", async () => {

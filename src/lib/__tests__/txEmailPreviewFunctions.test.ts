@@ -1,14 +1,16 @@
 // FUNKCJA SERWEROWA PODGLĄDU MAILI TRANSAKCYJNYCH
-// (`src/lib/tx-email-preview.functions.ts`): 25 linii, jedna funkcja, ZERO
-// wykonanych linii przed tym plikiem.
+// (`src/lib/tx-email-preview.functions.ts`): jedna funkcja, dwa odczyty
+// (własny profil wołającego po najemcę, potem ustawienia), ZERO wykonanych
+// linii przed tym plikiem.
 //
 // CO TA FUNKCJA NAPRAWDĘ ROBI. Jest cienkim wrapperem, ale ten wrapper trzyma
-// trzy rzeczy, których nie trzyma nikt inny: (1) BRAMKĘ UPRAWNIEŃ - podgląd
+// cztery rzeczy, których nie trzyma nikt inny: (1) BRAMKĘ UPRAWNIEŃ - podgląd
 // pokazuje pełną treść maili razem z nadpisaniami redakcyjnymi, więc jest
 // funkcją wyłącznie dla administratora; (2) WALIDATOR - jedyne miejsce, w
 // którym parametry z adresu URL panelu zamieniają się w wartości bezpieczne
-// dla renderu; (3) SKLEJENIE nadpisań z renderem - jeśli podgląd nie wczyta
-// nadpisań, redakcja edytuje treść „w ciemno".
+// dla renderu; (3) ZAKRES NAJEMCY nadpisań, przypięty do profilu wołającego
+// (sekcja GRANICA NAJEMCY niżej); (4) SKLEJENIE nadpisań z renderem - jeśli
+// podgląd nie wczyta nadpisań, redakcja edytuje treść „w ciemno".
 //
 // CZEGO TEN HARNESS NIE UDAJE. `@/test/serverFnHarness` NIE uruchamia
 // middleware (patrz nagłówek harnessu), więc nie da się tu odegrać odmowy dla
@@ -24,6 +26,14 @@
 // test w `src/lib/email/__tests__/txOverrides.test.ts`, a odczyt z bazy -
 // w `txOverrides.server.test.ts`; tutaj jest użyty PRAWDZIWY `loadTxOverrides`,
 // żeby dowieść, że wrapper korzysta z jego fail-softu, a nie własnej ścieżki.
+//
+// GRANICA NAJEMCY. Nadpisania żyją w `site_settings` pod kluczem (tenant_id,
+// key), a adminowi RLS oddaje SUMĘ dwóch polityk SELECT: najemcy hosta
+// ("public read") i najemcy profilu ("admin read"). Bez jawnego filtra pod
+// jednym kluczem mogły przyjść dwa wiersze i podgląd pokazywał treść cudzej
+// redakcji. Najemca pochodzi WYŁĄCZNIE z profilu wołającego - atrapa bazy
+// odpowiada na `profiles` i pilnujemy, że to on, a nie ładunek żądania, trafia
+// do filtra odczytu.
 //
 // ROZSTRZYGNIĘCIE i18n. Ta funkcja nie generuje żadnego tekstu dla człowieka -
 // przyjmuje kod języka (`"pl" | "en"`) i przekazuje go do szablonów, które
@@ -72,8 +82,15 @@ vi.mock("@/lib/email/tx-preview.server", () => ({
 
 import { getTxEmailPreviews } from "@/lib/tx-email-preview.functions";
 
+const TENANT = "11111111-1111-4111-8111-111111111111";
+const USER_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
 const db = supabaseFromStub();
-const kontekst = () => ({ supabase: { from: db.from } });
+const kontekst = () => ({ supabase: { from: db.from }, userId: USER_ID });
+
+/** Wszystkie filtry równościowe łańcucha (atrapa `argsOf` oddaje tylko pierwszy). */
+const filtry = (table: string) =>
+  (db.lastChain(table)?.calls ?? []).filter((c) => c.method === "eq").map((c) => [...c.args]);
 
 /** Jeden podgląd w kształcie, jaki panel dostaje z serwera. */
 const podglad = (type: string, lang: "pl" | "en"): TxEmailPreview => ({
@@ -87,6 +104,7 @@ const podglad = (type: string, lang: "pl" | "en"): TxEmailPreview => ({
 
 beforeEach(() => {
   db.reset();
+  db.setResponse("profiles", ok({ tenant_id: TENANT }));
   h.wywolania = [];
   h.wynik = [];
 });
@@ -196,13 +214,51 @@ describe("getTxEmailPreviews - ścieżka szczęśliwa", () => {
 
   it("pyta o nadpisania dokładnie raz i tylko o tabelę ustawień", async () => {
     // Podgląd nie ma prawa czytać niczego innego: gdyby sięgnął po dane
-    // subskrybenta, panel stałby się kanałem wycieku danych osobowych.
+    // subskrybenta, panel stałby się kanałem wycieku danych osobowych. Jedyny
+    // dodatkowy odczyt to WŁASNY profil wołającego - po najemcę zakresu.
     db.setResponse("site_settings", ok({ value: {} }));
 
     await callServerFn(getTxEmailPreviews, { data: {}, context: kontekst() });
 
-    expect(db.chains.map((c) => c.table)).toEqual(["site_settings"]);
-    expect(db.lastChain("site_settings")?.argsOf("eq")).toEqual(["key", "tx_email_overrides"]);
+    expect(db.chains.map((c) => c.table)).toEqual(["profiles", "site_settings"]);
+    expect(filtry("profiles")).toEqual([["id", USER_ID]]);
+    expect(filtry("site_settings")).toEqual([
+      ["tenant_id", TENANT],
+      ["key", "tx_email_overrides"],
+    ]);
+  });
+
+  it("czyta nadpisania najemcy z PROFILU wołającego, a nie pierwszy wiersz pod kluczem", async () => {
+    // Regresja: odczyt po samym kluczu z `.limit(1)` wybierał na ślepo między
+    // wierszem najemcy hosta a wierszem najemcy admina. Atrapa odpowiada jak
+    // Postgres - bez filtra `tenant_id` oddaje wiersz OBCEJ organizacji.
+    const OBCY = "22222222-2222-4222-8222-222222222222";
+    db.setResponse("profiles", ok({ tenant_id: OBCY }));
+    db.setResponse("site_settings", (chain) => {
+      const tenant = chain.calls.find((c) => c.method === "eq" && c.args[0] === "tenant_id")
+        ?.args[1];
+      if (tenant === OBCY) {
+        return ok({ value: { team_seat_grace: { pl: { heading: "Redakcja własna" } } } });
+      }
+      return ok({ value: { team_seat_grace: { pl: { heading: "Redakcja hosta" } } } });
+    });
+
+    await callServerFn(getTxEmailPreviews, { data: {}, context: kontekst() });
+
+    const overrides = h.wywolania[0]?.overrides as { team_seat_grace: { pl: { heading: string } } };
+    expect(overrides.team_seat_grace.pl.heading).toBe("Redakcja własna");
+    expect(filtry("site_settings")[0]).toEqual(["tenant_id", OBCY]);
+  });
+
+  it("najemcy nie da się podać w żądaniu - walidator go odrzuca, zakres zostaje z profilu", async () => {
+    const OBCY = "22222222-2222-4222-8222-222222222222";
+    db.setResponse("site_settings", ok({ value: {} }));
+
+    const dane = validateServerFnInput(getTxEmailPreviews, { tenantId: OBCY });
+    await callServerFn(getTxEmailPreviews, { data: { tenantId: OBCY }, context: kontekst() });
+
+    expect(dane).not.toHaveProperty("tenantId");
+    expect(filtry("site_settings")[0]).toEqual(["tenant_id", TENANT]);
   });
 
   it("oddaje panelowi dokładnie to, co zwróciła warstwa renderu", async () => {
@@ -262,10 +318,12 @@ describe("getTxEmailPreviews - awaria odczytu i pusta odpowiedź", () => {
     expect(h.wywolania).toHaveLength(1);
   });
 
-  it("wyjątek z klienta bazy też sprowadza się do treści domyślnych", async () => {
+  it("wyjątek z klienta bazy przy odczycie ustawień też sprowadza się do treści domyślnych", async () => {
     const wybuchowy = {
+      userId: USER_ID,
       supabase: {
-        from: () => {
+        from: (table: string) => {
+          if (table === "profiles") return db.from(table);
           throw new Error("klient nieosiągalny");
         },
       },
@@ -279,6 +337,27 @@ describe("getTxEmailPreviews - awaria odczytu i pusta odpowiedź", () => {
 
     expect(h.wywolania[0]?.overrides).toEqual(TX_OVERRIDES_DEFAULTS);
     expect(wynik).toHaveLength(1);
+  });
+
+  it("profil bez najemcy zamyka podgląd (fail closed) - zero odczytu ustawień, zero renderu", async () => {
+    // Podgląd bez zakresu nie ma „bezpiecznej" wersji: nie wiadomo, czyją
+    // redakcję pokazać. Ta sama reguła co w raporcie poczty systemowej.
+    db.setResponse("profiles", ok({ tenant_id: null }));
+
+    await expect(
+      callServerFn(getTxEmailPreviews, { data: {}, context: kontekst() }),
+    ).rejects.toThrow("No tenant for current user");
+    expect(db.chainsFor("site_settings")).toHaveLength(0);
+    expect(h.wywolania).toHaveLength(0);
+  });
+
+  it("błąd odczytu profilu też zamyka podgląd, zamiast czytać bez zakresu", async () => {
+    db.setResponse("profiles", fail("permission denied", "42501"));
+
+    await expect(
+      callServerFn(getTxEmailPreviews, { data: {}, context: kontekst() }),
+    ).rejects.toThrow("No tenant for current user");
+    expect(db.chainsFor("site_settings")).toHaveLength(0);
   });
 
   it("pusta odpowiedź renderu przechodzi do panelu jako pusta lista, nie null", async () => {

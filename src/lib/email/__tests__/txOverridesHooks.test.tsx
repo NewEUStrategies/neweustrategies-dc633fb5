@@ -1,4 +1,4 @@
-// Dwa hooki edytora treści maili transakcyjnych (`txOverrides.ts:143-167`).
+// Dwa hooki edytora treści maili transakcyjnych (`txOverrides.ts:142-180`).
 //
 // CZEGO PILNUJĄ. `site_settings` to JEDEN wiersz jsonb na klucz, a nadpisania
 // treści są addytywne: puste pole = wraca domyślna treść z `tx-copy`/`tx-body`.
