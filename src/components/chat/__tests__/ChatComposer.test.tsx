@@ -136,9 +136,13 @@ function type(value: string): void {
   fireEvent.change(textarea(), { target: { value } });
 }
 
-it("oznacza pole wiadomości selektorem wymuszającym tekst 11,5 px", () => {
+it("wyłącza podpowiedzi klawiatury i oznacza pole dla ochrony przed zoomem iOS", () => {
   renderComposer();
   expect(textarea()).toHaveAttribute("data-chat-composer-input");
+  expect(textarea()).toHaveAttribute("autocomplete", "off");
+  expect(textarea()).toHaveAttribute("autocorrect", "off");
+  expect(textarea()).toHaveAttribute("autocapitalize", "off");
+  expect(textarea()).toHaveAttribute("spellcheck", "false");
 });
 
 /** Plik o zadanym typie i rozmiarze bez alokowania megabajtów w teście. */
