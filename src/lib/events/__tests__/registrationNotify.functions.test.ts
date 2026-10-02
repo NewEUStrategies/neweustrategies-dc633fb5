@@ -183,6 +183,25 @@ describe("odczyt ładunku - kontrakt z RPC", () => {
     expect(sendTxEmail).not.toHaveBeenCalled();
   });
 
+  it.each(["approved", "promoted"] as const)(
+    "odmowa bramki najemcy przy `%s` NIE wydaje biletów kluczem serwisowym",
+    async (notice) => {
+      // `issueAndSendTicketCodes` idzie kluczem serwisowym (omija RLS) po
+      // identyfikatorze z ŻĄDANIA. Jedyną bramką najemcy przed nim jest
+      // `admin_event_registration_notify_payload` (`assert_editor_tenant`).
+      // Organizator najemcy B ze zgłoszeniem najemcy A dostaje odmowę - i ta
+      // odmowa musi zatrzymać także bilety, nie tylko mail o decyzji.
+      const { result } = await run(null, notice, {
+        message: "not_found: registration does not exist in this tenant",
+      });
+      expect(result).toEqual({
+        ok: false,
+        error: "not_found: registration does not exist in this tenant",
+      });
+      expect(issueAndSendTicketCodes).not.toHaveBeenCalled();
+    },
+  );
+
   it("nie wysyła nic, gdy zgłoszenia nie ma", async () => {
     const { result } = await run(null, "approved");
     expect(result).toEqual({ ok: false, error: "not_found" });

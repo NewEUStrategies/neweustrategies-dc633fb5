@@ -626,7 +626,10 @@ describe("createCheckoutOrder - cena OSADZONA (treść, bilet)", () => {
           }),
     );
     chain.setResponse("event_rsvps", ok(null));
-    rpcResponses.set("get_event_rsvp_counts", ok([{ event_id: EVENT_ID, going: 0, waitlist: 0 }]));
+    rpcResponses.set(
+      "event_seat_state",
+      ok([{ event_id: EVENT_ID, capacity: null, seats_left: null, going: 0, waitlist: 0 }]),
+    );
 
     await call(ticketPayload({ ticket_type_id: undefined }));
 

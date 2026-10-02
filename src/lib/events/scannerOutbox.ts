@@ -33,6 +33,21 @@
 // uruchomieniowe dopisuje do trwałej listy odrzuconych z eksportem dla
 // organizatora.
 //
+// ODRZUCONA ZOSTAJE W KOLEJCE, DOPÓKI LISTA ODRZUCONYCH JEJ NIE PRZECHOWA.
+// Kolejka (`nes-scanner`) i lista odrzuconych (`nes-scanner-offline`) to DWIE
+// bazy IndexedDB - zapis do jednej nie jest atomowy z zapisem do drugiej.
+// Usunięcie pozycji z kolejki w chwili odmowy oznaczało, że zamknięcie karty
+// przed zapisem listy (albo lista żyjąca tylko w pamięci karty) gubiło skan.
+// Dlatego `withFailure` i `markRejected` ZAMRAŻAJĄ pozycję (`rejectedAt`):
+// nie jest już wysyłana, a środowisko zdejmuje ją (`withoutItems`) dopiero po
+// TRWAŁYM zapisie listy odrzuconych. Pozycja zamrożona, której lista nie
+// przechowała (start po zamknięciu karty), wraca na listę przy starcie
+// (`reconcileRejected`).
+//
+// KLASYFIKACJA ODMOWY JEST JEDNA dla toru na żywo i kolejki
+// (`scannerErrorKind.ts`) - wcześniej kolejka miała własną listę kodów
+// i rozjeżdżała się z bramką przy każdym kodzie spoza niej.
+//
 // DECYZJA OFFLINE JEDZIE Z POZYCJĄ. `offlineAdmitted`, `offlineOutcome`
 // i `rosterGeneratedAt` są opcjonalne, bo kolejki zapisane przed tą zmianą
 // (i skany bez listy offline) ich nie mają - baza przyjmuje wtedy skan jak
@@ -49,6 +64,7 @@
 // a środowisko dopisuje ją do odrzuconych (`outbox_overflow`).
 import type { CheckinDirection, OfflineOutcome } from "@/lib/events/onsiteEnums";
 import { isOfflineOutcome } from "@/lib/events/onsiteEnums";
+import { isPermanentScanError, scannerErrorHead } from "@/lib/events/scannerErrorKind";
 
 export const OUTBOX_KINDS = ["checkin", "lead"] as const;
 export type OutboxKind = (typeof OUTBOX_KINDS)[number];
@@ -75,6 +91,12 @@ export interface OutboxItem {
   rosterGeneratedAt?: string | null;
   /** Urządzenie, pod którego poświadczeniem zapadł skan; brak = kolejka sprzed tej zmiany. */
   deviceId?: string | null;
+  /**
+   * Chwila trwałej odmowy. Pozycja z tym polem NIE jest już wysyłana - czeka,
+   * aż lista odrzuconych zostanie trwale zapisana, i dopiero wtedy znika
+   * z kolejki. Brak = pozycja żywa.
+   */
+  rejectedAt?: string | null;
 }
 
 /** Pozycja zdjęta z kolejki trwałą odmową - czeka na organizatora. */
@@ -129,6 +151,9 @@ export function parseOutboxItem(value: unknown): OutboxItem | null {
     offlineOutcome: outcome !== null && isOfflineOutcome(outcome) ? outcome : null,
     rosterGeneratedAt: stringOrNull(row.rosterGeneratedAt),
     deviceId: stringOrNull(row.deviceId),
+    // Tylko gdy jest: pozycja żywa nie dostaje pola, więc eksport odrzuconych
+    // i zapisane kolejki mają ten sam kształt co przed tą zmianą.
+    ...(typeof row.rejectedAt === "string" ? { rejectedAt: row.rejectedAt } : {}),
   };
 }
 
@@ -138,34 +163,24 @@ export const OUTBOX_MAX_ATTEMPTS = 8;
 /** Więcej i tak nie zmieści się w jednej zmianie wolontariusza przy bramce. */
 export const OUTBOX_CAPACITY = 500;
 
-/**
- * Odmowy, których ponawianie nie ma sensu - poświadczenie, nie sieć.
- *
- * `device_inactive` (wstrzymanie w panelu) celowo tu NIE stoi: jest odwracalne
- * jak blokada czasowa - po „Wznów" te same pozycje mają się wysłać.
- */
-const PERMANENT_HEADS: readonly string[] = [
-  "invalid_device_token",
-  "device_revoked",
-  "device_expired",
-  "device_scope_missing",
-  "device_checkpoint_mismatch",
-  "checkpoint_not_found",
-  "invalid_payload",
-  "invalid_direction",
-  // Skan sprzed ponad 7 dni - baza odrzuca go trwale (20260926150000).
-  "device_time_out_of_range",
-  // Pozycja zapisana pod INNYM poświadczeniem - odrzucana lokalnie, bez bazy.
-  "device_mismatch",
-];
-
+/** Głowa komunikatu `kod: szczegóły` - ta sama, którą czyta klasyfikacja. */
 export function errorHead(message: string): string {
-  const separator = message.indexOf(":");
-  return (separator === -1 ? message : message.slice(0, separator)).trim();
+  return scannerErrorHead(message);
 }
 
+/**
+ * Odmowy, których ponawianie nie ma sensu: odmowa tej pozycji albo
+ * poświadczenia. Wstrzymanie w panelu (`device_inactive`) i blokada czasowa
+ * (`device_locked`) NIE są trwałe - po „Wznów" albo po minięciu blokady te
+ * same pozycje mają się wysłać. Reguła wspólna z torem na żywo.
+ */
 export function isPermanentFailure(message: string): boolean {
-  return PERMANENT_HEADS.includes(errorHead(message));
+  return isPermanentScanError(message);
+}
+
+/** Czy pozycja została już odrzucona i czeka tylko na trwały zapis listy. */
+export function isRejectedItem(item: OutboxItem): boolean {
+  return typeof item.rejectedAt === "string";
 }
 
 /**
@@ -240,7 +255,7 @@ export function dueItems(queue: readonly OutboxItem[], nowIso: string): OutboxIt
   const now = Date.parse(nowIso);
   const stamp = Number.isNaN(now) ? Date.now() : now;
   return queue
-    .filter((item) => item.attempts < OUTBOX_MAX_ATTEMPTS)
+    .filter((item) => item.attempts < OUTBOX_MAX_ATTEMPTS && !isRejectedItem(item))
     .filter((item) => {
       const due = Date.parse(item.nextAttemptAt);
       return Number.isNaN(due) || due <= stamp;
@@ -248,13 +263,73 @@ export function dueItems(queue: readonly OutboxItem[], nowIso: string): OutboxIt
     .sort((a, b) => Date.parse(a.deviceScannedAt) - Date.parse(b.deviceScannedAt));
 }
 
-/** Pozycje, które przestały być ponawiane - ekran musi je pokazać człowiekowi. */
+/**
+ * Pozycje, które przestały być ponawiane - ekran musi je pokazać człowiekowi.
+ * Należy tu też pozycja odrzucona, której lista odrzuconych NIE przechowała
+ * trwale (np. prywatne okno): zostaje widoczna z powodem i przyciskiem
+ * „odrzuć", zamiast zniknąć razem z kartą.
+ */
 export function stuckItems(queue: readonly OutboxItem[]): OutboxItem[] {
-  return queue.filter((item) => item.attempts >= OUTBOX_MAX_ATTEMPTS);
+  return queue.filter((item) => item.attempts >= OUTBOX_MAX_ATTEMPTS || isRejectedItem(item));
 }
 
 export function withoutItem(queue: readonly OutboxItem[], id: string): OutboxItem[] {
   return queue.filter((item) => item.id !== id);
+}
+
+/** Kolejka bez pozycji o podanych identyfikatorach (zdjęcie po trwałym zapisie). */
+export function withoutItems(queue: readonly OutboxItem[], ids: readonly string[]): OutboxItem[] {
+  if (ids.length === 0) return [...queue];
+  const drop = new Set(ids);
+  return queue.filter((item) => !drop.has(item.id));
+}
+
+/** Zamraża pozycje odrzucone hurtem (`rejectAll`) - zostają do trwałego zapisu listy. */
+export function markRejected(
+  queue: readonly OutboxItem[],
+  rejected: readonly RejectedScan[],
+): OutboxItem[] {
+  const byId = new Map(rejected.map((entry) => [entry.item.id, entry]));
+  return queue.map((item) => {
+    const entry = byId.get(item.id);
+    if (entry === undefined || isRejectedItem(item)) return item;
+    return { ...item, lastError: entry.error, rejectedAt: entry.rejectedAt };
+  });
+}
+
+export interface RejectedReconciliation {
+  /** Zamrożone pozycje, których lista odrzuconych nie zna - trzeba je dopisać. */
+  orphans: RejectedScan[];
+  /** Zamrożone pozycje, które lista już przechowuje - można zdjąć z kolejki. */
+  settled: string[];
+}
+
+/**
+ * Start po zamknięciu karty: zamrożona pozycja mogła nie doczekać zapisu listy
+ * odrzuconych. Taka wraca na listę z tym samym powodem i chwilą; ta, którą
+ * lista już ma, schodzi z kolejki. Pozycje żywe nie są dotykane.
+ */
+export function reconcileRejected(
+  queue: readonly OutboxItem[],
+  rejected: readonly RejectedScan[],
+): RejectedReconciliation {
+  const known = new Set(rejected.map((entry) => entry.item.id));
+  const orphans: RejectedScan[] = [];
+  const settled: string[] = [];
+  for (const item of queue) {
+    if (!isRejectedItem(item)) continue;
+    if (known.has(item.id)) {
+      settled.push(item.id);
+      continue;
+    }
+    const { rejectedAt, ...live } = item;
+    orphans.push({
+      item: live,
+      error: item.lastError ?? "",
+      rejectedAt: rejectedAt ?? "",
+    });
+  }
+  return { orphans, settled };
 }
 
 export interface OutboxFailure {
@@ -265,7 +340,9 @@ export interface OutboxFailure {
 
 /**
  * Nieudana próba: licznik w górę, następny termin wg wycofania. Trwała odmowa
- * zdejmuje pozycję z kolejki i ODDAJE ją jako odrzuconą - nigdy w próżnię.
+ * ZAMRAŻA pozycję w kolejce (`rejectedAt`) i ODDAJE ją jako odrzuconą -
+ * z kolejki zdejmuje ją środowisko, dopiero gdy lista odrzuconych zapisze ją
+ * trwale (patrz nagłówek). Nigdy w próżnię.
  */
 export function withFailure(
   queue: readonly OutboxItem[],
@@ -275,9 +352,12 @@ export function withFailure(
 ): OutboxFailure {
   if (isPermanentFailure(message)) {
     const item = queue.find((row) => row.id === id);
+    if (item === undefined) return { queue: [...queue], rejected: null };
     return {
-      queue: withoutItem(queue, id),
-      rejected: item === undefined ? null : { item, error: message, rejectedAt: nowIso },
+      queue: queue.map((row) =>
+        row.id === id ? { ...row, lastError: message, rejectedAt: nowIso } : row,
+      ),
+      rejected: { item, error: message, rejectedAt: nowIso },
     };
   }
   return {
@@ -295,13 +375,19 @@ export function withFailure(
   };
 }
 
-/** Wszystkie pozycje naraz jako odrzucone - poświadczenie przestało działać. */
+/**
+ * Wszystkie ŻYWE pozycje naraz jako odrzucone - poświadczenie przestało
+ * działać. Pozycja już zamrożona jest na liście odrzuconych (czeka tylko na jej
+ * zapis), więc drugi wpis byłby duplikatem w eksporcie dla organizatora.
+ */
 export function rejectAll(
   queue: readonly OutboxItem[],
   message: string,
   nowIso: string,
 ): RejectedScan[] {
-  return queue.map((item) => ({ item, error: message, rejectedAt: nowIso }));
+  return queue
+    .filter((item) => !isRejectedItem(item))
+    .map((item) => ({ item, error: message, rejectedAt: nowIso }));
 }
 
 /** Dopisuje odrzucone na koniec listy; przepełnienie zjada najstarsze. */

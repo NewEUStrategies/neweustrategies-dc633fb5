@@ -171,7 +171,7 @@ beforeEach(() => {
   // Domyślnie: pusta pula biletowa (pełna cena), sala bez limitu, sesja
   // stemplowana bez awarii.
   rpc.setData("my_ticket_allowance", { granted: 0, used: 0, discount_pct: 0, scope: "none" });
-  rpc.setData("get_event_rsvp_counts", [{ going: 0, waitlist: 0 }]);
+  rpc.setData("event_seat_state", [{ capacity: null, seats_left: null, going: 0, waitlist: 0 }]);
   rpc.setData("payment_order_mark_session", true);
 
   chain.setResponse("payment_orders", ok({ id: "order-adhoc-1", tenant_id: "tenant-alfa" }));
@@ -413,7 +413,7 @@ describe("bilet na wydarzenie - wycena serwerowa", () => {
   it("kupujący z potwierdzonym miejscem ponawia płatność mimo pełnej sali", async () => {
     chain.setResponse("event_rsvps", ok({ status: "going" }));
     respondEvents(eventRow(), 10);
-    rpc.setData("get_event_rsvp_counts", [{ going: 10, waitlist: 3 }]);
+    rpc.setData("event_seat_state", [{ capacity: 10, seats_left: 0, going: 10, waitlist: 3 }]);
 
     const result = await buildAdhocOrder(
       args({
@@ -749,7 +749,7 @@ describe("wyprzedana sala", () => {
   // pokazywać kupującemu jako „brak miejsc".
   it("brak wolnych miejsc wraca KANAŁEM ODMOWY, a nie wyjątkiem", async () => {
     respondEvents(eventRow(), 10);
-    rpc.setData("get_event_rsvp_counts", [{ going: 10, waitlist: 2 }]);
+    rpc.setData("event_seat_state", [{ capacity: 10, seats_left: 0, going: 10, waitlist: 2 }]);
 
     // Wynik i wyjątek sprowadzone do JEDNEJ wartości, żeby test opisywał
     // KANAŁ odpowiedzi, a nie tylko jej treść.
@@ -770,7 +770,7 @@ describe("wyprzedana sala", () => {
     // zostałoby wiszącym `pending` bez sesji, czyli dokładnie tym, czego szuka
     // panel „zamówień wiszących".
     respondEvents(eventRow(), 10);
-    rpc.setData("get_event_rsvp_counts", [{ going: 10, waitlist: 2 }]);
+    rpc.setData("event_seat_state", [{ capacity: 10, seats_left: 0, going: 10, waitlist: 2 }]);
 
     const result = await buildAdhocOrder(
       args({
@@ -803,6 +803,26 @@ describe("wyprzedana sala", () => {
         }),
       ),
     ).rejects.toThrow("rsvp transport died");
+    expect(chain.chainsFor("payment_orders")).toHaveLength(0);
+  });
+
+  it("ODMOWA odczytu miejsc z bazy NIE otwiera sprzedaży i NIE udaje kompletu", async () => {
+    // Wcześniej błąd RPC liczników był po cichu czytany jak „zero zajętych",
+    // czyli kasa sprzedawała bilet na wydarzenie, którego stanu nie znała.
+    // Teraz to wyjątek: ani „wolne", ani `event_full`.
+    rpc.setError("event_seat_state", "canceling statement due to statement timeout", "57014");
+
+    await expect(
+      buildAdhocOrder(
+        args({
+          data: {
+            purpose: "event_ticket",
+            eventId: EVENT,
+            returnUrl: "https://nes.example.com/ok",
+          },
+        }),
+      ),
+    ).rejects.toThrow(/^seat_state_unavailable: /);
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 });

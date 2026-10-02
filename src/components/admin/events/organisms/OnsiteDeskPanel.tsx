@@ -11,6 +11,11 @@
 //
 // ŹRÓDŁO ODPRAWY TO `name_search`, NIE „skan". Wpis z panelu nie ma prawa
 // udawać piknięcia urządzeniem - audyt musi widzieć, że kogoś wpuścił człowiek.
+//
+// KLUCZ IDEMPOTENCJI NA PRÓBĘ. Każda odprawa niesie `clientScanUid` - ten sam
+// przy ponowieniu tej samej próby (osoba + bramka + kierunek), dopóki baza nie
+// odpowie. Ponowne kliknięcie po zerwanej odpowiedzi daje w bazie `replay`
+// zamiast drugiego wejścia tej samej osoby (`clientScanUid.ts`).
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -31,6 +36,7 @@ import {
   useRecordBadgePrint,
 } from "@/lib/events/useEventOnsite";
 import { uiLang } from "@/lib/i18n/format";
+import { createCheckinAttemptKeys } from "@/lib/events/clientScanUid";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import type { CheckinDirection, CheckinOutcome, CheckinSearchRow } from "@/lib/events/onsiteApi";
 
@@ -41,6 +47,7 @@ export function OnsiteDeskPanel({ eventId }: { eventId: string }) {
   const [term, setTerm] = useState("");
   const debounced = useDebouncedValue(term, 250);
   const [lastOutcome, setLastOutcome] = useState<CheckinOutcome | null>(null);
+  const [attempts] = useState(() => createCheckinAttemptKeys());
 
   const checkpointsQ = useCheckpoints(eventId);
   const templatesQ = useBadgeTemplates(eventId);
@@ -64,6 +71,8 @@ export function OnsiteDeskPanel({ eventId }: { eventId: string }) {
       toast.error(t("adminEventOnsite.desk.selectCheckpoint"));
       return;
     }
+    const attempt = `${checkpointId}:${row.person_id}:${direction}`;
+    const clientScanUid = attempts.keyFor(attempt);
     checkin.mutate(
       {
         eventId,
@@ -71,9 +80,11 @@ export function OnsiteDeskPanel({ eventId }: { eventId: string }) {
         personId: row.person_id,
         direction,
         source: "name_search",
+        clientScanUid,
       },
       {
         onSuccess: (outcome) => {
+          attempts.settle(attempt, clientScanUid);
           setLastOutcome(outcome);
           if (outcome.admit) {
             toast.success(t("adminEventOnsite.desk.outcome.granted", { name: personName(row) }));

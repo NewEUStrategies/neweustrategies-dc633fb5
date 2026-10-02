@@ -275,7 +275,10 @@ beforeEach(() => {
   // Pusta pula planu = pełna cena biletu (kierunek degradacji, patrz
   // `ticketAllowance.server.ts`).
   rpcResponses.set("my_ticket_allowance", ok(null));
-  rpcResponses.set("get_event_rsvp_counts", ok([{ event_id: EVENT_ID, going: 0, waitlist: 0 }]));
+  rpcResponses.set(
+    "event_seat_state",
+    ok([{ event_id: EVENT_ID, capacity: null, seats_left: null, going: 0, waitlist: 0 }]),
+  );
   rpcResponses.set("event_ticket_checkout_quote", ok(ticketQuote()));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
@@ -732,7 +735,10 @@ describe("createCheckoutOrder - bilet z wiersza wydarzenia", () => {
     chain.setResponse("events", (query: RecordedChain) =>
       query.argsOf("select")?.[0] === "capacity" ? ok({ capacity: 10 }) : ok(eventQuote()),
     );
-    rpcResponses.set("get_event_rsvp_counts", ok([{ event_id: EVENT_ID, going: 10, waitlist: 3 }]));
+    rpcResponses.set(
+      "event_seat_state",
+      ok([{ event_id: EVENT_ID, capacity: 10, seats_left: 0, going: 10, waitlist: 3 }]),
+    );
 
     await expect(call(ticketPayload())).rejects.toThrow("event_full");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
@@ -743,7 +749,10 @@ describe("createCheckoutOrder - bilet z wiersza wydarzenia", () => {
     chain.setResponse("events", (query: RecordedChain) =>
       query.argsOf("select")?.[0] === "capacity" ? ok({ capacity: 1 }) : ok(eventQuote()),
     );
-    rpcResponses.set("get_event_rsvp_counts", ok([{ event_id: EVENT_ID, going: 1, waitlist: 0 }]));
+    rpcResponses.set(
+      "event_seat_state",
+      ok([{ event_id: EVENT_ID, capacity: 1, seats_left: 0, going: 1, waitlist: 0 }]),
+    );
 
     const result = await call(ticketPayload());
 

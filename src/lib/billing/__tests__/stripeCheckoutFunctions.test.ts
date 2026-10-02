@@ -911,7 +911,10 @@ describe("createAdhocCheckoutSession - cienki wrapper nad zamówieniem ad-hoc", 
           }),
     );
     chain.setResponse("event_rsvps", ok(null));
-    rpcResponses.set("get_event_rsvp_counts", ok([{ going: 0, waitlist: 0 }]));
+    rpcResponses.set(
+      "event_seat_state",
+      ok([{ capacity: null, seats_left: null, going: 0, waitlist: 0 }]),
+    );
     rpcResponses.set(
       "my_ticket_allowance",
       ok({ granted: 0, used: 0, discount_pct: 0, scope: "none" }),

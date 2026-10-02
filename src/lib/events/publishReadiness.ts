@@ -79,7 +79,10 @@ export interface ReadinessEvent {
   descriptionPl: string | null;
   descriptionEn: string | null;
   status: string | null;
+  /** `events.registration_mode`: rsvp / form / external / none (CHECK w bazie). */
   registrationMode: string | null;
+  /** `events.ticket_price_cents` - cena z ustawień zapisów; NULL = bezpłatne. */
+  ticketPriceCents: number | null;
 }
 
 /** Sesja w zakresie potrzebnym checkliście - celowo węższa niż wiersz RPC. */
@@ -97,6 +100,7 @@ export interface ReadinessInput {
   sessions: readonly ReadinessSession[];
   conflictCount: number;
   roomCount: number;
+  /** AKTYWNE typy biletów - tylko je widzi `event_register` (`is_active`). */
   ticketTypeCount: number;
   /**
    * Uprawnieni do miejsca, ktorzy nie maja go na OPUBLIKOWANYCH planach sali.
@@ -110,6 +114,25 @@ export interface ReadinessInput {
 
 function filled(value: string | null | undefined): boolean {
   return typeof value === "string" && value.trim() !== "";
+}
+
+/**
+ * Czy wydarzenie POBIERA opłatę formularzem zgłoszeń, a więc potrzebuje typu
+ * biletu, żeby ją w ogóle pobrać.
+ *
+ * SYGNAŁ Z DANYCH, NIE Z TRYBU, KTÓREGO NIE MA. Wcześniej warunek brzmiał
+ * `registrationMode !== "paid"`, a CHECK w bazie dopuszcza wyłącznie
+ * `rsvp / form / external / none` - pozycja była więc ZAWSZE spełniona.
+ *
+ * DLACZEGO TYLKO `form`. W trybie `rsvp` cena z ustawień idzie przez kasę biletu
+ * wydarzenia (`checkout.functions.ts`, ścieżka `event_id`) i typy biletów nie są
+ * do niej potrzebne. W trybie `form` płaci się WYŁĄCZNIE ceną typu biletu:
+ * `event_register` bez aktywnego typu przyjmuje zgłoszenie z
+ * `payment_status = 'not_required'` - wydarzenie z ceną w ustawieniach wydaje
+ * wtedy wejściówki za darmo. Tryby `external` i `none` nie sprzedają u nas nic.
+ */
+export function sellsTicketsThroughForm(event: ReadinessEvent): boolean {
+  return event.registrationMode === "form" && (event.ticketPriceCents ?? 0) > 0;
 }
 
 function readinessFormat(format: string | null): ReadinessFormat {
@@ -202,7 +225,7 @@ export function buildPublishReadiness(input: ReadinessInput): ReadinessReport {
       "tickets",
       "warning",
       "registrationTickets",
-      event.registrationMode !== "paid" || ticketTypeCount > 0,
+      !sellsTicketsThroughForm(event) || ticketTypeCount > 0,
       ticketTypeCount,
     ),
     ...seatingChecks,
