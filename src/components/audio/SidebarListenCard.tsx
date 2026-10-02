@@ -117,25 +117,30 @@ export function SidebarListenCard({
   useEffect(() => {
     setPrefetchedDuration(null);
     if (!audioUrl || typeof window === "undefined") return;
-    let cancelled = false;
     const el = document.createElement("audio");
-    el.preload = "metadata";
-    el.src = audioUrl;
-    const onMeta = () => {
-      if (!cancelled && Number.isFinite(el.duration)) {
-        setPrefetchedDuration(el.duration);
-      }
-    };
-    el.addEventListener("loadedmetadata", onMeta);
-    const timer = window.setTimeout(() => {
-      cancelled = true;
-    }, 8000);
-    return () => {
-      cancelled = true;
+    let released = false;
+    // Element służy WYŁĄCZNIE do odczytu metadanych, więc zwalniamy go po
+    // odczycie, po limicie czasu i przy odmontowaniu. Samo zdjęcie `src` NIE
+    // przerywa trwającego pobrania - dopiero `load()` na elemencie bez źródła
+    // (ten sam wzorzec co w global-player). Wcześniej limit czasu tylko
+    // ignorował wynik, a zapytanie o plik szło dalej.
+    const release = () => {
+      if (released) return;
+      released = true;
       window.clearTimeout(timer);
       el.removeEventListener("loadedmetadata", onMeta);
       el.removeAttribute("src");
+      el.load();
     };
+    const onMeta = () => {
+      if (Number.isFinite(el.duration)) setPrefetchedDuration(el.duration);
+      release();
+    };
+    el.preload = "metadata";
+    el.addEventListener("loadedmetadata", onMeta);
+    el.src = audioUrl;
+    const timer = window.setTimeout(release, 8000);
+    return release;
   }, [audioUrl]);
 
   const duration = isThis ? player.duration : 0;

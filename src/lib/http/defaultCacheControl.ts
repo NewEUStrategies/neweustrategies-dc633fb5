@@ -70,6 +70,12 @@ function isDeniedPath(pathname: string): boolean {
   return PUBLIC_DOCUMENT_DENY_PREFIXES.some((p) => bare === p || bare.startsWith(`${p}/`));
 }
 
+function isSessionRequest(request: DocumentCacheRequest): boolean {
+  if (request.headers.get("authorization")) return true;
+  const cookie = request.headers.get("cookie") ?? "";
+  return /(?:^|;\s*)sb-[^=]*=/.test(cookie);
+}
+
 /** Minimalny wycinek Response, od którego zależy decyzja (testy bez fetch). */
 export type DefaultCacheControlResponse = Pick<Response, "status"> & {
   headers: Pick<Headers, "get">;
@@ -83,6 +89,35 @@ export type DefaultCacheControlResponse = Pick<Response, "status"> & {
 function forbidsStorage(directive: string): boolean {
   const cc = parseCacheControl(directive);
   return cc.noStore || cc.private;
+}
+
+/**
+ * Trwałe przekierowanie (301/308) niesie WŁASNĄ dyrektywę trasy - i tylko ją.
+ *
+ * Do 2026-10-02 każda odpowiedź nie-200 kończyła się tu `null`, więc
+ * `PERMANENT_REDIRECT` z `post.$slug.tsx` (audyt CWV 2026-09-20, F13) nie
+ * docierało na drut: h3 nie scala nagłówków zdarzenia dla odpowiedzi non-ok
+ * (patrz opt-out wyżej), a ta funkcja była jedynym drugim kanałem. Skutek:
+ * 301 z głównego adresu własnych listingów wychodziło bez `Cache-Control`
+ * i każde wejście z listy płaciło dwa dokumenty.
+ *
+ * Bez dyrektywy trasy nic nie nadajemy - polityki domyślnej treści NIE
+ * rozciągamy na przekierowania. Tymczasowe 302/307 zostają nietknięte
+ * (wpis może wrócić z kosza), deny-lista i bariera sesji obowiązują jak dla
+ * dokumentu. Brzeg i tak nie zapisuje odpowiedzi nie-200
+ * (`documentStorePolicy`), więc nagłówek dotyczy przeglądarki i pośredników.
+ */
+function permanentRedirectDirective(
+  request: DocumentCacheRequest,
+  response: DefaultCacheControlResponse,
+  routeDirective: string | null | undefined,
+): string | null {
+  if (!routeDirective) return null;
+  if (response.status !== 301 && response.status !== 308) return null;
+  if (!response.headers.get("location")) return null;
+  if (isDeniedPath(new URL(request.url).pathname)) return null;
+  if (isSessionRequest(request)) return null;
+  return routeDirective;
 }
 
 /**
@@ -132,7 +167,7 @@ export function planDefaultCacheControl(
   // Poza opt-outem: własny nagłówek JUŻ NA ODPOWIEDZI (feedy, sitemapy, strona
   // 500 z `src/start.ts`) wygrywa i nie jest ruszany.
   if (onResponse) return null;
-  if (response.status !== 200) return null;
+  if (response.status !== 200) return permanentRedirectDirective(request, response, routeDirective);
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("text/html")) return null;
 
@@ -171,9 +206,7 @@ export function planDefaultCacheControl(
   // Edge Cache i tak je BYPASS-uje, ale nagłówek public na odpowiedzi dla
   // żądania z tokenem byłby mylący dla pośredników). Dotyczy to także
   // dyrektywy trasy: `public` z loadera nie może obejść tej bariery.
-  if (request.headers.get("authorization")) return null;
-  const cookie = request.headers.get("cookie") ?? "";
-  if (/(?:^|;\s*)sb-[^=]*=/.test(cookie)) return null;
+  if (isSessionRequest(request)) return null;
   // POWIERZCHNIA ŻYWA WYPRZEDZA dyrektywę czystego renderu, nie odwrotnie.
   // Odwrotna kolejność wyglądała naturalnie („trasa wie lepiej"), ale
   // reintrodukowałaby naprawiany tu defekt PO ŚCIEŻCE: strona CMS opublikowana

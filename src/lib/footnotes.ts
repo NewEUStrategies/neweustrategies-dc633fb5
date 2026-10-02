@@ -350,11 +350,39 @@ export function processWidgetFootnotes(
   return { widget, notes: col.notes };
 }
 
+/**
+ * Które warianty językowe pola rozwijać.
+ *
+ * `"all"` - wszystkie (nakładka globalnych widgetów: markery samodzielne, bez
+ * sekcji końcowej, więc drugi język nie ma gdzie zostawić śladu).
+ *
+ * `"visible"` - tylko ten, który czytelnik TEJ strony zobaczy: bieżący język,
+ * a drugi dopiero jako fallback pustego (reguła `pickI18n` rendererów). Ścieżka
+ * dokumentu MUSI tak liczyć, bo jej noty trafiają do sekcji końcowej: przy
+ * rozwijaniu obu języków polska strona dwujęzycznego wpisu miała w treści
+ * markery [1], [3], a w „Przypisach źródłowych” także angielskie noty 2 i 4.
+ */
+type VariantScope = "all" | "visible";
+
+function variantKeys(
+  base: string,
+  lang: "pl" | "en",
+  bag: { [k: string]: Json },
+  scope: VariantScope,
+): readonly string[] {
+  const keys = localizedKeys(base, lang);
+  if (scope === "all") return keys;
+  const own = `${base}_${lang}`;
+  const current = bag[own];
+  return typeof current === "string" && current.trim() ? [own] : keys.filter((k) => k !== own);
+}
+
 function processWidget(
   w: WidgetNode,
   lang: "pl" | "en",
   col: FootnoteCounter,
   opts?: ExpandOptions,
+  scope: VariantScope = "all",
 ): WidgetNode {
   const spec = WIDGET_TEXT_FIELDS[w.type];
   if (!spec) return w;
@@ -363,7 +391,7 @@ function processWidget(
 
   // Skalarne pola (lokalizowane warianty).
   for (const base of spec.scalar ?? []) {
-    for (const key of localizedKeys(base, lang)) {
+    for (const key of variantKeys(base, lang, next, scope)) {
       if (key in next) {
         const before = next[key];
         const after = processStringField(before, col, opts);
@@ -385,7 +413,7 @@ function processWidget(
       let itemChanged = false;
       const nextEntry: { [k: string]: Json } = { ...(entry as { [k: string]: Json }) };
       for (const base of arr.fields) {
-        for (const key of localizedKeys(base, lang)) {
+        for (const key of variantKeys(base, lang, nextEntry, scope)) {
           if (key in nextEntry) {
             const before = nextEntry[key];
             const after = processStringField(before, col, opts);
@@ -412,7 +440,10 @@ function processWidget(
 }
 
 function processColumn(c: ColumnNode, lang: "pl" | "en", col: FootnoteCounter): ColumnNode {
-  return { ...c, children: c.children.map((w) => processWidget(w, lang, col)) };
+  return {
+    ...c,
+    children: c.children.map((w) => processWidget(w, lang, col, undefined, "visible")),
+  };
 }
 
 function processChild(ch: SectionChild, lang: "pl" | "en", col: FootnoteCounter): SectionChild {

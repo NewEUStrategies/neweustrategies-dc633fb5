@@ -14,6 +14,9 @@ import {
 // ElevenLabs, więc nawet uprawnione konto ma limit na minutę i na godzinę.
 const TTS_LIMIT_PER_MINUTE = 6;
 const TTS_LIMIT_PER_HOUR = 60;
+// Synteza 5000 znaków trwa kilkanaście sekund; zawieszone połączenie
+// z dostawcą ma się skończyć kodem, a nie wiecznym spinnerem w edytorze.
+export const TTS_UPSTREAM_TIMEOUT_MS = 90_000;
 // GŁOS, MODEL I LIMIT ZNAKÓW POCHODZĄ Z JEDNEGO ŹRÓDŁA - `lib/audio/ttsCanonical`.
 //
 // Do 2026-09-14 ta trasa miała własne trzy kopie tych wartości i wszystkie trzy
@@ -36,6 +39,11 @@ export type TtsBody = { text?: string; voiceId?: string; model?: string };
 export type TtsNormalized =
   { ok: true; safeText: string; voiceId: string; model: string } | { ok: false; error: string };
 
+/** Ciało musi być obiektem JSON - `null` wywracał `normalizeTtsInput` na 500. */
+function isTtsBody(value: unknown): value is TtsBody {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /**
  * Validate + normalize a TTS request body: trims text, applies voice/model
  * defaults, enforces PRZYNALEŻNOŚĆ głosu i modelu do allowlisty kanonicznej
@@ -54,6 +62,19 @@ export function normalizeTtsInput(body: TtsBody): TtsNormalized {
   if (!isAllowedTtsVoiceId(voiceId)) return { ok: false, error: "Invalid voiceId" };
   if (!isAllowedTtsModelId(model)) return { ok: false, error: "Invalid model" };
   return { ok: true, safeText: text.slice(0, TTS_MAX_CHARS), voiceId, model };
+}
+
+/** Awaria transportu do dostawcy: termin -> 504, reszta -> 502; szczegóły tylko w logu. */
+function upstreamFailure(stage: string, e: unknown): Response {
+  const timedOut = e instanceof DOMException && e.name === "TimeoutError";
+  console.error(`ElevenLabs TTS ${stage}`, e);
+  return new Response(
+    JSON.stringify({ error: timedOut ? "TTS upstream timeout" : "TTS upstream error" }),
+    {
+      status: timedOut ? 504 : 502,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }
 
 export const Route = createFileRoute("/api/tts")({
@@ -133,10 +154,8 @@ export const Route = createFileRoute("/api/tts")({
           });
         }
 
-        let body: { text?: string; voiceId?: string; model?: string };
-        try {
-          body = await request.json();
-        } catch {
+        const body: unknown = await request.json().catch(() => undefined);
+        if (!isTtsBody(body)) {
           return new Response(JSON.stringify({ error: "Invalid JSON" }), {
             status: 400,
             headers: { "Content-Type": "application/json" },
@@ -152,30 +171,38 @@ export const Route = createFileRoute("/api/tts")({
         }
         const { safeText, voiceId, model } = norm;
 
-        const upstream = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
-          {
-            method: "POST",
-            headers: {
-              "xi-api-key": apiKey,
-              "Content-Type": "application/json",
-              Accept: "audio/mpeg",
-            },
-            body: JSON.stringify({
-              text: safeText,
-              model_id: model,
-              voice_settings: {
-                stability: 0.5,
-                similarity_boost: 0.75,
-                style: 0.3,
-                use_speaker_boost: true,
+        let upstream: Response;
+        try {
+          upstream = await fetch(
+            `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`,
+            {
+              method: "POST",
+              headers: {
+                "xi-api-key": apiKey,
+                "Content-Type": "application/json",
+                Accept: "audio/mpeg",
               },
-            }),
-          },
-        );
+              body: JSON.stringify({
+                text: safeText,
+                model_id: model,
+                voice_settings: {
+                  stability: 0.5,
+                  similarity_boost: 0.75,
+                  style: 0.3,
+                  use_speaker_boost: true,
+                },
+              }),
+              signal: AbortSignal.timeout(TTS_UPSTREAM_TIMEOUT_MS),
+            },
+          );
+        } catch (e) {
+          // Zerwane połączenie albo przekroczony czas - wcześniej wyjątek
+          // wychodził z handlera jako nieobsłużony 500.
+          return upstreamFailure("unreachable", e);
+        }
 
         if (!upstream.ok) {
-          const errText = await upstream.text();
+          const errText = await upstream.text().catch(() => "");
           console.error("ElevenLabs TTS error", upstream.status, errText);
           return new Response(
             JSON.stringify({ error: "TTS upstream error", status: upstream.status }),
@@ -186,12 +213,23 @@ export const Route = createFileRoute("/api/tts")({
           );
         }
 
-        const audio = await upstream.arrayBuffer();
+        // Ciało 200 też czytamy pod tym samym terminem: zerwane połączenie
+        // w połowie MP3 albo termin, który minie przy odczycie, rzucają TUTAJ,
+        // a nie przy `fetch`.
+        let audio: ArrayBuffer;
+        try {
+          audio = await upstream.arrayBuffer();
+        } catch (e) {
+          return upstreamFailure("body read failed", e);
+        }
         return new Response(audio, {
           status: 200,
           headers: {
             "Content-Type": "audio/mpeg",
-            "Cache-Control": "public, max-age=86400",
+            // `private`: odpowiedź na żądanie z `Authorization` (rola staff).
+            // `public` to dokładnie ta dyrektywa, która pozwala cache'owi
+            // współdzielonemu ją przechować (RFC 9111, 3.5).
+            "Cache-Control": "private, max-age=86400",
           },
         });
       },

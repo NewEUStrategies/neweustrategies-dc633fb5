@@ -65,8 +65,14 @@ export const DEFAULT_READING_TIME_SETTINGS: ReadingTimeSettings = {
   code_wpm_factor: 0.5,
 };
 
+type ContentLang = "pl" | "en";
+
+function contentLang(lang: string | undefined): ContentLang {
+  return (lang ?? "pl").startsWith("en") ? "en" : "pl";
+}
+
 export function wpmForLang(settings: ReadingTimeSettings, lang: string | undefined): number {
-  return (lang ?? "pl").startsWith("en") ? settings.wpm_en : settings.wpm_pl;
+  return contentLang(lang) === "en" ? settings.wpm_en : settings.wpm_pl;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,16 +88,49 @@ function stripHtml(input: string): string {
     .replace(/&[a-z0-9#]+;/gi, " ");
 }
 
-function extractText(node: unknown): string {
-  if (node == null) return "";
-  if (typeof node === "string") return node;
-  if (typeof node === "number" || typeof node === "boolean") return String(node);
-  if (Array.isArray(node)) return node.map(extractText).join(" ");
-  if (typeof node === "object") {
-    return Object.values(node as Record<string, unknown>)
-      .map(extractText)
-      .join(" ");
+// Klucze konstrukcyjne dokumentów builder/blocks i adresy zasobów - nigdy nie
+// są czytaną treścią.
+const STRUCTURAL_KEYS: ReadonlySet<string> = new Set([
+  "id",
+  "kind",
+  "type",
+  "globalId",
+  "style",
+  "advanced",
+  "url",
+  "src",
+  "href",
+]);
+const LOCALIZED_KEY_RE = /^(.+)_(pl|en)$/;
+
+function hasText(value: unknown): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+/**
+ * Tekst do policzenia z dokumentu builder/blocks dla JEDNEJ wersji językowej.
+ *
+ * Wcześniej liczył się każdy skalar drzewa: identyfikatory, typy węzłów, liczby
+ * z ustawień, atrybuty HTML z `html_pl`, a w dokumencie buildera (oba języki
+ * w jednym drzewie) także CAŁY drugi język - polski wpis z tłumaczeniem
+ * dostawał ok. dwa razy dłuższy czas czytania. Drugi język liczymy tylko jako
+ * fallback, gdy bieżący wariant pola jest pusty.
+ */
+function extractText(node: unknown, lang: ContentLang): string {
+  if (typeof node === "string") return stripHtml(node);
+  if (Array.isArray(node)) return node.map((child) => extractText(child, lang)).join(" ");
+  if (node && typeof node === "object") {
+    const rec = node as Record<string, unknown>;
+    const parts: string[] = [];
+    for (const [key, value] of Object.entries(rec)) {
+      if (STRUCTURAL_KEYS.has(key)) continue;
+      const localized = LOCALIZED_KEY_RE.exec(key);
+      if (localized && localized[2] !== lang && hasText(rec[`${localized[1]}_${lang}`])) continue;
+      parts.push(extractText(value, lang));
+    }
+    return parts.join(" ");
   }
+  // Liczby i przełączniki (poziom nagłówka, szerokość, `visible`) to nie proza.
   return "";
 }
 
@@ -127,6 +166,21 @@ function countDocImages(node: unknown, seen = new WeakSet<object>()): number {
 
 export function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+/**
+ * Zajawka doliczana do czasu czytania strony w języku `lang`: wariant tego
+ * języka, a gdy go brak - drugi. Do 2026-10-02 strona EN liczyła POLSKĄ
+ * zajawkę (stałe pierwszeństwo `excerpt_pl`), a panel edytora
+ * (`useBilingualReadingStats`) angielską - ten sam wpis miał dwa czasy czytania.
+ */
+export function excerptForReadingTime(
+  excerptPl: string | null | undefined,
+  excerptEn: string | null | undefined,
+  lang: string | undefined,
+): string | undefined {
+  const [own, other] = lang === "en" ? [excerptEn, excerptPl] : [excerptPl, excerptEn];
+  return own || other || undefined;
 }
 
 export interface ReadingTimeSources {
@@ -167,7 +221,7 @@ export function computeReadingStats(
   const html = sources.html ?? "";
   const textParts: string[] = [];
   if (html) textParts.push(stripHtml(html));
-  if (sources.docs) for (const d of sources.docs) textParts.push(extractText(d));
+  if (sources.docs) for (const d of sources.docs) textParts.push(extractText(d, contentLang(lang)));
   if (sources.extraText) textParts.push(sources.extraText);
 
   const totalWords = countWords(textParts.join(" "));

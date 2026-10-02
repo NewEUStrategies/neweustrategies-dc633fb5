@@ -2,6 +2,8 @@
 // do `related_post_clicks`. Publiczny prefix `/api/public/*` pomija auth
 // broker platformy, więc rate-limit + walidacja zależności musi być tutaj.
 //
+// - Origin: POST z cudzej strony (przeglądarką gościa) dostaje 403 - patrz
+//   `isForgedCrossSite` niżej.
 // - Walidacja Zod (uuid + uuid, różne).
 // - Rate limit: max 30 wpisów / 5 min z tego samego `viewer_hash`.
 // - Tenant rozwiązywany z kolumny `posts.tenant_id` (spójne z RLS-em tabeli).
@@ -15,7 +17,7 @@ import { z } from "zod";
 // dopiero na produkcji.
 import { createHash } from "node:crypto";
 import { clientIpFromHeaders } from "@/lib/http/rateLimit";
-import { isPreviewHost, normalizeHost, wwwToggledHost } from "@/lib/http/host";
+import { normalizeHost, wwwToggledHost } from "@/lib/http/host";
 
 const BodySchema = z.object({
   sourcePostId: z.string().uuid(),
@@ -32,30 +34,85 @@ function viewerHashFrom(req: Request): string {
   return createHash("sha256").update(`${ip}|${ua}`).digest("hex");
 }
 
-// Preflight beaconu - reguła i uzasadnienie jak w `experiment-event.ts`:
-// `Access-Control-Allow-Origin: *` na endpoincie ZAPISU pozwalał obcej stronie
-// wykonać POST przeglądarką swojego gościa (odpowiedzi nie odczyta, ale wiersz
-// w `related_post_clicks` POWSTAJE - razem z `viewer_hash` liczonym z adresu i
-// user-agenta OFIARY). Gate tenanta w POST tego nie łapie, bo przy żądaniu
-// cross-origin Host jest nadal nasz. Origin odbijamy więc tylko dla domen
-// zarejestrowanych w katalogu tenantów (mikrosite'y stoją na własnych domenach)
-// albo hostów podglądu; `resolveTenantIdForHost` na tę bramkę się NIE nadaje,
-// bo nieznany host degraduje tam do tenanta domyślnego i przepuściłby każdy.
-async function preflightCorsHeaders(request: Request): Promise<Record<string, string>> {
-  const headers: Record<string, string> = { Vary: "Origin" };
-  const origin = request.headers.get("origin");
-  if (!origin) return headers;
-  let host: string | null = null;
+/**
+ * Hosty, pod którymi przyszło TO żądanie: z adresu i z nagłówków pośrednika.
+ * Za CDN-em `request.url` niesie host wewnętrzny, a publiczny jedzie
+ * w `X-Forwarded-Host` (ta sama pułapka co w `lib/http/botFilter.ts`), więc
+ * porównanie z samym adresem odrzucałoby prawdziwe beacony. Żadnego z tych
+ * nagłówków nie ustawi skrypt cudzej strony w przeglądarce gościa: `Host`
+ * jest zakazany, a własny nagłówek wymusza preflight, którego obcy origin
+ * nie przejdzie.
+ */
+function ownHosts(request: Request): Set<string> {
+  const hosts = new Set<string>();
+  const raw = [
+    ...(request.headers.get("x-forwarded-host") ?? "").split(","),
+    request.headers.get("host"),
+    new URL(request.url).host,
+  ];
+  for (const entry of raw) {
+    const host = normalizeHost(entry);
+    if (host) hosts.add(host);
+  }
+  return hosts;
+}
+
+/**
+ * Czy `Origin` jest NASZ. Jedna reguła dla POST i dla preflightu:
+ *   - ten sam host co żądanie (z aliasem www/apex) - własny klient
+ *     (`lib/relatedClickBeacon.ts`) woła ścieżkę względną, a lokalny dev
+ *     i wdrożenia podglądowe przechodzą tędy, bo `normalizeHost` zdejmuje port;
+ *   - domena z katalogu tenantów (mikrosite'y stoją na własnych domenach).
+ *
+ * Hosty podglądu (`isPreviewHost`) CELOWO nie są tu wyjątkiem: `*.pages.dev`
+ * i `*.workers.dev` może założyć każdy, więc „podgląd" jako origin obcy byłby
+ * darmową furtką dla dokładnie tego ataku, który ta bramka zamyka.
+ * `resolveTenantIdForHost` też się nie nadaje - nieznany host degraduje tam
+ * do tenanta domyślnego i przepuściłby każdy origin.
+ */
+async function isAllowedOrigin(origin: string, request: Request): Promise<boolean> {
+  let host: string | null;
   try {
     host = normalizeHost(new URL(origin).hostname);
   } catch {
-    return headers;
+    // `Origin: null` (piaskownica, przekierowanie) i śmieci - nie nasz.
+    return false;
   }
-  if (!host) return headers;
+  if (!host) return false;
+  const own = ownHosts(request);
+  if (own.has(host) || own.has(wwwToggledHost(host))) return true;
   const { getTenantDirectory } = await import("@/lib/server/tenant.server");
   const directory = await getTenantDirectory();
-  const known = directory.byDomain.has(host) || directory.byDomain.has(wwwToggledHost(host));
-  if (!known && !isPreviewHost(host)) return headers;
+  return directory.byDomain.has(host) || directory.byDomain.has(wwwToggledHost(host));
+}
+
+/**
+ * Bramka CSRF zapisu. Bez niej obca strona wysyłała POST przeglądarką swojego
+ * gościa (`text/plain` z ciałem JSON nie wymaga preflightu, a handler czyta
+ * ciało niezależnie od `Content-Type`): odpowiedzi nie odczyta, ale wiersz
+ * w `related_post_clicks` POWSTAWAŁ - z `viewer_hash` liczonym z adresu
+ * i user-agenta OFIARY. Zgodność tenanta obu wpisów niżej tego nie łapie: ona
+ * chroni przed cross-TENANT, nie przed cross-ORIGIN.
+ *
+ * Brak `Origin` przechodzi jak dotąd (starsze przeglądarki, beacon
+ * same-origin bywa bez niego) - chyba że przeglądarka sama zgłasza
+ * `Sec-Fetch-Site: cross-site`.
+ */
+async function isForgedCrossSite(request: Request): Promise<boolean> {
+  const origin = request.headers.get("origin");
+  if (origin) return !(await isAllowedOrigin(origin, request));
+  return request.headers.get("sec-fetch-site") === "cross-site";
+}
+
+// Preflight: origin rozstrzyga ta sama `isAllowedOrigin` co bramka POST.
+// `Access-Control-Allow-Origin: *` na endpoincie ZAPISU pozwalał obcej stronie
+// wysłać `fetch` z `Content-Type: application/json`; odbijamy więc wyłącznie
+// origin, którego POST i tak by przeszedł - dwie listy rozjechałyby się po
+// cichu.
+async function preflightCorsHeaders(request: Request): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { Vary: "Origin" };
+  const origin = request.headers.get("origin");
+  if (!origin || !(await isAllowedOrigin(origin, request))) return headers;
   return {
     ...headers,
     "Access-Control-Allow-Origin": origin,
@@ -68,6 +125,10 @@ export const Route = createFileRoute("/api/public/related-click")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        // Przed parsowaniem i przed bazą: sfabrykowany klik nie kosztuje nic.
+        if (await isForgedCrossSite(request)) {
+          return new Response("Forbidden origin", { status: 403 });
+        }
         let payload: unknown;
         try {
           payload = await request.json();
@@ -165,7 +226,10 @@ export const Route = createFileRoute("/api/public/related-click")({
 
         return new Response("ok", { status: 202 });
       },
-      // sendBeacon może w niektórych przeglądarkach wykonać preflight
+      // Preflight wysyła wyłącznie żądanie CROSS-ORIGIN z nagłówkiem spoza
+      // listy bezpiecznych - np. `fetch` z `Content-Type: application/json`
+      // ze strony mikrosite'u na jego własnej domenie. Własny klient
+      // (`relatedClickBeacon.ts`) woła ścieżkę względną, więc go nie robi.
       OPTIONS: async ({ request }) =>
         new Response(null, { status: 204, headers: await preflightCorsHeaders(request) }),
     },

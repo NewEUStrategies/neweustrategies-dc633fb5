@@ -46,12 +46,10 @@ interface Props {
   hideReadTimeOnMobile?: boolean;
 }
 
+// `formatDate` nie rzuca - nieczytelną datę oddaje jako pusty napis. Wartość
+// wraca wtedy SUROWA (jak w `formatDateOnly`), a nie „Opublikowano:" bez daty.
 function fmtDate(iso: string, lang: Lang): string {
-  try {
-    return formatDate(iso, lang, { day: "2-digit", month: "2-digit", year: "numeric" });
-  } catch {
-    return iso;
-  }
+  return formatDate(iso, lang, { day: "2-digit", month: "2-digit", year: "numeric" }) || iso;
 }
 
 function authorName(a: AuthorLite, lang: Lang): string {

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { within } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 
 // ReadingHeader (rendered by every layout) contains TanStack <Link>, which
@@ -25,7 +26,11 @@ const COVER = "https://proj.supabase.co/storage/v1/object/public/media/cover.jpg
 function renderLayout(
   layoutId: string,
   overrides: Partial<PostLayoutSettings> = {},
-  props: { sidebarOverride?: boolean | null } = {},
+  props: {
+    sidebarOverride?: boolean | null;
+    coverViewTransitionId?: string;
+    categoryBadges?: ReactNode;
+  } = {},
 ) {
   const settings = { ...defaultPostLayoutSettings(), ...overrides };
   return renderWithQueryClient(
@@ -400,5 +405,53 @@ describe("PostLayoutRenderer", () => {
     const { getByRole, getByTestId } = renderLayout("does-not-exist");
     expect(getByRole("heading", { level: 1 }).textContent).toBe("Tytuł wpisu");
     expect(getByTestId("content").textContent).toBe("Treść artykułu");
+  });
+});
+
+// Przejście widoku karta -> okładka (cross-document View Transitions): karta
+// na listingu i ramka okładki wpisu muszą nieść TĘ SAMĄ nazwę, inaczej
+// przeglądarka robi zwykłe przenikanie zamiast „lotu" zdjęcia do nagłówka.
+describe("PostLayoutRenderer - nazwa przejścia widoku okładki", () => {
+  const coverFrameOf = (container: HTMLElement) => container.querySelector("img")?.parentElement;
+
+  it.each(["layout-1", "layout-4", "layout-7"])(
+    "układ %s nadaje ramce okładki nazwę z identyfikatora wpisu",
+    (id) => {
+      const { container } = renderLayout(id, {}, { coverViewTransitionId: "p-42" });
+      // happy-dom nie serializuje tej właściwości do atrybutu `style`, ale ją trzyma.
+      expect(coverFrameOf(container)?.style.viewTransitionName).toBe("post-cover-p-42");
+      expect(container.querySelectorAll("img")).toHaveLength(1);
+    },
+  );
+
+  it("bez identyfikatora ramka nie dostaje nazwy - dwie okładki nie mogą jej dzielić", () => {
+    const { container } = renderLayout("layout-7");
+    expect(coverFrameOf(container)?.style.viewTransitionName).toBeFalsy();
+    expect(coverFrameOf(container)?.style.aspectRatio).toBe("900 / 900");
+  });
+});
+
+describe("PostLayoutRenderer - plakietki kategorii nad tytułem", () => {
+  const badges = <span data-testid="badges">Bezpieczeństwo</span>;
+
+  it("klasyczny nagłówek stawia plakietki PRZED tytułem, wyśrodkowane razem z nim", () => {
+    const { container, getByTestId, getByRole } = renderLayout(
+      "layout-1",
+      { center_header: true },
+      { categoryBadges: badges },
+    );
+    expect(isBefore(getByTestId("badges"), getByRole("heading", { level: 1 }))).toBe(true);
+    expect(getByTestId("badges").parentElement?.className).toContain("justify-center");
+    expect(articleHeader(container)?.contains(getByTestId("badges"))).toBe(true);
+  });
+
+  it("nakładka overlay stawia plakietki na okładce, wyrównane do lewej przy center_header=false", () => {
+    const { getByTestId, getByRole } = renderLayout(
+      "layout-4",
+      { center_header: false },
+      { categoryBadges: badges },
+    );
+    expect(isBefore(getByTestId("badges"), getByRole("heading", { level: 1 }))).toBe(true);
+    expect(getByTestId("badges").parentElement?.className).not.toContain("justify-center");
   });
 });

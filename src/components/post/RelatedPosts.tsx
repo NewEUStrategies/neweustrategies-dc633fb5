@@ -57,11 +57,21 @@ export function RelatedPosts({
   // spersonalizowane mimo wyrażonego sprzeciwu.
   const gpcBlokuje = isGpcCurrentlyHonored();
 
+  // Konfiguracja rozstrzygnięta - patrz niżej, przy bramce zapytania. Tu jest
+  // potrzebna wcześniej: dopóki się liczy, `cfg` niesie wagę DOMYŚLNĄ, a nie
+  // tę najemcy.
+  const konfiguracjaRozstrzygnieta = !cfgQuery.isPending;
+
   // O zgodę pytamy TYLKO wtedy, gdy odpowiedź może cokolwiek zmienić: gość nie
   // ma rejestru, przy wadze 0 personalizacja nie wnosi ani punktu, a przy GPC
   // i tak zostałaby sklamrowana do „nie". W pozostałych przypadkach byłby to
   // round-trip pod każdym artykułem za decyzję znaną z góry.
-  const mozeProfilowac = !!user && cfg.weight_personalization > 0 && !gpcBlokuje;
+  //
+  // Wagę czytamy dopiero z ZNANEJ konfiguracji. Na domyślnej (3) odczyt zgody
+  // leciał także u najemcy, który personalizację wyłączył - i wynik był
+  // wyrzucany, zanim ktokolwiek go przeczytał.
+  const mozeProfilowac =
+    konfiguracjaRozstrzygnieta && !!user && cfg.weight_personalization > 0 && !gpcBlokuje;
   const zgodaQuery = useQuery({
     ...relatedPersonalizationConsentQueryOptions(user?.id ?? ""),
     enabled: mozeProfilowac,
@@ -98,8 +108,8 @@ export function RelatedPosts({
   // round-tripów; to lista widoczna przez moment i ułożona WEDŁUG INNYCH WAG niż
   // skonfigurowane, czyli dokładnie ten objaw, który ta zmiana likwiduje -
   // tyle że przelotny. Gdy odczyt PADNIE, jedziemy na domyślnych: lepsze
-  // rekomendacje z domyślnymi wagami niż brak rekomendacji.
-  const konfiguracjaRozstrzygnieta = !cfgQuery.isPending;
+  // rekomendacje z domyślnymi wagami niż brak rekomendacji
+  // (`konfiguracjaRozstrzygnieta` wyżej).
 
   // Wagi jadą do zapytania Z KONFIGURACJI, nie z domyślnych. To jest ta jedna
   // rzecz, której brak unieruchamiał cały silnik v2: panel zapisywał siedem wag,
@@ -187,9 +197,14 @@ interface ViewProps {
 }
 
 /**
- * Tytuł wpisu w języku widoku - także jako `alt` okładki. Okładka rekomendacji
- * NIE jest dekoracją: skaner treści SEO (2026-09) zgłosił puste `alt`, a dla
- * czytnika ekranu obrazek bez opisu w liście kart jest po prostu niemy.
+ * Tytuł wpisu w języku widoku - także jako `alt` okładki w siatce, liście
+ * i suwaku. Tam okładka stoi OBOK linku z tytułem, więc jest jedynym opisem
+ * obrazka: skaner treści SEO (2026-09) zgłosił puste `alt`, a dla czytnika
+ * ekranu obrazek bez opisu w liście kart jest po prostu niemy.
+ *
+ * Karty i wyróżnienie magazynu to co innego: okładka leży WEWNĄTRZ linku,
+ * którego nazwą jest już tytuł. Tam `alt=""` - inaczej czytnik czyta tytuł
+ * dwa razy (WCAG H2).
  */
 function postTitleFor(p: BlogListItem, lang: "pl" | "en"): string {
   return lang === "en" ? p.title_en || p.title_pl : p.title_pl || p.title_en;
@@ -324,9 +339,15 @@ function RelatedSlider({ posts, cfg, lang, sourcePostId }: ViewProps) {
     return () => window.clearInterval(t);
   }, [cfg.slider_autoplay, cfg.slider_interval_ms, posts.length]);
 
+  // Przewijamy SAM tor, poziomo. `scrollIntoView` przewija wszystkie przodki,
+  // także okno: przy montażu i przy każdym takcie autoodtwarzania strona
+  // skakała do rekomendacji, choć czytelnik był wyżej, w tekście artykułu.
   useEffect(() => {
-    const el = trackRef.current?.children[idx] as HTMLElement | undefined;
-    el?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    const track = trackRef.current;
+    const el = track?.children.item(idx);
+    if (!track || !el) return;
+    const delta = el.getBoundingClientRect().left - track.getBoundingClientRect().left;
+    if (delta !== 0) track.scrollBy({ left: delta, behavior: "smooth" });
   }, [idx]);
 
   return (
@@ -386,9 +407,10 @@ function RelatedCards({ posts, cfg, lang, sourcePostId }: ViewProps) {
           >
             {cfg.show_cover && p.cover_image_url ? (
               <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+                {/* Dekoracja: nazwą linku jest już tytuł (patrz `postTitleFor`). */}
                 <OptimizedImage
                   src={p.cover_image_url}
-                  alt={title}
+                  alt=""
                   responsive
                   sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
@@ -460,9 +482,10 @@ function RelatedMagazine({ posts, cfg, lang, sourcePostId }: ViewProps) {
       >
         {cfg.show_cover && hero.cover_image_url && (
           <div className="relative aspect-[16/10] overflow-hidden bg-muted">
+            {/* Dekoracja: nazwą linku jest już tytuł (patrz `postTitleFor`). */}
             <OptimizedImage
               src={hero.cover_image_url}
-              alt={heroTitle}
+              alt=""
               responsive
               sizes="(max-width: 1024px) 100vw, 60vw"
               className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"

@@ -78,6 +78,9 @@ export function GlossaryHighlighter({
       root.removeEventListener("focusin", enter, true);
       root.removeEventListener("mouseleave", leave, true);
       root.removeEventListener("focusout", leave, true);
+      // Zaplanowane chowanie nie przeżywa organizmu (wzór jak w QuoteShareBar).
+      if (hideTimer.current) window.clearTimeout(hideTimer.current);
+      hideTimer.current = null;
     };
   }, [containerRef]);
 

@@ -12,6 +12,7 @@ import type { ReadingPanelSettings, SidebarWidget } from "@/lib/sidebarBuilder/t
 import type { RelatedPostsOverride } from "@/lib/relatedPosts/config";
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
 import { FloatingShareBar } from "@/components/share/FloatingShareBar";
+import { AuthorBusinessCard } from "@/components/post/AuthorBusinessCard";
 
 // Heavier widgets are lazy-imported so the sidebar bundle stays small.
 const RelatedPosts = lazy(() =>
@@ -79,23 +80,37 @@ export function PostSidebarRenderer(props: PostSidebarRendererProps) {
   const overrideQuery = useQuery(sidebarLayoutByIdQueryOptions(props.layoutId));
   const defaultQuery = useQuery({
     ...defaultSidebarLayoutQueryOptions(),
-    enabled: !props.layoutId || overrideQuery.isError,
+    // Układ per wpis, którego nie widać (odczyt publiczny jest zawężony do
+    // tenanta, więc obcy układ wraca jako null, nie błąd), też oddaje głos
+    // domyślnemu układowi tenanta - zamiast twardego układu awaryjnego.
+    enabled:
+      !props.layoutId ||
+      overrideQuery.isError ||
+      (overrideQuery.isSuccess && overrideQuery.data === null),
   });
 
   const layout = overrideQuery.data ?? defaultQuery.data ?? buildFallbackLayout();
 
   const visible = layout.widgets.filter((w) => !w.hidden);
+  // Jedna wizytówka autora na stronę: panel czytania renderuje ją sam pod
+  // odsłuchem, więc widget karty mówi tylko wtedy, gdy panelu nie ma - i tylko
+  // pierwszy z nich (dwie identyczne karty to dwa przyciski „Obserwuj").
+  const authorCardWidgetId = visible.some((w) => w.type === "reading-panel")
+    ? null
+    : (visible.find((w) => w.type === "author-card")?.id ?? null);
 
   return (
     <div className="flex flex-col gap-4">
       {visible.map((w) => (
-        <WidgetView key={w.id} widget={w} {...props} />
+        <WidgetView key={w.id} widget={w} authorCardWidgetId={authorCardWidgetId} {...props} />
       ))}
     </div>
   );
 }
 
-function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps) {
+function WidgetView(
+  props: { widget: SidebarWidget; authorCardWidgetId: string | null } & PostSidebarRendererProps,
+) {
   const { widget, postId, postTitle, lang, tags, listen, adContent, suppressToc, suppressAds } =
     props;
   switch (widget.type) {
@@ -148,10 +163,27 @@ function WidgetView(props: { widget: SidebarWidget } & PostSidebarRendererProps)
       );
     }
     case "author-card": {
+      // Dane autora niesie już wpis (`listen`) - bez osobnego zapytania. Brak
+      // autora = brak widgetu, nie pusta ramka.
+      if (!listen?.author || widget.id !== props.authorCardWidgetId) return null;
       return (
-        <aside className="cms-widget-title rounded-[5px] border border-border/70 bg-background/95 p-4 text-muted-foreground">
-          {lang === "pl" ? "Karta autora wkrótce." : "Author card coming soon."}
-        </aside>
+        <AuthorBusinessCard
+          lang={lang}
+          name={listen.author}
+          authorId={listen.authorId ?? null}
+          avatarUrl={listen.authorAvatarUrl}
+          href={listen.authorHref}
+          jobTitle={listen.authorJobTitle}
+          company={listen.authorCompany}
+          email={listen.authorEmail}
+          xUrl={listen.authorXUrl}
+          linkedinUrl={listen.authorLinkedinUrl}
+          facebookUrl={listen.authorFacebookUrl}
+          instagramUrl={listen.authorInstagramUrl}
+          websiteUrl={listen.authorWebsiteUrl}
+          spotifyUrl={listen.authorSpotifyUrl}
+          customSocials={listen.authorCustomSocials}
+        />
       );
     }
     case "related-posts": {

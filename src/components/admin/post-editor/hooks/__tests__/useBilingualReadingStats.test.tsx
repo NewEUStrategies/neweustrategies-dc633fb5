@@ -78,8 +78,9 @@ describe("czas czytania osobno dla każdej wersji językowej", () => {
     // tekście czas polskiego - redakcja wpisałaby tę liczbę do `read_minutes`
     // i trafiłaby ona na stronę publiczną oraz do JSON-LD.
     expect(result.current.pl.minutes).toBe(3);
-    expect(result.current.pl.words).toBeGreaterThan(660);
-    expect(result.current.en.words).toBeLessThan(10);
+    // Dokładnie 660: identyfikator, typ bloku i `version` to nie słowa.
+    expect(result.current.pl.words).toBe(660);
+    expect(result.current.en.words).toBe(0);
   });
 
   it("dokument buildera liczy się do OBU wersji", () => {
@@ -93,7 +94,7 @@ describe("czas czytania osobno dla każdej wersji językowej", () => {
     // Strona zbudowana builderem jest JEDNA dla obu języków - pominięcie jej
     // w którejkolwiek wersji pokazałoby „0 min" dla pełnego artykułu.
     expect(result.current.pl.words).toBe(result.current.en.words);
-    expect(result.current.pl.words).toBeGreaterThan(440);
+    expect(result.current.pl.words).toBe(440);
   });
 
   it("dolicza zajawkę do treści właściwego języka", () => {

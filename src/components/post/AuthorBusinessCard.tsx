@@ -44,11 +44,15 @@ const L = {
   },
 } as const;
 
+// Pierwsza LITERA każdego członu, nie pierwsza jednostka UTF-16: `p[0]` z
+// „🇪🇺 Jan Kowalski" dawało połówkę pary zastępczej, czyli znak „�" w kafelku.
+// Nazwa bez liter (same emoji/cyfry) daje "" i kafelek pokazuje ikonę osoby.
 function initials(name: string): string {
   return name
     .split(/\s+/)
+    .map((p) => p.match(/\p{L}/u)?.[0] ?? "")
+    .filter(Boolean)
     .slice(0, 2)
-    .map((p) => p[0])
     .join("")
     .toUpperCase();
 }
@@ -127,10 +131,28 @@ export function AuthorBusinessCard({
     { key: "facebook", url: facebookUrl ?? "", label: "Facebook", Fallback: Facebook },
     { key: "instagram", url: instagramUrl ?? "", label: "Instagram", Fallback: Instagram },
     { key: "website", url: websiteUrl ?? "", label: "Website", Fallback: Globe },
-  ].filter((s) => Boolean(s.url));
+  ]
+    // `safeUrl` bez drugiego argumentu zwraca "#", więc niebezpieczny adres
+    // (`javascript:`) stawał się kafelkiem otwierającym tę samą stronę w nowej
+    // karcie. Pusty zapas odsiewa go razem z brakiem adresu.
+    .map((s) => ({ ...s, url: safeUrl(s.url, "") }))
+    .filter((s) => Boolean(s.url));
 
-  const hasCustom = (customSocials ?? []).length > 0;
-  const hasAnySocial = socials.length > 0 || hasCustom || Boolean(email);
+  const custom = (customSocials ?? []).flatMap((s) => {
+    const url = safeUrl(s.url, "");
+    return url ? [{ ...s, url }] : [];
+  });
+  const hasAnySocial = socials.length > 0 || custom.length > 0 || Boolean(email);
+
+  const avatarImg = avatarUrl ? (
+    <img
+      src={avatarUrl}
+      alt={displayName}
+      loading="lazy"
+      decoding="async"
+      className="h-14 w-14 rounded-[6px] object-cover ring-2 ring-border/60 shadow-sm transition-transform duration-300 hover:scale-[1.03]"
+    />
+  ) : null;
 
   return (
     <aside
@@ -138,16 +160,14 @@ export function AuthorBusinessCard({
       aria-label={t.about}
     >
       <div className="flex items-start gap-3">
-        {avatarUrl ? (
-          <AppLink href={href || "#"} className="relative shrink-0" aria-label={displayName}>
-            <img
-              src={avatarUrl}
-              alt={displayName}
-              loading="lazy"
-              decoding="async"
-              className="h-14 w-14 rounded-[6px] object-cover ring-2 ring-border/60 shadow-sm transition-transform duration-300 hover:scale-[1.03]"
-            />
+        {avatarImg && href ? (
+          <AppLink href={href} className="relative shrink-0" aria-label={displayName}>
+            {avatarImg}
           </AppLink>
+        ) : avatarImg ? (
+          // Bez profilu nie ma dokąd prowadzić - link na "#" przewijał stronę
+          // na górę i był pustym przystankiem w kolejności Tab.
+          <div className="relative shrink-0">{avatarImg}</div>
         ) : (
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[6px] bg-muted ring-2 ring-border/60 shadow-sm">
             {fallbackInitials ? (
@@ -230,7 +250,7 @@ export function AuthorBusinessCard({
           {socials.map(({ key, url, label, Fallback }) => (
             <a
               key={key}
-              href={safeUrl(url) || "#"}
+              href={url}
               target="_blank"
               rel="noreferrer noopener"
               aria-label={label}
@@ -250,32 +270,28 @@ export function AuthorBusinessCard({
               <Mail className="h-3.5 w-3.5" />
             </a>
           )}
-          {(customSocials ?? []).map((s, i) => {
-            const url = safeUrl(s.url);
-            if (!url) return null;
-            return (
-              <a
-                key={`custom-${i}`}
-                href={url}
-                target="_blank"
-                rel="noreferrer noopener"
-                aria-label={s.label}
-                style={brandTileStyle("website")}
-                className={`${BRAND_TILE_CLASS} h-8 w-8`}
-              >
-                {s.iconUrl ? (
-                  <img
-                    src={s.iconUrl}
-                    alt={s.label}
-                    className="h-3.5 w-3.5 object-contain"
-                    loading="lazy"
-                  />
-                ) : (
-                  <Globe className="h-3.5 w-3.5" />
-                )}
-              </a>
-            );
-          })}
+          {custom.map((s, i) => (
+            <a
+              key={`custom-${i}`}
+              href={s.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label={s.label}
+              style={brandTileStyle("website")}
+              className={`${BRAND_TILE_CLASS} h-8 w-8`}
+            >
+              {s.iconUrl ? (
+                <img
+                  src={s.iconUrl}
+                  alt={s.label}
+                  className="h-3.5 w-3.5 object-contain"
+                  loading="lazy"
+                />
+              ) : (
+                <Globe className="h-3.5 w-3.5" />
+              )}
+            </a>
+          ))}
         </div>
       )}
     </aside>

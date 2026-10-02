@@ -959,7 +959,7 @@ export default defineConfig({
           lines: 100,
           branches: 85,
         },
-        "src/lib/access/gating.ts": { statements: 95, functions: 100, lines: 100, branches: 95 },
+        "src/lib/access/gating.ts": { statements: 100, functions: 100, lines: 100, branches: 100 },
         // Lejek monetyzacji czytelnika (paywall). Do 2026-08-15 gating.ts był
         // jedynym plikiem tej powierzchni z bramką, a komponent ściany, licznik
         // meteringu i hooki konsumpcji stały na zerze (ocena 14.08: „48 plików
@@ -970,10 +970,10 @@ export default defineConfig({
         // wyłącznie, gdy warunki już spełnione), fallbacki `?? 0` opisów
         // licznika i wiersz konsumpcji bez rekordu.
         "src/components/Paywall.tsx": {
-          statements: 95,
+          statements: 98,
           functions: 100,
-          lines: 98,
-          branches: 88,
+          lines: 100,
+          branches: 95,
         },
         "src/components/molecules/MeterBanner.tsx": {
           statements: 98,
@@ -1014,11 +1014,13 @@ export default defineConfig({
         // 90 -> 80): the v8 remap reports 95.23% stmts / 81.03% branches on
         // the unchanged file and the gate was already red on main after the
         // #43 merge - identical numbers with and without this cleanup.
+        // 2026-10-02 (istanbul, moduł 1): 100% instrukcji, 93,81% gałęzi -
+        // podłoga podniesiona do zmierzonej, zaokrąglonej w dół.
         "src/components/PostLayoutRenderer.tsx": {
-          statements: 95,
+          statements: 100,
           functions: 100,
           lines: 100,
-          branches: 80,
+          branches: 93,
         },
         // RUM aggregator + thresholds: pure, fully exercised.
         "src/lib/observability/aggregate.ts": {
@@ -4548,10 +4550,10 @@ export default defineConfig({
         // (nieudany `seek` na nietypowym źródle, brak `MediaMetadata`) oraz
         // ścieżka SSR, w której `window` nie istnieje.
         "src/lib/audio/global-player.tsx": {
-          statements: 97,
-          functions: 79,
+          statements: 98,
+          functions: 100,
           lines: 100,
-          branches: 87,
+          branches: 88,
         },
         "src/lib/audio/ttsStage.ts": {
           statements: 100,
@@ -4566,10 +4568,10 @@ export default defineConfig({
         // blocks.en` dla dokumentu bez żadnego języka oraz puste ciała
         // `.catch()` przy zapisie cache w tle.
         "src/routes/api/public/post-tts.ts": {
-          statements: 95,
-          functions: 83,
-          lines: 95,
-          branches: 85,
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 88,
         },
         // ── PODŁOGI POMIAROWE DLA PLIKÓW RUSZONYCH W ZLECENIU „MODUŁ 1" ──────
         //
@@ -4594,10 +4596,10 @@ export default defineConfig({
         // przy pierwszym niezwiązanym przebiegu. Reszta podłóg ma margines
         // z samego zaokrąglenia w dół.
         "src/hooks/useRecordPostView.ts": {
-          statements: 96,
-          functions: 71,
+          statements: 100,
+          functions: 100,
           lines: 100,
-          branches: 86,
+          branches: 100,
         },
         "src/lib/builder/labelsEn.ts": {
           statements: 100,
@@ -4612,10 +4614,10 @@ export default defineConfig({
           branches: 88,
         },
         "src/routes/api/public/related-click.ts": {
-          statements: 97,
+          statements: 100,
           functions: 100,
           lines: 100,
-          branches: 90,
+          branches: 100,
         },
         // SYGNAŁ DWELL REKOMENDACJI (zlecenie modułu 1, A1): pomiar czasu
         // czytania w przeglądarce, wspólny kontrakt beaconu i trasa zapisu.
@@ -4639,19 +4641,17 @@ export default defineConfig({
           lines: 100,
           branches: 92,
         },
-        // TRASA `/api/tts` STOI NISKO I PODŁOGA TEGO NIE UKRYWA: 22,72% linii.
-        // Testowany jest wyłącznie `normalizeTtsInput` (walidacja wejścia, czyli
-        // to, czego dotyczył defekt A2); całe ciało uchwytu POST - uwierzytelnienie,
-        // RPC `is_staff`, dwuoknowy limiter i wywołanie ElevenLabs - nie ma ani
-        // jednego przypadku. Domknięcie tego wymaga atrap `@supabase/supabase-js`,
-        // `rate-limit.server` i `fetch`, których w tym środowisku nie da się
-        // wykonać ani razu przed wypchnięciem. Podłoga zapisuje więc stan
-        // faktyczny i blokuje zejście niżej; podniesienie go jest osobną pracą.
+        // TRASA `/api/tts`: 22,72% -> 100% linii (2026-10-02). Do tej daty
+        // testowany był wyłącznie `normalizeTtsInput`; dziś `-tts.test.ts`
+        // przechodzi cały uchwyt POST - sesję, RPC `is_staff`, dwuoknowy
+        // limiter, kontrakt z ElevenLabs i mapowanie awarii (504/502, także
+        // zerwanie w połowie ciała) na atrapach `@supabase/supabase-js`,
+        // `rate-limit.server` i `fetch`.
         "src/routes/api/tts.ts": {
-          statements: 27,
-          functions: 50,
-          lines: 22,
-          branches: 37,
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
         },
         // UKŁADY WPISU I RENDER + AUDIO: powierzchnie komponentowe modułu.
         // Stan wyjściowy: `components/post` 21 z 26 plików na ZERZE (19,0% linii
@@ -4664,26 +4664,23 @@ export default defineConfig({
         // (skróty `&&`, wartości domyślne propsów), więc mianownik instrukcji
         // jest większy niż mianownik wierszy.
         //
-        // Niedobita reszta w `components/post` to `RelatedPosts.tsx`: sześć
-        // układów rekomendacji (siatka, lista, slider, karty, magazyn, os czasu)
-        // z autoplayem i obsługą gestów. Pokryte są stan pusty, wyłączenie,
-        // nadpisanie per wpis i dwa układy; pozostałe cztery to kolejny krok,
-        // nie regresja tego.
-        //
-        // W `components/audio` niedobite są gałęzie dolnego paska i karty, które
-        // wymagają PRAWDZIWEGO `HTMLAudioElement` (przewijanie gestem, pobieranie
-        // blobu, Web Share API) - te ścieżki dowodzi e2e, nie test jednostkowy.
+        // 2026-10-02: obie powierzchnie na 100% linii i funkcji (pomiar
+        // modułu 1 na 142 plikach testów, 3 406 przypadków). W `components/post`
+        // wszystkie sześć układów rekomendacji ma testy zachowania; niedobite
+        // gałęzie to obronne fallbacki tytułu i strażniki SSR. W
+        // `components/audio` niedobite są strażniki `if (loading) return`
+        // przycisków, które UI renderuje wtedy jako `disabled`.
         "src/components/post/**": {
-          statements: 80,
-          functions: 72,
-          lines: 84,
-          branches: 66,
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 93,
         },
         "src/components/audio/**": {
-          statements: 62,
-          functions: 48,
-          lines: 64,
-          branches: 77,
+          statements: 97,
+          functions: 100,
+          lines: 100,
+          branches: 96,
         },
         // Atomy modułu 1 trzymamy pod 100%: test atomu jest tani i wielokrotnie
         // użyty, a każdy z nich scala kopie, w których kontrakt a11y był pisany
@@ -4692,13 +4689,112 @@ export default defineConfig({
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 90,
+          branches: 100,
         },
         "src/components/audio/atoms/**": {
           statements: 100,
           functions: 100,
           lines: 100,
-          branches: 90,
+          branches: 100,
+        },
+        // ── MODUŁ 1, WYDANIE 2026-10-02: pliki doprowadzone do pełnego pokrycia ──
+        //
+        // Tabela pokrycia modułu (wydanie 12 audytu) pokazywała 363 linie bez
+        // testu i 13 plików na zerze - m.in. `usePasswordUnlock`,
+        // `useUnlockedContent`, CV autora, trasy `post.$slug` i
+        // `preview.$token`, `relatedInsights.functions`, `useRecommendedPosts`,
+        // `api/stt`, `ttsRenditions`. Każdy z nich dostał testy zachowania
+        // (a przy okazji naprawy defektów), więc dostaje też podłogę - inaczej
+        // zszedłby z powrotem do zera bez sygnału.
+        //
+        // SKĄD LICZBY: lokalny pomiar istanbul na 142 plikach testów, które
+        // importują pliki modułu (mianownik zawężony do 108 plików modułu).
+        // Pełna suita w CI może je wyłącznie podnieść. Reguła jak wyżej:
+        // wartość zmierzona zaokrąglona w dół; 100 tylko tam, gdzie zmierzono
+        // dokładnie 100 (to nie może być artefakt zaokrąglenia).
+        "src/lib/access/visitor.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/usePasswordUnlock.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/hooks/useUnlockedContent.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/components/author/**": {
+          statements: 99,
+          functions: 100,
+          lines: 100,
+          branches: 98,
+        },
+        "src/routes/post.$slug.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/preview.$token.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 91,
+        },
+        "src/lib/postLayouts.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/relatedInsights.functions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 95,
+        },
+        "src/hooks/useRecommendedPosts.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/api/stt.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 97,
+        },
+        "src/lib/audio/ttsRenditions.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/footnotes/navigation.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/readingTime.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 98,
+        },
+        "src/lib/citations/format.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 96,
         },
         // Reguły wyprowadzone z organizmów artykułu - czyste moduły, więc pod 100%.
         "src/lib/post/badgeContrast.ts": {

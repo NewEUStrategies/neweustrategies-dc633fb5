@@ -162,6 +162,15 @@ function isoDate(parts: DateParts): string {
   return `${parts.year}-${mm}-${dd}`;
 }
 
+/**
+ * Data dostępu (YYYY-MM-DD) w strefie CZYTELNIKA - to on cytuje i to jego
+ * dzień trafia do bibliografii. `toISOString()` dawało dzień UTC: w Warszawie
+ * tuż po północy cytat dostawał wczorajszą datę, w Ameryce wieczorem jutrzejszą.
+ */
+export function localAccessDate(now: Date): string {
+  return isoDate({ year: now.getFullYear(), month: now.getMonth(), day: now.getDate() });
+}
+
 /** Kropka na końcu segmentu - bez dublowania po skrócie/inicjale. */
 function endSentence(text: string): string {
   return /[.!?]$/.test(text) ? text : `${text}.`;
@@ -198,17 +207,14 @@ function buildChicagoParts(source: CitationSource): ChicagoParts {
   const lang = source.lang;
   const and = lang === "pl" ? "i" : "and";
 
+  // `resolveAuthors` odrzuca już puste rekordy, więc każde nazwisko jest
+  // niepuste - dodatkowy filtr i gałąź „został jeden" były nieosiągalne.
   let authorSegment: string | null = null;
   if (authors.length === 1) {
     authorSegment = naturalName(authors[0]);
   } else if (authors.length > 1) {
-    const names = authors.map(naturalName).filter((n) => n.length > 0);
-    if (names.length === 1) {
-      authorSegment = names[0];
-    } else if (names.length > 1) {
-      const lastName = names.pop() as string;
-      authorSegment = `${names.join(", ")} ${and} ${lastName}`;
-    }
+    const names = authors.map(naturalName);
+    authorSegment = `${names.slice(0, -1).join(", ")} ${and} ${names[names.length - 1]}`;
   }
 
   const published = source.publishedAt ? dateParts(source.publishedAt) : null;

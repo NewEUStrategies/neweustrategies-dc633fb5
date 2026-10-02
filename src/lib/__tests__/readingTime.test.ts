@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  excerptForReadingTime,
   computeBilingualReadingStats,
   computeReadingMinutes,
   computeReadingStats,
@@ -8,6 +9,7 @@ import {
   estimateReadingMinutes,
   readingTimeSettingsSchema,
   resolveReadMinutes,
+  wpmForLang,
   type ReadingTimeSettings,
 } from "@/lib/readingTime";
 
@@ -130,5 +132,115 @@ describe("schema ustawień", () => {
       readingTimeSettingsSchema.safeParse({ ...DEFAULT_READING_TIME_SETTINGS, rounding: "up" })
         .success,
     ).toBe(false);
+  });
+});
+
+// Tekst z dokumentów builder/blocks. Do tej naprawy liczył się KAŻDY skalar
+// drzewa: identyfikatory, `kind`/`type` węzłów, liczby z ustawień, atrybuty
+// HTML z `html_pl` i - w dokumencie buildera, który trzyma oba języki w jednym
+// drzewie - cały drugi język. Zmierzone: wpis z 220 słowami po polsku
+// (i tłumaczeniem) liczył się jako 474 słowa, czyli 2 min zamiast 1.
+describe("computeReadingStats - tekst z dokumentów", () => {
+  const widget = (id: string, content: Record<string, unknown>) => ({
+    id,
+    kind: "widget",
+    type: "text",
+    content,
+    style: { padding: { top: 24, bottom: 24 }, color: "#1a1a1a" },
+    advanced: { cssClass: "lead-paragraph", hideOnMobile: false },
+  });
+  const builderDoc = (...widgets: ReturnType<typeof widget>[]) => ({
+    version: 1,
+    sections: [
+      {
+        id: "s-9f2c",
+        kind: "section",
+        children: [{ id: "c-1", kind: "column", span: { desktop: 12 }, children: widgets }],
+      },
+    ],
+  });
+
+  it("dokument dwujęzyczny liczy wyłącznie język strony", () => {
+    const doc = builderDoc(
+      widget("w-1", { html_pl: `<p>${words(220)}</p>`, html_en: `<p>${words(119)}</p>` }),
+    );
+
+    expect(computeReadingStats({ docs: [doc] }, "pl", s())).toEqual({
+      minutes: 1,
+      words: 220,
+      images: 0,
+    });
+    expect(computeReadingStats({ docs: [doc] }, "en", s()).words).toBe(119);
+  });
+
+  it("metadane węzłów, liczby z ustawień i atrybuty HTML nie są słowami", () => {
+    const doc = builderDoc(
+      widget("w-1", {
+        html_pl: '<p class="lead" data-align="left" style="margin: 0 auto">Jeden dwa trzy</p>',
+        columns: 2,
+        dropCap: "off",
+        visible: true,
+      }),
+    );
+
+    // Zostaje proza i jedna wartość konfiguracyjna zapisana tekstem („off”).
+    expect(computeReadingStats({ docs: [doc] }, "pl", s()).words).toBe(4);
+  });
+
+  it("pusty wariant bieżącego języka czyta się z drugiego - jak fallback renderera", () => {
+    const doc = builderDoc(widget("w-1", { html_pl: "  ", html_en: `<p>${words(50)}</p>` }));
+
+    expect(computeReadingStats({ docs: [doc] }, "pl", s()).words).toBe(50);
+  });
+
+  it("wartości spoza danych (funkcje) nie wnoszą swojego kodu do licznika", () => {
+    const doc = { text: "jeden dwa", render: () => "trzy cztery pięć" };
+
+    expect(computeReadingStats({ docs: [doc] }, "pl", s()).words).toBe(2);
+  });
+
+  it("ten sam węzeł obrazu podpięty dwa razy liczy się jako jeden obraz", () => {
+    const image = { type: "image", url: "a.jpg" };
+    const doc = { blocks: [image, { type: "group", children: [image] }] };
+
+    const r = computeReadingStats({ docs: [doc] }, "pl", s({ min_minutes: 0 }));
+
+    expect(r.images).toBe(1);
+    expect(r.words).toBe(0);
+  });
+});
+
+describe("domyślne ustawienia i stary interfejs", () => {
+  const src = { extraText: words(330) }; // PL: 330/220 = 1,5 -> 2; EN: 330/238 ≈ 1,39 -> 1
+
+  it("bez ustawień liczy wg domyślnych, osobno dla PL i EN", () => {
+    expect(computeBilingualReadingStats({ pl: src, en: src })).toEqual({
+      pl: { minutes: 2, words: 330, images: 0 },
+      en: { minutes: 1, words: 330, images: 0 },
+    });
+    expect(computeReadingMinutes(src, "en")).toBe(1);
+  });
+
+  it("nieznany język traktuje jak polski", () => {
+    expect(computeReadingStats(src, undefined).minutes).toBe(2);
+    expect(wpmForLang(DEFAULT_READING_TIME_SETTINGS, undefined)).toBe(220);
+  });
+
+  it("estimateReadingMinutes z opcjami: język wybiera wpm, jawne wpm wygrywa", () => {
+    expect(estimateReadingMinutes(src, { lang: "en" })).toBe(1);
+    expect(estimateReadingMinutes(src, { lang: "en", wpm: 110 })).toBe(3);
+  });
+});
+
+describe("excerptForReadingTime - zajawka w języku strony", () => {
+  it("strona EN liczy zajawkę EN, strona PL - polską (ta sama reguła co panel edytora)", () => {
+    expect(excerptForReadingTime("Zajawka PL", "Excerpt EN", "en")).toBe("Excerpt EN");
+    expect(excerptForReadingTime("Zajawka PL", "Excerpt EN", "pl")).toBe("Zajawka PL");
+  });
+
+  it("brak wariantu języka strony sięga po drugi, a brak obu daje undefined", () => {
+    expect(excerptForReadingTime("Zajawka PL", null, "en")).toBe("Zajawka PL");
+    expect(excerptForReadingTime("", "Excerpt EN", "pl")).toBe("Excerpt EN");
+    expect(excerptForReadingTime(null, undefined, "pl")).toBeUndefined();
   });
 });

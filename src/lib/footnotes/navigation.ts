@@ -31,7 +31,11 @@ export function scrollToFootnoteId(id: string): boolean {
   if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });
   try {
-    window.history.replaceState(null, "", `#${id}`);
+    // Stan wpisu historii należy do routera: TanStack trzyma w nim klucz
+    // przywracania scrolla (`__TSR_key`) i indeks (`__TSR_index`), z którego
+    // liczy kierunek wstecz/dalej. `null` kasował oba - powrót na tę stronę
+    // dostawał losowy klucz (bez przywrócenia pozycji) i indeks 0.
+    window.history.replaceState(window.history.state, "", `#${id}`);
   } catch {
     /* replaceState bywa zablokowany w piaskownicach - skok i tak zadziałał */
   }
@@ -44,10 +48,7 @@ export function scrollToFootnoteId(id: string): boolean {
  * klikalny numer pozycji w sekcji (`[data-footnote-backlink]`).
  */
 export function resolveFootnoteTargetId(el: Element | null): string | null {
-  const a = el?.closest?.("a[href^='#fn-'], a[href^='#fnref-']") as HTMLAnchorElement | null;
-  if (!a) return null;
-  const hash = a.getAttribute("href") ?? "";
-  if (!hash.startsWith("#")) return null;
-  const id = hash.slice(1);
-  return /^fn(ref)?-\d+$/.test(id) ? id : null;
+  const href = el?.closest?.("a[href^='#fn-'], a[href^='#fnref-']")?.getAttribute("href");
+  // Selektor gwarantuje prefiks `#fn`; zostaje odsiać nienumeryczne (`#fn-abc`).
+  return href && /^#fn(ref)?-\d+$/.test(href) ? href.slice(1) : null;
 }

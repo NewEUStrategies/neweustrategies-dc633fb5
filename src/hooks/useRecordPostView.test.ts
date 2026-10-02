@@ -6,6 +6,7 @@
 // identyfikatora przed zgodą, oraz kompletnej ścieżki po zgodzie.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, renderHook } from "@testing-library/react";
+import { Activity, createElement, type ReactNode } from "react";
 
 const h = vi.hoisted(() => ({
   record: vi.fn(),
@@ -262,5 +263,185 @@ describe("useRecordPostView - pomiar czasu czytania za policzoną odsłoną", ()
 
     expect(h.record).toHaveBeenCalledTimes(1);
     expect(h.startDwell).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Cykl życia efektu. `useRecordPostView` siedzi w trasie wpisu, którą domyślny
+// klient TanStack Start montuje w <StrictMode>: efekt biegnie tam dwa razy
+// (montaż -> cleanup -> montaż). Znacznik „już wysłano” stawiany przy
+// PLANOWANIU kazał drugiemu przebiegowi wyjść bez nowego timera, a cleanup
+// pierwszego skasował jedyny zaplanowany - w dev odsłona i historia czytania
+// nie zapisywały się NIGDY. Pierwszy przypadek niżej padał na tamtym kodzie
+// (zero wywołań), reszta pilnuje, że naprawa nie zaczęła dublować zapisów.
+describe("useRecordPostView - cykl życia efektu", () => {
+  const USER = "cccccccc-cccc-cccc-cccc-cccccccccccc";
+
+  it("podwójny montaż StrictMode zapisuje odsłonę i historię DOKŁADNIE raz", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    h.user = { id: USER };
+
+    renderHook(() => useRecordPostView(POST, null), { reactStrictMode: true });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(h.record).toHaveBeenCalledTimes(1);
+    expect(h.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("ponowne odsłonięcie ukrytego wpisu nie liczy drugiej odsłony", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    let mode: "visible" | "hidden" = "visible";
+    const view = renderHook(() => useRecordPostView(POST, null), {
+      wrapper: ({ children }: { children: ReactNode }) =>
+        createElement(Activity, { mode, children }),
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(h.record).toHaveBeenCalledTimes(1);
+
+    // <Activity> sprząta efekty przy ukryciu i odpala je przy odsłonięciu -
+    // ten sam wpis w tym samym montażu to wciąż jedna odsłona.
+    mode = "hidden";
+    view.rerender();
+    mode = "visible";
+    view.rerender();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(h.record).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("zmiana wpisu w tym samym montażu liczy nowy wpis, a porzucony przed 1,5 s - nie", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    const OTHER = "22222222-2222-2222-2222-222222222222";
+    const THIRD = "33333333-3333-3333-3333-333333333333";
+    const view = renderHook(({ id }) => useRecordPostView(id, null), {
+      initialProps: { id: POST },
+    });
+
+    // Przejście dalej przed upływem opóźnienia = odbicie, nie odsłona.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    view.rerender({ id: OTHER });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    view.rerender({ id: THIRD });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    const recorded = h.record.mock.calls.map(
+      (call) => (call[0] as { data: { postId: string } }).data.postId,
+    );
+    expect(recorded).toEqual([OTHER, THIRD]);
+  });
+
+  it("bez identyfikatora wpisu nic nie planuje", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    h.user = { id: USER };
+
+    renderHook(() => useRecordPostView(null, null));
+
+    expect(vi.getTimerCount()).toBe(0);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(h.record).not.toHaveBeenCalled();
+    expect(h.upsert).not.toHaveBeenCalled();
+  });
+});
+
+// Prerender spekulacyjny (Speculation Rules): najazd kursora na link renderuje
+// stronę w tle - to NIE jest odsłona. Odliczanie rusza dopiero po aktywacji.
+describe("useRecordPostView - strona prerenderowana", () => {
+  type PrerenderDocument = Document & { prerendering?: boolean };
+
+  beforeEach(() => {
+    Object.defineProperty(document as PrerenderDocument, "prerendering", {
+      value: true,
+      configurable: true,
+    });
+    h.hasAnalyticsConsent.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    delete (document as PrerenderDocument).prerendering;
+  });
+
+  it("liczy odsłonę dopiero 1,5 s po aktywacji prerenderu", async () => {
+    renderHook(() => useRecordPostView(POST, null));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+    expect(h.record).not.toHaveBeenCalled();
+
+    Object.defineProperty(document as PrerenderDocument, "prerendering", {
+      value: false,
+      configurable: true,
+    });
+    act(() => {
+      document.dispatchEvent(new Event("prerenderingchange"));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(h.record).toHaveBeenCalledTimes(1);
+  });
+
+  it("strona porzucona przed aktywacją nie zostawia nasłuchu ani odsłony", async () => {
+    const view = renderHook(() => useRecordPostView(POST, null));
+    view.unmount();
+
+    act(() => {
+      document.dispatchEvent(new Event("prerenderingchange"));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(h.record).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+// Oba zapisy są best-effort: odrzucenie (500 serwera, RLS, brak sieci) nie może
+// wyjść jako nieobsłużone odrzucenie obietnicy - w przeglądarce to błąd
+// w konsoli i w monitoringu na KAŻDYM wejściu na wpis przy awarii backendu.
+describe("useRecordPostView - zapisy best-effort", () => {
+  it("odrzucony licznik i odrzucony upsert historii są obsłużone", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    h.user = { id: "dddddddd-dddd-dddd-dddd-dddddddddddd" };
+    // Obietnica powstaje dopiero przy wywołaniu - tak jak żądanie serwera.
+    const handled: Promise<unknown>[] = [];
+    h.record.mockImplementation(() => {
+      const rejected = Promise.reject(new Error("record_post_view: 500"));
+      const realCatch = rejected.catch.bind(rejected);
+      return Object.assign(rejected, {
+        catch: (onRejected: (reason: unknown) => unknown) => {
+          const chained = realCatch(onRejected);
+          handled.push(chained);
+          return chained;
+        },
+      });
+    });
+    h.upsertThen.mockImplementation(
+      (onFulfilled: undefined, onRejected: (reason: unknown) => void) =>
+        Promise.reject(new Error("rls")).then(onFulfilled, onRejected),
+    );
+
+    await mountAndTick();
+
+    expect(handled).toHaveLength(1);
+    expect(h.upsertThen).toHaveBeenCalledTimes(1);
+    // Łańcuchy z obsługą błędu ROZWIĄZUJĄ się - odrzucenie nie ucieka dalej.
+    await expect(handled[0]).resolves.toBeUndefined();
+    await expect(h.upsertThen.mock.results[0]?.value).resolves.toBeUndefined();
   });
 });
