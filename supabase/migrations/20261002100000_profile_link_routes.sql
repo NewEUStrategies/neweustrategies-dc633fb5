@@ -66,6 +66,17 @@
 --      i viewers - authenticated; recommendations - anon i authenticated
 --      (publiczny hub); helper - nikt poza wlascicielem (wolaja go wylacznie
 --      funkcje SECURITY DEFINER).
+--   6. RLS `intro_read` (20260731141437:3-12): osoba DOCELOWA czyta tabele
+--      wprost wylacznie dla prosb przekazanych (`status = 'forwarded'`).
+--      Dotad polityka wpuszczala cel do KAZDEGO wiersza z jego target_id,
+--      a `authenticated` ma SELECT na wszystkich kolumnach (20260718215718:92)
+--      - zwykle GET /rest/v1/introduction_requests pokazywal celowi prosby
+--      odrzucone, wycofane i oczekujace razem z trescia wiadomosci do mostu
+--      i decyzja mostu. RPC (rola target) i eksport RODO (wylaczenie
+--      `introductions_not_forwarded`) od poczatku obiecywaly, ze cel ich nie
+--      widzi; ta polityka czyni obietnice prawdziwa. Proszacy i most bez zmian.
+--      Zaden kod aplikacji nie czyta tabeli wprost - trzy funkcje modulu sa
+--      SECURITY DEFINER - wiec zmienia sie wylacznie bezposredni odczyt API.
 --
 -- PRYWATNOSC. Slug i trasa wracaja WYLACZNIE, gdy wolajacy i tak moze otworzyc
 -- te osobe (wtedy slug stoi w adresie strony) - nic ponad to, co juz widzi.
@@ -73,8 +84,10 @@
 -- odpowiedz `get_member_profile`, ktore zalogowany wola wprost, a 'author'
 -- dotyczy wylacznie osob z publicznym hubem, ktory pokazuje role kazdemu.
 --
--- KOSZT. Do jednego wywolania helpera na osobe w wierszu (is_platform_author,
--- profile_has_public_presence, get_member_profile). Listy sa male: wprowadzenia
+-- KOSZT. Jedno wywolanie helpera na osobe w wierszu (is_platform_author,
+-- profile_has_public_presence, get_member_profile) - trzyma to `OFFSET 0`
+-- w podzapytaniach LATERAL; bez niego planer splaszcza podzapytanie i wola
+-- helper osobno dla kolumny sluga i kolumny trasy. Listy sa male: wprowadzenia
 -- (limit 5 oczekujacych prosb na dobe), rekomendacje profilu, max 100 widzow.
 --
 -- DLACZEGO DROP + CREATE: zmiana ksztaltu RETURNS TABLE nie przechodzi przez
@@ -87,7 +100,8 @@
 -- `CREATE FUNCTION`, REVOKE / GRANT i COMMENT - ponowne zastosowanie daje ten
 -- sam stan; bez DDL-a na tabelach i bez przepisywania wierszy.
 --
--- ZALEZNOSCI (wszystkie wczesniej w tym pasie): `get_member_profile(text)`,
+-- ZALEZNOSCI (wszystkie wczesniej w tym pasie): `current_tenant_id()`,
+-- `get_member_profile(text)`,
 -- `is_platform_author(uuid)` (20260924100000), `profile_has_public_presence`
 -- i `public_tenant_id()` (20260806183256 i wczesniej), tabele
 -- `introduction_requests`, `profile_recommendations`, `profile_view_events`.
@@ -159,9 +173,11 @@ BEGIN
       JOIN public.profiles pr ON pr.id = i.requester_id
       JOIN public.profiles pt ON pt.id = i.target_id
       JOIN public.profiles pb ON pb.id = i.bridge_id
-      CROSS JOIN LATERAL (SELECT public._profile_link_route(pr.id) AS route) lr
-      CROSS JOIN LATERAL (SELECT public._profile_link_route(pt.id) AS route) lt
-      CROSS JOIN LATERAL (SELECT public._profile_link_route(pb.id) AS route) lb
+      -- OFFSET 0: bez niego planer wciaga podzapytanie do zapytania i wola
+      -- helper osobno dla sluga i dla trasy (dwa razy na osobe).
+      CROSS JOIN LATERAL (SELECT public._profile_link_route(pr.id) AS route OFFSET 0) lr
+      CROSS JOIN LATERAL (SELECT public._profile_link_route(pt.id) AS route OFFSET 0) lt
+      CROSS JOIN LATERAL (SELECT public._profile_link_route(pb.id) AS route OFFSET 0) lb
      WHERE CASE p_role
              WHEN 'bridge'    THEN i.bridge_id = auth.uid()
              WHEN 'requester' THEN i.requester_id = auth.uid()
@@ -221,7 +237,7 @@ BEGIN
            la.route
       FROM public.profile_recommendations r
       JOIN public.profiles p ON p.id = r.author_id
-      CROSS JOIN LATERAL (SELECT public._profile_link_route(p.id) AS route) la
+      CROSS JOIN LATERAL (SELECT public._profile_link_route(p.id) AS route OFFSET 0) la
      WHERE r.recipient_id = p_recipient
        AND r.tenant_id = v_owner_tenant
        AND (r.status = 'published' OR r.recipient_id = v_uid OR r.author_id = v_uid)
@@ -271,7 +287,7 @@ BEGIN
          LIMIT LEAST(GREATEST(p_limit, 1), 100)
       ) v
       LEFT JOIN public.profiles p ON p.id = v.viewer_id
-      LEFT JOIN LATERAL (SELECT public._profile_link_route(p.id) AS route) lv ON p.id IS NOT NULL
+      LEFT JOIN LATERAL (SELECT public._profile_link_route(p.id) AS route OFFSET 0) lv ON p.id IS NOT NULL
      ORDER BY v.viewed_at DESC;
 END; $$;
 
@@ -282,3 +298,16 @@ COMMENT ON FUNCTION public.my_profile_viewers(int) IS
 
 REVOKE EXECUTE ON FUNCTION public.my_profile_viewers(int) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.my_profile_viewers(int) TO authenticated;
+
+-- -- 6. intro_read: cel widzi wprost tylko prosby przekazane -------------------
+DROP POLICY IF EXISTS intro_read ON public.introduction_requests;
+CREATE POLICY intro_read ON public.introduction_requests
+  FOR SELECT TO authenticated
+  USING (
+    tenant_id = (SELECT public.current_tenant_id())
+    AND (
+      (SELECT auth.uid()) = requester_id
+      OR (SELECT auth.uid()) = bridge_id
+      OR ((SELECT auth.uid()) = target_id AND status = 'forwarded')
+    )
+  );

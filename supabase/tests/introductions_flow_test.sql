@@ -29,7 +29,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(28);
+SELECT plan(31);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -526,6 +526,32 @@ SELECT is(
     WHERE status <> 'forwarded'),
   0,
   'eksport: cel nie widzi prośby odrzuconej ani oczekującej (art. 15 ust. 4)'
+);
+
+-- RLS `intro_read` (20261002100000): ta sama obietnica przy ODCZYCIE TABELI
+-- WPROST. Do tej migracji polityka wpuszczała cel do każdego wiersza z jego
+-- `target_id`, a `authenticated` ma SELECT na wszystkich kolumnach - zwykłe
+-- GET /rest/v1/introduction_requests pokazywało celowi prośby odrzucone
+-- i oczekujące razem z treścią do mostu. RPC było więc jedyną, a nie
+-- prawdziwą granicą.
+SELECT is(
+  (SELECT count(*)::int FROM public.introduction_requests
+    WHERE target_id = 'd0000000-0000-0000-0000-0000000000e4' AND status <> 'forwarded'),
+  0,
+  'rls: cel nie czyta wprost próśb odrzuconych ani oczekujących'
+);
+SELECT is(
+  (SELECT array_agg(id ORDER BY id) FROM public.introduction_requests
+    WHERE target_id = 'd0000000-0000-0000-0000-0000000000e4'),
+  ARRAY['11110000-0000-0000-0000-0000000000e3'::uuid],
+  'rls: cel nadal czyta wprost prośbę PRZEKAZANĄ'
+);
+SELECT is(
+  (SELECT array_agg(id ORDER BY id) FROM public.introduction_requests
+    WHERE requester_id = 'd0000000-0000-0000-0000-0000000000e4'
+       OR bridge_id = 'd0000000-0000-0000-0000-0000000000e4'),
+  ARRAY['11110000-0000-0000-0000-0000000000e1'::uuid, '11110000-0000-0000-0000-0000000000e2'::uuid],
+  'rls: proszący i most czytają swoje prośby w każdym statusie (bez zmian)'
 );
 
 SELECT throws_ok(

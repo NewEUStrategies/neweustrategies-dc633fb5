@@ -13,6 +13,7 @@
 // wstrzyknięcie atrapy wymagałoby rozszczelnienia tych typów - czyli oddania
 // dokładnie tej własności, której bramka ma pilnować.
 import { describe, expect, it } from "vitest";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal/entity";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -226,6 +227,22 @@ describe("wyłączenia", () => {
     expect(exclusion, "wyłączenie musi być nazwane w pliku").toBeDefined();
     expect(exclusion?.reason_pl).toMatch(/art\. 15 ust\. 4/);
     expect(exclusion?.reason_en).toMatch(/art\. 15\(4\)/);
+  });
+
+  it("wniosek o dane spoza pliku idzie na REALNY adres, nie do nieistniejącego IOD", () => {
+    // Strona RODO (src/lib/legal/content/rodo.ts, "kontakt") mówi wprost, że
+    // inspektora ochrony danych NIE wyznaczono. Wyłączenia odsyłały do niego,
+    // czyli kierowały wniosek z art. 15 do roli, której nie ma.
+    for (const exclusion of EXPORT_EXCLUSIONS) {
+      expect(exclusion.reason_pl, exclusion.id).not.toMatch(/inspektor/i);
+      expect(exclusion.reason_en, exclusion.id).not.toMatch(/data protection officer/i);
+      if (/na wniosek/.test(exclusion.reason_pl)) {
+        expect(exclusion.reason_pl, exclusion.id).toContain(LEGAL_CONTACT_EMAIL);
+      }
+      if (/on request/.test(exclusion.reason_en)) {
+        expect(exclusion.reason_en, exclusion.id).toContain(LEGAL_CONTACT_EMAIL);
+      }
+    }
   });
 
   it("nie używa myślnika typograficznego w treści dla użytkownika", () => {

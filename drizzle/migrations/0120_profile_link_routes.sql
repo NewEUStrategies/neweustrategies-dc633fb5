@@ -1,4 +1,4 @@
--- Linki do profilu: slug i trasa (author / people / NULL) z _profile_link_route w trzech RPC, rola wprowadzen 22023 (blizniak 20261002100000).
+-- Linki do profilu: slug i trasa (author / people / NULL) z _profile_link_route w trzech RPC, rola wprowadzen 22023, intro_read: cel tylko forwarded (blizniak 20261002100000).
 -- -- 0. Dokad link do osoby doprowadzi wolajacego ----------------------------
 CREATE OR REPLACE FUNCTION public._profile_link_route(p_profile_id UUID)
 RETURNS TEXT
@@ -56,9 +56,11 @@ BEGIN
       JOIN public.profiles pr ON pr.id = i.requester_id
       JOIN public.profiles pt ON pt.id = i.target_id
       JOIN public.profiles pb ON pb.id = i.bridge_id
-      CROSS JOIN LATERAL (SELECT public._profile_link_route(pr.id) AS route) lr
-      CROSS JOIN LATERAL (SELECT public._profile_link_route(pt.id) AS route) lt
-      CROSS JOIN LATERAL (SELECT public._profile_link_route(pb.id) AS route) lb
+      -- OFFSET 0: bez niego planer wciaga podzapytanie do zapytania i wola
+      -- helper osobno dla sluga i dla trasy (dwa razy na osobe).
+      CROSS JOIN LATERAL (SELECT public._profile_link_route(pr.id) AS route OFFSET 0) lr
+      CROSS JOIN LATERAL (SELECT public._profile_link_route(pt.id) AS route OFFSET 0) lt
+      CROSS JOIN LATERAL (SELECT public._profile_link_route(pb.id) AS route OFFSET 0) lb
      WHERE CASE p_role
              WHEN 'bridge'    THEN i.bridge_id = auth.uid()
              WHEN 'requester' THEN i.requester_id = auth.uid()
@@ -118,7 +120,7 @@ BEGIN
            la.route
       FROM public.profile_recommendations r
       JOIN public.profiles p ON p.id = r.author_id
-      CROSS JOIN LATERAL (SELECT public._profile_link_route(p.id) AS route) la
+      CROSS JOIN LATERAL (SELECT public._profile_link_route(p.id) AS route OFFSET 0) la
      WHERE r.recipient_id = p_recipient
        AND r.tenant_id = v_owner_tenant
        AND (r.status = 'published' OR r.recipient_id = v_uid OR r.author_id = v_uid)
@@ -168,7 +170,7 @@ BEGIN
          LIMIT LEAST(GREATEST(p_limit, 1), 100)
       ) v
       LEFT JOIN public.profiles p ON p.id = v.viewer_id
-      LEFT JOIN LATERAL (SELECT public._profile_link_route(p.id) AS route) lv ON p.id IS NOT NULL
+      LEFT JOIN LATERAL (SELECT public._profile_link_route(p.id) AS route OFFSET 0) lv ON p.id IS NOT NULL
      ORDER BY v.viewed_at DESC;
 END; $$;
 
@@ -179,3 +181,16 @@ COMMENT ON FUNCTION public.my_profile_viewers(int) IS
 
 REVOKE EXECUTE ON FUNCTION public.my_profile_viewers(int) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.my_profile_viewers(int) TO authenticated;
+
+-- -- 6. intro_read: cel widzi wprost tylko prosby przekazane -------------------
+DROP POLICY IF EXISTS intro_read ON public.introduction_requests;
+CREATE POLICY intro_read ON public.introduction_requests
+  FOR SELECT TO authenticated
+  USING (
+    tenant_id = (SELECT public.current_tenant_id())
+    AND (
+      (SELECT auth.uid()) = requester_id
+      OR (SELECT auth.uid()) = bridge_id
+      OR ((SELECT auth.uid()) = target_id AND status = 'forwarded')
+    )
+  );

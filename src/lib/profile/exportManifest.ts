@@ -19,6 +19,18 @@
 // Wyłączenia są równie ważne jak zawartość: to, czego NIE ma, musi być
 // nazwane w pliku razem z powodem - inaczej brak znowu wygląda jak komplet.
 
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal/entity";
+
+/**
+ * Kanał wniosku o dane spoza automatycznego pliku - TEN SAM, który podaje
+ * strona RODO (src/lib/legal/content/rodo.ts, sekcja "kontakt"). Wyłączenia
+ * odsyłały dotąd do "inspektora ochrony danych", a ta sama strona mówi, że
+ * administrator IOD NIE wyznaczył i nie ma osobnego adresu IOD - plik
+ * kierował wniosek z art. 15 do roli, która nie istnieje.
+ */
+const ON_REQUEST_PL = `na wniosek wysłany na adres ${LEGAL_CONTACT_EMAIL} (w tytule wiadomości słowo „RODO”)`;
+const ON_REQUEST_EN = `on request to ${LEGAL_CONTACT_EMAIL} (with "GDPR" in the subject line)`;
+
 /** Wartość przenośna: eksport jest kontraktem JSON, nie zrzutem obiektów JS. */
 export type JsonValue =
   null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -225,24 +237,18 @@ export const EXPORT_EXCLUSIONS: readonly ExportExclusion[] = [
   },
   {
     id: "club_admin_notes",
-    reason_pl:
-      "Notatki komisji naboru o kandydacie (pole admin_note w zgłoszeniu do klubu). To wewnętrzna ocena pisana przez członków komisji, a nie dana, którą dostarczyłeś o sobie; w automatycznym pliku jej nie ma, żeby eksport nie zamienił oceny w kanał komunikacji z kandydatem. Sama decyzja i jej data SĄ w eksporcie - bez nich plik nie mówiłby, co się ze zgłoszeniem stało. Notatkę udostępniamy na wniosek skierowany do inspektora ochrony danych.",
-    reason_en:
-      "Admissions committee notes about the candidate (the admin_note field of a club application). It is an internal assessment written by committee members rather than data you provided about yourself; keeping it out of the automated file stops the export from turning an internal assessment into a channel for talking to the candidate. The decision itself and its date ARE exported - without them the file would not say what happened to the application. The note is provided on request to the data protection officer.",
+    reason_pl: `Notatki komisji naboru o kandydacie (pole admin_note w zgłoszeniu do klubu). To wewnętrzna ocena pisana przez członków komisji, a nie dana, którą dostarczyłeś o sobie; w automatycznym pliku jej nie ma, żeby eksport nie zamienił oceny w kanał komunikacji z kandydatem. Sama decyzja i jej data SĄ w eksporcie - bez nich plik nie mówiłby, co się ze zgłoszeniem stało. Notatkę udostępniamy ${ON_REQUEST_PL}.`,
+    reason_en: `Admissions committee notes about the candidate (the admin_note field of a club application). It is an internal assessment written by committee members rather than data you provided about yourself; keeping it out of the automated file stops the export from turning an internal assessment into a channel for talking to the candidate. The decision itself and its date ARE exported - without them the file would not say what happened to the application. The note is provided ${ON_REQUEST_EN}.`,
   },
   {
     id: "event_cfp_assessments",
-    reason_pl:
-      "Oceny i uwagi recenzentów o Twoim zgłoszeniu wystąpienia, wewnętrzna notatka organizatora do decyzji oraz dane kontaktowe współprelegentów (adres e-mail, stanowisko, firma). To ocena pisana przez inne osoby i dane innych osób - art. 15 ust. 4 RODO. Decyzja, jej data, informacja zwrotna od organizatora i ocena zbiorcza po decyzji SĄ w eksporcie. Pojedyncze oceny udostępniamy na wniosek skierowany do inspektora ochrony danych.",
-    reason_en:
-      "Reviewers' scores and comments about your talk submission, the organiser's internal decision note and your co-speakers' contact details (e-mail address, job title, company). They are assessments written by other people and data of other people - GDPR art. 15(4). The decision, its date, the organiser's feedback and the aggregated score after the decision ARE exported. Individual reviews are provided on request to the data protection officer.",
+    reason_pl: `Oceny i uwagi recenzentów o Twoim zgłoszeniu wystąpienia, wewnętrzna notatka organizatora do decyzji oraz dane kontaktowe współprelegentów (adres e-mail, stanowisko, firma). To ocena pisana przez inne osoby i dane innych osób - art. 15 ust. 4 RODO. Decyzja, jej data, informacja zwrotna od organizatora i ocena zbiorcza po decyzji SĄ w eksporcie. Pojedyncze oceny udostępniamy ${ON_REQUEST_PL}.`,
+    reason_en: `Reviewers' scores and comments about your talk submission, the organiser's internal decision note and your co-speakers' contact details (e-mail address, job title, company). They are assessments written by other people and data of other people - GDPR art. 15(4). The decision, its date, the organiser's feedback and the aggregated score after the decision ARE exported. Individual reviews are provided ${ON_REQUEST_EN}.`,
   },
   {
     id: "introductions_not_forwarded",
-    reason_pl:
-      "Prośby o wprowadzenie do Ciebie, których osoba pośrednicząca nie przekazała dalej (odrzucone, wycofane albo wciąż oczekujące). Do chwili przekazania prośba jest korespondencją między proszącym a pośrednikiem i platforma celowo nie pokazuje jej osobie, której dotyczy - art. 15 ust. 4 RODO. Eksportujemy wszystkie prośby, które wysłałeś, wszystkie, w których pośredniczyłeś, oraz te przekazane do Ciebie. Pozostałe udostępniamy na wniosek skierowany do inspektora ochrony danych.",
-    reason_en:
-      "Introduction requests about you that the intermediary did not pass on (declined, withdrawn or still pending). Until it is forwarded, a request is correspondence between the requester and the intermediary, and the platform deliberately does not show it to the person it is about - GDPR art. 15(4). We export every request you sent, every request you brokered and the requests forwarded to you. The rest are provided on request to the data protection officer.",
+    reason_pl: `Prośby o wprowadzenie do Ciebie, których osoba pośrednicząca nie przekazała dalej (odrzucone, wycofane albo wciąż oczekujące). Do chwili przekazania prośba jest korespondencją między proszącym a pośrednikiem i platforma celowo nie pokazuje jej osobie, której dotyczy - art. 15 ust. 4 RODO. Eksportujemy wszystkie prośby, które wysłałeś, wszystkie, w których pośredniczyłeś, oraz te przekazane do Ciebie. Pozostałe udostępniamy ${ON_REQUEST_PL}.`,
+    reason_en: `Introduction requests about you that the intermediary did not pass on (declined, withdrawn or still pending). Until it is forwarded, a request is correspondence between the requester and the intermediary, and the platform deliberately does not show it to the person it is about - GDPR art. 15(4). We export every request you sent, every request you brokered and the requests forwarded to you. The rest are provided ${ON_REQUEST_EN}.`,
   },
   {
     id: "attachment_binaries",
@@ -267,10 +273,8 @@ export const EXPORT_EXCLUSIONS: readonly ExportExclusion[] = [
   },
   {
     id: "security_and_audit_logs",
-    reason_pl:
-      "Logi bezpieczeństwa i ślad audytowy (adresy IP żądań, wykryte nadużycia) przechowywane w celu ustalenia i obrony roszczeń - art. 17 ust. 3 lit. e RODO. Udostępniamy je na wniosek skierowany do inspektora ochrony danych.",
-    reason_en:
-      "Security and audit logs (request IP addresses, abuse signals) retained for the establishment and defence of legal claims - GDPR art. 17(3)(e). They are provided on request to the data protection officer.",
+    reason_pl: `Logi bezpieczeństwa i ślad audytowy (adresy IP żądań, wykryte nadużycia) przechowywane w celu ustalenia i obrony roszczeń - art. 17 ust. 3 lit. e RODO. Udostępniamy je ${ON_REQUEST_PL}.`,
+    reason_en: `Security and audit logs (request IP addresses, abuse signals) retained for the establishment and defence of legal claims - GDPR art. 17(3)(e). They are provided ${ON_REQUEST_EN}.`,
   },
 ];
 
