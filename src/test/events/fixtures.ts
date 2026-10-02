@@ -7,7 +7,7 @@
 //
 // CO TA POWIERZCHNIA MA SZCZEGÓLNEGO: `ticket.server.ts` rozmawia z bazą DWOMA
 // drogami naraz - łańcuchem `from(...)` (RSVP, wydarzenie, zamówienia, profil)
-// oraz `rpc("get_event_rsvp_counts")` (liczniki, SECURITY DEFINER). Sam
+// oraz `rpc("event_seat_state")` (stan miejsc, SECURITY DEFINER). Sam
 // `supabaseFromStub()` nie wystarczy, bo nie zna `rpc`. Stąd `supabaseClientStub()`:
 // skleja oba światy w jeden obiekt o kształcie klienta i ZAPISUJE wywołania RPC,
 // żeby test mógł udowodnić nie tylko wynik, ale i to, że danego zapytania w ogóle
@@ -110,9 +110,42 @@ export function profileRow(overrides: Partial<ProfileRow> = {}): ProfileRow {
   };
 }
 
-/** Wiersz `get_event_rsvp_counts` - RPC zwraca TABLICĘ, kod czyta `[0]`. */
+/**
+ * Wiersz `get_event_rsvp_counts` - RPC zwraca TABLICĘ, kod czyta `[0]`.
+ * Dziś wyłącznie ścieżka okna wdrożenia (`event_seat_state` jeszcze nie istnieje).
+ */
 export function rsvpCountsRow(going: number, waitlist = 0): Array<Record<string, unknown>> {
   return [{ going, waitlist }];
+}
+
+export interface SeatStateRow {
+  event_id: string;
+  capacity: number | string | null;
+  seats_left: number | string | null;
+  going: number | string;
+  waitlist: number | string;
+}
+
+/**
+ * Wiersz `event_seat_state` (20261002200000) - RPC zwraca TABLICĘ, kod czyta
+ * `[0]`. Domyślnie `seats_left = capacity - going`, czyli tak, jak liczy baza,
+ * gdy obie pule są zgodne; przypadki rozjazdu pul podają `seats_left` wprost.
+ */
+export function seatStateRow(
+  input: Partial<SeatStateRow> & { capacity: number | string | null },
+): SeatStateRow[] {
+  const going = input.going ?? 0;
+  const capacity = input.capacity;
+  const derived = capacity === null ? null : Math.max(0, Number(capacity) - Number(going));
+  return [
+    {
+      event_id: EVENT_IDS.event,
+      waitlist: 0,
+      ...input,
+      going,
+      seats_left: "seats_left" in input ? (input.seats_left ?? null) : derived,
+    },
+  ];
 }
 
 /** Zapisane wywołanie RPC - do asercji „tego zapytania NIE było". */

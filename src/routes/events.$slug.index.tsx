@@ -187,6 +187,8 @@ function EventOverview() {
     void qc.invalidateQueries({ queryKey: ["event-rsvp", eventId, user?.id] });
     void qc.invalidateQueries({ queryKey: ["event-access", eventId, user?.id ?? "anon"] });
     void qc.invalidateQueries({ queryKey: ["event-rsvp-counts", eventId] });
+    // Własny zapis zmienia liczbę wolnych miejsc - bez czekania 30 s na odpytanie.
+    void qc.invalidateQueries({ queryKey: ["event-seat-state", eventId] });
     void qc.invalidateQueries({ queryKey: ["event-waitlist-position", eventId, user?.id] });
     // Zapis czyni z gościa uczestnika, a to OTWIERA sekcje zamknięte regułą
     // `registered` - bez tego program pojawiłby się dopiero po odświeżeniu.
@@ -301,13 +303,22 @@ function EventOverview() {
   const isPaidEvent = ticketCents > 0;
   const access = accessQ.data ?? null;
   const counts = countsQ.data?.get(ev.id);
-  const going = counts?.going ?? 0;
-  const waitlistCount = counts?.waitlist ?? 0;
-  // Stan miejsc: autorytatywnie z backendu (realtime), z fallbackiem na liczby
-  // z listy, gdy odczyt jeszcze trwa.
+  // JEDNO ŹRÓDŁO LICZBY MIEJSC. `event_seat_state` (odpytywany co 30 s)
+  // i nagłówek strony (`event_page_header().seats_left`, rozstrzygnięty już
+  // w SSR) liczą tą samą regułą bazy `_event_page_seats_left` - mniejszą
+  // z puli zgłoszeń i puli legacy. Liczniki z listy (`get_event_rsvp_counts`)
+  // znają WYŁĄCZNIE pulę legacy, więc służą tylko za ostatnią deskę, gdy
+  // nagłówka nie ma; wcześniej to one rysowały kartę miejsc do chwili
+  // pierwszego odpytania i pokazywały wolne miejsca obok „brak miejsc"
+  // z powierzchni zapisów.
+  const going = liveSeats?.going ?? counts?.going ?? 0;
+  const waitlistCount = liveSeats?.waitlist ?? counts?.waitlist ?? 0;
+  const headerSeatsLeft = headerQ.data?.seats_left ?? null;
   const seatsLeft =
-    liveSeats?.seatsLeft ?? (ev.capacity !== null ? Math.max(0, ev.capacity - going) : null);
-  const isFull = liveSeats?.isFull ?? (seatsLeft !== null && seatsLeft === 0);
+    liveSeats?.seatsLeft ??
+    headerSeatsLeft ??
+    (ev.capacity !== null ? Math.max(0, ev.capacity - going) : null);
+  const isFull = liveSeats?.isFull ?? (seatsLeft !== null && seatsLeft <= 0);
   const isWaitlisted = rsvpQ.data?.status === "waitlist";
   const isProBriefing = ev.kind === "briefing" && ev.visibility === "members";
   const membersOnly = ev.visibility === "members";
