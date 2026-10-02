@@ -214,6 +214,15 @@ describe("adres powrotu - ścieżka od klienta (open redirect)", () => {
     );
   });
 
+  it("nieparsowalny fallback wywołującego nie wywraca funkcji - zostaje domyślny ekran", () => {
+    // Fallback wywołującego NIE przechodzi przez sanityzację (to stała z kodu,
+    // nie wejście od klienta), więc literówka w nim - tu niedomknięty literał
+    // IPv6 - rzucałaby z `new URL`. Kontrakt „nigdy nie rzucaj" trzyma `catch`
+    // ostatniej szansy: portal klienta dostaje poprawny adres na naszej domenie.
+    expect(() => absoluteReturnUrl(null, "http://[zepsuty")).not.toThrow();
+    expect(absoluteReturnUrl(null, "http://[zepsuty")).toBe(`${NASZ_ORIGIN}${DEFAULT_RETURN_PATH}`);
+  });
+
   it("wyjście z katalogu (`/../`) zostaje w obrębie naszej domeny", () => {
     // `new URL` normalizuje `..` - dowodzimy, że normalizacja NIE wyprowadza
     // poza origin (adres pozostaje nasz, zmienia się tylko ścieżka).

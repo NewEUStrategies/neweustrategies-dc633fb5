@@ -58,8 +58,23 @@ vi.mock("@/components/builder/organisms/widget-view/PurchaseConfirmationView", (
   ),
 }));
 vi.mock("@/components/content/ContentRenderer", () => ({
-  ContentRenderer: ({ lang }: { lang: string }) => (
-    <div data-testid="cms-confirmation" data-lang={lang} />
+  // Sonda pokazuje, KTÓRĄ wersję językową dokumentu dostał renderer - to jest
+  // decyzja trasy, a nie renderera.
+  ContentRenderer: ({
+    lang,
+    html,
+    blocksDoc,
+  }: {
+    lang: string;
+    html?: string;
+    blocksDoc?: { blocks: { id: string }[] } | null;
+  }) => (
+    <div
+      data-testid="cms-confirmation"
+      data-lang={lang}
+      data-html={html ?? ""}
+      data-blocks={blocksDoc ? blocksDoc.blocks.map((b) => b.id).join(",") : ""}
+    />
   ),
 }));
 
@@ -298,6 +313,86 @@ describe("trasa /checkout/success - dokument redakcyjny", () => {
     await vi.advanceTimersByTimeAsync(300);
     await pending;
     expect(settled).toBe(true);
+  });
+});
+
+describe("trasa /checkout/success - wersja językowa dokumentu redakcyjnego", () => {
+  // Redakcja często publikuje potwierdzenie tylko w jednym języku. Kupujący po
+  // drugiej stronie ma wtedy dostać istniejącą wersję, a nie pustą stronę
+  // potwierdzenia tuż po zapłacie.
+  const blocks = (id: string) => ({ version: 1 as const, blocks: [{ id }] });
+
+  it("po angielsku bez angielskiej treści pokazuje polską", async () => {
+    await i18n.changeLanguage("en");
+    h.doc = page({ content_pl: "<p>Dziękujemy za zakup.</p>", content_en: null });
+    await mount();
+
+    const cms = await screen.findByTestId("cms-confirmation");
+    expect(cms).toHaveAttribute("data-lang", "en");
+    expect(cms.getAttribute("data-html")).toContain("Dziękujemy za zakup.");
+  });
+
+  it("po polsku bez polskiej treści pokazuje angielską", async () => {
+    h.doc = page({ content_pl: "", content_en: "<p>Thank you.</p>" });
+    await mount();
+
+    const cms = await screen.findByTestId("cms-confirmation");
+    expect(cms.getAttribute("data-html")).toContain("Thank you.");
+  });
+
+  it("dokument blokowy wybiera bloki w języku czytelnika", async () => {
+    await i18n.changeLanguage("en");
+    h.doc = page({
+      editor: "blocks",
+      content_pl: null,
+      content_en: null,
+      blocks_data: { pl: blocks("pl-1"), en: blocks("en-1") },
+    });
+    await mount();
+
+    const cms = await screen.findByTestId("cms-confirmation");
+    expect(cms).toHaveAttribute("data-blocks", "en-1");
+    // Bez treści HTML renderer dostaje pusty napis, nie `null`.
+    expect(cms).toHaveAttribute("data-html", "");
+  });
+
+  it("dokument blokowy tylko po polsku jest pokazywany także po angielsku", async () => {
+    await i18n.changeLanguage("en");
+    h.doc = page({
+      editor: "blocks",
+      content_pl: null,
+      content_en: null,
+      blocks_data: { pl: blocks("pl-1") },
+    });
+    await mount();
+
+    expect(await screen.findByTestId("cms-confirmation")).toHaveAttribute("data-blocks", "pl-1");
+  });
+
+  it("puste sloty bloków (po przełączeniu edytora) nie zasłaniają treści HTML", async () => {
+    // Kolumna `blocks_data` potrafi nieść `{ pl: null, en: null }` po zmianie
+    // edytora - renderer ma wtedy dostać `null` zamiast bloków i treść HTML.
+    h.doc = page({
+      content_pl: "<p>Dziękujemy za zakup.</p>",
+      blocks_data: { pl: null, en: null },
+    });
+    await mount();
+
+    const cms = await screen.findByTestId("cms-confirmation");
+    expect(cms).toHaveAttribute("data-blocks", "");
+    expect(cms.getAttribute("data-html")).toContain("Dziękujemy za zakup.");
+  });
+
+  it("dokument blokowy tylko po angielsku jest pokazywany także po polsku", async () => {
+    h.doc = page({
+      editor: "blocks",
+      content_pl: null,
+      content_en: null,
+      blocks_data: { en: blocks("en-1") },
+    });
+    await mount();
+
+    expect(await screen.findByTestId("cms-confirmation")).toHaveAttribute("data-blocks", "en-1");
   });
 });
 
