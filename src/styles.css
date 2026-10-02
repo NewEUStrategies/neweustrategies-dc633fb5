@@ -9311,8 +9311,13 @@ input[type="reset"],
 
 /* Wyszukiwarka w nagłówku: kolumny i sekcje buildera mają `overflow-hidden`,
    które przed hydratacją przycinało pływającą etykietę i obwódkę fokusu.
-   Kontenery zawierające pole wyszukiwania nie mogą go przycinać. */
-header :has(.builder-search-widget),
-[data-builder-renderer] .overflow-hidden:has(> * .builder-search-widget) {
+   Kontenery zawierające pole wyszukiwania nie mogą go przycinać. Znacznik
+   `data-search-overflow` wypisuje renderer już w HTML-u SSR
+   (`src/lib/builder/searchOverflow.ts`), a po hydratacji dokłada go przodkom
+   efekt w `SearchButtonWidget`. Reguła stoi tu, a nie tylko w arkuszu widgetu,
+   bo widget jest ładowany leniwie, a ten arkusz obowiązuje od pierwszej klatki.
+   Bez `:has()` - jego sama obecność mnoży koszt przeliczeń stylu (bramka
+   `noHasSelectors`). Wiersz paska czytania zachowuje poziomy clip. */
+[data-search-overflow]:not([data-reading-row]) {
   overflow: visible !important;
 }
