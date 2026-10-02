@@ -178,7 +178,9 @@ export function VisibilityAndContactSection() {
         control={
           <Switch
             checked={hideAvatarOn}
-            disabled={hideAvatarQ.isLoading || setHideAvatar.isPending}
+            // Błąd odczytu nie może wyglądać jak „wyłączone": przełącznik
+            // pokazałby fałszywy stan, a klik nadpisałby prawdziwy.
+            disabled={hideAvatarQ.isLoading || hideAvatarQ.isError || setHideAvatar.isPending}
             onCheckedChange={(next) =>
               setHideAvatar.mutate(next, {
                 onSuccess: () => toast.success(t("profilePrivacy.saved")),

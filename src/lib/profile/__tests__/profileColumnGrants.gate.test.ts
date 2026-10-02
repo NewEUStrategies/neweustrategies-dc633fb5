@@ -1,4 +1,4 @@
-// Bramka: klientowy select na `profiles` w powierzchni profilu nie może
+// Bramka: klientowy select na `profiles` nie może
 // wymieniać kolumny BEZ grantu SELECT dla roli `authenticated`.
 //
 // CO TO ZA RYZYKO. Kolumny prywatne (`phone`, `location`, `gender`,
@@ -19,26 +19,32 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OWNER_ONLY_PROFILE_COLUMNS } from "../ownProfile";
 
-/** Pliki klienckie powierzchni profilu (bez testów i modułów serwerowych). */
+/**
+ * Wszystkie pliki klienckie w `src/` (bez testów i modułów serwerowych).
+ *
+ * Cały `src/`, nie tylko powierzchnia profilu: własny wiersz czytają też
+ * panele spoza niej (podgląd „jako ja" w studiu wydarzeń, przełącznik
+ * ukrycia awatara w czacie), a 42501 psuje je tak samo.
+ */
 function sourceFiles(): string[] {
   const out: string[] = [];
   const walk = (dir: string) => {
     for (const name of readdirSync(dir)) {
       const path = join(dir, name);
       if (statSync(path).isDirectory()) {
-        if (name !== "__tests__") walk(path);
+        if (name !== "__tests__" && name !== "test") walk(path);
         continue;
       }
       // `*.server.ts` chodzi kluczem service_role - granty kolumnowe go nie
       // dotyczą, więc nie jest przedmiotem tej bramki.
-      if (/\.(ts|tsx)$/.test(name) && !/\.server\.ts$/.test(name)) out.push(path);
+      // `*.functions.ts` to funkcje serwerowe - chodzą klientem, którego rolę
+      // rozstrzyga ich middleware, nie ta bramka.
+      if (/\.(ts|tsx)$/.test(name) && !/\.(server|test|functions)\.tsx?$/.test(name)) {
+        out.push(path);
+      }
     }
   };
-  walk("src/lib/profile");
-  walk("src/components/profile");
-  for (const name of readdirSync("src/routes")) {
-    if (/^profile(\.[a-z-]+)*\.tsx$/.test(name)) out.push(join("src/routes", name));
-  }
+  walk("src");
   return out;
 }
 
@@ -106,7 +112,19 @@ function profileSelects(file: string, rawSrc: string): ProfileSelect[] {
 
 const OWNER_ONLY = new Set<string>(OWNER_ONLY_PROFILE_COLUMNS);
 
-describe("powierzchnia profilu - selecty na `profiles` tylko z kolumn z grantem", () => {
+/**
+ * Znane naruszenia sprzed rozszerzenia bramki na cały `src/`, każde z powodem.
+ * Lista może tylko maleć: wpis, który przestał naruszać, oblewa samokontrolę
+ * niżej. Nowego wpisu nie dodaje się zamiast poprawki.
+ */
+const KNOWN_VIOLATIONS: Readonly<Record<string, string>> = {
+  // Awatary leadów CRM szukane po `email`/`contact_email` cudzych profili.
+  // Wymaga serwerowego wyszukiwania (service_role albo RPC staffu), nie
+  // otwarcia grantu - osobna poprawka.
+  "src/routes/admin.crm.index.tsx": "email, contact_email",
+};
+
+describe("klientowe selecty na `profiles` tylko z kolumn z grantem", () => {
   const all = sourceFiles().flatMap((file) => profileSelects(file, readFileSync(file, "utf8")));
 
   it("bramka w ogóle WIDZI selecty (kontrola pozytywna)", () => {
@@ -130,10 +148,21 @@ describe("powierzchnia profilu - selecty na `profiles` tylko z kolumn z grantem"
   });
 
   it("żaden select nie wymienia kolumny prywatnej - te czyta się przez `get_own_profile()`", () => {
-    const leaks = all.flatMap((q) =>
-      (q.columns ?? []).filter((c) => OWNER_ONLY.has(c)).map((c) => `${q.file}:${q.line} -> ${c}`),
-    );
+    const leaks = all
+      .filter((q) => !(q.file in KNOWN_VIOLATIONS))
+      .flatMap((q) =>
+        (q.columns ?? [])
+          .filter((c) => OWNER_ONLY.has(c))
+          .map((c) => `${q.file}:${q.line} -> ${c}`),
+      );
     expect(leaks).toEqual([]);
+  });
+
+  it("każdy znany wyjątek nadal narusza - poprawiony wpis trzeba usunąć z listy", () => {
+    const stale = Object.keys(KNOWN_VIOLATIONS).filter(
+      (file) => !all.some((q) => q.file === file && q.columns?.some((c) => OWNER_ONLY.has(c))),
+    );
+    expect(stale).toEqual([]);
   });
 
   it("bramka ŁAPIE dawny select edytora przez stałą (samokontrola)", () => {

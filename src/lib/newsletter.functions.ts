@@ -256,11 +256,20 @@ export const subscribeToNewsletter = createServerFn({ method: "POST" })
     // ani wiersza `pending` - inaczej formularz na stronie byłby obejściem
     // całej higieny listy (i kanałem do odbudowy złej reputacji domeny).
     // Blokady CZASOWE (soft bounce, wygasają w 1-8 dni) nie blokują zapisu:
-    // problem był chwilowy, a nowy zapis jest świeżym dowodem zgody.
+    // problem był chwilowy, a nowy zapis jest świeżym dowodem zgody. Wypis
+    // (`unsubscribe`) ustępuje nowemu zapisowi tylko przez double opt-in -
+    // patrz suppressionBlocksSignup.
     {
-      const { fetchSuppressedEmails } = await import("@/lib/email/suppression.server");
+      const [{ fetchSuppressedEmails }, { suppressionBlocksSignup }] = await Promise.all([
+        import("@/lib/email/suppression.server"),
+        import("@/lib/email/suppressionPolicy"),
+      ]);
       const hits = await fetchSuppressedEmails(supabaseAdmin, tenantId, [email]);
-      if (hits.get(email)?.scope === "permanent") {
+      const hit = hits.get(email);
+      if (
+        hit &&
+        suppressionBlocksSignup({ reason: hit.reason, scope: hit.scope, doubleOptIn: doi })
+      ) {
         return { ok: false, error: "suppressed" };
       }
     }

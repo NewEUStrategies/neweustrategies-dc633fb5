@@ -37,7 +37,7 @@ interface RpcCall {
   args: Record<string, unknown>;
 }
 
-type RpcReply = { data: unknown; error: { message: string } | null };
+type RpcReply = { data: unknown; error: { message: string; code?: string } | null };
 type RpcResponder = (args: Record<string, unknown>) => RpcReply;
 
 /**
@@ -593,6 +593,27 @@ describe("unsubscribeByToken", () => {
       tenantId: TENANT,
       error: undefined,
     });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
+  });
+
+  it("deadlock (40P01) z równoległym webhookiem skargi ponawia wypis RAZ", async () => {
+    const db = fakeAdmin();
+    let attempt = 0;
+    db.on("email_unsubscribe_by_token", () =>
+      ++attempt === 1
+        ? { data: null, error: { message: "deadlock detected", code: "40P01" } }
+        : { data: { ok: true, already_unsubscribed: false, tenant_id: TENANT }, error: null },
+    );
+
+    await expect(unsubscribeByToken(db.admin, "tok-1")).resolves.toMatchObject({ ok: true });
+    expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(2);
+  });
+
+  it("inny błąd bazy NIE jest ponawiany", async () => {
+    const db = fakeAdmin();
+    db.on("email_unsubscribe_by_token", { data: null, error: { message: "boom", code: "XX000" } });
+
+    await expect(unsubscribeByToken(db.admin, "tok-1")).resolves.toMatchObject({ ok: false });
     expect(db.callsTo("email_unsubscribe_by_token")).toHaveLength(1);
   });
 

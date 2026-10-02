@@ -42,7 +42,7 @@ type RpcCallable = {
   rpc: (
     fn: string,
     args: Record<string, unknown>,
-  ) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+  ) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 };
 
 function rpcClient(admin: DbClient): RpcCallable {
@@ -248,9 +248,14 @@ export async function unsubscribeByToken(
   admin: DbClient,
   token: string,
 ): Promise<UnsubscribeResult> {
-  const { data, error } = await rpcClient(admin).rpc("email_unsubscribe_by_token", {
-    p_token: token,
-  });
+  const call = () => rpcClient(admin).rpc("email_unsubscribe_by_token", { p_token: token });
+  let { data, error } = await call();
+  // Wypis blokuje wiersz subskrybenta, potem wiersz blokady; webhook skargi
+  // (np. „zgłoś spam i wypisz" w Gmailu, który przychodzi równolegle) bierze
+  // je w odwrotnej kolejności. Postgres przerywa wtedy jedną z transakcji
+  // (40P01) i cofa ją w całości, więc jedno ponowienie jest bezpieczne.
+  // Klienci pocztowi nie ponawiają one-clicków.
+  if (error?.code === DEADLOCK_DETECTED) ({ data, error } = await call());
   if (error) {
     console.error("[suppression] unsubscribe failed", error.message);
     return { ok: false, alreadyUnsubscribed: false, tenantId: null, error: error.message };
@@ -264,6 +269,39 @@ export async function unsubscribeByToken(
     tenantId: typeof data.tenant_id === "string" ? data.tenant_id : null,
     error: typeof data.error === "string" ? data.error : undefined,
   };
+}
+
+const DEADLOCK_DETECTED = "40P01";
+
+/**
+ * Zdejmuje blokadę `unsubscribe` po POTWIERDZONYM ponownym zapisie (double
+ * opt-in). Klik w link z maila to nowa, sprawdzona zgoda właściciela skrzynki,
+ * a wcześniejszy wypis był wycofaniem zgody, nie zakazem wysyłki. Bez tego
+ * kroku potwierdzony subskrybent zostawałby na liście wykluczeń, więc
+ * kampanie i powitanie (kategoria `bulk`) by go pomijały.
+ *
+ * Zdejmowana jest wyłącznie aktywna blokada o powodzie `unsubscribe`
+ * w tenancie subskrybenta. Mocniejsze powody (skarga, twarde odbicie, ręczna)
+ * zostają; zdjąć je może tylko operator.
+ */
+export async function releaseUnsubscribeOnOptIn(
+  admin: DbClient,
+  tenantId: string,
+  email: string,
+): Promise<boolean> {
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("email_suppressions")
+    .update({ released_at: now, expires_at: now })
+    .eq("tenant_id", tenantId)
+    .eq("email_norm", normalize(email))
+    .eq("reason", "unsubscribe")
+    .is("released_at", null);
+  if (error) {
+    console.error("[suppression] opt-in release failed", error.message);
+    return false;
+  }
+  return true;
 }
 
 export interface RecordSuppressionInput {

@@ -38,6 +38,9 @@ export const OWNER_ONLY_PROFILE_COLUMNS = [
   "verified_by",
   "discovery_search",
   "current_company_id",
+  // Bez grantu SELECT od dodania kolumny (20260807061849); własna wartość
+  // przełącznika „ukryj zdjęcie" idzie przez `get_own_profile()`.
+  "hide_avatar",
 ] as const;
 
 /**

@@ -310,6 +310,29 @@ describe("lista wykluczeń", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("wypis NIE zamyka ponownego zapisu przez double opt-in - zgodę można wyrazić znowu", async () => {
+    h.fetchSuppressedEmails.mockResolvedValue(
+      new Map([["nowy@example.test", { scope: "permanent", reason: "unsubscribe" }]]),
+    );
+
+    const res = await subscribeToNewsletter({ data: input() });
+
+    expect(res).toMatchObject({ ok: true, status: "pending" });
+    expect(upserted().status).toBe("pending");
+  });
+
+  it("wypis zatrzymuje zapis BEZ double opt-in - obcy adres nie wraca do wysyłki", async () => {
+    db.setResponse(SETTINGS, ok(settings({ double_opt_in: false })));
+    h.fetchSuppressedEmails.mockResolvedValue(
+      new Map([["nowy@example.test", { scope: "permanent", reason: "unsubscribe" }]]),
+    );
+
+    const res = await subscribeToNewsletter({ data: input() });
+
+    expect(res).toEqual({ ok: false, error: "suppressed" });
+    expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("upsert"))).toBe(false);
+  });
+
   it("blokada CZASOWA nie zatrzymuje zapisu - nowa zgoda jest świeżym dowodem", async () => {
     h.fetchSuppressedEmails.mockResolvedValue(
       new Map([["nowy@example.test", { scope: "transient", reason: "soft_bounce" }]]),
