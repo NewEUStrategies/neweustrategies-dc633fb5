@@ -30,6 +30,7 @@ function renderPreview(overrides: Partial<Props> = {}) {
     onCoverUrlChange: vi.fn(),
     onAvatarFile: vi.fn(),
     onCoverFile: vi.fn(),
+    onRejectedFiles: vi.fn(),
     t,
     ...overrides,
   };
@@ -120,6 +121,29 @@ describe("ProfileMediaPreview - kontrolki", () => {
     expect(props.onCoverFile).toHaveBeenCalledWith(
       expect.objectContaining({ name: "okladka.png" }),
     );
+  });
+
+  it("upuszczony plik spoza `accept` idzie do `onRejectedFiles`, nie do kadrowania", () => {
+    // Obszar wgrywania odrzuca taki plik PRZED `onAvatarFile`/`onCoverFile`.
+    // Bez przekazania odrzucenia w górę upuszczenie HEIC albo GIF było ciszą.
+    const { props } = renderPreview({ accept: "image/jpeg,image/png,image/webp,image/avif" });
+    const areas = document.querySelectorAll<HTMLElement>('[data-slot="upload-area"]');
+    expect(areas).toHaveLength(2);
+    const upusc = (area: HTMLElement, file: File) =>
+      fireEvent.drop(area, { dataTransfer: { types: ["Files"], files: [file] } });
+
+    upusc(areas[0], new File(["x"], "zdjecie.heic", { type: "image/heic" }));
+    upusc(areas[1], new File(["x"], "baner.gif", { type: "image/gif" }));
+
+    expect(props.onAvatarFile).not.toHaveBeenCalled();
+    expect(props.onCoverFile).not.toHaveBeenCalled();
+    expect(props.onRejectedFiles).toHaveBeenCalledTimes(2);
+    expect(props.onRejectedFiles).toHaveBeenNthCalledWith(1, [
+      expect.objectContaining({ name: "zdjecie.heic" }),
+    ]);
+    expect(props.onRejectedFiles).toHaveBeenNthCalledWith(2, [
+      expect.objectContaining({ name: "baner.gif" }),
+    ]);
   });
 
   it("trwająca wysyłka blokuje TYLKO swój przycisk", () => {
