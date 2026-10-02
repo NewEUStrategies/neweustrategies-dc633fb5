@@ -1,7 +1,7 @@
 // Related-posts: TanStack Query options for global config + per-post compute.
 // Runs entirely client-side against publicly readable tables (posts,
 // post_categories, post_tags, related_posts_config).
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   buildIdf,
@@ -37,6 +37,23 @@ const POPULARITY_WINDOW_DAYS = 28;
 
 /** Twardy sufit `trending_posts` - funkcja i tak klamruje do 50. */
 const POPULARITY_SAMPLE = 50;
+
+/**
+ * Okno sygnału dwell - te same 28 dni co popularność i z tego samego powodu:
+ * dokładnie to okno obiecuje redakcji podpowiedź suwaka
+ * (`adminRelatedPosts.engine.dwellHint` w `i18n-admin-related-posts`). Próg
+ * pięciu pomiarów, o którym mówi ta sama podpowiedź, stoi w SQL
+ * (`related_posts_dwell`, migracja 20261002120000) - zmiana któregokolwiek
+ * z nich bez zmiany podpowiedzi to panel opisujący inny silnik, niż działa.
+ */
+const DWELL_WINDOW_DAYS = 28;
+
+/**
+ * Ile wpisów z medianą czasu czytania bierzemy do sygnału. Funkcja klamruje do
+ * 500; 200 to więcej niż pula kandydatów pod jednym artykułem (100), więc
+ * kandydat bez wartości to wpis bez dość pomiarów, a nie ofiara sufitu.
+ */
+const DWELL_SAMPLE = 200;
 
 /**
  * Strojenie silnika v2 - dokładnie te pola, którymi steruje /admin/related-posts.
@@ -91,6 +108,41 @@ export const relatedPopularityQueryOptions = (days: number = POPULARITY_WINDOW_D
         if (Number.isFinite(count) && count > 0) views.set(t.id as string, count);
       });
       return normalizeMap(views);
+    },
+    staleTime: RELATED_TTL,
+  });
+
+/**
+ * Czas czytania wpisów tenanta w oknie - sygnał dwell, WŁASNY wpis cache
+ * wspólny dla całego serwisu (z tego samego powodu co popularność: snapshot
+ * jest globalny dla tenanta, więc nie może siedzieć pod kluczem artykułu).
+ *
+ * Źródłem jest `related_posts_dwell` - mediana `post_views.dwell_ms`, czyli
+ * czasu AKTYWNEGO czytania zgłoszonego przez przeglądarkę dla odsłony już
+ * policzonej pod zgodą analityczną (`lib/views/postDwell`). Mediana, a nie
+ * średnia: jedna karta zostawiona na noc nie przestawia rankingu. Funkcja
+ * oddaje wyłącznie wpisy z co najmniej pięcioma pomiarami i same liczby - bez
+ * żadnego identyfikatora czytelnika.
+ *
+ * Normalizacja względem NAJDŁUŻEJ czytanego wpisu tenanta (jak popularność
+ * względem najpopularniejszego), nie względem samych kandydatów - inaczej
+ * „dwell 1.0" znaczyłby co innego pod każdym artykułem.
+ */
+export const relatedDwellQueryOptions = (days: number = DWELL_WINDOW_DAYS) =>
+  queryOptions({
+    queryKey: ["public", "related-posts-dwell", days] as const,
+    queryFn: async (): Promise<ReadonlyMap<string, number>> => {
+      const { data, error: dataError } = await supabase.rpc("related_posts_dwell", {
+        _days: days,
+        _limit: DWELL_SAMPLE,
+      });
+      if (dataError) throw dataError;
+      const medians = new Map<string, number>();
+      (data ?? []).forEach((r) => {
+        const ms = Number(r.median_dwell_ms);
+        if (Number.isFinite(ms) && ms > 0) medians.set(r.post_id, ms);
+      });
+      return normalizeMap(medians);
     },
     staleTime: RELATED_TTL,
   });
@@ -247,6 +299,60 @@ export interface RelatedPostsInput {
   personalizedFor: string | null;
 }
 
+/** Sygnały dostrajające - każdy `null`, gdy nie waży albo jego źródło padło. */
+interface TuningSignals {
+  popularnosc: ReadonlyMap<string, number> | null;
+  dwell: ReadonlyMap<string, number> | null;
+  profil: UserAffinityProfile | null;
+}
+
+/**
+ * Jeden sygnał dostrajający: AWARIA NIE GASI WIDGETU.
+ *
+ * To świadomy wyjątek od zasady „błąd leci w górę", która obowiązuje
+ * w odczytach dostarczających KANDYDATÓW - bez tamtych nie ma czego pokazać,
+ * te tylko PRZESTAWIAJĄ kolejność. Rekomendacje mają wtedy wyjść z pozostałych
+ * sygnałów, a nie zniknąć spod artykułu.
+ */
+function tuningSignal<T>(name: string, read: () => Promise<T>): Promise<T | null> {
+  return read().catch((e: unknown) => {
+    console.warn(`[related-posts] ${name} signal unavailable:`, e instanceof Error ? e.message : e);
+    return null;
+  });
+}
+
+/**
+ * Popularność, dwell i profil czytelnika - RÓWNOLEGLE, każdy tylko wtedy, gdy
+ * realnie waży.
+ *
+ * Popularność idzie funkcją `trending_posts`, dwell funkcją
+ * `related_posts_dwell` - to jedyne publiczne drogi do `post_views`. Surowego
+ * odczytu tabeli NIE MA i nie może być: polityka „post_views public read"
+ * została świadomie zdjęta (migracja 20260625160054), a oba agregaty wystawia
+ * SECURITY DEFINER z zawężeniem do `public_tenant_id()`.
+ *
+ * Round-trip płacimy TYLKO gdy redakcja faktycznie używa sygnału: przy wadze 0
+ * wkład i tak wyszedłby zerowy, więc pytanie o dane byłoby czystym kosztem na
+ * każdej stronie artykułu. Szeregowo awarie sumowałyby się w czasie - nieudane
+ * `trending_posts` kazałoby czekać na swój timeout, zanim ruszyłby następny.
+ */
+function fetchTuningSignals(client: QueryClient, input: RelatedPostsInput): Promise<TuningSignals> {
+  const czytelnik = input.scoring.weight_personalization > 0 ? input.personalizedFor : null;
+  return Promise.all([
+    input.scoring.weight_popularity > 0
+      ? tuningSignal("popularity", () => client.fetchQuery(relatedPopularityQueryOptions()))
+      : null,
+    input.scoring.weight_dwell > 0
+      ? tuningSignal("dwell", () => client.fetchQuery(relatedDwellQueryOptions()))
+      : null,
+    czytelnik
+      ? tuningSignal("personalization", () =>
+          client.fetchQuery(relatedAffinityQueryOptions(czytelnik)),
+        )
+      : null,
+  ]).then(([popularnosc, dwell, profil]) => ({ popularnosc, dwell, profil }));
+}
+
 export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
   queryOptions({
     queryKey: ["public", "related-posts", input] as const,
@@ -338,6 +444,16 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
 
       if (candidateIds.size === 0) return [];
 
+      // Sygnały dostrajające (popularność, dwell, profil czytelnika) RUSZAJĄ
+      // TUTAJ, a czekamy na nie dopiero przed scoringiem. Żaden z nich nie
+      // zależy od kandydatów - to snapshoty tenanta albo profil czytelnika - więc
+      // nie ma powodu, by stały w kolejce za hydracją i taksonomią. Do
+      // 2026-10-02 szły jako OSOBNA, ostatnia fala: pierwszy artykuł w sesji
+      // płacił za nie pełny round-trip więcej, zanim sekcja mogła się pokazać.
+      // Startujemy je dopiero, gdy wiadomo, że JEST kogo szeregować - wpis bez
+      // kandydatów nie płaci za ani jeden z nich.
+      const strojenie = fetchTuningSignals(client, input);
+
       // 3. Hydrate candidates.
       //
       // `sort()` przed zacięciem na 100 nie jest kosmetyką. Zbiór ma kolejność
@@ -383,14 +499,29 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
       }>;
       if (rows.length === 0) return [];
 
-      // 4. Fetch category/tag membership for candidates in bulk.
+      // 4. Przynależność kandydatów do kategorii i tagów ORAZ ścieżki rodziców
+      // - JEDNA fala. Wszystkie trzy odczyty zależą wyłącznie od `rows`, więc
+      // szeregowanie ścieżek za taksonomią było czystym round-tripem do oddania.
+      //
+      // Ścieżki idą WSADOWO: `page_full_paths(uuid[])` (migracja 20260724150000,
+      // ten sam kontrakt co `archives.ts` i pasek `getTrendingPosts`). Do
+      // 2026-10-02 ten moduł wołał `page_full_path` osobno dla KAŻDEGO
+      // unikalnego rodzica - N+1 z przeglądarki pod każdym artykułem, którego
+      // kandydaci stoją w kilku sekcjach serwisu.
       const candIds = rows.map((r) => r.id);
-      const [{ data: pc, error: pcError }, { data: pt, error: ptError }] = await Promise.all([
+      const parentIds = Array.from(new Set(rows.map((r) => r.parent_page_id)));
+      const [
+        { data: pc, error: pcError },
+        { data: pt, error: ptError },
+        { data: pathRows, error: pathsError },
+      ] = await Promise.all([
         supabase.from("post_categories").select("post_id, category_id").in("post_id", candIds),
         supabase.from("post_tags").select("post_id, tag_id").in("post_id", candIds),
+        supabase.rpc("page_full_paths", { _page_ids: parentIds }),
       ]);
       if (pcError) throw pcError;
       if (ptError) throw ptError;
+      if (pathsError) throw pathsError;
       const catsByPost = new Map<string, Set<string>>();
       (pc ?? []).forEach((r) => {
         const set = catsByPost.get(r.post_id as string) ?? new Set<string>();
@@ -403,21 +534,12 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
         set.add(r.tag_id as string);
         tagsByPost.set(r.post_id as string, set);
       });
-
-      // 5. Resolve parent page paths for href.
-      const parentIds = Array.from(new Set(rows.map((r) => r.parent_page_id)));
       const paths = new Map<string, string>();
-      await Promise.all(
-        parentIds.map(async (pid) => {
-          const { data: p, error: pError } = await supabase.rpc("page_full_path", {
-            _page_id: pid,
-          });
-          if (pError) throw pError;
-          if (typeof p === "string") paths.set(pid, p);
-        }),
-      );
+      (pathRows ?? []).forEach((r) => {
+        if (typeof r.full_path === "string") paths.set(r.page_id, r.full_path);
+      });
 
-      // 6. Sygnały silnika v2.
+      // 5. Sygnały silnika v2.
       //
       // IDF liczymy z PULI KANDYDATÓW, nie z całego korpusu - i to jest
       // właściwa skala, nie uproszczenie. Ranking rozstrzyga WYŁĄCZNIE między
@@ -432,56 +554,9 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
         signals.idfTag = buildIdf(documentFrequency(tagsByPost), rows.length);
       }
 
-      // Popularność idzie funkcją `trending_posts` - jedyną publiczną drogą do
-      // `post_views`. Surowego odczytu tabeli NIE MA i nie może być: polityka
-      // „post_views public read" została świadomie zdjęta (migracja
-      // 20260625160054), a agregat wystawia SECURITY DEFINER z zawężeniem do
-      // `public_tenant_id()`.
-      //
-      // Round-trip płacimy TYLKO gdy redakcja faktycznie używa tego sygnału -
-      // przy wadze 0 wynik i tak byłby wyzerowany, więc pytanie o dane jest
-      // czystym kosztem.
-      //
-      // Oba sygnały dostrajające lecą RÓWNOLEGLE - nie zależą ani od siebie,
-      // ani od niczego, co jeszcze nie jest w ręku. Szeregowo ich awarie
-      // sumowałyby się w czasie: nieudane `trending_posts` kazałoby czekać na
-      // swój timeout, zanim w ogóle ruszyłby profil czytelnika.
-      //
-      // Oba mają też wspólną regułę: AWARIA NIE GASI WIDGETU. To świadomy
-      // wyjątek od zasady „błąd leci w górę", która obowiązuje w sześciu
-      // odczytach dostarczających KANDYDATÓW - bez tamtych nie ma czego
-      // pokazać, te tylko PRZESTAWIAJĄ kolejność. Rekomendacje mają wtedy
-      // wyjść z pozostałych sygnałów, a nie zniknąć spod artykułu.
-      //
-      // Round-trip płacimy TYLKO gdy sygnał realnie waży: przy wadze 0 wkład
-      // i tak wyszedłby zerowy, więc pytanie o dane byłoby czystym kosztem
-      // na każdej stronie artykułu.
-      const chcePopularnosc = input.scoring.weight_popularity > 0;
-      const chceProfil = !!input.personalizedFor && input.scoring.weight_personalization > 0;
-
-      const [popularnosc, profil] = await Promise.all([
-        chcePopularnosc
-          ? client.fetchQuery(relatedPopularityQueryOptions()).catch((e: unknown) => {
-              console.warn(
-                "[related-posts] popularity signal unavailable:",
-                e instanceof Error ? e.message : e,
-              );
-              return null;
-            })
-          : null,
-        chceProfil && input.personalizedFor
-          ? client
-              .fetchQuery(relatedAffinityQueryOptions(input.personalizedFor))
-              .catch((e: unknown) => {
-                console.warn(
-                  "[related-posts] personalization signal unavailable:",
-                  e instanceof Error ? e.message : e,
-                );
-                return null;
-              })
-          : null,
-      ]);
+      const { popularnosc, dwell, profil } = await strojenie;
       if (popularnosc) signals.popularityByPost = popularnosc;
+      if (dwell) signals.dwellByPost = dwell;
       if (profil) signals.userProfile = profil;
 
       const scoringCfg: ScoringConfig = {
@@ -497,7 +572,7 @@ export const relatedPostsQueryOptions = (input: RelatedPostsInput) =>
         use_idf: input.scoring.use_idf,
       };
 
-      // 7. Score and rank.
+      // 6. Score and rank.
       const scored = rows.map((r) => {
         const { total: score } = scoreRelatedDetailed(
           { categoryIds: curCatSet, tagIds: curTagSet, authorId: curAuthor },

@@ -48,7 +48,11 @@ export interface UserAffinityProfile {
 export interface ScoringSignals {
   /** Popularność w oknie (unikalni odwiedzający lub views), znormalizowana 0..1. */
   popularityByPost?: ReadonlyMap<string, number>;
-  /** Proxy dwell time - liczba czytelników wpisu (unikalnych user_id), znormalizowana 0..1. */
+  /**
+   * Czas czytania - mediana `post_views.dwell_ms` (czas AKTYWNEGO czytania
+   * odsłon liczonych pod zgodą analityczną, `related_posts_dwell`),
+   * znormalizowana 0..1 względem najdłużej czytanego wpisu tenanta.
+   */
   dwellByPost?: ReadonlyMap<string, number>;
   /** Profil aktualnie zalogowanego usera. */
   userProfile?: UserAffinityProfile;

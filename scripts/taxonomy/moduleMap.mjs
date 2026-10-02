@@ -100,7 +100,7 @@ export const MODULES = [
       /^src\/routes\/post\./,
       /^src\/routes\/preview\./,
       /^src\/routes\/admin\.(key-takeaways|toc|post-layouts|related-posts)/,
-      /^src\/routes\/api\/public\/(post-tts|related-click)/,
+      /^src\/routes\/api\/public\/(post-tts|post-dwell|related-click)/,
       /^src\/routes\/api\/(tts|stt)/,
     ],
   },

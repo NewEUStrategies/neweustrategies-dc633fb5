@@ -138,6 +138,18 @@ describe("weightSignals - siedem wag silnika", () => {
     expect(new Set(weightSignals().map((s) => s.labelKey)).size).toBe(7);
   });
 
+  it("deskryptor nie niesie stanu „wyłączony” - każdy sygnał ma źródło danych", () => {
+    // Do 2026-10-02 `dwell` miał tu `inactiveKey` (suwak wyszarzony, bo silnik
+    // mnożył wagę przez pusty sygnał). Pole zniknęło razem z ostatnim sygnałem
+    // bez źródła: powrót do „pokrętła na pokaz” wymagałby jawnej zmiany typu.
+    for (const signal of weightSignals()) {
+      expect(Object.keys(signal).sort()).toEqual(["field", "hintKey", "labelKey"]);
+    }
+    expect(weightSignals().find((s) => s.field === "weight_dwell")?.labelKey).toBe(
+      "adminRelatedPosts.engine.dwell",
+    );
+  });
+
   it("wagi z warstwy zapisu mieszczą się w granicach suwaka", () => {
     for (const signal of weightSignals()) {
       const value = RELATED_POSTS_DEFAULTS[signal.field] as number;

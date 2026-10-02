@@ -53,31 +53,7 @@ export interface WeightSignalDescriptor {
   readonly field: keyof RelatedPostsConfig;
   readonly labelKey: string;
   readonly hintKey: string;
-  /**
-   * Klucz komunikatu, gdy sygnał NIE MA za sobą danych na stronie publicznej.
-   * `null` dla sygnałów działających.
-   */
-  readonly inactiveKey: string | null;
 }
-
-/**
- * Sygnały bez źródła danych po stronie publicznej.
- *
- * `dwell` jest jedynym takim sygnałem: podpowiedź panelu obiecuje „bonus dla
- * wpisów, które użytkownicy dodają do historii czytania", a to wymaga agregatu
- * po `user_read_history` PONAD wszystkimi czytelnikami. Polityka RLS tej tabeli
- * przepuszcza wyłącznie własne wiersze czytelnika (`user_id = auth.uid()`), a
- * migracja 20260831170000 klasyfikuje ją wprost jako dane osobowe - wystawienie
- * takiego agregatu anonimowi wymagałoby decyzji o podstawie prawnej, nie
- * kolejnego suwaka. Do tego czasu waga nie ma czego mnożyć.
- *
- * Suwak zostaje WIDOCZNY i WYŁĄCZONY, a nie usunięty: wartość siedzi w bazie i
- * wróci do gry, kiedy źródło powstanie. Milczące zostawienie go czynnym byłoby
- * powtórzeniem dokładnie tego defektu, który ten moduł naprawia.
- */
-const SIGNALS_WITHOUT_SOURCE: Readonly<Record<string, string>> = {
-  weight_dwell: "adminRelatedPosts.engine.dwellInactive",
-};
 
 /**
  * Siedem sygnałów silnika doboru, w kolejności wyświetlania.
@@ -85,6 +61,15 @@ const SIGNALS_WITHOUT_SOURCE: Readonly<Record<string, string>> = {
  * Nazwa pola, klucz etykiety i klucz podpowiedzi pochodzą z JEDNEGO wpisu -
  * poprzednia wersja panelu sklejała je osobno w siedmiu wywołaniach, więc
  * podpowiedź mogła opisywać inny sygnał niż suwak, który zmieniała.
+ *
+ * WSZYSTKIE SIEDEM MA ZA SOBĄ DANE i żaden suwak nie jest wyłączony. Do
+ * 2026-10-02 `dwell` stał tu jako „sygnał bez źródła" (wyszarzony suwak
+ * z powodem), bo silnik mnożył jego wagę przez pusty sygnał. Źródłem jest
+ * teraz mediana czasu aktywnego czytania z `post_views.dwell_ms`
+ * (`related_posts_dwell`, migracja 20261002120000) - agregat odsłon liczonych
+ * pod zgodą analityczną, a nie historia czytania konkretnych osób. Kto doda
+ * ósmy sygnał, dodaje go RAZEM ze źródłem danych: panel nie pokazuje pokrętła,
+ * za którym nic nie stoi.
  */
 export function weightSignals(): WeightSignalDescriptor[] {
   return (
@@ -101,7 +86,6 @@ export function weightSignals(): WeightSignalDescriptor[] {
     field,
     labelKey: `adminRelatedPosts.engine.${slug}`,
     hintKey: `adminRelatedPosts.engine.${slug}Hint`,
-    inactiveKey: SIGNALS_WITHOUT_SOURCE[field] ?? null,
   }));
 }
 

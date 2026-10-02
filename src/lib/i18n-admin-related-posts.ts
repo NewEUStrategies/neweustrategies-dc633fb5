@@ -71,7 +71,7 @@ const pl = {
     engine: {
       heading: "Wagi silnika rekomendacji",
       intro:
-        "Skala 0-10. Silnik składa wyniki: wspólne kategorie x waga + wspólne tagi x waga (opcjonalnie IDF) + autor + świeżość + popularność (post_views przez trending_posts) + personalizacja (historia czytania zalogowanego użytkownika, po zgodzie). Dwell czeka na źródło danych i jest wyłączony.",
+        "Skala 0-10. Silnik składa wyniki: wspólne kategorie x waga + wspólne tagi x waga (opcjonalnie IDF) + autor + świeżość + popularność (post_views przez trending_posts) + dwell (mediana czasu aktywnego czytania wpisu, post_views) + personalizacja (historia czytania zalogowanego użytkownika, po zgodzie).",
       categories: "Wspólne kategorie",
       categoriesHint: "Klasyczny sygnał: ile kategorii dzielą wpisy",
       tags: "Wspólne tagi",
@@ -83,11 +83,9 @@ const pl = {
       popularity: "Popularność (views)",
       popularityHint:
         "Bonus z odsłon w ostatnich 28 dniach, skalowany względem najpopularniejszego wpisu serwisu. Liczy się z listy 50 najczęściej czytanych - kandydat spoza niej dostaje 0.",
-      dwell: "Dwell / czytania",
+      dwell: "Dwell (czas czytania)",
       dwellHint:
-        "Bonus dla wpisów często dodawanych do historii czytania - zadziała, gdy powstanie źródło danych.",
-      dwellInactive:
-        "Nieaktywne: sygnał wymaga agregatu historii czytania wszystkich czytelników, a ta tabela jest widoczna wyłącznie dla właściciela wierszy. Waga jest zapisana i wróci do gry, gdy powstanie źródło.",
+        "Bonus z mediany czasu aktywnego czytania wpisu w ostatnich 28 dniach (karta widoczna, czytelnik aktywny; tylko odsłony po zgodzie analitycznej), skalowany względem wpisu czytanego najdłużej. Wpis z mniej niż 5 pomiarami dostaje 0. Dłuższe teksty mają naturalnie dłuższą medianę.",
       personalization: "Personalizacja",
       personalizationHint:
         "Dopasowanie do profilu zainteresowań zalogowanego użytkownika (kategorie + tagi z historii). Działa wyłącznie po zgodzie na personalizację i przy braku sygnału GPC.",
@@ -166,7 +164,7 @@ const en = {
     engine: {
       heading: "Recommendation engine weights",
       intro:
-        "Scale 0-10. The engine combines: shared categories x weight + shared tags x weight (optionally IDF) + author + recency + popularity (post_views via trending_posts) + personalization (signed-in reader's history, with consent). Dwell is awaiting a data source and is disabled.",
+        "Scale 0-10. The engine combines: shared categories x weight + shared tags x weight (optionally IDF) + author + recency + popularity (post_views via trending_posts) + dwell (median engaged reading time on the article, post_views) + personalization (signed-in reader's history, with consent).",
       categories: "Shared categories",
       categoriesHint: "The classic signal: how many categories the posts share",
       tags: "Shared tags",
@@ -178,11 +176,9 @@ const en = {
       popularity: "Popularity (views)",
       popularityHint:
         "Bonus from views over the last 28 days, scaled against the site's most-read post. Drawn from the top 50 most-read - a candidate outside it scores 0.",
-      dwell: "Dwell / reads",
+      dwell: "Dwell (reading time)",
       dwellHint:
-        "Bonus for posts often added to reading history - will apply once a data source exists.",
-      dwellInactive:
-        "Inactive: this signal needs an aggregate of every reader's reading history, and that table is visible only to the owner of its rows. The weight is stored and returns once a source exists.",
+        "Bonus from the median engaged reading time on the article over the last 28 days (tab visible, reader active; only views with analytics consent), scaled against the site's longest-read post. A post with fewer than 5 measurements scores 0. Longer texts naturally have a longer median.",
       personalization: "Personalization",
       personalizationHint:
         "Match against the signed-in reader's interest profile (categories + tags from history). Applies only with personalization consent and no GPC signal.",

@@ -14,6 +14,8 @@ const h = vi.hoisted(() => ({
   upsertThen: vi.fn(),
   from: vi.fn(),
   user: null as { id: string } | null,
+  startDwell: vi.fn(),
+  stopDwell: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-start", () => ({ useServerFn: () => h.record }));
@@ -22,6 +24,11 @@ vi.mock("@/lib/ads/consent", () => ({
   hasAnalyticsConsent: () => h.hasAnalyticsConsent(),
 }));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => ({ user: h.user }) }));
+// Pomiar czasu czytania ma własne testy (`lib/views/__tests__/postDwell.test.ts`);
+// tutaj liczy się wyłącznie, KIEDY hook go uruchamia i domyka.
+vi.mock("@/lib/views/postDwell", () => ({
+  startPostDwell: (...args: unknown[]) => h.startDwell(...args),
+}));
 // Mock łańcucha zapisu historii czytania. `from` i `upsert` są SZPIEGAMI, a nie
 // pustymi zaślepkami, bo test niżej asertuje nie tylko FAKT zapisu, ale i to,
 // DO KTÓREJ TABELI oraz z jakim ładunkiem - inaczej bramka zgody dałaby się
@@ -57,6 +64,8 @@ beforeEach(() => {
   h.upsertThen.mockReset();
   h.from.mockReset();
   h.user = null;
+  h.stopDwell.mockReset();
+  h.startDwell.mockReset().mockReturnValue(h.stopDwell);
   window.localStorage.clear();
 });
 
@@ -178,5 +187,80 @@ describe("useRecordPostView - historia czytania pod tą samą bramką zgody", ()
 
     expect(h.record).not.toHaveBeenCalled();
     expect(h.upsert).toHaveBeenCalledTimes(1);
+  });
+});
+
+// SYGNAŁ DWELL REKOMENDACJI - pomiar czasu czytania jedzie WYŁĄCZNIE za
+// policzoną odsłoną: ta sama zgoda, to samo wykluczenie autora, ten sam
+// `viewer_hash`. Pomiar bez odsłony nie miałby w bazie wiersza, do którego
+// mógłby trafić - a pomiar bez zgody byłby pomiarem, którego /cookies nie
+// obiecuje.
+describe("useRecordPostView - pomiar czasu czytania za policzoną odsłoną", () => {
+  it("po zgodzie rusza pomiar dla TEGO wpisu i TEGO samego viewer_hash co odsłona", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+
+    await mountAndTick();
+
+    expect(h.startDwell).toHaveBeenCalledTimes(1);
+    const arg = h.record.mock.calls[0]?.[0] as { data: { viewerHash: string } };
+    expect(h.startDwell).toHaveBeenCalledWith(POST, arg.data.viewerHash);
+  });
+
+  it("odmontowanie domyka pomiar (wysyłka narastającej sumy)", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    const { unmount } = renderHook(() => useRecordPostView(POST, null));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(h.stopDwell).not.toHaveBeenCalled();
+
+    unmount();
+
+    expect(h.stopDwell).toHaveBeenCalledTimes(1);
+  });
+
+  it("bez zgody pomiar NIE rusza", async () => {
+    await mountAndTick();
+
+    expect(h.startDwell).not.toHaveBeenCalled();
+  });
+
+  it("autor czytający własny wpis nie uruchamia pomiaru - jego odsłona nie jest liczona", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    h.user = { id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa" };
+
+    renderHook(() => useRecordPostView(POST, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(h.startDwell).not.toHaveBeenCalled();
+  });
+
+  it("odmontowanie ZANIM moduł pomiaru dojedzie nie zostawia osieroconego pomiaru", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    const { unmount } = renderHook(() => useRecordPostView(POST, null));
+    // Wersja SYNCHRONICZNA: licznik odpala, `import()` jeszcze się nie rozwiązał.
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10);
+    });
+
+    expect(h.startDwell).not.toHaveBeenCalled();
+  });
+
+  it("awaria pomiaru jest cicha - nie psuje odsłony ani renderu", async () => {
+    h.hasAnalyticsConsent.mockReturnValue(true);
+    h.startDwell.mockImplementation(() => {
+      throw new Error("brak performance.now");
+    });
+
+    await mountAndTick();
+
+    expect(h.record).toHaveBeenCalledTimes(1);
+    expect(h.startDwell).toHaveBeenCalledTimes(1);
   });
 });

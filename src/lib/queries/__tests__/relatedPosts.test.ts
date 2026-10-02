@@ -226,7 +226,15 @@ interface Plan {
   hydracja?: SupabaseResult;
   kategorieKandydatow?: SupabaseResult;
   tagiKandydatow?: SupabaseResult;
+  /**
+   * Ścieżka rodzica z `page_full_paths(uuid[])`. `ok(napis)` oznacza „każdy
+   * pytany rodzic ma tę ścieżkę" - atrapa sama składa wiersze z argumentu
+   * `_page_ids`, więc odpowiedź nie może przypadkiem trafić w rodzica, o którego
+   * moduł nie zapytał. `ok(null)` to brak wierszy, `fail(...)` - odmowa.
+   */
   sciezka?: SupabaseResult;
+  /** RPC `related_posts_dwell` - mediany czasu czytania (źródło sygnału dwell). */
+  czasCzytania?: SupabaseResult;
   /** `user_read_history` - historia czytania zalogowanego czytelnika. */
   historiaCzytania?: SupabaseResult;
   /** Kategorie wpisów Z HISTORII (profil zainteresowań), nie kandydatów. */
@@ -280,7 +288,13 @@ function planuj(plan: Plan = {}): void {
     if (chain.has("neq")) return plan.kandydaciAutora ?? ok([]);
     return plan.hydracja ?? ok([]);
   });
-  funkcje().setResponse("page_full_path", plan.sciezka ?? ok(SCIEZKA_RODZICA));
+  funkcje().setResponse("related_posts_dwell", plan.czasCzytania ?? ok([]));
+  funkcje().setResponse("page_full_paths", (call) => {
+    const odpowiedz = plan.sciezka ?? ok(SCIEZKA_RODZICA);
+    if (odpowiedz.error || odpowiedz.data === null) return odpowiedz;
+    const rodzice = (call.arg("_page_ids") ?? []) as string[];
+    return ok(rodzice.map((page_id) => ({ page_id, full_path: odpowiedz.data })));
+  });
 }
 
 // --- strażniki zawężające (zamiast rzutowań) --------------------------------
@@ -740,8 +754,16 @@ describe("hydracja kandydatów: filtr publikacji i kolumny", () => {
       klient().fetchQuery(relatedPostsQueryOptions(wejscie({ strategy: "categories" }))),
     ).resolves.toEqual([]);
     // Brak zapytań o przynależność i brak rezolucji ścieżek - nie ma czego pytać.
+    // Jedyne RPC, jakie mogły polecieć, to snapshoty sygnałów tenanta (ruszają,
+    // gdy pivoty oddały kandydatów, czyli zanim wiadomo, że hydracja ich odsieje)
+    // - żadnego wywołania zależnego od kandydatów.
     expect(lancuchKandydatow("post_categories", "post_id")).toBeUndefined();
-    expect(funkcje().calls).toHaveLength(0);
+    expect(funkcje().names()).not.toContain("page_full_paths");
+    expect(
+      funkcje()
+        .names()
+        .every((n) => n === "trending_posts" || n === "related_posts_dwell"),
+    ).toBe(true);
   });
 
   it("brak wierszy (`null`) z hydracji to pusta lista, a nie rzut", async () => {
@@ -871,13 +893,12 @@ describe("kolejność rekomendacji: silniejsze dopasowanie stoi wyżej", () => {
 // ==========================================================================
 
 describe("adresy rekomendacji: ścieżka rodzica w href", () => {
-  it("jedno wywołanie `page_full_path` na DYSTYNKTNEGO rodzica, argument `_page_id`", async () => {
+  it("ścieżki rodziców JEDNYM wsadowym `page_full_paths`, argument `_page_ids` bez duplikatów", async () => {
     // Nazwa argumentu to JEDYNY dowód: wywołanie idzie luźnym obiektem, więc
-    // literówka w `_page_id` przechodzi przez `tsc` i przez przegląd, a serwer
-    // po prostu zignoruje parametr. Deduplikacja przez `Set` też jest treścią:
-    // ten moduł woła RPC per rodzica (a nie wsadowe `page_full_paths`, jak
-    // `archives.ts`), więc bez deduplikacji trzy wpisy jednej sekcji dałyby
-    // trzy round-tripy z przeglądarki.
+    // literówka w `_page_ids` przechodzi przez przegląd, a serwer po prostu
+    // zignoruje parametr. Do 2026-10-02 moduł wołał `page_full_path` PER
+    // RODZICA - N round-tripów z przeglądarki pod artykułem, którego kandydaci
+    // stoją w kilku sekcjach. Wsad przyjmuje każdego rodzica DOKŁADNIE RAZ.
     planuj({
       kandydaciZKategorii: ok([{ post_id: "k-1" }, { post_id: "k-2" }, { post_id: "k-3" }]),
       hydracja: ok([
@@ -894,10 +915,44 @@ describe("adresy rekomendacji: ścieżka rodzica w href", () => {
     });
     await klient().fetchQuery(relatedPostsQueryOptions(wejscie({ strategy: "categories" })));
 
-    const wywolania = funkcje().callsFor("page_full_path");
-    expect(wywolania).toHaveLength(2);
-    expect(wywolania.map((c) => c.arg("_page_id")).sort()).toEqual([RODZIC, INNY_RODZIC].sort());
-    expect(wywolanie("page_full_path").keys()).toEqual(["_page_id"]);
+    expect(funkcje().callsFor("page_full_paths")).toHaveLength(1);
+    expect(funkcje().names()).not.toContain("page_full_path");
+    expect(wywolanie("page_full_paths").keys()).toEqual(["_page_ids"]);
+    expect([...(wywolanie("page_full_paths").arg("_page_ids") as string[])].sort()).toEqual(
+      [RODZIC, INNY_RODZIC].sort(),
+    );
+  });
+
+  it("ścieżki ruszają w TEJ SAMEJ fali co taksonomia kandydatów, nie po niej", async () => {
+    // Oba odczyty zależą wyłącznie od hydracji, więc żaden nie może czekać na
+    // drugi. Taksonomia kandydatów odpowiada tu DOPIERO wtedy, gdy padło pytanie
+    // o ścieżki - rozstrzyga to bez zegara: przy szeregowaniu (ścieżki po
+    // taksonomii, jak do 2026-10-02) zapytanie nigdy by się nie domknęło.
+    let sciezkiZapytane!: () => void;
+    const sciezkiRuszyly = new Promise<void>((r) => (sciezkiZapytane = r));
+    planuj({
+      kandydaciZKategorii: ok([{ post_id: "k-1" }]),
+      hydracja: ok([kandydat("k-1", SWIEZY)]),
+    });
+    baza().setResponse("post_categories", async (chain) => {
+      const kolumna = String(chain.argsOf("in")?.[0] ?? "");
+      if (kolumna === "category_id") return ok([{ post_id: "k-1" }]);
+      if (kolumna === "post_id") {
+        await sciezkiRuszyly;
+        return ok([{ post_id: "k-1", category_id: KAT_A }]);
+      }
+      return ok([{ category_id: KAT_A }]);
+    });
+    funkcje().setResponse("page_full_paths", (call) => {
+      sciezkiZapytane();
+      const rodzice = (call.arg("_page_ids") ?? []) as string[];
+      return ok(rodzice.map((page_id) => ({ page_id, full_path: SCIEZKA_RODZICA })));
+    });
+    const wynik = await klient().fetchQuery(
+      relatedPostsQueryOptions(wejscie({ strategy: "categories" })),
+    );
+    expect(slugi(wynik)).toEqual(["slug-k-1"]);
+    expect(wynik[0]?.href).toBe(`/${SCIEZKA_RODZICA}/slug-k-1`);
   });
 
   it("adres składa ścieżkę rodzica ze slugiem wpisu", async () => {
@@ -926,7 +981,7 @@ describe("adresy rekomendacji: ścieżka rodzica w href", () => {
     expect(wynik[0]?.href).toBe("/blog/slug-k-1");
   });
 
-  it("błąd odczytu jest zgłaszany: odmowa page_full_path", async () => {
+  it("błąd odczytu jest zgłaszany: odmowa page_full_paths", async () => {
     // Ta sama klasa defektu, ten sam fallback `paths.get(…) ?? "blog"`, co
     // w `archives.ts:81`, `programs.ts:124`, `series.ts:80` i `liveBlogs.ts:72`.
     // PEŁNY zapis mechanizmu, konsekwencji i uzasadnienia „to decyzja
@@ -936,11 +991,11 @@ describe("adresy rekomendacji: ścieżka rodzica w href", () => {
       kandydaciZKategorii: ok([{ post_id: "k-1" }]),
       hydracja: ok([kandydat("k-1", SWIEZY)]),
       kategorieKandydatow: ok([{ post_id: "k-1", category_id: KAT_A }]),
-      sciezka: fail("odmowa page_full_path", "42501"),
+      sciezka: fail("odmowa page_full_paths", "42501"),
     });
     await expect(
       klient().fetchQuery(relatedPostsQueryOptions(wejscie({ strategy: "categories" }))),
-    ).rejects.toMatchObject({ message: "odmowa page_full_path" });
+    ).rejects.toMatchObject({ message: "odmowa page_full_paths" });
   });
 });
 
@@ -1384,6 +1439,192 @@ describe("sygnał popularności: jedyna publiczna droga do `post_views`", () => 
     await qc.fetchQuery(opcje("00000000-0000-4000-8000-000000000002"));
 
     expect(funkcje().callsFor("trending_posts")).toHaveLength(1);
+  });
+});
+
+// ==========================================================================
+// SYGNAŁ DWELL - czas czytania. Do 2026-10-02 `weight_dwell` docierał do
+// scoringu, ale `dwellByPost` nie miał źródła: suwak w panelu mnożył zero.
+// ==========================================================================
+describe("sygnał dwell: mediana czasu czytania przez `related_posts_dwell`", () => {
+  function planRemisu(): Plan {
+    return {
+      kandydaciZKategorii: ok([{ post_id: "k-przewijany" }, { post_id: "k-czytany" }]),
+      hydracja: ok([kandydat("k-przewijany", STARY), kandydat("k-czytany", STARY)]),
+      kategorieKandydatow: ok([
+        { post_id: "k-przewijany", category_id: KAT_A },
+        { post_id: "k-czytany", category_id: KAT_A },
+      ]),
+    };
+  }
+
+  /** Same wagi taksonomii i dwell - o kolejności remisu decyduje tylko czas czytania. */
+  function tylkoDwell(waga = 10): RelatedScoringInput {
+    return wagi({
+      use_idf: false,
+      weight_recency: 0,
+      weight_popularity: 0,
+      weight_personalization: 0,
+      weight_dwell: waga,
+    });
+  }
+
+  it("CZAS CZYTANIA rozstrzyga remis - i ODWRÓCENIE danych odwraca kolejność", async () => {
+    // Dwa przebiegi z zamienionymi medianami: gdyby sygnał nie był czytany,
+    // kolejność zostałaby ta sama (rozstrzyga wtedy identyfikator / data).
+    planuj({
+      ...planRemisu(),
+      czasCzytania: ok([
+        { post_id: "k-czytany", median_dwell_ms: 240_000 },
+        { post_id: "k-przewijany", median_dwell_ms: 12_000 },
+      ]),
+    });
+    const pierwszy = await klient().fetchQuery(
+      relatedPostsQueryOptions(wejscie({ strategy: "categories", scoring: tylkoDwell() })),
+    );
+    expect(slugi(pierwszy)).toEqual(["slug-k-czytany", "slug-k-przewijany"]);
+
+    baza().reset();
+    funkcje().reset();
+    planuj({
+      ...planRemisu(),
+      czasCzytania: ok([
+        { post_id: "k-czytany", median_dwell_ms: 12_000 },
+        { post_id: "k-przewijany", median_dwell_ms: 240_000 },
+      ]),
+    });
+    const drugi = await klient().fetchQuery(
+      relatedPostsQueryOptions(wejscie({ strategy: "categories", scoring: tylkoDwell() })),
+    );
+    expect(slugi(drugi)).toEqual(["slug-k-przewijany", "slug-k-czytany"]);
+  });
+
+  it("DWIE KONFIGURACJE WAG, RÓŻNA KOLEJNOŚĆ: dwell kontra popularność", async () => {
+    // Kryterium odbioru A1 dla siódmej wagi: ten sam zestaw danych, dwie
+    // konfiguracje panelu - i dwie różne listy pod artykułem.
+    const plan: Plan = {
+      ...planRemisu(),
+      popularne: ok([
+        { id: "k-przewijany", views_count: 900 },
+        { id: "k-czytany", views_count: 90 },
+      ]),
+      czasCzytania: ok([
+        { post_id: "k-czytany", median_dwell_ms: 300_000 },
+        { post_id: "k-przewijany", median_dwell_ms: 30_000 },
+      ]),
+    };
+    const baza0 = { use_idf: false, weight_recency: 0, weight_personalization: 0 };
+    planuj(plan);
+    const popularnosc = await klient().fetchQuery(
+      relatedPostsQueryOptions(
+        wejscie({
+          strategy: "categories",
+          scoring: wagi({ ...baza0, weight_popularity: 10, weight_dwell: 0 }),
+        }),
+      ),
+    );
+    planuj(plan);
+    const dwell = await klient().fetchQuery(
+      relatedPostsQueryOptions(
+        wejscie({
+          strategy: "categories",
+          scoring: wagi({ ...baza0, weight_popularity: 0, weight_dwell: 10 }),
+        }),
+      ),
+    );
+    expect(slugi(popularnosc)).toEqual(["slug-k-przewijany", "slug-k-czytany"]);
+    expect(slugi(dwell)).toEqual(["slug-k-czytany", "slug-k-przewijany"]);
+  });
+
+  it("czyta funkcją `related_posts_dwell` z oknem 28 dni, NIGDY tabelą `post_views`", async () => {
+    // 28 dni to okno, które obiecuje podpowiedź suwaka
+    // (`adminRelatedPosts.engine.dwellHint`). Nazwy argumentów to jedyny dowód
+    // kontraktu - obiekt argumentów RPC jest luźny.
+    planuj({ ...planRemisu(), czasCzytania: ok([]) });
+    await klient().fetchQuery(
+      relatedPostsQueryOptions(wejscie({ strategy: "categories", scoring: tylkoDwell(3) })),
+    );
+    expect(wywolanie("related_posts_dwell").keys()).toEqual(["_days", "_limit"]);
+    expect(wywolanie("related_posts_dwell").arg("_days")).toBe(28);
+    expect(baza().chainsFor("post_views")).toHaveLength(0);
+  });
+
+  it("WAGA 0 nie płaci za sygnał - żadnego round-tripu po czas czytania", async () => {
+    planuj(planRemisu());
+    await klient().fetchQuery(
+      relatedPostsQueryOptions(wejscie({ strategy: "categories", scoring: tylkoDwell(0) })),
+    );
+    expect(funkcje().names()).not.toContain("related_posts_dwell");
+  });
+
+  it("AWARIA DWELL NIE GASI WIDGETU - lista wychodzi z pozostałych sygnałów", async () => {
+    const ostrzezenia = vi.spyOn(console, "warn").mockImplementation(() => {});
+    planuj({ ...planRemisu(), czasCzytania: fail("brak dostępu do related_posts_dwell", "42501") });
+    const wynik = await klient().fetchQuery(
+      relatedPostsQueryOptions(wejscie({ strategy: "categories", scoring: tylkoDwell() })),
+    );
+    expect(slugi(wynik)).toHaveLength(2);
+    expect(ostrzezenia).toHaveBeenCalledWith(
+      expect.stringContaining("dwell signal unavailable"),
+      expect.anything(),
+    );
+    ostrzezenia.mockRestore();
+  });
+
+  it("czas czytania liczy się RAZ dla wielu wpisów - własny klucz, nie klucz artykułu", async () => {
+    planuj({
+      ...planRemisu(),
+      czasCzytania: ok([{ post_id: "k-czytany", median_dwell_ms: 60_000 }]),
+    });
+    const qc = klient();
+    const opcje = (postId: string) =>
+      relatedPostsQueryOptions(wejscie({ postId, strategy: "categories", scoring: tylkoDwell(5) }));
+    await qc.fetchQuery(opcje(WPIS));
+    await qc.fetchQuery(opcje("00000000-0000-4000-8000-000000000002"));
+    expect(funkcje().callsFor("related_posts_dwell")).toHaveLength(1);
+  });
+
+  it("mediany zerowe, ujemne i nieliczbowe są pomijane, a `null` nie wywraca scoringu", async () => {
+    // Kandydat z medianą nieliczbową nie może dostać NaN-u do wyniku - NaN
+    // przegrywa każde porównanie i wypycha wpis z listy bez śladu.
+    planuj({
+      ...planRemisu(),
+      czasCzytania: ok([
+        { post_id: "k-czytany", median_dwell_ms: 90_000 },
+        { post_id: "k-przewijany", median_dwell_ms: "dużo" },
+        { post_id: "k-inny", median_dwell_ms: 0 },
+        { post_id: "k-ujemny", median_dwell_ms: -5 },
+      ]),
+    });
+    const wynik = await klient().fetchQuery(
+      relatedPostsQueryOptions(wejscie({ strategy: "categories", scoring: tylkoDwell() })),
+    );
+    expect(slugi(wynik)).toEqual(["slug-k-czytany", "slug-k-przewijany"]);
+
+    baza().reset();
+    funkcje().reset();
+    planuj({ ...planRemisu(), czasCzytania: ok(null) });
+    const pusty = await klient().fetchQuery(
+      relatedPostsQueryOptions(wejscie({ strategy: "categories", scoring: tylkoDwell() })),
+    );
+    expect(slugi(pusty)).toHaveLength(2);
+  });
+
+  it("AWARIA DWELL SPOZA KLASY `Error` też tylko ostrzega", async () => {
+    const ostrzezenia = vi.spyOn(console, "warn").mockImplementation(() => {});
+    planuj({
+      ...planRemisu(),
+      czasCzytania: { data: null, error: "dwell: odmowa bez klasy" as unknown as Error },
+    });
+    const wynik = await klient().fetchQuery(
+      relatedPostsQueryOptions(wejscie({ strategy: "categories", scoring: tylkoDwell() })),
+    );
+    expect(slugi(wynik)).toHaveLength(2);
+    expect(ostrzezenia).toHaveBeenCalledWith(
+      expect.stringContaining("dwell signal unavailable"),
+      "dwell: odmowa bez klasy",
+    );
+    ostrzezenia.mockRestore();
   });
 });
 
