@@ -1001,6 +1001,21 @@ describe("SPÓR OTWARTY - alert dla zespołu NAJEMCY sporu", () => {
     expect(String(adminBells()[0]?.p_body_pl)).toContain(SUB);
   });
 
+  it("subskrypcja NIEZNANA lokalnie: najemca przychodzi z zamówienia transakcji", async () => {
+    // Spór może nieść oba identyfikatory, a wiersza subskrypcji u nas nie być
+    // (inne środowisko, subskrypcja sprzed migracji). Wtedy najemcę wyznacza
+    // zamówienie po transakcji - a nie „nikt".
+    scene.subscription = null;
+    scene.order = orderRow({ tenant_id: BILLING_IDS.foreignTenant });
+    scene.admins = [{ user_id: "admin-b" }];
+    scene.adminProfiles = [{ id: "admin-b", tenant_id: BILLING_IDS.foreignTenant }];
+
+    await applyRefundEffects(refundEvent({ action: "chargeback", subscriptionId: SUB }));
+
+    expect(alertTenants()).toEqual([BILLING_IDS.foreignTenant]);
+    expect(String(adminBells()[0]?.p_body_pl)).toContain(TXN);
+  });
+
   it("spór o DAROWIZNĘ alarmuje najemcę darowizny", async () => {
     scene.order = null;
     scene.donationTenant = BILLING_IDS.foreignTenant;

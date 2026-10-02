@@ -184,10 +184,7 @@ async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
   const { resolvePlanForPrice, syncCrmSubscriptionState } =
     await import("@/lib/billing/purchaseEffects.server");
   const plan = sub.price_id
-    ? await resolvePlanForPrice(sub.price_id, {
-        tenantId: sub.tenant_id ?? null,
-        userId: sub.user_id,
-      })
+    ? await resolvePlanForPrice(sub.price_id, { tenantId: sub.tenant_id, userId: sub.user_id })
     : null;
 
   // CRM: zwrot to utrata klienta, nie pauza.
@@ -206,11 +203,7 @@ async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
     idempotencySeed: event.adjustmentId,
   });
 
-  await pushRefundNotification(
-    sub.user_id,
-    sub.tenant_id ?? plan?.tenantId ?? null,
-    reasonLabel(event.action),
-  );
+  await pushRefundNotification(sub.user_id, sub.tenant_id, reasonLabel(event.action));
 
   return "subscription_refunded";
 }
@@ -380,10 +373,12 @@ async function revokeDonation(event: RefundEvent, txnId: string): Promise<Refund
 /** Dzwonek w aplikacji. Nigdy nie rzuca. */
 async function pushRefundNotification(
   userId: string,
-  tenantId: string | null,
+  // `tenant_id` jest `NOT NULL` na `subscriptions` i `payment_orders`, więc
+  // wołający zawsze go mają - dawny strażnik `if (!tenantId) return` był
+  // nieosiągalny, odkąd najemca nie pochodzi już z planu.
+  tenantId: string,
   reason: string,
 ): Promise<void> {
-  if (!tenantId) return;
   try {
     const supabase = await admin();
     await supabase.from("notifications").insert({
@@ -423,12 +418,12 @@ async function disputeTenant(event: RefundEvent): Promise<string | null> {
         .eq("provider_subscription_id", event.subscriptionId)
         .eq("environment", event.environment)
         .maybeSingle();
-      if (data?.tenant_id) return data.tenant_id;
+      if (data) return data.tenant_id;
     }
     const txnId = event.transactionId;
     if (!txnId || !PROVIDER_REFERENCE_SHAPE.test(txnId)) return null;
     const order = await findOrderForAdjustment(event, "dispute");
-    if (order) return order.tenant_id ?? null;
+    if (order) return order.tenant_id;
     const { data: donation } = await supabase
       .from("donations")
       .select("tenant_id")
@@ -523,7 +518,7 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
 
     const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
     const plan = await resolvePlanForPrice(sub.price_id, {
-      tenantId: sub.tenant_id ?? null,
+      tenantId: sub.tenant_id,
       userId: sub.user_id,
     });
     if (plan) {
@@ -537,7 +532,7 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
         periodEnd: sub.current_period_end ?? null,
       });
     }
-    await alertAdminsAboutDispute(event, "won", sub.tenant_id ?? plan?.tenantId ?? null);
+    await alertAdminsAboutDispute(event, "won", sub.tenant_id);
     return "subscription_restored";
   }
 
@@ -578,7 +573,7 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
     if (rsvpErr) throw new Error(`dispute: rsvp restore failed: ${rsvpErr.message}`);
   }
 
-  await alertAdminsAboutDispute(event, "won", order.tenant_id ?? null, {
+  await alertAdminsAboutDispute(event, "won", order.tenant_id, {
     registrationNeedsReview: Boolean(eventId) && boundToRegistration,
   });
   return "order_restored";
