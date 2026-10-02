@@ -151,3 +151,50 @@ describe("useCommandPaletteShortcut - zachowanie skrótów bez zmian", () => {
     expect(setOpen).not.toHaveBeenCalled();
   });
 });
+
+// Dwa nasłuchy na jednym oknie: panel admina (Cmd/Ctrl+K = fokus na jego
+// wyszukiwarce) i paleta globalna. Bez reguły pierwszeństwa oba odpalały się na
+// jednym naciśnięciu, a o tym, kto był „pierwszy", decydowała kolejność
+// rejestracji (wejście wprost na /admin vs przejście z witryny).
+describe("skrót zajęty lokalnie - właściciel kontekstu wygrywa", () => {
+  it("Cmd/Ctrl+K z `defaultPrevented` NIE przełącza palety", () => {
+    const setOpen = vi.fn();
+    renderHook(() => useCommandPaletteShortcut(false, setOpen));
+    const claim = (e: KeyboardEvent) => e.preventDefault();
+    window.addEventListener("keydown", claim, { capture: true });
+    try {
+      act(() => {
+        window.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "k", ctrlKey: true, cancelable: true }),
+        );
+      });
+    } finally {
+      window.removeEventListener("keydown", claim, { capture: true });
+    }
+    expect(setOpen).not.toHaveBeenCalled();
+  });
+
+  it("`/` i Escape zajęte lokalnie też zostają u właściciela", () => {
+    const setOpen = vi.fn();
+    const { rerender } = renderHook(({ open }) => useCommandPaletteShortcut(open, setOpen), {
+      initialProps: { open: false },
+    });
+    const claim = (e: KeyboardEvent) => e.preventDefault();
+    window.addEventListener("keydown", claim, { capture: true });
+    try {
+      nacisnij("/", { cancelable: true });
+      rerender({ open: true });
+      nacisnij("Escape", { cancelable: true });
+    } finally {
+      window.removeEventListener("keydown", claim, { capture: true });
+    }
+    expect(setOpen).not.toHaveBeenCalled();
+  });
+
+  it("niezajęty Cmd/Ctrl+K działa jak dotąd", () => {
+    const setOpen = vi.fn();
+    renderHook(() => useCommandPaletteShortcut(false, setOpen));
+    nacisnij("k", { metaKey: true, cancelable: true });
+    expect(setOpen).toHaveBeenCalledTimes(1);
+  });
+});

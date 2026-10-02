@@ -87,8 +87,9 @@ describe("visibleCommands - widoczność per rola", () => {
 describe("rejestr - inwarianty wpisu", () => {
   const all = visibleCommands(ADMIN);
 
-  it("każda komenda ma cel: adres ALBO akcję (inaczej Enter nic nie robi)", () => {
-    const dead = all.filter((c) => !c.to && !c.run);
+  it("każda komenda ma niepusty adres (inaczej Enter nic nie robi)", () => {
+    // `to` jest wymagane w typie; test łapie pusty napis, którego typ nie widzi.
+    const dead = all.filter((c) => !c.to.trim());
     expect(dead).toEqual([]);
   });
 
@@ -135,13 +136,13 @@ describe("buildHaystack - zawartość indeksu dopasowania", () => {
   };
 
   it("indeksuje etykiety OBU języków - Polak szukający „posts” ma trafić", () => {
-    const hay = buildHaystack({ cmd, lang: "pl" });
+    const hay = buildHaystack(cmd);
     expect(hay).toContain("Wpisy");
     expect(hay).toContain("Posts");
   });
 
   it("indeksuje podpowiedzi, słowa kluczowe obu języków i ścieżkę", () => {
-    const hay = buildHaystack({ cmd, lang: "pl" });
+    const hay = buildHaystack(cmd);
     expect(hay).toContain("lista wpisów");
     expect(hay).toContain("post list");
     expect(hay).toContain("artykuły");
@@ -150,24 +151,17 @@ describe("buildHaystack - zawartość indeksu dopasowania", () => {
     expect(hay).toContain("/admin/posts");
   });
 
-  it("IGNORUJE parametr lang - indeks jest jeden dla obu języków", () => {
-    // `BuildHaystackInput` deklaruje `lang`, ale funkcja destrukturyzuje samo
-    // `cmd`. To martwy parametr w publicznym API: wołający ma prawo sądzić, że
-    // zawęża indeks do jednego języka, a nie zawęża. Świadomie przypięte, żeby
-    // zmiana na indeks per język nie przeszła niezauważona.
-    expect(buildHaystack({ cmd, lang: "pl" })).toBe(buildHaystack({ cmd, lang: "en" }));
-  });
-
   it("brak pól opcjonalnych nie wstrzykuje „undefined” do indeksu", () => {
     const bare: PaletteCommand = {
       id: "bare",
       section: "navigation",
       label_pl: "Start",
       label_en: "Home",
+      to: "/",
     };
-    const hay = buildHaystack({ cmd: bare, lang: "pl" });
+    const hay = buildHaystack(bare);
     expect(hay).not.toContain("undefined");
-    expect(hay).toBe("Start Home");
+    expect(hay).toBe("Start Home /");
   });
 
   it("przycina indeks - wiodące i końcowe spacje psułyby premię za początek frazy", () => {
@@ -176,21 +170,20 @@ describe("buildHaystack - zawartość indeksu dopasowania", () => {
       section: "navigation",
       label_pl: "Start",
       label_en: "Home",
+      to: "/",
     };
-    const hay = buildHaystack({ cmd: bare, lang: "pl" });
+    const hay = buildHaystack(bare);
     expect(hay).toBe(hay.trim());
   });
 
   it("KAŻDA komenda rejestru ma niepusty indeks - inaczej jest nieodnajdywalna", () => {
-    const empty = visibleCommands(ADMIN).filter(
-      (c) => buildHaystack({ cmd: c, lang: "pl" }).length === 0,
-    );
+    const empty = visibleCommands(ADMIN).filter((c) => buildHaystack(c).length === 0);
     expect(empty.map((c) => c.id)).toEqual([]);
   });
 
   it("indeks każdej komendy niesie jej adres, gdy komenda go ma", () => {
     for (const c of visibleCommands(ADMIN)) {
-      if (c.to) expect(buildHaystack({ cmd: c, lang: "pl" })).toContain(c.to);
+      expect(buildHaystack(c)).toContain(c.to);
     }
   });
 });

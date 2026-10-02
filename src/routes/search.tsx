@@ -63,12 +63,16 @@ import {
   collectLabels,
   hasAnyFilter,
   orderSuggestions,
+  bucketSuggestions,
+  visibleSuggestionIndices,
+  stepSuggestion,
   AUTOSUGGEST_LISTBOX_ID,
   autosuggestOptionId,
   searchHref,
   suggestionHref,
   type SearchTab,
   type SearchUrl,
+  type SuggestTab,
 } from "@/lib/search/facetModel";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
@@ -238,6 +242,9 @@ function SearchPage() {
   // ---- Autosuggest -------------------------------------------------------
   const [sugOpen, setSugOpen] = useState(false);
   const [sugIndex, setSugIndex] = useState(-1);
+  // Zakładka kubełka mega-boxa. Mieszka TU, a nie w autosuggeście, bo strzałki
+  // i Enter muszą chodzić wyłącznie po wierszach, które zakładka pokazuje.
+  const [sugTab, setSugTab] = useState<SuggestTab>("all");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   // Debounce jak w widgecie nagłówka: RPC podpowiedzi strzela po pauzie w
   // pisaniu, nie na każde naciśnięcie klawisza.
@@ -248,10 +255,29 @@ function SearchPage() {
   });
   const suggestions = useMemo(() => orderSuggestions(sugRaw ?? []), [sugRaw]);
   const showSuggest = sugOpen && suggestions.length > 0 && suggestQ.length >= 2;
+  // Numeracja opcji wspólna z renderem (`flat[i].index === i`) i indeksy
+  // wierszy, które bieżąca zakładka faktycznie pokazuje.
+  const flatSuggestions = useMemo(() => bucketSuggestions(suggestions), [suggestions]);
+  const visibleSug = useMemo(
+    () => visibleSuggestionIndices(suggestions, sugTab),
+    [suggestions, sugTab],
+  );
+  const activeSug = showSuggest && visibleSug.includes(sugIndex) ? sugIndex : -1;
 
   useEffect(() => {
     setSugIndex(-1);
   }, [suggestQ]);
+
+  // Zamknięty popover wraca przy następnym otwarciu do „wszystko" - tak jak
+  // wtedy, gdy zakładka żyła w odmontowywanym komponencie listy.
+  useEffect(() => {
+    if (!showSuggest) setSugTab("all");
+  }, [showSuggest]);
+
+  const pickSugTab = (next: SuggestTab) => {
+    setSugTab(next);
+    setSugIndex(-1);
+  };
 
   // Popover zamyka KLIK POZA formularzem, a NIE utrata fokusu przez input.
   //
@@ -350,13 +376,13 @@ function SearchPage() {
     if (!showSuggest) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSugIndex((i) => (i + 1) % suggestions.length);
+      setSugIndex((i) => stepSuggestion(visibleSug, i, 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setSugIndex((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
-    } else if (e.key === "Enter" && sugIndex >= 0) {
+      setSugIndex((i) => stepSuggestion(visibleSug, i, -1));
+    } else if (e.key === "Enter" && activeSug >= 0) {
       e.preventDefault();
-      const item = suggestions[sugIndex];
+      const item = flatSuggestions[activeSug].item;
       pickSuggestion(item);
       // href-owa nawigacja (jak AppLink): dowolna ścieżka splat bez
       // typowanych params trasy.
@@ -561,18 +587,23 @@ function SearchPage() {
               <div className="mt-6">
                 <p className="text-sm font-medium mb-2">{t("search.didYouMean")}</p>
                 <ul className="space-y-1.5">
-                  {(suggest.data ?? []).map((s) => (
-                    <li key={s.id}>
-                      <AppLink
-                        href={`/search?q=${encodeURIComponent(
-                          (lang === "en" ? s.title_en || s.title_pl : s.title_pl) ?? "",
-                        )}`}
-                        className="text-sm text-brand-ink hover:underline"
-                      >
-                        {lang === "en" ? s.title_en || s.title_pl : s.title_pl || s.title_en}
-                      </AppLink>
-                    </li>
-                  ))}
+                  {(suggest.data ?? []).map((s) => {
+                    // JEDEN tytuł dla etykiety i adresu. Adres brał `title_pl`
+                    // bez zapasu, więc wpis bez polskiego tytułu pokazywał
+                    // angielski, a prowadził pod pustą frazę (`/search?q=`).
+                    const title =
+                      (lang === "en" ? s.title_en || s.title_pl : s.title_pl || s.title_en) ?? "";
+                    return (
+                      <li key={s.id}>
+                        <AppLink
+                          href={searchHref({ q: title })}
+                          className="text-sm text-brand-ink hover:underline"
+                        >
+                          {title}
+                        </AppLink>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
@@ -684,9 +715,7 @@ function SearchPage() {
               aria-expanded={showSuggest}
               aria-controls={AUTOSUGGEST_LISTBOX_ID}
               aria-autocomplete="list"
-              aria-activedescendant={
-                showSuggest && sugIndex >= 0 ? autosuggestOptionId(sugIndex) : undefined
-              }
+              aria-activedescendant={activeSug >= 0 ? autosuggestOptionId(activeSug) : undefined}
             />
             <label className="user-label">{t("search.placeholder")}</label>
             <div className="absolute right-3 top-0 flex h-full items-center gap-2">
@@ -724,8 +753,10 @@ function SearchPage() {
           {showSuggest && (
             <SearchAutosuggest
               items={suggestions}
-              activeIndex={sugIndex}
+              activeIndex={activeSug}
               lang={lang}
+              tab={sugTab}
+              onTabChange={pickSugTab}
               onPick={pickSuggestion}
               hrefFor={suggestHref}
               query={draft}

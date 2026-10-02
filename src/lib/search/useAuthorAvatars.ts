@@ -17,15 +17,24 @@ export function useAuthorAvatars(items: AutosuggestItem[]) {
     if (ids.length === 0) return;
     let cancelled = false;
     void (async () => {
-      const { data } = await supabase
-        .from("profiles_public")
-        .select("id, avatar_url")
-        .in("id", ids);
+      let rows: { id: string | null; avatar_url: string | null }[] | null;
+      try {
+        const res = await supabase.from("profiles_public").select("id, avatar_url").in("id", ids);
+        // Odmowa bazy NIE jest odpowiedzią „brak avatara": zapis `null` dla
+        // każdego id blokował ponowną próbę do końca życia komponentu, bo
+        // filtr wyżej pomija id już obecne w mapie.
+        if (res.error) return;
+        rows = res.data;
+      } catch {
+        // Zerwane połączenie - bez tego `void` zamieniał je w nieobsłużone
+        // odrzucenie obietnicy (telemetria błędów JS), a wiersz i tak ma ikonę.
+        return;
+      }
       if (cancelled) return;
       const next: Record<string, string | null> = {};
       for (const id of ids) next[id] = null;
-      for (const row of (data ?? []) as { id: string; avatar_url: string | null }[]) {
-        next[row.id] = row.avatar_url ?? null;
+      for (const row of rows ?? []) {
+        if (row.id) next[row.id] = row.avatar_url ?? null;
       }
       setAvatars((prev) => ({ ...prev, ...next }));
     })();

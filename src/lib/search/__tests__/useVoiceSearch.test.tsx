@@ -438,10 +438,16 @@ describe("useVoiceSearch - transkrypcja serwerowa", () => {
     expect(opts.onText).not.toHaveBeenCalled();
   });
 
-  it("ANONIM nie ma tokenu - transkrypcja serwerowa się nie odbywa", async () => {
+  it("ANONIM nie nagrywa W PRÓŻNIĘ - bez sesji nie ma prośby o mikrofon ani wysyłki", async () => {
+    // Ten przypadek dokumentował wcześniej DEFEKT: anonim dostawał nagrywanie
+    // (zgoda na mikrofon, czerwona dioda), a po zatrzymaniu `/api/stt` i tak
+    // wymagało sesji - fraza nigdy nie wracała. Teraz anonim idzie w Web Speech.
     h.getSession.mockResolvedValue({ data: { session: null } });
     const { opts } = await recordAndStop();
-    await waitFor(() => expect(fetch).not.toHaveBeenCalled());
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(recorders).toHaveLength(0);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(speeches).toHaveLength(1);
     expect(opts.onText).not.toHaveBeenCalled();
   });
 
@@ -675,5 +681,155 @@ describe("useVoiceSearch - sprzątanie", () => {
   it("odmontowanie bez rozpoczętego nagrania nie rzuca", () => {
     const { unmount } = renderHook(() => useVoiceSearch(options()));
     expect(() => unmount()).not.toThrow();
+  });
+});
+
+describe("useVoiceSearch - anonim (serwerowe STT wymaga sesji)", () => {
+  beforeEach(() => {
+    h.getSession.mockResolvedValue({ data: { session: null } });
+  });
+
+  it("ANONIM dyktuje przez Web Speech i fraza WRACA do pola oraz do wyszukiwania", async () => {
+    const opts = options();
+    const { result } = renderHook(() => useVoiceSearch(opts));
+    await act(async () => result.current.toggle());
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(result.current.listening).toBe(true);
+    act(() => speeches[0].onresult?.({ results: [{ isFinal: true, 0: { transcript: "unia" } }] }));
+    expect(opts.onText).toHaveBeenCalledWith("unia");
+    expect(opts.onFinal).toHaveBeenCalledWith("unia");
+  });
+
+  it("błąd odczytu sesji traktowany jak anonim - Web Speech, bez mikrofonu", async () => {
+    h.getSession.mockRejectedValue(new Error("storage zablokowany"));
+    const { result } = renderHook(() => useVoiceSearch(options()));
+    await act(async () => result.current.toggle());
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(speeches).toHaveLength(1);
+  });
+
+  it("anonim BEZ Web Speech nie dostaje przycisku - jedyną drogą byłoby STT z sesją", async () => {
+    delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
+    const { result } = renderHook(() => useVoiceSearch(options()));
+    await waitFor(() => expect(result.current.supported).toBe(false));
+    await act(async () => result.current.toggle());
+    expect(getUserMedia).not.toHaveBeenCalled();
+    expect(result.current.listening).toBe(false);
+  });
+
+  it("ZALOGOWANY bez Web Speech nadal ma przycisk - transkrypcja serwerowa działa", async () => {
+    h.getSession.mockResolvedValue({ data: { session: { access_token: "tok" } } });
+    delete (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition;
+    const { result } = renderHook(() => useVoiceSearch(options()));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current.supported).toBe(true);
+  });
+});
+
+describe("useVoiceSearch - współbieżność startu i odmontowanie w locie", () => {
+  /** getUserMedia wisi (dialog zgody) do ręcznego zwolnienia. */
+  function pendingPermission() {
+    let grant: (s: MediaStream) => void = () => {};
+    getUserMedia.mockImplementation(() => new Promise<MediaStream>((r) => (grant = r)));
+    return (s: MediaStream) => grant(s);
+  }
+
+  it("DRUGI toggle podczas dialogu zgody NIE otwiera drugiego strumienia", async () => {
+    const grant = pendingPermission();
+    const { result } = renderHook(() => useVoiceSearch(options()));
+    await act(async () => {
+      result.current.toggle();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      result.current.toggle();
+      result.current.toggle();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      grant(fakeStream());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(recorders).toHaveLength(1);
+    expect(result.current.listening).toBe(true);
+  });
+
+  it("po zakończonym starcie toggle znów działa - blokada nie zostaje na stałe", async () => {
+    const { result } = renderHook(() => useVoiceSearch(options()));
+    await act(async () => result.current.toggle());
+    await act(async () => {
+      result.current.toggle();
+      await Promise.resolve();
+    });
+    expect(result.current.listening).toBe(false);
+    await act(async () => result.current.toggle());
+    expect(getUserMedia).toHaveBeenCalledTimes(2);
+    expect(result.current.listening).toBe(true);
+  });
+
+  it("ODMONTOWANIE podczas dialogu zgody zwalnia mikrofon przyznany już po wyjściu", async () => {
+    const grant = pendingPermission();
+    const { result, unmount } = renderHook(() => useVoiceSearch(options()));
+    await act(async () => {
+      result.current.toggle();
+      await Promise.resolve();
+    });
+    unmount();
+    const late = fakeStream();
+    await act(async () => {
+      grant(late);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(tracks[tracks.length - 1].stop).toHaveBeenCalled();
+    expect(recorders).toHaveLength(0);
+    // I nie startuje też Web Speech pod nieistniejącą już stroną.
+    expect(speeches).toHaveLength(0);
+  });
+
+  it("ODMONTOWANIE w trakcie nagrania NIE wysyła go i NIE zatwierdza frazy", async () => {
+    const opts = options();
+    const { result, unmount } = renderHook(() => useVoiceSearch(opts));
+    await act(async () => result.current.toggle());
+    expect(recorders).toHaveLength(1);
+    unmount();
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    // Wcześniej `onstop` odpalony przez sprzątanie wysyłał nagranie, a `onFinal`
+    // nawigował z powrotem na /search spod strony, na którą użytkownik przeszedł.
+    expect(fetch).not.toHaveBeenCalled();
+    expect(opts.onFinal).not.toHaveBeenCalled();
+  });
+
+  it("transkrypcja, która wróci PO odmontowaniu, jest wyrzucana", async () => {
+    let release: (v: unknown) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(() => new Promise((r) => (release = r))),
+    );
+    const opts = options();
+    const { result, unmount } = renderHook(() => useVoiceSearch(opts));
+    await act(async () => result.current.toggle());
+    await act(async () => {
+      result.current.toggle();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    unmount();
+    await act(async () => {
+      release({ ok: true, json: () => Promise.resolve({ text: "spóźniona" }) });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(opts.onText).not.toHaveBeenCalled();
+    expect(opts.onFinal).not.toHaveBeenCalled();
   });
 });

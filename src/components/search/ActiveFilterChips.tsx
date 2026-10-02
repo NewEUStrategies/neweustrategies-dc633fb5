@@ -25,12 +25,12 @@ export function ActiveFilterChips({ url, facets, labelCache, lang, onChange }: P
   const selections = activeSelections(url);
   if (selections.length === 0) return null;
 
-  // Szybkie mapy z bieżących faset (pierwszeństwo przed cache).
+  // Szybka mapa z bieżących faset (pierwszeństwo przed cache). Wymiary bez id
+  // (format/lang/access/rok) mają etykiety ze słownika, więc mapa po slugu
+  // nie była czytana nigdzie.
   const byId = new Map<string, FacetValue>();
-  const bySlug = new Map<string, FacetValue>();
   for (const f of facets) {
     if (f.id) byId.set(f.id, f);
-    bySlug.set(`${f.dim}:${f.slug}`, f);
   }
 
   const labelFor = (sel: ActiveSelection): string => {
