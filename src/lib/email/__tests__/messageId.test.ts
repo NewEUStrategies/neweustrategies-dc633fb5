@@ -26,6 +26,8 @@ describe("deterministicMessageId", () => {
     const b = await deterministicMessageId("order-2");
 
     expect(a).not.toBe(b);
+    // Różnica nie może sprowadzać się do bitów wersji i wariantu.
+    expect(a.replace(/-/g, "").slice(0, 12)).not.toBe(b.replace(/-/g, "").slice(0, 12));
   });
 
   it("wynik ma kształt UUID v4 (wersja i wariant ustawione)", async () => {

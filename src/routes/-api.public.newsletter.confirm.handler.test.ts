@@ -266,8 +266,9 @@ describe("ponowny zapis po wypisie", () => {
   it("ponowny klik po potwierdzeniu nie dotyka listy wykluczeń", async () => {
     db.setResponse(SUBSCRIBERS, ok(pendingRow({ status: "subscribed" })));
 
-    await get();
+    const res = await get();
 
+    await expect(res.json()).resolves.toEqual({ ok: true, already: true });
     expect(db.chainsFor(SUPPRESSIONS)).toHaveLength(0);
   });
 });
