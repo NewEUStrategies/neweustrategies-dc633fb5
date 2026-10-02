@@ -125,6 +125,7 @@ import {
 } from "@/lib/events/scannerRoster";
 import { appendConflict, detectConflict, type ScanConflict } from "@/lib/events/scannerSyncIssues";
 import { sha256Hex } from "@/lib/events/scannerHash";
+import { newClientScanUid } from "@/lib/events/clientScanUid";
 import type { CheckinDirection } from "@/lib/events/onsiteEnums";
 
 /** Co ile próbować opróżnić kolejkę, gdy coś w niej stoi. */
@@ -219,17 +220,6 @@ export interface ScannerRuntime {
   /** `false` = lista, konflikty i odrzucone żyją tylko w pamięci karty. */
   offlineStoragePersistent: boolean;
   lastFlush: FlushReport | null;
-}
-
-function newScanId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  // Awaryjnie, gdy `crypto.randomUUID` nie istnieje: identyfikator ma być
-  // niepowtarzalny w obrębie JEDNEGO urządzenia, bo tylko tam służy za klucz
-  // idempotencji - kolizja między urządzeniami nie ma jak wystąpić, skoro
-  // baza dokłada do klucza identyfikator urządzenia.
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 function isOffline(): boolean {
@@ -946,7 +936,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       const activeToken = tokenRef.current;
       if (activeToken === null) throw new Error("invalid_device_token: no session");
       assertNotExpired();
-      const id = newScanId();
+      const id = newClientScanUid();
       const atMs = Date.now() + clockOffsetRef.current;
       const scannedAt = new Date(atMs).toISOString();
 
@@ -1047,7 +1037,7 @@ export function useScannerRuntime(initialToken: string | null = null): ScannerRu
       assertNotExpired();
       const scannedAt = correctedNowIso(clockOffsetRef.current);
       const item: OutboxItem = {
-        id: newScanId(),
+        id: newClientScanUid(),
         kind: "lead",
         code: input.code,
         checkpointId: null,

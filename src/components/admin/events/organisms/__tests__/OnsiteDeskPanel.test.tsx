@@ -499,6 +499,7 @@ describe("zapis odprawy", () => {
         personId: OSOBA,
         direction: "in",
         source: "name_search",
+        clientScanUid: expect.any(String),
       },
     ]);
   });
@@ -575,6 +576,85 @@ describe("zapis odprawy", () => {
     panel();
 
     expect(within(wiersz()).getByRole("button", { name: `${T}.actions.checkIn` })).toBeDisabled();
+  });
+});
+
+describe("klucz idempotencji odprawy - jedna próba, jeden klucz", () => {
+  // Panel deklarował `clientScanUid` w kontrakcie (`ManualCheckinInput`), ale
+  // go nie wysyłał. Kliknięcie ponowione po zerwanej odpowiedzi zapisywało
+  // wtedy DRUGIE wejście tej samej osoby. Baza zna klucz (`replay`, harness
+  // 53_manual_checkin) - panel musi go podać i trzymać przez całą próbę.
+  const klucz = (index: number): string | undefined =>
+    (h.odprawy[index] as ManualCheckinInput | undefined)?.clientScanUid;
+  const odpraw = (index = 0, nazwa = `${T}.actions.checkIn`) =>
+    fireEvent.click(within(wiersz(index)).getByRole("button", { name: nazwa }));
+
+  it("każda odprawa niesie niepusty klucz", () => {
+    panel();
+    przyBramce();
+    odpraw();
+
+    expect(klucz(0)).toEqual(expect.any(String));
+    expect(klucz(0)).not.toBe("");
+  });
+
+  it("ponowienie PO BŁĘDZIE niesie TEN SAM klucz - baza odda `replay`, nie drugie wejście", () => {
+    h.odprawaBlad = new Error("Failed to fetch");
+    panel();
+    przyBramce();
+    odpraw();
+    odpraw();
+
+    expect(h.odprawy).toHaveLength(2);
+    expect(klucz(0)).toEqual(expect.any(String));
+    expect(klucz(1)).toBe(klucz(0));
+  });
+
+  it("odpowiedź bazy zamyka próbę - następne kliknięcie to nowe zdarzenie z nowym kluczem", () => {
+    panel();
+    przyBramce();
+    odpraw();
+    odpraw();
+
+    expect(klucz(1)).not.toBe(klucz(0));
+  });
+
+  it("po błędzie i udanym ponowieniu kolejna próba dostaje NOWY klucz", () => {
+    h.odprawaBlad = new Error("Failed to fetch");
+    panel();
+    przyBramce();
+    odpraw();
+    h.odprawaBlad = null;
+    odpraw();
+    odpraw();
+
+    expect(klucz(1)).toBe(klucz(0));
+    expect(klucz(2)).not.toBe(klucz(1));
+  });
+
+  it("inna osoba i inny kierunek to INNE próby - klucze się nie mieszają", () => {
+    h.odprawaBlad = new Error("Failed to fetch");
+    h.punkty = [punkt({ direction_mode: "in_out" })];
+    h.rows = [osoba(), osoba({ person_id: INNA_OSOBA, first_name: "Piotr" })];
+    panel();
+    przyBramce();
+    odpraw(0);
+    odpraw(1);
+    odpraw(0, `${T}.actions.checkOut`);
+
+    expect(new Set([klucz(0), klucz(1), klucz(2)]).size).toBe(3);
+  });
+
+  it("zmiana bramki to inna próba - klucz z poprzedniej bramki nie przechodzi", () => {
+    h.odprawaBlad = new Error("Failed to fetch");
+    h.punkty = [punkt(), punkt({ id: PUNKT_WYJSCIOWY, name_pl: "Bramka boczna" })];
+    panel();
+    przyBramce(PUNKT);
+    odpraw();
+    przyBramce(PUNKT_WYJSCIOWY);
+    odpraw();
+
+    expect(klucz(1)).not.toBe(klucz(0));
   });
 });
 
