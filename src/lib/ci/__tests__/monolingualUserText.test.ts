@@ -425,7 +425,11 @@ describe("monolingualUserText - self-test na realnym src/", () => {
     // To nie jest nowy dług: liczbę wystąpień trzyma asercja wyżej (suma), a
     // rozkład per plik - ratchet w `monolingualUserText.ts`, gdzie ruch jest
     // udokumentowany. Sufit sumy ZOSTAJE na 713 i nadal może tylko maleć.
+    //
+    // 2026-10-02 (moduł 7): 164 -> 162 PLIKI. `PodcastShowsPane.tsx` i
+    // `podcast.$slug.tsx` spłaciły dług do zera (nazwy platform przeszły do
+    // danych), więc ich wpisy zeszły z baseline'u.
     expect(report.total).toBeLessThanOrEqual(713);
-    expect(baseline.size).toBe(164);
+    expect(baseline.size).toBe(162);
   });
 });
