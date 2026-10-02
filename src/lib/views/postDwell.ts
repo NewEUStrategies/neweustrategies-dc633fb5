@@ -137,7 +137,9 @@ export function startPostDwell(
   const detach = (): void => {
     stopped = true;
     for (const type of INPUT_EVENTS) deps.win.removeEventListener(type, onActivity, input);
-    deps.win.removeEventListener("scroll", onActivity, pageScroll);
+    // Bez opcji: zdejmuje słuchacza dodanego bez capture (`passive` nie bierze
+    // udziału w dopasowaniu, a typ opcji usunięcia zna wyłącznie `capture`).
+    deps.win.removeEventListener("scroll", onActivity);
     deps.doc.removeEventListener("visibilitychange", onVisibility);
     deps.win.removeEventListener("pagehide", onPageHide, { capture: true });
     offConsent();
