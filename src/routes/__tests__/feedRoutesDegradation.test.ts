@@ -16,6 +16,9 @@
 //   3. KONTRAKT SHARDÓW `sitemaps.$section.ts`: sekcja nieznana, sekcja pusta
 //      i shard POZA zakresem paginacji. Te same reguły, które e2e sprawdza na
 //      żywym środowisku - tutaj padają szybciej i bez bazy.
+//   4. (blok 5) JEDNA MACIERZ dla każdej powierzchni z rejestru
+//      `MACHINE_SURFACES`: tenant / degradacja / fail-closed / awaria czytnika,
+//      z testem antydryfu, który nie przepuści nowej powierzchni bez wiersza.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE
 //
@@ -218,6 +221,18 @@ const state = vi.hoisted(() => ({
   sectionsFailure: null as "throw" | "pgError" | null,
   /** Wpisy sekcji sitemapy zwracane, gdy kolektor nie zawodzi. */
   sectionEntries: [] as Array<{ loc: string; lastmod?: string }>,
+  /**
+   * Wszystkie sekcje indeksu sitemapy. DOMYŚLNIE PUSTA MAPA - jak przy
+   * tenancie bez treści albo kolektorach, które złapały awarię i oddały `[]`.
+   */
+  allSections: new Map<string, Array<{ loc: string; lastmod?: string }>>(),
+  /**
+   * Sekcje, których odczyt RZUCIŁ w `collectAllSitemapSections` (i zdegradował
+   * do `[]`) - jedyny sposób, w jaki indeks odróżnia awarię od pustki.
+   */
+  failedSections: [] as string[],
+  /** Awaria odczytu ustawień SEO (null = czytnik odpowiada). */
+  settingsFailure: null as "throw" | null,
 
   // -------------------------------------------------------------------------
   // MODUŁ 07 - sześć powierzchni crawlera treści specjalnych.
@@ -299,7 +314,10 @@ vi.mock("@/lib/server/tenant.server", () => ({
 }));
 
 vi.mock("@/lib/server/publishedContent.server", () => ({
-  fetchSeoSettingsValue: () => Promise.resolve(state.settings),
+  fetchSeoSettingsValue: () =>
+    state.settingsFailure
+      ? Promise.reject(new Error("ustawienia niedostępne"))
+      : Promise.resolve(state.settings),
   fetchPublishedPosts: () => Promise.resolve(failOrEmpty(state.postsFailure, state.posts)),
   fetchPublicCategories: () =>
     Promise.resolve(failOrEmpty(state.categoriesFailure, state.categories)),
@@ -328,7 +346,12 @@ vi.mock("@/lib/server/publishedContent.server", () => ({
 
 vi.mock("@/lib/server/sitemapEntries.server", () => ({
   collectAllSitemapSections: () =>
-    Promise.resolve(failOrEmpty(state.sectionsFailure, new Map<string, unknown[]>())),
+    Promise.resolve(
+      failOrEmpty(state.sectionsFailure, {
+        sections: state.allSections,
+        failedSections: state.failedSections,
+      }),
+    ),
   collectSitemapSection: () =>
     Promise.resolve(failOrEmpty(state.sectionsFailure, state.sectionEntries)),
   coreSitemapEntries: (origin: string) => [{ loc: `${origin}/` }],
@@ -525,6 +548,9 @@ const HEALTHY = {
   categories: [] as NonNullable<TaxonomyStub>[],
   sectionsFailure: null,
   sectionEntries: [] as Array<{ loc: string; lastmod?: string }>,
+  allSections: new Map<string, Array<{ loc: string; lastmod?: string }>>(),
+  failedSections: [] as string[],
+  settingsFailure: null,
   // Moduł 07 startuje ZDROWO: kanały mają treść, programy się rozwiązują.
   // Test, który chce stanu awaryjnego, zeruje POJEDYNCZE pole - dzięki temu
   // z opisu testu widać, KTÓRA warstwa zawiodła.
@@ -638,6 +664,17 @@ async function expectRejectsWithInjectedFailure(
     );
   }
 }
+
+/**
+ * Nagłówki, które odpowiedź PUSTA/zdegradowana musi dostać po naprawie z
+ * `lib/seo/feedCache.ts` - wspólne dla kanałów, mapy strony i llms.txt, więc
+ * zdefiniowane przed PIERWSZYM blokiem, który ich używa.
+ */
+const EMPTY_FEED_CACHE = "public, max-age=0, s-maxage=60, must-revalidate";
+/** Nagłówek kanału PEŁNEGO - standardowy. */
+const FULL_FEED_CACHE = "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400";
+/** Nagłówek kanału PEŁNEGO relacji na żywo - świadomy wyjątek (minuty, nie godziny). */
+const FULL_LIVE_CACHE = "public, max-age=60, s-maxage=120, stale-while-revalidate=600";
 
 describe("sitemapIsWellFormed - kontrola samego narzędzia", () => {
   // Bez tego bloku asercja „dokument jest domknięty" mogłaby przechodzić dla
@@ -856,26 +893,84 @@ describe("nagłówki odpowiedzi ZDEGRADOWANEJ (pusty zbiór)", () => {
   });
 
   it("indeks i shardy ZAWSZE rewalidują u klienta - inaczej zmiana SEO nie propaguje", async () => {
-    // `max-age=0` + `must-revalidate` to jedyna część kontraktu cache tych
-    // powierzchni, która jest dziś poprawna dla odpowiedzi zdegradowanej -
-    // i którą e2e sprawdza wyłącznie dla indeksu na zdrowym środowisku
-    // ("sitemap.xml is a sitemapindex...", asercja na cache-control). Tutaj
-    // przypinamy ją dla stanu awaryjnego, którego e2e nie umie wytworzyć.
+    // `max-age=0` + `must-revalidate` e2e sprawdza wyłącznie dla indeksu na
+    // zdrowym środowisku ("sitemap.xml is a sitemapindex...", asercja na
+    // cache-control). Tutaj przypinamy ją dla stanu awaryjnego, którego e2e
+    // nie umie wytworzyć.
     const { Route } = await import("../sitemap[.]xml");
     const cc = (await routeServerHandlers(Route).GET!({})).headers.get("cache-control") ?? "";
     expect(cc).toContain("max-age=0");
     expect(cc).toContain("must-revalidate");
   });
 
-  it("/llms.txt jest fail-closed przy nieznanym tenancie - 404, nie pusty przewodnik", async () => {
-    // Ta trasa NIE ma członu degradacji (`crawlerDegradeIsSafe`), który mają
-    // /rss.xml i /news-sitemap.xml. Przypinamy różnicę, bo to nie przypadek:
-    // przewodnik dla asystentów AI opisuje redakcję, więc pusty jest gorszy
-    // od nieobecnego - asystent zacytowałby serwis bez treści.
+  it("indeks i shard `core` ZDEGRADOWANE nie dostają stale-while-revalidate - NAPRAWIONE 2026-10", async () => {
+    // KONSEKWENCJA. Do 2026-10 odpowiedź zdegradowana (sam szkielet `core`,
+    // bez tenanta) dostawała ten sam nagłówek co mapa pełna - z
+    // `stale-while-revalidate=1800`. Brzeg podawał więc indeks BEZ shardów
+    // treści jeszcze pół godziny po powrocie katalogu domen, a crawler przez
+    // ten czas nie widział żadnego nowego adresu. Kontrakt jest teraz ten sam,
+    // co dla pustego kanału (`lib/seo/feedCache.ts`).
+    const index = await import("../sitemap[.]xml");
+    const shardRoute = await import("../sitemaps.$section");
+    const indexCc =
+      (await routeServerHandlers(index.Route).GET!({})).headers.get("cache-control") ?? "";
+    const coreRes = await routeServerHandlers(shardRoute.Route).GET!({
+      params: { section: "core.xml" },
+    });
+    expect(coreRes.status, "szkielet `core` MUSI wyjść - inaczej test nie mierzy nagłówka").toBe(
+      200,
+    );
+    for (const [label, cc] of [
+      ["indeks", indexCc],
+      ["shard core", coreRes.headers.get("cache-control") ?? ""],
+    ] as const) {
+      expect(cc, `${label}: TTL zdegradowany`).toBe(EMPTY_FEED_CACHE);
+    }
+  });
+
+  it("/llms.txt degraduje do STATYCZNEGO przewodnika, nie do 404 - UJEDNOLICONE 2026-10", async () => {
+    // HISTORIA. Do 2026-10 stał tu test przypinający 404 jako zamierzoną
+    // różnicę: llms.txt był JEDYNĄ powierzchnią adresowaną samym hostem bez
+    // członu `crawlerDegradeIsSafe`, z uzasadnieniem „pusty przewodnik jest
+    // gorszy od nieobecnego". Przesłanka nie trzymała się kodu: przewodnik
+    // zdegradowany NIE jest pusty - niesie tożsamość serwisu, opis domyślny,
+    // listę zasobów maszynowych i blok warunków (w degradacji: BEZ zgody, z
+    // odesłaniem do robots.txt - blok „degradacja tylko tam, gdzie przewodnik
+    // jest jednoznaczny" niżej), a robots.txt wskazuje
+    // właśnie `/llms.txt` jako warunki wykorzystania treści. 404 na hoście
+    // podglądu i przy nieosiągalnym katalogu domen zamieniało więc „nie wiem"
+    // w „nie ma warunków". Fail-closed dla realnej obcej domeny zostaje
+    // nietknięty (blok „host nieznany" niżej).
+    state.posts = [feedPost()];
+    state.categories = [
+      {
+        slug: "analizy",
+        name_pl: "Analizy",
+        name_en: "Analyses",
+        description_pl: null,
+        description_en: null,
+      },
+    ];
     const { Route } = await import("../llms[.]txt");
     const res = await routeServerHandlers(Route).GET!({});
-    expect(res.status).toBe(404);
-    expect(await res.text()).toBe("Unknown host");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+    const body = await assertNeverTruncated(res, "text");
+    expect(body.startsWith("# New European Strategies\n")).toBe(true);
+    expect(body).toContain("## Zasoby maszynowe / Machine-readable resources");
+    expect(body).toContain("## Warunki wykorzystania i cytowania / Usage and citation terms");
+    // Bez tenanta trasa NIE woła czytników - atrapa MA dane, a przewodnik ich
+    // nie pokazuje. Gdyby kiedyś zawołała, TU by to wyszło, zamiast wyjść jako
+    // treść jednego obszaru roboczego na cudzej domenie.
+    expect(body, "bez tenanta nie ma sekcji").not.toContain("## Sekcje");
+    expect(body, "bez tenanta nie ma artykułów").not.toContain("Pierwsza analiza");
+    expect(body).not.toContain("## Najnowsze artykuły");
+  });
+
+  it("zdegradowany /llms.txt dostaje TTL odpowiedzi zdegradowanej - bez stale-while-revalidate", async () => {
+    const { Route } = await import("../llms[.]txt");
+    const res = await routeServerHandlers(Route).GET!({});
+    expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
   });
 });
 
@@ -955,7 +1050,11 @@ it("/llms.txt wiąże treści PL/EN z właściwymi adresami i sekcjami tenanta",
   const res = await routeServerHandlers(Route).GET!({});
   expect(res.status).toBe(200);
   expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
-  expect(res.headers.get("cache-control")).toContain("s-maxage=60");
+  // Kontrola dodatnia kontraktu cache: przewodnik PEŁNY (artykuły i sekcje)
+  // zachowuje swój dotychczasowy TTL ze `stale-while-revalidate`.
+  expect(res.headers.get("cache-control")).toBe(
+    "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate",
+  );
   const body = await res.text();
   expect(body).toContain(
     "[Pierwsza analiza](https://neweuropeanstrategies.com/analizy/pierwsza-analiza)",
@@ -989,6 +1088,9 @@ describe("kontrakt sitemaps.$section - sekcja nieznana, pusta i poza paginacją"
     ["core-0.xml", "numeracja shardów startuje od 2"],
     ["core-abc.xml", "numer shardu nie jest liczbą"],
     ["core-2.5.xml", "numer shardu nie jest całkowity"],
+    ["core-02.xml", "zero wiodące - ten sam shard pod drugim adresem"],
+    ["posts-02.xml", "zero wiodące w sekcji treści"],
+    ["posts-0002.xml", "kilka zer wiodących"],
     ["", "pusty segment"],
     [".xml", "sam sufiks bez sekcji"],
   ])("%s -> 404 (%s)", async (section) => {
@@ -1130,13 +1232,6 @@ function htmlIsWellFormed(body: string): boolean {
   if (!/^<!doctype html>/i.test(body.trimStart())) return false;
   return body.trimEnd().endsWith("</html>");
 }
-
-/** Nagłówki, które kanał PUSTY musi dostać po naprawie z `lib/seo/feedCache.ts`. */
-const EMPTY_FEED_CACHE = "public, max-age=0, s-maxage=60, must-revalidate";
-/** Nagłówek kanału PEŁNEGO - standardowy. */
-const FULL_FEED_CACHE = "public, max-age=300, s-maxage=1800, stale-while-revalidate=86400";
-/** Nagłówek kanału PEŁNEGO relacji na żywo - świadomy wyjątek (minuty, nie godziny). */
-const FULL_LIVE_CACHE = "public, max-age=60, s-maxage=120, stale-while-revalidate=600";
 
 /** Handler GET powierzchni modułu 07 pod jej ścieżką modułową. */
 async function surfaceGet(modulePath: string, params?: Record<string, string>): Promise<Response> {
@@ -1940,5 +2035,578 @@ describe("moduł 07: kanał programu - zapasy tytułu i opisu między językami"
     const body = await showFeed();
     expect(xmlIsWellFormed(body), "kanał musi zostać domknięty").toBe(true);
     expect(body).toContain("<item>");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. JEDEN KONTRAKT DLA KAŻDEJ POWIERZCHNI Z REJESTRU (`MACHINE_SURFACES`)
+//
+// PO CO TA MACIERZ. Bloki wyżej wyrosły POWIERZCHNIA PO POWIERZCHNI i właśnie
+// dlatego przepuściły rozjazd: `/llms.txt` jako jedyna powierzchnia adresowana
+// samym hostem nie miała członu `crawlerDegradeIsSafe` (404 na hoście podglądu
+// i przy nieosiągalnym katalogu domen), a zdegradowany indeks sitemapy dostawał
+// `stale-while-revalidate` mapy pełnej. Oba braki były widoczne dopiero przy
+// czytaniu tras obok siebie. Ta macierz czyta je obok siebie z definicji:
+// KAŻDA powierzchnia przechodzi TE SAME stany i dostaje TE SAME asercje.
+//
+// KONTRAKT TRÓJDROŻNY (+ awaria warstwy danych):
+//   * tenant          -> 200, dokument domknięty, TTL pełny, gdy ma treść;
+//   * tenant + pustka -> 200, dokument domknięty, TTL ZDEGRADOWANY (czytnik
+//                        `resilient` oddał `[]` - jedyny ślad awarii w trasie);
+//   * degradacja      -> 200, dokument domknięty, TTL ZDEGRADOWANY, ZERO treści
+//                        tenanta (host podglądu / pusty-nieosiągalny katalog);
+//   * fail-closed     -> 404 „Unknown host" (realna obca domena przy
+//                        zasiedlonym katalogu);
+//   * czytnik rzuca   -> odrzucenie (framework robi 500) - nigdy ucięty dokument.
+//
+// ANTYDRYF. Pierwszy test bloku dowodzi, że KAŻDY wpis rejestru jest albo
+// w macierzy, albo na liście wyjątków z uzasadnieniem. Dopisanie nowej
+// powierzchni do `MACHINE_SURFACES` bez dopisania jej tutaj nie przejdzie CI -
+// to ten sam mechanizm, którym `machineSurfaces.contract.test.ts` pilnuje
+// odkrywalności, tylko dla zachowania przy awarii.
+// ---------------------------------------------------------------------------
+
+interface HostSurfaceRow {
+  /** Ścieżka z rejestru `MACHINE_SURFACES`. */
+  path: string;
+  /** Moduł trasy względem tego pliku. */
+  modulePath: string;
+  kind: "xml" | "text";
+  /** Wypełnia czytniki tak, żeby dokument był PEŁNY (ma treść). */
+  fill: () => void;
+  /** Zeruje czytniki tak, jak robi to `resilient` przy awarii bazy. */
+  empty: () => void;
+  /** Wstrzykuje awarię HIPOTETYCZNĄ („gdyby ktoś zdjął `resilient`"). */
+  fail: (mode: "throw" | "pgError") => void;
+  /** Tabela w komunikacie wstrzykniętego błędu PostgREST. */
+  table: string;
+  /**
+   * Fragment treści tenanta, który NIE może wyjść bez tenanta. `null` tam,
+   * gdzie szczelność mieszka w kolektorze, nie w trasie (patrz test niżej).
+   */
+  leakMarker: string | null;
+  /** TTL pełny tej powierzchni - wyjątki od `FULL_FEED_CACHE` są nazwane. */
+  fullCache: string;
+}
+
+const LLMS_FULL_CACHE =
+  "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate";
+const SITEMAP_FULL_CACHE =
+  "public, max-age=0, s-maxage=60, stale-while-revalidate=1800, must-revalidate";
+
+/** Kategoria z treścią - wspólna dla wierszy, które czytają sekcje. */
+const CATEGORY_ROW = {
+  slug: "analizy",
+  name_pl: "Analizy",
+  name_en: "Analyses",
+  description_pl: "Komentarze ekspertów.",
+  description_en: "Expert commentary.",
+};
+
+const HOST_SURFACE_MATRIX: readonly HostSurfaceRow[] = [
+  {
+    path: "/rss.xml",
+    modulePath: "../rss[.]xml",
+    kind: "xml",
+    fill: () => {
+      state.posts = [feedPost()];
+    },
+    empty: () => {
+      state.posts = [];
+    },
+    fail: (mode) => {
+      state.postsFailure = mode;
+    },
+    table: "posts",
+    leakMarker: "Pierwsza analiza",
+    fullCache: FULL_FEED_CACHE,
+  },
+  {
+    path: "/news-sitemap.xml",
+    modulePath: "../news-sitemap[.]xml",
+    kind: "xml",
+    // Wpis MUSI wpaść w 48-godzinne okno Google News od zegara testu.
+    fill: () => {
+      state.posts = [feedPost({ published_at: "2026-02-03T08:00:00Z" })];
+    },
+    empty: () => {
+      state.posts = [];
+    },
+    fail: (mode) => {
+      state.postsFailure = mode;
+    },
+    table: "posts",
+    leakMarker: "Pierwsza analiza",
+    fullCache: "public, max-age=120, s-maxage=300, stale-while-revalidate=600",
+  },
+  {
+    path: "/llms.txt",
+    modulePath: "../llms[.]txt",
+    kind: "text",
+    fill: () => {
+      state.posts = [feedPost()];
+      state.categories = [CATEGORY_ROW];
+    },
+    empty: () => {
+      state.posts = [];
+      state.categories = [];
+    },
+    fail: (mode) => {
+      state.postsFailure = mode;
+    },
+    table: "posts",
+    leakMarker: "Pierwsza analiza",
+    fullCache: LLMS_FULL_CACHE,
+  },
+  {
+    path: "/sitemap.xml",
+    modulePath: "../sitemap[.]xml",
+    kind: "xml",
+    fill: () => {
+      state.allSections = new Map([
+        ["core", [{ loc: "https://neweuropeanstrategies.com/" }]],
+        ["posts", [{ loc: "https://neweuropeanstrategies.com/analizy/pierwsza-analiza" }]],
+      ]);
+    },
+    empty: () => {
+      state.allSections = new Map([["core", [{ loc: "https://neweuropeanstrategies.com/" }]]]);
+    },
+    fail: (mode) => {
+      state.sectionsFailure = mode;
+    },
+    table: "posts",
+    // Szczelność indeksu mieszka w `collectAllSitemapSections` (bez tenanta
+    // oddaje sam szkielet) - atrapa tego nie odtwarza, więc dowodzimy
+    // ARGUMENTU, z jakim trasa woła kolektor (osobny test niżej).
+    leakMarker: null,
+    fullCache: SITEMAP_FULL_CACHE,
+  },
+  {
+    path: "/podcast/rss.xml",
+    modulePath: "../podcast.rss[.]xml",
+    kind: "xml",
+    fill: () => {
+      state.podcasts = [podcastRow()];
+    },
+    empty: () => {
+      state.podcasts = [];
+    },
+    fail: (mode) => {
+      state.podcastsFailure = mode;
+    },
+    table: "podcasts",
+    leakMarker: "Rozmowy o Europie, odcinek pierwszy",
+    fullCache: FULL_FEED_CACHE,
+  },
+  {
+    path: "/tracker/rss.xml",
+    modulePath: "../tracker.rss[.]xml",
+    kind: "xml",
+    fill: () => {
+      state.trackerSources = trackerSources();
+    },
+    empty: () => {
+      state.trackerSources = { items: [], updates: [] };
+    },
+    fail: (mode) => {
+      state.trackerFailure = mode;
+    },
+    table: "tracker_items",
+    leakMarker: "Akt o usługach cyfrowych",
+    fullCache: FULL_FEED_CACHE,
+  },
+  {
+    path: "/live/rss.xml",
+    modulePath: "../live_.rss[.]xml",
+    kind: "xml",
+    fill: () => {
+      state.liveEntries = [liveEntry()];
+    },
+    empty: () => {
+      state.liveEntries = [];
+    },
+    fail: (mode) => {
+      state.liveFailure = mode;
+    },
+    table: "live_blog_entries",
+    leakMarker: "Pierwszy wpis relacji",
+    fullCache: FULL_LIVE_CACHE,
+  },
+];
+
+/**
+ * Wpisy rejestru, które ŚWIADOMIE nie przechodzą przez macierz - każdy
+ * z powodem. Lista jest zamknięta: test antydryfu wymaga, żeby suma macierzy
+ * i wyjątków była DOKŁADNIE rejestrem.
+ */
+const HOST_SURFACE_EXEMPT: Readonly<Record<string, string>> = {
+  "/sitemap-index.xml":
+    "alias 301 na /sitemap.xml - nie czyta tenanta ani danych (blok „alias indeksu” wyżej)",
+  "/sitemap": "strona HTML renderowana przez SSR komponentu, nie handler powierzchni crawlera",
+  "/robots.txt":
+    "własny kontrakt: fail-closed to `Disallow: /`, nie 404, a niepewność katalogu to " +
+    "`volatile` bez cache - `lib/server/__tests__/robotsRequest.test.ts`",
+};
+
+/** Feedy per element (rejestr `PER_ITEM_FEED_ROUTE_FILES`) - kontrakt sluga. */
+const SLUG_SURFACE_MATRIX = [
+  ["category.$slug.rss[.]xml.ts", "../category.$slug.rss[.]xml", { slug: "polityka-cyfrowa" }],
+  ["tag.$slug.rss[.]xml.ts", "../tag.$slug.rss[.]xml", { slug: "polityka-cyfrowa" }],
+  ["programs.$slug.rss[.]xml.ts", "../programs.$slug.rss[.]xml", { slug: "polityka-cyfrowa" }],
+  ["podcasts.$show.rss[.]xml.ts", "../podcasts.$show.rss[.]xml", { show: "rozmowy-o-europie" }],
+] as const satisfies ReadonlyArray<readonly [string, string, Record<string, string>]>;
+
+const SLUG_SURFACE_EXEMPT: Readonly<Record<string, string>> = {
+  "sitemaps.$section.ts":
+    "shard ma stan zdegradowany TYLKO dla sekcji `core` - własny blok kontraktu shardów wyżej",
+  "feed.ts": "alias 301 na /rss.xml - nie czyta tenanta ani danych",
+};
+
+describe("macierz powierzchni maszynowych - antydryf rejestru", () => {
+  it("KAŻDA powierzchnia z MACHINE_SURFACES jest w macierzy albo ma nazwany wyjątek", async () => {
+    // Import PRAWDZIWEGO rejestru (nie atrapy) - to on jest źródłem prawdy.
+    const { MACHINE_SURFACES } = await import("@/lib/seo/machineSurfaces");
+    const covered = new Set([
+      ...HOST_SURFACE_MATRIX.map((row) => row.path),
+      ...Object.keys(HOST_SURFACE_EXEMPT),
+    ]);
+    const registered = MACHINE_SURFACES.map((surface) => surface.path);
+    expect(
+      registered.filter((path) => !covered.has(path)),
+      "nowa powierzchnia w MACHINE_SURFACES musi trafić do HOST_SURFACE_MATRIX " +
+        "(albo do HOST_SURFACE_EXEMPT z uzasadnieniem)",
+    ).toEqual([]);
+    expect(
+      [...covered].filter((path) => !registered.includes(path)),
+      "macierz nie może opisywać powierzchni, której nie ma w rejestrze",
+    ).toEqual([]);
+  });
+
+  it("KAŻDY feed per element jest w macierzy sluga albo ma nazwany wyjątek", async () => {
+    const { PER_ITEM_FEED_ROUTE_FILES } = await import("@/lib/seo/machineSurfaces");
+    const covered = new Set([
+      ...SLUG_SURFACE_MATRIX.map(([file]) => file),
+      ...Object.keys(SLUG_SURFACE_EXEMPT),
+    ]);
+    expect(PER_ITEM_FEED_ROUTE_FILES.filter((file) => !covered.has(file))).toEqual([]);
+    expect([...covered].filter((file) => !PER_ITEM_FEED_ROUTE_FILES.includes(file))).toEqual([]);
+  });
+});
+
+describe.each(HOST_SURFACE_MATRIX)("macierz: $path (adresowana hostem)", (row) => {
+  async function get(): Promise<Response> {
+    return surfaceGet(row.modulePath);
+  }
+
+  it("tenant z treścią -> 200, dokument domknięty, TTL PEŁNY tej powierzchni", async () => {
+    row.fill();
+    const res = await get();
+    expect(res.status).toBe(200);
+    const cc = res.headers.get("cache-control");
+    await assertNeverTruncated(res, row.kind);
+    expect(cc, "dokument pełny zachowuje swój TTL").toBe(row.fullCache);
+  });
+
+  it("tenant, ale czytnik zdegradował do pustki -> 200, domknięty, TTL ZDEGRADOWANY", async () => {
+    row.empty();
+    const res = await get();
+    expect(res.status).toBe(200);
+    const cc = res.headers.get("cache-control");
+    await assertNeverTruncated(res, row.kind);
+    expect(cc, "pustka nie może dostać TTL pełnego ani SWR").toBe(EMPTY_FEED_CACHE);
+  });
+
+  it("degradacja (brak tenanta, bezpieczna) -> 200, domknięty, TTL ZDEGRADOWANY, zero treści", async () => {
+    row.fill();
+    state.tenantId = null;
+    state.degradeSafe = true;
+    const res = await get();
+    expect(res.status, "degradacja to NIE fail-closed").toBe(200);
+    const cc = res.headers.get("cache-control");
+    const body = await assertNeverTruncated(res, row.kind);
+    expect(cc, "dokument zdegradowany nie może dostać TTL pełnego ani SWR").toBe(EMPTY_FEED_CACHE);
+    if (row.leakMarker) {
+      expect(body, "bez tenanta trasa nie może wypuścić treści").not.toContain(row.leakMarker);
+    }
+  });
+
+  it("fail-closed (obca domena, zasiedlony katalog) -> 404 Unknown host", async () => {
+    row.fill();
+    state.tenantId = null;
+    state.degradeSafe = false;
+    const res = await get();
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("Unknown host");
+  });
+
+  it.each(["throw", "pgError"] as const)(
+    "czytnik rzuca (%s) -> odrzucenie, nigdy ucięty dokument",
+    async (mode) => {
+      row.fill();
+      row.fail(mode);
+      await expectRejectsWithInjectedFailure(get, mode, row.table);
+    },
+  );
+});
+
+describe.each(SLUG_SURFACE_MATRIX)(
+  "macierz: %s (adresowana slugiem)",
+  (_file, modulePath, params) => {
+    it("tenant -> 200 i domknięty kanał", async () => {
+      const res = await surfaceGet(modulePath, params);
+      expect(res.status).toBe(200);
+      await assertNeverTruncated(res, "xml");
+    });
+
+    it("degradacja bez tenanta -> 404: bez tenanta nie ma czego znaleźć po slugu", async () => {
+      state.tenantId = null;
+      state.degradeSafe = true;
+      const res = await surfaceGet(modulePath, params);
+      expect(res.status).toBe(404);
+    });
+
+    it("fail-closed -> 404 Unknown host", async () => {
+      state.tenantId = null;
+      state.degradeSafe = false;
+      const res = await surfaceGet(modulePath, params);
+      expect(res.status).toBe(404);
+      expect(await res.text()).toBe("Unknown host");
+    });
+  },
+);
+
+describe("indeks sitemapy - CZĘŚCIOWA awaria sekcji dostaje TTL zdegradowany", () => {
+  // KONSEKWENCJA, której ten blok pilnuje. `collectAllSitemapSections` łapie
+  // wyjątek sekcji i oddaje dla niej `[]`, żeby awaria jednej tabeli nie
+  // zabrała adresów pozostałym. Do 2026-10 trasa nie odróżniała takiej pustki
+  // od sekcji legalnie pustej: indeks bez CAŁEJ sekcji (np. wpisów) dostawał
+  // TTL pełny ze `stale-while-revalidate=1800`, więc brzeg podawał go jeszcze
+  // pół godziny po powrocie bazy, a crawler w tym czasie nie widział żadnego
+  // shardu wpisów. Teraz kolektor oddaje listę `failedSections`, a trasa
+  // podaje na jej podstawie krótki TTL - zdrowe sekcje zostają w indeksie.
+  //
+  // KOLEJNOŚĆ W PLIKU MA ZNACZENIE: blok „szczelność indeksu" niżej robi
+  // `vi.doUnmock("@/lib/server/sitemapEntries.server")`, po którym trasa
+  // importuje PRAWDZIWY kolektor - ten blok musi więc stać przed nim.
+  const ORIGIN = "https://neweuropeanstrategies.com";
+  const healthySections = () =>
+    new Map([
+      ["core", [{ loc: `${ORIGIN}/` }]],
+      ["posts", [{ loc: `${ORIGIN}/analizy/pierwsza-analiza` }]],
+      ["taxonomy", [{ loc: `${ORIGIN}/category/analizy` }]],
+      ["podcasts", []],
+    ]);
+
+  async function index(): Promise<{ res: Response; body: string }> {
+    const res = await surfaceGet("../sitemap[.]xml");
+    const body = await assertNeverTruncated(res, "xml");
+    return { res, body };
+  }
+
+  it("jedna sekcja rzuciła -> TTL zdegradowany, dokument domknięty, zdrowe sekcje ogłoszone", async () => {
+    state.allSections = healthySections();
+    state.failedSections = ["podcasts"];
+    const { res, body } = await index();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
+    expect(body).toContain(`<loc>${ORIGIN}/sitemaps/posts.xml</loc>`);
+    expect(body).toContain(`<loc>${ORIGIN}/sitemaps/taxonomy.xml</loc>`);
+    expect(body).toContain(`<loc>${ORIGIN}/sitemaps/core.xml</loc>`);
+    expect(body, "sekcja po awarii nie ma shardu do ogłoszenia").not.toContain("podcasts");
+  });
+
+  it("kontrola dodatnia: te same sekcje BEZ awarii -> TTL pełny", async () => {
+    // Sekcja legalnie pusta (`podcasts: []`) nie jest awarią - inaczej każdy
+    // tenant bez podcastów dostawałby TTL zdegradowany i jedno zapytanie
+    // o całą mapę na minutę.
+    state.allSections = healthySections();
+    state.failedSections = [];
+    const { res } = await index();
+    expect(res.headers.get("cache-control")).toBe(SITEMAP_FULL_CACHE);
+  });
+
+  it("awaria odczytu ustawień news-sitemap -> TTL zdegradowany, indeks bez wpisu news", async () => {
+    state.allSections = healthySections();
+    state.settingsFailure = "throw";
+    const { res, body } = await index();
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
+    expect(body).not.toContain("news-sitemap.xml");
+    expect(body).toContain(`<loc>${ORIGIN}/sitemaps/posts.xml</loc>`);
+  });
+
+  it("kontrola dodatnia: ustawienia doszły -> wpis news-sitemap i TTL pełny", async () => {
+    state.allSections = healthySections();
+    const { res, body } = await index();
+    expect(body).toContain(`<loc>${ORIGIN}/news-sitemap.xml</loc>`);
+    expect(res.headers.get("cache-control")).toBe(SITEMAP_FULL_CACHE);
+  });
+});
+
+describe("macierz: szczelność indeksu sitemapy w trybie degradacji", () => {
+  it("bez tenanta trasa woła kolektor sekcji z tenantId=null - nie z tenantem domyślnym", async () => {
+    // Uzupełnienie wiersza `/sitemap.xml` z `leakMarker: null`: szczelność
+    // zapewnia `collectAllSitemapSections`, który bez tenanta oddaje sam
+    // szkielet. Trasa musi więc przekazać mu `null` - i to jest dowodzone tu.
+    const calls: Array<string | null> = [];
+    vi.doMock("@/lib/server/sitemapEntries.server", () => ({
+      collectAllSitemapSections: (_admin: unknown, tenantId: string | null) => {
+        calls.push(tenantId);
+        return Promise.resolve({ sections: new Map(), failedSections: [] });
+      },
+      collectSitemapSection: () => Promise.resolve([]),
+      coreSitemapEntries: (origin: string) => [{ loc: `${origin}/` }],
+    }));
+    vi.resetModules();
+    state.tenantId = null;
+    state.degradeSafe = true;
+    const { Route } = await import("../sitemap[.]xml");
+    const res = await routeServerHandlers(Route).GET!({});
+    expect(res.status).toBe(200);
+    expect(calls).toEqual([null]);
+    vi.doUnmock("@/lib/server/sitemapEntries.server");
+    vi.resetModules();
+  });
+});
+
+describe("nazwa serwisu z ustawień SEO na powierzchniach maszynowych", () => {
+  // Release 11 uczynił nazwę serwisu redakcyjną (`site_name` z
+  // /admin/seo/homepage) - zasila `og:site_name`, `WebSite.name` i blok
+  // warunków robots.txt. Powierzchnie maszynowe, które i tak pobierają
+  // ustawienia SEO, biorą ją z tego samego pola (bez dodatkowego odczytu);
+  // stała marki zostaje wyłącznie zapasem.
+  it("/llms.txt nazywa serwis polem `site_name` w nagłówku i w warunku cytowania", async () => {
+    state.settings = { site_name: "Redakcja Testowa" };
+    const body = await (await surfaceGet("../llms[.]txt")).text();
+    expect(body.startsWith("# Redakcja Testowa\n")).toBe(true);
+    expect(body).toContain('MUST name "Redakcja Testowa" as the source');
+    expect(body).not.toContain("New European Strategies");
+  });
+
+  it("/llms.txt bez `site_name` (albo z samymi spacjami) spada na stałą marki", async () => {
+    state.settings = { site_name: "   " };
+    const body = await (await surfaceGet("../llms[.]txt")).text();
+    expect(body.startsWith("# New European Strategies\n")).toBe(true);
+  });
+
+  it("/rss.xml podpisuje copyright polem `site_name`", async () => {
+    state.settings = { site_name: "Redakcja Testowa" };
+    const body = await (await surfaceGet("../rss[.]xml")).text();
+    expect(body).toContain("<copyright>© 2026 Redakcja Testowa</copyright>");
+  });
+
+  it("/live/rss.xml nazywa kanał i copyright polem `site_name`", async () => {
+    state.settings = { site_name: "Redakcja Testowa" };
+    const body = await (await surfaceGet("../live_.rss[.]xml")).text();
+    expect(body).toContain("<title>Relacje na żywo - Redakcja Testowa</title>");
+    expect(body).toContain("<copyright>© 2026 Redakcja Testowa</copyright>");
+  });
+
+  it("kontrola negatywna: bez `site_name` kanały zostają przy stałej marki", async () => {
+    const rss = await (await surfaceGet("../rss[.]xml")).text();
+    const live = await (await surfaceGet("../live_.rss[.]xml")).text();
+    expect(rss).toContain("<copyright>© 2026 New European Strategies</copyright>");
+    expect(live).toContain("<title>Relacje na żywo - New European Strategies</title>");
+  });
+});
+
+describe("llms.txt - przewodnik NIEPEŁNY dostaje TTL zdegradowany", () => {
+  // Przewodnik bez artykułów ALBO bez sekcji to ślad częściowej awarii
+  // (`resilient` w jednym z dwóch czytników oddał `[]`) - brzeg nie może go
+  // podawać jako stale przez pół godziny.
+  it("artykuły są, sekcji brak -> TTL zdegradowany", async () => {
+    state.posts = [feedPost()];
+    state.categories = [];
+    const res = await surfaceGet("../llms[.]txt");
+    expect(await res.clone().text()).toContain("Pierwsza analiza");
+    expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
+  });
+
+  it("sekcje są, artykułów brak -> TTL zdegradowany", async () => {
+    state.posts = [];
+    state.categories = [CATEGORY_ROW];
+    const res = await surfaceGet("../llms[.]txt");
+    expect(await res.clone().text()).toContain("## Sekcje / Sections");
+    expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
+  });
+
+  it("wpis BEZ tytułu w żadnym języku nie liczy się jako artykuł przewodnika", async () => {
+    // Licznik bierze to, co przewodnik faktycznie WYEMITOWAŁ (filtr tytułu),
+    // a nie surowy wynik czytnika - inaczej dokument bez artykułów dostałby
+    // TTL pełny.
+    state.posts = [feedPost({ title_pl: "", title_en: "" })];
+    state.categories = [CATEGORY_ROW];
+    const res = await surfaceGet("../llms[.]txt");
+    expect(await res.clone().text()).not.toContain("## Najnowsze artykuły");
+    expect(res.headers.get("cache-control")).toBe(EMPTY_FEED_CACHE);
+  });
+});
+
+describe("llms.txt - degradacja tylko tam, gdzie przewodnik jest jednoznaczny", () => {
+  // Zastrzeżenie przeglądu rundy 1. `crawlerDegradeIsSafe` przy pustym albo
+  // nieosiągalnym katalogu domen (timeout bazy na zimnym izolacie) zwraca
+  // true dla KAŻDEGO hosta. Przewodnik zdegradowany na domenie drugiego
+  // tenanta nazywałby źródłem markę domyślną, choć robots.txt tego hosta
+  // w tym samym stanie daje `Disallow: /` - dwie sprzeczne polityki. A bez
+  // tenanta trasa nie zna ustawień redakcji, więc blok „DOZWOLONE / PERMITTED"
+  // byłby zgodą, której redakcja mogła nie wydać (np. wyłączyła llms.txt).
+  beforeEach(() => {
+    state.tenantId = null;
+    state.degradeSafe = true;
+  });
+
+  it("host spoza marki i podglądu przy nieosiągalnym katalogu -> 404, nie przewodnik marki", async () => {
+    state.host = "tenant2.example";
+    state.requestUrl = "https://tenant2.example/llms.txt";
+    state.requestHeaders = { host: "tenant2.example" };
+    const res = await surfaceGet("../llms[.]txt");
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("Unknown host");
+  });
+
+  it("brak zaufanego hosta przy nieosiągalnym katalogu -> 404", async () => {
+    state.host = null;
+    const res = await surfaceGet("../llms[.]txt");
+    expect(res.status).toBe(404);
+  });
+
+  it("host podglądu/lokalny -> 200 na originie KANONICZNYM", async () => {
+    state.host = "localhost";
+    state.requestUrl = "http://localhost/llms.txt";
+    state.requestHeaders = { host: "localhost" };
+    const res = await surfaceGet("../llms[.]txt");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("https://neweuropeanstrategies.com/robots.txt");
+    expect(body).not.toContain("localhost");
+  });
+
+  it("przewodnik zdegradowany NIE udziela zgody - nawet gdy redakcja wyłączyła llms.txt", async () => {
+    // Atrapa ma `llms_txt_enabled: false`, ale bez tenanta trasa ustawień NIE
+    // czyta (nie wie, czyje są) - dlatego zgoda nie może wyjść w żadnym
+    // języku. Zostaje odesłanie do robots.txt jako wiążącej polityki.
+    state.settings = { llms_txt_enabled: false, site_name: "Redakcja Innego Tenanta" };
+    const res = await surfaceGet("../llms[.]txt");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).not.toContain("DOZWOLONE");
+    expect(body).not.toContain("PERMITTED");
+    expect(body).not.toContain("Redakcja Innego Tenanta");
+    expect(body).toContain("## Warunki wykorzystania i cytowania / Usage and citation terms");
+    expect(body).toContain("Ten dokument nie udziela zgody na wykorzystanie treści");
+    expect(body).toContain("This document grants no permission to reuse content");
+    expect(body).toContain(
+      "Wiążąca polityka maszynowa: https://neweuropeanstrategies.com/robots.txt",
+    );
+    expect(body.endsWith("\n"), "dokument tekstowy kończy się znakiem nowej linii").toBe(true);
+  });
+
+  it("kontrola dodatnia: przewodnik TENANTA zachowuje zgodę z warunkiem cytowania", async () => {
+    state.tenantId = "t-1";
+    state.degradeSafe = false;
+    const body = await (await surfaceGet("../llms[.]txt")).text();
+    expect(body).toContain("DOZWOLONE");
+    expect(body).toContain("PERMITTED");
+    expect(body).not.toContain("Ten dokument nie udziela zgody");
   });
 });

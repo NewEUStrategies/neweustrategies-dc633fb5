@@ -21,10 +21,10 @@ import {
 import { expandSitemapUrls, newestLastmod } from "@/lib/seo/sitemapXml";
 import { parseSeoSettings } from "@/lib/seo/settings";
 import {
-  SITEMAP_CACHE_HEADERS,
   loadRedirectIndex,
   resolveSitemapTenant,
   sameOriginHostsFor,
+  sitemapCacheHeaders,
   sitemapRequestContext,
 } from "@/lib/server/sitemapRequest.server";
 
@@ -42,13 +42,17 @@ export const Route = createFileRoute("/sitemap.xml")({
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { collectAllSitemapSections } = await import("@/lib/server/sitemapEntries.server");
-        const [sections, redirectIndex] = await Promise.all([
+        const [{ sections, failedSections }, redirectIndex] = await Promise.all([
           collectAllSitemapSections(supabaseAdmin, tenantId, origin),
           loadRedirectIndex(tenantId),
         ]);
 
         const sameOriginHosts = sameOriginHostsFor(host);
         const entries: SitemapIndexEntry[] = [];
+        // Czy jakakolwiek sekcja TREŚCI (poza statycznym szkieletem `core`)
+        // wyszła niepusta - inaczej indeks jest zdegradowany (patrz
+        // `sitemapCacheHeaders`).
+        let hasContentShard = false;
         for (const [section, sectionEntries] of sections) {
           // Liczymy adresy DOKŁADNIE tak, jak policzy je shard (ta sama funkcja
           // rozwinięcia i to samo sortowanie), więc indeks nigdy nie ogłasza
@@ -56,6 +60,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           const urls = expandSitemapUrls(origin, sectionEntries, redirectIndex, sameOriginHosts);
           const lastmod = newestLastmod(urls);
           const shards = shardCountFor(urls.length);
+          if (section !== "core" && shards > 0) hasContentShard = true;
           for (let shard = 1; shard <= shards; shard += 1) {
             entries.push({ loc: `${origin}${sitemapShardPath(section, shard)}`, lastmod });
           }
@@ -63,7 +68,10 @@ export const Route = createFileRoute("/sitemap.xml")({
 
         // Google News sitemap - własny format (news:), więc nie jest sekcją
         // mapy głównej, ale MUSI być odkrywalny. Indeks jest na to właściwym
-        // miejscem; robots.txt ogłasza go dodatkowo.
+        // miejscem; robots.txt ogłasza go dodatkowo. Awaria odczytu ustawień
+        // zabiera indeksowi wpis news-sitemap, więc indeks jest wtedy
+        // NIEPEŁNY - tak samo jak przy awarii sekcji.
+        let newsSettingsFailed = false;
         if (tenantId) {
           try {
             const { fetchSeoSettingsValue } = await import("@/lib/server/publishedContent.server");
@@ -73,10 +81,24 @@ export const Route = createFileRoute("/sitemap.xml")({
             }
           } catch (e) {
             console.warn("[seo] sitemap index news settings unavailable:", e);
+            newsSettingsFailed = true;
           }
         }
 
-        return new Response(buildSitemapIndexXml(entries), { headers: SITEMAP_CACHE_HEADERS });
+        // Indeks zdegradowany nie może dostać `stale-while-revalidate` - patrz
+        // `sitemapCacheHeaders`. Zdegradowany = bez tenanta, bez żadnego
+        // shardu treści (sam szkielet `core`) ALBO z CZĘŚCIOWĄ awarią: choć
+        // jedna sekcja rzuciła przy odczycie (`failedSections`) albo nie doszły
+        // ustawienia news-sitemap. Wcześniej częściowa awaria była nie do
+        // odróżnienia od pustej sekcji, więc indeks bez całej sekcji (np.
+        // wpisów) dostawał TTL pełny i brzeg podawał go pół godziny po powrocie
+        // bazy. Zdrowe sekcje są w indeksie tak czy inaczej - zmienia się
+        // wyłącznie czas życia odpowiedzi.
+        const degraded =
+          !tenantId || !hasContentShard || failedSections.length > 0 || newsSettingsFailed;
+        return new Response(buildSitemapIndexXml(entries), {
+          headers: sitemapCacheHeaders(degraded),
+        });
       },
     },
   },

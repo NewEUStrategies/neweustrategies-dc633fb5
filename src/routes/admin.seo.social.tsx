@@ -36,8 +36,8 @@ import { formatBytes } from "@/components/admin/media/lib/mediaFormat";
 import { prepareOgImageFile, type OgIssue } from "@/lib/media/ogImage";
 import { socialSourceRows } from "@/lib/seo/socialPreviewSources";
 import { DEFAULT_SEO_SETTINGS, SEO_SETTINGS_KEY, type SeoSettings } from "@/lib/seo/settings";
+import { useTenantPublicOrigin } from "@/lib/seo/useTenantPublicOrigin";
 import {
-  SITE_CANONICAL_ORIGIN,
   SITE_DEFAULT_DESCRIPTION,
   SITE_DEFAULT_OG_IMAGE,
   SITE_DEFAULT_TITLE,
@@ -88,10 +88,19 @@ function SeoSocialTab() {
   );
   const [naturalSize, setNaturalSize] = useState<NaturalSize | null>(null);
 
+  // Publiczny origin TEGO tenanta - z niego idzie host w podglądach i adres
+  // wbudowanej karty. Strona publiczna absolutyzuje wbudowaną kartę na
+  // originie żądania (`meta.ts`), więc podgląd na originie marki kłamałby
+  // każdemu tenantowi z własną domeną.
+  // `null` = tenant bez publicznej domeny: obrazek wbudowany idzie wtedy
+  // względnie (podgląd i tak rysuje się na hoście panelu), a host karty to
+  // jawny zapis „brak domeny" zamiast hosta marki.
+  const publicOrigin = useTenantPublicOrigin();
+
   // Adres obrazka liczymy PRZED wyjściem na ładowaniu, żeby efekt pomiaru
   // wymiarów stał wyżej niż jakikolwiek wczesny return (kolejność hooków).
   const effectiveImage = draft
-    ? draft.default_og_image_url.trim() || `${SITE_CANONICAL_ORIGIN}${SITE_DEFAULT_OG_IMAGE}`
+    ? draft.default_og_image_url.trim() || `${publicOrigin ?? ""}${SITE_DEFAULT_OG_IMAGE}`
     : "";
 
   useEffect(() => {
@@ -171,7 +180,8 @@ function SeoSocialTab() {
   const siteName = draft.site_name.trim() || SITE_NAME;
   const previewTitle = draftTitle.trim() || SITE_DEFAULT_TITLE[previewLang];
   const previewDescription = draftDescription.trim() || SITE_DEFAULT_DESCRIPTION[previewLang];
-  const previewHost = displayHost(SITE_CANONICAL_ORIGIN);
+  const previewHost =
+    publicOrigin === null ? t("adminSeoHub.noPublicDomainHost") : displayHost(publicOrigin);
   const previewAlt = draft.default_og_image_alt.trim() || fallbackImageAlt(siteName, previewLang);
 
   // X czyta `twitter:card`: przy „summary" nie rysuje szerokiego banera, tylko
@@ -193,6 +203,15 @@ function SeoSocialTab() {
           {t("adminSeoHub.readOnlyNotice")}
         </p>
       )}
+
+      {publicOrigin === null ? (
+        <p
+          className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400"
+          data-seo-no-domain
+        >
+          {t("adminSeoHub.noPublicDomain")}
+        </p>
+      ) : null}
 
       <section className="rounded-lg border border-border bg-card p-4">
         <h2 className="font-display text-base font-semibold">{t("adminSeoHub.sectionCard")}</h2>

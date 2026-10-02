@@ -12,8 +12,10 @@ import {
   DEFAULT_APPLE_CATEGORY,
   DEFAULT_APPLE_SUBCATEGORY,
   appleSubcategories,
+  isAppleCategory,
   normalizeAppleCategory,
 } from "@/lib/seo/applePodcastCategories";
+import { buildPodcastRssXml } from "@/lib/seo/podcastRss";
 
 describe("appleSubcategories", () => {
   it("zwraca podkategorie zadeklarowane przez Apple dla znanej kategorii", () => {
@@ -31,7 +33,7 @@ describe("appleSubcategories", () => {
     },
   );
 
-  // Gałąź `?? []` (applePodcastCategories.ts:115) - klucz poza taksonomią.
+  // Gałąź „klucz poza taksonomią" w `appleSubcategories`.
   // Select w /admin/podcasts czyta tę funkcję, więc dla śmieciowej wartości
   // zapisanej w bazie musi pokazać pustą listę, a nie wywrócić panelu.
   it.each([["Geopolityka"], [""], ["   "], ["news"], ["NEWS"]])(
@@ -67,7 +69,7 @@ describe("normalizeAppleCategory - poprawne pary", () => {
 });
 
 describe("normalizeAppleCategory - podkategoria niepełna lub obca", () => {
-  // Gałąź `subcategory ?? ""` (applePodcastCategories.ts:131). Kanał z samą
+  // Gałąź `subcategory ?? ""` w `normalizeAppleCategory`. Kanał z samą
   // kategorią jest dla Apple poprawny, z obcą podkategorią - nie.
   it.each<[string, string | null | undefined]>([
     ["undefined", undefined],
@@ -116,53 +118,139 @@ describe("normalizeAppleCategory - kategoria nieznana degraduje do domyślnej", 
   });
 });
 
-// ── DEFEKT: nazwy z łańcucha prototypu Object udają kategorie Apple ──────────
+// ── STRAŻNIK: nazwy z łańcucha prototypu Object NIE są kategoriami Apple ────
 //
-// `cat in APPLE_PODCAST_CATEGORIES` (linia 128) i `CATEGORIES[category]`
-// (linia 115) przechodzą po ŁAŃCUCHU PROTOTYPU zwykłego literału obiektowego,
-// więc "toString", "valueOf", "constructor" i "hasOwnProperty" zdają test
-// przynależności do taksonomii. Wartość kategorii jest w bazie zwykłym tekstem
-// (`podcast_settings.itunes_category`), a `resolvePodcastChannelMeta` przepuszcza
-// ją do buildera bez sprawdzania listy - więc taka wartość (import CSV, ręczna
-// edycja, migracja z WP) dociera tutaj.
+// Mapa taksonomii jest zwykłym literałem obiektowym. Dawniej `cat in MAPA` i
+// `MAPA[category]` chodziły po ŁAŃCUCHU PROTOTYPU, więc "toString",
+// "valueOf", "constructor" i "hasOwnProperty" zdawały test przynależności do
+// taksonomii. Wartość kategorii jest w bazie zwykłym tekstem
+// (`podcast_settings.itunes_category`), a `resolvePodcastChannelMeta`
+// przepuszcza ją do buildera bez sprawdzania listy - więc taka wartość
+// (import CSV, ręczna edycja, migracja z WP) dociera tutaj. Teraz każdy odczyt
+// idzie przez `isAppleCategory` (`Object.hasOwn`).
+const PROTOTYPE_NAMES = [
+  "toString",
+  "valueOf",
+  "constructor",
+  "hasOwnProperty",
+  "isPrototypeOf",
+  "propertyIsEnumerable",
+  "toLocaleString",
+  "__proto__",
+  "__defineGetter__",
+  "__lookupGetter__",
+] as const;
+
 describe("normalizeAppleCategory - nazwy z prototypu Object", () => {
-  it.fails("DEFEKT: 'toString' przechodzi jako kategoria zamiast zdegradować", () => {
-    // KONSEKWENCJA: feed wychodzi z <itunes:category text="toString"/>, czyli
-    // wartością spoza zamkniętej listy Apple. Podcasts Connect odrzuca
-    // zgłoszenie kanału, a redakcja widzi w panelu Apple tylko "invalid
-    // category" - bez wskazania, że winna jest wartość w ustawieniach.
+  it("'toString' degraduje do pary domyślnej, a nie przechodzi jako kategoria", () => {
+    // KONSEKWENCJA, przed którą ten test chroni: feed wychodził z
+    // <itunes:category text="toString"/>, czyli wartością spoza zamkniętej
+    // listy Apple. Podcasts Connect odrzucał zgłoszenie kanału, a redakcja
+    // widziała w panelu Apple tylko "invalid category" - bez wskazania, że
+    // winna jest wartość w ustawieniach.
     expect(normalizeAppleCategory("toString", "")).toEqual({
       category: DEFAULT_APPLE_CATEGORY,
       subcategory: DEFAULT_APPLE_SUBCATEGORY,
     });
   });
 
-  // PRZYPIĘTY STAN FAKTYCZNY - naprawa produkcji (hasOwnProperty albo
-  // Object.create(null) pod mapą) wywali JEDNOCZEŚNIE ten test i it.fails wyżej.
-  it("PRZYPIĘTY STAN: 'toString' jest zwracany verbatim jako kategoria", () => {
-    expect(normalizeAppleCategory("toString", "")).toEqual({
-      category: "toString",
-      subcategory: null,
-    });
-  });
-
-  it.fails("DEFEKT: 'constructor' z podkategorią wywraca generator kanału", () => {
-    // appleSubcategories("constructor") zwraca FUNKCJĘ (Object.prototype
-    // .constructor), a nie tablicę, więc `.includes(sub)` w linii 134 rzuca
-    // TypeError. KONSEKWENCJA: trasa /podcast/rss.xml kończy się błędem 500 -
-    // Apple i Spotify dostają stronę błędu zamiast kanału, a program przy
-    // kolejnych odpytaniach wypada z katalogów wraz z całą historią odcinków.
+  it("'constructor' z podkategorią degraduje do pary domyślnej zamiast rzucać", () => {
+    // KONSEKWENCJA, przed którą ten test chroni: `appleSubcategories
+    // ("constructor")` zwracało FUNKCJĘ (Object.prototype.constructor), a nie
+    // tablicę, więc `.includes(sub)` rzucało TypeError. Trasa /podcast/rss.xml
+    // kończyła się błędem 500 - Apple i Spotify dostawały stronę błędu zamiast
+    // kanału, a program przy kolejnych odpytaniach wypadał z katalogów wraz z
+    // całą historią odcinków.
+    expect(() => normalizeAppleCategory("constructor", "Politics")).not.toThrow();
     expect(normalizeAppleCategory("constructor", "Politics")).toEqual({
       category: DEFAULT_APPLE_CATEGORY,
       subcategory: DEFAULT_APPLE_SUBCATEGORY,
     });
   });
 
-  it("PRZYPIĘTY STAN: 'constructor' z podkategorią rzuca TypeError", () => {
-    expect(() => normalizeAppleCategory("constructor", "Politics")).toThrow(TypeError);
+  it.each(PROTOTYPE_NAMES)("'%s' (z podkategorią i bez) degraduje do pary domyślnej", (name) => {
+    for (const sub of [null, "", "Politics", "constructor"]) {
+      expect(normalizeAppleCategory(name, sub), `${name} / ${String(sub)}`).toEqual({
+        category: DEFAULT_APPLE_CATEGORY,
+        subcategory: DEFAULT_APPLE_SUBCATEGORY,
+      });
+    }
   });
 
-  it("PRZYPIĘTY STAN: 'hasOwnProperty' też przechodzi jako kategoria", () => {
-    expect(normalizeAppleCategory("hasOwnProperty", null).category).toBe("hasOwnProperty");
+  it.each([
+    ["spacje wokół", "  constructor  "],
+    ["tabulator i nowa linia", "\ttoString\n"],
+    ["wielka litera", "Constructor"],
+    ["wielkie litery", "HASOWNPROPERTY"],
+    ["__proto__ ze spacją", " __proto__ "],
+  ])("wariant %s (%j) też degraduje do pary domyślnej", (_opis, name) => {
+    expect(normalizeAppleCategory(name, "Politics")).toEqual({
+      category: DEFAULT_APPLE_CATEGORY,
+      subcategory: DEFAULT_APPLE_SUBCATEGORY,
+    });
   });
+
+  it.each(PROTOTYPE_NAMES)(
+    "appleSubcategories('%s') to pusta TABLICA, nie funkcja/obiekt",
+    (name) => {
+      const subs = appleSubcategories(name);
+      expect(Array.isArray(subs)).toBe(true);
+      expect(subs).toEqual([]);
+    },
+  );
+
+  it.each(PROTOTYPE_NAMES)("isAppleCategory('%s') = false", (name) => {
+    expect(isAppleCategory(name)).toBe(false);
+  });
+
+  it("nazwa z prototypu jako PODKATEGORIA znanej kategorii jest pomijana, kategoria zostaje", () => {
+    // Negatyw: naprawa nie może zdegradować poprawnej kategorii tylko dlatego,
+    // że podkategoria jest śmieciem z prototypu.
+    for (const sub of PROTOTYPE_NAMES) {
+      expect(normalizeAppleCategory("News", sub)).toEqual({ category: "News", subcategory: null });
+    }
+  });
+});
+
+describe("isAppleCategory", () => {
+  it("przyjmuje KAŻDĄ nazwę z APPLE_CATEGORY_NAMES (brak nadkorekty)", () => {
+    for (const nazwa of APPLE_CATEGORY_NAMES) expect(isAppleCategory(nazwa)).toBe(true);
+  });
+
+  it.each<[string, unknown]>([
+    ["zła wielkość liter", "news"],
+    ["spacje wokół (porównanie dokładne - przycina wywołujący)", " News "],
+    ["pusty string", ""],
+    ["null", null],
+    ["undefined", undefined],
+    ["liczba", 1],
+    ["obiekt", {}],
+  ])("odrzuca: %s", (_opis, value) => {
+    expect(isAppleCategory(value)).toBe(false);
+  });
+});
+
+describe("buildPodcastRssXml - kategoria z prototypu nie wywraca kanału", () => {
+  // Jedyny test końca łańcucha w tym pliku: dowodzi, że builder RSS (jedyny
+  // konsument `normalizeAppleCategory` na trasie /podcast/rss.xml) dostaje
+  // poprawną parę, a nie TypeError. Pełny kształt XML pilnuje
+  // `podcastRss.test.ts`.
+  it.each([["constructor"], ["__proto__"], ["toString"]])(
+    'kategoria %s -> feed z <itunes:category text="News"> i Politics',
+    (name) => {
+      const xml = buildPodcastRssXml({
+        title: "Feed",
+        description: "Desc",
+        siteUrl: "https://example.org/podcasts",
+        feedUrl: "https://example.org/podcast/rss.xml",
+        language: "pl",
+        category: name,
+        subcategory: "Politics",
+        items: [],
+      });
+      expect(xml).toContain('<itunes:category text="News">');
+      expect(xml).toContain('<itunes:category text="Politics"/>');
+      expect(xml).not.toContain(`text="${name}"`);
+    },
+  );
 });

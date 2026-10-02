@@ -26,6 +26,7 @@ import { ogVersionFromIso, withOgVersion } from "@/lib/seo/ogImage";
 // od strefy runnera ani od "teraz".
 const EPOCH_2026_02_03 = Date.UTC(2026, 1, 3, 10, 15, 0);
 const AVATAR = "https://cdn.example.com/storage/avatars/anna.png";
+const CDN_ANNA = "https://cdn.example.com/anna.png";
 
 describe("ogVersionFromIso", () => {
   it.each([
@@ -98,9 +99,30 @@ describe("withOgVersion", () => {
     ],
     ["URL z policy CDN", "https://cdn.example.com/anna.png?Expires=1&Signature=xyz"],
     ["URL z pustym query", "https://cdn.example.com/anna.png?"],
-    ["URL, który JUŻ ma v=", "https://cdn.example.com/anna.png?v=1"],
-  ])("%s zostaje nietknięty (query już istnieje)", (_opis, url) => {
+    // `v=` obok obcego parametru: query nie jest w całości nasze, więc nie
+    // wiemy, czy `token` nie podpisuje także `v` - zostaje jak jest.
+    ["obce query z v=", "https://cdn.example.com/anna.png?token=abc&v=1"],
+    ["obce query przed fragmentem", "https://cdn.example.com/anna.png?token=abc#hero"],
+    ["względny z obcym query", "/uploads/anna.png?w=400"],
+  ])("%s zostaje nietknięty (obce query już istnieje)", (_opis, url) => {
     expect(withOgVersion(url, EPOCH_2026_02_03)).toBe(url);
+  });
+
+  it.each([
+    ["absolutny z poprzednią wersją", "https://cdn.example.com/anna.png?v=1", CDN_ANNA],
+    ["względny z poprzednią wersją", "/uploads/anna.png?v=1", "/uploads/anna.png"],
+    // Zdublowane `v=` (np. ręcznie wklejony adres) zwija się do jednego.
+    ["kilka parametrów v=", "https://cdn.example.com/anna.png?v=1&v=2", CDN_ANNA],
+    ["puste v=", "https://cdn.example.com/anna.png?v=", CDN_ANNA],
+  ])("%s: query złożone tylko z `v=` jest PODMIENIANE, nie dublowane", (_opis, url, czysty) => {
+    expect(withOgVersion(url, EPOCH_2026_02_03)).toBe(`${czysty}?v=${EPOCH_2026_02_03}`);
+  });
+
+  it.each([
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+  ])("wersja nieskończona (%s) zostawia url bez zmian, a nie `?v=NaN`", (_opis, version) => {
+    expect(withOgVersion(AVATAR, version)).toBe(AVATAR);
   });
 
   it.each([
@@ -116,24 +138,32 @@ describe("withOgVersion", () => {
     expect(withOgVersion(AVATAR, EPOCH_2026_02_03)).toBe(`${AVATAR}?v=${EPOCH_2026_02_03}`);
   });
 
-  // DEFEKT. Kod sprawdza wyłącznie obecność `?`, więc URL z samym fragmentem
-  // dostaje parametr ZA hashem. Zapis stanu faktycznego, żeby `it.fails`
-  // poniżej nie był jedynym śladem - i żeby zmiana zachowania była widoczna.
-  it("PRZYPIĘCIE STANU FAKTYCZNEGO: url z fragmentem dostaje ?v= za hashem", () => {
-    expect(withOgVersion("https://cdn.example.com/anna.png#hero", 42)).toBe(
-      "https://cdn.example.com/anna.png#hero?v=42",
-    );
-  });
-
-  // KONSEKWENCJA: scraper dostaje adres, którego serwer nie rozumie jako
-  // wersjonowany - `?v=42` jest częścią fragmentu, a fragment nie jest
-  // wysyłany w żądaniu HTTP. Zasób pobiera się pod starym adresem, więc
-  // cache-buster nie działa wcale, a jednocześnie og:image różni się od
-  // adresu kanonicznego pliku. Produkcji nie ruszamy w tym etapie.
-  it.fails("url z fragmentem POWINIEN dostać ?v= przed hashem", () => {
-    expect(withOgVersion("https://cdn.example.com/anna.png#hero", 42)).toBe(
+  // STRAŻNIK REGRESJI (dawny defekt: kod sprawdzał wyłącznie obecność `?`,
+  // więc url z samym fragmentem dostawał `#hero?v=42`). KONSEKWENCJA, której
+  // pilnuje: `?v=` za hashem jest częścią fragmentu, a fragment nie jest
+  // wysyłany w żądaniu HTTP - zasób pobierał się pod starym adresem, więc
+  // cache-buster nie działał wcale, a og:image różniło się od adresu pliku.
+  it.each([
+    [
+      "absolutny",
+      "https://cdn.example.com/anna.png#hero",
       "https://cdn.example.com/anna.png?v=42#hero",
-    );
+    ],
+    ["względny", "/uploads/anna.png#hero", "/uploads/anna.png?v=42#hero"],
+    [
+      "pusty fragment",
+      "https://cdn.example.com/anna.png#",
+      "https://cdn.example.com/anna.png?v=42#",
+    ],
+    [
+      "poprzednia wersja przed fragmentem",
+      "https://cdn.example.com/anna.png?v=1#hero",
+      "https://cdn.example.com/anna.png?v=42#hero",
+    ],
+    // `?` WEWNĄTRZ fragmentu nie jest query - nie może blokować wersji.
+    ["znak ? we fragmencie", "/uploads/anna.png#a?b=1", "/uploads/anna.png?v=42#a?b=1"],
+  ])("url z fragmentem (%s) dostaje ?v= PRZED hashem", (_opis, url, expected) => {
+    expect(withOgVersion(url, 42)).toBe(expected);
   });
 
   it("złożenie obu funkcji: brak updated_at nie wersjonuje, data wersjonuje", () => {

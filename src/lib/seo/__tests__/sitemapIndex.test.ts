@@ -92,7 +92,7 @@ describe("buildSitemapIndexXml", () => {
 });
 
 // ---------------------------------------------------------------------------
-// ETAP 4: gałąź parsera segmentu adresu shardu (sitemapIndex.ts:86 - wejście, na
+// ETAP 4: gałąź parsera segmentu adresu shardu (`parseSitemapShard`, `if (!match)` - wejście, na
 // którym regexp nazwy w ogóle NIE łapie). Trasa `/sitemaps/<segment>.xml`
 // przyjmuje dowolny łańcuch od crawlera, więc każdy taki segment musi dać
 // czyste `null` (trasa odpowiada 404), a nie wyjątek albo pusty <urlset>.
@@ -122,26 +122,57 @@ describe("parseSitemapShard - segmenty niepełne i wrogie", () => {
     expect(parseSitemapShard("posts-99999.xml")).toEqual({ section: "posts", shard: 99999 });
   });
 
-  // FAKT ZMIERZONY (stan produkcji): numer z zerem wiodącym przechodzi, bo
-  // `Number("02") === 2`. Ten test jest ZIELONY i przypina stan faktyczny -
-  // gdy produkcja zostanie naprawiona, wywali się on i `it.fails` poniżej
-  // przestanie być potrzebny.
-  it("numer z zerem wiodącym parsuje się jak numer kanoniczny", () => {
-    expect(parseSitemapShard("posts-02.xml")).toEqual({ section: "posts", shard: 2 });
-    expect(parseSitemapShard("posts-0002.xml")).toEqual({ section: "posts", shard: 2 });
+  it("STRAŻNIK: shard 2 jest dostępny pod JEDNYM adresem (posts-2.xml, nie posts-02.xml)", () => {
+    // KONSEKWENCJA, którą ten test zamyka (do 2026-10 przypięta jako
+    // `it.fails` obok zielonego testu stanu faktycznego): dokumentacja
+    // `parseSitemapShard` obiecuje, że jeden shard nie jest dostępny pod dwoma
+    // URL-ami, a zero wiodące ten inwariant łamało - `Number("02") === 2`, więc
+    // `/sitemaps/posts-02.xml` zwracał BAJT W BAJT tę samą mapę co adres
+    // kanoniczny `/sitemaps/posts-2.xml`. Crawler, który trafi na wariant
+    // z zerem (błędny link, stara mapa, skan katalogu), zaindeksowałby drugi
+    // adres tej samej mapy, a raport "Sitemapy" w GSC pokazałby duplikat
+    // zamiast pokrycia sekcji.
+    expect(parseSitemapShard("posts-02.xml")).toBeNull();
+    expect(parseSitemapShard("posts-0002.xml")).toBeNull();
+    expect(parseSitemapShard("posts-010.xml")).toBeNull();
   });
 
-  it.fails("DEFEKT: shard 2 jest dostępny pod dwoma adresami (posts-2.xml i posts-02.xml)", () => {
-    // KONSEKWENCJA DLA UŻYTKOWNIKA: dokumentacja `parseSitemapShard` mówi
-    // wprost, że odrzuca "numer <= 1 podanego jawnie (...), żeby jeden shard
-    // nie był dostępny pod dwoma URL-ami". Zero wiodące łamie ten sam
-    // inwariant: `/sitemaps/posts-02.xml` zwraca BAJT W BAJT tę samą mapę co
-    // adres kanoniczny `/sitemaps/posts-2.xml`. Crawler, który trafi na
-    // wariant z zerem (błędny link, stara mapa, skan katalogu), zaindeksuje
-    // drugi adres tej samej mapy, a raport "Sitemapy" w GSC pokaże duplikat
-    // zamiast pokrycia sekcji. Poprawka: odrzucić `shardRaw`, którego zapis
-    // nie jest kanoniczny (`String(Number(shardRaw)) !== shardRaw`).
-    expect(parseSitemapShard("posts-02.xml")).toBeNull();
+  it.each([
+    { raw: "posts-+2.xml", why: "znak plus" },
+    { raw: "posts-2.0.xml", why: "zapis dziesiętny liczby całkowitej" },
+    { raw: "posts- 2.xml", why: "spacja przed numerem" },
+    { raw: "posts-2 .xml", why: "spacja po numerze" },
+    { raw: "posts-2e1.xml", why: "zapis wykładniczy" },
+    { raw: "posts-0x2.xml", why: "zapis szesnastkowy" },
+    { raw: "posts-٢.xml", why: "cyfra spoza ASCII (arabsko-indyjska dwójka)" },
+    { raw: "posts-00.xml", why: "same zera - i tak <= 1, ale też niekanoniczne" },
+    { raw: "posts-01.xml", why: "zero wiodące przy jedynce - reguła `<= 1` ma pierwszeństwo" },
+    {
+      raw: "posts-9007199254740993.xml",
+      why: "numer poza precyzją Number - zaokrąglony do INNEJ liczby niż zapisana",
+    },
+  ])("odrzuca niekanoniczny zapis numeru '$raw' ($why)", ({ raw }) => {
+    expect(parseSitemapShard(raw)).toBeNull();
+  });
+
+  it("kontrola dodatnia: kanoniczne numery z zerem WEWNĄTRZ nadal się parsują", () => {
+    // Bez tej kontroli strażnik wyżej „przechodziłby" także wtedy, gdyby ktoś
+    // odrzucał KAŻDY numer zawierający zero - a shard 10, 20 czy 100 to
+    // zwykłe, kanoniczne adresy dużej sekcji.
+    expect(parseSitemapShard("posts-10.xml")).toEqual({ section: "posts", shard: 10 });
+    expect(parseSitemapShard("posts-100.xml")).toEqual({ section: "posts", shard: 100 });
+    expect(parseSitemapShard("tracker-2.xml")).toEqual({ section: "tracker", shard: 2 });
+  });
+
+  it("parse(file(shard)) jest tożsamością dla numerów z kilkoma cyframi", () => {
+    // Kanoniczność zdefiniowana jako „dokładnie to, co wypisze
+    // `sitemapShardFile`" - więc obie funkcje muszą się zgadzać w obie strony.
+    for (const shard of [2, 9, 10, 11, 99, 100, 1000, 25_000]) {
+      expect(parseSitemapShard(sitemapShardFile("posts", shard))).toEqual({
+        section: "posts",
+        shard,
+      });
+    }
   });
 });
 

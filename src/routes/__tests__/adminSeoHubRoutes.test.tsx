@@ -35,12 +35,16 @@
 //   tabeli.
 // * PROGÓW PRZYCIĘCIA per sieć - `src/lib/seo/__tests__/socialNetworks.test.ts`.
 // * TABELI TREŚCI - `adminSeoRoutes.test.tsx` (przeniesiona do
-//   `/admin/seo/content`, tam też został jej `it.fails` o nierozróżnialności
-//   awarii odczytu od ładowania).
+//   `/admin/seo/content`, tam też są jej cztery stany listy: ładowanie,
+//   awaria odczytu, pusta baza, brak trafień). Tutaj kokpit dowodzi tylko
+//   swojej części: komunikatu awarii i oznaczenia listy przyciętej limitem.
+// * REGUŁY ORIGINU TENANTA - `src/lib/seo/__tests__/tenantPublicOrigin.test.ts`.
+//   Tutaj dowodzimy, że zakładka kart społecznościowych tej reguły UŻYWA
+//   (host w podglądach, wbudowana karta, linki „na żywo”).
 // * UWIERZYTELNIENIA - `e2e/seo.spec.ts` dowodzi, że niezalogowany nie zobaczy
 //   `/admin/seo`. Tutaj nie ma ani jednej asercji o przekierowaniu.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { useEffect, useState, type ReactNode } from "react";
 import { renderRoute, routeMeta } from "@/test/routeHarness";
 import { DEFAULT_SEO_SETTINGS } from "@/lib/seo/settings";
@@ -90,6 +94,15 @@ const h = vi.hoisted(() => ({
   readError: null as Error | null,
   /** Odczyt udany, ale bez wierszy - `data` jest `null`, nie `[]`. */
   nullRows: false,
+  /**
+   * Liczność z `count: "exact"` per tabela treści. Brak wpisu = liczba
+   * wierszy (lista kompletna); `null` = baza liczności nie podała.
+   */
+  counts: {} as Record<string, number | null>,
+  /** `tenants.domain` bieżącego tenanta (null = brak zajętej domeny). */
+  tenantDomain: null as string | null,
+  /** `tenants.is_default` (undefined = nieznane - spadek na host karty). */
+  tenantIsDefault: undefined as boolean | undefined,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -109,17 +122,34 @@ vi.mock("@/integrations/supabase/client", () => {
     for (const method of ["select", "eq", "is", "order", "limit"]) {
       link[method] = () => link;
     }
-    link.maybeSingle = () => Promise.resolve({ data: h.staticHomepage, error: null });
+    // `tenants` czyta wyłącznie `useTenantPublicOrigin` (domena własnego tenanta).
+    link.maybeSingle = () =>
+      Promise.resolve({
+        data:
+          table === "tenants"
+            ? { domain: h.tenantDomain, is_default: h.tenantIsDefault }
+            : h.staticHomepage,
+        error: null,
+      });
     link.then = (
-      resolve: (value: { data: unknown[] | null; error: unknown }) => unknown,
-    ): unknown =>
-      resolve({
+      resolve: (value: { data: unknown[] | null; error: unknown; count: number | null }) => unknown,
+    ): unknown => {
+      const rows = table === "posts" ? h.posts : h.pages;
+      return resolve({
         // `nullRows` odtwarza odpowiedź BEZ błędu i BEZ wierszy - PostgREST tak
         // odpowiada, a trasa ma wtedy zejść na pustą tablicę (`data ?? []`),
         // nie wywrócić się na `null.map`.
-        data: h.readError || h.nullRows ? null : table === "posts" ? h.posts : h.pages,
+        data: h.readError || h.nullRows ? null : rows,
         error: h.readError,
+        count: h.readError
+          ? null
+          : table in h.counts
+            ? (h.counts[table] ?? null)
+            : h.nullRows
+              ? 0
+              : rows.length,
       });
+    };
     return link;
   };
   return {
@@ -269,6 +299,14 @@ beforeEach(() => {
   h.images = [];
   h.readError = null;
   h.nullRows = false;
+  h.counts = {};
+  h.tenantDomain = null;
+  h.tenantIsDefault = undefined;
+  // Karta fundamentów technicznych na kokpicie SONDUJE pliki generowane.
+  // Bez atrapy happy-dom wychodził prawdziwą siecią (origin publiczny, potem
+  // localhost:3000) - test zależał od sieci i zasypywał log ECONNREFUSED.
+  // Odmowa sieci to wariant, który karta i tak obsługuje („brak danych”).
+  vi.stubGlobal("fetch", () => Promise.reject(new TypeError("Failed to fetch")));
   h.ogPrepareResult = (file: unknown) => ({
     file,
     issues: [],
@@ -301,7 +339,10 @@ beforeEach(() => {
   h.cards = [];
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("/admin/seo - układ zakładek", () => {
   /**
@@ -474,6 +515,26 @@ describe("/admin/seo/social - karty społecznościowe", () => {
     await mount();
     expect(screen.queryByText("adminSeoHub.readOnlyNotice")).toBeNull();
   });
+
+  it("tenant z własną domeną: host karty i wbudowany obrazek na JEGO originie", async () => {
+    h.tenantDomain = "analizy.example.org";
+    await mount();
+    await waitFor(() => expect(h.cards.at(-1)?.host).toBe("analizy.example.org"));
+    expect(String(h.cards.at(-1)?.imageUrl)).toMatch(/^https:\/\/analizy\.example\.org\//);
+    expect(document.querySelector("[data-seo-no-domain]")).toBeNull();
+  });
+
+  it("tenant NIEDOMYŚLNY bez domeny: komunikat i „brak domeny” zamiast hosta marki", async () => {
+    // Runda 2: spadek na host karty dawał takiemu tenantowi host MARKI
+    // w podglądzie i adres wbudowanej karty na stronie marki.
+    h.tenantIsDefault = false;
+    await mount();
+    await waitFor(() => expect(document.querySelector("[data-seo-no-domain]")).not.toBeNull());
+    const last = h.cards.at(-1);
+    expect(last?.host).toBe("adminSeoHub.noPublicDomainHost");
+    expect(String(last?.imageUrl)).not.toContain("neweuropeanstrategies");
+    expect(String(last?.imageUrl)).toMatch(/^\/.*og-default\.jpg$/);
+  });
 });
 
 describe("/admin/seo/homepage - strona główna", () => {
@@ -604,6 +665,22 @@ describe("/admin/seo/homepage - strona główna", () => {
     expect(button.disabled).toBe(true);
     fireEvent.click(button);
     expect(h.savePayloads).toEqual([]);
+  });
+
+  it("tenant z własną domeną: host w podglądzie Google to JEGO domena", async () => {
+    h.tenantDomain = "analizy.example.org";
+    await mount();
+    await waitFor(() => expect(h.serps.at(-1)?.host).toBe("analizy.example.org"));
+    expect(document.querySelector("[data-seo-no-domain]")).toBeNull();
+  });
+
+  it("tenant NIEDOMYŚLNY bez domeny: komunikat, a podgląd NIE dostaje hosta marki", async () => {
+    // `host: undefined` dałby w SerpPreview domyślny host marki - stąd jawny
+    // zapis „brak domeny".
+    h.tenantIsDefault = false;
+    await mount();
+    await waitFor(() => expect(document.querySelector("[data-seo-no-domain]")).not.toBeNull());
+    expect(h.serps.at(-1)?.host).toBe("adminSeoHub.noPublicDomainHost");
   });
 });
 
@@ -1047,5 +1124,154 @@ describe("/admin/seo/ - kokpit wobec odpowiedzi BEZ wierszy", () => {
       initialEntry: "/admin/seo",
     });
     await findByText("adminSeoHub.contentSummary(done=0,total=0)");
+  });
+});
+
+describe("/admin/seo/ - kokpit wobec listy PRZYCIĘTEJ limitem", () => {
+  // `.limit()` bez liczności liczył kafelki serwisu z 1200 wpisami z 1000
+  // pobranych, bez słowa o reszcie. Kokpit dzieli teraz odczyt z zakładką
+  // „Treści” (`@/lib/seo/seoContentQuery`) i mówi, gdy liczy z części.
+  function contentRow(id: string) {
+    return {
+      id,
+      slug: id,
+      status: "published",
+      title_pl: id,
+      title_en: id,
+      excerpt_pl: "Opis PL",
+      excerpt_en: "Opis EN",
+      cover_image_url: "https://cdn.example/cover.jpg",
+    };
+  }
+
+  async function mount() {
+    return renderRoute({ route: DashboardRoute, path: "/admin/seo", initialEntry: "/admin/seo" });
+  }
+
+  it("liczność większa od pobranych: komunikat „pokazano X z Y” i kafelki „częściowe”", async () => {
+    h.posts = [contentRow("a"), contentRow("b")];
+    h.pages = [];
+    h.counts = { posts: 1500 };
+    const { findByText } = await mount();
+    await findByText("adminSeoHub.coverageTruncated(shown=2,total=1500)");
+    // Trzy kafelki sekcji treści - kafelki marki (błędy/ostrzeżenia) liczą się
+    // z ustawień, nie z listy treści, więc dopisku NIE dostają.
+    expect(document.querySelectorAll("[data-seo-partial]")).toHaveLength(3);
+  });
+
+  it("lista kompletna: ani komunikatu, ani dopisku", async () => {
+    h.posts = [contentRow("a")];
+    h.pages = [contentRow("p")];
+    const { findByText } = await mount();
+    await findByText("adminSeoHub.contentSummary(done=2,total=2)");
+    expect(document.querySelector("[data-seo-coverage]")).toBeNull();
+    expect(document.querySelector("[data-seo-partial]")).toBeNull();
+  });
+
+  it("brak liczności w odpowiedzi: stan NIEZNANY, a nie „komplet”", async () => {
+    h.posts = [contentRow("a")];
+    h.counts = { pages: null };
+    const { findByText } = await mount();
+    await findByText("adminSeoHub.coverageUnknown(shown=1)");
+    expect(document.querySelectorAll("[data-seo-partial]")).toHaveLength(3);
+  });
+
+  it("padnięty odczyt: komunikat awarii z ponowieniem, a NIE dopisek „częściowe”", async () => {
+    // Zera w kafelkach po awarii nie są stanem serwisu - bez komunikatu kokpit
+    // raportowałby „0 treści bez opisu” jako dobrą wiadomość.
+    h.readError = new Error("PostgREST padł");
+    const { findByText } = await mount();
+    await findByText("adminSeoHub.contentReadError");
+    expect(screen.getByText("adminSeoHub.contentRetry")).toBeTruthy();
+    expect(document.querySelector("[data-seo-partial]")).toBeNull();
+    expect(document.querySelector("[data-seo-coverage]")).toBeNull();
+  });
+
+  it("„Spróbuj ponownie” na kokpicie ponawia odczyt i zdejmuje komunikat", async () => {
+    h.readError = new Error("PostgREST padł");
+    const { findByText } = await mount();
+    await findByText("adminSeoHub.contentRetry");
+    h.readError = null;
+    h.pages = [contentRow("p")];
+    fireEvent.click(screen.getByText("adminSeoHub.contentRetry"));
+    await findByText("adminSeoHub.contentSummary(done=1,total=1)");
+    expect(screen.queryByText("adminSeoHub.contentReadError")).toBeNull();
+  });
+});
+
+describe("/admin/seo/social - host w podglądach jest hostem TENANTA", () => {
+  // Podgląd karty rysował zawsze `displayHost(SITE_CANONICAL_ORIGIN)`, więc
+  // tenant z własną domeną widział host marki pod każdą kartą - czyli kartę,
+  // jakiej nikt nigdy nie zobaczy pod jego linkiem.
+  async function mount() {
+    return renderRoute({
+      route: SocialRoute,
+      path: "/admin/seo/social",
+      initialEntry: "/admin/seo/social",
+    });
+  }
+
+  it("marka: host kanoniczny i wbudowana karta na originie marki", async () => {
+    await mount();
+    expect(h.cards.length).toBeGreaterThan(0);
+    for (const card of h.cards) {
+      expect(card.host).toBe("neweuropeanstrategies.com");
+    }
+    expect(String(h.cards.at(-1)?.imageUrl)).toBe(
+      "https://neweuropeanstrategies.com/og-default.jpg",
+    );
+  });
+
+  it("tenant z własną domeną: KAŻDA karta dostaje jego host i jego wbudowaną kartę", async () => {
+    h.tenantDomain = "analizy.example.org";
+    await mount();
+    await waitForCards((card) => card.host === "analizy.example.org");
+    const last = h.cards.slice(-SOCIAL_NETWORKS.length);
+    expect(last.map((card) => card.host)).toEqual(SOCIAL_NETWORKS.map(() => "analizy.example.org"));
+    // Strona publiczna absolutyzuje wbudowaną kartę na originie żądania.
+    expect(String(last[0]?.imageUrl)).toBe("https://analizy.example.org/og-default.jpg");
+  });
+
+  it("tenant z własną domeną: linki „na żywo” prowadzą na jego stronę główną", async () => {
+    h.tenantDomain = "analizy.example.org";
+    await mount();
+    await waitForCards((card) => card.host === "analizy.example.org");
+    const hrefs = screen.getAllByRole("link").map((a) => a.getAttribute("href") ?? "");
+    expect(hrefs).toContain("https://analizy.example.org");
+    expect(hrefs.some((href) => href.includes("neweuropeanstrategies"))).toBe(false);
+  });
+});
+
+/** Czeka, aż OSTATNI render podglądów spełni warunek (domena dojeżdża z bazy). */
+async function waitForCards(predicate: (card: Record<string, unknown>) => boolean) {
+  await waitFor(() => expect(predicate(h.cards.at(-1) ?? {})).toBe(true));
+}
+
+describe("/admin/seo/homepage - host w podglądzie Google jest hostem TENANTA", () => {
+  // Podgląd wyniku rysował stały host marki, a linki „na żywo” tuż pod nim
+  // prowadzą na origin tenanta - dwa różne adresy tej samej strony głównej.
+  async function mount() {
+    return renderRoute({
+      route: HomepageRoute,
+      path: "/admin/seo/homepage",
+      initialEntry: "/admin/seo/homepage",
+    });
+  }
+
+  it("marka: podgląd pokazuje host kanoniczny", async () => {
+    const { findAllByTestId } = await mount();
+    await findAllByTestId("serp");
+    expect(h.serps.at(-1)?.host).toBe("neweuropeanstrategies.com");
+  });
+
+  it("tenant z własną domeną: OBA podglądy (PL i EN) dostają jego host", async () => {
+    h.tenantDomain = "analizy.example.org";
+    const { findAllByTestId } = await mount();
+    await findAllByTestId("serp");
+    await waitFor(() => expect(h.serps.at(-1)?.host).toBe("analizy.example.org"));
+    expect(h.serps.slice(-2).map((serp) => serp.host)).toEqual([
+      "analizy.example.org",
+      "analizy.example.org",
+    ]);
   });
 });

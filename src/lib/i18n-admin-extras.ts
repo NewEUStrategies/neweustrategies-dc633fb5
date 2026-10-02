@@ -680,6 +680,7 @@ export const adminExtrasPl = {
         notConfigured:
           "Połącz Google Search Console w Ustawieniach, aby sprawdzać status indeksowania.",
         openInGsc: "Otwórz w GSC",
+        propertyLabel: "Właściwość Search Console",
         richResults: "Rich results",
         verdict: {
           fail: "Problem",
@@ -694,29 +695,49 @@ export const adminExtrasPl = {
         copy: "Kopiuj link",
         copyFail: "Nie udało się skopiować",
         empty: "Brak dopasowań w tym tenantcie.",
+        error: "Nie udało się pobrać sugestii - to błąd narzędzia, nie brak dopasowań.",
         hint: "Wybierz kategorię/tagi lub uzupełnij tytuł, aby zobaczyć propozycje.",
         loading: "Szukam kandydatów...",
         open: "Otwórz",
         reasonCategory: "kategoria",
         reasonContent: "treść",
         reasonTag: "tag",
+        retry: "Spróbuj ponownie",
         title: "Sugerowane linki wewnętrzne",
       },
       validation: {
         blockToast: "Zapis wstrzymany: pola SEO przekraczają twardy limit znaków.",
         duplicateHeading: "Powtórzony nagłówek{{pos}}{{snip}} - użyj unikalnych tytułów sekcji.",
-        emptyHeading: "Pusty nagłówek w treści - usuń lub uzupełnij.",
+        // `count` (liczba pustych nagłówków) wybiera formę, `pos` wskazuje
+        // PIERWSZY pusty - redakcja dostaje adres uwagi, nie samą diagnozę.
+        emptyHeading_one: "Pusty nagłówek w treści{{pos}} - usuń lub uzupełnij.",
+        emptyHeading_few:
+          "{{count}} puste nagłówki w treści, pierwszy{{pos}} - usuń je lub uzupełnij.",
+        emptyHeading_many:
+          "{{count}} pustych nagłówków w treści, pierwszy{{pos}} - usuń je lub uzupełnij.",
+        emptyHeading_other:
+          "{{count}} pustych nagłówków w treści, pierwszy{{pos}} - usuń je lub uzupełnij.",
         errorHeading: "Zapis zablokowany - przekroczono twardy limit.",
         errorLine: "{{chars}} / {{limit}} znaków (twardy limit)",
         extraH1:
           "Tytuł strony jest już renderowany jako H1 - usuń nagłówek H1 z treści{{pos}}{{snip}}.",
         headingLabel: "Struktura nagłówków",
+        headingsUnchecked:
+          "Struktury nagłówków nie sprawdzono ({{langs}}) - w treści nie ma jeszcze żadnego nagłówka.",
         missingH1: "Brakuje H1 w treści - dodaj główny nagłówek.",
-        multipleH1: "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden.",
+        // `count` (>= 2) wybiera formę („2 nagłówki”, „5 nagłówków”), `pos`
+        // i `snip` wskazują DRUGI H1 - ten, który trzeba usunąć lub obniżyć.
+        multipleH1_one: "Znaleziono {{count}} nagłówek H1{{pos}}{{snip}}.",
+        multipleH1_few:
+          "Znaleziono {{count}} nagłówki H1 - powinien być tylko jeden; drugi{{pos}}{{snip}}.",
+        multipleH1_many:
+          "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden; drugi{{pos}}{{snip}}.",
+        multipleH1_other:
+          "Znaleziono {{count}} nagłówków H1 - powinien być tylko jeden; drugi{{pos}}{{snip}}.",
         ok: "Wszystkie pola mieszczą się w limitach Google.",
         shoutyHeading: "Nagłówek pisany WERSALIKAMI{{pos}}{{snip}} - użyj zwykłej wielkości liter.",
         skippedLevel:
-          "Przeskoczony poziom nagłówka: H{{from}} → H{{to}}. Zachowaj hierarchię H2 → H3 → H4.",
+          "Przeskoczony poziom nagłówka: H{{from}} → H{{to}}{{pos}}{{snip}}. Zachowaj hierarchię H2 → H3 → H4.",
         // Liczba znaków przychodzi opcją `count`, więc klucz musi mieć formy
         // mnogie - inaczej "72 znaków" zamiast "72 znaki".
         tooLongHeading_one: "Nagłówek za długi{{pos}} ({{count}} znak) - skróć do ~70{{snip}}.",
@@ -1528,6 +1549,7 @@ export const adminExtrasEn = {
         noSites: "No verified properties on the GSC account.",
         notConfigured: "Connect Google Search Console in Settings to check indexing status.",
         openInGsc: "Open in GSC",
+        propertyLabel: "Search Console property",
         richResults: "Rich results",
         verdict: {
           fail: "Problem",
@@ -1542,29 +1564,37 @@ export const adminExtrasEn = {
         copy: "Copy link",
         copyFail: "Could not copy",
         empty: "No matches in this tenant.",
+        error: "Could not load suggestions - the tool failed, this is not a lack of matches.",
         hint: "Select a category/tags or fill in the title to see suggestions.",
         loading: "Searching for candidates...",
         open: "Open",
         reasonCategory: "category",
         reasonContent: "content",
         reasonTag: "tag",
+        retry: "Try again",
         title: "Suggested internal links",
       },
       validation: {
         blockToast: "Save paused: SEO fields exceed the hard character limit.",
         duplicateHeading: "Repeated heading{{pos}}{{snip}} - use unique section titles.",
-        emptyHeading: "Empty heading in content - delete or fill it in.",
+        emptyHeading_one: "Empty heading in content{{pos}} - delete or fill it in.",
+        emptyHeading_other:
+          "{{count}} empty headings in content, first{{pos}} - delete or fill them in.",
         errorHeading: "Save blocked - hard limit exceeded.",
         errorLine: "{{chars}} / {{limit}} characters (hard limit)",
         extraH1:
           "The page title already renders as the H1 - remove the H1 heading from the content{{pos}}{{snip}}.",
         headingLabel: "Heading structure",
+        headingsUnchecked:
+          "Heading structure not checked ({{langs}}) - the content has no headings yet.",
         missingH1: "Missing H1 in the content - add a main heading.",
-        multipleH1: "Found {{count}} H1 headings - there should be only one.",
+        multipleH1_one: "Found {{count}} H1 heading{{pos}}{{snip}}.",
+        multipleH1_other:
+          "Found {{count}} H1 headings - there should be only one; second{{pos}}{{snip}}.",
         ok: "All fields are within Google's limits.",
         shoutyHeading: "Heading set in ALL CAPS{{pos}}{{snip}} - use normal capitalisation.",
         skippedLevel:
-          "Skipped heading level: H{{from}} → H{{to}}. Keep the hierarchy H2 → H3 → H4.",
+          "Skipped heading level: H{{from}} → H{{to}}{{pos}}{{snip}}. Keep the hierarchy H2 → H3 → H4.",
         tooLongHeading_one:
           "Heading too long{{pos}} ({{count}} character) - shorten it to about 70{{snip}}.",
         tooLongHeading_other:

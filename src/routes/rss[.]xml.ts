@@ -10,7 +10,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { DEFAULT_LANG, localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
 import { SITE_DEFAULT_DESCRIPTION, SITE_DEFAULT_TITLE, SITE_NAME } from "@/lib/seo/meta";
-import { siteDescriptionOverride, siteTitleOverride } from "@/lib/seo/settings";
+import { siteDescriptionOverride, siteNameOverride, siteTitleOverride } from "@/lib/seo/settings";
 import { buildRssXml, type RssItem } from "@/lib/seo/rss";
 import { rssResponseHeaders } from "@/lib/seo/feedCache";
 import { parseSeoSettings } from "@/lib/seo/settings";
@@ -70,7 +70,9 @@ export const Route = createFileRoute("/rss.xml")({
           siteUrl: `${origin}${localizedPath("/", lang)}`,
           feedUrl: `${origin}${localizedPath("/rss.xml", lang)}`,
           language: lang,
-          copyright: `© ${new Date().getFullYear()} ${SITE_NAME}`,
+          // Nazwa serwisu z ustawień SEO (już pobranych wyżej) - to samo źródło,
+          // co `og:site_name` i `WebSite.name`; stała marki tylko jako zapas.
+          copyright: `© ${new Date().getFullYear()} ${siteNameOverride(settings) || SITE_NAME}`,
           items,
         });
 

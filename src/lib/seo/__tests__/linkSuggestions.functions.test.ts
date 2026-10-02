@@ -16,14 +16,27 @@
 //    * pomijanie sugestii DO SAMEGO SIEBIE na wszystkich trzech ścieżkach
 //      (kategorie, tagi, FTS - trzy osobne `continue` w kodzie);
 //    * TOKENIZACJĘ wzorca FTS: znaczniki HTML zdejmowane, tokeny krótsze niż
-//      4 znaki pomijane, duplikaty scalane, najwyżej 12 tokenów, polskie
-//      diakrytyki i cyfry zachowane, treść ucinana do 4000 znaków - oraz brak
-//      zapytania FTS, gdy nie ma z czego zbudować wzorca;
+//      4 znaki pomijane, duplikaty scalane, najwyżej 12 tokenów, diakrytyki
+//      zdejmowane jak `unaccent` w wektorze (z `ł` → `l`), cyfry zachowane,
+//      treść ucinana do 4000 znaków - oraz brak zapytania FTS, gdy nie ma
+//      z czego zbudować wzorca;
+//    * KONTRAKT KOLUMNY FTS ZE SCHEMATEM: `textSearch` celuje w `FTS_COLUMN`,
+//      a ta nazwa jest kolumną tsvector `posts` w wygenerowanych typach
+//      i w migracji; wzorzec to surowe `to_tsquery` z OR (` | `), nie
+//      `websearch` (tam `|` to interpunkcja i powstaje AND wszystkich słów);
+//    * LIMIT KANDYDATÓW w finalnym `.in("id", ids)` - do selecta idzie
+//      najwyżej `MAX_FINAL_CANDIDATES` najlepiej punktowanych (bez tego
+//      popularna kategoria dawała 414 na bramie);
 //    * ZAKRES zapytań: `tenant_id` i `status = "published"` zapisane
 //      w łańcuchu PostgREST. To jedyna warstwa, która chroni redakcję przed
 //      zasugerowaniem cudzej albo nieopublikowanej treści, więc asercja stoi
 //      na FILTRZE w łańcuchu, nie na danych zwróconych przez atrapę;
-//    * DEGRADACJĘ przy błędzie zapytania (handler czyta wyłącznie `data`).
+//    * JAWNOŚĆ AWARII: błąd KAŻDEGO z pięciu zapytań (profil, kategorie, tagi,
+//      FTS, finalny select) kończy się wyjątkiem `LinkSuggestionsQueryError`
+//      z etapem w treści i wpisem w log serwera bez danych osobowych - a nie
+//      pustą listą, której nie da się odróżnić od braku dopasowań;
+//    * RÓWNOLEGŁOŚĆ trzech źródeł kandydatów (kategorie, tagi, FTS) - jedna
+//      runda do bazy zamiast trzech kolejnych.
 //
 // 2) CZEGO ŚWIADOMIE NIE DUBLUJE:
 //    * AUTORYZACJI. Atrapa `createServerFn` (`src/test/serverFn.ts`) NIE
@@ -47,7 +60,9 @@
 // tamta lista ogniw nie zna `textSearch`, więc ścieżka FTS wywaliłaby się na
 // `builder.textSearch is not a function`, a poprawianie wspólnego harnessu
 // jest poza zakresem tego zadania.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@tanstack/react-start", async () =>
   (await import("@/test/serverFn")).serverFnModuleMock(),
@@ -66,7 +81,13 @@ import {
   type SupabaseFromStub,
   type SupabaseResult,
 } from "@/test/supabase";
-import { suggestInternalLinks } from "@/lib/seo/linkSuggestions.functions";
+import {
+  FTS_COLUMN,
+  LINK_SUGGESTIONS_QUERY_FAILED,
+  LinkSuggestionsQueryError,
+  MAX_FINAL_CANDIDATES,
+  suggestInternalLinks,
+} from "@/lib/seo/linkSuggestions.functions";
 
 // ---------------------------------------------------------------------------
 // Dane. Wszystkie identyfikatory są poprawnymi uuid-ami, bo walidator wejścia
@@ -527,12 +548,25 @@ describe("tokenizacja wzorca FTS", () => {
     expect(ftsTokens()).toEqual(slowa.slice(0, 12));
   });
 
-  it("zachowuje polskie diakrytyki i cyfry", async () => {
-    // Zgubione diakrytyki dawałyby wzorzec, który nie trafia w polską treść,
-    // a odrzucone cyfry wykluczyłyby roczniki („budżet 2027").
+  it("zdejmuje polskie diakrytyki jak `unaccent` w wektorze i zachowuje cyfry", async () => {
+    // `posts.search_vector` to `to_tsvector('simple', unaccent(...))` - w bazie
+    // jest leksem `wysluchanie`, a nie `wysłuchanie`. Token z diakrytykami nie
+    // trafiłby w ŻADEN wpis. Odrzucone cyfry wykluczyłyby roczniki („budżet 2027").
     await suggestInternalLinks({ data: { titlePl: "Wysłuchanie 2027 wpłynęło" } });
 
-    expect(ftsTokens()).toEqual(["wysłuchanie", "2027", "wpłynęło"]);
+    expect(ftsTokens()).toEqual(["wysluchanie", "2027", "wplynelo"]);
+  });
+
+  it("`ł` i wielkie litery z diakrytykami sprowadza do bazy - NFD sam `ł` nie rozkłada", async () => {
+    await suggestInternalLinks({ data: { titlePl: "ŁÓDŹ ŁADZIE źródło Żółć" } });
+
+    expect(ftsTokens()).toEqual(["lodz", "ladzie", "zrodlo", "zolc"]);
+  });
+
+  it("samodzielne `^` i `` ` `` dalej rozdzielają słowa - zdejmowane są tylko znaki łączące", async () => {
+    await suggestInternalLinks({ data: { titlePl: "komisja^europejska`reforma" } });
+
+    expect(ftsTokens()).toEqual(["komisja", "europejska", "reforma"]);
   });
 
   it("treść dłuższa niż 4000 znaków jest ucinana PRZED tokenizacją", async () => {
@@ -578,9 +612,32 @@ describe("zakres zapytań - tenant i status w łańcuchu PostgREST", () => {
     expect(hasFilter(chain, "eq", "tenant_id", TENANT)).toBe(true);
     expect(hasFilter(chain, "eq", "status", "published")).toBe(true);
     expect(hasFilter(chain, "limit", 40)).toBe(true);
-    expect(chain?.argsOf("textSearch")?.[0]).toBe("fts");
+    expect(chain?.argsOf("textSearch")?.[0]).toBe(FTS_COLUMN);
     expect(ftsPattern()).toBe("komisja | europejska");
-    expect(chain?.argsOf("textSearch")?.[2]).toEqual({ type: "websearch", config: "simple" });
+  });
+
+  it("FTS celuje w `search_vector` - kolumny `posts.fts` NIE MA (42703 przy każdym wywołaniu)", async () => {
+    await suggestInternalLinks({ data: { titlePl: "Komisja Europejska" } });
+
+    expect(FTS_COLUMN).toBe("search_vector");
+    expect(ftsChain()?.argsOf("textSearch")?.[0]).toBe("search_vector");
+    expect(ftsChain()?.argsOf("textSearch")?.[0]).not.toBe("fts");
+  });
+
+  it("wzorzec to surowe `to_tsquery` z OR - BEZ `type: websearch`, który z ` | ` robi AND", async () => {
+    // postgrest-js: brak `type` → operator `fts(simple)` = `to_tsquery`, gdzie
+    // `|` to OR i wystarczy JEDEN wspólny token. `type: "websearch"` →
+    // `wfts`, a `websearch_to_tsquery` traktuje `|` jak interpunkcję: wpis
+    // musiałby zawierać WSZYSTKIE 12 tokenów z tytułu i treści.
+    await suggestInternalLinks({ data: { titlePl: "Komisja Europejska reforma" } });
+
+    const options = ftsChain()?.argsOf("textSearch")?.[2];
+    expect(options).toEqual({ config: "simple" });
+    expect(options).not.toHaveProperty("type");
+    expect(ftsPattern()).toBe("komisja | europejska | reforma");
+    // Każdy token to wyłącznie litery/cyfry - żaden nie wnosi składni tsquery
+    // (`&`, `!`, `:`, `(`), więc operator między nimi jest jedynym operatorem.
+    for (const token of ftsTokens()) expect(token).toMatch(/^[\p{L}\p{N}]+$/u);
   });
 
   it("finalny select filtruje po tenancie i statusie oraz po zebranych identyfikatorach", async () => {
@@ -628,78 +685,343 @@ describe("zakres zapytań - tenant i status w łańcuchu PostgREST", () => {
 });
 
 // ---------------------------------------------------------------------------
-describe("degradacja przy błędzie zapytania", () => {
-  it("błąd zapytania o profil: pusta lista i żadnego dalszego zapytania", async () => {
+describe("kontrakt kolumny FTS ze schematem bazy", () => {
+  // Atrapa rozpoznaje zapytanie FTS po ogniwie `textSearch` i przyjmie KAŻDĄ
+  // nazwę kolumny - tak przez długi czas przechodziło `posts.fts`, którego
+  // w schemacie nie ma. `satisfies keyof PostsRow` w kodzie łapie to w tsc;
+  // ten blok łapie to w samym vitest, czytając typy i migrację.
+  const ROOT = process.cwd();
+  const typesSrc = readFileSync(join(ROOT, "src/integrations/supabase/types.ts"), "utf8");
+  const migrationSrc = readFileSync(
+    join(ROOT, "supabase/migrations/20260628210000_fulltext_search.sql"),
+    "utf8",
+  );
+
+  /** Ciało `posts: { Row: { ... } }` z wygenerowanych typów. */
+  function postsRowBlock(): string {
+    const start = typesSrc.indexOf("      posts: {\n        Row: {");
+    expect(start).toBeGreaterThanOrEqual(0);
+    const end = typesSrc.indexOf("\n        }", start);
+    return typesSrc.slice(start, end);
+  }
+
+  it("`FTS_COLUMN` jest kolumną wiersza `posts` w wygenerowanych typach (tsvector → `unknown`)", () => {
+    const row = postsRowBlock();
+
+    expect(row).toMatch(new RegExp(`\\n\\s+${FTS_COLUMN}: unknown\\n`));
+    // Kolumny `fts` w `posts` nie ma - to ona dawała 42703 na produkcji.
+    expect(row).not.toMatch(/\n\s+fts\??: /);
+  });
+
+  it("migracja dodaje `posts.search_vector tsvector` z indeksem GIN", () => {
+    expect(migrationSrc).toContain(
+      `ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS ${FTS_COLUMN} tsvector;`,
+    );
+    expect(migrationSrc).toMatch(new RegExp(`ON public\\.posts USING gin \\(${FTS_COLUMN}\\)`));
+  });
+
+  it("wektor powstaje z `to_tsvector('simple', unaccent(...))` - stąd `config: simple` i tokeny bez diakrytyków", () => {
+    const fn = migrationSrc.slice(
+      migrationSrc.indexOf("FUNCTION public.nes_posts_search_vector("),
+      migrationSrc.indexOf("FUNCTION public.nes_pages_search_vector("),
+    );
+
+    expect(fn).toContain("to_tsvector('simple', unaccent(");
+    // Żadna inna konfiguracja (np. `polish`, `english`) - inaczej `config:
+    // "simple"` w zapytaniu i ręczne zdejmowanie diakrytyków by się rozjechały.
+    expect(fn).not.toMatch(/to_tsvector\('(?!simple')/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("limit kandydatów w finalnym selekcie", () => {
+  // Powiązania kategorii/tagów nie mają limitu, a każdy uuid to ~37 znaków
+  // w URL GET `.in("id", ...)`. Kilkaset wpisów w popularnej kategorii dawało
+  // 414 na bramie - po rundzie 1 trwały błąd etapu `posts`, którego przycisk
+  // „Spróbuj ponownie" z definicji nie naprawi.
+  const kandydaci = (count: number, prefix: string): string[] =>
+    Array.from(
+      { length: count },
+      (_, i) => `${prefix}${String(i).padStart(6, "0")}-0000-4000-8000-000000000000`,
+    );
+
+  it("ponad `MAX_FINAL_CANDIDATES` kandydatów: do selecta idzie dokładnie limit, najlepiej punktowani PIERWSI", async () => {
+    const tylkoKategoria = kandydaci(150, "a1");
+    const kategoriaITag = kandydaci(30, "b2");
+    plan.categories = ok([...tylkoKategoria, ...kategoriaITag].map((id) => catRow(id)));
+    plan.tags = ok(kategoriaITag.map((id) => tagRow(id)));
+
+    await suggestInternalLinks({ data: { categoryIds: [CAT_A], tagIds: [TAG_A] } });
+
+    const ids = inIds(finalChain());
+    expect(MAX_FINAL_CANDIDATES).toBe(100);
+    expect(ids).toHaveLength(MAX_FINAL_CANDIDATES);
+    // Wpisy z kategorią I tagiem (7 pkt) wyprzedzają same kategorie (4 pkt),
+    // choć w odpowiedzi bazy przyszły na końcu.
+    expect(ids.slice(0, 30)).toEqual(kategoriaITag);
+    // Przy remisie decyduje kolejność źródła (sortowanie stabilne).
+    expect(ids.slice(30)).toEqual(tylkoKategoria.slice(0, MAX_FINAL_CANDIDATES - 30));
+  });
+
+  it("dokładnie `MAX_FINAL_CANDIDATES` kandydatów: wszyscy idą do selecta, nikt nie odpada", async () => {
+    const wszyscy = kandydaci(MAX_FINAL_CANDIDATES, "c3");
+    plan.categories = ok(wszyscy.map((id) => catRow(id)));
+
+    await suggestInternalLinks({ data: { categoryIds: [CAT_A] } });
+
+    expect(inIds(finalChain())).toEqual(wszyscy);
+  });
+
+  it("obcięcie nie zmienia wyniku - najlepszy kandydat spoza pierwszej setki w kolejności bazy i tak wygrywa", async () => {
+    const tlo = kandydaci(140, "d4");
+    const najlepszy = "ee000000-0000-4000-8000-0000000000ee";
+    plan.categories = ok([...tlo, najlepszy].map((id) => catRow(id)));
+    plan.tags = ok([tagRow(najlepszy)]);
+    plan.fts = ok([ftsRow(najlepszy)]);
+    plan.final = ok([postRow(najlepszy), postRow(tlo[0]!)]);
+
+    const result = await suggestInternalLinks({
+      data: { titlePl: "Komisja Europejska", categoryIds: [CAT_A], tagIds: [TAG_A], limit: 1 },
+    });
+
+    expect(inIds(finalChain())[0]).toBe(najlepszy);
+    expect(result.map((row) => [row.id, row.score])).toEqual([[najlepszy, 9]]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("równoległe źródła kandydatów", () => {
+  it("kategorie, tagi i FTS lecą RAZEM - żadne nie czeka na odpowiedź poprzedniego", async () => {
+    // Odpowiedź o kategorie wstrzymana bramką. Przy zapytaniach kolejnych
+    // łańcuchy tagów i FTS nie powstałyby, dopóki kategorie nie wrócą.
+    let otworz: () => void = () => {};
+    const bramka = new Promise<void>((resolve) => {
+      otworz = resolve;
+    });
+    plan.categories = ok([catRow(POST_A)]);
+    plan.tags = ok([tagRow(POST_B)]);
+    plan.fts = ok([ftsRow(POST_C)]);
+    plan.final = ok([postRow(POST_A), postRow(POST_B), postRow(POST_C)]);
+    supa.setResponse("post_categories", async () => {
+      await bramka;
+      return plan.categories;
+    });
+
+    const wynik = suggestInternalLinks({
+      data: { titlePl: "Komisja Europejska", categoryIds: [CAT_A], tagIds: [TAG_A] },
+    });
+
+    await vi.waitFor(() => expect(supa.chainsFor("post_tags")).toHaveLength(1));
+    expect(ftsChain()).toBeDefined();
+    // Finalny select czeka na WSZYSTKIE trzy źródła - potrzebuje pełnej punktacji.
+    expect(finalChain()).toBeUndefined();
+
+    otworz();
+    const result = await wynik;
+
+    expect(result.map((row) => [row.id, row.score])).toEqual([
+      [POST_A, 4],
+      [POST_B, 3],
+      [POST_C, 2],
+    ]);
+  });
+
+  it("profil idzie PRZED źródłami kandydatów - bez tenanta żadne z nich nie startuje", async () => {
+    // Równoległość nie obejmuje profilu: tenant jest filtrem zapytania FTS,
+    // a jego brak ma kończyć pracę zerem dalszych zapytań.
+    plan.categories = ok([catRow(POST_A)]);
+    plan.final = ok([postRow(POST_A)]);
+
+    await suggestInternalLinks({ data: { titlePl: "Komisja Europejska", categoryIds: [CAT_A] } });
+
+    expect(supa.chains[0]?.table).toBe("profiles");
+    expect(supa.chains.map((chain) => chain.table)).toEqual([
+      "profiles",
+      "post_categories",
+      "posts",
+      "posts",
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("awaria zapytania jest jawna - wyjątek i log, nie pusta lista", () => {
+  // KONSEKWENCJA, której pilnuje ten blok: gdyby awaria bazy (albo cofnięty
+  // grant) dawała ten sam wynik, co poprawne zapytanie bez dopasowań, redakcja
+  // widziałaby „brak dopasowań" zamiast błędu i nie wiedziała, że narzędzie
+  // nie działa - autor przestaje linkować wewnętrznie, bo „nie ma do czego",
+  // a przyczyna (padnięty FTS, odebrany grant) nie zostawia śladu ani
+  // w panelu, ani w logu serwera.
+  let consoleError: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleError.mockRestore();
+  });
+
+  /** Wyjątek z wywołania - test asertuje KLASĘ, etap i treść, nie samo „rzuciło". */
+  async function bladWywolania(data: Record<string, unknown>): Promise<unknown> {
+    try {
+      await suggestInternalLinks({ data });
+    } catch (error) {
+      return error;
+    }
+    throw new Error("test: oczekiwano wyjątku, wywołanie się rozwiązało");
+  }
+
+  it("błąd zapytania o profil: wyjątek etapu `profile` i ŻADNEGO dalszego zapytania", async () => {
     plan.profiles = fail("profiles down");
 
-    await expect(suggestInternalLinks({ data: { categoryIds: [CAT_A] } })).resolves.toEqual([]);
+    const error = await bladWywolania({ categoryIds: [CAT_A] });
+
+    expect(error).toBeInstanceOf(LinkSuggestionsQueryError);
+    expect((error as LinkSuggestionsQueryError).stage).toBe("profile");
     expect(supa.chains).toHaveLength(1);
   });
 
-  it("błąd zapytania o kategorie: punkty za kategorię przepadają, tagi liczą się dalej", async () => {
-    plan.categories = fail("post_categories down");
-    plan.tags = ok([tagRow(POST_A)]);
-    plan.final = ok([postRow(POST_A)]);
+  const zrodla: Array<{
+    etap: "categories" | "tags" | "fts";
+    psuj: () => void;
+  }> = [
+    { etap: "categories", psuj: () => (plan.categories = fail("post_categories down")) },
+    { etap: "tags", psuj: () => (plan.tags = fail("post_tags down")) },
+    { etap: "fts", psuj: () => (plan.fts = fail("fts down")) },
+  ];
 
-    const result = await suggestInternalLinks({
-      data: { categoryIds: [CAT_A], tagIds: [TAG_A] },
+  for (const { etap, psuj } of zrodla) {
+    it(`błąd źródła \`${etap}\`: wyjątek tego etapu, BEZ częściowego wyniku i bez finalnego selecta`, async () => {
+      // Pozostałe źródła mają trafienia - przed poprawką handler oddawał je
+      // jako wynik z cicho zaniżoną punktacją. Teraz punktacja bez jednego
+      // źródła nie wychodzi wcale.
+      plan.categories = ok([catRow(POST_A)]);
+      plan.tags = ok([tagRow(POST_A)]);
+      plan.fts = ok([ftsRow(POST_A)]);
+      plan.final = ok([postRow(POST_A)]);
+      psuj();
+
+      const error = await bladWywolania({
+        titlePl: "Komisja Europejska",
+        categoryIds: [CAT_A],
+        tagIds: [TAG_A],
+      });
+
+      expect(error).toBeInstanceOf(LinkSuggestionsQueryError);
+      expect((error as LinkSuggestionsQueryError).stage).toBe(etap);
+      expect(finalChain()).toBeUndefined();
     });
+  }
 
-    expect(result.map((row) => [row.id, row.score])).toEqual([[POST_A, 3]]);
-    expect(result[0]?.reasons).toEqual(["tag"]);
-  });
-
-  it("błąd zapytania o tagi: punkty za tag przepadają, kategoria liczy się dalej", async () => {
-    plan.categories = ok([catRow(POST_A)]);
+  it("dwa źródła padają naraz: etap w wyjątku jest deterministyczny (pierwszy w kolejności)", async () => {
     plan.tags = fail("post_tags down");
-    plan.final = ok([postRow(POST_A)]);
-
-    const result = await suggestInternalLinks({
-      data: { categoryIds: [CAT_A], tagIds: [TAG_A] },
-    });
-
-    expect(result.map((row) => [row.id, row.score])).toEqual([[POST_A, 4]]);
-    expect(result[0]?.reasons).toEqual(["category"]);
-  });
-
-  it("błąd zapytania FTS: punkty za treść przepadają", async () => {
-    plan.categories = ok([catRow(POST_A)]);
     plan.fts = fail("fts down");
-    plan.final = ok([postRow(POST_A)]);
 
-    const result = await suggestInternalLinks({
-      data: { titlePl: "Komisja Europejska", categoryIds: [CAT_A] },
-    });
+    const error = await bladWywolania({ titlePl: "Komisja Europejska", tagIds: [TAG_A] });
 
-    expect(result.map((row) => [row.id, row.score])).toEqual([[POST_A, 4]]);
-    expect(result[0]?.reasons).toEqual(["category"]);
+    expect((error as LinkSuggestionsQueryError).stage).toBe("tags");
   });
 
-  it("błąd FINALNEGO selecta: pusta lista, mimo policzonych kandydatów", async () => {
+  it("błąd FINALNEGO selecta: wyjątek etapu `posts`, choć kandydaci byli policzeni", async () => {
+    // Spójnie z resztą: późny odczyt, który pada, to też awaria, a nie
+    // „brak dopasowań". Przed poprawką ten przypadek kończył się pustą listą.
     plan.categories = ok([catRow(POST_A)]);
     plan.final = fail("posts down");
 
-    const result = await suggestInternalLinks({ data: { categoryIds: [CAT_A] } });
+    const error = await bladWywolania({ categoryIds: [CAT_A] });
 
-    expect(result).toEqual([]);
+    expect(error).toBeInstanceOf(LinkSuggestionsQueryError);
+    expect((error as LinkSuggestionsQueryError).stage).toBe("posts");
     // Kandydat BYŁ policzony - zapytanie poszło, dopiero odczyt padł.
     expect(inIds(finalChain())).toEqual([POST_A]);
   });
 
-  // DEFEKT: handler czyta z każdej odpowiedzi wyłącznie `data` i ANI RAZU nie
-  // zagląda w `error`. Awaria bazy (albo cofnięty grant) daje więc dokładnie
-  // ten sam wynik, co poprawne zapytanie bez dopasowań: pustą listę.
-  // KONSEKWENCJA: redakcja widzi „brak dopasowań" zamiast błędu i nie wie, że
-  // narzędzie nie działa - autor przestaje linkować wewnętrznie, bo „nie ma do
-  // czego", a przyczyna (padnięty FTS, odebrany grant) nie zostawia śladu ani
-  // w panelu, ani w odpowiedzi server fn.
-  it.fails("DEFEKT: awaria zapytania jest NIEROZRÓŻNIALNA od braku dopasowań", async () => {
+  it("STRAŻNIK: awaria zapytania jest ROZRÓŻNIALNA od braku dopasowań", async () => {
     plan.categories = fail("post_categories down");
-    const awaria = await suggestInternalLinks({ data: { categoryIds: [CAT_A] } });
+    const awaria = suggestInternalLinks({ data: { categoryIds: [CAT_A] } });
+
+    await expect(awaria).rejects.toThrow(LinkSuggestionsQueryError);
 
     plan.categories = ok([]);
     const brakDopasowan = await suggestInternalLinks({ data: { categoryIds: [CAT_A] } });
 
-    expect(awaria).not.toEqual(brakDopasowan);
+    expect(brakDopasowan).toEqual([]);
+  });
+
+  it("treść wyjątku to kod i etap - komunikat bazy NIE wychodzi do przeglądarki", async () => {
+    plan.categories = fail("permission denied for table post_categories", "42501");
+
+    const error = await bladWywolania({ categoryIds: [CAT_A] });
+
+    expect((error as Error).message).toBe(`${LINK_SUGGESTIONS_QUERY_FAILED}: categories`);
+    expect((error as Error).message).not.toContain("permission denied");
+    expect((error as LinkSuggestionsQueryError).code).toBe(LINK_SUGGESTIONS_QUERY_FAILED);
+  });
+
+  it("awaria zostawia ślad w logu serwera: etap, kod i komunikat PostgREST", async () => {
+    plan.fts = fail("canceling statement due to statement timeout", "57014");
+
+    await bladWywolania({ titlePl: "Komisja Europejska" });
+
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledWith("[linkSuggestions] query failed", {
+      stage: "fts",
+      code: "57014",
+      message: "canceling statement due to statement timeout",
+    });
+  });
+
+  it("log nie niesie danych osobowych ani treści szkicu", async () => {
+    plan.fts = fail("fts down");
+
+    await bladWywolania({ postId: SELF_ID, titlePl: "Komisja Europejska", tagIds: [TAG_A] });
+
+    const zalogowane = JSON.stringify(consoleError.mock.calls);
+    expect(zalogowane).not.toContain(USER_ID);
+    expect(zalogowane).not.toContain(TENANT);
+    expect(zalogowane).not.toContain(SELF_ID);
+    expect(zalogowane.toLowerCase()).not.toContain("komisja");
+  });
+
+  it("brak kodu w błędzie PostgREST loguje `code: null`, a nie gubi wpisu", async () => {
+    plan.final = fail("posts down");
+    plan.categories = ok([catRow(POST_A)]);
+
+    await bladWywolania({ categoryIds: [CAT_A] });
+
+    expect(consoleError).toHaveBeenCalledWith("[linkSuggestions] query failed", {
+      stage: "posts",
+      code: null,
+      message: "posts down",
+    });
+  });
+
+  // Negatywy - poprawka nie może zamienić w błąd tego, co błędem nie jest.
+  it("zapytania bez błędu i bez wierszy: pusta lista, BEZ wyjątku i BEZ wpisu w logu", async () => {
+    await expect(
+      suggestInternalLinks({
+        data: { titlePl: "Komisja Europejska", categoryIds: [CAT_A], tagIds: [TAG_A] },
+      }),
+    ).resolves.toEqual([]);
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it("`data: null` bez `error` w źródle kandydatów to brak trafień, nie awaria", async () => {
+    plan.categories = ok(null);
+    plan.tags = ok([tagRow(POST_A)]);
+    plan.final = ok([postRow(POST_A)]);
+
+    const result = await suggestInternalLinks({ data: { categoryIds: [CAT_A], tagIds: [TAG_A] } });
+
+    expect(result.map((row) => [row.id, row.score])).toEqual([[POST_A, 3]]);
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it("profil bez tenanta pozostaje ODMOWĄ (pusta lista), nie awarią", async () => {
+    plan.profiles = ok({ tenant_id: null });
+
+    await expect(suggestInternalLinks({ data: { categoryIds: [CAT_A] } })).resolves.toEqual([]);
+    expect(consoleError).not.toHaveBeenCalled();
   });
 });

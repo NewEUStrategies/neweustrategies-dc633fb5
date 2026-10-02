@@ -16,12 +16,20 @@
 // wspólne z weryfikacją webhooków Resend (WEBHOOK_TOLERANCE_SECONDS, 300 s) -
 // druga stała oznaczałaby dwa różne kontrakty anty-replay w jednym repo.
 //
-// WDROŻENIE DWUFAZOWE (faza 1 - TU JESTEŚMY). Zewnętrzni wołający (CI, cron,
-// integracje) podpisują dziś sam slug, więc podpis bez `x-og-timestamp` jest
-// nadal przyjmowany i logowany jako `legacy signature`. FAZA 2: gdy w logach
-// zniknie ruch legacy, usuń gałąź bez znacznika czasu. Bez tego okna
-// odświeżanie og:image autorów przestałoby działać CICHO - objawiłoby się
-// dopiero starymi miniaturami w podglądach linków, tygodnie później.
+// WDROŻENIE DWUFAZOWE Z TERMINEM. Faza 1: podpis bez `x-og-timestamp` (nad
+// samym slugiem) jest nadal przyjmowany i logowany jako `legacy signature` -
+// bez tego okna odświeżanie og:image u zewnętrznych wołających (CI, cron,
+// integracje) przestałoby działać CICHO, objawiając się starymi miniaturami
+// tygodnie później. Faza 2 zaczyna się SAMA: od
+// OG_REFRESH_LEGACY_SIGNATURE_SUNSET_ISO (2027-01-01T00:00:00Z) stary podpis
+// dostaje 401 z instrukcją, jak podpisać po nowemu (FAIL-CLOSED, bez
+// wdrożenia). `OG_REFRESH_LEGACY_SIGNATURES=off` kończy fazę 1 wcześniej.
+// Polityka, data i uzasadnienie: `src/lib/seo/ogRefreshLegacySignature.ts`.
+// Odrzucenie POPRAWNEGO starego podpisu zostawia w logu
+// `legacy signature rejected` - integracja, która nie przepięła się na czas,
+// jest widoczna w logach workera, a nie dopiero w podglądach linków. Po
+// terminie gałąź jest martwym kodem odmowy - można ją usunąć razem z modułem
+// polityki, gdy w logach nie ma już `legacy signature rejected`.
 import { createFileRoute } from "@tanstack/react-router";
 // MUST use the `node:` prefix. This module is a ROUTE, so it is eagerly imported
 // by routeTree.gen and evaluated during the framework's getEntries() on the first
@@ -42,6 +50,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { WEBHOOK_TOLERANCE_SECONDS } from "@/lib/email/webhookSignature.server";
+import {
+  OG_REFRESH_LEGACY_REJECTED_ERROR,
+  ogRefreshLegacyPolicy,
+} from "@/lib/seo/ogRefreshLegacySignature";
 
 const Body = z.object({
   slug: z
@@ -104,9 +116,20 @@ export const Route = createFileRoute("/api/public/hooks/refresh-og-image")({
             .digest("hex");
           if (!safeEq(sig, expected)) return unauthorized("Invalid signature");
         } else {
-          // FAZA 1 wdrożenia: stary kontrakt (podpis nad samym slugiem).
+          // Stary kontrakt (podpis nad samym slugiem). Podpis jest weryfikowany
+          // PRZED polityką: błędny dostaje zwykłe "Invalid signature" (żadnej
+          // podpowiedzi dla zgadującego), a dopiero POPRAWNY, ale spóźniony,
+          // dostaje instrukcję i ślad w logu - to jest prawdziwa integracja.
           const legacyExpected = createHmac("sha256", secret).update(parsed.slug).digest("hex");
           if (!safeEq(sig, legacyExpected)) return unauthorized("Invalid signature");
+          const policy = ogRefreshLegacyPolicy(
+            Date.now(),
+            process.env.OG_REFRESH_LEGACY_SIGNATURES,
+          );
+          if (policy !== "accept") {
+            console.warn("[og-refresh] legacy signature rejected", parsed.slug, policy);
+            return unauthorized(OG_REFRESH_LEGACY_REJECTED_ERROR);
+          }
           console.warn("[og-refresh] legacy signature", parsed.slug);
         }
 

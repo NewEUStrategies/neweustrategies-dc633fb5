@@ -48,6 +48,93 @@ describe("validateSeoPanel", () => {
     expect(hasBlockingSeoIssues(issues)).toBe(false);
   });
 
+  it("tytuł z FALLBACKU ponad budżetem pikselowym to ostrzeżenie - ta sama reguła co pole", () => {
+    // Zgodność z `SeoTextField`: pole przy pustej wartości ostrzega o
+    // fallbacku, który pójdzie do Google, więc podsumowanie przed zapisem
+    // musi mówić to samo. Rozjazd = pole milczy, a toast przed zapisem krzyczy
+    // (albo odwrotnie) o tym samym tekście.
+    const longFallback = "W".repeat(60);
+    const issues = validateSeoPanel({
+      value: emptyValue,
+      fallbackTitle: { pl: longFallback, en: "Krótki" },
+      fallbackDescription: { pl: "opis", en: "desc" },
+      slug: "test",
+      titleCharLimit: 160,
+      descriptionCharLimit: 320,
+    });
+    const titleIssue = issues.find((i) => i.kind === "title" && i.lang === "pl");
+    expect(titleIssue?.severity).toBe("warning");
+    expect(titleIssue?.chars).toBe(60);
+    // Kontrola negatywna: krótki fallback EN nie dostaje ostrzeżenia.
+    expect(issues.find((i) => i.kind === "title" && i.lang === "en")).toBeUndefined();
+    expect(hasBlockingSeoIssues(issues)).toBe(false);
+  });
+
+  // STRAŻNIK sufiksu marki: head() i podgląd SERP przy pustym polu doklejają
+  // sufiks do tytułu wyprowadzonego (`applyTitleSuffix(..., titleIsOverride=
+  // false)`, sufiks domyślnie włączony). Walidator mierzył kiedyś fallback BEZ
+  // niego - fallback ~460 px („good") z sufiksem ma ~737 px, Google go ucina,
+  // a podsumowanie przed zapisem milczało. Teraz `titleSuffix` w wejściu
+  // mierzy dokładnie tekst, który trafia do wyników.
+  const SUFFIX_FALLBACK = "Polska prezydencja w Radzie Unii Europejskiej";
+  const suffixInput = {
+    value: emptyValue,
+    fallbackTitle: { pl: SUFFIX_FALLBACK, en: SUFFIX_FALLBACK },
+    fallbackDescription: { pl: "opis", en: "desc" },
+    slug: "test",
+    titleCharLimit: 160,
+    descriptionCharLimit: 320,
+    titleSuffix: "New European Strategies",
+  };
+
+  it("tytuł z fallbacku mierzony RAZEM z sufiksem marki ostrzega o ucięciu", () => {
+    const issues = validateSeoPanel(suffixInput);
+    const title = issues.find((i) => i.kind === "title" && i.lang === "pl");
+    expect(title?.severity).toBe("warning");
+    // Liczony jest tekst z sufiksem, nie sam fallback.
+    expect(title?.chars).toBe([...`${SUFFIX_FALLBACK} - New European Strategies`].length);
+  });
+
+  it("bez sufiksu (null/brak pola) ten sam fallback ~460 px nie ostrzega", () => {
+    expect(
+      validateSeoPanel({ ...suffixInput, titleSuffix: null }).find((i) => i.kind === "title"),
+    ).toBeUndefined();
+    const { titleSuffix: _pominiety, ...bezPola } = suffixInput;
+    expect(validateSeoPanel(bezPola).find((i) => i.kind === "title")).toBeUndefined();
+  });
+
+  it("nadpisanie z panelu NIE dostaje sufiksu - mierzone jest dokładnie to, co wpisano", () => {
+    const issues = validateSeoPanel({
+      ...suffixInput,
+      value: { ...emptyValue, seo_title_pl: SUFFIX_FALLBACK, seo_title_en: SUFFIX_FALLBACK },
+    });
+    expect(issues.find((i) => i.kind === "title")).toBeUndefined();
+  });
+
+  it("sufiks nie zamienia ostrzeżenia w błąd blokujący zapis", () => {
+    // `applyTitleSuffix` nie dokleja sufiksu powyżej 120 znaków, a limit pola
+    // to 160 - długi fallback zostaje ostrzeżeniem albo idzie bez sufiksu.
+    const long = "Bardzo długi tytuł wyprowadzony z treści wpisu ".repeat(3).trim();
+    const issues = validateSeoPanel({
+      ...suffixInput,
+      fallbackTitle: { pl: long, en: long },
+    });
+    expect(hasBlockingSeoIssues(issues)).toBe(false);
+  });
+
+  it("opis wyprowadzony bierze tytuł BEZ sufiksu (jak head() i panel)", () => {
+    const withSuffix = validateSeoPanel({
+      ...suffixInput,
+      fallbackDescription: { pl: null, en: null },
+    }).filter((i) => i.kind === "description");
+    const without = validateSeoPanel({
+      ...suffixInput,
+      titleSuffix: null,
+      fallbackDescription: { pl: null, en: null },
+    }).filter((i) => i.kind === "description");
+    expect(withSuffix).toEqual(without);
+  });
+
   it("flags a character-cap overflow as a blocking error", () => {
     const issues = validateSeoPanel({
       value: { ...emptyValue, seo_title_pl: "x".repeat(200) },

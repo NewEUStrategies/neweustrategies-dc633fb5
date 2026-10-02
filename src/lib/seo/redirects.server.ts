@@ -33,6 +33,27 @@ import {
   type RedirectRule,
 } from "@/lib/seo/redirects";
 
+type AdminClientModule = typeof import("@/integrations/supabase/client.server");
+let adminClientModule: Promise<AdminClientModule> | undefined;
+
+/**
+ * Jeden współdzielony dynamiczny import klienta service-role dla trzech
+ * wołających tego modułu (odczyt indeksu, licznik trafień, monitor 404) -
+ * zamiast osobnego `import()` w każdym wywołaniu. Import zostaje dynamiczny
+ * (moduł nie wchodzi do grafu, dopóki pierwsze żądanie go nie potrzebuje),
+ * a nieudany import NIE jest zapamiętywany: kolejne wywołanie próbuje znowu.
+ * Ubocznie: równoległe pierwsze importy mockowanego modułu w vitest 4
+ * potrafią rozwiązać się do prawdziwego `client.server` - jedna obietnica
+ * zamyka tę różnicę między testem a produkcją.
+ */
+function loadAdminClient(): Promise<AdminClientModule> {
+  adminClientModule ??= import("@/integrations/supabase/client.server").catch((e: unknown) => {
+    adminClientModule = undefined;
+    throw e;
+  });
+  return adminClientModule;
+}
+
 // ---------------------------------------------------------------------------
 // Per-tenant redirect index cache
 // ---------------------------------------------------------------------------
@@ -84,6 +105,7 @@ export function invalidateRedirectCache(): void {
   sharedSnapshotsAllowed = false;
   cache.clear();
   inflight.clear();
+  hitWindows.clear();
 }
 
 function isRedirectRules(value: unknown): value is RedirectRule[] {
@@ -122,7 +144,7 @@ async function loadIndexForTenant(tenantId: string): Promise<CachedIndex> {
         return { at: snapshot.at, index, count: index.exact.size + index.wildcards.length };
       }
     }
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { supabaseAdmin } = await loadAdminClient();
     const settled = await settleWithinBudget(
       supabaseAdmin
         .from("redirects")
@@ -239,7 +261,117 @@ export async function getRedirectIndexForTenant(tenantId: string): Promise<Redir
 // Request-time helpers
 // ---------------------------------------------------------------------------
 
-/** Match a raw GET/HEAD request against the tenant's redirect rules. */
+/**
+ * DŁAWIENIE licznika trafień - per izolat, per reguła, okno stałe.
+ *
+ * DLACZEGO. Bez niego KAŻDY GET na regule był osobnym
+ * `UPDATE redirects SET hit_count = hit_count + 1 WHERE id = <ta sama reguła>`.
+ * Tenant `nes` ma wildcardowe reguły 410 na `/wp-admin/*`, `/wp-includes/*`,
+ * `/wp-content/*` i `/wp-json/*` (migracja 20260801152304) - czyli dokładnie
+ * tam, gdzie bez przerwy biją skanery WordPressa. Seria skanera to setki
+ * aktualizacji JEDNEGO wiersza na sekundę: serializowane na blokadzie wiersza,
+ * zajmujące połączenia PostgREST service-role - tę samą pulę, z której
+ * czytają rozwiązywanie tenanta i indeks reguł z terminem 1 500 ms. Zator
+ * licznika degradowałby więc 301-ki całej witryny.
+ *
+ * CO GWARANTUJE. Najwyżej `REDIRECT_HIT_WRITES_PER_WINDOW` zapisów jednej
+ * reguły na `REDIRECT_HIT_WINDOW_MS` w izolacie. Zwykły ruch na stary adres
+ * (kilka wejść na 10 s na izolat to już dużo) jest liczony DOKŁADNIE; ponad
+ * próg trafienia są pomijane, więc `hit_count` staje się DOLNYM OSZACOWANIEM,
+ * a `last_hit_at` spóźnia się najwyżej o jedno okno. Na pytanie, któremu
+ * służy kolumna „Trafienia" („czy na ten stary adres ktoś jeszcze wchodzi"),
+ * odpowiada to tak samo dobrze. Dokładna suma wymagałaby RPC przyjmującego
+ * przyrost (`record_redirect_hit(_id, _n)`) - zmiana schematu i typów poza
+ * tym modułem.
+ *
+ * PAMIĘĆ. Mapa ma sufit `REDIRECT_HIT_TRACKED_MAX` wpisów: po jego
+ * osiągnięciu najpierw wypadają okna wygasłe, a gdy to nie wystarczy - cała
+ * mapa. Wyczyszczenie może najwyżej przepuścić jedno dodatkowe okno zapisów;
+ * nigdy nie blokuje liczenia.
+ */
+const REDIRECT_HIT_WINDOW_MS = 10_000;
+const REDIRECT_HIT_WRITES_PER_WINDOW = 5;
+const REDIRECT_HIT_TRACKED_MAX = 2_000;
+
+interface HitWindow {
+  start: number;
+  writes: number;
+}
+
+const hitWindows = new Map<string, HitWindow>();
+
+/** Czy to trafienie reguły mieści się w budżecie zapisów bieżącego okna. */
+function admitRedirectHit(ruleId: string, now: number): boolean {
+  const current = hitWindows.get(ruleId);
+  if (current && now - current.start < REDIRECT_HIT_WINDOW_MS) {
+    if (current.writes >= REDIRECT_HIT_WRITES_PER_WINDOW) return false;
+    current.writes += 1;
+    return true;
+  }
+  if (!current && hitWindows.size >= REDIRECT_HIT_TRACKED_MAX) {
+    for (const [id, window] of hitWindows) {
+      if (now - window.start >= REDIRECT_HIT_WINDOW_MS) hitWindows.delete(id);
+    }
+    if (hitWindows.size >= REDIRECT_HIT_TRACKED_MAX) hitWindows.clear();
+  }
+  hitWindows.set(ruleId, { start: now, writes: 1 });
+  return true;
+}
+
+/**
+ * Licznik trafień reguły (`redirects.hit_count`, `last_hit_at`) - jedno
+ * wywołanie atomowego RPC `record_redirect_hit` (UPDATE ... hit_count + 1)
+ * ZA odpowiedzią, pod `waitUntil`, o ile trafienie mieści się w budżecie
+ * dławienia (`admitRedirectHit`). Do 2026-10-02 RPC nie miał ani jednego
+ * wołającego, a panel /admin/redirects pokazywał kolumnę „Trafienia", która
+ * zawsze stała na 0.
+ *
+ * UPRAWNIENIA, wprost: migracje 20260702130000/20260702195636 dały EXECUTE
+ * service_role i zdjęły je tylko z PUBLIC, a domyślne uprawnienia platformy
+ * nadają EXECUTE na nowe funkcje w `public` JAWNIE rolom anon i authenticated.
+ * Zdjęcie ich z tej funkcji i z `record_seo_404` robi migracja
+ * 20261002140000_redirect_hit_seo_404_rpc_execute_service_role_only; pilnuje
+ * tego pgTAP `redirects_seo_404_tenant_rls_test.sql`.
+ *
+ * Gwarancje, wprost:
+ *   * ZERO opóźnienia 301-ki: rejestracja w `runAfterResponse` jest
+ *     synchroniczna, round-trip biegnie po wysłaniu odpowiedzi;
+ *   * nigdy nie rzuca i nigdy nie oddaje odrzuconej obietnicy - błąd (także
+ *     `{ error }` z PostgREST) kończy się `console.warn`, nie 500-ką;
+ *   * RPC aktualizuje po samym `id`, bez filtra tenanta - i nie musi go mieć:
+ *     `id` pochodzi z indeksu wczytanego `.eq("tenant_id", <tenant hosta>)`
+ *     (albo z migawki L2 pod kluczem `redirects:<tenant>`), więc żądanie na
+ *     hoście tenanta A fizycznie nie zna identyfikatora reguły tenanta B.
+ */
+function scheduleRedirectHit(ruleId: string): void {
+  if (!admitRedirectHit(ruleId, Date.now())) return;
+  runAfterResponse(recordRedirectHit(ruleId));
+}
+
+async function recordRedirectHit(ruleId: string): Promise<void> {
+  try {
+    const { supabaseAdmin } = await loadAdminClient();
+    const { error } = await supabaseAdmin.rpc("record_redirect_hit", { _id: ruleId });
+    if (error) console.warn("[redirects] hit accounting failed:", error);
+  } catch (e) {
+    console.warn("[redirects] hit accounting failed:", e);
+  }
+}
+
+/**
+ * Match a raw GET/HEAD request against the tenant's redirect rules.
+ *
+ * KTÓRA reguła jest liczona: WEJŚCIOWA (`hit.entryRule`), czyli ta, którą
+ * dopasował adres żądania - także w łańcuchu A->B->C, w którym cel i kod
+ * bierze się z reguły końcowej. Licznik ma odpowiadać na pytanie „czy na ten
+ * stary adres ktoś jeszcze wchodzi"; liczenie reguły końcowej pokazywałoby
+ * zero przy /a i fałszywy ruch przy /b, którego nikt nie odwiedził - a to
+ * zero kusi operatora do usunięcia żywej 301-ki. 410 Gone też jest liczone:
+ * „usunięty adres wciąż dostaje ruch" to dokładnie ten sygnał, którego panel
+ * potrzebuje. HEAD nie jest liczone: to ruch narzędzi (monitoring, link
+ * checkery), a nie czytelników ani robotów indeksujących, i nie powinien
+ * kosztować zapisu w bazie.
+ */
 export async function resolveRedirectForRequest(request: Request): Promise<{
   target: string;
   status: number;
@@ -254,6 +386,7 @@ export async function resolveRedirectForRequest(request: Request): Promise<{
   if (index.exact.size === 0 && index.wildcards.length === 0) return null;
   const hit = matchRedirectForPath(index, url.pathname, url.search);
   if (!hit) return null;
+  if (method === "GET") scheduleRedirectHit(hit.entryRule.id);
   if (hit.gone) return { target: "", status: 410 };
   // Relative targets stay path-only; absolute (allow-listed) URLs are already
   // full URLs coming out of matchRedirect / normalizeTargetPath.
@@ -276,47 +409,48 @@ function shouldLog404(pathname: string, contentType: string | null): boolean {
   return true;
 }
 
+/**
+ * Limit długości `path` i `last_referrer` monitora 404 - ten sam, który
+ * egzekwuje BAZA: `record_seo_404` zapisuje `left(_path, 500)` i
+ * `left(_referrer, 500)` (migracja 20260703090300_redirects_tenant_scope).
+ * Aplikacja do 2026-10-02 cięła do 2048, więc dwa źródła prawdy się
+ * rozjeżdżały; teraz obcięcie dzieje się tu, jawnie, a RPC dostaje wartości,
+ * których już nie musi skracać. `url.pathname`/`url.search` są
+ * percent-encoded, a nagłówek `Referer` to ByteString - oba są ASCII, więc
+ * `slice` (jednostki UTF-16) i `left` (znaki) liczą tu to samo.
+ */
+const SEO_404_TEXT_LIMIT = 500;
+
+/**
+ * Zapis trafienia 404 jednym atomowym RPC `record_seo_404`
+ * (INSERT ... ON CONFLICT (tenant_id, path) DO UPDATE SET hits = hits + 1).
+ * Zastąpił read-then-write (`select hits` + `update hits + 1` albo `upsert`):
+ * dwa round-tripy na każde 404 i zgubione zliczenia, gdy dwa żądania na tę
+ * samą ścieżkę czytały to samo `hits`. RPC jest SECURITY DEFINER (omija RLS),
+ * a tenant przychodzi jawnie z hosta żądania - dlatego EXECUTE ma wyłącznie
+ * service_role: GRANT z 20260703090300, a zdjęcie jawnych grantów anon
+ * i authenticated z domyślnych uprawnień platformy - migracja
+ * 20261002140000_redirect_hit_seo_404_rpc_execute_service_role_only (bez
+ * niej anon przez /rest/v1/rpc/record_seo_404 dopisywał dowolne ścieżki do
+ * monitora 404 DOWOLNEGO tenanta).
+ *
+ * Różnica semantyki, świadoma: brak referera NIE kasuje ostatniego znanego
+ * (`COALESCE(EXCLUDED.last_referrer, h.last_referrer)`), podczas gdy stary
+ * update nadpisywał go nullem.
+ */
 async function recordSeo404Hit(
   tenantId: string,
   path: string,
   referer: string | null,
 ): Promise<void> {
   try {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    // Read-then-write is one extra hop, but seo_404_hits has no server-side
-    // increment RPC and RLS is enforced by tenant_id anyway. The volume is
-    // dominated by unique paths, not repeat hits, so this stays cheap.
-    const { data: existing } = await supabaseAdmin
-      .from("seo_404_hits")
-      .select("hits")
-      .eq("tenant_id", tenantId)
-      .eq("path", path)
-      .maybeSingle();
-    const now = new Date().toISOString();
-    const trimmedReferer = referer ? referer.slice(0, 2048) : null;
-    if (existing) {
-      await supabaseAdmin
-        .from("seo_404_hits")
-        .update({
-          hits: (existing.hits as number) + 1,
-          last_seen: now,
-          last_referrer: trimmedReferer,
-        })
-        .eq("tenant_id", tenantId)
-        .eq("path", path);
-    } else {
-      await supabaseAdmin.from("seo_404_hits").upsert(
-        {
-          tenant_id: tenantId,
-          path,
-          hits: 1,
-          first_seen: now,
-          last_seen: now,
-          last_referrer: trimmedReferer,
-        },
-        { onConflict: "tenant_id,path" },
-      );
-    }
+    const { supabaseAdmin } = await loadAdminClient();
+    const { error } = await supabaseAdmin.rpc("record_seo_404", {
+      _tenant_id: tenantId,
+      _path: path.slice(0, SEO_404_TEXT_LIMIT),
+      ...(referer ? { _referrer: referer.slice(0, SEO_404_TEXT_LIMIT) } : {}),
+    });
+    if (error) console.warn("[seo-404] log failed:", error);
   } catch (e) {
     console.warn("[seo-404] log failed:", e);
   }
@@ -330,7 +464,7 @@ export async function maybeLog404(request: Request, response: Response): Promise
   if (!shouldLog404(url.pathname, contentType)) return;
   const tenant = await resolveTenantForHost(url.hostname);
   if (!tenant) return;
-  const path = `${url.pathname}${url.search}`.slice(0, 2048);
   const referer = request.headers.get("referer") ?? request.headers.get("referrer");
-  await recordSeo404Hit(tenant.id, path, referer);
+  // Obcięcie do SEO_404_TEXT_LIMIT robi `recordSeo404Hit` - jedno miejsce.
+  await recordSeo404Hit(tenant.id, `${url.pathname}${url.search}`, referer);
 }
