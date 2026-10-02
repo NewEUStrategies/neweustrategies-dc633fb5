@@ -1,7 +1,5 @@
-// Molekuła: szyna zminimalizowanych rozmów po lewej stronie paska.
-//
-// Maksymalnie dwie pigułki, reszta chowa się pod „+N" (kliknięcie otwiera
-// skrzynkę czatu).
+// Molekuła zminimalizowanych rozmów: na mobile maksymalnie trzy kwadratowe
+// avatary nad prawą stroną paska, na desktopie dwie pigułki po lewej i „+N".
 //
 // ── DLACZEGO TO OSOBNY PLIK I DLACZEGO DWA KOMPONENTY ────────────────────
 // Poprzednia wersja siedziała w `WorkspaceDock.tsx` i subskrybowała DWA
@@ -31,6 +29,7 @@ import {
   type MinimizedChat,
 } from "@/lib/chat/minimizedChats";
 import { prefetchChatWindow } from "@/components/chat/chatWindowChunk";
+import "@/lib/i18n-chat";
 import "@/lib/i18n-dock";
 
 interface RailProps {
