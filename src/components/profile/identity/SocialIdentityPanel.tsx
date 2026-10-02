@@ -4,6 +4,9 @@
 // linki społecznościowe, e-mail kontaktowy.
 import { browserPublicOrigin } from "@/lib/http/host";
 import { useTranslation } from "react-i18next";
+// Słownik `profile.account.*` (w tym komunikat awarii odczytu) rejestruje się
+// efektem ubocznym importu - wprost, nie przypadkiem przez inny moduł chunka.
+import "@/lib/i18n-profile";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -97,6 +100,12 @@ export function SocialIdentityPanel() {
     contact_email: "",
   });
   const [busy, setBusy] = useState(false);
+  // Stan odczytu własnego wiersza. Zapis wysyła CAŁY zestaw pól (slug, bio,
+  // linki, e-mail), więc zapis bez udanego odczytu skasowałby publiczny adres
+  // i biogram NULL-ami z wartości startowych - stąd zapis tylko w `ready`.
+  // `readAttempt` to licznik ponowień: zmiana wartości odpala efekt odczytu.
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
+  const [readAttempt, setReadAttempt] = useState(0);
   // Suggestion source: "first last" || display_name || email-local. Never written automatically.
   const [suggestSource, setSuggestSource] = useState("");
   const [slugStatus, setSlugStatus] = useState<SlugStatus>("idle");
@@ -138,9 +147,16 @@ export function SocialIdentityPanel() {
     // Own-row read via SECURITY DEFINER RPC (scoped to auth.uid()): contact_email
     // is PII no longer granted to `authenticated` role-wide, so the own row is
     // fetched through get_own_profile() which returns the full profile.
-    void supabase.rpc("get_own_profile").then(({ data: rows }) => {
+    void supabase.rpc("get_own_profile").then(({ data: rows, error: readErr }) => {
+      if (!active) return;
+      if (readErr) {
+        setLoadState("failed");
+        return;
+      }
+      // Brak wiersza to NIE awaria - pusty formularz jest wtedy prawdą.
+      setLoadState("ready");
       const row = rows?.[0];
-      if (!active || !row) return;
+      if (!row) return;
       const r = row as SocialRow & {
         display_name?: string | null;
         first_name?: string | null;
@@ -168,7 +184,7 @@ export function SocialIdentityPanel() {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user, readAttempt]);
 
   const onSlugChange = (value: string) => {
     // Normalize as user types: lowercase + replace invalid chars with dash.
@@ -230,7 +246,7 @@ export function SocialIdentityPanel() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || loadState !== "ready") return;
     const slug = (data.slug ?? "").trim().toLowerCase() || null;
     if (slug && !SLUG_RE.test(slug)) {
       toast.error(t("profile.social.slugInvalid"));
@@ -299,6 +315,25 @@ export function SocialIdentityPanel() {
           <p className="text-sm text-muted-foreground">{t("profile.social.subtitle")}</p>
         </CardHeader>
         <CardContent>
+          {loadState === "failed" ? (
+            <div
+              role="alert"
+              className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-destructive/40 bg-destructive/5 px-4 py-3"
+            >
+              <p className="text-sm text-destructive">{t("profile.account.loadFailed")}</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setLoadState("loading");
+                  setReadAttempt((n) => n + 1);
+                }}
+              >
+                {t("profile.account.retry")}
+              </Button>
+            </div>
+          ) : null}
           <form className="grid gap-5" onSubmit={save}>
             {/* Identity */}
             <div className="grid gap-2">
@@ -531,7 +566,7 @@ export function SocialIdentityPanel() {
 
             <Button
               type="submit"
-              disabled={busy || slugBlocked || slugStatus === "checking"}
+              disabled={busy || loadState !== "ready" || slugBlocked || slugStatus === "checking"}
               title={t("profile.social.tip.save")}
             >
               {t("profile.social.save")}

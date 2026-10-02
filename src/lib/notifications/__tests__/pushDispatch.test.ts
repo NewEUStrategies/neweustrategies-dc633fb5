@@ -1,7 +1,8 @@
 // processPushJobs: izolacja tenantów, kolejki per urządzenie, agregacja
-// raportów i deduplikacja RPC. Krypto ma własny test (webpush.test.ts), więc
-// tutaj podmieniamy WYŁĄCZNIE `sendWebPush` i klienta service role - reszta
-// (clamp payloadu, temat kolapsu, serializacja) jedzie prawdziwym kodem.
+// raportów, deduplikacja RPC i zachowanie partii przy awarii odczytu. Krypto
+// ma własny test (webpush.test.ts), więc tutaj podmieniamy WYŁĄCZNIE
+// `sendWebPush` i klienta service role - reszta (clamp payloadu, temat
+// kolapsu, serializacja) jedzie prawdziwym kodem.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PushSendResult, PushSubscriptionKeys } from "@/lib/notifications/webpush.server";
 
@@ -39,12 +40,18 @@ const h = vi.hoisted(() => {
       urgency?: string;
     }[],
     tableFilters: [] as { table: string; column: string; values: unknown }[],
+    /** tabela -> błąd zapytania (brak wpisu = sukces). */
+    tableErrors: new Map<string, unknown>(),
+    /** nazwa RPC -> błąd wywołania (brak wpisu = sukces). */
+    rpcErrors: new Map<string, unknown>(),
   };
   return { state };
 });
 
 vi.mock("@/integrations/supabase/client.server", () => {
   const respond = (table: string): QueryResponse => {
+    const error = h.state.tableErrors.get(table);
+    if (error) return { data: null, error };
     if (table === "push_subscriptions") return { data: h.state.subscriptions, error: null };
     if (table === "profiles") return { data: h.state.profiles, error: null };
     return { data: [], error: null };
@@ -75,6 +82,8 @@ vi.mock("@/integrations/supabase/client.server", () => {
       from: (table: string) => chainFor(table),
       rpc: (name: string, args: Record<string, unknown>) => {
         h.state.rpcCalls.push({ name, args });
+        const error = h.state.rpcErrors.get(name);
+        if (error) return Promise.resolve({ data: null, error });
         if (name === "claim_push_jobs") return Promise.resolve({ data: h.state.jobs, error: null });
         return Promise.resolve({ data: null, error: null });
       },
@@ -168,6 +177,9 @@ function device(endpoint: string, tenantId = TENANT_A, userId = USER): Record<st
 
 const rpcs = (name: string): RpcCall[] => h.state.rpcCalls.filter((call) => call.name === name);
 const sends = (): SendCall[] => h.state.sends;
+/** Raporty partii: element `p_reports` zbiorczego report_push_jobs. */
+const reported = (): unknown[] =>
+  rpcs("report_push_jobs").flatMap((call) => call.args.p_reports as unknown[]);
 
 describe("processPushJobs", () => {
   beforeEach(() => {
@@ -178,6 +190,8 @@ describe("processPushJobs", () => {
     h.state.sends = [];
     h.state.tableFilters = [];
     h.state.responses = new Map();
+    h.state.tableErrors = new Map();
+    h.state.rpcErrors = new Map();
   });
 
   it("wysyła na wszystkie urządzenia odbiorcy i raportuje sukces raz na zadanie", async () => {
@@ -191,9 +205,10 @@ describe("processPushJobs", () => {
       "https://fcm.example/a",
       "https://fcm.example/b",
     ]);
-    expect(rpcs("report_push_job")).toEqual([
-      { name: "report_push_job", args: { p_id: 1, p_ok: true, p_dead: false } },
+    expect(rpcs("report_push_jobs")).toEqual([
+      { name: "report_push_jobs", args: { p_reports: [{ id: 1, ok: true, dead: false }] } },
     ]);
+    expect(rpcs("report_push_job")).toHaveLength(0);
   });
 
   it("nie wysyła powiadomienia tenanta A na urządzenie tenanta B", async () => {
@@ -266,7 +281,10 @@ describe("processPushJobs", () => {
 
     expect(sends()).toHaveLength(2);
     expect(sends()[0].topic).toBe(sends()[1].topic); // ten sam kind + href
-    expect(rpcs("report_push_job").map((c) => c.args.p_id)).toEqual([1, 2]);
+    expect(reported()).toEqual([
+      { id: 1, ok: true, dead: false },
+      { id: 2, ok: true, dead: false },
+    ]);
   });
 
   it("martwy endpoint (410) oznacza subskrypcję raz i ucina resztę jego kolejki", async () => {
@@ -281,9 +299,9 @@ describe("processPushJobs", () => {
     expect(rpcs("mark_push_subscription_failed")).toEqual([
       { name: "mark_push_subscription_failed", args: { p_endpoint: "https://fcm.example/dead" } },
     ]);
-    expect(rpcs("report_push_job").map((c) => c.args)).toEqual([
-      { p_id: 1, p_ok: false, p_dead: true },
-      { p_id: 2, p_ok: false, p_dead: true },
+    expect(reported()).toEqual([
+      { id: 1, ok: false, dead: true },
+      { id: 2, ok: false, dead: true },
     ]);
     expect(result).toEqual({ claimed: 2, sent: 0 });
   });
@@ -299,7 +317,7 @@ describe("processPushJobs", () => {
     const result = await processPushJobs();
 
     expect(result).toEqual({ claimed: 1, sent: 1 });
-    expect(rpcs("report_push_job")[0].args).toEqual({ p_id: 1, p_ok: true, p_dead: false });
+    expect(reported()).toEqual([{ id: 1, ok: true, dead: false }]);
     expect(rpcs("mark_push_subscription_failed")).toHaveLength(1);
   });
 
@@ -310,7 +328,7 @@ describe("processPushJobs", () => {
 
     await processPushJobs();
 
-    expect(rpcs("report_push_job")[0].args).toEqual({ p_id: 1, p_ok: false, p_dead: true });
+    expect(reported()).toEqual([{ id: 1, ok: false, dead: true }]);
   });
 
   it("błąd przechodni (500) zostawia zadanie w kolejce do retry", async () => {
@@ -320,7 +338,7 @@ describe("processPushJobs", () => {
 
     await processPushJobs();
 
-    expect(rpcs("report_push_job")[0].args).toEqual({ p_id: 1, p_ok: false, p_dead: false });
+    expect(reported()).toEqual([{ id: 1, ok: false, dead: false }]);
   });
 
   it("odbiorca bez żywego urządzenia dostaje dead bez ruchu sieciowego", async () => {
@@ -330,7 +348,7 @@ describe("processPushJobs", () => {
     const result = await processPushJobs();
 
     expect(sends()).toHaveLength(0);
-    expect(rpcs("report_push_job")[0].args).toEqual({ p_id: 1, p_ok: false, p_dead: true });
+    expect(reported()).toEqual([{ id: 1, ok: false, dead: true }]);
     expect(result).toEqual({ claimed: 1, sent: 0 });
   });
 
@@ -341,6 +359,7 @@ describe("processPushJobs", () => {
 
     expect(result).toEqual({ claimed: 0, sent: 0 });
     expect(h.state.tableFilters).toHaveLength(0);
+    expect(rpcs("report_push_jobs")).toHaveLength(0);
     expect(rpcs("report_push_job")).toHaveLength(0);
   });
 
@@ -360,7 +379,7 @@ describe("processPushJobs", () => {
     await processPushJobs();
 
     const message = warn.mock.calls.map((call) => String(call[0])).join("\n");
-    expect(message).toContain("bez ani jednego urzadzenia");
+    expect(message).toContain("bez ani jednego urzadzenia (liczba: 1;");
     expect(message).toContain(`${TENANT_A}|${USER}`);
     warn.mockRestore();
   });
@@ -385,5 +404,94 @@ describe("processPushJobs", () => {
     await processPushJobs();
 
     expect(rpcs("mark_push_subscription_failed")).toHaveLength(1);
+  });
+
+  // Regresja: `{ data: subs }` bez `error` zamieniało awarię odczytu w pustą
+  // listę urządzeń, więc KAŻDE zadanie zajętej partii szło w 'dead' jako
+  // "odbiorca bez subskrypcji" - partia przepadała bez jednej próby wysyłki.
+  it("błąd odczytu subskrypcji nie finalizuje partii - zadania wracają do kolejki", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    h.state.jobs = [job(1), job(2)];
+    h.state.subscriptions = [device("https://fcm.example/a")];
+    h.state.tableErrors.set("push_subscriptions", {
+      message: "canceling statement due to statement timeout",
+      code: "57014",
+    });
+
+    // Rzut, nie zwrotka: wołający (runJobStep, step w community-cron) zapisują
+    // komunikat w logu przebiegów, więc scheduler widzi konkretną przyczynę.
+    await expect(processPushJobs()).rejects.toThrow(
+      /push_subscriptions: canceling statement due to statement timeout - zadania wracają do kolejki bez raportu \(liczba zadań: 2\)/,
+    );
+
+    // Zero raportów = zadania zostają 'pending' z backoffem ustawionym przy
+    // claimie; zero wysyłek i zero oznaczeń endpointów.
+    expect(rpcs("report_push_jobs")).toHaveLength(0);
+    expect(rpcs("report_push_job")).toHaveLength(0);
+    expect(rpcs("mark_push_subscription_failed")).toHaveLength(0);
+    expect(sends()).toHaveLength(0);
+    error.mockRestore();
+  });
+
+  it("błąd odczytu profili degraduje do języka domyślnego, ale nie po cichu", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    h.state.jobs = [job(1)];
+    h.state.subscriptions = [device("https://fcm.example/a")];
+    h.state.tableErrors.set("profiles", { message: "connection reset", code: "08006" });
+
+    const result = await processPushJobs();
+
+    // Język to dodatek - push wychodzi (po polsku), partia jest raportowana.
+    expect(result).toEqual({ claimed: 1, sent: 1 });
+    expect(sends()[0].payload).toMatchObject({ lang: "pl", title: "Nowa wiadomość" });
+    expect(reported()).toEqual([{ id: 1, ok: true, dead: false }]);
+    const logged = error.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(logged).toContain("odczyt profili odbiorców nie powiódł się");
+    error.mockRestore();
+  });
+
+  it("partia jest finalizowana JEDNYM RPC niezależnie od liczby zadań", async () => {
+    const users = [
+      "aaaaaaaa-aaaa-aaaa-aaaa-000000000001",
+      "aaaaaaaa-aaaa-aaaa-aaaa-000000000002",
+      "aaaaaaaa-aaaa-aaaa-aaaa-000000000003",
+    ];
+    h.state.jobs = users.map((userId, i) => job(i + 1, { user_id: userId }));
+    h.state.subscriptions = users.map((userId, i) =>
+      device(`https://fcm.example/${i + 1}`, TENANT_A, userId),
+    );
+
+    const result = await processPushJobs();
+
+    expect(result).toEqual({ claimed: 3, sent: 3 });
+    expect(rpcs("report_push_jobs")).toHaveLength(1);
+    expect(reported()).toHaveLength(3);
+    expect(rpcs("report_push_job")).toHaveLength(0);
+  });
+
+  // Kod może wyprzedzić migrację (PGRST202), a zbiorczy UPDATE jest "wszystko
+  // albo nic" - zadanie bez raportu poszłoby ponownie jako duplikat pusha.
+  it("błąd zbiorczego raportu spada na raport per zadanie", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    h.state.jobs = [job(1), job(2)];
+    h.state.subscriptions = [device("https://fcm.example/a")];
+    h.state.responses.set("https://fcm.example/a", [
+      { ok: true, status: 201 },
+      { ok: false, permanent: true, status: 413 },
+    ]);
+    h.state.rpcErrors.set("report_push_jobs", {
+      message: "Could not find the function public.report_push_jobs(p_reports)",
+      code: "PGRST202",
+    });
+
+    const result = await processPushJobs();
+
+    expect(result).toEqual({ claimed: 2, sent: 1 });
+    expect(rpcs("report_push_jobs")).toHaveLength(1);
+    expect(rpcs("report_push_job").map((call) => call.args)).toEqual([
+      { p_id: 1, p_ok: true, p_dead: false },
+      { p_id: 2, p_ok: false, p_dead: true },
+    ]);
+    error.mockRestore();
   });
 });
