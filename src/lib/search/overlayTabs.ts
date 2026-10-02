@@ -44,8 +44,26 @@ async function fetchPosts(q: string, lang: Lang, limit: number): Promise<Overlay
   }));
 }
 
+/**
+ * Fraza użytkownika jako wartość `ilike` w logicznym filtrze PostgREST `.or()`.
+ *
+ * Dwie warstwy, bo fraza przechodzi przez dwa parsery:
+ * 1. LIKE: `%`, `_` i `\` z frazy są metaznakami wzorca - poprzedzamy je `\`
+ *    (domyślny znak ucieczki Postgresa), więc „50%" szuka procentu, a nie
+ *    „50 i czegokolwiek".
+ * 2. PostgREST: `,` `.` `:` `(` `)` to w `.or()` SKŁADNIA. Sklejona wprost fraza
+ *    „Unia, Polska" rozcinała filtr na dwa warunki (400 = pusta sekcja), a
+ *    fraza z przecinkiem i kropką dokładała do OR własny warunek. Wartość
+ *    w cudzysłowie jest jednym literałem; w środku PostgREST zdejmuje `\`
+ *    sprzed `"` i `\`.
+ */
+export function orIlikeValue(q: string): string {
+  const pattern = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return `"${pattern.replace(/["\\]/g, (c) => `\\${c}`)}"`;
+}
+
 async function fetchTopics(q: string, lang: Lang, limit: number): Promise<OverlayHit[]> {
-  const like = `%${q}%`;
+  const like = orIlikeValue(q);
   const [cats, tags] = await Promise.all([
     supabase
       .from("categories")

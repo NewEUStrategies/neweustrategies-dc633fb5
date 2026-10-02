@@ -439,7 +439,8 @@ export interface SuggestionHrefOptions {
  *    adresu nie ma, a `/post/<slug>` odesłałby na `/blog`),
  *  - strona → `/<slug>`, autor → `/author/<slug>`,
  *  - kategoria/tag/seria/program → publiczna strona archiwum, jeśli mamy slug,
- *  - pozostałe wymiary taksonomii i wymiary wyliczane → `/search` z filtrem.
+ *  - pozostałe wymiary taksonomii i wymiary wyliczane → `/search` z filtrem
+ *    (taksonomia DOKŁADA wartość do wyboru z `base` - patrz niżej).
  *  Termy taksonomii bez publicznej strony identyfikuje ID (parametry
  *  spec/type/… trafiają do RPC jako uuid[] - slug w URL wywracał zapytanie),
  *  więc term BEZ id szuka po samej nazwie zamiast budować zepsuty filtr. */
@@ -492,7 +493,15 @@ export function suggestionHref(it: AutosuggestItem, opts: SuggestionHrefOptions 
   if (kind === "year" && it.slug) return toSearch({ year: it.slug });
 
   const param = (DIM_PARAM as Record<string, keyof SearchUrl>)[kind];
-  if (param && it.id) return toSearch(withPhrase({ [param]: it.id }));
+  if (param && it.id) {
+    // Wymiar taksonomii jest multi-selectem (OR wewnątrz wymiaru): wybór
+    // z podpowiedzi DOKŁADA wartość do zaznaczonych w panelu faset. Łatka
+    // `[param]: it.id` kasowała je po cichu, choć scalanie z `base` istnieje
+    // właśnie po to, żeby podpowiedź nie gubiła stanu wyszukiwarki.
+    const chosen = splitDimValues(opts.base?.[param] as string | undefined);
+    const merged = joinDimValues(chosen.includes(it.id) ? chosen : [...chosen, it.id]);
+    return toSearch(withPhrase({ [param]: merged }));
+  }
   return label ? toSearch({ q: label }) : toSearch({});
 }
 

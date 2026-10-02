@@ -587,18 +587,23 @@ function SearchPage() {
               <div className="mt-6">
                 <p className="text-sm font-medium mb-2">{t("search.didYouMean")}</p>
                 <ul className="space-y-1.5">
-                  {(suggest.data ?? []).map((s) => (
-                    <li key={s.id}>
-                      <AppLink
-                        href={`/search?q=${encodeURIComponent(
-                          (lang === "en" ? s.title_en || s.title_pl : s.title_pl) ?? "",
-                        )}`}
-                        className="text-sm text-brand-ink hover:underline"
-                      >
-                        {lang === "en" ? s.title_en || s.title_pl : s.title_pl || s.title_en}
-                      </AppLink>
-                    </li>
-                  ))}
+                  {(suggest.data ?? []).map((s) => {
+                    // JEDEN tytuł dla etykiety i adresu. Adres brał `title_pl`
+                    // bez zapasu, więc wpis bez polskiego tytułu pokazywał
+                    // angielski, a prowadził pod pustą frazę (`/search?q=`).
+                    const title =
+                      (lang === "en" ? s.title_en || s.title_pl : s.title_pl || s.title_en) ?? "";
+                    return (
+                      <li key={s.id}>
+                        <AppLink
+                          href={searchHref({ q: title })}
+                          className="text-sm text-brand-ink hover:underline"
+                        >
+                          {title}
+                        </AppLink>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

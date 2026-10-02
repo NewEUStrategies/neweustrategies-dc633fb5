@@ -1116,6 +1116,17 @@ describe("/search - prezentacja wyników", () => {
       "/search?q=raport",
     );
   });
+
+  it("podpowiedź BEZ polskiego tytułu prowadzi pod frazę, którą POKAZUJE, a nie pod pustą", async () => {
+    h.searchData = result({ posts: [], total: 0 });
+    h.rpcByFn.search_suggest = [{ id: "s-1", title_pl: null, title_en: "Energy security" }];
+    await mount("/search?q=enrgy");
+    await waitFor(() => expect(screen.getByText("Energy security")).toBeInTheDocument());
+    expect(screen.getByRole("link", { name: "Energy security" })).toHaveAttribute(
+      "href",
+      "/search?q=Energy+security",
+    );
+  });
 });
 
 describe("/search - zapisane wyszukiwania", () => {

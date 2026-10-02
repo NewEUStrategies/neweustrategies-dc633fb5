@@ -654,6 +654,24 @@ describe("AdminShell - wyszukiwarka panelu", () => {
     fireEvent.keyDown(window, { key: "k" });
     expect(document.activeElement).not.toBe(searchBox());
   });
+
+  // Paleta globalna słucha na tym samym oknie i ustępuje zdarzeniu już
+  // `defaultPrevented`. Panel musi je zająć W FAZIE PRZECHWYTYWANIA - inaczej
+  // o tym, kto wygra, decyduje kolejność rejestracji nasłuchów.
+  it("Ctrl+K jest zajęty, ZANIM dotrze do nasłuchów bąbelkowych okna (paleta globalna)", () => {
+    const seen: boolean[] = [];
+    const later = (e: KeyboardEvent) => seen.push(e.defaultPrevented);
+    // Nasłuch zarejestrowany PRZED panelem - jak paleta w korzeniu aplikacji.
+    window.addEventListener("keydown", later);
+    try {
+      renderShell({ pathname: "/admin" });
+      fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    } finally {
+      window.removeEventListener("keydown", later);
+    }
+    expect(seen).toEqual([true]);
+    expect(document.activeElement).toBe(searchBox());
+  });
 });
 
 describe("AdminShell - odznaka kolejki klubów", () => {

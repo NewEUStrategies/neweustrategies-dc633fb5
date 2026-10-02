@@ -94,9 +94,7 @@ describe("SearchAutosuggest - render pustego zbioru", () => {
 
 describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
   it("układa kubełki w kolejności tytuły → rodzaje treści → tematyka → osoby", () => {
-    render(
-      <Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     const listbox = screen.getByRole("listbox");
     const options = within(listbox).getAllByRole("option");
     expect(options.map((o) => o.textContent?.trim())).toEqual([
@@ -108,9 +106,7 @@ describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
   });
 
   it("nadaje opcjom CIĄGŁY indeks przez granice kubełków - kontrakt z klawiaturą rodzica", () => {
-    render(
-      <Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     const options = screen.getAllByRole("option");
     expect(options.map((o) => o.id)).toEqual([
       "search-suggest-opt-0",
@@ -122,9 +118,7 @@ describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
   });
 
   it("zaznacza DOKŁADNIE jedną opcję wskazaną przez activeIndex", () => {
-    render(
-      <Auto items={oneOfEach()} activeIndex={2} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={2} lang="pl" onPick={noop} query="e" />);
     const selected = screen
       .getAllByRole("option")
       .filter((o) => o.getAttribute("aria-selected") === "true");
@@ -134,9 +128,7 @@ describe("SearchAutosuggest - grupowanie i indeks globalny", () => {
   });
 
   it("activeIndex poza zakresem nie zaznacza niczego (rodzic startuje od -1)", () => {
-    render(
-      <Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     expect(
       screen.getAllByRole("option").filter((o) => o.getAttribute("aria-selected") === "true"),
     ).toHaveLength(0);
@@ -185,9 +177,7 @@ describe("SearchAutosuggest - język", () => {
       <Auto items={items} activeIndex={-1} lang="pl" onPick={noop} query="x" />,
     );
     expect(screen.getByText("Polski tytuł")).toBeInTheDocument();
-    rerender(
-      <Auto items={items} activeIndex={-1} lang="en" onPick={noop} query="x" />,
-    );
+    rerender(<Auto items={items} activeIndex={-1} lang="en" onPick={noop} query="x" />);
     expect(screen.getByText("English title")).toBeInTheDocument();
     expect(screen.getAllByText("Titles")).toHaveLength(2);
   });
@@ -223,9 +213,7 @@ describe("SearchAutosuggest - zakładki kubełków", () => {
   });
 
   it("pokazuje zakładkę „Wszystko” i po jednej na NIEPUSTY kubełek", () => {
-    render(
-      <Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     const names = screen.getAllByRole("tab").map((t) => t.textContent);
     expect(names).toHaveLength(5);
     expect(names[0]).toContain("Wszystko");
@@ -248,9 +236,7 @@ describe("SearchAutosuggest - zakładki kubełków", () => {
   });
 
   it("wybór zakładki zawęża listę do jednego kubełka i przełącza aria-selected", () => {
-    render(
-      <Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     const topics = screen.getByRole("tab", { name: /Tematyka/ });
     fireEvent.mouseDown(topics);
     expect(topics).toHaveAttribute("aria-selected", "true");
@@ -261,18 +247,14 @@ describe("SearchAutosuggest - zakładki kubełków", () => {
   });
 
   it("zawężenie NIE PRZENUMEROWUJE opcji - indeks zostaje globalny", () => {
-    render(
-      <Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Osoby i organizacje/ }));
     // Autor jest czwarty w porządku globalnym - po zawężeniu nadal ma indeks 3.
     expect(screen.getByRole("option").id).toBe("search-suggest-opt-3");
   });
 
   it("powrót na „Wszystko” przywraca komplet", () => {
-    render(
-      <Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="e" />);
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Tematyka/ }));
     expect(screen.getAllByRole("option")).toHaveLength(1);
     fireEvent.mouseDown(screen.getByRole("tab", { name: /Wszystko/ }));
@@ -347,9 +329,7 @@ describe("SearchAutosuggest - wybór wpisu", () => {
 
   const renderOne = (onPick: (it: AutosuggestItem) => void) => {
     const it0 = picked();
-    render(
-      <Auto items={[it0]} activeIndex={-1} lang="pl" onPick={onPick} query="r" />,
-    );
+    render(<Auto items={[it0]} activeIndex={-1} lang="pl" onPick={onPick} query="r" />);
     return it0;
   };
 
@@ -440,15 +420,7 @@ describe("SearchAutosuggest - stopka frazy", () => {
   });
 
   it("bez obu wywołań zwrotnych stopki nie ma wcale", () => {
-    render(
-      <Auto
-        items={oneOfEach()}
-        activeIndex={-1}
-        lang="pl"
-        onPick={noop}
-        query="energia"
-      />,
-    );
+    render(<Auto items={oneOfEach()} activeIndex={-1} lang="pl" onPick={noop} query="energia" />);
     expect(screen.queryByText("Operatory")).not.toBeInTheDocument();
     expect(screen.getAllByRole("tab").length).toBeGreaterThan(0);
   });

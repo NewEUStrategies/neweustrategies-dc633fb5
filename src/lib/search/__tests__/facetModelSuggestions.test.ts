@@ -187,6 +187,39 @@ describe("suggestionHref", () => {
   });
 });
 
+describe("suggestionHref - multi-select przy scalaniu z bieżącym stanem", () => {
+  const region = (id: string) => it0({ kind: "region", id, slug: "", label_pl: "Bałtyk" });
+
+  it("term z podpowiedzi DOKŁADA się do wartości wymiaru zaznaczonych w panelu", () => {
+    expect(suggestionHref(region("r-3"), { base: { q: "gaz", region: "r-1,r-2" } })).toBe(
+      "/search?q=gaz&region=r-1%2Cr-2%2Cr-3",
+    );
+  });
+
+  it("term już zaznaczony nie dubluje się w adresie", () => {
+    expect(suggestionHref(region("r-2"), { base: { q: "gaz", region: "r-1,r-2" } })).toBe(
+      "/search?q=gaz&region=r-1%2Cr-2",
+    );
+  });
+
+  it("inne wymiary zostają nietknięte, a fraza bierze etykietę termu", () => {
+    expect(
+      suggestionHref(region("r-3"), {
+        base: { q: "gaz", region: "r-1", topic: "t-1" },
+        phrase: true,
+      }),
+    ).toBe("/search?q=Ba%C5%82tyk&region=r-1%2Cr-3&topic=t-1");
+  });
+
+  it("autor (wybór pojedynczy) nadal ZASTĘPUJE poprzedniego", () => {
+    expect(
+      suggestionHref(it0({ kind: "author", id: "a-2", slug: "" }), {
+        base: { q: "", author: "a-1" },
+      }),
+    ).toBe("/search?author=a-2");
+  });
+});
+
 describe("searchHref", () => {
   it("porządkuje parametry według schematu adresu i pomija puste", () => {
     expect(searchHref({ sort: "newest", q: "", org: "o-1", tab: undefined })).toBe(

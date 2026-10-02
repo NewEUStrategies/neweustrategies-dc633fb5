@@ -24,6 +24,11 @@ export function useCommandPaletteShortcut(
   useEffect(() => {
     if (!enabled) return;
     const onKey = (event: KeyboardEvent) => {
+      // Skrót zajęty lokalnie (np. Cmd/Ctrl+K w panelu admina ustawia fokus na
+      // jego wyszukiwarce) - właściciel kontekstu wygrywa z paletą globalną.
+      // Bez tego OBA nasłuchy odpalały się na jednym naciśnięciu: panel
+      // zaznaczał swoje pole, a paleta otwierała się nad nim i zabierała fokus.
+      if (event.defaultPrevented) return;
       const isOpen = openRef.current;
       const set = setOpenRef.current;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {

@@ -31,6 +31,7 @@ import {
   OVERLAY_TABS,
   emptyOverlayResults,
   firstNonEmptyTab,
+  orIlikeValue,
   overlaySearchQueryOptions,
   type OverlayResults,
 } from "@/lib/search/overlayTabs";
@@ -178,6 +179,68 @@ describe("overlayTabs - tematyka (kategorie i tagi)", () => {
     stubs.from?.setResponse("categories", fail("permission denied"));
     stubs.from?.setResponse("tags", fail("permission denied"));
     expect((await run()).topics).toEqual([]);
+  });
+  // Fraza szła do `.or()` sklejona wprost. „Unia, Polska" rozcinała filtr na
+  // dwa warunki (400 = pusta sekcja), a przecinek z kropką dokładał do OR
+  // warunek wymyślony przez użytkownika.
+  /** Warunki logicznego `.or()` - przecinki POZA cudzysłowem rozdzielają. */
+  const orConditions = (filter: string): string[] => {
+    const out: string[] = [];
+    let cur = "";
+    let quoted = false;
+    for (let i = 0; i < filter.length; i++) {
+      const c = filter[i];
+      if (quoted && c === "\\") {
+        cur += c + filter[++i];
+        continue;
+      }
+      if (c === '"') quoted = !quoted;
+      if (c === "," && !quoted) {
+        out.push(cur);
+        cur = "";
+        continue;
+      }
+      cur += c;
+    }
+    out.push(cur);
+    return out;
+  };
+
+  it("fraza z PRZECINKIEM i NAWIASEM zostaje jednym literałem w filtrze .or()", async () => {
+    await run("Unia, Polska (UE)");
+    const cats = String(stubs.from!.lastChain("categories")!.argsOf("or")![0]);
+    const tags = String(stubs.from!.lastChain("tags")!.argsOf("or")![0]);
+    expect(orConditions(cats)).toEqual([
+      'name_pl.ilike."%Unia, Polska (UE)%"',
+      'name_en.ilike."%Unia, Polska (UE)%"',
+      'slug.ilike."%Unia, Polska (UE)%"',
+    ]);
+    expect(orConditions(tags)).toHaveLength(2);
+  });
+
+  it("fraza udająca składnię NIE DOKŁADA własnego warunku do OR", async () => {
+    await run('x%,slug.neq.",id.gt.0');
+    const cats = String(stubs.from!.lastChain("categories")!.argsOf("or")![0]);
+    const conds = orConditions(cats);
+    expect(conds).toHaveLength(3);
+    for (const c of conds) expect(c).toMatch(/^(name_pl|name_en|slug)\.ilike\."/);
+  });
+});
+
+describe("orIlikeValue", () => {
+  it("otacza wzorzec cudzysłowem i procentami", () => {
+    expect(orIlikeValue("energia")).toBe('"%energia%"');
+  });
+
+  it("metaznaki LIKE z frazy są DOSŁOWNE - „50%” nie znaczy „50 i cokolwiek”", () => {
+    // Wzorzec: %50\%% (Postgres), w cudzysłowie PostgREST backslash podwojony.
+    expect(orIlikeValue("50%")).toBe('"%50\\\\%%"');
+    expect(orIlikeValue("a_b")).toBe('"%a\\\\_b%"');
+  });
+
+  it("cudzysłów i backslash z frazy nie zamykają literału", () => {
+    expect(orIlikeValue('say "hi"')).toBe('"%say \\"hi\\"%"');
+    expect(orIlikeValue("a\\b")).toBe('"%a\\\\\\\\b%"');
   });
 });
 
