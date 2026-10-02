@@ -87,6 +87,51 @@ rozjechała się z faktycznym zachowaniem: puls na żywo jest odpytywany
 NIEZALEŻNIE od zakładki (`useRealtimeQuery`). Usunięty - funkcja, której nikt nie
 woła, a która opisuje inną regułę niż kod, jest dokumentacją fałszywą.
 
+### 2.5 Panel cookie bannera w języku interfejsu i lokalizowane odnośniki banera
+
+Dopisane w tym samym PR po pierwszym wdrożeniu (commity `8aa1a04`, `cc63dbf`).
+
+**Panel `/admin/settings/cookie-banner` idzie za językiem interfejsu.** Cała
+trasa i obie jej sekcje (marka/odnośniki, „Wykryte elementy") miały 47 napisów
+po polsku wprost w JSX, zamrożonych w ratchecie `check:i18n-hardcoded`, więc
+administrator z interfejsem angielskim czytał polszczyznę. Teraz:
+
+- nowa nakładka `lib/i18n-admin-cookie-banner.ts` (przestrzeń
+  `adminCookieBanner`), polskie brzmienia znak w znak jak wcześniej w kodzie;
+  przestrzeń dopisana do bramki parytetu PL/EN (`i18nParity.gate.test.ts`),
+  liczba mnoga PL (`_one/_few/_many`) w podsumowaniu skanu;
+- trzy pliki zdjęte z bazy ratchetu (`monolingualUserText.ts`, 164 -> 161);
+- **dwa języki na jednym ekranie są rozdzielone świadomie**: etykiety panelu
+  idą za językiem INTERFEJSU, a przykłady w polach treści i atrybut `lang` pól
+  idą za edytowaną WERSJĄ banera (zakładka PL/EN) - administrator z interfejsem
+  po polsku edytujący wersję angielską widzi angielskie przykłady;
+- tytuł karty w `head()` bierze język z ŻĄDANIA (`activeLang`), nie
+  z singletonu i18next, który na serwerze jest wspólny dla równoległych żądań;
+- cel elementu w „Wykrytych elementach" czytany w języku interfejsu
+  (`pickLocalized`) - wcześniej zawsze `purpose_pl`;
+- przy okazji (ten sam ekran): toasty zapisu wspólnego hooka `useSettings`
+  (`adminToast.saved` / `saveFailed`) oraz etykiety urządzeń i błąd wgrywania
+  w `CoverImagePicker` (`uploadArea.devices.*`, `uploadArea.uploadError`).
+
+**Odnośniki banera prowadzą do właściwej wersji językowej.** Dodatkowe
+odnośniki banera (`banner.links`) renderowały adres surowo, więc „/cookies"
+wpisane raz prowadziło odwiedzającego wersji angielskiej na stronę polską,
+a `javascript:` trafiało do `href`. `bannerLinkHref(url, lang)`
+(`lib/cookieBanner/config.ts`):
+
+- ścieżka wewnętrzna dostaje prefiks języka odwiedzającego (`localizedPath`),
+  po rozwiązaniu tak jak przeglądarka (`\` -> `/`, sklejanie `..`), więc
+  `/en/../cookies` nie ucieka na stronę polską, a `/\host` prowadzi w to samo
+  miejsce w obu wersjach;
+- dozwolone schematy: `http`, `https`, `mailto`, `tel`; każdy inny (w tym
+  `javascript:` z tabulatorem w środku) - odnośnik nie jest pokazywany;
+- etykieta w języku banera (`pickLocalized`), pusty odnośnik pomijany;
+- panel pokazuje przy każdym odnośniku, DOKĄD poprowadzi w wersji PL i EN,
+  a adres niedozwolony oznacza `aria-invalid` z wyjaśnieniem; pusty stan
+  linkuje do `/admin/settings/privacy` (strona polityki prywatności);
+- `resolveBannerCopy`: puste pole treści wraca do brzmienia domyślnego -
+  podpowiedzi w panelu przestały obiecywać coś, czego baner nie robił.
+
 ---
 
 ## 3. Testy dopisane
@@ -102,7 +147,10 @@ woła, a która opisuje inną regułę niż kod, jest dokumentacją fałszywą.
 | `lib/authz/__tests__/permissionMatrixBranches.test.ts` (przepisana sekcja)         | N4                                                                                     |      4 |
 | `components/admin/settings/__tests__/ConsentAuditSummary.test.tsx`                 | rejestr zgód w panelu (0% -> pokryty), N12                                             |     13 |
 | `lib/cookieBanner/__tests__/registryScan.test.ts`                                  | skaner deklaracji cookie, N10                                                          |     40 |
-| `components/admin/cookie-banner/__tests__/cookieBannerPanels.test.tsx`             | branding banera i „Wykryte elementy" (0% -> pokryte), N11                              |     23 |
+| `components/admin/cookie-banner/__tests__/cookieBannerPanels.test.tsx`             | branding banera i „Wykryte elementy" (0% -> pokryte), N11, PL/EN, rozwiązane adresy    |     29 |
+| `lib/cookieBanner/__tests__/bannerLinkHref.test.ts`                                | lokalizacja i walidacja odnośników banera, `resolveBannerCopy` (rozdz. 2.5)            |     34 |
+| `routes/__tests__/adminCookieBannerI18n.test.tsx`                                  | trasa z PRAWDZIWYM słownikiem: PL/EN, przykłady wg wersji, tytuł karty z żądania       |      6 |
+| `components/__tests__/ConsentBanner.test.tsx` (rozszerzony)                        | odnośniki banera wg języka, odrzucony `javascript:`, puste pole treści                 |     +3 |
 | `components/admin/google-source/__tests__/GoogleSourceBadgeDeviceSection.test.tsx` | sekcja urządzenia Google Source (0% -> pokryta)                                        |      4 |
 | `components/admin/settings/__tests__/FontPicker.test.tsx`                          | wybór kroju                                                                            |     10 |
 | `lib/admin/__tests__/useSiteSettingsRevisions.test.tsx`                            | historia rewizji ustawień                                                              |      5 |
@@ -121,10 +169,6 @@ Dwa przypięcia `it.fails` zdjęte (N4, N13), jedno dopisane (niżej).
   jest kolumną, tylko wynikiem rozstrzygnięcia z trzech tabel, więc poprawny
   filtr ze stronicowaniem wymaga funkcji SQL (zbiór `user_id` per warstwa) -
   `.in()` z listą identyfikatorów rozsadza długość adresu przy setkach członków.
-- **Panel `/admin/settings/cookie-banner` jest jednojęzyczny** (cała trasa
-  i obie jej sekcje). Dług jest zamrożony w ratchecie
-  `check:i18n-hardcoded`; tłumaczenie samych sekcji przy polskiej trasie
-  dałoby panel w dwóch językach naraz.
 - Pozostałe przypięcia `it.fails` w testach tras modułu 19 (odbiorcy,
   integracje, użytkownicy, organizacje, słownik imion) - poza zakresem sześciu
   funkcjonalności.
@@ -134,9 +178,10 @@ Dwa przypięcia `it.fails` zdjęte (N4, N13), jedno dopisane (niżej).
 ## 5. Bramki uruchomione na tym drzewie
 
 - 32 bramki `check:*` z zestawu `verify:static` - zielone.
-- `format:check` oblewa na `src/styles.css`, którego ta zmiana nie dotyka
-  (stan bazy `45404b0`); wszystkie pliki zmienione tutaj przechodzą
-  `prettier --check` i `eslint` bez uwag.
+- `format:check` oblewał na `src/styles.css` (ten sam stan na `main`,
+  `45404b0`); wielkość liter jednego koloru poprawiona w `1e433ab` - zmiana
+  staje się no-opem, gdy baza ją dostanie. Wszystkie pliki zmienione tutaj
+  przechodzą `prettier --check` i `eslint` bez uwag.
 - `tsc --noEmit` - czysto.
 - Dotychczasowe testy modułu (243 pliki importujące moduł 19 wprost + trzy
   nowe + `ConsentBanner`, `ImpersonationBanner`, `adminLibraryRoute`):
@@ -144,3 +189,10 @@ Dwa przypięcia `it.fails` zdjęte (N4, N13), jedno dopisane (niżej).
   (przed: 9 354 / 91 - dwa przypięcia zdjęte naprawą).
 - Pliki testowe dopisane lub zmienione tą pracą (14): **565 testów, 565
   zielonych**; w tym jedno nowe `it.fails` (filtr warstwy, rozdz. 4).
+- Część 2 (rozdz. 2.5): 74 pliki testowe importujące zmienione moduły wprost
+  (**2 573 zielone, 16 `it.fails`**) i 366 kolejnych sięgających ich
+  przechodnio przez graf importów (**15 231 zielonych, 66 `it.fails`**), zero
+  czerwonych. Jedyne dwa czerwone w pierwszym przebiegu to testy ramek
+  urządzeń w `CoverImagePicker.test.tsx`, które sprawdzały dawne literały
+  „Desktop/Tablet/Mobile" - poprawione na klucze `uploadArea.devices.*`, jak
+  reszta tego pliku (atrapa `t` oddaje klucz). `tsc --noEmit` czysto.
