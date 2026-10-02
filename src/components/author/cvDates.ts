@@ -5,6 +5,8 @@
 import type { TFunction } from "i18next";
 import type { AppLang } from "@/lib/i18n/localePath";
 import { DATE_ONLY_TIME_ZONE, formatDate } from "@/lib/i18n/format";
+// `authorCv.present` - nakładka rejestruje klucz efektem ubocznym importu.
+import "@/lib/i18n-author-cv";
 
 /**
  * Miesiąc i rok z kolumny DATE (daty CV nie mają chwili). Formatujemy w UTC -
