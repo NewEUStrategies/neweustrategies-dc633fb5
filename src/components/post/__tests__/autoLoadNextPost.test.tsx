@@ -14,6 +14,11 @@
 // obserwatory po `rootMargin`: sentinel końca łańcucha i pas czytania. Callback
 // rozłączonego obserwatora nigdy nie jest odgrywany - w przeglądarce już by
 // nie strzelił (patrz `intersect()` w `postComposition.test.tsx`).
+//
+// Pas czytania odgrywa przeglądarkę wiernie: wpis ma położenie w oknie
+// (`getBoundingClientRect`), a obserwator dostaje zgłoszenie TYLKO od wpisu,
+// którego przecięcie z pasem się zmieniło. Skok znad pasa pod pas nie zmienia
+// przecięcia - i nie daje zgłoszenia; łapie go dopiero zdarzenie `scroll`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { act, type ReactElement } from "react";
@@ -89,35 +94,24 @@ const N2 = summary("n2", "trzeci", "Trzecia analiza", "Third analysis");
 // ---------------------------------------------------------------------------
 const observers: FakeIntersectionObserver[] = [];
 
-function rect(top: number): DOMRectReadOnly {
-  return {
-    x: 0,
-    y: top,
-    width: 800,
-    height: 600,
-    top,
-    right: 800,
-    bottom: top + 600,
-    left: 0,
-    toJSON: () => ({ top }),
-  };
+const ARTICLE_HEIGHT = 600;
+
+function rect(top: number): DOMRect {
+  return new DOMRect(0, top, 800, ARTICLE_HEIGHT);
 }
 
-/** Pas czytania w oknie 1000 px: górne 200 px. */
-const BAND_BOUNDS = rect(0);
+/** Dół pasa czytania: górne 20% okna. */
+function bandBottom(): number {
+  return window.innerHeight * 0.2;
+}
 
-function entry(
-  target: Element,
-  isIntersecting: boolean,
-  top: number,
-  rootBounds: DOMRectReadOnly | null = BAND_BOUNDS,
-): IntersectionObserverEntry {
+function entry(target: Element, isIntersecting: boolean, top: number): IntersectionObserverEntry {
   return {
     boundingClientRect: rect(top),
     intersectionRatio: isIntersecting ? 0.3 : 0,
     intersectionRect: rect(top),
     isIntersecting,
-    rootBounds,
+    rootBounds: new DOMRect(0, 0, 800, bandBottom()),
     target,
     time: 0,
   };
@@ -188,24 +182,60 @@ async function reachEndOfChain(): Promise<void> {
   });
 }
 
+type Position = "in-band" | "above-band" | "below-band";
+
+/** Górna krawędź wpisu w oknie dla każdego położenia względem pasa. */
+const TOP: Record<Position, number> = { "in-band": 120, "above-band": -1400, "below-band": 900 };
+
+/** Bieżące położenie (górna krawędź) każdego doładowanego wpisu. */
+const tops = new Map<Element, number>();
+
+/** Przestawia wpis w oknie - BEZ zgłoszenia obserwatorowi i bez `scroll`. */
+function moveTo(el: HTMLElement, top: number) {
+  tops.set(el, top);
+  return vi.spyOn(el, "getBoundingClientRect").mockReturnValue(rect(top));
+}
+
+function crossesBand(top: number): boolean {
+  return top < bandBottom() && top + ARTICLE_HEIGHT > 0;
+}
+
 async function loadNext(post: NextPostSummary): Promise<void> {
   h.fetchNextPost.mockResolvedValueOnce(post);
   await reachEndOfChain();
   await waitFor(() => expect(document.getElementById(`nextpost-${post.id}`)).not.toBeNull());
+  // Doładowany wpis wjeżdża pod sentinelem końca łańcucha - pod pasem czytania.
+  moveTo(articleOf(post.id), TOP["below-band"]);
 }
 
-type Position = "in-band" | "above-band" | "below-band";
+/**
+ * Przesuwa wpisy (położenie albo górna krawędź w px) i odgrywa to, co
+ * zgłosiłaby przeglądarka: tylko wpisy, których przecięcie z pasem się
+ * zmieniło. Zwraca wpisy zgłoszone obserwatorowi pasa.
+ */
+function placeArticles(positions: Record<string, Position | number>): Element[] {
+  const reported: IntersectionObserverEntry[] = [];
+  for (const [postId, at] of Object.entries(positions)) {
+    const el = articleOf(postId);
+    const top = typeof at === "number" ? at : TOP[at];
+    const before = crossesBand(tops.get(el) ?? TOP["below-band"]);
+    moveTo(el, top);
+    if (crossesBand(top) !== before) reported.push(entry(el, !before, top));
+  }
+  if (reported.length > 0) act(() => bandObserver().emit(reported));
+  return reported.map((e) => e.target);
+}
 
-/** Odgrywa położenie doładowanych wpisów względem pasa czytania. */
-function placeArticles(positions: Record<string, Position>): void {
-  const entries = Object.entries(positions).map(([postId, at]) =>
-    at === "in-band"
-      ? entry(articleOf(postId), true, 120)
-      : at === "above-band"
-        ? entry(articleOf(postId), false, -1400)
-        : entry(articleOf(postId), false, 900),
-  );
-  act(() => bandObserver().emit(entries));
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+/** `count` zdarzeń `scroll` w jednej klatce, potem ta klatka. */
+async function scrollWindow(count = 1): Promise<void> {
+  await act(async () => {
+    for (let i = 0; i < count; i++) window.dispatchEvent(new Event("scroll"));
+    await nextFrame();
+  });
 }
 
 function ui(props: { currentPostId?: string; lang?: "pl" | "en" } = {}): ReactElement {
@@ -231,6 +261,7 @@ function mount(props: { currentPostId?: string; lang?: "pl" | "en" } = {}) {
 
 beforeEach(() => {
   observers.length = 0;
+  tops.clear();
   vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
   h.fetchNextPost.mockReset();
   h.trackPageView.mockReset();
@@ -292,7 +323,7 @@ describe("AutoLoadNextPost - adres i tytuł karty za czytanym wpisem", () => {
     expect(document.title).toBe("Następna analiza");
   });
 
-  it("podmiana adresu NIE jest nawigacją routera i zachowuje stan wpisu historii", async () => {
+  it("podmiana adresu NIE jest nawigacją routera: indeks historii zostaje, klucz przewinięcia jest własny", async () => {
     // Prawdziwa historia TanStack: łata `window.history.replaceState` na
     // instancji i ogłasza każde zewnętrzne wywołanie subskrybentom - router
     // zrobiłby z tego `router.load()` trasy doładowanego wpisu.
@@ -306,8 +337,18 @@ describe("AutoLoadNextPost - adres i tytuł karty za czytanym wpisem", () => {
 
       expect(window.location.pathname).toBe("/blog/nastepny");
       expect(navigations).not.toHaveBeenCalled();
-      // Klucz wpisu historii zostaje - na nim stoi przywracanie przewinięcia.
+      // Z indeksu router liczy kierunek wstecz/naprzód - ten zostaje. Klucz
+      // artykułu otwartego przywracałby po przeładowaniu samotnego wpisu
+      // przewinięcie całej strony z łańcuchem, więc doładowany dostaje własny.
+      const loaded: Record<string, unknown> = window.history.state;
+      expect(loaded.__TSR_index).toBe(ROUTER_STATE.__TSR_index);
+      expect(loaded.__TSR_key).not.toBe(ROUTER_STATE.__TSR_key);
+      expect(loaded.key).toBe(loaded.__TSR_key);
+
+      // Powrót nad łańcuch oddaje artykułowi otwartemu JEGO wpis z kluczem.
+      placeArticles({ n1: "below-band" });
       expect(window.history.state).toEqual(ROUTER_STATE);
+      expect(navigations).not.toHaveBeenCalled();
     } finally {
       unsubscribe();
       history.destroy();
@@ -323,6 +364,7 @@ describe("AutoLoadNextPost - adres i tytuł karty za czytanym wpisem", () => {
     unmount();
     expect(window.location.pathname).toBe(ORIGINAL_HREF);
     expect(document.title).toBe(ORIGINAL_TITLE);
+    expect(window.history.state).toEqual(ROUTER_STATE);
   });
 
   it("odmontowanie PO nawigacji na inną stronę nie cofa jej adresu ani tytułu", async () => {
@@ -389,6 +431,94 @@ describe("AutoLoadNextPost - adres i tytuł karty za czytanym wpisem", () => {
   });
 });
 
+describe("AutoLoadNextPost - skok bez przewijania (Home, „do góry” bez animacji, przypis)", () => {
+  it("skok z trzeciego wpisu na górę: zgłoszony jest tylko wpis opuszczający pas, a adres wraca do artykułu otwartego", async () => {
+    mount();
+    await loadNext(N1);
+    await loadNext(N2);
+    // Czytelnik przewinął przez n1 do n2 - n1 wszedł w pas i wyszedł nad niego.
+    placeArticles({ n1: "in-band" });
+    expect(placeArticles({ n1: "above-band", n2: "in-band" })).toHaveLength(2);
+    expect(window.location.pathname).toBe("/blog/trzeci");
+
+    // n1 przeskakuje znad pasa pod pas, nie przecinając go - przeglądarka o nim milczy.
+    expect(placeArticles({ n1: "below-band", n2: "below-band" })).toEqual([articleOf("n2")]);
+    expect(window.location.pathname).toBe(ORIGINAL_HREF);
+    expect(document.title).toBe(ORIGINAL_TITLE);
+  });
+
+  it("skok spod łańcucha (stopka) na górę: obserwator milczy, adres przywraca zdarzenie `scroll`", async () => {
+    mount();
+    await loadNext(N1);
+    placeArticles({ n1: "in-band" });
+    placeArticles({ n1: "above-band" });
+    expect(window.location.pathname).toBe("/blog/nastepny");
+
+    expect(placeArticles({ n1: "below-band" })).toEqual([]);
+    await scrollWindow();
+    expect(window.location.pathname).toBe(ORIGINAL_HREF);
+    expect(document.title).toBe(ORIGINAL_TITLE);
+  });
+
+  it("seria zdarzeń `scroll` w jednej klatce: jeden odczyt geometrii na wpis", async () => {
+    mount();
+    await loadNext(N1);
+    const geometry = moveTo(articleOf("n1"), TOP["in-band"]);
+    geometry.mockClear();
+
+    await scrollWindow(5);
+    expect(geometry).toHaveBeenCalledTimes(1);
+    expect(window.location.pathname).toBe("/blog/nastepny");
+  });
+
+  it("klatki bez zmiany czytanego wpisu nie piszą w historii (Safari: limit 100 zapisów na 10 s)", async () => {
+    mount();
+    await loadNext(N1);
+    const writes = vi.spyOn(History.prototype, "replaceState");
+    try {
+      // Czytelnik w artykule otwartym, łańcuch pod pasem.
+      await scrollWindow();
+      expect(writes).not.toHaveBeenCalled();
+
+      moveTo(articleOf("n1"), TOP["in-band"]);
+      await scrollWindow();
+      await scrollWindow();
+      expect(writes).toHaveBeenCalledTimes(1);
+      expect(window.location.pathname).toBe("/blog/nastepny");
+    } finally {
+      writes.mockRestore();
+    }
+  });
+
+  it("wpis historii bez stanu (`null` z `TocWidget`): doładowany dostaje sam klucz, powrót oddaje `null`", async () => {
+    window.history.replaceState(null, "", ORIGINAL_HREF);
+    mount();
+    await loadNext(N1);
+    placeArticles({ n1: "in-band" });
+    const loaded: Record<string, unknown> = window.history.state;
+    expect(Object.keys(loaded).sort()).toEqual(["__TSR_key", "key"]);
+    expect(loaded.key).toBe(loaded.__TSR_key);
+
+    placeArticles({ n1: "below-band" });
+    expect(window.history.state).toBeNull();
+    expect(window.location.pathname).toBe(ORIGINAL_HREF);
+  });
+
+  it("odmontowanie zdejmuje nasłuch `scroll` i odwołuje zaplanowaną klatkę", async () => {
+    const { unmount } = mount();
+    await loadNext(N1);
+    moveTo(articleOf("n1"), TOP["in-band"]);
+    // Klatka zaplanowana przed odmontowaniem i zdarzenie już po nim.
+    window.dispatchEvent(new Event("scroll"));
+    unmount();
+    await scrollWindow();
+
+    expect(window.location.pathname).toBe(ORIGINAL_HREF);
+    expect(document.title).toBe(ORIGINAL_TITLE);
+    expect(h.trackPageView).not.toHaveBeenCalled();
+  });
+});
+
 describe("AutoLoadNextPost - łańcuch należy do jednego artykułu otwartego", () => {
   it("nawigacja SPA na inny wpis zaczyna łańcuch od nowa, od NOWEGO kursora", async () => {
     const view = mount({ currentPostId: "p1" });
@@ -427,7 +557,7 @@ describe("AutoLoadNextPost - łańcuch należy do jednego artykułu otwartego", 
   });
 });
 
-describe("AutoLoadNextPost - strażnik podwójnego żądania i pas bez wymiarów okna", () => {
+describe("AutoLoadNextPost - strażnik podwójnego żądania i granica pasa czytania", () => {
   it("dwa przecięcia sentinela przed odpowiedzią dają JEDNO żądanie", async () => {
     h.fetchNextPost.mockReturnValue(new Promise<never>(() => undefined));
     mount();
@@ -438,13 +568,13 @@ describe("AutoLoadNextPost - strażnik podwójnego żądania i pas bez wymiarów
     expect(screen.getByRole("status")).toHaveTextContent("Ładuję następny wpis...");
   });
 
-  it("obserwator bez wymiarów pasa (`rootBounds: null`) liczy pas od górnej krawędzi okna", async () => {
+  it("pas czytania to górne 20% okna: wpis jest czytany, gdy jego góra minie tę linię", async () => {
     mount();
     await loadNext(N1);
-    act(() => bandObserver().emit([entry(articleOf("n1"), false, -1400, null)]));
+    placeArticles({ n1: bandBottom() - 1 });
     expect(window.location.pathname).toBe("/blog/nastepny");
 
-    act(() => bandObserver().emit([entry(articleOf("n1"), false, 900, null)]));
+    placeArticles({ n1: bandBottom() + 1 });
     expect(window.location.pathname).toBe(ORIGINAL_HREF);
   });
 });

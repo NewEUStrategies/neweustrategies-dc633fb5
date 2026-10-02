@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  excerptForReadingTime,
   computeBilingualReadingStats,
   computeReadingMinutes,
   computeReadingStats,
@@ -228,5 +229,18 @@ describe("domyślne ustawienia i stary interfejs", () => {
   it("estimateReadingMinutes z opcjami: język wybiera wpm, jawne wpm wygrywa", () => {
     expect(estimateReadingMinutes(src, { lang: "en" })).toBe(1);
     expect(estimateReadingMinutes(src, { lang: "en", wpm: 110 })).toBe(3);
+  });
+});
+
+describe("excerptForReadingTime - zajawka w języku strony", () => {
+  it("strona EN liczy zajawkę EN, strona PL - polską (ta sama reguła co panel edytora)", () => {
+    expect(excerptForReadingTime("Zajawka PL", "Excerpt EN", "en")).toBe("Excerpt EN");
+    expect(excerptForReadingTime("Zajawka PL", "Excerpt EN", "pl")).toBe("Zajawka PL");
+  });
+
+  it("brak wariantu języka strony sięga po drugi, a brak obu daje undefined", () => {
+    expect(excerptForReadingTime("Zajawka PL", null, "en")).toBe("Zajawka PL");
+    expect(excerptForReadingTime("", "Excerpt EN", "pl")).toBe("Excerpt EN");
+    expect(excerptForReadingTime(null, undefined, "pl")).toBeUndefined();
   });
 });

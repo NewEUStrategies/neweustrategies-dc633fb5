@@ -143,7 +143,10 @@ function scrollToId(id: string) {
   if (!el) return;
   const top = el.getBoundingClientRect().top + window.scrollY - 96;
   window.scrollTo({ top, behavior: "smooth" });
-  if (history.replaceState) history.replaceState(null, "", `#${id}`);
+  // Stan wpisu historii należy do routera (`__TSR_key` - klucz przywracania
+  // scrolla, `__TSR_index` - kierunek wstecz/dalej); `null` go kasował.
+  // Ta sama naprawa co w `lib/footnotes/navigation.ts`.
+  if (history.replaceState) history.replaceState(history.state, "", `#${id}`);
 }
 
 export function TocWidget({ content, lang }: Props) {

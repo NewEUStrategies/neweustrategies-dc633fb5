@@ -19,6 +19,7 @@ import { ContentRenderer } from "@/components/content/ContentRenderer";
 import { parseBuilderDoc } from "@/lib/builder/parse";
 import type { BlocksDoc, LocalizedBlocks } from "@/lib/blocks/types";
 import { SectionEyebrow } from "@/components/post/atoms/SectionEyebrow";
+import { rafThrottle } from "@/lib/rafThrottle";
 import {
   DEFAULT_MAX_CHAIN,
   chainHeadingId,
@@ -54,6 +55,8 @@ const LABELS = {
  * zeszła już do tego pasa - bieżącym jest OSTATNI taki wpis łańcucha, a gdy
  * żaden - artykuł otwarty przez czytelnika (stoi nad łańcuchem).
  */
+const READING_BAND_SHARE = 0.2;
+/** Ten sam pas jako `rootMargin` obserwatora: dolne 80% okna odcięte. */
 const READING_BAND = "0px 0px -80% 0px";
 
 function postTitle(post: NextPostSummary, lang: "pl" | "en"): string {
@@ -72,12 +75,35 @@ function currentHref(): string {
  * jej wywołanie z zewnątrz ogłasza swoim subskrybentom jako nawigację
  * (`@tanstack/history`, `onPushPop("REPLACE")`), a `Transitioner` odpowiada na
  * to `router.load()` - czyli trasą doładowanego wpisu w miejscu całego artykułu.
- * Stan wpisu historii (`__TSR_key`, `__TSR_index`) zostaje nietknięty - na nim
- * stoją przywracanie przewinięcia i rozpoznawanie kierunku wstecz/naprzód.
+ *
+ * GRANICA: router nadal uważa, że stoi na artykule otwartym. Kolejny zapis
+ * przez ŁATANĄ metodę, póki pasek pokazuje doładowany wpis (skok do przypisu
+ * w `footnotes/navigation`, `smoothAnchorScroll`, `TocWidget` w treści
+ * doładowanego wpisu), czyta adres z paska i ładuje trasę tego wpisu - podmiana
+ * strony przychodzi wtedy z opóźnieniem, przy pierwszym skoku w treści.
  */
-function writeAddress(href: string, title: string): void {
-  History.prototype.replaceState.call(window.history, window.history.state, "", href);
+function writeAddress(href: string, title: string, state: unknown): void {
+  History.prototype.replaceState.call(window.history, state, "", href);
   document.title = title;
+}
+
+/**
+ * Stan wpisu historii pod adresem DOŁADOWANEGO wpisu: ten sam `__TSR_index`
+ * (kierunek wstecz/naprzód), ale własny klucz w kształcie klucza TanStack.
+ * Klucz artykułu otwartego wskazuje w pamięci przewinięcia pozycję CAŁEJ strony
+ * (artykuł + łańcuch) - po przeładowaniu albo powrocie na ten wpis historii
+ * router przewijał samotny doładowany wpis o tyle, zwykle za jego koniec.
+ */
+function loadedPostState(state: unknown): Record<string, unknown> {
+  const key = (Math.random() + 1).toString(36).substring(7);
+  return { ...(typeof state === "object" && state !== null ? state : {}), key, __TSR_key: key };
+}
+
+interface OriginalAddress {
+  href: string;
+  title: string;
+  /** Stan wpisu artykułu otwartego - z jego kluczem przewinięcia. */
+  state: unknown;
 }
 
 interface ShownAddress {
@@ -102,7 +128,7 @@ function useAddressFollowsReading(
   chain: readonly Loaded[],
   lang: "pl" | "en",
 ): void {
-  const originalRef = useRef<{ href: string; title: string } | null>(null);
+  const originalRef = useRef<OriginalAddress | null>(null);
   const shownRef = useRef<ShownAddress | null>(null);
   // Jedna odsłona na wpis i montowanie - przewijanie tam i z powrotem nie liczy jej drugi raz.
   const trackedRef = useRef(new Set<string>());
@@ -111,21 +137,27 @@ function useAddressFollowsReading(
     const root = rootRef.current;
     if (chain.length === 0 || !root) return;
     const articles = Array.from(root.querySelectorAll<HTMLElement>("[data-next-post-id]"));
-    const started = new Map<Element, boolean>();
 
     const show = (post: NextPostSummary | null) => {
       const shown = shownRef.current;
       if (!post) {
-        if (!shown || !originalRef.current) return;
-        writeAddress(originalRef.current.href, originalRef.current.title);
+        const original = originalRef.current;
+        if (!shown || !original) return;
+        writeAddress(original.href, original.title, original.state);
         shownRef.current = null;
         return;
       }
       if (shown?.postId === post.id) return;
       // Pierwotny adres zapamiętujemy przy KAŻDYM zejściu z artykułu otwartego -
       // czytelnik mógł w nim w międzyczasie przejść do przypisu (#fn-…).
-      if (!shown) originalRef.current = { href: currentHref(), title: document.title };
-      writeAddress(post.href, postTitle(post, lang));
+      if (!shown) {
+        originalRef.current = {
+          href: currentHref(),
+          title: document.title,
+          state: window.history.state,
+        };
+      }
+      writeAddress(post.href, postTitle(post, lang), loadedPostState(window.history.state));
       shownRef.current = { postId: post.id, href: currentHref(), state: window.history.state };
       if (!trackedRef.current.has(post.id)) {
         trackedRef.current.add(post.id);
@@ -133,24 +165,28 @@ function useAddressFollowsReading(
       }
     };
 
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          // Poza pasem od góry (przeczytany) wpis nadal jest „zaczęty";
-          // poza pasem od dołu - czytelnik wrócił nad niego.
-          started.set(
-            e.target,
-            e.isIntersecting || e.boundingClientRect.top < (e.rootBounds?.top ?? 0),
-          );
-        }
-        const reading = articles.filter((el) => started.get(el)).at(-1);
-        const id = reading?.getAttribute("data-next-post-id");
-        show(chain.find((c) => c.post.id === id)?.post ?? null);
-      },
-      { rootMargin: READING_BAND },
-    );
+    // „Zaczęty" (górna krawędź nad dołem pasa - w pasie albo już nad nim) liczony
+    // dla KAŻDEGO wpisu z bieżącej geometrii, nie z pamięci zgłoszeń. Obserwator
+    // zgłasza tylko ZMIANĘ przecięcia, a skok bez animacji (Home, „do góry" przy
+    // reduced-motion, odsyłacz przypisu) przenosi przeczytany wpis znad pasa pod
+    // niego bez przecięcia - zapamiętany stan zostawał wtedy „zaczęty".
+    const sync = () => {
+      const bandBottom = window.innerHeight * READING_BAND_SHARE;
+      const reading = articles.filter((el) => el.getBoundingClientRect().top < bandBottom).at(-1);
+      const id = reading?.getAttribute("data-next-post-id");
+      show(chain.find((c) => c.post.id === id)?.post ?? null);
+    };
+    const io = new IntersectionObserver(sync, { rootMargin: READING_BAND });
+    // Skok spod łańcucha (stopka) nad niego nie zmienia przecięcia ŻADNEGO
+    // wpisu, więc obserwator milczy - ten przypadek łapie dopiero `scroll`.
+    const onScroll = rafThrottle(sync);
     for (const el of articles) io.observe(el);
-    return () => io.disconnect();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      io.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      onScroll.cancel();
+    };
   }, [rootRef, chain, lang]);
 
   useEffect(
@@ -161,7 +197,7 @@ function useAddressFollowsReading(
       // Nawigacja routera (inny adres albo nowy wpis historii z tym samym
       // adresem - klik w tytuł doładowanego wpisu) należy już do nowej strony.
       if (currentHref() !== shown.href || window.history.state !== shown.state) return;
-      writeAddress(original.href, original.title);
+      writeAddress(original.href, original.title, original.state);
     },
     [],
   );

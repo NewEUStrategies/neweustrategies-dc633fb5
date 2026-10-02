@@ -64,6 +64,19 @@ export function normalizeTtsInput(body: TtsBody): TtsNormalized {
   return { ok: true, safeText: text.slice(0, TTS_MAX_CHARS), voiceId, model };
 }
 
+/** Awaria transportu do dostawcy: termin -> 504, reszta -> 502; szczegóły tylko w logu. */
+function upstreamFailure(stage: string, e: unknown): Response {
+  const timedOut = e instanceof DOMException && e.name === "TimeoutError";
+  console.error(`ElevenLabs TTS ${stage}`, e);
+  return new Response(
+    JSON.stringify({ error: timedOut ? "TTS upstream timeout" : "TTS upstream error" }),
+    {
+      status: timedOut ? 504 : 502,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+}
+
 export const Route = createFileRoute("/api/tts")({
   server: {
     handlers: {
@@ -185,15 +198,7 @@ export const Route = createFileRoute("/api/tts")({
         } catch (e) {
           // Zerwane połączenie albo przekroczony czas - wcześniej wyjątek
           // wychodził z handlera jako nieobsłużony 500.
-          const timedOut = e instanceof DOMException && e.name === "TimeoutError";
-          console.error("ElevenLabs TTS unreachable", e);
-          return new Response(
-            JSON.stringify({ error: timedOut ? "TTS upstream timeout" : "TTS upstream error" }),
-            {
-              status: timedOut ? 504 : 502,
-              headers: { "Content-Type": "application/json" },
-            },
-          );
+          return upstreamFailure("unreachable", e);
         }
 
         if (!upstream.ok) {
@@ -208,7 +213,15 @@ export const Route = createFileRoute("/api/tts")({
           );
         }
 
-        const audio = await upstream.arrayBuffer();
+        // Ciało 200 też czytamy pod tym samym terminem: zerwane połączenie
+        // w połowie MP3 albo termin, który minie przy odczycie, rzucają TUTAJ,
+        // a nie przy `fetch`.
+        let audio: ArrayBuffer;
+        try {
+          audio = await upstream.arrayBuffer();
+        } catch (e) {
+          return upstreamFailure("body read failed", e);
+        }
         return new Response(audio, {
           status: 200,
           headers: {

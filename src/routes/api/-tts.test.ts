@@ -391,6 +391,30 @@ describe("POST /api/tts - awarie dostawcy", () => {
     expect(await res.json()).toEqual({ error: "TTS upstream error" });
   });
 
+  // REGRESJA: `upstream.arrayBuffer()` stał poza try/catch - zerwanie w połowie
+  // ciała 200 (albo termin minięty przy odczycie) wychodziło z handlera.
+  it.each([
+    ["zerwane połączenie w połowie MP3", 502, new TypeError("connection reset mid-body")],
+    ["termin minięty przy odczycie ciała", 504, new DOMException("timed out", "TimeoutError")],
+  ] as const)(
+    "%s daje %i z handlera, nie nieobsłużony wyjątek",
+    async (_label, status, failure) => {
+      const midBody = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(MP3.slice(0, 2));
+          controller.error(failure);
+        },
+      });
+      fetchMock.mockResolvedValueOnce(new Response(midBody, { status: 200 }));
+      const res = await post(ttsRequest({ text: "hi" }));
+      expect(res.status).toBe(status);
+      expect(res.headers.get("content-type")).toBe("application/json");
+      expect(await res.json()).toEqual({
+        error: status === 504 ? "TTS upstream timeout" : "TTS upstream error",
+      });
+    },
+  );
+
   // REGRESJA: synteza nie miała terminu - zawieszone połączenie trzymało
   // edytor na spinnerze bez końca.
   it("synteza ma termin, a jego przekroczenie daje 504", async () => {

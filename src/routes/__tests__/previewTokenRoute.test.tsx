@@ -61,6 +61,8 @@ import { Route as PreviewRoute } from "@/routes/preview.$token";
 
 freezeClock();
 
+const ORIGINAL_TZ = process.env.TZ;
+
 /** 32 znaki base64url - kształt tokenu z `generateToken()` (24 bajty). */
 const TOKEN = "AbCdEfGhIjKlMnOpQrStUvWxYz012-_9";
 
@@ -173,6 +175,17 @@ describe("/preview/$token - nagłówek dokumentu", () => {
 });
 
 describe("/preview/$token - widok czytelniczy szkicu", () => {
+  // Maszyna celowo POZA Warszawą: w strefie serwisu formatowanie bez strefy
+  // dawało ten sam dzień i godzinę, więc test nie odróżniał naprawy od błędu.
+  beforeEach(() => {
+    process.env.TZ = "America/New_York";
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+    else process.env.TZ = ORIGINAL_TZ;
+  });
+
   it("baner embarga podaje godzinę wygaśnięcia w STREFIE SERWISU, nie maszyny", async () => {
     h.fetchPreviewPost.mockResolvedValue(payload());
     await mount();
@@ -180,8 +193,9 @@ describe("/preview/$token - widok czytelniczy szkicu", () => {
     expect(banner).toHaveTextContent(
       "Podgląd roboczy pod embargiem - nie udostępniaj tego linku publicznie.",
     );
-    // Proces testów biegnie w UTC - jak SSR na Workers. Warszawa: już 3 października.
-    expect(banner).toHaveTextContent("Link wygasa: 3.10.2026, 00:30");
+    // Kanarek: dla maszyny to jeszcze 2 października, w Warszawie już 3.
+    expect(new Date(payload().expires_at).getDate()).toBe(2);
+    expect(banner).toHaveTextContent(/Link wygasa: 3\.10\.2026, 00:30$/);
   });
 
   it("wariant angielski: angielski baner i europejski zapis daty wygaśnięcia", async () => {
@@ -189,7 +203,7 @@ describe("/preview/$token - widok czytelniczy szkicu", () => {
     h.fetchPreviewPost.mockResolvedValue(payload());
     await mount();
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Embargoed draft preview - do not share this link publicly. · Link expires: 03/10/2026, 00:30",
+      /^Embargoed draft preview - do not share this link publicly\. · Link expires: 03\/10\/2026, 00:30$/,
     );
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Draft: the EU in the Balkans",

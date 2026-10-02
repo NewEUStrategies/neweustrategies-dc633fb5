@@ -464,14 +464,23 @@ describe("błędy dostawcy - komunikat musi coś znaczyć", () => {
     expect(at("error")).toBe("");
   });
 
-  it("padnięta sieć kończy się stanem błędu, nie zawieszeniem na `preparing`", async () => {
-    fetchMock.mockRejectedValue(new Error("network down"));
+  // Padnięta sieć kończy się stanem błędu (nie zawieszeniem na `preparing`),
+  // a surowy komunikat przeglądarki - po angielsku i różny w każdej z nich -
+  // NIE trafia do toastu: widżet pokaże zdanie ze słownika.
+  it.each([
+    new TypeError("Failed to fetch"),
+    new TypeError("Load failed"),
+    new TypeError("NetworkError when attempting to fetch resource."),
+    "socket hang up",
+  ])("padnięta sieć (%s) daje stan błędu bez surowego komunikatu", async (failure) => {
+    fetchMock.mockRejectedValue(failure);
     await mount();
     await act(async () => {
       await api?.loadAndPlay(META);
     });
     expect(at("stage")).toBe("error");
-    expect(at("error")).toBe("network down");
+    expect(at("status")).toBe("error");
+    expect(at("error")).toBe("");
   });
 
   it("ANULOWANE pobranie (szybka zmiana wpisu) NIE pokazuje błędu czytelnikowi", async () => {
@@ -715,14 +724,16 @@ describe("zamknięcie i stan błędu elementu", () => {
     expect(at("error")).toBe("");
   });
 
-  it("zdarzenie `error` Z ŹRÓDŁEM pokazuje błąd odtwarzania", async () => {
+  it("zdarzenie `error` Z ŹRÓDŁEM to stan błędu z komunikatem ze słownika widżetu", async () => {
+    // Do 2026-10-02 stał tu stały polski napis - czytelnik strony EN dostawał
+    // „Nie udało się odtworzyć audio". Pusty `error` = zdanie ze słownika.
     await mount();
     await play();
     await act(async () => {
       audio().emitError();
     });
     expect(at("status")).toBe("error");
-    expect(at("error")).not.toBe("");
+    expect(at("error")).toBe("");
   });
 });
 

@@ -233,7 +233,9 @@ describe("processDocFootnotes - dokument dwujęzyczny", () => {
   });
 
   it("pusty wariant bieżącego języka: rozwija fallback, który czytelnik zobaczy", () => {
-    const fallbackDoc = docOf(bilingual("w1", "A[fn]tylko po polsku[/fn]", "   "));
+    // Pusty napis, nie same spacje: renderer tekstu (`pickI18n`) nie przycina,
+    // więc „   " czytelnik EN zobaczyłby jako pusty widget, nie fallback PL.
+    const fallbackDoc = docOf(bilingual("w1", "A[fn]tylko po polsku[/fn]", ""));
 
     const { doc: prepared, notes } = processDocFootnotes(fallbackDoc, "en");
 

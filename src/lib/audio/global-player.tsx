@@ -127,6 +127,20 @@ class AudioHttpError extends Error {
   }
 }
 
+/**
+ * Jedyne komunikaty, które `error` przekazuje czytelnikowi: limity dostawcy
+ * (402/429). Każda inna awaria - kod HTTP, padnięta sieć („Failed to fetch",
+ * „Load failed", „NetworkError when attempting…" zależnie od przeglądarki),
+ * błąd elementu `<audio>` - zostawia `error` pusty, a widżet sięga po zdanie
+ * ze słownika w języku materiału.
+ */
+class AudioReaderMessage extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AudioReaderMessage";
+  }
+}
+
 // Cache blobów narracji (z limitem i zwalnianiem URL-i), pamięć pozycji
 // odtwarzania i nazwa pliku pobrania żyją w czystych modułach obok:
 // `lib/audio/blobCache` i `lib/audio/positionMemory`. Są tam testowane bez
@@ -268,7 +282,8 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
       // błąd odtwarzania, więc nie pokazujemy go czytelnikowi.
       if (!audio.getAttribute("src")) return;
       setStatus("error");
-      setError("Nie udało się odtworzyć audio");
+      // Komunikat ze słownika widżetu (w języku materiału), nie stały polski.
+      setError(null);
     });
     audioRef.current = audio;
     return () => {
@@ -337,10 +352,10 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
           // komunikaty (402 = przekroczony budżet TTS, 429 = zbyt częste próby).
           // Pozostałe kody: bez treści serwera (patrz `AudioHttpError`).
           if (res.status === 402) {
-            throw new Error("Wyczerpano limit lektora / TTS quota exceeded");
+            throw new AudioReaderMessage("Wyczerpano limit lektora / TTS quota exceeded");
           }
           if (res.status === 429) {
-            throw new Error("Zbyt wiele prób, spróbuj za chwilę / Too many attempts");
+            throw new AudioReaderMessage("Zbyt wiele prób, spróbuj za chwilę / Too many attempts");
           }
           throw new AudioHttpError(res.status);
         }
@@ -475,13 +490,7 @@ export function GlobalAudioPlayerProvider({ children }: { children: ReactNode })
         // Przerwane przez nowszy loadAndPlay - nie pokazujemy błędu.
         if (e instanceof Error && e.name === "AbortError") return;
         setStatus("error");
-        setError(
-          e instanceof AudioHttpError
-            ? null
-            : e instanceof Error
-              ? e.message
-              : "Błąd ładowania audio",
-        );
+        setError(e instanceof AudioReaderMessage ? e.message : null);
       }
     },
     [track, fetchBlob],

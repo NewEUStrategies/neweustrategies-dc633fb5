@@ -168,6 +168,21 @@ export function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+/**
+ * Zajawka doliczana do czasu czytania strony w języku `lang`: wariant tego
+ * języka, a gdy go brak - drugi. Do 2026-10-02 strona EN liczyła POLSKĄ
+ * zajawkę (stałe pierwszeństwo `excerpt_pl`), a panel edytora
+ * (`useBilingualReadingStats`) angielską - ten sam wpis miał dwa czasy czytania.
+ */
+export function excerptForReadingTime(
+  excerptPl: string | null | undefined,
+  excerptEn: string | null | undefined,
+  lang: string | undefined,
+): string | undefined {
+  const [own, other] = lang === "en" ? [excerptEn, excerptPl] : [excerptPl, excerptEn];
+  return own || other || undefined;
+}
+
 export interface ReadingTimeSources {
   html?: string | null;
   docs?: ReadonlyArray<unknown>;
