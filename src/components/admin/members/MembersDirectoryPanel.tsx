@@ -236,7 +236,12 @@ export function MembersDirectoryPanel() {
                         {t(`adminMembers.source.${row.tierSource}`)}
                       </span>
                     </td>
-                    <td className="px-4 py-3">{money(row.paidCents, row.currency)}</td>
+                    <td className="px-4 py-3">
+                      {[
+                        money(row.paidCents, row.currency),
+                        ...row.paidOther.map((part) => money(part.cents, part.currency)),
+                      ].join(" + ")}
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {row.lastPaymentAt
                         ? new Date(row.lastPaymentAt).toLocaleDateString(locale)

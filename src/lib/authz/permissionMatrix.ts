@@ -102,7 +102,14 @@ export interface PermissionMatrixSummary {
   readonly enforcedRows: number;
   readonly decorativeRows: number;
   readonly roleGates: number;
-  /** Bramki rolowe bez odwołania do tenanta wołającego - pozycje do przeglądu. */
+  /**
+   * BRAMKI (rolowe i flag warstw) obecne w macierzy, które nie wołają
+   * `current_tenant_id()` - liczone po bramce (`ref`), nie po wierszu. Wiersz
+   * flagi skleja wszystkie jej bramki w jeden skrót, więc licznik po wierszach
+   * gubił bramki: flaga z trzema bramkami bez tenanta wchodziła jako jedna
+   * pozycja (na żywym snapshocie 23 zamiast 25). Jedna bramka czytająca dwie
+   * flagi liczy się raz.
+   */
   readonly gatesWithoutCallerTenant: number;
   readonly tiers: number;
 }
@@ -393,6 +400,19 @@ export function buildPermissionMatrix(options: BuildMatrixOptions): PermissionMa
   const rows = [...roleRows, ...tierRows, ...quotaRows];
   const gateRows = rows.filter((row) => row.gate !== null);
 
+  // Odniesienie do tenanta PER BRAMKA - skrót wiersza niesie tylko najsłabsze
+  // ogniwo wszystkich swoich bramek, więc z niego bramek policzyć się nie da.
+  const callerScopedByRef = new Map<string, boolean>();
+  const noteGate = (ref: string, tenantRef: TenantRef) =>
+    callerScopedByRef.set(ref, (callerScopedByRef.get(ref) ?? true) && tenantRef === "caller");
+  for (const gate of snapshot.roleGates) noteGate(gate.ref, gate.tenantRef);
+  for (const gate of snapshot.featureGates) noteGate(gate.ref, gate.tenantRef);
+  const gatesWithoutCallerTenant = new Set(
+    gateRows
+      .flatMap((row) => row.gate?.refs ?? [])
+      .filter((ref) => callerScopedByRef.get(ref) === false),
+  ).size;
+
   return {
     actors,
     rows,
@@ -401,7 +421,7 @@ export function buildPermissionMatrix(options: BuildMatrixOptions): PermissionMa
       enforcedRows: rows.filter((row) => row.enforced).length,
       decorativeRows: rows.filter((row) => !row.enforced).length,
       roleGates: roleRows.filter((row) => row.gate !== null).length,
-      gatesWithoutCallerTenant: gateRows.filter((row) => row.gate?.tenantRef !== "caller").length,
+      gatesWithoutCallerTenant,
       tiers: options.tiers.length,
     },
   };

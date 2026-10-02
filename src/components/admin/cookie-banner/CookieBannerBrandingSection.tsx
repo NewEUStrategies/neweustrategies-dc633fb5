@@ -1,7 +1,11 @@
 // Cookie banner - logo (tryb jasny/ciemny) i dodatkowe odnośniki prawne.
 import { CoverImagePicker } from "@/components/admin/CoverImagePicker";
 import { Field, Text, NumberInput } from "@/components/admin/settings/fields";
-import type { CookieBannerLink, CookieBannerLogo } from "@/lib/cookieBanner/config";
+import {
+  clampCookieBannerLogoSize,
+  type CookieBannerLink,
+  type CookieBannerLogo,
+} from "@/lib/cookieBanner/config";
 
 interface Props {
   logo: CookieBannerLogo;
@@ -47,6 +51,11 @@ export function CookieBannerBrandingSection({ logo, links, onLogoChange, onLinks
             min={24}
             max={72}
             onChange={(e) => onLogoChange({ ...logo, size: Number(e.currentTarget.value) || 36 })}
+            // Klamra przy opuszczeniu pola, nie przy każdym znaku: wpisywanie
+            // „48" przechodzi przez „4", który klamra zamieniłaby na 24.
+            onBlur={(e) =>
+              onLogoChange({ ...logo, size: clampCookieBannerLogoSize(e.currentTarget.value) })
+            }
           />
         </Field>
       </section>

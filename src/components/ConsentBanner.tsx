@@ -29,6 +29,7 @@ import { localizedPath } from "@/lib/i18n/localePath";
 import {
   useCookieBannerConfig,
   bannerStyleVars,
+  clampCookieBannerLogoSize,
   type CookieBannerCopy,
   type CookieBannerConfig,
 } from "@/lib/cookieBanner/config";
@@ -259,7 +260,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
   const logoSrc =
     (effectiveTheme === "dark" ? banner.logo.dark || banner.logo.light : banner.logo.light) ||
     brandMark;
-  const logoSize = banner.logo.size || 36;
+  const logoSize = clampCookieBannerLogoSize(banner.logo.size);
 
   // Deklaracja elementów: rejestr + realnie wykryte klucze przeglądarki.
   // Skan biegnie po stronie klienta, dopiero gdy użytkownik otworzy szczegóły.

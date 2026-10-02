@@ -36,8 +36,15 @@ export interface MemberDirectoryRow {
   grantExpiresAt: string | null;
   subscriptionStatus: string | null;
   subscriptionPeriodEnd: string | null;
+  /** Suma wpłat w walucie `currency` - waluta OSTATNIEJ wpłaty. */
   paidCents: number;
   currency: string;
+  /**
+   * Wpłaty w POZOSTAŁYCH walutach, każda waluta osobno. Kwot w różnych
+   * walutach nie wolno dodawać: wcześniej 100 PLN + 50 EUR dawało w tabeli
+   * „150,00 zł".
+   */
+  paidOther: { cents: number; currency: string }[];
   lastPaymentAt: string | null;
   paymentsCount: number;
   /** Odbicie osoby w CRM - kontakt i firma. */
@@ -129,6 +136,40 @@ async function callerTenant(context: {
   return tenantId;
 }
 
+/**
+ * Odczyt, którego awaria NIE MOŻE wyglądać jak pustka. Każde zapytanie tego
+ * pliku zasila kolumnę, na podstawie której operator podejmuje decyzję
+ * („nie zapłacił", „nie ma nadania", „plan domyślny") - a pusty wynik z awarii
+ * wyglądał dokładnie jak prawdziwy brak danych.
+ */
+function must<T>(
+  res: { data: T | null; error: { message: string } | null },
+  what: string,
+): T | null {
+  if (res.error) throw new Error(`${what}: ${res.error.message}`);
+  return res.data;
+}
+
+/**
+ * `from` + `months` miesięcy kalendarzowych, z dniem PRZYCIĘTYM do ostatniego
+ * dnia miesiąca docelowego. `Date.UTC(r, m + n, 31)` przelewa się na kolejny
+ * miesiąc: nadanie „na 1 miesiąc" wystawione 31 stycznia wygasało 3 marca.
+ */
+export function addCalendarMonthsUtc(from: Date, months: number): Date {
+  const targetMonth = from.getUTCMonth() + months;
+  const lastDay = new Date(Date.UTC(from.getUTCFullYear(), targetMonth + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(
+      from.getUTCFullYear(),
+      targetMonth,
+      Math.min(from.getUTCDate(), lastDay),
+      from.getUTCHours(),
+      from.getUTCMinutes(),
+      from.getUTCSeconds(),
+    ),
+  );
+}
+
 function isGrantActive(
   grant: { starts_at: string; expires_at: string | null; revoked_at: string | null },
   now: number,
@@ -156,10 +197,13 @@ export const listMembers = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const now = Date.now();
 
-    const { data: tierRows } = await supabaseAdmin
-      .from("membership_tiers")
-      .select("key, name_pl, name_en, rank, is_default, active")
-      .eq("tenant_id", tenantId);
+    const tierRows = must(
+      await supabaseAdmin
+        .from("membership_tiers")
+        .select("key, name_pl, name_en, rank, is_default, active")
+        .eq("tenant_id", tenantId),
+      "membership_tiers",
+    );
     const tiers = (tierRows ?? []).map((t) => ({
       key: t.key,
       name: t.name_pl || t.name_en || t.key,
@@ -168,6 +212,13 @@ export const listMembers = createServerFn({ method: "GET" })
     }));
     const tierByKey = new Map(tiers.map((t) => [t.key, t]));
     const defaultTier = tiers.find((t) => t.isDefault) ?? tiers[0] ?? null;
+    // Jedna kolejność katalogu warstw dla OBU wyjść (pusta strona i pełna) -
+    // wcześniej pusta strona oddawała kolejność z bazy, a pełna po randze, więc
+    // droplista filtra przestawiała się przy przejściu na stronę bez wyników.
+    const tierCatalog = tiers
+      .slice()
+      .sort((a, b) => a.rank - b.rank)
+      .map((t) => ({ key: t.key, name: t.name, rank: t.rank }));
 
     let query = supabaseAdmin
       .from("profiles")
@@ -187,9 +238,11 @@ export const listMembers = createServerFn({ method: "GET" })
     }
 
     const from = (data.page - 1) * PAGE_SIZE;
-    const { data: profiles, count } = await query
+    const profilesRes = await query
       .order("created_at", { ascending: false })
       .range(from, from + PAGE_SIZE - 1);
+    const profiles = must(profilesRes, "profiles");
+    const count = profilesRes.count;
 
     const ids = (profiles ?? []).map((p) => p.id);
     if (ids.length === 0) {
@@ -198,7 +251,7 @@ export const listMembers = createServerFn({ method: "GET" })
         total: count ?? 0,
         page: data.page,
         pageSize: PAGE_SIZE,
-        tiers: tiers.map((t) => ({ key: t.key, name: t.name, rank: t.rank })),
+        tiers: tierCatalog,
       };
     }
 
@@ -230,34 +283,41 @@ export const listMembers = createServerFn({ method: "GET" })
             .select("id, email_norm, stage, company_id, company")
             .eq("tenant_id", tenantId)
             .in("email_norm", emails)
-        : Promise.resolve({ data: [] }),
+        : Promise.resolve({ data: [], error: null }),
     ]);
+
+    const grants = must(grantsRes, "membership_grants") ?? [];
+    const subs = must(subsRes, "user_subscriptions") ?? [];
+    const plans = must(plansRes, "access_plans") ?? [];
+    const orders = must(ordersRes, "payment_orders") ?? [];
+    const leads = must(leadsRes, "crm_leads") ?? [];
 
     const companyIds = Array.from(
       new Set(
-        (leadsRes.data ?? [])
-          .map((lead) => lead.company_id)
-          .filter((value): value is string => Boolean(value)),
+        leads.map((lead) => lead.company_id).filter((value): value is string => Boolean(value)),
       ),
     );
     const companyNames = new Map<string, string>();
     if (companyIds.length > 0) {
-      const { data: companies } = await supabaseAdmin
-        .from("crm_companies")
-        .select("id, name")
-        .eq("tenant_id", tenantId)
-        .in("id", companyIds);
+      const companies = must(
+        await supabaseAdmin
+          .from("crm_companies")
+          .select("id, name")
+          .eq("tenant_id", tenantId)
+          .in("id", companyIds),
+        "crm_companies",
+      );
       for (const company of companies ?? []) companyNames.set(company.id, company.name);
     }
-    const leadByEmail = new Map((leadsRes.data ?? []).map((lead) => [lead.email_norm, lead]));
+    const leadByEmail = new Map(leads.map((lead) => [lead.email_norm, lead]));
 
-    const planTier = new Map((plansRes.data ?? []).map((p) => [p.id, p.tier_key ?? ""]));
+    const planTier = new Map(plans.map((p) => [p.id, p.tier_key ?? ""]));
 
     const bestGrant = new Map<
       string,
       { id: string; tierKey: string; expiresAt: string | null; rank: number }
     >();
-    for (const grant of grantsRes.data ?? []) {
+    for (const grant of grants) {
       if (!isGrantActive(grant, now)) continue;
       const rank = tierByKey.get(grant.tier_key)?.rank ?? 0;
       const current = bestGrant.get(grant.user_id);
@@ -275,7 +335,7 @@ export const listMembers = createServerFn({ method: "GET" })
       string,
       { tierKey: string; status: string; periodEnd: string | null; rank: number }
     >();
-    for (const sub of subsRes.data ?? []) {
+    for (const sub of subs) {
       if (!isSubscriptionActive(sub, now)) continue;
       const tierKey = planTier.get(sub.plan_id) ?? "";
       if (!tierKey) continue;
@@ -293,20 +353,34 @@ export const listMembers = createServerFn({ method: "GET" })
 
     const money = new Map<
       string,
-      { cents: number; currency: string; last: string | null; count: number }
+      {
+        byCurrency: Map<string, number>;
+        currency: string;
+        last: string | null;
+        count: number;
+      }
     >();
-    for (const order of ordersRes.data ?? []) {
+    for (const order of orders) {
       if (!order.user_id) continue;
+      const currency = order.currency ?? "PLN";
       const entry = money.get(order.user_id) ?? {
-        cents: 0,
-        currency: order.currency ?? "PLN",
+        byCurrency: new Map<string, number>(),
+        currency,
         last: null,
         count: 0,
       };
-      entry.cents += order.amount_cents ?? 0;
+      entry.byCurrency.set(
+        currency,
+        (entry.byCurrency.get(currency) ?? 0) + (order.amount_cents ?? 0),
+      );
       entry.count += 1;
       const paidAt = order.paid_at;
-      if (paidAt && (!entry.last || paidAt > entry.last)) entry.last = paidAt;
+      if (paidAt && (!entry.last || paidAt > entry.last)) {
+        entry.last = paidAt;
+        // Walutą główną wiersza jest waluta OSTATNIEJ wpłaty - ta, w której
+        // członek płaci dziś.
+        entry.currency = currency;
+      }
       money.set(order.user_id, entry);
     }
 
@@ -331,8 +405,14 @@ export const listMembers = createServerFn({ method: "GET" })
         grantExpiresAt: useGrant ? grant.expiresAt : null,
         subscriptionStatus: sub?.status ?? null,
         subscriptionPeriodEnd: sub?.periodEnd ?? null,
-        paidCents: paid?.cents ?? 0,
+        paidCents: paid?.byCurrency.get(paid.currency) ?? 0,
         currency: paid?.currency ?? "PLN",
+        paidOther: paid
+          ? [...paid.byCurrency.entries()]
+              .filter(([currency]) => currency !== paid.currency)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([currency, cents]) => ({ cents, currency }))
+          : [],
         lastPaymentAt: paid?.last ?? null,
         paymentsCount: paid?.count ?? 0,
         crmLeadId: lead?.id ?? null,
@@ -349,10 +429,7 @@ export const listMembers = createServerFn({ method: "GET" })
       total: count ?? rows.length,
       page: data.page,
       pageSize: PAGE_SIZE,
-      tiers: tiers
-        .slice()
-        .sort((a, b) => a.rank - b.rank)
-        .map((t) => ({ key: t.key, name: t.name, rank: t.rank })),
+      tiers: tierCatalog,
     };
   });
 
@@ -382,8 +459,11 @@ export const getMemberBilling = createServerFn({ method: "GET" })
         .limit(100),
     ]);
 
+    const orders = must(ordersRes, "payment_orders") ?? [];
+    const grants = must(grantsRes, "membership_grants") ?? [];
+
     return {
-      payments: (ordersRes.data ?? []).map((order) => ({
+      payments: orders.map((order) => ({
         id: order.id,
         kind: order.kind,
         status: order.status,
@@ -394,7 +474,7 @@ export const getMemberBilling = createServerFn({ method: "GET" })
         invoiceUrl: order.invoice_url,
         environment: order.environment,
       })),
-      grants: (grantsRes.data ?? []).map((grant) => ({
+      grants: grants.map((grant) => ({
         id: grant.id,
         tierKey: grant.tier_key,
         source: grant.source,
@@ -435,26 +515,21 @@ export const setMemberTier = createServerFn({ method: "POST" })
     const now = new Date();
     // Jedno aktywne nadanie na osobę: wcześniejsze wygaszamy, żeby historia
     // pozostała czytelna, a rozstrzygnięcie warstwy jednoznaczne.
-    await supabaseAdmin
+    //
+    // Odmowa wygaszenia PRZERYWA nadanie: wcześniej wynik był pomijany, więc
+    // przy błędzie zapisu osoba dostawała DRUGIE aktywne nadanie obok starego,
+    // a rozstrzygnięcie warstwy brało wyższą rangę - czyli „obniżenie planu"
+    // z panelu nie obniżało niczego.
+    const { error: revokeError } = await supabaseAdmin
       .from("membership_grants")
       .update({ revoked_at: now.toISOString() })
       .eq("tenant_id", tenantId)
       .eq("user_id", data.userId)
       .is("revoked_at", null);
+    if (revokeError) throw new Error(`membership_grants: ${revokeError.message}`);
 
     const expiresAt =
-      data.months === null
-        ? null
-        : new Date(
-            Date.UTC(
-              now.getUTCFullYear(),
-              now.getUTCMonth() + data.months,
-              now.getUTCDate(),
-              now.getUTCHours(),
-              now.getUTCMinutes(),
-              now.getUTCSeconds(),
-            ),
-          ).toISOString();
+      data.months === null ? null : addCalendarMonthsUtc(now, data.months).toISOString();
 
     const { data: inserted, error } = await supabaseAdmin
       .from("membership_grants")
@@ -508,6 +583,10 @@ export const revokeMemberTier = createServerFn({ method: "POST" })
       .select("user_id")
       .maybeSingle();
     if (error) throw new Error(error.message);
+    // Nic nie zostało cofnięte (nadanie już cofnięte, cudze albo nieistniejące).
+    // Wcześniej funkcja i tak zapisywała w dzienniku audytu „cofnięto" i oddawała
+    // sukces - ślad audytowy twierdził coś, co się nie wydarzyło.
+    if (!revoked) throw new Error("Grant not found or already revoked");
 
     await supabaseAdmin.from("audit_log").insert({
       tenant_id: tenantId,
@@ -519,7 +598,7 @@ export const revokeMemberTier = createServerFn({ method: "POST" })
     });
 
     let crmSynced = true;
-    if (revoked?.user_id) {
+    if (revoked.user_id) {
       const crm = await syncMemberToCrm(supabaseAdmin, {
         userId: revoked.user_id,
         tenantId,

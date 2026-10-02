@@ -30,9 +30,9 @@
 // `handleRestore` - jedyne wejście do tej funkcji to przycisk, który BEZ
 // zaznaczenia jest `disabled`, więc kliknięcie do handlera nie dochodzi.
 //
-// ZAREJESTROWANY DEFEKT (`it.fails` na końcu pliku): `handleRestore` ma
+// DEFEKT NAPRAWIONY (był `it.fails` na końcu pliku): `handleRestore` miał
 // `try/finally` BEZ `catch`, a wynik wywołania nie jest nigdzie odbierany
-// (`onClick={handleRestore}`), więc odrzucone `onRestore` kończy się
+// (`onClick={handleRestore}`), więc odrzucone `onRestore` kończyło się
 // NIEOBSŁUŻONYM odrzuceniem obietnicy. Jedyny konsument tego okna
 // (`ThemeOptionsPane`) woła `save.mutateAsync(...)`, które przy błędzie
 // zapisu (RLS, brak sieci) ODRZUCA - a globalny nasłuch
@@ -417,29 +417,25 @@ async function zlapNieobsluzoneOdrzucenia(akcja: () => Promise<void>): Promise<u
 }
 
 describe("SiteSettingsHistoryDialog - nieudane przywracanie", () => {
-  it.fails(
-    "DEFEKT: odrzucone `onRestore` kończy się NIEOBSŁUŻONYM odrzuceniem (brak `catch`)",
-    async () => {
-      const { onOpenChange } = renderuj({
-        onRestore: () => Promise.reject(new Error("RLS: brak uprawnien do site_settings")),
-      });
+  it("NAPRAWIONE: odrzucone `onRestore` NIE kończy się nieobsłużonym odrzuceniem, okno zostaje otwarte", async () => {
+    const { onOpenChange } = renderuj({
+      onRestore: () => Promise.reject(new Error("RLS: brak uprawnien do site_settings")),
+    });
 
-      const zlapane = await zlapNieobsluzoneOdrzucenia(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /Anna Kowalska/ }));
-        fireEvent.click(przyciskPrzywroc());
-        // To działa dobrze: `finally` odblokowuje przycisk, a okno ZOSTAJE
-        // otwarte, bo `onOpenChange(false)` jest za `await`.
-        await waitFor(() => expect(przyciskPrzywroc()).toBeEnabled());
-      });
+    const zlapane = await zlapNieobsluzoneOdrzucenia(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Anna Kowalska/ }));
+      fireEvent.click(przyciskPrzywroc());
+      // To działa dobrze: `finally` odblokowuje przycisk, a okno ZOSTAJE
+      // otwarte, bo `onOpenChange(false)` jest za `await`.
+      await waitFor(() => expect(przyciskPrzywroc()).toBeEnabled());
+    });
 
-      expect(onOpenChange).not.toHaveBeenCalled();
-      // Ta asercja jest treścią defektu: dziś odrzucenie wycieka do procesu
-      // (w przeglądarce - do `window.onunhandledrejection`, a stamtąd do
-      // beaconu telemetrii). Dodanie `catch` w `handleRestore` zamknie
-      // znalezisko i wywróci to `it.fails`.
-      expect(zlapane).toEqual([]);
-    },
-  );
+    expect(onOpenChange).not.toHaveBeenCalled();
+    // Do naprawy odrzucenie wyciekało do procesu (w przeglądarce - do
+    // `window.onunhandledrejection`, a stamtąd do beaconu telemetrii).
+    // `catch` w `handleRestore` je zamyka.
+    expect(zlapane).toEqual([]);
+  });
 
   it("kontrola dodatnia: udane przywracanie nie generuje ŻADNEGO odrzucenia", async () => {
     // Dowód, że harness wyżej mierzy odrzucenie z `handleRestore`, a nie szum
