@@ -1,5 +1,6 @@
-// Global command palette. Mount once at root.
-// - ⌘K / Ctrl+K toggles open from anywhere (also `/` when not focused on input).
+// Global command palette. Controlled: `CommandPaletteHost` (mounted once at
+// root) owns the open state and the ⌘K / Ctrl+K / `/` shortcut, and loads this
+// chunk lazily on first open - so the shortcut has exactly one owner.
 // - Fuzzy-ranks static commands client-side (registry).
 // - Debounced server search for posts + pages.
 // - Fully bilingual (PL/EN) via i18n bundle `palette.*`.
@@ -37,27 +38,28 @@ import { HighlightedText } from "@/components/search/HighlightedText";
 import "@/lib/i18n-search";
 
 const SECTION_ORDER: CommandSection[] = [
-  "actions",
   "navigation",
   "account",
   "admin",
   "appearance",
   "settings",
-  "content",
 ];
 
-import { useCommandPaletteShortcut } from "./useCommandPaletteShortcut";
+/** Komenda z indeksem dopasowania liczonym RAZ na zestaw komend, nie na znak. */
+interface IndexedCommand {
+  cmd: PaletteCommand;
+  haystack: string;
+  /** Wartość dla filtra cmdk: indeks + wariant bez ogonków + kopia NFD. */
+  value: string;
+}
 
 export function CommandPalette({
-  open: controlledOpen,
-  onOpenChange,
+  open,
+  onOpenChange: setOpen,
 }: {
-  open?: boolean;
-  onOpenChange?: Dispatch<SetStateAction<boolean>>;
-} = {}) {
-  const [localOpen, setLocalOpen] = useState(false);
-  const open = controlledOpen ?? localOpen;
-  const setOpen = onOpenChange ?? setLocalOpen;
+  open: boolean;
+  onOpenChange: Dispatch<SetStateAction<boolean>>;
+}) {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -67,8 +69,6 @@ export function CommandPalette({
   const navigate = useNavigate();
   const { isAdmin, user } = useAuth();
   const reqIdRef = useRef(0);
-
-  useCommandPaletteShortcut(open, setOpen, !onOpenChange);
 
   // Reset query when closing.
   useEffect(() => {
@@ -108,17 +108,37 @@ export function CommandPalette({
     [isAdmin, user],
   );
 
-  const ranked = useMemo(() => {
-    const items = commands.map((cmd) => ({ cmd, haystack: buildHaystack({ cmd, lang }) }));
-    return rankItems(items, query, 40);
-  }, [commands, query, lang]);
+  // Indeks zależy wyłącznie od zestawu komend (rola), więc NIE jest liczony
+  // przy każdym znaku: wcześniej każde naciśnięcie budowało od nowa haystack
+  // wszystkich komend, a render - drugi raz, razem ze składaniem diakrytyków
+  // i normalizacją NFD dla każdego widocznego wiersza.
+  const indexed = useMemo<IndexedCommand[]>(
+    () =>
+      commands.map((cmd) => {
+        const haystack = buildHaystack(cmd);
+        // Wariant BEZ OGONKÓW dopisany do wartości, bo cmdk filtruje wiersze
+        // własnym matcherem po `value` - `rankItems` składa diakrytyki, ale cmdk
+        // nie, więc bez tego „platnosci" nadal nie pokazałoby „Płatności".
+        //
+        // Kopia ROZŁOŻONA KANONICZNIE (NFD) z tego samego powodu: wklejona
+        // fraza bywa rozłożona („s” + U+0301 zamiast „ś”), a cmdk porównuje
+        // napisy bez normalizacji. `fuzzyMatch` radzi sobie sam (`foldQuery`),
+        // ale filtr cmdk stoi PRZED nim i bez tej kopii schowałby wiersz mimo
+        // trafienia. Wejścia nie normalizujemy - to zaburzyłoby składanie IME.
+        const value = `${cmd.id} ${haystack} ${foldDiacritics(haystack)} ${haystack.normalize("NFD")}`;
+        return { cmd, haystack, value };
+      }),
+    [commands],
+  );
+
+  const ranked = useMemo(() => rankItems(indexed, query, 40), [indexed, query]);
 
   const grouped = useMemo(() => {
-    const map = new Map<CommandSection, PaletteCommand[]>();
-    for (const { cmd } of ranked) {
-      const arr = map.get(cmd.section) ?? [];
-      arr.push(cmd);
-      map.set(cmd.section, arr);
+    const map = new Map<CommandSection, IndexedCommand[]>();
+    for (const entry of ranked) {
+      const arr = map.get(entry.cmd.section) ?? [];
+      arr.push(entry);
+      map.set(entry.cmd.section, arr);
     }
     return SECTION_ORDER.filter((s) => map.has(s)).map((s) => ({ section: s, items: map.get(s)! }));
   }, [ranked]);
@@ -126,11 +146,7 @@ export function CommandPalette({
   const onSelect = useCallback(
     (cmd: PaletteCommand): void => {
       setOpen(false);
-      if (cmd.run) {
-        void cmd.run();
-        return;
-      }
-      if (cmd.to) void navigate({ to: cmd.to });
+      void navigate({ to: cmd.to });
     },
     [navigate, setOpen],
   );
@@ -173,11 +189,9 @@ export function CommandPalette({
                 <span className="flex-1 truncate">
                   {lang === "pl" ? cmd.label_pl : cmd.label_en}
                 </span>
-                {cmd.to && (
-                  <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">
-                    {cmd.to}
-                  </span>
-                )}
+                <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">
+                  {cmd.to}
+                </span>
               </CommandItem>
             ))}
           </CommandGroup>
@@ -187,34 +201,20 @@ export function CommandPalette({
           <div key={g.section}>
             {(idx > 0 || showPopular) && <CommandSeparator />}
             <CommandGroup heading={t(`palette.sections.${g.section}`)}>
-              {g.items.map((cmd) => {
+              {g.items.map(({ cmd, value }) => {
                 const label = lang === "pl" ? cmd.label_pl : cmd.label_en;
-                const haystack = buildHaystack({ cmd, lang });
                 return (
                   <CommandItem
                     key={cmd.id}
-                    // Wariant BEZ OGONKÓW dopisany do wartości, bo cmdk filtruje
-                    // wiersze własnym matcherem po `value` - `rankItems` składa
-                    // diakrytyki, ale cmdk nie, więc bez tego „platnosci" nadal
-                    // nie pokazałoby „Płatności".
-                    //
-                    // Kopia ROZŁOŻONA KANONICZNIE (NFD) z tego samego powodu:
-                    // wklejona fraza bywa rozłożona („s” + U+0301 zamiast „ś”),
-                    // a cmdk porównuje napisy bez normalizacji. `fuzzyMatch`
-                    // radzi sobie sam (`foldQuery`), ale filtr cmdk stoi PRZED
-                    // nim i bez tej kopii schowałby wiersz mimo trafienia.
-                    // Wejścia nie normalizujemy - to zaburzyłoby składanie IME.
-                    value={`${cmd.id} ${haystack} ${foldDiacritics(haystack)} ${haystack.normalize("NFD")}`}
+                    value={value}
                     onSelect={() => onSelect(cmd)}
                     className="gap-2"
                   >
                     {cmd.icon}
                     <HighlightedText text={label} query={q} className="flex-1 truncate" />
-                    {cmd.to && (
-                      <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">
-                        {cmd.to}
-                      </span>
-                    )}
+                    <span className="text-[10px] text-muted-foreground truncate max-w-[40%]">
+                      {cmd.to}
+                    </span>
                   </CommandItem>
                 );
               })}
