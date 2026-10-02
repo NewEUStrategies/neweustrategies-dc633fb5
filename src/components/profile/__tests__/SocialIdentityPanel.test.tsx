@@ -196,6 +196,33 @@ beforeEach(() => {
 });
 
 describe("odczyt profilu", () => {
+  it("AWARIA odczytu blokuje zapis - pusty formularz nie kasuje sluga ani bio", async () => {
+    // „Zapisz" wysyła CAŁY zestaw pól. Po nieudanym RPC formularz trzyma
+    // wartości startowe, więc jedno kliknięcie zapisałoby `slug: null`
+    // (zerwany publiczny adres) i puste biogramy.
+    h.rpc.mockResolvedValue({ data: null, error: { message: "permission denied", code: "42501" } });
+    renderWithQueryClient(<SocialIdentityPanel />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+
+    expect(screen.getByRole("alert").textContent).toContain("profile.account.loadFailed");
+    expect(saveButton()).toBeDisabled();
+    submitForm();
+    await waitFor(() => expect(h.updates).toHaveLength(0));
+  });
+
+  it("ponowienie po awarii czyta wiersz jeszcze raz i odblokowuje zapis", async () => {
+    h.rpc.mockResolvedValueOnce({ data: null, error: { message: "network" } });
+    h.rpc.mockResolvedValue({ data: [socialRow({ slug: "anna-nowak" })], error: null });
+    renderWithQueryClient(<SocialIdentityPanel />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: "profile.account.retry" }));
+
+    await waitFor(() => expect(slugInput()).toHaveValue("anna-nowak"));
+    expect(h.rpc).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("czyta własny wiersz przez SECURITY DEFINER RPC (kolumna PII `contact_email`)", async () => {
     await renderPanel(socialRow({ contact_email: "kontakt@example.test", slug: "anna-nowak" }));
 

@@ -20,6 +20,14 @@
 //      bezpłatne") NIE są progiem dostępu i nie mają prawa trafić na listę.
 //   5. GLOBALNIE WYŁĄCZONY METERING dokłada ostrzeżenie do podpowiedzi - bez
 //      niego redaktor ustawia „licznik" na wpisie, który i tak nie liczy.
+//   6. NIEUDANY ODCZYT TO NIE „BRAK REGUŁY". Błąd KTÓREGOKOLWIEK z czterech
+//      odczytów zostawia panel bez formularza i bez przycisku zapisu (z
+//      komunikatem i ponowieniem) - wcześniej odmowa odczytu wyglądała jak
+//      tryb publiczny i pierwszy zapis zdejmował paywall.
+//   7. ZAPIS ODPOWIADA TEMU, CO PANEL PRZECZYTAŁ. Brak reguły -> INSERT (cudza
+//      reguła kończy się 23505, a nie nadpisaniem), reguła była -> UPDATE po
+//      (typ, byt) z `select("id")`, a zero dotkniętych wierszy to NIE sukces.
+//      Zmiana bytu na tej samej instancji panelu czyta od zera.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE:
 //   - `normalizeMeteringPolicy`, `tierName` i `convertToDisplayCurrency` są
@@ -42,6 +50,7 @@ import {
   selectWithOption,
   type SettingsPaneSupabase,
 } from "@/test/admin/settingsPaneHarness";
+import { fail, ok, type RecordedChain, type TableResponder } from "@/test/supabase";
 import type { AccessPlan, ContentAccessRule } from "@/hooks/useContentAccess";
 
 const stubs = vi.hoisted(() => ({
@@ -157,7 +166,13 @@ const PLANS: AccessPlan[] = [
   }),
 ];
 
-function rule(overrides: Partial<ContentAccessRule> = {}): ContentAccessRule {
+/** Wiersz reguły tak, jak oddaje go baza: z wersją (`updated_at`). */
+type StoredRule = ContentAccessRule & { updated_at: string };
+
+/** Wersja wiersza w chwili odczytu przez panel. */
+const READ_VERSION = "2026-10-02T08:00:00.000001+00:00";
+
+function rule(overrides: Partial<StoredRule> = {}): StoredRule {
   return {
     id: "rule-1",
     entity_type: "post",
@@ -170,24 +185,84 @@ function rule(overrides: Partial<ContentAccessRule> = {}): ContentAccessRule {
     teaser_en: null,
     min_tier_rank: 0,
     metering_policy: "inherit",
+    updated_at: READ_VERSION,
     ...overrides,
   };
 }
 
 interface MountOptions {
   entityId?: string | null;
-  rule?: ContentAccessRule | null;
+  rule?: StoredRule | null;
   plans?: AccessPlan[];
   hasPassword?: boolean;
   hints?: { hint_pl: string | null; hint_en: string | null } | null;
   meteringEnabled?: boolean;
+  /** Woła się PO zaplanowaniu odczytów, a PRZED montażem - tu psuje się odczyt. */
+  afterSeed?: () => void;
 }
 
-/** Montaż + oczekiwanie na koniec fazy ładowania (cztery odczyty naraz). */
-async function mountPane(options: MountOptions = {}) {
-  const entityId = options.entityId === undefined ? "post-42" : options.entityId;
+const isWriteChain = (chain: RecordedChain) =>
+  ["insert", "update", "upsert", "delete"].some((method) => chain.has(method));
+
+/** Wartość filtra `.eq(kolumna, ...)` z łańcucha (np. który byt czytano). */
+const eqValue = (chain: RecordedChain, column: string): unknown =>
+  chain.calls.find((call) => call.method === "eq" && call.args[0] === column)?.args[1];
+
+/**
+ * `content_access` w kształcie bazy, Z WERSJĄ WIERSZA jak w Postgresie:
+ *   - odczyt oddaje wiersz (albo `null`), `select("updated_at")` - samą wersję;
+ *   - UPDATE trafia WYŁĄCZNIE w wiersz o wersji z `.eq("updated_at", ...)` i
+ *     oddaje nową (trigger trg_content_access_updated), inaczej zero wierszy;
+ *   - INSERT na istniejący wiersz to 23505 (UNIQUE (entity_type, entity_id));
+ *   - `touch()` to UPDATE spoza zapisu panelu: RPC hasła albo druga karta.
+ * Bez wersji atrapa nie odróżniłaby zapisu względem PRZECZYTANEJ reguły od
+ * zapisu względem nieaktualnej - a to jest cała treść optimistic-locka.
+ */
+function contentAccessDb(initial: StoredRule | null) {
+  let row = initial;
+  let bumps = 0;
+  const nextVersion = () => `2026-10-02T09:00:${String(++bumps).padStart(2, "0")}.000001+00:00`;
+  const responder: TableResponder = (chain) => {
+    if (chain.has("update")) {
+      if (!row || eqValue(chain, "updated_at") !== row.updated_at) return ok([]);
+      const patch = chain.argsOf("update")?.[0] as Partial<StoredRule>;
+      row = { ...row, ...patch, updated_at: nextVersion() };
+      return ok([{ updated_at: row.updated_at }]);
+    }
+    if (chain.has("insert")) {
+      if (row) return fail("duplicate key value violates unique constraint", "23505");
+      const payload = chain.argsOf("insert")?.[0] as Partial<StoredRule>;
+      row = { ...rule(), ...payload, updated_at: nextVersion() };
+      return ok([{ updated_at: row.updated_at }]);
+    }
+    if (isWriteChain(chain)) return ok(null);
+    if (chain.argsOf("select")?.[0] === "updated_at") {
+      return ok(row ? { updated_at: row.updated_at } : null);
+    }
+    return ok(row);
+  };
+  return {
+    responder,
+    /** UPDATE spoza zapisu panelu: nowa wersja wiersza (i ewentualnie nowe pola). */
+    touch(patch: Partial<StoredRule> = {}) {
+      if (row) row = { ...row, ...patch, updated_at: nextVersion() };
+      return ok(null);
+    },
+    current: () => row,
+  };
+}
+
+type ContentAccessDb = ReturnType<typeof contentAccessDb>;
+
+/** Sam responder - dla testów, które nie zaglądają w stan „bazy". */
+const contentAccessTable = (stored: StoredRule | null): TableResponder =>
+  contentAccessDb(stored).responder;
+
+/** Plan czterech odczytów panelu + odczytów warstw i meteringu. */
+function seedReads(options: MountOptions = {}): ContentAccessDb {
+  const table = contentAccessDb(options.rule === undefined ? null : options.rule);
   sb().setTable("access_plans", options.plans ?? PLANS);
-  sb().setTable("content_access", options.rule === undefined ? null : options.rule);
+  sb().setTableResponder("content_access", table.responder);
   sb().setTable("membership_tiers", TIERS);
   sb().setTable("metering_settings", {
     enabled: options.meteringEnabled ?? true,
@@ -199,12 +274,22 @@ async function mountPane(options: MountOptions = {}) {
   });
   sb().rpc.setData("content_access_has_password", options.hasPassword ?? false);
   sb().rpc.setData("get_password_hint", options.hints ?? null);
-  sb().rpc.setData("admin_set_content_password", null);
-  sb().rpc.setData("admin_clear_content_password", null);
+  // RPC-e hasła robią w bazie UPDATE wiersza (`updated_at = now()`) - atrapa
+  // też podbija wersję, inaczej test nie zobaczy fałszywego konfliktu z
+  // własną zmianą hasła.
+  sb().rpc.setResponse("admin_set_content_password", () => table.touch());
+  sb().rpc.setResponse("admin_clear_content_password", () => table.touch());
+  return table;
+}
 
+/** Montaż + oczekiwanie na koniec fazy ładowania (cztery odczyty naraz). */
+async function mountPane(options: MountOptions = {}) {
+  const entityId = options.entityId === undefined ? "post-42" : options.entityId;
+  const table = seedReads(options);
+  options.afterSeed?.();
   const view = mountSettingsPane(<AccessSettingsPane entityType="post" entityId={entityId} />);
   await waitFor(() => expect(screen.queryByText("adminPostPanes.access.loading")).toBeNull());
-  return view;
+  return { ...view, table };
 }
 
 const modeSelect = (container: HTMLElement) => selectWithOption(container, "password");
@@ -212,6 +297,19 @@ const meteringSelect = (container: HTMLElement) => selectWithOption(container, "
 const tierSelect = (container: HTMLElement) => selectWithOption(container, "20");
 
 const saveButton = () => screen.getByRole("button", { name: "adminPostPanes.access.saveAccess" });
+
+/** KAŻDY zapis do `content_access`, niezależnie od rodzaju (insert/update/upsert/delete). */
+const allWrites = () => sb().chainsFor("content_access").filter(isWriteChain);
+
+/** Doczytanie SAMEJ wersji wiersza (po RPC hasła) - to nie jest odczyt reguły. */
+const isVersionRead = (chain: RecordedChain) =>
+  !isWriteChain(chain) && chain.argsOf("select")?.[0] === "updated_at";
+
+/** Łańcuchy ODCZYTU reguły - ile razy panel czytał ją z bazy. */
+const ruleReads = () =>
+  sb()
+    .chainsFor("content_access")
+    .filter((chain) => !isWriteChain(chain) && !isVersionRead(chain));
 
 const planSwitches = (container: HTMLElement): HTMLInputElement[] => [
   ...container.querySelectorAll<HTMLInputElement>('input[role="switch"]'),
@@ -257,6 +355,8 @@ describe("AccessSettingsPane - wczytanie", () => {
       ["entity_type", "post"],
       ["entity_id", "post-42"],
     ]);
+    // Wersja wiersza jedzie z odczytem - to ona warunkuje późniejszy UPDATE.
+    expect(String(read?.argsOf("select")?.[0]).split(", ")).toContain("updated_at");
     expect(sb().rpc.names()).toEqual(
       expect.arrayContaining(["content_access_has_password", "get_password_hint"]),
     );
@@ -323,57 +423,160 @@ describe("AccessSettingsPane - wczytanie", () => {
     fireEvent.click(saveButton());
 
     expect(toasts().error).toHaveBeenCalledWith("adminPostPanes.access.saveContentFirst");
-    expect(sb().writes("content_access")).toHaveLength(0);
+    expect(allWrites()).toHaveLength(0);
   });
+});
 
-  // DEFEKT PRODUKCYJNY (rejestr): faza ładowania IGNORUJE `error` z każdego
-  // z czterech odczytów (AccessSettingsPane.tsx:76-117 - destrukturyzowane jest
-  // WYŁĄCZNIE `data`). Panel nie odróżnia więc „reguły nie ma" od „nie udało się
-  // jej przeczytać": w obu przypadkach `r` jest `null`, formularz staje na
-  // trybie PUBLICZNYM, a pierwsze „Zapisz dostęp" upsertuje `mode: "public"` na
-  // istniejącą regułę - czyli zdejmuje paywall z płatnego materiału bez jednego
-  // komunikatu.
-  //
-  // ZAKRES DEFEKTU (bez przeceniania): sprawdzenie `.error` łapie odmowę
-  // UPRAWNIEŃ do tabeli (SQLSTATE 42501, jak niżej), błąd PostgREST i awarię
-  // sieci - supabase-js oddaje wtedy `{ data: null, error }`. NIE łapie samego
-  // filtrowania wierszy przez RLS: polityka, która wiersz ukrywa, oddaje zero
-  // wierszy, czyli `{ data: null, error: null }` z `maybeSingle()`, i taki
-  // odczyt jest nieodróżnialny od „reguły jeszcze nie ma". To osobna, głębsza
-  // dziura (panel nie wie, że czegoś nie widzi); tutaj przypinamy tę połowę,
-  // którą widać po `error`.
-  //
-  // Oczekiwanie: nieudany odczyt melduje się przez `toastError(..., "load")`
-  // ALBO blokuje zapis. Test dowodzi OBU połówek szkody - fałszywego stanu
-  // „public" NA EKRANIE i ładunku `mode: "public"` W BAZIE - a czerwona jest
-  // dopiero ostatnia asercja, czyli brakujący komunikat.
-  it.fails(
-    "DEFEKT: nieudany odczyt reguły udaje dostęp publiczny i pozwala go zapisać",
-    async () => {
-      sb().failRead("content_access", "permission denied for table content_access", "42501");
-      const { container } = await mountPane({ rule: null });
+// REGRESJA (rejestr, krytyczny): faza ładowania IGNOROWAŁA `error` z każdego
+// z czterech odczytów - destrukturyzowane było WYŁĄCZNIE `data`. Panel nie
+// odróżniał więc „reguły nie ma" od „nie udało się jej przeczytać": w obu
+// przypadkach formularz stawał na trybie PUBLICZNYM, a pierwsze „Zapisz dostęp"
+// upsertowało `mode: "public"` na istniejącą regułę - czyli zdejmowało paywall
+// z płatnego materiału bez jednego komunikatu.
+//
+// Każdy z czterech odczytów zasila pole, które wraca w zapisie (tryb, plany,
+// flaga hasła - wyjście z trybu hasła kasuje hash - i podpowiedzi NULL-owane
+// przy pustym polu), więc błąd KAŻDEGO z nich ma zablokować formularz.
+//
+// ZAKRES (bez przeceniania): `.error` łapie odmowę uprawnień (42501), błąd
+// PostgREST i sieć. Wiersza ukrytego przez RLS (`{ data: null, error: null }`)
+// odczyt nie odróżni od braku reguły - tę połowę domyka ścieżka zapisu: brak
+// reguły to INSERT, który na istniejący wiersz kończy się 23505 zamiast
+// nadpisania (patrz „zapis" niżej).
+const READ_FAILURES: ReadonlyArray<[string, () => void]> = [
+  [
+    "reguły (`content_access`, 42501)",
+    () => sb().failRead("content_access", "permission denied for table content_access", "42501"),
+  ],
+  ["planów (`access_plans`)", () => sb().failRead("access_plans", "JWT expired", "PGRST301")],
+  [
+    "flagi hasła (RPC)",
+    () => sb().rpc.setError("content_access_has_password", "canceling statement", "57014"),
+  ],
+  [
+    "podpowiedzi hasła (RPC)",
+    () => sb().rpc.setError("get_password_hint", "permission denied", "42501"),
+  ],
+];
 
-      // POŁOWA PIERWSZA: odmowa odczytu wygląda jak „treść jest publiczna".
-      expect(modeSelect(container).value).toBe("public");
-      expect(screen.queryByText("adminPostPanes.access.teaserPl")).toBeNull();
-
-      // POŁOWA DRUGA: ten fałszywy stan daje się ZAPISAĆ - upsert po parze
-      // (typ, byt) nadpisuje regułę, której panel nawet nie przeczytał.
-      fireEvent.click(saveButton());
-      await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
-      expect(sb().lastWrite("content_access")).toMatchObject({
-        entity_type: "post",
-        entity_id: "post-42",
-        mode: "public",
-      });
-      expect(sb().db.lastChain("content_access")?.argsOf("upsert")?.[1]).toEqual({
-        onConflict: "entity_type,entity_id",
+describe("AccessSettingsPane - nieudany odczyt", () => {
+  it.each(READ_FAILURES)(
+    "błąd odczytu %s: komunikat, brak formularza i ZERO zapisów",
+    async (_source, breakRead) => {
+      const { container } = await mountPane({
+        rule: rule({ mode: "paid", plan_ids: ["plan-pln"] }),
+        afterSeed: breakRead,
       });
 
-      // I ANI JEDNEGO KOMUNIKATU - to jest ta czerwona asercja.
-      expect(toasts().toastError).toHaveBeenCalled();
+      const alert = screen.getByRole("alert");
+      expect(alert.textContent).toContain("adminPostPanes.access.loadError");
+      expect(alert.textContent).toContain("adminPostPanes.access.loadErrorHelper");
+      // Błąd idzie kanałem mapującym kod (uprawnienia / sieć) na kopię.
+      expect(toasts().toastError).toHaveBeenCalledTimes(1);
+      expect(toasts().toastError.mock.calls[0][1]).toBe("load");
+      // Nie ma CZEGO zapisać: ani trybu na ekranie, ani przycisku zapisu.
+      expect(container.querySelectorAll("select")).toHaveLength(0);
+      expect(screen.queryByRole("button", { name: "adminPostPanes.access.saveAccess" })).toBeNull();
+      expect(allWrites()).toHaveLength(0);
+      expect(sb().rpc.names()).not.toContain("admin_clear_content_password");
     },
   );
+
+  it("„Spróbuj ponownie” czyta od nowa, a zapis po udanym odczycie niesie PRAWDZIWĄ regułę", async () => {
+    const healthy = contentAccessTable(
+      rule({ mode: "paid", plan_ids: ["plan-pln"], min_tier_rank: 10 }),
+    );
+    let reads = 0;
+    const { container } = await mountPane({
+      afterSeed: () =>
+        sb().setTableResponder("content_access", (chain) => {
+          if (isWriteChain(chain)) return healthy(chain);
+          reads += 1;
+          return reads === 1 ? fail("Failed to fetch") : healthy(chain);
+        }),
+    });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "adminPostPanes.access.retry" }));
+
+    await waitFor(() => expect(modeSelect(container).value).toBe("paid"));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(reads).toBe(2);
+
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    // Reguła BYŁA, więc zapis to UPDATE z trybem płatnym - nie upsert `public`.
+    expect(sb().lastWrite("content_access", "update")).toMatchObject({
+      mode: "paid",
+      plan_ids: ["plan-pln"],
+      min_tier_rank: 10,
+    });
+    expect(sb().writes("content_access", "insert")).toHaveLength(0);
+    expect(sb().writes("content_access", "upsert")).toHaveLength(0);
+  });
+
+  it("ponowienie, które znowu pada, zostaje w stanie błędu", async () => {
+    await mountPane({
+      afterSeed: () => sb().failRead("content_access", "permission denied", "42501"),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "adminPostPanes.access.retry" }));
+
+    await waitFor(() => expect(toasts().toastError).toHaveBeenCalledTimes(2));
+    expect(ruleReads()).toHaveLength(2);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "adminPostPanes.access.saveAccess" })).toBeNull();
+  });
+});
+
+describe("AccessSettingsPane - zmiana bytu", () => {
+  it("byt bez reguły po bycie płatnym dostaje formularz DOMYŚLNY, a zapis trafia pod nowy byt", async () => {
+    seedReads();
+    const rules: Record<string, StoredRule | null> = {
+      "post-42": rule({ mode: "paid", plan_ids: ["plan-eur"] }),
+      "post-43": null,
+    };
+    sb().setTableResponder("content_access", (chain) =>
+      contentAccessTable(rules[String(eqValue(chain, "entity_id"))] ?? null)(chain),
+    );
+    const view = mountSettingsPane(<AccessSettingsPane entityType="post" entityId="post-42" />);
+    await waitFor(() => expect(modeSelect(view.container).value).toBe("paid"));
+
+    view.rerenderPane(<AccessSettingsPane entityType="post" entityId="post-43" />);
+
+    // Wcześniej `if (r)` pomijało pusty odczyt i na ekranie ZOSTAWAŁA reguła
+    // poprzedniego bytu - a zapis wysyłał ją pod nowe `entity_id`.
+    await waitFor(() => expect(modeSelect(view.container).value).toBe("public"));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    expect(sb().lastWrite("content_access", "insert")).toMatchObject({
+      entity_id: "post-43",
+      mode: "public",
+      plan_ids: [],
+    });
+  });
+
+  it("spóźniona odpowiedź poprzedniego bytu nie nadpisuje formularza nowego", async () => {
+    seedReads();
+    const late: { release: (() => void) | null } = { release: null };
+    sb().setTableResponder("content_access", (chain) => {
+      if (eqValue(chain, "entity_id") === "post-42") {
+        return new Promise((resolve) => {
+          late.release = () => resolve(ok(rule({ mode: "paid" })));
+        });
+      }
+      return ok(rule({ id: "rule-43", entity_id: "post-43", mode: "members" }));
+    });
+    const view = mountSettingsPane(<AccessSettingsPane entityType="post" entityId="post-42" />);
+    view.rerenderPane(<AccessSettingsPane entityType="post" entityId="post-43" />);
+    await waitFor(() => expect(modeSelect(view.container).value).toBe("members"));
+
+    late.release?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(modeSelect(view.container).value).toBe("members");
+  });
 });
 
 describe("AccessSettingsPane - tryby dostępu", () => {
@@ -489,7 +692,7 @@ describe("AccessSettingsPane - zapis", () => {
 
     await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
     expect(toasts().success).toHaveBeenCalledWith("adminPostPanes.access.accessSaved");
-    expect(sb().lastWrite("content_access")).toEqual({
+    expect(sb().lastWrite("content_access", "insert")).toEqual({
       entity_type: "post",
       entity_id: "post-42",
       mode: "members",
@@ -503,10 +706,10 @@ describe("AccessSettingsPane - zapis", () => {
       password_hint_pl: null,
       password_hint_en: null,
     });
-    // Konflikt rozstrzyga PARA (typ, byt) - inaczej upsert dublowałby reguły.
-    expect(sb().db.lastChain("content_access")?.argsOf("upsert")?.[1]).toEqual({
-      onConflict: "entity_type,entity_id",
-    });
+    // Reguły nie było, więc INSERT - nigdy upsert, który nadpisałby regułę
+    // utworzoną w międzyczasie (inna karta) albo niewidoczną dla odczytu.
+    expect(sb().writes("content_access", "upsert")).toHaveLength(0);
+    expect(sb().writes("content_access", "update")).toHaveLength(0);
     // Bez trybu hasła panel nie dotyka RPC-ów hasła.
     expect(sb().rpc.names()).not.toContain("admin_set_content_password");
     expect(sb().rpc.names()).not.toContain("admin_clear_content_password");
@@ -525,7 +728,7 @@ describe("AccessSettingsPane - zapis", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
-    expect(sb().lastWrite("content_access")).toMatchObject({
+    expect(sb().lastWrite("content_access", "update")).toMatchObject({
       mode: "paid",
       plan_ids: ["plan-eur"],
       one_time_price_cents: 2500,
@@ -543,7 +746,9 @@ describe("AccessSettingsPane - zapis", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
-    expect(sb().lastWrite("content_access")).toMatchObject({ metering_policy: "inherit" });
+    expect(sb().lastWrite("content_access", "update")).toMatchObject({
+      metering_policy: "inherit",
+    });
   });
 
   it("odmowa bazy idzie kanałem `toastError` z kategorią zapisu, a panel zostaje na ekranie", async () => {
@@ -567,9 +772,9 @@ describe("AccessSettingsPane - zapis", () => {
     const { container } = await mountPane({ rule: null });
     const deferred: { release: (() => void) | null } = { release: null };
     sb().setTableResponder("content_access", (chain) => {
-      if (!chain.has("upsert")) return { data: null, error: null };
+      if (!chain.has("insert")) return { data: null, error: null };
       return new Promise((resolve) => {
-        deferred.release = () => resolve({ data: null, error: null });
+        deferred.release = () => resolve(ok([{ updated_at: READ_VERSION }]));
       });
     });
 
@@ -581,6 +786,121 @@ describe("AccessSettingsPane - zapis", () => {
     expect(saveButton()).toBeEnabled();
     expect(modeSelect(container).value).toBe("public");
   });
+
+  it("istniejąca reguła idzie UPDATE-em po (typ, byt, WERSJA), bez kluczy w ładunku i z kontrolą wierszy", async () => {
+    const { container } = await mountPane({ rule: rule({ mode: "paid", plan_ids: ["plan-pln"] }) });
+
+    fireEvent.change(modeSelect(container), { target: { value: "members" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    const write = sb().db.lastChain("content_access");
+    expect(write?.calls.map((call) => call.method)).toEqual(["update", "eq", "eq", "eq", "select"]);
+    expect(eqValue(write as RecordedChain, "entity_type")).toBe("post");
+    expect(eqValue(write as RecordedChain, "entity_id")).toBe("post-42");
+    // Warunek wersji: UPDATE trafia tylko w wiersz, który panel PRZECZYTAŁ.
+    expect(eqValue(write as RecordedChain, "updated_at")).toBe(READ_VERSION);
+    // `select("updated_at")` to dowód, że UPDATE czegokolwiek dotknął, i nowa
+    // baza dla kolejnego zapisu.
+    expect(write?.argsOf("select")).toEqual(["updated_at"]);
+    const payload = sb().lastWrite("content_access", "update") as Record<string, unknown>;
+    expect(payload.mode).toBe("members");
+    expect(Object.keys(payload)).not.toContain("entity_type");
+    expect(Object.keys(payload)).not.toContain("entity_id");
+    expect(sb().writes("content_access", "insert")).toHaveLength(0);
+  });
+
+  it("drugi zapis po INSERT idzie UPDATE-em względem wersji z INSERT-u - bez fałszywego konfliktu", async () => {
+    const { container, table } = await mountPane({ rule: null });
+
+    fireEvent.change(modeSelect(container), { target: { value: "members" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    const insertedVersion = table.current()?.updated_at;
+    fireEvent.change(textareas(container)[0], { target: { value: "Druga zmiana" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(2));
+
+    expect(sb().writes("content_access", "insert")).toHaveLength(1);
+    const updates = sb()
+      .db.chainsFor("content_access")
+      .filter((chain) => chain.has("update"));
+    expect(updates.map((chain) => eqValue(chain, "updated_at"))).toEqual([insertedVersion]);
+    expect(table.current()).toMatchObject({ mode: "members", teaser_pl: "Druga zmiana" });
+    expect(toasts().error).not.toHaveBeenCalled();
+  });
+
+  // REGRESJA (ta sama klasa co D5, ścieżka współbieżna): UPDATE po (typ, byt)
+  // BEZ warunku wersji nadpisywał regułę, którą w międzyczasie zmienił ktoś
+  // inny - karta otwarta na „członkowie" zdejmowała paywall ustawiony chwilę
+  // wcześniej w drugiej karcie, bo wysyłała CAŁY formularz z nieaktualnym trybem.
+  it("reguła zmieniona w innej karcie: zapis NIE nadpisuje paywalla, panel pokazuje stan bazy", async () => {
+    const { container, table } = await mountPane({ rule: rule({ mode: "members" }) });
+    // Druga karta: ta sama reguła, już płatna (nowa wersja wiersza).
+    table.touch({ mode: "paid", plan_ids: ["plan-pln"] });
+
+    fireEvent.change(modeSelect(container), { target: { value: "public" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(toasts().error).toHaveBeenCalledWith("adminPostPanes.access.staleRule"),
+    );
+    expect(toasts().success).not.toHaveBeenCalled();
+    // UPDATE poszedł względem PRZECZYTANEJ wersji i w nic nie trafił.
+    const updates = sb()
+      .db.chainsFor("content_access")
+      .filter((chain) => chain.has("update"));
+    expect(updates.map((chain) => eqValue(chain, "updated_at"))).toEqual([READ_VERSION]);
+    expect(table.current()).toMatchObject({ mode: "paid", plan_ids: ["plan-pln"] });
+    // Panel czyta regułę od nowa i pokazuje paywall z bazy, nie swój szkic.
+    await waitFor(() => expect(modeSelect(container).value).toBe("paid"));
+    expect(ruleReads()).toHaveLength(2);
+  });
+
+  it("UPDATE bez dotkniętych wierszy NIE jest sukcesem: komunikat i ponowny odczyt reguły", async () => {
+    const { container } = await mountPane({ rule: rule({ mode: "paid" }) });
+    // Reguła zniknęła w międzyczasie (albo RLS odciął zapis BEZ błędu).
+    sb().setTableResponder("content_access", (chain) => (chain.has("update") ? ok([]) : ok(null)));
+
+    fireEvent.change(modeSelect(container), { target: { value: "members" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(toasts().error).toHaveBeenCalledWith("adminPostPanes.access.staleRule"),
+    );
+    expect(toasts().success).not.toHaveBeenCalled();
+    // Panel czyta regułę OD NOWA i pokazuje stan bazy, a nie swój szkic.
+    await waitFor(() => expect(ruleReads()).toHaveLength(2));
+    await waitFor(() => expect(modeSelect(container).value).toBe("public"));
+  });
+
+  it("INSERT na regułę utworzoną w międzyczasie (23505) nie nadpisuje jej i czyta ją od nowa", async () => {
+    const { container } = await mountPane({ rule: null });
+    sb().failWrite("content_access", "duplicate key value violates unique constraint", "23505");
+
+    fireEvent.change(modeSelect(container), { target: { value: "members" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(toasts().error).toHaveBeenCalledWith("adminPostPanes.access.staleRule"),
+    );
+    expect(toasts().success).not.toHaveBeenCalled();
+    expect(toasts().toastError).not.toHaveBeenCalled();
+    expect(sb().writes("content_access", "upsert")).toHaveLength(0);
+    await waitFor(() => expect(ruleReads()).toHaveLength(2));
+  });
+
+  it("zapis unieważnia podsumowanie dostępu z zakładki „Ogólne”", async () => {
+    const view = await mountPane({ rule: null });
+    const summaryKey = ["content_access", "post", "post-42"];
+    view.queryClient.setQueryData(summaryKey, { mode: "public", has_password: false });
+
+    fireEvent.change(modeSelect(view.container), { target: { value: "members" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    expect(view.queryClient.getQueryState(summaryKey)?.isInvalidated).toBe(true);
+  });
 });
 
 describe("AccessSettingsPane - hasło", () => {
@@ -591,11 +911,11 @@ describe("AccessSettingsPane - hasło", () => {
     fireEvent.click(saveButton());
 
     expect(toasts().error).toHaveBeenCalledWith("adminPostPanes.access.setPasswordForMode");
-    expect(sb().writes("content_access")).toHaveLength(0);
+    expect(allWrites()).toHaveLength(0);
     expect(sb().rpc.names()).not.toContain("admin_set_content_password");
   });
 
-  it("jawne hasło jedzie WYŁĄCZNIE RPC-em, a upsert nosi same podpowiedzi", async () => {
+  it("jawne hasło jedzie WYŁĄCZNIE RPC-em, a zapis reguły nosi same podpowiedzi", async () => {
     const { container } = await mountPane({ rule: null });
 
     fireEvent.change(modeSelect(container), { target: { value: "password" } });
@@ -607,7 +927,7 @@ describe("AccessSettingsPane - hasło", () => {
     fireEvent.click(saveButton());
 
     await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
-    const payload = sb().lastWrite("content_access") as Record<string, unknown>;
+    const payload = sb().lastWrite("content_access", "insert") as Record<string, unknown>;
     expect(payload.mode).toBe("password");
     expect(payload.password_hint_pl).toBe("Rok wydarzenia");
     expect(payload.password_hint_en).toBe("Event year");
@@ -624,6 +944,56 @@ describe("AccessSettingsPane - hasło", () => {
     expect(screen.getByText("adminPostPanes.access.passwordSet")).toBeInTheDocument();
   });
 
+  // RPC hasła samo robi UPDATE wiersza (`updated_at = now()`). Bez doczytania
+  // wersji po nim KOLEJNY zapis szedłby względem wersji sprzed RPC, nie
+  // trafiałby w nic i panel meldowałby „reguła zmieniła się w międzyczasie"
+  // po własnej zmianie hasła.
+  it("po ustawieniu hasła kolejny zapis idzie względem wersji PO RPC - bez fałszywego konfliktu", async () => {
+    const { container, table } = await mountPane({ rule: rule({ mode: "password" }) });
+    const password = passwordInput(container);
+    if (!password) throw new Error("test: brak pola hasła w trybie password");
+    fireEvent.change(password, { target: { value: "Konferencja-2026" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    const afterRpc = table.current()?.updated_at;
+    expect(afterRpc).not.toBe(READ_VERSION);
+
+    fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "Nowa podpowiedź" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(2));
+    expect(toasts().error).not.toHaveBeenCalled();
+    const updates = sb()
+      .db.chainsFor("content_access")
+      .filter((chain) => chain.has("update"));
+    expect(updates.map((chain) => eqValue(chain, "updated_at"))).toEqual([READ_VERSION, afterRpc]);
+    expect(table.current()).toMatchObject({ password_hint_pl: "Nowa podpowiedź" });
+  });
+
+  it("gdy doczytanie wersji po RPC hasła pada, panel czyta wszystko od nowa zamiast zgadywać", async () => {
+    const { container, table } = await mountPane({
+      rule: rule({ mode: "password" }),
+      hasPassword: true,
+    });
+    sb().setTableResponder("content_access", (chain) =>
+      isVersionRead(chain) ? fail("Failed to fetch") : table.responder(chain),
+    );
+    const password = passwordInput(container);
+    if (!password) throw new Error("test: brak pola hasła w trybie password");
+    fireEvent.change(password, { target: { value: "Konferencja-2026" } });
+    fireEvent.click(saveButton());
+
+    // Zapis i hasło przeszły - ale wersji panel już nie zna, więc nie zostawia
+    // formularza, który zapisałby się względem nieaktualnej.
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(ruleReads()).toHaveLength(2));
+    await waitFor(() => expect(modeSelect(container).value).toBe("password"));
+    fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "Po odczycie" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(2));
+    expect(toasts().error).not.toHaveBeenCalled();
+  });
+
   it("odmowa RPC hasła nie melduje sukcesu", async () => {
     const { container } = await mountPane({ rule: null });
     sb().rpc.setError("admin_set_content_password", "bcrypt: role not permitted", "42501");
@@ -637,8 +1007,8 @@ describe("AccessSettingsPane - hasło", () => {
     await waitFor(() => expect(toasts().toastError).toHaveBeenCalledTimes(1));
     expect(toasts().toastError.mock.calls[0][1]).toBe("save");
     expect(toasts().success).not.toHaveBeenCalled();
-    // Upsert JUŻ przeszedł - to jest cena rozbicia zapisu na dwa kroki.
-    expect(sb().writes("content_access")).toHaveLength(1);
+    // Zapis reguły JUŻ przeszedł - to jest cena rozbicia zapisu na dwa kroki.
+    expect(sb().writes("content_access", "insert")).toHaveLength(1);
     expect(saveButton()).toBeEnabled();
   });
 
@@ -658,11 +1028,28 @@ describe("AccessSettingsPane - hasło", () => {
       _entity_id: "post-42",
     });
     // Podpowiedzi są NULL-owane, żeby nie zostały przy trybie bez hasła.
-    expect(sb().lastWrite("content_access")).toMatchObject({
+    expect(sb().lastWrite("content_access", "update")).toMatchObject({
       mode: "members",
       password_hint_pl: null,
       password_hint_en: null,
     });
+  });
+
+  it("odmowa kasowania hasła przy wyjściu z trybu hasła NIE melduje sukcesu", async () => {
+    const { container } = await mountPane({ rule: rule({ mode: "password" }), hasPassword: true });
+    sb().rpc.setError("admin_clear_content_password", "permission denied", "42501");
+
+    fireEvent.change(modeSelect(container), { target: { value: "members" } });
+    fireEvent.click(saveButton());
+
+    // Wcześniej wynik RPC był połykany: „Zapisano dostęp", a hash zostawał.
+    await waitFor(() => expect(toasts().toastError).toHaveBeenCalledTimes(1));
+    expect(toasts().toastError.mock.calls[0][1]).toBe("save");
+    expect(toasts().success).not.toHaveBeenCalled();
+    // Panel wie, że hasło WCIĄŻ jest - powrót do trybu hasła to pokazuje.
+    fireEvent.change(modeSelect(container), { target: { value: "password" } });
+    expect(screen.getByText("adminPostPanes.access.passwordSet")).toBeInTheDocument();
+    expect(saveButton()).toBeEnabled();
   });
 
   it("osobny przycisk usuwa hasło i podpowiedzi bez zapisu reguły", async () => {
@@ -677,13 +1064,29 @@ describe("AccessSettingsPane - hasło", () => {
     await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
     expect(toasts().success).toHaveBeenCalledWith("adminPostPanes.access.passwordRemoved");
     expect(sb().rpc.callsFor("admin_clear_content_password")).toHaveLength(1);
-    expect(sb().writes("content_access")).toHaveLength(0);
+    expect(allWrites()).toHaveLength(0);
     expect(
       screen.queryByRole("button", { name: "adminPostPanes.access.removePassword" }),
     ).toBeNull();
     expect(screen.getByText("adminPostPanes.access.passwordSetLabel")).toBeInTheDocument();
     expect(screen.queryByDisplayValue("Nazwisko prelegenta")).toBeNull();
     expect(passwordInput(container)).not.toBeNull();
+  });
+
+  it("po usunięciu hasła przyciskiem zapis reguły nie zgłasza fałszywego konfliktu", async () => {
+    const { container, table } = await mountPane({
+      rule: rule({ mode: "password" }),
+      hasPassword: true,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "adminPostPanes.access.removePassword" }));
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(modeSelect(container), { target: { value: "members" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(toasts().success).toHaveBeenCalledTimes(2));
+    expect(toasts().error).not.toHaveBeenCalled();
+    expect(table.current()).toMatchObject({ mode: "members" });
   });
 
   it("odmowa kasowania hasła idzie kanałem `toastError` z kategorią usuwania", async () => {

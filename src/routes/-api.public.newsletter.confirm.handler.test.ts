@@ -39,6 +39,7 @@ import { Route } from "@/routes/api.public.newsletter.confirm";
 
 const db = supabaseFromStub();
 const SUBSCRIBERS = "newsletter_subscribers";
+const SUPPRESSIONS = "email_suppressions";
 const TOKEN = "0123456789abcdef0123456789abcdef";
 
 function get(
@@ -74,6 +75,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   db.reset();
   db.setResponse(SUBSCRIBERS, (chain) => (chain.has("update") ? ok(null) : ok(pendingRow())));
+  db.setResponse(SUPPRESSIONS, ok(null));
   h.sendTxEmail.mockResolvedValue(undefined);
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -228,6 +230,45 @@ describe("potwierdzenie", () => {
 
     expect(res.status).toBe(500);
     await expect(res.json()).resolves.toEqual({ ok: false, error: "update rejected" });
+  });
+});
+
+describe("ponowny zapis po wypisie", () => {
+  it("zdejmuje wyłącznie aktywną blokadę `unsubscribe` tego tenanta i adresu", async () => {
+    const res = await get();
+
+    expect(res.status).toBe(200);
+    const release = db.chainsFor(SUPPRESSIONS).find((c) => c.has("update"));
+    expect(release?.argsOf("update")?.[0]).toEqual({
+      released_at: relativeIso(0),
+      expires_at: relativeIso(0),
+    });
+    const eqs = release?.calls.filter((c) => c.method === "eq").map((c) => c.args);
+    expect(eqs).toEqual([
+      ["tenant_id", "tenant-1"],
+      ["email_norm", "nowy@example.test"],
+      ["reason", "unsubscribe"],
+    ]);
+    expect(release?.argsOf("is")).toEqual(["released_at", null]);
+  });
+
+  it("nieudane zdjęcie blokady to 500 bez zmiany statusu i bez powitania", async () => {
+    db.setResponse(SUPPRESSIONS, fail("db down"));
+
+    const res = await get();
+
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toEqual({ ok: false, error: "confirm_failed" });
+    expect(db.chainsFor(SUBSCRIBERS).some((c) => c.has("update"))).toBe(false);
+    expect(h.sendTxEmail).not.toHaveBeenCalled();
+  });
+
+  it("ponowny klik po potwierdzeniu nie dotyka listy wykluczeń", async () => {
+    db.setResponse(SUBSCRIBERS, ok(pendingRow({ status: "subscribed" })));
+
+    await get();
+
+    expect(db.chainsFor(SUPPRESSIONS)).toHaveLength(0);
   });
 });
 

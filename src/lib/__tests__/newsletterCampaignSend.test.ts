@@ -584,6 +584,29 @@ describe("treść wiadomości", () => {
     expect(input.listUnsubscribeUrl.startsWith("http")).toBe(true);
   });
 
+  it("nagłówek wskazuje ENDPOINT z handlerem POST, nie stronę SPA (one-click RFC 8058)", async () => {
+    // Regresja: nagłówek wskazywał `/newsletter/unsubscribe` - stronę bez
+    // handlera POST. Gmail i Yahoo POST-ują `List-Unsubscribe=One-Click` wprost
+    // na ten adres, więc przycisk „Wypisz się" w skrzynce niczego nie robił.
+    await sendCampaign({ data: { id: CAMPAIGN_ID } });
+
+    const input = h.sendEmail.mock.calls[0]?.[0] as { listUnsubscribeUrl: string };
+    expect(input.listUnsubscribeUrl).toBe(
+      "https://example.test/api/public/newsletter/unsubscribe?token=unsub-1",
+    );
+    expect(new URL(input.listUnsubscribeUrl).pathname).not.toBe("/newsletter/unsubscribe");
+  });
+
+  it("stopka i nagłówek niosą TEN SAM adres wypisu", async () => {
+    // Jeden adres = jeden kontrakt pod testem. Klik w stopkę (GET z
+    // przeglądarki) endpoint przekierowuje 303 na przyjazną stronę.
+    await sendCampaign({ data: { id: CAMPAIGN_ID } });
+
+    const input = h.sendEmail.mock.calls[0]?.[0] as { listUnsubscribeUrl: string; html: string };
+    expect(input.html).toContain(`href="${input.listUnsubscribeUrl}"`);
+    expect(input.html).not.toContain('href="https://example.test/newsletter/unsubscribe');
+  });
+
   it("nadawca składa się z nazwy i adresu kampanii", async () => {
     await sendCampaign({ data: { id: CAMPAIGN_ID } });
 

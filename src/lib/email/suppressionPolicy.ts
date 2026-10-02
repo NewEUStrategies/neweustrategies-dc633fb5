@@ -80,6 +80,31 @@ export function suppressionBlocks(input: SuppressionDecisionInput): boolean {
   return !TRANSACTIONAL_PASS_REASONS.has(input.reason);
 }
 
+export interface SignupDecisionInput {
+  reason: SuppressionReason;
+  scope: SuppressionScope;
+  /** Zapis przechodzi przez double opt-in (dowód kontroli nad skrzynką). */
+  doubleOptIn: boolean;
+}
+
+/**
+ * Czy aktywna blokada zatrzymuje ZAPIS na newsletter z formularza na stronie.
+ *
+ *  * Blokada czasowa (soft bounce) nie zatrzymuje: problem był chwilowy.
+ *  * `unsubscribe` to wycofana zgoda, a zgodę można wyrazić ponownie. Wolno to
+ *    jednak tylko przez double opt-in: dopiero klik w link z maila dowodzi, że
+ *    nową zgodę daje właściciel skrzynki. Bez double opt-in każdy mógłby
+ *    wpisać cudzy adres i przywrócić go do wysyłki po wypisie. Samą blokadę
+ *    zdejmuje dopiero potwierdzenie (releaseUnsubscribeOnOptIn).
+ *  * Pozostałe powody trwałe (skarga, twarde odbicie, ręczna) zatrzymują zapis
+ *    zawsze: zdjąć je może wyłącznie operator.
+ */
+export function suppressionBlocksSignup(input: SignupDecisionInput): boolean {
+  if (input.scope !== "permanent") return false;
+  if (input.reason === "unsubscribe") return !input.doubleOptIn;
+  return true;
+}
+
 /** Kod przyczyny pominięcia do logu wysyłki i panelu (stabilny, do i18n). */
 export function suppressionSkipReason(reason: SuppressionReason): string {
   return `suppressed:${reason}`;

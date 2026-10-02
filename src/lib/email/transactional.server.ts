@@ -22,10 +22,11 @@ import type { EmailLang } from "@/lib/email-templates/nes-layout";
 import { uiLocale } from "@/lib/i18n/format";
 import { resolveRecipientName } from "@/lib/email/recipient-name.server";
 import { txBody, type TxBodyVars } from "@/lib/email-templates/tx-body";
-import { loadTxOverrides } from "@/lib/email/txOverrides.server";
+import { loadTxOverrideFor } from "@/lib/email/txOverrides.server";
 import { ensureUnsubscribeToken } from "@/lib/email/unsubscribeToken.server";
-import { overrideFor, resolvedField } from "@/lib/email/txOverrides";
+import { resolvedField } from "@/lib/email/txOverrides";
 import { checkSendAllowed } from "@/lib/email/suppression.server";
+import { deterministicMessageId } from "@/lib/email/messageId";
 import {
   emailCategoryForLabel,
   suppressionSkipReason,
@@ -110,6 +111,10 @@ export interface TxSendInput {
    * Tenant odbiorcy, gdy wywołujący go zna (webhook płatności, panel). Bez
    * niego jest rozwiązywany z adresu - lista wykluczeń jest tenant-scoped,
    * a ta ścieżka biegnie na service_role, bez sesji i bez nagłówka hosta.
+   *
+   * Tylko ON wybiera redakcję treści edytowalnych w panelu (`EDITABLE_TX_TYPES`):
+   * rozstrzygnięcie z adresu nie dowodzi przynależności do organizacji, więc
+   * nadawca takiego typu bez tego pola wysyła treść domyślną.
    */
   tenantId?: string | null;
 }
@@ -258,7 +263,7 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
   const lang: EmailLang = input.lang === "en" ? "en" : "pl";
 
   try {
-    const messageId = await deterministicId(input.idempotencyKey);
+    const messageId = await deterministicMessageId(input.idempotencyKey);
 
     // Higiena listy dla KAŻDEGO z 19 typów - patrz suppressionGate.
     const gate = await suppressionGate(supabase, {
@@ -278,8 +283,19 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
 
     const body = txBody(input.type, lang, name.gender, input.bodyVars ?? {});
 
-    // Treści edytowalne w panelu (karencja / koniec dostępu zespołowego).
-    const override = overrideFor(await loadTxOverrides(supabase), input.type, lang);
+    // Treści edytowalne w panelu (karencja / koniec dostępu zespołowego) -
+    // WYŁĄCZNIE najemcy, którego nadawca wziął z wiersza domenowego
+    // (organizacja, miejsce), nigdy rozstrzygniętego z adresu. Bez
+    // `input.tenantId` `gate.tenantId` pochodzi z
+    // `email_resolve_tenant_for_address`, a ta stawia subskrypcję newslettera
+    // przed kontem i dla adresu nieznanego albo obecnego u kilku najemców
+    // oddaje najemcę DOMYŚLNEGO, nie NULL. Do wyboru listy wykluczeń to
+    // wystarcza, do wyboru, czyja redakcja podpisze mail - nie: osoba z
+    // organizacji A dostawała temat i treść redakcji najemcy domyślnego.
+    // Klient jest service_role (ponad RLS), więc ten zakres jest jedyną
+    // granicą. Bez najemcy nadawcy wychodzi treść domyślna - poprawna dla
+    // każdego odbiorcy, w przeciwieństwie do cudzej.
+    const override = await loadTxOverrideFor(supabase, input.tenantId ?? null, input.type, lang);
     const tokens = {
       planName: input.bodyVars?.planName ?? null,
       orgName: input.bodyVars?.orgName ?? null,
@@ -372,16 +388,6 @@ export async function sendTxEmail(input: TxSendInput): Promise<TxSendResult> {
   }
 }
 
-/** UUID wyliczony z klucza idempotencji (stabilny między próbami/retry). */
-async function deterministicId(key: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key));
-  const b = Array.from(new Uint8Array(digest)).slice(0, 16);
-  b[6] = (b[6] & 0x0f) | 0x40;
-  b[8] = (b[8] & 0x3f) | 0x80;
-  const hex = b.map((x) => x.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
 export interface RawEmailInput {
   to: string;
   subject: string;
@@ -417,7 +423,7 @@ export async function enqueueRawEmail(input: RawEmailInput): Promise<TxSendResul
   if (!supabase) return { ok: false, error: "supabase_unavailable" };
 
   try {
-    const messageId = await deterministicId(input.idempotencyKey);
+    const messageId = await deterministicMessageId(input.idempotencyKey);
 
     const gate = await suppressionGate(supabase, {
       to,

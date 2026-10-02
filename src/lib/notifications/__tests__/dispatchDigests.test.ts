@@ -35,6 +35,8 @@ const h = vi.hoisted(() => {
     rpcResults: new Map<string, { data: unknown; error: unknown }>(),
     rpcCalls: [] as RpcCall[],
     profiles: [] as unknown[],
+    /** Błąd zapytania o profile (null = sukces). */
+    profilesError: null as unknown,
     fromTables: [] as string[],
     emails: [] as RawEmailInput[],
     /** Kolejne wyniki `enqueueRawEmail`; po wyczerpaniu - sukces. */
@@ -55,10 +57,11 @@ vi.mock("@/integrations/supabase/client.server", () => {
       select: () => chain,
       in: () => chain,
       then: (onFulfilled, onRejected) =>
-        Promise.resolve({
-          data: table === "profiles" ? h.state.profiles : [],
-          error: null,
-        }).then(onFulfilled, onRejected),
+        Promise.resolve(
+          table === "profiles" && h.state.profilesError
+            ? { data: null, error: h.state.profilesError }
+            : { data: table === "profiles" ? h.state.profiles : [], error: null },
+        ).then(onFulfilled, onRejected),
     };
     return chain;
   };
@@ -135,6 +138,7 @@ beforeEach(() => {
   h.state.rpcResults = new Map();
   h.state.rpcCalls = [];
   h.state.profiles = [];
+  h.state.profilesError = null;
   h.state.fromTables = [];
   h.state.emails = [];
   h.state.emailResults = [];
@@ -293,6 +297,21 @@ describe("processDigests - język odbiorcy", () => {
     const [mail] = emails();
     expect(mail.subject).toContain("Masz 1 powiadomienie z ostatniego dnia");
     expect(mail.html).toContain("Cześć Alice");
+  });
+
+  it("błąd odczytu profili nie przerywa partii, ale nie znika po cichu", async () => {
+    // claim_due_digests JUŻ przestawił digest_last_sent_at, więc wyjątek w tym
+    // miejscu zgubiłby całe okno digestu - język jest tylko dodatkiem.
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    claimReturns([row()]);
+    h.state.profilesError = { code: "57014", message: "statement timeout" };
+
+    const result = await processDigests("daily");
+
+    expect(result).toEqual({ claimed: 1, sent: 1 });
+    expect(emails()[0].html).toContain("Cześć Alice");
+    const logged = error.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(logged).toContain("odczyt profili odbiorców nie powiódł się");
   });
 });
 
