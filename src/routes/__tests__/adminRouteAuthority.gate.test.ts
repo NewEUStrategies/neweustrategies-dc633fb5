@@ -48,6 +48,7 @@ const CLUB_RPC_TESTS = [
   "supabase/tests/discussion_clubs_a4_interaction_test.sql",
   "supabase/tests/discussion_clubs_a5_a6_test.sql",
   "supabase/tests/club_topics_tenant_isolation_test.sql",
+  "supabase/tests/club_reveal_author_admin_card_test.sql",
 ] as const;
 // Rodzina `admin.newsletter.*` - czternaście tras panelu newslettera, które ta
 // bramka pilnuje osobno (patrz `describe("panel newslettera - autorytet dostępu")`).

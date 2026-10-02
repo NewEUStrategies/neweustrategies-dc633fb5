@@ -8,6 +8,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import {
+  NETWORK_IDS,
   PEER_NAME,
   failingMutation,
   idleMutation,
@@ -119,7 +120,7 @@ describe("IntroductionsCard - rola mostu (moderacja)", () => {
     renderCard();
     expect(screen.getByRole("link", { name: "Marek Requester" })).toHaveAttribute(
       "href",
-      "/people/user-requester",
+      "/people/marek-requester",
     );
     expect(
       screen.getByText(k("network.introductions.wantsIntroTo", { name: PEER_NAME })),
@@ -261,6 +262,139 @@ describe("IntroductionsCard - chip statusu", () => {
     expect(screen.getByText(k("network.introductions.status.declined")).className).toContain(
       "bg-muted",
     );
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Odnośniki do profilu: SLUG, nigdy id
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Do 20261002100000 karta podawała trasie `/people/$slug` identyfikator osoby
+// (`requester_id` / `target_id` / `bridge_id`), a `get_member_profile` szuka
+// WYŁĄCZNIE po slugu (20260924100000:34-36) - każde kliknięcie w każdej z trzech
+// ról kończyło się kartą "Nie znaleziono profilu". Jedyna asercja href w tym
+// pliku przechodziła mimo to, bo fikstura miała id w kształcie sluga
+// ("user-requester"). Tu id są prawdziwymi UUID-ami, a slug jest od nich różny,
+// więc pomylenie jednego z drugim wywraca test.
+//
+// Oczekiwane adresy są wpisane DOSŁOWNIE (jak przy kotwicy niżej): po drugiej
+// stronie kontraktu stoi baza, która o helperach klienta nic nie wie.
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const UUID_IDS = {
+  requester_id: "0b5a7c1e-3d2f-4e6a-9b8c-1d2e3f4a5b6c",
+  target_id: "1c6b8d2f-4e3a-4f7b-8c9d-2e3f4a5b6c7d",
+  bridge_id: "2d7c9e3a-5f4b-4a8c-9d0e-3f4a5b6c7d8e",
+} as const;
+
+type SlugColumn = "requester_slug" | "target_slug" | "bridge_slug";
+type RouteColumn = "requester_route" | "target_route" | "bridge_route";
+
+const ROLE_LINKS: ReadonlyArray<{
+  role: IntroductionRole;
+  tabKey: string | null;
+  status: string;
+  name: string;
+  slugColumn: SlugColumn;
+  href: string;
+}> = [
+  {
+    role: "bridge",
+    tabKey: null,
+    status: "pending",
+    name: "Marek Requester",
+    slugColumn: "requester_slug",
+    href: "/people/marek-requester",
+  },
+  {
+    role: "requester",
+    tabKey: "network.introductions.tabRequester",
+    status: "pending",
+    name: PEER_NAME,
+    slugColumn: "target_slug",
+    href: "/people/anna-nowak",
+  },
+  {
+    role: "target",
+    tabKey: "network.introductions.tabTarget",
+    status: "forwarded",
+    name: "Jan Kowalski",
+    slugColumn: "bridge_slug",
+    href: "/people/jan-kowalski",
+  },
+];
+
+function renderRole(c: (typeof ROLE_LINKS)[number], overrides: Partial<IntroductionRow> = {}) {
+  h.rows = { [c.role]: [introductionRow({ status: c.status, ...UUID_IDS, ...overrides })] };
+  renderCard();
+  if (c.tabKey) openTab(k(c.tabKey));
+}
+
+function peopleHrefs(): string[] {
+  return Array.from(document.querySelectorAll('a[href^="/people/"]')).map(
+    (a) => a.getAttribute("href") ?? "",
+  );
+}
+
+describe("IntroductionsCard - odnośniki do profilu (slug, nie id)", () => {
+  it.each(ROLE_LINKS)(
+    "$role: awatar i nazwisko prowadzą na slug DRUGIEJ strony, nie na jej id",
+    (c) => {
+      renderRole(c);
+
+      // Dwa odnośniki w wierszu (awatar bez nazwy dostępnej + nazwisko) - oba
+      // na ten sam profil i żaden na cudzy slug ani na identyfikator.
+      expect(peopleHrefs()).toEqual([c.href, c.href]);
+      expect(screen.getByRole("link", { name: c.name })).toHaveAttribute("href", c.href);
+      for (const href of peopleHrefs()) expect(href).not.toMatch(UUID_RE);
+    },
+  );
+
+  it.each(
+    ROLE_LINKS.flatMap((c) =>
+      [null, "", "   "].map((slug) => ({ ...c, slug, label: JSON.stringify(slug) })),
+    ),
+  )(
+    "$role: slug $label (baza nie rozwiąże profilu) - sam tekst, BEZ linku i bez zastępczego id",
+    (c) => {
+      renderRole(c, { [c.slugColumn]: c.slug, requester_avatar: "https://cdn.test/a.png" });
+
+      expect(peopleHrefs()).toEqual([]);
+      expect(screen.queryByRole("link", { name: c.name })).not.toBeInTheDocument();
+      expect(screen.getByText(c.name)).toBeInTheDocument();
+    },
+  );
+
+  it("brak sluga nie gubi awatara - zostaje obraz, znika tylko odnośnik", () => {
+    const bridge = ROLE_LINKS[0];
+    renderRole(bridge, { requester_slug: null, requester_avatar: "https://cdn.test/r.png" });
+
+    expect(document.querySelector("img")).toHaveAttribute("src", "https://cdn.test/r.png");
+    expect(document.querySelector("a")).toBeNull();
+  });
+
+  it.each(ROLE_LINKS)("$role: trasa 'author' (autor z publicznym hubem) -> /author/<slug>", (c) => {
+    const routeColumn = c.slugColumn.replace("_slug", "_route") as RouteColumn;
+    renderRole(c, { [routeColumn]: "author" });
+
+    const authorHref = c.href.replace("/people/", "/author/");
+    expect(screen.getByRole("link", { name: c.name })).toHaveAttribute("href", authorHref);
+    expect(peopleHrefs()).toEqual([]);
+  });
+
+  it.each([null, "", "admin"])(
+    "trasa %j (brak albo nieznana) - bez linku, mimo poprawnego sluga",
+    (route) => {
+      renderRole(ROLE_LINKS[0], { requester_route: route });
+
+      expect(screen.queryByRole("link", { name: "Marek Requester" })).not.toBeInTheDocument();
+      expect(document.querySelector("a")).toBeNull();
+    },
+  );
+
+  it("id w kształcie sluga też nie trafia do adresu, gdy slug jest pusty", () => {
+    renderRole(ROLE_LINKS[0], { requester_id: NETWORK_IDS.me, requester_slug: null });
+
+    expect(peopleHrefs()).toEqual([]);
   });
 });
 

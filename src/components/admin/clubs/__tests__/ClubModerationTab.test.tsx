@@ -56,6 +56,9 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { ReactNode } from "react";
 
 /** Domknięcia mutacji React Query, w kształcie, w jakim organizm je podaje. */
+/** Kształt wyniku `useRevealClubAuthor` (src/lib/clubs/api.ts revealClubAuthor). */
+type RevealResult = { authorId: string; displayName: string; profileSlug: string | null };
+
 interface MutationHandlers<T> {
   onSuccess?: (data: T) => void;
   onError?: (error: Error) => void;
@@ -87,6 +90,10 @@ const h = vi.hoisted(() => ({
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/lib/i18n-clubs-admin", () => ({ ensureAdminClubsI18n: () => undefined }));
+vi.mock("@tanstack/react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-router")>()),
+  Link: (await import("@/test/routerLinkStub")).RouterLinkStub,
+}));
 vi.mock("@/components/admin/community/MemberPicker", () => ({
   MemberPicker: ({ value, onChange }: { value: string; onChange: (next: string) => void }) => (
     <button
@@ -463,15 +470,14 @@ describe("ujawnienie autora - próg powodu i wynik", () => {
     expect(confirmButton(dialog).hasAttribute("disabled")).toBe(true);
   });
 
-  it("udane ujawnienie pokazuje nazwisko, odnośnik do profilu i zdanie o dziennikach", () => {
-    h.reveal.mockImplementation(
-      (
-        _vars: unknown,
-        handlers: MutationHandlers<{ displayName: string; profileSlug: string | null }>,
-      ) => {
-        handlers.onSuccess?.({ displayName: "Anna Nowak", profileSlug: "anna-nowak" });
-      },
-    );
+  it("udane ujawnienie pokazuje nazwisko, odnośnik do karty w panelu i zdanie o dziennikach", () => {
+    h.reveal.mockImplementation((_vars: unknown, handlers: MutationHandlers<RevealResult>) => {
+      handlers.onSuccess?.({
+        authorId: "user-member",
+        displayName: "Anna Nowak",
+        profileSlug: "anna-nowak",
+      });
+    });
     const dialog = openReveal();
     fireEvent.change(within(dialog).getByRole("textbox"), {
       target: { value: "wystarczająco długi powód" },
@@ -479,9 +485,12 @@ describe("ujawnienie autora - próg powodu i wynik", () => {
     fireEvent.click(confirmButton(dialog));
 
     expect(within(dialog).getByText("Anna Nowak")).toBeTruthy();
-    expect(
-      within(dialog).getByText("adminClubs.moderation.revealOpenProfile").getAttribute("href"),
-    ).toBe("/profile/anna-nowak");
+    // Karta użytkownika po id - nie nieistniejące `/profile/<slug>` (404)
+    // ani profil publiczny, którego admin zwykle nie zobaczy.
+    const link = within(dialog).getByText("adminClubs.moderation.revealOpenProfile");
+    expect(link.getAttribute("href")).toBe("/admin/users/user-member");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toBe("noreferrer");
     expect(within(dialog).getByText("adminClubs.moderation.revealLogged")).toBeTruthy();
     // Po ujawnieniu nie ma już czego potwierdzać.
     expect(
@@ -491,15 +500,30 @@ describe("ujawnienie autora - próg powodu i wynik", () => {
     ).toHaveLength(0);
   });
 
-  it("osoba BEZ profilu publicznego nie dostaje martwego odnośnika", () => {
-    h.reveal.mockImplementation(
-      (
-        _vars: unknown,
-        handlers: MutationHandlers<{ displayName: string; profileSlug: string | null }>,
-      ) => {
-        handlers.onSuccess?.({ displayName: "Anna Nowak", profileSlug: null });
-      },
-    );
+  it("konto BEZ sluga nadal dostaje kartę w panelu - kluczem jest id", () => {
+    h.reveal.mockImplementation((_vars: unknown, handlers: MutationHandlers<RevealResult>) => {
+      handlers.onSuccess?.({
+        authorId: "user-member",
+        displayName: "Anna Nowak",
+        profileSlug: null,
+      });
+    });
+    const dialog = openReveal();
+    fireEvent.change(within(dialog).getByRole("textbox"), {
+      target: { value: "wystarczająco długi powód" },
+    });
+    fireEvent.click(confirmButton(dialog));
+
+    expect(within(dialog).getByText("Anna Nowak")).toBeTruthy();
+    expect(
+      within(dialog).getByText("adminClubs.moderation.revealOpenProfile").getAttribute("href"),
+    ).toBe("/admin/users/user-member");
+  });
+
+  it("brak id autora w odpowiedzi: nazwisko bez martwego odnośnika", () => {
+    h.reveal.mockImplementation((_vars: unknown, handlers: MutationHandlers<RevealResult>) => {
+      handlers.onSuccess?.({ authorId: "", displayName: "Anna Nowak", profileSlug: "anna-nowak" });
+    });
     const dialog = openReveal();
     fireEvent.change(within(dialog).getByRole("textbox"), {
       target: { value: "wystarczająco długi powód" },
@@ -512,10 +536,7 @@ describe("ujawnienie autora - próg powodu i wynik", () => {
 
   it("PUSTA odpowiedź RPC to komunikat błędu, nie pusty wynik na ekranie", () => {
     h.reveal.mockImplementation(
-      (
-        _vars: unknown,
-        handlers: MutationHandlers<{ displayName: string; profileSlug: string | null } | null>,
-      ) => {
+      (_vars: unknown, handlers: MutationHandlers<RevealResult | null>) => {
         handlers.onSuccess?.(null);
       },
     );

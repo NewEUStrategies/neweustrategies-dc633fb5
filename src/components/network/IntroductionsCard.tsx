@@ -6,7 +6,6 @@
 // Wszystko na jednym RPC (`my_introduction_requests`) w trzech wywołaniach.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "@tanstack/react-router";
 import {
   Check,
   Clock,
@@ -29,6 +28,8 @@ import { toastError } from "@/lib/toastError";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-network";
 import { introductionAnchorId } from "@/lib/network/anchors";
+import { toProfileLink } from "@/lib/profile/profileLink";
+import { ProfileRouteLink } from "@/components/profile/ProfileRouteLink";
 
 type Role = "bridge" | "requester" | "target";
 
@@ -78,8 +79,27 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
       : role === "requester"
         ? row.target_avatar
         : row.bridge_avatar;
-  const otherId =
-    role === "bridge" ? row.requester_id : role === "requester" ? row.target_id : row.bridge_id;
+  // Link do drugiej strony z pary (slug, trasa) wyliczonej w bazie
+  // (20261002100000) - NIGDY id. Do tej zmiany karta podawała `/people/$slug`
+  // identyfikator, a `get_member_profile` szuka wyłącznie po slugu
+  // (20260924100000:34-36): każde kliknięcie kończyło się kartą "Nie
+  // znaleziono profilu". Brak trasy (profil niewidoczny, brak sluga, baza
+  // sprzed migracji) = sam tekst.
+  const otherLink =
+    role === "bridge"
+      ? toProfileLink(row.requester_slug, row.requester_route)
+      : role === "requester"
+        ? toProfileLink(row.target_slug, row.target_route)
+        : toProfileLink(row.bridge_slug, row.bridge_route);
+
+  const avatarClass =
+    "h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-muted";
+  const avatar = otherAvatar ? (
+    <img src={otherAvatar} alt="" className="h-full w-full object-cover" loading="lazy" />
+  ) : (
+    <UserIcon className="mx-auto h-5 w-5 translate-y-2.5 text-muted-foreground" />
+  );
+  const nameClass = "truncate text-sm font-semibold text-foreground";
 
   return (
     // `id` w formacie, którego oczekuje producent powiadomień
@@ -89,26 +109,18 @@ function Row({ row, role }: { row: IntroductionRow; role: Role }) {
       className="scroll-mt-24 rounded-md border border-border bg-background/60 p-3"
     >
       <div className="flex items-start gap-3">
-        <Link
-          to="/people/$slug"
-          params={{ slug: otherId }}
-          className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-muted"
-        >
-          {otherAvatar ? (
-            <img src={otherAvatar} alt="" className="h-full w-full object-cover" loading="lazy" />
-          ) : (
-            <UserIcon className="mx-auto h-5 w-5 translate-y-2.5 text-muted-foreground" />
-          )}
-        </Link>
+        <ProfileRouteLink link={otherLink} className={avatarClass} fallback="div">
+          {avatar}
+        </ProfileRouteLink>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to="/people/$slug"
-              params={{ slug: otherId }}
-              className="truncate text-sm font-semibold text-foreground hover:underline"
+            <ProfileRouteLink
+              link={otherLink}
+              className={nameClass}
+              linkClassName="hover:underline"
             >
               {otherName}
-            </Link>
+            </ProfileRouteLink>
             <span
               className={cn(
                 "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",

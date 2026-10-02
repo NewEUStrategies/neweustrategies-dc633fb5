@@ -149,12 +149,20 @@ export function introductionRow(overrides: Partial<IntroductionRow> = {}): Intro
     requester_id: "user-requester",
     requester_name: "Marek Requester",
     requester_avatar: "",
+    // Slugi CELOWO różne od id: test, który pomyli jedno z drugim, ma się
+    // wywrócić, a nie przejść dlatego, że id też wygląda jak slug.
+    requester_slug: "marek-requester",
+    requester_route: "people",
     bridge_id: NETWORK_IDS.bridge,
     bridge_name: "Jan Kowalski",
     bridge_avatar: "",
+    bridge_slug: "jan-kowalski",
+    bridge_route: "people",
     target_id: NETWORK_IDS.peer,
     target_name: PEER_NAME,
     target_avatar: "",
+    target_slug: "anna-nowak",
+    target_route: "people",
     ...overrides,
   };
 }
@@ -171,6 +179,8 @@ export function recommendationRow(overrides: Partial<Recommendation> = {}): Reco
     body: "Współpraca wzorowa - konkretnie, terminowo, z wyczuciem kontekstu unijnego.",
     status: "published",
     created_at: "2026-03-10T08:00:00.000Z",
+    // Slug CELOWO różny od author_id - pomylenie jednego z drugim ma wywrócić test.
+    author_link: { route: "author", slug: "ewa-autorka" },
     ...overrides,
   };
 }
@@ -185,6 +195,8 @@ export function profileViewerRow(overrides: Partial<ProfileViewer> = {}): Profil
     job_title: "Analityk",
     company: "NES",
     viewed_at: "2026-04-01T12:00:00.000Z",
+    // Slug CELOWO różny od viewer_id ("user-peer").
+    viewer_link: { route: "people", slug: "anna-nowak" },
     ...overrides,
   };
 }

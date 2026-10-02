@@ -511,6 +511,28 @@ describe("eksport RODO - sieć kontaktów (strony po 50 do sufitu)", () => {
     expect(result.sections.network_invitations_sent).toEqual([]);
   });
 
+  it("błąd jako zwykły obiekt PostgREST trafia do `errors` treścią, nie jako `[object Object]`", async () => {
+    // supabase-js bez `throwOnError` oddaje `error` z `JSON.parse` odpowiedzi -
+    // to NIE jest `Error`, więc `String(error)` dawało w pliku "[object Object]".
+    // Atrapa `fail()` buduje instancję `Error`, dlatego reszta testów tego nie widziała.
+    rpc.setResponse("my_connections", () => ({
+      data: null,
+      error: {
+        name: "PostgrestError",
+        message: "permission denied for function my_connections",
+        code: "42501",
+        details: "",
+        hint: "",
+      },
+    }));
+
+    const result = await runExport();
+
+    expect(result.errors?.network_connections).toBe(
+      "permission denied for function my_connections",
+    );
+  });
+
   it("zaproszenia wysłane i odebrane: kierunek nie jest zamieniony, pola jawnie zmapowane", async () => {
     rpc.setResponse("my_connection_requests", (call) =>
       ok([
@@ -537,6 +559,152 @@ describe("eksport RODO - sieć kontaktów (strony po 50 do sufitu)", () => {
       "out",
       "in",
     ]);
+  });
+});
+
+describe("eksport RODO - wprowadzenia (trzy role, nigdy 'all')", () => {
+  /** Wiersz `my_introduction_requests` w PEŁNYM kształcie RPC (20261002100000). */
+  function introduction(id: string, overrides: Record<string, unknown> = {}) {
+    return {
+      id,
+      requester_id: "peer-r",
+      requester_name: "Proszący",
+      requester_avatar: "https://cdn.example/r.jpg",
+      requester_slug: "proszacy",
+      requester_route: "people",
+      bridge_id: "peer-b",
+      bridge_name: "Most",
+      bridge_avatar: "https://cdn.example/b.jpg",
+      bridge_slug: "most",
+      bridge_route: "people",
+      target_id: "peer-t",
+      target_name: "Cel",
+      target_avatar: "https://cdn.example/t.jpg",
+      target_slug: "cel",
+      target_route: "author",
+      message: `Prośba ${id} o wprowadzenie do celu.`,
+      status: "pending",
+      created_at: relativeIso(-DZIEN),
+      ...overrides,
+    };
+  }
+
+  /** To, co z wiersza RPC trafia do pliku - jawna lista pól kontraktu. */
+  function exported(role: string, row: ReturnType<typeof introduction>) {
+    return {
+      role,
+      id: row.id,
+      status: row.status,
+      message: row.message,
+      created_at: row.created_at,
+      requester_id: row.requester_id,
+      requester_name: row.requester_name,
+      bridge_id: row.bridge_id,
+      bridge_name: row.bridge_name,
+      target_id: row.target_id,
+      target_name: row.target_name,
+    };
+  }
+
+  const AS_REQUESTER = introduction("intro-req", { requester_id: USER_ID });
+  const AS_BRIDGE = introduction("intro-bridge", { bridge_id: USER_ID, status: "declined" });
+  const AS_TARGET = introduction("intro-target", { target_id: USER_ID, status: "forwarded" });
+  const BY_ROLE: Record<string, unknown[]> = {
+    requester: [AS_REQUESTER],
+    bridge: [AS_BRIDGE],
+    target: [AS_TARGET],
+  };
+
+  it("po JEDNYM wywołaniu na rolę: requester, bridge, target - bez 'all'", async () => {
+    await runExport();
+    // Do 2026-10-02: `[{ p_role: "all" }]` - wartość, którą baza odrzuca
+    // przez `ELSE FALSE`, więc sekcja była ZAWSZE pusta.
+    expect(rpc.callsFor("my_introduction_requests").map((call) => call.args)).toEqual([
+      { p_role: "requester" },
+      { p_role: "bridge" },
+      { p_role: "target" },
+    ]);
+  });
+
+  it("wiersze trzech ról w jednej liście, z rolą i wyłącznie polami kontraktu", async () => {
+    rpc.setResponse("my_introduction_requests", (call) =>
+      ok(BY_ROLE[String(call.arg("p_role"))] ?? []),
+    );
+
+    const { sections, manifest } = await runExport();
+
+    expect(sections.network_introductions).toEqual([
+      exported("requester", AS_REQUESTER),
+      exported("bridge", AS_BRIDGE),
+      exported("target", AS_TARGET),
+    ]);
+    // Awatary i pary slug / trasa innych osób nie są daną wołającego - nie
+    // jadą do pliku.
+    expect(JSON.stringify(sections.network_introductions)).not.toMatch(/avatar|_slug|_route/);
+    expect(manifest.groups.network_introductions).toBe("network");
+  });
+
+  it("`data: null` jednej roli to pusta część, nie błąd i nie `null` sekcji", async () => {
+    rpc.setResponse("my_introduction_requests", (call) =>
+      call.arg("p_role") === "bridge" ? ok(null) : ok(BY_ROLE[String(call.arg("p_role"))] ?? []),
+    );
+
+    const result = await runExport();
+
+    expect(result.sections.network_introductions).toEqual([
+      exported("requester", AS_REQUESTER),
+      exported("target", AS_TARGET),
+    ]);
+    expect(result).not.toHaveProperty("errors");
+  });
+
+  it("błąd JEDNEJ roli oblewa CAŁĄ sekcję - bez dwóch trzecich listy podpisanych jako komplet", async () => {
+    rpc.setResponse("my_introduction_requests", (call) =>
+      call.arg("p_role") === "target"
+        ? fail("permission denied for function my_introduction_requests", "42501")
+        : ok(BY_ROLE[String(call.arg("p_role"))] ?? []),
+    );
+
+    const result = await runExport();
+
+    expect(result.sections).not.toHaveProperty("network_introductions");
+    expect(result.errors).toEqual({
+      network_introductions: "permission denied for function my_introduction_requests",
+    });
+    expect(result.manifest.failed).toEqual(["network_introductions"]);
+    expect(result.sections.network_connections).toEqual([]);
+  });
+
+  it("błąd jako zwykły obiekt PostgREST (nie `Error`) daje jego `message`, nie `[object Object]`", async () => {
+    // supabase-js w trybie bez `throwOnError` oddaje `error` jako sparsowany
+    // JSON odpowiedzi - zwykły obiekt. `String(error)` dałoby "[object Object]".
+    rpc.setResponse("my_introduction_requests", () => ({
+      data: null,
+      // Kształt z `JSON.parse` odpowiedzi PostgREST - NIE instancja `Error`.
+      error: {
+        name: "PostgrestError",
+        message: "invalid introduction role: all",
+        code: "22023",
+        details: "",
+        hint: "",
+      },
+    }));
+
+    const result = await runExport();
+
+    expect(result.errors?.network_introductions).toBe("invalid introduction role: all");
+  });
+
+  it("odrzucenie (wyjątek) jednej roli: wpis w `errors`, reszta paczki przeżywa", async () => {
+    rpc.setResponse("my_introduction_requests", (call) => {
+      if (call.arg("p_role") === "bridge") throw new TypeError("fetch failed");
+      return ok([]);
+    });
+
+    const result = await runExport();
+
+    expect(result.errors).toEqual({ network_introductions: "TypeError: fetch failed" });
+    expect(result.sections.profile).toEqual(PROFILE_ROW);
   });
 });
 
@@ -609,11 +777,13 @@ describe("eksport RODO - awaria jest jawna, sekcja po sekcji", () => {
   });
 
   it("`data: null` bez błędu to jawne `null` w pliku, nie brak sekcji", async () => {
-    rpc.setData("my_introduction_requests", null);
+    // RPC przekazywane 1:1 (bez mapowania). Wprowadzenia przestały się tu
+    // nadawać: od 2026-10-02 sklejają trzy role i `null` roli to pusta część.
+    rpc.setData("list_recommendations", null);
 
     const result = await runExport();
 
-    expect(result.sections).toHaveProperty("network_introductions", null);
+    expect(result.sections).toHaveProperty("recommendations_received", null);
     expect(result).not.toHaveProperty("errors");
   });
 });

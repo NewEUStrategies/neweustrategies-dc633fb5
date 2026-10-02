@@ -20,6 +20,7 @@ import {
 } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { toProfileLink, type ProfileLink } from "@/lib/profile/profileLink";
 
 export type ProfileViewMode = "public" | "anonymous" | "private";
 
@@ -32,6 +33,13 @@ export interface ProfileViewer {
   job_title: string | null;
   company: string | null;
   viewed_at: string;
+  /**
+   * Dokąd prowadzi wiersz widza - para (trasa, slug) z bazy (`viewer_slug` /
+   * `viewer_route`, 20261002100000), wyłącznie dla widza `public`. `null` =
+   * nie linkuj. Nigdy `viewer_id`: `/author/<uuid>` omijał przekierowanie
+   * nie-autora na /people (porównuje tylko slug), a po F5 dawał trwałe 404.
+   */
+  viewer_link: ProfileLink | null;
 }
 
 export interface ProfileViewStats {
@@ -64,6 +72,9 @@ function toViewer(row: {
   job_title: string | null;
   company: string | null;
   viewed_at: string;
+  // Opcjonalne: na bazie sprzed 20261002100000 kolumn nie ma wcale.
+  viewer_slug?: string | null;
+  viewer_route?: string | null;
 }): ProfileViewer {
   const mode = VIEW_MODES.find((m) => m === row.viewer_mode) ?? "anonymous";
   return {
@@ -74,6 +85,9 @@ function toViewer(row: {
     job_title: row.job_title,
     company: row.company,
     viewed_at: row.viewed_at,
+    // Baza maskuje slug i trasę widza niepublicznego tak samo jak jego id;
+    // tryb sprawdzamy jeszcze raz, żeby nieznany tryb nigdy nie dostał linku.
+    viewer_link: mode === "public" ? toProfileLink(row.viewer_slug, row.viewer_route) : null,
   };
 }
 

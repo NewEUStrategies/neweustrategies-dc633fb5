@@ -37,6 +37,9 @@ const h = vi.hoisted(() => ({
   slugChecks: [] as Array<Array<[string, unknown]>>,
   updates: [] as Array<{ patch: Record<string, unknown>; filters: Array<[string, unknown]> }>,
   updateError: { current: null as { message: string } | null },
+  // Slug, który baza oddaje po zapisie (`.select("slug")`) - wyzwalacz
+  // 20261002110000 zastępuje pusty nick slugiem z imienia i nazwiska.
+  savedSlug: { current: null as string | null },
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -87,7 +90,15 @@ vi.mock("@/integrations/supabase/client", () => ({
         return {
           eq: (column: string, value: unknown) => {
             entry.filters.push([column, value]);
-            return Promise.resolve({ error: h.updateError.current });
+            return {
+              select: () => ({
+                maybeSingle: () =>
+                  Promise.resolve({
+                    data: h.updateError.current ? null : { slug: h.savedSlug.current },
+                    error: h.updateError.current,
+                  }),
+              }),
+            };
           },
         };
       },
@@ -179,6 +190,7 @@ beforeEach(() => {
   h.slugChecks.length = 0;
   h.updates.length = 0;
   h.updateError.current = null;
+  h.savedSlug.current = null;
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
 });
@@ -643,6 +655,19 @@ describe("zapis", () => {
 
     await waitFor(() => expect(h.updates).toHaveLength(1));
     expect(lastUpdate()?.patch.slug).toBeNull();
+  });
+
+  it("PUSTY slug: pole pokazuje slug, który baza nadała z imienia i nazwiska", async () => {
+    // Od 20261002110000 profil nie może zostać bez sluga - baza nadaje go
+    // z nazwy. Formularz ma pokazać adres, który naprawdę obowiązuje.
+    h.savedSlug.current = "anna-nowak";
+    await renderPanel();
+
+    saveForm();
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith("profile.social.saved"));
+    expect(lastUpdate()?.patch.slug).toBeNull();
+    expect(screen.getByLabelText("profile.social.slug")).toHaveValue("anna-nowak");
   });
 
   it("slug zapisuje się małymi literami i bez spacji na brzegach", async () => {

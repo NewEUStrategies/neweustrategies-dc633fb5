@@ -17,8 +17,8 @@
 //      startuje TREŚCIĄ WPISU - moderator zaczernia fragment, nie pisze wpisu
 //      od nowa - ale powód startuje pusty ZAWSZE.
 //   4. UJAWNIENIE AUTORA. Ładunek powstaje z PRZYCIĘTYM powodem i tylko wtedy,
-//      gdy próg został przyjęty; odnośnik do profilu istnieje wyłącznie, gdy
-//      RPC oddał sluga.
+//      gdy próg został przyjęty; odnośnik prowadzi do KARTY UŻYTKOWNIKA
+//      w panelu po id autora - nie do nieistniejącej trasy `/profile/<slug>`.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE. Progu powodu ujawnienia, rozbicia wsadu na typy
 // celu, listy akcji wymagających potwierdzenia i przełączania zaznaczenia - to
@@ -51,7 +51,7 @@ import {
   moderatorEditInitial,
   moderatorEditVars,
   revealAuthorVars,
-  revealProfileHref,
+  revealAuthorCardLink,
   unbanMemberVars,
   type ModerationLogEntry,
   type ModerationLogFilterState,
@@ -413,10 +413,17 @@ describe("ujawnienie autora - ładunek i wynik", () => {
     expect(revealAuthorVars(null, "wystarczająco długi powód", true)).toBeNull();
   });
 
-  it("odnośnik do profilu istnieje tylko wtedy, gdy RPC oddał sluga", () => {
-    expect(revealProfileHref("anna-nowak")).toBe("/profile/anna-nowak");
-    expect(revealProfileHref("")).toBeNull();
-    expect(revealProfileHref("   ")).toBeNull();
-    expect(revealProfileHref(null)).toBeNull();
+  it("odnośnik prowadzi do karty użytkownika w panelu PO ID, nie do profilu po slugu", () => {
+    // `/profile/<slug>` nie istnieje (pod /profile są tylko statyczne
+    // podstrony), a profil publiczny nie pokaże adminowi zwykłego członka.
+    expect(revealAuthorCardLink("user-member")).toEqual({
+      to: "/admin/users/$id",
+      params: { id: "user-member" },
+    });
+    expect(JSON.stringify(revealAuthorCardLink("user-member"))).not.toContain("/profile/");
+  });
+
+  it.each(["", "   ", null, undefined])("brak id autora (%j) - brak odnośnika", (id) => {
+    expect(revealAuthorCardLink(id)).toBeNull();
   });
 });

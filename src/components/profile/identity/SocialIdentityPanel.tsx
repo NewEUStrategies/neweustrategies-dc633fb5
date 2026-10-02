@@ -263,7 +263,7 @@ export function SocialIdentityPanel() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from("profiles")
       .update({
         slug,
@@ -277,12 +277,17 @@ export function SocialIdentityPanel() {
         spotify_url: data.spotify_url ?? null,
         contact_email: data.contact_email ?? null,
       })
-      .eq("id", user.id);
+      .eq("id", user.id)
+      .select("slug")
+      .maybeSingle();
     setBusy(false);
     if (error) {
       toast.error(error.message);
       return;
     }
+    // Pusty nick baza zastępuje slugiem z imienia i nazwiska (wyzwalacz
+    // 20261002110000) - pole ma pokazać adres, który naprawdę obowiązuje.
+    if (saved?.slug) setData((d) => ({ ...d, slug: saved.slug ?? "" }));
     toast.success(t("profile.social.saved"));
   };
 

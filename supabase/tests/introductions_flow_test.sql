@@ -1,4 +1,5 @@
--- pgTAP: przepływ wprowadzeń (migracje 20260724120000 i 20260913171000).
+-- pgTAP: przepływ wprowadzeń (migracje 20260724120000, 20260913171000
+-- i 20261002100000).
 --
 -- Sprawdza naprawione ścieżki: most 'forward' -> 'forwarded' i widoczność dla
 -- targetu z avatarem mostu; proszący 'withdraw' -> 'withdrawn'; brak ścieżki
@@ -28,7 +29,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(15);
+SELECT plan(31);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -327,6 +328,249 @@ SELECT throws_ok(
       'Zupelnie nowa prosba ponad limitem dobowym.')$$,
   'rate limited',
   'limit: NOWA prośba ponad limitem nadal odpada (kolejność nie luzuje kwoty)'
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Slug stron: to, co karta linkuje, MUSI rozwiązać /people/<slug> (20261002100000)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Do 20261002100000 RPC nie zwracało żadnego sluga, a karta podstawiała trasie
+-- /people/$slug identyfikator osoby. `get_member_profile` szuka wyłącznie po
+-- slugu (20260924100000:34-36), więc każdy link w każdej z trzech ról kończył
+-- się kartą "Nie znaleziono profilu". Ten blok zamyka łańcuch, którego nie
+-- pokrywał żaden test: WYJŚCIE `my_introduction_requests` -> WEJŚCIE
+-- `get_member_profile`. Sama obecność kolumny nie wystarcza - asercje pytają,
+-- czy zwrócony slug ROZWIĄZUJE właściwą osobę dla tego samego wołającego.
+--
+-- Trójka R3 -> B3 -> T3 z relacjami R3-B3 i B3-T3. Tylko cel ma `discoverable`:
+-- most i proszący są widoczni dla drugiej strony WYŁĄCZNIE przez połączenie,
+-- więc test pokrywa obie gałęzie bramki `get_member_profile` (połączenie dla
+-- bridge/target, discoverable dla requester). Trójki A1/B1/C1 nie da się tu
+-- użyć: nie jest połączona ani widoczna, więc padałaby na widoczności, nie na
+-- slugu.
+RESET ROLE;
+
+INSERT INTO auth.users (id, email) VALUES
+  ('d0000000-0000-0000-0000-0000000000a3', 'r3@intro.test'),
+  ('d0000000-0000-0000-0000-0000000000b3', 'b3@intro.test'),
+  ('d0000000-0000-0000-0000-0000000000c3', 't3@intro.test');
+
+INSERT INTO public.profiles (id, email, display_name, tenant_id, discoverable, slug) VALUES
+  ('d0000000-0000-0000-0000-0000000000a3', 'r3@intro.test', 'Requester 3',
+   'd1a11111-1111-1111-1111-111111111111', false, 'intro-r3'),
+  ('d0000000-0000-0000-0000-0000000000b3', 'b3@intro.test', 'Bridge 3',
+   'd1a11111-1111-1111-1111-111111111111', false, 'intro-b3'),
+  ('d0000000-0000-0000-0000-0000000000c3', 't3@intro.test', 'Target 3',
+   'd1a11111-1111-1111-1111-111111111111', true, 'intro-t3');
+
+-- Jak wyżej: wstawka w 'pending', dopiero potem przejście na 'accepted'.
+INSERT INTO public.user_connections (requester_id, addressee_id) VALUES
+  ('d0000000-0000-0000-0000-0000000000a3', 'd0000000-0000-0000-0000-0000000000b3'),
+  ('d0000000-0000-0000-0000-0000000000b3', 'd0000000-0000-0000-0000-0000000000c3');
+UPDATE public.user_connections
+   SET status = 'accepted', responded_at = now()
+ WHERE requester_id IN ('d0000000-0000-0000-0000-0000000000a3',
+                        'd0000000-0000-0000-0000-0000000000b3');
+
+-- Przekazana prośba - tylko taką widzi rola `target`.
+INSERT INTO public.introduction_requests
+  (id, tenant_id, requester_id, bridge_id, target_id, message, status) VALUES
+  ('11110000-0000-0000-0000-000000000003', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000a3', 'd0000000-0000-0000-0000-0000000000b3',
+   'd0000000-0000-0000-0000-0000000000c3', 'Prosze o wprowadzenie do celu numer trzy.',
+   'pending');
+UPDATE public.introduction_requests SET status = 'forwarded'
+ WHERE id = '11110000-0000-0000-0000-000000000003';
+
+SET LOCAL ROLE authenticated;
+
+-- ── Most widzi proszącego (widoczność przez połączenie) ────────────────────
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000b3","role":"authenticated"}', true);
+SELECT is(
+  (SELECT ARRAY[requester_slug, requester_route] FROM public.my_introduction_requests('bridge')
+     WHERE id = '11110000-0000-0000-0000-000000000003'),
+  ARRAY['intro-r3', 'people'],
+  'bridge: RPC zwraca slug proszącego i trasę /people (nie-autor, połączony)'
+);
+SELECT is(
+  (SELECT public.get_member_profile(requester_slug) ->> 'id'
+     FROM public.my_introduction_requests('bridge')
+    WHERE id = '11110000-0000-0000-0000-000000000003'),
+  'd0000000-0000-0000-0000-0000000000a3',
+  'bridge: slug proszącego ROZWIĄZUJE /people/<slug> na tę samą osobę'
+);
+-- Mechanizm defektu wprost: id nie jest slugiem.
+SELECT ok(
+  public.get_member_profile('d0000000-0000-0000-0000-0000000000a3') IS NULL,
+  'bridge: /people/<uuid> NIE rozwiązuje profilu - stąd slug, a nie id'
+);
+
+-- ── Proszący widzi cel (widoczność przez discoverable) ─────────────────────
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
+SELECT is(
+  (SELECT public.get_member_profile(target_slug) ->> 'id'
+     FROM public.my_introduction_requests('requester')
+    WHERE id = '11110000-0000-0000-0000-000000000003'),
+  'd0000000-0000-0000-0000-0000000000c3',
+  'requester: slug celu ROZWIĄZUJE /people/<slug> na cel'
+);
+
+-- ── Cel widzi most (widoczność przez połączenie) ───────────────────────────
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000c3","role":"authenticated"}', true);
+SELECT is(
+  (SELECT public.get_member_profile(bridge_slug) ->> 'id'
+     FROM public.my_introduction_requests('target')
+    WHERE id = '11110000-0000-0000-0000-000000000003'),
+  'd0000000-0000-0000-0000-0000000000b3',
+  'target: slug mostu ROZWIĄZUJE /people/<slug> na most'
+);
+
+-- ── Slug, który by się NIE rozwiązał, nie wychodzi z bazy ───────────────────
+-- Cel zdejmuje `discoverable` PO przekazaniu prośby. Proszący nie jest z nim
+-- połączony (z definicji wprowadzenia), więc /people/intro-t3 skończyłoby się
+-- 404 - RPC ma oddać NULL, żeby karta pokazała tekst, a nie martwy link.
+RESET ROLE;
+UPDATE public.profiles SET discoverable = false
+ WHERE id = 'd0000000-0000-0000-0000-0000000000c3';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000a3","role":"authenticated"}', true);
+SELECT ok(
+  (SELECT target_slug IS NULL AND target_route IS NULL AND target_name = 'Target 3'
+     FROM public.my_introduction_requests('requester')
+    WHERE id = '11110000-0000-0000-0000-000000000003'),
+  'requester: cel bez discoverable - slug i trasa NULL (bez martwego linku), nazwa zostaje'
+);
+
+-- Most, którego cel nie zobaczy (A1/B1/C1: bez połączeń i bez discoverable;
+-- slug B1 nadaje wyzwalacz 20261002110000) - NULL, a nie '' ani id.
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
+SELECT ok(
+  (SELECT bridge_slug IS NULL
+     FROM public.my_introduction_requests('target')
+    WHERE id = '11110000-0000-0000-0000-000000000001'),
+  'target: most, którego cel nie zobaczy - bridge_slug NULL, nigdy zastępcze id'
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Eksport RODO: trzy role zamiast 'all' (src/lib/profile/export.functions.ts)
+-- ═══════════════════════════════════════════════════════════════════════════
+--
+-- Eksport wołał `my_introduction_requests('all')`, a funkcja rozstrzyga rolę
+-- przez `CASE ... ELSE FALSE` - sekcja `network_introductions` była od
+-- początku pustą listą bez błędu. Eksport woła teraz trzy role i skleja
+-- wyniki BEZ deduplikacji, więc kontrakt bazy, na którym to stoi, jest tu
+-- przypięty: role w jednym wierszu są rozłączne (CHECK), trzy wywołania dają
+-- komplet próśb osoby, cel nadal nie widzi próśb nieprzekazanych, a rola
+-- spoza trzech jest BŁĘDEM (20261002100000), nie cichą pustą listą.
+RESET ROLE;
+
+INSERT INTO auth.users (id, email) VALUES
+  ('d0000000-0000-0000-0000-0000000000e4', 'x4@intro.test');
+INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
+  ('d0000000-0000-0000-0000-0000000000e4', 'x4@intro.test', 'Export X',
+   'd1a11111-1111-1111-1111-111111111111');
+
+INSERT INTO public.introduction_requests
+  (id, tenant_id, requester_id, bridge_id, target_id, message, status, created_at) VALUES
+  ('11110000-0000-0000-0000-0000000000e1', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000e4', 'd0000000-0000-0000-0000-0000000000b1',
+   'd0000000-0000-0000-0000-0000000000c1', 'X prosi most B1 o wprowadzenie do C1.', 'pending',
+   now() - interval '1 day'),
+  ('11110000-0000-0000-0000-0000000000e2', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000a1', 'd0000000-0000-0000-0000-0000000000e4',
+   'd0000000-0000-0000-0000-0000000000c1', 'A1 prosi X (most) o wprowadzenie do C1.', 'declined',
+   now() - interval '2 day'),
+  ('11110000-0000-0000-0000-0000000000e3', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000a1', 'd0000000-0000-0000-0000-0000000000b1',
+   'd0000000-0000-0000-0000-0000000000e4', 'A1 przez B1 do X - przekazana dalej.', 'forwarded',
+   now() - interval '3 day'),
+  ('11110000-0000-0000-0000-0000000000e4', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000c1', 'd0000000-0000-0000-0000-0000000000b1',
+   'd0000000-0000-0000-0000-0000000000e4', 'C1 przez B1 do X - ODRZUCONA-POUFNE.', 'declined',
+   now() - interval '4 day'),
+  ('11110000-0000-0000-0000-0000000000e5', 'd1a11111-1111-1111-1111-111111111111',
+   'd0000000-0000-0000-0000-0000000000d1', 'd0000000-0000-0000-0000-0000000000b1',
+   'd0000000-0000-0000-0000-0000000000e4', 'D1 przez B1 do X - OCZEKUJE-POUFNE.', 'pending',
+   now() - interval '5 day');
+
+SELECT throws_ok(
+  $$INSERT INTO public.introduction_requests (tenant_id, requester_id, bridge_id, target_id, message)
+    VALUES ('d1a11111-1111-1111-1111-111111111111',
+            'd0000000-0000-0000-0000-0000000000e4', 'd0000000-0000-0000-0000-0000000000e4',
+            'd0000000-0000-0000-0000-0000000000c1', 'Ta sama osoba jako proszacy i most.')$$,
+  '23514', NULL,
+  'check: jedna osoba nie ma dwóch ról w jednym wierszu - role eksportu są rozłączne'
+);
+
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims',
+  '{"sub":"d0000000-0000-0000-0000-0000000000e4","role":"authenticated"}', true);
+
+SELECT results_eq(
+  $$SELECT r.role, m.id
+      FROM unnest(ARRAY['requester', 'bridge', 'target']) WITH ORDINALITY AS r(role, ord)
+     CROSS JOIN LATERAL public.my_introduction_requests(r.role) AS m
+     ORDER BY r.ord, m.created_at DESC$$,
+  $$VALUES ('requester', '11110000-0000-0000-0000-0000000000e1'::uuid),
+           ('bridge',    '11110000-0000-0000-0000-0000000000e2'::uuid),
+           ('target',    '11110000-0000-0000-0000-0000000000e3'::uuid)$$,
+  'eksport: trzy role dają komplet próśb osoby, każdą DOKŁADNIE raz'
+);
+
+SELECT is(
+  (SELECT count(*)::int FROM public.my_introduction_requests('target')
+    WHERE status <> 'forwarded'),
+  0,
+  'eksport: cel nie widzi prośby odrzuconej ani oczekującej (art. 15 ust. 4)'
+);
+
+-- RLS `intro_read` (20261002100000): ta sama obietnica przy ODCZYCIE TABELI
+-- WPROST. Do tej migracji polityka wpuszczała cel do każdego wiersza z jego
+-- `target_id`, a `authenticated` ma SELECT na wszystkich kolumnach - zwykłe
+-- GET /rest/v1/introduction_requests pokazywało celowi prośby odrzucone
+-- i oczekujące razem z treścią do mostu. RPC było więc jedyną, a nie
+-- prawdziwą granicą.
+SELECT is(
+  (SELECT count(*)::int FROM public.introduction_requests
+    WHERE target_id = 'd0000000-0000-0000-0000-0000000000e4' AND status <> 'forwarded'),
+  0,
+  'rls: cel nie czyta wprost próśb odrzuconych ani oczekujących'
+);
+SELECT is(
+  (SELECT array_agg(id ORDER BY id) FROM public.introduction_requests
+    WHERE target_id = 'd0000000-0000-0000-0000-0000000000e4'),
+  ARRAY['11110000-0000-0000-0000-0000000000e3'::uuid],
+  'rls: cel nadal czyta wprost prośbę PRZEKAZANĄ'
+);
+SELECT is(
+  (SELECT array_agg(id ORDER BY id) FROM public.introduction_requests
+    WHERE requester_id = 'd0000000-0000-0000-0000-0000000000e4'
+       OR bridge_id = 'd0000000-0000-0000-0000-0000000000e4'),
+  ARRAY['11110000-0000-0000-0000-0000000000e1'::uuid, '11110000-0000-0000-0000-0000000000e2'::uuid],
+  'rls: proszący i most czytają swoje prośby w każdym statusie (bez zmian)'
+);
+
+SELECT throws_ok(
+  $$SELECT * FROM public.my_introduction_requests('all')$$,
+  '22023', NULL,
+  'rola: "all" to błąd 22023, nie cicha pusta lista'
+);
+
+SELECT throws_ok(
+  $$SELECT * FROM public.my_introduction_requests(NULL)$$,
+  '22023', NULL,
+  'rola: NULL to błąd 22023, nie cicha pusta lista'
+);
+
+-- DROP + CREATE zeruje ACL - REVOKE z 20260724111107 trzeba było postawić znowu.
+SELECT ok(
+  NOT has_function_privilege('anon', 'public.my_introduction_requests(text)', 'EXECUTE'),
+  'acl: anon nie wykonuje my_introduction_requests'
 );
 
 SELECT * FROM finish();

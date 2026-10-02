@@ -288,6 +288,45 @@ describe("wyświetlenia profilu", () => {
     expect(h.rpc).toHaveBeenCalledWith("my_profile_viewers", { p_limit: 7 });
   });
 
+  it("lista widzów: link (slug + trasa) WYŁĄCZNIE dla widza publicznego, nigdy po id", async () => {
+    const row = (over: Record<string, unknown>) => ({
+      viewer_id: "v1",
+      viewer_mode: "public",
+      display_name: "Anna",
+      avatar_url: null,
+      job_title: null,
+      company: null,
+      viewed_at: "2026-04-01T12:00:00Z",
+      ...over,
+    });
+    h.rpc.mockImplementation(() =>
+      ok([
+        row({ viewer_slug: "anna", viewer_route: "people" }),
+        row({ viewer_slug: "anna", viewer_route: "author" }),
+        row({
+          viewer_mode: "anonymous",
+          viewer_id: null,
+          viewer_slug: "leak",
+          viewer_route: "people",
+        }),
+        row({ viewer_slug: "  ", viewer_route: "people" }),
+        row({ viewer_slug: "anna", viewer_route: "weird" }),
+        row({}),
+      ]),
+    );
+    const client = makeClient();
+    const { result } = renderHook(() => useMyProfileViewers(20), { wrapper: wrapperFor(client) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.map((v) => v.viewer_link)).toEqual([
+      { route: "people", slug: "anna" },
+      { route: "author", slug: "anna" },
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
   it("statystyki normalizują liczby, a brak wiersza daje null", async () => {
     h.rpc.mockImplementation(() => ok([{ last_7: "3", last_30: null, last_90: 9 }]));
     const client = makeClient();
@@ -368,6 +407,8 @@ describe("rekomendacje", () => {
           body: null,
           status: "banana",
           created_at: "2026-01-01T00:00:00Z",
+          author_slug: "ewa-autorka",
+          author_route: "people",
         },
       ]),
     );
@@ -386,7 +427,38 @@ describe("rekomendacje", () => {
       body: "",
       status: "pending",
       created_at: "2026-01-01T00:00:00Z",
+      author_link: { route: "people", slug: "ewa-autorka" },
     });
+  });
+
+  it.each([
+    { label: "pusty slug", cols: { author_slug: "  ", author_route: "author" } },
+    { label: "nieznana trasa", cols: { author_slug: "ewa-autorka", author_route: "admin" } },
+    { label: "brak trasy", cols: { author_slug: "ewa-autorka", author_route: null } },
+    { label: "baza sprzed migracji (brak kolumn)", cols: {} },
+  ])("rekomendacja: $label -> author_link null (nigdy author_id)", async ({ cols }) => {
+    h.rpc.mockImplementation(() =>
+      ok([
+        {
+          id: "r1",
+          author_id: "a1",
+          author_name: "Ewa",
+          author_avatar: null,
+          author_headline: null,
+          relationship: "colleague",
+          body: "Tresc",
+          status: "published",
+          created_at: "2026-01-01T00:00:00Z",
+          ...cols,
+        },
+      ]),
+    );
+    const client = makeClient();
+    const { result } = renderHook(() => useRecommendations("peer-1"), {
+      wrapper: wrapperFor(client),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.[0]?.author_link).toBeNull();
   });
 
   // Ta sama lista wygląda inaczej zależnie od pytającego (autor widzi swoje

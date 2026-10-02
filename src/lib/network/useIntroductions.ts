@@ -29,9 +29,30 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
+import type { IntroductionRole } from "./introductionRoles";
 
 type Fns = Database["public"]["Functions"];
-export type IntroductionRow = Fns["my_introduction_requests"]["Returns"][number];
+type IntroductionRowRaw = Fns["my_introduction_requests"]["Returns"][number];
+
+/** Pary slug / trasa trzech stron (20261002100000). */
+type PartyLinkColumn =
+  | "requester_slug"
+  | "requester_route"
+  | "target_slug"
+  | "target_route"
+  | "bridge_slug"
+  | "bridge_route";
+
+/**
+ * Wiersz `my_introduction_requests` z UCZCIWYM typem linku. Generator typuje
+ * kolumny tekstowe RETURNS TABLE jako `string`, ale baza oddaje tu NULL zawsze,
+ * gdy żadna trasa nie pokaże tej osoby wołającemu (brak sluga, profil
+ * niewidoczny) - a klient nie może wtedy linkować. Typ wymusza obsługę braku
+ * w miejscu użycia (`toProfileLink`) zamiast cichego `/people/null`.
+ */
+export type IntroductionRow = Omit<IntroductionRowRaw, PartyLinkColumn> & {
+  [K in PartyLinkColumn]: string | null;
+};
 
 /**
  * Rola z perspektywy zalogowanego użytkownika. WYMAGANA i bez wartości "all".
@@ -48,8 +69,14 @@ export type IntroductionRow = Fns["my_introduction_requests"]["Returns"][number]
  * która nigdy nie ma sensu, nie powinna dać się wpisać. Rola bez domyślnej
  * znaczy też, że każde nowe wywołanie MUSI rozstrzygnąć, o czyje wprowadzenia
  * pyta - a kompilator wskazuje miejsca, które tego nie zrobiły.
+ *
+ * Typ nie sięgał jednak wywołań przez surowe `supabase.rpc` z `string`:
+ * eksport RODO wołał `p_role: "all"` i do 2026-10-02 zawsze oddawał pustą
+ * sekcję. Dlatego role mieszkają w `introductionRoles.ts` (czytanym także
+ * przez server fn), a baza od 20261002100000 odrzuca rolę spoza trzech
+ * błędem 22023 zamiast `ELSE FALSE` - pusta lista znaczy już "nic nie ma".
  */
-export type IntroductionRole = "requester" | "bridge" | "target";
+export type { IntroductionRole };
 
 /** Status wiersza introduction_requests (zgodny z CHECK w bazie). */
 export type IntroductionStatus = "pending" | "forwarded" | "declined" | "withdrawn";
