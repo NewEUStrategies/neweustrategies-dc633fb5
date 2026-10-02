@@ -20,6 +20,13 @@ import {
 import { z } from "zod";
 import { looseClient, looseTable, rowsOf, fetchRows } from "@/lib/supabase/looseQuery";
 import {
+  chunked,
+  emailLookupValues,
+  matchLeadAvatars,
+  type LeadEmailRow,
+  type ProfileAvatarRow,
+} from "@/lib/crm/leadAvatars";
+import {
   LeadListFilterSchema,
   LeadSortDirSchema,
   LeadSortKeySchema,
@@ -1008,6 +1015,24 @@ export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
     return { ok: true, deleted: data.ids.length };
   });
 
+// Tenant wołającego dla zapytań spod service-role: z jego profilu pod RLS, NIE
+// z tokenu (powód niżej, przy listStaffUsers). Wspólny dla listStaffUsers
+// i getCrmLeadAvatars - obie funkcje stawiają na nim jedyną granicę najemcy.
+async function resolveCallerTenantId(context: {
+  readonly supabase: unknown;
+  readonly userId: string;
+}): Promise<string> {
+  const { data: tenantRow, error: tenantErr } = await looseTable(context, "profiles")
+    .select("tenant_id")
+    .eq("id", context.userId)
+    .maybeSingle();
+  if (tenantErr) throw new Error(tenantErr.message);
+  const tenantId = (tenantRow as { tenant_id?: string } | null)?.tenant_id;
+  // Brak tenanta = ODMOWA, nigdy "pokaż wszystko". To jest istota poprawki.
+  if (!tenantId) throw new Error("tenant_unresolved");
+  return tenantId;
+}
+
 // Lista staffu do pickera "właściciela" - profile użytkowników z rolami
 // CRM (admin/editor/super_admin) W TENANCIE WOŁAJĄCEGO.
 //
@@ -1024,15 +1049,7 @@ export const bulkDeleteCrmLeads = createServerFn({ method: "POST" })
 export const listStaffUsers = createServerFn({ method: "GET" })
   .middleware([requireCrmStaff])
   .handler(async ({ context }) => {
-    const userId = (context as { userId: string }).userId;
-    const { data: tenantRow, error: tenantErr } = await looseTable(context, "profiles")
-      .select("tenant_id")
-      .eq("id", userId)
-      .maybeSingle();
-    if (tenantErr) throw new Error(tenantErr.message);
-    const tenantId = (tenantRow as { tenant_id?: string } | null)?.tenant_id;
-    // Brak tenanta = ODMOWA, nigdy "pokaż wszystko". To jest istota poprawki.
-    if (!tenantId) throw new Error("tenant_unresolved");
+    const tenantId = await resolveCallerTenantId(context);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = looseClient({ supabase: supabaseAdmin });
@@ -1067,4 +1084,83 @@ export const listStaffUsers = createServerFn({ method: "GET" })
 
     const rows = (profRes.data as Array<Record<string, unknown>>) ?? [];
     return { json: j(rows) };
+  });
+
+// Zdjęcia profilowe leadów na liście CRM (`/admin/crm`).
+//
+// Przeglądarka nie może tego zrobić sama: dopasowanie idzie po `profiles.email`
+// i `profiles.contact_email`, które celowo nie mają grantu SELECT dla
+// `authenticated` (20260801120000_restore_min_profile_grants.sql). Zapytanie
+// klientem kończyło się 42501 i - przy ignorowanym `error` - listą bez zdjęć.
+// Reguła dopasowania mieszka w lib/crm/leadAvatars.ts.
+//
+// WEJŚCIEM SĄ ID LEADÓW, NIE ADRESY. Endpoint przyjmujący dowolne adresy byłby
+// dla każdego staffu CRM wyrocznią „czy ten e-mail należy do członka" - czyli
+// obejściem tego samego grantu kolumnowego. Adresy czytamy więc sami, pod RLS
+// i z filtrem tenanta: lookup dotyczy wyłącznie leadów, które wołający i tak
+// widzi na liście.
+//
+// GRANICA NAJEMCY. Tenant z profilu wołającego (jak w listStaffUsers), a
+// `.eq("tenant_id", tenantId)` stoi na OBU zapytaniach - na leadach obok RLS,
+// na profilach spod service-role jako jedyna granica; nie wolno jej uwarunkować.
+// Leady innych najemców (zakres super admina „wszystkie tenanty") zostają bez
+// zdjęcia: inicjały zamiast lookupu poza tenantem wołającego.
+//
+// Błąd odczytu wychodzi na zewnątrz - klient pokazuje go zamiast cichego braku
+// zdjęć.
+const LeadAvatarsInput = z.object({
+  // Górna granica = maksymalny rozmiar strony listy (ListInput.limit).
+  lead_ids: z.array(z.string().uuid()).max(500),
+});
+// Lista w `.in()` jedzie w adresie URL zapytania PostgREST - porcje trzymają go
+// w bezpiecznej długości także przy stronie 200-500 leadów.
+const LEAD_AVATAR_CHUNK = 100;
+
+export const getCrmLeadAvatars = createServerFn({ method: "POST" })
+  .middleware([requireCrmStaff])
+  .validator((d) => LeadAvatarsInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const ids = [...new Set(data.lead_ids)];
+    if (ids.length === 0) return { avatars: [] };
+    const tenantId = await resolveCallerTenantId(context);
+
+    const leads: LeadEmailRow[] = [];
+    for (const part of chunked(ids, LEAD_AVATAR_CHUNK)) {
+      const res = await looseTable(context, "crm_leads")
+        .select("id, email, email_norm")
+        .eq("tenant_id", tenantId)
+        .in("id", part)
+        .returns<LeadEmailRow>();
+      if (res.error) throw new Error(res.error.message);
+      leads.push(...rowsOf(res));
+    }
+    const values = emailLookupValues(leads);
+    if (values.length === 0) return { avatars: [] };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = looseClient({ supabase: supabaseAdmin });
+    const lookup = async (column: "email" | "contact_email", part: string[]) => {
+      const res = await admin
+        .from("profiles")
+        .select("email, contact_email, avatar_url")
+        .eq("tenant_id", tenantId)
+        .in(column, part)
+        .not("avatar_url", "is", null)
+        .order("id", { ascending: true })
+        .returns<ProfileAvatarRow>();
+      if (res.error) throw new Error(res.error.message);
+      return rowsOf(res);
+    };
+
+    const byEmail: ProfileAvatarRow[] = [];
+    const byContactEmail: ProfileAvatarRow[] = [];
+    for (const part of chunked(values, LEAD_AVATAR_CHUNK)) {
+      const [primary, contact] = await Promise.all([
+        lookup("email", part),
+        lookup("contact_email", part),
+      ]);
+      byEmail.push(...primary);
+      byContactEmail.push(...contact);
+    }
+    return { avatars: matchLeadAvatars(leads, byEmail, byContactEmail) };
   });

@@ -18,6 +18,7 @@ import {
   callServerFn,
   type ServerFnContext,
   serverFnMiddlewareNames,
+  validateServerFnInput,
 } from "@/test/serverFnHarness";
 
 vi.mock("@tanstack/react-start", async () => {
@@ -809,6 +810,192 @@ describe("lista właścicieli (staff picker)", () => {
     await expect(callServerFn(crm.listStaffUsers, { context: context() })).rejects.toThrow(
       "invalid input value for enum app_role",
     );
+  });
+});
+
+describe("getCrmLeadAvatars", () => {
+  // Wcześniej lista pytała o `profiles.email`/`contact_email` klientem
+  // przeglądarki. Te kolumny nie mają grantu SELECT dla `authenticated`, więc
+  // PostgREST odrzucał całe zapytanie (42501), a ignorowany `error` dawał
+  // listę bez zdjęć. Teraz lookup idzie tu: service-role, zawężony do tenanta.
+  const SECOND_ID = "55555555-5555-4555-8555-555555555555";
+  const avatarsOf = (result: unknown) => (result as { avatars: unknown[] }).avatars;
+  const inColumn = (chain: { argsOf(m: string): ReadonlyArray<unknown> | undefined }) =>
+    chain.argsOf("in")?.[0];
+
+  const planTenantAndLeads = (leads: unknown[]) => {
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => ok(leads));
+  };
+
+  it("dopasowuje zdjęcia po e-mailu i oddaje je po id leada", async () => {
+    planTenantAndLeads([
+      { id: LEAD_ID, email: "Anna@Example.test", email_norm: "anna@example.test" },
+      { id: SECOND_ID, email: "bartek@example.test", email_norm: "bartek@example.test" },
+    ]);
+    admin.setResponse("profiles", (chain) =>
+      inColumn(chain) === "email"
+        ? ok([
+            {
+              email: "anna@example.test",
+              contact_email: null,
+              avatar_url: "https://cdn.test/a.png",
+            },
+          ])
+        : ok([
+            {
+              email: "inny@example.test",
+              contact_email: "bartek@example.test",
+              avatar_url: "https://cdn.test/b.png",
+            },
+          ]),
+    );
+    const result = await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: [LEAD_ID, SECOND_ID] },
+      context: context(),
+    });
+    expect(avatarsOf(result)).toEqual([
+      { lead_id: LEAD_ID, avatar_url: "https://cdn.test/a.png" },
+      { lead_id: SECOND_ID, avatar_url: "https://cdn.test/b.png" },
+    ]);
+  });
+
+  it("OBA zapytania stoją na tenancie wołającego - spod service-role to jedyna granica", async () => {
+    planTenantAndLeads([
+      { id: LEAD_ID, email: "anna@example.test", email_norm: "anna@example.test" },
+    ]);
+    admin.setResponse("profiles", () => ok([]));
+    await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: [LEAD_ID] },
+      context: context(),
+    });
+    // Leady: user-scoped klient (RLS) + jawny filtr tenanta + id z wejścia.
+    const leadChain = lead.lastChain("crm_leads");
+    expect(leadChain?.argsOf("eq")).toEqual(["tenant_id", TENANT]);
+    expect(leadChain?.argsOf("in")).toEqual(["id", [LEAD_ID]]);
+    // Profile: po jednym zapytaniu na kolumnę adresu, każde zawężone do tenanta.
+    const profileChains = admin.chainsFor("profiles");
+    expect(profileChains.map(inColumn).sort()).toEqual(["contact_email", "email"]);
+    for (const chain of profileChains) {
+      expect(chain.argsOf("eq")).toEqual(["tenant_id", TENANT]);
+      expect(chain.argsOf("not")).toEqual(["avatar_url", "is", null]);
+    }
+  });
+
+  it("adresy do lookupu pochodzą z leadów tenanta, nie z wejścia", async () => {
+    // Wejściem są id. Endpoint przyjmujący adresy byłby wyrocznią „czy ten
+    // e-mail należy do członka" - obejściem grantu kolumnowego.
+    planTenantAndLeads([
+      { id: LEAD_ID, email: " Anna@Example.test ", email_norm: "anna@example.test" },
+    ]);
+    admin.setResponse("profiles", () => ok([]));
+    await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: [LEAD_ID] },
+      context: context(),
+    });
+    for (const chain of admin.chainsFor("profiles")) {
+      expect(chain.argsOf("in")?.[1]).toEqual(["anna@example.test", "Anna@Example.test"]);
+    }
+  });
+
+  it("odpowiedź nie niesie adresów profilu - tylko id leada i avatar_url", async () => {
+    planTenantAndLeads([
+      { id: LEAD_ID, email: "anna@example.test", email_norm: "anna@example.test" },
+    ]);
+    admin.setResponse("profiles", () =>
+      ok([
+        {
+          email: "anna@example.test",
+          contact_email: "prywatny@example.test",
+          avatar_url: "https://cdn.test/a.png",
+        },
+      ]),
+    );
+    const result = await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: [LEAD_ID] },
+      context: context(),
+    });
+    expect(JSON.stringify(result)).not.toContain("prywatny@example.test");
+  });
+
+  it("pusta strona nie pyta bazy w ogóle", async () => {
+    const result = await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: [] },
+      context: context(),
+    });
+    expect(avatarsOf(result)).toEqual([]);
+    expect(lead.chains).toHaveLength(0);
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("bez tenanta w profilu ODMAWIA, zanim dotknie profili spod service-role", async () => {
+    lead.setResponse("profiles", () => ok(null));
+    await expect(
+      callServerFn(crm.getCrmLeadAvatars, { data: { lead_ids: [LEAD_ID] }, context: context() }),
+    ).rejects.toThrow("tenant_unresolved");
+    expect(lead.chainsFor("crm_leads")).toHaveLength(0);
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("id spoza tenanta (zero leadów) nie uruchamia lookupu profili", async () => {
+    planTenantAndLeads([]);
+    const result = await callServerFn(crm.getCrmLeadAvatars, {
+      data: { lead_ids: [OTHER_ID] },
+      context: context(),
+    });
+    expect(avatarsOf(result)).toEqual([]);
+    expect(admin.chains).toHaveLength(0);
+  });
+
+  it("błąd odczytu leadów wychodzi na zewnątrz", async () => {
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    lead.setResponse("crm_leads", () => fail("permission denied for table crm_leads", "42501"));
+    await expect(
+      callServerFn(crm.getCrmLeadAvatars, { data: { lead_ids: [LEAD_ID] }, context: context() }),
+    ).rejects.toThrow("permission denied for table crm_leads");
+  });
+
+  it("błąd odczytu profili wychodzi na zewnątrz, nie zamienia się w brak zdjęć", async () => {
+    planTenantAndLeads([
+      { id: LEAD_ID, email: "anna@example.test", email_norm: "anna@example.test" },
+    ]);
+    admin.setResponse("profiles", () => fail("permission denied for table profiles", "42501"));
+    await expect(
+      callServerFn(crm.getCrmLeadAvatars, { data: { lead_ids: [LEAD_ID] }, context: context() }),
+    ).rejects.toThrow("permission denied for table profiles");
+  });
+
+  it("dzieli długą stronę na porcje - lista `.in()` jedzie w adresie URL", async () => {
+    const ids = Array.from(
+      { length: 150 },
+      (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+    );
+    lead.setResponse("profiles", () => ok({ tenant_id: TENANT }));
+    lead.setResponse("crm_leads", (chain) =>
+      ok(
+        (chain.argsOf("in")?.[1] as string[]).map((id) => ({
+          id,
+          email: `${id}@example.test`,
+          email_norm: `${id}@example.test`,
+        })),
+      ),
+    );
+    admin.setResponse("profiles", () => ok([]));
+    await callServerFn(crm.getCrmLeadAvatars, { data: { lead_ids: ids }, context: context() });
+    expect(
+      lead.chainsFor("crm_leads").map((c) => (c.argsOf("in")?.[1] as string[]).length),
+    ).toEqual([100, 50]);
+    // 150 adresów (już małymi literami) -> 2 porcje x 2 kolumny.
+    expect(admin.chainsFor("profiles")).toHaveLength(4);
+  });
+
+  it("walidator odbija id spoza UUID i stronę ponad maksymalny rozmiar", () => {
+    expect(() => validateServerFnInput(crm.getCrmLeadAvatars, { lead_ids: ["x"] })).toThrow();
+    expect(() =>
+      validateServerFnInput(crm.getCrmLeadAvatars, {
+        lead_ids: Array.from({ length: 501 }, () => LEAD_ID),
+      }),
+    ).toThrow();
   });
 });
 
