@@ -117,12 +117,10 @@ const OWNER_ONLY = new Set<string>(OWNER_ONLY_PROFILE_COLUMNS);
  * Lista może tylko maleć: wpis, który przestał naruszać, oblewa samokontrolę
  * niżej. Nowego wpisu nie dodaje się zamiast poprawki.
  */
-const KNOWN_VIOLATIONS: Readonly<Record<string, string>> = {
-  // Awatary leadów CRM szukane po `email`/`contact_email` cudzych profili.
-  // Wymaga serwerowego wyszukiwania (service_role albo RPC staffu), nie
-  // otwarcia grantu - osobna poprawka.
-  "src/routes/admin.crm.index.tsx": "email, contact_email",
-};
+// Pusta od 2026-10-02: awatary leadów CRM idą już serwerem (3a656f1), więc
+// `admin.crm.index.tsx` przestał czytać `email` / `contact_email` cudzych
+// profili, a samokontrola niżej kazała zdjąć jego wpis.
+const KNOWN_VIOLATIONS: Readonly<Record<string, string>> = {};
 
 describe("klientowe selecty na `profiles` tylko z kolumn z grantem", () => {
   const all = sourceFiles().flatMap((file) => profileSelects(file, readFileSync(file, "utf8")));

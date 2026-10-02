@@ -267,6 +267,7 @@ import { Route as ApiPublicTrackRouteImport } from './routes/api/public/track'
 import { Route as ApiPublicSponsorEventRouteImport } from './routes/api/public/sponsor-event'
 import { Route as ApiPublicRelatedClickRouteImport } from './routes/api/public/related-click'
 import { Route as ApiPublicPostTtsRouteImport } from './routes/api/public/post-tts'
+import { Route as ApiPublicPostDwellRouteImport } from './routes/api/public/post-dwell'
 import { Route as ApiPublicPopupEventRouteImport } from './routes/api/public/popup-event'
 import { Route as ApiPublicNlOpenRouteImport } from './routes/api/public/nl-open'
 import { Route as ApiPublicNlClickRouteImport } from './routes/api/public/nl-click'
@@ -1726,6 +1727,11 @@ const ApiPublicPostTtsRoute = ApiPublicPostTtsRouteImport.update({
   path: '/api/public/post-tts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPostDwellRoute = ApiPublicPostDwellRouteImport.update({
+  id: '/api/public/post-dwell',
+  path: '/api/public/post-dwell',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPopupEventRoute = ApiPublicPopupEventRouteImport.update({
   id: '/api/public/popup-event',
   path: '/api/public/popup-event',
@@ -2898,6 +2904,7 @@ export interface FileRoutesByFullPath {
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
+  '/api/public/post-dwell': typeof ApiPublicPostDwellRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
   '/api/public/sponsor-event': typeof ApiPublicSponsorEventRoute
@@ -3298,6 +3305,7 @@ export interface FileRoutesByTo {
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
+  '/api/public/post-dwell': typeof ApiPublicPostDwellRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
   '/api/public/sponsor-event': typeof ApiPublicSponsorEventRoute
@@ -3718,6 +3726,7 @@ export interface FileRoutesById {
   '/api/public/nl-click': typeof ApiPublicNlClickRoute
   '/api/public/nl-open': typeof ApiPublicNlOpenRoute
   '/api/public/popup-event': typeof ApiPublicPopupEventRoute
+  '/api/public/post-dwell': typeof ApiPublicPostDwellRoute
   '/api/public/post-tts': typeof ApiPublicPostTtsRoute
   '/api/public/related-click': typeof ApiPublicRelatedClickRoute
   '/api/public/sponsor-event': typeof ApiPublicSponsorEventRoute
@@ -4139,6 +4148,7 @@ export interface FileRouteTypes {
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
+    | '/api/public/post-dwell'
     | '/api/public/post-tts'
     | '/api/public/related-click'
     | '/api/public/sponsor-event'
@@ -4539,6 +4549,7 @@ export interface FileRouteTypes {
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
+    | '/api/public/post-dwell'
     | '/api/public/post-tts'
     | '/api/public/related-click'
     | '/api/public/sponsor-event'
@@ -4958,6 +4969,7 @@ export interface FileRouteTypes {
     | '/api/public/nl-click'
     | '/api/public/nl-open'
     | '/api/public/popup-event'
+    | '/api/public/post-dwell'
     | '/api/public/post-tts'
     | '/api/public/related-click'
     | '/api/public/sponsor-event'
@@ -5200,6 +5212,7 @@ export interface RootRouteChildren {
   ApiPublicNlClickRoute: typeof ApiPublicNlClickRoute
   ApiPublicNlOpenRoute: typeof ApiPublicNlOpenRoute
   ApiPublicPopupEventRoute: typeof ApiPublicPopupEventRoute
+  ApiPublicPostDwellRoute: typeof ApiPublicPostDwellRoute
   ApiPublicPostTtsRoute: typeof ApiPublicPostTtsRoute
   ApiPublicRelatedClickRoute: typeof ApiPublicRelatedClickRoute
   ApiPublicSponsorEventRoute: typeof ApiPublicSponsorEventRoute
@@ -7034,6 +7047,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/post-tts'
       fullPath: '/api/public/post-tts'
       preLoaderRoute: typeof ApiPublicPostTtsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/post-dwell': {
+      id: '/api/public/post-dwell'
+      path: '/api/public/post-dwell'
+      fullPath: '/api/public/post-dwell'
+      preLoaderRoute: typeof ApiPublicPostDwellRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/popup-event': {
@@ -9144,6 +9164,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicNlClickRoute: ApiPublicNlClickRoute,
   ApiPublicNlOpenRoute: ApiPublicNlOpenRoute,
   ApiPublicPopupEventRoute: ApiPublicPopupEventRoute,
+  ApiPublicPostDwellRoute: ApiPublicPostDwellRoute,
   ApiPublicPostTtsRoute: ApiPublicPostTtsRoute,
   ApiPublicRelatedClickRoute: ApiPublicRelatedClickRoute,
   ApiPublicSponsorEventRoute: ApiPublicSponsorEventRoute,

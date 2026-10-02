@@ -226,20 +226,25 @@ const STREAM_LIST: readonly StreamDescriptor[] = [
     labelEn: "Content views and related clicks",
     ownership: "first_party",
     store: "public.post_views, public.related_post_clicks, public.user_read_history",
-    producer: "src/hooks/useRecordPostView.ts, src/lib/relatedClickBeacon.ts",
+    producer:
+      "src/hooks/useRecordPostView.ts, src/lib/views/postDwell.ts, src/lib/relatedClickBeacon.ts",
     consentGate: "none",
     identityGrain: "viewer_hash",
     timeBasis: "utc_timestamp",
     dedupe: "window",
     dedupeWindowMinutes: 5,
     latencyHours: 0,
-    caps: ["related_posts_signals returns top 40 posts / 60 pairs / 20 hubs per window"],
+    caps: [
+      "related_posts_signals returns top 40 posts / 60 pairs / 20 hubs per window",
+      "related_posts_dwell returns at most 500 posts, each with >= 5 dwell measurements",
+    ],
     caveats: [
       "A view is recorded only after 1.5 s of dwell (and never while a page is speculatively prerendered), so bounces are excluded by construction - unlike a GA4 or first-party page view.",
       "record_post_view deduplicates a (post, viewer_hash) pair inside a 5-minute window, so this count is lower than any raw hit count on the same traffic.",
       "Views by a post's own author are dropped on purpose, so editorial traffic is invisible here but visible in GA4.",
       "user_read_history is UPSERTed on (user_id, post_id): a row is the LAST read of a pair, not a read event, so counting rows in a window answers 'distinct pairs last read in the window'.",
-      "This stream has no consent gate in code, while /cookies declares post_views under the analytics category - the declaration and the implementation disagree.",
+      "post_views.dwell_ms is ACTIVE reading time (tab visible, reader active within 30 s), reported by the browser for an already counted view and capped at 30 min. NULL means no report arrived, not zero - it is a different quantity from the 1.5 s view threshold above.",
+      "post_views and user_read_history are written only with analytics consent (useRecordPostView), but the related-click beacon has no consent gate in code - the stream is mixed, which is why its consentGate stays 'none'.",
     ],
   },
 ];

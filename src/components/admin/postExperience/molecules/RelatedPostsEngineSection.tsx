@@ -45,7 +45,6 @@ export function RelatedPostsEngineSection({
           label={t(signal.labelKey)}
           hint={t(signal.hintKey)}
           value={form[signal.field] as number}
-          disabledReason={signal.inactiveKey ? t(signal.inactiveKey) : null}
           min={RELATED_POSTS_LIMITS.weight.min}
           max={RELATED_POSTS_LIMITS.weight.max}
           onChange={(v) => onChange(signal.field, v as RelatedPostsConfig[typeof signal.field])}
