@@ -855,6 +855,13 @@
       "when": 1790938800000,
       "tag": "0121_profile_slug_always_set",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1790952871868,
+      "tag": "0122_profile_link_routes",
+      "breakpoints": true
     }
   ]
 }
