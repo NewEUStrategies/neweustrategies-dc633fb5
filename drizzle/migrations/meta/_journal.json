@@ -890,6 +890,20 @@
       "when": 1790964279028,
       "tag": "0126_newsletter_unsubscribe_canonical_suppression",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1790964346100,
+      "tag": "0127_email_send_log_idempotent_pending_uidx",
+      "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1790964351349,
+      "tag": "0128_push_queue_batch_report",
+      "breakpoints": true
     }
   ]
 }

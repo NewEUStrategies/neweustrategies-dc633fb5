@@ -30798,6 +30798,7 @@ export type Database = {
         Args: { p_dead?: boolean; p_id: number; p_ok: boolean }
         Returns: undefined
       }
+      report_push_jobs: { Args: { p_reports: Json }; Returns: number }
       report_user: {
         Args: { p_details?: string; p_reason: string; p_user_id: string }
         Returns: string
