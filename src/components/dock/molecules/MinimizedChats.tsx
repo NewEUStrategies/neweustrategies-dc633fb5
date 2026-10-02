@@ -126,7 +126,10 @@ function MinimizedChatsRail({ chats, onOpenInbox }: RailProps) {
         })}
       </div>
 
-      <div className="pointer-events-auto absolute bottom-0 left-1.5 top-0 hidden items-center gap-1.5 sm:flex">
+      <div
+        data-desktop-minimized-chats
+        className="pointer-events-auto absolute bottom-0 left-1.5 top-0 hidden items-center gap-1.5 sm:flex"
+      >
         {visible.map((chat) => (
           <span
             key={chat.id}

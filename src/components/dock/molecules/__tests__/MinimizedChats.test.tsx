@@ -117,7 +117,15 @@ function minimize(...chats: MinimizedChat[]): void {
 
 /** Pigułka po nazwie dostępnej przycisku przywracania. */
 function restoreButton(name: string): HTMLElement {
-  return screen.getByLabelText(dockPl.dock.chat.restore.replace("{{name}}", name));
+  const desktopRail = document.querySelector<HTMLElement>("[data-desktop-minimized-chats]");
+  if (!desktopRail) throw new Error("test: brak desktopowej szyny rozmów");
+  return within(desktopRail).getByLabelText(dockPl.dock.chat.restore.replace("{{name}}", name));
+}
+
+function desktopAvatar(): HTMLElement {
+  const desktopRail = document.querySelector<HTMLElement>("[data-desktop-minimized-chats]");
+  if (!desktopRail) throw new Error("test: brak desktopowej szyny rozmów");
+  return within(desktopRail).getByTestId("avatar");
 }
 
 function overflowLabel(form: "one" | "few" | "many", count: number): string {
@@ -254,7 +262,7 @@ describe("zdjęcie rozmówcy", () => {
     renderRail();
     minimize({ id: CHAT_IDS.conversation, name: PEER_NAME, avatarUrl: STORED_AVATAR });
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe(LIVE_AVATAR);
+    expect(desktopAvatar().getAttribute("data-url")).toBe(LIVE_AVATAR);
   });
 
   it("bez wpisu na liście rozmów zostaje zapamiętany URL - to jest cała rola zapasu", () => {
@@ -265,14 +273,14 @@ describe("zdjęcie rozmówcy", () => {
     const first = renderRail();
     minimize({ id: CHAT_IDS.conversation, name: PEER_NAME, avatarUrl: STORED_AVATAR });
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe(STORED_AVATAR);
+    expect(desktopAvatar().getAttribute("data-url")).toBe(STORED_AVATAR);
     expect(h.peerQueries.at(-1)).toEqual([]);
     first.unmount();
 
     h.views = [];
     renderRail();
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe(STORED_AVATAR);
+    expect(desktopAvatar().getAttribute("data-url")).toBe(STORED_AVATAR);
   });
 
   it("dopóki profile się nie wczytały, zapas też przeżywa", () => {
@@ -283,7 +291,7 @@ describe("zdjęcie rozmówcy", () => {
     renderRail();
     minimize({ id: CHAT_IDS.conversation, name: PEER_NAME, avatarUrl: STORED_AVATAR });
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe(STORED_AVATAR);
+    expect(desktopAvatar().getAttribute("data-url")).toBe(STORED_AVATAR);
   });
 
   it("profil BEZ zdjęcia gasi zapas - pigułka wraca do inicjału", () => {
@@ -294,7 +302,7 @@ describe("zdjęcie rozmówcy", () => {
     renderRail();
     minimize({ id: CHAT_IDS.conversation, name: PEER_NAME, avatarUrl: STORED_AVATAR });
 
-    expect(screen.getByTestId("avatar").getAttribute("data-url")).toBe("");
+    expect(desktopAvatar().getAttribute("data-url")).toBe("");
   });
 
   it("krąg nie ma zdjęcia na żywo, więc korzysta z zapasu", () => {
@@ -303,7 +311,7 @@ describe("zdjęcie rozmówcy", () => {
     renderRail();
     minimize({ id: CHAT_IDS.group, name: "Krąg energetyczny", avatarUrl: STORED_AVATAR });
 
-    const avatar = screen.getByTestId("avatar");
+    const avatar = desktopAvatar();
     expect(avatar.getAttribute("data-name")).toBe("Krąg energetyczny");
     expect(avatar.getAttribute("data-url")).toBe(STORED_AVATAR);
   });
@@ -333,7 +341,7 @@ describe("przepełnienie szyny", () => {
     );
 
     // Magazyn dokłada na początek, więc widoczne są DWIE ostatnio zminimalizowane.
-    const desktopRail = document.querySelector(".sm\\:flex");
+    const desktopRail = document.querySelector("[data-desktop-minimized-chats]");
     if (!desktopRail) throw new Error("test: brak desktopowej szyny rozmów");
     const visible = within(desktopRail as HTMLElement).getAllByTestId("avatar");
     expect(visible).toHaveLength(MINIMIZED_VISIBLE_LIMIT);
