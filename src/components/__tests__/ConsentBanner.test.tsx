@@ -300,3 +300,63 @@ it("waits for the consent exit animation before opening the next popup", async (
   });
   expect(opened).toHaveBeenCalledTimes(1);
 });
+
+describe("ConsentBanner - dodatkowe odnośniki z panelu idą za językiem banera", () => {
+  // NAPRAWA 2026-10-02. Odnośnik z panelu szedł do `href` dosłownie: baner po
+  // angielsku prowadził z „/cookies" na POLSKĄ stronę, choć polityka i zasady
+  // przetwarzania tuż obok mają prefiks języka. `javascript:` z panelu
+  // trafiał do banera każdego odwiedzającego.
+  const withLinks = {
+    ...COOKIE_BANNER_DEFAULTS,
+    links: [
+      { id: "lnk_a", url: "/cookies", label_pl: "Pliki cookie", label_en: "Cookie policy" },
+      { id: "lnk_b", url: "https://example.org/rodo", label_pl: "RODO", label_en: "" },
+      { id: "lnk_c", url: "javascript:alert(1)", label_pl: "Zły", label_en: "Bad" },
+      { id: "lnk_d", url: "/regulamin", label_pl: "", label_en: "" },
+    ],
+  };
+
+  it("PL: ścieżka bez prefiksu, adres zewnętrzny bez zmian, niedozwolony i bez etykiety - pominięte", () => {
+    render(<ConsentBanner configOverride={withLinks} />);
+    expect(screen.getByRole("link", { name: "Pliki cookie" })).toHaveAttribute("href", "/cookies");
+    expect(screen.getByRole("link", { name: "RODO" })).toHaveAttribute(
+      "href",
+      "https://example.org/rodo",
+    );
+    expect(screen.queryByRole("link", { name: "Zły" })).not.toBeInTheDocument();
+    expect(document.querySelector('a[href^="javascript:"]')).toBeNull();
+    expect(document.querySelector('a[href="/regulamin"]')).toBeNull();
+  });
+
+  it("EN: ścieżka wewnętrzna dostaje /en, etykieta EN, brak EN = etykieta PL", async () => {
+    await i18n.changeLanguage("en");
+    render(<ConsentBanner configOverride={withLinks} />);
+    expect(screen.getByRole("link", { name: "Cookie policy" })).toHaveAttribute(
+      "href",
+      "/en/cookies",
+    );
+    // Polityka prywatności obok ma ten sam prefiks - teraz cały wiersz jest spójny.
+    expect(screen.getByRole("link", { name: EN.policyLabel })).toHaveAttribute(
+      "href",
+      "/en/polityka-prywatnosci",
+    );
+    expect(screen.getByRole("link", { name: "RODO" })).toHaveAttribute(
+      "href",
+      "https://example.org/rodo",
+    );
+    expect(screen.queryByRole("link", { name: "Bad" })).not.toBeInTheDocument();
+    await i18n.changeLanguage("pl");
+  });
+});
+
+describe("ConsentBanner - puste pole treści z panelu", () => {
+  it("wyczyszczony przycisk dostaje brzmienie domyślne zamiast pustej nazwy", () => {
+    const cleared = {
+      ...COOKIE_BANNER_DEFAULTS,
+      copy: { ...COOKIE_BANNER_DEFAULTS.copy, pl: { ...PL, acceptAll: "", title: " " } },
+    };
+    render(<ConsentBanner configOverride={cleared} />);
+    expect(screen.getByRole("button", { name: PL.acceptAll })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: PL.title })).toBeInTheDocument();
+  });
+});

@@ -17,11 +17,13 @@ import { Footer } from "@/components/Footer";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { QuizBackground } from "@/components/quiz/QuizBackground";
+// Z `quizBackgroundPreload`, nie z komponentu: `head()` zostaje w shellu trasy
+// (chunk wejściowy), a komponent ciągnie dwanaście manifestów obrazów tła.
 import {
-  QuizBackground,
   QUIZ_BG_PRELOAD_LINKS,
   QUIZ_BG_PRELOAD_SCRIPT,
-} from "@/components/quiz/QuizBackground";
+} from "@/components/quiz/quizBackgroundPreload";
 import { LazyQuizIframe } from "@/components/quiz/LazyQuizIframe";
 import { activeLang } from "@/lib/seo/head";
 import { getOrigin, getRequestUrl } from "@/lib/seo/request";

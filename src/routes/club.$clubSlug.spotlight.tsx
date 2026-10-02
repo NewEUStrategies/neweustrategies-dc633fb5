@@ -6,7 +6,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ClubWorkspaceLayout } from "@/components/clubs/organisms/ClubWorkspaceLayout";
 import { ClubSpotlightScreen } from "@/components/clubs/organisms/ClubSpotlightScreen";
-import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
+import { buildClubHead } from "@/lib/clubs/clubHead";
+import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 export const Route = createFileRoute("/club/$clubSlug/spotlight")({

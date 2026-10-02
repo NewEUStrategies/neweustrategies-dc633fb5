@@ -84,11 +84,6 @@ export interface DashboardRange {
   complete: boolean;
 }
 
-/** Odświeżanie zapytań w milisekundach - podgląd na żywo goni, reszta nie. */
-export function refetchIntervalFor(period: DashboardPeriodId): number | false {
-  return period === "realtime" ? 15_000 : false;
-}
-
 /**
  * Ziarno, do którego zaokrąglamy "teraz" przy liczeniu okna.
  *

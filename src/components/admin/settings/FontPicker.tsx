@@ -120,6 +120,16 @@ const FONT_OPTIONS: FontOption[] = [
   },
 ];
 
+/**
+ * Nazwa pierwszej rodziny ze stosu `font-family` - etykieta dla wartości SPOZA
+ * listy (stos zapisany ręcznie albo font usunięty z katalogu). Wcześniej taka
+ * wartość podpisywała się jako „Red Hat Display (domyślny)", choć podgląd obok
+ * rysował zupełnie inny krój - panel kłamał o tym, co jest zapisane.
+ */
+function fontFamilyLabel(stack: string): string {
+  return stack.split(",")[0]?.replace(/["']/g, "").trim() || stack;
+}
+
 /** Załaduj wszystkie Google Fonts z listy raz (do podglądu w dropdownie). */
 function useLoadGoogleFonts() {
   useEffect(() => {
@@ -185,7 +195,8 @@ export function FontPicker({
       >
         <span className="flex flex-col items-start min-w-0">
           <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            {selected?.label ?? t("adminPanesMisc.fontPicker.defaultLabel")}
+            {selected?.label ??
+              (value ? fontFamilyLabel(value) : t("adminPanesMisc.fontPicker.defaultLabel"))}
           </span>
           <span className="truncate text-base" style={{ fontFamily: value || DEFAULT_FONT_STACK }}>
             {sampleText}
@@ -214,7 +225,9 @@ export function FontPicker({
             const active = opt.stack === value;
             return (
               <button
-                key={opt.label}
+                // Klucz po stosie, nie po etykiecie: dwa własne fonty o tej samej
+                // nazwie dawały zdublowany klucz Reacta i gubiły jedną z opcji.
+                key={opt.stack}
                 type="button"
                 onClick={() => {
                   onChange(opt.stack);

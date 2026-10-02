@@ -26,6 +26,12 @@ const pl = {
     maxSize: "Maksymalny rozmiar: {{size}}.",
     badType: "Ten plik ma niedozwolony typ ({{name}}). Wgraj plik z listy dozwolonych formatów.",
     tooLarge: "Plik {{name}} jest za duży - maksymalnie {{max}} MB.",
+    uploadError: "Nie udało się wgrać pliku.",
+    devices: {
+      desktop: "Komputer",
+      tablet: "Tablet",
+      mobile: "Telefon",
+    },
     csv: {
       title: "Wgraj plik CSV",
       description: "Przeciągnij plik .csv tutaj albo wybierz go z dysku.",
@@ -80,6 +86,12 @@ const en = {
     maxSize: "Maximum size: {{size}}.",
     badType: "This file has a disallowed type ({{name}}). Upload one of the allowed formats.",
     tooLarge: "The file {{name}} is too large - {{max}} MB at most.",
+    uploadError: "The file could not be uploaded.",
+    devices: {
+      desktop: "Desktop",
+      tablet: "Tablet",
+      mobile: "Mobile",
+    },
     csv: {
       title: "Upload a CSV file",
       description: "Drag a .csv file here, or pick one from your disk.",

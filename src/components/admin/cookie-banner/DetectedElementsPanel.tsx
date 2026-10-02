@@ -2,21 +2,27 @@
 // zestawiony z rejestrem deklaracji. Wpisy oznaczone `auto` to elementy, których
 // nie ma w rejestrze - system opisuje je sam, żeby deklaracja nigdy nie była
 // niepełna.
+//
+// Etykiety, nazwy kategorii i opis celu idą za językiem INTERFEJSU: rejestr
+// niesie cel w obu wersjach (`purpose_pl` / `purpose_en`), a wcześniej panel
+// czytał zawsze `purpose_pl` - przy interfejsie angielskim deklaracja
+// „po angielsku" była po polsku.
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { RefreshCw } from "lucide-react";
 import { detectCollectedElements, type InventoryResult } from "@/lib/cookieBanner/registry";
 import type { ConsentCategory } from "@/lib/ads/consent";
+import { pickLocalized } from "@/lib/i18n/pickLocalized";
+import { uiLang } from "@/lib/i18n/format";
+import { ensureI18n } from "@/lib/i18n-admin-cookie-banner";
 
-const CATEGORY_LABELS: Record<ConsentCategory, string> = {
-  necessary: "Niezbędne",
-  functional: "Funkcjonalne",
-  analytics: "Analityczne",
-  marketing: "Marketingowe",
-};
+ensureI18n();
 
 const ORDER: ConsentCategory[] = ["necessary", "functional", "analytics", "marketing"];
 
 export function DetectedElementsPanel() {
+  const { t, i18n } = useTranslation();
+  const lang = uiLang(i18n.language);
   const [result, setResult] = useState<InventoryResult | null>(null);
   const scan = useCallback(() => setResult(detectCollectedElements()), []);
 
@@ -30,11 +36,9 @@ export function DetectedElementsPanel() {
     <section className="mb-6">
       <div className="flex items-start justify-between gap-3 mb-2">
         <div>
-          <h3 className="text-sm font-semibold">Wykryte elementy</h3>
+          <h3 className="text-sm font-semibold">{t("adminCookieBanner.detected.title")}</h3>
           <p className="text-xs text-muted-foreground mt-1">
-            Skan przeglądarki: {result.scannedKeys} kluczy (cookies, localStorage, sessionStorage).
-            Elementy spoza rejestru zostały opisane automatycznie i trafiają do deklaracji w
-            banerze.
+            {t("adminCookieBanner.detected.scanSummary", { count: result.scannedKeys })}
           </p>
         </div>
         <button
@@ -43,7 +47,7 @@ export function DetectedElementsPanel() {
           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-xs hover:bg-muted transition-colors"
         >
           <RefreshCw className="size-3.5" aria-hidden />
-          Skanuj ponownie
+          {t("adminCookieBanner.detected.rescan")}
         </button>
       </div>
 
@@ -54,16 +58,25 @@ export function DetectedElementsPanel() {
           return (
             <div key={cat} className="border border-border rounded-lg overflow-hidden">
               <div className="px-3 py-2 bg-muted/40 text-xs font-semibold">
-                {CATEGORY_LABELS[cat]} <span className="opacity-60">({items.length})</span>
+                {t(`adminCookieBanner.detected.categories.${cat}`)}{" "}
+                <span className="opacity-60">({items.length})</span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-border text-muted-foreground">
-                      <th className="px-3 py-2 text-left font-medium">Element</th>
-                      <th className="px-3 py-2 text-left font-medium">Źródło</th>
-                      <th className="px-3 py-2 text-left font-medium">Cel</th>
-                      <th className="px-3 py-2 text-left font-medium">Wykryte klucze</th>
+                      <th className="px-3 py-2 text-left font-medium">
+                        {t("adminCookieBanner.detected.columns.element")}
+                      </th>
+                      <th className="px-3 py-2 text-left font-medium">
+                        {t("adminCookieBanner.detected.columns.storage")}
+                      </th>
+                      <th className="px-3 py-2 text-left font-medium">
+                        {t("adminCookieBanner.detected.columns.purpose")}
+                      </th>
+                      <th className="px-3 py-2 text-left font-medium">
+                        {t("adminCookieBanner.detected.columns.keys")}
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -73,12 +86,20 @@ export function DetectedElementsPanel() {
                           {item.name}
                           {item.auto && (
                             <span className="ml-1 rounded bg-brand/15 px-1 py-0.5 font-sans text-[9px] uppercase text-brand">
-                              auto
+                              {t("adminCookieBanner.detected.autoBadge")}
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap">{item.kind}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{item.purpose_pl}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          {/* Nazwy magazynów przeglądarki są nazwami technicznymi
+                              (`cookie`, `localStorage`); tłumaczymy tylko „server". */}
+                          {item.kind === "server"
+                            ? t("adminCookieBanner.detected.serverStorage")
+                            : item.kind}
+                        </td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          {pickLocalized(item, "purpose", lang)}
+                        </td>
                         <td className="px-3 py-2 font-mono text-muted-foreground">
                           {item.detected?.length ? item.detected.join(", ") : "-"}
                         </td>

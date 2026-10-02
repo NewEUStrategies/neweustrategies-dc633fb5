@@ -83,3 +83,21 @@ describe("pasek czytania trzyma się szerokości ekranu", () => {
     expect(READING_HEADER.match(unsafe)).toBeNull();
   });
 });
+
+describe("znacznik przodków wyszukiwarki (następca reguły :has())", () => {
+  const SEARCH_WIDGET = readFileSync(
+    resolve(process.cwd(), "src/components/builder/organisms/widget-view/SearchButtonWidget.tsx"),
+    "utf8",
+  );
+
+  it("reguła znacznika w pasku czytania nadal omija wiersz paska", () => {
+    expect(READING_HEADER).toMatch(
+      /\[data-reading-header\]\s*\[data-search-overflow\]:not\(\[data-reading-row\]\)/,
+    );
+  });
+
+  it("arkusz widgetu i jego efekt nie zdejmują clipa z wiersza paska", () => {
+    expect(SEARCH_WIDGET).toMatch(/\[data-search-overflow\]:not\(\[data-reading-row\]\)/);
+    expect(SEARCH_WIDGET).toMatch(/hasAttribute\("data-reading-row"\)/);
+  });
+});

@@ -748,32 +748,20 @@ describe("provenance bramki - kształty brzegowe nazwy pliku", () => {
 // ---------------------------------------------------------------------------
 
 describe("KPI bramek bez odniesienia do tenanta wołającego", () => {
-  // DEFEKT (produkcja: src/lib/authz/permissionMatrix.ts:394 i :404).
+  // NAPRAWIONE (było `it.fails`; produkcja: src/lib/authz/permissionMatrix.ts).
   //
-  // CO JEST ZŁE. `gatesWithoutCallerTenant` liczy WIERSZE z bramką, których
-  // najsłabsze odniesienie do tenanta nie jest „caller” - a nie BRAMKI. Wiersz
-  // flagi skleja wszystkie jej bramki w JEDEN skrót (`summarizeGates` wybiera
-  // najsłabsze ogniwo), więc flaga o trzech bramkach wchodzi do licznika jako
-  // jedna pozycja. Dodatkowo doc-comment pola (:105) mówi „Bramki rolowe”,
-  // a wyrażenie iteruje po WSZYSTKICH wierszach - także po wierszach flag
-  // i limitów. Pod żadnym z tych dwóch opisów liczba nie jest tym, co obiecuje.
+  // CO BYŁO ZŁE. `gatesWithoutCallerTenant` liczyło WIERSZE z bramką, których
+  // najsłabsze odniesienie do tenanta nie było „caller” - a nie BRAMKI. Wiersz
+  // flagi skleja wszystkie jej bramki w JEDEN skrót, więc flaga o trzech
+  // bramkach wchodziła do licznika jako jedna pozycja. Kafel na
+  // /admin/permissions ma etykietę „Bramki bez current_tenant_id()”
+  // (i18n-admin-permissions.ts:32) i na żywym snapshocie (2026-08-22)
+  // pokazywał 23 zamiast 25 - `pro_briefings` (3 bramki) i `chat_direct_gated`
+  // (2) zwijały się do jednego wiersza każda.
   //
-  // SKUTEK DLA UŻYTKOWNIKA. Kafel na /admin/permissions ma etykietę „Bramki bez
-  // current_tenant_id()” (i18n-admin-permissions.ts:32) i zapala się na
-  // ostrzeżenie; audytor czyta z niego liczbę pozycji do przeglądu izolacji
-  // tenanta i dostaje liczbę MNIEJSZĄ od prawdy. Pomiar na tym HEAD
-  // (2026-08-22, żywy snapshot: 43 bramki rolowe i 14 bramek flag): bez
-  // `current_tenant_id()` jest 25 bramek (13 rolowych + 12 flagowych), a kafel
-  // pokazuje 23 - bo `pro_briefings` (3 bramki) i `chat_direct_gated`
-  // (2 bramki) zwijają się do jednego wiersza każda. Dwie bramki bez
-  // odniesienia do tenanta wołającego nigdy nie trafiają do liczby, którą
-  // ktokolwiek przegląda.
-  //
-  // DLACZEGO NAPRAWA TO OSOBNA PRACA. Najpierw trzeba ROZSTRZYGNĄĆ, co ten kafel
-  // ma mierzyć (bramki czy pozycje do przeglądu; tylko rolowe czy wszystkie),
-  // potem zmienić pole razem z etykietą PL i EN oraz z opisem źródła na stronie,
-  // a `summary` czyta trasa panelu. To zmiana kontraktu prezentacji, nie
-  // poprawka jednego wyrażenia - i nie wolno jej robić w pracy testowej.
+  // ROZSTRZYGNIĘCIE KONTRAKTU. Etykieta PL i EN mówi „bramki”, więc liczba
+  // jest liczbą BRAMEK (`ref`) obecnych w macierzy - rolowych i flag. Etykiety
+  // nie trzeba zmieniać: to wyrażenie rozjechało się z nią, nie odwrotnie.
   const DWIE_BRAMKI = snapshotOf({
     featureGates: [
       featureGate({ ref: "fn:g0/0", object: "g0", tenantRef: "none" }),
@@ -781,16 +769,45 @@ describe("KPI bramek bez odniesienia do tenanta wołającego", () => {
     ],
   });
 
-  it.fails("DEFEKT: licznik pomija bramki zwinięte w jeden wiersz flagi", () => {
-    // Dwie bramki jednej flagi, ŻADNA nie woła `current_tenant_id()`.
-    expect(matrixOf({}, DWIE_BRAMKI).summary.gatesWithoutCallerTenant).toBe(2);
-  });
-
-  it("KONTROLA DODATNIA: dwie takie bramki liczą się dziś jako jedna pozycja", () => {
+  it("dwie bramki jednej flagi, żadna z `current_tenant_id()` - liczą się jako DWIE", () => {
     const matrix = matrixOf({}, DWIE_BRAMKI);
     const gate = rowOf(matrix, "cap_premium_content").gate;
+    // Wiersz nadal skleja je w jeden skrót z najsłabszym ogniwem...
     expect(gate?.refs).toHaveLength(2);
     expect(gate?.tenantRef).toBe("none");
+    // ...ale KPI liczy bramki.
+    expect(matrix.summary.gatesWithoutCallerTenant).toBe(2);
+  });
+
+  it("wiersz z bramką z `current_tenant_id()` i bramką bez - liczy się tylko ta bez", () => {
+    const matrix = matrixOf(
+      {},
+      snapshotOf({
+        featureGates: [
+          featureGate({ ref: "fn:g0/0", object: "g0", tenantRef: "caller" }),
+          featureGate({ ref: "fn:g1/0", object: "g1", tenantRef: "row" }),
+        ],
+      }),
+    );
+    expect(rowOf(matrix, "cap_premium_content").gate?.tenantRef).toBe("row");
+    expect(matrix.summary.gatesWithoutCallerTenant).toBe(1);
+  });
+
+  it("jedna bramka czytająca DWIE flagi liczy się RAZ", () => {
+    const matrix = matrixOf(
+      {},
+      snapshotOf({
+        featureGates: [
+          featureGate({ ref: "fn:shared/0", object: "shared", tenantRef: "none" }),
+          featureGate({
+            ref: "fn:shared/0",
+            object: "shared",
+            tenantRef: "none",
+            capability: "pro_briefings",
+          }),
+        ],
+      }),
+    );
     expect(matrix.summary.gatesWithoutCallerTenant).toBe(1);
   });
 

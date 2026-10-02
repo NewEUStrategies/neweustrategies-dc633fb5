@@ -23,7 +23,7 @@ import { currentLang } from "@/lib/i18n/localeRuntime";
 import { errorCopy, classifyError, type ErrorKind } from "@/lib/errorCopy";
 import { reportPlatformError } from "@/lib/platform-error-reporting";
 
-interface FriendlyErrorPageProps {
+export interface FriendlyErrorPageProps {
   /** The raw error from TanStack Router / server function / fetch. */
   error?: unknown;
   /** TanStack error boundary reset callback. */

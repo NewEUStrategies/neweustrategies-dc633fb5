@@ -307,3 +307,45 @@ describe("SiteChrome - dok przestrzeni roboczej (bottom bar)", () => {
     expect(screen.queryByTestId("workspace-dock")).toBeNull();
   });
 });
+
+describe("SiteChrome - strony CMS wyłączające chrome", () => {
+  it("header_override 'hidden' strony chowa nagłówek znacznikiem na powłoce", async () => {
+    h.pathname = "/microsite/podstrona";
+    h.matches = [
+      {
+        loaderData: { kind: "page", item: { header_override: "hidden", template_type: "default" } },
+      },
+    ];
+    renderChrome();
+    await settleLazy();
+
+    const shell = document.querySelector("[data-site-shell]");
+    expect(shell).toHaveAttribute("data-chrome-header", "hidden");
+    expect(shell).not.toHaveAttribute("data-chrome-footer");
+    // Nagłówek zostaje w drzewie - chowa go CSS (view transitions, brak remountu).
+    expect(screen.getByTestId("header")).toBeInTheDocument();
+  });
+
+  it("szablon landing chowa nagłówek i stopkę", async () => {
+    h.pathname = "/landing";
+    h.matches = [
+      { loaderData: { kind: "page", item: { header_override: null, template_type: "landing" } } },
+    ];
+    renderChrome();
+    await settleLazy();
+
+    const shell = document.querySelector("[data-site-shell]");
+    expect(shell).toHaveAttribute("data-chrome-header", "hidden");
+    expect(shell).toHaveAttribute("data-chrome-footer", "hidden");
+  });
+
+  it("zwykła strona i wpis nie dostają znaczników", async () => {
+    h.pathname = "/o-nas";
+    h.matches = [{ loaderData: { kind: "page", item: { header_override: "default" } } }];
+    renderChrome();
+    await settleLazy();
+    const shell = document.querySelector("[data-site-shell]");
+    expect(shell).not.toHaveAttribute("data-chrome-header");
+    expect(shell).not.toHaveAttribute("data-chrome-footer");
+  });
+});

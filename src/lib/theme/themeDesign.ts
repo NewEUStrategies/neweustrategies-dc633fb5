@@ -12,6 +12,16 @@ import { notifyError, notifySuccess } from "@/lib/notify";
 import { z } from "zod";
 import { deepMerge } from "@/lib/deepMerge";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+// Klucze wierszy i zapytań pochodnych żyją w lekkim module - czyta je
+// `<ThemeDesignStyle/>` bez importu schematu i generatora z tego pliku.
+import {
+  THEME_DESIGN_KEY as KEY,
+  THEME_DESIGN_KEY_EN as KEY_EN,
+  THEME_DESIGN_LANG_MODE_KEY as KEY_LANG_MODE,
+  THEME_DESIGN_QUERY_KEY as QUERY_KEY,
+  THEME_DESIGN_QUERY_KEY_EN as QUERY_KEY_EN,
+  THEME_DESIGN_LANG_MODE_QUERY_KEY as QUERY_KEY_LANG_MODE,
+} from "./themeDesignKeys";
 
 const PX = z
   .union([z.number(), z.string()])
@@ -357,13 +367,6 @@ function normalizeLegacyInheritedColors(t: ThemeDesign): ThemeDesign {
   return t;
 }
 
-const KEY = "theme_design";
-const KEY_EN = "theme_design_en";
-const KEY_LANG_MODE = "theme_design_lang_mode";
-const QUERY_KEY = ["site_settings", KEY] as const;
-const QUERY_KEY_EN = ["site_settings", KEY_EN] as const;
-const QUERY_KEY_LANG_MODE = ["site_settings", KEY_LANG_MODE] as const;
-
 export type ThemeDesignLang = "pl" | "en";
 export type ThemeDesignLangMode = "shared" | "split";
 export interface ThemeDesignLangSettings {
@@ -371,11 +374,29 @@ export interface ThemeDesignLangSettings {
 }
 export const THEME_DESIGN_LANG_DEFAULTS: ThemeDesignLangSettings = { mode: "shared" };
 
-function loadFromMap(map: Record<string, unknown>, key: string): ThemeDesign {
-  const raw = map[key] ?? {};
-  const merged = deepMerge(THEME_DESIGN_DEFAULTS, raw as Record<string, unknown>);
+/**
+ * Surowy wiersz `theme_design*` (albo jego brak) -> zwalidowane tokeny.
+ * Ta sama ścieżka co w hookach niżej; eksportowana dla generatora
+ * `<ThemeDesignStyle/>`, który dostaje surowe wiersze z mapy ustawień.
+ * Idempotentna: już sparsowany `ThemeDesign` przechodzi bez zmian.
+ */
+export function themeDesignFromRaw(raw: unknown): ThemeDesign {
+  const merged = deepMerge(THEME_DESIGN_DEFAULTS, (raw ?? {}) as Record<string, unknown>);
   const parsed = ThemeDesignSchema.safeParse(merged);
   return parsed.success ? normalizeLegacyInheritedColors(parsed.data) : THEME_DESIGN_DEFAULTS;
+}
+
+/** Surowy wiersz `theme_design_lang_mode` -> tryb (`split` tylko jawnie). */
+export function themeDesignLangModeFromRaw(raw: unknown): ThemeDesignLangSettings {
+  const mode =
+    raw && typeof raw === "object" && (raw as { mode?: string }).mode === "split"
+      ? "split"
+      : "shared";
+  return { mode };
+}
+
+function loadFromMap(map: Record<string, unknown>, key: string): ThemeDesign {
+  return themeDesignFromRaw(map[key]);
 }
 
 export function useThemeDesign() {
@@ -405,12 +426,7 @@ export function useThemeDesignLangMode() {
     queryKey: QUERY_KEY_LANG_MODE,
     queryFn: async ({ client }): Promise<ThemeDesignLangSettings> => {
       const settings = await client.ensureQueryData(siteSettingsQueryOptions);
-      const raw = (settings as Record<string, unknown>)[KEY_LANG_MODE];
-      const mode =
-        raw && typeof raw === "object" && (raw as { mode?: string }).mode === "split"
-          ? "split"
-          : "shared";
-      return { mode };
+      return themeDesignLangModeFromRaw((settings as Record<string, unknown>)[KEY_LANG_MODE]);
     },
     staleTime: 5 * 60_000,
   });

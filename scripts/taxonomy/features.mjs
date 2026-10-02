@@ -490,7 +490,7 @@ export const FEATURES_3 = [
     // Bez niego wiersz o kolorach nie zawiera reguł wyboru koloru w ciemnym
     // motywie.
     patterns: [
-      /^src\/lib\/builder\/(designTokens|globalColors|cssColor|autoInvertColor|liveTypography|typographyCss|themed)\.ts$/,
+      /^src\/lib\/builder\/(designTokens|globalColors|globalColorsValue|cssColor|autoInvertColor|liveTypography|typographyCss|themed)\.ts$/,
     ],
   },
   {

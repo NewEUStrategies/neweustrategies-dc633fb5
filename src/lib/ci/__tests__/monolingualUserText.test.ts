@@ -429,7 +429,12 @@ describe("monolingualUserText - self-test na realnym src/", () => {
     // 2026-10-02 (moduł 7): 164 -> 162 PLIKI. `PodcastShowsPane.tsx` i
     // `podcast.$slug.tsx` spłaciły dług do zera (nazwy platform przeszły do
     // danych), więc ich wpisy zeszły z baseline'u.
+    // 2026-10-02 (moduł 19): 162 -> 159 PLIKÓW. Panel
+    // `/admin/settings/cookie-banner` (trasa + `CookieBannerBrandingSection` +
+    // `DetectedElementsPanel`, razem 47 wystąpień) przeszedł w całości na
+    // nakładkę `i18n-admin-cookie-banner`, więc trzy pliki zeszły do zera
+    // i wypadły z listy - to jest spłata długu, nie przeprowadzka.
     expect(report.total).toBeLessThanOrEqual(713);
-    expect(baseline.size).toBe(162);
+    expect(baseline.size).toBe(159);
   });
 });

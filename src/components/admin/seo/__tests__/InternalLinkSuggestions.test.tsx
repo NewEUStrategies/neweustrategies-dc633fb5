@@ -78,10 +78,13 @@ vi.mock("react-i18next", async () =>
 );
 
 // `useServerFn` w produkcji tylko owija funkcję serwerową - oddajemy ją wprost,
-// żeby asercje dotyczyły atrapy samej funkcji.
-vi.mock("@tanstack/react-start", () => ({
-  useServerFn: (fn: unknown) => fn,
-}));
+// żeby asercje dotyczyły atrapy samej funkcji. Reszta modułu zostaje
+// prawdziwa: komponent importuje nakładkę `i18n-admin-extras`, a ta - instancję
+// i18next, która potrzebuje `createIsomorphicFn`.
+vi.mock("@tanstack/react-start", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@tanstack/react-start")>();
+  return { ...actual, useServerFn: (fn: unknown) => fn };
+});
 
 vi.mock("@/lib/seo/linkSuggestions.functions", () => ({
   suggestInternalLinks: h.suggest,

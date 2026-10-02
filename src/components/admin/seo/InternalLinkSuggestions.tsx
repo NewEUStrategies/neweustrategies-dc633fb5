@@ -6,9 +6,6 @@
 // zapytania, albo pada sieć) ma WŁASNY stan `error` z przyciskiem ponowienia -
 // nie wolno jej pokazać jako `empty`, bo „brak dopasowań" przy niedziałającym
 // narzędziu oducza redakcję linkowania wewnętrznego.
-// i18n-overlay-imports: pomijamy @/lib/i18n-admin-extras (rejestruje ją layout /admin -
-// `ensureI18n` w `routes/admin.tsx`; słownik jest na liście HEAVY_DICTIONARIES
-// w `scripts/check-entry-purity.ts`, więc nie dociągamy go do kolejnego chunka)
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +22,10 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { suggestInternalLinks } from "@/lib/seo/linkSuggestions.functions";
+// Klucze `admin.seo.*` tego widżetu mieszkają w nakładce `i18n-admin-extras`.
+// Bez jawnego importu słownik trafiał tu tylko przypadkiem (kotwica w
+// `routes/admin.tsx`) - bramka `check:i18n-overlay-imports`.
+import { ensureI18n as ensureAdminExtrasI18n } from "@/lib/i18n-admin-extras";
 
 interface Props {
   postId: string | null;
@@ -37,6 +38,7 @@ interface Props {
 }
 
 export function InternalLinkSuggestions(props: Props) {
+  ensureAdminExtrasI18n();
   const { t, i18n } = useTranslation();
   const call = useServerFn(suggestInternalLinks);
 

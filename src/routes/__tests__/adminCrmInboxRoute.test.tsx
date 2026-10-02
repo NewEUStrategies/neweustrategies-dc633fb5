@@ -43,7 +43,9 @@ const h = vi.hoisted(() => ({
   savedFails: false,
   bulkFails: false,
   avatars: [] as unknown[],
-  avatarFilters: [] as string[],
+  avatarArgs: [] as unknown[],
+  avatarsFail: false,
+  profilesQueried: 0,
   realtime: [] as Array<(() => void) | undefined>,
   dispatchFails: false,
   timelineCsvFails: false,
@@ -101,6 +103,11 @@ vi.mock("@/lib/crm.functions", () => ({
   getCrmLeadMembership: async () => ({ json: "null" }),
   getCrmLeadProfileSync: async () => ({ json: JSON.stringify({ matched: false }) }),
   listStaffUsers: async () => ({ json: "[]" }),
+  getCrmLeadAvatars: async (input: unknown) => {
+    h.avatarArgs.push(input);
+    if (h.avatarsFail) throw new Error("odczyt profili odrzucony");
+    return { avatars: h.avatars };
+  },
 }));
 vi.mock("@/lib/crm-saved-views.functions", () => ({
   listSavedViews: async () => ({ json: JSON.stringify(h.savedViews) }),
@@ -144,16 +151,35 @@ vi.mock("@/components/molecules/PresenceIndicator", () => ({
   PresenceIndicator: () => null,
 }));
 vi.mock("@/components/molecules/LinkedItemsCard", () => ({ LinkedItemsCard: () => null }));
+// Radix `AvatarImage` w jsdom nie montuje <img> (obraz nigdy się nie „ładuje"),
+// więc test czyta adres przekazany do komponentu, a nie DOM obrazka.
+vi.mock("@/components/admin/crm/FaceAwareAvatar", () => ({
+  FaceAwareAvatar: ({ url, name }: { url?: string; name: string }) => (
+    <span data-testid="lead-avatar" data-name={name} data-url={url ?? ""} />
+  ),
+}));
+// Atrapa NIE udaje odczytu adresów z `profiles` w przeglądarce: kolumny
+// `email`/`contact_email` nie mają grantu dla `authenticated` i prawdziwa baza
+// odbija takie zapytanie w całości (42501). Poprzednia atrapa oddawała tu
+// wiersze - test był zielony, a produkcja nie pokazała ani jednego zdjęcia.
+// Odpowiadamy więc tak jak baza i liczymy próby, żeby powrót do tamtej
+// ścieżki był czerwony.
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: () => ({
-      select: () => ({
-        or: async (filter: string) => {
-          h.avatarFilters.push(filter);
-          return { data: h.avatars, error: null };
-        },
-      }),
-    }),
+    from: (table: string) => {
+      if (table === "profiles") h.profilesQueried += 1;
+      return {
+        select: () => ({
+          or: async () =>
+            table === "profiles"
+              ? {
+                  data: null,
+                  error: { code: "42501", message: "permission denied for table profiles" },
+                }
+              : { data: [], error: null },
+        }),
+      };
+    },
     rpc: async () =>
       h.backfillFails
         ? { data: null, error: new Error("synchronizacja odrzucona") }
@@ -249,7 +275,9 @@ beforeEach(() => {
   h.savedFails = false;
   h.bulkFails = false;
   h.avatars = [];
-  h.avatarFilters = [];
+  h.avatarArgs = [];
+  h.avatarsFail = false;
+  h.profilesQueried = 0;
   h.realtime = [];
   h.dispatchFails = false;
   h.timelineCsvFails = false;
@@ -813,30 +841,41 @@ describe("skrzynka CRM - obudowa listy", () => {
     expect(screen.getByText("✓")).toBeInTheDocument();
   });
 
-  it("avatary dociąga jedno zapytanie po znormalizowanych e-mailach", async () => {
+  it("zdjęcia profilowe idą serwerem po id leadów, nie zapytaniem o profile z przeglądarki", async () => {
     h.rows = [
       lead({ email: "Anna@Example.test " }),
-      lead({ id: "lead-2", email: "anna@example.test" }),
-      lead({ id: "lead-3", email: "bartek@example.test" }),
+      lead({ id: "lead-2", email: "anna@example.test", first_name: "Ania" }),
+      lead({ id: "lead-3", email: "bartek@example.test", first_name: "Bartek" }),
     ];
     h.total = 3;
     h.avatars = [
-      { email: "ANNA@example.test", contact_email: null, avatar_url: "https://cdn.test/a.png" },
-      { email: null, contact_email: "bartek@example.test", avatar_url: "https://cdn.test/b.png" },
-      { email: "bez@example.test", contact_email: null, avatar_url: null },
+      { lead_id: LEAD_ID, avatar_url: "https://cdn.test/a.png" },
+      { lead_id: "lead-3", avatar_url: "https://cdn.test/b.png" },
     ];
     await mount();
-    await waitFor(() => expect(h.avatarFilters).toHaveLength(1));
-    // Ten sam adres w dwóch wierszach pyta bazę RAZ, po małych literach i bez
-    // spacji - inaczej lista 200 leadów robiłaby 200 zapytań o te same profile.
-    expect(h.avatarFilters[0]).toBe(
-      [
-        "email.eq.anna@example.test",
-        "contact_email.eq.anna@example.test",
-        "email.eq.bartek@example.test",
-        "contact_email.eq.bartek@example.test",
-      ].join(","),
+    await waitFor(() => expect(h.avatarArgs).toHaveLength(1));
+    // Do serwera idą id ze strony - adresy czyta serwer, z filtrem tenanta.
+    expect(h.avatarArgs[0]).toEqual({ data: { lead_ids: [LEAD_ID, "lead-2", "lead-3"] } });
+    expect(h.profilesQueried).toBe(0);
+    await waitFor(() =>
+      expect(screen.getAllByTestId("lead-avatar").map((el) => el.getAttribute("data-url"))).toEqual(
+        ["https://cdn.test/a.png", "", "https://cdn.test/b.png"],
+      ),
     );
+  });
+
+  it("błąd odczytu zdjęć jest widoczny, a lista działa dalej na inicjałach", async () => {
+    h.rows = [lead()];
+    h.total = 1;
+    h.avatarsFail = true;
+    await mount();
+    await waitFor(() =>
+      expect(h.toastError).toContain(
+        "Nie udało się wczytać zdjęć profilowych kontaktów: odczyt profili odrzucony",
+      ),
+    );
+    expect(screen.getByText("Anna Kowalska")).toBeInTheDocument();
+    expect(screen.getByTestId("lead-avatar").getAttribute("data-url")).toBe("");
   });
 
   it("klik w wiersz otwiera pełną kartę kontaktu", async () => {

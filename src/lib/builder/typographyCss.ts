@@ -209,9 +209,11 @@ function buildWidgetTypographyRules(
     rules.push(
       `${sel} .cms-post-title + .cms-post-excerpt, ${sel} .cms-post-title ~ .cms-post-excerpt, ${sel} [data-title-root] + [data-description-root], ${sel} [data-title-root] ~ [data-description-root], ${sel} [data-typography-gap-target]{margin-top:${gap} !important;}`,
     );
-    rules.push(
-      `${sel} a:has(> .cms-post-title) + .cms-post-excerpt{margin-top:${gap} !important;}`,
-    );
+    // Tytuł opakowany odnośnikiem, po nim zajawka: `a + .cms-post-excerpt`
+    // zamiast `a:has(> .cms-post-title) + .cms-post-excerpt` - w ramce
+    // widgetu jedynym odnośnikiem bezpośrednio przed zajawką jest tytuł,
+    // a `:has()` jest w publicznym CSS zakazane (pomiar 2026-10-02).
+    rules.push(`${sel} a + .cms-post-excerpt{margin-top:${gap} !important;}`);
   }
 
   if (fontWeight) commonDeclarations.push(`font-weight:${fontWeight} !important;`);

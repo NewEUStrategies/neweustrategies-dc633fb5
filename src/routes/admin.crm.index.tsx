@@ -19,6 +19,7 @@ import {
   exportCrmLeadTimelineCsv,
   bulkUpdateCrmLeads,
   bulkDeleteCrmLeads,
+  getCrmLeadAvatars,
 } from "@/lib/crm.functions";
 import { dispatchIntegrationDeliveries } from "@/lib/integrations/dispatch.functions";
 import { listSavedViews, upsertSavedView, deleteSavedView } from "@/lib/crm-saved-views.functions";
@@ -216,6 +217,7 @@ const PL = {
   pipeline: "Pipeline",
   list: "Lista",
   empty: "Brak kontaktów dla wybranych filtrów.",
+  avatarsError: "Nie udało się wczytać zdjęć profilowych kontaktów",
   stage: {
     new: "Nowy",
     contacted: "Skontaktowano",
@@ -288,6 +290,7 @@ const EN = {
   pipeline: "Pipeline",
   list: "List",
   empty: "No contacts for the selected filters.",
+  avatarsError: "Could not load the contacts' profile photos",
   stage: {
     new: "New",
     contacted: "Contacted",
@@ -665,44 +668,30 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
     });
   };
 
-  // Podciągamy avatar_url z profiles po e-mailu widocznych leadów, żeby w
-  // tabeli CRM (osoby + firmy) od razu było widać zdjęcie profilowe.
-  const leadEmails = useMemo(
-    () =>
-      Array.from(
-        new Set(leads.map((l) => l.email?.toLowerCase().trim()).filter((e): e is string => !!e)),
-      ),
-    [leads],
-  );
+  // Zdjęcie profilowe członka przy leadzie (dopasowanie po e-mailu). Lookup
+  // idzie SERWEREM: `profiles.email`/`contact_email` nie mają grantu SELECT dla
+  // `authenticated`, więc zapytanie z przeglądarki PostgREST odrzuca w całości
+  // (42501). Do serwera idą id leadów z bieżącej strony, nie adresy - patrz
+  // getCrmLeadAvatars.
+  const leadIds = useMemo(() => leads.map((l) => l.id), [leads]);
   const avatarsQ = useQuery({
-    queryKey: ["crm-lead-avatars", leadEmails],
-    enabled: leadEmails.length > 0,
+    queryKey: ["crm-lead-avatars", leadIds],
+    enabled: leadIds.length > 0,
     staleTime: 60_000,
     queryFn: async () => {
-      const map = new Map<string, string>();
-      const chunkSize = 100;
-      for (let i = 0; i < leadEmails.length; i += chunkSize) {
-        const chunk = leadEmails.slice(i, i + chunkSize);
-        const { data } = await supabase
-          .from("profiles")
-          .select("email, contact_email, avatar_url")
-          .or(chunk.map((e) => `email.eq.${e},contact_email.eq.${e}`).join(","));
-        for (const row of (data ?? []) as Array<{
-          email: string | null;
-          contact_email: string | null;
-          avatar_url: string | null;
-        }>) {
-          if (!row.avatar_url) continue;
-          const keys = [row.email, row.contact_email]
-            .filter((e): e is string => !!e)
-            .map((e) => e.toLowerCase().trim());
-          for (const k of keys) if (!map.has(k)) map.set(k, row.avatar_url);
-        }
-      }
-      return map;
+      const { avatars } = await getCrmLeadAvatars({ data: { lead_ids: leadIds } });
+      return new Map(avatars.map((a) => [a.lead_id, a.avatar_url]));
     },
   });
-  const avatarByEmail = avatarsQ.data ?? new Map<string, string>();
+  // Błąd odczytu jest widoczny, a nie zamienia się w cichy brak zdjęć. Stałe
+  // `id` toastu: ponowna porażka (refetch, kolejna strona) podmienia komunikat
+  // zamiast piętrzyć kopie.
+  useEffect(() => {
+    if (avatarsQ.error) {
+      toast.error(`${L.avatarsError}: ${avatarsQ.error.message}`, { id: "crm-lead-avatars" });
+    }
+  }, [avatarsQ.error, L.avatarsError]);
+  const avatarByLeadId = avatarsQ.data ?? new Map<string, string>();
 
   return (
     <div className="space-y-3">
@@ -885,11 +874,7 @@ function LeadsTab({ L, canSeeAll }: { L: typeof PL; canSeeAll: boolean }) {
                       lead={l}
                       lang={lang}
                       L={L}
-                      avatarUrl={
-                        c.key === "name"
-                          ? avatarByEmail.get(l.email?.toLowerCase().trim() ?? "")
-                          : undefined
-                      }
+                      avatarUrl={c.key === "name" ? avatarByLeadId.get(l.id) : undefined}
                     />
                   ))}
                   <td className="p-2 text-right" onClick={(e) => e.stopPropagation()}>

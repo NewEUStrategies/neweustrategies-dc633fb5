@@ -290,6 +290,84 @@ export function classifyKey(key: string): RegistryEntry | null {
 }
 
 /**
+ * Rozpoznanie kategorii NIEZNANEGO klucza.
+ *
+ * Wcześniej było `/(utm|ref|affil|promo|coupon|ad)/` i
+ * `/(stat|metric|event|track|visit|view|count)/` na CAŁYM kluczu, więc krótkie
+ * rdzenie trafiały w środek zwykłych słów: `nes.preferences` („p-REF-erences"),
+ * `theme_header` („he-AD-er") i `loaded` lądowały w deklaracji jako
+ * identyfikatory KAMPANII, a `account`, `country`, `preview`, `preventScroll`
+ * i `sidebar-state` - jako liczniki ANALITYCZNE. Deklaracja w banerze to
+ * informacja z art. 13 RODO: preferencja interfejsu opisana jako śledzenie
+ * kampanii jest informacją nieprawdziwą.
+ *
+ * Reguła: długie, jednoznaczne rdzenie wolno dopasować jako PODCIĄG (`__utmz`,
+ * `visitorId`, `pagetracker` mają zostać rozpoznane - zaniżenie deklaracji jest
+ * gorsze niż zawyżenie), a krótkie, dwuznaczne - wyłącznie jako CAŁY człon
+ * nazwy (po separatorach i granicach camelCase).
+ */
+const MARKETING_STEMS: readonly string[] = [
+  "utm",
+  "affil",
+  "promo",
+  "coupon",
+  "campaign",
+  "referr",
+  "gclid",
+  "fbclid",
+  "msclkid",
+];
+const MARKETING_WORDS: ReadonlySet<string> = new Set(["ad", "ads", "adid", "ref", "refs"]);
+const ANALYTICS_STEMS: readonly string[] = [
+  "metric",
+  "track",
+  "visit",
+  "pageview",
+  "analytic",
+  "statist",
+];
+const ANALYTICS_WORDS: ReadonlySet<string> = new Set([
+  "stat",
+  "stats",
+  "view",
+  "views",
+  "viewed",
+  "count",
+  "counts",
+  "counter",
+  "counters",
+]);
+/** Rdzenie dopasowywane do POCZĄTKU członu (`eventLog` tak, `preventScroll` nie). */
+const ANALYTICS_TOKEN_PREFIXES: readonly string[] = ["event"];
+
+/** Człony klucza: separatory (`_`, `-`, `.`, `:`, ...) i granice camelCase. */
+function keyTokens(key: string): string[] {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/** Kategoria nieznanego klucza z jego nazwy - eksport wyłącznie dla testów reguły. */
+export function guessUnknownCategory(key: string): ConsentCategory {
+  const lower = key.toLowerCase();
+  const tokens = keyTokens(key);
+  const marketing =
+    MARKETING_STEMS.some((stem) => lower.includes(stem)) ||
+    tokens.some((token) => MARKETING_WORDS.has(token));
+  if (marketing) return "marketing";
+  const analytics =
+    ANALYTICS_STEMS.some((stem) => lower.includes(stem)) ||
+    tokens.some(
+      (token) =>
+        ANALYTICS_WORDS.has(token) ||
+        ANALYTICS_TOKEN_PREFIXES.some((prefix) => token.startsWith(prefix)),
+    );
+  return analytics ? "analytics" : "functional";
+}
+
+/**
  * Heurystyczny opis nieznanego klucza - nazwa nadal trafia do deklaracji,
  * tylko z etykietą „wykryte automatycznie".
  */
@@ -310,13 +388,7 @@ function describeUnknown(key: string, kind: StorageKind): DataElement {
       detected: [key],
     };
   }
-  const marketing = /(utm|ref|affil|promo|coupon|ad)/i.test(key);
-  const analytics = /(stat|metric|event|track|visit|view|count)/i.test(key);
-  const category: ConsentCategory = marketing
-    ? "marketing"
-    : analytics
-      ? "analytics"
-      : "functional";
+  const category = guessUnknownCategory(key);
   return {
     name: key,
     category,

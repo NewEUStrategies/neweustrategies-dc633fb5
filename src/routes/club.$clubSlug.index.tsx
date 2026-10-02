@@ -24,7 +24,8 @@ import { ClubAccessGate } from "@/components/clubs/organisms/ClubAccessGate";
 import { ClubHub } from "@/components/clubs/organisms/ClubHub";
 
 import { useClubBySlug } from "@/lib/clubs/useClubs";
-import { buildClubHead, clubHeadLoader } from "@/lib/clubs/clubHead";
+import { buildClubHead } from "@/lib/clubs/clubHead";
+import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { ensureClubI18n } from "@/lib/i18n-club";
 
 // `?tag=` to segmentacja wątków przez #tagi w treści: klik w tag w dowolnym
