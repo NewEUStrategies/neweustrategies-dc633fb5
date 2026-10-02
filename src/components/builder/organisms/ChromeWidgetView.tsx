@@ -84,6 +84,7 @@ import { MegaMenu, type MegaMenuConfig } from "@/components/megaMenu/MegaMenu";
 import { SiteMenu } from "@/components/menu/SiteMenu";
 import { renderSimpleWidget, ResizableBox } from "./widget-view/SimpleWidgets";
 import { requiresFullWidgetView } from "./widget-view/fullWidgetTypes";
+import { searchOverflowAttr } from "@/lib/builder/searchOverflow";
 import {
   SocialMailIcon,
   socialGlyphBoxStyle,
@@ -392,6 +393,9 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
       <div
         id={htmlId}
         data-w-id={node.id}
+        // Ramka wyszukiwarki przycina (`overflow: hidden` niżej) - znacznik z SSR
+        // zdejmuje clip od pierwszej klatki (`@/lib/builder/searchOverflow`).
+        data-search-overflow={searchOverflowAttr(isSearchButton)}
         data-typography-gap-active={typeof activeGapPx === "number" ? "1" : undefined}
         ref={motion ? motionRef : undefined}
         className={`text-foreground ${cls}`.trim()}

@@ -93,6 +93,7 @@ function resolveOrder(
 }
 
 import { isPeopleSectionKind } from "@/lib/builder/sectionKind";
+import { childHostsSearchWidget, searchOverflowAttr } from "@/lib/builder/searchOverflow";
 
 interface Props {
   doc: BuilderDocument;
@@ -561,6 +562,9 @@ const RenderSection = memo(function RenderSection({
     () => (isPeopleSectionKind(allChildren) ? "people" : ""),
     [allChildren],
   );
+  // Opakowania z `overflow-hidden` nad widgetem wyszukiwarki dostają znacznik
+  // już w HTML-u SSR (`@/lib/builder/searchOverflow`) - zamiast `:has()`.
+  const hostsSearch = allChildren.some(childHostsSearchWidget);
   const videoUrl =
     section.background?.type === "video"
       ? safeImageUrl(section.background.videoUrl) || section.background.videoUrl
@@ -574,6 +578,7 @@ const RenderSection = memo(function RenderSection({
       id={sanitizeHtmlId(section.advanced?.htmlId)}
       data-sec-id={section.id}
       data-section-kind={sectionKind || undefined}
+      data-search-overflow={searchOverflowAttr(hostsSearch)}
       data-ab-experiment={section.advanced?.abTest?.experimentId}
       data-ab-variant={section.advanced?.abTest?.variant}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(section.advanced?.cssClass) ?? ""}`.trim()}
@@ -606,7 +611,10 @@ const RenderSection = memo(function RenderSection({
       <div style={overlayLayerStyle(section.overlay)} aria-hidden />
       <ShapeDivider s={section.shapeDividerTop} position="top" />
       <ShapeDivider s={section.shapeDividerBottom} position="bottom" />
-      <div style={sectionContainerStyle(section)}>
+      <div
+        data-search-overflow={searchOverflowAttr(hostsSearch)}
+        style={sectionContainerStyle(section)}
+      >
         {tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "horizontal" && (
           <div style={{ marginBottom: 16 }}>
             <SectionTabsBar
@@ -641,6 +649,7 @@ const RenderSection = memo(function RenderSection({
             role={tabsEnabled ? "tabpanel" : undefined}
             id={tabsEnabled ? `sec-${section.id}-panel-${displayTabId}` : undefined}
             aria-labelledby={tabsEnabled ? `sec-${section.id}-tab-${displayTabId}` : undefined}
+            data-search-overflow={searchOverflowAttr(hostsSearch)}
             className="min-w-0 max-w-full overflow-hidden"
             style={{
               ...columnsRowStyle(section, colsSum),
@@ -685,6 +694,7 @@ const RenderSection = memo(function RenderSection({
                     key={c.id}
                     data-column-slot
                     data-col-id={c.id}
+                    data-search-overflow={searchOverflowAttr(childHostsSearchWidget(c))}
                     className="min-w-0 max-w-full overflow-hidden"
                     style={{ gridColumn, ...(order !== undefined ? { order } : {}) }}
                   >
@@ -731,9 +741,11 @@ const RenderInner = memo(function RenderInner({
   );
   const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
   const innerKind = isPeopleSectionKind(columns) ? "people" : "";
+  const hostsSearch = columns.some(childHostsSearchWidget);
   return (
     <div
       data-section-kind={innerKind || undefined}
+      data-search-overflow={searchOverflowAttr(hostsSearch)}
       className={`min-w-0 max-w-full overflow-hidden ${sanitizeCssClass(inner.advanced?.cssClass) ?? ""}`.trim()}
       style={{
         ...sectionWrapperStyle(inner),
@@ -745,9 +757,13 @@ const RenderInner = memo(function RenderInner({
     >
       {/* Boxed/full toggle applies here too - inner sections cap their columns
           row exactly like top-level sections, so widget widths follow layout. */}
-      <div style={sectionContainerStyle(inner)}>
+      <div
+        data-search-overflow={searchOverflowAttr(hostsSearch)}
+        style={sectionContainerStyle(inner)}
+      >
         <div
           data-columns-row
+          data-search-overflow={searchOverflowAttr(hostsSearch)}
           className="min-w-0 max-w-full overflow-hidden"
           style={{
             ...columnsRowStyle(inner, colsSum),
@@ -761,6 +777,7 @@ const RenderInner = memo(function RenderInner({
             <div
               key={c.id}
               data-column-slot
+              data-search-overflow={searchOverflowAttr(childHostsSearchWidget(c))}
               className="min-w-0 max-w-full overflow-hidden"
               style={{
                 gridColumn: device === "mobile" ? "auto" : `span ${resolveSpan(c.span, device, 6)}`,
