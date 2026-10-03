@@ -464,7 +464,7 @@ describe("LoginPopup - tryb", () => {
   it("openLoginPopup('signup') otwiera popup na rejestracji", () => {
     render(<LoginPopup />);
     openPopup("signup");
-    expect(screen.getByLabelText(t("authForms.nameLabel"))).toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).toBeInTheDocument();
     expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signup_label_pl);
     expect(passwordInput()).toHaveAttribute("minlength", "8");
     expect(passwordInput()).toHaveAttribute("autocomplete", "new-password");
@@ -473,14 +473,14 @@ describe("LoginPopup - tryb", () => {
   it("openLoginPopup({ mode: 'signup' }) otwiera popup na rejestracji", () => {
     render(<LoginPopup />);
     openPopup({ mode: "signup" });
-    expect(screen.getByLabelText(t("authForms.nameLabel"))).toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).toBeInTheDocument();
     expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signup_label_pl);
   });
 
   it("openLoginPopup('signin') otwiera popup na logowaniu", () => {
     render(<LoginPopup />);
     openPopup("signin");
-    expect(screen.queryByLabelText(t("authForms.nameLabel"))).not.toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).not.toBeInTheDocument();
     expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signin_label_pl);
     expect(passwordInput()).not.toHaveAttribute("minlength");
     expect(passwordInput()).toHaveAttribute("autocomplete", "current-password");
@@ -489,7 +489,7 @@ describe("LoginPopup - tryb", () => {
   it('brak trybu w opcjach spada na logowanie (gałąź `opts.mode ?? "signin"`)', () => {
     render(<LoginPopup />);
     openPopup({ title: "Bez trybu" });
-    expect(screen.queryByLabelText(t("authForms.nameLabel"))).not.toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).not.toBeInTheDocument();
     expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signin_label_pl);
   });
 
@@ -511,9 +511,9 @@ describe("LoginPopup - tryb", () => {
     render(<LoginPopup />);
     openPopup();
     fireEvent.click(screen.getByRole("button", { name: t("authForms.noAccount") }));
-    expect(screen.getByLabelText(t("authForms.nameLabel"))).toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: t("authForms.haveAccount") }));
-    expect(screen.queryByLabelText(t("authForms.nameLabel"))).not.toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).not.toBeInTheDocument();
   });
 
   it("allow_public_signup=false: przełącznika na rejestrację NIE MA", () => {
@@ -671,7 +671,7 @@ describe("LoginPopup - błąd serwera ODRĘBNY od pustego formularza", () => {
     render(<LoginPopup />);
     openPopup("signup");
     fillSignin();
-    fireEvent.click(submitButton());
+    fireEvent.submit(submitButton().closest("form") as HTMLFormElement);
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(t("authForms.signupDisabled")));
     expect(h.signUp).not.toHaveBeenCalled();
   });
