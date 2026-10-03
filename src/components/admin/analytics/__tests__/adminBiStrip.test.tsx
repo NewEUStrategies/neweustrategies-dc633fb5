@@ -31,11 +31,17 @@ import type { ReactNode } from "react";
 import type { VitalsSummaryResult } from "@/lib/observability/vitals.functions";
 import type { ClientErrorsReport } from "@/lib/observability/clientErrorsAggregate";
 import type { VitalMetricSummary } from "@/lib/observability/aggregate";
+import { freezeClock } from "@/test/time";
 
 interface CapturedCard {
   title: string;
   csv?: { rows: readonly (readonly unknown[])[] };
 }
+
+// Zegar zamrożony (`check:clock-freeze`): fikstury niosą dni "2026-10-01".
+// Pasek ich nie filtruje względem "teraz" - to etykiety osi i wiersze CSV -
+// ale bez zamrożenia plik byłby zapalnikiem, gdyby kiedyś zaczął.
+freezeClock();
 
 const TENANT_A = "tenant-strip-a";
 const TENANT_B = "tenant-strip-b";
