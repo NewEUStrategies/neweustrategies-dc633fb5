@@ -26,7 +26,9 @@ import {
   type ListStyle,
   type SidebarPosition,
 } from "@/lib/archive-layout-settings";
+import { heroImageUrlForSave, isInvalidHeroImageUrl } from "@/lib/archive/heroImage";
 import { LAYOUT_REGISTRY, type LayoutVariant } from "@/components/archive/layouts/registry";
+import { ImageUrlField } from "@/components/admin/auth/organisms/ImageUrlField";
 import { ArchiveLivePreview } from "./ArchiveLivePreview";
 import { moveWidget as moveWidgetIn, toggleWidget as toggleWidgetIn } from "./lib/widgetOrder";
 import "@/lib/i18n-archive-layout";
@@ -47,6 +49,10 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery(archiveLayoutQueryOptions(archiveType));
   const [draft, setDraft] = useState<ArchiveLayoutSettings | null>(null);
+  // Komunikat o złym adresie zdjęcia pokazujemy dopiero po PRÓBIE zapisu, a od
+  // niej na żywo: walidacja od pierwszego znaku krzyczałaby „nieprawidłowy”
+  // przy każdym niedokończonym „https:/”.
+  const [heroImageChecked, setHeroImageChecked] = useState(false);
 
   useEffect(() => {
     if (data && !draft) setDraft(data);
@@ -70,6 +76,12 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
         show_related_taxonomies: v.show_related_taxonomies,
         show_podcasts: v.show_podcasts,
         hero_bg_style: v.hero_bg_style,
+        // Zawsze w payloadzie (zapis wysyła KOMPLET pól), przycięte, pusty →
+        // `null`. Niepoprawny adres też jedzie jako `null`: przy stylu
+        // „Zdjęcie” zapis jest wtedy zablokowany niżej, a przy innym stylu pole
+        // jest schowane i nieużywane - CHECK bazy odrzuciłby za nie CAŁY zapis
+        // ustawień, łącznie z polami zmienionymi poprawnie.
+        hero_image_url: heroImageUrlForSave(v.hero_image_url),
         posts_per_page: v.posts_per_page,
       };
       const { error } = await supabase
@@ -109,6 +121,24 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
 
   const toggleWidget = (key: SidebarWidgetKey, on: boolean) =>
     applyWidgets((widgets) => toggleWidgetIn(widgets, key, on));
+
+  // Ta sama reguła co CHECK `archive_layout_settings_hero_image_url_shape` -
+  // panel nie przepuści adresu, który baza odrzuci bez słowa wyjaśnienia.
+  const heroImageInvalid =
+    draft.hero_bg_style === "image" && isInvalidHeroImageUrl(draft.hero_image_url);
+  const heroImageError =
+    heroImageChecked && heroImageInvalid ? t("archiveLayout.heroImage.invalid") : undefined;
+
+  const submit = () => {
+    if (heroImageInvalid) {
+      setHeroImageChecked(true);
+      // Przycisk zapisu stoi daleko pod polem zdjęcia - sam komunikat przy polu
+      // mógłby zostać poza ekranem, więc odmowę sygnalizuje też toast.
+      toast.error(t("archiveLayout.heroImage.invalid"));
+      return;
+    }
+    save.mutate(draft);
+  };
 
   const title =
     archiveType === "category"
@@ -210,6 +240,21 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
           onChange={(v) => set("hero_bg_style", v as HeroBgStyle)}
           options={HERO_STYLES.map((h) => ({ value: h, label: t(`archiveLayout.heroBg.${h}`) }))}
         />
+        {/* Źródło zdjęcia ma sens WYŁĄCZNIE dla stylu „Zdjęcie”; przy innym
+            stylu byłoby martwą kontrolką. Wartość zostaje w wersji roboczej,
+            więc powrót do „Zdjęcia” jej nie gubi. */}
+        {draft.hero_bg_style === "image" && (
+          <div className="md:col-span-2">
+            <ImageUrlField
+              label={t("archiveLayout.fields.heroImageUrl")}
+              value={draft.hero_image_url ?? ""}
+              onChange={(v) => set("hero_image_url", v === "" ? null : v)}
+              hint={t("archiveLayout.heroImage.hint")}
+              aspect="4 / 1"
+              error={heroImageError}
+            />
+          </div>
+        )}
       </FieldsGrid>
 
       {/* Grid */}
@@ -323,7 +368,7 @@ export function ArchiveLayoutAdmin({ archiveType, sampleSlug }: Props) {
       </FieldsGrid>
 
       <footer className="flex flex-wrap gap-2 items-center pt-4 border-t border-border">
-        <Button onClick={() => save.mutate(draft)} disabled={save.isPending}>
+        <Button onClick={submit} disabled={save.isPending}>
           {save.isPending ? t("archiveLayout.saving") : t("archiveLayout.save")}
         </Button>
         <Button

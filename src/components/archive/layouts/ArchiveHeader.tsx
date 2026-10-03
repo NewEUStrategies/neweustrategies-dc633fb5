@@ -37,7 +37,11 @@ export function ArchiveHeader({
     <header
       className={`relative ${isWide ? "py-14 lg:py-20" : isCompact ? "py-6" : "py-10"} overflow-hidden`}
     >
-      {settings.show_hero && <HeroBackground style={settings.hero_bg_style} />}
+      {/* Adres zdjęcia jedzie razem ze stylem - bez niego styl „Zdjęcie” zawsze
+          schodził na neutralne tło (martwe ustawienie panelu). */}
+      {settings.show_hero && (
+        <HeroBackground style={settings.hero_bg_style} imageUrl={settings.hero_image_url} />
+      )}
       <div className="max-w-[1200px] mx-auto px-4 lg:px-8">
         {settings.show_breadcrumbs && (
           <Breadcrumbs

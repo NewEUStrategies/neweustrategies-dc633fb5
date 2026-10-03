@@ -1,5 +1,6 @@
 // Hero background variants for archive layouts. Pure CSS/SVG, token-driven.
 import type { HeroBgStyle } from "@/lib/archive-layout-settings";
+import { heroImageBackground } from "@/lib/archive/heroImage";
 
 export function HeroBackground({
   style,
@@ -24,22 +25,33 @@ export function HeroBackground({
       );
     case "solid":
       return <div className={`${base} bg-muted/30`} />;
-    case "image":
-      return imageUrl ? (
+    case "image": {
+      // Adres NIGDY nie trafia do CSS surowo: `heroImageBackground` sprawdza go
+      // regułą lustrzaną do CHECK-u bazy i składa cytowany, escapowany
+      // `url("…")`. Wcześniej stało tu `url(${imageUrl})` - nawias albo
+      // cudzysłów w adresie rozrywał deklarację. Brak adresu albo adres spoza
+      // reguły (`javascript:`, `data:`, '//host') schodzi na neutralne tło.
+      // Obie warstwy są czysto dekoracyjne (tekst nagłówka stoi nad nimi), więc
+      // bez `alt` i ukryte przed czytnikiem ekranu.
+      const backgroundImage = heroImageBackground(imageUrl);
+      return backgroundImage ? (
         <>
           <div
+            aria-hidden
+            data-hero-image=""
             className={base}
             style={{
-              backgroundImage: `url(${imageUrl})`,
+              backgroundImage,
               backgroundSize: "cover",
               backgroundPosition: "center",
             }}
           />
-          <div className={`${base} bg-background/60 backdrop-blur-sm`} />
+          <div aria-hidden className={`${base} bg-background/60 backdrop-blur-sm`} />
         </>
       ) : (
-        <div className={`${base} bg-muted/30`} />
+        <div aria-hidden className={`${base} bg-muted/30`} />
       );
+    }
     case "mesh":
       return (
         <div
