@@ -7285,27 +7285,29 @@ export default defineConfig({
         // czasowe emisji, typ strony, budżet stref na artykule. Cicha awaria
         // tej warstwy to nie brzydki układ, tylko emisja reklamy komuś, kto
         // zgody NIE dał - czyli naruszenie, nie usterka.
-        // ZMIERZONE: 82,55 / 77,82 / 84,09 / 85,52 (przed tą pracą 42,66 /
-        // 51,50 / 35,23 / 42,09). PRÓG NAJNIŻSZY W MODULE i wiadomo, czym:
-        // `consent.ts` stoi na 58,06% gałęzi - niepokryte są ramiona
-        // synchronizacji decyzji z rejestrem RODO i tryb podglądu zgód, nie
-        // sama klamra GPC. To następna porcja pracy testowej, nie przeoczenie.
+        // ZMIERZONE 2026-08-31: 82,55 / 77,82 / 84,09 / 85,52 (przed tą pracą
+        // 42,66 / 51,50 / 35,23 / 42,09). ZMIERZONE 2026-10-03 (same testy
+        // modułu 14, więc dolna granica pełnej suity): 100 / 99,65 / 100 / 100.
+        // Domknięta luka `consent.ts` (było 59,8% gałęzi): hydracja decyzji
+        // z profilu, backfill rejestru RODO, ślad GPC, odporność odczytu na
+        // uszkodzone ciasteczko i zablokowany magazyn, ścieżki SSR.
         "src/lib/ads/**": {
-          statements: 78,
-          functions: 80,
-          lines: 81,
-          branches: 73,
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 94,
         },
         // Powierzchnia renderująca reklamy u czytelnika, razem z ramką
         // piaskownicy. Bramka pilnuje tego, że kreacja obcego pochodzenia
         // jedzie do izolowanego `iframe`, a strefa nie renderuje się przed
         // zgodą. ZMIERZONE: 97,67 / 91,43 / 96,67 / 100 (przed: 32,32 / 37,74
-        // / 26,32 / 33,56, jeden plik na okrągłym zerze).
+        // / 26,32 / 33,56, jeden plik na okrągłym zerze). 2026-10-03: 100 /
+        // 100 / 100 / 100 (`AdSlotById`, `useInFeedAds` z własnymi testami).
         "src/components/ads/**": {
-          statements: 93,
-          functions: 92,
+          statements: 96,
+          functions: 96,
           lines: 96,
-          branches: 87,
+          branches: 95,
         },
         // Beacon zliczający odsłony i kliknięcia reklam. Endpoint publiczny,
         // bez sesji, przyjmuje ruch od każdego - więc bramka trzyma limiter,
@@ -7326,38 +7328,49 @@ export default defineConfig({
         // próg wysoki. Pilnuje granicy „pełny artykuł za darmo": pomyłka w
         // arytmetyce budżetu otwiera treść płatną szerzej, niż ktokolwiek
         // zdecydował. ZMIERZONE: 97,99 / 95,03 / 100 / 99,19 (przed: 43,94 /
-        // 36,41 / 37,78 / 45,73).
+        // 36,41 / 37,78 / 45,73). 2026-10-03: 100 / 96,89 / 100 / 100.
         "src/lib/gifting/**": {
-          statements: 93,
+          statements: 96,
           functions: 96,
-          lines: 95,
-          branches: 91,
+          lines: 96,
+          branches: 93,
         },
         // Powierzchnia podarunku u czytelnika: przycisk, baner odbiorcy,
         // miernik zużytego budżetu, kanały udostępniania. Baner odbiorcy jest
         // jedynym miejscem, które MÓWI odbiorcy, czy dostał dostęp - stan
         // pokazany błędnie jest tu gorszy niż brak ekranu.
-        // ZMIERZONE: 96,05 / 94,12 / 94,74 / 100.
+        // ZMIERZONE: 96,05 / 94,12 / 94,74 / 100. 2026-10-03: 98,68 / 99,16 /
+        // 100 / 100 - jedyna niedobita gałąź to strażnik `if (!giftUrl)`
+        // w `onCopy`, nieosiągalny z UI (przycisk kopiowania istnieje tylko
+        // przy gotowym linku).
         "src/components/gifting/**": {
-          statements: 92,
-          functions: 90,
+          statements: 95,
+          functions: 96,
           lines: 96,
-          branches: 90,
+          branches: 95,
         },
         // Formularz i CTA darowizny. O dopuszczalnej kwocie decyduje serwer,
         // ale to TA warstwa rozstrzyga, czy darczyńca trafi do naszej kasy,
         // czy do zbiórki zewnętrznej, i czy SDK operatora w ogóle się załaduje.
-        // ZMIERZONE: 84,00 / 72,02 / 71,43 / 85,71 - najsłabsza powierzchnia
-        // czytelnika w module i próg jest tu uczciwie niski, nie zaokrąglony
-        // w górę. Niepokryte: `DonationsWidgetView` (65,62% gałęzi - warianty
-        // osadzenia widgetu w builderze) oraz ramiona `DonationForm`
-        // obsługujące odmowę operatora w trybie osadzonej kasy (66,67%
-        // funkcji). Podniesienie tego progu wymaga testów tych dwóch rzeczy.
+        // ZMIERZONE 2026-08-31: 84,00 / 72,02 / 71,43 / 85,71. 2026-10-03:
+        // 100 / 100 / 100 / 100 - `DonationsWidgetView` ma własny test
+        // (sześć wariantów, przycięcie postępu, awaryjny format waluty),
+        // a `DonationForm` - ramiona odmowy operatora i zamknięcia kasy.
         "src/components/donations/**": {
-          statements: 80,
-          functions: 67,
-          lines: 81,
-          branches: 68,
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 95,
+        },
+        // Publiczna strona `/donate`: walidacja `?status`, nagłówek PL/EN,
+        // ekran podziękowania po powrocie z kasy. Do 2026-10-03 OKRĄGŁE ZERO
+        // (jedyny plik modułu 14 na zerze); dziś 100 / 100 / 100 / 100.
+        // Próg gałęzi niższy, bo plik ma ich dziesięć - jedna to 10 pp.
+        "src/routes/donate.tsx": {
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 90,
         },
         // Panel reklam: slot, placement, targetowanie, statystyki. Tu redakcja
         // USTAWIA to, czego pilnuje `src/lib/ads/**` - błąd w edytorze
@@ -7376,15 +7389,14 @@ export default defineConfig({
         // Panel kuponów i kampanii rabatowych. Kupon to RABAT NA PIENIĄDZACH:
         // pomyłka w zakresie daty albo w limicie użyć nie psuje ekranu, tylko
         // wydaje pieniądze, i widać ją dopiero w rozliczeniu.
-        // ZMIERZONE: 91,60 / 87,74 / 90,70 / 93,70. Najsłabszy plik:
-        // `DatePickerField` (57,14% funkcji, 65,22% linii) - niepokryte są
-        // ścieżki klawiaturowe wyboru daty; sama walidacja zakresu, która
-        // decyduje o ważności kuponu, jest pokryta.
+        // ZMIERZONE 2026-08-31: 91,60 / 87,74 / 90,70 / 93,70. 2026-10-03:
+        // 100 / 98,88 / 100 / 100 - `DatePickerField` (było 57,14% funkcji)
+        // ma własny test wyboru dnia i godziny.
         "src/components/admin/coupons/**": {
-          statements: 87,
-          functions: 86,
-          lines: 89,
-          branches: 83,
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 94,
         },
         // Panel podarunków: ustawienia limitów, lista wydanych linków, audyt
         // odebrań. Pola limitów są lustrem CHECK-ów z bazy - rozjazd między
