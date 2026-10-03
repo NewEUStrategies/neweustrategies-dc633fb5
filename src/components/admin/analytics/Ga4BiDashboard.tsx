@@ -277,7 +277,8 @@ export function Ga4BiDashboard({
   const anyLoading = queries.some((q) => q.isLoading);
 
   // CZTERY STANY, KTÓRE NIE SĄ POMIAREM, każdy z inną decyzją operatora
-  // (piąty, ZMIERZONE ZERO, jest niżej - tam zera są prawdą).
+  // (piąty, ZMIERZONE ZERO, jest niżej - tam zera są prawdą; szósty,
+  // ODPOWIEDŹ BEZ SUM, stoi tuż za nim).
   // 1. Raport z polem `error`: bramka odpowiedziała i sama nazwała przyczynę.
   const reportError = queries.find((q) => q.data && "error" in q.data && q.data.error);
   // 2. Zapytanie ODRZUCONE: `q.data` jest wtedy `undefined`, więc szukanie pola
@@ -717,9 +718,7 @@ export function Ga4BiDashboard({
     current: number | null,
     previous: number | null,
   ): { current?: number; previous?: number } =>
-    hasCurrent && hasPrevious && current !== null && previous !== null
-      ? { current, previous }
-      : {};
+    hasCurrent && hasPrevious && current !== null && previous !== null ? { current, previous } : {};
   const formatCount = (n: number): string => n.toLocaleString("pl-PL");
 
   return (
