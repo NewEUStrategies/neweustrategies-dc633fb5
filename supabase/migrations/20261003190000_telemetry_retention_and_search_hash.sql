@@ -29,8 +29,10 @@
 -- sha256: fraz jest malo i sa krotkie, wiec niesolony skrot odwraca sie
 -- slownikiem w minuty. Pieprz per najemca dodatkowo sprawia, ze ta sama fraza
 -- u dwoch najemcow daje dwa rozne skroty - zrzut jednego najemcy nie pozwala
--- korelowac wyszukiwan z drugim. Pieprz zamyka slownik OFFLINE; slownik online
--- przez publiczny ingest zostaje (RYZYKO PRZYJETE w BEZPIECZENSTWO nizej).
+-- korelowac wyszukiwan z drugim. Pieprz zamyka slownik OFFLINE. Slownik ONLINE
+-- (zgadywana fraza wyslana przez publiczny ingest i porownana ze skrotem
+-- cudzego wiersza) zamyka polityka RESTRICTIVE: role klienckie nie widza
+-- wierszy wyszukiwania wcale (BEZPIECZENSTWO nizej).
 --
 -- CO ROBI TA MIGRACJA.
 --   * `analytics_search_peppers` - jeden 32-bajtowy sekret na najemce. RLS
@@ -47,6 +49,10 @@
 --     lapie tez kombinacje sfalszowane przez klienta): `entity_id` := skrot,
 --     `meta` traci klucz `q`. KAZDY blad skrotu daje `entity_id = NULL`
 --     i wiersz zostaje - telemetria nie moze wywracac ingestu.
+--   * polityka RESTRICTIVE `analytics_events_hide_search_rows` (FOR SELECT,
+--     anon i authenticated): te same wiersze wyszukiwania co w WHEN triggera
+--     znikaja z odczytu rol klienckich. Liczby wyszukiwan licza dalej agregaty
+--     SECURITY DEFINER, ktore RLS nie dotyczy.
 --   * `analytics_search_hash_backfill()` - jednorazowe przepisanie wierszy
 --     historycznych (wywolane tu raz); filtr pomija wiersze juz przepisane,
 --     wiec drugie wywolanie niczego nie zmienia.
@@ -72,28 +78,62 @@
 --   Wszystkie trzy okna sa nie dluzsze niz 12 miesiecy z polityki.
 --
 -- BEZPIECZENSTWO.
---   * Funkcja skrotu NIE jest dostepna dla authenticated: admin i redaktor
---     czytaja skroty przez RLS, wiec z EXECUTE mieliby HURTOWA wyrocznie
---     slownikowa (tysiace fraz w jednym zapytaniu). EXECUTE ma tylko
---     service_role. Trigger nie potrzebuje EXECUTE wolajacego - funkcja
+--   * WYROCZNIA SLOWNIKOWA I JEJ ZAMKNIECIE. Skrot jest deterministyczny per
+--     najemca, POST /api/public/track przyjmuje dowolna fraze dowolnego
+--     klienta (do 40 zdarzen na zadanie), a trigger skraca ja tym samym
+--     pieprzem co frazy odwiedzajacych. Rola, ktora CZYTA skroty, mialaby wiec
+--     wyrocznie: „czy ktos szukal X?" = jeden beacon + jeden SELECT, wynik
+--     obok `anon_id` i `session_id` szukajacego, a slownik w tempie limitera
+--     ingestu (~80 fraz/s z IP: 120 zadan zrywu, 2 zadania/s, licznik per
+--     izolat). Wyrocznia potrzebuje DWOCH drog - zapisu dowolnej frazy
+--     i odczytu skrotow. Zapisu zamknac sie nie da, bo ingest jest publiczny
+--     z definicji; zamyka ja odciecie ODCZYTU. Polityka RESTRICTIVE (sekcja 8)
+--     ukrywa przed anon i authenticated KAZDY wiersz wyszukiwania, wiec admin
+--     ani redaktor nie widza ani skrotu wlasnej zgadywanej frazy, ani skrotow
+--     cudzych - porownywac nie ma czego. Rotacja pieprzu (`sq2:`) nie jest
+--     alternatywa: skraca tylko OKNO wyroczni, bo slownik budowany po rotacji
+--     czyta wszystko, co wpadlo pod nowy klucz.
+--   * RESTRICTIVE, a nie zawezenie `analytics_events_admin_read`: polityka
+--     restrykcyjna wchodzi koniunkcja do KAZDEJ permisywnej, takze do tej,
+--     ktora ktos kiedys dopisze (np. odczyt super admina) bez pamieci o tym
+--     ryzyku. Predykat to zaprzeczenie WHEN triggera, ale z `IS NOT DISTINCT
+--     FROM` zamiast `=` na `entity_type`, bo kolumna dopuszcza NULL: dla
+--     odslony bez encji `NOT (false OR NULL)` daje NULL, czyli wiersz UKRYTY -
+--     takie odslony znikalyby z odczytu razem z wyszukiwaniami. `event_type`
+--     jest NOT NULL. anon dostaje polityke mimo braku permisywnej: domyslne
+--     uprawnienia Supabase daja mu SELECT na tabeli, wiec pierwsza permisywna
+--     polityka `TO public` otworzylaby mu wiersze wyszukiwania.
+--   * KTO DALEJ LICZY WYSZUKIWANIA. Zaden czytnik kliencki nie wyswietla
+--     `entity_id` wierszy wyszukiwania (raport „popularne frazy" stoi na
+--     `search_query_log`), a liczby licza funkcje SECURITY DEFINER:
+--     `analytics_semantic_snapshot` (`searches`), `admin_dashboard_traffic`
+--     i `admin_dashboard_realtime` (wiersz wyszukiwania wchodzi do `events`,
+--     sesji i odwiedzajacych). Wykonuja sie jako ich wlasciciel - rola
+--     migracji, ta sama, do ktorej nalezy tabela - a RLS nie dotyczy
+--     wlasciciela, dopoki tabela nie ma FORCE ROW LEVEL SECURITY. I nie moze
+--     go dostac: pod FORCE wlasciciel podlega politykom jak kazda rola -
+--     zaleznie od czlonkostwa w `authenticated` widzialby zero wierszy albo
+--     tyle, co wolajacy, czyli bez wyszukiwan (`searches` = 0 po cichu).
+--     `footerAnalytics.functions.ts` czyta tabele klientem uzytkownika, ale
+--     tylko zdarzenia `footer_*` (`cta_click`, encje `menu`/`cta`) - polityka
+--     ich nie dotyczy. Ingest pisze przez service_role (BYPASSRLS).
+--   * SKUTEK UBOCZNY: widok `analytics_events_daily` jest `security_invoker`,
+--     wiec admin i redaktor nie widza w nim wierszy wyszukiwania - kubelkow
+--     `event_type = 'search'` nie ma, a zdarzenie innego typu z encja
+--     `search_query` wypada z kubelka swojego typu. Widok nie ma czytelnika
+--     w TS (grep: wylacznie komentarze w src/lib/analytics/semantic);
+--     autorytatywna liczba wyszukiwan to `searches` z migawki.
+--   * CO ZOSTAJE. service_role (serwer: ingest, operator, backfill; i tak ma
+--     EXECUTE na funkcji skrotu) czyta wszystko. Agregaty SECURITY DEFINER
+--     oddaja klientowi wylacznie liczby - zaden nie grupuje po `entity_id` ani
+--     go nie zwraca. Kopia frazy w GA4 (`search_term`, jawna, redagowana
+--     tylko `redactPii`) to osobny kanal o innym dostepie, opisany
+--     w src/lib/analytics/track.ts.
+--   * Funkcja skrotu NIE jest dostepna dla authenticated; EXECUTE ma tylko
+--     service_role. Z nia kazdy zalogowany liczylby skroty HURTOWO (tysiace
+--     fraz w jednym zapytaniu) i odwracal slownikiem kazdy skrot, ktory
+--     wyszedl poza baze. Trigger nie potrzebuje EXECUTE wolajacego - funkcja
 --     triggera jest SECURITY DEFINER.
---   * RYZYKO PRZYJETE: ta sama wyrocznia zostaje, tylko WOLNIEJSZA - przez
---     publiczny ingest. Skrot jest deterministyczny per najemca, POST
---     /api/public/track przyjmuje dowolna fraze klienta (do 40 zdarzen na
---     zadanie), a trigger skraca ja tym samym pieprzem. Admin albo redaktor
---     potwierdzi wiec zgadywana fraze („czy ktos szukal X?" = jeden beacon
---     + jeden SELECT, wynik obok `anon_id` szukajacego), a slownik zbuduje
---     w tempie limitera ingestu: ~80 fraz/s z jednego IP (120 zadan zrywu,
---     2 zadania/s, licznik per izolat - wiecej izolatow = wiecej). REVOKE
---     wyzej zamyka tylko droge najszybsza. Skrot chroni przed CZYTANIEM fraz
---     bez zgadywania, przed odwroceniem zrzutu tabeli bez pieprzu i przed
---     korelacja miedzy najemcami - NIE przed celowym sprawdzeniem frazy przez
---     role, ktora czyta skroty i moze pisac przez ingest. To nie regresja
---     (wczesniej fraza lezala jawnie). Utwardzenie poza ta migracja: rotacja
---     pieprzu w okresach (klucz per najemca per miesiac, wersja w prefiksie),
---     zeby slownik zbudowany dzis nie czytal historii, albo odciecie
---     `entity_id` wierszy wyszukiwania od odczytu admina i redaktora (zaden
---     czytnik go nie wyswietla).
 --   * Najemca wiersza to `NEW.tenant_id` - wartosc juz rozstrzygnieta przez
 --     ingest z hosta zadania; trigger nie wyprowadza najemcy sam i nie sprawdza
 --     rol (bramka `check:sql-tenant-scope`).
@@ -106,7 +146,7 @@
 -- IDEMPOTENCJA. CREATE TABLE / INDEX IF NOT EXISTS, CREATE OR REPLACE
 -- FUNCTION, CREATE OR REPLACE TRIGGER, bezstanowe ACL, backfill
 -- z filtrem pomijajacym wiersze przepisane, zadanie cron wyrejestrowane
--- i rejestrowane od nowa.
+-- i rejestrowane od nowa, DROP POLICY IF EXISTS + CREATE POLICY.
 --
 -- BLOKADY PRZY WDROZENIU (koszt NIEZMIERZONY na danych produkcyjnych). Plik
 -- biegnie w jednej transakcji, a CREATE OR REPLACE TRIGGER bierze na
@@ -122,6 +162,15 @@
 -- nie do przyjecia, wywolanie backfillu mozna przeniesc do osobnej, pozniejszej
 -- migracji albo kroku operatora: trigger kryje juz nowe wiersze, a backfill
 -- jest idempotentny.
+--   Wyjatek od „odczyty nie czekaja" to sekcja 8: DROP i CREATE POLICY biora na
+-- tabeli ACCESS EXCLUSIVE (zmierzone w pg_locks na PG16; DROP IF EXISTS
+-- polityki, ktorej nie ma, blokady nie zostawia), a ta wstrzymuje takze
+-- SELECT. Dlatego polityka stoi NA KONCU pliku, a nie przy triggerze - tam
+-- trzymalaby te blokade przez caly backfill i budowe indeksu; tu trzyma ja od
+-- ostatniej instrukcji do COMMIT, poprzedzona czekaniem na trwajace odczyty
+-- (musza sie skonczyc, zanim ja dostanie, a nowe staja za nia w kolejce).
+-- Bezpieczenstwu kolejnosc nie szkodzi: plik jest jedna transakcja, wiec nikt
+-- nie zobaczy stanu z triggerem, a bez polityki.
 --
 -- Dowod: supabase/tests/telemetry_retention_and_search_hash_test.sql.
 -- ============================================================================
@@ -207,7 +256,7 @@ END;
 $fn$;
 
 COMMENT ON FUNCTION public.analytics_search_phrase_hash(uuid, text) IS
-  'Skrot frazy wyszukiwania: sq1: + hex(HMAC-SHA256(fraza po lower, zwinieciu bialych znakow i btrim; pieprz najemcy)). Pieprz zakladany leniwie. Pusta fraza albo NULL -> NULL. Tylko service_role: dla rol czytajacych skroty bylaby hurtowa wyrocznia slownikowa. Wolniejsza zostaje przez publiczny ingest (trigger skraca dowolna fraze klienta tym samym pieprzem) - ryzyko przyjete, opis w migracji 20261003190000.';
+  'Skrot frazy wyszukiwania: sq1: + hex(HMAC-SHA256(fraza po lower, zwinieciu bialych znakow i btrim; pieprz najemcy)). Pieprz zakladany leniwie. Pusta fraza albo NULL -> NULL. Tylko service_role: dla zalogowanych bylaby hurtowa wyrocznia slownikowa. Wyrocznie przez publiczny ingest (trigger skraca dowolna fraze klienta tym samym pieprzem) zamyka polityka RESTRICTIVE analytics_events_hide_search_rows - role klienckie nie czytaja wierszy wyszukiwania. Opis w migracji 20261003190000.';
 
 REVOKE ALL ON FUNCTION public.analytics_search_phrase_hash(uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.analytics_search_phrase_hash(uuid, text) TO service_role;
@@ -265,6 +314,13 @@ REVOKE ALL ON FUNCTION public.analytics_events_search_hash() FROM PUBLIC, anon, 
 -- i trzyma ja do COMMIT calej migracji, czyli przez caly backfill - a to
 -- zatrzymaloby takze ODCZYTY pulpitow. SHARE ROW EXCLUSIVE z CREATE OR
 -- REPLACE wstrzymuje tylko zapisy (ingest); SELECT-y ida dalej.
+--
+-- Ten sam predykat, zaprzeczony i odporny na NULL, wycina wiersze wyszukiwania
+-- z odczytu rol klienckich - polityka RESTRICTIVE w sekcji 8. Stoi na koncu
+-- pliku, a nie tutaj, z tego samego powodu co wyzej: CREATE POLICY bierze
+-- ACCESS EXCLUSIVE (naglowek, BLOKADY PRZY WDROZENIU). Zmiana WHEN bez zmiany
+-- tamtego predykatu (albo odwrotnie) rozjedzie „co skracamy" z „czego nie
+-- pokazujemy".
 CREATE OR REPLACE TRIGGER analytics_events_search_hash_trg
   BEFORE INSERT ON public.analytics_events
   FOR EACH ROW
@@ -480,3 +536,43 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RAISE WARNING 'telemetry: scheduling retention job failed (%)', SQLERRM;
 END $$;
+
+-- ----------------------------------------------------------------------------
+-- 8) Wiersze wyszukiwania poza odczytem rol klienckich
+-- ----------------------------------------------------------------------------
+-- Zamyka wyrocznie slownikowa przez ingest (naglowek, BEZPIECZENSTWO): kto nie
+-- widzi zadnego skrotu, nie ma czego porownac z fraza, ktora sam wyslal.
+--
+-- PREDYKAT = zaprzeczenie WHEN triggera z sekcji 3, zeby „co skracamy"
+-- i „czego nie pokazujemy" bylo jednym zbiorem wierszy. `IS NOT DISTINCT FROM`
+-- zamiast `=`, bo `entity_type` dopuszcza NULL: przy `=` odslona bez encji
+-- daje `NOT (false OR NULL)` = NULL, a NULL w USING ukrywa wiersz - z odczytu
+-- admina znikalaby wtedy kazda odslona bez encji. `event_type` jest NOT NULL,
+-- wiec `=` wystarcza; calosc nigdy nie jest NULL.
+--
+-- RESTRICTIVE, nie permisywna: wchodzi koniunkcja do KAZDEJ polityki
+-- permisywnej - dzis `analytics_events_admin_read` (najemca + admin albo
+-- redaktor), jutro takze tej dopisanej bez pamieci o wyroczni. Sama nie
+-- otwiera niczego: bez permisywnej rola widzi zero wierszy, jak dotad.
+--
+-- `anon` obok `authenticated`: zadna permisywna polityka nie obejmuje dzis
+-- anon, ale domyslne uprawnienia Supabase daja mu SELECT na tabeli, wiec
+-- pierwsza permisywna `TO public` otworzylaby mu takze wyszukiwania.
+-- service_role ma BYPASSRLS, a agregaty SECURITY DEFINER wykonuja sie jako
+-- wlasciciel tabeli - obu polityka nie dotyczy, i o to chodzi: liczby
+-- wyszukiwan licza dalej one.
+--
+-- NA KONCU PLIKU, bo DROP i CREATE POLICY biora ACCESS EXCLUSIVE (wstrzymuje
+-- tez SELECT) i trzymaja ja do COMMIT - postawione przy triggerze trzymalyby
+-- ja przez caly backfill (naglowek, BLOKADY PRZY WDROZENIU).
+DROP POLICY IF EXISTS analytics_events_hide_search_rows ON public.analytics_events;
+CREATE POLICY analytics_events_hide_search_rows ON public.analytics_events
+  AS RESTRICTIVE
+  FOR SELECT
+  TO anon, authenticated
+  USING (
+    NOT (event_type = 'search' OR entity_type IS NOT DISTINCT FROM 'search_query')
+  );
+
+COMMENT ON POLICY analytics_events_hide_search_rows ON public.analytics_events IS
+  'RESTRICTIVE: role klienckie nie czytaja wierszy wyszukiwania (event_type search albo entity_type search_query - ten sam zbior co WHEN triggera skrotu). Zamyka wyrocznie slownikowa: skrot frazy jest deterministyczny per najemca, a publiczny ingest skraca dowolna fraze tym samym pieprzem. Liczby wyszukiwan licza agregaty SECURITY DEFINER (analytics_semantic_snapshot, admin_dashboard_*); widok analytics_events_daily (security_invoker) nie pokazuje tych wierszy adminowi. Opis w migracji 20261003190000.';
