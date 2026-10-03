@@ -1,0 +1,339 @@
+{
+  "key": "css",
+  "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/css.md",
+  "summary": "The blocking sheet styles-*.css is 537 876 B raw / 79.8 KB gzip / 59.4 KB br, and only 14.9% of its rule bytes are used on /. LH charges 450 ms FCP on mobile, but A/B (n=3) shows a used-only sheet buys just -0.21 s FCP / -0.20 s LCP on mobile and -0.05 s on desktop. A surface-split core (44.2 KB br) gives -0.15/-0.17 s. Elasticity is about 4-6 ms/KB br on mobile: a secondary lever worth about +1 to +2.5 mobile points. Surface splitting reaches about 250 KB raw / 42.7 KB gzip / 33.6 KB br. Stripping the color-mix fallback saves another -69 KB raw / -5 KB gzip. Critical-CSS inlining and content-visibility: not recommended. Inline <style> totals 133 KB (typography about 52 KB), and the new gate is render-blocking CSS <= 45 KB gzip.",
+  "findings": [
+    {
+      "id": "css-F1",
+      "claim": "The single render-blocking sheet styles-DjfYz07w.css is 537 876 B raw / 79 802 B gzip-6 / 59 398 B br-11; 69 971 B transfer locally, 78 624 B on production (PSI).",
+      "evidence": "css.md §0 table, measured on built artifact",
+      "metric": "render-blocking CSS bytes",
+      "severity": "high"
+    },
+    {
+      "id": "css-F2",
+      "claim": "Only 14.9% of the sheet's rule bytes are used on / (540 of 5 181 leaf rules, 74 770 B raw, 16 459 B gzip). Lighthouse 13 unused-css-rules is empty, so it hides this.",
+      "evidence": "Union of 6 CDP rule-usage runs (prod no-JS mobile+desktop, local with JS, with and without scroll), cov-*.json",
+      "metric": "CSS coverage on /",
+      "severity": "high"
+    },
+    {
+      "id": "css-F3",
+      "claim": "Lighthouse render-blocking-insight charges the sheet 450 ms FCP on mobile (prod 529 ms wasted, local 470 ms) and 110 ms on desktop prod. That is the 'no blocking CSS at all' case.",
+      "evidence": "Lighthouse prod and local reports, css.md §0",
+      "metric": "FCP (LH render-blocking-insight savings)",
+      "severity": "medium"
+    },
+    {
+      "id": "css-F4",
+      "claim": "Real gain from shrinking is small. Ideal used-only sheet (18.3 KB br vs 70.0 KB): mobile FCP -0.21 s, LCP -0.20 s, SI -0.21 s; desktop FCP/LCP -0.05 s. Surface-split core (44.2 KB br, 297 774 B raw): mobile FCP -0.15 s, LCP -0.17 s; desktop about 0. CLS stays 0.000.",
+      "evidence": "A/B measure-ab.sh, fixture, interleaved, n=3 each (ab-critical.log, ab-core.log), css.md §4",
+      "metric": "mobile/desktop FCP, LCP, SI",
+      "severity": "high"
+    },
+    {
+      "id": "css-F5",
+      "claim": "Elasticity is about 4-6 ms of mobile FCP/LCP per KB br of blocking CSS and about 1 ms/KB on desktop. The measured ceiling for CSS-only work on / is about -0.2 s mobile, worth about +1 to +2.5 mobile score points and about 0 on desktop. CSS is a secondary lever. Lantern's pessimistic graph is dominated by about 480 KB gzip of boot modulepreload.",
+      "evidence": "Derived from the F4 A/B runs. Lantern FCP model explanation, css.md §0 and §4",
+      "metric": "ms FCP per KB br; Lighthouse perf score",
+      "severity": "medium"
+    },
+    {
+      "id": "css-F6",
+      "claim": "By layer: @layer utilities 334 262 B raw (40 084 gzip-9), of which 21 159 B are used on /. Unlayered hand rules plus top-level @media/@supports total about 161 KB raw. Hand CSS is 37% of the sheet.",
+      "evidence": "layers.mjs, css.md §1.1",
+      "metric": "raw/gzip bytes per layer",
+      "severity": "medium"
+    },
+    {
+      "id": "css-F7",
+      "claim": "670 @supports(color-mix(in lab,...)) blocks total 105 844 B raw (Tailwind opacity-modifier pattern). Their fallback is the OPAQUE colour, which is wrong anyway. Stripping the fallback and unwrapping the blocks saves -69 013 B raw / -5.0 KB gzip.",
+      "evidence": "layers.mjs plus a simulation in analyze notes, css.md §1.1",
+      "metric": "raw/gzip bytes",
+      "severity": "medium"
+    },
+    {
+      "id": "css-F8",
+      "claim": "Large areas use 0 bytes on /: clubs 30 673 B, charts (palette plus charts.css) 29 477 B / 6.6 KB gzip, experts/careers/CV 15 298 B, events 9 208 B, print 7 424 B, checkout 1 638 B. Profile (21 081 B, 922 used) and dock/chat (20 526 B, 506 used) are mostly unused. Admin leftovers total 2 337 B. Utilities whose candidates occur only in files not loaded on / come to 2 025 rules / 169 281 B raw / 22.6 KB gzip, all unused.",
+      "evidence": "analyze.mjs (oxide scanner attribution plus styles.css sections), chunk inventory, css.md §1.2",
+      "metric": "raw/gzip bytes per feature area",
+      "severity": "high"
+    },
+    {
+      "id": "css-F9",
+      "claim": "The existing doctrine (@source admin cut, check-bundle-size.ts:1885-1946 '~8% ceiling') covers only utilities scoped admin vs public, not moving hand CSS by surface. About 60 KB of hand CSS source is namespaced for non-public surfaces. The publicCss gate (budget 83 KB, summing every non-admin sheet at :2456-2461) cannot see a split and would slightly RISE after one.",
+      "evidence": "Code reading: src/styles.css:1-15, scripts/lib/adminCssPlugin.ts:11-37, scripts/check-bundle-size.ts:1885-1946, :2022, :2456-2461",
+      "metric": "gate contract",
+      "severity": "medium"
+    },
+    {
+      "id": "css-F10",
+      "claim": "Loading mechanisms that are safe for a split already exist in the build: TanStack Start SSR-links route-level CSS from the manifest (e.g. RichTextView css on /$, /support...); the Vite preload helper loads lazy-chunk CSS (fine for post-hydration UI, not for SSR-rendered React.lazy widgets); React 19 Float <link precedence='nes-widgets'> dedupes and holds the boundary reveal (doctrine in widgetStyleSheets.tsx); media=print links do not block.",
+      "evidence": "Verified in .output/server/_tanstack-start-manifest_v-DcVEtS0X.mjs, index-DPN2YAij.js deps, widgetStyleSheets.tsx:1-39, css.md §2",
+      "metric": "FOUC / head parity risk",
+      "severity": "medium"
+    },
+    {
+      "id": "css-F11",
+      "claim": "content-visibility:auto on the 3rd and later builder sections gives no gain. Mobile medians A->B: FCP 4.89->4.92 s (+0.03), LCP 5.59->5.60 s (+0.01), SI +0.03 s, TBT -55 ms (noisy), perf 59->61. Desktop was incomplete (run B desktop 3 failed, no median computed).",
+      "evidence": "ab-cv.log (measure-ab.sh, n=3 mobile). The report §6 defers to this log",
+      "metric": "mobile FCP/LCP/SI",
+      "severity": "low"
+    },
+    {
+      "id": "css-F12",
+      "claim": "Surface splitting reaches about 250 KB raw / 42.7 KB gzip / 33.6 KB br (stage 3), or about 205 KB / 39 KB / 31 KB with the color-mix strip. Reaching <=30 KB gzip would need per-widget builder CSS (49 KB raw of widget utilities is reachable from /, about 10 KB br, about -50 ms), which the report judges not worth the risk. Ideal lower bound: 89 295 B raw / 19 248 gzip / 16 057 br.",
+      "evidence": "tiers2.mjs simulated core sheets (stage-*.css), css.md §3",
+      "metric": "core raw/gzip-6/br-11",
+      "severity": "medium"
+    },
+    {
+      "id": "css-F13",
+      "claim": "Critical-CSS inlining is not recommended. It buys only -0.06 s more than the structural split, adds about 19 KB gzip to every uncacheable 570 KB document, must be computed for each CMS document, and breaks the single-<link> head contract (rootHead.ts:52-70 vs :108-118).",
+      "evidence": "Difference between the critical and core A/B runs, css.md §0",
+      "metric": "mobile FCP; document bytes",
+      "severity": "medium"
+    },
+    {
+      "id": "css-F14",
+      "claim": "Production / carries 51 inline <style> blocks totalling 133 103 B. Biggest are brand tokens 26 612 B, about 31 per-widget typography blocks at about 52 000 B (typographyCss.ts:78-233, same template per data-w-id), trending/ticker 14 848 B, slider shared 10 948 B, theme settings 10 306 B, sbw social 4 022 B and search 3 619 B. Moving the constant and typography parts out would cut the document by -45 to -75 KB raw. That is neutral for cold Lantern and helps HTML parse and caching.",
+      "evidence": "Production HTML inspection, css.md §5",
+      "metric": "inline style bytes in document",
+      "severity": "medium"
+    },
+    {
+      "id": "css-F15",
+      "claim": "Non-composited animations run during load: 6 in prod LH and 11 locally. Causes: tw-animate-css @keyframes enter always animates filter:blur on the consent banner (ConsentBanner.tsx:556-559, :703, plus backdrop-blur), slider dots transition width/height (sliderVariants.tsx:704, :1654), oi-fade-in on first-viewport card images (styles.css:1613-1628), and the MBB mbb-strok stroke-dashoffset (styles.css:7026-7033). Score impact is about 0.",
+      "evidence": "Lighthouse non-composited-animations audit (prod plus local), css.md §7",
+      "metric": "non-composited animated elements; main-thread paint",
+      "severity": "low"
+    },
+    {
+      "id": "css-F16",
+      "claim": "Fonts: red-hat-display-latin.woff2 is 30 672 B (the variable axis 300-399 is dead because @font-face declares 400 900). latin-ext.woff2 is 14 060 B, preloaded for PL, yet only 11 chars / 240 occurrences are used on /. swap and the metric-matched fallback are in place, and CLS is 0. A Polish-only subset (est. 2-3 KB) would take about 11 KB of High-priority bytes off the path ahead of the LCP image.",
+      "evidence": "Font inventory (fonttools/fonts.mjs), prod / character counts, styles.css:37-58, :87-94, fontPreload.ts:28-40, css.md §8",
+      "metric": "High-priority bytes before LCP; LCP mobile",
+      "severity": "low"
+    }
+  ],
+  "changes": [
+    {
+      "id": "C1",
+      "title": "Move the chart palette and chart engine CSS out of the core sheet",
+      "files": [
+        "src/styles.css",
+        "src/components/charts/charts.css",
+        "src/components/charts/ChartFrame.tsx",
+        "src/components/features/*",
+        "src/components/tracker/PolicyPositionsMap.tsx"
+      ],
+      "mechanism": "Drop the @import at styles.css:19. Move the --chart-* palette (styles.css:370-865 plus the chart part of :866-1364, light/dark/print) into charts.css. Chart components render <link rel=stylesheet href={chartsCssUrl} precedence='nes-widgets'/> (React 19 Float, URL from ?url import).",
+      "metric": "render-blocking CSS raw/gzip; mobile FCP",
+      "expected_effect": "29.5 KB raw / 6.6 KB gzip leave the core (part of stage 1: core 537 876 -> 472 241 raw, 79 802 -> 67 703 gzip-6, 59 398 -> 50 467 br together with C2, C3 and the content hand CSS)",
+      "estimate_basis": "tiers2.mjs simulated stage sheets plus analyze.mjs area attribution, at about 4-6 ms mobile FCP per KB br elasticity",
+      "risk": "low",
+      "risk_notes": "effort/risk not stated in report; assigned by summarizer from described scope. Float link holds the boundary reveal, so no FOUC is expected. Must land with C11 because the publicCss sum gate otherwise rises.",
+      "gates": [
+        "check:bundle render-blocking css (C11)",
+        "cssSurfaces test (C11)",
+        "CLS 0.000 on chart pages"
+      ],
+      "verification": "measure-ab.sh <baseline-wt> <candidate-wt> css-<n> 3 (interleaved). Accept when the mobile FCP/LCP medians move about 5 ms per KB br removed, render-blocking-insight savings drop, and CLS stays 0.000 on /, /en, a post, a category and a club route. Static check: check:bundle 'render-blocking css' line plus the cssSurfaces test.",
+      "depends_on": ["C11"],
+      "effort": "M"
+    },
+    {
+      "id": "C2",
+      "title": "Separate print stylesheet",
+      "files": ["src/styles/print.css", "src/styles.css", "rootHead.ts (rootDocumentLinks)"],
+      "mechanism": "Move styles.css:3097-3288, the @media print blocks at :3393 and :6185, and the chart print block into print.css. Link it with {rel:'stylesheet', href: printCss, media:'print'} in rootDocumentLinks, NOT in the Link preload header.",
+      "metric": "render-blocking CSS raw/gzip",
+      "expected_effect": "7.4 KB raw / 2.3 KB gzip leave the core (part of stage 1)",
+      "estimate_basis": "analyze.mjs @media print attribution (51 rules, 7 424 B, 0 used on /)",
+      "risk": "low",
+      "risk_notes": "effort/risk not stated in report; assigned by summarizer from described scope",
+      "gates": ["check:bundle render-blocking css", "print rendering check"],
+      "verification": "measure-ab.sh <baseline-wt> <candidate-wt> css-<n> 3 (interleaved). Accept when the mobile FCP/LCP medians move about 5 ms per KB br removed, render-blocking-insight savings drop, and CLS stays 0.000 on /, /en, a post, a category and a club route. Static check: check:bundle 'render-blocking css' line plus the cssSurfaces test.",
+      "depends_on": [],
+      "effort": "S"
+    },
+    {
+      "id": "C3",
+      "title": "Co-locate member/admin surface hand CSS with its surfaces",
+      "files": [
+        "src/styles.css",
+        "src/admin-styles.css",
+        "src/components/chat/chat.css",
+        "src/components/dock/dock.css",
+        "src/components/clubs/clubs.css",
+        "src/components/careers/careers.css",
+        "src/components/profile/profile.css",
+        "src/components/experts/cv-print.css"
+      ],
+      "mechanism": "Admin leftovers (styles.css:1521-1571, 2200-2266, 4342-4497, 4672-4780) go to admin-styles.css. Chat (:4818-5134) is imported by the lazy chat modules and the /messages route. Dock .wd-* (:7137-7405) is imported by WorkspaceDock; AvatarGroup :7406-7542 stays in core. Clubs (:7741-7853, :7910-8019), careers crs-* (:8058-8336), profile (:3407-3503) and cv-print (:6176-6306) are imported by their route components, so the TanStack manifest SSR-links them.",
+      "metric": "render-blocking CSS raw/gzip",
+      "expected_effect": "Source moved: admin 14 KB (built 2.3 KB / 0.6 KB gzip), chat 8.6 KB, dock about 11 KB, clubs 8.7 KB, careers 7.1 KB, profile 2.6 KB, cv-print 3.4 KB (part of stage 1)",
+      "estimate_basis": "Source line ranges plus tiers2.mjs stage-1 simulation",
+      "risk": "low",
+      "risk_notes": "effort/risk not stated in report; assigned by summarizer from described scope. Route-level CSS goes through the manifest and lazy UI through the Vite preload helper, so no head parity issue.",
+      "gates": [
+        "cssSurfaces test",
+        "CLS 0.000 on a club route",
+        "check:bundle render-blocking css"
+      ],
+      "verification": "measure-ab.sh <baseline-wt> <candidate-wt> css-<n> 3 (interleaved). Accept when the mobile FCP/LCP medians move about 5 ms per KB br removed, render-blocking-insight savings drop, and CLS stays 0.000 on /, /en, a post, a category and a club route. Static check: check:bundle 'render-blocking css' line plus the cssSurfaces test.",
+      "depends_on": ["C11"],
+      "effort": "M"
+    },
+    {
+      "id": "C11",
+      "title": "Gate contract: render-blocking budget plus cssSurfaces test",
+      "files": ["scripts/check-bundle-size.ts"],
+      "mechanism": "Add a check:bundle line 'render-blocking css' (gzip of styles-*.css only) next to the publicCss sum (budget 83 KB at :2022, summed at :2456-2461), because a split slightly raises that sum. Recommended target is <= 45 KB gzip render-blocking, tightened as each step lands. Add a cssSurfaces test that asserts surface CSS stays out of the core.",
+      "metric": "render-blocking CSS gzip (gate)",
+      "expected_effect": "No direct perf effect. Makes splits visible and prevents regressions.",
+      "estimate_basis": "not stated",
+      "risk": "low",
+      "risk_notes": "effort/risk not stated in report; assigned by summarizer from described scope",
+      "gates": ["render-blocking css <= 45 KB gzip (tightened per step)", "cssSurfaces test"],
+      "verification": "check:bundle output plus the cssSurfaces test pass on the split build",
+      "depends_on": [],
+      "effort": "S"
+    },
+    {
+      "id": "C5",
+      "title": "Strip the color-mix @supports opaque fallback",
+      "files": ["src/styles.css", "build CSS pipeline (Tailwind output post-processing)"],
+      "mechanism": "Unwrap the 670 @supports(color:color-mix(in lab,red,red)) blocks and drop the opaque-colour fallback rule from Tailwind's opacity-modifier pattern.",
+      "metric": "render-blocking CSS raw/gzip",
+      "expected_effect": "-69 013 B raw / -5.0 KB gzip on today's sheet. At stage 3, about 205 000 raw / 39 000 gzip / 31 000 br (estimate).",
+      "estimate_basis": "Simulation in analyze notes; the stage-3 figure is an estimate of that stage's share",
+      "risk": "medium",
+      "risk_notes": "Needs a browser-floor decision: browsers without color-mix lose opacity-modified colours (the current fallback is opaque and already wrong). Effort not stated.",
+      "gates": ["browser-floor decision", "check:bundle render-blocking css"],
+      "verification": "measure-ab.sh <baseline-wt> <candidate-wt> css-<n> 3 (interleaved). Accept when the mobile FCP/LCP medians move about 5 ms per KB br removed, render-blocking-insight savings drop, and CLS stays 0.000 on /, /en, a post, a category and a club route. Static check: check:bundle 'render-blocking css' line plus the cssSurfaces test.",
+      "depends_on": [],
+      "effort": "S"
+    },
+    {
+      "id": "C4",
+      "title": "Member-surface utilities via a generalised surfaceCssPlugin",
+      "files": ["scripts/lib/adminCssPlugin.ts", "src/styles.css", "members.css (new)"],
+      "mechanism": "Generalise adminCssPlugin into surfaceCssPlugin({sheet, sources}), which injects @source inline(...) for candidates found only in member surfaces. Extend the core @source not with the same globs.",
+      "metric": "render-blocking CSS raw/gzip/br",
+      "expected_effect": "Stage 2 core: 335 054 B raw / 53 120 gzip-6 / 41 056 br (from stage 1: 472 241 / 67 703 / 50 467)",
+      "estimate_basis": "tiers2.mjs stage-2 simulated sheet",
+      "risk": "medium",
+      "risk_notes": "effort/risk not stated in report; assigned by summarizer from described scope. A missed candidate means an unstyled member UI. The cssSurfaces test must cover it.",
+      "gates": ["cssSurfaces test", "check:bundle render-blocking css"],
+      "verification": "measure-ab.sh <baseline-wt> <candidate-wt> css-<n> 3 (interleaved). Accept when the mobile FCP/LCP medians move about 5 ms per KB br removed, render-blocking-insight savings drop, and CLS stays 0.000 on /, /en, a post, a category and a club route. Static check: check:bundle 'render-blocking css' line plus the cssSurfaces test.",
+      "depends_on": ["C3", "C11"],
+      "effort": "L"
+    },
+    {
+      "id": "C6",
+      "title": "Content-route CSS (hand plus utilities) out of the core",
+      "files": [
+        "src/styles/content.css (new)",
+        "src/styles.css",
+        "post/blog/category/tag/author/podcast route components",
+        "RichText widget",
+        "scripts/lib/adminCssPlugin.ts (surfaceCssPlugin content)"
+      ],
+      "mechanism": "Move footnotes :8337-8666, key takeaways :4498-4597, glossary/code :3276-3406 and digital features :4231-4341 into content.css, imported by content route components. Keep the .prose basics in core if RichText can render on builder pages. Put public utilities not reachable from / into surfaceCssPlugin(content).",
+      "metric": "render-blocking CSS raw/gzip/br; mobile FCP/LCP",
+      "expected_effect": "Stage 3 core: 249 860 B raw / 42 667 gzip-6 / 33 628 br. A/B of a similar core (297 774 B raw, 44.2 KB br) gave mobile FCP -0.15 s and LCP -0.17 s, desktop about 0.",
+      "estimate_basis": "tiers2.mjs stage-3 simulated sheet; ab-core.log n=3",
+      "risk": "medium",
+      "risk_notes": "effort/risk not stated in report; assigned by summarizer from described scope. RichText may render on builder pages. Content utility candidates must be complete.",
+      "gates": [
+        "cssSurfaces test",
+        "CLS 0.000 on a post and a category",
+        "check:bundle render-blocking css"
+      ],
+      "verification": "measure-ab.sh <baseline-wt> <candidate-wt> css-<n> 3 (interleaved). Accept when the mobile FCP/LCP medians move about 5 ms per KB br removed, render-blocking-insight savings drop, and CLS stays 0.000 on /, /en, a post, a category and a club route. Static check: check:bundle 'render-blocking css' line plus the cssSurfaces test.",
+      "depends_on": ["C4", "C11"],
+      "effort": "L"
+    },
+    {
+      "id": "C8",
+      "title": "Per-widget typography as static rules plus custom properties",
+      "files": ["src/lib/builder/typographyCss.ts", "src/styles.css", "builder widget wrapper"],
+      "mechanism": "Replace about 31 per-widget <style> blocks (same template per data-w-id, !important) with one static core rule set keyed by presence attributes at the same specificity, e.g. [data-wt-fs][data-wt-fs][data-wt-fs] :is(p,span,...){font-size:var(--wt-fs)!important}. Device values come from --wt-fs-t/--wt-fs-m. The wrapper emits data-wt-fs style='--wt-fs:14px' (about 30 B instead of about 1.5 KB). Also move the constant trending/ticker, slider-shared, search and sbw hover CSS into static sheets.",
+      "metric": "document HTML bytes; HTML parse long tasks",
+      "expected_effect": "-45 to -75 KB raw document (typography about 52 KB plus constant sheets). Neutral for cold Lantern FCP; helps parse time and caching.",
+      "estimate_basis": "Production / inline style inventory (51 blocks, 133 103 B)",
+      "risk": "medium",
+      "risk_notes": "Presence attributes are required: an unset var under !important computes to unset and breaks inheritance. Shared with the html-weight workstream. Effort not stated.",
+      "gates": ["visual parity of builder typography per device", "html-weight document size gate"],
+      "verification": "Document size before/after plus visual diff of builder pages on mobile/tablet/desktop; measure-ab.sh",
+      "depends_on": [],
+      "effort": "L"
+    },
+    {
+      "id": "C9",
+      "title": "Compositor-only load-time animations plus a gate",
+      "files": [
+        "src/styles.css",
+        "src/components/ConsentBanner.tsx",
+        "src/lib/builder/sliderVariants.tsx"
+      ],
+      "mechanism": "Redefine @keyframes enter/exit after @import 'tw-animate-css' with opacity + transform only, or give the banner its own cb-enter. Use sm:backdrop-blur-md. Slider dots use fixed size-2.5 + scale-[.8] + transition-[transform,opacity]. Don't animate first-viewport oi-fade-in images. Gate mbb-strok behind html[data-interacted]. Add a gate on non-composited load-time animations.",
+      "metric": "non-composited animated elements (6 prod / 11 local); main-thread paint during hydration",
+      "expected_effect": "Score impact about 0. Fewer paint frames during hydration.",
+      "estimate_basis": "Lighthouse non-composited-animations audit",
+      "risk": "low",
+      "risk_notes": "effort/risk not stated in report; assigned by summarizer from described scope",
+      "gates": ["non-composited-animations gate"],
+      "verification": "Lighthouse non-composited-animations lists 0 load-time elements; CLS 0.000",
+      "depends_on": [],
+      "effort": "M"
+    },
+    {
+      "id": "C10",
+      "title": "Polish-only latin-ext font subset",
+      "files": [
+        "red-hat-display-latin-ext.woff2 (new Polish subset)",
+        "src/styles.css (@font-face, :37-58)",
+        "fontPreload.ts"
+      ],
+      "mechanism": "Build a preloaded Polish subset (U+0104-0107, U+0118-0119, U+0141-0144, U+015A-015B, U+0179-017C) with offline pyftsubset. Keep the full latin-ext as a third, non-preloaded face whose unicode-range excludes the Polish code points.",
+      "metric": "High-priority bytes before the LCP image; mobile LCP",
+      "expected_effect": "About 11 KB off the critical path, about -30 to -50 ms LCP mobile, FCP 0",
+      "estimate_basis": "Subset size estimated at 2-3 KB woff2 (fonttools unavailable here, so it is an estimate)",
+      "risk": "low",
+      "risk_notes": "effort/risk not stated in report; assigned by summarizer from described scope. Needs a one-off offline pyftsubset.",
+      "gates": ["font-display-insight passes", "CLS 0.000"],
+      "verification": "measure-ab.sh mobile LCP median; network panel shows the subset preloaded",
+      "depends_on": [],
+      "effort": "S"
+    },
+    {
+      "id": "C7",
+      "title": "content-visibility:auto on below-the-fold builder sections (conditional)",
+      "files": ["src/styles.css (.cv-auto :2371-2374)"],
+      "mechanism": "main section[data-sec-id]:nth-of-type(n+3){content-visibility:auto;contain-intrinsic-size:auto 900px}",
+      "metric": "mobile FCP/LCP/SI",
+      "expected_effect": "Only if §6 shows a gain. Measured (ab-cv.log, mobile n=3): FCP +0.03 s, LCP +0.01 s, SI +0.03 s, i.e. no gain. Desktop run incomplete.",
+      "estimate_basis": "ab-cv.log A/B",
+      "risk": "low",
+      "risk_notes": "effort/risk not stated in report; assigned by summarizer from described scope. The measurement shows no benefit, so the condition is not met.",
+      "gates": ["§6 A/B must show a gain"],
+      "verification": "measure-ab.sh css-cv",
+      "depends_on": [],
+      "effort": "S"
+    }
+  ],
+  "conflicts_with_other_workstreams": [
+    "html-weight: owns document bytes for inline <style> blocks (C8 shared)",
+    "boot-js: its modulepreload cut changes the Lantern pessimistic graph and so the CSS share of FCP",
+    "check-bundle-size.ts publicCss gate contract changes (C11) may touch other gate owners"
+  ],
+  "open_questions": [
+    "Browser floor for dropping the color-mix fallback (C5)",
+    "Can the RichText widget render on builder pages (keep .prose basics in core?)",
+    "Desktop result of the content-visibility A/B (run B desktop 3 failed)",
+    "Actual Polish subset size (fonttools unavailable)",
+    "Optional externalisation of brand tokens to an immutable /theme/tokens.<hash>.css (repeat-view gain only)"
+  ]
+}
