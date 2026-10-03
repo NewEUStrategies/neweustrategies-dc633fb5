@@ -1,4 +1,5 @@
 import i18n from "./i18n";
+import { ORGANIZATION_PAGE_COPY } from "./queries/organizationTerm";
 
 // Pakiet i18n publicznego profilu organizacji (/organization/$slug).
 //
@@ -13,7 +14,8 @@ const pl = {
   organization: {
     // Nagłówek
     tagline: "Profil organizacji",
-    breadcrumb: "Organizacje",
+    // Z mapy `head()`: ten sam okruszek stoi w JSON-LD `BreadcrumbList`.
+    breadcrumb: ORGANIZATION_PAGE_COPY.pl.breadcrumb,
     // Pigułki meta - renderują się WYŁĄCZNIE przy niepustej wartości
     branch: "Branża",
     website: "Strona WWW",
@@ -27,10 +29,9 @@ const pl = {
     verified: "Profil zweryfikowany",
     postsHeading: "Publikacje",
     postsEmpty: "Nie ma jeszcze publikacji powiązanych z tą organizacją.",
-    // SEO
-    seoDescriptionFallback: "{{name}} - profil organizacji w New European Strategies.",
-    seoTitleSuffix: "organizacja",
-    pageSuffix: "strona {{page}}",
+    // Komunikat degradacji i tytuł ekranu błędu trasy. Teksty `head()` (tytuł,
+    // opis zastępczy, numer strony) NIE mieszkają tutaj: `head()` nie ma `t()`
+    // - patrz `ORGANIZATION_PAGE_COPY` w `queries/organizationTerm.ts`.
     loadFailed: "Nie udało się załadować profilu organizacji",
   },
 };
@@ -38,7 +39,7 @@ const pl = {
 const en = {
   organization: {
     tagline: "Organization profile",
-    breadcrumb: "Organizations",
+    breadcrumb: ORGANIZATION_PAGE_COPY.en.breadcrumb,
     branch: "Industry",
     website: "Website",
     postsCount_one: "{{count}} publication",
@@ -48,9 +49,6 @@ const en = {
     verified: "Verified profile",
     postsHeading: "Publications",
     postsEmpty: "No publications linked to this organization yet.",
-    seoDescriptionFallback: "{{name}} - organization profile at New European Strategies.",
-    seoTitleSuffix: "organization",
-    pageSuffix: "page {{page}}",
     loadFailed: "Couldn't load the organization profile",
   },
 };

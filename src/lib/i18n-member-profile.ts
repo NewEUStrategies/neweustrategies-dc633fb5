@@ -1,10 +1,12 @@
 // Nakładka i18n profilu członka (/people/<slug>) - PL/EN.
+//
+// Teksty `head()` (tytuł karty i opis) NIE mieszkają tutaj, tylko
+// w `lib/profile/memberProfileHead.ts`: import tego słownika z `head()` wciągał
+// go do chunku wejściowego każdego czytelnika.
 import i18n from "./i18n";
 
 export const memberProfilePl = {
   memberProfile: {
-    metaTitle: "Profil członka",
-    metaDescription: "Profil członka społeczności New European Strategies.",
     breadcrumb: "Osoby",
     gateTitle: "Profil widoczny po zalogowaniu",
     gateBody: "Profile członków społeczności widzą wyłącznie zalogowane osoby.",
@@ -27,8 +29,6 @@ export const memberProfilePl = {
 
 export const memberProfileEn: typeof memberProfilePl = {
   memberProfile: {
-    metaTitle: "Member profile",
-    metaDescription: "A New European Strategies community member profile.",
     breadcrumb: "People",
     gateTitle: "Profile visible after signing in",
     gateBody: "Community member profiles are visible to signed-in people only.",

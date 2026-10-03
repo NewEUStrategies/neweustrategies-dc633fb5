@@ -5715,11 +5715,8 @@ export default defineConfig({
 
         // Trasy publiczne. Zmierzone: `index.tsx` i `reading-list.tsx`
         // 100 / 100 / 100 / 100. Katalog osób (/people) mieszka w
-        // `people.index.tsx` - `people.tsx` jest teraz 10-liniowym layoutem
-        // z samym <Outlet/> (katalog + profil członka /people/<slug>), więc
-        // nie ma tam czego bramkować. Katalog w CI: 98,94 instrukcji /
-        // 98,55 gałęzi / 100 funkcji / 100 linii; floor 97 / 100 / 99 / 96
-        // trzyma co najmniej 1 pp pod tym pomiarem.
+        // `people.index.tsx`; jego podłoga i reszta funkcjonalności „Katalog
+        // osób i profil organizacji" stoją w bloku niżej (wydanie 2026-10-02).
         //
         // TEN PRÓG CHRONI STAN I SKLEJENIE, A DOSTĘPU PILNUJE OSOBNO
         // `adminRouteAuthority.gate.test.ts`.
@@ -5742,7 +5739,70 @@ export default defineConfig({
           lines: 99,
           branches: 98,
         },
-        "src/routes/people.index.tsx": { statements: 97, functions: 100, lines: 99, branches: 96 },
+
+        // ── KATALOG OSÓB I PROFIL ORGANIZACJI, WYDANIE 2026-10-02 ──
+        //
+        // Wiersz audytu (wydanie 12, rozdz. 16.6): 5 plików, 2 na zerze
+        // (`people.tsx`, `people.$slug.tsx`), 70,83% linii, funkcje 59/74,
+        // gałęzie 80,50%, 4 defekty w rejestrze. Loader i komponent
+        // `organization.$slug.tsx` nie miały ANI JEDNEGO testu (48% linii).
+        //
+        // SKĄD LICZBY: lokalny pomiar istanbul na 10 plikach testów, które
+        // importują pliki funkcjonalności. Przed: 161/231 linii (69,70%),
+        // funkcje 56/71, gałęzie 239/301. Po: 235/235, 72/72, 288/289.
+        // Reguła jak w bloku modułu 1: wartość zmierzona zaokrąglona w dół;
+        // 100 tylko tam, gdzie zmierzono dokładnie 100. `people.index.tsx`
+        // był w CI 98,94 / 98,55 / 100 / 100 - dwie brakujące gałęzie to
+        // `mutualCount ?? 0` (zastąpione licznikiem widocznych mostów)
+        // i martwa obrona `if (!user)` pod `AuthGate` (usunięta), więc
+        // podłoga idzie na 100 zamiast 97 / 100 / 99 / 96.
+        //
+        // JEDYNA NIEPOKRYTA GAŁĄŹ: `user?.id ?? null` w `people.$slug.tsx`.
+        // `AuthGate` wpuszcza wnętrze wyłącznie z sesją, a `useAuth` liczy
+        // użytkownika z tej samej sesji - prawej strony nie da się wywołać
+        // bez rozmontowania gwarancji trasy (ta sama decyzja co w
+        // `peopleRoute.test.tsx`), więc gałęzie 11/12 = 91,67 -> 91.
+        "src/routes/people.index.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/routes/people.tsx": { statements: 100, functions: 100, lines: 100, branches: 100 },
+        "src/routes/people.$slug.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 91,
+        },
+        "src/routes/organization.$slug.tsx": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/queries/organization.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        "src/lib/queries/organizationTerm.ts": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 100,
+        },
+        // Sekcje profilu organizacji. Dwie niepokryte gałęzie to `?? ""` przy
+        // inicjałach (`parts[0]?.[0]`): tablica jest już odsiana z pustych
+        // członów i sprawdzona na długość, więc strona prawa to defensywa bez
+        // wejścia. Razem 32/34 gałęzi = 94,1 -> 94.
+        "src/components/organizations/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 94,
+        },
 
         // Warstwa zapytań publicznych. Dwanaście plików objętych tą pracą stoi
         // na 100 we wszystkich czterech wymiarach (`archives.ts` na

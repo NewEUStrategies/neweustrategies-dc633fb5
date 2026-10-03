@@ -49,7 +49,6 @@ import { MessageOrConnectButton } from "@/components/network/MessageOrConnectBut
 import { ProfileLinkButton } from "@/components/network/ProfileLinkButton";
 import { DegreeBadge } from "@/components/network/atoms/DegreeBadge";
 import { ConnectionPathTrail } from "@/components/network/molecules/ConnectionPathTrail";
-import { useAuth } from "@/hooks/useAuth";
 
 import { useOnlineUsers } from "@/lib/chat/presence";
 
@@ -238,6 +237,12 @@ function PersonCard({
   const lang = currentLang();
   const intents = useMemo(() => normalizeProfileIntents(person.open_to), [person.open_to]);
   const seeking = seekingText(person, lang);
+  // Dowód społeczny liczy WYŁĄCZNIE mosty, które wołający może zobaczyć -
+  // `mutualVisibleCount`, ten sam zbiór co `mutual_connections`. `mutualCount`
+  // to fakt grafu: liczy także osoby ukryte (`discoverable = false`) i z obcego
+  // najemcy, więc karta zdradzała istnienie relacji, których baza nie ma prawa
+  // nazwać (reguła z `lib/network/useConnections.ts`, audyt wydania 12).
+  const mutual = connection?.mutualVisibleCount ?? 0;
 
   const details = (
     <>
@@ -268,10 +273,10 @@ function PersonCard({
       {seeking && (
         <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-foreground/75">{seeking}</p>
       )}
-      {/* Dowód społeczny: wspólne kontakty z batchowanego connection_statuses. */}
-      {(connection?.mutualCount ?? 0) > 0 && (
+      {/* Dowód społeczny: widoczne wspólne kontakty z batchowanego connection_statuses. */}
+      {mutual > 0 && (
         <p className="truncate text-[11px] font-medium text-[var(--brand)]">
-          {t("network.mutual", { count: connection?.mutualCount ?? 0 })}
+          {t("network.mutual", { count: mutual })}
         </p>
       )}
       {/* ...i KTĘDY ta droga biegnie. Bez `interactive`, bo cały blok danych
@@ -346,9 +351,11 @@ function PersonCard({
   );
 }
 
+// Montowane WYŁĄCZNIE pod `AuthGate`, który wpuszcza tylko z sesją, a `useAuth`
+// wyprowadza użytkownika z tej samej sesji - stąd brak własnej obrony `!user`
+// (do 2026-10-02 stała tu martwa gałąź `if (!user) return null`).
 function PeopleInner() {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const online = useOnlineUsers();
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -391,13 +398,13 @@ function PeopleInner() {
     [peopleQ.data],
   );
   const total = peopleQ.data?.pages[0]?.[0]?.total_count ?? people.length;
+  // Jedna lista identyfikatorów partii dla obu batchowanych zapytań.
+  const peopleIds = useMemo(() => people.map((p) => p.id), [people]);
   // Sygnały zaufania: odznaki dla całej widocznej partii jednym zapytaniem.
-  const badgesQ = useBadgesForUsers(people.map((p) => p.id));
+  const badgesQ = useBadgesForUsers(peopleIds);
   // Statusy sieci kontaktów dla widocznych kart - jeden batchowany RPC.
   const modules = useCommunityModules();
-  const connectionsQ = useConnectionStatuses(
-    modules.connections_enabled ? people.map((p) => p.id) : [],
-  );
+  const connectionsQ = useConnectionStatuses(modules.connections_enabled ? peopleIds : []);
   const pendingInvites = useUserCounter("connections_pending");
 
   const intentOptions = useMemo(
@@ -414,8 +421,6 @@ function PeopleInner() {
   const hasActiveFilters = hasPeopleFacetFilters(search);
   const canSave = isPeopleSearchSaveable(search);
   const clearFilters = () => patch(clearedPeopleFacets());
-
-  if (!user) return null;
 
   return (
     <div className="container mx-auto max-w-5xl px-3 py-5 sm:px-4 sm:py-6">

@@ -377,14 +377,13 @@ describe("/people - bramka dostępu", () => {
     // RPC katalogu odrzuca anonima, ale sam fakt zapytania to zapalone liczniki
     // w logach i niepotrzebny round-trip na każdym wejściu bota.
     //
-    // TEN TEST USTALA TEŻ NIEOSIĄGALNOŚĆ obrony `if (!user) return null;`
-    // (`src/routes/people.index.tsx`). `AuthGate`
-    // (`src/components/profile/AuthGate.tsx` linie 31-42) wpuszcza wnętrze
-    // WYŁĄCZNIE przy istniejącej sesji, a `useAuth` wyprowadza `user` z tej
-    // samej sesji (`src/hooks/useAuth.tsx` linia 183: `user: session?.user ?? null`),
-    // więc para „sesja jest, użytkownika nie ma" nie powstaje. Tej gałęzi nie
-    // farmujemy sztucznym renderem `PeopleInner` w oderwaniu od bramki - to
-    // dowodziłoby wyłącznie tego, że test umie rozmontować gwarancję trasy.
+    // TEN TEST JEST TEŻ JEDYNĄ OBRONĄ wnętrza katalogu przed anonimem. `AuthGate`
+    // (`src/components/profile/AuthGate.tsx`) wpuszcza wnętrze WYŁĄCZNIE przy
+    // istniejącej sesji, a `useAuth` wyprowadza `user` z tej samej sesji
+    // (`src/hooks/useAuth.tsx`: `user: session?.user ?? null`), więc para „sesja
+    // jest, użytkownika nie ma" nie powstaje. Dlatego martwa obrona
+    // `if (!user) return null;` zniknęła z `PeopleInner` (2026-10-02) - gdyby
+    // bramka przestała chronić wnętrze, ten test zapłonie pierwszy.
     h.session = null;
     await mount();
     expect(screen.getByText("people.membersOnlyBody")).toBeTruthy();
@@ -477,7 +476,7 @@ describe("/people - karta osoby", () => {
   it("status z partii dokłada akcję kontaktu, stopień i wspólne kontakty", async () => {
     h.pages = [[person("p1"), person("p2")]];
     h.connections = new Map([
-      ["p1", { ...NO_CONNECTION, degree: 2, mutualCount: 3, bridge: null }],
+      ["p1", { ...NO_CONNECTION, degree: 2, mutualCount: 3, mutualVisibleCount: 3, bridge: null }],
     ]);
     await mount();
     expect(screen.getAllByTestId("akcja-kontaktu")).toHaveLength(2);
@@ -486,6 +485,29 @@ describe("/people - karta osoby", () => {
       screen.getAllByTestId("sciezka-kontaktu").map((el) => el.getAttribute("data-degree")),
     ).toEqual(["2", "0"]);
     expect(screen.getByText("network.mutual(count=3)")).toBeTruthy();
+  });
+
+  it("wspólne kontakty liczą WYŁĄCZNIE mosty widoczne dla oglądającego", async () => {
+    // Audyt wydania 12 (`people.index.tsx:272`): karta pokazywała `mutualCount`,
+    // czyli fakt grafu - razem z osobami, które wyłączyły widoczność, i z obcym
+    // najemcą. „7 wspólnych kontaktów" przy czterech widocznych zdradzało trzy
+    // relacje, których baza nie ma prawa nazwać.
+    h.connections = new Map([
+      ["p1", { ...NO_CONNECTION, degree: 2, mutualCount: 7, mutualVisibleCount: 4 }],
+    ]);
+    await mount();
+    expect(screen.getByText("network.mutual(count=4)")).toBeTruthy();
+    expect(screen.queryByText("network.mutual(count=7)")).toBeNull();
+  });
+
+  it("same ukryte mosty nie dają ANI liczby, ani pustej linijki", async () => {
+    h.connections = new Map([
+      ["p1", { ...NO_CONNECTION, degree: 2, mutualCount: 5, mutualVisibleCount: 0 }],
+    ]);
+    await mount();
+    expect(screen.queryByText(/network\.mutual/)).toBeNull();
+    // Stopień oddalenia zostaje - to on mówi „to ktoś z mojego świata".
+    expect(screen.getByTestId("sciezka-kontaktu").getAttribute("data-degree")).toBe("2");
   });
 
   it("odznaki zaufania przychodzą jedną mapą dla całej widocznej partii", async () => {
@@ -981,7 +1003,9 @@ describe("/people - dostępność", () => {
         }),
       ],
     ];
-    h.connections = new Map([["p1", { ...NO_CONNECTION, degree: 1, mutualCount: 2 }]]);
+    h.connections = new Map([
+      ["p1", { ...NO_CONNECTION, degree: 1, mutualCount: 2, mutualVisibleCount: 2 }],
+    ]);
     h.pendingInvites = 2;
     const view = await mount("/people?q=energia&specialization=Energetyka");
     expect(summarize(await axeViolations(view.container))).toBe("");

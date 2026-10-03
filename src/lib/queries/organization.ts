@@ -89,6 +89,16 @@ export function organizationCompanyNames(
   return [...seen];
 }
 
+/**
+ * Czy slug wskazuje FIRMĘ Z KARTOTEKI (`org-<uuid>`), a nie term taksonomii.
+ * Firma nie ma pivotu publikacji, więc trasa nie pyta dla niej archiwum - pytanie
+ * o kategorię `org-<uuid>` zawsze oddawało `null`, a loader czytał to jako
+ * awarię listy i serwował każdy profil firmy z `no-store`.
+ */
+export function isCompanyOrganizationSlug(slug: string): boolean {
+  return decodeOrganizationMentionSlug(slug) !== null;
+}
+
 /** Wiersz `profiles_public` -> osoba w siatce. `null` przy wierszu bez sluga. */
 export function personFromProfileRow(row: Record<string, unknown>): OrganizationPerson | null {
   const slug = clean(row.slug);
@@ -140,7 +150,7 @@ export const organizationQueryOptions = (slug: string, lang: "pl" | "en") =>
     queryFn: async (): Promise<OrganizationData | null> => {
       // FIRMA Z KARTOTEKI. Slug niesie stabilny identyfikator rekordu, więc
       // pytamy publiczny RPC wzmianek - ten sam, którym rozwiązuje się dymek.
-      if (decodeOrganizationMentionSlug(slug) !== null) {
+      if (isCompanyOrganizationSlug(slug)) {
         const { data, error } = await supabase.rpc("get_mention_target", { _slug: slug });
         if (error) throw error;
         const row = (data ?? [])[0];

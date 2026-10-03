@@ -225,6 +225,17 @@ const HEAVY_DICTIONARIES: readonly HeavyDictionary[] = [
       "nakładka funkcji uczestnika F1-F5 importowana wyłącznie z leniwych chunków swojej powierzchni (panel uczestnika albo studio) - nigdy z `head()`, `beforeLoad`, powłoki ani modułu trasy",
   },
   // <<< PF-C heavy-dictionaries (end)
+  //
+  // 2026-10-02: słownik profilu członka. Mały (~2,5 kB źródeł), ale dowodem
+  // jest KRAWĘDŹ, nie waga: `head()` trasy `/people/$slug` czytał surowe
+  // `memberProfilePl`/`memberProfileEn`, więc cały słownik razem z rejestracją
+  // nakładki stał w `index-*.js` (zmierzone na buildzie sprzed naprawy).
+  {
+    label: "i18n-member-profile (słownik profilu członka /people/<slug>)",
+    markers: ["Profile członków społeczności widzą wyłącznie zalogowane osoby."],
+    remedy:
+      "`head()` czyta `MEMBER_PROFILE_HEAD` z `lib/profile/memberProfileHead.ts`; słownik importuje wyłącznie komponent trasy (`ensureI18n()`)",
+  },
 ];
 
 /**
