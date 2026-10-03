@@ -46,6 +46,16 @@ Authoritative constraints and corrections the planner must honour.
 - boot-js:C4 (lazy Supabase facade) needs: detectSessionInUrl/implicit-flow handling (magic-link, OAuth, recovery landings carry tokens in location.hash), vite.config.ts vendor-supabase manualChunk split (otherwise import('@supabase/postgrest-js') loads the whole 224 KB chunk), tslib shared with vendor-radix, mutable chain recorder for in-place builders (src/lib/admin/community.ts:124). Effect alone +1..2 mobile; ~0 with C3.
 - measurement F8 / server-cache: the first MISS in a colo decides bot-vs-browser document variant for 3 min; harness and warmers must use a browser UA (production fix: cache key or forced streaming variant for bots = decision for the human, real-user issue).
 
+## Owner decision (2026-10-03, recorded by the orchestrator)
+
+The product owner approved every optimisation that (a) does not break the platform's functioning and (b) makes it faster. Consequences for the plan:
+
+- No item waits on a human decision any more. TP-1 (5 s quiescence window for the Google tag) and TP-2 (GA4 only until marketing consent, AW configured after consent) are APPROVED; document the trade-off (bouncers without interaction send no page_view) in the implementation doc, do not block on it.
+- The consent banner as an SSR shell with a pre-paint visibility toggle and interaction-gated interactivity is APPROVED, provided consent semantics (Consent Mode defaults, GPC, stored decisions) stay byte-for-byte equivalent and are covered by tests.
+- Boot-after-LCP (boot-js:C3 with the corrected trigger and delivery), deferred-hydration islands, lazy Supabase facade (with the auth-URL/magic-link handling from the C4 verdict) are APPROVED as long as logged-in flows, editors, admin, EN pages and SEO markup keep working; every such item needs the parity tests the verdicts list.
+- "Does not break functioning" is the acceptance bar: an item that changes visible behaviour for users (first-visit 302 to /en, removing the color-mix fallback for old browsers, device-class SSR that drops desktop nav from mobile HTML, removing /~flock.js) stays a RECOMMENDATION with its trade-off, not an implemented item, unless it is strictly invisible to users.
+- check:bundle must not get worse; budget moves only with measured cause and a kronika entry.
+
 ## Verdict ledger (auto-generated from faza1/raporty/werdykty/*.json)
 
 | change                   | feasibility | effect    | corrected estimate (truncated)                                                                                                                                                                           |
