@@ -26555,6 +26555,8 @@ export type Database = {
         Returns: undefined
       }
       career_cv_gc_scan: { Args: { _limit?: number }; Returns: Json }
+      career_cv_object_owner: { Args: { _name: string }; Returns: string }
+      career_cv_path_tenant: { Args: { _name: string }; Returns: string }
       career_cv_upload_quota_ok: {
         Args: { _day: string; _tenant: string }
         Returns: boolean
