@@ -29,6 +29,10 @@
 //      `running` wraca do false (przycisk znów aktywny, spinnera nie ma),
 //      a wyczerpany limit dostawcy dostaje TEN SAM obiekt błędu i NIE zeruje
 //      poprzedniego wyniku - operator nie traci odczytu, który dopiero zdobył.
+//   7. NAJEMCA W KLUCZU LISTY WŁAŚCIWOŚCI (`analyticsGscSitesKey`, wspólny wpis
+//      z /admin/seo/search-console): bez ustalonego najemcy widget mówi
+//      „ładowanie" i nie pyta serwera - zamiast fałszywego „brak właściwości" -
+//      a po przełączeniu obszaru roboczego nie proponuje domeny poprzedniego.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE:
 //   * NIE dotyka warstwy serwerowej `gsc.functions` (gateway, nagłówki,
@@ -45,8 +49,10 @@
 //   * NIE sprawdza otwierania listy Radixa jako takiego - tu interesuje nas
 //     tylko skutek wyboru właściwości, czyli przeliczony adres inspekcji.
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { analyticsGscSitesKey } from "@/lib/analytics/queryKeys";
 import { axeViolations, summarize } from "@/test/axe";
 import type { GscSite } from "@/lib/analytics/gsc.functions";
 
@@ -93,6 +99,15 @@ const h = vi.hoisted(() => ({
   inspect: null as Mock<(input: InspectInput) => Promise<InspectResponse>> | null,
   toastSuccess: null as Mock<(message: string) => void> | null,
   toastError: null as Mock<(e: unknown) => void> | null,
+  /** Najemca z `useCurrentTenantId` (null = jeszcze nieustalony). */
+  tenantId: "tenant-widget-a" as string | null,
+}));
+
+// Najemca jest ATRAPĄ: prawdziwy `useCurrentTenantId` ciągnie sesję `useAuth`
+// i klienta Supabase, a tu dowodzimy tylko, że identyfikator wchodzi do klucza
+// i bramkuje odczyt listy właściwości.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -215,6 +230,7 @@ async function runInspection(): Promise<void> {
 }
 
 beforeEach(() => {
+  h.tenantId = "tenant-widget-a";
   listMock().mockClear();
   inspectMock().mockClear();
   toastSuccessMock().mockClear();
@@ -277,6 +293,66 @@ describe("UrlInspectionWidget - stany listy właściwości", () => {
 
     expect(await screen.findByText("admin.seo.gsc.noSites")).toBeInTheDocument();
     expect(inspectMock()).not.toHaveBeenCalled();
+  });
+});
+
+describe("UrlInspectionWidget - najemca w kluczu listy właściwości", () => {
+  it("bez ustalonego najemcy: „ładowanie”, zero zapytań i ŻADNEGO fałszywego „brak właściwości”", async () => {
+    // Wyłączone zapytanie nie ma `data`, więc bez `!tenantId` widget liczyłby
+    // `configured = true` i pustą listę - czyli „brak zweryfikowanych
+    // właściwości", zanim ktokolwiek o nie zapytał.
+    h.tenantId = null;
+    const { queryClient } = renderWithQueryClient(<UrlInspectionWidget path="analizy/example" />);
+    await act(async () => {});
+
+    expect(screen.getByText("admin.seo.gsc.loading")).toBeInTheDocument();
+    expect(screen.queryByText("admin.seo.gsc.noSites")).not.toBeInTheDocument();
+    expect(screen.queryByText("admin.seo.gsc.notConfigured")).not.toBeInTheDocument();
+    expect(listMock()).not.toHaveBeenCalled();
+    for (const query of queryClient.getQueryCache().getAll()) {
+      expect(query.state.data).toBeUndefined();
+    }
+  });
+
+  it("lista właściwości leży pod kluczem z najemcą - tym samym co na /admin/seo/search-console", async () => {
+    const { queryClient } = renderWithQueryClient(<UrlInspectionWidget path="analizy/example" />);
+    await waitFor(() => expect(screen.getByText("admin.seo.gsc.widgetTitle")).toBeInTheDocument());
+
+    expect(queryClient.getQueryState(analyticsGscSitesKey("tenant-widget-a"))?.status).toBe(
+      "success",
+    );
+    for (const query of queryClient.getQueryCache().getAll()) {
+      expect(query.queryKey[1]).toBe("tenant-widget-a");
+    }
+  });
+
+  it("po przełączeniu najemcy widget NIE proponuje do inspekcji domeny poprzedniego", async () => {
+    // Ten sam klient react-query, ten sam zamontowany widget - zmienia się
+    // tylko najemca, jak przy przełączeniu obszaru roboczego. Przy stałym
+    // `["gsc-sites-widget"]` (staleTime 5 min) adres inspekcji dalej
+    // wskazywałby domenę A, a klik wysłałby ją do Google w imieniu B.
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const tree = () => (
+      <QueryClientProvider client={queryClient}>
+        <UrlInspectionWidget path="analizy/example" />
+      </QueryClientProvider>
+    );
+    givenSites([site("https://a.example")]);
+    const { rerender } = render(tree());
+    expect(await screen.findByText("https://a.example/analizy/example")).toBeInTheDocument();
+
+    h.tenantId = "tenant-widget-b";
+    const gate = deferred<ListResponse>();
+    listMock().mockImplementation(() => gate.promise);
+    rerender(tree());
+
+    // Lista B w drodze: ładowanie, nie adres A.
+    expect(await screen.findByText("admin.seo.gsc.loading")).toBeInTheDocument();
+    expect(screen.queryByText("https://a.example/analizy/example")).not.toBeInTheDocument();
+
+    await act(async () => gate.resolve({ sites: [site("https://b.example")], configured: true }));
+    expect(await screen.findByText("https://b.example/analizy/example")).toBeInTheDocument();
+    expect(screen.queryByText("https://a.example/analizy/example")).not.toBeInTheDocument();
   });
 });
 

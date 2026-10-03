@@ -18,6 +18,10 @@
 //   5. NAJEMCA W KLUCZU: bez ustalonego najemcy nic się nie pobiera (kafelki
 //      mówią „Pomiar"), a po przełączeniu obszaru roboczego cache nie oddaje
 //      liczb poprzedniego (`@/lib/analytics/queryKeys`).
+//   6. TYLKO ADMIN NAJEMCY: redaktor, autor, `super_admin` bez wiersza `admin`
+//      i sesja z rolami w drodze nie pytają serwera i nie widzą paska - ani
+//      karty „Awaria odczytu: Forbidden", którą do 2026-10 dostawał każdy
+//      redaktor na /admin i /admin/community.
 //
 // `ChartCard` JEST TU ATRAPĄ, inaczej niż w pełnych dashboardach: pasek nie
 // buduje żadnej własnej alternatywy tekstowej, a przedmiotem dowodu są serie
@@ -31,6 +35,7 @@ import type { ReactNode } from "react";
 import type { VitalsSummaryResult } from "@/lib/observability/vitals.functions";
 import type { ClientErrorsReport } from "@/lib/observability/clientErrorsAggregate";
 import type { VitalMetricSummary } from "@/lib/observability/aggregate";
+import type { Role } from "@/hooks/useAuth";
 import { freezeClock } from "@/test/time";
 
 interface CapturedCard {
@@ -51,6 +56,7 @@ const h = vi.hoisted(() => ({
   fetchErrors: vi.fn(),
   cards: [] as CapturedCard[],
   tenantId: null as string | null,
+  auth: { roles: [] as Role[], loading: false },
 }));
 
 // Najemca jest ATRAPĄ (wzór: `vitalsBiDashboard.test.tsx`): prawdziwy
@@ -58,6 +64,13 @@ const h = vi.hoisted(() => ({
 // dowodzimy tylko, że identyfikator wchodzi do klucza i bramkuje odczyt.
 vi.mock("@/lib/tenant", () => ({
   useCurrentTenantId: () => h.tenantId,
+}));
+
+// Role też są ATRAPĄ - z tego samego powodu: prawdziwy `useAuth` to sesja
+// Supabase. Pasek czyta z niego wyłącznie `roles` i `loading`, więc atrapa
+// podaje dokładnie te dwa pola (sterowane per przypadek przez `h.auth`).
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => h.auth,
 }));
 
 // `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
@@ -210,6 +223,9 @@ beforeEach(async () => {
   await i18n.changeLanguage("pl");
   h.cards.length = 0;
   h.tenantId = TENANT_A;
+  // Domyślnie ADMIN najemcy - zachowanie paska, którego dotyczy większość
+  // przypadków. Pozostałe role mają własną sekcję na końcu pliku.
+  h.auth = { roles: ["admin"], loading: false };
   h.fetchVitals.mockReset();
   h.fetchErrors.mockReset();
 });
@@ -437,5 +453,103 @@ describe("AdminBiStrip - odnośnik do pełnego panelu", () => {
 
     expect(screen.queryByRole("link")).toBeNull();
     expect(tile("samples")).toBe("0");
+  });
+});
+
+describe("AdminBiStrip - widzi go tylko admin najemcy", () => {
+  // Odmowa bramki to tutaj TEN SAM tekst, który serwer oddaje redaktorowi.
+  // Gdyby pasek mimo roli zapytał, karta awarii pokazałaby właśnie go.
+  const FORBIDDEN = "Forbidden: admin role required";
+
+  function odmowaSerwera(): void {
+    h.fetchVitals.mockRejectedValue(new Error(FORBIDDEN));
+    h.fetchErrors.mockRejectedValue(new Error(FORBIDDEN));
+  }
+
+  it.each<[string, Role[]]>([
+    ["redaktor", ["editor"]],
+    ["autor", ["author"]],
+    ["redaktor i autor", ["editor", "author"]],
+    ["zalogowany bez roli redakcyjnej", []],
+    // `isAdmin` z `useAuth` liczy `super_admin`, ale `requireAnalyticsAdmin`
+    // pyta wyłącznie o `admin` - pasek idzie za bramką serwera.
+    ["super_admin bez wiersza admin", ["super_admin"]],
+  ])("%s: zero zapytań, zero paska, zero karty awarii", async (_, roles) => {
+    h.auth = { roles, loading: false };
+    odmowaSerwera();
+    const { container, queryClient } = strip();
+    // Pełny obrót pętli - wyłączone zapytanie i tak nie ruszy.
+    await act(async () => {});
+
+    expect(h.fetchVitals).not.toHaveBeenCalled();
+    expect(h.fetchErrors).not.toHaveBeenCalled();
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText(new RegExp(FORBIDDEN))).toBeNull();
+    expect(screen.queryByText(common("readFailedShort"))).toBeNull();
+    expect(screen.queryByText(bi("stripTitle"))).toBeNull();
+    for (const query of queryClient.getQueryCache().getAll()) {
+      expect(query.state.data).toBeUndefined();
+      expect(query.state.error).toBeNull();
+    }
+  });
+
+  it("role w drodze: nic się nie pobiera i nic nie miga - pasek wchodzi dopiero z rolą", async () => {
+    // Tak wygląda zalogowana sesja przed powrotem `user_roles`: `loading`
+    // i pusty zestaw ról (`useAuth` zeruje role przy zmianie tożsamości).
+    h.auth = { roles: [], loading: true };
+    h.fetchVitals.mockResolvedValue(VITALS_42);
+    h.fetchErrors.mockResolvedValue(errors());
+    const { container, rerenderStrip } = strip();
+    await act(async () => {});
+
+    expect(h.fetchVitals).not.toHaveBeenCalled();
+    expect(container).toBeEmptyDOMElement();
+
+    // Role dojechały - ten sam komponent (bez ponownego montażu) zaczyna
+    // pytać, więc kolejność hooków nie zależy od roli.
+    h.auth = { roles: ["admin"], loading: false };
+    rerenderStrip();
+    await settled();
+    expect(tile("samples")).toBe("42");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("`loading` wygrywa z rolą: dopóki tożsamość nie jest rozstrzygnięta, pasek nie pyta", async () => {
+    h.auth = { roles: ["admin"], loading: true };
+    const { container } = strip();
+    await act(async () => {});
+
+    expect(h.fetchVitals).not.toHaveBeenCalled();
+    expect(h.fetchErrors).not.toHaveBeenCalled();
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it.each<[string, Role[]]>([
+    ["admin", ["admin"]],
+    ["admin i super_admin", ["super_admin", "admin"]],
+  ])("%s: pasek pyta oba źródła i rysuje kafelki", async (_, roles) => {
+    h.auth = { roles, loading: false };
+    h.fetchVitals.mockResolvedValue(VITALS_42);
+    h.fetchErrors.mockResolvedValue(errors({ windowTotal: 7, uniqueGroups: 2 }));
+    strip();
+    await settled();
+
+    expect(screen.getByRole("heading", { name: bi("stripTitle") })).toBeInTheDocument();
+    expect(tile("samples")).toBe("42");
+    expect(tile("errors")).toBe("7");
+  });
+
+  it("admin bez ustalonego najemcy nadal widzi neutralny „Pomiar”, nie pustkę", async () => {
+    // Rola rozstrzyga, CZY pasek istnieje; najemca - czy już pyta. Te dwa
+    // warunki są rozłączne: admin z najemcą w drodze widzi pomiar w toku.
+    h.tenantId = null;
+    strip();
+    await act(async () => {});
+
+    expect(h.fetchVitals).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: bi("stripTitle") })).toBeInTheDocument();
+    expect(tile("samples")).toBe(common("measuringShort"));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

@@ -23,6 +23,18 @@
 // UNIEWAŻNIANIE PO KORZENIU (`analyticsRootKey()`), nie po pojedynczym kluczu:
 // zapis ustawień analityki zmienia odpowiedź statusu, a korzeń trafia w nią
 // niezależnie od tego, pod którym najemcą i z którego ekranu ją zapamiętano.
+// Wyjątek to dziedzina, którą zmienia ZAPIS POZA analityką - kupony: mutacja
+// kuponu unieważnia prefiks analityki kuponów SWOJEGO najemcy
+// (`analyticsCouponsPrefixKey`), bo funkcja agregująca liczy po wszystkich
+// kuponach najemcy (LEFT JOIN), więc nowy, skasowany albo wygenerowany kod
+// zmienia ranking od razu, a nie dopiero po `staleTime`.
+//
+// GOOGLE SEARCH CONSOLE też tu mieszka: `listGscSites` i `queryGscAnalytics`
+// stoją za tą samą bramką (`requireAnalyticsAdmin`), a serwer odsiewa listę
+// właściwości i każde `siteUrl` per najemca. Do 2026-10 /admin/seo/search-console
+// trzymała je pod `["gsc-sites"]`/`["gsc-queries", …]`, a widżet inspekcji URL
+// pod `["gsc-sites-widget"]` - bez najemcy, czyli z listą właściwości
+// poprzedniego obszaru roboczego w cache'u.
 
 /** Korzeń wszystkich kluczy panelu analityki - do unieważniania hurtem. */
 export function analyticsRootKey(): readonly unknown[] {
@@ -61,6 +73,16 @@ export function analyticsBiStripKey(
 }
 
 /**
+ * Prefiks analityki kuponów B2B jednego najemcy - wszystkie zakresy dat naraz.
+ * Do unieważniania po mutacji kuponu (`invalidateCouponQueries`): zakres
+ * zapamiętany na /admin/coupons/analytics jest dowolny, więc mutacja nie zna
+ * pełnego klucza, a prefiks trafia w każdy.
+ */
+export function analyticsCouponsPrefixKey(tenantId: string): readonly unknown[] {
+  return [...analyticsTenantKey(tenantId), "b2b-coupons"];
+}
+
+/**
  * Analityka kuponów B2B (`b2b_coupons_analytics`). Granice jako ISO albo `null`
  * (brak granicy) - dwa zakresy różniące się tylko końcem to dwa różne odczyty.
  */
@@ -69,5 +91,53 @@ export function analyticsCouponsKey(
   fromIso: string | null,
   toIso: string | null,
 ): readonly unknown[] {
-  return [...analyticsTenantKey(tenantId), "b2b-coupons", fromIso, toIso];
+  return [...analyticsCouponsPrefixKey(tenantId), fromIso, toIso];
+}
+
+/**
+ * Lista właściwości Search Console (`listGscSites`, bez parametrów). JEDEN
+ * klucz dla trzech powierzchni - /admin/seo/search-console, widżetu inspekcji
+ * URL w panelu SEO i warsztatu GSC na /admin/analytics/bi - bo to ta sama
+ * odpowiedź tej samej funkcji; osobne wpisy tylko mnożyły wywołania Google.
+ */
+export function analyticsGscSitesKey(tenantId: string): readonly unknown[] {
+  return [...analyticsTenantKey(tenantId), "gsc", "sites"];
+}
+
+/**
+ * Wymiar raportu GSC - lustro `z.enum` wejścia `queryGscAnalytics`
+ * (`@/lib/analytics/gsc.functions`). Nowy wymiar po stronie serwera bez wpisu
+ * tutaj nie przejdzie przez `tsc` u wołającego.
+ */
+export type GscReportDimension = "date" | "query" | "page" | "country" | "device";
+
+/** Parametry jednego odczytu `queryGscAnalytics` - wszystkie, od których zależy odpowiedź. */
+export interface GscReportParams {
+  siteUrl: string;
+  dimension: GscReportDimension;
+  startDate: string;
+  endDate: string;
+  rowLimit: number;
+}
+
+/**
+ * Jeden raport Search Console. W kluczu stoi KAŻDY parametr odczytu, także
+ * `rowLimit`: dwa ekrany pytające o tę samą właściwość, wymiar i okno, ale
+ * o 25 i o 200 wierszy, to dwie różne odpowiedzi - wspólny wpis oddałby
+ * jednemu z nich obciętą (albo cudzą) listę jako pełną.
+ */
+export function analyticsGscReportKey(
+  tenantId: string,
+  { siteUrl, dimension, startDate, endDate, rowLimit }: GscReportParams,
+): readonly unknown[] {
+  return [
+    ...analyticsTenantKey(tenantId),
+    "gsc",
+    "report",
+    siteUrl,
+    dimension,
+    startDate,
+    endDate,
+    rowLimit,
+  ];
 }
