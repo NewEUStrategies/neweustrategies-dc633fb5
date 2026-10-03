@@ -16,10 +16,16 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-team-media";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   bulkDeleteMedia,
   bulkMoveMedia,
@@ -65,9 +71,19 @@ import {
   UPLOAD_ACCEPT_ATTR,
   checkUploadable,
   uploadAndRegisterMedia,
+  type UploadRejection,
 } from "@/lib/media/upload";
 import { useMediaSelection } from "@/components/admin/media/hooks/useMediaSelection";
 import { normalizePath } from "@/components/admin/media/lib/mediaPaths";
+import {
+  MEDIA_PAGE_SIZE,
+  ilikeContains,
+  keepSameTenantData,
+  keysetAfter,
+  toMediaPage,
+  type MediaCursor,
+  type MediaPage,
+} from "@/components/admin/media/lib/mediaPage";
 
 const MEDIA_IDS_MIME = "application/x-media-ids";
 
@@ -98,6 +114,15 @@ export function MediaPickerDialog({
   const tenantId = useRequiredTenant();
   const { user } = useAuth();
   const qc = useQueryClient();
+  /** Lista plików i foldery z położenia plików zmieniają się razem. */
+  const refreshLibrary = useCallback(
+    () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: ["media-picker"] }),
+        qc.invalidateQueries({ queryKey: ["media-picker-folder-paths"] }),
+      ]),
+    [qc],
+  );
   const registerUpload = useServerFn(registerMediaUpload);
   const updateMeta = useServerFn(updateMediaMeta);
   const bulkDelete = useServerFn(bulkDeleteMedia);
@@ -135,6 +160,41 @@ export function MediaPickerDialog({
         ? AUDIO_ACCEPT_ATTR
         : UPLOAD_ACCEPT_ATTR;
 
+  /**
+   * Komunikat odmowy dla pliku spoza allowlisty trybu. Rozmiar i format to
+   * dwie różne przyczyny: „to nie jest obraz" przy zbyt dużym PNG wprowadzało
+   * w błąd, a tryb „wszystko" nie ma jednego rodzaju, który mógłby nazwać.
+   */
+  const skippedMessage = useCallback(
+    (name: string, rejection: UploadRejection | null): string => {
+      if (rejection?.kind === "size") {
+        return t("adminTeamMedia.mediaPicker.errSkippedTooLarge", { name });
+      }
+      if (accept === "audio") return t("adminTeamMedia.mediaPicker.errSkippedAudio", { name });
+      if (accept === "image") return t("adminTeamMedia.mediaPicker.errSkippedImage", { name });
+      return t("adminTeamMedia.mediaPicker.errSkippedUnsupported", { name });
+    },
+    [accept, t],
+  );
+
+  /**
+   * Pliki odrzucone przez `accept` przy UPUSZCZENIU na obszar wgrywania.
+   * Bez tego odmowa była ciszą: upuszczony PDF w pickerze obrazów po prostu
+   * znikał (kontrakt `onRejectedFiles` w upload-area.tsx).
+   */
+  const notifyRejected = useCallback(
+    (files: File[]) => {
+      if (!files.length) return;
+      toast.error(
+        skippedMessage(
+          files.map((f) => f.name).join(", "),
+          files.length === 1 ? checkUploadable(files[0], allowedMime) : null,
+        ),
+      );
+    },
+    [allowedMime, skippedMessage],
+  );
+
   const handleFiles = useCallback(
     async (files: FileList | File[], targetFolder = folder === "all" ? "/" : folder) => {
       const list = Array.from(files);
@@ -144,15 +204,13 @@ export function MediaPickerDialog({
         return;
       }
       setUploading(true);
-      let lastUrl: string | null = null;
+      let lastUploaded: { url: string; name: string } | null = null;
+      let uploadedCount = 0;
       try {
         for (const file of list) {
-          if (checkUploadable(file, allowedMime)) {
-            toast.error(
-              accept === "audio"
-                ? t("adminTeamMedia.mediaPicker.errSkippedAudio", { name: file.name })
-                : t("adminTeamMedia.mediaPicker.errSkippedImage", { name: file.name }),
-            );
+          const rejection = checkUploadable(file, allowedMime);
+          if (rejection) {
+            toast.error(skippedMessage(file.name, rejection));
             continue;
           }
           const uploaded = await uploadAndRegisterMedia({
@@ -168,15 +226,32 @@ export function MediaPickerDialog({
               data: { mediaId: uploaded.mediaId, folderPath: normalizedTarget },
             });
           }
-          lastUrl = uploaded.publicUrl;
+          lastUploaded = { url: uploaded.publicUrl, name: file.name };
+          uploadedCount += 1;
         }
-        toast.success(
-          list.length > 1
-            ? t("adminTeamMedia.mediaPicker.uploadedMany", { count: list.length })
-            : t("adminTeamMedia.mediaPicker.uploadedOne"),
-        );
-        await qc.invalidateQueries({ queryKey: ["media-picker", tenantId, accept] });
-        if (lastUrl) setPickedUrl(lastUrl);
+        // Sukces liczy pliki WGRANE, nie wybrane: „Wgrano 3 plików" przy dwóch
+        // odrzuconych był nieprawdą, a przy samych odrzuconych - zielonym
+        // komunikatem o porażce.
+        if (uploadedCount > 0) {
+          toast.success(
+            uploadedCount > 1
+              ? t("adminTeamMedia.mediaPicker.uploadedMany", { count: uploadedCount })
+              : t("adminTeamMedia.mediaPicker.uploadedOne"),
+          );
+        }
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: ["media-picker", tenantId, accept] }),
+          qc.invalidateQueries({ queryKey: ["media-picker-folder-paths", tenantId] }),
+        ]);
+        if (lastUploaded) {
+          // Wiersze listy niosą adres RENDEROWANY (`/media/...`), a upload
+          // oddaje markowy, absolutny - porównanie surowych adresów nigdy się
+          // nie spotykało, więc panel metadanych świeżo wgranego pliku się nie
+          // otwierał. Zatwierdzenie i tak markuje adres przed `onPick`.
+          setPickedUrl(mediaRenderUrl(lastUploaded.url));
+          setFilenameDraft(lastUploaded.name);
+          setAltDraft("");
+        }
       } catch (err) {
         toastError(err, "upload");
       } finally {
@@ -184,7 +259,18 @@ export function MediaPickerDialog({
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [accept, allowedMime, folder, qc, registerUpload, tenantId, updateMeta, user, t],
+    [
+      accept,
+      allowedMime,
+      folder,
+      qc,
+      registerUpload,
+      skippedMessage,
+      tenantId,
+      updateMeta,
+      user,
+      t,
+    ],
   );
 
   const onInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -197,23 +283,54 @@ export function MediaPickerDialog({
     if (e.dataTransfer.files?.length) void handleFiles(e.dataTransfer.files);
   };
 
-  const { data } = useQuery({
-    queryKey: ["media-picker", tenantId, accept],
+  // Paginacja keyset zamiast `limit(500)`: plik 501. był dotąd NIEOSIĄGALNY
+  // z pickera (ani lista, ani wyszukiwarka go nie widziały). Folder i fraza
+  // filtrują po stronie bazy, więc trafienie spoza pierwszej strony nie
+  // „znika"; do czasu debounce wczytane wiersze filtruje klient.
+  const debouncedQ = useDebouncedValue(q.trim(), 250);
+  const mediaPages = useInfiniteQuery({
+    queryKey: ["media-picker", tenantId, accept, folder, debouncedQ],
     enabled: open,
-    queryFn: async (): Promise<PickerRow[]> => {
+    initialPageParam: null as MediaCursor | null,
+    queryFn: async ({ pageParam }): Promise<MediaPage<PickerRow>> => {
       let query = supabase
         .from("media")
         .select("id, public_url, filename, mime_type, folder_path, created_at, alt_text")
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false })
-        .limit(500);
+        .eq("tenant_id", tenantId);
       if (accept === "image") query = query.like("mime_type", "image/%");
-      const { data, error } = await query;
+      if (accept === "audio") query = query.like("mime_type", "audio/%");
+      if (folder !== "all") query = query.eq("folder_path", folder);
+      if (debouncedQ) query = query.ilike("filename", ilikeContains(debouncedQ));
+      if (pageParam) query = query.or(keysetAfter(pageParam));
+      const { data, error } = await query
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(MEDIA_PAGE_SIZE + 1);
       if (error) throw error;
-      return (data ?? []).map((row) => ({
-        ...row,
-        public_url: mediaRenderUrl(row.public_url),
-      }));
+      const page = toMediaPage(data ?? []);
+      return {
+        nextCursor: page.nextCursor,
+        rows: page.rows.map((row) => ({ ...row, public_url: mediaRenderUrl(row.public_url) })),
+      };
+    },
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    placeholderData:
+      keepSameTenantData<InfiniteData<MediaPage<PickerRow>, MediaCursor | null>>(tenantId),
+  });
+  const data = useMemo(
+    () => mediaPages.data?.pages.flatMap((page) => page.rows),
+    [mediaPages.data],
+  );
+
+  // Foldery z położenia plików - lista nie może zależeć od tego, które strony
+  // akurat są wczytane.
+  const { data: folderPaths } = useQuery({
+    queryKey: ["media-picker-folder-paths", tenantId],
+    enabled: open,
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase.rpc("media_folder_paths", { _tenant_id: tenantId });
+      if (error) throw error;
+      return (data ?? []).filter((path): path is string => typeof path === "string");
     },
   });
 
@@ -235,9 +352,10 @@ export function MediaPickerDialog({
     const s = new Set<string>();
     s.add("/");
     for (const r of folderRows ?? []) s.add(r.path || "/");
+    for (const p of folderPaths ?? []) s.add(p || "/");
     for (const r of data ?? []) s.add(r.folder_path || "/");
     return Array.from(s).sort();
-  }, [data, folderRows]);
+  }, [data, folderPaths, folderRows]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -305,14 +423,14 @@ export function MediaPickerDialog({
     try {
       await bulkDelete({ data: { mediaIds: ids } });
       clearMediaSelection();
-      await qc.invalidateQueries({ queryKey: ["media-picker"] });
+      await refreshLibrary();
       toast.success(t("adminTeamMedia.mediaPicker.deletedMany", { count: ids.length }));
     } catch (err) {
       toastError(err, "delete");
     } finally {
       setDeleting(false);
     }
-  }, [bulkDelete, clearMediaSelection, qc, selectedIds, t]);
+  }, [bulkDelete, clearMediaSelection, refreshLibrary, selectedIds, t]);
 
   const moveSelectedToFolder = useCallback(
     async (targetFolder: string, ids = Array.from(selectedIds)) => {
@@ -321,7 +439,7 @@ export function MediaPickerDialog({
       try {
         await bulkMove({ data: { mediaIds: ids, folderPath: normalizePath(targetFolder) } });
         clearMediaSelection();
-        await qc.invalidateQueries({ queryKey: ["media-picker"] });
+        await refreshLibrary();
         toast.success(t("adminTeamMedia.mediaPicker.movedMany", { count: ids.length }));
       } catch (err) {
         toastError(err, "save");
@@ -330,7 +448,7 @@ export function MediaPickerDialog({
         setDragTargetFolder(null);
       }
     },
-    [bulkMove, clearMediaSelection, qc, selectedIds, t],
+    [bulkMove, clearMediaSelection, refreshLibrary, selectedIds, t],
   );
 
   const onMediaDragStart = (id: string) => (event: DragEvent<HTMLButtonElement>) => {
@@ -423,7 +541,7 @@ export function MediaPickerDialog({
           ...(pickedIsImage ? { altText: altDraft.trim() } : {}),
         },
       });
-      await qc.invalidateQueries({ queryKey: ["media-picker"] });
+      await refreshLibrary();
       toast.success(t("adminTeamMedia.mediaPicker.savedMeta"));
     } catch (err) {
       toastError(err, "save");
@@ -441,7 +559,7 @@ export function MediaPickerDialog({
     try {
       await bulkDelete({ data: { mediaIds: [picked.id] } });
       clearMediaSelection();
-      await qc.invalidateQueries({ queryKey: ["media-picker"] });
+      await refreshLibrary();
       toast.success(t("adminTeamMedia.mediaPicker.deleted"));
     } catch (err) {
       toastError(err, "delete");
@@ -741,6 +859,7 @@ export function MediaPickerDialog({
                 accept={acceptAttr}
                 multiple
                 onFiles={(files) => void handleFiles(files)}
+                onRejectedFiles={notifyRejected}
               />
             </div>
           ) : (
@@ -795,6 +914,21 @@ export function MediaPickerDialog({
                   </Button>
                 );
               })}
+            </div>
+          )}
+          {mediaPages.hasNextPage && (
+            <div className="flex justify-center py-3">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={mediaPages.isFetchingNextPage}
+                onClick={() => void mediaPages.fetchNextPage()}
+              >
+                {mediaPages.isFetchingNextPage
+                  ? t("adminTeamMedia.mediaPicker.loadingMore")
+                  : t("adminTeamMedia.mediaPicker.loadMore")}
+              </Button>
             </div>
           )}
         </div>

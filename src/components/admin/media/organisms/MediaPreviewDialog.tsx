@@ -129,6 +129,7 @@ export function MediaPreviewDialog({ file, onClose }: MediaPreviewDialogProps) {
                 isLoading={usageQ.isLoading}
                 error={usageQ.error}
                 items={usageQ.data?.items}
+                truncated={usageQ.data?.truncated}
               />
             </aside>
           )}

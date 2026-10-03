@@ -48,7 +48,11 @@ vi.mock("@/lib/server/userTenant.server", () => ({
   resolveUserTenantId: async () => TENANT,
 }));
 
-const adminStubs = vi.hoisted(() => ({ from: null as SupabaseFromStub | null }));
+const adminStubs = vi.hoisted(() => ({
+  from: null as SupabaseFromStub | null,
+  rpcCalls: [] as Array<{ fn: string; args: Record<string, unknown> }>,
+  rpcResult: { data: [] as unknown, error: null as { message: string } | null },
+}));
 
 vi.mock("@/integrations/supabase/client.server", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -57,6 +61,10 @@ vi.mock("@/integrations/supabase/client.server", async () => {
   return {
     supabaseAdmin: {
       from: from.from,
+      rpc: async (fn: string, args: Record<string, unknown>) => {
+        adminStubs.rpcCalls.push({ fn, args });
+        return adminStubs.rpcResult;
+      },
       storage: {
         from: () => ({
           remove: async (paths: string[]) => {
@@ -88,6 +96,8 @@ import {
   deleteMediaFolder,
   getMediaUsage,
   regenerateThumbnails,
+  MEDIA_USAGE_LIMIT,
+  MEDIA_USAGE_SIBLINGS,
   type MediaUsageItem,
   type ThumbnailRegenResult,
 } from "@/lib/media.functions";
@@ -114,6 +124,8 @@ function withProfile(tenantId: string | null = TENANT) {
 beforeEach(() => {
   user = supabaseFromStub();
   adminStubs.from?.reset();
+  adminStubs.rpcCalls.length = 0;
+  adminStubs.rpcResult = { data: [], error: null };
   h.audits.length = 0;
   h.rateLimitOk = true;
   h.storage.removed.length = 0;
@@ -762,14 +774,20 @@ describe("deleteMediaFolder - operacja NIEODWRACALNA", () => {
 // ---------------------------------------------------------------------------
 
 describe("getMediaUsage", () => {
+  // Od wydania 12 dopasowanie podciągów wykonuje baza (`media_usage_scan`,
+  // migracja 20261003090000) - ZACHOWANIE skanu (okładka, zajawka, treść,
+  // builder, bloki, układ, kosz, obcy tenant, puste igły) dowodzi pgTAP
+  // `supabase/tests/media_library_pagination_usage_scan_test.sql`. Tutaj
+  // zostaje kontrakt handlera: KTO jest granicą tenanta, JAKIE igły lecą do
+  // bazy i jak wynik wraca do interfejsu.
   const MEDIA_URL = "https://cdn.example/media/okladka.png";
   const MEDIA_PATH = `${TENANT}/${USER}/okladka.png`;
 
   /** Wiersz mediów + rodzeństwo o tej samej nazwie pliku. */
   function mediaRow(siblings: Array<Record<string, unknown>> = []) {
     user.setResponse("media", (chain) => {
-      const eq = chain.argsOf("eq");
-      if (eq?.[0] === "filename") return ok(siblings);
+      const filtersByName = chain.calls.some((c) => c.method === "eq" && c.args[0] === "filename");
+      if (filtersByName) return ok(siblings);
       return ok({
         id: MEDIA_A,
         public_url: MEDIA_URL,
@@ -779,73 +797,89 @@ describe("getMediaUsage", () => {
     });
   }
 
-  function admin() {
-    const a = adminStubs.from;
-    if (!a) throw new Error("test: atrapa klienta administracyjnego nie istnieje");
-    return a;
+  function scanReturns(rows: unknown[]) {
+    adminStubs.rpcResult = { data: rows, error: null };
   }
 
-  function noContent() {
-    admin().setResponse("posts", ok([]));
-    admin().setResponse("pages", ok([]));
-  }
+  const scanCall = () => adminStubs.rpcCalls.find((c) => c.fn === "media_usage_scan");
 
-  it("znajduje wpis po adresie publicznym w okładce", async () => {
+  it("skan idzie RPC spod service_role, przypięty do tenanta wołającego", async () => {
+    // Kolumny treści są odebrane roli authenticated, więc skan musi iść rolą
+    // serwisową - a ona omija RLS. Jawny `_tenant_id` z profilu jest tu
+    // JEDYNĄ granicą izolacji.
     mediaRow();
-    admin().setResponse(
-      "posts",
-      ok([{ id: "p1", slug: "wpis", title_pl: "Wpis", cover_image_url: MEDIA_URL }]),
-    );
-    admin().setResponse("pages", ok([]));
+    await callServerFn(getMediaUsage, { mediaId: MEDIA_A }, ctx());
 
-    const out = await callServerFn<{ items: MediaUsageItem[] }>(
-      getMediaUsage,
-      { mediaId: MEDIA_A },
-      ctx(),
+    expect(scanCall()?.args).toMatchObject({ _tenant_id: TENANT, _limit: MEDIA_USAGE_LIMIT + 1 });
+  });
+
+  it("NIE ściąga treści wpisów i stron do workera", async () => {
+    // Defekt wydania 11: pełne `content_*`, `builder_data`, `blocks_data`
+    // WSZYSTKICH wpisów tenanta przy każdym otwarciu podglądu pliku.
+    mediaRow();
+    await callServerFn(getMediaUsage, { mediaId: MEDIA_A }, ctx());
+
+    expect(adminStubs.from?.chainsFor("posts")).toHaveLength(0);
+    expect(adminStubs.from?.chainsFor("pages")).toHaveLength(0);
+  });
+
+  it("igły to adres publiczny, ścieżka w storage i identyfikator pliku", async () => {
+    mediaRow();
+    await callServerFn(getMediaUsage, { mediaId: MEDIA_A }, ctx());
+
+    expect(scanCall()?.args["_needles"]).toEqual([MEDIA_URL, MEDIA_PATH, MEDIA_A]);
+  });
+
+  it("traktuje DUPLIKAT o tej samej nazwie jak ten sam zasób", async () => {
+    // Bez tego otwarcie kopii pliku pokazywałoby fałszywe "0 użyć", a operator
+    // skasowałby zasób nadal osadzony we wpisach.
+    const twinUrl = "https://cdn.example/media/okladka-kopia.png";
+    const twinPath = `${TENANT}/${USER}/kopia.png`;
+    mediaRow([{ id: MEDIA_B, public_url: twinUrl, storage_path: twinPath }]);
+    await callServerFn(getMediaUsage, { mediaId: MEDIA_A }, ctx());
+
+    expect(scanCall()?.args["_needles"]).toEqual(
+      expect.arrayContaining([twinUrl, twinPath, MEDIA_B]),
     );
-    expect(out.items).toEqual([
-      { kind: "post", id: "p1", slug: "wpis", title: "Wpis", where: ["cover"] },
+  });
+
+  it("odczyt pliku i duplikatów jest zawężony do tenanta, a duplikaty mają limit", async () => {
+    mediaRow();
+    await callServerFn(getMediaUsage, { mediaId: MEDIA_A }, ctx());
+
+    const [row, siblings] = user.chainsFor("media");
+    const eqs = (chain: typeof row) =>
+      chain.calls.filter((c) => c.method === "eq").map((c) => [...c.args]);
+    expect(eqs(row)).toContainEqual(["tenant_id", TENANT]);
+    expect(eqs(siblings)).toContainEqual(["tenant_id", TENANT]);
+    expect(siblings.argsOf("limit")).toEqual([MEDIA_USAGE_SIBLINGS]);
+  });
+
+  it("mapuje trafienia na pozycje listy z neutralnymi językowo obszarami", async () => {
+    mediaRow();
+    scanReturns([
+      { kind: "post", id: "p1", slug: "wpis", title: "Wpis", areas: ["cover", "content"] },
+      { kind: "page", id: "g1", slug: "o-nas", title: "About", areas: ["builder"] },
     ]);
-  });
-
-  it("rozpoznaje użycie w treści, zajawce, builderze, blokach i layoucie", async () => {
-    mediaRow();
-    admin().setResponse(
-      "posts",
-      ok([
-        {
-          id: "p1",
-          slug: "wpis",
-          title_pl: "Wpis",
-          cover_image_url: null,
-          excerpt_pl: `zajawka ${MEDIA_URL}`,
-          content_en: `<img src="${MEDIA_URL}">`,
-          builder_data: { widgets: [{ src: MEDIA_PATH }] },
-          blocks_data: [{ url: MEDIA_URL }],
-          layout_overrides: { hero: MEDIA_URL },
-        },
-      ]),
-    );
-    admin().setResponse("pages", ok([]));
-
-    const out = await callServerFn<{ items: MediaUsageItem[] }>(
+    const out = await callServerFn<{ items: MediaUsageItem[]; truncated: boolean }>(
       getMediaUsage,
       { mediaId: MEDIA_A },
       ctx(),
     );
-    expect(out.items[0].where).toEqual(["excerpt", "content", "builder", "blocks", "layout"]);
+
+    expect(out).toEqual({
+      items: [
+        { kind: "post", id: "p1", slug: "wpis", title: "Wpis", where: ["cover", "content"] },
+        { kind: "page", id: "g1", slug: "o-nas", title: "About", where: ["builder"] },
+      ],
+      truncated: false,
+    });
   });
 
-  it("obszary użycia są NEUTRALNE JĘZYKOWO - tłumaczy je interfejs", async () => {
-    // Serwer nie może zapiec jednego języka w danych: ten sam wynik czyta
-    // panel PL i EN.
+  it("odrzuca obszar spoza słownika interfejsu, zamiast go przepuścić", async () => {
+    // Interfejs tłumaczy obszary mapą - nieznany klucz wyświetliłby `undefined`.
     mediaRow();
-    admin().setResponse(
-      "posts",
-      ok([{ id: "p1", slug: "s", title_pl: "T", cover_image_url: MEDIA_URL }]),
-    );
-    admin().setResponse("pages", ok([]));
-
+    scanReturns([{ kind: "post", id: "p1", slug: "s", title: "T", areas: ["cover", "seo"] }]);
     const out = await callServerFn<{ items: MediaUsageItem[] }>(
       getMediaUsage,
       { mediaId: MEDIA_A },
@@ -854,103 +888,48 @@ describe("getMediaUsage", () => {
     expect(out.items[0].where).toEqual(["cover"]);
   });
 
-  it("traktuje DUPLIKAT o tej samej nazwie jak ten sam zasób", async () => {
-    // Bez tego otwarcie kopii pliku pokazywałoby fałszywe "0 użyć", a operator
-    // skasowałby zasób nadal osadzony we wpisach.
-    const twinUrl = "https://cdn.example/media/okladka-kopia.png";
-    mediaRow([{ id: MEDIA_B, public_url: twinUrl, storage_path: `${TENANT}/${USER}/kopia.png` }]);
-    admin().setResponse(
-      "posts",
-      ok([{ id: "p1", slug: "s", title_pl: "T", cover_image_url: twinUrl }]),
+  it("zgłasza PRZYCIĘCIE, gdy baza oddała więcej niż limit", async () => {
+    mediaRow();
+    scanReturns(
+      Array.from({ length: MEDIA_USAGE_LIMIT + 1 }, (_, i) => ({
+        kind: "post",
+        id: `p${i}`,
+        slug: `s${i}`,
+        title: `T${i}`,
+        areas: ["content"],
+      })),
     );
-    admin().setResponse("pages", ok([]));
-
-    const out = await callServerFn<{ items: MediaUsageItem[] }>(
+    const out = await callServerFn<{ items: MediaUsageItem[]; truncated: boolean }>(
       getMediaUsage,
       { mediaId: MEDIA_A },
       ctx(),
     );
-    expect(out.items).toHaveLength(1);
+    expect(out.items).toHaveLength(MEDIA_USAGE_LIMIT);
+    expect(out.truncated).toBe(true);
   });
 
-  it("skanuje także strony", async () => {
+  it("pusty wynik skanu daje pustą listę, nie wyjątek", async () => {
     mediaRow();
-    admin().setResponse("posts", ok([]));
-    admin().setResponse(
-      "pages",
-      ok([{ id: "g1", slug: "o-nas", title_en: "About", cover_image_url: MEDIA_URL }]),
-    );
-
-    const out = await callServerFn<{ items: MediaUsageItem[] }>(
+    adminStubs.rpcResult = { data: null, error: null };
+    const out = await callServerFn<{ items: MediaUsageItem[]; truncated: boolean }>(
       getMediaUsage,
       { mediaId: MEDIA_A },
       ctx(),
     );
-    expect(out.items).toEqual([
-      { kind: "page", id: "g1", slug: "o-nas", title: "About", where: ["cover"] },
-    ]);
+    expect(out).toEqual({ items: [], truncated: false });
   });
 
-  it("spada na slug, gdy wpis nie ma tytułu w żadnym języku", async () => {
-    mediaRow();
-    admin().setResponse(
-      "posts",
-      ok([
-        { id: "p1", slug: "bez-tytulu", title_pl: "", title_en: null, cover_image_url: MEDIA_URL },
-      ]),
-    );
-    admin().setResponse("pages", ok([]));
-
-    const out = await callServerFn<{ items: MediaUsageItem[] }>(
-      getMediaUsage,
-      { mediaId: MEDIA_A },
-      ctx(),
-    );
-    expect(out.items[0].title).toBe("bez-tytulu");
-  });
-
-  it("pomija wpisy bez ani jednego trafienia", async () => {
-    mediaRow();
-    admin().setResponse(
-      "posts",
-      ok([{ id: "p1", slug: "s", title_pl: "T", cover_image_url: "https://inny/plik.png" }]),
-    );
-    admin().setResponse("pages", ok([]));
-
-    const out = await callServerFn<{ items: MediaUsageItem[] }>(
-      getMediaUsage,
-      { mediaId: MEDIA_A },
-      ctx(),
-    );
-    expect(out.items).toEqual([]);
-  });
-
-  it("skan jest PRZYPIĘTY do tenanta wołającego i pomija kosz", async () => {
-    // Odczyt idzie rolą serwisową (kolumny treści są odebrane roli
-    // authenticated), więc filtr tenanta jest tu JEDYNĄ granicą izolacji.
-    mediaRow();
-    noContent();
-    await callServerFn(getMediaUsage, { mediaId: MEDIA_A }, ctx());
-
-    for (const table of ["posts", "pages"]) {
-      const chain = admin().lastChain(table);
-      expect(chain?.argsOf("eq")).toEqual(["tenant_id", TENANT]);
-      expect(chain?.argsOf("is")).toEqual(["deleted_at", null]);
-    }
-  });
-
-  it("ODMAWIA, gdy wiersz mediów jest niewidoczny dla wołającego", async () => {
+  it("ODMAWIA, gdy wiersz mediów jest niewidoczny dla wołającego - bez skanu", async () => {
     user.setResponse("media", ok(null));
-    noContent();
     await expect(callServerFn(getMediaUsage, { mediaId: MEDIA_A }, ctx())).rejects.toThrow(
       "Media not found or access denied",
     );
+    expect(scanCall()).toBeUndefined();
   });
 
-  it("błąd skanu wpisów wychodzi na wierzch", async () => {
+  it("błąd skanu wychodzi na wierzch", async () => {
     mediaRow();
-    admin().setResponse("posts", fail("odmowa skanu"));
-    admin().setResponse("pages", ok([]));
+    adminStubs.rpcResult = { data: null, error: { message: "odmowa skanu" } };
     await expect(callServerFn(getMediaUsage, { mediaId: MEDIA_A }, ctx())).rejects.toThrow(
       "odmowa skanu",
     );
@@ -958,7 +937,6 @@ describe("getMediaUsage", () => {
 
   it("błąd odczytu wiersza mediów wychodzi na wierzch", async () => {
     user.setResponse("media", fail("odmowa odczytu"));
-    noContent();
     await expect(callServerFn(getMediaUsage, { mediaId: MEDIA_A }, ctx())).rejects.toThrow(
       "odmowa odczytu",
     );

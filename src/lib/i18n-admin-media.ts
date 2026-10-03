@@ -68,6 +68,10 @@ const pl = {
       confirmDeleteFolder:
         "Usunąć folder wraz z jego zawartością (pliki i podfoldery)? Tej operacji nie można cofnąć.",
       notUsed: "Ten materiał nie jest jeszcze używany w żadnym poście ani stronie.",
+      usageTruncated:
+        "Pokazano pierwsze {{count}} miejsc użycia - materiał występuje w większej liczbie treści.",
+      loadMore: "Wczytaj więcej plików",
+      loadingMore: "Wczytywanie…",
       previewUnavailable: "Podgląd niedostępny dla tego formatu.",
       dropHere: "Przeciągnij pliki tutaj lub kliknij „Wgraj”",
       items: "elementów",
@@ -148,6 +152,9 @@ const en: typeof pl = {
       confirmDeleteFolder:
         "Delete this folder and all its contents (files and subfolders)? This cannot be undone.",
       notUsed: "This asset isn't used in any post or page yet.",
+      usageTruncated: "Showing the first {{count}} uses - the asset appears in more content.",
+      loadMore: "Load more files",
+      loadingMore: "Loading…",
       previewUnavailable: "Preview unavailable for this format.",
       dropHere: "Drag files here or click “Upload”",
       items: "items",

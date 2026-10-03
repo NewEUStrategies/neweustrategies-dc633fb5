@@ -7,7 +7,7 @@
  * asserts a tenant on a write. `tenantId`/`userId` here are only used to shape
  * storage object keys (`<tenant>/<user>/...`), matching the storage RLS prefix.
  */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -73,6 +73,15 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
 
   const [busy, setBusy] = useState(false);
   const [clipboard, setClipboard] = useState<ClipboardState | null>(null);
+
+  // Ostatni ZNANY folder każdego pliku. Lista `media` obejmuje wyłącznie
+  // wczytane strony BIEŻĄCEGO folderu, a wycięcie i wklejenie dzieje się
+  // w dwóch różnych folderach - bez tej pamięci cofnięcie przeniesienia nie
+  // wiedziałoby, skąd plik przyszedł.
+  const knownFolderRef = useRef(new Map<string, string>());
+  useEffect(() => {
+    for (const m of media) knownFolderRef.current.set(m.id, m.folder_path);
+  }, [media]);
 
   // Undo/redo stacks live in refs (no re-render on push); a version counter
   // bumps a render so `canUndo`/`canRedo` stay in sync with the buttons.
@@ -147,7 +156,10 @@ export function useMediaMutations(args: UseMediaMutationsArgs): UseMediaMutation
     async (ids: string[], target: string, recordHistory = true) => {
       if (!ids.length) return;
       const before = new Map<string, string>();
-      for (const m of media) if (ids.includes(m.id)) before.set(m.id, m.folder_path);
+      for (const id of ids) {
+        const from = media.find((m) => m.id === id)?.folder_path ?? knownFolderRef.current.get(id);
+        if (from !== undefined) before.set(id, from);
+      }
       try {
         await bulkMove({ data: { mediaIds: ids, folderPath: target } });
         if (recordHistory) {
