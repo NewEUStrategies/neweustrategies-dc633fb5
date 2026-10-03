@@ -123,35 +123,60 @@ function safeParse(raw: string | null): ConsentState | null {
 }
 
 // -------------------- Cookie helpers --------------------
+// Wołane WYŁĄCZNIE spod strażnika `typeof window` (readLocal / writeLocal /
+// clearConsent), więc `document` i `location` są tu zawsze dostępne.
 
-function readCookie(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const m = document.cookie.match(new RegExp(`(?:^|; )${escaped}=([^;]*)`));
-  return m ? decodeURIComponent(m[1]) : null;
+// Wzorzec składany RAZ: `readLocal` biegnie przy każdym beaconie analityki
+// (`hasCategoryConsent`), a nazwa ciasteczka jest stała i bez znaków
+// specjalnych wyrażeń regularnych.
+const COOKIE_PATTERN = new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`);
+
+function readConsentCookie(): string | null {
+  const m = document.cookie.match(COOKIE_PATTERN);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]);
+  } catch {
+    // Uszkodzona sekwencja %-kodowania (ucięte ciasteczko, zapis innej
+    // aplikacji pod tą nazwą na wspólnej domenie). `URIError` leciał dotąd
+    // poza `safeParse` i wywracał KAŻDY odczyt zgody - łącznie z inicjalizacją
+    // `useConsent`, czyli renderem całej strony. To jest „brak decyzji".
+    return null;
+  }
 }
 
-function writeCookie(name: string, value: string, maxAge: number): void {
-  if (typeof document === "undefined") return;
-  const secure =
-    typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${maxAge}; SameSite=Lax${secure}`;
+function writeConsentCookie(value: string): void {
+  const secure = location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${COOKIE_NAME}=${encodeURIComponent(value)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
 }
 
-function deleteCookie(name: string): void {
-  if (typeof document === "undefined") return;
-  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+function deleteConsentCookie(): void {
+  document.cookie = `${COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
 }
 
 // -------------------- Persistence --------------------
 
+/**
+ * Odczyt localStorage odporny na zablokowany magazyn. Sam dostęp do
+ * `window.localStorage` rzuca `SecurityError` w ramce z blokadą danych stron
+ * trzecich i przy wyłączonych danych witryny - zapisy były tu owinięte od
+ * zawsze, odczyt nie, więc zamiast spaść do ciasteczka wywracał render.
+ */
+function readStored(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
 function readLocal(): ConsentState | null {
   if (typeof window === "undefined") return null;
   // 1) Preferuj świeże localStorage
-  const fresh = safeParse(window.localStorage.getItem(STORAGE_KEY));
+  const fresh = safeParse(readStored(STORAGE_KEY));
   if (fresh) return fresh;
   // 2) Fallback: cookie (przetrwa wyczyszczenie localStorage)
-  const cookie = safeParse(readCookie(COOKIE_NAME));
+  const cookie = safeParse(readConsentCookie());
   if (cookie) {
     // Re-hydrate localStorage z cookie, tak aby dalsze operacje były spójne.
     try {
@@ -162,7 +187,7 @@ function readLocal(): ConsentState | null {
     return cookie;
   }
   // 3) Migracja ze starego klucza marketingowego
-  const legacy = window.localStorage.getItem(LEGACY_KEY);
+  const legacy = readStored(LEGACY_KEY);
   if (legacy === "granted" || legacy === "denied") {
     const migrated = defaultConsent(legacy === "granted");
     writeLocal(migrated);
@@ -202,7 +227,7 @@ function writeLocal(state: ConsentState) {
     /* private mode */
   }
   // Mirror do cookie - długoterminowy nośnik decyzji.
-  writeCookie(COOKIE_NAME, JSON.stringify(state), COOKIE_MAX_AGE);
+  writeConsentCookie(JSON.stringify(state));
   pruneAdAttribution(state);
   window.dispatchEvent(new Event(EVENT));
 }
@@ -222,7 +247,7 @@ function decisionOverridesGpc(
 
 function setConsent(
   categories: Partial<Record<ConsentCategory, boolean>>,
-  decisionSource: ConsentDecisionSource = "cmp_banner",
+  decisionSource: ConsentDecisionSource,
 ) {
   const prev = readLocal();
   const signal = readGpcSignal();
@@ -268,12 +293,22 @@ function clearConsent() {
   } catch {
     /* ignore */
   }
-  deleteCookie(COOKIE_NAME);
+  deleteConsentCookie();
   pruneAdAttribution(null);
   window.dispatchEvent(new Event(EVENT));
 }
 
 // -------------------- Profile sync --------------------
+
+/** Dopisuje decyzję do `prefs` profilu, nie ruszając pozostałych kluczy. */
+async function writeConsentToProfile(
+  uid: string,
+  prevPrefs: Record<string, unknown>,
+  state: ConsentState,
+): Promise<void> {
+  const nextPrefs = { ...prevPrefs, consent: { ...state, source: "profile" } };
+  await supabase.from("profiles").update({ prefs: nextPrefs }).eq("id", uid);
+}
 
 async function syncConsentToProfile(state: ConsentState): Promise<void> {
   try {
@@ -283,9 +318,7 @@ async function syncConsentToProfile(state: ConsentState): Promise<void> {
     const uid = sess?.session?.user?.id;
     if (!uid) return;
     const { data: ownRows } = await supabase.rpc("get_own_profile");
-    const prevPrefs = (ownRows?.[0]?.prefs ?? {}) as Record<string, unknown>;
-    const nextPrefs = { ...prevPrefs, consent: { ...state, source: "profile" } };
-    await supabase.from("profiles").update({ prefs: nextPrefs }).eq("id", uid);
+    await writeConsentToProfile(uid, (ownRows?.[0]?.prefs ?? {}) as Record<string, unknown>, state);
   } catch {
     /* offline / brak uprawnień */
   }
@@ -305,7 +338,10 @@ async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
       writeLocal({ ...remote, source: "profile" });
       resolved = remote;
     } else {
-      if (!remote && local) await syncConsentToProfile(local);
+      // `prefs` i podmiot są już w ręku - drugi `getSession` + `get_own_profile`
+      // (jak w `syncConsentToProfile`) byłby tym samym odczytem jeszcze raz.
+      // Awaria zapisu nie unieważnia hydracji: stan lokalny i tak obowiązuje.
+      if (!remote && local) await writeConsentToProfile(uid, prefs, local).catch(() => {});
       resolved = local ?? remote;
     }
     if (resolved) {
@@ -334,6 +370,26 @@ async function hydrateConsentFromProfile(): Promise<ConsentState | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Single-flight hydracji z profilu. KAŻDA instancja `useConsent` (baner,
+ * wstrzykiwacz skryptów, każdy slot reklamowy przez `useMarketingConsent`)
+ * zakłada własny nasłuch sesji, a Supabase odpala `INITIAL_SESSION` każdemu
+ * z nich - bez tego strona z pięcioma slotami płaciła przy wejściu
+ * zalogowanego kilka identycznych `get_own_profile` i tyle samo zapisów
+ * profilu. Wywołania współbieżne dzielą jeden odczyt; następne zdarzenie
+ * auth (po rozstrzygnięciu) startuje świeży.
+ */
+let hydrationInFlight: Promise<ConsentState | null> | null = null;
+
+function hydrateConsentFromProfileOnce(): Promise<ConsentState | null> {
+  if (!hydrationInFlight) {
+    hydrationInFlight = hydrateConsentFromProfile().finally(() => {
+      hydrationInFlight = null;
+    });
+  }
+  return hydrationInFlight;
 }
 
 // -------------------- Preview mode --------------------
@@ -446,7 +502,7 @@ export function useConsent() {
     window.addEventListener("storage", sync);
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "USER_UPDATED") {
-        void hydrateConsentFromProfile().then((r) => {
+        void hydrateConsentFromProfileOnce().then((r) => {
           if (r) setState(r);
         });
       }
