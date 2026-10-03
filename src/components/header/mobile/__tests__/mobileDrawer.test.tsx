@@ -10,9 +10,7 @@
 //   * przełączniki (motyw, język, wyszukiwarka) mają nazwy dostępne ZE SŁOWNIKA,
 //     bo to same ikony.
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { renderToString } from "react-dom/server";
-import { hydrateRoot } from "react-dom/client";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import "@/lib/i18n";
@@ -27,18 +25,10 @@ const auth = vi.hoisted(() => ({
 }));
 const theme = vi.hoisted(() => ({ theme: "light", toggle: vi.fn() }));
 const drawer = vi.hoisted(() => ({ config: null as DrawerConfig | null }));
-/** Lokalizacja routera - JEDYNE źródło bieżącej pozycji nawigacji. */
-const router = vi.hoisted(() => ({ pathname: "/" }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   Link: RouterLinkStub,
-  // Atrapa URUCHAMIA selektor komponentu na podstawionym stanie (jak
-  // w `LegalDocSwitcher.test.tsx`), więc odczyt czegokolwiek poza
-  // `location.pathname` wywróciłby test, zamiast przejść na skróty. Prawdziwy
-  // router z historią pamięciową ma osobny plik: `mobileNavSectionRouter.test.tsx`.
-  useRouterState: ({ select }: { select: (s: { location: { pathname: string } }) => unknown }) =>
-    select({ location: { pathname: router.pathname } }),
 }));
 
 vi.mock("@/hooks/useAuth", () => ({
@@ -131,7 +121,6 @@ beforeEach(() => {
   theme.theme = "light";
   theme.toggle.mockClear();
   drawer.config = null;
-  router.pathname = "/";
 });
 
 afterEach(cleanup);
@@ -383,104 +372,7 @@ describe("MobileNavSection", () => {
     }
   });
 
-  it("pozycja odpowiadająca ścieżce ROUTERA jest oznaczona jako aktualna", () => {
-    router.pathname = "/wydarzenia";
-    render(
-      <MobileNavSection
-        items={[
-          navItem({ id: "n1", label_pl: "Wydarzenia", href: "/wydarzenia" }),
-          navItem({ id: "n2", label_pl: "Cennik", href: "/cennik" }),
-        ]}
-        onNavigate={() => {}}
-      />,
-    );
-    const link = screen.getByRole("link", { name: /Wydarzenia/ });
-    expect(link).toHaveAttribute("aria-current", "page");
-    expect(link).toHaveClass("font-semibold");
-    expect(within(link).queryByText("Wydarzenia")).toBeTruthy();
-    const other = screen.getByRole("link", { name: /Cennik/ });
-    expect(other).not.toHaveAttribute("aria-current");
-    expect(other).not.toHaveClass("font-semibold");
-  });
-
-  it("adres w oknie NIE decyduje o zaznaczeniu - liczy się lokalizacja routera", () => {
-    // Pod `/en/...` okno nosi prefiks języka, którego `href` z konfiguracji
-    // nie ma; router trzyma ścieżkę kanoniczną. Rozjazd okna i routera jest
-    // więc stanem codziennym, a nie sztucznym przypadkiem testu.
-    const original = `${window.location.pathname}${window.location.search}`;
-    window.history.replaceState({}, "", "/cennik");
-    router.pathname = "/wydarzenia";
-    try {
-      render(
-        <MobileNavSection
-          items={[
-            navItem({ id: "n1", label_pl: "Wydarzenia", href: "/wydarzenia" }),
-            navItem({ id: "n2", label_pl: "Cennik", href: "/cennik" }),
-          ]}
-          onNavigate={() => {}}
-        />,
-      );
-      expect(screen.getByRole("link", { name: /Wydarzenia/ })).toHaveAttribute(
-        "aria-current",
-        "page",
-      );
-      expect(screen.getByRole("link", { name: /Cennik/ })).not.toHaveAttribute("aria-current");
-    } finally {
-      window.history.replaceState({}, "", original);
-    }
-  });
-
-  it("HTML serwera i hydratacja zaznaczają TĘ SAMĄ pozycję, bez rozjazdu", async () => {
-    // Serwer nie ma `window`. Odczyt okna w renderze rysował tam wszystko bez
-    // zaznaczenia, a klient (z oknem na tej samej stronie) jedną pozycję
-    // zaznaczał - React 19 zgłasza to jako rozjazd atrybutów. Lokalizacja
-    // routera jest ta sama po obu stronach.
-    router.pathname = "/wydarzenia";
-    const original = `${window.location.pathname}${window.location.search}`;
-    window.history.replaceState({}, "", "/wydarzenia");
-    const tree = (
-      <MobileNavSection
-        items={[
-          navItem({ id: "n1", label_pl: "Wydarzenia", href: "/wydarzenia" }),
-          navItem({ id: "n2", label_pl: "Cennik", href: "/cennik" }),
-        ]}
-        onNavigate={() => {}}
-      />
-    );
-
-    vi.stubGlobal("window", undefined);
-    let html: string;
-    try {
-      html = renderToString(tree);
-    } finally {
-      vi.unstubAllGlobals();
-    }
-    expect(html).toContain('aria-current="page"');
-
-    const container = document.createElement("div");
-    container.innerHTML = html;
-    document.body.appendChild(container);
-    const errors: string[] = [];
-    const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
-      errors.push(args.map((arg) => String(arg)).join(" "));
-    });
-    let root: ReturnType<typeof hydrateRoot> | null = null;
-    try {
-      await act(async () => {
-        root = hydrateRoot(container, tree);
-      });
-    } finally {
-      spy.mockRestore();
-      window.history.replaceState({}, "", original);
-    }
-    const mismatches = errors.filter((message) =>
-      /hydrat|did not match|server (?:HTML|rendered)/i.test(message),
-    );
-    expect(mismatches, `rozjazd hydratacji:\n${mismatches.join("\n")}`).toEqual([]);
-
-    await act(async () => {
-      root?.unmount();
-    });
-    container.remove();
-  });
+  // Bieżąca pozycja (aria-current + wyróżnienie) wynika z aktywności samego
+  // `Link`, której atrapa <a> nie liczy - te przypadki żyją z prawdziwym
+  // routerem w `mobileNavSectionRouter.test.tsx`.
 });

@@ -9,7 +9,7 @@ import { useLang } from "@/lib/i18n/useLang";
 import type { AppLang } from "@/lib/i18n/localePath";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import "@/lib/i18n-mobile-drawer";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
   Home,
   Newspaper,
@@ -99,7 +99,7 @@ export function MobileNavSection({ items, onNavigate, menuKey = "main" }: Props)
 // Legacy pozycje z konfiguracji super-admina - renderowane pod menu głównym.
 // Jeśli super-admin wyłączył wszystkie, znika bez śladu.
 //
-// BIEŻĄCĄ POZYCJĘ CZYTAMY Z ROUTERA, nie z `window.location` w renderze:
+// BIEŻĄCĄ POZYCJĘ WYZNACZA `Link` Z ROUTERA, nie `window.location` w renderze:
 //   * ścieżka routera jest KANONICZNA (rewrite zdejmuje prefiks `/en`)
 //     i zdekodowana, więc pasuje do `href` z konfiguracji w obu językach.
 //     `window.location.pathname` pod `/en/...` nie pasował nigdy - czytelnik
@@ -107,10 +107,11 @@ export function MobileNavSection({ items, onNavigate, menuKey = "main" }: Props)
 //     doklejał mu `aria-current`;
 //   * odczyt okna w renderze to inny wynik na serwerze (brak `window`, każda
 //     pozycja bez zaznaczenia) niż w pierwszym renderze klienta - rozjazd
-//     hydratacji, gdy tylko sekcja trafi do SSR. Dziś chroni ją wyłącznie to,
-//     że szuflada montuje się po otwarciu, a tego komponent nie gwarantuje;
-//   * subskrypcja stanu routera przerysowuje listę po nawigacji klienta, bez
-//     polegania na tym, że coś innego wymusi render.
+//     hydratacji, gdy tylko sekcja trafi do SSR;
+//   * JEDNO źródło prawdy: `aria-current` i wyróżnienie wizualne (`activeProps`)
+//     liczy ten sam test aktywności `Link`. Własne porównanie `pathname ===
+//     href` rozjeżdżało się z nim na końcowym ukośniku (`/wydarzenia/` wobec
+//     `/wydarzenia`): `Link` uznawał pozycję za bieżącą, klasa jej nie dostawała.
 function MobileNavItemsFallback({
   items,
   lang,
@@ -120,7 +121,6 @@ function MobileNavItemsFallback({
   lang: AppLang;
   onNavigate: () => void;
 }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const visible = items.filter((i) => i.enabled);
   if (visible.length === 0) return null;
   const linkCls =
@@ -147,19 +147,18 @@ function MobileNavItemsFallback({
             </a>
           );
         }
-        const active = pathname === item.href;
         return (
           <Link
             key={item.id}
             to={item.href}
             onClick={onNavigate}
-            // Własny znacznik aktywności `Link` (dopasowanie po PREFIKSIE ścieżki)
-            // dokleja `aria-current="page"` niezależnie od propsa niżej - bez
-            // `exact` pozycja `/wydarzenia` udawałaby bieżącą stronę także na
-            // `/wydarzenia/konferencja`, choć wizualnie nie jest zaznaczona.
+            // `exact`: bez niego `Link` dopasowuje po PREFIKSIE ścieżki i pozycja
+            // `/wydarzenia` udawałaby bieżącą stronę także na
+            // `/wydarzenia/konferencja`. Aktywny `Link` sam dokleja
+            // `aria-current="page"`, a `activeProps` - wyróżnienie.
             activeOptions={{ exact: true, includeSearch: false }}
-            aria-current={active ? "page" : undefined}
-            className={`${linkCls}${active ? " bg-muted/60 font-semibold" : ""}`}
+            activeProps={{ className: "bg-muted/60 font-semibold" }}
+            className={linkCls}
           >
             <Icon className="w-4 h-4 text-muted-foreground" />
             <span>{label}</span>

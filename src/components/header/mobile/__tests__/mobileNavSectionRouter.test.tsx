@@ -128,6 +128,17 @@ describe("MobileNavSection z prawdziwym routerem", () => {
     expect(current()).toEqual({ ariaCurrent: [], highlighted: [] });
   });
 
+  it("końcowy ukośnik w adresie: klasa i aria-current nadal mówią to samo", async () => {
+    // Dawne porównanie `pathname === href` było ostrzejsze niż test aktywności
+    // `Link` (ten zdejmuje końcowy ukośnik): na `/wydarzenia/` czytnik słyszał
+    // „bieżąca strona", a wyróżnienia nie było. Teraz oba liczy `Link`.
+    mountAt("/wydarzenia/");
+    await screen.findByRole("link", { name: "Wydarzenia" });
+    const { ariaCurrent, highlighted } = current();
+    expect(highlighted).toEqual(ariaCurrent);
+    expect(ariaCurrent).toEqual(["Wydarzenia"]);
+  });
+
   it("czytelnik EN pod /en/... dostaje zaznaczenie - router trzyma ścieżkę kanoniczną", async () => {
     // Rewrite wejścia jak w `src/router.tsx`: prefiks języka znika przed
     // dopasowaniem. Okno nosi `/en/wydarzenia`, więc porównanie z oknem nie
