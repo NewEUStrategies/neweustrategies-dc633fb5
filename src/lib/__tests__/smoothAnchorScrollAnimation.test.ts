@@ -230,6 +230,17 @@ describe("przebieg animacji", () => {
     expect(driven.pending()).toBe(false);
   });
 
+  it("długa, zacięta klatka nie przerzuca strony o setki pikseli", () => {
+    anchor("sekcja", 3000);
+    smoothScrollToAnchor("sekcja", { offset: 80, minDuration: 800, maxDuration: 800 });
+    // Jedna klatka po 400 ms przerwy (np. montowanie sekcji pod zgięciem).
+    for (const [, cb] of [...frames.entries()]) {
+      frames.clear();
+      cb(400);
+    }
+    expect(scrolled[scrolled.length - 1]).toBeLessThan(30);
+  });
+
   it("przewija monotonicznie w stronę celu", () => {
     anchor("sekcja", 2000);
     smoothScrollToAnchor("sekcja", { offset: 80, minDuration: 800, maxDuration: 800 });
