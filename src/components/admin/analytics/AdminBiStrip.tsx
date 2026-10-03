@@ -30,6 +30,8 @@ import { ChartCard } from "./ChartCard";
 import { biChart } from "./biChart";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
 import { getClientErrorsReport } from "@/lib/observability/clientErrors.functions";
+import { analyticsBiStripKey } from "@/lib/analytics/queryKeys";
+import { useCurrentTenantId } from "@/lib/tenant";
 
 export interface AdminBiStripProps {
   /** Okno analityczne w dniach (domyślnie 14). */
@@ -53,15 +55,23 @@ export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiS
   const { t } = useTranslation();
   const fetchVitals = useServerFn(getVitalsSummary);
   const fetchErrors = useServerFn(getClientErrorsReport);
+  // Tenant w kluczu (`@/lib/analytics/queryKeys`): serwer liczy dane najemcy
+  // z profilu, ale bez najemcy w kluczu pasek po przełączeniu obszaru
+  // roboczego pokazywałby z cache'u liczby poprzedniego. Do czasu ustalenia
+  // najemcy nic się nie pobiera - kafelki mówią wtedy „Pomiar", bo bez
+  // raportu i bez awarii `placeholder` daje właśnie ten stan.
+  const tenantId = useCurrentTenantId();
 
   const vitalsQ = useQuery({
-    queryKey: ["admin-bi-strip", "vitals", days],
+    queryKey: analyticsBiStripKey(tenantId ?? "", "vitals", days),
     queryFn: () => fetchVitals({ data: { days } }),
+    enabled: Boolean(tenantId),
     staleTime: 120_000,
   });
   const errorsQ = useQuery({
-    queryKey: ["admin-bi-strip", "errors", days],
+    queryKey: analyticsBiStripKey(tenantId ?? "", "errors", days),
     queryFn: () => fetchErrors({ data: { days } }),
+    enabled: Boolean(tenantId),
     staleTime: 120_000,
   });
 

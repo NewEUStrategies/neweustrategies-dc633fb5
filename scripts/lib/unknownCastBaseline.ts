@@ -37,6 +37,18 @@
 // jeszcze w wygenerowanych typach" - i to przestało być prawdą: `web_vitals`
 // jest w `types.ts` razem z kolumnami kontekstu nawigacji (20260920121000),
 // a wybrane kolumny pokrywają `VitalSample` i `DailyP75Row` co do jednej.
+//
+// 2026-10-03, bramka analityki (`gateway.server.ts`): 185 -> 178. Cztery wpisy
+// (`gsc.functions.ts` 3, `ga4.functions.ts` 2, `snapshot.functions.ts` 1,
+// `status.functions.ts` 1) zeszły do zera i ZNIKAJĄ z listy. Każde z tych
+// rzutowań wciskało kontekst `requireSupabaseAuth` w strukturalną atrapę
+// klienta (`GatewayCtx` / `AnalyticsGatewayCtx`), bo atrapa miała `rpc(fn:
+// string, …)` i `Promise`, a prawdziwy klient ma unię nazw funkcji schematu
+// i builder `PromiseLike`. Bramka `requireAnalyticsAdmin` przyjmuje teraz
+// kontrakt z literałami (`has_role`, `_role: "admin"`) i `PromiseLike`, więc
+// klient pasuje wprost; odczyt `site_settings` idzie przez typowany adapter
+// `toAnalyticsGatewayCtx` (porównanie generycznego `eq` z atrapą kończy się
+// w `tsc` błędem TS2589, więc adapter, a nie rzutowanie).
 export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/admin/archiveLayout/ArchiveLayoutAdmin.tsx", 1],
   ["src/components/admin/blocks/edit/Buttons.tsx", 2],
@@ -87,10 +99,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/admin/community.ts", 2],
   ["src/lib/ads/readingMode.ts", 1],
   ["src/lib/analytics/footerTracking.ts", 1],
-  ["src/lib/analytics/ga4.functions.ts", 2],
-  ["src/lib/analytics/gsc.functions.ts", 3],
-  ["src/lib/analytics/semantic/snapshot.functions.ts", 1],
-  ["src/lib/analytics/status.functions.ts", 1],
   ["src/lib/asyncBudget.ts", 1],
   ["src/lib/billing/discounts.server.ts", 1],
   ["src/lib/billing/invoice.server.ts", 1],

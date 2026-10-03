@@ -29,7 +29,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Ga4Report, Ga4Row } from "./ga4.server";
-import type { AnalyticsGatewayCtx } from "./gateway.server";
 
 // Kształt DTO raportu jest współdzielony z warstwą serwerową; re-eksport trzyma
 // dotychczasowe importy (`Ga4BiDashboard`, `ga4Insights`) bez zmian.
@@ -52,11 +51,11 @@ export const runGa4Report = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i: unknown) => reportInput.parse(i ?? {}))
   .handler(async ({ data, context }): Promise<Ga4Report> => {
-    const { requireAnalyticsAdmin, readStoredAnalyticsSettings } = await import("./gateway.server");
-    const ctx = context as unknown as AnalyticsGatewayCtx;
-    await requireAnalyticsAdmin(ctx);
+    const { requireAnalyticsAdmin, readStoredAnalyticsSettings, toAnalyticsGatewayCtx } =
+      await import("./gateway.server");
+    await requireAnalyticsAdmin(context);
 
-    const stored = await readStoredAnalyticsSettings(ctx);
+    const stored = await readStoredAnalyticsSettings(toAnalyticsGatewayCtx(context));
     const { EMPTY_GA4_REPORT, resolveGa4AccessToken, resolveGa4PropertyId, runGa4DataApiReport } =
       await import("./ga4.server");
 
@@ -117,11 +116,11 @@ export const sendGa4Event = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i: unknown) => mpInput.parse(i ?? {}))
   .handler(async ({ data, context }): Promise<Ga4MpResult> => {
-    const { requireAnalyticsAdmin, readStoredAnalyticsSettings } = await import("./gateway.server");
-    const ctx = context as unknown as AnalyticsGatewayCtx;
-    await requireAnalyticsAdmin(ctx);
+    const { requireAnalyticsAdmin, readStoredAnalyticsSettings, toAnalyticsGatewayCtx } =
+      await import("./gateway.server");
+    await requireAnalyticsAdmin(context);
 
-    const stored = await readStoredAnalyticsSettings(ctx);
+    const stored = await readStoredAnalyticsSettings(toAnalyticsGatewayCtx(context));
     const { resolveGa4MeasurementId } = await import("./measurementId");
     const measurementId = resolveGa4MeasurementId(stored.ga4_measurement_id).measurementId ?? "";
     const apiSecret = process.env.GA4_API_SECRET;

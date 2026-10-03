@@ -451,7 +451,9 @@ describe("VitalsBiDashboard - stany panelu", () => {
     panel();
 
     expect(await screen.findByText(common("loading"))).toBeInTheDocument();
-    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    // Szpieg silnika, nie `data-testid` - test-id „echart" zniknął razem
+    // z ECharts, więc asercja na nim przechodziła zawsze.
+    expect(h.charts).toHaveLength(0);
   });
 
   it("w trakcie pobierania przycisk odświeżania jest zablokowany i mówi o trwającym odczycie", async () => {
@@ -486,7 +488,7 @@ describe("VitalsBiDashboard - stany panelu", () => {
     expect(await screen.findByText(vit("noSamples"))).toBeInTheDocument();
     // Zero próbek to NIE jest wynik 0 ms - żaden kafelek ani wykres nie ma prawa
     // powstać, bo każda liczba na nim byłaby zmyślona.
-    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    expect(h.charts).toHaveLength(0);
     expect(screen.queryByText("LCP")).toBeNull();
   });
 
@@ -833,7 +835,8 @@ describe("VitalsBiDashboard - drążenie: ocena wraca do UI z tych samych progó
   });
 
   it("kliknięcie poza nazwaną serią opisuje okno podtytułem karty", async () => {
-    // ECharts nie zawsze poda `seriesName` (np. kliknięcie w oś kategorii).
+    // Wskazanie nie zawsze rozstrzyga serię (`seriesIndex: null` - pas
+    // kategorii wykresu wieloseryjnego obejmuje wszystkie serie naraz).
     // Podtytuł musi wtedy dojechać ze słownika, a nie zostać pusty.
     panel();
     await loaded();
@@ -1297,7 +1300,7 @@ describe("VitalsBiDashboard - izolacja warsztatów", () => {
     // Nierozwiązany warsztat to POMIAR W TOKU, a nie „brak próbek RUM":
     // ten drugi komunikat jest twierdzeniem o oknie, którego nikt nie zmierzył.
     expect(screen.queryByText(vit("noSamples"))).toBeNull();
-    expect(screen.queryAllByTestId("echart")).toHaveLength(0);
+    expect(h.charts).toHaveLength(0);
   });
 
   it("świeży klient react-query nie przenosi raportu między warsztatami", async () => {
@@ -1493,7 +1496,11 @@ describe("VitalsBiDashboard - raport z niepełną metryką", () => {
     panel();
     await loaded();
 
-    expect(screen.getAllByTestId("echart").length).toBeGreaterThan(0);
+    // Szpieg silnika: po naprawie pulpit oddaje mu wykresy i ten przypadek
+    // zaczyna przechodzić, czyli `it.fails` zapala się i każe zdjąć oznaczenie.
+    // Dawne `getAllByTestId("echart")` rzucało ZAWSZE (takiego test-id nikt już
+    // nie renderuje), więc `it.fails` zostałby zielony także po naprawie.
+    expect(h.charts.length).toBeGreaterThan(0);
   });
 });
 
@@ -1582,8 +1589,9 @@ describe("VitalsBiDashboard - dostępność", () => {
     //
     // Ten przypadek zostaje TUTAJ, choć naprawa siedzi w `ChartCard`: liczba
     // wykresów jest własnością TEGO panelu, więc regres polegający na dodaniu
-    // dziewiątego wykresu poza `ChartCard` (wprost `EChart` w `Card`, jak robił
-    // to pulpit audytorium) zapali się właśnie tu, a nie w teście prymitywu.
+    // dziewiątego wykresu poza `ChartCard` (wprost `Chart` w `Card` - tak kiedyś
+    // pulpit audytorium wstawiał `EChart`) zapali się właśnie tu, a nie
+    // w teście prymitywu.
     const { container } = panel();
     await loaded();
 

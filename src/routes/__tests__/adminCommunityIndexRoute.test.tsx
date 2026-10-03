@@ -54,13 +54,14 @@
  * jest.
  *
  * CO JEST ATRAPĄ I DLACZEGO: dwie granice danych (`@/lib/admin/community`,
- * `@/lib/admin/network`), toasty (`sonner`) i SILNIK WYKRESU
- * (`@/components/admin/analytics/EChart`) - ten ostatni dlatego, że happy-dom
- * nie ma canvasu, a nie po to, żeby cokolwiek ukryć; uzasadnienie stoi przy
- * samej atrapie. i18n, router, react-query i Radix są PRAWDZIWE, więc asercje
- * mierzą napisy ze słownika, a nie literały wpisane w teście. Prawdziwy jest
- * też cały `AdminBiStrip` z kartami wykresów - to stamtąd bierze się nagłówek
- * poziomu drugiego, którego ten pulpit kiedyś nie miał.
+ * `@/lib/admin/network`) i toasty (`sonner`). Silnik wykresu atrapą już NIE
+ * jest - uzasadnienie stoi w miejscu, w którym atrapa kiedyś stała (blok
+ * „GRANICY WYKRESU JUŻ TU NIE MA" niżej). i18n, router, react-query i Radix
+ * są PRAWDZIWE, więc asercje mierzą napisy ze słownika, a nie literały wpisane
+ * w teście. Prawdziwy jest też cały `AdminBiStrip` z kartami wykresów - to
+ * stamtąd bierze się nagłówek poziomu drugiego, którego ten pulpit kiedyś nie
+ * miał (bez sesji `useAuth` najemca jest nieustalony, więc pasek stoi na
+ * „Pomiar" i nie pyta serwera - asercje dotyczą tylko nagłówka).
  * `react-i18next` świadomie NIE
  * jest atrapowany - fabryka takiego mocka sięga po `@/lib/i18n`, czyli moduł
  * importujący właśnie mockowany pakiet, i zakleszcza plik (ostrzeżenie
