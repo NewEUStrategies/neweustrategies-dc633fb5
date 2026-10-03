@@ -34,15 +34,17 @@
 // zredagowaną, więc dwa różne adresy e-mail w tej samej frazie dają jeden klucz
 // grupowania, a nie dwa.
 //
-// TEN ENDPOINT JEST WYROCZNIĄ dla ról czytających skróty. Przyjmuje dowolną
-// frazę klienta, a trigger skraca ją tym samym pieprzem najemcy co frazy
-// odwiedzających - admin albo redaktor potwierdzi więc zgadywaną frazę jednym
-// beaconem i jednym SELECT-em (wynik obok `anon_id` szukającego). Odebranie
-// EXECUTE funkcji skrótu zamyka tylko drogę hurtową; tempo słownika budowanego
-// tędy ogranicza wyłącznie `limiter` niżej: 120 żądań zrywu, 2 żądania/s, po
-// `MAX_EVENTS` = 40 zdarzeń, czyli ~80 fraz/s z IP, per izolat. Ryzyko
-// przyjęte (wcześniej fraza leżała jawnie) - nagłówek migracji opisuje
-// utwardzenie poza tym zakresem.
+// TEN ENDPOINT BYŁBY WYROCZNIĄ dla każdej roli czytającej skróty. Przyjmuje
+// dowolną frazę klienta, a trigger skraca ją tym samym pieprzem najemcy co
+// frazy odwiedzających - kto widzi skróty, potwierdziłby zgadywaną frazę
+// jednym beaconem i jednym SELECT-em (wynik obok `anon_id` szukającego),
+// a słownik budowałby w tempie `limiter`a niżej (~80 fraz/s z IP, per
+// izolat). Zapisu zamknąć się nie da - endpoint jest publiczny z definicji -
+// więc ta sama migracja zamyka ODCZYT: polityka RESTRICTIVE
+// `analytics_events_hide_search_rows` ukrywa wiersze wyszukiwania przed anon
+// i authenticated (admin ani redaktor nie widzą żadnego skrótu, także skrótu
+// własnej frazy), a EXECUTE funkcji skrótu ma tylko service_role. Liczby
+// wyszukiwań liczą agregaty SECURITY DEFINER, których RLS nie dotyczy.
 //
 // `entity_id` idzie przez `redactPii`, NIE przez `redactUrl`: to jedno pole ma
 // trzy kształty (fraza, UUID wpisu, href stopki), a ZMIERZONE

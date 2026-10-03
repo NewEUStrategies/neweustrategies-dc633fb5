@@ -322,11 +322,13 @@ export function trackSearch(query: string, meta?: Record<string, unknown>): void
     // 20261003190000) zamienia `entity_id` wierszy wyszukiwania na
     // `sq1:<hmac-sha256>` z sekretem najemcy i zdejmuje `meta.q`, gdyby ktoś je
     // przysłał. Zostaje grupowanie (ta sama fraza = ten sam skrót) i indeks,
-    // znika treść, którą admin i redaktor czytali przez RLS WPROST. Nie znika
-    // ZGADYWANIE: skrót jest deterministyczny per najemca, więc rola czytająca
-    // skróty wyśle zgadywaną frazę przez /api/public/track i porówna skrót
-    // („czy ktoś szukał X?" = beacon + SELECT, słownik w tempie limitera
-    // ingestu). Ryzyko przyjęte - opis w nagłówku migracji. Baza normalizuje
+    // znika treść, którą admin i redaktor czytali przez RLS WPROST. Skrót jest
+    // deterministyczny per najemca, więc rola CZYTAJĄCA skróty mogłaby zgadywać:
+    // wysłać frazę przez /api/public/track i porównać skrót („czy ktoś szukał
+    // X?" = beacon + SELECT). Dlatego wierszy wyszukiwania nie czyta żadna rola
+    // kliencka - polityka RESTRICTIVE `analytics_events_hide_search_rows` w tej
+    // samej migracji; liczby wyszukiwań liczą agregaty SECURITY DEFINER
+    // (`analytics_semantic_snapshot`, `admin_dashboard_*`). Baza normalizuje
     // sama (lower, zwinięte białe znaki), więc `toLowerCase` niżej nie jest już
     // kontraktem klucza - trzyma tylko kopię dla GA4 (`search_term`, która
     // pozostaje jawna i redagowana wyłącznie przez `redactPii`) w jednej postaci.
