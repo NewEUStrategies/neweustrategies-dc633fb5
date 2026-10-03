@@ -25,7 +25,7 @@ const h = vi.hoisted(() => ({
     link_ttl_days: 0,
     max_redemptions_per_link: 5,
     eligibility: "registered",
-  } as GiftSettings,
+  } as GiftSettings | undefined,
   state: null as GiftArticleState | null,
   stateLoading: false,
   stateError: false,
@@ -288,5 +288,38 @@ describe("GiftArticleButton", () => {
       expect(writeText).toHaveBeenCalledWith("https://example.org/analizy/wpis");
       expect(screen.getByRole("button", { name: "gifting.copied" })).toBeInTheDocument();
     });
+  });
+
+  it("bez propsa `gated` wpis jest traktowany jak ZABRAMKOWANY (pelna mechanika)", () => {
+    // Domyslna wartosc decyduje o tym, co dostaje KAZDE osadzenie, ktore
+    // zapomni o propsie. Gdyby domyslnie bylo „bez paywalla", czytelnik
+    // platnego wpisu wysylalby zwykly link - odbiorca trafia na sciane
+    // paywalla, a nadawca mysli, ze podarowal artykul.
+    h.session = { user: { id: "u1" } };
+    h.state = makeState({});
+    renderWithQueryClient(
+      <GiftArticleButton
+        postId="post-1"
+        title="Tytuł wpisu"
+        url="https://example.org/analizy/wpis"
+        lang="pl"
+      />,
+    );
+    openPopover();
+    expect(screen.queryByText("gifting.leadFree")).not.toBeInTheDocument();
+    expect(screen.getByText(/gifting\.leadCapped/)).toBeInTheDocument();
+    expect(h.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("zanim ustawienia dojada, przycisk JEST widoczny i obiecuje domyslny budzet", () => {
+    // Brak danych ustawien (zapytanie w locie albo brak wiersza tenanta) to
+    // lustro serwerowych wartosci domyslnych create_gift_link: funkcja
+    // wlaczona, 5 otwarc na link. Ukrycie przycisku do czasu odpowiedzi
+    // dawaloby migajacy pasek wpisu, a „0 otwarc" - falszywa obietnice.
+    h.settings = undefined;
+    renderButton();
+    openPopover();
+    expect(screen.getByText(/gifting\.leadCapped/).textContent).toContain('"count":5');
+    expect(screen.getByText("gifting.authTitle")).toBeInTheDocument();
   });
 });

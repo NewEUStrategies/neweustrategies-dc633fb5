@@ -33,6 +33,11 @@ export type ExtRow = B2bCouponRow & {
   assigned_lead_id: string | null;
 };
 
+// Stała tożsamość pustej listy: `couponsQ.data ?? []` tworzyło nową tablicę
+// przy każdym renderze (wczytywanie, błąd), więc każde `useMemo` liczone z
+// `rows` przeliczało się za każdym razem.
+const NO_ROWS: readonly ExtRow[] = [];
+
 export function CouponsListPage() {
   // Rejestracja słownika w chunku KOMPONENTU trasy (nie w entry) - patrz
   // komentarz przy ensureI18n w lib/i18n-admin-coupons.ts.
@@ -122,7 +127,7 @@ export function CouponsListPage() {
     if (potwierdzone) remove.mutate(row.id);
   };
 
-  const rows = couponsQ.data ?? [];
+  const rows = couponsQ.data ?? NO_ROWS;
   const filtered = useMemo(() => {
     const now = Date.now();
     return rows.filter((c) => {
@@ -151,6 +156,12 @@ export function CouponsListPage() {
       rows.filter((c) => c.valid_until && new Date(c.valid_until).getTime() < Date.now()).length,
     [rows],
   );
+
+  // Odmowa odczytu (RLS, sieć) NIE jest pustym rejestrem: kafle pokazują kreskę
+  // zamiast zer, a lista komunikat błędu zamiast „Brak wyników." - ten sam
+  // wzorzec, co zakładki Realizacje i Analityka.
+  const failed = couponsQ.isError;
+  const stat = (n: number) => (failed ? "-" : String(n));
 
   return (
     <div className="space-y-6">
@@ -196,10 +207,10 @@ export function CouponsListPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label={t("adminCoupons.total")} value={String(rows.length)} />
-        <Stat label={t("adminCoupons.active")} value={String(active)} />
-        <Stat label={t("adminCoupons.totalRedemptions")} value={String(totalRedemptions)} />
-        <Stat label={t("adminCoupons.expired")} value={String(expired)} />
+        <Stat label={t("adminCoupons.total")} value={stat(rows.length)} />
+        <Stat label={t("adminCoupons.active")} value={stat(active)} />
+        <Stat label={t("adminCoupons.totalRedemptions")} value={stat(totalRedemptions)} />
+        <Stat label={t("adminCoupons.expired")} value={stat(expired)} />
       </div>
 
       <Card>
@@ -211,6 +222,14 @@ export function CouponsListPage() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
               <Loader2 className="h-4 w-4 animate-spin" />
               {t("adminCoupons.loading")}
+            </div>
+          ) : failed ? (
+            <div
+              role="alert"
+              className="rounded-[6px] border border-destructive/40 bg-destructive/5 p-4 text-sm"
+            >
+              <p className="font-medium text-destructive">{t("adminCoupons.loadError.title")}</p>
+              <p className="mt-1 text-muted-foreground">{t("adminCoupons.loadError.hint")}</p>
             </div>
           ) : filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground py-6">{t("adminCoupons.results")}</p>
@@ -273,11 +292,12 @@ export function CouponsListPage() {
                             <Badge variant="outline" className="text-xs">
                               {c.grants_tier_key}
                             </Badge>
-                            {c.grants_duration_days && (
+                            {/* Trójnik, nie `&&`: przy 0 dni `&&` renderował literał „0". */}
+                            {c.grants_duration_days ? (
                               <span className="text-muted-foreground">
                                 {c.grants_duration_days}d
                               </span>
-                            )}
+                            ) : null}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">-</span>

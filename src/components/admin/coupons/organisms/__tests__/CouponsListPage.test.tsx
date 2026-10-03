@@ -51,9 +51,13 @@ const h = vi.hoisted(() => ({
   // negatywny: panel przeszedl na `confirmDialog`, wiec ta funkcja nie moze
   // byc juz wolana.
   natywneConfirm: vi.fn((_message?: string) => true),
+  /** Jezyk interfejsu widziany przez panel (przelaczany per przypadek). */
+  lang: "pl",
 }));
 
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
+);
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/lib/i18n-admin-coupons", () => ({ ensureI18n: h.ensureI18n }));
 vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.confirm }));
@@ -194,6 +198,7 @@ function kafelek(etykieta: string): string {
 
 beforeEach(() => {
   db().reset();
+  h.lang = "pl";
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.ensureI18n.mockClear();
@@ -243,13 +248,65 @@ describe("CouponsListPage - odczyt i stany", () => {
 
   it("BLAD odczytu nie udaje pustej listy", async () => {
     // `queryFn` rzuca przy `error`, wiec react-query wchodzi w stan bledu
-    // zamiast zapisac `[]` - dzieki temu panel nie mowi „nie masz kuponow"
-    // osobie, ktorej po prostu odmowiono odczytu.
+    // zamiast zapisac `[]`. Do 2026-10 render tego stanu NIE czytal: lista
+    // mowila „Brak wynikow.", a kafle - same zera, czyli dokladnie to, co
+    // ten test (wbrew tytulowi) wtedy utrwalal. Teraz panel mowi, ze odczyt
+    // sie nie powiodl, a kafle pokazuja kreske zamiast zer.
     db().setResponse("b2b_coupons", fail("permission denied", "42501"));
     db().setResponse("access_plans", ok([]));
     db().setResponse("membership_tiers", ok([]));
     renderWithQueryClient(<CouponsListPage />);
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("adminCoupons.loadError.title")).toBeInTheDocument();
+    expect(screen.queryByText("adminCoupons.results")).toBeNull();
+    expect(kafelek("adminCoupons.total")).toBe("-");
+    expect(kafelek("adminCoupons.totalRedemptions")).toBe("-");
+  });
+
+  it("odpowiedz BEZ wierszy (`data: null`) to pusta lista i same zera", async () => {
+    // PostgREST potrafi oddac `null` zamiast `[]`. `null.filter` wywrocilby
+    // caly panel, razem z kafelkami i przyciskiem tworzenia kuponu.
+    db().setResponse("b2b_coupons", ok(null));
+    db().setResponse("access_plans", ok(null));
+    db().setResponse("membership_tiers", ok(null));
+    renderWithQueryClient(<CouponsListPage />);
     expect(await screen.findByText("adminCoupons.results")).toBeInTheDocument();
+    expect(kafelek("adminCoupons.total")).toBe("0");
+    expect(kafelek("adminCoupons.expired")).toBe("0");
+  });
+});
+
+describe("CouponsListPage - odmowy odczytu katalogow", () => {
+  it("ODMOWA odczytu planow i poziomow NIE blokuje formularza kuponu", async () => {
+    // Plany i poziomy sa w formularzu tylko opcjami do zaznaczenia. Ich
+    // odmowa nie moze zablokowac wystawienia zwyklego kuponu rabatowego -
+    // ani podsunac planu, ktorego panel w rzeczywistosci nie odczytal.
+    db().setResponse("b2b_coupons", (chain) => (chain.has("select") ? ok([]) : ok(null)));
+    db().setResponse("access_plans", fail("permission denied", "42501"));
+    db().setResponse("membership_tiers", fail("permission denied", "42501"));
+    renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("adminCoupons.results");
+    await waitFor(() => expect(db().chainsFor("access_plans")).toHaveLength(1));
+    await waitFor(() => expect(db().chainsFor("membership_tiers")).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: /adminCoupons\.newCoupon/ }));
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByText("adminCoupons.plansAvailable")).toBeInTheDocument();
+    const poziomy = dialog.getByLabelText(/adminCoupons\.grantsSubscription/) as HTMLSelectElement;
+    expect(Array.from(poziomy.options).map((o) => o.value)).toEqual(["none"]);
+    expect(dialog.getByRole("button", { name: "adminCoupons.createCoupon" })).toBeEnabled();
+  });
+
+  it("katalogi BEZ wierszy (`data: null`) daja pusty wybor, a nie wywrotke dialogu", async () => {
+    withData([]);
+    db().setResponse("access_plans", ok(null));
+    db().setResponse("membership_tiers", ok(null));
+    renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("adminCoupons.results");
+    await waitFor(() => expect(db().chainsFor("membership_tiers")).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: /adminCoupons\.newCoupon/ }));
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(dialog.getByText("adminCoupons.plansAvailable")).toBeInTheDocument();
+    expect(dialog.queryByRole("option", { name: "Premium" })).toBeNull();
   });
 });
 
@@ -273,6 +330,33 @@ describe("CouponsListPage - wiersz kuponu", () => {
     expect(within(await wiersz("NES-B2B-10")).getByText("10.00 PLN")).toBeInTheDocument();
   });
 
+  it("rabat KWOTOWY bez kwoty i waluty pokazuje 0.00, a nie `NaN` ani `null`", async () => {
+    // Wiersz niedokonczony recznie w bazie. „NaN null" w kolumnie rabatu
+    // wyglada jak awaria panelu; „0.00" mowi wprost, ze kwoty nie ustawiono.
+    await renderPage([
+      kupon({
+        discount_kind: "fixed",
+        discount_percent: null,
+        discount_cents: null,
+        currency: null,
+      }),
+    ]);
+    const komorka = within(await wiersz("NES-B2B-10")).getByText(/^0\.00/);
+    expect(komorka.textContent?.trim()).toBe("0.00");
+    expect(komorka.textContent).not.toMatch(/NaN|null|undefined/);
+  });
+
+  it("w interfejsie ANGIELSKIM daty waznosci ida formatem angielskim", async () => {
+    // Ta sama data w dwoch formatach („31.12.2099" vs „12/31/2099") to dla
+    // redakcji pracujacej po angielsku roznica miedzy grudniem a bledem.
+    h.lang = "en";
+    await renderPage([kupon({ valid_from: PRZESZLOSC, valid_until: PRZYSZLOSC })]);
+    const tekst = (await wiersz("NES-B2B-10")).textContent ?? "";
+    expect(tekst).toContain(new Date(PRZYSZLOSC).toLocaleDateString("en"));
+    expect(tekst).toContain(new Date(PRZESZLOSC).toLocaleDateString("en"));
+    expect(tekst).not.toContain(new Date(PRZYSZLOSC).toLocaleDateString("pl"));
+  });
+
   it("licznik wykorzystan pokazuje limit, gdy limit istnieje", async () => {
     await renderPage([kupon({ redemptions_count: 7, max_redemptions: 100 })]);
     expect(within(await wiersz("NES-B2B-10")).getByText("7 / 100")).toBeInTheDocument();
@@ -293,6 +377,15 @@ describe("CouponsListPage - wiersz kuponu", () => {
     const cells = within(await wiersz("NES-B2B-10"));
     expect(cells.getByText("premium")).toBeInTheDocument();
     expect(cells.getByText("90d")).toBeInTheDocument();
+  });
+
+  it("abonament na 0 dni nie wstawia literalu `0` obok klucza poziomu", async () => {
+    // BYLO: `{c.grants_duration_days && ...}` - przy 0 React renderowal liczbe.
+    await renderPage([kupon({ grants_tier_key: "premium", grants_duration_days: 0 })]);
+    const cells = within(await wiersz("NES-B2B-10"));
+    expect(cells.getByText("premium")).toBeInTheDocument();
+    expect(cells.queryByText("0")).toBeNull();
+    expect(cells.queryByText("0d")).toBeNull();
   });
 
   it("status AKTYWNY i NIEAKTYWNY maja rozne odznaki", async () => {
@@ -359,6 +452,23 @@ describe("CouponsListPage - filtry", () => {
     });
     expect(screen.getByText("NES-WYLACZONY")).toBeInTheDocument();
     expect(screen.queryByText("NES-AKTYWNY")).toBeNull();
+  });
+
+  it("kupon BEZ nazwy nie wywraca wyszukiwarki - szuka sie go wtedy po kodzie", async () => {
+    // `name` jest opcjonalne (kody z kampanii masowej nie maja nazwy).
+    // `null.toLowerCase()` wywrocilby filtr przy pierwszej wpisanej literze.
+    await renderPage([
+      kupon({ id: "a", code: "NES-BEZNAZWY", name: null }),
+      kupon({ id: "b", code: "NES-INNY", name: "Partner" }),
+    ]);
+    await screen.findByText("NES-BEZNAZWY");
+    const szukaj = screen.getByPlaceholderText("adminCoupons.searchCodeName");
+    fireEvent.change(szukaj, { target: { value: "partner" } });
+    expect(screen.getByText("NES-INNY")).toBeInTheDocument();
+    expect(screen.queryByText("NES-BEZNAZWY")).toBeNull();
+    fireEvent.change(szukaj, { target: { value: "beznazwy" } });
+    expect(screen.getByText("NES-BEZNAZWY")).toBeInTheDocument();
+    expect(screen.queryByText("NES-INNY")).toBeNull();
   });
 
   it("wyszukiwanie bez trafien konczy sie komunikatem, nie pusta tabela", async () => {
@@ -512,6 +622,46 @@ describe("CouponsListPage - zmiany stanu kuponu", () => {
     expect(String(h.confirm.mock.calls[0]![0].description)).toContain("NES-B2B-10");
   });
 
+  it("ODMOWA usuniecia konczy sie komunikatem, a kupon ZOSTAJE na liscie", async () => {
+    // Cisza po odmowie wygladalaby jak udane kasowanie, ktore „jeszcze sie
+    // nie odswiezylo" - a kod, ktory mial zniknac (np. wyciekl), dalej dziala.
+    db().setResponse("b2b_coupons", (chain) =>
+      chain.has("delete") ? fail("permission denied", "42501") : ok([kupon()]),
+    );
+    db().setResponse("access_plans", ok([]));
+    db().setResponse("membership_tiers", ok([]));
+    renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("NES-B2B-10");
+    fireEvent.click(screen.getByRole("button", { name: "adminCoupons.deleteAction" }));
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("permission denied"));
+    expect(screen.getByText("NES-B2B-10")).toBeInTheDocument();
+    // Odmowa NIE uniewaznia listy - zadnego drugiego odczytu.
+    expect(
+      db()
+        .chainsFor("b2b_coupons")
+        .filter((c) => c.has("select")),
+    ).toHaveLength(1);
+  });
+
+  it("UDANE usuniecie odswieza liste - kupon znika bez przeladowania strony", async () => {
+    let skasowany = false;
+    db().setResponse("b2b_coupons", (chain) => {
+      if (chain.has("delete")) {
+        skasowany = true;
+        return ok(null);
+      }
+      return ok(skasowany ? [] : [kupon()]);
+    });
+    db().setResponse("access_plans", ok([]));
+    db().setResponse("membership_tiers", ok([]));
+    renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("NES-B2B-10");
+    fireEvent.click(screen.getByRole("button", { name: "adminCoupons.deleteAction" }));
+    await waitFor(() => expect(screen.queryByText("NES-B2B-10")).toBeNull());
+    expect(screen.getByText("adminCoupons.results")).toBeInTheDocument();
+    expect(h.toastError).not.toHaveBeenCalled();
+  });
+
   it("ANULOWANE potwierdzenie NIE kasuje niczego", async () => {
     h.confirm.mockResolvedValue(false);
     await renderPage([kupon()]);
@@ -542,6 +692,33 @@ describe("CouponsListPage - dialog tworzenia", () => {
     fireEvent.click(screen.getByRole("button", { name: /adminCoupons\.newCoupon/ }));
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("adminCoupons.newB2bCoupon")).toBeInTheDocument();
+  });
+
+  it("UTWORZENIE kuponu zamyka dialog i ODSWIEZA liste", async () => {
+    // `onCreated` strony zamyka dialog i uniewaznia klucz listy. Bez
+    // uniewaznienia nowy kod nie pojawia sie w tabeli, redakcja uznaje zapis
+    // za nieudany i probuje drugi raz - konczac na bledzie duplikatu.
+    let utworzony = false;
+    db().setResponse("b2b_coupons", (chain) => {
+      if (chain.has("insert")) {
+        utworzony = true;
+        return ok(null);
+      }
+      return ok(utworzony ? [kupon({ code: "NES-NOWY" })] : []);
+    });
+    db().setResponse("access_plans", ok([]));
+    db().setResponse("membership_tiers", ok([]));
+    renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("adminCoupons.results");
+    fireEvent.click(screen.getByRole("button", { name: /adminCoupons\.newCoupon/ }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(dialog.getByLabelText("adminCoupons.code"), {
+      target: { value: "NES-NOWY" },
+    });
+    fireEvent.click(dialog.getByRole("button", { name: "adminCoupons.createCoupon" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(await screen.findByText("NES-NOWY")).toBeInTheDocument();
+    expect(h.toastSuccess).toHaveBeenCalledWith("adminCoupons.couponCreated");
   });
 
   it("plany i poziomy z zapytan strony dojezdzaja do formularza", async () => {
