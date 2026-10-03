@@ -42,10 +42,17 @@ let reduceMotion: boolean;
 function driver(): FrameDriver {
   return {
     tick(atMs) {
-      const entries = [...frames.entries()];
-      frames.clear();
+      // Przeglądarka maluje ~co 16 ms: skok zegara testu rozbijamy na klatki,
+      // bo animacja świadomie nie przeskakuje dłuższych przerw między klatkami.
+      let t = now;
+      do {
+        t = Math.min(atMs, t + 16);
+        const entries = [...frames.entries()];
+        frames.clear();
+        now = t;
+        for (const [, cb] of entries) cb(t);
+      } while (t < atMs && frames.size > 0);
       now = atMs;
-      for (const [, cb] of entries) cb(atMs);
     },
     requested: () => nextFrameId - 1,
     pending: () => frames.size > 0,
