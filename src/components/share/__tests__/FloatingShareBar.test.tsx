@@ -250,11 +250,6 @@ function resizeWindow(): void {
   flushFrames();
 }
 
-// ---------------------------------------------------------------------------
-// Atrapa IntersectionObserver - scrollspy sterowany z testu.
-// ---------------------------------------------------------------------------
-const observers: FakeIntersectionObserver[] = [];
-
 /** Prostokąt spełniający `DOMRectReadOnly` bez rzutowania. */
 function rectAtTop(top: number): DOMRectReadOnly {
   return {
@@ -268,73 +263,6 @@ function rectAtTop(top: number): DOMRectReadOnly {
     left: 0,
     toJSON: () => ({ top }),
   };
-}
-
-function intersectionEntry(
-  target: Element,
-  isIntersecting: boolean,
-  top: number,
-): IntersectionObserverEntry {
-  return {
-    boundingClientRect: rectAtTop(top),
-    intersectionRatio: isIntersecting ? 1 : 0,
-    intersectionRect: rectAtTop(top),
-    isIntersecting,
-    rootBounds: null,
-    target,
-    time: 0,
-  };
-}
-
-class FakeIntersectionObserver implements IntersectionObserver {
-  readonly root: Element | null = null;
-  readonly rootMargin: string;
-  // lib.dom (TS 5.9+) dopisało `scrollMargin` do IntersectionObserver -
-  // atrapa musi je mieć, żeby dalej spełniała interfejs.
-  readonly scrollMargin: string = "";
-  readonly thresholds: ReadonlyArray<number>;
-  readonly observed: Element[] = [];
-  disconnected = false;
-  private readonly callback: IntersectionObserverCallback;
-
-  constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
-    this.callback = callback;
-    this.rootMargin = options?.rootMargin ?? "";
-    const threshold = options?.threshold;
-    this.thresholds =
-      typeof threshold === "number" ? [threshold] : Array.isArray(threshold) ? threshold : [];
-    observers.push(this);
-  }
-
-  observe(target: Element): void {
-    this.observed.push(target);
-  }
-
-  unobserve(target: Element): void {
-    const at = this.observed.indexOf(target);
-    if (at >= 0) this.observed.splice(at, 1);
-  }
-
-  disconnect(): void {
-    this.disconnected = true;
-    this.observed.length = 0;
-  }
-
-  takeRecords(): IntersectionObserverEntry[] {
-    return [];
-  }
-
-  emit(entries: IntersectionObserverEntry[]): void {
-    act(() => {
-      this.callback(entries, this);
-    });
-  }
-}
-
-function latestObserver(): FakeIntersectionObserver {
-  const last = observers[observers.length - 1];
-  if (!last) throw new Error("scrollspy nie założył ani jednego IntersectionObserver");
-  return last;
 }
 
 // ---------------------------------------------------------------------------
@@ -649,7 +577,6 @@ let shareSpy: Mock<(data?: ShareData) => Promise<void>>;
 let clipboardWrite: Mock<(text: string) => Promise<void>>;
 
 beforeEach(() => {
-  observers.length = 0;
   pendingFrames.clear();
   nextFrameId = 1;
   h.articleRoot = null;
@@ -680,7 +607,6 @@ beforeEach(() => {
 
   vi.stubGlobal("requestAnimationFrame", fakeRequestAnimationFrame);
   vi.stubGlobal("cancelAnimationFrame", fakeCancelAnimationFrame);
-  vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
   Object.defineProperty(window, "print", { configurable: true, writable: true, value: printSpy });
   Object.defineProperty(navigator, "share", {
     configurable: true,
