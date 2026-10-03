@@ -250,6 +250,15 @@ export function trackSearch(query: string, meta?: Record<string, unknown>): void
     // WYŁĄCZNIE `COUNT(*) FILTER (WHERE event_type = 'search')`. Kopia zostaje
     // w `entity_id`, bo to ona jest zaindeksowana (analytics_events_entity_idx).
     //
+    // W BAZIE TA KOPIA NIE JEST JUŻ TEKSTEM. Trigger BEFORE INSERT (migracja
+    // 20261003190000) zamienia `entity_id` wierszy wyszukiwania na
+    // `sq1:<hmac-sha256>` z sekretem najemcy i zdejmuje `meta.q`, gdyby ktoś je
+    // przysłał. Zostaje grupowanie (ta sama fraza = ten sam skrót) i indeks,
+    // znika treść, którą admin i redaktor czytali przez RLS. Baza normalizuje
+    // sama (lower, zwinięte białe znaki), więc `toLowerCase` niżej nie jest już
+    // kontraktem klucza - trzyma tylko kopię dla GA4 (`search_term`, która
+    // pozostaje jawna i redagowana wyłącznie przez `redactPii`) w jednej postaci.
+    //
     // REDAKCJA PRZED CIĘCIEM. Zmierzone: fraza na 100 znaków plus
     // `jan.kowalski@example.com` po `slice(0, 120)` dawała `…jan.kowalski@example`
     // - bez domeny najwyższego poziomu wzorzec e-maila już nie trafia, ani na
