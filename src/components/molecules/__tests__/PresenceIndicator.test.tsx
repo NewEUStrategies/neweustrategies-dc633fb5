@@ -25,6 +25,7 @@ vi.mock("@/lib/realtime/useEntityPresence", () => ({
 
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-cohesion";
+import { freezeClock } from "@/test/time";
 import { PresenceIndicator } from "../PresenceIndicator";
 
 const peer = (userId: string, name: string): EntityPresencePeer => ({
@@ -32,6 +33,9 @@ const peer = (userId: string, name: string): EntityPresencePeer => ({
   name,
   sinceIso: "2026-03-01T10:00:00Z",
 });
+
+// `sinceIso` obecności to wejście atrapy, nie okno liczone od „teraz".
+freezeClock();
 
 beforeEach(async () => {
   h.peers = [];

@@ -119,7 +119,6 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/admin/media/organisms/MediaFolderTree.tsx", 1],
   ["src/components/admin/media/organisms/MediaListView.tsx", 5],
   ["src/components/admin/media/organisms/MediaPreviewDialog.tsx", 6],
-  ["src/components/admin/members/MemberBillingDetails.tsx", 9],
   ["src/components/admin/menu/AddItemPanel.tsx", 10],
   ["src/components/admin/menu/MenuManager.tsx", 38],
   ["src/components/admin/molecules/AdminListToolbar.tsx", 11],

@@ -54,6 +54,7 @@ vi.mock("@/components/atoms/AppLink", () => ({
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-admin-members";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { freezeClock } from "@/test/time";
 import { MembersDirectoryPanel } from "../MembersDirectoryPanel";
 import { MemberBillingDetails } from "../MemberBillingDetails";
 import { MemberTierDialog } from "../MemberTierDialog";
@@ -109,6 +110,10 @@ function stub(id: keyof typeof h.fns, impl: (data: Record<string, unknown>) => u
     ),
   );
 }
+
+// Daty płatności i nadań są tu WEJŚCIEM formatowania (data w wierszu), a nie
+// oknem liczonym od „teraz" - zamrożony zegar trzyma to jawnie.
+freezeClock();
 
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
