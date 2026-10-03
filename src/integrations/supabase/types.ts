@@ -31057,6 +31057,7 @@ export type Database = {
           _lang?: string
           _limit?: number
           _match?: string
+          _offset?: number
           _q?: string
           _sort?: string
           _term_groups?: Json
