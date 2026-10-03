@@ -139,10 +139,14 @@ function type(value: string): void {
 it("wyłącza podpowiedzi klawiatury i oznacza pole dla ochrony przed zoomem iOS", () => {
   renderComposer();
   expect(textarea()).toHaveAttribute("data-chat-composer-input");
-  expect(textarea()).toHaveAttribute("autocomplete", "off");
+  expect(textarea()).toHaveAttribute("autocomplete", "one-time-code");
   expect(textarea()).toHaveAttribute("autocorrect", "off");
   expect(textarea()).toHaveAttribute("autocapitalize", "off");
   expect(textarea()).toHaveAttribute("spellcheck", "false");
+  expect(textarea()).toHaveAttribute("data-form-type", "other");
+  expect(textarea()).toHaveAttribute("data-1p-ignore", "true");
+  expect(textarea()).toHaveAttribute("data-lpignore", "true");
+  expect(textarea()).toHaveAttribute("data-bwignore", "true");
 });
 
 /** Plik o zadanym typie i rozmiarze bez alokowania megabajtów w teście. */
