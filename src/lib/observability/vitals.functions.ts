@@ -62,7 +62,6 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
     const since = new Date(sinceMs).toISOString();
     const until = new Date(untilMs).toISOString();
     const windowDays = Math.max(1, Math.ceil((untilMs - sinceMs) / 86_400_000));
-    const hasCustomUntil = Boolean(data.untilIso);
 
     // AWARIA ODCZYTU LECI W GÓRĘ, NIE W PUSTY RAPORT. Do 2026-10 ten blok łapał
     // KAŻDY błąd - brak najemcy w profilu, timeout PostgREST, zerwane
@@ -114,25 +113,30 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       const report = aggregateVitals(samples, { windowDays });
       const windowTotal = windowCount ?? samples.length;
 
-      // The in-memory trend above is computed over only the capped newest rows,
-      // so on a busy site it truncates to the most recent days. Recompute the
-      // per-day p75 trend in Postgres over the FULL window via an RPC. If the
-      // function isn't present yet (older DB), fall back to the in-memory trend.
-      // For custom ranges with an explicit `until` in the past we skip the RPC
-      // (its signature only takes `p_since`) and rely on the in-memory trend.
+      // TREND Z BAZY PO PEŁNYM OKNIE [since, until]. Trend z pamięci liczy się
+      // tylko z SAMPLE_CAP najnowszych próbek, więc na ruchliwym serwisie
+      // najstarsze dni okna znikają, a pierwszy ocalały dzień powstaje
+      // z niepełnej próbki. Do 2026-10-03 RPC było pomijane przy KAŻDYM
+      // `untilIso`, bo funkcja znała wyłącznie `p_since` i dla okna
+      // zamkniętego w przeszłości dokładałaby dni spoza zakresu - a pulpit
+      // VitalsBiDashboard wysyła `untilIso` ZAWSZE, także dla presetów
+      // (`buildPresetRange`), więc główny pulpit wydajności nigdy nie dostał
+      // dokładnego trendu. Od migracji 20261003120000 `p_until` jest domknięte
+      // jak `.lte` wyżej, więc trend, COUNT i próbka opisują JEDNO okno.
+      // `until` to TERAZ, gdy wołający nie podał górnej granicy. Błąd albo
+      // rzut RPC (baza sprzed migracji: PGRST202 dla trzech argumentów)
+      // zostawia trend z pamięci - wykres gorszy, ale nie pusty.
       let trends = report.trends;
-      if (!hasCustomUntil) {
-        try {
-          const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
-            "web_vitals_daily_p75",
-            { p_since: since, p_tenant: tenantId },
-          );
-          if (!trendErr && Array.isArray(trendRows)) {
-            trends = trendsFromDailyP75(trendRows);
-          }
-        } catch {
-          // Keep the in-memory trend.
+      try {
+        const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
+          "web_vitals_daily_p75",
+          { p_since: since, p_tenant: tenantId, p_until: until },
+        );
+        if (!trendErr && Array.isArray(trendRows)) {
+          trends = trendsFromDailyP75(trendRows);
         }
+      } catch {
+        // Zostaje trend z pamięci.
       }
 
       return { ...report, trends, windowTotal, capped: windowTotal > SAMPLE_CAP };

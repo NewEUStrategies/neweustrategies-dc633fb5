@@ -589,7 +589,7 @@ describe("getVitalsSummary - trend dzienny p75", () => {
     expect(report.trends.map((t) => t.day)).toEqual(["2026-08-30", "2026-08-31"]);
   });
 
-  it("jawne `untilIso` POMIJA RPC - funkcja bazy nie zna górnej granicy okna", async () => {
+  it("jawne `untilIso` idzie do RPC jako `p_until` - trend z bazy, nie z przyciętej próbki", async () => {
     adminRpc.setData("web_vitals_daily_p75", DB_TREND);
 
     const report = await summary({
@@ -597,13 +597,21 @@ describe("getVitalsSummary - trend dzienny p75", () => {
       untilIso: "2026-08-31T23:59:59.000Z",
     });
 
-    // Gałąź realna, nie kosmetyczna: RPC filtruje wyłącznie `created_at >=
-    // p_since`, więc dla okna zamkniętego od góry dołożyłby dni SPOZA zakresu.
-    expect(adminRpc.callsFor("web_vitals_daily_p75")).toHaveLength(0);
-    expect(report.trends.map((t) => t.day)).toEqual(["2026-08-30", "2026-08-31"]);
+    // Do 2026-10-03 ta gałąź POMIJAŁA RPC, bo funkcja bazy znała wyłącznie
+    // `p_since`. A VitalsBiDashboard wysyła `untilIso` ZAWSZE (także dla
+    // presetów), więc główny pulpit wydajności nigdy nie dostał trendu po
+    // pełnym oknie. Komplet argumentów sprawdzany wprost: `tsc` nie złapie
+    // zgubionego `p_until`, bo obiekt argumentów RPC jest luźny.
+    expect(adminRpc.lastCall("web_vitals_daily_p75")?.args).toEqual({
+      p_since: "2026-08-29T00:00:00.000Z",
+      p_tenant: TENANT_A,
+      p_until: "2026-08-31T23:59:59.000Z",
+    });
+    // Dzień spoza próbki - dowód, że trend przyszedł z bazy.
+    expect(report.trends).toEqual([{ day: "2026-08-25", p75: { LCP: 1800 } }]);
   });
 
-  it("sam `sinceIso` (okno otwarte do teraz) NADAL woła RPC", async () => {
+  it("sam `sinceIso` - okno do TERAZ handlera, `p_until` = TERAZ", async () => {
     adminRpc.setData("web_vitals_daily_p75", DB_TREND);
     const since = "2026-08-29T00:00:00.000Z";
 
@@ -612,6 +620,59 @@ describe("getVitalsSummary - trend dzienny p75", () => {
     expect(adminRpc.lastCall("web_vitals_daily_p75")?.args).toEqual({
       p_since: since,
       p_tenant: TENANT_A,
+      p_until: NOW,
     });
+  });
+
+  it("`p_until` to TA SAMA granica, co `lte` w zapytaniu liczącym i wierszowym", async () => {
+    adminRpc.setData("web_vitals_daily_p75", DB_TREND);
+    const since = "2026-08-20T00:00:00.000Z";
+    const until = "2026-08-25T23:59:59.999Z";
+
+    await summary({ sinceIso: since, untilIso: until });
+
+    // Trend, `windowTotal` i próbka mają opisywać JEDNO okno. Rozjazd granic
+    // (np. `until` w RPC liczony inaczej niż w `lte`) dałby wykres z innego
+    // zakresu niż liczba próbek pod nim - i nikt by tego nie zauważył.
+    const call = adminRpc.lastCall("web_vitals_daily_p75");
+    const chains = admin.chainsFor("web_vitals");
+    expect(chains).toHaveLength(2);
+    for (const chain of chains) {
+      expect(chain.argsOf("gte")).toEqual(["created_at", call?.arg("p_since")]);
+      expect(chain.argsOf("lte")).toEqual(["created_at", call?.arg("p_until")]);
+    }
+    expect(call?.arg("p_until")).toBe(until);
+  });
+
+  it("preset `days` też domyka okno od góry - `p_until` = TERAZ", async () => {
+    adminRpc.setData("web_vitals_daily_p75", DB_TREND);
+
+    await summary({ days: 30 });
+
+    expect(adminRpc.lastCall("web_vitals_daily_p75")?.args).toEqual({
+      p_since: new Date(NOW_MS - 30 * DAY_MS).toISOString(),
+      p_tenant: TENANT_A,
+      p_until: NOW,
+    });
+  });
+
+  it("baza bez `p_until` (PGRST202) przy jawnym `untilIso` zostawia trend z pamięci", async () => {
+    // Kod wdrożony przed migracją 20261003120000: PostgREST nie znajduje
+    // trzyargumentowej sygnatury. Wykres ma spaść na trend z próbki, a raport
+    // zostać - to degradacja trendu, nie awaria odczytu.
+    adminRpc.setError(
+      "web_vitals_daily_p75",
+      "Could not find the function public.web_vitals_daily_p75(p_since, p_tenant, p_until) in the schema cache",
+      "PGRST202",
+    );
+
+    const report = await summary({
+      sinceIso: "2026-08-29T00:00:00.000Z",
+      untilIso: "2026-08-31T23:59:59.000Z",
+    });
+
+    expect(adminRpc.callsFor("web_vitals_daily_p75")).toHaveLength(1);
+    expect(report.trends.map((t) => t.day)).toEqual(["2026-08-30", "2026-08-31"]);
+    expect(report.total).toBe(3);
   });
 });

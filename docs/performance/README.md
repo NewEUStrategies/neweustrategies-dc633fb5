@@ -22,7 +22,13 @@ arkusz, LCP) i plan do 85/95: [`2026-10-02-pagespeed-przyczyny.md`](./2026-10-02
 | Transport | `src/lib/observability/report.ts` (`navigator.sendBeacon`, jeden beacon na granicę zrzutu) |
 | Ingest    | `src/routes/api/public/vitals.ts` (publiczny, niepodpisany; zawsze 204)                    |
 | Tabela    | `public.web_vitals` (migracje `20260626210000`, `20260708150000`, `20260920121000`)        |
-| Agregacja | `public.web_vitals_daily_p75(timestamptz, uuid)`, `src/lib/observability/aggregate.ts`     |
+| Agregacja | `public.web_vitals_daily_p75` (RPC), `src/lib/observability/aggregate.ts`                  |
+
+Trend dzienny p75 liczy RPC `web_vitals_daily_p75(p_since, p_tenant, p_until)` po PEŁNYM
+oknie `[p_since, p_until]` (granica górna domknięta, jak `.lte` w `getVitalsSummary`;
+`p_until` od migracji `20261003120000`, `DEFAULT NULL` = okno otwarte od góry). Trend
+z pamięci (`aggregate.ts`, najnowsze `SAMPLE_CAP` próbek) zostaje wyłącznie jako zapas,
+gdy RPC zawiedzie.
 
 Mierzone metryki: **LCP, CLS, INP, FCP, TTFB**. CLS to maksimum z okien sesyjnych,
 INP to wysoki percentyl opóźnień interakcji - **te same definicje, co w bramce
