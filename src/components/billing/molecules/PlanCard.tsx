@@ -75,7 +75,10 @@ export function PlanCard({
           </div>
         )}
 
-        {plan.trial_days > 0 && (
+        {/* Okres próbny tylko tam, gdzie checkout go przyzna: zgłoszenie nie ma
+            checkoutu, a plan jednorazowy idzie płatnością bez triala (ten sam
+            strażnik co strona planu, checkout i paywall). */}
+        {!enquiryOnly && plan.interval !== "one_time" && plan.trial_days > 0 && (
           <p className="text-xs text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
         )}
       </CardHeader>

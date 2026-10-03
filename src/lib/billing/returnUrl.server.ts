@@ -163,17 +163,6 @@ function originCandidates(): string[] {
 }
 
 /**
- * Origin bieżącego żądania (proxy-aware) lub skonfigurowany adres serwisu.
- *
- * UWAGA: wartość jest NIEZAUFANA - pochodzi wprost z nagłówków. Do budowy
- * adresów wysyłanych na zewnątrz służy `absoluteReturnUrl`, które przepuszcza
- * origin przez listę dozwolonych hostów.
- */
-export function requestOrigin(): string {
-  return originCandidates()[0] ?? canonicalOrigin();
-}
-
-/**
  * Pierwszy origin żądania, który przechodzi bramkę; inaczej origin kanoniczny.
  *
  * EKSPORTOWANA, bo DRUGI silnik checkoutu (`lib/http/resolveReturnUrl`, czyli
@@ -195,10 +184,12 @@ export function trustedReturnOrigin(): string {
  * Bezwzględny adres powrotu z bezpiecznej ścieżki względnej, na originie
  * należącym do serwisu. Nigdy nie rzuca: obie połowy adresu mają wartość
  * domyślną, a ostatni `catch` jest bramką na wypadek zmiany któregoś z nich.
+ * Dziś jest nieosiągalny i zostaje CELOWO - obie połówki pochodzą z wejścia
+ * od klienta, a wyjątek stąd gasił już raz portal klienta (defekt nr 3).
  */
-export function absoluteReturnUrl(path: string | null | undefined, fallbackPath?: string): string {
+export function absoluteReturnUrl(path: string | null | undefined): string {
   try {
-    return new URL(safeReturnPath(path, fallbackPath), trustedReturnOrigin()).toString();
+    return new URL(safeReturnPath(path), trustedReturnOrigin()).toString();
   } catch {
     return `${FALLBACK_ORIGIN}${DEFAULT_RETURN_PATH}`;
   }

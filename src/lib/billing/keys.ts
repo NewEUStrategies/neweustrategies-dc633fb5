@@ -39,7 +39,6 @@ export const billingKeys = {
   /** Podgląd domyślnej metody płatności (marka + 4 cyfry), per środowisko. */
   myPaymentMethod: (uid: string | undefined, env: string) =>
     ["my-payment-method", uid ?? "anon", env] as const,
-  myPaymentMethodAll: () => ["my-payment-method"] as const,
   /** Nadania warstwy poza planem (membership_grants) bieżącego użytkownika. */
   myGrants: (uid: string | undefined) => ["my-grants", uid ?? "anon"] as const,
   myGrantsAll: () => ["my-grants"] as const,

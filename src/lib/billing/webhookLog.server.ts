@@ -80,19 +80,30 @@ export async function claimWebhookEvent(ref: WebhookEventRef): Promise<boolean> 
   }
 
   // `failed` albo porzucone `received`: przejmujemy do ponownej próby.
-  const { error: retryErr } = await supabase
+  //
+  // Przejęcie jest PORÓWNAJ-I-ZAMIEŃ na stanie, który właśnie odczytaliśmy
+  // (status + licznik prób; każde przejęcie podbija licznik). Ponowna dostawa
+  // od operatora i naprawa z panelu (`reconcile.server`) mogą odczytać ten sam
+  // wiersz `failed` jednocześnie - bezwarunkowy UPDATE dałby obu `true` i
+  // podwójne wykonanie zdarzenia. Postgres serializuje oba UPDATE na wierszu,
+  // więc warunek przepuści tylko pierwszego; drugi dostaje 0 wierszy.
+  const previousRetries = Number(existing.retry_count ?? 0);
+  const { data: reclaimed, error: retryErr } = await supabase
     .from("payment_webhook_events")
     .update({
       status: "received",
       error: null,
       processed_at: null,
-      retry_count: Number(existing.retry_count ?? 0) + 1,
+      retry_count: previousRetries + 1,
       last_retried_at: new Date().toISOString(),
       payload: (ref.payload ?? {}) as Json,
     })
-    .eq("id", existing.id);
+    .eq("id", existing.id)
+    .eq("status", existing.status)
+    .eq("retry_count", previousRetries)
+    .select("id");
   if (retryErr) throw new Error(`webhook log reclaim failed: ${retryErr.message}`);
-  return true;
+  return reclaimed.length > 0;
 }
 
 /** Domyka wiersz zdarzenia statusem końcowym. Nigdy nie rzuca. */
@@ -109,7 +120,7 @@ export async function finishWebhookEvent(
 ): Promise<void> {
   try {
     const supabase = await admin();
-    await supabase
+    const { error } = await supabase
       .from("payment_webhook_events")
       .update({
         status,
@@ -123,6 +134,9 @@ export async function finishWebhookEvent(
       })
       .eq("event_id", ref.eventId)
       .eq("environment", ref.environment);
+    // supabase-js zwraca błąd bazy w wyniku, a nie jako wyjątek - bez tego
+    // odczytu nieudane domknięcie zostawiało wiersz w `received` bez śladu.
+    if (error) console.error("[payments] webhook log update failed", error);
   } catch (err) {
     console.error("[payments] webhook log update failed", err);
   }

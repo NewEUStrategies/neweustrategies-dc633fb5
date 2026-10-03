@@ -19,6 +19,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import type { ValidateCouponResult } from "@/lib/billing/coupons";
+import { moneyPattern } from "@/test/billing/fixtures";
 
 type PreviewArg = {
   data: { code: string; planId: string | null; amountCents: number; currency: string };
@@ -217,6 +218,29 @@ describe("wynik sprawdzenia kodu", () => {
     expect(h.onChange).toHaveBeenLastCalledWith(null);
   });
 
+  it("rabat kwotowy pokazuje kwote w walucie planu, a nie procent", async () => {
+    const rabat: ValidateCouponResult = {
+      ...RABAT_10,
+      discount_kind: "fixed",
+      discount_percent: null,
+      discount_cents: 1_250,
+      final_cents: AMOUNT - 1_250,
+    };
+    h.preview.mockResolvedValue(rabat);
+    kupon();
+    wpisz("minus-12");
+    enter();
+
+    expect(await screen.findByText("MINUS-12")).toBeInTheDocument();
+    // Etykieta i oszczednosc to ta sama kwota 12,50 zl - etykieta ze znakiem minus.
+    const etykieta = screen.getByText(
+      (tekst) => tekst.startsWith("-") && moneyPattern(1_250).test(tekst),
+    );
+    expect(etykieta.textContent).toMatch(/zł/);
+    expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+    expect(h.onChange).toHaveBeenLastCalledWith({ code: "MINUS-12", result: rabat });
+  });
+
   it("po awarii ten sam kod mozna sprawdzic ponownie - straznik nie zostaje zamkniety", async () => {
     h.preview.mockRejectedValueOnce(new Error("Failed to fetch"));
     kupon();
@@ -230,5 +254,50 @@ describe("wynik sprawdzenia kodu", () => {
     expect(await screen.findByText("-10%")).toBeInTheDocument();
     expect(h.preview).toHaveBeenCalledTimes(2);
     expect(h.onChange).toHaveBeenLastCalledWith({ code: "RABAT-10", result: RABAT_10 });
+  });
+});
+
+describe("zdjecie kuponu i klawisze inne niz Enter", () => {
+  it("zdjecie zastosowanego kuponu oddaje rodzicowi null i przywraca puste pole", async () => {
+    h.preview.mockResolvedValue(RABAT_10);
+    kupon();
+    wpisz("rabat-10");
+    enter();
+    expect(await screen.findByText("-10%")).toBeInTheDocument();
+
+    // Po sukcesie jedynym przyciskiem jest „zdejmij kupon".
+    fireEvent.click(screen.getByRole("button", { name: "coupon.remove" }));
+
+    // Rodzic MUSI dostac null - inaczej kasa wyslalaby kod, ktory kupujacy zdjal,
+    // i pobrala kwote po rabacie, ktorego juz nie widac.
+    expect(h.onChange).toHaveBeenLastCalledWith(null);
+    expect(screen.queryByText("-10%")).not.toBeInTheDocument();
+    expect(pole()).toHaveValue("");
+    expect(screen.getByRole("button", { name: "coupon.apply" })).toBeDisabled();
+    // Zdjecie kuponu nie zjada proby z limitu kodow.
+    expect(h.preview).toHaveBeenCalledTimes(1);
+  });
+
+  it("przycisk zdjecia kuponu ma dostepna nazwe - czytnik ekranu nie slyszy samego „przycisk”", async () => {
+    // Przycisk jest sama ikona X obok kwoty rabatu. Bez nazwy kupujacy
+    // korzystajacy z czytnika ekranu nie wie, ze ten przycisk zdejmuje rabat.
+    h.preview.mockResolvedValue(RABAT_10);
+    kupon();
+    wpisz("rabat-10");
+    enter();
+    expect(await screen.findByText("-10%")).toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: "coupon.remove" })).toBeInTheDocument();
+  });
+
+  it("pisanie kodu (klawisze inne niz Enter) nie wysyla pytania do serwera", async () => {
+    kupon();
+    wpisz("rabat");
+    fireEvent.keyDown(pole(), { key: "a" });
+    fireEvent.keyDown(pole(), { key: "Tab" });
+    await act(async () => {});
+
+    expect(h.preview).not.toHaveBeenCalled();
+    expect(h.onChange).not.toHaveBeenCalled();
   });
 });

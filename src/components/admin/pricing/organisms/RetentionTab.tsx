@@ -15,6 +15,8 @@ import { RetentionFeedbackList } from "@/components/admin/pricing/molecules/Rete
 import { RetentionReasonsEditor } from "@/components/admin/pricing/molecules/RetentionReasonsEditor";
 import { RetentionSettingsCard } from "@/components/admin/pricing/molecules/RetentionSettingsCard";
 import { RetentionStatsCards } from "@/components/admin/pricing/molecules/RetentionStatsCards";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import {
   clampInt,
@@ -72,6 +74,14 @@ export function RetentionTab() {
 
   const [settingsDraft, setSettingsDraft] = useState<RetentionSettingsDraft | null>(null);
   const draft = settingsDraft ?? settingsDraftFromRow(settingsQ.data ?? null);
+  // `null` = wiersza ustawień NIE MA (prawdziwe domyślne 30/3/14), `undefined`
+  // = odczyt jeszcze nie przyszedł albo padł. Tylko w pierwszym przypadku
+  // wolno pokazać pola: zapis to `upsert` CAŁEGO wiersza, więc domyślne
+  // wartości na ekranie po cichu nadpisałyby prawdziwy rabat.
+  const settingsKnown = settingsQ.data !== undefined;
+  // Padnięty przegląd odpowiedzi to nie „zero odpowiedzi" - ani pusta lista,
+  // ani zera w statystykach.
+  const feedbackFailed = feedbackQ.isError && feedbackQ.data === undefined;
 
   const invalidateSettings = () => {
     void qc.invalidateQueries({ queryKey: ["admin", "retention-settings"] });
@@ -177,13 +187,31 @@ export function RetentionTab() {
 
   return (
     <div className="space-y-4">
-      <RetentionSettingsCard
-        draft={draft}
-        saving={saveSettings.isPending}
-        onChange={(patch) => setSettingsDraft({ ...draft, ...patch })}
-        onSave={() => saveSettings.mutate(draft)}
-      />
-      <RetentionStatsCards stats={stats} />
+      {settingsKnown ? (
+        <RetentionSettingsCard
+          draft={draft}
+          saving={saveSettings.isPending}
+          onChange={(patch) => setSettingsDraft({ ...draft, ...patch })}
+          onSave={() => saveSettings.mutate(draft)}
+        />
+      ) : settingsQ.isError ? (
+        <LoadFailedCard
+          message={ta("retention.settingsLoadError")}
+          retryLabel={ta("retention.retryLoad")}
+          onRetry={() => void settingsQ.refetch()}
+        />
+      ) : (
+        <div className="h-40 animate-pulse rounded-md bg-muted/50" aria-hidden="true" />
+      )}
+      {feedbackFailed ? (
+        <LoadFailedCard
+          message={ta("retention.feedbackLoadError")}
+          retryLabel={ta("retention.retryLoad")}
+          onRetry={() => void feedbackQ.refetch()}
+        />
+      ) : (
+        <RetentionStatsCards stats={stats} />
+      )}
       <RetentionReasonsEditor
         reasons={reasons}
         addPending={addReason.isPending}
@@ -195,7 +223,31 @@ export function RetentionTab() {
         onDelete={(id) => deleteReason.mutate(id)}
         onReorder={(moved) => reorderReasons.mutate(moved)}
       />
-      <RetentionFeedbackList feedback={feedback} />
+      {!feedbackFailed && <RetentionFeedbackList feedback={feedback} />}
     </div>
+  );
+}
+
+/** Nieudany odczyt sekcji: komunikat zamiast udawanych wartości i ponowienie. */
+function LoadFailedCard({
+  message,
+  retryLabel,
+  onRetry,
+}: {
+  message: string;
+  retryLabel: string;
+  onRetry: () => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-5">
+        <p role="alert" className="text-sm text-destructive">
+          {message}
+        </p>
+        <Button size="sm" variant="outline" onClick={onRetry}>
+          {retryLabel}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

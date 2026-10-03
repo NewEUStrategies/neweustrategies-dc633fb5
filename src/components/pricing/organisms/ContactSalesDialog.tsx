@@ -66,7 +66,8 @@ export function ContactSalesDialog({
     if (!canSubmit) return;
     setSending(true);
     try {
-      const pageUrl = typeof window !== "undefined" ? window.location.href : "/pricing";
+      // Bez strażnika SSR: `submit` formularza biegnie wyłącznie w przeglądarce.
+      const pageUrl = window.location.href;
       await submit({
         data: {
           name: name.trim(),

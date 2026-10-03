@@ -92,17 +92,14 @@ async function buildStripeClient(connectionApiKey: string, lovableApiKey: string
 
   return new Stripe(connectionApiKey, {
     apiVersion: "2026-08-26.dahlia",
-    httpClient: Stripe.createFetchHttpClient((input, init) => {
-      const stripeUrl = input instanceof Request ? input.url : input.toString();
-      const gatewayUrl = stripeUrl.replace("https://api.stripe.com", GATEWAY_STRIPE_BASE);
+    // `FetchHttpClient` SDK woła transport zawsze z adresem jako napisem i z
+    // nagłówkami w `init` - nigdy z obiektem `Request`.
+    httpClient: Stripe.createFetchHttpClient((url, init) => {
+      const gatewayUrl = String(url).replace("https://api.stripe.com", GATEWAY_STRIPE_BASE);
       return fetch(gatewayUrl, {
         ...init,
         headers: {
-          ...Object.fromEntries(
-            new Headers(
-              init?.headers ?? (input instanceof Request ? input.headers : undefined),
-            ).entries(),
-          ),
+          ...Object.fromEntries(new Headers(init?.headers).entries()),
           "X-Connection-Api-Key": connectionApiKey,
           "Lovable-API-Key": lovableApiKey,
         },

@@ -19,8 +19,8 @@
 //      przekonaniu, że klient ma już dostęp.
 //
 // ATRAPOWANE SĄ WYŁĄCZNIE GRANICE: funkcje serwerowe (`reconcile.functions`,
-// rola `admin` weryfikowana po stronie serwera) i odczyt środowiska operatora
-// płatności. Słowniki, komponenty i cała logika prezentacji biegną prawdziwe -
+// rola `super_admin` weryfikowana po stronie serwera), role zalogowanego
+// (`useAuth`) i odczyt środowiska operatora płatności. Słowniki, komponenty i cała logika prezentacji biegną prawdziwe -
 // asercje mierzą napisy, które zobaczy dyżurny.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
@@ -31,6 +31,13 @@ import type { RepairOutcome } from "@/lib/billing/reconcile.server";
 const h = vi.hoisted(() => ({
   report: vi.fn(),
   repair: vi.fn(),
+  isSuperAdmin: true,
+}));
+
+// Rola wołającego. Serwer i tak odmawia bez `super_admin` - trasa ma tylko nie
+// pokazywać formularza, który skończyłby się gołym „forbidden".
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ isSuperAdmin: h.isSuperAdmin }),
 }));
 
 // Granica serwerowa. Trasa woła te funkcje WPROST (bez `useServerFn`), więc
@@ -102,6 +109,7 @@ function rowOf(reference: string): HTMLElement {
 
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
+  h.isSuperAdmin = true;
   h.report.mockReset().mockResolvedValue(report());
   h.repair.mockReset().mockResolvedValue(outcome());
 });
@@ -142,6 +150,20 @@ describe("trasa /admin/billing-reconcile - sklejenie i nagłówek", () => {
 
     const violations = await axeViolations(view.container);
     expect(violations, summarize(violations)).toEqual([]);
+  });
+});
+
+describe("trasa /admin/billing-reconcile - rola", () => {
+  it("administrator bez roli super admina dostaje wyjaśnienie, a nie formularz", async () => {
+    // Uzgadnianie czyta dziennik webhooków i odtwarza zdarzenia operatora -
+    // od audytu wyd. 12 stoi za tą samą rolą co ponowienie z dziennika.
+    h.isSuperAdmin = false;
+    await mount();
+
+    expect(screen.getByRole("heading", { name: "Uzgadnianie płatności" })).toBeInTheDocument();
+    expect(screen.getByText(/wyłącznie dla roli super administratora/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Skanuj" })).not.toBeInTheDocument();
+    expect(h.report).not.toHaveBeenCalled();
   });
 });
 

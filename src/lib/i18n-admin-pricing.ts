@@ -114,6 +114,11 @@ const adminPricingPl = {
       reasonDeleteConfirm: "Usunąć ten powód? Zapisane odpowiedzi zachowają jego treść.",
       feedbackHeading: "Ostatnie odpowiedzi",
       feedbackEmpty: "Brak odpowiedzi - pojawią się przy pierwszej próbie anulowania.",
+      settingsLoadError:
+        "Nie udało się wczytać ustawień kontroferty. Zapis jest wstrzymany, żeby nie nadpisać prawdziwego rabatu wartościami domyślnymi.",
+      feedbackLoadError:
+        "Nie udało się wczytać odpowiedzi - statystyki i lista są chwilowo niedostępne.",
+      retryLoad: "Spróbuj ponownie",
       offerAccepted: "Oferta przyjęta",
       offerDeclined: "Oferta odrzucona",
     },
@@ -286,6 +291,11 @@ const adminPricingEn: typeof adminPricingPl = {
       reasonDeleteConfirm: "Delete this reason? Recorded answers keep its text.",
       feedbackHeading: "Latest responses",
       feedbackEmpty: "No responses yet - they appear with the first cancellation attempt.",
+      settingsLoadError:
+        "Could not load the counter-offer settings. Saving is paused so the real discount is not overwritten with defaults.",
+      feedbackLoadError:
+        "Could not load responses - stats and the list are temporarily unavailable.",
+      retryLoad: "Try again",
       offerAccepted: "Offer accepted",
       offerDeclined: "Offer declined",
     },

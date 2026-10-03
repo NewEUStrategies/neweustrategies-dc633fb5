@@ -167,10 +167,11 @@ export function RetentionDialog({
     }
   };
 
-  const copyCode = async () => {
-    if (!accepted) return;
+  // Kod przychodzi z wyrenderowanego kroku „accepted" - przycisk kopiowania
+  // istnieje tylko wtedy, gdy kod jest na ekranie.
+  const copyCode = async (code: string) => {
     try {
-      await navigator.clipboard.writeText(accepted.code);
+      await navigator.clipboard.writeText(code);
       toast.success(t("retention.accepted.copied"));
     } catch {
       // Brak uprawnień schowka - kod pozostaje widoczny do przepisania.
@@ -338,7 +339,7 @@ export function RetentionDialog({
             </DialogHeader>
             <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2.5">
               <code className="text-base font-semibold tracking-wide">{accepted.code}</code>
-              <Button size="sm" variant="outline" onClick={copyCode}>
+              <Button size="sm" variant="outline" onClick={() => copyCode(accepted.code)}>
                 <Copy className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                 {t("retention.accepted.copy")}
               </Button>

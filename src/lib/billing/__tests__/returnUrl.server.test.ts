@@ -39,7 +39,7 @@ vi.mock("@tanstack/react-start/server", () => ({
   },
 }));
 
-const { absoluteReturnUrl, requestOrigin } = await import("@/lib/billing/returnUrl.server");
+const { absoluteReturnUrl } = await import("@/lib/billing/returnUrl.server");
 
 /** Origin serwisu w testach - „nasza" domena, na której powrót ma zostać. */
 const NASZ_ORIGIN = "https://neweuropeanstrategies.com";
@@ -61,39 +61,47 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+// Kolejność źródeł originu sprawdzamy przez `absoluteReturnUrl`, czyli przez
+// JEDYNĄ drogę, którą origin z nagłówków wychodzi na zewnątrz. Hosty w tych
+// przypadkach są dopuszczone (`BILLING_RETURN_HOSTS`), żeby wynik pokazywał,
+// KTÓRY nagłówek wygrał, a nie zejście na origin kanoniczny.
 describe("origin bieżącego żądania", () => {
   it("nagłówek `origin` ma pierwszeństwo przed hostem z proxy", () => {
     // Kolejność źródeł nie jest kosmetyką: w dev/preview to jedyny nagłówek,
     // który niesie SCHEMAT (http na localhoście). Odwrócenie kolejności dałoby
     // adres https na porcie deweloperskim - operator odesłałby w pustkę.
+    vi.stubEnv("BILLING_RETURN_HOSTS", "preview.example.com");
     zadanie({
       origin: "http://localhost:8080",
       "x-forwarded-host": "preview.example.com",
       "x-forwarded-proto": "https",
     });
 
-    expect(requestOrigin()).toBe("http://localhost:8080");
+    expect(absoluteReturnUrl("/profile/plan")).toBe("http://localhost:8080/profile/plan");
   });
 
   it("bez `origin` składa adres z `x-forwarded-proto` i `x-forwarded-host`", () => {
+    vi.stubEnv("BILLING_RETURN_HOSTS", "preview.example.com");
     zadanie({ "x-forwarded-proto": "https", "x-forwarded-host": "preview.example.com" });
 
-    expect(requestOrigin()).toBe("https://preview.example.com");
+    expect(absoluteReturnUrl("/profile/plan")).toBe("https://preview.example.com/profile/plan");
   });
 
   it("bez nagłówków proxy bierze `host`, a schemat domyśla się na https", () => {
     // Za terminatorem TLS aplikacja widzi ruch po http - domyślne „https"
     // jest tu regułą, nie zgadywanką: adres powrotu po http zostałby przez
     // operatora odrzucony albo zdegradowałby sesję do niezaszyfrowanej.
-    zadanie({ host: "neweuropeanstrategies.com" });
+    vi.stubEnv("BILLING_RETURN_HOSTS", "najemca.example.org");
+    zadanie({ host: "najemca.example.org" });
 
-    expect(requestOrigin()).toBe(NASZ_ORIGIN);
+    expect(absoluteReturnUrl("/profile/plan")).toBe("https://najemca.example.org/profile/plan");
   });
 
   it("`x-forwarded-host` wygrywa z `host` (za proxy liczy się host publiczny)", () => {
-    zadanie({ host: "wewnetrzny-uslugowy:8080", "x-forwarded-host": "neweuropeanstrategies.com" });
+    vi.stubEnv("BILLING_RETURN_HOSTS", "wewnetrzny.example.org,publiczny.example.org");
+    zadanie({ host: "wewnetrzny.example.org", "x-forwarded-host": "publiczny.example.org" });
 
-    expect(requestOrigin()).toBe(NASZ_ORIGIN);
+    expect(absoluteReturnUrl("/profile/plan")).toBe("https://publiczny.example.org/profile/plan");
   });
 
   it("bez kontekstu żądania (cron, kolejka) używa PUBLIC_SITE_URL", () => {
@@ -103,14 +111,18 @@ describe("origin bieżącego żądania", () => {
     vi.stubEnv("PUBLIC_SITE_URL", "https://konfigurowany.example.com");
     h.request = null;
 
-    expect(requestOrigin()).toBe("https://konfigurowany.example.com");
+    expect(absoluteReturnUrl("/profile/plan")).toBe(
+      "https://konfigurowany.example.com/profile/plan",
+    );
   });
 
   it("bez żądania i bez konfiguracji spada na wbudowaną domenę serwisu", () => {
     vi.stubEnv("PUBLIC_SITE_URL", undefined);
+    vi.stubEnv("SITE_URL", undefined);
+    vi.stubEnv("URL", undefined);
     h.request = null;
 
-    expect(requestOrigin()).toBe(NASZ_ORIGIN);
+    expect(absoluteReturnUrl("/profile/plan")).toBe(`${NASZ_ORIGIN}/profile/plan`);
   });
 
   it("żądanie bez nagłówków `origin`/`host` też schodzi do konfiguracji", () => {
@@ -119,7 +131,9 @@ describe("origin bieżącego żądania", () => {
     vi.stubEnv("PUBLIC_SITE_URL", "https://konfigurowany.example.com");
     zadanie({ "user-agent": "vitest" });
 
-    expect(requestOrigin()).toBe("https://konfigurowany.example.com");
+    expect(absoluteReturnUrl("/profile/plan")).toBe(
+      "https://konfigurowany.example.com/profile/plan",
+    );
   });
 });
 
@@ -204,14 +218,6 @@ describe("adres powrotu - ścieżka od klienta (open redirect)", () => {
   it("brak ścieżki (null/undefined) daje domyślny ekran planu", () => {
     expect(absoluteReturnUrl(null)).toBe(`${NASZ_ORIGIN}${DEFAULT_RETURN_PATH}`);
     expect(absoluteReturnUrl(undefined)).toBe(`${NASZ_ORIGIN}${DEFAULT_RETURN_PATH}`);
-  });
-
-  it("własny fallback wywołującego jest użyty zamiast domyślnego", () => {
-    // Powrót z checkoutu biletowego wraca na wydarzenie, nie na plan - bez
-    // tego parametru każda odmowa lądowałaby w cudzym kontekście.
-    expect(absoluteReturnUrl("https://evil.example.org", "/events/kongres")).toBe(
-      `${NASZ_ORIGIN}/events/kongres`,
-    );
   });
 
   it("wyjście z katalogu (`/../`) zostaje w obrębie naszej domeny", () => {

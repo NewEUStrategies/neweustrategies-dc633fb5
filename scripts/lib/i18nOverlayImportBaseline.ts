@@ -220,7 +220,6 @@ export const I18N_OVERLAY_IMPORT_BASELINE: readonly (readonly [string, number])[
   ["src/components/chat/MessageList.tsx", 16],
   ["src/components/chat/NewChatSearch.tsx", 7],
   ["src/components/checkout/CheckoutAssurances.tsx", 4],
-  ["src/components/checkout/CouponInput.tsx", 4],
   ["src/components/checkout/FxRateNotice.tsx", 7],
   ["src/components/clubs/atoms/ClubNetworkPrimitives.tsx", 1],
   ["src/components/clubs/atoms/ClubRegimeMark.tsx", 1],

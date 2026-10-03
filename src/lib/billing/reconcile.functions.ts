@@ -1,9 +1,13 @@
 // Cienki plik `createServerFn` - logika w `reconcile.server.ts`.
 //
 // Bezpieczeństwo: obie funkcje wymagają zalogowania (middleware) i roli
-// `admin` (weryfikacja serwerowa `assertAdmin`). Klient nigdy nie przekazuje
-// ładunku zdarzenia - wyłącznie identyfikatory, po których serwer sam pobiera
-// dane ze Stripe.
+// `super_admin` (weryfikacja serwerowa `assertSuperAdmin`) - tej samej co
+// ponowienie z dziennika webhooków (`webhookRetry.functions`). Raport czyta
+// dziennik `payment_webhook_events` (RLS: wyłącznie `is_super_admin()`),
+// a naprawa odtwarza zdarzenie operatora tą samą ścieżką co webhook; przy
+// roli `admin` uzgadnianie było tylnymi drzwiami do obu (audyt wyd. 12).
+// Klient nigdy nie przekazuje ładunku zdarzenia - wyłącznie identyfikatory,
+// po których serwer sam pobiera dane ze Stripe.
 //
 // ZAKRES NAJEMCY pochodzi z WYNIKU bramki (profil wołającego, skonfrontowany
 // z hostem żądania), a nie z osobnego rozstrzygnięcia po hoście w warstwie
@@ -32,8 +36,8 @@ export const getReconcileReport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => reportSchema.parse(input))
   .handler(async ({ data, context }): Promise<ReconcileReport> => {
-    const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    const { assertSuperAdmin } = await import("@/lib/billing/diagnostics.server");
+    const { tenantId } = await assertSuperAdmin(context.supabase, context.userId);
     const { buildReconcileReport } = await import("@/lib/billing/reconcile.server");
     return buildReconcileReport(data.environment, data.sinceHours, tenantId);
   });
@@ -43,8 +47,8 @@ export const repairReconcileEntry = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => repairSchema.parse(input))
   .handler(async ({ data, context }): Promise<RepairOutcome> => {
-    const { assertAdmin } = await import("@/lib/billing/diagnostics.server");
-    const { tenantId } = await assertAdmin(context.supabase, context.userId);
+    const { assertSuperAdmin } = await import("@/lib/billing/diagnostics.server");
+    const { tenantId } = await assertSuperAdmin(context.supabase, context.userId);
     const { repairReconcileIssue } = await import("@/lib/billing/reconcile.server");
     return repairReconcileIssue(data.environment, data.kind, data.reference, tenantId);
   });

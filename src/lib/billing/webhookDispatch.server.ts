@@ -193,7 +193,7 @@ async function handleUpdated(data: SubscriptionData, env: StripeEnv, occurredAt:
 
   const { data: existing } = await supabase
     .from("subscriptions")
-    .select("user_id, price_id, status, current_period_end")
+    .select("user_id, tenant_id, price_id, status, current_period_end")
     .eq("provider_subscription_id", data.id)
     .eq("environment", env)
     .maybeSingle();
@@ -253,7 +253,10 @@ async function handleUpdated(data: SubscriptionData, env: StripeEnv, occurredAt:
   // uprawnień, nie tylko zmiana planu.
   const { resolvePlanForPrice, applyStatusTransitionEffects } =
     await import("@/lib/billing/purchaseEffects.server");
-  const plan = await resolvePlanForPrice(priceId);
+  const plan = await resolvePlanForPrice(priceId, {
+    tenantId: existing.tenant_id ?? null,
+    userId: existing.user_id,
+  });
   if (plan) {
     const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
     await syncEntitlementState({
@@ -269,6 +272,7 @@ async function handleUpdated(data: SubscriptionData, env: StripeEnv, occurredAt:
   // CRM + powiadomienie użytkownika przy zmianie samego stanu.
   await applyStatusTransitionEffects({
     userId: existing.user_id,
+    tenantId: existing.tenant_id ?? null,
     priceId,
     subscriptionId: data.id,
     periodEnd: period.accessUntil,
@@ -282,6 +286,7 @@ async function handleUpdated(data: SubscriptionData, env: StripeEnv, occurredAt:
   const { applyPlanChangeEffects } = await import("@/lib/billing/purchaseEffects.server");
   await applyPlanChangeEffects({
     userId: existing.user_id,
+    tenantId: existing.tenant_id ?? null,
     priceId,
     previousPriceId: existing.price_id,
     direction,
@@ -295,7 +300,7 @@ async function handleCanceled(data: SubscriptionData, env: StripeEnv) {
   const supabase = await admin();
   const { data: existing } = await supabase
     .from("subscriptions")
-    .select("user_id, price_id, current_period_end")
+    .select("user_id, tenant_id, price_id, current_period_end")
     .eq("provider_subscription_id", data.id)
     .eq("environment", env)
     .maybeSingle();
@@ -328,6 +333,7 @@ async function handleCanceled(data: SubscriptionData, env: StripeEnv) {
   const { applyCancellationEffects } = await import("@/lib/billing/purchaseEffects.server");
   await applyCancellationEffects({
     userId: existing.user_id,
+    tenantId: existing.tenant_id ?? null,
     priceId: existing.price_id,
     subscriptionId: data.id,
     periodEnd: canceledPeriod.accessUntil,
@@ -343,19 +349,75 @@ function amountFromTransaction(data: TransactionData): number | null {
 }
 
 /**
- * GA4: zakup zgłaszany z serwera (ścieżka pewna). `_ga_client_id` trafia do
- * `custom_data` przy tworzeniu transakcji, gdy przeglądarka miała już cookie
- * GA4 - wtedy zakup jest zszyty z sesją. Bez niego liczy się sam przychód.
+ * Najemca zakupu jednorazowego - z NASZEGO wiersza (zamówienie albo
+ * darowizna), nigdy z ładunku operatora. Zapytania filtrują po środowisku
+ * zdarzenia, tak jak realizacja zamówienia (`oneTimeFulfilment.server`).
+ * `null` = nie da się przypisać; wtedy zakup nie idzie do GA4 wcale.
  */
-async function reportPurchaseToGa4(data: TransactionData): Promise<void> {
-  const clientId = data.customData?.["_ga_client_id"];
-  const { sendGa4Purchase } = await import("@/lib/analytics/ga4Mp.server");
-  await sendGa4Purchase({
-    transactionId: data.id,
-    amountCents: amountFromTransaction(data),
-    currency: data.currencyCode ?? null,
-    clientId: typeof clientId === "string" ? clientId : null,
-  });
+async function purchaseTenant(
+  customData: Record<string, unknown> | null | undefined,
+  env: StripeEnv,
+): Promise<string | null> {
+  const text = (key: string): string | null => {
+    const value = customData?.[key];
+    return typeof value === "string" && value.length > 0 ? value : null;
+  };
+  const supabase = await admin();
+  const orderId = text("orderId") ?? text("order_id");
+  if (orderId) {
+    const { data } = await supabase
+      .from("payment_orders")
+      .select("tenant_id")
+      .eq("id", orderId)
+      .eq("environment", env)
+      .maybeSingle();
+    return data?.tenant_id ?? null;
+  }
+  const donationId = text("donationId");
+  if (donationId) {
+    const { data } = await supabase
+      .from("donations")
+      .select("tenant_id")
+      .eq("id", donationId)
+      .eq("environment", env)
+      .maybeSingle();
+    return data?.tenant_id ?? null;
+  }
+  return null;
+}
+
+/**
+ * GA4: zakup zgłaszany z serwera (ścieżka pewna).
+ *
+ * NAJEMCA DECYDUJE O STRUMIENIU. Zakup idzie do strumienia z panelu analityki
+ * najemcy i nie idzie wcale, gdy najemca odłączył GA4 (`ga4_enabled: false`)
+ * - albo gdy zakupu nie da się przypisać do najemcy. Wcześniej każdy zakup
+ * szedł do strumienia wdrożenia niezależnie od panelu (audyt wyd. 12).
+ *
+ * `client_id`: pole `_ga_client_id` w metadanych sesji zszywa zakup z sesją
+ * przeglądarki, ale DZIŚ ŻADEN silnik checkoutu go nie zapisuje - zakup
+ * liczy się więc ze stabilnym zastępnikiem z identyfikatora transakcji
+ * (`syntheticClientId`), a deduplikację z przeglądarką daje `transaction_id`.
+ * Odczyt zostaje, bo pole jest jedynym miejscem, którym przyszły zapis
+ * (np. z `ga4ClientId()` po stronie klienta) dojedzie tu bez zmian.
+ * Nigdy nie rzuca - analityka nie może wywrócić realizacji płatności.
+ */
+async function reportPurchaseToGa4(data: TransactionData, env: StripeEnv): Promise<void> {
+  try {
+    const tenantId = await purchaseTenant(data.customData, env);
+    if (!tenantId) return;
+    const clientId = data.customData?.["_ga_client_id"];
+    const { sendGa4Purchase } = await import("@/lib/analytics/ga4Mp.server");
+    await sendGa4Purchase({
+      transactionId: data.id,
+      amountCents: amountFromTransaction(data),
+      currency: data.currencyCode ?? null,
+      clientId: typeof clientId === "string" ? clientId : null,
+      tenantId,
+    });
+  } catch (err) {
+    console.error("[payments] GA4 purchase report failed", data.id, err);
+  }
 }
 
 async function handleTransaction(
@@ -391,7 +453,7 @@ async function handleTransaction(
       },
       env,
     );
-    await reportPurchaseToGa4(data);
+    await reportPurchaseToGa4(data, env);
     return;
   }
   // Odnowienie darowizny cyklicznej: brak uprawnień i windykacji planów -

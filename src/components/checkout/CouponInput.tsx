@@ -12,6 +12,10 @@ import { BadgePercent, Loader2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatMoney } from "@/lib/billing/types";
+// Klucze `coupon.*` mieszkają w nakładce profilu. Jedyny użytkownik komponentu
+// (`/checkout/$planId`) i tak ją importuje, więc jawny import nie dokłada bajtów
+// do chunka - a komponent przestaje zależeć od tego, kto go wciągnie.
+import "@/lib/i18n-profile";
 import { useValidateCoupon } from "@/hooks/useValidateCoupon";
 import {
   COUPON_ERROR_I18N_KEY,
@@ -95,8 +99,16 @@ export function CouponInput({ planId, amountCents, currency, onChange }: Props) 
               </span>
             </div>
           </div>
-          <Button size="sm" variant="ghost" onClick={clear} className="h-8">
-            <X className="h-4 w-4" />
+          {/* Przycisk jest samą ikoną - bez nazwy czytnik ekranu mówi tylko
+              „przycisk" obok kwoty rabatu. */}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={clear}
+            className="h-8"
+            aria-label={t("coupon.remove")}
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       ) : (

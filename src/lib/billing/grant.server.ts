@@ -162,14 +162,22 @@ export async function grantEntitlement(
     }
     const ref = externalRef ?? order.id;
 
+    // `order` + `limit(1)`: baza NIE egzekwuje unikalności `external_ref`
+    // (brak indeksu unikalnego - audyt wyd. 11/12). Gołe `maybeSingle()` na
+    // dwóch wierszach z tym samym kluczem kończy się błędem PGRST116, czyli
+    // wyjątkiem niżej - a webhook operatora ponawia wtedy dostarczenie bez
+    // końca i nikt nie dostaje dostępu. Odświeżamy najstarszy wiersz; dostęp
+    // (`has_content_access`) czyta dowolny aktywny, więc to wystarcza.
     const { data: existing, error: existingErr } = await supabaseAdmin
       .from("user_subscriptions")
       .select("id")
       .eq("external_ref", ref)
+      .order("created_at", { ascending: true })
+      .limit(1)
       .maybeSingle();
     // This read picks insert-vs-refresh. If it fails we must not fall through to
-    // the insert branch: external_ref is unique, so the insert would fail too
-    // and the whole grant would be lost.
+    // the insert branch: it would add yet another row for the same external_ref
+    // instead of refreshing the one we could not read.
     if (existingErr) {
       throw new Error(`grant: user_subscriptions lookup failed (${ref}): ${existingErr.message}`);
     }

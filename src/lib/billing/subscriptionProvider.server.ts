@@ -204,16 +204,14 @@ export async function changeSubscriptionPrice(
     }
 
     // Downgrade: bez proraty, zmiana obowiązuje dopiero od nowego okresu -
-    // harmonogram zamiast natychmiastowej podmiany pozycji.
-    await stripe.subscriptionSchedules.create({
+    // harmonogram zamiast natychmiastowej podmiany pozycji. Fazy zapisujemy do
+    // harmonogramu zwróconego przez `create`, a nie „ostatniego" z listy po
+    // kliencie: równoległy harmonogram innej subskrypcji (druga karta, portal
+    // operatora) zostawiłby nasz przypięty, a każde ponowienie `create`
+    // operator by odrzucił.
+    const { id: scheduleId } = await stripe.subscriptionSchedules.create({
       from_subscription: subscriptionId,
     });
-    const schedule = await stripe.subscriptionSchedules.list({
-      customer: typeof current.customer === "string" ? current.customer : current.customer.id,
-      limit: 1,
-    });
-    const scheduleId = schedule.data.find((s) => s.subscription === subscriptionId)?.id;
-    if (!scheduleId) return { ok: false, error: "schedule_missing" };
     const currentPhase = current.items.data.map((i) => ({
       price: typeof i.price === "string" ? i.price : i.price.id,
       quantity: i.quantity,
