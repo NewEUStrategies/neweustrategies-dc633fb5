@@ -388,3 +388,25 @@ describe("GrantsSection - DOSTĘPNOŚĆ pól (bramka po defekcie)", () => {
     );
   });
 });
+
+// NOTATKA NADANIA. Test „po UDANYM nadaniu adres i notatka są czyszczone"
+// wyżej nie wpisuje notatki, więc o czyszczeniu notatki nie mówi nic - a pole
+// notatki nie miało ani jednego wywołania swojego `onChange`. Notatka to
+// jedyny ślad, DLACZEGO ktoś dostał dostęp bez płatności (darowizna, umowa
+// barterowa) - musi dojść do operacji i zniknąć po udanym nadaniu.
+describe("GrantsSection - notatka nadania", () => {
+  it("wpisana notatka dochodzi do nadania i jest czyszczona po sukcesie", async () => {
+    renderSection();
+    await waitFor(() => expect(h.fetch).toHaveBeenCalled());
+
+    fillGrantForm("osoba@example.test", "member", "12");
+    const note = screen.getByLabelText("adminMembership.grants.note");
+    fireEvent.change(note, { target: { value: "darowizna Q1" } });
+    fireEvent.click(screen.getByRole("button", { name: /grants\.grant/ }));
+
+    await waitFor(() => expect(h.grant).toHaveBeenCalledTimes(1));
+    expect(h.grant.mock.calls[0][0]).toMatchObject({ note: "darowizna Q1" });
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(screen.getByLabelText("adminMembership.grants.note")).toHaveValue("");
+  });
+});

@@ -13,6 +13,7 @@ import {
 
 import {
   applyTheme,
+  parseThemeChoice,
   readThemeChoice,
   resolveTheme,
   subscribeSystemTheme,
@@ -89,10 +90,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     apply(theme);
   }, [theme]);
 
+  // Wybór z innej karty przechodzi przez TĘ SAMĄ regułę co start aplikacji.
+  // Wcześniej stała tu jej kopia (`newValue === "dark" ? "dark" : "light"`):
+  // wybór usunięty w innej karcie albo wartość nieznana dawały jasny motyw
+  // przy ciemnym systemie. `key === null` to `localStorage.clear()` w innej
+  // karcie - wybór zniknął tak samo, jak przy usunięciu samego klucza.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY)
-        startTransition(() => setThemeState(e.newValue === "dark" ? "dark" : "light"));
+      if (e.key === STORAGE_KEY || e.key === null)
+        startTransition(() =>
+          setThemeState(resolveTheme(parseThemeChoice(e.newValue), systemPrefersDark())),
+        );
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);

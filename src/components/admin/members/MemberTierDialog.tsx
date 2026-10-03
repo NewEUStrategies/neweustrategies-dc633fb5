@@ -49,6 +49,21 @@ export function MemberTierDialog({ member, tiers, onOpenChange }: Props) {
   const [months, setMonths] = useState<string>("12");
   const [note, setNote] = useState<string>("");
 
+  // FORMULARZ NALEŻY DO OSOBY, NIE DO OKNA. Dialog jest zamontowany w katalogu
+  // na stałe, a otwiera go dopiero wybór osoby - więc stan zainicjowany raz
+  // przenosił plan, czas i notatkę wybrane dla jednej osoby do nadania dla
+  // następnej (a pole planu startowało puste zamiast z jej obecnym planem).
+  // Zmiana osoby zeruje formularz w trakcie renderu - wzorzec Reacta
+  // „dostosowanie stanu przy zmianie propsa", bez efektu i bez mignięcia.
+  const memberId = member?.userId ?? null;
+  const [formFor, setFormFor] = useState<string | null>(memberId);
+  if (formFor !== memberId) {
+    setFormFor(memberId);
+    setTierKey(member?.tierKey ?? "");
+    setMonths("12");
+    setNote("");
+  }
+
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-members"] });
     if (member) {

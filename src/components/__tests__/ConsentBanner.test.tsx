@@ -8,7 +8,7 @@
 //  4. teksty idą z konfiguracji w wersji PL/EN (bez hardkodów w komponencie),
 //  5. w kaflu ikony ląduje logo marki, a bez logo - zapasowa ikona.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act, within } from "@testing-library/react";
 
 import type { ConsentState } from "@/lib/ads/consent";
 import { requestOverlaySlot, __resetOverlayCoordinator } from "@/lib/overlayCoordinator";
@@ -358,5 +358,125 @@ describe("ConsentBanner - puste pole treści z panelu", () => {
     render(<ConsentBanner configOverride={cleared} />);
     expect(screen.getByRole("button", { name: PL.acceptAll })).toBeInTheDocument();
     expect(screen.getByRole("dialog", { name: PL.title })).toBeInTheDocument();
+  });
+});
+
+// MODAL „SZCZEGÓŁY I PODMIOTY" I PONOWNE OTWARCIE PREFERENCJI. Dotąd test
+// otwierał modal i liczył przyciski podmiotów - żadna z trzech decyzji w stopce
+// modala, rozwinięcie tabeli podmiotów ani przełącznik kategorii W MODALU nie
+// miały wywołania. A to jest jedyna droga do zmiany zgody PO decyzji (link
+// „Ustawienia cookies" w stopce strony), czyli połowa kontraktu RODO: zgodę
+// musi dać się wycofać tak samo łatwo, jak ją wyrażono.
+describe("ConsentBanner - modal szczegółów: decyzje i podmioty", () => {
+  const openDetails = () => {
+    openPrefs();
+    fireEvent.click(screen.getByRole("button", { name: PL.showDetails }));
+    return screen.getByRole("dialog");
+  };
+
+  it("tabela podmiotów kategorii rozwija się i zwija, z nazwą, stroną, celem i okresem", () => {
+    render(<ConsentBanner />);
+    openDetails();
+    const toggle = screen.getAllByRole("button", {
+      name: (name) => name.startsWith(PL.showVendors),
+    })[2];
+    if (!toggle) throw new Error("brak przycisku podmiotów analityki");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const rows = screen.getAllByRole("row");
+    // Nagłówek + jeden wiersz na pozycję rejestru analityki.
+    expect(rows).toHaveLength(REGISTRY_BY_CATEGORY.analytics.length + 1);
+
+    fireEvent.click(screen.getByRole("button", { name: (n) => n.startsWith(PL.hideVendors) }));
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("przełącznik kategorii W MODALU i „Zapisz wybrane” zapisują ten zestaw", () => {
+    render(<ConsentBanner />);
+    const dialog = openDetails();
+    const marketing = within(dialog).getByRole("checkbox", { name: PL.categoryMarketing });
+    fireEvent.click(marketing);
+    fireEvent.click(within(dialog).getByRole("button", { name: PL.saveSelection }));
+    expect(h.save).toHaveBeenCalledWith({
+      necessary: true,
+      functional: false,
+      analytics: false,
+      marketing: true,
+    });
+  });
+
+  it("„Odrzuć wszystkie” w modalu odrzuca, „Akceptuj wszystkie” - akceptuje", () => {
+    const { unmount } = render(<ConsentBanner />);
+    let dialog = openDetails();
+    fireEvent.click(within(dialog).getByRole("button", { name: PL.rejectAll }));
+    expect(h.rejectAll).toHaveBeenCalledTimes(1);
+    unmount();
+
+    render(<ConsentBanner />);
+    dialog = openDetails();
+    fireEvent.click(within(dialog).getByRole("button", { name: PL.acceptAll }));
+    expect(h.acceptAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("PO decyzji: zdarzenie z linku w stopce otwiera modal, a Escape i tło go zamykają", () => {
+    h.state = {
+      version: 1,
+      ts: 0,
+      categories: { necessary: true, functional: true, analytics: true, marketing: false },
+    };
+    render(<ConsentBanner />);
+    // Decyzja zapadła - baner milczy.
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new Event("consent-open-preferences"));
+    });
+    const dialog = screen.getByRole("dialog");
+    // Modal startuje od ZAPISANEJ decyzji, nie od pustego szkicu.
+    expect(within(dialog).getByRole("checkbox", { name: PL.categoryAnalytics })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(within(dialog).getByRole("button", { name: "Zamknij" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new Event("consent-open-preferences"));
+    });
+    // Tłem jest sam element `role="dialog"` (pełnoekranowa warstwa); klik
+    // w kartę wewnątrz NIE zamyka - przerywa propagację.
+    const backdrop = screen.getByRole("dialog");
+    fireEvent.click(within(backdrop).getByRole("heading", { name: PL.title }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(backdrop);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("przełącznik języka w banerze zmienia język treści", async () => {
+    render(
+      <ConsentBanner configOverride={{ ...COOKIE_BANNER_DEFAULTS, languageSwitcher: true }} />,
+    );
+    const group = screen.getByRole("group", { name: "PL / EN" });
+    // Klik w język bieżący nic nie robi.
+    fireEvent.click(within(group).getByRole("button", { name: "PL" }));
+    expect(i18n.language).toBe("pl");
+
+    await act(async () => {
+      fireEvent.click(within(group).getByRole("button", { name: "EN" }));
+    });
+    expect(screen.getByRole("button", { name: EN.acceptAll })).toBeInTheDocument();
+    await i18n.changeLanguage("pl");
+  });
+
+  it("logo, które się nie wczytało, ustępuje zapasowej ikonie", () => {
+    const { container } = render(<ConsentBanner />);
+    const img = container.querySelector("img");
+    if (!img) throw new Error("brak logo");
+    fireEvent.error(img);
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("svg")).not.toBeNull();
   });
 });

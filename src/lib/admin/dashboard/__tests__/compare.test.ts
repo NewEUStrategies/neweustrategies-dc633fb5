@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { computeDelta, formatDeltaPercent, rate } from "../compare";
+import {
+  computeDelta,
+  formatCount,
+  formatDecimal,
+  formatDeltaPercent,
+  formatMoneyCents,
+  formatShare,
+  rate,
+} from "../compare";
 
 describe("computeDelta - arytmetyka", () => {
   it("liczy różnicę bezwzględną i względną", () => {
@@ -74,5 +82,41 @@ describe("rate", () => {
 
   it("pusty mianownik daje null, a nie zero", () => {
     expect(rate(0, 0)).toBeNull();
+  });
+});
+
+// Separator dziesiętny jest decyzją o locale. Panele pulpitu sklejały wcześniej
+// `toFixed` z "%", więc polski ekran mieszał „42.0%" z „12 345".
+describe("formatShare / formatDecimal - locale, nie `toFixed`", () => {
+  it("procent udziału z przecinkiem po polsku i kropką po angielsku", () => {
+    expect(formatShare(0.42, "pl")).toBe("42,0%");
+    expect(formatShare(0.42, "en")).toBe("42.0%");
+  });
+
+  it("liczba cyfr po przecinku jest parametrem, z jedną domyślnie", () => {
+    expect(formatShare(0.4249, "pl", 0)).toBe("42%");
+    expect(formatShare(0.04249, "pl", 1)).toBe("4,2%");
+  });
+
+  it("wartość ułamkowa nie traci zera po przecinku i idzie za językiem", () => {
+    expect(formatDecimal(2.5, "pl")).toBe("2,5");
+    expect(formatDecimal(2.5, "en")).toBe("2.5");
+    expect(formatDecimal(3, "pl")).toBe("3,0");
+  });
+});
+
+describe("formatCount / formatMoneyCents", () => {
+  it("zaokrągla do całości i grupuje tysiące wg języka", () => {
+    expect(formatCount(12345.6, "pl")).toBe("12 346");
+    expect(formatCount(12345.6, "en")).toBe("12,346");
+  });
+
+  it("kwota w groszach to pełne jednostki waluty, bez groszy", () => {
+    expect(formatMoneyCents(1_234_567, "PLN", "pl")).toBe("12 346 zł");
+    expect(formatMoneyCents(1_234_567, "EUR", "en")).toBe("€12,346");
+  });
+
+  it("pusta waluta spada na PLN zamiast rzucić", () => {
+    expect(formatMoneyCents(10_000, "", "pl")).toBe("100 zł");
   });
 });

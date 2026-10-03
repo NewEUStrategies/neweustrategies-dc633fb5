@@ -14,7 +14,7 @@ import "@/lib/i18n-admin-dashboard";
 
 import { cn } from "@/lib/utils";
 import { chartLangFrom } from "@/lib/charts/format";
-import { formatCount } from "@/lib/admin/dashboard/compare";
+import { formatCount, formatShare } from "@/lib/admin/dashboard/compare";
 
 export interface RankedRow {
   /** Klucz React i identyfikator wiersza. */
@@ -110,7 +110,7 @@ export function RankedList({
                 {formatCount(row.value, lang)}
                 {share !== null ? (
                   <span className="block text-[10px] text-muted-foreground">
-                    {(share * 100).toFixed(share < 0.1 ? 1 : 0)}%
+                    {formatShare(share, lang, share < 0.1 ? 1 : 0)}
                   </span>
                 ) : null}
               </td>

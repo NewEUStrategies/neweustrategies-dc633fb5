@@ -242,3 +242,113 @@ describe("MethodologyNote", () => {
     expect(v, summarize(v)).toEqual([]);
   });
 });
+
+// INTERAKCJE CECH. Testy wyżej sprawdzają render i dostępność; podświetlenie
+// (wskaźnik i klawiatura), filtr typów źródeł i sortowanie po roku nie miały
+// wykonania. Podświetlenie z klawiatury jest tu kontraktem, nie ozdobą: węzeł
+// sieci jest przystankiem tabulatora, więc fokus musi dawać ten sam skutek
+// co najechanie - inaczej osoba z klawiaturą nie ma jak wyróżnić relacji.
+describe("Interakcje cech", () => {
+  const network = {
+    title: "Sieć",
+    description: "",
+    source: "",
+    height: 400,
+    animate: false,
+    edges: [
+      { a: bi("A|A"), b: bi("B|B"), strength: 3, label: bi("rel|rel") },
+      { a: bi("B|B"), b: bi("C|C"), strength: 2, label: bi("") },
+    ],
+    groups: [],
+  };
+
+  it("RelationNetwork: fokus i najechanie na węzeł przygaszają pozostałe, wyjście przywraca", () => {
+    const { container } = render(<RelationNetwork config={network} lang="pl" />);
+    const nodes = Array.from(container.querySelectorAll<SVGGElement>("g.nes-network-node"));
+    const dimmed = () => nodes.filter((n) => n.hasAttribute("data-dim")).length;
+
+    fireEvent.focus(nodes[0] as SVGGElement);
+    expect(dimmed()).toBe(2);
+    fireEvent.blur(nodes[0] as SVGGElement);
+    expect(dimmed()).toBe(0);
+
+    fireEvent.pointerEnter(nodes[1] as SVGGElement);
+    expect(dimmed()).toBe(2);
+    expect(nodes[1]?.hasAttribute("data-dim")).toBe(false);
+    fireEvent.pointerLeave(nodes[1] as SVGGElement);
+    expect(dimmed()).toBe(0);
+  });
+
+  it("SankeyDiagram: najechanie na wstęgę wyróżnia ją i przygasza resztę", () => {
+    const sankey = {
+      title: "Przepływy",
+      description: "",
+      source: "",
+      unit: " mld",
+      height: 320,
+      animate: false,
+      flows: [
+        { from: bi("A|A"), to: bi("C|C"), value: 10 },
+        { from: bi("B|B"), to: bi("C|C"), value: 5 },
+      ],
+    };
+    const { container } = render(<SankeyDiagram config={sankey} lang="pl" />);
+    const bands = Array.from(container.querySelectorAll<SVGPathElement>("path.nes-sankey-band"));
+    fireEvent.pointerEnter(bands[0] as SVGPathElement);
+    expect(bands[0]?.getAttribute("data-active")).toBe("true");
+    expect(bands[1]?.getAttribute("data-dim")).toBe("true");
+    fireEvent.pointerLeave(bands[0] as SVGPathElement);
+    expect(bands.some((b) => b.hasAttribute("data-dim"))).toBe(false);
+  });
+
+  it("SourceLibrary: chipy typów filtrują, „Wszystkie” wraca, sortowanie od najnowszych", () => {
+    render(
+      <SourceLibrary
+        config={{
+          title: "Źródła",
+          description: "",
+          source: "",
+          sort: "year-desc" as const,
+          showSearch: false,
+          entries: [
+            {
+              kind: bi("Raport|Report"),
+              year: "2019",
+              title: bi("Stary"),
+              publisher: bi("KE"),
+              url: "",
+            },
+            {
+              kind: bi("Dane|Data"),
+              year: "2025",
+              title: bi("Nowy"),
+              publisher: bi("GUS"),
+              url: "",
+            },
+            {
+              kind: bi("Raport|Report"),
+              year: "brak",
+              title: bi("Bez roku"),
+              publisher: bi("X"),
+              url: "",
+            },
+          ],
+        }}
+        lang="en"
+      />,
+    );
+    const titles = () => screen.getAllByRole("listitem").map((r) => r.textContent ?? "");
+    // Najnowszy pierwszy, rok nieliczbowy na końcu.
+    expect(titles()[0]).toContain("Nowy");
+    expect(titles().at(-1)).toContain("Bez roku");
+
+    fireEvent.click(screen.getByRole("button", { name: "Report" }));
+    expect(screen.queryByText("Nowy")).toBeNull();
+    expect(screen.getByRole("button", { name: "Report" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    expect(screen.getByText("Nowy")).toBeTruthy();
+  });
+});

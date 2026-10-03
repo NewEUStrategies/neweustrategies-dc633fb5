@@ -1872,11 +1872,14 @@ export default defineConfig({
           lines: 96,
           branches: 89,
         },
+        // PODNIESIONE 2026-10-03 (kampania powłoki): 97,07 / 94,78 / 88,24 / 94,58 ->
+        // 99,51 / 99,13 / 91,76 / 98,33 (odmowa bazy przy mutacjach warstw, ranga
+        // nowej warstwy, notatka nadania).
         "src/components/admin/membership/**": {
-          statements: 91,
-          functions: 90,
-          lines: 94,
-          branches: 85,
+          statements: 94,
+          functions: 95,
+          lines: 95,
+          branches: 87,
         },
         // Selektory i model karty cennika: drabinka warstw, framing ceny
         // rocznej, wybór planu do checkoutu. Czysta warstwa reguł - trzymana
@@ -7367,10 +7370,14 @@ export default defineConfig({
         // panelu monetyzacji stał na 40,00 / 50,00 / 42,86 / 43,48).
         // Funkcje najniżej w module: `SlotsPanel` 75,00% i `PlacementsPanel`
         // 76,92% - niedobite są procedury zapisu wariantów wymiarów kreacji.
+        // PODNIESIONE 2026-10-03 (kampania powłoki, ta sama metoda co blok
+        // „POWŁOKA PANELU ADMIN + ATOMY/MOLEKUŁY"): 92,55 / 83,33 / 88,30 / 93,14 ->
+        // 100 / 100 / 88,30 / 100 - każde pole formularzy slotu i pozycji dochodzi
+        // teraz do INSERT w teście.
         "src/components/admin/ads/**": {
-          statements: 89,
-          functions: 79,
-          lines: 88,
+          statements: 98,
+          functions: 98,
+          lines: 98,
           branches: 84,
         },
         // Panel kuponów i kampanii rabatowych. Kupon to RABAT NA PIENIĄDZACH:
@@ -8565,6 +8572,159 @@ export default defineConfig({
           branches: 98,
         },
 
+        // ── POWŁOKA PANELU ADMIN + ATOMY/MOLEKUŁY - kampania 2026-10-03 ──
+        //
+        // Wejście: tabela 19 funkcjonalności przekroju `X-admin-shell` (507 z 6 653
+        // linii bez testu), najsłabsza „Panel admina: pulpit i agregaty
+        // dashboardu" - 32,3% linii, 14 z 20 plików na zerze.
+        //
+        // ZMIERZONE 2026-10-03 tą samą metodą przed i po (worktree na HEAD
+        // 531a2c5 i na bf505c1), include = 266/267 plików powierzchni wg
+        // `scripts/taxonomy/moduleMap.mjs` (kubełek `admin-shell`):
+        //   npx vitest run src/components src/hooks src/routes --coverage.enabled \
+        //     --coverage.include=<każdy plik powierzchni> \
+        //     --coverage.reporter=json-summary --coverage.reporter=json
+        // (przed: 1 536 plików testowych, po: 1 552; 230 it.fails w obu, zero
+        // czerwonych). Pełna suita zawiera te same testy, więc daje NIE MNIEJ.
+        // Cała powierzchnia: linie 6 247/6 749 -> 6 725/6 761 (niepokryte
+        // 502 -> 36), funkcje 2 176/2 423 -> 2 408/2 423 (247 -> 15), gałęzie
+        // 86,36% -> 92,32%, pliki na zerze 18 -> 0.
+        //
+        // Liczby w komentarzach: przed -> po, w porządku linie / funkcje /
+        // gałęzie / instrukcje. Podłoga: per plik zmierzone minus ~2 pp, per
+        // glob minus ~4 pp, 100 -> 98. Progi wolno WYŁĄCZNIE podnosić.
+        //
+        // GLOBY TYLKO NA KATALOGI W CAŁOŚCI NALEŻĄCE DO POWIERZCHNI (sprawdzone:
+        // liczba plików produkcyjnych katalogu = liczba plików powierzchni
+        // w nim). `src/components/atoms` (26 vs 25), `src/components/molecules`
+        // (16 vs 15) i `src/hooks` (40 vs 11) mają pliki innych modułów, których
+        // ten pomiar nie objął - podłoga globu wzięta z części katalogu byłaby
+        // liczbą z sufitu, więc tam progi stoją per plik.
+        //
+        // Pulpit admina (14 plików, 13 było na zerze): 1,01 / 0,98 / 13,92 / 0,95 ->
+        // 100 / 100 / 99,37 / 100.
+        "src/components/admin/dashboard/**": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // Katalog członków (4 pliki, w tym nowy `memberMoney.ts`): 41,96 / 33,33 /
+        // 34,44 / 39,37 -> 100 / 100 / 92 / 97,84.
+        "src/components/admin/members/**": {
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // Atomy panelu (7 plików): 72,34 / 81,25 / 66,67 / 72,92 -> 100 / 100 / 87,30 / 100.
+        "src/components/admin/atoms/**": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // Molekuły panelu (15 plików): 84,57 / 85,71 / 80,77 / 82,74 -> 99,43 / 98,41 /
+        // 91,54 / 97,97.
+        "src/components/admin/molecules/**": {
+          statements: 93,
+          functions: 94,
+          lines: 95,
+          branches: 87,
+        },
+        // Cechy wpisu (10 plików): 93,57 / 83,12 / 84,56 / 92,98 -> 96,43 / 93,51 /
+        // 88,60 / 95,99.
+        "src/components/features/**": {
+          statements: 91,
+          functions: 89,
+          lines: 92,
+          branches: 84,
+        },
+        // SaveArticleButton.tsx: 8,33 / 0 / 0 / 7,69 -> 100 / 100 / 96,67 / 100.
+        "src/components/atoms/SaveArticleButton.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // PodcastPlayer.tsx: 78,38 / 74,36 / 58,47 / 72,94 -> 99,32 / 100 / 86,44 / 94,71.
+        "src/components/atoms/PodcastPlayer.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 97,
+          branches: 84,
+        },
+        // AvatarGroup.tsx: 93,43 / 82,61 / 87,43 / 92,17 -> 97,81 / 97,83 / 91,02 / 97,59.
+        "src/components/atoms/AvatarGroup.tsx": {
+          statements: 95,
+          functions: 95,
+          lines: 95,
+          branches: 89,
+        },
+        // LinkedItemsCard.tsx: 0 / 0 / 0 / 0 -> 100 / 100 / 100 / 100.
+        "src/components/molecules/LinkedItemsCard.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // PresenceIndicator.tsx: 0 / 0 / 0 / 0 -> 100 / 100 / 100 / 100.
+        "src/components/molecules/PresenceIndicator.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // PostListCard.tsx: 72,22 / 20 / 62,79 / 61,90 -> 100 / 100 / 93,02 / 95,24.
+        "src/components/molecules/PostListCard.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 91,
+        },
+        // useFontScale.ts: 40 / 33,33 / 16,67 / 35,29 -> 100 / 100 / 100 / 100.
+        "src/hooks/useFontScale.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // useFaceAwarePosition.ts: 66 / 100 / 59,09 / 66,67 -> 100 / 100 / 95,45 / 98,25.
+        "src/hooks/useFaceAwarePosition.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // ConsentBanner.tsx: 91,57 / 79,37 / 82,74 / 89,45 -> 99,40 / 98,41 / 86,31 / 97,49.
+        "src/components/ConsentBanner.tsx": {
+          statements: 95,
+          functions: 96,
+          lines: 97,
+          branches: 84,
+        },
+        // ThemeProvider.tsx: 90,24 / 76,92 / 44,44 / 82,69 -> 100 / 100 / 83,33 / 96,15.
+        "src/components/ThemeProvider.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 81,
+        },
+        // Footnotes.tsx: 91,04 / 84,21 / 73,17 / 85,37 -> 100 / 100 / 85,37 / 97,56.
+        "src/components/Footnotes.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // MembershipWelcome.tsx: 80 / 37,50 / 53,16 / 75,76 -> 100 / 100 / 93,67 / 100.
+        "src/components/membership/MembershipWelcome.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 91,
+        },
+
         // ── PRZESTRZEŃ ROBOCZA CZŁONKA (dok) - 32 PLIKI, WCZEŚNIEJ ZERO PROGÓW ──
         //
         // POWÓD, DLA KTÓREGO TEN BLOK ISTNIEJE. Przed 14.09.2026 ŻADEN z 32
@@ -8600,10 +8760,13 @@ export default defineConfig({
           lines: 98,
           branches: 81,
         },
+        // PODNIESIONE 2026-10-03 (kampania powłoki): 94,19 / 91,30 / 88,46 / 93,94 ->
+        // 100 / 100 / 88,46 / 98,99 (szyna zminimalizowanych rozmów otwiera
+        // skrzynkę doku, Escape zamyka panel).
         "src/components/dock/WorkspaceDock.tsx": {
-          statements: 91,
-          functions: 89,
-          lines: 92,
+          statements: 96,
+          functions: 98,
+          lines: 98,
           branches: 86,
         },
         "src/components/dock/atoms/DockEmptyState.tsx": {

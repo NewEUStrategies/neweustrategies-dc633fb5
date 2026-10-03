@@ -535,3 +535,50 @@ describe("DOSTĘPNOŚĆ pól panelu członkostwa (bramka po defekcie)", () => {
     expect(dialog.getByLabelText("adminMembership.fields.rank")).toBeInTheDocument();
   });
 });
+
+// RANGA I ANULOWANIE. Ranga ustala miejsce warstwy na drabince - porównania
+// „ta warstwa obejmuje tamtą" idą po niej - więc wpisana ranga MUSI dojść do
+// `onCreate`, a pole wyczyszczone nie może dać `NaN`. Obie procedury
+// (`onChange` rangi, przycisk anulowania) nie miały dotąd ani jednego wywołania.
+describe("NewTierDialog - ranga i anulowanie", () => {
+  function open(suggestedRank = 20) {
+    const onCreate = vi.fn();
+    render(
+      <NewTierDialog
+        existingKeys={[]}
+        suggestedRank={suggestedRank}
+        onCreate={onCreate}
+        isPending={false}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /newTierDialog\.title/ }));
+    const dialog = screen.getByRole("dialog");
+    const [key, namePl, nameEn] = within(dialog).getAllByRole("textbox");
+    fireEvent.change(key as HTMLElement, { target: { value: "patron" } });
+    fireEvent.change(namePl as HTMLElement, { target: { value: "Patron" } });
+    fireEvent.change(nameEn as HTMLElement, { target: { value: "Patron" } });
+    const rank = within(dialog).getByRole("spinbutton");
+    return { onCreate, rank };
+  }
+
+  it("wpisana ranga zastępuje podpowiedź", () => {
+    const { onCreate, rank } = open(20);
+    fireEvent.change(rank, { target: { value: "35" } });
+    fireEvent.click(screen.getByRole("button", { name: /newTierDialog\.create/ }));
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ rank: 35 }));
+  });
+
+  it("wyczyszczona ranga to zero, nie `NaN`", () => {
+    const { onCreate, rank } = open(20);
+    fireEvent.change(rank, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /newTierDialog\.create/ }));
+    expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({ rank: 0 }));
+  });
+
+  it("anulowanie zamyka okno i niczego nie tworzy", () => {
+    const { onCreate } = open();
+    fireEvent.click(screen.getByRole("button", { name: /newTierDialog\.cancel/ }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+});
