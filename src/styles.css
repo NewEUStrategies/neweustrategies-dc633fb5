@@ -6922,9 +6922,12 @@ html {
   [data-columns-row] > [data-column-slot] {
     position: relative;
   }
-  [data-columns-row] > [data-column-slot] + [data-column-slot] {
+  [data-columns-row] > [data-column-slot] + [data-column-slot]:not([data-search-overflow]) {
     /* Kreska rysuje się w gapie, więc slot musi pozwolić na malowanie
-       poza swoim boxem - clip + margin zachowuje ochronę przed overflowem. */
+       poza swoim boxem - clip + margin zachowuje ochronę przed overflowem.
+       Slot z wyszukiwarką (`data-search-overflow`) jest wyłączony: ten clip
+       ma specyficzność (0,3,0) z !important, więc reguła znacznika (0,2,0)
+       przegrywała i popover w drugiej i dalszej kolumnie był ucinany. */
     overflow: clip !important;
     overflow-clip-margin: 24px;
   }
