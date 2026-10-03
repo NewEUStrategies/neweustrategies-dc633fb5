@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/card";
 import { ChartCard } from "@/components/admin/analytics/ChartCard";
 import { biChart } from "@/components/admin/analytics/biChart";
 import { chartLangFrom } from "@/lib/charts/format";
-import { computeDelta, formatCount, rate } from "@/lib/admin/dashboard/compare";
+import { computeDelta, formatCount, formatDecimal, rate } from "@/lib/admin/dashboard/compare";
 import { bucketLabel, dashboardRangeLabel } from "@/lib/admin/dashboard/labels";
 import type { DashboardRange } from "@/lib/admin/dashboard/period";
 import type { TrafficReport } from "@/lib/admin/dashboard/types";
@@ -109,7 +109,7 @@ export function TrafficPanel({ report, range }: TrafficPanelProps) {
           // Wskaźnik pochodny: bez sesji nie ma z czego liczyć, więc kafelek
           // pokazuje kreskę, a nie zero - zero twierdziłoby, że były wizyty
           // i nikt nic nie otworzył.
-          value={perSession === null ? "-" : perSession.toFixed(1)}
+          value={perSession === null ? "-" : formatDecimal(perSession, lang)}
           delta={
             perSession !== null && prevPerSession !== null
               ? computeDelta(perSession, prevPerSession)
@@ -127,7 +127,7 @@ export function TrafficPanel({ report, range }: TrafficPanelProps) {
         csv={{
           filename: "ruch",
           headers: [
-            t("adminDashboard.traffic.colPath"),
+            t("adminDashboard.export.bucket"),
             t("adminDashboard.traffic.colSessions"),
             t("adminDashboard.traffic.colViews"),
           ],

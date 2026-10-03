@@ -6,15 +6,20 @@
 // więc cała kompozycja jest edytowalna z panelu admina.
 //
 // 6px rounding, zero zależności animacyjnych (czysty CSS + interval), kolory z
-// tokenów popupu (--nl-*). Atrament galerii wyliczamy z luminancji gradientu,
-// żeby jasny gradient nie dawał białego tekstu na białym tle.
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
-import { ArrowRight } from "lucide-react";
+// tokenów popupu (--nl-*). Atrament galerii wybieramy KONTRASTEM WCAG do bazy
+// gradientu (a nie progiem luminancji), żeby półtony nie dostawały białego
+// tekstu o kontraście 3:1, gdy ciemny atrament daje na nich ponad 5:1.
+//
+// Auto-rotacja zmienia też podpis, więc stoi pod kursorem i przy ognisku
+// w galerii oraz nie startuje przy `prefers-reduced-motion` (WCAG 2.2.2).
+import { useEffect, useMemo, useState, type CSSProperties, type FocusEvent } from "react";
+import { ArrowRight } from "@/lib/lucide-shim";
 import { PopupImage } from "@/components/atoms/PopupImage";
 import { popupGallerySizes } from "@/lib/newsletter/popupImages";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import {
+  contrastRatio,
   galleryBackground,
-  isDarkSurface,
   type GalleryBlock,
   type PopupGalleryDesign,
   type PopupPalette,
@@ -69,6 +74,21 @@ function referencePlacement(count: number, index: number): CSSProperties {
   return { gridColumn: "1 / span 2", gridRow: "3" };
 }
 
+const INK_LIGHT = "#ffffff";
+const INK_DARK = "#0b0b0f";
+
+/**
+ * Czy galeria dostaje jasny atrament: ten z dwóch atramentów galerii, który ma
+ * lepszy kontrast z bazą gradientu. Baza nieczytelna (np. `color-mix(...)`)
+ * liczy się jak ciemna, bo domyślną bazą jest tło panelu.
+ */
+function prefersLightInk(base: string): boolean {
+  const onLight = contrastRatio(base, INK_LIGHT);
+  const onDark = contrastRatio(base, INK_DARK);
+  if (onLight === null || onDark === null) return true;
+  return onLight > onDark;
+}
+
 /** Mozaika 3x3 - układ z pierwszego wdrożenia, zachowany jako wariant. */
 const MOSAIC_PLACEMENT: CSSProperties[] = [
   { gridColumn: "span 2", gridRow: "span 2" },
@@ -97,28 +117,30 @@ export function SignupShowcase({
   panelSplit = "half",
 }: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const reducedMotion = usePrefersReducedMotion(autoRotate);
   const tiles = useMemo(() => images.slice(0, 4), [images]);
   const count = tiles.length;
+  const rotating = autoRotate && !reducedMotion && !hovered && !focused;
 
   useEffect(() => {
-    if (!autoRotate || count < 2) return;
+    if (!rotating || count < 2) return;
     const ms = Math.min(30000, Math.max(800, rotateMs));
     const id = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % count);
     }, ms);
     return () => window.clearInterval(id);
-  }, [autoRotate, count, rotateMs]);
+  }, [rotating, count, rotateMs]);
 
   useEffect(() => {
     if (activeIndex >= count) setActiveIndex(0);
   }, [activeIndex, count]);
 
   const active = tiles[Math.min(activeIndex, Math.max(0, count - 1))];
-  // Atrament liczymy z bazy gradientu (gradFrom). Gdy jest to `color-mix(...)`,
-  // luminancja jest nieznana - traktujemy powierzchnię jak ciemną, bo domyślna
-  // baza galerii to tło panelu.
-  const galleryDark = isDarkSurface(palette.gradFrom);
-  const ink = galleryDark ? "#ffffff" : "#0b0b0f";
+  // Atrament liczymy z bazy gradientu (gradFrom) - patrz `prefersLightInk`.
+  const galleryDark = prefersLightInk(palette.gradFrom);
+  const ink = galleryDark ? INK_LIGHT : INK_DARK;
   const inkMuted = galleryDark ? "rgba(255,255,255,0.66)" : "rgba(11,11,15,0.62)";
   const radius = `${radiusPx}px`;
   const alignLeft = design.align === "left";
@@ -245,7 +267,7 @@ export function SignupShowcase({
                 radiusPx={radiusPx}
                 placement={
                   design.grid === "mosaic"
-                    ? (MOSAIC_PLACEMENT[index] ?? {})
+                    ? MOSAIC_PLACEMENT[index]
                     : referencePlacement(Math.min(count, 4), index)
                 }
               />
@@ -355,9 +377,18 @@ export function SignupShowcase({
     dots,
   };
 
+  const handleBlur = (e: FocusEvent<HTMLDivElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setFocused(false);
+  };
+
   return (
     <div
       data-showcase-root=""
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={handleBlur}
       className={
         "relative flex h-full min-h-0 flex-col gap-3.5 sm:gap-5 " +
         (alignLeft ? "items-start" : "items-center")

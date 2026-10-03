@@ -30,6 +30,7 @@ import { uiLocale } from "@/lib/i18n/format";
 import { AppLink } from "@/components/atoms/AppLink";
 import { MemberBillingDetails } from "./MemberBillingDetails";
 import { MemberTierDialog } from "./MemberTierDialog";
+import { memberMoney } from "./memberMoney";
 import "@/lib/i18n-admin-members";
 
 const ALL = "__all__";
@@ -112,8 +113,7 @@ export function MembersDirectoryPanel() {
 
   const pages = Math.max(1, Math.ceil((data?.total ?? 0) / (data?.pageSize ?? 25)));
 
-  const money = (cents: number, currency: string) =>
-    new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
+  const money = (cents: number, currency: string) => memberMoney(cents, currency, locale);
 
   return (
     <div className="space-y-6">
@@ -208,13 +208,16 @@ export function MembersDirectoryPanel() {
             </tr>
           </thead>
           <tbody>
+            {/* Przy błędzie odczytu komunikat stoi nad tabelą, a ciało zostaje
+                puste: wiersz „brak członków spełniających kryteria" twierdziłby,
+                że ich nie ma. */}
             {isLoading ? (
               <tr>
                 <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
                   {t("adminMembers.table.loading")}
                 </td>
               </tr>
-            ) : rows.length === 0 ? (
+            ) : isError ? null : rows.length === 0 ? (
               <tr>
                 <td className="px-4 py-6 text-muted-foreground" colSpan={7}>
                   {t("adminMembers.table.empty")}

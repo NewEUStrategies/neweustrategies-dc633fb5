@@ -98,10 +98,10 @@ function fill(template: string, token: string, value: string | number): string {
  * Odczyt/zapis polubienia w przeglądarce odwiedzającego. `localStorage` bywa
  * niedostępny (tryb prywatny Safari, zablokowane dane witryny), więc każde
  * dotknięcie jest osłonięte - brak pamięci degraduje do stanu w pamięci
- * komponentu, nie do wyjątku w renderze.
+ * komponentu, nie do wyjątku w renderze. Obie funkcje biegną wyłącznie w efekcie
+ * i w handlerze, czyli w przeglądarce - osłona `typeof window` byłaby martwa.
  */
-function readStoredLike(key: string | null | undefined): boolean {
-  if (!key || typeof window === "undefined") return false;
+function readStoredLike(key: string): boolean {
   try {
     return window.localStorage.getItem(key) === "1";
   } catch {
@@ -109,8 +109,8 @@ function readStoredLike(key: string | null | undefined): boolean {
   }
 }
 
-function writeStoredLike(key: string | null | undefined, liked: boolean): void {
-  if (!key || typeof window === "undefined") return;
+function writeStoredLike(key: string | null, liked: boolean): void {
+  if (!key) return;
   try {
     if (liked) window.localStorage.setItem(key, "1");
     else window.localStorage.removeItem(key);
@@ -146,9 +146,16 @@ export function TravelRouteCard({
 
   // Pamięć przeglądarki czytana PO zamontowaniu: pierwszy render musi być
   // identyczny na serwerze i w kliencie, inaczej hydracja zgłasza rozjazd.
+  // Zdarzenie `storage` trzyma w zgodzie tę samą trasę otwartą w innej karcie
+  // przeglądarki (`key === null` to wyczyszczenie całej pamięci witryny).
   useEffect(() => {
     if (!storageKey) return;
     setLiked(readStoredLike(storageKey));
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === storageKey || event.key === null) setLiked(readStoredLike(storageKey));
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, [storageKey]);
 
   // Zapis siedzi w HANDLERZE, nie w funkcji aktualizującej stan: React wywołuje

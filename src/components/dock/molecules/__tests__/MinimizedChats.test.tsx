@@ -452,3 +452,42 @@ describe("dostępność", () => {
     expect(violations, summarize(violations)).toEqual([]);
   });
 });
+
+// MOBILNY DYMEK TO TEN SAM PRZYCISK PRZYWRÓCENIA, CO PIGUŁKA NA DESKTOPIE.
+// Reguła architektury (AGENTS.md): oba warianty rysują się z TEGO SAMEGO
+// magazynu sesji, więc przywrócenie z telefonu musi dać dokładnie ten sam stan
+// co z desktopu - rozmowa zdjęta z szyny, prośba o otwarcie, skrzynka otwarta.
+// Klik w mobilny dymek nie miał wykonania (próg pliku stał przez to na 97%).
+describe("mobilne dymki - przywracanie i licznik", () => {
+  function mobileBubble(name: string): HTMLElement {
+    const mobileRail = document.querySelector<HTMLElement>("[data-mobile-minimized-chats]");
+    if (!mobileRail) throw new Error("test: brak mobilnych dymków rozmów");
+    return within(mobileRail).getByLabelText(dockPl.dock.chat.restore.replace("{{name}}", name));
+  }
+
+  it("dymek przywraca rozmowę przez wspólny magazyn i otwiera skrzynkę", () => {
+    const { onOpenInbox } = renderRail();
+    minimize({ id: CHAT_IDS.conversation, name: PEER_NAME });
+
+    fireEvent.click(mobileBubble(PEER_NAME));
+
+    const snapshot = minimizedChatsStore.getSnapshot();
+    expect(snapshot.minimized).toEqual([]);
+    expect(snapshot.requested).toBe(CHAT_IDS.conversation);
+    expect(onOpenInbox).toHaveBeenCalledTimes(1);
+    // Szyna zniknęła z OBU wariantów naraz - jeden magazyn, jeden stan.
+    expect(document.querySelector("[data-mobile-minimized-chats]")).toBeNull();
+    expect(document.querySelector("[data-desktop-minimized-chats]")).toBeNull();
+  });
+
+  it("licznik nieprzeczytanych powyżej stu skraca się do 99+", () => {
+    h.views = [conversationView({ me: { unread_count: 140 } })];
+    h.peers = peerProfileMap();
+    renderRail();
+    minimize({ id: CHAT_IDS.conversation, name: PEER_NAME });
+
+    const mobileRail = document.querySelector<HTMLElement>("[data-mobile-minimized-chats]");
+    if (!mobileRail) throw new Error("test: brak mobilnych dymków rozmów");
+    expect(within(mobileRail).getByText("99+")).toHaveAttribute("data-minimized-chat-unread");
+  });
+});

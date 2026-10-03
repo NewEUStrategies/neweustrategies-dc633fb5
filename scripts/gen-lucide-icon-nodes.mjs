@@ -7,7 +7,10 @@
 // icons/index.js, mapa dynamicIconImports) kończy się umieszczeniem przez
 // Rollupa wszystkich ~1690 modułów ikon w bundlu WEJŚCIOWYM (zmierzone -
 // ~640 KB raw na każdej stronie). Czysty plik danych węzłów SVG nie ma tej
-// właściwości: ląduje w leniwym chunku i schodzi tylko na żądanie.
+// właściwości. Aplikacja nie importuje go zresztą wprost: na końcu tego
+// skryptu `generate-icon-chunks.mjs` tnie go na 4 porcje JSON
+// (src/lib/icons/chunks), które `lazyNamedIcon.ts` dociąga leniwie, po jednej
+// na żądanie, oraz zapisuje sam katalog nazw (iconNames.generated.json).
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -50,7 +53,7 @@ if (names.length < 1000) {
 const header = `// WYGENEROWANE przez scripts/gen-lucide-icon-nodes.mjs z lucide-react v${version}.
 // Nie edytować ręcznie; po podbiciu lucide-react uruchom generator ponownie.
 // Dane węzłów SVG wszystkich ikon - celowo BEZ importów z rejestru pakietu
-// (patrz komentarz w generatorze i w lib/icons/DynamicIconFull).
+// (patrz komentarz w generatorze; przeglądarka dostaje porcje z lib/icons/chunks).
 /* eslint-disable */
 import type { IconNode } from "lucide-react";
 

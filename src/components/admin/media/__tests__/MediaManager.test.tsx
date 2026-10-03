@@ -20,6 +20,10 @@ const h = vi.hoisted(() => ({
   user: { id: "user-1" } as { id: string } | null,
   media: [] as MediaRow[],
   folders: [] as FolderRow[],
+  scopes: [] as Array<{ folder: string; search?: string }>,
+  hasNextPage: false,
+  isFetchingNextPage: false,
+  fetchNextPage: vi.fn(),
   invalidate: vi.fn(),
   mutations: {
     busy: false,
@@ -48,12 +52,24 @@ vi.mock("@/hooks/useAuth", () => ({
   useRequiredTenant: () => h.tenantId,
   useAuth: () => ({ user: h.user }),
 }));
+// Atrapa oddaje WSZYSTKIE pliki niezależnie od folderu, więc test widzi, że
+// orkiestrator i tak pokazuje tylko bieżący folder; zakres zapytania (folder,
+// fraza) jest zapisywany, żeby dało się dowieść, co poszło do warstwy danych.
 vi.mock("../hooks/useMediaData", () => ({
-  useMediaData: () => ({
-    foldersQuery: { data: h.folders },
-    mediaQuery: { data: h.media },
-    invalidate: h.invalidate,
-  }),
+  useMediaData: (_tenantId: string, scope: { folder: string; search?: string }) => {
+    h.scopes.push(scope);
+    return {
+      foldersQuery: { data: h.folders },
+      folderPathsQuery: { data: [...new Set(h.media.map((m) => m.folder_path))] },
+      mediaQuery: {
+        hasNextPage: h.hasNextPage,
+        isFetchingNextPage: h.isFetchingNextPage,
+        fetchNextPage: h.fetchNextPage,
+      },
+      media: h.media,
+      invalidate: h.invalidate,
+    };
+  },
 }));
 vi.mock("../hooks/useMediaMutations", () => ({ useMediaMutations: () => h.mutations }));
 vi.mock("../organisms/MediaPreviewDialog", () => ({
@@ -124,6 +140,10 @@ beforeEach(() => {
   h.mutations.doCreateFolder.mockResolvedValue(true);
   h.mutations.doRenameFolder.mockResolvedValue(true);
   h.invalidate.mockReset();
+  h.scopes.length = 0;
+  h.hasNextPage = false;
+  h.isFetchingNextPage = false;
+  h.fetchNextPage.mockReset();
 });
 
 describe("MediaManager - zawartość bieżącego folderu", () => {
@@ -172,6 +192,54 @@ describe("MediaManager - zawartość bieżącego folderu", () => {
 
     fireEvent.click(buttons[deleteIndex + 1]);
     expect(screen.queryByRole("table")).toBeNull();
+  });
+});
+
+describe("MediaManager - paginacja biblioteki", () => {
+  // Wydanie 11: jedno zapytanie bez limitu ściągało całą bibliotekę tenanta.
+  // Teraz warstwa danych czyta folder stronami - orkiestrator ma jej podać
+  // WŁAŚCIWY zakres i dać dostęp do kolejnych stron.
+
+  it("czyta BIEŻĄCY folder, a po wejściu do podfolderu - podfolder", () => {
+    setup();
+    expect(h.scopes.at(-1)?.folder).toBe("/");
+    fireEvent.click(document.querySelector('[data-folder-item="/press/"]')!);
+    expect(h.scopes.at(-1)?.folder).toBe("/press/");
+  });
+
+  it("fraza trafia do warstwy danych dopiero po debounce", async () => {
+    // Zapytanie na każdy znak to N żądań do bazy na jedno słowo.
+    setup();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "raport" } });
+    expect(h.scopes.at(-1)?.search).toBe("");
+    await waitFor(() => expect(h.scopes.at(-1)?.search).toBe("raport"));
+  });
+
+  it("„Wczytaj więcej” pojawia się tylko, gdy jest następna strona", () => {
+    setup();
+    expect(screen.queryByRole("button", { name: /Wczytaj więcej|Load more/ })).toBeNull();
+  });
+
+  it("„Wczytaj więcej” dociąga następną stronę", () => {
+    h.hasNextPage = true;
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: /Wczytaj więcej|Load more/ }));
+    expect(h.fetchNextPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("w trakcie dociągania przycisk jest zablokowany - bez podwójnych żądań", () => {
+    h.hasNextPage = true;
+    h.isFetchingNextPage = true;
+    setup();
+    expect(screen.getByRole("button", { name: /Wczytywanie|Loading/ })).toBeDisabled();
+  });
+
+  it("podfolder znany WYŁĄCZNIE z położenia plików jest widoczny", () => {
+    // Folder bez wiersza `media_folders` (przeniesienie pliku do nowej ścieżki)
+    // pochodzi z RPC `media_folder_paths`, nie z wczytanych stron.
+    h.folders = [];
+    setup();
+    expect(document.querySelector('[data-folder-item="/press/"]')).not.toBeNull();
   });
 });
 

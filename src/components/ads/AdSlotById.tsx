@@ -3,7 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdSlotView } from "@/components/AdSlot";
-import type { AdPlacementWithSlot, AdSlot } from "@/lib/ads/types";
+import {
+  PUBLIC_AD_SLOT_COLUMNS,
+  type AdPlacementWithSlot,
+  type PublicAdSlot,
+} from "@/lib/ads/types";
 
 interface Props {
   slotId: string;
@@ -16,15 +20,17 @@ export function AdSlotById({ slotId, className }: Props) {
     enabled: !!slotId,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
-    queryFn: async (): Promise<AdSlot | null> => {
+    queryFn: async (): Promise<PublicAdSlot | null> => {
+      // Kolumny publiczne, nie `*`: `notes` to notatki operatora, nie treść
+      // reklamy (patrz `PublicAdSlot`).
       const { data, error } = await supabase
         .from("ad_slots")
-        .select("*")
+        .select(PUBLIC_AD_SLOT_COLUMNS)
         .eq("id", slotId)
         .eq("status", "active")
         .maybeSingle();
       if (error) throw error;
-      return (data as AdSlot | null) ?? null;
+      return (data as PublicAdSlot | null) ?? null;
     },
   });
 

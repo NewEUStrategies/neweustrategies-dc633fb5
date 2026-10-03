@@ -215,6 +215,17 @@ export function CampaignsPage() {
               <Loader2 className="h-4 w-4 animate-spin" />
               {t("adminCoupons.loading")}
             </div>
+          ) : campaignsQ.isError ? (
+            // Odmowa odczytu NIE jest pustą listą: komunikat „Utwórz pierwszą"
+            // zapraszał do założenia duplikatu kampanii (do 10 000 kodów),
+            // która już istnieje - tylko jej nie widać.
+            <div
+              role="alert"
+              className="rounded-[6px] border border-destructive/40 bg-destructive/5 p-4 text-sm"
+            >
+              <p className="font-medium text-destructive">{t("adminCoupons.loadError.title")}</p>
+              <p className="mt-1 text-muted-foreground">{t("adminCoupons.loadError.hint")}</p>
+            </div>
           ) : (campaignsQ.data ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground py-6">{t("adminCoupons.campaignsYet")}</p>
           ) : (
@@ -254,7 +265,8 @@ export function CampaignsPage() {
                         {c.grants_tier_key ? (
                           <Badge variant="outline">
                             {c.grants_tier_key}
-                            {c.grants_duration_days && ` · ${c.grants_duration_days}d`}
+                            {/* Trójnik, nie `&&`: przy 0 dni `&&` renderował literał „0". */}
+                            {c.grants_duration_days ? ` · ${c.grants_duration_days}d` : null}
                           </Badge>
                         ) : (
                           <span className="text-muted-foreground">-</span>

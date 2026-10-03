@@ -9,8 +9,11 @@ const Progress = React.forwardRef<
   React.ElementRef<typeof ProgressPrimitive.Root>,
   React.ComponentPropsWithoutRef<typeof ProgressPrimitive.Root>
 >(({ className, value, ...props }, ref) => (
+  // `value` MUSI dojść do korzenia Radiksa: bez niego pasek był dla czytnika
+  // ekranu zawsze „nieokreślony" (bez `aria-valuenow`), a ruszał się tylko obraz.
   <ProgressPrimitive.Root
     ref={ref}
+    value={value}
     className={cn("relative h-2 w-full overflow-hidden rounded-full bg-primary/20", className)}
     {...props}
   >

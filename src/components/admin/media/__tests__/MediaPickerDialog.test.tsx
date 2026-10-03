@@ -30,7 +30,11 @@ const h = vi.hoisted(() => ({
   toastError: vi.fn(),
 }));
 
-const stubs = vi.hoisted(() => ({ from: null as SupabaseFromStub | null }));
+const stubs = vi.hoisted(() => ({
+  from: null as SupabaseFromStub | null,
+  rpcCalls: [] as Array<{ fn: string; args: unknown }>,
+  folderPaths: [] as string[],
+}));
 
 vi.mock("@/hooks/useAuth", () => ({
   useRequiredTenant: () => h.tenantId,
@@ -60,7 +64,15 @@ vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
   const from = supabaseFromStub();
   stubs.from = from;
-  return { supabase: { from: from.from } };
+  return {
+    supabase: {
+      from: from.from,
+      rpc: async (fn: string, args: unknown) => {
+        stubs.rpcCalls.push({ fn, args });
+        return { data: stubs.folderPaths, error: null };
+      },
+    },
+  };
 });
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastFail } }));
 vi.mock("@/lib/toastError", () => ({ toastError: h.toastError }));
@@ -72,6 +84,7 @@ vi.mock("@/lib/media/upload", async (importOriginal) => ({
 import "@/lib/i18n-admin-team-media";
 import { MediaPickerDialog } from "../MediaPickerDialog";
 import { IMAGE_MIME, AUDIO_MIME, UPLOADABLE_MIME } from "@/lib/media/upload";
+import { MEDIA_PAGE_SIZE } from "@/components/admin/media/lib/mediaPage";
 
 const TENANT = "tenant-1";
 
@@ -121,6 +134,8 @@ beforeEach(() => {
   stub().reset();
   stub().setResponse("media", ok([]));
   stub().setResponse("media_folders", ok([]));
+  stubs.rpcCalls.length = 0;
+  stubs.folderPaths = [];
   h.tenantId = TENANT;
   h.user = { id: "user-1" };
   for (const fn of [
@@ -160,9 +175,12 @@ describe("MediaPickerDialog - odczyt biblioteki", () => {
     expect(chain?.argsOf("order")).toEqual(["created_at", { ascending: false }]);
   });
 
-  it("ogranicza liczbę wierszy - biblioteka bywa ogromna", async () => {
+  it("czyta STRONĘ, nie 500 wierszy naraz - biblioteka bywa ogromna", async () => {
+    // `limit(500)` robił z pliku 501. plik NIEOSIĄGALNY z pickera.
     setup();
-    await waitFor(() => expect(stub().lastChain("media")?.argsOf("limit")).toEqual([500]));
+    await waitFor(() =>
+      expect(stub().lastChain("media")?.argsOf("limit")).toEqual([MEDIA_PAGE_SIZE + 1]),
+    );
   });
 
   it("tryb OBRAZ filtruje typy po stronie bazy", async () => {
@@ -186,9 +204,9 @@ describe("MediaPickerDialog - odczyt biblioteki", () => {
     stub().setResponse("media", ok([pickerRow("a")]));
     setup({ accept: "image" });
     await waitFor(() =>
-      expect(queryClient.getQueryData(["media-picker", TENANT, "image"])).toBeDefined(),
+      expect(queryClient.getQueryData(["media-picker", TENANT, "image", "all", ""])).toBeDefined(),
     );
-    expect(queryClient.getQueryData(["media-picker", TENANT, "audio"])).toBeUndefined();
+    expect(queryClient.getQueryData(["media-picker", TENANT, "audio", "all", ""])).toBeUndefined();
   });
 });
 
@@ -328,6 +346,195 @@ describe("MediaPickerDialog - wgrywanie", () => {
       expect(przyciski.length).toBeGreaterThan(0);
       for (const przycisk of przyciski) expect(przycisk).toBeEnabled();
     });
+  });
+});
+
+describe("MediaPickerDialog - paginacja i filtry po stronie bazy", () => {
+  // Wydanie 11: `limit(500)` i filtrowanie wyłącznie w przeglądarce - plik
+  // spoza pierwszych 500 był nie do znalezienia ani listą, ani wyszukiwarką.
+
+  const many = (n: number, folder = "/") =>
+    Array.from({ length: n }, (_, i) =>
+      pickerRow(`m${String(n - i).padStart(3, "0")}`, { folder_path: folder }),
+    );
+
+  it("tryb AUDIO filtruje typy po stronie bazy - jak tryb obrazów", async () => {
+    setup({ accept: "audio" });
+    await waitFor(() =>
+      expect(stub().lastChain("media")?.argsOf("like")).toEqual(["mime_type", "audio/%"]),
+    );
+  });
+
+  it("wybór folderu idzie do BAZY, a lista nie mruga pustką w trakcie", async () => {
+    stub().setResponse(
+      "media",
+      ok([
+        pickerRow("raport", { filename: "raport.png", folder_path: "/press/" }),
+        pickerRow("okladka", { filename: "okladka.png", folder_path: "/" }),
+      ]),
+    );
+    setup();
+    await waitFor(() => expect(screen.getByText("raport.png")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: "/press/" }));
+    expect(screen.getByText("raport.png")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        stub()
+          .chainsFor("media")
+          .some((c) => c.calls.some((x) => x.method === "eq" && x.args[0] === "folder_path")),
+      ).toBe(true),
+    );
+  });
+
+  it("fraza trafia do bazy jako ILIKE po debounce", async () => {
+    setup();
+    await waitFor(() => expect(stub().chainsFor("media").length).toBeGreaterThan(0));
+    fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "rap" } });
+
+    await waitFor(() =>
+      expect(stub().lastChain("media")?.argsOf("ilike")).toEqual(["filename", "%rap%"]),
+    );
+  });
+
+  it("„Wczytaj więcej” pojawia się przy pełnej stronie i dociąga KOLEJNĄ kursorem", async () => {
+    stub().setResponse("media", (chain) =>
+      chain.has("or") ? ok([pickerRow("starszy")]) : ok(many(MEDIA_PAGE_SIZE + 1)),
+    );
+    setup();
+    const more = await screen.findByRole("button", { name: /Wczytaj więcej|Load more/ });
+    expect(screen.queryByText("m001.png")).toBeNull();
+
+    fireEvent.click(more);
+    await waitFor(() => expect(screen.getByText("starszy.png")).toBeInTheDocument());
+    expect(stub().lastChain("media")?.has("or")).toBe(true);
+    expect(screen.queryByRole("button", { name: /Wczytaj więcej|Load more/ })).toBeNull();
+  });
+
+  it("bez kolejnej strony NIE ma przycisku dociągania", async () => {
+    stub().setResponse("media", ok(many(3)));
+    setup();
+    await waitFor(() => expect(screen.getByText("m003.png")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: /Wczytaj więcej|Load more/ })).toBeNull();
+  });
+
+  it("lista folderów obejmuje foldery z RPC - także te spoza wczytanych stron", async () => {
+    stubs.folderPaths = ["/archiwum/2019/"];
+    setup();
+    await waitFor(() =>
+      expect(stubs.rpcCalls).toContainEqual({
+        fn: "media_folder_paths",
+        args: { _tenant_id: TENANT },
+      }),
+    );
+    fireEvent.click(screen.getByRole("combobox"));
+    expect(screen.getByRole("option", { name: "/archiwum/2019/" })).toBeInTheDocument();
+  });
+});
+
+describe("MediaPickerDialog - odmowa i licznik wgranych", () => {
+  it("UPUSZCZONY plik spoza listy formatów daje komunikat, nie ciszę", async () => {
+    // UploadArea filtruje upuszczenie po `accept` i oddaje odrzucone przez
+    // `onRejectedFiles` - picker go nie podpinał, więc PDF w pickerze obrazów
+    // po prostu znikał.
+    setup({ accept: "image" });
+    // Obszar wgrywania pustej biblioteki to `role="group"` z nazwą z tytułu.
+    const zone = await screen.findByRole("group", { name: /Wgraj|Upload|media/i });
+    fireEvent.drop(zone, {
+      dataTransfer: {
+        files: [new File(["x"], "umowa.pdf", { type: "application/pdf" })],
+        types: ["Files"],
+      },
+    });
+
+    await waitFor(() => expect(h.toastFail).toHaveBeenCalledTimes(1));
+    expect(String(h.toastFail.mock.calls[0][0])).toContain("umowa.pdf");
+    expect(h.uploadAndRegisterMedia).not.toHaveBeenCalled();
+  });
+
+  it("sukces liczy pliki WGRANE, nie wybrane", async () => {
+    setup({ accept: "image" });
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input, "files", {
+      value: [
+        new File(["x"], "zly.svg", { type: "image/svg+xml" }),
+        new File(["x"], "dobry.png", { type: "image/png" }),
+      ],
+      configurable: true,
+    });
+    fireEvent.change(input!);
+
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledTimes(1));
+    expect(h.toastSuccess).toHaveBeenCalledWith("Wgrano plik");
+  });
+
+  it("same odrzucone pliki NIE dają zielonego komunikatu", async () => {
+    setup({ accept: "image" });
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input, "files", {
+      value: [new File(["x"], "zly.svg", { type: "image/svg+xml" })],
+      configurable: true,
+    });
+    fireEvent.change(input!);
+
+    await waitFor(() => expect(h.toastFail).toHaveBeenCalledTimes(1));
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("za duży plik mówi o ROZMIARZE, nie o złym typie", async () => {
+    setup({ accept: "image" });
+    const big = new File(["x"], "ogromny.png", { type: "image/png" });
+    Object.defineProperty(big, "size", { value: 50 * 1024 * 1024 });
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input, "files", { value: [big], configurable: true });
+    fireEvent.change(input!);
+
+    await waitFor(() => expect(h.toastFail).toHaveBeenCalledTimes(1));
+    expect(String(h.toastFail.mock.calls[0][0])).toMatch(/rozmiar|size limit/i);
+  });
+
+  it("tryb WSZYSTKO nie nazywa odrzuconego pliku „nie obrazem”", async () => {
+    setup({ accept: "all" });
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input, "files", {
+      value: [new File(["x"], "makro.docm", { type: "application/vnd.ms-word" })],
+      configurable: true,
+    });
+    fireEvent.change(input!);
+
+    await waitFor(() => expect(h.toastFail).toHaveBeenCalledTimes(1));
+    expect(String(h.toastFail.mock.calls[0][0])).toMatch(/nieobsługiwany format|unsupported/i);
+  });
+
+  it("po wgraniu panel metadanych pokazuje ŚWIEŻO wgrany plik", async () => {
+    // Upload oddaje adres markowy, a wiersze listy - renderowany `/media/...`.
+    // Porównanie surowych adresów nigdy się nie spotykało, więc panel się nie
+    // otwierał, choć przycisk „Wstaw" był aktywny.
+    h.uploadAndRegisterMedia.mockResolvedValue({
+      mediaId: "new-1",
+      storagePath: "t/u/nowy.png",
+      publicUrl: "https://neweuropeanstrategies.com/media/t/u/nowy.png",
+    });
+    stub().setResponse(
+      "media",
+      ok([
+        pickerRow("new-1", {
+          filename: "nowy.png",
+          public_url: "https://neweuropeanstrategies.com/media/t/u/nowy.png",
+        }),
+      ]),
+    );
+    setup({ accept: "image" });
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input, "files", {
+      value: [new File(["x"], "nowy.png", { type: "image/png" })],
+      configurable: true,
+    });
+    fireEvent.change(input!);
+
+    await waitFor(() => expect(document.getElementById("picker-filename")).not.toBeNull());
+    expect((document.getElementById("picker-filename") as HTMLInputElement).value).toBe("nowy.png");
   });
 });
 

@@ -65,7 +65,10 @@ export function ProgressCarouselView({
         vertical={vertical}
         duration={duration}
         paused={paused}
-        activeSlider={undefined}
+        // Pierwszy slajd aktywny już w HTML-u serwera. Bez tego SSR i pierwsza
+        // klatka klienta nie miały aktywnego slajdu (rejestracja idzie efektem),
+        // więc obszar zdjęcia stał pusty do hydratacji.
+        activeSlider={items[0].value}
         aria-label={heading || undefined}
         className={
           vertical

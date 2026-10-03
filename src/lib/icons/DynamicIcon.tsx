@@ -6,7 +6,9 @@
 // MegaPanelView, czyli chrome nagłówka). Teraz:
 //   1. wyselekcjonowany zestaw ikon (imports nazwane -> tree-shaking) pokrywa
 //      typowe ikony menu/treści i renderuje się synchronicznie,
-//   2. pozostałe nazwy dociągają jedną z 8 porcji danych SVG przez lazy().
+//   2. pozostałe nazwy dociągają przez lazy() jedną z 4 porcji danych SVG
+//      (`chunks/icons-N.json`; numer porcji to `hash % 4` z `iconChunkIndex.js`,
+//      wspólnego dla generatora i `lazyNamedIcon.ts`).
 //      Pełny katalog pozostaje wyłącznie w pickerze administracyjnym.
 // Fallback Suspense rezerwuje dokładnie wymiar ikony (size), więc doładowanie
 // nie zmienia zarezerwowanego miejsca. SSR może poczekać na tę samą porcję danych.
@@ -138,6 +140,8 @@ import {
   // SPOZA zestawu - ściągała leniwy chunk pełnego rejestru (473 KB źródeł,
   // 109 KB gzip) do przeglądarki anonima, żeby narysować JEDNĄ ikonę.
   // Import nazwany kosztuje setki bajtów; to jest cała cena tej naprawy.
+  // (Od podziału rejestru na porcje, 2026-09-29, taka nazwa kosztuje jedną
+  // porcję, 23-25 KB gzip - mniej, ale wciąż wielokrotnie więcej niż import.)
   CalendarClock,
   ClipboardList,
   Crown,
@@ -346,9 +350,10 @@ interface DynamicIconProps extends LucideProps {
    *
    * `false` jest dla CHROME (menu witryny, mega panel, pasek dolny). Nazwy
    * ikon menu pochodzą z konfiguracji w bazie, więc JEDNA literówka w panelu
-   * administracyjnym kosztowałaby 109 KB gzip KAŻDEGO anonima na stronie
-   * publicznej - i to na ścieżce krytycznej pierwszego renderu. Zamiast tego
-   * rysujemy neutralne kółko i mówimy o tym w konsoli dev.
+   * administracyjnym kosztowałaby KAŻDEGO anonima na stronie publicznej
+   * leniwą porcję danych SVG (23-25 KB gzip) - i to na ścieżce krytycznej
+   * pierwszego renderu. Zamiast tego rysujemy neutralne kółko i mówimy o tym
+   * w konsoli dev.
    * Zestaw kuratorowany pilnuje bramka `check:menu-icons`.
    */
   allowFull?: boolean;

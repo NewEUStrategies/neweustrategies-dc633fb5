@@ -149,7 +149,7 @@ export function CrmPanel({ report, range }: CrmPanelProps) {
           height={220}
           csv={{
             filename: "nowe-kontakty",
-            headers: [t("adminDashboard.crm.colStage"), t("adminDashboard.crm.colLeads")],
+            headers: [t("adminDashboard.export.bucket"), t("adminDashboard.crm.newLeads")],
             rows: report.series.map((p) => [p.bucket, p.leads]),
           }}
         />

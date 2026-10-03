@@ -1,9 +1,10 @@
 /**
  * Bramka NAZW IKON W CHROME: nazwa ikony, którą konfiguracja podaje menu,
  * paskowi dolnemu i kafelkom nawigacji, MUSI należeć do zestawu kuratorowanego
- * `DynamicIcon`. Nazwa spoza zestawu każe przeglądarce dociągnąć pełny rejestr
- * ikon (473 KB źródeł, 109 KB gzip) - u KAŻDEGO anonima, na ścieżce renderu
- * nagłówka. Przyczyna, pomiar i lista naruszeń znalezionych przy wprowadzeniu:
+ * `DynamicIcon`. Nazwa spoza zestawu każe przeglądarce dociągnąć leniwą porcję
+ * rejestru ikon (jedną z 4, 23-25 KB gzip; przy wprowadzeniu bramki - cały
+ * rejestr, 109 KB gzip) - u KAŻDEGO anonima, na ścieżce renderu nagłówka.
+ * Przyczyna, pomiar i lista naruszeń znalezionych przy wprowadzeniu:
  * `src/lib/ci/menuIcons.ts`.
  *
  * Bramka czyta WYŁĄCZNIE ŹRÓDŁA - nie potrzebuje builda, artefaktu, bazy ani

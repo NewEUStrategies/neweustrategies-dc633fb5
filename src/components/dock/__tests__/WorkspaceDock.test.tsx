@@ -94,12 +94,21 @@ vi.mock("@/lib/dock/useTodos", () => ({ useOpenTodoCount: () => h.openTodos }));
 
 vi.mock("@/lib/chat/minimizedChats", () => ({
   MINIMIZED_VISIBLE_LIMIT: 2,
+  MOBILE_MINIMIZED_VISIBLE_LIMIT: 3,
   useMinimizedChats: () => ({ minimized: h.minimized, requested: null }),
   minimizedChatsStore: { restore: vi.fn(), remove: vi.fn(), clearRequest: vi.fn() },
 }));
 
 // Żywe liczniki mają własne testy; tutaj liczy się tylko to, że nie sięgają
 // po sieć podczas renderu paska.
+// Warstwa danych szyny zminimalizowanych rozmów (montowana dopiero przy
+// niepustej szynie) - bez sieci: lista rozmów pusta, profile puste.
+vi.mock("@/lib/chat/useConversations", () => ({
+  useConversations: () => ({ data: [] }),
+  usePeerProfiles: () => ({ data: undefined }),
+}));
+vi.mock("@/components/chat/chatWindowChunk", () => ({ prefetchChatWindow: () => {} }));
+
 vi.mock("@/components/mobile/bottomBar/LiveTabBadge", () => ({
   LiveTabBadge: () => null,
 }));
@@ -470,3 +479,49 @@ function tabsAfterRender(id: string): HTMLElement[] {
   renderDock();
   return tabs(id);
 }
+
+// SZYNA ZMINIMALIZOWANYCH ROZMÓW -> SKRZYNKA DOKU. Molekuła szyny ma własne
+// testy (`MinimizedChats.test.tsx`: trzy dymki na mobile, pigułki na
+// desktopie, wspólny magazyn sesji); tu przypinamy jej POŁĄCZENIE z dokiem,
+// które nie miało wykonania: przywrócenie rozmowy i „+N" otwierają skrzynkę
+// czatu, a Escape zamyka ją i oddaje ognisko.
+describe("szyna zminimalizowanych rozmów otwiera skrzynkę doku", () => {
+  const CHATS = ["Anna", "Bartek", "Celina", "Dariusz"].map((name, i) => ({
+    id: `c${i}`,
+    name,
+    avatarUrl: null,
+  }));
+
+  afterEach(() => {
+    h.minimized = [];
+  });
+
+  it("przywrócenie pigułki otwiera skrzynkę czatu", async () => {
+    h.minimized = CHATS.slice(0, 1);
+    renderDock();
+    const pill = document.querySelector<HTMLElement>("[data-desktop-minimized-chats] button");
+    if (!pill) throw new Error("brak pigułki rozmowy");
+    fireEvent.click(pill);
+    expect(await screen.findByTestId("panel-chat")).toBeInTheDocument();
+  });
+
+  it("na mobile najwyżej trzy dymki, a „+N” na desktopie też otwiera skrzynkę", async () => {
+    h.minimized = CHATS;
+    renderDock();
+    expect(document.querySelectorAll("[data-mobile-minimized-chats] > button")).toHaveLength(3);
+    const more = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-desktop-minimized-chats] > button"),
+    ).at(-1);
+    expect(more?.textContent).toBe("+2");
+    fireEvent.click(more as HTMLElement);
+    expect(await screen.findByTestId("panel-chat")).toBeInTheDocument();
+  });
+
+  it("Escape zamyka otwarty panel narzędzia", async () => {
+    renderDock();
+    fireEvent.click(tab("todos"));
+    await screen.findByTestId("panel-todos");
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(tab("todos").getAttribute("aria-expanded")).toBe("false"));
+  });
+});

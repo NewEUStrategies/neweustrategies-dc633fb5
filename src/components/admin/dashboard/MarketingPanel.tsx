@@ -20,10 +20,12 @@ import { Card } from "@/components/ui/card";
 import { ChartCard } from "@/components/admin/analytics/ChartCard";
 import { biChart } from "@/components/admin/analytics/biChart";
 import { chartLangFrom } from "@/lib/charts/format";
+import type { UiLang } from "@/lib/i18n/format";
 import {
   computeDelta,
   formatCount,
   formatMoneyCents,
+  formatShare,
   rate,
   type MetricDelta,
 } from "@/lib/admin/dashboard/compare";
@@ -46,10 +48,16 @@ export interface MarketingPanelProps {
 }
 
 /** Wskaźnik jako procent albo kreska; delta tylko wtedy, gdy OBA okresy mierzalne. */
-function ratioTile(numerator: number, denominator: number, prevNum: number, prevDen: number) {
+function ratioTile(
+  lang: UiLang,
+  numerator: number,
+  denominator: number,
+  prevNum: number,
+  prevDen: number,
+) {
   const now = rate(numerator, denominator);
   const before = rate(prevNum, prevDen);
-  const value = now === null ? "-" : `${(now * 100).toFixed(1)}%`;
+  const value = now === null ? "-" : formatShare(now, lang);
   const delta: MetricDelta | undefined =
     now !== null && before !== null ? computeDelta(now, before) : undefined;
   return { value, delta };
@@ -82,15 +90,17 @@ export function MarketingPanel({ report, range }: MarketingPanelProps) {
     ? (previous.donations.find((d) => d.currency === leadDonation.currency)?.cents ?? 0)
     : 0;
 
-  const openRate = ratioTile(current.opens, current.sent, previous.opens, previous.sent);
-  const clickRate = ratioTile(current.clicks, current.sent, previous.clicks, previous.sent);
+  const openRate = ratioTile(lang, current.opens, current.sent, previous.opens, previous.sent);
+  const clickRate = ratioTile(lang, current.clicks, current.sent, previous.clicks, previous.sent);
   const popupRate = ratioTile(
+    lang,
     current.popupConversions,
     current.popupViews,
     previous.popupConversions,
     previous.popupViews,
   );
   const adCtr = ratioTile(
+    lang,
     current.adClicks,
     current.adImpressions,
     previous.adClicks,
@@ -209,10 +219,7 @@ export function MarketingPanel({ report, range }: MarketingPanelProps) {
         height={200}
         csv={{
           filename: "zapisy-newsletter",
-          headers: [
-            t("adminDashboard.marketing.colFinished"),
-            t("adminDashboard.marketing.subscribed"),
-          ],
+          headers: [t("adminDashboard.export.bucket"), t("adminDashboard.marketing.subscribed")],
           rows: report.series.map((p) => [p.bucket, p.subscribed]),
         }}
       />
@@ -258,7 +265,10 @@ export function MarketingPanel({ report, range }: MarketingPanelProps) {
                     <td className="text-right tabular-nums py-1">
                       {formatCount(c.opens, lang)}
                       {open !== null ? (
-                        <span className="text-muted-foreground"> ({(open * 100).toFixed(0)}%)</span>
+                        <span className="text-muted-foreground">
+                          {" "}
+                          ({formatShare(open, lang, 0)})
+                        </span>
                       ) : null}
                     </td>
                     <td className="text-right tabular-nums py-1">{formatCount(c.clicks, lang)}</td>

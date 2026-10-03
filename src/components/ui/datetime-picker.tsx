@@ -1,11 +1,15 @@
 // DateTimePicker - popover kalendarz (shadcn Calendar) + selektory godziny i minuty.
 // Wartość jest ISO stringiem (UTC) LUB null. Reprezentacja lokalna dla użytkownika,
 // zapis do bazy w ISO. Klawisz "Wyczyść" ustawia null (bez limitu czasowego).
+//
+// Wartość, której `Date` nie umie odczytać, jest traktowana jak brak wartości:
+// `format` z date-fns rzuca `RangeError` na `Invalid Date`, więc jeden zły
+// string z bazy wywracał cały formularz zamiast pokazać puste pole.
 import { useId, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { format } from "date-fns";
 import { pl as plLocale, enGB } from "date-fns/locale";
-import { CalendarIcon, X } from "lucide-react";
+import { CalendarDays, X } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
 import "@/lib/i18n-datetime-picker";
 import { Button } from "@/components/ui/button";
@@ -23,6 +27,13 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, "
 const FIVE_MINUTE_STEPS = Array.from({ length: 12 }, (_, step) =>
   String(step * 5).padStart(2, "0"),
 );
+
+/** ISO -> `Date`; pusty albo nieczytelny string daje `null`, nigdy `Invalid Date`. */
+function parseIso(value: string | null): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 interface DateTimePickerProps {
   /** Identyfikator przycisku-triggera - wiąże `<Label htmlFor>` z kontrolką. */
@@ -57,7 +68,7 @@ export function DateTimePicker({
   const { t } = useTranslation();
   const timeLabelId = useId();
   const locale = lang === "pl" ? plLocale : enGB;
-  const date = useMemo(() => (value ? new Date(value) : null), [value]);
+  const date = useMemo(() => parseIso(value), [value]);
   const selectedHour = date ? String(date.getHours()).padStart(2, "0") : "00";
   const selectedMinute = date ? String(date.getMinutes()).padStart(2, "0") : "00";
   const minutes = FIVE_MINUTE_STEPS.includes(selectedMinute)
@@ -72,63 +83,56 @@ export function DateTimePicker({
     onChange(merged.toISOString());
   };
 
-  const setTimePart = (raw: string) => {
-    if (!raw) return;
-    const [h, m] = raw.split(":").map((n) => Number(n));
-    const base = date ?? new Date();
-    const merged = new Date(base);
-    merged.setHours(h || 0, m || 0, 0, 0);
+  const setTimePart = (hour: string, minute: string) => {
+    const merged = new Date(date ?? new Date());
+    merged.setHours(Number(hour), Number(minute), 0, 0);
     onChange(merged.toISOString());
   };
 
-  const setHour = (hour: string) => setTimePart(`${hour}:${selectedMinute}`);
-  const setMinute = (minute: string) => setTimePart(`${selectedHour}:${minute}`);
+  const setHour = (hour: string) => setTimePart(hour, selectedMinute);
+  const setMinute = (minute: string) => setTimePart(selectedHour, minute);
 
+  const resolvedClearLabel = clearLabel ?? t("dateTimePicker.clear", { lng: lang });
   const display = date
     ? format(date, lang === "pl" ? "d MMM yyyy, HH:mm" : "MMM d, yyyy, HH:mm", { locale })
-    : (placeholder ?? (lang === "pl" ? "Wybierz datę i godzinę" : "Pick date and time"));
+    : (placeholder ?? t("dateTimePicker.placeholder", { lng: lang }));
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          aria-invalid={ariaInvalid}
-          aria-describedby={ariaDescribedBy}
-          className={cn(
-            "h-10 w-full justify-start gap-2 font-normal",
-            !date && "text-muted-foreground",
-            className,
-          )}
-        >
-          <CalendarIcon className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
-          <span className="truncate">{display}</span>
-          {date && (
-            <span
-              role="button"
-              tabIndex={0}
-              aria-label={clearLabel ?? (lang === "pl" ? "Wyczyść" : "Clear")}
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange(null);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onChange(null);
-                }
-              }}
-              className="ml-auto flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
+      {/* Czyszczenie jest RODZEŃSTWEM triggera, nie dzieckiem: element
+          interaktywny wewnątrz <button> to niepoprawny HTML, czytnik ekranu
+          doklejał jego nazwę do nazwy pola, a Spacja na nim otwierała popover. */}
+      <div className="relative w-full">
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            aria-invalid={ariaInvalid}
+            aria-describedby={ariaDescribedBy}
+            className={cn(
+              "h-10 w-full justify-start gap-2 font-normal",
+              date ? "pr-9" : "text-muted-foreground",
+              className,
+            )}
+          >
+            <CalendarDays className="h-4 w-4 shrink-0 opacity-70" aria-hidden="true" />
+            <span className="truncate">{display}</span>
+          </Button>
+        </PopoverTrigger>
+        {date && (
+          <button
+            type="button"
+            aria-label={resolvedClearLabel}
+            disabled={disabled}
+            onClick={() => onChange(null)}
+            className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        )}
+      </div>
       <PopoverContent
         align="start"
         className="w-[18.5rem] overflow-hidden rounded-xl border-border bg-popover p-0 shadow-lg"
@@ -207,7 +211,7 @@ export function DateTimePicker({
                 onChange(now.toISOString());
               }}
             >
-              {lang === "pl" ? "Teraz" : "Now"}
+              {t("dateTimePicker.now", { lng: lang })}
             </Button>
             {date && (
               <Button
@@ -217,7 +221,7 @@ export function DateTimePicker({
                 className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive"
                 onClick={() => onChange(null)}
               >
-                {clearLabel ?? (lang === "pl" ? "Wyczyść" : "Clear")}
+                {resolvedClearLabel}
               </Button>
             )}
           </div>

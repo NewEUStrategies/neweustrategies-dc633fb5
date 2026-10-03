@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { hasContentTargeting, matchesAdTargeting, parseAdTargeting } from "../types";
+import {
+  adTargetingToJson,
+  hasContentTargeting,
+  matchesAdTargeting,
+  parseAdTargeting,
+} from "../types";
 
 const ctx = (over: Partial<Parameters<typeof matchesAdTargeting>[1]> = {}) => ({
   categorySlugs: [] as string[],
@@ -51,6 +56,12 @@ describe("matchesAdTargeting", () => {
     );
   });
 
+  it("same tagi (bez kategorii) pasują wyłącznie po tagach", () => {
+    expect(matchesAdTargeting({ tagSlugs: ["ai"] }, ctx({ tagSlugs: ["ai"] }))).toBe(true);
+    // Slug kategorii o tej samej nazwie nie jest trafieniem w tag.
+    expect(matchesAdTargeting({ tagSlugs: ["ai"] }, ctx({ categorySlugs: ["ai"] }))).toBe(false);
+  });
+
   it("targeting treściowy nie pasuje do kontekstu bez treści", () => {
     expect(matchesAdTargeting({ categorySlugs: ["europa"] }, ctx())).toBe(false);
   });
@@ -71,5 +82,41 @@ describe("hasContentTargeting", () => {
     expect(hasContentTargeting({})).toBe(false);
     expect(hasContentTargeting({ languages: ["pl"] })).toBe(false);
     expect(hasContentTargeting({ tagSlugs: ["ai"] })).toBe(true);
+  });
+});
+
+describe("parseAdTargeting - języki", () => {
+  it("lista wyłącznie nieobsługiwanych języków nie zawęża emisji do zera", () => {
+    // Pusta lista po filtrze to „bez ograniczenia", a nie „nigdzie".
+    expect(parseAdTargeting({ languages: ["de", "fr"] })).toEqual({});
+    expect(matchesAdTargeting(parseAdTargeting({ languages: ["de"] }), ctx())).toBe(true);
+  });
+});
+
+describe("adTargetingToJson", () => {
+  it("pusty targeting zapisuje się jako pusty obiekt", () => {
+    expect(adTargetingToJson({})).toEqual({});
+  });
+
+  it("zapisuje tylko niepuste pola - puste tablice nie trafiają do jsonb", () => {
+    expect(adTargetingToJson({ categorySlugs: [], tagSlugs: ["ai"], languages: [] })).toEqual({
+      tagSlugs: ["ai"],
+    });
+    expect(adTargetingToJson({ categorySlugs: ["europa"], languages: ["en"] })).toEqual({
+      categorySlugs: ["europa"],
+      languages: ["en"],
+    });
+  });
+
+  it("pełny targeting przechodzi w obie strony bez zmian", () => {
+    const targeting = {
+      categorySlugs: ["europa", "bezpieczenstwo"],
+      tagSlugs: ["ai"],
+      languages: ["pl" as const],
+    };
+    const json = adTargetingToJson(targeting);
+
+    expect(Object.keys(json).sort()).toEqual(["categorySlugs", "languages", "tagSlugs"]);
+    expect(parseAdTargeting(json)).toEqual(targeting);
   });
 });

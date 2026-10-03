@@ -85,33 +85,6 @@ export default defineConfig({
         "src/routeTree.gen.ts",
         "src/integrations/supabase/types.ts",
         "src/lib/icons/lucideIconNodes.generated.ts",
-        // USTALENIE 2026-09-03 o SĄSIEDZIE tego wpisu, zapisane tutaj, bo
-        // `src/lib/icons/DynamicIconFull.tsx` NIE MA progu per-ścieżka (obowiązuje
-        // go próg globalny) - a to jest jedyne miejsce w tej konfiguracji, które
-        // mówi o tym katalogu.
-        //
-        // `DynamicIconFull.tsx` MIERZY SIĘ NIEDETERMINISTYCZNIE i NIE JEST TO
-        // REGRESJA. Wydanie 9 zmierzyło szum własny pomiaru na dwóch pełnych
-        // przebiegach TEGO SAMEGO HEAD-a: gałęzie 7 -> 9 (linie 12 i funkcje 4
-        // stabilne).
-        //
-        // MECHANIZM: `iconFor()` trzyma MEMO NA POZIOMIE MODUŁU
-        // (`const cache = new Map()`), a gałąź `if (!Cmp)` zależy od tego, czy
-        // ktoś PRZED nami poprosił już o tę samą nazwę ikony. Moduł jest
-        // współdzielony przez trzy pliki testowe
-        // (`lib/icons/__tests__/DynamicIcon.test.tsx`, `lib/__tests__/brandIcons.test.ts`,
-        // `components/clubs/__tests__/clubAtomChips.test.tsx`), więc zbiór
-        // wykonanych gałęzi zależy od KOLEJNOŚCI i PODZIAŁU plików na forki -
-        // czyli od szeregowania vitesta, nie od kodu. Dodatkowo gałęzie aliasu
-        // (`LUCIDE_ICON_NODES[kebab] ? kebab : LUCIDE_ICON_ALIASES[kebab]`)
-        // wykonują się tylko dla nazw, o które ktoś realnie zapytał.
-        //
-        // ŚWIADOMIE BEZ ZMIANY: memo per moduł jest tu zachowaniem
-        // PRODUKCYJNYM (stabilna tożsamość komponentu dla Reacta), więc
-        // determinizacja pomiaru wymagałaby albo hooka czyszczącego cache
-        // w produkcji, albo scalenia trzech plików testowych. Jedno i drugie
-        // jest droższe niż wartość dwóch gałęzi. Zapisane, żeby następna osoba
-        // nie szukała regresji tam, gdzie jej nie ma.
         // Test-only helpers.
         "src/test/**",
         // Pure code-splitting glue (React.lazy + Suspense wrappers). The actual
@@ -1872,11 +1845,14 @@ export default defineConfig({
           lines: 96,
           branches: 89,
         },
+        // PODNIESIONE 2026-10-03 (kampania powłoki): 97,07 / 94,78 / 88,24 / 94,58 ->
+        // 99,51 / 99,13 / 91,76 / 98,33 (odmowa bazy przy mutacjach warstw, ranga
+        // nowej warstwy, notatka nadania).
         "src/components/admin/membership/**": {
-          statements: 91,
-          functions: 90,
-          lines: 94,
-          branches: 85,
+          statements: 94,
+          functions: 95,
+          lines: 95,
+          branches: 87,
         },
         // Selektory i model karty cennika: drabinka warstw, framing ceny
         // rocznej, wybór planu do checkoutu. Czysta warstwa reguł - trzymana
@@ -7285,27 +7261,29 @@ export default defineConfig({
         // czasowe emisji, typ strony, budżet stref na artykule. Cicha awaria
         // tej warstwy to nie brzydki układ, tylko emisja reklamy komuś, kto
         // zgody NIE dał - czyli naruszenie, nie usterka.
-        // ZMIERZONE: 82,55 / 77,82 / 84,09 / 85,52 (przed tą pracą 42,66 /
-        // 51,50 / 35,23 / 42,09). PRÓG NAJNIŻSZY W MODULE i wiadomo, czym:
-        // `consent.ts` stoi na 58,06% gałęzi - niepokryte są ramiona
-        // synchronizacji decyzji z rejestrem RODO i tryb podglądu zgód, nie
-        // sama klamra GPC. To następna porcja pracy testowej, nie przeoczenie.
+        // ZMIERZONE 2026-08-31: 82,55 / 77,82 / 84,09 / 85,52 (przed tą pracą
+        // 42,66 / 51,50 / 35,23 / 42,09). ZMIERZONE 2026-10-03 (same testy
+        // modułu 14, więc dolna granica pełnej suity): 100 / 99,65 / 100 / 100.
+        // Domknięta luka `consent.ts` (było 59,8% gałęzi): hydracja decyzji
+        // z profilu, backfill rejestru RODO, ślad GPC, odporność odczytu na
+        // uszkodzone ciasteczko i zablokowany magazyn, ścieżki SSR.
         "src/lib/ads/**": {
-          statements: 78,
-          functions: 80,
-          lines: 81,
-          branches: 73,
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 94,
         },
         // Powierzchnia renderująca reklamy u czytelnika, razem z ramką
         // piaskownicy. Bramka pilnuje tego, że kreacja obcego pochodzenia
         // jedzie do izolowanego `iframe`, a strefa nie renderuje się przed
         // zgodą. ZMIERZONE: 97,67 / 91,43 / 96,67 / 100 (przed: 32,32 / 37,74
-        // / 26,32 / 33,56, jeden plik na okrągłym zerze).
+        // / 26,32 / 33,56, jeden plik na okrągłym zerze). 2026-10-03: 100 /
+        // 100 / 100 / 100 (`AdSlotById`, `useInFeedAds` z własnymi testami).
         "src/components/ads/**": {
-          statements: 93,
-          functions: 92,
+          statements: 96,
+          functions: 96,
           lines: 96,
-          branches: 87,
+          branches: 95,
         },
         // Beacon zliczający odsłony i kliknięcia reklam. Endpoint publiczny,
         // bez sesji, przyjmuje ruch od każdego - więc bramka trzyma limiter,
@@ -7326,38 +7304,49 @@ export default defineConfig({
         // próg wysoki. Pilnuje granicy „pełny artykuł za darmo": pomyłka w
         // arytmetyce budżetu otwiera treść płatną szerzej, niż ktokolwiek
         // zdecydował. ZMIERZONE: 97,99 / 95,03 / 100 / 99,19 (przed: 43,94 /
-        // 36,41 / 37,78 / 45,73).
+        // 36,41 / 37,78 / 45,73). 2026-10-03: 100 / 96,89 / 100 / 100.
         "src/lib/gifting/**": {
-          statements: 93,
+          statements: 96,
           functions: 96,
-          lines: 95,
-          branches: 91,
+          lines: 96,
+          branches: 93,
         },
         // Powierzchnia podarunku u czytelnika: przycisk, baner odbiorcy,
         // miernik zużytego budżetu, kanały udostępniania. Baner odbiorcy jest
         // jedynym miejscem, które MÓWI odbiorcy, czy dostał dostęp - stan
         // pokazany błędnie jest tu gorszy niż brak ekranu.
-        // ZMIERZONE: 96,05 / 94,12 / 94,74 / 100.
+        // ZMIERZONE: 96,05 / 94,12 / 94,74 / 100. 2026-10-03: 98,68 / 99,16 /
+        // 100 / 100 - jedyna niedobita gałąź to strażnik `if (!giftUrl)`
+        // w `onCopy`, nieosiągalny z UI (przycisk kopiowania istnieje tylko
+        // przy gotowym linku).
         "src/components/gifting/**": {
-          statements: 92,
-          functions: 90,
+          statements: 95,
+          functions: 96,
           lines: 96,
-          branches: 90,
+          branches: 95,
         },
         // Formularz i CTA darowizny. O dopuszczalnej kwocie decyduje serwer,
         // ale to TA warstwa rozstrzyga, czy darczyńca trafi do naszej kasy,
         // czy do zbiórki zewnętrznej, i czy SDK operatora w ogóle się załaduje.
-        // ZMIERZONE: 84,00 / 72,02 / 71,43 / 85,71 - najsłabsza powierzchnia
-        // czytelnika w module i próg jest tu uczciwie niski, nie zaokrąglony
-        // w górę. Niepokryte: `DonationsWidgetView` (65,62% gałęzi - warianty
-        // osadzenia widgetu w builderze) oraz ramiona `DonationForm`
-        // obsługujące odmowę operatora w trybie osadzonej kasy (66,67%
-        // funkcji). Podniesienie tego progu wymaga testów tych dwóch rzeczy.
+        // ZMIERZONE 2026-08-31: 84,00 / 72,02 / 71,43 / 85,71. 2026-10-03:
+        // 100 / 100 / 100 / 100 - `DonationsWidgetView` ma własny test
+        // (sześć wariantów, przycięcie postępu, awaryjny format waluty),
+        // a `DonationForm` - ramiona odmowy operatora i zamknięcia kasy.
         "src/components/donations/**": {
-          statements: 80,
-          functions: 67,
-          lines: 81,
-          branches: 68,
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 95,
+        },
+        // Publiczna strona `/donate`: walidacja `?status`, nagłówek PL/EN,
+        // ekran podziękowania po powrocie z kasy. Do 2026-10-03 OKRĄGŁE ZERO
+        // (jedyny plik modułu 14 na zerze); dziś 100 / 100 / 100 / 100.
+        // Próg gałęzi niższy, bo plik ma ich dziesięć - jedna to 10 pp.
+        "src/routes/donate.tsx": {
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 90,
         },
         // Panel reklam: slot, placement, targetowanie, statystyki. Tu redakcja
         // USTAWIA to, czego pilnuje `src/lib/ads/**` - błąd w edytorze
@@ -7367,24 +7356,27 @@ export default defineConfig({
         // panelu monetyzacji stał na 40,00 / 50,00 / 42,86 / 43,48).
         // Funkcje najniżej w module: `SlotsPanel` 75,00% i `PlacementsPanel`
         // 76,92% - niedobite są procedury zapisu wariantów wymiarów kreacji.
+        // PODNIESIONE 2026-10-03 (kampania powłoki, ta sama metoda co blok
+        // „POWŁOKA PANELU ADMIN + ATOMY/MOLEKUŁY"): 92,55 / 83,33 / 88,30 / 93,14 ->
+        // 100 / 100 / 88,30 / 100 - każde pole formularzy slotu i pozycji dochodzi
+        // teraz do INSERT w teście.
         "src/components/admin/ads/**": {
-          statements: 89,
-          functions: 79,
-          lines: 88,
+          statements: 98,
+          functions: 98,
+          lines: 98,
           branches: 84,
         },
         // Panel kuponów i kampanii rabatowych. Kupon to RABAT NA PIENIĄDZACH:
         // pomyłka w zakresie daty albo w limicie użyć nie psuje ekranu, tylko
         // wydaje pieniądze, i widać ją dopiero w rozliczeniu.
-        // ZMIERZONE: 91,60 / 87,74 / 90,70 / 93,70. Najsłabszy plik:
-        // `DatePickerField` (57,14% funkcji, 65,22% linii) - niepokryte są
-        // ścieżki klawiaturowe wyboru daty; sama walidacja zakresu, która
-        // decyduje o ważności kuponu, jest pokryta.
+        // ZMIERZONE 2026-08-31: 91,60 / 87,74 / 90,70 / 93,70. 2026-10-03:
+        // 100 / 98,88 / 100 / 100 - `DatePickerField` (było 57,14% funkcji)
+        // ma własny test wyboru dnia i godziny.
         "src/components/admin/coupons/**": {
-          statements: 87,
-          functions: 86,
-          lines: 89,
-          branches: 83,
+          statements: 96,
+          functions: 96,
+          lines: 96,
+          branches: 94,
         },
         // Panel podarunków: ustawienia limitów, lista wydanych linków, audyt
         // odebrań. Pola limitów są lustrem CHECK-ów z bazy - rozjazd między
@@ -8565,6 +8557,159 @@ export default defineConfig({
           branches: 98,
         },
 
+        // ── POWŁOKA PANELU ADMIN + ATOMY/MOLEKUŁY - kampania 2026-10-03 ──
+        //
+        // Wejście: tabela 19 funkcjonalności przekroju `X-admin-shell` (507 z 6 653
+        // linii bez testu), najsłabsza „Panel admina: pulpit i agregaty
+        // dashboardu" - 32,3% linii, 14 z 20 plików na zerze.
+        //
+        // ZMIERZONE 2026-10-03 tą samą metodą przed i po (worktree na HEAD
+        // 531a2c5 i na bf505c1), include = 266/267 plików powierzchni wg
+        // `scripts/taxonomy/moduleMap.mjs` (kubełek `admin-shell`):
+        //   npx vitest run src/components src/hooks src/routes --coverage.enabled \
+        //     --coverage.include=<każdy plik powierzchni> \
+        //     --coverage.reporter=json-summary --coverage.reporter=json
+        // (przed: 1 536 plików testowych, po: 1 552; 230 it.fails w obu, zero
+        // czerwonych). Pełna suita zawiera te same testy, więc daje NIE MNIEJ.
+        // Cała powierzchnia: linie 6 247/6 749 -> 6 725/6 761 (niepokryte
+        // 502 -> 36), funkcje 2 176/2 423 -> 2 408/2 423 (247 -> 15), gałęzie
+        // 86,36% -> 92,32%, pliki na zerze 18 -> 0.
+        //
+        // Liczby w komentarzach: przed -> po, w porządku linie / funkcje /
+        // gałęzie / instrukcje. Podłoga: per plik zmierzone minus ~2 pp, per
+        // glob minus ~4 pp, 100 -> 98. Progi wolno WYŁĄCZNIE podnosić.
+        //
+        // GLOBY TYLKO NA KATALOGI W CAŁOŚCI NALEŻĄCE DO POWIERZCHNI (sprawdzone:
+        // liczba plików produkcyjnych katalogu = liczba plików powierzchni
+        // w nim). `src/components/atoms` (26 vs 25), `src/components/molecules`
+        // (16 vs 15) i `src/hooks` (40 vs 11) mają pliki innych modułów, których
+        // ten pomiar nie objął - podłoga globu wzięta z części katalogu byłaby
+        // liczbą z sufitu, więc tam progi stoją per plik.
+        //
+        // Pulpit admina (14 plików, 13 było na zerze): 1,01 / 0,98 / 13,92 / 0,95 ->
+        // 100 / 100 / 99,37 / 100.
+        "src/components/admin/dashboard/**": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 95,
+        },
+        // Katalog członków (4 pliki, w tym nowy `memberMoney.ts`): 41,96 / 33,33 /
+        // 34,44 / 39,37 -> 100 / 100 / 92 / 97,84.
+        "src/components/admin/members/**": {
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 88,
+        },
+        // Atomy panelu (7 plików): 72,34 / 81,25 / 66,67 / 72,92 -> 100 / 100 / 87,30 / 100.
+        "src/components/admin/atoms/**": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // Molekuły panelu (15 plików): 84,57 / 85,71 / 80,77 / 82,74 -> 99,43 / 98,41 /
+        // 91,54 / 97,97.
+        "src/components/admin/molecules/**": {
+          statements: 93,
+          functions: 94,
+          lines: 95,
+          branches: 87,
+        },
+        // Cechy wpisu (10 plików): 93,57 / 83,12 / 84,56 / 92,98 -> 96,43 / 93,51 /
+        // 88,60 / 95,99.
+        "src/components/features/**": {
+          statements: 91,
+          functions: 89,
+          lines: 92,
+          branches: 84,
+        },
+        // SaveArticleButton.tsx: 8,33 / 0 / 0 / 7,69 -> 100 / 100 / 96,67 / 100.
+        "src/components/atoms/SaveArticleButton.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 94,
+        },
+        // PodcastPlayer.tsx: 78,38 / 74,36 / 58,47 / 72,94 -> 99,32 / 100 / 86,44 / 94,71.
+        "src/components/atoms/PodcastPlayer.tsx": {
+          statements: 92,
+          functions: 98,
+          lines: 97,
+          branches: 84,
+        },
+        // AvatarGroup.tsx: 93,43 / 82,61 / 87,43 / 92,17 -> 97,81 / 97,83 / 91,02 / 97,59.
+        "src/components/atoms/AvatarGroup.tsx": {
+          statements: 95,
+          functions: 95,
+          lines: 95,
+          branches: 89,
+        },
+        // LinkedItemsCard.tsx: 0 / 0 / 0 / 0 -> 100 / 100 / 100 / 100.
+        "src/components/molecules/LinkedItemsCard.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // PresenceIndicator.tsx: 0 / 0 / 0 / 0 -> 100 / 100 / 100 / 100.
+        "src/components/molecules/PresenceIndicator.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // PostListCard.tsx: 72,22 / 20 / 62,79 / 61,90 -> 100 / 100 / 93,02 / 95,24.
+        "src/components/molecules/PostListCard.tsx": {
+          statements: 93,
+          functions: 98,
+          lines: 98,
+          branches: 91,
+        },
+        // useFontScale.ts: 40 / 33,33 / 16,67 / 35,29 -> 100 / 100 / 100 / 100.
+        "src/hooks/useFontScale.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // useFaceAwarePosition.ts: 66 / 100 / 59,09 / 66,67 -> 100 / 100 / 95,45 / 98,25.
+        "src/hooks/useFaceAwarePosition.ts": {
+          statements: 96,
+          functions: 98,
+          lines: 98,
+          branches: 93,
+        },
+        // ConsentBanner.tsx: 91,57 / 79,37 / 82,74 / 89,45 -> 99,40 / 98,41 / 86,31 / 97,49.
+        "src/components/ConsentBanner.tsx": {
+          statements: 95,
+          functions: 96,
+          lines: 97,
+          branches: 84,
+        },
+        // ThemeProvider.tsx: 90,24 / 76,92 / 44,44 / 82,69 -> 100 / 100 / 83,33 / 96,15.
+        "src/components/ThemeProvider.tsx": {
+          statements: 94,
+          functions: 98,
+          lines: 98,
+          branches: 81,
+        },
+        // Footnotes.tsx: 91,04 / 84,21 / 73,17 / 85,37 -> 100 / 100 / 85,37 / 97,56.
+        "src/components/Footnotes.tsx": {
+          statements: 95,
+          functions: 98,
+          lines: 98,
+          branches: 83,
+        },
+        // MembershipWelcome.tsx: 80 / 37,50 / 53,16 / 75,76 -> 100 / 100 / 93,67 / 100.
+        "src/components/membership/MembershipWelcome.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 91,
+        },
+
         // ── PRZESTRZEŃ ROBOCZA CZŁONKA (dok) - 32 PLIKI, WCZEŚNIEJ ZERO PROGÓW ──
         //
         // POWÓD, DLA KTÓREGO TEN BLOK ISTNIEJE. Przed 14.09.2026 ŻADEN z 32
@@ -8600,10 +8745,13 @@ export default defineConfig({
           lines: 98,
           branches: 81,
         },
+        // PODNIESIONE 2026-10-03 (kampania powłoki): 94,19 / 91,30 / 88,46 / 93,94 ->
+        // 100 / 100 / 88,46 / 98,99 (szyna zminimalizowanych rozmów otwiera
+        // skrzynkę doku, Escape zamyka panel).
         "src/components/dock/WorkspaceDock.tsx": {
-          statements: 91,
-          functions: 89,
-          lines: 92,
+          statements: 96,
+          functions: 98,
+          lines: 98,
           branches: 86,
         },
         "src/components/dock/atoms/DockEmptyState.tsx": {
@@ -8973,6 +9121,85 @@ export default defineConfig({
           branches: 98,
         },
         // <<< PF-I18N thresholds (end)
+        // >>> DESIGN SYSTEM `src/components/ui` (2026-10-03)
+        //
+        // Do dziś ŻADEN próg nie obejmował tej powierzchni (zlecenie
+        // docs/PROMPT_DESIGN_SYSTEM.md, rozdz. 0.3 i B1). Pliki niżej to pięć
+        // wierszy audytu X-design-system (karuzela okrężna, progresywny slider,
+        // wybór daty, galeria rejestracji, karta trasy) po naprawach i testach
+        // w `src/components/ui/__tests__/`. ZMIERZONE 2026-10-03 WYŁĄCZNIE tymi
+        // testami (dolna granica pełnej suity): 100% linii, funkcji, instrukcji
+        // i gałęzi w każdym z ośmiu plików. Zapora 98 zostawia margines tylko
+        // na przyszłe ramiona obronne, nie na utratę testu.
+        // karuzela okrężna
+        "src/components/ui/circular-carousel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // rotujący tekst (ten sam wiersz audytu co karuzela okrężna)
+        "src/components/ui/text-rotate.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // progresywny slider
+        "src/components/ui/progressive-carousel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // wybór daty i godziny
+        "src/components/ui/datetime-picker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // kalendarz pod wyborem daty
+        "src/components/ui/calendar.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // galeria popupu rejestracji
+        "src/components/ui/signup-showcase.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // pole popupu rejestracji
+        "src/components/ui/field-box.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // karta trasy
+        "src/components/ui/travel-route-card.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // Próg zbiorczy całej powierzchni. ZMIERZONE 2026-10-03 pełną suitą
+        // (3208 plików testowych, pokrycie zawężone do `src/components/ui`):
+        // 100% linii (842/842), 100% funkcji, 99,57% instrukcji, 94,43% gałęzi,
+        // zero plików na zerze. Zapora ~3 pp pod pomiarem, jak przy innych
+        // globach; gałęzie niżej, bo karty (promo, okładka) mają rozgałęzione
+        // warianty wyglądu pokrywane przez testy widgetów, nie przez `ui`.
+        "src/components/ui/**": {
+          statements: 97,
+          functions: 97,
+          lines: 97,
+          branches: 91,
+        },
+        // <<< DESIGN SYSTEM `src/components/ui` (end)
       },
     },
   },

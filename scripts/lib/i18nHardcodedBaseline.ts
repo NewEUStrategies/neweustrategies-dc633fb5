@@ -89,7 +89,7 @@ export const HARDCODED_LANGUAGE_BASELINE: readonly (readonly [string, number])[]
   ["src/components/popups/PopupHost.tsx", 1],
   ["src/components/post/PostSidebarRenderer.tsx", 2],
   ["src/components/profile/ProfileBadges.tsx", 1],
-  ["src/components/ui/datetime-picker.tsx", 5],
+  ["src/components/ui/datetime-picker.tsx", 1],
   ["src/lib/builder/widgetTextFields.ts", 1],
   ["src/lib/chat/attachments.ts", 1],
   ["src/lib/citations/format.ts", 8],

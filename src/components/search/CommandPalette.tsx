@@ -168,7 +168,7 @@ export function CommandPalette({
   const showPopular = q.length === 0 && popular.length > 0;
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
+    <CommandDialog open={open} onOpenChange={setOpen} label={t("search.title")}>
       <CommandInput placeholder={t("palette.placeholder")} value={query} onValueChange={setQuery} />
       <CommandList>
         {/* cmdk requires CommandEmpty for keyboard semantics, but we render
