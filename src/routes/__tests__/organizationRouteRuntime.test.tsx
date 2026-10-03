@@ -159,6 +159,7 @@ const { resilientCacheControl } = await import("@/lib/ssr/resilientLoad");
 const { renderRoute } = await import("@/test/routeHarness");
 const { Route } = await import("@/routes/organization.$slug");
 const { ensureI18n: ensureOrganizationsI18n } = await import("@/lib/i18n-organizations");
+const { ORGANIZATION_PAGE_COPY } = await import("@/lib/queries/organizationTerm");
 
 type HeadResult = {
   meta?: Record<string, unknown>[];
@@ -264,11 +265,12 @@ describe("head() mówi językiem adresu", () => {
     "%s: kopia w head() jest TYM SAMYM zdaniem co klucze nakładki (seo*, pageSuffix, breadcrumb)",
     (lang) => {
       const second = orgHead(2, lang);
-      expect(title(second)).toBe(
-        `NATO - ${overlay(lang, "seoTitleSuffix")} (${overlay(lang, "pageSuffix", { page: 2 })})`,
-      );
-      expect(description(second)).toBe(overlay(lang, "seoDescriptionFallback", { name: "NATO" }));
-      expect(crumbNames(second)[1]).toBe(overlay(lang, "breadcrumb"));
+      const copy = ORGANIZATION_PAGE_COPY[lang];
+      expect(title(second)).toBe(`NATO - ${copy.titleSuffix} (${copy.pageLabel} 2)`);
+      expect(description(second)).toBe(copy.descriptionFallback("NATO"));
+      expect(crumbNames(second)[1]).toBe(copy.breadcrumb);
+      // Widoczny okruszek nakładki czyta tę samą kopię.
+      expect(overlay(lang, "breadcrumb")).toBe(copy.breadcrumb);
     },
   );
 });
@@ -322,7 +324,10 @@ describe("loader i komponent w routerze", () => {
     expect(ensureOrganizationsI18n).toHaveBeenCalled();
     expect(h.cacheHeaders).toEqual([resilientCacheControl(false)]);
     expect(h.profile.at(-1)).toEqual({ lang: "pl", total: 30, slug: "nato" });
-    expect(h.breadcrumbs.at(-1)).toEqual([{ label: "NATO" }]);
+    expect(h.breadcrumbs.at(-1)).toEqual([
+      { label: overlay("pl", "breadcrumb"), href: "/search" },
+      { label: "NATO" },
+    ]);
     expect(h.people.at(-1)).toEqual({
       companyNames: expect.arrayContaining(["NATO"]),
       heading: overlay("pl", "peopleHeading"),

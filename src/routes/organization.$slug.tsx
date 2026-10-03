@@ -16,7 +16,6 @@ import {
   notFound,
   useNavigate,
   useRouter,
-  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useTransition } from "react";
@@ -169,8 +168,8 @@ export const Route = createFileRoute("/organization/$slug")({
     // powód, dla którego istnieje maleńkie `i18n-event-head`). Zdania są
     // identyczne z kluczami `organization.seo*`/`pageSuffix`/`breadcrumb` -
     // pilnuje tego `__tests__/organizationRouteRuntime.test.tsx`.
-    const isEn = lang === "en";
-    const name = org ? organizationName(org.term, lang) : isEn ? "Organization" : "Organizacja";
+    const copy = ORGANIZATION_PAGE_COPY[lang];
+    const name = org ? organizationName(org.term, lang) : copy.fallbackName;
     const descRaw = org ? organizationDescription(org.term, lang) : null;
     const description =
       (descRaw ?? "")
