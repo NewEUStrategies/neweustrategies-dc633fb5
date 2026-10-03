@@ -290,7 +290,7 @@ export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
                     type={f.type}
                     required={f.required}
                     autoComplete={f.autoComplete}
-                    className={f.key === "linkedin" ? "sm:col-span-2" : undefined}
+                    containerClassName={f.key === "linkedin" ? "sm:col-span-2" : undefined}
                     label={`${reg.label(f.key)}${f.required ? " *" : ""}`}
                     value={profile[f.key]}
                     onChange={(e) => {
