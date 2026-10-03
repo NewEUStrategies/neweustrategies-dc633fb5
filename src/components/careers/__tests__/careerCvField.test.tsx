@@ -230,8 +230,14 @@ vi.mock("@/integrations/supabase/client", () => ({
 // zwracałby klucze i asercje mierzyłyby brak słownika, nie napisy.
 import "@/lib/i18n-careers";
 import { realT } from "@/test/i18nReal";
-import { CV_ACCEPTED_MIME, CV_ACCEPT_ATTR, CV_MAX_BYTES } from "@/lib/careers/applicationSchema";
-import { CV_BUCKET } from "@/lib/careers/cvUpload";
+import {
+  CV_ACCEPTED_EXTENSIONS,
+  CV_ACCEPTED_MIME,
+  CV_ACCEPT_ATTR,
+  CV_MAX_BYTES,
+} from "@/lib/careers/applicationSchema";
+import { CV_BUCKET, validateCvFile } from "@/lib/careers/cvUpload";
+import { matchesAccept } from "@/lib/media/acceptMatch";
 import { CareerCvField, EMPTY_CV, type CvValue } from "../molecules/CareerCvField";
 
 const T = realT("pl");
@@ -332,6 +338,15 @@ async function wybierz(container: HTMLElement, file: File | File[] | null) {
   });
 }
 
+/** Upuszczenie na obszar wgrywania + domknięcie mikrozadań transferu. */
+async function upusc(container: HTMLElement, files: File[]) {
+  const obszar = container.querySelector('[data-slot="upload-area"]');
+  if (obszar === null) throw new Error("test: pole CV nie ma wspólnego obszaru wgrywania");
+  await act(async () => {
+    fireEvent.drop(obszar, { dataTransfer: { types: ["Files"], files } });
+  });
+}
+
 /** Bramka transferu: zwraca zwolnienie, po którym `await` w polu dobiega. */
 function zatrzymajTransfer() {
   let release!: () => void;
@@ -372,18 +387,44 @@ describe("CareerCvField: stan pusty i wejście do okna wyboru", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("filtr okna wyboru jest listą formatów ze schematu, jeden do jednego z listą MIME", () => {
+  it("filtr okna wyboru jest listą formatów ze schematu: rozszerzenia i MIME walidatora", () => {
     const { container } = pole();
     // Pole nie ma własnej listy formatów - bierze tę ze schematu, którym
     // walidator zaraz odrzuci plik spoza polityki bucketu.
     expect(wejsciePliku(container)).toHaveAttribute("accept", CV_ACCEPT_ATTR);
     // Jedyne miejsce w repo, gdzie TREŚĆ filtra `accept` jest asertowana:
-    // rozszerzenie na jeden dozwolony typ MIME, nic ponad to. Dołożenie MIME
-    // bez dołożenia rozszerzenia (albo odwrotnie) oblewa ten test. Że KAŻDY
+    // rozszerzenie na jeden dozwolony typ MIME plus same typy MIME - dokładnie
+    // dwie drogi, którymi `validateCvFile` przyjmuje plik. Dołożenie MIME bez
+    // dołożenia rozszerzenia (albo odwrotnie) oblewa ten test. Że KAŻDY
     // przyjmowany MIME ma własne rozszerzenie w ścieżce, dowodzi warstwa reguł
     // (`lib/careers/__tests__/careersRulesEdges.test.ts`).
-    expect(CV_ACCEPT_ATTR.split(",")).toEqual([".pdf", ".doc", ".docx"]);
-    expect(CV_ACCEPTED_MIME).toHaveLength(CV_ACCEPT_ATTR.split(",").length);
+    expect(CV_ACCEPT_ATTR.split(",")).toEqual([".pdf", ".doc", ".docx", ...CV_ACCEPTED_MIME]);
+    expect(CV_ACCEPTED_EXTENSIONS).toHaveLength(CV_ACCEPTED_MIME.length);
+  });
+
+  it("filtr upuszczenia i walidator mówią to samo o typie KAŻDEGO pliku", () => {
+    // Rozjazd tych dwóch reguł to dokładnie defekt: upuszczony PDF bez
+    // rozszerzenia odpadał na filtrze, choć walidator i bucket go przyjmują.
+    const nazwy = [
+      "cv.pdf",
+      "CV.PDF",
+      "cv.doc",
+      "cv.docx",
+      "cv",
+      "pdf",
+      "cv.png",
+      "cv.odt",
+      "cv.pdf.exe",
+    ];
+    const typy = ["", ...CV_ACCEPTED_MIME, "image/png", "application/vnd.oasis.opendocument.text"];
+    for (const nazwa of nazwy) {
+      for (const typ of typy) {
+        const file = plik(nazwa, typ);
+        const walidator = validateCvFile(file);
+        const typOk = walidator.ok || walidator.errorKey !== "cvType";
+        expect(matchesAccept(file, CV_ACCEPT_ATTR), `${nazwa} [${typ || "bez MIME"}]`).toBe(typOk);
+      }
+    }
   });
 
   it("przycisk wgrania otwiera ukrytą kontrolkę pliku", () => {
@@ -591,6 +632,42 @@ describe("CareerCvField: plik odrzucony", () => {
     expect(onChangeSpy).not.toHaveBeenCalled();
     expect(screen.getByText("cv-anna-kowalska.pdf")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(T("careers.form.errors.cvType"));
+  });
+
+  it("UPUSZCZONY plik w nieobsługiwanym formacie daje ten sam komunikat, co wybór z okna", async () => {
+    // Defekt: pole nie podpinało `onRejectedFiles`, więc odmowa filtra
+    // upuszczenia była CISZĄ - bez komunikatu, bez `role="alert"`, bez zmiany
+    // stanu. Ten sam plik wybrany przyciskiem dostawał komunikat.
+    for (const [nazwa, typ] of [
+      ["zdjecie-cv.png", "image/png"],
+      ["zyciorys.odt", "application/vnd.oasis.opendocument.text"],
+    ] as const) {
+      const { container, onChangeSpy, onErrorSpy, unmount } = pole();
+
+      await upusc(container, [plik(nazwa, typ, 4096)]);
+
+      expect(onErrorSpy, nazwa).toHaveBeenLastCalledWith("careers.form.errors.cvType");
+      expect(screen.getByRole("alert")).toHaveTextContent(zeSlownika("careers.form.errors.cvType"));
+      expect(sekcja(container).getAttribute("data-invalid")).toBe("true");
+      expect(h.state.uploads, nazwa).toEqual([]);
+      expect(h.state.rpcCalls, nazwa).toEqual([]);
+      expect(onChangeSpy, nazwa).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+
+  it("UPUSZCZONY PDF bez rozszerzenia, ale z typem MIME, jedzie do magazynu jak z okna wyboru", async () => {
+    const { container, onChangeSpy, onErrorSpy } = pole();
+
+    await upusc(container, [plik("zyciorys-z-telefonu", "application/pdf", 2048)]);
+
+    expect(h.state.uploads).toHaveLength(1);
+    expect(h.state.uploads[0].path).toMatch(/^tenant-testowy\/uploads\/.+\.pdf$/);
+    expect(onErrorSpy).not.toHaveBeenCalledWith("careers.form.errors.cvType");
+    expect(onChangeSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ fileName: "zyciorys-z-telefonu", url: "" }),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("anulowane okno wyboru (brak pliku) nie rusza ani rodzica, ani magazynu", async () => {

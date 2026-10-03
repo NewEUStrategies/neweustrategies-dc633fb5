@@ -23179,6 +23179,10 @@ export type Database = {
         }
         Returns: number
       }
+      _mention_public_company_ids: {
+        Args: { _tenant: string }
+        Returns: { company_id: string }[]
+      }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
       _suggest_score: {
         Args: { _a: string; _b: string; _q: string }
@@ -26555,6 +26559,8 @@ export type Database = {
         Returns: undefined
       }
       career_cv_gc_scan: { Args: { _limit?: number }; Returns: Json }
+      career_cv_object_owner: { Args: { _name: string }; Returns: string }
+      career_cv_path_tenant: { Args: { _name: string }; Returns: string }
       career_cv_upload_quota_ok: {
         Args: { _day: string; _tenant: string }
         Returns: boolean

@@ -22,7 +22,15 @@ export const CV_ACCEPTED_MIME = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ] as const;
-export const CV_ACCEPT_ATTR = ".pdf,.doc,.docx";
+export const CV_ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx"] as const;
+/**
+ * Filtr `accept` pola CV: rozszerzenia ORAZ typy MIME - dokładnie te dwie
+ * drogi, którymi `validateCvFile` przyjmuje plik. Obszar wgrywania stosuje go
+ * także przy upuszczeniu (`matchesAccept`), więc sama lista rozszerzeń
+ * odrzucała PDF bez rozszerzenia (eksport z aplikacji mobilnej, plik z
+ * „Udostępnij"), który walidator i bucket przyjmują po MIME.
+ */
+export const CV_ACCEPT_ATTR = [...CV_ACCEPTED_EXTENSIONS, ...CV_ACCEPTED_MIME].join(",");
 
 const E = (key: string) => `careers.form.errors.${key}`;
 

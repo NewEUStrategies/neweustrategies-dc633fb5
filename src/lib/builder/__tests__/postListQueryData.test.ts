@@ -3,7 +3,8 @@
 // `postListQuery.ts` ma dwa piętra. Piętro czyste (`postListInput`,
 // `postListOrderColumn`, `rankAndSlicePopular`, `dedupeAndSlice`) jest opisane
 // w plikach siostrzanych. Piętro DANYCH - `fetchPopularPostIds`,
-// `fetchPostListRows`, `fetchPostIdsBySlugs`, `attachAuthorNames` - jest
+// `fetchPostListRows`, `attachAuthorNames` (plus wspolne
+// `taxonomyConstraintsFromSlugs` z `lib/queries/taxonomyPivot.ts`) - jest
 // modulo-prywatne i dotad nie mialo ani jednego wywolania. Ten plik wchodzi
 // w nie PUBLICZNYM wejsciem, czyli `postListQueryOptions(...).queryFn()`,
 // dokladnie tak, jak zrobilby to react-query.
@@ -28,8 +29,10 @@
 //    wiec tasowanie dotyczy WYLACZNIE pobranego okna, a nie calego zbioru.
 //    Obie asymetrie sa nieoczywiste i obie zmieniaja wynik widgetu.
 //
-// 3. ALGEBRA ZBIOROW include/exclude - przeciecie (a nie suma) kategorii,
-//    tagow i jawnych id, z wczesnym `return []` dla przeciecia pustego.
+// 3. ALGEBRA include/exclude - koniunkcja (a nie suma) kategorii, tagow
+//    i jawnych id, liczona OD 03.10.2026 W BAZIE (osadzenia `!inner()`
+//    i anty-zlaczenia `alias=is.null`, `lib/queries/taxonomyPivot.ts`), bez
+//    przewozenia identyfikatorow wpisow przez adres URL.
 //
 // 4. "WZBOGACAMY, NIGDY NIE KASUJEMY" w `attachAuthorNames`: brak profilu
 //    zostawia to, co wiersz juz niesie, zamiast nadpisac nazwisko null-em.
@@ -242,20 +245,52 @@ describe("degradacja rankingu popularnosci", () => {
     expect(warn()).not.toHaveBeenCalled();
   });
 
-  it("ranking rozlaczny z lista jawnych id konczy sie pusta lista", async () => {
-    // OBSERWACJA (nie asercja o poprawnosci): wczesny `return []` dla pustego
-    // przeciecia stoi PRZED zawezeniem rankingiem (postListQuery.ts:336 vs
-    // :355), wiec przeciecie wyzerowane dopiero przez ranking nadal placi
-    // round-trip do bazy z pustym `.in("id", [])`. Wynik jest poprawny, wiec
-    // nie rejestruje tego jako defektu - ale przypinam liczbe zapytan, zeby
-    // ewentualna zmiana byla widoczna.
+  it("ranking rozlaczny z lista jawnych id konczy sie pusta lista BEZ zapytania o posty", async () => {
+    // ZMIANA 03.10.2026: przeciecie jawnych id z rankingiem liczy sie PRZED
+    // zapytaniem o posty (oba zbiory sa ograniczone: id z panelu i <=200
+    // kandydatow z RPC), wiec puste przeciecie nie placi juz round-tripu
+    // z pustym `.in("id", [])`, ktory poprzednia wersja tego przypadku
+    // przypinala jako obserwacje.
     rpc().setData("popular_post_ids", [{ post_id: "a" }]);
     setPosts([]);
 
     const rows = await runQueryFn({ orderBy: "popular", includeIdsCsv: "z" });
 
     expect(rows).toEqual([]);
-    expect(inValues(postsChain())).toEqual([]);
+    expect(db().chainsFor("posts")).toHaveLength(0);
+  });
+
+  it("ranking przeciety z jawnymi id zaweza zapytanie do CZESCI WSPOLNEJ", async () => {
+    rpc().setData("popular_post_ids", [{ post_id: "c" }, { post_id: "a" }, { post_id: "b" }]);
+    setPosts([postRow("a"), postRow("b")]);
+
+    const rows = await runQueryFn({ orderBy: "popular", includeIdsCsv: "b, a, z" });
+
+    expect(inValues(postsChain())).toEqual(["b", "a"]);
+    expect(ids(rows)).toEqual(["a", "b"]);
+  });
+
+  it("RPC rankingu biegnie w TEJ SAMEJ fali co slowniki taksonomii", async () => {
+    // Optymalizacja 03.10.2026: ranking nie zalezy od taksonomii, wiec nie
+    // czeka na odczyt `categories`. Dowod: RPC jest wolane, zanim odpowiedz
+    // slownika zostanie rozwiazana.
+    let releaseCategories: () => void = () => undefined;
+    db().setResponse(
+      "categories",
+      () =>
+        new Promise((resolve) => {
+          releaseCategories = () => resolve(ok([{ id: "cat-1", slug: "polityka" }]));
+        }),
+    );
+    rpc().setData("popular_post_ids", [{ post_id: "a" }]);
+    setPosts([postRow("a")]);
+
+    const pending = runQueryFn({ orderBy: "popular", categoriesCsv: "polityka" });
+    await vi.waitFor(() => expect(rpc().lastCall("popular_post_ids")).toBeDefined());
+    expect(db().chainsFor("posts")).toHaveLength(0);
+    releaseCategories();
+
+    await expect(pending).resolves.toHaveLength(1);
   });
 });
 
@@ -311,6 +346,16 @@ describe("okno wynikow zaleznie od sortowania", () => {
   });
 });
 
+/** Napis `select` zapytania o posty - osadzenia taksonomii siedza WLASNIE w nim. */
+function selectOf(chain: RecordedChain): string {
+  return String(chain.argsOf("select")?.[0]);
+}
+
+/** Ogniwa `.in("id", ...)` - po naprawie niosa WYLACZNIE id ograniczone z gory. */
+function idInCalls(chain: RecordedChain): ReadonlyArray<unknown>[] {
+  return callArgs(chain, "in").filter((args) => args[0] === "id");
+}
+
 describe("zawezenia zbioru wynikow (include / exclude)", () => {
   it("bez zadnych zawezen zapytanie NIE niesie ani .in po id, ani .not", async () => {
     setPosts([postRow("a")]);
@@ -322,15 +367,13 @@ describe("zawezenia zbioru wynikow (include / exclude)", () => {
     expect(db().chains.map((c) => c.table)).toEqual(["posts"]);
   });
 
-  it("kategorie, tagi i jawne id sa PRZECIECIEM, a nie suma", async () => {
-    db().setResponse("categories", () => ok([{ id: "cat-1" }]));
-    db().setResponse("post_categories", () =>
-      ok([{ post_id: "p1" }, { post_id: "p2" }, { post_id: "p3" }]),
-    );
-    db().setResponse("tags", () => ok([{ id: "tag-1" }]));
-    db().setResponse("post_tags", () =>
-      ok([{ post_id: "p2" }, { post_id: "p3" }, { post_id: "p4" }]),
-    );
+  it("kategorie, tagi i jawne id sa KONIUNKCJA w JEDNYM zapytaniu, a nie suma", async () => {
+    // Przeciecie liczy baza: dwa osadzenia `!inner()` (wpis musi miec
+    // kategorie ORAZ tag) plus `.in("id", ...)` z jawnymi id wpisanymi
+    // w panelu - jedyna lista id wpisow, ktora zostaje, bo jest ograniczona
+    // tym, co wpisze czlowiek.
+    db().setResponse("categories", () => ok([{ id: "cat-1", slug: "polityka" }]));
+    db().setResponse("tags", () => ok([{ id: "tag-1", slug: "ue" }]));
     setPosts([postRow("p2"), postRow("p3")]);
 
     const rows = await runQueryFn({
@@ -339,25 +382,30 @@ describe("zawezenia zbioru wynikow (include / exclude)", () => {
       includeIdsCsv: "p2, p3, p9",
     });
 
-    expect(inValues(postsChain())).toEqual(["p2", "p3"]);
+    expect(selectOf(postsChain())).toContain("tx_inc_category_0:post_categories!inner()");
+    expect(selectOf(postsChain())).toContain("tx_inc_tag_1:post_tags!inner()");
+    expect(callArgs(postsChain(), "in")).toEqual([
+      ["tx_inc_category_0.category_id", ["cat-1"]],
+      ["tx_inc_tag_1.tag_id", ["tag-1"]],
+      ["id", ["p2", "p3", "p9"]],
+    ]);
+    expect(db().chainsFor("post_categories")).toHaveLength(0);
+    expect(db().chainsFor("post_tags")).toHaveLength(0);
     expect(ids(rows)).toEqual(["p2", "p3"]);
   });
 
-  it("PUSTE przeciecie konczy sie pusta lista BEZ zapytania o posty", async () => {
-    db().setResponse("categories", () => ok([{ id: "cat-1" }]));
-    db().setResponse("post_categories", () => ok([{ post_id: "p1" }]));
+  it("kategoria nietrafiajaca w zaden termin konczy sie pusta lista BEZ zapytania o posty", async () => {
+    db().setResponse("categories", () => ok([]));
 
-    const rows = await runQueryFn({ categoriesCsv: "polityka", includeIdsCsv: "p9" });
+    const rows = await runQueryFn({ categoriesCsv: "widmo", includeIdsCsv: "p9" });
 
     expect(rows).toEqual([]);
     expect(db().chainsFor("posts")).toHaveLength(0);
   });
 
-  it("wykluczenia z kategorii, tagow i jawnych id jada w JEDNYM filtrze .not", async () => {
-    db().setResponse("categories", () => ok([{ id: "cat-x" }]));
-    db().setResponse("post_categories", () => ok([{ post_id: "p1" }]));
-    db().setResponse("tags", () => ok([{ id: "tag-x" }]));
-    db().setResponse("post_tags", () => ok([{ post_id: "p2" }]));
+  it("wykluczenia kategorii i tagow to ANTY-ZLACZENIE w bazie, a jawne id - jedno ogniwo .not", async () => {
+    db().setResponse("categories", () => ok([{ id: "cat-x", slug: "sponsorowane" }]));
+    db().setResponse("tags", () => ok([{ id: "tag-x", slug: "archiwum" }]));
     setPosts([postRow("p5")]);
 
     await runQueryFn({
@@ -366,8 +414,45 @@ describe("zawezenia zbioru wynikow (include / exclude)", () => {
       excludeIdsCsv: "p9",
     });
 
-    expect(postsChain().argsOf("not")).toEqual(["id", "in", "(p1,p2,p9)"]);
-    expect(postsChain().has("in")).toBe(false);
+    // Osadzenie BEZ `!inner` + filtr po terminie + `alias=is.null` = "wpis nie
+    // ma ani jednego przypisania do wykluczonych terminow".
+    expect(selectOf(postsChain())).toContain("tx_exc_category_0:post_categories()");
+    expect(selectOf(postsChain())).toContain("tx_exc_tag_1:post_tags()");
+    expect(selectOf(postsChain())).not.toContain("!inner");
+    expect(callArgs(postsChain(), "in")).toEqual([
+      ["tx_exc_category_0.category_id", ["cat-x"]],
+      ["tx_exc_tag_1.tag_id", ["tag-x"]],
+    ]);
+    expect(callArgs(postsChain(), "is")).toEqual([
+      ["tx_exc_category_0", null],
+      ["tx_exc_tag_1", null],
+      ["deleted_at", null],
+    ]);
+    // Lista w `.not` niesie WYLACZNIE id wpisane w panelu - wpisy z
+    // wykluczonych kategorii nie jada juz przez adres URL.
+    expect(postsChain().argsOf("not")).toEqual(["id", "in", "(p9)"]);
+    expect(idInCalls(postsChain())).toEqual([]);
+  });
+
+  it("wlaczenie i wykluczenie TEJ SAMEJ tabeli posredniej dostaja ROZNE aliasy", async () => {
+    db().setResponse("categories", () =>
+      ok([
+        { id: "cat-a", slug: "polityka" },
+        { id: "cat-b", slug: "sponsorowane" },
+      ]),
+    );
+    setPosts([postRow("p1")]);
+
+    await runQueryFn({ categoriesCsv: "polityka", excludeCategoriesCsv: "sponsorowane" });
+
+    expect(selectOf(postsChain())).toContain("tx_inc_category_0:post_categories!inner()");
+    expect(selectOf(postsChain())).toContain("tx_exc_category_1:post_categories()");
+    expect(callArgs(postsChain(), "in")).toEqual([
+      ["tx_inc_category_0.category_id", ["cat-a"]],
+      ["tx_exc_category_1.category_id", ["cat-b"]],
+    ]);
+    // Jeden slownik kategorii na oba pola - nie dwa zapytania.
+    expect(db().chainsFor("categories")).toHaveLength(1);
   });
 
   it("same jawne id (bez taksonomii) tez zawezaja zapytanie", async () => {
@@ -381,7 +466,7 @@ describe("zawezenia zbioru wynikow (include / exclude)", () => {
   });
 });
 
-describe("rozwiazywanie slugow taksonomii na id postow", () => {
+describe("rozwiazywanie slugow taksonomii na id terminow", () => {
   it("puste csv taksonomii NIE pyta o tabele slownikowe", async () => {
     setPosts([postRow("a")]);
 
@@ -391,7 +476,7 @@ describe("rozwiazywanie slugow taksonomii na id postow", () => {
     expect(db().chainsFor("tags")).toHaveLength(0);
   });
 
-  it("kategoria bez dopasowanego sluga NIE pyta o post_categories", async () => {
+  it("kategoria bez dopasowanego sluga konczy sie pusta lista bez zapytania o posty", async () => {
     db().setResponse("categories", () => ok([]));
 
     const rows = await runQueryFn({ categoriesCsv: "nie-ma-takiej" });
@@ -401,7 +486,7 @@ describe("rozwiazywanie slugow taksonomii na id postow", () => {
     expect(db().chainsFor("posts")).toHaveLength(0);
   });
 
-  it("tag bez dopasowanego sluga NIE pyta o post_tags", async () => {
+  it("tag bez dopasowanego sluga konczy sie pusta lista bez zapytania o posty", async () => {
     db().setResponse("tags", () => ok([]));
 
     const rows = await runQueryFn({ tagsCsv: "nie-ma-takiego" });
@@ -411,88 +496,91 @@ describe("rozwiazywanie slugow taksonomii na id postow", () => {
     expect(db().chainsFor("posts")).toHaveLength(0);
   });
 
-  it("slugi jada do tabeli slownikowej, a jej id do tabeli laczacej", async () => {
-    db().setResponse("categories", () => ok([{ id: "cat-1" }, { id: "cat-2" }]));
-    db().setResponse("post_categories", () => ok([{ post_id: "p1" }]));
+  it("slugi jada do slownika, a id TERMINOW (nie wpisow) do osadzenia w zapytaniu o posty", async () => {
+    db().setResponse("categories", () =>
+      ok([
+        { id: "cat-1", slug: "polityka" },
+        { id: "cat-2", slug: "gospodarka" },
+      ]),
+    );
     setPosts([postRow("p1")]);
 
     await runQueryFn({ categoriesCsv: "polityka, gospodarka" });
 
     const dict = db().lastChain("categories");
-    expect(dict?.argsOf("select")).toEqual(["id"]);
+    expect(dict?.argsOf("select")).toEqual(["id, slug"]);
     expect(dict?.argsOf("in")).toEqual(["slug", ["polityka", "gospodarka"]]);
-    const link = db().lastChain("post_categories");
-    expect(link?.argsOf("select")).toEqual(["post_id"]);
-    expect(link?.argsOf("in")).toEqual(["category_id", ["cat-1", "cat-2"]]);
+    expect(postsChain().argsOf("in")).toEqual([
+      "tx_inc_category_0.category_id",
+      ["cat-1", "cat-2"],
+    ]);
+    expect(db().chainsFor("post_categories")).toHaveLength(0);
   });
 
-  it("slugi tagow jada do `tags`, a ich id do `post_tags`", async () => {
-    db().setResponse("tags", () => ok([{ id: "tag-1" }]));
-    db().setResponse("post_tags", () => ok([{ post_id: "p1" }]));
+  it("slugi tagow jada do `tags`, a ich id do osadzenia `post_tags`", async () => {
+    db().setResponse("tags", () => ok([{ id: "tag-1", slug: "ue" }]));
     setPosts([postRow("p1")]);
 
     await runQueryFn({ tagsCsv: "ue" });
 
     expect(db().lastChain("tags")?.argsOf("in")).toEqual(["slug", ["ue"]]);
-    expect(db().lastChain("post_tags")?.argsOf("in")).toEqual(["tag_id", ["tag-1"]]);
+    expect(postsChain().argsOf("in")).toEqual(["tx_inc_tag_0.tag_id", ["tag-1"]]);
+    expect(db().chainsFor("post_tags")).toHaveLength(0);
   });
 
-  it("brak wierszy w tabeli laczacej (data null) daje PUSTY zbior, a nie wyjatek", async () => {
-    db().setResponse("categories", () => ok([{ id: "cat-1" }]));
-    db().setResponse("post_categories", () => ok(null));
+  it("czesciowo trafione slugi wlaczajace zawezaja do TRAFIONYCH (alternatywa terminow)", async () => {
+    db().setResponse("categories", () => ok([{ id: "cat-1", slug: "polityka" }]));
+    setPosts([postRow("p1")]);
 
-    const rows = await runQueryFn({ categoriesCsv: "polityka" });
+    await runQueryFn({ categoriesCsv: "polityka, widmo" });
 
-    expect(rows).toEqual([]);
-    expect(db().chainsFor("posts")).toHaveLength(0);
+    expect(postsChain().argsOf("in")).toEqual(["tx_inc_category_0.category_id", ["cat-1"]]);
   });
 
-  it("brak wierszy w slowniku tagow (data null) tez daje PUSTY zbior", async () => {
+  it("nieznany slug WYKLUCZAJACY niczego nie wyklucza i nie zeruje listy", async () => {
+    db().setResponse("categories", () => ok([]));
+    setPosts([postRow("p1")]);
+
+    const rows = await runQueryFn({ excludeCategoriesCsv: "widmo" });
+
+    expect(ids(rows)).toEqual(["p1"]);
+    expect(selectOf(postsChain())).not.toContain("post_categories");
+    expect(callArgs(postsChain(), "is")).toEqual([["deleted_at", null]]);
+  });
+
+  it("brak wierszy w slowniku tagow (data null) daje PUSTA liste", async () => {
     db().setResponse("tags", () => ok(null));
 
     const rows = await runQueryFn({ tagsCsv: "ue" });
 
     expect(rows).toEqual([]);
     expect(db().chainsFor("post_tags")).toHaveLength(0);
-  });
-
-  it("brak wierszy w post_tags (data null) tez daje PUSTY zbior", async () => {
-    db().setResponse("tags", () => ok([{ id: "tag-1" }]));
-    db().setResponse("post_tags", () => ok(null));
-
-    const rows = await runQueryFn({ tagsCsv: "ue" });
-
-    expect(rows).toEqual([]);
     expect(db().chainsFor("posts")).toHaveLength(0);
   });
 
-  // DEFEKT: ODMOWA ODCZYTU TAKSONOMII CICHO KASUJE WYKLUCZENIE.
+  // NAPRAWIONE 03.10.2026 (byl `it.fails`): ODMOWA ODCZYTU TAKSONOMII CICHO
+  // KASOWALA WYKLUCZENIE.
   //
-  // WEJSCIE: widget z `excludeCategoriesCsv: "sponsorowane"`, przy ktorym
-  //   odczyt `categories` konczy sie bledem (RLS, brak grantu, awaria sieci).
-  // CO PSUJE: `fetchPostIdsBySlugs` (src/lib/builder/postListQuery.ts:233-237
-  //   dla kategorii i :245-251 dla tagow) destrukturyzuje WYLACZNIE `data`
-  //   i ignoruje `error`. Nieudany odczyt daje `undefined`, `(cats ?? [])`
-  //   robi z tego pusta liste, funkcja zwraca pusty zbior, `excludeSet.size`
-  //   jest zerowe - i ogniwo `.not("id", "in", ...)` (:376) w ogole nie
-  //   powstaje.
-  // KONSEKWENCJA: wpisy, ktore redakcja SWIADOMIE wykluczyla, wracaja na
-  //   publiczna strone. To ta sama klasa co "awaria odczytu udaje pustke"
-  //   z modulu 19, tyle ze skutkiem jest POKAZANIE tresci, a nie jej
-  //   ukrycie - i dlatego jest grozniejsza: pusty widget widac, a widget
-  //   z jednym wpisem za duzo nie.
-  //   Ta sama luka po stronie `include` zamienia awarie odczytu w "pusto",
-  //   czyli dokladnie w defekt, ktoremu reszta tego pliku ma zapobiegac.
-  // WYMAGANA POPRAWKA: `fetchPostIdsBySlugs` musi czytac `error` i propagowac
-  //   go (throw), zeby `queryFn` skonczyl sie bledem, a widget pokazal stan
-  //   bledu zamiast listy bez wykluczen.
-  it.fails("DEFEKT: odmowa odczytu kategorii NIE moze cicho kasowac wykluczenia", async () => {
+  // `fetchPostIdsBySlugs` destrukturyzowal WYLACZNIE `data` i ignorowal
+  // `error`: nieudany odczyt `categories` dawal pusty zbior, ogniwo `.not`
+  // w ogole nie powstawalo, a wpisy, ktore redakcja SWIADOMIE wykluczyla,
+  // wracaly na publiczna strone. Slownik czyta teraz `taxonomyTermIdsBySlug`
+  // (`lib/queries/taxonomyPivot.ts`), ktory RZUCA - `queryFn` konczy sie
+  // bledem, a widget pokazuje stan bledu zamiast listy bez wykluczen.
+  it("odmowa odczytu kategorii NIE kasuje cicho wykluczenia - queryFn RZUCA", async () => {
     db().setResponse("categories", () => fail("permission denied for table categories", "42501"));
     setPosts([postRow("p1")]);
 
     await expect(runQueryFn({ excludeCategoriesCsv: "sponsorowane" })).rejects.toThrow(
       /permission denied/,
     );
+    expect(db().chainsFor("posts")).toHaveLength(0);
+  });
+
+  it("odmowa odczytu tagow przy filtrze WLACZAJACYM tez RZUCA, a nie udaje pustki", async () => {
+    db().setResponse("tags", () => fail("permission denied for table tags", "42501"));
+
+    await expect(runQueryFn({ tagsCsv: "ue" })).rejects.toThrow(/permission denied/);
   });
 });
 

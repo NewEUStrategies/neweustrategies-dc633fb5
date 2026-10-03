@@ -23,6 +23,7 @@ import {
   stageLabel,
   startLabel,
 } from "../recruitmentLayer";
+import { isCareerCvPathOfTenant } from "../recruitmentShared";
 
 const CV_PATH = "uploads/2026-08-14/2f9b3c14-77d1-4b0e-9d4e-8c2a1f6e0b55.pdf";
 
@@ -258,6 +259,43 @@ describe("isCareerCvPath: konwencja z tenantem i legacy", () => {
     expect(
       isCareerCvPath("nie-uuid/uploads/2026-08-14/aaaaaaaa-1111-2222-3333-444444444444.pdf"),
     ).toBe(false);
+  });
+});
+
+describe("isCareerCvPath: pierwszy segment to PELNY UUID", () => {
+  it("odrzuca 36 znakow z alfabetu UUID, ktore UUID-em nie sa", () => {
+    // Stary wzorzec `[0-9a-fA-F-]{36}` przepuszczal np. same myslniki.
+    const tail = "/uploads/2026-08-14/aaaaaaaa-1111-2222-3333-444444444444.pdf";
+    expect(isCareerCvPath(`${"-".repeat(36)}${tail}`)).toBe(false);
+    expect(isCareerCvPath(`${"a".repeat(36)}${tail}`)).toBe(false);
+  });
+});
+
+describe("isCareerCvPathOfTenant: bramka zapisu wiaze sciezke z najemca hosta", () => {
+  const TENANT_A = "11111111-1111-1111-1111-111111111111";
+  const TENANT_B = "22222222-2222-2222-2222-222222222222";
+  const TAIL = "uploads/2026-08-14/aaaaaaaa-1111-2222-3333-444444444444.pdf";
+
+  it("przyjmuje sciezke w katalogu najemcy hosta", () => {
+    expect(isCareerCvPathOfTenant(`${TENANT_A}/${TAIL}`, TENANT_A)).toBe(true);
+    expect(isCareerCvPathOfTenant(`${TENANT_A.toUpperCase()}/${TAIL}`, TENANT_A)).toBe(true);
+  });
+
+  it("odrzuca poprawny ksztalt z katalogu INNEGO najemcy", () => {
+    // To jest luka: ksztalt sie zgadza, wiec `isCareerCvPath` mowi true.
+    expect(isCareerCvPath(`${TENANT_B}/${TAIL}`)).toBe(true);
+    expect(isCareerCvPathOfTenant(`${TENANT_B}/${TAIL}`, TENANT_A)).toBe(false);
+  });
+
+  it("odrzuca ksztalt legacy - nowe zgloszenie nie ma prawa go niesc", () => {
+    expect(isCareerCvPathOfTenant(TAIL, TENANT_A)).toBe(false);
+  });
+
+  it("odrzuca brak najemcy i wartosci nie-tekstowe", () => {
+    expect(isCareerCvPathOfTenant(`${TENANT_A}/${TAIL}`, null)).toBe(false);
+    expect(isCareerCvPathOfTenant(`${TENANT_A}/${TAIL}`, "")).toBe(false);
+    expect(isCareerCvPathOfTenant(undefined, TENANT_A)).toBe(false);
+    expect(isCareerCvPathOfTenant(`${TENANT_A}/../${TAIL}`, TENANT_A)).toBe(false);
   });
 });
 

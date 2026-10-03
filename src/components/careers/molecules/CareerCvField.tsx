@@ -84,6 +84,10 @@ export function CareerCvField({
         error={error}
         errorId={errorId}
         onFiles={(files) => void pickFile(files[0])}
+        // Upuszczenie filtruje `accept` w obszarze - bez tej odmowy plik
+        // w złym formacie znikał po cichu, a ten sam plik z okna wyboru
+        // dostawał komunikat. Jeden klucz, jedno `role="alert"` w obu drogach.
+        onRejectedFiles={() => onErrorMessage("careers.form.errors.cvType")}
         preview={
           value.fileName ? (
             <span className="inline-flex max-w-full items-center gap-2 rounded-md bg-brand/[0.06] px-2 py-1 text-xs">
