@@ -9,7 +9,7 @@
 // Jeden test na wariant, asercja na TREŚĆ. Zależności spoza archiwum
 // (reklamy, newsletter, przycisk obserwowania, okruszki) są podmienione:
 // mają własne testy, a tutaj tylko zaciemniałyby, co jest sprawdzane.
-import { describe, expect, it, afterEach, vi } from "vitest";
+import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
@@ -837,54 +837,6 @@ describe("ArchivePostList i PaginatedPostGrid", () => {
     expect(onPageChange).toHaveBeenCalledWith(2);
   });
 
-  it("zmiana strony wraca na górę listy", () => {
-    // Pozostanie w połowie ekranu po podmianie treści dezorientuje - czytelnik
-    // ląduje w środku innego wpisu.
-    const scrollSpy = vi.fn();
-    const original = window.scrollTo;
-    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo;
-    try {
-      render(
-        <PaginatedPostGrid
-          posts={posts(2)}
-          page={3}
-          totalPages={5}
-          lang="pl"
-          emptyText=""
-          isPending={false}
-          onPageChange={() => {}}
-          hrefFor={(p) => `/blog?page=${p}`}
-        />,
-      );
-      expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
-    } finally {
-      window.scrollTo = original;
-    }
-  });
-
-  it("pierwsza strona NIE przewija - czytelnik dopiero wszedł", () => {
-    const scrollSpy = vi.fn();
-    const original = window.scrollTo;
-    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo;
-    try {
-      render(
-        <PaginatedPostGrid
-          posts={posts(2)}
-          page={1}
-          totalPages={5}
-          lang="pl"
-          emptyText=""
-          isPending={false}
-          onPageChange={() => {}}
-          hrefFor={(p) => `/blog?page=${p}`}
-        />,
-      );
-      expect(scrollSpy).not.toHaveBeenCalled();
-    } finally {
-      window.scrollTo = original;
-    }
-  });
-
   it("klik w numer strony idzie przez nawigację SPA", () => {
     const onPageChange = vi.fn();
     render(
@@ -901,6 +853,99 @@ describe("ArchivePostList i PaginatedPostGrid", () => {
     );
     fireEvent.click(screen.getByRole("link", { name: "Strona 2" }), { button: 0 });
     expect(onPageChange).toHaveBeenCalledWith(2);
+  });
+});
+
+describe("PaginatedPostGrid - powrót na górę po ZMIANIE strony", () => {
+  // Pozostanie w połowie ekranu po podmianie treści dezorientuje - czytelnik
+  // ląduje w środku innego wpisu. Ale przewija wyłącznie ZMIANA strony:
+  // montaż (wejście z linku na `?page=3`, powrót „wstecz" z wpisu) zostawia
+  // widok tam, gdzie postawił go router.
+  const scrollTo = vi.fn();
+
+  function grid(page: number): ReactElement {
+    return (
+      <PaginatedPostGrid
+        posts={posts(2)}
+        page={page}
+        totalPages={5}
+        lang="pl"
+        emptyText=""
+        isPending={false}
+        onPageChange={() => {}}
+        hrefFor={(p) => `/blog?page=${p}`}
+      />
+    );
+  }
+
+  /**
+   * Montaż na `from`, potem zmiana na `to`. Wywołania z montażu są zerowane:
+   * asercja widzi WYŁĄCZNIE reakcję na zmianę - inaczej przewinięcie z montażu
+   * (stary warunek `page > 1`) maskowałoby brak reakcji na powrót 3 -> 1.
+   */
+  function changePage(from: number, to: number): void {
+    const view = render(grid(from));
+    scrollTo.mockClear();
+    view.rerender(grid(to));
+  }
+
+  function stubReducedMotion(reduce: boolean): void {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: reduce && query.includes("prefers-reduced-motion"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+  }
+
+  beforeEach(() => {
+    scrollTo.mockReset();
+    vi.stubGlobal("scrollTo", scrollTo);
+    stubReducedMotion(false);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("pierwsza strona NIE przewija - czytelnik dopiero wszedł", () => {
+    render(grid(1));
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("wejście PROSTO na dalszą stronę też nie przewija - to montaż, nie zmiana", () => {
+    // Stary warunek `page > 1` przewijał tu na górę, choć czytelnik niczego
+    // nie kliknął.
+    render(grid(3));
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("zmiana 2 -> 3 wraca na górę listy płynnie", () => {
+    changePage(2, 3);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+  });
+
+  it("powrót 3 -> 1 TEŻ wraca na górę - stary warunek `page > 1` go odcinał", () => {
+    changePage(3, 1);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+  });
+
+  it("ponowny render tej samej strony nie przewija drugi raz", () => {
+    // Np. odświeżenie danych w tle albo zmiana `isPending` - strona ta sama.
+    const view = render(grid(2));
+    view.rerender(grid(3));
+    scrollTo.mockClear();
+    view.rerender(grid(3));
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("przy „ogranicz ruch” skok na górę jest natychmiastowy, bez animacji", () => {
+    stubReducedMotion(true);
+    changePage(2, 3);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
   });
 });
 

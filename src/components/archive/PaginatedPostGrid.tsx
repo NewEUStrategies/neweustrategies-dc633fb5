@@ -9,10 +9,10 @@
 // Nawigacja zostaje po stronie trasy (onPageChange/hrefFor) - organizm nie
 // zna adresów ani search params, więc działa pod dowolnym URL-em i nie
 // zaciąga generyków routera do współdzielonego chunka.
-import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { ArchivePagination } from "@/components/archive/layouts/ArchivePagination";
+import { useScrollTopOnPageChange } from "@/lib/a11y/useScrollTopOnPageChange";
 import type { BlogListItem } from "@/lib/queries/public";
 
 interface PaginatedPostGridProps {
@@ -54,12 +54,10 @@ export function PaginatedPostGrid({
   const { t } = useTranslation();
 
   // Zmiana strony wraca na górę listy - pozostanie w połowie ekranu po
-  // podmianie treści dezorientuje (ten sam wzorzec co TaxonomyPage).
-  useEffect(() => {
-    if (typeof window !== "undefined" && page > 1) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [page]);
+  // podmianie treści dezorientuje. Ten sam hak co w TaxonomyPage: przewija
+  // przy KAŻDEJ zmianie (także 3 -> 1), nigdy przy montażu, i bez animacji
+  // dla „ogranicz ruch".
+  useScrollTopOnPageChange(page);
 
   return (
     <>
