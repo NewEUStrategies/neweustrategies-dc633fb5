@@ -113,7 +113,7 @@ vi.mock("@/lib/content/anchorScan", async () => {
 vi.mock("@/lib/smoothAnchorScroll", async () => {
   const { vi: v } = await import("vitest");
   h.smoothScroll = v.fn<(id: string) => void>();
-  return { smoothScrollToAnchor: h.smoothScroll };
+  return { getAnchorScrollOffset: () => 80, smoothScrollToAnchor: h.smoothScroll };
 });
 
 vi.mock("@/lib/a11y/useFocusTrap", async () => {
