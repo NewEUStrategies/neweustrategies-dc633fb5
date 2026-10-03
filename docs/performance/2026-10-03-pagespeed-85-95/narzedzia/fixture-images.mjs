@@ -13,16 +13,23 @@ const PORT = Number(process.argv[2] ?? 8443);
 const REPO = process.argv[3] ?? "/home/user/neweustrategies-dc633fb5";
 const jpg = readFileSync(resolve(REPO, "e2e/fixtures/first-visit-cover.jpg"));
 const svg = readFileSync(resolve(REPO, "e2e/fixtures/first-visit-cover.svg"));
-const opts = { key: readFileSync(resolve(here, "fixture-tls/key.pem")), cert: readFileSync(resolve(here, "fixture-tls/cert.pem")) };
-https.createServer(opts, (req, res) => {
-  const path = new URL(req.url ?? "/", "https://fixture.invalid").pathname;
-  const isJpg = /\.jpe?g$/i.test(path);
-  const body = isJpg ? jpg : svg;
-  res.writeHead(200, {
-    "content-type": isJpg ? "image/jpeg" : "image/svg+xml",
-    "content-length": body.length,
-    "cache-control": "public, max-age=31536000, immutable",
-    "access-control-allow-origin": "*",
-  });
-  res.end(req.method === "HEAD" ? undefined : body);
-}).listen(PORT, "127.0.0.1", () => console.log(`fixture images https://127.0.0.1:${PORT} (fixture.invalid)`));
+const opts = {
+  key: readFileSync(resolve(here, "fixture-tls/key.pem")),
+  cert: readFileSync(resolve(here, "fixture-tls/cert.pem")),
+};
+https
+  .createServer(opts, (req, res) => {
+    const path = new URL(req.url ?? "/", "https://fixture.invalid").pathname;
+    const isJpg = /\.jpe?g$/i.test(path);
+    const body = isJpg ? jpg : svg;
+    res.writeHead(200, {
+      "content-type": isJpg ? "image/jpeg" : "image/svg+xml",
+      "content-length": body.length,
+      "cache-control": "public, max-age=31536000, immutable",
+      "access-control-allow-origin": "*",
+    });
+    res.end(req.method === "HEAD" ? undefined : body);
+  })
+  .listen(PORT, "127.0.0.1", () =>
+    console.log(`fixture images https://127.0.0.1:${PORT} (fixture.invalid)`),
+  );

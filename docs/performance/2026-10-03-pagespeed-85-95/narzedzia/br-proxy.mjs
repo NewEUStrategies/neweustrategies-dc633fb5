@@ -10,7 +10,8 @@ import zlib from "node:zlib";
 
 const LISTEN = Number(process.argv[2] ?? 4174);
 const UPSTREAM = Number(process.argv[3] ?? 4173);
-const COMPRESSIBLE = /^(text\/|application\/(javascript|json|xml|ld\+json|rss\+xml|manifest\+json)|image\/svg\+xml)/i;
+const COMPRESSIBLE =
+  /^(text\/|application\/(javascript|json|xml|ld\+json|rss\+xml|manifest\+json)|image\/svg\+xml)/i;
 
 http
   .createServer((req, res) => {
@@ -24,7 +25,8 @@ http
         const accept = String(req.headers["accept-encoding"] ?? "");
         const wantBr = /\bbr\b/.test(accept);
         const wantGz = /\bgzip\b/.test(accept);
-        const canCompress = COMPRESSIBLE.test(ct) && !ur.headers["content-encoding"] && (wantBr || wantGz);
+        const canCompress =
+          COMPRESSIBLE.test(ct) && !ur.headers["content-encoding"] && (wantBr || wantGz);
         const out = { ...ur.headers };
         if (canCompress) {
           delete out["content-length"];

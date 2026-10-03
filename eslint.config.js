@@ -34,6 +34,11 @@ export default tseslint.config(
       // KOSZT JEST JAWNY: defekty tego pliku nie są tu bramkowane. To ta sama
       // umowa, co dla `types.ts` i plików MCP wyżej.
       "src/integrations/supabase/previewAuthStorage.ts",
+      // Skrypty orkiestracji agentów (narzędzie Workflow) zachowane w pakiecie
+      // dowodowym wydajności jako dokumentacja metody. Ich składnia to ciało
+      // funkcji asynchronicznej (`return` i `await` na najwyższym poziomie),
+      // więc parser ESLint odrzuca je jako moduły; nie są kodem aplikacji.
+      "docs/performance/**/workflow-*.js",
     ],
   },
   {
