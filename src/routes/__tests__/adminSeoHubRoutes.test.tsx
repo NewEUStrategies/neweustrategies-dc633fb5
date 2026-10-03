@@ -588,17 +588,39 @@ describe("/admin/seo/homepage - strona główna", () => {
     }
   });
 
-  it("DOMYŚLNE tytuły marki zapalają `titleBrandStripped` w OBU językach", async () => {
+  it("tytuł zaczynający się od marki i separatora zapala `titleBrandStripped` w OBU językach", async () => {
     // Dokładnie objaw z wyszukiwarki, od którego zaczęła się ta zakładka:
     // "New European Strategies - European Security Analysis" wraca w SERP-ie
-    // jako "European Security Analysis". Oba wbudowane tytuły zaczynają się od
-    // nazwy marki i separatora, więc ekran ma to powiedzieć wprost - dwa razy,
-    // po jednym na język.
+    // jako "European Security Analysis". Tytuł zaczyna się od nazwy marki
+    // i separatora, więc ekran ma to powiedzieć wprost - dwa razy, po jednym
+    // na język. Do 86a8f807 takie były WBUDOWANE tytuły; od tej zmiany
+    // domyślny tytuł to sama marka (przypadek niżej), więc kształt z incydentu
+    // jest tu podany jawnie, a nie odziedziczony po domyślnych.
+    h.seoSettings = {
+      ...DEFAULT_SEO_SETTINGS,
+      site_title_pl: `${SITE_NAME} - bezpieczeństwo Europy`,
+      site_title_en: `${SITE_NAME} - European Security Analysis`,
+    };
     await mount();
     const stripped = screen.getAllByText(
       `adminSeoHub.finding.titleBrandStripped(brand=${SITE_NAME})`,
     );
     expect(stripped).toHaveLength(2);
+  });
+
+  it("DOMYŚLNE tytuły (sama marka) zapalają `titleIsBrandOnly`, nie `titleBrandStripped`", async () => {
+    // 86a8f807 ustawił `SITE_DEFAULT_TITLE` na samą nazwę marki w obu
+    // językach. Audyt ocenia to inną regułą: marki nikt nie utnie (nie ma
+    // separatora), ale tytuł nie obiecuje żadnej treści poza nazwą własną.
+    expect(SITE_DEFAULT_TITLE.pl).toBe(SITE_NAME);
+    expect(SITE_DEFAULT_TITLE.en).toBe(SITE_NAME);
+    await mount();
+    expect(
+      screen.getAllByText(`adminSeoHub.finding.titleIsBrandOnly(brand=${SITE_NAME})`),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByText(`adminSeoHub.finding.titleBrandStripped(brand=${SITE_NAME})`),
+    ).toBeNull();
   });
 
   it("tytuł z marką NA KOŃCU gasi to ostrzeżenie", async () => {
@@ -850,6 +872,14 @@ describe("/admin/seo/social - domknięcia, których nie widać w statycznym rend
   });
 
   it("przełącznik języka podglądu przestawia teksty wszystkich kart naraz", async () => {
+    // Tytuły podane jawnie i RÓŻNE per język: od 86a8f807 domyślny tytuł PL
+    // i EN to ta sama nazwa marki, więc na domyślnych przełącznik nie miałby
+    // czego pokazać i test nie odróżniłby działającego przełącznika od martwego.
+    h.seoSettings = {
+      ...DEFAULT_SEO_SETTINGS,
+      site_title_pl: `Bezpieczeństwo Europy - ${SITE_NAME}`,
+      site_title_en: `European security - ${SITE_NAME}`,
+    };
     await mount();
     const before = h.cards[0]?.title;
     h.cards = [];
