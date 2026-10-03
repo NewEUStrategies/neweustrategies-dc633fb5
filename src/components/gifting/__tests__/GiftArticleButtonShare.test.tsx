@@ -221,6 +221,30 @@ describe("GiftArticleButton - kopiowanie linku podarunkowego", () => {
     );
     vi.useRealTimers();
   });
+
+  it("etykieta 'skopiowano' przy ZWYKLYM linku tez wraca po chwili", async () => {
+    // Ta sama obietnica co przy linku podarunkowym, druga sciezka kodu
+    // (`onCopyPlain`) - wpis bez paywalla nie moze zostac z przyciskiem
+    // zamrozonym na „skopiowano".
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      renderButton({ gated: false });
+      openPopover();
+      fireEvent.click(screen.getByRole("button", { name: "gifting.copyLink" }));
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "gifting.copied" })).toBeTruthy(),
+      );
+      expect(writeText).toHaveBeenCalledWith(URL_WPISU);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2100);
+      });
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "gifting.copyLink" })).toBeTruthy(),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("GiftArticleButton - kanaly udostepniania niosa link z kodem", () => {
@@ -293,6 +317,18 @@ describe("GiftArticleButton - nota o limicie miesiecznym", () => {
     expect(screen.getByText(/gifting\.remainingNote/).textContent).toContain('"count":3');
   });
 
+  it("NIESPOJNY stan (limit > 0, `remaining: null`) liczy sie jako 0, a nie `null`", () => {
+    // `remaining: null` znaczy w modelu „bez limitu", ale przy dodatnim
+    // limicie to dane niespojne (np. starsza wersja RPC). Nota nie moze wtedy
+    // obiecywac nieograniczonych linkow ani wypisac „null".
+    h.state = makeState({ existingCode: CODE, monthlyLimit: 5, used: 5, remaining: null });
+    renderButton();
+    openPopover();
+    const nota = screen.getByText(/gifting\.remainingNote/);
+    expect(nota.textContent).toContain('"count":0');
+    expect(screen.queryByText("gifting.unlimitedNote")).toBeNull();
+  });
+
   it("limit 0 mowi wprost 'bez limitu'", () => {
     h.state = makeState({ existingCode: CODE, monthlyLimit: 0, remaining: null });
     renderButton();
@@ -329,6 +365,24 @@ describe("GiftArticleButton - ponowienie po odmowie generowania", () => {
     h.errorKey = "unknown";
     renderButton();
     openPopover();
+    fireEvent.click(screen.getByRole("button", { name: "common.retry" }));
+    expect(h.reset).toHaveBeenCalledTimes(1);
+    expect(h.mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("odmowa BEZ rozpoznanego klucza bledu daje komunikat ogolny i ponowienie", () => {
+    // `errorKey` bywa pusty (blad sieci zanim RPC odpowie). Bez zapasu
+    // komunikat bylby kluczem `gifting.errors.null` - surowym napisem
+    // w popoverze - a nadawca nie wiedzialby, ze moze sprobowac ponownie.
+    h.state = makeState({});
+    h.mutationError = true;
+    h.errorKey = null;
+    renderButton();
+    openPopover();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("gifting.errors.unknown");
+    expect(alert).not.toHaveTextContent("gifting.errors.null");
+    expect(screen.getByText("gifting.errors.unknown").className).toContain("text-destructive");
     fireEvent.click(screen.getByRole("button", { name: "common.retry" }));
     expect(h.reset).toHaveBeenCalledTimes(1);
     expect(h.mutate).toHaveBeenCalledTimes(1);

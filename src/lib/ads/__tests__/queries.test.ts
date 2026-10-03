@@ -51,12 +51,13 @@ import {
 } from "@/lib/ads/queries";
 import { renderHookWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, type RecordedChain, type SupabaseFromStub } from "@/test/supabaseChain";
-import type {
-  AdPageType,
-  AdPlacementWithSlot,
-  AdPosition,
-  AdSlot,
-  AdSlotKind,
+import {
+  PUBLIC_AD_SLOT_COLUMNS,
+  type AdPageType,
+  type AdPlacementWithSlot,
+  type AdPosition,
+  type AdSlot,
+  type AdSlotKind,
 } from "@/lib/ads/types";
 
 const from = () => stubs.from as SupabaseFromStub;
@@ -287,6 +288,58 @@ describe("okno emisji starts_at / ends_at", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Baza porównuje okno z czasem ZAPYTANIA, ale lista potem leży w cache'u izolatu
+// (`edgeTtlCache`, serve-stale do 5 x TTL). Atrapa nie filtruje jak PostgREST,
+// więc wiersz spoza okna w odpowiedzi to dokładnie wiersz, który baza oddała
+// minuty temu, a który od tamtej pory wyszedł z emisji.
+// ---------------------------------------------------------------------------
+describe("okno emisji sprawdzane ponownie w chwili projekcji", () => {
+  const minutes = (n: number) => new Date(Date.now() + n * 60_000).toISOString();
+
+  it("kampania zakonczona po pobraniu listy NIE wraca na strone", async () => {
+    const ended = placement({ ends_at: minutes(-2) });
+    const running = placement({ ends_at: minutes(30) });
+    respondWith([ended, running]);
+
+    const result = await loadPlacements("sidebar", "post", null);
+
+    expect(result.current.data).toEqual([running]);
+  });
+
+  it("kampania jeszcze nierozpoczeta nie jest emitowana przed czasem", async () => {
+    const future = placement({ starts_at: minutes(5) });
+    const started = placement({ starts_at: minutes(-5) });
+    respondWith([future, started]);
+
+    const result = await loadPlacements("sidebar", "post", null);
+
+    expect(result.current.data).toEqual([started]);
+  });
+
+  it("nieczytelna granica okna nie zdejmuje kampanii - rozstrzygnela ja juz baza", async () => {
+    const odd = placement({ starts_at: "nie-data", ends_at: "tez-nie" });
+    respondWith([odd]);
+
+    const result = await loadPlacements("sidebar", "post", null);
+
+    expect(result.current.data).toEqual([odd]);
+  });
+
+  it("rozgrzewka SSR stosuje ten sam filtr okna", async () => {
+    const ended = placement({ position: "header_banner", ends_at: minutes(-1) });
+    const running = placement({ position: "header_banner" });
+    respondWith([ended, running]);
+    const qc = new QueryClient();
+
+    await prefetchAdPlacementQueries(qc, [{ position: "header_banner" }], "post");
+
+    expect(qc.getQueryData(adPlacementsQueryOptions("header_banner", "post").queryKey)).toEqual([
+      running,
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 describe("placement nieaktywny i slot wstrzymany", () => {
   it("żąda wyłącznie AKTYWNYCH placementów", async () => {
     respondWith([]);
@@ -313,7 +366,50 @@ describe("placement nieaktywny i slot wstrzymany", () => {
 
     // Bez `!inner` PostgREST zwróciłby placement z `slot: null` zamiast go
     // odrzucić, a `p.slot.targeting` w selektorze wywróciłby cały render.
-    expect(chain().argsOf("select")).toEqual(["*, slot:ad_slots!inner(*)"]);
+    expect(chain().argsOf("select")).toEqual([`*, slot:ad_slots!inner(${PUBLIC_AD_SLOT_COLUMNS})`]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `ad_slots.notes` to notatki operatora z panelu (umowa, kontakt do
+// reklamodawcy). Wynik tego zapytania rozgrzewka SSR wkłada do odwodnionego
+// stanu react-query, czyli do HTML-a cache'owanego na krawędzi - `ad_slots(*)`
+// oddawał je każdemu czytelnikowi.
+// ---------------------------------------------------------------------------
+describe("kolumny slotu oddawane czytelnikowi", () => {
+  const columns = () =>
+    PUBLIC_AD_SLOT_COLUMNS.split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+
+  it("select slotu NIE zawiera `notes` ani gwiazdki", async () => {
+    respondWith([]);
+
+    await loadPlacements("sidebar", "post", null);
+
+    const [select] = chain().argsOf("select") as [string];
+    const slotPart = select.slice(select.indexOf("ad_slots!inner("));
+    expect(slotPart).not.toMatch(/\bnotes\b/);
+    expect(slotPart).not.toContain("*");
+  });
+
+  it("lista kolumn to DOKŁADNIE kolumny `ad_slots` z bazy minus `notes`", () => {
+    // Porównanie z wygenerowanym typem wiersza: nowa kolumna slotu nie trafia do
+    // HTML-a bez świadomej decyzji, a kolumna potrzebna widokowi nie znika
+    // z listy po cichu (kreacja wyrenderowałaby się bez obrazka albo skryptu).
+    const typesSrc = readFileSync(
+      join(process.cwd(), "src/integrations/supabase/types.ts"),
+      "utf8",
+    );
+    const block = typesSrc.slice(typesSrc.indexOf("      ad_slots: {"));
+    const row = block.slice(block.indexOf("Row: {") + "Row: {".length, block.indexOf("}"));
+    const dbColumns = [...row.matchAll(/^\s+(\w+):/gm)].map((m) => m[1]);
+    expect(dbColumns).toContain("notes");
+    expect([...columns()].sort()).toEqual(dbColumns.filter((c) => c !== "notes").sort());
+  });
+
+  it("lista bez duplikatów - kazda kolumna raz", () => {
+    expect(new Set(columns()).size).toBe(columns().length);
   });
 });
 

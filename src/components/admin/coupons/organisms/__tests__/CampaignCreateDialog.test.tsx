@@ -26,9 +26,13 @@ const h = vi.hoisted(() => ({
   from: null as unknown,
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
+  /** Jezyk interfejsu widziany przez dialog (przelaczany per przypadek). */
+  lang: "pl",
 }));
 
-vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+vi.mock("react-i18next", async () =>
+  (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
+);
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 
 vi.mock("@/integrations/supabase/client", async () => {
@@ -97,6 +101,7 @@ function insertPayload(): Record<string, unknown> {
 beforeEach(() => {
   db().reset();
   zaplanowanaOdmowa = false;
+  h.lang = "pl";
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
 });
@@ -136,6 +141,22 @@ describe("CampaignCreateDialog - ladunek zapisu", () => {
       discount_kind: "percent",
       discount_percent: 20,
     });
+  });
+
+  it("DLUGOSC i LICZBA kodow z pol ida do przepisu jako LICZBY", async () => {
+    // To sa dwie liczby, ktore RPC `bulk_generate_coupons_for_campaign`
+    // mnozy w realne kody. Napis „500" zamiast liczby 500 to albo odmowa
+    // typu w bazie, albo - gorzej - porownanie leksykalne limitow.
+    renderDialog();
+    fireEvent.change(pole("adminCoupons.name"), { target: { value: "Masowa" } });
+    fireEvent.change(pole("adminCoupons.codeLength"), { target: { value: "12" } });
+    fireEvent.change(pole("adminCoupons.codeCount"), { target: { value: "500" } });
+    expect(pole("adminCoupons.codeLength")).toHaveValue(12);
+    expect(pole("adminCoupons.codeCount")).toHaveValue(500);
+    fireEvent.click(zapisz());
+    await waitFor(() => expect(insertPayload()).toBeDefined());
+    expect(insertPayload().code_length).toBe(12);
+    expect(insertPayload().code_count).toBe(500);
   });
 
   it("PREFIKS jest podnoszony do wielkich liter JUZ W POLU", async () => {
@@ -231,6 +252,34 @@ describe("CampaignCreateDialog - ladunek zapisu", () => {
     renderDialog();
     expect(screen.getByRole("option", { name: "Premium" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "VIP" })).toBeInTheDocument();
+  });
+
+  it("w interfejsie ANGIELSKIM poziomy ida z kolumny `name_en`, nie `name_pl`", async () => {
+    // Katalog poziomow trzyma nazwy w dwoch kolumnach. Redaktor pracujacy po
+    // angielsku musi widziec te same nazwy, ktore zobaczy klient na fakturze
+    // w swoim jezyku - inaczej wybiera poziom po nazwie, ktorej nie zna.
+    h.lang = "en";
+    db().setResponse("b2b_coupon_campaigns", ok(null));
+    render(
+      <CampaignCreateDialog
+        tiers={[{ key: "member", name_pl: "Czlonek", name_en: "Member" }]}
+        onCreated={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("option", { name: "Member" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Czlonek" })).toBeNull();
+  });
+
+  it("w interfejsie POLSKIM ten sam poziom idzie z kolumny `name_pl`", async () => {
+    db().setResponse("b2b_coupon_campaigns", ok(null));
+    render(
+      <CampaignCreateDialog
+        tiers={[{ key: "member", name_pl: "Czlonek", name_en: "Member" }]}
+        onCreated={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("option", { name: "Czlonek" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Member" })).toBeNull();
   });
 
   it("wybrana DATA waznosci zapisuje sie jako ISO", async () => {

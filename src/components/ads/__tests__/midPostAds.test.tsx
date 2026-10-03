@@ -324,6 +324,24 @@ describe("wiele wstawek i twardy sufit", () => {
     expect(hosts().map(afterText)).toEqual(["Akapit 3", "Akapit 6"]);
   });
 
+  it('placementy bez numeru akapitu sortują się jak domyślne „po czwartym"', async () => {
+    const bezNumeruA = placement({ config: {} });
+    const poDrugim = placement({ config: { paragraph: 2 } });
+    const bezNumeruB = placement({ config: {} });
+    respondWith([bezNumeruA, poDrugim, bezNumeruB]);
+
+    await renderArticle({ html: paragraphs(8) });
+
+    // Brak `paragraph` w konfiguracji to 4 także przy SORTOWANIU, nie tylko przy
+    // wstawianiu - inaczej kampania bez numeru wypychałaby z sufitu tę po 2.
+    await waitFor(() => expect(hosts()).toHaveLength(2));
+    expect(hosts().map(afterText)).toEqual(["Akapit 2", "Akapit 4"]);
+    expect(hosts().map((h) => h.getAttribute("data-ad-mid-host"))).toEqual([
+      poDrugim.id,
+      bezNumeruA.id,
+    ]);
+  });
+
   it("dwie kampanie w krótkim tekście lądują obie za ostatnim akapitem", async () => {
     respondWith([placement({ config: { paragraph: 6 } }), placement({ config: { paragraph: 7 } })]);
 
@@ -379,6 +397,23 @@ describe("brak kampanii i sprzątanie DOM-u", () => {
     // Zmiana języka artykułu przerysowuje treść; bez sprzątania hostów każde
     // przełączenie dokładałoby kolejną kopię tej samej reklamy.
     await waitFor(() => expect(hosts()).toHaveLength(1));
+  });
+
+  it("osierocony host w treści (np. z SSR albo innej instancji) jest sprzątany przed wstawką", async () => {
+    const p = placement({ config: { paragraph: 2 } });
+    respondWith([p]);
+
+    await renderArticle({
+      html: '<div data-ad-mid-host="stary-placement"><p>Stara wstawka</p></div>' + paragraphs(4),
+    });
+
+    // Bez sprzątania artykuł niósłby obok nowej wstawki martwy host z treścią,
+    // której żaden portal już nie odświeża (nieaktualna kreacja w środku tekstu).
+    await waitFor(() =>
+      expect(hosts().map((h) => h.getAttribute("data-ad-mid-host"))).toEqual([p.id]),
+    );
+    expect(article().textContent).not.toContain("Stara wstawka");
+    expect(afterText(hosts()[0])).toBe("Akapit 2");
   });
 
   it("host niesie identyfikator placementu - da się go powiązać z kampanią", async () => {

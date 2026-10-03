@@ -57,8 +57,27 @@ export interface AdPlacement {
   updated_at: string;
 }
 
+/**
+ * Slot w postaci, którą wolno oddać CZYTELNIKOWI - bez `notes`.
+ *
+ * `notes` to wewnętrzne notatki operatora z panelu (warunki umowy, kontakt do
+ * reklamodawcy). Dopóki publiczne zapytania brały `ad_slots(*)`, rozgrzewka SSR
+ * wkładała je do odwodnionego stanu react-query, czyli do HTML-a, który krawędź
+ * cache'uje i oddaje każdemu. Typ pilnuje, żeby żaden widok frontu nie zaczął
+ * ich czytać; listę kolumn trzyma `PUBLIC_AD_SLOT_COLUMNS`.
+ */
+export type PublicAdSlot = Omit<AdSlot, "notes">;
+
+/**
+ * Kolumny `ad_slots` czytane przez front publiczny - JEDNA lista dla rozgrzewki
+ * SSR i widoku pojedynczego slotu. Nowa kolumna slotu nie trafia do HTML-a, dopóki
+ * ktoś świadomie jej tu nie dopisze.
+ */
+export const PUBLIC_AD_SLOT_COLUMNS =
+  "id, tenant_id, name, kind, status, html, script, image_url, image_link, image_alt, width, height, requires_consent, targeting, created_at, updated_at";
+
 export interface AdPlacementWithSlot extends AdPlacement {
-  slot: AdSlot;
+  slot: PublicAdSlot;
 }
 
 // KLUCZE i18n, nie gotowe napisy.

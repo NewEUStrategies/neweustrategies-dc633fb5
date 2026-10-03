@@ -218,6 +218,74 @@ describe("CampaignsPage - odczyt i stany", () => {
     await renderPage([kampania({ newsletter_segment: "vip" })]);
     expect(within(await wiersz("Q1 2026 VIP")).getByText("vip")).toBeInTheDocument();
   });
+
+  it("odpowiedz BEZ wierszy (`data: null`) to pusta lista, a nie wywrotka", async () => {
+    // PostgREST potrafi oddac `null` zamiast `[]` (np. pusty wynik za widokiem).
+    // `null.map` wywrocilby caly panel kuponow, a nie tylko te liste.
+    db().setResponse("b2b_coupon_campaigns", ok(null));
+    db().setResponse("membership_tiers", ok(null));
+    renderWithQueryClient(<CampaignsPage />);
+    expect(await screen.findByText("adminCoupons.campaignsYet")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("rabat KWOTOWY bez kwoty i waluty pokazuje 0.00, a nie `NaN` ani `null`", async () => {
+    // Wiersz niedokonczony recznie w bazie. „NaN null" w kolumnie rabatu
+    // wyglada jak awaria panelu; „0.00" mowi wprost, ze rabatu nie ustawiono.
+    await renderPage([
+      kampania({
+        discount_kind: "fixed",
+        discount_percent: null,
+        discount_cents: null,
+        currency: null,
+      }),
+    ]);
+    const komorka = within(await wiersz("Q1 2026 VIP")).getByText(/^0\.00/);
+    expect(komorka.textContent?.trim()).toBe("0.00");
+    expect(komorka.textContent).not.toMatch(/NaN|null|undefined/);
+  });
+
+  it("abonament BEZ liczby dni pokazuje sam poziom, bez sufiksu `d`", async () => {
+    await renderPage([kampania({ grants_tier_key: "premium", grants_duration_days: null })]);
+    const cells = within(await wiersz("Q1 2026 VIP"));
+    expect(cells.getByText("premium")).toBeInTheDocument();
+    expect(cells.queryByText(/\dd/)).toBeNull();
+  });
+});
+
+describe("CampaignsPage - odmowy odczytu", () => {
+  it("ODMOWA odczytu kampanii nie wisi na `wczytuje` i nie pokazuje zadnej akcji", async () => {
+    // Kontrola dodatnia dla defektu przypietego na dole pliku: zapytanie
+    // rzuca (`if (error) throw error`), react-query wychodzi ze stanu
+    // ladowania, a panel nie renderuje tabeli ani przyciskow kampanii -
+    // nie da sie wiec „wygenerowac" ani „wyslac" niczego na slepo.
+    db().setResponse("b2b_coupon_campaigns", fail("permission denied", "42501"));
+    db().setResponse("membership_tiers", ok([]));
+    renderWithQueryClient(<CampaignsPage />);
+    await waitFor(() => expect(db().chainsFor("b2b_coupon_campaigns")).toHaveLength(1));
+    await waitFor(() => expect(screen.queryByText("adminCoupons.loading")).toBeNull());
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByRole("button", { name: "adminCoupons.generate" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /adminCoupons\.send/ })).toBeNull();
+    // Odczyt NIE jest ponawiany w petli - jedna proba, jeden lancuch.
+    expect(db().chainsFor("b2b_coupon_campaigns")).toHaveLength(1);
+  });
+
+  it("ODMOWA odczytu poziomow nie blokuje formularza - zostaje sama opcja `brak`", async () => {
+    // Poziomy sa tylko podpowiedzia w formularzu. Ich odmowa nie moze
+    // zablokowac tworzenia kampanii bez abonamentu - a nie moze tez podsunac
+    // poziomu, ktorego panel w rzeczywistosci nie odczytal.
+    db().setResponse("b2b_coupon_campaigns", ok([]));
+    db().setResponse("membership_tiers", fail("permission denied", "42501"));
+    renderWithQueryClient(<CampaignsPage />);
+    await screen.findByText("adminCoupons.campaignsYet");
+    await waitFor(() => expect(db().chainsFor("membership_tiers")).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: /adminCoupons\.newCampaign/ }));
+    const dialog = within(await screen.findByRole("dialog"));
+    const poziomy = dialog.getAllByRole("combobox")[1] as HTMLSelectElement;
+    expect(Array.from(poziomy.options).map((o) => o.value)).toEqual(["none"]);
+    expect(dialog.getByRole("button", { name: "adminCoupons.createCampaign" })).toBeEnabled();
+  });
 });
 
 describe("CampaignsPage - akcje zalezne od stanu kampanii", () => {
@@ -401,6 +469,18 @@ describe("CampaignsPage - eksport CSV", () => {
     expect(zwolnioneUrl).toEqual(["blob:test/pobrany.csv"]);
   });
 
+  it("kampania BEZ kodow (`data: null`) daje plik z SAMYM naglowkiem", async () => {
+    // Naglowek jest kontraktem z partnerem - plik bez niego nie zaimportuje
+    // sie nawet jako pusty. Brak wierszy nie moze tez wywrocic eksportu.
+    db().setResponse("b2b_coupons", ok(null));
+    await renderPage([kampania({ status: "generated" })]);
+    fireEvent.click(within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: /CSV/ }));
+    await waitFor(() => expect(pobraneBloby).toHaveLength(1));
+    const linie = (await pobraneBloby[0].text()).split("\n").filter((l) => l !== "");
+    expect(linie).toEqual(["code;name;active;valid_until;max_redemptions;redemptions_count"]);
+    expect(h.toastSuccess).toHaveBeenCalledWith("adminCoupons.csvExported");
+  });
+
   it("ODMOWA odczytu kodow konczy sie komunikatem i BEZ pobrania pliku", async () => {
     // Pobrany pusty plik wygladalby jak kampania bez kodow.
     db().setResponse("b2b_coupons", fail("permission denied", "42501"));
@@ -504,6 +584,26 @@ describe("CampaignsPage - wysylka newslettera", () => {
         .some((c) => c.has("update")),
     ).toBe(false);
   });
+
+  it("newsletter BEZ identyfikatora konczy sie bledem i NIE oznacza kampanii jako `sent`", async () => {
+    // Zapis przepuszczony przez RLS bez zwrotu wiersza daje `data: null` bez
+    // `error`. Odnotowanie wysylki z `newsletter_campaign_id: undefined`
+    // zamknelaby kampanie na zawsze, choc zaden newsletter nie istnieje.
+    withNewsletter(ok(null));
+    await renderPage([kampania({ status: "generated" })]);
+    fireEvent.click(
+      within(await wiersz("Q1 2026 VIP")).getByRole("button", { name: /adminCoupons\.send/ }),
+    );
+    await waitFor(() =>
+      expect(h.toastError).toHaveBeenCalledWith("Newsletter campaign not created"),
+    );
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(
+      db()
+        .chainsFor("b2b_coupon_campaigns")
+        .some((c) => c.has("update")),
+    ).toBe(false);
+  });
 });
 
 describe("CampaignsPage - dialog tworzenia", () => {
@@ -511,6 +611,32 @@ describe("CampaignsPage - dialog tworzenia", () => {
     await renderPage([]);
     await screen.findByText("adminCoupons.campaignsYet");
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("UTWORZENIE kampanii zamyka dialog i ODSWIEZA liste kampanii", async () => {
+    // `onCreated` strony robi dwie rzeczy naraz: zamyka dialog i uniewaznia
+    // klucz listy. Bez uniewaznienia nowa kampania nie pojawia sie w tabeli,
+    // redaktor uznaje zapis za nieudany i zaklada ja drugi raz.
+    let utworzona = false;
+    db().setResponse("b2b_coupon_campaigns", (chain) => {
+      if (chain.has("insert")) {
+        utworzona = true;
+        return ok(null);
+      }
+      return ok(utworzona ? [kampania({ name: "Kampania z dialogu" })] : []);
+    });
+    db().setResponse("membership_tiers", ok([]));
+    renderWithQueryClient(<CampaignsPage />);
+    await screen.findByText("adminCoupons.campaignsYet");
+    fireEvent.click(screen.getByRole("button", { name: /adminCoupons\.newCampaign/ }));
+    const dialog = within(await screen.findByRole("dialog"));
+    const nazwa = dialog.getByText("adminCoupons.name").parentElement?.querySelector("input");
+    if (!nazwa) throw new Error("brak pola nazwy w dialogu");
+    fireEvent.change(nazwa, { target: { value: "Kampania z dialogu" } });
+    fireEvent.click(dialog.getByRole("button", { name: "adminCoupons.createCampaign" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(await screen.findByText("Kampania z dialogu")).toBeInTheDocument();
+    expect(h.toastSuccess).toHaveBeenCalledWith("adminCoupons.campaignCreatedDraft");
   });
 
   it("`nowa kampania` otwiera PRAWDZIWY formularz, z poziomami z zapytania strony", async () => {
@@ -581,6 +707,39 @@ describe("CampaignsPage - dawne defekty", () => {
     // w PL i EN.
     await renderPage([kampania({ status: "generated" })]);
     expect(within(await wiersz("Q1 2026 VIP")).queryByText("generated")).toBeNull();
+  });
+
+  it("ODMOWA odczytu kampanii nie mowi `brak kampanii, utworz pierwsza`", async () => {
+    // CO BYLO ZLE. `queryFn` rzucal bledem PostgREST, ale render patrzyl tylko
+    // na `isLoading` i `(campaignsQ.data ?? []).length` - stanu bledu nie
+    // czytal nikt. Odmowa RLS, wygasla sesja i literowka w kolumnie konczyly
+    // sie zdaniem „Brak kampanii. Utworz pierwsza." (`adminCoupons.campaignsYet`).
+    //
+    // JAKIE TO BYLO RYZYKO. Redaktor, ktory po prostu nie widzi listy, dostawal
+    // ZACHETE do zalozenia kampanii od nowa - czyli drugiego kompletu do
+    // 10 000 kodow obok istniejacego.
+    //
+    // JAK NAPRAWIONE. Galaz na `campaignsQ.isError` z tym samym komunikatem
+    // bledu (`adminCoupons.loadError.*`), co zakladki Realizacje i Analityka.
+    db().setResponse("b2b_coupon_campaigns", fail("permission denied", "42501"));
+    db().setResponse("membership_tiers", ok([]));
+    renderWithQueryClient(<CampaignsPage />);
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText("adminCoupons.loadError.title")).toBeInTheDocument();
+    expect(screen.queryByText("adminCoupons.campaignsYet")).toBeNull();
+    expect(screen.queryByText("adminCoupons.loading")).toBeNull();
+  });
+
+  it("subskrypcja na 0 dni nie wstawia literalu `0` do odznaki", async () => {
+    // BYLO: `{c.grants_duration_days && ...}` - przy 0 React renderowal liczbe,
+    // wiec odznaka czytala sie „premium0". Formularz kampanii potrafi zapisac
+    // 0 (`min={1}` na polu nie jest egzekwowane).
+    await renderPage([
+      kampania({ status: "generated", grants_tier_key: "premium", grants_duration_days: 0 }),
+    ]);
+    const row = within(await wiersz("Q1 2026 VIP"));
+    expect(row.getByText("premium")).toBeInTheDocument();
+    expect(row.queryByText(/premium\s*0/)).toBeNull();
   });
 
   it("przycisk archiwizacji ma PRZETLUMACZONA nazwe dostepna", async () => {

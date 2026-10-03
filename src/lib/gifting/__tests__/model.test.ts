@@ -53,6 +53,16 @@ describe("isValidGiftCode / parseGiftCode", () => {
     expect(parseGiftCode("?other=1")).toBeNull();
     expect(parseGiftCode(`?${GIFT_QUERY_PARAM}=%%%`)).toBeNull();
   });
+
+  it("wartosc spoza typu (nie da sie jej zamienic na napis) daje null, a nie wyjatek", () => {
+    // Parser biegnie przy kazdym wejsciu na wpis. Wyjatek z tego miejsca
+    // wywrocilby render artykulu, a nie tylko baner prezentu - stad `try`.
+    // `Symbol` to jedyna wartosc, na ktorej `URLSearchParams` faktycznie rzuca
+    // (konwersja do napisu), wiec nia sprawdzamy galaz awaryjna.
+    const smiec = Symbol("nie-napis") as unknown as string;
+    expect(() => parseGiftCode(smiec)).not.toThrow();
+    expect(parseGiftCode(smiec)).toBeNull();
+  });
 });
 
 describe("buildGiftUrl", () => {
@@ -137,6 +147,47 @@ describe("resolveGiftPhase", () => {
         stateLoading: true,
       }),
     ).toBe("loading");
+  });
+
+  it("serwer mowi `wylaczone` - wygrywa z wlaczonymi ustawieniami z cache", () => {
+    // Ustawienia tenanta w przegladarce moga byc nieaktualne (cache sprzed
+    // wylaczenia funkcji). Werdykt RPC jest swiezszy i to on decyduje -
+    // inaczej popover generowalby link, ktory serwer i tak odrzuci.
+    expect(
+      resolveGiftPhase({
+        isLoggedIn: true,
+        settingsEnabled: true,
+        state: state({ enabled: false, existingCode: CODE }),
+        stateLoading: false,
+      }),
+    ).toBe("disabled");
+  });
+
+  it("zalogowany, ale serwer wymaga logowania (konto spoza tenanta) = CTA logowania", () => {
+    // Sesja istnieje, ale nie w tym tenancie: dla serwera to gosc. Faza
+    // `ready` dalaby przycisk generowania, ktory konczy sie odmowa.
+    expect(
+      resolveGiftPhase({
+        isLoggedIn: true,
+        settingsEnabled: true,
+        state: state({ requiresAuth: true, canGift: false }),
+        stateLoading: false,
+      }),
+    ).toBe("requiresAuth");
+  });
+
+  it("stan BEZ `remaining` przy dodatnim limicie traktuje limit jako wyczerpany", () => {
+    // `remaining: null` znaczy „bez limitu" tylko przy `monthlyLimit` 0.
+    // Przy dodatnim limicie brak liczby to dane niespojne - bezpieczniej
+    // nie obiecywac nowego linku, ktorego serwer moze odmowic.
+    expect(
+      resolveGiftPhase({
+        isLoggedIn: true,
+        settingsEnabled: true,
+        state: state({ monthlyLimit: 5, used: 2, remaining: null }),
+        stateLoading: false,
+      }),
+    ).toBe("limitReached");
   });
 
   it("zalogowany bez platnej subskrypcji dostaje CTA planow", () => {
