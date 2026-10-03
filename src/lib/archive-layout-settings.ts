@@ -4,6 +4,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import { normalizeHeroImageUrl } from "@/lib/archive/heroImage";
 
 export type ArchiveType = "category" | "tag";
 export type SidebarWidgetKey = "popular" | "related" | "newsletter" | "ads";
@@ -28,6 +29,12 @@ export interface ArchiveLayoutSettings {
   show_related_taxonomies: boolean;
   show_podcasts: boolean;
   hero_bg_style: HeroBgStyle;
+  /**
+   * Zdjęcie w tle nagłówka dla `hero_bg_style = "image"`; `null` = brak
+   * zdjęcia (nagłówek schodzi na neutralne tło). Regułę adresu trzyma
+   * `src/lib/archive/heroImage.ts`, lustro CHECK-u w bazie.
+   */
+  hero_image_url: string | null;
   posts_per_page: number;
 }
 
@@ -46,6 +53,7 @@ export const DEFAULT_ARCHIVE_LAYOUT: Omit<ArchiveLayoutSettings, "id" | "archive
   show_related_taxonomies: false,
   show_podcasts: true,
   hero_bg_style: "gradient",
+  hero_image_url: null,
   posts_per_page: 60,
 };
 
@@ -87,6 +95,10 @@ function coerce(archiveType: ArchiveType, row: Row | null): ArchiveLayoutSetting
     show_related_taxonomies: row.show_related_taxonomies,
     show_podcasts: row.show_podcasts,
     hero_bg_style: (row.hero_bg_style as HeroBgStyle) ?? "gradient",
+    // Przycięte, pusty napis → `null`: „brak zdjęcia” ma JEDNĄ postać, więc
+    // render i panel nie rozróżniają `""` od `null`. Reguły adresu tu nie
+    // stosujemy - pilnuje jej CHECK w bazie, a render sprawdza ją ponownie.
+    hero_image_url: normalizeHeroImageUrl(row.hero_image_url),
     posts_per_page: row.posts_per_page,
   };
 }

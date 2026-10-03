@@ -13,12 +13,19 @@ import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import "@/lib/i18n";
 import "@/lib/i18n-archive-layout";
 import { realT } from "@/test/i18nReal";
 import { RouterLinkStub } from "@/test/routerLinkStub";
+import { freezeClock } from "@/test/time";
 import type { BlogListItem } from "@/lib/queries/public";
 import { DEFAULT_ARCHIVE_LAYOUT, type ArchiveLayoutSettings } from "@/lib/archive-layout-settings";
+
+// Podgląd panelu (`ArchiveLivePreview`) datuje atrapy wpisów od `Date.now()`,
+// a fixture'y tego pliku mają stałe daty publikacji - bez zamrożenia zegara
+// kolejność i „wiek” wpisów zależałyby od dnia uruchomienia testu.
+freezeClock();
 
 const ads = vi.hoisted(() => ({ renderAfterCard: null as ((i: number) => ReactNode) | null }));
 const related = vi.hoisted(() => ({
@@ -85,6 +92,7 @@ const { LAYOUT_REGISTRY, getLayoutComponent } =
 const { ArchivePagination, buildRange } =
   await import("@/components/archive/layouts/ArchivePagination");
 const variants = await import("@/components/archive/layouts/variants");
+const { ArchiveLivePreview } = await import("@/components/admin/archiveLayout/ArchiveLivePreview");
 
 const t = realT("pl");
 
@@ -488,7 +496,108 @@ describe("ArchiveHeader", () => {
     expect(screen.queryByRole("navigation", { name: "okruszki" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Gospodarka" })).toBeTruthy();
   });
+
+  it("styl „Zdjęcie” dostaje ADRES z ustawień, nie tylko sam styl", () => {
+    // Do migracji 20261003100000 nagłówek przekazywał tłu wyłącznie styl, więc
+    // „Zdjęcie” wybrane w panelu zawsze kończyło jako neutralne `bg-muted` -
+    // na każdej stronie kategorii i tagu, bez żadnego sygnału dla redaktora.
+    const { container } = render(
+      <ArchiveHeader
+        kind="category"
+        taxonomyId="t1"
+        name="Gospodarka"
+        description={null}
+        lang="pl"
+        settings={settings({
+          hero_bg_style: "image",
+          hero_image_url: "https://cdn.example/archiwum/hero.jpg",
+        })}
+      />,
+    );
+    expect(container.innerHTML).toContain("https://cdn.example/archiwum/hero.jpg");
+    expect(container.querySelector("[data-hero-image]")).not.toBeNull();
+  });
+
+  it("styl „Zdjęcie” bez adresu w ustawieniach schodzi na neutralne tło", () => {
+    const { container } = render(
+      <ArchiveHeader
+        kind="category"
+        taxonomyId="t1"
+        name="Gospodarka"
+        description={null}
+        lang="pl"
+        settings={settings({ hero_bg_style: "image", hero_image_url: null })}
+      />,
+    );
+    expect(container.querySelector("[data-hero-image]")).toBeNull();
+    expect(container.querySelector(".bg-muted\\/30")).not.toBeNull();
+  });
+
+  it("wyłączone hero nie rysuje zdjęcia, nawet gdy adres jest ustawiony", () => {
+    const { container } = render(
+      <ArchiveHeader
+        kind="category"
+        taxonomyId="t1"
+        name="Gospodarka"
+        description={null}
+        lang="pl"
+        settings={settings({
+          show_hero: false,
+          hero_bg_style: "image",
+          hero_image_url: "https://cdn.example/archiwum/hero.jpg",
+        })}
+      />,
+    );
+    expect(container.innerHTML).not.toContain("hero.jpg");
+  });
+
+  it.each(["gradient", "solid", "image", "mesh", "pattern", "minimal"] as const)(
+    "tło %s maluje się w kontekście nakładania nagłówka, nie pod tłem strony",
+    (hero_bg_style) => {
+      const { container } = render(
+        <ArchiveHeader
+          kind="category"
+          taxonomyId="t1"
+          name="Gospodarka"
+          description={null}
+          lang="pl"
+          settings={settings({
+            hero_bg_style,
+            hero_image_url: "https://cdn.example/archiwum/hero.jpg",
+          })}
+        />,
+      );
+      expectHeroLayersInHeaderStackingContext(container);
+    },
+  );
 });
+
+/**
+ * Warstwy tła nagłówka (`absolute -z-10`) muszą malować się w WŁASNYM
+ * kontekście nakładania nagłówka. jsdom nie liczy malowania, więc kontrakt
+ * czytamy z klas: każda warstwa leży bezpośrednio w `<header>`, a ten ma
+ * `isolate`. Bez tego ujemne warstwy schodzą do kontekstu przodka i malują się
+ * POD nieprzezroczystym tłem wrappera wariantu (`bg-background`,
+ * `bg-neutral-950`) - zmierzone w Chromium na skompilowanym CSS repo: zdjęcie
+ * było niewidoczne w pięciu z sześciu układów na desktopie, we wszystkich na
+ * telefonie i w podglądzie panelu, choć element z poprawnym stylem był w DOM.
+ */
+function expectHeroLayersInHeaderStackingContext(container: HTMLElement) {
+  const layers = Array.from(container.querySelectorAll(".-z-10"));
+  expect(layers.length).toBeGreaterThan(0);
+  for (const layer of layers) {
+    const header = layer.parentElement;
+    expect(header?.tagName).toBe("HEADER");
+    expect(header?.classList.contains("isolate")).toBe(true);
+  }
+}
+
+/** Atrybut `style` warstwy zdjęcia w HTML-u z serwera (przed CSSOM przeglądarki). */
+function ssrHeroImageStyle(imageUrl: string): string | null {
+  const template = document.createElement("template");
+  template.innerHTML = renderToStaticMarkup(<HeroBackground style="image" imageUrl={imageUrl} />);
+  return template.content.querySelector("[data-hero-image]")?.getAttribute("style") ?? null;
+}
 
 describe("heroBackgrounds", () => {
   it("każdy styl tła renderuje własną warstwę", () => {
@@ -510,6 +619,45 @@ describe("heroBackgrounds", () => {
     );
     expect(container.innerHTML).toContain("hero.jpg");
     expect(container.innerHTML).toContain("backdrop-blur");
+  });
+
+  it("warstwa zdjęcia jest dekoracyjna - ukryta przed czytnikiem ekranu", () => {
+    // Treść niesie nagłówek nad tłem; tło bez `alt` nie może być ogłaszane.
+    const { container } = render(
+      <HeroBackground style="image" imageUrl="https://cdn.example/hero.jpg" />,
+    );
+    const layers = Array.from(container.children);
+    expect(layers.length).toBe(2);
+    for (const layer of layers) expect(layer).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it('w HTML z serwera adres jest CYTOWANYM url("…")', () => {
+    expect(ssrHeroImageStyle("https://cdn.example/hero.jpg")).toContain(
+      'background-image:url("https://cdn.example/hero.jpg")',
+    );
+  });
+
+  it("cudzysłowy i nawiasy w adresie są ESCAPOWANE - deklaracja się nie rozrywa", () => {
+    // Wcześniej stało tu surowe `url(${imageUrl})`: pierwszy `)` kończył token,
+    // a cudzysłów pozwalał dopisać własną deklarację do stylu nagłówka.
+    const style = ssrHeroImageStyle(`https://cdn.example/a");background:red;x:("(1).jpg`);
+    expect(style).toContain(
+      String.raw`background-image:url("https://cdn.example/a\"\);background:red;x:\(\"\(1\).jpg")`,
+    );
+    expect(style).not.toContain(";background:red;x:(");
+  });
+
+  it.each([
+    ["javascript:", "javascript:alert(1)"],
+    ["data:", "data:image/svg+xml;base64,PHN2Zz4="],
+    ["adres bez schematu", "//evil.example/x.jpg"],
+    ["'/\\host'", "/\\evil.example/x.jpg"],
+  ])("adres %s schodzi na neutralne tło i NIE trafia do HTML", (_opis, imageUrl) => {
+    const { container } = render(<HeroBackground style="image" imageUrl={imageUrl} />);
+    expect(container.querySelector("[data-hero-image]")).toBeNull();
+    expect(container.firstElementChild?.className).toContain("bg-muted");
+    expect(container.innerHTML).not.toContain("evil");
+    expect(container.innerHTML).not.toContain(imageUrl.slice(0, 5));
   });
 });
 
@@ -945,6 +1093,28 @@ describe("sześć wariantów archiwum", () => {
     expect(screen.getByText("Brak wpisów w tej kategorii.")).toBeTruthy();
   });
 
+  it.each(ALL)("%s rysuje zdjęcie nagłówka ustawione w panelu", (_name, Layout) => {
+    // Każdy wariant składa nagłówek z `ArchiveHeader`; wariant, który zgubiłby
+    // adres po drodze, wróciłby do martwego ustawienia „Zdjęcie”.
+    const { container } = renderWithQuery(
+      <Layout
+        {...bodyProps({
+          settings: settings({
+            hero_bg_style: "image",
+            hero_image_url: "https://cdn.example/archiwum/hero.jpg",
+          }),
+        })}
+      />,
+    );
+    const layer = container.querySelector("[data-hero-image]");
+    expect(layer).not.toBeNull();
+    expect(layer?.getAttribute("style")).toContain("https://cdn.example/archiwum/hero.jpg");
+    // Obecność w DOM to za mało: wrapper KAŻDEGO wariantu ma nieprzezroczyste
+    // tło, więc warstwa bez własnego kontekstu nagłówka była w DOM, ale nie
+    // na ekranie.
+    expectHeroLayersInHeaderStackingContext(container);
+  });
+
   it("wariant Hero pokazuje licznik wpisów na stronie", () => {
     renderWithQuery(<variants.LayoutHero {...bodyProps({ posts: posts(4), total: 40 })} />);
     // Licznik dotyczy TEJ strony wyników, nie całego archiwum.
@@ -1004,4 +1174,30 @@ describe("sześć wariantów archiwum", () => {
     expect(screen.getByRole("heading", { name: "Gospodarka" })).toBeTruthy();
     expect(screen.getByText("Opis kategorii")).toBeTruthy();
   });
+});
+
+describe("podgląd na żywo w panelu - zdjęcie nagłówka", () => {
+  // Podgląd renderuje PRAWDZIWY wariant układu z wersji roboczej. Bez adresu
+  // w łańcuchu redaktor widział neutralne tło i nie miał jak się dowiedzieć,
+  // że wybrany styl „Zdjęcie” nic nie robi.
+  it.each([1, 2, 3, 4, 5, 6] as const)(
+    "wariant %s pokazuje zdjęcie ustawione w wersji roboczej",
+    (layout_variant) => {
+      const { container } = renderWithQuery(
+        <ArchiveLivePreview
+          archiveType="category"
+          lang="pl"
+          settings={settings({
+            layout_variant,
+            hero_bg_style: "image",
+            hero_image_url: "https://cdn.example/archiwum/podglad.jpg",
+          })}
+        />,
+      );
+      expect(container.querySelector("[data-hero-image]")?.getAttribute("style")).toContain(
+        "https://cdn.example/archiwum/podglad.jpg",
+      );
+      expectHeroLayersInHeaderStackingContext(container);
+    },
+  );
 });
