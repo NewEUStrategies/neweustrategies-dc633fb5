@@ -39,9 +39,10 @@ const data = vi.hoisted(() => ({
   pageSizeError: false,
   taxonomyError: false,
   taxonomyFailOnce: false,
-  // Limity, z jakimi trasa zawołała silnik wyszukiwania - „pokaż więcej”
-  // ma PODWAJAĆ limit, a nie dokładać kolejną stronę.
-  limits: [] as number[],
+  // Zapytania biblioteki publikacji: filtry i STRONA, o które trasa zawołała
+  // silnik wyszukiwania. Paginacja linkowa ma pytać o jedną stronę naraz
+  // (tryb `page`), a nie o rosnące okno.
+  searches: [] as Array<{ filters: Record<string, unknown>; page: number | undefined }>,
 }));
 
 vi.mock("@/lib/queries/public", async (importOriginal) => ({
@@ -75,30 +76,43 @@ vi.mock("@/lib/useSiteSetting", async (importOriginal) => ({
   },
 }));
 
-vi.mock("@/lib/queries/archives", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/queries/archives")>()),
-  taxonomyArchiveQueryOptions: (kind: string, slug: string, opts: unknown) => ({
-    queryKey: ["taxonomy-archive", kind, slug, opts],
-    queryFn: () => {
-      if (data.taxonomyFailOnce) {
-        data.taxonomyFailOnce = false;
-        return Promise.reject(new Error("temporary archive outage"));
-      }
-      return data.taxonomyError
-        ? Promise.reject(new Error("baza taksonomii padła"))
-        : Promise.resolve(data.taxonomy);
-    },
-  }),
-  searchQueryOptions: (filters: { q: string; sort: string }, limit: number) => ({
-    queryKey: ["publications-search", filters.q, filters.sort, limit, data.searchError],
-    queryFn: () => {
-      data.limits.push(limit);
-      return data.searchError
-        ? Promise.reject(new Error("silnik padł"))
-        : Promise.resolve({ ...data.search, posts: data.search.posts.slice(0, limit) });
-    },
-  }),
-}));
+vi.mock("@/lib/queries/archives", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/queries/archives")>();
+  return {
+    ...real,
+    taxonomyArchiveQueryOptions: (kind: string, slug: string, opts: unknown) => ({
+      queryKey: ["taxonomy-archive", kind, slug, opts],
+      queryFn: () => {
+        if (data.taxonomyFailOnce) {
+          data.taxonomyFailOnce = false;
+          return Promise.reject(new Error("temporary archive outage"));
+        }
+        return data.taxonomyError
+          ? Promise.reject(new Error("baza taksonomii padła"))
+          : Promise.resolve(data.taxonomy);
+      },
+    }),
+    // Atrapa silnika stronicuje JAK baza: strona N to wycinek o rozmiarze
+    // SEARCH_PAGE_SIZE od (N-1)*SEARCH_PAGE_SIZE, a `total` to liczność całego
+    // zbioru - także dla strony za końcem (w prawdziwym module dowozi ją sonda).
+    searchQueryOptions: (
+      filters: Record<string, unknown>,
+      _limit: number | undefined,
+      opts?: { page?: number },
+    ) => ({
+      queryKey: ["publications-search", filters, opts?.page, data.searchError],
+      queryFn: () => {
+        data.searches.push({ filters, page: opts?.page });
+        if (data.searchError) return Promise.reject(new Error("silnik padł"));
+        const start = ((opts?.page ?? 1) - 1) * real.SEARCH_PAGE_SIZE;
+        return Promise.resolve({
+          ...data.search,
+          posts: data.search.posts.slice(start, start + real.SEARCH_PAGE_SIZE),
+        });
+      },
+    }),
+  };
+});
 
 vi.mock("@/lib/archive-layout-settings", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/archive-layout-settings")>()),
@@ -222,7 +236,7 @@ beforeEach(() => {
   data.settingsError = false;
   data.pageSizeError = false;
   data.taxonomyError = false;
-  data.limits = [];
+  data.searches = [];
 });
 
 afterEach(async () => {
@@ -511,18 +525,20 @@ describe("/publications", () => {
     expect(await screen.findByText(/nie udało się|failed/i)).toBeTruthy();
   });
 
-  it("„pokaż więcej” pojawia się dopiero, gdy jest co pokazać", async () => {
+  it("pasek stron pojawia się dopiero, gdy jest więcej niż jedna strona", async () => {
     data.search = { posts: posts(2), facets: [], total: 2 };
     const { unmount } = await mount(PublicationsRoute, "/publications", "/publications");
-    // Najpierw dowód, że wynik JEST na ekranie - inaczej brak przycisku
+    // Najpierw dowód, że wynik JEST na ekranie - inaczej brak paska
     // dowodziłby tylko tego, że zapytanie jeszcze nie wróciło.
     await screen.findByText("2 publikacje");
-    expect(screen.queryByRole("button", { name: /więcej|more/i })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Paginacja" })).toBeNull();
     unmount();
 
-    data.search = { posts: posts(2), facets: [], total: 50 };
+    data.search = { posts: posts(SEARCH_PAGE_SIZE + 1), facets: [], total: SEARCH_PAGE_SIZE + 1 };
     await mount(PublicationsRoute, "/publications", "/publications");
-    expect(await screen.findByRole("button", { name: /więcej|more/i })).toBeTruthy();
+    expect(await screen.findByRole("navigation", { name: "Paginacja" })).toBeTruthy();
+    // Dawnego „Pokaż więcej" nie ma - strona to adres, nie rosnące okno.
+    expect(screen.queryByRole("button", { name: /więcej|more/i })).toBeNull();
   });
 
   it("fraza z formularza ląduje w ADRESIE, nie w stanie komponentu", async () => {
@@ -585,7 +601,7 @@ describe("/publications", () => {
     });
     expect(view.search()).toMatchObject({ sort: "popular" });
     // Pusta fraza NIE zostaje w adresie - linki mają być czyste i cache'owalne.
-    expect(view.search().q).toBe("");
+    expect(view.search().q).toBeUndefined();
   });
 
   it("pusty wynik z filtrem daje przycisk czyszczenia, który kasuje filtry z adresu", async () => {
@@ -604,17 +620,224 @@ describe("/publications", () => {
     expect(screen.queryByRole("button", { name: /Wyczyść filtry/i })).toBeNull();
   });
 
-  it("„pokaż więcej” PODWAJA limit zapytania, zamiast dokładać stronę", async () => {
-    // Biblioteka nie stronicuje - rośnie limit jednego zapytania, więc pozycja
-    // przewijania czytelnika zostaje tam, gdzie była.
-    data.search = { posts: posts(3), facets: [], total: 500 };
-    await mount(PublicationsRoute, "/publications", "/publications");
-    const more = await screen.findByRole("button", { name: /Pokaż więcej/i });
-    expect(data.limits.at(-1)).toBe(SEARCH_PAGE_SIZE);
-    await act(async () => {
-      fireEvent.click(more);
+  // PAGINACJA LINKOWA. Dawne „Pokaż więcej" podwajało limit jednego zapytania:
+  // strony nie miały adresów, crawler nie miał czego śledzić, a każde
+  // doładowanie przeliczało całe okno od początku. Teraz strona to adres
+  // (`?page=N`), a pasek - prawdziwe `<a href>` niosące WSZYSTKIE filtry.
+  describe("paginacja linkowa", () => {
+    /** Cztery pełne strony (SEARCH_PAGE_SIZE * 3 + 20 wyników). */
+    const CZTERY_STRONY = SEARCH_PAGE_SIZE * 3 + 20;
+    let scrollTo: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      data.search = { posts: posts(CZTERY_STRONY), facets: [], total: CZTERY_STRONY };
+      scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => undefined);
     });
-    await vi.waitFor(() => expect(data.limits.at(-1)).toBe(SEARCH_PAGE_SIZE * 2));
+
+    afterEach(() => {
+      scrollTo.mockRestore();
+      vi.unstubAllGlobals();
+    });
+
+    function pasek() {
+      return screen.findByRole("navigation", { name: "Paginacja" });
+    }
+
+    /**
+     * Przewinięcia zlecone przez STRONĘ, nie przez router. Router sam woła
+     * `scrollTo({ top: 0, left: 0, behavior: undefined })` przy resecie
+     * pozycji po nawigacji - to jego kontrakt, nie nasz. Trasa jako jedyna
+     * podaje `behavior` jawnie (z `preferredScrollBehavior`).
+     */
+    function przewinieciaStrony(): unknown[] {
+      return scrollTo.mock.calls
+        .map((call: readonly unknown[]) => call[0])
+        .filter(
+          (arg: unknown) =>
+            typeof arg === "object" &&
+            arg !== null &&
+            "behavior" in arg &&
+            typeof arg.behavior === "string",
+        );
+    }
+
+    it("pyta silnik o JEDNĄ stronę z adresu, nie o rosnące okno", async () => {
+      await mount(PublicationsRoute, "/publications", "/publications?page=3");
+      expect(await screen.findByRole("link", { name: /Wpis p121\b/ })).toBeTruthy();
+      expect(data.searches.at(-1)?.page).toBe(3);
+      // Na ekranie dokładnie strona trzecia, bez stron 1-2 nad nią.
+      expect(screen.queryByRole("link", { name: /Wpis p1\b/ })).toBeNull();
+      expect(screen.getAllByRole("link", { name: /Wpis/ })).toHaveLength(SEARCH_PAGE_SIZE);
+    });
+
+    it("linki stron to prawdziwe <a href> z filtrami z adresu, bez `q=` i bez `?page=1`", async () => {
+      await mount(PublicationsRoute, "/publications", "/publications?type=raport&sort=popular");
+      const nav = await pasek();
+      expect(within(nav).getByRole("link", { name: "Strona 2" })).toHaveAttribute(
+        "href",
+        "/publications?type=raport&sort=popular&page=2",
+      );
+      expect(within(nav).getByRole("link", { name: "Strona 4" })).toHaveAttribute(
+        "href",
+        "/publications?type=raport&sort=popular&page=4",
+      );
+      expect(within(nav).getByRole("link", { name: "Następna strona" })).toHaveAttribute(
+        "href",
+        "/publications?type=raport&sort=popular&page=2",
+      );
+      // Strona bieżąca nie jest linkiem (nie ma dokąd prowadzić).
+      expect(within(nav).queryByRole("link", { name: "Strona 1" })).toBeNull();
+    });
+
+    it("powrót na stronę pierwszą prowadzi pod CZYSTY adres - bez `?page=1`", async () => {
+      await mount(PublicationsRoute, "/publications", "/publications?type=raport&page=2");
+      const nav = await pasek();
+      expect(within(nav).getByRole("link", { name: "Strona 1" })).toHaveAttribute(
+        "href",
+        "/publications?type=raport",
+      );
+      expect(within(nav).getByRole("link", { name: "Poprzednia strona" })).toHaveAttribute(
+        "href",
+        "/publications?type=raport",
+      );
+    });
+
+    it("parametr spoza schematu (utm) nie rozmnaża się po linkach paska", async () => {
+      await mount(PublicationsRoute, "/publications", "/publications?utm_source=newsletter");
+      const nav = await pasek();
+      expect(within(nav).getByRole("link", { name: "Strona 2" })).toHaveAttribute(
+        "href",
+        "/publications?page=2",
+      );
+    });
+
+    it("href linku to adres, który otwiera DOKŁADNIE tę stronę z tymi filtrami", async () => {
+      const first = await mount(
+        PublicationsRoute,
+        "/publications",
+        "/publications?type=raport&sort=popular",
+      );
+      // Ze strony 1 pasek pokazuje 1, 2, …, 4 - bierzemy link OSTATNIEJ strony.
+      const href = within(await pasek())
+        .getByRole("link", { name: "Strona 4" })
+        .getAttribute("href");
+      first.unmount();
+
+      const view = await mount(PublicationsRoute, "/publications", href ?? "");
+      expect(view.search()).toMatchObject({ type: "raport", sort: "popular", page: 4 });
+      expect(await screen.findByRole("link", { name: /Wpis p181\b/ })).toBeTruthy();
+      expect(data.searches.at(-1)?.page).toBe(4);
+    });
+
+    it("kliknięcie strony ZMIENIA ADRES (z filtrami) i ładuje tę stronę", async () => {
+      const view = await mount(PublicationsRoute, "/publications", "/publications?type=raport");
+      const nav = await pasek();
+      await act(async () => {
+        fireEvent.click(within(nav).getByRole("link", { name: "Strona 2" }), { button: 0 });
+      });
+      expect(view.search()).toMatchObject({ type: "raport", page: 2 });
+      expect(await screen.findByRole("link", { name: /Wpis p61\b/ })).toBeTruthy();
+      expect(data.searches.at(-1)?.page).toBe(2);
+    });
+
+    it("zmiana STRONY przewija na górę płynnie; pierwsze wejście na `?page=3` nie przewija", async () => {
+      await mount(PublicationsRoute, "/publications", "/publications?page=3");
+      await screen.findByRole("link", { name: /Wpis p121\b/ });
+      expect(przewinieciaStrony()).toEqual([]);
+
+      await act(async () => {
+        fireEvent.click(within(await pasek()).getByRole("link", { name: "Strona 4" }), {
+          button: 0,
+        });
+      });
+      await screen.findByRole("link", { name: /Wpis p181\b/ });
+      expect(przewinieciaStrony()).toEqual([{ top: 0, behavior: "smooth" }]);
+    });
+
+    it("„ogranicz ruch” w systemie: zmiana strony skacze na górę bez animacji", async () => {
+      vi.stubGlobal("matchMedia", (query: string) => ({
+        matches: query === "(prefers-reduced-motion: reduce)",
+      }));
+      await mount(PublicationsRoute, "/publications", "/publications");
+      await act(async () => {
+        fireEvent.click(within(await pasek()).getByRole("link", { name: "Strona 2" }), {
+          button: 0,
+        });
+      });
+      await screen.findByRole("link", { name: /Wpis p61\b/ });
+      expect(przewinieciaStrony()).toEqual([{ top: 0, behavior: "auto" }]);
+    });
+
+    it("zmiana sortowania na stronie 3 wraca na STRONĘ PIERWSZĄ, zachowując filtry", async () => {
+      const view = await mount(
+        PublicationsRoute,
+        "/publications",
+        "/publications?type=raport&page=3",
+      );
+      await screen.findByRole("link", { name: /Wpis p121\b/ });
+      const trigger = await screen.findByRole("combobox", { name: /Sortowanie/i });
+      await act(async () => {
+        fireEvent.keyDown(trigger, { key: "Enter" });
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("option", { name: "Popularne" }));
+      });
+      expect(view.search()).toMatchObject({ type: "raport", sort: "popular" });
+      expect(view.search().page).toBeUndefined();
+      await vi.waitFor(() => expect(data.searches.at(-1)?.page).toBe(1));
+    });
+
+    it("nowa fraza na stronie 2 też wraca na stronę pierwszą", async () => {
+      const view = await mount(PublicationsRoute, "/publications", "/publications?page=2");
+      const input = screen.getByRole("searchbox");
+      fireEvent.change(input, { target: { value: "energia" } });
+      await act(async () => {
+        fireEvent.submit(input.closest("form")!);
+      });
+      expect(view.search()).toMatchObject({ q: "energia" });
+      expect(view.search().page).toBeUndefined();
+    });
+
+    it("STRONA ZA KOŃCEM: odesłanie do ostatniej strony zamiast fałszywej pustki", async () => {
+      // 130 wyników = 3 strony; stary link na stronę 9 nie może twierdzić, że
+      // „brak publikacji spełniających kryteria" - wyniki są, tylko wcześniej.
+      data.search = { posts: posts(130), facets: [], total: 130 };
+      await mount(PublicationsRoute, "/publications", "/publications?type=raport&page=9");
+      expect(
+        await screen.findByText("Strona 9 nie istnieje - wyniki kończą się na stronie 3."),
+      ).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Przejdź do strony 3" })).toHaveAttribute(
+        "href",
+        "/publications?type=raport&page=3",
+      );
+      expect(screen.queryByText(/Brak publikacji spełniających kryteria/i)).toBeNull();
+      // Licznik nadal mówi prawdę o całym zbiorze.
+      expect(screen.getByText("130 publikacji")).toBeTruthy();
+    });
+
+    it("odesłanie spoza zakresu prowadzi na ostatnią stronę po kliknięciu", async () => {
+      data.search = { posts: posts(130), facets: [], total: 130 };
+      const view = await mount(PublicationsRoute, "/publications", "/publications?page=9");
+      const back = await screen.findByRole("link", { name: "Przejdź do strony 3" });
+      await act(async () => {
+        fireEvent.click(back, { button: 0 });
+      });
+      expect(view.search()).toMatchObject({ page: 3 });
+      expect(await screen.findByRole("link", { name: /Wpis p121\b/ })).toBeTruthy();
+    });
+
+    it("filtry BEZ wyników na stronie 2 to zwykła pustka, nie „strona za końcem”", async () => {
+      data.search = { posts: [], facets: [], total: 0 };
+      await mount(PublicationsRoute, "/publications", "/publications?type=raport&page=2");
+      expect(await screen.findByText(/Brak publikacji spełniających kryteria/i)).toBeTruthy();
+      expect(screen.queryByText(/nie istnieje/)).toBeNull();
+    });
+
+    it("licznik wyników zostaje w regionie aria-live (czytnik słyszy zmianę strony)", async () => {
+      await mount(PublicationsRoute, "/publications", "/publications?page=2");
+      const licznik = await screen.findByText(`${CZTERY_STRONY} publikacji`);
+      expect(licznik.closest("[aria-live='polite']")).not.toBeNull();
+    });
   });
 });
 describe("stany przejściowe tras archiwum", () => {

@@ -14,14 +14,36 @@ const TTL = 2 * 60_000;
 /** TTL per-isolate archiwów: publikacje widoczne w minutę, jak reszta SSR. */
 const ARCHIVE_SSR_TTL_MS = 60_000;
 
-// Page sizes for "load more" pagination. The first page equals the page size,
-// so SSR loaders (which call the query options with the default limit) keep
-// prefetching exactly one cheap page; bigger limits are client-side only.
+// Rozmiary stron. Pierwsza strona równa się rozmiarowi strony, więc loadery SSR
+// (wołające fabryki z domyślnym limitem) grzeją dokładnie jedną tanią stronę;
+// większe okna powstają wyłącznie po stronie klienta.
 export const ARCHIVE_PAGE_SIZE = 60;
 export const SEARCH_PAGE_SIZE = 60;
-// search_posts has `_limit` but no offset, so search paginates by growing the
-// limit. Hard ceiling so a click-happy user cannot request unbounded result sets.
+// /search „pokaż więcej" rośnie przez `_limit` (60 → 120 → …) - sufit, żeby
+// klikający nie zamawiał nieograniczonych okien. Uwaga: ciało `search_posts`
+// i tak tnie `_limit` do 200, więc kroki ponad 200 nie dokładają wierszy.
+// Biblioteka /publications nie rośnie oknem - stronicuje przez `_offset`
+// (tryb `page` w `searchQueryOptions`).
 export const SEARCH_LIMIT_MAX = 300;
+/**
+ * Górne widełki `_offset` - LUSTRO `least(coalesce(_offset, 0), 10000)`
+ * w `search_posts` (migracja 20261003100100). Baza PRZYCINA większy offset,
+ * a nie zwraca pustki, więc strona, której offset przekracza tę granicę, nie
+ * może o nią pytać: pod adresem `?page=500` dostałaby wiersze od 10 001.,
+ * czyli treść cudzej strony.
+ */
+export const SEARCH_OFFSET_MAX = 10_000;
+/** Ostatnia strona biblioteki, której offset mieści się w widełkach bazy. */
+export const SEARCH_MAX_PAGE = Math.floor(SEARCH_OFFSET_MAX / SEARCH_PAGE_SIZE) + 1;
+
+/**
+ * Liczba stron biblioteki dla liczności zbioru. Ucięta do SEARCH_MAX_PAGE:
+ * strona za widełkami offsetu nie istnieje dla interfejsu, więc pasek
+ * paginacji nie może do niej linkować.
+ */
+export function searchTotalPages(total: number): number {
+  return Math.min(Math.ceil(Math.max(0, total) / SEARCH_PAGE_SIZE), SEARCH_MAX_PAGE);
+}
 
 // ---------- helpers --------------------------------------------------------
 
@@ -513,6 +535,11 @@ function rpcFilterArgs(filters: SearchFilters) {
   };
 }
 
+/** Numer strony z dowolnej liczby: całkowity i >= 1 (NaN, ułamki, zero = 1). */
+function normalizedPage(page: number): number {
+  return Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
+}
+
 export const searchQueryOptions = (
   filters: SearchFilters,
   limit: number = SEARCH_PAGE_SIZE,
@@ -520,13 +547,24 @@ export const searchQueryOptions = (
     /**
      * Tryb biblioteki (/publications): listuj także BEZ frazy i filtrów
      * (przeglądanie najnowszych). /search zostaje przy bramce searchEnabled -
-     * puste wejście nie strzela zapytaniem. Klucz cache wspólny: te same
-     * filtry = ten sam zbiór, niezależnie od strony, która pyta.
+     * puste wejście nie strzela zapytaniem. Bez `page` klucz cache jest
+     * wspólny z /search: te same filtry i okno = ten sam zbiór.
      */
     browse?: boolean;
+    /**
+     * Tryb STRON (paginacja linkowa /publications): numer strony 1..N z adresu.
+     * Okno ma wtedy STAŁY rozmiar SEARCH_PAGE_SIZE i przesunięcie
+     * `(page - 1) * SEARCH_PAGE_SIZE`, a `limit` nie gra roli - rosnące okno
+     * „pokaż więcej" zostaje wyłącznie trybem /search. Strona jest częścią
+     * klucza, więc każda strona to osobny wpis cache, a powrót na stronę już
+     * obejrzaną nie pyta bazy drugi raz.
+     */
+    page?: number;
   },
-) =>
-  queryOptions({
+) => {
+  const page = opts?.page === undefined ? undefined : normalizedPage(opts.page);
+  const offset = page === undefined ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
+  return queryOptions({
     queryKey: [
       "public",
       "search",
@@ -535,43 +573,65 @@ export const searchQueryOptions = (
         terms: sortedTerms(filters.terms),
         termGroups: normalizedTermGroups(filters.termGroups),
       },
-      { limit },
+      page === undefined ? { limit } : { page, pageSize: SEARCH_PAGE_SIZE },
     ] as const,
     enabled: opts?.browse ? true : searchEnabled(filters),
     queryFn: async (): Promise<SearchResult> => {
       // Postgres full-text search (ranked, unaccent + prefiks + polska fleksja,
       // indeksuje też treść blocks_data/builder_data). Wszystkie filtry są w
       // RPC (pushdown), a fasety liczy osobny RPC po PEŁNYM zbiorze trafień -
-      // nie po przyciętym oknie. search_posts nie ma offsetu, więc "load more"
-      // rośnie przez _limit (60 → 120 → …) z sufitem SEARCH_LIMIT_MAX.
+      // nie po przyciętym oknie.
       const args = rpcFilterArgs(filters);
+      const sort = filters.sort ?? "relevance";
+      // OKNO WYNIKÓW. /search: rosnący `_limit` (60 → 120 → …, sufit
+      // SEARCH_LIMIT_MAX) BEZ `_offset` - wywołanie bajt w bajt sprzed
+      // paginacji biblioteki. Tryb stron: stała strona i `_offset` WYŁĄCZNIE od
+      // strony drugiej. Pierwsza strona jest więc tym samym wywołaniem co
+      // /search i działa także na bazie sprzed migracji 20261003100100 (ten sam
+      // wzorzec co `_match`/`_in` w rpcFilterArgs: domyślnych nie wysyłamy).
+      const windowArgs =
+        page === undefined
+          ? { _limit: Math.min(limit, SEARCH_LIMIT_MAX) }
+          : { _limit: SEARCH_PAGE_SIZE, _offset: offset > 0 ? offset : undefined };
+      // Strona za widełkami offsetu bazy nie pyta o okno WCALE (patrz
+      // SEARCH_OFFSET_MAX): przycięty offset oddałby pod tym adresem treść
+      // innej strony. Jest pusta, a liczność dociąga sonda niżej.
+      const beyondReach = offset > SEARCH_OFFSET_MAX;
       // Warstwa semantyczna (drugi sygnał rankingu): embeddingi zapytania
       // liczone server fn-em równolegle z FTS. Addytywna - błąd/brak
       // dostawcy embeddingów degraduje do czystego FTS bez szumu.
       const qForSemantic = filters.q.trim();
-      const semanticEligible =
-        qForSemantic.length >= 4 && (filters.sort ?? "relevance") === "relevance";
-      const [
-        { data: matchRows, error: matchError },
-        { data: facetRows, error: facetError },
-        semantic,
-      ] = await Promise.all([
-        supabase.rpc("search_posts", {
-          ...args,
-          _limit: Math.min(limit, SEARCH_LIMIT_MAX),
-          _sort: filters.sort ?? "relevance",
-        }),
+      const semanticEligible = !beyondReach && qForSemantic.length >= 4 && sort === "relevance";
+      const [match, { data: facetRows, error: facetError }, semantic] = await Promise.all([
+        beyondReach ? null : supabase.rpc("search_posts", { ...args, ...windowArgs, _sort: sort }),
         supabase.rpc("search_facets", args),
         semanticEligible
           ? semanticSearch({ data: { q: qForSemantic } }).catch(() => ({ hits: [] }))
           : Promise.resolve({ hits: [] as SemanticHit[] }),
       ]);
-      if (matchError) throw matchError;
+      if (match?.error) throw match.error;
       if (facetError) throw facetError;
 
-      let raw = matchRows ?? [];
-      const total = raw.length > 0 ? Number(raw[0].total_count ?? raw.length) : 0;
-      const fuzzy = raw.length > 0 && !!raw[0].fuzzy;
+      let raw = match?.data ?? [];
+      let total = raw.length > 0 ? Number(raw[0].total_count ?? raw.length) : 0;
+      let fuzzy = raw.length > 0 && !!raw[0].fuzzy;
+      // STRONA ZA KOŃCEM ZBIORU. Liczność (`total_count`) przyjeżdża w wierszach
+      // okna, więc pusta strona nie niesie jej wcale - a bez niej interfejs nie
+      // odróżni „filtry nic nie znalazły" od „ta strona już nie istnieje"
+      // i nie ma dokąd odesłać czytelnika (stary link, skasowane wpisy, ręcznie
+      // wpisane `?page=`). Jedna sonda `_limit: 1` bez offsetu oddaje prawdziwą
+      // liczność; płaci ją wyłącznie strona poza zakresem.
+      if (page !== undefined && page > 1 && raw.length === 0) {
+        const { data: probeRows, error: probeError } = await supabase.rpc("search_posts", {
+          ...args,
+          _limit: 1,
+          _sort: sort,
+        });
+        if (probeError) throw probeError;
+        const first = probeRows?.[0];
+        total = first ? Number(first.total_count ?? 1) : 0;
+        fuzzy = !!first?.fuzzy;
+      }
       // Blend: 3/4 znormalizowanego FTS + 1/4 podobieństwa semantycznego.
       // Tylko porządek trafień (zbiór i total bez zmian); fallback trigramowy
       // (literówki) zostaje nietknięty - tam rank ma inną skalę.
@@ -596,10 +656,12 @@ export const searchQueryOptions = (
       // Telemetria zapytań (fundament podpowiedzi/trendów) - fire-and-forget,
       // odporna na brak funkcji przed wdrożeniem migracji. Logujemy tylko realne
       // frazy, nie czyste przeglądanie po filtrach - i tylko PIERWSZĄ stronę:
-      // „pokaż więcej" to to samo zapytanie z większym `_limit`, więc każde
-      // doładowanie liczyło frazę jeszcze raz i pompowało „popularne frazy".
+      // „pokaż więcej" na /search to to samo zapytanie z większym `_limit`,
+      // a kolejna strona biblioteki - to samo zapytanie z innym `_offset`. Każde
+      // z nich liczyłoby frazę jeszcze raz i pompowało „popularne frazy".
       const qTrim = filters.q.trim();
-      if (qTrim.length >= 2 && limit <= SEARCH_PAGE_SIZE) {
+      const firstWindow = page === undefined ? limit <= SEARCH_PAGE_SIZE : page === 1;
+      if (qTrim.length >= 2 && firstWindow) {
         void supabase
           .rpc("log_search_query", { _q: qTrim, _lang: currentLang(), _results: total })
           .then(
@@ -622,6 +684,7 @@ export const searchQueryOptions = (
     },
     staleTime: 30_000,
   });
+};
 
 // ---------- AUTOSUGGEST ----------------------------------------------------
 
