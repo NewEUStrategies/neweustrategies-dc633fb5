@@ -2,7 +2,7 @@
  * Wspólna bramka serwerowych funkcji analityki: kontrakt kontekstu Supabase,
  * bramka roli admina i odczyt ustawień analityki z `site_settings`.
  *
- * Wydzielone, bo każda serwerowa funkcja analityki potrzebuje tej samej
+ * Wydzielone, bo każda z funkcji wymienionych niżej potrzebuje tej samej
  * bramki. Wcześniej kopia `requireAdmin` żyła w kilku plikach, więc
  * utwardzenie bramki w jednym miejscu nie propagowało się na pozostałe.
  * Użytkownicy `requireAnalyticsAdmin` (każdy woła ją PRZED pierwszym odczytem
@@ -16,6 +16,12 @@
  *   - `@/lib/observability/vitals.functions.ts` - RUM (Core Web Vitals),
  *   - `@/lib/observability/clientErrors.functions.ts` - błędy przeglądarki,
  *   - `@/lib/relatedInsights.functions.ts` - analityka rekomendacji.
+ *
+ * ŚWIADOMY WYJĄTEK: `footerAnalytics.functions.ts` z tego samego katalogu stoi
+ * na middleware `requireAdmin` z `require-staff.ts` (z MFA step-up, patrz
+ * niżej) i NIE wolno go „dokonsolidować" na tę bramkę - zdjęłoby to step-up
+ * z panelu stopki. Middleware przypina test strukturalny
+ * `footerAnalyticsFunctions.test.ts`; czerwień tam to sygnał, nie przeszkoda.
  *
  * `readStoredAnalyticsSettings` (przez `toAnalyticsGatewayCtx`) czytają GA4,
  * status i warstwa semantyczna.

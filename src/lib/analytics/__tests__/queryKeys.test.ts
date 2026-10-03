@@ -60,8 +60,14 @@ describe("klucze analityki - izolacja najemców w cache'u", () => {
 });
 
 describe("klucze analityki - rozdzielczość parametrów", () => {
-  it("status jest JEDNYM kluczem na najemcę (wspólny dla trzech ekranów)", () => {
-    expect(analyticsStatusKey(TENANT_A)).toEqual(analyticsStatusKey(TENANT_A));
+  // Kształt klucza statusu przypięty dosłownie: bez parametrów poza najemcą,
+  // więc trzy ekrany wołające fabrykę dostają JEDEN wpis na najemcę. Że
+  // naprawdę ją wołają (a nie liczą klucza po swojemu), dowodzą testy tras -
+  // `adminAnalyticsRoute`, `adminAnalyticsBiRoute`, `adminSettingsAnalyticsRoute`;
+  // tutaj „równy samemu sobie" przeszedłby dla każdej funkcji deterministycznej.
+  it("status to prefiks najemcy + „status”, bez innych parametrów", () => {
+    expect(analyticsStatusKey(TENANT_A)).toEqual([...analyticsTenantKey(TENANT_A), "status"]);
+    expect(analyticsStatusKey(TENANT_A)).toEqual(["admin-analytics", TENANT_A, "status"]);
   });
 
   it("okno mini-panelu RUM jest w kluczu", () => {
