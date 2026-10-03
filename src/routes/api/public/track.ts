@@ -34,6 +34,16 @@
 // zredagowaną, więc dwa różne adresy e-mail w tej samej frazie dają jeden klucz
 // grupowania, a nie dwa.
 //
+// TEN ENDPOINT JEST WYROCZNIĄ dla ról czytających skróty. Przyjmuje dowolną
+// frazę klienta, a trigger skraca ją tym samym pieprzem najemcy co frazy
+// odwiedzających - admin albo redaktor potwierdzi więc zgadywaną frazę jednym
+// beaconem i jednym SELECT-em (wynik obok `anon_id` szukającego). Odebranie
+// EXECUTE funkcji skrótu zamyka tylko drogę hurtową; tempo słownika budowanego
+// tędy ogranicza wyłącznie `limiter` niżej: 120 żądań zrywu, 2 żądania/s, po
+// `MAX_EVENTS` = 40 zdarzeń, czyli ~80 fraz/s z IP, per izolat. Ryzyko
+// przyjęte (wcześniej fraza leżała jawnie) - nagłówek migracji opisuje
+// utwardzenie poza tym zakresem.
+//
 // `entity_id` idzie przez `redactPii`, NIE przez `redactUrl`: to jedno pole ma
 // trzy kształty (fraza, UUID wpisu, href stopki), a ZMIERZONE
 // `redactUrl("cee") === "/cee"` i `redactUrl("polityka spójności") ===
