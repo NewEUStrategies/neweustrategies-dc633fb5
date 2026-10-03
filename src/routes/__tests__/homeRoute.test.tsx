@@ -398,7 +398,7 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     expect(view.container.querySelector("[data-footnotes-list]")).toBeNull();
   });
 
-  it("SEO strony statycznej BIJE defaulty marki (tytuł, opis, canonical, robots)", async () => {
+  it("strona główna zachowuje tytuł marki, ale respektuje opis, canonical i robots strony", async () => {
     h.homePage = homePageData({
       seo_title_pl: "Własny tytuł redakcji",
       seo_description_pl: "Własny opis redakcji",
@@ -406,7 +406,8 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
       seo_noindex: true,
     });
     const view = await mountHome();
-    expect(metaTitle(view.meta())).toBe("Własny tytuł redakcji");
+    expect(metaTitle(view.meta())).toBe("New European Strategies");
+    expect(metaByProperty(view.meta(), "og:title")).toBe("New European Strategies");
     expect(metaByName(view.meta(), "description")).toBe("Własny opis redakcji");
     expect(linkByRel(view.links(), "canonical")).toBe(
       "https://neweuropeanstrategies.com/kanoniczny",
@@ -841,7 +842,7 @@ describe("/ - powierzchnie awaryjne trasy", () => {
 describe("/ - kontrakt nagłówka bez montowania trasy", () => {
   it("`head()` bez danych loadera nadal daje tytuł i opis marki", async () => {
     const meta = await routeMeta(HomeRoute);
-    expect(metaTitle(meta)).toContain("New European Strategies");
+    expect(metaTitle(meta)).toBe("New European Strategies");
     expect(metaByName(meta, "description")).toBeTypeOf("string");
     // Bez danych loadera nie ma czego zabraniać - trasa nie emituje `robots`.
     expect(metaByName(meta, "robots")).toBeUndefined();
