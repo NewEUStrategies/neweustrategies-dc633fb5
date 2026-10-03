@@ -17,7 +17,7 @@ zdarzenie domenowe (trigger SQL)
                           └─> claim_push_jobs (SKIP LOCKED, backoff)  ┐
 e-mail digest: notification_preferences.email_digest (off/daily/weekly)│ APLIKACJA
   └─> claim_due_digests (stempel digest_last_sent_at, SKIP LOCKED)    │ (Node env:
-przypomnienia: run_event_reminders (reminded_at = raz na RSVP)        ┘  VAPID_*, RESEND)
+przypomnienia: run_event_reminders (dzwonki event + dziennik)          ┘  VAPID_*, RESEND)
 ```
 
 Historycznie istniał równoległy, zdublowany potok (`push_outbox`,
@@ -212,15 +212,25 @@ przy diagnozie:
   priorytet pytań Q&A czyta flagę `qa_priority`. Flagi edytuje admin
   (Membership → features JSON) - usunięcie flagi z warstwy natychmiast
   odbiera dostęp.
-- **Przypomnienia o wydarzeniach**: `run_event_reminders()` wysyła raz
-  (stempel `reminded_at`) dla RSVP `going` na <24 h przed startem; woła je
-  pg_cron (`event-reminders`, 5 \* \* \* \*) oraz oba endpointy ticku.
+- **Przypomnienia o wydarzeniach** (`20261003140000`): co jest należne,
+  rozstrzyga jeden skaner `_event_reminder_candidates` - ustawienia
+  organizatora (`reminders_enabled`, terminy `reminder_event_leads_minutes`,
+  przypomnienia o sesjach, SMS), preferencje zgłoszenia (`remind_*`), bilet
+  z opłatą, cisza nocna 22-07 w strefie wydarzenia (odracza dzwonek/SMS
+  z wyprzedzeniem > 60 min) i dziennik `event_message_deliveries`. Wysyłany
+  jest najmniejszy należny termin. `run_event_reminders()` wysyła DZWONKI
+  rodzaju `event` (przełącznik „Wydarzenia", push z TTL 1 h, poza digestem)
+  zgłoszeniom z biletem, samym RSVP `going` i planom sesji; stempluje
+  `reminded_at`. Woła je pg_cron (`event-reminders`, 5 \* \* \* \*) oraz oba
+  endpointy ticku. E-mail i SMS wysyła zadanie F2
+  (`src/lib/events/jobs/reminderJob.server.ts`) partiami
+  `_event_reminders_claim` / `_event_delivery_confirm_many`.
 - **Lista rezerwowa** (`20260721150000`): komplet miejsc nie odrzuca
   chętnych - `rsvp_event` degraduje `going` do `waitlist` (kolejka FIFO po
   `waitlisted_at`, pozycja stabilna przy ponowieniach). Zwolnienie miejsca
   (rezygnacja z `going` albo podniesienie `capacity` w adminie) awansuje
   czoło kolejki i wysyła powiadomienie "Masz miejsce". Awans zeruje
-  `reminded_at`, więc przypomnienie <24 h nadal wyjdzie. Klient nigdy nie
+  `reminded_at`, więc należne przypomnienie nadal wyjdzie. Klient nigdy nie
   żąda statusu `waitlist` wprost; pozycję podaje
   `get_event_waitlist_position`.
 - **Nagrania za bramką warstwy** (`20260721150000`): `get_event_access`
