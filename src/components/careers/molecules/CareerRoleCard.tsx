@@ -25,7 +25,7 @@ export function CareerRoleCard({
   return (
     <article
       className={cn(
-        "group relative isolate rounded-[6px] transition-transform duration-300 ease-out hover:-translate-y-0.5",
+        "group relative isolate overflow-visible rounded-[6px] transition-transform duration-300 ease-out hover:-translate-y-0.5",
         selected && "-translate-y-0.5",
       )}
       aria-current={selected ? "true" : undefined}
@@ -88,10 +88,10 @@ export function CareerRoleCard({
           </ul>
         </div>
 
-        <div className="flex flex-col gap-2 md:col-span-3">
+        <div className="flex min-w-0 flex-col gap-2 overflow-visible md:col-span-3">
           <Button
             onClick={() => onApply(role.id)}
-            className="group/cta h-11 w-full justify-center gap-2 rounded-[6px] text-sm font-bold transition-transform duration-200 active:scale-[0.97]"
+            className="group/cta h-11 min-w-0 w-full justify-center gap-2 overflow-visible rounded-[6px] px-3 text-sm font-bold transition-transform duration-200 active:scale-[0.97]"
           >
             {t("careers.roles.apply")}
             <ArrowRight
@@ -102,7 +102,7 @@ export function CareerRoleCard({
           <Button
             variant="outline"
             onClick={() => onDetails(role.id)}
-            className="h-11 w-full justify-center gap-2 rounded-[6px] border-border/70 text-sm font-bold transition-transform duration-200 hover:border-primary/50 hover:bg-primary/5 active:scale-[0.97]"
+            className="h-11 min-w-0 w-full justify-center gap-2 overflow-visible rounded-[6px] border-border/70 px-3 text-sm font-bold transition-transform duration-200 hover:border-primary/50 hover:bg-primary/5 active:scale-[0.97]"
           >
             <FileText className="h-4 w-4" aria-hidden />
             {t("careers.roles.details")}
