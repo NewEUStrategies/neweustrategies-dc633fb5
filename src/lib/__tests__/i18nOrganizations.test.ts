@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import i18n from "@/lib/i18n";
 import { ensureI18n } from "@/lib/i18n-organizations";
+import { ORGANIZATION_PAGE_COPY } from "@/lib/queries/organizationTerm";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -41,11 +42,18 @@ describe("i18n-organizations - słownik po imporcie", () => {
     expect(en("organization.postsCount", { count: 7 })).toBe("7 publications");
   });
 
+  // Zdania `head()` (opis zastępczy, numer strony) NIE są kluczami nakładki:
+  // `head()` nie ma `t()`, więc f8738e23 przeniósł je do `ORGANIZATION_PAGE_COPY`.
+  // Asercja pyta to źródło; pytana o klucze i18n dostawała gołe klucze
+  // (`organization.seoDescriptionFallback`) i była czerwona od scalenia obu zmian.
   it("zdania SEO interpolują nazwę i numer strony w obu językach", () => {
-    expect(i18n.getFixedT("pl")("organization.seoDescriptionFallback", { name: "NATO" })).toBe(
+    expect(ORGANIZATION_PAGE_COPY.pl.descriptionFallback("NATO")).toBe(
       "NATO - profil organizacji w New European Strategies.",
     );
-    expect(i18n.getFixedT("en")("organization.pageSuffix", { page: 3 })).toBe("page 3");
+    expect(ORGANIZATION_PAGE_COPY.en.descriptionFallback("NATO")).toBe(
+      "NATO - organization profile at New European Strategies.",
+    );
+    expect(ORGANIZATION_PAGE_COPY.en.pageLabel).toBe("page");
   });
 });
 
