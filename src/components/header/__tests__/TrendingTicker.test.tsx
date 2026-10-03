@@ -12,6 +12,12 @@
 //   3. identyfikator wariantu ląduje w selektorze CSS wstrzykiwanym przez
 //      `dangerouslySetInnerHTML`,
 //   4. etykieta ma zejście PL <-> EN, a w ostateczności idzie ze słownika.
+//   5. CYKL ŻYCIA TIMERÓW trybu `typewriter` - niezależnie od tego, czy
+//      środowisko daje uchwyty-liczby (przeglądarka), czy uchwyty-obiekty
+//      (Node). Do 2026-10-03 identyfikator interwału był doklejany do uchwytu
+//      `setTimeout`; na liczbie w trybie ścisłym to `TypeError`, więc interwał
+//      tykał po odmontowaniu. Testy szły w Node (obiekty) i niczego nie widziały
+//      - stąd jawne atrapy timerów dla OBU kształtów uchwytu.
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -47,6 +53,8 @@ vi.mock("@/lib/views/headerTickerQuery", async (importOriginal) => ({
 
 const {
   TrendingTicker,
+  TypewriterText,
+  TYPEWRITER_STEP_MS,
   normalizeMode,
   safeAttr,
   itemTitle,
@@ -370,3 +378,234 @@ describe("układy szklane (marquee i pionowa rotacja)", () => {
     expect(boxed.innerHTML).toContain("max-w-[1400px]");
   });
 });
+
+// ── TRYB `typewriter`: CYKL ŻYCIA TIMERÓW, NIEZALEŻNY OD ŚRODOWISKA ─────────
+
+/**
+ * Kształt uchwytu timera. `liczba` = przeglądarka i jsdom (`window.setTimeout`
+ * zwraca number), `obiekt` = Node (`Timeout`) - ZWYKŁY, rozszerzalny obiekt,
+ * dokładnie jak w Node. Właśnie ta różnica ukrywała błąd: na obiekcie
+ * doklejenie `_iv` działa, na liczbie w trybie ścisłym rzuca `TypeError`.
+ */
+type HandleShape = "liczba" | "obiekt";
+
+interface FakeClock {
+  /** Przesuwa zegar, odpalając należne callbacki po kolei (w `act`). */
+  advance(ms: number): void;
+  /** Uchwyty utworzone przez `setTimeout` / `setInterval`, w kolejności. */
+  readonly timeouts: unknown[];
+  readonly intervals: unknown[];
+  /** Uchwyty przekazane do `clearTimeout` / `clearInterval`, w kolejności. */
+  readonly clearedTimeouts: unknown[];
+  readonly clearedIntervals: unknown[];
+  /**
+   * Wyjątki rzucone z callbacków timerów. Przeglądarka nie przerywa na nich
+   * pętli zdarzeń, tylko zgłasza je jako nieobsłużone - atrapa robi to samo,
+   * a test sprawdza, że lista jest pusta.
+   */
+  readonly uncaught: unknown[];
+  /** Ile callbacków timerów wykonało się do tej pory. */
+  fired(): number;
+  /** Ile timerów nadal czeka (nieodpalone timeouty + żywe interwały). */
+  pending(): number;
+}
+
+/**
+ * Atrapy `setTimeout`/`setInterval`/`clearTimeout`/`clearInterval` z jawnym
+ * kształtem uchwytu. Własne, a nie `vi.useFakeTimers()`, bo fałszywe timery
+ * vitesta w Node oddają obiekty - przypadku przeglądarkowego nie da się nimi
+ * w ogóle odtworzyć.
+ */
+function installFakeClock(shape: HandleShape): FakeClock {
+  interface Timer {
+    readonly handle: unknown;
+    readonly kind: "timeout" | "interval";
+    readonly every: number;
+    readonly fn: () => void;
+    due: number;
+  }
+  const timers: Timer[] = [];
+  let now = 0;
+  let seq = 0;
+  let fired = 0;
+  const clock = {
+    timeouts: [] as unknown[],
+    intervals: [] as unknown[],
+    clearedTimeouts: [] as unknown[],
+    clearedIntervals: [] as unknown[],
+    uncaught: [] as unknown[],
+  };
+  const schedule =
+    (kind: Timer["kind"]) =>
+    (fn: () => void, ms?: number): unknown => {
+      seq += 1;
+      const handle = shape === "liczba" ? seq : { fakeTimer: seq };
+      const delay = typeof ms === "number" && ms > 0 ? ms : 0;
+      timers.push({ handle, kind, every: Math.max(1, delay), fn, due: now + delay });
+      (kind === "timeout" ? clock.timeouts : clock.intervals).push(handle);
+      return handle;
+    };
+  const clear = (kind: Timer["kind"]) => (handle: unknown) => {
+    (kind === "timeout" ? clock.clearedTimeouts : clock.clearedIntervals).push(handle);
+    const index = timers.findIndex((timer) => timer.kind === kind && timer.handle === handle);
+    if (index >= 0) timers.splice(index, 1);
+  };
+  // `window === globalThis` w tym środowisku, więc to są DOKŁADNIE te funkcje,
+  // które woła komponent (`window.setTimeout`).
+  vi.stubGlobal("setTimeout", schedule("timeout"));
+  vi.stubGlobal("setInterval", schedule("interval"));
+  vi.stubGlobal("clearTimeout", clear("timeout"));
+  vi.stubGlobal("clearInterval", clear("interval"));
+
+  return {
+    ...clock,
+    fired: () => fired,
+    pending: () => timers.length,
+    advance(ms: number) {
+      const until = now + ms;
+      for (;;) {
+        const next = timers.filter((timer) => timer.due <= until).sort((a, b) => a.due - b.due)[0];
+        if (!next) break;
+        now = next.due;
+        if (next.kind === "timeout") timers.splice(timers.indexOf(next), 1);
+        else next.due += next.every;
+        fired += 1;
+        act(() => {
+          try {
+            next.fn();
+          } catch (error) {
+            clock.uncaught.push(error);
+          }
+        });
+      }
+      now = until;
+    },
+  };
+}
+
+/** Wypisany fragment tytułu (bez karetki `|`). */
+function typed(container: HTMLElement): string {
+  return (container.firstElementChild?.textContent ?? "").replace(/\|$/, "");
+}
+
+/** `prefers-reduced-motion` ustawione JAWNIE - wynik nie może zależeć od środowiska. */
+function stubReducedMotion(reduce: boolean) {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: reduce && query === "(prefers-reduced-motion: reduce)",
+    media: query,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  }));
+}
+
+describe.each<HandleShape>(["liczba", "obiekt"])(
+  "TypewriterText - timery przy uchwycie typu %s",
+  (shape) => {
+    beforeEach(() => stubReducedMotion(false));
+    afterEach(() => {
+      // Najpierw odmontowanie (sprzątanie efektu trafia jeszcze w atrapy),
+      // dopiero potem przywrócenie prawdziwych timerów.
+      cleanup();
+      vi.unstubAllGlobals();
+    });
+
+    it("wypisuje pełny tytuł po opóźnieniu, a interwał gaśnie na ostatnim znaku", () => {
+      const clock = installFakeClock(shape);
+      const { container } = render(<TypewriterText text="Abc" delayMs={90} />);
+      expect(typed(container)).toBe("");
+      expect(clock.timeouts).toHaveLength(1);
+      expect(clock.intervals).toHaveLength(0);
+
+      clock.advance(89);
+      expect(clock.intervals).toHaveLength(0);
+      clock.advance(1);
+      expect(clock.intervals).toHaveLength(1);
+
+      clock.advance(TYPEWRITER_STEP_MS);
+      expect(typed(container)).toBe("A");
+      clock.advance(2 * TYPEWRITER_STEP_MS);
+      expect(typed(container)).toBe("Abc");
+      // Pełny tytuł = koniec pracy: TEN interwał wyczyszczony, nic nie czeka.
+      expect(clock.clearedIntervals).toEqual([clock.intervals[0]]);
+      expect(clock.pending()).toBe(0);
+      expect(clock.uncaught).toEqual([]);
+      expect(container.querySelector(".tt-caret")).not.toBeNull();
+    });
+
+    it("odmontowanie w trakcie opóźnienia: interwał nigdy nie powstaje, nic nie tyka później", () => {
+      const clock = installFakeClock(shape);
+      const { unmount } = render(<TypewriterText text="Abc" delayMs={90} />);
+      clock.advance(50);
+      unmount();
+      expect(clock.clearedTimeouts).toContain(clock.timeouts[0]);
+
+      clock.advance(10_000);
+      expect(clock.intervals).toHaveLength(0);
+      expect(clock.fired()).toBe(0);
+      expect(clock.pending()).toBe(0);
+      expect(clock.uncaught).toEqual([]);
+    });
+
+    it("odmontowanie w trakcie pisania czyści DOKŁADNIE ten interwał i nic już nie tyka", () => {
+      const clock = installFakeClock(shape);
+      const { container, unmount } = render(<TypewriterText text="Abcdef" delayMs={90} />);
+      clock.advance(90 + TYPEWRITER_STEP_MS);
+      expect(typed(container)).toBe("A");
+      expect(clock.uncaught).toEqual([]);
+
+      const firedBefore = clock.fired();
+      unmount();
+      expect(clock.intervals).toHaveLength(1);
+      expect(clock.clearedIntervals).toHaveLength(1);
+      expect(clock.clearedIntervals[0]).toBe(clock.intervals[0]);
+
+      clock.advance(1000);
+      expect(clock.fired()).toBe(firedBefore);
+      expect(clock.pending()).toBe(0);
+      expect(clock.uncaught).toEqual([]);
+    });
+
+    it("zmiana tytułu w trakcie pisania: start od zera, stary interwał wyczyszczony", () => {
+      const clock = installFakeClock(shape);
+      const { container, rerender } = render(<TypewriterText text="Abcdef" delayMs={90} />);
+      clock.advance(90 + 2 * TYPEWRITER_STEP_MS);
+      expect(typed(container)).toBe("Ab");
+      const stary = clock.intervals[0];
+
+      rerender(<TypewriterText text="Xyz" delayMs={90} />);
+      expect(clock.clearedIntervals).toEqual([stary]);
+      expect(typed(container)).toBe("");
+
+      // Do końca nowego opóźnienia nic nie pisze - stary interwał już nie żyje.
+      clock.advance(89);
+      expect(typed(container)).toBe("");
+      expect(clock.intervals).toHaveLength(1);
+
+      clock.advance(1 + 3 * TYPEWRITER_STEP_MS);
+      expect(clock.intervals).toHaveLength(2);
+      expect(typed(container)).toBe("Xyz");
+      expect(clock.pending()).toBe(0);
+      expect(clock.uncaught).toEqual([]);
+    });
+
+    it("pusty tytuł nie uruchamia żadnego timera", () => {
+      const clock = installFakeClock(shape);
+      const { container } = render(<TypewriterText text="" delayMs={90} />);
+      expect(typed(container)).toBe("");
+      expect(clock.timeouts).toHaveLength(0);
+      expect(clock.intervals).toHaveLength(0);
+    });
+
+    it("prefers-reduced-motion: pełny tytuł od razu i zero timerów", () => {
+      stubReducedMotion(true);
+      const clock = installFakeClock(shape);
+      const { container } = render(<TypewriterText text="Abc" delayMs={90} />);
+      expect(typed(container)).toBe("Abc");
+      expect(clock.timeouts).toHaveLength(0);
+      expect(clock.intervals).toHaveLength(0);
+      // Karetka zostaje - to element wyglądu trybu, nie animacja.
+      expect(container.querySelector(".tt-caret")).not.toBeNull();
+    });
+  },
+);

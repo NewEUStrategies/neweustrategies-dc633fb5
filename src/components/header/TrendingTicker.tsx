@@ -28,6 +28,7 @@ import {
   HEADER_TICKER_BORDER_CLASS,
 } from "@/components/header/headerGeometry";
 import { hardenStyleCss } from "@/lib/sanitizePure";
+import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 
 export type { TickerMode };
 
@@ -395,23 +396,53 @@ function TickerItem({
   );
 }
 
-function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
+/** Odstęp między kolejnymi znakami trybu `typewriter` (ms). */
+export const TYPEWRITER_STEP_MS = 22;
+
+/**
+ * Tytuł wypisywany znak po znaku: opóźnienie `delayMs`, potem jeden znak co
+ * `TYPEWRITER_STEP_MS`.
+ *
+ * DLACZEGO OBA UCHWYTY W DOMKNIĘCIU EFEKTU. Do 2026-10-03 identyfikator
+ * interwału był doklejany jako właściwość do uchwytu `setTimeout`
+ * (`start._iv = iv`) i stamtąd czytany w sprzątaniu. W przeglądarce
+ * `window.setTimeout` zwraca LICZBĘ, a moduł ES działa w trybie ścisłym, więc
+ * przypisanie rzucało `TypeError` w callbacku timera - już PO utworzeniu
+ * interwału. Interwał był wtedy nieosiągalny dla sprzątania: tykał po
+ * odmontowaniu i po zmianie tytułu (setState na martwym komponencie, dwa
+ * interwały piszące jeden licznik), a każdy wpis zgłaszał nieobsłużony błąd.
+ * W Node uchwyt jest obiektem, więc testy niczego nie widziały. Zmienne
+ * lokalne efektu działają tak samo dla obu kształtów uchwytu.
+ *
+ * `prefers-reduced-motion`: pełny tytuł od razu i zero timerów - czytane
+ * w efekcie, nie w renderze (patrz `lib/a11y/reducedMotion`).
+ */
+export function TypewriterText({ text, delayMs }: { text: string; delayMs: number }) {
   const [n, setN] = useState(0);
   useEffect(() => {
+    // Pusty tytuł nie ma czego wypisywać, a ograniczony ruch nie chce animacji
+    // w ogóle - w obu przypadkach stan końcowy od razu i żadnego timera.
+    if (text.length === 0 || prefersReducedMotion()) {
+      setN(text.length);
+      return;
+    }
     setN(0);
-    const start = window.setTimeout(() => {
-      let i = 0;
-      const iv = window.setInterval(() => {
-        i += 1;
-        setN(i);
-        if (i >= text.length) window.clearInterval(iv);
-      }, 22);
-      (start as unknown as { _iv?: number })._iv = iv;
+    let interval: number | undefined;
+    const timeout = window.setTimeout(() => {
+      let typed = 0;
+      interval = window.setInterval(() => {
+        typed += 1;
+        setN(typed);
+        // Pełny tytuł = koniec pracy: interwał nie tyka dalej na próżno.
+        if (typed >= text.length && interval !== undefined) {
+          window.clearInterval(interval);
+          interval = undefined;
+        }
+      }, TYPEWRITER_STEP_MS);
     }, delayMs);
     return () => {
-      window.clearTimeout(start);
-      const iv = (start as unknown as { _iv?: number })._iv;
-      if (iv) window.clearInterval(iv);
+      window.clearTimeout(timeout);
+      if (interval !== undefined) window.clearInterval(interval);
     };
   }, [text, delayMs]);
   return (
