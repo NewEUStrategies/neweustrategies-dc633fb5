@@ -104,18 +104,17 @@
 --     supabase/tests/extensions_search_path_contract_test.sql).
 --
 -- IDEMPOTENCJA. CREATE TABLE / INDEX IF NOT EXISTS, CREATE OR REPLACE
--- FUNCTION, DROP TRIGGER IF EXISTS + CREATE TRIGGER, bezstanowe ACL, backfill
+-- FUNCTION, CREATE OR REPLACE TRIGGER, bezstanowe ACL, backfill
 -- z filtrem pomijajacym wiersze przepisane, zadanie cron wyrejestrowane
 -- i rejestrowane od nowa.
 --
 -- BLOKADY PRZY WDROZENIU (koszt NIEZMIERZONY na danych produkcyjnych). Plik
--- biegnie w jednej transakcji, a DROP TRIGGER IF EXISTS bierze na
--- `analytics_events` ACCESS EXCLUSIVE (takze gdy triggera jeszcze nie ma),
--- CREATE TRIGGER doklada SHARE ROW EXCLUSIVE; obie trzyma do COMMIT. Od
--- sekcji 3 do konca pliku KAZDY INSERT ingestu (/api/public/track czeka na
--- wstawienie) i kazdy odczyt pulpitu z tej tabeli stoi w kolejce - przez caly
--- backfill (pelny skan DISTINCT + UPDATE per najemca, czas proporcjonalny do
--- liczby wierszy), budowe indeksu `web_vitals` i reszte pliku. Gorna granica:
+-- biegnie w jednej transakcji, a CREATE OR REPLACE TRIGGER bierze na
+-- `analytics_events` SHARE ROW EXCLUSIVE i trzyma ja do COMMIT. Od sekcji 3
+-- do konca pliku KAZDY INSERT ingestu (/api/public/track czeka na wstawienie)
+-- stoi w kolejce - przez caly backfill (pelny skan DISTINCT + UPDATE per
+-- najemca, czas proporcjonalny do liczby wierszy), budowe indeksu
+-- `web_vitals` i reszte pliku. Odczyty pulpitow nie czekaja. Gorna granica:
 -- tabela istnieje od 2026-07-22 (ok. 2,5 miesiaca zdarzen), wiersze
 -- wyszukiwania to ich ulamek. Kolejnosc trigger -> backfill jest celowa:
 -- odwrotna zostawilaby jawny kazdy wiersz wstawiony po migawce backfillu,
@@ -260,8 +259,13 @@ REVOKE ALL ON FUNCTION public.analytics_events_search_hash() FROM PUBLIC, anon, 
 
 -- WHEN na triggerze, nie IF w funkcji: odslony i klikniecia (zdecydowana
 -- wiekszosc wierszy) w ogole nie wchodza do PL/pgSQL.
-DROP TRIGGER IF EXISTS analytics_events_search_hash_trg ON public.analytics_events;
-CREATE TRIGGER analytics_events_search_hash_trg
+--
+-- CREATE OR REPLACE TRIGGER (PG14+), nie DROP IF EXISTS + CREATE: DROP TRIGGER
+-- bierze na tabeli ACCESS EXCLUSIVE (takze gdy triggera jeszcze nie ma)
+-- i trzyma ja do COMMIT calej migracji, czyli przez caly backfill - a to
+-- zatrzymaloby takze ODCZYTY pulpitow. SHARE ROW EXCLUSIVE z CREATE OR
+-- REPLACE wstrzymuje tylko zapisy (ingest); SELECT-y ida dalej.
+CREATE OR REPLACE TRIGGER analytics_events_search_hash_trg
   BEFORE INSERT ON public.analytics_events
   FOR EACH ROW
   WHEN (NEW.event_type = 'search' OR NEW.entity_type = 'search_query')
@@ -280,11 +284,10 @@ CREATE TRIGGER analytics_events_search_hash_trg
 -- zostawilaby jawne frazy wszystkich. Najemca, ktorego partia padla, traci
 -- frazy (NULL) - prywatnosc wygrywa z grupowaniem tak samo jak w triggerze.
 --
--- BLOKADY. Wywolanie w TEJ migracji (nizej) biegnie pod ACCESS EXCLUSIVE na
--- `analytics_events` z DROP TRIGGER (plus SHARE ROW EXCLUSIVE z CREATE
--- TRIGGER), trzymanym do COMMIT calego pliku: ingest i odczyty pulpitu z tej
--- tabeli czekaja przez caly backfill (patrz naglowek, BLOKADY PRZY
--- WDROZENIU). Dopiero pozniejsze, samodzielne wywolanie operatora bierze tylko
+-- BLOKADY. Wywolanie w TEJ migracji (nizej) biegnie pod SHARE ROW EXCLUSIVE
+-- na `analytics_events` z CREATE OR REPLACE TRIGGER, trzymanym do COMMIT
+-- calego pliku: ingest z tej tabeli czeka przez caly backfill, odczyty
+-- pulpitu nie (patrz naglowek, BLOKADY PRZY WDROZENIU). Dopiero pozniejsze, samodzielne wywolanie operatora bierze tylko
 -- ROW EXCLUSIVE i blokady przepisywanych wierszy wyszukiwania (do konca jego
 -- transakcji, nie partii - podtransakcja ich nie zwalnia); wtedy INSERT
 -- ingestu nie czeka, a retencja omija te wiersze przez SKIP LOCKED.
