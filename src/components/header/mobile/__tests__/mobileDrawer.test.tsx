@@ -10,7 +10,7 @@
 //   * przełączniki (motyw, język, wyszukiwarka) mają nazwy dostępne ZE SŁOWNIKA,
 //     bo to same ikony.
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import "@/lib/i18n";
@@ -372,21 +372,7 @@ describe("MobileNavSection", () => {
     }
   });
 
-  it("pozycja odpowiadająca bieżącej ścieżce jest oznaczona jako aktualna", () => {
-    const original = window.location.pathname;
-    window.history.replaceState({}, "", "/wydarzenia");
-    try {
-      render(
-        <MobileNavSection
-          items={[navItem({ id: "n1", label_pl: "Wydarzenia", href: "/wydarzenia" })]}
-          onNavigate={() => {}}
-        />,
-      );
-      const link = screen.getByRole("link", { name: /Wydarzenia/ });
-      expect(link).toHaveAttribute("aria-current", "page");
-      expect(within(link).queryByText("Wydarzenia")).toBeTruthy();
-    } finally {
-      window.history.replaceState({}, "", original);
-    }
-  });
+  // Bieżąca pozycja (aria-current + wyróżnienie) wynika z aktywności samego
+  // `Link`, której atrapa <a> nie liczy - te przypadki żyją z prawdziwym
+  // routerem w `mobileNavSectionRouter.test.tsx`.
 });

@@ -28,4 +28,9 @@ describe("escapeLike", () => {
   it("removes standalone wildcards", () => {
     expect(escapeLike("100%_off")).toBe("100off");
   });
+
+  it("removes `*`, which PostgREST accepts as an alias of `%` in like/ilike", () => {
+    expect(escapeLike("a*b")).toBe("ab");
+    expect(escapeLike("***")).toBe("");
+  });
 });

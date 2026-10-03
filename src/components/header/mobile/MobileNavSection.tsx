@@ -98,6 +98,20 @@ export function MobileNavSection({ items, onNavigate, menuKey = "main" }: Props)
 
 // Legacy pozycje z konfiguracji super-admina - renderowane pod menu głównym.
 // Jeśli super-admin wyłączył wszystkie, znika bez śladu.
+//
+// BIEŻĄCĄ POZYCJĘ WYZNACZA `Link` Z ROUTERA, nie `window.location` w renderze:
+//   * ścieżka routera jest KANONICZNA (rewrite zdejmuje prefiks `/en`)
+//     i zdekodowana, więc pasuje do `href` z konfiguracji w obu językach.
+//     `window.location.pathname` pod `/en/...` nie pasował nigdy - czytelnik
+//     EN nie dostawał zaznaczenia, choć `Link` (liczący z routera) i tak
+//     doklejał mu `aria-current`;
+//   * odczyt okna w renderze to inny wynik na serwerze (brak `window`, każda
+//     pozycja bez zaznaczenia) niż w pierwszym renderze klienta - rozjazd
+//     hydratacji, gdy tylko sekcja trafi do SSR;
+//   * JEDNO źródło prawdy: `aria-current` i wyróżnienie wizualne (`activeProps`)
+//     liczy ten sam test aktywności `Link`. Własne porównanie `pathname ===
+//     href` rozjeżdżało się z nim na końcowym ukośniku (`/wydarzenia/` wobec
+//     `/wydarzenia`): `Link` uznawał pozycję za bieżącą, klasa jej nie dostawała.
 function MobileNavItemsFallback({
   items,
   lang,
@@ -133,14 +147,18 @@ function MobileNavItemsFallback({
             </a>
           );
         }
-        const active = typeof window !== "undefined" && window.location.pathname === item.href;
         return (
           <Link
             key={item.id}
             to={item.href}
             onClick={onNavigate}
-            aria-current={active ? "page" : undefined}
-            className={`${linkCls}${active ? " bg-muted/60 font-semibold" : ""}`}
+            // `exact`: bez niego `Link` dopasowuje po PREFIKSIE ścieżki i pozycja
+            // `/wydarzenia` udawałaby bieżącą stronę także na
+            // `/wydarzenia/konferencja`. Aktywny `Link` sam dokleja
+            // `aria-current="page"`, a `activeProps` - wyróżnienie.
+            activeOptions={{ exact: true, includeSearch: false }}
+            activeProps={{ className: "bg-muted/60 font-semibold" }}
+            className={linkCls}
           >
             <Icon className="w-4 h-4 text-muted-foreground" />
             <span>{label}</span>

@@ -9,7 +9,11 @@
 //      ustawianie strony niewidocznego panelu to martwa kontrolka,
 //   3. strzałki kolejności widgetów są wyłączone na krańcach listy,
 //   4. zapis wysyła KOMPLET pól; pominięcie choć jednego zostawiłoby w bazie
-//      wartość z poprzedniego zapisu, mimo że panel pokazuje inną.
+//      wartość z poprzedniego zapisu, mimo że panel pokazuje inną,
+//   5. styl tła „Zdjęcie” ma pole adresu (do migracji 20261003100000 był
+//      martwym ustawieniem - adresu nie przechowywało nic), pole jest widoczne
+//      TYLKO dla tego stylu, a adres łamiący regułę CHECK-u bazy blokuje zapis
+//      komunikatem zamiast ogólnego „Nie udało się zapisać”.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -21,6 +25,8 @@ const h = vi.hoisted(() => ({
   upsertError: null as { message: string } | null,
   toastSuccess: vi.fn(),
   toastFail: vi.fn(),
+  /** Nadpisania wiersza z bazy dla pojedynczego przypadku. */
+  initial: {} as Record<string, unknown>,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -44,6 +50,7 @@ vi.mock("@/lib/archive-layout-settings", async (importOriginal) => {
         id: "row-1",
         archive_type: archiveType,
         ...actual.DEFAULT_ARCHIVE_LAYOUT,
+        ...h.initial,
       }),
     }),
   };
@@ -51,9 +58,21 @@ vi.mock("@/lib/archive-layout-settings", async (importOriginal) => {
 // Podgląd na żywo renderuje prawdziwy układ archiwum z atrapą danych - poza
 // zakresem tego testu, więc zastępujemy go znacznikiem.
 vi.mock("../ArchiveLivePreview", () => ({
-  ArchiveLivePreview: ({ settings }: { settings: { columns: number; layout_variant: number } }) => (
-    <div data-testid="podglad">{`${settings.layout_variant}/${settings.columns}`}</div>
+  ArchiveLivePreview: ({
+    settings,
+  }: {
+    settings: { columns: number; layout_variant: number; hero_image_url: string | null };
+  }) => (
+    <>
+      <div data-testid="podglad">{`${settings.layout_variant}/${settings.columns}`}</div>
+      <div data-testid="podglad-zdjecie">{settings.hero_image_url ?? "brak"}</div>
+    </>
   ),
+}));
+// Pole zdjęcia to prawdziwy `ImageUrlField`; atrapą jest tylko biblioteka
+// mediów, która sięga do Supabase i wymaga kontekstu tenanta.
+vi.mock("@/components/admin/media/MediaPickerDialog", () => ({
+  MediaPickerDialog: () => null,
 }));
 
 import "@/lib/i18n-archive-layout";
@@ -89,6 +108,7 @@ beforeEach(() => {
   h.upsertError = null;
   h.toastSuccess.mockReset();
   h.toastFail.mockReset();
+  h.initial = {};
 });
 
 describe("ArchiveLayoutAdmin - wczytanie", () => {
@@ -400,5 +420,139 @@ describe("ArchiveLayoutAdmin - każde pole pisze do WŁASNEGO ustawienia", () =>
 
     await waitFor(() => expect(h.upserts).toHaveLength(1));
     expect(lastSaved().archive_type).toBe("category");
+  });
+});
+
+describe("ArchiveLayoutAdmin - zdjęcie w tle nagłówka", () => {
+  const POLE = "Zdjęcie w tle nagłówka";
+  const BLAD = /Nieprawidłowy adres zdjęcia/;
+
+  /** Wybór stylu tła nagłówka po etykiecie opcji. */
+  function wybierzTlo(opcja: string) {
+    fireEvent.keyDown(selectByLabel("Tło nagłówka"), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("option", { name: opcja }));
+  }
+
+  const pole = () => screen.getByLabelText(POLE) as HTMLInputElement;
+  const lastSaved = () => h.upserts.at(-1) as Record<string, unknown>;
+
+  it("pole adresu jest widoczne TYLKO przy stylu „Zdjęcie”", async () => {
+    // Przy innym stylu adres niczego nie zmienia - pole byłoby martwą kontrolką.
+    await setup();
+    expect(screen.queryByLabelText(POLE)).toBeNull();
+
+    wybierzTlo("Zdjęcie");
+    await waitFor(() => expect(screen.queryByLabelText(POLE)).not.toBeNull());
+
+    wybierzTlo("Gradient");
+    await waitFor(() => expect(screen.queryByLabelText(POLE)).toBeNull());
+  });
+
+  it("podpowiedź mówi, co się stanie BEZ zdjęcia", async () => {
+    await setup();
+    wybierzTlo("Zdjęcie");
+    await waitFor(() => expect(screen.getByText(/neutralne tło/)).toBeTruthy());
+  });
+
+  it("wpisany adres trafia do podglądu na żywo, zanim cokolwiek pójdzie do bazy", async () => {
+    await setup();
+    wybierzTlo("Zdjęcie");
+    fireEvent.change(pole(), { target: { value: "https://cdn.example/hero.jpg" } });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("podglad-zdjecie")).toHaveTextContent(
+        "https://cdn.example/hero.jpg",
+      ),
+    );
+    expect(h.upserts).toHaveLength(0);
+  });
+
+  it("zapis niesie styl i PRZYCIĘTY adres zdjęcia", async () => {
+    await setup();
+    wybierzTlo("Zdjęcie");
+    fireEvent.change(pole(), { target: { value: "  https://cdn.example/hero.jpg  " } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(lastSaved()).toMatchObject({
+      hero_bg_style: "image",
+      hero_image_url: "https://cdn.example/hero.jpg",
+    });
+  });
+
+  it("puste pole zapisuje NULL, a nie pusty napis", async () => {
+    // `""` i `null` to dla renderu ten sam „brak zdjęcia”, ale tylko `null`
+    // jest postacią, którą zna baza i `coerce`.
+    await setup();
+    wybierzTlo("Zdjęcie");
+    fireEvent.change(pole(), { target: { value: "   " } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(lastSaved()).toHaveProperty("hero_image_url", null);
+  });
+
+  it("zapisany adres wraca do pola i jedzie z powrotem przy kolejnym zapisie", async () => {
+    // Zapis wysyła KOMPLET pól - zgubienie adresu z bazy przy zapisie innego
+    // ustawienia skasowałoby zdjęcie po cichu.
+    h.initial = { hero_bg_style: "image", hero_image_url: "https://cdn.example/zapisane.jpg" };
+    await setup();
+    expect(pole().value).toBe("https://cdn.example/zapisane.jpg");
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(lastSaved().hero_image_url).toBe("https://cdn.example/zapisane.jpg");
+  });
+
+  it.each([
+    ["javascript:", "javascript:alert(1)"],
+    ["data:", "data:image/png;base64,iVBORw0KGgo="],
+    ["adres bez schematu", "//evil.example/hero.jpg"],
+    ["spacja w adresie", "https://cdn.example/moje zdjęcie.jpg"],
+  ])("adres %s: komunikat przy polu, toast i ŻADNEGO zapisu", async (_opis, value) => {
+    // Ta sama reguła co CHECK w bazie: bez niej baza odrzuciłaby CAŁY zapis
+    // ustawień, a redaktor zobaczyłby tylko „Nie udało się zapisać”.
+    await setup();
+    wybierzTlo("Zdjęcie");
+    fireEvent.change(pole(), { target: { value } });
+    // Przed próbą zapisu panel nie krzyczy przy niedokończonym adresie.
+    expect(screen.queryByText(BLAD)).toBeNull();
+
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(screen.getByText(BLAD)).toBeTruthy());
+    expect(pole()).toHaveAttribute("aria-invalid", "true");
+    expect(h.toastFail).toHaveBeenCalled();
+    expect(h.upserts).toHaveLength(0);
+  });
+
+  it("poprawienie adresu zdejmuje komunikat i odblokowuje zapis", async () => {
+    await setup();
+    wybierzTlo("Zdjęcie");
+    fireEvent.change(pole(), { target: { value: "javascript:alert(1)" } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(screen.getByText(BLAD)).toBeTruthy());
+
+    fireEvent.change(pole(), { target: { value: "/media/archiwum/hero.jpg" } });
+    await waitFor(() => expect(screen.queryByText(BLAD)).toBeNull());
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    // `ImageUrlField` pokazuje pliki biblioteki mediów pod markowym adresem
+    // absolutnym - liczy się, że to TEN plik, a nie, w której postaci.
+    expect(lastSaved().hero_image_url).toMatch(/\/media\/archiwum\/hero\.jpg$/);
+  });
+
+  it("schowane, NIEPOPRAWNE pole nie blokuje zapisu i nie jedzie do bazy", async () => {
+    // Po zmianie stylu pole znika z ekranu; blokada zapisu komunikatem, którego
+    // nie widać, byłaby gorsza niż jej brak, a CHECK bazy i tak odrzuciłby wartość.
+    await setup();
+    wybierzTlo("Zdjęcie");
+    fireEvent.change(pole(), { target: { value: "javascript:alert(1)" } });
+    wybierzTlo("Gradient");
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(lastSaved()).toMatchObject({ hero_bg_style: "gradient", hero_image_url: null });
   });
 });

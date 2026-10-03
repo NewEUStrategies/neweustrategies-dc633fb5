@@ -8,11 +8,11 @@ import { getRequest } from "@tanstack/react-start/server";
 import { trustedPublicHost } from "@/lib/http/requestHost";
 import { classifyCrawlHost, crawlerPublishOrigin, isPreviewHost } from "@/lib/http/host";
 import { localizedPath } from "@/lib/i18n/localePath";
-import { SITE_DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/seo/meta";
+import { SITE_DEFAULT_DESCRIPTION } from "@/lib/seo/meta";
 import { feedCacheControl, LLMS_TXT_CACHE_CONTROL_FULL } from "@/lib/seo/feedCache";
 import { buildLlmsTxt, type LlmsTxtArticle } from "@/lib/seo/llms";
 import { llmsTxtResourceLines } from "@/lib/seo/machineSurfaces";
-import { parseSeoSettings, siteDescriptionOverride, siteNameOverride } from "@/lib/seo/settings";
+import { parseSeoSettings, robotsUsagePolicy, siteDescriptionOverride } from "@/lib/seo/settings";
 import {
   fetchPublicCategories,
   fetchPublishedPosts,
@@ -55,34 +55,6 @@ function degradedGuideIsUnambiguous(host: string): boolean {
   return isPreviewHost(host) || classifyCrawlHost({ host }) === "brand";
 }
 
-/** Nagłówek bloku warunków - stała z `buildLlmsTxt` (`lib/seo/llms.ts`). */
-const USAGE_TERMS_HEADING = "## Warunki wykorzystania i cytowania / Usage and citation terms";
-
-/**
- * Przewodnik zdegradowany NIE udziela zgody na wykorzystanie treści.
- *
- * Bez tenanta trasa nie zna ustawień redakcji - ani `llms_txt_enabled`, ani
- * polityki AI. Blok warunków z `buildLlmsTxt` deklaruje zgodę („DOZWOLONE /
- * PERMITTED"), więc na zdegradowanej odpowiedzi byłby zgodą, której redakcja
- * mogła nie wydać (np. wyłączyła llms.txt, a timeout bazy podał przewodnik
- * zamiast 404). Awaria bazy nie jest zgodą: blok zostaje zastąpiony odesłaniem
- * do robots.txt, który jest wiążącą polityką maszynową serwisu.
- */
-function withoutUsageGrant(body: string, origin: string): string {
-  const at = body.indexOf(`\n${USAGE_TERMS_HEADING}`);
-  const head = at === -1 ? body : body.slice(0, at);
-  const policy = `${origin.replace(/\/+$/, "")}/robots.txt`;
-  return [
-    head.trimEnd(),
-    "",
-    USAGE_TERMS_HEADING,
-    "",
-    `- Ten dokument nie udziela zgody na wykorzystanie treści - warunki serwisu są chwilowo niedostępne. Wiążąca polityka maszynowa: ${policy} (Content-Signal).`,
-    `- This document grants no permission to reuse content - the site's terms are temporarily unavailable. Binding machine-readable policy: ${policy} (Content-Signal).`,
-    "",
-  ].join("\n");
-}
-
 export const Route = createFileRoute("/llms.txt")({
   server: {
     handlers: {
@@ -102,7 +74,7 @@ export const Route = createFileRoute("/llms.txt")({
         // robots.txt wskazuje `/llms.txt` jako warunki wykorzystania treści.
         // Degradacja jest jednak WĘŻSZA niż w kanałach: tylko host marki
         // i host podglądu (`degradedGuideIsUnambiguous`), a przewodnik nie
-        // udziela zgody na wykorzystanie treści (`withoutUsageGrant`).
+        // udziela zgody na wykorzystanie treści (`usage: null` niżej).
         const tenantId = await resolveCrawlerTenantIdForHost(host);
         if (
           !tenantId &&
@@ -135,14 +107,16 @@ export const Route = createFileRoute("/llms.txt")({
 
         const latestPl = toArticle("pl");
         const latestEn = toArticle("en");
-        const guide = buildLlmsTxt({
-          // Nazwa serwisu z tego samego źródła, co `og:site_name`,
-          // `WebSite.name` i blok warunków robots.txt (`site_name` z ustawień
-          // SEO, już pobranych wyżej - bez dodatkowego odczytu). Stała marki
-          // kazała asystentom AI cytować inną nazwę niż ta, którą redakcja
-          // ustawiła w /admin/seo/homepage, a warunek cytowania niżej w
-          // przewodniku nazywa źródło właśnie tym polem.
-          siteName: siteNameOverride(settings) || SITE_NAME,
+        // Warunki wykorzystania z TEGO SAMEGO obiektu, z którego robots.txt
+        // składa blok warunków i `Content-Signal` (`robotsUsagePolicy`):
+        // nazwa źródła (`site_name` z ustawień SEO, ta sama co `og:site_name`
+        // i `WebSite.name`) oraz zgody `ai-input` / `ai-train`. Wcześniej trasa
+        // sprawdzała tylko `llms_txt_enabled`, a builder deklarował zgodę
+        // bezwarunkowo - przy wyłączonych crawlerach AI llms.txt udzielał zgody,
+        // której robots.txt tego samego hosta odmawiał.
+        const usage = robotsUsagePolicy(settings);
+        const body = buildLlmsTxt({
+          siteName: usage.siteName,
           origin,
           descriptionPl: siteDescriptionOverride(settings, "pl") || SITE_DEFAULT_DESCRIPTION.pl,
           descriptionEn: siteDescriptionOverride(settings, "en") || SITE_DEFAULT_DESCRIPTION.en,
@@ -159,8 +133,12 @@ export const Route = createFileRoute("/llms.txt")({
           // Jedno źródło prawdy o powierzchniach maszynowych - dopisanie feedu
           // bez ogłoszenia go tutaj nie przechodzi testu kontraktu.
           resources: llmsTxtResourceLines(origin, localizedPath),
+          // Bez tenanta trasa nie zna ustawień redakcji (ani `llms_txt_enabled`,
+          // ani polityki AI) - `settings` to wtedy wartości domyślne, a nie
+          // decyzja redakcji. Awaria bazy nie jest zgodą: przewodnik
+          // zdegradowany nie udziela żadnej i odsyła do robots.txt.
+          usage: tenantId ? usage : null,
         });
-        const body = tenantId ? guide : withoutUsageGrant(guide, origin);
 
         // Przewodnik BEZ artykułów albo BEZ sekcji jest odpowiedzią
         // zdegradowaną (brak tenanta, czytnik zdegradował do `[]` przez

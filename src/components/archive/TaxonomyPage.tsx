@@ -7,7 +7,7 @@
 // trafia do współdzielonego, leniwego chunka tras archiwum.
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
-import { useTransition, useEffect } from "react";
+import { useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
@@ -55,12 +55,11 @@ export function TaxonomyPage({
     enabled: kind === "category" && !!data?.taxonomy.id && settings.show_podcasts,
   });
 
-  // Scroll to top when page changes (better UX than staying mid-scroll).
-  useEffect(() => {
-    if (typeof window !== "undefined" && page > 1) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [page]);
+  // Powrót na górę po zmianie strony robi router (`scrollRestoration`
+  // w `src/router.tsx`): nowy wpis historii zaczyna od góry, a „wstecz"
+  // przywraca zapamiętaną pozycję. Dawny `scrollTo({ behavior: "smooth" })`
+  // przy `page > 1` dublował ten reset (przewinięcie z 0 na 0), ignorował
+  // „ogranicz ruch" i przy kroku „wstecz" nadpisywał przywróconą pozycję.
 
   // Keep the query mounted while showing the SSR fallback so hydration can
   // recover it. Returning from the route before this component prevented

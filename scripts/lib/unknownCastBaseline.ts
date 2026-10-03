@@ -77,7 +77,6 @@ export const UNKNOWN_CAST_BASELINE: readonly (readonly [string, number])[] = [
   ["src/components/blocks/renderer/data.ts", 1],
   ["src/components/blocks/renderer/organisms.tsx", 1],
   ["src/components/error/RenderErrorBoundary.tsx", 1],
-  ["src/components/header/TrendingTicker.tsx", 2],
   ["src/components/megaMenu/MegaMenuShowcase.tsx", 3],
   ["src/components/newsletter/NewsletterDocRenderer.tsx", 1],
   ["src/components/profile/AuthorProfileEditor.tsx", 4],
