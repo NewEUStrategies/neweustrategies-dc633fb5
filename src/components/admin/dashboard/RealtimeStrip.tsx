@@ -146,7 +146,7 @@ export function RealtimeStrip({ report, expanded = false, className }: RealtimeS
             csv={{
               filename: "na-zywo",
               headers: [
-                t("adminDashboard.realtime.chartTitle"),
+                t("adminDashboard.export.bucket"),
                 t("adminDashboard.traffic.colSessions"),
                 t("adminDashboard.traffic.colViews"),
               ],

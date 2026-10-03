@@ -50,6 +50,15 @@ const pl = {
       empty: "Brak danych w tym okresie.",
     },
 
+    // NAGŁÓWEK KOLUMNY CZASU W EKSPORCIE CSV. Każdy szereg pulpitu eksportuje
+    // w pierwszej kolumnie kubełek czasu ("YYYY-MM-DD HH:MM", początek
+    // przedziału). Wcześniej kolumna dziedziczyła nagłówek po sąsiedniej
+    // tabeli ("Ścieżka", "Etap", "Poziom", "Zakończona"), więc arkusz
+    // podpisywał daty jako adresy stron albo etapy lejka.
+    export: {
+      bucket: "Początek przedziału",
+    },
+
     traffic: {
       title: "Ruch na stronie",
       subtitle: "Pomiar własny - zdarzenia z ingestu, nie próbka zewnętrzna.",
@@ -271,6 +280,10 @@ const en = {
       sourceMissingHint:
         "Dashboard aggregates are waiting for the database migration. This is missing measurement, not missing traffic.",
       empty: "No data in this period.",
+    },
+
+    export: {
+      bucket: "Interval start",
     },
 
     traffic: {

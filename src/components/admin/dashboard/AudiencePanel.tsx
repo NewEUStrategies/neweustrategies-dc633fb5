@@ -101,7 +101,7 @@ export function AudiencePanel({ report, range }: AudiencePanelProps) {
           height={200}
           csv={{
             filename: "nowe-konta",
-            headers: [t("adminDashboard.audience.colTier"), t("adminDashboard.audience.signups")],
+            headers: [t("adminDashboard.export.bucket"), t("adminDashboard.audience.signups")],
             rows: report.series.map((p) => [p.bucket, p.signups]),
           }}
         />
