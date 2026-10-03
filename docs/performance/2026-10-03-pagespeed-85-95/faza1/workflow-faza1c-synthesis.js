@@ -124,9 +124,9 @@ const INPUTS = `Inputs (read ALL of them fully, they are the product of ten Opus
 - Evidence pack: ${EVIDENCE} (section 0-cloud = environment limits of this sandbox: no network, fixture backend, 4 CPUs; §1-10 = production and laptop measurements).
 - Team's own plan: ${WT}/docs/performance/2026-10-02-pagespeed-przyczyny.md §8, §8a, §9.
 - Workstream reports: ${KEYS.map((k) => `${OUTDIR}/${k}.md`).join(", ")} and their structured copies ${OUTDIR}/<key>.json (findings + changes).
-- Adversarial verdicts per top change: ${OUTDIR}/verdicts/<key>--<change_id>.md (feasibility + effect lenses; drop refuted changes unless you can argue the refutation is wrong; use corrected estimates).
+- Adversarial verdicts per verified change: ${OUTDIR}/verdicts/<key>--<change_id>.md (feasibility + effect lenses; drop refuted changes unless you can argue the refutation is wrong; use corrected estimates). Structured copies: ${WT}/docs/performance/2026-10-03-pagespeed-85-95/faza1/raporty/werdykty/<key>--<id>.json. Change ids are only unique per workstream (boot-js C1..C13 vs css C1..C11): always write them as <workstream>:<id> in the plan.
 - Local baseline of this sandbox (fixture backend, slow CPU comparable to PSI's host): ${SCRATCH}/lh/results-baseline.log (MEDIAN lines) and ${SCRATCH}/lh/results/baseline-*.summary.txt.
-${ORCH_NOTES ? `- Orchestrator notes (Fable 5.1, authoritative constraints): ${ORCH_NOTES}` : ""}`;
+- Orchestrator notes (Fable 5.1, authoritative constraints and corrections; READ FIRST): ${OUTDIR}/ORCHESTRATOR-NOTES.md${ORCH_NOTES ? " Additional notes: " + ORCH_NOTES : ""}`;
 
 phase("Plan");
 const plan = await agent(

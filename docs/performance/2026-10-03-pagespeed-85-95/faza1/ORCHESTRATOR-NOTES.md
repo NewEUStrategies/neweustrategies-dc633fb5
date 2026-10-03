@@ -36,3 +36,12 @@ Authoritative constraints and corrections the planner must honour.
 3. Consent banner UX: SSR shell with pre-paint visibility toggle and interaction-gated interactivity.
 4. `/~flock.js` (host analytics, 21 KB defer): cannot be removed from the app repo if injected by the host; state what it costs.
 5. EN first-visit 302 on `/` (PSI hl=en and en-US Chrome users): keep, or serve PL at `/` for everyone with a language switch.
+
+## Status of the inputs (2026-10-03 22:45 UTC, after the usage-limit interruption)
+
+- Reports: all 10 workstreams (css.json reconstructed from css.md by a structuring agent; lcp-path re-run after the limit).
+- Verified so far (feasibility/effect): SC-1..3, TP-1..3, PA-C1..3, LA-C1..3, M1..3, boot-js C3/C4/C1/C10; hydration H1/H2/H3/H5/H6, html-weight HW-1..3, css top-3 and lcp-path top-3 verified in the second round (see verdicts/). Unverified changes keep their author's estimate but must be marked "niezweryfikowane" in the plan.
+- Change ids collide across workstreams (boot-js C1..C13 vs css C1..C11): always write <workstream>:<id>.
+- boot-js:C3 verdict (key for the whole plan): trigger must be the PerformanceObserver 'largest-contentful-paint' entry + ~50 ms (not img[fetchpriority=high] load, not window.load); delivery needs a build-time rewrite of the TanStack manifest (empty root/route preloads and entry scripts on SSR and client) plus server-side injectHtml of the bootstrap and per-request boot-set URLs; only public SSR routes with an LCP candidate; e2e boot-home/boot-timing Link-header assertions must be rewritten; TBT coupling +350..900 ms is real, so it ships in the same wave as the TBT cuts. Corrected PSI projection: alone 68-70; on top of TBT <= 250 ms: 86-90 mobile; desktop +0..1.5.
+- boot-js:C4 (lazy Supabase facade) needs: detectSessionInUrl/implicit-flow handling (magic-link, OAuth, recovery landings carry tokens in location.hash), vite.config.ts vendor-supabase manualChunk split (otherwise import('@supabase/postgrest-js') loads the whole 224 KB chunk), tslib shared with vendor-radix, mutable chain recorder for in-place builders (src/lib/admin/community.ts:124). Effect alone +1..2 mobile; ~0 with C3.
+- measurement F8 / server-cache: the first MISS in a colo decides bot-vs-browser document variant for 3 min; harness and warmers must use a browser UA (production fix: cache key or forced streaming variant for bots = decision for the human, real-user issue).
