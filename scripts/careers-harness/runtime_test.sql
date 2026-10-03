@@ -345,12 +345,18 @@ INSERT INTO storage.objects (bucket_id, name, created_at) VALUES
   ('career-cv','22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf', now()),
   -- Plik w starej konwencji (bez tenanta w sciezce), referowany przez najemce A.
   ('career-cv','uploads/2026-01-01/ffffffff-1111-2222-3333-444444444444.pdf', now());
+-- Wiersz legacy powstal PRZED straznikiem referencji (20261003120000), ktory
+-- nowych sciezek bez tenanta juz nie przyjmuje - fixture odtwarza wiec stan
+-- zastany z wylaczonym straznikiem, a nie omija go w kodzie produkcyjnym.
+ALTER TABLE public.contact_messages DISABLE TRIGGER trg_contact_messages_career_cv_path_guard;
 INSERT INTO public.contact_messages
-  (id, tenant_id, name, email, message, form_id, custom)
+  (id, tenant_id, name, email, message, form_id, custom, created_at)
 VALUES
   ('c0000000-0000-0000-0000-000000000004','11111111-1111-1111-1111-111111111111',
    'Legacy Kandydat','legacy@example.com','Stare zgloszenie.','careers',
-   jsonb_build_object('cv_path','uploads/2026-01-01/ffffffff-1111-2222-3333-444444444444.pdf'));
+   jsonb_build_object('cv_path','uploads/2026-01-01/ffffffff-1111-2222-3333-444444444444.pdf'),
+   now() - interval '300 days');
+ALTER TABLE public.contact_messages ENABLE TRIGGER trg_contact_messages_career_cv_path_guard;
 
 SET ROLE authenticated;
 SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
@@ -753,6 +759,232 @@ BEGIN
 END $$;
 RESET ROLE;
 RESET request.jwt.claim.sub;
+
+\echo '== 18. Referencja cv_path NIE otwiera pliku innego najemcy (20261003120000) =='
+-- LUKA, KTORA TA SEKCJA PRZYBIJA. Do 20261003120000 polityki odczytu i usuwania
+-- bucketu mialy galaz `OR EXISTS (zgloszenie MOJEGO najemcy z cv_path = name)`
+-- bez ograniczenia do plikow legacy. Wiersz najemcy A z `cv_path` wskazujacym
+-- katalog B (sfalszowane zgloszenie albo UPDATE `custom` z panelu) otwieral
+-- personelowi A odczyt i usuniecie CV kandydata B, a GC kolejkowal plik B do
+-- trwalego usuniecia przy usunieciu/retencji wiersza A.
+--
+-- Wiersze-falszywki zakladamy z WYLACZONYM straznikiem: tak wyglada stan
+-- zastany sprzed migracji, a polityki i GC musza byc odporne takze na niego -
+-- straznik chroni wylacznie przed NOWYMI referencjami.
+DELETE FROM public.career_cv_gc_queue;
+
+-- 18a. Straznik referencji: nowa albo zmieniona sciezka musi nalezec do najemcy wiersza.
+SELECT pg_temp.assert_raises(
+  $$INSERT INTO public.contact_messages (tenant_id, name, email, message, form_id, custom)
+    VALUES ('11111111-1111-1111-1111-111111111111','Falszerz','f@example.com','x','careers',
+      jsonb_build_object('cv_path','22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf'))$$,
+  'straznik: zgloszenie najemcy A ze sciezka w katalogu B odrzucone'
+);
+SELECT pg_temp.assert_raises(
+  $$INSERT INTO public.contact_messages (tenant_id, name, email, message, form_id, custom)
+    VALUES ('11111111-1111-1111-1111-111111111111','Falszerz','f@example.com','x','careers',
+      jsonb_build_object('cv_path','  22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf '))$$,
+  'straznik: biale znaki wokol cudzej sciezki nie omijaja kontroli'
+);
+SELECT pg_temp.assert_raises(
+  $$INSERT INTO public.contact_messages (tenant_id, name, email, message, form_id, custom)
+    VALUES ('11111111-1111-1111-1111-111111111111','Falszerz','f@example.com','x','careers',
+      jsonb_build_object('cv_path','uploads/2026-01-01/ffffffff-1111-2222-3333-444444444444.pdf'))$$,
+  'straznik: NOWA referencja w ksztalcie legacy (bez tenanta) odrzucona'
+);
+-- Droga panelu: personel ma UPDATE na `contact_messages` swojego najemcy, wiec
+-- bramka aplikacji (`submitContact`) tej drogi w ogole nie widzi.
+SELECT pg_temp.assert_raises(
+  $$UPDATE public.contact_messages
+       SET custom = custom || jsonb_build_object('cv_path',
+         '22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf')
+     WHERE id = 'c0000000-0000-0000-0000-000000000002'$$,
+  'straznik: UPDATE custom (droga panelu) nie podmieni sciezki na cudza'
+);
+SELECT pg_temp.assert_raises(
+  $$UPDATE public.contact_messages SET tenant_id = '22222222-2222-2222-2222-222222222222'
+     WHERE id = 'c0000000-0000-0000-0000-000000000004'$$,
+  'straznik: przeniesienie wiersza z referencja do innego najemcy odrzucone'
+);
+DO $$
+BEGIN
+  -- Zastany wiersz legacy dalej daje sie obslugiwac, dopoki sciezki nikt nie rusza.
+  UPDATE public.contact_messages SET status = 'read'
+   WHERE id = 'c0000000-0000-0000-0000-000000000004';
+  PERFORM pg_temp.assert(
+    (SELECT status FROM public.contact_messages
+      WHERE id = 'c0000000-0000-0000-0000-000000000004') = 'read',
+    'straznik przepuszcza UPDATE zastanego wiersza legacy, ktory nie rusza sciezki'
+  );
+  INSERT INTO public.contact_messages (id, tenant_id, name, email, message, form_id, custom)
+  VALUES ('c0000000-0000-0000-0000-000000000180','11111111-1111-1111-1111-111111111111',
+    'Uczciwy Kandydat','u@example.com','Aplikuje.','careers',
+    jsonb_build_object('cv_path','11111111-1111-1111-1111-111111111111/uploads/2026-03-03/99999999-1111-2222-3333-444444444444.pdf'));
+  PERFORM pg_temp.assert(true, 'straznik przepuszcza sciezke w katalogu WLASNEGO najemcy');
+END $$;
+
+-- 18b. Falszywki zastane: A wskazuje plik B, B wskazuje (pozniej) plik legacy A.
+ALTER TABLE public.contact_messages DISABLE TRIGGER trg_contact_messages_career_cv_path_guard;
+INSERT INTO public.contact_messages (id, tenant_id, name, email, message, form_id, custom)
+VALUES
+  ('c0000000-0000-0000-0000-000000000181','11111111-1111-1111-1111-111111111111',
+   'Falszerz A','fa@example.com','Podrzucona referencja.','careers',
+   jsonb_build_object('cv_path','22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf')),
+  ('c0000000-0000-0000-0000-000000000182','22222222-2222-2222-2222-222222222222',
+   'Falszerz B','fb@example.com','Podrzucona referencja legacy.','careers',
+   jsonb_build_object('cv_path','uploads/2026-01-01/ffffffff-1111-2222-3333-444444444444.pdf'));
+ALTER TABLE public.contact_messages ENABLE TRIGGER trg_contact_messages_career_cv_path_guard;
+
+DO $$
+BEGIN
+  PERFORM pg_temp.assert(
+    public.career_cv_object_owner('22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf')
+      = '22222222-2222-2222-2222-222222222222',
+    'wlasciciel pliku z tenantem w sciezce = tenant ze sciezki, mimo referencji w A'
+  );
+  PERFORM pg_temp.assert(
+    public.career_cv_object_owner('uploads/2026-01-01/ffffffff-1111-2222-3333-444444444444.pdf')
+      = '11111111-1111-1111-1111-111111111111',
+    'wlasciciel pliku legacy = najemca NAJWCZESNIEJSZEJ referencji (A), nie pozniejszej (B)'
+  );
+  PERFORM pg_temp.assert(
+    public.career_cv_object_owner('nie/ta/konwencja.pdf') IS NULL
+      AND public.career_cv_object_owner('uploads/2026-01-01/nikt-nie-wskazuje.pdf') IS NULL,
+    'obiekt bez rozpoznanego wlasciciela nie nalezy do nikogo'
+  );
+END $$;
+
+SET ROLE authenticated;
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+DO $$
+DECLARE n integer;
+BEGIN
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM storage.objects
+                 WHERE name = '22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf'),
+    'TO JEST NAPRAWIANA LUKA: admin A z podrzucona referencja NIE widzi CV najemcy B (brak signed URL)'
+  );
+  DELETE FROM storage.objects
+   WHERE name = '22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  PERFORM pg_temp.assert(n = 0, 'admin A z podrzucona referencja NIE usunie CV najemcy B');
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM storage.objects
+             WHERE name = 'uploads/2026-01-01/ffffffff-1111-2222-3333-444444444444.pdf'),
+    'admin A nadal widzi WLASNY plik legacy (dowod niepustki)'
+  );
+END $$;
+RESET ROLE;
+
+SET ROLE authenticated;
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+DO $$
+BEGIN
+  PERFORM pg_temp.assert(
+    EXISTS (SELECT 1 FROM storage.objects
+             WHERE name = '22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf'),
+    'admin B nadal widzi WLASNE CV (dowod niepustki - plik przetrwal probe usuniecia z A)'
+  );
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM storage.objects
+                 WHERE name = 'uploads/2026-01-01/ffffffff-1111-2222-3333-444444444444.pdf'),
+    'admin B z POZNIEJSZA referencja legacy NIE widzi pliku najemcy A'
+  );
+END $$;
+RESET ROLE;
+RESET request.jwt.claim.sub;
+
+-- 18c. GC: obca referencja ani nie kasuje cudzego pliku, ani nie trzyma go przy zyciu.
+DELETE FROM public.contact_messages WHERE id = 'c0000000-0000-0000-0000-000000000181';
+DELETE FROM public.contact_messages WHERE id = 'c0000000-0000-0000-0000-000000000182';
+DO $$
+BEGIN
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.career_cv_gc_queue WHERE path LIKE '%eeeeeeee-1111%'),
+    'usuniecie podrzuconego zgloszenia w A NIE kolejkuje CV najemcy B do usuniecia'
+  );
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.career_cv_gc_queue WHERE path LIKE '%ffffffff-1111%'),
+    'usuniecie POZNIEJSZEJ referencji legacy w B NIE kolejkuje pliku najemcy A'
+  );
+END $$;
+
+-- Retencja: domkniety, przeterminowany proces w A z podrzucona sciezka B.
+ALTER TABLE public.contact_messages DISABLE TRIGGER trg_contact_messages_career_cv_path_guard;
+INSERT INTO public.contact_messages (id, tenant_id, name, email, message, form_id, custom)
+VALUES
+  ('c0000000-0000-0000-0000-000000000183','11111111-1111-1111-1111-111111111111',
+   'Falszerz A','fa@example.com','Podrzucona referencja.','careers',
+   jsonb_build_object('cv_path','22222222-2222-2222-2222-222222222222/uploads/2026-01-01/eeeeeeee-1111-2222-3333-444444444444.pdf')),
+  -- Plik B bez zgloszenia B: jedyna referencja to falszywka w A.
+  ('c0000000-0000-0000-0000-000000000184','11111111-1111-1111-1111-111111111111',
+   'Falszerz A','fa@example.com','Podrzucona referencja.','careers',
+   jsonb_build_object('cv_path','22222222-2222-2222-2222-222222222222/uploads/2026-01-01/b0b0b0b0-1111-2222-3333-444444444444.pdf')),
+  -- Pozniejsza referencja B do pliku legacy A - przy usunieciu WLASCICIELA nie moze go blokowac.
+  ('c0000000-0000-0000-0000-000000000185','22222222-2222-2222-2222-222222222222',
+   'Falszerz B','fb@example.com','Podrzucona referencja legacy.','careers',
+   jsonb_build_object('cv_path','uploads/2026-01-01/ffffffff-1111-2222-3333-444444444444.pdf'));
+ALTER TABLE public.contact_messages ENABLE TRIGGER trg_contact_messages_career_cv_path_guard;
+INSERT INTO storage.objects (bucket_id, name, created_at) VALUES
+  ('career-cv','22222222-2222-2222-2222-222222222222/uploads/2026-01-01/b0b0b0b0-1111-2222-3333-444444444444.pdf',
+   now() - interval '48 hours');
+UPDATE public.career_applications SET stage = 'rejected'
+ WHERE message_id = 'c0000000-0000-0000-0000-000000000183';
+UPDATE public.career_applications SET stage_changed_at = now() - interval '730 days'
+ WHERE message_id = 'c0000000-0000-0000-0000-000000000183';
+DO $$
+BEGIN
+  PERFORM public.career_cv_gc_scan(1000);
+  PERFORM pg_temp.assert(
+    NOT EXISTS (SELECT 1 FROM public.career_cv_gc_queue WHERE path LIKE '%eeeeeeee-1111%'),
+    'retencja procesu w A NIE kolejkuje CV najemcy B, na ktore wskazuje podrzucona sciezka'
+  );
+  PERFORM pg_temp.assert(
+    (SELECT reason || ':' || tenant_id::text FROM public.career_cv_gc_queue
+      WHERE path LIKE '%b0b0b0b0-1111%')
+      = 'orphan:22222222-2222-2222-2222-222222222222',
+    'plik B wskazywany WYLACZNIE przez falszywke w A jest osierocony (RODO: nie zyje wiecznie)'
+  );
+END $$;
+
+DELETE FROM public.contact_messages WHERE id = 'c0000000-0000-0000-0000-000000000004';
+DO $$
+BEGIN
+  PERFORM pg_temp.assert(
+    (SELECT reason || ':' || tenant_id::text FROM public.career_cv_gc_queue
+      WHERE path LIKE '%ffffffff-1111%')
+      = 'application_deleted:11111111-1111-1111-1111-111111111111',
+    'usuniecie zgloszenia-WLASCICIELA pliku legacy kolejkuje go mimo pozniejszej obcej referencji'
+  );
+END $$;
+
+-- 18d. Struktura: polityki nie czytaja juz referencji, indeks po sciezce dziala.
+DO $$
+DECLARE r record; plan text := '';
+BEGIN
+  PERFORM pg_temp.assert(
+    (SELECT count(*) FROM pg_policies
+      WHERE schemaname = 'storage' AND tablename = 'objects'
+        AND policyname IN ('career_cv_staff_read','career_cv_staff_delete')
+        AND qual ~ 'career_cv_object_owner\(name\) = current_tenant_id\(\)'
+        AND qual !~ 'contact_messages'
+        AND qual !~ ' OR ') = 2,
+    'odczyt i usuniecie CV: wylacznie wlasciciel obiektu = current_tenant_id(), bez galezi OR'
+  );
+  PERFORM pg_temp.assert(
+    to_regclass('public.contact_messages_cv_path_idx') IS NULL,
+    'nieuzywany indeks (tenant_id, cv_path) zdjety'
+  );
+  SET LOCAL enable_seqscan = off;
+  FOR r IN EXECUTE $q$EXPLAIN SELECT m.tenant_id FROM public.contact_messages m
+                       WHERE m.custom ? 'cv_path' AND m.custom ->> 'cv_path' = 'uploads/x.pdf'$q$ LOOP
+    plan := plan || r."QUERY PLAN" || E'\n';
+  END LOOP;
+  PERFORM pg_temp.assert(
+    plan LIKE '%contact_messages_cv_path_lookup_idx%',
+    'wyszukanie wlasciciela po sciezce moze uzyc indeksu czesciowego'
+  );
+END $$;
 
 \echo ''
 \echo 'Wszystkie asercje modulu rekrutacji przeszly.'

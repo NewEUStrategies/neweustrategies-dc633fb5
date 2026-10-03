@@ -12,7 +12,12 @@ import { z } from "zod";
 // pięć publicznych powierzchni formularzy, więc pełna warstwa (parsowanie
 // skrzynki, etapy pipeline'u) jechałaby w chunku rozliczanym do PUBLIC -
 // patrz granica powierzchni w recruitmentShared.ts i kronika bramki budżetu.
-import { CAREERS_FORM_ID, isCareerCvPath, normalizeCvUrl } from "@/lib/careers/recruitmentShared";
+import {
+  CAREERS_FORM_ID,
+  isCareerCvPath,
+  isCareerCvPathOfTenant,
+  normalizeCvUrl,
+} from "@/lib/careers/recruitmentShared";
 
 // SECURITY: `recipient` is intentionally NOT part of the public input.
 // The admin notification address must come from the trusted server-side
@@ -268,16 +273,26 @@ export const submitContactMessage = createServerFn({ method: "POST" })
     const customFields: Record<string, string> = { ...(data.custom ?? {}) };
     if (customFields.cv_path !== undefined) {
       // SECURITY: `cv_path` is caller-supplied and the admin panel signs it
-      // blindly (`signCvUrl`). Anything but the exact shape produced by
-      // `uploadCv` is dropped - otherwise a crafted submission could mint a
-      // signed URL for ANY object in the private `career-cv` bucket, i.e. for
-      // another candidate's CV.
-      if (!isCareerCvPath(customFields.cv_path.trim())) {
-        console.warn("[contact] rejected cv_path shape");
+      // blindly (`signCvUrl`). Only a path inside THIS host tenant's folder
+      // (`<hostTenantId>/uploads/...`, exactly what `uploadCv` produces) is
+      // kept. A well-formed path of ANOTHER tenant used to pass the shape check
+      // and land in this tenant's inbox, which opened the other tenant's CV to
+      // this tenant's staff. The DB enforces the same rule
+      // (`career_cv_path_guard`); dropping here keeps the submission alive.
+      const cvPath = customFields.cv_path.trim();
+      if (isCareerCvPathOfTenant(cvPath, hostTenantId)) {
+        customFields.cv_path = cvPath;
+      } else {
+        // A link-only application sends an empty path - not worth a warning.
+        if (cvPath !== "") {
+          console.warn(
+            isCareerCvPath(cvPath)
+              ? "[contact] rejected cv_path outside host tenant"
+              : "[contact] rejected cv_path shape",
+          );
+        }
         delete customFields.cv_path;
         delete customFields.cv_file_name;
-      } else {
-        customFields.cv_path = customFields.cv_path.trim();
       }
     }
     if (customFields.cv_url !== undefined) {

@@ -128,7 +128,7 @@ Sekcje w `runtime_test.sql`, kazda z asercjami przerywajacymi skrypt:
    zgloszenia i zostawia `cv_purged_at`
 9. usuniecie zgloszenia kolejkuje jego CV i kasuje pipeline kaskada
 10. polityki bucketu: personel widzi WYLACZNIE swojego najemce (takze dla
-    plikow legacy, gdzie prawo wynika z referencji)
+    plikow legacy, gdzie wlascicielem jest najemca najwczesniejszej referencji)
 11. upload: sciezka musi niesc tenanta przegladanego hosta
 12. `career_settings`: domyslne 365 dni / 24 h, CHECK odrzuca zero
 13. funkcje GC zamkniete dla roli klienckiej
@@ -144,6 +144,13 @@ Sekcje w `runtime_test.sql`, kazda z asercjami przerywajacymi skrypt:
     niepustki po TEJ SAMEJ stronie
 17. ZNALEZISKO: hardening rol z 20260824074231 ominal `career_cv_gc_queue` -
     `author` nie widzi procesow ani plikow CV, ale WIDZI ich sciezki w kolejce
+18. referencja `cv_path` NIE otwiera pliku innego najemcy (20261003120000):
+    straznik `contact_messages` odrzuca cudza i nowa-legacy sciezke (INSERT,
+    UPDATE `custom`, przeniesienie wiersza), polityki pytaja o WLASCICIELA
+    obiektu (zastana falszywka w A nie daje odczytu ani usuniecia CV B, pozniejsza
+    referencja B nie otwiera pliku legacy A), GC nie kasuje cudzego pliku przy
+    usunieciu/retencji falszywki, a obca referencja nie trzyma pliku przy zyciu;
+    indeks po samej sciezce jest uzywalny przez planera
 
 ### Dlaczego sekcja 16 istnieje osobno od 10 i 15
 

@@ -1165,6 +1165,43 @@ describe("formularz kontaktowy - sanityzacja pól hybrydowych", () => {
     expect(console.warn).toHaveBeenCalledWith("[contact] rejected cv_path shape");
   });
 
+  it("ścieżka CV z katalogu INNEGO najemcy jest odrzucana, choć ma poprawny kształt", async () => {
+    // To była luka: regex przyjmował dowolny UUID w pierwszym segmencie, a wiersz
+    // szedł z `tenant_id` hosta. Personel hosta dostawał wtedy referencję, która
+    // (przez gałąź EXISTS polityki bucketu) otwierała mu CV kandydata innego
+    // najemcy - do odczytu i do usunięcia.
+    planHappyPath();
+    const foreign = `dddddddd-dddd-4ddd-8ddd-dddddddddddd/uploads/2026-03-10/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.pdf`;
+    await submit({ custom: { cv_path: foreign, cv_file_name: "cv-cudze.pdf", role: "analityk" } });
+    expect(fieldOf(insertedRow(), "custom")).toEqual({ role: "analityk" });
+    expect(console.warn).toHaveBeenCalledWith("[contact] rejected cv_path outside host tenant");
+    // Odrzucenie nie wywraca zgłoszenia - kandydat dostaje potwierdzenie.
+    expect(fieldOf(insertedRow(), "tenant_id")).toBe(IDS.tenant);
+  });
+
+  it("ścieżka w kształcie legacy (bez tenanta) nie przechodzi w NOWYM zgłoszeniu", async () => {
+    // `uploadCv` dokłada tenanta od 2026-08-14; legacy bez tenanta w nowym
+    // zgłoszeniu to wyłącznie referencja do cudzego, zastanego pliku.
+    planHappyPath();
+    await submit({
+      custom: {
+        cv_path: "uploads/2026-03-10/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.pdf",
+        cv_file_name: "cv.pdf",
+      },
+    });
+    expect(fieldOf(insertedRow(), "custom")).toEqual({});
+    expect(console.warn).toHaveBeenCalledWith("[contact] rejected cv_path outside host tenant");
+  });
+
+  it("pusta ścieżka (kandydat podał link) znika po cichu, bez ostrzeżenia", async () => {
+    planHappyPath();
+    await submit({
+      custom: { cv_path: "", cv_file_name: "", cv_url: "https://cv.example.com/ja" },
+    });
+    expect(fieldOf(insertedRow(), "custom")).toEqual({ cv_url: "https://cv.example.com/ja" });
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
   it("link do CV bez schematu jest normalizowany do bezwzględnego adresu", async () => {
     planHappyPath();
     await submit({ custom: { cv_url: "linkedin.example.com/in/ktos" } });
