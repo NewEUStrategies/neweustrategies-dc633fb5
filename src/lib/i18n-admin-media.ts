@@ -5,6 +5,15 @@
 // UWAGA: rejestrujemy z overwrite=false, więc istniejące wartości w rdzeniowym
 // locale (pl.ts / en.ts) NIE są nadpisywane - dodajemy tylko brakujące klucze.
 // Dzięki temu polskie renderowanie pozostaje identyczne, a uzupełniamy luki EN.
+//
+// overwrite=false chroni rdzeń TYLKO wtedy, gdy rdzeń danego języka już stoi
+// w magazynie. Drugi język klient dociąga leniwie (`ensureCoreLanguage`), też
+// z overwrite=false - jeśli nakładka była pierwsza, zostaje JEJ kopia. Dlatego
+// klucz, który ma rdzeń, nie może mieć tu innej treści: `admin.confirmDelete`
+// i `admin.media.uploaded` miały („Potwierdź usunięcie", „Wgrano pliki"),
+// więc administrator zaczynający na stronie EN widział po przełączeniu na PL
+// inne zdania niż ten, który zaczął na PL. Pilnuje tego
+// `i18nOverlayIntegrity.gate.test.ts`.
 import i18n from "@/lib/i18n";
 
 const pl = {
@@ -14,7 +23,6 @@ const pl = {
     create: "Utwórz",
     save: "Zapisz",
     delete: "Usuń",
-    confirmDelete: "Potwierdź usunięcie",
     saved: "Zapisano",
     saveFailed: "Nie udało się zapisać",
     saving: "Zapisywanie…",
@@ -25,7 +33,6 @@ const pl = {
     nav: { media: "Media" },
     list: { searchMedia: "Szukaj plików…" },
     media: {
-      uploaded: "Wgrano pliki",
       pasted: "Wklejono",
       folderCreated: "Utworzono folder",
       folderRenamed: "Zmieniono nazwę",
@@ -96,7 +103,6 @@ const en: typeof pl = {
     create: "Create",
     save: "Save",
     delete: "Delete",
-    confirmDelete: "Confirm deletion",
     saved: "Saved",
     saveFailed: "Could not save",
     saving: "Saving…",
@@ -107,7 +113,6 @@ const en: typeof pl = {
     nav: { media: "Media" },
     list: { searchMedia: "Search files…" },
     media: {
-      uploaded: "Files uploaded",
       pasted: "Pasted",
       folderCreated: "Folder created",
       folderRenamed: "Renamed",

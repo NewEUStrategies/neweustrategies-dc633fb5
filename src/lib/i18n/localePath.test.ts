@@ -104,3 +104,29 @@ describe("localizedPath", () => {
     expect(localizedPath("/post/foo", "pl")).toBe("/post/foo");
   });
 });
+
+describe("path normalization (input without a leading slash)", () => {
+  // Hrefs from CMS/menu data can arrive as "post/foo" or "" - every helper must
+  // read them as the same root-relative path, or the prefix rule silently drifts.
+  it("treats an empty path as the root", () => {
+    expect(stripLangPrefix("")).toEqual({ lang: null, pathname: "/" });
+    expect(addLangPrefix("", "en")).toBe("/en");
+    expect(isLocalizablePath("")).toBe(true);
+  });
+  it("adds the missing leading slash before applying the rule", () => {
+    expect(stripLangPrefix("en/post/foo")).toEqual({ lang: "en", pathname: "/post/foo" });
+    expect(addLangPrefix("post/foo", "en")).toBe("/en/post/foo");
+    expect(isLocalizablePath("admin/posts")).toBe(false);
+    expect(localizedPath("en/post/foo", "pl")).toBe("/post/foo");
+  });
+});
+
+describe("prefix matching is case-insensitive", () => {
+  // A hand-typed or legacy "/EN/..." link must render English and route to the
+  // same canonical page, not fall through to a 404 under an unknown "/EN" segment.
+  it("reads an upper-case prefix as the language", () => {
+    expect(stripLangPrefix("/EN/post/foo")).toEqual({ lang: "en", pathname: "/post/foo" });
+    expect(stripLangPrefix("/En")).toEqual({ lang: "en", pathname: "/" });
+    expect(addLangPrefix("/EN/post/foo", "en")).toBe("/EN/post/foo");
+  });
+});

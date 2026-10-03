@@ -45,6 +45,8 @@ const h = vi.hoisted(() => ({
   cacheControl: [] as string[],
   canonicalCalls: 0,
   i18nSyncCalls: 0,
+  /** Adresy, z którymi wołano `syncI18nToRequest` (publicHref z prefiksem języka). */
+  i18nSyncHrefs: [] as (string | undefined)[],
   linkHeaders: [] as string[],
   settings: {} as Record<string, unknown>,
   settingsHangs: false,
@@ -83,8 +85,9 @@ vi.mock("@/lib/http/canonicalRedirect", () => ({
 }));
 vi.mock("@/lib/i18n", async (o) => ({
   ...(await o<typeof import("@/lib/i18n")>()),
-  syncI18nToRequest: async () => {
+  syncI18nToRequest: async (publicHref?: string) => {
     h.i18nSyncCalls++;
+    h.i18nSyncHrefs.push(publicHref);
     if (h.i18nSyncFails) throw new Error("i18n zadania padlo");
   },
   getRenderI18n: () => ({}),
@@ -262,6 +265,7 @@ beforeEach(() => {
   h.brand = [];
   h.canonicalCalls = 0;
   h.i18nSyncCalls = 0;
+  h.i18nSyncHrefs = [];
   h.settings = {};
   h.settingsHangs = false;
   h.chrome = true;
@@ -359,10 +363,12 @@ describe("__root loader", () => {
     expect(Object.keys(data as object)).toEqual(["ga4"]);
   });
 
-  it("wymusza kanoniczny host i synchronizuje i18n z żądaniem", async () => {
+  it("wymusza kanoniczny host; języka NIE synchronizuje (robi to `beforeLoad`)", async () => {
     await runLoader(qc);
     expect(h.canonicalCalls).toBe(1);
-    expect(h.i18nSyncCalls).toBe(1);
+    // Loader korzenia nie biegnie ponownie przy nawigacji klienta - synchronizacja
+    // tutaj nie dosięgała „wstecz/dalej" (patrz `beforeLoad` niżej).
+    expect(h.i18nSyncCalls).toBe(0);
   });
 
   it("dokłada nagłówki HTTP `Link` dla języka żądania (fonty startują przed HTML-em)", async () => {
@@ -538,19 +544,9 @@ describe("__root loader", () => {
   //
   // Ten loader biegnie na KAŻDEJ trasie serwisu, więc każdy rzut, który z niego
   // wyjdzie, jest awarią CAŁEGO serwisu - także tam, gdzie zawiodła wyłącznie
-  // dekoracja. Poniżej trzy niezależne miejsca, w których coś realnie potrafi
-  // paść, i dowód, że żadne z nich nie wychodzi na zewnątrz.
-  it("awaria synchronizacji i18n żądania NIE wywraca loadera", async () => {
-    // `syncI18nToRequest` sięga po słowniki; jego awaria (zimny izolat, brak
-    // chunku) zostawia render na języku domyślnym - ale zostawia RENDER.
-    h.i18nSyncFails = true;
-
-    await expect(runLoader(qc)).resolves.toEqual({
-      ga4: { measurementId: GA4_MEASUREMENT_ID, enabled: true },
-    });
-    expect(h.i18nSyncCalls).toBe(1);
-  });
-
+  // dekoracja. Poniżej niezależne miejsca, w których coś realnie potrafi
+  // paść, i dowód, że żadne z nich nie wychodzi na zewnątrz (awaria warstwy
+  // językowej - patrz `__root beforeLoad`).
   it("awaria modułu menu NIE wywraca loadera - menu dociągnie klient", async () => {
     // Rozgrzewka menu startuje PRZED falą 1 (`void warmMenus()`), czyli poza
     // jakimkolwiek `await` loadera. Bez `.catch()` przy starcie jej odrzucenie
@@ -738,6 +734,32 @@ describe("__root wiring", () => {
     expect(typeof Route.options.component).toBe("function");
     expect(typeof Route.options.notFoundComponent).toBe("function");
     expect(typeof Route.options.errorComponent).toBe("function");
+  });
+});
+
+// JĘZYK RENDERU IDZIE ZA ADRESEM PRZY KAŻDEJ NAWIGACJI. Synchronizacja stała
+// w loaderze, a loader korzenia przy nawigacji klienta nie biegnie ponownie
+// (dopasowanie korzenia „zostaje") - po „wstecz" z /en/x na /y strona
+// o polskim adresie kanonicznym renderowała się po angielsku. Zachowanie na
+// prawdziwym routerze: `lib/i18n/__tests__/urlLanguageNavigation.test.tsx`.
+describe("__root beforeLoad", () => {
+  type BeforeLoad = (a: { location: { publicHref: string } }) => Promise<unknown>;
+  const runBeforeLoad = (publicHref: string) =>
+    (Route.options.beforeLoad as unknown as BeforeLoad)({ location: { publicHref } });
+
+  it("synchronizuje i18n z adresem ŁADOWANEJ lokalizacji - publicHref, z prefiksem języka", async () => {
+    // `location.pathname` jest już bez prefiksu (rewrite `input` routera) -
+    // język niesie wyłącznie `publicHref`.
+    await runBeforeLoad("/en/o-nas?x=1#h");
+    expect(h.i18nSyncHrefs).toEqual(["/en/o-nas?x=1#h"]);
+  });
+
+  it("awaria synchronizacji i18n NIE wywraca nawigacji", async () => {
+    // `syncI18nToRequest` sięga po słowniki; jego awaria (zimny izolat, brak
+    // chunku) zostawia render na dotychczasowym języku - ale zostawia RENDER.
+    h.i18nSyncFails = true;
+    await expect(runBeforeLoad("/o-nas")).resolves.toBeUndefined();
+    expect(h.i18nSyncCalls).toBe(1);
   });
 });
 

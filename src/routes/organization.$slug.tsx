@@ -140,6 +140,12 @@ export const Route = createFileRoute("/organization/$slug")({
         ? request.pathname
         : request.toString();
     const lang = activeLang(url);
+    // KOPIA NAGŁÓWKA STOI TU, A NIE W `t()` Z NAKŁADKI. `head()` zostaje w shellu
+    // trasy, a shelle wszystkich tras są eager - import `i18n-organizations` stąd
+    // wciągnąłby cały słownik profilu do chunka startowego KAŻDEJ strony (ten sam
+    // powód, dla którego istnieje maleńkie `i18n-event-head`). Zdania są
+    // identyczne z kluczami `organization.seo*`/`pageSuffix`/`breadcrumb` -
+    // pilnuje tego `__tests__/organizationRouteRuntime.test.tsx`.
     const isEn = lang === "en";
     const name = org ? organizationName(org.term, lang) : isEn ? "Organization" : "Organizacja";
     const descRaw = org ? organizationDescription(org.term, lang) : null;
@@ -209,17 +215,24 @@ export const Route = createFileRoute("/organization/$slug")({
   component: OrganizationProfilePage,
   pendingComponent: () => <ArchiveSkeleton />,
   notFoundComponent: PublicNotFound,
-  errorComponent: (props) => (
-    <RouteErrorFallback
-      {...props}
-      title={
-        activeLang() === "en"
-          ? "Failed to load the organization profile"
-          : "Nie udało się załadować profilu organizacji"
-      }
-    />
-  ),
+  errorComponent: OrganizationRouteError,
 });
+
+/**
+ * Ekran błędu mówi TYM SAMYM zdaniem co notka degradacji w komponencie
+ * (`organization.loadFailed`) - wcześniej miał własną, trzecią wersję EN.
+ * Komponent błędu ma osobny chunk (splitter), więc słownik profilu jedzie
+ * tutaj, a nie w entry. Język idzie - jak dotąd i jak w `head()` - z ADRESU
+ * (`activeLang()`), nie z globalnego `i18n.language`, który w SSR jest
+ * współdzielony między równoległymi żądaniami (patrz `lib/seo/head.ts`).
+ */
+function OrganizationRouteError(props: Parameters<typeof RouteErrorFallback>[0]) {
+  ensureOrganizationsI18n();
+  const { t } = useTranslation();
+  return (
+    <RouteErrorFallback {...props} title={t("organization.loadFailed", { lng: activeLang() })} />
+  );
+}
 
 function OrganizationProfilePage() {
   // Rejestracja słownika w chunku trasy (nie w entry) - patrz lib/i18n-*.

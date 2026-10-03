@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Languages } from "lucide-react";
 
 import { WidgetI18nAuditPane } from "@/components/admin/i18n/WidgetI18nAuditPane";
+import { uiLang } from "@/lib/i18n/format";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { SITE_NAME } from "@/lib/seo/meta";
@@ -40,7 +41,9 @@ export const Route = createFileRoute("/admin/i18n")({
 
 function AdminI18nAuditPage() {
   const { i18n } = useTranslation();
-  const lang = i18n.language === "en" ? "en" : "pl";
+  // Ta sama normalizacja co panel niżej - nagłówek i panel nie mogą wybrać
+  // różnych języków dla tego samego `i18n.language`.
+  const lang = uiLang(i18n.language);
   const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
 
   return (

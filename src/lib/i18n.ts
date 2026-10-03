@@ -2,7 +2,7 @@ import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import { DEFAULT_LANG, type AppLang } from "@/lib/i18n/localePath";
 import { LANG_STORAGE_KEY } from "@/lib/storageKeys";
-import { currentLang, setClientLang } from "@/lib/i18n/localeRuntime";
+import { currentLang, setClientLang, syncClientLangToUrl } from "@/lib/i18n/localeRuntime";
 import {
   readLangCookieClient,
   writeLangCookieClient,
@@ -62,9 +62,16 @@ const STORAGE_KEY = LANG_STORAGE_KEY.key;
 /**
  * Push the i18next runtime to the language this request/app is currently
  * rendering (resolved from the URL path on the server, the live client ref on
- * the client). Called from the root loader so SSR copy matches the URL.
+ * the client). Called from the root `beforeLoad` with the location being
+ * loaded: the root loader does not re-run on a client navigation (the root
+ * match "stays"), so a browser back/forward between "/en/x" and "/x" never
+ * reached i18next. `publicHref` first re-derives the client ref from that URL
+ * (see syncClientLangToUrl - a no-op on the server and for preloads).
  */
-export async function syncI18nToRequest(): Promise<AppLang> {
+export async function syncI18nToRequest(publicHref?: string): Promise<AppLang> {
+  // Synchronicznie, zanim React przerenderuje odnośniki nowej lokalizacji
+  // (zmiana magazynu lokalizacji routera planuje render w mikrozadaniu).
+  if (publicHref !== undefined) syncClientLangToUrl(publicHref);
   const lang = currentLang();
   // Mutating the shared singleton is safe only on the client (one user per
   // runtime). On the server this instance is shared across every concurrent

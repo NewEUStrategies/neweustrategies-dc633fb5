@@ -16,7 +16,12 @@
 //   * a decision equal to the default language is a no-op (no redirect), so the
 //     bare homepage stays a single shareable edge-cache entry.
 import { DEFAULT_LANG, localizedPath, normalizeLang, type AppLang } from "./localePath";
-import { LANG_COOKIE, LANG_COOKIE_MAX_AGE, readLangCookieFromHeader } from "./langCookie";
+import {
+  LANG_COOKIE,
+  LANG_COOKIE_MAX_AGE,
+  langForPreferredTag,
+  readLangCookieFromHeader,
+} from "./langCookie";
 
 /**
  * Pick a language from a raw `Accept-Language` header. Product rule: Polish ->
@@ -38,14 +43,10 @@ export function detectLangFromAcceptLanguage(header: string | null | undefined):
     .filter((e) => e.tag && e.quality > 0)
     .sort((a, b) => b.quality - a.quality);
 
-  if (entries.length === 0) return null;
-  for (const { tag } of entries) {
-    if (tag === "*") continue;
-    const code = tag.toLowerCase().split("-")[0];
-    if (code === "pl") return "pl";
-    return "en";
-  }
-  return null;
+  // Decyduje najwyżej postawiony KONKRETNY język (wildcard nic nie mówi) -
+  // tą samą regułą co detectBrowserLang na kliencie.
+  const top = entries.find((e) => e.tag !== "*");
+  return top ? langForPreferredTag(top.tag) : null;
 }
 
 export interface HomepageLangDecision {

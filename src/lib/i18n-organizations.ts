@@ -55,14 +55,19 @@ const en = {
   },
 };
 
-i18n.addResourceBundle("pl", "translation", pl, true, true);
-i18n.addResourceBundle("en", "translation", en, true, true);
-
-export {};
-
-/**
- * No-op wołany w komponencie zamiast side-effectowego importu modułu - ten sam
- * wzorzec co `i18n-experts`. Nazwane wiązanie pozwala splitterowi przenieść
- * słownik do chunka trasy, zamiast trzymać go w eager-owym grafie wejściowym.
- */
-export function ensureI18n(): void {}
+// Rejestracja mieszka W `ensureI18n()`, a nie luzem na poziomie modułu - ten
+// sam wzorzec co pozostałe nakładki (`i18n-experts`, `i18n-notifications`).
+// Trasa i komponent wołają tę funkcję zamiast side-effectowego importu:
+// nazwane wiązanie pozwala splitterowi przenieść słownik do chunka trasy
+// (a nie do eager-owego grafu wejściowego), a ponieważ to WYWOŁANIE
+// rejestruje słownik, ani Vite, ani Nitro nie wytną go razem z „pustą”
+// funkcją. Flaga chroni przed powtórnym głębokim scaleniem przy każdym
+// renderze; wywołanie przy imporcie zachowuje stary kontrakt side-effectu.
+let registered = false;
+export function ensureI18n(): void {
+  if (registered) return;
+  registered = true;
+  i18n.addResourceBundle("pl", "translation", pl, true, true);
+  i18n.addResourceBundle("en", "translation", en, true, true);
+}
+ensureI18n();

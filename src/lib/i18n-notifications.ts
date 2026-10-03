@@ -14,10 +14,19 @@
 // plik: `addResourceBundle` ma priorytet nad `defaultValue`.
 import i18n from "./i18n";
 
+// Klucze, ktore ma takze RDZEN (`locale/pl.ts`), niosa tu DOKLADNIE brzmienie
+// rdzenia. Nakladka rejestruje sie z overwrite=true, a `NotificationsCenter`
+// i `ConsentsPanel` renderuja sie rowniez na /messages i /profile/privacy,
+// ktore tej nakladki nie laduja: inna tresc tutaj znaczyla, ze ten sam ekran
+// zmienial napis po pierwszej wizycie na /profile/notifications (na serwerze -
+// po pierwszym takim renderze w isolate). Siedem polskich zdan bylo rozjechanych,
+// w tym opis panelu zgod bez wzmianki o plikach cookie, choc panel pokazuje
+// przelaczniki cookie. Zmiana brzmienia nalezy do rdzenia; bramka
+// `i18nOverlayIntegrity.gate.test.ts` oblewa kazdy nowy rozjazd.
 export const notificationsPl = {
   notifications: {
     title: "Powiadomienia",
-    inboxSubtitle: "Wszystko, co wymaga Twojej uwagi - w jednym miejscu.",
+    inboxSubtitle: "Twoja prywatna skrzynka - widzisz tylko własne powiadomienia.",
     empty: "Brak powiadomień",
     noMatches: "Brak wyników dla zadanych filtrów",
     loadMore: "Załaduj więcej",
@@ -41,7 +50,7 @@ export const notificationsPl = {
     },
     settings: {
       title: "Ustawienia powiadomień",
-      subtitle: "Wybierz, jakie alerty trafiają do skrzynki.",
+      subtitle: "Wybierz, jakie alerty trafiają do skrzynki i jak się zachowują.",
       subtitleLead:
         "Zdecyduj, o czym Cię powiadamiamy i którymi kanałami. Zmiany zapisują się od razu.",
       kindsHeader: "Typy powiadomień",
@@ -64,17 +73,18 @@ export const notificationsPl = {
       groupByConversation: "Grupuj powiadomienia o wiadomościach wg rozmowy",
       groupByConversationHint: "Zwiń wiele wiadomości z tego samego czatu w jeden wpis.",
       autoMarkOnOpen: "Automatycznie oznaczaj wiadomości jako przeczytane po otwarciu czatu",
-      autoMarkOnOpenHint: "Wyłącz, żeby powiadomienia zostawały do ręcznego zamknięcia.",
-      chatBell: "Ikona czatu (dzwonek) w nagłówku",
+      autoMarkOnOpenHint:
+        "Wyłącz, żeby powiadomienia o wiadomościach zostawały do ręcznego zamknięcia.",
+      chatBell: "Dzwonek czatu w pasku górnym",
       chatBellHint:
-        "Wyłącz, żeby ukryć skrót do czatu w topbarze. Rozmowy nadal działają w /messages i doku.",
+        "Wyłącz, żeby ukryć skrót do czatu w pasku górnym. Rozmowy nadal działają w /messages i doku.",
       saved: "Zapisano preferencje",
       saveError: "Nie udało się zapisać preferencji",
     },
     consents: {
-      title: "Zgody komunikacji",
+      title: "Zgody i prywatność",
       subtitle:
-        "Zdecyduj, jakie wiadomości mogą do Ciebie trafiać. Każdą zmianę zapisujemy w niezmiennym rejestrze RODO.",
+        "Zdecyduj o plikach cookie i o tym, jakie wiadomości mogą do Ciebie trafiać. Każdą zmianę zapisujemy w niezmiennym rejestrze RODO (data, wersja, źródło, adres IP, przeglądarka).",
       requiredBadge: "Wymagana",
       notDecided: "Nie podjęto decyzji",
       given: "Udzielono {{date}}",

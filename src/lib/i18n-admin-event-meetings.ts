@@ -240,8 +240,16 @@ export const adminEventMeetingsPl = {
     },
 
     errors: {
+      // `forbidden` i `unknown` celowo NIE mieszkają w tym pliku. Tylko te dwa
+      // klucze tej sekcji pokrywają się z kluczami błędów czytanymi przez front
+      // uczestnika (`meetingErrorI18nKey`, kontrakt `MEETING_ERROR_KEYS`),
+      // a ich właścicielem jest `i18n-event-meetings`. Druga kopia z overwrite=true
+      // sprawiała, że zdanie odmowy uczestnika zależało od kolejności ładowania
+      // chunków - a na serwerze od tego, czy isolate renderował wcześniej panel
+      // (magazyn i18next jest tam wspólny). Pilnuje tego
+      // `i18nOverlayIntegrity.gate.test.ts`.
+
       // Tożsamość i uprawnienie
-      forbidden: "Ta operacja wymaga zalogowania.",
       notFound: "Nie znaleziono tego wydarzenia.",
       notRegistered: "Giełda spotkań jest dostępna dla osób zapisanych na to wydarzenie.",
       notAParty: "To nie jest Twoje spotkanie.",
@@ -293,7 +301,6 @@ export const adminEventMeetingsPl = {
       declineReasonRequired: "Napisz krótko, dlaczego odrzucasz - co najmniej trzy znaki.",
       invalidDecision: "Można przyjąć albo odrzucić zaproszenie.",
       invalidPayload: "Brakuje wymaganych danych.",
-      unknown: "Nie udało się wykonać tej operacji. Spróbuj ponownie.",
     },
   },
 
@@ -851,7 +858,7 @@ export const adminEventMeetingsEn = {
     },
 
     errors: {
-      forbidden: "This action requires signing in.",
+      // `forbidden` i `unknown`: właścicielem jest `i18n-event-meetings` (patrz PL).
       notFound: "This event could not be found.",
       notRegistered: "The meeting exchange is open to people registered for this event.",
       notAParty: "This is not your meeting.",
@@ -897,7 +904,6 @@ export const adminEventMeetingsEn = {
       declineReasonRequired: "Write briefly why you are declining - at least three characters.",
       invalidDecision: "An invitation can be accepted or declined.",
       invalidPayload: "Required data is missing.",
-      unknown: "This action could not be completed. Try again.",
     },
   },
 

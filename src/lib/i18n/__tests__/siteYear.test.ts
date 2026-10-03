@@ -38,6 +38,31 @@ describe("siteYear", () => {
     expect(formatter).not.toHaveBeenCalled();
   });
 
+  it.each([
+    // Year 0 is 1 BC and -5 is 6 BC: Intl reports the era year, and siteYear
+    // keeps that instead of printing a proleptic 0 or a negative number.
+    ["0000-06-15T12:00:00.000Z", 1],
+    ["-000005-06-15T12:00:00.000Z", 6],
+    // 23:30 UTC on 31 Dec of 1 BC is already 1 January AD 1 in Warsaw.
+    ["0000-12-31T23:30:00.000Z", 1],
+  ])("delegates years before AD 1 to Intl's era year at %s", (iso, expected) => {
+    const ms = Date.parse(iso);
+    const reference = new Intl.DateTimeFormat("en-CA", {
+      timeZone: SITE_TIME_ZONE,
+      year: "numeric",
+    });
+    expect(siteYear(ms)).toBe(expected);
+    expect(siteYear(ms)).toBe(Number.parseInt(reference.format(ms), 10));
+  });
+
+  it("falls back to the UTC year before AD 1 when Intl is unavailable", () => {
+    vi.spyOn(Intl, "DateTimeFormat").mockImplementation(function () {
+      throw new RangeError("Timezone unavailable");
+    });
+    expect(siteYear(Date.parse("0000-06-15T12:00:00.000Z"))).toBe(0);
+    expect(siteYear(Date.parse("-000005-06-15T12:00:00.000Z"))).toBe(-5);
+  });
+
   it("preserves the UTC fallback when timezone formatting is unavailable", () => {
     vi.spyOn(Intl, "DateTimeFormat").mockImplementation(function () {
       throw new RangeError("Timezone unavailable");

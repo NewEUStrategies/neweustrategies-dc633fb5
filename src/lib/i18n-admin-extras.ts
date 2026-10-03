@@ -910,12 +910,15 @@ export const adminExtrasPl = {
       linked: "Firma przypisana",
     },
   },
-  linkPicker: {
-    newTab: "Otwórz w nowej karcie",
-    nofollow: "rel=nofollow",
-  },
+  // `linkPicker.*` NIE tutaj: jedyny czytelnik (`LinkPicker.tsx`) importuje
+  // `i18n-builder` wprost, a druga kopia z overwrite=true podmieniała napis
+  // buildera w całym panelu. `nav.account` i `builder.sectionLoading` czytają
+  // komponenty PUBLICZNE bez własnej nakładki (`AccountMenuWidget`,
+  // `sectionStreaming`), więc zostają - ale w brzmieniu buildera. Wcześniej PL
+  // miało tu angielskie „Account menu", które po wizycie w panelu trafiało do
+  // czytnika ekranu na polskiej stronie publicznej.
   nav: {
-    account: "Account menu",
+    account: "Menu konta",
   },
   themeOptions: {
     sections: {
@@ -1716,7 +1719,7 @@ export const adminExtrasEn = {
     },
   },
   builder: {
-    sectionLoading: "Loading section…",
+    sectionLoading: "Loading the section…",
   },
   common: {
     creating: "Creating…",
@@ -1756,10 +1759,6 @@ export const adminExtrasEn = {
       detached: "Company detached",
       linked: "Company linked",
     },
-  },
-  linkPicker: {
-    newTab: "Open in new tab",
-    nofollow: "rel=nofollow",
   },
   nav: {
     account: "Account menu",

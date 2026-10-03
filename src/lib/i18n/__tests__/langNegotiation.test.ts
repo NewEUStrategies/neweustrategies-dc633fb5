@@ -6,6 +6,7 @@ import {
   resolveHomepageLang,
 } from "../langNegotiation";
 import { readLangCookieFromHeader } from "../langCookie";
+import type { AppLang } from "../localePath";
 
 describe("detectLangFromAcceptLanguage", () => {
   it("returns null without a header", () => {
@@ -28,6 +29,40 @@ describe("detectLangFromAcceptLanguage", () => {
 
   it("skips the wildcard", () => {
     expect(detectLangFromAcceptLanguage("*")).toBeNull();
+    expect(detectLangFromAcceptLanguage("*;q=0.5")).toBeNull();
+    // Wildcard stoi wyżej, ale nic nie mówi - decyduje pierwszy konkretny język.
+    expect(detectLangFromAcceptLanguage("*;q=1, pl;q=0.5")).toBe("pl");
+    expect(detectLangFromAcceptLanguage("*, de;q=0.5")).toBe("en");
+  });
+
+  it("the TOP stated preference decides, not the mere presence of Polish", () => {
+    expect(detectLangFromAcceptLanguage("en-US,pl;q=0.9")).toBe("en");
+    expect(detectLangFromAcceptLanguage("de, pl;q=0.5, en;q=0.4")).toBe("en");
+  });
+
+  it("keeps header order for equal weights", () => {
+    expect(detectLangFromAcceptLanguage("en, pl")).toBe("en");
+    expect(detectLangFromAcceptLanguage("pl, en")).toBe("pl");
+  });
+
+  it("excludes q=0 and treats a malformed weight as q=0", () => {
+    expect(detectLangFromAcceptLanguage("pl;q=0, de")).toBe("en");
+    expect(detectLangFromAcceptLanguage("pl;q=0")).toBeNull();
+    expect(detectLangFromAcceptLanguage("pl;q=0, en;q=0")).toBeNull();
+    expect(detectLangFromAcceptLanguage("pl;q=abc, de;q=0.1")).toBe("en");
+    expect(detectLangFromAcceptLanguage("pl;q=")).toBeNull();
+    expect(detectLangFromAcceptLanguage("en;q=-1, pl;q=0.2")).toBe("pl");
+  });
+
+  it("is case- and whitespace-insensitive and ignores empty entries and extra params", () => {
+    expect(detectLangFromAcceptLanguage("PL-pl")).toBe("pl");
+    // Porównujemy cały podstawowy podtag, nie prefiks: `plt` (malgaski) to nie polski.
+    expect(detectLangFromAcceptLanguage("plt-MG, pl;q=0.5")).toBe("en");
+    expect(detectLangFromAcceptLanguage("EN-us, pl;q=0.1")).toBe("en");
+    expect(detectLangFromAcceptLanguage("  de-DE ; q=0.2 ,  pl-PL ;  q=0.8 ")).toBe("pl");
+    expect(detectLangFromAcceptLanguage(",, ,pl")).toBe("pl");
+    expect(detectLangFromAcceptLanguage(", ,")).toBeNull();
+    expect(detectLangFromAcceptLanguage("pl;level=1;q=0.5, en;q=0.4")).toBe("pl");
   });
 });
 
@@ -65,14 +100,58 @@ describe("resolveHomepageLang", () => {
       location: null,
       persistCookie: false,
     });
+    expect(resolveHomepageLang("/", "theme=dark", "*")).toEqual({
+      lang: null,
+      location: null,
+      persistCookie: false,
+    });
+  });
+
+  it("treats a corrupted cookie as absent instead of throwing", () => {
+    // Bez tego URIError z decodeURIComponent szedł prosto do errorMiddleware (500).
+    expect(resolveHomepageLang("/", "nes_lang=%E0%A4%A", "de")).toEqual({
+      lang: "en",
+      location: "/en",
+      persistCookie: true,
+    });
+    expect(resolveHomepageLang("/", "nes_lang=%; lovable_lang=en", "pl")).toEqual({
+      lang: "en",
+      location: "/en",
+      persistCookie: false,
+    });
+  });
+
+  it("honours a valid duplicate behind a corrupted cookie instead of overriding the choice", () => {
+    // Zepsuty egzemplarz z Domain= rodzica stoi pierwszy; świadomy wybór EN
+    // (host-only) nie może przegrać z Accept-Language i zostać nadpisany na PL.
+    expect(resolveHomepageLang("/", "nes_lang=%E0%A4%A; nes_lang=en", "pl")).toEqual({
+      lang: "en",
+      location: "/en",
+      persistCookie: false,
+    });
   });
 });
 
 describe("langCookieHeaderValue", () => {
   it("marks the cookie Secure over https only", () => {
-    expect(langCookieHeaderValue("en", true)).toContain("; Secure");
-    expect(langCookieHeaderValue("en", false)).not.toContain("Secure");
-    expect(langCookieHeaderValue("en", false)).toContain("nes_lang=en");
+    expect(langCookieHeaderValue("en", true)).toBe(
+      "nes_lang=en; Path=/; Max-Age=31536000; SameSite=Lax; Secure",
+    );
+    expect(langCookieHeaderValue("en", false)).toBe(
+      "nes_lang=en; Path=/; Max-Age=31536000; SameSite=Lax",
+    );
+  });
+
+  it("never serializes an unvalidated runtime value into Set-Cookie", () => {
+    // Typ mówi AppLang, ale wartość może przyjść z niezweryfikowanego źródła -
+    // nagłówek dostaje wyłącznie znormalizowany kod albo język domyślny.
+    const header = (raw: string) => langCookieHeaderValue(raw as AppLang, false);
+    expect(header("EN-gb")).toMatch(/^nes_lang=en; Path=\/;/);
+    expect(header("en-x; Domain=evil.example")).toMatch(/^nes_lang=en; Path=\/;/);
+    expect(header("de")).toMatch(/^nes_lang=pl; Path=\/;/);
+    expect(header("x\r\nSet-Cookie: a=b")).toBe(
+      "nes_lang=pl; Path=/; Max-Age=31536000; SameSite=Lax",
+    );
   });
 });
 
