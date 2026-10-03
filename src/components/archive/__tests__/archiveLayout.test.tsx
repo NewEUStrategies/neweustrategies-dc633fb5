@@ -97,6 +97,7 @@ const { LAYOUT_REGISTRY, getLayoutComponent } =
 const { ArchivePagination, buildRange } =
   await import("@/components/archive/layouts/ArchivePagination");
 const variants = await import("@/components/archive/layouts/variants");
+const { relatedTaxonomiesQueryOptions } = await import("@/lib/queries/relatedTaxonomies");
 
 const t = realT("pl");
 
@@ -157,7 +158,27 @@ function renderWithQuery(ui: ReactElement) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
   });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  // Klient wraca razem z wynikiem renderu: testy awarii rankingu czytają stan
+  // zapytania, bo na ekranie błąd i pusta lista wyglądają tak samo.
+  return Object.assign(render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>), {
+    client,
+  });
+}
+
+/**
+ * Czeka, aż zapytanie „powiązanych" bieżącego archiwum (kategoria `tax-1`) się
+ * ROZSTRZYGNIE, i zwraca jego stan. Sam wygląd nie odróżnia awarii od braku
+ * sygnału - sekcja jest ukryta, a widżet mówi „Brak." także w trakcie
+ * ładowania - więc asercja na samym DOM przeszłaby i wtedy, gdyby fabryka
+ * zapytania rzucała błąd zamiast zdegradować się do `[]`.
+ */
+async function settledRelatedQuery(client: QueryClient) {
+  const { queryKey } = relatedTaxonomiesQueryOptions("category", "tax-1");
+  await waitFor(() => {
+    const state = client.getQueryState(queryKey);
+    expect(state !== undefined && state.status !== "pending").toBe(true);
+  });
+  return client.getQueryState(queryKey);
 }
 
 /** Wiersz w kształcie zwracanym przez `related_taxonomies`. */
@@ -752,12 +773,18 @@ describe("RelatedTaxonomiesBlock (sekcja pod listą)", () => {
     expect(screen.queryByText("Powiązane kategorie")).toBeNull();
   });
 
-  it("awaria funkcji rankingu: sekcja znika, archiwum stoi", async () => {
+  it("awaria funkcji rankingu: zapytanie kończy się pustą listą, sekcja znika, archiwum stoi", async () => {
     funkcje().setResponse("related_taxonomies", fail("permission denied", "42501"));
-    renderWithQuery(
+    const { client } = renderWithQuery(
       <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
     );
-    await waitFor(() => expect(relatedCalls()).toHaveLength(1));
+    // Degradacja, nie błąd: stan `error` oznaczałby ponowienie i nowe
+    // zapytanie przy każdym wejściu na archiwum (`retry: 1` klienta
+    // w `src/router.tsx`) zamiast pustej listy w cache na `staleTime`.
+    const state = await settledRelatedQuery(client);
+    expect(state?.status).toBe("success");
+    expect(state?.data).toEqual([]);
+    expect(relatedCalls()).toHaveLength(1);
     expect(screen.queryByText("Powiązane kategorie")).toBeNull();
     // Lista wpisów archiwum renderuje się normalnie.
     expect(screen.getAllByText("Wpis p1").length).toBeGreaterThan(0);
@@ -871,10 +898,16 @@ describe("ArchiveSidebar - widgety", () => {
     expect(db.tables).not.toContain("tags");
   });
 
-  it("powiązane taksonomie: awaria funkcji rankingu daje komunikat, nie wyjątek", async () => {
+  it("powiązane taksonomie: awaria funkcji rankingu kończy się pustą listą i komunikatem, nie błędem", async () => {
     funkcje().setResponse("related_taxonomies", fail("permission denied", "42501"));
-    renderSidebar(["related"]);
-    expect(await screen.findByText("Brak.")).toBeTruthy();
+    const { client } = renderSidebar(["related"]);
+    // „Brak." widać też w trakcie ładowania, więc o degradacji świadczy
+    // dopiero stan rozstrzygniętego zapytania.
+    const state = await settledRelatedQuery(client);
+    expect(state?.status).toBe("success");
+    expect(state?.data).toEqual([]);
+    expect(screen.getByText("Brak.")).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("powiązane taksonomie w PODGLĄDZIE admina: atrapy bez linków i bez żądania", async () => {

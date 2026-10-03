@@ -49,10 +49,12 @@ export const relatedTaxonomiesQueryOptions = (
       // ŚWIADOMY WYJĄTEK od zasady „błąd leci w górę". To sekcja dekoracyjna
       // archiwum: dla czytelnika awaria i brak sygnału mają ten sam skutek
       // (sekcji nie ma, widżet mówi „Brak."), a rzucony błąd kupiłby tylko
-      // trzy ponowienia z backoffem przy każdym wejściu na archiwum. Pusta
-      // lista trafia do cache na `staleTime`, więc padnięta funkcja nie jest
-      // też odpytywana w kółko. Bez logowania: wynik nie zależy od czytelnika,
-      // więc ten sam błąd wróciłby w konsoli każdego odwiedzającego.
+      // ponowienie z backoffem (`retry: 1` klienta w `src/router.tsx`) i nowe
+      // zapytanie przy każdym wejściu na archiwum - stan `error` nie trzyma
+      // się `staleTime`. Pusta lista trafia do cache na `staleTime`, więc
+      // padnięta funkcja nie jest odpytywana w kółko. Bez logowania: wynik nie
+      // zależy od czytelnika, więc ten sam błąd wróciłby w konsoli każdego
+      // odwiedzającego.
       if (error) return [];
       return (data ?? []).map((row) => ({
         id: row.id,

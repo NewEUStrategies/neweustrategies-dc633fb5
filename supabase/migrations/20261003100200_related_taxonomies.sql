@@ -30,6 +30,18 @@
 -- kandydat. Remisy: więcej wspólnych wpisów wyżej, potem nazwa, slug i id -
 -- kolejność jest deterministyczna, więc cache i SSR nie migają.
 --
+-- WYNIK LICZONY JAKO sqrt(shared² / (n_bieżący * n_kandydat)), NIE JAKO
+-- shared / sqrt(...). Matematycznie to ten sam kosinus, ale w float8 nie ten
+-- sam porządek remisów: przy `shared / sqrt(n_b * n_k)` równe kosinusy często
+-- różniły się o 1 ulp (1 / sqrt(6 * 1) > 3 / sqrt(6 * 9) daje `t`, choć oba
+-- to 1/sqrt(6)), więc ORDER BY sortował po szumie zaokrągleń i reguła „przy
+-- remisie więcej wspólnych wpisów wyżej" w ogóle nie dochodziła do głosu.
+-- W obecnej postaci shared² i n_b * n_k są dokładnymi liczbami całkowitymi
+-- w float8 (daleko poniżej 2^53), a dzielenie i pierwiastek są w IEEE 754
+-- poprawnie zaokrąglane - równe ułamki dają BITOWO równy wynik, a monotoniczne
+-- zaokrąglenie nigdy nie odwraca kolejności różnych. Zmierzone na siatce
+-- równych par: stara postać 11 985 rozjazdów na 54 905, obecna 0.
+--
 -- „TEN SAM RODZAJ" NA DWÓCH POZIOMACH. `_kind` rozdziela kategorie i tagi
 -- (osobne tabele, osobne trasy `/category/$slug` i `/tag/$slug`). Kategorie
 -- mają DODATKOWO wymiar `categories.kind` (category, pub_type, region, topic,
@@ -160,8 +172,12 @@ AS $$
      GROUP BY pc.category_id
   ),
   cat_ranked AS (
+    -- sqrt(shared² / (n_b * n_k)), nie shared / sqrt(n_b * n_k): równe
+    -- kosinusy muszą dać bitowo równy float8, inaczej remis rozstrzyga szum
+    -- zaokrągleń zamiast `shared_posts` (uzasadnienie w nagłówku).
     SELECT c.id, c.slug, c.name_pl, c.name_en, s.shared_posts,
-           s.shared_posts / sqrt(n.anchor_posts::double precision * z.term_posts) AS score
+           sqrt(s.shared_posts::double precision * s.shared_posts
+                / (n.anchor_posts::double precision * z.term_posts)) AS score
       FROM cat_shared s
       JOIN cat_sized z ON z.term_id = s.term_id
       JOIN public.categories c ON c.id = s.term_id
@@ -204,8 +220,10 @@ AS $$
      GROUP BY pt.tag_id
   ),
   tag_ranked AS (
+    -- Ta sama postać wyniku co w gałęzi kategorii (bitowo równe remisy).
     SELECT t.id, t.slug, t.name AS name_pl, t.name AS name_en, s.shared_posts,
-           s.shared_posts / sqrt(n.anchor_posts::double precision * z.term_posts) AS score
+           sqrt(s.shared_posts::double precision * s.shared_posts
+                / (n.anchor_posts::double precision * z.term_posts)) AS score
       FROM tag_shared s
       JOIN tag_sized z ON z.term_id = s.term_id
       JOIN public.tags t ON t.id = s.term_id

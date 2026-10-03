@@ -13,12 +13,22 @@
 --      wpisów (3) niż „Klimat" (2), ale jest dziesięć razy większy, więc ląduje
 --      NIŻEJ. Ranking po surowym `shared` odwróciłby tę kolejność - fikstura
 --      jest zbudowana tak, żeby to rozstrzygało;
---   2. remisy: równy wynik -> więcej wspólnych wpisów wyżej, potem nazwa;
+--   2. remisy: równy wynik -> więcej wspólnych wpisów wyżej, potem nazwa -
+--      także dla remisu, którego float8 NIE reprezentuje dokładnie
+--      (1/sqrt(6*1) = 3/sqrt(6*9)): wynik ma być bitowo równy, inaczej ORDER BY
+--      sortuje po szumie zaokrągleń i do `shared_posts` nigdy nie dochodzi;
 --   3. szkic i wpis miękko usunięty nie liczą się ANI jako wspólny wpis, ANI
 --      w rozmiarze terminu (dokładne wartości `score` by to wychwyciły);
---   4. obcy najemca nie wchodzi niczym: ani kategorią podpiętą pod nasz wpis,
+--   4. obcy najemca nie wchodzi niczym: ani terminem podpiętym pod nasz wpis,
 --      ani własnym wpisem podpiętym pod nasze terminy; host najemcy B nie
 --      widzi terminów najemcy A;
+--      punkty 3 i 4 sprawdzane OSOBNO dla kategorii i dla tagów. Migracja
+--      celowo dubluje filtry w dwóch gałęziach (`cat_*` / `tag_*`), więc każdy
+--      predykat ma własną fiksturę, która go rozstrzyga: szkic, wpis usunięty
+--      i wpis najemcy B niosą te same tagi co kotwica, ścisły i hub, a tag
+--      najemcy B wisi na naszym wpisie - zgubiony warunek w gałęzi tagów
+--      zmienia dokładny `score` albo wpuszcza obcy tag (sprawdzone mutacjami
+--      pojedynczych linii);
 --   5. wymiar `categories.kind`: region nie jest „powiązaną kategorią" tematu;
 --   6. kontrakt wejścia: nieznany `_kind` / NULL -> pusto, `_limit` 1..24;
 --   7. anonim i zalogowany redaktor (który przez RLS widzi szkice) dostają
@@ -28,7 +38,7 @@
 -- (`handle_new_user()` sam zakłada profil, ręczny INSERT padłby na kluczu).
 
 BEGIN;
-SELECT plan(29);
+SELECT plan(37);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -51,7 +61,8 @@ INSERT INTO public.user_roles (user_id, role, tenant_id) VALUES
 
 -- ── Kategorie ──────────────────────────────────────────────────────────────
 -- Najemca A: kotwica E, kandydaci K/M/F/G/H, wykluczeni D/S/R, kotwica „many"
--- z 30 kandydatami do testu limitu. Najemca B: X (podpięta pod wpis A),
+-- z 30 kandydatami do testu limitu, kotwica „remis" z dwoma kandydatami
+-- o równym, niereprezentowalnym kosinusie. Najemca B: X (podpięta pod wpis A),
 -- BX (kotwica na hoście B) i BP (jej partner).
 INSERT INTO public.categories (id, tenant_id, slug, name_pl, name_en, kind) VALUES
   ('e1a00000-2222-4000-8000-000000000001', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-energetyka', 'Energetyka', 'Energy', 'category'),
@@ -64,6 +75,9 @@ INSERT INTO public.categories (id, tenant_id, slug, name_pl, name_en, kind) VALU
   ('e1a00000-2222-4000-8000-000000000008', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-usuniety', 'Tylko usunięty', 'Deleted only', 'category'),
   ('e1a00000-2222-4000-8000-000000000009', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-region', 'Region', 'Region', 'region'),
   ('e1a00000-2222-4000-8000-000000000010', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-many', 'Wiele', 'Many', 'category'),
+  ('e1a00000-2222-4000-8000-000000000011', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-remis', 'Remis', 'Tie', 'category'),
+  ('e1a00000-2222-4000-8000-000000000012', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-remis-a', 'Aaa remis', 'Aaa tie', 'category'),
+  ('e1a00000-2222-4000-8000-000000000013', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-remis-b', 'Bbb remis', 'Bbb tie', 'category'),
   ('e1b00000-2222-4000-8000-000000000001', 'e1b00000-0000-4000-8000-0000000000b1', 'rel-b-obca', 'Obca', 'Foreign', 'category'),
   ('e1b00000-2222-4000-8000-000000000002', 'e1b00000-0000-4000-8000-0000000000b1', 'rel-b-kotwica', 'Kotwica B', 'Anchor B', 'category'),
   ('e1b00000-2222-4000-8000-000000000003', 'e1b00000-0000-4000-8000-0000000000b1', 'rel-b-partner', 'Partner B', 'Partner B', 'category');
@@ -79,7 +93,10 @@ INSERT INTO public.tags (id, tenant_id, slug, name) VALUES
   ('e1a00000-3333-4000-8000-000000000001', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-tag-kotwica', 'Kotwica'),
   ('e1a00000-3333-4000-8000-000000000002', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-tag-hub', 'NATO'),
   ('e1a00000-3333-4000-8000-000000000003', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-tag-tight', 'Bałtyk'),
-  ('e1a00000-3333-4000-8000-000000000004', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-tag-szkic', 'Szkic');
+  ('e1a00000-3333-4000-8000-000000000004', (SELECT id FROM public.tenants WHERE slug = 'nes'), 'rel-tag-szkic', 'Szkic'),
+  -- najemca B: tag podpięty pod wpis A (i kotwica na hoście B) oraz jego partner
+  ('e1b00000-3333-4000-8000-000000000001', 'e1b00000-0000-4000-8000-0000000000b1', 'rel-b-tag', 'Obcy tag'),
+  ('e1b00000-3333-4000-8000-000000000002', 'e1b00000-0000-4000-8000-0000000000b1', 'rel-b-tag-partner', 'Partner B');
 
 -- ── Wpisy ──────────────────────────────────────────────────────────────────
 -- p1..p4: opublikowane wpisy „Energetyki" (n_E = 4). draft / deleted: dzielą
@@ -103,6 +120,18 @@ SELECT ('e1a00000-4445-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'rel-h' || 
        'published', (SELECT id FROM public.tenants WHERE slug = 'nes'),
        'e1a00000-9999-4000-8000-00000000000a', 'H' || g
   FROM generate_series(1, 17) AS g;
+
+-- t1..t6: wpisy kotwicy „remis" (n = 6); u1..u6: dorobek „Bbb remis" poza nią.
+INSERT INTO public.posts (id, slug, status, tenant_id, parent_page_id, title_pl)
+SELECT ('e1a00000-4446-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'rel-t' || g,
+       'published', (SELECT id FROM public.tenants WHERE slug = 'nes'),
+       'e1a00000-9999-4000-8000-00000000000a', 'T' || g
+  FROM generate_series(1, 6) AS g;
+INSERT INTO public.posts (id, slug, status, tenant_id, parent_page_id, title_pl)
+SELECT ('e1a00000-4447-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'rel-u' || g,
+       'published', (SELECT id FROM public.tenants WHERE slug = 'nes'),
+       'e1a00000-9999-4000-8000-00000000000a', 'U' || g
+  FROM generate_series(1, 6) AS g;
 
 INSERT INTO public.post_categories (post_id, category_id) VALUES
   -- p1: E, Hub, Klimat, Migracje, region, obca kategoria najemcy B
@@ -128,9 +157,10 @@ INSERT INTO public.post_categories (post_id, category_id) VALUES
   ('e1a00000-4444-4000-8000-000000000005', 'e1a00000-2222-4000-8000-000000000001'),
   ('e1a00000-4444-4000-8000-000000000005', 'e1a00000-2222-4000-8000-000000000007'),
   ('e1a00000-4444-4000-8000-000000000005', 'e1a00000-2222-4000-8000-000000000002'),
-  -- miękko usunięty: E, „Tylko usunięty"
+  -- miękko usunięty: E, „Tylko usunięty", Klimat (zawyżyłby n_E, shared i n_K)
   ('e1a00000-4444-4000-8000-000000000006', 'e1a00000-2222-4000-8000-000000000001'),
   ('e1a00000-4444-4000-8000-000000000006', 'e1a00000-2222-4000-8000-000000000008'),
+  ('e1a00000-4444-4000-8000-000000000006', 'e1a00000-2222-4000-8000-000000000002'),
   -- m1, m2: tylko Migracje (n_M = 4)
   ('e1a00000-4444-4000-8000-000000000007', 'e1a00000-2222-4000-8000-000000000003'),
   ('e1a00000-4444-4000-8000-000000000008', 'e1a00000-2222-4000-8000-000000000003'),
@@ -153,19 +183,51 @@ INSERT INTO public.post_categories (post_id, category_id)
 SELECT 'e1a00000-4444-4000-8000-000000000009'::uuid, ('e1a00000-2223-4000-8000-' || lpad(g::text, 12, '0'))::uuid
   FROM generate_series(1, 30) AS g;
 
+-- „remis": kotwica na t1..t6; „Aaa remis" tylko na t1 (1 / sqrt(6 * 1));
+-- „Bbb remis" na t2..t4 i u1..u6 (3 / sqrt(6 * 9)) - ten sam kosinus 1/sqrt(6),
+-- którego float8 nie zapisuje dokładnie. Nazwa stawia „Aaa" pierwszą, więc
+-- „Bbb" wyżej dowodzi, że remis rozstrzygnął `shared_posts`.
+INSERT INTO public.post_categories (post_id, category_id)
+SELECT ('e1a00000-4446-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'e1a00000-2222-4000-8000-000000000011'::uuid
+  FROM generate_series(1, 6) AS g;
+INSERT INTO public.post_categories (post_id, category_id) VALUES
+  ('e1a00000-4446-4000-8000-000000000001', 'e1a00000-2222-4000-8000-000000000012');
+INSERT INTO public.post_categories (post_id, category_id)
+SELECT ('e1a00000-4446-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'e1a00000-2222-4000-8000-000000000013'::uuid
+  FROM generate_series(2, 4) AS g
+UNION ALL
+SELECT ('e1a00000-4447-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'e1a00000-2222-4000-8000-000000000013'::uuid
+  FROM generate_series(1, 6) AS g;
+
+-- Gałąź tagów ma WŁASNE kopie filtrów, więc fikstura jest lustrem kategorii:
+-- szkic, wpis usunięty i wpis b1 najemcy B niosą kotwicę, ścisły i hub
+-- naraz. Każdy z nich, wpuszczony przez zgubiony warunek, zmienia n_kotwicy,
+-- shared albo n_kandydata - a to łapią dokładne wyniki poniżej.
 INSERT INTO public.post_tags (post_id, tag_id) VALUES
-  -- kotwica tagów: p1, p2 (+ szkic i wpis najemcy B, które nie mogą się liczyć)
+  -- kotwica tagów: p1, p2 (n = 2; szkic, usunięty i b1 nie mogą się liczyć)
   ('e1a00000-4444-4000-8000-000000000001', 'e1a00000-3333-4000-8000-000000000001'),
   ('e1a00000-4444-4000-8000-000000000002', 'e1a00000-3333-4000-8000-000000000001'),
   ('e1a00000-4444-4000-8000-000000000005', 'e1a00000-3333-4000-8000-000000000001'),
+  ('e1a00000-4444-4000-8000-000000000006', 'e1a00000-3333-4000-8000-000000000001'),
   ('e1b00000-4444-4000-8000-000000000001', 'e1a00000-3333-4000-8000-000000000001'),
-  -- hub tagów: p1, p2, h01..h17 (dopisane niżej)
+  -- hub tagów: p1, p2, h01..h17 (n = 19, h dopisane niżej) + szkic, usunięty, b1
   ('e1a00000-4444-4000-8000-000000000001', 'e1a00000-3333-4000-8000-000000000002'),
   ('e1a00000-4444-4000-8000-000000000002', 'e1a00000-3333-4000-8000-000000000002'),
-  -- ścisły: tylko p1
+  ('e1a00000-4444-4000-8000-000000000005', 'e1a00000-3333-4000-8000-000000000002'),
+  ('e1a00000-4444-4000-8000-000000000006', 'e1a00000-3333-4000-8000-000000000002'),
+  ('e1b00000-4444-4000-8000-000000000001', 'e1a00000-3333-4000-8000-000000000002'),
+  -- ścisły: p1 (n = 1) + szkic, usunięty, b1
   ('e1a00000-4444-4000-8000-000000000001', 'e1a00000-3333-4000-8000-000000000003'),
+  ('e1a00000-4444-4000-8000-000000000005', 'e1a00000-3333-4000-8000-000000000003'),
+  ('e1a00000-4444-4000-8000-000000000006', 'e1a00000-3333-4000-8000-000000000003'),
+  ('e1b00000-4444-4000-8000-000000000001', 'e1a00000-3333-4000-8000-000000000003'),
   -- tylko szkic
-  ('e1a00000-4444-4000-8000-000000000005', 'e1a00000-3333-4000-8000-000000000004');
+  ('e1a00000-4444-4000-8000-000000000005', 'e1a00000-3333-4000-8000-000000000004'),
+  -- tag najemcy B: na NASZYM wpisie p1 (przez granicę najemców) i na b1;
+  -- partner B tylko na b1 (jedyny poprawny wynik na hoście B)
+  ('e1a00000-4444-4000-8000-000000000001', 'e1b00000-3333-4000-8000-000000000001'),
+  ('e1b00000-4444-4000-8000-000000000001', 'e1b00000-3333-4000-8000-000000000001'),
+  ('e1b00000-4444-4000-8000-000000000001', 'e1b00000-3333-4000-8000-000000000002');
 
 INSERT INTO public.post_tags (post_id, tag_id)
 SELECT ('e1a00000-4445-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'e1a00000-3333-4000-8000-000000000002'::uuid
@@ -230,7 +292,7 @@ SELECT is(
      FROM public.related_taxonomies('category', 'e1a00000-2222-4000-8000-000000000001', 12)
     WHERE slug = 'rel-klimat'),
   round((2 / sqrt(4 * 2)::double precision)::numeric, 9) || '|2',
-  'Klimat: 2 / sqrt(4 * 2) - szkic nie zawyża ani n_E, ani shared, ani n_K'
+  'Klimat: 2 / sqrt(4 * 2) - szkic ani wpis usunięty nie zawyżają ani n_E, ani shared, ani n_K'
 );
 SELECT is(
   (SELECT round(score::numeric, 9) || '|' || shared_posts
@@ -246,6 +308,20 @@ SELECT is(
     WHERE r.slug IN ('rel-migracje', 'rel-finanse', 'rel-gospodarka')),
   ARRAY[0.5, 0.5, 0.5]::double precision[],
   'remis wyniku 0.5 (2/sqrt(16) i 1/sqrt(4)) - rozstrzyga shared, potem nazwa'
+);
+SELECT is(
+  (SELECT array_agg(r.slug ORDER BY r.ord)
+     FROM public.related_taxonomies('category', 'e1a00000-2222-4000-8000-000000000011', 12)
+          WITH ORDINALITY AS r(id, slug, name_pl, name_en, shared_posts, score, ord)),
+  ARRAY['rel-remis-b', 'rel-remis-a'],
+  'remis niereprezentowalny w float8 (1/sqrt(6*1) = 3/sqrt(6*9)): wyżej więcej wspólnych wpisów, wbrew nazwie'
+);
+SELECT ok(
+  (SELECT a.score = b.score
+     FROM public.related_taxonomies('category', 'e1a00000-2222-4000-8000-000000000011', 12) a,
+          public.related_taxonomies('category', 'e1a00000-2222-4000-8000-000000000011', 12) b
+    WHERE a.slug = 'rel-remis-a' AND b.slug = 'rel-remis-b'),
+  'równe kosinusy dają BITOWO równy score - ORDER BY nie sortuje po szumie zaokrągleń'
 );
 SELECT is(
   (SELECT count(*)::int
@@ -294,6 +370,23 @@ SELECT is(
   'tagi: ścisły (1/sqrt(2)) nad hubem (2/sqrt(2*19)), tag tylko ze szkicu pominięty'
 );
 SELECT is(
+  (SELECT array_agg(r.slug || '|' || round(r.score::numeric, 9) ORDER BY r.ord)
+     FROM public.related_taxonomies('tag', 'e1a00000-3333-4000-8000-000000000001', 12)
+          WITH ORDINALITY AS r(id, slug, name_pl, name_en, shared_posts, score, ord)),
+  ARRAY[
+    'rel-tag-tight|' || round((1 / sqrt(2 * 1)::double precision)::numeric, 9),
+    'rel-tag-hub|' || round((2 / sqrt(2 * 19)::double precision)::numeric, 9)
+  ],
+  'tagi, dokładne wyniki: szkic, wpis usunięty i wpis najemcy B nie zawyżają ani n_kotwicy, ani shared, ani n_kandydata'
+);
+SELECT is(
+  (SELECT count(*)::int
+     FROM public.related_taxonomies('tag', 'e1a00000-3333-4000-8000-000000000001', 12)
+    WHERE slug IN ('rel-b-tag', 'rel-b-tag-partner')),
+  0,
+  'tag najemcy B podpięty pod wpis najemcy A nie przecieka'
+);
+SELECT is(
   (SELECT name_pl || '|' || name_en
      FROM public.related_taxonomies('tag', 'e1a00000-3333-4000-8000-000000000001', 12)
     WHERE slug = 'rel-tag-tight'),
@@ -313,6 +406,16 @@ SELECT is(
   (SELECT count(*)::int FROM public.related_taxonomies('tag', 'e1a00000-2222-4000-8000-000000000001', 12)),
   0,
   'identyfikator kategorii podany jako tag -> pusto (rodzaje się nie mieszają)'
+);
+SELECT is(
+  (SELECT count(*)::int FROM public.related_taxonomies('category', 'e1a00000-3333-4000-8000-000000000001', 12)),
+  0,
+  'identyfikator tagu podany jako kategoria -> pusto (gałąź tagów ma własną bramkę _kind)'
+);
+SELECT is(
+  (SELECT count(*)::int FROM public.related_taxonomies('tags', 'e1a00000-3333-4000-8000-000000000001', 12)),
+  0,
+  'nieznany _kind przy identyfikatorze tagu -> pusto'
 );
 SELECT is(
   (SELECT count(*)::int FROM public.related_taxonomies('category', NULL, 12)),
@@ -354,6 +457,16 @@ SELECT is(
   (SELECT array_agg(slug) FROM public.related_taxonomies('category', 'e1b00000-2222-4000-8000-000000000002', 12)),
   ARRAY['rel-b-partner'],
   'host B dostaje wyłącznie dorobek najemcy B'
+);
+SELECT is(
+  (SELECT count(*)::int FROM public.related_taxonomies('tag', 'e1a00000-3333-4000-8000-000000000001', 12)),
+  0,
+  'host B nie dostaje rekomendacji dla tagu najemcy A'
+);
+SELECT is(
+  (SELECT array_agg(slug) FROM public.related_taxonomies('tag', 'e1b00000-3333-4000-8000-000000000001', 12)),
+  ARRAY['rel-b-tag-partner'],
+  'host B dla własnego tagu dostaje tylko tagi B - tagi A z wpisu b1 i wpis A z tagiem B nie wchodzą'
 );
 
 RESET ROLE;
