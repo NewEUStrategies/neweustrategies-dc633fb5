@@ -17,16 +17,22 @@ import {
 } from "@/components/ui/select";
 import { Upload, Trash2, Search, Plus, Tags, LayoutGrid, Shapes } from "@/lib/lucide-shim";
 import { UploadArea } from "@/components/ui/upload-area";
-import { useRequiredTenant } from "@/hooks/useAuth";
+import { useServerFn } from "@tanstack/react-start";
+import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
+import { bulkDeleteMedia, registerMediaUpload } from "@/lib/media.functions";
 import {
   listIcons,
   upsertIcon,
   deleteIcon,
   uploadIconAsset,
   bulkImportIcons,
+  checkIconFile,
+  discardIconAssets,
   slugifyIconName,
+  ICON_ACCEPT_ATTR,
   type IconKind,
   type IconRow,
+  type IconUploadContext,
   type IconVariant,
 } from "@/lib/iconLibrary";
 
@@ -122,7 +128,7 @@ function IconsAdmin() {
       </div>
 
       <NewIconForm kind={kind} tenantId={tenantId} onCreated={refresh} />
-      <BulkUpload kind={kind} tenantId={tenantId} onDone={refresh} />
+      <BulkUpload kind={kind} onDone={refresh} />
 
       <div className="space-y-3">
         <div className="flex items-center gap-2">
@@ -248,17 +254,25 @@ function NewIconForm({
   );
 }
 
-function BulkUpload({
-  kind,
-  tenantId,
-  onDone,
-}: {
-  kind: IconKind;
-  tenantId: string;
-  onDone: () => void;
-}) {
+/**
+ * Zależności wspólnej ścieżki mediów dla uploadu ikon. `null`, dopóki nie ma
+ * zalogowanego użytkownika - ścieżka storage zawiera jego identyfikator.
+ */
+function useIconUploadContext(): IconUploadContext | null {
+  const tenantId = useRequiredTenant();
+  const { user } = useAuth();
+  const registerMedia = useServerFn(registerMediaUpload);
+  const removeMedia = useServerFn(bulkDeleteMedia);
+  return useMemo(
+    () => (user ? { tenantId, userId: user.id, registerMedia, removeMedia } : null),
+    [tenantId, user, registerMedia, removeMedia],
+  );
+}
+
+function BulkUpload({ kind, onDone }: { kind: IconKind; onDone: () => void }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const uploadCtx = useIconUploadContext();
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{
     index: number;
@@ -272,6 +286,10 @@ function BulkUpload({
 
   const handle = async (files: File[] | null) => {
     if (!files || files.length === 0) return;
+    if (!uploadCtx) {
+      toast.error(t("admin.icons.errors.notSignedIn"));
+      return;
+    }
     setBusy(true);
     setLog([]);
     setProgress({ index: 0, total: 0, base: "", status: "uploading" });
@@ -280,7 +298,7 @@ function BulkUpload({
       const existing = await listIcons(kind);
       const existingNames = new Set(existing.map((r) => r.name));
 
-      const res = await bulkImportIcons(tenantId, kind, Array.from(files), {
+      const res = await bulkImportIcons(uploadCtx, kind, Array.from(files), {
         existingNames,
         onProgress: (p) => {
           setProgress({ index: p.index, total: p.total, base: p.base, status: p.status });
@@ -323,9 +341,16 @@ function BulkUpload({
         busyLabel={t("admin.icons.bulk.uploading")}
         busy={busy}
         icons={[Shapes, Upload, LayoutGrid]}
-        accept="image/*"
+        accept={ICON_ACCEPT_ATTR}
         multiple
         onFiles={(files) => void handle(files)}
+        onRejectedFiles={(files) =>
+          toast.error(
+            t("admin.icons.errors.unsupportedFiles", {
+              names: files.map((f) => f.name).join(", "),
+            }),
+          )
+        }
       />
 
       {progress && (
@@ -382,7 +407,8 @@ const IconCard = memo(function IconCard({
   const [variant, setVariant] = useState<IconVariant>(row.default_variant);
   const [saving, setSaving] = useState(false);
 
-  const save = async (overrides: Partial<IconRow> = {}) => {
+  /** `true`, gdy wiersz ikony zapisał się - VariantSlot sprząta plik po porażce. */
+  const save = async (overrides: Partial<IconRow> = {}): Promise<boolean> => {
     setSaving(true);
     try {
       await upsertIcon(tenantId, {
@@ -397,8 +423,10 @@ const IconCard = memo(function IconCard({
         position: row.position,
       });
       onChanged();
+      return true;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -443,23 +471,26 @@ const IconCard = memo(function IconCard({
         <VariantSlot
           label={t("admin.icons.variants.default")}
           value={row.url_default}
+          kind={row.kind}
           mode="auto"
-          onUpload={async (url) => save({ url_default: url })}
-          onClear={() => save({ url_default: "" })}
+          onUpload={(url) => save({ url_default: url })}
+          onClear={() => void save({ url_default: "" })}
         />
         <VariantSlot
           label={t("admin.icons.variants.light")}
           value={row.url_light}
+          kind={row.kind}
           mode="light"
-          onUpload={async (url) => save({ url_light: url })}
-          onClear={() => save({ url_light: "" })}
+          onUpload={(url) => save({ url_light: url })}
+          onClear={() => void save({ url_light: "" })}
         />
         <VariantSlot
           label={t("admin.icons.variants.dark")}
           value={row.url_dark}
+          kind={row.kind}
           mode="dark"
-          onUpload={async (url) => save({ url_dark: url })}
-          onClear={() => save({ url_dark: "" })}
+          onUpload={(url) => save({ url_dark: url })}
+          onClear={() => void save({ url_dark: "" })}
         />
       </div>
 
@@ -507,26 +538,43 @@ const IconCard = memo(function IconCard({
 function VariantSlot({
   label,
   value,
+  kind,
   mode,
   onUpload,
   onClear,
 }: {
   label: string;
   value: string;
+  kind: IconKind;
   mode: "auto" | "light" | "dark";
-  onUpload: (url: string) => Promise<void>;
+  /** Zapis wiersza ikony; `false` = wiersz nie przyjął adresu. */
+  onUpload: (url: string) => Promise<boolean>;
   onClear: () => void;
 }) {
-  const tenantId = useRequiredTenant();
+  const { t } = useTranslation();
+  const uploadCtx = useIconUploadContext();
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
   const handle = async (f: File | null | undefined) => {
     if (!f) return;
+    if (!uploadCtx) {
+      toast.error(t("admin.icons.errors.notSignedIn"));
+      return;
+    }
+    if (checkIconFile(f)) {
+      toast.error(t("admin.icons.errors.unsupportedFiles", { names: f.name }));
+      if (ref.current) ref.current.value = "";
+      return;
+    }
     setBusy(true);
     try {
-      const url = await uploadIconAsset(tenantId, "custom", f);
-      await onUpload(url);
+      // Rodzaj z wiersza, nie stała "custom": flagi i logotypy lądowały
+      // dotąd w katalogu własnych ikon.
+      const uploaded = await uploadIconAsset(uploadCtx, kind, f);
+      const saved = await onUpload(uploaded.url);
+      // Wariant, którego wiersz ikony nie przyjął, byłby sierotą w bibliotece.
+      if (!saved) await discardIconAssets(uploadCtx, [uploaded.mediaId]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Error");
     } finally {
@@ -562,7 +610,7 @@ function VariantSlot({
       <input
         ref={ref}
         type="file"
-        accept="image/*"
+        accept={ICON_ACCEPT_ATTR}
         className="hidden"
         onChange={(e) => handle(e.target.files?.[0])}
       />

@@ -8,11 +8,18 @@
 //     wariantów jednej, albo sklei różne ikony w jedną.
 //   * `bulkImportIcons` - import masowy. Jedna zła ikona nie może przewrócić
 //     całej partii, a duplikat nie może nadpisać istniejącego wpisu.
+//
+// Od wydania 12 upload ikony idzie WSPÓLNĄ ścieżką mediów
+// (`uploadAndRegisterMedia`): walidacja przed wysłaniem, rejestracja w tabeli
+// `media`, sprzątnięcie storage przy odrzuconej rejestracji. Atrapa storage
+// odwzorowuje więc także `remove`, a kontekst uploadu niesie atrapy server fn
+// `registerMediaUpload` i `bulkDeleteMedia`.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ok, fail, type SupabaseFromStub } from "@/test/supabaseChain";
 
 const h = vi.hoisted(() => ({
   uploads: [] as Array<{ path: string; contentType?: string; cacheControl?: string }>,
+  removed: [] as string[][],
   uploadError: null as { message: string } | null,
   failUploadsFor: null as RegExp | null,
 }));
@@ -43,7 +50,15 @@ vi.mock("@/integrations/supabase/client", async () => {
             });
             return { error: h.uploadError };
           },
-          getPublicUrl: (path: string) => ({ data: { publicUrl: `https://cdn.example/${path}` } }),
+          getPublicUrl: (path: string) => ({
+            data: {
+              publicUrl: `https://project.supabase.co/storage/v1/object/public/media/${path}`,
+            },
+          }),
+          remove: async (paths: string[]) => {
+            h.removed.push(paths);
+            return { error: null };
+          },
         }),
       },
     },
@@ -58,10 +73,42 @@ import {
   slugifyIconName,
   upsertIcon,
   uploadIconAsset,
+  ICON_ACCEPT_ATTR,
   type IconRow,
+  type IconUploadContext,
 } from "@/lib/iconLibrary";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
+const USER = "22222222-2222-4222-8222-222222222222";
+
+const reg = vi.hoisted(() => ({
+  calls: [] as Array<{
+    storagePath: string;
+    filename: string;
+    mimeType: string;
+    publicUrl: string;
+  }>,
+  failFor: null as RegExp | null,
+  removeCalls: [] as string[][],
+}));
+
+/** Kontekst uploadu z atrapami server fn `registerMediaUpload` i `bulkDeleteMedia`. */
+function ctx(): IconUploadContext {
+  return {
+    tenantId: TENANT,
+    userId: USER,
+    registerMedia: async ({ data }) => {
+      if (reg.failFor?.test(data.filename))
+        throw new Error(`rejestracja odrzucona: ${data.filename}`);
+      reg.calls.push(data);
+      return { id: `media-${data.filename}` };
+    },
+    removeMedia: async ({ data }) => {
+      reg.removeCalls.push(data.mediaIds);
+      return { ok: true };
+    },
+  };
+}
 
 function stub() {
   const s = stubs.from;
@@ -69,8 +116,8 @@ function stub() {
   return s;
 }
 
-function iconFile(name: string): File {
-  return new File(["<svg/>"], name, { type: "image/svg+xml" });
+function iconFile(name: string, type = "image/png"): File {
+  return new File(["png"], name, { type });
 }
 
 function row(overrides: Partial<IconRow> = {}): IconRow {
@@ -94,8 +141,12 @@ function row(overrides: Partial<IconRow> = {}): IconRow {
 beforeEach(() => {
   stub().reset();
   h.uploads.length = 0;
+  h.removed.length = 0;
   h.uploadError = null;
   h.failUploadsFor = null;
+  reg.calls.length = 0;
+  reg.removeCalls.length = 0;
+  reg.failFor = null;
   vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
   vi.spyOn(Math, "random").mockReturnValue(0.5);
 });
@@ -262,43 +313,81 @@ describe("deleteIcon", () => {
 // Wysyłka pliku ikony
 // ---------------------------------------------------------------------------
 
-describe("uploadIconAsset", () => {
-  it("układa ścieżkę pod prefiksem tenanta i rodzaju", async () => {
-    const url = await uploadIconAsset(TENANT, "flag", iconFile("PL.SVG"));
-    expect(h.uploads[0].path.startsWith(`${TENANT}/icons/flag/`)).toBe(true);
-    expect(h.uploads[0].path.endsWith(".svg")).toBe(true);
-    expect(url).toContain(`https://cdn.example/${TENANT}/icons/flag/`);
-  });
-
-  it("GRANICA: plik BEZ kropki bierze całą nazwę jako rozszerzenie", async () => {
-    // `"logo".split(".").pop()` oddaje "logo", nie undefined, więc fallback
-    // "png" się NIE włącza i obiekt ląduje w buckecie jako `...-abc.logo`.
-    // Pin na stan dzisiejszy: adres pozostaje poprawny i unikalny, ale
-    // rozszerzenie jest bez sensu - zmiana wymaga osobnej decyzji.
-    await uploadIconAsset(TENANT, "brand", iconFile("logo"));
-    expect(h.uploads[0].path.endsWith(".logo")).toBe(true);
-  });
-
-  it("fallback png włącza się dla nazwy KOŃCZĄCEJ SIĘ kropką", async () => {
-    await uploadIconAsset(TENANT, "brand", iconFile("logo."));
+describe("uploadIconAsset - wspólna ścieżka mediów", () => {
+  it("układa ścieżkę pod prefiksem tenanta, użytkownika i rodzaju", async () => {
+    await uploadIconAsset(ctx(), "flag", iconFile("PL.PNG"));
+    expect(h.uploads[0].path.startsWith(`${TENANT}/${USER}/icons/flag/`)).toBe(true);
     expect(h.uploads[0].path.endsWith(".png")).toBe(true);
   });
 
+  it("REJESTRUJE plik w tabeli media - ikona jest widoczna i usuwalna w bibliotece", async () => {
+    // Wcześniej plik ikony istniał wyłącznie w storage: bez wiersza `media`
+    // nie było go w bibliotece, w audycie ani w żadnej ścieżce usuwania.
+    const out = await uploadIconAsset(ctx(), "brand", iconFile("acme.png"));
+    expect(reg.calls).toHaveLength(1);
+    expect(reg.calls[0]).toMatchObject({
+      storagePath: h.uploads[0].path,
+      filename: "acme.png",
+      mimeType: "image/png",
+    });
+    expect(out.mediaId).toBe("media-acme.png");
+  });
+
+  it("oddaje adres MARKOWY, ten sam, który trafia do wiersza media", async () => {
+    const out = await uploadIconAsset(ctx(), "brand", iconFile("acme.png"));
+    expect(out.url).toContain(`/media/${TENANT}/${USER}/icons/brand/`);
+    expect(out.url).not.toContain("/storage/v1/");
+    expect(reg.calls[0].publicUrl).toBe(out.url);
+  });
+
+  it("plik BEZ kropki dostaje neutralne `.bin`, nie nazwę pliku jako rozszerzenie", async () => {
+    // Stara ścieżka (`split(".").pop()`) robiła z „logo" rozszerzenie `.logo`.
+    // Wspólna ścieżka ma jedną, przetestowaną regułę rozszerzenia.
+    await uploadIconAsset(ctx(), "brand", iconFile("logo"));
+    expect(h.uploads[0].path.endsWith(".bin")).toBe(true);
+  });
+
   it("sprowadza rozszerzenie do małych liter", async () => {
-    await uploadIconAsset(TENANT, "flag", iconFile("PL.SVG"));
-    expect(h.uploads[0].path.endsWith(".svg")).toBe(true);
+    await uploadIconAsset(ctx(), "flag", iconFile("PL.PNG"));
+    expect(h.uploads[0].path.endsWith(".png")).toBe(true);
   });
 
   it("ustawia długi cache - ikony są niezmienne pod swoim adresem", async () => {
-    await uploadIconAsset(TENANT, "brand", iconFile("a.svg"));
+    await uploadIconAsset(ctx(), "brand", iconFile("a.png"));
     expect(h.uploads[0].cacheControl).toBe("31536000");
   });
 
+  it("SVG jest odrzucany PRZED wysłaniem bajtów", async () => {
+    // Bucket `media` jest publiczny i serwuje bajty wprost - SVG z `<script>`
+    // to stored XSS. Pole `accept="image/*"` dotąd do tego zapraszało.
+    await expect(
+      uploadIconAsset(ctx(), "brand", iconFile("logo.svg", "image/svg+xml")),
+    ).rejects.toThrow("Disallowed mime type: image/svg+xml");
+    expect(h.uploads).toHaveLength(0);
+    expect(reg.calls).toHaveLength(0);
+  });
+
+  it("odrzucona rejestracja KASUJE obiekt ze storage", async () => {
+    reg.failFor = /a\.png/;
+    await expect(uploadIconAsset(ctx(), "brand", iconFile("a.png"))).rejects.toThrow(
+      "rejestracja odrzucona: a.png",
+    );
+    expect(h.removed).toEqual([[h.uploads[0].path]]);
+  });
+
   it("błąd wysyłki wychodzi na wierzch", async () => {
-    h.failUploadsFor = /a\.svg/;
-    await expect(uploadIconAsset(TENANT, "brand", iconFile("a.svg"))).rejects.toMatchObject({
-      message: "odrzucony: a.svg",
+    h.failUploadsFor = /a\.png/;
+    await expect(uploadIconAsset(ctx(), "brand", iconFile("a.png"))).rejects.toMatchObject({
+      message: "odrzucony: a.png",
     });
+  });
+
+  it("atrybut accept to jawna lista rastrów - bez wildcardu i bez SVG", () => {
+    expect(ICON_ACCEPT_ATTR).not.toContain("image/*");
+    expect(ICON_ACCEPT_ATTR).not.toContain("svg");
+    expect(ICON_ACCEPT_ATTR.split(",")).toEqual(
+      expect.arrayContaining(["image/png", "image/webp", "image/jpeg"]),
+    );
   });
 });
 
@@ -309,7 +398,7 @@ describe("uploadIconAsset", () => {
 describe("bulkImportIcons - odczyt nazwy pliku", () => {
   async function importOne(filename: string) {
     stub().setResponse("icon_library", ok(null));
-    const result = await bulkImportIcons(TENANT, "brand", [iconFile(filename)]);
+    const result = await bulkImportIcons(ctx(), "brand", [iconFile(filename)]);
     return {
       result,
       payload: stub().lastChain("icon_library")?.argsOf("upsert")?.[0] as Record<string, unknown>,
@@ -317,52 +406,52 @@ describe("bulkImportIcons - odczyt nazwy pliku", () => {
   }
 
   it("zwykła nazwa daje wariant domyślny", async () => {
-    const { payload } = await importOne("acme.svg");
+    const { payload } = await importOne("acme.png");
     expect(payload).toMatchObject({ name: "acme", url_default: expect.stringContaining("http") });
     expect(payload.url_light).toBe("");
     expect(payload.url_dark).toBe("");
   });
 
   it("sufiks -dark daje wariant ciemny pod TĄ SAMĄ nazwą", async () => {
-    const { payload } = await importOne("acme-dark.svg");
+    const { payload } = await importOne("acme-dark.png");
     expect(payload.name).toBe("acme");
     expect(payload.url_dark).toContain("http");
     expect(payload.url_default).toBe("");
   });
 
   it("sufiks -light daje wariant jasny", async () => {
-    const { payload } = await importOne("acme-light.svg");
+    const { payload } = await importOne("acme-light.png");
     expect(payload.name).toBe("acme");
     expect(payload.url_light).toContain("http");
   });
 
   it("sufiks jest rozpoznawany PO slugifikacji - spacje i wielkie litery też", async () => {
     // „Acme Logo DARK.svg” to ta sama ikona co „acme-logo-dark.svg”.
-    const { payload } = await importOne("Acme Logo DARK.svg");
+    const { payload } = await importOne("Acme Logo DARK.png");
     expect(payload.name).toBe("acme-logo");
     expect(payload.url_dark).toContain("http");
   });
 
   it("znaki diakrytyczne w nazwie pliku nie tworzą osobnej ikony", async () => {
-    const { payload } = await importOne("Gdańsk.svg");
+    const { payload } = await importOne("Gdańsk.png");
     expect(payload.name).toBe("gdansk");
   });
 
   it("sufiks W ŚRODKU nazwy NIE jest wariantem", async () => {
     // „dark-mode-icon” to nazwa ikony, nie wariant ciemny ikony „mode-icon”.
-    const { payload } = await importOne("dark-mode-icon.svg");
+    const { payload } = await importOne("dark-mode-icon.png");
     expect(payload.name).toBe("dark-mode-icon");
     expect(payload.url_default).toContain("http");
     expect(payload.url_dark).toBe("");
   });
 
   it("wielokropek w nazwie ucina tylko OSTATNIE rozszerzenie", async () => {
-    const { payload } = await importOne("acme.logo.v2.svg");
+    const { payload } = await importOne("acme.logo.v2.png");
     expect(payload.name).toBe("acme-logo-v2");
   });
 
   it("plik o nazwie bez znaków alfanumerycznych jest POMIJANY", async () => {
-    const { result } = await importOne("***.svg");
+    const { result } = await importOne("***.png");
     expect(result).toMatchObject({ created: 0, skipped: 0, errors: [] });
   });
 });
@@ -370,10 +459,10 @@ describe("bulkImportIcons - odczyt nazwy pliku", () => {
 describe("bulkImportIcons - grupowanie i przebieg", () => {
   it("łączy trzy warianty tej samej ikony w JEDEN wpis", async () => {
     stub().setResponse("icon_library", ok(null));
-    const result = await bulkImportIcons(TENANT, "brand", [
-      iconFile("acme.svg"),
-      iconFile("acme-light.svg"),
-      iconFile("acme-dark.svg"),
+    const result = await bulkImportIcons(ctx(), "brand", [
+      iconFile("acme.png"),
+      iconFile("acme-light.png"),
+      iconFile("acme-dark.png"),
     ]);
 
     expect(result.created).toBe(1);
@@ -389,9 +478,9 @@ describe("bulkImportIcons - grupowanie i przebieg", () => {
 
   it("różne ikony trafiają do osobnych wpisów", async () => {
     stub().setResponse("icon_library", ok(null));
-    const result = await bulkImportIcons(TENANT, "brand", [
-      iconFile("acme.svg"),
-      iconFile("beta.svg"),
+    const result = await bulkImportIcons(ctx(), "brand", [
+      iconFile("acme.png"),
+      iconFile("beta.png"),
     ]);
     expect(result.created).toBe(2);
     expect(stub().chainsFor("icon_library")).toHaveLength(2);
@@ -402,7 +491,7 @@ describe("bulkImportIcons - grupowanie i przebieg", () => {
     // i podpiął w treści.
     stub().setResponse("icon_library", ok(null));
     const existing = new Set(["acme"]);
-    const result = await bulkImportIcons(TENANT, "brand", [iconFile("acme.svg")], {
+    const result = await bulkImportIcons(ctx(), "brand", [iconFile("acme.png")], {
       existingNames: existing,
     });
 
@@ -415,8 +504,8 @@ describe("bulkImportIcons - grupowanie i przebieg", () => {
     // o tej samej nazwie w tej samej partii nie nadpisze pierwszej.
     stub().setResponse("icon_library", ok(null));
     const existing = new Set<string>();
-    await bulkImportIcons(TENANT, "brand", [iconFile("acme.svg")], { existingNames: existing });
-    const second = await bulkImportIcons(TENANT, "brand", [iconFile("acme.svg")], {
+    await bulkImportIcons(ctx(), "brand", [iconFile("acme.png")], { existingNames: existing });
+    const second = await bulkImportIcons(ctx(), "brand", [iconFile("acme.png")], {
       existingNames: existing,
     });
     expect(second).toMatchObject({ created: 0, skipped: 1 });
@@ -427,10 +516,10 @@ describe("bulkImportIcons - grupowanie i przebieg", () => {
     // kosztować redaktora całej pracy.
     h.failUploadsFor = /zla/;
     stub().setResponse("icon_library", ok(null));
-    const result = await bulkImportIcons(TENANT, "brand", [
-      iconFile("dobra.svg"),
-      iconFile("zla.svg"),
-      iconFile("druga-dobra.svg"),
+    const result = await bulkImportIcons(ctx(), "brand", [
+      iconFile("dobra.png"),
+      iconFile("zla.png"),
+      iconFile("druga-dobra.png"),
     ]);
 
     expect(result.created).toBe(2);
@@ -444,7 +533,7 @@ describe("bulkImportIcons - grupowanie i przebieg", () => {
       call += 1;
       return call === 1 ? fail("konflikt") : ok(null);
     });
-    const result = await bulkImportIcons(TENANT, "brand", [iconFile("a.svg"), iconFile("b.svg")]);
+    const result = await bulkImportIcons(ctx(), "brand", [iconFile("a.png"), iconFile("b.png")]);
 
     expect(result.created).toBe(1);
     expect(result.errors).toHaveLength(1);
@@ -453,7 +542,7 @@ describe("bulkImportIcons - grupowanie i przebieg", () => {
   it("raportuje POSTĘP na każdą grupę, z indeksem i sumą", async () => {
     stub().setResponse("icon_library", ok(null));
     const progress: Array<{ index: number; total: number; base: string; status: string }> = [];
-    await bulkImportIcons(TENANT, "brand", [iconFile("a.svg"), iconFile("b.svg")], {
+    await bulkImportIcons(ctx(), "brand", [iconFile("a.png"), iconFile("b.png")], {
       onProgress: (p) => progress.push(p),
     });
 
@@ -466,7 +555,7 @@ describe("bulkImportIcons - grupowanie i przebieg", () => {
     h.failUploadsFor = /zla/;
     stub().setResponse("icon_library", ok(null));
     const progress: Array<{ status: string; message?: string }> = [];
-    await bulkImportIcons(TENANT, "brand", [iconFile("acme.svg"), iconFile("zla.svg")], {
+    await bulkImportIcons(ctx(), "brand", [iconFile("acme.png"), iconFile("zla.png")], {
       existingNames: new Set(["acme"]),
       onProgress: (p) => progress.push(p),
     });
@@ -476,12 +565,94 @@ describe("bulkImportIcons - grupowanie i przebieg", () => {
   });
 
   it("pusta lista plików daje pusty raport", async () => {
-    expect(await bulkImportIcons(TENANT, "brand", [])).toEqual({
+    expect(await bulkImportIcons(ctx(), "brand", [])).toEqual({
       created: 0,
       updated: 0,
       skipped: 0,
       errors: [],
     });
+  });
+});
+
+describe("bulkImportIcons - domknięcie zapisu wariantów", () => {
+  // Wariant wgrany, ale nieprzypięty do wiersza ikony, jest SIEROTĄ: zajmuje
+  // bibliotekę mediów i nikt o nim nie wie. Każda ścieżka porażki po udanym
+  // uploadzie musi więc skasować to, co zdążyło wejść.
+
+  it("grupa z SVG jest odrzucana w CAŁOŚCI, zanim poleci pierwszy bajt", async () => {
+    stub().setResponse("icon_library", ok(null));
+    const result = await bulkImportIcons(ctx(), "brand", [
+      iconFile("acme.png"),
+      iconFile("acme-dark.svg", "image/svg+xml"),
+    ]);
+
+    expect(result.created).toBe(0);
+    expect(result.errors).toEqual([
+      { file: "acme", message: "acme-dark.svg: nieobsługiwany format (image/svg+xml)" },
+    ]);
+    expect(h.uploads).toHaveLength(0);
+    expect(stub().chainsFor("icon_library")).toHaveLength(0);
+  });
+
+  it("porażka JEDNEGO wariantu kasuje warianty, które zdążyły się wgrać", async () => {
+    h.failUploadsFor = /acme-dark/;
+    stub().setResponse("icon_library", ok(null));
+    const result = await bulkImportIcons(ctx(), "brand", [
+      iconFile("acme.png"),
+      iconFile("acme-light.png"),
+      iconFile("acme-dark.png"),
+    ]);
+
+    expect(result.errors).toEqual([{ file: "acme", message: "odrzucony: acme-dark.png" }]);
+    expect(stub().chainsFor("icon_library")).toHaveLength(0);
+    expect(reg.removeCalls).toHaveLength(1);
+    expect([...reg.removeCalls[0]].sort()).toEqual(["media-acme-light.png", "media-acme.png"]);
+  });
+
+  it("odrzucony zapis wiersza ikony kasuje WSZYSTKIE jej wgrane warianty", async () => {
+    stub().setResponse("icon_library", fail("konflikt"));
+    const result = await bulkImportIcons(ctx(), "brand", [
+      iconFile("acme.png"),
+      iconFile("acme-dark.png"),
+    ]);
+
+    expect(result.errors).toHaveLength(1);
+    expect([...reg.removeCalls[0]].sort()).toEqual(["media-acme-dark.png", "media-acme.png"]);
+  });
+
+  it("udany import NICZEGO nie kasuje", async () => {
+    stub().setResponse("icon_library", ok(null));
+    await bulkImportIcons(ctx(), "brand", [iconFile("acme.png"), iconFile("acme-dark.png")]);
+    expect(reg.removeCalls).toHaveLength(0);
+  });
+
+  it("błąd sprzątania nie przykrywa pierwotnej przyczyny porażki", async () => {
+    stub().setResponse("icon_library", fail("konflikt"));
+    const failingCleanup: IconUploadContext = {
+      ...ctx(),
+      removeMedia: async () => {
+        throw new Error("sprzątanie padło");
+      },
+    };
+    const result = await bulkImportIcons(failingCleanup, "brand", [iconFile("acme.png")]);
+    expect(result.errors).toEqual([{ file: "acme", message: "konflikt" }]);
+  });
+
+  it("wiersz ikony dostaje adresy z rejestracji, po wariancie", async () => {
+    // Unikalny sufiks ścieżki: atrapa `Math.random` jest stała w beforeEach,
+    // więc bez tego oba warianty dostałyby ten sam klucz obiektu.
+    vi.spyOn(Math, "random").mockReturnValueOnce(0.1).mockReturnValueOnce(0.2);
+    stub().setResponse("icon_library", ok(null));
+    await bulkImportIcons(ctx(), "flag", [iconFile("pl-dark.png"), iconFile("pl.png")]);
+    const payload = stub().lastChain("icon_library")?.argsOf("upsert")?.[0] as Record<
+      string,
+      string
+    >;
+    expect(payload.url_dark).toContain(`/icons/flag/`);
+    expect(payload.url_default).toContain(`/icons/flag/`);
+    expect(payload.url_dark).not.toBe(payload.url_default);
+    expect(payload.url_light).toBe("");
+    expect(payload.tenant_id).toBe(TENANT);
   });
 });
 

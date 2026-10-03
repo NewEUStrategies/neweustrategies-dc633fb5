@@ -547,7 +547,7 @@ export const pl = {
       },
       bulk: {
         title: "Import hurtem",
-        hint: "Przeciągnij wiele plików naraz. Sufiks „-dark” lub „-light” w nazwie pliku przypisuje wariant (np. logo-dark.svg).",
+        hint: "Przeciągnij wiele plików naraz (PNG, JPG, WebP, AVIF, GIF - bez SVG). Sufiks „-dark” lub „-light” w nazwie pliku przypisuje wariant (np. logo-dark.png).",
         choose: "Wybierz pliki",
         uploading: "Wgrywanie…",
         done: "Gotowe: utworzono {{created}}, zaktualizowano {{updated}}.",
@@ -555,6 +555,9 @@ export const pl = {
       },
       errors: {
         nameRequired: "Podaj nazwę ikony.",
+        notSignedIn: "Zaloguj się ponownie, aby wgrać ikony.",
+        unsupportedFiles:
+          "Pominięto pliki w nieobsługiwanym formacie: {{names}}. Dozwolone: PNG, JPG, WebP, AVIF, GIF (SVG jest blokowany ze względów bezpieczeństwa).",
       },
     },
     themeOptions: {

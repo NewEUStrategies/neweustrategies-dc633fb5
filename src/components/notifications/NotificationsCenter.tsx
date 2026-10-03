@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner";
 // Nazwane importy + DynamicIcon zamiast namespace-importu lucide-react:
 // namespace-import - nawet z chunka trasy - materializuje pełny rejestr
-// (~640 KB raw) w bundlu wejściowym (patrz lib/icons/DynamicIconFull).
+// (~640 KB raw) w bundlu wejściowym (patrz scripts/gen-lucide-icon-nodes.mjs).
 import { BellOff, Check, CheckCheck, Circle, Mail, Search, Trash2 } from "lucide-react";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import { supabase } from "@/integrations/supabase/client";

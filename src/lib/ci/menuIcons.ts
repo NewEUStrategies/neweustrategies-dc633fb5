@@ -3,18 +3,22 @@
 // ── CO DOKŁADNIE POSZŁO NIE TAK (F24, §8 wiersz 3.14 audytu CWV) ────────────
 // `DynamicIcon` renderuje synchronicznie zestaw kuratorowany (nazwane importy
 // z `lucide-react`, więc tree-shaking bierze tylko użyte ikony), a dla nazwy
-// SPOZA zestawu dociąga Reactowym `lazy()` pełny rejestr:
-// `src/lib/icons/lucideIconNodes.generated.ts` - 473 KB źródeł, 109,1 KB gzip.
+// SPOZA zestawu dociąga Reactowym `lazy()` dane SVG. W dniu wprowadzenia
+// bramki był to cały rejestr naraz (`src/lib/icons/lucideIconNodes.generated.ts`:
+// 473 KB źródeł, 109,1 KB gzip). Od 2026-09-29 rejestr jest podzielony na
+// 4 porcje (`src/lib/icons/chunks/icons-N.json`, numer porcji z
+// `iconChunkIndex.js`) i nieznana nazwa kosztuje JEDNĄ z nich - mniej więcej
+// ćwierć rejestru, 23-25 KB gzip (zmierzone 2026-10-03 na plikach JSON).
 // Ten komponent renderuje CHROME: `SiteMenu`, `MegaPanelView`, mobilny pasek
 // dolny, kafelki podstron wydarzenia. Nazwy ikon w tych miejscach nie są
 // wpisane w kodzie - przychodzą z KONFIGURACJI (`site_settings`, `menu_items`,
 // `event_pages`), czyli z panelu administracyjnego.
 //
 // Wynika z tego usterka o nietypowym kształcie: JEDNA literówka redaktora
-// (albo jedna nazwa, której zestaw nie pokrywa) ściąga 109 KB gzip KAŻDEMU
-// ANONIMOWI na stronie publicznej - i to nie w tle, tylko na ścieżce renderu
-// nagłówka. Nic w repozytorium tego nie mierzyło, bo konfiguracja żyje w
-// bazie, a bramki czytają repozytorium.
+// (albo jedna nazwa, której zestaw nie pokrywa) ściągała KAŻDEMU ANONIMOWI
+// na stronie publicznej 109 KB gzip (dziś: jedną porcję) - i to nie w tle,
+// tylko na ścieżce renderu nagłówka. Nic w repozytorium tego nie mierzyło, bo
+// konfiguracja żyje w bazie, a bramki czytają repozytorium.
 //
 // ── DLACZEGO BRAMKA CZYTA ŹRÓDŁA, SKORO NAZWY SĄ W BAZIE ───────────────────
 // Bo baza jest KOPIĄ tego, co repozytorium jej podało, a czego nie podało -
@@ -288,8 +292,8 @@ export function renderMenuIconReport(report: MenuIconReport): string {
     "",
     ...wiersze,
     "",
-    "  Każda z tych nazw każe `DynamicIcon` dociągnąć PEŁNY rejestr ikon",
-    "  (src/lib/icons/lucideIconNodes.generated.ts: 473 KB źródeł, 109 KB gzip)",
+    "  Każda z tych nazw każe `DynamicIcon` dociągnąć leniwą porcję danych SVG",
+    "  (jedna z 4 w src/lib/icons/chunks/icons-N.json, 23-25 KB gzip)",
     "  w chrome strony publicznej - czyli u każdego anonima, nie tylko w panelu.",
     "",
     "  Lekarstwo, w kolejności od najtańszego:",

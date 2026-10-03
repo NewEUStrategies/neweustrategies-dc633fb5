@@ -173,21 +173,45 @@ export const deleteMedia = createServerFn({ method: "POST" })
 
 // ---------- Media usage lookup ----------
 // Finds posts/pages that reference a given media item (by id, public URL, or
-// storage path). Scans cover_image_url, content (HTML), builder_data and
-// blocks_data (JSON).
+// storage path). Scans cover_image_url, excerpts, content (HTML), builder_data,
+// blocks_data and layout_overrides.
 //
 // The body columns (content_pl/en, builder_data, blocks_data) are REVOKED
 // from the authenticated role (20260702200000 - the C1 hardening), so the
-// scan reads them via the service role, explicitly pinned to the caller's
-// tenant resolved from profiles - same doctrine as posts-migrate. The media
-// row lookups stay on the user client (RLS proves the caller may see them).
+// scan runs via the service role, explicitly pinned to the caller's tenant
+// resolved from profiles - same doctrine as posts-migrate. The media row
+// lookups stay on the user client (RLS proves the caller may see them).
+//
+// Skan idzie w BAZIE (`media_usage_scan`, migracja 20261003090000): wcześniej
+// handler ściągał do workera pełne treści WSZYSTKICH wpisów i stron tenanta,
+// żeby zrobić `includes` w JavaScripcie - koszt liniowy z archiwum, płacony
+// przy każdym otwarciu podglądu pliku. Teraz wraca wyłącznie lista trafień,
+// przycięta do `MEDIA_USAGE_LIMIT`.
 const UsageSchema = z.object({ mediaId: z.string().uuid() });
+
+/** Górna granica trafień zwracanych do podglądu pliku. */
+export const MEDIA_USAGE_LIMIT = 200;
+/** Górna granica duplikatów (ta sama nazwa pliku) dokładanych do igieł skanu. */
+export const MEDIA_USAGE_SIBLINGS = 50;
 
 /**
  * Stable, language-neutral usage areas. The UI translates them (PL/EN in
  * MediaPreviewDialog) - the server must not bake one language into data.
  */
 export type MediaUsageArea = "cover" | "excerpt" | "content" | "builder" | "blocks" | "layout";
+
+const USAGE_AREAS: ReadonlySet<string> = new Set<MediaUsageArea>([
+  "cover",
+  "excerpt",
+  "content",
+  "builder",
+  "blocks",
+  "layout",
+]);
+
+function isUsageArea(value: string): value is MediaUsageArea {
+  return USAGE_AREAS.has(value);
+}
 
 export type MediaUsageItem = {
   kind: "post" | "page";
@@ -200,11 +224,11 @@ export type MediaUsageItem = {
 export const getMediaUsage = createServerFn({ method: "POST" })
   .middleware([requireStaff])
   .validator((input: unknown) => UsageSchema.parse(input))
-  .handler(async ({ data, context }): Promise<{ items: MediaUsageItem[] }> => {
+  .handler(async ({ data, context }): Promise<{ items: MediaUsageItem[]; truncated: boolean }> => {
     const { supabase, userId } = context;
     // Fail-closed guard: a caller without a tenant must not run this scan
     // (resolveUserTenantId throws). The tenant id also scopes the service-role
-    // scans below so this admin read can never surface another tenant's content.
+    // scan below so this admin read can never surface another tenant's content.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const tenantId = await resolveUserTenantId(supabaseAdmin, userId);
 
@@ -212,6 +236,7 @@ export const getMediaUsage = createServerFn({ method: "POST" })
       .from("media")
       .select("id, public_url, storage_path, filename")
       .eq("id", data.mediaId)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
     if (mErr) throw new Error(mErr.message);
     if (!media) throw new Error("Media not found or access denied");
@@ -227,7 +252,9 @@ export const getMediaUsage = createServerFn({ method: "POST" })
       const { data: siblings } = await supabase
         .from("media")
         .select("id, public_url, storage_path")
-        .eq("filename", media.filename);
+        .eq("tenant_id", tenantId)
+        .eq("filename", media.filename)
+        .limit(MEDIA_USAGE_SIBLINGS);
       for (const s of siblings ?? []) {
         if (s.public_url) tokens.add(s.public_url);
         if (s.storage_path) tokens.add(s.storage_path);
@@ -235,75 +262,26 @@ export const getMediaUsage = createServerFn({ method: "POST" })
       }
     }
 
-    const tokenList = Array.from(tokens).filter((t) => t && t.length > 0);
+    const needles = Array.from(tokens).filter((t) => t && t.length > 0);
 
-    const matches = (haystack: unknown): boolean => {
-      if (haystack == null) return false;
-      const s = typeof haystack === "string" ? haystack : JSON.stringify(haystack);
-      return tokenList.some((tok) => s.includes(tok));
-    };
-    const matchesUrl = (url: string | null | undefined): boolean =>
-      !!url && tokenList.some((tok) => url.includes(tok));
+    // Jeden wiersz ponad limit mówi, czy lista jest przycięta - bez osobnego
+    // zapytania liczącego.
+    const { data: rows, error: scanErr } = await supabaseAdmin.rpc("media_usage_scan", {
+      _tenant_id: tenantId,
+      _needles: needles,
+      _limit: MEDIA_USAGE_LIMIT + 1,
+    });
+    if (scanErr) throw new Error(scanErr.message);
 
-    const out: MediaUsageItem[] = [];
-
-    // POSTS - service-role read (body columns are revoked from authenticated),
-    // hard-pinned to the caller's tenant.
-    const { data: posts, error: pErr } = await supabaseAdmin
-      .from("posts")
-      .select(
-        "id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, blocks_data, layout_overrides",
-      )
-      .eq("tenant_id", tenantId)
-      .is("deleted_at", null);
-    if (pErr) throw new Error(pErr.message);
-    for (const p of posts ?? []) {
-      const where: MediaUsageArea[] = [];
-      if (matchesUrl(p.cover_image_url)) where.push("cover");
-      if (matches(p.excerpt_pl) || matches(p.excerpt_en)) where.push("excerpt");
-      if (matches(p.content_pl) || matches(p.content_en)) where.push("content");
-      if (matches(p.builder_data)) where.push("builder");
-      if (matches(p.blocks_data)) where.push("blocks");
-      if (matches(p.layout_overrides)) where.push("layout");
-      if (where.length) {
-        out.push({
-          kind: "post",
-          id: p.id,
-          slug: p.slug,
-          title: p.title_pl || p.title_en || p.slug,
-          where,
-        });
-      }
-    }
-
-    // PAGES - same service-role + tenant-pinned read as posts.
-    const { data: pages, error: gErr } = await supabaseAdmin
-      .from("pages")
-      .select(
-        "id, slug, title_pl, title_en, cover_image_url, excerpt_pl, excerpt_en, content_pl, content_en, builder_data, layout_overrides",
-      )
-      .eq("tenant_id", tenantId)
-      .is("deleted_at", null);
-    if (gErr) throw new Error(gErr.message);
-    for (const p of pages ?? []) {
-      const where: MediaUsageArea[] = [];
-      if (matchesUrl(p.cover_image_url)) where.push("cover");
-      if (matches(p.excerpt_pl) || matches(p.excerpt_en)) where.push("excerpt");
-      if (matches(p.content_pl) || matches(p.content_en)) where.push("content");
-      if (matches(p.builder_data)) where.push("builder");
-      if (matches(p.layout_overrides)) where.push("layout");
-      if (where.length) {
-        out.push({
-          kind: "page",
-          id: p.id,
-          slug: p.slug,
-          title: p.title_pl || p.title_en || p.slug,
-          where,
-        });
-      }
-    }
-
-    return { items: out };
+    const hits = rows ?? [];
+    const items: MediaUsageItem[] = hits.slice(0, MEDIA_USAGE_LIMIT).map((row) => ({
+      kind: row.kind === "page" ? "page" : "post",
+      id: row.id,
+      slug: row.slug,
+      title: row.title,
+      where: (row.areas ?? []).filter(isUsageArea),
+    }));
+    return { items, truncated: hits.length > MEDIA_USAGE_LIMIT };
   });
 
 // ---- Regenerate thumbnails / pre-warm Supabase image transforms ----

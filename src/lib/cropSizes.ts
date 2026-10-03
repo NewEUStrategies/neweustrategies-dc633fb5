@@ -2,7 +2,7 @@
 // Używane przez admin route oraz przez OptimizedImage/lightbox do
 // generowania URL-i wariantów obrazu (Supabase Storage transforms).
 import { supabase } from "@/integrations/supabase/client";
-import { PUBLIC_MEDIA_ORIGIN } from "@/lib/media/publicUrl";
+import { PUBLIC_MEDIA_ORIGIN, isBrandedMediaOrigin } from "@/lib/media/publicUrl";
 
 export interface CropSize {
   id: string;
@@ -126,7 +126,8 @@ export function buildTransformedImageUrl(
 /**
  * True for Supabase Storage public/transform URLs (the ones we can scale).
  *
- * MARKER `/media/` LICZY SIĘ WYŁĄCZNIE NA NASZYM ORIGIN. To jest cała stawka
+ * MARKER `/media/` LICZY SIĘ WYŁĄCZNIE NA NASZYCH ORIGINACH (kanoniczny,
+ * domyślny i lista z konfiguracji - `isBrandedMediaOrigin`). To jest cała stawka
  * tej funkcji, a nie drobiazg: `/media/<ścieżka>` jest adresem MARKOWYM, który
  * umie obsłużyć tylko nasza trasa `/media/$` - przepisuje go na transformację
  * w magazynie. Dowolny obcy serwis też może mieć katalog `/media/`, a wcześniej
@@ -149,7 +150,7 @@ export function isSupabaseStorageUrl(src: string): boolean {
     // względem `PUBLIC_MEDIA_ORIGIN` daje jej nasz origin i przechodzi niżej.
     const url = src.startsWith("/") ? new URL(src, PUBLIC_MEDIA_ORIGIN) : new URL(src);
     return (
-      (url.origin === PUBLIC_MEDIA_ORIGIN && url.pathname.startsWith("/media/")) ||
+      (isBrandedMediaOrigin(url.origin) && url.pathname.startsWith("/media/")) ||
       url.pathname.includes("/storage/v1/object/public/") ||
       url.pathname.includes("/storage/v1/render/image/public/")
     );
