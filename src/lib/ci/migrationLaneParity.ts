@@ -717,6 +717,11 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0136_event_participant_reminders",
     twin: "20261003140000_event_participant_reminders.sql",
   },
+  {
+    tag: "0137_event_participant_reminders_apply",
+    drizzleOnly:
+      "Zapis wdrożenia 0136 z panelu Lovable: plik zawiera wyłącznie COMMENT ON FUNCTION public.run_event_reminders(), dokumentujący zastosowanie 0136. Treść funkcji ma bliźniaka 20261003140000_event_participant_reminders.sql; sam komentarz nie zmienia schematu, więc pas supabase nie dostaje kopii.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";
