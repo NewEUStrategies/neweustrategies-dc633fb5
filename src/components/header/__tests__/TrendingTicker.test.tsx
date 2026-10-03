@@ -18,17 +18,37 @@
 //      `setTimeout`; na liczbie w trybie ścisłym to `TypeError`, więc interwał
 //      tykał po odmontowaniu. Testy szły w Node (obiekty) i niczego nie widziały
 //      - stąd jawne atrapy timerów dla OBU kształtów uchwytu.
+//   6. REZERWA = GEOMETRIA GOTOWEGO PASKA dla każdej skórki. Do 2026-10-03
+//      rezerwa miała zawsze geometrię klasyczną (41 px), a skórki szklane są
+//      wyższe - podmiana przesuwała stronę, a pomiar `--hdr-tt` z rezerwy
+//      zamykał pasek w za niskim pudełku.
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import "@/lib/i18n";
 import { realT } from "@/test/i18nReal";
-import { DEFAULT_TICKER_COLORS } from "@/lib/views/tickerVariants";
+import {
+  DEFAULT_TICKER_COLORS,
+  LAYOUT_STYLES,
+  LIVE_DIRECTIONS,
+  isMarqueeLayout,
+  type LayoutStyle,
+  type LiveDirection,
+} from "@/lib/views/tickerVariants";
 import {
   HEADER_TICKER_BAND_CLASS,
   HEADER_TICKER_BORDER_CLASS,
+  HEADER_TICKER_CARDS_BAND_CLASSES,
+  HEADER_TICKER_MARQUEE_BAND_CLASS,
+  HEADER_TICKER_TAPE_BAND_CLASS,
+  TICKER_CARD_ROW_PX,
+  TICKER_GLASS_PAD_PX,
+  TICKER_GLASS_PILL_PX,
+  TICKER_LAYOUT_FRAMES,
+  tickerBandGeometry,
 } from "@/components/header/headerGeometry";
+import { signatureHeightPx, tickerHeightSignature } from "@/test/ticker/tickerGeometry";
 
 interface TickerPost {
   id: string;
@@ -175,7 +195,7 @@ describe("pasek milczy, gdy nie ma czego pokazać", () => {
   it("zero wpisów też nie zostawia pustego pasa", async () => {
     feed.posts = [];
     const { container } = render(renderTicker());
-    await vi.waitFor(() => expect(container).toBeEmptyDOMElement());
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 });
 
@@ -609,3 +629,124 @@ describe.each<HandleShape>(["liczba", "obiekt"])(
     });
   },
 );
+
+// ── REZERWA = GEOMETRIA GOTOWEGO PASKA, DLA KAŻDEJ SKÓRKI ──────────────────
+
+/** Każda skórka, a `glassLive` w obu kierunkach (to dwa różne silniki). */
+type Skin = { layoutStyle: LayoutStyle; liveDirection: LiveDirection };
+const SKINS: Skin[] = LAYOUT_STYLES.flatMap((layoutStyle): Skin[] =>
+  layoutStyle === "glassLive"
+    ? LIVE_DIRECTIONS.map((liveDirection) => ({ layoutStyle, liveDirection }))
+    : [{ layoutStyle, liveDirection: "vertical" }],
+);
+
+describe("rezerwa w trakcie ładowania = geometria gotowego paska", () => {
+  it.each(LAYOUT_STYLES)("%s ma wpis w JEDNYM mapowaniu ramek", (layoutStyle) => {
+    // Bez tego nowa skórka cicho dostałaby geometrię klasyczną - a ponieważ
+    // rezerwa i pasek dostałyby ją OBIE, porównanie niżej by tego nie złapało.
+    expect(Object.hasOwn(TICKER_LAYOUT_FRAMES, layoutStyle)).toBe(true);
+    // Panel CMS ukrywa pokrętło `mode` dla skórek z własnym ruchem
+    // (`isMarqueeLayout`) - silnik renderu ma się z tym zgadzać.
+    const engine = tickerBandGeometry(layoutStyle).engine;
+    expect(engine !== "band").toBe(isMarqueeLayout(layoutStyle));
+  });
+
+  it.each(SKINS.flatMap((skin) => [1, 3].map((visibleCount) => ({ ...skin, visibleCount }))))(
+    "$layoutStyle ($liveDirection, visibleCount=$visibleCount): te same klasy wysokości",
+    async ({ layoutStyle, liveDirection, visibleCount }) => {
+      const props = { layoutStyle, liveDirection, visibleCount };
+      feed.posts = posts(3);
+
+      feed.loading = true;
+      const loading = render(renderTicker(props));
+      const rezerwa = tickerHeightSignature(screen.getByTestId("trending-ticker-reserve"));
+      loading.unmount();
+
+      feed.loading = false;
+      render(renderTicker(props));
+      const pasek = tickerHeightSignature(await screen.findByTestId("trending-ticker"));
+
+      expect(rezerwa).toEqual(pasek);
+      // Wysokość wynika WYŁĄCZNIE z krawędzi ramki i klasy pasa.
+      expect(pasek.frame).toEqual([HEADER_TICKER_BORDER_CLASS]);
+      expect(pasek.between).toEqual([]);
+      expect(pasek.boxSiblings).toBe(0);
+      const rows = Math.min(visibleCount, 3);
+      const geometry = tickerBandGeometry(layoutStyle, { liveDirection, rows });
+      expect(pasek.band).toEqual([geometry.bandClass]);
+      expect(signatureHeightPx(pasek)).toBe(geometry.nominalPx);
+    },
+  );
+
+  it("skórki szklane NIE dostają już rezerwy klasycznej (41 px)", () => {
+    // Regresja wprost: przed poprawką rezerwa każdej skórki miała `h-10`.
+    feed.loading = true;
+    render(renderTicker({ layoutStyle: "glassMarquee" }));
+    const rezerwa = tickerHeightSignature(screen.getByTestId("trending-ticker-reserve"));
+    expect(rezerwa.band).toEqual([HEADER_TICKER_MARQUEE_BAND_CLASS]);
+    expect(rezerwa.band).not.toContain(HEADER_TICKER_BAND_CLASS);
+    expect(signatureHeightPx(rezerwa)).toBe(57);
+  });
+
+  it("bez danych pionowa rotacja rezerwuje pełne okno `visibleCount`", () => {
+    // Liczba wpisów jest wtedy nieznana - to jedyna niewiadoma rezerwy.
+    feed.loading = true;
+    render(renderTicker({ layoutStyle: "glassCards", visibleCount: 3 }));
+    const rezerwa = tickerHeightSignature(screen.getByTestId("trending-ticker-reserve"));
+    expect(rezerwa.band).toEqual([HEADER_TICKER_CARDS_BAND_CLASSES[2]]);
+  });
+
+  it.each(LAYOUT_STYLES)("%s: zero wpisów = zero pasa (bez rezerwy)", async (layoutStyle) => {
+    feed.posts = [];
+    const { container } = render(renderTicker({ layoutStyle }));
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+  });
+});
+
+describe("klasy wysokości skórek szklanych wynikają z arkusza paska", () => {
+  it("oddech, pigułka, taśma i wiersz kart w arkuszu = liczby w mapowaniu", async () => {
+    // Jawna wysokość na `.tt-glass` jest równa naturalnej tylko dopóty, dopóki
+    // arkusz paska się nie zmieni. Ten test łączy oba końce: zmiana paddingu,
+    // pigułki, krawędzi taśmy albo wiersza kart bez zmiany klasy oblewa tutaj,
+    // zamiast przyciąć pasek albo zostawić pod nim pustą szczelinę.
+    render(renderTicker({ layoutStyle: "glassTape" }));
+    await screen.findByTestId("trending-ticker");
+    const css = Array.from(document.querySelectorAll("style"))
+      .map((style) => style.textContent ?? "")
+      .join("\n");
+    const liczba = (re: RegExp): number => {
+      const match = re.exec(css);
+      if (!match) throw new Error(`brak reguły ${re}`);
+      return Number(match[1]);
+    };
+    const pad = liczba(/\.tt-glass \{[^}]*padding: (\d+)px 0/);
+    const pill = liczba(/\.tt-glass-pill \{\s*height: (\d+)px/);
+    const chip = liczba(/\.tt-glass-chip \{\s*height: (\d+)px/);
+    const liveChip = liczba(/\.tt-skin--live \.tt-glass-chip \{[^}]*[^-]height: (\d+)px/);
+    const row = liczba(/\.tt-glass--cards \.tt-glass-viewport \{\s*height: calc\((\d+)px \*/);
+    const tapeTop = liczba(/\.tt-skin--tape \.tt-glass-track \{\s*border-top: (\d+)px/);
+    const tapeBottom = liczba(/\.tt-skin--tape \.tt-glass-track \{[^}]*border-bottom: (\d+)px/);
+
+    expect([pad, pill, row]).toEqual([
+      TICKER_GLASS_PAD_PX,
+      TICKER_GLASS_PILL_PX,
+      TICKER_CARD_ROW_PX,
+    ]);
+    // Etykieta nie może być wyższa od pigułki - inaczej to ONA wyznaczałaby wysokość.
+    expect(chip).toBeLessThanOrEqual(pill);
+    expect(liveChip).toBeLessThanOrEqual(pill);
+    // Żadna skórka nie nadpisuje wysokości pigułki.
+    expect(css).not.toMatch(/\.tt-skin--\w+ \.tt-glass-pill[^{]*\{[^}]*[^-]height:/);
+    // Taśma pigułek ma `py-2` = 2 x 0,5 rem, czyli część `+1rem` w klasie.
+    const track = document.querySelector(".tt-glass-track > div");
+    expect(track?.classList.contains("py-2")).toBe(true);
+
+    expect(HEADER_TICKER_MARQUEE_BAND_CLASS).toBe(`h-[calc(${2 * pad + pill}px+1rem)]`);
+    expect(HEADER_TICKER_TAPE_BAND_CLASS).toBe(
+      `h-[calc(${2 * pad + pill + tapeTop + tapeBottom}px+1rem)]`,
+    );
+    HEADER_TICKER_CARDS_BAND_CLASSES.forEach((cls, index) =>
+      expect(cls).toBe(`h-[${2 * pad + row * (index + 1)}px]`),
+    );
+  });
+});

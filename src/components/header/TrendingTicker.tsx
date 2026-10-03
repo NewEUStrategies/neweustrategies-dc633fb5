@@ -15,7 +15,6 @@ import {
 } from "@/lib/views/headerTickerQuery";
 import {
   DEFAULT_TICKER_COLORS,
-  isMarqueeLayout,
   type IconAnimation,
   type LayoutStyle,
   type LiveDirection,
@@ -24,8 +23,10 @@ import {
 } from "@/lib/views/tickerVariants";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
-  HEADER_TICKER_BAND_CLASS,
-  HEADER_TICKER_BORDER_CLASS,
+  tickerBandGeometry,
+  tickerCardRows,
+  tickerPerView,
+  type TickerGlassSkin,
 } from "@/components/header/headerGeometry";
 import { hardenStyleCss } from "@/lib/sanitizePure";
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
@@ -106,7 +107,6 @@ export function TrendingTicker({
   const palette = colors ?? DEFAULT_TICKER_COLORS;
   const vid = safeAttr(variantId);
   const isBadge = layoutStyle === "badge";
-  const isMarquee = isMarqueeLayout(layoutStyle);
 
   const { data, isLoading } = useQuery(
     headerTickerQueryOptions({
@@ -121,7 +121,7 @@ export function TrendingTicker({
   );
 
   const posts = data ?? [];
-  const perView = Math.max(1, Math.min(5, Math.floor(visibleCount || 1)));
+  const perView = tickerPerView(visibleCount);
   const totalBatches = kind === "scroll" ? 1 : Math.max(1, Math.ceil(posts.length / perView));
 
   const [batch, setBatch] = useState(0);
@@ -136,11 +136,24 @@ export function TrendingTicker({
   // z danymi - dopóki zwracał tu `null`, jego ~40 px doskakiwało po hydratacji
   // i spychało `<main>` w dół (0,03 CLS na artefakcie produkcyjnym, fixture
   // `first-visit`). Dopóki zapytanie nie wróciło, trzymamy więc JEGO pudełko:
-  // ta sama ramka, ta sama klasa wysokości, zero treści. Pusty wynik zwija
-  // pasek tak jak dotąd - wtedy nie ma czego trzymać, a `HeaderSkeleton`
-  // rezerwuje ten pas z tych samych ustawień (`header.trending.enabled`).
-  if (isLoading) return <TickerHeightReserve className={className} />;
+  // ta sama ramka, ta sama klasa wysokości DANEJ SKÓRKI, zero treści. Pusty
+  // wynik zwija pasek tak jak dotąd - wtedy nie ma czego trzymać, a
+  // `HeaderSkeleton` czyta ten sam wpis cache'a i też pasa nie rezerwuje.
+  if (isLoading)
+    return (
+      <TickerHeightReserve
+        className={className}
+        layoutStyle={layoutStyle}
+        liveDirection={liveDirection}
+        rows={tickerCardRows(perView)}
+      />
+    );
   if (!posts.length) return null;
+
+  // Ramka, silnik i klasa wysokości z JEDNEGO mapowania (`headerGeometry`) -
+  // tego samego, z którego składają się rezerwa i pas szkieletu nagłówka.
+  const rows = tickerCardRows(perView, posts.length);
+  const geometry = tickerBandGeometry(layoutStyle, { liveDirection, rows });
 
   const defaultLabel = t("trendingTicker.badge");
   const label =
@@ -154,15 +167,11 @@ export function TrendingTicker({
 
   const iconClass = `tt-flame tt-flame-${iconAnimation}`;
 
-  if (isMarquee) {
-    const isVerticalLayout =
-      layoutStyle === "glassCards" ||
-      layoutStyle === "glassSpotlight" ||
-      (layoutStyle === "glassLive" && liveDirection === "vertical");
-    const skin = SKIN_BY_LAYOUT[layoutStyle] ?? "marquee";
+  if (geometry.engine !== "band") {
+    const skin = geometry.skin ?? "marquee";
     return (
       <div
-        className={`cms-trending ${HEADER_TICKER_BORDER_CLASS} cms-trending--glass cms-trending--${skin} ${className ?? ""}`}
+        className={`${geometry.frameClass} ${className ?? ""}`}
         data-testid="trending-ticker"
         data-tt-vid={vid}
         data-tt-layout={layoutStyle}
@@ -170,7 +179,7 @@ export function TrendingTicker({
       >
         <TickerPaletteStyle vid={vid} palette={palette} />
         <div className={`${innerMax} px-4 lg:px-8`}>
-          {isVerticalLayout ? (
+          {geometry.engine === "cards" ? (
             <TickerGlassCards
               label={label}
               posts={posts}
@@ -178,6 +187,8 @@ export function TrendingTicker({
               intervalSec={intervalSec}
               scrollSpeed={scrollSpeed}
               perView={perView}
+              rows={rows}
+              bandClass={geometry.bandClass}
               iconClass={iconClass}
               skin={skin}
             />
@@ -189,6 +200,7 @@ export function TrendingTicker({
               intervalSec={intervalSec}
               scrollSpeed={scrollSpeed}
               perView={perView}
+              bandClass={geometry.bandClass}
               iconClass={iconClass}
               skin={skin}
             />
@@ -201,7 +213,7 @@ export function TrendingTicker({
 
   return (
     <div
-      className={`cms-trending ${HEADER_TICKER_BORDER_CLASS} ${isBadge ? "cms-trending--badge" : "cms-trending--classic"} ${className ?? ""}`}
+      className={`${geometry.frameClass} ${className ?? ""}`}
       data-testid="trending-ticker"
       data-tt-vid={vid}
       data-tt-layout={layoutStyle}
@@ -212,7 +224,8 @@ export function TrendingTicker({
     >
       <TickerPaletteStyle vid={vid} palette={palette} />
       <div
-        className={`${innerMax} ${isBadge ? "pr-4 lg:pr-8 pl-0" : "px-4 lg:px-8"} ${HEADER_TICKER_BAND_CLASS} flex items-stretch gap-0 overflow-hidden`}
+        data-tt-band=""
+        className={`${innerMax} ${isBadge ? "pr-4 lg:pr-8 pl-0" : "px-4 lg:px-8"} ${geometry.bandClass} flex items-stretch gap-0 overflow-hidden`}
       >
         {isBadge ? (
           <span
@@ -311,23 +324,38 @@ export function TrendingTicker({
  * Puste pudełko paska „na czasie" na czas ładowania jego danych.
  *
  * Renderuje DOKŁADNIE tę samą ramkę (`cms-trending` + dolna krawędź) i tę samą
- * klasę wysokości, co wariant klasyczny paska, więc podmiana rezerwy na treść
- * nie zmienia wysokości nagłówka ani o piksel. `--hdr-tt` (pomiar w
- * `Header.tsx`) też trafia wtedy od razu na właściwą liczbę.
+ * klasę wysokości, co pasek AKTYWNEJ SKÓRKI (`tickerBandGeometry`), więc
+ * podmiana rezerwy na treść nie zmienia wysokości nagłówka ani o piksel - także
+ * dla skórek szklanych, które są wyższe od klasycznej. `--hdr-tt` (pomiar w
+ * `Header.tsx`) trafia wtedy od razu na właściwą liczbę; przy rezerwie
+ * klasycznej pod skórką szklaną pomiar zamykał prawdziwy pasek w za niskim
+ * pudełku (`styles.css` narzuca `.cms-trending` wysokość z `--hdr-tt`).
  *
- * OGRANICZENIE: warianty „glass"/marquee mają własną, wyższą geometrię
- * (`.tt-glass` + karty `h-11`); dla nich rezerwa jest CZĘŚCIOWA - nadal
- * nieporównanie bliżej niż zero, ale nie zeruje przesunięcia.
+ * Jedyna niewiadoma to liczba wpisów: pionowa rotacja ma tyle wierszy, ile
+ * wpisów, ale nie więcej niż `visibleCount` - bez danych rezerwa zakłada pełne
+ * okno (`rows` od wołającego).
  */
-export function TickerHeightReserve({ className }: { className?: string }) {
+export function TickerHeightReserve({
+  className,
+  layoutStyle = "classic",
+  liveDirection = "vertical",
+  rows = 1,
+}: {
+  className?: string;
+  layoutStyle?: LayoutStyle;
+  liveDirection?: LiveDirection;
+  rows?: number;
+}) {
+  const geometry = tickerBandGeometry(layoutStyle, { liveDirection, rows });
   return (
     <div
-      className={`cms-trending ${HEADER_TICKER_BORDER_CLASS} cms-trending--classic ${className ?? ""}`}
+      className={`${geometry.frameClass} ${className ?? ""}`}
       data-testid="trending-ticker-reserve"
+      data-tt-layout={layoutStyle}
       aria-hidden
       style={{ background: "var(--tt-bg)", borderColor: "var(--tt-border)" }}
     >
-      <div className={`${HEADER_TICKER_BAND_CLASS} w-full`} />
+      <div data-tt-band="" className={`${geometry.bandClass} w-full`} />
     </div>
   );
 }
@@ -455,18 +483,6 @@ export function TypewriterText({ text, delayMs }: { text: string; delayMs: numbe
   );
 }
 
-/** Visual skin applied to the two marquee engines (horizontal / vertical). */
-type MarqueeSkin = "marquee" | "cards" | "ribbon" | "spotlight" | "tape" | "live";
-
-const SKIN_BY_LAYOUT: Partial<Record<LayoutStyle, MarqueeSkin>> = {
-  glassMarquee: "marquee",
-  glassCards: "cards",
-  glassRibbon: "ribbon",
-  glassSpotlight: "spotlight",
-  glassTape: "tape",
-  glassLive: "live",
-};
-
 /** Inicjały jako zapas, gdy profil nie ma awatara - autor MA być zawsze widoczny. */
 export function authorInitials(name: string): string {
   return name
@@ -521,8 +537,14 @@ interface MarqueeLayoutProps {
   scrollSpeed: number;
   /** How many items are visible at once in the viewport. */
   perView: number;
+  /**
+   * Klasa wysokości `.tt-glass` z `tickerBandGeometry` - ta sama, którą
+   * powtarzają rezerwa i szkielet nagłówka.
+   */
+  bandClass: string;
   iconClass: string;
-  skin: MarqueeSkin;
+  /** Visual skin applied to the two marquee engines (horizontal / vertical). */
+  skin: TickerGlassSkin;
 }
 
 export function itemTitle(post: TickerItemProps["post"], lang: "pl" | "en"): string {
@@ -543,6 +565,7 @@ function TickerGlassMarquee({
   intervalSec,
   scrollSpeed,
   perView,
+  bandClass,
   iconClass,
   skin,
 }: MarqueeLayoutProps) {
@@ -579,7 +602,8 @@ function TickerGlassMarquee({
 
   return (
     <div
-      className={`tt-glass tt-glass--marquee tt-skin--${skin} flex items-center gap-3 overflow-hidden`}
+      data-tt-band=""
+      className={`tt-glass tt-glass--marquee tt-skin--${skin} ${bandClass} flex items-center gap-3 overflow-hidden`}
       data-tt-interval={intervalSec}
     >
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
@@ -655,12 +679,15 @@ function TickerGlassCards({
   posts,
   lang,
   intervalSec,
-  perView,
+  rows,
+  bandClass,
   iconClass,
   skin,
-}: MarqueeLayoutProps) {
+}: MarqueeLayoutProps & {
+  /** Wiersze okna - `tickerCardRows(perView, posts.length)`, liczone raz przez rodzica. */
+  rows: number;
+}) {
   const anim = `tt-cards-${useId().replace(/:/g, "")}`;
-  const rows = Math.max(1, Math.min(perView, posts.length));
   // Duplicate the first `rows` cards so the loop never shows an empty slot.
   const track = [...posts, ...posts.slice(0, rows)];
   const slots = track.length;
@@ -670,7 +697,8 @@ function TickerGlassCards({
 
   return (
     <div
-      className={`tt-glass tt-glass--cards tt-skin--${skin} flex items-center gap-3 overflow-hidden`}
+      data-tt-band=""
+      className={`tt-glass tt-glass--cards tt-skin--${skin} ${bandClass} flex items-center gap-3 overflow-hidden`}
     >
       <span className="tt-glass-label tt-glass-chip inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap">
         <span className="tt-chip-icon relative inline-flex items-center justify-center shrink-0">
