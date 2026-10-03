@@ -349,7 +349,7 @@ describe("NewsletterForm - kto w ogóle widzi formularz", () => {
 // --- Konfiguracja pól --------------------------------------------------------
 
 describe("NewsletterForm - konfiguracja pól widgetu", () => {
-  it("instancja BEZ konfiguracji dostaje pełny zestaw pól, a widget z konfiguracją decyduje sam", () => {
+  it("instancja bez flag i widget ze zwykłą konfiguracją dostają pełny zestaw jak pod artykułem", () => {
     const full = renderForm();
     // imię, nazwisko, firma, stanowisko, telefon + e-mail
     expect(textInputs()).toHaveLength(4);
@@ -358,8 +358,26 @@ describe("NewsletterForm - konfiguracja pól widgetu", () => {
     full.unmount();
 
     renderForm({ widgetConfig: { showFirstName: true } });
+    expect(textInputs()).toHaveLength(4);
+    expect(document.querySelector("input[type='tel']")).not.toBeNull();
+  });
+
+  it("jawnie wyłączone pola pozostają ukryte", () => {
+    renderForm({
+      widgetConfig: {
+        showFirstName: "0",
+        showLastName: "0",
+        showCompany: "0",
+        showPosition: "0",
+        showPhone: "0",
+      },
+    });
+
+    // Gdy wszystkie pola dodatkowe są wyłączone, zostaje wspólne pole imienia
+    // używane przez kompaktowy wariant formularza.
     expect(textInputs()).toHaveLength(1);
     expect(document.querySelector("input[type='tel']")).toBeNull();
+    expect(emailInput()).toBeInTheDocument();
   });
 
   it("flagi widoczności czyta też z liczb i napisów (tak zapisuje je builder)", () => {
@@ -368,12 +386,21 @@ describe("NewsletterForm - konfiguracja pól widgetu", () => {
     });
 
     expect(document.querySelector("input[type='tel']")).not.toBeNull();
-    // Firma jest jedynym polem tekstowym: stanowisko (0) i imię ("0") odpadły.
-    expect(textInputs()).toHaveLength(1);
+    // Firma i domyślnie widoczne nazwisko zostają; stanowisko (0) i imię ("0") odpadają.
+    expect(textInputs()).toHaveLength(2);
   });
 
   it("układ kompaktowy (bez pól dodatkowych) przyjmuje imię i e-mail i wysyła je razem", async () => {
-    renderForm({ widgetConfig: { showInterests: false } });
+    renderForm({
+      widgetConfig: {
+        showInterests: false,
+        showFirstName: false,
+        showLastName: false,
+        showCompany: false,
+        showPosition: false,
+        showPhone: false,
+      },
+    });
 
     const name = textInputs()[0];
     fireEvent.change(name, { target: { value: "Anna Przykładowa" } });
