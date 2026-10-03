@@ -1002,6 +1002,20 @@
       "when": 1791047466176,
       "tag": "0142_post_views_tenant_viewed_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 143,
+      "version": "7",
+      "when": 1791064430188,
+      "tag": "0143_analytics_events_signed_in_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 144,
+      "version": "7",
+      "when": 1791064635682,
+      "tag": "0144_telemetry_retention_and_search_hash",
+      "breakpoints": true
     }
   ]
 }
