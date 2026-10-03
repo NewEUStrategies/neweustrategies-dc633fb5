@@ -1267,7 +1267,8 @@ function polishLiterals(): string[] {
 // Wzorzec montażu powłoki z dziećmi jak w `adminCommunityShellRoute.test.tsx`:
 // ścieżki dzieci są PRODUKCYJNE (`/` i `bi` - patrz `routeTree.gen.ts`), a ich
 // treść zastępcza, bo przedmiotem dowodu jest wypuszczenie podstrony, nie jej
-// zawartość.
+// zawartość. Prawdziwy warsztat BI (z kluczem statusu) ma własny plik:
+// `adminAnalyticsBiRoute.test.tsx`.
 async function mountFrame(entry: string): Promise<RenderedRoute> {
   const frame: AnyRoute = AnalyticsFrameRoute;
   frame.addChildren([

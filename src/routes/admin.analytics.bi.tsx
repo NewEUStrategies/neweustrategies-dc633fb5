@@ -2,10 +2,12 @@
 //
 // Przegląd (/admin/analytics) trzyma zakładki i status źródeł; ten ekran
 // układa wszystkie dashboardy BI jeden pod drugim, żeby dało się je czytać
-// i eksportować bez przeklikiwania tabów. Każdy dashboard jest ładowany
-// leniwie, osobnym chunkiem: wejście na ekran nie płaci od razu za kod
-// wszystkich siedmiu paneli, a `Suspense` z rezerwą wysokości (niżej) trzyma
-// układ, zanim który z nich dojedzie.
+// i eksportować bez przeklikiwania tabów. Każdy dashboard jest osobnym,
+// leniwym chunkiem. Wszystkie siedem renderuje się bezwarunkowo, więc
+// wszystkie siedem chunków rusza od razu przy wejściu - leniwość NICZEGO tu nie
+// odkłada. Daje co innego: nagłówek ekranu maluje się bez czekania na kod
+// paneli, a panele dojeżdżają NIEZALEŻNIE, każdy za własnym `Suspense`
+// z rezerwą wysokości (niżej), która trzyma układ, zanim który z nich dojedzie.
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
