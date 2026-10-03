@@ -26,6 +26,8 @@ import { DatePickerField } from "@/components/admin/coupons/DatePickerField";
 import { Stat } from "@/components/admin/coupons/atoms/Stat";
 import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 import { slotForSeries } from "@/lib/charts/palette";
+import { analyticsCouponsKey } from "@/lib/analytics/queryKeys";
+import { useCurrentTenantId } from "@/lib/tenant";
 
 export const Route = createFileRoute("/admin/coupons/analytics")({
   component: AnalyticsPage,
@@ -61,13 +63,17 @@ function AnalyticsPage() {
   );
   const [to, setTo] = useState<Date | undefined>(() => new Date());
 
+  // Funkcja filtruje po `current_tenant_id()` wołającego, więc dane są zawsze
+  // właściwe - ale bez najemcy w kluczu cache po przełączeniu obszaru
+  // roboczego pokazałby ranking kuponów poprzedniego (`analyticsCouponsKey`).
+  const tenantId = useCurrentTenantId();
   const q = useQuery({
-    queryKey: [
-      "admin",
-      "b2b-coupons-analytics",
+    queryKey: analyticsCouponsKey(
+      tenantId ?? "",
       from?.toISOString() ?? null,
       to?.toISOString() ?? null,
-    ],
+    ),
+    enabled: Boolean(tenantId),
     queryFn: async (): Promise<AnalyticsRow[]> => {
       const { data, error } = await supabase.rpc("b2b_coupons_analytics", {
         _from: (from ?? new Date(0)).toISOString(),
@@ -174,7 +180,9 @@ function AnalyticsPage() {
           <CardTitle className="text-base">{tytulRankingu}</CardTitle>
         </CardHeader>
         <CardContent>
-          {q.isLoading ? (
+          {/* Wyłączone zapytanie (najemca nieustalony) ma `isLoading === false` -
+              bez `!tenantId` karta mówiłaby „Brak danych." przed odczytem. */}
+          {!tenantId || q.isLoading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
               <Loader2 className="h-4 w-4 animate-spin" />
               {L("Wczytywanie…", "Loading…")}

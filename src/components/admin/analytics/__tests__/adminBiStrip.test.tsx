@@ -15,6 +15,9 @@
 //      karta `role="alert"` z przyczyną; drugie źródło stoi z liczbami.
 //   4. AWARIA ODŚWIEŻENIA nie zostawia starej liczby - react-query trzyma
 //      poprzednie `data` obok `error`, więc pasek musi je świadomie pominąć.
+//   5. NAJEMCA W KLUCZU: bez ustalonego najemcy nic się nie pobiera (kafelki
+//      mówią „Pomiar"), a po przełączeniu obszaru roboczego cache nie oddaje
+//      liczb poprzedniego (`@/lib/analytics/queryKeys`).
 //
 // `ChartCard` JEST TU ATRAPĄ, inaczej niż w pełnych dashboardach: pasek nie
 // buduje żadnej własnej alternatywy tekstowej, a przedmiotem dowodu są serie
@@ -34,10 +37,21 @@ interface CapturedCard {
   csv?: { rows: readonly (readonly unknown[])[] };
 }
 
+const TENANT_A = "tenant-strip-a";
+const TENANT_B = "tenant-strip-b";
+
 const h = vi.hoisted(() => ({
   fetchVitals: vi.fn(),
   fetchErrors: vi.fn(),
   cards: [] as CapturedCard[],
+  tenantId: null as string | null,
+}));
+
+// Najemca jest ATRAPĄ (wzór: `vitalsBiDashboard.test.tsx`): prawdziwy
+// `useCurrentTenantId` ciągnie klienta Supabase i sesję `useAuth`, a tu
+// dowodzimy tylko, że identyfikator wchodzi do klucza i bramkuje odczyt.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 // `useServerFn` staje się tożsamością - wywołanie idzie prosto do atrapy.
@@ -78,6 +92,7 @@ import "@/test/i18nReal";
 import { realT } from "@/test/i18nReal";
 import i18n from "@/lib/i18n";
 import { axeViolations, summarize } from "@/test/axe";
+import { analyticsBiStripKey } from "@/lib/analytics/queryKeys";
 import { AdminBiStrip } from "../AdminBiStrip";
 
 // ---------------------------------------------------------------------------
@@ -160,13 +175,19 @@ const VITALS_42 = vitals({
 
 function strip(days?: number, showLink?: boolean) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // Fabryka, nie jeden element: React pomija render elementu o tej samej
+  // referencji, a ponowny render ma odczytać nowego najemcę.
+  const tree = () => (
+    <QueryClientProvider client={queryClient}>
+      <AdminBiStrip days={days} showLink={showLink} />
+    </QueryClientProvider>
+  );
+  const utils = render(tree());
   return {
-    ...render(
-      <QueryClientProvider client={queryClient}>
-        <AdminBiStrip days={days} showLink={showLink} />
-      </QueryClientProvider>,
-    ),
+    ...utils,
     queryClient,
+    /** Ponowny render tych samych propsów na tym samym cache - np. po zmianie najemcy. */
+    rerenderStrip: () => utils.rerender(tree()),
   };
 }
 
@@ -182,6 +203,7 @@ async function settled(): Promise<void> {
 beforeEach(async () => {
   await i18n.changeLanguage("pl");
   h.cards.length = 0;
+  h.tenantId = TENANT_A;
   h.fetchVitals.mockReset();
   h.fetchErrors.mockReset();
 });
@@ -323,6 +345,68 @@ describe("AdminBiStrip - pomiar, awaria i zmierzone zero", () => {
 
     expect(h.fetchVitals).toHaveBeenCalledWith({ data: { days: 30 } });
     expect(h.fetchErrors).toHaveBeenCalledWith({ data: { days: 30 } });
+  });
+});
+
+describe("AdminBiStrip - najemca w kluczu zapytań", () => {
+  it("bez ustalonego najemcy nic się nie pobiera, a kafelki mówią „Pomiar”", async () => {
+    h.tenantId = null;
+    h.fetchVitals.mockResolvedValue(VITALS_42);
+    h.fetchErrors.mockResolvedValue(errors());
+    const { queryClient } = strip();
+    // Dajemy react-query pełny obrót pętli - wyłączone zapytanie i tak nie ruszy.
+    await act(async () => {});
+
+    expect(h.fetchVitals).not.toHaveBeenCalled();
+    expect(h.fetchErrors).not.toHaveBeenCalled();
+    for (const kpi of ["samples", "lcp", "errors", "errorGroups"] as const) {
+      expect(tile(kpi)).toBe(common("measuringShort"));
+    }
+    expect(screen.queryByRole("alert")).toBeNull();
+    // Klucz-zaślepka z pustym najemcą nie dostał żadnych danych.
+    for (const query of queryClient.getQueryCache().getAll()) {
+      expect(query.state.data).toBeUndefined();
+    }
+  });
+
+  it("oba zapytania niosą najemcę w kluczu (fabryka `analyticsBiStripKey`)", async () => {
+    h.fetchVitals.mockResolvedValue(vitals());
+    h.fetchErrors.mockResolvedValue(errors());
+    const { queryClient } = strip(30);
+    await settled();
+
+    const keys = queryClient
+      .getQueryCache()
+      .getAll()
+      .map((q) => q.queryKey);
+    expect(keys).toEqual(
+      expect.arrayContaining([
+        analyticsBiStripKey(TENANT_A, "vitals", 30),
+        analyticsBiStripKey(TENANT_A, "errors", 30),
+      ]),
+    );
+    for (const key of keys) expect(key[1]).toBe(TENANT_A);
+  });
+
+  it("po przełączeniu najemcy pasek nie pokazuje liczb poprzedniego z cache'u", async () => {
+    h.fetchVitals.mockResolvedValue(VITALS_42);
+    h.fetchErrors.mockResolvedValue(errors({ windowTotal: 7, uniqueGroups: 2 }));
+    const { rerenderStrip } = strip();
+    await settled();
+    expect(tile("samples")).toBe("42");
+    expect(tile("errors")).toBe("7");
+
+    // Ten sam klient cache, inny obszar roboczy; odczyt nowego wisi.
+    h.tenantId = TENANT_B;
+    h.fetchVitals.mockImplementation(() => new Promise<VitalsSummaryResult>(() => {}));
+    h.fetchErrors.mockImplementation(() => new Promise<ClientErrorsReport>(() => {}));
+    rerenderStrip();
+
+    await waitFor(() => expect(h.fetchVitals).toHaveBeenCalledTimes(2));
+    expect(h.fetchErrors).toHaveBeenCalledTimes(2);
+    for (const kpi of ["samples", "lcp", "errors", "errorGroups"] as const) {
+      expect(tile(kpi)).toBe(common("measuringShort"));
+    }
   });
 });
 
