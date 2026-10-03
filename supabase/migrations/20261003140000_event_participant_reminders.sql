@@ -58,7 +58,7 @@
 -- (`supabase/tests/event_participant_reminders_test.sql`), wiec plik nie niesie
 -- znacznika dolaczenia ani napisu, po ktorym selektor harnessu dobiera migracje.
 --
--- BLIZNIAK w pasie drizzle: `drizzle/migrations/0133_event_participant_reminders.sql`
+-- BLIZNIAK w pasie drizzle: `drizzle/migrations/0136_event_participant_reminders.sql`
 -- (ten sam SQL wykonywalny, wpis w `src/lib/ci/migrationLaneParity.ts`).
 --
 -- Idempotentna: CREATE OR REPLACE, CREATE INDEX IF NOT EXISTS, bezstanowe ACL.

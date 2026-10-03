@@ -188,6 +188,46 @@ describe("coerce - wartości spoza zakresu", () => {
   });
 });
 
+// Adres zdjęcia nagłówka (migracja 20261003100000). Bez niego styl „Zdjęcie”
+// był martwym ustawieniem - `coerce` musi go przenieść z wiersza do renderera,
+// a „brak zdjęcia” zawsze sprowadzić do JEDNEJ postaci (`null`).
+describe("coerce - zdjęcie w tle nagłówka", () => {
+  it("przenosi adres zdjęcia z wiersza bez zmian", async () => {
+    const out = await load(
+      "category",
+      dbRow({ hero_bg_style: "image", hero_image_url: "https://cdn.example/archiwum/hero.jpg" }),
+    );
+    expect(out.hero_bg_style).toBe("image");
+    expect(out.hero_image_url).toBe("https://cdn.example/archiwum/hero.jpg");
+  });
+
+  it("przycina białe znaki na brzegach", async () => {
+    const out = await load("category", dbRow({ hero_image_url: "  /media/archiwum/hero.jpg \n" }));
+    expect(out.hero_image_url).toBe("/media/archiwum/hero.jpg");
+  });
+
+  it.each([
+    ["NULL", null],
+    ["pusty napis", ""],
+    ["same spacje", "   "],
+  ])("%s → null (jedna postać „brak zdjęcia”)", async (_opis, value) => {
+    expect((await load("category", dbRow({ hero_image_url: value }))).hero_image_url).toBeNull();
+  });
+
+  it("wiersz bez kolumny (sprzed migracji) → null, a nie undefined", async () => {
+    // `select("*")` na bazie przed migracją nie zwraca kolumny wcale; renderer
+    // i panel porównują z `null`, więc `undefined` nie może przeciec dalej.
+    const row = dbRow();
+    expect("hero_image_url" in row).toBe(false);
+    expect((await load("category", row)).hero_image_url).toBeNull();
+  });
+
+  it("brak wiersza → domyślnie bez zdjęcia", async () => {
+    expect((await load("tag", null)).hero_image_url).toBeNull();
+    expect(DEFAULT_ARCHIVE_LAYOUT.hero_image_url).toBeNull();
+  });
+});
+
 describe("coerce - widgety panelu bocznego", () => {
   it("ODSIEWA klucze spoza katalogu", async () => {
     // Klucz z przyszłej wersji albo literówka nie może dotrzeć do renderera -

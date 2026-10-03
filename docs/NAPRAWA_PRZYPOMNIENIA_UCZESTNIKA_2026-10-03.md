@@ -19,7 +19,7 @@ Przy okazji zamyka zgłoszenia, które opisują ten sam defekt z innej strony: 2
 
 ## 2. Co zmienia naprawa
 
-### Baza (`supabase/migrations/20261003140000_event_participant_reminders.sql`, bliźniak `drizzle/migrations/0133_event_participant_reminders.sql`, idx 133)
+### Baza (`supabase/migrations/20261003140000_event_participant_reminders.sql`, bliźniak `drizzle/migrations/0136_event_participant_reminders.sql`, idx 136)
 
 - **`_event_reminder_candidates(now, kanały, limit)`** - jedno źródło prawdy „co jest należne”, czytające ustawienia wyłącznie przez `_event_participant_settings_effective`:
   - przypomnienia o wydarzeniu dla zgłoszeń z biletem (`approved`/`attended` i opłata `paid`/`partially_refunded`/`not_required`), kanały według `remind_email`, `remind_push` (konto) i `remind_sms` (zgoda, numer, ustawienie organizatora);

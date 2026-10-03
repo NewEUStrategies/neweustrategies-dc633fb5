@@ -72,15 +72,15 @@ export function speakerCardEasing(): string {
  * Czy uzytkownik prosi o ograniczenie ruchu. Czytane W CHWILI klikniecia, a nie
  * w renderze: `matchMedia` nie istnieje na serwerze, a odczyt w renderze dalby
  * inny pierwszy rysunek klienta niz serwera.
+ *
+ * Re-eksport wspolnego odczytu zamiast wlasnej kopii: trzy prywatne wersje
+ * (tu, w `smoothAnchorScroll` i w nawigacji przypisow) roznily sie obsluga
+ * rzutu z `matchMedia`, wiec ta sama preferencja systemowa mogla dac rozne
+ * odpowiedzi w zaleznosci od tego, ktory modul pytal. Eksport zostaje jako
+ * czesc API tego modulu (importuja go stad jego testy), ale zrodlem prawdy
+ * jest `lib/a11y/reducedMotion`.
  */
-export function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
-}
+export { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
 
 export function boxOf(element: Element | null | undefined): FlipBox | null {
   if (!element) return null;

@@ -14,6 +14,8 @@ import {
   MAX_MENU_DEPTH,
   appendMenuItems,
   buildMenuTree,
+  canIndentMenuItem,
+  canReparentMenuItem,
   depthOf,
   descendantIds,
   dropZoneForOffset,
@@ -22,6 +24,7 @@ import {
   outdentMenuItem,
   parentToExpandOnIndent,
   removeMenuSubtree,
+  subtreeHeight,
   toSavePayload,
   updateMenuItemById,
   type MenuClientItem,
@@ -59,6 +62,15 @@ function shape(nodes: ReturnType<typeof buildMenuTree<MenuTreeItem>>): string {
   return nodes
     .map((n) => (n.children.length ? `${n.item.local_id}(${shape(n.children)})` : n.item.local_id))
     .join(",");
+}
+
+/**
+ * Najgłębszy poziom całej listy (0 = same pozycje najwyższego rzędu). To jest
+ * dokładnie liczba, której pilnuje limit: drzewo jest poprawne, gdy wynik
+ * leży poniżej `MAX_MENU_DEPTH`.
+ */
+function maxDepth(items: readonly MenuTreeItem[]): number {
+  return Math.max(0, ...items.map((i) => depthOf(items, i.local_id)));
 }
 
 /** Rodzeństwo danego rodzica w kolejności `position` - do asercji porządku. */
@@ -155,6 +167,96 @@ describe("descendantIds", () => {
   });
 });
 
+describe("subtreeHeight", () => {
+  it("liść ma wysokość zero", () => {
+    expect(subtreeHeight([node("a", null, 0)], "a")).toBe(0);
+  });
+
+  it("łańcuch dziecko-wnuk liczy poziomy POD pozycją, nie samą pozycję", () => {
+    const items = [node("root", null, 0), node("mid", "root", 0), node("leaf", "mid", 0)];
+    expect(subtreeHeight(items, "root")).toBe(2);
+    expect(subtreeHeight(items, "mid")).toBe(1);
+    expect(subtreeHeight(items, "leaf")).toBe(0);
+  });
+
+  it("przy rozgałęzieniu wygrywa NAJGŁĘBSZA gałąź, nie liczba dzieci", () => {
+    // Trzy płytkie dzieci i jedno z wnukiem: wysokość to 2 (przez wnuka),
+    // a nie 3 (liczba dzieci) ani 1 (pierwsze dziecko).
+    const items = [
+      node("root", null, 0),
+      node("k1", "root", 0),
+      node("k2", "root", 1),
+      node("k3", "root", 2),
+      node("w", "k3", 0),
+      node("obok", null, 1),
+    ];
+    expect(subtreeHeight(items, "root")).toBe(2);
+  });
+
+  it("nieznana pozycja ma wysokość zero, jak w `depthOf`", () => {
+    expect(subtreeHeight([node("a", null, 0)], "duch")).toBe(0);
+  });
+
+  it("kończy się na cyklu zamiast przepełnić stos", () => {
+    // Bez bezpiecznika rekurencja A->B->A kończy się RangeError - a liczenie
+    // biegnie przy każdym chwyceniu pozycji do przeciągania.
+    expect(subtreeHeight([node("a", "b", 0), node("b", "a", 0)], "a")).toBe(1);
+    expect(subtreeHeight([node("a", "a", 0)], "a")).toBe(0);
+  });
+});
+
+describe("canReparentMenuItem", () => {
+  // root(0) > mid(1) > leaf(2), a obok płaska pozycja i gałąź z dzieckiem.
+  const items = [
+    node("root", null, 0),
+    node("mid", "root", 0),
+    node("leaf", "mid", 0),
+    node("wolna", null, 1),
+    node("galaz", null, 2),
+    node("galaz-dziecko", "galaz", 0),
+  ];
+
+  it("liść mieści się pod pozycją z poziomu 1, gałąź z dzieckiem już nie", () => {
+    expect(canReparentMenuItem(items, "wolna", "mid")).toBe(true);
+    // galaz na poziomie 2, jej dziecko na poziomie 3 - czwarty poziom menu.
+    expect(canReparentMenuItem(items, "galaz", "mid")).toBe(false);
+  });
+
+  it("najwyższy poziom przyjmuje każde poddrzewo mieszczące się w limicie", () => {
+    expect(canReparentMenuItem(items, "mid", null)).toBe(true);
+  });
+
+  it("ruch, który NIE pogłębia zbyt głębokiego menu, przechodzi (naprawa starych danych)", () => {
+    // Menu zapisane przed regułą może mieć cztery poziomy. Zakaz każdego ruchu
+    // w takiej gałęzi zablokowałby redaktorowi nawet zmianę kolejności
+    // rodzeństwa i wyprowadzenie gałęzi wyżej - czyli samą naprawę.
+    const legacy = [
+      node("l0", null, 0),
+      node("l1a", "l0", 0),
+      node("l1b", "l0", 1),
+      node("l2", "l1a", 0),
+      node("l3", "l2", 0),
+    ];
+    expect(canReparentMenuItem(legacy, "l1a", "l0")).toBe(true); // ten sam rząd
+    expect(canReparentMenuItem(legacy, "l1a", null)).toBe(true); // wyżej
+    // Pogłębienie dalej podlega limitowi, także w starym menu.
+    expect(canReparentMenuItem(legacy, "l1a", "l1b")).toBe(false);
+  });
+
+  it("pozycja w pierścieniu nie korzysta z wyjątku dla ruchów w górę", () => {
+    // `depthOf` w pierścieniu zwraca wartość bezpiecznika, a nie głębokość -
+    // gdyby wyjątek ją przyjął, każdy ruch takiej pozycji przechodziłby bez
+    // sprawdzenia poddrzewa.
+    const ring = [
+      node("root", null, 0),
+      node("mid", "root", 0),
+      node("a", "b", 0),
+      node("b", "a", 0),
+    ];
+    expect(canReparentMenuItem(ring, "a", "mid")).toBe(false);
+  });
+});
+
 describe("moveMenuItem", () => {
   const flat = [node("a", null, 0), node("b", null, 1), node("c", null, 2)];
 
@@ -200,6 +302,68 @@ describe("moveMenuItem", () => {
     expect(moveMenuItem(flat, "duch", "a", "before")).toBe(flat);
   });
 
+  describe("limit liczony po CAŁYM przenoszonym poddrzewie", () => {
+    // root(0) > mid(1), a obok gałąź z dzieckiem oraz luźny liść.
+    const items = [
+      node("root", null, 0),
+      node("mid", "root", 0),
+      node("galaz", null, 1),
+      node("galaz-dziecko", "galaz", 0),
+      node("lisc", null, 2),
+    ];
+
+    it("ODRZUCA pozycję z dzieckiem upuszczoną pod pozycję z poziomu 1", () => {
+      // Regresja sprzed 03.10.2026: reduktor patrzył tylko na głębokość
+      // rodzica (1 + 1 < 3), więc przepuszczał ruch, po którym dziecko
+      // przenoszonej pozycji lądowało na czwartym poziomie.
+      expect(moveMenuItem(items, "galaz", "mid", "child")).toBe(items);
+    });
+
+    it("ten sam cel przyjmuje LIŚĆ - limit nie jest zakazem ruchu w ogóle", () => {
+      const out = moveMenuItem(items, "lisc", "mid", "child");
+      expect(order(out, "mid")).toBe("lisc@0");
+      expect(maxDepth(out)).toBeLessThan(MAX_MENU_DEPTH);
+    });
+
+    it("upuszczenie OBOK głęboko leżącej pozycji też liczy poddrzewo", () => {
+      // „Za" pozycją z poziomu 2 to ten sam poziom 2 - jej dziecko byłoby na 3.
+      const deep = [...items, node("leaf", "mid", 0)];
+      expect(moveMenuItem(deep, "galaz", "leaf", "after")).toBe(deep);
+    });
+
+    it("to samo poddrzewo PRZENIESIONE NA NAJWYŻSZY POZIOM przechodzi", () => {
+      const nested = [
+        node("root", null, 0),
+        node("galaz", "root", 0),
+        node("galaz-dziecko", "galaz", 0),
+      ];
+      const out = moveMenuItem(nested, "galaz", null, "after");
+      expect(order(out, null)).toBe("root@0,galaz@1");
+      // Dziecko jedzie razem z rodzicem - hierarchia poddrzewa zostaje.
+      expect(out.find((i) => i.local_id === "galaz-dziecko")?.parent_local_id).toBe("galaz");
+    });
+
+    it("pozycja z dzieckiem pod pozycją z poziomu 0 mieści się w limicie", () => {
+      const out = moveMenuItem(items, "galaz", "root", "child");
+      expect(order(out, "root")).toBe("mid@0,galaz@1");
+      expect(maxDepth(out)).toBe(MAX_MENU_DEPTH - 1);
+    });
+
+    it("w zbyt głębokim (starym) menu przestawienie rodzeństwa dalej działa", () => {
+      // Serwer nie odrzuca menu głębszych niż limit, więc edytor musi umieć
+      // na nich pracować - inaczej nie dałoby się nawet zmienić kolejności.
+      const legacy = [
+        node("l0", null, 0),
+        node("l1a", "l0", 0),
+        node("l1b", "l0", 1),
+        node("l2", "l1a", 0),
+        node("l3", "l2", 0),
+      ];
+      const out = moveMenuItem(legacy, "l1a", "l1b", "after");
+      expect(order(out, "l0")).toBe("l1b@0,l1a@1");
+    });
+  });
+
   it("cel spoza listy przy trybie `before` traktuje jak najwyższy poziom", () => {
     const items = [node("root", null, 0), node("kid", "root", 0)];
     const out = moveMenuItem(items, "kid", "duch", "before");
@@ -241,6 +405,44 @@ describe("indentMenuItem", () => {
     const items = [node("a", null, 0)];
     expect(indentMenuItem(items, "duch")).toBe(items);
   });
+
+  it("ODRZUCA wcięcie, po którym WNUK przenoszonej pozycji wyszedłby poza limit", () => {
+    // b(0) > b1(1) > b2(2): po wcięciu pod `a` wnuk b2 stałby na poziomie 3.
+    // Do 03.10.2026 reguła patrzyła tylko na `a` (0 + 1 < 3) i przepuszczała.
+    const items = [node("a", null, 0), node("b", null, 1), node("b1", "b", 0), node("b2", "b1", 0)];
+    expect(indentMenuItem(items, "b")).toBe(items);
+  });
+
+  it("wcięcie pozycji z dzieckiem przechodzi, gdy całe poddrzewo się mieści", () => {
+    const items = [node("a", null, 0), node("b", null, 1), node("b1", "b", 0)];
+    const out = indentMenuItem(items, "b");
+    expect(order(out, "a")).toBe("b@0");
+    expect(order(out, "b")).toBe("b1@0");
+    expect(maxDepth(out)).toBe(MAX_MENU_DEPTH - 1);
+  });
+});
+
+describe("canIndentMenuItem", () => {
+  it("zgadza się z reduktorem: pierwsza w rzędzie i nieznana pozycja nie mają wcięcia", () => {
+    const items = [node("a", null, 0), node("b", null, 1)];
+    expect(canIndentMenuItem(items, "a")).toBe(false);
+    expect(canIndentMenuItem(items, "duch")).toBe(false);
+    expect(canIndentMenuItem(items, "b")).toBe(true);
+  });
+
+  it("liczy poddrzewo: pozycja z wnukiem nie ma wcięcia, ta sama bez wnuka ma", () => {
+    // To jest stan przycisku „wcięcie" w edytorze - do 03.10.2026 liczony
+    // z samej głębokości wiersza, więc przycisk był aktywny dla ruchu, który
+    // dawał czwarty poziom.
+    const withGrandchild = [
+      node("a", null, 0),
+      node("b", null, 1),
+      node("b1", "b", 0),
+      node("b2", "b1", 0),
+    ];
+    expect(canIndentMenuItem(withGrandchild, "b")).toBe(false);
+    expect(canIndentMenuItem(withGrandchild.slice(0, 3), "b")).toBe(true);
+  });
 });
 
 describe("parentToExpandOnIndent", () => {
@@ -253,6 +455,12 @@ describe("parentToExpandOnIndent", () => {
     const items = [node("a", null, 0), node("b", null, 1)];
     expect(parentToExpandOnIndent(items, "a")).toBeNull();
     expect(parentToExpandOnIndent(items, "duch")).toBeNull();
+  });
+
+  it("zwraca null, gdy wcięcie blokuje limit poziomów poddrzewa", () => {
+    // Odrzucone wcięcie nie może rozwijać cudzej gałęzi.
+    const items = [node("a", null, 0), node("b", null, 1), node("b1", "b", 0), node("b2", "b1", 0)];
+    expect(parentToExpandOnIndent(items, "b")).toBeNull();
   });
 });
 
@@ -438,5 +646,36 @@ describe("dropZoneForOffset", () => {
     // Inaczej UI zapraszałby do ruchu, który reduktor i tak odrzuci - kursor
     // pokazywał „upuść jako dziecko", a po puszczeniu nic się nie działo.
     expect(dropZoneForOffset(0.5, MAX_MENU_DEPTH - 1)).toBe("after");
+  });
+
+  it("środek degraduje do „za”, gdy pod wierszem nie zmieści się PRZECIĄGANE poddrzewo", () => {
+    // Wiersz z poziomu 1 przyjmie liść (poziom 2), ale nie pozycję z dzieckiem
+    // (dziecko lądowałoby na poziomie 3).
+    expect(dropZoneForOffset(0.5, 1, 0)).toBe("child");
+    expect(dropZoneForOffset(0.5, 1, 1)).toBe("after");
+    // Wiersz najwyższego poziomu przyjmie dziecko z dzieckiem, ale nie z wnukiem.
+    expect(dropZoneForOffset(0.5, 0, 1)).toBe("child");
+    expect(dropZoneForOffset(0.5, 0, 2)).toBe("after");
+  });
+
+  it("strefa „dziecko” dla poddrzewa jest DOKŁADNIE tym ruchem, który reduktor przyjmie", () => {
+    // Spójność heurystyki z reduktorem: dla każdej pary (wiersz, przeciągana
+    // gałąź) środek wiersza proponuje „dziecko" wtedy i tylko wtedy, gdy
+    // `moveMenuItem` faktycznie wykona ten ruch.
+    const items = [
+      node("root", null, 0),
+      node("mid", "root", 0),
+      node("leaf", "mid", 0),
+      node("galaz", null, 1),
+      node("galaz-dziecko", "galaz", 0),
+      node("lisc", null, 2),
+    ];
+    for (const target of ["root", "mid", "leaf"]) {
+      for (const dragged of ["galaz", "lisc"]) {
+        const zone = dropZoneForOffset(0.5, depthOf(items, target), subtreeHeight(items, dragged));
+        const accepted = moveMenuItem(items, dragged, target, "child") !== items;
+        expect(zone === "child", `${dragged} -> ${target}`).toBe(accepted);
+      }
+    }
   });
 });

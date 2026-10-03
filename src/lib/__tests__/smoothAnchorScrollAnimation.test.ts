@@ -145,6 +145,32 @@ describe("dostępność: prefers-reduced-motion", () => {
     smoothScrollToAnchor("sekcja", { offset: 80 });
     expect(driver().pending()).toBe(true);
   });
+
+  it("rzut z `matchMedia` nie zostawia strony bez skoku i z nadpisanymi stylami", () => {
+    // Odczyt preferencji pada PO podmianie `scroll-behavior`/`overflow-anchor`.
+    // Prywatna kopia przepuszczała wyjątek: brak przewinięcia i style
+    // dokumentu zostawione w stanie „na czas animacji". Wspólny odczyt
+    // z `lib/a11y` traktuje rzut jak brak preferencji - animacja rusza i po
+    // zakończeniu sprząta po sobie.
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => {
+        throw new Error("SecurityError");
+      },
+    });
+    document.documentElement.style.overflowAnchor = "auto";
+    anchor("sekcja", 1000);
+    const onFinish = vi.fn();
+
+    expect(() =>
+      smoothScrollToAnchor("sekcja", { offset: 80, minDuration: 100, maxDuration: 100, onFinish }),
+    ).not.toThrow();
+    driver().tick(100);
+
+    expect(scrolled.at(-1)).toBe(920);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    expect(document.documentElement.style.overflowAnchor).toBe("auto");
+  });
 });
 
 describe("wybór kotwicy", () => {

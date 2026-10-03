@@ -110,6 +110,81 @@ export function depthOf<T extends MenuTreeItem>(items: readonly T[], localId: st
   return depth;
 }
 
+/**
+ * Wysokość poddrzewa pozycji: ile poziomów leży POD nią (0 = liść, 1 = ma
+ * dzieci, 2 = ma wnuki). Nieznany identyfikator ma wysokość 0, tak jak
+ * `depthOf` zwraca dla niego 0.
+ *
+ * DLACZEGO TO OSOBNA LICZBA. Przeniesienie pozycji przenosi CAŁE jej
+ * poddrzewo, więc najgłębszy wiersz po ruchu leży na poziomie
+ * „głębokość nowego miejsca + wysokość poddrzewa". Do 03.10.2026 reguły ruchu
+ * patrzyły wyłącznie na głębokość rodzica: pozycja z wnukami upuszczona pod
+ * pozycję z poziomu 1 dawała drzewo czteropoziomowe, choć limit wynosi trzy -
+ * a zapis wysyłał je do bazy bez słowa.
+ *
+ * Cykl w danych nie zawiesza liczenia: każdy wierzchołek odwiedzamy raz
+ * (ten sam bezpiecznik, co w `descendantIds`), więc pierścień daje skończoną
+ * liczbę zamiast rekurencji bez dna.
+ */
+export function subtreeHeight<T extends MenuTreeItem>(
+  items: readonly T[],
+  localId: string,
+): number {
+  if (!items.some((i) => i.local_id === localId)) return 0;
+  // Mapa dzieci budowana RAZ - przeszukiwanie całej listy dla każdego
+  // wierzchołka dawałoby koszt kwadratowy przy każdym ruchu myszą.
+  const childrenOf = new Map<string, string[]>();
+  for (const it of items) {
+    if (!it.parent_local_id) continue;
+    const siblings = childrenOf.get(it.parent_local_id) ?? [];
+    siblings.push(it.local_id);
+    childrenOf.set(it.parent_local_id, siblings);
+  }
+  const visited = new Set<string>();
+  const height = (id: string): number => {
+    visited.add(id);
+    let best = 0;
+    for (const child of childrenOf.get(id) ?? []) {
+      if (visited.has(child)) continue; // bezpiecznik na cykl w danych
+      best = Math.max(best, height(child) + 1);
+    }
+    return best;
+  };
+  return height(localId);
+}
+
+/**
+ * Czy poddrzewo `localId` może zawisnąć pod `newParent` (`null` = najwyższy
+ * poziom) bez przekroczenia limitu poziomów. Korzystają z niej przeciąganie,
+ * wcięcie i stan przycisku wcięcia, żeby UI nigdy nie zapraszał do ruchu,
+ * który reduktor odrzuci; strefa upuszczenia (`dropZoneForOffset`) liczy tę
+ * samą sumę z wysokości poddrzewa zapamiętanej przy chwyceniu pozycji.
+ *
+ * Liczy się najgłębszy wiersz PRZENOSZONEGO PODDRZEWA, nie sama pozycja:
+ * głębokość nowego miejsca plus `subtreeHeight` musi zostać poniżej
+ * `MAX_MENU_DEPTH`.
+ *
+ * WYJĄTEK: ruch, który poddrzewa NIE POGŁĘBIA (przestawienie w obrębie rzędu,
+ * przeniesienie wyżej), przechodzi zawsze. Menu zapisane przed tą regułą mogą
+ * być głębsze niż limit - serwer ich nie odrzuca i nie może, bo zapis
+ * istniejącej nawigacji musi dalej działać. Gdyby ścisła reguła obejmowała
+ * także takie ruchy, redaktor nie mógłby w zbyt głębokim menu ani zmienić
+ * kolejności rodzeństwa, ani wyprowadzić gałęzi wyżej, czyli właśnie jej
+ * naprawić. Wyjątek nie dotyczy pozycji w pierścieniu: `depthOf` przerywa
+ * wtedy pętlę po `DEPTH_CYCLE_GUARD` krokach, a ta liczba nie jest
+ * prawdziwą głębokością, więc nie może niczego przepuszczać.
+ */
+export function canReparentMenuItem<T extends MenuTreeItem>(
+  items: readonly T[],
+  localId: string,
+  newParent: string | null,
+): boolean {
+  const newDepth = newParent === null ? 0 : depthOf(items, newParent) + 1;
+  const currentDepth = depthOf(items, localId);
+  if (currentDepth <= DEPTH_CYCLE_GUARD && newDepth <= currentDepth) return true;
+  return newDepth + subtreeHeight(items, localId) < MAX_MENU_DEPTH;
+}
+
 /** Zbiór identyfikatorów pozycji i całego jej poddrzewa. */
 export function descendantIds<T extends MenuTreeItem>(
   items: readonly T[],
@@ -137,7 +212,8 @@ function sortedSiblings<T extends MenuTreeItem>(items: readonly T[], parent: str
 /**
  * Przenosi pozycję pod wskazany cel. Zwraca WEJŚCIE (ta sama referencja), gdy
  * ruch jest niedozwolony: nieznana pozycja, cel wewnątrz własnego poddrzewa
- * (to zrobiłoby z drzewa pierścień) albo przekroczenie limitu poziomów.
+ * (to zrobiłoby z drzewa pierścień) albo przekroczenie limitu poziomów przez
+ * NAJGŁĘBSZY wiersz przenoszonego poddrzewa (patrz `canReparentMenuItem`).
  */
 export function moveMenuItem<T extends MenuTreeItem>(
   items: readonly T[],
@@ -157,7 +233,7 @@ export function moveMenuItem<T extends MenuTreeItem>(
   } else {
     newParent = items.find((i) => i.local_id === targetId)?.parent_local_id ?? null;
   }
-  if (newParent && depthOf(items, newParent) + 1 >= MAX_MENU_DEPTH) return items;
+  if (!canReparentMenuItem(items, dragId, newParent)) return items;
 
   const others = items.filter((i) => i.local_id !== dragId);
   const siblings = others.filter((i) => i.parent_local_id === newParent);
@@ -177,21 +253,45 @@ export function moveMenuItem<T extends MenuTreeItem>(
 }
 
 /**
+ * Nowy rodzic pozycji po wcięciu w prawo albo `null`, gdy wcięcie nie miałoby
+ * skutku: nieznana pozycja, brak poprzedniego rodzeństwa (pierwsza w rzędzie)
+ * albo poddrzewo, które pod nowym rodzicem wyszłoby poza limit poziomów.
+ *
+ * Jedna funkcja dla reduktora, rozwijania gałęzi i stanu przycisku - do
+ * 03.10.2026 przycisk liczył limit z samej głębokości wiersza, więc pozycja
+ * z wnukami dawała się wciąć o poziom za głęboko.
+ */
+function indentTarget<T extends MenuTreeItem>(items: readonly T[], localId: string): string | null {
+  const it = items.find((i) => i.local_id === localId);
+  if (!it) return null;
+  const siblings = sortedSiblings(items, it.parent_local_id);
+  const idx = siblings.findIndex((s) => s.local_id === localId);
+  if (idx <= 0) return null; // brak poprzedniego rodzeństwa
+  const newParent = siblings[idx - 1].local_id;
+  return canReparentMenuItem(items, localId, newParent) ? newParent : null;
+}
+
+/** Czy wcięcie w prawo zadziała - stan przycisku „wcięcie" w edytorze. */
+export function canIndentMenuItem<T extends MenuTreeItem>(
+  items: readonly T[],
+  localId: string,
+): boolean {
+  return indentTarget(items, localId) !== null;
+}
+
+/**
  * Wcięcie w prawo: pozycja staje się OSTATNIM dzieckiem swojego poprzedniego
  * rodzeństwa. Bez poprzednika (pierwsza w rzędzie) i po przekroczeniu limitu
- * poziomów operacja jest bezskuteczna.
+ * poziomów przez całe poddrzewo operacja jest bezskuteczna.
  */
 export function indentMenuItem<T extends MenuTreeItem>(
   items: readonly T[],
   localId: string,
 ): readonly T[] {
+  const newParent = indentTarget(items, localId);
   const it = items.find((i) => i.local_id === localId);
-  if (!it) return items;
+  if (!newParent || !it) return items;
   const siblings = sortedSiblings(items, it.parent_local_id);
-  const idx = siblings.findIndex((s) => s.local_id === localId);
-  if (idx <= 0) return items; // brak poprzedniego rodzeństwa
-  const newParent = siblings[idx - 1].local_id;
-  if (depthOf(items, newParent) + 1 >= MAX_MENU_DEPTH) return items;
 
   const newParentChildren = sortedSiblings(items, newParent);
   const updatedItem = {
@@ -211,17 +311,15 @@ export function indentMenuItem<T extends MenuTreeItem>(
 
 /**
  * Które gałęzie trzeba rozwinąć, żeby wcięta pozycja została widoczna.
- * Zwraca id nowego rodzica albo `null`, gdy wcięcie nie miałoby skutku.
+ * Zwraca id nowego rodzica albo `null`, gdy wcięcie nie miałoby skutku -
+ * także wtedy, gdy blokuje je limit poziomów (inaczej odrzucone wcięcie
+ * rozwijałoby obcą gałąź).
  */
 export function parentToExpandOnIndent<T extends MenuTreeItem>(
   items: readonly T[],
   localId: string,
 ): string | null {
-  const it = items.find((i) => i.local_id === localId);
-  if (!it) return null;
-  const siblings = sortedSiblings(items, it.parent_local_id);
-  const idx = siblings.findIndex((s) => s.local_id === localId);
-  return idx > 0 ? siblings[idx - 1].local_id : null;
+  return indentTarget(items, localId);
 }
 
 /**
@@ -369,12 +467,17 @@ export function toSavePayload(
 /**
  * Strefa upuszczenia z pionowej pozycji kursora nad wierszem (0 = górna
  * krawędź, 1 = dolna). Górne 30% to „przed", dolne 30% to „za", środek
- * zagnieżdża - chyba że pozycja jest już na ostatnim dozwolonym poziomie,
- * wtedy środek degraduje do „za" zamiast zapraszać do ruchu, który i tak
- * zostałby odrzucony.
+ * zagnieżdża - chyba że przeciągane poddrzewo nie zmieści się pod tym
+ * wierszem, wtedy środek degraduje do „za" zamiast zapraszać do ruchu, który
+ * i tak zostałby odrzucony.
+ *
+ * `draggedHeight` to `subtreeHeight` PRZECIĄGANEJ pozycji: zagnieżdżenie
+ * kładzie ją na poziomie `depth + 1`, a jej najgłębszy potomek ląduje o tyle
+ * poziomów niżej. Domyślne 0 (liść) zachowuje dawną regułę dla wywołań, które
+ * przeciąganej pozycji nie znają.
  */
-export function dropZoneForOffset(ratio: number, depth: number): MenuDropMode {
+export function dropZoneForOffset(ratio: number, depth: number, draggedHeight = 0): MenuDropMode {
   if (ratio < 0.3) return "before";
   if (ratio > 0.7) return "after";
-  return depth + 1 < MAX_MENU_DEPTH ? "child" : "after";
+  return depth + 1 + draggedHeight < MAX_MENU_DEPTH ? "child" : "after";
 }

@@ -7,18 +7,13 @@
 // Natywny skok kotwicy jest tu za słaby z dwóch powodów: sticky header zasłania
 // cel (brak offsetu), a `history` zapełnia się wpisami przy każdym skoku tam i
 // z powrotem. Dlatego przechwytujemy klik i przewijamy sami - płynnie, z
-// offsetem i z poszanowaniem `prefers-reduced-motion`.
+// offsetem i z poszanowaniem `prefers-reduced-motion` (wspólny odczyt
+// z `lib/a11y/reducedMotion` - prywatna kopia tutaj przepuszczała rzut
+// z `matchMedia` prosto do obsługi kliknięcia, więc skok w ogóle nie zachodził).
+import { preferredScrollBehavior } from "@/lib/a11y/reducedMotion";
 
 /** Odstęp od górnej krawędzi (sticky header + oddech). */
 const SCROLL_OFFSET_PX = 112;
-
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  );
-}
 
 /** Przewija do elementu o danym `id`; zwraca false, gdy celu nie ma w DOM. */
 export function scrollToFootnoteId(id: string): boolean {
@@ -26,7 +21,7 @@ export function scrollToFootnoteId(id: string): boolean {
   const target = document.getElementById(id);
   if (!target) return false;
   const top = target.getBoundingClientRect().top + window.scrollY - SCROLL_OFFSET_PX;
-  window.scrollTo({ top: Math.max(top, 0), behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  window.scrollTo({ top: Math.max(top, 0), behavior: preferredScrollBehavior() });
   // Fokus bez ponownego skoku - dla czytników ekranu i klawiatury.
   if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });

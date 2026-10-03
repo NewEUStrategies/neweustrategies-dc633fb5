@@ -714,7 +714,7 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     twin: "20261002210000_event_seat_state_single_source.sql",
   },
   {
-    tag: "0133_event_participant_reminders",
+    tag: "0136_event_participant_reminders",
     twin: "20261003140000_event_participant_reminders.sql",
   },
 ];

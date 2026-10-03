@@ -14,7 +14,19 @@
 //
 // Testujemy je jako funkcje, bez montowania tras - to ten sam kod, który
 // wykona framework, tylko bez kosztu całego drzewa.
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Adres żądania widziany przez `head()`. Domyślnie pusty - dokładnie to, co
+// oddaje prawdziwy `getRequestUrl` poza żądaniem SSR, więc nagłówki pozostałych
+// tras liczą się tu tak samo jak bez atrapy. Przypadki stronicowania
+// /publications ustawiają pełny adres ze stroną i filtrem, żeby asercja
+// „kanoniczny bez parametrów" miała co odrzucić.
+const zadanie = vi.hoisted(() => ({ url: "" }));
+vi.mock("@/lib/seo/request", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/seo/request")>()),
+  getRequestUrl: () => zadanie.url,
+}));
+
 import { Route as BlogRoute } from "@/routes/blog.index";
 import { Route as CategoryRoute } from "@/routes/category.$slug";
 import { Route as TagRoute } from "@/routes/tag.$slug";
@@ -262,9 +274,68 @@ describe("nagłówek /publications", () => {
       q: "energia",
       sort: "popular",
     });
-    // `q` ma wartość domyślną, więc pusty adres nadal daje poprawny kształt.
-    expect(validate(PublicationsRoute, {})).toMatchObject({ q: "" });
     expect(() => validate(PublicationsRoute, { sort: "po-mojemu" })).toThrow();
+  });
+
+  it("pusty adres zostaje PUSTY - pusta fraza nie dopisuje `?q=` (bez 307 na gołym adresie)", () => {
+    // Router scala wynik walidatora z adresem i przy SSR porównuje oba: dawne
+    // `q: ""` z `.default("")` przekierowywało `/publications` na
+    // `/publications?q=`, a każdy link paska stron niósłby `q=`.
+    expect(validate(PublicationsRoute, {})).toEqual({});
+  });
+
+  it("kolejne strony zostają w adresie jako liczba, obok filtrów", () => {
+    expect(validate(PublicationsRoute, { page: "3" })).toEqual({ page: 3 });
+    expect(validate(PublicationsRoute, { page: 3.9 })).toEqual({ page: 3 });
+    expect(validate(PublicationsRoute, { q: "nato", type: "raport", page: 2 })).toEqual({
+      q: "nato",
+      type: "raport",
+      page: 2,
+    });
+  });
+
+  it("strona pierwsza i śmieciowe wejście ZNIKAJĄ z adresu - bez ekranu błędu", () => {
+    // `/publications` i `/publications?page=1` to JEDEN adres. Zła strona nie
+    // oblewa walidacji (jak nieznany `sort`): ręcznie wpisany `?page=abc` ma
+    // otworzyć bibliotekę, a nie ekran błędu trasy.
+    for (const page of [1, "1", "abc", -5, 0, 0.5, Number.NaN, [], {}, null]) {
+      const result = validate(PublicationsRoute, { page });
+      expect(result.page).toBeUndefined();
+    }
+  });
+
+  describe("stronicowanie w nagłówku", () => {
+    beforeEach(() => {
+      zadanie.url = "https://neweuropeanstrategies.com/publications?type=raport&page=3";
+    });
+    afterEach(() => {
+      zadanie.url = "";
+    });
+
+    it("strona pierwsza jest indeksowalna, bez numeru w tytule", () => {
+      const result = head(PublicationsRoute, { match: { search: {} } });
+      expect(metaByName(result, "robots")).toBeUndefined();
+      expect(title(result)).toBe("Publikacje");
+    });
+
+    it("strona druga i dalsze są NOINDEX, FOLLOW z numerem w tytule - jak archiwa kategorii", () => {
+      // Ta sama konwencja co /blog, /category i /tag: crawler idzie za linkami
+      // do publikacji, ale indeks konsoliduje się na stronie pierwszej.
+      const result = head(PublicationsRoute, { match: { search: { page: 3 } } });
+      expect(metaByName(result, "robots")).toBe("noindex, follow");
+      expect(title(result)).toBe("Publikacje (strona 3)");
+    });
+
+    it("kanoniczny adres każdej strony to czyste /publications - bez `page` i filtrów", () => {
+      const result = head(PublicationsRoute, { match: { search: { page: 3 } } });
+      expect(linkByRel(result, "canonical")[0]?.href).toBe(
+        "https://neweuropeanstrategies.com/publications",
+      );
+    });
+
+    it("bez dopasowania (head poza routerem) nagłówek to strona pierwsza", () => {
+      expect(metaByName(head(PublicationsRoute), "robots")).toBeUndefined();
+    });
   });
 
   it("język publikacji jest ograniczony do obsługiwanych wersji", () => {
