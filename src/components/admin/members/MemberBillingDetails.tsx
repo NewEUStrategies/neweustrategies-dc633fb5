@@ -4,13 +4,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import { getMemberBilling } from "@/lib/admin/membersDirectory.functions";
 import { uiLocale } from "@/lib/i18n/format";
+import { memberMoney as money } from "./memberMoney";
 
 interface Props {
   userId: string;
-}
-
-function money(cents: number, currency: string, locale: string): string {
-  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
 }
 
 export function MemberBillingDetails({ userId }: Props) {
@@ -18,13 +15,24 @@ export function MemberBillingDetails({ userId }: Props) {
   const locale = uiLocale(i18n.language);
   const billingFn = useServerFn(getMemberBilling);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["admin-member-billing", userId],
     queryFn: () => billingFn({ data: { userId } }),
   });
 
   if (isLoading) {
     return <p className="p-4 text-sm text-muted-foreground">{t("adminMembers.table.loading")}</p>;
+  }
+
+  // Nieudany odczyt NIE może wyglądać jak zmierzona pusta historia: „Brak
+  // płatności." przy błędzie odczytu wysyła operatora do członka z pytaniem
+  // o przelew, który w bazie jest.
+  if (isError) {
+    return (
+      <p role="alert" className="p-4 text-sm text-destructive">
+        {t("adminMembers.details.loadError")}
+      </p>
+    );
   }
 
   return (

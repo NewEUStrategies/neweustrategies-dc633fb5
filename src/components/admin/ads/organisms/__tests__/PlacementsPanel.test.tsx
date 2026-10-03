@@ -624,3 +624,60 @@ describe("PlacementsPanel - dawne defekty", () => {
     expect(naruszenia.map((v) => v.id)).not.toContain("button-name");
   });
 });
+
+// KAŻDE POLE FORMULARZA DOCHODZI DO ZAPISU. Dotąd zapis był asertowany na
+// polach domyślnych i na `paragraph`; typ strony, kolejność, „co N kart",
+// opóźnienie wysunięcia, koniec okna i przełącznik aktywności nie miały ani
+// jednego wywołania swoich procedur `onChange` - czyli pole, które przestałoby
+// zapisywać, przeszłoby całą suitę.
+describe("PlacementsPanel - każde pole trafia do INSERT", () => {
+  async function submit(): Promise<Record<string, unknown>> {
+    fireEvent.click(screen.getByRole("button", { name: /adsAdmin\.placements\.addAction/ }));
+    await waitFor(() =>
+      expect(
+        db()
+          .chainsFor("ad_placements")
+          .some((c) => c.has("insert")),
+      ).toBe(true),
+    );
+    return insertPayload();
+  }
+
+  it("IN_FEED: typ strony, kolejność, `co N kart`, koniec okna i wyłączenie", async () => {
+    await renderPanel([SLOT], []);
+    fireEvent.change(selects()[SELECT_SLOT], { target: { value: SLOT.id } });
+    fireEvent.change(selects()[SELECT_POSITION], { target: { value: "in_feed" } });
+    fireEvent.change(selects()[SELECT_PAGE_TYPE], { target: { value: "home" } });
+    fireEvent.change(screen.getByLabelText("adsAdmin.placements.fieldSortOrder"), {
+      target: { value: "7" },
+    });
+    fireEvent.change(await screen.findByLabelText("adsAdmin.placements.fieldEveryNCards"), {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getByLabelText("adsAdmin.placements.endsAtPlaceholder"), {
+      target: { value: "2026-04-01T00:00:00.000Z" },
+    });
+    // Jedyny przełącznik poza `footer_slideup` to „aktywne".
+    fireEvent.click(screen.getByRole("switch"));
+
+    expect(await submit()).toMatchObject({
+      slot_id: SLOT.id,
+      position: "in_feed",
+      page_type: "home",
+      sort_order: 7,
+      config: { every: 3 },
+      ends_at: "2026-04-01T00:00:00.000Z",
+      active: false,
+    });
+  });
+
+  it("FOOTER_SLIDEUP: opóźnienie zapisuje się jako liczba milisekund", async () => {
+    await renderPanel([SLOT], []);
+    fireEvent.change(selects()[SELECT_SLOT], { target: { value: SLOT.id } });
+    fireEvent.change(selects()[SELECT_POSITION], { target: { value: "footer_slideup" } });
+    fireEvent.change(await screen.findByLabelText("adsAdmin.placements.fieldDelayMs"), {
+      target: { value: "1500" },
+    });
+    expect((await submit()).config).toEqual({ delay_ms: 1500 });
+  });
+});
