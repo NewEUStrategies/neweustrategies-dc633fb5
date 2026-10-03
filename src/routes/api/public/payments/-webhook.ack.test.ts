@@ -75,6 +75,8 @@ interface DbPlan {
   logInsert?: SupabaseResult;
   /** Odczyt istniejącego wiersza po duplikacie (`maybeSingle`). */
   logLookup?: SupabaseResult;
+  /** Warunkowe przejęcie wiersza (UPDATE ... RETURNING id); domyślnie wygrane. */
+  logReclaim?: SupabaseResult;
   /** Warunkowy UPDATE `last_event_at` (RETURNING id) - `claimSubscriptionEvent`. */
   subscriptionGuard?: SupabaseResult | (() => SupabaseResult | Promise<SupabaseResult>);
   subscriptionExists?: SupabaseResult;
@@ -84,6 +86,10 @@ function planDb(p: DbPlan = {}) {
   db.setResponse(LOG, (chain: RecordedChain) => {
     if (chain.has("insert")) return p.logInsert ?? ok(null);
     if (chain.has("maybeSingle")) return p.logLookup ?? ok(null);
+    // Warunkowe przejęcie (UPDATE ... RETURNING id): domyślnie ta dostawa wygrała wyścig.
+    if (chain.has("update") && chain.has("select")) {
+      return p.logReclaim ?? ok([{ id: "row-reclaimed" }]);
+    }
     return ok(null);
   });
   db.setResponse("subscriptions", (chain: RecordedChain) => {
@@ -331,7 +337,11 @@ describe("webhook płatności - ponowna dostawa tego samego zdarzenia", () => {
     const reclaim = db
       .chainsFor(LOG)
       .find((c) => c.has("update") && eqFilters(c).some(([column]) => column === "id"));
-    expect(eqFilters(reclaim!)).toEqual([["id", "row-failed-1"]]);
+    expect(eqFilters(reclaim!)).toEqual([
+      ["id", "row-failed-1"],
+      ["status", "failed"],
+      ["retry_count", 1],
+    ]);
     expect(reclaim!.argsOf("update")?.[0]).toMatchObject({
       status: "received",
       error: null,
@@ -342,6 +352,31 @@ describe("webhook płatności - ponowna dostawa tego samego zdarzenia", () => {
       ["event_id", "evt_test_1"],
       ["environment", "live"],
     ]);
+  });
+
+  it("przegrany wyścig o przejęcie `failed`: 200 `duplicate`, bez drugiej obsługi i domknięcia", async () => {
+    // Naprawa z panelu (albo równoległa dostawa) przejęła ten sam wiersz chwilę
+    // wcześniej - warunkowy UPDATE nie dopasował żadnego wiersza. Obsługę
+    // wykonuje TYLKO zwycięzca; ta dostawa nie może jej powtórzyć ani nadpisać
+    // jego wyniku swoim domknięciem.
+    planDb({
+      logInsert: fail('duplicate key value violates unique constraint "uq_event"', "23505"),
+      logLookup: ok({
+        id: "row-failed-1",
+        status: "failed",
+        created_at: FIXED_NOW_ISO,
+        retry_count: 1,
+      }),
+      logReclaim: ok([]),
+    });
+
+    const res = await handle(signed(SUBSCRIPTION_UPDATED, "live"));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ received: true, duplicate: true });
+    expect(touchedTables()).toEqual([LOG]);
+    expect(finishChain()).toBeUndefined();
+    expect(h.afterResponse).toHaveLength(0);
   });
 
   it("zdarzenie już domknięte: 200 `duplicate`, bez obsługi, domknięcia i pracy za odpowiedzią", async () => {

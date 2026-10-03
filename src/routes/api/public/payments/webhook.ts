@@ -33,6 +33,7 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
   const { claimWebhookEvent, finishWebhookEvent } = await import("@/lib/billing/webhookLog.server");
   const eventType = normalized?.eventType ?? verified.type;
   const raw = (normalized?.data ?? {}) as Record<string, unknown>;
+  const customData = raw.customData as { userId?: unknown } | null | undefined;
   const ref = {
     eventId: verified.id,
     eventType,
@@ -42,10 +43,7 @@ async function handleWebhookRequest(request: Request): Promise<Response> {
       (typeof raw.subscriptionId === "string" ? raw.subscriptionId : null) ??
       (typeof raw.id === "string" && eventType.startsWith("subscription.") ? raw.id : null),
     customerId: typeof raw.customerId === "string" ? raw.customerId : null,
-    userId:
-      typeof (raw.customData as { userId?: string } | null)?.userId === "string"
-        ? ((raw.customData as { userId?: string }).userId ?? null)
-        : null,
+    userId: typeof customData?.userId === "string" ? customData.userId : null,
     payload: verified as unknown,
   };
 

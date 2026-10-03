@@ -14,7 +14,8 @@
 //     obsługuje je równoległa dostawa,
 //   * duplikat porzucony (`received` starsze niż 5 min) albo `failed` ->
 //     PRZEJĘCIE: licznik prób +1, wyczyszczony błąd, świeży ładunek - i zapis
-//     zawężony do TEGO wiersza (`id`), nie do całej tabeli,
+//     zawężony do TEGO wiersza (`id`) w stanie właśnie odczytanym (status i
+//     licznik prób); przegrany wyścig o przejęcie (0 wierszy) -> pominięcie,
 //   * awaria bazy na każdym kroku -> wyjątek z nazwą kroku (handler loguje go i
 //     przetwarza mimo to - patrz trasa webhooka), nigdy cichy `false`.
 // `finishWebhookEvent` domyka wiersz i NIGDY nie rzuca - awaria dziennika nie
@@ -54,18 +55,24 @@ freezeClock();
 const TABLE = "payment_webhook_events";
 const db = supabaseFromStub();
 
-/** Odpowiedzi bazy per krok: INSERT rezerwacji, odczyt duplikatu, UPDATE przejęcia. */
+/**
+ * Odpowiedzi bazy per krok: INSERT rezerwacji, odczyt duplikatu, warunkowy
+ * UPDATE przejęcia (RETURNING - wygrany wyścig to jeden wiersz) i UPDATE
+ * domknięcia.
+ */
 interface Plan {
   insert?: SupabaseResult;
   lookup?: SupabaseResult;
   reclaim?: SupabaseResult;
+  finish?: SupabaseResult;
 }
 
 function plan(p: Plan) {
   db.setResponse(TABLE, (chain: RecordedChain) => {
     if (chain.has("insert")) return p.insert ?? ok(null);
     if (chain.has("maybeSingle")) return p.lookup ?? ok(null);
-    if (chain.has("update")) return p.reclaim ?? ok(null);
+    if (chain.has("update") && chain.has("select")) return p.reclaim ?? ok([{ id: "row-won" }]);
+    if (chain.has("update")) return p.finish ?? ok(null);
     return fail(`test: nieoczekiwany łańcuch na ${TABLE}`);
   });
 }
@@ -233,8 +240,14 @@ describe("claimWebhookEvent - rezerwacja zdarzenia", () => {
       last_retried_at: FIXED_NOW_ISO,
       payload,
     });
-    // Przejęcie dotyka WYŁĄCZNIE tego wiersza.
-    expect(eqFilters(reclaim)).toEqual([["id", "row-stuck"]]);
+    // Przejęcie dotyka WYŁĄCZNIE tego wiersza - i tylko w stanie, który
+    // właśnie odczytaliśmy (porównaj-i-zamień na statusie i liczniku prób).
+    expect(eqFilters(reclaim)).toEqual([
+      ["id", "row-stuck"],
+      ["status", "received"],
+      ["retry_count", 2],
+    ]);
+    expect(reclaim.argsOf("select")).toEqual(["id"]);
   });
 
   it("zdarzenie `failed` jest przejmowane od razu; brak licznika liczy się jako zero", async () => {
@@ -255,6 +268,25 @@ describe("claimWebhookEvent - rezerwacja zdarzenia", () => {
     });
   });
 
+  it("przegrany wyścig o przejęcie (0 wierszy) NIE przejmuje zdarzenia - obsługuje je tylko jeden", async () => {
+    // Ponowna dostawa od operatora i naprawa z panelu admina mogą odczytać ten
+    // sam wiersz `failed` jednocześnie. Gdyby obaj dostali `true`, zdarzenie
+    // wykonałoby się dwa razy (drugi bilet, drugi mail, podwójny wpis w CRM).
+    plan({
+      insert: DUPLICATE,
+      lookup: ok(webhookEvent({ id: "row-failed", status: "failed", retry_count: 1 })),
+      reclaim: ok([]),
+    });
+
+    await expect(claimWebhookEvent(REF)).resolves.toBe(false);
+
+    expect(eqFilters(chainsWith("update")[0]!)).toEqual([
+      ["id", "row-failed"],
+      ["status", "failed"],
+      ["retry_count", 1],
+    ]);
+  });
+
   it("awaria przejęcia jest błędem - zdarzenie nie może udawać, że jest nasze", async () => {
     plan({
       insert: DUPLICATE,
@@ -271,12 +303,17 @@ describe("claimWebhookEvent - rezerwacja zdarzenia", () => {
 describe("finishWebhookEvent - domknięcie wiersza", () => {
   it("domyka status z czasem obsługi, subskrypcją i użytkownikiem, zawężając do zdarzenia", async () => {
     plan({});
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await finishWebhookEvent({ eventId: "evt_test_1", environment: "sandbox" }, "processed", {
       durationMs: 41.6,
       subscriptionId: "sub_test_1",
       userId: "user-me",
     });
+
+    // Udany zapis nie zostawia w logu fałszywego alarmu.
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
 
     const update = chainsWith("update")[0]!;
     expect(update.argsOf("update")?.[0]).toEqual({
@@ -319,6 +356,19 @@ describe("finishWebhookEvent - domknięcie wiersza", () => {
       error: null,
       processed_at: FIXED_NOW_ISO,
     });
+  });
+
+  it("błąd zwrócony przez bazę (nie wyjątek) też jest logowany - domknięcie nigdy nie rzuca", async () => {
+    // supabase-js NIE rzuca przy błędzie zapisu, tylko zwraca `{ error }`.
+    // Bez odczytu wyniku wiersz zostawał po cichu w `received`, bez śladu w logu.
+    const denied = fail("permission denied for table payment_webhook_events", "42501");
+    plan({ finish: denied });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(finishWebhookEvent(REF, "processed")).resolves.toBeUndefined();
+
+    expect(consoleError).toHaveBeenCalledWith("[payments] webhook log update failed", denied.error);
+    consoleError.mockRestore();
   });
 
   it("wyjątek klienta bazy jest logowany i połykany - domknięcie nigdy nie rzuca", async () => {

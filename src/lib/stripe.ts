@@ -45,7 +45,15 @@ export function getStripe(): Promise<Stripe | null> {
   if (!stripePromise) {
     paymentsEnvironment();
     const token = clientToken as string;
-    stripePromise = import("@stripe/stripe-js").then((m) => m.loadStripe(token));
+    // Odrzuconej obietnicy NIE zostawiamy w pamięci (tak samo robi sam
+    // `loadStripe` i `loadStripeSdk` na serwerze): chwilowy brak sieci przy
+    // rozgrzewce na hover blokowałby osadzoną kasę do przeładowania strony.
+    stripePromise = import("@stripe/stripe-js")
+      .then((m) => m.loadStripe(token))
+      .catch((error: unknown) => {
+        stripePromise = null;
+        throw error;
+      });
   }
   return stripePromise;
 }
@@ -57,10 +65,8 @@ export function getStripe(): Promise<Stripe | null> {
  * czytelnik tylko przesunął kursor nad przyciskiem.
  */
 export function preloadStripeSdk(): void {
+  // Ten strażnik wyklucza jedyny synchroniczny wyjątek `getStripe`
+  // (payments_not_configured); offline wraca jako odrzucona obietnica.
   if (!isPaymentsConfigured()) return;
-  try {
-    void getStripe().catch(() => undefined);
-  } catch {
-    /* payments_not_configured - rozgrzewka jest best-effort */
-  }
+  void getStripe().catch(() => undefined);
 }

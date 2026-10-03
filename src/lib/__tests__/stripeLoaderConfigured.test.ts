@@ -113,4 +113,33 @@ describe("lib/stripe ze skonfigurowanym tokenem", () => {
       process.off("unhandledRejection", unhandled);
     }
   });
+
+  it("nieudane ładowanie (offline przy rozgrzewce) nie jest zapamiętywane - kliknięcie ładuje SDK ponownie", async () => {
+    // Chwilowy brak sieci przy najechaniu kursorem nie może zablokować osadzonej
+    // kasy do pełnego przeładowania strony: kupujący klika chwilę później, gdy
+    // sieć już wróciła, i ramka MUSI dostać działające SDK.
+    const stripe = await loaderWithToken(TEST_TOKEN);
+    h.loadStripe.mockRejectedValueOnce(new Error("Failed to load Stripe.js"));
+
+    stripe.preloadStripeSdk();
+    // Kliknięcie w trakcie rozgrzewki dzieli jej próbę - i jej błąd. Czekamy na
+    // to odrzucenie wprost (zamiast obrotu pętli zdarzeń), więc test nie zależy
+    // od tego, jak szybko rozwiąże się dynamiczny import.
+    await expect(stripe.getStripe()).rejects.toThrow("Failed to load Stripe.js");
+
+    await expect(stripe.getStripe()).resolves.toBe(STRIPE_JS);
+    expect(h.loadStripe).toHaveBeenCalledTimes(2);
+  });
+
+  it("udane ładowanie po ponowieniu jest znowu współdzielone przez kolejne wywołania", async () => {
+    const stripe = await loaderWithToken(LIVE_TOKEN);
+    h.loadStripe.mockRejectedValueOnce(new Error("Failed to load Stripe.js"));
+
+    await expect(stripe.getStripe()).rejects.toThrow("Failed to load Stripe.js");
+    const retried = stripe.getStripe();
+
+    expect(stripe.getStripe()).toBe(retried);
+    await expect(retried).resolves.toBe(STRIPE_JS);
+    expect(h.loadStripe).toHaveBeenCalledTimes(2);
+  });
 });
