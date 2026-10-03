@@ -30,8 +30,8 @@
 //      plus `enabled: Boolean(tenantId)` - klucz bez najemcy zlewałby dwa
 //      warsztaty w jeden wpis cache.
 //
-// ECHARTS: ten panel nie renderuje `EChart`, więc nie ma czego atrapować - i
-// biblioteka nie wchodzi do procesu testowego (patrz nagłówek `EChart.tsx`).
+// WYKRESY: ten panel nie renderuje żadnego wykresu (ani `ChartCard`, ani
+// `@/components/charts/Chart`), więc nie ma czego atrapować ani podsłuchiwać.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";

@@ -81,8 +81,9 @@ const pl = {
       exportCsv: "Eksport CSV",
       fullscreen: "Pełny ekran",
       exitFullscreen: "Zamknij pełny ekran",
-      // Kanwa ECharts jest dla czytnika ekranu nieprzezroczysta - te trzy klucze
-      // opisują alternatywę tekstową, nie ozdobę.
+      // Nazwa regionu rysunku dla czytnika ekranu (`ChartCard`). Tabelę danych
+      // i jej przełącznik rysuje dziś rama silnika (`ChartFrame`) z własnego
+      // słownika - klucze `dataTable*` niżej nie mają już czytelnika w kodzie.
       chartRegion: "Wykres: {{title}}",
       dataTable: "Dane wykresu (tabela)",
       dataTableHint: "Ta sama treść co wykres, w postaci tabeli.",
