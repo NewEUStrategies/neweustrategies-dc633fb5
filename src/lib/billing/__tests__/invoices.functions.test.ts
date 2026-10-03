@@ -331,8 +331,9 @@ describe("import/push CRM - każdy przycisk pisze w SWOIM kierunku", () => {
 
     expect(result).toMatchObject({ ok: true, company: { companyId: "crm-acme" } });
     const [update] = writesTo("crm_companies", "update");
+    // Nazwy kartoteki „Zapisz w CRM" nie przepisuje - utrzymuje ją zespół.
+    expect(update?.argsOf("update")?.[0]).not.toHaveProperty("name");
     expect(update?.argsOf("update")?.[0]).toMatchObject({
-      name: "Acme",
       address: "ul. Nowa 2",
       city: "Kraków",
       postal_code: "30-001",

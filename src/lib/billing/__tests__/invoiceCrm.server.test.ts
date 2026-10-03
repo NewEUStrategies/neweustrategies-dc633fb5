@@ -14,10 +14,15 @@
 //     przepięty na kartotekę, której nie zaktualizowaliśmy.
 //   * IDEMPOTENCJA. Drugie kliknięcie nie zakłada drugiej firmy ani drugiego
 //     wiersza danych do faktury.
+//   * WSPÓLNA KARTOTEKA. Firmę w profilu wybiera się z katalogu, więc dzieli
+//     ją wielu członków: „Zapisz w CRM" z danymi INNEJ firmy nie może jej
+//     przemianować ani podmienić jej NIP-u.
+//   * KOD KRAJU. Kraj w CRM to wolny tekst; do `country_code` trafia tylko ISO-2.
 //
 // GRANICA ATRAP: wyłącznie klient Supabase z rolą serwisową - jako mała baza
-// w pamięci, która STOSUJE filtry `eq` z łańcucha (pominięty filtr tenanta
-// oddaje wtedy cudzy wiersz i test to widzi). `memberSync.server`
+// w pamięci, która STOSUJE filtry `eq`/`ilike`, `order` i `range` z łańcucha
+// (pominięty filtr tenanta oddaje wtedy cudzy wiersz i test to widzi, a skan
+// przycięty do jednej porcji gubi firmę). `memberSync.server`
 // (`normalizeCompanyName`, `ensureCrmCompany`) biegnie PRAWDZIWY: to ten sam
 // dedup nazw, którego używa synchronizacja członków, i to jego zachowanie
 // jest częścią kontraktu.
@@ -100,6 +105,7 @@ interface CompanyRow {
   country: string | null;
   email: string | null;
   phone: string | null;
+  created_at: string;
   updated_at?: string;
 }
 
@@ -159,6 +165,7 @@ function company(overrides: Partial<CompanyRow> = {}): CompanyRow {
     country: null,
     email: null,
     phone: null,
+    created_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -170,23 +177,65 @@ function eqFilters(chain: RecordedChain): [string, unknown][] {
     .map((call) => [String(call.args[0]), call.args[1]]);
 }
 
+/** Wzorzec ILIKE -> wyrażenie regularne (`%` = dowolny ciąg, `_` = jeden znak). */
+function ilikeRegex(pattern: string): RegExp {
+  const body = pattern
+    .split("")
+    .map((char) =>
+      char === "%" ? ".*" : char === "_" ? "." : char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    )
+    .join("");
+  return new RegExp(`^${body}$`, "is");
+}
+
 function matching<T extends object>(rows: T[], chain: RecordedChain): T[] {
   const filters = eqFilters(chain);
-  return rows.filter((row) => filters.every(([column, value]) => (row as Row)[column] === value));
+  const patterns = chain.calls
+    .filter((call) => call.method === "ilike")
+    .map((call) => [String(call.args[0]), ilikeRegex(String(call.args[1]))] as const);
+  return rows.filter(
+    (row) =>
+      filters.every(([column, value]) => (row as Row)[column] === value) &&
+      patterns.every(([column, regex]) => regex.test(String((row as Row)[column]))),
+  );
 }
 
-/** Odczyt: `maybeSingle` -> pierwszy wiersz albo null, inaczej lista z limitem. */
+/** `order` w kolejności wywołań - jak ORDER BY a, b w PostgREST. */
+function sorted<T extends object>(rows: T[], chain: RecordedChain): T[] {
+  const keys = chain.calls
+    .filter((call) => call.method === "order")
+    .map((call) => String(call.args[0]));
+  if (keys.length === 0) return rows;
+  return [...rows].sort((a, b) => {
+    for (const key of keys) {
+      const left = String((a as Row)[key]);
+      const right = String((b as Row)[key]);
+      if (left !== right) return left < right ? -1 : 1;
+    }
+    return 0;
+  });
+}
+
+/**
+ * Odczyt: `maybeSingle` -> pierwszy wiersz albo null, inaczej lista po
+ * `order`, przycięta `range` i `limit` (bez `order` - kolejność „sterty”,
+ * czyli kolejność wierszy w scenie).
+ */
 function readRows<T extends object>(rows: T[], chain: RecordedChain) {
-  const found = matching(rows, chain);
+  const found = sorted(matching(rows, chain), chain);
   if (chain.has("maybeSingle")) return ok(found[0] ?? null);
+  const range = chain.argsOf("range");
+  const ranged = range ? found.slice(Number(range[0]), Number(range[1]) + 1) : found;
   const limit = chain.argsOf("limit")?.[0];
-  return ok(typeof limit === "number" ? found.slice(0, limit) : found);
+  return ok(typeof limit === "number" ? ranged.slice(0, limit) : ranged);
 }
 
+/** Zapis: z `.select().maybeSingle()` oddaje wiersz PO zmianie (albo null). */
 function updateRows<T extends object>(rows: T[], chain: RecordedChain) {
   const patch = chain.argsOf("update")?.[0] as Partial<T>;
-  for (const row of matching(rows, chain)) Object.assign(row, patch);
-  return ok(null);
+  const touched = matching(rows, chain);
+  for (const row of touched) Object.assign(row, patch);
+  return ok(chain.has("maybeSingle") ? (touched[0] ?? null) : null);
 }
 
 let scene: Scene;
@@ -354,7 +403,9 @@ describe("loadCrmCompanyForUser - kartoteka firmy pokazywana w panelu faktur", (
     ]);
     const search = db.lastChain("crm_companies")!;
     expect(eqFilters(search)).toEqual([["tenant_id", TENANT]]);
-    expect(search.has("limit")).toBe(true);
+    // Kandydatów odsiewa baza (wzorzec po nazwie), nie przycięta porcja tenanta.
+    expect(search.argsOf("ilike")?.[0]).toBe("name");
+    expect(search.has("limit")).toBe(false);
   });
 
   it("gdy profil nie ma nazwy firmy, bierze ją z danych do faktury TEGO tenanta", async () => {
@@ -401,6 +452,90 @@ describe("loadCrmCompanyForUser - kartoteka firmy pokazywana w panelu faktur", (
     });
 
     await expect(loadCrmCompanyForUser(ME)).resolves.toEqual({ ok: false, error: "no_company" });
+  });
+
+  it.each([
+    // Litery klucza nie stoją w nazwie obok siebie (kropki, przecinek, forma
+    // prawna) - wzorzec „%acme holding%” odsiałby tę kartotekę jeszcze w bazie.
+    ["kropki i przecinek między literami", "Acme Holding", "A.C.M.E., Holding Sp. z o.o."],
+    // Polskie litery i wielkość liter: o ich zrównaniu decyduje JS, nie collation.
+    ["polskie znaki w innej wielkości liter", "Łódź Consulting", "ŁÓDŹ CONSULTING Sp. z o.o."],
+  ])(
+    "wzorzec bazy przepuszcza każdą nazwę o tym samym kluczu: %s",
+    async (_, profileName, crmName) => {
+      install({
+        profiles: [profile({ current_company: profileName })],
+        companies: [company({ id: "crm-cel", name: crmName })],
+      });
+
+      const result = await loadCrmCompanyForUser(ME);
+
+      expect(result).toMatchObject({ ok: true, company: { companyId: "crm-cel", name: crmName } });
+    },
+  );
+
+  it("duży tenant: firma dalej niż 200 wierszy kartoteki nadal zostaje znaleziona po nazwie", async () => {
+    // Wcześniej odczyt brał DOWOLNE 200 firm tenanta (bez filtra nazwy i bez
+    // ORDER BY) i dopasowywał je dopiero w JS - firma spoza tej porcji dawała
+    // „brak firmy w CRM”, choć kartoteka istniała.
+    // Podobne nazwy (te same litery w tej samej kolejności), wszystkie starsze
+    // od szukanej firmy - po ORDER BY created_at stoi ona na samym końcu.
+    const lookalikes = Array.from({ length: 1200 }, (_, index) =>
+      company({ id: `crm-podobna-${index}`, name: `Acme Holding ${index}` }),
+    );
+    install({
+      profiles: [profile({ current_company: "ACME Sp. z o.o." })],
+      companies: [
+        ...lookalikes,
+        company({
+          id: "crm-acme",
+          name: "Acme",
+          city: "Poznań",
+          created_at: "2026-06-01T00:00:00.000Z",
+        }),
+      ],
+    });
+
+    const result = await loadCrmCompanyForUser(ME);
+
+    expect(result).toMatchObject({ ok: true, company: { companyId: "crm-acme", city: "Poznań" } });
+    for (const search of db.chainsFor("crm_companies")) {
+      expect(eqFilters(search)).toEqual([["tenant_id", TENANT]]);
+    }
+  });
+
+  it("kilka kartotek o tym samym kluczu nazwy: wybiera najstarszą - tę samą, którą wskazuje crm_ensure_member_company", async () => {
+    install({
+      profiles: [profile({ current_company: "Acme" })],
+      companies: [
+        // Kolejność „sterty” stawia nowszy duplikat pierwszy - bez ORDER BY
+        // wynik zależałby od tego, jak baza akurat odda wiersze.
+        company({ id: "crm-nowszy", name: "acme", created_at: "2026-05-01T00:00:00.000Z" }),
+        company({
+          id: "crm-starszy",
+          name: "ACME Sp. z o.o.",
+          created_at: "2026-02-01T00:00:00.000Z",
+        }),
+      ],
+    });
+
+    const result = await loadCrmCompanyForUser(ME);
+
+    expect(result).toMatchObject({ ok: true, company: { companyId: "crm-starszy" } });
+    const search = db.lastChain("crm_companies")!;
+    expect(
+      search.calls.filter((call) => call.method === "order").map((call) => call.args[0]),
+    ).toEqual(["created_at", "id"]);
+  });
+
+  it("nazwa z samej formy prawnej nie dopasowuje się do innej „firmy-widma” -> no_company bez przeszukiwania", async () => {
+    install({
+      profiles: [profile({ current_company: "Sp. z o.o." })],
+      companies: [company({ id: "crm-widmo", name: "S.A." })],
+    });
+
+    await expect(loadCrmCompanyForUser(ME)).resolves.toEqual({ ok: false, error: "no_company" });
+    expect(db.chainsFor("crm_companies")).toHaveLength(0);
   });
 
   it("kartoteka odpowiada bez wierszy (data: null) -> no_company, nie wyjątek", async () => {
@@ -546,6 +681,26 @@ describe("importCrmCompanyToBillingProfile - „Pobierz z CRM”", () => {
     });
   });
 
+  it.each([
+    ["nazwa kraju („Polska”) nie nadpisuje poprawnego kodu z checkoutu", "Polska", "DE", "DE"],
+    ["nazwa kraju („Niemcy”) przy pierwszym imporcie daje domyślne PL", "Niemcy", null, "PL"],
+    ["kod ISO zapisany małymi literami jest przyjmowany jako kod", " de ", "PL", "DE"],
+  ])(
+    "kraj z kartoteki to wolny tekst - do kodu kraju trafia tylko kod ISO: %s",
+    async (_, crmCountry, existingCode, expected) => {
+      install({
+        profiles: [profile({ current_company_id: "crm-acme" })],
+        billing: existingCode ? [billingRow({ country_code: existingCode })] : [],
+        companies: [company({ country: crmCountry })],
+      });
+
+      const result = await importCrmCompanyToBillingProfile(ME);
+
+      expect(result.ok).toBe(true);
+      expect(myBilling()?.country_code).toBe(expected);
+    },
+  );
+
   it("nieudany zapis danych do faktury -> no_billing_data, a profil NIE zostaje przepięty na kartotekę", async () => {
     install({
       profiles: [profile({ current_company: "Acme" })],
@@ -650,8 +805,8 @@ describe("pushBillingProfileToCrm - „Zapisz w CRM”", () => {
     const result = await pushBillingProfileToCrm(ME);
 
     const [update] = writes("crm_companies", "update");
+    // Bez `name`: nazwę kartoteki utrzymuje zespół, zapis jej nie przepisuje.
     expect(update.argsOf("update")?.[0]).toEqual({
-      name: "Acme",
       tax_id: "5260250274",
       address: "ul. Nowa 2",
       country: "PL",
@@ -728,9 +883,8 @@ describe("pushBillingProfileToCrm - „Zapisz w CRM”", () => {
     const result = await pushBillingProfileToCrm(ME);
 
     expect(h.rpc.calls[0]?.args.p_name).toBe("Acme");
-    expect(writes("crm_companies", "update")[0]?.argsOf("update")?.[0]).toMatchObject({
-      name: "Acme",
-    });
+    expect(writes("crm_companies", "update")[0]?.argsOf("update")?.[0]).not.toHaveProperty("name");
+    expect(companyById("crm-acme")).toMatchObject({ name: "Acme", city: "Gdańsk" });
     // Firma już była w kartotece - dedup zwrócił ją, zamiast zakładać duplikat.
     expect(scene.companies).toHaveLength(1);
     expect(result).toMatchObject({ ok: true, company: { companyId: "crm-acme" } });
@@ -807,6 +961,99 @@ describe("pushBillingProfileToCrm - „Zapisz w CRM”", () => {
     });
     expect(writes("profiles", "update")).toHaveLength(0);
     expect(myProfile()?.current_company_id).toBeNull();
+  });
+
+  it("aktualizacja nie trafiła w żaden wiersz (firmę usunięto w międzyczasie) -> no_company, profil NIE zostaje przepięty", async () => {
+    // Brak błędu PostgREST to jeszcze nie zapis: UPDATE po nieistniejącym id
+    // kończy się sukcesem z zerem wierszy.
+    install({ profiles: [profile()], billing: [billingRow({ company: "Acme" })], companies: [] });
+    h.rpc.respond = () => ({ data: [{ id: "crm-usunieta" }], error: null });
+
+    await expect(pushBillingProfileToCrm(ME)).resolves.toEqual({
+      ok: false,
+      error: "no_company",
+    });
+    expect(writes("crm_companies", "update")).toHaveLength(1);
+    expect(writes("profiles", "update")).toHaveLength(0);
+    expect(myProfile()?.current_company_id).toBeNull();
+  });
+
+  it("profil powiązany ze WSPÓLNĄ firmą, a dane do faktury wskazują INNĄ firmę: kartoteka zespołu zostaje nietknięta", async () => {
+    // Firmę w profilu wybiera się z katalogu, więc jedną kartotekę dzieli wielu
+    // członków. Członek fakturujący na własną działalność nie może przemianować
+    // firmy zespołu ani podmienić jej NIP-u i adresu na swoje.
+    const shared = company({
+      name: "Acme Sp. z o.o.",
+      tax_id: "1132853869",
+      address: "ul. Zespołowa 5",
+      city: "Warszawa",
+      email: "biuro@acme.example.com",
+    });
+    install({
+      profiles: [profile({ current_company_id: "crm-acme", current_company: "Acme Sp. z o.o." })],
+      billing: [billingRow({ company: "Kowalska Consulting", city: "Sopot" })],
+      companies: [shared, company({ id: "crm-kolega", name: "Beta" })],
+    });
+    const sharedBefore = structuredClone(shared);
+    h.rpc.respond = ensureCompanyRpc("crm-kowalska");
+
+    const result = await pushBillingProfileToCrm(ME);
+
+    expect(companyById("crm-acme")).toEqual(sharedBefore);
+    expect(h.rpc.calls.map((call) => call.args.p_name)).toEqual(["Kowalska Consulting"]);
+    expect(companyById("crm-kowalska")).toMatchObject({
+      name: "Kowalska Consulting",
+      tax_id: "5260250274",
+      city: "Sopot",
+    });
+    expect(myProfile()).toMatchObject({
+      current_company_id: "crm-kowalska",
+      current_company: "Kowalska Consulting",
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      company: { companyId: "crm-kowalska", name: "Kowalska Consulting", city: "Sopot" },
+    });
+  });
+
+  it("nazwa w danych do faktury różni się od kartoteki tylko zapisem: aktualizuje powiązaną firmę bez zmiany jej nazwy", async () => {
+    install({
+      profiles: [profile({ current_company_id: "crm-acme", current_company: "ACME Sp. z o.o." })],
+      billing: [billingRow({ company: "acme" })],
+      companies: [company({ name: "ACME Sp. z o.o." })],
+    });
+
+    const result = await pushBillingProfileToCrm(ME);
+
+    expect(h.rpc.calls).toHaveLength(0);
+    const [update] = writes("crm_companies", "update");
+    expect(update.argsOf("update")?.[0]).not.toHaveProperty("name");
+    expect(companyById("crm-acme")).toMatchObject({ name: "ACME Sp. z o.o.", city: "Gdańsk" });
+    // Profil niesie nazwę z kartoteki - tak jak przy wyborze firmy z katalogu.
+    expect(myProfile()).toMatchObject({
+      current_company_id: "crm-acme",
+      current_company: "ACME Sp. z o.o.",
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      company: { companyId: "crm-acme", name: "ACME Sp. z o.o." },
+    });
+  });
+
+  it("powiązana kartoteka zniknęła z tenanta: zapis idzie do firmy znalezionej po nazwie, nie w próżnię", async () => {
+    install({
+      profiles: [profile({ current_company_id: "crm-usunieta", current_company: "Acme" })],
+      billing: [billingRow({ company: "Acme" })],
+      companies: [company({ id: "crm-usunieta", tenant_id: FOREIGN_TENANT, name: "Acme" })],
+    });
+    h.rpc.respond = ensureCompanyRpc("crm-acme");
+
+    const result = await pushBillingProfileToCrm(ME);
+
+    expect(h.rpc.calls).toHaveLength(1);
+    expect(companyById("crm-usunieta")).toMatchObject({ tenant_id: FOREIGN_TENANT, city: null });
+    expect(myProfile()?.current_company_id).toBe("crm-acme");
+    expect(result).toMatchObject({ ok: true, company: { companyId: "crm-acme", city: "Gdańsk" } });
   });
 
   it("drugi „Zapisz w CRM” nie zakłada firmy ponownie - idzie po relacji z profilu", async () => {
