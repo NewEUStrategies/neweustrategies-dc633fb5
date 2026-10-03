@@ -11,12 +11,7 @@
 // Stan adresu (?page/?sort) jest DOKŁADNIE taki sam jak w archiwum taksonomii -
 // lista publikacji to ten sam pivot i ta sama paginacja, więc nie wolno jej
 // dawać drugiej, niezgodnej gramatyki URL-a.
-import {
-  createFileRoute,
-  notFound,
-  useNavigate,
-  useRouter,
-} from "@tanstack/react-router";
+import { createFileRoute, notFound, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useTransition } from "react";
 import { useTranslation } from "react-i18next";
