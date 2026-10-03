@@ -223,11 +223,13 @@ export function SearchButtonWidget({
   // a strona główna robi po hydratacji kilkanaście takich przeliczeń
   // (pomiar 2026-10-02, docs/performance). Pomijamy wiersz paska czytania
   // ([data-reading-row]) - on MUSI przycinać w poziomie (horizontalPanGuard).
-  // Znaczniki zostają po odmontowaniu, tak jak dawna reguła działała trwale.
   // Opakowania buildera (sekcja, kontener, wiersz, slot, ramka widgetu) dostają
   // znacznik już w HTML-u SSR (`@/lib/builder/searchOverflow`) - bez niego
-  // pierwsza klatka ucinała pływającą etykietę i obwódkę fokusu. Ten efekt
-  // domyka przodków spoza renderera, których SSR nie zna.
+  // pierwsza klatka ucinała pływającą etykietę i obwódkę fokusu. Te znaczniki
+  // należą do renderera: zdejmuje je zwykły render, gdy wyszukiwarka przestaje
+  // się renderować (zakładka, urządzenie, dostęp). Ten efekt domyka przodków
+  // spoza renderera, których SSR nie zna; jego znaczniki zostają po
+  // odmontowaniu - atrybutu na cudzym przodku nikt inny nie zdejmie.
   useEffect(() => {
     let el = wrapRef.current?.parentElement ?? null;
     while (el && el !== document.body && el !== document.documentElement) {

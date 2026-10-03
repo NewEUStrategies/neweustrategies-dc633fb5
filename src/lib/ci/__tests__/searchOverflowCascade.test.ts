@@ -20,17 +20,27 @@ import { resolve } from "node:path";
 
 const CSS = readFileSync(resolve(process.cwd(), "src/styles.css"), "utf8");
 
-/** Atrybuty i klasy opakowań, które renderer oznacza znacznikiem. */
+/**
+ * Atrybuty i klasy, którymi CSS sięga po opakowania oznaczane przez renderer
+ * (`BuilderRenderer.tsx`: sekcja, wiersz kolumn i jego panel zakładki, slot,
+ * sekcja zagnieżdżona; `ChromeWidgetView.tsx`: ramka widgetu). Prefiksy bez
+ * nawiasu łapią też formy z wartością (`[data-col-id="…"]`). Selektory czysto
+ * strukturalne (`section > div`) są poza zasięgiem gate'u - arkusz ich dla
+ * opakowań buildera nie używa.
+ */
 const WRAPPER_TOKENS = [
-  "[data-column-slot]",
-  "[data-columns-row]",
+  "[data-column-slot",
+  "[data-columns-row",
+  "[data-col-id",
+  "[data-section-tab-panel",
   "[data-sec-id",
   "[data-w-id",
   "[data-section-kind",
   ".overflow-hidden",
 ];
 const EXEMPTION = ":not([data-search-overflow])";
-const CLIP_IMPORTANT = /(^|[;{\s])overflow(-x|-y)?\s*:\s*(hidden|clip)\s*!important/;
+// Także skrót dwuwartościowy (`overflow: visible clip`) - wystarczy, że któraś oś przycina.
+const CLIP_IMPORTANT = /(^|[;{\s])overflow(-x|-y)?\s*:[^;!{}]*\b(hidden|clip)\b[^;!{}]*!important/;
 
 interface CssRule {
   selector: string;
@@ -46,7 +56,20 @@ function matchingBrace(src: string, open: number): number {
   throw new Error(`niedomknięty blok od pozycji ${open}`);
 }
 
-/** Płaska lista reguł: bloki `@media`/`@supports` rozwinięte, zagnieżdżenie `&` rozwiązane. */
+/** Własne deklaracje bloku - bez zagnieżdżonych bloków. */
+function ownDeclarations(body: string): string {
+  let own = body;
+  for (let prev = ""; prev !== own;) {
+    prev = own;
+    own = own.replace(/[^;{}]*\{[^{}]*\}/g, "");
+  }
+  return own;
+}
+
+/**
+ * Płaska lista reguł: bloki `@media`/`@supports` rozwinięte, zagnieżdżenie `&`
+ * rozwiązane, a `@media` zagnieżdżone W regule oddaje deklaracje tej reguły.
+ */
 function cssRules(source: string): CssRule[] {
   const src = source.replace(/\/\*[\s\S]*?\*\//g, (m) => " ".repeat(m.length));
   const out: CssRule[] = [];
@@ -58,7 +81,9 @@ function cssRules(source: string): CssRule[] {
       if (ch === "{") {
         const close = matchingBrace(src, i);
         const prelude = src.slice(preludeStart, i).trim();
+        const body = src.slice(i + 1, close);
         if (prelude.startsWith("@")) {
+          if (parent !== null) out.push({ selector: parent, declarations: ownDeclarations(body) });
           walk(i + 1, close, parent);
         } else {
           const selector =
@@ -67,14 +92,7 @@ function cssRules(source: string): CssRule[] {
               : prelude.includes("&")
                 ? prelude.replace(/&/g, parent)
                 : `${parent} ${prelude}`;
-          const body = src.slice(i + 1, close);
-          // Własne deklaracje reguły - bez zagnieżdżonych bloków.
-          let own = body;
-          for (let prev = ""; prev !== own;) {
-            prev = own;
-            own = own.replace(/[^;{}]*\{[^{}]*\}/g, "");
-          }
-          out.push({ selector, declarations: own });
+          out.push({ selector, declarations: ownDeclarations(body) });
           if (body.includes("{")) walk(i + 1, close, selector);
         }
         i = close + 1;
@@ -175,6 +193,19 @@ describe("znacznik data-search-overflow wygrywa kaskadę w styles.css", () => {
       overflow: hidden !important;
     }`;
     expect(unexemptedWrapperClips(wrongPlace)).toHaveLength(1);
+  });
+
+  it("KONTROLA NEGATYWNA: slot po `data-col-id`, skrót dwuwartościowy, @media w regule", () => {
+    const sneaky = `[data-col-id="x"] { overflow: hidden !important; }
+      [data-columns-row] { overflow: visible clip !important; }
+      .wrap [data-column-slot] {
+        @media (min-width: 768px) { overflow-y: clip !important; }
+      }`;
+    expect(unexemptedWrapperClips(sneaky)).toEqual([
+      '[data-col-id="x"]',
+      "[data-columns-row]",
+      ".wrap [data-column-slot]",
+    ]);
   });
 
   it("reguły bez !important i pseudo-elementy nie są przedmiotem gate'u", () => {
