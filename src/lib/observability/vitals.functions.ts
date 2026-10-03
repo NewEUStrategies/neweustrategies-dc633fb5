@@ -12,6 +12,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAnalyticsAdmin } from "@/lib/analytics/gateway.server";
 import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 import {
   aggregateVitals,
@@ -47,12 +48,9 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<VitalsSummaryResult> => {
     // Admin gate: has_role() filters user_roles by current_tenant_id(), so a
     // stale role row from another tenant can never authorize this tenant's RUM.
-    const { data: isAdmin, error: roleErr } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (roleErr) throw new Error(roleErr.message);
-    if (!isAdmin) throw new Error("Forbidden: admin role required");
+    // Wspólna bramka analityki (`gateway.server.ts`) - przed rozwiązaniem
+    // najemcy i przed jakimkolwiek odczytem service role.
+    await requireAnalyticsAdmin(context);
 
     // Resolve the analytical window. Custom range (sinceIso/untilIso) wins over
     // the `days` preset; falls back to 7d when nothing is supplied.

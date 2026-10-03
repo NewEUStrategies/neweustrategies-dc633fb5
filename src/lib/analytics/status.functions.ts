@@ -10,62 +10,11 @@ import {
   type Ga4MeasurementIdSource,
 } from "@/lib/analytics/measurementId";
 import { firstEnv } from "@/lib/analytics/envSecrets";
-
-interface SelectResultRow {
-  data: unknown;
-  error: { message: string } | null;
-}
-interface SelectBuilder {
-  eq: (
-    col: string,
-    val: string,
-  ) => Promise<SelectResultRow> & {
-    maybeSingle?: () => Promise<SelectResultRow>;
-  };
-  maybeSingle?: () => Promise<SelectResultRow>;
-}
-interface GatewayCtx {
-  supabase: {
-    from: (t: string) => {
-      select: (c: string) => SelectBuilder;
-    };
-    rpc: (
-      fn: string,
-      args: Record<string, unknown>,
-    ) => Promise<{ data: unknown; error: { message: string } | null }>;
-  };
-  userId: string;
-}
-
-async function requireAdmin(context: GatewayCtx): Promise<void> {
-  // Tenant-scoped: has_role() filters by current_tenant_id().
-  const { data: isAdmin, error } = await context.supabase.rpc("has_role", {
-    _user_id: context.userId,
-    _role: "admin",
-  });
-  if (error) throw new Error(error.message);
-  if (!isAdmin) {
-    throw new Error("Forbidden: admin role required");
-  }
-}
-
-interface StoredAnalytics {
-  ga4_enabled?: boolean;
-  ga4_property_id?: string;
-  ga4_measurement_id?: string;
-}
-
-async function readAnalyticsSettings(context: GatewayCtx): Promise<StoredAnalytics> {
-  try {
-    const builder = context.supabase.from("site_settings").select("value");
-    const res = await builder.eq("key", "analytics");
-    if (res.error) return {};
-    const rows = (res.data ?? []) as Array<{ value: StoredAnalytics | null }>;
-    return rows[0]?.value ?? {};
-  } catch {
-    return {};
-  }
-}
+import {
+  readStoredAnalyticsSettings,
+  requireAnalyticsAdmin,
+  toAnalyticsGatewayCtx,
+} from "@/lib/analytics/gateway.server";
 
 export type Ga4Mode = "service_account" | "oauth_refresh" | "measurement_protocol" | "embed" | null;
 
@@ -101,10 +50,11 @@ export interface AnalyticsStatus {
 export const getAnalyticsStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<AnalyticsStatus> => {
-    const ctx = context as unknown as GatewayCtx;
-    await requireAdmin(ctx);
+    // Bramka przed czymkolwiek innym: odmowa nie kosztuje odczytu ustawień ani
+    // nie dotyka sekretów środowiska.
+    await requireAnalyticsAdmin(context);
 
-    const stored = await readAnalyticsSettings(ctx);
+    const stored = await readStoredAnalyticsSettings(toAnalyticsGatewayCtx(context));
     const ga4Enabled = stored.ga4_enabled !== false;
 
     const gscOk = Boolean(process.env.LOVABLE_API_KEY && process.env.GOOGLE_SEARCH_CONSOLE_API_KEY);
