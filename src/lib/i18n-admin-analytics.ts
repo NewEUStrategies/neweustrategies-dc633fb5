@@ -45,6 +45,9 @@ const pl = {
         "Okno ma zdarzenia, ale żadne nie należy do wybranego zakresu - zdejmij filtr, żeby zobaczyć całość.",
       measuring: "Trwa pomiar...",
       measuringShort: "Pomiar",
+      // Krótka etykieta kafelka, którego źródło NIE ZWRÓCIŁO sumy. To nie jest
+      // zmierzone zero: „0" zostaje dla sumy, którą źródło policzyło.
+      noDataShort: "Brak danych",
       measuringHint: "Odczyt źródła w toku - wartości pojawią się po pobraniu.",
       readFailed: "Awaria odczytu danych.",
       readFailedReason: "Awaria odczytu: {{reason}}",
@@ -649,6 +652,11 @@ const pl = {
       notConfiguredTab: "GA4",
       notConfiguredPost: " i podłącz Service Account lub OAuth refresh token.",
       apiError: "Błąd Data API: {{error}}",
+      // ODPOWIEDŹ BEZ SUM, a nie puste okno: raport dobowy ma wiersze, ale nie
+      // ma totali. Bez tego napisu kafelki „Brak danych" obok niepustego trendu
+      // wyglądałyby jak błąd panelu.
+      noTotals:
+        "GA4 zwróciło dane dobowe, ale bez sum za okno - kafelki pokazują brak danych zamiast zer, których nikt nie zmierzył.",
       sessions: "Sesje",
       activeUsers: "Aktywni użytkownicy",
       views: "Odsłony",
@@ -920,6 +928,7 @@ const en = {
         "The window has events, but none fall into the selected range - clear the filter to see everything.",
       measuring: "Measuring...",
       measuringShort: "Measuring",
+      noDataShort: "No data",
       measuringHint: "Reading the source - values appear once the fetch completes.",
       readFailed: "Data read failed.",
       readFailedReason: "Data read failed: {{reason}}",
@@ -1502,6 +1511,8 @@ const en = {
       notConfiguredTab: "GA4",
       notConfiguredPost: " tab and connect a Service Account or OAuth refresh token.",
       apiError: "Data API error: {{error}}",
+      noTotals:
+        "GA4 returned daily data but no totals for this window - the tiles show no data instead of zeros nobody measured.",
       sessions: "Sessions",
       activeUsers: "Active users",
       views: "Views",

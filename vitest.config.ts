@@ -1477,6 +1477,13 @@ export default defineConfig({
           branches: 99,
         },
         // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/ga4Totals.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
         "src/lib/analytics/gateway.server.ts": {
           statements: 99,
           functions: 99,

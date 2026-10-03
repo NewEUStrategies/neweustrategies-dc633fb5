@@ -820,6 +820,63 @@ describe("runGa4DataApiReport - mapowanie odpowiedzi", () => {
     expect(raport.error).toBeUndefined();
   });
 
+  it("wiersze BEZ totali dają `totals: []`, a nie zera dopełnione do liczby metryk", async () => {
+    // Taki kształt odpowiedzi daje Data API, gdy żądanie nie niesie
+    // `metricAggregations`: seria dobowa jest, sum za okno nie ma. Pusta
+    // tablica jest tu KONTRAKTEM - panel GA4 czyta ją jako „Brak danych", a
+    // dopełnienie zerami do długości `metricHeaders` zrobiłoby z braku pomiar.
+    // `REQ` ma wymiar `date`, więc zastępczy „jedyny wiersz = total" nie działa.
+    zawsze(() =>
+      odpowiedz(
+        200,
+        JSON.stringify({
+          dimensionHeaders: [{ name: "date" }],
+          metricHeaders: [{ name: "sessions" }, { name: "activeUsers" }],
+          rows: [
+            {
+              dimensionValues: [{ value: "20260801" }],
+              metricValues: [{ value: "12" }, { value: "9" }],
+            },
+            {
+              dimensionValues: [{ value: "20260802" }],
+              metricValues: [{ value: "5" }, { value: "4" }],
+            },
+          ],
+        }),
+      ),
+    );
+    const { runGa4DataApiReport, ga4TotalsMap } = await loadGa4();
+
+    const raport = await runGa4DataApiReport(REQ, "token");
+
+    expect(raport.rows).toHaveLength(2);
+    expect(raport.totals).toEqual([]);
+    expect(raport.error).toBeUndefined();
+    expect(ga4TotalsMap(raport).size).toBe(0);
+  });
+
+  it("totale równe zero przychodzą jako '0' i zostają POMIAREM - mapa ma zera, nie dziury", async () => {
+    zawsze(() =>
+      odpowiedz(
+        200,
+        JSON.stringify({
+          dimensionHeaders: [{ name: "date" }],
+          metricHeaders: [{ name: "sessions" }, { name: "activeUsers" }],
+          totals: [{ metricValues: [{ value: "0" }, { value: "0" }] }],
+        }),
+      ),
+    );
+    const { runGa4DataApiReport, ga4TotalsMap } = await loadGa4();
+
+    const raport = await runGa4DataApiReport(REQ, "token");
+
+    expect(raport.totals).toEqual(["0", "0"]);
+    expect([...ga4TotalsMap(raport).entries()]).toEqual([
+      ["sessions", 0],
+      ["activeUsers", 0],
+    ]);
+  });
+
   it("całkiem pusta odpowiedź 200 daje skonfigurowany raport bez ani jednego pola undefined", async () => {
     zawsze(() => odpowiedz(200, "{}"));
     const { runGa4DataApiReport } = await loadGa4();
@@ -1004,6 +1061,17 @@ describe("ga4TotalsMap", () => {
     const mapa = ga4TotalsMap(raport({ metricHeaders: ["sessions"], totals: ["17", "99"] }));
 
     expect([...mapa.entries()]).toEqual([["sessions", 17]]);
+  });
+
+  it("jedna implementacja - serwer re-eksportuje czytnik modułu izomorficznego", async () => {
+    // Panel GA4 czyta totale przez `ga4Totals.ts` (nie może importować tego
+    // pliku z `node:crypto`), a strumień semantyczny przez re-eksport stąd.
+    // Dwie kopie czytnika to dokładnie to, co rozjechało semantykę „brak sumy"
+    // między serwerem a panelem - dlatego tożsamość funkcji, nie tylko wynik.
+    const serwer = await loadGa4();
+    const izomorficzny = await import("../ga4Totals");
+
+    expect(serwer.ga4TotalsMap).toBe(izomorficzny.ga4TotalsMap);
   });
 });
 

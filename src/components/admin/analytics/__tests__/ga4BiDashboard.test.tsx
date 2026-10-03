@@ -244,6 +244,40 @@ const NOT_CONFIGURED_ON_SERVER: Dataset = {
   engagement: EMPTY_REPORT,
 };
 
+/**
+ * Wiersze dobowe SĄ, totali NIE MA (`totals: []`) w obu oknach - dokładnie ta
+ * odpowiedź, którą Data API oddaje dla żądania bez `metricAggregations`.
+ * Reszta raportów jak w `FULL`, więc okno ma dane na każdej karcie.
+ */
+const NO_TOTALS_WITH_ROWS: Dataset = {
+  ...FULL,
+  date: report(CORE, { rows: DATE_ROWS }),
+  prev: report(CORE, { rows: PREV_REPORT.rows }),
+};
+
+/**
+ * Okno bez ruchu w kształcie, w jakim oddaje je Data API: nagłówki metryk są,
+ * wierszy nie ma, a totali TEŻ nie ma (w przeciwieństwie do `ZERO_TRAFFIC`,
+ * które niesie jawne „0").
+ */
+const ZERO_TRAFFIC_NO_TOTALS: Dataset = {
+  date: report(CORE),
+  prev: report(CORE),
+  source: report(["sessions"]),
+  country: report(["sessions"]),
+  device: report(["sessions"]),
+  page: report(["screenPageViews", "engagementRate"]),
+  engagement: report(ENGAGE_METRICS),
+};
+
+/** Etykiety czterech kafelków KPI. */
+const KPI_KEYS = [
+  "adminAnalytics.ga4.sessions",
+  "adminAnalytics.ga4.activeUsers",
+  "adminAnalytics.ga4.views",
+  "adminAnalytics.ga4.engagement",
+] as const;
+
 /** Ostatni PEŁNY dzień UTC - jedyne, co odróżnia raport bieżący od poprzedniego. */
 function yesterdayUtc(): string {
   return new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
@@ -618,14 +652,22 @@ describe("Ga4BiDashboard - kafelki KPI", () => {
     expect(kpiValue(t("adminAnalytics.ga4.engagement"))).toBe("50.0%");
   });
 
-  it("total nieliczbowy nie przecieka do kafelka jako NaN", async () => {
+  it("total nieliczbowy nie przecieka do kafelka ani jako NaN, ani jako zero", async () => {
     const t = realT("pl");
     respondWith({ ...FULL, date: report(CORE, { totals: ["", "n/a", 180, 0.5] }) });
     panel();
     await loaded();
 
+    // Pusty napis to „0" - `Number("")` jest zerem, a wspólny czytnik
+    // `ga4TotalsMap` przypina tę regułę po stronie serwera. „n/a" nie jest
+    // liczbą, więc to BRAK sumy: kafelek mówi „Brak danych", a nie „0".
     await waitFor(() => expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe("0"));
-    expect(kpiValue(t("adminAnalytics.ga4.activeUsers"))).toBe("0");
+    expect(kpiValue(t("adminAnalytics.ga4.activeUsers"))).toBe(
+      t("adminAnalytics.common.noDataShort"),
+    );
+    expect(kpiValue(t("adminAnalytics.ga4.activeUsers"))).not.toContain("NaN");
+    // Sumy, które przyszły, zostają liczbami.
+    expect(kpiValue(t("adminAnalytics.ga4.views"))).toBe("180");
   });
 });
 
@@ -807,15 +849,29 @@ describe("Ga4BiDashboard - agregacja wykresów", () => {
     expect(config.unit).toBe(realT("pl")("adminAnalytics.ga4.radar.unit"));
   });
 
-  it("słupki zaangażowania bez raportu pokazują zera, nie NaN", async () => {
+  it("słupki zaangażowania bez totali rysują ramę „brak danych”, a nie 100 pkt retencji z niczego", async () => {
+    // Dawniej brak sum czytał się jako zera, a retencja to `100 - bounce` -
+    // z pustego raportu powstawało [100, 0, 0, 0, 0], czyli pełny słupek
+    // retencji, którego nikt nie zmierzył. Kontrakt jest teraz ten sam co
+    // przy donucie bez metryki: ZERO SERII i ZERO KATEGORII, a silnik rysuje
+    // ramkę z komunikatem o braku danych.
+    respondWith({ ...FULL, engagement: report(ENGAGE_METRICS) });
+    panel();
+    await loaded();
+
+    const pusty = configOf("adminAnalytics.ga4.charts.engagementTitle");
+    expect(pusty.series).toEqual([]);
+    expect(pusty.categories).toEqual([]);
+  });
+
+  it("słupki zaangażowania bez nagłówków i bez totali też rysują ramę „brak danych”", async () => {
     respondWith({ ...FULL, engagement: report([], { totals: [] }) });
     panel();
     await loaded();
 
-    const s = seriesOf(configOf("adminAnalytics.ga4.charts.engagementTitle"));
-    const values = numList(s[0].values);
-    expect(values).toEqual([100, 0, 0, 0, 0]);
-    expect(values.some(Number.isNaN)).toBe(false);
+    const pusty = configOf("adminAnalytics.ga4.charts.engagementTitle");
+    expect(pusty.series).toEqual([]);
+    expect(pusty.categories).toEqual([]);
   });
 
   it("rank stron idzie malejąco od góry i niesie PEŁNE adresy, nie ucięte etykiety", async () => {
@@ -990,6 +1046,172 @@ describe("Ga4BiDashboard - zero ruchu a brak konfiguracji", () => {
     await loaded();
 
     expect(screen.getByText(realT("pl")("adminAnalytics.common.noDataWindow"))).toBeInTheDocument();
+  });
+});
+
+describe("Ga4BiDashboard - brak totali to nie zero", () => {
+  // PILNUJE KONTRAKTU `Ga4Report.totals`. Pusta tablica znaczy „Data API sum
+  // nie zwróciło", a „0" znaczy „GA4 zmierzyło zero". Panel czytał totale
+  // własną kopią czytnika, która każdy brak zamieniała na 0 - więc przy
+  // wierszach dobowych bez sum malował „0 / 0 / 0 / 0.0%" z plakietkami „0%"
+  // obok niepustego trendu, przy samych sumach okna poprzedniego czerwone
+  // „-100.0%", a przy samych sumach bieżącego „+∞". Każdy przypadek niżej
+  // odpowiada jednemu z tych zmierzonych obrazów.
+  it("raport dobowy z wierszami, ale bez totali: kafelki mówią „Brak danych”, nie „0”", async () => {
+    const t = realT("pl");
+    const brak = t("adminAnalytics.common.noDataShort");
+    respondWith(NO_TOTALS_WITH_ROWS);
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe(brak));
+    for (const key of KPI_KEYS) {
+      expect(kpiValue(t(key)), key).toBe(brak);
+      expect(kpiValue(t(key)), key).not.toMatch(/^0(\.0%)?$/);
+      // Bez sumy po żadnej stronie porównania plakietki zmiany nie ma wcale -
+      // ani „0%", ani „0pp".
+      expect(kpiDelta(t(key)), key).toBe("");
+    }
+    // Okno MA dane - trend rysuje trzy dni - więc to nie jest puste okno,
+    // tylko odpowiedź bez sum, i panel mówi to osobnym komunikatem.
+    expect(configOf("adminAnalytics.ga4.charts.trendTitle").categories).toHaveLength(3);
+    expect(screen.getByText(t("adminAnalytics.ga4.noTotals"))).toBeInTheDocument();
+    expect(screen.queryByText(t("adminAnalytics.common.noDataWindow"))).toBeNull();
+  });
+
+  it("raport bez totali nie buduje wniosków KPI z podstawionych zer", async () => {
+    const t = realT("pl");
+    respondWith(NO_TOTALS_WITH_ROWS);
+    panel();
+    await loaded();
+
+    // Sekcja interpretacji stoi pod kafelkami - „Sesje: 0" i „Zaangażowanie
+    // 0.0%" z ostrzeżeniem przeczyłyby kafelkom mówiącym „Brak danych".
+    await waitFor(() =>
+      expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe(
+        t("adminAnalytics.common.noDataShort"),
+      ),
+    );
+    expect(screen.queryByText(t("adminAnalytics.ga4.insights.sessions.element"))).toBeNull();
+    expect(screen.queryByText(t("adminAnalytics.ga4.insights.engagement.element"))).toBeNull();
+    // Wnioski z sum, które przyszły (raport zaangażowania ma totale), zostają -
+    // bramka gasi tylko bloki bez własnej sumy, nie całą sekcję.
+    expect(
+      screen.getByText(t("adminAnalytics.ga4.insights.engagementRadar.element")),
+    ).toBeInTheDocument();
+  });
+
+  it("okno bez ruchu bez totali: panel w stanie „Brak danych w oknie”, bez siatki zer", async () => {
+    const t = realT("pl");
+    const brak = t("adminAnalytics.common.noDataShort");
+    respondWith(ZERO_TRAFFIC_NO_TOTALS);
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe(brak));
+    for (const key of KPI_KEYS) {
+      expect(kpiValue(t(key)), key).toBe(brak);
+      expect(kpiDelta(t(key)), key).toBe("");
+    }
+    // Baner i pusta sekcja interpretacji mówią to samo: okno odczytane, bez
+    // zdarzeń. Zielone „nie znaleziono krytycznych zagadnień" brzmiałoby tu
+    // jak ocena ruchu, którego nie było - dlatego go nie ma.
+    expect(screen.getAllByText(t("adminAnalytics.common.noDataWindow")).length).toBeGreaterThan(0);
+    expect(screen.queryByText(t("adminAnalytics.insightSection.emptyDefault"))).toBeNull();
+    // Wierszy nie ma, więc komunikat o odpowiedzi bez sum byłby nieprawdą.
+    expect(screen.queryByText(t("adminAnalytics.ga4.noTotals"))).toBeNull();
+    // Słupki zaangażowania też nie zmyślają 100 pkt retencji.
+    expect(configOf("adminAnalytics.ga4.charts.engagementTitle").series).toEqual([]);
+  });
+
+  it("totale równe zero to POMIAR: kafelki pokazują „0”, nie „Brak danych”", async () => {
+    const t = realT("pl");
+    respondWith(ZERO_TRAFFIC);
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe("0"));
+    expect(kpiValue(t("adminAnalytics.ga4.sessions"))).not.toBe(
+      t("adminAnalytics.common.noDataShort"),
+    );
+    expect(kpiValue(t("adminAnalytics.ga4.engagement"))).toBe("0.0%");
+    expect(screen.queryByText(t("adminAnalytics.ga4.noTotals"))).toBeNull();
+  });
+
+  it("totale tylko w oknie bieżącym: liczba jest, plakietki „+∞” nie ma", async () => {
+    const t = realT("pl");
+    respondWith({ ...FULL, prev: report(CORE, { rows: PREV_REPORT.rows }) });
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe("60"));
+    for (const key of KPI_KEYS) {
+      expect(kpiDelta(t(key)), key).toBe("");
+      expect(kpiDelta(t(key)), key).not.toContain("∞");
+    }
+    expect(kpiValue(t("adminAnalytics.ga4.engagement"))).toBe("50.0%");
+    // Okno bieżące ma sumy - komunikat o ich braku byłby nieprawdą.
+    expect(screen.queryByText(t("adminAnalytics.ga4.noTotals"))).toBeNull();
+  });
+
+  it("totale tylko w oknie poprzednim: bez „-100%” i bez zera na kafelku", async () => {
+    const t = realT("pl");
+    const brak = t("adminAnalytics.common.noDataShort");
+    respondWith({ ...FULL, date: report(CORE, { rows: DATE_ROWS }) });
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe(brak));
+    for (const key of KPI_KEYS) {
+      expect(kpiValue(t(key)), key).toBe(brak);
+      expect(kpiDelta(t(key)), key).toBe("");
+      expect(kpiDelta(t(key)), key).not.toContain("-100");
+    }
+    expect(screen.getByText(t("adminAnalytics.ga4.noTotals"))).toBeInTheDocument();
+  });
+
+  it("część sum obecna: brakujący kafelek mówi „Brak danych”, reszta zostaje liczbą z deltą", async () => {
+    const t = realT("pl");
+    // Raport dobowy niesie tylko `sessions` i `engagementRate` - dwa kafelki
+    // nie mają sumy. Nie wszystkie CORE są puste, więc to nie jest stan
+    // „odpowiedź bez sum" i komunikatu o nim nie ma.
+    respondWith({
+      ...FULL,
+      date: report(["sessions", "engagementRate"], { totals: [60, 0.5], rows: DATE_ROWS }),
+    });
+    panel();
+    await loaded();
+
+    await waitFor(() => expect(kpiValue(t("adminAnalytics.ga4.sessions"))).toBe("60"));
+    expect(kpiDelta(t("adminAnalytics.ga4.sessions"))).toBe("+20.0%");
+    expect(kpiValue(t("adminAnalytics.ga4.activeUsers"))).toBe(
+      t("adminAnalytics.common.noDataShort"),
+    );
+    expect(kpiDelta(t("adminAnalytics.ga4.activeUsers"))).toBe("");
+    expect(kpiValue(t("adminAnalytics.ga4.views"))).toBe(t("adminAnalytics.common.noDataShort"));
+    expect(screen.queryByText(t("adminAnalytics.ga4.noTotals"))).toBeNull();
+  });
+
+  it("napis „brak danych” na kafelku i komunikat o braku sum są ze słownika EN", async () => {
+    await i18n.changeLanguage("en");
+    const en = realT("en");
+    const pl = realT("pl");
+    respondWith(NO_TOTALS_WITH_ROWS);
+    panel();
+    await loaded("en");
+
+    await waitFor(() =>
+      expect(kpiValue(en("adminAnalytics.ga4.sessions"))).toBe(
+        en("adminAnalytics.common.noDataShort"),
+      ),
+    );
+    // Brak klucza EN cofnąłby i18next na polski fallback - identyczne napisy
+    // oznaczałyby dziurę w słowniku, której nikt by nie zgłosił.
+    expect(en("adminAnalytics.common.noDataShort")).not.toBe(
+      pl("adminAnalytics.common.noDataShort"),
+    );
+    expect(en("adminAnalytics.ga4.noTotals")).not.toBe(pl("adminAnalytics.ga4.noTotals"));
+    expect(screen.getByText(en("adminAnalytics.ga4.noTotals"))).toBeInTheDocument();
   });
 });
 

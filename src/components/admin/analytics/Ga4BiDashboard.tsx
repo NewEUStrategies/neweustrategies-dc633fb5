@@ -18,9 +18,15 @@
  *      zniknięciu property albo po padniętym odświeżeniu tokenu Google, kiedy
  *      status z ENV nadal mówi „podłączone",
  *   5. ZMIERZONE ZERO - wszystkie raporty odpowiedziały, żaden nie ma wiersza;
- *      jedyny stan, w którym zera są prawdą, i dlatego nazwany wprost.
+ *      jedyny stan, w którym zera są prawdą, i dlatego nazwany wprost,
+ *   6. raport dobowy Z WIERSZAMI, ale BEZ TOTALI - Data API oddało serię
+ *      dobową i nie oddało sum za okno (`totals: []`). To nie jest zero: sum
+ *      nie da się odtworzyć z wierszy (`activeUsers` nie sumuje się po dniach,
+ *      `engagementRate` jest ilorazem), więc kafelki mówią „Brak danych",
+ *      a panel nazywa ten stan osobnym komunikatem.
  * Dopóki raport dobowy nie odpowie, kafelki KPI mówią o trwającym pomiarze
- * zamiast malować zera.
+ * zamiast malować zera. Total nieobecny w odpowiedzi daje na kafelku „Brak
+ * danych", nigdy 0 - zero jest zarezerwowane dla sumy, którą GA4 zmierzyło.
  *
  * KLUCZ CACHE NIESIE WARSZTAT. `QueryClient` stoi w korzeniu aplikacji, więc
  * przeżywa przelogowanie, a `staleTime: 60_000` trzyma wpisy świeże - klucz bez
@@ -70,6 +76,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { runGa4Report, type Ga4Report } from "@/lib/analytics/ga4.functions";
+import { ga4TotalsMap } from "@/lib/analytics/ga4Totals";
 import { useCurrentTenantId } from "@/lib/tenant";
 import { previousWindow, resolveWindow, type WindowPresetId } from "@/lib/analytics/semantic";
 import { WindowProvenance } from "./semantic/molecules/WindowProvenance";
@@ -127,14 +134,25 @@ interface ChartCsv {
   rows: ReadonlyArray<ReadonlyArray<unknown>>;
 }
 
-function totalsFromReport(report: Ga4Report | undefined): Record<CoreMetric, number> {
-  const out = { sessions: 0, activeUsers: 0, screenPageViews: 0, engagementRate: 0 };
-  if (!report) return out;
-  for (let i = 0; i < report.metricHeaders.length; i++) {
-    const name = report.metricHeaders[i] as CoreMetric;
-    if (CORE_METRICS.includes(name)) out[name] = parseNumber(report.totals[i]);
-  }
-  return out;
+/** Totale kafelków KPI; `null` = Data API tej sumy nie zwróciło. */
+type CoreTotals = Readonly<Record<CoreMetric, number | null>>;
+
+/**
+ * Totale raportu dobowego przez WSPÓLNY czytnik `ga4TotalsMap` (ten sam, którego
+ * używa strumień semantyczny). `null` znaczy „Data API nie zwróciło sumy", a nie
+ * „suma wynosi zero". Poprzednia, własna wersja panelu startowała od zer
+ * i zamieniała każdy brak na 0, więc przy wierszach dobowych bez totali kafelki
+ * pokazywały „0 / 0 / 0 / 0.0%" obok niepustego trendu, a plakietki zmiany
+ * liczyły się od zera-widma („-100.0%", „+∞").
+ */
+function totalsFromReport(report: Ga4Report | undefined): CoreTotals {
+  const m = report ? ga4TotalsMap(report) : new Map<string, number>();
+  return {
+    sessions: m.get("sessions") ?? null,
+    activeUsers: m.get("activeUsers") ?? null,
+    screenPageViews: m.get("screenPageViews") ?? null,
+    engagementRate: m.get("engagementRate") ?? null,
+  };
 }
 
 export function Ga4BiDashboard({
@@ -276,14 +294,24 @@ export function Ga4BiDashboard({
   const totals = useMemo(() => totalsFromReport(dateQ.data), [dateQ.data]);
   const prevTotals = useMemo(() => totalsFromReport(prevQ.data), [prevQ.data]);
 
-  // ZMIERZONE ZERO to piąty stan i JEDYNY, w którym siatka zer jest prawdą:
+  // ZMIERZONE ZERO to piąty stan i JEDYNY, w którym zera mogą być prawdą:
   // wszystkie siedem raportów odpowiedziało, żaden nie ma wiersza, a totale są
-  // na zerze. Rozpoznajemy go osobno, żeby napisać o nim wprost.
+  // na zerze ALBO ich nie ma (Data API nie zwraca sum dla okna bez ruchu).
+  // Rozpoznajemy go osobno, żeby napisać o nim wprost - kafelki z brakującą
+  // sumą mówią przy tym „Brak danych", a nie „0".
+  const brakLubZero = (v: number | null): boolean => v === null || v === 0;
   const measuredZero =
     queries.every((q) => q.data !== undefined && q.data.rows.length === 0) &&
-    totals.sessions === 0 &&
-    totals.activeUsers === 0 &&
-    totals.screenPageViews === 0;
+    brakLubZero(totals.sessions) &&
+    brakLubZero(totals.activeUsers) &&
+    brakLubZero(totals.screenPageViews);
+  // SZÓSTY STAN: raport dobowy dojechał Z WIERSZAMI, ale bez ANI JEDNEJ sumy
+  // CORE. Okno z wierszami nie jest puste - to odpowiedź bez totali, dokładnie
+  // taka, jaką oddaje Data API, gdy żądanie zgubi `metricAggregations`.
+  // Warunek na wiersze robi z tego stan ROZŁĄCZNY z `measuredZero` (tam raport
+  // dobowy nie ma ani jednego wiersza), więc panel nigdy nie mówi obu naraz.
+  const totalsMissing =
+    (dateQ.data?.rows.length ?? 0) > 0 && CORE_METRICS.every((m) => totals[m] === null);
 
   // Serię czasową liczymy RAZ: wykres i tabela danych muszą mówić to samo,
   // a sortowanie po zbitej dacie GA4 jest tu jedynym źródłem kolejności.
@@ -372,13 +400,18 @@ export function Ga4BiDashboard({
   // Pięć osi radaru w skali 0-100. Wartości liczymy osobno od opcji, bo tabela
   // danych karty podaje DOKŁADNIE te liczby - inaczej alternatywa tekstowa
   // opisywałaby inny wielokąt niż widać.
-  const radarValues = useMemo<number[]>(() => {
-    const totals = engageQ.data?.totals ?? [];
-    const headers = engageQ.data?.metricHeaders ?? [];
-    const get = (m: string): number => {
-      const i = headers.indexOf(m);
-      return i >= 0 ? parseNumber(totals[i]) : 0;
-    };
+  //
+  // `null` = raport zaangażowania nie ma ANI JEDNEJ sumy (jeszcze nie dojechał
+  // albo Data API totali nie zwróciło). Dawniej brak sumy czytał się jako 0,
+  // a retencja to `100 - bounce`, więc z niczego powstawało 100 pkt retencji
+  // obok czterech zer. Teraz karta rysuje ramę „brak danych".
+  // Świadomie zostawiony przypadek brzegowy: raport z CZĘŚCIĄ sum (np. bez
+  // `bounceRate`) nadal podstawia 0 za brakującą oś, bo pozostałe słupki są
+  // pomiarem i nie ma powodu ich gasić.
+  const radarValues = useMemo<number[] | null>(() => {
+    const m = engageQ.data ? ga4TotalsMap(engageQ.data) : new Map<string, number>();
+    if (m.size === 0) return null;
+    const get = (k: string): number => m.get(k) ?? 0;
     return [
       get("engagementRate") * 100,
       Math.min(100, get("averageSessionDuration") / 3),
@@ -407,6 +440,18 @@ export function Ga4BiDashboard({
   // ta sama skala 0-100, ta sama alternatywa tekstowa. Zmienia się wyłącznie
   // forma, więc nie ma tu żadnej nowej liczby do sprawdzenia.
   const engagementConfig = useMemo(() => {
+    // ZERO SERII i ZERO KATEGORII, gdy sum nie ma - ten sam idiom co
+    // `donutConfig(null)`: silnik rysuje ramkę z komunikatem o braku danych
+    // zamiast pięciu słupków policzonych z podstawionych zer.
+    if (radarValues === null) {
+      return biChart({
+        kind: "bar-horizontal",
+        categories: [],
+        series: [],
+        showValues: true,
+        unit: t("adminAnalytics.ga4.radar.unit"),
+      });
+    }
     // MALEJĄCO: silnik rysuje kategorie słupków poziomych od góry w kolejności
     // tablicy, więc ranking czyta się z góry na dół. (ECharts układał oś Y od
     // dołu i wymagał odwrotnego sortowania - stąd zmiana kierunku przy tej
@@ -611,11 +656,15 @@ export function Ga4BiDashboard({
       trendData.views[i],
     ]),
   };
-  const engagementCsv: ChartCsv = {
-    filename: "ga4-engagement",
-    headers: RADAR_AXES.map((key) => t(key)),
-    rows: [radarValues],
-  };
+  // Bez sum nie ma czego eksportować - jak przy donucie bez metryki `sessions`.
+  const engagementCsv: ChartCsv | undefined =
+    radarValues === null
+      ? undefined
+      : {
+          filename: "ga4-engagement",
+          headers: RADAR_AXES.map((key) => t(key)),
+          rows: [radarValues],
+        };
   const donutCsv = (
     data: DonutSlice[] | null,
     filename: string,
@@ -654,10 +703,24 @@ export function Ga4BiDashboard({
   // wiem" to dwie różne informacje, a zero jest tą groźniejszą: wygląda jak
   // odczytana właściwość bez ruchu. Plakietka zmiany też czeka na obie strony
   // porównania - bez okna poprzedniego policzyłaby deltę wobec zera.
-  const kpiText = (formatted: string): string =>
-    hasCurrent ? formatted : t("adminAnalytics.common.measuringShort");
-  const kpiDelta = (current: number, previous: number): { current?: number; previous?: number } =>
-    hasCurrent && hasPrevious ? { current, previous } : {};
+  // To samo dotyczy sumy, której Data API NIE ZWRÓCIŁO (`null`): kafelek mówi
+  // „Brak danych", a plakietka znika, gdy brakuje sumy po KTÓREJKOLWIEK
+  // stronie - inaczej brak w oknie bieżącym dawał czerwone „-100.0%",
+  // a brak w poprzednim „+∞", czyli zmianę wobec zera, którego nikt nie zmierzył.
+  const kpiText = (value: number | null, format: (n: number) => string): string =>
+    !hasCurrent
+      ? t("adminAnalytics.common.measuringShort")
+      : value === null
+        ? t("adminAnalytics.common.noDataShort")
+        : format(value);
+  const kpiDelta = (
+    current: number | null,
+    previous: number | null,
+  ): { current?: number; previous?: number } =>
+    hasCurrent && hasPrevious && current !== null && previous !== null
+      ? { current, previous }
+      : {};
+  const formatCount = (n: number): string => n.toLocaleString("pl-PL");
 
   return (
     <div className="space-y-4">
@@ -715,27 +778,32 @@ export function Ga4BiDashboard({
         <div className="text-xs text-muted-foreground">
           {t("adminAnalytics.common.noDataWindow")}
         </div>
+      ) : totalsMissing ? (
+        // ODPOWIEDŹ BEZ SUM, nie puste okno: trend ma wiersze, więc „Brak
+        // danych w oknie" byłby nieprawdą, a kafelki nie mogą malować zer obok
+        // niepustego wykresu. Ta sama forma co komunikat wyżej, inna treść.
+        <div className="text-xs text-muted-foreground">{t("adminAnalytics.ga4.noTotals")}</div>
       ) : null}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiTile
           label={t("adminAnalytics.ga4.sessions")}
-          value={kpiText(totals.sessions.toLocaleString("pl-PL"))}
+          value={kpiText(totals.sessions, formatCount)}
           {...kpiDelta(totals.sessions, prevTotals.sessions)}
         />
         <KpiTile
           label={t("adminAnalytics.ga4.activeUsers")}
-          value={kpiText(totals.activeUsers.toLocaleString("pl-PL"))}
+          value={kpiText(totals.activeUsers, formatCount)}
           {...kpiDelta(totals.activeUsers, prevTotals.activeUsers)}
         />
         <KpiTile
           label={t("adminAnalytics.ga4.views")}
-          value={kpiText(totals.screenPageViews.toLocaleString("pl-PL"))}
+          value={kpiText(totals.screenPageViews, formatCount)}
           {...kpiDelta(totals.screenPageViews, prevTotals.screenPageViews)}
         />
         <KpiTile
           label={t("adminAnalytics.ga4.engagement")}
-          value={kpiText(`${(totals.engagementRate * 100).toFixed(1)}%`)}
+          value={kpiText(totals.engagementRate, (n) => `${(n * 100).toFixed(1)}%`)}
           {...kpiDelta(totals.engagementRate, prevTotals.engagementRate)}
           absoluteDelta
           deltaSuffix="pp"
@@ -806,8 +874,19 @@ export function Ga4BiDashboard({
         onDataClick={topPagesClick}
       />
 
-      {/* Interpretacja + rekomendacje per element dashboardu */}
+      {/* Interpretacja + rekomendacje per element dashboardu. Bloki KPI
+          powstają tylko przy obecnych sumach, więc okno bez danych może
+          zostawić listę PUSTĄ - wtedy domyślny zielony napis „nie znaleziono
+          krytycznych zagadnień" brzmiałby jak ocena ruchu, którego nie było.
+          W obu stanach bez pomiaru sekcja powtarza to, co mówi baner. */}
       <InsightSection
+        emptyLabel={
+          measuredZero
+            ? t("adminAnalytics.common.noDataWindow")
+            : totalsMissing
+              ? t("adminAnalytics.ga4.noTotals")
+              : undefined
+        }
         subtitle={t("adminAnalytics.ga4.insightsSubtitle", { days, mode: modeText })}
         insights={buildGa4Insights({
           dateReport: dateQ.data,

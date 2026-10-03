@@ -25,6 +25,13 @@ export interface Ga4Report {
   dimensionHeaders: string[];
   metricHeaders: string[];
   rows: Ga4Row[];
+  /**
+   * Sumy za całe okno, w kolejności `metricHeaders`. PUSTA TABLICA znaczy, że
+   * Data API totali nie zwróciło (okno bez ruchu albo żądanie bez
+   * `metricAggregations`) - to NIE jest „totale równe zero". Zmierzone zero
+   * przychodzi jako `"0"`. Czytaj przez `ga4TotalsMap`, które ten brak
+   * zachowuje, zamiast podstawiać za niego 0.
+   */
   totals: string[];
   error?: string;
 }
@@ -312,16 +319,9 @@ export async function runGa4DataApiReport(
   }
 }
 
-/**
- * Totale GA4 jako mapa nazwa metryki -> liczba. Pusta mapa, gdy raport nie
- * dojechał: wywołujący ma wtedy odróżnić brak danych od zera, a nie podstawić 0.
- */
-export function ga4TotalsMap(report: Ga4Report): Map<string, number> {
-  const out = new Map<string, number>();
-  if (report.error) return out;
-  report.metricHeaders.forEach((name, i) => {
-    const n = Number(report.totals[i]);
-    if (Number.isFinite(n)) out.set(name, n);
-  });
-  return out;
-}
+// Czytnik totali mieszka w module IZOMORFICZNYM (`./ga4Totals`), bo panel GA4
+// nie może importować tego pliku (`node:crypto`) i bez wspólnego czytnika
+// dorobił sobie kopię zamieniającą brak sumy na zero. Re-eksport trzyma tę samą
+// funkcję pod dotychczasowym adresem, więc `snapshot.functions.ts` i testy
+// serwera działają bez zmian.
+export { ga4TotalsMap } from "./ga4Totals";

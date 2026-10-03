@@ -12,7 +12,8 @@
 //
 // KLASY DEFEKTÓW, KTÓRE TEN PLIK ŁAPIE:
 //   * blok powstaje mimo braku danych albo znika mimo danych - bramki
-//     `rows.length > 3`, `rows.length` i `Object.keys(engage).length`;
+//     `rows.length > 3`, `rows.length`, `Object.keys(engage).length` oraz
+//     obecność totalu bieżącego okna dla obu bloków KPI;
 //   * `severity` rozjeżdża się z listą `fixes`: to DWA osobne łańcuchy `if`-ów
 //     nad tymi samymi liczbami (sesje: severity łamie się na -15, a lista fiksów
 //     na -10), więc każdy jest sprawdzany oddzielnie;
@@ -57,7 +58,7 @@ function row(dim: string, ...metrics: Array<string | number>): Ga4Row {
   return { dims: [dim], metrics: metrics.map(String) };
 }
 
-/** Raport dobowy z totalami CORE_METRICS - baza obu bezwarunkowych KPI. */
+/** Raport dobowy z totalami CORE_METRICS - baza obu bloków KPI. */
 function coreTotals(
   sessions: number,
   activeUsers = 0,
@@ -162,18 +163,19 @@ function fullDashboard(): Partial<Omit<BuildParams, "t">> {
 }
 
 describe("buildGa4Insights - bramki emisji", () => {
-  it("pusty dashboard (wszystkie raporty undefined) daje tylko dwa bezwarunkowe KPI", () => {
-    const insights = build();
-
-    expect(ids(insights)).toEqual(["kpi-sessions", "kpi-engagement"]);
-    expect(insights[0].title).toBe(dictText("sessions.titleNoDelta", { sessions: 0 }));
-    expect(insights[0].severity).toBe("info");
-    expect(insights[0].fixes).toEqual(dictFixes("sessions.fixesStable"));
-    expect(insights[1].severity).toBe("warn");
-    expectRenderable(insights);
+  // KPI PRZESTAŁY BYĆ BEZWARUNKOWE. Dawniej pusty dashboard dawał „Sesje: 0"
+  // (info) i „Zaangażowanie 0.0%" (warn, z listą napraw dla niskiego
+  // zaangażowania) - oba zbudowane z zer podstawionych za totale, których
+  // Data API nie zwróciło. Kafelki panelu mówią w tym stanie „Brak danych",
+  // więc wniosek z zer stałby z nimi w sprzeczności. Bramka jest ta sama co
+  // przy radarze: blok powstaje tylko przy obecnym totalu bieżącego okna.
+  it("pusty dashboard nie buduje KPI z podstawionych zer", () => {
+    expect(build()).toEqual([]);
   });
 
-  it("raporty obecne, ale bez wierszy i bez nagłówków metryk: nadal tylko dwa KPI", () => {
+  it("total sesji równy zero to POMIAR - KPI sesji zostaje, KPI zaangażowania bez totalu nie", () => {
+    // `sessions` ma total „0" (zmierzone zero), `engagementRate` nie ma go
+    // wcale - tylko pierwszy blok ma z czego powstać.
     const empty = report(["sessions"], { totals: [0] });
     const insights = build({
       dateReport: empty,
@@ -184,7 +186,43 @@ describe("buildGa4Insights - bramki emisji", () => {
       engagementReport: report([], {}),
     });
 
-    expect(ids(insights)).toEqual(["kpi-sessions", "kpi-engagement"]);
+    expect(ids(insights)).toEqual(["kpi-sessions"]);
+    expect(insights[0].title).toBe(dictText("sessions.titleNoDelta", { sessions: 0 }));
+    expect(insights[0].severity).toBe("info");
+    expect(insights[0].fixes).toEqual(dictFixes("sessions.fixesStable"));
+    expectRenderable(insights);
+  });
+
+  it("raport dobowy z wierszami, ale bez totali: zostaje trend, nie ma KPI z zer", () => {
+    // Dokładnie ta odpowiedź, którą Data API oddaje bez `metricAggregations`:
+    // seria dobowa jest, sum za okno nie ma. Trend liczy się z wierszy, więc
+    // zostaje; oba KPI musiałyby zmyślić sumę i dlatego nie powstają.
+    const insights = build({
+      dateReport: report(CORE, {
+        rows: [
+          row("20260101", 10, 8, 30, 0.5),
+          row("20260102", 12, 9, 33, 0.5),
+          row("20260103", 14, 10, 36, 0.5),
+          row("20260104", 16, 11, 39, 0.5),
+          row("20260105", 18, 12, 42, 0.5),
+        ],
+      }),
+      prevReport: coreTotals(50, 40, 150, 0.4),
+    });
+
+    expect(ids(insights)).toContain("trend");
+    expect(ids(insights)).not.toContain("kpi-sessions");
+    expect(ids(insights)).not.toContain("kpi-engagement");
+    expectRenderable(insights);
+  });
+
+  it("total zaangażowania bez totalu sesji daje sam KPI zaangażowania", () => {
+    const insights = build({
+      dateReport: report(["engagementRate"], { totals: [0.65] }),
+    });
+
+    expect(ids(insights)).toEqual(["kpi-engagement"]);
+    expect(insights[0].severity).toBe("good");
   });
 
   it("komplet raportów daje osiem wpisów w stałej kolejności emisji", () => {
