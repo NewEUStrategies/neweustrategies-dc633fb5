@@ -4,12 +4,20 @@
 // (src/components/blocks/ContactFormView.tsx) - rate-limited, tenant-scoped,
 // zod-validated, synced to the admin Contact Center + CRM. The success
 // toast only fires once the server call actually resolves.
+//
+// Zgoda RODO jest RZECZYWISTA: wcześniej formularz wysyłał na sztywno
+// `consent: true` bez żadnego pola, więc `contact_messages.consent` i rejestr
+// `consents` poświadczały zgodę, której nikt nie wyraził (art. 7 ust. 1 RODO:
+// administrator musi umieć WYKAZAĆ zgodę). Teraz bez zaznaczenia pola nie ma
+// wywołania serwera, a do rejestru trafia dokładnie ta treść, którą
+// użytkownik widział, w jego języku - jak w widżecie buildera.
 import { useId, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactMessage } from "@/lib/contact.functions";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { MessageComposerField } from "@/components/forms/MessageComposerField";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 
 interface Props {
@@ -27,6 +35,8 @@ const L = {
     sending: "Wysyłanie...",
     required: "Wypełnij imię, e-mail i wiadomość.",
     invalidEmail: "Podaj poprawny adres e-mail.",
+    consent: "Wyrażam zgodę na przetwarzanie moich danych w celu odpowiedzi na wiadomość.",
+    consentRequired: "Zaznacz zgodę na przetwarzanie danych, aby wysłać wiadomość.",
     ok: "Wiadomość została wysłana.",
     error: "Nie udało się wysłać wiadomości. Spróbuj ponownie.",
   },
@@ -40,6 +50,8 @@ const L = {
     sending: "Sending...",
     required: "Please fill in your name, email and message.",
     invalidEmail: "Please enter a valid email address.",
+    consent: "I agree to the processing of my data in order to receive a reply.",
+    consentRequired: "Please tick the data processing consent to send your message.",
     ok: "Your message has been sent.",
     error: "Could not send the message. Please try again.",
   },
@@ -55,11 +67,14 @@ export function ContactForm({ lang }: Props) {
   // Spójnie z komentarzami: przycisk "Wyślij" jest zablokowany, dopóki
   // wiadomość jest pusta / za długa (walidacja z ComposerShell).
   const [messageOk, setMessageOk] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [consentError, setConsentError] = useState(false);
   const formId = useId();
   const nameId = `${formId}-name`;
   const emailId = `${formId}-email`;
   const subjectId = `${formId}-subject`;
   const messageId = `${formId}-message`;
+  const consentId = `${formId}-consent`;
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +89,11 @@ export function ContactForm({ lang }: Props) {
       toast.error(t.invalidEmail);
       return;
     }
+    if (!consent) {
+      setConsentError(true);
+      toast.error(t.consentRequired);
+      return;
+    }
 
     setStatus("sending");
     try {
@@ -83,7 +103,8 @@ export function ContactForm({ lang }: Props) {
           email,
           subject: form.subject.trim() || undefined,
           message,
-          consent: true,
+          consent,
+          consents: [{ key: "rodo", text: t.consent, given: consent, lang }],
           lang,
           source: typeof window !== "undefined" ? window.location.pathname : undefined,
           pageUrl: typeof window !== "undefined" ? window.location.href : undefined,
@@ -91,6 +112,7 @@ export function ContactForm({ lang }: Props) {
       });
       setStatus("ok");
       setForm({ name: "", email: "", subject: "", message: "" });
+      setConsent(false);
       toast.success(t.ok);
     } catch {
       setStatus("idle");
@@ -137,6 +159,32 @@ export function ContactForm({ lang }: Props) {
           submitting={status === "sending"}
           onValidationChange={(v) => setMessageOk(v.canSubmit)}
         />
+        <div className="space-y-1">
+          <label
+            htmlFor={consentId}
+            className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted-foreground"
+          >
+            <Checkbox
+              id={consentId}
+              name="consent"
+              className="mt-0.5"
+              checked={consent}
+              aria-required="true"
+              aria-invalid={consentError ? true : undefined}
+              aria-describedby={consentError ? `${consentId}-err` : undefined}
+              onCheckedChange={(next) => {
+                setConsent(next === true);
+                if (next === true) setConsentError(false);
+              }}
+            />
+            <span>{t.consent}</span>
+          </label>
+          {consentError ? (
+            <p id={`${consentId}-err`} role="alert" className="pl-6 text-xs text-destructive">
+              {t.consentRequired}
+            </p>
+          ) : null}
+        </div>
         <SubscribeButton
           type="submit"
           loading={status === "sending"}

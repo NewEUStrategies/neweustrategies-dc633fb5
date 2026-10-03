@@ -30089,6 +30089,21 @@ export type Database = {
         Args: { p_endpoint: string }
         Returns: undefined
       }
+      media_folder_paths: { Args: { _tenant_id: string }; Returns: string[] }
+      media_text_contains_any: {
+        Args: { _haystack: string; _needles: string[] }
+        Returns: boolean
+      }
+      media_usage_scan: {
+        Args: { _limit?: number; _needles: string[]; _tenant_id: string }
+        Returns: {
+          areas: string[]
+          id: string
+          kind: string
+          slug: string
+          title: string
+        }[]
+      }
       member_conversation_ids: { Args: never; Returns: string[] }
       member_slug_is_non_author: { Args: { p_slug: string }; Returns: boolean }
       membership_year_window: {

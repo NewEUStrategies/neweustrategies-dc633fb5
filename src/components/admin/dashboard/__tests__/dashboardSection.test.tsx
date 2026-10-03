@@ -102,6 +102,26 @@ describe("DashboardSection - nagłówek", () => {
     expect(screen.getByRole("link", { name: /otwórz/ }).getAttribute("href")).toBe("/admin/crm");
   });
 
+  it("sekcja osadzona bez tytułu nadal może prowadzić do zakładki-matki", () => {
+    render(
+      <DashboardSection to="/admin/crm" linkLabel="otwórz" subtitle="podtytuł">
+        <p>x</p>
+      </DashboardSection>,
+    );
+    expect(screen.queryByRole("heading")).toBeNull();
+    expect(screen.getByRole("link", { name: /otwórz/ })).toBeTruthy();
+    expect(screen.getByText("podtytuł")).toBeTruthy();
+  });
+
+  it("adres bez etykiety nie daje bezimiennego odnośnika", () => {
+    render(
+      <DashboardSection title="CRM" to="/admin/crm">
+        <p>x</p>
+      </DashboardSection>,
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
   it("bez tytułu i bez odnośnika NIE renderuje pustego nagłówka", () => {
     // Sekcja bywa osadzona pod cudzym nagłówkiem (zwijany panel na /admin/crm);
     // pusty `<h2>` dokładałby czytnikowi ekranu bezimienny poziom w konspekcie.

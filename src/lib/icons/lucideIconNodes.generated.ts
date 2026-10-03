@@ -1,7 +1,7 @@
 // WYGENEROWANE przez scripts/gen-lucide-icon-nodes.mjs z lucide-react v0.577.0.
 // Nie edytować ręcznie; po podbiciu lucide-react uruchom generator ponownie.
 // Dane węzłów SVG wszystkich ikon - celowo BEZ importów z rejestru pakietu
-// (patrz komentarz w generatorze i w lib/icons/DynamicIconFull).
+// (patrz komentarz w generatorze; przeglądarka dostaje porcje z lib/icons/chunks).
  
 import type { IconNode } from "lucide-react";
 

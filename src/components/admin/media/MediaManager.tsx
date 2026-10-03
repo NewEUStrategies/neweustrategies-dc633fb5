@@ -20,6 +20,8 @@ import { useTranslation } from "react-i18next";
 import "@/lib/i18n-admin-media";
 import { toast } from "sonner";
 import { useAuth, useRequiredTenant } from "@/hooks/useAuth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ConfirmDeleteState, ContextMenuState, MediaRow, ViewMode } from "./types";
 import { directChildFolders, folderName } from "./lib/mediaPaths";
@@ -70,8 +72,13 @@ export function MediaManager() {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // ---------- Tenant-scoped data ----------
-  const { foldersQuery, mediaQuery, invalidate } = useMediaData(tenantId);
-  const media = useMemo(() => mediaQuery.data ?? [], [mediaQuery.data]);
+  // Pliki czytamy per folder i stronami; fraza idzie do bazy po debounce, a do
+  // tego czasu wczytane wiersze filtruje klient (natychmiastowa odpowiedź).
+  const debouncedSearch = useDebouncedValue(search, 250);
+  const { foldersQuery, folderPathsQuery, mediaQuery, media, invalidate } = useMediaData(tenantId, {
+    folder: currentPath,
+    search: debouncedSearch,
+  });
 
   // ---------- Derived views ----------
   const currentFolderChildren = useMemo(
@@ -79,9 +86,9 @@ export function MediaManager() {
       directChildFolders(
         currentPath,
         (foldersQuery.data ?? []).map((f) => f.path),
-        media.map((m) => m.folder_path),
+        folderPathsQuery.data ?? [],
       ),
-    [foldersQuery.data, media, currentPath],
+    [foldersQuery.data, folderPathsQuery.data, currentPath],
   );
 
   const filesInCurrent = useMemo(() => {
@@ -359,6 +366,22 @@ export function MediaManager() {
                 onDropFolder={dnd.onFolderDrop}
                 onPreviewFile={setPreviewFile}
               />
+            )}
+
+            {mediaQuery.hasNextPage && (
+              <div className="flex justify-center pt-4" data-nomarquee>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={mediaQuery.isFetchingNextPage}
+                  onClick={() => void mediaQuery.fetchNextPage()}
+                >
+                  {mediaQuery.isFetchingNextPage
+                    ? t("admin.media.loadingMore")
+                    : t("admin.media.loadMore")}
+                </Button>
+              </div>
             )}
 
             {isEmpty && (

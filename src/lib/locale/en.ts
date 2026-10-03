@@ -538,7 +538,7 @@ export const en = {
       },
       bulk: {
         title: "Bulk import",
-        hint: "Drop many files at once. A „-dark” or „-light” filename suffix assigns the variant (e.g. logo-dark.svg).",
+        hint: "Drop many files at once (PNG, JPG, WebP, AVIF, GIF - no SVG). A „-dark” or „-light” filename suffix assigns the variant (e.g. logo-dark.png).",
         choose: "Choose files",
         uploading: "Uploading…",
         done: "Done: created {{created}}, updated {{updated}}.",
@@ -546,6 +546,9 @@ export const en = {
       },
       errors: {
         nameRequired: "Provide an icon name.",
+        notSignedIn: "Sign in again to upload icons.",
+        unsupportedFiles:
+          "Skipped files in an unsupported format: {{names}}. Allowed: PNG, JPG, WebP, AVIF, GIF (SVG is blocked for security reasons).",
       },
     },
     themeOptions: {

@@ -384,3 +384,72 @@ describe("AdminMembershipWorkspace - zakładka organizacji", () => {
     );
   });
 });
+
+// ODMOWA BAZY PRZY ZAPISIE, USUNIĘCIU I UTWORZENIU. Test „błąd bazy przy
+// zapisie warstwy" wyżej mierzy w rzeczywistości błąd ODCZYTU (katalog się
+// nie wczytuje, więc nie ma czego zapisać) - gałęzie `if (error) throw error`
+// trzech mutacji nie miały ani jednego wywołania. A to one decydują, czy
+// odrzucony zapis (RLS, unikalność klucza, warstwa przypięta do planu) kończy
+// się komunikatem, czy cichym „zapisano" bez zmiany w bazie.
+describe("AdminMembershipWorkspace - odmowa bazy przy mutacjach", () => {
+  /** Odczyt przechodzi, a wskazana operacja zapisu jest odrzucona. */
+  function rejectOn(method: "update" | "delete" | "insert", message: string) {
+    chain.setResponse("membership_tiers", (c) =>
+      c.has(method)
+        ? { data: null, error: Object.assign(new Error(message), { name: "PostgrestError" }) }
+        : ok([membershipTier()]),
+    );
+  }
+
+  it("odrzucony ZAPIS warstwy kończy się komunikatem bazy, nie sukcesem", async () => {
+    rejectOn("update", "permission denied for table membership_tiers");
+    renderWithQueryClient(<AdminMembershipWorkspace />);
+    await openTierEditor("basics");
+
+    fireEvent.click(screen.getByRole("button", { name: /^adminMembership\.save$/ }));
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("permission denied for table membership_tiers"),
+    );
+    expect(toastSuccess).not.toHaveBeenCalledWith("adminMembership.toast.tierSaved");
+  });
+
+  it("odrzucone USUNIĘCIE (np. warstwa przypięta do planu) kończy się komunikatem", async () => {
+    rejectOn("delete", "violates foreign key constraint");
+    renderWithQueryClient(<AdminMembershipWorkspace />);
+    await openTierEditor("basics");
+
+    fireEvent.click(screen.getByRole("button", { name: /deleteTitle/ }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("violates foreign key constraint"));
+    expect(toastSuccess).not.toHaveBeenCalledWith("adminMembership.toast.tierDeleted");
+  });
+
+  it("odrzucone UTWORZENIE (kolizja klucza) kończy się komunikatem", async () => {
+    rejectOn("insert", "duplicate key value violates unique constraint");
+    renderWithQueryClient(<AdminMembershipWorkspace />);
+    await waitFor(() => expect(screen.getByText("1 / 1")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: /newTierDialog\.title/ }));
+    const fields = within(screen.getByRole("dialog")).getAllByRole("textbox");
+    fireEvent.change(fields[0] as HTMLElement, { target: { value: "patron" } });
+    fireEvent.change(fields[1] as HTMLElement, { target: { value: "Patron" } });
+    fireEvent.change(fields[2] as HTMLElement, { target: { value: "Patron" } });
+    fireEvent.click(screen.getByRole("button", { name: /newTierDialog\.create/ }));
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("duplicate key value violates unique constraint"),
+    );
+    expect(toastSuccess).not.toHaveBeenCalledWith("adminMembership.toast.tierCreated");
+  });
+
+  it("zamknięcie okna edycji wraca do katalogu bez zapisu", async () => {
+    renderWithQueryClient(<AdminMembershipWorkspace />);
+    const dialog = await openTierEditor("basics");
+
+    fireEvent.keyDown(dialog, { key: "Escape" });
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(tierUpdate()).toBeUndefined();
+  });
+});

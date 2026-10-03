@@ -758,3 +758,73 @@ describe("SlotsPanel - kontrakt ladunku UPDATE", () => {
     expect(Object.keys(payload)).not.toContain("updated_at");
   });
 });
+
+// TREŚĆ KREACJI DOCHODZI DO ZAPISU. Dotąd pola treści (HTML, skrypt, trzy pola
+// grafiki) i notatki były asertowane wyłącznie na OBECNOŚĆ - żadna z ich
+// procedur `onChange` nie była wywołana, więc pole, które przestałoby zapisywać,
+// przeszłoby całą suitę z formularzem wyglądającym na sprawny.
+describe("SlotsPanel - treść kreacji trafia do INSERT", () => {
+  async function submit(): Promise<Record<string, unknown>> {
+    fireEvent.click(screen.getByRole("button", { name: /adsAdmin\.slots\.addAction/ }));
+    await waitFor(() =>
+      expect(
+        db()
+          .chainsFor("ad_slots")
+          .some((c) => c.has("insert")),
+      ).toBe(true),
+    );
+    return db()
+      .chainsFor("ad_slots")
+      .find((c) => c.has("insert"))
+      ?.argsOf("insert")?.[0] as Record<string, unknown>;
+  }
+
+  it("HTML i notatka", async () => {
+    await renderPanel([]);
+    fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldName"), {
+      target: { value: "Baner" },
+    });
+    fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldHtml"), {
+      target: { value: "<p>kreacja</p>" },
+    });
+    fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldNotes"), {
+      target: { value: "Q2" },
+    });
+    expect(await submit()).toMatchObject({ kind: "html", html: "<p>kreacja</p>", notes: "Q2" });
+  });
+
+  it("SKRYPT", async () => {
+    await renderPanel([]);
+    fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldName"), {
+      target: { value: "Tag" },
+    });
+    fireEvent.change(selectKind(), { target: { value: "script" } });
+    fireEvent.change(await screen.findByLabelText("adsAdmin.slots.fieldScript"), {
+      target: { value: "console.log(1)" },
+    });
+    expect(await submit()).toMatchObject({ kind: "script", script: "console.log(1)" });
+  });
+
+  it("GRAFIKA: adres obrazka, adres kliknięcia i tekst alternatywny", async () => {
+    await renderPanel([]);
+    fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldName"), {
+      target: { value: "Obrazek" },
+    });
+    fireEvent.change(selectKind(), { target: { value: "image" } });
+    fireEvent.change(await screen.findByLabelText("adsAdmin.slots.fieldImageUrl"), {
+      target: { value: "https://cdn.example.com/a.png" },
+    });
+    fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldClickUrl"), {
+      target: { value: "https://example.com/oferta" },
+    });
+    fireEvent.change(screen.getByLabelText("adsAdmin.slots.fieldAlt"), {
+      target: { value: "Oferta partnera" },
+    });
+    expect(await submit()).toMatchObject({
+      kind: "image",
+      image_url: "https://cdn.example.com/a.png",
+      image_link: "https://example.com/oferta",
+      image_alt: "Oferta partnera",
+    });
+  });
+});

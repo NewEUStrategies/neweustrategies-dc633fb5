@@ -14,7 +14,11 @@ vi.mock("@/lib/billing/donations.functions", () => ({
   createDonationCheckout: vi.fn(),
 }));
 
-import { DonationCta, type DonationCtaMode } from "@/components/donations/DonationCta";
+import {
+  DonationCta,
+  type DonationCtaMode,
+  type DonationCtaProps,
+} from "@/components/donations/DonationCta";
 
 function renderCta(mode: DonationCtaMode, config: Partial<DonationsConfig> = {}) {
   h.config = { ...DONATIONS_DEFAULTS, ...config };
@@ -22,6 +26,20 @@ function renderCta(mode: DonationCtaMode, config: Partial<DonationsConfig> = {})
   return render(
     <QueryClientProvider client={client}>
       <DonationCta href="/support" label="Wesprzyj" className="cta" mode={mode} />
+    </QueryClientProvider>,
+  );
+}
+
+/** Wariant z dowolnymi propsami - do zapisanych stron sprzed pola `mode`. */
+function renderLegacyCta(
+  props: Partial<Pick<DonationCtaProps, "mode" | "quick">>,
+  config: Partial<DonationsConfig> = {},
+) {
+  h.config = { ...DONATIONS_DEFAULTS, ...config };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <DonationCta href="/support" label="Wesprzyj" className="cta" {...props} />
     </QueryClientProvider>,
   );
 }
@@ -55,5 +73,36 @@ describe("DonationCta", () => {
     renderCta("quick", { enabled: false });
     await waitFor(() => expect(screen.getByRole("link").getAttribute("href")).toBe("/support"));
     expect(screen.getByRole("link").getAttribute("target")).toBeNull();
+  });
+});
+
+// Strony zapisane w builderze przed wprowadzeniem `mode` niosą wyłącznie flagę
+// `quick`. Bez tej ścieżki stare widgety szybkiej płatności po cichu stałyby
+// się zwykłym linkiem na /support - darczyńca dostawałby dodatkowy krok.
+describe("DonationCta - zgodność wstecz z flagą `quick`", () => {
+  it("sama flaga `quick` prowadzi bezpośrednio do naszej kasy", async () => {
+    renderLegacyCta({ quick: true });
+    await waitFor(() => expect(screen.getByRole("link").getAttribute("href")).toBe("/donate"));
+  });
+
+  it("sama flaga `quick` otwiera zbiórkę zewnętrzną w nowej karcie", async () => {
+    renderLegacyCta({ quick: true }, { provider: "external", externalUrl: "https://z.example/q" });
+    await waitFor(() =>
+      expect(screen.getByRole("link").getAttribute("href")).toBe("https://z.example/q"),
+    );
+    expect(screen.getByRole("link").getAttribute("target")).toBe("_blank");
+    expect(screen.getByText(/nowej karcie|new tab/i)).toBeTruthy();
+  });
+
+  it("bez trybu i bez flagi CTA zostaje linkiem na wskazany adres", async () => {
+    renderLegacyCta({});
+    // Konfiguracja domyślna to własna kasa - mimo to brak trybu = nawigacja.
+    await waitFor(() => expect(screen.getByRole("link").getAttribute("href")).toBe("/support"));
+    expect(screen.getByRole("link").getAttribute("target")).toBeNull();
+  });
+
+  it("jawny tryb wygrywa z historyczną flagą", async () => {
+    renderLegacyCta({ mode: "link", quick: true });
+    await waitFor(() => expect(screen.getByRole("link").getAttribute("href")).toBe("/support"));
   });
 });

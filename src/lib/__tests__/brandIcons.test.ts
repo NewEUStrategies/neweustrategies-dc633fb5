@@ -1,6 +1,8 @@
 // Rejestr ikon marki, preferencja zestawu ikon i katalog pełnego zestawu.
 // Do 18.08.2026: `brandIconRegistry.ts` 0 z 1 funkcji, `DynamicIconFull.tsx`
-// 0 z 4, `iconPack.ts` bez pokrycia.
+// 0 z 4, `iconPack.ts` bez pokrycia. Funkcje katalogu z `DynamicIconFull.tsx`
+// żyją od 2026-10-03 w `lib/icons/iconNames.ts` (moduł bez danych SVG), a sam
+// `DynamicIconFull.tsx` usunięto po przejściu `DynamicIcon` na porcje.
 //
 // Wspólny mianownik: WSZYSTKIE trzy dostają nazwę Z DANYCH (pole CMS, wiersz
 // bazy, wejście użytkownika). Nazwa nieznana nie może wywrócić drzewa Reacta -
@@ -12,7 +14,7 @@ import { renderHook, act } from "@testing-library/react";
 import { BRAND_ICONS, resolveBrandIcon } from "@/lib/brandIconRegistry";
 import { Circle, Facebook, Linkedin, Twitter, Mail, Globe } from "@/lib/lucide-shim";
 import { setIconPack, useIconPack } from "@/lib/iconPack";
-import { allIconNames, pascalToKebabIconName } from "@/lib/icons/DynamicIconFull";
+import { allIconNames, pascalToKebabIconName } from "@/lib/icons/iconNames";
 
 describe("resolveBrandIcon", () => {
   it("rozpoznaje nazwę kanoniczną", () => {

@@ -490,9 +490,10 @@ jobs:
 
       # Blocking gate on an icon name that CHROME cannot render synchronously.
       # `DynamicIcon` renders a curated set from named lucide imports; ANY other
-      # name makes the browser pull the full icon registry
-      # (src/lib/icons/lucideIconNodes.generated.ts: 473 KB of source, 109 KB
-      # gzip) through React.lazy. Menu, mobile bottom bar and event page tiles
+      # name makes the browser pull one of the 4 icon registry chunks
+      # (src/lib/icons/chunks/icons-N.json: 23-25 KB gzip each; the whole
+      # registry, 109 KB gzip, when this gate was introduced) through
+      # React.lazy. Menu, mobile bottom bar and event page tiles
       # take their icon names from CONFIGURATION (site_settings, menu_items,
       # event_pages), so a single typo in the admin panel used to cost that
       # chunk to EVERY anonymous visitor, on the header's render path - and

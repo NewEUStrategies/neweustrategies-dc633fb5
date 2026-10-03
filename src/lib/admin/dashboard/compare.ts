@@ -126,3 +126,27 @@ export function formatMoneyCents(cents: number, currency: string, lang: UiLang):
 export function rate(numerator: number, denominator: number): number | null {
   return denominator > 0 ? numerator / denominator : null;
 }
+
+/**
+ * Udział albo wskaźnik (UŁAMEK: 0.42 = 42%) jako procent w formacie lokalnym.
+ *
+ * Z TEGO SAMEGO POWODU, CO `formatDeltaPercent`: separator dziesiętny jest
+ * decyzją o locale. Panele sklejały wcześniej `(x * 100).toFixed(1) + "%"`,
+ * więc polski pulpit pokazywał „42.0%" i „2.5" tuż obok „12 345" - liczby
+ * z jednego ekranu w dwóch konwencjach.
+ */
+export function formatShare(ratio: number, lang: UiLang, fractionDigits = 1): string {
+  return formatNumber(ratio, lang, {
+    style: "percent",
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
+}
+
+/** Liczba ułamkowa ze stałą liczbą cyfr po przecinku, w formacie lokalnym. */
+export function formatDecimal(value: number, lang: UiLang, fractionDigits = 1): string {
+  return formatNumber(value, lang, {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  });
+}

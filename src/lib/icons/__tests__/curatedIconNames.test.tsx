@@ -7,17 +7,23 @@
 // `curatedIconNames.ts`.
 //
 // Dwie listy to ryzyko rozjazdu, a rozjazd byłby tu CICHY I GROŹNY: bramka
-// mierzyłaby zestaw, którego już nie ma, i przepuszczała nazwy ściągające pełny
-// rejestr ikon (473 KB źródeł, 109 KB gzip) do przeglądarki każdego anonima.
+// mierzyłaby zestaw, którego już nie ma, i przepuszczała nazwy ściągające
+// leniwą porcję rejestru ikon (23-25 KB gzip) do przeglądarki każdego anonima.
 // Ten plik zamienia ryzyko w czerwony test - w OBIE strony.
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-// Pełny rejestr podmieniamy znacznikiem: jego pojawienie się znaczy, że nazwa
-// z listy NIE renderuje się synchronicznie, czyli lista kłamie.
-vi.mock("../DynamicIconFull", () => ({
-  default: ({ iconKey }: { iconKey: string }) => <span data-testid="pelny">{iconKey}</span>,
-}));
+// Loader porcji rejestru podmieniamy znacznikiem: jego pojawienie się znaczy,
+// że nazwa z listy NIE renderuje się synchronicznie, czyli lista kłamie.
+vi.mock("../lazyNamedIcon", async () => {
+  const { lazy } = await import("react");
+  return {
+    lazyNamedIcon: (iconKey: string) =>
+      lazy(async () => ({
+        default: () => <span data-testid="pelny">{iconKey}</span>,
+      })),
+  };
+});
 
 import { CURATED_ICON_KEYS, DynamicIcon } from "../DynamicIcon";
 import { CURATED_ICON_NAMES, isCuratedIconName, normalizeIconName } from "../curatedIconNames";
@@ -36,7 +42,7 @@ describe("CURATED_ICON_NAMES kontra mapa CURATED", () => {
   it("każda nazwa z listy renderuje się SYNCHRONICZNIE, bez leniwego chunka", () => {
     // To jest dowód najmocniejszy: lista nie tylko zgadza się z mapą literalnie,
     // ale każda jej pozycja przechodzi przez PRAWDZIWY resolwer bez sięgnięcia
-    // po pełny rejestr.
+    // po porcję rejestru.
     for (const name of CURATED_ICON_NAMES) {
       const { container, unmount } = render(<DynamicIcon name={name} />);
       expect(container.querySelector("svg"), name).toBeTruthy();

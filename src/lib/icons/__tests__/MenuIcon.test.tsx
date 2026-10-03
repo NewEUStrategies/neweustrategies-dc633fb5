@@ -1,10 +1,10 @@
-// IKONA CHROME NIE MA PRAWA DOCIĄGNĄĆ PEŁNEGO REJESTRU.
+// IKONA CHROME NIE MA PRAWA DOCIĄGNĄĆ PORCJI REJESTRU.
 //
 // DLACZEGO TEN TEST WYGLĄDA INACZEJ NIŻ `DynamicIcon.test.tsx`. Tamten
-// podmienia pełny rejestr na znacznik i pokazuje, że znacznik się POJAWIŁ.
-// Tutaj dowodzimy czegoś, czego nie widać na ekranie: że modułu pełnego
-// rejestru NIKT NIE ZAŻĄDAŁ. Dlatego atrapa LICZY swoje wywołania - jedno
-// żądanie modułu to jedno pobranie chunka w przeglądarce.
+// podmienia loader porcji rejestru (`lazyNamedIcon`) na znacznik i pokazuje,
+// że znacznik się POJAWIŁ. Tutaj dowodzimy czegoś, czego nie widać na
+// ekranie: że porcji rejestru NIKT NIE ZAŻĄDAŁ. Dlatego atrapa LICZY swoje
+// wywołania - wywołanie loadera to w przeglądarce żądanie chunka porcji.
 //
 // Licznik ma własną KONTROLĘ POZYTYWNĄ na końcu pliku: ostatni test dowodzi,
 // że przy domyślnym `allowFull` licznik ROŚNIE. Bez niej „zero żądań" mogłoby
@@ -16,13 +16,13 @@
 // STAWKA. Nazwy ikon menu przychodzą z konfiguracji w bazie (`site_settings`,
 // `menu_items`), którą wypełnia człowiek w panelu. Przy zachowaniu domyślnym
 // jedna literówka - albo jedna nazwa, której zestaw nie pokrywa - każe
-// przeglądarce KAŻDEGO ANONIMA pobrać `lucideIconNodes.generated`
-// (473 KB źródeł, 109 KB gzip) na ścieżce renderu nagłówka. `MenuIcon` zamienia
-// ten koszt na neutralne kółko i ostrzeżenie w konsoli dewelopera.
+// przeglądarce KAŻDEGO ANONIMA pobrać porcję danych SVG (jedną z 4
+// `chunks/icons-N.json`, 23-25 KB gzip) na ścieżce renderu nagłówka. `MenuIcon`
+// zamienia ten koszt na neutralne kółko i ostrzeżenie w konsoli dewelopera.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-/** Licznik żądań modułu pełnego rejestru - dzielony z atrapą (hoisted). */
+/** Licznik wywołań loadera porcji rejestru - dzielony z atrapą (hoisted). */
 const rejestr = vi.hoisted(() => ({ zazadany: 0 }));
 
 vi.mock("../lazyNamedIcon", async () => {
@@ -44,7 +44,7 @@ afterEach(() => {
 });
 
 describe("MenuIcon - nazwa spoza zestawu", () => {
-  it("renderuje ikonę zastępczą i NIE żąda modułu pełnego rejestru", () => {
+  it("renderuje ikonę zastępczą i NIE żąda porcji rejestru", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const przed = rejestr.zazadany;
     const { container } = render(<MenuIcon name="alarm-clock-check" />);
@@ -101,10 +101,10 @@ describe("MenuIcon - nazwy, które zestaw pokrywa", () => {
 });
 
 describe("DynamicIcon bez `allowFull` - zachowanie dotychczasowych wywołań", () => {
-  it("dla nazwy nieznanej NADAL dociąga pełny rejestr (kontrola pozytywna licznika)", async () => {
+  it("dla nazwy nieznanej NADAL leniwie dociąga porcję rejestru (kontrola pozytywna licznika)", async () => {
     // Ten test pilnuje DWÓCH rzeczy naraz: że treść i panel nie straciły
-    // dostępu do pełnego rejestru (zmiana miała dotknąć wyłącznie chrome)
-    // oraz że licznik użyty wyżej naprawdę reaguje na pobranie modułu.
+    // dostępu do pełnego katalogu (zmiana miała dotknąć wyłącznie chrome)
+    // oraz że licznik użyty wyżej naprawdę reaguje na żądanie porcji.
     const przed = rejestr.zazadany;
     render(<DynamicIcon name="alarm-clock-check" />);
     expect(await screen.findByTestId("pelny")).toHaveTextContent("AlarmClockCheck");

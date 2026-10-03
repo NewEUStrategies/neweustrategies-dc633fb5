@@ -170,6 +170,8 @@ export async function uploadAndRegisterMedia(args: {
   /** Segment ścieżki w storage. */
   subfolder?: string;
   altText?: string;
+  /** Nagłówek Cache-Control obiektu (domyślnie 1 h). */
+  cacheControl?: string;
 }): Promise<UploadedMedia> {
   const rejection = checkUploadable(args.file, args.allowedMime ?? UPLOADABLE_MIME);
   if (rejection) throw new UploadRejectedError(rejection);
@@ -182,7 +184,7 @@ export async function uploadAndRegisterMedia(args: {
   });
 
   const { error: upErr } = await supabase.storage.from("media").upload(storagePath, args.file, {
-    cacheControl: "3600",
+    cacheControl: args.cacheControl ?? "3600",
     upsert: false,
     contentType: args.file.type,
   });

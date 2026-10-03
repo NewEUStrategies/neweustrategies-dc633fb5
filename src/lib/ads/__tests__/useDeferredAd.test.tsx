@@ -24,7 +24,8 @@ interface ObserverRecord {
   readonly rootMargin: string;
   readonly targets: Element[];
   disconnected: number;
-  fire(): void;
+  /** Zgłasza wpis obserwatora; `false` = slot nadal poza marginesem viewportu. */
+  fire(isIntersecting?: boolean): void;
 }
 
 const observers: ObserverRecord[] = [];
@@ -47,9 +48,9 @@ class ControlledIntersectionObserver implements IntersectionObserver {
       disconnected: 0,
       // Strzalka domyka `this` leksykalnie - aliasowanie do `self` bylo tu
       // jedynie obejsciem tego, ze metoda skrocona ma wlasne `this`.
-      fire: () => {
+      fire: (isIntersecting = true) => {
         for (const target of record.targets) {
-          this.cb([{ isIntersecting: true, target } as IntersectionObserverEntry], this);
+          this.cb([{ isIntersecting, target } as IntersectionObserverEntry], this);
         }
       },
     };
@@ -187,6 +188,24 @@ describe("obserwator viewportu", () => {
     await openViewportGate();
 
     expect(observers[0].disconnected).toBeGreaterThan(0);
+  });
+
+  it("wpis BEZ przecięcia (slot dalej poza ekranem) nie otwiera bramki ani nie rozłącza", async () => {
+    render(<Slot />);
+    await openIdleGate();
+
+    // Obserwator zgłasza wpis także przy samym starcie obserwacji i przy
+    // wyjeździe z marginesu - to nie jest sygnał do ładowania kreacji.
+    await act(async () => {
+      observers[0].fire(false);
+      await Promise.resolve();
+    });
+
+    expect(ready()).toBe(false);
+    expect(observers[0].disconnected).toBe(0);
+
+    await openViewportGate();
+    expect(ready()).toBe(true);
   });
 
   it("odmontowanie strefy rozłącza obserwatora", () => {

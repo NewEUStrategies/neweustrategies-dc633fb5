@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import "@/lib/i18n-admin-media";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { Link as LinkIcon } from "@/lib/lucide-shim";
 import type { MediaUsageArea, MediaUsageItem } from "@/lib/media.functions";
@@ -7,13 +8,15 @@ interface MediaUsageListProps {
   isLoading: boolean;
   error: unknown;
   items: MediaUsageItem[] | undefined;
+  /** Serwer przyciął listę trafień (`MEDIA_USAGE_LIMIT`). */
+  truncated?: boolean;
 }
 
 /**
  * Molecule: renders where a media asset is used (posts / pages), with a deep
  * link into each editor. Handles loading / error / empty / list states.
  */
-export function MediaUsageList({ isLoading, error, items }: MediaUsageListProps) {
+export function MediaUsageList({ isLoading, error, items, truncated }: MediaUsageListProps) {
   const { t } = useTranslation();
   const list = items ?? [];
 
@@ -78,6 +81,11 @@ export function MediaUsageList({ isLoading, error, items }: MediaUsageListProps)
             </li>
           ))}
         </ul>
+      )}
+      {truncated && list.length > 0 && (
+        <p className="mt-2 text-muted-foreground">
+          {t("admin.media.usageTruncated", { count: list.length })}
+        </p>
       )}
     </div>
   );

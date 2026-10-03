@@ -13,17 +13,13 @@ import { Constants, type Database } from "@/integrations/supabase/types";
 import {
   matchesAdTargeting,
   parseAdTargeting,
+  PUBLIC_AD_SLOT_COLUMNS,
   type AdLanguage,
   type AdPageType,
+  type AdPlacement,
   type AdPlacementWithSlot,
   type AdPosition,
 } from "./types";
-
-interface FetchArgs {
-  position: AdPosition;
-  pageType: AdPageType;
-  pageId?: string | null;
-}
 
 /** Kontekst treści dla targetingu - podawany na stronach postów. */
 export interface AdContentContext {
@@ -54,8 +50,22 @@ const DB_AD_PAGE_TYPES: readonly DbAdPageType[] = Constants.public.Enums.ad_page
  * `edgeTtlCache` (izolat) i próg, poniżej którego rozgrzewka SSR uznaje wpis za
  * gotowy i nie pyta bazy ponownie. Rozjazd tych liczb znaczyłby, że jedna
  * warstwa odświeża to, co druga właśnie uznała za świeże.
+ *
+ * UWAGA: TTL izolatu NIE jest sufitem wieku danych. `edgeTtlCache` po upływie
+ * TTL serwuje wpis nieświeży jeszcze do 5 x TTL (serve-stale, odświeżenie w
+ * tle). Dlatego rozgrzewka niesie prawdziwy czas pobrania do `updatedAt`,
+ * a okno emisji jest sprawdzane ponownie w chwili projekcji
+ * (`isWithinEmissionWindow`) - wiersz kampanii zakończonej w tych minutach nie
+ * wraca na stronę tylko dlatego, że lista leżała w cache'u.
  */
 const PLACEMENTS_TTL_MS = 60_000;
+
+/**
+ * Select publicznych zapytań: placement + slot BEZ `ad_slots.notes` (patrz
+ * `PublicAdSlot`). Wynik rozgrzewki ląduje w HTML-u cache'owanym na krawędzi,
+ * więc `ad_slots!inner(*)` oddawał notatki operatora każdemu czytelnikowi.
+ */
+const PLACEMENTS_SELECT = `*, slot:ad_slots!inner(${PUBLIC_AD_SLOT_COLUMNS})`;
 
 function dbPageTypes(pageType: AdPageType): DbAdPageType[] {
   const known = DB_AD_PAGE_TYPES.find((value) => value === pageType);
@@ -86,7 +96,7 @@ async function fetchPlacementRows(
   const nowIso = new Date().toISOString();
   const { data, error } = await supabase
     .from("ad_placements")
-    .select("*, slot:ad_slots!inner(*)")
+    .select(PLACEMENTS_SELECT)
     .in("position", [...positions])
     // Filtr wysyła wyłącznie wartości, które baza zna (patrz `DB_AD_PAGE_TYPES`):
     // typ strony dodany po stronie klienta, a jeszcze nie w enumie, wywróciłby
@@ -103,25 +113,35 @@ async function fetchPlacementRows(
 }
 
 /**
+ * Okno emisji sprawdzone PO STRONIE KLIENTA, w chwili projekcji - drugi raz po
+ * filtrze bazy. Baza porównuje z czasem ZAPYTANIA, a lista może potem leżeć
+ * w cache'u izolatu do 5 x TTL (patrz `PLACEMENTS_TTL_MS`). Granica nieczytelna
+ * (`Date.parse` -> NaN) nie zawęża okna: rozstrzygnęła ją już baza.
+ */
+function isWithinEmissionWindow(placement: AdPlacement, now: number): boolean {
+  const startsAt = placement.starts_at ? Date.parse(placement.starts_at) : Number.NaN;
+  const endsAt = placement.ends_at ? Date.parse(placement.ends_at) : Number.NaN;
+  return !(startsAt > now) && !(endsAt < now);
+}
+
+/**
  * Projekcja wierszy na JEDNĄ pozycję i JEDEN identyfikator strony - dokładnie
  * to, co widok czyta spod klucza `["ad_placements", position, pageType, id]`.
- * Placement przypięty do innej strony (`page_id ≠ null`) nie wchodzi.
+ * Placement przypięty do innej strony (`page_id ≠ null`) nie wchodzi, placement
+ * poza oknem emisji w chwili `now` - też nie.
  */
 function placementsForPage(
   rows: readonly AdPlacementWithSlot[],
   position: AdPosition,
   pageId: string | null,
+  now: number,
 ): AdPlacementWithSlot[] {
-  return rows.filter((p) => p.position === position && (p.page_id == null || p.page_id === pageId));
-}
-
-async function fetchPlacements({
-  position,
-  pageType,
-  pageId,
-}: FetchArgs): Promise<AdPlacementWithSlot[]> {
-  const rows = await fetchPlacementRows([position], pageType);
-  return placementsForPage(rows, position, pageId ?? null);
+  return rows.filter(
+    (p) =>
+      p.position === position &&
+      (p.page_id == null || p.page_id === pageId) &&
+      isWithinEmissionWindow(p, now),
+  );
 }
 
 /**
@@ -152,10 +172,16 @@ export function adPlacementsQueryOptions(
     // Klucz bez języka/kontekstu treści: fetch jest współdzielony, a filtr
     // targetingu działa per obserwator w `select` (react-query v5).
     queryKey: ["ad_placements", position, pageType, id],
-    queryFn: () =>
-      edgeTtlCache(`ad_placements:${position}:${pageType}:${id ?? "-"}`, PLACEMENTS_TTL_MS, () =>
-        fetchPlacements({ position, pageType, pageId: id }),
-      ),
+    queryFn: async () => {
+      const rows = await edgeTtlCache(
+        `ad_placements:${position}:${pageType}:${id ?? "-"}`,
+        PLACEMENTS_TTL_MS,
+        () => fetchPlacementRows([position], pageType),
+      );
+      // Projekcja PO cache'u, nie w nim: okno emisji liczy się od chwili
+      // odczytu, a nie od chwili, w której izolat pobrał listę.
+      return placementsForPage(rows, position, id, Date.now());
+    },
     staleTime: PLACEMENTS_TTL_MS,
     refetchOnWindowFocus: false,
   });
@@ -221,26 +247,34 @@ export async function prefetchAdPlacementQueries(
   const positions = [...new Set(cold.map((t) => t.position))].sort();
   if (positions.length === 0) return;
   try {
-    const rows = await edgeTtlCache(
+    const { fetchedAt, rows } = await edgeTtlCache(
       // Prefiks `multi:` oddziela ten wpis od kluczy jednopozycyjnych wyżej -
       // te niosą jeszcze `pageId`, ten świadomie go nie zna (patrz
       // `fetchPlacementRows`).
       `ad_placements:multi:${positions.join("+")}:${pageType}`,
       PLACEMENTS_TTL_MS,
-      () => fetchPlacementRows(positions, pageType),
+      // Czas pobrania jedzie W wartości cache'u: tylko tak przeżywa serwowanie
+      // wpisu nieświeżego (serve-stale) i trafia do `updatedAt` niżej.
+      async () => ({ fetchedAt: Date.now(), rows: await fetchPlacementRows(positions, pageType) }),
     );
+    const now = Date.now();
     // Zapisujemy WYŁĄCZNIE cele, o które to zapytanie pytało: cel pominięty jako
     // świeży nie ma swoich wierszy w tej odpowiedzi, więc projekcja dałaby mu
     // pustą listę i skasowała dane, które właśnie uznaliśmy za dobre.
     for (const target of cold) {
       const id = target.pageId ?? null;
-      // `setQueryData` bez `updatedAt: 0`: to są PRAWDZIWE wiersze, nie zasiew
-      // fallbackowy. Wpis ma się urodzić świeży, inaczej przeglądarka
-      // powtórzyłaby round-trip zaraz po hydratacji i cała rozgrzewka nie
-      // zdjęłaby ani jednego skoku układu.
+      // `updatedAt` = PRAWDZIWY czas pobrania z bazy, nie chwila zasiewu. To są
+      // prawdziwe wiersze (nie zasiew fallbackowy z `updatedAt: 0`), więc wpis
+      // z ciepłego cache'u izolatu rodzi się świeży i przeglądarka nie powtarza
+      // round-tripu po hydratacji. Ale wpis serwowany z okna serve-stale (do
+      // 5 x TTL) dostawał dotąd znacznik „teraz" i przeglądarka trzymała go
+      // jeszcze minutę - obietnica 60 s rozciągała się do sześciu. Z prawdziwym
+      // czasem przeglądarka odświeża go zaraz po hydratacji, a SSR i tak
+      // zarezerwował piksele slotu, więc nie ma skoku układu.
       queryClient.setQueryData(
         adPlacementsQueryOptions(target.position, pageType, id).queryKey,
-        placementsForPage(rows, target.position, id),
+        placementsForPage(rows, target.position, id, now),
+        { updatedAt: fetchedAt },
       );
     }
   } catch {

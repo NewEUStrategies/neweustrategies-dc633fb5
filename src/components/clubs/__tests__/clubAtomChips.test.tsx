@@ -553,10 +553,11 @@ describe("ClubGroupIcon", () => {
     // a redakcja nie miałaby jak zauważyć, że wybór nie działa.
     //
     // TIMEOUT 10 s, nie domyślna sekunda: ikona spoza kuracji jedzie przez
-    // `Suspense` + `lazy(() => import("./DynamicIconFull"))`, a ten chunk
-    // wciąga PEŁNY zestaw lucide. Pod pełną równoległością pakietu samo
-    // przetworzenie tego modułu w jsdom potrafi przekroczyć sekundę - i tylko
-    // wtedy ten test padał. To koszt transformacji, nie regresja atomu.
+    // `Suspense` + `lazy(() => import("./DynamicIconChunk"))`, a ten dociąga
+    // przez `lazyNamedIcon` porcję danych SVG (ok. ćwierć zestawu lucide, plik
+    // JSON ponad 100 KB). Pod pełną równoległością pakietu samo przetworzenie
+    // tych modułów w jsdom potrafi przekroczyć sekundę - i tylko wtedy ten
+    // test padał. To koszt transformacji, nie regresja atomu.
     const { container } = render(<ClubGroupIcon icon="venetian-mask" depth={0} />);
     await waitFor(() => expect(container.querySelector("svg")).not.toBeNull(), {
       timeout: 10_000,
