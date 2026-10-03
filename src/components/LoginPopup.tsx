@@ -227,6 +227,13 @@ export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
                 autoComplete="name"
               />
             )}
+            {/* Etykieta trybu bezpośrednio nad e-mailem: nagłówek popupu jest
+                redakcyjny (marketingowy), a gość musi wiedzieć, czy otwiera
+                logowanie, czy rejestrację - dokładnie nad pierwszym polem
+                danych logowania. */}
+            <p className="text-sm font-medium">
+              {mode === "signin" ? t("authForms.signinTitle") : t("authForms.signupTitle")}
+            </p>
             <FloatingInput
               id="lp-email"
               type="email"

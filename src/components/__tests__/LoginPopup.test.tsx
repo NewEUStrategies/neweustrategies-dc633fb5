@@ -490,6 +490,20 @@ describe("LoginPopup - tryb", () => {
     expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signin_label_pl);
   });
 
+  it("nad polem e-mail jest etykieta trybu logowania", () => {
+    render(<LoginPopup />);
+    openPopup();
+    expect(screen.getByText(t("authForms.signinTitle"))).toBeInTheDocument();
+  });
+
+  it("po przelaczeniu na rejestracje etykieta nad e-mailem zmienia sie na rejestracje", () => {
+    render(<LoginPopup />);
+    openPopup();
+    fireEvent.click(screen.getByRole("button", { name: t("authForms.noAccount") }));
+    expect(screen.getByText(t("authForms.signupTitle"))).toBeInTheDocument();
+    expect(screen.queryByText(t("authForms.signinTitle"))).not.toBeInTheDocument();
+  });
+
   it("przełącznik u dołu prowadzi z logowania na rejestrację i z powrotem", () => {
     render(<LoginPopup />);
     openPopup();
