@@ -121,6 +121,11 @@ describe("buildContentHead", () => {
 });
 
 describe("buildRootHead", () => {
+  it("uses the exact publication name as the default title in both languages", () => {
+    expect(SITE_DEFAULT_TITLE.pl).toBe("New European Strategies");
+    expect(SITE_DEFAULT_TITLE.en).toBe("New European Strategies");
+  });
+
   it("brands the document defaults to New European Strategies, not the generator", () => {
     for (const lang of ["pl", "en"] as const) {
       const meta = buildRootHead(lang);

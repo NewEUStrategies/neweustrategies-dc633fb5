@@ -295,7 +295,11 @@ export const Route = createFileRoute("/")({
       url,
       lang,
       type: "website",
-      title: seo.title,
+      // The homepage always represents the publication itself. Keep its
+      // document, Open Graph and Twitter title equal to the configured brand
+      // name instead of allowing a CMS page override to rename the site in
+      // browser tabs and search results.
+      title: siteTitle(lang, url),
       description: seo.description,
       image,
       // Strony wyników >1 (tryb "najnowsze wpisy") są noindex,follow - crawler
