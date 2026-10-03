@@ -23181,7 +23181,9 @@ export type Database = {
       }
       _mention_public_company_ids: {
         Args: { _tenant: string }
-        Returns: { company_id: string }[]
+        Returns: {
+          company_id: string
+        }[]
       }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
       _suggest_score: {
