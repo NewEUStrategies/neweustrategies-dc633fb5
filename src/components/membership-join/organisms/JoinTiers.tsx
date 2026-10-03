@@ -204,7 +204,7 @@ export function JoinTiers({ isAuthenticated }: { isAuthenticated: boolean }) {
                     setContactTier(target);
                     setContactOpen(true);
                   }}
-                  highlights={cardHighlights.get(tier.id) ?? []}
+                  highlights={cardHighlights.get(tier.id)}
                 />
               ))}
             </div>

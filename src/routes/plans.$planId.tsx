@@ -158,6 +158,30 @@ function PlanDetailsPage() {
     .filter((x) => (x.audience_key ?? "individual") === audienceKey && x.key !== "supporter")
     .sort((a, b) => a.rank - b.rank || a.sort_order - b.sort_order);
 
+  // KATALOGU NIE MA W CACHE - to jeszcze nie jest „plan wycofany". Loader zawsze
+  // zasiewa ten klucz (także fallbackiem), więc `undefined` zostaje wyłącznie po
+  // zrzucie cache (`useAuth.signOut` -> `queryClient.clear()`): katalog jest
+  // w trakcie ponownego odczytu albo ten odczyt właśnie padł. Hak degradacji
+  // tego nie widzi (start był CZYSTY), więc błąd jest sprawą komponentu -
+  // szkielet jak na /pricing, a po porażce uczciwe „nie wiemy" z ponowieniem.
+  if (plansQ.data === undefined) {
+    if (plansQ.isError) {
+      return (
+        <div className="container mx-auto max-w-3xl px-4 py-12">
+          <DegradedDataNotice onRetry={retry} variant="page" />
+        </div>
+      );
+    }
+    return (
+      <div className="container mx-auto max-w-5xl px-4 py-10">
+        <div
+          aria-hidden="true"
+          className="h-64 animate-pulse rounded-xl border border-border bg-muted/30"
+        />
+      </div>
+    );
+  }
+
   if (!plan) {
     // DEGRADACJA MÓWI PRAWDĘ, nie wypisuje planu ze sprzedaży. „Plan wycofany"
     // to zdanie o KATALOGU, więc wolno je powiedzieć wyłącznie po odczycie
@@ -211,7 +235,10 @@ function PlanDetailsPage() {
             <span className="text-sm text-muted-foreground">{intervalLabel(plan.interval, t)}</span>
           </div>
         )}
-        {!enquiryOnly && plan.trial_days > 0 && (
+        {/* Okres próbny tylko tam, gdzie checkout go przyzna - plan jednorazowy
+            idzie płatnością bez triala (ten sam strażnik co karta, checkout
+            i paywall). */}
+        {!enquiryOnly && plan.interval !== "one_time" && plan.trial_days > 0 && (
           <p className="text-sm text-primary">{t("pricing.trial", { count: plan.trial_days })}</p>
         )}
         <div className="flex flex-wrap gap-2 pt-2">

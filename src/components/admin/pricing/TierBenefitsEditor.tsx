@@ -49,9 +49,10 @@ export function TierBenefitsEditor({
     setExpanded((state) => shiftExpandedAfterRemove(state, i));
     onChange(value.filter((_, idx) => idx !== i));
   };
+  // Wołane wyłącznie z przycisków wyłączanych na krawędziach listy (pierwszy
+  // wiersz w górę, ostatni w dół) - `j` zawsze leży w zakresie.
   const move = (i: number, dir: -1 | 1) => {
     const j = i + dir;
-    if (j < 0 || j >= value.length) return;
     const next = value.slice();
     [next[i], next[j]] = [next[j], next[i]];
     // Rozwinięcie idzie za wierszem, nie za pozycją.

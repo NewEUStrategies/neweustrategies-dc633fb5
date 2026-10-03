@@ -95,6 +95,17 @@ describe("PlanCard - oferta wyceniana indywidualnie", () => {
     expect(screen.queryByRole("button", { name: "pricing.enquiry.cta" })).not.toBeInTheDocument();
   });
 
+  it("NIE ogłasza okresu próbnego - zgłoszenie nie uruchamia żadnego triala", () => {
+    // Ta sama reguła co na stronie planu (`plans.$planId.tsx`): darmowe dni bez
+    // checkoutu to obietnica handlowa, której nikt nie spełni. Cykl roczny jest
+    // tu celowy - dowodzi strażnika ZGŁOSZENIA niezależnie od strażnika planu
+    // jednorazowego (test niżej).
+    render(<PlanCard plan={{ ...DECISION_LAB, trial_days: 14 }} />);
+
+    expect(screen.getByText("pricing.enquiry.price")).toBeInTheDocument();
+    expect(screen.queryByText(/^pricing\.trial/)).not.toBeInTheDocument();
+  });
+
   it("wyróżniony plan zgłoszeniowy ma przycisk w TYM SAMYM stylu co wyróżniony checkout", () => {
     const { unmount } = render(<PlanCard plan={{ ...DECISION_LAB, highlighted: true }} />);
     const enquiryHighlighted = screen.getByRole("button", {
@@ -111,6 +122,31 @@ describe("PlanCard - oferta wyceniana indywidualnie", () => {
 
     expect(enquiryHighlighted).toBe(checkoutHighlighted);
     expect(enquiryRegular).not.toBe(enquiryHighlighted);
+  });
+});
+
+describe("PlanCard - okres próbny planu jednorazowego", () => {
+  it("przepustka jednorazowa NIE obiecuje darmowych dni, których checkout nie przyzna", () => {
+    // `createCheckoutOrder` liczy trial wyłącznie dla `kind: "subscription"`,
+    // a checkout planu `one_time` to płatność - więc `trial_days` takiego planu
+    // nie ma pokrycia. Strona checkoutu i paywall mają ten sam strażnik.
+    render(
+      <PlanCard plan={accessPlan({ id: "plan-pass", interval: "one_time", trial_days: 14 })} />,
+    );
+
+    expect(screen.getByRole("link", { name: "pricing.choose" })).toHaveAttribute(
+      "href",
+      "/checkout/plan-pass",
+    );
+    expect(screen.queryByText(/^pricing\.trial/)).not.toBeInTheDocument();
+  });
+
+  it("KONTROLA DODATNIA: subskrypcja z okresem próbnym dalej go ogłasza", () => {
+    // Bez tej pary testy wyżej przechodziłyby także wtedy, gdyby karta nie
+    // pokazywała okresu próbnego NIGDY.
+    render(<PlanCard plan={accessPlan({ interval: "month", trial_days: 14 })} />);
+
+    expect(screen.getByText('pricing.trial {"count":14}')).toBeInTheDocument();
   });
 });
 

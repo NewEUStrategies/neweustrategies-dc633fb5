@@ -405,7 +405,7 @@ function PricingPage() {
                     currentPlanId={currentPlanId}
                     isAuthenticated={!!session}
                     onContact={openContact}
-                    highlights={cardHighlights.get(tier.id) ?? []}
+                    highlights={cardHighlights.get(tier.id)}
                   />
                 ))}
               </div>
