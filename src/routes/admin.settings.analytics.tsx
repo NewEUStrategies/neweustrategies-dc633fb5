@@ -38,6 +38,8 @@ import {
   type AnalyticsStatus,
   type Ga4Mode,
 } from "@/lib/analytics/status.functions";
+import { analyticsRootKey, analyticsStatusKey } from "@/lib/analytics/queryKeys";
+import { useCurrentTenantId } from "@/lib/tenant";
 import type { ReactNode } from "react";
 // Nakładka wnosi `admin.analyticsSettings.status.error` i `.refresh` - dwa
 // klucze, których rdzeń słownika nie ma. Bez tego importu i18next zwróciłby
@@ -268,9 +270,14 @@ function AnalyticsSettings() {
   const [ga4Saving, setGa4Saving] = useState(false);
 
   const fetchStatus = useServerFn(getAnalyticsStatus);
+  // Klucz wspólny z /admin/analytics i /admin/analytics/bi, z najemcą
+  // (`analyticsStatusKey`); do czasu ustalenia najemcy nic się nie pobiera,
+  // a odznaki stoją na „sprawdzanie" (`!st` bez błędu).
+  const tenantId = useCurrentTenantId();
   const statusQ = useQuery({
-    queryKey: ["analytics-status"],
+    queryKey: analyticsStatusKey(tenantId ?? ""),
     queryFn: () => fetchStatus(),
+    enabled: Boolean(tenantId),
     staleTime: 30_000,
   });
 
@@ -280,9 +287,11 @@ function AnalyticsSettings() {
     setDraft({ ...draft, [k]: v });
 
   // Persist a mutation to the analytics config and auto-refresh status.
+  // Unieważnienie po KORZENIU analityki: trafia w status zapamiętany pod
+  // dowolnym najemcą i z dowolnego z trzech ekranów, które go czytają.
   const persist = async (next: AnalyticsConfig) => {
     await save.mutateAsync(next);
-    await qc.invalidateQueries({ queryKey: ["analytics-status"] });
+    await qc.invalidateQueries({ queryKey: analyticsRootKey() });
   };
 
   const st = statusQ.data;
@@ -359,7 +368,9 @@ function AnalyticsSettings() {
           variant="outline"
           size="sm"
           onClick={() => statusQ.refetch()}
-          disabled={statusQ.isFetching}
+          // `refetch()` ignoruje `enabled`: bez `!tenantId` klik przed
+          // ustaleniem najemcy pobrałby status pod klucz z pustym tenantem.
+          disabled={!tenantId || statusQ.isFetching}
         >
           <RefreshCw className={`w-3.5 h-3.5 mr-2 ${statusQ.isFetching ? "animate-spin" : ""}`} />
           {/* NAZWA AKCJI, nie napis stanu. Przycisk z etykietą „Sprawdzanie…"

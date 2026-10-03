@@ -7,6 +7,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAnalyticsAdmin } from "@/lib/analytics/gateway.server";
 
 export type SegmentKey = "logged" | "anon";
 
@@ -66,13 +67,9 @@ export const getAudienceSegments = createServerFn({ method: "POST" })
     z.object({ days: z.number().int().min(1).max(365).default(28) }).parse(i ?? {}),
   )
   .handler(async ({ data, context }): Promise<AudienceSegmentsResult> => {
-    // Admin gate (tenant-scoped przez has_role -> current_tenant_id()).
-    const { data: isAdmin, error: roleErr } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (roleErr) throw new Error(roleErr.message);
-    if (!isAdmin) throw new Error("Forbidden: admin role required");
+    // Admin gate (tenant-scoped przez has_role -> current_tenant_id()) - wspólna
+    // bramka analityki, PRZED klientem service role i ustaleniem najemcy.
+    await requireAnalyticsAdmin(context);
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { resolveUserTenantId } = await import("@/lib/server/userTenant.server");

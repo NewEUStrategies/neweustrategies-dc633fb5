@@ -1,19 +1,50 @@
 // Ingest zdarzeń analitycznych. Klient (src/lib/analytics/track.ts)
-// wysyła batch `sendBeacon`em; ten route waliduje, ogranicza rate limit
-// i zapisuje do public.analytics_events przez klienta service_role.
+// wysyła batch `sendBeacon`em (anonim) albo keepalive `fetch`em z nagłówkiem
+// `Authorization: Bearer` (zalogowany); ten route waliduje, ogranicza rate
+// limit i zapisuje do public.analytics_events przez klienta service_role.
 // Odpowiedź zawsze 204 - beacony nie mogą blokować/psuć nawigacji.
+//
+// ZALOGOWANY TO JEDEN BIT, NIE KONTO. Każdy wiersz dostaje `signed_in`
+// wyliczone TU, z ZWERYFIKOWANEGO bearera (`signedInFromRequest`, raz na
+// partię), a kolumny `user_id` ingest nie zapisuje wcale - i nie zapisywał
+// nigdy (migracja 20261003180000). Treść żądania nie ma na flagę wpływu:
+// `IncomingEvent` nie zna ani `signed_in`, ani `user_id`, więc pole dopisane
+// przez klienta ginie przy mapowaniu. Awaria weryfikacji daje `false`
+// i dalej 204 - zdarzenie liczy się jako anonimowe, ale się liczy.
 //
 // PRZYCZYNA ŹRÓDŁOWA. Redakcja stała dotąd WYŁĄCZNIE na `path` i `referrer` -
 // na polach, które adres NIOSĄ, a nie na tych, w które użytkownik WPISUJE.
 // `trackSearch` (src/lib/analytics/track.ts) posyła frazę z wyszukiwarki wprost
 // do `entity_id`, a `trackFooterLink` wkłada do `meta` cały href. Fraza bywa
 // adresem e-mail albo numerem telefonu, a wiersz niesie obok niej `anon_id` -
-// identyfikator przeglądarki z localStorage, BEZ WYGASANIA. Tabela nie ma
-// retencji (zero `DELETE` w migracjach), czyta ją admin ALBO EDYTOR (migracja
-// 20260730085737), a bramka eksportu RODO wyłącza ją z eksportu uzasadnieniem
-// „zdarzenia analityczne bez identyfikatora konta - nie są danymi osobowymi"
-// (exportManifestParity.gate.test.ts). Surowa fraza czyni to uzasadnienie
-// NIEPRAWDZIWYM. Komplet redaktorów jest ten sam co w /api/public/client-errors.
+// identyfikator przeglądarki z localStorage, BEZ WYGASANIA. Czyta ją admin ALBO
+// EDYTOR (migracja 20260730085737), a bramka eksportu RODO wyłącza tabelę
+// z eksportu uzasadnieniem „zdarzenia analityczne bez identyfikatora konta - nie
+// są danymi osobowymi" (exportManifestParity.gate.test.ts). Surowa fraza czyni
+// to uzasadnienie NIEPRAWDZIWYM. Komplet redaktorów jest ten sam co
+// w /api/public/client-errors.
+//
+// CO DOKŁADA BAZA (migracja 20261003190000). Tabela przez pierwsze miesiące nie
+// miała retencji; teraz `telemetry_retention_prune` (pg_cron co godzinę) kasuje
+// zdarzenia starsze niż 12 miesięcy, jak obiecuje polityka prywatności. Trigger
+// BEFORE INSERT zamienia frazę wyszukiwania w `entity_id` na `sq1:<hmac>`
+// z sekretem najemcy i zdejmuje `meta.q`. Redakcja TUTAJ mimo to zostaje: skrót
+// obejmuje wyłącznie wiersze wyszukiwania, a `entity_id` i `meta` pozostałych
+// zdarzeń przychodzą z klienta równie surowe. Baza skraca frazę JUŻ
+// zredagowaną, więc dwa różne adresy e-mail w tej samej frazie dają jeden klucz
+// grupowania, a nie dwa.
+//
+// TEN ENDPOINT BYŁBY WYROCZNIĄ dla każdej roli czytającej skróty. Przyjmuje
+// dowolną frazę klienta, a trigger skraca ją tym samym pieprzem najemcy co
+// frazy odwiedzających - kto widzi skróty, potwierdziłby zgadywaną frazę
+// jednym beaconem i jednym SELECT-em (wynik obok `anon_id` szukającego),
+// a słownik budowałby w tempie `limiter`a niżej (~80 fraz/s z IP, per
+// izolat). Zapisu zamknąć się nie da - endpoint jest publiczny z definicji -
+// więc ta sama migracja zamyka ODCZYT: polityka RESTRICTIVE
+// `analytics_events_hide_search_rows` ukrywa wiersze wyszukiwania przed anon
+// i authenticated (admin ani redaktor nie widzą żadnego skrótu, także skrótu
+// własnej frazy), a EXECUTE funkcji skrótu ma tylko service_role. Liczby
+// wyszukiwań liczą agregaty SECURITY DEFINER, których RLS nie dotyczy.
 //
 // `entity_id` idzie przez `redactPii`, NIE przez `redactUrl`: to jedno pole ma
 // trzy kształty (fraza, UUID wpisu, href stopki), a ZMIERZONE
@@ -32,6 +63,7 @@ import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { redactPii, redactUrl, redactMeta } from "@/lib/observability/redact";
 import { countryFromHeaders } from "@/lib/analytics/geoHeaders";
+import { signedInFromRequest } from "@/lib/analytics/signedIn.server";
 
 const MAX_BODY = 32_000;
 const MAX_EVENTS = 40;
@@ -98,6 +130,17 @@ function safeMeta(v: unknown): Record<string, unknown> {
   }
 }
 
+/**
+ * Wiersz bez `signed_in` - na awaryjne ponowienie w oknie „kod przed migracją"
+ * (uzasadnienie przy `insert` niżej). Kopia zamiast `delete` na oryginale:
+ * ponowienie nie mutuje partii, którą dostała już pierwsza próba, a reszta
+ * wiersza (z redakcją włącznie) zostaje bajt w bajt ta sama.
+ */
+function withoutSignedIn(row: Record<string, unknown>): Record<string, unknown> {
+  const { signed_in: _signedIn, ...rest } = row;
+  return rest;
+}
+
 export const Route = createFileRoute("/api/public/track")({
   server: {
     handlers: {
@@ -124,6 +167,9 @@ export const Route = createFileRoute("/api/public/track")({
           // samego żądania, więc liczenie go per wiersz byłoby tą samą
           // odpowiedzią policzoną czterdzieści razy.
           const country = countryFromHeaders(req.headers);
+          // Flaga też raz na partię, z tego samego powodu - jeden nagłówek
+          // `Authorization` na żądanie. `signedInFromRequest` nie rzuca.
+          const signedIn = await signedInFromRequest();
           const rows: Record<string, unknown>[] = [];
           for (const e of events) {
             const name = truncate(e.name, 120);
@@ -145,6 +191,7 @@ export const Route = createFileRoute("/api/public/track")({
               lang: truncate(e.lang, 8),
               meta: redactMeta(safeMeta(e.meta)),
               ua,
+              signed_in: signedIn,
               ...(country ? { country } : {}),
               ...(tenantId ? { tenant_id: tenantId } : {}),
             });
@@ -152,7 +199,24 @@ export const Route = createFileRoute("/api/public/track")({
           if (rows.length === 0) return noContent();
 
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("analytics_events").insert(rows as never);
+          const { error } = await supabaseAdmin.from("analytics_events").insert(rows as never);
+          // AWARYJNY ZAPIS BEZ FLAGI - okno między wdrożeniem kodu a migracją
+          // 20261003180000 (wzorzec: /api/public/vitals). `check:migration-ledger`
+          // jest bramką POWDROŻENIOWĄ, więc kolejność „kod przed migracją" jest
+          // w tym repo realna. postgrest-js wysyła UNIĘ kluczy partii jako listę
+          // `columns`, a kolumna nieznana cache'owi schematu odrzuca CAŁY
+          // wielowierszowy insert (`PGRST204`) - także partie anonimowe, którym
+          // flaga niczego nie wnosi. Bez tej gałęzi każdy beacon dostawałby 204,
+          // a w bazie nie lądowałby ani jeden wiersz: pierwszopartyjna analityka
+          // zamierałaby w ciszy aż do migracji. Ponowienie bez `signed_in`
+          // zapisuje wiersz, któremu `ADD COLUMN ... DEFAULT false` dopisze
+          // potem `false` - zdarzenie liczy się jako anonimowe, ale się liczy.
+          // Ponawiamy WYŁĄCZNIE na „nie ma takiej kolumny" (PostgREST `PGRST204`,
+          // Postgres `42703`), żeby zwykły błąd sieci nie kosztował drugiego
+          // round-tripu.
+          if (error && (error.code === "PGRST204" || error.code === "42703")) {
+            await supabaseAdmin.from("analytics_events").insert(rows.map(withoutSignedIn) as never);
+          }
         } catch {
           // Ingest jest best-effort - nigdy nie zwracamy błędu.
         }

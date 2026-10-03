@@ -1,11 +1,13 @@
 // Organizm: panel „Dane" - wizualizacje aktywności wątku.
 //
 // DLACZEGO GOŁE SVG, A NIE SILNIK WYKRESÓW. Platforma ma pełny silnik
-// (`components/charts`, ECharts) i on jest właściwy tam, gdzie autor rysuje
-// dowolne dane w treści wpisu. Tutaj rysujemy CZTERY serie po dwadzieścia
-// kilka słupków o znanym z góry kształcie - a ECharts kosztuje kilkadziesiąt
-// kB na trasie wątku, która ma być szybka. Ta sama decyzja i to samo
-// uzasadnienie, co w `ClubThreadPulse`.
+// (`components/charts`, własny renderer SVG) i on jest właściwy tam, gdzie
+// autor rysuje dowolne dane w treści wpisu - z ramą, podpisem, tabelą danych,
+// interakcją i eksportem. Tutaj rysujemy CZTERY serie po dwadzieścia kilka
+// słupków o znanym z góry kształcie, a cała ta maszyneria byłaby kodem
+// dociąganym na trasę wątku, która ma być szybka, bez niczego, czego ten
+// panel potrzebuje. Ta sama decyzja i to samo uzasadnienie, co
+// w `ClubThreadPulse`.
 //
 // Wykres jest `role="img"` z pełnym opisem w `aria-label`, a pod nim stoi
 // TABELA z tymi samymi liczbami. Wykres, którego nie da się przeczytać inaczej

@@ -33,8 +33,8 @@
 //      wypada surowym `adminAnalytics.…`, a brak klucza EN cicho spada na
 //      polszczyznę i test to widzi.
 //
-// ECHARTS: ten komponent nie renderuje `EChart`, więc nie ma czego atrapować -
-// i biblioteka nie wchodzi do procesu testowego (patrz nagłówek `EChart.tsx`).
+// WYKRESY: ten komponent nie renderuje żadnego wykresu (ani `ChartCard`, ani
+// `@/components/charts/Chart`), więc nie ma czego atrapować ani podsłuchiwać.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { VitalsSummaryResult } from "@/lib/observability/vitals.functions";

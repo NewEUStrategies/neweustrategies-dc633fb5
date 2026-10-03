@@ -20,7 +20,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { AnalyticsGatewayCtx } from "@/lib/analytics/gateway.server";
 import {
   STREAMS,
   type CanonicalWindow,
@@ -103,7 +102,12 @@ interface RawFirstParty {
   searches?: number;
   sessions?: number;
   visitors?: number;
-  signed_in_users?: number;
+  /**
+   * SESJE z co najmniej jednym zdarzeniem zalogowanego (`signed_in`), nie
+   * konta: ingest nie zapisuje identyfikatora konta, więc „unikalnych
+   * zalogowanych" nie ma z czego policzyć (migracja 20261003180000).
+   */
+  signed_in_sessions?: number;
 }
 interface RawVitalsMetric {
   p75?: number;
@@ -338,10 +342,9 @@ export const getSemanticSnapshot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i: unknown) => inputSchema.parse(i ?? {}))
   .handler(async ({ data, context }): Promise<SemanticSnapshotResult> => {
-    const { requireAnalyticsAdmin, readStoredAnalyticsSettings } =
+    const { requireAnalyticsAdmin, readStoredAnalyticsSettings, toAnalyticsGatewayCtx } =
       await import("@/lib/analytics/gateway.server");
-    const ctx = context as unknown as AnalyticsGatewayCtx;
-    await requireAnalyticsAdmin(ctx);
+    await requireAnalyticsAdmin(context);
 
     const current =
       data.sinceIso && data.untilIso
@@ -354,7 +357,7 @@ export const getSemanticSnapshot = createServerFn({ method: "POST" })
 
     // --- strumienie first-party: jeden RPC na okno, identyczne granice ---
     const readSnapshot = async (w: CanonicalWindow): Promise<RawSnapshot | null> => {
-      const { data: raw, error } = await ctx.supabase.rpc("analytics_semantic_snapshot", {
+      const { data: raw, error } = await context.supabase.rpc("analytics_semantic_snapshot", {
         p_since: w.sinceIso,
         p_until: w.untilIso,
       });
@@ -371,7 +374,7 @@ export const getSemanticSnapshot = createServerFn({ method: "POST" })
     ]);
 
     // --- GA4: te same dni co Postgres, wyprowadzone z granic okna ---
-    const stored = await readStoredAnalyticsSettings(ctx);
+    const stored = await readStoredAnalyticsSettings(toAnalyticsGatewayCtx(context));
     const {
       EMPTY_GA4_REPORT,
       ga4TotalsMap,

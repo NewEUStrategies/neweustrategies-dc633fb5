@@ -1068,6 +1068,43 @@ describe("LoginPopup - rejestracja", () => {
     });
   });
 
+  it("link potwierdzający wraca na WEWNĘTRZNĄ ścieżkę z ustawień, a obcy adres spada na /", async () => {
+    // Ta sama straż co na /login: tylko ścieżka zaczynająca się od "/" może
+    // trafić do `emailRedirectTo` - pełny adres z ustawień nie wyprowadzi
+    // świeżo potwierdzonego konta na cudzą domenę.
+    h.settings.logged_in_redirect_url = "/konto/start";
+    const view = render(<LoginPopup />);
+    openPopup("signup");
+    fillSignup({ first_name: "Anna", last_name: "Kowalska" });
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(1));
+    expect(h.signUp.mock.calls[0][0].options.emailRedirectTo).toBe(
+      `${window.location.origin}/konto/start`,
+    );
+    view.unmount();
+
+    h.settings.logged_in_redirect_url = "https://obcy.example.com/start";
+    render(<LoginPopup />);
+    openPopup("signup");
+    fillSignup({ first_name: "Anna", last_name: "Kowalska" });
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(h.signUp).toHaveBeenCalledTimes(2));
+    expect(h.signUp.mock.calls[1][0].options.emailRedirectTo).toBe(`${window.location.origin}/`);
+  });
+
+  it("odmowa rejestracji: przetłumaczony komunikat, bez sukcesu, popup zostaje otwarty", async () => {
+    h.signUp.mockResolvedValue({ error: new Error("User already registered") });
+    render(<LoginPopup />);
+    openPopup("signup");
+    fillSignup({ first_name: "Anna", last_name: "Kowalska" });
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(h.toastError).toHaveBeenCalled());
+    expect(h.toastError).not.toHaveBeenCalledWith("User already registered");
+    expect(String(h.toastError.mock.calls[0]?.[0])).not.toMatch(/^authForms\.errors\./);
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
   it("brak nazwiska blokuje rejestrację", async () => {
     render(<LoginPopup />);
     openPopup("signup");

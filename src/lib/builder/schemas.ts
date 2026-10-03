@@ -3944,11 +3944,16 @@ const labelPh = (key: string, labelBase: string): SchemaField[] => [
   { key: `${key}Placeholder`, type: "i18nText", label: `Placeholder: ${labelBase}` },
 ];
 
-/** Full editor block for one form field: show + require + label + placeholder. */
+/**
+ * Full editor block for one form field: show + require + label + placeholder.
+ *
+ * `placeholder: false` pomija kontrolkę placeholdera dla pól, które renderer
+ * rysuje BEZ podpowiedzi - inaczej panel oferowałby martwe ustawienie.
+ */
 const fieldBlock = (
   key: string,
   labelBase: string,
-  opts: { defaultShow?: "0" | "1"; defaultRequire?: "0" | "1" } = {},
+  opts: { defaultShow?: "0" | "1"; defaultRequire?: "0" | "1"; placeholder?: boolean } = {},
 ): SchemaField[] => [
   {
     key: `show${key.charAt(0).toUpperCase()}${key.slice(1)}`,
@@ -3970,7 +3975,9 @@ const fieldBlock = (
     ],
     default: opts.defaultRequire ?? "0",
   },
-  ...labelPh(key, labelBase),
+  ...labelPh(key, labelBase).filter(
+    (f) => opts.placeholder !== false || f.key !== `${key}Placeholder`,
+  ),
 ];
 
 /**
@@ -4027,10 +4034,32 @@ pushLabelsFor("contact-form", [
 ]);
 
 // --- Extend newsletter widget with per-field editors + custom fields ---
+//
+// Bloki idą w kolejności pól `NewsletterForm` (imię, nazwisko, firma,
+// stanowisko, telefon, e-mail). Domyślne "pokaż" odpowiada rendererowi: od
+// ujednolicenia formularzy KAŻDA instancja ma pełny zestaw pól jak formularz
+// pod artykułem (`boolCfg(cfg, "show…", true)`, rejestr zapisuje "1"), a jawne
+// "0" pole chowa. Wcześniejsze `defaultShow: "0"` opisywało stan, którego
+// renderer już nie ma.
+//
+// Stanowisko i telefon renderer czytał już wcześniej (show/require/etykieta),
+// ale w widgetach z buildera były domyślnie ukryte, a panel nie miał dla nich
+// kontrolek. Od ujednolicenia widać je w każdej instancji, więc bez tych pól
+// redakcja nie mogłaby ich ani schować, ani uczynić wymaganymi (bramka
+// wierności: "USTAWIENIA UKRYTE").
+//
+// Oba dostają blok BEZ placeholdera: formularz rysuje te pola bez podpowiedzi
+// (`FieldWrap` wstawia tylko spacer pływającej etykiety), więc
+// `positionPlaceholder` / `phonePlaceholder` byłyby martwymi kontrolkami.
+// Bramka wierności by ich nie złapała - renderer przekazuje całą treść przez
+// `{...content}` (RENDERER_ENUMERATES_CONTENT), więc każdy klucz próbki liczy
+// się jako czytany.
 (WIDGET_SCHEMAS.newsletter as SchemaField[]).push(
-  ...fieldBlock("firstName", "Imię", { defaultShow: "0", defaultRequire: "0" }),
-  ...fieldBlock("lastName", "Nazwisko", { defaultShow: "0", defaultRequire: "0" }),
-  ...fieldBlock("company", "Firma", { defaultShow: "0", defaultRequire: "0" }),
+  ...fieldBlock("firstName", "Imię"),
+  ...fieldBlock("lastName", "Nazwisko"),
+  ...fieldBlock("company", "Firma"),
+  ...fieldBlock("position", "Stanowisko", { placeholder: false }),
+  ...fieldBlock("phone", "Telefon", { placeholder: false }),
   ...labelPh("email", "E-mail"),
   {
     key: "requireEmail",

@@ -42,6 +42,11 @@
 //      dokładnie ląduje w `save.mutate`.
 //   6. `head()` każdej trasy niesie tytuł. Zakładka bez tytułu to dziewięć
 //      identycznych kart „New European Strategies”.
+//   7. NAJEMCA W KLUCZACH GSC. Lista właściwości i oba raporty leżą pod
+//      kluczami z `@/lib/analytics/queryKeys` z najemcą na indeksie 1; bez
+//      najemcy nic się nie pobiera, a ekran mówi „ładowanie”, nie „brak
+//      właściwości”; po przełączeniu obszaru roboczego cache nie oddaje
+//      właściwości poprzedniego.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 //
@@ -68,6 +73,8 @@ import { renderRoute, routeMeta } from "@/test/routeHarness";
 // rozjechał się z polami, które trasa faktycznie renderuje - nowe pole
 // w ustawieniach ma tu wyjść samo.
 import { DEFAULT_SEO_SETTINGS as SEO_DEFAULTS } from "@/lib/seo/settings";
+import { QueryClient } from "@tanstack/react-query";
+import { analyticsGscReportKey, analyticsGscSitesKey } from "@/lib/analytics/queryKeys";
 import { Route as ContentOverviewRoute } from "@/routes/admin.seo.content";
 import { Route as SearchConsoleRoute } from "@/routes/admin.seo.search-console";
 import { Route as SeoSettingsRoute } from "@/routes/admin.settings.seo";
@@ -97,6 +104,10 @@ const h = vi.hoisted(() => ({
   },
   /** Czy `listGscSites` ma odrzucić. */
   gscSitesError: null as Error | null,
+  /** Liczba wywołań `listGscSites` - dowód, że bez najemcy nic nie wychodzi. */
+  gscSitesCalls: 0,
+  /** Najemca z `useCurrentTenantId` (null = jeszcze nieustalony). */
+  tenantId: "t-1" as string | null,
   /** Wiersze zwracane przez `queryGscAnalytics`. */
   gscRows: [] as Array<{
     keys: string[];
@@ -182,9 +193,18 @@ vi.mock("@tanstack/react-start", async (importOriginal) => {
   return { ...actual, useServerFn: (fn: unknown) => fn };
 });
 
+// Najemca jest ATRAPĄ: prawdziwy `useCurrentTenantId` czyta `profiles` przez
+// klienta Supabase dla `useAuth().user`, a atrapa sesji wyżej `user` nie ma.
+// Klucze GSC trasy Search Console niosą go od 2026-10.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
+}));
+
 vi.mock("@/lib/analytics/gsc.functions", () => ({
-  listGscSites: () =>
-    h.gscSitesError ? Promise.reject(h.gscSitesError) : Promise.resolve(h.gscSites),
+  listGscSites: () => {
+    h.gscSitesCalls += 1;
+    return h.gscSitesError ? Promise.reject(h.gscSitesError) : Promise.resolve(h.gscSites);
+  },
   queryGscAnalytics: (input: { data: Record<string, unknown> }) => {
     h.gscQueries.push(input.data);
     return Promise.resolve({ rows: h.gscRows });
@@ -338,6 +358,8 @@ beforeEach(() => {
   h.tables = [];
   h.gscSites = { configured: true, sites: [{ siteUrl: "https://neweuropeanstrategies.com/" }] };
   h.gscSitesError = null;
+  h.gscSitesCalls = 0;
+  h.tenantId = "t-1";
   h.gscRows = [];
   h.gscQueries = [];
   h.seoSettings = { ...SEO_DEFAULTS };
@@ -711,11 +733,12 @@ describe("/admin/seo/content - przegląd treści", () => {
 // ===========================================================================
 
 describe("/admin/seo/search-console", () => {
-  async function mount(): Promise<void> {
-    await renderRoute({
+  async function mount(queryClient?: QueryClient) {
+    return renderRoute({
       route: SearchConsoleRoute,
       path: "/admin/seo/search-console",
       initialEntry: "/admin/seo/search-console",
+      queryClient,
     });
   }
 
@@ -856,6 +879,72 @@ describe("/admin/seo/search-console", () => {
     await waitFor(() => expect(screen.getByText(/admin\.gsc\.backToSeo/)).toBeTruthy());
     const hrefs = screen.getAllByRole("link").map((el) => el.getAttribute("href"));
     expect(hrefs).toContain("/admin/seo");
+  });
+
+  describe("najemca w kluczach cache'u", () => {
+    it("bez ustalonego najemcy: „ładowanie”, zero zapytań, żadnego fałszywego „brak właściwości”", async () => {
+      // Wyłączone zapytanie ma `isLoading === false` - bez `!tenantId` w stanie
+      // ładowania ekran nie mówiłby nic, a lista bez danych nie odróżnia
+      // oczekiwania od pustki.
+      h.tenantId = null;
+      const { queryClient } = await mount();
+      await waitFor(() => expect(screen.getByText("admin.loading")).toBeTruthy());
+
+      expect(h.gscSitesCalls).toBe(0);
+      expect(h.gscQueries).toHaveLength(0);
+      expect(screen.queryByText("admin.gsc.noSites")).toBeNull();
+      expect(screen.queryByText("admin.gsc.notConfigured")).toBeNull();
+      for (const query of queryClient.getQueryCache().getAll()) {
+        expect(query.state.data).toBeUndefined();
+      }
+    });
+
+    it("lista właściwości i oba raporty leżą pod kluczami z najemcą (fabryka `queryKeys`)", async () => {
+      const { queryClient } = await mount();
+      await waitFor(() => expect(h.gscQueries.length).toBeGreaterThanOrEqual(2));
+
+      const raport = {
+        siteUrl: "https://neweuropeanstrategies.com/",
+        startDate: "2026-01-04",
+        endDate: "2026-02-01",
+        rowLimit: 25,
+      };
+      const keys = queryClient
+        .getQueryCache()
+        .getAll()
+        .map((q) => q.queryKey);
+      expect(keys).toEqual(
+        expect.arrayContaining([
+          analyticsGscSitesKey("t-1"),
+          analyticsGscReportKey("t-1", { ...raport, dimension: "query" }),
+          analyticsGscReportKey("t-1", { ...raport, dimension: "page" }),
+        ]),
+      );
+      for (const key of keys) expect(key[1]).toBe("t-1");
+    });
+
+    it("po przełączeniu najemcy cache nie oddaje właściwości poprzedniego", async () => {
+      // Ten sam klient react-query przeżywa zmianę obszaru roboczego - jak
+      // w aplikacji. Przy stałym `["gsc-sites"]` druga klatka brała listę
+      // najemcy A z cache'u i od razu pytała o JEGO frazy.
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      h.gscSites = { configured: true, sites: [{ siteUrl: "https://a.example/" }] };
+      const first = await mount(queryClient);
+      await waitFor(() => expect(screen.getByRole("option", { name: "https://a.example/" })));
+      first.unmount();
+
+      h.tenantId = "t-2";
+      h.gscSites = { configured: true, sites: [{ siteUrl: "https://b.example/" }] };
+      h.gscQueries = [];
+      await mount(queryClient);
+
+      // Pierwsza klatka: ładowanie listy B, nie właściwość A z cache'u.
+      expect(screen.queryByRole("option", { name: "https://a.example/" })).toBeNull();
+      await waitFor(() => expect(screen.getByRole("option", { name: "https://b.example/" })));
+      expect(screen.queryByRole("option", { name: "https://a.example/" })).toBeNull();
+      expect(h.gscQueries.length).toBeGreaterThan(0);
+      expect(h.gscQueries.every((q) => q.siteUrl === "https://b.example/")).toBe(true);
+    });
   });
 });
 

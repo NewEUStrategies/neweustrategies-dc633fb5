@@ -287,6 +287,7 @@ export type Database = {
           path: string | null
           referrer: string | null
           session_id: string | null
+          signed_in: boolean
           tenant_id: string
           ua: string | null
           user_id: string | null
@@ -305,6 +306,7 @@ export type Database = {
           path?: string | null
           referrer?: string | null
           session_id?: string | null
+          signed_in?: boolean
           tenant_id?: string
           ua?: string | null
           user_id?: string | null
@@ -323,11 +325,38 @@ export type Database = {
           path?: string | null
           referrer?: string | null
           session_id?: string | null
+          signed_in?: boolean
           tenant_id?: string
           ua?: string | null
           user_id?: string | null
         }
         Relationships: []
+      }
+      analytics_search_peppers: {
+        Row: {
+          created_at: string
+          pepper: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          pepper: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          pepper?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "analytics_search_peppers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       archive_layout_settings: {
         Row: {
@@ -21442,9 +21471,9 @@ export type Database = {
           event_name: string | null
           event_type: string | null
           hits: number | null
+          signed_in_sessions: number | null
           tenant_id: string | null
           unique_sessions: number | null
-          unique_users: number | null
         }
         Relationships: []
       }
@@ -26451,6 +26480,11 @@ export type Database = {
         }
         Returns: string
       }
+      analytics_search_hash_backfill: { Args: never; Returns: number }
+      analytics_search_phrase_hash: {
+        Args: { p_phrase: string; p_tenant: string }
+        Returns: string
+      }
       analytics_semantic_snapshot: {
         Args: { p_since: string; p_until: string }
         Returns: Json
@@ -31334,6 +31368,7 @@ export type Database = {
       }
       storage_path_tenant: { Args: { _name: string }; Returns: string }
       sync_org_verification: { Args: { p_user_id: string }; Returns: Json }
+      telemetry_retention_prune: { Args: { p_limit?: number }; Returns: Json }
       tenant_id_for_public_host: { Args: { p_host: string }; Returns: string }
       trending_posts: {
         Args: { _days?: number; _limit?: number }

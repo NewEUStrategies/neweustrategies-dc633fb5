@@ -1,5 +1,5 @@
 -- pgTAP: dzienny p75 Core Web Vitals z górną granicą okna `p_until`
--- (migracja 20261003120000_web_vitals_daily_p75_until.sql).
+-- (migracja 20261003171000_web_vitals_daily_p75_until.sql).
 --
 -- Do 2026-10-03 funkcja znała wyłącznie `p_since`, więc `getVitalsSummary`
 -- pomijał ją przy każdym jawnym `untilIso` i rysował trend z przyciętej

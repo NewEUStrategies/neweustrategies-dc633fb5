@@ -967,6 +967,12 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Pole: Zapamiętaj mnie - widoczne?": "Field: Remember me - visible?",
   "Imię - wymagane?": "First name - required?",
   "Firma - wymagane?": "Company - required?",
+  // Bez polskich znaków i słów z listy strażnika `labelsEn.test.ts`, więc test
+  // ich nie wymusza - ale panel newslettera (i formularzy auth) pokazuje je
+  // adminowi EN obok przetłumaczonych sąsiadów, więc tłumaczymy jawnie.
+  "Nazwisko - wymagane?": "Last name - required?",
+  "Stanowisko - wymagane?": "Job position - required?",
+  "Telefon - wymagane?": "Phone - required?",
   "Powtórz hasło - wymagane?": "Repeat password - required?",
   "Powtórz nowe hasło - wymagane?": "Repeat new password - required?",
   "Minimalna długość hasła": "Minimum password length",

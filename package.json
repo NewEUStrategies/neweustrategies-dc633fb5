@@ -17,7 +17,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "npm run typecheck:tsc && npm run typecheck:scripts",
-    "typecheck:tsc": "NODE_OPTIONS=\"--max-old-space-size=8192\" tsc --noEmit --incremental false",
+    "typecheck:tsc": "NODE_OPTIONS=\"--max-old-space-size=10240\" tsc --noEmit --incremental false",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:static": "bun run scripts/verify-static.ts",

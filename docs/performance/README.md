@@ -26,7 +26,7 @@ arkusz, LCP) i plan do 85/95: [`2026-10-02-pagespeed-przyczyny.md`](./2026-10-02
 
 Trend dzienny p75 liczy RPC `web_vitals_daily_p75(p_since, p_tenant, p_until)` po PEŁNYM
 oknie `[p_since, p_until]` (granica górna domknięta, jak `.lte` w `getVitalsSummary`;
-`p_until` od migracji `20261003120000`, `DEFAULT NULL` = okno otwarte od góry). Trend
+`p_until` od migracji `20261003171000`, `DEFAULT NULL` = okno otwarte od góry). Trend
 z pamięci (`aggregate.ts`, najnowsze `SAMPLE_CAP` próbek) zostaje wyłącznie jako zapas,
 gdy RPC zawiedzie.
 

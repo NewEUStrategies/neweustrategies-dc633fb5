@@ -17,6 +17,14 @@
  * zarówno przed odpowiedzią serwera, jak i po każdej awarii - zero tam, gdzie
  * pomiaru nie było. Źródła są niezależne: awaria RUM nie gasi liczb błędów
  * przeglądarki i odwrotnie.
+ *
+ * PASEK WIDZI TYLKO ADMIN NAJEMCY. Obie funkcje stoją za `requireAnalyticsAdmin`
+ * (`has_role(uid, 'admin')`), a RLS `web_vitals`/`client_errors` jest
+ * administracyjne - tymczasem /admin i /admin/community otwiera każdy członek
+ * redakcji. Do 2026-10 redaktor dostawał na obu ekranach kartę „Awaria odczytu:
+ * Forbidden: admin role required" i cztery kafelki awarii: rzetelny opis
+ * odmowy, tyle że odmowy, która jest stanem stałym, a nie awarią. Dla
+ * nie-admina pasek nie pyta serwera i nie renderuje niczego.
  */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -30,6 +38,9 @@ import { ChartCard } from "./ChartCard";
 import { biChart } from "./biChart";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
 import { getClientErrorsReport } from "@/lib/observability/clientErrors.functions";
+import { analyticsBiStripKey } from "@/lib/analytics/queryKeys";
+import { useCurrentTenantId } from "@/lib/tenant";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface AdminBiStripProps {
   /** Okno analityczne w dniach (domyślnie 14). */
@@ -53,15 +64,34 @@ export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiS
   const { t } = useTranslation();
   const fetchVitals = useServerFn(getVitalsSummary);
   const fetchErrors = useServerFn(getClientErrorsReport);
+  // Tenant w kluczu (`@/lib/analytics/queryKeys`): serwer liczy dane najemcy
+  // z profilu, ale bez najemcy w kluczu pasek po przełączeniu obszaru
+  // roboczego pokazywałby z cache'u liczby poprzedniego. Do czasu ustalenia
+  // najemcy nic się nie pobiera - kafelki mówią wtedy „Pomiar", bo bez
+  // raportu i bez awarii `placeholder` daje właśnie ten stan.
+  const tenantId = useCurrentTenantId();
+  // SYGNAŁ ROLI TO DOKŁADNIE WARUNEK BRAMKI SERWERA, a nie `isAdmin` z `useAuth`.
+  // `isAdmin` liczy też `super_admin`, którego `requireAnalyticsAdmin` bez
+  // wiersza `admin` NIE wpuszcza - pasek wróciłby wtedy do karty „Forbidden".
+  // `roles` czyta `user_roles` pod RLS `tenant_id = current_tenant_id()`, czyli
+  // w tym samym zakresie najemcy, w którym sprawdza `has_role()`. Dopóki role
+  // się ładują, `roles` jest puste (`useAuth` zeruje je przy zmianie
+  // tożsamości), a `!loading` mówi to wprost: niewiadoma rola to brak paska,
+  // nigdy zapytanie na próbę i nigdy karta awarii.
+  const { roles, loading: authLoading } = useAuth();
+  const canRead = !authLoading && roles.includes("admin");
+  const enabled = canRead && Boolean(tenantId);
 
   const vitalsQ = useQuery({
-    queryKey: ["admin-bi-strip", "vitals", days],
+    queryKey: analyticsBiStripKey(tenantId ?? "", "vitals", days),
     queryFn: () => fetchVitals({ data: { days } }),
+    enabled,
     staleTime: 120_000,
   });
   const errorsQ = useQuery({
-    queryKey: ["admin-bi-strip", "errors", days],
+    queryKey: analyticsBiStripKey(tenantId ?? "", "errors", days),
     queryFn: () => fetchErrors({ data: { days } }),
+    enabled,
     staleTime: 120_000,
   });
 
@@ -136,6 +166,13 @@ export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiS
       }),
     [daily, t],
   );
+
+  // Wczesny powrót DOPIERO po hookach - ich liczba i kolejność nie mogą
+  // zależeć od roli, bo role dojeżdżają po pierwszym renderze. Zapytania
+  // wyżej i tak stoją na `enabled: false`, więc nic nie wychodzi do sieci.
+  // `className` (np. `mt-6` na /admin) znika razem z paskiem: brak pustej
+  // przerwy po nieobecnym bloku.
+  if (!canRead) return null;
 
   return (
     <section className={className}>

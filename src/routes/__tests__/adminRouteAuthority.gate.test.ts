@@ -1124,12 +1124,18 @@ function policyBlock(migrationFile: string, policy: string): string {
   return sql.slice(sql.indexOf(`CREATE POLICY ${policy}`)).split(";")[0];
 }
 
-/** Migracje definiujące daną politykę, w kolejności wykonania (ostatnia obowiązuje). */
-function migrationsDefining(policy: string): string[] {
+/** Wszystkie migracje w kolejności wykonania (nazwa pliku = znacznik czasu). */
+function migrationFiles(): string[] {
   return readdirSync(MIGRATIONS_DIR)
     .filter((file) => file.endsWith(".sql"))
-    .sort()
-    .filter((file) => read(`${MIGRATIONS_DIR}/${file}`).includes(`CREATE POLICY ${policy}`));
+    .sort();
+}
+
+/** Migracje definiujące daną politykę, w kolejności wykonania (ostatnia obowiązuje). */
+function migrationsDefining(policy: string): string[] {
+  return migrationFiles().filter((file) =>
+    read(`${MIGRATIONS_DIR}/${file}`).includes(`CREATE POLICY ${policy}`),
+  );
 }
 
 /** Definicja OBOWIĄZUJĄCA - z ostatniej migracji, która politykę odtwarza. */
@@ -1138,6 +1144,69 @@ function effectivePolicy(policy: string): { file: string; block: string } {
   if (defining.length === 0) throw new Error(`test: nikt nie definiuje polityki ${policy}`);
   const file = defining[defining.length - 1];
   return { file, block: policyBlock(file, policy) };
+}
+
+/**
+ * Definicja OBOWIĄZUJĄCA funkcji SQL: od `CREATE [OR REPLACE] FUNCTION` do
+ * zamykającego `$$;` w ostatniej migracji, która ją (od)tworzy, ze zwiniętymi
+ * białymi znakami. Potrzebna od 20261003120000: wiązanie najemcy plików CV
+ * przeszło z tekstu polityki do ciała `career_cv_object_owner`, więc bramka
+ * czytająca samą politykę oślepłaby na zmianę, która przestawia właściciela
+ * obiektu w funkcji, a polityki nie rusza.
+ */
+function effectiveFunction(fn: string): { file: string; body: string } {
+  const head = new RegExp(`CREATE (?:OR REPLACE )?FUNCTION ${fn.replace(/\./g, "\\.")}\\(`);
+  const defining = migrationFiles().filter((file) => head.test(read(`${MIGRATIONS_DIR}/${file}`)));
+  if (defining.length === 0) throw new Error(`test: nikt nie definiuje funkcji ${fn}`);
+  const file = defining[defining.length - 1];
+  const sql = read(`${MIGRATIONS_DIR}/${file}`);
+  const body = sql.slice(sql.search(head)).split(/\$\$\s*;/)[0];
+  return { file, body: body.replace(/\s+/g, " ") };
+}
+
+/** Wiązanie przez właściciela OBIEKTU (od 20261003120000) - porównanie typu uuid. */
+const CAREER_CV_OWNER_BINDING = "public.career_cv_object_owner(name) = public.current_tenant_id()";
+
+/**
+ * Formy wiązania najemcy dopuszczone w politykach PERSONELU kubełka `career-cv`.
+ * Druga - sam katalog ścieżki - jest OSTRZEJSZA od pierwszej (odcina pliki
+ * legacy `uploads/...`), więc powrót do niej po przeniesieniu plików legacy
+ * do katalogów najemców nie może zapalić bramki. Nie wolno jej natomiast
+ * czytać jako „literał wystarczy": w każdej definicji od 20260814100000 do
+ * 20260824074231 stała obok gałęzi referencji i niczego nie wiązała -
+ * pilnuje tego `careerCvBindingFlaw`.
+ */
+const CAREER_CV_TENANT_BINDINGS = [
+  CAREER_CV_OWNER_BINDING,
+  "(storage.foldername(name))[1] = public.current_tenant_id()::text",
+] as const;
+
+/** Treść bloku polityki bez komentarzy SQL i ze zwiniętymi białymi znakami. */
+function normalizedPolicySql(block: string): string {
+  return block.replace(/--[^\n]*/g, " ").replace(/\s+/g, " ");
+}
+
+/**
+ * Powód, dla którego polityka personelu kubełka `career-cv` NIE wiąże
+ * najemcy, albo `null`, gdy wiąże. Kolejność sprawdzeń ma znaczenie dla
+ * komunikatu: najpierw kształt luki z 20260824074231 (literał wiązania BYŁ
+ * w tekście, a obok niego gałąź referencji), potem każda inna alternatywa,
+ * na końcu brak wiązania w ogóle (bliźniak 20260814122512). Komentarze
+ * zdejmujemy, żeby wiązanie zapisane wyłącznie w `--` nie przeszło jako
+ * prawdziwe - i odwrotnie, żeby słowo w komentarzu nie zapaliło bramki.
+ */
+function careerCvBindingFlaw(block: string): string | null {
+  const sql = normalizedPolicySql(block);
+  if (/\bcontact_messages\b/.test(sql)) {
+    return "czyta referencję z contact_messages - luka zamknięta w 20261003120000";
+  }
+  if (/\bOR\b/i.test(sql)) {
+    return "ma gałąź OR obok wiązania najemcy - każda alternatywa wpuszcza obiekt bez najemcy";
+  }
+  if (!CAREER_CV_TENANT_BINDINGS.some((binding) => sql.includes(binding))) {
+    return "nie porównuje najemcy obiektu z public.current_tenant_id()";
+  }
+  return null;
 }
 
 describe("panel rekrutacji - autorytet dostępu", () => {
@@ -1299,17 +1368,171 @@ describe("panel rekrutacji - autorytet dostępu", () => {
     // izolacja najemców na plikach CV byłaby dziś otwarta na produkcji,
     // A ŻADNA BRAMKA BY TEGO NIE POWIEDZIAŁA." Od teraz powie.
     //
-    // Mierzymy definicję OBOWIĄZUJĄCĄ, czyli z ostatniej migracji odtwarzającej
-    // politykę - dokładnie tak, jak rozstrzyga to Postgres.
+    // DRUGA LEKCJA: LITERAŁ TO NIE WIĄZANIE. Do 03.10.2026 bramka żądała tu
+    // literału `public.current_tenant_id()::text` i była ZIELONA, choć izolacja
+    // stała otworem. Od 20260814100000 przez 20260814194500 po 20260824074231
+    // obok porównania katalogu ścieżki siedziała gałąź `OR EXISTS (zgłoszenie
+    // MOJEGO najemcy z cv_path = name)`, nieograniczona do plików legacy:
+    // wiersz najemcy A z `cv_path = '<B>/uploads/...'` (sfałszowane zgłoszenie
+    // albo UPDATE `custom` z panelu) dawał personelowi A podpisany URL i DELETE
+    // na CV kandydata B. Literał był w tekście, a wiązania nie było.
+    // `20261003120000_career_cv_reference_tenant_binding.sql` przeniosło
+    // wiązanie do właściciela OBIEKTU - `career_cv_object_owner(name)`: tenant
+    // z katalogu `<uuid>/uploads/...`, dla legacy `uploads/...` najemca
+    // NAJWCZEŚNIEJSZEJ referencji, dla każdego innego kształtu NULL, czyli
+    // odmowa - i porównuje go z `current_tenant_id()` jako uuid. Literału
+    // `::text` w polityce już więc nie ma, a stara asercja zapaliła się na
+    // poprawce, nie na regresji.
+    //
+    // Że nowa forma nie jest SŁABSZA, sprawdziliśmy na pełnym schemacie, nie
+    // na tekście: pgTAP `career_cv_reference_tenant_binding_test` (18),
+    // uprząż `scripts/careers-harness` §18 i sonda obu formuł (stara i nowa)
+    // na 16 kształtach nazw × admin A / admin B / konto bez najemcy. Dla legacy
+    // nowa wpuszcza PODZBIÓR starej; poza legacy - wyłącznie najemcę, którego
+    // UUID stoi w ścieżce; NULL po każdej stronie to odmowa.
+    //
+    // Bramka mierzy zatem WIĄZANIE, nie literał: (1) polityka porównuje najemcę
+    // obiektu z `current_tenant_id()` w jednej z dopuszczonych form, (2) nie
+    // czyta referencji i nie ma gałęzi OR - ten sam kształt, który pgTAP sprawdza
+    // na żywej bazie (`qual !~ '(contact_messages| OR )'`), (3) gdy wiąże przez
+    // właściciela, OBOWIĄZUJĄCA definicja funkcji nadal stawia ścieżkę PRZED
+    // referencją. Mierzymy definicje z ostatniej migracji odtwarzającej obiekt -
+    // dokładnie tak, jak rozstrzyga to Postgres.
+    let wiazePrzezWlasciciela = false;
     for (const policy of ['"career_cv_staff_read"', '"career_cv_staff_delete"'] as const) {
       const { file, block } = effectivePolicy(policy);
-      expect(block, `${policy} zgubiło najemcę w obowiązującej ${file}`).toContain(
-        "public.current_tenant_id()::text",
-      );
+      expect(careerCvBindingFlaw(block), `${policy} w obowiązującej ${file}`).toBeNull();
       expect(block, `${policy} zgubiło próg roli w obowiązującej ${file}`).toMatch(
         /public\.(is_staff|is_admin_or_editor)\(\)/,
       );
+      wiazePrzezWlasciciela ||= normalizedPolicySql(block).includes(CAREER_CV_OWNER_BINDING);
     }
+    // Forma „sam katalog ścieżki" nie woła funkcji właściciela, więc wtedy jej
+    // ciało nie jest częścią wiązania i nie ma czego tu mierzyć.
+    if (!wiazePrzezWlasciciela) return;
+
+    // Właściciel obiektu. Każdy z tych fragmentów jest nośny, a pgTAP widzi go
+    // dopiero po odtworzeniu bazy - tutaj zapala się już na tekście migracji.
+    const owner = effectiveFunction("public.career_cv_object_owner");
+    // Ścieżka PIERWSZA w COALESCE, a referencja WYŁĄCZNIE dla kształtu legacy:
+    // dwa niezależne zamki na ten sam inwariant (tenant zapisany w katalogu
+    // rozstrzyga, zanim funkcja w ogóle sięgnie po referencję). Zdjęcie obu
+    // naraz oddaje plik `<B>/uploads/...` najemcy najwcześniejszej referencji -
+    // czyli fałszerzowi, gdy B nie ma własnego zgłoszenia z tą ścieżką.
+    expect(owner.body, `właściciel przestał brać tenanta ze ścieżki (${owner.file})`).toMatch(
+      /COALESCE\( ?public\.career_cv_path_tenant\(_name\) ?,/,
+    );
+    // Inny kształt bez tenanta w ścieżce nie należy do nikogo (NULL = odmowa).
+    expect(owner.body, `referencja wyszła poza pliki legacy (${owner.file})`).toContain(
+      "CASE WHEN _name LIKE 'uploads/%' THEN",
+    );
+    // NAJWCZEŚNIEJSZA referencja: fałszerz musi najpierw poznać losową nazwę
+    // pliku, więc jego wiersz powstaje po zgłoszeniu kandydata. ZASTRZEŻENIE,
+    // którego ta bramka nie zamyka: rozumowanie zakłada niezmienne
+    // `created_at`, a personel może je dziś przestawić UPDATE-em, na który
+    // strażnik referencji (`UPDATE OF custom, tenant_id`) nie reaguje - fałszywka
+    // ZASTANA sprzed 20261003120000 da się więc „postarzyć". Nowa polityka nie
+    // jest przez to słabsza od starej (tamta wpuszczała KAŻDĄ referencję), ale
+    // ta furtka wymaga poprawki w bazie, nie w bramce.
+    expect(
+      owner.body,
+      `właściciel legacy przestał być najwcześniejszą referencją (${owner.file})`,
+    ).toContain("ORDER BY m.created_at, m.id LIMIT 1");
+    // SECURITY DEFINER nie jest tu wygodą, tylko warunkiem poprawności: pod RLS
+    // personel A widziałby wyłącznie SWOJE referencje i zawsze uznawał siebie
+    // za najwcześniejszą - wystarczyłaby mu dowolna własna referencja, żeby
+    // dostać plik legacy najemcy B, czyli stan sprzed naprawy.
+    expect(owner.body, `właściciel stracił SECURITY DEFINER (${owner.file})`).toContain(
+      "SECURITY DEFINER",
+    );
+
+    // Tenant ze ścieżki: wyłącznie pełny UUID zakotwiczony na początku nazwy
+    // i katalog `uploads` - luźniejszy wzorzec uznałby za „katalog najemcy"
+    // kształt, którego polityka zapisu nigdy nie dopuszcza.
+    const pathTenant = effectiveFunction("public.career_cv_path_tenant");
+    expect(
+      pathTenant.body,
+      `tenant ze ścieżki przestał wymagać <uuid>/uploads/ (${pathTenant.file})`,
+    ).toContain("'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/uploads/'");
+    expect(
+      pathTenant.body,
+      `tenant ze ścieżki przestał brać PIERWSZY segment (${pathTenant.file})`,
+    ).toContain("split_part(_name, '/', 1)::uuid");
+  });
+
+  it("kontrola ujemna: bramka wiązania CV odrzuca oba historyczne kształty luki", () => {
+    // Bramka, która niczego nie odrzuca, jest zielona zawsze - także wtedy, gdy
+    // pilnowany inwariant już nie istnieje (dokładnie tak było z literałem
+    // `::text` do 03.10.2026). Dlatego karmimy ją PRAWDZIWYMI definicjami
+    // z migracji, które izolację otworzyły. Migracje są forward-only, więc te
+    // pliki się nie zmienią, a kontrola nie zestarzeje się po cichu.
+    for (const policy of ['"career_cv_staff_read"', '"career_cv_staff_delete"'] as const) {
+      // Wygenerowany bliźniak stanu sprzed hardeningu: `is_staff()` bez najemcy.
+      expect(
+        careerCvBindingFlaw(
+          policyBlock("20260814122512_056057e3-1f9f-4443-a670-ba1e26b21a14.sql", policy),
+        ),
+      ).toMatch(/nie porównuje najemcy/);
+      // Literał `current_tenant_id()::text` JEST, a obok niego gałąź referencji.
+      // Stara bramka przepuszczała ten kształt - nowa musi go odrzucić.
+      expect(
+        careerCvBindingFlaw(
+          policyBlock("20260824074231_4a952090-86ab-46ed-a923-5cd9855c5d8c.sql", policy),
+        ),
+      ).toMatch(/contact_messages/);
+      // Kontrola dodatnia: definicja naprawcza przechodzi.
+      expect(
+        careerCvBindingFlaw(
+          policyBlock("20261003120000_career_cv_reference_tenant_binding.sql", policy),
+        ),
+      ).toBeNull();
+    }
+    // Kształty, których historia jeszcze nie przyniosła, a które bramka też
+    // musi rozstrzygać poprawnie.
+    const using = (predicate: string) =>
+      [
+        `CREATE POLICY "x" ON storage.objects FOR SELECT TO authenticated USING (`,
+        `  bucket_id = 'career-cv'`,
+        `  AND public.is_admin_or_editor()`,
+        `  ${predicate}`,
+        `)`,
+      ].join("\n");
+    // Wiązanie zapisane wyłącznie w komentarzu niczego nie wiąże.
+    expect(careerCvBindingFlaw(using(`-- AND ${CAREER_CV_OWNER_BINDING}`))).toMatch(
+      /nie porównuje najemcy/,
+    );
+    // Alternatywa obok właściciela - nawet bez referencji - otwiera kubełek.
+    expect(
+      careerCvBindingFlaw(using(`AND (${CAREER_CV_OWNER_BINDING} OR public.is_super_admin())`)),
+    ).toMatch(/gałąź OR/);
+    // Sam katalog ścieżki, bez gałęzi legacy - ostrzejszy od formy obowiązującej.
+    expect(
+      careerCvBindingFlaw(
+        using("AND (storage.foldername(name))[1] = public.current_tenant_id()::text"),
+      ),
+    ).toBeNull();
+  });
+
+  it("kubełek `career-cv` nie dostaje po cichu polityki spoza tej bramki", () => {
+    // Bramki wyżej mierzą polityki WYMIENIONE z nazwy: odczyt i usuwanie
+    // personelu oraz zapis kandydata. Polityka dołożona pod NOWĄ nazwą byłaby
+    // poza ich zasięgiem - a np. UPDATE na `storage.objects` zmienia `name`,
+    // czyli przenosi plik do katalogu innego najemcy. Lista jest JAWNA, żeby
+    // każda nowa polityka kubełka wymagała zmiany tej bramki, a więc przeglądu.
+    const nazwy = new Set<string>();
+    for (const file of migrationFiles()) {
+      const sql = read(`${MIGRATIONS_DIR}/${file}`);
+      for (const match of sql.matchAll(
+        /CREATE POLICY\s+("[^"]+"|\w+)\s+ON\s+storage\.objects\b([^;]*)/gi,
+      )) {
+        if (match[2].includes("'career-cv'")) nazwy.add(match[1]);
+      }
+    }
+    expect([...nazwy].sort()).toEqual([
+      '"career_cv_public_upload"',
+      '"career_cv_staff_delete"',
+      '"career_cv_staff_read"',
+    ]);
   });
 
   it("wgranie CV przez KANDYDATA wymusza ścieżkę z najemcą, bez warunku roli", () => {

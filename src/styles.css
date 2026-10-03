@@ -351,8 +351,8 @@ body {
   --gradient-heading-stop-2: #fa9346;
 
   /* ============================================================
-     WYKRESY - MOTYW JASNY (silnik SVG src/components/charts + warstwa BI
-     ECharts src/components/admin/analytics)
+     WYKRESY - MOTYW JASNY (silnik SVG src/components/charts, także pod
+     warstwą BI src/components/admin/analytics)
      ------------------------------------------------------------
      KAŻDA liczba w tej sekcji jest policzona, nie dobrana na oko, i ma
      bramkę: `src/lib/charts/palette.ts` trzyma te same wartości obok metody
@@ -859,8 +859,9 @@ body {
   /* Czcionka wykresów. Domyślnie schodzi z ustawienia panelu admina
      (--brand-font-body -> --font-sans); wykres nie ma prawa mieć własnej
      rodziny, bo wtedy przestaje należeć do strony. Deklarowana jako token,
-     żeby warstwa BI (ECharts rysuje po kanwie i potrzebuje NAPISU, nie
-     zmiennej) mogła ją odczytać przez getComputedStyle. */
+     bo silnik mierzy napisy na kanwie (src/lib/charts/measureText.ts), a
+     kanwa potrzebuje NAPISU, nie zmiennej - odczytuje go przez
+     getComputedStyle. Czyta go też src/components/charts/charts.css. */
   --chart-font: var(--font-sans);
 }
 

@@ -37,10 +37,13 @@
 // middleware każdej server fn pilnuje osobna bramka statyczna. Tutaj dowodzimy
 // AUTORYZACJI ROLI i kontraktu odczytu, nie tego, czy ktoś w ogóle wejdzie.
 import { describe, expect, it } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
+import type { Database } from "@/integrations/supabase/types";
 import {
   readStoredAnalyticsSettings,
   requireAnalyticsAdmin,
+  toAnalyticsGatewayCtx,
   type AnalyticsGatewayCtx,
   type StoredAnalyticsSettings,
 } from "../gateway.server";
@@ -290,5 +293,59 @@ describe("readStoredAnalyticsSettings - odczyt ustawień najemcy", () => {
     await expect(readStoredAnalyticsSettings(a.ctx)).resolves.toEqual({
       ga4_property_id: "100000001",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("toAnalyticsGatewayCtx - adapter prawdziwego klienta", () => {
+  // Adapter zastąpił rzutowanie `context as unknown as AnalyticsGatewayCtx`
+  // w GA4, statusie i warstwie semantycznej. Jego jedyny kontrakt to WIERNE
+  // przekazanie: ten sam klient (JWT wołającego = najemca wołającego), te same
+  // argumenty i metody wołane NA kliencie - wyjęta metoda zgubiłaby `this`,
+  // a prawdziwy klient Supabase bez niego nie działa.
+  it("przekazuje RPC i odczyt ustawień na TEN SAM klient, bez zmiany argumentów", async () => {
+    const wywolania: unknown[] = [];
+    const klientNajemcy = {
+      rpc(this: unknown, fn: string, args: Record<string, unknown>) {
+        wywolania.push({ naKliencie: this === klientNajemcy, fn, args });
+        return Promise.resolve({ data: true, error: null });
+      },
+      from(this: unknown, table: string) {
+        const naKliencie = this === klientNajemcy;
+        return {
+          select: (columns: string) => ({
+            eq: (column: string, value: string) => {
+              wywolania.push({ naKliencie, table, columns, column, value });
+              return Promise.resolve({
+                data: [{ value: { ga4_property_id: "100000001" } }],
+                error: null,
+              });
+            },
+          }),
+        };
+      },
+    };
+    // Atrapa udaje WYŁĄCZNIE dwie metody, których adapter dotyka - pełnego
+    // klienta nie da się tu zbudować, więc mostek przez `unknown` jest uczciwy.
+    const ctx = toAnalyticsGatewayCtx({
+      supabase: klientNajemcy as unknown as SupabaseClient<Database>,
+      userId: ADMIN_A,
+    });
+
+    await requireAnalyticsAdmin(ctx);
+    await expect(readStoredAnalyticsSettings(ctx)).resolves.toEqual({
+      ga4_property_id: "100000001",
+    });
+
+    expect(wywolania).toEqual([
+      { naKliencie: true, fn: "has_role", args: { _user_id: ADMIN_A, _role: "admin" } },
+      {
+        naKliencie: true,
+        table: "site_settings",
+        columns: "value",
+        column: "key",
+        value: "analytics",
+      },
+    ]);
   });
 });

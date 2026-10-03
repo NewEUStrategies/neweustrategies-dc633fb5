@@ -722,6 +722,11 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     drizzleOnly:
       "Zapis wdrożenia 0136 z panelu Lovable: plik zawiera wyłącznie COMMENT ON FUNCTION public.run_event_reminders(), dokumentujący zastosowanie 0136. Treść funkcji ma bliźniaka 20261003140000_event_participant_reminders.sql; sam komentarz nie zmienia schematu, więc pas supabase nie dostaje kopii.",
   },
+  {
+    tag: "0140_club_cover_write_follows_capabilities",
+    drizzleOnly:
+      "Zastosowanie SQL-u 20261003170000_club_cover_write_follows_capabilities.sql z panelu Lovable: te same 121 instrukcji (zmierzone po zwinięciu spacji), bez pięciu COMMENT ON FUNCTION z pasa supabase. Komentarz nie zmienia ani schematu, ani zachowania; kanonem zostaje plik supabase.",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

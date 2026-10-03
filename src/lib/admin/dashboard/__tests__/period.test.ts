@@ -10,8 +10,10 @@
 // argumentem i nigdy nie czyta `Date.now()`.
 import { describe, it, expect } from "vitest";
 import {
+  ANALYTICS_EVENTS_RETENTION_MONTHS,
   DASHBOARD_PERIODS,
   isDashboardPeriod,
+  previousBeyondRetention,
   resolveDashboardRange,
   windowDays,
   REALTIME_WINDOW_MINUTES,
@@ -151,6 +153,55 @@ describe("resolveDashboardRange - ziarno i metadane", () => {
   it("windowDays liczy co najmniej jeden dzień", () => {
     expect(windowDays(resolveDashboardRange("realtime", NOW_MS).current)).toBe(1);
     expect(windowDays(resolveDashboardRange("prev-month", NOW_MS).current)).toBe(28);
+  });
+});
+
+describe("previousBeyondRetention - horyzont retencji analytics_events", () => {
+  it("retencja to 12 miesięcy, jak w polityce prywatności i w funkcji retencji", () => {
+    expect(ANALYTICS_EVENTS_RETENTION_MONTHS).toBe(12);
+  });
+
+  it("rok: okno odniesienia leży za horyzontem, więc porównania nie ma", () => {
+    // Odniesienie zaczyna się 1 stycznia 2025, horyzont to 12 marca 2025, 10:30.
+    expect(previousBeyondRetention(resolveDashboardRange("year", NOW_MS))).toBe(true);
+  });
+
+  it("półrocze na samej granicy (30 czerwca, 23:45) nadal mieści się w horyzoncie", () => {
+    // Ostatni kwant pierwszego półrocza: odniesienie zaczyna się 1 lipca 2025
+    // o północy, horyzont wypada 30 czerwca 2025 o 23:45 - margines kwadransa.
+    const granica = new Date(2026, 5, 30, 23, 45, 0, 0).getTime();
+    const r = resolveDashboardRange("half-year", granica);
+    expect(new Date(r.previous.sinceIso)).toEqual(new Date(2025, 6, 1, 0, 0, 0, 0));
+    expect(previousBeyondRetention(r)).toBe(false);
+  });
+
+  it("kwartał: odniesienie sięga najwyżej pół roku wstecz", () => {
+    expect(previousBeyondRetention(resolveDashboardRange("quarter", NOW_MS))).toBe(false);
+  });
+
+  it("żadna zakładka poza rokiem nie przekracza horyzontu", () => {
+    const chwile = [NOW_MS, new Date(2026, 11, 31, 23, 45, 0, 0).getTime()];
+    for (const chwila of chwile) {
+      const ponad = DASHBOARD_PERIODS.filter((p) =>
+        previousBeyondRetention(resolveDashboardRange(p, chwila)),
+      );
+      expect(ponad).toEqual(["year"]);
+    }
+  });
+
+  it("granica jest ścisła i nie zaokrągla do pierwszego dnia miesiąca", () => {
+    const base = resolveDashboardRange("month", NOW_MS);
+    const horyzont = new Date(2025, 2, 12, 10, 30, 0, 0).getTime();
+    const od = (ms: number) => ({
+      ...base,
+      previous: { sinceIso: new Date(ms).toISOString(), untilIso: base.previous.untilIso },
+    });
+    // Dokładnie na horyzoncie okno jest całe - retencja kasuje `created_at <`.
+    expect(previousBeyondRetention(od(horyzont))).toBe(false);
+    expect(previousBeyondRetention(od(horyzont - 1))).toBe(true);
+    // `minusMonths` dałby 1 marca 2025 i przepuścił okno od 5 marca, które baza
+    // już przycięła.
+    expect(previousBeyondRetention(od(new Date(2025, 2, 5).getTime()))).toBe(true);
   });
 });
 

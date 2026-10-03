@@ -25,6 +25,8 @@ import {
   XCircle,
 } from "@/lib/lucide-shim";
 import { inspectGscUrl, listGscSites, type GscSite } from "@/lib/analytics/gsc.functions";
+import { analyticsGscSitesKey } from "@/lib/analytics/queryKeys";
+import { useCurrentTenantId } from "@/lib/tenant";
 // Klucze `admin.seo.*` tego widżetu mieszkają w nakładce `i18n-admin-extras`.
 // Bez jawnego importu słownik trafiał tu tylko przypadkiem (kotwica w
 // `routes/admin.tsx`) - bramka `check:i18n-overlay-imports`.
@@ -114,9 +116,16 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
   const { t } = useTranslation();
   const listSites = useServerFn(listGscSites);
   const inspect = useServerFn(inspectGscUrl);
+  // NAJEMCA W KLUCZU (`analyticsGscSitesKey`, wspólny wpis z
+  // /admin/seo/search-console i warsztatem GSC). Serwer odsiewa właściwości
+  // per najemca, ale do 2026-10 widżet trzymał listę pod `["gsc-sites-widget"]`,
+  // więc po przełączeniu obszaru roboczego proponował do inspekcji domenę
+  // POPRZEDNIEGO najemcy - prosto z cache'u.
+  const tenantId = useCurrentTenantId();
 
   const sitesQ = useQuery({
-    queryKey: ["gsc-sites-widget"],
+    queryKey: analyticsGscSitesKey(tenantId ?? ""),
+    enabled: Boolean(tenantId),
     staleTime: 5 * 60_000,
     queryFn: async () => listSites(),
   });
@@ -157,7 +166,10 @@ export function UrlInspectionWidget({ path, lang = "pl" }: Props) {
     }
   };
 
-  if (sitesQ.isLoading) {
+  // `!tenantId` NAJPIERW: wyłączone zapytanie ma `isLoading === false` i brak
+  // `data`, a z tego niżej wychodzi `configured = true` i pusta lista - czyli
+  // fałszywe „brak zweryfikowanych właściwości", zanim ktokolwiek zapytał.
+  if (!tenantId || sitesQ.isLoading) {
     return (
       <div className="rounded-[6px] border border-border p-4 text-xs text-muted-foreground inline-flex items-center gap-2">
         <Loader2 className="w-3.5 h-3.5 animate-spin" />

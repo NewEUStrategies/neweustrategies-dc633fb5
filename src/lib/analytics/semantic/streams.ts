@@ -161,6 +161,7 @@ const STREAM_LIST: readonly StreamDescriptor[] = [
       "session_id lives in sessionStorage, which is PER TAB: one visitor browsing in three tabs produces three sessions, so first-party sessions are structurally >= GA4 sessions.",
       "No bot filtering at all - every request that passes the rate limiter is stored.",
       "Beacons are batched (5 s / 20 events) and flushed on pagehide; a hard process kill loses the tail of the buffer.",
+      "No account id is stored - signed-in status is one server-verified bit per row (signed_in), so signed-in figures count SESSIONS, not people; the flag applies to the whole batch at send time, so events queued just before sign-in count as signed in.",
     ],
   },
   {
