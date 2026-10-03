@@ -8859,6 +8859,15 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+        // AppLink: wstępne ładowanie celu linku (także z prefiksem /en) zamiast
+        // bieżącej trasy - runda 2 kampanii i18n. ZMIERZONE 2026-10-03: 100 / 100
+        // / 100 / 100 (AppLink.test + AppLink.preloadTarget.test, prawdziwy router).
+        "src/components/atoms/AppLink.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
         // <<< PF-I18N thresholds (end)
       },
     },
