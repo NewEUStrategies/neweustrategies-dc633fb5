@@ -1,6 +1,27 @@
 // Biblioteka ikon - data layer (CRUD + bulk upload do bucketu 'media').
+//
+// Upload pliku ikony idzie WSPÓLNĄ ścieżką mediów (`uploadAndRegisterMedia`,
+// src/lib/media/upload.ts) - walidacja MIME i rozmiaru przed wysłaniem bajtów,
+// rejestracja w tabeli `media` (allowlista serwera, prefiks tenanta, audyt),
+// sprzątnięcie obiektu ze storage przy odrzuconej rejestracji. Wcześniej
+// `uploadIconAsset` wołał `storage.upload` bezpośrednio: bez walidacji (UI
+// zapraszał SVG, który bucket odrzuca nieczytelnym błędem w połowie importu)
+// i bez wiersza `media`, więc plik ikony był niewidoczny w bibliotece mediów
+// i nie dało się go usunąć po skasowaniu ikony.
+//
+// Zapis wariantów jest DOMKNIĘTY: wariant wgrany, ale nieprzypięty do wiersza
+// ikony (porażka sąsiedniego wariantu albo zapisu `icon_library`), jest
+// kasowany przez `discardIconAssets` - inaczej każda nieudana próba zostawiała
+// w bibliotece osierocone pliki.
 import { supabase } from "@/integrations/supabase/client";
-import { brandedMediaUrl } from "@/lib/media/publicUrl";
+import {
+  IMAGE_ACCEPT_ATTR,
+  IMAGE_MIME,
+  checkUploadable,
+  uploadAndRegisterMedia,
+  type RegisterMediaFn,
+  type UploadRejection,
+} from "@/lib/media/upload";
 
 export type IconKind = "custom" | "flag" | "brand";
 export type IconVariant = "auto" | "light" | "dark" | "default";
@@ -107,18 +128,63 @@ function parseUploadFilename(filename: string): BulkUploadParsed {
   return { base: slug, variant: "default" };
 }
 
+/**
+ * Formaty ikon = rastrowe obrazy z allowlisty mediów. `image/svg+xml` świadomie
+ * NIE: bucket `media` jest publiczny i serwuje bajty bezpośrednio, a SVG
+ * wykonuje osadzony `<script>` w kontekście domeny (patrz media/upload.ts).
+ */
+export const ICON_MIME: readonly string[] = IMAGE_MIME;
+/** Wartość `accept` dla pól wyboru plików ikon - jawna lista, nie `image/*`. */
+export const ICON_ACCEPT_ATTR = IMAGE_ACCEPT_ATTR;
+
+/** Zależności uploadu wstrzykiwane przez komponent (hooki auth + server fn). */
+export interface IconUploadContext {
+  tenantId: string;
+  userId: string;
+  /** Server fn `registerMediaUpload`. */
+  registerMedia: RegisterMediaFn;
+  /** Server fn `bulkDeleteMedia` - sprzątanie wariantów nieprzypiętych do ikony. */
+  removeMedia: (args: { data: { mediaIds: string[] } }) => Promise<unknown>;
+}
+
+export interface UploadedIconAsset {
+  url: string;
+  mediaId: string;
+}
+
+/** Powód odrzucenia pliku ikony przed wysłaniem albo `null`. */
+export function checkIconFile(file: { type: string; size: number }): UploadRejection | null {
+  return checkUploadable(file, ICON_MIME);
+}
+
 export async function uploadIconAsset(
-  tenantId: string,
+  ctx: IconUploadContext,
   kind: IconKind,
   file: File,
-): Promise<string> {
-  const ext = (file.name.split(".").pop() || "png").toLowerCase();
-  const path = `${tenantId}/icons/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const { error } = await supabase.storage
-    .from("media")
-    .upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
-  if (error) throw error;
-  return brandedMediaUrl(supabase.storage.from("media").getPublicUrl(path).data.publicUrl);
+): Promise<UploadedIconAsset> {
+  const uploaded = await uploadAndRegisterMedia({
+    file,
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+    registerMedia: ctx.registerMedia,
+    allowedMime: ICON_MIME,
+    subfolder: `icons/${kind}`,
+    // Ścieżka obiektu jest unikalna, więc plik pod adresem nigdy się nie zmienia.
+    cacheControl: "31536000",
+  });
+  return { url: uploaded.publicUrl, mediaId: uploaded.mediaId };
+}
+
+/**
+ * Kasuje wgrane warianty, które nie trafiły do wiersza ikony. Best-effort:
+ * błąd sprzątania nie może przykryć pierwotnej przyczyny porażki.
+ */
+export async function discardIconAssets(
+  ctx: IconUploadContext,
+  mediaIds: readonly string[],
+): Promise<void> {
+  if (!mediaIds.length) return;
+  await ctx.removeMedia({ data: { mediaIds: [...mediaIds] } }).catch(() => undefined);
 }
 
 export interface BulkResult {
@@ -143,9 +209,24 @@ export interface BulkOptions {
   onProgress?: (p: BulkProgress) => void;
 }
 
+/** Komunikat błędu - także dla obiektów `{ message }` spoza hierarchii `Error`. */
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === "object" && e !== null && "message" in e && typeof e.message === "string") {
+    return e.message;
+  }
+  return "Błąd";
+}
+
+function describeRejection(file: File, rejection: UploadRejection): string {
+  return rejection.kind === "mime"
+    ? `${file.name}: nieobsługiwany format (${rejection.mime || "nieznany"})`
+    : `${file.name}: plik za duży`;
+}
+
 /** Hurtowy upload - grupuje pliki po base name; `-dark`/`-light` to warianty. */
 export async function bulkImportIcons(
-  tenantId: string,
+  ctx: IconUploadContext,
   kind: IconKind,
   files: File[],
   options: BulkOptions = {},
@@ -168,20 +249,49 @@ export async function bulkImportIcons(
       options.onProgress?.({ index, total, base, status: "skipped", message: "duplikat" });
       continue;
     }
+    const variants = (["default", "light", "dark"] as const).flatMap((variant) => {
+      const file = files[variant];
+      return file ? [{ variant, file }] : [];
+    });
+    // Walidacja CAŁEJ grupy przed wysłaniem czegokolwiek: odrzucony wariant
+    // nie może zostawić za sobą wgranych sąsiadów.
+    const rejected = variants.flatMap(({ file }) => {
+      const rejection = checkIconFile(file);
+      return rejection ? [describeRejection(file, rejection)] : [];
+    });
+    if (rejected.length) {
+      const message = rejected.join("; ");
+      result.errors.push({ file: base, message });
+      options.onProgress?.({ index, total, base, status: "error", message });
+      continue;
+    }
+
     options.onProgress?.({ index, total, base, status: "uploading" });
+    const uploaded: string[] = [];
     try {
-      const [urlDefault, urlLight, urlDark] = await Promise.all([
-        files.default ? uploadIconAsset(tenantId, kind, files.default) : Promise.resolve(""),
-        files.light ? uploadIconAsset(tenantId, kind, files.light) : Promise.resolve(""),
-        files.dark ? uploadIconAsset(tenantId, kind, files.dark) : Promise.resolve(""),
-      ]);
+      const settled = await Promise.allSettled(
+        variants.map(({ file }) => uploadIconAsset(ctx, kind, file)),
+      );
+      const urls: Record<"default" | "light" | "dark", string> = {
+        default: "",
+        light: "",
+        dark: "",
+      };
+      settled.forEach((outcome, i) => {
+        if (outcome.status !== "fulfilled") return;
+        uploaded.push(outcome.value.mediaId);
+        urls[variants[i].variant] = outcome.value.url;
+      });
+      const failure = settled.find((o): o is PromiseRejectedResult => o.status === "rejected");
+      if (failure) throw failure.reason;
+
       const payload = {
-        tenant_id: tenantId,
+        tenant_id: ctx.tenantId,
         kind,
         name: base,
-        url_default: urlDefault,
-        url_light: urlLight,
-        url_dark: urlDark,
+        url_default: urls.default,
+        url_light: urls.light,
+        url_dark: urls.dark,
         default_variant: "auto" as IconVariant,
       };
       const { error } = await supabase
@@ -192,7 +302,8 @@ export async function bulkImportIcons(
       options.existingNames?.add(base);
       options.onProgress?.({ index, total, base, status: "done" });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Błąd";
+      await discardIconAssets(ctx, uploaded);
+      const message = errorMessage(e);
       result.errors.push({ file: base, message });
       options.onProgress?.({ index, total, base, status: "error", message });
     }

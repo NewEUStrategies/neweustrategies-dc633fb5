@@ -15,6 +15,9 @@
 //      jednym tiku i zawieszona zakładka.
 //   4. IZOLACJA ZAKŁADEK. Trzy rodzaje (własne, flagi, brandy) mają osobne
 //      listy; zapytanie bez rodzaju w kluczu pokazałoby flagi pod „własnymi”.
+//   5. WSPÓLNA ŚCIEŻKA MEDIÓW (wydanie 12). Upload idzie przez kontekst z
+//      `registerMediaUpload` i `bulkDeleteMedia`; SVG jest odrzucany przed
+//      wysłaniem, a wariant, którego wiersz ikony nie przyjął, jest kasowany.
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -27,8 +30,9 @@ const h = vi.hoisted(() => ({
   upserts: [] as unknown[],
   upsertError: null as Error | null,
   deletes: [] as string[],
-  uploads: [] as unknown[],
-  uploadUrl: "https://cdn.example/ikona.svg",
+  uploads: [] as Array<{ tenantId: string; userId: string; kind: string; name: string }>,
+  uploadUrl: "https://cdn.example/ikona.png",
+  removed: [] as string[][],
   uploadError: null as Error | null,
   bulkCalls: [] as unknown[],
   bulkResult: { created: 2, updated: 1, skipped: 0, errors: [] as unknown[] },
@@ -40,7 +44,21 @@ const h = vi.hoisted(() => ({
   observerCallbacks: [] as ((entries: { isIntersecting: boolean }[]) => void)[],
 }));
 
-vi.mock("@/hooks/useAuth", () => ({ useRequiredTenant: () => "tenant-1" }));
+vi.mock("@/hooks/useAuth", () => ({
+  useRequiredTenant: () => "tenant-1",
+  useAuth: () => ({ user: { id: "user-1" } }),
+}));
+vi.mock("@tanstack/react-start", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+  useServerFn: (fn: unknown) => fn,
+}));
+vi.mock("@/lib/media.functions", () => ({
+  registerMediaUpload: async () => ({ id: "media-1" }),
+  bulkDeleteMedia: async ({ data }: { data: { mediaIds: string[] } }) => {
+    h.removed.push(data.mediaIds);
+    return { ok: true };
+  },
+}));
 vi.mock("sonner", () => ({ toast: h.toast }));
 vi.mock("@/lib/appDialogs", () => ({
   confirmDialog: async (opts: Record<string, unknown>) => {
@@ -64,13 +82,17 @@ vi.mock("@/lib/iconLibrary", async (importOriginal) => {
     deleteIcon: async (id: string) => {
       h.deletes.push(id);
     },
-    uploadIconAsset: async (tenantId: string, kind: string, file: File) => {
+    uploadIconAsset: async (
+      ctx: { tenantId: string; userId: string },
+      kind: string,
+      file: File,
+    ) => {
       if (h.uploadError) throw h.uploadError;
-      h.uploads.push({ tenantId, kind, name: file.name });
-      return h.uploadUrl;
+      h.uploads.push({ tenantId: ctx.tenantId, userId: ctx.userId, kind, name: file.name });
+      return { url: h.uploadUrl, mediaId: `media-${file.name}` };
     },
     bulkImportIcons: async (
-      tenantId: string,
+      { tenantId }: { tenantId: string },
       kind: string,
       files: File[],
       opts: { existingNames: Set<string>; onProgress: (p: Record<string, unknown>) => void },
@@ -142,7 +164,8 @@ beforeEach(() => {
   h.bulkError = null;
   h.confirmAnswer = true;
   h.confirmCalls.length = 0;
-  h.uploadUrl = "https://cdn.example/ikona.svg";
+  h.uploadUrl = "https://cdn.example/ikona.png";
+  h.removed.length = 0;
   h.bulkResult = { created: 2, updated: 1, skipped: 0, errors: [] };
   h.toast.success.mockReset();
   h.toast.error.mockReset();
@@ -271,7 +294,7 @@ describe("biblioteka ikon - trzy warianty jednej ikony", () => {
     // Wgranie do niewłaściwego slotu daje logo znikające po zmianie motywu.
     await setup([icon()]);
     fireEvent.change(slotFileInput("nes_logo", etykieta as RegExp), {
-      target: { files: [new File(["x"], "logo.svg", { type: "image/svg+xml" })] },
+      target: { files: [new File(["x"], "logo.png", { type: "image/png" })] },
     });
 
     await waitFor(() => expect(h.upserts).toHaveLength(1));
@@ -284,7 +307,7 @@ describe("biblioteka ikon - trzy warianty jednej ikony", () => {
     // Zapis wysyła cały wiersz; pominięcie sąsiednich pól skasowałoby je.
     await setup([icon({ url_light: "https://cdn.example/light.svg" })]);
     fireEvent.change(slotFileInput("nes_logo", /^Dark$/), {
-      target: { files: [new File(["x"], "d.svg", { type: "image/svg+xml" })] },
+      target: { files: [new File(["x"], "d.png", { type: "image/png" })] },
     });
 
     await waitFor(() => expect(h.upserts).toHaveLength(1));
@@ -305,7 +328,7 @@ describe("biblioteka ikon - trzy warianty jednej ikony", () => {
     h.uploadError = new Error("plik za duży");
     await setup([icon()]);
     fireEvent.change(slotFileInput("nes_logo", /^Dark$/), {
-      target: { files: [new File(["x"], "d.svg", { type: "image/svg+xml" })] },
+      target: { files: [new File(["x"], "d.png", { type: "image/png" })] },
     });
 
     await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith("plik za duży"));
@@ -319,6 +342,69 @@ describe("biblioteka ikon - trzy warianty jednej ikony", () => {
     await waitFor(() => expect(h.upserts).toHaveLength(1));
     expect((h.upserts[0] as { payload: { url_default: string } }).payload.url_default).toBe("");
     expect(h.deletes).toHaveLength(0);
+  });
+
+  it("wgranie idzie kontekstem zalogowanego użytkownika i RODZAJEM wiersza", async () => {
+    // Slot wariantu wgrywał dotąd na sztywno do `icons/custom` - flagi
+    // i logotypy lądowały w katalogu własnych ikon.
+    h.byKind.flag = [icon({ id: "f1", kind: "flag", name: "pl" })];
+    await setup();
+    fireEvent.click(screen.getByRole("button", { name: /Flagi|Flags/ }));
+    await waitFor(() => expect(screen.getByText(":pl:")).toBeInTheDocument());
+    fireEvent.change(slotFileInput("pl", /^Dark$/), {
+      target: { files: [new File(["x"], "pl-dark.png", { type: "image/png" })] },
+    });
+
+    await waitFor(() => expect(h.uploads).toHaveLength(1));
+    expect(h.uploads[0]).toEqual({
+      tenantId: "tenant-1",
+      userId: "user-1",
+      kind: "flag",
+      name: "pl-dark.png",
+    });
+  });
+
+  it("SVG jest odrzucany z komunikatem, zanim cokolwiek poleci", async () => {
+    await setup([icon()]);
+    fireEvent.change(slotFileInput("nes_logo", /^Dark$/), {
+      target: { files: [new File(["x"], "logo.svg", { type: "image/svg+xml" })] },
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(String(h.toast.error.mock.calls[0][0])).toContain("logo.svg");
+    expect(h.uploads).toHaveLength(0);
+    expect(h.upserts).toHaveLength(0);
+  });
+
+  it("wariant, którego wiersz ikony NIE przyjął, jest kasowany z biblioteki mediów", async () => {
+    // Domknięcie zapisu wariantu: bez tego każda nieudana próba zostawiała
+    // osierocony plik w bibliotece.
+    h.upsertError = new Error("konflikt zapisu");
+    await setup([icon()]);
+    fireEvent.change(slotFileInput("nes_logo", /^Dark$/), {
+      target: { files: [new File(["x"], "d.png", { type: "image/png" })] },
+    });
+
+    await waitFor(() => expect(h.removed).toEqual([["media-d.png"]]));
+    expect(h.toast.error).toHaveBeenCalledWith("konflikt zapisu");
+  });
+
+  it("udany zapis wariantu NICZEGO nie kasuje", async () => {
+    await setup([icon()]);
+    fireEvent.change(slotFileInput("nes_logo", /^Dark$/), {
+      target: { files: [new File(["x"], "d.png", { type: "image/png" })] },
+    });
+
+    await waitFor(() => expect(h.upserts).toHaveLength(1));
+    expect(h.removed).toHaveLength(0);
+  });
+
+  it("pole pliku wariantu przyjmuje jawną listę rastrów, nie `image/*`", async () => {
+    await setup([icon()]);
+    const accept = slotFileInput("nes_logo", /^Dark$/).getAttribute("accept") ?? "";
+    expect(accept).not.toContain("image/*");
+    expect(accept).not.toContain("svg");
+    expect(accept).toContain("image/png");
   });
 
   it("slot BEZ adresu nie ma przycisku czyszczenia", async () => {
@@ -443,7 +529,7 @@ describe("biblioteka ikon - import hurtem", () => {
     // Bez tej listy import nadpisuje ręcznie poprawione etykiety.
     await setup([icon()]);
     fireEvent.change(bulkInput(), {
-      target: { files: [new File(["x"], "a.svg", { type: "image/svg+xml" })] },
+      target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
     });
 
     await waitFor(() => expect(h.bulkCalls).toHaveLength(1));
@@ -455,11 +541,42 @@ describe("biblioteka ikon - import hurtem", () => {
     fireEvent.click(screen.getByRole("button", { name: /Flagi|Flags/ }));
     await waitFor(() => expect(h.listCalls).toContain("flag"));
     fireEvent.change(bulkInput(), {
-      target: { files: [new File(["x"], "pl.svg", { type: "image/svg+xml" })] },
+      target: { files: [new File(["x"], "pl.png", { type: "image/png" })] },
     });
 
     await waitFor(() => expect(h.bulkCalls).toHaveLength(1));
     expect((h.bulkCalls[0] as { kind: string }).kind).toBe("flag");
+  });
+
+  it("import dostaje kontekst uploadu z tenantem", async () => {
+    await setup();
+    fireEvent.change(bulkInput(), {
+      target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
+    });
+
+    await waitFor(() => expect(h.bulkCalls).toHaveLength(1));
+    expect((h.bulkCalls[0] as { tenantId: string }).tenantId).toBe("tenant-1");
+  });
+
+  it("UPUSZCZONY plik spoza listy formatów nie znika w ciszy", async () => {
+    // UploadArea filtruje upuszczenie po `accept`; bez `onRejectedFiles`
+    // odrzucony SVG po prostu przepadał.
+    await setup();
+    const zone = bulkInput().closest("[aria-labelledby]") ?? bulkInput().parentElement!;
+    fireEvent.drop(zone, {
+      dataTransfer: {
+        files: [
+          new File(["x"], "logo.svg", { type: "image/svg+xml" }),
+          new File(["x"], "ok.png", { type: "image/png" }),
+        ],
+        types: ["Files"],
+      },
+    });
+
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
+    expect(String(h.toast.error.mock.calls[0][0])).toContain("logo.svg");
+    await waitFor(() => expect(h.bulkCalls).toHaveLength(1));
+    expect((h.bulkCalls[0] as { files: string[] }).files).toEqual(["ok.png"]);
   });
 
   it("pusty wybór plików nie startuje importu", async () => {
@@ -478,7 +595,7 @@ describe("biblioteka ikon - import hurtem", () => {
     ];
     await setup();
     fireEvent.change(bulkInput(), {
-      target: { files: [new File(["x"], "a.svg", { type: "image/svg+xml" })] },
+      target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
     });
 
     await waitFor(() => expect(screen.getByText(/alfa/)).toBeInTheDocument());
@@ -490,7 +607,7 @@ describe("biblioteka ikon - import hurtem", () => {
     h.bulkResult = { created: 5, updated: 2, skipped: 0, errors: [] };
     await setup();
     fireEvent.change(bulkInput(), {
-      target: { files: [new File(["x"], "a.svg", { type: "image/svg+xml" })] },
+      target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
     });
 
     await waitFor(() => expect(h.toast.success).toHaveBeenCalled());
@@ -504,7 +621,7 @@ describe("biblioteka ikon - import hurtem", () => {
     h.bulkResult = { created: 1, updated: 0, skipped: 0, errors: [{ base: "x" }] };
     await setup();
     fireEvent.change(bulkInput(), {
-      target: { files: [new File(["x"], "a.svg", { type: "image/svg+xml" })] },
+      target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
     });
 
     await waitFor(() => expect(h.toast.error).toHaveBeenCalled());
@@ -515,7 +632,7 @@ describe("biblioteka ikon - import hurtem", () => {
     h.bulkError = new Error("brak połączenia");
     await setup();
     fireEvent.change(bulkInput(), {
-      target: { files: [new File(["x"], "a.svg", { type: "image/svg+xml" })] },
+      target: { files: [new File(["x"], "a.png", { type: "image/png" })] },
     });
 
     await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith("brak połączenia"));
