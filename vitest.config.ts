@@ -9039,6 +9039,18 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+        // Próg zbiorczy całej powierzchni. ZMIERZONE 2026-10-03 pełną suitą
+        // (3208 plików testowych, pokrycie zawężone do `src/components/ui`):
+        // 100% linii (842/842), 100% funkcji, 99,57% instrukcji, 94,43% gałęzi,
+        // zero plików na zerze. Zapora ~3 pp pod pomiarem, jak przy innych
+        // globach; gałęzie niżej, bo karty (promo, okładka) mają rozgałęzione
+        // warianty wyglądu pokrywane przez testy widgetów, nie przez `ui`.
+        "src/components/ui/**": {
+          statements: 97,
+          functions: 97,
+          lines: 97,
+          branches: 91,
+        },
         // <<< DESIGN SYSTEM `src/components/ui` (end)
       },
     },

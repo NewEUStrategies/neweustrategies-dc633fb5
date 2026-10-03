@@ -8,9 +8,11 @@
 // ognisko w chwili otwarcia, i oddaje mu je przy zamknięciu.
 //
 // Pierwszeństwo ma wywołujący: jego `onCloseAutoFocus` biegnie pierwszy i jeśli
-// zrobi `preventDefault()`, hook niczego nie rusza. Element odpięty od DOM
-// (np. pozycja menu, które się zamknęło) nie jest celem - wtedy zostaje
-// domyślne zachowanie Radiksa.
+// zrobi `preventDefault()`, hook niczego nie rusza. Nie są celem: element
+// odpięty od DOM (np. pozycja menu, które się zamknęło) ani <body> - klik
+// myszą w Safari nie ogniskuje przycisku, więc „otwierającym" bywa <body>,
+// a wtedy właściwym celem jest `Trigger` Radiksa. W obu przypadkach zostaje
+// domyślne zachowanie biblioteki.
 import { useRef } from "react";
 
 type FocusHandler = (event: Event) => void;
@@ -24,7 +26,7 @@ export function useReturnFocus(
     onOpenAutoFocus: (event) => {
       // Zdarzenie montowania przychodzi, zanim Radix przeniesie ognisko do okna.
       const active = document.activeElement;
-      openerRef.current = active instanceof HTMLElement ? active : null;
+      openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
       onOpenAutoFocus?.(event);
     },
     onCloseAutoFocus: (event) => {

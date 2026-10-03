@@ -17,7 +17,13 @@ import {
   AlertDialogDescription,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 
 type Okno = (props: {
@@ -124,6 +130,27 @@ describe.each([
     render(<Strona Okno={Okno} ukryjOtwierajacy />);
     await otworzIZamknij();
     expect(document.activeElement?.textContent).not.toBe("Otwórz");
+  });
+});
+
+describe("okno z `Trigger` Radiksa otwarte klikiem bez ogniska", () => {
+  it("oddaje ognisko wyzwalaczowi, a nie <body> (Safari nie ogniskuje przycisku po kliknięciu)", async () => {
+    render(
+      <Dialog>
+        <DialogTrigger>Wyzwalacz</DialogTrigger>
+        <DialogContent>
+          <DialogTitle>Okno</DialogTitle>
+          <DialogDescription>Opis</DialogDescription>
+        </DialogContent>
+      </Dialog>,
+    );
+    const wyzwalacz = screen.getByRole("button", { name: "Wyzwalacz" });
+    expect(document.activeElement).toBe(document.body);
+    fireEvent.click(wyzwalacz);
+    fireEvent.keyDown(document.activeElement as Element, { key: "Escape" });
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+    expect(okno()).toBeNull();
+    expect(document.activeElement).toBe(wyzwalacz);
   });
 });
 

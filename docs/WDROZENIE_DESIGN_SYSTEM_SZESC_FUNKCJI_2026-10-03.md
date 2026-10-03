@@ -10,14 +10,14 @@ w `scripts/taxonomy/features.mjs` obejmuje moduły 3, 7, 16 i 21), więc przypis
 plików do wierszy jest moją rekonstrukcją. Pięć wierszy dopasowałem co do linii
 z liczbami audytu (np. karuzela okrężna: 59 + 62 = 121 linii, funkcje 20 + 24 = 44):
 
-| Wiersz audytu                                            | Pliki                                      |
-| -------------------------------------------------------- | ------------------------------------------ |
-| Karuzela okrężna z nawigacją klawiaturą                  | `circular-carousel.tsx`, `text-rotate.tsx` |
-| Progresywny slider z paskiem postępu na przyciskach      | `progressive-carousel.tsx`                 |
-| Wybór daty i godziny z zapisem w ISO/UTC                 | `datetime-picker.tsx`, `calendar.tsx`      |
-| Jednolity wygląd kontrolek w jasnym i ciemnym motywie    | prymitywy shadcn/Radix (lista w rozdz. 2.4) |
-| Galeria showcase w popupie rejestracji                   | `signup-showcase.tsx`, `field-box.tsx`     |
-| Karta trasy z polubieniem pamiętanym w przeglądarce      | `travel-route-card.tsx`                    |
+| Wiersz audytu                                         | Pliki                                       |
+| ----------------------------------------------------- | ------------------------------------------- |
+| Karuzela okrężna z nawigacją klawiaturą               | `circular-carousel.tsx`, `text-rotate.tsx`  |
+| Progresywny slider z paskiem postępu na przyciskach   | `progressive-carousel.tsx`                  |
+| Wybór daty i godziny z zapisem w ISO/UTC              | `datetime-picker.tsx`, `calendar.tsx`       |
+| Jednolity wygląd kontrolek w jasnym i ciemnym motywie | prymitywy shadcn/Radix (lista w rozdz. 2.4) |
+| Galeria showcase w popupie rejestracji                | `signup-showcase.tsx`, `field-box.tsx`      |
+| Karta trasy z polubieniem pamiętanym w przeglądarce   | `travel-route-card.tsx`                     |
 
 Wiersz „Jednolity wygląd" (28 plików w audycie) to reszta prymitywów po odjęciu
 pozostałych wierszy X-design-system; tu dopasowanie co do pliku nie jest pewne.
@@ -26,7 +26,32 @@ pozostałych wierszy X-design-system; tu dopasowanie co do pliku nie jest pewne.
 
 ## 1. Pomiar
 
-POMIAR_WSTAWKA
+Przed: liczby z tabeli zlecenia (audyt wyd. 12, HEAD `b8b53ae5`). Po: pełna suita
+na tej gałęzi (3208 plików testowych, 83 644 przypadki), provider `istanbul`
+z `vitest.config.ts`, raport zawężony do `src/components/ui/**`.
+
+| Wiersz                     | Przed: linie / gałęzie / funkcje | Po: linie / gałęzie / funkcje   | Pliki na zerze |
+| -------------------------- | -------------------------------- | ------------------------------- | -------------: |
+| Karuzela okrężna           | 73,6% / 59,1% / 69,0% (26/44)    | **100% / 100% / 100%** (40/40)  |              0 |
+| Progresywny slider         | 78,8% / 60,3% / 84,6% (22/26)    | **100% / 100% / 100%** (30/30)  |              0 |
+| Wybór daty i godziny       | 86,9% / 85,1% / 83,3% (20/24)    | **100% / 100% / 100%** (23/23)  |              0 |
+| Jednolity wygląd kontrolek | 87,0% / 40,5% / 81,0% (81/100)   | **100% / 98,2% / 100%** (92/92) |      2 → **0** |
+| Galeria showcase           | 92,6% / 81,5% / 89,5% (17/19)    | **100% / 100% / 100%** (24/24)  |              0 |
+| Karta trasy                | 96,0% / 76,0% / 100% (6/6)       | **100% / 100% / 100%** (8/8)    |              0 |
+
+Kolejność kolumn „przed" jak w tabeli zlecenia: linie, gałęzie, funkcje.
+Liczba funkcji po jest inna niż przed, bo kod się zmienił (np. martwe prymitywy
+usunięte, nowe handlery klawiatury i pauzy).
+
+Cała powierzchnia `src/components/ui`: **100% linii (842/842), 100% funkcji,
+99,57% instrukcji, 94,43% gałęzi, zero plików na zerze** (zlecenie, rozdz. 7:
+cel 92% linii i 90% funkcji). Testy w `src/components/ui/__tests__`: 2 pliki na
+`967cec9`, 10 na HEAD tej gałęzi przed pracą, **46 po** (po jednym na komponent).
+
+Czerwone w pełnej suicie, wszystkie poza tym PR-em: pięć plików `xlsx`
+(zaślepka, rozdz. 5) oraz `src/lib/__tests__/i18nOrganizations.test.ts` -
+klucz `organization.seoDescriptionFallback` zniknął ze słownika
+`i18n-organizations` na `main` (`531a2c5`) i test pada tam tak samo.
 
 ---
 
@@ -186,7 +211,9 @@ i pada na pliku z `HEAD` (podmiana pliku produkcyjnego, ten sam test).
 - **`CommandSeparator` z rolą `separator` wewnątrz `listbox`** (axe
   `aria-required-children`) - struktura cmdk; test palety nie asertuje tego jako
   poprawnego.
-- Gałąź niepokryta w testach `ui/__tests__`: brak (patrz rozdz. 1).
+- Gałęzie, których testy `ui/__tests__` nie pokrywają: warianty wyglądu kart
+  (`promo-card`, `cover-overlay-card`, `grid-card`) spoza sześciu wierszy -
+  pokrywają je testy widgetów; tego PR-a dotyczą tylko w progu zbiorczym.
 
 ---
 
@@ -195,7 +222,8 @@ i pada na pliku z `HEAD` (podmiana pliku produkcyjnego, ten sam test).
 `vitest.config.ts` dostał pierwsze progi tej powierzchni (zlecenie B1): osiem
 plików pięciu wierszy na 98 we wszystkich czterech metrykach, zmierzone na 100%
 samymi testami `ui/__tests__`, oraz próg zbiorczy `src/components/ui/**`
-PROG_WSTAWKA
+(97 / 97 / 97 / 91 dla instrukcji, funkcji, linii i gałęzi), czyli ~3 pp pod
+pomiarem pełnej suity, jak przy innych globach w tej konfiguracji.
 
 ---
 
