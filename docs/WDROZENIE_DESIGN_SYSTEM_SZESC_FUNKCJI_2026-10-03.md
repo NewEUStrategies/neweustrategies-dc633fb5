@@ -225,7 +225,23 @@ lokalnie, porównanie zbiorów modułów w chunkach publicznych tą samą reguł
    w jednej grupie z komponentem: import zostaje w chunku `admin.index-*`
    niezależnie od rozmiarów reszty bundla (test w `routeCodeSplitting.test.ts`).
 
-BUDZET_WSTAWKA
+Pomiar po obu poprawkach (lokalnie, oba buildy na tym samym hoście; bez paczki
+`xlsx` nie powstaje `spreadsheet.worker`, więc liczby bezwzględne są niższe niż
+w CI - porównywać parami):
+
+| Metryka (KB gz) | `main` `531a2c5` | PR, pierwszy push | PR po poprawkach |
+| --------------- | ---------------: | ----------------: | ---------------: |
+| public          |           2711,5 |            2748,1 |       **2714,2** |
+| admin-only      |           1944,7 |            1912,9 |           1945,1 |
+| overall         |           4656,2 |            4661,0 |       **4659,2** |
+| CSS             |             96,0 |              95,2 |         **95,2** |
+| boot (chunki)   |        473,9 (9) |        478,8 (10) |    **473,4 (9)** |
+
+Zostaje +2,7 KB public i +3,0 KB overall - realny kod napraw (klawiatura, pauzy,
+przywracanie ogniska, testowane gałęzie). `check:chunks`, `check:entry-purity`
+i `check:server-entry-purity` przechodzą na tym artefakcie. Przekroczenie
+`overall` w CI (4791,8 > 4772) istnieje już na `main` i nie jest skutkiem tego
+PR-a.
 
 ---
 
