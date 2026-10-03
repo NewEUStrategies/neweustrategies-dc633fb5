@@ -335,6 +335,7 @@ export type Database = {
           columns: number
           created_at: string
           hero_bg_style: string
+          hero_image_url: string | null
           id: string
           layout_variant: number
           list_style: string
@@ -357,6 +358,7 @@ export type Database = {
           columns?: number
           created_at?: string
           hero_bg_style?: string
+          hero_image_url?: string | null
           id?: string
           layout_variant?: number
           list_style?: string
@@ -379,6 +381,7 @@ export type Database = {
           columns?: number
           created_at?: string
           hero_bg_style?: string
+          hero_image_url?: string | null
           id?: string
           layout_variant?: number
           list_style?: string
@@ -22475,6 +22478,7 @@ export type Database = {
         Args: { p_detail?: string; p_id: string; p_status: string }
         Returns: boolean
       }
+      _event_delivery_confirm_many: { Args: { p_items: Json }; Returns: number }
       _event_effective_end: {
         Args: { _ends: string; _starts: string }
         Returns: string
@@ -22892,6 +22896,27 @@ export type Database = {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
       }
+      _event_reminder_candidates: {
+        Args: { p_channels: string[]; p_limit: number; p_now: string }
+        Returns: {
+          channel: string
+          dedupe_key: string
+          event_id: string
+          kind: string
+          lead_minutes: number
+          person_id: string
+          registration_id: string
+          rsvp_id: string
+          session_id: string
+          starts_at: string
+          tenant_id: string
+          user_id: string
+        }[]
+      }
+      _event_reminders_claim: {
+        Args: { p_limit?: number; p_sms?: boolean }
+        Returns: Json
+      }
       _event_safe_timezone: { Args: { _tz: string }; Returns: string }
       _event_scanner_device_auth: {
         Args: { _scope: string; _token: string }
@@ -23153,6 +23178,12 @@ export type Database = {
           p_tenant: string
         }
         Returns: number
+      }
+      _mention_public_company_ids: {
+        Args: { _tenant: string }
+        Returns: {
+          company_id: string
+        }[]
       }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
       _suggest_score: {
@@ -26530,6 +26561,8 @@ export type Database = {
         Returns: undefined
       }
       career_cv_gc_scan: { Args: { _limit?: number }; Returns: Json }
+      career_cv_object_owner: { Args: { _name: string }; Returns: string }
+      career_cv_path_tenant: { Args: { _name: string }; Returns: string }
       career_cv_upload_quota_ok: {
         Args: { _day: string; _tenant: string }
         Returns: boolean
@@ -26774,6 +26807,10 @@ export type Database = {
         Args: { p_actor_id: string; p_club_id: string }
         Returns: undefined
       }
+      club_can_edit_cover: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: boolean
+      }
       club_capabilities: {
         Args: { _club_id: string; _group_id?: string; _user_id?: string }
         Returns: {
@@ -26790,6 +26827,7 @@ export type Database = {
           reason: string
         }[]
       }
+      club_cover_media_path: { Args: { _url: string }; Returns: string }
       club_create_thread: {
         Args: {
           p_anchor_id?: string
@@ -27065,7 +27103,6 @@ export type Database = {
         Returns: string
       }
       club_invite_quota_ok: { Args: { _user_id: string }; Returns: boolean }
-      club_is_any_moderator: { Args: { _user_id: string }; Returns: boolean }
       club_is_cover_moderator: {
         Args: { _object_name: string; _user_id: string }
         Returns: boolean
@@ -30826,6 +30863,17 @@ export type Database = {
         }[]
       }
       related_posts_signals: { Args: { _since_days?: number }; Returns: Json }
+      related_taxonomies: {
+        Args: { _kind: string; _limit?: number; _taxonomy_id: string }
+        Returns: {
+          id: string
+          name_en: string
+          name_pl: string
+          score: number
+          shared_posts: number
+          slug: string
+        }[]
+      }
       release_b2b_coupon: {
         Args: { _coupon_id: string; _order_id: string }
         Returns: boolean
@@ -31072,6 +31120,7 @@ export type Database = {
           _lang?: string
           _limit?: number
           _match?: string
+          _offset?: number
           _q?: string
           _sort?: string
           _term_groups?: Json

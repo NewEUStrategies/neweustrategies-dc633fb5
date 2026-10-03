@@ -80,6 +80,7 @@ function cardRow(overrides: Record<string, unknown> = {}): Record<string, unknow
     icon: null,
     accent_color: null,
     cover_image_url: null,
+    cover_position_y: 35,
     policy_area: "energy",
     member_count: 12,
     thread_count: 3,
@@ -129,6 +130,19 @@ describe("clubCardQueryOptions - karta jednego klubu", () => {
     await expect(run<ClubCardRow | null>(clubCardQueryOptions("klub-energii"))).resolves.toBeNull();
   });
 
+  it("kadr okładki przechodzi przez mapper; wiersz bez kolumny daje null, nie undefined", async () => {
+    rpc().setResponse("club_view", () => ok([cardRow({ cover_position_y: 12 })]));
+    await expect(
+      run<ClubCardRow | null>(clubCardQueryOptions("klub-energii")),
+    ).resolves.toMatchObject({ cover_position_y: 12 });
+
+    const bezKadru = cardRow();
+    delete bezKadru.cover_position_y;
+    rpc().setResponse("club_view", () => ok([bezKadru]));
+    const card = await run<ClubCardRow | null>(clubCardQueryOptions("klub-energii-2"));
+    expect(card?.cover_position_y).toBeNull();
+  });
+
   it("pierwszy wiersz jest przepisywany na kartę, a do RPC idzie adres PO trymowaniu", async () => {
     rpc().setResponse("club_view", () => ok([cardRow(), cardRow({ id: "drugi" })]));
 
@@ -144,6 +158,7 @@ describe("clubCardQueryOptions - karta jednego klubu", () => {
       icon: null,
       accent_color: null,
       cover_image_url: null,
+      cover_position_y: 35,
       policy_area: "energy",
       member_count: 12,
       thread_count: 3,

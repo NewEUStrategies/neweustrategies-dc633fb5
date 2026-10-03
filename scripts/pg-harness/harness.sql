@@ -62,6 +62,16 @@ CREATE TABLE IF NOT EXISTS public.tenants (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Domena najemcy (20260703090200_tenant_domains.sql). `club_set_cover` trzyma
+-- origin okładki z białej listy, na której stoi domena najemcy klubu - bez tej
+-- kolumny migracja okładek przewracałaby się na atrapie.
+ALTER TABLE public.tenants
+  ADD COLUMN IF NOT EXISTS domain text,
+  ADD COLUMN IF NOT EXISTS is_default boolean NOT NULL DEFAULT false;
+CREATE UNIQUE INDEX IF NOT EXISTS tenants_domain_key
+  ON public.tenants (lower(domain))
+  WHERE domain IS NOT NULL;
+
 -- Tenant publiczny MUSI istnowac PRZED migracjami, nie tylko przed testami.
 -- Migracje modulu seeduja dane wzgledem `public_tenant_id()`
 -- (20260811110015: osiem specjalizacji, A24: wpis `community_modules`), wiec na

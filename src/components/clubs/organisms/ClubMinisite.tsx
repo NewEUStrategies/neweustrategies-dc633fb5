@@ -137,7 +137,12 @@ export function ClubMinisite({
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8">
       <header className="mb-8">
-        <ClubCover url={club.cover_image_url} variant="banner" className="mb-5" />
+        <ClubCover
+          url={club.cover_image_url}
+          positionY={club.cover_position_y}
+          variant="banner"
+          className="mb-5"
+        />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">

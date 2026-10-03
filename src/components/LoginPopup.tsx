@@ -25,6 +25,21 @@ import { Button } from "@/components/ui/button";
 import { FloatingInput } from "@/components/ui/floating-input";
 import { Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
+import { buildSignupMetadata, useRegistrationFields } from "@/lib/auth/registrationFields";
+
+/**
+ * Pola profilu w szybkiej rejestracji popupu: imię i nazwisko są wymagane,
+ * stanowisko, firma i LinkedIn - opcjonalne. Etykiety i placeholdery
+ * pochodzą z globalnej konfiguracji pól rejestracji (jak w AuthPortal).
+ */
+export const POPUP_SIGNUP_FIELDS = [
+  { key: "first_name", required: true, autoComplete: "given-name", type: "text" },
+  { key: "last_name", required: true, autoComplete: "family-name", type: "text" },
+  { key: "job", required: false, autoComplete: "organization-title", type: "text" },
+  { key: "company", required: false, autoComplete: "organization", type: "text" },
+  { key: "linkedin", required: false, autoComplete: "url", type: "url" },
+] as const;
+type PopupSignupKey = (typeof POPUP_SIGNUP_FIELDS)[number]["key"];
 
 type Mode = "signin" | "signup";
 
@@ -43,7 +58,13 @@ export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [profile, setProfile] = useState<Record<PopupSignupKey, string>>({
+    first_name: "",
+    last_name: "",
+    job: "",
+    company: "",
+    linkedin: "",
+  });
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const [override, setOverride] = useState<{ title?: string; description?: string }>({});
@@ -105,6 +126,7 @@ export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
   const logo = useBrandLogoUrl(theme === "dark" ? "dark" : "light");
 
   const runPreAuthGuard = useServerFn(preAuthGuard);
+  const reg = useRegistrationFields(lang);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,11 +151,21 @@ export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
           toast.error(t("authForms.signupDisabled"));
           return;
         }
-        const trimmed = name.trim();
-        const parts = trimmed.split(/\s+/).filter(Boolean);
-        const firstName = parts[0] ?? "";
-        const lastName = parts.length > 1 ? parts.slice(1).join(" ") : "";
-        const displayName = trimmed || email.split("@")[0];
+        if (POPUP_SIGNUP_FIELDS.some((f) => f.required && !profile[f.key].trim())) {
+          toast.error(t("authForms.required"));
+          return;
+        }
+        const metadata = buildSignupMetadata(
+          {
+            email,
+            firstName: profile.first_name,
+            lastName: profile.last_name,
+            job: profile.job,
+            company: profile.company,
+            linkedin: profile.linkedin,
+          },
+          { lang, source: "login_popup" },
+        );
         const { error } = await supabase.auth.signUp({
           email,
           password,
@@ -145,13 +177,7 @@ export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
                 ? settings.logged_in_redirect_url
                 : "/"
             }`,
-            data: {
-              display_name: displayName,
-              first_name: firstName,
-              last_name: lastName,
-              full_name: trimmed || displayName,
-              signup_type: "reader",
-            },
+            data: metadata,
           },
         });
         if (error) throw error;
@@ -218,15 +244,13 @@ export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
           </DialogHeader>
 
           <form onSubmit={submit} className="space-y-3 mt-2">
-            {mode === "signup" && (
-              <FloatingInput
-                id="lp-name"
-                label={t("authForms.nameLabel")}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoComplete="name"
-              />
-            )}
+            {/* Etykieta trybu bezpośrednio nad e-mailem: nagłówek popupu jest
+                redakcyjny (marketingowy), a gość musi wiedzieć, czy otwiera
+                logowanie, czy rejestrację - dokładnie nad pierwszym polem
+                danych logowania. */}
+            <p className="text-sm font-medium">
+              {mode === "signin" ? t("authForms.signinTitle") : t("authForms.signupTitle")}
+            </p>
             <FloatingInput
               id="lp-email"
               type="email"
@@ -257,6 +281,26 @@ export function LoginPopup({ request }: { request?: LoginPopupOptions }) {
                 {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
+            {mode === "signup" && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {POPUP_SIGNUP_FIELDS.map((f) => (
+                  <FloatingInput
+                    key={f.key}
+                    id={`lp-${f.key}`}
+                    type={f.type}
+                    required={f.required}
+                    autoComplete={f.autoComplete}
+                    containerClassName={f.key === "linkedin" ? "sm:col-span-2" : undefined}
+                    label={`${reg.label(f.key)}${f.required ? " *" : ""}`}
+                    value={profile[f.key]}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setProfile((p) => ({ ...p, [f.key]: v }));
+                    }}
+                  />
+                ))}
+              </div>
+            )}
             <Button type="submit" className="w-full" disabled={busy}>
               {busy
                 ? "…"

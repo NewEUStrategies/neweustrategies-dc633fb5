@@ -9,7 +9,15 @@
 // tak samo jak na /search, więc linki do przefiltrowanych widoków są
 // udostępnialne i cache'owalne. Domyślne sortowanie: najnowsze (przegląd
 // dorobku), a nie trafność (bez frazy nie ma trafności).
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+//
+// PAGINACJA LINKOWA (`?page=N`). Dotąd „Pokaż więcej" podwajało limit jednego
+// zapytania: strony nie miały adresów (nie dało się ich udostępnić ani dać
+// crawlerowi), każde doładowanie przeliczało całe rosnące okno od pierwszego
+// wiersza, a wszystko za sufitem okna było nieosiągalne. Teraz każda strona to
+// osobne okno `search_posts` (`_offset`, migracja 20261003100100) pod własnym
+// adresem, a pasek stron to prawdziwe `<a href>` (ArchivePagination) - ta sama
+// konwencja co archiwa kategorii, tagów i /blog.
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -19,10 +27,11 @@ import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
+import { parsePageSearch } from "@/lib/routing/pageSearch";
 import {
-  searchQueryOptions,
   SEARCH_PAGE_SIZE,
-  SEARCH_LIMIT_MAX,
+  searchQueryOptions,
+  searchTotalPages,
   type SearchFilters,
   type SearchSort,
 } from "@/lib/queries/archives";
@@ -31,6 +40,7 @@ import { SearchFacetPanel } from "@/components/search/SearchFacetPanel";
 import { ActiveFilterChips } from "@/components/search/ActiveFilterChips";
 import { PostListCard } from "@/components/molecules/PostListCard";
 import { ArchiveSkeleton } from "@/components/archive/ArchiveSkeleton";
+import { ArchivePagination } from "@/components/archive/layouts/ArchivePagination";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,6 +54,7 @@ import {
 export const COPY = {
   pl: {
     title: "Publikacje",
+    titlePaged: "Publikacje (strona {{page}})",
     subtitle: "Analizy, komentarze i raporty New European Strategies - pełne archiwum z filtrami.",
     searchPlaceholder: "Szukaj w publikacjach…",
     searchAria: "Szukaj w publikacjach",
@@ -56,12 +67,16 @@ export const COPY = {
     results_many: "{{count}} publikacji",
     empty: "Brak publikacji spełniających kryteria. Wyczyść filtry, aby zobaczyć całość dorobku.",
     clearAll: "Wyczyść filtry",
-    loadMore: "Pokaż więcej",
+    outOfRange: "Strona {{page}} nie istnieje - wyniki kończą się na stronie {{last}}.",
+    outOfRangeCapped:
+      "Przeglądać można najwyżej {{last}} stron wyników. Zawęź filtry albo frazę, aby dotrzeć do dalszych publikacji.",
+    lastPage: "Przejdź do strony {{last}}",
     loadError: "Nie udało się wczytać publikacji. Spróbuj ponownie.",
     filtersHeading: "Filtry",
   },
   en: {
     title: "Publications",
+    titlePaged: "Publications (page {{page}})",
     subtitle: "Analyses, commentaries and reports by New European Strategies - the full archive.",
     searchPlaceholder: "Search publications…",
     searchAria: "Search publications",
@@ -74,7 +89,10 @@ export const COPY = {
     results_many: "{{count}} publications",
     empty: "No publications match the filters. Clear them to browse the full archive.",
     clearAll: "Clear filters",
-    loadMore: "Load more",
+    outOfRange: "Page {{page}} does not exist - the results end on page {{last}}.",
+    outOfRangeCapped:
+      "Only the first {{last}} pages of results can be browsed. Narrow the filters or the phrase to reach further publications.",
+    lastPage: "Go to page {{last}}",
     loadError: "Could not load publications. Please try again.",
     filtersHeading: "Filters",
   },
@@ -97,8 +115,15 @@ function plural(lang: "pl" | "en", count: number): string {
 
 // Te same nazwy parametrów co /search (facetModel.DIM_PARAM) - deep-linki
 // między wyszukiwarką a biblioteką przenoszą filtry 1:1.
+//
+// WARTOŚCI DOMYŚLNE ZOSTAJĄ NIEJAWNE - także pusta fraza. Do paginacji `q` miał
+// `.default("")`, a router SCALA wynik walidatora z adresem przy KAŻDEJ
+// nawigacji i przy renderze SSR porównuje oba adresy: goły `/publications`
+// odpowiadał więc 307 na `/publications?q=` (kanoniczny adres z head()
+// przekierowywał), a każdy link paska stron niósłby `q=`. Pusta fraza jest
+// brakiem frazy - komponent czyta ją jako `search.q ?? ""`.
 const PublicationsParams = z.object({
-  q: z.string().optional().default(""),
+  q: z.string().optional(),
   spec: z.string().optional(),
   type: z.string().optional(),
   region: z.string().optional(),
@@ -114,28 +139,69 @@ const PublicationsParams = z.object({
   to: z.string().optional(),
   year: z.string().optional(),
   sort: z.enum(["newest", "popular", "relevance"]).optional(),
+  // Numer strony wyników. Ten sam defensywny parser co /blog i strona główna
+  // (`parsePageSearch`): śmieci, ułamki poniżej 1 i strona 1 znikają z adresu,
+  // więc `/publications` i `/publications?page=1` to JEDEN adres, a nie dwa
+  // warianty tej samej treści w cache i w indeksie. Zła strona nie oblewa
+  // walidacji (jak nieznany `sort`) - adres z ręcznie wpisanym `?page=abc` ma
+  // otworzyć bibliotekę, nie ekran błędu.
+  page: z.unknown().transform((raw) => parsePageSearch({ page: raw }).page),
 });
 
 type PublicationsInput = z.infer<typeof PublicationsParams>;
 
+/**
+ * Kanoniczny search biblioteki: puste wartości znikają, reszta przechodzi
+ * przez walidator trasy. Walidator normalizuje numer strony (1 znika z adresu)
+ * i ZDEJMUJE parametry spoza schematu - `utm_*` z wejścia nie rozmnaża się po
+ * linkach paska i nie udaje filtra do wyczyszczenia.
+ */
+function canonicalSearch(raw: Record<string, unknown>): PublicationsInput {
+  const next: Record<string, unknown> = { ...raw };
+  for (const key of Object.keys(next)) {
+    const v = next[key];
+    if (v === undefined || v === "" || v === null) delete next[key];
+  }
+  return PublicationsParams.parse(next);
+}
+
+/**
+ * Search strony `nextPage` przy ZACHOWANYCH filtrach - jedyne źródło adresu
+ * strony dla linków paska, nawigacji i odesłania spoza zakresu. Router
+ * serializuje przy nawigacji ten sam obiekt, a SSR nie ma czego w nim
+ * kanonizować, więc `href` linku jest dokładnie adresem, pod który prowadzi
+ * kliknięcie - bez przekierowania po drodze.
+ */
+function withPage(search: Record<string, unknown>, nextPage: number): PublicationsInput {
+  return canonicalSearch({ ...search, page: nextPage });
+}
+
 export const Route = createFileRoute("/publications")({
   validateSearch: (s: Record<string, unknown>): PublicationsInput => PublicationsParams.parse(s),
-  head: () => {
+  head: ({ match }) => {
     const url = getRequestUrl() || "/publications";
     const lang = activeLang(url);
     const c = COPY[lang];
+    // Ta sama konwencja co archiwa kategorii/tagów i /blog: kanoniczny adres
+    // BEZ parametrów (splitUrl bierze samą ścieżkę), a strony od drugiej są
+    // `noindex, follow` - crawler idzie po linkach do publikacji, ale indeks
+    // konsoliduje się na stronie pierwszej. `match` bywa pusty, gdy head()
+    // woła się poza routerem (kontrakt w testach) - wtedy to strona pierwsza.
+    const page = match?.search?.page ?? 1;
+    const title = page > 1 ? c.titlePaged.replace("{{page}}", String(page)) : c.title;
     const head = buildContentHead({
       url,
       lang,
       type: "website",
-      title: c.title,
+      title,
       description: c.subtitle,
+      robots: page > 1 ? "noindex, follow" : null,
     });
     const { origin } = splitUrl(url);
     const collection = {
       "@context": "https://schema.org",
       "@type": "CollectionPage",
-      name: `${c.title} - ${SITE_NAME}`,
+      name: `${title} - ${SITE_NAME}`,
       description: c.subtitle,
       inLanguage: lang,
       url: `${origin}${splitUrl(url).path}`,
@@ -153,44 +219,74 @@ export const Route = createFileRoute("/publications")({
 function PublicationsPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { i18n } = useTranslation();
+  const router = useRouter();
+  const { t, i18n } = useTranslation();
   const lang: "pl" | "en" = i18n.language === "en" ? "en" : "pl";
   const c = COPY[lang];
-  const [draft, setDraft] = useState(search.q);
+  const [draft, setDraft] = useState(search.q ?? "");
 
-  const url = search as SearchUrl;
+  // Strona żyje w adresie obok filtrów, ale filtrem NIE JEST: panel faset,
+  // chipy i bramka „są aktywne filtry" dostają stan bez niej - inaczej
+  // `?page=2` liczyłoby się jako filtr do wyczyszczenia. Stan idzie przez
+  // `canonicalSearch`, bo `useSearch()` oddaje search LUŹNY (surowe parametry
+  // adresu scalone z wynikiem walidatora) - `utm_source` też byłby „filtrem".
+  const page = search.page ?? 1;
+  const url: SearchUrl = useMemo(() => {
+    const { page: _page, q, ...filtersOnly } = canonicalSearch(search);
+    return { ...filtersOnly, q: q ?? "" };
+  }, [search]);
   const sort: SearchSort = search.sort ?? "newest";
   const filters: SearchFilters = useMemo(() => ({ ...urlToFilters(url), sort }), [url, sort]);
 
-  const [limit, setLimit] = useState<number>(SEARCH_PAGE_SIZE);
-
-  const { data, isFetching, isError } = useQuery({
-    ...searchQueryOptions(filters, limit, { browse: true }),
+  const { data, isFetching, isError, isPlaceholderData } = useQuery({
+    ...searchQueryOptions(filters, undefined, { browse: true, page }),
+    // Poprzednia strona zostaje na ekranie, dopóki nie przyjedzie następna -
+    // bez mignięcia pustej siatki przy każdym kliknięciu w pasek stron.
     placeholderData: (prev) => prev,
   });
   const posts = data?.posts ?? [];
   const facets = data?.facets ?? [];
   const total = data?.total ?? 0;
-  const canLoadMore = posts.length < total && limit < SEARCH_LIMIT_MAX;
+  const totalPages = searchTotalPages(total);
+  // STRONA ZA KOŃCEM ZBIORU (stary link, skasowane wpisy, ręcznie wpisane
+  // `?page=`). Komunikat „brak publikacji" byłby tu nieprawdą - wyniki SĄ,
+  // tylko na wcześniejszych stronach - więc czytelnik dostaje odesłanie do
+  // ostatniej istniejącej strony. Dopóki na ekranie wiszą dane poprzedniego
+  // klucza (placeholderData), werdyktu nie ma: liczność należy do innej strony.
+  const outOfRange = !isPlaceholderData && total > 0 && page > totalPages;
+  // Zbiór większy niż sufit przesunięcia (`SEARCH_MAX_PAGE`): wyniki ZA
+  // ostatnią stroną istnieją, tylko nie da się do nich przewinąć. Zdanie
+  // „wyniki kończą się na stronie N" przeczyłoby licznikowi obok.
+  const rangeCapped = total > totalPages * SEARCH_PAGE_SIZE;
+
+  // Powrót na górę po zmianie STRONY należy do routera (`scrollRestoration`
+  // w `src/router.tsx`): nowy wpis historii zaczyna od góry, krok „wstecz"
+  // wraca na zapamiętaną pozycję, a reset jest skokiem bez animacji, więc
+  // „ogranicz ruch" nie ma czego wyciszać. Własny `scrollTo` trasy był po nim
+  // przewinięciem z 0 na 0, a przy „wstecz" nadpisywał przywróconą pozycję.
 
   // Cache etykiet id->nazwa dla chipów (odporne na zerową liczność fasety).
   const labelCacheRef = useRef<Record<string, string>>({});
   labelCacheRef.current = collectLabels(facets, lang, labelCacheRef.current);
 
+  // Każda zmiana filtra, frazy albo sortowania wraca na STRONĘ PIERWSZĄ: nowy
+  // zbiór ma inną liczbę stron, a strona 7 starego zbioru nie znaczy w nim nic.
+  // Puste wartości znikają z URL (czyste, udostępnialne linki).
   const patchUrl = (patch: Partial<SearchUrl>) => {
-    setLimit(SEARCH_PAGE_SIZE);
     void navigate({
-      search: (prev: PublicationsInput): PublicationsInput => {
-        const next: Record<string, unknown> = { ...prev, ...patch };
-        // Puste wartości znikają z URL (czyste, udostępnialne linki).
-        for (const key of Object.keys(next)) {
-          const v = next[key];
-          if (v === undefined || v === "" || v === null) delete next[key];
-        }
-        return PublicationsParams.parse(next);
-      },
+      search: (prev: PublicationsInput): PublicationsInput =>
+        canonicalSearch({ ...prev, ...patch, page: undefined }),
       replace: false,
     });
+  };
+
+  // SEO: realne adresy stron wyników. `buildLocation().publicHref` przechodzi
+  // przez rewrite routera (prefiks języka /en/...) i jego serializację search -
+  // dokładnie jak <Link> i jak nawigacja po kliknięciu.
+  const hrefFor = (nextPage: number) =>
+    router.buildLocation({ to: "/publications", search: withPage(search, nextPage) }).publicHref;
+  const onPageChange = (nextPage: number) => {
+    void navigate({ search: (prev: PublicationsInput) => withPage(prev, nextPage) });
   };
 
   const hasAnyFilter = Object.entries(url).some(
@@ -256,6 +352,19 @@ function PublicationsPage() {
             <p className="mb-4 text-sm text-muted-foreground tabular-nums">{plural(lang, total)}</p>
             {isError ? (
               <p className="text-sm text-destructive">{c.loadError}</p>
+            ) : outOfRange ? (
+              <div className="rounded-lg border border-border bg-muted/20 p-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {(rangeCapped ? c.outOfRangeCapped : c.outOfRange)
+                    .replace("{{page}}", String(page))
+                    .replace("{{last}}", String(totalPages))}
+                </p>
+                <Button asChild variant="outline" size="sm" className="mt-4">
+                  <Link to="/publications" search={withPage(search, totalPages)}>
+                    {c.lastPage.replace("{{last}}", String(totalPages))}
+                  </Link>
+                </Button>
+              </div>
             ) : posts.length === 0 && !isFetching ? (
               <div className="rounded-lg border border-border bg-muted/20 p-8 text-center">
                 <p className="text-sm text-muted-foreground">{c.empty}</p>
@@ -285,15 +394,17 @@ function PublicationsPage() {
                     />
                   ))}
                 </div>
-                {canLoadMore && (
-                  <div className="mt-8 flex justify-center">
-                    <Button
-                      variant="outline"
-                      disabled={isFetching}
-                      onClick={() => setLimit((l) => Math.min(l * 2, SEARCH_LIMIT_MAX))}
-                    >
-                      {c.loadMore}
-                    </Button>
+                {totalPages > 1 && (
+                  <div className="mt-8">
+                    <ArchivePagination
+                      page={page}
+                      totalPages={totalPages}
+                      onPageChange={onPageChange}
+                      hrefFor={hrefFor}
+                      isPending={isPlaceholderData}
+                      lang={lang}
+                      t={t}
+                    />
                   </div>
                 )}
               </>

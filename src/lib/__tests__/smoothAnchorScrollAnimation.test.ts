@@ -42,10 +42,17 @@ let reduceMotion: boolean;
 function driver(): FrameDriver {
   return {
     tick(atMs) {
-      const entries = [...frames.entries()];
-      frames.clear();
+      // Przeglądarka maluje ~co 16 ms: skok zegara testu rozbijamy na klatki,
+      // bo animacja świadomie nie przeskakuje dłuższych przerw między klatkami.
+      let t = now;
+      do {
+        t = Math.min(atMs, t + 16);
+        const entries = [...frames.entries()];
+        frames.clear();
+        now = t;
+        for (const [, cb] of entries) cb(t);
+      } while (t < atMs && frames.size > 0);
       now = atMs;
-      for (const [, cb] of entries) cb(atMs);
     },
     requested: () => nextFrameId - 1,
     pending: () => frames.size > 0,
@@ -145,6 +152,32 @@ describe("dostępność: prefers-reduced-motion", () => {
     smoothScrollToAnchor("sekcja", { offset: 80 });
     expect(driver().pending()).toBe(true);
   });
+
+  it("rzut z `matchMedia` nie zostawia strony bez skoku i z nadpisanymi stylami", () => {
+    // Odczyt preferencji pada PO podmianie `scroll-behavior`/`overflow-anchor`.
+    // Prywatna kopia przepuszczała wyjątek: brak przewinięcia i style
+    // dokumentu zostawione w stanie „na czas animacji". Wspólny odczyt
+    // z `lib/a11y` traktuje rzut jak brak preferencji - animacja rusza i po
+    // zakończeniu sprząta po sobie.
+    Object.defineProperty(window, "matchMedia", {
+      configurable: true,
+      value: () => {
+        throw new Error("SecurityError");
+      },
+    });
+    document.documentElement.style.overflowAnchor = "auto";
+    anchor("sekcja", 1000);
+    const onFinish = vi.fn();
+
+    expect(() =>
+      smoothScrollToAnchor("sekcja", { offset: 80, minDuration: 100, maxDuration: 100, onFinish }),
+    ).not.toThrow();
+    driver().tick(100);
+
+    expect(scrolled.at(-1)).toBe(920);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+    expect(document.documentElement.style.overflowAnchor).toBe("auto");
+  });
 });
 
 describe("wybór kotwicy", () => {
@@ -195,6 +228,17 @@ describe("przebieg animacji", () => {
     expect(scrolled[scrolled.length - 1]).toBe(920);
     expect(onFinish).toHaveBeenCalledTimes(1);
     expect(driven.pending()).toBe(false);
+  });
+
+  it("długa, zacięta klatka nie przerzuca strony o setki pikseli", () => {
+    anchor("sekcja", 3000);
+    smoothScrollToAnchor("sekcja", { offset: 80, minDuration: 800, maxDuration: 800 });
+    // Jedna klatka po 400 ms przerwy (np. montowanie sekcji pod zgięciem).
+    for (const [, cb] of [...frames.entries()]) {
+      frames.clear();
+      cb(400);
+    }
+    expect(scrolled[scrolled.length - 1]).toBeLessThan(30);
   });
 
   it("przewija monotonicznie w stronę celu", () => {
@@ -330,10 +374,11 @@ describe("wartości domyślne i kształt stanu historii", () => {
     smoothScrollToAnchor("sekcja");
     const driven = driver();
     // Brak nagłówka w drzewie -> offset domyślny 80; dystans 2920 -> czas
-    // 2920*0,58 = 1693,6 ms, w granicach [520, 1800].
-    driven.tick(1693);
+    // 2920*0,34 = 992,8 ms (poniżej limitu 1100 ms) - długi skok pozostaje
+    // płynny, ale nie blokuje czytelnika prawie dwie sekundy.
+    driven.tick(990);
     expect(driven.pending()).toBe(true);
-    driven.tick(1694);
+    driven.tick(1000);
     expect(scrolled[scrolled.length - 1]).toBe(2920);
   });
 
@@ -341,7 +386,7 @@ describe("wartości domyślne i kształt stanu historii", () => {
     anchor("sekcja", 50_000);
     smoothScrollToAnchor("sekcja");
     const driven = driver();
-    driven.tick(1800);
+    driven.tick(1100);
     expect(driven.pending()).toBe(false);
     expect(scrolled[scrolled.length - 1]).toBe(49_920);
   });

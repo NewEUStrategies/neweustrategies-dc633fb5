@@ -6,6 +6,7 @@
 // Do 18.08.2026 komponent miał 0 z 7 funkcji w pomiarze.
 import { describe, expect, it, afterEach } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { MegaPanelView } from "@/components/menu/MegaPanelView";
 import type { MegaFeaturedPost } from "@/lib/menus/megaFeatured";
 import type { MegaColumn } from "@/lib/menus/types";
@@ -235,5 +236,114 @@ describe("warianty osadzenia", () => {
     render(<MegaPanelView cols={[column()]} lang="pl" />);
     const menu = screen.getByRole("menu");
     expect(within(menu).getAllByRole("menuitem").length).toBeGreaterThan(0);
+  });
+});
+
+/** `n` kolumn o rozróżnialnych tytułach. */
+function columns(n: number): MegaColumn[] {
+  return Array.from({ length: n }, (_, i) => column({ title_pl: `Kolumna ${i + 1}` }));
+}
+
+/** Szablon siatki KOLUMN NAWIGACJI (wewnętrzna siatka z odstępami między kolumnami). */
+function navGrid(container: HTMLElement): string {
+  const grid = container.querySelector<HTMLElement>(".grid.gap-x-4");
+  if (!grid) throw new Error("brak siatki kolumn nawigacji");
+  return grid.style.gridTemplateColumns;
+}
+
+/** Szablon siatki ZEWNĘTRZNEJ (nawigacja + ewentualna karta wyróżnionego wpisu). */
+function outerGrid(container: HTMLElement): string {
+  const grid = container.querySelector<HTMLElement>('[role="menu"] > .grid');
+  if (!grid) throw new Error("brak siatki panelu");
+  return grid.style.gridTemplateColumns;
+}
+
+const repeat = (n: number) => `repeat(${n}, minmax(0, 1fr))`;
+
+describe("kolumny w rzędzie z konfiguracji redaktora", () => {
+  // Do 03.10.2026 edytor zapisywał `columns_per_row`, a widok miał zaszyte
+  // `Math.min(cols.length, 4)` - ustawienie było martwe i w podglądzie,
+  // i na stronie.
+  it("pięć kolumn przy limicie trzech układa się po trzy w rzędzie", () => {
+    const { container } = render(<MegaPanelView cols={columns(5)} lang="pl" columnsPerRow={3} />);
+    expect(navGrid(container)).toBe(repeat(3));
+  });
+
+  it("limit sześciu pozwala na sześć kolumn - ponad dawne zaszyte maksimum 4", () => {
+    const { container } = render(<MegaPanelView cols={columns(6)} lang="pl" columnsPerRow={6} />);
+    expect(navGrid(container)).toBe(repeat(6));
+  });
+
+  it("jedna kolumna w rzędzie daje układ pionowy", () => {
+    const { container } = render(<MegaPanelView cols={columns(3)} lang="pl" columnsPerRow={1} />);
+    expect(navGrid(container)).toBe(repeat(1));
+  });
+
+  it("mniej kolumn niż limit nie zostawia pustych pól siatki", () => {
+    const { container } = render(<MegaPanelView cols={columns(2)} lang="pl" columnsPerRow={5} />);
+    expect(navGrid(container)).toBe(repeat(2));
+  });
+
+  it("bez ustawienia zostaje dotychczasowe maksimum czterech kolumn", () => {
+    const { container } = render(<MegaPanelView cols={columns(5)} lang="pl" />);
+    expect(navGrid(container)).toBe(repeat(4));
+  });
+
+  it("wartość spoza schematu schodzi na domyślne 4 zamiast rozsypać siatkę", () => {
+    for (const bad of [0, 9, 2.5]) {
+      const { container, unmount } = render(
+        <MegaPanelView cols={columns(5)} lang="pl" columnsPerRow={bad} />,
+      );
+      expect(navGrid(container), String(bad)).toBe(repeat(4));
+      unmount();
+    }
+  });
+
+  it("z kartą wyróżnionego wpisu zostaje siatka 12, a nawigacja i tak respektuje limit", () => {
+    const { container } = render(
+      <MegaPanelView cols={columns(2)} lang="pl" columnsPerRow={1} featured={featuredPost()} />,
+    );
+    expect(screen.getByRole("heading", { name: "Analiza UE" })).toBeTruthy();
+    expect(outerGrid(container)).toBe(repeat(12));
+    expect(navGrid(container)).toBe(repeat(1));
+  });
+});
+
+describe("szerokość panelu z konfiguracji redaktora", () => {
+  // Szerokość sprawdzamy w znaczniku SSR: happy-dom nie rozumie `min()`
+  // w CSS i po cichu zeruje taką deklarację, więc `style.width` w DOM-ie
+  // testowym nie odróżniłby „container" od braku stylu.
+  function rootTag(markup: string): string {
+    const tag = markup.match(/<div role="menu"[^>]*>/)?.[0];
+    if (!tag) throw new Error("brak korzenia panelu w znaczniku");
+    return tag;
+  }
+
+  it("„container” to DOKŁADNIE dotychczasowa szerokość - stare menu nie zmieniają wyglądu", () => {
+    const explicit = rootTag(
+      renderToStaticMarkup(<MegaPanelView cols={[column()]} lang="pl" width="container" />),
+    );
+    const implicit = rootTag(renderToStaticMarkup(<MegaPanelView cols={[column()]} lang="pl" />));
+    expect(explicit).toContain('style="width:min(980px, calc(100vw - 32px))"');
+    expect(implicit).toContain('style="width:min(980px, calc(100vw - 32px))"');
+  });
+
+  it("„full” rozciąga panel na całe okno minus margines z każdej strony", () => {
+    const tag = rootTag(
+      renderToStaticMarkup(<MegaPanelView cols={[column()]} lang="pl" width="full" />),
+    );
+    expect(tag).toContain('style="width:calc(100vw - 32px)"');
+    expect(tag).toContain('data-mega-width="full"');
+  });
+
+  it("podgląd w adminie nie dostaje szerokości OKNA, ale niesie wybrany tryb", () => {
+    // Karta edytora jest węższa niż okno - szerokość viewportu rozsadziłaby ją.
+    const tag = rootTag(
+      renderToStaticMarkup(
+        <MegaPanelView cols={[column()]} lang="pl" width="full" variant="preview" />,
+      ),
+    );
+    expect(tag).not.toContain("style=");
+    expect(tag).toContain('data-mega-width="full"');
   });
 });

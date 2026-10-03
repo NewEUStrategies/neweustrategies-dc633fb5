@@ -128,10 +128,21 @@ function archive(over: Record<string, unknown> = {}) {
   };
 }
 
-function renderPage(props: Partial<Parameters<typeof TaxonomyPage>[0]> = {}): ReactElement {
-  const client = new QueryClient({
+function queryClient(): QueryClient {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
   });
+}
+
+/**
+ * Element strony archiwum. Wspólny `client` jest potrzebny tylko testom
+ * ZMIANY strony: `rerender` z nowym klientem montowałby zapytania od nowa,
+ * czyli udawałby pierwszy montaż zamiast zmiany `page` w żywym komponencie.
+ */
+function renderPage(
+  props: Partial<Parameters<typeof TaxonomyPage>[0]> = {},
+  client: QueryClient = queryClient(),
+): ReactElement {
   return (
     <QueryClientProvider client={client}>
       <TaxonomyPage kind="category" slug="gospodarka" page={1} sort="newest" {...props} />
@@ -148,7 +159,10 @@ beforeEach(() => {
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("TaxonomyPage - wybór wariantu i dane", () => {
   it("wariant layoutu pochodzi z USTAWIEŃ, nie z kodu trasy", async () => {
@@ -243,14 +257,23 @@ describe("TaxonomyPage - nawigacja", () => {
     );
   });
 
-  it("wejście na dalszą stronę przewija na górę listy", async () => {
-    render(renderPage({ page: 3 }));
+  // Powrót na górę po zmianie strony należy do ROUTERA (`scrollRestoration`):
+  // nowy wpis historii zaczyna od góry, „wstecz" wraca na zapamiętaną pozycję.
+  // Komponent nie może przewijać sam - dawny `scrollTo({ behavior: "smooth" })`
+  // przy `page > 1` dublował reset routera, ignorował „ogranicz ruch" i przy
+  // kroku „wstecz" nadpisywał przywróconą pozycję. Kontrakt routera pilnują
+  // `src/__tests__/router.test.tsx` i testy paginacji w
+  // `src/routes/__tests__/archiveRoutesRender.test.tsx`.
+  it.each([
+    ["montaż na stronie 1", 1, 1],
+    ["montaż prosto na stronie 3", 3, 3],
+    ["zmiana 2 -> 3", 2, 3],
+    ["powrót 3 -> 1", 3, 1],
+  ])("%s: komponent nie przewija okna sam", async (_name, from, to) => {
+    const client = queryClient();
+    const view = render(renderPage({ page: from }, client));
     await screen.findByTestId("variant");
-    expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
-  });
-
-  it("pierwsza strona nie przewija - czytelnik dopiero wszedł", async () => {
-    render(renderPage({ page: 1 }));
+    if (from !== to) view.rerender(renderPage({ page: to }, client));
     await screen.findByTestId("variant");
     expect(window.scrollTo).not.toHaveBeenCalled();
   });

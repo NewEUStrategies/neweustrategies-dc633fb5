@@ -103,6 +103,15 @@ describe("getRouter - kontrakt opcji", () => {
     expect(r.options.scrollRestoration).toBe(true);
   });
 
+  it("powrót na górę po nawigacji jest SKOKIEM - „ogranicz ruch” nie ma czego wyciszać", () => {
+    // Archiwa, siatka stronicowana i biblioteka publikacji nie przewijają same
+    // po zmianie strony - robi to router (`scrollRestoration`). Ich zgodność
+    // z `prefers-reduced-motion` stoi więc na tym, że reset routera nie jest
+    // animowany. `"smooth"` tutaj animowałby każde przejście w całej aplikacji
+    // wbrew systemowemu ustawieniu.
+    expect(getRouter().options.scrollRestorationBehavior).not.toBe("smooth");
+  });
+
   it("defaulty QueryClienta", () => {
     const q = queryClientOf(getRouter()).getDefaultOptions().queries!;
     expect(q.staleTime).toBe(5 * 60_000);

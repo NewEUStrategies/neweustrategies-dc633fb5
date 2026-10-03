@@ -235,9 +235,10 @@ describe("PostsSlider filter + order combos", () => {
   ];
   it("intersects category + tag ids and excludes, ordered oldest", async () => {
     db.tables.posts = posts;
-    db.tables.post_categories = [{ post_id: "1" }];
-    db.tables.tags = [{ id: "t1" }];
-    db.tables.post_tags = [{ post_id: "1" }];
+    // Przeciecie kategorii i tagu liczy baza (osadzenia `!inner()`), wiec
+    // atrapa potrzebuje tylko slownikow slug -> id; tabel posrednich nikt nie czyta.
+    db.tables.categories = [{ id: "c1", slug: "ue" }];
+    db.tables.tags = [{ id: "t1", slug: "nato" }];
     widget("slider", {
       source: "posts",
       categoryId: "c0",

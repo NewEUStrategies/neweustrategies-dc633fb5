@@ -144,6 +144,18 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/club/klub-energetyczny");
 });
 
+describe("okładka bramki", () => {
+  // Osoba spoza klubu widzi bramkę, nie nagłówek - kadr ustawiony przez
+  // moderację musi dojechać i tutaj, inaczej bramka pokazuje środek zdjęcia.
+  it("rysuje okładkę w kadrze zapisanym przez moderację", () => {
+    const { container } = gate({
+      cover_image_url: "https://obrazy.example/klub.jpg",
+      cover_position_y: 12,
+    });
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 12%");
+  });
+});
+
 describe("warianty bramki", () => {
   it("ANONIM widzi zdanie dla niezalogowanego i formularz rejestracji", () => {
     gate();

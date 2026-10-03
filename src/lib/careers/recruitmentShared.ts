@@ -26,25 +26,51 @@ export const CAREERS_FORM_ID = "careers";
  * Ścieżka CV w prywatnym buckecie `career-cv`, dokładnie taka, jaką generuje
  * `uploadCv`.
  *
- * DWA KSZTAŁTY, oba dozwolone:
+ * DWA KSZTAŁTY, oba dozwolone przy ODCZYCIE (panel admina):
  *   * `<tenant_id>/uploads/<YYYY-MM-DD>/<uuid>.<ext>` - konwencja obowiązująca,
  *     w której ścieżka niesie tenanta, więc polityka bucketu potrafi zawęzić
  *     odczyt do personelu TEGO najemcy;
  *   * `uploads/<YYYY-MM-DD>/<uuid>.<ext>` - pliki sprzed zmiany konwencji.
  *     Nie przenosimy ich (UPDATE `storage.objects.name` rozjechałby wiersz
- *     z plikiem w magazynie), więc muszą dalej przechodzić walidację - prawo do
- *     nich pilnuje polityka, sprawdzając referencję ze zgłoszenia najemcy.
+ *     z plikiem w magazynie), więc zastane zgłoszenia nadal je pokazują - prawo
+ *     do nich pilnuje polityka (właściciel = najemca najwcześniejszego zgłoszenia).
  *
  * BEZPIECZEŃSTWO: `custom.cv_path` przychodzi z publicznego formularza, a panel
  * admina podpisuje ją bez pytania (`signCvUrl`). Bez tej bramki wystarczyłoby
  * podmienić pole w żądaniu, żeby wymusić podpisany link do DOWOLNEGO obiektu
- * w buckecie - czyli do CV innego kandydata.
+ * w buckecie - czyli do CV innego kandydata. Sam kształt NIE wystarcza przy
+ * ZAPISIE - tam obowiązuje `isCareerCvPathOfTenant`.
+ *
+ * Pierwszy segment to PEŁNY UUID (grupa 1 = tenant); dawne `[0-9a-fA-F-]{36}`
+ * przyjmowało także 36 myślników.
  */
 const CV_PATH_RE =
-  /^(?:[0-9a-fA-F-]{36}\/)?uploads\/\d{4}-\d{2}-\d{2}\/[0-9a-fA-F-]{8,64}\.(?:pdf|doc|docx)$/;
+  /^(?:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\/)?uploads\/\d{4}-\d{2}-\d{2}\/[0-9a-fA-F-]{8,64}\.(?:pdf|doc|docx)$/;
 
 export function isCareerCvPath(value: string | null | undefined): boolean {
   return typeof value === "string" && CV_PATH_RE.test(value);
+}
+
+/**
+ * Czy ścieżka wskazuje plik w katalogu DANEGO najemcy - bramka ZAPISU
+ * (`submitContact`).
+ *
+ * Kształt przyjmowany przez `isCareerCvPath` nie mówi nic o właścicielu:
+ * zgłoszenie wysłane z hosta najemcy A z `cv_path = '<B>/uploads/...'` miało
+ * poprawny kształt, a trafiało do skrzynki A. Formularz zna tenanta hosta,
+ * więc ścieżka spoza jego katalogu jest fałszerstwem albo pomyłką - w obu
+ * przypadkach nie wolno jej zapisać. Kształt legacy (`uploads/...`, bez
+ * tenanta) nie przechodzi: `uploadCv` dokłada tenanta od 2026-08-14, więc
+ * NOWE zgłoszenie nie ma prawa go nieść. Tę samą regułę egzekwuje baza
+ * (`career_cv_path_guard`, 20261003120000) - także dla zapisu z panelu.
+ */
+export function isCareerCvPathOfTenant(
+  value: string | null | undefined,
+  tenantId: string | null | undefined,
+): boolean {
+  if (typeof value !== "string" || typeof tenantId !== "string") return false;
+  const tenant = CV_PATH_RE.exec(value)?.[1];
+  return tenant !== undefined && tenant.toLowerCase() === tenantId.toLowerCase();
 }
 
 /**

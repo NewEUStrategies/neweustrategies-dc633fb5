@@ -144,8 +144,16 @@ CREATE TABLE IF NOT EXISTS storage.objects (
 );
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
+-- `foldername` odcina NAZWĘ PLIKU - tak jak funkcja Supabase
+-- (`_parts[1:array_length(_parts,1)-1]`) i atrapa `scripts/pg-harness`.
+-- Wcześniejsza wersja zwracała wszystkie segmenty, więc polityka sprawdzająca
+-- `club-covers/<uuid>/<plik>` (dokładnie dwa foldery) dawała tu odmowę dla
+-- ścieżek, które na Supabase przechodzą - lokalny pgTAP był czerwony
+-- z powodu atrapy, a CI zielone.
 CREATE OR REPLACE FUNCTION storage.foldername(name text) RETURNS text[]
-  LANGUAGE sql IMMUTABLE AS $$ SELECT string_to_array(name, '/') $$;
+  LANGUAGE sql IMMUTABLE AS $$
+  SELECT (string_to_array(name, '/'))[1 : array_length(string_to_array(name, '/'), 1) - 1]
+$$;
 CREATE OR REPLACE FUNCTION storage.filename(name text) RETURNS text
   LANGUAGE sql IMMUTABLE AS $$ SELECT split_part(name, '/', -1) $$;
 CREATE OR REPLACE FUNCTION storage.extension(name text) RETURNS text

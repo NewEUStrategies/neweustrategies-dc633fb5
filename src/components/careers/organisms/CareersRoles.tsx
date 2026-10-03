@@ -74,7 +74,7 @@ export function CareersRoles({
       <div
         role="group"
         aria-label={t("careers.departments.all")}
-        className="tabs-scroller mt-8 flex gap-2 overflow-x-auto pb-1"
+        className="tabs-scroller -mx-1 mt-7 flex gap-2 overflow-x-auto p-1"
       >
         <CareerFilterChip
           label={t("careers.roles.all")}
@@ -98,11 +98,11 @@ export function CareersRoles({
           {t("careers.roles.empty")}
         </p>
       ) : (
-        <div key={department} className="mt-8 flex flex-col gap-3">
+        <div key={department} className="mt-8 flex flex-col gap-3 overflow-visible">
           {roles.map((role, index) => (
             <div
               key={role.id}
-              className="crs-pop"
+              className="crs-pop overflow-visible"
               style={{ animationDelay: `${Math.min(index, 7) * 55}ms` }}
             >
               <CareerRoleCard

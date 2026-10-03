@@ -4,7 +4,9 @@
 // <TrendingTicker/> (useQuery), so the server render and the client resolve the
 // SAME cache entry: the ticker ships inside the SSR HTML and never pops in
 // after hydration (which used to push the whole page down ~40px).
-import { queryOptions } from "@tanstack/react-query";
+// Trzeci odbiorca: `HeaderSkeleton` czyta ten sam wpis (`peekHeaderTickerPosts`),
+// żeby nie rezerwować pasa, który pasek i tak zwinie do zera.
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 import {
   getTrendingPosts,
   getTickerPosts,
@@ -109,4 +111,23 @@ export function headerTickerQueryOptions(cfg: TickerConfig) {
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
   });
+}
+
+/**
+ * Wpisy paska z cache'a - BEZ subskrypcji i BEZ fetcha (`getQueryData`), więc
+ * wolno to wołać w renderze szkieletu, który pokazuje się dokładnie w zimnym
+ * starcie. Klucz pochodzi z TEJ SAMEJ `headerTickerQueryOptions`, przez którą
+ * idą `<TrendingTicker>` i loader korzenia - inny sposób składania klucza
+ * czytałby cicho pusty wpis.
+ *
+ * `undefined` = wynik NIEZNANY: zimny start, zapytanie w locie albo błąd.
+ * Błędu świadomie nie tłumaczymy na „pusto": dehydratacja przepuszcza wyłącznie
+ * zapytania `success` (`router.tsx`, `shouldDehydrateQuery`), więc serwer
+ * widziałby błąd, a klient brak wpisu - dwa różne szkielety w jednej hydracji.
+ */
+export function peekHeaderTickerPosts(
+  queryClient: QueryClient,
+  cfg: TickerConfig,
+): TrendingPost[] | undefined {
+  return queryClient.getQueryData(headerTickerQueryOptions(cfg).queryKey);
 }

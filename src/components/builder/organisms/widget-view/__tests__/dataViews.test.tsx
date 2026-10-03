@@ -520,8 +520,9 @@ describe("NewsTickerView extra branches", () => {
   });
 
   it("filters by category slugs", async () => {
-    db.tables.categories = [{ id: "c1" }];
-    db.tables.post_categories = [{ post_id: "1" }];
+    // Zawezenie kategoria robi baza (osadzenie `!inner()`) - atrapa potrzebuje
+    // tylko slownika slug -> id.
+    db.tables.categories = [{ id: "c1", slug: "ue" }];
     db.tables.posts = [
       { id: "1", slug: "a", title_pl: "Alfa", title_en: "Alpha", author_id: "a1" },
     ];

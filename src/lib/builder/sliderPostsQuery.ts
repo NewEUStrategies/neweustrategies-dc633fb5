@@ -6,12 +6,15 @@
 // after client hydration fetched the posts - the most visible "content pops in
 // late" element on the homepage.
 import { queryOptions } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import type { WidgetContent } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
 import { asNum, asStr } from "@/lib/content-model/contentValue";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import {
+  postsConstrainedByTaxonomy,
+  taxonomyConstraintsFromSlugs,
+} from "@/lib/queries/taxonomyPivot";
 
 export interface SliderPostRow {
   id: string;
@@ -105,39 +108,26 @@ export function sliderUsesPostsSource(c: WidgetContent): boolean {
   return !hasBoundItems;
 }
 
+/** Kolumny wiersza slidera - jeden literał dla zapytania i typu wiersza. */
+const SLIDER_POST_COLUMNS =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id";
+
 async function fetchSliderPosts(input: SliderPostsInput): Promise<SliderPostRow[]> {
   const { limit, categorySlugs, tagSlugs, excludeIds, orderBy, lang } = input;
-  let allowedIds: string[] | null = null;
-  if (categorySlugs.length) {
-    const { data } = await supabase
-      .from("post_categories")
-      .select("post_id, categories!inner(slug)")
-      .in("categories.slug", categorySlugs);
-    // Pierwszy filtr USTAWIA zbiór dozwolonych id (nie ma jeszcze czego przecinać).
-    allowedIds = (data ?? []).map((r: { post_id: string }) => r.post_id);
-  }
-  if (tagSlugs.length) {
-    const { data: tagRows } = await supabase.from("tags").select("id").in("slug", tagSlugs);
-    const tagIds = (tagRows ?? []).map((r) => r.id);
-    if (tagIds.length) {
-      const { data: ptRows } = await supabase
-        .from("post_tags")
-        .select("post_id")
-        .in("tag_id", tagIds);
-      const ids = (ptRows ?? []).map((r) => r.post_id);
-      allowedIds = allowedIds ? allowedIds.filter((id) => ids.includes(id)) : ids;
-    } else {
-      allowedIds = [];
-    }
-  }
-  if (allowedIds && allowedIds.length === 0) return [];
-  let q = supabase
-    .from("posts")
-    .select(
-      "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, author_id",
-    )
-    .eq("status", "published");
-  if (allowedIds) q = q.in("id", allowedIds);
+  // Zawężenie kategorią i tagiem robi BAZA (osadzenia `!inner()` po
+  // identyfikatorach terminów) - wcześniej stał tu odczyt całej tabeli
+  // pośredniej bez `.limit()`, a identyfikatory wpisów szły do `.in("id", ...)`,
+  // więc kategoria z kilkuset wpisami przepełniała linię żądania i slider
+  // przestawał się renderować. Szczegóły: `lib/queries/taxonomyPivot.ts`.
+  //
+  // Polityka błędów slidera bez zmian: odmowa odczytu słownika daje pusty
+  // slider, a nie błąd sekcji (tak samo kończyło się to przed zmianą).
+  const constraints = await taxonomyConstraintsFromSlugs({
+    includeCategories: categorySlugs,
+    includeTags: tagSlugs,
+  }).catch((): null => null);
+  if (constraints === null) return [];
+  let q = postsConstrainedByTaxonomy(SLIDER_POST_COLUMNS, constraints).eq("status", "published");
   if (excludeIds.length) q = q.not("id", "in", `(${excludeIds.join(",")})`);
   const ascending = orderBy === "oldest";
   q = q.order(sliderPostsOrderColumn(orderBy, lang), { ascending });
@@ -156,7 +146,7 @@ export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
     // posortowany po EN (i odwrotnie) do końca okna świeżości.
     queryKey: [WIDGET_QUERY_ROOTS.sliderPosts, input] as const,
     queryFn: () =>
-      // Per-isolate TTL: hero-slider strony głównej to do ~4 round-tripów na
+      // Per-isolate TTL: hero-slider strony głównej to do 3 zapytań w 2 falach na
       // render. Klucz cache pochodzi z całego inputu (zawiera już `lang`).
       edgeTtlCache(`builder:slider-posts:${JSON.stringify(input)}`, 60_000, () =>
         fetchSliderPosts(input),

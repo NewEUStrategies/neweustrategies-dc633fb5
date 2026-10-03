@@ -17,6 +17,9 @@
 //   * FIRMA Z KARTOTEKI (`crm_companies`, slug `org-<uuid>`): pracodawca
 //     wpisany w profilu osoby i cel @wzmianki firmy - ma logo, branżę i stronę,
 //     ale nie ma powiązanych publikacji.
+//     Profil istnieje TYLKO dla firmy z publicznym śladem (organizacja
+//     opublikowanego wpisu albo opublikowany sponsor, 20261003150000); dla leada
+//     czy prospekta `get_mention_target` oddaje zero wierszy i trasa robi 404.
 // Rozstrzyga sam slug: prefiks `org-` znaczy kartotekę, wszystko inne - term.
 // Rozdzielanie tego na dwie trasy dałoby dwa adresy dla jednego pojęcia
 // „strona organizacji" i zmusiłoby wzmiankę do zgadywania, dokąd prowadzi.

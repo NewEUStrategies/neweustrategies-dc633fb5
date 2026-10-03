@@ -96,6 +96,7 @@ export function ClubWorkspaceLayout({
         <Card className="overflow-hidden">
           <ClubCover
             url={club.cover_image_url}
+            positionY={club.cover_position_y}
             variant="banner"
             className="rounded-none border-0"
           />

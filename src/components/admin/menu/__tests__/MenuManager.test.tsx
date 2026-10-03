@@ -24,6 +24,8 @@ const server = vi.hoisted(() => ({
   picker: [] as Record<string, unknown>[],
   tables: {} as Record<string, Record<string, unknown>[]>,
   single: {} as Record<string, Record<string, unknown> | null>,
+  /** Każde WYKONANE zapytanie listy: tabela i wyrażenie `.or()` (null = bez filtra). */
+  queries: [] as { table: string; or: string | null }[],
 }));
 
 vi.mock("@/lib/menus/queries", () => ({
@@ -66,13 +68,22 @@ vi.mock("@/components/admin/builder/ui/molecules/LucideIconPicker", () => ({
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (table: string) => {
+      // Wyrażenie `.or()` zapamiętujemy przy budowie łańcucha, a zapisujemy
+      // dopiero przy `limit` - czyli wtedy, gdy zapytanie naprawdę wychodzi.
+      let orExpr: string | null = null;
       const builder = {
         select: () => builder,
         eq: () => builder,
         is: () => builder,
-        or: () => builder,
+        or: (expr: string) => {
+          orExpr = expr;
+          return builder;
+        },
         order: () => builder,
-        limit: () => Promise.resolve({ data: server.tables[table] ?? server.picker, error: null }),
+        limit: () => {
+          server.queries.push({ table, or: orExpr });
+          return Promise.resolve({ data: server.tables[table] ?? server.picker, error: null });
+        },
         maybeSingle: () => Promise.resolve({ data: server.single[table] ?? null, error: null }),
       };
       return builder;
@@ -186,6 +197,33 @@ interface SavedItem {
   [key: string]: unknown;
 }
 
+/** Wyrażenia `.or()` wykonanych zapytań do tabeli, w kolejności wysłania. */
+function orFilters(table: string): (string | null)[] {
+  return server.queries.filter((q) => q.table === table).map((q) => q.or);
+}
+
+/**
+ * Fraza z KAŻDYM znakiem, który w `.or()` PostgREST coś znaczy: przecinek
+ * (separator warunków), nawiasy (grupy), cudzysłów (literał), `%` i `_`
+ * (wildcardy ILIKE). Po `escapeLike` zostaje z niej samo „abcx".
+ */
+const HOSTILE_TERM = 'a,b(c)%_"x';
+
+/** Najgłębszy poziom zapisanego drzewa (0 = same pozycje główne). */
+function savedMaxDepth(items: SavedItem[]): number {
+  const byId = new Map(items.map((i) => [i.local_id, i]));
+  const depth = (it: SavedItem): number => {
+    let d = 0;
+    let parent = it.parent_local_id ? byId.get(it.parent_local_id) : undefined;
+    while (parent) {
+      d++;
+      parent = parent.parent_local_id ? byId.get(parent.parent_local_id) : undefined;
+    }
+    return d;
+  };
+  return Math.max(0, ...items.map(depth));
+}
+
 function lastPayload(): { menu_key: string; items: SavedItem[] } {
   const call = server.save.mock.calls.at(-1)?.[0] as {
     data: { menu_key: string; items: SavedItem[] };
@@ -203,6 +241,7 @@ beforeEach(() => {
   server.picker = [];
   server.tables = {};
   server.single = {};
+  server.queries = [];
 });
 
 afterEach(async () => {
@@ -371,6 +410,46 @@ describe("hierarchia z klawiatury (wcięcia)", () => {
     expect(within(row("Blog")).getByText("O nas")).toBeTruthy();
     // Rozwinięcie jest częścią operacji - inaczej pozycja „znika" pod zwiniętym rodzicem.
     expect(screen.getByDisplayValue("Blog")).toBeTruthy();
+  });
+
+  it("wcięcie jest ZABLOKOWANE, gdy wnuk pozycji wyszedłby poza limit poziomów", async () => {
+    // „O nas" ma dziecko i wnuka. Pod „Blogiem" wnuk stanąłby na czwartym
+    // poziomie. Do 03.10.2026 przycisk liczył limit z samej głębokości wiersza
+    // (0 + 1 < 3), więc był aktywny, a klik budował menu o poziom za głębokie.
+    setMenu([
+      item({ id: "a", label_pl: "Blog" }),
+      item({ id: "b", label_pl: "O nas", position: 1 }),
+      item({ id: "b1", parent_id: "b", label_pl: "Zespół" }),
+      item({ id: "b2", parent_id: "b1", label_pl: "Zarząd" }),
+    ]);
+    render(renderManager());
+    await screen.findByText("Blog");
+
+    const indent = within(row("O nas")).getAllByRole("button", {
+      name: t("admin.menu.indent"),
+    })[0];
+    expect(indent).toBeDisabled();
+    fireEvent.click(indent);
+    await clickSave();
+    expect(savedMaxDepth(lastPayload().items)).toBeLessThan(3);
+    expect(lastPayload().items.find((i) => i.label_pl === "O nas")?.parent_local_id).toBeNull();
+  });
+
+  it("wcięcie pozycji z samym dzieckiem dalej działa - całe poddrzewo się mieści", async () => {
+    setMenu([
+      item({ id: "a", label_pl: "Blog" }),
+      item({ id: "b", label_pl: "O nas", position: 1 }),
+      item({ id: "b1", parent_id: "b", label_pl: "Zespół" }),
+    ]);
+    render(renderManager());
+    await screen.findByText("Blog");
+
+    const indent = within(row("O nas")).getAllByRole("button", {
+      name: t("admin.menu.indent"),
+    })[0];
+    expect(indent).toBeEnabled();
+    fireEvent.click(indent);
+    expect(within(row("Blog")).getByText("Zespół")).toBeTruthy();
   });
 
   it("cofnięcie w lewo wyprowadza pozycję na poziom rodzica", async () => {
@@ -638,6 +717,47 @@ describe("podgląd mega panelu w adminie", () => {
     expect(screen.getByText(t("admin.menu.previewEmpty"))).toBeTruthy();
   });
 
+  it("liczba kolumn w rzędzie z konfiguracji układa siatkę podglądu", async () => {
+    // Podgląd ma pokazywać 1:1 to, co zobaczy czytelnik - a `SiteMenu` od
+    // 03.10.2026 czyta `columns_per_row`. Wcześniej oba miejsca ignorowały
+    // ustawienie: siatka zawsze miała tyle kolumn, ile treści (do czterech).
+    await openMegaEditor([
+      item({
+        id: "a",
+        label_pl: "Wiedza",
+        mega_enabled: true,
+        mega_config: { ...DEFAULT_MEGA_CONFIG, columns_per_row: 2 },
+      }),
+      ...["Analizy", "Raporty", "Wywiady"].map((label, i) =>
+        item({ id: `k${i}`, parent_id: "a", label_pl: label, position: i }),
+      ),
+    ]);
+    const preview = screen.getByLabelText(t("admin.menu.previewAria"));
+    const grid = preview.querySelector<HTMLElement>(".grid.gap-x-4");
+    expect(grid?.style.gridTemplateColumns).toBe("repeat(2, minmax(0, 1fr))");
+  });
+
+  it("zmiana kolumn w rzędzie i szerokości w edytorze od razu zmienia podgląd", async () => {
+    await openMegaEditor([
+      item({ id: "a", label_pl: "Wiedza", mega_enabled: true }),
+      ...["Analizy", "Raporty", "Wywiady"].map((label, i) =>
+        item({ id: `k${i}`, parent_id: "a", label_pl: label, position: i }),
+      ),
+    ]);
+    const preview = () => screen.getByLabelText(t("admin.menu.previewAria"));
+    const grid = () => preview().querySelector<HTMLElement>(".grid.gap-x-4");
+    expect(grid()?.style.gridTemplateColumns).toBe("repeat(3, minmax(0, 1fr))");
+
+    // [0] cel odnośnika, [1] widoczność, [2] kolumny w rzędzie, [3] szerokość.
+    fireEvent.keyDown(screen.getAllByRole("combobox")[2], { key: "Enter" });
+    fireEvent.click(screen.getByRole("option", { name: "1" }));
+    expect(grid()?.style.gridTemplateColumns).toBe("repeat(1, minmax(0, 1fr))");
+
+    fireEvent.keyDown(screen.getAllByRole("combobox")[3], { key: "Enter" });
+    fireEvent.click(screen.getByRole("option", { name: "Pełna szerokość" }));
+    expect(within(preview()).getByRole("menu")).toHaveAttribute("data-mega-width", "full");
+  });
+
   it("ręczne kolumny wygrywają z układem z drzewa - i tak jest w podglądzie", async () => {
     await openMegaEditor();
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("admin.menu.addColumn")) }));
@@ -746,6 +866,40 @@ describe("wyróżniony wpis mega panelu", () => {
     expect((await screen.findAllByText("Brak wyników")).length).toBeGreaterThan(0);
   });
 
+  it("fraza ze znakami składni PostgREST nie dopisuje warunków ani wildcardów", async () => {
+    // Do 03.10.2026 fraza szła do `.or()` surowa: przecinek dzielił ją na
+    // osobne warunki, nawias i cudzysłów rozsypywały parser filtra, a `%`
+    // i `_` działały jak wildcardy. Wyszukiwarki panelu robią to przez
+    // `escapeLike` - ta też musi.
+    server.tables.posts = [];
+    await openPicker();
+    fireEvent.click(screen.getByRole("button", { name: "Wybierz wpis" }));
+    fireEvent.change(screen.getByPlaceholderText("Szukaj wpisu..."), {
+      target: { value: HOSTILE_TERM },
+    });
+
+    await vi.waitFor(() => expect(orFilters("posts").filter(Boolean)).toHaveLength(1));
+    expect(orFilters("posts").filter(Boolean)[0]).toBe(
+      "title_pl.ilike.%abcx%,title_en.ilike.%abcx%,slug.ilike.%abcx%",
+    );
+  });
+
+  it("fraza z SAMYCH znaków specjalnych nie zakłada filtra wcale", async () => {
+    // „%%" ma dwa znaki, więc stary próg długości przepuszczał ją do
+    // `ilike.%%%%` - czyli filtra, który pasuje do wszystkiego.
+    server.tables.posts = [];
+    await openPicker();
+    fireEvent.click(screen.getByRole("button", { name: "Wybierz wpis" }));
+    await screen.findAllByText("Brak wyników");
+    const before = orFilters("posts").length;
+
+    fireEvent.change(screen.getByPlaceholderText("Szukaj wpisu..."), {
+      target: { value: "%%" },
+    });
+    await vi.waitFor(() => expect(orFilters("posts").length).toBeGreaterThan(before));
+    expect(orFilters("posts").filter(Boolean)).toEqual([]);
+  });
+
   it("wybrany wpis ląduje w konfiguracji i pokazuje się jako wybrany", async () => {
     server.tables.posts = [
       { id: "post-1", slug: "raport", title_pl: "Raport", title_en: "Report" },
@@ -842,6 +996,19 @@ describe("powiązanie kolumny z treścią wewnętrzną", () => {
     await openColumnPicker();
     expect(await within(pickerPanel()).findByText("Brak wyników")).toBeTruthy();
   });
+
+  it("fraza w pickerze treści przechodzi przez tę samą osłonę `.or()`", async () => {
+    server.tables.pages = [];
+    await openColumnPicker();
+    fireEvent.change(within(pickerPanel()).getByPlaceholderText("Szukaj..."), {
+      target: { value: HOSTILE_TERM },
+    });
+
+    await vi.waitFor(() => expect(orFilters("pages").filter(Boolean)).toHaveLength(1));
+    expect(orFilters("pages").filter(Boolean)[0]).toBe(
+      "title_pl.ilike.%abcx%,title_en.ilike.%abcx%,slug.ilike.%abcx%",
+    );
+  });
 });
 
 describe("przeciąganie pozycji", () => {
@@ -874,6 +1041,58 @@ describe("przeciąganie pozycji", () => {
     fireEvent.drop(target, { dataTransfer: dt });
 
     expect(within(row("Wiedza")).getByText("Analizy")).toBeTruthy();
+  });
+
+  it("gałąź z dzieckiem upuszczona na środek wiersza z poziomu 1 ląduje OBOK, nie pod nim", async () => {
+    // Pod „Analizami" (poziom 1) „Kontakt" stanąłby na poziomie 2, a jego
+    // dziecko na poziomie 3 - czwartym poziomie menu. Do 03.10.2026 środek
+    // wiersza proponował „dziecko" i reduktor ten ruch przyjmował.
+    setMenu([
+      item({ id: "a", label_pl: "Wiedza" }),
+      item({ id: "a1", parent_id: "a", label_pl: "Analizy" }),
+      item({ id: "b", label_pl: "Kontakt", position: 1 }),
+      item({ id: "b1", parent_id: "b", label_pl: "Biuro" }),
+    ]);
+    render(renderManager());
+    await screen.findByText("Wiedza");
+
+    const dt = dataTransfer();
+    const dragged = row("Kontakt").querySelector("[draggable]") as HTMLElement;
+    const target = row("Analizy").querySelector("[draggable]") as HTMLElement;
+    fireEvent.dragStart(dragged, { dataTransfer: dt });
+    fireEvent.dragOver(target, { dataTransfer: dt });
+    // Kursor w środku wiersza, ale strefą jest „za" - bez zaproszenia do zagnieżdżenia.
+    expect(target.className).not.toContain("ring-2");
+    expect(target.className).toContain("border-b-2");
+    fireEvent.drop(target, { dataTransfer: dt });
+
+    await clickSave();
+    const saved = lastPayload().items;
+    expect(savedMaxDepth(saved)).toBe(2);
+    const wiedza = saved.find((i) => i.label_pl === "Wiedza")!;
+    const kontakt = saved.find((i) => i.label_pl === "Kontakt")!;
+    expect(kontakt.parent_local_id).toBe(wiedza.local_id);
+    expect(saved.find((i) => i.label_pl === "Biuro")?.parent_local_id).toBe(kontakt.local_id);
+  });
+
+  it("LIŚĆ upuszczony na środek tego samego wiersza dalej się zagnieżdża", async () => {
+    setMenu([
+      item({ id: "a", label_pl: "Wiedza" }),
+      item({ id: "a1", parent_id: "a", label_pl: "Analizy" }),
+      item({ id: "b", label_pl: "Kontakt", position: 1 }),
+    ]);
+    render(renderManager());
+    await screen.findByText("Wiedza");
+
+    const dt = dataTransfer();
+    const dragged = row("Kontakt").querySelector("[draggable]") as HTMLElement;
+    const target = row("Analizy").querySelector("[draggable]") as HTMLElement;
+    fireEvent.dragStart(dragged, { dataTransfer: dt });
+    fireEvent.dragOver(target, { dataTransfer: dt });
+    expect(target.className).toContain("ring-2");
+    fireEvent.drop(target, { dataTransfer: dt });
+
+    expect(within(row("Analizy")).getByText("Kontakt")).toBeTruthy();
   });
 
   it("upuszczenie na TŁO listy wyprowadza pozycję na najwyższy poziom", async () => {
@@ -1166,6 +1385,21 @@ describe("panel dodawania - wszystkie źródła treści", () => {
       target: { value: "on" },
     });
     expect(await screen.findByText("O nas")).toBeTruthy();
+  });
+
+  it("fraza w panelu dodawania nie dopisuje warunków do `.or()`", async () => {
+    server.tables.pages = [];
+    setMenu([]);
+    render(renderManager());
+    await screen.findByText(t("admin.menu.emptyMenu"));
+
+    fireEvent.change(screen.getByPlaceholderText(t("admin.menu.searchPlaceholder")), {
+      target: { value: HOSTILE_TERM },
+    });
+    await vi.waitFor(() => expect(orFilters("pages").filter(Boolean)).toHaveLength(1));
+    expect(orFilters("pages").filter(Boolean)[0]).toBe(
+      "title_pl.ilike.%abcx%,title_en.ilike.%abcx%,slug.ilike.%abcx%",
+    );
   });
 
   it("treść bez tytułu identyfikuje się adresem", async () => {
