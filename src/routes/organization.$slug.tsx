@@ -16,7 +16,6 @@ import {
   notFound,
   useNavigate,
   useRouter,
-  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useTransition } from "react";
