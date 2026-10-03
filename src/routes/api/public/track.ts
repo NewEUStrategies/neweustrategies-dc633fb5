@@ -1,7 +1,16 @@
 // Ingest zdarzeń analitycznych. Klient (src/lib/analytics/track.ts)
-// wysyła batch `sendBeacon`em; ten route waliduje, ogranicza rate limit
-// i zapisuje do public.analytics_events przez klienta service_role.
+// wysyła batch `sendBeacon`em (anonim) albo keepalive `fetch`em z nagłówkiem
+// `Authorization: Bearer` (zalogowany); ten route waliduje, ogranicza rate
+// limit i zapisuje do public.analytics_events przez klienta service_role.
 // Odpowiedź zawsze 204 - beacony nie mogą blokować/psuć nawigacji.
+//
+// ZALOGOWANY TO JEDEN BIT, NIE KONTO. Każdy wiersz dostaje `signed_in`
+// wyliczone TU, z ZWERYFIKOWANEGO bearera (`signedInFromRequest`, raz na
+// partię), a kolumny `user_id` ingest nie zapisuje wcale - i nie zapisywał
+// nigdy (migracja 20261003180000). Treść żądania nie ma na flagę wpływu:
+// `IncomingEvent` nie zna ani `signed_in`, ani `user_id`, więc pole dopisane
+// przez klienta ginie przy mapowaniu. Awaria weryfikacji daje `false`
+// i dalej 204 - zdarzenie liczy się jako anonimowe, ale się liczy.
 //
 // PRZYCZYNA ŹRÓDŁOWA. Redakcja stała dotąd WYŁĄCZNIE na `path` i `referrer` -
 // na polach, które adres NIOSĄ, a nie na tych, w które użytkownik WPISUJE.
@@ -32,6 +41,7 @@ import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { redactPii, redactUrl, redactMeta } from "@/lib/observability/redact";
 import { countryFromHeaders } from "@/lib/analytics/geoHeaders";
+import { signedInFromRequest } from "@/lib/analytics/signedIn.server";
 
 const MAX_BODY = 32_000;
 const MAX_EVENTS = 40;
@@ -124,6 +134,9 @@ export const Route = createFileRoute("/api/public/track")({
           // samego żądania, więc liczenie go per wiersz byłoby tą samą
           // odpowiedzią policzoną czterdzieści razy.
           const country = countryFromHeaders(req.headers);
+          // Flaga też raz na partię, z tego samego powodu - jeden nagłówek
+          // `Authorization` na żądanie. `signedInFromRequest` nie rzuca.
+          const signedIn = await signedInFromRequest();
           const rows: Record<string, unknown>[] = [];
           for (const e of events) {
             const name = truncate(e.name, 120);
@@ -145,6 +158,7 @@ export const Route = createFileRoute("/api/public/track")({
               lang: truncate(e.lang, 8),
               meta: redactMeta(safeMeta(e.meta)),
               ua,
+              signed_in: signedIn,
               ...(country ? { country } : {}),
               ...(tenantId ? { tenant_id: tenantId } : {}),
             });

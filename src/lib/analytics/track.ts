@@ -5,6 +5,25 @@
 // eventów w trakcie nawigacji). Respektuje zgodę analytics (RODO):
 // gdy nie ma zgody, `track()` no-op-uje.
 //
+// DWA TRANSPORTY, JEDEN ŁADUNEK. Anonim wysyła partię `sendBeacon`em, jak
+// dotąd. Zalogowany - keepalive `fetch`em z nagłówkiem `Authorization: Bearer`,
+// bo `sendBeacon` nagłówków nie umie, a serwer ustala flagę `signed_in` WYŁĄCZNIE
+// z bearera, który sam zweryfikował (src/lib/analytics/signedIn.server.ts).
+// Ładunek jest w obu przypadkach identyczny: ani identyfikatora konta, ani
+// flagi `signed_in` w nim nie ma - pole z ciała serwer i tak by zignorował,
+// a identyfikator konta w tabeli zdarzeń to dziennik lektury konkretnej osoby.
+// `keepalive` daje tę samą gwarancję dostarczenia przy pagehide co beacon
+// i ten sam limit 64 KiB na żądania w locie - a serwer i tak odrzuca ciało
+// ponad 32 000 znaków. Żądanie jest same-origin, więc nagłówek
+// `Authorization` nie wywołuje preflightu CORS, a CSP (`connect-src 'self'`)
+// je przepuszcza.
+//
+// ZNANE GRANICE FLAGI. Flaga dotyczy CAŁEJ partii w chwili wysyłki, więc
+// zdarzenia zebrane tuż przed zalogowaniem i wysłane po nim liczą się jako
+// zalogowane. Supabase wstrzymuje odświeżanie tokenu w ukrytej karcie, więc
+// partia z pagehide po długiej nieobecności może nieść przeterminowany bearer
+// - serwer liczy ją wtedy jako anonimową.
+//
 // Ten sam helper obsługuje kliknięcia CTA (rejestracja, checkout,
 // kontakt, przełącznik miesięcznie/rocznie), odsłony stron/artykułów
 // /autorów/ekspertów, wyszukiwania w wyszukiwarce wewnętrznej oraz
@@ -15,6 +34,7 @@
 import { sendBeaconPayload } from "@/lib/observability/report";
 import { redactPii } from "@/lib/observability/redact";
 import { hasAnalyticsConsent } from "@/lib/ads/consent";
+import { supabase } from "@/integrations/supabase/client";
 import { ga4Event, ga4PageView } from "./ga4Client";
 import { redactTrackedHref, redactTrackedPath } from "./redactTrackedUrl";
 import { ga4EventName, ga4EventParams } from "./ga4EventMap";
@@ -57,6 +77,11 @@ interface QueuedEvent {
 const queue: QueuedEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let listenersAttached = false;
+// Kopia bieżącego tokenu dostępu, utrzymywana przez `onAuthStateChange`.
+// `flush` MUSI zostać synchroniczny: przy pagehide `await getSession()` może
+// nie zdążyć, zanim strona zniknie, a testy czytają beacony zaraz po
+// `flush(true)`. Dlatego token jest odczytywany z pamięci, nie pobierany.
+let accessToken: string | null = null;
 
 function randomId(): string {
   try {
@@ -132,18 +157,61 @@ function attachListeners(): void {
   if (listenersAttached || typeof window === "undefined") return;
   listenersAttached = true;
   // pagehide/visibilitychange dostarczają eventy zanim strona zniknie -
-  // sendBeacon jest gwarantowany przez przeglądarki nawet w trakcie
-  // nawigacji.
+  // sendBeacon (i keepalive fetch zalogowanego) jest dostarczany przez
+  // przeglądarki nawet w trakcie nawigacji.
   window.addEventListener("pagehide", () => flush(true), { capture: true });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flush(true);
   });
+  subscribeAccessToken();
+}
+
+/**
+ * Jedna subskrypcja na moduł, zakładana dopiero po zgodzie i pierwszym
+ * zdarzeniu (z `attachListeners`) - bez zgody nic nie wychodzi, więc i token
+ * nie jest potrzebny. Callback WYŁĄCZNIE przypisuje: `@supabase/auth-js` woła
+ * go pod blokadą auth, więc każde `await` na kliencie stąd groziłoby
+ * zakleszczeniem. `try`, bo pośrednik `supabase` rzuca przy braku konfiguracji
+ * (src/integrations/supabase/client.ts) - analityka zostaje wtedy anonimowa,
+ * a `track()` działa dalej.
+ */
+function subscribeAccessToken(): void {
+  try {
+    supabase.auth.onAuthStateChange((_event, session) => {
+      accessToken = session?.access_token ?? null;
+    });
+  } catch {
+    // Brak klienta auth = brak flagi zalogowania, nie brak analityki.
+  }
+}
+
+/**
+ * Partia zalogowanego: keepalive `fetch` z bearerem. Zwraca `false`, gdy
+ * `fetch` nie istnieje albo rzucił synchronicznie - wtedy partia idzie
+ * beaconem jako anonimowa (zdarzenie ważniejsze niż flaga). Odrzucona obietnica
+ * jest połykana jak nieudany beacon: odpowiedź i tak nic nie znaczy.
+ */
+function sendWithBearer(token: string, payload: { events: QueuedEvent[] }): boolean {
+  if (typeof fetch !== "function") return false;
+  try {
+    void fetch(ENDPOINT, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      keepalive: true,
+    }).catch(() => undefined);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function flush(_force = false): void {
   if (queue.length === 0) return;
   const batch = queue.splice(0, queue.length);
-  sendBeaconPayload(ENDPOINT, { events: batch });
+  const payload = { events: batch };
+  if (accessToken && sendWithBearer(accessToken, payload)) return;
+  sendBeaconPayload(ENDPOINT, payload);
 }
 
 /**
