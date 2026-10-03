@@ -1,5 +1,5 @@
 -- pgTAP: indeks okna odsłon najemcy `post_views (tenant_id, viewed_at DESC)`
--- (migracja 20261003120100_post_views_tenant_viewed_idx.sql).
+-- (migracja 20261003171100_post_views_tenant_viewed_idx.sql).
 --
 -- Atrapa PostgREST w Vitest nie zna indeksów, więc kształt pilnowany jest tu:
 --   1. Nowy indeks istnieje, jest PEŁNY (bez WHERE) i malejący po czasie -

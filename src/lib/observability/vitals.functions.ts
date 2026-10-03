@@ -121,7 +121,7 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       // zamkniętego w przeszłości dokładałaby dni spoza zakresu - a pulpit
       // VitalsBiDashboard wysyła `untilIso` ZAWSZE, także dla presetów
       // (`buildPresetRange`), więc główny pulpit wydajności nigdy nie dostał
-      // dokładnego trendu. Od migracji 20261003120000 `p_until` jest domknięte
+      // dokładnego trendu. Od migracji 20261003171000 `p_until` jest domknięte
       // jak `.lte` wyżej, więc trend, COUNT i próbka opisują JEDNO okno.
       // `until` to TERAZ, gdy wołający nie podał górnej granicy. Błąd albo
       // rzut RPC (baza sprzed migracji: PGRST202 dla trzech argumentów)
