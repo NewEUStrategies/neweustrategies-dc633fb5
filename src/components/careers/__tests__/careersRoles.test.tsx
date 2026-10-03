@@ -865,6 +865,25 @@ describe("CareerRoleCard: treść oferty i jej oznaczenia", () => {
     expect(delays[9]).toBe("385ms");
     expect(cards()[0].parentElement).toHaveClass("crs-pop");
   });
+
+  it("nie przycina przycisków ani ich animacji w filtrach i kartach", () => {
+    const { container } = renderRoles({ offers: ROWS });
+    const filterGroup = screen.getByRole("group", { name: pl("careers.departments.all") });
+    const firstCard = cards()[0];
+    const cardAnimationLayer = firstCard.parentElement;
+    const actions = within(firstCard).getAllByRole("button");
+
+    expect(filterGroup).toHaveClass("p-1");
+    expect(filterGroup).not.toHaveClass("pb-1");
+    expect(cardAnimationLayer).toHaveClass("overflow-visible");
+    expect(firstCard).toHaveClass("overflow-visible");
+    expect(actions).toHaveLength(2);
+    for (const action of actions) {
+      expect(action).toHaveClass("min-w-0", "overflow-visible", "px-3");
+      expect(action.parentElement).toHaveClass("min-w-0", "overflow-visible");
+    }
+    expect(container.querySelector(".crs-pop")?.parentElement).toHaveClass("overflow-visible");
+  });
 });
 
 describe("CareersRoles: dwujęzyczność listy", () => {
