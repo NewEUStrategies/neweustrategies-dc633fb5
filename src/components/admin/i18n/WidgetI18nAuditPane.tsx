@@ -18,7 +18,7 @@
 import { useMemo, useState } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Languages, Loader2, RefreshCw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +56,22 @@ export interface AuditedEntity {
 const DEFAULTS_BY_TYPE = new Map<string, Record<string, unknown>>(
   WIDGETS.map((w) => [w.type as WidgetType as string, w.defaults() as Record<string, unknown>]),
 );
+
+/**
+ * Pogrubia fragmenty `<b>…</b>` przetłumaczonego zdania.
+ *
+ * Celowo NIE `<Trans>` z react-i18next: to jego jedyne użycie w repozytorium,
+ * a `Trans` ciągnie parser HTML (`html-parse-stringify`, `void-elements`) do
+ * współdzielonego chunku `vendor-i18n`, który leży w domknięciu startowym
+ * każdej strony - +4,1 KB gzip pierwszego wczytania (pomiar `check:bundle`
+ * 2026-10-03) za jedno zdanie panelu admina. Wartości interpolowane to liczby
+ * i słowa ze słownika, więc wystarczy podział po znaczniku.
+ */
+function renderBold(text: string): React.ReactNode[] {
+  return text
+    .split(/<b>(.*?)<\/b>/)
+    .map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : part));
+}
 
 /** Jawna mapa klasa -> klucz (klucz sklejany byłby niewidoczny dla bramek i18n). */
 const KIND_LABEL_KEY: Record<WidgetI18nIssueKind, string> = {
@@ -265,17 +281,14 @@ export function WidgetI18nAuditPane() {
         </Button>
         {result ? (
           <span className="text-[0.8125rem] text-muted-foreground">
-            <Trans
-              t={t}
-              i18nKey="adminWidgetI18nAudit.summary"
-              values={{
+            {renderBold(
+              t("adminWidgetI18nAudit.summary", {
                 issues: total.total,
                 issuesWord: t("adminWidgetI18nAudit.summaryIssues", { count: total.total }),
                 entries: entities.length,
                 entriesWord: t("adminWidgetI18nAudit.summaryEntries", { count: entities.length }),
-              }}
-              components={{ b: <strong /> }}
-            />
+              }),
+            )}
           </span>
         ) : null}
       </div>
