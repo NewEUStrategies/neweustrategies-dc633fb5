@@ -6493,11 +6493,16 @@ textarea::placeholder {
   }
 }
 
-/* Treść wpisywana w każdym oknie rozmowy ma stałe 11,5 px. Selektor celowy
-   neutralizuje także mobilną regułę 16 px powyżej, która chroni pozostałe pola
-   formularzy przed automatycznym powiększeniem widoku przez iOS Safari. */
+/* Treść wpisywana w oknie rozmowy zachowuje kompaktowe 11,5 px na desktopie.
+   Na mobile iOS wymaga 16 px, inaczej Safari powiększa cały widok po focusie. */
 textarea[data-chat-composer-input][data-chat-composer-input] {
   font-size: var(--fs-chat-composer) !important;
+}
+
+@media (max-width: 767px) {
+  textarea[data-chat-composer-input][data-chat-composer-input] {
+    font-size: 16px !important;
+  }
 }
 
 /* -------------------------------------------------------------------------
@@ -9306,8 +9311,13 @@ input[type="reset"],
 
 /* Wyszukiwarka w nagłówku: kolumny i sekcje buildera mają `overflow-hidden`,
    które przed hydratacją przycinało pływającą etykietę i obwódkę fokusu.
-   Kontenery zawierające pole wyszukiwania nie mogą go przycinać. */
-header :has(.builder-search-widget),
-[data-builder-renderer] .overflow-hidden:has(> * .builder-search-widget) {
+   Kontenery zawierające pole wyszukiwania nie mogą go przycinać. Znacznik
+   `data-search-overflow` wypisuje renderer już w HTML-u SSR
+   (`src/lib/builder/searchOverflow.ts`), a po hydratacji dokłada go przodkom
+   efekt w `SearchButtonWidget`. Reguła stoi tu, a nie tylko w arkuszu widgetu,
+   bo widget jest ładowany leniwie, a ten arkusz obowiązuje od pierwszej klatki.
+   Bez `:has()` - jego sama obecność mnoży koszt przeliczeń stylu (bramka
+   `noHasSelectors`). Wiersz paska czytania zachowuje poziomy clip. */
+[data-search-overflow]:not([data-reading-row]) {
   overflow: visible !important;
 }

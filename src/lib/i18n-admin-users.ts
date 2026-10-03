@@ -13,18 +13,18 @@
 import i18n from "./i18n";
 
 const pl = {
-  // `admin.users.roles.*` nie istniało w ŻADNYM słowniku - jedynym źródłem tych
-  // etykiet był `defaultValue` sklejany z identyfikatora roli
-  // (`r.charAt(0).toUpperCase() + r.slice(1)`), czyli angielski enum z wielkiej
-  // litery pokazywany także po polsku. Teraz to zwykłe, tłumaczalne klucze.
+  // Etykiety ról (`ROLE_LABEL_KEYS` w `authz/roleLabels.ts`) były kiedyś
+  // `defaultValue` sklejanym z identyfikatora roli, czyli angielskim enumem
+  // z wielkiej litery także po polsku. Dziś `admin.users.roles.{admin,editor,
+  // author,user}` należy do RDZENIA (`locale/*.ts`); tutaj jest wyłącznie rola,
+  // której rdzeń nie zna. Pełna kopia gałęzi z overwrite=true rozjechała się
+  // z rdzeniem („Admin" kontra „Administrator" w EN), więc napis roli zależał od
+  // tego, czy ta nakładka zdążyła się zarejestrować - pilnuje tego
+  // `i18nOverlayIntegrity.gate.test.ts`.
   admin: {
     users: {
       roles: {
         super_admin: "Super admin",
-        admin: "Administrator",
-        editor: "Redaktor",
-        author: "Autor",
-        user: "Użytkownik",
       },
     },
   },
@@ -186,10 +186,6 @@ const en = {
     users: {
       roles: {
         super_admin: "Super admin",
-        admin: "Admin",
-        editor: "Editor",
-        author: "Author",
-        user: "User",
       },
     },
   },

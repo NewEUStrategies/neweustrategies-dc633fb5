@@ -40,8 +40,10 @@ export function NewAudienceDialog({
   const keyOk = audienceKeyValid(key, existingKeys);
   const canSubmit = keyOk && namePl.trim().length > 0 && nameEn.trim().length > 0;
 
+  // Jedyną drogą wywołania jest przycisk wyłączony przy `!canSubmit` (okno nie
+  // ma `<form>`, więc Enter niczego nie wysyła), a czyszczenie pól po pierwszym
+  // kliknięciu wyłącza go przed kolejnym.
   const submit = () => {
-    if (!canSubmit) return;
     onCreate({ key, name_pl: namePl, name_en: nameEn });
     setOpen(false);
     setKey("");

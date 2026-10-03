@@ -77,7 +77,7 @@ export async function closeBillingForUser(
     if (email) {
       try {
         const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
-        const plan = row.price_id ? await resolvePlanForPrice(row.price_id) : null;
+        const plan = row.price_id ? await resolvePlanForPrice(row.price_id, { userId }) : null;
         const { notifySubscriptionEmail } = await import("@/lib/billing/notifications.server");
         await notifySubscriptionEmail({
           kind: "subscription_canceled",

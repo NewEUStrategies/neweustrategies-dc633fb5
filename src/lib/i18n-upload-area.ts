@@ -4,9 +4,17 @@
 // wydarzenia, kariera, wygląd, wykresy) i przed ujednoliceniem każda miała
 // własne mikro-teksty: raz „Wgraj", raz „Kliknij aby wybrac plik", raz sam
 // przycisk bez zdania o dozwolonych formatach. Tu stoi WSPÓLNY rdzeń tej
-// kopii - czasowniki, stan wysyłki i zdania o formatach, które powtarzają się
-// między powierzchniami. Kopia charakterystyczna dla jednej powierzchni
-// zostaje w jej własnym słowniku.
+// kopii - zdania o formatach i błędach, etykiety urządzeń podglądu i opisy
+// obszarów per rodzaj pliku, które powtarzają się między powierzchniami. Kopia
+// charakterystyczna dla jednej powierzchni zostaje w jej własnym słowniku.
+//
+// KLUCZ WCHODZI TU RAZEM Z POWIERZCHNIĄ, KTÓRA GO CZYTA. Zasiane „na zapas”
+// ogólne CTA, podmiana i usunięcie pliku, stany wysyłki i przetwarzania,
+// zdanie o przeciąganiu i limit rozmiaru (także w wariantach dla wielu
+// plików) oraz opisy obszarów audio, danych i dokumentu nie miały ani jednego
+// czytelnika - powierzchnie podają własne etykiety przycisków. Tłumacz
+// utrzymywał je w dwóch językach, a poprawka wniesiona w nie nie zmieniała
+// żadnego ekranu. Pilnuje tego src/lib/__tests__/overlayReaders.test.ts.
 //
 // Nakładka rejestruje się side-effectem importu; plik, który używa kluczy
 // `uploadArea.*`, MUSI zaimportować `@/lib/i18n-upload-area` (bramka
@@ -15,15 +23,6 @@ import i18n from "./i18n";
 
 const pl = {
   uploadArea: {
-    cta: "Wybierz plik",
-    ctaMultiple: "Wybierz pliki",
-    change: "Zmień plik",
-    uploading: "Wgrywanie…",
-    processing: "Przetwarzanie…",
-    remove: "Usuń",
-    dropOrPick: "Przeciągnij plik tutaj albo wybierz go z dysku.",
-    dropOrPickMultiple: "Przeciągnij pliki tutaj albo wybierz je z dysku.",
-    maxSize: "Maksymalny rozmiar: {{size}}.",
     badType: "Ten plik ma niedozwolony typ ({{name}}). Wgraj plik z listy dozwolonych formatów.",
     tooLarge: "Plik {{name}} jest za duży - maksymalnie {{max}} MB.",
     uploadError: "Nie udało się wgrać pliku.",
@@ -58,32 +57,11 @@ const pl = {
       title: "Wgraj grafikę",
       description: "Przeciągnij obraz tutaj albo wybierz go z dysku.",
     },
-    audio: {
-      title: "Wgraj nagranie",
-      description: "Przeciągnij plik audio tutaj albo wybierz go z dysku.",
-    },
-    data: {
-      title: "Wgraj dane",
-      description: "Przeciągnij plik CSV lub XLSX tutaj albo wybierz go z dysku.",
-    },
-    document: {
-      title: "Wgraj dokument",
-      description: "Przeciągnij plik tutaj albo wybierz go z dysku.",
-    },
   },
 };
 
 const en = {
   uploadArea: {
-    cta: "Choose file",
-    ctaMultiple: "Choose files",
-    change: "Replace file",
-    uploading: "Uploading…",
-    processing: "Processing…",
-    remove: "Remove",
-    dropOrPick: "Drag a file here, or pick one from your disk.",
-    dropOrPickMultiple: "Drag files here, or pick them from your disk.",
-    maxSize: "Maximum size: {{size}}.",
     badType: "This file has a disallowed type ({{name}}). Upload one of the allowed formats.",
     tooLarge: "The file {{name}} is too large - {{max}} MB at most.",
     uploadError: "The file could not be uploaded.",
@@ -117,18 +95,6 @@ const en = {
     image: {
       title: "Upload an image",
       description: "Drag an image here, or pick one from your disk.",
-    },
-    audio: {
-      title: "Upload a recording",
-      description: "Drag an audio file here, or pick one from your disk.",
-    },
-    data: {
-      title: "Upload data",
-      description: "Drag a CSV or XLSX file here, or pick one from your disk.",
-    },
-    document: {
-      title: "Upload a document",
-      description: "Drag a file here, or pick one from your disk.",
     },
   },
 };

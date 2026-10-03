@@ -72,7 +72,6 @@ vi.mock("@tanstack/react-start", async (importOriginal) => {
 });
 vi.mock("@/lib/billing/stripeCheckout.functions", () => ({
   createPlanCheckoutSession: (args: unknown) => h.planCheckout(args),
-  createAdhocCheckoutSession: vi.fn(),
 }));
 // Kurs NBP: moduł sam strzela do api.nbp.pl przy imporcie w przeglądarce, a test
 // ma być deterministyczny i BEZ sieci - stały kurs 4,00 daje jawne przeliczenie
@@ -347,6 +346,18 @@ describe("trasa /checkout/$planId - podsumowanie zamówienia", () => {
     expect(screen.getByText(/NIP: 5252445767/)).toBeInTheDocument();
     expect(payButton()).toBeEnabled();
   });
+
+  it("druga linia adresu trafia do podsumowania danych do faktury", async () => {
+    // Adres na fakturze ma być kompletny - lokal/piętro z drugiej linii nie
+    // może zniknąć z ekranu, na którym kupujący potwierdza dane przed zapłatą.
+    signedInBuyer();
+    h.billing = billingProfile({ address_line2: "lok. 12" });
+    await mount();
+
+    expect(await screen.findByText("Krucza 1")).toBeInTheDocument();
+    expect(screen.getByText("lok. 12")).toBeInTheDocument();
+    expect(screen.getByText(/00-001\s+Warszawa/)).toBeInTheDocument();
+  });
 });
 
 describe("trasa /checkout/$planId - izolacja obszarów roboczych", () => {
@@ -477,6 +488,24 @@ describe("trasa /checkout/$planId - sesja płatności", () => {
     expect(screen.queryByTestId("checkout-frame")).not.toBeInTheDocument();
   });
 
+  it("nierozpoznana odmowa operatora mówi o konfiguracji płatności i nie osadza ramki", async () => {
+    signedInBuyer();
+    h.planCheckout.mockResolvedValue({ ok: false, error: "stripe_price_missing" });
+    await mount();
+
+    fireEvent.click(await screen.findByRole("button", { name: /Zapłać/ }));
+
+    await waitFor(() =>
+      expect(h.toast.error).toHaveBeenCalledWith(
+        "Bramka płatności nie jest jeszcze skonfigurowana. Skontaktuj się z administratorem.",
+      ),
+    );
+    // Kod błędu z serwera nie trafia do kupującego, a przycisk wraca do życia.
+    expect(document.body.textContent).not.toContain("stripe_price_missing");
+    expect(screen.queryByTestId("checkout-frame")).not.toBeInTheDocument();
+    await waitFor(() => expect(payButton()).toBeEnabled());
+  });
+
   it("awaria po stronie operatora nie pokazuje surowego błędu i odblokowuje przycisk", async () => {
     signedInBuyer();
     h.planCheckout.mockRejectedValue(new Error("stripe: secret key rotated"));
@@ -566,6 +595,28 @@ describe("trasa /checkout/$planId - ustawienia checkoutu tenanta", () => {
 
     expect(await screen.findByText("Plan Pro")).toBeInTheDocument();
     expect(screen.queryByText(/Kod rabatowy wpiszesz/)).not.toBeInTheDocument();
+  });
+
+  it("plan jednorazowy u sprzedawcy bez faktur NIE obiecuje faktury", async () => {
+    // Plan `one_time` jedzie do operatora jako sesja `payment`, a tam fakturę
+    // wystawia wyłącznie `invoice_creation` - wyłączone przez tenanta. Obietnica
+    // faktury byłaby tu nieprawdą o dokumencie księgowym.
+    signedInBuyer();
+    h.plan = plan({ interval: "one_time" });
+    h.settings = { ...DEFAULT_CHECKOUT_SETTINGS, automatic_tax: true, invoice_creation: false };
+    await mount();
+
+    expect(await screen.findByText(/VAT zostanie naliczony/)).toBeInTheDocument();
+    expect(screen.queryByText(/Fakturę pobierzesz/)).not.toBeInTheDocument();
+  });
+
+  it("ten sam tenant przy planie cyklicznym obiecuje fakturę (subskrypcja fakturowana zawsze)", async () => {
+    signedInBuyer();
+    h.plan = plan({ interval: "month" });
+    h.settings = { ...DEFAULT_CHECKOUT_SETTINGS, automatic_tax: true, invoice_creation: false };
+    await mount();
+
+    expect(await screen.findByText(/Fakturę pobierzesz/)).toBeInTheDocument();
   });
 
   it("obiecuje automatyczny VAT dopiero na płaszczyźnie sprzedawcy", async () => {

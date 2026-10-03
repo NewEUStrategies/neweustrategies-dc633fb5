@@ -501,7 +501,9 @@ export const FEATURES_3 = [
     name: "CMS: generowany CSS sekcji, sidebara i stanów hover",
     // WIERSZ NOWY. Tokeny mówią JAKA wartość, te trzy pliki - JAKI CSS z niej
     // powstaje i gdzie się wstrzykuje. Defekty innej klasy, więc inny wiersz.
-    patterns: [/^src\/lib\/builder\/(sectionStyles|sidebarStyles|hoverCss)\.tsx?$/],
+    // 3 -> 4: `searchOverflow.ts` - który wrapper sekcji zdejmuje `overflow`
+    // nad widgetem wyszukiwarki (znacznik SSR zamiast `:has()` w arkuszu).
+    patterns: [/^src\/lib\/builder\/(sectionStyles|sidebarStyles|hoverCss|searchOverflow)\.tsx?$/],
   },
   {
     key: "cms-builder-queries",
@@ -613,7 +615,9 @@ export const FEATURES_3 = [
     name: "CMS: chrome witryny w builderze (nagłówek, menu, stopka)",
     // WIERSZ NOWY. Edycja nagłówka/menu/stopki serwisu jako dokumentów
     // buildera - powierzchnia, której redaktor nie myli z treścią strony.
-    patterns: [/^src\/lib\/builder\/(chromeDefaults|siteSettingsLiveSync)\.tsx?$/],
+    // `searchOverflow` (#448): znacznik SSR, który zdejmuje przycinanie
+    // z kontenerów nagłówka niosących pole wyszukiwania - część chrome.
+    patterns: [/^src\/lib\/builder\/(chromeDefaults|siteSettingsLiveSync|searchOverflow)\.tsx?$/],
   },
   {
     key: "cms-builder-ci",

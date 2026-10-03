@@ -38,7 +38,7 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
 
     const { data: plan, error: planErr } = await supabase
       .from("access_plans")
-      .select("id, price_cents, currency, active")
+      .select("id, price_cents, currency, active, trial_days")
       .eq("id", data.planId)
       .maybeSingle();
     if (planErr) throw planErr;
@@ -164,6 +164,13 @@ export const createPlanCheckoutSession = createServerFn({ method: "POST" })
       returnUrl: resolveReturnUrl(data.returnUrl),
       discount,
       locale: data.locale,
+      // OKRES PRÓBNY Z PLANU - ta sama reguła co w `checkout.functions.ts`.
+      // U Stripe trial nie siedzi na cenie (katalog trzyma `trial_days` tylko
+      // w metadanych ceny), więc bez tego pola trasa `/checkout/$planId`
+      // obciążała kartę od razu, choć cennik obiecywał okres próbny (audyt
+      // wyd. 11/12, defekt wysoki). Tryb jednorazowy pole ignoruje
+      // (`adhocCheckout.server` liczy trial wyłącznie dla subskrypcji).
+      trialDays: Math.max(0, Number(plan.trial_days ?? 0)),
       settings,
     });
 

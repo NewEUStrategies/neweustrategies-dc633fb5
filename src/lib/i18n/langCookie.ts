@@ -16,16 +16,45 @@ export const LANG_COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 rok
  */
 const LEGACY_LANG_COOKIES = ["lovable_lang"] as const;
 
-function cookiePattern(name: string, separator: string): RegExp {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?:^|${separator})${escaped}=([^;]*)`);
+// Wzorce kompilowane raz (a nie przy każdym odczycie). Nazwa musi stać na
+// początku albo zaraz po `;`, więc obce `xnes_lang=` nie pasuje. Jeden wzorzec
+// dla nagłówka `Cookie:` i `document.cookie`: odstęp po `;` jest opcjonalny,
+// tak jak w parserach serwerowych - dawny wariant kliencki wymagał dokładnie
+// "; " i bez spacji gubił preferencję. Flaga `g` + matchAll: ta sama nazwa może
+// przyjść kilka razy (ciasteczko z Domain= rodzica obok naszego host-only,
+// starsze pierwsze) - zepsuty pierwszy egzemplarz nie może przesłonić
+// poprawnego, bo wtedy żaden zapis klienta nie przywraca preferencji.
+const LANG_COOKIE_PATTERNS: readonly RegExp[] = [LANG_COOKIE, ...LEGACY_LANG_COOKIES].map(
+  (name) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|;\\s*)${escaped}=([^;]*)`, "g");
+  },
+);
+
+/**
+ * `decodeURIComponent` rzuca URIError na zepsutej sekwencji procentowej
+ * (`nes_lang=%`, `nes_lang=%E0%A4%A`). Ciasteczko przychodzi spoza naszej
+ * kontroli (inna aplikacja na domenie, rozszerzenie, ręczna edycja) i żyje rok:
+ * bez osłony jedna zepsuta wartość dawała 500 na "/" (homepageLangMiddleware ->
+ * errorMiddleware) i wywracała ewaluację localeRuntime na stronach aplikacji.
+ * Zepsuta wartość = brak preferencji, więc nazwa zapasowa nadal ma głos, a
+ * klient nadpisuje ciasteczko poprawną wartością.
+ */
+function decodeCookieValue(raw: string): string | null {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
 }
 
-function readLangFrom(source: string, separator: string): AppLang | null {
-  for (const name of [LANG_COOKIE, ...LEGACY_LANG_COOKIES]) {
-    const match = source.match(cookiePattern(name, separator));
-    const lang = match ? normalizeLang(decodeURIComponent(match[1])) : null;
-    if (lang) return lang;
+function readLangFrom(source: string): AppLang | null {
+  for (const pattern of LANG_COOKIE_PATTERNS) {
+    // matchAll klonuje wzorzec, więc współdzielony `lastIndex` zostaje nietknięty.
+    for (const match of source.matchAll(pattern)) {
+      const lang = normalizeLang(decodeCookieValue(match[1]));
+      if (lang) return lang;
+    }
   }
   return null;
 }
@@ -33,13 +62,13 @@ function readLangFrom(source: string, separator: string): AppLang | null {
 /** Parse the language cookie out of a raw `Cookie:` header. Pure + testable. */
 export function readLangCookieFromHeader(header: string | null | undefined): AppLang | null {
   if (!header) return null;
-  return readLangFrom(header, ";\\s*");
+  return readLangFrom(header);
 }
 
 /** Read the language preference from `document.cookie` (client only). */
 export function readLangCookieClient(): AppLang | null {
   if (typeof document === "undefined") return null;
-  return readLangFrom(document.cookie, "; ");
+  return readLangFrom(document.cookie);
 }
 
 /** Persist the language preference to `document.cookie` (client only). */
@@ -54,34 +83,28 @@ export function writeLangCookieClient(lang: AppLang): void {
 }
 
 /**
- * Detect the visitor's preferred language from the browser (client only).
- * Rule per product spec: Polish -> "pl", anything else -> "en".
- * Returns null when navigator is unavailable (SSR).
+ * Reguła produktu dla NAJWYŻEJ postawionej preferencji odwiedzającego: polski ->
+ * "pl", każdy inny język -> "en". Jedna funkcja dla serwera (Accept-Language,
+ * negocjacja gołego "/") i klienta (navigator.languages, backfill ciasteczka po
+ * wejściu głębokim linkiem). Klient brał dawniej "pl", gdy polski stał
+ * GDZIEKOLWIEK na liście, więc czytelnik z `en-US, pl` dostawał EN wchodząc
+ * przez "/", a PL - wchodząc przez artykuł.
  */
-export function detectBrowserLang(): AppLang | null {
-  if (typeof navigator === "undefined") return null;
-  const candidates: string[] = [];
-  const langs = (navigator as Navigator & { languages?: readonly string[] }).languages;
-  if (langs && langs.length > 0) candidates.push(...langs);
-  if (navigator.language) candidates.push(navigator.language);
-  for (const raw of candidates) {
-    const code = (raw ?? "").toLowerCase().split("-")[0];
-    if (code === "pl") return "pl";
-  }
-  // Any non-Polish browser preference -> English.
-  return candidates.length > 0 ? "en" : null;
+export function langForPreferredTag(tag: string): AppLang {
+  return tag.toLowerCase().split("-")[0] === "pl" ? "pl" : "en";
 }
 
 /**
- * Resolve the initial language preference for a fresh visitor: prefer an
- * explicit cookie, otherwise auto-detect from the browser. Persists the
- * detected value so subsequent visits are stable and the SSR homepage redirect
- * can honor it.
+ * Detect the visitor's preferred language from the browser (client only).
+ * The browser's top preference decides (see `langForPreferredTag`).
+ * Returns null on the server and when the browser states no preference.
  */
-export function resolveOrPersistPreferredLang(): AppLang | null {
-  const stored = readLangCookieClient();
-  if (stored) return stored;
-  const detected = detectBrowserLang();
-  if (detected) writeLangCookieClient(detected);
-  return detected;
+export function detectBrowserLang(): AppLang | null {
+  // Bramka na `document`, jak w pozostałych helperach klienta: Node >= 21 i
+  // workerd mają globalny `navigator` (w Node z locale PROCESU), więc sam test
+  // `navigator` nie odróżnia już SSR od przeglądarki.
+  if (typeof document === "undefined" || typeof navigator === "undefined") return null;
+  const langs = (navigator as Navigator & { languages?: readonly string[] }).languages;
+  const top = langs?.find(Boolean) ?? navigator.language;
+  return top ? langForPreferredTag(top) : null;
 }

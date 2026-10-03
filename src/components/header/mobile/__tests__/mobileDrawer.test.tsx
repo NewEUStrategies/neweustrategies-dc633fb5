@@ -126,6 +126,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("MobileDrawerBody - kolejność bloków", () => {
+  it("ma własny pionowy obszar przewijania, który nie przewija strony pod szufladą", () => {
+    const { container } = renderWithQuery(
+      <MobileDrawerBody builderDoc={{ version: 1, sections: [] }} onNavigate={() => {}} />,
+    );
+    const scroller = container.querySelector("[data-mobile-drawer-scroller]");
+    expect(scroller).toHaveClass("min-h-0", "overflow-y-auto", "overscroll-contain", "touch-pan-y");
+  });
+
   it("renderuje bloki w kolejności z konfiguracji super-admina", () => {
     drawer.config = config({
       section_order: ["nav", "account", "top_tools", "builder"],

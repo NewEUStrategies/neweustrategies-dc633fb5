@@ -1133,3 +1133,108 @@ describe("useScannerRuntime - regresje naprawionych defektów", () => {
     await waitFor(() => expect(result.current.outbox).toHaveLength(1));
   });
 });
+
+describe("useScannerRuntime - odrzucona pozycja nie ginie między dwiema bazami", () => {
+  // Kolejka (`nes-scanner`) i lista odrzuconych (`nes-scanner-offline`) to dwie
+  // bazy IndexedDB. Pozycja z trwałą odmową schodzi z kolejki dopiero, gdy lista
+  // zapisała się TRWALE - inaczej zamknięcie karty (albo lista tylko w pamięci)
+  // gubiło skan, który miał trafić do eksportu organizatora.
+
+  it("NIEZNANY kod odmowy z bazy idzie na listę odrzuconych zamiast w osiem ponowień", async () => {
+    api.recordCheckinScan.mockRejectedValue(new Error("event_closed: check-in closed"));
+    device.queue = [queuedItem({ id: "a", code: "QR-A" })];
+    api.bootstrapScanner.mockResolvedValue(SESSION);
+    const { result } = render(TOKEN);
+
+    await waitFor(() => expect(result.current.rejected).toHaveLength(1));
+    await waitFor(() => expect(result.current.outbox).toEqual([]));
+    expect(result.current.rejected[0].error).toBe("event_closed: check-in closed");
+    expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+    expect(store.rejected).toHaveLength(1);
+    expect(device.queue).toEqual([]);
+  });
+
+  it("lista odrzuconych TYLKO W PAMIĘCI: pozycja zostaje w kolejce jako „wymaga uwagi”", async () => {
+    store.persistent = false;
+    api.recordCheckinScan.mockRejectedValue(new Error("invalid_payload: code is required"));
+    device.queue = [queuedItem({ id: "a", code: "QR-A" })];
+    api.bootstrapScanner.mockResolvedValue(SESSION);
+    const { result } = render(TOKEN);
+
+    await waitFor(() => expect(result.current.rejected).toHaveLength(1));
+    // Kolejka przeżyje zamknięcie karty, lista - nie. Pozycja zostaje więc
+    // w kolejce zamrożona: z powodem odmowy, poza wysyłką.
+    expect(result.current.outbox).toHaveLength(1);
+    expect(result.current.outbox[0]).toMatchObject({
+      id: "a",
+      lastError: "invalid_payload: code is required",
+    });
+    expect(result.current.outboxCounts).toEqual({ pending: 0, stuck: 1 });
+    expect(device.queue[0]?.rejectedAt).toEqual(expect.any(String));
+
+    // Kolejna wysyłka nie dobija się nią do bazy.
+    await act(async () => {
+      result.current.flush();
+    });
+    expect(api.recordCheckinScan).toHaveBeenCalledTimes(1);
+  });
+
+  it("start po zamknięciu karty: zamrożona pozycja bez wpisu na liście WRACA na listę", async () => {
+    device.queue = [
+      queuedItem({
+        id: "sierota",
+        code: "QR-S",
+        lastError: "invalid_payload: code is required",
+        rejectedAt: "2026-08-01T07:05:00.000Z",
+      }),
+    ];
+    const { result } = await renderIdle();
+
+    await waitFor(() => expect(result.current.rejected).toHaveLength(1));
+    expect(result.current.rejected[0]).toMatchObject({
+      error: "invalid_payload: code is required",
+      rejectedAt: "2026-08-01T07:05:00.000Z",
+    });
+    expect(result.current.rejected[0].item.code).toBe("QR-S");
+    await waitFor(() => expect(result.current.outbox).toEqual([]));
+    expect(api.recordCheckinScan).not.toHaveBeenCalled();
+  });
+
+  it("start: zamrożona pozycja, którą lista już przechowała, schodzi z kolejki bez duplikatu", async () => {
+    const frozen = queuedItem({
+      id: "znana",
+      lastError: "invalid_payload: code is required",
+      rejectedAt: "2026-08-01T07:05:00.000Z",
+    });
+    store.rejected = [
+      {
+        item: queuedItem({ id: "znana" }),
+        error: "invalid_payload: code is required",
+        rejectedAt: "2026-08-01T07:05:00.000Z",
+      },
+    ];
+    device.queue = [frozen];
+    const { result } = await renderIdle();
+
+    await waitFor(() => expect(result.current.outbox).toEqual([]));
+    expect(result.current.rejected).toHaveLength(1);
+  });
+
+  it("unieważnione poświadczenie przy liście w pamięci: cała kolejka zostaje zamrożona", async () => {
+    store.persistent = false;
+    api.recordCheckinScan.mockRejectedValue(new Error("device_revoked: revoked in panel"));
+    device.queue = [
+      queuedItem({ id: "a", code: "QR-A", deviceScannedAt: "2026-08-01T07:00:00.000Z" }),
+      queuedItem({ id: "b", code: "QR-B", deviceScannedAt: "2026-08-01T07:01:00.000Z" }),
+    ];
+    api.bootstrapScanner.mockResolvedValue(SESSION);
+    const { result } = render(TOKEN);
+
+    await waitFor(() => expect(result.current.rejected).toHaveLength(2));
+    await waitFor(() => expect(result.current.status).toBe("idle"));
+    // Bez duplikatów mimo dwóch ścieżek odrzucenia (wysyłka i utrata sesji).
+    expect(result.current.rejected.map((row) => row.item.id)).toEqual(["a", "b"]);
+    expect(device.queue.map((row) => row.id)).toEqual(["a", "b"]);
+    expect(device.queue.every((row) => typeof row.rejectedAt === "string")).toBe(true);
+  });
+});

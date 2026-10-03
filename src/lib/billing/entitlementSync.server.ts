@@ -67,10 +67,17 @@ export async function syncEntitlementState(input: EntitlementSyncInput): Promise
   const canceledAt =
     input.status === "canceled" || input.status === "paused" ? new Date().toISOString() : null;
 
+  // `order` + `limit(1)` - ten sam powód co w `grantEntitlement`: unikalności
+  // `external_ref` pilnuje tylko kod, więc duplikat nie może wywrócić odczytu
+  // (PGRST116) i zapętlić ponowień webhooka. Reguła „zwrot jest ostateczny"
+  // nie cierpi na tym: `revokeSubscriptionEntitlement` stempluje `refunded`
+  // na WSZYSTKICH wierszach z tym kluczem naraz.
   const { data: existing, error: readErr } = await supabaseAdmin
     .from("user_subscriptions")
     .select("id, status")
     .eq("external_ref", input.externalRef)
+    .order("created_at", { ascending: true })
+    .limit(1)
     .maybeSingle();
   if (readErr) {
     throw new Error(`entitlement sync: lookup failed (${input.externalRef}): ${readErr.message}`);

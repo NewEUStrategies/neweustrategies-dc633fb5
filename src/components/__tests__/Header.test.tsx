@@ -806,7 +806,11 @@ describe("Header - warianty językowe", () => {
     expect(h.languageChanges).toEqual(["en"]);
     expect(h.clientLangWrites).toEqual(["en"]);
     expect(h.navigations).toEqual(["/en"]);
-    expect(window.localStorage.getItem("i18nextLng")).toBe("en");
+    // <html lang> przestawia sam przełącznik, w tej samej klatce co nawigację.
+    expect(document.documentElement.lang).toBe("en");
+    // Martwy klucz "i18nextLng" (nic go nie czytało) nie jest już zapisywany -
+    // lustrem preferencji jest LANG_STORAGE_KEY z handlera `languageChanged`.
+    expect(window.localStorage.getItem("i18nextLng")).toBeNull();
   });
 });
 

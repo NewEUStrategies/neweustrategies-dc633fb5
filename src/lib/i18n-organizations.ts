@@ -53,14 +53,14 @@ const en = {
   },
 };
 
-/**
- * Jawna rejestracja wołana w komponencie - ten sam wzorzec co `i18n-experts`.
- * Nazwane wiązanie pozwala splitterowi przenieść słownik do chunka trasy,
- * a wywołanie w komponencie trzyma rejestrację przy życiu także wtedy, gdy
- * Vite albo Nitro wytrzęsą efekt uboczny modułu. Do 2026-10-02 `ensureI18n()`
- * był tu pustą funkcją, a słownik rejestrował wyłącznie efekt uboczny importu
- * - jedyna nakładka z tym starym wzorcem (audyt, wydanie 12).
- */
+// Rejestracja mieszka W `ensureI18n()`, a nie luzem na poziomie modułu - ten
+// sam wzorzec co pozostałe nakładki (`i18n-experts`, `i18n-notifications`).
+// Trasa i komponent wołają tę funkcję zamiast side-effectowego importu:
+// nazwane wiązanie pozwala splitterowi przenieść słownik do chunka trasy
+// (a nie do eager-owego grafu wejściowego), a ponieważ to WYWOŁANIE
+// rejestruje słownik, ani Vite, ani Nitro nie wytną go razem z „pustą”
+// funkcją. Flaga chroni przed powtórnym głębokim scaleniem przy każdym
+// renderze; wywołanie przy imporcie zachowuje stary kontrakt side-effectu.
 let registered = false;
 export function ensureI18n(): void {
   if (registered) return;

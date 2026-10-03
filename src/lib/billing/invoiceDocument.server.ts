@@ -71,7 +71,9 @@ const DEFAULT_SELLER: InvoiceParty = {
   email: null,
 };
 
-const DESCRIPTION: Record<InvoiceLocale, Record<string, string>> = {
+type DescriptionKey = "subscription" | "ticket" | "donation" | "content" | "default";
+
+const DESCRIPTION: Record<InvoiceLocale, Record<DescriptionKey, string>> = {
   pl: {
     subscription: "Członkostwo - opłata za okres rozliczeniowy",
     ticket: "Bilet na wydarzenie",
@@ -96,15 +98,50 @@ async function admin() {
 const str = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
 
+/**
+ * Błąd odczytu przerywa składanie pliku. Kopia bez NIP-u wystawcy czy firmy
+ * nabywcy wygląda na poprawną, a jest niekompletnym dokumentem księgowym -
+ * lepiej, żeby panel pokazał błąd i członek ponowił pobranie.
+ */
+function failOnReadError(table: string, error: { message: string } | null): void {
+  if (error) throw new Error(`invoice pdf: ${table} read failed: ${error.message}`);
+}
+
+/**
+ * Opis pozycji z zamówienia. `payment_orders.kind` zna tylko 'subscription'
+ * i 'one_time' - bilet, dostęp do treści i darowiznę rozróżnia dopiero
+ * `metadata.purpose` zapisany przy zakładaniu zamówienia jednorazowego.
+ */
+function descriptionKey(order: { kind: string; metadata: unknown } | null): DescriptionKey {
+  if (order?.kind === "subscription") return "subscription";
+  const metadata = order?.metadata;
+  const purpose =
+    typeof metadata === "object" && metadata !== null && "purpose" in metadata
+      ? metadata.purpose
+      : null;
+  switch (purpose) {
+    case "event_ticket":
+      return "ticket";
+    case "content_unlock":
+      return "content";
+    case "donation":
+      return "donation";
+    default:
+      return "default";
+  }
+}
+
 /** Dane wystawcy: site_settings.invoice_issuer nadpisuje wartości domyślne. */
 async function loadSeller(tenantId: string): Promise<InvoiceParty> {
   const supabase = await admin();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("site_settings")
     .select("value")
     .eq("tenant_id", tenantId)
     .eq("key", "invoice_issuer")
     .maybeSingle();
+  failOnReadError("site_settings", error);
+  // Wartości domyślne tylko dla BRAKU wpisu - błąd odczytu rzucił wyżej.
   const raw = (data?.value ?? {}) as Record<string, unknown>;
   return {
     name: str(raw.name) ?? DEFAULT_SELLER.name,
@@ -153,17 +190,19 @@ export async function buildInvoicePdf(input: {
   locale: InvoiceLocale;
 }): Promise<{ ok: true; result: InvoicePdfResult } | { ok: false; error: InvoicePdfError }> {
   const supabase = await admin();
-  const { data: doc } = await supabase
+  const { data: doc, error: docError } = await supabase
     .from("billing_documents")
     .select(
       "id, user_id, tenant_id, number, kind, amount_cents, currency, issued_at, pdf_url, hosted_url, provider_document_id",
     )
     .eq("id", input.documentId)
     .maybeSingle();
+  // Błąd odczytu to nie „nie znaleziono" - dokument może istnieć.
+  failOnReadError("billing_documents", docError);
   if (!doc) return { ok: false, error: "not_found" };
   if (doc.user_id !== input.userId) return { ok: false, error: "forbidden" };
 
-  const [{ data: billing }, { data: profile }, seller] = await Promise.all([
+  const [billingRead, profileRead, seller] = await Promise.all([
     supabase
       .from("billing_profiles")
       .select(
@@ -175,16 +214,23 @@ export async function buildInvoicePdf(input: {
     supabase.from("profiles").select("email").eq("id", input.userId).maybeSingle(),
     loadSeller(doc.tenant_id),
   ]);
+  failOnReadError("billing_profiles", billingRead.error);
+  failOnReadError("profiles", profileRead.error);
+  const billing = billingRead.data;
+  const profile = profileRead.data;
 
+  // Błąd odczytu zamówienia ŚWIADOMIE nie przerywa: zamówienie dobiera tylko
+  // opis pozycji, a `provider_intent_id` nie jest unikalny - wyjątek zrobiłby
+  // z niejednoznacznego wiersza fakturę na zawsze niemożliwą do pobrania.
+  // Opis ogólny jest wtedy mniej szczegółowy, ale prawdziwy.
   const { data: order } = await supabase
     .from("payment_orders")
-    .select("kind")
+    .select("kind, metadata")
     .eq("provider_intent_id", doc.provider_document_id)
     .eq("tenant_id", doc.tenant_id)
     .maybeSingle();
 
-  const descriptions = DESCRIPTION[input.locale];
-  const description = descriptions[order?.kind ?? ""] ?? descriptions.default ?? "";
+  const description = DESCRIPTION[input.locale][descriptionKey(order)];
   const number = doc.number ?? doc.provider_document_id;
 
   const data: InvoiceData = {

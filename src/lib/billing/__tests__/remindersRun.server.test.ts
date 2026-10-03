@@ -78,6 +78,7 @@ import {
 type SubscriptionProjection = Pick<
   Database["public"]["Tables"]["subscriptions"]["Row"],
   | "user_id"
+  | "tenant_id"
   | "price_id"
   | "status"
   | "current_period_end"
@@ -98,6 +99,8 @@ const KNOWN_PRICE = "plus_monthly";
 function subscriptionRow(over: Partial<SubscriptionProjection> = {}): SubscriptionProjection {
   return {
     user_id: "user-me",
+    // Najemca subskrypcji zawęża odwzorowanie ceny na plan (`resolvePlanForPrice`).
+    tenant_id: "tenant-alfa",
     price_id: KNOWN_PRICE,
     status: "active",
     // Dokładnie w oknie dla domyślnego wyprzedzenia liczonego od `NOW`.
@@ -246,6 +249,27 @@ describe("stan subskrypcji decyduje o TREŚCI przypomnienia", () => {
     expect(mail.sent[0]?.to).toBe(RECIPIENT);
     // Plan odwzorowany z ceny operatora - w mailu musi być nazwa, nie kod ceny.
     expect(mail.sent[0]?.subjectName).toBe("Członek");
+  });
+
+  it("plan szukany jest W NAJEMCY subskrypcji i w jawnej kolejności", async () => {
+    // Katalog cen jest jeden na konto operatora, plany są per najemca. Bez
+    // filtra `tenant_id` i `ORDER BY` mail dostawał nazwę planu dowolnego
+    // najemcy z tym samym progiem (audyt wyd. 11/12).
+    const stub = givenDb({ rows: [subscriptionRow()] });
+    await runBillingReminders(3, 200, NOW);
+
+    const lookup = stub
+      .chainsFor("access_plans")
+      .find((chain) => chain.calls.some((c) => c.method === "eq" && c.args[0] === "tier_key"));
+    expect(lookup?.calls.filter((c) => c.method === "eq").map((c) => c.args)).toContainEqual([
+      "tenant_id",
+      "tenant-alfa",
+    ]);
+    expect(lookup?.calls.filter((c) => c.method === "order").map((c) => c.args[0])).toEqual([
+      "sort_order",
+      "created_at",
+      "id",
+    ]);
   });
 
   it("subskrypcja w KARENCJI nadal dostaje przypomnienie o odnowieniu", async () => {

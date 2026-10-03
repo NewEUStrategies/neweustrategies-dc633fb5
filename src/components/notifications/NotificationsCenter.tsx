@@ -75,6 +75,14 @@ import {
 } from "@/lib/notifications/notificationListKeys";
 import { ConsentsPanel } from "./ConsentsPanel";
 import type { AppLang } from "@/lib/i18n/localePath";
+// Tryb `preferences` czyta `notifications.settings.subtitleLead`, który wnosi
+// WYŁĄCZNIE ta nakładka (klucz wybiera ternary, więc
+// `check:i18n-overlay-imports` go nie widzi). Bez importu tutaj komponent
+// polegał na tym, że trasa /profile/notifications zaimportuje nakładkę za
+// niego - każde inne zamontowanie trybu dawało polski `defaultValue` także po
+// angielsku. Nakładka niesie dziś tylko klucze, których rdzeń nie ma, więc na
+// /messages nie zmienia żadnego napisu.
+import "@/lib/i18n-notifications";
 
 type Lang = AppLang;
 type TabValue = "all" | "unread" | "settings";

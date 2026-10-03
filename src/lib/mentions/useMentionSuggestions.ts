@@ -6,9 +6,9 @@
 //     wycinek firm CRM (nazwa, logo, strona, branża), bez PII i notatek.
 // Zapytanie jest debounce'owane u wołającego; przy braku funkcji w bazie
 // degradujemy do pustej listy.
-import { useContext } from "react";
-import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useMentionQueryClient } from "./queryClient";
 
 export interface MentionSuggestion {
   kind: "person" | "organization";
@@ -26,13 +26,10 @@ export const MENTION_SUGGESTION_LIMIT = 6;
 
 // Poza drzewem QueryClientProvider (izolowany render pola w testach/podglądzie)
 // degradujemy do braku podpowiedzi zamiast rzucać - pole tekstowe ma działać.
-let fallbackClient: QueryClient | null = null;
-
 export function useMentionSuggestions(query: string | null, lang: "pl" | "en") {
-  const ctxClient = useContext(QueryClientContext);
-  const client = ctxClient ?? (fallbackClient ??= new QueryClient());
+  const { client, hasProvider } = useMentionQueryClient();
   // query === null oznacza „kursor nie stoi w obrębie wzmianki" - nie pytamy.
-  const enabled = query !== null && ctxClient != null;
+  const enabled = query !== null && hasProvider;
   const q = (query ?? "").trim();
   return useQuery(
     {

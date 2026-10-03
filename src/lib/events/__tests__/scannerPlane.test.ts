@@ -36,8 +36,12 @@ import {
   stuckItems,
   withFailure,
   withoutItem,
+  withoutItems,
   appendRejected,
+  isRejectedItem,
+  markRejected,
   parseOutboxItem,
+  reconcileRejected,
   rejectAll,
   REJECTED_CAPACITY,
   type OutboxItem,
@@ -237,11 +241,16 @@ describe("scannerOutbox - kolejka bez sieci", () => {
     expect(backoffDelayMs(30)).toBe(300_000);
   });
 
-  it("odmowa POSWIADCZENIA zdejmuje pozycje z kolejki, awaria sieci ja odklada", () => {
+  it("odmowa POSWIADCZENIA zamraza pozycje w kolejce i oddaje ja jako odrzucona, awaria sieci ja odklada", () => {
     const queue = [item({ id: "i1" })];
     const revoked = withFailure(queue, "i1", "device_revoked: gone", "2026-09-01T08:00:00Z");
-    expect(revoked.queue).toHaveLength(0);
-    // Zdjeta z kolejki NIE ZNIKA - wraca jako odrzucona, z bledem i chwila.
+    // Pozycja ZOSTAJE w kolejce, zamrozona - znika z niej dopiero po trwalym
+    // zapisie listy odrzuconych (to druga baza IndexedDB, patrz naglowek).
+    expect(revoked.queue).toHaveLength(1);
+    expect(isRejectedItem(revoked.queue[0])).toBe(true);
+    expect(revoked.queue[0].lastError).toBe("device_revoked: gone");
+    expect(dueItems(revoked.queue, "2026-09-01T09:00:00Z")).toHaveLength(0);
+    // Oddana jako odrzucona - z bledem, chwila i pozycja w stanie sprzed odmowy.
     expect(revoked.rejected).toEqual({
       item: queue[0],
       error: "device_revoked: gone",
@@ -404,12 +413,16 @@ describe("scannerSession - odpowiedz niepelna nie gasi ekranu", () => {
 });
 
 describe("scannerOutbox - brzegi kolejki", () => {
-  it("komunikat BEZ dwukropka jest w calosci glowa bledu", () => {
+  it("komunikat BEZ dwukropka jest w calosci glowa bledu - i nie jest odmowa bazy", () => {
     // `TypeError: Failed to fetch` ma dwukropek, ale `Failed to fetch` (Safari)
     // juz nie - i to nadal jest awaria sieci, czyli pozycja do ponowienia.
     expect(errorHead("Failed to fetch")).toBe("Failed to fetch");
     expect(isPermanentFailure("Failed to fetch")).toBe(false);
-    expect(isPermanentFailure("invalid_payload")).toBe(true);
+    // Baza ZAWSZE odpowiada `kod: szczegoly`. Goly kod bez dwukropka byl dla
+    // kolejki odmowa trwala, a dla toru na zywo - awaria sieci (do kolejki).
+    // Jedna regula: bez dwukropka to nie jest odmowa bazy.
+    expect(isPermanentFailure("invalid_payload")).toBe(false);
+    expect(isRetryableScanError(new Error("invalid_payload"))).toBe(true);
   });
 
   it("NIECZYTELNA chwila „teraz” nie psuje terminu ponowienia", () => {
@@ -691,5 +704,83 @@ describe("onsiteEnums - słowniki trybu offline", () => {
     expect(isOfflineOutcome("denied_capacity")).toBe(false);
     expect(isCheckinDirection("out")).toBe(true);
     expect(isCheckinDirection("sideways")).toBe(false);
+  });
+});
+
+describe("scannerOutbox - odrzucona pozycja schodzi z kolejki dopiero po trwalym zapisie", () => {
+  const NOW = item({}).deviceScannedAt;
+
+  it("NIEZNANY kod odmowy z bazy jest trwaly - nie osiem ponowien do „wymaga uwagi”", () => {
+    // Regresja klasyfikacji: kolejka znala reczna liste kodow, a tor na zywo
+    // kazdy kod `kod:`. Kod dolozony w bazie po tej liscie trafial przy bramce
+    // do operatora, a w kolejce byl ponawiany do wyczerpania prob.
+    const failure = withFailure([item({ id: "i1" })], "i1", "event_closed: closed", NOW);
+    expect(failure.rejected?.error).toBe("event_closed: closed");
+    expect(failure.queue[0].attempts).toBe(0);
+  });
+
+  it("pozycja zamrozona jest „wymaga uwagi”, dopoki lista jej nie przechowa", () => {
+    const frozen = withFailure([item({ id: "i1" })], "i1", "invalid_payload: x", NOW).queue;
+    expect(stuckItems(frozen).map((row) => row.id)).toEqual(["i1"]);
+    expect(outboxCounts(frozen)).toEqual({ pending: 0, stuck: 1 });
+  });
+
+  it("nieznana pozycja nie tworzy odrzuconej z niczego", () => {
+    const failure = withFailure([item({ id: "i1" })], "brak", "invalid_payload: x", NOW);
+    expect(failure.rejected).toBeNull();
+    expect(failure.queue).toEqual([item({ id: "i1" })]);
+  });
+
+  it("rejectAll pomija pozycje juz zamrozone - zadnego duplikatu w eksporcie", () => {
+    const queue = [
+      item({ id: "a", rejectedAt: NOW, lastError: "invalid_payload: x" }),
+      item({ id: "b" }),
+    ];
+    expect(rejectAll(queue, "device_revoked: gone", NOW).map((row) => row.item.id)).toEqual(["b"]);
+  });
+
+  it("markRejected zamraza wskazane pozycje z powodem i chwila, reszty nie dotyka", () => {
+    const queue = [item({ id: "a" }), item({ id: "b" })];
+    const entries = rejectAll([queue[0]], "device_revoked: gone", NOW);
+    const next = markRejected(queue, entries);
+    expect(next[0]).toMatchObject({ rejectedAt: NOW, lastError: "device_revoked: gone" });
+    expect(isRejectedItem(next[1])).toBe(false);
+    // Juz zamrozona nie dostaje nowego powodu - pierwszy powod jest prawdziwy.
+    expect(markRejected(next, rejectAll(next, "inny: x", NOW))[0].lastError).toBe(
+      "device_revoked: gone",
+    );
+  });
+
+  it("withoutItems zdejmuje dokladnie wskazane pozycje", () => {
+    const queue = [item({ id: "a" }), item({ id: "b" }), item({ id: "c" })];
+    expect(withoutItems(queue, ["a", "c"]).map((row) => row.id)).toEqual(["b"]);
+    expect(withoutItems(queue, [])).toEqual(queue);
+  });
+
+  it("start po zamknieciu karty: sierota wraca na liste, przechowana schodzi z kolejki", () => {
+    const orphan = item({ id: "sierota", rejectedAt: NOW, lastError: "invalid_payload: x" });
+    const kept = item({ id: "znana", rejectedAt: NOW, lastError: "invalid_payload: y" });
+    const live = item({ id: "zywa" });
+    const result = reconcileRejected(
+      [orphan, kept, live],
+      [{ item: item({ id: "znana" }), error: "invalid_payload: y", rejectedAt: NOW }],
+    );
+    expect(result.settled).toEqual(["znana"]);
+    expect(result.orphans).toEqual([
+      {
+        item: item({ id: "sierota", lastError: "invalid_payload: x" }),
+        error: "invalid_payload: x",
+        rejectedAt: NOW,
+      },
+    ]);
+    // Pozycja zywa nie jest ani sierota, ani przechowana.
+    expect(result.orphans.some((row) => row.item.id === "zywa")).toBe(false);
+  });
+
+  it("parseOutboxItem: znacznik odmowy przezywa zapis, a pozycja zywa nie dostaje pola", () => {
+    const frozen = parseOutboxItem(JSON.parse(JSON.stringify(item({ rejectedAt: NOW }))));
+    expect(frozen?.rejectedAt).toBe(NOW);
+    const live = parseOutboxItem(JSON.parse(JSON.stringify(item({}))));
+    expect(live !== null && "rejectedAt" in live).toBe(false);
   });
 });

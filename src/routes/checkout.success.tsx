@@ -145,8 +145,14 @@ function SuccessPage() {
   // badge/gating (current-tier), subscription + orders on the profile, and
   // resolved content bodies - the buyer must see the purchase everywhere
   // without a reload.
+  //
+  // BEZ FLAGI ANULOWANIA. QueryClient żyje w całej aplikacji (dłużej niż ta
+  // strona), a domyślna świeżość routera to 5 min - kupujący, który kliknie
+  // „Wróć do artykułu", zanim finalizacja odpowie, musi i tak zastać zrzucony
+  // cache, inaczej dostaje paywall na zapłaconej treści. Inwalidacja po
+  // odmontowaniu jest bezpieczna, a `finalizeCheckout` jest idempotentne, więc
+  // podwójny przebieg efektu (StrictMode) kosztuje tylko drugą inwalidację.
   useEffect(() => {
-    let cancelled = false;
     const invalidateEntitlements = () => {
       void queryClient.invalidateQueries({ queryKey: ["public", "resolved"] });
       void queryClient.invalidateQueries({ queryKey: ["unlocked-body"] });
@@ -165,12 +171,8 @@ function SuccessPage() {
       } catch {
         /* surfaced on the orders page; success UI stays optimistic */
       }
-      if (cancelled) return;
       invalidateEntitlements();
     })();
-    return () => {
-      cancelled = true;
-    };
   }, [mock, order, finalize, queryClient]);
 
   return (

@@ -1,8 +1,9 @@
 // Lekki podgląd celu @wzmianki - osoby albo firmy. Czytamy przez publiczny,
 // tenant-scoped RPC, który oddaje tylko pola do wizytówki (bez PII i notatek CRM).
-import { useContext } from "react";
-import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { trimText } from "./directory";
+import { useMentionQueryClient } from "./queryClient";
 
 export interface MentionProfilePreview {
   kind: "person" | "organization";
@@ -18,21 +19,12 @@ export interface MentionProfilePreview {
   verified: boolean;
 }
 
-function trimText(value: unknown, max: number): string | null {
-  if (typeof value !== "string") return null;
-  const text = value.replace(/\s+/g, " ").trim();
-  return text === "" ? null : text.slice(0, max);
-}
-
 // Poza drzewem QueryClientProvider (izolowany render karty w teście albo
 // podglądzie komponentu) bierzemy klienta zapasowego zamiast rzucać - karta z
 // dymkiem ma się wyrenderować także tam, gdzie nikt nie postawił klienta
 // zapytań. `enabled` zostaje NIETKNIĘTE: leniwość dymka jest kontraktem.
-let fallbackClient: QueryClient | null = null;
-
 export function useMentionProfile(slug: string | null, lang: "pl" | "en", enabled: boolean) {
-  const ctxClient = useContext(QueryClientContext);
-  const client = ctxClient ?? (fallbackClient ??= new QueryClient());
+  const { client } = useMentionQueryClient();
   return useQuery(
     {
       queryKey: ["club", "mention-profile", slug, lang] as const,

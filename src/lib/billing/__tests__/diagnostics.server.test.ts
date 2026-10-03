@@ -195,6 +195,7 @@ vi.mock("@/lib/billing/mockMode.server", () => ({
 import {
   assertAdmin,
   assertAdminWithTenant,
+  assertSuperAdmin,
   buildPaymentsDiagnostics,
   syncCouponDiscounts,
 } from "@/lib/billing/diagnostics.server";
@@ -272,6 +273,40 @@ describe("assertAdmin - bramka dostępu do diagnostyki", () => {
     h.hasRole.current = "admin";
 
     await expect(assertAdmin(adminClient(), "user-me")).rejects.toThrow("forbidden");
+  });
+});
+
+describe("assertSuperAdmin - bramka uzgadniania i ponowienia z dziennika", () => {
+  // Uzgadnianie czyta dziennik `payment_webhook_events` (RLS: `is_super_admin()`)
+  // i odtwarza zdarzenia operatora. Do audytu wyd. 12 stało za rolą `admin`,
+  // czyli o szczebel niżej niż ponowienie z tego samego dziennika.
+  it("pyta o rolę `super_admin` i oddaje najemcę z profilu", async () => {
+    h.hasRole.current = true;
+
+    await expect(assertSuperAdmin(adminClient(), "user-root")).resolves.toEqual({
+      tenantId: TENANT,
+    });
+    expect(h.rpc).toHaveBeenCalledWith("has_role", {
+      _user_id: "user-root",
+      _role: "super_admin",
+    });
+  });
+
+  it("odmawia, gdy rola nie jest dokładnie `true` - zanim dotknie profilu", async () => {
+    for (const value of [false, null, "super_admin"]) {
+      h.hasRole.current = value;
+      h.chains.length = 0;
+      await expect(assertSuperAdmin(adminClient(), "user-admin")).rejects.toThrow("forbidden");
+      expect(h.chains).toHaveLength(0);
+    }
+  });
+
+  it("błąd RPC roli to odmowa, nie przepustka", async () => {
+    const client = {
+      rpc: async () => ({ data: true, error: { message: "permission denied for function" } }),
+    } as unknown as Parameters<typeof assertSuperAdmin>[0];
+
+    await expect(assertSuperAdmin(client, "user-root")).rejects.toThrow("forbidden");
   });
 });
 

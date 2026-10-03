@@ -68,3 +68,57 @@ describe("CheckoutAssurances", () => {
     expect(screen.getByText("checkout.invoiceHint")).toBeInTheDocument();
   });
 });
+
+// Płaszczyzna SPRZEDAWCY (własny Stripe Tax): tu nikt nie wystawia faktury ani
+// nie zbiera NIP-u „z urzędu" - obietnica należy się wyłącznie wtedy, gdy
+// sprzedawca włączył dany parametr sesji. Obietnica bez pokrycia to kupujący
+// firmowy, który płaci, licząc na fakturę VAT, której nigdy nie dostanie.
+describe("CheckoutAssurances - płaszczyzna sprzedawcy", () => {
+  const MERCHANT_BARE: CheckoutSettings = {
+    allow_promotion_codes: false,
+    automatic_tax: true,
+    tax_id_collection: false,
+    billing_address_collection: "auto",
+    invoice_creation: false,
+  };
+
+  const items = () => screen.getAllByRole("listitem").map((li) => li.textContent);
+
+  it("płatność jednorazowa bez faktur i bez NIP obiecuje wyłącznie automatyczny VAT", () => {
+    render(<CheckoutAssurances settings={MERCHANT_BARE} mode="payment" />);
+
+    expect(items()).toEqual(["checkout.taxHint"]);
+  });
+
+  it("płatność jednorazowa z włączoną fakturą obiecuje fakturę", () => {
+    render(
+      <CheckoutAssurances settings={{ ...MERCHANT_BARE, invoice_creation: true }} mode="payment" />,
+    );
+
+    expect(items()).toEqual(["checkout.taxHint", "checkout.invoiceHint"]);
+  });
+
+  it("subskrypcja jest fakturowana zawsze - nawet przy wyłączonej fladze faktury", () => {
+    render(<CheckoutAssurances settings={MERCHANT_BARE} mode="subscription" />);
+
+    expect(items()).toEqual(["checkout.taxHint", "checkout.invoiceHint"]);
+  });
+
+  it("zbieranie NIP u sprzedawcy obiecuje pole NIP/VAT ID", () => {
+    render(
+      <CheckoutAssurances
+        settings={{ ...MERCHANT_BARE, tax_id_collection: true }}
+        mode="payment"
+      />,
+    );
+
+    expect(items()).toEqual(["checkout.taxHint", "checkout.taxIdHint"]);
+  });
+
+  it("własna klasa kontenera zastępuje domyślną (osadzenie w innym układzie)", () => {
+    render(<CheckoutAssurances settings={MERCHANT_BARE} mode="payment" className="mt-2 text-sm" />);
+
+    expect(screen.getByRole("list")).toHaveClass("mt-2", "text-sm");
+    expect(screen.getByRole("list")).not.toHaveClass("border-t");
+  });
+});

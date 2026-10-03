@@ -177,13 +177,64 @@ describe("registered request middleware", () => {
       expect(res.headers.get("set-cookie")!.includes("Secure")).toBe(proto === "https");
     },
   );
+  it("falls back to the request scheme without x-forwarded-proto", async () => {
+    for (const [origin, secure] of [
+      ["https://example.org", true],
+      ["http://example.org", false],
+    ] as const) {
+      const res = response(await run(6, new Request(`${origin}/profile?lang=en`)));
+      expect(res.headers.get("set-cookie")!.endsWith("; Secure")).toBe(secure);
+    }
+  });
+  it.each([
+    ["https://example.org", undefined, true],
+    ["https://example.org", "", true],
+    ["http://example.org", "https", true],
+    ["http://example.org", "https, http", true],
+    ["http://example.org", undefined, false],
+    ["https://example.org", "http", false],
+    // `Secure` tylko dla jawnego "https": inny schemat nie może go dostać, bo
+    // przeglądarka odrzuca ciasteczko `Secure` z niezabezpieczonego połączenia
+    // i preferencja języka przepadłaby po cichu.
+    ["https://example.org", "HTTP", false],
+  ])(
+    "both language middlewares write the same cookie bytes for %s (x-forwarded-proto %j)",
+    async (origin, proto, secure) => {
+      // Jedno źródło Set-Cookie: ogniwo 4 (negocjacja "/") i ogniwo 6 (legacy
+      // `?lang=`) muszą zapisać preferencję identycznie - inaczej przeglądarka
+      // trzyma dwa warianty atrybutów tego samego ciasteczka zależnie od wejścia.
+      const forwarded: Record<string, string> =
+        proto === undefined ? {} : { "x-forwarded-proto": proto };
+      for (const lang of ["pl", "en"]) {
+        const expected = `nes_lang=${lang}; Path=/; Max-Age=31536000; SameSite=Lax${secure ? "; Secure" : ""}`;
+        const homepage = response(
+          await run(
+            4,
+            new Request(`${origin}/`, {
+              headers: { ...forwarded, accept: "text/html", "accept-language": lang },
+            }),
+          ),
+        );
+        const legacy = response(
+          await run(6, new Request(`${origin}/profile?lang=${lang}`, { headers: forwarded })),
+        );
+        expect(homepage.headers.getSetCookie()).toEqual([expected]);
+        expect(legacy.headers.getSetCookie()).toEqual([expected]);
+      }
+    },
+  );
   it.each([
     ["/blog", "GET", "text/html"],
     ["/", "POST", "text/html"],
     ["/", "GET", "application/json"],
+    ["/", "GET", undefined],
   ])("skips homepage negotiation for %s %s %s", async (path, method, accept) => {
-    const next = vi.fn(async () => document());
-    await run(4, request(path, { accept }, method), next);
+    const original = document();
+    const next = vi.fn(async () => original);
+    // Accept-Language EN: bez bramki każdy z tych przypadków dostałby 302 na /en.
+    const headers: Record<string, string> = { "accept-language": "en" };
+    if (accept) headers.accept = accept;
+    expect(await run(4, request(path, headers, method), next)).toBe(original);
     expect(next).toHaveBeenCalledOnce();
   });
   it("negotiates EN with an uncacheable redirect preserving search", async () => {
@@ -226,6 +277,116 @@ describe("registered request middleware", () => {
       expect(res.headers.get("set-cookie")).toBeNull();
     },
   );
+  it("returns the downstream result untouched for a stored default (PL) preference", async () => {
+    // Odpowiedź zależy tu tylko od ciasteczka, więc nie dokładamy ani
+    // Set-Cookie, ani `Vary: Accept-Language` (rozbijałoby wpis cache "/").
+    const original = document();
+    const res = await run(
+      4,
+      request("/", { accept: "text/html", cookie: "nes_lang=pl", "accept-language": "en" }),
+      async () => original,
+    );
+    expect(res).toBe(original);
+    expect(original.headers.get("vary")).toBeNull();
+  });
+  it("redirects a stored EN preference (also the legacy cookie name) preserving search", async () => {
+    for (const cookie of ["theme=dark; nes_lang=en", "lovable_lang=en"]) {
+      const next = vi.fn();
+      const res = response(
+        await run(
+          4,
+          request("/?utm_source=mail&page=2", {
+            accept: "text/html",
+            cookie,
+            "accept-language": "pl",
+          }),
+          next,
+        ),
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get("location")).toBe("/en?utm_source=mail&page=2");
+      expect(res.headers.get("cache-control")).toBe("no-store");
+      expect(res.headers.get("vary")).toBe("Cookie, Accept-Language");
+      // Preferencja już jest - nie przepisujemy jej ciasteczkiem.
+      expect(res.headers.get("set-cookie")).toBeNull();
+      expect(next).not.toHaveBeenCalled();
+    }
+  });
+  it("negotiates HEAD like GET", async () => {
+    const res = response(
+      await run(4, request("/", { accept: "text/html", "accept-language": "de" }, "HEAD")),
+    );
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/en");
+  });
+  it("returns the downstream result untouched when nothing is known about the visitor", async () => {
+    const original = document();
+    const res = await run(4, request("/", { accept: "text/html" }), async () => original);
+    expect(res).toBe(original);
+    expect(original.headers.get("set-cookie")).toBeNull();
+  });
+  it("merges the persisted cookie and Vary into the downstream response and envelope", async () => {
+    const original = new Response("<html>treść</html>", {
+      status: 203,
+      statusText: "Partial",
+      headers: { ...HTML, vary: "Accept-Encoding" },
+    });
+    const envelope = { response: original, serverSsrCleanup: "stream", dispose: vi.fn() };
+    const out = (await run(
+      4,
+      request("/", { accept: "text/html", "accept-language": "pl-PL,pl;q=0.9" }),
+      async () => envelope,
+    )) as typeof envelope;
+    expect(out.dispose).toBe(envelope.dispose);
+    expect(out.serverSsrCleanup).toBe("stream");
+    expect(out.response.body).toBe(original.body);
+    expect(out.response.status).toBe(203);
+    expect(out.response.statusText).toBe("Partial");
+    expect(out.response.headers.get("vary")).toBe("Accept-Encoding, Accept-Language");
+    expect(out.response.headers.getSetCookie()).toEqual([
+      "nes_lang=pl; Path=/; Max-Age=31536000; SameSite=Lax; Secure",
+    ]);
+  });
+  it.each([
+    ["https://example.org/", undefined, true],
+    ["http://example.org/", "https", true],
+    ["http://example.org/", "https, http", true],
+    ["http://example.org/", undefined, false],
+    ["https://example.org/", "http", false],
+  ])(
+    "persists the negotiated cookie for %s (x-forwarded-proto %s) with Secure=%s",
+    async (url, proto, secure) => {
+      const headers: Record<string, string> = { accept: "text/html", "accept-language": "de" };
+      if (proto) headers["x-forwarded-proto"] = proto;
+      const res = response(await run(4, new Request(url, { headers })));
+      expect(res.status).toBe(302);
+      const cookie = res.headers.get("set-cookie")!;
+      expect(cookie).toMatch(/^nes_lang=en; Path=\/; Max-Age=31536000; SameSite=Lax/);
+      expect(cookie.endsWith("; Secure")).toBe(secure);
+    },
+  );
+  it("a corrupted language cookie does not turn the homepage into a 500", async () => {
+    // decodeURIComponent na `nes_lang=%E0%A4%A` rzucał URIError -> errorMiddleware
+    // -> strona 500 na "/" dla tego odwiedzającego, na rok (tyle żyje cookie),
+    // a klient nie miał jak go naprawić, bo nie dostawał aplikacji.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const req = request("/", {
+      accept: "text/html",
+      cookie: "nes_lang=%E0%A4%A",
+      "accept-language": "en",
+    });
+    const res = response(await run(0, req, async () => run(4, req)));
+    expect(error).not.toHaveBeenCalled();
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("/en");
+    // Zepsuta wartość = brak preferencji: wykryta trafia do cookie i je nadpisuje.
+    expect(res.headers.get("set-cookie")).toMatch(/^nes_lang=en;/);
+    // Nazwa zapasowa wciąż decyduje, gdy nowa jest zepsuta.
+    const legacy = request("/", { accept: "text/html", cookie: "nes_lang=%; lovable_lang=en" });
+    const fromLegacy = response(await run(0, legacy, async () => run(4, legacy)));
+    expect(fromLegacy.status).toBe(302);
+    expect(fromLegacy.headers.get("set-cookie")).toBeNull();
+  });
   it("turns the loader's out-of-band no-store into an actual Response header", async () => {
     const handler = requestHandler(async (req) =>
       response(

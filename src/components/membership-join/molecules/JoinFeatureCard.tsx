@@ -14,8 +14,12 @@ export function JoinFeatureCard({
   icon: LucideIcon;
   title: string;
   body: string;
-  /** Numer porządkowy - używany tylko do opóźnienia wejścia karty. */
-  index?: number;
+  /**
+   * Numer porządkowy - używany tylko do opóźnienia wejścia karty. Wymagany:
+   * karta żyje wyłącznie w siatkach (filary, segmenty), a kaskada bez numeru
+   * nie ma sensu.
+   */
+  index: number;
   className?: string;
 }) {
   return (
@@ -26,7 +30,7 @@ export function JoinFeatureCard({
         "hover:-translate-y-0.5 hover:border-primary/45 hover:shadow-[0_18px_40px_-28px_color-mix(in_oklab,var(--primary)_60%,transparent)]",
         className,
       )}
-      style={index === undefined ? undefined : { animationDelay: `${index * 60}ms` }}
+      style={{ animationDelay: `${index * 60}ms` }}
     >
       {/* Poświata zamiast cienia - zgodnie z językiem wizualnym klubów. */}
       <span

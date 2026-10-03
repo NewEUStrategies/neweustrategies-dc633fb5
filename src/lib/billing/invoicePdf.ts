@@ -7,9 +7,12 @@
 // bajt po bajcie.
 //
 // POLSKIE ZNAKI. Bazowe fonty PDF (Helvetica) używają kodowania WinAnsi, w
-// którym nie ma ą/ć/ę/ł/ń/ś/ź/ż. Podmieniamy więc nieużywane kody 0x80-0x9F na
-// właściwe nazwy glifów przez tablicę /Differences - to standardowy zapis PDF,
-// czytany przez każdą przeglądarkę i program księgowy.
+// którym nie ma ą/ć/ę/ł/ń/ś/ź/ż. Podmieniamy więc kody 0x80-0x8F (znaki
+// typograficzne WinAnsi, w tym €, których generator nie drukuje) na właściwe
+// nazwy glifów przez tablicę /Differences - to standardowy zapis PDF, czytany
+// przez każdą przeglądarkę i program księgowy. Zakres 0xA0-0xFF zostaje
+// nietknięty: tam WinAnsi to Latin-1, więc é/ü/ß/ó z nazw firm drukują się
+// pod własnym kodem.
 
 export interface InvoiceParty {
   name: string;
@@ -56,7 +59,7 @@ export interface InvoiceLabels {
   paid: string;
 }
 
-/** Kody 0x80-0x9F przypisane polskim glifom (patrz nota na górze pliku). */
+/** Kody 0x80-0x8F przypisane polskim glifom (patrz nota na górze pliku). */
 const DIFFERENCES: Array<[number, string, string]> = [
   [0x80, "aogonek", "ą"],
   [0x81, "cacute", "ć"],
@@ -77,21 +80,31 @@ const DIFFERENCES: Array<[number, string, string]> = [
 ];
 
 const CHAR_TO_CODE = new Map<string, number>(DIFFERENCES.map(([code, , ch]) => [ch, code]));
-const WINANSI: Record<string, number> = { ó: 0xf3, Ó: 0xd3, "€": 0x80 };
+
+const octal = (code: number): string => `\\${code.toString(8).padStart(3, "0")}`;
 
 /** Zamiana napisu na literał PDF w naszym kodowaniu (z ucieczkami). */
 export function encodePdfText(value: string): string {
   let out = "";
   for (const ch of value) {
-    const mapped = CHAR_TO_CODE.get(ch) ?? WINANSI[ch];
+    const mapped = CHAR_TO_CODE.get(ch);
     if (mapped !== undefined) {
-      out += `\\${mapped.toString(8).padStart(3, "0")}`;
+      out += octal(mapped);
       continue;
     }
-    const code = ch.codePointAt(0) ?? 63;
+    // Euro ma w WinAnsi kod 0x80, który /Differences oddaje literze `ą` -
+    // wolnego kodu bez kolizji z polskimi glifami nie ma, więc piszemy skrót.
+    if (ch === "€") {
+      out += "EUR";
+      continue;
+    }
+    // Pierwsza jednostka UTF-16 wystarcza: znak spoza BMP daje surogat
+    // (0xD800+), który i tak ląduje w gałęzi `?`.
+    const code = ch.charCodeAt(0);
     if (ch === "(" || ch === ")" || ch === "\\") out += `\\${ch}`;
-    else if (code < 32 || code > 126) out += "?";
-    else out += ch;
+    else if (code >= 32 && code <= 126) out += ch;
+    else if (code >= 0xa0 && code <= 0xff) out += octal(code);
+    else out += "?";
   }
   return out;
 }

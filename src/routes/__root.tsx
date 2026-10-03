@@ -418,6 +418,18 @@ function ssrGoogleTag(settings: Readonly<Record<string, unknown>> | undefined): 
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // Język renderu idzie za adresem przy KAŻDEJ nawigacji klienta, także
+  // wstecz/dalej przeglądarki. Stało to w loaderze, a loader korzenia przy
+  // nawigacji klienta nie biegnie ponownie (dopasowanie korzenia "zostaje"
+  // i router-core uznaje je za świeże) - po powrocie z /en/x na /y strona
+  // o polskim adresie kanonicznym renderowała się po angielsku. `beforeLoad`
+  // biegnie przy każdym `router.load()`, przed loaderami i renderem trasy.
+  // Na serwerze to czysty odczyt (żadnej mutacji współdzielonego singletona).
+  // PRZED `head()`: TypeScript wnioskuje typ `beforeLoad` z kolejnych funkcji
+  // literału, a `head` czyta kontekst trasy, który od niego zależy.
+  beforeLoad: async ({ location }) => {
+    await syncI18nToRequest(location.publicHref).catch(() => undefined);
+  },
   head: (ctx) => {
     // Tag Google z loaderData (patrz `ssrGoogleTag`); bez loaderData (render
     // błędu, wywołanie bez kontekstu) - stała wdrożenia.
@@ -489,14 +501,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // in lockstep with the route body instead of popping in after hydration.
   loader: async ({ context, location }) => {
     const path = location.pathname;
-    const isHome = path === "/" || path === "/en" || path === "/en/";
+    // Strona główna w KAŻDYM języku to "/": rewrite `input` routera
+    // (`src/router.tsx`) zdejmuje prefiks "/en" ZANIM powstanie `location`, więc
+    // dawne porównania z "/en" i "/en/" nigdy nie były prawdziwe.
+    const isHome = path === "/";
     const homeDeadline = isServer && isHome ? homeSsrDeadline(context.queryClient) : undefined;
     // 301 legacy/preview hosts of the hosting layer (see canonicalRedirect.ts)
     // to https://neweuropeanstrategies.com preserving path + query. Runs
     // server-side only; editor preview (id-preview--*, EDITOR_HOST_SUFFIXES) and
     // localhost are excluded so the builder iframe keeps working.
     enforceCanonicalHost();
-    await syncI18nToRequest().catch(() => undefined);
     // Krytyczne zasoby także jako nagłówek HTTP `Link` (obok <link> w <head>):
     // przeglądarka startuje pobieranie CSS i fontów z nagłówków odpowiedzi,
     // zanim sparsuje pierwszy bajt HTML, a NES Edge Cache utrwala nagłówek na

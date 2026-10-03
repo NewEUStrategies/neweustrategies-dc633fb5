@@ -76,12 +76,16 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   const plansQ = useQuery({ queryKey: billingKeys.plansActive(), queryFn: fetchActivePlans });
   const entry = catalogEntryFor(subscription);
 
-  const currentPlan = useMemo<AccessPlan | null>(
-    () =>
-      (plansQ.data ?? []).find((plan) => catalogPriceForPlan(plan)?.priceId === entry?.priceId) ??
-      null,
-    [plansQ.data, entry?.priceId],
-  );
+  // Bez pozycji katalogu nie ma czego dopasowywać: plan bez ceny w katalogu
+  // (np. `corporate`) dawałby `undefined === undefined` i klient widziałby
+  // cudzą nazwę planu razem z jego kwotą.
+  const currentPlan = useMemo<AccessPlan | null>(() => {
+    if (!entry) return null;
+    return (
+      (plansQ.data ?? []).find((plan) => catalogPriceForPlan(plan)?.priceId === entry.priceId) ??
+      null
+    );
+  }, [plansQ.data, entry]);
 
   const targets = useMemo(
     () =>
@@ -166,14 +170,13 @@ export function SubscriptionCard({ subscription }: { subscription: ProviderSubsc
   });
 
   const portal = useMutation({
+    // Mutację uruchamia wyłącznie kliknięcie, więc `window` zawsze istnieje
+    // (tak samo jak przy `window.open` w `onSuccess`).
     mutationFn: (mode: "payment" | "overview") =>
       createStripePortalSession({
         data: {
           environment,
-          returnPath:
-            typeof window !== "undefined"
-              ? `${window.location.pathname}${window.location.search}`
-              : undefined,
+          returnPath: `${window.location.pathname}${window.location.search}`,
         },
       })
         .then(unwrapProviderResult)

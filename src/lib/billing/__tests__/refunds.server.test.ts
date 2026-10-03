@@ -96,7 +96,7 @@ type OrderRow = Pick<
 /** Wiersz `subscriptions` (operatorski) czytany przez obie ścieżki. */
 type SubscriptionRow = Pick<
   Tables<"subscriptions">,
-  "user_id" | "price_id" | "status" | "current_period_end"
+  "user_id" | "tenant_id" | "price_id" | "status" | "current_period_end"
 >;
 
 const TXN = "pi_1SyntetycznaTransakcja";
@@ -124,6 +124,9 @@ function orderRow(overrides: Partial<OrderRow> = {}): OrderRow {
 function subscriptionRow(overrides: Partial<SubscriptionRow> = {}): SubscriptionRow {
   return {
     user_id: BILLING_IDS.me,
+    // Najemca subskrypcji: zawęża plan (`resolvePlanForPrice`) i adresatów
+    // alertu o sporze (`notifyTenantAdmins`).
+    tenant_id: BILLING_IDS.tenant,
     // `plus_monthly` jest w `BILLING_CATALOG` - bez wpisu katalogowego plan
     // nie rozwiąże się i połowa skutków zwrotu przestaje istnieć.
     price_id: "plus_monthly",
@@ -158,6 +161,8 @@ interface Scene {
   existingEntitlement: { id: string; status: string } | null;
   /** Darowizny zmienione przez zwrot. */
   refundedDonations: { id: string }[];
+  /** Najemca darowizny odczytany przez alert o sporze (`maybeSingle`). */
+  donationTenant: string | null;
   admins: { user_id: string }[];
   adminProfiles: { id: string; tenant_id: string | null }[];
 }
@@ -181,7 +186,13 @@ function seed(): void {
     return ok(null);
   });
   db.setResponse("user_purchases", () => ok(null));
-  db.setResponse("donations", () => ok(scene.refundedDonations));
+  db.setResponse("donations", (chain) =>
+    // Alert o sporze pyta o najemcę darowizny pojedynczym wierszem; zwrot
+    // zapisuje status i czyta zmienione wiersze listą.
+    chain.has("maybeSingle")
+      ? ok(scene.donationTenant ? { tenant_id: scene.donationTenant } : null)
+      : ok(scene.refundedDonations),
+  );
   db.setResponse("event_rsvps", () => ok(null));
   db.setResponse("notifications", () => ok(null));
   db.setResponse("user_roles", () => ok(scene.admins));
@@ -248,6 +259,20 @@ function filters(table: string, method: "eq" | "neq"): unknown[][] {
     .map((call) => [...call.args]);
 }
 
+/** Dzwonki administratorów - `notifyTenantAdmins` wstawia je przez RPC. */
+function adminBells(): Record<string, unknown>[] {
+  return h.rpc.calls.filter((call) => call.fn === "enqueue_notification").map((call) => call.args);
+}
+
+/** Najemca, w którym alert o sporze szukał administratorów (`user_roles`). */
+function alertTenants(): unknown[] {
+  return db
+    .chainsFor("user_roles")
+    .flatMap((chain) => chain.calls.filter((call) => call.method === "eq"))
+    .filter((call) => call.args[0] === "tenant_id")
+    .map((call) => call.args[1]);
+}
+
 /** Wiadomości oddane granicy pocztowej. */
 function emails(): Record<string, unknown>[] {
   return h.emails.filter(isRecord);
@@ -265,6 +290,7 @@ beforeEach(() => {
     revokedEntitlements: [{ id: "us-1" }],
     existingEntitlement: null,
     refundedDonations: [],
+    donationTenant: null,
     admins: [],
     adminProfiles: [],
   };
@@ -879,17 +905,20 @@ describe("zwrot SUBSKRYPCJI", () => {
     expect(await applyRefundEffects(subEvent())).toBe("skipped");
   });
 
-  it("cena SPOZA KATALOGU: dostęp znika, ale bez CRM i bez dzwonka", async () => {
-    // Bez wpisu katalogowego nie znamy ani warstwy, ani najemcy planu.
-    // `pushRefundNotification` dostaje wtedy `null` i milczy - to jedyna
-    // ścieżka, w której brak najemcy jest normalny, a nie błędem.
+  it("cena SPOZA KATALOGU: dostęp znika, bez CRM, ale dzwonek idzie do najemcy subskrypcji", async () => {
+    // Bez wpisu katalogowego nie znamy warstwy (więc CRM milczy) - ale najemcę
+    // niesie sam wiersz `subscriptions`. Wcześniej dzwonek brał najemcę
+    // wyłącznie z planu i przy cenie spoza katalogu klient nie dostawał
+    // w aplikacji żadnego śladu zwrotu.
     scene.subscription = subscriptionRow({ price_id: "cena_spoza_katalogu" });
 
     const outcome = await applyRefundEffects(subEvent());
 
     expect(outcome).toBe("subscription_refunded");
     expect(db.chainsFor("crm_leads")).toHaveLength(0);
-    expect(inserted("notifications")).toHaveLength(0);
+    expect(inserted("notifications")).toEqual([
+      expect.objectContaining({ user_id: BILLING_IDS.me, tenant_id: BILLING_IDS.tenant }),
+    ]);
     // Mail idzie mimo to - klient ma prawo wiedzieć o zwrocie.
     expect(emails()[0]).toMatchObject({ type: "payment_refunded" });
   });
@@ -902,65 +931,62 @@ describe("zwrot SUBSKRYPCJI", () => {
   });
 });
 
-describe("SPÓR OTWARTY - alert dla zespołu", () => {
-  it("każdy administrator z najemcą dostaje ślad w panelu", async () => {
-    // Spór wymaga ludzkiej reakcji w terminie banku. Alert musi powstać
-    // ZAWSZE, także wtedy, gdy zwrot dotyczy nieznanej transakcji.
-    scene.admins = [{ user_id: "admin-1" }, { user_id: "admin-2" }];
-    scene.adminProfiles = [
-      { id: "admin-1", tenant_id: BILLING_IDS.tenant },
-      // Administrator bez najemcy - powiadomienie nie ma gdzie trafić.
-      { id: "admin-2", tenant_id: null },
-    ];
+describe("SPÓR OTWARTY - alert dla zespołu NAJEMCY sporu", () => {
+  // AUDYT WYD. 12 (16.8, defekt wysoki): `alertAdminsAboutDispute` wybierał
+  // z `user_roles` KAŻDEGO z rolą `admin`, bez warunku najemcy, i wstawiał mu
+  // dzwonek z identyfikatorem cudzej transakcji. Odbiorców zawęża teraz
+  // `notifyTenantAdmins` (rola i profil W TYM najemcy, dzwonek przez
+  // `enqueue_notification`), a najemcę wyprowadza się z NASZEGO wiersza.
+
+  it("dzwonek trafia do administratorów najemcy zamówienia, przez kolejkę powiadomień", async () => {
+    scene.admins = [{ user_id: "admin-1" }];
+    scene.adminProfiles = [{ id: "admin-1", tenant_id: BILLING_IDS.tenant }];
 
     await applyRefundEffects(refundEvent({ action: "chargeback_warning", status: null }));
 
-    const alerts = inserted("notifications").filter((row) => row.href === "/admin/billing");
-    expect(alerts).toHaveLength(1);
-    expect(alerts[0]).toMatchObject({
-      user_id: "admin-1",
-      tenant_id: BILLING_IDS.tenant,
-      title_pl: "Otwarto spór płatniczy",
-      icon: "shield-alert",
+    expect(alertTenants()).toEqual([BILLING_IDS.tenant]);
+    expect(adminBells()).toHaveLength(1);
+    expect(adminBells()[0]).toMatchObject({
+      p_user_id: "admin-1",
+      p_kind: "billing",
+      p_title_pl: "Otwarto spór płatniczy",
+      p_href: "/admin/billing",
+      // Ikona z listy kuratorskiej - `shield-alert` jej nie ma i ładował
+      // w przeglądarce leniwy rejestr ikon (spec B.7).
+      p_icon: "credit-card",
     });
-    expect(String(alerts[0].body_pl)).toContain(TXN);
+    expect(String(adminBells()[0].p_body_pl)).toContain(TXN);
+    // Żadnego wsadowego `insert` do `notifications` z pominięciem kolejki.
+    expect(inserted("notifications").some((row) => row.href === "/admin/billing")).toBe(false);
   });
 
-  it("brak administratorów nie generuje żadnego alertu", async () => {
+  it("spór najemcy B NIE pyta o administratorów najemcy A", async () => {
+    // Regresja wprost: zamówienie obcej organizacji wyznacza JEJ najemcę.
+    scene.order = orderRow({ tenant_id: BILLING_IDS.foreignTenant });
+    scene.admins = [{ user_id: "admin-b" }];
+    scene.adminProfiles = [{ id: "admin-b", tenant_id: BILLING_IDS.foreignTenant }];
+
+    await applyRefundEffects(refundEvent({ action: "chargeback" }));
+
+    expect(alertTenants()).toEqual([BILLING_IDS.foreignTenant]);
+    expect(alertTenants()).not.toContain(BILLING_IDS.tenant);
+    const profileTenants = db
+      .chainsFor("profiles")
+      .filter((chain) => chain.has("in"))
+      .flatMap((chain) => chain.calls.filter((call) => call.method === "eq"))
+      .map((call) => call.args);
+    expect(profileTenants).toContainEqual(["tenant_id", BILLING_IDS.foreignTenant]);
+  });
+
+  it("brak administratorów w najemcy nie generuje żadnego dzwonka", async () => {
     scene.admins = [];
 
     await applyRefundEffects(refundEvent({ action: "chargeback" }));
 
-    expect(inserted("notifications").some((row) => row.href === "/admin/billing")).toBe(false);
+    expect(adminBells()).toHaveLength(0);
   });
 
-  it("administratorzy bez profilu nie generują alertu", async () => {
-    scene.admins = [{ user_id: "admin-1" }];
-    scene.adminProfiles = [];
-
-    await applyRefundEffects(refundEvent({ action: "chargeback" }));
-
-    expect(inserted("notifications").some((row) => row.href === "/admin/billing")).toBe(false);
-  });
-
-  it("administratorzy WYŁĄCZNIE bez najemcy: żadnego alertu i żadnego pustego zapisu", async () => {
-    // Filtr najemcy może wyzerować całą listę. Wsadowy `insert([])` byłby
-    // zbędnym żądaniem do bazy i fałszywym śladem „alert wysłany".
-    scene.admins = [{ user_id: "admin-1" }];
-    scene.adminProfiles = [{ id: "admin-1", tenant_id: null }];
-
-    await applyRefundEffects(refundEvent({ action: "chargeback" }));
-
-    // Profile administratorów przeczytano - filtr najemcy naprawdę biegł...
-    expect(db.chainsFor("profiles").some((chain) => chain.has("in"))).toBe(true);
-    // ...a zapisu wsadowego nie ma (dzwonek klienta idzie pojedynczym wierszem).
-    const batchInserts = db
-      .chainsFor("notifications")
-      .filter((chain) => Array.isArray(chain.argsOf("insert")?.[0]));
-    expect(batchInserts).toHaveLength(0);
-  });
-
-  it("alert wskazuje SUBSKRYPCJĘ, gdy korekta nie niesie transakcji", async () => {
+  it("alert wskazuje SUBSKRYPCJĘ i jej najemcę, gdy korekta nie niesie transakcji", async () => {
     // Odniesienie w treści alertu jest tym, po czym zespół odnajduje sprawę
     // u operatora. Spór subskrypcyjny nie ma identyfikatora transakcji.
     scene.admins = [{ user_id: "admin-1" }];
@@ -971,26 +997,96 @@ describe("SPÓR OTWARTY - alert dla zespołu", () => {
       refundEvent({ action: "chargeback", transactionId: null, subscriptionId: SUB }),
     );
 
-    const alert = inserted("notifications").find((row) => row.href === "/admin/billing");
-    expect(String(alert?.body_pl)).toContain(SUB);
+    expect(alertTenants()).toEqual([BILLING_IDS.tenant]);
+    expect(String(adminBells()[0]?.p_body_pl)).toContain(SUB);
   });
 
-  it("alert powstaje NAWET BEZ transakcji i subskrypcji - zostaje numer korekty", async () => {
-    // Spór, którego nie umiemy powiązać z niczym u siebie, jest NAJGROŹNIEJSZY:
-    // nikt się o nim nie dowie z automatu, a termin banku biegnie. Alert musi
-    // powstać przed rozpoznaniem celu i musi nieść jedyny znany uchwyt.
+  it("subskrypcja NIEZNANA lokalnie: najemca przychodzi z zamówienia transakcji", async () => {
+    // Spór może nieść oba identyfikatory, a wiersza subskrypcji u nas nie być
+    // (inne środowisko, subskrypcja sprzed migracji). Wtedy najemcę wyznacza
+    // zamówienie po transakcji - a nie „nikt".
+    scene.subscription = null;
+    scene.order = orderRow({ tenant_id: BILLING_IDS.foreignTenant });
+    scene.admins = [{ user_id: "admin-b" }];
+    scene.adminProfiles = [{ id: "admin-b", tenant_id: BILLING_IDS.foreignTenant }];
+
+    await applyRefundEffects(refundEvent({ action: "chargeback", subscriptionId: SUB }));
+
+    expect(alertTenants()).toEqual([BILLING_IDS.foreignTenant]);
+    expect(String(adminBells()[0]?.p_body_pl)).toContain(TXN);
+  });
+
+  it("spór o DAROWIZNĘ alarmuje najemcę darowizny", async () => {
+    scene.order = null;
+    scene.donationTenant = BILLING_IDS.foreignTenant;
+    scene.admins = [{ user_id: "admin-b" }];
+    scene.adminProfiles = [{ id: "admin-b", tenant_id: BILLING_IDS.foreignTenant }];
+
+    await applyRefundEffects(refundEvent({ action: "chargeback" }));
+
+    expect(alertTenants()).toEqual([BILLING_IDS.foreignTenant]);
+    expect(filters("donations", "eq")).toContainEqual(["environment", "sandbox"]);
+  });
+
+  it("spór BEZ przypisanego najemcy nie dzwoni u nikogo - zostaje ślad w logu serwera", async () => {
+    // Lepszy brak dzwonka niż dzwonek u obcej organizacji. Spór zostaje
+    // w dzienniku webhooków i w logu - z numerem korekty, jedynym uchwytem.
     scene.admins = [{ user_id: "admin-1" }];
     scene.adminProfiles = [{ id: "admin-1", tenant_id: BILLING_IDS.tenant }];
     const warnLog = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const outcome = await applyRefundEffects(
       refundEvent({ action: "chargeback", transactionId: null, subscriptionId: null }),
     );
 
     expect(outcome).toBe("skipped");
-    const alert = inserted("notifications").find((row) => row.href === "/admin/billing");
-    expect(String(alert?.body_pl)).toContain("adj_1Syntetyczna");
+    expect(db.chainsFor("user_roles")).toHaveLength(0);
+    expect(adminBells()).toHaveLength(0);
+    expect(JSON.stringify(errorLog.mock.calls)).toContain("adj_1Syntetyczna");
     warnLog.mockRestore();
+    errorLog.mockRestore();
+  });
+
+  it("transakcja nieznana (ani zamówienie, ani darowizna) to też brak najemcy", async () => {
+    scene.order = null;
+    scene.donationTenant = null;
+    scene.admins = [{ user_id: "admin-1" }];
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await applyRefundEffects(refundEvent({ action: "chargeback" }));
+
+    expect(db.chainsFor("user_roles")).toHaveLength(0);
+    errorLog.mockRestore();
+  });
+
+  it("identyfikator o obcym kształcie nie szuka najemcy w `or(...)`", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await applyRefundEffects(
+      refundEvent({ action: "chargeback", transactionId: "pi_1,provider_intent_id.eq.cudze" }),
+    );
+
+    expect(db.chainsFor("payment_orders")).toHaveLength(0);
+    expect(db.chainsFor("user_roles")).toHaveLength(0);
+    errorLog.mockRestore();
+  });
+
+  it("awaria odczytu najemcy nie wywraca odebrania dostępu", async () => {
+    db.setResponse("subscriptions", () => {
+      throw new Error("connection reset");
+    });
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      applyRefundEffects(
+        refundEvent({ action: "chargeback", transactionId: null, subscriptionId: SUB }),
+      ),
+    ).rejects.toThrow("connection reset");
+    // Odczyt najemcy połknął błąd (alert to skutek miękki) - wyjątek niesie
+    // dopiero właściwe odebranie dostępu, które MUSI dać ponowienie.
+    expect(JSON.stringify(errorLog.mock.calls)).toContain("dispute tenant lookup failed");
+    errorLog.mockRestore();
   });
 
   it("zwykły zwrot NIE alarmuje zespołu", async () => {
@@ -1022,8 +1118,8 @@ describe("SPÓR WYGRANY - dostęp wraca", () => {
       status: "active",
       external_ref: SUB,
     });
-    const alerts = inserted("notifications").filter((row) => row.href === "/admin/billing");
-    expect(alerts[0]).toMatchObject({ title_pl: "Spór płatniczy rozstrzygnięty" });
+    expect(alertTenants()).toEqual([BILLING_IDS.tenant]);
+    expect(adminBells()[0]).toMatchObject({ p_title_pl: "Spór płatniczy rozstrzygnięty" });
   });
 
   it("uprawnienie ODEBRANE po zwrocie jest ostateczne - spór go nie wskrzesza", async () => {
@@ -1104,6 +1200,37 @@ describe("SPÓR WYGRANY - dostęp wraca", () => {
     expect(patches("payment_orders")[0]).toMatchObject({ status: "paid" });
     expect(inserted("user_subscriptions")[0]).toMatchObject({ status: "active" });
     expect(patches("event_rsvps")[0]).toMatchObject({ status: "going" });
+  });
+
+  it("zamówienie ZWIĄZANE ZE ZGŁOSZENIEM nie dostaje `going` - decyzja zostaje u organizatora", async () => {
+    // AUDYT WYD. 12 (16.8): zwrot w tym samym oknie przestał dotykać RSVP
+    // zamówień ze `registration_id` (miejsce zwalnia baza, z awansem z listy
+    // rezerwowej), a wygrany spór dawał `going` bezwarunkowo - czyli link
+    // wejścia osobie z odwołanym zgłoszeniem, której miejsce mogło już przejść
+    // na kogoś innego.
+    scene.order = orderRow({
+      metadata: { event_id: EVENT_ID, registration_id: "reg-1" },
+    });
+    scene.admins = [{ user_id: "admin-1" }];
+    scene.adminProfiles = [{ id: "admin-1", tenant_id: BILLING_IDS.tenant }];
+
+    const outcome = await applyRefundEffects(wonEvent());
+
+    expect(outcome).toBe("order_restored");
+    expect(patches("payment_orders")[0]).toMatchObject({ status: "paid" });
+    expect(db.chainsFor("event_rsvps")).toHaveLength(0);
+    expect(String(adminBells()[0]?.p_body_pl)).toContain("wymaga decyzji organizatora");
+    expect(String(adminBells()[0]?.p_body_en)).toContain("needs an organiser decision");
+  });
+
+  it("zamówienie bez zgłoszenia nie dopisuje do alertu zdania o organizatorze", async () => {
+    scene.order = orderRow({ metadata: { event_id: EVENT_ID } });
+    scene.admins = [{ user_id: "admin-1" }];
+    scene.adminProfiles = [{ id: "admin-1", tenant_id: BILLING_IDS.tenant }];
+
+    await applyRefundEffects(wonEvent());
+
+    expect(String(adminBells()[0]?.p_body_pl)).not.toContain("organizatora");
   });
 
   it("zamówienie BEZ biletu wraca bez dotykania zgłoszeń na wydarzenia", async () => {

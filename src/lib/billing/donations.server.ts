@@ -259,7 +259,7 @@ async function applyDonationSettlement(
     .is("paid_at", null)
     .select("id");
   if (first.error) throw new Error(`donation settle failed: ${first.error.message}`);
-  if ((first.data?.length ?? 0) > 0) return true;
+  if (first.data.length > 0) return true;
 
   // Wiersz ma już datę zapłaty (ponowienie webhooka) albo jest zwrócony -
   // druga próba bez `paid_at` rozstrzyga, który z tych przypadków zaszedł.
@@ -270,7 +270,7 @@ async function applyDonationSettlement(
     .neq("status", "refunded")
     .select("id");
   if (retry.error) throw new Error(`donation settle failed: ${retry.error.message}`);
-  return (retry.data?.length ?? 0) > 0;
+  return retry.data.length > 0;
 }
 
 /**
@@ -406,7 +406,7 @@ export async function recordRecurringDonationPayment(
     // Zero wierszy = kotwica przestała być `pending` między odczytem a zapisem
     // (równolegle dostarczony webhook). Ta faktura jest wtedy odnowieniem,
     // a nie pierwszą wpłatą - wpada niżej i dopisuje własny wiersz.
-    if ((data?.length ?? 0) > 0) return "settled";
+    if (data.length > 0) return "settled";
   }
 
   const { error } = await supabaseAdmin.from("donations").insert({

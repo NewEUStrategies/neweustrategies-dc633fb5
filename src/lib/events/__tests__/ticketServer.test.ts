@@ -25,13 +25,18 @@ import { ticketCodeFrom } from "@/lib/events/ticketCode";
 import {
   EVENT_IDS,
   eventRow,
+  fail,
   ok,
   paymentOrderRow,
   profileRow,
   rsvpCountsRow,
   rsvpRow,
+  seatStateRow,
   supabaseClientStub,
+  type PaymentOrderRow,
+  type RecordedChain,
   type SupabaseClientStub,
+  type SupabaseResult,
 } from "@/test/events/fixtures";
 
 const h = vi.hoisted(() => ({
@@ -39,12 +44,24 @@ const h = vi.hoisted(() => ({
   calls: [] as Array<{ url: string; key: string; options: Record<string, unknown> }>,
   /** Klient, który `publicClient()` ma oddać. */
   client: null as unknown,
+  /** Wywołania przez `fetchWithTenantHost` - dowód, że odczyt niesie hosta. */
+  tenantFetches: 0,
 }));
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: (url: string, key: string, options: Record<string, unknown>) => {
     h.calls.push({ url, key, options });
     return h.client;
+  },
+}));
+
+// Prawdziwy `fetchWithTenantHost` dokłada nagłówek hosta z kontekstu żądania.
+// Tu liczy wywołania i oddaje żądanie globalnemu `fetch` bez zmian - test
+// nagłówków klucza widzi dokładnie to, co złożył `publicClient()`.
+vi.mock("@/integrations/supabase/tenant-host-fetch", () => ({
+  fetchWithTenantHost: (input: RequestInfo | URL, init?: RequestInit) => {
+    h.tenantFetches += 1;
+    return fetch(input, init);
   },
 }));
 
@@ -56,20 +73,25 @@ function asClient(stub: SupabaseClientStub): SupabaseClient {
   return stub.client as unknown as SupabaseClient;
 }
 
-/** Wydarzenie o danej pojemności + liczniki RSVP z RPC. */
-function seatScenario(input: { capacity: number | null; counts?: unknown }): SupabaseClientStub {
+/**
+ * Stan miejsc z `event_seat_state`. `rows` w wariancie jawnym podaje odpowiedź
+ * RPC wprost (także `null` i pustą tablicę - gałęzie obronne muszą być osiągalne).
+ */
+function seatScenario(
+  input: { capacity: number | null; going?: number; waitlist?: number } | { rows: unknown },
+): SupabaseClientStub {
   const stub = supabaseClientStub();
-  stub.db.setResponse("events", ok({ capacity: input.capacity }));
-  // `in` zamiast `??`: scenariusz MUSI umieć podać jawne `null` jako odpowiedź
-  // RPC. Z `??` null zamieniał się w wiersz zerowy i gałąź obronna
-  // `Array.isArray(counts) ? ... : null` nigdy nie była wykonywana.
-  stub.setRpc("get_event_rsvp_counts", ok("counts" in input ? input.counts : rsvpCountsRow(0)));
+  stub.setRpc(
+    "event_seat_state",
+    ok("rows" in input ? input.rows : seatStateRow({ ...input, capacity: input.capacity })),
+  );
   return stub;
 }
 
 beforeEach(() => {
   h.calls.length = 0;
   h.client = null;
+  h.tenantFetches = 0;
   vi.stubEnv("SUPABASE_URL", "https://db.example.supabase.co");
   vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "sb_publishable_abc123");
 });
@@ -85,7 +107,7 @@ afterEach(() => {
 
 describe("loadEventSeatState - arytmetyka miejsc", () => {
   it("brak pojemności oznacza brak limitu, nie zero miejsc", async () => {
-    h.client = seatScenario({ capacity: null, counts: rsvpCountsRow(120) }).client;
+    h.client = seatScenario({ capacity: null, going: 120 }).client;
     const state = await loadEventSeatState(EVENT_IDS.event);
     expect(state.capacity).toBeNull();
     expect(state.seatsLeft).toBeNull();
@@ -93,23 +115,25 @@ describe("loadEventSeatState - arytmetyka miejsc", () => {
   });
 
   it("pojemność 0 to BRAK limitu, a nie wyprzedanie", async () => {
-    // Pułapka warta asercji: `capacity > 0` w `seatsFor` sprawia, że zero
+    // Pułapka warta asercji: `capacity > 0` w `seatState` sprawia, że zero
     // znaczy „bez limitu". Odwrócenie tego warunku przy refaktorze zamknęłoby
     // sprzedaż KAŻDEGO wydarzenia bez ustawionej pojemności - awaria widoczna
     // wyłącznie jako spadek sprzedaży, nie jako błąd.
-    h.client = seatScenario({ capacity: 0, counts: rsvpCountsRow(5) }).client;
+    h.client = seatScenario({
+      rows: seatStateRow({ capacity: 0, seats_left: 0, going: 5 }),
+    }).client;
     const state = await loadEventSeatState(EVENT_IDS.event);
     expect(state.capacity).toBeNull();
     expect(state.isFull).toBe(false);
   });
 
   it("ujemna pojemność też jest traktowana jak brak limitu", async () => {
-    h.client = seatScenario({ capacity: -3 }).client;
+    h.client = seatScenario({ rows: seatStateRow({ capacity: -3, seats_left: 0 }) }).client;
     expect((await loadEventSeatState(EVENT_IDS.event)).capacity).toBeNull();
   });
 
   it("liczy pozostałe miejsca przy częściowo zapełnionej sali", async () => {
-    h.client = seatScenario({ capacity: 10, counts: rsvpCountsRow(3, 2) }).client;
+    h.client = seatScenario({ capacity: 10, going: 3, waitlist: 2 }).client;
     const state = await loadEventSeatState(EVENT_IDS.event);
     expect(state).toMatchObject({
       eventId: EVENT_IDS.event,
@@ -121,40 +145,67 @@ describe("loadEventSeatState - arytmetyka miejsc", () => {
     });
   });
 
-  it("sala pełna co do miejsca - isFull przy dokładnie zerze wolnych", async () => {
-    h.client = seatScenario({ capacity: 10, counts: rsvpCountsRow(10) }).client;
+  it("JEDNO ŹRÓDŁO: wolne miejsca to `seats_left` z reguły bazy, nie `capacity - going`", async () => {
+    // Najważniejsza asercja sekcji. Reguła `_event_page_seats_left` bierze
+    // MNIEJSZĄ z puli zgłoszeń i puli legacy. Gdyby kod znów odejmował sam
+    // (`capacity - going` z jednej puli), strona pokazałaby 7 wolnych miejsc
+    // obok nagłówka mówiącego o dwóch - a kasa sprzedałaby piąte z nich.
+    h.client = seatScenario({
+      rows: seatStateRow({ capacity: 10, going: 3, seats_left: 2 }),
+    }).client;
+    const state = await loadEventSeatState(EVENT_IDS.event);
+    expect(state.seatsLeft).toBe(2);
+    expect(state.isFull).toBe(false);
+  });
+
+  it("komplet według reguły bazy jest kompletem, choć pula legacy ma wolne", async () => {
+    h.client = seatScenario({
+      rows: seatStateRow({ capacity: 10, going: 4, seats_left: 0 }),
+    }).client;
     const state = await loadEventSeatState(EVENT_IDS.event);
     expect(state.seatsLeft).toBe(0);
     expect(state.isFull).toBe(true);
   });
 
-  it("nadsprzedaż w bazie nie daje UJEMNEJ liczby wolnych miejsc", async () => {
+  it("sala pełna co do miejsca - isFull przy dokładnie zerze wolnych", async () => {
+    h.client = seatScenario({ capacity: 10, going: 10 }).client;
+    const state = await loadEventSeatState(EVENT_IDS.event);
+    expect(state.seatsLeft).toBe(0);
+    expect(state.isFull).toBe(true);
+  });
+
+  it("ujemne `seats_left` nie daje UJEMNEJ liczby wolnych miejsc", async () => {
     // Gdyby `Math.max(0, ...)` zniknął, UI pokazałby „-2 miejsca", a `isFull`
     // (porównanie z zerem) zrobiłoby się FAŁSZEM - czyli przepełnione
     // wydarzenie znów zaczęłoby sprzedawać.
-    h.client = seatScenario({ capacity: 10, counts: rsvpCountsRow(12) }).client;
+    h.client = seatScenario({
+      rows: seatStateRow({ capacity: 10, going: 12, seats_left: -2 }),
+    }).client;
     const state = await loadEventSeatState(EVENT_IDS.event);
     expect(state.seatsLeft).toBe(0);
     expect(state.isFull).toBe(true);
   });
 
-  it("brak odpowiedzi RPC czyta się jako zero zajętych, nie jako awaria", async () => {
-    h.client = seatScenario({ capacity: 10, counts: null }).client;
+  it("brak wiersza (wydarzenie niewidoczne) to brak limitu, a nie awaria", async () => {
+    h.client = seatScenario({ rows: null }).client;
     const state = await loadEventSeatState(EVENT_IDS.event);
-    expect(state.going).toBe(0);
-    expect(state.waitlist).toBe(0);
-    expect(state.seatsLeft).toBe(10);
+    expect(state).toMatchObject({ capacity: null, seatsLeft: null, going: 0, waitlist: 0 });
+    expect(state.isFull).toBe(false);
   });
 
-  it("pusta tablica z RPC czyta się jako zero zajętych", async () => {
-    h.client = seatScenario({ capacity: 10, counts: [] }).client;
-    expect((await loadEventSeatState(EVENT_IDS.event)).going).toBe(0);
+  it("pusta tablica z RPC czyta się tak samo jak brak wiersza", async () => {
+    h.client = seatScenario({ rows: [] }).client;
+    const state = await loadEventSeatState(EVENT_IDS.event);
+    expect(state.going).toBe(0);
+    expect(state.seatsLeft).toBeNull();
   });
 
   it("liczniki podane jako napisy są konwertowane na liczby", async () => {
     // PostgREST potrafi oddać `bigint` jako napis. Bez `Number()` porównanie
-    // `capacity - going` dałoby NaN, a `isFull` - fałsz.
-    h.client = seatScenario({ capacity: 10, counts: [{ going: "4", waitlist: "1" }] }).client;
+    // z zerem nie zadziałałoby, a `isFull` byłoby fałszem.
+    h.client = seatScenario({
+      rows: [{ capacity: "10", seats_left: "6", going: "4", waitlist: "1" }],
+    }).client;
     const state = await loadEventSeatState(EVENT_IDS.event);
     expect(state.going).toBe(4);
     expect(state.waitlist).toBe(1);
@@ -169,14 +220,56 @@ describe("loadEventSeatState - arytmetyka miejsc", () => {
     expect(state.checkedAt).toBe(new Date(state.checkedAt).toISOString());
   });
 
-  it("pyta o pojemność WŁAŚNIE tego wydarzenia i podaje je RPC jako tablicę", async () => {
+  it("JEDNO wywołanie: pojemność jedzie w wierszu RPC, bez osobnego odczytu tabeli", async () => {
     const stub = seatScenario({ capacity: 5 });
     h.client = stub.client;
     await loadEventSeatState(EVENT_IDS.event);
-    expect(stub.db.lastChain("events")?.argsOf("eq")).toEqual(["id", EVENT_IDS.event]);
     expect(stub.rpcCalls).toEqual([
-      { fn: "get_event_rsvp_counts", args: { p_event_ids: [EVENT_IDS.event] } },
+      { fn: "event_seat_state", args: { p_event_id: EVENT_IDS.event } },
     ]);
+    expect(stub.db.chainsFor("events")).toHaveLength(0);
+  });
+
+  it("odmowa bazy RZUCA - awaria odczytu nie jest „brakiem limitu”", async () => {
+    // Wcześniej błąd RPC był czytany jako „zero zajętych": bramka sprzedaży
+    // przepuszczała wtedy KAŻDY bilet. Teraz wołający dostaje wyjątek.
+    const stub = supabaseClientStub();
+    stub.setRpc("event_seat_state", fail("canceling statement due to statement timeout", "57014"));
+    h.client = stub.client;
+    await expect(loadEventSeatState(EVENT_IDS.event)).rejects.toThrow(
+      "seat_state_unavailable: canceling statement due to statement timeout",
+    );
+  });
+
+  it.each(["PGRST202", "42883"])(
+    "okno wdrożenia (%s): bez nowej funkcji liczy dawną regułą, zamiast stawać",
+    async (code) => {
+      // Kod może wejść przed migracją 20261002210000. Kasa nie może wtedy
+      // stanąć dla wszystkich biletów - liczymy tak jak przed zmianą.
+      const stub = supabaseClientStub();
+      stub.setRpc("event_seat_state", fail("Could not find the function", code));
+      stub.db.setResponse("events", ok({ capacity: 10 }));
+      stub.setRpc("get_event_rsvp_counts", ok(rsvpCountsRow(4, 2)));
+      h.client = stub.client;
+
+      const state = await loadEventSeatState(EVENT_IDS.event);
+
+      expect(state).toMatchObject({ capacity: 10, going: 4, waitlist: 2, seatsLeft: 6 });
+      expect(stub.rpcCalls.map((call) => call.fn)).toEqual([
+        "event_seat_state",
+        "get_event_rsvp_counts",
+      ]);
+    },
+  );
+
+  it("okno wdrożenia zachowuje dawne brzegi: brak liczników to zero zajętych", async () => {
+    const stub = supabaseClientStub();
+    stub.setRpc("event_seat_state", fail("Could not find the function", "PGRST202"));
+    stub.db.setResponse("events", ok({ capacity: 3 }));
+    stub.setRpc("get_event_rsvp_counts", ok(null));
+    h.client = stub.client;
+
+    expect((await loadEventSeatState(EVENT_IDS.event)).seatsLeft).toBe(3);
   });
 });
 
@@ -232,6 +325,14 @@ describe("publicClient - nagłówki klucza publikowalnego", () => {
     expect(headers.get("apikey")).toBe("sb_publishable_abc123");
   });
 
+  it("żądanie idzie przez `fetchWithTenantHost` - odczyt liczy miejsca najemcy z hosta", async () => {
+    // `event_seat_state` rozpoznaje najemcę po `public_tenant_id()`, czyli po
+    // nagłówku hosta. Bez niego odczyt z domeny najemcy B liczyłby miejsca
+    // najemcy domyślnego - dla wydarzenia B: brak wiersza, czyli „bez limitu".
+    await callInjectedFetch();
+    expect(h.tenantFetches).toBe(1);
+  });
+
   it("brak zmiennych środowiskowych daje puste napisy, a nie `undefined`", async () => {
     // `createClient(undefined, undefined)` rzuca w supabase-js. Fallbacki `?? ""`
     // sprawiają, że w środowisku bez konfiguracji odczyt miejsc kończy się
@@ -269,8 +370,10 @@ describe("assertSeatAvailable - bramka przed sprzedażą biletu", () => {
   }): SupabaseClientStub {
     const stub = supabaseClientStub();
     stub.db.setResponse("event_rsvps", ok(input.mine));
-    stub.db.setResponse("events", ok({ capacity: input.capacity }));
-    stub.setRpc("get_event_rsvp_counts", ok(rsvpCountsRow(input.going ?? 0)));
+    stub.setRpc(
+      "event_seat_state",
+      ok(seatStateRow({ capacity: input.capacity, going: input.going ?? 0 })),
+    );
     return stub;
   }
 
@@ -328,6 +431,32 @@ describe("assertSeatAvailable - bramka przed sprzedażą biletu", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("pełna sala WEDŁUG REGUŁY BAZY blokuje sprzedaż, choć pula legacy ma wolne", async () => {
+    // Sedno poprawki: bramka sprzedaży biletu legacy liczyła tylko RSVP, więc
+    // przy sali zapełnionej formularzem zgłoszeń sprzedawała miejsce, którego
+    // nie ma. Teraz pyta tę samą regułę, co nagłówek strony.
+    const stub = supabaseClientStub();
+    stub.db.setResponse("event_rsvps", ok(null));
+    stub.setRpc("event_seat_state", ok(seatStateRow({ capacity: 10, going: 2, seats_left: 0 })));
+    await expect(
+      assertSeatAvailable(asClient(stub), EVENT_IDS.event, EVENT_IDS.user),
+    ).rejects.toThrow(new Error("event_full"));
+  });
+
+  it("awaria odczytu miejsc NIE jest `event_full` - zwrot po zapłacie jej nie łapie", async () => {
+    // `refundIfOversold` zwraca pieniądze WYŁĄCZNIE na `event_full`; inny
+    // wyjątek ponawia webhook. Awaria nie może więc ani przepuścić sprzedaży,
+    // ani udawać kompletu.
+    const stub = supabaseClientStub();
+    stub.db.setResponse("event_rsvps", ok(null));
+    stub.setRpc("event_seat_state", fail("permission denied for function event_seat_state"));
+    const outcome = await assertSeatAvailable(asClient(stub), EVENT_IDS.event, EVENT_IDS.user).then(
+      () => "przepuszczono",
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    );
+    expect(outcome).toMatch(/^seat_state_unavailable: /);
+  });
+
   it("czyta WŁASNY wiersz RSVP - filtruje po wydarzeniu i po użytkowniku", async () => {
     // Bez obu filtrów bramka mogłaby przeczytać cudzą rezerwację i wpuścić
     // osobę bez miejsca (albo odwrotnie).
@@ -346,6 +475,32 @@ describe("assertSeatAvailable - bramka przed sprzedażą biletu", () => {
 // Bilet zalogowanego użytkownika
 // ---------------------------------------------------------------------------
 
+/**
+ * Tabela `payment_orders` w zachowaniu PostgREST: filtry `eq` (także ścieżka
+ * JSON `metadata->>event_id`), sortowanie po `paid_at` malejąco, `limit`
+ * i `maybeSingle`. Atrapa odpowiada TAK, JAK odpowiedziałaby baza na złożone
+ * zapytanie - więc test dowodzi, że to zapytanie wybiera właściwe zamówienie,
+ * a nie że kod przefiltruje cokolwiek, co dostanie.
+ */
+function ordersTable(rows: readonly PaymentOrderRow[]): (chain: RecordedChain) => SupabaseResult {
+  return (chain) => {
+    const filters = chain.calls.filter((call) => call.method === "eq").map((call) => call.args);
+    let out = rows.filter((row) =>
+      filters.every(([column, value]) => {
+        if (column === "metadata->>event_id") return row.metadata?.["event_id"] === value;
+        if (column === "status") return row.status === value;
+        return true; // `user_id` - atrapa trzyma wyłącznie zamówienia wołającego
+      }),
+    );
+    if (chain.has("order")) {
+      out = [...out].sort((a, b) => Date.parse(b.paid_at ?? "") - Date.parse(a.paid_at ?? ""));
+    }
+    const limit = chain.argsOf("limit")?.[0];
+    if (typeof limit === "number") out = out.slice(0, limit);
+    return ok(chain.has("maybeSingle") ? (out[0] ?? null) : out);
+  };
+}
+
 describe("loadMyEventTicket", () => {
   /** Pełny scenariusz czterech odczytów: RSVP -> wydarzenie -> zamówienia -> profil. */
   function ticketScenario(input: {
@@ -357,7 +512,12 @@ describe("loadMyEventTicket", () => {
     const stub = supabaseClientStub();
     stub.db.setResponse("event_rsvps", ok(input.rsvp === undefined ? rsvpRow() : input.rsvp));
     stub.db.setResponse("events", ok(input.event === undefined ? eventRow() : input.event));
-    stub.db.setResponse("payment_orders", ok("orders" in input ? input.orders : []));
+    stub.db.setResponse(
+      "payment_orders",
+      Array.isArray(input.orders)
+        ? ordersTable(input.orders as PaymentOrderRow[])
+        : ok("orders" in input ? input.orders : null),
+    );
     stub.db.setResponse("profiles", ok(input.profile === undefined ? profileRow() : input.profile));
     return stub;
   }
@@ -416,10 +576,8 @@ describe("loadMyEventTicket", () => {
   });
 
   it("wybiera zamówienie TEGO wydarzenia, a nie najnowsze z listy", async () => {
-    // Najcenniejsza asercja pliku. Zapytanie bierze 20 ostatnich opłaconych
-    // zamówień UŻYTKOWNIKA - bez filtra po wydarzeniu. Gdyby dopasowanie po
-    // `metadata.event_id` zniknęło, uczestnik dwóch płatnych wydarzeń dostałby
-    // na bilecie kwotę i numer transakcji z tego drugiego.
+    // Uczestnik dwóch płatnych wydarzeń nie może dostać na bilecie kwoty
+    // i numeru transakcji z tego drugiego.
     const stub = ticketScenario({
       orders: [
         paymentOrderRow({
@@ -438,28 +596,79 @@ describe("loadMyEventTicket", () => {
     expect(ticket?.code).toBe(ticketCodeFrom(EVENT_IDS.order));
   });
 
-  it("zamówienie bez metadanych nie wywraca odczytu", async () => {
-    const stub = ticketScenario({ orders: [paymentOrderRow({ metadata: null })] });
+  it("zamówienie starsze niż 20 nowszych zakupów NADAL trafia na bilet", async () => {
+    // Najcenniejsza asercja pliku. Wcześniej brało się 20 ostatnich opłaconych
+    // zamówień użytkownika i dopasowanie po `metadata.event_id` szło w pamięci:
+    // członek, który po zakupie biletu opłacił składkę i kilka innych biletów,
+    // dostawał bilet BEZ kwoty i z numerem z RSVP - a obsługa przy wejściu
+    // nie miała jak zestawić go z płatnością.
+    const newer = Array.from({ length: 25 }, (_, index) =>
+      paymentOrderRow({
+        id: `77777777-7777-4777-8777-${String(index).padStart(12, "0")}`,
+        provider_intent_id: `pi_nowsze_${index}`,
+        paid_at: new Date(Date.UTC(2026, 8, 1 + index, 10)).toISOString(),
+        metadata: index % 2 === 0 ? { event_id: EVENT_IDS.otherEvent } : { plan: "membership" },
+      }),
+    );
+    const stub = ticketScenario({ orders: [...newer, paymentOrderRow()] });
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    expect(ticket?.transactionId).toBe("pi_test_123");
+    expect(ticket?.code).toBe(ticketCodeFrom(EVENT_IDS.order));
+  });
+
+  it("dwa opłacone zamówienia tego wydarzenia - na bilecie stoi NAJNOWSZE", async () => {
+    // Dzień później niż zamówienie z fikstury - bez nowego literału daty.
+    const first = paymentOrderRow({ provider_intent_id: "pi_pierwsze" });
+    const later = new Date(Date.parse(first.paid_at ?? "") + 86_400_000).toISOString();
+    const stub = ticketScenario({
+      orders: [
+        first,
+        paymentOrderRow({
+          id: EVENT_IDS.otherOrder,
+          provider_intent_id: "pi_ponowione",
+          paid_at: later,
+        }),
+      ],
+    });
+    const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    expect(ticket?.transactionId).toBe("pi_ponowione");
+  });
+
+  it("zamówienia innych wydarzeń nie robią z biletu bezpłatnego biletu płatnego", async () => {
+    const stub = ticketScenario({
+      orders: [paymentOrderRow({ metadata: { event_id: EVENT_IDS.otherEvent } })],
+    });
     const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
     expect(ticket?.transactionId).toBeNull();
     expect(ticket?.code).toBe(ticketCodeFrom(EVENT_IDS.rsvp));
   });
 
-  it("brak listy zamówień czyta się jak bilet bezpłatny", async () => {
+  it("brak zamówienia czyta się jak bilet bezpłatny", async () => {
     const stub = ticketScenario({ orders: null });
     const ticket = await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
     expect(ticket?.amountCents).toBeNull();
   });
 
-  it("pyta wyłącznie o WŁASNE, OPŁACONE zamówienia", async () => {
+  it("filtr wydarzenia, statusu i właściciela idzie DO BAZY, a nie do pamięci", async () => {
     const stub = ticketScenario({});
     await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
     const chain = stub.db.lastChain("payment_orders");
     expect(chain?.calls.filter((call) => call.method === "eq").map((call) => call.args)).toEqual([
       ["user_id", EVENT_IDS.user],
       ["status", "paid"],
+      // Ten sam filtr, którym `rsvp_event()` sprawdza opłacenie biletu.
+      ["metadata->>event_id", EVENT_IDS.event],
     ]);
-    expect(chain?.argsOf("limit")).toEqual([20]);
+    expect(chain?.argsOf("order")).toEqual(["paid_at", { ascending: false, nullsFirst: false }]);
+    expect(chain?.argsOf("limit")).toEqual([1]);
+    expect(chain?.has("maybeSingle")).toBe(true);
+  });
+
+  it("bez potwierdzonego miejsca nie pyta ani o zamówienie, ani o profil", async () => {
+    const stub = ticketScenario({ rsvp: rsvpRow({ status: "waitlist" }) });
+    await loadMyEventTicket(asClient(stub), EVENT_IDS.user, EVENT_IDS.event);
+    expect(stub.db.chainsFor("payment_orders")).toHaveLength(0);
+    expect(stub.db.chainsFor("profiles")).toHaveLength(0);
   });
 
   it("posiadacza podpisuje imieniem i nazwiskiem", async () => {

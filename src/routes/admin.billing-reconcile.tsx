@@ -1,13 +1,16 @@
 // Admin → Rozliczenia → Uzgadnianie. Porównuje stan u operatora płatności ze
 // stanem lokalnym i pozwala odtworzyć brakującą obsługę webhooka.
 //
-// Cała logika jest serwerowa (`reconcile.functions.ts`, rola `admin`); ten plik
-// odpowiada wyłącznie za prezentację.
+// Cała logika jest serwerowa (`reconcile.functions.ts`, rola `super_admin` -
+// ta sama co ponowienie z dziennika webhooków); ten plik odpowiada wyłącznie
+// za prezentację. Administrator bez tej roli widzi wyjaśnienie zamiast
+// formularza, który i tak skończyłby się odmową serwera.
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 import { getStripeEnvironmentSafe } from "@/lib/stripe";
 import { getReconcileReport, repairReconcileEntry } from "@/lib/billing/reconcile.functions";
 import type { ReconcileIssue, ReconcileReport } from "@/lib/billing/reconcile.server";
@@ -34,6 +37,7 @@ function AdminBillingReconcile() {
   // komentarz przy ensureI18n w lib/i18n-admin-reconcile.ts.
   ensureAdminReconcileI18n();
   const { t, i18n } = useTranslation();
+  const { isSuperAdmin } = useAuth();
   const [environment, setEnvironment] = useState<Env>(getStripeEnvironmentSafe());
   const [sinceHours, setSinceHours] = useState(72);
   const [report, setReport] = useState<ReconcileReport | null>(null);
@@ -72,6 +76,17 @@ function AdminBillingReconcile() {
   });
 
   const locale = i18n.language?.startsWith("en") ? "en-GB" : "pl-PL";
+
+  if (!isSuperAdmin) {
+    return (
+      <div>
+        <h2 className="font-display text-xl">{t("adminReconcile.title")}</h2>
+        <p className="mt-3 max-w-3xl rounded-md border p-4 text-sm text-muted-foreground">
+          {t("adminReconcile.superAdminOnly")}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>

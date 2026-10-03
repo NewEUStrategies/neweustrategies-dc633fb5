@@ -519,6 +519,8 @@ describe("aktualizacja stanu subskrypcji - odmowy i przypadki brzegowe", () => {
         claimed: true,
         row: {
           user_id: "user-kupujacy",
+          // Najemca subskrypcji zawęża odwzorowanie ceny na plan.
+          tenant_id: "tenant-alfa",
           price_id: "plus_monthly",
           status: "active",
           current_period_end: "2026-09-01T00:00:00.000Z",
@@ -549,6 +551,12 @@ describe("aktualizacja stanu subskrypcji - odmowy i przypadki brzegowe", () => {
     });
     // Dzwonek o zmianie planu - klient ma zobaczyć, że dopłata coś dała.
     expect(writePayload("notifications", "insert")).toMatchObject({ user_id: "user-kupujacy" });
+    // Plan szukany W NAJEMCY subskrypcji - katalog cen jest wspólny dla
+    // wszystkich organizacji, plany nie (audyt wyd. 11/12).
+    const planEqs = db
+      .chainsFor("access_plans")
+      .flatMap((chain) => chain.calls.filter((c) => c.method === "eq").map((c) => c.args));
+    expect(planEqs).toContainEqual(["tenant_id", "tenant-alfa"]);
   });
 });
 

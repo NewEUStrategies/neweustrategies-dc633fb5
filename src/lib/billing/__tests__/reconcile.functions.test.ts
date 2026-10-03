@@ -22,7 +22,7 @@
 //
 // CZEGO TEN PLIK NIE DOWODZI: AUTORYZACJI. Harness nie uruchamia middleware,
 // więc `requireSupabaseAuth` przybijamy STRUKTURALNIE, a odmowę roli tam,
-// gdzie da się ją wywołać naprawdę - przez `assertAdmin`.
+// gdzie da się ją wywołać naprawdę - przez `assertSuperAdmin`.
 //
 // Atrapy stoją na GRANICACH: kontrola roli i implementacja uzgadniania
 // (SDK operatora plus baza). Schematy zod biegną PRAWDZIWE.
@@ -37,6 +37,9 @@ import {
 } from "@/test/serverFnHarness";
 
 const h = vi.hoisted(() => ({
+  assertSuperAdmin: vi.fn(),
+  // Bramka `admin` NIE MOŻE być wołana: uzgadnianie stoi od audytu wyd. 12
+  // za `super_admin`, tak jak ponowienie z dziennika webhooków.
   assertAdmin: vi.fn(),
   buildReconcileReport: vi.fn(),
   repairReconcileIssue: vi.fn(),
@@ -48,7 +51,10 @@ vi.mock("@tanstack/react-start", async () =>
 vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
-vi.mock("@/lib/billing/diagnostics.server", () => ({ assertAdmin: h.assertAdmin }));
+vi.mock("@/lib/billing/diagnostics.server", () => ({
+  assertAdmin: h.assertAdmin,
+  assertSuperAdmin: h.assertSuperAdmin,
+}));
 vi.mock("@/lib/billing/reconcile.server", () => ({
   buildReconcileReport: h.buildReconcileReport,
   repairReconcileIssue: h.repairReconcileIssue,
@@ -83,7 +89,7 @@ function kontekst() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.assertAdmin.mockResolvedValue({ tenantId: NAJEMCA });
+  h.assertSuperAdmin.mockResolvedValue({ tenantId: NAJEMCA });
   h.buildReconcileReport.mockResolvedValue(RAPORT);
   h.repairReconcileIssue.mockResolvedValue(WYNIK_NAPRAWY);
 });
@@ -301,9 +307,25 @@ describe("walidator naprawy - referencja", () => {
   });
 });
 
+describe("bramka roli - super admin, jak ponowienie z dziennika", () => {
+  it("raport i naprawa przechodzą przez `assertSuperAdmin`, nigdy przez `assertAdmin`", async () => {
+    // Raport czyta `payment_webhook_events` (RLS: `is_super_admin()`), naprawa
+    // odtwarza zdarzenie operatora. Rola `admin` była tu tylnymi drzwiami do
+    // tego, czego ponowienie z dziennika już mu odmawiało.
+    await callServerFn(getReconcileReport, { data: { environment: "live" }, context: kontekst() });
+    await callServerFn(repairReconcileEntry, {
+      data: { environment: "live", kind: "order", reference: "order-1" },
+      context: kontekst(),
+    });
+
+    expect(h.assertSuperAdmin).toHaveBeenCalledTimes(2);
+    expect(h.assertAdmin).not.toHaveBeenCalled();
+  });
+});
+
 describe("handler raportu - co robi z argumentami", () => {
   it("rola jest sprawdzana PRZED zbudowaniem raportu", async () => {
-    h.assertAdmin.mockRejectedValue(new Error("forbidden"));
+    h.assertSuperAdmin.mockRejectedValue(new Error("forbidden"));
 
     await expect(
       callServerFn(getReconcileReport, { data: { environment: "live" }, context: kontekst() }),
@@ -317,7 +339,7 @@ describe("handler raportu - co robi z argumentami", () => {
       context: kontekst(),
     });
 
-    expect(h.assertAdmin).toHaveBeenCalledWith(KLIENT_UZYTKOWNIKA, ADMIN_ID);
+    expect(h.assertSuperAdmin).toHaveBeenCalledWith(KLIENT_UZYTKOWNIKA, ADMIN_ID);
   });
 
   it("środowisko i okno jadą dalej POZYCYJNIE i w tej kolejności", async () => {
@@ -354,7 +376,7 @@ describe("handler naprawy - co robi z argumentami", () => {
   it("rola jest sprawdzana PRZED dotknięciem czegokolwiek", async () => {
     // Ta funkcja nadaje uprawnienia. Sprawdzenie roli po wykonaniu pracy
     // byłoby bezwartościowe - uprawnienie już by istniało.
-    h.assertAdmin.mockRejectedValue(new Error("forbidden"));
+    h.assertSuperAdmin.mockRejectedValue(new Error("forbidden"));
 
     await expect(
       callServerFn(repairReconcileEntry, {

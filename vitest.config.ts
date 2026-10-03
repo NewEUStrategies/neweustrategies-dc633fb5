@@ -2952,6 +2952,50 @@ export default defineConfig({
           lines: 89,
           branches: 75,
         },
+        // ── WZMIANKI I KOMPOZYTOR TEKSTU (2026-10-02) ────────────────────────
+        // Dwie funkcjonalności modułu 9 z mapy wydania 12: „Wzmianki:
+        // wizytówki i katalog celów (osoby i firmy)" (80,5% linii, 4 martwe
+        // funkcje) i „Czat: kompozytor + wzmianki" (86,2% linii, -2,4 pp
+        // względem wydania 11). Ten drugi wiersz NIE opisuje kompozytora czatu
+        // (zastrzeżenie z wydania 9) - to infrastruktura komentarzy, pól
+        // „wiadomość" w formularzach i klubów, więc progi stoją na jej
+        // katalogach, a nie pod `chat/**`.
+        //
+        // Pomiar przed pracą (testy tych katalogów i ich konsumentów):
+        // instrukcje 80,95% · gałęzie 73,00% · funkcje 79,78% · linie 84,25%.
+        // Po pracy: 99,28% · 95,49% · 100% (95/95) · 100% (361/361). Martwe
+        // funkcje (`orgHref`, `organizationMentionSlug`,
+        // `mentionSlugSearchPhrase`) i nieużywana opcja `rounded` awatara
+        // usunięte, a `directoryKey` przestał być eksportem bez konsumenta -
+        // nie dobijaliśmy pokrycia testami kodu, którego nikt nie woła.
+        // Progi to PODŁOGA z pomiaru per katalog.
+        // Niedobite gałęzie to strażniki niedostępne przy `enabled` zapytania
+        // (`if (slug === null)` w `queryFn`) i ramiona `??` na grupach
+        // wyrażenia regularnego, które zawsze uczestniczą w dopasowaniu.
+        "src/lib/mentions/**": {
+          statements: 98,
+          functions: 100,
+          lines: 100,
+          branches: 93,
+        },
+        "src/components/mentions/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 98,
+        },
+        "src/lib/composer/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 96,
+        },
+        "src/components/composer/**": {
+          statements: 100,
+          functions: 100,
+          lines: 100,
+          branches: 92,
+        },
         // Bramka symetrii FTS: czysty analizator migracji. Niedobite gałęzie to
         // ramiona obronne dla wzorców, których w repo nie ma (konfiguracja
         // z parametru, wektor liczony poza migracjami) - zostawiamy je, bo
@@ -8778,6 +8822,157 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+        // >>> PF-I18N thresholds (begin)
+        // Przekrojowy kubełek „słowniki i18n" nie miał DOTĄD ŻADNEGO progu (audyt
+        // 2026-08-18, rozdz. 9: „design system i słowniki i18n - zero progów"),
+        // więc spadek pokrycia warstwy, przez którą przechodzi każdy napis
+        // serwisu, nie przewracał niczego. ZMIERZONE 2026-10-03 przebiegiem 557
+        // plików testowych (wszystkie testy importujące te moduły + bramki i18n):
+        // każdy plik niżej 100 / 100 / 100 / 100, z jednym wyjątkiem -
+        // WidgetI18nAuditPane.tsx gałęzie 67/68 (obronne `issue.pl || "—"`,
+        // nieosiągalne: audyt zgłasza wyłącznie pary z niepustym PL). Próg 98
+        // to konwencja tego pliku dla warstw zmierzonych na 100.
+        //
+        // Nakładki `src/lib/i18n-*.ts` (161 plików) liczy jeden glob: wszystkie
+        // stoją na 100 (L 1074/1074, B 216/216, F 124/124) dzięki bramce
+        // `src/lib/__tests__/i18nOverlayIntegrity.gate.test.ts`, która importuje
+        // każdą nakładkę i woła każde `ensure*I18n` dwukrotnie.
+        "src/lib/i18n.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/commonLabels.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/format.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/langCookie.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/langNegotiation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/localePath.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/localeRuntime.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/pickLocalized.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/plVocative.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/polishVocative.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/switchUiLanguage.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/useLang.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/widgetTranslationAudit.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/widgetTranslationFill.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/locale/invitation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/i18n/WidgetI18nAuditPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/admin.i18n.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/atoms/LangToggle.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/atoms/LangReelSwitcher.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/atoms/EditorLangSwitch.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-*.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AppLink: wstępne ładowanie celu linku (także z prefiksem /en) zamiast
+        // bieżącej trasy - runda 2 kampanii i18n. ZMIERZONE 2026-10-03: 100 / 100
+        // / 100 / 100 (AppLink.test + AppLink.preloadTarget.test, prawdziwy router).
+        "src/components/atoms/AppLink.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // <<< PF-I18N thresholds (end)
       },
     },
   },

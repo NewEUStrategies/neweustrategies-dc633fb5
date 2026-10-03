@@ -500,9 +500,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             name="chat-message"
             id="chat-message-input"
             autoComplete="off"
-            autoCorrect="on"
-            autoCapitalize="sentences"
-            spellCheck
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             inputMode="text"
             enterKeyHint="send"
             data-form-type="other"

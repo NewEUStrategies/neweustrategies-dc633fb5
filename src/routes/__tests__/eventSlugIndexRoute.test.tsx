@@ -77,7 +77,12 @@ const h = vi.hoisted(() => ({
   sections: [] as EventSection[],
   tiers: [] as Record<string, unknown>[],
   currentTier: null as { rank: number } | null,
-  seats: null as { seatsLeft: number | null; isFull: boolean } | null,
+  seats: null as {
+    seatsLeft: number | null;
+    isFull: boolean;
+    going?: number;
+    waitlist?: number;
+  } | null,
   /** Wywołania `rsvp_event` przez warstwę zapytań - para (id, status). */
   rsvpCalls: [] as { eventId: string; status: string }[],
   rsvpResult: { status: "going", going: 1, waitlist: 0, waitlist_position: null } as {
@@ -860,6 +865,7 @@ describe("spis podstron - jeden, nigdy dwa", () => {
 describe("karta „co, kiedy, gdzie” - liczby, które decydują o przyjściu", () => {
   it("miejsca i liczba zapisanych stoją obok siebie, a kolejka tylko gdy istnieje", async () => {
     h.event = event({ capacity: 100 });
+    h.header = header({ capacity: 100, seats_left: 60 });
     h.counts = { going: 40, interested: 5, waitlist: 7 };
 
     await renderOverview();
@@ -879,6 +885,47 @@ describe("karta „co, kiedy, gdzie” - liczby, które decydują o przyjściu",
     await waitFor(() => expect(screen.getByText(/goingCount\(count=40\)/)).toBeTruthy());
     const wiersz = screen.getByText("community.events.capacityLabel").closest("div");
     expect(wiersz?.textContent ?? "").not.toContain("waitlistCount");
+  });
+
+  it("JEDNO ŹRÓDŁO: przed odpytaniem karta liczy regułą bazy z nagłówka, nie pulą legacy", async () => {
+    // Pula legacy (`get_event_rsvp_counts`) zna tylko RSVP: 40 z 100. Reguła
+    // bazy liczy też zgłoszenia z formularza i mówi „zostało 25" - tę samą
+    // liczbę widzi powierzchnia zapisów. Karta licząca `capacity - going`
+    // pokazałaby 60 wolnych miejsc obok kontrolki „brak miejsc" za chwilę.
+    h.event = event({ capacity: 100 });
+    h.header = header({ capacity: 100, seats_left: 25 });
+    h.counts = { going: 40, interested: 0, waitlist: 0 };
+
+    await renderOverview();
+
+    await waitFor(() => expect(screen.getByText(/capacityLeft\(count=25\)/)).toBeTruthy());
+    expect(screen.queryByText(/capacityLeft\(count=60\)/)).toBeNull();
+  });
+
+  it("nagłówek z kompletem rysuje „brak miejsc”, choć pula legacy ma wolne", async () => {
+    h.event = event({ capacity: 100 });
+    h.header = header({ capacity: 100, seats_left: 0, registration_state: "sold_out" });
+    h.counts = { going: 10, interested: 0, waitlist: 0 };
+
+    await renderOverview();
+
+    const wiersz = screen.getByText("community.events.capacityLabel").closest("div");
+    expect(wiersz?.textContent ?? "").toContain("community.events.capacityFull");
+    expect(wiersz?.textContent ?? "").not.toContain("capacityLeft");
+  });
+
+  it("odpytany stan miejsc niesie też zajęte i kolejkę - wygrywa z licznikami listy", async () => {
+    h.event = event({ capacity: 100 });
+    h.header = header({ capacity: 100, seats_left: 30 });
+    h.counts = { going: 40, interested: 0, waitlist: 0 };
+    h.seats = { seatsLeft: 20, isFull: false, going: 80, waitlist: 3 };
+
+    await renderOverview();
+
+    const tekst = screen.getByText("community.events.capacityLabel").closest("div")?.textContent;
+    expect(tekst).toContain("community.events.capacityLeft(count=20)");
+    expect(tekst).toContain("community.events.goingCount(count=80)");
+    expect(tekst).toContain("community.events.waitlistCount(count=3)");
   });
 
   it("STAN MIEJSC Z REALTIME wygrywa z liczbami z listy", async () => {

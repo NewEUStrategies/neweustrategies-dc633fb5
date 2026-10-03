@@ -47,7 +47,19 @@ const stripeState: {
   created: Array<{ kind: "product" | "price"; payload: Record<string, unknown> }>;
   updated: Array<{ id: string; payload: Record<string, unknown> }>;
   failOn: string | null;
-} = { products: [], prices: [], created: [], updated: [], failOn: null };
+  /** Rzut NIE-`Error` z SDK (np. surowy obiekt odpowiedzi) - zamiast `failOn`. */
+  throwRaw: unknown;
+  /** `lookup_key` ceny, której założenie operator odrzuca (częściowa porażka). */
+  rejectPriceCreateFor: string | null;
+} = {
+  products: [],
+  prices: [],
+  created: [],
+  updated: [],
+  failOn: null,
+  throwRaw: undefined,
+  rejectPriceCreateFor: null,
+};
 
 /** Odpowiedź `list`/`search` SDK: i awaitowalna (`.data`), i asynchronicznie iterowalna. */
 function stripeList(rows: unknown[]) {
@@ -79,6 +91,7 @@ vi.mock("@/lib/stripe.server", () => ({
   getConnectionApiKey: (env: string) => connectionKey[env] ?? "test_klucz_domyslny",
   getStripeClient: () => {
     if (stripeState.failOn) throw new Error(stripeState.failOn);
+    if (stripeState.throwRaw !== undefined) throw stripeState.throwRaw;
     return {
       products: {
         search: () => Promise.resolve({ data: stripeState.products }),
@@ -95,6 +108,9 @@ vi.mock("@/lib/stripe.server", () => ({
       prices: {
         list: () => stripeList(stripeState.prices),
         create: (payload: Record<string, unknown>) => {
+          if (payload.lookup_key === stripeState.rejectPriceCreateFor) {
+            return Promise.reject(new Error(`Invalid currency for ${String(payload.lookup_key)}`));
+          }
           stripeState.created.push({ kind: "price", payload });
           return Promise.resolve({ id: "price_nowa" });
         },
@@ -185,6 +201,8 @@ beforeEach(() => {
   stripeState.created = [];
   stripeState.updated = [];
   stripeState.failOn = null;
+  stripeState.throwRaw = undefined;
+  stripeState.rejectPriceCreateFor = null;
   connectionKey.sandbox = "test_klucz_sandbox";
   connectionKey.live = "test_klucz_live";
   __resetAutoSyncCacheForTests();
@@ -261,6 +279,65 @@ describe("odcisk treści cennika", () => {
     db.setResponse("access_plans", fail("permission denied for table access_plans"));
 
     expect(await catalogFingerprint()).toBeNull();
+  });
+
+  it("ZERWANE połączenie (odrzucona obietnica, nie pole `error`) też daje `null`", async () => {
+    // Klient PostgREST zgłasza awarię dwiema drogami: polem `error` albo
+    // odrzuconą obietnicą (zerwany fetch, timeout gniazda). Druga droga ma
+    // znaczyć to samo „nie wiem" - przepuszczony wyjątek wywróciłby
+    // `ensureCatalogSynced`, czyli ścieżkę KAŻDEGO zakupu.
+    db.setResponse("access_plans", () => Promise.reject(new TypeError("fetch failed")));
+
+    expect(await catalogFingerprint()).toBeNull();
+  });
+
+  it("zerwany odczyt planów NIE blokuje zakupu przy zgodnym stanie integracji", async () => {
+    const fingerprint = await integrationFingerprint("sandbox");
+    db.setResponse(
+      "payment_integration_state",
+      ok(stateRow({ fingerprint, catalog_fingerprint: "cennik-wdrozony" })),
+    );
+    db.setResponse("access_plans", () => Promise.reject(new TypeError("fetch failed")));
+
+    const outcome = await ensureCatalogSynced("sandbox");
+
+    // „Nie wiem" nie jest rozjazdem: żadnej synchronizacji, żadnego zapisu.
+    expect(outcome).toEqual({ environment: "sandbox", ran: false, reason: null, report: null });
+    expect(stateWrite()).toBeUndefined();
+  });
+
+  it("odpowiedź bez błędu i bez wierszy (`data: null`) liczy się jak pusty cennik", async () => {
+    // To NIE jest awaria (brak `error`), więc nie wolno jej zamienić w „nie
+    // wiem" - odcisk ma być identyczny z cennikiem bez planów.
+    db.setResponse("access_plans", ok(null));
+    const zNull = await catalogFingerprint();
+
+    db.setResponse("access_plans", ok([]));
+    const zPustejListy = await catalogFingerprint();
+
+    expect(zNull).toMatch(/^[0-9a-f]{16}$/);
+    expect(zNull).toBe(zPustejListy);
+  });
+
+  it("plan zapisany BEZ interwału liczy się jako miesięczny, a nie jako pierwszy z brzegu", async () => {
+    // Starsze wiersze `access_plans` mają `interval = null`, co znaczy
+    // „miesięczny". Bez tej reguły cena miesięczna dobrałaby się do
+    // PIERWSZEGO planu tego progu - tu rocznego - i odcisk liczyłby
+    // miesięczną pozycję z kwotą roczną (rozjazd 99 zł vs 990 zł).
+    const roczny = planRow({ interval: "year", price_cents: 99000 });
+
+    db.setResponse("access_plans", ok([roczny, planRow({ interval: null })]));
+    const bezInterwalu = await catalogFingerprint();
+
+    db.setResponse("access_plans", ok([roczny, planRow({ interval: "month" })]));
+    const miesieczny = await catalogFingerprint();
+
+    db.setResponse("access_plans", ok([roczny]));
+    const tylkoRoczny = await catalogFingerprint();
+
+    expect(bezInterwalu).toBe(miesieczny);
+    // Kontrola: pomylenie z planem rocznym dałoby INNY odcisk.
+    expect(bezInterwalu).not.toBe(tylkoRoczny);
   });
 });
 
@@ -563,5 +640,86 @@ describe("ensureCatalogSynced - kiedy synchronizacja ODMAWIA", () => {
 
     expect(stateWrite()?.["fingerprint"]).toBe("odcisk-stary");
     expect(stateWrite()?.["last_status"]).toBe("failed");
+  });
+
+  it("błąd odczytu `access_plans` zapisuje PORAŻKĘ i NIE archiwizuje oferty u operatora", async () => {
+    // Timeout bazy nie jest „pustym cennikiem". Gdyby synchronizacja potraktowała
+    // go jak brak planów, sprzątanie zarchiwizowałoby u operatora każdą naszą
+    // aktywną cenę i produkt (koszyk: „cena nie istnieje"), a stan zapisałby
+    // `ok` - automat uznałby katalog za zdrowy i nie spróbowałby ponownie.
+    db.setResponse("access_plans", fail("canceling statement due to statement timeout"));
+    stripeState.prices = [
+      {
+        id: "price_live_pro",
+        lookup_key: "pro_monthly",
+        metadata: { lovable_external_id: "pro_monthly" },
+      },
+    ];
+    stripeState.products = [{ id: "prod_live_pro", metadata: { lovable_external_id: "plan_pro" } }];
+
+    const outcome = await ensureCatalogSynced("sandbox");
+
+    expect(stripeState.updated).toEqual([]);
+    expect(outcome).toMatchObject({ ran: false, reason: "first_run", report: null });
+    expect(outcome.error).toContain("access_plans");
+    const write = stateWrite();
+    expect(write).toMatchObject({ environment: "sandbox", last_status: "failed" });
+    expect(write).not.toHaveProperty("catalog_fingerprint");
+  });
+
+  it("rzut NIE-`Error` zapisuje porażkę jako `unknown`, a nie `[object Object]`", async () => {
+    // SDK i warstwa sieci potrafią odrzucić surowym obiektem. Panel czyta
+    // `last_error` wprost - „[object Object]" nie mówi dyżurnemu nic, a wyjątek
+    // przy samym formatowaniu zgubiłby zapis porażki i backoff.
+    stripeState.throwRaw = { type: "StripeConnectionError" };
+
+    const outcome = await ensureCatalogSynced("sandbox");
+
+    expect(outcome).toEqual({
+      environment: "sandbox",
+      ran: false,
+      reason: "first_run",
+      report: null,
+      error: "unknown",
+    });
+    expect(stateWrite()).toMatchObject({ last_status: "failed", last_error: "unknown" });
+  });
+});
+
+describe("ensureCatalogSynced - CZĘŚCIOWA porażka automatu", () => {
+  it("zapisuje status `partial`, ale ZOSTAWIA poprzedni odcisk cennika", async () => {
+    // Ta sama reguła, co przy synchronizacji ręcznej: odcisk cennika znaczy
+    // „wdrożone u operatora". Gdy jedna cena nie powstała, zapis nowego
+    // odcisku wyciszyłby `catalog_changed` na stałe - klient płaciłby kwotę
+    // z poprzedniego cennika, a automat uważałby rozjazd za domknięty.
+    const fingerprint = await integrationFingerprint("sandbox");
+    db.setResponse(
+      "payment_integration_state",
+      ok(stateRow({ fingerprint, catalog_fingerprint: "cennik-sprzed-wdrozenia" })),
+    );
+    stripeState.rejectPriceCreateFor = "pro_annual";
+
+    const outcome = await ensureCatalogSynced("sandbox");
+
+    expect(outcome.ran).toBe(true);
+    expect(outcome.reason).toBe("catalog_changed");
+    expect(outcome.report?.failed).toBe(1);
+    expect(outcome.report?.items.find((i) => i.priceId === "pro_annual")?.reason).toBe(
+      "Invalid currency for pro_annual",
+    );
+
+    const write = stateWrite();
+    expect(write).toMatchObject({
+      environment: "sandbox",
+      fingerprint,
+      last_status: "partial",
+      last_reason: "catalog_changed",
+      last_error: null,
+    });
+    expect(write?.["catalog_fingerprint"]).toBe("cennik-sprzed-wdrozenia");
+    // Po częściowej porażce sprzątanie nie rusza: błąd API nie może zostać
+    // odczytany jako „plan zniknął ze źródła".
+    expect(outcome.report?.archived).toEqual([]);
+    expect(stripeState.updated).toEqual([]);
   });
 });

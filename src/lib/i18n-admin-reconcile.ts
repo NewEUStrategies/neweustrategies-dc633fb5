@@ -42,6 +42,8 @@ const pl = {
       failed: "Błąd naprawy",
     },
     notRepairable: "Wymaga ręcznej analizy",
+    superAdminOnly:
+      "Uzgadnianie czyta dziennik webhooków i odtwarza zdarzenia operatora płatności, dlatego jest dostępne wyłącznie dla roli super administratora - tak jak ponowienie zdarzenia z dziennika.",
   },
 } as const;
 
@@ -85,6 +87,8 @@ const en = {
       failed: "Repair failed",
     },
     notRepairable: "Needs manual review",
+    superAdminOnly:
+      "Reconciliation reads the webhook log and replays payment provider events, so it is available to the super administrator role only - just like replaying an event from the log.",
   },
 } as const;
 

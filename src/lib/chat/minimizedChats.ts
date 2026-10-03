@@ -11,8 +11,11 @@ export interface MinimizedChat {
   avatarUrl?: string | null;
 }
 
-/** Ile pigułek pokazujemy wprost - reszta trafia pod ikonę "+N". */
+/** Desktop: ile pigułek pokazujemy wprost - reszta trafia pod ikonę "+N". */
 export const MINIMIZED_VISIBLE_LIMIT = 2;
+
+/** Mobile: maksymalna liczba osobnych dymków rozmów nad dolnym paskiem. */
+export const MOBILE_MINIMIZED_VISIBLE_LIMIT = 3;
 
 const STORAGE_KEY = "nes.chat.minimized";
 

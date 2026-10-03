@@ -41,6 +41,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Settings2, Upload, Image as ImageIcon, X as XIcon } from "lucide-react";
 import { UploadArea } from "@/components/ui/upload-area";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import "@/lib/i18n-upload-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useRequiredTenant } from "@/hooks/useAuth";
 import { useServerFn } from "@tanstack/react-start";
@@ -76,6 +78,7 @@ function ImageUrlField({
   const registerUpload = useServerFn(registerMediaUpload);
 
   const T = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  const { t } = useTranslation();
 
   const handleFile = async (file: File) => {
     setError(null);
@@ -169,14 +172,13 @@ function ImageUrlField({
       )}
 
       {/* Obszar wgrywania w standardzie platformy: adres, wgranie z dysku
-          i biblioteka mediów stoją w jednej ramce. */}
+          i biblioteka mediów stoją w jednej ramce. Zdanie o przeciąganiu jest
+          wspólną kopią wszystkich pól obrazu (`uploadArea.image.description`)
+          - w języku EDYTOWANEJ wersji (`lng`), jak cały panel. */}
       <UploadArea
         size="sm"
         title={T("Obraz", "Image")}
-        description={T(
-          "Przeciągnij obraz tutaj albo wybierz go z dysku.",
-          "Drag an image here, or pick one from your disk.",
-        )}
+        description={t("uploadArea.image.description", { lng: lang })}
         ctaLabel={T("Wgraj", "Upload")}
         busyLabel={T("Wgrywam…", "Uploading…")}
         busy={uploading}

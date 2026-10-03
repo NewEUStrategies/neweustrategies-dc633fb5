@@ -129,9 +129,18 @@ export function deriveSubscriptionStatus(input: {
   }
 
   if (!local) return grant ? buildGrant() : build("none", false, false);
+  // Wierszy lokalnych nic nie wygasza (lokalne anulowanie zostawia `active`
+  // z samym `canceled_at`), więc o stanie po końcu okresu decyduje DATA:
+  // „anulowanie zaplanowane" albo „aktywna" z datą w przeszłości przeczyłyby
+  // brakowi dostępu. Bez daty końca okres się nie kończy (`has_content_access`
+  // czyta pusty `current_period_end` jako dostęp bezterminowy).
+  const periodOver = !!periodEnd && !withinPeriod;
   if (local.status === "canceled" || local.canceled_at)
-    return grant && !withinPeriod ? buildGrant() : build("cancelScheduled", false, withinPeriod);
+    return grant && !withinPeriod
+      ? buildGrant()
+      : build(periodOver ? "canceled" : "cancelScheduled", false, withinPeriod);
   if (local.status === "expired" || local.status === "refunded")
     return grant ? buildGrant() : build("canceled", false, false);
-  return build("active", true, withinPeriod || !periodEnd);
+  if (periodOver) return grant ? buildGrant() : build("canceled", false, false);
+  return build("active", true, true);
 }

@@ -343,6 +343,22 @@ describe("trasa /plans/$planId - treść oferty", () => {
     expect(screen.queryByText(/dni za darmo|dni bezpłatnie/)).not.toBeInTheDocument();
   });
 
+  it("przepustka jednorazowa NIE obiecuje darmowych dni, których checkout nie przyzna", async () => {
+    // `createCheckoutOrder` liczy trial wyłącznie dla subskrypcji, a plan
+    // `one_time` idzie płatnością - karta w cenniku, checkout i paywall już
+    // tego okresu nie pokazują, więc strona planu (do której prowadzi karta)
+    // nie może go obiecać.
+    h.planResponses = [[plan({ interval: "one_time", trial_days: 14, tier_key: null })]];
+    await mount();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Członek" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Wybieram|Wybierz/ })).toHaveAttribute(
+      "href",
+      `/checkout/${PLAN_ID}`,
+    );
+    expect(screen.queryByText(/14 dni/)).not.toBeInTheDocument();
+  });
+
   it("plan bez własnych benefitów dziedziczy je po swojej warstwie", async () => {
     // Plan podpięty pod warstwę NIGDY nie świeci pustą listą - inaczej strona
     // szczegółów mówi mniej niż karta w cenniku, z której czytelnik przyszedł.

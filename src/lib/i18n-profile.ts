@@ -762,6 +762,7 @@ const pl = {
     apply: "Zastosuj",
     savings: "Oszczędzasz",
     discount: "Rabat",
+    remove: "Usuń kupon",
     error: {
       emptyCode: "Wpisz kod kuponu.",
       invalidAmount: "Nieprawidłowa kwota zamówienia.",
@@ -1544,6 +1545,7 @@ const en: ProfileEn = {
     apply: "Apply",
     savings: "You save",
     discount: "Discount",
+    remove: "Remove coupon",
     error: {
       emptyCode: "Enter a coupon code.",
       invalidAmount: "Invalid order amount.",

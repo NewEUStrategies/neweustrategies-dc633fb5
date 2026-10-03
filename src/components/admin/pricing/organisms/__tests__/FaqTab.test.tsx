@@ -312,6 +312,45 @@ describe("FaqTab - usunięcie i kolejność", () => {
     const ids = chain.chainsFor("pricing_faq_items").map((c) => c.argsOf("eq")?.[1]);
     expect(ids).toEqual(["f2", "f1"]);
   });
+
+  it("przesunięcie W GÓRĘ ostatniego pytania stawia je przed poprzednim", async () => {
+    renderTab([
+      pricingFaqItem({ id: "f1", sort_order: 0 }),
+      pricingFaqItem({ id: "f2", sort_order: 10, question_pl: "Drugie?" }),
+    ]);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /faq\.moveUp/ })[1]);
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("adminPricing.toast.reordered"));
+    const writes = chain
+      .chainsFor("pricing_faq_items")
+      .map((c) => [
+        c.argsOf("eq")?.[1],
+        (c.argsOf("update")?.[0] as { sort_order: number }).sort_order,
+      ]);
+    expect(writes).toEqual([
+      ["f2", 0],
+      ["f1", 10],
+    ]);
+  });
+
+  it("BŁĄD zapisu kolejności trafia do komunikatu, sukces nie jest ogłaszany", async () => {
+    chain.setResponse("pricing_faq_items", {
+      data: null,
+      error: Object.assign(new Error("row level security"), { name: "PostgrestError" }),
+    });
+    renderTab([
+      pricingFaqItem({ id: "f1", sort_order: 0 }),
+      pricingFaqItem({ id: "f2", sort_order: 10, question_pl: "Drugie?" }),
+    ]);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /faq\.moveDown/ })[0]);
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("row level security"));
+    expect(toastSuccess).not.toHaveBeenCalled();
+    // Pierwszy odrzucony UPDATE przerywa renumerację - drugi wiersz nie jest ruszany.
+    expect(chain.chainsFor("pricing_faq_items")).toHaveLength(1);
+  });
 });
 
 describe("FaqTab - DOSTĘPNOŚĆ pól (bramka po defekcie)", () => {

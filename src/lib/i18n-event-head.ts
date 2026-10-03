@@ -13,6 +13,15 @@
 // loadera z nazwą wydarzenia (S38), a każdy bajt tego pliku jedzie w chunku
 // startowym każdej strony.
 //
+// TRZY Z NICH NIE MAJĄ JESZCZE CZYTELNIKA - CELOWO. Z czterech czytany jest
+// dziś tylko `meTitle` (`events.$slug.me.tsx`); trasy przekazania biletu (tor B),
+// weryfikacji certyfikatu i „Po wydarzeniu" (tor C) jeszcze nie istnieją.
+// Foundation zasiewa ich tytuły tutaj, żeby tory nie edytowały wspólnej
+// nakładki chunku startowego (konflikt przy scalaniu trzech gałęzi) - kontrakt
+// przypina `__tests__/participantOverlays.test.ts` (pkt 5). Każdy INNY klucz
+// bez czytelnika oblewa `__tests__/overlayReaders.test.ts`; tor porzucony
+// zabiera swój tytuł ze sobą.
+//
 // Import efektem ubocznym:
 //   import "@/lib/i18n-event-head";
 import i18n from "./i18n";

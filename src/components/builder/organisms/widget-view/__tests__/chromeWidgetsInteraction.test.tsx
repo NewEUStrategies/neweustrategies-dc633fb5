@@ -1,8 +1,10 @@
 // Chrome widgety (przełącznik języka + motywu): domykamy ścieżki interakcji,
 // których nie dotyka test wizualny - nawigację przez router TanStack (wraz z
 // awarią navigate -> twardy fallback window.location), no-op przy kliknięciu
-// aktywnego języka, odporność na rzucający localStorage oraz zatrzymanie
+// aktywnego języka, brak własnych zapisów localStorage oraz zatrzymanie
 // propagacji pointerdown (drag kanwy buildera nie może łapać tych kliknięć).
+// Sama sekwencja przełączenia jest wspólna (src/lib/i18n/switchUiLanguage.ts)
+// i ma własne testy jednostkowe - tu dowodzimy, że widget z niej korzysta.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // Prawdziwe zasoby i18n: bez tego `t()` zwraca GOŁY KLUCZ, a asercje na
 // widoczny tekst przechodziły wyłącznie dzięki `defaultValue` wpisanemu przy
@@ -32,7 +34,7 @@ const i18nBox = vi.hoisted(() => ({ t: null as TFunction | null }));
 const i18nState = vi.hoisted(() => ({ language: "pl" as string | undefined }));
 const routerState = vi.hoisted(() => ({
   current: null as null | {
-    state: { location: { pathname: string } };
+    state: { location: { pathname: string; searchStr?: string; hash?: string } };
     navigate: (opts: unknown) => unknown;
   },
 }));
@@ -82,11 +84,35 @@ describe("LangSwitcherDropdown - nawigacja przez router", () => {
     fireEvent.click(screen.getByRole("button", { name: "Polski" }));
 
     expect(changeLanguage).toHaveBeenCalledWith("pl");
-    expect(localStorage.getItem("i18nextLng")).toBe("pl");
     expect(document.documentElement.lang).toBe("pl");
-    expect(navigate).toHaveBeenCalledWith(
-      expect.objectContaining({ href: "/about", replace: true }),
-    );
+    expect(navigate).toHaveBeenCalledWith({
+      href: "/about",
+      replace: true,
+      resetScroll: false,
+      hashScrollIntoView: false,
+      state: expect.any(Function),
+    });
+    // Martwy klucz "i18nextLng" (nic go nie czytało) nie jest już zapisywany.
+    expect(localStorage.getItem("i18nextLng")).toBeNull();
+  });
+
+  it("keeps the query string and hash - same page in the other language", () => {
+    const navigate = vi.fn();
+    routerState.current = {
+      state: { location: { pathname: "/search", searchStr: "?q=nato", hash: "wyniki" } },
+      navigate,
+    };
+    render(<LangSwitcherDropdown label="Język" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "English" }));
+
+    expect(navigate).toHaveBeenCalledWith({
+      href: "/en/search?q=nato#wyniki",
+      replace: true,
+      resetScroll: false,
+      hashScrollIntoView: false,
+      state: expect.any(Function),
+    });
   });
 
   it("falls back to window.location when router.navigate throws", () => {
@@ -106,7 +132,7 @@ describe("LangSwitcherDropdown - nawigacja przez router", () => {
     expect(window.location.pathname).toBe("/en/o-nas");
   });
 
-  it("is a no-op when the active language is clicked and survives a throwing localStorage", () => {
+  it("is a no-op when the active language is clicked and never writes localStorage itself", () => {
     const navigate = vi.fn();
     routerState.current = { state: { location: { pathname: "/" } }, navigate };
     render(<LangSwitcherDropdown label="Język" />);
@@ -116,14 +142,31 @@ describe("LangSwitcherDropdown - nawigacja przez router", () => {
     expect(changeLanguage).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
 
-    // Prywatny tryb / brak zgody na storage: setItem rzuca, widget nie pada.
+    // Prywatny tryb / brak zgody na storage: setItem rzuca. Przełącznik sam
+    // niczego do storage nie pisze (preferencję zapisuje handler
+    // `languageChanged` w src/lib/i18n.ts, pod try/catch), więc nie ma czym paść.
     const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new Error("QuotaExceededError");
     });
     fireEvent.click(screen.getByRole("button", { name: "English" }));
     expect(changeLanguage).toHaveBeenCalledWith("en");
-    expect(navigate).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith({
+      href: "/en",
+      replace: true,
+      resetScroll: false,
+      hashScrollIntoView: false,
+      state: expect.any(Function),
+    });
+    expect(setItem).not.toHaveBeenCalled();
     setItem.mockRestore();
+  });
+
+  it("marks EN active for a regional i18n code (en-GB) when the path has no prefix", () => {
+    i18nState.language = "en-GB";
+    routerState.current = { state: { location: { pathname: "/kontakt" } }, navigate: vi.fn() };
+    render(<LangSwitcherDropdown label="Język" />);
+    expect(screen.getByRole("button", { name: "English" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Polski" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("derives the language from i18n when the path has no prefix and i18n is empty", () => {
@@ -145,6 +188,32 @@ describe("LangSwitcherDropdown - nawigacja przez router", () => {
     const btn = container.querySelector("button") as HTMLButtonElement;
     fireEvent.pointerDown(btn);
     expect(outer).not.toHaveBeenCalled();
+  });
+
+  it("click switches the language without bubbling to the canvas or running the default action", () => {
+    // Kanwa buildera zaznacza widget na kliknięciu, a widget bywa osadzony w
+    // odnośniku/formularzu nagłówka - klik w flagę ma TYLKO przełączyć język.
+    const navigate = vi.fn();
+    routerState.current = { state: { location: { pathname: "/" } }, navigate };
+    const outerClick = vi.fn();
+    render(
+      <div onClick={outerClick}>
+        <LangSwitcherDropdown label="Język" />
+      </div>,
+    );
+
+    // `fireEvent` zwraca false, gdy handler wywołał preventDefault().
+    const notCancelled = fireEvent.click(screen.getByRole("button", { name: "English" }));
+
+    expect(notCancelled).toBe(false);
+    expect(outerClick).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith({
+      href: "/en",
+      replace: true,
+      resetScroll: false,
+      hashScrollIntoView: false,
+      state: expect.any(Function),
+    });
   });
 });
 

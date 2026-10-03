@@ -16,7 +16,12 @@
 //   * a decision equal to the default language is a no-op (no redirect), so the
 //     bare homepage stays a single shareable edge-cache entry.
 import { DEFAULT_LANG, localizedPath, normalizeLang, type AppLang } from "./localePath";
-import { LANG_COOKIE, LANG_COOKIE_MAX_AGE, readLangCookieFromHeader } from "./langCookie";
+import {
+  LANG_COOKIE,
+  LANG_COOKIE_MAX_AGE,
+  langForPreferredTag,
+  readLangCookieFromHeader,
+} from "./langCookie";
 
 /**
  * Pick a language from a raw `Accept-Language` header. Product rule: Polish ->
@@ -28,9 +33,13 @@ export function detectLangFromAcceptLanguage(header: string | null | undefined):
     .split(",")
     .map((part) => {
       const [tag, ...params] = part.trim().split(";");
+      // Nazwa parametru wagi jest niewrażliwa na wielkość liter (RFC 9110
+      // §5.6.6; literał "q=" w ABNF §12.4.2 też): `pl;Q=0` wyklucza polski,
+      // a nie dostaje domyślnej wagi 1. Odstępu wokół "=" RFC nie dopuszcza,
+      // więc `q =0` dalej nie jest wagą.
       const q = params
         .map((p) => p.trim())
-        .find((p) => p.startsWith("q="))
+        .find((p) => /^q=/i.test(p))
         ?.slice(2);
       const quality = q === undefined ? 1 : Number.parseFloat(q);
       return { tag: tag.trim(), quality: Number.isFinite(quality) ? quality : 0 };
@@ -38,14 +47,10 @@ export function detectLangFromAcceptLanguage(header: string | null | undefined):
     .filter((e) => e.tag && e.quality > 0)
     .sort((a, b) => b.quality - a.quality);
 
-  if (entries.length === 0) return null;
-  for (const { tag } of entries) {
-    if (tag === "*") continue;
-    const code = tag.toLowerCase().split("-")[0];
-    if (code === "pl") return "pl";
-    return "en";
-  }
-  return null;
+  // Decyduje najwyżej postawiony KONKRETNY język (wildcard nic nie mówi) -
+  // tą samą regułą co detectBrowserLang na kliencie.
+  const top = entries.find((e) => e.tag !== "*");
+  return top ? langForPreferredTag(top.tag) : null;
 }
 
 export interface HomepageLangDecision {

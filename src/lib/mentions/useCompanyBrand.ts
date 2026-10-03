@@ -12,9 +12,10 @@
 //
 // BRAK TRAFIENIA TO NIE BŁĄD. Firma wpisana ręcznie (albo po zmianie nazwy w
 // CRM) nie znajdzie się w kartotece; wtedy dymek pokazuje samą nazwę i tyle.
-import { useContext } from "react";
-import { QueryClient, QueryClientContext, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { trimText as clean } from "./directory";
+import { useMentionQueryClient } from "./queryClient";
 
 export interface CompanyBrand {
   name: string;
@@ -23,20 +24,11 @@ export interface CompanyBrand {
   branch: string | null;
 }
 
-function clean(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const text = value.replace(/\s+/g, " ").trim();
-  return text === "" ? null : text;
-}
-
 // Poza drzewem QueryClientProvider (izolowany render karty w teście lub
 // podglądzie) degradujemy do samej nazwy firmy zamiast rzucać - bylina ma się
 // wyrenderować także wtedy, gdy nikt nie postawił klienta zapytań.
-let fallbackClient: QueryClient | null = null;
-
 export function useCompanyBrand(name: string | null, enabled: boolean) {
-  const ctxClient = useContext(QueryClientContext);
-  const client = ctxClient ?? (fallbackClient ??= new QueryClient());
+  const { client } = useMentionQueryClient();
   return useQuery(
     {
       queryKey: ["mention-company-brand", name] as const,

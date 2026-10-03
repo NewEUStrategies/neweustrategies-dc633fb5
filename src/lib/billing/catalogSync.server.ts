@@ -170,15 +170,6 @@ async function findPriceByLookupKey(
   return res.data[0] ?? null;
 }
 
-/** Okres próbny zapisany w metadanych ceny - odczyt dla checkoutu. */
-export async function trialDaysForPrice(env: StripeEnv, priceId: string): Promise<number | null> {
-  const stripe = await getStripeClient(env);
-  const price = await findPriceByLookupKey(stripe, priceId);
-  const raw = price?.metadata?.["trial_days"];
-  const days = raw ? Number(raw) : NaN;
-  return Number.isFinite(days) && days > 0 ? days : null;
-}
-
 async function syncOne(
   stripe: Stripe,
   entry: CatalogPriceEntry,
@@ -291,11 +282,16 @@ async function syncOne(
 export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<CatalogSyncReport> {
   const stripe = await getStripeClient(env);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("access_plans")
     .select(
       "tier_key, interval, price_cents, currency, name_pl, name_en, description_pl, trial_days, active, volume_threshold_seats, volume_price_cents",
     );
+  // Błąd odczytu (timeout, RLS) NIE jest pustym cennikiem. Potraktowany jak
+  // brak planów dawał przebieg bez porażek, po którym sprzątanie archiwizowało
+  // u operatora CAŁĄ ofertę, a stan integracji zapisywał `ok`. Rzut trafia do
+  // wołających (`runEnsure`, panel), które zapisują go jako porażkę.
+  if (error) throw new Error(`catalog sync: access_plans lookup failed: ${error.message}`);
   const plans = (data ?? []) as PlanRow[];
 
   const planFor = (entry: CatalogPriceEntry): PlanRow | undefined =>
@@ -330,6 +326,7 @@ export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<Ca
     const expectedPriceIds = new Set<string>();
     const expectedProductIds = new Set<string>();
     const inactivePriceIds = new Set<string>();
+    const inactiveProductIds = new Set<string>();
     for (const entry of BILLING_CATALOG) {
       const plan = planFor(entry);
       if (plan && plan.active !== false) {
@@ -337,8 +334,14 @@ export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<Ca
         expectedProductIds.add(entry.productId);
       } else {
         inactivePriceIds.add(entry.priceId);
+        inactiveProductIds.add(entry.productId);
       }
     }
+    // Produkty i ceny mają rozłączne identyfikatory, więc powód archiwizacji
+    // produktu potrzebuje własnej listy. Produkt z choćby jedną aktywną ceną
+    // (np. `plan_plus` przy wyłączonej cenie rocznej) nie jest produktem
+    // wyłączonego planu - zostaje w ofercie.
+    for (const productId of expectedProductIds) inactiveProductIds.delete(productId);
     try {
       const { reapOrphanCatalogEntries } = await import("./catalogReap.server");
       archived = await reapOrphanCatalogEntries({
@@ -346,6 +349,7 @@ export async function syncBillingCatalog(env: StripeEnv = "sandbox"): Promise<Ca
         expectedPriceIds,
         expectedProductIds,
         inactivePriceIds,
+        inactiveProductIds,
       });
     } catch (err) {
       // Sprzątanie jest opcjonalne - nie unieważnia udanej synchronizacji.

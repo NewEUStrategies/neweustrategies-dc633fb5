@@ -54,11 +54,11 @@ export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
     [plansQ.data, subscription?.plan],
   );
 
+  // Identyfikator subskrypcji przychodzi z kliknięcia: przycisk zmiany istnieje
+  // wyłącznie przy subskrypcji, więc mutacja nigdy nie startuje bez niej.
   const changePlan = useMutation({
-    mutationFn: (planId: string) => {
-      if (!subscription) throw new Error("no-subscription");
-      return changeMySubscriptionPlan(subscription.id, planId);
-    },
+    mutationFn: ({ subscriptionId, planId }: { subscriptionId: string; planId: string }) =>
+      changeMySubscriptionPlan(subscriptionId, planId),
     onSuccess: () => {
       toast.success(t("profile.subscription.changePlan.success"));
       void qc.invalidateQueries({ queryKey: billingKeys.mySubscriptionAll() });
@@ -115,7 +115,9 @@ export function PlanSwitchBoard({ subscription }: PlanSwitchBoardProps) {
               size="sm"
               variant={option.direction === "upgrade" ? "default" : "outline"}
               disabled={changePlan.isPending}
-              onClick={() => changePlan.mutate(option.plan.id)}
+              onClick={() =>
+                changePlan.mutate({ subscriptionId: subscription.id, planId: option.plan.id })
+              }
             >
               {changePlan.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />

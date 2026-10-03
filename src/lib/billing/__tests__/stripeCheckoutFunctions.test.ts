@@ -133,7 +133,10 @@ interface CouponVerdict {
 }
 
 /** Kolumny planu, które czyta TEN silnik (`select` w kodzie). */
-type PlanQuote = Pick<Tables<"access_plans">, "id" | "price_cents" | "currency" | "active">;
+type PlanQuote = Pick<
+  Tables<"access_plans">,
+  "id" | "price_cents" | "currency" | "active" | "trial_days"
+>;
 
 type OrderInsert = Database["public"]["Tables"]["payment_orders"]["Insert"];
 
@@ -156,10 +159,11 @@ interface SessionParams {
   }[];
   discounts?: { coupon?: string }[];
   allow_promotion_codes?: boolean;
+  subscription_data?: { trial_period_days?: number; metadata?: Record<string, string> };
 }
 
 function planQuote(over: Partial<PlanQuote> = {}): PlanQuote {
-  return { id: PLAN_ID, price_cents: 4900, currency: "PLN", active: true, ...over };
+  return { id: PLAN_ID, price_cents: 4900, currency: "PLN", active: true, trial_days: 0, ...over };
 }
 
 function couponOk(over: Partial<CouponVerdict> = {}): CouponVerdict {
@@ -593,6 +597,34 @@ describe("createPlanCheckoutSession - sesja u operatora i sprzątanie po odmowie
     expect(insertedOrder()?.currency).toBe("EUR");
   });
 
+  it("OKRES PRÓBNY planu trafia do sesji subskrypcji (audyt wyd. 11/12, defekt wysoki)", async () => {
+    // U Stripe trial NIE siedzi na cenie - katalog trzyma `trial_days` tylko
+    // w metadanych ceny. Bez `subscription_data.trial_period_days` trasa
+    // `/checkout/$planId` obciążała kartę od razu, choć cennik obiecywał
+    // okres próbny. Drugi silnik (`checkout.functions.ts`) robił to dobrze.
+    chain.setResponse("access_plans", ok(planQuote({ trial_days: 14 })));
+
+    await planCall();
+
+    expect(chain.lastChain("access_plans")?.argsOf("select")?.[0]).toContain("trial_days");
+    expect(lastSession()?.subscription_data?.trial_period_days).toBe(14);
+  });
+
+  it("plan BEZ okresu próbnego nie wysyła `trial_period_days` (0 to u operatora błąd)", async () => {
+    await planCall();
+
+    expect(lastSession()?.subscription_data).toBeDefined();
+    expect(lastSession()?.subscription_data).not.toHaveProperty("trial_period_days");
+  });
+
+  it("ujemny okres próbny z bazy jest zaciskany do braku triala", async () => {
+    chain.setResponse("access_plans", ok(planQuote({ trial_days: -3 })));
+
+    await planCall();
+
+    expect(lastSession()?.subscription_data).not.toHaveProperty("trial_period_days");
+  });
+
   it("liczba miejsc z żądania jedzie do pozycji sesji", async () => {
     await planCall({ quantity: 5 });
 
@@ -911,7 +943,10 @@ describe("createAdhocCheckoutSession - cienki wrapper nad zamówieniem ad-hoc", 
           }),
     );
     chain.setResponse("event_rsvps", ok(null));
-    rpcResponses.set("get_event_rsvp_counts", ok([{ going: 0, waitlist: 0 }]));
+    rpcResponses.set(
+      "event_seat_state",
+      ok([{ capacity: null, seats_left: null, going: 0, waitlist: 0 }]),
+    );
     rpcResponses.set(
       "my_ticket_allowance",
       ok({ granted: 0, used: 0, discount_pct: 0, scope: "none" }),

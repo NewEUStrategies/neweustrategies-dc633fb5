@@ -42,7 +42,7 @@ export function CoverBlock({ block, onChange }: Props) {
       <input
         type="text"
         value={title}
-        placeholder={bt.editor("cover", "title")}
+        placeholder={bt.editor("cover", "titlePh")}
         onChange={(e) => onChange({ ...block, data: { ...block.data, title: e.target.value } })}
         className="relative z-10 w-full max-w-2xl bg-transparent text-3xl md:text-5xl font-semibold text-white text-center border-none outline-none focus:ring-0 placeholder:text-white/60 px-4 py-12"
       />

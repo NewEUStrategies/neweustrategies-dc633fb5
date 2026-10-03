@@ -170,7 +170,7 @@ async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
 
   const { data: sub, error: subErr } = await supabase
     .from("subscriptions")
-    .select("user_id, price_id")
+    .select("user_id, tenant_id, price_id")
     .eq("provider_subscription_id", subscriptionId)
     .eq("environment", event.environment)
     .maybeSingle();
@@ -183,7 +183,9 @@ async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
 
   const { resolvePlanForPrice, syncCrmSubscriptionState } =
     await import("@/lib/billing/purchaseEffects.server");
-  const plan = sub.price_id ? await resolvePlanForPrice(sub.price_id) : null;
+  const plan = sub.price_id
+    ? await resolvePlanForPrice(sub.price_id, { tenantId: sub.tenant_id, userId: sub.user_id })
+    : null;
 
   // CRM: zwrot to utrata klienta, nie pauza.
   const { catalogEntryByPriceId } = await import("@/lib/billing/catalog");
@@ -201,7 +203,7 @@ async function revokeSubscription(event: RefundEvent): Promise<RefundOutcome> {
     idempotencySeed: event.adjustmentId,
   });
 
-  await pushRefundNotification(sub.user_id, plan?.tenantId ?? null, reasonLabel(event.action));
+  await pushRefundNotification(sub.user_id, sub.tenant_id, reasonLabel(event.action));
 
   return "subscription_refunded";
 }
@@ -371,10 +373,12 @@ async function revokeDonation(event: RefundEvent, txnId: string): Promise<Refund
 /** Dzwonek w aplikacji. Nigdy nie rzuca. */
 async function pushRefundNotification(
   userId: string,
-  tenantId: string | null,
+  // `tenant_id` jest `NOT NULL` na `subscriptions` i `payment_orders`, więc
+  // wołający zawsze go mają - dawny strażnik `if (!tenantId) return` był
+  // nieosiągalny, odkąd najemca nie pochodzi już z planu.
+  tenantId: string,
   reason: string,
 ): Promise<void> {
-  if (!tenantId) return;
   try {
     const supabase = await admin();
     await supabase.from("notifications").insert({
@@ -396,49 +400,101 @@ async function pushRefundNotification(
 }
 
 /**
- * Alert dla zespołu przy sporze. Spór wymaga ludzkiej reakcji (dowody dla
- * banku w terminie), więc zawsze musi zostawić ślad w panelu. Nigdy nie rzuca.
+ * Najemca, którego dotyczy spór - z wiersza subskrypcji, zamówienia albo
+ * darowizny wskazanego przez korektę (zawsze w środowisku korekty).
+ *
+ * Zdarzenie operatora NIE niesie `tenant_id`: jedno konto Stripe obsługuje
+ * wiele obszarów roboczych, więc najemcę wyprowadzamy wyłącznie z NASZEGO
+ * wiersza. `null` = sporu nie da się przypisać - wtedy nie ma komu wysłać
+ * alertu (patrz `alertAdminsAboutDispute`). Nigdy nie rzuca.
  */
-async function alertAdminsAboutDispute(event: RefundEvent, phase: "opened" | "won"): Promise<void> {
+async function disputeTenant(event: RefundEvent): Promise<string | null> {
   try {
     const supabase = await admin();
-    const { data: admins } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "admin");
-    if (!admins || admins.length === 0) return;
-
-    const ids = admins.map((r) => r.user_id);
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, tenant_id")
-      .in("id", ids);
-    if (!profiles || profiles.length === 0) return;
-
-    const ref = event.transactionId ?? event.subscriptionId ?? event.adjustmentId;
-    const rows = profiles
-      .filter((p) => Boolean(p.tenant_id))
-      .map((p) => ({
-        user_id: p.id,
-        tenant_id: p.tenant_id as string,
-        kind: "billing",
-        title_pl: phase === "opened" ? "Otwarto spór płatniczy" : "Spór płatniczy rozstrzygnięty",
-        title_en: phase === "opened" ? "Payment dispute opened" : "Payment dispute resolved",
-        body_pl:
-          phase === "opened"
-            ? `Bank otworzył spór dla ${ref}. Dostęp klienta został wstrzymany - przygotuj dowody.`
-            : `Spór dla ${ref} rozstrzygnięto na naszą korzyść. Dostęp klienta przywrócono.`,
-        body_en:
-          phase === "opened"
-            ? `A dispute was opened for ${ref}. Customer access is suspended - prepare evidence.`
-            : `The dispute for ${ref} was won. Customer access has been restored.`,
-        href: "/admin/billing",
-        icon: "shield-alert",
-      }));
-    if (rows.length > 0) await supabase.from("notifications").insert(rows);
+    if (event.subscriptionId) {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("tenant_id")
+        .eq("provider_subscription_id", event.subscriptionId)
+        .eq("environment", event.environment)
+        .maybeSingle();
+      if (data) return data.tenant_id;
+    }
+    const txnId = event.transactionId;
+    if (!txnId || !PROVIDER_REFERENCE_SHAPE.test(txnId)) return null;
+    const order = await findOrderForAdjustment(event, "dispute");
+    if (order) return order.tenant_id;
+    const { data: donation } = await supabase
+      .from("donations")
+      .select("tenant_id")
+      .eq("provider_intent_id", txnId)
+      .eq("environment", event.environment)
+      .limit(1)
+      .maybeSingle();
+    return donation?.tenant_id ?? null;
   } catch (err) {
-    console.error("[payments] dispute admin alert failed", err);
+    console.error("[payments] dispute tenant lookup failed", event.adjustmentId, err);
+    return null;
   }
+}
+
+/**
+ * Alert dla zespołu przy sporze. Spór wymaga ludzkiej reakcji (dowody dla
+ * banku w terminie), więc zostawia ślad w panelu - ale WYŁĄCZNIE u
+ * administratorów najemcy, którego spór dotyczy.
+ *
+ * DLACZEGO NIE `user_roles` CAŁEGO WDROŻENIA. Wcześniejsza wersja wybierała
+ * każdego z rolą `admin`, bez warunku najemcy, i wstawiała mu dzwonek
+ * z identyfikatorem cudzej transakcji (audyt wyd. 12, 16.8: „alert o sporze
+ * najemcy A trafia do administratorów wszystkich najemców"). Odbiorców
+ * zawęża teraz `notifyTenantAdmins` - rola W TYM najemcy i profil w tym
+ * najemcy, każdy dzwonek przez `enqueue_notification`.
+ *
+ * Spór bez przypisanego najemcy nie idzie do nikogo: zostaje w dzienniku
+ * webhooków i w logu serwera (`console.error` niżej), skąd odczyta go
+ * operator platformy - lepszy brak dzwonka niż dzwonek u obcej organizacji.
+ * Nigdy nie rzuca.
+ */
+async function alertAdminsAboutDispute(
+  event: RefundEvent,
+  phase: "opened" | "won",
+  tenantId: string | null,
+  options: { registrationNeedsReview?: boolean } = {},
+): Promise<void> {
+  const ref = event.transactionId ?? event.subscriptionId ?? event.adjustmentId;
+  if (!tenantId) {
+    console.error("[payments] dispute without resolvable tenant - no admin alert", {
+      adjustmentId: event.adjustmentId,
+      phase,
+    });
+    return;
+  }
+  // Zgłoszenie odwołane przy otwarciu sporu baza zwolniła do puli (i mogła
+  // oddać miejsce komuś z listy rezerwowej) - wygrany spór nie ma prawa go po
+  // cichu wskrzesić, więc decyzja zostaje u organizatora.
+  const reviewPl = options.registrationNeedsReview
+    ? " Zgłoszenie na wydarzenie wymaga decyzji organizatora."
+    : "";
+  const reviewEn = options.registrationNeedsReview
+    ? " The event registration needs an organiser decision."
+    : "";
+  const { notifyTenantAdmins } = await import("@/lib/events/tenantAdminAlert.server");
+  await notifyTenantAdmins({
+    tenantId,
+    kind: "billing",
+    titlePl: phase === "opened" ? "Otwarto spór płatniczy" : "Spór płatniczy rozstrzygnięty",
+    titleEn: phase === "opened" ? "Payment dispute opened" : "Payment dispute resolved",
+    bodyPl:
+      phase === "opened"
+        ? `Bank otworzył spór dla ${ref}. Dostęp klienta został wstrzymany - przygotuj dowody.`
+        : `Spór dla ${ref} rozstrzygnięto na naszą korzyść. Dostęp klienta przywrócono.${reviewPl}`,
+    bodyEn:
+      phase === "opened"
+        ? `A dispute was opened for ${ref}. Customer access is suspended - prepare evidence.`
+        : `The dispute for ${ref} was won. Customer access has been restored.${reviewEn}`,
+    href: "/admin/billing",
+    icon: "credit-card",
+  });
 }
 
 /**
@@ -453,7 +509,7 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
   if (event.subscriptionId) {
     const { data: sub, error } = await supabase
       .from("subscriptions")
-      .select("user_id, price_id, status, current_period_end")
+      .select("user_id, tenant_id, price_id, status, current_period_end")
       .eq("provider_subscription_id", event.subscriptionId)
       .eq("environment", event.environment)
       .maybeSingle();
@@ -461,7 +517,10 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
     if (!sub?.user_id || !sub.price_id) return "skipped";
 
     const { resolvePlanForPrice } = await import("@/lib/billing/purchaseEffects.server");
-    const plan = await resolvePlanForPrice(sub.price_id);
+    const plan = await resolvePlanForPrice(sub.price_id, {
+      tenantId: sub.tenant_id,
+      userId: sub.user_id,
+    });
     if (plan) {
       const { syncEntitlementState } = await import("@/lib/billing/entitlementSync.server");
       await syncEntitlementState({
@@ -473,7 +532,7 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
         periodEnd: sub.current_period_end ?? null,
       });
     }
-    await alertAdminsAboutDispute(event, "won");
+    await alertAdminsAboutDispute(event, "won", sub.tenant_id);
     return "subscription_restored";
   }
 
@@ -497,7 +556,15 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
 
   const metadata = (order.metadata ?? {}) as Record<string, unknown>;
   const eventId = typeof metadata.event_id === "string" ? metadata.event_id : null;
-  if (eventId && order.user_id) {
+  // TA SAMA REGUŁA CO PRZY ODBIERANIU (`revokeOrder`): RSVP dotykamy wyłącznie
+  // na starszej ścieżce, BEZ `registration_id`. Zamówienie związane ze
+  // zgłoszeniem oddało miejsce przez `payments_apply_event_ticket_outcome`
+  // (pula, lista rezerwowa), więc bezwarunkowe `going` dawało link wejścia
+  // osobie, której zgłoszenie jest odwołane, a miejsce mogło już przejść na
+  // kogoś z kolejki. Decyzja o takim zgłoszeniu idzie do organizatora.
+  const boundToRegistration =
+    typeof metadata.registration_id === "string" && metadata.registration_id.length > 0;
+  if (eventId && order.user_id && !boundToRegistration) {
     const { error: rsvpErr } = await supabase
       .from("event_rsvps")
       .update({ status: "going", updated_at: nowIso })
@@ -506,7 +573,9 @@ async function restoreAccess(event: RefundEvent): Promise<RefundOutcome> {
     if (rsvpErr) throw new Error(`dispute: rsvp restore failed: ${rsvpErr.message}`);
   }
 
-  await alertAdminsAboutDispute(event, "won");
+  await alertAdminsAboutDispute(event, "won", order.tenant_id, {
+    registrationNeedsReview: Boolean(eventId) && boundToRegistration,
+  });
   return "order_restored";
 }
 
@@ -519,7 +588,7 @@ export async function applyRefundEffects(event: RefundEvent): Promise<RefundOutc
   if (isDisputeReversed(event)) return restoreAccess(event);
   if (!isRevokingAdjustment(event)) return "skipped";
   if (event.action === "chargeback" || event.action === "chargeback_warning") {
-    await alertAdminsAboutDispute(event, "opened");
+    await alertAdminsAboutDispute(event, "opened", await disputeTenant(event));
   }
   if (event.subscriptionId) return revokeSubscription(event);
   if (event.transactionId) return revokeOrder(event);

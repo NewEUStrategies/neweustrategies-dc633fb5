@@ -99,16 +99,28 @@ function planuj(
     sale?: number;
     kolizje?: number;
     wejsciowki?: number;
+    /** Typy biletów wyłączone ze sprzedaży - `event_register` ich nie widzi. */
+    nieaktywne?: number;
     plany?: Record<string, unknown>[];
   } = {},
 ): void {
   const puste = (ile: number): Record<string, string>[] =>
     Array.from({ length: ile }, (_unused, index) => ({ id: `wiersz-${index}` }));
+  const bilety = [
+    ...Array.from({ length: options.wejsciowki ?? 0 }, (_unused, index) => ({
+      id: `bilet-${index}`,
+      is_active: true,
+    })),
+    ...Array.from({ length: options.nieaktywne ?? 0 }, (_unused, index) => ({
+      id: `wylaczony-${index}`,
+      is_active: false,
+    })),
+  ];
   stub().setData("admin_event_publish_readiness", []);
   stub().setData("admin_event_sessions_list", options.sesje ?? []);
   stub().setData("admin_event_rooms_list", puste(options.sale ?? 0));
   stub().setData("admin_event_agenda_conflicts", puste(options.kolizje ?? 0));
-  stub().setData("admin_event_tickets_list", puste(options.wejsciowki ?? 0));
+  stub().setData("admin_event_tickets_list", bilety);
   stub().setData("admin_event_seat_maps_list", options.plany ?? []);
 }
 
@@ -342,5 +354,40 @@ describe("EventReadinessPanel - unavailable data", () => {
     panel({ status: "draft" });
     expect(await screen.findByText(`${R}blocked(count=1)`)).toBeInTheDocument();
     expect(screen.getByText(`${R}checks.timezone(count=0)`)).toBeInTheDocument();
+  });
+});
+
+describe("EventReadinessPanel - typ biletu przy płatnym formularzu", () => {
+  it("formularz z ceną i bez typu biletu dostaje ostrzeżenie ze skrótem do biletów", async () => {
+    planuj();
+    panel({ registration_mode: "form", ticket_price_cents: 25_000 });
+
+    expect(await screen.findByText(`${R}checks.tickets(count=0)`)).toBeInTheDocument();
+    expect(skrot("tickets", 0)).toBe(`/admin/events/${STUDIO_EVENT_ID}/registration/tickets`);
+  });
+
+  it("WYŁĄCZONY typ biletu nie spełnia warunku - nie sprzedaje", async () => {
+    planuj({ nieaktywne: 2 });
+    panel({ registration_mode: "form", ticket_price_cents: 25_000 });
+
+    expect(await screen.findByText(`${R}checks.tickets(count=0)`)).toBeInTheDocument();
+  });
+
+  it("aktywny typ biletu zamyka pozycję", async () => {
+    planuj({ wejsciowki: 1, nieaktywne: 1 });
+    panel({ registration_mode: "form", ticket_price_cents: 25_000 });
+
+    await poczekaj();
+    expect(await screen.findByText(`${R}publishedOk`)).toBeInTheDocument();
+    expect(screen.queryByText(/checks\.tickets/)).not.toBeInTheDocument();
+  });
+
+  it("zapisy RSVP z ceną nie dostają pozycji - płacą w kasie biletu wydarzenia", async () => {
+    planuj();
+    panel({ registration_mode: "rsvp", ticket_price_cents: 25_000 });
+
+    await poczekaj();
+    expect(await screen.findByText(`${R}publishedOk`)).toBeInTheDocument();
+    expect(screen.queryByText(/checks\.tickets/)).not.toBeInTheDocument();
   });
 });

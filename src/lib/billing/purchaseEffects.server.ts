@@ -7,7 +7,7 @@ import {
   type ProviderSubscriptionStatus,
 } from "@/lib/billing/entitlementSync.server";
 import { notifySubscriptionEmail } from "@/lib/billing/notifications.server";
-import { catalogEntryByPriceId } from "@/lib/billing/catalog";
+import { catalogEntryByPriceId, type PlanBillingInterval } from "@/lib/billing/catalog";
 import { buildPremiumNewsletterRow, canAutoSubscribe } from "@/lib/billing/premiumNewsletter";
 import { PROFILE_PLAN_PATH } from "@/lib/profile/routes";
 
@@ -19,6 +19,11 @@ export interface PurchaseContext {
   environment: "sandbox" | "live";
   /** Status subskrypcji u operatora; domyślnie `active`. */
   status?: ProviderSubscriptionStatus;
+  /**
+   * Najemca z wiersza `subscriptions`, gdy wołający go zna - oszczędza odczyt
+   * profilu przy odwzorowaniu ceny na plan (`PlanScope`).
+   */
+  tenantId?: string | null;
 }
 
 interface ResolvedPlan {
@@ -26,19 +31,77 @@ interface ResolvedPlan {
   tenantId: string;
   priceCents: number | null;
   currency: string | null;
+  /**
+   * Próg i cykl z wpisu katalogu, po którym plan został znaleziony. Plan
+   * istnieje tylko dla ceny katalogowej, więc wołający nie musi drugi raz
+   * pytać katalogu (i obsługiwać „braku wpisu", który tu nie zachodzi).
+   */
+  tierKey: string;
+  interval: PlanBillingInterval;
 }
 
-/** Mapuje czytelny identyfikator ceny dostawcy na plan z `access_plans`. */
-export async function resolvePlanForPrice(priceId: string): Promise<ResolvedPlan | null> {
+/**
+ * Zakres najemcy dla odwzorowania ceny na plan. `tenantId` wygrywa (wiersz
+ * subskrypcji / zamówienia już go niesie); bez niego najemca idzie z profilu
+ * `userId`. Oba puste = najemca nieznany, czyli brak planu.
+ */
+export interface PlanScope {
+  tenantId?: string | null;
+  userId?: string | null;
+}
+
+async function scopeTenant(scope: PlanScope): Promise<string | null> {
+  if (scope.tenantId) return scope.tenantId;
+  if (!scope.userId) return null;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", scope.userId)
+    .maybeSingle();
+  if (error) throw new Error(`plan scope lookup failed: ${error.message}`);
+  return data?.tenant_id ?? null;
+}
+
+/**
+ * Mapuje czytelny identyfikator ceny dostawcy na plan z `access_plans`
+ * NAJEMCY, którego dotyczy zdarzenie.
+ *
+ * DLACZEGO ZAKRES JEST WYMAGANY. Katalog cen jest jeden na konto operatora
+ * (`plus_monthly` znaczy to samo w każdym obszarze roboczym), a plany są per
+ * najemca. Zapytanie po samym `tier_key` + `interval` z `.limit(1)` i bez
+ * `ORDER BY` oddawało PIERWSZY LEPSZY aktywny plan całego wdrożenia: przy
+ * dwóch najemcach z planem „Plus" uprawnienie, mail i dzwonek mogły dostać
+ * `plan_id`/`tenant_id` obcej organizacji - i to różnej przy kolejnych
+ * zdarzeniach tej samej subskrypcji (audyt wyd. 11/12: „odwzorowanie ceny
+ * operatora na plan nie jest zawężone do najemcy ani deterministyczne").
+ *
+ * KOLEJNOŚĆ JAWNA (`sort_order`, potem `created_at`, potem `id`): dwa aktywne
+ * plany tego samego progu w jednym najemcy to stan dopuszczalny (np. wariant
+ * dla innej grupy odbiorców), więc wybór musi być powtarzalny.
+ */
+export async function resolvePlanForPrice(
+  priceId: string,
+  scope: PlanScope,
+): Promise<ResolvedPlan | null> {
   const entry = catalogEntryByPriceId(priceId);
   if (!entry) return null;
+  const tenantId = await scopeTenant(scope);
+  if (!tenantId) {
+    console.warn("[payments] plan lookup without tenant scope - skipped", { priceId });
+    return null;
+  }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("access_plans")
     .select("id, tenant_id, price_cents, currency")
+    .eq("tenant_id", tenantId)
     .eq("tier_key", entry.tierKey)
     .eq("interval", entry.interval)
     .eq("active", true)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`plan lookup failed: ${error.message}`);
@@ -48,33 +111,43 @@ export async function resolvePlanForPrice(priceId: string): Promise<ResolvedPlan
     tenantId: data.tenant_id,
     priceCents: data.price_cents,
     currency: data.currency,
+    tierKey: entry.tierKey,
+    interval: entry.interval,
   };
 }
 
-/** Powiadomienie w aplikacji (dzwonek). Nigdy nie rzuca. */
+/**
+ * Powiadomienie w aplikacji (dzwonek). Nigdy nie rzuca.
+ *
+ * FAIL-SOFT A `{ error }`. supabase-js nie rzuca na błąd bazy ani sieci, tylko
+ * zwraca go w wyniku - dlatego tu i w pozostałych skutkach pobocznych błąd
+ * jest jawnie przerzucany do `catch`. Bez tego `catch` widziałby wyłącznie
+ * wyjątki klienta, a odrzucony zapis znikałby bez śladu w logu.
+ */
 async function pushAppNotification(params: {
   userId: string;
   tenantId: string;
   titlePl: string;
   titleEn: string;
-  bodyPl?: string;
-  bodyEn?: string;
+  bodyPl: string;
+  bodyEn: string;
   href: string;
   icon: string;
 }): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    await supabaseAdmin.from("notifications").insert({
+    const { error } = await supabaseAdmin.from("notifications").insert({
       user_id: params.userId,
       tenant_id: params.tenantId,
       kind: "billing",
       title_pl: params.titlePl,
       title_en: params.titleEn,
-      body_pl: params.bodyPl ?? null,
-      body_en: params.bodyEn ?? null,
+      body_pl: params.bodyPl,
+      body_en: params.bodyEn,
       href: params.href,
       icon: params.icon,
     });
+    if (error) throw new Error(`notification insert failed: ${error.message}`);
   } catch (err) {
     console.error("[payments] app notification failed", err);
   }
@@ -102,20 +175,24 @@ export async function syncCrmSubscriptionState(
 ): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("email, first_name, last_name, tenant_id")
       .eq("id", userId)
       .maybeSingle();
+    if (profileError) throw new Error(`crm profile read failed: ${profileError.message}`);
     const email = profile?.email?.trim().toLowerCase();
     if (!email || !profile?.tenant_id) return;
 
-    const { data: lead } = await supabaseAdmin
+    const { data: lead, error: leadError } = await supabaseAdmin
       .from("crm_leads")
       .select("id, tags")
       .eq("tenant_id", profile.tenant_id)
       .eq("email_norm", email)
       .maybeSingle();
+    // Nieudany odczyt to NIE „brak leada" - gałąź `insert` założyłaby wtedy
+    // drugi kontakt dla tej samej osoby.
+    if (leadError) throw new Error(`crm lead lookup failed: ${leadError.message}`);
 
     const tag = `plan:${tierKey}`;
     const stateTags: Record<CrmSubscriptionState, string[]> = {
@@ -131,12 +208,9 @@ export async function syncCrmSubscriptionState(
 
     if (lead) {
       const tags = Array.from(
-        new Set([
-          ...(lead.tags ?? []).filter((t) => !dropTags[state].includes(t)),
-          ...stateTags[state],
-        ]),
+        new Set([...lead.tags.filter((t) => !dropTags[state].includes(t)), ...stateTags[state]]),
       );
-      await supabaseAdmin
+      const { error } = await supabaseAdmin
         .from("crm_leads")
         .update({
           stage: CRM_STAGE_BY_STATE[state],
@@ -144,8 +218,9 @@ export async function syncCrmSubscriptionState(
           last_activity_at: new Date().toISOString(),
         })
         .eq("id", lead.id);
+      if (error) throw new Error(`crm lead update failed: ${error.message}`);
     } else {
-      await supabaseAdmin.from("crm_leads").insert({
+      const { error } = await supabaseAdmin.from("crm_leads").insert({
         tenant_id: profile.tenant_id,
         email,
         email_norm: email,
@@ -153,13 +228,16 @@ export async function syncCrmSubscriptionState(
         last_name: profile.last_name ?? null,
         stage: CRM_STAGE_BY_STATE[state],
         // ZBIÓR DOZWOLONYCH WARTOŚCI PILNUJE BAZA (crm_leads_source_type_check).
-        // Było tu "import", którego CHECK nie zna - INSERT leciał na 23514,
-        // błąd lądował w `catch` niżej (log, bez rzutu), więc klient PŁACĄCY
-        // BEZ WCZEŚNIEJSZEGO LEADA nie dostawał go wcale. Kontrakt pilnuje
-        // teraz test `lib/crm/__tests__/leadSourceTypeContract.test.ts`.
+        // Było tu "import", którego CHECK nie zna - INSERT dostawał 23514
+        // w `{ error }`, którego nikt nie czytał, więc klient PŁACĄCY BEZ
+        // WCZEŚNIEJSZEGO LEADA nie trafiał do CRM, a log milczał. Kontrakt
+        // wartości pilnuje test `lib/crm/__tests__/leadSourceTypeContract.test.ts`,
+        // a każdy inny odrzucony zapis trafia teraz przez `throw` do `catch`
+        // niżej (log, bez rzutu).
         source_type: "paid_subscriber",
         tags: stateTags[state],
       });
+      if (error) throw new Error(`crm lead insert failed: ${error.message}`);
     }
   } catch (err) {
     console.error("[payments] crm sync failed", err);
@@ -183,20 +261,26 @@ async function subscribePremiumNewsletter(params: {
 }): Promise<void> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: profile } = await supabaseAdmin
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("email, first_name, last_name")
       .eq("id", params.userId)
       .maybeSingle();
+    if (profileError) throw new Error(`newsletter profile read failed: ${profileError.message}`);
     const email = profile?.email?.trim().toLowerCase();
     if (!email) return;
 
-    const { data: existing } = await supabaseAdmin
+    const { data: existing, error: existingError } = await supabaseAdmin
       .from("newsletter_subscribers")
       .select("id, status, unsubscribed_at, language")
       .eq("tenant_id", params.tenantId)
       .eq("email", email)
       .maybeSingle();
+    // Nieudany odczyt to NIE „brak zapisu" - `canAutoSubscribe(null)` przepuszcza,
+    // a upsert po (tenant_id, email) nadpisałby świadome wypisanie.
+    if (existingError) {
+      throw new Error(`newsletter consent lookup failed: ${existingError.message}`);
+    }
 
     if (!canAutoSubscribe(existing)) return;
 
@@ -211,9 +295,10 @@ async function subscribePremiumNewsletter(params: {
       subscriptionId: params.subscriptionId,
     });
 
-    await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from("newsletter_subscribers")
       .upsert(row, { onConflict: "tenant_id,email" });
+    if (error) throw new Error(`newsletter upsert failed: ${error.message}`);
   } catch (err) {
     console.error("[payments] premium newsletter opt-in failed", err);
   }
@@ -221,9 +306,11 @@ async function subscribePremiumNewsletter(params: {
 
 /** Nowa subskrypcja: dostęp + mail + CRM + newsletter + powiadomienie. */
 export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> {
-  const entry = catalogEntryByPriceId(ctx.priceId);
-  const plan = await resolvePlanForPrice(ctx.priceId);
-  if (!plan || !entry) {
+  const plan = await resolvePlanForPrice(ctx.priceId, {
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+  });
+  if (!plan) {
     console.warn("[payments] no local plan for price", ctx.priceId);
     return;
   }
@@ -247,12 +334,12 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
     idempotencySeed: ctx.subscriptionId,
   });
 
-  await syncCrmCustomer(ctx.userId, entry.tierKey);
+  await syncCrmCustomer(ctx.userId, plan.tierKey);
 
   await subscribePremiumNewsletter({
     userId: ctx.userId,
     tenantId: plan.tenantId,
-    tierKey: entry.tierKey,
+    tierKey: plan.tierKey,
     subscriptionId: ctx.subscriptionId,
   });
 
@@ -269,23 +356,44 @@ export async function applyPurchaseEffects(ctx: PurchaseContext): Promise<void> 
 }
 
 /**
+ * Nominalna długość cyklu w dniach - mianownik proraty. Operator dzieli przez
+ * RZECZYWISTĄ długość okresu (miesiąc ma 28-31 dni), więc kwota w mailu może
+ * odbiec od faktury o kilka procent dopłaty - a nie o jej wielokrotność, jak
+ * przy stałych 30 dniach dla planu rocznego. Cena jednorazowa nie ma cyklu.
+ */
+const CYCLE_DAYS: Record<PlanBillingInterval, number | null> = {
+  two_weeks: 14,
+  month: 30,
+  quarter: 91,
+  year: 365,
+  one_time: null,
+};
+
+/**
  * Proporcjonalna dopłata za pozostałe dni bieżącego okresu (upgrade).
  * Zwraca `null`, gdy danych nie da się wiarygodnie policzyć - lepiej pominąć
  * zdanie o proracie niż podać kwotę niezgodną z fakturą operatora.
  */
 function proratedDifferenceCents(
-  previousCents: number | null | undefined,
-  newCents: number | null | undefined,
+  previous: ResolvedPlan,
+  next: ResolvedPlan,
   periodEnd: string | null,
 ): number | null {
-  if (!periodEnd || previousCents == null || newCents == null) return null;
-  const diff = newCents - previousCents;
+  // Zmiana cyklu (miesiąc -> rok) zaczyna u operatora NOWY okres: faktura to
+  // pełna nowa cena minus niewykorzystana część starej, a `periodEnd` jest już
+  // końcem nowego okresu. Z różnicy cen i tej daty kwoty nie odtworzymy.
+  if (previous.interval !== next.interval) return null;
+  const cycleDays = CYCLE_DAYS[next.interval];
+  if (!cycleDays || !periodEnd || previous.priceCents == null || next.priceCents == null) {
+    return null;
+  }
+  const diff = next.priceCents - previous.priceCents;
   if (diff <= 0) return null;
   const end = new Date(periodEnd).getTime();
   if (Number.isNaN(end)) return null;
   const daysLeft = Math.max(0, Math.ceil((end - Date.now()) / 86_400_000));
   if (daysLeft <= 0) return null;
-  const share = Math.min(1, daysLeft / 30);
+  const share = Math.min(1, daysLeft / cycleDays);
   return Math.round(diff * share);
 }
 
@@ -293,9 +401,17 @@ function proratedDifferenceCents(
 export async function applyPlanChangeEffects(
   ctx: PurchaseContext & { previousPriceId: string | null; direction: "upgrade" | "downgrade" },
 ): Promise<void> {
-  const plan = await resolvePlanForPrice(ctx.priceId);
+  const plan = await resolvePlanForPrice(ctx.priceId, {
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+  });
   if (!plan) return;
-  const previous = ctx.previousPriceId ? await resolvePlanForPrice(ctx.previousPriceId) : null;
+  const previous = ctx.previousPriceId
+    ? await resolvePlanForPrice(ctx.previousPriceId, {
+        tenantId: ctx.tenantId,
+        userId: ctx.userId,
+      })
+    : null;
 
   await syncEntitlementState({
     userId: ctx.userId,
@@ -311,7 +427,7 @@ export async function applyPlanChangeEffects(
   // nową cenę i zgłasza reklamację o "podwójne obciążenie").
   const prorationCents =
     ctx.direction === "upgrade" && previous
-      ? proratedDifferenceCents(previous.priceCents, plan.priceCents, ctx.periodEnd)
+      ? proratedDifferenceCents(previous, plan, ctx.periodEnd)
       : null;
 
   await notifySubscriptionEmail({
@@ -346,7 +462,10 @@ export async function applyPlanChangeEffects(
 
 /** Rezygnacja: dostęp do końca okresu + mail + ankieta retencyjna. */
 export async function applyCancellationEffects(ctx: PurchaseContext): Promise<void> {
-  const plan = await resolvePlanForPrice(ctx.priceId);
+  const plan = await resolvePlanForPrice(ctx.priceId, {
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+  });
   if (!plan) return;
 
   // Dostęp gaśnie z końcem opłaconego okresu - uprawnienie musi to odzwierciedlać.
@@ -368,8 +487,7 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
   });
 
   // CRM: kontakt przestaje być aktywnym klientem (lejek nie może pokazywać „won”).
-  const canceledEntry = catalogEntryByPriceId(ctx.priceId);
-  if (canceledEntry) await syncCrmSubscriptionState(ctx.userId, canceledEntry.tierKey, "churned");
+  await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "churned");
 
   await pushAppNotification({
     userId: ctx.userId,
@@ -386,6 +504,8 @@ export async function applyCancellationEffects(ctx: PurchaseContext): Promise<vo
 /** Stan subskrypcji zgłoszony przez operatora w zdarzeniu `subscription.updated`. */
 export interface StatusTransitionContext {
   userId: string;
+  /** Najemca z wiersza `subscriptions` - patrz `PurchaseContext.tenantId`. */
+  tenantId?: string | null;
   priceId: string;
   subscriptionId: string;
   periodEnd: string | null;
@@ -400,12 +520,14 @@ export interface StatusTransitionContext {
  */
 export async function applyStatusTransitionEffects(ctx: StatusTransitionContext): Promise<void> {
   if (ctx.previousStatus === ctx.status) return;
-  const entry = catalogEntryByPriceId(ctx.priceId);
-  const plan = await resolvePlanForPrice(ctx.priceId);
-  if (!entry || !plan) return;
+  const plan = await resolvePlanForPrice(ctx.priceId, {
+    tenantId: ctx.tenantId,
+    userId: ctx.userId,
+  });
+  if (!plan) return;
 
   if (ctx.status === "paused") {
-    await syncCrmSubscriptionState(ctx.userId, entry.tierKey, "paused");
+    await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "paused");
     await pushAppNotification({
       userId: ctx.userId,
       tenantId: plan.tenantId,
@@ -429,7 +551,7 @@ export async function applyStatusTransitionEffects(ctx: StatusTransitionContext)
   }
 
   if (ctx.status === "active" || ctx.status === "trialing") {
-    await syncCrmSubscriptionState(ctx.userId, entry.tierKey, "customer");
+    await syncCrmSubscriptionState(ctx.userId, plan.tierKey, "customer");
     if (ctx.previousStatus === "paused" || ctx.previousStatus === "past_due") {
       await pushAppNotification({
         userId: ctx.userId,
