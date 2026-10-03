@@ -988,6 +988,20 @@
       "when": 1791045079866,
       "tag": "0140_club_cover_write_follows_capabilities",
       "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1791047456831,
+      "tag": "0141_web_vitals_daily_p75_until",
+      "breakpoints": true
+    },
+    {
+      "idx": 142,
+      "version": "7",
+      "when": 1791047466176,
+      "tag": "0142_post_views_tenant_viewed_idx",
+      "breakpoints": true
     }
   ]
 }
