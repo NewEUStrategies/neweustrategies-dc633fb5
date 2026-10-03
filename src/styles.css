@@ -3101,7 +3101,7 @@ select option {
  */
 @media print {
   @page {
-    margin: 18mm 16mm;
+    margin: 18mm 16mm 24mm;
   }
 
   html,
