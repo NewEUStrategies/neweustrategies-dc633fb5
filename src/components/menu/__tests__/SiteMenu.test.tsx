@@ -8,7 +8,7 @@
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { MenuItemRow, MenuWithItems } from "@/lib/menus/types";
+import type { MegaConfig, MenuItemRow, MenuWithItems } from "@/lib/menus/types";
 import { DEFAULT_MEGA_CONFIG } from "@/lib/menus/types";
 
 // Warstwa danych jest podmieniona, bo test dotyczy RENDERU: `getMenuWithItems`
@@ -231,6 +231,68 @@ describe("wariant desktopowy", () => {
     await renderMenu();
     const link = screen.getByRole("link", { name: "Komisja" });
     expect(link).toHaveAttribute("target", "_blank");
+  });
+});
+
+describe("układ panelu mega z konfiguracji redaktora", () => {
+  // Do 03.10.2026 `columns_per_row` i `width` z edytora lądowały w bazie,
+  // a nagłówek ich nie czytał: siatka miała na sztywno najwyżej 4 kolumny,
+  // panel zawsze 980 px. Ten blok sprawdza, że ustawienia DOCHODZĄ do ekranu.
+  const OPIS_INNER_WIDTH = Object.getOwnPropertyDescriptor(window, "innerWidth");
+
+  afterEach(() => {
+    // Szerokość okna jest globalna dla pliku - oddajemy ją, żeby kolejne
+    // testy nie liczyły geometrii na podstawionych 1440 px.
+    if (OPIS_INNER_WIDTH) Object.defineProperty(window, "innerWidth", OPIS_INNER_WIDTH);
+    else Reflect.deleteProperty(window, "innerWidth");
+  });
+
+  function megaItem(config: Partial<MegaConfig>): MenuItemRow {
+    return item({
+      id: "a",
+      label_pl: "Tematy",
+      href: "/tematy",
+      mega_enabled: true,
+      mega_config: {
+        ...DEFAULT_MEGA_CONFIG,
+        columns: ["Bezpieczeństwo", "Energia", "Gospodarka"].map((title) => ({
+          title_pl: title,
+          title_en: title,
+          href: "",
+          links: [],
+        })),
+        ...config,
+      },
+    });
+  }
+
+  /** Otwiera panel „Tematy” w oknie o zadanej szerokości. */
+  async function openMega(config: Partial<MegaConfig>, viewportWidth = 1440) {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: viewportWidth });
+    setMenu([megaItem(config)]);
+    await renderMenu();
+    fireEvent.click(screen.getByRole("button", { name: /Tematy/ }));
+    return screen.findByRole("menu");
+  }
+
+  it("liczba kolumn w rzędzie z konfiguracji układa siatkę panelu", async () => {
+    const panel = await openMega({ columns_per_row: 2 });
+    const grid = panel.querySelector<HTMLElement>(".grid.gap-x-4");
+    expect(grid?.style.gridTemplateColumns).toBe("repeat(2, minmax(0, 1fr))");
+    // Trzecia kolumna nie znika - schodzi do drugiego rzędu.
+    expect(within(panel).getByText("Gospodarka")).toBeTruthy();
+  });
+
+  it("szerokość „full” rozciąga panel na okno i kotwiczy go przy marginesie", async () => {
+    const panel = await openMega({ width: "full" });
+    expect(panel.style.width).toBe("calc(100vw - 32px)");
+    // Wyśrodkowany jak „container" stałby 160 px od lewej i wystawał poza ekran.
+    expect(panel.parentElement?.style.left).toBe("16px");
+  });
+
+  it("szerokość „container” zostawia panel tam, gdzie stał dotąd", async () => {
+    const panel = await openMega({ width: "container" });
+    expect(panel.parentElement?.style.left).toBe("160px");
   });
 });
 

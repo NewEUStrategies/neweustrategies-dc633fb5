@@ -9,6 +9,12 @@ import { safeUrl } from "@/lib/sanitizePure";
 import { MenuIcon as DynamicIcon } from "@/lib/icons/DynamicIcon";
 import type { MegaColumn } from "@/lib/menus/types";
 import type { MegaFeaturedPost } from "@/lib/menus/megaFeatured";
+import {
+  megaNavColumns,
+  megaPanelCssWidth,
+  megaPanelLayout,
+  type MegaPanelWidth,
+} from "@/lib/menus/siteMenu";
 
 export type MegaViewLang = "pl" | "en";
 
@@ -29,6 +35,17 @@ interface Props {
   /** "live" - anchored panel on the site; "preview" - inline card in admin. */
   variant?: "live" | "preview";
   onMouseLeave?: () => void;
+  /**
+   * `mega_config.columns_per_row` - ile kolumn nawigacji w jednym rzędzie.
+   * Brak albo wartość spoza schematu = domyślne 4 (`megaPanelLayout`).
+   */
+  columnsPerRow?: number;
+  /**
+   * `mega_config.width` - szerokość panelu na stronie. Podgląd w adminie
+   * siedzi w karcie edytora, więc szerokości OKNA nie odda; dostaje ją tylko
+   * jako `data-mega-width`, a 1:1 odwzorowuje siatkę kolumn.
+   */
+  width?: MegaPanelWidth;
 }
 
 export function MegaPanelView({
@@ -39,9 +56,18 @@ export function MegaPanelView({
   featured,
   variant = "live",
   onMouseLeave,
+  columnsPerRow,
+  width,
 }: Props) {
+  const layout = megaPanelLayout({ columns_per_row: columnsPerRow, width });
   const showFeatured = cols.length <= 2 && !!featured;
-  const gridCols = showFeatured ? 12 : Math.max(1, Math.min(cols.length, 4));
+  // Kolumny nawigacji w rzędzie: tyle, ile jest kolumn, najwyżej tyle, ile
+  // ustawił redaktor. Do 03.10.2026 było tu zaszyte `Math.min(cols.length, 4)`,
+  // a wybór „kolumn w rzędzie" z edytora lądował w bazie i nigdzie dalej.
+  // Z kartą wyróżnionego wpisu (najwyżej dwie kolumny) zostaje układ 8/4 na
+  // siatce 12, ale kolumny nawigacji w lewej części też respektują ten limit.
+  const navCols = megaNavColumns(cols.length, layout.columnsPerRow);
+  const gridCols = showFeatured ? 12 : navCols;
 
   if (cols.length === 0) return null;
 
@@ -88,7 +114,8 @@ export function MegaPanelView({
     <div
       role="menu"
       className={containerClass}
-      style={variant === "live" ? { width: "min(980px, calc(100vw - 32px))" } : undefined}
+      style={variant === "live" ? { width: megaPanelCssWidth(layout.width) } : undefined}
+      data-mega-width={layout.width}
       onMouseLeave={onMouseLeave}
     >
       <div className="grid" style={{ gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))` }}>
@@ -115,11 +142,7 @@ export function MegaPanelView({
           ) : null}
           <div
             className="grid gap-x-4 sm:gap-x-6"
-            style={{
-              gridTemplateColumns: showFeatured
-                ? `repeat(${Math.min(cols.length || 1, 2)}, minmax(0, 1fr))`
-                : `repeat(${gridCols}, minmax(0, 1fr))`,
-            }}
+            style={{ gridTemplateColumns: `repeat(${navCols}, minmax(0, 1fr))` }}
           >
             {cols.map((col, i) => {
               const title = pickLocalized(col.title_pl, col.title_en, lang);
