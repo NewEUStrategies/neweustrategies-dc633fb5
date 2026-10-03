@@ -2433,7 +2433,7 @@ SELECT pg_temp.assert(
 -- ===========================================================================
 -- A36: OKLADKA KLUBU - ZAPIS PLIKU, ADRESU I KADROWANIA Z JEDNEGO PREDYKATU
 --
--- Migracja 20261003140000. Do niej polityka `club-covers/<clubId>/...` w
+-- Migracja 20261003170000. Do niej polityka `club-covers/<clubId>/...` w
 -- `storage.objects` wpuszczala role `IN ('owner','moderator')`, a `owner` nie
 -- istnieje w slowniku `club_members` - prowadzacy (`lead`) widzial edytor
 -- (`can_moderate`), a wgranie konczylo sie odmowa RLS. Ta sama funkcja nie

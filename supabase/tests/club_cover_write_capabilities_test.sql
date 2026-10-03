@@ -1,6 +1,6 @@
 -- ============================================================================
 -- pgTAP: okładka klubu - zapis pliku, adresu i kadrowania z JEDNEGO predykatu
--- (migracja 20261003140000).
+-- (migracja 20261003170000).
 --
 -- Do tej migracji polityka `club-covers/<clubId>/...` na `storage.objects`
 -- wpuszczała członków o roli `IN ('owner','moderator')`. Słownik
