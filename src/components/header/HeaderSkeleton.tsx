@@ -107,7 +107,9 @@ export interface HeaderSkeletonProps {
  */
 export const HEADER_SKELETON_BANDS = {
   alertBar: 40,
-  ticker: 41,
+  // Z tej samej mapy co pasek i jego rezerwa - druga, ręczna kopia klasycznej
+  // geometrii mogłaby się po cichu rozjechać z `tickerBandGeometry`.
+  ticker: tickerBandGeometry("classic").nominalPx,
   adBanner: 90,
   navRow: 64,
 } as const;

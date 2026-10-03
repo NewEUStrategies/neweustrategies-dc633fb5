@@ -414,7 +414,10 @@ function TickerItem({
         </span>
       )}
       {animation === "typewriter" ? (
-        <TypewriterText text={title} delayMs={delayMs} />
+        // `key` = tytuł: nowy tytuł montuje pisanie od zera. Bez tego pierwszy
+        // commit po zmianie pokazywał NOWY tekst ucięty do STAREJ długości
+        // (zerowanie licznika dzieje się dopiero w efekcie po commicie).
+        <TypewriterText key={title} text={title} delayMs={delayMs} />
       ) : (
         <span className="font-medium truncate max-w-[220px] sm:max-w-none sm:whitespace-nowrap leading-none">
           {title}
