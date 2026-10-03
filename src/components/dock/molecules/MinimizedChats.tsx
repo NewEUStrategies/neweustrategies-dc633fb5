@@ -134,35 +134,35 @@ function MinimizedChatsRail({ chats, onOpenInbox }: RailProps) {
             key={chat.id}
             className="wd-pill flex h-6 max-w-[132px] items-center gap-1 rounded-md border border-border bg-muted/60 py-0 pl-0.5 pr-0.5 text-[11px] font-medium leading-none"
           >
-          <button
-            type="button"
-            onClick={() => restore(chat.id)}
-            // Przywrócenie rozmowy renderuje OKNO wiadomości, którego paczka
-            // jest leniwa - rozgrzewamy ją na zamiar, nie po kliknięciu.
-            onPointerEnter={prefetchChatWindow}
-            onPointerDown={prefetchChatWindow}
-            onFocus={prefetchChatWindow}
-            title={t("dock.chat.restore", { name: chat.name })}
-            aria-label={t("dock.chat.restore", { name: chat.name })}
-            className="flex h-5 min-w-0 items-center gap-1"
-          >
-            <ChatAvatar
-              name={chat.name}
-              avatarUrl={liveAvatars.get(chat.id) ?? chat.avatarUrl}
-              size="xs"
-              className="shrink-0"
-            />
-            <span className="truncate leading-none">{chat.name}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => minimizedChatsStore.remove(chat.id)}
-            title={t("dock.chat.closeConversation")}
-            aria-label={t("dock.chat.closeConversation")}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-          >
-            <X className="h-3 w-3" aria-hidden />
-          </button>
+            <button
+              type="button"
+              onClick={() => restore(chat.id)}
+              // Przywrócenie rozmowy renderuje OKNO wiadomości, którego paczka
+              // jest leniwa - rozgrzewamy ją na zamiar, nie po kliknięciu.
+              onPointerEnter={prefetchChatWindow}
+              onPointerDown={prefetchChatWindow}
+              onFocus={prefetchChatWindow}
+              title={t("dock.chat.restore", { name: chat.name })}
+              aria-label={t("dock.chat.restore", { name: chat.name })}
+              className="flex h-5 min-w-0 items-center gap-1"
+            >
+              <ChatAvatar
+                name={chat.name}
+                avatarUrl={liveAvatars.get(chat.id) ?? chat.avatarUrl}
+                size="xs"
+                className="shrink-0"
+              />
+              <span className="truncate leading-none">{chat.name}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => minimizedChatsStore.remove(chat.id)}
+              title={t("dock.chat.closeConversation")}
+              aria-label={t("dock.chat.closeConversation")}
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3 w-3" aria-hidden />
+            </button>
           </span>
         ))}
         {overflow > 0 ? (

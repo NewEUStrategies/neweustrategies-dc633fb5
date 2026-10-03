@@ -207,6 +207,7 @@ describe("/category/$slug - odporność loadera", () => {
     await runLoader(CategoryRoute, "nie-ma").catch((error: unknown) => void (thrown = error));
     expect(isNotFound(thrown)).toBe(true);
     expect(h.cacheControl).toEqual([NO_STORE]);
+    expect(storedByEdge(h.cacheControl[0])).toBe(false);
   });
 
   it("zwis KONFIGURACJI nie blokuje TREŚCI - lista rusza z domyślką z kodu", async () => {
@@ -281,10 +282,20 @@ describe("/tag/$slug - odporność loadera", () => {
     expect(storedByEdge(h.cacheControl[0])).toBe(true);
   });
 
-  it("brak taksonomii tagu nadal kończy się 404", async () => {
+  it("brak taksonomii tagu kończy się 404, które nie utrwala się na brzegu", async () => {
+    // Sam `isNotFound` nie widzi KOLEJNOŚCI w loaderze: `notFoundIfClean` rzuca,
+    // więc `setCacheControlHeader` przeniesiony za niego (albo zgubiony przy
+    // refaktorze) nie padłby nigdy, a 404 wyszłoby z domyślną polityką treści
+    // z middleware. Jej `public, s-maxage` pozwala współdzielonemu cache'owi
+    // przed aplikacją trzymać nieistniejący tag (literówka w linku, tag
+    // dopiero zakładany) jako 404 przez 15 minut świeżości plus dobę okna
+    // stale - także po utworzeniu tagu. Asercje symetryczne do 404 kategorii:
+    // napis nagłówka i jego SKUTEK (dokument niedzielony).
     h.archive = null;
     let thrown: unknown;
     await runLoader(TagRoute, "nie-ma").catch((error: unknown) => void (thrown = error));
     expect(isNotFound(thrown)).toBe(true);
+    expect(h.cacheControl).toEqual([NO_STORE]);
+    expect(storedByEdge(h.cacheControl[0])).toBe(false);
   });
 });

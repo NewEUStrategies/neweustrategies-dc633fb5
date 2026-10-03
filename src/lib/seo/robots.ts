@@ -57,11 +57,19 @@ export interface RobotsGroup {
 export interface RobotsUsagePolicy {
   /** Nazwa, którą asystent ma podać jako źródło. */
   readonly siteName: string;
-  /** Adres pełnych warunków (np. /llms.txt) - absolutny albo ścieżka. */
-  readonly termsPath?: string;
+  /**
+   * Adres pełnych warunków (np. /llms.txt) - absolutny albo ścieżka.
+   * Brak pola = `/llms.txt`. `null` = serwis nie publikuje dokumentu warunków
+   * (redakcja wyłączyła llms.txt) - linia odsyłacza znika, zamiast kierować
+   * crawlera na 404 jako „pełne warunki".
+   */
+  readonly termsPath?: string | null;
   /** Czy trenowanie modeli na treści jest dozwolone (wpływa na `ai-train`). */
   readonly trainingAllowed: boolean;
-  /** Czy asystenty AI mogą w ogóle czytać treść do odpowiedzi. */
+  /**
+   * Czy asystenty AI mogą w ogóle czytać treść do odpowiedzi. To samo pole
+   * decyduje o zgodzie na cytowanie w llms.txt (`LlmsTxtUsageGrant`).
+   */
   readonly aiInputAllowed: boolean;
 }
 
@@ -119,22 +127,41 @@ function usageTermsUrl(origin: string, termsPath: string | undefined): string {
  * trafia do tego samego kontekstu, w którym powstaje odpowiedź.
  */
 function renderUsagePolicy(origin: string, usage: RobotsUsagePolicy): string[] {
-  const terms = usageTermsUrl(origin, usage.termsPath);
+  // Zgoda na cytowanie TYLKO przy `ai-input=yes`. Wcześniej zdanie zgody było
+  // stałe, więc przy wyłączonych crawlerach AI plik przeczył sam sobie:
+  // „AI assistants MAY ... quote" i „atrybucja to JEDYNY warunek dla każdej
+  // odpowiedzi", a trzy linie niżej „Quoting in AI answers: not permitted".
+  // Wariant `ai-input=no` mówi to samo, co llms.txt: wyszukiwarki indeksują,
+  // odpowiedzi AI są wyłączone, a każde DOZWOLONE użycie wymaga atrybucji.
+  const grant = usage.aiInputAllowed
+    ? [
+        "# Search engines and AI assistants MAY crawl, index and quote this site,",
+        "# on ONE condition: every answer, summary or excerpt that uses this content",
+        `# must name "${usage.siteName}" as the source AND link the exact article URL`,
+        "# it draws on. Attribution is required, not optional - unattributed reuse is",
+        "# not covered by this permission.",
+      ]
+    : [
+        "# Classic search engines (group *) MAY crawl and index this site. AI assistants",
+        "# may NOT use its content in answers, summaries or excerpts (ai-input=no);",
+        "# AI search crawlers are disallowed below. Any permitted reuse (search results",
+        `# and snippets, training where allowed below) must name "${usage.siteName}" as the source`,
+        "# AND link the exact article URL it draws on - unattributed reuse is not",
+        "# covered by this permission.",
+      ];
   return [
     `# Content usage policy for ${usage.siteName}.`,
     "#",
-    "# Search engines and AI assistants MAY crawl, index and quote this site,",
-    "# on ONE condition: every answer, summary or excerpt that uses this content",
-    `# must name "${usage.siteName}" as the source AND link the exact article URL`,
-    "# it draws on. Attribution is required, not optional - unattributed reuse is",
-    "# not covered by this permission.",
+    ...grant,
     usage.trainingAllowed
       ? "# Training on this content is permitted under the same attribution terms."
       : "# Training generative models on this content requires a written licence.",
     usage.aiInputAllowed
       ? "# Quoting in AI answers: allowed with attribution (see Content-Signal below)."
       : "# Quoting in AI answers: not permitted (see Content-Signal below).",
-    `# Full terms and a machine-readable index: ${terms}`,
+    ...(usage.termsPath === null
+      ? []
+      : [`# Full terms and a machine-readable index: ${usageTermsUrl(origin, usage.termsPath)}`]),
   ];
 }
 

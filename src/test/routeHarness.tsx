@@ -88,6 +88,13 @@ export interface RenderRouteOptions {
   rootRoute?: AnyRoute;
   /** Optional real pending UI for tests of a suspended route. */
   pendingComponent?: RouteComponent;
+  /**
+   * Przywracanie pozycji przewinięcia jak w `src/router.tsx`. Domyślnie
+   * wyłączone: router i tak przewija na górę po każdej nawigacji, ale bez tej
+   * flagi nie zapamiętuje pozycji wpisów historii, więc „wstecz" nie ma czego
+   * przywrócić - a testy przewijania przy krokach historii muszą to widzieć.
+   */
+  scrollRestoration?: boolean;
 }
 
 export interface RenderedRoute extends RenderResult {
@@ -112,6 +119,8 @@ export interface RenderedRoute extends RenderResult {
   headScripts: () => RouteMetaEntry[];
   /** Nawigacja w obrębie zamontowanego drzewa (np. na trasę rodzeństwa). */
   navigate: (href: string) => Promise<void>;
+  /** Krok „wstecz" w historii pamięciowej - jak przycisk przeglądarki. */
+  back: () => void;
 }
 
 /**
@@ -150,6 +159,7 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
     // zachowanie produkcyjne. `router.invalidate()` (patrz `navigate`) i tak
     // wymusza ponowny bieg, więc dowody o odświeżaniu zostają nienaruszone.
     defaultStaleTime: Infinity,
+    scrollRestoration: options.scrollRestoration ?? false,
   });
 
   // Loader biegnie PRZED renderem - tak samo jak w nawigacji produkcyjnej,
@@ -175,6 +185,7 @@ export async function renderRoute(options: RenderRouteOptions): Promise<Rendered
       await router.navigate({ href });
       await router.invalidate();
     },
+    back: () => router.history.back(),
   };
 }
 

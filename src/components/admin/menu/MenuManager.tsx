@@ -40,18 +40,20 @@ import { AddItemPanel } from "./AddItemPanel";
 import { MegaPanelView } from "@/components/menu/MegaPanelView";
 import { LucideIconPicker } from "@/components/admin/builder/ui/molecules/LucideIconPicker";
 import { megaFeaturedPostQueryOptions, type MegaFeaturedPost } from "@/lib/menus/megaFeatured";
+import { escapeLike } from "@/lib/admin/listFilters";
 
 import { type MenuItemInput, type MenuItemType, type MegaConfig } from "@/lib/menus/types";
 import {
-  MAX_MENU_DEPTH,
   appendMenuItems,
   buildMenuTree,
+  canIndentMenuItem,
   dropZoneForOffset,
   indentMenuItem,
   moveMenuItem,
   outdentMenuItem,
   parentToExpandOnIndent,
   removeMenuSubtree,
+  subtreeHeight,
   toSavePayload,
   updateMenuItemById,
   type MenuClientItem,
@@ -93,6 +95,11 @@ export function MenuManager({ menuKey }: Props) {
   const menuQuery = useQuery(menuWithItemsQueryOptions(menuKey));
   const [items, setItems] = useState<ClientItem[] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Wysokość poddrzewa PRZECIĄGANEJ pozycji, liczona raz przy chwyceniu.
+  // Strefa upuszczenia musi ją znać już w `dragover`, a tam przeglądarka nie
+  // pozwala odczytać `dataTransfer.getData` (tryb chroniony) - identyfikator
+  // przeciąganej pozycji jest dostępny dopiero w `drop`.
+  const [dragHeight, setDragHeight] = useState(0);
 
   // Zainicjalizuj stan lokalny gdy dane dotrą.
   const initFromServer = useCallback(() => {
@@ -167,6 +174,15 @@ export function MenuManager({ menuKey }: Props) {
   const moveItem = (dragId: string, targetId: string | null, mode: MenuDropMode) => {
     setItems((curr) => (curr ? [...moveMenuItem(curr, dragId, targetId, mode)] : curr));
   };
+
+  const startDrag = (local_id: string) => {
+    setDragHeight(subtreeHeight(items ?? [], local_id));
+  };
+
+  // Stan przycisku „wcięcie" z TEJ SAMEJ reguły, którą stosuje reduktor -
+  // inaczej przycisk bywał aktywny dla ruchu, który wyprowadzał wnuki poza
+  // limit poziomów.
+  const canIndent = (local_id: string) => canIndentMenuItem(items ?? [], local_id);
 
   // Podpięcie w prawo: element staje się dzieckiem swojego poprzedniego
   // rodzeństwa - i ta gałąź musi się rozwinąć, inaczej pozycja „znika".
@@ -283,6 +299,9 @@ export function MenuManager({ menuKey }: Props) {
               onMove={moveItem}
               onIndent={indentItem}
               onOutdent={outdentItem}
+              canIndent={canIndent}
+              dragHeight={dragHeight}
+              onDragStartItem={startDrag}
             />
           ))}
         </div>
@@ -302,6 +321,11 @@ interface NodeProps {
   onMove: (dragId: string, targetId: string | null, mode: "before" | "after" | "child") => void;
   onIndent: (id: string) => void;
   onOutdent: (id: string) => void;
+  /** Czy wcięcie pozycji zmieści jej CAŁE poddrzewo w limicie poziomów. */
+  canIndent: (id: string) => boolean;
+  /** `subtreeHeight` aktualnie przeciąganej pozycji (0 = liść). */
+  dragHeight: number;
+  onDragStartItem: (id: string) => void;
 }
 
 function MenuNode({
@@ -315,6 +339,9 @@ function MenuNode({
   onMove,
   onIndent,
   onOutdent,
+  canIndent,
+  dragHeight,
+  onDragStartItem,
 }: NodeProps) {
   const { t } = useTranslation();
   const { item, children } = node;
@@ -325,13 +352,14 @@ function MenuNode({
   const onDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData(DND_MIME, item.local_id);
     e.dataTransfer.effectAllowed = "move";
+    onDragStartItem(item.local_id);
   };
   const onDragOver = (e: React.DragEvent) => {
     if (!e.dataTransfer.types.includes(DND_MIME)) return;
     e.preventDefault();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const ratio = rect.height > 0 ? (e.clientY - rect.top) / rect.height : 0.5;
-    setDropZone(dropZoneForOffset(ratio, depth));
+    setDropZone(dropZoneForOffset(ratio, depth, dragHeight));
   };
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -509,7 +537,7 @@ function MenuNode({
               variant="ghost"
               className="h-7 w-7"
               onClick={() => onIndent(item.local_id)}
-              disabled={siblingIndex === 0 || depth + 1 >= MAX_MENU_DEPTH}
+              disabled={siblingIndex === 0 || !canIndent(item.local_id)}
               aria-label={t("admin.menu.indent")}
               title={t("admin.menu.indent")}
             >
@@ -677,6 +705,9 @@ function MenuNode({
               onMove={onMove}
               onIndent={onIndent}
               onOutdent={onOutdent}
+              canIndent={canIndent}
+              dragHeight={dragHeight}
+              onDragStartItem={onDragStartItem}
             />
           ))}
         </div>
@@ -981,6 +1012,9 @@ function MegaPreview({
       </div>
       {hasContent ? (
         <div aria-label={t("admin.menu.previewAria")} className="rounded-md bg-muted/30 p-3">
+          {/* Układ z EDYTOWANEJ konfiguracji - ten sam, który `SiteMenu` czyta
+              z zapisanej. Bez tego wybór „kolumn w rzędzie" nie zmieniał
+              podglądu i redaktor nie widział skutku swojego ustawienia. */}
           <MegaPanelView
             cols={cols}
             lang={lang}
@@ -988,6 +1022,8 @@ function MegaPreview({
             parentHref="#"
             featured={featured}
             variant="preview"
+            columnsPerRow={config.columns_per_row}
+            width={config.width}
           />
         </div>
       ) : (
@@ -1073,9 +1109,16 @@ function FeaturedPostPicker({
         .eq("status", "published")
         .is("deleted_at", null)
         .order("published_at", { ascending: false });
-      const term = search.trim();
+      // Fraza idzie przez `escapeLike` tak samo jak w pozostałych wyszukiwarkach
+      // panelu (`postsListQuery.ts`, `admin.pages.tsx`). Bez tego przecinek
+      // i nawias z wejścia dopisują WŁASNE warunki do wyrażenia `.or()`
+      // (albo rozsypują parser filtra PostgREST), a `%` i `_` są wildcardami.
+      // Próg dwóch znaków liczymy PO oczyszczeniu: fraza z samych znaków
+      // specjalnych nie ma czego szukać i nie zakłada filtra wcale.
+      const term = escapeLike(search.trim());
       if (term.length >= 2) {
-        q = q.or(`title_pl.ilike.%${term}%,title_en.ilike.%${term}%,slug.ilike.%${term}%`);
+        const like = `%${term}%`;
+        q = q.or(`title_pl.ilike.${like},title_en.ilike.${like},slug.ilike.${like}`);
       }
       const { data } = await q.limit(20);
       return (data ?? []).map((r) => ({
@@ -1234,9 +1277,11 @@ function InternalContentPicker({
         supabase.from(table).select(`id, slug, ${c.title}, ${c.fallback}`) as unknown as Builder
       ).order(c.title);
       if (c.withStatus) q = q.eq("status", "published").is("deleted_at", null);
-      const term = search.trim();
+      // Ta sama osłona frazy, co w wyborze wyróżnionego wpisu wyżej.
+      const term = escapeLike(search.trim());
       if (term.length >= 2) {
-        q = q.or(`${c.title}.ilike.%${term}%,${c.fallback}.ilike.%${term}%,slug.ilike.%${term}%`);
+        const like = `%${term}%`;
+        q = q.or(`${c.title}.ilike.${like},${c.fallback}.ilike.${like},slug.ilike.${like}`);
       }
       const { data } = await q.limit(20);
       return (data ?? []).map((r) => {

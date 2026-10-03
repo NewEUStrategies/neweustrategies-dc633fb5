@@ -335,6 +335,7 @@ export type Database = {
           columns: number
           created_at: string
           hero_bg_style: string
+          hero_image_url: string | null
           id: string
           layout_variant: number
           list_style: string
@@ -357,6 +358,7 @@ export type Database = {
           columns?: number
           created_at?: string
           hero_bg_style?: string
+          hero_image_url?: string | null
           id?: string
           layout_variant?: number
           list_style?: string
@@ -379,6 +381,7 @@ export type Database = {
           columns?: number
           created_at?: string
           hero_bg_style?: string
+          hero_image_url?: string | null
           id?: string
           layout_variant?: number
           list_style?: string
@@ -22475,6 +22478,7 @@ export type Database = {
         Args: { p_detail?: string; p_id: string; p_status: string }
         Returns: boolean
       }
+      _event_delivery_confirm_many: { Args: { p_items: Json }; Returns: number }
       _event_effective_end: {
         Args: { _ends: string; _starts: string }
         Returns: string
@@ -22891,6 +22895,27 @@ export type Database = {
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
+      }
+      _event_reminder_candidates: {
+        Args: { p_channels: string[]; p_limit: number; p_now: string }
+        Returns: {
+          channel: string
+          dedupe_key: string
+          event_id: string
+          kind: string
+          lead_minutes: number
+          person_id: string
+          registration_id: string
+          rsvp_id: string
+          session_id: string
+          starts_at: string
+          tenant_id: string
+          user_id: string
+        }[]
+      }
+      _event_reminders_claim: {
+        Args: { p_limit?: number; p_sms?: boolean }
+        Returns: Json
       }
       _event_safe_timezone: { Args: { _tz: string }; Returns: string }
       _event_scanner_device_auth: {
@@ -30826,6 +30851,17 @@ export type Database = {
         }[]
       }
       related_posts_signals: { Args: { _since_days?: number }; Returns: Json }
+      related_taxonomies: {
+        Args: { _kind: string; _limit?: number; _taxonomy_id: string }
+        Returns: {
+          id: string
+          name_en: string
+          name_pl: string
+          score: number
+          shared_posts: number
+          slug: string
+        }[]
+      }
       release_b2b_coupon: {
         Args: { _coupon_id: string; _order_id: string }
         Returns: boolean
@@ -31072,6 +31108,7 @@ export type Database = {
           _lang?: string
           _limit?: number
           _match?: string
+          _offset?: number
           _q?: string
           _sort?: string
           _term_groups?: Json
