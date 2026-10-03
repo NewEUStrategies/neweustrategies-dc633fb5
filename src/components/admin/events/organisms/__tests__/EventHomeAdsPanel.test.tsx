@@ -292,8 +292,23 @@ function zamknijKalendarz(): void {
   });
 }
 
+// Napisy selektora daty idą przez i18n (`dateTimePicker.*`), a ten plik
+// zastępuje `react-i18next` atrapą zwracającą klucz z jawnym językiem.
+const PUSTE_PL = "dateTimePicker.placeholder(lng=pl)";
+const TERAZ_PL = "dateTimePicker.now(lng=pl)";
+const WYCZYSC_PL = "dateTimePicker.clear(lng=pl)";
+
+/**
+ * Przycisk czyszczenia pola daty. Stoi OBOK triggera (ten sam rodzic), nie
+ * w nim - element interaktywny wewnątrz `<button>` to niepoprawny HTML.
+ */
+function wyczyscPole(etykieta: string, nazwa = WYCZYSC_PL): HTMLElement {
+  const trigger = screen.getByLabelText(etykieta);
+  return within(trigger.parentElement as HTMLElement).getByRole("button", { name: nazwa });
+}
+
 /** Ustawia pole daty na „teraz" przyciskiem w kalendarzu. */
-function ustawTeraz(etykieta: string, przycisk = "Teraz"): void {
+function ustawTeraz(etykieta: string, przycisk = TERAZ_PL): void {
   kliknij(within(kalendarz(etykieta)).getByRole("button", { name: przycisk }));
   zamknijKalendarz();
 }
@@ -523,8 +538,8 @@ describe("okno nowej reklamy", () => {
     for (const nazwa of ["Goście VIP", "Press", "Wolontariusze"]) {
       expect(grupaWOknie(nazwa).getAttribute("aria-checked")).toBe("false");
     }
-    expect(screen.getByLabelText(`${A}.startsAt`).textContent).toBe("Wybierz datę i godzinę");
-    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe("Wybierz datę i godzinę");
+    expect(screen.getByLabelText(`${A}.startsAt`).textContent).toBe(PUSTE_PL);
+    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe(PUSTE_PL);
   });
 
   it("kadr podglądu obrazu komputerowego jest pionowym banerem, a mobilnego - ekranem telefonu", () => {
@@ -833,8 +848,8 @@ describe("okno edycji reklamy", () => {
     panel();
     otworzEdycje();
     for (const etykieta of [`${A}.startsAt`, `${A}.endsAt`]) {
-      kliknij(within(screen.getByLabelText(etykieta)).getByRole("button", { name: "Wyczyść" }));
-      expect(screen.getByLabelText(etykieta).textContent).toBe("Wybierz datę i godzinę");
+      kliknij(wyczyscPole(etykieta));
+      expect(screen.getByLabelText(etykieta).textContent).toBe(PUSTE_PL);
     }
     zapisz();
     expect(h.saveCalls[0]).toMatchObject({ startsAt: "", endsAt: "" });
@@ -876,11 +891,11 @@ describe("język panelu w oknie", () => {
     panel();
     otworzEdycje();
     expect(screen.getByLabelText(`${A}.startsAt`).textContent).toMatch(/^Jun 14, 2099/);
-    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe("Pick date and time");
-    expect(
-      within(screen.getByLabelText(`${A}.startsAt`)).getByRole("button", { name: "Clear" }),
-    ).toBeTruthy();
-    ustawTeraz(`${A}.endsAt`, "Now");
+    expect(screen.getByLabelText(`${A}.endsAt`).textContent).toBe(
+      "dateTimePicker.placeholder(lng=en)",
+    );
+    expect(wyczyscPole(`${A}.startsAt`, "dateTimePicker.clear(lng=en)")).toBeTruthy();
+    ustawTeraz(`${A}.endsAt`, "dateTimePicker.now(lng=en)");
     zapisz();
     expect(h.saveCalls[0]).toMatchObject({ startsAt: relativeIso(-DZIEN), endsAt: relativeIso(0) });
   });

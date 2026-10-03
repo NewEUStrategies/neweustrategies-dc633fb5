@@ -8973,6 +8973,73 @@ export default defineConfig({
           branches: 98,
         },
         // <<< PF-I18N thresholds (end)
+        // >>> DESIGN SYSTEM `src/components/ui` (2026-10-03)
+        //
+        // Do dziś ŻADEN próg nie obejmował tej powierzchni (zlecenie
+        // docs/PROMPT_DESIGN_SYSTEM.md, rozdz. 0.3 i B1). Pliki niżej to pięć
+        // wierszy audytu X-design-system (karuzela okrężna, progresywny slider,
+        // wybór daty, galeria rejestracji, karta trasy) po naprawach i testach
+        // w `src/components/ui/__tests__/`. ZMIERZONE 2026-10-03 WYŁĄCZNIE tymi
+        // testami (dolna granica pełnej suity): 100% linii, funkcji, instrukcji
+        // i gałęzi w każdym z ośmiu plików. Zapora 98 zostawia margines tylko
+        // na przyszłe ramiona obronne, nie na utratę testu.
+        // karuzela okrężna
+        "src/components/ui/circular-carousel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // rotujący tekst (ten sam wiersz audytu co karuzela okrężna)
+        "src/components/ui/text-rotate.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // progresywny slider
+        "src/components/ui/progressive-carousel.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // wybór daty i godziny
+        "src/components/ui/datetime-picker.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // kalendarz pod wyborem daty
+        "src/components/ui/calendar.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // galeria popupu rejestracji
+        "src/components/ui/signup-showcase.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // pole popupu rejestracji
+        "src/components/ui/field-box.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // karta trasy
+        "src/components/ui/travel-route-card.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // <<< DESIGN SYSTEM `src/components/ui` (end)
       },
     },
   },
