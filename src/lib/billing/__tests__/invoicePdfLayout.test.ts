@@ -4,8 +4,11 @@
 // pilnuje tego, co psuje dokument PO CICHU - plik się pobiera, ale księgowość
 // dostaje coś innego niż powinna:
 //
-//  * ZNAK, KTÓREGO FONT NIE NARYSUJE (nazwa firmy z tyldą, emoji w adresie,
-//    znak nowej linii wklejony do pola adresu), musi zostać zastąpiony `?`.
+//  * ZNAK, KTÓREGO FONT NIE NARYSUJE (nazwa firmy z `Ĩ` spoza Latin-1, emoji
+//    w adresie, znak nowej linii wklejony do pola adresu), musi zostać
+//    zastąpiony `?`. Litery Latin-1 (é, ü, ß) font narysuje, a € zapisujemy
+//    jako `EUR` - żadne z nich nie może przepaść ani podszyć się pod polski
+//    glif.
 //    Generator zapisuje bajty jako `charCode & 0xff`, więc np. `ĩ` (U+0129)
 //    bez zastąpienia zostałby bajtem 0x29 - czyli `)` - i zamknąłby literał
 //    tekstowy PDF w połowie nazwy nabywcy. Plik z takim strumieniem otwiera
@@ -81,6 +84,30 @@ describe("encodePdfText - znaki, których font nie narysuje", () => {
     // U+0129 & 0xff = 0x29 `)`, U+015C & 0xff = 0x5C `\`.
     expect(encodePdfText("Ĩĩ Ŝ")).toBe("?? ?");
   });
+
+  it("znak sterujący C1 (U+0080-U+009F) to `?`, a nie bajt przejęty przez polski glif", () => {
+    // Kody 0x80-0x8F są w /Differences przemapowane na ą..Ż - surowy bajt
+    // wydrukowałby polską literę zamiast niewidocznego znaku z wklejki.
+    expect(encodePdfText("A\u0080B\u0085C\u009fD")).toBe("A?B?C?D");
+  });
+});
+
+describe("encodePdfText - znaki, które font narysuje", () => {
+  it("litery Latin-1 z nazw zagranicznych firm drukują się jako one same, nie `?`", () => {
+    // WinAnsi w zakresie 0xA0-0xFF pokrywa się z Latin-1, a /Differences tego
+    // zakresu nie rusza - tak samo działa od zawsze `ó` (0xF3 = \363).
+    expect(encodePdfText("Société Générale Müller GmbH")).toBe(
+      "Soci\\351t\\351 G\\351n\\351rale M\\374ller GmbH",
+    );
+    expect(encodePdfText("Straße Çà ñ Ø")).toBe("Stra\\337e \\307\\340 \\361 \\330");
+  });
+
+  it("znak euro nie drukuje się jako `ą` - kod 0x80 zajmuje polski glif", () => {
+    const encoded = encodePdfText("100 €");
+
+    expect(encoded).toBe("100 EUR");
+    expect(encoded).not.toBe(encodePdfText("100 ą"));
+  });
 });
 
 describe("formatInvoiceMoney - kwoty korekt i duże kwoty", () => {
@@ -106,6 +133,18 @@ describe("renderInvoicePdf - strumień treści", () => {
         /^BT \/F[12] \d+ Tf 1 0 0 1 [\d.]+ \d+ Tm \([^()]*\) Tj ET$/,
       );
     }
+  });
+
+  it("nabywca z literami Latin-1 trafia do pliku pod kodami WinAnsi, a strumień zostaje spójny", () => {
+    const pdf = latin1(renderInvoicePdf(invoice({ buyer: { name: "Müller & Söhne – Café €" } })));
+    const { declared, body } = contentStream(pdf);
+
+    expect(body.length).toBe(declared);
+    // Myślnik U+2013 leży poza Latin-1 i poza naszą tablicą - zostaje `?`.
+    expect(body).toContain("(M\\374ller & S\\366hne ? Caf\\351 EUR) Tj ET");
+    // Zakres 0xA0-0xFF nie jest przemapowany - glif bierze się z WinAnsi.
+    expect(pdf).toContain("/BaseEncoding /WinAnsiEncoding /Differences [ 128 /aogonek");
+    expect(pdf).not.toMatch(/\/Differences \[[^\]]*\b(1[6-9]\d|2[0-5]\d) \//);
   });
 
   it("strona bez NIP nie dostaje pustej etykiety - wiersz NIP ma tylko nabywca", () => {

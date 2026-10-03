@@ -73,15 +73,6 @@ const FAMILIES: Family[] = [
     prefix: billingKeys.myBillingDocumentsAll(),
   },
   {
-    name: "myPaymentMethod",
-    members: [
-      billingKeys.myPaymentMethod(A, "live"),
-      billingKeys.myPaymentMethod(B, "sandbox"),
-      billingKeys.myPaymentMethod(undefined, "live"),
-    ],
-    prefix: billingKeys.myPaymentMethodAll(),
-  },
-  {
     name: "myGrants",
     members: [billingKeys.myGrants(A), billingKeys.myGrants(B), billingKeys.myGrants(undefined)],
     prefix: billingKeys.myGrantsAll(),
@@ -162,6 +153,16 @@ const FAMILIES: Family[] = [
       ["admin.memberOrgs", billingKeys.admin.memberOrgs()],
       ["admin.stripeSubscriptions", billingKeys.admin.stripeSubscriptions()],
       ["admin.paymentWebhookEvents", billingKeys.admin.paymentWebhookEvents()],
+    ] as const
+  ).map(([name, key]): Family => ({ name, members: [key], prefix: key })),
+  // --- per-user bez wariantu `*All()`: nikt nie unieważnia całej rodziny,
+  // więc wpis jest własnym prefiksem i nie może trafić sąsiada (inny uid,
+  // inne środowisko) ani innej rodziny ---
+  ...(
+    [
+      ["myPaymentMethod(A, live)", billingKeys.myPaymentMethod(A, "live")],
+      ["myPaymentMethod(B, sandbox)", billingKeys.myPaymentMethod(B, "sandbox")],
+      ["myPaymentMethod(anon, live)", billingKeys.myPaymentMethod(undefined, "live")],
     ] as const
   ).map(([name, key]): Family => ({ name, members: [key], prefix: key })),
 ];

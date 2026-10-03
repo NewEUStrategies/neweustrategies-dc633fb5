@@ -21,10 +21,15 @@
 // (`invoicePdf`) biegnie PRAWDZIWY - asercje czytają treść gotowego pliku,
 // a nie argumenty przekazane do generatora.
 //
-// ŚWIADOMIE NIE PRZYPIĘTE (zgłoszone jako defekty, nie jako kontrakt):
-// błąd odczytu `site_settings` / `billing_profiles` / `profiles` daje dziś
-// `ok: true` z PDF-em bez danych wystawcy lub nabywcy, a zamówienie
-// `one_time` (bilet, treść) i odnowienie subskrypcji dostają opis domyślny.
+// Błąd odczytu dokumentu, wystawcy albo nabywcy RZUCA (panel pokazuje błąd,
+// członek ponawia) - nie wydajemy PDF-u bez NIP-u ani firmy, który wygląda na
+// kompletny. Opis pozycji zamówienia jednorazowego bierze się z
+// `metadata.purpose` (bilet / treść / darowizna).
+//
+// ŚWIADOMIE NIE PRZYPIĘTE (zgłoszone jako defekt, nie jako kontrakt):
+// odnowienie subskrypcji nie ma zamówienia o identyfikatorze faktury, więc
+// dostaje dziś opis domyślny - naprawa wymaga zapisu powiązania przy
+// rejestracji dokumentu (`billingDocuments.server`), nie tego modułu.
 //
 // RODO: wszystkie dane są syntetyczne, adresy w domenie example.com.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,6 +37,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { encodePdfText, formatInvoiceMoney } from "@/lib/billing/invoicePdf";
 import {
   BILLING_IDS,
+  fail,
   ok,
   supabaseFromStub,
   type RecordedChain,
@@ -117,6 +123,8 @@ interface Scene {
   /** `site_settings.value` dla klucza `invoice_issuer`; `null` = brak wiersza. */
   issuer?: unknown;
   orderKind?: string | null;
+  /** `payment_orders.metadata` (np. `{ purpose: "event_ticket" }`). */
+  orderMetadata?: Record<string, unknown>;
 }
 
 let stub: SupabaseFromStub;
@@ -144,7 +152,10 @@ function arrange(scene: Scene = {}): void {
       : scene.issuer;
   stub.setResponse("site_settings", ok(issuer === null ? null : { value: issuer }));
   const orderKind = scene.orderKind === undefined ? "subscription" : scene.orderKind;
-  stub.setResponse("payment_orders", ok(orderKind === null ? null : { kind: orderKind }));
+  stub.setResponse(
+    "payment_orders",
+    ok(orderKind === null ? null : { kind: orderKind, metadata: scene.orderMetadata ?? {} }),
+  );
 }
 
 beforeEach(() => {
@@ -492,5 +503,91 @@ describe("buildInvoicePdf - nazwa nabywcy (łańcuch zastępczy)", () => {
     expect(partyBlock(pdf, 320).rows).toEqual(
       encoded(["ul. Syntetyczna 1", "00-950 Warszawa", "PL", "konto@example.com"]),
     );
+  });
+});
+
+describe("buildInvoicePdf - opis pozycji z zamówienia", () => {
+  // `payment_orders.kind` zna tylko 'subscription' i 'one_time' - bilet,
+  // dostęp do treści i darowizna różnią się wyłącznie `metadata.purpose`
+  // zapisanym przy zakładaniu zamówienia (`adhocCheckoutOrder.server`).
+  const cases: Array<{ purpose: unknown; pl: string; en: string }> = [
+    { purpose: "event_ticket", pl: "Bilet na wydarzenie", en: "Event ticket" },
+    { purpose: "content_unlock", pl: "Dostęp do treści", en: "Content access" },
+    { purpose: "donation", pl: "Darowizna", en: "Donation" },
+  ];
+
+  it.each(cases)("zamówienie jednorazowe o celu $purpose ma własny opis", async (c) => {
+    arrange({ orderKind: "one_time", orderMetadata: { purpose: c.purpose } });
+    const pl = pdfText(await issued("pl"));
+    arrange({ orderKind: "one_time", orderMetadata: { purpose: c.purpose } });
+    const en = pdfText(await issued("en"));
+
+    expect(pl).toContain(literal(c.pl));
+    expect(pl).not.toContain(literal("Usługa cyfrowa New European Strategies"));
+    expect(en).toContain(literal(c.en));
+    // Cel siedzi w metadanych - bez nich w zapytaniu opis byłby zawsze ogólny.
+    expect(String(stub.lastChain("payment_orders")?.argsOf("select")?.[0])).toMatch(/\bmetadata\b/);
+  });
+
+  it.each([
+    { title: "bez celu", metadata: {} },
+    { title: "z nieznanym celem", metadata: { purpose: "gift_card" } },
+    { title: "z celem nie-tekstowym", metadata: { purpose: { kind: "event_ticket" } } },
+  ])("zamówienie jednorazowe $title dostaje opis ogólny", async ({ metadata }) => {
+    arrange({ orderKind: "one_time", orderMetadata: metadata });
+
+    const pdf = pdfText(await issued("pl"));
+
+    expect(pdf).toContain(literal("Usługa cyfrowa New European Strategies"));
+  });
+
+  it("zamówienie subskrypcyjne zostaje członkostwem niezależnie od metadanych", async () => {
+    arrange({ orderKind: "subscription", orderMetadata: { purpose: "donation" } });
+
+    const pdf = pdfText(await issued("pl"));
+
+    expect(pdf).toContain(literal("Członkostwo - opłata za okres rozliczeniowy"));
+    expect(pdf).not.toContain(literal("Darowizna"));
+  });
+});
+
+describe("buildInvoicePdf - błąd odczytu bazy", () => {
+  // Kopia faktury bez NIP-u wystawcy albo bez firmy nabywcy to niekompletny
+  // dokument księgowy. Błąd odczytu ma wywrócić wywołanie (panel pokazuje
+  // błąd i członek ponawia), a nie wydać plik, który wygląda na poprawny.
+  it.each(["site_settings", "billing_profiles", "profiles"])(
+    "błąd odczytu %s -> wyjątek, a nie PDF bez danych strony",
+    async (table) => {
+      arrange();
+      stub.setResponse(table, fail("canceling statement due to statement timeout", "57014"));
+
+      // Wzorzec z `: ` przed nazwą tabeli - samo `profiles` pasowałoby też do
+      // komunikatu `billing_profiles`, więc pomyłka w etykiecie by nie wyszła.
+      await expect(
+        buildInvoicePdf({ userId: BILLING_IDS.me, documentId: DOC_ID, locale: "pl" }),
+      ).rejects.toThrow(new RegExp(`: ${table} read failed: .*statement timeout`));
+    },
+  );
+
+  it("błąd odczytu dokumentu -> wyjątek, a nie `not_found` (dokument istnieje)", async () => {
+    arrange();
+    stub.setResponse("billing_documents", fail("connection reset", "08006"));
+
+    await expect(
+      buildInvoicePdf({ userId: BILLING_IDS.me, documentId: DOC_ID, locale: "pl" }),
+    ).rejects.toThrow(/billing_documents.*connection reset/);
+    expect(stub.chains.map((c) => c.table)).toEqual(["billing_documents"]);
+  });
+
+  it("błąd odczytu zamówienia nie blokuje pliku - opis jest ogólny, nie fałszywy", async () => {
+    // Zamówienie służy wyłącznie do doboru opisu pozycji, a `provider_intent_id`
+    // nie jest unikalny - wyjątek zamieniłby niejednoznaczny wiersz w fakturę
+    // na zawsze niemożliwą do pobrania.
+    arrange();
+    stub.setResponse("payment_orders", fail("JSON object requested, multiple rows", "PGRST116"));
+
+    const pdf = pdfText(await issued("pl"));
+
+    expect(pdf).toContain(literal("Usługa cyfrowa New European Strategies"));
   });
 });
