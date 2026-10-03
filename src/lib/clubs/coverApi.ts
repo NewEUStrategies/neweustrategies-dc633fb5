@@ -5,9 +5,11 @@
 // (admin/editor/author). Osoba prowadząca klub takiej roli mieć nie musi -
 // i nie powinna jej dostawać tylko po to, żeby podmienić zdjęcie w nagłówku.
 // Dlatego pliki lądują w wydzielonym prefiksie `club-covers/<clubId>/`, do
-// którego polityka storage wpuszcza wyłącznie prowadzących kluby, a adres
-// przechodzi jeszcze przez `club_set_cover`, które sprawdza uprawnienie do
-// TEGO klubu i akceptuje wyłącznie adresy z naszego magazynu.
+// którego polityka storage wpuszcza wyłącznie tych, kto może edytować okładkę
+// TEGO klubu (`club_can_edit_cover`: klub w najemcy wołającego i
+// `club_capabilities.can_moderate`), a adres przechodzi jeszcze przez
+// `club_set_cover` - ten sam predykat, wyłącznie ścieżka
+// `club-covers/<clubId>/<plik>` z naszego magazynu i origin z białej listy.
 import { supabase } from "@/integrations/supabase/client";
 import { brandedMediaUrl } from "@/lib/media/publicUrl";
 import type { Database } from "@/integrations/supabase/types";

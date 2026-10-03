@@ -25,6 +25,11 @@ export interface ClubCardRow {
   icon: string | null;
   accent_color: string | null;
   cover_image_url: string | null;
+  /**
+   * Zapisany pionowy kadr okładki (0-100). Mapper gubił go dotąd po drodze,
+   * więc widżety rysowały środek zdjęcia, a nie kadr ustawiony w klubie.
+   */
+  cover_position_y: number | null;
   policy_area: string | null;
   member_count: number;
   thread_count: number;
@@ -68,6 +73,7 @@ export function clubCardQueryOptions(slug: string) {
         icon: row.icon,
         accent_color: row.accent_color,
         cover_image_url: row.cover_image_url,
+        cover_position_y: row.cover_position_y ?? null,
         policy_area: row.policy_area,
         member_count: row.member_count,
         thread_count: row.thread_count,

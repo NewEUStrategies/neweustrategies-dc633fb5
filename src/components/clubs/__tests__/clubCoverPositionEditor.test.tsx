@@ -1,18 +1,24 @@
 // Dostosowanie pionowej pozycji okładki klubu (`ClubCoverPositionEditor`).
-// Obraz podglądu ma puste `alt`, więc w testach szukamy go przez selektor `img`.
+// Obrazy podglądu mają puste `alt`, więc w testach szukamy ich przez ramki
+// (`data-testid="cover-preview-*"`).
 //
 // CO TEN PLIK DOWODZI.
 //  1. Komponent widzi się TYLKO, gdy użytkownik ma uprawnienia (`canEdit`)
 //     i klub ma okładkę (`coverImageUrl`).
-//  2. Slider 0-100 przekłada się na żywy podgląd `object-position: center <Y>%`.
-//  3. Zapis wysyła do serwera `{ clubId, positionY }` i wywołuje `onChanged`
+//  2. Slider 0-100 przekłada się na żywy podgląd `object-position: center <Y>%`
+//     - w ramce głównej I w każdej miniaturze innej powierzchni.
+//  3. Ramka główna ma proporcję pasa ZMIERZONĄ na stronie w chwili otwarcia
+//     (`frameRef`), a nie stałą 4:1 - to był zgłoszony rozjazd z desktopem.
+//  4. Miniatury mają proporcje atomu `ClubCover` (baner 3:1 i 4:1, kafel 16:9).
+//  5. Zapis wysyła do serwera `{ clubId, positionY }` i wywołuje `onChanged`
 //     wyłącznie po sukcesie.
-//  4. Błąd zapisu pokazuje toast, ale nie zamyka modalu ani nie odświeża danych.
-//  5. Anulowanie przywraca początkową wartość przy ponownym otwarciu.
+//  6. Błąd zapisu pokazuje toast, ale nie zamyka modalu ani nie odświeża danych.
+//  7. Anulowanie przywraca początkową wartość przy ponownym otwarciu.
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE.
 //  - Logiki uprawnień `can_moderate` - decyduje o niej rodzic.
 //  - Walidacji zakresu 0-100 - robi to schema server function i RPC.
+import { createRef } from "react";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -55,6 +61,30 @@ function saveButton(): HTMLElement {
   return screen.getByRole("button", {
     name: translateKey("club.hub.identity.cover.position.save"),
   });
+}
+
+function frame(key: string): HTMLElement {
+  return screen.getByTestId(`cover-preview-${key}`);
+}
+
+/** `aspect-ratio` ramki jako liczba (jsdom normalizuje `4` do `4 / 1`). */
+function frameRatio(key: string): number {
+  const [w, h = "1"] = frame(key).style.aspectRatio.split("/");
+  return Number(w) / Number(h);
+}
+
+function framePosition(key: string): string {
+  return (frame(key).querySelector("img") as HTMLImageElement).style.objectPosition;
+}
+
+/** Pas okładki na stronie o zadanych wymiarach (jsdom nie liczy układu). */
+function stripRef(width: number, height: number) {
+  const ref = createRef<HTMLDivElement>();
+  const element = document.createElement("div");
+  element.getBoundingClientRect = () =>
+    ({ width, height, top: 0, left: 0, right: width, bottom: height, x: 0, y: 0 }) as DOMRect;
+  (ref as { current: HTMLDivElement | null }).current = element;
+  return ref;
 }
 
 describe("ClubCoverPositionEditor", () => {
@@ -106,8 +136,7 @@ describe("ClubCoverPositionEditor", () => {
     );
     fireEvent.click(openButton());
     expect(slider()).toBeInTheDocument();
-    const preview = document.querySelector("img") as HTMLImageElement;
-    expect(preview.style.objectPosition).toBe("center 30%");
+    expect(framePosition("page")).toBe("center 30%");
   });
 
   it("updates preview while dragging the slider", () => {
@@ -123,8 +152,117 @@ describe("ClubCoverPositionEditor", () => {
     fireEvent.click(openButton());
     const thumb = slider();
     fireEvent.keyDown(thumb, { key: "End" });
-    const preview = document.querySelector("img") as HTMLImageElement;
-    expect(preview.style.objectPosition).toBe("center 100%");
+    expect(framePosition("page")).toBe("center 100%");
+  });
+
+  it("ramka główna ma proporcję pasa zmierzoną na stronie, nie stałą 4:1", () => {
+    render(
+      <ClubCoverPositionEditor
+        clubId={CLUB_IDS.club}
+        coverImageUrl="https://example.com/cover.png"
+        positionY={30}
+        frameRef={stripRef(1534, 208)}
+        canEdit={true}
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(openButton());
+    expect(frameRatio("page")).toBeCloseTo(1534 / 208, 6);
+    expect(screen.getByText("club.hub.identity.cover.position.preview.page")).toBeInTheDocument();
+  });
+
+  it("bez zmierzonego pasa (brak refa albo zerowe wymiary) ramka główna ma 4:1", () => {
+    const { unmount } = render(
+      <ClubCoverPositionEditor
+        clubId={CLUB_IDS.club}
+        coverImageUrl="https://example.com/cover.png"
+        positionY={30}
+        canEdit={true}
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(openButton());
+    expect(frameRatio("page")).toBe(4);
+    unmount();
+
+    render(
+      <ClubCoverPositionEditor
+        clubId={CLUB_IDS.club}
+        coverImageUrl="https://example.com/cover.png"
+        positionY={30}
+        frameRef={stripRef(0, 0)}
+        canEdit={true}
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(openButton());
+    expect(frameRatio("page")).toBe(4);
+  });
+
+  // Z podglądem strony i miniaturami dialog jest wyższy niż ekran telefonu
+  // w poziomie; wyśrodkowany `fixed` bez przewijania chował „Zapisz".
+  it("dialog ma limit wysokości i własne przewijanie", () => {
+    render(
+      <ClubCoverPositionEditor
+        clubId={CLUB_IDS.club}
+        coverImageUrl="https://example.com/cover.png"
+        positionY={30}
+        canEdit={true}
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(openButton());
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.className).toContain("max-h-[90vh]");
+    expect(dialog.className).toContain("overflow-y-auto");
+  });
+
+  it("miniatury pokazują ten sam kadr w proporcjach bramki, minisite i katalogu", () => {
+    render(
+      <ClubCoverPositionEditor
+        clubId={CLUB_IDS.club}
+        coverImageUrl="https://example.com/cover.png"
+        positionY={30}
+        canEdit={true}
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(openButton());
+    expect(frameRatio("bannerMobile")).toBe(3);
+    expect(frameRatio("bannerDesktop")).toBe(4);
+    expect(frameRatio("card")).toBeCloseTo(16 / 9, 10);
+    for (const key of ["bannerMobile", "bannerDesktop", "card"]) {
+      expect(
+        screen.getByText(`club.hub.identity.cover.position.preview.${key}`),
+      ).toBeInTheDocument();
+    }
+
+    fireEvent.keyDown(slider(), { key: "Home" });
+    for (const key of ["page", "bannerMobile", "bannerDesktop", "card"]) {
+      expect(framePosition(key)).toBe("center 0%");
+    }
+  });
+
+  it("anulowanie odrzuca przesunięcie - ponowne otwarcie startuje od zapisanego kadru", () => {
+    render(
+      <ClubCoverPositionEditor
+        clubId={CLUB_IDS.club}
+        coverImageUrl="https://example.com/cover.png"
+        positionY={30}
+        canEdit={true}
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(openButton());
+    fireEvent.keyDown(slider(), { key: "End" });
+    expect(framePosition("page")).toBe("center 100%");
+    fireEvent.click(
+      screen.getByRole("button", { name: translateKey("club.hub.identity.cover.position.cancel") }),
+    );
+    expect(h.savePosition).not.toHaveBeenCalled();
+
+    fireEvent.click(openButton());
+    expect(framePosition("page")).toBe("center 30%");
   });
 
   it("calls server function with the new position and refreshes data on save", async () => {

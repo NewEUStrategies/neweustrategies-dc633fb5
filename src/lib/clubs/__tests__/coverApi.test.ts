@@ -43,10 +43,12 @@
 // okładki"; mówi, że klient WOŁA właściwą funkcję z właściwymi argumentami
 // i że po odmowie sprząta po sobie. Reszta należy do pgTAP i do polityk.
 //
-// ZNALEZISKA (opisane przy testach `it.fails`, każde z kontrolą dodatnią):
-// klucz obiektu nie jest wiązany z tenantem, `clubId` wchodzi do klucza
-// nieprzefiltrowany, a plik ląduje w publicznym kubełku ZANIM ktokolwiek
-// sprawdzi prawo do tego konkretnego klubu.
+// ZNALEZISKA PO STRONIE KLIENTA (testy `it.fails`, każde z kontrolą dodatnią):
+// `clubId` wchodzi do klucza nieprzefiltrowany, a klient sam nie sprawdza
+// prawa do klubu przed wgraniem. Oba są dziś domknięte PO STRONIE BAZY
+// (migracja 20261003170000: polityka wymaga dokładnie
+// `club-covers/<uuid>/<plik>` i `club_can_edit_cover` dla TEGO klubu
+// i najemcy) - testy przypinają wyłącznie zachowanie klienta.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -244,25 +246,25 @@ describe("klucz obiektu w magazynie", () => {
   });
 });
 
-describe("ZNALEZISKO: z czym klucz obiektu jest, a z czym nie jest związany", () => {
-  // Polityka `storage.objects` dla tego prefiksu (migracja 20260809182555)
-  // sprawdza DOKŁADNIE dwie rzeczy: `(storage.foldername(name))[1] =
-  // 'club-covers'` oraz `club_is_any_moderator(auth.uid())` - czyli „czy
-  // wołający prowadzi JAKIKOLWIEK klub". Drugi człon klucza (`<clubId>`) nie
-  // jest z niczym konfrontowany, a członu tenanta w kluczu nie ma w ogóle.
-  // Skutek: prowadzący klub A może pisać (INSERT/UPDATE) i KASOWAĆ (DELETE)
-  // obiekty w prefiksie klubu B - także z innego tenanta. Sam ADRES na klubie
-  // pozostaje chroniony, bo `club_set_cover` liczy `club_capabilities` dla
-  // TEGO klubu; niechroniona jest zawartość publicznego kubełka.
-  // Nie zmieniam tu zachowania produkcyjnego - przypinam kontrakt.
+describe("klucz obiektu: kontrakt z polityką magazynu", () => {
+  // Polityka `storage.objects` dla tego prefiksu (migracja 20261003170000)
+  // wymaga DOKŁADNIE `club-covers/<uuid>/<plik>` (dwa foldery, drugi to UUID
+  // klubu) i pyta `club_can_edit_cover`: klub w najemcy wołającego ORAZ
+  // `club_capabilities.can_moderate`. Najemca jest więc wiązany PRZEZ KLUB,
+  // a nie przez człon klucza - dodatkowy segment tenanta wywróciłby każde
+  // wgranie (trzy foldery to odmowa), a `club_set_cover` przyjmuje wyłącznie
+  // `club-covers/<p_club_id>/<plik>`. Dawne ZNALEZISKO N8-1 („klucz powinien
+  // wiązać tenanta") opisywało politykę z 20260809182555
+  // (`club_is_any_moderator`), której już nie ma.
 
-  it.fails("ZNALEZISKO N8-1: klucz obiektu powinien wiązać plik z TENANTEM", () => {
+  it("klucz NIE niesie tenanta - najemcę wiąże klub w `club_can_edit_cover`", () => {
     const path = clubCoverObjectPath({
       clubId: CLUB_IDS.club,
       filename: "baner.png",
       uniqueSuffix: "u1",
     });
-    expect(path.split("/")).toContain(CLUB_IDS.tenant);
+    expect(path.split("/")).toHaveLength(3);
+    expect(path.split("/")).not.toContain(CLUB_IDS.tenant);
   });
 
   it("kontrola dodatnia do N8-1: człon KLUBU w kluczu jest i jest poprawny", () => {
@@ -277,9 +279,10 @@ describe("ZNALEZISKO: z czym klucz obiektu jest, a z czym nie jest związany", (
 
   it.fails("ZNALEZISKO N8-2: wrogi `clubId` nie powinien wyprowadzać klucza z prefiksu", () => {
     // Rozszerzenie jest sanityzowane starannie, `clubId` wchodzi do klucza
-    // surowy. Człon `..` w kluczu obiektu przechodzi przez politykę (pierwszy
-    // segment nadal brzmi `club-covers`), a w adresie publicznym przeglądarka
-    // go rozwija - czyli `<img src>` okładki celuje poza prefiks.
+    // surowy. Baza taki klucz odrzuca (drugi folder musi być UUID-em, a
+    // `club_set_cover` wymaga `club-covers/<p_club_id>/`), więc to znalezisko
+    // dotyczy już wyłącznie klienta: składa klucz, którego nikt nie przyjmie,
+    // zamiast odmówić od razu.
     const path = clubCoverObjectPath({
       clubId: "../avatars",
       filename: "baner.png",
@@ -430,11 +433,11 @@ describe("wgranie okładki: każda gałąź błędu", () => {
   it.fails(
     "ZNALEZISKO N8-3: plik nie powinien trafiać do kubełka przed sprawdzeniem klubu",
     async () => {
-      // Kolejność w kodzie to `upload` -> `club_set_cover`. Polityka magazynu
-      // wpuszcza prowadzącego DOWOLNY klub, więc dla klubu, do którego wołający
-      // praw nie ma, plik i tak przez chwilę stoi w publicznym kubełku - i to
-      // pod adresem, który wołający zna. Okno jest krótkie (sprzątanie zaraz
-      // po odmowie), ale istnieje i nie zależy od odmowy RPC.
+      // Kolejność w kodzie to `upload` -> `club_set_cover`. Od migracji
+      // 20261003170000 polityka magazynu pyta o prawo do TEGO klubu, więc
+      // osoba bez prawa dostaje odmowę RLS już przy wgraniu i plik w ogóle nie
+      // staje w kubełku. Atrapa magazynu tej polityki nie zna: test przypina
+      // wyłącznie to, że klient sam niczego nie sprawdza przed wgraniem.
       clubRpc.setError("club_set_cover", "clubs: forbidden", "42501");
 
       await expect(uploadClubCover({ clubId: CLUB_IDS.club, file: coverFile() })).rejects.toThrow();

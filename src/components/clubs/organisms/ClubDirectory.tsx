@@ -40,6 +40,8 @@ export interface ClubDirectoryCard {
   tagline_pl: string | null;
   tagline_en: string | null;
   cover_image_url: string | null;
+  /** Zapisany pionowy kadr okładki (`club_list` go zwraca); brak = środek. */
+  cover_position_y?: number | null;
   policy_area: string | null;
   visibility: string;
   member_count: number;
@@ -127,7 +129,7 @@ function CardTile({ club }: { club: ClubDirectoryCard }) {
       params={{ clubSlug: club.slug }}
       className="group flex flex-col overflow-hidden rounded-lg border border-border/60 bg-card transition-colors hover:border-primary/40"
     >
-      <ClubCover url={club.cover_image_url} variant="card" />
+      <ClubCover url={club.cover_image_url} positionY={club.cover_position_y} variant="card" />
       <div className="flex flex-1 flex-col p-3">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-medium leading-tight group-hover:text-primary">
@@ -164,6 +166,7 @@ function ListRow({ club }: { club: ClubDirectoryCard }) {
     >
       <ClubCover
         url={club.cover_image_url}
+        positionY={club.cover_position_y}
         variant="card"
         className="w-20 shrink-0 rounded-md sm:w-28"
       />
@@ -199,7 +202,12 @@ function MagazineLead({ club }: { club: ClubDirectoryCard }) {
       params={{ clubSlug: club.slug }}
       className="group grid overflow-hidden rounded-xl border border-border/60 bg-card transition-colors hover:border-primary/40 md:grid-cols-2"
     >
-      <ClubCover url={club.cover_image_url} variant="card" className="rounded-none md:h-full" />
+      <ClubCover
+        url={club.cover_image_url}
+        positionY={club.cover_position_y}
+        variant="card"
+        className="rounded-none md:h-full"
+      />
       <div className="flex flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-lg font-semibold leading-tight group-hover:text-primary">
@@ -247,6 +255,7 @@ function PrestigeCard({ club, featured = false }: { club: ClubDirectoryCard; fea
         >
           <ClubCover
             url={club.cover_image_url}
+            positionY={club.cover_position_y}
             variant="card"
             className="h-full w-full rounded-none border-0 transition-transform duration-700 group-hover:scale-105"
           />

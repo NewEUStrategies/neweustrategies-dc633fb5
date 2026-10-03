@@ -231,6 +231,21 @@ describe("ClubWorkspaceLayout - pięć stanów powierzchni klubu", () => {
     expect(handed).toHaveLength(0);
   });
 
+  it("wizytówka klubu zamkniętego rysuje okładkę w zapisanym kadrze", async () => {
+    clubApiMock.fetchClubBySlug.mockResolvedValue(
+      clubViewRow({
+        can_read: false,
+        cover_image_url: "https://obrazy.example/klub.jpg",
+        cover_position_y: 10,
+      }),
+    );
+
+    const container = renderLayout();
+
+    await screen.findByRole("heading", { level: 1 });
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 10%");
+  });
+
   it("brak dostępu bez powodu z RPC spada na „nie jesteś członkiem”", async () => {
     // `club_view` oddaje pusty napis, gdy nie ma czego wyjaśnić - to nie jest
     // powód i nie wolno go wstawić do klucza tłumaczenia.

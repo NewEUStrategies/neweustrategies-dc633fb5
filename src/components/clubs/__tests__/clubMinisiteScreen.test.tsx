@@ -175,9 +175,14 @@ describe("ClubMinisite - nagłówek", () => {
 
   it("okładka pojawia się tylko wtedy, gdy klub ma zdjęcie", () => {
     const { container } = pokaz("member", {
-      club: clubViewRow({ cover_image_url: "https://obrazy.example/klub.jpg" }),
+      club: clubViewRow({
+        cover_image_url: "https://obrazy.example/klub.jpg",
+        cover_position_y: 25,
+      }),
     });
     expect(container.querySelector("img")).not.toBeNull();
+    // Kadr z nagłówka klubu, nie środek zdjęcia.
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 25%");
 
     cleanup();
     const bezOkladki = pokaz("member", { club: clubViewRow({ cover_image_url: "" }) });

@@ -86,6 +86,7 @@ function directoryCard(overrides: Partial<ClubDirectoryCard> = {}): ClubDirector
     tagline_pl: row.tagline_pl,
     tagline_en: row.tagline_en,
     cover_image_url: row.cover_image_url,
+    cover_position_y: row.cover_position_y,
     policy_area: row.policy_area,
     visibility: row.visibility,
     member_count: row.member_count,
@@ -167,6 +168,33 @@ describe("ClubDirectory - stany zbioru", () => {
       expect(screen.getAllByRole("link").length, `układ ${layout}`).toBe(2);
       expect(screen.getByRole("heading", { name: "Klub energetyczny" })).toBeTruthy();
       expect(screen.getByRole("heading", { name: "Klub 2" })).toBeTruthy();
+    }
+  });
+
+  // Kadr ustawiony w nagłówku klubu ma być tym samym kadrem w katalogu - przed
+  // poprawką każdy układ ciął środek zdjęcia (np. ucięte twarze).
+  it("każdy układ rysuje okładkę w kadrze zapisanym przez moderację", () => {
+    for (const layout of CLUB_LAYOUTS) {
+      cleanup();
+      const { container } = render(
+        <ClubDirectory
+          title="Odkryj"
+          empty="Brak klubów"
+          clubs={[
+            directoryCard({
+              cover_image_url: "https://neweuropeanstrategies.com/media/club-covers/k/o.jpg",
+              cover_position_y: 15,
+            }),
+          ]}
+          loading={false}
+          layout={layout}
+        />,
+      );
+      const images = Array.from(container.querySelectorAll("img"));
+      expect(images.length, `układ ${layout}`).toBeGreaterThan(0);
+      for (const image of images) {
+        expect(image.style.objectPosition, `układ ${layout}`).toBe("center 15%");
+      }
     }
   });
 });

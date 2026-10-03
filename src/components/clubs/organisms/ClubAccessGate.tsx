@@ -94,7 +94,12 @@ export function ClubAccessGate({ club }: { club: ClubViewRow }) {
 
   return (
     <Card className="overflow-hidden rounded-xl border-border/70">
-      <ClubCover url={club.cover_image_url} variant="banner" className="rounded-none border-0" />
+      <ClubCover
+        url={club.cover_image_url}
+        positionY={club.cover_position_y}
+        variant="banner"
+        className="rounded-none border-0"
+      />
       <CardContent className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_22rem] lg:gap-8">
         {/* --- kolumna wartości ------------------------------------------ */}
         <div className="min-w-0">
