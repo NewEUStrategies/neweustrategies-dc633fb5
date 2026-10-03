@@ -323,3 +323,96 @@ describe("AvatarGroup - kafel", () => {
     expect(avatarInitials(name)).toBe(expected);
   });
 });
+
+// KLAWIATURA I ZDJĘCIE GOTOWE. Karta osoby otwierała się w testach wyłącznie
+// po najechaniu myszą; fokus z klawiatury (link profilu i kafel bez profilu),
+// zamknięcie po zjechaniu i po utracie fokusu oraz zdjęcie, które wczytało się
+// albo upadło JUŻ przed montażem (pamięć podręczna, SSR) nie miały wykonania.
+// Karta dostępna tylko dla myszy byłaby kartą niedostępną.
+describe("AvatarGroup - karta osoby z klawiatury i stan zdjęcia przy montażu", () => {
+  it("fokus na linku profilu otwiera kartę, utrata fokusu ją zamyka", () => {
+    render(
+      <AvatarGroup
+        items={[person("a", "Anna Nowak", { href: "/people/anna" })]}
+        label="Zareagowali"
+      />,
+    );
+    const link = screen.getByRole("link", { name: "Anna Nowak" });
+    const card = screen.getByRole("tooltip", { hidden: true });
+    fireEvent.focus(link);
+    expect(card).toHaveAttribute("aria-hidden", "false");
+    fireEvent.blur(link);
+    expect(card).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("kafel bez profilu jest przystankiem tabulatora z kartą na fokus", () => {
+    render(<AvatarGroup items={[person("a", "Anna Nowak")]} label="Zareagowali" />);
+    const tile = screen.getByRole("img", { name: "Anna Nowak" });
+    expect(tile).toHaveAttribute("tabindex", "0");
+    const card = screen.getByRole("tooltip", { hidden: true });
+    fireEvent.focus(tile);
+    expect(card).toHaveAttribute("aria-hidden", "false");
+    fireEvent.blur(tile);
+    expect(card).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("zjechanie myszą zamyka kartę tylko tej osoby, którą otwarto", () => {
+    render(
+      <AvatarGroup items={[person("a", "Anna"), person("b", "Bartek")]} label="Zareagowali" />,
+    );
+    const [first, second] = screen.getAllByRole("listitem");
+    const cards = screen.getAllByRole("tooltip", { hidden: true });
+    fireEvent.mouseEnter(first as HTMLElement);
+    expect(cards[0]).toHaveAttribute("aria-hidden", "false");
+    // Zjechanie z INNEJ osoby nie zamyka otwartej karty.
+    fireEvent.mouseLeave(second as HTMLElement);
+    expect(cards[0]).toHaveAttribute("aria-hidden", "false");
+    fireEvent.mouseLeave(first as HTMLElement);
+    expect(cards[0]).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("zdjęcie gotowe przed montażem zostaje widoczne, uszkodzone - ustępuje inicjałom", () => {
+    const complete = vi.spyOn(HTMLImageElement.prototype, "complete", "get").mockReturnValue(true);
+    const width = vi.spyOn(HTMLImageElement.prototype, "naturalWidth", "get").mockReturnValue(64);
+    const { container, unmount } = render(
+      <AvatarGroup
+        items={[person("a", "Anna Nowak", { image: "https://example.org/a.jpg" })]}
+        label="Tu są"
+      />,
+    );
+    expect(container.querySelector("img")?.getAttribute("data-status")).toBe("loaded");
+    unmount();
+
+    width.mockReturnValue(0);
+    const broken = render(
+      <AvatarGroup
+        items={[person("a", "Anna Nowak", { image: "https://example.org/b.jpg" })]}
+        label="Tu są"
+      />,
+    );
+    expect(broken.container.querySelector("img")).toBeNull();
+    expect(screen.getByText("AN")).toBeInTheDocument();
+    complete.mockRestore();
+    width.mockRestore();
+  });
+
+  it("przy `prefers-reduced-motion` licznik „+N” spadający do zera znika od razu", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      (query: string) =>
+        ({
+          matches: query.includes("prefers-reduced-motion"),
+          media: query,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        }) as unknown as MediaQueryList,
+    );
+    const { container, rerender } = render(
+      <AvatarGroup items={[person("a"), person("b"), person("c")]} maxVisible={2} label="Tu są" />,
+    );
+    expect(chip(container)).toHaveTextContent("+1");
+    rerender(<AvatarGroup items={[person("a"), person("b")]} maxVisible={2} label="Tu są" />);
+    expect(chip(container)).toBeNull();
+    vi.unstubAllGlobals();
+  });
+});
