@@ -33,7 +33,7 @@ describe("routeSplitBehavior - zamknięta lista gorących ścieżek", () => {
     "/author/$slug",
     "/search",
     "/club/",
-    "/admin/",
+    "/admin/settings",
   ])("%s jest dzielony na loader/komponenty", (routeId) => {
     expect(routeSplitBehavior({ routeId })).toEqual(SPLIT_ALL);
   });
@@ -41,6 +41,18 @@ describe("routeSplitBehavior - zamknięta lista gorących ścieżek", () => {
   it("prefiks `/en` nie łapie tras, które tylko zaczynają się od tych liter", () => {
     expect(routeSplitBehavior({ routeId: "/english-digest" })).toEqual(SPLIT_ALL);
     expect(routeSplitBehavior({ routeId: "/events/" })).toEqual(SPLIT_ALL);
+  });
+
+  it("kokpit `/admin/` trzyma loader w grupie z komponentem, a reszta panelu nie", () => {
+    // Loader i komponent dzielą dynamiczny import pulpitu analityki. Osobne
+    // grupy wydzielały go do mikromodułu `tsr-shared`, który Rollup doklejał do
+    // przypadkowego (także publicznego) chunku - patrz komentarz reguły.
+    expect(routeSplitBehavior({ routeId: "/admin/" })).toEqual([
+      ["loader", "component"],
+      ["errorComponent"],
+      ["notFoundComponent"],
+    ]);
+    expect(routeSplitBehavior({ routeId: "/admin/analytics" })).toEqual(SPLIT_ALL);
   });
 
   it("splitter nie dzieli `pendingComponent` - szkielet pokazuje się bez skoku po chunk", () => {

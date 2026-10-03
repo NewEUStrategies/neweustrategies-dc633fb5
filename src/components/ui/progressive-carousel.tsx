@@ -2,6 +2,12 @@
 // przyciskach). Bez zewnętrznych zależności animacyjnych - progres liczony
 // requestAnimationFrame, przejścia slajdów w czystym CSS, 6px rounding przez
 // token --radius. Szanuje prefers-reduced-motion (auto-play wyłączony).
+//
+// Kliknięty slajd jest STANEM Reacta, nie refem. Dawniej klik zapisywał
+// wyłącznie dwa refy, a pętla rAF startowała tylko przy auto-play - który pod
+// kursorem i przy ognisku jest wyłączony. Skutek: klik nie robił nic, slajd
+// przeskakiwał dopiero po zjechaniu kursorem, a w podglądzie edytora
+// (`paused`) nawigacja była martwa na stałe.
 import {
   createContext,
   useCallback,
@@ -11,6 +17,7 @@ import {
   useRef,
   useState,
   type FC,
+  type FocusEvent,
   type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
@@ -25,14 +32,26 @@ interface ProgressSliderContextValue {
   unregister: (value: string) => void;
 }
 
-const ProgressSliderContext = createContext<ProgressSliderContextValue | undefined>(undefined);
+type SliderStateValue = Omit<ProgressSliderContextValue, "progress">;
 
-export function useProgressSliderContext(): ProgressSliderContextValue {
-  const ctx = useContext(ProgressSliderContext);
+const SliderStateContext = createContext<SliderStateValue | undefined>(undefined);
+// Postęp zmienia się co klatkę animacji. Trzymany w osobnym kontekście, żeby
+// co klatkę renderował się tylko pasek aktywnego przycisku, a nie każdy slajd
+// ze zdjęciem i każdy przycisk nawigacji.
+const SliderProgressContext = createContext(0);
+
+function useSliderState(): SliderStateValue {
+  const ctx = useContext(SliderStateContext);
   if (!ctx) {
     throw new Error("useProgressSliderContext must be used within a ProgressSlider");
   }
   return ctx;
+}
+
+export function useProgressSliderContext(): ProgressSliderContextValue {
+  const state = useSliderState();
+  const progress = useContext(SliderProgressContext);
+  return { ...state, progress };
 }
 
 export interface ProgressSliderProps {
@@ -64,9 +83,11 @@ export const ProgressSlider: FC<ProgressSliderProps> = ({
   const [active, setActive] = useState<string>(activeSlider ?? "");
   const [progress, setProgress] = useState(0);
   const [hovered, setHovered] = useState(false);
-  const frame = useRef(0);
-  const startedAt = useRef(0);
-  const fastTarget = useRef<string | null>(null);
+  const [focused, setFocused] = useState(false);
+  const [fastTarget, setFastTarget] = useState<string | null>(null);
+  // Ostatnio narysowany postęp - z niego pasek „dobiega" po kliknięciu,
+  // zamiast cofać się do zera i zaczynać od nowa.
+  const progressRef = useRef(0);
 
   const register = useCallback((value: string) => {
     setValues((prev) => (prev.includes(value) ? prev : [...prev, value]));
@@ -85,75 +106,91 @@ export const ProgressSlider: FC<ProgressSliderProps> = ({
     if (activeSlider) setActive(activeSlider);
   }, [activeSlider]);
 
-  const autoPlay = !paused && !reducedMotion && !hovered && values.length > 1;
+  const autoPlay = !paused && !reducedMotion && !hovered && !focused && values.length > 1;
 
+  const updateProgress = useCallback((next: number) => {
+    progressRef.current = next;
+    setProgress(next);
+  }, []);
+
+  // Jedna pętla na dwa tryby: auto-play (pełny czas slajdu) i dobieg po
+  // kliknięciu (`fastDuration`, od bieżącego postępu do 100%). Każde przejście
+  // zmienia `active` albo `fastTarget`, więc efekt startuje od nowa sam.
   useEffect(() => {
-    if (!autoPlay && fastTarget.current === null) {
-      setProgress(0);
+    if (!autoPlay && fastTarget === null) {
+      updateProgress(0);
       return;
     }
-    if (typeof window === "undefined") return;
-    startedAt.current = performance.now();
+    const from = fastTarget === null ? 0 : progressRef.current;
+    const total = Math.max(1, fastTarget === null ? duration : fastDuration);
+    const startedAt = performance.now();
+    let frame = 0;
 
     const step = (now: number) => {
-      const isFast = fastTarget.current !== null;
-      const total = isFast ? fastDuration : duration;
-      const fraction = (now - startedAt.current) / Math.max(1, total);
-      if (fraction <= 1) {
-        setProgress(Math.min(100, fraction * 100));
-        frame.current = requestAnimationFrame(step);
+      const fraction = (now - startedAt) / total;
+      if (fraction < 1) {
+        updateProgress(from + (100 - from) * fraction);
+        frame = requestAnimationFrame(step);
         return;
       }
-      if (isFast) {
-        const target = fastTarget.current;
-        fastTarget.current = null;
-        if (target) setActive(target);
+      updateProgress(0);
+      if (fastTarget !== null) {
+        setFastTarget(null);
+        setActive(fastTarget);
       } else {
-        const i = values.indexOf(active);
-        setActive(values[(i + 1) % values.length]);
+        setActive(values[(values.indexOf(active) + 1) % values.length]);
       }
-      setProgress(0);
-      startedAt.current = now;
-      frame.current = requestAnimationFrame(step);
     };
 
-    frame.current = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame.current);
-  }, [autoPlay, active, values, duration, fastDuration]);
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [autoPlay, fastTarget, active, values, duration, fastDuration, updateProgress]);
 
   const handleButtonClick = useCallback(
     (value: string) => {
-      if (value === active) return;
-      if (reducedMotion) {
-        setActive(value);
-        setProgress(0);
+      if (value === active) {
+        // Powrót na bieżący slajd w trakcie dobiegu odwołuje dobieg.
+        setFastTarget(null);
         return;
       }
-      fastTarget.current = value;
-      startedAt.current = typeof window === "undefined" ? 0 : performance.now();
+      if (reducedMotion) {
+        setFastTarget(null);
+        setActive(value);
+        updateProgress(0);
+        return;
+      }
+      setFastTarget(value);
     },
-    [active, reducedMotion],
+    [active, reducedMotion, updateProgress],
   );
 
-  const ctx = useMemo<ProgressSliderContextValue>(
-    () => ({ active, progress, vertical, handleButtonClick, register, unregister }),
-    [active, progress, vertical, handleButtonClick, register, unregister],
+  const handleBlur = (e: FocusEvent<HTMLElement>) => {
+    // Tab między przyciskami nawigacji nie jest wyjściem z karuzeli.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setFocused(false);
+  };
+
+  const state = useMemo<SliderStateValue>(
+    () => ({ active, vertical, handleButtonClick, register, unregister }),
+    [active, vertical, handleButtonClick, register, unregister],
   );
 
   return (
-    <ProgressSliderContext.Provider value={ctx}>
-      <section
-        aria-label={ariaLabel}
-        aria-roledescription="carousel"
-        className={cn("relative", className)}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocusCapture={() => setHovered(true)}
-        onBlurCapture={() => setHovered(false)}
-      >
-        {children}
-      </section>
-    </ProgressSliderContext.Provider>
+    <SliderStateContext.Provider value={state}>
+      <SliderProgressContext.Provider value={progress}>
+        <section
+          aria-label={ariaLabel}
+          aria-roledescription="carousel"
+          className={cn("relative", className)}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+          onFocus={() => setFocused(true)}
+          onBlur={handleBlur}
+        >
+          {children}
+        </section>
+      </SliderProgressContext.Provider>
+    </SliderStateContext.Provider>
   );
 };
 
@@ -167,7 +204,7 @@ export const SliderWrapper: FC<{ children: ReactNode; value: string; className?:
   value,
   className,
 }) => {
-  const { active, register, unregister } = useProgressSliderContext();
+  const { active, register, unregister } = useSliderState();
   useEffect(() => {
     register(value);
     return () => unregister(value);
@@ -196,13 +233,36 @@ export const SliderBtnGroup: FC<{ children: ReactNode; className?: string }> = (
   className,
 }) => <div className={cn("flex", className)}>{children}</div>;
 
+interface BarFillProps {
+  vertical: boolean;
+  className?: string;
+}
+
+const BarFill: FC<BarFillProps & { percent: number }> = ({ vertical, className, percent }) => (
+  <span
+    data-testid="progress-bar"
+    style={vertical ? { height: `${percent}%` } : { width: `${percent}%` }}
+    className={cn(
+      "block bg-[color:var(--progress-carousel-accent,var(--brand))]",
+      vertical ? "w-full" : "h-full",
+      className,
+    )}
+  />
+);
+
+/** Jedyny konsument postępu - renderuje się co klatkę zamiast całego przycisku. */
+const ActiveBarFill: FC<BarFillProps> = (props) => {
+  const progress = useContext(SliderProgressContext);
+  return <BarFill {...props} percent={progress} />;
+};
+
 export const SliderBtn: FC<{
   children: ReactNode;
   value: string;
   className?: string;
   progressBarClass?: string;
 }> = ({ children, value, className, progressBarClass }) => {
-  const { active, progress, handleButtonClick, vertical } = useProgressSliderContext();
+  const { active, handleButtonClick, vertical } = useSliderState();
   const isActive = active === value;
   return (
     <button
@@ -221,19 +281,11 @@ export const SliderBtn: FC<{
           vertical ? "left-0 top-0 h-full w-0.5" : "bottom-0 left-0 h-0.5 w-full",
         )}
       >
-        <span
-          data-testid="progress-bar"
-          style={
-            vertical
-              ? { height: isActive ? `${progress}%` : "0%" }
-              : { width: isActive ? `${progress}%` : "0%" }
-          }
-          className={cn(
-            "block bg-[color:var(--progress-carousel-accent,var(--brand))]",
-            vertical ? "w-full" : "h-full",
-            progressBarClass,
-          )}
-        />
+        {isActive ? (
+          <ActiveBarFill vertical={vertical} className={progressBarClass} />
+        ) : (
+          <BarFill vertical={vertical} className={progressBarClass} percent={0} />
+        )}
       </div>
     </button>
   );

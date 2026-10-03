@@ -41,6 +41,47 @@ const UI_LOCALES: Record<AppLang, DayPickerLocale> = {
   en: dayPickerEnUS,
 };
 
+// Czysta mapa `rdp-*` budowana pętlami po czterech enumach biblioteki. Liczona
+// raz na moduł, a nie w każdym renderze kalendarza i każdego z ~42 dni.
+const DEFAULT_CLASS_NAMES = getDefaultClassNames();
+
+type CalendarComponents = NonNullable<React.ComponentProps<typeof DayPicker>["components"]>;
+
+// Podkomponenty na poziomie MODUŁU, nie literały w renderze. DayPicker renderuje
+// je jako typy elementów, więc nowa funkcja w każdym renderze `Calendar` była
+// dla Reacta nowym typem: każdy re-render rodzica (np. wybór dnia) zrywał
+// i montował od nowa całe drzewo siatki razem z przyciskiem, który miał ognisko.
+const CalendarRoot: NonNullable<CalendarComponents["Root"]> = ({
+  className,
+  rootRef,
+  ...props
+}) => <div data-slot="calendar" ref={rootRef} className={cn(className)} {...props} />;
+
+const CalendarChevron: NonNullable<CalendarComponents["Chevron"]> = ({
+  className,
+  orientation,
+  ...props
+}) => {
+  if (orientation === "left") {
+    return <ChevronLeftIcon className={cn("size-4", className)} {...props} />;
+  }
+  if (orientation === "right") {
+    return <ChevronRightIcon className={cn("size-4", className)} {...props} />;
+  }
+  return <ChevronDownIcon className={cn("size-4", className)} {...props} />;
+};
+
+const CalendarWeekNumber: NonNullable<CalendarComponents["WeekNumber"]> = ({
+  children,
+  ...props
+}) => (
+  <td {...props}>
+    <div className="flex size-(--cell-size) items-center justify-center text-center">
+      {children}
+    </div>
+  </td>
+);
+
 function Calendar({
   className,
   classNames,
@@ -54,7 +95,7 @@ function Calendar({
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
-  const defaultClassNames = getDefaultClassNames();
+  const defaultClassNames = DEFAULT_CLASS_NAMES;
   const { i18n } = useTranslation();
   const uiLocale = UI_LOCALES[normalizeLang(i18n.language) ?? DEFAULT_LANG];
   const labelledLocale = React.useMemo(() => {
@@ -74,7 +115,9 @@ function Calendar({
       )}
       captionLayout={captionLayout}
       formatters={{
-        formatMonthDropdown: (date) => date.toLocaleString("default", { month: "short" }),
+        // Język kalendarza, nie przeglądarki: "default" dawał angielskie miesiące
+        // w rozwijanej liście przy polskim interfejsie (i odwrotnie).
+        formatMonthDropdown: (date) => date.toLocaleString(labelledLocale.code, { month: "short" }),
         ...formatters,
       }}
       classNames={{
@@ -147,30 +190,10 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        Root: ({ className, rootRef, ...props }) => {
-          return <div data-slot="calendar" ref={rootRef} className={cn(className)} {...props} />;
-        },
-        Chevron: ({ className, orientation, ...props }) => {
-          if (orientation === "left") {
-            return <ChevronLeftIcon className={cn("size-4", className)} {...props} />;
-          }
-
-          if (orientation === "right") {
-            return <ChevronRightIcon className={cn("size-4", className)} {...props} />;
-          }
-
-          return <ChevronDownIcon className={cn("size-4", className)} {...props} />;
-        },
+        Root: CalendarRoot,
+        Chevron: CalendarChevron,
         DayButton: CalendarDayButton,
-        WeekNumber: ({ children, ...props }) => {
-          return (
-            <td {...props}>
-              <div className="flex size-(--cell-size) items-center justify-center text-center">
-                {children}
-              </div>
-            </td>
-          );
-        },
+        WeekNumber: CalendarWeekNumber,
         ...components,
       }}
       {...props}
@@ -184,7 +207,7 @@ function CalendarDayButton({
   modifiers,
   ...props
 }: React.ComponentProps<typeof DayButton>) {
-  const defaultClassNames = getDefaultClassNames();
+  const defaultClassNames = DEFAULT_CLASS_NAMES;
 
   const ref = React.useRef<HTMLButtonElement>(null);
   React.useEffect(() => {

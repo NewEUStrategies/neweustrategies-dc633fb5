@@ -20,11 +20,11 @@ import {
   useEffect,
   useImperativeHandle,
   useMemo,
-  useRef,
   useState,
   type CSSProperties,
 } from "react";
 import { cn } from "@/lib/utils";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 export type TextRotateSplitBy = "characters" | "words" | "lines";
 
@@ -58,24 +58,6 @@ export interface TextRotateRef {
   previous: () => void;
   jumpTo: (i: number) => void;
   reset: () => void;
-}
-
-/**
- * `prefers-reduced-motion` na żywo (nasłuch zmiany preferencji). SSR i pierwszy
- * render klienta zwracają `false` - to bezpieczny kierunek, bo do hydratacji
- * i tak nie ma timerów, a po niej stan dociąga się z matchMedia.
- */
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(query.matches);
-    update();
-    query.addEventListener?.("change", update);
-    return () => query.removeEventListener?.("change", update);
-  }, []);
-  return reduced;
 }
 
 /** Podział tekstu na segmenty zgodnie z `splitBy`. */
@@ -118,31 +100,36 @@ export const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(function Te
   ref,
 ) {
   const safeTexts = texts.length > 0 ? texts : [""];
+  const count = safeTexts.length;
   const [index, setIndex] = useState(0);
   const [entered, setEntered] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Lista może się skrócić pod komponentem (edycja widgetu) - indeks spoza
+  // zakresu dawał pusty tekst aż do następnego obrotu.
+  const activeIndex = Math.min(index, count - 1);
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
+  // Każda zmiana tekstu przechodzi tędy. Przejście na TEN SAM indeks jest
+  // no-opem: dawniej zerowało `entered`, a efekt wejścia (zależny od indeksu)
+  // już się nie uruchamiał - przy `loop={false}` ostatni tekst znikał na stałe
+  // (opacity 0), tak samo `previous()` na pierwszym i `reset()` na zerowym.
+  const goTo = useCallback(
+    (target: number) => {
+      const next = Math.max(0, Math.min(count - 1, target));
+      if (next === activeIndex) return;
+      // Kolejny tekst zaczyna sie od stanu "przed" - `entered=true` ustawia
+      // efekt wejścia po zamontowaniu nowych segmentow.
+      setEntered(false);
+      setIndex(next);
+    },
+    [activeIndex, count],
+  );
 
   const advance = useCallback(
     (dir: 1 | -1) => {
-      setEntered(false);
-      // Kolejny tekst zaczyna sie od stanu "przed" - ustawiamy `entered=true`
-      // dopiero po zamontowaniu nowych segmentow, zeby transition sie wyzwolil.
-      setIndex((i) => {
-        const n = safeTexts.length;
-        const raw = i + dir;
-        if (!loop) return Math.max(0, Math.min(n - 1, raw));
-        return (raw + n) % n;
-      });
+      const raw = activeIndex + dir;
+      goTo(loop ? (raw + count) % count : raw);
     },
-    [loop, safeTexts.length],
+    [activeIndex, count, goTo, loop],
   );
 
   useImperativeHandle(
@@ -150,16 +137,10 @@ export const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(function Te
     () => ({
       next: () => advance(1),
       previous: () => advance(-1),
-      jumpTo: (i: number) => {
-        setEntered(false);
-        setIndex(Math.max(0, Math.min(safeTexts.length - 1, i)));
-      },
-      reset: () => {
-        setEntered(false);
-        setIndex(0);
-      },
+      jumpTo: goTo,
+      reset: () => goTo(0),
     }),
-    [advance, safeTexts.length],
+    [advance, goTo],
   );
 
   // Zawsze uruchamiaj wejscie po zmianie index (rAF, zeby CSS transition zlapal
@@ -170,28 +151,27 @@ export const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(function Te
       raf = requestAnimationFrame(() => setEntered(true));
     });
     return () => cancelAnimationFrame(raf);
-  }, [index]);
+  }, [activeIndex]);
 
   // Auto-rotacja. Przy prefers-reduced-motion nie startuje wcale - rotujący
   // tekst to ruch w rozumieniu preferencji, klasa motion-reduce nie wyłączy
-  // timera ani stylów inline.
+  // timera ani stylów inline. Bez pętli staje na ostatnim tekście.
+  const rotating = auto && !reducedMotion && count > 1 && (loop || activeIndex < count - 1);
   useEffect(() => {
-    if (!auto || reducedMotion || safeTexts.length <= 1) return;
-    clearTimer();
-    timerRef.current = setTimeout(() => advance(1), rotationInterval);
-    return clearTimer;
-  }, [auto, advance, clearTimer, index, reducedMotion, rotationInterval, safeTexts.length]);
+    if (!rotating) return;
+    const timer = setTimeout(() => advance(1), rotationInterval);
+    return () => clearTimeout(timer);
+  }, [rotating, advance, rotationInterval]);
 
-  const current = safeTexts[index] ?? "";
+  const current = safeTexts[activeIndex];
   const segments = useMemo(() => splitText(current, splitBy), [current, splitBy]);
 
   return (
-    <span
-      className={cn("relative inline-block align-baseline", mainClassName)}
-      aria-label={ariaLabel ?? current}
-    >
-      {/* SR czyta pelny tekst; wizualnie renderujemy animowane segmenty. */}
-      <span className="sr-only">{current}</span>
+    <span className={cn("relative inline-block align-baseline", mainClassName)}>
+      {/* SR czyta pelny tekst (albo jawna etykiete); wizualnie renderujemy
+          animowane segmenty. `aria-label` na <span> bez roli jest w ARIA 1.2
+          zakazany i czytniki go pomijaja albo czytaja podwojnie z tym tekstem. */}
+      <span className="sr-only">{ariaLabel ?? current}</span>
       <span aria-hidden="true" className="inline-flex flex-wrap justify-inherit">
         {segments.map((seg, i) => {
           const delay = staggerDelay(i, segments.length, staggerDurationMs, staggerFrom);
@@ -211,7 +191,7 @@ export const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(function Te
           if (splitBy === "lines") {
             return (
               <span
-                key={`${index}-${i}`}
+                key={`${activeIndex}-${i}`}
                 className={cn("block motion-reduce:transition-none", elementLevelClassName)}
                 style={style}
               >
@@ -222,7 +202,7 @@ export const TextRotate = forwardRef<TextRotateRef, TextRotateProps>(function Te
           const isWhitespace = /^\s+$/.test(seg);
           return (
             <span
-              key={`${index}-${i}`}
+              key={`${activeIndex}-${i}`}
               className={cn(
                 "inline-block motion-reduce:transition-none",
                 isWhitespace ? "whitespace-pre" : undefined,

@@ -2,7 +2,7 @@
 // Popover/DropdownMenu look so right-click menus feel native to the layout.
 import * as React from "react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
-import { Check, ChevronRight, Circle } from "lucide-react";
+import { Check, ChevronRight, Circle } from "@/lib/lucide-shim";
 
 import { cn } from "@/lib/utils";
 

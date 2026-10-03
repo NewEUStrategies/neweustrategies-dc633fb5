@@ -8,6 +8,10 @@
 // (--background/--foreground/--border/--ring/--gc-input-*) na swoją paletę, więc
 // pole wygląda identycznie na stronie publicznej i w podglądzie w adminie,
 // w wariancie ciemnym i jasnym. Rounding: platformowe 6px.
+//
+// Pusty (albo biały) placeholder z konfiguracji jest traktowany jak brak: inaczej
+// `:placeholder-shown` przestaje pasować i etykieta wisi uniesiona nad pustym
+// polem. `invalid` trafia też do `aria-invalid`, nie tylko na ramkę.
 import { forwardRef, useId, type InputHTMLAttributes, type ReactNode } from "react";
 
 export interface FieldBoxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "className"> {
@@ -20,21 +24,23 @@ export interface FieldBoxProps extends Omit<InputHTMLAttributes<HTMLInputElement
 }
 
 export const FieldBox = forwardRef<HTMLInputElement, FieldBoxProps>(function FieldBox(
-  { label, trailing, className = "", required, invalid, ...rest },
+  { label, trailing, className = "", required, invalid, id: providedId, placeholder, ...rest },
   ref,
 ) {
-  const id = useId();
+  const autoId = useId();
+  const id = providedId ?? autoId;
 
   return (
     <div className={`input-group min-w-0 ${className}`} data-invalid={invalid ? "true" : undefined}>
       <input
+        aria-invalid={invalid || undefined}
         {...rest}
         id={id}
         ref={ref}
         required={required}
         /* Spacer, gdy pole nie ma własnej podpowiedzi: `:placeholder-shown`
            musi pozostać prawdziwe, bo na nim stoi cała mechanika pływania. */
-        placeholder={rest.placeholder ?? " "}
+        placeholder={placeholder?.trim() ? placeholder : " "}
         className={`input${trailing ? " pr-11" : ""}`}
       />
       <label htmlFor={id} className="user-label">

@@ -10,6 +10,9 @@ export const dateTimePickerPl = {
     time: "Godzina",
     hour: "Godzina",
     minute: "Minuta",
+    placeholder: "Wybierz datę i godzinę",
+    now: "Teraz",
+    clear: "Wyczyść",
   },
 } as const;
 
@@ -18,6 +21,9 @@ export const dateTimePickerEn = {
     time: "Time",
     hour: "Hour",
     minute: "Minute",
+    placeholder: "Pick date and time",
+    now: "Now",
+    clear: "Clear",
   },
 } as const;
 

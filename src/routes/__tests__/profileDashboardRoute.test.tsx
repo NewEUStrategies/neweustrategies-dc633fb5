@@ -1572,23 +1572,14 @@ describe("wysyłka tła - trwa kontra gotowe", () => {
     expect(progressTransform()).toBe("translateX(-95%)");
   });
 
-  it.fails("DEFEKT: postęp wysyłki nie dociera do czytnika ekranu", async () => {
-    // CO JEST NIE TAK. Trasa montuje pasek postępu (`<Progress value=...>`,
-    // src/routes/profile.index.tsx:879-881 i 983-985), ale wspólna otoczka
-    // `src/components/ui/progress.tsx:10-14` wyłuskuje `value` z propsów
-    // i przekazuje je TYLKO do stylu wskaźnika - korzeń Radiksa nie dostaje
-    // ani `value`, ani `max`, więc na wyjściu jest `role="progressbar"` BEZ
-    // `aria-valuenow`. Rola obiecuje asystującemu odczyt postępu, którego nie
-    // ma czym podać.
-    //
-    // KONSEKWENCJA DLA UŻYTKOWNIKA. Osoba korzystająca z czytnika ekranu
-    // słyszy „pasek postępu" i nic więcej: przez całą wysyłkę nie wie, czy
-    // przesyłanie stoi, czy idzie. Przy 5 MB tła na wolnym łączu to minuta
-    // ciszy, po której naturalnym odruchem jest wysłać plik jeszcze raz.
-    //
-    // NAPRAWA JEST POZA TĄ TRASĄ: `ui/progress` musi przekazać `value` do
-    // korzenia (jedna linia), a nagłówek dołożyć `aria-label` z klucza i18n.
-    // Zgłoszone tutaj, bo tu widać skutek.
+  it("postęp wysyłki dociera do czytnika ekranu", async () => {
+    // NAPRAWIONE 2026-10-03 (było `it.fails` „DEFEKT: postęp wysyłki nie
+    // dociera do czytnika ekranu"). Wspólna otoczka `src/components/ui/progress.tsx`
+    // wyłuskiwała `value` z propsów i dawała je tylko stylowi wskaźnika, więc
+    // korzeń Radiksa wychodził jako `role="progressbar"` BEZ `aria-valuenow`:
+    // osoba z czytnikiem ekranu słyszała „pasek postępu" i nic więcej przez całą
+    // wysyłkę. Otoczka przekazuje teraz `value` do korzenia. Zostaje osobna
+    // pozycja dla tej trasy: nagłówek nadal nie daje paskowi `aria-label`.
     h.status = { avatar: "idle", cover: "uploading" };
     h.progress = { avatar: 0, cover: 42 };
     await mount();

@@ -3,9 +3,23 @@
 // pozycje liczone są czysto (`getItemPosition`) i animowane transitionem CSS.
 // Kolory wyłącznie z tokenów (`--card`, `--border`, `--foreground`, akcent
 // przez `--circular-carousel-accent`), więc dark/light działa bez zmian.
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+//
+// Klawiatura: strzałki lewo/prawo oraz Home/End na całym regionie. Gdy
+// ognisko stoi w liście kart, przechodzi za aktywną kartą (roving tabindex) -
+// inaczej po trzech krokach zostawało na karcie, która wypadła z widoku
+// i znikała z DOM, a ognisko lądowało na <body>.
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react";
+import { ChevronLeft, ChevronRight } from "@/lib/lucide-shim";
 import { cn } from "@/lib/utils";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 export interface CircularCarouselItem {
   id: string;
@@ -116,16 +130,24 @@ export function CircularCarousel({
   className,
 }: CircularCarouselProps) {
   const [internalIndex, setInternalIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  // Kursor i ognisko pauzują niezależnie: zjazd myszą z karuzeli nie może
+  // wznowić rotacji, gdy ognisko klawiatury nadal jest w środku (WCAG 2.2.2).
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const reducedMotion = usePrefersReducedMotion(autoPlay);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  // Ustawiane przez obsługę klawiatury, gdy ognisko było w liście kart. Zapamiętane
+  // PRZED zmianą indeksu, bo po renderze karta z ogniskiem może już nie istnieć.
+  const focusActiveRef = useRef(false);
   const listId = useId();
 
   const total = items.length;
-  const activeIndex = Math.min(controlledIndex ?? internalIndex, Math.max(total - 1, 0));
+  const activeIndex = Math.max(0, Math.min(controlledIndex ?? internalIndex, total - 1));
 
   const goTo = useCallback(
     (index: number) => {
-      if (total <= 0) return;
+      // `total` > 0: przy pustej liście komponent nie renderuje niczego, czym
+      // dałoby się tu dojść, a auto-play wymaga co najmniej dwóch kart.
       const nextIdx = ((index % total) + total) % total;
       if (controlledIndex === undefined) setInternalIndex(nextIdx);
       onActiveChange?.(nextIdx);
@@ -136,11 +158,41 @@ export function CircularCarousel({
   const next = useCallback(() => goTo(activeIndex + 1), [activeIndex, goTo]);
   const prev = useCallback(() => goTo(activeIndex - 1), [activeIndex, goTo]);
 
+  const rotating = autoPlay && !reducedMotion && !hovered && !focused && total > 1;
+
   useEffect(() => {
-    if (!autoPlay || paused || total <= 1) return;
+    if (!rotating) return;
     const id = setInterval(next, Math.max(1000, autoPlayInterval));
     return () => clearInterval(id);
-  }, [autoPlay, autoPlayInterval, paused, next, total]);
+  }, [rotating, autoPlayInterval, next]);
+
+  useEffect(() => {
+    if (!focusActiveRef.current) return;
+    focusActiveRef.current = false;
+    listRef.current?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')?.focus();
+  }, [activeIndex]);
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    let target: number | null = null;
+    if (e.key === "ArrowLeft") target = activeIndex - 1;
+    else if (e.key === "ArrowRight") target = activeIndex + 1;
+    else if (e.key === "Home") target = 0;
+    else if (e.key === "End") target = total - 1;
+    if (target === null) return;
+    e.preventDefault();
+    // Flaga tylko przy realnej zmianie: inaczej zostałaby wisząca i ukradła
+    // ognisko przy następnej zmianie, np. kliknięciu strzałki pod kartami.
+    const changes = ((target % total) + total) % total !== activeIndex;
+    focusActiveRef.current = changes && listRef.current?.contains(document.activeElement) === true;
+    goTo(target);
+  };
+
+  const handleBlur = (e: FocusEvent<HTMLDivElement>) => {
+    // Przejście ogniska między elementami karuzeli to nie jest wyjście z niej.
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setFocused(false);
+    focusActiveRef.current = false;
+  };
 
   if (total === 0) return null;
 
@@ -148,31 +200,22 @@ export function CircularCarousel({
 
   return (
     <div
-      ref={containerRef}
       role="region"
       aria-roledescription="carousel"
       aria-label={labels.region}
       tabIndex={0}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      onBlur={() => setPaused(false)}
-      onKeyDown={(e) => {
-        if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          prev();
-        }
-        if (e.key === "ArrowRight") {
-          e.preventDefault();
-          next();
-        }
-      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
       className={cn(
         "relative flex w-full flex-col items-center justify-center gap-6 outline-none",
         className,
       )}
     >
       <div
+        ref={listRef}
         id={listId}
         role="listbox"
         aria-label={labels.region}
@@ -192,13 +235,16 @@ export function CircularCarousel({
               aria-label={item.title}
               onClick={() => goTo(i)}
               onKeyDown={(e) => {
+                // Enter na linku karty bąbelkuje tutaj - nie wolno go zjeść
+                // `preventDefault`-em, bo link przestałby nawigować.
+                if (e.target !== e.currentTarget) return;
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   goTo(i);
                 }
               }}
               className={cn(
-                "absolute left-1/2 top-8 flex h-32 w-48 cursor-pointer flex-col items-start justify-between rounded-[6px] border border-border bg-card p-4 text-left transition-all duration-500 ease-out",
+                "absolute left-1/2 top-8 flex h-32 w-48 cursor-pointer flex-col items-start justify-between rounded-[6px] border border-border bg-card p-4 text-left transition-all duration-500 ease-out motion-reduce:transition-none",
                 isActive ? "shadow-lg" : "shadow-sm hover:shadow-md",
               )}
               style={{
@@ -243,7 +289,11 @@ export function CircularCarousel({
       </div>
 
       {showCounter ? (
-        <p className="flex items-baseline gap-1 text-foreground">
+        <p
+          aria-live={rotating ? "off" : "polite"}
+          aria-atomic="true"
+          className="flex items-baseline gap-1 text-foreground"
+        >
           <span
             className="text-2xl font-semibold tabular-nums"
             style={{ color: "var(--circular-carousel-accent, var(--brand))" }}
