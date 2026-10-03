@@ -335,6 +335,7 @@ export type Database = {
           columns: number
           created_at: string
           hero_bg_style: string
+          hero_image_url: string | null
           id: string
           layout_variant: number
           list_style: string
@@ -357,6 +358,7 @@ export type Database = {
           columns?: number
           created_at?: string
           hero_bg_style?: string
+          hero_image_url?: string | null
           id?: string
           layout_variant?: number
           list_style?: string
@@ -379,6 +381,7 @@ export type Database = {
           columns?: number
           created_at?: string
           hero_bg_style?: string
+          hero_image_url?: string | null
           id?: string
           layout_variant?: number
           list_style?: string
