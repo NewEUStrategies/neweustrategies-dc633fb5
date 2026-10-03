@@ -7,7 +7,7 @@
 // trafia do współdzielonego, leniwego chunka tras archiwum.
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useSuspenseQuery, useQuery } from "@tanstack/react-query";
-import { useTransition, useEffect } from "react";
+import { useTransition } from "react";
 import { useTranslation } from "react-i18next";
 import { BuilderRenderer } from "@/components/builder/organisms/BuilderRenderer";
 import { PublicNotFound } from "@/components/molecules/PublicNotFound";
@@ -21,6 +21,7 @@ import { getLayoutComponent } from "@/components/archive/layouts/registry";
 import { ensureI18n as ensureArchiveLayoutI18n } from "@/lib/i18n-archive-layout";
 import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
+import { useScrollTopOnPageChange } from "@/lib/a11y/useScrollTopOnPageChange";
 
 export function TaxonomyPage({
   kind,
@@ -55,12 +56,10 @@ export function TaxonomyPage({
     enabled: kind === "category" && !!data?.taxonomy.id && settings.show_podcasts,
   });
 
-  // Scroll to top when page changes (better UX than staying mid-scroll).
-  useEffect(() => {
-    if (typeof window !== "undefined" && page > 1) {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, [page]);
+  // Zmiana strony wyników wraca na górę listy - także powrót na stronę 1,
+  // ale NIE pierwszy montaż (wejście z linku na `?page=2`, powrót „wstecz"
+  // z wpisu) i z poszanowaniem „ogranicz ruch". Uzasadnienie w haku.
+  useScrollTopOnPageChange(page);
 
   // Keep the query mounted while showing the SSR fallback so hydration can
   // recover it. Returning from the route before this component prevented

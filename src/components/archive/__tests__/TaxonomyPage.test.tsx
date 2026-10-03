@@ -6,7 +6,7 @@
 // zostać NIEJAWNE (`?page=1` i `?sort=newest` w adresie to duplikat treści
 // kanonicznej), a wariant layoutu ma pochodzić z ustawień, nie z kodu trasy.
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import "@/lib/i18n";
@@ -128,10 +128,21 @@ function archive(over: Record<string, unknown> = {}) {
   };
 }
 
-function renderPage(props: Partial<Parameters<typeof TaxonomyPage>[0]> = {}): ReactElement {
-  const client = new QueryClient({
+function queryClient(): QueryClient {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
   });
+}
+
+/**
+ * Element strony archiwum. Wspólny `client` jest potrzebny tylko testom
+ * ZMIANY strony: `rerender` z nowym klientem montowałby zapytania od nowa,
+ * czyli udawałby pierwszy montaż zamiast zmiany `page` w żywym komponencie.
+ */
+function renderPage(
+  props: Partial<Parameters<typeof TaxonomyPage>[0]> = {},
+  client: QueryClient = queryClient(),
+): ReactElement {
   return (
     <QueryClientProvider client={client}>
       <TaxonomyPage kind="category" slug="gospodarka" page={1} sort="newest" {...props} />
@@ -148,7 +159,34 @@ beforeEach(() => {
   window.scrollTo = vi.fn() as unknown as typeof window.scrollTo;
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+/** Systemowe „ogranicz ruch" - czytane przez `lib/a11y/reducedMotion`. */
+function stubReducedMotion(reduce: boolean): void {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: reduce && query.includes("prefers-reduced-motion"),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+}
+
+/**
+ * Montuje archiwum na stronie `from`, czeka na treść i przechodzi na `to`.
+ * Wywołania z montażu są zerowane PRZED zmianą: asercja ma widzieć wyłącznie
+ * reakcję na zmianę strony, inaczej przewinięcie z montażu (stary warunek
+ * `page > 1`) maskowałoby brak reakcji na powrót 3 -> 1.
+ */
+async function changePage(from: number, to: number): Promise<void> {
+  const client = queryClient();
+  const view = render(renderPage({ page: from }, client));
+  await screen.findByTestId("variant");
+  vi.mocked(window.scrollTo).mockClear();
+  view.rerender(renderPage({ page: to }, client));
+}
 
 describe("TaxonomyPage - wybór wariantu i dane", () => {
   it("wariant layoutu pochodzi z USTAWIEŃ, nie z kodu trasy", async () => {
@@ -243,16 +281,43 @@ describe("TaxonomyPage - nawigacja", () => {
     );
   });
 
-  it("wejście na dalszą stronę przewija na górę listy", async () => {
-    render(renderPage({ page: 3 }));
-    await screen.findByTestId("variant");
-    expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
-  });
-
   it("pierwsza strona nie przewija - czytelnik dopiero wszedł", async () => {
     render(renderPage({ page: 1 }));
     await screen.findByTestId("variant");
     expect(window.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("wejście PROSTO na dalszą stronę też nie przewija - to montaż, nie zmiana", async () => {
+    // Link z zewnątrz na `?page=3` albo powrót „wstecz" z wpisu montuje archiwum
+    // od nowa. Stary warunek `page > 1` przewijał wtedy na górę: widok uciekał
+    // czytelnikowi, który niczego nie kliknął, i mógł nadpisać pozycję
+    // przywróconą przez router.
+    render(renderPage({ page: 3 }));
+    await screen.findByTestId("variant");
+    expect(window.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it("zmiana strony 2 -> 3 wraca na górę listy", async () => {
+    stubReducedMotion(false);
+    await changePage(2, 3);
+    await waitFor(() => expect(window.scrollTo).toHaveBeenCalledTimes(1));
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+  });
+
+  it("powrót 3 -> 1 TEŻ wraca na górę - stary warunek `page > 1` go odcinał", async () => {
+    stubReducedMotion(false);
+    await changePage(3, 1);
+    await waitFor(() => expect(window.scrollTo).toHaveBeenCalledTimes(1));
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+  });
+
+  it("przy „ogranicz ruch” skok na górę jest natychmiastowy, bez animacji", async () => {
+    // WCAG 2.3.3: płynne przewijanie przez całą długość listy to dokładnie ten
+    // ruch, o którego wyłączenie prosi systemowe ustawienie.
+    stubReducedMotion(true);
+    await changePage(2, 3);
+    await waitFor(() => expect(window.scrollTo).toHaveBeenCalledTimes(1));
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
   });
 });
 

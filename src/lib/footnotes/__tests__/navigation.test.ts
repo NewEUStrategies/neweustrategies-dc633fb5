@@ -70,6 +70,23 @@ describe("scrollToFootnoteId", () => {
     expect(window.location.hash).toBe("#fnref-1");
   });
 
+  it("rzut z `matchMedia` nie zabiera skoku - przewija płynnie jak bez preferencji", () => {
+    // Prywatna kopia odczytu preferencji wypuszczała wyjątek (SecurityError
+    // w piaskownicy, uszkodzony polyfill) prosto z obsługi kliknięcia: brak
+    // skoku, brak fokusu, brak hasha. Wspólny odczyt z `lib/a11y` traktuje go
+    // jak brak preferencji.
+    vi.stubGlobal("matchMedia", () => {
+      throw new Error("SecurityError");
+    });
+    const target = mountTarget("fn-4", 400);
+
+    expect(scrollToFootnoteId("fn-4")).toBe(true);
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1288, behavior: "smooth" });
+    expect(document.activeElement).toBe(target);
+    expect(window.location.hash).toBe("#fn-4");
+  });
+
   it("nie nadpisuje tabindex, który cel już ma", () => {
     const target = mountTarget("fn-3", 200, { tabindex: "0" });
 
