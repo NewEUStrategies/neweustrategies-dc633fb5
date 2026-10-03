@@ -49,14 +49,27 @@
 --   * Staff ma własne, zamknięte wejście do pełnej kartoteki:
 --     `crm_company_inline_lookup` (20260924120000, bez EXECUTE dla `anon`).
 --
--- OPTYMALIZACJA PRZY OKAZJI.
---   * Firmy: zbiór kandydatów to ślad publiczny (garść wierszy przez
---     `posts_organization_id_idx` i `event_sponsors_company_idx`) dociągany po
---     PK, a nie skan całej kartoteki najemcy z `unaccent` + `word_similarity`
---     na każde naciśnięcie klawisza.
---   * Osoby: dopasowanie frazy filtruje PRZED skorelowanym `count(DISTINCT
---     posts)` i `user_is_editorial()`, które wcześniej liczyły się dla każdego
---     odkrywalnego profilu najemcy niezależnie od frazy.
+-- OPTYMALIZACJA PRZY OKAZJI. Pomiar (PostgreSQL 16, najemca z 40 000 firm
+-- w kartotece, 6000 odkrywalnych profili, 300 redakcyjnych, 20 000 wpisów;
+-- najlepszy z pięciu przebiegów): wersja z 20260922080000 - 3,2-3,7 s na KAŻDE
+-- wywołanie, także dla gołego `@`; ta wersja - 28-46 ms dla frazy od trzech
+-- znaków, 70-90 ms dla frazy pustej, jedno- i dwuznakowej. Wyniki dla osób
+-- identyczne co do wiersza i kolejności.
+--   * Liczba publikacji osoby: `UNION` dwóch odczytów po indeksach częściowych
+--     (`idx_posts_author_published`, `idx_post_authors_user`) zamiast
+--     `LEFT JOIN post_authors ... WHERE author_id = osoba OR pa.user_id IS NOT
+--     NULL`. Tamten `OR` nad złączeniem nie trafiał w żaden indeks i dla KAŻDEGO
+--     profilu przechodził wszystkie opublikowane wpisy najemcy (~8 ms na profil,
+--     ~3 s przy 300 profilach redakcyjnych). To był główny koszt, także przed
+--     tą zmianą.
+--   * Dopasowanie frazy w CTE `MATERIALIZED`: bez bariery planista wypychał
+--     warunek `post_count > 0` PONIŻEJ filtra frazy, więc zliczanie szło dla
+--     wszystkich profili redakcyjnych nawet przy zerze trafień.
+--   * Firmy: zbiór kandydatów to ślad publiczny dociągany po PK, a nie skan
+--     kartoteki z `unaccent` + `word_similarity` na każde naciśnięcie klawisza.
+--     `ROWS 100` na pomocniku: domyślne oszacowanie funkcji zwracającej zbiór
+--     (1000) kazało planiście haszować CAŁĄ kartotekę najemcy (~50 ms przy
+--     40 000 firm) zamiast sięgać po klucz główny.
 --   * Fraza nie jest już wzorcem: `starts_with()`/`strpos()` zamiast `LIKE`
 --     (wzorzec z `crm_company_inline_lookup`), więc `%`, `_` i `\` znaczą
 --     siebie. Punktacja jest ta sama: podobieństwo słów + 1.0 za prefiks + 0.5
@@ -81,6 +94,7 @@ RETURNS TABLE (company_id uuid)
 LANGUAGE sql
 STABLE
 SECURITY INVOKER
+ROWS 100
 SET search_path = public, pg_temp
 AS $$
   SELECT p.organization_id
@@ -134,7 +148,10 @@ AS $$
     SELECT COALESCE(public._caller_tenant(), public.current_tenant_id(), public.public_tenant_id()) AS tid
   ),
   nq AS (SELECT unaccent(lower(btrim(COALESCE(_q, '')))) AS q),
-  people_scored AS (
+  -- MATERIALIZED to bariera: dopasowanie frazy zawęża profile ZANIM policzy
+  -- się liczba publikacji (patrz nagłówek - bez bariery planista odwracał
+  -- tę kolejność).
+  people_matched AS MATERIALIZED (
     SELECT
       pr.id,
       pr.slug,
@@ -145,19 +162,23 @@ AS $$
       COALESCE(ap.company, pr.current_company) AS company,
       COALESCE(ap.is_public, false) AS is_public_expert,
       ctx.tid,
-      CASE WHEN nq.q = '' THEN 0.0
-           ELSE word_similarity(nq.q, n.norm)
-                + CASE WHEN starts_with(n.norm, nq.q) THEN 1.0 ELSE 0.0 END
-                + CASE WHEN strpos(n.norm, nq.q) > 0 THEN 0.5 ELSE 0.0 END
-      END AS score
+      sc.score
     FROM public.profiles pr
     CROSS JOIN ctx
     CROSS JOIN nq
     CROSS JOIN LATERAL (SELECT unaccent(lower(COALESCE(pr.display_name, ''))) AS norm) n
+    CROSS JOIN LATERAL (
+      SELECT CASE WHEN nq.q = '' THEN 0.0
+                  ELSE word_similarity(nq.q, n.norm)
+                       + CASE WHEN starts_with(n.norm, nq.q) THEN 1.0 ELSE 0.0 END
+                       + CASE WHEN strpos(n.norm, nq.q) > 0 THEN 0.5 ELSE 0.0 END
+             END AS score
+    ) sc
     LEFT JOIN public.author_profiles ap ON ap.user_id = pr.id AND ap.tenant_id = pr.tenant_id
     WHERE pr.tenant_id = ctx.tid
       AND pr.slug IS NOT NULL
       AND pr.discoverable = true
+      AND (nq.q = '' OR length(nq.q) < 2 OR sc.score > 0.3)
   ),
   people AS (
     SELECT
@@ -171,18 +192,28 @@ AS $$
       NULL::text AS website,
       (s.verified_at IS NOT NULL) AS verified,
       s.score,
-      (SELECT count(DISTINCT p.id)
-         FROM public.posts p
-         LEFT JOIN public.post_authors pa ON pa.post_id = p.id AND pa.user_id = s.id
-        WHERE p.tenant_id = s.tid
-          AND p.status = 'published'
-          AND p.deleted_at IS NULL
-          AND (p.author_id = s.id OR pa.user_id IS NOT NULL)) AS post_count,
+      -- Wpisy osoby jako autora albo współautora, każdy raz (UNION). Dwa
+      -- odczyty po indeksach częściowych zamiast `OR` nad złączeniem.
+      (SELECT count(*)
+         FROM (
+           SELECT p.id
+             FROM public.posts p
+            WHERE p.author_id = s.id
+              AND p.tenant_id = s.tid
+              AND p.status = 'published'
+              AND p.deleted_at IS NULL
+           UNION
+           SELECT p.id
+             FROM public.post_authors pa
+             JOIN public.posts p ON p.id = pa.post_id
+            WHERE pa.user_id = s.id
+              AND p.tenant_id = s.tid
+              AND p.status = 'published'
+              AND p.deleted_at IS NULL
+         ) authored) AS post_count,
       s.is_public_expert
-    FROM people_scored s
-    CROSS JOIN nq
-    WHERE (nq.q = '' OR length(nq.q) < 2 OR s.score > 0.3)
-      AND public.user_is_editorial(s.id)
+    FROM people_matched s
+    WHERE public.user_is_editorial(s.id)
   ),
   companies AS (
     SELECT
