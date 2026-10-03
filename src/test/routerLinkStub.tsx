@@ -19,6 +19,7 @@ export interface RouterLinkStubProps extends AnchorHTMLAttributes<HTMLAnchorElem
   preload?: unknown;
   activeProps?: unknown;
   inactiveProps?: unknown;
+  activeOptions?: unknown;
   children?: ReactNode;
 }
 
@@ -50,6 +51,7 @@ export function RouterLinkStub({
   preload: _preload,
   activeProps: _activeProps,
   inactiveProps: _inactiveProps,
+  activeOptions: _activeOptions,
   ...rest
 }: RouterLinkStubProps) {
   return (
