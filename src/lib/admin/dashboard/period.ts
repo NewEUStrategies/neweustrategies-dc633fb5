@@ -308,6 +308,57 @@ export function resolveDashboardRange(period: DashboardPeriodId, nowMs: number):
   }
 }
 
+/* ---------------------------------------------------------------- retencja */
+
+/**
+ * Ile miesięcy kalendarzowych `analytics_events` trzyma zdarzenia. Lustro okna
+ * `telemetry_retention_prune()` (migracja 20261003190000, `interval '12 months'`),
+ * a tamto okno jest wprost z polityki prywatności („zdarzenia techniczne - do
+ * 12 miesięcy", `src/lib/legal/content/privacy.ts`). Zmiana jednej strony bez
+ * drugiej znowu pokaże delty liczone z przyciętej podstawy.
+ */
+export const ANALYTICS_EVENTS_RETENTION_MONTHS = 12;
+
+/**
+ * Czy okres odniesienia zaczyna się PRZED horyzontem retencji, czyli czy baza
+ * mogła już skasować część zdarzeń, z których porównanie miałoby powstać.
+ *
+ * PO CO. Bez tego zakładka „Rok" porównuje bieżący rok z wycinkiem roku
+ * poprzedniego, który w całości leży za horyzontem: `prevStart + upływ` to
+ * w przybliżeniu „teraz minus 12 miesięcy", więc po pierwszym przebiegu retencji
+ * okno odniesienia jest puste, a każdy kafelek mówi „brak odniesienia"
+ * z podpowiedzią „poprzedni okres był pusty" - czyli opisuje brak ruchu, który
+ * w rzeczywistości był, tylko go usunęliśmy. Półrocze tego problemu nie ma: jego
+ * okno poprzednie zaczyna się najwyżej sześć miesięcy przed początkiem
+ * bieżącego półrocza, więc zawsze po tej stronie horyzontu (na granicy
+ * 30 czerwca 23:45 margines to kwadrans).
+ *
+ * HORYZONT LICZONY OD KOŃCA OKNA BIEŻĄCEGO, nie od zegara: `untilIso` to
+ * skwantowane „teraz" każdej rosnącej zakładki, a moduł jest czysty (patrz
+ * nagłówek). Dla „poprzedniego miesiąca" koniec okna to początek bieżącego
+ * miesiąca - horyzont wypada wtedy wcześniej niż realny, ale tamto odniesienie
+ * sięga dwa miesiące wstecz i do granicy się nie zbliża.
+ *
+ * NIE `minusMonths`: ta pomocnicza zaokrągla do pierwszego dnia miesiąca, czyli
+ * cofa horyzont nawet o 30 dni i przepuściłaby okno, które baza już przycięła.
+ * Tu cofamy ten sam punkt zegara. Przepełnienie dnia (29 lutego minus
+ * 12 miesięcy = 1 marca) przesuwa granicę NAPRZÓD wobec Postgresa (28 lutego),
+ * czyli w stronę ostrożną: prędzej schowamy porównanie, niż pokażemy deltę
+ * z przyciętej podstawy. Ostrożna jest też sama retencja - kasuje raz na
+ * godzinę, więc baza trzyma zawsze odrobinę więcej, niż mówi granica.
+ *
+ * Granica ścisła (`<`), jak `created_at < now() - interval '12 months'`
+ * w funkcji retencji: okno zaczynające się DOKŁADNIE na horyzoncie jest całe.
+ */
+export function previousBeyondRetention(
+  range: DashboardRange,
+  retentionMonths: number = ANALYTICS_EVENTS_RETENTION_MONTHS,
+): boolean {
+  const horizon = new Date(Date.parse(range.current.untilIso));
+  horizon.setMonth(horizon.getMonth() - retentionMonths);
+  return Date.parse(range.previous.sinceIso) < horizon.getTime();
+}
+
 /** Długość okna w dniach (zaokrąglona w górę, minimum 1) - do podpisów. */
 export function windowDays(w: DashboardWindow): number {
   const ms = Date.parse(w.untilIso) - Date.parse(w.sinceIso);

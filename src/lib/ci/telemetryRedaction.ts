@@ -59,6 +59,9 @@ export const PUBLIC_TELEMETRY_SINKS: readonly TelemetrySink[] = [
     file: "src/routes/api/public/track.ts",
     label: "ingest zdarzeń analitycznych",
     columns: [
+      // Baza skraca potem frazę wyszukiwania do `sq1:<hmac>` (trigger z migracji
+      // 20261003190000), ale TYLKO w wierszach wyszukiwania i dopiero po tym
+      // ingeście - ten wpis pilnuje redakcji dla wszystkich typów zdarzeń.
       {
         column: "entity_id",
         redactor: "redactPii",

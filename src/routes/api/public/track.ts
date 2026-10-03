@@ -17,12 +17,22 @@
 // `trackSearch` (src/lib/analytics/track.ts) posyła frazę z wyszukiwarki wprost
 // do `entity_id`, a `trackFooterLink` wkłada do `meta` cały href. Fraza bywa
 // adresem e-mail albo numerem telefonu, a wiersz niesie obok niej `anon_id` -
-// identyfikator przeglądarki z localStorage, BEZ WYGASANIA. Tabela nie ma
-// retencji (zero `DELETE` w migracjach), czyta ją admin ALBO EDYTOR (migracja
-// 20260730085737), a bramka eksportu RODO wyłącza ją z eksportu uzasadnieniem
-// „zdarzenia analityczne bez identyfikatora konta - nie są danymi osobowymi"
-// (exportManifestParity.gate.test.ts). Surowa fraza czyni to uzasadnienie
-// NIEPRAWDZIWYM. Komplet redaktorów jest ten sam co w /api/public/client-errors.
+// identyfikator przeglądarki z localStorage, BEZ WYGASANIA. Czyta ją admin ALBO
+// EDYTOR (migracja 20260730085737), a bramka eksportu RODO wyłącza tabelę
+// z eksportu uzasadnieniem „zdarzenia analityczne bez identyfikatora konta - nie
+// są danymi osobowymi" (exportManifestParity.gate.test.ts). Surowa fraza czyni
+// to uzasadnienie NIEPRAWDZIWYM. Komplet redaktorów jest ten sam co
+// w /api/public/client-errors.
+//
+// CO DOKŁADA BAZA (migracja 20261003190000). Tabela przez pierwsze miesiące nie
+// miała retencji; teraz `telemetry_retention_prune` (pg_cron co godzinę) kasuje
+// zdarzenia starsze niż 12 miesięcy, jak obiecuje polityka prywatności. Trigger
+// BEFORE INSERT zamienia frazę wyszukiwania w `entity_id` na `sq1:<hmac>`
+// z sekretem najemcy i zdejmuje `meta.q`. Redakcja TUTAJ mimo to zostaje: skrót
+// obejmuje wyłącznie wiersze wyszukiwania, a `entity_id` i `meta` pozostałych
+// zdarzeń przychodzą z klienta równie surowe. Baza skraca frazę JUŻ
+// zredagowaną, więc dwa różne adresy e-mail w tej samej frazie dają jeden klucz
+// grupowania, a nie dwa.
 //
 // `entity_id` idzie przez `redactPii`, NIE przez `redactUrl`: to jedno pole ma
 // trzy kształty (fraza, UUID wpisu, href stopki), a ZMIERZONE

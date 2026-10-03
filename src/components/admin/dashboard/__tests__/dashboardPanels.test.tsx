@@ -221,6 +221,52 @@ describe("TrafficPanel", () => {
     expect(screen.queryByText("wejścia bezpośrednie")).toBeNull();
   });
 
+  // RETENCJA. `analytics_events` trzyma 12 miesięcy, a odniesienie zakładki
+  // „Rok" leży w całości za tym horyzontem: po przebiegu retencji baza zwraca
+  // tam zera, więc odznaki mówiłyby „brak odniesienia" (albo procent z wycinka)
+  // o ruchu, który był, tylko został usunięty. Panel chowa wtedy WSZYSTKIE delty
+  // i mówi raz, dlaczego. Półrocze mieści się w horyzoncie i delty zachowuje.
+  it("rok: odniesienie za horyzontem retencji - zero odznak delty i jedna podpowiedź", () => {
+    const rok = resolveDashboardRange("year", new Date(2026, 2, 15, 12).getTime());
+    render(<TrafficPanel report={trafficReport()} range={rok} />);
+
+    expect(tile("Sesje").textContent).toContain(`12${NBSP}345`);
+    expect(tile("Sesje").textContent).not.toContain("+23%");
+    expect(tile("Sesje zalogowanych").textContent).not.toContain("brak odniesienia");
+    expect(tile("Odsłon na sesję").textContent).not.toContain("%");
+    // Odznaka delty to jedyny element z `tabular-nums` poza wartością kafelka.
+    for (const label of [
+      "Sesje",
+      "Odsłony",
+      "Unikalni odwiedzający",
+      "Sesje zalogowanych",
+      "Odsłon na sesję",
+    ]) {
+      expect(tile(label).querySelectorAll(".tabular-nums")).toHaveLength(1);
+    }
+    expect(
+      screen.getAllByText(/^Bez porównania: okres odniesienia sięga dalej niż 12 miesięcy/),
+    ).toHaveLength(1);
+  });
+
+  it("półrocze mieści się w horyzoncie - delty zostają, podpowiedzi nie ma", () => {
+    const polrocze = resolveDashboardRange("half-year", new Date(2026, 5, 30, 23, 45).getTime());
+    render(<TrafficPanel report={trafficReport()} range={polrocze} />);
+    expect(tile("Sesje").textContent).toContain("+23%");
+    expect(tile("Sesje zalogowanych").textContent).toContain("brak odniesienia");
+    expect(screen.queryByText(/Bez porównania/)).toBeNull();
+  });
+
+  it("po angielsku podpowiedź o retencji podaje horyzont w miesiącach", () => {
+    h.language = "en";
+    const rok = resolveDashboardRange("year", new Date(2026, 2, 15, 12).getTime());
+    render(<TrafficPanel report={trafficReport()} range={rok} />);
+    expect(
+      screen.getByText(/^No comparison: the reference period reaches more than 12 months back/),
+    ).toBeTruthy();
+    expect(tile("Sessions").textContent).not.toContain("+23%");
+  });
+
   it("po angielsku: etykiety, kropka dziesiętna i nagłówek eksportu", () => {
     h.language = "en";
     render(<TrafficPanel report={trafficReport()} range={RANGE} />);
