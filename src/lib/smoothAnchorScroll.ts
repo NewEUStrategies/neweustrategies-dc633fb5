@@ -21,8 +21,10 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function easeOutCubic(t: number): number {
+  // Ruch zaczyna się natychmiast po kliknięciu i łagodnie wyhamowuje przy
+  // nagłówku. Symetryczna krzywa zaczynała zbyt wolno i wyglądała jak lag.
+  return 1 - Math.pow(1 - t, 3);
 }
 
 export function getAnchorScrollOffset(defaultOffset = 80): number {
@@ -71,8 +73,10 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
 
   cancelSmoothAnchorScroll();
 
-  const minDuration = options.minDuration ?? 520;
-  const maxDuration = options.maxDuration ?? 1800;
+  // Nawigacja po spisie ma reagować od razu. Poprzednie 1,8 s przy długich
+  // artykułach było odbierane jako opóźnienie i prowokowało kolejne kliknięcie.
+  const minDuration = options.minDuration ?? 360;
+  const maxDuration = options.maxDuration ?? 950;
   const updateHash = options.updateHash ?? true;
   const offset = options.offset ?? getAnchorScrollOffset();
   disableRouterHashScrollForCurrentEntry();
@@ -138,7 +142,7 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
   window.addEventListener("touchstart", onUserIntent, { passive: true, once: true });
   window.addEventListener("keydown", onUserIntent, { passive: true, once: true });
 
-  const duration = clamp(Math.abs(initialDistance) * 0.58, minDuration, maxDuration);
+  const duration = clamp(Math.abs(initialDistance) * 0.34, minDuration, maxDuration);
   const startTime = window.performance.now();
 
   const step = (now: number): void => {
@@ -147,7 +151,7 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
     const progress = clamp(elapsed / duration, 0, 1);
     const dynamicTarget = targetTop();
     if (Math.abs(dynamicTarget - latestTarget) > 0.5) latestTarget = dynamicTarget;
-    const nextTop = startTop + (latestTarget - startTop) * easeInOutCubic(progress);
+    const nextTop = startTop + (latestTarget - startTop) * easeOutCubic(progress);
     window.scrollTo({ top: nextTop, left: 0, behavior: "auto" });
     if (progress < 1) {
       frame = window.requestAnimationFrame(step);
