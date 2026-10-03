@@ -5,9 +5,10 @@
 //
 // JAKIE RYZYKA PRZYBIJA TEN PLIK:
 //   * PIENIĄDZE W MAILU. Upgrade rozlicza się od razu - mail ma pokazać realną
-//     dopłatę proporcjonalną. Kiedy danych nie da się wiarygodnie policzyć
-//     (brak końca okresu, okres minął, nowy plan tańszy), zdanie o dopłacie ma
-//     ZNIKNĄĆ, a nie pokazać kwotę niezgodną z fakturą operatora.
+//     dopłatę proporcjonalną, liczoną od długości CYKLU planu (rok to nie 30
+//     dni). Kiedy danych nie da się wiarygodnie policzyć (brak końca okresu,
+//     okres minął, nowy plan tańszy, zmiana cyklu miesiąc <-> rok), zdanie
+//     o dopłacie ma ZNIKNĄĆ, a nie pokazać kwotę niezgodną z fakturą operatora.
 //   * IZOLACJA NAJEMCY. Uprawnienie, mail i dzwonek dostają plan WŁASNEJ
 //     organizacji, nawet gdy obca ma plan o tym samym progu.
 //   * ZGODA NA NEWSLETTER. Świadome wypisanie się jest nadrzędne - automat nie
@@ -15,9 +16,11 @@
 //   * FAIL-SOFT. Awaria CRM, newslettera albo dzwonka nie może wywrócić
 //     webhooka (operator ponowiłby zdarzenie i zdublował mail) - ma zostać
 //     w logu, a pozostałe skutki mają dojść do końca. Atrapa modeluje awarię
-//     WYJĄTKIEM klienta (tak rzuca `supabaseAdmin` bez konfiguracji - Proxy
-//     w `client.server`). supabase-js NIE rzuca na błąd bazy ani sieci, tylko
-//     zwraca `{ error }` - tego przypadku ten plik nie udaje, że przybija.
+//     na DWA sposoby: WYJĄTKIEM klienta (tak rzuca `supabaseAdmin` bez
+//     konfiguracji - Proxy w `client.server`) oraz odpowiedzią `{ error }`
+//     (tak supabase-js zgłasza błąd bazy i sieci - BEZ rzutu). Drugi przypadek
+//     ma zostawić ten sam ślad w logu, a nieudany ODCZYT nie może udawać
+//     „brak wiersza" (duplikat leada, nadpisane wypisanie z newslettera).
 //   * IZOLACJA ZGODY. Wypisanie z newslettera czytamy w organizacji, której
 //     dotyczy zakup - nie w obcej, i nie po samym adresie.
 //   * LEJEK CRM. Rezygnacja i pauza muszą być widoczne tak samo jak zakup.
@@ -39,6 +42,7 @@ import type { PurchaseContext } from "@/lib/billing/purchaseEffects.server";
 import {
   BILLING_IDS,
   accessPlan,
+  fail,
   moneyPattern,
   ok,
   planLadder,
@@ -100,6 +104,11 @@ interface Scene {
   newsletter: Record<string, unknown> | null;
   /** Tabela, której KAŻDE zapytanie kończy się WYJĄTKIEM klienta (nie `{ error }`). */
   broken: string | null;
+  /**
+   * Zapytanie, na które PostgREST odpowiada `{ error }` - bez wyjątku, tak jak
+   * supabase-js zgłasza błąd bazy (CHECK, RLS) i sieci.
+   */
+  rejected: ((table: string, chain: RecordedChain) => boolean) | null;
 }
 
 let db: SupabaseFromStub;
@@ -132,8 +141,16 @@ function plansResponder(chain: RecordedChain): SupabaseResult {
 function guarded(table: string, respond: (chain: RecordedChain) => SupabaseResult) {
   return (chain: RecordedChain): SupabaseResult => {
     if (scene.broken === table) throw new Error(`test: wyjątek klienta (${table})`);
+    if (scene.rejected?.(table, chain)) {
+      return fail(`test: PostgREST odrzucił zapytanie (${table})`, "23514");
+    }
     return respond(chain);
   };
+}
+
+/** Kolumny z `select(...)` łańcucha - rozróżnia odczyty tej samej tabeli. */
+function selectedColumns(chain: RecordedChain): string {
+  return String(chain.argsOf("select")?.[0] ?? "");
 }
 
 function isWrite(chain: RecordedChain): boolean {
@@ -171,12 +188,16 @@ beforeEach(() => {
     lead: null,
     newsletter: null,
     broken: null,
+    rejected: null,
   };
 
   db = supabaseFromStub();
   h.db.current = db;
   db.setResponse("access_plans", plansResponder);
-  db.setResponse("profiles", () => ok(scene.profile));
+  db.setResponse(
+    "profiles",
+    guarded("profiles", () => ok(scene.profile)),
+  );
   db.setResponse("user_subscriptions", () => ok(null));
   db.setResponse(
     "crm_leads",
@@ -441,6 +462,109 @@ describe("applyPurchaseEffects - opłacona subskrypcja", () => {
       error.mockRestore();
     });
   });
+
+  describe("fail-soft: błąd zwrócony jako `{ error }` (supabase-js nie rzuca) też zostaje w logu", () => {
+    it.each([
+      {
+        // Dokładnie ten scenariusz opisuje komentarz przy `source_type`:
+        // CHECK odrzuca wiersz, a płacący klient nie trafia do CRM.
+        przypadek: "zakładanie leada odrzucone przez CHECK bazy",
+        table: "crm_leads",
+        method: "insert",
+        lead: null,
+        log: "[payments] crm sync failed",
+      },
+      {
+        przypadek: "aktualizacja istniejącego leada",
+        table: "crm_leads",
+        method: "update",
+        lead: { id: "lead-1", tags: ["vip"] },
+        log: "[payments] crm sync failed",
+      },
+      {
+        przypadek: "zapis na newsletter premium",
+        table: "newsletter_subscribers",
+        method: "upsert",
+        lead: null,
+        log: "[payments] premium newsletter opt-in failed",
+      },
+      {
+        przypadek: "dzwonek w aplikacji",
+        table: "notifications",
+        method: "insert",
+        lead: null,
+        log: "[payments] app notification failed",
+      },
+    ])(
+      "$przypadek: log z komunikatem bazy, a dostęp i mail są zapisane",
+      async ({ table, method, lead, log }) => {
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+        scene.lead = lead;
+        scene.rejected = (t, chain) => t === table && chain.has(method);
+
+        await expect(applyPurchaseEffects(purchase())).resolves.toBeUndefined();
+
+        expect(error).toHaveBeenCalledWith(
+          log,
+          expect.objectContaining({
+            message: expect.stringContaining(`test: PostgREST odrzucił zapytanie (${table})`),
+          }),
+        );
+        expect(written("user_subscriptions", "insert")).toMatchObject({ status: "active" });
+        expect(mails()).toHaveLength(1);
+        error.mockRestore();
+      },
+    );
+
+    it("nieudany odczyt leada to nie „brak leada” - CRM nie zakłada duplikatu kontaktu", async () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      scene.rejected = (table, chain) => table === "crm_leads" && !isWrite(chain);
+
+      await applyPurchaseEffects(purchase());
+
+      expect(writes("crm_leads")).toHaveLength(0);
+      expect(error).toHaveBeenCalledWith(
+        "[payments] crm sync failed",
+        expect.objectContaining({ message: expect.stringContaining("(crm_leads)") }),
+      );
+      // Pozostałe skutki zakupu biegną dalej.
+      expect(written("notifications", "insert")).toMatchObject({ icon: "badge-check" });
+      error.mockRestore();
+    });
+
+    it("nieudany odczyt zgody to nie „brak zapisu” - automat nie nadpisuje możliwego wypisania", async () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      scene.rejected = (table, chain) => table === "newsletter_subscribers" && !isWrite(chain);
+
+      await applyPurchaseEffects(purchase());
+
+      // Upsert po (tenant_id, email) ustawiłby `status: subscribed` na wierszu,
+      // którego stanu zgody nie udało się przeczytać.
+      expect(writes("newsletter_subscribers")).toHaveLength(0);
+      expect(error).toHaveBeenCalledWith(
+        "[payments] premium newsletter opt-in failed",
+        expect.objectContaining({ message: expect.stringContaining("(newsletter_subscribers)") }),
+      );
+      expect(written("notifications", "insert")).toMatchObject({ icon: "badge-check" });
+      error.mockRestore();
+    });
+
+    it("nieudany odczyt profilu przy zapisie na newsletter zostaje w logu, bez zapisu", async () => {
+      const error = vi.spyOn(console, "error").mockImplementation(() => {});
+      // Tylko odczyt profilu warstwy newslettera - mail i CRM czytają inne kolumny.
+      scene.rejected = (table, chain) =>
+        table === "profiles" && selectedColumns(chain) === "email, first_name, last_name";
+
+      await applyPurchaseEffects(purchase());
+
+      expect(db.chainsFor("newsletter_subscribers")).toHaveLength(0);
+      expect(error).toHaveBeenCalledWith(
+        "[payments] premium newsletter opt-in failed",
+        expect.objectContaining({ message: expect.stringContaining("(profiles)") }),
+      );
+      error.mockRestore();
+    });
+  });
 });
 
 describe("applyPlanChangeEffects - zmiana planu", () => {
@@ -483,13 +607,55 @@ describe("applyPlanChangeEffects - zmiana planu", () => {
     expect(mails()[0]?.bodyVars?.prorationAmount).toMatch(moneyPattern(5000));
   });
 
+  it("upgrade w cyklu ROCZNYM: dopłata liczona od długości roku, nie od 30 dni", async () => {
+    await applyPlanChangeEffects(
+      planChange({
+        priceId: "pro_annual",
+        previousPriceId: "plus_annual",
+        periodEnd: relativeIso(180 * DZIEN),
+      }),
+    );
+
+    expect(written("user_subscriptions", "insert")).toMatchObject({ plan_id: "plan-pro-annual" });
+    // (99900 - 49900) za 180 z 365 dni = 24657,53 -> 24658. Mianownik 30 dni
+    // dawał pełną różnicę (500 zł) - dwa razy więcej niż faktura operatora.
+    expect(mails()[0]?.bodyVars?.prorationAmount).toMatch(moneyPattern(24658));
+  });
+
+  it("upgrade ze zmianą cyklu (miesiąc -> rok): mail bez kwoty dopłaty", async () => {
+    // Operator zaczyna NOWY okres roczny - faktura to pełna cena roczna minus
+    // niewykorzystana część miesiąca, a nie różnica cen planów.
+    await applyPlanChangeEffects(
+      planChange({
+        priceId: "pro_annual",
+        previousPriceId: "plus_monthly",
+        periodEnd: relativeIso(365 * DZIEN),
+      }),
+    );
+
+    expect(mails()).toHaveLength(1);
+    expect(mails()[0]).toMatchObject({ type: "subscription_upgraded" });
+    expect(mails()[0]?.bodyVars?.prorationAmount).toBeNull();
+  });
+
+  it("upgrade do planu, który najemca wycenił taniej w tym samym cyklu - mail bez kwoty dopłaty", async () => {
+    scene.plans = scene.plans.map((plan) =>
+      plan.id === "plan-pro-monthly" ? { ...plan, price_cents: 3900 } : plan,
+    );
+
+    await applyPlanChangeEffects(planChange());
+
+    expect(mails()[0]?.bodyVars?.prorationAmount).toBeNull();
+  });
+
   it.each([
     { przypadek: "brak końca okresu", ctx: { periodEnd: null } },
     { przypadek: "opłacony okres już minął", ctx: { periodEnd: relativeIso(-1 * DZIEN) } },
     { przypadek: "nieczytelny koniec okresu", ctx: { periodEnd: "nie-data" } },
     {
-      // Wyższa ranga, niższa cena: roczny „Członek” (499 zł) -> miesięczny „Pro”.
-      przypadek: "nowy plan tańszy niż dotychczasowy",
+      // Wyższa ranga, inny cykl (i niższa cena): roczny „Członek” (499 zł) ->
+      // miesięczny „Pro”.
+      przypadek: "zmiana cyklu rok -> miesiąc",
       ctx: { previousPriceId: "plus_annual" },
     },
   ] satisfies { przypadek: string; ctx: Partial<PlanChange> }[])(
@@ -718,5 +884,21 @@ describe("syncCrmSubscriptionState - wywołanie bezpośrednie", () => {
     await syncCrmSubscriptionState(BILLING_IDS.me, "pro", "churned");
 
     expect(db.chainsFor("crm_leads")).toHaveLength(0);
+  });
+
+  it("nieudany odczyt profilu (`{ error }`) zostaje w logu i nie rusza CRM", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    scene.rejected = (table) => table === "profiles";
+
+    await expect(
+      syncCrmSubscriptionState(BILLING_IDS.me, "pro", "churned"),
+    ).resolves.toBeUndefined();
+
+    expect(db.chainsFor("crm_leads")).toHaveLength(0);
+    expect(error).toHaveBeenCalledWith(
+      "[payments] crm sync failed",
+      expect.objectContaining({ message: expect.stringContaining("(profiles)") }),
+    );
+    error.mockRestore();
   });
 });

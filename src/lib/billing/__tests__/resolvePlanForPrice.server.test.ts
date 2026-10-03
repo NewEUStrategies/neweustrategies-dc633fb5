@@ -40,7 +40,15 @@ describe("resolvePlanForPrice - zakres najemcy", () => {
   it("najemca z wiersza wołającego zawęża zapytanie i nie czyta profilu", async () => {
     await expect(
       resolvePlanForPrice("plus_monthly", { tenantId: "ten_a", userId: "user-1" }),
-    ).resolves.toEqual({ planId: "plan-a", tenantId: "ten_a", priceCents: 4900, currency: "PLN" });
+    ).resolves.toEqual({
+      planId: "plan-a",
+      tenantId: "ten_a",
+      priceCents: 4900,
+      currency: "PLN",
+      // Próg i cykl z wpisu katalogu - wołający nie pyta katalogu drugi raz.
+      tierKey: "member",
+      interval: "month",
+    });
 
     expect(db.chainsFor("profiles")).toHaveLength(0);
     const eqs = planLookup()!
