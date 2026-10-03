@@ -888,17 +888,52 @@ describe("mini-panel RUM w przeglądzie", () => {
     await waitFor(() => expect(screen.getByText("admin.analyticsPanel.vitals.empty")).toBeTruthy());
   });
 
-  it("BŁĄD odczytu RUM też daje komunikat, a nie wywrotkę na `metrics`", async () => {
-    // Po odrzuceniu zapytania `q.data` jest `undefined` przy `isLoading: false` -
-    // to jedyna ścieżka, na której opcjonalny dostęp `q.data?.metrics` naprawdę
-    // pracuje. Bez niego kafelki lecą na `undefined.slice`.
+  it("BŁĄD odczytu RUM to KOMUNIKAT AWARII z przyczyną, a nie „Brak próbek”", async () => {
+    // NAPRAWIONE 2026-10. Ten przypadek przypinał defekt jako zachowanie
+    // oczekiwane: po odrzuceniu zapytania `q.data` było `undefined` przy
+    // `isLoading: false`, więc panel spadał do gałęzi danych i malował
+    // `vitals.empty` - twierdzenie o RUCHU w miejscu awarii ODCZYTU. Od kiedy
+    // `getVitalsSummary` odrzuca wywołanie przy każdej awarii odczytu, ta
+    // gałąź jest ścieżką produkcyjną dla timeoutu, a nie tylko dla odmowy roli.
+    h.vitals = null;
+    h.vitalsError = new Error("statement timeout");
+    await mount();
+
+    const msg = await screen.findByText("admin.analyticsPanel.vitals.readFailed");
+    // Awaria jest OGŁASZANA czytnikowi, nie tylko wypisana.
+    expect(msg.closest('[role="alert"]')).not.toBeNull();
+    expect(
+      screen.getByText("admin.analyticsPanel.vitals.readFailedReason(reason=statement timeout)"),
+    ).toBeTruthy();
+    expect(screen.queryByText("admin.analyticsPanel.vitals.empty")).toBeNull();
+    // Reszta przeglądu stoi - awaria jednego kafelka nie gasi panelu.
+    expect(screen.getByText("admin.analyticsPanel.pill.gsc")).toBeTruthy();
+  });
+
+  it("odmowa roli też jest awarią odczytu, nie pustym oknem", async () => {
     h.vitals = null;
     h.vitalsError = new Error("Forbidden: admin role required");
     await mount();
 
-    await waitFor(() => expect(screen.getByText("admin.analyticsPanel.vitals.empty")).toBeTruthy());
-    // Reszta przeglądu stoi - awaria jednego kafelka nie gasi panelu.
-    expect(screen.getByText("admin.analyticsPanel.pill.gsc")).toBeTruthy();
+    await screen.findByText("admin.analyticsPanel.vitals.readFailed");
+    expect(
+      screen.getByText(
+        "admin.analyticsPanel.vitals.readFailedReason(reason=Forbidden: admin role required)",
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText("admin.analyticsPanel.vitals.empty")).toBeNull();
+  });
+
+  it("odrzucenie bez komunikatu nie dopisuje pustej przyczyny", async () => {
+    // „Przyczyna: " bez treści to szum, nie informacja - sam nagłówek awarii
+    // wystarcza, a operator i tak ma pełny pulpit RUM pod odnośnikiem.
+    h.vitals = null;
+    h.vitalsError = new Error("");
+    await mount();
+
+    await screen.findByText("admin.analyticsPanel.vitals.readFailed");
+    expect(screen.queryByText(/admin\.analyticsPanel\.vitals\.readFailedReason/)).toBeNull();
+    expect(screen.queryByText("admin.analyticsPanel.vitals.empty")).toBeNull();
   });
 
   it("pokazuje TRZY pierwsze metryki, nie wszystkie sześć", async () => {

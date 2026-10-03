@@ -9,6 +9,14 @@
  *
  * Rysuje przez `ChartCard`, czyli przez ten sam silnik, co wykres we wpisie -
  * paleta, geometria i interakcja są więc jedne dla całej platformy.
+ *
+ * TRZY STANY KAFELKA, nie jeden. Liczba (także „0") stoi WYŁĄCZNIE po udanym
+ * odczycie; w trakcie pomiaru kafelek mówi „Pomiar", a po awarii „Awaria
+ * odczytu", z jedną kartą `role="alert"` nad kafelkami, która podaje przyczynę.
+ * Do 2026-10 pasek nie czytał `isError` wcale i `?? 0` malowało „Próbki RUM: 0"
+ * zarówno przed odpowiedzią serwera, jak i po każdej awarii - zero tam, gdzie
+ * pomiaru nie było. Źródła są niezależne: awaria RUM nie gasi liczb błędów
+ * przeglądarki i odwrotnie.
  */
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -57,13 +65,30 @@ export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiS
     staleTime: 120_000,
   });
 
-  const lcp = vitalsQ.data?.metrics.find((m) => m.metric === "LCP");
+  // RAPORT JEST TWIERDZENIEM O DANYCH TYLKO PO UDANYM ODCZYCIE. Przy
+  // nieudanym ODŚWIEŻENIU react-query trzyma poprzednie `data` obok `error` -
+  // stara liczba obok świeżej awarii byłaby nieaktualnym pomiarem podanym
+  // jako bieżący.
+  const vitalsReport = vitalsQ.isError ? undefined : vitalsQ.data;
+  const errorsReport = errorsQ.isError ? undefined : errorsQ.data;
+  /** Napis NA MIEJSCU liczby, gdy pomiaru nie ma (wzór: `kpiPlaceholder` w GscBiDashboard). */
+  const placeholder = (failed: boolean): string =>
+    failed ? t("adminAnalytics.common.readFailedShort") : t("adminAnalytics.common.measuringShort");
+  // Jedna karta awarii na pasek: przyczyna pierwszego źródła, które padło.
+  // Kafelki i tak mówią, KTÓRE źródło nie ma pomiaru.
+  const failure = vitalsQ.isError ? vitalsQ.error : errorsQ.isError ? errorsQ.error : null;
+  const failureReason =
+    failure instanceof Error && failure.message.trim()
+      ? failure.message
+      : t("adminAnalytics.common.unknownReason");
+
+  const lcp = vitalsReport?.metrics.find((m) => m.metric === "LCP");
   const trend = useMemo(
     () =>
-      (vitalsQ.data?.trends ?? [])
+      (vitalsReport?.trends ?? [])
         .map((p) => ({ day: p.day, value: p.p75.LCP }))
         .filter((p): p is { day: string; value: number } => typeof p.value === "number"),
-    [vitalsQ.data],
+    [vitalsReport],
   );
 
   // LCP: szereg dzienny, więc ŁAMANA (`smoothing: 0`). Wygładzenie rysuje
@@ -89,7 +114,7 @@ export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiS
   // Stabilna referencja: `?? []` tworzy NOWĄ tablicę przy każdym renderze,
   // więc bez tego `useMemo` niżej przeliczałby konfigurację w kółko - a wykres
   // przebudowany przy każdym renderze gubi stan wskazania.
-  const daily = useMemo(() => errorsQ.data?.daily ?? [], [errorsQ.data]);
+  const daily = useMemo(() => errorsReport?.daily ?? [], [errorsReport]);
   // Błędy klienta idą DOMYŚLNYM slotem palety, i to jest decyzja, nie
   // przeoczenie: sloty serii niosą TOŻSAMOŚĆ, a nie ocenę. Kolor „zły" ma
   // w tym systemie osobne tokeny (`--chart-negative`) zarezerwowane dla
@@ -128,23 +153,44 @@ export function AdminBiStrip({ days = 14, showLink = true, className }: AdminBiS
         ) : null}
       </div>
 
+      {/* AWARIA TO KOMUNIKAT, NIE SIATKA ZER. Karta stoi NAD kafelkami, a
+          wykresy się nie zwijają (dostają puste serie), żeby operator nie
+          tracił kontekstu paska. */}
+      {failure ? (
+        <Card
+          role="alert"
+          className="mb-2.5 space-y-0.5 border-destructive/40 bg-destructive/5 p-3 text-sm"
+        >
+          <div className="font-medium text-destructive">
+            {t("adminAnalytics.common.readFailedReason", { reason: failureReason })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t("adminAnalytics.common.readFailedHint")}
+          </p>
+        </Card>
+      ) : null}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         <KpiTile
           label={t("adminAnalytics.bi.kpi.samples")}
-          value={String(vitalsQ.data?.windowTotal ?? 0)}
+          value={vitalsReport ? String(vitalsReport.windowTotal) : placeholder(vitalsQ.isError)}
         />
+        {/* Kreska zostaje luką ZMIERZONEGO okna bez próbek LCP - nie stanem
+            „jeszcze nie wiem" ani „odczyt padł". */}
         <KpiTile
           label={t("adminAnalytics.bi.kpi.lcp")}
-          value={lcp ? `${Math.round(lcp.p75)} ms` : "-"}
+          value={
+            vitalsReport ? (lcp ? `${Math.round(lcp.p75)} ms` : "-") : placeholder(vitalsQ.isError)
+          }
           hint={lcp ? lcp.rating : undefined}
         />
         <KpiTile
           label={t("adminAnalytics.bi.kpi.errors")}
-          value={String(errorsQ.data?.windowTotal ?? 0)}
+          value={errorsReport ? String(errorsReport.windowTotal) : placeholder(errorsQ.isError)}
         />
         <KpiTile
           label={t("adminAnalytics.bi.kpi.errorGroups")}
-          value={String(errorsQ.data?.uniqueGroups ?? 0)}
+          value={errorsReport ? String(errorsReport.uniqueGroups) : placeholder(errorsQ.isError)}
         />
       </div>
 

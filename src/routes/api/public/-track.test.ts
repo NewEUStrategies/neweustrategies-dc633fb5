@@ -434,6 +434,28 @@ describe("RODO: redakcja adresów i treści", () => {
     expect(meta).toMatchObject({ results: 3 });
   });
 
+  it("FRAZA będąca NUMEREM TELEFONU nie trafia do `entity_id`", async () => {
+    // Nagłówek trasy od dawna twierdził, że fraza „bywa adresem e-mail albo
+    // numerem telefonu", a `redactPii` reguły na telefon nie miał - numer
+    // przechodził surowy (ZMIERZONE przed naprawą).
+    await postOne({
+      type: "search",
+      name: "internal_search",
+      entity_type: "search_query",
+      entity_id: "+48 600 123 456",
+    });
+
+    expect(insertedRows()[0]!.entity_id).toBe("[redacted-phone]");
+  });
+
+  it("TELEFON w `meta` jest skrubowany - także zagnieżdżony", async () => {
+    await postOne({ meta: { ctx: { fraza: "zadzwoń 600 123 456" } } });
+
+    const json = JSON.stringify(insertedRows()[0]!.meta);
+    expect(json).toContain("[redacted-phone]");
+    expect(json).not.toContain("600 123 456");
+  });
+
   it("TOKEN i ADRES IP w `meta` NIE trafiają do tabeli", async () => {
     await postOne({ meta: { note: "token=abcdef0123456789abcdef01 z 192.168.13.240" } });
 

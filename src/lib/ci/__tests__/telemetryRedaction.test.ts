@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   PUBLIC_TELEMETRY_SINKS,
+  THIRD_PARTY_TELEMETRY_EGRESS,
   isColumnRedacted,
   redactorWiringPattern,
   renderTelemetryRedactionReport,
@@ -74,6 +75,19 @@ describe("isColumnRedacted - liczy się ŻYWE wywołanie, nie wzmianka", () => {
 
   it("wzorzec toleruje odstępy wokół dwukropka i nawiasu", () => {
     expect(redactorWiringPattern("meta", "redactMeta").test("meta :  redactMeta (m)")).toBe(true);
+  });
+
+  it("widzi `redactQueryPii` w kształcie z ga4EventMap.ts, a goła ścieżka nie przechodzi", () => {
+    expect(
+      isColumnRedacted(
+        "page_path: redactQueryPii(redactTrackedPath(event.path)) || undefined,",
+        "page_path",
+        "redactQueryPii",
+      ),
+    ).toBe(true);
+    expect(
+      isColumnRedacted("page_path: event.path || undefined,", "page_path", "redactQueryPii"),
+    ).toBe(false);
   });
 });
 
@@ -175,6 +189,31 @@ describe("bramka na PRAWDZIWYCH źródłach", () => {
   });
 
   it("każda publiczna ścieżka ingestu redaguje KAŻDĄ zarejestrowaną kolumnę", () => {
+    const violations = scanTelemetryRedaction(sources);
+    expect(renderTelemetryRedactionReport(violations, columns, sources.length)).toContain("✓");
+    expect(violations).toEqual([]);
+  });
+});
+
+// Wyjście do Google omija nasz serwer i jego redaktory, a kopia zdarzeń idzie
+// przed bramką zgody - ten sam skaner, osobny rejestr (to nie jest ingest).
+describe("wyjście do GA4 na PRAWDZIWYCH źródłach", () => {
+  const sources: TelemetrySinkSource[] = THIRD_PARTY_TELEMETRY_EGRESS.map((s) => ({
+    ...s,
+    source: readFileSync(resolve(process.cwd(), s.file), "utf8"),
+  }));
+  const columns = sources.reduce((n, s) => n + s.columns.length, 0);
+
+  it("rejestr wskazuje na istniejące pliki (bramka nie skanuje pustki)", () => {
+    sources.forEach((s) => expect(s.source.length).toBeGreaterThan(0));
+  });
+
+  it("KANAREK ZASIĘGU: rejestr wyjść do GA4 nie może się wyzerować po cichu", () => {
+    expect(THIRD_PARTY_TELEMETRY_EGRESS.length).toBeGreaterThanOrEqual(2);
+    expect(columns).toBeGreaterThanOrEqual(4);
+  });
+
+  it("każde wyjście do GA4 redaguje KAŻDĄ zarejestrowaną wartość", () => {
     const violations = scanTelemetryRedaction(sources);
     expect(renderTelemetryRedactionReport(violations, columns, sources.length)).toContain("✓");
     expect(violations).toEqual([]);

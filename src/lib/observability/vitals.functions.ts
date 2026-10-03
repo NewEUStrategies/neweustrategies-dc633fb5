@@ -6,6 +6,9 @@
 // therefore read via supabaseAdmin (service role) but gate the call behind an
 // explicit admin-role check first, so RUM analytics stay admin-only even though
 // the underlying client bypasses RLS.
+//
+// Awaria odczytu ODRZUCA wywołanie z przyczyną - zera wracają wyłącznie
+// z udanego odczytu pustego okna (szczegóły przy bloku `try` niżej).
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -60,19 +63,21 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
     const until = new Date(untilMs).toISOString();
     const windowDays = Math.max(1, Math.ceil((untilMs - sinceMs) / 86_400_000));
     const hasCustomUntil = Boolean(data.untilIso);
-    const empty: VitalsSummaryResult = {
-      windowDays,
-      total: 0,
-      metrics: [],
-      paths: [],
-      trends: [],
-      windowTotal: 0,
-      capped: false,
-    };
 
-    // Degrade gracefully on any data-read failure (e.g. the web_vitals migration
-    // hasn't been applied to this database yet): the dashboard shows "no data"
-    // instead of returning a 500. Auth/admin failures above still throw.
+    // AWARIA ODCZYTU LECI W GÓRĘ, NIE W PUSTY RAPORT. Do 2026-10 ten blok łapał
+    // KAŻDY błąd - brak najemcy w profilu, timeout PostgREST, zerwane
+    // połączenie, brak relacji - i oddawał `windowTotal: 0`. Pulpit RUM
+    // rysował wtedy „Brak próbek RUM w wybranym oknie", a pasek na /admin
+    // „Próbki RUM: 0", czyli twierdzenie o pomiarze, którego nie było. Karta
+    // „Awaria odczytu" w VitalsBiDashboard była osiągalna wyłącznie przy
+    // odmowie roli, bo tylko bramka stała poza tym blokiem. Uzasadnienie
+    // „migracja web_vitals mogła jeszcze nie dotrzeć do bazy" przestało być
+    // prawdą: tabela powstała w 20260626210000 i jest w wygenerowanych typach,
+    // więc jej brak na produkcji to awaria wdrożenia, którą operator MA
+    // zobaczyć. Kontrakt jak w relatedInsights.functions.ts (ta sama naprawa
+    // tej samej klasy defektu): pusty raport wraca WYŁĄCZNIE z udanego odczytu
+    // pustego okna, a każda awaria odrzuca wywołanie z przyczyną, więc
+    // react-query ustawia `isError`.
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       // Scope every read to the caller's own tenant so one workspace's admin
@@ -132,10 +137,12 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
 
       return { ...report, trends, windowTotal, capped: windowTotal > SAMPLE_CAP };
     } catch (e) {
-      console.warn(
-        "[vitals] summary read failed; returning empty report:",
-        e instanceof Error ? e.message : e,
-      );
-      return empty;
+      // Ślad z nazwą modułu zostaje w logu workera. Start loguje odrzucenie
+      // sam („Server Fn Error!"), ale bez nazwy funkcji, a „No tenant for
+      // current user" rzuca wspólny userTenant.server.ts. Wyjątek idzie DALEJ
+      // nietknięty: komunikat PostgREST jest dokładnie tą przyczyną, którą
+      // karta awarii pokazuje operatorowi.
+      console.warn("[vitals] summary read failed:", e instanceof Error ? e.message : e);
+      throw e;
     }
   });

@@ -20,11 +20,14 @@
  * `event_name`, który ZOSTAJE SUROWY - jest kluczem grupowania każdego raportu,
  * a `redactPii` zlewa ciągi od 40 znaków w „[redacted]".
  *
+ * Drugi rejestr, `THIRD_PARTY_TELEMETRY_EGRESS`, obejmuje tym samym skanerem
+ * WYJŚCIE do Google (kopia zdarzeń dla GA4), które omija nasz serwer.
+ *
  * Moduł jest CZYSTY (bez I/O) - pliki wczytuje test bramki.
  */
 import { stripTsComments } from "../../../scripts/lib/stripComments";
 
-export type Redactor = "redactPii" | "redactUrl" | "redactMeta";
+export type Redactor = "redactPii" | "redactUrl" | "redactMeta" | "redactQueryPii";
 
 /** Kolumna zapisywana przez endpoint + redaktor, przez który MUSI przejść. */
 export interface TelemetryColumn {
@@ -104,6 +107,42 @@ export const PUBLIC_TELEMETRY_SINKS: readonly TelemetrySink[] = [
         column: "path",
         redactor: "redactUrl",
         why: "schemat przyjmuje z.string().max(2000) od dowolnego klienta",
+      },
+    ],
+  },
+] as const;
+
+/**
+ * REJESTR wyjść telemetrii DO GOOGLE - to NIE jest ingest i nic tu nie pisze
+ * service_rolem. Przeglądarka wysyła te dane do GA4 wprost, z pominięciem
+ * naszego serwera (i jego redaktorów), a kopia zdarzeń wychodzi ZANIM zadziała
+ * bramka zgody (Consent Mode advanced: ping bez cookies niesie parametry).
+ * Do 2026-10 ta ścieżka nie redagowała niczego: Google dostawało wersję gorzej
+ * chronioną niż nasza własna tabela. Rejestr ręczny, nowe wyjście dopisuje się
+ * DECYZJĄ, tak samo jak endpoint ingestu.
+ */
+export const THIRD_PARTY_TELEMETRY_EGRESS: readonly TelemetrySink[] = [
+  {
+    file: "src/lib/analytics/ga4EventMap.ts",
+    label: "kopia zdarzeń track() do GA4",
+    columns: [
+      {
+        column: "entityId",
+        redactor: "redactPii",
+        why: "fraza z wyszukiwarki -> item_id i search_term",
+      },
+      { column: "meta", redactor: "redactMeta", why: "kontekst zdarzenia -> parametry GA4" },
+      { column: "page_path", redactor: "redactQueryPii", why: "/search?q=<fraza> w ścieżce" },
+    ],
+  },
+  {
+    file: "src/lib/analytics/ga4Client.ts",
+    label: "odsłona GA4 (page_location dziedziczone przez każde zdarzenie)",
+    columns: [
+      {
+        column: "pageLocation",
+        redactor: "redactQueryPii",
+        why: "/search?q=… i /auth?email=… w adresie",
       },
     ],
   },

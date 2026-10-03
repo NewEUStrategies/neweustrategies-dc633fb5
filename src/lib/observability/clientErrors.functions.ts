@@ -49,20 +49,18 @@ export const getClientErrorsReport = createServerFn({ method: "POST" })
     const until = new Date(untilMs).toISOString();
     const windowDays = Math.max(1, Math.ceil((untilMs - sinceMs) / 86_400_000));
 
-    const empty: ClientErrorsReport = {
-      windowDays,
-      total: 0,
-      windowTotal: 0,
-      capped: false,
-      uniqueGroups: 0,
-      affectedPaths: 0,
-      last24h: 0,
-      daily: [],
-      groups: [],
-    };
-
-    // Degradacja bez 500-ki, gdy migracja tabeli nie dotarła do tej bazy -
-    // dashboard pokaże "brak danych" (błędy auth/roli wyżej nadal rzucają).
+    // AWARIA ODCZYTU LECI W GÓRĘ, NIE W PUSTY RAPORT. Do 2026-10 ten blok łapał
+    // KAŻDY błąd - brak najemcy w profilu, timeout PostgREST, zerwane
+    // połączenie, brak relacji - i oddawał zera. Dashboard pisał wtedy „Brak
+    // błędów w wybranym oknie. To dobrze", a pasek na /admin „Błędy
+    // przeglądarki: 0", czyli dobrą wiadomość w miejscu awarii odczytu.
+    // Uzasadnienie „migracja tabeli mogła nie dotrzeć do tej bazy" przestało
+    // być prawdą: client_errors powstała w 20260626230000 i jest
+    // w wygenerowanych typach, więc jej brak na produkcji to awaria wdrożenia,
+    // którą operator MA zobaczyć. Kontrakt jak w relatedInsights.functions.ts:
+    // pusty raport wraca WYŁĄCZNIE z udanego odczytu pustego okna (wtedy
+    // z dniami o zerowym liczniku w `daily`), a każda awaria odrzuca wywołanie
+    // z przyczyną, więc react-query ustawia `isError`.
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const tenantId = await resolveUserTenantId(supabaseAdmin, context.userId);
@@ -94,10 +92,12 @@ export const getClientErrorsReport = createServerFn({ method: "POST" })
         nowMs: untilMs,
       });
     } catch (e) {
-      console.warn(
-        "[client-errors] report read failed; returning empty report:",
-        e instanceof Error ? e.message : e,
-      );
-      return empty;
+      // Ślad z nazwą modułu zostaje w logu workera. Start loguje odrzucenie
+      // sam („Server Fn Error!"), ale bez nazwy funkcji, a „No tenant for
+      // current user" rzuca wspólny userTenant.server.ts. Wyjątek idzie DALEJ
+      // nietknięty: komunikat PostgREST jest dokładnie tą przyczyną, którą
+      // karta awarii pokazuje operatorowi.
+      console.warn("[client-errors] report read failed:", e instanceof Error ? e.message : e);
+      throw e;
     }
   });

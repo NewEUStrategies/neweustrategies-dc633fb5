@@ -517,6 +517,39 @@ describe("VitalsBiDashboard - stany panelu", () => {
 
     expect(container.textContent ?? "").toMatch(/500|b[lł][aą]d|error/i);
   });
+
+  it("awaria odczytu NIE melduje „Próbek w oknie: 0” obok karty awarii", async () => {
+    // Od 2026-10 `getVitalsSummary` odrzuca wywołanie przy KAŻDEJ awarii
+    // odczytu, więc ta karta jest ścieżką produkcyjną dla timeoutu czy braku
+    // relacji. Licznik w nagłówku liczył `report?.windowTotal ?? 0` i stawiał
+    // zero tuż obok niej - pomiar i jego brak w jednym kadrze.
+    h.fetchVitals.mockRejectedValue(new Error("statement timeout"));
+    panel();
+    await settled();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("statement timeout");
+    expect(screen.queryByText(vit("samplesInWindow", { count: 0 }), { exact: false })).toBeNull();
+  });
+
+  it("w trakcie pomiaru licznik próbek w oknie nie maluje zera", async () => {
+    h.fetchVitals.mockImplementation(() => new Promise<VitalsSummaryResult>(() => {}));
+    panel();
+    await screen.findByText(common("loading"));
+
+    expect(screen.queryByText(vit("samplesInWindow", { count: 0 }), { exact: false })).toBeNull();
+  });
+
+  it("ZMIERZONE zero stawia licznik „0” obok karty braku próbek", async () => {
+    // Kontrola trzeciego stanu: licznik nie zniknął w ogóle, tylko czeka na
+    // udany odczyt - pusty odczyt to pomiar i jego zero jest prawdą.
+    h.fetchVitals.mockResolvedValue(summary({ metrics: [], total: 0, windowTotal: 0 }));
+    panel();
+    await screen.findByText(vit("noSamples"));
+
+    expect(
+      screen.getByText(vit("samplesInWindow", { count: 0 }), { exact: false }),
+    ).toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1517,6 +1550,15 @@ describe("VitalsBiDashboard - dostępność", () => {
     expect(summarize(await axeViolations(container, { "button-name": { enabled: false } }))).toBe(
       "",
     );
+  });
+
+  it("karta awarii odczytu jest wolna od naruszeń axe", async () => {
+    h.fetchVitals.mockRejectedValue(new Error("statement timeout"));
+    const { container } = panel();
+    await settled();
+    await screen.findByRole("alert");
+
+    expect(summarize(await axeViolations(container))).toBe("");
   });
 
   it("karta braku próbek jest wolna od naruszeń axe", async () => {
