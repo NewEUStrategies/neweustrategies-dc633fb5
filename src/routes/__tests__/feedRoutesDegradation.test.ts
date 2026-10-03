@@ -39,12 +39,15 @@
 //   * pochodzenie `robots.txt` Z TRASY, nie z pliku statycznego, i polityka
 //     zależna od hosta -> trzy testy: "robots.txt comes from the ROUTE, not a
 //     static file in public/", "robots.txt exposes crawl policy", "robots.txt
-//     is served by the route, not by a static asset". `robots.txt` NIE jest
-//     więc tutaj testowany wcale: cała jego logika mieszka w
-//     `robotsRequest.server.ts` i `lib/seo/robots.ts` (jedno wiązanie żądania
-//     z odpowiedzią w pliku trasy), a jego regresja wdrożeniowa jest właśnie
-//     tym, co e2e pilnuje nagłówkiem `X-Robots-Tag`, którego atrapa nie umie
-//     podrobić w sposób dowodzący czegokolwiek;
+//     is served by the route, not by a static asset". `robots.txt` jest
+//     tutaj testowany WYŁĄCZNIE w kontrakcie parytetu polityki AI z llms.txt
+//     (blok „jedna polityka AI na jednym hoście" na końcu pliku) - dlatego
+//     atrapa `tenant.server` musi eksportować KAŻDĄ nazwę, którą
+//     `robotsRequest.server.ts` destrukturyzuje. Cała reszta jego logiki
+//     mieszka w `robotsRequest.server.ts` i `lib/seo/robots.ts` (kontrakt:
+//     `lib/server/__tests__/robotsRequest.test.ts`), a jego regresja
+//     wdrożeniowa jest właśnie tym, co e2e pilnuje nagłówkiem `X-Robots-Tag`,
+//     którego atrapa nie umie podrobić w sposób dowodzący czegokolwiek;
 //   * feedy treści dla trackera i relacji -> "content feeds respond for the
 //     tracker and live coverage";
 //   * odnajdywalność kanału podcastu -> "podcast feed is auto-discoverable
@@ -2254,7 +2257,8 @@ const HOST_SURFACE_EXEMPT: Readonly<Record<string, string>> = {
   "/sitemap": "strona HTML renderowana przez SSR komponentu, nie handler powierzchni crawlera",
   "/robots.txt":
     "własny kontrakt: fail-closed to `Disallow: /`, nie 404, a niepewność katalogu to " +
-    "`volatile` bez cache - `lib/server/__tests__/robotsRequest.test.ts`",
+    "`volatile` bez cache - `lib/server/__tests__/robotsRequest.test.ts`; tutaj tylko " +
+    "parytet polityki AI z llms.txt (blok „jedna polityka AI na jednym hoście”)",
 };
 
 /** Feedy per element (rejestr `PER_ITEM_FEED_ROUTE_FILES`) - kontrakt sluga. */
@@ -2635,6 +2639,18 @@ describe("llms.txt i robots.txt - jedna polityka AI na jednym hoście", () => {
     return { llms, robots };
   }
 
+  /**
+   * WSZYSTKIE linie Content-Signal pliku - grupa `*` i grupy per agent. Bot
+   * stosuje wyłącznie grupę ze swoją nazwą, więc sprzeczny sygnał w grupie
+   * GPTBota jest dla GPTBota JEDYNĄ polityką; pierwsza linia nie wystarcza.
+   */
+  function allSignals(robots: string): Array<{ aiInput: string; aiTrain: string }> {
+    return Array.from(
+      robots.matchAll(/^Content-Signal: search=yes, ai-input=(yes|no), ai-train=(yes|no)$/gm),
+      (m) => ({ aiInput: m[1], aiTrain: m[2] }),
+    );
+  }
+
   /** Content-Signal grupy `*` - pierwsza dyrektywa w pliku (grupy AI są niżej). */
   function wildcardSignal(robots: string): { aiInput: string; aiTrain: string } {
     const match = robots.match(
@@ -2657,6 +2673,20 @@ describe("llms.txt i robots.txt - jedna polityka AI na jednym hoście", () => {
     expect(body).toContain("Content-Signal: ai-input=no");
     // Zaproszenie do cytowania kanonicznych adresów przeczyłoby zakazowi.
     expect(body).not.toContain("Cite the canonical article URLs");
+  });
+
+  it("cytowanie wyłączone, trening dozwolony -> grupa crawlerów treningowych też mówi ai-input=no", async () => {
+    // Defekt bliźniaczy: grupa GPTBota/CCBota miała stałe `ai-input=yes`, więc
+    // przy zakazie cytowania robots.txt dawał botom treningowym zgodę, której
+    // odmawiały grupa `*` i llms.txt.
+    state.settings = { ai_search_crawlers_allowed: false, ai_training_crawlers_allowed: true };
+    const { llms, robots } = await bothSurfaces();
+    const gptBotGroup = robots.slice(robots.indexOf("User-agent: GPTBot"));
+    expect(gptBotGroup).toContain("Content-Signal: search=yes, ai-input=no, ai-train=yes");
+    expect(robots).not.toMatch(/ai-input=yes/);
+    const body = await llms.text();
+    expect(body).toContain("PROHIBITED");
+    expect(body).toContain("Training models on this content is permitted");
   });
 
   it("crawlery treningowe wyłączone -> llms.txt wymaga licencji, jak robots.txt", async () => {
@@ -2688,6 +2718,11 @@ describe("llms.txt i robots.txt - jedna polityka AI na jednym hoście", () => {
       const body = await llms.text();
       const signal = wildcardSignal(robots);
       expect(signal).toEqual({ aiInput: search ? "yes" : "no", aiTrain: train ? "yes" : "no" });
+      // Każda grupa per agent mówi to samo co grupa `*` - inaczej llms.txt
+      // zgadzałby się z jedną grupą, a przeczył tej, którą bot faktycznie stosuje.
+      const signals = allSignals(robots);
+      expect(signals.length).toBeGreaterThanOrEqual(1 + Number(search) + Number(train));
+      for (const line of signals) expect(line).toEqual(signal);
 
       // Jedna nazwa źródła: nagłówek llms.txt, warunek llms.txt i warunek robots.txt.
       const robotsName = robots.match(/must name "([^"]+)" as the source/)?.[1];

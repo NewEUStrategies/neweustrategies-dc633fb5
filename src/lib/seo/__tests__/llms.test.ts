@@ -195,6 +195,12 @@ describe("buildLlmsTxt - warunki wykorzystania wynikają z polityki AI", () => {
       expect(block.includes("ai-train=yes")).toBe(usage.trainingAllowed);
       expect(block.includes("ai-train=no")).toBe(!usage.trainingAllowed);
       expect(block.includes("requires a written licence")).toBe(!usage.trainingAllowed);
+      // Zgoda na indeksowanie przy zakazie cytowania dotyczy TYLKO klasycznych
+      // wyszukiwarek (grupa `*`) - crawlery wyszukiwawcze AI mają `Disallow: /`.
+      expect(block.includes("AI search crawlers are disallowed in robots.txt")).toBe(
+        !usage.aiInputAllowed,
+      );
+      expect(block).not.toContain("Search-engine indexing remains permitted");
     },
   );
 

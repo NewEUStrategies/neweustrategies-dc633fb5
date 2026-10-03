@@ -127,19 +127,32 @@ function usageTermsUrl(origin: string, termsPath: string | undefined): string {
  * trafia do tego samego kontekstu, w którym powstaje odpowiedź.
  */
 function renderUsagePolicy(origin: string, usage: RobotsUsagePolicy): string[] {
+  // Zgoda na cytowanie TYLKO przy `ai-input=yes`. Wcześniej zdanie zgody było
+  // stałe, więc przy wyłączonych crawlerach AI plik przeczył sam sobie:
+  // „AI assistants MAY ... quote" i „atrybucja to JEDYNY warunek dla każdej
+  // odpowiedzi", a trzy linie niżej „Quoting in AI answers: not permitted".
+  // Wariant `ai-input=no` mówi to samo, co llms.txt: wyszukiwarki indeksują,
+  // odpowiedzi AI są wyłączone, a każde DOZWOLONE użycie wymaga atrybucji.
+  const grant = usage.aiInputAllowed
+    ? [
+        "# Search engines and AI assistants MAY crawl, index and quote this site,",
+        "# on ONE condition: every answer, summary or excerpt that uses this content",
+        `# must name "${usage.siteName}" as the source AND link the exact article URL`,
+        "# it draws on. Attribution is required, not optional - unattributed reuse is",
+        "# not covered by this permission.",
+      ]
+    : [
+        "# Classic search engines (group *) MAY crawl and index this site. AI assistants",
+        "# may NOT use its content in answers, summaries or excerpts (ai-input=no);",
+        "# AI search crawlers are disallowed below. Any permitted reuse (search results",
+        `# and snippets, training where allowed below) must name "${usage.siteName}" as the source`,
+        "# AND link the exact article URL it draws on - unattributed reuse is not",
+        "# covered by this permission.",
+      ];
   return [
     `# Content usage policy for ${usage.siteName}.`,
     "#",
-    // Zgoda na cytowanie TYLKO przy `ai-input=yes`. Wcześniej to zdanie było
-    // stałe, więc przy wyłączonych crawlerach AI plik przeczył sam sobie:
-    // „AI assistants MAY ... quote", a trzy linie niżej „not permitted".
-    usage.aiInputAllowed
-      ? "# Search engines and AI assistants MAY crawl, index and quote this site,"
-      : "# Search engines MAY crawl and index this site (AI assistants: see below),",
-    "# on ONE condition: every answer, summary or excerpt that uses this content",
-    `# must name "${usage.siteName}" as the source AND link the exact article URL`,
-    "# it draws on. Attribution is required, not optional - unattributed reuse is",
-    "# not covered by this permission.",
+    ...grant,
     usage.trainingAllowed
       ? "# Training on this content is permitted under the same attribution terms."
       : "# Training generative models on this content requires a written licence.",

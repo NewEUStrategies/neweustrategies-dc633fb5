@@ -293,6 +293,10 @@ describe("robots.txt - blok warunków wykorzystania", () => {
       );
       // Warunek atrybucji zostaje w obu wariantach - wyszukiwarki nadal indeksują.
       expect(body).toContain('must name "Redakcja Testowa" as the source');
+      // Przy `ai-input=no` atrybucja NIE jest „jedynym warunkiem dla każdej
+      // odpowiedzi" - to zdanie czyniłoby atrybuowaną odpowiedź AI dozwoloną.
+      expect(body.includes("on ONE condition: every answer")).toBe(aiInputAllowed);
+      expect(body.includes("may NOT use its content in answers")).toBe(!aiInputAllowed);
     },
   );
 

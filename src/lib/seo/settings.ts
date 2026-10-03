@@ -206,12 +206,23 @@ export function aiCrawlerGroups(settings: SeoSettings): RobotsGroup[] {
     groups.push({ agents: AI_SEARCH_CRAWLERS, disallow: ["/"] });
   }
   if (settings.ai_training_crawlers_allowed) {
+    // `ai-input` grupy treningowej idzie za przełącznikiem CYTOWANIA, nie jest
+    // stałym `yes`: bot dopasowuje wyłącznie swoją grupę, więc stałe
+    // `ai-input=yes` dawało GPTBotowi i spółce zgodę na użycie treści
+    // w odpowiedziach AI, której redakcja odmówiła (grupa `*` i llms.txt
+    // mówiły `ai-input=no`) - plik przeczył sam sobie.
+    const aiInput = settings.ai_search_crawlers_allowed ? "yes" : "no";
     groups.push({
       agents: AI_TRAINING_CRAWLERS,
       allow: ["/"],
       disallow: ROBOTS_DEFAULT_DISALLOW,
-      contentSignal: "search=yes, ai-input=yes, ai-train=yes",
-      comments: ["Training crawlers: allowed under the attribution terms above."],
+      contentSignal: `search=yes, ai-input=${aiInput}, ai-train=yes`,
+      comments: settings.ai_search_crawlers_allowed
+        ? ["Training crawlers: allowed under the attribution terms above."]
+        : [
+            "Training crawlers: training allowed under the attribution terms above;",
+            "use in AI answers is not permitted (ai-input=no).",
+          ],
     });
   } else {
     groups.push({ agents: AI_TRAINING_CRAWLERS, disallow: ["/"] });

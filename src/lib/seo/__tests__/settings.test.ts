@@ -271,6 +271,34 @@ describe("effectiveSiteName / robotsUsagePolicy", () => {
     },
   );
 
+  it.each([true, false].flatMap((search) => [true, false].map((train) => ({ search, train }))))(
+    "każda grupa AI niesie ai-input i ai-train z przełączników: wyszukiwawcze=$search, treningowe=$train",
+    ({ search, train }) => {
+      const settings = {
+        ...DEFAULT_SEO_SETTINGS,
+        ai_search_crawlers_allowed: search,
+        ai_training_crawlers_allowed: train,
+      };
+      for (const group of aiCrawlerGroups(settings)) {
+        // Grupa zakazu (`Disallow: /`) nie niesie sygnału - nie ma czego wyrażać.
+        if (!group.contentSignal) continue;
+        expect(group.contentSignal).toBe(
+          `search=yes, ai-input=${search ? "yes" : "no"}, ai-train=${train ? "yes" : "no"}`,
+        );
+      }
+    },
+  );
+
+  it("grupa treningowa przy zakazie cytowania mówi wprost, że odpowiedzi AI są wyłączone", () => {
+    const [, training] = aiCrawlerGroups({
+      ...DEFAULT_SEO_SETTINGS,
+      ai_search_crawlers_allowed: false,
+    });
+    expect(training.agents).toContain("GPTBot");
+    expect(training.contentSignal).toBe("search=yes, ai-input=no, ai-train=yes");
+    expect(training.comments?.join(" ")).toContain("use in AI answers is not permitted");
+  });
+
   it("odsyła do /llms.txt tylko wtedy, gdy redakcja go serwuje", () => {
     expect(robotsUsagePolicy(DEFAULT_SEO_SETTINGS).termsPath).toBe("/llms.txt");
     expect(
