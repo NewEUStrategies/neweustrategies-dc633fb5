@@ -15,6 +15,8 @@ interface SmoothAnchorScrollOptions {
   onFinish?: () => void;
 }
 
+const MAX_FRAME_STEP_MS = 24;
+
 let activeScrollCancel: ScrollCancel | null = null;
 
 function clamp(n: number, min: number, max: number): number {
@@ -142,16 +144,29 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
   window.addEventListener("touchstart", onUserIntent, { passive: true, once: true });
   window.addEventListener("keydown", onUserIntent, { passive: true, once: true });
 
-  const duration = clamp(Math.abs(initialDistance) * 0.34, minDuration, maxDuration);
-  const startTime = window.performance.now();
+  let segmentStart = startTop;
+  let segmentDuration = clamp(Math.abs(initialDistance) * 0.34, minDuration, maxDuration);
+  // Zegar wirtualny: długa klatka (montowanie sekcji pod linią zgięcia) nie
+  // może przeskoczyć animacji o setki pikseli - postęp rośnie najwyżej o
+  // MAX_FRAME_STEP_MS na klatkę, więc ruch zostaje ciągły nawet przy zacięciu.
+  let elapsed = 0;
+  let lastNow = window.performance.now();
 
   const step = (now: number): void => {
     if (cancelled) return;
-    const elapsed = now - startTime;
-    const progress = clamp(elapsed / duration, 0, 1);
+    elapsed += clamp(now - lastNow, 0, MAX_FRAME_STEP_MS);
+    lastNow = now;
     const dynamicTarget = targetTop();
-    if (Math.abs(dynamicTarget - latestTarget) > 0.5) latestTarget = dynamicTarget;
-    const nextTop = startTop + (latestTarget - startTop) * easeOutCubic(progress);
+    if (Math.abs(dynamicTarget - latestTarget) > 0.5) {
+      // Treść nad celem zmieniła wysokość: zaczynamy nowy odcinek z bieżącej
+      // pozycji zamiast przeliczać stary - brak skoku pozycji strony.
+      segmentStart = window.scrollY;
+      latestTarget = dynamicTarget;
+      segmentDuration = Math.max(minDuration * 0.6, segmentDuration - elapsed);
+      elapsed = 0;
+    }
+    const progress = clamp(elapsed / segmentDuration, 0, 1);
+    const nextTop = segmentStart + (latestTarget - segmentStart) * easeOutCubic(progress);
     window.scrollTo({ top: nextTop, left: 0, behavior: "auto" });
     if (progress < 1) {
       frame = window.requestAnimationFrame(step);
