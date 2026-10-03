@@ -21,11 +21,10 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-function easeInOutCubic(t: number): number {
-  // Łagodniejszy start niż cubic, ale szybsze dojście do środka. Dzięki temu
-  // długi skok ze spisu treści nie sprawia wrażenia zawieszonego, a koniec nie
-  // hamuje nagle tuż przed nagłówkiem.
-  return t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2;
+function easeOutCubic(t: number): number {
+  // Ruch zaczyna się natychmiast po kliknięciu i łagodnie wyhamowuje przy
+  // nagłówku. Symetryczna krzywa zaczynała zbyt wolno i wyglądała jak lag.
+  return 1 - Math.pow(1 - t, 3);
 }
 
 export function getAnchorScrollOffset(defaultOffset = 80): number {
@@ -152,7 +151,7 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
     const progress = clamp(elapsed / duration, 0, 1);
     const dynamicTarget = targetTop();
     if (Math.abs(dynamicTarget - latestTarget) > 0.5) latestTarget = dynamicTarget;
-    const nextTop = startTop + (latestTarget - startTop) * easeInOutCubic(progress);
+    const nextTop = startTop + (latestTarget - startTop) * easeOutCubic(progress);
     window.scrollTo({ top: nextTop, left: 0, behavior: "auto" });
     if (progress < 1) {
       frame = window.requestAnimationFrame(step);
