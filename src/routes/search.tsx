@@ -186,8 +186,10 @@ function SearchPage() {
   // albo przyszliśmy deep-linkiem adv=1 (stopka widgetu w nagłówku).
   const [advOpen, setAdvOpen] = useState(!!(url.match || url.scope) || search.adv === "1");
 
-  // "load more" rośnie przez _limit (search_posts nie ma offsetu). Okno jest
-  // kluczowane pełnym zestawem filtrów: każda zmiana wraca na pierwszą stronę.
+  // "load more" rośnie przez _limit od początku zbioru (offset 0). Stronicowanie
+  // po `_offset` ma wyłącznie biblioteka /publications (tryb `page` w
+  // `searchQueryOptions`). Okno jest kluczowane pełnym zestawem filtrów: każda
+  // zmiana wraca na pierwszą stronę.
   const filterKey = JSON.stringify(filters);
   const [paging, setPaging] = useState({ key: filterKey, limit: SEARCH_PAGE_SIZE });
   const limit = paging.key === filterKey ? paging.limit : SEARCH_PAGE_SIZE;

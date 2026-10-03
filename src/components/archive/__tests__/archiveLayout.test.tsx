@@ -856,11 +856,12 @@ describe("ArchivePostList i PaginatedPostGrid", () => {
   });
 });
 
-describe("PaginatedPostGrid - powrót na górę po ZMIANIE strony", () => {
-  // Pozostanie w połowie ekranu po podmianie treści dezorientuje - czytelnik
-  // ląduje w środku innego wpisu. Ale przewija wyłącznie ZMIANA strony:
-  // montaż (wejście z linku na `?page=3`, powrót „wstecz" z wpisu) zostawia
-  // widok tam, gdzie postawił go router.
+describe("PaginatedPostGrid - przewijanie należy do routera", () => {
+  // Zmiana strony to nawigacja po adresie (`onPageChange` trasy), a powrót na
+  // górę po niej robi router (`scrollRestoration`): nowy wpis historii zaczyna
+  // od góry, „wstecz" wraca na zapamiętaną pozycję. Dawny
+  // `scrollTo({ behavior: "smooth" })` w siatce dublował ten reset, ignorował
+  // „ogranicz ruch" i przy kroku „wstecz" nadpisywał przywróconą pozycję.
   const scrollTo = vi.fn();
 
   function grid(page: number): ReactElement {
@@ -878,74 +879,24 @@ describe("PaginatedPostGrid - powrót na górę po ZMIANIE strony", () => {
     );
   }
 
-  /**
-   * Montaż na `from`, potem zmiana na `to`. Wywołania z montażu są zerowane:
-   * asercja widzi WYŁĄCZNIE reakcję na zmianę - inaczej przewinięcie z montażu
-   * (stary warunek `page > 1`) maskowałoby brak reakcji na powrót 3 -> 1.
-   */
-  function changePage(from: number, to: number): void {
-    const view = render(grid(from));
-    scrollTo.mockClear();
-    view.rerender(grid(to));
-  }
-
-  function stubReducedMotion(reduce: boolean): void {
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: reduce && query.includes("prefers-reduced-motion"),
-      media: query,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    }));
-  }
-
   beforeEach(() => {
     scrollTo.mockReset();
     vi.stubGlobal("scrollTo", scrollTo);
-    stubReducedMotion(false);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("pierwsza strona NIE przewija - czytelnik dopiero wszedł", () => {
-    render(grid(1));
+  it.each([
+    ["montaż na stronie 1", 1, 1],
+    ["montaż prosto na stronie 3", 3, 3],
+    ["zmiana 2 -> 3", 2, 3],
+    ["powrót 3 -> 1", 3, 1],
+  ])("%s: siatka nie przewija okna sama", (_name, from, to) => {
+    const view = render(grid(from));
+    if (from !== to) view.rerender(grid(to));
     expect(scrollTo).not.toHaveBeenCalled();
-  });
-
-  it("wejście PROSTO na dalszą stronę też nie przewija - to montaż, nie zmiana", () => {
-    // Stary warunek `page > 1` przewijał tu na górę, choć czytelnik niczego
-    // nie kliknął.
-    render(grid(3));
-    expect(scrollTo).not.toHaveBeenCalled();
-  });
-
-  it("zmiana 2 -> 3 wraca na górę listy płynnie", () => {
-    changePage(2, 3);
-    expect(scrollTo).toHaveBeenCalledTimes(1);
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
-  });
-
-  it("powrót 3 -> 1 TEŻ wraca na górę - stary warunek `page > 1` go odcinał", () => {
-    changePage(3, 1);
-    expect(scrollTo).toHaveBeenCalledTimes(1);
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
-  });
-
-  it("ponowny render tej samej strony nie przewija drugi raz", () => {
-    // Np. odświeżenie danych w tle albo zmiana `isPending` - strona ta sama.
-    const view = render(grid(2));
-    view.rerender(grid(3));
-    scrollTo.mockClear();
-    view.rerender(grid(3));
-    expect(scrollTo).not.toHaveBeenCalled();
-  });
-
-  it("przy „ogranicz ruch” skok na górę jest natychmiastowy, bez animacji", () => {
-    stubReducedMotion(true);
-    changePage(2, 3);
-    expect(scrollTo).toHaveBeenCalledTimes(1);
-    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "auto" });
   });
 });
 

@@ -9,6 +9,7 @@ import { currentLang } from "@/lib/i18n/localeRuntime";
 import { edgeTtlCache } from "@/lib/ssrCache";
 import { SPONSORED_LIST_COLS } from "@/lib/content/sponsored";
 import { postsNarrowedToTaxonomy } from "@/lib/queries/taxonomyPivot";
+import { parsePageSearch } from "@/lib/routing/pageSearch";
 
 const TTL = 2 * 60_000;
 /** TTL per-isolate archiwów: publikacje widoczne w minutę, jak reszta SSR. */
@@ -535,9 +536,13 @@ function rpcFilterArgs(filters: SearchFilters) {
   };
 }
 
-/** Numer strony z dowolnej liczby: całkowity i >= 1 (NaN, ułamki, zero = 1). */
+/**
+ * Numer strony z dowolnej liczby: całkowity i >= 1 (NaN, ułamki, zero = 1).
+ * Ta sama reguła co parser adresu (`parsePageSearch`) - jedna definicja, więc
+ * strona z URL-a i strona w kluczu zapytania nie mogą się rozjechać.
+ */
 function normalizedPage(page: number): number {
-  return Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
+  return parsePageSearch({ page }).page ?? 1;
 }
 
 export const searchQueryOptions = (

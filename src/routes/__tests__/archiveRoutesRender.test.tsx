@@ -17,7 +17,7 @@ import i18n from "@/lib/i18n";
 import "@/lib/i18n-archive-layout";
 import type { BlogListItem } from "@/lib/queries/public";
 import { CARD_IMAGE_SIZES, FEATURED_CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
-import { SEARCH_PAGE_SIZE } from "@/lib/queries/archives";
+import { SEARCH_MAX_PAGE, SEARCH_PAGE_SIZE } from "@/lib/queries/archives";
 import { DEFAULT_ARCHIVE_LAYOUT } from "@/lib/archive-layout-settings";
 
 freezeClock();
@@ -191,13 +191,19 @@ const coverPost = (id: string): BlogListItem => ({ ...post(id), cover_image_url:
 const imagePreload = (links: Record<string, unknown>[]) =>
   links.find((l) => l.rel === "preload" && l.as === "image");
 
-async function mount(route: unknown, path: string, entry: string) {
+async function mount(
+  route: unknown,
+  path: string,
+  entry: string,
+  options: { scrollRestoration?: boolean } = {},
+) {
   let view!: Awaited<ReturnType<typeof renderRoute>>;
   await act(async () => {
     view = await renderRoute({
       route: route as Parameters<typeof renderRoute>[0]["route"],
       path,
       initialEntry: entry,
+      scrollRestoration: options.scrollRestoration,
     });
   });
   return view;
@@ -646,8 +652,8 @@ describe("/publications", () => {
     /**
      * Przewinięcia zlecone przez STRONĘ, nie przez router. Router sam woła
      * `scrollTo({ top: 0, left: 0, behavior: undefined })` przy resecie
-     * pozycji po nawigacji - to jego kontrakt, nie nasz. Trasa jako jedyna
-     * podaje `behavior` jawnie (z `preferredScrollBehavior`).
+     * pozycji po nawigacji - to jego kontrakt, nie nasz. Każde wywołanie
+     * z jawnym `behavior` byłoby przewinięciem zleconym przez trasę.
      */
     function przewinieciaStrony(): unknown[] {
       return scrollTo.mock.calls
@@ -740,7 +746,29 @@ describe("/publications", () => {
       expect(data.searches.at(-1)?.page).toBe(2);
     });
 
-    it("zmiana STRONY przewija na górę płynnie; pierwsze wejście na `?page=3` nie przewija", async () => {
+    /**
+     * Pozycja okna widziana przez router (snapshot przy wyjściu z wpisu
+     * historii). jsdom nie przewija naprawdę, więc ustawiamy ją sami
+     * i zgłaszamy zdarzenie `scroll` - router śledzi tylko cele, które
+     * faktycznie się przewinęły.
+     */
+    function przewinOknoDo(y: number) {
+      for (const target of [window, globalThis]) {
+        Object.defineProperty(target, "scrollY", { configurable: true, value: y });
+        Object.defineProperty(target, "pageYOffset", { configurable: true, value: y });
+      }
+      document.dispatchEvent(new Event("scroll"));
+    }
+
+    afterEach(() => {
+      przewinOknoDo(0);
+    });
+
+    it("zmiana STRONY wraca na górę ruchem ROUTERA; trasa nie dokłada własnego przewinięcia", async () => {
+      // Router (`scrollRestoration`) przewija na górę po KAŻDEJ nawigacji do
+      // nowego wpisu historii. Własny `scrollTo` trasy był po tym zawsze
+      // przewinięciem z 0 na 0, a przy kroku „wstecz" - nadpisaniem pozycji,
+      // którą router właśnie przywrócił (test niżej).
       await mount(PublicationsRoute, "/publications", "/publications?page=3");
       await screen.findByRole("link", { name: /Wpis p121\b/ });
       expect(przewinieciaStrony()).toEqual([]);
@@ -751,10 +779,14 @@ describe("/publications", () => {
         });
       });
       await screen.findByRole("link", { name: /Wpis p181\b/ });
-      expect(przewinieciaStrony()).toEqual([{ top: 0, behavior: "smooth" }]);
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, left: 0, behavior: undefined });
+      expect(przewinieciaStrony()).toEqual([]);
     });
 
-    it("„ogranicz ruch” w systemie: zmiana strony skacze na górę bez animacji", async () => {
+    it("„ogranicz ruch” w systemie: powrót na górę jest skokiem, bez animacji", async () => {
+      // `scrollRestorationBehavior` routera nie jest ustawione (patrz
+      // `src/__tests__/router.test.tsx`), więc reset jest natychmiastowy
+      // niezależnie od preferencji - nie ma czego wyciszać.
       vi.stubGlobal("matchMedia", (query: string) => ({
         matches: query === "(prefers-reduced-motion: reduce)",
       }));
@@ -765,7 +797,36 @@ describe("/publications", () => {
         });
       });
       await screen.findByRole("link", { name: /Wpis p61\b/ });
-      expect(przewinieciaStrony()).toEqual([{ top: 0, behavior: "auto" }]);
+      expect(scrollTo).toHaveBeenCalled();
+      for (const [arg] of scrollTo.mock.calls as [ScrollToOptions][]) {
+        expect(arg.behavior).not.toBe("smooth");
+      }
+    });
+
+    it("krok WSTECZ przywraca pozycję zapamiętaną przez router - trasa jej nie nadpisuje", async () => {
+      const view = await mount(PublicationsRoute, "/publications", "/publications?page=2", {
+        scrollRestoration: true,
+      });
+      await screen.findByRole("link", { name: /Wpis p61\b/ });
+      // Czytelnik zjechał do paska stron na dole strony 2 i kliknął „3".
+      przewinOknoDo(640);
+      await act(async () => {
+        fireEvent.click(within(await pasek()).getByRole("link", { name: "Strona 3" }), {
+          button: 0,
+        });
+      });
+      await screen.findByRole("link", { name: /Wpis p121\b/ });
+      przewinOknoDo(0);
+      scrollTo.mockClear();
+
+      await act(async () => {
+        view.back();
+      });
+      await screen.findByRole("link", { name: /Wpis p61\b/ });
+      await vi.waitFor(() => expect(scrollTo).toHaveBeenCalled());
+      // Ostatnie słowo należy do routera: pozycja sprzed kliknięcia, nie góra.
+      expect(scrollTo).toHaveBeenLastCalledWith({ top: 640, left: 0, behavior: undefined });
+      expect(przewinieciaStrony()).toEqual([]);
     });
 
     it("zmiana sortowania na stronie 3 wraca na STRONĘ PIERWSZĄ, zachowując filtry", async () => {
@@ -824,6 +885,27 @@ describe("/publications", () => {
       });
       expect(view.search()).toMatchObject({ page: 3 });
       expect(await screen.findByRole("link", { name: /Wpis p121\b/ })).toBeTruthy();
+    });
+
+    it("zbiór ponad sufit przeglądania: komunikat nie twierdzi, że wyniki się kończą", async () => {
+      // `_offset` ma sufit (SEARCH_MAX_PAGE stron). Przy większym zbiorze strona
+      // za tym sufitem to nie „koniec wyników" - licznik obok mówi co innego.
+      const lastBrowsable = SEARCH_MAX_PAGE;
+      data.search = {
+        posts: [],
+        facets: [],
+        total: SEARCH_MAX_PAGE * SEARCH_PAGE_SIZE + 100,
+      };
+      await mount(PublicationsRoute, "/publications", `/publications?page=${lastBrowsable + 1}`);
+      expect(
+        await screen.findByText(
+          `Przeglądać można najwyżej ${lastBrowsable} stron wyników. Zawęź filtry albo frazę, aby dotrzeć do dalszych publikacji.`,
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByText(/wyniki kończą się na stronie/)).toBeNull();
+      expect(
+        screen.getByRole("link", { name: `Przejdź do strony ${lastBrowsable}` }),
+      ).toHaveAttribute("href", `/publications?page=${lastBrowsable}`);
     });
 
     it("filtry BEZ wyników na stronie 2 to zwykła pustka, nie „strona za końcem”", async () => {

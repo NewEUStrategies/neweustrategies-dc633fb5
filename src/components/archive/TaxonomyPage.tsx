@@ -21,7 +21,6 @@ import { getLayoutComponent } from "@/components/archive/layouts/registry";
 import { ensureI18n as ensureArchiveLayoutI18n } from "@/lib/i18n-archive-layout";
 import { useDegradedUntilHealed } from "@/lib/ssr/useDegradedUntilHealed";
 import { DegradedDataNotice } from "@/components/molecules/DegradedDataNotice";
-import { useScrollTopOnPageChange } from "@/lib/a11y/useScrollTopOnPageChange";
 
 export function TaxonomyPage({
   kind,
@@ -56,10 +55,11 @@ export function TaxonomyPage({
     enabled: kind === "category" && !!data?.taxonomy.id && settings.show_podcasts,
   });
 
-  // Zmiana strony wyników wraca na górę listy - także powrót na stronę 1,
-  // ale NIE pierwszy montaż (wejście z linku na `?page=2`, powrót „wstecz"
-  // z wpisu) i z poszanowaniem „ogranicz ruch". Uzasadnienie w haku.
-  useScrollTopOnPageChange(page);
+  // Powrót na górę po zmianie strony robi router (`scrollRestoration`
+  // w `src/router.tsx`): nowy wpis historii zaczyna od góry, a „wstecz"
+  // przywraca zapamiętaną pozycję. Dawny `scrollTo({ behavior: "smooth" })`
+  // przy `page > 1` dublował ten reset (przewinięcie z 0 na 0), ignorował
+  // „ogranicz ruch" i przy kroku „wstecz" nadpisywał przywróconą pozycję.
 
   // Keep the query mounted while showing the SSR fallback so hydration can
   // recover it. Returning from the route before this component prevented

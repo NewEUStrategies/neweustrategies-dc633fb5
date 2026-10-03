@@ -18,7 +18,7 @@
 // adresem, a pasek stron to prawdziwe `<a href>` (ArchivePagination) - ta sama
 // konwencja co archiwa kategorii, tagów i /blog.
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
@@ -28,8 +28,8 @@ import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
 import { parsePageSearch } from "@/lib/routing/pageSearch";
-import { preferredScrollBehavior } from "@/lib/a11y/reducedMotion";
 import {
+  SEARCH_PAGE_SIZE,
   searchQueryOptions,
   searchTotalPages,
   type SearchFilters,
@@ -68,6 +68,8 @@ export const COPY = {
     empty: "Brak publikacji spełniających kryteria. Wyczyść filtry, aby zobaczyć całość dorobku.",
     clearAll: "Wyczyść filtry",
     outOfRange: "Strona {{page}} nie istnieje - wyniki kończą się na stronie {{last}}.",
+    outOfRangeCapped:
+      "Przeglądać można najwyżej {{last}} stron wyników. Zawęź filtry albo frazę, aby dotrzeć do dalszych publikacji.",
     lastPage: "Przejdź do strony {{last}}",
     loadError: "Nie udało się wczytać publikacji. Spróbuj ponownie.",
     filtersHeading: "Filtry",
@@ -88,6 +90,8 @@ export const COPY = {
     empty: "No publications match the filters. Clear them to browse the full archive.",
     clearAll: "Clear filters",
     outOfRange: "Page {{page}} does not exist - the results end on page {{last}}.",
+    outOfRangeCapped:
+      "Only the first {{last}} pages of results can be browsed. Narrow the filters or the phrase to reach further publications.",
     lastPage: "Go to page {{last}}",
     loadError: "Could not load publications. Please try again.",
     filtersHeading: "Filters",
@@ -250,18 +254,16 @@ function PublicationsPage() {
   // ostatniej istniejącej strony. Dopóki na ekranie wiszą dane poprzedniego
   // klucza (placeholderData), werdyktu nie ma: liczność należy do innej strony.
   const outOfRange = !isPlaceholderData && total > 0 && page > totalPages;
+  // Zbiór większy niż sufit przesunięcia (`SEARCH_MAX_PAGE`): wyniki ZA
+  // ostatnią stroną istnieją, tylko nie da się do nich przewinąć. Zdanie
+  // „wyniki kończą się na stronie N" przeczyłoby licznikowi obok.
+  const rangeCapped = total > totalPages * SEARCH_PAGE_SIZE;
 
-  // Zmiana STRONY wraca na górę listy - po podmianie treści czytelnik nie może
-  // zostać w połowie poprzedniej siatki. Pierwszy montaż NIE przewija: wejście
-  // z linku na `?page=3` albo powrót z historii zostawia pozycję przeglądarce.
-  // Zachowanie czytane w chwili zmiany, nie w renderze (preferredScrollBehavior:
-  // „ogranicz ruch" w systemie = skok bez animacji).
-  const shownPageRef = useRef(page);
-  useEffect(() => {
-    if (shownPageRef.current === page) return;
-    shownPageRef.current = page;
-    window.scrollTo({ top: 0, behavior: preferredScrollBehavior() });
-  }, [page]);
+  // Powrót na górę po zmianie STRONY należy do routera (`scrollRestoration`
+  // w `src/router.tsx`): nowy wpis historii zaczyna od góry, krok „wstecz"
+  // wraca na zapamiętaną pozycję, a reset jest skokiem bez animacji, więc
+  // „ogranicz ruch" nie ma czego wyciszać. Własny `scrollTo` trasy był po nim
+  // przewinięciem z 0 na 0, a przy „wstecz" nadpisywał przywróconą pozycję.
 
   // Cache etykiet id->nazwa dla chipów (odporne na zerową liczność fasety).
   const labelCacheRef = useRef<Record<string, string>>({});
@@ -353,7 +355,7 @@ function PublicationsPage() {
             ) : outOfRange ? (
               <div className="rounded-lg border border-border bg-muted/20 p-8 text-center">
                 <p className="text-sm text-muted-foreground">
-                  {c.outOfRange
+                  {(rangeCapped ? c.outOfRangeCapped : c.outOfRange)
                     .replace("{{page}}", String(page))
                     .replace("{{last}}", String(totalPages))}
                 </p>

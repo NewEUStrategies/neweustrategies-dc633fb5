@@ -3,7 +3,7 @@
 // (ArchivePagination - indeksowalne <a href> + prev/next) w JEDEN układ,
 // współdzielony przez stronę główną w trybie "najnowsze wpisy" i archiwum
 // /blog. Dotąd obie trasy utrzymywały własne kopie tej kompozycji (siatka,
-// wstawki in-feed, scroll-to-top, pasek stron) - każda poprawka wymagała
+// wstawki in-feed, pasek stron) - każda poprawka wymagała
 // dwóch synchronicznych edycji.
 //
 // Nawigacja zostaje po stronie trasy (onPageChange/hrefFor) - organizm nie
@@ -12,7 +12,6 @@
 import { useTranslation } from "react-i18next";
 import { ArchivePostList } from "@/components/archive/ArchivePostList";
 import { ArchivePagination } from "@/components/archive/layouts/ArchivePagination";
-import { useScrollTopOnPageChange } from "@/lib/a11y/useScrollTopOnPageChange";
 import type { BlogListItem } from "@/lib/queries/public";
 
 interface PaginatedPostGridProps {
@@ -53,11 +52,8 @@ export function PaginatedPostGrid({
 }: PaginatedPostGridProps) {
   const { t } = useTranslation();
 
-  // Zmiana strony wraca na górę listy - pozostanie w połowie ekranu po
-  // podmianie treści dezorientuje. Ten sam hak co w TaxonomyPage: przewija
-  // przy KAŻDEJ zmianie (także 3 -> 1), nigdy przy montażu, i bez animacji
-  // dla „ogranicz ruch".
-  useScrollTopOnPageChange(page);
+  // Zmiana strony to nawigacja po adresie (`onPageChange` trasy), więc powrót
+  // na górę listy robi router (`scrollRestoration`) - patrz TaxonomyPage.
 
   return (
     <>
