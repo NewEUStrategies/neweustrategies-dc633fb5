@@ -1,8 +1,5 @@
 // Shared body composition: sort/pagination bar + grid + optional sidebar + extras.
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
 import { PostListCard } from "@/components/molecules/PostListCard";
 import { FEATURED_CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import { FooterSlideup } from "@/components/ads/FooterSlideup";
@@ -11,6 +8,8 @@ import { ArchivePosts } from "./ArchivePosts";
 import { ArchiveSidebar } from "./ArchiveSidebar";
 import { ArchiveToolbar } from "./ArchiveToolbar";
 import { ArchivePagination } from "./ArchivePagination";
+import { RelatedTaxonomyChips } from "./RelatedTaxonomyChips";
+import { useRelatedTaxonomies } from "./useRelatedTaxonomies";
 import { archiveBodyPlan } from "@/lib/archive/bodyPlan";
 import type { ArchiveLayoutProps } from "./types";
 
@@ -130,6 +129,7 @@ export function ArchiveBody(props: ArchiveLayoutProps) {
         taxonomyId={taxonomy.id}
         kind={kind}
         posts={posts}
+        previewMode={!!previewMode}
       />
     </div>
   ) : null;
@@ -176,44 +176,9 @@ function RelatedTaxonomiesBlock({
         ? "Powiązane kategorie"
         : "Powiązane tagi";
 
-  // In preview mode we render deterministic mock chips so admins see the section.
-  const mock = previewMode
-    ? Array.from({ length: 6 }).map((_, i) => ({
-        id: `mock-${i}`,
-        slug: `preview-${i}`,
-        name_pl: lang === "en" ? `Sample ${i + 1}` : `Przykład ${i + 1}`,
-        name_en: `Sample ${i + 1}`,
-      }))
-    : null;
-
-  const { data } = useQuery({
-    queryKey: ["archive-related-block", kind, taxonomyId],
-    queryFn: async () => {
-      if (kind === "category") {
-        const { data } = await supabase
-          .from("categories")
-          .select("id, slug, name_pl, name_en")
-          .neq("id", taxonomyId)
-          .limit(12);
-        return data ?? [];
-      }
-      const { data } = await supabase
-        .from("tags")
-        .select("id, slug, name")
-        .neq("id", taxonomyId)
-        .limit(12);
-      return (data ?? []).map((t) => ({
-        id: t.id,
-        slug: t.slug,
-        name_pl: t.name,
-        name_en: t.name,
-      }));
-    },
-    staleTime: 5 * 60_000,
-    enabled: !previewMode,
-  });
-
-  const items = mock ?? data ?? [];
+  // Ranking ze współwystępowania na opublikowanych wpisach (wspólny z widżetem
+  // sidebara - jeden wpis cache); w podglądzie admina atrapa bez fetchu.
+  const items = useRelatedTaxonomies(kind, taxonomyId, lang, previewMode);
   if (items.length === 0) return null;
 
   return (
@@ -221,27 +186,7 @@ function RelatedTaxonomiesBlock({
       <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
         {title}
       </h2>
-      <div className="flex flex-wrap gap-2">
-        {items.map((it) =>
-          previewMode ? (
-            <span
-              key={it.id}
-              className="px-3 py-1 rounded-full border border-border text-xs bg-card/60"
-            >
-              {lang === "en" ? it.name_en || it.name_pl : it.name_pl || it.name_en}
-            </span>
-          ) : (
-            <Link
-              key={it.id}
-              to={kind === "category" ? "/category/$slug" : "/tag/$slug"}
-              params={{ slug: it.slug }}
-              className="px-3 py-1 rounded-full border border-border text-xs hover:bg-muted transition"
-            >
-              {lang === "en" ? it.name_en || it.name_pl : it.name_pl || it.name_en}
-            </Link>
-          ),
-        )}
-      </div>
+      <RelatedTaxonomyChips items={items} kind={kind} lang={lang} previewMode={previewMode} />
     </section>
   );
 }

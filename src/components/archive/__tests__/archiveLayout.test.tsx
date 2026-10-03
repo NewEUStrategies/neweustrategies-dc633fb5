@@ -10,7 +10,7 @@
 // (reklamy, newsletter, przycisk obserwowania, okruszki) są podmienione:
 // mają własne testy, a tutaj tylko zaciemniałyby, co jest sprawdzane.
 import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -21,6 +21,8 @@ import { RouterLinkStub } from "@/test/routerLinkStub";
 import { freezeClock } from "@/test/time";
 import type { BlogListItem } from "@/lib/queries/public";
 import { DEFAULT_ARCHIVE_LAYOUT, type ArchiveLayoutSettings } from "@/lib/archive-layout-settings";
+import { fail } from "@/test/supabaseChain";
+import type { SupabaseRpcStub } from "@/test/supabase/rpc";
 
 // Podgląd panelu (`ArchiveLivePreview`) datuje atrapy wpisów od `Date.now()`,
 // a fixture'y tego pliku mają stałe daty publikacji - bez zamrożenia zegara
@@ -28,9 +30,13 @@ import { DEFAULT_ARCHIVE_LAYOUT, type ArchiveLayoutSettings } from "@/lib/archiv
 freezeClock();
 
 const ads = vi.hoisted(() => ({ renderAfterCard: null as ((i: number) => ReactNode) | null }));
-const related = vi.hoisted(() => ({
-  categories: [] as { id: string; slug: string; name_pl: string; name_en: string }[],
-  tags: [] as { id: string; slug: string; name: string }[],
+// „Powiązane" idą funkcją `related_taxonomies` (ranking ze współwystępowania),
+// więc atrapą jest rejestrator RPC ze wspólnego harnessu. `from` zostaje
+// szpiegiem tylko po to, żeby dowieść, że nikt nie wraca do czytania
+// `categories` / `tags` wprost.
+const db = vi.hoisted(() => ({
+  rpc: null as SupabaseRpcStub | null,
+  tables: [] as string[],
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
@@ -64,19 +70,25 @@ vi.mock("@/components/Breadcrumbs", () => ({
   ),
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    from: (table: string) => {
-      const rows = table === "categories" ? related.categories : related.tags;
-      const builder = {
-        select: () => builder,
-        neq: () => builder,
-        limit: () => Promise.resolve({ data: rows, error: null }),
-      };
-      return builder;
+vi.mock("@/integrations/supabase/client", async () => {
+  const { supabaseRpcStub } = await import("@/test/supabase/rpc");
+  const rpc = supabaseRpcStub();
+  db.rpc = rpc;
+  return {
+    supabase: {
+      rpc: rpc.rpc,
+      from: (table: string) => {
+        db.tables.push(table);
+        const builder = {
+          select: () => builder,
+          neq: () => builder,
+          limit: () => Promise.resolve({ data: [], error: null }),
+        };
+        return builder;
+      },
     },
-  },
-}));
+  };
+});
 
 const { ArchivePosts } = await import("@/components/archive/layouts/ArchivePosts");
 const { ArchiveToolbar } = await import("@/components/archive/layouts/ArchiveToolbar");
@@ -93,6 +105,7 @@ const { ArchivePagination, buildRange } =
   await import("@/components/archive/layouts/ArchivePagination");
 const variants = await import("@/components/archive/layouts/variants");
 const { ArchiveLivePreview } = await import("@/components/admin/archiveLayout/ArchiveLivePreview");
+const { relatedTaxonomiesQueryOptions } = await import("@/lib/queries/relatedTaxonomies");
 
 const t = realT("pl");
 
@@ -153,14 +166,59 @@ function renderWithQuery(ui: ReactElement) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
   });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  // Klient wraca razem z wynikiem renderu: testy awarii rankingu czytają stan
+  // zapytania, bo na ekranie błąd i pusta lista wyglądają tak samo.
+  return Object.assign(render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>), {
+    client,
+  });
 }
+
+/**
+ * Czeka, aż zapytanie „powiązanych" bieżącego archiwum (kategoria `tax-1`) się
+ * ROZSTRZYGNIE, i zwraca jego stan. Sam wygląd nie odróżnia awarii od braku
+ * sygnału - sekcja jest ukryta, a widżet mówi „Brak." także w trakcie
+ * ładowania - więc asercja na samym DOM przeszłaby i wtedy, gdyby fabryka
+ * zapytania rzucała błąd zamiast zdegradować się do `[]`.
+ */
+async function settledRelatedQuery(client: QueryClient) {
+  const { queryKey } = relatedTaxonomiesQueryOptions("category", "tax-1");
+  await waitFor(() => {
+    const state = client.getQueryState(queryKey);
+    expect(state !== undefined && state.status !== "pending").toBe(true);
+  });
+  return client.getQueryState(queryKey);
+}
+
+/** Wiersz w kształcie zwracanym przez `related_taxonomies`. */
+function relatedRow(slug: string, name_pl: string, name_en = name_pl, shared = 1, score = 0.5) {
+  return { id: `id-${slug}`, slug, name_pl, name_en, shared_posts: shared, score };
+}
+
+function funkcje(): SupabaseRpcStub {
+  const s = db.rpc;
+  if (!s) throw new Error("test: atrapa RPC Supabase nie została podpięta");
+  return s;
+}
+
+/** Zaplanuj odpowiedź rankingu (kolejność tablicy = kolejność z bazy). */
+function setRelated(rows: ReturnType<typeof relatedRow>[]) {
+  funkcje().setData("related_taxonomies", rows);
+}
+
+const relatedCalls = () => funkcje().callsFor("related_taxonomies");
+
+beforeEach(() => {
+  funkcje().reset();
+  db.tables.length = 0;
+  // Domyślnie: termin bez powiązanych. Widżet „related" jest w domyślnym
+  // zestawie sidebara, więc odpowiedź musi istnieć także w testach, które
+  // o powiązanych nic nie mówią.
+  setRelated([]);
+});
 
 afterEach(() => {
   cleanup();
   ads.renderAfterCard = null;
-  related.categories = [];
-  related.tags = [];
 });
 
 describe("ArchivePosts - warianty siatki", () => {
@@ -789,7 +847,7 @@ describe("ArchiveBody - kompozycja", () => {
 });
 
 describe("RelatedTaxonomiesBlock (sekcja pod listą)", () => {
-  it("w podglądzie admina pokazuje przykładowe chipy, nie linki", async () => {
+  it("w podglądzie admina pokazuje przykładowe chipy, nie linki - i NIE pyta bazy", async () => {
     // Podgląd nie ma dostępu do prawdziwych taksonomii, a administrator musi
     // ZOBACZYĆ, że sekcja istnieje - inaczej wygląda jak wyłączona.
     renderWithQuery(
@@ -803,10 +861,11 @@ describe("RelatedTaxonomiesBlock (sekcja pod listą)", () => {
     expect(await screen.findByText("Powiązane kategorie")).toBeTruthy();
     expect(screen.getByText("Przykład 1")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Przykład 1" })).toBeNull();
+    expect(relatedCalls()).toHaveLength(0);
   });
 
-  it("na żywo pokazuje LINKI do sąsiednich kategorii", async () => {
-    related.categories = [{ id: "c2", slug: "energia", name_pl: "Energia", name_en: "Energy" }];
+  it("na żywo pokazuje LINKI do kategorii z rankingu bieżącego terminu", async () => {
+    setRelated([relatedRow("energia", "Energia", "Energy")]);
     renderWithQuery(
       <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
     );
@@ -814,20 +873,73 @@ describe("RelatedTaxonomiesBlock (sekcja pod listą)", () => {
       "href",
       "/category/energia",
     );
+    // Ranking liczony dla TEGO archiwum, a nie „cokolwiek poza nim".
+    expect(relatedCalls()).toHaveLength(1);
+    expect(relatedCalls()[0].arg("_kind")).toBe("category");
+    expect(relatedCalls()[0].arg("_taxonomy_id")).toBe("tax-1");
   });
 
-  it("taksonomia BEZ rodzeństwa nie zostawia pustej sekcji z nagłówkiem", () => {
-    // To jest cały sens tego testu: nagłówek „Powiązane kategorie" nad pustką
-    // wygląda jak awaria zapytania.
-    related.categories = [];
+  it("kolejność chipów to kolejność rankingu z bazy, bez przestawiania", async () => {
+    // Ranking (kosinus współwystępowania) liczy baza; komponent ma go oddać
+    // 1:1 - inaczej „Hub" z największą liczbą wpisów znów wskoczy na początek.
+    setRelated([
+      relatedRow("klimat", "Klimat", "Climate", 2, 0.71),
+      relatedRow("migracje", "Migracje", "Migration", 2, 0.5),
+      relatedRow("hub", "Hub", "Hub", 3, 0.34),
+    ]);
     renderWithQuery(
       <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
     );
+    await screen.findByRole("link", { name: "Klimat" });
+    const section = screen.getByText("Powiązane kategorie").closest("section");
+    if (!section) throw new Error("test: brak sekcji powiązanych");
+    expect(
+      within(section)
+        .getAllByRole("link")
+        .map((a) => a.textContent),
+    ).toEqual(["Klimat", "Migracje", "Hub"]);
+  });
+
+  it("NIE czyta tabel categories / tags wprost (stary szum bez związku z archiwum)", async () => {
+    setRelated([relatedRow("energia", "Energia")]);
+    renderWithQuery(
+      <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
+    );
+    await screen.findByRole("link", { name: "Energia" });
+    expect(db.tables).not.toContain("categories");
+    expect(db.tables).not.toContain("tags");
+  });
+
+  it("taksonomia BEZ powiązanych nie zostawia pustej sekcji z nagłówkiem", async () => {
+    // To jest cały sens tego testu: nagłówek „Powiązane kategorie" nad pustką
+    // wygląda jak awaria zapytania.
+    setRelated([]);
+    renderWithQuery(
+      <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
+    );
+    await waitFor(() => expect(relatedCalls()).toHaveLength(1));
     expect(screen.queryByText("Powiązane kategorie")).toBeNull();
   });
 
+  it("awaria funkcji rankingu: zapytanie kończy się pustą listą, sekcja znika, archiwum stoi", async () => {
+    funkcje().setResponse("related_taxonomies", fail("permission denied", "42501"));
+    const { client } = renderWithQuery(
+      <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
+    );
+    // Degradacja, nie błąd: stan `error` oznaczałby ponowienie i nowe
+    // zapytanie przy każdym wejściu na archiwum (`retry: 1` klienta
+    // w `src/router.tsx`) zamiast pustej listy w cache na `staleTime`.
+    const state = await settledRelatedQuery(client);
+    expect(state?.status).toBe("success");
+    expect(state?.data).toEqual([]);
+    expect(relatedCalls()).toHaveLength(1);
+    expect(screen.queryByText("Powiązane kategorie")).toBeNull();
+    // Lista wpisów archiwum renderuje się normalnie.
+    expect(screen.getAllByText("Wpis p1").length).toBeGreaterThan(0);
+  });
+
   it("dla tagów nagłówek i adresy są tagowe, nie kategoriowe", async () => {
-    related.tags = [{ id: "t2", slug: "nato", name: "NATO" }];
+    setRelated([relatedRow("nato", "NATO")]);
     renderWithQuery(
       <ArchiveBody
         {...bodyProps({
@@ -838,6 +950,45 @@ describe("RelatedTaxonomiesBlock (sekcja pod listą)", () => {
     );
     expect(await screen.findByText("Powiązane tagi")).toBeTruthy();
     expect(screen.getByRole("link", { name: "NATO" })).toHaveAttribute("href", "/tag/nato");
+    expect(relatedCalls()[0].arg("_kind")).toBe("tag");
+  });
+
+  it("sekcja i widżet sidebara na jednej stronie to JEDNO żądanie i ta sama lista", async () => {
+    // Wcześniej dwa różne zapytania (limity 12 i 10, osobne klucze cache).
+    setRelated([relatedRow("energia", "Energia"), relatedRow("klimat", "Klimat")]);
+    renderWithQuery(
+      <ArchiveBody
+        {...bodyProps({
+          settings: settings({
+            show_related_taxonomies: true,
+            show_sidebar: true,
+            sidebar_widgets: ["related"],
+          }),
+        })}
+      />,
+    );
+    await waitFor(() => expect(screen.getAllByRole("link", { name: "Energia" })).toHaveLength(2));
+    expect(screen.getAllByRole("link", { name: "Klimat" })).toHaveLength(2);
+    expect(relatedCalls()).toHaveLength(1);
+  });
+
+  it("PODGLĄD z sidebarem: ani sekcja, ani widżet nie pytają bazy", async () => {
+    renderWithQuery(
+      <ArchiveBody
+        {...bodyProps({
+          previewMode: true,
+          settings: settings({
+            show_related_taxonomies: true,
+            show_sidebar: true,
+            sidebar_widgets: ["related"],
+          }),
+        })}
+      />,
+    );
+    // Atrapa w OBU miejscach: sekcja pod listą i widżet (tytuł widżetu to też
+    // „Powiązane kategorie", więc liczymy chipy, nie nagłówki).
+    expect(await screen.findAllByText("Przykład 1")).toHaveLength(2);
+    expect(relatedCalls()).toHaveLength(0);
   });
 });
 
@@ -865,18 +1016,68 @@ describe("ArchiveSidebar - widgety", () => {
   });
 
   it("powiązane taksonomie: linki, a przy braku - komunikat", async () => {
-    related.categories = [{ id: "c2", slug: "energia", name_pl: "Energia", name_en: "Energy" }];
+    setRelated([relatedRow("energia", "Energia", "Energy")]);
     const withData = renderSidebar(["related"]);
     expect(await screen.findByRole("link", { name: "Energia" })).toBeTruthy();
     withData.unmount();
 
-    related.categories = [];
+    setRelated([]);
     renderSidebar(["related"]);
     expect(await screen.findByText("Brak.")).toBeTruthy();
   });
 
+  it("powiązane taksonomie: kolejność rankingu z bazy, bez czytania tabel wprost", async () => {
+    setRelated([
+      relatedRow("klimat", "Klimat", "Climate", 2, 0.71),
+      relatedRow("migracje", "Migracje", "Migration", 2, 0.5),
+      relatedRow("hub", "Hub", "Hub", 3, 0.34),
+    ]);
+    renderSidebar(["related"]);
+    await screen.findByRole("link", { name: "Klimat" });
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Klimat",
+      "Migracje",
+      "Hub",
+    ]);
+    expect(relatedCalls()).toHaveLength(1);
+    expect(relatedCalls()[0].arg("_kind")).toBe("category");
+    expect(relatedCalls()[0].arg("_taxonomy_id")).toBe("tax-1");
+    expect(db.tables).not.toContain("categories");
+    expect(db.tables).not.toContain("tags");
+  });
+
+  it("powiązane taksonomie: awaria funkcji rankingu kończy się pustą listą i komunikatem, nie błędem", async () => {
+    funkcje().setResponse("related_taxonomies", fail("permission denied", "42501"));
+    const { client } = renderSidebar(["related"]);
+    // „Brak." widać też w trakcie ładowania, więc o degradacji świadczy
+    // dopiero stan rozstrzygniętego zapytania.
+    const state = await settledRelatedQuery(client);
+    expect(state?.status).toBe("success");
+    expect(state?.data).toEqual([]);
+    expect(screen.getByText("Brak.")).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("powiązane taksonomie w PODGLĄDZIE admina: atrapy bez linków i bez żądania", async () => {
+    // Do 03.10.2026 widżet pytał bazę także w podglądzie - z identyfikatorem
+    // atrapy „preview" zamiast prawdziwego terminu.
+    renderWithQuery(
+      <ArchiveSidebar
+        widgets={["related"]}
+        lang="pl"
+        taxonomyId="preview"
+        kind="category"
+        posts={posts(2)}
+        previewMode
+      />,
+    );
+    expect(await screen.findByText("Przykład 1")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Przykład 1" })).toBeNull();
+    expect(relatedCalls()).toHaveLength(0);
+  });
+
   it("dla archiwum TAGU sekcja powiązanych prowadzi do tagów", async () => {
-    related.tags = [{ id: "t2", slug: "nato", name: "NATO" }];
+    setRelated([relatedRow("nato", "NATO")]);
     renderWithQuery(
       <ArchiveSidebar
         widgets={["related"]}
