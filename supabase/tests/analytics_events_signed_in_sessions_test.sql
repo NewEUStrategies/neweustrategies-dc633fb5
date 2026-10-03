@@ -4,9 +4,11 @@
 --      a komentarze opisuja `signed_in` jako jedyna informacje o koncie
 --      i `user_id` jako CELOWO niezapisywana.
 --   2. Miary zalogowanych licza RÓZNE SESJE z flaga `signed_in`, a `user_id`
---      jest ignorowany: sesja s4 ma `user_id` ustawiony, ale `signed_in = false`
---      - gdyby ktorykolwiek czytelnik dalej liczyl `user_id`, wynik bylby 3,
---      nie 2.
+--      jest ignorowany: sesja s4 ma `user_id` ustawiony, ale `signed_in = false`.
+--      Oczekiwane 2 (s1, s2) odroznia nowa definicje od obu mozliwych bledow:
+--      stara definicja (COUNT DISTINCT user_id) dalaby 1, bo `user_id` ma
+--      wylacznie s4, a liczenie `user_id` OBOK flagi (signed_in OR user_id
+--      IS NOT NULL) dawaloby 3 - oba != 2.
 --        * admin_dashboard_traffic: `members` w oknie biezacym i poprzednim,
 --        * admin_dashboard_realtime: `activeMembers`,
 --        * analytics_semantic_snapshot: `signed_in_sessions` (i brak starego
@@ -205,7 +207,7 @@ SELECT is(
       now() - interval '4 days', now() - interval '2 days')
     -> 'current' ->> 'members'))::int,
   2,
-  'traffic: members = sesje zalogowane A (nie 3 z user_id, nie 4 z najemca B)'
+  'traffic: members = sesje zalogowane A (nie 1 ze starego user_id, nie 3 z user_id obok flagi, nie 4 z najemca B)'
 );
 
 SELECT is(

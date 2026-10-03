@@ -108,6 +108,17 @@ function safeMeta(v: unknown): Record<string, unknown> {
   }
 }
 
+/**
+ * Wiersz bez `signed_in` - na awaryjne ponowienie w oknie „kod przed migracją"
+ * (uzasadnienie przy `insert` niżej). Kopia zamiast `delete` na oryginale:
+ * ponowienie nie mutuje partii, którą dostała już pierwsza próba, a reszta
+ * wiersza (z redakcją włącznie) zostaje bajt w bajt ta sama.
+ */
+function withoutSignedIn(row: Record<string, unknown>): Record<string, unknown> {
+  const { signed_in: _signedIn, ...rest } = row;
+  return rest;
+}
+
 export const Route = createFileRoute("/api/public/track")({
   server: {
     handlers: {
@@ -166,7 +177,24 @@ export const Route = createFileRoute("/api/public/track")({
           if (rows.length === 0) return noContent();
 
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          await supabaseAdmin.from("analytics_events").insert(rows as never);
+          const { error } = await supabaseAdmin.from("analytics_events").insert(rows as never);
+          // AWARYJNY ZAPIS BEZ FLAGI - okno między wdrożeniem kodu a migracją
+          // 20261003180000 (wzorzec: /api/public/vitals). `check:migration-ledger`
+          // jest bramką POWDROŻENIOWĄ, więc kolejność „kod przed migracją" jest
+          // w tym repo realna. postgrest-js wysyła UNIĘ kluczy partii jako listę
+          // `columns`, a kolumna nieznana cache'owi schematu odrzuca CAŁY
+          // wielowierszowy insert (`PGRST204`) - także partie anonimowe, którym
+          // flaga niczego nie wnosi. Bez tej gałęzi każdy beacon dostawałby 204,
+          // a w bazie nie lądowałby ani jeden wiersz: pierwszopartyjna analityka
+          // zamierałaby w ciszy aż do migracji. Ponowienie bez `signed_in`
+          // zapisuje wiersz, któremu `ADD COLUMN ... DEFAULT false` dopisze
+          // potem `false` - zdarzenie liczy się jako anonimowe, ale się liczy.
+          // Ponawiamy WYŁĄCZNIE na „nie ma takiej kolumny" (PostgREST `PGRST204`,
+          // Postgres `42703`), żeby zwykły błąd sieci nie kosztował drugiego
+          // round-tripu.
+          if (error && (error.code === "PGRST204" || error.code === "42703")) {
+            await supabaseAdmin.from("analytics_events").insert(rows.map(withoutSignedIn) as never);
+          }
         } catch {
           // Ingest jest best-effort - nigdy nie zwracamy błędu.
         }

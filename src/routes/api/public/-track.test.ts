@@ -2,11 +2,12 @@
 //
 // PO CO. To jest JEDNA Z CZTERECH publicznie osiągalnych ścieżek ZAPISU w tej
 // platformie, do której dowolny klient dociera bez sesji i bez podpisu:
-// `src/lib/analytics/track.ts` wysyła batch `sendBeacon`em, a endpoint wstawia
-// wiersze klientem service_role, czyli z pominięciem RLS. Cała jego obrona to
-// walidacja wejścia i limiter - i do wydania 8 audytu nie miał ani jednego
-// testu (0/43 linii, 0/4 funkcji), przy 95,4-100% na każdym endpoincie, który
-// swój test ma.
+// `src/lib/analytics/track.ts` wysyła batch `sendBeacon`em (anonim) albo
+// keepalive `fetch`em z bearerem (zalogowany) - bearer jest OPCJONALNY - a
+// endpoint wstawia wiersze klientem service_role, czyli z pominięciem RLS.
+// Cała jego obrona to walidacja wejścia i limiter - i do wydania 8 audytu nie
+// miał ani jednego testu (0/43 linii, 0/4 funkcji), przy 95,4-100% na każdym
+// endpoincie, który swój test ma.
 //
 // Trzy reguły, których pilnuje ten plik (wzorzec: `-popup-event.test.ts`):
 //   * nieznany `event_type` rozsypuje raport NA ZAWSZE - wiersza, którego panel
@@ -107,9 +108,14 @@ async function postOne(event: EventInput, headers?: Record<string, string>) {
   );
 }
 
-/** Wiersze przekazane do `insert` w ostatnim wywołaniu. */
+/** Wiersze przekazane do `insert` w pierwszym wywołaniu. */
 function insertedRows(): Record<string, unknown>[] {
-  const call = h.insert.mock.calls[0];
+  return rowsAt(0);
+}
+
+/** Wiersze przekazane do `insert` w wywołaniu numer `index` (od zera). */
+function rowsAt(index: number): Record<string, unknown>[] {
+  const call = h.insert.mock.calls[index];
   return (call?.[0] ?? []) as Record<string, unknown>[];
 }
 
@@ -653,6 +659,76 @@ describe("odporność", () => {
 
     expect(res.status).toBe(204);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  describe("okno między wdrożeniem kodu a migracją", () => {
+    // Kod z `signed_in` może wejść PRZED migracją 20261003180000. postgrest-js
+    // wysyła unię kluczy partii jako listę kolumn, więc jedna nieznana kolumna
+    // odrzuca CAŁY insert - także anonimowy. Bez ponowienia ingest zamierałby
+    // w ciszy (każde żądanie dalej dostaje 204).
+    it("brak kolumny (PGRST204) ponawia zapis RAZ, bez `signed_in`, zamiast gubić partię", async () => {
+      h.verifyUser.mockResolvedValue("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      const res = await post(
+        {
+          events: [
+            { type: "page_view", name: "page_view", path: "/o-nas?email=jan@example.com" },
+            { type: "cta_click", name: "pricing_signup_click" },
+          ],
+        },
+        undefined,
+        { authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.okno-migracji" },
+      );
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(2);
+      // Pierwsza próba niosła flagę - ponowienie nie zmutowało jej partii.
+      for (const row of rowsAt(0)) expect(row).toMatchObject({ signed_in: true });
+      const retried = rowsAt(1);
+      expect(retried).toHaveLength(2);
+      for (const row of retried) expect(Object.keys(row)).not.toContain("signed_in");
+      // Reszta wiersza jedzie bez zmian - z redakcją i tenantem włącznie.
+      expect(retried[0]).toMatchObject({
+        event_type: "page_view",
+        event_name: "page_view",
+        tenant_id: "tenant-1",
+      });
+      expect(retried[0]!.path).not.toContain("jan@example.com");
+      expect(retried[1]).toMatchObject({ event_name: "pricing_signup_click" });
+    });
+
+    it("`42703` (undefined_column) z Postgresa ponawia tak samo", async () => {
+      h.insert.mockResolvedValueOnce({ error: { code: "42703" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      const res = await postOne({});
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(2);
+      expect(Object.keys(rowsAt(1)[0]!)).not.toContain("signed_in");
+    });
+
+    it("ponowienie, które też padnie, nie kręci pętli - dalej 204 i dokładnie dwa zapisy", async () => {
+      h.insert.mockResolvedValue({ error: { code: "PGRST204" } });
+
+      const res = await postOne({});
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(2);
+    });
+
+    it("KAŻDY INNY błąd nie kosztuje drugiego round-tripu", async () => {
+      // Ponowienie jest wąską furtką na jedną, nazwaną przyczynę. Awaria
+      // sieci albo RLS-u ma zostać awarią, a nie podwojonym ruchem do bazy.
+      h.insert.mockResolvedValue({ error: { code: "53300", message: "too many connections" } });
+
+      const res = await postOne({});
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("LIMITER (120 żetonów, 2/s) wycisza zalew z JEDNEGO adresu, nie zwracając błędu", async () => {
