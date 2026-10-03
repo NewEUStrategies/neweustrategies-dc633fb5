@@ -28,7 +28,8 @@ export interface MentionPerson {
   verified: boolean;
 }
 
-/** Firma - bezpieczny wycinek kartoteki CRM, bez notatek i danych kontaktowych. */
+/** Firma z publicznym śladem (opublikowany wpis albo sponsor, migracja
+ *  20261003150000) - wycinek wizytówkowy, bez notatek i danych kontaktowych. */
 export interface MentionOrg {
   kind: "org";
   /** Pełny slug wzmianki, czyli `org-<uuid>` - tym linkujemy i tym kluczujemy. */
