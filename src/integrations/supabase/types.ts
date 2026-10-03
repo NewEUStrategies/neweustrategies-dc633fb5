@@ -287,6 +287,7 @@ export type Database = {
           path: string | null
           referrer: string | null
           session_id: string | null
+          signed_in: boolean
           tenant_id: string
           ua: string | null
           user_id: string | null
@@ -305,6 +306,7 @@ export type Database = {
           path?: string | null
           referrer?: string | null
           session_id?: string | null
+          signed_in?: boolean
           tenant_id?: string
           ua?: string | null
           user_id?: string | null
@@ -323,6 +325,7 @@ export type Database = {
           path?: string | null
           referrer?: string | null
           session_id?: string | null
+          signed_in?: boolean
           tenant_id?: string
           ua?: string | null
           user_id?: string | null
@@ -21442,9 +21445,9 @@ export type Database = {
           event_name: string | null
           event_type: string | null
           hits: number | null
+          signed_in_sessions: number | null
           tenant_id: string | null
           unique_sessions: number | null
-          unique_users: number | null
         }
         Relationships: []
       }

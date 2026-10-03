@@ -236,7 +236,7 @@ const MIGAWKA_BIEZACA = {
     searches: 130,
     sessions: 1400,
     visitors: 1100,
-    signed_in_users: 90,
+    signed_in_sessions: 90,
   },
   web_vitals: {
     samples: 800,
