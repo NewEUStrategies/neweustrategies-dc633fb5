@@ -1,0 +1,254 @@
+{
+  "key": "third-party",
+  "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/third-party.md",
+  "summary": "gtag.js accounts for 153 of the 202 ms TBT (76%) on the production LH mobile trace (AW task 183 ms simulated, plus G 69 and 51 ms) and moves TTI from about 7.1 s to 10.6 s. Lantern sets TTI to the end of the last long task in the whole trace and does not simulate timer delays, so the current 'load+2s+1.5s quiet' policy cannot help. Only loading after Lighthouse stops recording helps; LH stops after 1 s quiet windows. A 5 s quiescence window (classic TTI) does that. Local A/B (real policy vs simulated v2, fake gtag): mobile TBT median 1103 to 445 ms (control 426), perf +10, and gtag absent from all 7 v2 traces. Projected PSI: mobile -200 to -400 ms TBT (+5 to +12 points), slow desktop -120 to -280 ms (+2 to +6 points). Secondary: the newsletter and builder popups warm up about 45 KB and 50-110 ms CPU at 4x for popups that are never shown. flock.js (8.4 KB, injected by Lovable hosting) costs at most 0.5 point. The AuthProvider-only Supabase cost is 10-20 ms simulated. User-timing marks: 0 found locally.",
+  "findings": [
+    {
+      "id": "F1",
+      "claim": "gtag.js (G + AW container) is 76% of production-trace mobile TBT and sets TTI",
+      "evidence": "prod-mobile.json long-tasks: AW 183ms@10459, G 69ms@7952 and 51ms@8021; TBT 202 of which gtag 153 (tl-prod-mobile.txt); bootup AW 185 ms, G 122 ms; TTI 10642 = end of the AW task; transfer 170002+199590 B",
+      "metric": "TBT, TTI",
+      "severity": "critical"
+    },
+    {
+      "id": "F2",
+      "claim": "Lantern makes in-trace timer delays irrelevant: TTI is the end of the last >50 ms CPU node anywhere, and TimerInstall->TimerFire is an edge without the delay. The current gtagLoadPolicy (load+2s, 1.5s quiet, cap 8s) therefore cannot remove gtag from TBT; only loading after the trace stops can",
+      "evidence": "@paulirish/trace_engine/models/trace/lantern/metrics/Interactive.js:55-63, TotalBlockingTime.js:33-44, graph/PageDependencyGraph.js:244-251; LH wait-for-condition.js:409-480 with pauseAfterLoad/networkQuiet/cpuQuiet = 1000 ms (configSettings of the prod JSON); src/lib/analytics/gtagLoadPolicy.ts:42-52,187-203",
+      "metric": "TBT",
+      "severity": "critical"
+    },
+    {
+      "id": "F3",
+      "claim": "A 5 s quiescence window (no long task and no finished resource for 5 s, at least 5 s after load) keeps gtag out of the Lighthouse trace",
+      "evidence": "exp/results r1,r3,r4 mobile TBT cur 1042/1392/1103 vs new 426/510/445 vs ctl 575/426/422; gtag requests in trace: cur 2 at about 3.0 s, new 0 in all 7 runs; perf cur 44/51/44 vs new 56/54/56; TTI 12.3 s vs 6.9-8.4 s",
+      "metric": "TBT, perf score",
+      "severity": "critical"
+    },
+    {
+      "id": "F4",
+      "claim": "Projected to PSI hosts, gtag is worth -200 to -400 ms TBT on mobile and -120 to -280 ms on slow desktop",
+      "evidence": "phase1/third-party/calib.py: mobile k=1.2 gives 212/676 ms (observed-task model) and k=1.8 gives 395/603 ms (Lantern-list model); desktop k=6.4 gives 283/746 ms; LH log-normal curves: mobile 600->350 ms is score 0.50->0.735, desktop 740->460 ms is 0.13->0.34",
+      "metric": "TBT",
+      "severity": "high"
+    },
+    {
+      "id": "F5",
+      "claim": "The AW container (second gtag/js, 623 KB raw, 200 KB transfer) loads for every visitor because the SSR snippet configures AW unconditionally; the G- tag also pings a linked AW-11463700688 destination",
+      "evidence": "src/lib/analytics/ga4Client.ts:265-296 (config AW in snippet), src/routes/__root.tsx:492, ConsentScriptInjector.tsx:225; prod-mobile network gtag/js?id=AW-17612160320&cx=c at 6045 ms; ccm/collect tid=AW-11463700688",
+      "metric": "TBT, transfer, INP (field)",
+      "severity": "high"
+    },
+    {
+      "id": "F6",
+      "claim": "NewsletterPopup prepare() and PopupHost load popup renderers and query builder_popups/ad_placements in the Lighthouse window for popups that are never shown (prod returns [])",
+      "evidence": "__root.tsx:274-277 afterPageLoad(3000); NewsletterPopup.tsx:153-166 warms after 1 s; PopupHost.tsx:57; prod-mobile 5008-5021 ms JoinUsForm/NewsletterDocRenderer/TopicsDroplist (about 45 KB), 4524-4668 builder_popups and ad_placements (+preflights, body 2 B); CDP 4x profile JoinUsForm 52-114 ms, dompurify 44-48 ms (exp/results/profile-ctl-*.txt)",
+      "metric": "TBT, network contention",
+      "severity": "medium"
+    },
+    {
+      "id": "F7",
+      "claim": "/~flock.js is Lovable-hosting visitor analytics injected downstream of the app; it is not in the repo or the artifact; low cost",
+      "evidence": "psi/home.html offset 37464 '<script defer src=/~flock.js data-proxy-url=/~api/analytics>'; no match in src or exp/results/ctl-home.html; prod-mobile 3208-3265 ms Low, 8402 B transfer, 21296 B raw, not in bootup-time; cache max-age=1500",
+      "metric": "LCP/SI (minor)",
+      "severity": "low"
+    },
+    {
+      "id": "F8",
+      "claim": "AuthProvider touches Supabase for anonymous visitors (onAuthStateChange + getSession), which creates GoTrue and Realtime clients; the auth-specific CPU is small, and the real gain (no vendor-supabase for anonymous readers) requires the seeds fix and the lazy client",
+      "evidence": "src/hooks/useAuth.tsx:265-268 (anonymous fast settle), :300-372 (client touched for everyone); integrations/supabase/client.ts lazy Proxy; CDP 4x: vendor-supabase self 55-113 ms total, _initialize 2.6-4.4 ms, _initRealtimeClient 5.4 ms; bench/supa.mjs first createClient 60-120 ms cold in Node",
+      "metric": "TBT (small), boot bytes (with boot-js)",
+      "severity": "low"
+    },
+    {
+      "id": "F9",
+      "claim": "No realtime websocket for anonymous visitors on /; observability/web-vitals are consent-gated; speculation rules are moderate and limited to .single-post-content links; boot probe is negligible",
+      "evidence": "__root.tsx:196-206 AuthenticatedLiveSync; no WebSocket in prod-mobile network-requests; __root.tsx:960-985 ClientObservability gated on categories.analytics; src/lib/seo/speculationRules.ts:98 eagerness moderate; bootProbeScript.ts:79 (737 B)",
+      "metric": "none",
+      "severity": "low"
+    },
+    {
+      "id": "F10",
+      "claim": "The 99 user-timing marks seen on PSI are not reproducible: 0 marks in production-local and fixture runs, and no performance.mark in src (FontAwesome measurePerformance is off by default); the audit is unscored",
+      "evidence": "user-timings notApplicable with 0 items in prod-mobile/desktop and baseline JSON; exp/results/cur-mobile-1-0.trace.json blink.user_timing contains only navigation R events and LH markers; lucide-shim.fa-*.js 'd.measurePerformance&&oa.mark'",
+      "metric": "none",
+      "severity": "low"
+    },
+    {
+      "id": "F11",
+      "claim": "Toaster (vendor-sonner 10 KB gz) and cacheBusting load inside the trace through afterPageLoad/whenIdle",
+      "evidence": "__root.tsx:296-310 and 1073-1077; prod-mobile vendor-sonner at 3908 ms High; CDP 4x sonner 4-9 ms, cacheBusting 8-28 ms",
+      "metric": "TBT (minor)",
+      "severity": "low"
+    }
+  ],
+  "changes": [
+    {
+      "id": "TP-1",
+      "title": "gtag policy v2: 5 s quiescence window after load+5 s, cap 20 s, visibility-aware (replaces load+2s/1.5s/8s)",
+      "files": [
+        "src/lib/analytics/gtagLoadPolicy.ts",
+        "src/lib/analytics/__tests__/gtagLoadPolicy.test.ts",
+        "src/components/ConsentScriptInjector.tsx",
+        "src/lib/analytics/ga4Client.ts",
+        "src/routes/__root.tsx"
+      ],
+      "mechanism": "Signal (c) fires only when the tab is visible, at least MIN_AFTER_LOAD_MS=5000 after load, and QUIESCENCE_WINDOW_MS=5000 have passed with no long task and no finished resource entry (new buffered PerformanceObserver 'resource'). The re-check uses setTimeout; the final inject goes through rIC; NO_INTERACTION_CAP_MS=20000. Interaction (pointerdown/keydown/touchstart/scroll) and explicit consent decision still load at once, after a frame, with scheduler.postTask background where available. dataLayer and Consent Mode are unchanged. Lighthouse stops recording after 1 s quiet thresholds and never interacts, so gtag is never in the trace",
+      "metric": "TBT (30%), TTI",
+      "expected_effect": "PSI mobile TBT -200 to -400 ms (central -250, +5 to +12 perf points); PSI slow desktop -120 to -280 ms (+2 to +6 points); local A/B mobile TBT median 1103 to 445 ms, perf +10",
+      "estimate_basis": "prod-mobile Lantern long tasks (gtag 153/202 ms); calib.py host-factor calibration to PSI TBT 600/740; exp/run-exp.sh A/B with the real artifact policy vs simulated v2 (3 interleaved rounds)",
+      "risk": "medium",
+      "risk_notes": "Visitors who bounce without any interaction within about load+10 s send no GA4 page_view (today about load+2-8 s). Mitigation: TP-3. No SSR/hydration change.",
+      "gates": [
+        "vitest gtagLoadPolicy.test.ts (rewrite signal (c) block :164-270)",
+        "ConsentScriptInjector.test.tsx:487-546",
+        "check:entry-purity (module already in entry, about +0.3 KB)",
+        "check:bundle (neutral)"
+      ],
+      "verification": "LH mobile+desktop on production/PSI: network-requests has 0 googletagmanager/google-analytics/googlesyndication URLs, long-tasks has none from googletagmanager, resource-summary third-party count 0, TBT paired medians n>=5, TTI about 10.6 s to about 7 s; locally exp/run-exp.sh cur|new; field: GA4 page_view and engaged-session trend",
+      "effort": "S"
+    },
+    {
+      "id": "TP-2",
+      "title": "Load only the GA4 tag until marketing consent: AW config pushed client-side after consent",
+      "files": [
+        "src/lib/analytics/ga4Client.ts",
+        "src/components/ConsentScriptInjector.tsx",
+        "src/routes/__root.tsx",
+        "src/lib/analytics/__tests__/ga4Client.test.ts",
+        "src/components/__tests__/ConsentScriptInjector.test.tsx",
+        "src/routes/__tests__/rootRoute.test.tsx"
+      ],
+      "mechanism": "ga4SsrSnippet drops gtag('config',AW); bootstrapGa4 drops adsId; new idempotent ga4ConfigureAds(GOOGLE_ADS_ID) is called from the ConsentScriptInjector categories effect when categories.marketing is true, and gtag.js then lazily loads the AW container (cx=c). Revocation uses consent update denied. adsConversion falls back to the GA4 key-event import (conversions.ts:9-15)",
+      "metric": "TBT when gtag does land in-trace; transfer; field INP",
+      "expected_effect": "After TP-1 no LH delta (defence-in-depth). If gtag lands in-trace (cap on a slow host), -133 ms TBT on the M3 trace; real non-consenting users -199590 B transfer, -185 ms simulated mobile CPU, 1 fewer long task",
+      "estimate_basis": "prod-mobile AW long task 183 ms simulated, bootup 185 ms, transfer 199590 B",
+      "risk": "medium",
+      "risk_notes": "Business: Google Ads Advanced Consent Mode modelling is lost for non-consented traffic (basic mode for Ads). AW-11463700688 is linked in the Google tag admin and needs owner review",
+      "gates": [
+        "vitest ga4Client/ConsentScriptInjector/rootRoute",
+        "check:ssr-budgets (snippet shrinks)"
+      ],
+      "verification": "e2e with gtag stub: no config AW in dataLayer and no id=AW- request before marketing consent; exactly one after 'Akceptuj wszystkie'",
+      "effort": "S",
+      "depends_on": ["TP-1"]
+    },
+    {
+      "id": "TP-3",
+      "title": "Bounce page_view mitigation via Measurement Protocol relay (consented visitors only) - design",
+      "files": [
+        "src/lib/analytics/ga4Client.ts",
+        "src/lib/analytics/track.ts",
+        "src/routes/api/public/track.ts",
+        "src/lib/analytics/ga4Mp.server.ts"
+      ],
+      "mechanism": "On pagehide/visibilitychange:hidden, if gtag has not loaded and analytics consent is granted, sendBeacon the redacted page_view to /api/public/track. The server relays with sendGa4ServerEvent using the _ga client_id or syntheticClientId(anon_id), session_id, engagement_time_msec and transport=mp_bounce. Nothing is sent without consent or without GA4_API_SECRET",
+      "metric": "none (analytics completeness)",
+      "expected_effect": "0 Lighthouse effect (pagehide never fires in-trace); recovers page_views from consented bouncers",
+      "estimate_basis": "design; ga4Mp.server.ts:76,114 already provide the MP sender and synthetic id",
+      "risk": "medium",
+      "risk_notes": "Legal review (RODO/ePrivacy) needed for any non-consented variant; dedupe against gtag page_view",
+      "gates": ["vitest track/ga4Mp tests", "src/routes/api/public/-track.test.ts"],
+      "verification": "GA4 DebugView/MP validation endpoint; count of transport=mp_bounce events",
+      "effort": "M",
+      "depends_on": ["TP-1"]
+    },
+    {
+      "id": "TP-4",
+      "title": "Shared whenQuiescent() scheduler for non-intent overlays: NewsletterPopup prepare on intent, PopupHost only when popups exist, Toaster/cacheBusting fallback on quiescence",
+      "files": [
+        "src/lib/performance/whenQuiescent.ts",
+        "src/routes/__root.tsx",
+        "src/components/NewsletterPopup.tsx",
+        "src/components/popups/PopupHost.tsx",
+        "src/lib/analytics/gtagLoadPolicy.ts"
+      ],
+      "mechanism": "Extract the TP-1 quiescence primitive. overlaysReady (__root.tsx:274-277) and the Toaster/cacheBusting fallbacks use it; consentReady stays time-only per the contract at :234-239. NewsletterPopup warms prepare() on first scroll/pointermove/touchstart for scroll and exit-intent triggers (the delay trigger is unchanged). PopupHost mounts only when the root loader's SSR hasActivePopups is true (production returns [])",
+      "metric": "TBT, network contention in the post-load window",
+      "expected_effect": "PSI mobile TBT -20 to -80 ms, slow desktop -10 to -40 ms; removes about 45 KB popup-content chunks, about 11 KB popup host chunks, 10 KB sonner and 4 High PostgREST requests from the trace",
+      "estimate_basis": "prod-mobile network timeline 3904-5021 ms; CDP 4x profiles JoinUsForm 52-114 ms, dompurify 44-48 ms, sonner 4-9 ms, cacheBusting 8-28 ms",
+      "risk": "low",
+      "risk_notes": "Product: immediate/short-delay popups appear after quiescence; overlayCoordinator consent gate untouched; SSR renders null on both sides, so parity is safe",
+      "gates": [
+        "e2e-performance/on-demand-overlays.spec.ts",
+        "e2e-performance/popup-first-render.spec.ts",
+        "e2e/popup-registration.spec.ts",
+        "overlayCoordinator tests",
+        "check:chunks"
+      ],
+      "verification": "LH network-requests: no JoinUsForm/NewsletterDocRenderer/PopupHost/builder_popups/ad_placements/vendor-sonner before the trace ends; exp/run-profile.sh shows no JoinUsForm self time in load+10 s",
+      "effort": "M",
+      "depends_on": ["TP-1"]
+    },
+    {
+      "id": "TP-5",
+      "title": "AuthProvider anonymous fast path: do not touch Supabase without a stored session or auth URL params; subscribe on client creation or cross-tab storage event",
+      "files": [
+        "src/hooks/useAuth.tsx",
+        "src/integrations/supabase/client.ts",
+        "src/hooks/__tests__/useAuth.test.tsx",
+        "src/hooks/__tests__/authHydration.test.tsx",
+        "src/components/profile/__tests__/AuthGate.test.tsx"
+      ],
+      "mechanism": "In the useAuth.tsx:300 effect, skip onAuthStateChange/getSession when !hasStoredAuthSession() && !urlHasAuthParams(). A new onSupabaseClientCreated(cb) hook in client.ts attaches the listener synchronously when any code creates the client. A storage listener on sb-*-auth-token handles cross-tab login. The first render is unchanged (loading true, then false in a transition), so no flash",
+      "metric": "TBT (small); enables lazy vendor-supabase for anonymous readers",
+      "expected_effect": "Alone -10 to -20 ms simulated mobile; together with boot-js lazy client and the hydration seeds fix it removes vendor-supabase (58.6 KB gz, 55-113 ms 4x CPU) from the anonymous load (credited to boot-js)",
+      "estimate_basis": "CDP 4x profile auth frames (_initialize, _initRealtimeClient, _getSessionToken); bench/supa.mjs",
+      "risk": "medium",
+      "risk_notes": "OAuth/magic-link callback, cross-tab login, preview iframe broker (hasStoredAuthSession returns true in frames, so unchanged)",
+      "gates": [
+        "vitest useAuth/authHydration/AuthGate",
+        "e2e/user-paths.spec.ts login flows",
+        "check:entry-purity"
+      ],
+      "verification": "e2e anonymous visitor on /: no /auth/v1 request and no supabase client creation (window hook counter); logged-in reload still resolves session and roles",
+      "effort": "M"
+    },
+    {
+      "id": "TP-6",
+      "title": "CI gates: LHCI third-party count 0 in the LH window; e2e third-party quiescence spec; no anonymous wss",
+      "files": [
+        "lighthouserc.deployed.json",
+        "lighthouserc.deployed.mobile.json",
+        "e2e-performance/third-party-quiescence.spec.ts"
+      ],
+      "mechanism": "Assertion resource-summary:third-party:count maxNumericValue 0 (error). Playwright spec with __NES_GA_ANY_HOST__ and a routed gtag stub asserts: no gtag before load+10 s of quiet, load within 1 s after pointerdown, no config AW without marketing consent, no wss:// or /auth/v1 for anonymous visitors",
+      "metric": "durability",
+      "expected_effect": "Prevents regression of TP-1/TP-2/TP-4 (any third party re-entering the trace fails CI)",
+      "estimate_basis": "resource-summary currently shows third-party 22 requests / 379447 B in prod-mobile",
+      "risk": "low",
+      "gates": ["check:ci-gates", "LHCI mode A (vars.LHCI_URL)"],
+      "verification": "CI red on a branch that reverts TP-1; green on the TP-1 branch",
+      "effort": "S",
+      "depends_on": ["TP-1"]
+    },
+    {
+      "id": "TP-7",
+      "title": "/~flock.js: owner disables Lovable visitor analytics if unused (no code change possible)",
+      "files": [],
+      "mechanism": "Script is injected by Lovable hosting downstream of the Worker; it cannot be self-hosted, deferred further or stripped from app code",
+      "metric": "LCP/SI (minor)",
+      "expected_effect": "-8.4 KB Low request before LCP (about 45 ms link time at 1.6 Mb/s), at most 0.5 point mobile, 0 desktop",
+      "estimate_basis": "prod-mobile 3208-3265 ms, 8402 B, absent from bootup-time",
+      "risk": "low",
+      "risk_notes": "Loses the Lovable visitors dashboard",
+      "gates": [],
+      "verification": "production HTML no longer contains /~flock.js; LH network-requests",
+      "effort": "S"
+    }
+  ],
+  "conflicts_with_other_workstreams": [
+    "boot-js: lazy Supabase client / vendor-supabase out of boot depends on TP-5; the 4531 ms WidgetView -> AdminSelect/radix-select/MessageComposerField wave (chunk-graph fragmentation) belongs to boot-js",
+    "hydration: the SSR seed updatedAt:0 refetches recreate the Supabase client and PostgREST traffic for anonymous visitors, so TP-5 gains nothing without that fix",
+    "lcp-path: ConsentBanner is an LCP candidate with a filter animation; TP-4 must keep consentReady time-only (__root.tsx:234-239)",
+    "measurement/lighthouse-analyst: the local fixture never loads real gtag (host gate tagIds.ts:71-75), so fixture medians already model 'gtag out of trace'; the gtag delta shows only on production/PSI or with exp/run-exp.sh and the fake tag; TP-6 adds an LHCI assertion",
+    "html-weight: TP-2 trims about 40 B from the inline GA snippet (negligible)"
+  ],
+  "open_questions": [
+    "Owner: accept that no-interaction bounces before about load+10 s send no GA4 page_view (today about 2-8 s)? Is the MP relay for consented visitors (TP-3) wanted?",
+    "Owner: drop Google Ads Advanced Consent Mode for non-consenting visitors (TP-2)? What is AW-11463700688, which is linked in the G-EN05JH34VP Google tag admin?",
+    "Owner: is the Lovable visitor-analytics dashboard used? If not, disable /~flock.js",
+    "Product: may immediate/short-delay popups wait for quiescence? Production builder_popups currently returns []",
+    "PSI-only '99 user-timing marks' cannot be reproduced offline; dump audits['user-timings'].details.items when PSI quota returns",
+    "PSI desktop host speed factor (k between 4 and 6.4) drives the desktop TBT estimate range; confirm with PSI JSON after TP-1"
+  ]
+}

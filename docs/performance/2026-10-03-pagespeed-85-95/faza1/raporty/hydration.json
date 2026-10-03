@@ -1,0 +1,423 @@
+{
+  "key": "hydration",
+  "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/hydration.md",
+  "summary": "Fixed-harness fixture LH mobile TBT 558-991 ms; 90-95% of it is vendor-react long tasks after FCP, i.e. hydration plus what runs right after it. At 4x CPU React is 60-80% busy from 1.5 to 7.5 s and only ~0.5 of ~3.0 s runs before the root commit. Hot single tasks: root pass 361 ms; --sticky-header-h written on :root (recalc of 874 elements, 137-177 ms, plus forced layout); refetch plus ticker animation (recalc 115-196 + layout 143-192 ms); mobile device-switch re-render (25 style swaps, 166-198 ms recalc). Production post-hydration network is 6 PostgREST + 6 preflights + 1 serverFn, not 15 PostgREST; each has a code-level cause. Dropping 61% of the DOM (sections 2-8, footer) cut React work only ~25%. So islands must be preceded by killing the storm and the device switch, which would otherwise force client renders. Combined plan: mobile TBT to ~150-300 ms on the fixture.",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "critical",
+      "metric": "TBT",
+      "claim": "On the fixed-harness fixture baseline, mobile TBT is almost entirely React work (hydration plus post-hydration re-renders) after FCP; CSS/HTML parse tasks precede FCP and are not counted.",
+      "evidence": "$SCRATCH/lh/results/baseline2-mobile-{1,2,3}.json long-tasks after FCP: vendor-react 551/616, 630/558, 942/991 ms of TBT (9-12 tasks), index 18-69 ms; desktop TBT 16-105 ms all vendor-react (baseline2-desktop-*). Prod laptop run prod-mobile.json: TBT 200 = gtag 153 + React/boot 49."
+    },
+    {
+      "id": "F2",
+      "severity": "high",
+      "metric": "TBT, TTI",
+      "claim": "Only ~0.5 s of ~3.0-3.3 s of React work (4x CPU) runs before the root commit (__nesAppReady); ~2.7 s runs afterwards as lazy-boundary hydration, the device-switch transition and refetch re-renders, keeping the main thread 60-80% busy until ~7.5 s.",
+      "evidence": "phase1/hydration/runs/m4-ok-1 (metrics.py: react=3306 ms, react_to_ready=498, appReady 2661 ms); buckets.py 250 ms buckets show react 130-240 ms per bucket from 2.0 to 7.25 s; desktop viewport runs d4-ok-* still show continuous React to ~7 s."
+    },
+    {
+      "id": "F3",
+      "severity": "high",
+      "metric": "TBT",
+      "claim": "The root hydration pass runs as one non-yielding 361 ms task (4x) even though hydrateRoot is wrapped in startTransition; it contains HeaderInner (52 ms), cn/twMerge (46 ms), WidgetView (31 ms), Supabase client creation in the AuthProvider effect (19 ms) and the Header metrics effect (16 ms).",
+      "evidence": "runs/m4-ok-1 long task t=2572 dur=361 (FunctionCall vendor-react 346); incl.py runs/m4-ok-1 2570 2935: p2 index 421:6679 (src/components/Header.tsx HeaderInner), lt 1:63229 (src/lib/utils.ts:5 cn), F0 1:20158 (supabase client), 421:12890 (Header.tsx:431-531); hydrateRoot in startTransition at .output/public/assets/index-DPN2YAij.js line 429 col ~264564."
+    },
+    {
+      "id": "F4",
+      "severity": "high",
+      "metric": "TBT",
+      "claim": "Header writes --sticky-header-h on document.documentElement in an effect right after hydration, after a synchronous getBoundingClientRect. The custom property is inherited, so the whole document restyles (874 elements, 137-177 ms at 4x) and a forced layout follows.",
+      "evidence": "src/components/Header.tsx:548-585 (root.style.setProperty('--sticky-header-h')), consumers src/styles.css:6678-6683 (html scroll-padding-top, [id] scroll-margin-top); inv.py runs/m4-ok-inv: ULT at 3104 ms 177 ms elements=874, reason 'Inline CSS style declaration was mutated' on HTML, stack index 422:14673; incl.py runs/v-sec1-tinyfooter-2: function S 421:14574 138 ms inclusive."
+    },
+    {
+      "id": "F5",
+      "severity": "high",
+      "metric": "TBT, TTI",
+      "claim": "On mobile, BuilderRenderer hydrates every builder document as 'desktop' (SSR parity) and then re-renders the whole tree as 'mobile' in a transition. The transition is restarted on lazy-chunk pings and commits late with 25 <style> replacements, 25-30 inline grid-style changes and a 797-element recalc (166-198 ms). That accounts for ~0.5 s of extra React work at 4x.",
+      "evidence": "src/components/builder/organisms/BuilderRenderer.tsx:241-279 (useState device ?? 'desktop', ResizeObserver -> startTransition(setViewportDevice)); runs/m4-ok-1 mutation log at 7391 ms: 25 style add/rm pairs, div.min-w-0.max-w-full.overflow-hidden style 'grid-column:span 4|6|12' -> 'grid-column: auto', data-device flip; ult.py: ULT 7401 ms 165.6 ms elements=797; desktop-viewport runs d4-ok-* React 2512 ms vs mobile m4b-ok-* 3056 ms; 2 of 3 loaded mobile runs did not commit the switch within 8 s (mut 139/142 vs 351)."
+    },
+    {
+      "id": "F6",
+      "severity": "high",
+      "metric": "TBT, network",
+      "claim": "Production post-hydration app traffic is 6 PostgREST GETs + 6 CORS preflights + 1 serverFn POST (not 15 PostgREST; the other 8 fetches are Google collect beacons). Every request has a code-level trigger and none is needed for an anonymous first view.",
+      "evidence": "prod-mobile.json network-requests (phase1/hydration/net.py): site_design_tokens 3903, post_layout_settings 3911, _serverFn 5b44027a (logNewsletterPopupEvent) 4522, builder_popups 4566, ad_placements(footer_slideup) 4568, categories 5399, tags 5409, 6 Preflight; serverFn mapped via .output/server/_ssr/server-T1xg6n31.mjs."
+    },
+    {
+      "id": "F7",
+      "severity": "medium",
+      "metric": "network, TBT",
+      "claim": "Seeds and freshness: post-layout-settings is dehydrated with dataUpdatedAt:0 (deliberate stale seed) and refetches on mount. site_font_scale is not warmed (pending, 0 observers in the SSR dump) although it shares the site_design_tokens row. The production document was 316 s old at hydration, past the 300 s staleTime of the token queries, so dehydrated data counted as stale.",
+      "evidence": "src/routes/__root.tsx:694-699 (setQueryData updatedAt:0), :631-639 (wave 1 warms settings/tokens/globalColors only); src/components/DesignTokensStyle.tsx:48 useFontScale; src/hooks/useFontScale.ts:18-27; src/lib/builder/designTokens.ts:79-130 (staleTime 5 min); psi/home.html: ['post-layout-settings'] dataUpdatedAt:0, others 1791047225xxx vs beacon _p=1791047541952 (316 s); lh/results/baseline-server.log pending dump (14 keys incl. site_font_scale, interests-catalog, ad_placements footer_slideup)."
+    },
+    {
+      "id": "F8",
+      "severity": "medium",
+      "metric": "network, TBT",
+      "claim": "JoinUsForm fetches the full categories+tags catalog on mount for a closed droplist. When the response arrives it re-renders ~70 inputs (68 name / 33 type attribute rewrites) and causes a full recalc.",
+      "evidence": "src/components/interests/JoinUsForm.tsx:229 useInterestGroups -> src/components/interests/TopicsDroplist.tsx:34-35 -> src/hooks/useInterests.ts:62-77 (categories + tags, staleTime 60 s); runs/m4-ok-1 mutations at 7000-7250 ms: input name x52, type x33; ULT 7401 ms 166 ms."
+    },
+    {
+      "id": "F9",
+      "severity": "medium",
+      "metric": "TBT, bytes",
+      "claim": "Overlays still enter the load window. ConsentBanner (44 KB) at rAF+idle 1 s pulls vendor-lucide (63 KB raw) for six icons and uses a non-composited filter animation. Toaster/sonner (35 KB), NewsletterPopup and PopupHost mount unconditionally at load+3 s. NewsletterPopup posts an 'impression' serverFn on mount.",
+      "evidence": "src/routes/__root.tsx:144-160, 213-280, 296-310, 1001-1013; src/components/ConsentBanner.tsx:13 (lucide-react Cookie/ChevronDown/ChevronUp/Check/X/Settings2); reports/chunk-inventory.json ConsentBanner imports vendor-lucide-BMca3yYd.js; src/components/NewsletterPopup.tsx:108-130; LH non-composited-animations 'enter' Filter-related property (prod-mobile/desktop summaries)."
+    },
+    {
+      "id": "F10",
+      "severity": "medium",
+      "metric": "TBT, bytes",
+      "claim": "Anonymous header widgets pull heavy, unrelated chunks at hydration. AccountMenuWidget pulls admin.users (greetings), eventLanguages (contains ui/popover, hence vendor-radix 112 KB raw / 37 KB gz) and noteContext. SearchButtonWidget pulls useVoiceSearch, facetModel, author._slug and i18n-search.",
+      "evidence": "reports/chunk-inventory.json: AccountMenuWidget-0_9IS02u.js imports admin.users-HVNQ-nWc.js, eventLanguages-C1Ixyng6.js (modules lib/events/eventLanguages.ts + components/ui/popover.tsx), noteContext-CzbW75MB.js; SearchButtonWidget-Dq-L6vjd.js imports useVoiceSearch, facetModel, author._slug, i18n-search; runs/m4-ok-1 resources 3145-3183 ms (admin.users, eventLanguages, vendor-radix 112317 B, noteContext)."
+    },
+    {
+      "id": "F11",
+      "severity": "medium",
+      "metric": "TBT",
+      "claim": "Generic per-widget renderer overhead dominates the remaining hydration CPU: a useQuery observer per widget for global widgets even without globalId, client-side regeneration of per-widget typography CSS that SSR already emitted, sectionQueryOptionsList recomputed on the client on every render, cn/twMerge, and srcset building.",
+      "evidence": "incl.py runs/m4-ok-1 732-8000 ms (4x): cz 74:12658 252 ms + fz 79:12021 239 ms (src/components/builder/organisms/ChromeWidgetView.tsx:168 useGlobalWidgetNode -> src/lib/builder/globalWidgets.ts:127-145), Tn/c1 82+60 ms (src/lib/builder/typographyCss.ts), rD/oD/Yh/kc 73+52+50+38 ms (src/lib/builder/sectionStreaming.tsx:212-216), lt 68 ms (src/lib/utils.ts:5), jc/io 45+43 ms."
+    },
+    {
+      "id": "F12",
+      "severity": "medium",
+      "metric": "TBT",
+      "claim": "The Vite preload helper costs ~240 ms inclusive at 4x for 49-60 <link rel=modulepreload> insertions after boot (querySelector per dependency on a 1258-element DOM).",
+      "evidence": "incl.py runs/m4-ok-1: index 1:13376 (136 ms) and 1:13712 (107 ms) = __vitePreload; mutation log: 49 post-ready + 11 pre-ready modulepreload insertions; prod LH: 44 insertions (team doc §3)."
+    },
+    {
+      "id": "F13",
+      "severity": "medium",
+      "metric": "TBT (region split)",
+      "claim": "Region split by experiment: removing sections 2-8 and most of the footer (-727 elements, -45%) cuts React work only ~25% (2994 -> 2160 ms at 4x), style -48%, layout -70%. Hydration cost is dominated by fixed per-page work (header, section 1 with slider, overlays, effects, storm, device switch) rather than element count.",
+      "evidence": "fx variants + runs/v-{full,sec1,tinyfooter,sec1-tinyfooter}-{1,2,3} (metrics.py medians: react 2994/2757/3077/2160 ms; style 950/503/743/490; layout 453/97/459/132; DOM 1258/696/1093/531). Prod DOM split (regions.py on psi/home.html): header 279, main sec1 164, sec2-8 633, footer 188."
+    },
+    {
+      "id": "F14",
+      "severity": "low",
+      "metric": "bytes, TBT",
+      "claim": "A 103-115 KB icon JSON chunk (icons-0 prod / icons-3 fixture) loads after hydration because some homepage icon name is outside the curated set and rendered with DynamicIcon allowFull=true. DesignTokensStyle/ContentAreaStyle <style> swaps also follow the refetches.",
+      "evidence": "prod-mobile.json icons-0-DF-BxYAn.js 102739 B at 4134 ms; runs/m4-ok-1 icons-3-DopDgETA.js 105789 B at 4126 ms; src/lib/icons/DynamicIcon.tsx:362-394; chunk-inventory icons-3 = src/lib/icons/chunks/icons-3.json 115416 B."
+    },
+    {
+      "id": "F15",
+      "severity": "low",
+      "metric": "measurement validity",
+      "claim": "The dead-backend fixture misrepresents the storm: browser PostgREST calls to 127.0.0.1:4199 fail and are retried (18 GETs + 18 preflights vs 6+6 in production), so refetch re-renders and <style> swaps never happen. Separately, the pre-fix harness measured /en after a 302 (redirect -610 ms).",
+      "evidence": "lh/results/baseline-mobile-1.json network-requests (site_design_tokens at 1169, 2235, 4242 ms ...), finalDisplayedUrl /en, redirects audit 610 ms; src/start.ts:135-182 homepageLangMiddleware; trace.mjs --backend=ok intercepts in-process."
+    }
+  ],
+  "changes": [
+    {
+      "id": "H1",
+      "title": "Count dehydrated query freshness from hydration time, not SSR render time",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/router.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/lib/ssr/hydrateBudget.ts"
+      ],
+      "mechanism": "In the router.options.hydrate wrapper (router.tsx:197-211), after the integration hydrates the initial batch and the setTimeout(0) tick, re-stamp every query whose state.status==='success' && dataUpdatedAt>0 to dataUpdatedAt=Date.now() (via queryCache.find + setState). Do the same for queries arriving through the render-phase queryStream (wrap guardQueryStream consumer or subscribe to cache 'added' events for 2 s). Seeds with updatedAt:0 keep 0 (explicitly stale). Rationale: the edge certified the whole document; client staleness should start when the reader sees it.",
+      "metric": "Network (post-hydration fetches), TBT",
+      "expected_effect": "-1..-3 PostgREST (+preflights) whenever document age > staleTime (prod sample 316 s > 300 s); removes 1 <style> swap + full recalc (115-177 ms at 4x) -> TBT mobile -65..-125 ms when it lands after FCP",
+      "estimate_basis": "prod HTML dataUpdatedAt vs prod beacon timestamp (316 s); runs/m4-ok-1 ULT after token refetch 115-196 ms at 4x; LH maps observed 1x tasks x4",
+      "risk": "low",
+      "risk_notes": "Data can be stale by at most edge doc age + staleTime (doc fresh window 3 min + SWR); invalidations by staff still work (realtime bridges for logged-in users). Must not re-stamp error/pending queries.",
+      "gates": [
+        "test (new router hydration unit test: success queries re-stamped, updatedAt:0 seeds untouched)",
+        "check:ssr-budgets (router.tsx dehydration invariants scanned)",
+        "typecheck",
+        "lint"
+      ],
+      "verification": "trace.mjs --backend=ok on a document older than 5 min (or with Date.now mocked +6 min): zero site_design_tokens/site_global_colors refetch; LH network-requests shows no token fetch; mutation log shows no data-css-hash style swap.",
+      "effort": "S"
+    },
+    {
+      "id": "H2",
+      "title": "One site_design_tokens row query with derived selectors; warm post_layout_settings and font scale for real",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/lib/builder/designTokens.ts",
+        "/home/user/neweustrategies-dc633fb5/src/hooks/useGlobalColors.ts",
+        "/home/user/neweustrategies-dc633fb5/src/hooks/useFontScale.ts",
+        "/home/user/neweustrategies-dc633fb5/src/routes/__root.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/DesignTokensStyle.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/ContentAreaStyle.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/hooks/usePostLayoutSettings.ts",
+        "/home/user/neweustrategies-dc633fb5/src/lib/ci/ssrBudgets.ts"
+      ],
+      "mechanism": "Introduce siteDesignTokensRowQueryOptions (single key, same fetchSiteDesignTokensRow + edgeTtlCache). designTokens/globalColors/fontScale become `select` projections (or queryOptions whose queryFn reads the cached row). The root loader warms ONE row query instead of two, which frees cacheWrites (ceiling dehydrationWritesPerLoader 11, zero headroom, ssrBudgets.ts:139-152). Spend one freed write on ensureQueryData(postLayoutSettingsQueryOptions) in wave 1 (edgeTtlCache row, parallel arm count stays <= 6) and delete the updatedAt:0 seed at __root.tsx:694-699 when the warm succeeded (keep the seed only as failure fallback).",
+      "metric": "Network, <style> swaps, TBT",
+      "expected_effect": "-2 PostgREST -2 preflights (font scale/tokens row, post_layout_settings); -2 <style> text swaps (DesignTokensStyle font scale at ~2.9 s, ContentAreaStyle); -1 full recalc + layout -> TBT mobile -100..-200 ms",
+      "estimate_basis": "runs/m4-ok-1: fetches at 2927/2932 ms followed by style swaps at 2924/3174 and ULT 137/115 ms + Layout 143 ms at 4x; prod fetches at 3903/3911 ms",
+      "risk": "medium",
+      "risk_notes": "+1 parallel query on cache MISS (edge-TTL cached, inside the existing 2.5 s wave budget); SSR/client parity of DesignTokensStyle css-hash must be preserved; check:ssr-budgets counts writes/arms by regex.",
+      "gates": [
+        "check:ssr-budgets",
+        "src/lib/ci/__tests__/ssrBudgets.test.ts",
+        "homeRoute.test.tsx / root loader tests",
+        "DesignTokensStyle/ContentAreaStyle parity tests",
+        "check:entry-purity (no generator back into entry)",
+        "typecheck",
+        "test"
+      ],
+      "verification": "SSR dump (server log '[ssr-query-stream] pending dump') no longer lists site_font_scale; dehydrated HTML has post-layout-settings with dataUpdatedAt>0; trace shows no site_design_tokens/post_layout_settings fetch and no data-css-hash style swap after hydration.",
+      "effort": "M",
+      "depends_on": []
+    },
+    {
+      "id": "H3",
+      "title": "On-demand data for below-fold widgets (interest catalog, footer slide-up ad)",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/hooks/useInterests.ts",
+        "/home/user/neweustrategies-dc633fb5/src/components/interests/TopicsDroplist.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/interests/JoinUsForm.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/ads/FooterSlideup.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/lib/ads/queries.ts"
+      ],
+      "mechanism": "useInterestCatalog(lang, {enabled}) with enabled = droplist opened || chips display || submit validation needing allItems; JoinUsForm passes enabled from TopicsDroplist open state (prefetchQuery on pointerover/focus of the trigger). For interestsDisplay==='chips' add the catalog to sectionQueryOptionsList for join-us so SSR warms it. FooterSlideup: useAdPlacements(..., {enabled: interacted}) where interacted = first scroll/pointerdown/keydown (shared tiny hook), since the slide-up already waits delay_ms>=3000 and needs an overlay slot.",
+      "metric": "Network, TBT",
+      "expected_effect": "-3 PostgREST -3 preflights; removes the JoinUs re-render (68 input attr rewrites) and its 166-198 ms (4x) recalc from the window -> TBT mobile -80..-150 ms",
+      "estimate_basis": "prod fetches categories/tags 5399/5409 ms, ad_placements 4568 ms; runs/m4-ok-1 mutations 7000-7250 ms and ULT 7401 ms",
+      "risk": "low",
+      "risk_notes": "First droplist open shows a short loading state (prefetch on hover/focus hides it); slide-up ad appears only after an interaction (business sign-off).",
+      "gates": [
+        "test (JoinUsForm/TopicsDroplist tests)",
+        "check:loader-policy",
+        "typecheck",
+        "lint"
+      ],
+      "verification": "trace.mjs --backend=ok: no categories/tags/ad_placements requests in the first 10 s without interaction; opening the droplist fetches once; LH network-requests count of Fetch drops by 3 and Preflight by 3.",
+      "effort": "S"
+    },
+    {
+      "id": "H5",
+      "title": "Stop full-document restyle and forced layout from Header measurements",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/components/Header.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/styles.css"
+      ],
+      "mechanism": "(a) Register `@property --sticky-header-h { syntax: '<length>'; inherits: false; initial-value: 96px }` and keep it only on <html> (html { scroll-padding-top } reads it on the same element). Make `[id] { scroll-margin-top }` not depend on the variable (scroll-padding on the root scroller already offsets anchors); a non-inherited property change restyles only <html>. (b) Replace the synchronous getBoundingClientRect() in the mount path of both effects (Header.tsx:431-531, 548-585) with the first ResizeObserver entry (borderBoxSize), so no forced layout runs inside the hydration commit. Skip the write when |height - current| < 2.",
+      "metric": "TBT",
+      "expected_effect": "-1 full-document style recalc (874 elements, 137-177 ms at 4x) and -1 forced layout (138 ms inclusive at 4x) -> TBT mobile -90..-180 ms, PSI desktop -20..-45 ms",
+      "estimate_basis": "inv.py runs/m4-ok-inv ULT 3104 ms 177 ms (html inline style mutated); incl.py v-sec1-tinyfooter-2 function S 138 ms; ×4 Lantern multiplier on observed 1x",
+      "risk": "medium",
+      "risk_notes": "Anchor offsets (#newsletter, TOC jumps, reading header max()) must stay identical; collapse animation relies on --hdr-* on header (not root), unaffected.",
+      "gates": [
+        "noHasSelectors test",
+        "Header tests / horizontalPanGuard",
+        "e2e anchor/scroll tests",
+        "lint",
+        "test"
+      ],
+      "verification": "inv.py on a new trace: no UpdateLayoutTree >50 elements caused by HTML inline style; ult.py shows no 800+ element recalc at ~2.9 s; Lighthouse 'forced reflow' insight no longer lists Header; manual anchor-offset check on a post with TOC.",
+      "effort": "S"
+    },
+    {
+      "id": "H6",
+      "title": "No whole-tree device re-render after hydration on mobile",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/components/builder/organisms/BuilderRenderer.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/routes/__root.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/lib/http/cachePolicy.ts",
+        "/home/user/neweustrategies-dc633fb5/src/server.ts"
+      ],
+      "mechanism": "Option B (first, low risk): keep desktop-first SSR but defer the viewport-device transition until first user interaction or until all islands are hydrated, plus a long quiet window (>=10 s). CSS already lays out mobile correctly (comment BuilderRenderer.tsx:238-241). Precondition: audit device-dependent behaviour in widgets (visibility filter dy(), slider items per view) and move it to CSS where it differs. Option A (durable): SSR the device class from Sec-CH-UA-Mobile (sent by default by Chromium) / UA 'Mobi', render BuilderRenderer with device prop, include the device class in the edge document cache key (2 variants per URL), and initialise viewportDevice from the SSR data-device attribute so the client never switches for phones; ResizeObserver still corrects tablets.",
+      "metric": "TBT, TTI, CLS-safety for islands",
+      "expected_effect": "-0.4..-0.6 s React work at 4x on mobile, -25 <style> swaps, -1 recalc of ~800 elements (166-198 ms 4x) -> TBT mobile -150..-300 ms; removes the main source of forced island client-renders",
+      "estimate_basis": "desktop-viewport vs mobile-viewport traces (React 2512 vs 3056 ms, same artifact/load); runs/m4-ok-1 mutation log at 7391 ms (25 style swaps, grid-column span->auto) and ULT 166 ms",
+      "risk": "medium",
+      "risk_notes": "B: visible behaviour difference until switch (per-device hidden widgets must be CSS-hidden). A: cache key change (server-cache workstream), tablet misclassification -> one correction re-render, parity tests.",
+      "gates": [
+        "SSR/hydration parity tests (BuilderRenderer, ChromeWidgetView)",
+        "first-visit e2e (DOM retention + CLS)",
+        "check:chunk-parity",
+        "test",
+        "typecheck"
+      ],
+      "verification": "Mutation log on mobile: no data-device flip and no grid-column style rewrites in the first 10 s; React busy time (metrics.py) on mobile within 10% of desktop; LH mobile vendor-react long tasks after 6 s disappear.",
+      "effort": "M",
+      "depends_on": []
+    },
+    {
+      "id": "H9",
+      "title": "Overlay gating: consent banner SSR shell + pre-paint toggle; popups, toaster and telemetry on interaction",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/routes/__root.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/ConsentBanner.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/lib/overlayCoordinator.ts",
+        "/home/user/neweustrategies-dc633fb5/src/lib/theme/themeInitScript.ts",
+        "/home/user/neweustrategies-dc633fb5/src/components/NewsletterPopup.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/lib/newsletter/popupTelemetry.ts",
+        "/home/user/neweustrategies-dc633fb5/src/components/popups/PopupHost.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/styles.css"
+      ],
+      "mechanism": "ConsentBanner: SSR renders static banner markup (copy + Accept/Reject/Settings) inside [data-consent-shell], hidden by CSS. A pre-paint inline script (THEME_INIT_SCRIPT family) sets html[data-consent=pending] when no stored decision exists, so the shell paints at FCP without touching React-managed attributes. A delegated click handler in the same script records Accept/Reject (cookie + ga4ConsentUpdate) and marks consentReported. The React banner chunk loads on first interaction with the shell or anywhere. Replace the 6 lucide icons with inline SVG, and the 'enter' filter animation with opacity/transform. NewsletterPopup/PopupHost/Toaster: mount on first interaction OR at the popup's own configured delay (computed from dehydrated newsletter-settings without mounting), with a fallback of a 15 s quiet window instead of afterPageLoad(3000). The 'impression' event is sent with 'open' or via sendBeacon on first interaction/pagehide.",
+      "metric": "TBT, bytes in load window, LCP stability, network",
+      "expected_effect": "-160 KB raw JS evaluated in the window (ConsentBanner 44 + vendor-lucide 63 + sonner 35 + popup chunks ~22) and their renders; -1 PostgREST (builder_popups) -1 preflight -1 serverFn POST; TBT -50..-120 ms mobile; consent visible at FCP instead of ~4 s (no late LCP candidate)",
+      "estimate_basis": "prod-mobile network: ConsentBanner 3904, vendor-radix/sonner/lucide 3375-3908, NewsletterPopup/PopupHost 3907, serverFn 4522, builder_popups 4566 ms; incl.py ConsentBanner wt 24 ms render at 4x; chunk sizes from LH resourceSize",
+      "risk": "medium",
+      "risk_notes": "Legal contract (__root.tsx:224-257): the banner may only be delayed, never conditional. The shell makes it visible sooner, and the shell state must feed overlayCoordinator.consentReported so marketing overlays still wait. 'immediate' builder popups would wait for interaction (business decision). Shell markup must be identical for all visitors (edge-cached HTML).",
+      "gates": [
+        "ConsentBanner/consent tests",
+        "overlayCoordinator tests",
+        "gtagLoadPolicy tests (consent decision trigger)",
+        "SSR/hydration parity (root shell)",
+        "html-weight budget",
+        "test",
+        "lint"
+      ],
+      "verification": "Mutation/resource log: no ConsentBanner/vendor-lucide/sonner/NewsletterPopup/PopupHost chunk and no builder_popups/serverFn request before first interaction; screenshot at FCP shows the banner; LH non-composited-animations no longer lists the banner; clicking Accept in the shell before hydration persists consent.",
+      "effort": "L",
+      "depends_on": []
+    },
+    {
+      "id": "H7",
+      "title": "Deferred-hydration islands for below-the-fold sections and the footer",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/lib/builder/sectionStreaming.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/builder/organisms/BuilderRenderer.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/Footer.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/lib/builder/hydrationIsland.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/builder/organisms/widget-view/lazySuspense.tsx"
+      ],
+      "mechanism": "New client-only HydrationIsland: inside the (existing or added) <Suspense> of StreamingSection, render `use(islandGate(section.id))` on the client (SSR renders children directly, IS_SSR branch). A section that does not stream today gets the same Suspense boundary on both server and client. The gate promise resolves on the first of: IntersectionObserver(root [data-sec-id], rootMargin '0px 0px 100% 0px'); first interaction anywhere (pointerdown/keydown/touchstart/wheel/scroll), then remaining islands hydrate one per requestIdleCallback; own-root focusin/pointerdown (capture); no time-only trigger before 15 s. Apply to home/page sections index >= 1 and the footer BuilderRenderer; never in builder canvas/editorPreview. The fallback is SectionStreamSkeleton(minHeight=estimateSectionHeight) instead of null as a CLS safety net. Lazy widget chunks of island sections are requested only when the gate opens.",
+      "metric": "TBT, TTI, chunk requests in load window",
+      "expected_effect": "-0.6..-0.9 s React work at 4x, style -45%, layout -70%, ~25 fewer chunk requests in the window (JoinUs group, TailoredMustReads + second pl dictionary, WidgetView + radix-select group) -> TBT mobile -150..-250 ms, PSI desktop -80..-150 ms",
+      "estimate_basis": "fixture variant experiment full vs sec1-tinyfooter (React 2994 -> 2160 ms, style 950 -> 490, layout 453 -> 132, DOM 1258 -> 531); prod DOM split (sections 2-8 + footer = 61% of elements); runs/m4-ok-1 resource list after appReady",
+      "risk": "medium",
+      "risk_notes": "Hard precondition: no Default/Sync props or context update may reach a dehydrated island (otherwise React client-renders it, deletes the SSR HTML and causes CLS). Requires H1/H2/H3/H6 plus an audit of ThemeProvider/i18n/AccessContext updates after mount (auth already uses startTransition, useAuth.tsx:259-268). Clicks on unhydrated buttons are not replayed (own-root pointerdown/focusin trigger mitigates; links navigate natively).",
+      "gates": [
+        "new island test modelled on hooks/__tests__/authHydration.test.tsx (SSR HTML retained while gate pending under auth/theme/i18n/query updates)",
+        "first-visit e2e (DOM retention + CLS)",
+        "SSR/hydration parity tests",
+        "check:chunks",
+        "check:chunk-parity",
+        "check:bundle",
+        "check:ssr-budgets (no loader change expected)",
+        "test"
+      ],
+      "verification": "trace.mjs mobile: JoinUsForm/TailoredMustReads/WidgetView chunks absent until scroll; metrics.py React work <= ~2.2 s at 4x (sec1-tinyfooter level); scroll test: islands hydrate as they approach the viewport with CLS 0; LH mobile TBT drop vs paired baseline (5 runs, same session).",
+      "effort": "L",
+      "depends_on": ["H1", "H2", "H3", "H6"]
+    },
+    {
+      "id": "H8",
+      "title": "Interaction islands for anonymous header widgets (account menu, search) and the trending ticker",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/components/builder/organisms/widget-view/lazyWidgets.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/builder/organisms/widget-view/AccountMenuWidget.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/builder/organisms/widget-view/SearchButtonWidget.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/Header.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/header/TrendingTicker.tsx"
+      ],
+      "mechanism": "Reuse HydrationIsland with a trigger of pointerover/touchstart/focusin/keydown('/') on the widget root (before click) or first interaction anywhere. Keep the widget chunk modulepreloaded but not evaluated. For anonymous users AccountMenuWidget renders its SSR login control; the popover (vendor-radix via ui/popover in the eventLanguages chunk) loads on open. TrendingTicker becomes an island when its marquee is CSS-only (open question).",
+      "metric": "TBT, bytes in load window",
+      "expected_effect": "-150 KB raw JS evaluated in the window (vendor-radix 112 KB, admin.users/greetings, search deps) and their hydration (~40 ms at 4x) -> TBT -30..-80 ms",
+      "estimate_basis": "chunk-inventory imports of AccountMenuWidget/SearchButtonWidget; runs/m4-ok-1 resources 3145-3183 and 3640-3665 ms; incl.py AccountMenuWidget Ee 30 ms, SearchButtonWidget 11-14 ms per bucket",
+      "risk": "medium",
+      "risk_notes": "First-tap latency on header controls; the trigger must fire before click (touchstart precedes click by >=100 ms on mobile). Must keep header SSR HTML parity (doctrine: chrome parity).",
+      "gates": [
+        "Header/chrome SSR parity tests",
+        "check:chunks",
+        "check:bundle",
+        "e2e header interactions (search open, account menu)",
+        "test"
+      ],
+      "verification": "Resource log: no vendor-radix/admin.users/useVoiceSearch before interaction; e2e: first tap opens search/account menu; INP spot-check.",
+      "effort": "M",
+      "depends_on": ["H7"]
+    },
+    {
+      "id": "H10",
+      "title": "Cheaper per-widget hydration in the generic renderer",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/components/builder/organisms/ChromeWidgetView.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/lib/builder/globalWidgets.ts",
+        "/home/user/neweustrategies-dc633fb5/src/lib/builder/typographyCss.ts",
+        "/home/user/neweustrategies-dc633fb5/src/lib/builder/sectionStreaming.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/lib/utils.ts",
+        "/home/user/neweustrategies-dc633fb5/src/lib/icons/DynamicIcon.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/components/interests/CountryCombobox.tsx"
+      ],
+      "mechanism": "(a) Call useGlobalWidgetNode only in a child rendered when instanceNode.globalId is set (ChromeWidgetView.tsx:168), so non-global widgets create no QueryObserver. (b) Per-widget typography/wrapper CSS: server-only generation with data-css-hash and client read-back from the SSR <style> (the C3 pattern already used by DesignTokensStyle); regenerate only on data change. (c) Memoise shouldStreamSection per section object (WeakMap) instead of recomputing sectionQueryOptionsList on every client render (sectionStreaming.tsx:212-216). (d) Cache cn() results for static argument tuples (Map keyed by joined string). (e) DynamicIcon: for non-curated names keep the SSR SVG markup (read from DOM) instead of loading icons-N JSON (103-115 KB). (f) CountryCombobox: compute the sorted Intl country list lazily on open.",
+      "metric": "TBT",
+      "expected_effect": "-250..-350 ms React work at 4x -> TBT -60..-120 ms (mobile), -1 chunk of ~105 KB raw",
+      "estimate_basis": "incl.py runs/m4-ok-1: cz 252 / R1 85 / Tn+c1 142 / rD+oD+Yh+kc 213 / lt 68 / JoinUs Us 97 ms at 4x; icons chunk 102-106 KB in prod/fixture",
+      "risk": "low",
+      "risk_notes": "CSS read-back must keep byte parity (css-hash), as in C3; cn cache must be bounded.",
+      "gates": [
+        "check:entry-purity (generators stay out of entry)",
+        "SSR/hydration parity tests",
+        "typography/widget style tests",
+        "check:menu-icons",
+        "test",
+        "typecheck"
+      ],
+      "verification": "incl.py on a new trace: cz/fz/Tn/rD inclusive time halved; no icons-N chunk on '/'; metrics.py React total down ~10%.",
+      "effort": "M",
+      "depends_on": []
+    },
+    {
+      "id": "H11",
+      "title": "(boot-js owned) Trim __vitePreload dependency lists for post-boot dynamic imports",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/vite.config.ts",
+        "/home/user/neweustrategies-dc633fb5/vite.smoke.config.ts"
+      ],
+      "mechanism": "build.modulePreload.resolveDependencies: drop dependencies that belong to the boot closure / vendor chunks already loaded, so each import() only preloads its own new deps; keeps check:chunks graph untouched (no manualChunks change).",
+      "metric": "TBT",
+      "expected_effect": "-150..-240 ms inclusive at 4x (helper cost), fewer <head> mutations",
+      "estimate_basis": "incl.py runs/m4-ok-1 index 1:13376 136 ms + 1:13712 107 ms; 49-60 modulepreload insertions",
+      "risk": "medium",
+      "risk_notes": "Waterfalls if a needed dep is dropped; must not touch hoistTransitiveImports/manualChunks (chunk-cycle incident 2026-07-20).",
+      "gates": [
+        "check:chunks",
+        "check:chunk-parity",
+        "viteChunkParity",
+        "check:bundle",
+        "e2e boot"
+      ],
+      "verification": "Mutation log: modulepreload insertions after appReady drop below ~15; incl.py helper time < 60 ms at 4x.",
+      "effort": "S",
+      "depends_on": []
+    },
+    {
+      "id": "H12",
+      "title": "Make the root hydration pass yield (investigate the non-yielding 361 ms task)",
+      "files": [
+        "/home/user/neweustrategies-dc633fb5/src/router.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/routes/__root.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/hooks/useAuth.tsx",
+        "/home/user/neweustrategies-dc633fb5/src/lib/ads/consent.ts"
+      ],
+      "mechanism": "Measure with a React profiling build in an experiment worktree (react-dom/profiling alias) which lane the root hydration renders in. If a SyncLane update (useSyncExternalStore change during hydration in router/consent/auth stores, or a layout-effect setState) entangles it, move those updates to passive effects or startTransition. Also move the anonymous Supabase client creation out of the hydration commit (AuthProvider effect, F0 19 ms).",
+      "metric": "TBT",
+      "expected_effect": "if made yielding: the 361 ms (4x) task becomes 5-15 ms slices -> TBT mobile -150..-250 ms; otherwise no change",
+      "estimate_basis": "runs/m4-ok-1 long task 2572/361 ms; LH baseline2 vendor-react tasks 153+75 ms at root-hydration time",
+      "risk": "medium",
+      "risk_notes": "Diagnosis first; changing update priorities can reintroduce hydration mismatches (doctrine: setTimeout(0) before hydrate stays).",
+      "gates": ["router.test.tsx", "authHydration.test.tsx", "first-visit e2e", "test"],
+      "verification": "Trace shows no single vendor-react task > 50 ms (4x) at hydration; LH long-tasks at root-hydration time below 50 ms simulated.",
+      "effort": "M",
+      "depends_on": []
+    }
+  ],
+  "conflicts_with_other_workstreams": [
+    "boot-js: H11 (Vite preload helper) and chunk placement dragging admin.users / eventLanguages(popover -> vendor-radix) / author._slug into AccountMenu/Search/TailoredMustReads; lazy Supabase client for anonymous users (AuthProvider effect).",
+    "server-cache: H6 option A adds a device-class variant to the edge document cache key; H2 adds one edge-TTL-cached parallel query on MISS; H1 freshness depends on DOCUMENT_CACHE_MAX_FRESH_MS + SWR.",
+    "css: H5 edits styles.css:6678-6683 and adds @property; H9 consent shell CSS; H6 option B needs device-neutral widget CSS.",
+    "html-weight: H9 adds ~3-5 KB SSR consent markup; H7 adds <!--$--> pairs for static sections; H2 changes dehydrated payload by +-1 entry.",
+    "lcp-path: H9 paints the consent shell at FCP; it may become the LCP element on mobile (likely positive). Fewer chunks in the window (H7/H8/H9) reduce bandwidth contention before LCP.",
+    "third-party: gtag is 153 of 200 ms TBT on the prod laptop run; this workstream's interaction trigger (shared first-interaction signal) should be the same module gtagLoadPolicy uses.",
+    "measurement: the dead 127.0.0.1:4199 browser backend inflates the storm (18+18 retried vs 6+6) and hides refetch re-renders; an in-process route (trace.mjs --backend=ok) or a shared fixture server for the browser is needed to measure H1-H3."
+  ],
+  "open_questions": [
+    "Why is the root hydration a single 361 ms (4x) task although hydrateRoot is inside startTransition (SyncLane entanglement via useSyncExternalStore / layout-effect setState / expired transitions)? Needs a React profiling build.",
+    "Which icon name pulls icons-0/icons-3 (103-115 KB) on '/'?",
+    "Is the TrendingTicker marquee CSS-only when unhydrated (prerequisite for making it an island)?",
+    "Business/legal: may 'immediate' builder popups and the footer slide-up wait for first interaction, and is a consent banner visible at FCP but interactive (React) only after first touch acceptable? The inline script records the decision.",
+    "Does React 19 preserve text typed into a not-yet-hydrated controlled input? The design avoids it via IO + focusin triggers.",
+    "Which provider values (ThemeProvider, I18nextProvider, AccessContext) change after mount on '/'? Each must be a transition or absent before islands ship.",
+    "Does production's edge cache serve '/' to PSI (Accept-Language en-US) without the 302 to /en that the local harness hit?"
+  ]
+}
