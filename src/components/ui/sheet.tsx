@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "@/lib/lucide-shim";
 
 import { cn } from "@/lib/utils";
-import { useReturnFocus } from "@/components/ui/return-focus";
+import { useReturnFocus } from "@/components/ui/dialog";
 
 const Sheet = SheetPrimitive.Root;
 

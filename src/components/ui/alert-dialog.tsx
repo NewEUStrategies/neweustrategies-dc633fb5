@@ -2,7 +2,7 @@ import * as React from "react";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 
 import { cn } from "@/lib/utils";
-import { useReturnFocus } from "@/components/ui/return-focus";
+import { useReturnFocus } from "@/components/ui/dialog";
 import { buttonVariants } from "@/components/ui/button";
 
 const AlertDialog = AlertDialogPrimitive.Root;
