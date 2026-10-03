@@ -541,7 +541,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
         aria-label={t.title}
         style={styleVars}
         className={cn(
-          "fixed z-[60] right-3 bottom-3 left-3",
+          "no-print fixed z-[60] right-3 bottom-3 left-3",
           "sm:left-auto sm:right-5 sm:bottom-5 sm:w-[380px]",
           "max-w-[calc(100vw-1.5rem)]",
         )}
@@ -688,7 +688,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
       aria-modal="true"
       aria-labelledby="consent-title"
       style={styleVars}
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-foreground/60 p-3 backdrop-blur-sm animate-in fade-in sm:items-center"
+      className="no-print fixed inset-0 z-[80] flex items-end justify-center bg-foreground/60 p-3 backdrop-blur-sm animate-in fade-in sm:items-center"
       onClick={() => {
         if (decided) setDetailsOpen(false);
       }}

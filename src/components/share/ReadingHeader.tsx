@@ -205,7 +205,7 @@ export function ReadingHeader({
         // sticky - patrz lib/layout/headerMode) i pod overlayami, które mają go
         // przykrywać: drawer (9999) i SearchOverlay (10000). Przy z-30 dawał się
         // schować pod paskiem mobilnym - wtedy jego akcje były niedostępne.
-        "fixed top-0 z-[9990]",
+        "no-print fixed top-0 z-[9990]",
         pinned
           ? "inset-x-0 border-b border-border/70"
           : "left-2 right-2 sm:left-4 sm:right-4 lg:left-6 lg:right-6 rounded-b-xl sm:rounded-b-2xl border border-border/70",
