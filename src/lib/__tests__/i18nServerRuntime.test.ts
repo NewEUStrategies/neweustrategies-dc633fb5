@@ -8,7 +8,9 @@
 //   * render dostaje KLON per żądanie (`getRenderI18n`) z własnym językiem i
 //     wspólnym store zasobów,
 //   * handler `languageChanged` i wrapper `changeLanguage` są wyłącznie
-//     klienckie (ciasteczko, localStorage, <html lang> nie istnieją).
+//     klienckie (ciasteczko, localStorage, <html lang> nie istnieją),
+//   * nakładki scalają się do store, NIE do eksportów `@/lib/locale/*` - inaczej
+//     kod czytający eksport widziałby to, co izolat zdążył zarejestrować.
 import { describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({
@@ -29,6 +31,10 @@ const {
   syncI18nToRequest,
   ensureCoreLanguage,
 } = await import("@/lib/i18n");
+const { pl: corePl } = await import("@/lib/locale/pl");
+const { en: coreEn } = await import("@/lib/locale/en");
+/** Zdjęcie eksportów rdzenia sprzed pierwszej nakładki. */
+const PRISTINE = structuredClone({ pl: corePl, en: coreEn });
 
 describe("i18n na serwerze", () => {
   it("init ładuje OBA rdzenie, singleton startuje w języku domyślnym żądania", () => {
@@ -74,5 +80,47 @@ describe("i18n na serwerze", () => {
     await i18n.changeLanguage("en");
     expect(h.setClientLang).toEqual([]);
     await i18n.changeLanguage("pl");
+  });
+});
+
+describe("nakładki na serwerze a eksporty rdzenia", () => {
+  it("rejestracja nakładek (oba języki) nie mutuje eksportów `pl`/`en`", () => {
+    for (const [lng, text] of [
+      ["pl", "Z nakładki"],
+      ["en", "From overlay"],
+    ] as const) {
+      i18n.addResourceBundle(lng, "translation", { auth: { overlayOnly: text } }, true);
+      i18n.addResourceBundle(lng, "translation", { common: { retry: `${text}!` } }, true, true);
+      // Trzeci poziom: kopia płytka/dwupoziomowa dzieliłaby `common.preview` z eksportem.
+      i18n.addResourceBundle(lng, "translation", { common: { preview: { deep: text } } }, true);
+    }
+
+    expect(i18n.getFixedT("pl")("common.preview.deep")).toBe("Z nakładki");
+    expect(i18n.getFixedT("en")("common.preview.deep")).toBe("From overlay");
+    expect(corePl.common.preview).not.toHaveProperty("deep");
+    expect(coreEn.common.preview).not.toHaveProperty("deep");
+    expect(corePl.auth).not.toHaveProperty("overlayOnly");
+    expect(coreEn.auth).not.toHaveProperty("overlayOnly");
+    expect(corePl.common.retry).toBe("Spróbuj ponownie");
+    expect(coreEn.common.retry).toBe("Try again");
+    expect({ pl: corePl, en: coreEn }).toEqual(PRISTINE);
+  });
+
+  it("klony getRenderI18n dzielą store: widzą rdzeń i nakładkę dodaną PO sklonowaniu", () => {
+    h.lang = "en";
+    const en = getRenderI18n();
+    h.lang = "pl";
+    const pl = getRenderI18n();
+
+    i18n.addResourceBundle("en", "translation", { auth: { lateOverlay: "Late" } }, true);
+    i18n.addResourceBundle("pl", "translation", { auth: { lateOverlay: "Później" } }, true);
+
+    expect(en.t("auth.lateOverlay")).toBe("Late");
+    expect(pl.t("auth.lateOverlay")).toBe("Później");
+    expect(en.t("auth.overlayOnly")).toBe("From overlay");
+    expect(pl.t("common.retry")).toBe("Z nakładki!");
+    expect(en.t("auth.signin")).toBe("Sign in");
+    expect(pl.t("auth.signin")).toBe("Zaloguj się");
+    expect({ pl: corePl, en: coreEn }).toEqual(PRISTINE);
   });
 });

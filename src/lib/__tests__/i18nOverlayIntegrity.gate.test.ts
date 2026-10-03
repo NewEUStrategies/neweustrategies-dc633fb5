@@ -20,13 +20,15 @@
 //
 // DLACZEGO RDZEŃ JEST KOPIOWANY PRZED IMPORTEM NAKŁADEK. i18next trzyma zasoby
 // z `init({ resources })` PRZEZ REFERENCJĘ, a `addResourceBundle(..., deep)`
-// scala w miejscu (`deepExtend(pack, ...)` na obiekcie z magazynu). Eksport
-// `pl`/`en` z `src/lib/locale/*.ts` jest więc po imporcie nakładek już
-// SCALONYM słownikiem, a porównanie „rdzeń kontra nakładka" na żywym
-// eksporcie nie widzi żadnej podmiany - nakładka porównywałaby się sama ze
-// sobą. Dokładnie dlatego siedem polskich podmian w `i18n-notifications.ts`
-// przeżyło ratchet w `i18nNotifications.test.ts`. `structuredClone` niżej
-// robi zdjęcie rdzenia ZANIM jakakolwiek nakładka się zarejestruje.
+// scala w miejscu (`deepExtend(pack, ...)` na obiekcie z magazynu). Do
+// 2026-10-03 `init` dostawał sam eksport `pl`/`en` z `src/lib/locale/*.ts`,
+// który po imporcie nakładek był już SCALONYM słownikiem - porównanie „rdzeń
+// kontra nakładka" na żywym eksporcie nie widziało żadnej podmiany (stąd
+// siedem polskich podmian w `i18n-notifications.ts`, które przeżyły ratchet
+// w `i18nNotifications.test.ts`). Dziś `i18n.ts` podaje i18next własną kopię
+// (`storeCopy`), a nietykalność eksportu przypina
+// `i18nCoreExportsPristine.test.ts`. `structuredClone` niżej zostaje jako
+// bezpiecznik: gdyby kopia zniknęła, ta bramka nie oślepnie razem z nią.
 //
 // ŚRODOWISKO NODE celowo: `import.meta.env.SSR` jest wtedy prawdą, więc
 // `@/lib/i18n` ładuje OBA rdzenie przy starcie - jak serwer, czyli tam, gdzie
@@ -148,57 +150,14 @@ function overlayOnly(conflict: Conflict): boolean {
 // nakładkach. Lista może tylko MALEĆ (test „nieaktualne wpisy" niżej).
 // Kolizja NAKŁADKA <-> NAKŁADKA nie ma i mieć nie może żadnego wyjątku.
 // ─────────────────────────────────────────────────────────────────────────────
-const KNOWN_CORE_CONFLICTS: ReadonlyMap<string, string> = new Map([
-  // Panel ustawień i skrzynka powiadomień (`NotificationsCenter`) renderują się
-  // także na /messages, które nakładki NIE importuje - przed wejściem na
-  // /profile/notifications widać tam zdanie rdzenia, po nim zdanie nakładki.
-  // Te same 24 klucze są zamrożone w `i18nNotifications.test.ts`
-  // (KNOWN_OVERLAY_OVERRIDES) z testem „lista nie zawiera pozycji już
-  // naprawionych", więc ich usunięcie z nakładki musi iść razem ze zmianą tamtej
-  // listy - to plik spoza zakresu tej bramki. Polskie odpowiedniki są już
-  // zrównane z rdzeniem.
-  ...[
-    "consents.given",
-    "consents.saveError",
-    "consents.subtitle",
-    "consents.title",
-    "consents.versionOutdated",
-    "consents.withdrawn",
-    "deleteGroup",
-    "inboxSubtitle",
-    "markAllRead",
-    "markGroupRead",
-    "markGroupUnread",
-    "noMatches",
-    "searchPlaceholder",
-    "settings.autoMarkOnOpen",
-    "settings.autoMarkOnOpenHint",
-    "settings.channelsSubtitle",
-    "settings.chatBell",
-    "settings.chatBellHint",
-    "settings.digest",
-    "settings.digestHint",
-    "settings.groupByConversationHint",
-    "settings.pushDenied",
-    "settings.pushHint",
-    "settings.subtitle",
-  ].map((key): [string, string] => [
-    `en:notifications.${key}`,
-    "nakładka powiadomień podmienia EN rdzenia; zamrożone także w i18nNotifications.test.ts",
-  ]),
-  // `rolesAndLabels.test.ts` przypina EN „Admin" (nakładka) i wymaga, by różnił
-  // się od PL „Administrator". Rdzeń EN ma „Administrator" - do poprawy w
-  // `locale/en.ts`, nie w nakładce.
-  ["en:admin.users.roles.admin", "rdzeń EN „Administrator”, test ról przypina nakładkowe „Admin”"],
-  // `Cover.tsx` używa `blocks.editors.cover.title` jako PLACEHOLDERA pola tytułu,
-  // a rdzeń trzyma pod nim NAGŁÓWEK edytora („Tło / okładka"), zgodnie z umową
-  // `editors.<blok>.title`. Nakładka ma właściwy tekst („Wpisz tytuł…"), ale
-  // rejestruje się z `overwrite=false`, więc wygrywa tylko wtedy, gdy rdzeń
-  // danego języka dociąga się PÓŹNIEJ (leniwy drugi język na kliencie).
-  // Naprawa: osobny klucz placeholdera w `Cover.tsx` + nakładce.
-  ["pl:blocks.editors.cover.title", "placeholder Cover.tsx czyta klucz nagłówka z rdzenia"],
-  ["en:blocks.editors.cover.title", "placeholder Cover.tsx czyta klucz nagłówka z rdzenia"],
-]);
+// Lista jest PUSTA od 2026-10-03 - każdy klucz ma jedno źródło:
+//   * 24 klucze `en:notifications.*` - `i18n-notifications` nie kopiuje już
+//     żadnego klucza rdzenia (wnosi tylko własne `page.*` i `subtitleLead`);
+//   * `en:admin.users.roles.admin` - rdzeń EN mówi „Admin", a `i18n-admin-users`
+//     wnosi tylko `super_admin`, którego rdzeń nie ma;
+//   * `blocks.editors.cover.title` - placeholder `Cover.tsx` ma własny klucz
+//     `cover.titlePh`, a nagłówek zostaje kluczem rdzenia.
+const KNOWN_CORE_CONFLICTS: ReadonlyMap<string, string> = new Map<string, string>([]);
 
 const LOADERS = import.meta.glob<Record<string, unknown>>("/src/lib/i18n-*.ts");
 const OVERLAY_PATHS = Object.keys(LOADERS).sort();

@@ -16,9 +16,10 @@ import i18n, { ensureCoreLanguage } from "@/lib/i18n";
 import { pl as corePl } from "@/lib/locale/pl";
 import { en as coreEn } from "@/lib/locale/en";
 
-// Zdjęcie rdzenia ZANIM zarejestruje się jakakolwiek nakładka: i18next scala
-// nakładki w miejscu, na obiekcie przekazanym do `init`, czyli na eksporcie
-// `locale/pl.ts` (szczegóły w nagłówku bramki integralności).
+// Zdjęcie rdzenia ZANIM zarejestruje się jakakolwiek nakładka - bezpiecznik:
+// i18next scala nakładki w miejscu, w obiekt przekazany do `init`, a eksport
+// `locale/pl.ts` chroni przed tym tylko kopia `storeCopy` w `i18n.ts`
+// (szczegóły w nagłówku bramki integralności).
 const CORE = structuredClone({ pl: corePl, en: coreEn });
 
 function coreValue(lang: "pl" | "en", path: string): unknown {
@@ -76,8 +77,9 @@ describe("giełda spotkań: komunikat odmowy uczestnika", () => {
 
 describe("powiadomienia: nakładka nie podmienia polskiego rdzenia", () => {
   it("każdy napis notifications.* z rdzenia PL jest ten sam przed i po wejściu na trasę", async () => {
-    // `NotificationsCenter` i `ConsentsPanel` renderują się też na /messages
-    // i /profile/privacy, które nakładki nie ładują. Przed poprawką te ekrany
+    // `ConsentsPanel` (/profile/privacy) i dzwonek w nagłówku renderują się
+    // bez nakładki (`NotificationsCenter` importuje ją od 2026-10-03, więc
+    // /messages ją ładuje). Przed poprawką te ekrany
     // zmieniały siedem polskich zdań po pierwszej wizycie na
     // /profile/notifications - m.in. tytuł i opis panelu zgód tracił
     // wzmiankę o plikach cookie, choć panel nadal pokazuje przełączniki cookie.

@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
 import type { Database, Json } from "../../src/integrations/supabase/types";
 import { getStripeClient } from "../../src/lib/stripe.server";
+import { LANG_COOKIE } from "../../src/lib/i18n/langCookie";
+import { LANG_STORAGE_KEY } from "../../src/lib/storageKeys";
 
 function required(name: string): string {
   const value = process.env[name];
@@ -86,16 +88,33 @@ test("real sandbox checkout, repeated webhook, ticket, invoice, check-in and ref
   required("LOVABLE_API_KEY");
   const stripe = await getStripeClient("sandbox");
   const storageKey = `sb-${new URL(url).hostname.split(".")[0]}-auth-token`;
+  const site = new URL(baseURL);
   const context = await browser.newContext({
     baseURL,
     storageState: {
-      cookies: [],
+      // Polish UI: the app reads the language preference from the `nes_lang`
+      // cookie (server and client); without it the client seeds the cookie from
+      // the browser locale (en-US in a default context) and app pages
+      // (/checkout, /login, /profile) follow it. "i18nextLng" was read by nothing.
+      cookies: [
+        {
+          name: LANG_COOKIE,
+          value: "pl",
+          domain: site.hostname,
+          path: "/",
+          expires: -1,
+          httpOnly: false,
+          secure: site.protocol === "https:",
+          sameSite: "Lax",
+        },
+      ],
       origins: [
         {
           origin,
           localStorage: [
             { name: storageKey, value: JSON.stringify(user.session) },
-            { name: "i18nextLng", value: "pl" },
+            // Mirror of the cookie, written by the app alongside it.
+            { name: LANG_STORAGE_KEY.key, value: "pl" },
           ],
         },
       ],

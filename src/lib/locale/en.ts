@@ -1172,7 +1172,10 @@ export const en = {
       role: "Role",
       created: "Joined",
       roles: {
-        admin: "Administrator",
+        // "Admin", not "Administrator": matches "Super admin" next to it in the
+        // same role picker (`super_admin` comes from `i18n-admin-users`), and the
+        // admin-users overlay rendered "Admin" on every role screen anyway.
+        admin: "Admin",
         editor: "Editor",
         author: "Author",
         user: "User",

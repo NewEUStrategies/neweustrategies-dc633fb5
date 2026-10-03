@@ -280,6 +280,71 @@ describe("init: <html lang> i dosiew ciasteczka preferencji", () => {
   });
 });
 
+// Nakładki `lib/i18n-*` scalają się przez `addResourceBundle(..., deep=true)`
+// W MIEJSCU, w obiekt, który store już trzyma, a rdzeń z `init({ resources })`
+// i18next trzyma PRZEZ REFERENCJĘ. Bez kopii każda nakładka dopisywała się do
+// eksportu `pl`/`en` z `@/lib/locale/*`, który bramki i testy słowników czytają
+// jako „czysty rdzeń". Zdjęcie eksportu - przed pierwszą nakładką.
+describe("eksporty rdzenia (`@/lib/locale/*`) nie są mutowane przez nakładki", () => {
+  it("strona PL: nakładka trafia do store, eksport `pl` zostaje nietknięty", async () => {
+    const { default: i18n } = await loadI18n({ lang: "pl" });
+    const { pl } = await import("@/lib/locale/pl");
+    const pristine = structuredClone(pl);
+
+    i18n.addResourceBundle("pl", "translation", { auth: { overlayOnly: "Z nakładki" } }, true);
+    i18n.addResourceBundle("pl", "translation", { auth: { signin: "Podmiana" } }, true, true);
+
+    expect(i18n.t("auth.overlayOnly")).toBe("Z nakładki");
+    expect(i18n.t("auth.signin")).toBe("Podmiana");
+    expect(i18n.t("common.retry")).toBe("Spróbuj ponownie");
+    expect(pl.auth).not.toHaveProperty("overlayOnly");
+    expect(pl.auth.signin).toBe("Zaloguj się");
+    expect(pl).toEqual(pristine);
+  });
+
+  it("strona EN z leniwym PL: oba eksporty nietknięte, rdzeń i nakładki działają", async () => {
+    const ric = vi.fn();
+    Object.assign(window, { requestIdleCallback: ric });
+    const { default: i18n } = await loadI18n({ lang: "en" });
+    const [{ pl }, { en }] = await Promise.all([
+      import("@/lib/locale/pl"),
+      import("@/lib/locale/en"),
+    ]);
+    const pristine = structuredClone({ pl, en });
+
+    // Nakładka PL rejestruje się, zanim rdzeń PL dojedzie w tle.
+    i18n.addResourceBundle("pl", "translation", { auth: { overlayOnly: "Z nakładki" } }, true);
+    i18n.addResourceBundle("en", "translation", { auth: { overlayOnly: "From overlay" } }, true);
+    (ric.mock.calls[0]![0] as () => void)();
+    // `hasCore` jest już prawdą przez samą nakładkę - czekamy na klucz rdzenia.
+    await vi.waitFor(() =>
+      expect(i18n.getResource("pl", "translation", "auth.signin")).toBe("Zaloguj się"),
+    );
+    i18n.addResourceBundle("pl", "translation", { common: { overlayLate: "Później" } }, true);
+
+    const tPl = i18n.getFixedT("pl");
+    expect(i18n.t("auth.overlayOnly")).toBe("From overlay");
+    expect(i18n.t("auth.signin")).toBe("Sign in");
+    expect(tPl("auth.overlayOnly")).toBe("Z nakładki");
+    expect(tPl("common.overlayLate")).toBe("Później");
+    expect(tPl("auth.signin")).toBe("Zaloguj się");
+    expect({ pl, en }).toEqual(pristine);
+  });
+
+  it("drugi język z changeLanguage: późniejsza nakładka nie dopisuje się do eksportu `en`", async () => {
+    const { default: i18n } = await loadI18n({ lang: "pl" });
+    const { en } = await import("@/lib/locale/en");
+    const pristine = structuredClone(en);
+
+    await i18n.changeLanguage("en");
+    i18n.addResourceBundle("en", "translation", { auth: { signin: "Overlay" } }, true, true);
+
+    expect(i18n.t("auth.signin")).toBe("Overlay");
+    expect(i18n.t("common.retry")).toBe("Try again");
+    expect(en).toEqual(pristine);
+  });
+});
+
 describe("syncI18nToRequest / getRenderI18n na kliencie", () => {
   it("z adresem nawigacji: najpierw wyprowadza ref z URL-a, potem dociąga i18next", async () => {
     const { default: i18n, syncI18nToRequest } = await loadI18n({ lang: "pl" });

@@ -21,17 +21,45 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { notificationsResources } from "@/lib/i18n-notifications";
 import { pl as corePl } from "@/lib/locale/pl";
 import { en as coreEn } from "@/lib/locale/en";
 import { realT } from "@/test/i18nReal";
 import { NOTIFICATION_KINDS, NOTIFICATION_KIND_GROUPS } from "@/lib/notifications/preferences";
 import { CONSENT_CATALOG } from "@/lib/notifications/consentCatalog";
+import { PLURAL_SUFFIXES } from "@/lib/ci/i18nKeyUsage";
 import type { AppLang } from "@/lib/i18n/localePath";
 
 type Tree = { [key: string]: string | Tree };
 
 const LANGS: readonly AppLang[] = ["pl", "en"];
+
+// ZDJECIE RDZENIA SPRZED NAKLADKI - i dlatego nakladka idzie importem
+// DYNAMICZNYM, nie statycznym (statyczny wykonalby sie przed cialem modulu).
+//
+// i18next trzyma zasoby z `init({ resources })` PRZEZ REFERENCJE, a nakladka
+// scala sie w nie w miejscu (`deepExtend` na obiekcie z magazynu). Do
+// 2026-10-03 `init` dostawal sam eksport `pl` z `locale/pl.ts`, wiec po
+// imporcie nakladki byl on juz SCALONYM slownikiem. Poprzednia wersja tego
+// pliku porownywala nakladke wlasnie z tym zywym eksportem, czyli sama ze
+// soba: polska polowa ratchetu byla slepa i siedem polskich podmian przezylo
+// ja niezauwazone (zlapala je dopiero bramka `i18nOverlayIntegrity.gate.test.ts`,
+// ktora robi to samo zdjecie). Dzis `i18n.ts` podaje i18next kopie rdzenia
+// (`storeCopy`, przypiete w `i18nCoreExportsPristine.test.ts`) - zdjecie
+// zostaje jako bezpiecznik, gdyby kopia kiedys zniknela.
+const CORE = structuredClone({ pl: corePl, en: coreEn });
+
+/** Liscie `notifications.*` rdzenia danego jezyka (bez tablic - patrz `flattenLoose`). */
+function coreNotificationKeys(lang: AppLang): string[] {
+  return flattenLoose(CORE[lang].notifications, "notifications").map(([key]) => key);
+}
+
+// Co uzytkownik widzi tam, gdzie nakladki nie ma: w dzwonku naglowka i w panelu
+// zgod na /profile/privacy (do 2026-10-03 takze w skrzynce na /messages).
+const SEEN_BEFORE_OVERLAY = LANGS.flatMap((lang) =>
+  coreNotificationKeys(lang).map((key) => ({ lang, key, text: realT(lang)(key) })),
+);
+
+const { notificationsResources } = await import("@/lib/i18n-notifications");
 
 /**
  * Zwezenie zasobu i18next do `Tree` BEZ rzutowania.
@@ -260,46 +288,12 @@ describe("nakladka notifications - WARSTWA, nie caly slownik", () => {
   // rdzen juz ma. Zmiana kanonicznego brzmienia nalezy do rdzenia, a przy
   // zgodach dodatkowo do bumpa wersji w `consentCatalog.ts`.
   // ─────────────────────────────────────────────────────────────────────────
-  /**
-   * DLUG ZASTANY: 24 klucze, ktore nakladka podmienia wzgledem rdzenia -
-   * wszystkie w EN, zaden w `consents.items.*`. Lista moze tylko MALEC.
-   * Nie czyszcze jej w tej zmianie, bo redakcja angielskiej wersji tych
-   * napisow to decyzja tresciowa, nie zakres kampanii testowej.
-   */
-  const KNOWN_OVERLAY_OVERRIDES: ReadonlySet<string> = new Set([
-    "en:notifications.consents.given",
-    "en:notifications.consents.saveError",
-    "en:notifications.consents.subtitle",
-    "en:notifications.consents.title",
-    "en:notifications.consents.versionOutdated",
-    "en:notifications.consents.withdrawn",
-    "en:notifications.deleteGroup",
-    "en:notifications.inboxSubtitle",
-    "en:notifications.markAllRead",
-    "en:notifications.markGroupRead",
-    "en:notifications.markGroupUnread",
-    "en:notifications.noMatches",
-    "en:notifications.searchPlaceholder",
-    "en:notifications.settings.autoMarkOnOpen",
-    "en:notifications.settings.autoMarkOnOpenHint",
-    "en:notifications.settings.channelsSubtitle",
-    "en:notifications.settings.chatBell",
-    "en:notifications.settings.chatBellHint",
-    "en:notifications.settings.digest",
-    "en:notifications.settings.digestHint",
-    "en:notifications.settings.groupByConversationHint",
-    "en:notifications.settings.pushDenied",
-    "en:notifications.settings.pushHint",
-    "en:notifications.settings.subtitle",
-  ]);
-
-  /** Wszystkie miejsca, w ktorych nakladka podmienia napis z rdzenia. */
+  /** Wszystkie miejsca, w ktorych nakladka podmienia napis z rdzenia (zdjecie `CORE`). */
   function overlayOverrides(): string[] {
-    const cores: Record<AppLang, unknown> = { pl: corePl, en: coreEn };
     const overlays: Record<AppLang, Tree> = { pl: plOverlay, en: enOverlay };
     const found: string[] = [];
     for (const lang of LANGS) {
-      const coreByKey = new Map(flattenLoose(cores[lang]));
+      const coreByKey = new Map(flattenLoose(CORE[lang]));
       for (const [key, overlayValue] of flatten(overlays[lang])) {
         const coreValue = coreByKey.get(key);
         if (coreValue !== undefined && coreValue !== overlayValue) found.push(`${lang}:${key}`);
@@ -307,6 +301,55 @@ describe("nakladka notifications - WARSTWA, nie caly slownik", () => {
     }
     return found.sort();
   }
+
+  /**
+   * Klucze nakladki, ktore rdzen JUZ definiuje - z tym samym brzmieniem albo
+   * innym, wprost albo formami mnogimi (`klucz_one`, `klucz_other`...).
+   */
+  function overlayDuplicates(): string[] {
+    const overlays: Record<AppLang, Tree> = { pl: plOverlay, en: enOverlay };
+    const found: string[] = [];
+    for (const lang of LANGS) {
+      const coreKeys = new Set(flattenLoose(CORE[lang]).map(([key]) => key));
+      for (const [key] of flatten(overlays[lang])) {
+        const plural = PLURAL_SUFFIXES.some((suffix) => coreKeys.has(`${key}${suffix}`));
+        if (coreKeys.has(key) || plural) found.push(`${lang}:${key}`);
+      }
+    }
+    return found.sort();
+  }
+
+  it("porownanie idzie do rdzenia SPRZED nakladki (kontrola narzedzia)", () => {
+    // Gdyby zdjecie wzielo klucze nakladki (np. `i18n.ts` znow oddal i18next
+    // sam eksport, w ktory nakladka scala sie w miejscu), kazde porownanie
+    // nizej byloby slepe.
+    for (const lang of LANGS) {
+      const keys = new Set(flattenLoose(CORE[lang]).map(([key]) => key));
+      expect(keys.has("notifications.title"), `${lang}: klucz rdzenia`).toBe(true);
+      expect(keys.has("notifications.page.metaTitle"), `${lang}: klucz nakladki`).toBe(false);
+      expect(keys.has("notifications.settings.subtitleLead"), `${lang}: klucz nakladki`).toBe(
+        false,
+      );
+    }
+  });
+
+  it("kazdy klucz nakladki renderuje w swoim jezyku WLASNY napis, a PL i EN sie roznia", () => {
+    // Sondy z testu „PL i EN roznia sie trescia" wyzej to dzis klucze RDZENIA,
+    // wiec nie widza nakladki: zarejestrowanie polskiego drzewa pod `en`
+    // (albo wklejenie polskich zdan do `notificationsEn`) przechodzilo zielono,
+    // a angielski interfejs dostawal polski `subtitleLead` i `page.*`.
+    for (const lang of LANGS) {
+      const overlay = lang === "pl" ? plOverlay : enOverlay;
+      for (const [key, text] of flatten(overlay)) {
+        expect(realT(lang)(key), `${lang}:${key}`).toBe(text);
+      }
+    }
+    const enByKey = new Map(flatten(enOverlay));
+    const copied = flatten(plOverlay)
+      .filter(([key, text]) => enByKey.get(key) === text)
+      .map(([key]) => key);
+    expect(copied, "napis EN jest kopia polskiego").toEqual([]);
+  });
 
   // ───────────────────────────────────────────────────────────────────────
   // BRAMKA PRAWNA. Powstala z realnej pomylki popelnionej w tej samej
@@ -335,17 +378,50 @@ describe("nakladka notifications - WARSTWA, nie caly slownik", () => {
     ).toEqual([]);
   });
 
-  // Reszta rozjazdow to dlug redakcyjny, nie prawny - ale rowniez oznacza,
-  // ze uzytkownik widzi INNY napis po wejsciu na trase powiadomien niz przed
-  // nim. Ratchet: lista moze tylko malec.
-  it("nie dokłada nowych rozjazdow nakladka-rdzen (ratchet)", () => {
-    const unexpected = overlayOverrides().filter((entry) => !KNOWN_OVERLAY_OVERRIDES.has(entry));
-    expect(unexpected, "nowy klucz nakladki podmienia napis z rdzenia").toEqual([]);
+  // ZERO KOPII KLUCZY RDZENIA - lista 24 angielskich podmian, zamrozona tu do
+  // 2026-10-03, jest zamknieta, a test nie ma juz listy wyjatkow. Nakladka nie
+  // niesie zadnego klucza, ktory ma rdzen, NAWET z identycznym brzmieniem: kopia
+  // zgodna dzis rozjezdza sie przy pierwszej poprawce rdzenia, a overwrite=true
+  // przywraca wtedy stary napis od wejscia na /profile/notifications. Z takich
+  // kopii wyrosly wszystkie 31 rozjazdow (24 EN + 7 PL). Forma mnoga liczy sie
+  // tak samo: rdzen ma `grouped.moreMessages_one/_other`, wiec goly
+  // `grouped.moreMessages` z nakladki nigdy sie nie renderowal (i18next przy
+  // `count` bierze najpierw klucz z przyrostkiem) - byl martwa kopia z INNYM
+  // brzmieniem („i 2 więcej").
+  it("nie powtarza ZADNEGO klucza rdzenia - wprost ani przez formy mnogie", () => {
+    expect(
+      overlayDuplicates(),
+      "klucz nalezy do rdzenia (`src/lib/locale/*.ts`) - zmiana brzmienia idzie tam, nie do nakladki",
+    ).toEqual([]);
   });
 
-  it("lista znanego dlugu nie zawiera pozycji juz naprawionych", () => {
-    const current = new Set(overlayOverrides());
-    const stale = [...KNOWN_OVERLAY_OVERRIDES].filter((entry) => !current.has(entry));
-    expect(stale, "wpis na liscie dlugu, ktorego juz nie ma - usun go z listy").toEqual([]);
+  it("kazdy napis notifications.* rdzenia jest ten sam przed i po zaladowaniu nakladki", () => {
+    // Skutek widoczny dla uzytkownika: dzwonek w naglowku i panel zgod na
+    // /profile/privacy nie laduja nakladki (skrzynka na /messages nie ladowala
+    // jej do 2026-10-03), wiec zmienialy napis po pierwszej wizycie na
+    // /profile/notifications.
+    expect(SEEN_BEFORE_OVERLAY.length).toBeGreaterThan(100);
+    const changed = SEEN_BEFORE_OVERLAY.filter(
+      ({ lang, key, text }) => realT(lang)(key) !== text,
+    ).map(({ lang, key }) => `${lang}:${key}`);
+    expect(changed).toEqual([]);
   });
+
+  it.each([
+    ["pl", 1, "moreMessages_one"],
+    ["pl", 2, "moreMessages_few"],
+    ["pl", 5, "moreMessages_many"],
+    ["en", 1, "moreMessages_one"],
+    ["en", 2, "moreMessages_other"],
+  ] as const)(
+    "grouped.moreMessages (%s, count=%i) bierze forme mnoga rdzenia",
+    (lang, count, form) => {
+      const grouped: unknown = Reflect.get(CORE[lang].notifications, "grouped");
+      const template = new Map(flattenLoose(grouped)).get(form);
+      expect(template).toBeTypeOf("string");
+      expect(realT(lang)("notifications.grouped.moreMessages", { count })).toBe(
+        template?.replace("{{count}}", String(count)),
+      );
+    },
+  );
 });

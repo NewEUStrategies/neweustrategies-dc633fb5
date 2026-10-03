@@ -9,19 +9,18 @@
 // STAN ODCZYTU jest częścią wyniku, nie ozdobą. Audyt, który „nie znalazł
 // braków", bo zapytanie padło (sieć, odmowa RLS), wygląda identycznie jak
 // audyt czystego serwisu - dlatego błąd odczytu i lista przycięta limitem mają
-// własne komunikaty. Używamy tych samych atomów co kokpit SEO
-// (`ContentReadError`, `ContentCoverageNotice`): to jedyna konwencja panelu dla
-// „odczyt treści padł / lista niepełna", a ich napisy idą przez słownik.
+// własne komunikaty. Układ i reguła są te same co w kokpicie SEO
+// (`ContentReadError`, `ContentCoverageNotice`), ale napisy są WŁASNE
+// (`adminWidgetI18nAudit.*`): zdania kokpitu mówią o „licznikach i tabeli"
+// treści, a stąd ma być widać, co padło - skan stron i wpisów pod audyt.
+//
+// Wszystkie napisy idą przez słownik `@/lib/i18n-admin-widget-audit`.
 import { useMemo, useState } from "react";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 import { AlertTriangle, Languages, Loader2, RefreshCw } from "lucide-react";
 
-import {
-  ContentCoverageNotice,
-  ContentReadError,
-} from "@/components/admin/seo/ContentCoverageNotice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { WIDGETS } from "@/lib/builder/registry";
 import type { WidgetType } from "@/lib/builder/types";
-import { uiLang } from "@/lib/i18n/format";
+import { ensureI18n as ensureWidgetAuditI18n } from "@/lib/i18n-admin-widget-audit";
 import {
   auditBuilderI18n,
   summarizeI18nIssues,
@@ -58,11 +57,12 @@ const DEFAULTS_BY_TYPE = new Map<string, Record<string, unknown>>(
   WIDGETS.map((w) => [w.type as WidgetType as string, w.defaults() as Record<string, unknown>]),
 );
 
-const KIND_LABEL: Record<WidgetI18nIssueKind, { pl: string; en: string }> = {
-  stale_default: { pl: "Szablonowa wartość EN", en: "Template EN value" },
-  pl_text_in_en: { pl: "Polski tekst w polu EN", en: "Polish text in EN field" },
-  missing: { pl: "Brak tłumaczenia EN", en: "Missing EN translation" },
-  same_as_pl: { pl: "EN identyczne z PL", en: "EN identical to PL" },
+/** Jawna mapa klasa -> klucz (klucz sklejany byłby niewidoczny dla bramek i18n). */
+const KIND_LABEL_KEY: Record<WidgetI18nIssueKind, string> = {
+  stale_default: "adminWidgetI18nAudit.kind.staleDefault",
+  pl_text_in_en: "adminWidgetI18nAudit.kind.plTextInEn",
+  missing: "adminWidgetI18nAudit.kind.missing",
+  same_as_pl: "adminWidgetI18nAudit.kind.sameAsPl",
 };
 
 /**
@@ -159,13 +159,52 @@ async function fetchAudited(tenantId: string): Promise<WidgetI18nAuditResult> {
   };
 }
 
+/** Lista niepełna (przycięta limitem albo o nieznanej liczności); komplet = nic. */
+function AuditCoverageNotice({ coverage }: { coverage: SeoContentCoverage }) {
+  const { t } = useTranslation();
+  if (coverage.state === "complete") return null;
+  return (
+    <p
+      data-widget-i18n-coverage={coverage.state}
+      className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400"
+    >
+      {coverage.state === "truncated"
+        ? t("adminWidgetI18nAudit.coverageTruncated", {
+            shown: coverage.shown,
+            total: coverage.total,
+          })
+        : t("adminWidgetI18nAudit.coverageUnknown", { shown: coverage.shown })}
+    </p>
+  );
+}
+
+/** Odczyt padł - stan odrębny od skanowania i od „brak braków". */
+function AuditReadError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="alert"
+      data-widget-i18n-read-error
+      className="flex flex-wrap items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive"
+    >
+      <span>{t("adminWidgetI18nAudit.readError")}</span>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="rounded-md border border-destructive/40 px-2 py-1 font-medium hover:bg-destructive/10"
+      >
+        {t("adminWidgetI18nAudit.retry")}
+      </button>
+    </div>
+  );
+}
+
 export function WidgetI18nAuditPane() {
-  const { i18n } = useTranslation();
+  ensureWidgetAuditI18n();
+  // Język rozstrzyga i18next (także regionalne „en-GB"/„en-US" - spadają na
+  // słownik „en"), więc komponent nie porównuje już kodów języka sam.
+  const { t } = useTranslation();
   const { tenantId } = useAuth();
-  // `uiLang`, nie `=== "en"`: ta sama normalizacja co w całym repozytorium
-  // (regionalne „en-GB"/„en-US" to też angielski interfejs).
-  const lang = uiLang(i18n.language);
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
   const [errorsOnly, setErrorsOnly] = useState(true);
 
   const { data, isPending, isError, isFetching, refetch } = useQuery({
@@ -215,39 +254,42 @@ export function WidgetI18nAuditPane() {
           ) : (
             <RefreshCw className="mr-2 h-4 w-4" />
           )}
-          {L("Przeskanuj ponownie", "Rescan")}
+          {t("adminWidgetI18nAudit.rescan")}
         </Button>
         <Button
           variant={errorsOnly ? "default" : "outline"}
           size="sm"
           onClick={() => setErrorsOnly((v) => !v)}
         >
-          {errorsOnly ? L("Tylko błędy", "Errors only") : L("Błędy i ostrzeżenia", "All issues")}
+          {errorsOnly ? t("adminWidgetI18nAudit.errorsOnly") : t("adminWidgetI18nAudit.allIssues")}
         </Button>
         {result ? (
           <span className="text-[0.8125rem] text-muted-foreground">
-            {L("Znaleziono", "Found")} <strong>{total.total}</strong>{" "}
-            {L("problemów w", "issues across")} <strong>{entities.length}</strong>{" "}
-            {L("wpisach/stronach", "entries")}
+            <Trans
+              t={t}
+              i18nKey="adminWidgetI18nAudit.summary"
+              values={{
+                issues: total.total,
+                issuesWord: t("adminWidgetI18nAudit.summaryIssues", { count: total.total }),
+                entries: entities.length,
+                entriesWord: t("adminWidgetI18nAudit.summaryEntries", { count: entities.length }),
+              }}
+              components={{ b: <strong /> }}
+            />
           </span>
         ) : null}
       </div>
 
       {isError ? (
-        <ContentReadError onRetry={() => void refetch()} />
+        <AuditReadError onRetry={() => void refetch()} />
       ) : isPending ? (
-        <p className="text-sm text-muted-foreground">{L("Skanowanie…", "Scanning…")}</p>
+        <p className="text-sm text-muted-foreground">{t("adminWidgetI18nAudit.scanning")}</p>
       ) : (
-        <ContentCoverageNotice coverage={data.coverage} />
+        <AuditCoverageNotice coverage={data.coverage} />
       )}
 
       {!result ? null : entities.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {L(
-            "Brak wykrytych braków tłumaczeń w widgetach.",
-            "No widget translation gaps detected.",
-          )}
-        </p>
+        <p className="text-sm text-muted-foreground">{t("adminWidgetI18nAudit.noGaps")}</p>
       ) : (
         entities.map((entity) => (
           <Card key={`${entity.kind}:${entity.slug}`}>
@@ -268,7 +310,7 @@ export function WidgetI18nAuditPane() {
                     to={entity.kind === "page" ? "/admin/pages/$slug" : "/admin/posts/$slug"}
                     params={{ slug: entity.slug }}
                   >
-                    {L("Edytuj widgety", "Edit widgets")}
+                    {t("adminWidgetI18nAudit.editWidgets")}
                   </Link>
                 </Button>
               </div>
@@ -281,7 +323,7 @@ export function WidgetI18nAuditPane() {
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={issue.severity === "error" ? "destructive" : "secondary"}>
-                      {KIND_LABEL[issue.kind][lang]}
+                      {t(KIND_LABEL_KEY[issue.kind])}
                     </Badge>
                     <span className="font-mono text-xs text-muted-foreground">
                       {issue.widgetType} · {issue.field}
@@ -303,19 +345,13 @@ export function WidgetI18nAuditPane() {
       {result && hiddenWarnings > 0 ? (
         <p className="flex items-center gap-2 text-xs text-muted-foreground">
           <AlertTriangle className="h-3.5 w-3.5" />
-          {L(
-            "Ostrzeżenia (EN identyczne z PL) są ukryte - bywają poprawne dla nazw własnych.",
-            "Warnings (EN identical to PL) are hidden - they can be correct for proper nouns.",
-          )}
+          {t("adminWidgetI18nAudit.hiddenWarnings")}
         </p>
       ) : null}
 
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <Languages className="h-3.5 w-3.5" />
-        {L(
-          "Poprawki wprowadzasz w widgecie - pola PL/EN są częścią jego treści.",
-          "Fix them inside the widget - the PL/EN fields are part of its content.",
-        )}
+        {t("adminWidgetI18nAudit.fixHint")}
       </p>
     </div>
   );

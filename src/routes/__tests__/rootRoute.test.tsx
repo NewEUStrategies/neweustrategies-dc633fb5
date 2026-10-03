@@ -36,6 +36,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
 import { homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
+import { stripLangPrefix } from "@/lib/i18n/localePath";
 
 const h = vi.hoisted(() => ({
   lang: "pl" as "pl" | "en",
@@ -290,13 +291,16 @@ describe("__root loader", () => {
     cancel.mockRestore();
   });
 
+  // Loader dostaje `location.pathname` PO rewrite `input` routera (ta sama
+  // funkcja: `stripLangPrefix`), więc "/en" i "/en/" docierają jako "/" -
+  // dowód na prawdziwym routerze: `lib/i18n/__tests__/urlLanguageNavigation.test.tsx`.
   it.each(["/", "/en", "/en/"])(
     "bounds homepage theme waiting and disables cache at %s",
     async (path) => {
       h.server = true;
       h.settingsHangs = true;
       const started = performance.now();
-      await runLoader(qc, path);
+      await runLoader(qc, stripLangPrefix(path).pathname);
       expect(performance.now() - started).toBeLessThan(900);
       expect(qc.getQueryState(["site-settings"])).toMatchObject({
         status: "success",

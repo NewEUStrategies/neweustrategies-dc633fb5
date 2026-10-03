@@ -18,11 +18,18 @@
 //     z dławionego `history.replaceState` w Safari) zostawiała język klienta
 //     przestawiony bez nawigacji i nieobsłużone odrzucenie w konsoli.
 import { useRouter, type HistoryState } from "@tanstack/react-router";
+import { flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { uiLang } from "./format";
 import { localizedPath, stripLangPrefix, type AppLang } from "./localePath";
 import { setClientLang } from "./localeRuntime";
+
+/** Magazyn lokalizacji routera, z którego `<Link>`-i budują swój href. */
+interface UiLangLocationStore {
+  get(): { href: string };
+  set(location: { href: string }): void;
+}
 
 /** Tyle routera TanStack, ile potrzeba do przełączenia. */
 export interface UiLangRouter {
@@ -34,6 +41,8 @@ export interface UiLangRouter {
     hashScrollIntoView: boolean;
     state: (prev: HistoryState) => HistoryState;
   }) => unknown;
+  /** Bez magazynu (atrapa, inny router) odnośniki odświeży dopiero nawigacja. */
+  stores?: { location?: UiLangLocationStore };
 }
 
 /** Tyle i18next, ile potrzeba do przełączenia. */
@@ -77,6 +86,42 @@ function hardNavigate(href: string): void {
   if (typeof window !== "undefined") window.location.href = href;
 }
 
+/** Dopisek chwilowej kopii lokalizacji (patrz `refreshRenderedLinks`) - nie trafia do historii. */
+const LINK_REFRESH_MARK = "#__uiLangLinks";
+
+/**
+ * Każe JUŻ wyrenderowanym `<Link>`-om zbudować href od nowa - w nowym języku.
+ *
+ * `<Link>` TanStack trzyma zbudowaną lokalizację, dopóki magazyn lokalizacji
+ * routera nie poda lokalizacji o INNYM wewnętrznym `href` (`link.tsx`:
+ * `useStore(router.stores.location, ..., (a, b) => a.href === b.href)`), a
+ * przełączenie zmienia tylko prefiks, który rewrite `input` zdejmuje - "/en/b"
+ * i "/b" to dla routera ten sam "/b". Odnośniki strony zostawały więc w starym
+ * języku: nowa karta, skopiowany link i pasek statusu prowadziły do drugiej
+ * wersji językowej (sam klik nie, bo `<Link>` buduje adres kliku od nowa).
+ *
+ * Kopia lokalizacji z innym `href` musi zostać WYRENDEROWANA (`flushSync`):
+ * selektor `useStore` porównuje nową wartość z ostatnio wyrenderowaną, więc
+ * zapis i natychmiastowy powrót w tym samym takcie React widziałby jako "bez
+ * zmian". Kopia różni się wyłącznie `href` (ścieżka, query, hash, stan i
+ * `publicHref` te same), więc reszta subskrybentów - czytających `pathname`
+ * czy `search` - nie widzi różnicy. Zaraz potem wraca TA SAMA lokalizacja.
+ * Żadnej nawigacji, zapisu historii ani ładowania tras.
+ */
+function refreshRenderedLinks(router: UiLangRouter): void {
+  const store = router.stores?.location;
+  if (!store) return;
+  const location = store.get();
+  try {
+    flushSync(() => store.set({ ...location, href: `${location.href}${LINK_REFRESH_MARK}` }));
+  } catch {
+    // Odświeżenie dotyczy samych href-ów - jego błąd nie może wywrócić
+    // udanego przełączenia (ani zostawić nieobsłużonego odrzucenia).
+  }
+  // Kopia nie może zostać w routerze - nawet gdy render wyżej rzucił.
+  store.set(location);
+}
+
 /**
  * Przełącza język interfejsu na `next` i przenosi na ten sam adres w nowym
  * języku. No-op, gdy `next` jest już aktywny.
@@ -112,6 +157,8 @@ export function switchUiLanguage(
       // przeładowuje trasę i NIE zapisuje adresu. Przełączenie EN -> PL
       // zostawiało więc w pasku /en/a (przeładowanie i udostępniony link
       // wracały do angielskiego). Inny stan wymusza `history.replace`.
+      // Ten sam powód (adres bez prefiksu się nie zmienia) zostawiał
+      // wyrenderowane odnośniki w starym języku - po nawigacji odświeżamy je.
       void Promise.resolve(
         router.navigate({
           href,
@@ -120,7 +167,10 @@ export function switchUiLanguage(
           hashScrollIntoView: false,
           state: (prev) => ({ ...prev, [UI_LANG_STATE_KEY]: next }),
         }),
-      ).catch(() => hardNavigate(href));
+      ).then(
+        () => refreshRenderedLinks(router),
+        () => hardNavigate(href),
+      );
       return;
     } catch {
       /* synchroniczny wyjątek - twarda nawigacja niżej */

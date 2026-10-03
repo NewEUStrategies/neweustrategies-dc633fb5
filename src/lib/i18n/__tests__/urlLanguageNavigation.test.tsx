@@ -26,6 +26,8 @@ import type { AnyRouter } from "@tanstack/react-router";
 const h = vi.hoisted(() => ({
   /** Drzewo tras budowane PO zresetowaniu modułów (patrz `boot`). */
   routeTree: undefined as unknown,
+  /** `location.pathname`, które dostał loader korzenia. */
+  rootLoaderPathnames: [] as string[],
 }));
 
 // Bez kompilatora Startu (vitest) stub `createIsomorphicFn` wybiera gałąź
@@ -69,14 +71,22 @@ async function boot(initialPath: string) {
   const rr = await import("@tanstack/react-router");
 
   const Page = () => (
-    <rr.Link<AnyRouter> to="/c" data-testid="to-c">
-      c
-    </rr.Link>
+    <>
+      <h2 id="sekcja">Sekcja</h2>
+      <rr.Link<AnyRouter> to="/c" data-testid="to-c">
+        c
+      </rr.Link>
+    </>
   );
   const root = rr.createRootRoute({
     // Odwzorowanie okablowania językowego korzenia (`src/routes/__root.tsx`).
     beforeLoad: async ({ location }) => {
       await i18nModule.syncI18nToRequest(location.publicHref).catch(() => undefined);
+    },
+    // `__root.tsx` rozpoznaje w loaderze stronę główną po `location.pathname` -
+    // zapisujemy, co do loadera faktycznie dociera.
+    loader: ({ location }) => {
+      h.rootLoaderPathnames.push(location.pathname);
     },
     component: () => <rr.Outlet />,
   });
@@ -102,10 +112,11 @@ async function boot(initialPath: string) {
 const go = (router: AnyRouter, to: string) => router.navigate({ to } as never);
 const hrefFor = (router: AnyRouter, to: string) => router.buildLocation({ to } as never).publicHref;
 
-/** Czeka, aż router rozstrzygnie nawigację na adres `publicPath`. */
+/** Czeka, aż router rozstrzygnie nawigację na adres `publicPath` (ścieżka, query, hash). */
 async function settled(router: AnyRouter, publicPath: string) {
   await vi.waitFor(() => {
-    expect(window.location.pathname).toBe(publicPath);
+    const { pathname, search, hash } = window.location;
+    expect(`${pathname}${search}${hash}`).toBe(publicPath);
     expect(router.state.resolvedLocation?.publicHref).toBe(publicPath);
     expect(router.state.status).toBe("idle");
   });
@@ -146,6 +157,7 @@ beforeEach(() => {
   document.cookie = "nes_lang=; path=/; max-age=0";
   window.localStorage.clear();
   document.documentElement.removeAttribute("lang");
+  h.rootLoaderPathnames = [];
 });
 
 afterEach(() => {
@@ -168,10 +180,10 @@ describe("język renderu na kliencie po nawigacji wstecz/dalej", () => {
     await settled(router, "/en/b");
     await vi.waitFor(() => expect(i18n.language).toBe("en"));
     expect(runtime.currentLang()).toBe("en");
-    // Adres budowany od nowa ma już prefiks. (Wyrenderowany <Link> tej samej
-    // strony przelicza href dopiero po zmianie `location.href`, a ta przy samej
-    // zmianie języka zostaje "/b" - to osobna sprawa przełącznika.)
+    // Adres budowany od nowa ma już prefiks - i wyrenderowany <Link> tej samej
+    // strony też (przełącznik odświeża odnośniki po nawigacji, patrz niżej).
     expect(hrefFor(router, "/c")).toBe("/en/c");
+    await vi.waitFor(() => expect(hrefToC()).toBe("/en/c"));
 
     await go(router, "/c");
     await settled(router, "/en/c");
@@ -295,15 +307,17 @@ describe("kontrakt przełącznika po poprawce", () => {
     await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
   });
 
-  it("najechanie na odnośnik zapamiętany SPRZED przełączenia (preload) nie cofa języka", async () => {
+  // Odnośnik zbudowany w POPRZEDNIM języku: taki zostaje po zmianie języka
+  // bez nawigacji (baner zgody woła wprost `i18n.changeLanguage`), a po
+  // przełączniku - do chwili odświeżenia odnośników po jego nawigacji.
+  // Preload biegnie przez `beforeLoad` korzenia z TĄ lokalizacją.
+  it("najechanie na odnośnik zbudowany w poprzednim języku (preload) nie cofa języka", async () => {
     state = await boot("/b");
-    const { router, i18n, switchUiLanguage } = state;
-    switchUiLanguage("en", "pl", { i18n, router });
-    await settled(router, "/en/b");
-    await vi.waitFor(() => expect(i18n.language).toBe("en"));
+    const { router, i18n } = state;
+    await i18n.changeLanguage("en");
+    await vi.dynamicImportSettled();
+    expect(state.runtime.currentLang()).toBe("en");
 
-    // <Link> tej samej strony trzyma lokalizację zbudowaną przed zmianą
-    // języka; preload biegnie przez `beforeLoad` korzenia z TĄ lokalizacją.
     const link = screen.getByTestId("to-c");
     expect(link.getAttribute("href")).toBe("/c");
     const preload = vi.spyOn(router, "preloadRoute");
@@ -313,6 +327,132 @@ describe("kontrakt przełącznika po poprawce", () => {
 
     expect(state.runtime.currentLang()).toBe("en");
     expect(i18n.language).toBe("en");
-    expect(window.location.pathname).toBe("/en/b");
+    expect(window.location.pathname).toBe("/b");
+  });
+});
+
+// ODNOŚNIKI WYRENDEROWANE PRZED PRZEŁĄCZENIEM. `<Link>` TanStack trzyma
+// zbudowaną lokalizację, dopóki magazyn lokalizacji routera nie poda INNEGO
+// wewnętrznego `href` (`react-router/src/link.tsx`: porównanie `a.href ===
+// b.href`), a rewrite `input` zdejmuje prefiks - "/en/b" i "/b" to dla routera
+// ten sam "/b". Bez odświeżenia odnośniki strony zostawały w starym języku:
+// nowa karta, skopiowany link i pasek statusu prowadziły do drugiej wersji.
+describe("odnośniki wyrenderowane przed przełączeniem", () => {
+  it("PL -> EN i z powrotem: href odnośnika idzie za językiem bez kolejnej nawigacji", async () => {
+    state = await boot("/b");
+    const { router, i18n, switchUiLanguage } = state;
+    expect(hrefToC()).toBe("/c");
+
+    switchUiLanguage("en", "pl", { i18n, router });
+    await settled(router, "/en/b");
+    await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
+
+    switchUiLanguage("pl", "en", { i18n, router });
+    await settled(router, "/b");
+    await vi.waitFor(() => expect(renderState()).toEqual(PL_STATE));
+  });
+
+  it("jedno przełączenie = jeden zapis historii (replace) i jedno ładowanie, bez pętli", async () => {
+    state = await boot("/b");
+    const { router, i18n, switchUiLanguage } = state;
+    const push = vi.spyOn(router.history, "push");
+    const replace = vi.spyOn(router.history, "replace");
+    const loads: string[] = [];
+    const unsubscribe = router.subscribe("onBeforeLoad", (e) => {
+      loads.push(e.toLocation.publicHref);
+    });
+    const entries = window.history.length;
+    try {
+      switchUiLanguage("en", "pl", { i18n, router });
+      await settled(router, "/en/b");
+      await vi.waitFor(() => expect(hrefToC()).toBe("/en/c"));
+      // Jeszcze jedno makrozadanie: odświeżenie odnośników nie może wywołać
+      // kolejnej nawigacji ani ładowania.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(push).not.toHaveBeenCalled();
+      expect(replace).toHaveBeenCalledTimes(1);
+      expect(replace.mock.calls[0]![0]).toBe("/en/b");
+      expect(loads).toEqual(["/en/b"]);
+      expect(window.history.length).toBe(entries);
+      // Chwilowa kopia lokalizacji (inny wewnętrzny href) nie zostaje w routerze.
+      expect(router.state.location.href).toBe("/b");
+      expect(router.state.location.publicHref).toBe("/en/b");
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("klik w odświeżony odnośnik, wstecz i dalej - adres i język zgodne na każdym kroku", async () => {
+    state = await boot("/a");
+    const { router, i18n, switchUiLanguage } = state;
+    await go(router, "/b");
+    await settled(router, "/b");
+
+    switchUiLanguage("en", "pl", { i18n, router });
+    await settled(router, "/en/b");
+    await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
+
+    fireEvent.click(screen.getByTestId("to-c"));
+    await settled(router, "/en/c");
+    await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
+
+    // Przełącznik ZASTĄPIŁ wpis /b, więc wstecz prowadzi na /en/b, a dalej
+    // wstecz - na polskie /a.
+    window.history.back();
+    await settled(router, "/en/b");
+    await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
+    window.history.back();
+    await settled(router, "/a");
+    await vi.waitFor(() => expect(renderState()).toEqual(PL_STATE));
+    window.history.forward();
+    await settled(router, "/en/b");
+    await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
+  });
+
+  it("query i hash zostają, widok nie skacze do kotwicy, odnośnik w nowym języku", async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
+    try {
+      state = await boot("/b?q=1#sekcja");
+      const { router, i18n, switchUiLanguage } = state;
+      scrollIntoView.mockClear();
+
+      switchUiLanguage("en", "pl", { i18n, router });
+      await settled(router, "/en/b?q=1#sekcja");
+      await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    } finally {
+      scrollIntoView.mockRestore();
+    }
+  });
+
+  it("strona aplikacji: adres bez zmian, odnośniki do treści dostają prefiks", async () => {
+    state = await boot("/admin/x");
+    const { router, i18n, switchUiLanguage } = state;
+    expect(renderState()).toEqual(PL_STATE);
+
+    switchUiLanguage("en", "pl", { i18n, router });
+    await settled(router, "/admin/x");
+    await vi.waitFor(() => expect(renderState()).toEqual(EN_STATE));
+
+    switchUiLanguage("pl", "en", { i18n, router });
+    await settled(router, "/admin/x");
+    await vi.waitFor(() => expect(renderState()).toEqual(PL_STATE));
+  });
+});
+
+// `__root.tsx` rozpoznaje w loaderze gołą stronę główną po `location.pathname`.
+// Prefiks języka zdejmuje rewrite `input` ZANIM router zbuduje lokalizację, więc
+// "/en" dociera do loadera jako "/" - porównania z "/en" i "/en/" były martwe.
+describe("lokalizacja widziana przez loader korzenia", () => {
+  it.each([
+    ["/", "/"],
+    ["/en", "/"],
+    ["/en/a", "/a"],
+  ])("adres %s -> location.pathname %s", async (address, pathname) => {
+    state = await boot(address);
+    expect(h.rootLoaderPathnames).toEqual([pathname]);
+    expect(state.router.state.location.publicHref).toBe(address);
   });
 });

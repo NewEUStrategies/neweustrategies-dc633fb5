@@ -41,6 +41,21 @@ async function importCore(lang: AppLang): Promise<CoreBundle> {
 }
 
 /**
+ * Własna kopia rdzenia dla `init({ resources })`. i18next trzyma zasoby z init
+ * PRZEZ REFERENCJĘ, a każda nakładka (`addResourceBundle(..., deep=true)`)
+ * scala się W MIEJSCU w obiekt ze store - bez kopii dopisywała się do eksportu
+ * `pl`/`en` z `@/lib/locale/*` (klient: aktywny język, serwer: oba). Ten eksport
+ * bramki i testy słowników czytają jako CZYSTY rdzeń (ratchet podmian w
+ * nakładkach był przez to ślepy na PL). Kopia JSON - ta sama, którą i18next
+ * robi sam w `addResourceBundle`, więc `ensureCoreLanguage` jej nie potrzebuje;
+ * koszt raz na start: ~0,6-0,8 ms i ~200 KiB sterty na język (Node 22; zimny
+ * `structuredClone` ~2,5 ms).
+ */
+function storeCopy(core: CoreBundle): CoreBundle {
+  return JSON.parse(JSON.stringify(core));
+}
+
+/**
  * Dociąga rdzenny słownik języka (idempotentnie). `overwrite=false`, żeby
  * fragmenty zarejestrowane wcześniej przez overlaye (lib/i18n-*) nie zostały
  * nadpisane - overlaye z założenia tylko DOKŁADAJĄ brakujące klucze.
@@ -107,13 +122,13 @@ if (!i18n.isInitialized) {
   const initialResources: Record<string, { translation: CoreBundle }> = {};
   if (import.meta.env.SSR) {
     const [plCore, enCore] = await Promise.all([importCore("pl"), importCore("en")]);
-    initialResources.pl = { translation: plCore };
-    initialResources.en = { translation: enCore };
+    initialResources.pl = { translation: storeCopy(plCore) };
+    initialResources.en = { translation: storeCopy(enCore) };
     coreLoaded.add("pl");
     coreLoaded.add("en");
   } else {
     const lang = currentLang();
-    initialResources[lang] = { translation: await importCore(lang) };
+    initialResources[lang] = { translation: storeCopy(await importCore(lang)) };
     coreLoaded.add(lang);
   }
 

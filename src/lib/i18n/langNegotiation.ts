@@ -33,9 +33,13 @@ export function detectLangFromAcceptLanguage(header: string | null | undefined):
     .split(",")
     .map((part) => {
       const [tag, ...params] = part.trim().split(";");
+      // Nazwa parametru wagi jest niewrażliwa na wielkość liter (RFC 9110
+      // §5.6.6; literał "q=" w ABNF §12.4.2 też): `pl;Q=0` wyklucza polski,
+      // a nie dostaje domyślnej wagi 1. Odstępu wokół "=" RFC nie dopuszcza,
+      // więc `q =0` dalej nie jest wagą.
       const q = params
         .map((p) => p.trim())
-        .find((p) => p.startsWith("q="))
+        .find((p) => /^q=/i.test(p))
         ?.slice(2);
       const quality = q === undefined ? 1 : Number.parseFloat(q);
       return { tag: tag.trim(), quality: Number.isFinite(quality) ? quality : 0 };

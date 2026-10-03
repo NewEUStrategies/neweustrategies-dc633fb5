@@ -620,7 +620,11 @@ const pl = {
       },
       cover: {
         bgUrl: "URL obrazu tła (cover)…",
-        title: "Wpisz tytuł…",
+        // Placeholder pola tytułu - osobny klucz, bo `cover.title` należy do
+        // rdzenia i niesie NAGŁÓWEK edytora („Tło / okładka"). Pod wspólnym
+        // kluczem z overwrite=false wygrywał rdzeń, a pole tytułu podpowiadało
+        // „Tło / okładka" - chyba że rdzeń języka dociągnął się później.
+        titlePh: "Wpisz tytuł…",
       },
       file: {
         label: "Nazwa pliku do wyświetlenia…",
@@ -1501,7 +1505,7 @@ const en: typeof pl = {
       },
       cover: {
         bgUrl: "Background image URL (cover)…",
-        title: "Enter a title…",
+        titlePh: "Enter a title…",
       },
       file: {
         label: "File name to display…",

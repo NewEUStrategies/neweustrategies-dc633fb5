@@ -187,6 +187,43 @@ describe("registered request middleware", () => {
     }
   });
   it.each([
+    ["https://example.org", undefined, true],
+    ["https://example.org", "", true],
+    ["http://example.org", "https", true],
+    ["http://example.org", "https, http", true],
+    ["http://example.org", undefined, false],
+    ["https://example.org", "http", false],
+    // `Secure` tylko dla jawnego "https": inny schemat nie może go dostać, bo
+    // przeglądarka odrzuca ciasteczko `Secure` z niezabezpieczonego połączenia
+    // i preferencja języka przepadłaby po cichu.
+    ["https://example.org", "HTTP", false],
+  ])(
+    "both language middlewares write the same cookie bytes for %s (x-forwarded-proto %j)",
+    async (origin, proto, secure) => {
+      // Jedno źródło Set-Cookie: ogniwo 4 (negocjacja "/") i ogniwo 6 (legacy
+      // `?lang=`) muszą zapisać preferencję identycznie - inaczej przeglądarka
+      // trzyma dwa warianty atrybutów tego samego ciasteczka zależnie od wejścia.
+      const forwarded: Record<string, string> =
+        proto === undefined ? {} : { "x-forwarded-proto": proto };
+      for (const lang of ["pl", "en"]) {
+        const expected = `nes_lang=${lang}; Path=/; Max-Age=31536000; SameSite=Lax${secure ? "; Secure" : ""}`;
+        const homepage = response(
+          await run(
+            4,
+            new Request(`${origin}/`, {
+              headers: { ...forwarded, accept: "text/html", "accept-language": lang },
+            }),
+          ),
+        );
+        const legacy = response(
+          await run(6, new Request(`${origin}/profile?lang=${lang}`, { headers: forwarded })),
+        );
+        expect(homepage.headers.getSetCookie()).toEqual([expected]);
+        expect(legacy.headers.getSetCookie()).toEqual([expected]);
+      }
+    },
+  );
+  it.each([
     ["/blog", "GET", "text/html"],
     ["/", "POST", "text/html"],
     ["/", "GET", "application/json"],

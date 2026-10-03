@@ -13,14 +13,22 @@
 //      zapytania (atrapa nie wykonuje RLS i ten plik tego nie udaje).
 //   3. LIMIT I JEGO WIDOCZNOŚĆ. Każdy wiersz to pełne `builder_data`, więc
 //      odczyt ma górną granicę - a gdy baza ma więcej wierszy, panel mówi to
-//      wprost (ta sama konwencja i ten sam komunikat co kokpit SEO).
+//      wprost (ta sama reguła co kokpit SEO, ale WŁASNY komunikat audytu).
 //   4. PODPOWIEDŹ O UKRYTYCH OSTRZEŻENIACH. W trybie „Tylko błędy" panel ma
 //      powiedzieć, że ostrzeżenia `same_as_pl` są ukryte - licząc je z PEŁNEGO
 //      wyniku, nie z listy już przefiltrowanej do samych błędów.
-//   5. Język interfejsu przez `uiLang` (jak reszta repozytorium), sortowanie po
+//   5. Język interfejsu przez słownik (`t()`, także kod regionalny), sortowanie po
 //      liczbie problemów, deep-link do edytora strony vs wpisu, przełącznik
 //      błędy/wszystko, ponowne skanowanie, `stale_default` z PRAWDZIWYCH
 //      szablonów palety (`registry.tsx`).
+//   6. SŁOWNIK, NIE LITERAŁY. Każdy napis panelu idzie przez
+//      `adminWidgetI18nAudit.*` (`i18n-admin-widget-audit.ts`). Komunikaty
+//      stanu odczytu mówią, CO padło w TYM panelu (strony i wpisy pod audyt),
+//      zamiast pożyczać zdania kokpitu SEO o „licznikach i tabeli". Licznik
+//      problemów odmienia się przez liczbę mnogą i18next („1 problem",
+//      „2 problemy", „5 problemów") - wcześniej panel pisał „1 problemów".
+//      Asercje na dosłownych napisach (np. „Brak tłumaczenia EN") pilnują, że
+//      przeniesienie do słownika nie zmieniło brzmienia.
 //
 // CO JEST ATRAPOWANE I DLACZEGO:
 //   * klient Supabase - granica sieci; atrapa łańcucha (`supabaseFromStub`)
@@ -37,7 +45,9 @@ import i18n from "@/lib/i18n";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, supabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
 import { realT } from "@/test/i18nReal";
-// Klucze komunikatów stanu odczytu (`adminSeoHub.*`) - asertujemy napisy ze słownika.
+// Klucze panelu (`adminWidgetI18nAudit.*`) - asertujemy napisy ze słownika.
+import "@/lib/i18n-admin-widget-audit";
+// Tylko po to, by dowieść, że panel NIE pokazuje zdań kokpitu SEO.
 import "@/lib/i18n-admin-seo-hub";
 import { axeViolations, summarize } from "@/test/axe";
 import { WidgetI18nAuditPane } from "@/components/admin/i18n/WidgetI18nAuditPane";
@@ -60,8 +70,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => ({
 
 const TENANT = "tenant-nes";
 const t = realT("pl");
-const READ_ERROR = t("adminSeoHub.contentReadError");
-const RETRY = t("adminSeoHub.contentRetry");
+const READ_ERROR = t("adminWidgetI18nAudit.readError");
+const RETRY = t("adminWidgetI18nAudit.retry");
 const NO_GAPS = "Brak wykrytych braków tłumaczeń w widgetach.";
 const HIDDEN_WARNINGS_HINT =
   "Ostrzeżenia (EN identyczne z PL) są ukryte - bywają poprawne dla nazw własnych.";
@@ -149,6 +159,24 @@ describe("WidgetI18nAuditPane - wynik audytu", () => {
       "Tytuł o-nas",
     ]);
     expect(document.body.textContent).toContain("Znaleziono 6 problemów w 3 wpisach/stronach");
+  });
+
+  it.each([
+    // [błędów na stronie, napis licznika] - formy one / few / many.
+    [1, "Znaleziono 1 problem w 1 wpisie/stronie"],
+    [2, "Znaleziono 2 problemy w 1 wpisie/stronie"],
+    [5, "Znaleziono 5 problemów w 1 wpisie/stronie"],
+  ])("licznik odmienia się przez liczbę (%i)", async (count, summary) => {
+    // Wcześniej trzy sklejane fragmenty: „Znaleziono 1 problemów w 1
+    // wpisach/stronach". Liczby nadal są wyróżnione (`<strong>`).
+    const widgets = Array.from({ length: count }, (_, i) => heading(`w${i}`, `Zespół ${i}`, ""));
+    respond(rows([row("o-nas", doc(...widgets))]), rows([]));
+    renderPane();
+
+    await screen.findAllByText("Brak tłumaczenia EN");
+    expect(document.body.textContent).toContain(summary);
+    const counters = [...document.querySelectorAll("strong")].map((el) => el.textContent);
+    expect(counters).toEqual([String(count), "1"]);
   });
 
   it("strona linkuje do edytora strony, wpis do edytora wpisu", async () => {
@@ -262,12 +290,12 @@ describe("WidgetI18nAuditPane - błędy i ostrzeżenia", () => {
 
     expect(await screen.findByText("Brak tłumaczenia EN")).toBeInTheDocument();
     expect(screen.queryByText("EN identyczne z PL")).toBeNull();
-    expect(document.body.textContent).toContain("Znaleziono 1 problemów w 1 wpisach/stronach");
+    expect(document.body.textContent).toContain("Znaleziono 1 problem w 1 wpisie/stronie");
 
     fireEvent.click(screen.getByRole("button", { name: "Tylko błędy" }));
     expect(await screen.findByText("EN identyczne z PL")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Błędy i ostrzeżenia" })).toBeInTheDocument();
-    expect(document.body.textContent).toContain("Znaleziono 2 problemów w 1 wpisach/stronach");
+    expect(document.body.textContent).toContain("Znaleziono 2 problemy w 1 wpisie/stronie");
 
     fireEvent.click(screen.getByRole("button", { name: "Błędy i ostrzeżenia" }));
     await waitFor(() => expect(screen.queryByText("EN identyczne z PL")).toBeNull());
@@ -307,7 +335,7 @@ describe("WidgetI18nAuditPane - błędy i ostrzeżenia", () => {
     expect(await screen.findByText("EN identyczne z PL")).toBeInTheDocument();
     expect(screen.queryByText("Tytuł czysta")).toBeNull();
     expect(screen.getAllByRole("link", { name: "Edytuj widgety" })).toHaveLength(1);
-    expect(document.body.textContent).toContain("Znaleziono 2 problemów w 1 wpisach/stronach");
+    expect(document.body.textContent).toContain("Znaleziono 2 problemy w 1 wpisie/stronie");
   });
 
   it("bez ostrzeżeń w wyniku podpowiedzi nie ma", async () => {
@@ -331,6 +359,18 @@ describe("WidgetI18nAuditPane - odczyt, który padł (fałszywy zielony)", () =>
     expect(alert).toHaveTextContent(READ_ERROR);
     expect(screen.queryByText(NO_GAPS)).toBeNull();
     expect(document.body.textContent).not.toContain("Znaleziono");
+  });
+
+  it("komunikat błędu mówi o audycie, nie o „licznikach i tabeli” kokpitu SEO", async () => {
+    respond(fail("fetch failed"), rows([]));
+    renderPane();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Nie udało się wczytać stron i wpisów do audytu - lista braków tłumaczeń nie pokazuje teraz stanu serwisu.",
+    );
+    expect(alert).not.toHaveTextContent(t("adminSeoHub.contentReadError"));
+    expect(within(alert).getByRole("button", { name: "Spróbuj ponownie" })).toBeInTheDocument();
   });
 
   it("ponowienie po błędzie wczytuje wynik i chowa komunikat", async () => {
@@ -402,9 +442,16 @@ describe("WidgetI18nAuditPane - zakres najemcy i limit", () => {
     );
     renderPane();
 
+    const notice = await screen.findByText(
+      t("adminWidgetI18nAudit.coverageTruncated", { shown: 2, total: 2200 }),
+    );
+    expect(notice).toHaveTextContent(
+      "Przeskanowano 2 z 2200 stron i wpisów (ostatnio edytowane) - lista braków obejmuje tylko tę część.",
+    );
+    expect(notice).toHaveAttribute("data-widget-i18n-coverage", "truncated");
     expect(
-      await screen.findByText(t("adminSeoHub.coverageTruncated", { shown: 2, total: 2200 })),
-    ).toBeInTheDocument();
+      screen.queryByText(t("adminSeoHub.coverageTruncated", { shown: 2, total: 2200 })),
+    ).toBeNull();
   });
 
   it("liczność mniejsza niż pobrane wiersze (wyścig) liczy pobrane wiersze", async () => {
@@ -417,7 +464,9 @@ describe("WidgetI18nAuditPane - zakres najemcy i limit", () => {
     renderPane();
 
     expect(
-      await screen.findByText(t("adminSeoHub.coverageTruncated", { shown: 2, total: 1501 })),
+      await screen.findByText(
+        t("adminWidgetI18nAudit.coverageTruncated", { shown: 2, total: 1501 }),
+      ),
     ).toBeInTheDocument();
   });
 
@@ -447,9 +496,11 @@ describe("WidgetI18nAuditPane - zakres najemcy i limit", () => {
     respond(rows([row("o-nas", doc(heading("w1", "Zespół", "")))], null), rows([]));
     renderPane();
 
-    expect(
-      await screen.findByText(t("adminSeoHub.coverageUnknown", { shown: 1 })),
-    ).toBeInTheDocument();
+    const notice = await screen.findByText(t("adminWidgetI18nAudit.coverageUnknown", { shown: 1 }));
+    expect(notice).toHaveTextContent(
+      "Nie udało się ustalić łącznej liczby stron i wpisów (1 przeskanowanych) - lista braków może nie obejmować wszystkiego.",
+    );
+    expect(notice).toHaveAttribute("data-widget-i18n-coverage", "unknown");
   });
 
   it("liczność nieznana po stronie wpisów też jest „nieznana”, a brak wierszy to pusta lista", async () => {
@@ -459,7 +510,7 @@ describe("WidgetI18nAuditPane - zakres najemcy i limit", () => {
     renderPane();
 
     expect(
-      await screen.findByText(t("adminSeoHub.coverageUnknown", { shown: 0 })),
+      await screen.findByText(t("adminWidgetI18nAudit.coverageUnknown", { shown: 0 })),
     ).toBeInTheDocument();
     expect(screen.getByText(NO_GAPS)).toBeInTheDocument();
   });
@@ -469,7 +520,7 @@ describe("WidgetI18nAuditPane - zakres najemcy i limit", () => {
     renderPane();
 
     await screen.findByText("Brak tłumaczenia EN");
-    expect(document.querySelector("[data-seo-coverage]")).toBeNull();
+    expect(document.querySelector("[data-widget-i18n-coverage]")).toBeNull();
   });
 });
 
@@ -483,23 +534,72 @@ describe("WidgetI18nAuditPane - język interfejsu", () => {
     expect(screen.getByRole("button", { name: "Rescan" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Edit widgets" })).toBeInTheDocument();
     expect(screen.getByText(/Warnings \(EN identical to PL\) are hidden/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Errors only" })).toBeInTheDocument();
+    expect(document.body.textContent).toContain("Found 1 issue across 1 entry");
+    expect(
+      screen.getByText("Fix them inside the widget - the PL/EN fields are part of its content."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Errors only" }));
+    expect(await screen.findByText("EN identical to PL")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All issues" })).toBeInTheDocument();
+    expect(document.body.textContent).toContain("Found 2 issues across 1 entry");
+  });
+
+  it("po angielsku: wszystkie klasy problemów, liczba mnoga wpisów i stany odczytu", async () => {
+    await i18n.changeLanguage("en");
+    respond(
+      rows([
+        row(
+          "mix",
+          doc(heading("w1", "Zespół", ""), heading("w2", "Zespół", "Nasz zespół"), {
+            id: "ah",
+            type: "animated-heading",
+            content: { textBefore_pl: "Poznaj nas", textBefore_en: "Join" },
+          }),
+        ),
+        row("inna", doc(heading("w3", "Kontakt", ""))),
+      ]),
+      rows([], null),
+    );
+    renderPane();
+
+    expect(await screen.findAllByText("Missing EN translation")).toHaveLength(2);
+    expect(screen.getByText("Polish text in EN field")).toBeInTheDocument();
+    expect(screen.getByText("Template EN value")).toBeInTheDocument();
+    expect(document.body.textContent).toContain("Found 4 issues across 2 entries");
+    expect(
+      screen.getByText(
+        "The total number of pages and posts could not be determined (2 scanned) - the list of gaps may not cover everything.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("po angielsku: błąd odczytu i skanowanie bez najemcy", async () => {
+    await i18n.changeLanguage("en");
+    respond(fail("fetch failed"), rows([]));
+    renderPane();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Pages and posts could not be loaded for the audit - the list of translation gaps does not show the site's state right now.",
+    );
+    expect(within(alert).getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    cleanup();
+
+    h.state.tenantId = null;
+    renderPane();
+    expect(await screen.findByText("Scanning…")).toBeInTheDocument();
   });
 
   it("regionalny kod języka („en-GB”) też jest angielskim interfejsem", async () => {
-    // Przy obecnej konfiguracji i18next (`supportedLngs: ["pl","en"]`)
-    // `changeLanguage("en-GB")` i tak ustawia „en", więc to nie jest dziś żywy
-    // błąd - test przypina NORMALIZACJĘ przez `uiLang`, tę samą regułę co reszta
-    // repozytorium, zamiast porównania `=== "en"` wrażliwego na region.
-    const previous = i18n.language;
-    i18n.language = "en-GB";
-    try {
-      respond(mixedEn(), rows([]));
-      renderPane();
-      expect(await screen.findByText("Missing EN translation")).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Rescan" })).toBeInTheDocument();
-    } finally {
-      i18n.language = previous;
-    }
+    // Napisy idą przez `t()`, więc język rozstrzyga i18next - test przypina
+    // prawdziwą ścieżkę przełączenia na kod regionalny.
+    await i18n.changeLanguage("en-GB");
+    respond(mixedEn(), rows([]));
+    renderPane();
+    expect(await screen.findByText("Missing EN translation")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rescan" })).toBeInTheDocument();
   });
 });
 

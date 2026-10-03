@@ -501,7 +501,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   // in lockstep with the route body instead of popping in after hydration.
   loader: async ({ context, location }) => {
     const path = location.pathname;
-    const isHome = path === "/" || path === "/en" || path === "/en/";
+    // Strona główna w KAŻDYM języku to "/": rewrite `input` routera
+    // (`src/router.tsx`) zdejmuje prefiks "/en" ZANIM powstanie `location`, więc
+    // dawne porównania z "/en" i "/en/" nigdy nie były prawdziwe.
+    const isHome = path === "/";
     const homeDeadline = isServer && isHome ? homeSsrDeadline(context.queryClient) : undefined;
     // 301 legacy/preview hosts of the hosting layer (see canonicalRedirect.ts)
     // to https://neweuropeanstrategies.com preserving path + query. Runs

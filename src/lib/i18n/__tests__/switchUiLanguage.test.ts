@@ -309,6 +309,94 @@ describe("switchUiLanguage - twardy fallback na window.location", () => {
   });
 });
 
+// Wyrenderowane `<Link>`-i TanStack przeliczają href dopiero, gdy magazyn
+// lokalizacji poda INNY wewnętrzny `href` - a przełączenie zmienia tylko
+// prefiks, którego router nie widzi. Dowód na prawdziwym routerze:
+// `urlLanguageNavigation.test.tsx`; tu kontrakt zapisów do magazynu.
+describe("switchUiLanguage - odświeżenie wyrenderowanych odnośników", () => {
+  type Loc = { href: string; pathname: string; publicHref: string };
+
+  /** Magazyn lokalizacji jak w routerze: `get` zwraca ostatni zapis. */
+  function locationStore(initial: Loc, fail?: (next: Loc) => boolean) {
+    let current = initial;
+    const writes: Loc[] = [];
+    const store = {
+      get: () => current,
+      set: (next: Loc) => {
+        writes.push(next);
+        current = next;
+        if (fail?.(next)) throw new Error("render kopii rzucił");
+      },
+    };
+    return { store, writes, current: () => current };
+  }
+
+  const blog: Loc = { href: "/blog?x=1", pathname: "/blog", publicHref: "/en/blog?x=1" };
+
+  it("po udanej nawigacji: kopia z INNYM href, potem ta sama lokalizacja", async () => {
+    const { store, writes, current } = locationStore(blog);
+    let finish!: () => void;
+    const { router } = fakeRouter(
+      { pathname: "/blog", searchStr: "?x=1" },
+      () => new Promise<void>((resolve) => (finish = resolve)),
+    );
+    router.stores = { location: store };
+
+    switchUiLanguage("en", "pl", { i18n, router });
+    await flushMicrotasks();
+    // Przed rozstrzygnięciem nawigacji magazyn zostaje nietknięty.
+    expect(writes).toEqual([]);
+
+    finish();
+    await flushMicrotasks();
+    expect(writes).toHaveLength(2);
+    // Kopia różni się WYŁĄCZNIE wewnętrznym href.
+    const { href, ...rest } = writes[0]!;
+    expect(href).not.toBe(blog.href);
+    expect(rest).toEqual({ pathname: "/blog", publicHref: "/en/blog?x=1" });
+    // ...a router kończy z tym samym obiektem lokalizacji co przed odświeżeniem.
+    expect(writes[1]).toBe(blog);
+    expect(current()).toBe(blog);
+  });
+
+  it("odrzucona nawigacja: twardy fallback, magazyn nietknięty", async () => {
+    const { store, writes } = locationStore(blog);
+    const { router } = fakeRouter({ pathname: "/blog" }, () => Promise.reject(new Error("x")));
+    router.stores = { location: store };
+
+    switchUiLanguage("en", "pl", { i18n, router });
+    await flushMicrotasks();
+
+    expect(writes).toEqual([]);
+    expect(window.location.pathname).toBe("/en/blog");
+  });
+
+  it("błąd renderu kopii nie wywraca przełączenia i nie zostawia kopii w routerze", async () => {
+    const { store, writes, current } = locationStore(blog, (next) => next !== blog);
+    const { router } = fakeRouter({ pathname: "/blog" });
+    router.stores = { location: store };
+
+    switchUiLanguage("en", "pl", { i18n, router });
+    await flushMicrotasks();
+
+    expect(writes).toHaveLength(2);
+    expect(current()).toBe(blog);
+    // Udana nawigacja routerem - bez twardego przeładowania.
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("router bez magazynu lokalizacji (np. bez `location`) - nawigacja bez odświeżenia", async () => {
+    const { router, navigate } = fakeRouter({ pathname: "/blog" });
+    router.stores = {};
+
+    switchUiLanguage("en", "pl", { i18n, router });
+    await flushMicrotasks();
+
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(window.location.pathname).toBe("/");
+  });
+});
+
 describe("useUiLangSwitch - hak dla przełączników", () => {
   it("aktywny język z prefiksu ścieżki routera, a switchTo przełącza na ten sam adres", () => {
     const { router, navigate } = fakeRouter({ pathname: "/en/blog", searchStr: "?page=2" });

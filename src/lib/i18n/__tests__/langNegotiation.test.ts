@@ -64,6 +64,32 @@ describe("detectLangFromAcceptLanguage", () => {
     expect(detectLangFromAcceptLanguage(", ,")).toBeNull();
     expect(detectLangFromAcceptLanguage("pl;level=1;q=0.5, en;q=0.4")).toBe("pl");
   });
+
+  it("reads the weight parameter name case-insensitively (RFC 9110 §5.6.6, §12.4.2)", () => {
+    // Nazwy parametrów są niewrażliwe na wielkość liter (literał "q=" w ABNF
+    // też), więc `Q=0` to nadal "nie chcę tego języka", a nie domyślna waga 1.
+    expect(detectLangFromAcceptLanguage("pl;Q=0")).toBeNull();
+    expect(detectLangFromAcceptLanguage("pl;Q=0, de")).toBe("en");
+    expect(detectLangFromAcceptLanguage("en;Q=0.5, pl;Q=0.9")).toBe("pl");
+    expect(detectLangFromAcceptLanguage("pl;Q=0.3, en;Q=0.8")).toBe("en");
+    // Mieszana pisownia w jednym nagłówku, OWS wokół ";" (dozwolone) i obcy
+    // parametr przed wagą.
+    expect(detectLangFromAcceptLanguage("en;q=0.5, pl;Q=0.9")).toBe("pl");
+    expect(detectLangFromAcceptLanguage("pl ;  Q=0.1 , en ; q=0.2")).toBe("en");
+    expect(detectLangFromAcceptLanguage("pl;level=1;Q=0, en;q=0.1")).toBe("en");
+    // Wagą jest parametr o nazwie DOKŁADNIE `q` - obcy parametr, którego nazwa
+    // tylko kończy się na "q" (`seq=0`), nie wyklucza pozycji.
+    expect(detectLangFromAcceptLanguage("pl;seq=0, en;q=0.9")).toBe("pl");
+  });
+
+  it("does not read a weight with whitespace before `=` (the RFC forbids it)", () => {
+    // `weight = OWS ";" OWS "q=" qvalue`, a RFC 9110 §5.6.6 nie dopuszcza wokół
+    // "=" żadnego odstępu (nawet BWS). Taki parametr nie jest wagą: pomijamy go
+    // jak każdy obcy parametr, więc pozycja zostaje z wagą domyślną 1.
+    // Przeglądarki tego nie wysyłają - przypinamy, żeby to była świadoma decyzja.
+    expect(detectLangFromAcceptLanguage("pl;q =0, en;q=0.9")).toBe("pl");
+    expect(detectLangFromAcceptLanguage("en;Q = 0.1, pl;q=0.9")).toBe("en");
+  });
 });
 
 describe("resolveHomepageLang", () => {

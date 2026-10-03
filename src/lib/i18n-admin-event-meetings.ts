@@ -239,69 +239,15 @@ export const adminEventMeetingsPl = {
       meetingRescheduled: "Nowy termin zaproponowany",
     },
 
-    errors: {
-      // `forbidden` i `unknown` celowo NIE mieszkają w tym pliku. Tylko te dwa
-      // klucze tej sekcji pokrywają się z kluczami błędów czytanymi przez front
-      // uczestnika (`meetingErrorI18nKey`, kontrakt `MEETING_ERROR_KEYS`),
-      // a ich właścicielem jest `i18n-event-meetings`. Druga kopia z overwrite=true
-      // sprawiała, że zdanie odmowy uczestnika zależało od kolejności ładowania
-      // chunków - a na serwerze od tego, czy isolate renderował wcześniej panel
-      // (magazyn i18next jest tam wspólny). Pilnuje tego
-      // `i18nOverlayIntegrity.gate.test.ts`.
-
-      // Tożsamość i uprawnienie
-      notFound: "Nie znaleziono tego wydarzenia.",
-      notRegistered: "Giełda spotkań jest dostępna dla osób zapisanych na to wydarzenie.",
-      notAParty: "To nie jest Twoje spotkanie.",
-      notInvitee: "Na zaproszenie odpowiada osoba zaproszona, nie zapraszająca.",
-      selfInvite: "Nie da się zaprosić samego siebie.",
-
-      // Stan giełdy
-      meetingsDisabled: "Giełda spotkań nie jest uruchomiona na tym wydarzeniu.",
-      exchangeRuleClosed: "Organizator zamknął giełdę spotkań.",
-      exchangeClosed: "Giełda spotkań jest w tej chwili zamknięta na nowe zaproszenia.",
-
-      // Reguła widoczności
-      requesterNotParticipating: "Twoje zgłoszenie nie jest jeszcze zatwierdzone.",
-      inviteeNotParticipating: "Ta osoba nie jest zatwierdzonym uczestnikiem tego wydarzenia.",
-      requesterGroupCannotMeet: "Twoja grupa uczestników nie bierze udziału w giełdzie spotkań.",
-      inviteeGroupCannotMeet: "Grupa tej osoby nie bierze udziału w giełdzie spotkań.",
-      requesterGroupNotAllowed: "Twoja grupa nie może wysyłać zaproszeń na tym wydarzeniu.",
-      inviteeGroupNotAllowed: "Do tej grupy nie można wysyłać zaproszeń na tym wydarzeniu.",
-      requesterNotSponsor:
-        "Na tym wydarzeniu zaproszenia wysyłają wyłącznie przedstawiciele firm partnerskich.",
-
-      // Termin
-      slotNotInGrid: "Ten termin nie należy do siatki spotkań wydarzenia. Wybierz z listy.",
-      requesterUnavailable: "Nie masz otwartego okna dostępności w tym czasie.",
-      inviteeUnavailable: "Druga strona nie ma otwartego okna dostępności w tym czasie.",
-      sameSlot: "To ten sam termin, który już macie.",
-      invalidWindow: "Okno dostępności musi trwać od 15 minut do 16 godzin.",
-      availabilityOverlap: "To okno nachodzi na inne okno, które już zadeklarowałeś.",
-      availabilityHasMeetings:
-        "W tym oknie są już spotkania ({{count}}). Najpierw je odwołaj albo zamknij okno na zaproszenia.",
-
-      // Zasób
-      noFreeTable: "W tym terminie nie ma wolnego stolika. Wybierz inną godzinę.",
-      tableBusy: "Ten stolik został właśnie zajęty. Wybierz inną godzinę.",
-      participantBusy: "Jedno z Was ma już spotkanie w tym czasie.",
-
-      // Limity
-      inviteLimitReached:
-        "Osiągnąłeś limit aktywnych zaproszeń. Poczekaj na odpowiedź albo odwołaj któreś.",
-      dailyLimitReached: "Jedno z Was ma już maksymalną liczbę spotkań tego dnia.",
-      rateLimited: "Za dużo zaproszeń w krótkim czasie. Spróbuj ponownie za kilka minut.",
-
-      // Cykl życia
-      duplicateInvitation: "Macie już aktywne zaproszenie na ten termin.",
-      duplicateMeeting: "Ta para ma już spotkanie w tym terminie.",
-      invitationNotOpen: "Na to zaproszenie już odpowiedziano.",
-      invitationExpired: "To zaproszenie straciło ważność.",
-      meetingNotActive: "To spotkanie nie jest już aktywne.",
-      declineReasonRequired: "Napisz krótko, dlaczego odrzucasz - co najmniej trzy znaki.",
-      invalidDecision: "Można przyjąć albo odrzucić zaproszenie.",
-      invalidPayload: "Brakuje wymaganych danych.",
-    },
+    // `eventMeetings.errors.*` celowo NIE mieszka w tym pliku. Odmowy uczestnika
+    // czyta `meetingErrorI18nKey` pod kluczem z bazy (snake_case,
+    // `MEETING_ERROR_KEYS`), a właścicielem tej gałęzi jest `i18n-event-meetings`;
+    // panel organizatora czyta własne `adminEventMeetings.errors.*` niżej. Stała
+    // tu trzecia kopia w camelCase (36 zdań na język), do której nie prowadziła
+    // żadna z tych dróg - martwa i rozjechana ze zdaniami uczestnika. Wcześniej
+    // `forbidden` i `unknown` z tej kopii kolidowały z właścicielem i zdanie
+    // odmowy zależało od kolejności chunków. Pilnują tego
+    // `i18nAdminEventMeetings.test.ts` i `i18nOverlayIntegrity.gate.test.ts`.
   },
 
   adminEventMeetings: {
@@ -857,54 +803,7 @@ export const adminEventMeetingsEn = {
       meetingRescheduled: "New slot proposed",
     },
 
-    errors: {
-      // `forbidden` i `unknown`: właścicielem jest `i18n-event-meetings` (patrz PL).
-      notFound: "This event could not be found.",
-      notRegistered: "The meeting exchange is open to people registered for this event.",
-      notAParty: "This is not your meeting.",
-      notInvitee: "An invitation is answered by the invited person, not by the one inviting.",
-      selfInvite: "You cannot invite yourself.",
-
-      meetingsDisabled: "The meeting exchange is not running for this event.",
-      exchangeRuleClosed: "The organiser closed the meeting exchange.",
-      exchangeClosed: "The meeting exchange is closed to new invitations right now.",
-
-      requesterNotParticipating: "Your registration has not been approved yet.",
-      inviteeNotParticipating: "This person is not an approved attendee of this event.",
-      requesterGroupCannotMeet: "Your attendee group does not take part in the meeting exchange.",
-      inviteeGroupCannotMeet: "This person's group does not take part in the meeting exchange.",
-      requesterGroupNotAllowed: "Your group may not send invitations at this event.",
-      inviteeGroupNotAllowed: "Invitations cannot be sent to this group at this event.",
-      requesterNotSponsor:
-        "At this event only representatives of partner companies may send invitations.",
-
-      slotNotInGrid: "This slot is not part of the event meeting grid. Pick one from the list.",
-      requesterUnavailable: "You have no open availability window at that time.",
-      inviteeUnavailable: "The other side has no open availability window at that time.",
-      sameSlot: "This is the same slot you already have.",
-      invalidWindow: "An availability window must last between 15 minutes and 16 hours.",
-      availabilityOverlap: "This window overlaps another window you already declared.",
-      availabilityHasMeetings:
-        "There are already {{count}} meeting(s) inside this window. Cancel them first, or close the window to invitations.",
-
-      noFreeTable: "No table is free in this slot. Pick another hour.",
-      tableBusy: "This table was taken a moment ago. Pick another hour.",
-      participantBusy: "One of you already has a meeting at that time.",
-
-      inviteLimitReached:
-        "You have reached your limit of active invitations. Wait for an answer or cancel one.",
-      dailyLimitReached: "One of you already has the maximum number of meetings that day.",
-      rateLimited: "Too many invitations in a short time. Try again in a few minutes.",
-
-      duplicateInvitation: "You already have an active invitation with this person in this slot.",
-      duplicateMeeting: "This pair already has a meeting in this slot.",
-      invitationNotOpen: "This invitation has already been answered.",
-      invitationExpired: "This invitation has expired.",
-      meetingNotActive: "This meeting is no longer active.",
-      declineReasonRequired: "Write briefly why you are declining - at least three characters.",
-      invalidDecision: "An invitation can be accepted or declined.",
-      invalidPayload: "Required data is missing.",
-    },
+    // `eventMeetings.errors.*`: właścicielem jest `i18n-event-meetings` (patrz PL).
   },
 
   adminEventMeetings: {
