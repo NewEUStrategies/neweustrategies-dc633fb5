@@ -11,6 +11,19 @@ SCRATCH="/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae
 LH="$SCRATCH/tools/node_modules/lighthouse/cli/index.js"
 OUT="$SCRATCH/lh/results"; mkdir -p "$OUT"
 export CHROME_PATH="/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+# Chrome: bez proxy sandboxa (HTTPS_PROXY blokuje hosty spoza no_proxy), obrazy fixture.invalid -> lokalny serwer HTTPS,
+# Accept-Language pl jak czytelnik z Polski (bez tego Chrome en-US dostaje redirect / -> /en).
+IMG_PORT=8443
+CHROME_FLAGS="--headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage --no-proxy-server --ignore-certificate-errors --host-resolver-rules='MAP fixture.invalid 127.0.0.1:$IMG_PORT'"
+ACCEPT_LANGUAGE="${ACCEPT_LANGUAGE:-pl-PL,pl;q=0.9,en;q=0.5}"
+EXTRA_HEADERS="{\"Accept-Language\":\"$ACCEPT_LANGUAGE\"}"
+ensure_images() {
+  curl -sk -o /dev/null "https://127.0.0.1:$IMG_PORT/image.svg" && return 0
+  node "$SCRATCH/lh/fixture-images.mjs" "$IMG_PORT" > "$SCRATCH/lh/fixture-images.log" 2>&1 &
+  for i in $(seq 1 20); do curl -sk -o /dev/null "https://127.0.0.1:$IMG_PORT/image.svg" && return 0; sleep 0.5; done
+  echo "fixture image server failed to start" >&2; return 1
+}
+ensure_images
 # Porty: hash etykiety, żeby równoległe pomiary różnych worktree nie kolidowały.
 H=$(printf '%s' "$LABEL" | cksum | cut -d' ' -f1); UP=$((4300 + H % 300)); PX=$((UP + 1))
 
@@ -25,22 +38,25 @@ PRX=$!
 trap 'kill $SRV $PRX 2>/dev/null || true' EXIT
 for i in $(seq 1 60); do curl -sf -o /dev/null "http://127.0.0.1:$UP$URLPATH" && break; sleep 1; done
 # rozgrzanie cache dokumentu (HIT) jak w stanie ustalonym produkcji
-UA="Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/140 Safari/537.36"
-curl -s -o /dev/null -A "$UA" "http://127.0.0.1:$PX$URLPATH"; sleep 1
-curl -s -o /dev/null -A "$UA" "http://127.0.0.1:$PX$URLPATH"
-curl -s -D - -o "$OUT/$LABEL-home.html" -A "$UA" -H 'Accept-Encoding: identity' "http://127.0.0.1:$PX$URLPATH" | grep -i "x-nes-cache\|server-timing\|content-length" > "$OUT/$LABEL-home.headers.txt" || true
+UA="Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/140 Safari/537.36"; AL="Accept-Language: $ACCEPT_LANGUAGE"
+curl -s -o /dev/null -A "$UA" -H "$AL" "http://127.0.0.1:$PX$URLPATH"; sleep 1
+curl -s -o /dev/null -A "$UA" -H "$AL" "http://127.0.0.1:$PX$URLPATH"
+curl -s -D - -o "$OUT/$LABEL-home.html" -A "$UA" -H "$AL" -H 'Accept-Encoding: identity' "http://127.0.0.1:$PX$URLPATH" | grep -i "x-nes-cache\|server-timing\|content-length" > "$OUT/$LABEL-home.headers.txt" || true
 echo "server pid $SRV port $UP, proxy pid $PRX port $PX; HTML raw $(wc -c < "$OUT/$LABEL-home.html") B, gzip $(gzip -6 -c "$OUT/$LABEL-home.html" | wc -c) B"
 for form in mobile desktop; do
   for n in $(seq 1 "$RUNS"); do
     extra=""; [ "$form" = desktop ] && extra="--preset=desktop"
     node "$LH" "http://127.0.0.1:$PX$URLPATH" --output=json --output-path="$OUT/$LABEL-$form-$n.json" \
       --only-categories=performance --quiet $extra \
-      --chrome-flags="--headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage" >/dev/null 2>&1 || echo "run $form $n failed"
+      --chrome-flags="$CHROME_FLAGS" --extra-headers="$EXTRA_HEADERS" >/dev/null 2>&1 || echo "run $form $n failed"
     python3 - "$OUT/$LABEL-$form-$n.json" <<'EOF'
-import json,sys
+import json,sys,re
 d=json.load(open(sys.argv[1]));a=d['audits']
 g=lambda k:a[k]['numericValue']
-print(f"  {sys.argv[1].split('/')[-1]:40s} perf={round(d['categories']['performance']['score']*100):3d} FCP={g('first-contentful-paint')/1000:.2f}s LCP={g('largest-contentful-paint')/1000:.2f}s TBT={g('total-blocking-time'):.0f}ms SI={g('speed-index')/1000:.2f}s CLS={g('cumulative-layout-shift'):.3f} TTFB={g('server-response-time'):.0f}ms")
+url=d.get('finalDisplayedUrl','?'); path='/'+url.split('/',3)[-1] if url.count('/')>=3 else url
+sel=re.findall(r'"selector": ?"([^"]+)"', json.dumps(a.get('lcp-breakdown-insight',{}).get('details',{})))
+lcp=sel[0].split('>')[-1].strip() if sel else '?'
+print(f"  {sys.argv[1].split('/')[-1]:44s} perf={round(d['categories']['performance']['score']*100):3d} FCP={g('first-contentful-paint')/1000:.2f}s LCP={g('largest-contentful-paint')/1000:.2f}s TBT={g('total-blocking-time'):.0f}ms SI={g('speed-index')/1000:.2f}s CLS={g('cumulative-layout-shift'):.3f} TTFB={g('server-response-time'):.0f}ms url={path} lcp={lcp}")
 EOF
   done
 done
