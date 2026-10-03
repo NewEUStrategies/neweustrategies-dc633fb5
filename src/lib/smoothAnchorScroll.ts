@@ -24,9 +24,9 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 function easeOutCubic(t: number): number {
-  // Ruch zaczyna się natychmiast po kliknięciu i łagodnie wyhamowuje przy
-  // nagłówku. Symetryczna krzywa zaczynała zbyt wolno i wyglądała jak lag.
-  return 1 - Math.pow(1 - t, 3);
+  // Łagodny start (bez szarpnięcia w pierwszej klatce) i miękkie wyhamowanie
+  // przy nagłówku: krzywa sinusoidalna, odpowiednik CSS `ease-in-out`.
+  return -(Math.cos(Math.PI * t) - 1) / 2;
 }
 
 export function getAnchorScrollOffset(defaultOffset = 80): number {
@@ -78,7 +78,7 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
   // Nawigacja po spisie ma reagować od razu. Poprzednie 1,8 s przy długich
   // artykułach było odbierane jako opóźnienie i prowokowało kolejne kliknięcie.
   const minDuration = options.minDuration ?? 360;
-  const maxDuration = options.maxDuration ?? 950;
+  const maxDuration = options.maxDuration ?? 1100;
   const updateHash = options.updateHash ?? true;
   const offset = options.offset ?? getAnchorScrollOffset();
   disableRouterHashScrollForCurrentEntry();
