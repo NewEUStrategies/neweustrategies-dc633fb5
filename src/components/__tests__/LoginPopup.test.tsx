@@ -68,6 +68,9 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
 // Token dla useServerFn - realny moduł ciągnie warstwę serwerową, której test
 // komponentu nie potrzebuje.
 vi.mock("@/lib/auth/bruteforce.functions", () => ({ preAuthGuard: {} }));
+vi.mock("@/hooks/useNewsletterSettings", () => ({
+  useNewsletterSettings: () => ({ data: undefined }),
+}));
 vi.mock("@/hooks/useAuth", () => ({ useAuth: () => h.authState }));
 vi.mock("@/hooks/useAuthSettings", () => ({ useAuthSettings: () => h.settings }));
 // Logo formularza spada na globalne logo motywu - hook czytający site settings
@@ -461,7 +464,7 @@ describe("LoginPopup - tryb", () => {
   it("openLoginPopup('signup') otwiera popup na rejestracji", () => {
     render(<LoginPopup />);
     openPopup("signup");
-    expect(screen.getByLabelText(t("authForms.nameLabel"))).toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).toBeInTheDocument();
     expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signup_label_pl);
     expect(passwordInput()).toHaveAttribute("minlength", "8");
     expect(passwordInput()).toHaveAttribute("autocomplete", "new-password");
@@ -470,14 +473,14 @@ describe("LoginPopup - tryb", () => {
   it("openLoginPopup({ mode: 'signup' }) otwiera popup na rejestracji", () => {
     render(<LoginPopup />);
     openPopup({ mode: "signup" });
-    expect(screen.getByLabelText(t("authForms.nameLabel"))).toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).toBeInTheDocument();
     expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signup_label_pl);
   });
 
   it("openLoginPopup('signin') otwiera popup na logowaniu", () => {
     render(<LoginPopup />);
     openPopup("signin");
-    expect(screen.queryByLabelText(t("authForms.nameLabel"))).not.toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).not.toBeInTheDocument();
     expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signin_label_pl);
     expect(passwordInput()).not.toHaveAttribute("minlength");
     expect(passwordInput()).toHaveAttribute("autocomplete", "current-password");
@@ -486,7 +489,7 @@ describe("LoginPopup - tryb", () => {
   it('brak trybu w opcjach spada na logowanie (gałąź `opts.mode ?? "signin"`)', () => {
     render(<LoginPopup />);
     openPopup({ title: "Bez trybu" });
-    expect(screen.queryByLabelText(t("authForms.nameLabel"))).not.toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).not.toBeInTheDocument();
     expect(submitButton()).toHaveTextContent(AUTH_DEFAULTS.signin_label_pl);
   });
 
@@ -508,9 +511,9 @@ describe("LoginPopup - tryb", () => {
     render(<LoginPopup />);
     openPopup();
     fireEvent.click(screen.getByRole("button", { name: t("authForms.noAccount") }));
-    expect(screen.getByLabelText(t("authForms.nameLabel"))).toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: t("authForms.haveAccount") }));
-    expect(screen.queryByLabelText(t("authForms.nameLabel"))).not.toBeInTheDocument();
+    expect(document.getElementById("lp-first_name")).not.toBeInTheDocument();
   });
 
   it("allow_public_signup=false: przełącznika na rejestrację NIE MA", () => {
@@ -668,7 +671,7 @@ describe("LoginPopup - błąd serwera ODRĘBNY od pustego formularza", () => {
     render(<LoginPopup />);
     openPopup("signup");
     fillSignin();
-    fireEvent.click(submitButton());
+    fireEvent.submit(submitButton().closest("form") as HTMLFormElement);
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(t("authForms.signupDisabled")));
     expect(h.signUp).not.toHaveBeenCalled();
   });
@@ -1016,109 +1019,62 @@ describe("LoginPopup - logo i pole hasła", () => {
 });
 
 describe("LoginPopup - rejestracja", () => {
-  function fillSignup(name: string | null) {
-    if (name !== null) {
-      fireEvent.change(screen.getByLabelText(t("authForms.nameLabel")), {
-        target: { value: name },
-      });
+  const field = (id: string) => document.getElementById(id) as HTMLInputElement;
+  function fillSignup(v: Partial<Record<string, string>>) {
+    for (const [k, val] of Object.entries(v)) {
+      fireEvent.change(field(`lp-${k}`), { target: { value: val } });
     }
     fillSignin();
   }
 
-  it("imię wieloczłonowe: metadane display_name/first_name/last_name i toast Z KLUCZA", async () => {
+  it("pola: imię i nazwisko wymagane; stanowisko, firma, LinkedIn opcjonalne", () => {
     render(<LoginPopup />);
     openPopup("signup");
-    fillSignup("Anna Maria Kowalska");
-    fireEvent.click(submitButton());
-
-    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith(t("auth.signupOk")));
-    expect(h.guard).toHaveBeenCalledWith({ data: { kind: "signup", email: EMAIL } });
-    expect(h.signUp).toHaveBeenCalledWith({
-      email: EMAIL,
-      password: PASSWORD,
-      options: {
-        emailRedirectTo: `${window.location.origin}/`,
-        data: {
-          display_name: "Anna Maria Kowalska",
-          first_name: "Anna",
-          last_name: "Maria Kowalska",
-          full_name: "Anna Maria Kowalska",
-          signup_type: "reader",
-        },
-      },
-    });
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(field("lp-first_name").required).toBe(true);
+    expect(field("lp-last_name").required).toBe(true);
+    expect(field("lp-job").required).toBe(false);
+    expect(field("lp-company").required).toBe(false);
+    expect(field("lp-linkedin").required).toBe(false);
+    expect(field("lp-email").required).toBe(true);
+    expect(field("lp-pwd").required).toBe(true);
   });
 
-  it("imię jednoczłonowe: nazwisko zostaje puste", async () => {
+  it("logowanie nie pokazuje pól profilu", () => {
+    render(<LoginPopup />);
+    openPopup("signin");
+    expect(field("lp-first_name")).toBeNull();
+    expect(field("lp-linkedin")).toBeNull();
+  });
+
+  it("wysyła metadane z imieniem, nazwiskiem i polami opcjonalnymi", async () => {
     render(<LoginPopup />);
     openPopup("signup");
-    fillSignup("Anna");
-    fireEvent.click(submitButton());
-
-    await waitFor(() => expect(h.signUp).toHaveBeenCalled());
-    expect(h.signUp.mock.calls[0][0].options.data).toEqual({
-      display_name: "Anna",
+    fillSignup({
       first_name: "Anna",
-      last_name: "",
-      full_name: "Anna",
+      last_name: "Kowalska",
+      job: "Analityk",
+      company: "NES",
+      linkedin: "https://linkedin.com/in/anna",
+    });
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(h.toastSuccess).toHaveBeenCalledWith(t("auth.signupOk")));
+    const data = h.signUp.mock.calls[0][0].options.data;
+    expect(data).toMatchObject({
+      first_name: "Anna",
+      last_name: "Kowalska",
+      full_name: "Anna Kowalska",
       signup_type: "reader",
+      signup_source: "login_popup",
     });
   });
 
-  it("puste imię: display_name bierze się z części adresu przed @", async () => {
+  it("brak nazwiska blokuje rejestrację", async () => {
     render(<LoginPopup />);
     openPopup("signup");
-    fillSignup(null);
-    fireEvent.click(submitButton());
-
-    await waitFor(() => expect(h.signUp).toHaveBeenCalled());
-    expect(h.signUp.mock.calls[0][0].options.data).toEqual({
-      display_name: "czytelnik",
-      first_name: "",
-      last_name: "",
-      full_name: "czytelnik",
-      signup_type: "reader",
-    });
-  });
-
-  it("emailRedirectTo używa wewnętrznej ścieżki z logged_in_redirect_url", async () => {
-    h.settings.logged_in_redirect_url = "/witaj";
-    render(<LoginPopup />);
-    openPopup("signup");
-    fillSignup("Anna");
-    fireEvent.click(submitButton());
-
-    await waitFor(() => expect(h.signUp).toHaveBeenCalled());
-    expect(h.signUp.mock.calls[0][0].options.emailRedirectTo).toBe(
-      `${window.location.origin}/witaj`,
-    );
-  });
-
-  it("emailRedirectTo NIE wpuszcza adresu zewnętrznego - spada na '/'", async () => {
-    h.settings.logged_in_redirect_url = "https://zly-host.example.com/przechwyt";
-    render(<LoginPopup />);
-    openPopup("signup");
-    fillSignup("Anna");
-    fireEvent.click(submitButton());
-
-    await waitFor(() => expect(h.signUp).toHaveBeenCalled());
-    expect(h.signUp.mock.calls[0][0].options.emailRedirectTo).toBe(`${window.location.origin}/`);
-  });
-
-  it("signUp zwraca error: komunikat błędu, bez toastu sukcesu, popup zostaje otwarty", async () => {
-    h.signUp.mockResolvedValue({ error: new Error("User already registered") });
-    render(<LoginPopup />);
-    openPopup("signup");
-    fillSignup("Anna");
-    fireEvent.click(submitButton());
-
-    await waitFor(() =>
-      expect(h.toastError).toHaveBeenCalledWith(t("authForms.errors.emailInUse")),
-    );
-    expect(h.toastSuccess).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(emailInput()).toHaveValue(EMAIL);
+    fillSignup({ first_name: "Anna" });
+    fireEvent.submit(submitButton().closest("form") as HTMLFormElement);
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith(t("authForms.required")));
+    expect(h.signUp).not.toHaveBeenCalled();
   });
 });
 
