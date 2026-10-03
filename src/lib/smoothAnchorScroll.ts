@@ -1,3 +1,10 @@
+// Preferencję „ogranicz ruch" czytamy wspólnym odczytem (`lib/a11y`), a nie
+// prywatną kopią. Tamta przepuszczała rzut z `matchMedia` (np. SecurityError
+// w piaskownicy), a pada on PO podmianie `scroll-behavior`/`overflow-anchor`
+// na <html> i <body>, ale PRZED przewinięciem i `cleanup()` - skok do kotwicy
+// nie zachodził, a strona zostawała z nadpisanymi stylami do następnego skoku.
+import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
+
 type ScrollCancel = () => void;
 
 interface SmoothAnchorScrollOptions {
@@ -16,13 +23,6 @@ function clamp(n: number, min: number, max: number): number {
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-function prefersReducedMotion(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
-  );
 }
 
 export function getAnchorScrollOffset(defaultOffset = 80): number {

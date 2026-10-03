@@ -16,7 +16,8 @@ export {
   isVisibleForViewer,
   normalizeMenuVisibility,
 } from "./visibility";
-import type { MegaColumn, MenuItemRow } from "./types";
+import { DEFAULT_MEGA_CONFIG, megaConfigSchema } from "./types";
+import type { MegaColumn, MegaConfig, MenuItemRow } from "./types";
 
 export type SiteMenuLang = "pl" | "en";
 
@@ -166,11 +167,80 @@ export function mobileMegaLinks(node: SiteMenuNode, lang: SiteMenuLang): MobileM
   );
 }
 
+/** Maksymalna szerokość panelu redakcyjnego i zwykłego dropdownu. */
+const MEGA_MAX_WIDTH = 1120;
+const DROPDOWN_MAX_WIDTH = 360;
+/** Szerokość panelu mega w trybie „container" (CSS widoku, `megaPanelCssWidth`). */
+const MEGA_CONTAINER_WIDTH = 980;
+/** Margines od krawędzi okna - panel nigdy nie dotyka brzegu ekranu. */
+const VIEWPORT_GUTTER = 16;
+
+/** Szerokość panelu mega wybrana w edytorze (`mega_config.width`). */
+export type MegaPanelWidth = MegaConfig["width"];
+
+/** Ustawienia układu panelu mega, które redaktor wybiera w edytorze menu. */
+export interface MegaPanelLayout {
+  /** Ile kolumn nawigacji mieści się w jednym rzędzie siatki (1-6). */
+  columnsPerRow: number;
+  width: MegaPanelWidth;
+}
+
+/**
+ * Układ panelu mega z konfiguracji pozycji.
+ *
+ * Do 03.10.2026 edytor zapisywał „kolumn w rzędzie" i „szerokość", a widok
+ * ich NIE CZYTAŁ: siatka miała na sztywno najwyżej cztery kolumny, panel
+ * zawsze 980 px. Redaktor zmieniał ustawienie, zapisywał - i nic się nie
+ * działo, ani w podglądzie, ani na stronie.
+ *
+ * Granice i wartości domyślne pochodzą ze SCHEMATU (`megaConfigSchema`), więc
+ * edytor, zapis i render nie mogą się rozjechać. Każde pole sprawdzamy
+ * OSOBNO: rekord z jednym uszkodzonym polem (np. ręczna edycja JSON-a
+ * w bazie) traci tylko to pole, a nie cały układ - inaczej niż
+ * `parseMegaConfig`, które przy dowolnym błędzie oddaje całą konfigurację
+ * domyślną. Brak konfiguracji daje dokładnie dotychczasowy wygląd.
+ */
+export function megaPanelLayout(
+  config: { columns_per_row?: unknown; width?: unknown } | null | undefined,
+): MegaPanelLayout {
+  const perRow = megaConfigSchema.shape.columns_per_row.safeParse(config?.columns_per_row);
+  const width = megaConfigSchema.shape.width.safeParse(config?.width);
+  return {
+    columnsPerRow: perRow.success ? perRow.data : DEFAULT_MEGA_CONFIG.columns_per_row,
+    width: width.success ? width.data : DEFAULT_MEGA_CONFIG.width,
+  };
+}
+
+/**
+ * Liczba kolumn siatki nawigacji panelu: tyle, ile jest kolumn treści, ale
+ * nie więcej niż `columnsPerRow` - nadmiar przechodzi do kolejnego rzędu.
+ * Pusty panel i tak się nie renderuje, ale siatka nigdy nie dostaje zera.
+ */
+export function megaNavColumns(columnCount: number, columnsPerRow: number): number {
+  return Math.max(1, Math.min(columnCount, columnsPerRow));
+}
+
+/**
+ * Szerokość CSS panelu mega osadzonego w nagłówku strony.
+ *
+ * „container" to DOKŁADNIE dotychczasowa wartość (`min(980px, calc(100vw -
+ * 32px))`) - istniejące menu nie mogą zmienić wyglądu przez to, że ustawienie
+ * zaczęło działać. „full" to całe okno minus ten sam margines z każdej strony.
+ * Margines jest wspólny z `panelGeometry`, bo to ona ustawia lewą krawędź
+ * panelu - rozjazd tych liczb wypycha panel poza ekran.
+ */
+export function megaPanelCssWidth(width: MegaPanelWidth): string {
+  const viewport = `calc(100vw - ${2 * VIEWPORT_GUTTER}px)`;
+  return width === "full" ? viewport : `min(${MEGA_CONTAINER_WIDTH}px, ${viewport})`;
+}
+
 export interface PanelGeometryInput {
   isMega: boolean;
   /** Lewa krawędź triggera względem viewportu (`getBoundingClientRect`). */
   anchorLeft: number;
   viewportWidth: number;
+  /** Szerokość panelu mega (`mega_config.width`); brak = „container". */
+  megaWidth?: MegaPanelWidth;
 }
 
 export interface PanelGeometry {
@@ -179,16 +249,15 @@ export interface PanelGeometry {
   left: number;
 }
 
-/** Maksymalna szerokość panelu redakcyjnego i zwykłego dropdownu. */
-const MEGA_MAX_WIDTH = 1120;
-const DROPDOWN_MAX_WIDTH = 360;
-/** Margines od krawędzi okna - panel nigdy nie dotyka brzegu ekranu. */
-const VIEWPORT_GUTTER = 16;
-
 /**
  * Pozycja panelu w oknie. Mega jest WYŚRODKOWANY względem viewportu (jest
  * szeroki, kotwiczenie do triggera wypychałoby go poza ekran), a zwykły
  * dropdown trzyma się triggera z dociśnięciem do krawędzi.
+ *
+ * Mega w trybie „full" zajmuje całe okno minus margines (`megaPanelCssWidth`),
+ * więc jego lewa krawędź to sam margines. Liczony z założoną szerokością trybu
+ * „container" stanąłby na ekranie 1440 px w odległości 160 px od lewej, a panel
+ * szerokości okna (1408 px) wystawałby wtedy 128 px poza prawą krawędź.
  *
  * Reguła żyła w anonimowym IIFE wewnątrz `createPortal` - jedynym sposobem na
  * jej sprawdzenie było zamontowanie portalu i podstawienie wymiarów okna.
@@ -197,8 +266,13 @@ export function panelGeometry({
   isMega,
   anchorLeft,
   viewportWidth,
+  megaWidth,
 }: PanelGeometryInput): PanelGeometry {
-  const maxWidth = isMega ? MEGA_MAX_WIDTH : DROPDOWN_MAX_WIDTH;
+  const maxWidth = !isMega
+    ? DROPDOWN_MAX_WIDTH
+    : megaWidth === "full"
+      ? Number.POSITIVE_INFINITY
+      : MEGA_MAX_WIDTH;
   const width = Math.min(maxWidth, viewportWidth - 2 * VIEWPORT_GUTTER);
   const left = isMega
     ? Math.round((viewportWidth - width) / 2)

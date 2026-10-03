@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, ChevronRight, Plus } from "@/lib/lucide-shim";
 import { useTranslation } from "react-i18next";
+import { escapeLike } from "@/lib/admin/listFilters";
 import type { MenuItemType } from "@/lib/menus/types";
 
 interface Row {
@@ -183,11 +184,13 @@ function PickList({
       if (statusFilter && (table === "pages" || table === "posts")) {
         q = q.eq("status", statusFilter).is("deleted_at", null);
       }
-      const term = search.trim();
+      // Fraza idzie przez `escapeLike` jak w pozostałych wyszukiwarkach panelu:
+      // przecinek i nawias z wejścia dopisywały własne warunki do `.or()`,
+      // a `%` i `_` działały jak wildcardy. Próg liczymy PO oczyszczeniu.
+      const term = escapeLike(search.trim());
       if (term.length >= 2) {
-        q = q.or(
-          `${titleField}.ilike.%${term}%,${fallbackField}.ilike.%${term}%,slug.ilike.%${term}%`,
-        );
+        const like = `%${term}%`;
+        q = q.or(`${titleField}.ilike.${like},${fallbackField}.ilike.${like},slug.ilike.${like}`);
       }
       const { data } = await q.limit(30);
       return (data ?? []).map((r) => {

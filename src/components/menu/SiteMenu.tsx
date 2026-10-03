@@ -48,6 +48,7 @@ import {
   hasPanel,
   megaColumnsFor,
   megaPanelHasContent,
+  megaPanelLayout,
   menuItemHref as itemHref,
   menuItemRel,
   menuItemTarget as itemTarget,
@@ -160,6 +161,9 @@ function MegaPanel({
   onRequestClose: () => void;
 }) {
   const cols = megaColumnsFor(node);
+  // Układ (kolumny w rzędzie, szerokość) z konfiguracji pozycji - te same
+  // wartości dostaje podgląd w edytorze, więc oba miejsca liczą siatkę 1:1.
+  const layout = megaPanelLayout(node.mega_config);
   const featuredQuery = useQuery(
     megaFeaturedPostQueryOptions(node.mega_config.featured_post_id ?? null),
   );
@@ -177,6 +181,8 @@ function MegaPanel({
         featured={featured}
         variant="live"
         onMouseLeave={onRequestClose}
+        columnsPerRow={layout.columnsPerRow}
+        width={layout.width}
       />
     </Suspense>
   );
@@ -410,10 +416,13 @@ function DesktopItem({ node, lang }: { node: TreeNode; lang: SiteMenuLang }) {
               // Mega panels: wyśrodkuj poziomo względem viewportu.
               // Zwykłe dropdowny: dokotwicz do triggera z clampem do krawędzi.
               // Arytmetyka siedzi w `panelGeometry` (lib/menus/siteMenu.ts).
+              // Szerokość mega wchodzi do rachunku, bo panel „full" ma szerokość
+              // okna - wyśrodkowany jak „container" wystawałby poza ekran.
               const { left: clampedLeft } = panelGeometry({
                 isMega: panelKindFor(node) === "mega",
                 anchorLeft: anchor.left,
                 viewportWidth: typeof window !== "undefined" ? window.innerWidth : 1440,
+                megaWidth: megaPanelLayout(node.mega_config).width,
               });
               return (
                 <div

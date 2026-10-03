@@ -121,12 +121,15 @@ vi.mock("@/lib/search/semantic.functions", () => ({ semanticSearch: h.semantyka 
 import {
   ARCHIVE_PAGE_SIZE,
   SEARCH_LIMIT_MAX,
+  SEARCH_MAX_PAGE,
+  SEARCH_OFFSET_MAX,
   SEARCH_PAGE_SIZE,
   TAXONOMY_DIMS,
   searchAutosuggestQueryOptions,
   searchEnabled,
   searchPeopleOrgsQueryOptions,
   searchQueryOptions,
+  searchTotalPages,
   taxonomyArchiveQueryOptions,
   type SearchFilters,
 } from "@/lib/queries/archives";
@@ -1054,9 +1057,10 @@ describe("wyszukiwanie: nazwy argumentów RPC (jedyne miejsce, gdzie literówkę
 
   it("STAN FAKTYCZNY: limit 0 nie ma dolnych widełek i zamawia zero wyników", async () => {
     // Przeciwieństwo `taxonomyArchiveQueryOptions`, gdzie `Math.max(1, …)`
-    // pilnuje dolnej granicy. Trasy /search i /publications startują od
-    // SEARCH_PAGE_SIZE i tylko rosną, więc zera nie da się dziś wywołać
-    // z interfejsu - przypinam asymetrię jako fakt, nie jako defekt.
+    // pilnuje dolnej granicy. /search startuje od SEARCH_PAGE_SIZE i tylko
+    // rośnie, a /publications stronicuje stałym oknem (tryb `page`), więc zera
+    // nie da się dziś wywołać z interfejsu - przypinam asymetrię jako fakt,
+    // nie jako defekt.
     await uruchom({ q: "unia" }, 0);
     expect(wywolanie("search_posts").arg("_limit")).toBe(0);
   });
@@ -1475,6 +1479,223 @@ describe("wyszukiwanie: telemetria fraz", () => {
     });
     const wynik = await klient().fetchQuery(searchQueryOptions({ q: "unia" }));
     expect(wynik.posts).toHaveLength(1);
+  });
+});
+
+// ==========================================================================
+// WYSZUKIWANIE - STRONY BIBLIOTEKI (paginacja linkowa /publications)
+// ==========================================================================
+//
+// Biblioteka dawniej podwajała `_limit` jednego zapytania („pokaż więcej"):
+// strony nie miały adresów, każde doładowanie przeliczało całe rosnące okno,
+// a wyniki za sufitem okna były nieosiągalne. Tryb `page` pyta o STAŁE okno
+// z `_offset` (migracja 20261003100100). Kontrakty poniżej to dokładnie to, na
+// czym stoi pasek stron: które okno leci do bazy, pod jakim kluczem ląduje,
+// skąd bierze się liczność strony za końcem i że /search nie zmienia się wcale.
+
+describe("wyszukiwanie: tryb stron biblioteki", () => {
+  /** Okno w odpowiedzi na `_offset`: `n` trafień i wspólny licznik całego zbioru. */
+  function strona(n: number, total: number, prefix: string): SupabaseResult {
+    return ok(
+      Array.from({ length: n }, (_, i) => trafienie(`${prefix}${i + 1}`, { total_count: total })),
+    );
+  }
+
+  async function pobierzStrone(filters: SearchFilters, page: number) {
+    return klient().fetchQuery(searchQueryOptions(filters, undefined, { browse: true, page }));
+  }
+
+  it("strona 1 to bajt w bajt pierwsze okno /search - BEZ _offset (działa i przed migracją)", async () => {
+    planujWyszukiwanie();
+    await klient().fetchQuery(searchQueryOptions({ q: "unia" }));
+    const zSzukajki = wywolanie("search_posts").args;
+    funkcje().reset();
+    planujWyszukiwanie();
+    await pobierzStrone({ q: "unia" }, 1);
+    const call = wywolanie("search_posts");
+    expect(call.arg("_limit")).toBe(SEARCH_PAGE_SIZE);
+    // Klucz może istnieć z `undefined` (JSON go nie wyśle), ale wartości nie ma.
+    expect(call.arg("_offset")).toBeUndefined();
+    expect(JSON.stringify(call.args)).toBe(JSON.stringify(zSzukajki));
+  });
+
+  it("strona N pyta o STAŁE okno z przesunięciem (N-1)*SEARCH_PAGE_SIZE", async () => {
+    for (const [page, offset] of [
+      [2, SEARCH_PAGE_SIZE],
+      [3, SEARCH_PAGE_SIZE * 2],
+      [10, SEARCH_PAGE_SIZE * 9],
+    ] as const) {
+      funkcje().reset();
+      planujWyszukiwanie({ trafienia: strona(1, 1000, "p") });
+      await pobierzStrone({ q: "" }, page);
+      const call = wywolanie("search_posts");
+      expect(call.arg("_offset")).toBe(offset);
+      // Okno NIE rośnie z numerem strony - to cały sens paginacji offsetem.
+      expect(call.arg("_limit")).toBe(SEARCH_PAGE_SIZE);
+    }
+  });
+
+  it("w trybie stron `limit` nie gra roli - strona ma zawsze SEARCH_PAGE_SIZE", async () => {
+    planujWyszukiwanie({ trafienia: strona(1, 1000, "p") });
+    await klient().fetchQuery(
+      searchQueryOptions({ q: "" }, SEARCH_LIMIT_MAX, { browse: true, page: 2 }),
+    );
+    expect(wywolanie("search_posts").arg("_limit")).toBe(SEARCH_PAGE_SIZE);
+    expect(wywolanie("search_posts").arg("_offset")).toBe(SEARCH_PAGE_SIZE);
+  });
+
+  it("numer strony spoza liczb naturalnych spada do strony 1, ułamek w dół", async () => {
+    for (const [wejscie, offset] of [
+      [0, undefined],
+      [-3, undefined],
+      [Number.NaN, undefined],
+      [2.7, SEARCH_PAGE_SIZE],
+    ] as const) {
+      funkcje().reset();
+      planujWyszukiwanie({ trafienia: strona(1, 1000, "p") });
+      await pobierzStrone({ q: "" }, wejscie);
+      expect(wywolanie("search_posts").arg("_offset")).toBe(offset);
+    }
+  });
+
+  it("każda strona to OSOBNY wpis cache, a /search zostaje przy kluczu z `limit`", () => {
+    const klucz = (page: number) =>
+      searchQueryOptions({ q: "unia" }, undefined, { browse: true, page }).queryKey;
+    expect(klucz(1)).not.toEqual(klucz(2));
+    expect(klucz(2)).not.toEqual(klucz(3));
+    expect(klucz(2)[3]).toEqual({ page: 2, pageSize: SEARCH_PAGE_SIZE });
+    // Ta sama strona = ten sam wpis (powrót na obejrzaną stronę nie pyta bazy).
+    expect(klucz(2)).toEqual(klucz(2));
+    // Kształt klucza /search bez zmian - jego „pokaż więcej" nie miesza się
+    // ze stronami biblioteki.
+    expect(searchQueryOptions({ q: "unia" }).queryKey[3]).toEqual({ limit: SEARCH_PAGE_SIZE });
+    expect(klucz(1)).not.toEqual(searchQueryOptions({ q: "unia" }).queryKey);
+  });
+
+  it("klucz strony nadal normalizuje termy - kolejność zaznaczeń nie mnoży wpisów", () => {
+    const a = searchQueryOptions({ q: "", terms: ["b", "a"] }, undefined, { page: 2 }).queryKey;
+    const b = searchQueryOptions({ q: "", terms: ["a", "b"] }, undefined, { page: 2 }).queryKey;
+    expect(a).toEqual(b);
+  });
+
+  it("/search NIGDY nie wysyła _offset - żadne okno „pokaż więcej” nie dotyka nowego parametru", async () => {
+    for (const limit of [SEARCH_PAGE_SIZE, SEARCH_PAGE_SIZE * 2, SEARCH_LIMIT_MAX]) {
+      funkcje().reset();
+      planujWyszukiwanie();
+      await klient().fetchQuery(searchQueryOptions({ q: "unia" }, limit));
+      expect(wywolanie("search_posts").has("_offset")).toBe(false);
+    }
+  });
+
+  it("telemetria liczy frazę TYLKO na stronie pierwszej", async () => {
+    planujWyszukiwanie({ trafienia: strona(2, 200, "p"), oznaczenia: ok([]) });
+    await pobierzStrone({ q: "unia" }, 1);
+    await pobierzStrone({ q: "unia" }, 2);
+    await pobierzStrone({ q: "unia" }, 3);
+    expect(funkcje().callsFor("log_search_query")).toHaveLength(1);
+    expect(wywolanie("log_search_query").arg("_results")).toBe(200);
+  });
+
+  it("strona w zakresie NIE dokłada sondy - liczność jedzie w wierszach okna", async () => {
+    planujWyszukiwanie({ trafienia: strona(3, 123, "p"), oznaczenia: ok([]) });
+    const wynik = await pobierzStrone({ q: "" }, 2);
+    expect(funkcje().callsFor("search_posts")).toHaveLength(1);
+    expect(wynik.total).toBe(123);
+    expect(wynik.posts).toHaveLength(3);
+  });
+
+  it("STRONA ZA KOŃCEM: pusta strona dostaje PRAWDZIWĄ liczność z sondy `_limit: 1` bez offsetu", async () => {
+    // Okno z offsetem jest puste (strona 9 przy 130 trafieniach), a sonda bez
+    // offsetu ma co oddać. Bez sondy `total` byłby zerem i interfejs pokazałby
+    // „brak publikacji" zamiast odesłać do ostatniej strony.
+    planujWyszukiwanie({ oznaczenia: ok([]) });
+    funkcje().setResponse("search_posts", (call) =>
+      call.arg("_offset") === undefined ? strona(1, 130, "s") : ok([]),
+    );
+    const wynik = await pobierzStrone({ q: "" }, 9);
+    const wywolania = funkcje().callsFor("search_posts");
+    expect(wywolania).toHaveLength(2);
+    expect(wywolania[0]?.arg("_offset")).toBe(SEARCH_PAGE_SIZE * 8);
+    const sonda = wywolania[1];
+    expect(sonda?.arg("_limit")).toBe(1);
+    expect(sonda?.has("_offset")).toBe(false);
+    expect(wynik.total).toBe(130);
+    expect(wynik.posts).toEqual([]);
+  });
+
+  it("sonda niesie te same filtry co okno - inaczej licznik opisywałby inny zbiór", async () => {
+    planujWyszukiwanie({ oznaczenia: ok([]) });
+    funkcje().setResponse("search_posts", (call) =>
+      call.arg("_offset") === undefined ? strona(1, 5, "s") : ok([]),
+    );
+    await pobierzStrone({ q: "unia", authorId: "aut-1", sort: "popular" }, 4);
+    const [okno, sonda] = funkcje().callsFor("search_posts");
+    for (const klucz of ["_q", "_author", "_sort", "_term_groups", "_terms"]) {
+      expect(sonda?.arg(klucz)).toEqual(okno?.arg(klucz));
+    }
+  });
+
+  it("filtry bez trafień na stronie 2+: sonda potwierdza zero, a nie wymyśla licznika", async () => {
+    planujWyszukiwanie({ trafienia: ok([]) });
+    const wynik = await pobierzStrone({ q: "zzzz" }, 3);
+    expect(funkcje().callsFor("search_posts")).toHaveLength(2);
+    expect(wynik.total).toBe(0);
+  });
+
+  it("strona 1 bez trafień to prawdziwa pustka - zero sond", async () => {
+    planujWyszukiwanie({ trafienia: ok([]) });
+    const wynik = await pobierzStrone({ q: "zzzz" }, 1);
+    expect(funkcje().callsFor("search_posts")).toHaveLength(1);
+    expect(wynik.total).toBe(0);
+  });
+
+  it("BŁĄD sondy jest wyrzucany - awaria nie może udawać „strony za końcem”", async () => {
+    planujWyszukiwanie({ oznaczenia: ok([]) });
+    funkcje().setResponse("search_posts", (call) =>
+      call.arg("_offset") === undefined ? fail("sonda padła", "57014") : ok([]),
+    );
+    await expect(pobierzStrone({ q: "" }, 5)).rejects.toThrow("sonda padła");
+    // Błąd przyszedł z SONDY (drugie wywołanie), a nie z okna strony.
+    const [okno, sonda] = funkcje().callsFor("search_posts");
+    expect(okno?.arg("_offset")).toBe(SEARCH_PAGE_SIZE * 4);
+    expect(sonda?.arg("_limit")).toBe(1);
+  });
+
+  it("strona za widełkami offsetu bazy NIE pyta o okno - przycięty offset oddałby cudzą treść", async () => {
+    // `search_posts` przycina `_offset` do 10 000 zamiast zwrócić pustkę, więc
+    // okno dla strony SEARCH_MAX_PAGE + 1 przyniosłoby wiersze od 10 001.
+    // (zachodzące na stronę SEARCH_MAX_PAGE) pod niewłaściwym adresem. Leci
+    // wyłącznie sonda liczności.
+    planujWyszukiwanie({ trafienia: strona(1, 50_000, "s"), oznaczenia: ok([]) });
+    const wynik = await pobierzStrone({ q: "" }, SEARCH_MAX_PAGE + 1);
+    const wywolania = funkcje().callsFor("search_posts");
+    expect(wywolania).toHaveLength(1);
+    expect(wywolania[0]?.has("_offset")).toBe(false);
+    expect(wywolania[0]?.arg("_limit")).toBe(1);
+    expect(wynik.posts).toEqual([]);
+    expect(wynik.total).toBe(50_000);
+  });
+
+  it("ostatnia osiągalna strona mieści się w widełkach offsetu bazy", async () => {
+    expect((SEARCH_MAX_PAGE - 1) * SEARCH_PAGE_SIZE).toBeLessThanOrEqual(SEARCH_OFFSET_MAX);
+    expect(SEARCH_MAX_PAGE * SEARCH_PAGE_SIZE).toBeGreaterThan(SEARCH_OFFSET_MAX);
+    planujWyszukiwanie({ trafienia: strona(1, 50_000, "s"), oznaczenia: ok([]) });
+    await pobierzStrone({ q: "" }, SEARCH_MAX_PAGE);
+    expect(wywolanie("search_posts").arg("_offset")).toBe((SEARCH_MAX_PAGE - 1) * SEARCH_PAGE_SIZE);
+  });
+});
+
+describe("searchTotalPages: liczba stron paska", () => {
+  it("liczy strony w górę i nie ma strony dla pustego zbioru", () => {
+    expect(searchTotalPages(0)).toBe(0);
+    expect(searchTotalPages(1)).toBe(1);
+    expect(searchTotalPages(SEARCH_PAGE_SIZE)).toBe(1);
+    expect(searchTotalPages(SEARCH_PAGE_SIZE + 1)).toBe(2);
+    expect(searchTotalPages(-5)).toBe(0);
+  });
+
+  it("nie linkuje za widełki offsetu bazy, choćby zbiór był większy", () => {
+    expect(searchTotalPages(1_000_000)).toBe(SEARCH_MAX_PAGE);
   });
 });
 

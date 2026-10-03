@@ -19,7 +19,10 @@ import {
   isMenuItemVisible,
   isMenuPathActive,
   megaColumnsFor,
+  megaNavColumns,
+  megaPanelCssWidth,
   megaPanelHasContent,
+  megaPanelLayout,
   menuItemHref,
   menuItemRel,
   menuItemTarget,
@@ -341,6 +344,81 @@ describe("panelGeometry", () => {
 
   it("trigger przy lewej krawędzi nie wypycha panelu poza okno", () => {
     expect(panelGeometry({ isMega: false, anchorLeft: -50, viewportWidth: 1440 }).left).toBe(16);
+  });
+
+  it("mega „full” zaczyna się przy marginesie i kończy przed prawą krawędzią", () => {
+    // Panel „full" ma szerokość okna minus 2 x 16 px. Wyśrodkowany jak
+    // „container" (left = 160 na 1440) wystawałby 128 px poza ekran.
+    const { left, width } = panelGeometry({
+      isMega: true,
+      anchorLeft: 40,
+      viewportWidth: 1440,
+      megaWidth: "full",
+    });
+    expect(left).toBe(16);
+    expect(width).toBe(1440 - 32);
+    expect(left + width).toBeLessThanOrEqual(1440 - 16);
+  });
+
+  it("mega „container” stoi DOKŁADNIE tam, gdzie przed ustawieniem szerokości", () => {
+    // Istniejące menu nie mogą się przesunąć przez to, że szerokość zaczęła
+    // być czytana - jawne „container" i brak wartości dają ten sam wynik.
+    const legacy = panelGeometry({ isMega: true, anchorLeft: 40, viewportWidth: 1440 });
+    expect(
+      panelGeometry({ isMega: true, anchorLeft: 40, viewportWidth: 1440, megaWidth: "container" }),
+    ).toEqual(legacy);
+  });
+
+  it("szerokość mega nie wpływa na zwykły dropdown", () => {
+    expect(
+      panelGeometry({ isMega: false, anchorLeft: 300, viewportWidth: 1440, megaWidth: "full" }),
+    ).toEqual(panelGeometry({ isMega: false, anchorLeft: 300, viewportWidth: 1440 }));
+  });
+});
+
+describe("układ panelu mega z konfiguracji", () => {
+  it("bierze kolumny w rzędzie i szerokość z konfiguracji redaktora", () => {
+    expect(megaPanelLayout({ columns_per_row: 2, width: "full" })).toEqual({
+      columnsPerRow: 2,
+      width: "full",
+    });
+  });
+
+  it("brak konfiguracji daje dotychczasowy wygląd (4 kolumny, kontener)", () => {
+    const expected = {
+      columnsPerRow: DEFAULT_MEGA_CONFIG.columns_per_row,
+      width: DEFAULT_MEGA_CONFIG.width,
+    };
+    expect(megaPanelLayout(undefined)).toEqual(expected);
+    expect(megaPanelLayout(null)).toEqual(expected);
+    expect(megaPanelLayout({})).toEqual(expected);
+    expect(expected).toEqual({ columnsPerRow: 4, width: "container" });
+  });
+
+  it("wartość spoza schematu schodzi na domyślną POLE PO POLU", () => {
+    // Uszkodzona liczba kolumn nie może zabrać poprawnie ustawionej szerokości.
+    for (const bad of [0, 7, 2.5, Number.NaN, "3"]) {
+      expect(megaPanelLayout({ columns_per_row: bad, width: "full" })).toEqual({
+        columnsPerRow: 4,
+        width: "full",
+      });
+    }
+    expect(megaPanelLayout({ columns_per_row: 3, width: "szeroki" })).toEqual({
+      columnsPerRow: 3,
+      width: "container",
+    });
+  });
+
+  it("siatka nawigacji ma tyle kolumn, ile treści, ale nie więcej niż limit rzędu", () => {
+    expect(megaNavColumns(5, 3)).toBe(3); // nadmiar schodzi do drugiego rzędu
+    expect(megaNavColumns(6, 6)).toBe(6); // do 03.10.2026 zaszyte maksimum 4
+    expect(megaNavColumns(2, 4)).toBe(2); // mniej kolumn niż limit - bez pustych pól
+    expect(megaNavColumns(0, 4)).toBe(1); // nigdy `repeat(0, ...)`
+  });
+
+  it("szerokość CSS: „container” to dotychczasowa wartość, „full” całe okno minus margines", () => {
+    expect(megaPanelCssWidth("container")).toBe("min(980px, calc(100vw - 32px))");
+    expect(megaPanelCssWidth("full")).toBe("calc(100vw - 32px)");
   });
 });
 

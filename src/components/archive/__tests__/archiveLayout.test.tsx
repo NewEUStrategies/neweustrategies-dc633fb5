@@ -9,21 +9,34 @@
 // Jeden test na wariant, asercja na TREŚĆ. Zależności spoza archiwum
 // (reklamy, newsletter, przycisk obserwowania, okruszki) są podmienione:
 // mają własne testy, a tutaj tylko zaciemniałyby, co jest sprawdzane.
-import { describe, expect, it, afterEach, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, afterEach, beforeEach, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import "@/lib/i18n";
 import "@/lib/i18n-archive-layout";
 import { realT } from "@/test/i18nReal";
 import { RouterLinkStub } from "@/test/routerLinkStub";
+import { freezeClock } from "@/test/time";
 import type { BlogListItem } from "@/lib/queries/public";
 import { DEFAULT_ARCHIVE_LAYOUT, type ArchiveLayoutSettings } from "@/lib/archive-layout-settings";
+import { fail } from "@/test/supabaseChain";
+import type { SupabaseRpcStub } from "@/test/supabase/rpc";
+
+// Podgląd panelu (`ArchiveLivePreview`) datuje atrapy wpisów od `Date.now()`,
+// a fixture'y tego pliku mają stałe daty publikacji - bez zamrożenia zegara
+// kolejność i „wiek” wpisów zależałyby od dnia uruchomienia testu.
+freezeClock();
 
 const ads = vi.hoisted(() => ({ renderAfterCard: null as ((i: number) => ReactNode) | null }));
-const related = vi.hoisted(() => ({
-  categories: [] as { id: string; slug: string; name_pl: string; name_en: string }[],
-  tags: [] as { id: string; slug: string; name: string }[],
+// „Powiązane" idą funkcją `related_taxonomies` (ranking ze współwystępowania),
+// więc atrapą jest rejestrator RPC ze wspólnego harnessu. `from` zostaje
+// szpiegiem tylko po to, żeby dowieść, że nikt nie wraca do czytania
+// `categories` / `tags` wprost.
+const db = vi.hoisted(() => ({
+  rpc: null as SupabaseRpcStub | null,
+  tables: [] as string[],
 }));
 
 vi.mock("@tanstack/react-router", async (importOriginal) => ({
@@ -57,19 +70,25 @@ vi.mock("@/components/Breadcrumbs", () => ({
   ),
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    from: (table: string) => {
-      const rows = table === "categories" ? related.categories : related.tags;
-      const builder = {
-        select: () => builder,
-        neq: () => builder,
-        limit: () => Promise.resolve({ data: rows, error: null }),
-      };
-      return builder;
+vi.mock("@/integrations/supabase/client", async () => {
+  const { supabaseRpcStub } = await import("@/test/supabase/rpc");
+  const rpc = supabaseRpcStub();
+  db.rpc = rpc;
+  return {
+    supabase: {
+      rpc: rpc.rpc,
+      from: (table: string) => {
+        db.tables.push(table);
+        const builder = {
+          select: () => builder,
+          neq: () => builder,
+          limit: () => Promise.resolve({ data: [], error: null }),
+        };
+        return builder;
+      },
     },
-  },
-}));
+  };
+});
 
 const { ArchivePosts } = await import("@/components/archive/layouts/ArchivePosts");
 const { ArchiveToolbar } = await import("@/components/archive/layouts/ArchiveToolbar");
@@ -85,6 +104,8 @@ const { LAYOUT_REGISTRY, getLayoutComponent } =
 const { ArchivePagination, buildRange } =
   await import("@/components/archive/layouts/ArchivePagination");
 const variants = await import("@/components/archive/layouts/variants");
+const { ArchiveLivePreview } = await import("@/components/admin/archiveLayout/ArchiveLivePreview");
+const { relatedTaxonomiesQueryOptions } = await import("@/lib/queries/relatedTaxonomies");
 
 const t = realT("pl");
 
@@ -145,14 +166,59 @@ function renderWithQuery(ui: ReactElement) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
   });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+  // Klient wraca razem z wynikiem renderu: testy awarii rankingu czytają stan
+  // zapytania, bo na ekranie błąd i pusta lista wyglądają tak samo.
+  return Object.assign(render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>), {
+    client,
+  });
 }
+
+/**
+ * Czeka, aż zapytanie „powiązanych" bieżącego archiwum (kategoria `tax-1`) się
+ * ROZSTRZYGNIE, i zwraca jego stan. Sam wygląd nie odróżnia awarii od braku
+ * sygnału - sekcja jest ukryta, a widżet mówi „Brak." także w trakcie
+ * ładowania - więc asercja na samym DOM przeszłaby i wtedy, gdyby fabryka
+ * zapytania rzucała błąd zamiast zdegradować się do `[]`.
+ */
+async function settledRelatedQuery(client: QueryClient) {
+  const { queryKey } = relatedTaxonomiesQueryOptions("category", "tax-1");
+  await waitFor(() => {
+    const state = client.getQueryState(queryKey);
+    expect(state !== undefined && state.status !== "pending").toBe(true);
+  });
+  return client.getQueryState(queryKey);
+}
+
+/** Wiersz w kształcie zwracanym przez `related_taxonomies`. */
+function relatedRow(slug: string, name_pl: string, name_en = name_pl, shared = 1, score = 0.5) {
+  return { id: `id-${slug}`, slug, name_pl, name_en, shared_posts: shared, score };
+}
+
+function funkcje(): SupabaseRpcStub {
+  const s = db.rpc;
+  if (!s) throw new Error("test: atrapa RPC Supabase nie została podpięta");
+  return s;
+}
+
+/** Zaplanuj odpowiedź rankingu (kolejność tablicy = kolejność z bazy). */
+function setRelated(rows: ReturnType<typeof relatedRow>[]) {
+  funkcje().setData("related_taxonomies", rows);
+}
+
+const relatedCalls = () => funkcje().callsFor("related_taxonomies");
+
+beforeEach(() => {
+  funkcje().reset();
+  db.tables.length = 0;
+  // Domyślnie: termin bez powiązanych. Widżet „related" jest w domyślnym
+  // zestawie sidebara, więc odpowiedź musi istnieć także w testach, które
+  // o powiązanych nic nie mówią.
+  setRelated([]);
+});
 
 afterEach(() => {
   cleanup();
   ads.renderAfterCard = null;
-  related.categories = [];
-  related.tags = [];
 });
 
 describe("ArchivePosts - warianty siatki", () => {
@@ -488,7 +554,108 @@ describe("ArchiveHeader", () => {
     expect(screen.queryByRole("navigation", { name: "okruszki" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Gospodarka" })).toBeTruthy();
   });
+
+  it("styl „Zdjęcie” dostaje ADRES z ustawień, nie tylko sam styl", () => {
+    // Do migracji 20261003100000 nagłówek przekazywał tłu wyłącznie styl, więc
+    // „Zdjęcie” wybrane w panelu zawsze kończyło jako neutralne `bg-muted` -
+    // na każdej stronie kategorii i tagu, bez żadnego sygnału dla redaktora.
+    const { container } = render(
+      <ArchiveHeader
+        kind="category"
+        taxonomyId="t1"
+        name="Gospodarka"
+        description={null}
+        lang="pl"
+        settings={settings({
+          hero_bg_style: "image",
+          hero_image_url: "https://cdn.example/archiwum/hero.jpg",
+        })}
+      />,
+    );
+    expect(container.innerHTML).toContain("https://cdn.example/archiwum/hero.jpg");
+    expect(container.querySelector("[data-hero-image]")).not.toBeNull();
+  });
+
+  it("styl „Zdjęcie” bez adresu w ustawieniach schodzi na neutralne tło", () => {
+    const { container } = render(
+      <ArchiveHeader
+        kind="category"
+        taxonomyId="t1"
+        name="Gospodarka"
+        description={null}
+        lang="pl"
+        settings={settings({ hero_bg_style: "image", hero_image_url: null })}
+      />,
+    );
+    expect(container.querySelector("[data-hero-image]")).toBeNull();
+    expect(container.querySelector(".bg-muted\\/30")).not.toBeNull();
+  });
+
+  it("wyłączone hero nie rysuje zdjęcia, nawet gdy adres jest ustawiony", () => {
+    const { container } = render(
+      <ArchiveHeader
+        kind="category"
+        taxonomyId="t1"
+        name="Gospodarka"
+        description={null}
+        lang="pl"
+        settings={settings({
+          show_hero: false,
+          hero_bg_style: "image",
+          hero_image_url: "https://cdn.example/archiwum/hero.jpg",
+        })}
+      />,
+    );
+    expect(container.innerHTML).not.toContain("hero.jpg");
+  });
+
+  it.each(["gradient", "solid", "image", "mesh", "pattern", "minimal"] as const)(
+    "tło %s maluje się w kontekście nakładania nagłówka, nie pod tłem strony",
+    (hero_bg_style) => {
+      const { container } = render(
+        <ArchiveHeader
+          kind="category"
+          taxonomyId="t1"
+          name="Gospodarka"
+          description={null}
+          lang="pl"
+          settings={settings({
+            hero_bg_style,
+            hero_image_url: "https://cdn.example/archiwum/hero.jpg",
+          })}
+        />,
+      );
+      expectHeroLayersInHeaderStackingContext(container);
+    },
+  );
 });
+
+/**
+ * Warstwy tła nagłówka (`absolute -z-10`) muszą malować się w WŁASNYM
+ * kontekście nakładania nagłówka. jsdom nie liczy malowania, więc kontrakt
+ * czytamy z klas: każda warstwa leży bezpośrednio w `<header>`, a ten ma
+ * `isolate`. Bez tego ujemne warstwy schodzą do kontekstu przodka i malują się
+ * POD nieprzezroczystym tłem wrappera wariantu (`bg-background`,
+ * `bg-neutral-950`) - zmierzone w Chromium na skompilowanym CSS repo: zdjęcie
+ * było niewidoczne w pięciu z sześciu układów na desktopie, we wszystkich na
+ * telefonie i w podglądzie panelu, choć element z poprawnym stylem był w DOM.
+ */
+function expectHeroLayersInHeaderStackingContext(container: HTMLElement) {
+  const layers = Array.from(container.querySelectorAll(".-z-10"));
+  expect(layers.length).toBeGreaterThan(0);
+  for (const layer of layers) {
+    const header = layer.parentElement;
+    expect(header?.tagName).toBe("HEADER");
+    expect(header?.classList.contains("isolate")).toBe(true);
+  }
+}
+
+/** Atrybut `style` warstwy zdjęcia w HTML-u z serwera (przed CSSOM przeglądarki). */
+function ssrHeroImageStyle(imageUrl: string): string | null {
+  const template = document.createElement("template");
+  template.innerHTML = renderToStaticMarkup(<HeroBackground style="image" imageUrl={imageUrl} />);
+  return template.content.querySelector("[data-hero-image]")?.getAttribute("style") ?? null;
+}
 
 describe("heroBackgrounds", () => {
   it("każdy styl tła renderuje własną warstwę", () => {
@@ -510,6 +677,45 @@ describe("heroBackgrounds", () => {
     );
     expect(container.innerHTML).toContain("hero.jpg");
     expect(container.innerHTML).toContain("backdrop-blur");
+  });
+
+  it("warstwa zdjęcia jest dekoracyjna - ukryta przed czytnikiem ekranu", () => {
+    // Treść niesie nagłówek nad tłem; tło bez `alt` nie może być ogłaszane.
+    const { container } = render(
+      <HeroBackground style="image" imageUrl="https://cdn.example/hero.jpg" />,
+    );
+    const layers = Array.from(container.children);
+    expect(layers.length).toBe(2);
+    for (const layer of layers) expect(layer).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it('w HTML z serwera adres jest CYTOWANYM url("…")', () => {
+    expect(ssrHeroImageStyle("https://cdn.example/hero.jpg")).toContain(
+      'background-image:url("https://cdn.example/hero.jpg")',
+    );
+  });
+
+  it("cudzysłowy i nawiasy w adresie są ESCAPOWANE - deklaracja się nie rozrywa", () => {
+    // Wcześniej stało tu surowe `url(${imageUrl})`: pierwszy `)` kończył token,
+    // a cudzysłów pozwalał dopisać własną deklarację do stylu nagłówka.
+    const style = ssrHeroImageStyle(`https://cdn.example/a");background:red;x:("(1).jpg`);
+    expect(style).toContain(
+      String.raw`background-image:url("https://cdn.example/a\"\);background:red;x:\(\"\(1\).jpg")`,
+    );
+    expect(style).not.toContain(";background:red;x:(");
+  });
+
+  it.each([
+    ["javascript:", "javascript:alert(1)"],
+    ["data:", "data:image/svg+xml;base64,PHN2Zz4="],
+    ["adres bez schematu", "//evil.example/x.jpg"],
+    ["'/\\host'", "/\\evil.example/x.jpg"],
+  ])("adres %s schodzi na neutralne tło i NIE trafia do HTML", (_opis, imageUrl) => {
+    const { container } = render(<HeroBackground style="image" imageUrl={imageUrl} />);
+    expect(container.querySelector("[data-hero-image]")).toBeNull();
+    expect(container.firstElementChild?.className).toContain("bg-muted");
+    expect(container.innerHTML).not.toContain("evil");
+    expect(container.innerHTML).not.toContain(imageUrl.slice(0, 5));
   });
 });
 
@@ -641,7 +847,7 @@ describe("ArchiveBody - kompozycja", () => {
 });
 
 describe("RelatedTaxonomiesBlock (sekcja pod listą)", () => {
-  it("w podglądzie admina pokazuje przykładowe chipy, nie linki", async () => {
+  it("w podglądzie admina pokazuje przykładowe chipy, nie linki - i NIE pyta bazy", async () => {
     // Podgląd nie ma dostępu do prawdziwych taksonomii, a administrator musi
     // ZOBACZYĆ, że sekcja istnieje - inaczej wygląda jak wyłączona.
     renderWithQuery(
@@ -655,10 +861,11 @@ describe("RelatedTaxonomiesBlock (sekcja pod listą)", () => {
     expect(await screen.findByText("Powiązane kategorie")).toBeTruthy();
     expect(screen.getByText("Przykład 1")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Przykład 1" })).toBeNull();
+    expect(relatedCalls()).toHaveLength(0);
   });
 
-  it("na żywo pokazuje LINKI do sąsiednich kategorii", async () => {
-    related.categories = [{ id: "c2", slug: "energia", name_pl: "Energia", name_en: "Energy" }];
+  it("na żywo pokazuje LINKI do kategorii z rankingu bieżącego terminu", async () => {
+    setRelated([relatedRow("energia", "Energia", "Energy")]);
     renderWithQuery(
       <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
     );
@@ -666,20 +873,73 @@ describe("RelatedTaxonomiesBlock (sekcja pod listą)", () => {
       "href",
       "/category/energia",
     );
+    // Ranking liczony dla TEGO archiwum, a nie „cokolwiek poza nim".
+    expect(relatedCalls()).toHaveLength(1);
+    expect(relatedCalls()[0].arg("_kind")).toBe("category");
+    expect(relatedCalls()[0].arg("_taxonomy_id")).toBe("tax-1");
   });
 
-  it("taksonomia BEZ rodzeństwa nie zostawia pustej sekcji z nagłówkiem", () => {
-    // To jest cały sens tego testu: nagłówek „Powiązane kategorie" nad pustką
-    // wygląda jak awaria zapytania.
-    related.categories = [];
+  it("kolejność chipów to kolejność rankingu z bazy, bez przestawiania", async () => {
+    // Ranking (kosinus współwystępowania) liczy baza; komponent ma go oddać
+    // 1:1 - inaczej „Hub" z największą liczbą wpisów znów wskoczy na początek.
+    setRelated([
+      relatedRow("klimat", "Klimat", "Climate", 2, 0.71),
+      relatedRow("migracje", "Migracje", "Migration", 2, 0.5),
+      relatedRow("hub", "Hub", "Hub", 3, 0.34),
+    ]);
     renderWithQuery(
       <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
     );
+    await screen.findByRole("link", { name: "Klimat" });
+    const section = screen.getByText("Powiązane kategorie").closest("section");
+    if (!section) throw new Error("test: brak sekcji powiązanych");
+    expect(
+      within(section)
+        .getAllByRole("link")
+        .map((a) => a.textContent),
+    ).toEqual(["Klimat", "Migracje", "Hub"]);
+  });
+
+  it("NIE czyta tabel categories / tags wprost (stary szum bez związku z archiwum)", async () => {
+    setRelated([relatedRow("energia", "Energia")]);
+    renderWithQuery(
+      <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
+    );
+    await screen.findByRole("link", { name: "Energia" });
+    expect(db.tables).not.toContain("categories");
+    expect(db.tables).not.toContain("tags");
+  });
+
+  it("taksonomia BEZ powiązanych nie zostawia pustej sekcji z nagłówkiem", async () => {
+    // To jest cały sens tego testu: nagłówek „Powiązane kategorie" nad pustką
+    // wygląda jak awaria zapytania.
+    setRelated([]);
+    renderWithQuery(
+      <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
+    );
+    await waitFor(() => expect(relatedCalls()).toHaveLength(1));
     expect(screen.queryByText("Powiązane kategorie")).toBeNull();
   });
 
+  it("awaria funkcji rankingu: zapytanie kończy się pustą listą, sekcja znika, archiwum stoi", async () => {
+    funkcje().setResponse("related_taxonomies", fail("permission denied", "42501"));
+    const { client } = renderWithQuery(
+      <ArchiveBody {...bodyProps({ settings: settings({ show_related_taxonomies: true }) })} />,
+    );
+    // Degradacja, nie błąd: stan `error` oznaczałby ponowienie i nowe
+    // zapytanie przy każdym wejściu na archiwum (`retry: 1` klienta
+    // w `src/router.tsx`) zamiast pustej listy w cache na `staleTime`.
+    const state = await settledRelatedQuery(client);
+    expect(state?.status).toBe("success");
+    expect(state?.data).toEqual([]);
+    expect(relatedCalls()).toHaveLength(1);
+    expect(screen.queryByText("Powiązane kategorie")).toBeNull();
+    // Lista wpisów archiwum renderuje się normalnie.
+    expect(screen.getAllByText("Wpis p1").length).toBeGreaterThan(0);
+  });
+
   it("dla tagów nagłówek i adresy są tagowe, nie kategoriowe", async () => {
-    related.tags = [{ id: "t2", slug: "nato", name: "NATO" }];
+    setRelated([relatedRow("nato", "NATO")]);
     renderWithQuery(
       <ArchiveBody
         {...bodyProps({
@@ -690,6 +950,45 @@ describe("RelatedTaxonomiesBlock (sekcja pod listą)", () => {
     );
     expect(await screen.findByText("Powiązane tagi")).toBeTruthy();
     expect(screen.getByRole("link", { name: "NATO" })).toHaveAttribute("href", "/tag/nato");
+    expect(relatedCalls()[0].arg("_kind")).toBe("tag");
+  });
+
+  it("sekcja i widżet sidebara na jednej stronie to JEDNO żądanie i ta sama lista", async () => {
+    // Wcześniej dwa różne zapytania (limity 12 i 10, osobne klucze cache).
+    setRelated([relatedRow("energia", "Energia"), relatedRow("klimat", "Klimat")]);
+    renderWithQuery(
+      <ArchiveBody
+        {...bodyProps({
+          settings: settings({
+            show_related_taxonomies: true,
+            show_sidebar: true,
+            sidebar_widgets: ["related"],
+          }),
+        })}
+      />,
+    );
+    await waitFor(() => expect(screen.getAllByRole("link", { name: "Energia" })).toHaveLength(2));
+    expect(screen.getAllByRole("link", { name: "Klimat" })).toHaveLength(2);
+    expect(relatedCalls()).toHaveLength(1);
+  });
+
+  it("PODGLĄD z sidebarem: ani sekcja, ani widżet nie pytają bazy", async () => {
+    renderWithQuery(
+      <ArchiveBody
+        {...bodyProps({
+          previewMode: true,
+          settings: settings({
+            show_related_taxonomies: true,
+            show_sidebar: true,
+            sidebar_widgets: ["related"],
+          }),
+        })}
+      />,
+    );
+    // Atrapa w OBU miejscach: sekcja pod listą i widżet (tytuł widżetu to też
+    // „Powiązane kategorie", więc liczymy chipy, nie nagłówki).
+    expect(await screen.findAllByText("Przykład 1")).toHaveLength(2);
+    expect(relatedCalls()).toHaveLength(0);
   });
 });
 
@@ -717,18 +1016,68 @@ describe("ArchiveSidebar - widgety", () => {
   });
 
   it("powiązane taksonomie: linki, a przy braku - komunikat", async () => {
-    related.categories = [{ id: "c2", slug: "energia", name_pl: "Energia", name_en: "Energy" }];
+    setRelated([relatedRow("energia", "Energia", "Energy")]);
     const withData = renderSidebar(["related"]);
     expect(await screen.findByRole("link", { name: "Energia" })).toBeTruthy();
     withData.unmount();
 
-    related.categories = [];
+    setRelated([]);
     renderSidebar(["related"]);
     expect(await screen.findByText("Brak.")).toBeTruthy();
   });
 
+  it("powiązane taksonomie: kolejność rankingu z bazy, bez czytania tabel wprost", async () => {
+    setRelated([
+      relatedRow("klimat", "Klimat", "Climate", 2, 0.71),
+      relatedRow("migracje", "Migracje", "Migration", 2, 0.5),
+      relatedRow("hub", "Hub", "Hub", 3, 0.34),
+    ]);
+    renderSidebar(["related"]);
+    await screen.findByRole("link", { name: "Klimat" });
+    expect(screen.getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Klimat",
+      "Migracje",
+      "Hub",
+    ]);
+    expect(relatedCalls()).toHaveLength(1);
+    expect(relatedCalls()[0].arg("_kind")).toBe("category");
+    expect(relatedCalls()[0].arg("_taxonomy_id")).toBe("tax-1");
+    expect(db.tables).not.toContain("categories");
+    expect(db.tables).not.toContain("tags");
+  });
+
+  it("powiązane taksonomie: awaria funkcji rankingu kończy się pustą listą i komunikatem, nie błędem", async () => {
+    funkcje().setResponse("related_taxonomies", fail("permission denied", "42501"));
+    const { client } = renderSidebar(["related"]);
+    // „Brak." widać też w trakcie ładowania, więc o degradacji świadczy
+    // dopiero stan rozstrzygniętego zapytania.
+    const state = await settledRelatedQuery(client);
+    expect(state?.status).toBe("success");
+    expect(state?.data).toEqual([]);
+    expect(screen.getByText("Brak.")).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("powiązane taksonomie w PODGLĄDZIE admina: atrapy bez linków i bez żądania", async () => {
+    // Do 03.10.2026 widżet pytał bazę także w podglądzie - z identyfikatorem
+    // atrapy „preview" zamiast prawdziwego terminu.
+    renderWithQuery(
+      <ArchiveSidebar
+        widgets={["related"]}
+        lang="pl"
+        taxonomyId="preview"
+        kind="category"
+        posts={posts(2)}
+        previewMode
+      />,
+    );
+    expect(await screen.findByText("Przykład 1")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Przykład 1" })).toBeNull();
+    expect(relatedCalls()).toHaveLength(0);
+  });
+
   it("dla archiwum TAGU sekcja powiązanych prowadzi do tagów", async () => {
-    related.tags = [{ id: "t2", slug: "nato", name: "NATO" }];
+    setRelated([relatedRow("nato", "NATO")]);
     renderWithQuery(
       <ArchiveSidebar
         widgets={["related"]}
@@ -837,54 +1186,6 @@ describe("ArchivePostList i PaginatedPostGrid", () => {
     expect(onPageChange).toHaveBeenCalledWith(2);
   });
 
-  it("zmiana strony wraca na górę listy", () => {
-    // Pozostanie w połowie ekranu po podmianie treści dezorientuje - czytelnik
-    // ląduje w środku innego wpisu.
-    const scrollSpy = vi.fn();
-    const original = window.scrollTo;
-    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo;
-    try {
-      render(
-        <PaginatedPostGrid
-          posts={posts(2)}
-          page={3}
-          totalPages={5}
-          lang="pl"
-          emptyText=""
-          isPending={false}
-          onPageChange={() => {}}
-          hrefFor={(p) => `/blog?page=${p}`}
-        />,
-      );
-      expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }));
-    } finally {
-      window.scrollTo = original;
-    }
-  });
-
-  it("pierwsza strona NIE przewija - czytelnik dopiero wszedł", () => {
-    const scrollSpy = vi.fn();
-    const original = window.scrollTo;
-    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo;
-    try {
-      render(
-        <PaginatedPostGrid
-          posts={posts(2)}
-          page={1}
-          totalPages={5}
-          lang="pl"
-          emptyText=""
-          isPending={false}
-          onPageChange={() => {}}
-          hrefFor={(p) => `/blog?page=${p}`}
-        />,
-      );
-      expect(scrollSpy).not.toHaveBeenCalled();
-    } finally {
-      window.scrollTo = original;
-    }
-  });
-
   it("klik w numer strony idzie przez nawigację SPA", () => {
     const onPageChange = vi.fn();
     render(
@@ -901,6 +1202,50 @@ describe("ArchivePostList i PaginatedPostGrid", () => {
     );
     fireEvent.click(screen.getByRole("link", { name: "Strona 2" }), { button: 0 });
     expect(onPageChange).toHaveBeenCalledWith(2);
+  });
+});
+
+describe("PaginatedPostGrid - przewijanie należy do routera", () => {
+  // Zmiana strony to nawigacja po adresie (`onPageChange` trasy), a powrót na
+  // górę po niej robi router (`scrollRestoration`): nowy wpis historii zaczyna
+  // od góry, „wstecz" wraca na zapamiętaną pozycję. Dawny
+  // `scrollTo({ behavior: "smooth" })` w siatce dublował ten reset, ignorował
+  // „ogranicz ruch" i przy kroku „wstecz" nadpisywał przywróconą pozycję.
+  const scrollTo = vi.fn();
+
+  function grid(page: number): ReactElement {
+    return (
+      <PaginatedPostGrid
+        posts={posts(2)}
+        page={page}
+        totalPages={5}
+        lang="pl"
+        emptyText=""
+        isPending={false}
+        onPageChange={() => {}}
+        hrefFor={(p) => `/blog?page=${p}`}
+      />
+    );
+  }
+
+  beforeEach(() => {
+    scrollTo.mockReset();
+    vi.stubGlobal("scrollTo", scrollTo);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ["montaż na stronie 1", 1, 1],
+    ["montaż prosto na stronie 3", 3, 3],
+    ["zmiana 2 -> 3", 2, 3],
+    ["powrót 3 -> 1", 3, 1],
+  ])("%s: siatka nie przewija okna sama", (_name, from, to) => {
+    const view = render(grid(from));
+    if (from !== to) view.rerender(grid(to));
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 });
 
@@ -947,6 +1292,28 @@ describe("sześć wariantów archiwum", () => {
   it.each(ALL)("%s pokazuje komunikat pustej strony", (_name, Layout) => {
     renderWithQuery(<Layout {...bodyProps({ posts: [], total: 0 })} />);
     expect(screen.getByText("Brak wpisów w tej kategorii.")).toBeTruthy();
+  });
+
+  it.each(ALL)("%s rysuje zdjęcie nagłówka ustawione w panelu", (_name, Layout) => {
+    // Każdy wariant składa nagłówek z `ArchiveHeader`; wariant, który zgubiłby
+    // adres po drodze, wróciłby do martwego ustawienia „Zdjęcie”.
+    const { container } = renderWithQuery(
+      <Layout
+        {...bodyProps({
+          settings: settings({
+            hero_bg_style: "image",
+            hero_image_url: "https://cdn.example/archiwum/hero.jpg",
+          }),
+        })}
+      />,
+    );
+    const layer = container.querySelector("[data-hero-image]");
+    expect(layer).not.toBeNull();
+    expect(layer?.getAttribute("style")).toContain("https://cdn.example/archiwum/hero.jpg");
+    // Obecność w DOM to za mało: wrapper KAŻDEGO wariantu ma nieprzezroczyste
+    // tło, więc warstwa bez własnego kontekstu nagłówka była w DOM, ale nie
+    // na ekranie.
+    expectHeroLayersInHeaderStackingContext(container);
   });
 
   it("wariant Hero pokazuje licznik wpisów na stronie", () => {
@@ -1008,4 +1375,30 @@ describe("sześć wariantów archiwum", () => {
     expect(screen.getByRole("heading", { name: "Gospodarka" })).toBeTruthy();
     expect(screen.getByText("Opis kategorii")).toBeTruthy();
   });
+});
+
+describe("podgląd na żywo w panelu - zdjęcie nagłówka", () => {
+  // Podgląd renderuje PRAWDZIWY wariant układu z wersji roboczej. Bez adresu
+  // w łańcuchu redaktor widział neutralne tło i nie miał jak się dowiedzieć,
+  // że wybrany styl „Zdjęcie” nic nie robi.
+  it.each([1, 2, 3, 4, 5, 6] as const)(
+    "wariant %s pokazuje zdjęcie ustawione w wersji roboczej",
+    (layout_variant) => {
+      const { container } = renderWithQuery(
+        <ArchiveLivePreview
+          archiveType="category"
+          lang="pl"
+          settings={settings({
+            layout_variant,
+            hero_bg_style: "image",
+            hero_image_url: "https://cdn.example/archiwum/podglad.jpg",
+          })}
+        />,
+      );
+      expect(container.querySelector("[data-hero-image]")?.getAttribute("style")).toContain(
+        "https://cdn.example/archiwum/podglad.jpg",
+      );
+      expectHeroLayersInHeaderStackingContext(container);
+    },
+  );
 });

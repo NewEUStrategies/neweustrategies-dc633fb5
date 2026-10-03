@@ -33,6 +33,7 @@ const pl = {
       listStyle: "Styl listy",
       postsPerPage: "Wpisy na stronie",
       heroBgStyle: "Tło nagłówka",
+      heroImageUrl: "Zdjęcie w tle nagłówka",
       sidebarPosition: "Pozycja sidebara",
       sidebarWidgets: "Widgety w sidebarze (kolejność)",
       showBreadcrumbs: "Pokaż okruszki",
@@ -53,6 +54,11 @@ const pl = {
       pattern: "Wzór",
       mesh: "Mesh",
       minimal: "Minimalny",
+    },
+    heroImage: {
+      hint: "Adres https:// albo ścieżka w serwisie zaczynająca się od „/”. Bez zdjęcia nagłówek pokaże neutralne tło.",
+      invalid:
+        "Nieprawidłowy adres zdjęcia. Podaj adres http(s):// albo ścieżkę w serwisie zaczynającą się od pojedynczego „/” - bez spacji i odwrotnych ukośników.",
     },
     widgets: {
       popular: "Popularne wpisy",
@@ -113,6 +119,7 @@ const en: typeof pl = {
       listStyle: "List style",
       postsPerPage: "Posts per page",
       heroBgStyle: "Header background",
+      heroImageUrl: "Header background image",
       sidebarPosition: "Sidebar position",
       sidebarWidgets: "Sidebar widgets (order)",
       showBreadcrumbs: "Show breadcrumbs",
@@ -133,6 +140,11 @@ const en: typeof pl = {
       pattern: "Pattern",
       mesh: "Mesh",
       minimal: "Minimal",
+    },
+    heroImage: {
+      hint: "An https:// address or a site path starting with “/”. Without an image the header falls back to a neutral background.",
+      invalid:
+        "Invalid image address. Use an http(s):// URL or a site path starting with a single “/” - no spaces or backslashes.",
     },
     widgets: {
       popular: "Popular posts",
