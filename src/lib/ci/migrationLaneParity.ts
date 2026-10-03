@@ -713,6 +713,10 @@ export const MIGRATION_LANES: readonly LaneEntry[] = [
     tag: "0131_event_seat_state_single_source",
     twin: "20261002210000_event_seat_state_single_source.sql",
   },
+  {
+    tag: "0133_event_participant_reminders",
+    twin: "20261003140000_event_participant_reminders.sql",
+  },
 ];
 
 export type LaneViolationKind = "brak-wpisu" | "wpis-bez-pliku" | "brak-blizniaka" | "rozjazd-sql";

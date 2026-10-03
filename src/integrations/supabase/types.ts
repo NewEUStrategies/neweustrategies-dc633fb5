@@ -22475,6 +22475,7 @@ export type Database = {
         Args: { p_detail?: string; p_id: string; p_status: string }
         Returns: boolean
       }
+      _event_delivery_confirm_many: { Args: { p_items: Json }; Returns: number }
       _event_effective_end: {
         Args: { _ends: string; _starts: string }
         Returns: string
@@ -22891,6 +22892,27 @@ export type Database = {
       _event_registration_verdict: {
         Args: { _answers: Json; _event_id: string; _tenant: string }
         Returns: string
+      }
+      _event_reminder_candidates: {
+        Args: { p_channels: string[]; p_limit: number; p_now: string }
+        Returns: {
+          channel: string
+          dedupe_key: string
+          event_id: string
+          kind: string
+          lead_minutes: number
+          person_id: string
+          registration_id: string
+          rsvp_id: string
+          session_id: string
+          starts_at: string
+          tenant_id: string
+          user_id: string
+        }[]
+      }
+      _event_reminders_claim: {
+        Args: { p_limit?: number; p_sms?: boolean }
+        Returns: Json
       }
       _event_safe_timezone: { Args: { _tz: string }; Returns: string }
       _event_scanner_device_auth: {
