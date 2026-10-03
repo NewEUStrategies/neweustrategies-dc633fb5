@@ -373,7 +373,9 @@ describe("NewsletterForm - konfiguracja pól widgetu", () => {
       },
     });
 
-    expect(textInputs()).toHaveLength(0);
+    // Gdy wszystkie pola dodatkowe są wyłączone, zostaje wspólne pole imienia
+    // używane przez kompaktowy wariant formularza.
+    expect(textInputs()).toHaveLength(1);
     expect(document.querySelector("input[type='tel']")).toBeNull();
     expect(emailInput()).toBeInTheDocument();
   });
@@ -384,12 +386,21 @@ describe("NewsletterForm - konfiguracja pól widgetu", () => {
     });
 
     expect(document.querySelector("input[type='tel']")).not.toBeNull();
-    // Firma jest jedynym polem tekstowym: stanowisko (0) i imię ("0") odpadły.
-    expect(textInputs()).toHaveLength(1);
+    // Firma i domyślnie widoczne nazwisko zostają; stanowisko (0) i imię ("0") odpadają.
+    expect(textInputs()).toHaveLength(2);
   });
 
   it("układ kompaktowy (bez pól dodatkowych) przyjmuje imię i e-mail i wysyła je razem", async () => {
-    renderForm({ widgetConfig: { showInterests: false } });
+    renderForm({
+      widgetConfig: {
+        showInterests: false,
+        showFirstName: false,
+        showLastName: false,
+        showCompany: false,
+        showPosition: false,
+        showPhone: false,
+      },
+    });
 
     const name = textInputs()[0];
     fireEvent.change(name, { target: { value: "Anna Przykładowa" } });
