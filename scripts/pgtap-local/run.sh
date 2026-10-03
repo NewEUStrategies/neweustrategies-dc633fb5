@@ -38,17 +38,76 @@ assert_up() {
   exit 1
 }
 
+# Uruchamia polecenie bez odziedziczonych deskryptorow > 2. Postmaster jest
+# demonem: przezywa run.sh (tryb `test` celowo z niego korzysta) i zabiera ze
+# soba kazdy deskryptor otwarty w chwili startu. Pod `flock plik bash run.sh`
+# (bez -o) jest wsrod nich deskryptor BLOKADY, a blokada flock(2) trwa, dopoki
+# zyje ktorakolwiek jego kopia - serwer trzymal ja wiec az do zatrzymania i
+# kazdy kolejny `flock` na tym pliku czekal w nieskonczonosc (zakleszczenie
+# rownoleglych przebiegow pgTAP, widziane kilka razy). Ta sama klasa: demon
+# trzymajacy koniec zapisu cudzego potoku nie pozwala czytelnikowi doczekac EOF.
+#
+# Zamykamy w PODPOWLOCE, nie w powloce glownej: ta czyta dalsza tresc skryptu
+# z wysokiego deskryptora (255) i jego zamkniecie urwaloby wykonanie pliku.
+# Podpowloka ma cialo juz sparsowane, a 255 i tak pomijamy (bash daje mu
+# FD_CLOEXEC, wiec nie przechodzi przez exec). Lista z /proc/$BASHPID/fd - nie
+# $$, to PID powloki glownej; zamkniecie numeru, ktory zniknal po drodze (np.
+# deskryptor katalogu z samego globu), jest w bashu cichym no-opem. Bez /proc
+# (inny uniks) zamykamy na slepo 3..254.
+without_inherited_fds() {
+  (
+    fds=""
+    if [ -d "/proc/$BASHPID/fd" ]; then
+      for p in /proc/"$BASHPID"/fd/*; do fds="$fds ${p##*/}"; done
+    else
+      fds="$(seq 3 254)"
+    fi
+    for fd in $fds; do
+      case "$fd" in 0|1|2|255) continue ;; esac
+      exec {fd}>&-
+    done
+    "$@"
+  )
+}
+
+# PGTAP_DIR musi byc osiagalny dla uzytkownika SERWERA, nie tylko dla roota,
+# ktory go zaklada: initdb i postmaster pracuja jako $RUNAS i potrzebuja prawa
+# przejscia (x) przez KAZDEGO przodka sciezki. Pod katalogiem root:root 0700
+# (np. prywatnym katalogiem agenta /tmp/<agent>/...) root robi mkdir i chown
+# bez bledu, a initdb pada na "Permission denied" - po cichu, bo jego wyjscie
+# szlo do /dev/null, i jedynym objawem bylo mylace "serwer nie odpowiada".
+# Sprawdzamy dokladnie to, czego potrzebuje initdb (zapis do $PGDIR/data jako
+# $RUNAS), a przy porazce wskazujemy pierwszego przodka bez prawa przejscia.
+assert_pgdir_access() {
+  run_as "test -d $PGDIR/data -a -x $PGDIR/data -a -w $PGDIR/data" >/dev/null 2>&1 && return 0
+  local d="$PGDIR/data" chain="" blocker=""
+  while [ "$d" != "/" ] && [ "$d" != "." ]; do chain="$d $chain"; d="$(dirname "$d")"; done
+  for d in / $chain; do
+    if [ ! -e "$d" ]; then blocker="$d (nie istnieje - mkdir sie nie powiodl?)"; break; fi
+    run_as "test -x $d" >/dev/null 2>&1 || { blocker="$(ls -ld "$d")"; break; }
+  done
+  echo "BLAD: PGTAP_DIR=$PGDIR jest niedostepny dla uzytkownika '$RUNAS'"
+  echo "  (initdb i serwer pracuja jako on; potrzebuje prawa x na kazdym przodku i zapisu w $PGDIR/data)"
+  echo "  pierwsza przeszkoda: ${blocker:-$PGDIR/data (brak prawa zapisu)}"
+  echo "  Uzyj katalogu bezposrednio pod /tmp, np.: PGTAP_DIR=/tmp/$(basename "$PGDIR")"
+  exit 1
+}
+
 start_fresh() {
   pg_ctl -D "$PGDIR/data" stop -m immediate >/dev/null 2>&1 || true
   pkill -f "postgres.*-p $PGPORT" >/dev/null 2>&1 || true
   sleep 1
   rm -rf "$PGDIR"; mkdir -p "$PGDIR/data" "$PGDIR/run" "$PGDIR/mig"
   [ "$(id -un)" = "root" ] && chown -R "$RUNAS" "$PGDIR"
+  assert_pgdir_access
   # locale: domyslnie C (szybkie i wszedzie dostepne), ale `lower()` zwija wtedy
   # tylko ASCII, wiec asercje na frazach z diakrytykami zachowuja sie inaczej niz
   # w CI (baza UTF-8). PGTAP_INITDB_LOCALE pozwala to wyrownac.
-  run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=${PGTAP_INITDB_LOCALE:-C}" >/dev/null 2>&1
-  run_as "pg_ctl -D $PGDIR/data -o '-k $PGDIR/run -p $PGPORT -c listen_addresses=\"\"' -l $PGDIR/pg.log start" >/dev/null 2>&1
+  # Wyjscie do pliku, nie do /dev/null: inna porazka initdb (np. locale, ktorego
+  # system nie ma) tez ma byc nazwana wprost, a nie udawac martwy serwer.
+  run_as "initdb -D $PGDIR/data -U postgres --auth=trust -E UTF8 --locale=${PGTAP_INITDB_LOCALE:-C}" >"$PGDIR/initdb.log" 2>&1 \
+    || { echo "BLAD: initdb nie powiodl sie (pelny log: $PGDIR/initdb.log)"; tail -15 "$PGDIR/initdb.log"; exit 1; }
+  without_inherited_fds run_as "pg_ctl -D $PGDIR/data -o '-k $PGDIR/run -p $PGPORT -c listen_addresses=\"\"' -l $PGDIR/pg.log start" >/dev/null 2>&1
   for _ in $(seq 1 30); do psql -d postgres -c 'SELECT 1' >/dev/null 2>&1 && break; sleep 0.5; done
   assert_up
   psql -d postgres -tAc "SELECT count(*) FROM pg_database WHERE datname='nes'" | grep -q '^0$' \
