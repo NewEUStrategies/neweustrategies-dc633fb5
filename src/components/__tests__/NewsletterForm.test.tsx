@@ -349,7 +349,7 @@ describe("NewsletterForm - kto w ogóle widzi formularz", () => {
 // --- Konfiguracja pól --------------------------------------------------------
 
 describe("NewsletterForm - konfiguracja pól widgetu", () => {
-  it("instancja BEZ konfiguracji dostaje pełny zestaw pól, a widget z konfiguracją decyduje sam", () => {
+  it("instancja bez flag i widget ze zwykłą konfiguracją dostają pełny zestaw jak pod artykułem", () => {
     const full = renderForm();
     // imię, nazwisko, firma, stanowisko, telefon + e-mail
     expect(textInputs()).toHaveLength(4);
@@ -358,8 +358,24 @@ describe("NewsletterForm - konfiguracja pól widgetu", () => {
     full.unmount();
 
     renderForm({ widgetConfig: { showFirstName: true } });
-    expect(textInputs()).toHaveLength(1);
+    expect(textInputs()).toHaveLength(4);
+    expect(document.querySelector("input[type='tel']")).not.toBeNull();
+  });
+
+  it("jawnie wyłączone pola pozostają ukryte", () => {
+    renderForm({
+      widgetConfig: {
+        showFirstName: "0",
+        showLastName: "0",
+        showCompany: "0",
+        showPosition: "0",
+        showPhone: "0",
+      },
+    });
+
+    expect(textInputs()).toHaveLength(0);
     expect(document.querySelector("input[type='tel']")).toBeNull();
+    expect(emailInput()).toBeInTheDocument();
   });
 
   it("flagi widoczności czyta też z liczb i napisów (tak zapisuje je builder)", () => {

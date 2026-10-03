@@ -154,17 +154,15 @@ export function NewsletterForm({
     return <BuilderInlineWrapper settings={s} lang={lang} source={source} variant={variant} />;
   }
 
-  // Per-widget visibility toggles for the extra fields.
-  // Instancje spoza buildera (stopka wpisu, sidebar, archiwum, popup) nie mają
-  // własnej konfiguracji - dostają wtedy ten sam, pełny zestaw pól co widget
-  // "Dołącz do nas" na stronie głównej (imię, nazwisko, stanowisko, firma,
-  // telefon). Widgety z buildera nadal decydują same.
-  const hasCfg = Object.keys(cfg).length > 0;
-  const showFirstName = boolCfg(cfg, "showFirstName", !hasCfg);
-  const showLastName = boolCfg(cfg, "showLastName", !hasCfg);
-  const showCompany = boolCfg(cfg, "showCompany", !hasCfg);
-  const showPosition = boolCfg(cfg, "showPosition", !hasCfg);
-  const showPhone = boolCfg(cfg, "showPhone", !hasCfg);
+  // Wszystkie instancje domyślnie pokazują ten sam pełny zestaw pól co
+  // formularz pod artykułem. Zapisane przełączniki nadal mogą jawnie ukryć
+  // każde pole, więc starsze dokumenty bez nowych kluczy dostają poprawny
+  // zestaw bez migracji treści.
+  const showFirstName = boolCfg(cfg, "showFirstName", true);
+  const showLastName = boolCfg(cfg, "showLastName", true);
+  const showCompany = boolCfg(cfg, "showCompany", true);
+  const showPosition = boolCfg(cfg, "showPosition", true);
+  const showPhone = boolCfg(cfg, "showPhone", true);
   const requireFirstName = boolCfg(cfg, "requireFirstName", false);
   const requireLastName = boolCfg(cfg, "requireLastName", false);
   const requireCompany = boolCfg(cfg, "requireCompany", false);
