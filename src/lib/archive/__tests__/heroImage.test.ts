@@ -6,10 +6,13 @@
 // Po podpięciu adres trafia do CSS na KAŻDEJ publicznej stronie archiwum, więc
 // ten plik pilnuje trzech rzeczy:
 //   1. reguła `isHeroImageUrl` jest LUSTREM CHECK-u
-//      `archive_layout_settings_hero_image_url_shape` - przypadki niżej są te
-//      same, które pgTAP (`supabase/tests/archive_layout_hero_image_test.sql`)
-//      sprawdza w bazie; rozjazd oznacza, że panel przepuści wartość, którą
-//      baza odrzuci bez komunikatu (albo odwrotnie),
+//      `archive_layout_settings_hero_image_url_shape`. pgTAP
+//      (`supabase/tests/archive_layout_hero_image_test.sql`) sprawdza w bazie
+//      każdą część tej reguły: obcy schemat, brak hosta, znak zakazany (spacja,
+//      tabulator, nowa linia, DEL, odwrotny ukośnik), znaki spoza ASCII
+//      i granicę długości. Tutaj są te same przypadki i kilka dodatkowych.
+//      Rozjazd oznacza, że panel przepuści wartość, którą baza odrzuci bez
+//      komunikatu (albo odwrotnie),
 //   2. wartość CSS jest ZAWSZE cytowanym, escapowanym `url("…")` - surowe
 //      `url(${adres})` rozrywał nawias albo cudzysłów w adresie,
 //   3. „brak zdjęcia” ma jedną postać (`null`) i nie jedzie do bazy jako `""`.

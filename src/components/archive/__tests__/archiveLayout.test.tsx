@@ -550,7 +550,47 @@ describe("ArchiveHeader", () => {
     );
     expect(container.innerHTML).not.toContain("hero.jpg");
   });
+
+  it.each(["gradient", "solid", "image", "mesh", "pattern", "minimal"] as const)(
+    "tło %s maluje się w kontekście nakładania nagłówka, nie pod tłem strony",
+    (hero_bg_style) => {
+      const { container } = render(
+        <ArchiveHeader
+          kind="category"
+          taxonomyId="t1"
+          name="Gospodarka"
+          description={null}
+          lang="pl"
+          settings={settings({
+            hero_bg_style,
+            hero_image_url: "https://cdn.example/archiwum/hero.jpg",
+          })}
+        />,
+      );
+      expectHeroLayersInHeaderStackingContext(container);
+    },
+  );
 });
+
+/**
+ * Warstwy tła nagłówka (`absolute -z-10`) muszą malować się w WŁASNYM
+ * kontekście nakładania nagłówka. jsdom nie liczy malowania, więc kontrakt
+ * czytamy z klas: każda warstwa leży bezpośrednio w `<header>`, a ten ma
+ * `isolate`. Bez tego ujemne warstwy schodzą do kontekstu przodka i malują się
+ * POD nieprzezroczystym tłem wrappera wariantu (`bg-background`,
+ * `bg-neutral-950`) - zmierzone w Chromium na skompilowanym CSS repo: zdjęcie
+ * było niewidoczne w pięciu z sześciu układów na desktopie, we wszystkich na
+ * telefonie i w podglądzie panelu, choć element z poprawnym stylem był w DOM.
+ */
+function expectHeroLayersInHeaderStackingContext(container: HTMLElement) {
+  const layers = Array.from(container.querySelectorAll(".-z-10"));
+  expect(layers.length).toBeGreaterThan(0);
+  for (const layer of layers) {
+    const header = layer.parentElement;
+    expect(header?.tagName).toBe("HEADER");
+    expect(header?.classList.contains("isolate")).toBe(true);
+  }
+}
 
 /** Atrybut `style` warstwy zdjęcia w HTML-u z serwera (przed CSSOM przeglądarki). */
 function ssrHeroImageStyle(imageUrl: string): string | null {
@@ -1073,6 +1113,10 @@ describe("sześć wariantów archiwum", () => {
     const layer = container.querySelector("[data-hero-image]");
     expect(layer).not.toBeNull();
     expect(layer?.getAttribute("style")).toContain("https://cdn.example/archiwum/hero.jpg");
+    // Obecność w DOM to za mało: wrapper KAŻDEGO wariantu ma nieprzezroczyste
+    // tło, więc warstwa bez własnego kontekstu nagłówka była w DOM, ale nie
+    // na ekranie.
+    expectHeroLayersInHeaderStackingContext(container);
   });
 
   it("wariant Hero pokazuje licznik wpisów na stronie", () => {
@@ -1157,6 +1201,7 @@ describe("podgląd na żywo w panelu - zdjęcie nagłówka", () => {
       expect(container.querySelector("[data-hero-image]")?.getAttribute("style")).toContain(
         "https://cdn.example/archiwum/podglad.jpg",
       );
+      expectHeroLayersInHeaderStackingContext(container);
     },
   );
 });

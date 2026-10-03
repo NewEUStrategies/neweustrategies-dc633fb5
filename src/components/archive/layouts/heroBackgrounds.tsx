@@ -11,6 +11,8 @@ export function HeroBackground({
   imageUrl?: string | null;
   className?: string;
 }) {
+  // `-z-10` działa tylko w rodzicu z WŁASNYM kontekstem nakładania (`isolate`
+  // w `ArchiveHeader`); bez niego warstwa chowa się pod tłem strony.
   const base = `absolute inset-0 -z-10 ${className}`;
   switch (style) {
     case "gradient":

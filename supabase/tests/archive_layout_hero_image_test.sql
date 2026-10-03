@@ -12,8 +12,9 @@
 --     nie zmieniają wyglądu;
 --   * reguły adresu 1:1 z `isHeroImageUrl` (`src/lib/archive/heroImage.ts`):
 --     odrzuca `javascript:`, `data:`, adres bez schematu ('//host'), '/\host',
---     biały znak i nową linię (rozerwanie wartości CSS) oraz wartość ponad
---     2048 znaków; przyjmuje https, ścieżkę w serwisie, nawiasy i NULL;
+--     wiodącą i wewnętrzną spację, tabulator, nową linię (rozerwanie wartości
+--     CSS), DEL oraz wartość ponad 2048 znaków; przyjmuje https, ścieżkę
+--     w serwisie, nawiasy, znaki spoza ASCII i NULL;
 --   * tego, że kolumna NIE zmieniła uprawnień: anon czyta wiersz własnego
 --     tenanta (polityka „readable by tenant scope”) i nie może go zmienić,
 --     admin zapisuje adres DOKŁADNIE ścieżką panelu (upsert po
@@ -26,7 +27,7 @@
 -- ręczne wstawienie profilu padłoby na kluczu głównym przed pierwszą asercją.
 
 BEGIN;
-SELECT plan(29);
+SELECT plan(33);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -137,6 +138,28 @@ SELECT throws_ok(
   '23514', NULL,
   'nowa linia odrzucona - nie da się nią rozerwać wartości CSS'
 );
+-- Klasa znaków zakazanych `[\x01-\x20\x7f\\]` W ŚRODKU adresu. Wiodącą spację
+-- odrzuca już początek reguły, więc bez tych trzech przypadków zawężenie klasy
+-- (np. do `[\x01-\x1f\\]`) przeszłoby niezauważone, a panel (`isHeroImageUrl`)
+-- dalej by je odrzucał - dwie strony mówiłyby co innego.
+SELECT throws_ok(
+  $$UPDATE public.archive_layout_settings SET hero_image_url = 'https://cdn.example/moje zdjęcie.jpg'
+     WHERE id = 'b7e00000-2222-4000-8000-0000000000a1'$$,
+  '23514', NULL,
+  'spacja w środku adresu odrzucona'
+);
+SELECT throws_ok(
+  $$UPDATE public.archive_layout_settings SET hero_image_url = E'/media/a\tb.jpg'
+     WHERE id = 'b7e00000-2222-4000-8000-0000000000a1'$$,
+  '23514', NULL,
+  'tabulator w środku adresu odrzucony'
+);
+SELECT throws_ok(
+  $$UPDATE public.archive_layout_settings SET hero_image_url = '/media/a' || chr(127) || 'b.jpg'
+     WHERE id = 'b7e00000-2222-4000-8000-0000000000a1'$$,
+  '23514', NULL,
+  'znak DEL w środku adresu odrzucony'
+);
 SELECT throws_ok(
   $$UPDATE public.archive_layout_settings SET hero_image_url = 'https://cdn.example/' || repeat('a', 2029)
      WHERE id = 'b7e00000-2222-4000-8000-0000000000a1'$$,
@@ -156,6 +179,13 @@ SELECT lives_ok(
   $$UPDATE public.archive_layout_settings SET hero_image_url = '/media/archiwum/hero(1).jpg'
      WHERE id = 'b7e00000-2222-4000-8000-0000000000a1'$$,
   'ścieżka w serwisie z nawiasami przyjęta - render cytuje i escapuje url("…")'
+);
+-- Klasa zakazana jest jawnym zakresem ASCII, nie klasą zależną od locale -
+-- polskie znaki w nazwie pliku przechodzą tak samo jak w panelu.
+SELECT lives_ok(
+  $$UPDATE public.archive_layout_settings SET hero_image_url = '/media/zdjęcie-łąka.jpg'
+     WHERE id = 'b7e00000-2222-4000-8000-0000000000a1'$$,
+  'znaki spoza ASCII w ścieżce przyjęte'
 );
 SELECT lives_ok(
   $$UPDATE public.archive_layout_settings SET hero_image_url = NULL
