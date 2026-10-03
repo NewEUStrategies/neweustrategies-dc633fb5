@@ -135,7 +135,12 @@ const SOURCES: readonly TickerSource[] = ["trending", "latest", "pinned", "selec
 const MODES: readonly TickerMode[] = ["scroll", "rotate", "fade", "slide", "flip", "typewriter"];
 const ICON_ANIMS: readonly IconAnimation[] = ["none", "pulse", "flicker", "spin", "wave"];
 const MIX_FILLS: readonly MixedFill[] = ["trending", "latest"];
-const LAYOUTS: readonly LayoutStyle[] = [
+/**
+ * Wszystkie skórki paska w runtime. Eksport, bo po tej liście iterują testy
+ * geometrii (`components/header/headerGeometry.ts`): skórka dopisana tutaj bez
+ * wpisu w mapowaniu ramek oblewa je, zamiast dostać rezerwę innej wysokości.
+ */
+export const LAYOUT_STYLES: readonly LayoutStyle[] = [
   "classic",
   "badge",
   "glassMarquee",
@@ -194,7 +199,7 @@ export function normalizeTickerConfig(raw: unknown): TickerConfig {
     enabled: safeBool(r.enabled, DEFAULT_TICKER_CONFIG.enabled ?? true),
     source: safeEnum<TickerSource>(r.source, SOURCES, "trending"),
     mode: safeEnum<TickerMode>(r.mode, MODES, "scroll"),
-    layoutStyle: safeEnum<LayoutStyle>(r.layoutStyle, LAYOUTS, "classic"),
+    layoutStyle: safeEnum<LayoutStyle>(r.layoutStyle, LAYOUT_STYLES, "classic"),
     days: Math.max(1, Math.min(90, safeNumber(r.days, 7))),
     limit: Math.max(1, Math.min(50, safeNumber(r.limit, 8))),
     visibleCount: Math.max(1, Math.min(5, safeNumber(r.visibleCount, 1))),
