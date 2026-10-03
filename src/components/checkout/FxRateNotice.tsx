@@ -30,15 +30,12 @@ async function fetchFxStatus(): Promise<FxStatusResponse | null> {
   }
 }
 
+// Data i godzina idą przez TEN SAM `formatDate`, czyli przez strefę serwisu.
+// `toLocaleTimeString` bierze strefę przeglądarki, więc kupujący spoza
+// Warszawy dostawał datę z jednej doby i godzinę z drugiej.
 function formatTime(iso: string, lang: string): string {
   const d = new Date(iso);
-  return `${formatDate(d, lang)}, ${d.toLocaleTimeString(
-    lang.startsWith("en") ? "en-GB" : "pl-PL",
-    {
-      hour: "2-digit",
-      minute: "2-digit",
-    },
-  )}`;
+  return `${formatDate(d, lang)}, ${formatDate(d, lang, { hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export function FxRateNotice({ displayCurrency }: { displayCurrency: "PLN" | "EUR" }) {

@@ -224,6 +224,31 @@ describe("trasa /checkout/success - finalizacja i cache uprawnień", () => {
     expect(h.finalize).not.toHaveBeenCalled();
   });
 
+  it("zrzuca cache uprawnień także wtedy, gdy kupujący opuści stronę przed końcem finalizacji", async () => {
+    // QueryClient żyje w całej aplikacji, dłużej niż strona potwierdzenia, a
+    // domyślna świeżość routera to 5 min. Kupujący, który kliknie „Wróć do
+    // artykułu", zanim `finalizeCheckout` odpowie, nie może dostać z cache
+    // paywalla na treści, za którą właśnie zapłacił.
+    let release: () => void = () => undefined;
+    h.finalize.mockImplementation(
+      () =>
+        new Promise<{ ok: true }>((resolve) => {
+          release = () => resolve({ ok: true });
+        }),
+    );
+    const { queryClient, keys } = spyOnInvalidation();
+    await mount(`${PATH}?order=ord_77&mock=1`, queryClient);
+    await waitFor(() => expect(h.finalize).toHaveBeenCalledTimes(1));
+
+    cleanup();
+    expect(keys()).not.toContainEqual(billingKeys.currentTierAll());
+    release();
+
+    await waitFor(() => {
+      for (const key of ENTITLEMENT_KEYS) expect(keys()).toContainEqual(key);
+    });
+  });
+
   it("awaria finalizacji nie psuje potwierdzenia ani nie blokuje inwalidacji", async () => {
     h.finalize.mockRejectedValue(new Error("order already closed"));
     const { queryClient, keys } = spyOnInvalidation();

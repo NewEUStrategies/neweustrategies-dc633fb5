@@ -72,7 +72,6 @@ vi.mock("@tanstack/react-start", async (importOriginal) => {
 });
 vi.mock("@/lib/billing/stripeCheckout.functions", () => ({
   createPlanCheckoutSession: (args: unknown) => h.planCheckout(args),
-  createAdhocCheckoutSession: vi.fn(),
 }));
 // Kurs NBP: moduł sam strzela do api.nbp.pl przy imporcie w przeglądarce, a test
 // ma być deterministyczny i BEZ sieci - stały kurs 4,00 daje jawne przeliczenie

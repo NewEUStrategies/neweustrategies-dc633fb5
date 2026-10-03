@@ -73,6 +73,10 @@ async function settled(queryClient: QueryClient): Promise<void> {
   );
 }
 
+// Strefa procesu przed testem - test godziny przestawia ją na strefę „przeglądarki"
+// spoza Warszawy, więc trzeba ją oddać następnym przypadkom.
+const ORIGINAL_TZ = process.env.TZ;
+
 beforeEach(() => {
   h.lang = "pl";
   fetchMock.mockReset();
@@ -82,6 +86,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+  else process.env.TZ = ORIGINAL_TZ;
 });
 
 describe("FxRateNotice - źródło kursu", () => {
@@ -167,14 +173,38 @@ describe("FxRateNotice - źródło kursu", () => {
     expect(status).not.toHaveTextContent("checkout.fx.fetchedAt");
   });
 
+  it("godzina pobrania jest w tej samej strefie co data, a nie w strefie przeglądarki", async () => {
+    // 22:30 UTC 13 sierpnia to 00:30 CEST 14 sierpnia. Data idzie przez
+    // `formatDate` (strefa serwisu), więc godzina musi iść tą samą drogą -
+    // inaczej kupujący spoza Warszawy dostaje datę z jednej doby i godzinę
+    // z drugiej.
+    // Strefa „przeglądarki" jest JAWNA: na maszynie w strefie Warszawy obie
+    // drogi dają to samo i test nie odróżniłby naprawy od regresji. W Nowym
+    // Jorku ta sama chwila to 18:30 13 sierpnia.
+    process.env.TZ = "America/New_York";
+    respond({
+      ...FRESH,
+      fetchedAt: "2026-08-13T22:30:00.000Z",
+      lastSuccessAt: "2026-08-13T22:30:00.000Z",
+    });
+    mount();
+
+    expect(await screen.findByText("checkout.fx.freshTitle")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "checkout.fx.fetchedAt(when=14 sierpnia 2026, 00:30)",
+    );
+  });
+
   it("po angielsku data pobrania jest po angielsku", async () => {
     h.lang = "en";
     respond(FRESH);
     mount();
 
     expect(await screen.findByText("checkout.fx.freshTitle")).toBeInTheDocument();
+    // 10:00 UTC to 12:00 w Warszawie - godzina też idzie przez strefę serwisu,
+    // w zapisie 24-godzinnym en-GB (konwencja domu, nie en-US „12:00 PM").
     expect(screen.getByRole("status")).toHaveTextContent(
-      /checkout\.fx\.fetchedAt\(when=14 August 2026, \d{2}:\d{2}\)/,
+      "checkout.fx.fetchedAt(when=14 August 2026, 12:00)",
     );
   });
 });

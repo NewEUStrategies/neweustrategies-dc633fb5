@@ -6,8 +6,9 @@
 // parametrach sesji, więc lista nie może rozjechać się z rzeczywistością:
 //   * pole kodu promocyjnego znika, gdy zamówienie niesie już rabat kuponu B2B
 //     (Stripe nie łączy `discounts` z `allow_promotion_codes`),
-//   * wskazówka o automatycznym VAT pojawia się tylko na płaszczyźnie
-//     sprzedawcy (własny Stripe Tax), bo tylko tam `automatic_tax` istnieje,
+//   * wskazówka o automatycznym VAT należy się na OBU płaszczyznach: w MoR
+//     podatek nalicza operator, a płaszczyzna sprzedawcy z definicji niesie
+//     `automatic_tax` (to ta flaga ją wybiera - `checkoutBillingPlane`),
 //   * wskazówka o fakturze uwzględnia, że subskrypcja fakturowana jest zawsze,
 //     a operator w trybie MoR wystawia dokument samodzielnie.
 import { useTranslation } from "react-i18next";
@@ -46,7 +47,10 @@ export function CheckoutAssurances({
 
   const items: string[] = [];
   if (params.allow_promotion_codes) items.push(t("checkout.promoHint"));
-  if (managed || params.automatic_tax?.enabled) items.push(t("checkout.taxHint"));
+  // VAT bez warunku: płaszczyznę sprzedawcy wybiera właśnie `automatic_tax`,
+  // więc każda sesja poza MoR niesie `automatic_tax.enabled` - a w MoR podatek
+  // liczy operator. Lista ma więc zawsze co najmniej tę jedną pozycję.
+  items.push(t("checkout.taxHint"));
   if (managed || params.tax_id_collection?.enabled) items.push(t("checkout.taxIdHint"));
   // Fakturę dostaje kupujący w obu płaszczyznach - wystawia ją albo Stripe jako
   // operator rozliczeniowy (MoR), albo sesja z `invoice_creation`; subskrypcja
@@ -54,7 +58,6 @@ export function CheckoutAssurances({
   // techniczną obecnością parametru w sesji.
   if (managed || settings.invoice_creation || mode === "subscription")
     items.push(t("checkout.invoiceHint"));
-  if (items.length === 0) return null;
 
   return (
     <ul className={className ?? "space-y-1 border-t pt-3 text-xs text-muted-foreground"}>

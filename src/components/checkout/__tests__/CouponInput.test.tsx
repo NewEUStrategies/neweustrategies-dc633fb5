@@ -266,7 +266,7 @@ describe("zdjecie kuponu i klawisze inne niz Enter", () => {
     expect(await screen.findByText("-10%")).toBeInTheDocument();
 
     // Po sukcesie jedynym przyciskiem jest „zdejmij kupon".
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(screen.getByRole("button", { name: "coupon.remove" }));
 
     // Rodzic MUSI dostac null - inaczej kasa wyslalaby kod, ktory kupujacy zdjal,
     // i pobrala kwote po rabacie, ktorego juz nie widac.
@@ -276,6 +276,18 @@ describe("zdjecie kuponu i klawisze inne niz Enter", () => {
     expect(screen.getByRole("button", { name: "coupon.apply" })).toBeDisabled();
     // Zdjecie kuponu nie zjada proby z limitu kodow.
     expect(h.preview).toHaveBeenCalledTimes(1);
+  });
+
+  it("przycisk zdjecia kuponu ma dostepna nazwe - czytnik ekranu nie slyszy samego „przycisk”", async () => {
+    // Przycisk jest sama ikona X obok kwoty rabatu. Bez nazwy kupujacy
+    // korzystajacy z czytnika ekranu nie wie, ze ten przycisk zdejmuje rabat.
+    h.preview.mockResolvedValue(RABAT_10);
+    kupon();
+    wpisz("rabat-10");
+    enter();
+    expect(await screen.findByText("-10%")).toBeInTheDocument();
+
+    expect(screen.getByRole("button", { name: "coupon.remove" })).toBeInTheDocument();
   });
 
   it("pisanie kodu (klawisze inne niz Enter) nie wysyla pytania do serwera", async () => {
