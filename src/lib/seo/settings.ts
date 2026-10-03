@@ -132,6 +132,15 @@ export function siteNameOverride(settings: SeoSettings): string {
   return settings.site_name.trim();
 }
 
+/**
+ * Efektywna nazwa serwisu na powierzchniach maszynowych: redakcyjna albo stała
+ * marki. Jedno wyrażenie dla robots.txt i llms.txt (przez `robotsUsagePolicy`),
+ * żeby warunek atrybucji obu plików jednego hosta nazywał to samo źródło.
+ */
+export function effectiveSiteName(settings: SeoSettings): string {
+  return siteNameOverride(settings) || SITE_NAME;
+}
+
 /** Redakcyjny tytuł serwisu dla języka ("" = użyj fallbacku marki). */
 export function siteTitleOverride(settings: SeoSettings, lang: "pl" | "en"): string {
   return (lang === "en" ? settings.site_title_en : settings.site_title_pl).trim();
@@ -197,12 +206,23 @@ export function aiCrawlerGroups(settings: SeoSettings): RobotsGroup[] {
     groups.push({ agents: AI_SEARCH_CRAWLERS, disallow: ["/"] });
   }
   if (settings.ai_training_crawlers_allowed) {
+    // `ai-input` grupy treningowej idzie za przełącznikiem CYTOWANIA, nie jest
+    // stałym `yes`: bot dopasowuje wyłącznie swoją grupę, więc stałe
+    // `ai-input=yes` dawało GPTBotowi i spółce zgodę na użycie treści
+    // w odpowiedziach AI, której redakcja odmówiła (grupa `*` i llms.txt
+    // mówiły `ai-input=no`) - plik przeczył sam sobie.
+    const aiInput = settings.ai_search_crawlers_allowed ? "yes" : "no";
     groups.push({
       agents: AI_TRAINING_CRAWLERS,
       allow: ["/"],
       disallow: ROBOTS_DEFAULT_DISALLOW,
-      contentSignal: "search=yes, ai-input=yes, ai-train=yes",
-      comments: ["Training crawlers: allowed under the attribution terms above."],
+      contentSignal: `search=yes, ai-input=${aiInput}, ai-train=yes`,
+      comments: settings.ai_search_crawlers_allowed
+        ? ["Training crawlers: allowed under the attribution terms above."]
+        : [
+            "Training crawlers: training allowed under the attribution terms above;",
+            "use in AI answers is not permitted (ai-input=no).",
+          ],
     });
   } else {
     groups.push({ agents: AI_TRAINING_CRAWLERS, disallow: ["/"] });
@@ -211,13 +231,18 @@ export function aiCrawlerGroups(settings: SeoSettings): RobotsGroup[] {
 }
 
 /**
- * Warunki wykorzystania treści dla robots.txt - wprost z redakcyjnych
- * przełączników, żeby plik nie obiecywał czegoś innego niż panel.
+ * Warunki wykorzystania treści - wprost z redakcyjnych przełączników, żeby plik
+ * nie obiecywał czegoś innego niż panel. JEDNO źródło dla robots.txt
+ * (`renderUsagePolicy` + `Content-Signal`) i llms.txt (nazwa źródła i zgody
+ * w bloku warunków): oba pliki jednego hosta nie mogą stawiać dwóch różnych
+ * warunków atrybucji ani udzielać zgody, której drugi odmawia.
  */
 export function robotsUsagePolicy(settings: SeoSettings): RobotsUsagePolicy {
   return {
-    siteName: settings.site_name.trim() || SITE_NAME,
-    termsPath: "/llms.txt",
+    siteName: effectiveSiteName(settings),
+    // Wyłączony llms.txt odpowiada 404 - robots.txt nie może go wskazywać
+    // jako pełnych warunków.
+    termsPath: settings.llms_txt_enabled ? "/llms.txt" : null,
     trainingAllowed: settings.ai_training_crawlers_allowed,
     aiInputAllowed: settings.ai_search_crawlers_allowed,
   };
