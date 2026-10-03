@@ -302,7 +302,7 @@ SELECT ok(
   AND NOT has_function_privilege('authenticated', 'public.analytics_search_phrase_hash(uuid, text)', 'EXECUTE')
   AND NOT has_function_privilege('anon', 'public.analytics_search_hash_backfill()', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public.analytics_search_hash_backfill()', 'EXECUTE'),
-  'skrot i backfill niedostepne dla anon i authenticated - admin czytajacy skroty nie ma wyroczni slownikowej'
+  'skrot i backfill niedostepne dla anon i authenticated - admin czytajacy skroty nie ma hurtowej wyroczni slownikowej (wolna przez ingest zostaje - ryzyko przyjete w migracji)'
 );
 
 SELECT ok(

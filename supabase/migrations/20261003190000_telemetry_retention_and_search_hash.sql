@@ -29,7 +29,8 @@
 -- sha256: fraz jest malo i sa krotkie, wiec niesolony skrot odwraca sie
 -- slownikiem w minuty. Pieprz per najemca dodatkowo sprawia, ze ta sama fraza
 -- u dwoch najemcow daje dwa rozne skroty - zrzut jednego najemcy nie pozwala
--- korelowac wyszukiwan z drugim.
+-- korelowac wyszukiwan z drugim. Pieprz zamyka slownik OFFLINE; slownik online
+-- przez publiczny ingest zostaje (RYZYKO PRZYJETE w BEZPIECZENSTWO nizej).
 --
 -- CO ROBI TA MIGRACJA.
 --   * `analytics_search_peppers` - jeden 32-bajtowy sekret na najemce. RLS
@@ -72,10 +73,27 @@
 --
 -- BEZPIECZENSTWO.
 --   * Funkcja skrotu NIE jest dostepna dla authenticated: admin i redaktor
---     czytaja skroty przez RLS, wiec z EXECUTE mieliby wyrocznie slownikowa
---     („czy ktos szukal X?" = jedno wywolanie). EXECUTE ma tylko service_role.
---     Trigger nie potrzebuje EXECUTE wolajacego - funkcja triggera jest
---     SECURITY DEFINER.
+--     czytaja skroty przez RLS, wiec z EXECUTE mieliby HURTOWA wyrocznie
+--     slownikowa (tysiace fraz w jednym zapytaniu). EXECUTE ma tylko
+--     service_role. Trigger nie potrzebuje EXECUTE wolajacego - funkcja
+--     triggera jest SECURITY DEFINER.
+--   * RYZYKO PRZYJETE: ta sama wyrocznia zostaje, tylko WOLNIEJSZA - przez
+--     publiczny ingest. Skrot jest deterministyczny per najemca, POST
+--     /api/public/track przyjmuje dowolna fraze klienta (do 40 zdarzen na
+--     zadanie), a trigger skraca ja tym samym pieprzem. Admin albo redaktor
+--     potwierdzi wiec zgadywana fraze („czy ktos szukal X?" = jeden beacon
+--     + jeden SELECT, wynik obok `anon_id` szukajacego), a slownik zbuduje
+--     w tempie limitera ingestu: ~80 fraz/s z jednego IP (120 zadan zrywu,
+--     2 zadania/s, licznik per izolat - wiecej izolatow = wiecej). REVOKE
+--     wyzej zamyka tylko droge najszybsza. Skrot chroni przed CZYTANIEM fraz
+--     bez zgadywania, przed odwroceniem zrzutu tabeli bez pieprzu i przed
+--     korelacja miedzy najemcami - NIE przed celowym sprawdzeniem frazy przez
+--     role, ktora czyta skroty i moze pisac przez ingest. To nie regresja
+--     (wczesniej fraza lezala jawnie). Utwardzenie poza ta migracja: rotacja
+--     pieprzu w okresach (klucz per najemca per miesiac, wersja w prefiksie),
+--     zeby slownik zbudowany dzis nie czytal historii, albo odciecie
+--     `entity_id` wierszy wyszukiwania od odczytu admina i redaktora (zaden
+--     czytnik go nie wyswietla).
 --   * Najemca wiersza to `NEW.tenant_id` - wartosc juz rozstrzygnieta przez
 --     ingest z hosta zadania; trigger nie wyprowadza najemcy sam i nie sprawdza
 --     rol (bramka `check:sql-tenant-scope`).
@@ -89,6 +107,22 @@
 -- FUNCTION, DROP TRIGGER IF EXISTS + CREATE TRIGGER, bezstanowe ACL, backfill
 -- z filtrem pomijajacym wiersze przepisane, zadanie cron wyrejestrowane
 -- i rejestrowane od nowa.
+--
+-- BLOKADY PRZY WDROZENIU (koszt NIEZMIERZONY na danych produkcyjnych). Plik
+-- biegnie w jednej transakcji, a DROP TRIGGER IF EXISTS bierze na
+-- `analytics_events` ACCESS EXCLUSIVE (takze gdy triggera jeszcze nie ma),
+-- CREATE TRIGGER doklada SHARE ROW EXCLUSIVE; obie trzyma do COMMIT. Od
+-- sekcji 3 do konca pliku KAZDY INSERT ingestu (/api/public/track czeka na
+-- wstawienie) i kazdy odczyt pulpitu z tej tabeli stoi w kolejce - przez caly
+-- backfill (pelny skan DISTINCT + UPDATE per najemca, czas proporcjonalny do
+-- liczby wierszy), budowe indeksu `web_vitals` i reszte pliku. Gorna granica:
+-- tabela istnieje od 2026-07-22 (ok. 2,5 miesiaca zdarzen), wiersze
+-- wyszukiwania to ich ulamek. Kolejnosc trigger -> backfill jest celowa:
+-- odwrotna zostawilaby jawny kazdy wiersz wstawiony po migawce backfillu,
+-- a przed triggerem. Gdyby produkcyjna liczba wierszy czynila to wstrzymanie
+-- nie do przyjecia, wywolanie backfillu mozna przeniesc do osobnej, pozniejszej
+-- migracji albo kroku operatora: trigger kryje juz nowe wiersze, a backfill
+-- jest idempotentny.
 --
 -- Dowod: supabase/tests/telemetry_retention_and_search_hash_test.sql.
 -- ============================================================================
@@ -174,7 +208,7 @@ END;
 $fn$;
 
 COMMENT ON FUNCTION public.analytics_search_phrase_hash(uuid, text) IS
-  'Skrot frazy wyszukiwania: sq1: + hex(HMAC-SHA256(fraza po lower, zwinieciu bialych znakow i btrim; pieprz najemcy)). Pieprz zakladany leniwie. Pusta fraza albo NULL -> NULL. Tylko service_role: dla rol czytajacych skroty bylaby wyrocznia slownikowa.';
+  'Skrot frazy wyszukiwania: sq1: + hex(HMAC-SHA256(fraza po lower, zwinieciu bialych znakow i btrim; pieprz najemcy)). Pieprz zakladany leniwie. Pusta fraza albo NULL -> NULL. Tylko service_role: dla rol czytajacych skroty bylaby hurtowa wyrocznia slownikowa. Wolniejsza zostaje przez publiczny ingest (trigger skraca dowolna fraze klienta tym samym pieprzem) - ryzyko przyjete, opis w migracji 20261003190000.';
 
 REVOKE ALL ON FUNCTION public.analytics_search_phrase_hash(uuid, text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.analytics_search_phrase_hash(uuid, text) TO service_role;
@@ -246,8 +280,14 @@ CREATE TRIGGER analytics_events_search_hash_trg
 -- zostawilaby jawne frazy wszystkich. Najemca, ktorego partia padla, traci
 -- frazy (NULL) - prywatnosc wygrywa z grupowaniem tak samo jak w triggerze.
 --
--- LOCKS: ROW EXCLUSIVE na analytics_events (blokady wierszy wyszukiwania tylko
--- na czas partii); ingest odslon nie czeka.
+-- BLOKADY. Wywolanie w TEJ migracji (nizej) biegnie pod ACCESS EXCLUSIVE na
+-- `analytics_events` z DROP TRIGGER (plus SHARE ROW EXCLUSIVE z CREATE
+-- TRIGGER), trzymanym do COMMIT calego pliku: ingest i odczyty pulpitu z tej
+-- tabeli czekaja przez caly backfill (patrz naglowek, BLOKADY PRZY
+-- WDROZENIU). Dopiero pozniejsze, samodzielne wywolanie operatora bierze tylko
+-- ROW EXCLUSIVE i blokady przepisywanych wierszy wyszukiwania (do konca jego
+-- transakcji, nie partii - podtransakcja ich nie zwalnia); wtedy INSERT
+-- ingestu nie czeka, a retencja omija te wiersze przez SKIP LOCKED.
 CREATE OR REPLACE FUNCTION public.analytics_search_hash_backfill()
 RETURNS integer
 LANGUAGE plpgsql
@@ -309,7 +349,8 @@ GRANT EXECUTE ON FUNCTION public.analytics_search_hash_backfill() TO service_rol
 
 -- Jednorazowe przepisanie. Bez zewnetrznego EXCEPTION: porazki sa juz lapane
 -- per najemca w funkcji, a blad poza nimi (np. brak tabeli) ma wywrocic
--- migracje, a nie zostawic jawnych fraz z zielonym wdrozeniem.
+-- migracje, a nie zostawic jawnych fraz z zielonym wdrozeniem. Biegnie pod
+-- blokada z sekcji 3 - ingest `analytics_events` czeka do COMMIT pliku.
 SELECT public.analytics_search_hash_backfill();
 
 -- ----------------------------------------------------------------------------
@@ -317,7 +358,9 @@ SELECT public.analytics_search_hash_backfill();
 -- ----------------------------------------------------------------------------
 -- `analytics_events_created_at_idx` i `client_errors_created_idx` juz istnieja
 -- (malejace - Postgres skanuje je wstecz rownie tanio). Bez CONCURRENTLY, jak
--- reszta repo: migracja biegnie w transakcji.
+-- reszta repo: migracja biegnie w transakcji. Budowa trzyma SHARE na
+-- `web_vitals` (ingest RUM czeka do COMMIT) i wydluza wstrzymanie
+-- `analytics_events` z sekcji 3 o swoj czas.
 CREATE INDEX IF NOT EXISTS web_vitals_created_at_idx
   ON public.web_vitals (created_at);
 
