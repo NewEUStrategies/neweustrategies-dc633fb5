@@ -20,11 +20,12 @@
 //    strony - zero). Test pilnuje, ze nazwy autorow rozwiazuja sie na
 //    identyfikatory i wchodza do `.in("author_id", ...)`.
 //
-// 3. ALGEBRA include/exclude JEST PRZECIECIEM, NIE SUMA. Kategorie i tagi
-//    podane naraz musza sie PRZECIAC; puste przeciecie konczy sie [] i wtedy
-//    zapytanie o wpisy NIE WYCHODZI (lancuch jest juz zbudowany, ale nigdy
-//    nie zostaje wyslany - dlatego liczymy wywolania respondera, a nie
-//    zapisane lancuchy).
+// 3. ALGEBRA include/exclude JEST KONIUNKCJA, NIE SUMA - i od 03.10.2026
+//    liczy ja BAZA (osadzenia `!inner()` i anty-zlaczenia `alias=is.null`,
+//    `lib/queries/taxonomyPivot.ts`), bez przewozenia id wpisow przez adres
+//    URL. Slug nietrafiajacy w zaden termin konczy sie [] i wtedy zapytanie
+//    o wpisy NIE WYCHODZI - liczymy wywolania respondera, a nie zapisane
+//    lancuchy.
 //
 // 4. ODMOWA ODCZYTU WPISOW JEST CELOWO POLYKANA. Naglowek fabryki
 //    (ratedListQuery.ts:353-354) nazywa to swiadomym wyborem: pusta lista jest
@@ -391,22 +392,33 @@ describe("lista oceniana: algebra include/exclude", () => {
     ).toHaveLength(2);
   });
 
-  it("sam filtr kategorii albo sam filtr tagow USTAWIA zbior dozwolonych id", async () => {
+  it("sam filtr kategorii albo sam filtr tagow ZAWEZA zapytanie osadzeniem po id TERMINU", async () => {
     licznikPostow();
-    db().setResponse("post_categories", () => ok([{ post_id: "p-1" }]));
-    db().setResponse("post_tags", () => ok([{ post_id: "p-7" }]));
+    db().setResponse("categories", () => ok([{ id: "c-1", slug: "ue" }]));
+    db().setResponse("tags", () => ok([{ id: "t-7", slug: "klimat" }]));
 
     await run(ratedListQueryOptions({ source: "dynamic", categoriesFilter: "ue" }, "pl"));
-    expect(inArgs(db().lastChain("posts"), "id")).toEqual(["p-1"]);
+    expect(String(db().lastChain("posts")?.argsOf("select")?.[0])).toContain(
+      "tx_inc_category_0:post_categories!inner()",
+    );
+    expect(inArgs(db().lastChain("posts"), "tx_inc_category_0.category_id")).toEqual(["c-1"]);
+    expect(inArgs(db().lastChain("posts"), "id")).toBeUndefined();
 
     await run(ratedListQueryOptions({ source: "dynamic", tagsFilter: "klimat" }, "pl"));
-    expect(inArgs(db().lastChain("posts"), "id")).toEqual(["p-7"]);
+    expect(String(db().lastChain("posts")?.argsOf("select")?.[0])).toContain(
+      "tx_inc_tag_0:post_tags!inner()",
+    );
+    expect(inArgs(db().lastChain("posts"), "tx_inc_tag_0.tag_id")).toEqual(["t-7"]);
+    expect(inArgs(db().lastChain("posts"), "id")).toBeUndefined();
+    // Tabele posrednie nie sa juz czytane ANI RAZU.
+    expect(db().chainsFor("post_categories")).toHaveLength(0);
+    expect(db().chainsFor("post_tags")).toHaveLength(0);
   });
 
-  it("kategorie i tagi naraz sie PRZECINAJA, a puste przeciecie nie wysyla zapytania", async () => {
+  it("kategorie i tagi naraz to KONIUNKCJA w bazie, a nietrafiony slug nie wysyla zapytania", async () => {
     const ilePostow = licznikPostow();
-    db().setResponse("post_categories", () => ok([{ post_id: "p-1" }, { post_id: "p-2" }]));
-    db().setResponse("post_tags", () => ok([{ post_id: "p-9" }]));
+    db().setResponse("categories", () => ok([{ id: "c-1", slug: "ue" }]));
+    db().setResponse("tags", () => ok([]));
 
     await expect(
       run(
@@ -416,17 +428,21 @@ describe("lista oceniana: algebra include/exclude", () => {
         ),
       ),
     ).resolves.toEqual([]);
-    // Lancuch `posts` jest juz zbudowany, ale NIGDY nie zostal wyslany.
+    // Tag nie trafil w zaden termin - pusto z definicji, zapytanie NIE wyszlo.
     expect(ilePostow()).toBe(0);
 
-    db().setResponse("post_tags", () => ok([{ post_id: "p-2" }]));
+    db().setResponse("tags", () => ok([{ id: "t-2", slug: "klimat" }]));
     await run(
       ratedListQueryOptions(
         { source: "dynamic", categoriesFilter: "ue", tagsFilter: "klimat" },
         "pl",
       ),
     );
-    expect(inArgs(db().lastChain("posts"), "id")).toEqual(["p-2"]);
+    const select = String(db().lastChain("posts")?.argsOf("select")?.[0]);
+    expect(select).toContain("tx_inc_category_0:post_categories!inner()");
+    expect(select).toContain("tx_inc_tag_1:post_tags!inner()");
+    expect(inArgs(db().lastChain("posts"), "tx_inc_category_0.category_id")).toEqual(["c-1"]);
+    expect(inArgs(db().lastChain("posts"), "tx_inc_tag_1.tag_id")).toEqual(["t-2"]);
     expect(ilePostow()).toBe(1);
   });
 
@@ -438,15 +454,15 @@ describe("lista oceniana: algebra include/exclude", () => {
     expect(inArgs(db().lastChain("posts"), "id")).toEqual(["p-1", "p-2"]);
   });
 
-  it("brak wierszy (data null) w rozwiazaniu kategorii i tagow daje przeciecie puste", async () => {
+  it("brak wierszy (data null) w slowniku kategorii i tagow daje pusta liste bez zapytania", async () => {
     const ilePostow = licznikPostow();
 
-    db().setResponse("post_categories", () => ok(null));
+    db().setResponse("categories", () => ok(null));
     await expect(
       run(ratedListQueryOptions({ source: "dynamic", categoriesFilter: "ue" }, "pl")),
     ).resolves.toEqual([]);
 
-    db().setResponse("post_tags", () => ok(null));
+    db().setResponse("tags", () => ok(null));
     await expect(
       run(ratedListQueryOptions({ source: "dynamic", tagsFilter: "klimat" }, "pl")),
     ).resolves.toEqual([]);
@@ -454,11 +470,10 @@ describe("lista oceniana: algebra include/exclude", () => {
     expect(ilePostow()).toBe(0);
   });
 
-  it("wykluczenia sumuja sie w JEDNO ogniwo .not, a bez nich ogniwa nie ma", async () => {
+  it("wykluczenia kategorii i tagow to ANTY-ZLACZENIE w bazie; .not niesie TYLKO jawne id", async () => {
     licznikPostow();
-    db().setResponse("post_categories", () => ok([{ post_id: "p-8" }]));
-
-    db().setResponse("post_tags", () => ok([{ post_id: "p-9" }]));
+    db().setResponse("categories", () => ok([{ id: "c-8", slug: "sponsorowane" }]));
+    db().setResponse("tags", () => ok([{ id: "t-9", slug: "archiwum" }]));
 
     await run(
       ratedListQueryOptions(
@@ -471,16 +486,65 @@ describe("lista oceniana: algebra include/exclude", () => {
         "pl",
       ),
     );
-    const args = db().lastChain("posts")?.argsOf("not");
-    expect(args?.[0]).toBe("id");
-    expect(args?.[1]).toBe("in");
-    // Trzy zrodla wykluczen (jawne id, kategoria, tag) sumuja sie w JEDNO ogniwo.
-    expect(String(args?.[2])).toContain("p-1");
-    expect(String(args?.[2])).toContain("p-8");
-    expect(String(args?.[2])).toContain("p-9");
+    const posts = db().lastChain("posts");
+    const select = String(posts?.argsOf("select")?.[0]);
+    expect(select).toContain("tx_exc_category_0:post_categories()");
+    expect(select).toContain("tx_exc_tag_1:post_tags()");
+    expect(inArgs(posts, "tx_exc_category_0.category_id")).toEqual(["c-8"]);
+    expect(inArgs(posts, "tx_exc_tag_1.tag_id")).toEqual(["t-9"]);
+    expect(posts?.calls.filter((c) => c.method === "is").map((c) => c.args)).toEqual([
+      ["tx_exc_category_0", null],
+      ["tx_exc_tag_1", null],
+    ]);
+    // Wpisy wykluczonych terminow NIE jada przez adres URL - tylko jawne id.
+    expect(posts?.argsOf("not")).toEqual(["id", "in", "(p-1)"]);
 
     await run(ratedListQueryOptions({ source: "dynamic" }, "pl"));
     expect(db().lastChain("posts")?.has("not")).toBe(false);
+    expect(db().lastChain("posts")?.has("is")).toBe(false);
+  });
+
+  it("odmowa odczytu slownika przy WYKLUCZENIU daje pusta liste, a nie liste bez wykluczen", async () => {
+    // Polityka listy to "bez throw", ale przed 03.10.2026 polkniety blad
+    // kasowal wykluczenie i lista pokazywala wpisy, ktore redakcja wyciela.
+    // Pustka jest jedynym bezpiecznym wynikiem, ktory nie rzuca.
+    const ilePostow = licznikPostow([{ id: "p-8" }]);
+    db().setResponse("categories", () => fail("permission denied for table categories", "42501"));
+
+    await expect(
+      run(ratedListQueryOptions({ source: "dynamic", excludeCategories: "sponsorowane" }, "pl")),
+    ).resolves.toEqual([]);
+    expect(ilePostow()).toBe(0);
+  });
+
+  it("slowniki taksonomii i profile autorow ida w JEDNEJ fali", async () => {
+    // Optymalizacja 03.10.2026: oba odczyty sa od siebie niezalezne. Dowod:
+    // zapytanie o profile wychodzi, zanim slownik kategorii odpowie.
+    let releaseCategories: () => void = () => undefined;
+    db().setResponse(
+      "categories",
+      () =>
+        new Promise((resolve) => {
+          releaseCategories = () => resolve(ok([{ id: "c-1", slug: "ue" }]));
+        }),
+    );
+    db().setResponse("profiles_public", () =>
+      ok([{ id: "u-1", display_name: "Ala Przykladowa", avatar_url: null }]),
+    );
+    licznikPostow();
+
+    const pending = run(
+      ratedListQueryOptions(
+        { source: "dynamic", categoriesFilter: "ue", authorFilter: "Ala Przykladowa" },
+        "pl",
+      ),
+    );
+    await vi.waitFor(() => expect(db().chainsFor("profiles_public")).toHaveLength(1));
+    expect(db().chainsFor("posts")).toHaveLength(0);
+    releaseCategories();
+
+    await pending;
+    expect(inArgs(db().lastChain("posts"), "author_id")).toEqual(["u-1"]);
   });
 });
 

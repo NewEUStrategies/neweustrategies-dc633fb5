@@ -170,11 +170,11 @@ describe("PostsSliderWidget order + filter combos", () => {
     }
   });
 
-  it("renders empty when category/tag filters resolve to no posts", async () => {
+  it("renders empty when category/tag filters resolve to no terms", async () => {
     db.tables.posts = posts;
-    db.tables.post_categories = [];
+    db.tables.categories = [];
     const { container } = widget("slider", { source: "posts", categorySlugs: "nope" });
-    // No allowed ids -> empty slider placeholder.
+    // Slug matches no category -> empty slider placeholder, no posts query.
     expect(await screen.findByText(/Dodaj obrazki/)).toBeTruthy();
     expect(container).toBeTruthy();
   });

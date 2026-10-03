@@ -5,6 +5,10 @@ import { asBool, asNum, asOneOf, asStr } from "@/lib/content-model/contentValue"
 import { authorDisplayMode, type AuthorDisplayMode } from "@/lib/builder/authorDisplay";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import {
+  postsConstrainedByTaxonomy,
+  taxonomyConstraintsFromSlugs,
+} from "@/lib/queries/taxonomyPivot";
 
 export type Lang = "pl" | "en";
 
@@ -224,34 +228,6 @@ export function dedupeAndSlice<T extends { id: string }>(
   return out;
 }
 
-async function fetchPostIdsBySlugs(
-  table: "post_categories" | "post_tags",
-  slugs: readonly string[],
-): Promise<Set<string>> {
-  if (!slugs.length) return new Set();
-  if (table === "post_categories") {
-    const { data: cats } = await supabase
-      .from("categories")
-      .select("id")
-      .in("slug", [...slugs]);
-    const ids = (cats ?? []).map((r: { id: string }) => r.id);
-    if (!ids.length) return new Set();
-    const { data: links } = await supabase
-      .from("post_categories")
-      .select("post_id")
-      .in("category_id", ids);
-    return new Set((links ?? []).map((r: { post_id: string }) => r.post_id));
-  }
-  const { data: tags } = await supabase
-    .from("tags")
-    .select("id")
-    .in("slug", [...slugs]);
-  const ids = (tags ?? []).map((r: { id: string }) => r.id);
-  if (!ids.length) return new Set();
-  const { data: links } = await supabase.from("post_tags").select("post_id").in("tag_id", ids);
-  return new Set((links ?? []).map((r: { post_id: string }) => r.post_id));
-}
-
 /**
  * Reorder fetched rows to match a popularity ranking (most-popular first), then
  * apply the widget's offset/limit window. Pure and exported so the ordering
@@ -313,58 +289,68 @@ async function fetchPopularPostIds(
   return orderDir === "asc" ? ids.reverse() : ids;
 }
 
+/**
+ * Kolumny wiersza post-listy. Oznaczenie komercyjne jedzie z listą: obowiązek
+ * dotyczy TAKŻE pozycji w zestawieniu (UPNPR art. 7 pkt 11a), a widget
+ * `post-list` zasila strony główne budowane builderem - bez tych kolumn
+ * sponsorowany materiał trafiałby tam bez żadnego wyróżnienia.
+ */
+const POST_LIST_COLUMNS =
+  "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate";
+
 async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
-  const [incCatIds, incTagIds, excCatIds, excTagIds] = await Promise.all([
-    fetchPostIdsBySlugs("post_categories", input.includeCats),
-    fetchPostIdsBySlugs("post_tags", input.includeTags),
-    fetchPostIdsBySlugs("post_categories", input.excludeCats),
-    fetchPostIdsBySlugs("post_tags", input.excludeTags),
+  // Ranking popularności nie zależy od taksonomii, więc RPC biegnie w TEJ SAMEJ
+  // fali co odczyt słowników - jedna fala round-tripów mniej przed zapytaniem
+  // o wpisy.
+  const [constraints, ranked] = await Promise.all([
+    // ZAWĘŻENIE TAKSONOMIĄ ROBI BAZA, NIE ADRES URL. Do 03.10.2026 stały tu
+    // cztery odczyty tabel pośrednich bez `.limit()`, a pobrane identyfikatory
+    // wpisów szły do `.in("id", ...)` (kategorie/tagi włączone) i do
+    // `.not("id", "in", ...)` (wykluczone). Kategoria z kilkuset wpisami
+    // w którymkolwiek polu przepełniała linię żądania i widget przestawał się
+    // renderować. Teraz do bazy jadą identyfikatory TERMINÓW, a złączenie
+    // (i anty-złączenie dla wykluczeń) liczy PostgREST - `lib/queries/taxonomyPivot.ts`.
+    //
+    // Błąd odczytu słownika RZUCA (widget wchodzi w stan błędu): połknięty
+    // kasowałby wykluczenie i pokazywał wpisy, które redakcja wycięła.
+    taxonomyConstraintsFromSlugs({
+      includeCategories: input.includeCats,
+      includeTags: input.includeTags,
+      excludeCategories: input.excludeCats,
+      excludeTags: input.excludeTags,
+    }),
+    // "popular" ranking comes from the tenant-scoped popular_post_ids RPC, which
+    // aggregates post_views server-side behind a hard LIMIT - no full-table scan
+    // of user_read_history. If the RPC is unavailable we degrade to recency
+    // ordering (effectiveOrderBy) rather than rendering an empty widget.
+    input.orderByRaw === "popular"
+      ? fetchPopularPostIds(input.popularDays, input.orderDir)
+      : Promise.resolve(null),
   ]);
+  if (constraints === null) return [];
 
-  const includeSets: Set<string>[] = [];
-  if (input.includeCats.length) includeSets.push(incCatIds);
-  if (input.includeTags.length) includeSets.push(incTagIds);
-  if (input.includeIds.length) includeSets.push(new Set(input.includeIds));
-  let includeSet: Set<string> | null = includeSets.length
-    ? includeSets
-        .slice(1)
-        .reduce(
-          (acc, set) => new Set([...acc].filter((id) => set.has(id))),
-          new Set(includeSets[0]),
-        )
+  // Lista `.in("id", ...)` niesie WYŁĄCZNIE identyfikatory ograniczone z góry:
+  // jawne id wpisane w panelu i co najwyżej 200 kandydatów z rankingu.
+  let idFilter: string[] | null = input.includeIds.length
+    ? Array.from(new Set(input.includeIds))
     : null;
-  if (includeSet && includeSet.size === 0) return [];
 
-  const excludeSet = new Set<string>([...excCatIds, ...excTagIds, ...input.excludeIds]);
-
-  // "popular" ranking comes from the tenant-scoped popular_post_ids RPC, which
-  // aggregates post_views server-side behind a hard LIMIT - no full-table scan
-  // of user_read_history. If the RPC is unavailable we degrade to recency
-  // ordering (effectiveOrderBy) rather than rendering an empty widget.
   let popularIds: string[] | null = null;
   let effectiveOrderBy: PostListInput["orderByRaw"] = input.orderByRaw;
   if (input.orderByRaw === "popular") {
-    const ranked = await fetchPopularPostIds(input.popularDays, input.orderDir);
     if (ranked === null) {
       effectiveOrderBy = "published_at";
     } else if (ranked.length === 0) {
       return [];
     } else {
       popularIds = ranked;
-      const popSet = new Set(popularIds);
-      includeSet = includeSet ? new Set([...includeSet].filter((x) => popSet.has(x))) : popSet;
+      const popSet = new Set(ranked);
+      idFilter = idFilter ? idFilter.filter((id) => popSet.has(id)) : ranked;
     }
   }
+  if (idFilter && idFilter.length === 0) return [];
 
-  let q = supabase
-    .from("posts")
-    .select(
-      // Oznaczenie komercyjne jedzie z listą: obowiązek dotyczy TAKŻE pozycji
-      // w zestawieniu (UPNPR art. 7 pkt 11a), a widget `post-list` zasila
-      // strony główne budowane builderem - bez tych kolumn sponsorowany materiał
-      // trafiałby tam bez żadnego wyróżnienia.
-      "id, slug, title_pl, title_en, excerpt_pl, excerpt_en, cover_image_url, published_at, post_format, author_id, is_sponsored, sponsored_kind, sponsored_affiliate",
-    )
+  let q = postsConstrainedByTaxonomy(POST_LIST_COLUMNS, constraints)
     .eq("status", "published")
     .is("deleted_at", null);
 
@@ -372,8 +358,10 @@ async function fetchPostListRows(input: PostListInput): Promise<PostRow[]> {
   if (input.authorId) q = q.eq("author_id", input.authorId);
   if (input.dateFrom) q = q.gte("published_at", `${input.dateFrom}T00:00:00Z`);
   if (input.dateTo) q = q.lte("published_at", `${input.dateTo}T23:59:59Z`);
-  if (includeSet) q = q.in("id", Array.from(includeSet));
-  if (excludeSet.size) q = q.not("id", "in", `(${Array.from(excludeSet).join(",")})`);
+  if (idFilter) q = q.in("id", idFilter);
+  if (input.excludeIds.length) {
+    q = q.not("id", "in", `(${Array.from(new Set(input.excludeIds)).join(",")})`);
+  }
 
   const orderCol = postListOrderColumn(effectiveOrderBy, input.lang);
   if (effectiveOrderBy !== "random" && effectiveOrderBy !== "popular") {
@@ -449,8 +437,9 @@ export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
     // de-dup happens client-side via dedupeAndSlice, not in this key.
     queryKey: [WIDGET_QUERY_ROOTS.postList, input] as const,
     queryFn: () =>
-      // Per-isolate TTL: pojedynczy widget post-list to wewnętrznie do ~7
-      // round-tripów; chrome i strony builderowe prefetchują go na każdym
+      // Per-isolate TTL: pojedynczy widget post-list to wewnętrznie do 5
+      // zapytań w 3 falach (słowniki taksonomii + ranking, wpisy, autorzy);
+      // chrome i strony builderowe prefetchują go na każdym
       // renderze. Wariant "random" celowo POZA cache - zamrożenie kolejności
       // na minutę zmieniłoby zachowanie widgetu (na kliencie przezroczyste).
       input.orderByRaw === "random"

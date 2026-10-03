@@ -47,6 +47,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { asNum, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import type { WidgetContent } from "@/lib/builder/types";
+import {
+  postsConstrainedByTaxonomy,
+  taxonomyConstraintsFromSlugs,
+} from "@/lib/queries/taxonomyPivot";
 
 export type Lang = "pl" | "en";
 
@@ -203,30 +207,19 @@ async function fetchRatedListItems(input: RatedListInput): Promise<RatedListItem
     offset,
   } = input;
 
-  const resolveByCategory = async (slugs: string[]) => {
-    if (!slugs.length) return null;
-    const { data } = await supabase
-      .from("post_categories")
-      .select("post_id, categories!inner(slug)")
-      .in("categories.slug", slugs);
-    return new Set((data ?? []).map((r: { post_id: string }) => r.post_id));
-  };
-  const resolveByTag = async (slugs: string[]) => {
-    if (!slugs.length) return null;
-    const { data } = await supabase
-      .from("post_tags")
-      .select("post_id, tags!inner(slug)")
-      .in("tags.slug", slugs);
-    return new Set((data ?? []).map((r: { post_id: string }) => r.post_id));
-  };
-
-  const [incCat, excCat, incTag, excTag] = await Promise.all([
-    resolveByCategory(cats),
-    resolveByCategory(excludeCats),
-    resolveByTag(tagSlugs),
-    resolveByTag(excludeTagSlugs),
-  ]);
-
+  // ZAWĘŻENIE TAKSONOMIĄ ROBI BAZA, NIE ADRES URL. Do 03.10.2026 cztery
+  // odczyty tabel pośrednich bez `.limit()` oddawały identyfikatory WPISÓW do
+  // `.in("id", ...)` (włączenia) i `.not("id", "in", ...)` (wykluczenia), więc
+  // kategoria albo tag z kilkuset wpisami przepełniały linię żądania. Teraz do
+  // bazy jadą identyfikatory TERMINÓW, a (anty-)złączenie liczy PostgREST -
+  // `lib/queries/taxonomyPivot.ts`.
+  //
+  // Polityka błędów listy bez zmian („bez throw" - patrz `ratedListQueryOptions`),
+  // ale odmowa odczytu słownika daje teraz PUSTĄ listę także przy wykluczeniach
+  // (`.catch(() => null)` niżej). Wcześniej połknięty błąd kasował wykluczenie
+  // i lista pokazywała wpisy, które redakcja świadomie wycięła - pustka jest tu
+  // jedynym bezpiecznym wynikiem.
+  //
   // Filtr autora MUSI zawezic zapytanie, a nie jego wynik. Filtrowanie po
   // stronie klienta dzialo sie PO `.range(offset, offset+limit-1)`, wiec
   // widget oddawal mniej wierszy niz `numberOfPosts` (a przy autorze spoza
@@ -238,16 +231,30 @@ async function fetchRatedListItems(input: RatedListInput): Promise<RatedListItem
   // zawezony do `public_tenant_id()` wystawia wylacznie kolumny publiczne,
   // wiec filtr "autor o nazwie X" nie ma jak trafic w profil z obszaru
   // roboczego innej firmy (ani ujawnic, ze taki profil istnieje).
+  //
+  // Słowniki taksonomii i autorzy nie zależą od siebie - jedna fala zamiast dwóch.
+  const [constraints, matchedAuthors] = await Promise.all([
+    taxonomyConstraintsFromSlugs({
+      includeCategories: cats,
+      includeTags: tagSlugs,
+      excludeCategories: excludeCats,
+      excludeTags: excludeTagSlugs,
+    }).catch((): null => null),
+    authors.length
+      ? supabase
+          .from("profiles_public")
+          .select(RATED_LIST_PROFILE_COLUMNS)
+          .in("display_name", authors)
+      : null,
+  ]);
+  if (constraints === null) return [];
+
   const authorById = new Map<string, ProfileRow>();
   let authorIdFilter: string[] | null = null;
-  if (authors.length) {
-    const { data: matched } = await supabase
-      .from("profiles_public")
-      .select(RATED_LIST_PROFILE_COLUMNS)
-      .in("display_name", authors);
+  if (matchedAuthors) {
     // Widok publiczny typuje `id` jako nullowalne - zawezamy raz, zeby
     // dalsza czesc zapytania pracowala na pewnych identyfikatorach.
-    const matchedRows = ((matched ?? []) as ProfileRow[]).filter(
+    const matchedRows = ((matchedAuthors.data ?? []) as ProfileRow[]).filter(
       (row): row is ProfileRow & { id: string } => !!row.id,
     );
     for (const p of matchedRows) {
@@ -259,35 +266,17 @@ async function fetchRatedListItems(input: RatedListInput): Promise<RatedListItem
     if (authorIdFilter.length === 0) return [];
   }
 
-  let q = supabase.from("posts").select(RATED_LIST_POST_COLUMNS).eq("status", "published");
+  let q = postsConstrainedByTaxonomy(RATED_LIST_POST_COLUMNS, constraints).eq(
+    "status",
+    "published",
+  );
 
   if (postFormat && postFormat !== "all") q = q.eq("post_format", postFormat);
   if (postIds.length) q = q.in("id", postIds);
   if (authorIdFilter) q = q.in("author_id", authorIdFilter);
-
-  const includeIds = new Set<string>();
-  let haveInclude = false;
-  if (incCat) {
-    haveInclude = true;
-    incCat.forEach((id) => includeIds.add(id));
+  if (excludePostIds.length) {
+    q = q.not("id", "in", `(${Array.from(new Set(excludePostIds)).join(",")})`);
   }
-  if (incTag) {
-    if (haveInclude) {
-      for (const id of Array.from(includeIds)) if (!incTag.has(id)) includeIds.delete(id);
-    } else {
-      haveInclude = true;
-      incTag.forEach((id) => includeIds.add(id));
-    }
-  }
-  if (haveInclude) {
-    if (includeIds.size === 0) return [];
-    q = q.in("id", Array.from(includeIds));
-  }
-
-  const excludeIds = new Set<string>([...excludePostIds]);
-  excCat?.forEach((id) => excludeIds.add(id));
-  excTag?.forEach((id) => excludeIds.add(id));
-  if (excludeIds.size) q = q.not("id", "in", `(${Array.from(excludeIds).join(",")})`);
 
   // KOLUMNA SORTOWANIA SKLEJANA Z SZABLONU, nie wybierana ternarym po języku.
   // Zachowanie jest identyczne (`lang` to `"pl" | "en"`, więc typ wyrażenia to

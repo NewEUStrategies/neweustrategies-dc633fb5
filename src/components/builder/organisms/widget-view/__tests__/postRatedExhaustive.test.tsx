@@ -307,8 +307,10 @@ describe("RatedListView dynamic source", () => {
         author_id: "au1",
       },
     ];
-    db.tables.post_categories = [{ post_id: "1" }];
-    db.tables.post_tags = [{ post_id: "1" }];
+    // Zawezenie kategoria i tagiem liczy baza (osadzenia `!inner()`) - atrapa
+    // potrzebuje tylko slownikow slug -> id; tabel posrednich nikt nie czyta.
+    db.tables.categories = [{ id: "c1", slug: "ue" }];
+    db.tables.tags = [{ id: "t1", slug: "nato" }];
     db.tables.profiles_public = [{ id: "au1", display_name: "Redakcja" }];
     wrap(
       <RatedListView
@@ -374,8 +376,14 @@ describe("RatedListView dynamic source", () => {
         author_id: "au2",
       },
     ];
-    db.tables.post_categories = [{ post_id: "1" }, { post_id: "2" }];
-    db.tables.post_tags = [{ post_id: "1" }, { post_id: "2" }];
+    db.tables.categories = [
+      { id: "c1", slug: "ue" },
+      { id: "c2", slug: "old" },
+    ];
+    db.tables.tags = [
+      { id: "t1", slug: "nato" },
+      { id: "t2", slug: "draft" },
+    ];
     db.tables.profiles_public = [
       { id: "au1", display_name: "Red" },
       { id: "au2", display_name: "Akcja" },

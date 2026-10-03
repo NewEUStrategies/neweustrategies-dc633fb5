@@ -192,9 +192,10 @@ describe("posts-sourced slider", () => {
         published_at: "2026-01-01T00:00:00Z",
       },
     ];
-    db.tables.post_categories = [{ post_id: "1" }];
-    db.tables.tags = [{ id: "t1" }];
-    db.tables.post_tags = [{ post_id: "1" }];
+    // Przeciecie kategorii i tagu liczy baza (osadzenia `!inner()`) - atrapa
+    // potrzebuje tylko slownikow slug -> id.
+    db.tables.categories = [{ id: "c1", slug: "ue" }];
+    db.tables.tags = [{ id: "t1", slug: "nato" }];
     widget("slider", {
       source: "posts",
       limit: 5,
