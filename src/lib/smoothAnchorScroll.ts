@@ -22,7 +22,10 @@ function clamp(n: number, min: number, max: number): number {
 }
 
 function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  // Łagodniejszy start niż cubic, ale szybsze dojście do środka. Dzięki temu
+  // długi skok ze spisu treści nie sprawia wrażenia zawieszonego, a koniec nie
+  // hamuje nagle tuż przed nagłówkiem.
+  return t < 0.5 ? 16 * t * t * t * t * t : 1 - Math.pow(-2 * t + 2, 5) / 2;
 }
 
 export function getAnchorScrollOffset(defaultOffset = 80): number {
@@ -71,8 +74,10 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
 
   cancelSmoothAnchorScroll();
 
-  const minDuration = options.minDuration ?? 520;
-  const maxDuration = options.maxDuration ?? 1800;
+  // Nawigacja po spisie ma reagować od razu. Poprzednie 1,8 s przy długich
+  // artykułach było odbierane jako opóźnienie i prowokowało kolejne kliknięcie.
+  const minDuration = options.minDuration ?? 360;
+  const maxDuration = options.maxDuration ?? 950;
   const updateHash = options.updateHash ?? true;
   const offset = options.offset ?? getAnchorScrollOffset();
   disableRouterHashScrollForCurrentEntry();
@@ -138,7 +143,7 @@ export function smoothScrollToAnchor(id: string, options: SmoothAnchorScrollOpti
   window.addEventListener("touchstart", onUserIntent, { passive: true, once: true });
   window.addEventListener("keydown", onUserIntent, { passive: true, once: true });
 
-  const duration = clamp(Math.abs(initialDistance) * 0.58, minDuration, maxDuration);
+  const duration = clamp(Math.abs(initialDistance) * 0.34, minDuration, maxDuration);
   const startTime = window.performance.now();
 
   const step = (now: number): void => {

@@ -115,6 +115,7 @@ export function FloatingShareBar({
   const [items, setItems] = useState<TocItem[]>([]);
   const [active, setActive] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const activeRef = useRef<string | null>(null);
 
   const railRef = useRef<HTMLElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -171,14 +172,18 @@ export function FloatingShareBar({
   useEffect(() => {
     const onScroll = rafThrottle((): void => {
       const y = window.scrollY;
-      setVisible(y > showAfter);
+      const nextVisible = y > showAfter;
+      setVisible((current) => (current === nextVisible ? current : nextVisible));
       const root = getArticleRoot();
       if (root) {
         const rect = root.getBoundingClientRect();
         const start = window.scrollY + rect.top;
         const end = start + rect.height - window.innerHeight;
         const pct = end > start ? (window.scrollY - start) / (end - start) : 0;
-        setProgress(Math.min(1, Math.max(0, pct)));
+        const nextProgress = Math.min(1, Math.max(0, pct));
+        setProgress((current) =>
+          Math.abs(current - nextProgress) < 0.001 ? current : nextProgress,
+        );
       }
     });
     onScroll();
@@ -198,18 +203,29 @@ export function FloatingShareBar({
       .map((i) => document.getElementById(i.id))
       .filter((e): e is HTMLElement => !!e);
     if (els.length === 0) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const vis = entries.filter((e) => e.isIntersecting);
-        if (vis.length > 0) {
-          const top = vis.sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-          setActive(top.target.id);
-        }
-      },
-      { rootMargin: "-80px 0px -70% 0px", threshold: 0.01 },
-    );
-    els.forEach((e) => obs.observe(e));
-    return () => obs.disconnect();
+    // IntersectionObserver potrafił pominąć sekcję przy szybkim scrollu, bo
+    // obserwował wąski pas ekranu. Pozycję wyliczamy raz na klatkę na podstawie
+    // wszystkich nagłówków - bez migotania i bez przeskoku o kilka pozycji.
+    const updateActive = rafThrottle((): void => {
+      const activationLine = getAnchorScrollOffset() + 24;
+      let next = els[0]?.id ?? null;
+      for (const heading of els) {
+        if (heading.getBoundingClientRect().top <= activationLine) next = heading.id;
+        else break;
+      }
+      if (next !== activeRef.current) {
+        activeRef.current = next;
+        setActive(next);
+      }
+    });
+    updateActive();
+    window.addEventListener("scroll", updateActive, { passive: true });
+    window.addEventListener("resize", updateActive, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", updateActive);
+      window.removeEventListener("resize", updateActive);
+      updateActive.cancel();
+    };
   }, [items]);
 
   const u = href || "";
@@ -293,6 +309,7 @@ export function FloatingShareBar({
     const el = document.getElementById(id);
     if (!el) return;
     setMobileOpen(false);
+    activeRef.current = id;
     setActive(id);
     smoothScrollToAnchor(id);
   };
@@ -379,8 +396,8 @@ export function FloatingShareBar({
         {cfg.showProgress && (
           <div className="h-1 w-full bg-muted/60" aria-hidden>
             <div
-              className="h-full bg-brand transition-[width] duration-150"
-              style={{ width: `${pct}%` }}
+              className="h-full origin-left bg-brand will-change-transform transition-transform duration-100 ease-linear motion-reduce:transition-none"
+              style={{ transform: `scaleX(${progress})` }}
             />
           </div>
         )}
@@ -414,7 +431,7 @@ export function FloatingShareBar({
                       aria-current={isActive ? "true" : undefined}
                       title={it.text}
                       className={[
-                        "group relative w-full text-left flex items-start py-2 pr-2 rounded-[5px] transition-colors",
+                        "group relative w-full text-left flex items-start py-2 pr-2 rounded-[5px] transition-[color,background-color] duration-200 ease-out motion-reduce:transition-none",
                         it.level === 1
                           ? "pl-3"
                           : it.level === 2
@@ -430,12 +447,14 @@ export function FloatingShareBar({
                       ].join(" ")}
                     >
                       {/* Active left bar */}
-                      {isActive && (
-                        <span
-                          aria-hidden
-                          className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-[5px] bg-brand"
-                        />
-                      )}
+                      <span
+                        aria-hidden
+                        className={[
+                          "absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-[5px] bg-brand",
+                          "origin-center transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
+                          isActive ? "opacity-100 scale-y-100" : "opacity-0 scale-y-50",
+                        ].join(" ")}
+                      />
                       <span
                         className={[
                           "cms-toc-item block tracking-tight line-clamp-2",
@@ -616,8 +635,8 @@ export function FloatingShareBar({
           {/* Top progress bar */}
           <div className="h-1 w-full bg-muted/60" aria-hidden>
             <div
-              className="h-full bg-brand transition-[width] duration-150"
-              style={{ width: `${pct}%` }}
+              className="h-full origin-left bg-brand will-change-transform transition-transform duration-100 ease-linear motion-reduce:transition-none"
+              style={{ transform: `scaleX(${progress})` }}
             />
           </div>
 
@@ -660,7 +679,7 @@ export function FloatingShareBar({
                         onClick={() => jumpTo(it.id)}
                         aria-current={isActive ? "true" : undefined}
                         className={[
-                          "group relative w-full text-left flex items-start py-2.5 pr-3 rounded-[5px] transition-colors",
+                          "group relative w-full text-left flex items-start py-2.5 pr-3 rounded-[5px] transition-[color,background-color] duration-200 ease-out motion-reduce:transition-none",
                           it.level === 1
                             ? "pl-4"
                             : it.level === 2
@@ -675,12 +694,14 @@ export function FloatingShareBar({
                             : "text-muted-foreground active:bg-muted/40",
                         ].join(" ")}
                       >
-                        {isActive && (
-                          <span
-                            aria-hidden
-                            className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-[5px] bg-brand"
-                          />
-                        )}
+                        <span
+                          aria-hidden
+                          className={[
+                            "absolute left-0 top-2 bottom-2 w-[3px] rounded-r-[5px] bg-brand",
+                            "origin-center transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none",
+                            isActive ? "opacity-100 scale-y-100" : "opacity-0 scale-y-50",
+                          ].join(" ")}
+                        />
                         <span
                           className={[
                             "cms-widget-title block tracking-tight line-clamp-2",
@@ -711,8 +732,8 @@ export function FloatingShareBar({
               </div>
               <div className="h-[3px] w-full bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-brand transition-[width] duration-150"
-                  style={{ width: `${pct}%` }}
+                  className="h-full origin-left bg-brand will-change-transform transition-transform duration-100 ease-linear motion-reduce:transition-none"
+                  style={{ transform: `scaleX(${progress})` }}
                 />
               </div>
             </div>
