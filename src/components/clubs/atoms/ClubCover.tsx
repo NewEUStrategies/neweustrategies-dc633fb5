@@ -15,17 +15,25 @@
 //
 // Zastępnik jest tym samym chwytem, co okładka podcastu bez grafiki
 // (`podcasts.$show`): stonowane tło i ikona rodzaju treści.
+//
+// `positionY` to zapisany kadr (`clubs.cover_position_y`). Bez niego atom ciął
+// środek zdjęcia, podczas gdy nagłówek klubu respektował kadr - ta sama okładka
+// wyglądała inaczej w bramce, minisite i katalogu niż tam, gdzie ją ustawiono.
 import { MessagesSquare } from "lucide-react";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
+import { clubCoverObjectPosition } from "@/lib/clubs/coverFrame";
 import { cn } from "@/lib/utils";
 
 export function ClubCover({
   url,
   variant,
+  positionY,
   className,
 }: {
   url: string | null | undefined;
   variant: "banner" | "card";
+  /** Pionowy kadr 0-100 (`cover_position_y`); brak = środek. */
+  positionY?: number | null;
   className?: string;
 }) {
   const hasCover = typeof url === "string" && url.trim() !== "";
@@ -73,6 +81,7 @@ export function ClubCover({
         }
         priority={variant === "banner"}
         className="h-full w-full object-cover"
+        style={{ objectPosition: clubCoverObjectPosition(positionY) }}
       />
     </div>
   );

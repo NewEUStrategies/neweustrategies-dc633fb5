@@ -1,12 +1,22 @@
-// Dostosowanie pionowej pozycji cover photo w ramce 4:1 bez uploadu nowego pliku.
+// Dostosowanie pionowej pozycji cover photo bez uploadu nowego pliku.
 //
 // Dostępne dla prowadzących klub (`can_moderate`) i administracji. Slider 0–100
 // przekłada się na `object-position: center <Y>%` obrazka - 0 to góra, 100 to dół.
 // Zmiana jest zapisywana dopiero przyciskiem "Zapisz", ale podgląd aktualizuje
-// się na żywo, żeby użytkownik widział kadrowanie w tej samej proporcji co strona.
+// się na żywo.
+//
+// PODGLĄD W PROPORCJACH STRONY, NIE W STAŁEJ 4:1. Pierwsza wersja rysowała
+// ramkę `padding-top: 25%`, a pas nagłówka ma od `sm` stałą wysokość przy
+// płynnej szerokości - jego proporcja chodzi od ~2.6:1 do ~7.4:1. Na desktopie
+// podgląd pokazywał więc więcej zdjęcia niż strona, a dla pliku 4:1 (dokładnie
+// tego, który zaleca podpowiedź) suwak w podglądzie nie ruszał niczego. Teraz:
+//   * ramka główna ma proporcję pasa zmierzoną w chwili otwarcia (`frameRef`),
+//     czyli to, co widzi osoba ustawiająca kadr na swoim ekranie,
+//   * pod nią stoją miniatury pozostałych powierzchni (bramka i minisite na
+//     telefonie i komputerze, kafel katalogu) - ten sam kadr, ich proporcje.
 "use client";
 
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 // Nakładka słownika klubów rejestruje klucze efektem ubocznym importu - bez
 // tej linii tłumaczenia edytora zależałyby od tego, czy inny moduł w chunku
@@ -27,14 +37,54 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
+import {
+  CLUB_COVER_HUB_FALLBACK_RATIO,
+  CLUB_COVER_PREVIEW_FRAMES,
+  clubCoverObjectPosition,
+  measureFrameRatio,
+  normalizeClubCoverPositionY,
+} from "@/lib/clubs/coverFrame";
 import { setClubCoverPosition } from "@/lib/clubs/coverPosition.functions";
 import { ensureClubI18n } from "@/lib/i18n-club";
 import { cn } from "@/lib/utils";
+
+/** Ramka podglądu: zdjęcie przycięte tak, jak przytnie je dana powierzchnia. */
+function PreviewFrame({
+  src,
+  ratio,
+  objectPosition,
+  testId,
+  className,
+}: {
+  src: string;
+  ratio: number;
+  objectPosition: string;
+  testId: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn("relative w-full overflow-hidden rounded-lg bg-muted", className)}
+      style={{ aspectRatio: String(ratio) }}
+      data-testid={testId}
+    >
+      <img
+        src={src}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ objectPosition }}
+        loading="eager"
+        decoding="async"
+      />
+    </div>
+  );
+}
 
 export function ClubCoverPositionEditor({
   clubId,
   coverImageUrl,
   positionY,
+  frameRef,
   canEdit,
   onChanged,
   className,
@@ -42,6 +92,8 @@ export function ClubCoverPositionEditor({
   clubId: string;
   coverImageUrl: string | null;
   positionY: number;
+  /** Pas okładki na stronie - jego proporcja wyznacza ramkę główną podglądu. */
+  frameRef?: RefObject<HTMLElement | null>;
   canEdit: boolean;
   onChanged: () => void;
   className?: string;
@@ -53,7 +105,8 @@ export function ClubCoverPositionEditor({
   const { t } = useTranslation();
   const save = useServerFn(setClubCoverPosition);
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(positionY);
+  const [value, setValue] = useState(() => normalizeClubCoverPositionY(positionY));
+  const [pageRatio, setPageRatio] = useState(CLUB_COVER_HUB_FALLBACK_RATIO);
   const [busy, setBusy] = useState(false);
 
   if (!canEdit || typeof coverImageUrl !== "string" || coverImageUrl.trim() === "") {
@@ -62,7 +115,10 @@ export function ClubCoverPositionEditor({
 
   const handleOpen = (next: boolean) => {
     setOpen(next);
-    if (next) setValue(positionY);
+    if (next) {
+      setValue(normalizeClubCoverPositionY(positionY));
+      setPageRatio(measureFrameRatio(frameRef?.current));
+    }
   };
 
   const handleSave = async () => {
@@ -79,7 +135,7 @@ export function ClubCoverPositionEditor({
     }
   };
 
-  const objectPosition = `center ${value}%`;
+  const objectPosition = clubCoverObjectPosition(value);
 
   return (
     <Dialog open={open} onOpenChange={handleOpen}>
@@ -103,17 +159,17 @@ export function ClubCoverPositionEditor({
         </DialogHeader>
 
         <div className="space-y-6 py-2">
-          {/* Podgląd w tej samej proporcji 4:1 co okładka na stronie. */}
-          <div className="relative w-full overflow-hidden rounded-lg" style={{ paddingTop: "25%" }}>
-            <img
+          <figure className="space-y-1.5">
+            <PreviewFrame
               src={coverImageUrl}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ objectPosition }}
-              loading="eager"
-              decoding="async"
+              ratio={pageRatio}
+              objectPosition={objectPosition}
+              testId="cover-preview-page"
             />
-          </div>
+            <figcaption className="text-xs text-muted-foreground">
+              {t("club.hub.identity.cover.position.preview.page")}
+            </figcaption>
+          </figure>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -126,9 +182,26 @@ export function ClubCoverPositionEditor({
               min={0}
               max={100}
               step={1}
-              onValueChange={(values) => setValue(values[0] ?? 50)}
+              onValueChange={(values) => setValue(normalizeClubCoverPositionY(values[0]))}
               thumbProps={{ "aria-label": t("club.hub.identity.cover.position.slider") }}
             />
+          </div>
+
+          <div className="grid grid-cols-3 items-end gap-3">
+            {CLUB_COVER_PREVIEW_FRAMES.map((frame) => (
+              <figure key={frame.key} className="space-y-1.5">
+                <PreviewFrame
+                  src={coverImageUrl}
+                  ratio={frame.ratio}
+                  objectPosition={objectPosition}
+                  testId={`cover-preview-${frame.key}`}
+                  className="rounded-md"
+                />
+                <figcaption className="text-[11px] leading-tight text-muted-foreground">
+                  {t(`club.hub.identity.cover.position.preview.${frame.key}`)}
+                </figcaption>
+              </figure>
+            ))}
           </div>
         </div>
 

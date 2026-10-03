@@ -36,6 +36,7 @@ import {
   clubHubLimit,
   formatClubHubDate,
 } from "@/lib/builder/clubHub";
+import { clubCoverObjectPosition } from "@/lib/clubs/coverFrame";
 import { getBool, getNum, getStr, type Lang } from "./frame";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
@@ -165,6 +166,7 @@ export function ClubHubView({ c, lang }: { c: WidgetContent; lang: Lang }) {
           alt=""
           loading="lazy"
           className="h-40 w-full object-cover"
+          style={{ objectPosition: clubCoverObjectPosition(club.cover_position_y) }}
         />
       ) : null}
 

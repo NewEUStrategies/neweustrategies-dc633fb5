@@ -138,6 +138,51 @@ describe("ClubHubIdentity - pas okładki", () => {
     expect(container.querySelector(".club-cover-placeholder")).toBeNull();
   });
 
+  it("obraz respektuje zapisany kadr (`cover_position_y`)", () => {
+    const { container } = mount({
+      cover_image_url: "https://obrazy.example/okladka.jpg",
+      cover_position_y: 20,
+    });
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 20%");
+  });
+
+  it("obraz pasa jest kandydatem LCP (eager, wysoki priorytet), bez zanikania", () => {
+    const { container } = mount({ cover_image_url: "https://obrazy.example/okladka.jpg" });
+    const img = container.querySelector("img");
+    expect(img).toHaveAttribute("loading", "eager");
+    expect(img).toHaveAttribute("fetchpriority", "high");
+    expect(img?.className).not.toContain("oi-fade-in");
+  });
+
+  // Podgląd w edytorze ma proporcję TEGO pasa, który widzi moderator - stała
+  // 4:1 rozjeżdżała się z desktopem (pas 160/208 px przy płynnej szerokości).
+  it("edytor kadrowania mierzy pas okładki przy otwarciu", () => {
+    const { container } = mount({
+      can_moderate: true,
+      cover_image_url: "https://obrazy.example/okladka.jpg",
+      cover_position_y: 35,
+    });
+    const strip = container.querySelector("img")?.parentElement as HTMLElement;
+    strip.getBoundingClientRect = () =>
+      ({
+        width: 1214,
+        height: 208,
+        top: 0,
+        left: 0,
+        right: 1214,
+        bottom: 208,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+
+    fireEvent.click(screen.getByRole("button", { name: "club.hub.identity.cover.position.open" }));
+
+    const page = screen.getByTestId("cover-preview-page");
+    const [w, h = "1"] = page.style.aspectRatio.split("/");
+    expect(Number(w) / Number(h)).toBeCloseTo(1214 / 208, 6);
+    expect((page.querySelector("img") as HTMLImageElement).style.objectPosition).toBe("center 35%");
+  });
+
   it("klub bez zdjęcia dostaje pas w kolorze akcentu, nie pusty prostokąt", () => {
     const { container } = mount({ cover_image_url: "" });
     expect(container.querySelector("img")).toBeNull();

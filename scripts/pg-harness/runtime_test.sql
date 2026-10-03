@@ -2430,6 +2430,421 @@ SELECT pg_temp.assert(
     'public.anonymize_club_applications_for_user(uuid)', 'EXECUTE'),
   'A35: anonimizacji nie wywola zalogowany uzytkownik');
 
+-- ===========================================================================
+-- A36: OKLADKA KLUBU - ZAPIS PLIKU, ADRESU I KADROWANIA Z JEDNEGO PREDYKATU
+--
+-- Migracja 20261003140000. Do niej polityka `club-covers/<clubId>/...` w
+-- `storage.objects` wpuszczala role `IN ('owner','moderator')`, a `owner` nie
+-- istnieje w slowniku `club_members` - prowadzacy (`lead`) widzial edytor
+-- (`can_moderate`), a wgranie konczylo sie odmowa RLS. Ta sama funkcja nie
+-- patrzyla na status czlonkostwa ani na kadencje, a galaz `has_role(admin)`
+-- pytala o role w najemcy WOLAJACEGO. `club_set_cover` odrzucal z kolei adres
+-- pod domena marki, ktory klient wysyla od 20260915091000.
+--
+-- POLITYKI SA TU WYKONYWANE, nie tylko kompilowane: sekcja przelacza sie na
+-- role `authenticated` i robi realne SELECT/INSERT/UPDATE/DELETE na
+-- `storage.objects`. Harness nie stawia rol ani grantow Supabase, wiec sekcja
+-- nadaje je sama (USAGE na `storage`/`auth`, DML na `storage.objects`).
+-- Zadnej atrapy polityki odczytu: kubelek `media` nie ma na Supabase polityki
+-- SELECT, a DELETE/UPDATE z WHERE (tak robi `storage.remove`) widzi wiersz
+-- WYLACZNIE przez SELECT. Dlatego asercje "0 wierszy" maja kontrole dodatnie
+-- (moderator nadpisuje, prowadzacy kasuje) - bez nich przechodzilyby
+-- z niewlasciwego powodu, tak jak przez lata przechodzilo martwe sprzatanie.
+-- ===========================================================================
+\echo ''
+\echo '== A36.0 Struktura: jeden predykat, zadnego slownika rol obok =='
+RESET ROLE;
+SELECT pg_temp.assert(
+  to_regprocedure('public.club_can_edit_cover(uuid,uuid)') IS NOT NULL,
+  'A36: predykat club_can_edit_cover istnieje');
+SELECT pg_temp.assert(
+  to_regprocedure('public.club_is_any_moderator(uuid)') IS NULL,
+  'A36: martwa club_is_any_moderator (literal owner) usunieta');
+SELECT pg_temp.assert(
+  NOT EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.prosrc ~ 'club_members' AND p.prosrc ~ '''owner'''),
+  'A36: zadna funkcja czytajaca club_members nie zna roli owner');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname IN ('club covers moderator select', 'club covers moderator insert',
+                         'club covers moderator update', 'club covers moderator delete')
+      AND COALESCE(with_check, qual) ~ 'club_is_cover_moderator') = 4,
+  'A36: cztery polityki prefiksu (select domyka sprzatanie) pytaja club_is_cover_moderator');
+SELECT pg_temp.assert(
+  pg_temp.fndef('club_is_cover_moderator') ~ 'club_can_edit_cover'
+    AND pg_temp.fndef('club_set_cover') ~ 'club_can_edit_cover'
+    AND pg_temp.fndef('club_set_cover_position') ~ 'club_can_edit_cover',
+  'A36: magazyn, adres i kadrowanie pytaja tego samego predykatu');
+SELECT pg_temp.assert(
+  has_function_privilege('authenticated', 'public.club_is_cover_moderator(uuid,text)', 'EXECUTE')
+    AND has_function_privilege('authenticated', 'public.club_can_edit_cover(uuid,uuid)', 'EXECUTE'),
+  'A36: authenticated wykona funkcje polityki (RLS liczy sie jego prawami)');
+SELECT pg_temp.assert(
+  NOT has_function_privilege('anon', 'public.club_is_cover_moderator(uuid,text)', 'EXECUTE')
+    AND NOT has_function_privilege('anon', 'public.club_can_edit_cover(uuid,uuid)', 'EXECUTE'),
+  'A36: anon nie wywola predykatu okladki');
+
+\echo '== A36.1 Fixture: klub z pelnym przekrojem rol, statusow i kadencji =='
+INSERT INTO auth.users (id, email) VALUES
+  ('c0000000-0000-0000-0000-000000000001','cover-lead@t'),
+  ('c0000000-0000-0000-0000-000000000002','cover-mod@t'),
+  ('c0000000-0000-0000-0000-000000000003','cover-member@t'),
+  ('c0000000-0000-0000-0000-000000000004','cover-observer@t'),
+  ('c0000000-0000-0000-0000-000000000005','cover-lead-expired@t'),
+  ('c0000000-0000-0000-0000-000000000006','cover-lead-left@t'),
+  ('c0000000-0000-0000-0000-000000000007','cover-mod-banned@t'),
+  ('c0000000-0000-0000-0000-000000000008','cover-other-lead@t'),
+  ('c0000000-0000-0000-0000-000000000009','cover-outsider@t'),
+  ('c0000000-0000-0000-0000-000000000010','cover-mod-expired@t'),
+  ('c0000000-0000-0000-0000-000000000011','cover-mod-left@t');
+INSERT INTO public.profiles (id, tenant_id, display_name, discoverable) VALUES
+  ('c0000000-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','Okladka Lead',true),
+  ('c0000000-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','Okladka Moderator',true),
+  ('c0000000-0000-0000-0000-000000000003','11111111-1111-1111-1111-111111111111','Okladka Czlonek',true),
+  ('c0000000-0000-0000-0000-000000000004','11111111-1111-1111-1111-111111111111','Okladka Obserwator',true),
+  ('c0000000-0000-0000-0000-000000000005','11111111-1111-1111-1111-111111111111','Okladka Lead Wygasly',true),
+  ('c0000000-0000-0000-0000-000000000006','11111111-1111-1111-1111-111111111111','Okladka Lead Odszedl',true),
+  ('c0000000-0000-0000-0000-000000000007','11111111-1111-1111-1111-111111111111','Okladka Moderator Ban',true),
+  ('c0000000-0000-0000-0000-000000000008','11111111-1111-1111-1111-111111111111','Okladka Lead Innego',true),
+  ('c0000000-0000-0000-0000-000000000009','11111111-1111-1111-1111-111111111111','Okladka Obcy',true),
+  ('c0000000-0000-0000-0000-000000000010','11111111-1111-1111-1111-111111111111','Okladka Moderator Wygasly',true),
+  ('c0000000-0000-0000-0000-000000000011','11111111-1111-1111-1111-111111111111','Okladka Moderator Odszedl',true);
+
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_upsert('{"slug":"okladka","name_pl":"Okladka","name_en":"Cover",
+  "visibility":"members","status":"active"}'::jsonb) AS cover_club \gset
+SELECT public.admin_club_upsert('{"slug":"okladka-druga","name_pl":"Okladka 2","name_en":"Cover 2",
+  "visibility":"members","status":"active"}'::jsonb) AS cover_club2 \gset
+
+SELECT public.admin_club_member_upsert(:'cover_club'::uuid,'c0000000-0000-0000-0000-000000000001','lead','active',NULL);
+SELECT public.admin_club_member_upsert(:'cover_club'::uuid,'c0000000-0000-0000-0000-000000000002','moderator','active',NULL);
+SELECT public.admin_club_member_upsert(:'cover_club'::uuid,'c0000000-0000-0000-0000-000000000003','member','active',NULL);
+SELECT public.admin_club_member_upsert(:'cover_club'::uuid,'c0000000-0000-0000-0000-000000000004','observer','active',NULL);
+SELECT public.admin_club_member_upsert(:'cover_club'::uuid,'c0000000-0000-0000-0000-000000000005','lead','active',NULL);
+SELECT public.admin_club_member_upsert(:'cover_club'::uuid,'c0000000-0000-0000-0000-000000000006','lead','left',NULL);
+SELECT public.admin_club_member_upsert(:'cover_club'::uuid,'c0000000-0000-0000-0000-000000000007','moderator','banned',NULL);
+SELECT public.admin_club_member_upsert(:'cover_club'::uuid,'c0000000-0000-0000-0000-000000000010','moderator','active',NULL);
+SELECT public.admin_club_member_upsert(:'cover_club'::uuid,'c0000000-0000-0000-0000-000000000011','moderator','left',NULL);
+SELECT public.admin_club_member_upsert(:'cover_club2'::uuid,'c0000000-0000-0000-0000-000000000008','lead','active',NULL);
+-- Kadencja w przeszlosci wprost w tabeli: interesuje nas odczyt wygaslej
+-- kadencji, nie walidacja daty przy jej nadawaniu. Para lead + moderator,
+-- bo stara polityka odrzucala `lead` PRZYPADKIEM (literal `owner`), wiec
+-- tylko moderator pokazuje, ze kadencja i status nie byly czytane wcale.
+UPDATE public.club_members SET role_expires_at = now() - interval '1 day'
+ WHERE club_id = :'cover_club'::uuid
+   AND user_id IN ('c0000000-0000-0000-0000-000000000005','c0000000-0000-0000-0000-000000000010');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM public.club_members WHERE club_id = :'cover_club'::uuid) = 9
+    AND (SELECT role FROM public.club_members WHERE club_id = :'cover_club'::uuid
+          AND user_id = 'c0000000-0000-0000-0000-000000000006') = 'lead',
+  'A36: fixture - wyjscie z klubu NIE zeruje roli (dlatego predykat musi patrzec na status)');
+
+\set cover_path 'club-covers/' :cover_club '/okladka.jpg'
+
+\echo '== A36.2 Predykat polityki: kto moze pisac do club-covers/<klub>/ =='
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', :'cover_path'),
+  'A36: prowadzacy (lead) moze wgrac okladke - rola, ktorej polityka wczesniej nie znala');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000002';
+SELECT pg_temp.assert(public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000002', :'cover_path'),
+  'A36: aktywny moderator moze wgrac okladke');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000003', :'cover_path'),
+  'A36: zwykly czlonek NIE');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000004';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000004', :'cover_path'),
+  'A36: obserwator NIE');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000005';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000005', :'cover_path'),
+  'A36: lead z wygasla kadencja NIE (rola efektywna to member)');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000006';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000006', :'cover_path'),
+  'A36: lead, ktory odszedl z klubu (status left), NIE');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000010';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000010', :'cover_path'),
+  'A36: moderator z wygasla kadencja NIE');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000011';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000011', :'cover_path'),
+  'A36: moderator, ktory odszedl z klubu (status left), NIE');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000007';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000007', :'cover_path'),
+  'A36: zbanowany moderator NIE');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000008';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000008', :'cover_path'),
+  'A36: prowadzacy INNEGO klubu NIE pisze w prefiksie tego klubu');
+SELECT pg_temp.assert(public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000008',
+    'club-covers/' || :'cover_club2' || '/okladka.jpg'),
+  'A36: kontrola dodatnia - prowadzacy innego klubu pisze we WLASNYM prefiksie');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000009';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000009', :'cover_path'),
+  'A36: osoba spoza klubu NIE');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(public.club_is_cover_moderator('a0000000-0000-0000-0000-000000000001', :'cover_path'),
+  'A36: admin najemcy klubu moze');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000002';
+SELECT pg_temp.assert(public.club_is_cover_moderator('a0000000-0000-0000-0000-000000000002', :'cover_path'),
+  'A36: super_admin BEZ roli admin tez moze (inwariant super_admin >= admin)');
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('b0000000-0000-0000-0000-000000000001', :'cover_path'),
+  'A36: admin INNEGO najemcy NIE (has_role pyta o najemce wolajacego, nie klubu)');
+SET request.jwt.claim.sub = '';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator(NULL, :'cover_path'),
+  'A36: anonim NIE');
+-- Sondowanie: czlonek pyta o uprawnienie prowadzacego. Odpowiedz dotyczy
+-- wylacznie wolajacego, wiec cudze konto daje FALSE, nie prawde o nim.
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', :'cover_path'),
+  'A36: predykat nie odpowiada o CUDZE konto (brak sondowania uprawnien)');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', 'club-covers/okladka.jpg')
+    AND NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', 'club-covers/to-nie-uuid/okladka.jpg')
+    AND NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', 'club-covers/' || :'cover_club' || '/podfolder/okladka.jpg')
+    AND NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', 'avatars/' || :'cover_club' || '/okladka.jpg')
+    AND NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', 'club-covers/../' || :'cover_club' || '/okladka.jpg')
+    AND NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', NULL),
+  'A36: sciezka inna niz club-covers/<uuid>/<plik> to odmowa (fail-closed)');
+
+\echo '== A36.3 Parytet z UI: edytor widzi dokladnie ten, komu baza pozwoli =='
+-- `ClubHubIdentity` pokazuje edytor przy `club_view.can_moderate`. Rozjazd
+-- tej flagi z predykatem magazynu JEST zgloszonym defektem, wiec asercja
+-- przechodzi po wszystkich aktorach naraz, a nie po wybranych.
+DO $$
+DECLARE
+  v_club uuid := (SELECT id FROM public.clubs WHERE slug = 'okladka');
+  v_actor uuid;
+  v_ui boolean;
+  v_db boolean;
+  v_bad text := '';
+BEGIN
+  FOREACH v_actor IN ARRAY ARRAY[
+    'c0000000-0000-0000-0000-000000000001','c0000000-0000-0000-0000-000000000002',
+    'c0000000-0000-0000-0000-000000000003','c0000000-0000-0000-0000-000000000004',
+    'c0000000-0000-0000-0000-000000000005','c0000000-0000-0000-0000-000000000006',
+    'c0000000-0000-0000-0000-000000000007','c0000000-0000-0000-0000-000000000008',
+    'c0000000-0000-0000-0000-000000000009','c0000000-0000-0000-0000-000000000010',
+    'c0000000-0000-0000-0000-000000000011','a0000000-0000-0000-0000-000000000001',
+    'a0000000-0000-0000-0000-000000000002','b0000000-0000-0000-0000-000000000001']::uuid[]
+  LOOP
+    PERFORM set_config('request.jwt.claim.sub', v_actor::text, false);
+    SELECT COALESCE(bool_or(v.can_moderate), false) INTO v_ui FROM public.club_view('okladka') v;
+    v_db := public.club_is_cover_moderator(v_actor, 'club-covers/' || v_club::text || '/x.jpg');
+    IF v_ui IS DISTINCT FROM v_db THEN
+      v_bad := v_bad || format(' %s(ui=%s,db=%s)', v_actor, v_ui, v_db);
+    END IF;
+  END LOOP;
+  PERFORM set_config('pg_temp_a36.bad', v_bad, false);
+END $$;
+SELECT pg_temp.assert(current_setting('pg_temp_a36.bad') = '',
+  format('A36: can_moderate z club_view == predykat magazynu dla 14 aktorow (rozjazdy:%s)',
+    NULLIF(current_setting('pg_temp_a36.bad'), '')));
+
+\echo '== A36.4 Polityki storage.objects WYKONANE z roli authenticated =='
+RESET ROLE;
+GRANT USAGE ON SCHEMA storage, auth TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;
+
+SET ROLE authenticated;
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000001';
+INSERT INTO storage.objects (bucket_id, name) VALUES ('media', :'cover_path');
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path') = 1,
+  'A36: INSERT prowadzacego (lead) przechodzi, a polityka select pokazuje mu obiekt');
+
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert(
+  (SELECT count(*) FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path') = 0,
+  'A36: zwykly czlonek nie listuje obiektow prefiksu okladek');
+
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert_raises(
+  format($q$ INSERT INTO storage.objects (bucket_id, name) VALUES ('media', 'club-covers/%s/czlonek.jpg') $q$, :'cover_club'),
+  'A36: INSERT zwyklego czlonka odrzucony przez RLS');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000008';
+SELECT pg_temp.assert_raises(
+  format($q$ INSERT INTO storage.objects (bucket_id, name) VALUES ('media', 'club-covers/%s/obcy.jpg') $q$, :'cover_club'),
+  'A36: INSERT prowadzacego innego klubu w cudzy prefiks odrzucony');
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert_raises(
+  format($q$ INSERT INTO storage.objects (bucket_id, name) VALUES ('media', 'club-covers/%s/obcy-najemca.jpg') $q$, :'cover_club'),
+  'A36: INSERT admina innego najemcy odrzucony');
+
+-- UPDATE/DELETE z USING nie rzucaja - odfiltrowuja wiersz. Dowodem jest wiec
+-- liczba dotknietych wierszy ORAZ to, ze obiekt dalej stoi nienaruszony.
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000005';
+WITH u AS (UPDATE storage.objects SET metadata = '{"by":"expired"}'::jsonb
+            WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 0, 'A36: lead z wygasla kadencja nie nadpisze obiektu okladki') FROM u;
+WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 0, 'A36: lead z wygasla kadencja nie skasuje obiektu okladki') FROM d;
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000010';
+WITH u AS (UPDATE storage.objects SET metadata = '{"by":"expired-mod"}'::jsonb
+            WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 0, 'A36: moderator z wygasla kadencja nie nadpisze obiektu okladki') FROM u;
+WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 0, 'A36: moderator z wygasla kadencja nie skasuje obiektu okladki') FROM d;
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000006';
+WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 0, 'A36: byly prowadzacy (left) nie skasuje obiektu okladki') FROM d;
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000011';
+WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 0, 'A36: byly moderator (left) nie skasuje obiektu okladki') FROM d;
+SELECT pg_temp.assert_raises(
+  format($q$ INSERT INTO storage.objects (bucket_id, name) VALUES ('media', 'club-covers/%s/byly.jpg') $q$, :'cover_club'),
+  'A36: byly moderator (left) nie wgra nowego obiektu');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000007';
+WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 0, 'A36: zbanowany moderator nie skasuje obiektu okladki') FROM d;
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 0, 'A36: admin innego najemcy nie skasuje obiektu okladki') FROM d;
+-- Stan obiektu czytany z roli wlasciciela: admin B nie ma prawa go widziec,
+-- wiec z jego sesji podzapytanie oddaloby NULL zamiast stanu.
+RESET ROLE;
+SELECT pg_temp.assert(
+  (SELECT metadata IS NULL FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path'),
+  'A36: po wszystkich odmowach obiekt stoi nienaruszony');
+SET ROLE authenticated;
+
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000002';
+WITH u AS (UPDATE storage.objects SET metadata = '{"by":"moderator"}'::jsonb
+            WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 1, 'A36: aktywny moderator nadpisze obiekt (upsert)') FROM u;
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000001';
+WITH d AS (DELETE FROM storage.objects WHERE bucket_id = 'media' AND name = :'cover_path' RETURNING 1)
+SELECT pg_temp.assert(count(*) = 1, 'A36: prowadzacy (lead) skasuje obiekt okladki (sprzatanie po odmowie RPC)') FROM d;
+RESET ROLE;
+
+\echo '== A36.5 club_set_cover: adres pod domena marki, postac kanoniczna, najemca =='
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/1700000000000-abc.jpg')
+  = 'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/1700000000000-abc.jpg',
+  'A36: adres pod domena marki (to wysyla brandedMediaUrl) jest przyjmowany');
+SELECT pg_temp.assert(
+  (SELECT cover_image_url FROM public.clubs WHERE id = :'cover_club'::uuid)
+  = 'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/1700000000000-abc.jpg',
+  'A36: ... i realnie zapisany na klubie');
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://abcdefghijklmnop.supabase.co/storage/v1/object/public/media/club-covers/' || :'cover_club' || '/b.webp')
+  = 'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/b.webp',
+  'A36: host techniczny magazynu przyjety, ale zapisany w postaci kanonicznej marki');
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://tracker.example/media/club-covers/' || :'cover_club' || '/c.png')
+  = 'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/c.png',
+  'A36: obcy host NIE trafia do kolumny - zapisujemy domene marki');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, 'https://neweuropeanstrategies.com/media/club-covers/%s/x.jpg') $q$,
+    :'cover_club', :'cover_club2'),
+  'A36: adres z prefiksu INNEGO klubu odrzucony');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, 'https://neweuropeanstrategies.com/media/club-covers/%s/../x.jpg') $q$,
+    :'cover_club', :'cover_club'),
+  'A36: segment .. w sciezce odrzucony');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, 'http://neweuropeanstrategies.com/media/club-covers/%s/x.jpg') $q$,
+    :'cover_club', :'cover_club'),
+  'A36: http (mieszana tresc) odrzucone');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, 'https://neweuropeanstrategies.com/media/club-covers/%s/x.jpg?t=1') $q$,
+    :'cover_club', :'cover_club'),
+  'A36: zapytanie w adresie odrzucone');
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, 'https://neweuropeanstrategies.com/media/avatars/%s/x.jpg') $q$,
+    :'cover_club', :'cover_club'),
+  'A36: plik spoza prefiksu club-covers odrzucony');
+-- Dwie instrukcje, nie jedna: podzapytanie w tej samej instrukcji co
+-- wywolanie czytaloby migawke sprzed UPDATE-u w funkcji.
+SELECT pg_temp.assert(public.club_set_cover(:'cover_club'::uuid, NULL) IS NULL,
+  'A36: NULL zdejmuje okladke - funkcja oddaje NULL');
+SELECT pg_temp.assert(
+  (SELECT cover_image_url FROM public.clubs WHERE id = :'cover_club'::uuid) IS NULL,
+  'A36: ... i kolumna jest pusta');
+
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000002';
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/mod.jpg') IS NOT NULL,
+  'A36: aktywny moderator ustawi okladke');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000003';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, NULL) $q$, :'cover_club'),
+  'A36: zwykly czlonek nie zdejmie okladki');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000005';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, NULL) $q$, :'cover_club'),
+  'A36: lead z wygasla kadencja nie zdejmie okladki');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000010';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, NULL) $q$, :'cover_club'),
+  'A36: moderator z wygasla kadencja nie zdejmie okladki');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000007';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, NULL) $q$, :'cover_club'),
+  'A36: zbanowany moderator nie zdejmie okladki');
+SET request.jwt.claim.sub = 'b0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover('%s'::uuid, NULL) $q$, :'cover_club'),
+  'A36: admin innego najemcy nie zdejmie okladki klubu najemcy A');
+SELECT pg_temp.assert(
+  (SELECT cover_image_url FROM public.clubs WHERE id = :'cover_club'::uuid)
+  = 'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/mod.jpg',
+  'A36: po odmowach okladka zostaje ta, ktora ustawil moderator');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000002';
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/super.jpg') IS NOT NULL,
+  'A36: super_admin bez roli admin ustawi okladke');
+
+\echo '== A36.6 club_set_cover_position: ten sam predykat =='
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(public.club_set_cover_position(:'cover_club'::uuid, 30::smallint) = 30,
+  'A36: prowadzacy (lead) zapisze kadrowanie');
+SELECT pg_temp.assert(public.club_set_cover_position(:'cover_club'::uuid, 250::smallint) = 100,
+  'A36: kadrowanie przyciete do 0..100');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000005';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover_position('%s'::uuid, 10::smallint) $q$, :'cover_club'),
+  'A36: lead z wygasla kadencja nie przestawi kadrowania');
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000006';
+SELECT pg_temp.assert_raises(
+  format($q$ SELECT public.club_set_cover_position('%s'::uuid, 10::smallint) $q$, :'cover_club'),
+  'A36: byly prowadzacy (left) nie przestawi kadrowania');
+SELECT pg_temp.assert(
+  (SELECT cover_position_y FROM public.clubs WHERE id = :'cover_club'::uuid) = 100,
+  'A36: odmowy nie zmienily kadrowania');
+
+\echo '== A36.6b Nowe zdjecie zaczyna od srodka kadru, ten sam adres kadru nie rusza =='
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000001';
+SELECT public.club_set_cover(:'cover_club'::uuid,
+  'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/nowe.jpg');
+SELECT pg_temp.assert(
+  (SELECT cover_position_y FROM public.clubs WHERE id = :'cover_club'::uuid) = 50,
+  'A36: nowe zdjecie nie dziedziczy kadru poprzedniego (powrot do 50)');
+SELECT public.club_set_cover_position(:'cover_club'::uuid, 70::smallint);
+SELECT public.club_set_cover(:'cover_club'::uuid,
+  'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/nowe.jpg');
+SELECT pg_temp.assert(
+  (SELECT cover_position_y FROM public.clubs WHERE id = :'cover_club'::uuid) = 70,
+  'A36: ponowny zapis TEGO SAMEGO adresu zostawia kadr');
+
+\echo '== A36.7 Klub zarchiwizowany: prowadzenie traci prawo, administracja nie =='
+RESET ROLE;
+UPDATE public.clubs SET status = 'archived' WHERE id = :'cover_club'::uuid;
+SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', :'cover_path'),
+  'A36: lead zarchiwizowanego klubu nie pisze okladki (parytet z can_moderate)');
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT pg_temp.assert(public.club_is_cover_moderator('a0000000-0000-0000-0000-000000000001', :'cover_path'),
+  'A36: admin najemcy pisze okladke klubu zarchiwizowanego');
+UPDATE public.clubs SET status = 'active' WHERE id = :'cover_club'::uuid;
+RESET request.jwt.claim.sub;
+
 \echo ''
 \echo '=========================================='
 \echo ' WSZYSTKIE ASERCJE PRZESZLY'

@@ -1,11 +1,14 @@
 // Widok widgetu „Klub: strona": trzy sekcje (artykuly, komentarze, zapisy),
 // i18n PL/EN, cisza przy braku dostepu i respektowanie przelacznikow z panelu.
+// Na koncu okladka obu widgetow klubu („strona" i „karta"): kadr zapisany
+// w klubie (`cover_position_y`) zamiast srodka zdjecia.
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import type { WidgetContent } from "@/lib/builder/types";
 import { ClubHubView } from "../ClubHubView";
+import { ClubCardView } from "../ClubWidgets";
 
 const state = vi.hoisted(() => ({
   club: [] as Array<Record<string, unknown>>,
@@ -59,6 +62,7 @@ function seed() {
       icon: null,
       accent_color: "#123456",
       cover_image_url: "https://example.org/cover.jpg",
+      cover_position_y: 20,
       policy_area: "security",
       member_count: 12,
       thread_count: 5,
@@ -176,5 +180,33 @@ describe("ClubHubView", () => {
     const time = container.querySelector("time");
     expect(time?.getAttribute("datetime")).toBe("2026-03-04T10:00:00.000Z");
     expect(time?.textContent).toBe("4 Mar 2026");
+  });
+});
+
+describe("okładka widgetów klubu", () => {
+  it("„Klub: strona” rysuje okładkę w kadrze zapisanym w klubie", async () => {
+    seed();
+    const { container } = renderWidget(<ClubHubView c={content} lang="pl" />);
+    await screen.findByRole("heading", { name: "Bezpieczeństwo" });
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 20%");
+  });
+
+  it("„Klub: karta” rysuje okładkę w kadrze zapisanym w klubie", async () => {
+    seed();
+    const { container } = renderWidget(
+      <ClubCardView c={{ clubSlug: "bezpieczenstwo" } as unknown as WidgetContent} lang="pl" />,
+    );
+    await screen.findByRole("heading", { name: "Bezpieczeństwo" });
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 20%");
+  });
+
+  it("wiersz bez kadru (starsza baza) rysuje środek zdjęcia", async () => {
+    seed();
+    delete state.club[0].cover_position_y;
+    const { container } = renderWidget(
+      <ClubCardView c={{ clubSlug: "bezpieczenstwo" } as unknown as WidgetContent} lang="pl" />,
+    );
+    await screen.findByRole("heading", { name: "Bezpieczeństwo" });
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 50%");
   });
 });

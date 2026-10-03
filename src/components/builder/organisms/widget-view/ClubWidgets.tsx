@@ -23,6 +23,7 @@ import { AppLink } from "@/components/atoms/AppLink";
 import { MessagesSquare, Users } from "@/lib/lucide-shim";
 import type { WidgetContent } from "@/lib/builder/types";
 import { clubCardQueryOptions, clubThreadsQueryOptions } from "@/lib/builder/clubsQuery";
+import { clubCoverObjectPosition } from "@/lib/clubs/coverFrame";
 import { getBool, getNum, getStr, type Lang } from "./frame";
 
 function locStr(c: WidgetContent, base: string, lang: Lang): string {
@@ -66,6 +67,7 @@ export function ClubCardView({ c, lang }: { c: WidgetContent; lang: Lang }) {
           alt=""
           loading="lazy"
           className="h-32 w-full object-cover"
+          style={{ objectPosition: clubCoverObjectPosition(data.cover_position_y) }}
         />
       ) : null}
       <div className="space-y-2 p-4">

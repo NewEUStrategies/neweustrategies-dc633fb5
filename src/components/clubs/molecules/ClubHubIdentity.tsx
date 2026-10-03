@@ -14,11 +14,13 @@
 // Edycja okładki stoi TUTAJ, a nie w panelu administracyjnym: zmienia ją
 // prowadzenie klubu, patrząc na to, co zmienia. Przycisk widzi wyłącznie ten,
 // kto ma `can_moderate` - baza i tak sprawdzi to po raz drugi.
+import { useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Landmark, MessagesSquare, PenLine, ShieldQuestion, Users2 } from "lucide-react";
+import { OptimizedImage } from "@/components/atoms/OptimizedImage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,6 +29,7 @@ import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { ClubCoverEditor } from "@/components/clubs/molecules/ClubCoverEditor";
 import { ClubCoverPositionEditor } from "@/components/clubs/molecules/ClubCoverPositionEditor";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
+import { clubCoverObjectPosition, normalizeClubCoverPositionY } from "@/lib/clubs/coverFrame";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import type { ClubViewRow } from "@/lib/clubs/types";
 import { formatNumber, uiLang } from "@/lib/i18n/format";
@@ -52,13 +55,16 @@ export function ClubHubIdentity({
   const lang = uiLang(i18n.language);
   const { topics } = useClubTopics();
   const queryClient = useQueryClient();
+  // Pas okładki mierzy edytor kadrowania przy otwarciu: proporcja tego pasa
+  // zmienia się z szerokością ekranu, więc stała w podglądzie kłamałaby.
+  const coverFrameRef = useRef<HTMLDivElement>(null);
   const name = pickLocalized(club, "name", lang);
   const tagline = pickLocalized(club, "tagline", lang);
   const coverUrl =
     typeof club.cover_image_url === "string" && club.cover_image_url.trim() !== ""
       ? club.cover_image_url
       : null;
-  const coverPositionY = typeof club.cover_position_y === "number" ? club.cover_position_y : 50;
+  const coverPositionY = normalizeClubCoverPositionY(club.cover_position_y);
   const canEditCover = club.can_moderate === true;
 
   return (
@@ -72,16 +78,24 @@ export function ClubHubIdentity({
           w pionie - to nagłówek, nie hero. Proporcja 4:1 na mobile (mniej
           pustego pasa przy wąskim zdjęciu) przechodzi w stałe wysokości od
           `sm` w górę, żeby na desktopie nagłówek nie rósł bez końca. */}
-      <div className="relative aspect-[4/1] max-h-56 min-h-[7rem] w-full sm:aspect-auto sm:h-40 lg:h-52">
+      <div
+        ref={coverFrameRef}
+        className="relative aspect-[4/1] max-h-56 min-h-[7rem] w-full sm:aspect-auto sm:h-40 lg:h-52"
+      >
         {coverUrl !== null ? (
-          <img
+          // `OptimizedImage` z wariantami szerokości zamiast surowego <img>:
+          // pas jest nad zgięciem, a zalecany plik ma 1920 px - telefon nie musi
+          // go ściągać w pełnej rozdzielczości. `sizes` odpowiada szerokości
+          // pasa: pełna szerokość ekranu aż do powłoki `max-w-[1600px]`.
+          <OptimizedImage
             src={coverUrl}
             alt=""
             aria-hidden="true"
+            responsive
+            priority
+            sizes="(min-width: 1600px) 1534px, 100vw"
             className="h-full w-full object-cover"
-            style={{ objectPosition: `center ${coverPositionY}%` }}
-            loading="eager"
-            decoding="async"
+            style={{ objectPosition: clubCoverObjectPosition(coverPositionY) }}
           />
         ) : (
           <div className="club-cover-placeholder h-full w-full" aria-hidden="true" />
@@ -103,6 +117,7 @@ export function ClubHubIdentity({
               clubId={club.id}
               coverImageUrl={coverUrl}
               positionY={coverPositionY}
+              frameRef={coverFrameRef}
               canEdit={canEditCover}
               onChanged={() => void queryClient.invalidateQueries({ queryKey: clubKeys.all })}
             />

@@ -42,6 +42,7 @@ export const UNIVERSAL_ROW: Readonly<Record<string, unknown>> = {
   content_pl: "<p>Stub treść</p>",
   content_en: "<p>Stub body</p>",
   cover_image_url: "https://example.org/stub-cover.jpg",
+  cover_position_y: 50,
   published_at: "2026-01-02T09:00:00.000Z",
   post_format: "standard",
   reading_time_min: 5,

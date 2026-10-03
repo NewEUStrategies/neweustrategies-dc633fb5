@@ -410,6 +410,22 @@ describe("ClubCover - wariant banner", () => {
     const { container } = render(<ClubCover url={COVER_URL} variant="banner" className="mb-4" />);
     expect(container.firstElementChild?.classList.contains("mb-4")).toBe(true);
   });
+
+  // Kadr zapisany w nagłówku klubu (`cover_position_y`) musi dojechać do
+  // bramki, karty klubu zamkniętego i minisite - wcześniej atom ciął środek.
+  it("respektuje zapisany kadr okładki", () => {
+    const { container } = render(<ClubCover url={COVER_URL} variant="banner" positionY={20} />);
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 20%");
+  });
+
+  it("bez kadru (albo z niepoprawnym) rysuje środek zdjęcia", () => {
+    const { container, rerender } = render(<ClubCover url={COVER_URL} variant="banner" />);
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 50%");
+    rerender(<ClubCover url={COVER_URL} variant="banner" positionY={null} />);
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 50%");
+    rerender(<ClubCover url={COVER_URL} variant="banner" positionY={180} />);
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 100%");
+  });
 });
 
 describe("ClubCover - wariant card", () => {
@@ -443,6 +459,11 @@ describe("ClubCover - wariant card", () => {
       "auto, (min-width: 1024px) 22rem, (min-width: 640px) 50vw, 100vw",
     );
     expect(container.firstElementChild?.getAttribute("class")).toContain("rounded-t-lg");
+  });
+
+  it("kafel katalogu też respektuje zapisany kadr", () => {
+    const { container } = render(<ClubCover url={COVER_URL} variant="card" positionY={75} />);
+    expect(container.querySelector("img")?.style.objectPosition).toBe("center 75%");
   });
 
   it("prosi o warianty szerokości - kafel katalogu nie ściąga pełnej rozdzielczości", () => {

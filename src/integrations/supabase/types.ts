@@ -26774,6 +26774,10 @@ export type Database = {
         Args: { p_actor_id: string; p_club_id: string }
         Returns: undefined
       }
+      club_can_edit_cover: {
+        Args: { _club_id: string; _user_id: string }
+        Returns: boolean
+      }
       club_capabilities: {
         Args: { _club_id: string; _group_id?: string; _user_id?: string }
         Returns: {
@@ -27065,7 +27069,6 @@ export type Database = {
         Returns: string
       }
       club_invite_quota_ok: { Args: { _user_id: string }; Returns: boolean }
-      club_is_any_moderator: { Args: { _user_id: string }; Returns: boolean }
       club_is_cover_moderator: {
         Args: { _object_name: string; _user_id: string }
         Returns: boolean
