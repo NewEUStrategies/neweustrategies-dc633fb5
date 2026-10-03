@@ -13,10 +13,12 @@
 //   3) korzeń jest prefiksem, bo unieważnianie po zapisie ustawień idzie
 //      właśnie po korzeniu - klucz spoza korzenia przestałby się odświeżać.
 import { describe, expect, it } from "vitest";
+import { partialMatchKey } from "@tanstack/react-query";
 
 import {
   analyticsBiStripKey,
   analyticsCouponsKey,
+  analyticsCouponsPrefixKey,
   analyticsRootKey,
   analyticsStatusKey,
   analyticsTenantKey,
@@ -35,6 +37,7 @@ const KLUCZE: ReadonlyArray<readonly [string, (tenantId: string) => readonly unk
   ["bi-strip errors", (t) => analyticsBiStripKey(t, "errors", 14)],
   ["kupony", (t) => analyticsCouponsKey(t, "2026-07-01T00:00:00.000Z", "2026-10-01T00:00:00.000Z")],
   ["kupony bez granic", (t) => analyticsCouponsKey(t, null, null)],
+  ["prefiks kuponów", (t) => analyticsCouponsPrefixKey(t)],
 ];
 
 describe("klucze analityki - izolacja najemców w cache'u", () => {
@@ -102,5 +105,35 @@ describe("klucze analityki - rozdzielczość parametrów", () => {
       analyticsCouponsKey(TENANT_A, null, null),
     ].map((k) => JSON.stringify(k));
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("klucze analityki - prefiks kuponów do unieważniania po mutacji", () => {
+  // Mutacja kuponu nie zna zakresu dat zapamiętanego na /admin/coupons/analytics,
+  // więc unieważnia PREFIKS. Dopasowanie liczy `partialMatchKey` - ta sama
+  // funkcja, którą `invalidateQueries({ queryKey })` filtruje cache - więc
+  // asercja mierzy dokładnie to, w co trafi unieważnienie.
+  it.each<[string, string | null, string | null]>([
+    ["zakres domknięty", "2026-07-01T00:00:00.000Z", "2026-10-01T00:00:00.000Z"],
+    ["bez początku", null, "2026-10-01T00:00:00.000Z"],
+    ["bez końca", "2026-07-01T00:00:00.000Z", null],
+    ["bez granic", null, null],
+  ])("%s: prefiks trafia w klucz zakresu", (_, od, doIso) => {
+    expect(
+      partialMatchKey(
+        analyticsCouponsKey(TENANT_A, od, doIso),
+        analyticsCouponsPrefixKey(TENANT_A),
+      ),
+    ).toBe(true);
+  });
+
+  it("prefiks kuponów NIE trafia w cudzego najemcę ani w inne dziedziny analityki", () => {
+    const prefix = analyticsCouponsPrefixKey(TENANT_A);
+    const obce = [
+      analyticsCouponsKey(TENANT_B, null, null),
+      analyticsStatusKey(TENANT_A),
+      analyticsBiStripKey(TENANT_A, "vitals", 14),
+    ];
+    for (const key of obce) expect(partialMatchKey(key, prefix)).toBe(false);
   });
 });

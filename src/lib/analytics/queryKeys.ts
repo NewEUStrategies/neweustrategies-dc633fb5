@@ -23,6 +23,11 @@
 // UNIEWAŻNIANIE PO KORZENIU (`analyticsRootKey()`), nie po pojedynczym kluczu:
 // zapis ustawień analityki zmienia odpowiedź statusu, a korzeń trafia w nią
 // niezależnie od tego, pod którym najemcą i z którego ekranu ją zapamiętano.
+// Wyjątek to dziedzina, którą zmienia ZAPIS POZA analityką - kupony: mutacja
+// kuponu unieważnia prefiks analityki kuponów SWOJEGO najemcy
+// (`analyticsCouponsPrefixKey`), bo funkcja agregująca liczy po wszystkich
+// kuponach najemcy (LEFT JOIN), więc nowy, skasowany albo wygenerowany kod
+// zmienia ranking od razu, a nie dopiero po `staleTime`.
 
 /** Korzeń wszystkich kluczy panelu analityki - do unieważniania hurtem. */
 export function analyticsRootKey(): readonly unknown[] {
@@ -61,6 +66,16 @@ export function analyticsBiStripKey(
 }
 
 /**
+ * Prefiks analityki kuponów B2B jednego najemcy - wszystkie zakresy dat naraz.
+ * Do unieważniania po mutacji kuponu (`invalidateCouponQueries`): zakres
+ * zapamiętany na /admin/coupons/analytics jest dowolny, więc mutacja nie zna
+ * pełnego klucza, a prefiks trafia w każdy.
+ */
+export function analyticsCouponsPrefixKey(tenantId: string): readonly unknown[] {
+  return [...analyticsTenantKey(tenantId), "b2b-coupons"];
+}
+
+/**
  * Analityka kuponów B2B (`b2b_coupons_analytics`). Granice jako ISO albo `null`
  * (brak granicy) - dwa zakresy różniące się tylko końcem to dwa różne odczyty.
  */
@@ -69,5 +84,5 @@ export function analyticsCouponsKey(
   fromIso: string | null,
   toIso: string | null,
 ): readonly unknown[] {
-  return [...analyticsTenantKey(tenantId), "b2b-coupons", fromIso, toIso];
+  return [...analyticsCouponsPrefixKey(tenantId), fromIso, toIso];
 }

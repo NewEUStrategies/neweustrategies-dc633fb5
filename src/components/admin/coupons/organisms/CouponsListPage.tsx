@@ -8,6 +8,8 @@ import { Plus, Trash2, Copy, Check, Loader2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { confirmDialog } from "@/lib/appDialogs";
+import { ADMIN_COUPONS_KEY, invalidateCouponQueries } from "@/lib/admin/couponQueries";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,9 +52,12 @@ export function CouponsListPage() {
     "all",
   );
   const [search, setSearch] = useState("");
+  // Najemca TYLKO do unieważnienia analityki kuponów po mutacji (jej klucz
+  // niesie najemcę - `invalidateCouponQueries`); sama lista jest odczytem RLS.
+  const tenantId = useCurrentTenantId();
 
   const couponsQ = useQuery({
-    queryKey: ["admin", "b2b-coupons"],
+    queryKey: ADMIN_COUPONS_KEY,
     queryFn: async (): Promise<ExtRow[]> => {
       const { data, error } = await supabase
         .from("b2b_coupons")
@@ -67,7 +72,7 @@ export function CouponsListPage() {
   });
 
   const plansQ = useQuery({
-    queryKey: ["admin", "b2b-coupons", "plans"],
+    queryKey: [...ADMIN_COUPONS_KEY, "plans"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("access_plans")
@@ -80,7 +85,7 @@ export function CouponsListPage() {
   });
 
   const tiersQ = useQuery({
-    queryKey: ["admin", "b2b-coupons", "tiers"],
+    queryKey: [...ADMIN_COUPONS_KEY, "tiers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("membership_tiers")
@@ -100,7 +105,11 @@ export function CouponsListPage() {
         .eq("id", row.id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "b2b-coupons"] }),
+    // Lista ORAZ analityka kuponów (`@/lib/admin/couponQueries`). Samo `active`
+    // dziś rankingu nie zmienia (`b2b_coupons_analytics` tej kolumny nie
+    // czyta), ale jedna ścieżka unieważniania dla KAŻDEJ mutacji kuponu jest
+    // tańsza niż pilnowanie, które kolumny funkcja agregująca akurat czyta.
+    onSuccess: () => invalidateCouponQueries(qc, tenantId),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -109,7 +118,7 @@ export function CouponsListPage() {
       const { error } = await supabase.from("b2b_coupons").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "b2b-coupons"] }),
+    onSuccess: () => invalidateCouponQueries(qc, tenantId),
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -200,7 +209,7 @@ export function CouponsListPage() {
             tiers={tiersQ.data ?? []}
             onCreated={() => {
               setOpen(false);
-              void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupons"] });
+              void invalidateCouponQueries(qc, tenantId);
             }}
           />
         </Dialog>
