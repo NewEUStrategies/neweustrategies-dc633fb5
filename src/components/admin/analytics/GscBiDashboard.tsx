@@ -65,6 +65,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Search as SearchIcon } from "lucide-react";
 import { useCurrentTenantId } from "@/lib/tenant";
+import { analyticsGscSitesKey } from "@/lib/analytics/queryKeys";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -238,7 +239,10 @@ export function GscBiDashboard({ configured }: { configured: boolean }) {
   const sitesQ = useQuery({
     // Najemca W KLUCZU, nie tylko w RLS: cache react-query przeżywa zmianę
     // warsztatu, a stała `["gsc-sites"]` oddawała listę właściwości poprzedniego.
-    queryKey: ["gsc-sites", tenantId ?? ""],
+    // Klucz z fabryki - JEDEN wpis listy na najemcę, wspólny z
+    // /admin/seo/search-console i widżetem inspekcji URL (ta sama funkcja,
+    // bez parametrów, więc ta sama odpowiedź).
+    queryKey: analyticsGscSitesKey(tenantId ?? ""),
     queryFn: () => fetchSites(),
     enabled: configured && Boolean(tenantId),
   });

@@ -1,11 +1,21 @@
 // /admin/seo/search-console - Google Search Console dashboard:
 // top queries, CTR, average position and top pages for the selected verified property.
+//
+// KLUCZE CACHE'U NIOSĄ NAJEMCĘ (`@/lib/analytics/queryKeys`). Serwer odsiewa
+// listę właściwości i każde `siteUrl` per najemca, ale do 2026-10 trasa
+// trzymała je pod `["gsc-sites"]` i `["gsc-queries", <właściwość>, …]` - klient
+// react-query przeżywa zmianę obszaru roboczego, więc po przełączeniu panel
+// rysował z cache'u właściwości i frazy POPRZEDNIEGO najemcy, bez jednego
+// zapytania. Do czasu ustalenia najemcy nic się nie pobiera, a ekran mówi
+// „ładowanie" - nie „brak właściwości".
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listGscSites, queryGscAnalytics, type GscRow } from "@/lib/analytics/gsc.functions";
+import { analyticsGscReportKey, analyticsGscSitesKey } from "@/lib/analytics/queryKeys";
+import { useCurrentTenantId } from "@/lib/tenant";
 import {
   Select,
   SelectContent,
@@ -78,19 +88,36 @@ function SearchConsolePanel() {
 
   const listSites = useServerFn(listGscSites);
   const runQuery = useServerFn(queryGscAnalytics);
+  const tenantId = useCurrentTenantId();
 
   const sitesQuery = useQuery({
-    queryKey: ["gsc-sites"],
+    // Ten sam wpis co widżet inspekcji URL i warsztat GSC w /admin/analytics/bi.
+    queryKey: analyticsGscSitesKey(tenantId ?? ""),
     queryFn: () => listSites(),
+    enabled: Boolean(tenantId),
     staleTime: 5 * 60_000,
   });
+  // Wyłączone zapytanie ma `isLoading === false`, więc bez składnika
+  // `!tenantId` ekran przed ustaleniem najemcy nie mówiłby nic - ani
+  // „ładowanie", ani niczego, co odróżnia oczekiwanie od pustki.
+  const sitesLoading = !tenantId || sitesQuery.isLoading;
 
   const effectiveSite = siteUrl || sitesQuery.data?.sites?.[0]?.siteUrl || "";
   const { startDate, endDate } = useMemo(() => rangeDates(range), [range]);
+  // Zapytania o raporty startują dopiero z najemcą ORAZ właściwością; ta druga
+  // przychodzi z listy, więc w praktyce wynika z pierwszej - warunek stoi
+  // jawnie, żeby wpis pod kluczem-zaślepką `""` nie mógł powstać nigdy.
+  const reportsEnabled = Boolean(tenantId) && !!effectiveSite;
 
   const queriesQuery = useQuery({
-    queryKey: ["gsc-queries", effectiveSite, startDate, endDate],
-    enabled: !!effectiveSite,
+    queryKey: analyticsGscReportKey(tenantId ?? "", {
+      siteUrl: effectiveSite,
+      dimension: "query",
+      startDate,
+      endDate,
+      rowLimit: 25,
+    }),
+    enabled: reportsEnabled,
     queryFn: () =>
       runQuery({
         data: {
@@ -104,8 +131,14 @@ function SearchConsolePanel() {
   });
 
   const pagesQuery = useQuery({
-    queryKey: ["gsc-pages", effectiveSite, startDate, endDate],
-    enabled: !!effectiveSite,
+    queryKey: analyticsGscReportKey(tenantId ?? "", {
+      siteUrl: effectiveSite,
+      dimension: "page",
+      startDate,
+      endDate,
+      rowLimit: 25,
+    }),
+    enabled: reportsEnabled,
     queryFn: () =>
       runQuery({
         data: {
@@ -147,9 +180,7 @@ function SearchConsolePanel() {
         <p className="text-sm text-muted-foreground mt-1">{t("admin.gsc.subtitle")}</p>
       </div>
 
-      {sitesQuery.isLoading && (
-        <div className="text-sm text-muted-foreground">{t("admin.loading")}</div>
-      )}
+      {sitesLoading && <div className="text-sm text-muted-foreground">{t("admin.loading")}</div>}
 
       {sitesQuery.error && (
         <div className="bg-destructive/10 border border-destructive/40 text-destructive rounded-[6px] p-4 text-sm">

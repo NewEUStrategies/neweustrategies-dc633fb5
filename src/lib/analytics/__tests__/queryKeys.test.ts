@@ -19,14 +19,26 @@ import {
   analyticsBiStripKey,
   analyticsCouponsKey,
   analyticsCouponsPrefixKey,
+  analyticsGscReportKey,
+  analyticsGscSitesKey,
   analyticsRootKey,
   analyticsStatusKey,
   analyticsTenantKey,
   analyticsVitalsMiniKey,
+  type GscReportParams,
 } from "../queryKeys";
 
 const TENANT_A = "11111111-1111-4111-8111-111111111111";
 const TENANT_B = "22222222-2222-4222-8222-222222222222";
+
+/** Raport GSC w kształcie z /admin/seo/search-console - baza do nadpisań punktowych. */
+const RAPORT: GscReportParams = {
+  siteUrl: "sc-domain:example.org",
+  dimension: "query",
+  startDate: "2026-09-01",
+  endDate: "2026-09-29",
+  rowLimit: 25,
+};
 
 /** Każdy klucz fabryki jako funkcja najemcy - jedna lista dla wszystkich asercji. */
 const KLUCZE: ReadonlyArray<readonly [string, (tenantId: string) => readonly unknown[]]> = [
@@ -38,6 +50,8 @@ const KLUCZE: ReadonlyArray<readonly [string, (tenantId: string) => readonly unk
   ["kupony", (t) => analyticsCouponsKey(t, "2026-07-01T00:00:00.000Z", "2026-10-01T00:00:00.000Z")],
   ["kupony bez granic", (t) => analyticsCouponsKey(t, null, null)],
   ["prefiks kuponów", (t) => analyticsCouponsPrefixKey(t)],
+  ["gsc: właściwości", (t) => analyticsGscSitesKey(t)],
+  ["gsc: raport", (t) => analyticsGscReportKey(t, RAPORT)],
 ];
 
 describe("klucze analityki - izolacja najemców w cache'u", () => {
@@ -103,8 +117,31 @@ describe("klucze analityki - rozdzielczość parametrów", () => {
       analyticsVitalsMiniKey(TENANT_A, 7),
       analyticsBiStripKey(TENANT_A, "vitals", 7),
       analyticsCouponsKey(TENANT_A, null, null),
+      analyticsGscSitesKey(TENANT_A),
+      analyticsGscReportKey(TENANT_A, RAPORT),
     ].map((k) => JSON.stringify(k));
     expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  // Raport GSC: KAŻDY parametr odczytu rozróżnia klucz. Szczególnie `rowLimit` -
+  // /admin/seo/search-console pyta o 25 wierszy, warsztat BI o 200, i wspólny
+  // wpis oddałby jednemu z nich cudzą długość listy jako pełną.
+  it.each<[string, Partial<GscReportParams>]>([
+    ["właściwość", { siteUrl: "https://example.org/" }],
+    ["wymiar", { dimension: "page" }],
+    ["początek okna", { startDate: "2026-08-01" }],
+    ["koniec okna", { endDate: "2026-09-30" }],
+    ["limit wierszy", { rowLimit: 200 }],
+  ])("raport GSC: inny parametr „%s” to inny klucz", (_, zmiana) => {
+    expect(analyticsGscReportKey(TENANT_A, { ...RAPORT, ...zmiana })).not.toEqual(
+      analyticsGscReportKey(TENANT_A, RAPORT),
+    );
+  });
+
+  it("lista właściwości GSC to prefiks najemcy + „gsc”, „sites”, bez parametrów", () => {
+    // Bez parametrów celowo: trzy powierzchnie (trasa Search Console, widżet
+    // inspekcji, warsztat BI) mają dzielić JEDEN wpis na najemcę.
+    expect(analyticsGscSitesKey(TENANT_A)).toEqual(["admin-analytics", TENANT_A, "gsc", "sites"]);
   });
 });
 
@@ -133,6 +170,7 @@ describe("klucze analityki - prefiks kuponów do unieważniania po mutacji", () 
       analyticsCouponsKey(TENANT_B, null, null),
       analyticsStatusKey(TENANT_A),
       analyticsBiStripKey(TENANT_A, "vitals", 14),
+      analyticsGscSitesKey(TENANT_A),
     ];
     for (const key of obce) expect(partialMatchKey(key, prefix)).toBe(false);
   });
