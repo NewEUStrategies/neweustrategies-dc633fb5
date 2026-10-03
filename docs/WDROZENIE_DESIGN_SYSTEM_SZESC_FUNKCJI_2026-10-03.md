@@ -240,13 +240,13 @@ w CI - porównywać parami):
 
 | Metryka (KB gz) | `main` `531a2c5` | PR, pierwszy push | PR po poprawkach |
 | --------------- | ---------------: | ----------------: | ---------------: |
-| public          |           2711,5 |            2748,1 |       **2714,2** |
-| admin-only      |           1944,7 |            1912,9 |           1945,1 |
-| overall         |           4656,2 |            4661,0 |       **4659,2** |
+| public          |           2711,5 |            2748,1 |       **2714,0** |
+| admin-only      |           1944,7 |            1912,9 |           1944,7 |
+| overall         |           4656,2 |            4661,0 |       **4658,7** |
 | CSS             |             96,0 |              95,2 |         **95,2** |
-| boot (chunki)   |        473,9 (9) |        478,8 (10) |    **473,4 (9)** |
+| boot (chunki)   |        473,9 (9) |        478,8 (10) |    **473,6 (9)** |
 
-Zostaje +2,7 KB public i +3,0 KB overall - realny kod napraw (klawiatura, pauzy,
+Zostaje +2,5 KB public i +2,5 KB overall - realny kod napraw (klawiatura, pauzy,
 przywracanie ogniska, testowane gałęzie). `check:chunks`, `check:entry-purity`
 i `check:server-entry-purity` przechodzą na tym artefakcie. Przekroczenie
 `overall` w CI (4791,8 > 4772) istnieje już na `main` i nie jest skutkiem tego
