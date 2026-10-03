@@ -1,0 +1,298 @@
+{
+  "key": "html-weight",
+  "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/html-weight.md",
+  "summary": "Prod / = 569 KB raw / 78.0 KB gz (served gzip). By component: dehydrated state 125.8/28.3 KB gz, inline CSS 134.5/18.9, main markup 204/13.4, header 49/7.7 (header is 76.5 KB, not 103), footer 30/5.0. Transforming the saved HTML with the proposals gives 337 KB / 45.6 KB gz core, 297/42.2 stretch; fixture 382/50.3 -> 234/28.9. The 200/35 target is not safely reachable. Interleaved no-JS LH on prod-HTML variants: mobile FCP/LCP unchanged (+-40 ms); TBT median 158 -> 25 ms (N=5); main thread 1508 -> 1260 ms; Style&Layout 401 -> 276. Padding +150 KB adds +0.75 s FCP, so bytes count only once the doc is the long pole. Verdict: a TBT lever (-100..150 ms mobile) that counts after boot-js moves FCP before parse; plus about -35 ms FCP/LCP from CSS literals in High-priority JS.",
+  "findings": [
+    {
+      "id": "HWF-1",
+      "claim": "The dehydrated state is the largest gzip component of the document. It holds the full public site_settings map, all 46 menu rows (only 7 are rendered), the 8 distinct posts repeated in 26 rows with both languages, and the full newsletter row including popup config.",
+      "evidence": "$tsr-stream-barrier 107041 B + stream 18469 B = 125831 raw / 28268 gz. Segments: site_settings_public all 25709/8303 (src/lib/useSiteSetting.ts:32-39 select key,value of every row); loader homePage 18.4 KB; menu-with-items main 21533/4531 (src/lib/menus/menu.functions.ts:138, 15 fields, all mega_enabled=false with default mega_config); post queries 21680/9853; header_ticker 7520 (key without lang, src/lib/views/headerTickerQuery.ts:83-91); newsletter-settings 8904/3418 (select(*), src/hooks/useNewsletterSettings.ts:186-192). Measured with decode-all.cjs + barrier_segments.py on psi/home.html.",
+      "metric": "HTML bytes, inline-script eval, TBT",
+      "severity": "high"
+    },
+    {
+      "id": "HWF-2",
+      "claim": "Projecting the state in the query functions cuts it 52% raw / 42% gzip without changing what is rendered.",
+      "evidence": "trim-sim.mjs (seroval 1.5.5 re-serialization, identity preserved): 117156 -> 56221 raw, 25930 -> 15111 gz. Per step: menu projection -12.3 KB; menu top-level only -6.8 KB; post locale -6.6 KB; newsletter inline -7.6 KB / -2.6 KB gz; settings boot projection -6.1 KB; CSS-snapshot inputs -3.7 KB. Fixture 75297 -> 46380 raw.",
+      "metric": "HTML raw/gz bytes",
+      "severity": "high"
+    },
+    {
+      "id": "HWF-3",
+      "claim": "38 per-widget typography <style> blocks (60.9 KB) are 26 templates repeated with different ids and values. Each one adds descendant :is() rules with 3-attribute specificity and !important.",
+      "evidence": "148 rules, 26 distinct templates (8.8 KB if emitted once), 145 !important, 0 @media. Generator: src/lib/builder/typographyCss.ts:91-228. Emitted per widget at components/builder/organisms/ChromeWidgetView.tsx:289-292,309,392, plus lib/interests/joinUsSizeCss.ts and the sliderVariants instanceCss.",
+      "metric": "HTML bytes, Style & Layout, TBT",
+      "severity": "high"
+    },
+    {
+      "id": "HWF-4",
+      "claim": "About 44 KB of fully static CSS ships inline on every document, and two of those blocks are also string literals inside High-priority JS chunks.",
+      "evidence": "TickerStyles 14883 B (src/components/header/TrendingTicker.tsx:820; a 14848-char literal in entry index-*.js); slider SHARED_STYLES 10986 B (src/lib/builder/sliderVariants.tsx:1103; a 10948-char literal in sliderVariants-*.js); globalColors widget-bridge ~19 KB of static :where() rules pushed unconditionally (src/lib/builder/globalColors.ts:863-989; 213 of 214 declarations are var()); nes-search-widget 3649 B; .sbw hover sheet duplicated in header and footer (2x2011 B).",
+      "metric": "HTML bytes, pre-LCP JS bytes (FCP/LCP), parse",
+      "severity": "medium"
+    },
+    {
+      "id": "HWF-5",
+      "claim": "Measured effect: cutting document weight removes parse/style long tasks (TBT, main thread) but does not move simulated FCP or LCP in today's regime.",
+      "evidence": "ab-prod.sh, no-JS prod-HTML variants, interleaved. Mobile gzip doc 80.5 -> 48.5 KB: FCP 1523-1569 vs 1513-1594, LCP 2824-3179 vs 2956-3135, TBT 104-192 (med ~158) -> 0-80 (med 25), N=5. br runs: main thread med 1508 -> 1260 ms; Style&Layout 309-494 -> 227-300. Desktop: TBT 0-32 -> 0, SI 487 -> 397 avg. Padding +150 KB incompressible: FCP 1.40 -> 2.13-2.25 s, LCP 2.8 -> 3.5-3.7 s. JSON in $SCRATCH/phase1/html-weight/lh/{abprod,gz,gz2,pad}-*.json.",
+      "metric": "TBT, main-thread, FCP/LCP sensitivity",
+      "severity": "high"
+    },
+    {
+      "id": "HWF-6",
+      "claim": "Several EVIDENCE §3 numbers are wrong. The header is 76.5 KB, not 103 (the old offset pointed into a CSS comment). Mega panels are never server-rendered. Menu rows have 15 fields, not ~46. srcset is 27x9 + 45x3, not 72x5.",
+      "evidence": "regions.py: <header data-site-header at byte 75581, </header> at 151997; 49028 is inside the brand-token CSS comment. SiteMenu.tsx:386 (<button> trigger), :413 (panel mounts only when mounted && open && anchor); the header has 23 <a>. cropSizes.ts:209 RESPONSIVE_WIDTHS has 9 widths.",
+      "metric": "diagnosis accuracy",
+      "severity": "medium"
+    },
+    {
+      "id": "HWF-7",
+      "claim": "Markup redundancy: 9-candidate srcsets, absolute same-origin media URLs, and repeated static inline style values.",
+      "evidence": "srcset 78847 B raw; ladder [480,768,1280,1920] + 1x/2x avatars saves 36.9 KB raw / 3.0 KB gz. 598 copies of the 78-char media prefix https://neweuropeanstrategies.com/media/07167e87-.../; relative paths save 19.7 KB raw / 2.1 KB gz (buildScaledImageUrl keeps absolute input absolute, cropSizes.ts:166-171). 19 static style values repeated >=5x = 33.7 KB (AuthorByline.tsx:121-206, BuilderWidgetNode.tsx:101-115, sliderVariants.tsx:384,1377). Inline SVG 19.6 KB, of which only 5.7 KB is duplicated.",
+      "metric": "HTML bytes",
+      "severity": "medium"
+    },
+    {
+      "id": "HWF-8",
+      "claim": "Five preloads for the same hero image with four different imageSizes, and seven fetchPriority=high images. React 19 auto-preloads such images, so the browser can fetch up to four widths at High priority.",
+      "evidence": "head of psi/home.html: 4 imageSrcSet preloads (each 1583-char srcset) with sizes '(max-width: 640px)...25vw', '...50vw, 50vw', '...33.33vw', '...37.5vw, 25vw', plus 1 href+srcset preload. 9.2 KB of preload links in head.",
+      "metric": "LCP bandwidth contention, HTML bytes",
+      "severity": "medium"
+    },
+    {
+      "id": "HWF-9",
+      "claim": "The production document is served gzip (89.4 KB transfer) even though Chrome advertises br.",
+      "evidence": "psi/h1.txt content-encoding: gzip; prod-mobile.json network-requests: Document transferSize 89371, resourceSize 575523, h2.",
+      "metric": "document transfer (SI, repeat parse)",
+      "severity": "low"
+    },
+    {
+      "id": "HWF-10",
+      "claim": "SEO gap: the four top-level menu items that have children render as <button> without href, so /analizy, /wydarzenia, /membership-join and /o-nas are not links in the SSR HTML.",
+      "evidence": "SiteMenu.tsx:386; check over the prod HTML: those 4 hrefs are absent from the header and only 3 of the 39 child hrefs appear anywhere in the markup.",
+      "metric": "SEO (no PSI effect)",
+      "severity": "low"
+    },
+    {
+      "id": "HWF-11",
+      "claim": "The 37 KB desktop builder header is display:none on mobile but is still parsed and hydrated. The 200 KB / 35 KB target cannot be reached without removing it, or the non-active slider slides, from SSR.",
+      "evidence": "tree.py: 'hidden lg:block home-header-grow' subtree 37213 B raw (~6 KB gz). Core+stretch floor is 297 KB / 42.2 KB gz (budget.py on var-prodx/F6_tokens.html).",
+      "metric": "HTML bytes, hydration CPU",
+      "severity": "medium"
+    }
+  ],
+  "changes": [
+    {
+      "id": "HW-1",
+      "title": "Move static CSS out of JS string literals and inline <style> into real CSS files in the public core CSS",
+      "files": [
+        "src/components/header/TrendingTicker.tsx",
+        "src/lib/builder/sliderVariants.tsx",
+        "src/lib/builder/globalColors.ts",
+        "src/components/builder/organisms/widget-view/widgetStyleSheets.tsx",
+        "src/components/builder/organisms/widget-view/SimpleWidgets.tsx",
+        "src/styles.css"
+      ],
+      "mechanism": "Move TickerStyles (TrendingTicker.tsx:820+), slider SHARED_STYLES (sliderVariants.tsx:1103), the globalColors static widget-bridge/sidebar rules (globalColors.ts:863-989; keep only the :root/.dark custom properties in the generated block) and the search-widget sheet into .css files that Vite/lightningcss minifies. Import them into the public core CSS after the existing rules so source order stays the same. Remove the <style> elements from React render on both server and client so SSR matches hydration. Dedupe the identical .sbw social-hover sheet with WidgetStyleSheet (href = content hash).",
+      "metric": "HTML bytes, pre-LCP JS bytes (FCP/LCP), TBT (parse/style)",
+      "expected_effect": "HTML -44 KB raw / -8.5 KB gz; entry -14.8 KB raw and sliderVariants -10.9 KB raw (~-6.5 KB gz of High-priority JS), so about -30..40 ms FCP/LCP mobile; minified CSS adds ~+6 KB gz render-blocking (est.); contributes to the measured TBT -100..150 ms together with HW-2",
+      "estimate_basis": "prod-variants.py css_static step on psi/home.html; literal sizes found in .output/public/assets/index-DPN2YAij.js and sliderVariants-Cl4hnw1I.js; lighthouse-analyst slope of 5.1-6 ms per KB of pre-LCP bytes; no-JS A/B P1->P2 Style&Layout 334-398 -> 264-317 ms",
+      "risk": "low",
+      "risk_notes": "Cascade order: the bridge rules are :where() (0 specificity) and the sidebar rules have attribute specificity. Both must stay after the Tailwind/hand CSS, as they are now (today they sit inline in body). The slider sheet currently uses precedence='builder' hoisting, so client navigation must still have the CSS; a global import guarantees that. The ticker CSS lands on every chrome page (it was already inline on every page).",
+      "gates": [
+        "check:bundle",
+        "check:chunks",
+        "check:entry-purity",
+        "check:chunk-parity",
+        "noHasSelectors",
+        "check:dangerous-html",
+        "SSR/hydration parity tests (first-visit-harness, router.test.tsx)",
+        "document-weight gate"
+      ],
+      "verification": "Computed-style parity probe (Playwright, fixture artifact, 390/820/1350 px, light+dark): empty diff. check-document-weight inlineStyleBytes drops ~44 KB. check:bundle shows entry and sliderVariants smaller. measure-ab.sh: mobile main-thread down, TBT not worse.",
+      "effort": "S"
+    },
+    {
+      "id": "HW-2",
+      "title": "Per-widget typography CSS -> one static template plus CSS custom properties on the widget element",
+      "files": [
+        "src/lib/builder/typographyCss.ts",
+        "src/components/builder/organisms/ChromeWidgetView.tsx",
+        "src/lib/interests/joinUsSizeCss.ts",
+        "src/lib/builder/sliderVariants.tsx",
+        "src/lib/builder/liveTypography.ts",
+        "src/styles.css"
+      ],
+      "mechanism": "Replace buildWidgetTypographyCss output (typographyCss.ts:91-228) with (1) 26 static template rules in public CSS that keep today's 3-attribute specificity and !important, gated by data-wt~=token so an unset var() can never override; (2) per-instance style='--wt-tfs-d:16px;--wt-dfs-d:12px…' plus data-wt tokens. Device values are chosen by static @media and [data-device] canvas rules instead of the render-time 'device'. Live editor typography sets the custom properties directly.",
+      "metric": "HTML bytes, Style & Layout, TBT, hydration CPU",
+      "expected_effect": "HTML -57 KB raw / -5.6 KB gz (prod), -61.7 KB raw (fixture); -148 descendant :is() rules; with HW-1, measured no-JS mobile TBT median 158 -> 25 ms and Style&Layout 401 -> 276 ms; removes device-dependent CSS text churn (25 <style> swaps on mobile device switch, hydration H6)",
+      "estimate_basis": "prod-variants.py typo step; template extraction (148 rules -> 26 templates); ab-prod.sh P0 vs P3 (N=5 gzip, N=3 br)",
+      "risk": "medium",
+      "risk_notes": "Visual parity across live editor preview, builder canvas device simulation (buildLiveWidgetTypographyCss ancestors), dark/light mode and the 1px-unreadable fallback chain (pickFontSize). Specificity is kept identical in v1; the @layer cleanup of the triple-attribute hack is a follow-up. Conflicts with hydration H10 (same file, ChromeWidgetView.tsx).",
+      "gates": [
+        "noHasSelectors",
+        "check:dangerous-html",
+        "check:ci-gates",
+        "vitest typographyCss/liveTypography",
+        "SSR/hydration parity tests",
+        "check:widget-fidelity",
+        "document-weight gate (inlineStyleCount)"
+      ],
+      "verification": "Computed-style parity probe over all [data-w-id] descendants at 3 widths x 2 modes: zero diff. Snapshot tests of the template. Fixture document: zero '<style>[data-w-id=' blocks. measure-ab.sh: TBT and main-thread deltas.",
+      "effort": "M",
+      "depends_on": ["HW-1"]
+    },
+    {
+      "id": "HW-3",
+      "title": "Dehydration diet: project query results in the query functions (menu top level, post locale, newsletter inline, settings boot set, no CSS-snapshot inputs)",
+      "files": [
+        "src/lib/menus/menu.functions.ts",
+        "src/lib/menus/queries.ts",
+        "src/components/menu/SiteMenu.tsx",
+        "src/routes/__root.tsx",
+        "src/lib/builder/prefetch.ts",
+        "src/lib/builder/postListQuery.ts",
+        "src/lib/builder/sliderPostsQuery.ts",
+        "src/lib/builder/ratedListQuery.ts",
+        "src/lib/views/headerTickerQuery.ts",
+        "src/hooks/useNewsletterSettings.ts",
+        "src/lib/useSiteSetting.ts",
+        "src/hooks/useGlobalColors.ts",
+        "src/lib/builder/designTokens.ts",
+        "src/components/theme/useDeferredStyleCss.ts"
+      ],
+      "mechanism": "(a) New public menu server fn and query key (key, lang) that returns only rendered fields (id, parent_id, position, item_type, label in lang with fallback, href; target/visibility/icon/css_class/mega only when not default). SSR seeds top-level rows with has_children; children are fetched on pointerenter/focus with an idle prefetch. Admin MenuManager keeps menuWithItemsQueryOptions. (b) Post-list, slider, rated-list rows: title/excerpt of the key's lang with fallback, other language dropped; header_ticker key gains lang. (c) newsletterInlineSettingsQueryOptions with an explicit select list; the lazy popup reads the full row. (d) The site_settings map dehydrates a boot key set with a partial marker; useSiteSetting(key outside boot set) enables a full-map fetch. A test records the keys read during the SSR render of /, a post and a category. (e) site_global_colors and site_design_tokens are not prefetched/dehydrated for anon; useDeferredStyleCss keeps the SSR snapshot while data is undefined (fetch only for staff/live-sync). (f) Optional, later: strip *_en siblings in builder docs with a lang-aware home-page key.",
+      "metric": "HTML bytes, inline script eval, hydrate(), post-hydration requests, TBT",
+      "expected_effect": "State -61 KB raw / -10.8 KB gz on prod (117.2 -> 56.2 KB raw, 25.9 -> 15.1 KB gz); fixture -29 KB raw / -4.1 KB gz; barrier eval about halved; -2 PostgREST requests after hydration from (e); the TBT share is inside the measured -130 ms (P0->P1 no-JS median 103 -> 86 ms)",
+      "estimate_basis": "trim-sim.mjs per-step deltas re-serialized with the repo's seroval; prod-variants.py F1_state on the real HTML (-69 KB raw / -14.5 KB gz including stream and bootstrap)",
+      "risk": "medium",
+      "risk_notes": "Consumer shape changes (types). Keys without lang must not be locale-projected because the language switch is a soft router.navigate (switchUiLanguage.ts:163). An omitted settings key read during the first render would cause a hydration mismatch, so the key-read recorder gate is mandatory. Menu children fetched on intent need an idle prefetch to avoid a first-hover delay. Conflicts with hydration H2 (useGlobalColors/designTokens) and server-cache SC-8 (homepage bundle RPC must seed the projected keys).",
+      "gates": [
+        "check:ssr-budgets",
+        "check:loader-policy",
+        "check:entry-purity",
+        "typecheck",
+        "vitest menus/useSiteSetting/newsletter/postListQuery",
+        "SSR/hydration parity tests",
+        "document-weight gate (dehydratedStateBytes)"
+      ],
+      "verification": "Decode $tsr from the fixture and production HTML (decode-all.cjs + trim-steps): per-key budgets met. No console hydration errors in first-visit-harness. Menu opens with children after hover. EN switch shows EN labels. measure-ab.sh: TBT/main-thread not worse and post-hydration fetch count down by 2.",
+      "effort": "L"
+    },
+    {
+      "id": "HW-4",
+      "title": "srcset ladders matched to slot widths; avatars 1x/2x",
+      "files": [
+        "src/lib/cropSizes.ts",
+        "src/components/atoms/OptimizedImage.tsx",
+        "src/lib/builder/sliderVariants.tsx",
+        "src/components/header/TrendingTicker.tsx"
+      ],
+      "mechanism": "Default RESPONSIVE_WIDTHS (cropSizes.ts:209) 9 -> 4-5 widths (e.g. 480/768/1280/1920), or derive the ladder from the sizes attribute (max slot px x DPR 1..2). buildAvatarSrcSet (cropSizes.ts:254-257) drops 3x. The coverPreload imageSrcSet uses the same ladder, so the preload and the img stay identical.",
+      "metric": "HTML bytes (minor parse), state bytes",
+      "expected_effect": "HTML -36.9 KB raw / -3.0 KB gz; coverPreload -0.8 KB in state; image bytes unchanged for LH mobile (412 px x DPR 1.75 -> 768w) and desktop 33vw (-> 480w)",
+      "estimate_basis": "prod-variants.py markup step (srcset 78847 -> 32339 B)",
+      "risk": "low",
+      "risk_notes": "Odd DPR/viewport pairs may pick one step larger. Coordinate with lcp-path, which owns the hero preload/fetchpriority and the same files.",
+      "gates": [
+        "vitest cropSizes/OptimizedImage",
+        "SSR/hydration parity tests",
+        "document-weight gate"
+      ],
+      "verification": "regions.py on the candidate HTML (prod-like data needed; the fixture has no branded images). LH image-delivery audit unchanged. LCP image request size unchanged in the A/B devtools log.",
+      "effort": "S"
+    },
+    {
+      "id": "HW-5",
+      "title": "Relative URLs for same-origin branded media in markup and data",
+      "files": ["src/lib/cropSizes.ts", "src/lib/media/publicUrl.ts"],
+      "mechanism": "buildScaledImageUrl/buildTransformedImageUrl/buildAvatarSrc emit pathname+search when url.origin equals the canonical site origin (a deterministic constant shared by server and client) instead of keeping absolute input absolute (cropSizes.ts:100-105,166-171). The server-cache SC-10 Link-header change reuses the same helper.",
+      "metric": "HTML bytes",
+      "expected_effect": "HTML -19.7 KB raw / -2.1 KB gz (598 copies of the 78-char prefix); state -1.9 KB raw",
+      "estimate_basis": "prod-variants.py relurls step; trim-sim relUrls step",
+      "risk": "low",
+      "risk_notes": "Multi-tenant hosts: strip only for the canonical origin. og:image and JSON-LD must stay absolute.",
+      "gates": ["vitest cropSizes", "SSR/hydration parity tests", "SEO meta tests"],
+      "verification": "grep -c 'https://neweuropeanstrategies.com/media/' on the candidate HTML (only head meta/JSON-LD should remain); images still load (LH network list).",
+      "effort": "S"
+    },
+    {
+      "id": "HW-6",
+      "title": "Repeated static inline style attributes -> classes",
+      "files": [
+        "src/components/molecules/AuthorByline.tsx",
+        "src/components/builder/organisms/BuilderWidgetNode.tsx",
+        "src/lib/builder/sliderVariants.tsx",
+        "src/styles.css"
+      ],
+      "mechanism": "Move the constant parts of the AuthorByline avatar style (163 B x33), the widget frame stretch style (128 B x23), the FillImage transition (143 B x21) and the multi-card width calc (101 B x20) into classes. Keep only the per-instance values as custom properties.",
+      "metric": "HTML bytes, parse",
+      "expected_effect": "-33 KB raw / -2.2 KB gz",
+      "estimate_basis": "repeated style-value census (19 values >=5x, 327 occurrences, 33.7 KB) and transform F5_styleattr",
+      "risk": "low",
+      "risk_notes": "Inline style beats class specificity, so existing !important rules must be reviewed for precedence changes.",
+      "gates": ["SSR/hydration parity tests", "check:widget-fidelity", "document-weight gate"],
+      "verification": "Computed-style parity probe; regions.py main markup about -33 KB.",
+      "effort": "S"
+    },
+    {
+      "id": "HW-7",
+      "title": "Gates: per-component document budgets, dehydrated payload budgets and forbidden fields, inline typography blocks = 0",
+      "files": [
+        "scripts/performance/check-document-weight.ts",
+        "scripts/performance/documentWeight.ts",
+        "scripts/performance/document-weight-budgets.json",
+        "src/lib/ci/__tests__/dehydratedPayload.test.ts"
+      ],
+      "mechanism": "Extend the measurement workstream's document-weight gate. Decode $tsr with seroval in node, report per-query bytes against per-key ratchets, and assert absence of menu_id, default mega_config, *_en fields in PL post rows and popup_* in the dehydrated newsletter. Count inline <style> blocks containing [data-w-id= (must be 0) and cap total inline CSS. Add a unit test that renders / , a post and a category SSR with a recording settings map and asserts the read keys are a subset of the boot set.",
+      "metric": "durability (prevents regression of all the above)",
+      "expected_effect": "Turns the HW-1..HW-6 savings into a ratchet; zero runtime cost",
+      "estimate_basis": "ssrBudgets.ts:30-50 states payload size is not statically measurable; this artifact-level gate closes that gap",
+      "risk": "low",
+      "risk_notes": "The fixture differs from production (no menu or srcset data), so budgets are structural and need a production-HTML mode (--html).",
+      "gates": ["check:ci-gates"],
+      "verification": "Negative control: re-adding select('*') or a typography <style> turns the gate red.",
+      "effort": "S",
+      "depends_on": ["HW-1", "HW-2", "HW-3"]
+    },
+    {
+      "id": "HW-8",
+      "title": "(stretch, repeat visits only) brand custom properties as a hashed external sheet; speculation rules via header",
+      "files": [
+        "src/components/DesignTokensStyle.tsx",
+        "src/lib/builder/globalColors.ts",
+        "src/lib/seo/rootHead.ts"
+      ],
+      "mechanism": "Serve the tenant token CSS at /__nes/tokens.<css-hash>.css (immutable) linked in head instead of 7.5 KB inline. Move the 2.3 KB speculationrules JSON to a Speculation-Rules response header pointing at a static JSON.",
+      "metric": "HTML bytes on repeat visits",
+      "expected_effect": "-7.5 KB raw / -1.2 KB gz HTML; 0 on Lighthouse cold load (it adds a parallel render-blocking request)",
+      "estimate_basis": "F6_tokens transform",
+      "risk": "medium",
+      "risk_notes": "Adds an RTT on the first visit; the hash must match useDeferredStyleCss. Not a score lever: schedule last or skip.",
+      "gates": ["SSR/hydration parity tests", "check:dangerous-html"],
+      "verification": "Repeat-visit transfer in DevTools; LH cold load not worse in A/B.",
+      "effort": "M",
+      "depends_on": ["HW-1"]
+    }
+  ],
+  "conflicts_with_other_workstreams": [
+    "hydration H10 edits src/components/builder/organisms/ChromeWidgetView.tsx (same file as HW-2): needs one owner or strict sequencing",
+    "hydration H2 edits src/hooks/useGlobalColors.ts / src/lib/builder/designTokens.ts (HW-3e touches the same files): merge into one item",
+    "hydration H8 (ticker islands) edits src/components/header/TrendingTicker.tsx (HW-1 removes TickerStyles from it)",
+    "hydration H6 (mobile device re-render, 25 <style> swaps) is partly removed by HW-2; measure them together",
+    "server-cache SC-10 (relative imagesrcset, Link header trim) overlaps HW-5 / HW-4 (src/lib/cropSizes.ts, src/lib/seo/rootHead.ts)",
+    "server-cache SC-8 (homepage bundle RPC seeding the same query keys) must apply the HW-3 projections",
+    "server-cache SC-7 (brotli bodies): production document is gzip (89 KB transfer), no score effect per our A/B",
+    "lcp-path owns hero preload dedupe and fetchpriority (5 hero preloads, 7 fetchPriority=high images) and edits cropSizes.ts / OptimizedImage.tsx / sliderVariants.tsx FillImage (same files as HW-4)",
+    "css workstream: HW-1/HW-2 add ~33 KB raw (minified est.) of above-the-fold public rules to the public core CSS; agree placement with the core <=150 KB target",
+    "boot-js: HW-1 removes the 14.8 KB TickerStyles literal from the entry chunk; boot-after-LCP makes the document parse tasks count in TBT, which is HW-1/2/3's main score value",
+    "measurement: the document-weight gate (untracked scripts/performance/check-document-weight.ts) is extended by HW-7; budgets must be ratcheted after each wave"
+  ],
+  "open_questions": [
+    "Which site_settings keys are read during the first render of post/category/page routes (key_takeaways on posts)? The HW-3d boot set must come from the key-read recorder test, not from grep.",
+    "Device-class SSR (drop the 37 KB display:none desktop header from mobile documents) needs a cache-key split and loses desktop nav links in the mobile HTML. Human decision; not proposed for this PR.",
+    "Make the four top-level menu items with children (/analizy, /wydarzenia, /membership-join, /o-nas) real links plus a disclosure button? It is an SEO improvement, product decision.",
+    "Should the 3.35 KB footer-navigation ItemList JSON-LD stay? It is SEO-owned; no score effect.",
+    "Production HTML with JS could not be A/B-tested end to end here (no egress, no prod data). The TBT gain with JS present depends on boot-js moving FCP; verify with measure-ab.sh after both land."
+  ]
+}
