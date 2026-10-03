@@ -1,9 +1,11 @@
 // Wspólne kodowanie celów @wzmianek.
 //
 // Osoby zachowują dotychczasowy slug profilu (`@jan-kowalski`). Firmy dostają
-// jawny prefiks `org-` oraz stabilny identyfikator rekordu z bezpiecznej
-// projekcji. Nazwa firmy NIE jest identyfikatorem - dwie firmy mogą nazywać się
-// tak samo, a wzmianka nadal musi wskazywać właściwy rekord tenantowy.
+// jawny prefiks `org-` oraz stabilny identyfikator rekordu. Nazwa firmy NIE jest
+// identyfikatorem - dwie firmy mogą nazywać się tak samo, a wzmianka nadal musi
+// wskazywać właściwy rekord tenantowy. Sam identyfikator niczego nie otwiera:
+// baza rozwiązuje `org-<uuid>` wyłącznie dla firmy z publicznym śladem
+// (20261003150000), więc UUID leada daje pusty wynik, a nie kartę firmy.
 //
 // Koder (`organizationMentionSlug`) i fraza wyszukiwania ze sluga zostały
 // usunięte: slug firmy składa baza (`search_mention_targets`), a żadne miejsce
