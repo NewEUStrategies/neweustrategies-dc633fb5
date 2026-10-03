@@ -6,6 +6,7 @@ import {
   AI_TRAINING_CRAWLERS,
   DEFAULT_SEO_SETTINGS,
   effectiveNewsPublicationName,
+  effectiveSiteName,
   effectiveTitleSuffix,
   parseSeoSettings,
   siteDescriptionOverride,
@@ -238,5 +239,42 @@ describe("parseSeoSettings - wejścia niepełne i spoza zbioru", () => {
     expect(siteTitleOverride(s, "pl")).toBe("");
     expect(s.rss_item_count).toBe(5);
     expect(s.news_sitemap_enabled).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Jedna polityka wykorzystania treści dla robots.txt I llms.txt. Obie trasy
+// biorą nazwę źródła i zgody AI z `robotsUsagePolicy` - test wiąże każde pole
+// z przełącznikiem panelu, żeby żadne nie wróciło do stałej.
+// ---------------------------------------------------------------------------
+describe("effectiveSiteName / robotsUsagePolicy", () => {
+  it.each([
+    { site_name: "", expected: "New European Strategies" },
+    { site_name: "   ", expected: "New European Strategies" },
+    { site_name: "  Redakcja Testowa ", expected: "Redakcja Testowa" },
+  ])("site_name=„$site_name” -> „$expected”", ({ site_name, expected }) => {
+    const s = { ...DEFAULT_SEO_SETTINGS, site_name };
+    expect(effectiveSiteName(s)).toBe(expected);
+    expect(robotsUsagePolicy(s).siteName).toBe(expected);
+  });
+
+  it.each([true, false].flatMap((search) => [true, false].map((train) => ({ search, train }))))(
+    "zgody AI wprost z przełączników: wyszukiwawcze=$search, treningowe=$train",
+    ({ search, train }) => {
+      const usage = robotsUsagePolicy({
+        ...DEFAULT_SEO_SETTINGS,
+        ai_search_crawlers_allowed: search,
+        ai_training_crawlers_allowed: train,
+      });
+      expect(usage.aiInputAllowed).toBe(search);
+      expect(usage.trainingAllowed).toBe(train);
+    },
+  );
+
+  it("odsyła do /llms.txt tylko wtedy, gdy redakcja go serwuje", () => {
+    expect(robotsUsagePolicy(DEFAULT_SEO_SETTINGS).termsPath).toBe("/llms.txt");
+    expect(
+      robotsUsagePolicy({ ...DEFAULT_SEO_SETTINGS, llms_txt_enabled: false }).termsPath,
+    ).toBeNull();
   });
 });

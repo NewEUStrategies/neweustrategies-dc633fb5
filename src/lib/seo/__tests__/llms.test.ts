@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLlmsTxt } from "@/lib/seo/llms";
+import { buildLlmsTxt, LLMS_TXT_USAGE_TERMS_HEADING, type LlmsTxtInput } from "@/lib/seo/llms";
 import { llmsTxtResourceLines } from "@/lib/seo/machineSurfaces";
 import { localizedPath } from "@/lib/i18n/localePath";
 
@@ -28,6 +28,7 @@ describe("buildLlmsTxt", () => {
     // Zasoby maszynowe przychodzą teraz z rejestru (seo/machineSurfaces), a nie
     // z twardej listy w builderze - patrz machineSurfaces.contract.test.ts.
     resources: llmsTxtResourceLines("https://nes.example", localizedPath),
+    usage: { aiInputAllowed: true, trainingAllowed: true },
     contactEmail: "office@nes.example",
   });
 
@@ -62,6 +63,7 @@ describe("llms.txt - zasoby maszynowe trackera", () => {
     latestPl: [],
     latestEn: [],
     resources: llmsTxtResourceLines("https://nes.example", localizedPath),
+    usage: { aiInputAllowed: true, trainingAllowed: true },
   });
 
   it("wystawia kanał trackera w obu językach", () => {
@@ -94,6 +96,7 @@ describe("buildLlmsTxt - sekcje z niepełnym opisem", () => {
     latestPl: [],
     latestEn: [],
     resources: [],
+    usage: { aiInputAllowed: true, trainingAllowed: true },
   });
 
   it.each([
@@ -139,11 +142,118 @@ describe("buildLlmsTxt - sekcje z niepełnym opisem", () => {
         latestPl: [],
         latestEn: [],
         resources: [],
+        usage: { aiInputAllowed: true, trainingAllowed: true },
         contactEmail,
       });
       expect(out).not.toContain("Kontakt / Contact:");
       expect(out).not.toContain("## Sekcje / Sections");
       expect(out.endsWith("\n")).toBe(true);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Blok warunków jako LUSTRO polityki AI redakcji (defekt audytu wydania 11).
+// `LlmsTxtInput` nie miał pola polityki, więc builder deklarował zgodę
+// („PERMITTED") bezwarunkowo - przy wyłączonych crawlerach AI llms.txt udzielał
+// zgody, której robots.txt tego samego hosta odmawiał. Parytet na bajtach obu
+// tras dowodzi `feedRoutesDegradation.test.ts`; tu - każdy wariant buildera.
+// ---------------------------------------------------------------------------
+describe("buildLlmsTxt - warunki wykorzystania wynikają z polityki AI", () => {
+  const base: Omit<LlmsTxtInput, "usage"> = {
+    siteName: "Redakcja Testowa",
+    origin: "https://tenant.example/",
+    descriptionPl: "Opis",
+    descriptionEn: "Description",
+    sections: [],
+    latestPl: [],
+    latestEn: [],
+    resources: [],
+  };
+
+  /** Sam blok warunków - asercje nie mogą trafić w treść spoza niego. */
+  function terms(usage: LlmsTxtInput["usage"]): string {
+    const txt = buildLlmsTxt({ ...base, usage });
+    const at = txt.indexOf(LLMS_TXT_USAGE_TERMS_HEADING);
+    expect(at, "blok warunków jest zawsze obecny").toBeGreaterThan(-1);
+    return txt.slice(at);
+  }
+
+  const MATRIX = [true, false].flatMap((aiInputAllowed) =>
+    [true, false].map((trainingAllowed) => ({ aiInputAllowed, trainingAllowed })),
+  );
+
+  it.each(MATRIX)(
+    "ai-input=$aiInputAllowed, ai-train=$trainingAllowed: zgody zgodne z przełącznikami",
+    (usage) => {
+      const block = terms(usage);
+      expect(block.includes("PERMITTED on one condition")).toBe(usage.aiInputAllowed);
+      expect(block.includes("DOZWOLONE pod jednym warunkiem")).toBe(usage.aiInputAllowed);
+      expect(block.includes("PROHIBITED")).toBe(!usage.aiInputAllowed);
+      expect(block.includes("ZABRONIONE")).toBe(!usage.aiInputAllowed);
+      expect(block.includes("Cite the canonical article URLs")).toBe(usage.aiInputAllowed);
+      expect(block.includes("ai-train=yes")).toBe(usage.trainingAllowed);
+      expect(block.includes("ai-train=no")).toBe(!usage.trainingAllowed);
+      expect(block.includes("requires a written licence")).toBe(!usage.trainingAllowed);
+    },
+  );
+
+  it.each(MATRIX)(
+    "ai-input=$aiInputAllowed, ai-train=$trainingAllowed: warunek wskazania źródła nazywa siteName i tylko ją",
+    (usage) => {
+      const block = terms(usage);
+      // robots.txt stawia warunek atrybucji niezależnie od przełączników -
+      // llms.txt nie może go zdejmować w żadnym wariancie z polityką.
+      expect(block).toMatch(/MUST name "Redakcja Testowa" as the source/);
+      expect(block).toMatch(/MUSI wskazać "Redakcja Testowa" jako źródło/);
+      const quoted = new Set(Array.from(block.matchAll(/"([^"]+)"/g), (m) => m[1]));
+      expect([...quoted]).toEqual(["Redakcja Testowa"]);
+    },
+  );
+
+  it("usage=null (warunki nieznane) nie udziela żadnej zgody i odsyła do robots.txt", () => {
+    const block = terms(null);
+    expect(block).not.toContain("PERMITTED");
+    expect(block).not.toContain("DOZWOLONE");
+    expect(block).not.toMatch(/permitted/i);
+    expect(block).not.toContain("Redakcja Testowa");
+    expect(block).toContain("This document grants no permission to reuse content");
+    expect(block).toContain("Wiążąca polityka maszynowa: https://tenant.example/robots.txt");
+  });
+
+  it("usage=null daje bajtowo ten sam blok, który trasa wcześniej doklejała ręcznie", () => {
+    // Odpowiednik usuniętego `withoutUsageGrant` z trasy: nagłówek, pusta
+    // linia, dwa zdania, jeden znak końca pliku.
+    const txt = buildLlmsTxt({ ...base, usage: null });
+    expect(
+      txt.endsWith(
+        [
+          "",
+          LLMS_TXT_USAGE_TERMS_HEADING,
+          "",
+          "- Ten dokument nie udziela zgody na wykorzystanie treści - warunki serwisu są chwilowo niedostępne. Wiążąca polityka maszynowa: https://tenant.example/robots.txt (Content-Signal).",
+          "- This document grants no permission to reuse content - the site's terms are temporarily unavailable. Binding machine-readable policy: https://tenant.example/robots.txt (Content-Signal).",
+          "",
+        ].join("\n"),
+      ),
+    ).toBe(true);
+  });
+
+  it("odsyłacz do robots.txt nie podwaja ukośnika przy originie zakończonym '/'", () => {
+    for (const usage of [...MATRIX, null]) {
+      const block = terms(usage);
+      expect(block).toContain("https://tenant.example/robots.txt");
+      expect(block).not.toContain("example//robots.txt");
+    }
+  });
+
+  it("kontakt zostaje POD blokiem warunków we wszystkich wariantach", () => {
+    for (const usage of [...MATRIX, null]) {
+      const txt = buildLlmsTxt({ ...base, usage, contactEmail: "office@tenant.example" });
+      expect(txt.indexOf("Kontakt / Contact:")).toBeGreaterThan(
+        txt.indexOf(LLMS_TXT_USAGE_TERMS_HEADING),
+      );
+      expect(txt.endsWith("Kontakt / Contact: office@tenant.example\n")).toBe(true);
     }
   });
 });

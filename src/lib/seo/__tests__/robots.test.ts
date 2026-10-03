@@ -6,6 +6,7 @@ import {
   buildRobotsTxt,
   robotsHeaders,
   type RobotsGroup,
+  type RobotsUsagePolicy,
 } from "@/lib/seo/robots";
 
 const ORIGIN = "https://neweuropeanstrategies.com";
@@ -260,5 +261,58 @@ describe("buildRobotsTxt - wejścia niepełne", () => {
     expect(body).toContain("User-agent: *\nAllow: /");
     expect(body).not.toContain("Disallow:");
     expect(body.match(/^User-agent:/gm)).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Blok warunków wykorzystania - spójność z `Content-Signal` w tym samym pliku.
+// Zdanie zgody było stałe („Search engines and AI assistants MAY crawl, index
+// and quote"), więc przy `ai-input=no` plik przeczył sam sobie trzy linie
+// niżej („Quoting in AI answers: not permitted"). Ta sama polityka zasila
+// llms.txt (`LlmsTxtUsageGrant`), więc sprzeczność tutaj = sprzeczność tam.
+// ---------------------------------------------------------------------------
+describe("robots.txt - blok warunków wykorzystania", () => {
+  const policy = (over: Partial<RobotsUsagePolicy> = {}): RobotsUsagePolicy => ({
+    siteName: "Redakcja Testowa",
+    termsPath: "/llms.txt",
+    trainingAllowed: true,
+    aiInputAllowed: true,
+    ...over,
+  });
+  const build = (usage: RobotsUsagePolicy) =>
+    buildRobotsTxt({ mode: "canonical", origin: ORIGIN, sitemapPaths: [], usage });
+
+  it.each([true, false])(
+    "ai-input=%s: zdanie zgody na cytowanie stoi tylko przy ai-input=yes",
+    (aiInputAllowed) => {
+      const body = build(policy({ aiInputAllowed }));
+      expect(body.includes("AI assistants MAY crawl, index and quote")).toBe(aiInputAllowed);
+      expect(body.includes("Quoting in AI answers: not permitted")).toBe(!aiInputAllowed);
+      expect(body).toContain(
+        `Content-Signal: search=yes, ai-input=${aiInputAllowed ? "yes" : "no"}, ai-train=yes`,
+      );
+      // Warunek atrybucji zostaje w obu wariantach - wyszukiwarki nadal indeksują.
+      expect(body).toContain('must name "Redakcja Testowa" as the source');
+    },
+  );
+
+  it("termsPath=null (llms.txt wyłączony) - brak odsyłacza do pełnych warunków", () => {
+    const body = build(policy({ termsPath: null }));
+    expect(body).not.toContain("Full terms");
+    expect(body).not.toContain("/llms.txt");
+    // Reszta bloku nietknięta: warunek i Content-Signal nadal są w pliku.
+    expect(body).toContain("# Content usage policy for Redakcja Testowa.");
+    expect(body).toContain("Content-Signal: search=yes, ai-input=yes, ai-train=yes");
+  });
+
+  it("termsPath pominięty - domyślnie /llms.txt na originie kanonicznym", () => {
+    const { termsPath: _omit, ...rest } = policy();
+    const body = build(rest);
+    expect(body).toContain(`# Full terms and a machine-readable index: ${ORIGIN}/llms.txt`);
+  });
+
+  it("termsPath absolutny przechodzi bez doklejania originu", () => {
+    const body = build(policy({ termsPath: "https://terms.example/ai" }));
+    expect(body).toContain("# Full terms and a machine-readable index: https://terms.example/ai");
   });
 });

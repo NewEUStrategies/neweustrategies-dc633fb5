@@ -57,11 +57,19 @@ export interface RobotsGroup {
 export interface RobotsUsagePolicy {
   /** Nazwa, którą asystent ma podać jako źródło. */
   readonly siteName: string;
-  /** Adres pełnych warunków (np. /llms.txt) - absolutny albo ścieżka. */
-  readonly termsPath?: string;
+  /**
+   * Adres pełnych warunków (np. /llms.txt) - absolutny albo ścieżka.
+   * Brak pola = `/llms.txt`. `null` = serwis nie publikuje dokumentu warunków
+   * (redakcja wyłączyła llms.txt) - linia odsyłacza znika, zamiast kierować
+   * crawlera na 404 jako „pełne warunki".
+   */
+  readonly termsPath?: string | null;
   /** Czy trenowanie modeli na treści jest dozwolone (wpływa na `ai-train`). */
   readonly trainingAllowed: boolean;
-  /** Czy asystenty AI mogą w ogóle czytać treść do odpowiedzi. */
+  /**
+   * Czy asystenty AI mogą w ogóle czytać treść do odpowiedzi. To samo pole
+   * decyduje o zgodzie na cytowanie w llms.txt (`LlmsTxtUsageGrant`).
+   */
   readonly aiInputAllowed: boolean;
 }
 
@@ -119,11 +127,15 @@ function usageTermsUrl(origin: string, termsPath: string | undefined): string {
  * trafia do tego samego kontekstu, w którym powstaje odpowiedź.
  */
 function renderUsagePolicy(origin: string, usage: RobotsUsagePolicy): string[] {
-  const terms = usageTermsUrl(origin, usage.termsPath);
   return [
     `# Content usage policy for ${usage.siteName}.`,
     "#",
-    "# Search engines and AI assistants MAY crawl, index and quote this site,",
+    // Zgoda na cytowanie TYLKO przy `ai-input=yes`. Wcześniej to zdanie było
+    // stałe, więc przy wyłączonych crawlerach AI plik przeczył sam sobie:
+    // „AI assistants MAY ... quote", a trzy linie niżej „not permitted".
+    usage.aiInputAllowed
+      ? "# Search engines and AI assistants MAY crawl, index and quote this site,"
+      : "# Search engines MAY crawl and index this site (AI assistants: see below),",
     "# on ONE condition: every answer, summary or excerpt that uses this content",
     `# must name "${usage.siteName}" as the source AND link the exact article URL`,
     "# it draws on. Attribution is required, not optional - unattributed reuse is",
@@ -134,7 +146,9 @@ function renderUsagePolicy(origin: string, usage: RobotsUsagePolicy): string[] {
     usage.aiInputAllowed
       ? "# Quoting in AI answers: allowed with attribution (see Content-Signal below)."
       : "# Quoting in AI answers: not permitted (see Content-Signal below).",
-    `# Full terms and a machine-readable index: ${terms}`,
+    ...(usage.termsPath === null
+      ? []
+      : [`# Full terms and a machine-readable index: ${usageTermsUrl(origin, usage.termsPath)}`]),
   ];
 }
 

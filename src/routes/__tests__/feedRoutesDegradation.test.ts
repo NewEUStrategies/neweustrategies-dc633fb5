@@ -311,6 +311,15 @@ vi.mock("@/lib/server/tenant.server", () => ({
   resolveCrawlerTenantIdForHost: () => Promise.resolve(state.tenantId),
   crawlerDegradeIsSafe: () => Promise.resolve(state.degradeSafe),
   resolveTenantForHost: () => Promise.resolve(state.tenantId ? { id: state.tenantId } : null),
+  // Czytane przez `robotsRequest.server.ts` (destrukturyzacja importu) - bez
+  // tego eksportu klasyfikacja hosta w /robots.txt rzucała na atrapie
+  // i plik cicho spadał na politykę DOMYŚLNĄ, więc test parytetu z llms.txt
+  // porównywałby przewodnik z ustawieniami, których robots.txt nie widział.
+  resolveDomainBinding: () =>
+    Promise.resolve({
+      tenant: state.tenantId ? { id: state.tenantId } : null,
+      directoryPopulated: !state.degradeSafe,
+    }),
 }));
 
 vi.mock("@/lib/server/publishedContent.server", () => ({
@@ -2608,5 +2617,120 @@ describe("llms.txt - degradacja tylko tam, gdzie przewodnik jest jednoznaczny", 
     expect(body).toContain("DOZWOLONE");
     expect(body).toContain("PERMITTED");
     expect(body).not.toContain("Ten dokument nie udziela zgody");
+  });
+});
+
+describe("llms.txt i robots.txt - jedna polityka AI na jednym hoście", () => {
+  // Defekt audytu wydania 11: blok warunków llms.txt deklarował zgodę
+  // („DOZWOLONE / PERMITTED") BEZWARUNKOWO - trasa sprawdzała wyłącznie
+  // `llms_txt_enabled`, a `LlmsTxtInput` nie miał żadnego pola polityki AI.
+  // Przy wyłączonych crawlerach wyszukiwawczych AI llms.txt udzielał więc
+  // zgody, której robots.txt TEGO SAMEGO hosta odmawiał (`ai-input=no`,
+  // `Disallow: /` dla botów AI). Oba pliki idą tu przez PRAWDZIWE handlery tras
+  // na jednym stanie ustawień - parytet jest dowodzony na bajtach odpowiedzi,
+  // nie na builderach.
+  async function bothSurfaces(): Promise<{ llms: Response; robots: string }> {
+    const llms = await surfaceGet("../llms[.]txt");
+    const robots = await (await surfaceGet("../robots[.]txt")).text();
+    return { llms, robots };
+  }
+
+  /** Content-Signal grupy `*` - pierwsza dyrektywa w pliku (grupy AI są niżej). */
+  function wildcardSignal(robots: string): { aiInput: string; aiTrain: string } {
+    const match = robots.match(
+      /^Content-Signal: search=yes, ai-input=(yes|no), ai-train=(yes|no)$/m,
+    );
+    expect(match, "robots.txt kanonicznego hosta niesie Content-Signal").not.toBeNull();
+    return { aiInput: match![1], aiTrain: match![2] };
+  }
+
+  it("crawlery wyszukiwawcze AI wyłączone -> llms.txt NIE udziela zgody na cytowanie w odpowiedziach AI", async () => {
+    state.settings = { ai_search_crawlers_allowed: false };
+    const { llms, robots } = await bothSurfaces();
+    expect(robots).toContain("ai-input=no");
+    expect(llms.status).toBe(200);
+    const body = await llms.text();
+    expect(body).not.toContain("PERMITTED on one condition");
+    expect(body).not.toContain("DOZWOLONE pod jednym warunkiem");
+    expect(body).toContain("PROHIBITED");
+    expect(body).toContain("ZABRONIONE");
+    expect(body).toContain("Content-Signal: ai-input=no");
+    // Zaproszenie do cytowania kanonicznych adresów przeczyłoby zakazowi.
+    expect(body).not.toContain("Cite the canonical article URLs");
+  });
+
+  it("crawlery treningowe wyłączone -> llms.txt wymaga licencji, jak robots.txt", async () => {
+    state.settings = { ai_training_crawlers_allowed: false };
+    const { llms, robots } = await bothSurfaces();
+    expect(robots).toContain("ai-train=no");
+    const body = await llms.text();
+    expect(body).toContain("requires a written licence");
+    expect(body).not.toContain("Training models on this content is permitted");
+    // Cytowanie nadal dozwolone - wyłączony był tylko trening.
+    expect(body).toContain("PERMITTED on one condition");
+  });
+
+  const MATRIX = [true, false].flatMap((search) =>
+    [true, false].flatMap((train) =>
+      ["", "Redakcja Testowa"].map((siteName) => ({ search, train, siteName })),
+    ),
+  );
+
+  it.each(MATRIX)(
+    "parytet: wyszukiwawcze=$search, treningowe=$train, site_name=„$siteName”",
+    async ({ search, train, siteName }) => {
+      state.settings = {
+        site_name: siteName,
+        ai_search_crawlers_allowed: search,
+        ai_training_crawlers_allowed: train,
+      };
+      const { llms, robots } = await bothSurfaces();
+      const body = await llms.text();
+      const signal = wildcardSignal(robots);
+      expect(signal).toEqual({ aiInput: search ? "yes" : "no", aiTrain: train ? "yes" : "no" });
+
+      // Jedna nazwa źródła: nagłówek llms.txt, warunek llms.txt i warunek robots.txt.
+      const robotsName = robots.match(/must name "([^"]+)" as the source/)?.[1];
+      const expectedName = siteName || "New European Strategies";
+      expect(robotsName).toBe(expectedName);
+      expect(body.startsWith(`# ${expectedName}\n`)).toBe(true);
+      const quotedNames = new Set(Array.from(body.matchAll(/"([^"]+)"/g), (m) => m[1]));
+      expect([...quotedNames]).toEqual([expectedName]);
+
+      // Zgoda na cytowanie w llms.txt ⇔ `ai-input=yes` w robots.txt.
+      expect(body.includes("PERMITTED on one condition")).toBe(signal.aiInput === "yes");
+      expect(body.includes("PROHIBITED")).toBe(signal.aiInput === "no");
+      // Zgoda na trening w llms.txt ⇔ `ai-train=yes` w robots.txt.
+      expect(body.includes("Training models on this content is permitted")).toBe(
+        signal.aiTrain === "yes",
+      );
+      expect(body.includes("requires a written licence")).toBe(signal.aiTrain === "no");
+      // robots.txt sam ze sobą też musi się zgadzać: zdanie „AI assistants MAY
+      // ... quote" przy `ai-input=no` było drugą, wewnętrzną sprzecznością.
+      expect(robots.includes("AI assistants MAY crawl, index and quote")).toBe(
+        signal.aiInput === "yes",
+      );
+    },
+  );
+
+  it("llms.txt wyłączony -> robots.txt nie wskazuje go jako pełnych warunków (404)", async () => {
+    state.settings = { llms_txt_enabled: false };
+    const { llms, robots } = await bothSurfaces();
+    expect(llms.status).toBe(404);
+    expect(robots).not.toContain("/llms.txt");
+    // Warunek cytowania zostaje w robots.txt - odpada tylko martwy odnośnik.
+    expect(robots).toContain('must name "New European Strategies" as the source');
+  });
+
+  it("kontrola dodatnia: domyślne ustawienia -> obie powierzchnie udzielają tej samej zgody", async () => {
+    const { llms, robots } = await bothSurfaces();
+    expect(wildcardSignal(robots)).toEqual({ aiInput: "yes", aiTrain: "yes" });
+    expect(robots).toContain(
+      "Full terms and a machine-readable index: https://neweuropeanstrategies.com/llms.txt",
+    );
+    const body = await llms.text();
+    expect(body).toContain("PERMITTED on one condition");
+    expect(body).toContain("Training models on this content is permitted");
+    expect(body).toContain("Cite the canonical article URLs");
   });
 });

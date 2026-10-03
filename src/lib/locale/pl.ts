@@ -952,7 +952,7 @@ export const pl = {
       llmsEnabled: "Serwuj /llms.txt",
       aiCrawlers: "Crawlery AI",
       aiCrawlersHint:
-        "Wyszukiwawcze crawlery cytują treści w odpowiedziach AI; treningowe tylko uczą modele. Wyłączenie dopisuje grupy zakazu do /robots.txt.",
+        "Wyszukiwawcze crawlery cytują treści w odpowiedziach AI; treningowe tylko uczą modele. Wyłączenie dopisuje grupy zakazu do /robots.txt i cofa odpowiednią zgodę w warunkach /llms.txt.",
       aiSearchAllowed: "Wpuszczaj crawlery wyszukiwawcze AI (cytowania w odpowiedziach - zalecane)",
       aiTrainingAllowed: "Wpuszczaj crawlery treningowe (uczenie modeli)",
       robotsPreview: "robots.txt",

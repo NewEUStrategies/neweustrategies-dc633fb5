@@ -76,6 +76,7 @@ describe("llms.txt content contract", () => {
     latestPl: [],
     latestEn: [],
     resources: llmsTxtResourceLines(ORIGIN, localizedPath),
+    usage: { aiInputAllowed: true, trainingAllowed: true },
   });
 
   it("advertises every registered machine-readable surface", () => {
