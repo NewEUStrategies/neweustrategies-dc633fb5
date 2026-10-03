@@ -194,6 +194,27 @@ describe("SubscriptionCard - braki w danych nie udają wartości", () => {
     expect(document.body.textContent).not.toMatch(moneyPattern(4900));
   });
 
+  it("cena spoza katalogu NIE dopasowuje się do planu, który też nie ma pozycji w katalogu", async () => {
+    // Warstwa `corporate` nie ma ceny w katalogu - porównanie „brak ceny planu"
+    // z „brakiem pozycji subskrypcji" (`undefined === undefined`) przypisałoby
+    // klientowi cudzy plan razem z jego kwotą.
+    h.plans.current = [
+      accessPlan({
+        id: "plan-corporate",
+        tier_key: "corporate",
+        name_pl: "Korporacyjny",
+        price_cents: 1_200_000,
+      }),
+      ...planLadder(),
+    ];
+    renderCard({ price_id: "price_legacy_2019" });
+
+    await awaitPlans();
+    expect(screen.getByText("price_legacy_2019")).toBeTruthy();
+    expect(screen.queryByText("Korporacyjny")).toBeNull();
+    expect(document.body.textContent).not.toMatch(moneyPattern(1_200_000));
+  });
+
   it("plan zespołowy na kilka miejsc pokazuje cenę z mnożnikiem miejsc", async () => {
     h.plans.current = [
       accessPlan({ id: "plan-team", tier_key: "team", name_pl: "Zespół", price_cents: 3900 }),

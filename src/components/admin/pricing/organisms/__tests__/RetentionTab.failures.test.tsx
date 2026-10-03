@@ -128,6 +128,58 @@ describe("RetentionTab - awaria jednego odczytu nie zabiera reszty zakładki", (
   });
 });
 
+// Ustawienia, których panel NIE ZNA, nie mogą wyglądać jak domyślne 30/3/14.
+// Zapis idzie `upsert`-em po tenancie i nadpisuje CAŁY wiersz - redakcja, która
+// po padniętym odczycie poprawi tylko ważność kodu, po cichu zmieniłaby też
+// prawdziwy rabat (np. 15%) na domyślne 30%.
+describe("RetentionTab - nieznane ustawienia nie dają się nadpisać domyślnymi", () => {
+  it("padnięty odczyt ustawień: komunikat z ponowieniem zamiast pól 30/3/14", async () => {
+    chain.setResponse("retention_settings", fail("permission denied for table retention_settings"));
+    // Powód niesie tenanta - bez naprawy przycisk zapisu miałby komu zapisać.
+    chain.setResponse("retention_reasons", ok([retentionReason({ id: "r1" })]));
+    renderWithQueryClient(<RetentionTab />);
+
+    expect(await screen.findByText("adminPricing.retention.settingsLoadError")).toBeInTheDocument();
+    expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
+
+    // Ponowienie wczytuje PRAWDZIWY rabat - dopiero wtedy da się go edytować.
+    chain.setResponse("retention_settings", ok(retentionSettings({ discount_pct: 15 })));
+    fireEvent.click(screen.getByRole("button", { name: "adminPricing.retention.retryLoad" }));
+
+    await waitFor(() => expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(15));
+    expect(screen.queryByText("adminPricing.retention.settingsLoadError")).toBeNull();
+    expect(chain.chainsFor("retention_settings").some((c) => c.has("upsert"))).toBe(false);
+  });
+
+  it("dopóki ustawienia się wczytują, panel nie pokazuje domyślnych wartości do zapisu", async () => {
+    chain.setResponse("retention_settings", ok(retentionSettings({ discount_pct: 15 })));
+    renderWithQueryClient(<RetentionTab />);
+
+    // Pierwszy render: zapytanie jeszcze w toku - żadnych pól z wartościami domyślnymi.
+    expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByRole("spinbutton")[0]).toHaveValue(15));
+  });
+
+  it("padnięty przegląd odpowiedzi to komunikat błędu, nie „brak odpowiedzi” ani zera w statystykach", async () => {
+    chain.setResponse("retention_feedback", fail("statement timeout"));
+    renderWithQueryClient(<RetentionTab />);
+
+    expect(await screen.findByText("adminPricing.retention.feedbackLoadError")).toBeInTheDocument();
+    expect(screen.queryByText("adminPricing.retention.feedbackEmpty")).toBeNull();
+    // Statystyki z nieudanego odczytu byłyby fałszywym „0 odpowiedzi”.
+    expect(screen.queryByText("adminPricing.retention.stats.total")).toBeNull();
+
+    chain.setResponse(
+      "retention_feedback",
+      ok([retentionFeedback({ comment: "Za mało analiz o Bałtyku" })]),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "adminPricing.retention.retryLoad" }));
+
+    expect(await screen.findByText("Za mało analiz o Bałtyku")).toBeInTheDocument();
+    expect(screen.getByText("adminPricing.retention.stats.total")).toBeInTheDocument();
+  });
+});
+
 describe("RetentionTab - brak tenanta blokuje dodanie powodu", () => {
   it("pusta baza: dodanie powodu odmawia i NIE wysyła INSERT bez właściciela", async () => {
     chain.setResponse("retention_settings", ok(null));

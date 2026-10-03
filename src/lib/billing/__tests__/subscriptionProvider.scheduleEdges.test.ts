@@ -7,7 +7,8 @@
 // (klient dalej płaci starą stawkę). Dlatego sprawdzamy:
 //   - klienta ROZWINIĘTEGO do obiektu (`expand: ["customer"]`) i cenę jako
 //     sam identyfikator - oba kształty zwraca SDK Stripe,
-//   - brak harmonogramu tej subskrypcji na liście -> jawny błąd, bez zapisu,
+//   - fazy trafiają do harmonogramu zwróconego przez `create`, także gdy
+//     klient ma równolegle harmonogram innej subskrypcji,
 //   - brak dat okresu -> `currentPeriodEnd: null` zamiast daty z 1970 r.,
 //   - zmianę liczby miejsc na subskrypcji bez pozycji i odmowę operatora.
 import type Stripe from "stripe";
@@ -55,15 +56,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.prices.list.mockResolvedValue({ data: [{ id: "price_new" }] });
   h.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1" });
-  h.subscriptionSchedules.list.mockResolvedValue({
-    data: [{ id: "sched_1", subscription: "sub_1" }],
-  });
   h.subscriptionSchedules.update.mockResolvedValue({ id: "sched_1" });
   h.subscriptions.update.mockResolvedValue({});
 });
 
 describe("changeSubscriptionPrice - downgrade na rozwiniętych obiektach SDK", () => {
-  it("klient rozwinięty do obiektu: harmonogram szukany po jego `id`", async () => {
+  it("klient rozwinięty do obiektu: fazy na harmonogramie z `create`, bez szukania po kliencie", async () => {
     h.subscriptions.retrieve.mockResolvedValue({
       customer: { id: "cus_expanded", object: "customer" },
       items: {
@@ -82,10 +80,10 @@ describe("changeSubscriptionPrice - downgrade na rozwiniętych obiektach SDK", (
     const result = await changeSubscriptionPrice("sandbox", "sub_1", { ...downgrade, quantity: 2 });
 
     expect(result).toEqual({ ok: true, currentPeriodEnd: PERIOD_END_ISO });
-    expect(h.subscriptionSchedules.list).toHaveBeenCalledWith({
-      customer: "cus_expanded",
-      limit: 1,
-    });
+    expect(h.subscriptionSchedules.create).toHaveBeenCalledWith({ from_subscription: "sub_1" });
+    // Identyfikator harmonogramu znamy z `create` - lista po kliencie (z jego
+    // kształtem obiektu) nie jest już potrzebna.
+    expect(h.subscriptionSchedules.list).not.toHaveBeenCalled();
     // Cena podana jako SAM identyfikator przechodzi do fazy bieżącej bez zmian.
     expect(h.subscriptionSchedules.update).toHaveBeenCalledWith("sched_1", {
       end_behavior: "release",
@@ -102,7 +100,7 @@ describe("changeSubscriptionPrice - downgrade na rozwiniętych obiektach SDK", (
     expect(h.subscriptions.update).not.toHaveBeenCalled();
   });
 
-  it("na liście jest harmonogram INNEJ subskrypcji: błąd `schedule_missing`, bez zapisu faz", async () => {
+  it("równoległy harmonogram INNEJ subskrypcji klienta: fazy idą do harmonogramu z `create`", async () => {
     h.subscriptions.retrieve.mockResolvedValue({
       customer: "cus_1",
       items: {
@@ -117,15 +115,26 @@ describe("changeSubscriptionPrice - downgrade na rozwiniętych obiektach SDK", (
         ],
       },
     });
+    h.subscriptionSchedules.create.mockResolvedValue({ id: "sched_mine", subscription: "sub_1" });
+    // Najnowszy harmonogram klienta to cudzy (druga karta, portal operatora) -
+    // wyszukanie „ostatniego" po kliencie trafiłoby właśnie w niego.
     h.subscriptionSchedules.list.mockResolvedValue({
       data: [{ id: "sched_other", subscription: "sub_other" }],
     });
 
     const result = await changeSubscriptionPrice("sandbox", "sub_1", downgrade);
 
-    expect(result).toEqual({ ok: false, error: "schedule_missing" });
+    expect(result).toEqual({ ok: true, currentPeriodEnd: PERIOD_END_ISO });
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledTimes(1);
+    expect(h.subscriptionSchedules.update).toHaveBeenCalledWith(
+      "sched_mine",
+      expect.objectContaining({ end_behavior: "release" }),
+    );
     // Cudzy harmonogram nie może dostać faz tej subskrypcji.
-    expect(h.subscriptionSchedules.update).not.toHaveBeenCalled();
+    expect(h.subscriptionSchedules.update).not.toHaveBeenCalledWith(
+      "sched_other",
+      expect.anything(),
+    );
   });
 
   it("pozycja bez dat okresu: brak daty końca zamiast 1970-01-01", async () => {

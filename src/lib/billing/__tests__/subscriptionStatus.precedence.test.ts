@@ -168,20 +168,50 @@ describe("wiersz lokalny anulowany a nadanie", () => {
     expect(view.grant).toBeNull();
   });
 
-  // Klucz stanu świadomie NIE jest tu asertowany: dziś wychodzi
-  // `cancelScheduled` („anulowanie zaplanowane") także po końcu okresu -
-  // zgłoszone jako defekt, nie utrwalane testem.
-  it("anulowanie lokalne po końcu okresu i bez nadania odbiera dostęp", () => {
+  // Po końcu okresu NIE ma już czego „planować" - badge „anulowanie
+  // zaplanowane" z datą wygaśnięcia sprzed miesiąca myliłby klienta.
+  it("anulowanie lokalne po końcu okresu i bez nadania to „anulowana” bez dostępu", () => {
     const view = deriveSubscriptionStatus({
       local: local({ status: "canceled", current_period_end: PAST }),
       provider: null,
       now: NOW,
     });
 
+    expect(view.key).toBe("canceled");
+    expect(view.tone).toBe("muted");
     expect(view.hasAccess).toBe(false);
     expect(view.renewsAt).toBeNull();
     expect(view.endsAt).toBe(PAST);
     expect(view.grant).toBeNull();
+  });
+
+  it("lokalne anulowanie (sam `canceled_at` przy statusie `active`) po końcu okresu to „anulowana”", () => {
+    // Tak zapisuje lokalna ścieżka anulowania: status zostaje `active`,
+    // dochodzi tylko `canceled_at`, a nic potem nie przestawia wiersza.
+    const view = deriveSubscriptionStatus({
+      local: local({ canceled_at: PAST, current_period_end: PAST }),
+      provider: null,
+      now: NOW,
+    });
+
+    expect(view.key).toBe("canceled");
+    expect(view.hasAccess).toBe(false);
+    expect(view.endsAt).toBe(PAST);
+  });
+
+  it("anulowanie wiersza BEZ daty końca okresu (zakup bezterminowy) nie zamienia się w „anulowaną”", () => {
+    // `has_content_access()` czyta pusty `current_period_end` jako dostęp bez
+    // końca i nie patrzy na `canceled_at` - klient dalej czyta treści, więc
+    // „anulowana” byłaby nieprawdą. „Po końcu okresu” wymaga DATY końca.
+    const view = deriveSubscriptionStatus({
+      local: local({ canceled_at: PAST, current_period_end: null }),
+      provider: null,
+      now: NOW,
+    });
+
+    expect(view.key).toBe("cancelScheduled");
+    expect(view.renewsAt).toBeNull();
+    expect(view.endsAt).toBeNull();
   });
 });
 
@@ -231,16 +261,34 @@ describe("wiersz lokalny aktywny - daty okresu", () => {
     expect(view.endsAt).toBeNull();
   });
 
-  // Tu też tylko dostęp: klucz `active` z `renewsAt` w przeszłości to
-  // zgłoszony defekt prezentacji, nie kontrakt.
-  it("aktywny wiersz z minionym końcem okresu NIE daje dostępu", () => {
+  // Wiersz z minionym końcem okresu nikt nie przestawia na `expired`, więc
+  // status musi wynikać z daty: zielone „Aktywna" z „Odnawia się" w
+  // przeszłości przeczyłoby brakowi dostępu.
+  it("aktywny wiersz z minionym końcem okresu to „anulowana” bez dostępu i bez odnowienia", () => {
     const view = deriveSubscriptionStatus({
       local: local({ current_period_end: PAST }),
       provider: null,
       now: NOW,
     });
 
+    expect(view.key).toBe("canceled");
+    expect(view.tone).toBe("muted");
     expect(view.hasAccess).toBe(false);
+    expect(view.renewsAt).toBeNull();
+    expect(view.endsAt).toBe(PAST);
+  });
+
+  it("aktywny wiersz z minionym okresem ustępuje nadaniu, które wciąż trwa", () => {
+    const view = deriveSubscriptionStatus({
+      local: local({ current_period_end: PAST }),
+      provider: null,
+      grants: [SUPPORTER],
+      now: NOW,
+    });
+
+    expect(view.key).toBe("grantActive");
+    expect(view.hasAccess).toBe(true);
+    expect(view.endsAt).toBe(GRANT_END);
   });
 
   it("nieczytelna data końca okresu nie jest traktowana jak przyszła", () => {

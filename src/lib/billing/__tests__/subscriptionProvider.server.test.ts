@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
   /** Środowiska, dla których zbudowano klienta bramki (kolejność wywołań). */
   envs: [] as string[],
   subscriptions: { update: vi.fn(), cancel: vi.fn(), retrieve: vi.fn() },
-  subscriptionSchedules: { create: vi.fn(), list: vi.fn(), update: vi.fn() },
+  subscriptionSchedules: { create: vi.fn(), update: vi.fn() },
   prices: { list: vi.fn() },
 }));
 
@@ -78,9 +78,6 @@ beforeEach(() => {
     items: { data: [subscriptionItem()] },
   });
   h.subscriptionSchedules.create.mockResolvedValue({ id: "sched_1" });
-  h.subscriptionSchedules.list.mockResolvedValue({
-    data: [{ id: "sched_1", subscription: "sub_1" }],
-  });
   h.subscriptionSchedules.update.mockResolvedValue({ id: "sched_1" });
   h.prices.list.mockResolvedValue({ data: [{ id: "price_new" }] });
 });
