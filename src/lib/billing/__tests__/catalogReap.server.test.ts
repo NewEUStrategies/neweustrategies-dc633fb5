@@ -138,6 +138,28 @@ describe("reapOrphanCatalogEntries - co zostaje zarchiwizowane", () => {
     ]);
   });
 
+  it("PRODUKT planu wyłączonego w bazie też dostaje powód `plan_inactive`", async () => {
+    // Produkty i ceny mają rozłączne identyfikatory (`plan_pro` vs
+    // `pro_monthly`), więc powód produktu nie może pochodzić z listy CEN -
+    // wtedy produkt wyłączonego planu zawsze wychodził jako `not_in_catalog`.
+    stripe.prices = [tagged("price_pro_m", "pro_monthly")];
+    stripe.products = [tagged("prod_pro", "plan_pro"), tagged("prod_x", "usuniety_produkt")];
+
+    const reaped = await reapOrphanCatalogEntries({
+      env: "sandbox",
+      expectedPriceIds: new Set(),
+      expectedProductIds: new Set(),
+      inactivePriceIds: new Set(["pro_monthly"]),
+      inactiveProductIds: new Set(["plan_pro"]),
+    });
+
+    expect(reaped.map((r) => [r.kind, r.providerId, r.reason])).toEqual([
+      ["price", "price_pro_m", "plan_inactive"],
+      ["product", "prod_pro", "plan_inactive"],
+      ["product", "prod_x", "not_in_catalog"],
+    ]);
+  });
+
   it("bez listy planów wyłączonych każdy sierota ma powód `not_in_catalog`", async () => {
     stripe.prices = [tagged("price_plus_m", "plus_monthly")];
 

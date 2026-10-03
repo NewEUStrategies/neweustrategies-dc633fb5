@@ -642,6 +642,31 @@ describe("ensureCatalogSynced - kiedy synchronizacja ODMAWIA", () => {
     expect(stateWrite()?.["last_status"]).toBe("failed");
   });
 
+  it("błąd odczytu `access_plans` zapisuje PORAŻKĘ i NIE archiwizuje oferty u operatora", async () => {
+    // Timeout bazy nie jest „pustym cennikiem". Gdyby synchronizacja potraktowała
+    // go jak brak planów, sprzątanie zarchiwizowałoby u operatora każdą naszą
+    // aktywną cenę i produkt (koszyk: „cena nie istnieje"), a stan zapisałby
+    // `ok` - automat uznałby katalog za zdrowy i nie spróbowałby ponownie.
+    db.setResponse("access_plans", fail("canceling statement due to statement timeout"));
+    stripeState.prices = [
+      {
+        id: "price_live_pro",
+        lookup_key: "pro_monthly",
+        metadata: { lovable_external_id: "pro_monthly" },
+      },
+    ];
+    stripeState.products = [{ id: "prod_live_pro", metadata: { lovable_external_id: "plan_pro" } }];
+
+    const outcome = await ensureCatalogSynced("sandbox");
+
+    expect(stripeState.updated).toEqual([]);
+    expect(outcome).toMatchObject({ ran: false, reason: "first_run", report: null });
+    expect(outcome.error).toContain("access_plans");
+    const write = stateWrite();
+    expect(write).toMatchObject({ environment: "sandbox", last_status: "failed" });
+    expect(write).not.toHaveProperty("catalog_fingerprint");
+  });
+
   it("rzut NIE-`Error` zapisuje porażkę jako `unknown`, a nie `[object Object]`", async () => {
     // SDK i warstwa sieci potrafią odrzucić surowym obiektem. Panel czyta
     // `last_error` wprost - „[object Object]" nie mówi dyżurnemu nic, a wyjątek

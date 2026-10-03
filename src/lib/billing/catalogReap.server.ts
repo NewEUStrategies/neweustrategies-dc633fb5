@@ -30,6 +30,12 @@ export interface ReapInput {
   expectedProductIds: ReadonlySet<string>;
   /** `lovable_external_id` znane katalogowi, ale z wyłączonym planem w bazie. */
   inactivePriceIds?: ReadonlySet<string>;
+  /**
+   * `lovable_external_id` produktów, których WSZYSTKIE ceny mają wyłączony plan.
+   * Osobno od cen, bo identyfikatory produktów (`plan_pro`) i cen
+   * (`pro_monthly`) nigdy się nie pokrywają.
+   */
+  inactiveProductIds?: ReadonlySet<string>;
 }
 
 function externalIdOf(metadata: Record<string, string> | null | undefined): string | null {
@@ -43,18 +49,31 @@ function externalIdOf(metadata: Record<string, string> | null | undefined): stri
  * Ceny idą pierwsze - Stripe odrzuca archiwizację produktu z aktywną ceną.
  */
 export async function reapOrphanCatalogEntries(input: ReapInput): Promise<ReapedEntry[]> {
-  const { env, expectedPriceIds, expectedProductIds, inactivePriceIds = new Set<string>() } = input;
+  const {
+    env,
+    expectedPriceIds,
+    expectedProductIds,
+    inactivePriceIds = new Set<string>(),
+    inactiveProductIds = new Set<string>(),
+  } = input;
   const stripe = await getStripeClient(env);
   const reaped: ReapedEntry[] = [];
 
-  const reasonFor = (externalId: string): ReapedEntry["reason"] =>
-    inactivePriceIds.has(externalId) ? "plan_inactive" : "not_in_catalog";
+  // Powód sprawdzamy w słowniku właściwym dla rodzaju pozycji - jedna lista
+  // dla cen i produktów dawała produktom wyłączonych planów `not_in_catalog`.
+  const reasonFor = (inactive: ReadonlySet<string>, externalId: string): ReapedEntry["reason"] =>
+    inactive.has(externalId) ? "plan_inactive" : "not_in_catalog";
 
   for await (const price of stripe.prices.list({ active: true, limit: 100 })) {
     const externalId = externalIdOf(price.metadata);
     if (!externalId || expectedPriceIds.has(externalId)) continue;
     await stripe.prices.update(price.id, { active: false });
-    reaped.push({ kind: "price", externalId, providerId: price.id, reason: reasonFor(externalId) });
+    reaped.push({
+      kind: "price",
+      externalId,
+      providerId: price.id,
+      reason: reasonFor(inactivePriceIds, externalId),
+    });
   }
 
   for await (const product of stripe.products.list({ active: true, limit: 100 })) {
@@ -65,7 +84,7 @@ export async function reapOrphanCatalogEntries(input: ReapInput): Promise<Reaped
       kind: "product",
       externalId,
       providerId: product.id,
-      reason: reasonFor(externalId),
+      reason: reasonFor(inactiveProductIds, externalId),
     });
   }
 

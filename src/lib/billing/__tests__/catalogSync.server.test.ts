@@ -29,6 +29,8 @@ const h = vi.hoisted(() => ({
   clientError: null as Error | null,
   /** Wiersze `access_plans` zwracane przez klienta serwisowego. */
   plans: [] as unknown[],
+  /** Wstrzyknięty błąd odczytu `access_plans` (timeout, RLS) - pole `error` PostgREST. */
+  plansError: null as { message: string } | null,
   /** Kolumny odpytane w bazie (liczba przebiegów synchronizacji). */
   selects: [] as string[],
   /** Produkty widoczne u operatora, kluczowane po `lovable_external_id`. */
@@ -63,7 +65,9 @@ vi.mock("@/integrations/supabase/client.server", () => ({
     from: () => ({
       select: (columns: string) => {
         h.selects.push(columns);
-        return Promise.resolve({ data: h.plans, error: null });
+        return Promise.resolve(
+          h.plansError ? { data: null, error: h.plansError } : { data: h.plans, error: null },
+        );
       },
     }),
   },
@@ -123,6 +127,7 @@ const reapInput = () =>
         expectedPriceIds: Set<string>;
         expectedProductIds: Set<string>;
         inactivePriceIds: Set<string>;
+        inactiveProductIds: Set<string>;
       }
     | undefined;
 
@@ -132,6 +137,7 @@ beforeEach(() => {
   h.selects.length = 0;
   h.clientError = null;
   h.plans = [plan()];
+  h.plansError = null;
   h.remoteProducts = {};
   h.remotePrices = {};
   h.productSearchErrors = {};
@@ -454,6 +460,28 @@ describe("syncBillingCatalog - brak planu w źródle prawdy", () => {
     expect([...(reapInput()?.inactivePriceIds ?? [])]).toContain("plus_monthly");
     expect([...(reapInput()?.expectedPriceIds ?? [])]).not.toContain("plus_monthly");
   });
+
+  it("produkt, którego WSZYSTKIE ceny mają wyłączony plan, trafia na listę produktów wyłączonych", async () => {
+    // Identyfikatory produktów (`plan_pro`) i cen (`pro_monthly`) to dwa różne
+    // słowniki. Sama lista cen wyłączonych nie pozwala sprzątaniu rozpoznać
+    // produktu wyłączonego planu - dostawał powód `not_in_catalog` i kierował
+    // operatora do zmiany w kodzie zamiast do przełącznika planu w panelu.
+    h.plans = [
+      plan(),
+      plan({ interval: "year", active: false }),
+      plan({ tier_key: "pro", name_pl: "Pro", active: false }),
+    ];
+
+    await syncBillingCatalog("sandbox");
+
+    const inactiveProducts = [...(reapInput()?.inactiveProductIds ?? [])];
+    expect(inactiveProducts).toContain("plan_pro");
+    // `plan_plus` ma nadal aktywną cenę miesięczną - wyłączona cena roczna
+    // nie czyni go produktem wyłączonego planu (i nie jest archiwizowany).
+    expect(inactiveProducts).not.toContain("plan_plus");
+    expect([...(reapInput()?.expectedProductIds ?? [])]).toContain("plan_plus");
+    expect([...(reapInput()?.inactivePriceIds ?? [])]).toContain("plus_annual");
+  });
 });
 
 describe("syncBillingCatalog - sprzątanie po czystym przebiegu", () => {
@@ -515,6 +543,22 @@ describe("syncBillingCatalog - błędy operatora i konfiguracji", () => {
     // Awaria API nie może zostać odczytana jako "plan zniknął ze źródła".
     expect(h.reap).not.toHaveBeenCalled();
     expect(report.archived).toEqual([]);
+  });
+
+  it("błąd odczytu `access_plans` przerywa synchronizację, ZANIM cokolwiek zostanie zarchiwizowane", async () => {
+    // Najdroższa pomyłka tego modułu: zignorowane pole `error` zamieniało
+    // timeout bazy w pusty cennik. Każda pozycja wychodziła wtedy „bez planu",
+    // licznik porażek zostawał na zerze, a sprzątanie archiwizowało CAŁĄ
+    // ofertę u operatora - i przebieg trafiał do stanu integracji jako `ok`.
+    h.plansError = { message: "canceling statement due to statement timeout" };
+
+    await expect(syncBillingCatalog("live")).rejects.toThrow(
+      "catalog sync: access_plans lookup failed: canceling statement due to statement timeout",
+    );
+    expect(h.reap).not.toHaveBeenCalled();
+    expect(h.productSearch).not.toHaveBeenCalled();
+    expect(h.productCreate).not.toHaveBeenCalled();
+    expect(h.priceCreate).not.toHaveBeenCalled();
   });
 
   it("brak konfiguracji operatora przerywa synchronizację (błąd nie jest połykany)", async () => {
