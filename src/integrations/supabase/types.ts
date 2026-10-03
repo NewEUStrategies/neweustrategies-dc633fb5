@@ -31415,7 +31415,7 @@ export type Database = {
         Returns: Json
       }
       web_vitals_daily_p75: {
-        Args: { p_since: string; p_tenant: string }
+        Args: { p_since: string; p_tenant: string; p_until?: string }
         Returns: {
           day: string
           metric: string
