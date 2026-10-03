@@ -7,7 +7,8 @@
 //   * `eventsQuery` i `meetingsQuery` RZUCAJA (lista wydarzen, ktora po cichu
 //     zamieniła by odmowe w "brak wydarzen", klamie czytelnikowi o programie);
 //   * `newsTickerQuery` i `sliderPostsQuery` POLYKAJA (pasek i hero maja
-//     wtedy zniknac, a nie wywrocic strone bledem sekcji).
+//     wtedy zniknac, a nie wywrocic strone bledem sekcji) - takze odmowe
+//     odczytu slownika taksonomii (`categories` / `tags`).
 //
 // Do tego dwie rzeczy, ktore sa CZESCIA KLUCZA i dlatego zmieniaja wynik
 // widgetu, choc wygladaja na detal:
@@ -325,35 +326,42 @@ describe("pasek aktualnosci: filtr kategorii i autorzy", () => {
     expect(db().lastChain("posts")).toBeUndefined();
   });
 
-  it("kategoria bez powiazanych postow tez konczy sie [] BEZ zapytania o posty", async () => {
-    db().setResponse("categories", () => ok([{ id: "c-1" }]));
-    db().setResponse("post_categories", () => ok([]));
+  it("kategoria bez wpisow daje [] z JEDNEGO zapytania o posty - tabela posrednia nie jest czytana", async () => {
+    // ZMIANA 03.10.2026: zawezenie robi baza (osadzenie `!inner()`), wiec
+    // pusta kategoria nie ma juz osobnego odczytu `post_categories`, po ktorym
+    // dalo sie pominac zapytanie o posty. Pustka wychodzi z samego zapytania.
+    db().setResponse("categories", () => ok([{ id: "c-1", slug: "ue" }]));
+    db().setResponse("posts", () => ok([]));
 
     await expect(run(newsTickerQueryOptions({ categoriesCsv: "ue" }, "pl"))).resolves.toEqual([]);
-    expect(db().lastChain("posts")).toBeUndefined();
+    expect(db().chainsFor("post_categories")).toHaveLength(0);
+    expect(db().chainsFor("posts")).toHaveLength(1);
   });
 
-  it("brak wierszy (data null) w kategoriach i w powiazaniach tez konczy sie []", async () => {
+  it("brak wierszy (data null) i odmowa odczytu kategorii koncza sie [] BEZ zapytania o posty", async () => {
     // `null` to inna odpowiedz niz pusta tablica (tak wyglada odmowa odczytu
     // bez rzucania), a skutek dla widgetu musi byc ten sam.
     db().setResponse("categories", () => ok(null));
     await expect(run(newsTickerQueryOptions({ categoriesCsv: "ue" }, "pl"))).resolves.toEqual([]);
 
-    db().setResponse("categories", () => ok([{ id: "c-1" }]));
-    db().setResponse("post_categories", () => ok(null));
+    // Odmowa jest POLYKANA swiadomie - pasek ma zniknac, nie wywrocic chrome.
+    db().setResponse("categories", () => fail("permission denied for table categories", "42501"));
     await expect(run(newsTickerQueryOptions({ categoriesCsv: "ue" }, "pl"))).resolves.toEqual([]);
     expect(db().lastChain("posts")).toBeUndefined();
   });
 
-  it("trafiony filtr kategorii ZAWEZA zapytanie o posty ogniwem .in", async () => {
-    db().setResponse("categories", () => ok([{ id: "c-1" }]));
-    db().setResponse("post_categories", () => ok([{ post_id: "p-1" }, { post_id: "p-1" }]));
+  it("trafiony filtr kategorii ZAWEZA zapytanie o posty osadzeniem po id KATEGORII, a nie lista id wpisow", async () => {
+    db().setResponse("categories", () => ok([{ id: "c-1", slug: "ue" }]));
     db().setResponse("posts", () => ok([]));
 
     await run(newsTickerQueryOptions({ categoriesCsv: "ue" }, "pl"));
 
-    // Powtorzone powiazanie liczy sie raz - zbior, nie lista.
-    expect(db().lastChain("posts")?.argsOf("in")).toEqual(["id", ["p-1"]]);
+    const posts = db().lastChain("posts");
+    expect(String(posts?.argsOf("select")?.[0])).toContain(
+      "tx_inc_category_0:post_categories!inner()",
+    );
+    expect(posts?.argsOf("in")).toEqual(["tx_inc_category_0.category_id", ["c-1"]]);
+    expect(db().chainsFor("post_categories")).toHaveLength(0);
   });
 
   it("bez csv kategorii zapytanie o kategorie w ogole nie leci", async () => {
@@ -476,13 +484,18 @@ describe("slider z postow: rozstrzyganie zrodla", () => {
 });
 
 describe("slider z postow: przeciecie kategorii i tagow", () => {
-  it("sam filtr kategorii USTAWIA zbior dozwolonych id", async () => {
-    db().setResponse("post_categories", () => ok([{ post_id: "p-1" }, { post_id: "p-2" }]));
+  it("sam filtr kategorii ZAWEZA zapytanie osadzeniem po id kategorii", async () => {
+    db().setResponse("categories", () => ok([{ id: "c-1", slug: "ue" }]));
     db().setResponse("posts", () => ok([]));
 
     await run(sliderPostsQueryOptions({ categorySlugs: "ue" }, "pl"));
 
-    expect(db().lastChain("posts")?.argsOf("in")).toEqual(["id", ["p-1", "p-2"]]);
+    const posts = db().lastChain("posts");
+    expect(String(posts?.argsOf("select")?.[0])).toContain(
+      "tx_inc_category_0:post_categories!inner()",
+    );
+    expect(posts?.argsOf("in")).toEqual(["tx_inc_category_0.category_id", ["c-1"]]);
+    expect(db().chainsFor("post_categories")).toHaveLength(0);
   });
 
   it("tag bez dopasowanego sluga ZERUJE zbior i konczy [] bez zapytania o posty", async () => {
@@ -492,51 +505,49 @@ describe("slider z postow: przeciecie kategorii i tagow", () => {
     expect(db().lastChain("posts")).toBeUndefined();
   });
 
-  it("sam trafiony filtr tagow USTAWIA zbior (bez kategorii nie ma czego przecinac)", async () => {
-    db().setResponse("tags", () => ok([{ id: "t-1" }]));
-    db().setResponse("post_tags", () => ok([{ post_id: "p-3" }]));
+  it("sam trafiony filtr tagow ZAWEZA zapytanie osadzeniem post_tags", async () => {
+    db().setResponse("tags", () => ok([{ id: "t-1", slug: "klimat" }]));
     db().setResponse("posts", () => ok([]));
 
     await run(sliderPostsQueryOptions({ tagSlugs: "klimat" }, "pl"));
 
-    expect(db().lastChain("posts")?.argsOf("in")).toEqual(["id", ["p-3"]]);
+    const posts = db().lastChain("posts");
+    expect(String(posts?.argsOf("select")?.[0])).toContain("tx_inc_tag_0:post_tags!inner()");
+    expect(posts?.argsOf("in")).toEqual(["tx_inc_tag_0.tag_id", ["t-1"]]);
+    expect(db().chainsFor("post_tags")).toHaveLength(0);
   });
 
-  it("brak wierszy (data null) w kazdym ogniwie filtra konczy sie pustym zbiorem", async () => {
-    db().setResponse("post_categories", () => ok(null));
-    db().setResponse("posts", () => ok([]));
-    await run(sliderPostsQueryOptions({ categorySlugs: "ue" }, "pl"));
-    // Pusty zbior dozwolonych id konczy zapytanie PRZED pytaniem o posty.
-    expect(db().lastChain("posts")).toBeUndefined();
+  it("brak wierszy (data null) albo odmowa slownika konczy sie [] bez zapytania o posty", async () => {
+    db().setResponse("categories", () => ok(null));
+    await expect(run(sliderPostsQueryOptions({ categorySlugs: "ue" }, "pl"))).resolves.toEqual([]);
 
     db().setResponse("tags", () => ok(null));
     await expect(run(sliderPostsQueryOptions({ tagSlugs: "klimat" }, "pl"))).resolves.toEqual([]);
 
-    db().setResponse("tags", () => ok([{ id: "t-1" }]));
-    db().setResponse("post_tags", () => ok(null));
+    // Odmowa jest POLYKANA swiadomie - hero ma zniknac, nie wywrocic strony.
+    db().setResponse("tags", () => fail("permission denied for table tags", "42501"));
     await expect(run(sliderPostsQueryOptions({ tagSlugs: "klimat" }, "pl"))).resolves.toEqual([]);
-  });
-
-  it("rozlaczne zbiory kategorii i tagow daja PRZECIECIE puste, a nie sume", async () => {
-    db().setResponse("post_categories", () => ok([{ post_id: "p-1" }]));
-    db().setResponse("tags", () => ok([{ id: "t-1" }]));
-    db().setResponse("post_tags", () => ok([{ post_id: "p-9" }]));
-
-    await expect(
-      run(sliderPostsQueryOptions({ categorySlugs: "ue", tagSlugs: "klimat" }, "pl")),
-    ).resolves.toEqual([]);
     expect(db().lastChain("posts")).toBeUndefined();
   });
 
-  it("czesc wspolna kategorii i tagow trafia do ogniwa .in", async () => {
-    db().setResponse("post_categories", () => ok([{ post_id: "p-1" }, { post_id: "p-2" }]));
-    db().setResponse("tags", () => ok([{ id: "t-1" }]));
-    db().setResponse("post_tags", () => ok([{ post_id: "p-2" }, { post_id: "p-9" }]));
+  it("kategoria i tag naraz to KONIUNKCJA - dwa osadzenia !inner w JEDNYM zapytaniu", async () => {
+    // Przeciecie liczy teraz baza: wpis musi miec przypisanie do kategorii
+    // ORAZ do tagu. Kod sprzed naprawy liczyl je na listach id wpisow.
+    db().setResponse("categories", () => ok([{ id: "c-1", slug: "ue" }]));
+    db().setResponse("tags", () => ok([{ id: "t-1", slug: "klimat" }]));
     db().setResponse("posts", () => ok([]));
 
     await run(sliderPostsQueryOptions({ categorySlugs: "ue", tagSlugs: "klimat" }, "pl"));
 
-    expect(db().lastChain("posts")?.argsOf("in")).toEqual(["id", ["p-2"]]);
+    const posts = db().lastChain("posts");
+    const select = String(posts?.argsOf("select")?.[0]);
+    expect(select).toContain("tx_inc_category_0:post_categories!inner()");
+    expect(select).toContain("tx_inc_tag_1:post_tags!inner()");
+    expect(posts?.calls.filter((c) => c.method === "in").map((c) => c.args)).toEqual([
+      ["tx_inc_category_0.category_id", ["c-1"]],
+      ["tx_inc_tag_1.tag_id", ["t-1"]],
+    ]);
+    expect(db().chainsFor("posts")).toHaveLength(1);
   });
 
   it("wykluczenia, kierunek i kolumna sortowania trafiaja do zapytania", async () => {

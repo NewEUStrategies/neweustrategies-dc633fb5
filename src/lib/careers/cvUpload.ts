@@ -11,7 +11,7 @@
 // trafia do ścieżki - zachowujemy ją osobno w metadanych zgłoszenia.
 import { supabase } from "@/integrations/supabase/client";
 
-import { CV_ACCEPTED_MIME, CV_MAX_BYTES } from "./applicationSchema";
+import { CV_ACCEPTED_EXTENSIONS, CV_ACCEPTED_MIME, CV_MAX_BYTES } from "./applicationSchema";
 
 export const CV_BUCKET = "career-cv";
 
@@ -25,11 +25,15 @@ const EXTENSIONS: Record<string, string> = {
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
 };
 
+// Rozszerzenie liczy się od KROPKI - tak jak `matchesAccept` przy upuszczeniu.
+// `name.split(".").pop()` brało całą nazwę bez kropki, więc plik „pdf"
+// przechodził walidator, a obszar wgrywania odrzucał go jako zły typ.
 function extensionOf(file: File): string | null {
   const byMime = EXTENSIONS[file.type];
   if (byMime) return byMime;
-  const suffix = file.name.split(".").pop()?.toLowerCase();
-  return suffix && ["pdf", "doc", "docx"].includes(suffix) ? suffix : null;
+  const name = file.name.toLowerCase();
+  const ext = CV_ACCEPTED_EXTENSIONS.find((candidate) => name.endsWith(candidate));
+  return ext ? ext.slice(1) : null;
 }
 
 /** Waliduje rozmiar i typ pliku bez wysyłki - używane przy wyborze pliku. */

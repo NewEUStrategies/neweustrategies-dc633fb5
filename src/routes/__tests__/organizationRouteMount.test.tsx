@@ -309,6 +309,21 @@ describe("/organization/$slug - firma z kartoteki (`org-<uuid>`)", () => {
     // Osoby zostają: firma to pracodawca ze snapshotu `current_company`.
     expect(screen.getByTestId("osoby").getAttribute("data-names")).toBe("Instytut Badań");
   });
+
+  it("firma BEZ publicznego śladu (lead, prospekt) to 404 bez wspólnego cache", async () => {
+    // Od 20261003150000 `get_mention_target` oddaje kartę firmy tylko z
+    // publicznym śladem (opublikowany wpis albo sponsor); dla leada zwraca ZERO
+    // WIERSZY, nie błąd. Trasa ma z tego zrobić 404 - nie stronę degradacji
+    // („spróbuj ponownie") i nie profil z pustą kartą w cache brzegu.
+    rpc().setData("get_mention_target", []);
+    await mount(`/organization/${COMPANY_SLUG}`);
+    expect(screen.getByTestId("nie-znaleziono")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Instytut Badań" })).toBeNull();
+    expect(screen.queryByText("Nie udało się załadować profilu organizacji")).toBeNull();
+    expect(h.cacheControl.length).toBeGreaterThan(0);
+    expect(new Set(h.cacheControl)).toEqual(new Set([NOT_FOUND]));
+    expect(h.archiveCalls).toEqual([]);
+  });
 });
 
 describe("/organization/$slug - „nie ma” kontra „nie wiem”", () => {

@@ -11,6 +11,10 @@ import type { Lang } from "@/lib/builder/postListQuery";
 import { asBool, asNum, asStr } from "@/lib/content-model/contentValue";
 import { WIDGET_QUERY_ROOTS } from "@/lib/builder/queryKeys";
 import { edgeTtlCache } from "@/lib/ssrCache";
+import {
+  postsConstrainedByTaxonomy,
+  taxonomyConstraintsFromSlugs,
+} from "@/lib/queries/taxonomyPivot";
 
 export interface TickerPost {
   id: string;
@@ -64,28 +68,20 @@ export function newsTickerInput(c: WidgetContent): NewsTickerInput {
 }
 
 async function fetchTickerPosts(input: NewsTickerInput): Promise<TickerPost[]> {
-  let allowedIds: string[] | null = null;
-  if (input.categorySlugs.length) {
-    const { data: cats } = await supabase
-      .from("categories")
-      .select("id")
-      .in("slug", input.categorySlugs);
-    const catIds = (cats ?? []).map((r: { id: string }) => r.id);
-    if (!catIds.length) return [];
-    const { data: links } = await supabase
-      .from("post_categories")
-      .select("post_id")
-      .in("category_id", catIds);
-    allowedIds = Array.from(new Set((links ?? []).map((r: { post_id: string }) => r.post_id)));
-    if (!allowedIds.length) return [];
-  }
-  let q = supabase
-    .from("posts")
-    .select("id, slug, title_pl, title_en, author_id")
+  // Zawężenie kategorią robi BAZA (osadzenie `!inner()` po identyfikatorach
+  // kategorii) - wcześniej odczyt całej tabeli pośredniej bez `.limit()`
+  // oddawał identyfikatory wpisów do `.in("id", ...)`, więc kategoria z kilkuset
+  // wpisami przepełniała linię żądania, a ticker w chrome znikał z każdej trasy.
+  // Szczegóły: `lib/queries/taxonomyPivot.ts`. Odmowa odczytu słownika daje
+  // pusty ticker, jak przed zmianą.
+  const constraints = await taxonomyConstraintsFromSlugs({
+    includeCategories: input.categorySlugs,
+  }).catch((): null => null);
+  if (constraints === null) return [];
+  const q = postsConstrainedByTaxonomy("id, slug, title_pl, title_en, author_id", constraints)
     .eq("status", "published")
     .order("published_at", { ascending: false })
     .limit(input.limit);
-  if (allowedIds) q = q.in("id", allowedIds);
   const { data } = await q;
   const posts = (data ?? []) as TickerPost[];
 
@@ -122,7 +118,7 @@ export const newsTickerQueryOptions = (c: WidgetContent, _lang: Lang) => {
     queryKey: [WIDGET_QUERY_ROOTS.newsTicker, input] as const,
     queryFn: () =>
       // Per-isolate TTL: ticker w chrome jest prefetchowany na każdej trasie z
-      // builderowym headerem/footerem - bez cache płacił do 3 round-tripów na
+      // builderowym headerem/footerem - bez cache płacił do 3 zapytań w 3 falach na
       // każdy nie-cache'owany render (na kliencie przezroczyste).
       edgeTtlCache(`builder:news-ticker:${JSON.stringify(input)}`, 60_000, () =>
         fetchTickerPosts(input),

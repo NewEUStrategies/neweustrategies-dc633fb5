@@ -2,8 +2,11 @@
 // search_mention_targets (SECURITY DEFINER + current_tenant_id()/public_tenant_id()). Dzięki temu:
 //   * IZOLACJA TENANTA jest wymuszona w bazie (podpowiedzi nigdy nie zawierają
 //     osób ani firm z innego obszaru roboczego), bez filtra tenant_id w kliencie;
-//   * PRYWATNOŚĆ: RPC zwraca wyłącznie publiczne profile osób i bezpieczny
-//     wycinek firm CRM (nazwa, logo, strona, branża), bez PII i notatek.
+//   * PRYWATNOŚĆ: RPC zwraca wyłącznie publiczne profile osób oraz firmy CRM
+//     z PUBLICZNYM ŚLADEM - organizacje opublikowanych wpisów i opublikowanych
+//     sponsorów opublikowanych wydarzeń (migracja 20261003150000). Lead ani
+//     prospekt nie trafia do podpowiedzi nikomu, także redakcji; z firmy wychodzi
+//     tylko nazwa, logo, strona i branża, bez PII i notatek.
 // Zapytanie jest debounce'owane u wołającego; przy braku funkcji w bazie
 // degradujemy do pustej listy.
 import { useQuery } from "@tanstack/react-query";

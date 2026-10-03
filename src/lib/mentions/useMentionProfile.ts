@@ -1,5 +1,7 @@
 // Lekki podgląd celu @wzmianki - osoby albo firmy. Czytamy przez publiczny,
-// tenant-scoped RPC, który oddaje tylko pola do wizytówki (bez PII i notatek CRM).
+// tenant-scoped RPC, który oddaje tylko pola do wizytówki (bez PII i notatek CRM),
+// a firmę wyłącznie z publicznym śladem (20261003150000). Firma bez śladu to
+// `null` - ten sam stan co nieznany slug, nie błąd.
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { trimText } from "./directory";
