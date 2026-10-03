@@ -939,6 +939,20 @@
       "when": 1791035052098,
       "tag": "0133_archive_hero_image_url",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1791035193290,
+      "tag": "0134_search_posts_offset",
+      "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1791035239691,
+      "tag": "0135_related_taxonomies",
+      "breakpoints": true
     }
   ]
 }

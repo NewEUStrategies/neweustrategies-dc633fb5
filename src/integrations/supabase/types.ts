@@ -30829,6 +30829,17 @@ export type Database = {
         }[]
       }
       related_posts_signals: { Args: { _since_days?: number }; Returns: Json }
+      related_taxonomies: {
+        Args: { _kind: string; _limit?: number; _taxonomy_id: string }
+        Returns: {
+          id: string
+          name_en: string
+          name_pl: string
+          score: number
+          shared_posts: number
+          slug: string
+        }[]
+      }
       release_b2b_coupon: {
         Args: { _coupon_id: string; _order_id: string }
         Returns: boolean
@@ -31075,6 +31086,7 @@ export type Database = {
           _lang?: string
           _limit?: number
           _match?: string
+          _offset?: number
           _q?: string
           _sort?: string
           _term_groups?: Json
