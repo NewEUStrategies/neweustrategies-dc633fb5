@@ -57,6 +57,7 @@ export function ClubAuthorIdentity({
           viewProfile: t("club.inline.viewProfile"),
           verified: t("club.inline.verified"),
           viewOrg: t("club.inline.viewOrg"),
+          organization: t("club.inline.organization"),
         }}
       >
         <Link

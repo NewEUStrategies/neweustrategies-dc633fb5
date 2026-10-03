@@ -37,11 +37,17 @@ function CommentMention({ slug, className }: { slug: string; className?: string 
       lang={uiLang(i18n.language)}
       className={className}
       testId="comment-mention-preview"
+      // Komentarze pod artykułem czyta anonim: `/people` to dla niego bramka
+      // logowania z `noindex`. Osoba z katalogu idzie więc na `/author`
+      // (publiczny hub albo 301 na `/people`); nierozwiązana zostaje na
+      // `/people`, bo `/author` dałoby gościowi 404 - patrz `MentionTag`.
+      profileRoute="author"
       labels={{
         noProfile: t("mentions.noProfile"),
         viewProfile: t("mentions.viewProfile"),
         verified: t("mentions.verified"),
         viewOrg: t("mentions.viewOrg"),
+        organization: t("mentions.organization"),
       }}
     />
   );

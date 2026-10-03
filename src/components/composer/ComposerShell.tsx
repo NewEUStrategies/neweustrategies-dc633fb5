@@ -5,12 +5,23 @@
 // Używana przez kompozytor komentarzy oraz pola "wiadomość" w widgetach
 // formularzy (bez załączników). Wszystkie napisy pochodzą z i18n (PL/EN),
 // zaokrąglenia = 6px, kolory wyłącznie z tokenów semantycznych.
+//
+// SKRÓTY KLAWISZOWE OBSŁUGUJE POWŁOKA, NIE POLE. Pasek ogłasza skrót w etykiecie
+// i w dymku („Pogrubienie (Ctrl+B)"), więc skrót musi działać WSZĘDZIE, gdzie
+// pasek stoi. Do tej zmiany obsługiwało go tylko pole formularza (przez
+// `formatterRef`), a kompozytor komentarza ogłaszał Ctrl+B i Ctrl+K, które
+// nie robiły nic - albo gorzej: Ctrl+K w Chrome i Firefoksie przenosi fokus do
+// paska wyszukiwania przeglądarki. Teraz powłoka łapie `keydown` wynurzający
+// się z pola treści: najpierw swoje klawisze obsługuje pole (nawigacja po
+// podpowiedziach @wzmianek, kontynuacja listy), a skrót wchodzi tylko wtedy,
+// gdy pole nie zablokowało domyślnej akcji.
 import { useTranslation } from "react-i18next";
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
+  useSyncExternalStore,
+  type KeyboardEvent,
   type MutableRefObject,
   type ReactNode,
 } from "react";
@@ -30,6 +41,7 @@ import { cn } from "@/lib/utils";
 import {
   formatShortcutHint,
   isAppleShortcutPlatform,
+  matchMarkdownShortcut,
   type MarkdownActionId,
 } from "@/lib/composer/shortcuts";
 import {
@@ -94,6 +106,14 @@ const TOOLBAR: readonly ToolbarItem[] = [
   },
 ];
 
+const TOOLBAR_BY_ID: ReadonlyMap<MarkdownActionId, ToolbarItem> = new Map(
+  TOOLBAR.map((item) => [item.id, item]),
+);
+
+// Platforma nie zmienia się w trakcie życia strony - nie ma czego subskrybować.
+const subscribeToNothing = () => () => {};
+const notApple = () => false;
+
 /** Czysta funkcja: aplikuje akcję markdown do zaznaczenia. */
 export function applyMarkdown(
   value: string,
@@ -139,11 +159,6 @@ export interface ComposerShellProps {
   onValidationChange?: (validation: ComposerValidation) => void;
   /** Id komunikatu walidacji (do aria-describedby pola treści). */
   statusId?: string;
-  /**
-   * Wystawia funkcję formatującą (po id akcji) na zewnątrz - pole treści
-   * podpina do niej skróty klawiszowe, korzystając z tej samej logiki co pasek.
-   */
-  formatterRef?: MutableRefObject<((id: MarkdownActionId) => void) | null>;
   className?: string;
   /** Padding wokół slotu treści (domyślnie karta komentarza). */
   bodyClassName?: string;
@@ -163,7 +178,6 @@ export function ComposerShell({
   initialValue,
   onValidationChange,
   statusId,
-  formatterRef,
 }: ComposerShellProps) {
   const { t } = useTranslation();
   const validation = validateComposerValue({
@@ -211,19 +225,28 @@ export function ComposerShell({
     [maxLength, onValueChange, textareaRef, value],
   );
 
-  // Skróty klawiszowe działają dokładnie tak samo jak kliknięcie w pasek.
-  useEffect(() => {
-    if (!formatterRef) return;
-    formatterRef.current = (id: MarkdownActionId) => {
-      const item = TOOLBAR.find((entry) => entry.id === id);
-      if (item) run(item.action);
-    };
-    return () => {
-      formatterRef.current = null;
-    };
-  }, [formatterRef, run]);
+  // Skróty klawiszowe działają dokładnie tak samo jak kliknięcie w pasek -
+  // ale wyłącznie w polu treści tej powłoki, nie w polach obok (temat, imię),
+  // i nigdy w trakcie kompozycji IME (klawisz należy wtedy do edytora
+  // metody wprowadzania, a zmiana wartości pola przerwałaby kompozycję).
+  // Platformę czytamy tu wprost, a nie z `apple`: obsługa zdarzeń biegnie
+  // wyłącznie w przeglądarce, także przed końcem hydratacji.
+  const handleShortcut = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented || e.target !== textareaRef.current) return;
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    const id = matchMarkdownShortcut(e, { apple: isAppleShortcutPlatform() });
+    const item = id === null ? undefined : TOOLBAR_BY_ID.get(id);
+    if (item === undefined) return;
+    e.preventDefault();
+    run(item.action);
+  };
 
-  const apple = useMemo(() => isAppleShortcutPlatform(), []);
+  // Platforma przez `useSyncExternalStore`, a nie `useMemo`: serwer nie zna
+  // przeglądarki i renderuje „Ctrl+B". `useMemo` dawał na Macu „⌘B" już przy
+  // hydratacji, czyli rozjazd atrybutu `aria-label`, którego React 19 NIE
+  // łata - czytnik ekranu zostawał z podpowiedzią z serwera. Migawka serwerowa
+  // hydratuje się identycznie, a po niej pasek przechodzi na skrót platformy.
+  const apple = useSyncExternalStore(subscribeToNothing, isAppleShortcutPlatform, notApple);
 
   return (
     <div
@@ -277,7 +300,9 @@ export function ComposerShell({
         </Tooltip>
       </div>
 
-      <div className={cn("space-y-3 p-3", bodyClassName)}>{children}</div>
+      <div className={cn("space-y-3 p-3", bodyClassName)} onKeyDown={handleShortcut}>
+        {children}
+      </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-border/70 px-3 py-2">
         <span className="flex min-w-0 items-center gap-2">

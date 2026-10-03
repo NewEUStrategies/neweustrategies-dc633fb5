@@ -10,11 +10,51 @@ import {
   buildDirectory,
   collectMentionSlugs,
   identityLine,
+  nameInitials,
   orgFromRow,
   personFromRow,
   slugToDisplayName,
+  trimText,
   withAuthorSlugs,
 } from "@/lib/mentions/directory";
+
+describe("trimText", () => {
+  it("zwija białe znaki i przycina do limitu", () => {
+    expect(trimText("  Anna \n\t Nowak  ", 120)).toBe("Anna Nowak");
+    expect(trimText("abcdef", 3)).toBe("abc");
+  });
+
+  it("bez limitu oddaje cały tekst", () => {
+    expect(trimText("x".repeat(5000))).toHaveLength(5000);
+  });
+
+  it.each([
+    ["pusty napis", ""],
+    ["same białe znaki", " \n "],
+    ["liczba", 42],
+    ["null", null],
+    ["undefined", undefined],
+  ])("%s to brak (`null`), a nie wartość", (_opis, value) => {
+    expect(trimText(value, 10)).toBeNull();
+  });
+});
+
+describe("nameInitials", () => {
+  it.each([
+    ["Jan Kowalski", "JK"],
+    ["anna maria nowak", "AN"],
+    ["Łukasz Żak", "ŁŻ"],
+    ["Madonna", "M"],
+    ["  dr. Jan  Kowalski-Nowak ", "DN"],
+  ])("%s -> %s (pierwsze i ostatnie słowo, nie dwie pierwsze litery)", (name, expected) => {
+    expect(nameInitials(name)).toBe(expected);
+  });
+
+  it("nazwa bez liter i cyfr daje znak zapytania, a nie pusty awatar", () => {
+    expect(nameInitials("  ---  ")).toBe("?");
+    expect(nameInitials("")).toBe("?");
+  });
+});
 
 describe("slugToDisplayName", () => {
   it("odtwarza czytelną postać nazwiska ze sluga", () => {

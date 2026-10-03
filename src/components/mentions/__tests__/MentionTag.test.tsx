@@ -16,6 +16,13 @@
 //     prowadzi do `/people/<slug>`; organizacja niesie `data-mention-org` i
 //     prowadzi do `/organization/<slug>`. Obie wzmianki wyglądają w treści tak
 //     samo, więc zlanie tych gałęzi daje link w nicość, który wygląda poprawnie.
+//     NIEROZWIĄZANA FIRMA (slug `org-<uuid>` bez wpisu w katalogu) też jest
+//     firmą: ikona, etykieta „Firma" i karta organizacji z leniwego podglądu -
+//     wcześniej schodziła na gałąź osoby z UUID w etykiecie.
+// (4a) TRASA OSOBY NALEŻY DO POWIERZCHNI. Domyślnie `/people` (kluby), a przy
+//     `profileRoute="author"` (publiczne komentarze) osoba ROZWIĄZANA idzie na
+//     `/author` razem ze stopką dymka. Nierozwiązana zostaje na `/people` -
+//     w wyzwalaczu i w dymku dociąganym leniwie - bo `/author` dałoby gościowi 404.
 // (5) WERYFIKACJA JEST OGŁOSZONA CZYTNIKOWI, nie tylko kolorem ikony.
 // (6) PUSTE POLA NIE ZOSTAWIAJĄ PUSTYCH AKAPITÓW - brak biogramu i brak linii
 //     tożsamości mają ZNIKAĆ, a nie renderować się jako pusty `line-clamp`.
@@ -59,6 +66,7 @@ import {
   MentionOrgCard,
   MentionPersonCard,
   MentionTag,
+  PersonHoverCard,
   type MentionTagLabels,
 } from "@/components/mentions/MentionTag";
 
@@ -68,7 +76,28 @@ const LABELS: MentionTagLabels = {
   viewProfile: "etykieta.viewProfile",
   verified: "etykieta.verified",
   viewOrg: "etykieta.viewOrg",
+  organization: "etykieta.organization",
 };
+
+const ORG_ID = "00000000-0000-4000-8000-000000000001";
+const ORG_SLUG = `org-${ORG_ID}`;
+
+function preview(over: Partial<MentionProfilePreview> = {}): MentionProfilePreview {
+  return {
+    kind: "person",
+    id: "person-1",
+    slug: "anna-nowak",
+    name: "Anna Nowak",
+    avatarUrl: null,
+    logoUrl: null,
+    jobTitle: null,
+    company: null,
+    website: null,
+    bio: null,
+    verified: false,
+    ...over,
+  };
+}
 
 function person(over: Partial<MentionPerson> = {}): MentionPerson {
   return {
@@ -195,6 +224,13 @@ describe("MentionAvatar", () => {
     expect(image).toHaveAttribute("aria-hidden", "true");
     expect(image).toHaveAttribute("loading", "lazy");
     expect(image).toHaveAttribute("data-mention-avatar", "");
+  });
+
+  it("pusty adres zdjęcia to brak zdjęcia, a nie pusty obrazek", () => {
+    const { container } = render(<MentionAvatar name="Anna Nowak" avatarUrl="" variant="card" />);
+
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.querySelector("[data-mention-avatar]")?.textContent).toBe("AN");
   });
 
   it("awatar wzmianki jest dekoracją - czytnik go NIE ogłasza", () => {
@@ -505,5 +541,180 @@ describe("MentionOrgCard", () => {
     );
 
     expect(container.querySelectorAll("p")).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Firma, której katalog nie rozwiązał
+// ---------------------------------------------------------------------------
+
+describe("MentionTag - nierozwiązana firma", () => {
+  it("slug `org-<uuid>` bez katalogu to FIRMA: ikona, etykieta i cel organizacji", () => {
+    // Regresja, którą to łapie (audyt, wydanie 12: `MentionTag.tsx:277`):
+    // etykieta „Org 00000000 0000 …" z UUID, link `/people/org-<uuid>` (404)
+    // i ikona osoby - czyli firma udająca człowieka, którego nie ma.
+    const { container } = render(
+      <MentionTag slug={ORG_SLUG} entity={null} lang="pl" labels={LABELS} />,
+    );
+    const link = orgTagFor(ORG_SLUG);
+
+    expect(link).toHaveAttribute("href", `/organization/${ORG_SLUG}`);
+    expect(link).not.toHaveAttribute("data-mention");
+    expect(link.textContent).toBe(LABELS.organization);
+    expect(container.textContent).not.toContain(ORG_ID.slice(0, 8));
+    // Ikona firmy stoi w miejscu awatara - bez obrazka i bez inicjałów.
+    expect(link.querySelector("svg[data-mention-avatar]")).not.toBeNull();
+    expect(link.querySelector("img")).toBeNull();
+  });
+
+  it("slug z prefiksem, ale bez identyfikatora, zostaje osobą", () => {
+    // `org-` to zwykły początek sluga osoby (`@org-chart`) - firmą jest
+    // wyłącznie `org-<uuid>`, tak samo jak w bazie.
+    render(<MentionTag slug="org-chart" entity={null} lang="pl" labels={LABELS} />);
+
+    expect(tagFor("org-chart")).toHaveAttribute("href", "/people/org-chart");
+    expect(tagFor("org-chart").textContent).toBe("Org Chart");
+  });
+
+  it("dymek nierozwiązanej firmy dociąga cel i pokazuje KARTĘ ORGANIZACJI", async () => {
+    state.profile = {
+      data: preview({
+        kind: "organization",
+        id: ORG_ID,
+        slug: ORG_SLUG,
+        name: "ACME Polska",
+        logoUrl: "https://cdn.example.com/acme.png",
+        company: "Energetyka",
+        website: "https://acme.example",
+      }),
+      isPending: false,
+    };
+    render(<MentionTag slug={ORG_SLUG} entity={null} lang="pl" labels={LABELS} />);
+    const card = await openCard(orgTagFor(ORG_SLUG));
+
+    expect(state.profileCalls).toContainEqual({ slug: ORG_SLUG, lang: "pl", enabled: true });
+    expect(within(card).getByText("ACME Polska")).toBeInTheDocument();
+    // Podpis firmy z bazy to branża - w karcie organizacji jest opisem.
+    expect(within(card).getByText("Energetyka")).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: LABELS.viewOrg })).toHaveAttribute(
+      "href",
+      `/organization/${ORG_SLUG}`,
+    );
+    expect(within(card).queryByText(LABELS.viewProfile)).toBeNull();
+    expect(card.querySelector("img")).toHaveAttribute("src", "https://cdn.example.com/acme.png");
+  });
+
+  it("dymek nierozwiązanej firmy bez danych mówi `noProfile`, a nie kartę osoby", async () => {
+    render(<MentionTag slug={ORG_SLUG} entity={null} lang="pl" labels={LABELS} />);
+    const card = await openCard(orgTagFor(ORG_SLUG));
+
+    expect(within(card).getByText(LABELS.noProfile)).toBeInTheDocument();
+    expect(within(card).queryByRole("link")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Trasa profilu osoby należy do powierzchni
+// ---------------------------------------------------------------------------
+
+describe("MentionTag - trasa profilu osoby", () => {
+  it('`profileRoute="author"` prowadzi wyzwalacz na publiczny hub autora', () => {
+    render(
+      <MentionTag
+        slug="anna-nowak"
+        entity={person()}
+        lang="pl"
+        labels={LABELS}
+        profileRoute="author"
+      />,
+    );
+
+    expect(tagFor("anna-nowak")).toHaveAttribute("href", "/author/anna-nowak");
+  });
+
+  it("stopka dymka z katalogu idzie tą samą trasą co wyzwalacz", async () => {
+    render(
+      <MentionTag
+        slug="anna-nowak"
+        entity={person()}
+        lang="pl"
+        labels={LABELS}
+        profileRoute="author"
+      />,
+    );
+    const card = await openCard(tagFor("anna-nowak"));
+
+    expect(within(card).getByRole("link", { name: LABELS.viewProfile })).toHaveAttribute(
+      "href",
+      "/author/anna-nowak",
+    );
+  });
+
+  it("NIEROZWIĄZANA osoba zostaje na `/people` - w wyzwalaczu i w dymku", async () => {
+    // Regresja, którą to łapie: `/author` dla wzmianki, której katalog nie
+    // rozwiązał. Katalog czyta `profiles_public`, z którego `/author` składa hub
+    // i liczy 301, więc taka osoba to dla gościa pewne 404 zamiast bramki
+    // logowania. Dymek dociągnięty leniwie nie może tego cofnąć.
+    state.profile = { data: preview({ jobTitle: "Analityczka" }), isPending: false };
+    render(
+      <MentionTag
+        slug="anna-nowak"
+        entity={null}
+        lang="pl"
+        labels={LABELS}
+        profileRoute="author"
+      />,
+    );
+    expect(tagFor("anna-nowak")).toHaveAttribute("href", "/people/anna-nowak");
+    const card = await openCard(tagFor("anna-nowak"));
+
+    expect(within(card).getByText("Analityczka")).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: LABELS.viewProfile })).toHaveAttribute(
+      "href",
+      "/people/anna-nowak",
+    );
+  });
+
+  it("organizacja ignoruje trasę osoby - firma zawsze ma swój profil", () => {
+    render(
+      <MentionTag slug={ORG_SLUG} entity={org()} lang="pl" labels={LABELS} profileRoute="author" />,
+    );
+
+    expect(orgTagFor(ORG_SLUG)).toHaveAttribute("href", `/organization/${ORG_SLUG}`);
+  });
+
+  it("samodzielna karta osoby też przyjmuje trasę powierzchni", () => {
+    render(<MentionPersonCard person={person()} labels={LABELS} profileRoute="author" />);
+
+    expect(screen.getByRole("link", { name: LABELS.viewProfile })).toHaveAttribute(
+      "href",
+      "/author/anna-nowak",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dymek osoby z WŁASNYM wyzwalaczem (bylina)
+// ---------------------------------------------------------------------------
+
+describe("PersonHoverCard", () => {
+  it("owija dowolny fokusowalny wyzwalacz i ma domyślne `data-testid`", async () => {
+    render(
+      <PersonHoverCard
+        slug="anna-nowak"
+        entity={person({ bio: "Biogram." })}
+        lang="pl"
+        labels={LABELS}
+      >
+        <button type="button">Anna z bylin</button>
+      </PersonHoverCard>,
+    );
+    const card = await openCard(screen.getByRole("button", { name: "Anna z bylin" }));
+
+    expect(within(card).getByText("Biogram.")).toBeInTheDocument();
+    expect(within(card).getByRole("link", { name: LABELS.viewProfile })).toHaveAttribute(
+      "href",
+      "/people/anna-nowak",
+    );
   });
 });
