@@ -309,6 +309,59 @@ describe("GA4 w przeglądarce", () => {
     );
   });
 
+  // `redactTrackedPath` maskuje poświadczenia, nie TEKST odwiedzającego: fraza
+  // z wyszukiwarki i e-mail z linku zaproszenia szły do GA4 w `page_location`,
+  // a przez `set` - w każdym kolejnym zdarzeniu na stronie.
+  it.each([
+    [
+      "fraza z wyszukiwarki zredagowana, parametry kampanii zostają",
+      "/search?q=jan%40example.com&gclid=ABC123&gad_campaignid=987654321",
+      "/search?q=[redacted-email]&gclid=ABC123&gad_campaignid=987654321",
+    ],
+    [
+      "e-mail z linku zaproszenia (/auth?email=)",
+      "/auth?email=jan%40example.com",
+      "/auth?email=[redacted-email]",
+    ],
+    [
+      "telefon w ?q= (zakodowany %2B)",
+      "/search?q=%2B48%20600%20123%20456",
+      "/search?q=[redacted-phone]",
+    ],
+  ])("page_location: %s (także w `set`)", (_opis, adres, oczekiwanaSciezka) => {
+    uruchomSnippetSsr();
+    const before = `${location.pathname}${location.search}${location.hash}`;
+    history.pushState({}, "", adres);
+    try {
+      ga4PageView("/pominiete", "Wyszukiwarka", "pl");
+      const oczekiwany = `${location.origin}${oczekiwanaSciezka}`;
+      const odslona = znajdz("event", "page_view");
+      expect((odslona?.[2] as Record<string, unknown>).page_location).toBe(oczekiwany);
+      const ustawienie = warstwa().find(
+        (wpis) => wpis[0] === "set" && typeof wpis[1] === "object" && wpis[1] !== null,
+      );
+      expect(ustawienie?.[1]).toEqual({ page_location: oczekiwany });
+      expect(JSON.stringify(Array.from(warstwa(), (w) => Array.from(w)))).not.toContain(
+        "example.com",
+      );
+    } finally {
+      history.pushState({}, "", before);
+    }
+  });
+
+  it("`ga4Event` NIE redaguje: `send_to` konwersji Ads z 9-cyfrowym kontem zostaje co do bajtu", () => {
+    // Redakcja stoi w `ga4EventMap`/`ga4PageView`, nie tutaj - świadomie.
+    // Reguła telefonu wzięłaby 9 cyfr identyfikatora konta za numer, a
+    // `send_to` z `[redacted-phone]` to konwersja, która nie trafia na konto.
+    uruchomSnippetSsr();
+    const sendTo = "AW-123456789/abCdEfGhIj";
+    ga4Event("conversion", { send_to: sendTo, transaction_id: "ord_1" });
+    expect(znajdz("event", "conversion")?.[2]).toEqual({
+      send_to: sendTo,
+      transaction_id: "ord_1",
+    });
+  });
+
   it("bez gotowego GA4 odsłona nie ustawia niczego (ani `set`, ani `page_view`)", () => {
     ga4PageView("/tickets/transfer/abc", "Przekazanie", "pl");
     expect(znajdz("event", "page_view")).toBeUndefined();

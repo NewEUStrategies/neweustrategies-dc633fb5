@@ -7,22 +7,52 @@
 // i `gad_campaignid` (autotagowanie). Nikt w repozytorium tego dotad nie
 // zapisywal, a jedyny strumien analityczny tnie query string (redactUrl).
 //
-// DLACZEGO CZYSTY MODUL. Ta sama walidacja stoi w SQL (`_event_ads_touch`
-// w migracji 20260927000300) i tu - klient nie wysyla niczego, czego baza
-// i tak by nie przyjela, a testy jednostkowe mierza kazda regule bez
-// przegladarki. Magazyn i zgody mieszkaja w `adAttributionStore.ts`.
+// DLACZEGO CZYSTY MODUL. Ta sama walidacja stoi w SQL (`_event_ads_clean`
+// i `_event_ads_touch` w migracji 20260927000300) i tu - klient nie wysyla
+// niczego, czego baza i tak by nie przyjela, a testy jednostkowe mierza kazda
+// regule bez przegladarki. Magazyn i zgody mieszkaja w `adAttributionStore.ts`.
+//
+// LUSTRO JEST MIERZONE, NIE DEKLAROWANE. Jedna wspolna lista przypadkow
+// (`__tests__/fixtures/adAttributionCases.json`) napedza vitest
+// (`__tests__/adAttributionSqlMirror.test.ts`) i pgTAP na zywej bazie
+// (`supabase/tests/ad_attribution_mirror_test.sql`). Bramka vitest pilnuje, ze
+// plik pgTAP niesie te sama liste i ze kazdy wzorzec z `AD_ATTRIBUTION_SQL_MIRROR`
+// stoi na liscie regul obok swojego literalu SQL - zmiana regexu po jednej
+// stronie bez drugiej jest czerwona. Zanim lustro bylo mierzone, rozjechalo sie
+// po cichu w trzech miejscach (dlugosc UTM i sciezki liczona w jednostkach
+// UTF-16, znaki sterujace w sciezce) - patrz komentarze przy `cleanUtm`
+// i `PATH_RE`.
 //
 // ZASADY (lustrzane z SQL):
-//   * UTM: bez znakow sterujacych, zwiniete biale znaki, maks. 100 znakow;
-//     wartosc wygladajaca na adres e-mail ODRZUCONA (nadawcy newsletterow
-//     wkladaja adresy do utm_content) - `source`/`medium` malymi literami;
-//   * identyfikator klikniecia wylacznie pod regexem `[A-Za-z0-9_-]{10,512}`,
-//     pierwszenstwo gclid > gbraid > wbraid;
+//   * UTM: bez znakow sterujacych (C0, DEL i C1 - dokladnie `[[:cntrl:]]`),
+//     zwiniete biale znaki, maks. 100 PUNKTOW KODOWYCH (jak `left()`); wartosc
+//     wygladajaca na adres e-mail ODRZUCONA (nadawcy newsletterow wkladaja
+//     adresy do utm_content) - `source`/`medium` malymi literami;
+//   * identyfikator klikniecia wylacznie pod regexem `[A-Za-z0-9_-]{10,512}`
+//     i wylacznie przy zgodzie reklamowej; pierwszenstwo gclid > gbraid > wbraid;
+//   * `gad_source` do 10 cyfr ASCII, `gad_campaignid` do 20;
+//   * odsylacz: nazwa hosta do 253 znakow, malymi literami, bez `www.`;
+//   * sciezka wejscia: od `/`, bez bialych znakow, znakow sterujacych, `?`
+//     i `#`, maks. 512 punktow kodowych (jak `char_length`);
+//   * okno 90 dni WLACZNIE (okno atrybucji Google Ads).
+//
+// ASYMETRIE (jawne w liscie przypadkow, nie ciche). JS `\s` i `trim()` obejmuja
+// NBSP, U+FEFF i inne spacje Unicode, a `[[:space:]]` Postgresa nie obejmuje
+// U+FEFF w zadnym locale, reszte zas zalezy od locale bazy (C: tylko ASCII,
+// C.UTF-8: bez NBSP, ICU: wszystkie) - tu TS jest SUROWSZY. `lower()` poza ASCII
+// tez zalezy od locale: w C nie zmienia niczego (znak kelwina U+212A JS zamienia
+// na `k`, a SQL w C odrzuca taki odsylacz). W kazdym z tych przypadkow wynik TS
+// jest punktem stalym SQL - baza przyjmuje go bez zmian w kazdym locale.
+//
+// TYLKO W TS (warstwa adresu i magazynu - baza nie zna wlasnego hosta):
 //   * odsylacz tylko zewnetrzny: wlasny host, bramki platnosci i logowania nie
 //     sa "zrodlem ruchu" (powrot ze Stripe nadpisalby kampanie jako referral);
-//   * model: pierwsze dotkniecie + OSTATNIE NIE-BEZPOSREDNIE, okno 90 dni
-//     (okno atrybucji Google Ads). Wejscie bez zadnego sygnalu niczego nie
-//     zmienia - nie kasuje kampanii, z ktorej przegladarka przyszla wczesniej.
+//     dotkniecie z magazynu (`sanitizeTouch`) i SQL tego NIE filtruja;
+//   * pole z samotnym surogatem UTF-16 (tylko z edytowanego magazynu) wypada -
+//     jsonb takiego tekstu nie przyjmuje, wiec nie ma go w liscie wspolnej;
+//   * model: pierwsze dotkniecie + OSTATNIE NIE-BEZPOSREDNIE. Wejscie bez
+//     zadnego sygnalu niczego nie zmienia - nie kasuje kampanii, z ktorej
+//     przegladarka przyszla wczesniej.
 //
 // ADRESU NIE ZMIENIAMY. gtag.js czyta `gclid` z `location`, kiedy sie wczyta
 // (po zgodzie na `ad_storage`) - wyciecie parametru zepsuloby mu laczenie
@@ -83,11 +113,20 @@ export type AdTouchWire = {
 const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}/i;
 // eslint-disable-next-line no-control-regex -- celowo: wycinamy znaki sterujace z UTM
 const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f]/g;
+const WHITESPACE_RE = /\s+/g;
 const CLICK_ID_RE = /^[A-Za-z0-9_-]{10,512}$/;
 const GAD_SOURCE_RE = /^\d{1,10}$/;
 const GAD_CAMPAIGN_RE = /^\d{1,20}$/;
+const HOST_MAX = 253;
 const HOST_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
-const PATH_RE = /^\/[^\s?#]*$/;
+const WWW_PREFIX_RE = /^www\./;
+// Sciezka bez bialych znakow, `?`, `#` ORAZ bez znakow sterujacych - SQL ma tu
+// `[^[:space:][:cntrl:]?#]`, a `\s` nie obejmuje BEL, DEL ani C1 (np. U+0085).
+// Dawny wzorzec `[^\s?#]` przepuszczal je z edytowanego magazynu, a baza
+// gubila sciezke - klient wysylal cos, czego baza nie przyjmowala.
+// eslint-disable-next-line no-control-regex -- celowo: znak sterujacy w sciezce ja odrzuca (jak [[:cntrl:]] w SQL)
+const PATH_RE = /^\/[^\s\u0000-\u001f\u007f-\u009f?#]*$/;
+/** Maks. dlugosc sciezki w PUNKTACH KODOWYCH (jak `char_length` w SQL). */
 const PATH_MAX = 512;
 
 /**
@@ -107,9 +146,15 @@ const REFERRAL_EXCLUSIONS: readonly string[] = [
 /** Czysci wartosc UTM (lustro `_event_ads_clean`); `null` = brak albo odrzucona. */
 export function cleanUtm(value: string | null | undefined): string | null {
   if (value === null || value === undefined) return null;
-  const collapsed = value.replace(CONTROL_RE, "").replace(/\s+/g, " ").trim();
+  const collapsed = value.replace(CONTROL_RE, "").replace(WHITESPACE_RE, " ").trim();
   if (collapsed === "" || EMAIL_RE.test(collapsed)) return null;
-  return collapsed.slice(0, UTM_MAX_LENGTH).trim();
+  // Przyciecie w PUNKTACH KODOWYCH, jak `left()` w SQL. `slice` liczy jednostki
+  // UTF-16, wiec emoji na granicy 100 zostawialo SAMOTNY surogat - a Postgres
+  // odrzuca taki tekst w jsonb ("Unicode low surrogate must follow a high
+  // surrogate") i pada CALE wywolanie: przypiecie atrybucji do zgloszenia
+  // i krok lejka gina po cichu (registrationAttribution.ts i
+  // /api/public/event-funnel polykaja blad), a zly dotyk zyl w magazynie 90 dni.
+  return Array.from(collapsed).slice(0, UTM_MAX_LENGTH).join("").trim();
 }
 
 function lowerOrNull(value: string | null): string | null {
@@ -122,9 +167,9 @@ function matchOrNull(value: string | null | undefined, re: RegExp): string | nul
 
 /** Host bez `www.`, malymi literami - albo `null`, gdy nie jest nazwa hosta. */
 export function normalizeHost(value: string | null | undefined): string | null {
-  if (typeof value !== "string" || value.length > 253) return null;
+  if (typeof value !== "string" || value.length > HOST_MAX) return null;
   const lower = value.toLowerCase();
-  return HOST_RE.test(lower) ? lower.replace(/^www\./, "") : null;
+  return HOST_RE.test(lower) ? lower.replace(WWW_PREFIX_RE, "") : null;
 }
 
 function isExcludedReferrer(host: string, ownHost: string | null): boolean {
@@ -147,7 +192,9 @@ function externalReferrerHost(referrer: string | null, ownHost: string | null): 
 }
 
 function landingPathOf(pathname: string): string | null {
-  return pathname.length <= PATH_MAX && PATH_RE.test(pathname) ? pathname : null;
+  // `Array.from` liczy punkty kodowe - `length` (UTF-16) odrzucal sciezke
+  // z emoji, ktora baza przyjmuje (301 punktow kodowych to 601 jednostek).
+  return Array.from(pathname).length <= PATH_MAX && PATH_RE.test(pathname) ? pathname : null;
 }
 
 function hasSignal(touch: Omit<AdTouch, "ts" | "landingPath">): boolean {
@@ -280,9 +327,17 @@ export function touchWire(touch: AdTouch): AdTouchWire {
   };
 }
 
+/**
+ * Samotny surogat UTF-16 (flaga `u`: para surogatow to jeden punkt kodowy, wiec
+ * klasa trafia WYLACZNIE w niesparowane). Adres go nie dostarczy - parser URL
+ * i `URLSearchParams` zamieniaja go na U+FFFD - ale recznie edytowany magazyn
+ * tak, a Postgres takiego tekstu w jsonb nie przyjmie i odrzuca CALY ladunek.
+ */
+const LONE_SURROGATE_RE = /[\ud800-\udfff]/u;
+
 function stringField(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];
-  return typeof value === "string" ? value : null;
+  return typeof value === "string" && !LONE_SURROGATE_RE.test(value) ? value : null;
 }
 
 /**
@@ -332,3 +387,27 @@ export function parseStoredAttribution(raw: string | null): StoredAttribution | 
   if (last === null) return null;
   return { v: 1, first: sanitizeTouch(record.first) ?? last, last };
 }
+
+/**
+ * Reguly lustrzane z SQL - TYLKO DO ODCZYTU, dla bramki lustra
+ * (`__tests__/adAttributionSqlMirror.test.ts`). Kazde pole stoi na liscie
+ * `rules` we wspolnej liscie przypadkow obok literalu SQL, ktory je odbija;
+ * zmiana pola bez zmiany tej listy (i odwrotnie) jest czerwona. Czysty literal
+ * obiektu z identyfikatorow - bundler wycina go z paczki klienta.
+ */
+export const AD_ATTRIBUTION_SQL_MIRROR = {
+  controlPattern: CONTROL_RE,
+  whitespacePattern: WHITESPACE_RE,
+  emailPattern: EMAIL_RE,
+  utmMaxLength: UTM_MAX_LENGTH,
+  clickIdTypes: CLICK_ID_TYPES,
+  clickIdPattern: CLICK_ID_RE,
+  gadSourcePattern: GAD_SOURCE_RE,
+  gadCampaignPattern: GAD_CAMPAIGN_RE,
+  hostMaxLength: HOST_MAX,
+  hostPattern: HOST_RE,
+  wwwPrefixPattern: WWW_PREFIX_RE,
+  pathMaxLength: PATH_MAX,
+  pathPattern: PATH_RE,
+  ttlMs: AD_ATTRIBUTION_TTL_MS,
+} as const;

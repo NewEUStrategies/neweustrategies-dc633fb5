@@ -6,7 +6,9 @@
 // trafiają do modelowania Google (cookieless pings). Po decyzji odwiedzającego
 // wysyłamy `consent update`, więc pełny pomiar zaczyna się dokładnie w chwili
 // zgody. Dzięki `wait_for_update` tag wstrzymuje wysyłkę na moment, żeby nie
-// wyprzedzić decyzji zapisanej w localStorage.
+// wyprzedzić decyzji zapisanej w localStorage. Pingi bez cookies NIE są puste:
+// niosą nazwę, parametry zdarzenia i adres strony - dlatego ich treść jest
+// redagowana (`ga4EventMap.ts` dla kopii z `track()`, `ga4PageView` tutaj).
 //
 // SAM SKRYPT gtag.js JEST ODROCZONY (audyt CWV 2026-09-20, F20; polityka
 // 2026-10-02). `<head>` niesie wyłącznie inline'owy snippet (~1,3 kB): warstwa
@@ -44,6 +46,7 @@
 // SSR: każda funkcja no-op-uje bez `window`.
 
 import type { ConsentCategory } from "@/lib/ads/consent";
+import { redactQueryPii } from "@/lib/observability/redact";
 import { redactTrackedPath } from "./redactTrackedUrl";
 import {
   ANALYTICS_ANY_HOST_FLAG,
@@ -420,13 +423,20 @@ export function ga4Event(name: string, params: Ga4Params = {}): void {
  * Ta sama wartość idzie też przez `set`: gtag.js dokleja do KAŻDEGO kolejnego
  * zdarzenia (kliknięcie, konwersja) `page_location` - bez nadpisania byłby to
  * surowy `document.location` razem z tokenem.
+ *
+ * TREŚĆ W ADRESIE (`redactQueryPii`). `redactTrackedPath` maskuje poświadczenia,
+ * nie tekst odwiedzającego: fraza z `/search?q=` i e-mail z linku zaproszenia
+ * (`/auth?email=`) szły do GA4 w `page_location`, a przez `set` - w każdym
+ * zdarzeniu na tej stronie. Parametry kampanii (`utm_*`, `gclid`, `gad_*`)
+ * zostają co do bajtu, bo GA4 liczy z nich atrybucję.
  */
 export function ga4PageView(path: string, title?: string, language?: string): void {
   if (!isGa4Ready()) return;
-  const pageLocation =
+  const pageLocation = redactQueryPii(
     typeof location === "undefined"
       ? redactTrackedPath(path)
-      : `${location.origin}${redactTrackedPath(`${location.pathname}${location.search}`)}`;
+      : `${location.origin}${redactTrackedPath(`${location.pathname}${location.search}`)}`,
+  );
   gtag("set", { page_location: pageLocation });
   gtag("event", "page_view", {
     page_location: pageLocation,

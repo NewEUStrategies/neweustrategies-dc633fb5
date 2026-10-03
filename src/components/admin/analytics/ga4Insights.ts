@@ -19,12 +19,18 @@ function num(v: string | undefined): number {
  * Totale raportu poukładane po nazwie metryki. Data API oddaje `totals` PUSTE
  * dla okna bez ruchu, a nagłówki metryk zwraca zawsze - dlatego mapowane są
  * tylko te metryki, dla których total naprawdę przyjechał. Metryka bez totalu
- * jest NIEOBECNA, nie zerowa: dzięki temu bloki bramkowane tą mapą (radar
- * zaangażowania) nie budują zdania z podstawionych zer. Ta sama reguła co
- * w `ga4TotalsMap` - brak danych to nie to samo, co zmierzone zero.
+ * jest NIEOBECNA, nie zerowa: dzięki temu bloki bramkowane tą mapą (KPI sesji,
+ * KPI zaangażowania i radar zaangażowania) nie budują zdania z podstawionych
+ * zer. Ta sama reguła co w `ga4TotalsMap` - brak danych to nie to samo, co
+ * zmierzone zero. Typ `Partial` mówi to wprost: odczyt metryki może dać
+ * `undefined` i kompilator wymusza decyzję, co wtedy.
+ *
+ * Różnica wobec `ga4TotalsMap` jest jedna i celowa: total OBECNY, ale
+ * nieliczbowy, schodzi tu do 0 (`num`), a nie znika - tak przypina to test
+ * „nieliczbowa wartość metryki schodzi do zera".
  */
-function totalsFromReport(report: Ga4Report | undefined): Record<string, number> {
-  const out: Record<string, number> = {};
+function totalsFromReport(report: Ga4Report | undefined): Partial<Record<string, number>> {
+  const out: Partial<Record<string, number>> = {};
   if (!report) return out;
   const available = Math.min(report.metricHeaders.length, report.totals.length);
   for (let i = 0; i < available; i++) {
@@ -55,41 +61,52 @@ export function buildGa4Insights(p: Params): Insight[] {
   const prev = totalsFromReport(p.prevReport);
   const engage = totalsFromReport(p.engagementReport);
 
+  // Bloki KPI (1 i 2) mają tę samą bramkę co radar zaangażowania (blok 7):
+  // powstają tylko wtedy, gdy total BIEŻĄCEGO okna naprawdę przyjechał. Bez
+  // niej raport dobowy bez sum dawał „Sesje: 0" i „Zaangażowanie 0.0%"
+  // z ostrzeżeniem i listą napraw dla niskiego zaangażowania - wniosek
+  // zbudowany z podstawionych zer obok kafelków mówiących „Brak danych".
+
   // 1. KPI sesje
-  const dSess = pctDelta(totals.sessions ?? 0, prev.sessions ?? 0);
-  out.push({
-    id: "kpi-sessions",
-    element: t(`${B}.sessions.element`),
-    severity: classifyDelta(dSess, true),
-    title:
-      dSess === null
-        ? t(`${B}.sessions.titleNoDelta`, { sessions: totals.sessions ?? 0 })
-        : t(`${B}.sessions.titleDelta`, { delta: signed(dSess), days: p.windowDays }),
-    detail: t(`${B}.sessions.detail`, {
-      sessions: totals.sessions ?? 0,
-      prev: prev.sessions ?? 0,
-      active: totals.activeUsers ?? 0,
-    }),
-    fixes:
-      dSess !== null && dSess < -10
-        ? arr(`${B}.sessions.fixesDown`)
-        : dSess !== null && dSess > 15
-          ? arr(`${B}.sessions.fixesUp`)
-          : arr(`${B}.sessions.fixesStable`),
-  });
+  const sessions = totals.sessions;
+  if (sessions !== undefined) {
+    const dSess = pctDelta(sessions, prev.sessions ?? 0);
+    out.push({
+      id: "kpi-sessions",
+      element: t(`${B}.sessions.element`),
+      severity: classifyDelta(dSess, true),
+      title:
+        dSess === null
+          ? t(`${B}.sessions.titleNoDelta`, { sessions })
+          : t(`${B}.sessions.titleDelta`, { delta: signed(dSess), days: p.windowDays }),
+      detail: t(`${B}.sessions.detail`, {
+        sessions,
+        prev: prev.sessions ?? 0,
+        active: totals.activeUsers ?? 0,
+      }),
+      fixes:
+        dSess !== null && dSess < -10
+          ? arr(`${B}.sessions.fixesDown`)
+          : dSess !== null && dSess > 15
+            ? arr(`${B}.sessions.fixesUp`)
+            : arr(`${B}.sessions.fixesStable`),
+    });
+  }
 
   // 2. KPI Zaangażowanie
-  const engRate = totals.engagementRate ?? 0;
-  const prevEng = prev.engagementRate ?? 0;
-  const dEng = engRate - prevEng;
-  out.push({
-    id: "kpi-engagement",
-    element: t(`${B}.engagement.element`),
-    severity: engRate >= 0.6 ? "good" : engRate >= 0.4 ? "info" : "warn",
-    title: t(`${B}.engagement.title`, { rate: (engRate * 100).toFixed(1) }),
-    detail: t(`${B}.engagement.detail`, { delta: (dEng * 100).toFixed(1) }),
-    fixes: engRate < 0.4 ? arr(`${B}.engagement.fixesLow`) : arr(`${B}.engagement.fixesGood`),
-  });
+  const engRate = totals.engagementRate;
+  if (engRate !== undefined) {
+    const prevEng = prev.engagementRate ?? 0;
+    const dEng = engRate - prevEng;
+    out.push({
+      id: "kpi-engagement",
+      element: t(`${B}.engagement.element`),
+      severity: engRate >= 0.6 ? "good" : engRate >= 0.4 ? "info" : "warn",
+      title: t(`${B}.engagement.title`, { rate: (engRate * 100).toFixed(1) }),
+      detail: t(`${B}.engagement.detail`, { delta: (dEng * 100).toFixed(1) }),
+      fixes: engRate < 0.4 ? arr(`${B}.engagement.fixesLow`) : arr(`${B}.engagement.fixesGood`),
+    });
+  }
 
   // 3. Trend ruchu
   if (p.dateReport?.rows.length && p.dateReport.rows.length > 3) {

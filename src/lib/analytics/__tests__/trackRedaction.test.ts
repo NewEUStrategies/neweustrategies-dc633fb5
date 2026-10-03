@@ -28,11 +28,13 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
-import { flush, track } from "@/lib/analytics/track";
+import { flush, track, trackCta, trackSearch } from "@/lib/analytics/track";
+import { ga4SsrSnippet, resetGa4BootstrapForTests } from "@/lib/analytics/ga4Client";
 
 interface QueuedEvent {
   path: string;
   referrer: string;
+  entity_id: string | null;
 }
 
 function sentEvents(): QueuedEvent[] {
@@ -89,5 +91,78 @@ describe("track - ścieżka i referrer bez poświadczeń", () => {
   it("jawna ścieżka wołającego przechodzi bez zmian (odpowiada za nią wołający)", () => {
     track({ type: "interaction", name: "cta_click", path: "/custom" });
     expect(sentEvents()[0].path).toBe("/custom");
+  });
+});
+
+// Kopia do GA4 wychodzi z `track()` ZANIM zadziała bramka zgody: Consent Mode
+// advanced, ping bez cookies niesie parametry zdarzenia. Tu jedzie PRAWDZIWY
+// snippet SSR (warstwa `dataLayer` + `gtag`), a sprawdzamy, co do niej trafiło.
+describe("track - kopia do GA4 bez PII (wychodzi przed bramką zgody)", () => {
+  interface Layered {
+    dataLayer?: ArrayLike<unknown>[];
+  }
+
+  /** Parametry ostatniego zdarzenia GA4 o danej nazwie (wpisy to obiekty `arguments`). */
+  function ga4Zdarzenie(nazwa: string): Record<string, unknown> | undefined {
+    const wpisy = (window as Layered).dataLayer ?? [];
+    const wpis = [...wpisy].reverse().find((w) => w[0] === "event" && w[1] === nazwa);
+    return wpis?.[2] as Record<string, unknown> | undefined;
+  }
+
+  beforeEach(() => {
+    // Kolejka `track()` żyje w module: zdarzenie poprzedniego testu bez flusha
+    // wyjechałoby w tym - a test „bez zgody" liczy beacony co do sztuki.
+    flush(true);
+    beacons.wyslane = [];
+    resetGa4BootstrapForTests();
+    (window as Layered).dataLayer = [];
+    new Function(ga4SsrSnippet("G-TEST123"))();
+  });
+
+  afterEach(() => {
+    resetGa4BootstrapForTests();
+    (window as Layered).dataLayer = [];
+  });
+
+  it("fraza-e-mail: GA4 i beacon własny dostają znacznik", () => {
+    trackSearch("Jan.Kowalski@Example.com");
+    const ga4 = ga4Zdarzenie("search");
+    expect(ga4?.search_term).toBe("[redacted-email]");
+    expect(ga4?.item_id).toBe("[redacted-email]");
+    expect(sentEvents()[0].entity_id).toBe("[redacted-email]");
+  });
+
+  it("fraza-telefon: numer zamaskowany w GA4", () => {
+    trackSearch("+48 600 123 456");
+    expect(ga4Zdarzenie("search")?.search_term).toBe("[redacted-phone]");
+  });
+
+  it("BEZ zgody kopia GA4 wychodzi (Consent Mode advanced), ale już zredagowana, a beacon własny nie wychodzi", () => {
+    window.localStorage.removeItem("consent:v2");
+    trackSearch("jan@example.com");
+    expect(ga4Zdarzenie("search")?.search_term).toBe("[redacted-email]");
+    const warstwa = JSON.stringify(
+      Array.from((window as Layered).dataLayer ?? [], (w) => Array.from(w)),
+    );
+    expect(warstwa).not.toContain("jan@example.com");
+    expect(sentEvents()).toHaveLength(0);
+  });
+
+  it("e-mail na granicy 120 znaków nie przecieka połówką", () => {
+    // Przed naprawą `slice(0, 120)` przed redakcją dawało `…jan.kowalski@example`
+    // - bez domeny najwyższego poziomu, czyli poza zasięgiem wzorca e-maila.
+    trackSearch(`${"x ".repeat(50)}jan.kowalski@example.com`);
+    const entityId = sentEvents()[0].entity_id ?? "";
+    expect(entityId.endsWith("[redacted-email]")).toBe(true);
+    expect(entityId).not.toContain("jan.kowalski");
+    const searchTerm = String(ga4Zdarzenie("search")?.search_term);
+    expect(searchTerm.length).toBeLessThanOrEqual(100);
+    expect(searchTerm).not.toContain("jan.kowal");
+  });
+
+  it("page_path z /search?q=<e-mail> zredagowany w GA4", () => {
+    history.pushState({}, "", "/search?q=jan%40example.com&tab=all");
+    trackCta("pricing_signup_click");
+    expect(ga4Zdarzenie("sign_up_intent")?.page_path).toBe("/search?q=[redacted-email]&tab=all");
   });
 });

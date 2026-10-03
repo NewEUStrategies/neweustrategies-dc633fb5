@@ -445,6 +445,21 @@ function VitalsMiniPanel() {
         <div className="text-xs text-muted-foreground flex items-center gap-2">
           <Loader2 className="w-3 h-3 animate-spin" /> {t("admin.analyticsPanel.vitals.loading")}
         </div>
+      ) : q.isError ? (
+        // AWARIA TO NIE „BRAK PRÓBEK". Do 2026-10 odrzucone zapytanie spadało
+        // do gałęzi danych, a ta przy pustym `q.data` malowała
+        // `admin.analyticsPanel.vitals.empty` - twierdzenie o ruchu w miejscu
+        // awarii odczytu (także przy odmowie roli).
+        <div role="alert" className="space-y-0.5 text-xs">
+          <div className="font-medium text-destructive">
+            {t("admin.analyticsPanel.vitals.readFailed")}
+          </div>
+          {q.error instanceof Error && q.error.message.trim() ? (
+            <div className="text-muted-foreground">
+              {t("admin.analyticsPanel.vitals.readFailedReason", { reason: q.error.message })}
+            </div>
+          ) : null}
+        </div>
       ) : (
         <div className="grid grid-cols-3 gap-3">
           {(q.data?.metrics ?? []).slice(0, 3).map((m) => (

@@ -164,6 +164,10 @@ export const adminExtrasPl = {
         empty: "Brak próbek.",
         fullView: "Pełny widok RUM z rozkładem per ścieżka:",
         loading: "Ładowanie…",
+        // AWARIA ODCZYTU TO NIE „BRAK PRÓBEK" - dwa stany, dwie decyzje (napraw
+        // odczyt kontra sprawdź ruch i zgodę RUM).
+        readFailed: "Nie udało się odczytać próbek RUM - to awaria odczytu, nie brak ruchu.",
+        readFailedReason: "Przyczyna: {{reason}}",
         // Formy mnogie, bo „12 próbka" i „2 próbek" to dwa różne błędy w tym
         // samym miejscu - liczebnik przychodzi z opcji `count`.
         samples_few: "{{count}} próbki",
@@ -1065,6 +1069,8 @@ export const adminExtrasEn = {
         empty: "No samples.",
         fullView: "Full RUM view with the per-path breakdown:",
         loading: "Loading…",
+        readFailed: "Could not read RUM samples - this is a read failure, not a lack of traffic.",
+        readFailedReason: "Reason: {{reason}}",
         samples_one: "{{count}} sample",
         samples_other: "{{count}} samples",
         title: "Web Vitals (last {{days}} days)",

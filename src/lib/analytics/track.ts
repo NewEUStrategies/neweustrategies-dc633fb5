@@ -13,6 +13,7 @@
 // dodatkowych migracji.
 
 import { sendBeaconPayload } from "@/lib/observability/report";
+import { redactPii } from "@/lib/observability/redact";
 import { hasAnalyticsConsent } from "@/lib/ads/consent";
 import { ga4Event, ga4PageView } from "./ga4Client";
 import { redactTrackedHref, redactTrackedPath } from "./redactTrackedUrl";
@@ -150,6 +151,11 @@ export function flush(_force = false): void {
  * pracuje w trybie domyślnej odmowy Google: bez zgody nie zapisuje cookies ani
  * identyfikatorów, a trafienie zasila wyłącznie modelowanie. Zgoda przełącza
  * `analytics_storage` w `ga4Client`, więc bramka jest tam, nie tutaj.
+ *
+ * Domyślna odmowa NIE oznacza pustego ładunku: ping bez cookies niesie nazwę
+ * i parametry zdarzenia. Bramka zgody chroni więc tylko identyfikatory, a treść
+ * (fraza, `meta`, ścieżka) jest redagowana w `ga4EventParams` - tym samym
+ * kompletem redaktorów co na naszym serwerze.
  */
 function mirrorToGa4(event: QueuedEvent): void {
   try {
@@ -243,7 +249,13 @@ export function trackSearch(query: string, meta?: Record<string, unknown>): void
     // `popular_searches`, a warstwa semantyczna liczy z `analytics_events`
     // WYŁĄCZNIE `COUNT(*) FILTER (WHERE event_type = 'search')`. Kopia zostaje
     // w `entity_id`, bo to ona jest zaindeksowana (analytics_events_entity_idx).
-    entityId: q.slice(0, 120).toLowerCase(),
+    //
+    // REDAKCJA PRZED CIĘCIEM. Zmierzone: fraza na 100 znaków plus
+    // `jan.kowalski@example.com` po `slice(0, 120)` dawała `…jan.kowalski@example`
+    // - bez domeny najwyższego poziomu wzorzec e-maila już nie trafia, ani na
+    // serwerze, ani w kopii do GA4, więc połowa adresu szła do OBU ujść. Serwer
+    // dalej redaguje sam (`api/public/track.ts`); `redactPii` jest idempotentne.
+    entityId: (redactPii(q) ?? "").slice(0, 120).toLowerCase(),
     meta: meta ?? {},
   });
 }

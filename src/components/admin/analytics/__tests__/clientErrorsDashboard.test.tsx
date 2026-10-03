@@ -626,7 +626,9 @@ describe("ClientErrorsDashboard - trzy stany panelu", () => {
   it("odmowa dostępu melduje się jako AWARIA ODCZYTU, z przyczyną", async () => {
     // `reportQuery.isError` i `.error` nie były w panelu czytane ani raz, a
     // server function RZUCA przy braku roli admina i przy padniętym
-    // uwierzytelnieniu (degraduje do pustego raportu tylko brak tabeli). Panel
+    // uwierzytelnieniu - a od 2026-10 przy KAŻDEJ awarii odczytu (timeout,
+    // brak relacji, brak najemcy), więc ta gałąź jest ścieżką produkcyjną nie
+    // tylko dla odmowy, ale dla każdego nieudanego odczytu `client_errors`. Panel
     // malował wtedy "Brak błędów w wybranym oknie. To dobrze - beacony (...)
     // trafiają tu automatycznie", czyli ZAPEWNIAŁ, że telemetria działa, w
     // sytuacji, w której odczyt został odrzucony. Teraz odmowa idzie własną

@@ -155,6 +155,9 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------------
 -- (a) NORMALIZACJA DOTKNIECIA
 -- ---------------------------------------------------------------------------
+-- Reguly wspolne z klientem (lustro `adAttribution.ts`) mierzy wspolna lista
+-- przypadkow w supabase/tests/ad_attribution_mirror_test.sql; tu zostaje to,
+-- czego klient nie liczy: zrodlo/medium, przyciecie czasu z przyszlosci, `ts`.
 DO $$
 DECLARE
   v_ms numeric := floor(extract(epoch FROM now()) * 1000);

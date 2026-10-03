@@ -488,11 +488,17 @@ export function VitalsBiDashboard() {
           <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isFetching ? "animate-spin" : ""}`} />
           {isFetching ? t("adminAnalytics.vitals.refreshing") : t("adminAnalytics.common.refresh")}
         </Button>
-        <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-          <Gauge className="w-3 h-3" />{" "}
-          {t("adminAnalytics.vitals.samplesInWindow", { count: report?.windowTotal ?? 0 })}
-          {report?.capped ? t("adminAnalytics.vitals.cappedNote") : ""}
-        </div>
+        {/* LICZNIK PRÓBEK JEST TWIERDZENIEM O POMIARZE - stoi tylko po udanym
+            odczycie. `report?.windowTotal ?? 0` malował „Próbek w oknie: 0"
+            w trakcie pomiaru i OBOK karty „Awaria odczytu", czyli zero tam,
+            gdzie pomiaru nie było. */}
+        {report && !readError ? (
+          <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
+            <Gauge className="w-3 h-3" />{" "}
+            {t("adminAnalytics.vitals.samplesInWindow", { count: report.windowTotal })}
+            {report.capped ? t("adminAnalytics.vitals.cappedNote") : ""}
+          </div>
+        ) : null}
         {isMeasuring ? (
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1">
             <Loader2 className="w-3 h-3 animate-spin" /> {t("adminAnalytics.common.loading")}

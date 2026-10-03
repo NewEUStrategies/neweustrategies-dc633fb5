@@ -23,9 +23,12 @@
 //      pokazuje 5 000 błędów tam, gdzie jest ich 200 000, i nikt nie eskaluje.
 //   4. KOTWICA CZASU. „Ostatnie 24 h" liczy się względem KOŃCA OKNA, a nie
 //      zegara serwera - inaczej raport historyczny zawsze pokazuje zero.
-//   5. 500 ZAMIAST „BRAK DANYCH". Błędy odczytu są świadomie połykane (baza
-//      bez migracji), błędy autoryzacji - nie. Odwrócenie tej reguły albo
-//      wywala panel, albo zamienia odmowę w cichy pusty raport.
+//   5. AWARIA ODCZYTU UDAJĄCA „BRAK DANYCH". Handler NIE połyka błędów
+//      odczytu: pusty raport wraca wyłącznie z UDANEGO odczytu pustego okna,
+//      a każda awaria (brak tenanta, timeout, brak relacji) odrzuca wywołanie
+//      z przyczyną. Do 2026-10 było odwrotnie i dashboard pisał „Brak błędów
+//      w wybranym oknie. To dobrze" tam, gdzie odczyt padł. Błędy autoryzacji
+//      nadal rzucają PRZED jakimkolwiek odczytem.
 //
 // CZEGO NIE DOWODZI: middleware `requireSupabaseAuth` (atrapa go nie
 // uruchamia - patrz `src/test/serverFnHarness.ts`) ani polityk bazy.
@@ -228,9 +231,10 @@ describe("getClientErrorsReport - bramka admina", () => {
   it("odmowa autoryzacji NIE degraduje się do pustego raportu", async () => {
     userRpc.setData("has_role", false);
 
-    // To jest odwrotność reguły degradacji niżej: gdyby bramka wpadła do tego
-    // samego `try`, nieuprawniony wołający dostałby 200 i „brak danych",
-    // a panel wyglądałby na sprawny.
+    // Bramka stoi PRZED blokiem odczytu: odmowa to decyzja, nie awaria
+    // odczytu, więc nie zostawia w logu śladu „[client-errors] read failed".
+    // Do 2026-10 ten sam test pilnował, żeby odmowa nie wpadła do `try`, które
+    // zamieniało wszystko w 200 i „brak danych".
     await expect(report()).rejects.toThrow("Forbidden");
     expect(warn).not.toHaveBeenCalled();
   });
@@ -280,13 +284,10 @@ describe("getClientErrorsReport - izolacja tenantów", () => {
     expect(filters.slice(2).flat()).not.toContain(TENANT_A);
   });
 
-  it("wołający BEZ tenanta nie czyta niczego - dostaje pusty raport", async () => {
-    await expect(report({ days: 7 }, NOMAD)).resolves.toMatchObject({
-      total: 0,
-      windowTotal: 0,
-      groups: [],
-      windowDays: 7,
-    });
+  it("wołający BEZ tenanta nie czyta niczego - dostaje ODMOWĘ, nie pusty raport", async () => {
+    // Fail-closed bez udawania pomiaru: nic nie zostało przeczytane, więc
+    // „Brak błędów w wybranym oknie" byłoby dobrą wiadomością bez podstaw.
+    await expect(report({ days: 7 }, NOMAD)).rejects.toThrow("No tenant for current user");
     expect(admin.chainsFor("client_errors")).toHaveLength(0);
   });
 });
@@ -456,60 +457,60 @@ describe("getClientErrorsReport - cap i windowTotal", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Degradacja bez 500-ki
+// Awaria odczytu kontra zmierzone zero
 // ---------------------------------------------------------------------------
 
-describe("getClientErrorsReport - degradacja odczytu", () => {
-  it("błąd zapytania LICZĄCEGO daje pusty raport z zachowanym oknem", async () => {
+describe("getClientErrorsReport - awaria odczytu leci w górę", () => {
+  it("błąd zapytania LICZĄCEGO odrzuca wywołanie z przyczyną bazy - nie udaje pustego okna", async () => {
     planErrors({ countError: 'relation "public.client_errors" does not exist' });
 
-    const result = await report({ days: 30 });
-
-    expect(result).toEqual({
-      windowDays: 30,
-      total: 0,
-      windowTotal: 0,
-      capped: false,
-      uniqueGroups: 0,
-      affectedPaths: 0,
-      last24h: 0,
-      daily: [],
-      groups: [],
-    });
-    expect(warn).toHaveBeenCalled();
+    await expect(report({ days: 30 })).rejects.toThrow(
+      'relation "public.client_errors" does not exist',
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("[client-errors]"),
+      'relation "public.client_errors" does not exist',
+    );
   });
 
-  it("błąd odczytu WIERSZY też degraduje do pustego raportu", async () => {
+  it("błąd odczytu WIERSZY też odrzuca wywołanie", async () => {
     planErrors({ rows: ROWS, rowsError: "statement timeout" });
 
-    const result = await report({ days: 14 });
-
-    expect(result.windowDays).toBe(14);
-    expect(result.groups).toEqual([]);
-    expect(warn).toHaveBeenCalled();
+    await expect(report({ days: 14 })).rejects.toThrow("statement timeout");
   });
 
-  it("pusty raport z degradacji zachowuje okno zakresu własnego", async () => {
-    planErrors({ countError: "boom" });
+  it("rzut, który NIE jest `Error`, leci w górę bez podmiany - log nie wysypuje handlera", async () => {
+    const rejection: unknown = { code: "PGRST205", hint: "brak tabeli" };
+    h.adminFrom = () => {
+      throw rejection;
+    };
+
+    await expect(report({ days: 3 })).rejects.toBe(rejection);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[client-errors]"), rejection);
+  });
+});
+
+describe("getClientErrorsReport - pusty raport wyłącznie z udanego odczytu", () => {
+  it("okno odczytane i puste to raport zerowy z osią dni i bez ostrzeżenia", async () => {
+    planErrors({ rows: [], count: 0 });
 
     const result = await report({
       sinceIso: "2026-08-26T12:00:00.000Z",
       untilIso: "2026-08-31T12:00:00.000Z",
     });
 
-    expect(result.windowDays).toBe(5);
-  });
-
-  it("rzut, który NIE jest `Error`, też degraduje - log nie może wysypać handlera", async () => {
-    const rejection: unknown = { code: "PGRST205", hint: "brak tabeli" };
-    h.adminFrom = () => {
-      throw rejection;
-    };
-
-    const result = await report({ days: 3 });
-
-    expect(result.windowDays).toBe(3);
-    expect(result.total).toBe(0);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[client-errors]"), rejection);
+    expect(result).toMatchObject({
+      windowDays: 5,
+      total: 0,
+      windowTotal: 0,
+      uniqueGroups: 0,
+      groups: [],
+    });
+    // ZMIERZONE zero ma oś: pięć dni, każdy z licznikiem 0. Dawny raport
+    // z degradacji niósł `daily: []` - i właśnie ta różnica odróżnia
+    // „przeczytałem i nic nie ma" od „nic nie przeczytałem".
+    expect(result.daily).toHaveLength(5);
+    expect(result.daily.every((d) => d.count === 0)).toBe(true);
+    expect(warn).not.toHaveBeenCalled();
   });
 });

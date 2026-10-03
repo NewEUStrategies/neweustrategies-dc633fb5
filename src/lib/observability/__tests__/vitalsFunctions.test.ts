@@ -19,10 +19,12 @@
 //   3. CICHA NIEPRAWDA W LICZBACH. `windowTotal` to COUNT z bazy, a nie
 //      długość (przyciętej!) próbki - pomyłka tutaj zaniża raport o rzędy
 //      wielkości i nikt tego nie zauważy, bo liczba nadal wygląda sensownie.
-//   4. 500 ZAMIAST PUSTEGO RAPORTU. Handler świadomie połyka błędy ODCZYTU
-//      (brak migracji na danej bazie), ale NIE błędy autoryzacji. Odwrócenie
-//      tej reguły albo rozlewa 500-kę na cały panel, albo - gorzej - zamienia
-//      odmowę dostępu w „brak danych".
+//   4. AWARIA ODCZYTU UDAJĄCA PUSTKĘ. Handler NIE połyka błędów odczytu:
+//      pusty raport wraca wyłącznie z UDANEGO odczytu pustego okna, a każda
+//      awaria (brak tenanta, timeout, brak relacji) odrzuca wywołanie z
+//      przyczyną. Do 2026-10 było odwrotnie i pulpit meldował „brak próbek"
+//      tam, gdzie odczyt padł. Błędy autoryzacji nadal rzucają PRZED
+//      jakimkolwiek odczytem.
 //
 // CZEGO TEN PLIK NIE DOWODZI: middleware. `requireSupabaseAuth` jest atrapą
 // (patrz `src/test/serverFnHarness.ts`), a kompletu bramek pilnuje osobna
@@ -258,9 +260,9 @@ describe("getVitalsSummary - izolacja tenantów", () => {
     expect(h.tenantCalls[0].userId).toBe(ADMIN_A);
     // Tenant MUSI być czytany DOKŁADNIE klientem service role: klient
     // użytkownika widzi `profiles` przez RLS i przy niepełnej polityce oddaje
-    // pusty wiersz, po którym `resolveUserTenantId` rzuca, a handler cicho
-    // degraduje do pustego raportu. Zamiana klienta zamienia więc granicę
-    // tenanta w losową awarię dashboardu.
+    // pusty wiersz, po którym `resolveUserTenantId` rzuca, a handler odrzuca
+    // wywołanie. Zamiana klienta zamienia więc granicę tenanta w losową
+    // awarię dashboardu.
     expect(h.tenantCalls[0].client).toBe(supabaseAdmin);
   });
 
@@ -296,14 +298,13 @@ describe("getVitalsSummary - izolacja tenantów", () => {
     ]);
   });
 
-  it("wołający BEZ tenanta nie czyta niczego - dostaje pusty raport", async () => {
+  it("wołający BEZ tenanta nie czyta niczego - dostaje ODMOWĘ, nie pusty raport", async () => {
     // Fail-closed: brak tenanta nie może się zdegradować do odczytu bez `eq`.
-    await expect(summary({ days: 7 }, NOMAD)).resolves.toMatchObject({
-      total: 0,
-      windowTotal: 0,
-      windowDays: 7,
-    });
+    // I nie może też udawać zmierzonego zera - nic nie zostało przeczytane,
+    // więc „Próbek w oknie: 0" byłoby twierdzeniem bez pomiaru.
+    await expect(summary({ days: 7 }, NOMAD)).rejects.toThrow("No tenant for current user");
     expect(admin.chainsFor("web_vitals")).toHaveLength(0);
+    expect(adminRpc.calls).toHaveLength(0);
   });
 });
 
@@ -456,19 +457,70 @@ describe("getVitalsSummary - cap i windowTotal", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Degradacja bez 500-ki
+// Awaria odczytu kontra zmierzone zero
 // ---------------------------------------------------------------------------
 
-describe("getVitalsSummary - degradacja odczytu", () => {
-  it("błąd zapytania LICZĄCEGO daje pusty raport z zachowanym oknem", async () => {
+describe("getVitalsSummary - awaria odczytu leci w górę", () => {
+  it("błąd zapytania LICZĄCEGO odrzuca wywołanie z przyczyną bazy - nie udaje pustego okna", async () => {
     planVitals({ countError: 'relation "public.web_vitals" does not exist' });
 
-    const report = await summary({ days: 30 });
+    // Brak relacji na produkcji to awaria wdrożenia. Pusty raport w tym
+    // miejscu kazałby operatorowi szukać problemu po stronie RUCHU.
+    await expect(summary({ days: 30 })).rejects.toThrow(
+      'relation "public.web_vitals" does not exist',
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("[vitals]"),
+      'relation "public.web_vitals" does not exist',
+    );
+  });
 
-    // Brak migracji na danej bazie nie może wywalić całego panelu - ale okno
-    // MUSI zostać, bo inaczej wykres narysuje 7 dni tam, gdzie pytano o 30.
+  it("błąd odczytu WIERSZY też odrzuca wywołanie", async () => {
+    planVitals({ rows: ROWS, rowsError: "statement timeout" });
+
+    await expect(summary({ days: 14 })).rejects.toThrow("statement timeout");
+  });
+
+  it("nieudany odczyt NIE woła już RPC trendu", async () => {
+    planVitals({ countError: "boom" });
+
+    await expect(summary()).rejects.toThrow("boom");
+    expect(adminRpc.calls).toHaveLength(0);
+  });
+
+  it("rzut, który NIE jest `Error`, leci w górę bez podmiany - log nie wysypuje handlera", async () => {
+    // Warstwy transportowe potrafią rzucić czystym obiektem/napisem. Gałąź
+    // logowania `e instanceof Error` nie może sama rzucić, a wyjątek ma wyjść
+    // TEN SAM - opakowanie w `String()` dałoby „[object Object]" na karcie.
+    const rejection: unknown = { code: "PGRST205", hint: "brak tabeli" };
+    h.adminFrom = () => {
+      throw rejection;
+    };
+
+    await expect(summary({ days: 3 })).rejects.toBe(rejection);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[vitals]"), rejection);
+  });
+
+  it("odmowa roli NIE dotyka logu odczytu - bramka stoi przed blokiem", async () => {
+    userRpc.setData("has_role", false);
+
+    await expect(summary()).rejects.toThrow("Forbidden");
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("getVitalsSummary - pusty raport wyłącznie z udanego odczytu", () => {
+  it("okno odczytane i puste to raport zerowy z zachowanym oknem i bez ostrzeżenia", async () => {
+    planVitals({ rows: [], count: 0 });
+
+    const report = await summary({
+      sinceIso: "2026-08-20T00:00:00.000Z",
+      untilIso: "2026-08-25T00:00:00.000Z",
+    });
+
+    // Okno MUSI zostać, bo inaczej wykres narysuje 7 dni tam, gdzie pytano o 5.
     expect(report).toEqual({
-      windowDays: 30,
+      windowDays: 5,
       total: 0,
       metrics: [],
       paths: [],
@@ -476,52 +528,17 @@ describe("getVitalsSummary - degradacja odczytu", () => {
       windowTotal: 0,
       capped: false,
     });
-    expect(warn).toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
   });
 
-  it("błąd odczytu WIERSZY też degraduje do pustego raportu", async () => {
-    planVitals({ rows: ROWS, rowsError: "statement timeout" });
-
-    const report = await summary({ days: 14 });
-
-    expect(report.windowDays).toBe(14);
-    expect(report.windowTotal).toBe(0);
-    expect(warn).toHaveBeenCalled();
-  });
-
-  it("nieudany odczyt NIE woła już RPC trendu", async () => {
-    planVitals({ countError: "boom" });
-
-    await summary();
-
-    expect(adminRpc.calls).toHaveLength(0);
-  });
-
-  it("rzut, który NIE jest `Error`, też degraduje - log nie może wysypać handlera", async () => {
-    // Warstwy transportowe potrafią rzucić czystym obiektem/napisem. Gałąź
-    // logowania `e instanceof Error` jest jedyną rzeczą między takim rzutem
-    // a drugim wyjątkiem, tym razem już poza `try`.
-    const rejection: unknown = { code: "PGRST205", hint: "brak tabeli" };
-    h.adminFrom = () => {
-      throw rejection;
-    };
+  it("pusty odczyt w oknie otwartym do teraz też jest zmierzonym zerem", async () => {
+    planVitals({ rows: [], count: 0 });
+    adminRpc.setData("web_vitals_daily_p75", []);
 
     const report = await summary({ days: 3 });
 
-    expect(report.windowDays).toBe(3);
-    expect(report.total).toBe(0);
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[vitals]"), rejection);
-  });
-
-  it("pusty raport z degradacji zachowuje okno zakresu własnego", async () => {
-    planVitals({ countError: "boom" });
-
-    const report = await summary({
-      sinceIso: "2026-08-20T00:00:00.000Z",
-      untilIso: "2026-08-25T00:00:00.000Z",
-    });
-
-    expect(report.windowDays).toBe(5);
+    expect(report).toMatchObject({ windowDays: 3, total: 0, windowTotal: 0, trends: [] });
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 
@@ -572,7 +589,7 @@ describe("getVitalsSummary - trend dzienny p75", () => {
     expect(report.trends.map((t) => t.day)).toEqual(["2026-08-30", "2026-08-31"]);
   });
 
-  it("jawne `untilIso` POMIJA RPC - funkcja bazy nie zna górnej granicy okna", async () => {
+  it("jawne `untilIso` idzie do RPC jako `p_until` - trend z bazy, nie z przyciętej próbki", async () => {
     adminRpc.setData("web_vitals_daily_p75", DB_TREND);
 
     const report = await summary({
@@ -580,13 +597,21 @@ describe("getVitalsSummary - trend dzienny p75", () => {
       untilIso: "2026-08-31T23:59:59.000Z",
     });
 
-    // Gałąź realna, nie kosmetyczna: RPC filtruje wyłącznie `created_at >=
-    // p_since`, więc dla okna zamkniętego od góry dołożyłby dni SPOZA zakresu.
-    expect(adminRpc.callsFor("web_vitals_daily_p75")).toHaveLength(0);
-    expect(report.trends.map((t) => t.day)).toEqual(["2026-08-30", "2026-08-31"]);
+    // Do 2026-10-03 ta gałąź POMIJAŁA RPC, bo funkcja bazy znała wyłącznie
+    // `p_since`. A VitalsBiDashboard wysyła `untilIso` ZAWSZE (także dla
+    // presetów), więc główny pulpit wydajności nigdy nie dostał trendu po
+    // pełnym oknie. Komplet argumentów sprawdzany wprost: `tsc` nie złapie
+    // zgubionego `p_until`, bo obiekt argumentów RPC jest luźny.
+    expect(adminRpc.lastCall("web_vitals_daily_p75")?.args).toEqual({
+      p_since: "2026-08-29T00:00:00.000Z",
+      p_tenant: TENANT_A,
+      p_until: "2026-08-31T23:59:59.000Z",
+    });
+    // Dzień spoza próbki - dowód, że trend przyszedł z bazy.
+    expect(report.trends).toEqual([{ day: "2026-08-25", p75: { LCP: 1800 } }]);
   });
 
-  it("sam `sinceIso` (okno otwarte do teraz) NADAL woła RPC", async () => {
+  it("sam `sinceIso` - okno do TERAZ handlera, `p_until` = TERAZ", async () => {
     adminRpc.setData("web_vitals_daily_p75", DB_TREND);
     const since = "2026-08-29T00:00:00.000Z";
 
@@ -595,6 +620,59 @@ describe("getVitalsSummary - trend dzienny p75", () => {
     expect(adminRpc.lastCall("web_vitals_daily_p75")?.args).toEqual({
       p_since: since,
       p_tenant: TENANT_A,
+      p_until: NOW,
     });
+  });
+
+  it("`p_until` to TA SAMA granica, co `lte` w zapytaniu liczącym i wierszowym", async () => {
+    adminRpc.setData("web_vitals_daily_p75", DB_TREND);
+    const since = "2026-08-20T00:00:00.000Z";
+    const until = "2026-08-25T23:59:59.999Z";
+
+    await summary({ sinceIso: since, untilIso: until });
+
+    // Trend, `windowTotal` i próbka mają opisywać JEDNO okno. Rozjazd granic
+    // (np. `until` w RPC liczony inaczej niż w `lte`) dałby wykres z innego
+    // zakresu niż liczba próbek pod nim - i nikt by tego nie zauważył.
+    const call = adminRpc.lastCall("web_vitals_daily_p75");
+    const chains = admin.chainsFor("web_vitals");
+    expect(chains).toHaveLength(2);
+    for (const chain of chains) {
+      expect(chain.argsOf("gte")).toEqual(["created_at", call?.arg("p_since")]);
+      expect(chain.argsOf("lte")).toEqual(["created_at", call?.arg("p_until")]);
+    }
+    expect(call?.arg("p_until")).toBe(until);
+  });
+
+  it("preset `days` też domyka okno od góry - `p_until` = TERAZ", async () => {
+    adminRpc.setData("web_vitals_daily_p75", DB_TREND);
+
+    await summary({ days: 30 });
+
+    expect(adminRpc.lastCall("web_vitals_daily_p75")?.args).toEqual({
+      p_since: new Date(NOW_MS - 30 * DAY_MS).toISOString(),
+      p_tenant: TENANT_A,
+      p_until: NOW,
+    });
+  });
+
+  it("baza bez `p_until` (PGRST202) przy jawnym `untilIso` zostawia trend z pamięci", async () => {
+    // Kod wdrożony przed migracją 20261003120000: PostgREST nie znajduje
+    // trzyargumentowej sygnatury. Wykres ma spaść na trend z próbki, a raport
+    // zostać - to degradacja trendu, nie awaria odczytu.
+    adminRpc.setError(
+      "web_vitals_daily_p75",
+      "Could not find the function public.web_vitals_daily_p75(p_since, p_tenant, p_until) in the schema cache",
+      "PGRST202",
+    );
+
+    const report = await summary({
+      sinceIso: "2026-08-29T00:00:00.000Z",
+      untilIso: "2026-08-31T23:59:59.000Z",
+    });
+
+    expect(adminRpc.callsFor("web_vitals_daily_p75")).toHaveLength(1);
+    expect(report.trends.map((t) => t.day)).toEqual(["2026-08-30", "2026-08-31"]);
+    expect(report.total).toBe(3);
   });
 });

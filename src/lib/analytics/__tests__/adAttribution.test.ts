@@ -52,6 +52,11 @@ function landing(search: string, referrer: string | null = null, pathname = "/ev
   return parseAdTouch({ search, pathname, referrer, host: "www.nes.example", nowMs: NOW });
 }
 
+// Reguly wspolne z baza (znaki sterujace, biale znaki, e-mail, granice dlugosci,
+// regexy pol, okno 90 dni) mierzy WSPOLNA lista `fixtures/adAttributionCases.json`
+// - po stronie TS w `adAttributionSqlMirror.test.ts`, po stronie SQL w pgTAP
+// `supabase/tests/ad_attribution_mirror_test.sql`. Tutaj zostaja przypadki
+// warstwy adresu i magazynu, ktorych baza nie widzi.
 describe("cleanUtm - lustro _event_ads_clean z bazy", () => {
   it("brak wartosci i same biale znaki to brak", () => {
     expect(cleanUtm(null)).toBeNull();
@@ -132,6 +137,14 @@ describe("parseAdTouch - adres wejscia", () => {
     expect(landing("", "https://10.0.0.1:8080/")?.referrerHost).toBe("10.0.0.1");
     expect(landing("", "https://intranet/")).toBeNull();
     expect(landing("", "")).toBeNull();
+  });
+
+  it("emoji na granicy 100 znakow nie zostawia samotnego surogatu (baza odrzucilaby caly ladunek jsonb)", () => {
+    const got = landing(
+      `?utm_content=${encodeURIComponent(`${"a".repeat(99)}\u{1F600}b`)}`,
+    )?.utmContent;
+    expect(got).toBe(`${"a".repeat(99)}\u{1F600}`);
+    expect(JSON.stringify(got)).not.toMatch(/\\ud[89ab][0-9a-f]{2}"/i);
   });
 
   it("sciezka spoza wzorca albo za dluga nie trafia do dotkniecia", () => {
@@ -265,6 +278,24 @@ describe("sanitizeTouch / parseStoredAttribution - magazyn jest edytowalny", () 
     expect(got?.landingPath).toBeNull();
     expect(sanitizeTouch({ ...touch(), clickId: "krotki" })?.clickId).toBeNull();
     expect(sanitizeTouch({ ts: NOW, landingPath: null, utmSource: 5 })).toBeNull();
+  });
+
+  it("samotny surogat z recznie edytowanego magazynu wypada (jsonb by go nie przyjal)", () => {
+    // Tego przypadku nie ma we wspolnej liscie z baza: Postgres odrzuca juz
+    // sam literal jsonb z niesparowanym `\ud83d`, wiec SQL nie ma czego
+    // porownac - klient po prostu nie moze go wyslac.
+    const got = sanitizeTouch({
+      ...touch(),
+      utmCampaign: "kampania\ud83d",
+      landingPath: "/a\ude00b",
+      referrerHost: "google.pl",
+    });
+    expect(got?.utmCampaign).toBeNull();
+    expect(got?.landingPath).toBeNull();
+    expect(got?.referrerHost).toBe("google.pl");
+    expect(sanitizeTouch({ ts: NOW, utmSource: "\ud83d" })).toBeNull();
+    // Para surogatow (emoji) to jeden punkt kodowy - zostaje.
+    expect(sanitizeTouch({ ts: NOW, utmSource: "x\u{1F600}" })?.utmSource).toBe("x\u{1F600}");
   });
 
   it("parsuje zapis wersji 1, reszte odrzuca", () => {

@@ -540,6 +540,22 @@ describe("runGa4Report - mapowanie odpowiedzi", () => {
     });
   });
 
+  it("wiersze bez totali przechodzą przez funkcję serwerową jako `totals: []`, nie jako zera", async () => {
+    // Granica funkcji serwerowej jest tym, co widzi panel GA4. Gdyby gdzieś po
+    // drodze brak sum dopełniono zerami, kafelki znów malowałyby „0" zamiast
+    // „Brak danych" przy niepustej serii dobowej.
+    json({
+      dimensionHeaders: [{ name: "date" }],
+      metricHeaders: [{ name: "sessions" }],
+      rows: [{ dimensionValues: [{ value: "20260801" }], metricValues: [{ value: "12" }] }],
+    });
+
+    const wynik = await raport(adminZProperty());
+
+    expect(wynik.rows).toEqual([{ dims: ["20260801"], metrics: ["12"] }]);
+    expect(wynik.totals).toEqual([]);
+  });
+
   it("całkowicie pusta odpowiedź Data API nadal jest raportem skonfigurowanym", async () => {
     json({});
 

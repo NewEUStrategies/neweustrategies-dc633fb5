@@ -6,6 +6,9 @@
 // therefore read via supabaseAdmin (service role) but gate the call behind an
 // explicit admin-role check first, so RUM analytics stay admin-only even though
 // the underlying client bypasses RLS.
+//
+// Awaria odczytu ODRZUCA wywołanie z przyczyną - zera wracają wyłącznie
+// z udanego odczytu pustego okna (szczegóły przy bloku `try` niżej).
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -59,20 +62,21 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
     const since = new Date(sinceMs).toISOString();
     const until = new Date(untilMs).toISOString();
     const windowDays = Math.max(1, Math.ceil((untilMs - sinceMs) / 86_400_000));
-    const hasCustomUntil = Boolean(data.untilIso);
-    const empty: VitalsSummaryResult = {
-      windowDays,
-      total: 0,
-      metrics: [],
-      paths: [],
-      trends: [],
-      windowTotal: 0,
-      capped: false,
-    };
 
-    // Degrade gracefully on any data-read failure (e.g. the web_vitals migration
-    // hasn't been applied to this database yet): the dashboard shows "no data"
-    // instead of returning a 500. Auth/admin failures above still throw.
+    // AWARIA ODCZYTU LECI W GÓRĘ, NIE W PUSTY RAPORT. Do 2026-10 ten blok łapał
+    // KAŻDY błąd - brak najemcy w profilu, timeout PostgREST, zerwane
+    // połączenie, brak relacji - i oddawał `windowTotal: 0`. Pulpit RUM
+    // rysował wtedy „Brak próbek RUM w wybranym oknie", a pasek na /admin
+    // „Próbki RUM: 0", czyli twierdzenie o pomiarze, którego nie było. Karta
+    // „Awaria odczytu" w VitalsBiDashboard była osiągalna wyłącznie przy
+    // odmowie roli, bo tylko bramka stała poza tym blokiem. Uzasadnienie
+    // „migracja web_vitals mogła jeszcze nie dotrzeć do bazy" przestało być
+    // prawdą: tabela powstała w 20260626210000 i jest w wygenerowanych typach,
+    // więc jej brak na produkcji to awaria wdrożenia, którą operator MA
+    // zobaczyć. Kontrakt jak w relatedInsights.functions.ts (ta sama naprawa
+    // tej samej klasy defektu): pusty raport wraca WYŁĄCZNIE z udanego odczytu
+    // pustego okna, a każda awaria odrzuca wywołanie z przyczyną, więc
+    // react-query ustawia `isError`.
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       // Scope every read to the caller's own tenant so one workspace's admin
@@ -109,33 +113,40 @@ export const getVitalsSummary = createServerFn({ method: "POST" })
       const report = aggregateVitals(samples, { windowDays });
       const windowTotal = windowCount ?? samples.length;
 
-      // The in-memory trend above is computed over only the capped newest rows,
-      // so on a busy site it truncates to the most recent days. Recompute the
-      // per-day p75 trend in Postgres over the FULL window via an RPC. If the
-      // function isn't present yet (older DB), fall back to the in-memory trend.
-      // For custom ranges with an explicit `until` in the past we skip the RPC
-      // (its signature only takes `p_since`) and rely on the in-memory trend.
+      // TREND Z BAZY PO PEŁNYM OKNIE [since, until]. Trend z pamięci liczy się
+      // tylko z SAMPLE_CAP najnowszych próbek, więc na ruchliwym serwisie
+      // najstarsze dni okna znikają, a pierwszy ocalały dzień powstaje
+      // z niepełnej próbki. Do 2026-10-03 RPC było pomijane przy KAŻDYM
+      // `untilIso`, bo funkcja znała wyłącznie `p_since` i dla okna
+      // zamkniętego w przeszłości dokładałaby dni spoza zakresu - a pulpit
+      // VitalsBiDashboard wysyła `untilIso` ZAWSZE, także dla presetów
+      // (`buildPresetRange`), więc główny pulpit wydajności nigdy nie dostał
+      // dokładnego trendu. Od migracji 20261003120000 `p_until` jest domknięte
+      // jak `.lte` wyżej, więc trend, COUNT i próbka opisują JEDNO okno.
+      // `until` to TERAZ, gdy wołający nie podał górnej granicy. Błąd albo
+      // rzut RPC (baza sprzed migracji: PGRST202 dla trzech argumentów)
+      // zostawia trend z pamięci - wykres gorszy, ale nie pusty.
       let trends = report.trends;
-      if (!hasCustomUntil) {
-        try {
-          const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
-            "web_vitals_daily_p75",
-            { p_since: since, p_tenant: tenantId },
-          );
-          if (!trendErr && Array.isArray(trendRows)) {
-            trends = trendsFromDailyP75(trendRows);
-          }
-        } catch {
-          // Keep the in-memory trend.
+      try {
+        const { data: trendRows, error: trendErr } = await supabaseAdmin.rpc(
+          "web_vitals_daily_p75",
+          { p_since: since, p_tenant: tenantId, p_until: until },
+        );
+        if (!trendErr && Array.isArray(trendRows)) {
+          trends = trendsFromDailyP75(trendRows);
         }
+      } catch {
+        // Zostaje trend z pamięci.
       }
 
       return { ...report, trends, windowTotal, capped: windowTotal > SAMPLE_CAP };
     } catch (e) {
-      console.warn(
-        "[vitals] summary read failed; returning empty report:",
-        e instanceof Error ? e.message : e,
-      );
-      return empty;
+      // Ślad z nazwą modułu zostaje w logu workera. Start loguje odrzucenie
+      // sam („Server Fn Error!"), ale bez nazwy funkcji, a „No tenant for
+      // current user" rzuca wspólny userTenant.server.ts. Wyjątek idzie DALEJ
+      // nietknięty: komunikat PostgREST jest dokładnie tą przyczyną, którą
+      // karta awarii pokazuje operatorowi.
+      console.warn("[vitals] summary read failed:", e instanceof Error ? e.message : e);
+      throw e;
     }
   });

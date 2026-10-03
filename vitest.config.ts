@@ -1061,6 +1061,16 @@ export default defineConfig({
         // Podstawa pomiaru: pełny przebieg `vitest run --coverage`
         // (all: true, 2084 pliki testowe, 56 880 przypadków).
         // ------------------------------------------------------------------
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał (2026-10, sam
+        // `adminBiStrip.test.tsx`). Próg pilnuje trzech stanów kafelka: zero
+        // tylko po udanym odczycie, „Pomiar" w toku, „Awaria odczytu" po
+        // odrzuceniu - każda z tych gałęzi to osobna decyzja operatora.
+        "src/components/admin/analytics/AdminBiStrip.tsx": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
         // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
         "src/components/admin/analytics/AudienceSegmentsDashboard.tsx": {
           statements: 99,
@@ -1461,6 +1471,13 @@ export default defineConfig({
         },
         // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
         "src/lib/analytics/ga4.server.ts": {
+          statements: 99,
+          functions: 99,
+          lines: 99,
+          branches: 99,
+        },
+        // zmierzone: 100.0% linii · 100.0% fn · 100.0% gał
+        "src/lib/analytics/ga4Totals.ts": {
           statements: 99,
           functions: 99,
           lines: 99,

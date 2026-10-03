@@ -1,0 +1,1224 @@
+-- pgTAP: LUSTRO WALIDACJI ATRYBUCJI KAMPANII TS <-> SQL
+-- (`_event_ads_clean` / `_event_ads_touch`, 20260927000300_event_ads_funnel.sql).
+--
+-- PO CO. `src/lib/analytics/adAttribution.ts` obiecuje, ze klient nie wysyla
+-- niczego, czego baza i tak by nie przyjela - ale do tego pliku nikt tego nie
+-- mierzyl, wiec lustro rozjechalo sie po cichu w trzech miejscach: UTM ciety
+-- w jednostkach UTF-16 zostawial samotny surogat (Postgres odrzucal CALY ladunek
+-- jsonb, a przypiecie atrybucji i krok lejka ginely bez sladu), sciezka z BEL,
+-- DEL albo C1 przechodzila w TS, a tu odpadala, a dlugosc sciezki z emoji byla
+-- liczona w UTF-16 zamiast w punktach kodowych.
+--
+-- ZRODLO PRZYPADKOW. Literal dollar-quote `cases` nizej to KOPIA pliku
+-- `src/lib/analytics/__tests__/fixtures/adAttributionCases.json` - tej samej
+-- listy, ktora napedza vitest `adAttributionSqlMirror.test.ts` po stronie TS.
+-- `supabase test db` w CI nie widzi `src/` (osobny kontener), dlatego kopia;
+-- bramka vitest wymaga, zeby po JSON.parse byla identyczna z plikiem.
+--
+-- JAK DOPISAC PRZYPADEK. Zmien plik JSON (czyste ASCII, znaki spoza ASCII jako
+-- \uXXXX) i wklej go CALY miedzy znaczniki `cases` ponizej. Liczba asercji sie
+-- nie zmienia: kazda asercja nizej to tablica naruszen porownana z pusta, wiec
+-- plan(9) jest staly niezaleznie od liczby przypadkow (bramka planu pgTAP liczy
+-- wywolania asercji w tekscie, nie wiersze).
+--
+-- CO SPRAWDZA (9 asercji):
+--   1-2. obie funkcje istnieja z oczekiwana sygnatura;
+--   3.   lista wczytana (wersja 1, cztery niepuste sekcje);
+--   4.   kazdy literal z `rules[].sql` stoi w ZYWEJ definicji funkcji
+--        (`pg_get_functiondef`) - redefinicja w dowolnej przyszlej migracji,
+--        ktora zmienia regex albo granice, jest czerwona, dopoki nie zmieni sie
+--        lista regul (a ta stoi obok wzorca TS);
+--   5/7. `_event_ads_clean` / `_event_ads_touch` daja dla kazdego przypadku to
+--        samo co `cleanUtm` / `sanitizeTouch` - poza jawnymi asymetriami;
+--   6/8. PUNKT STALY: wynik TS przechodzi przez SQL bez zmian. To jest wlasciwa
+--        tresc obietnicy z naglowka TS i zachodzi w KAZDYM locale;
+--   9.   okno 90 dni: SQL odcina dokladnie tam, gdzie `freshAttribution`.
+--
+-- LOCALE. `[[:space:]]` i `lower()` poza ASCII zaleza od locale bazy: lokalny
+-- runner (scripts/pgtap-local) domyslnie dziala w C, a baza CI i produkcji
+-- w locale UTF-8 (C.UTF-8 albo podobnym) - plik musi przejsc w obu.
+-- Przypadki `sqlLocaleSensitive` (NBSP, U+2003, U+2028, polskie litery i znak
+-- kelwina w `lower()`) pomijamy w asercjach 5 i 7, ale punkt staly (6 i 8)
+-- sprawdzamy dla nich tak samo. `sqlExpected` oznacza roznice deterministyczna
+-- w kazdym locale (U+FEFF nie jest bialym znakiem dla Postgresa).
+--
+-- POROWNANIE DOTKNIECIA idzie przez projekcje: pola dotkniecia, `click_id_type`
+-- tylko obok `click_id` (bez zgody SQL nie zapisuje samego rodzaju - uzywa go
+-- wylacznie jako sygnalu kanalu), bez NULL-i. NULL = wejscie bezposrednie,
+-- '{}' = dotkniecie bez zapisanych pol.
+--
+-- CZEGO NIE SPRAWDZA. Wyprowadzenia zrodla/medium (google/cpc, organic,
+-- referral), przyciecia czasu z przyszlosci i `ts` bez wartosci - to
+-- scripts/events-harness/runtime_test.d/28_ads_funnel.sql. Warstwy adresu
+-- (wlasny host, wykluczenia bramek platnosci) - to vitest `adAttribution.test.ts`,
+-- bo baza nie zna wlasnego hosta.
+--
+-- Funkcje sa service_role-only; plik dziala jako `postgres` (wlasciciel), jak
+-- reszta suity. `SET LOCAL timezone = 'UTC'`: `interval '90 days'` w strefie
+-- z DST rozni sie o godzine, a granica okna jest liczona co do milisekundy.
+--
+-- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
+
+BEGIN;
+SELECT plan(9);
+
+SET LOCAL timezone = 'UTC';
+
+CREATE TEMP TABLE ad_attribution_cases AS SELECT $cases$
+{
+  "version": 1,
+  "nowMs": 4000000000000,
+  "rules": [
+    {
+      "name": "controlPattern",
+      "ts": "/[\\u0000-\\u001f\\u007f-\\u009f]/g",
+      "fn": "public._event_ads_clean(text,integer)",
+      "sql": ["regexp_replace(p_value, '[[:cntrl:]]', '', 'g')"]
+    },
+    {
+      "name": "whitespacePattern",
+      "ts": "/\\s+/g",
+      "fn": "public._event_ads_clean(text,integer)",
+      "sql": ["'\\s+', ' ', 'g'"]
+    },
+    {
+      "name": "emailPattern",
+      "ts": "/[a-z0-9._%+-]+@[a-z0-9-]+(\\.[a-z0-9-]+)*\\.[a-z]{2,}/i",
+      "fn": "public._event_ads_clean(text,integer)",
+      "sql": ["s.v ~* '[a-z0-9._%+-]+@[a-z0-9-]+(\\.[a-z0-9-]+)*\\.[a-z]{2,}'"]
+    },
+    {
+      "name": "utmMaxLength",
+      "ts": "100",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": [
+        "lower(public._event_ads_clean(p_touch->>'utm_source', 100))",
+        "lower(public._event_ads_clean(p_touch->>'utm_medium', 100))",
+        "public._event_ads_clean(p_touch->>'utm_campaign', 100)",
+        "public._event_ads_clean(p_touch->>'utm_term', 100)",
+        "public._event_ads_clean(p_touch->>'utm_content', 100)"
+      ]
+    },
+    {
+      "name": "clickIdTypes",
+      "ts": "gclid,gbraid,wbraid",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": ["p_touch->>'click_id_type' IN ('gclid', 'gbraid', 'wbraid')"]
+    },
+    {
+      "name": "clickIdPattern",
+      "ts": "/^[A-Za-z0-9_-]{10,512}$/",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": [
+        "char_length(p_touch->>'click_id') BETWEEN 10 AND 512",
+        "p_touch->>'click_id' ~ '^[A-Za-z0-9_-]+$'"
+      ]
+    },
+    {
+      "name": "gadSourcePattern",
+      "ts": "/^\\d{1,10}$/",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": ["p_touch->>'gad_source' ~ '^[0-9]{1,10}$'"]
+    },
+    {
+      "name": "gadCampaignPattern",
+      "ts": "/^\\d{1,20}$/",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": ["p_touch->>'gad_campaign_id' ~ '^[0-9]{1,20}$'"]
+    },
+    {
+      "name": "hostMaxLength",
+      "ts": "253",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": ["char_length(p_touch->>'referrer_host') <= 253"]
+    },
+    {
+      "name": "hostPattern",
+      "ts": "/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": [
+        "lower(p_touch->>'referrer_host') ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'"
+      ]
+    },
+    {
+      "name": "wwwPrefixPattern",
+      "ts": "/^www\\./",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": ["regexp_replace(lower(p_touch->>'referrer_host'), '^www\\.', '')"]
+    },
+    {
+      "name": "pathMaxLength",
+      "ts": "512",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": ["char_length(p_touch->>'landing_path') <= 512"]
+    },
+    {
+      "name": "pathPattern",
+      "ts": "/^\\/[^\\s\\u0000-\\u001f\\u007f-\\u009f?#]*$/",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": ["p_touch->>'landing_path' ~ '^/[^[:space:][:cntrl:]?#]*$'"]
+    },
+    {
+      "name": "ttlMs",
+      "ts": "7776000000",
+      "fn": "public._event_ads_touch(jsonb,boolean,timestamptz)",
+      "sql": ["v_ts < p_now - interval '90 days'"]
+    }
+  ],
+  "clean": [
+    {
+      "name": "null to brak",
+      "input": null,
+      "expected": null
+    },
+    {
+      "name": "pusty napis to brak",
+      "input": "",
+      "expected": null
+    },
+    {
+      "name": "same spacje to brak",
+      "input": "   ",
+      "expected": null
+    },
+    {
+      "name": "sam znak sterujacy to brak",
+      "input": "\u0007",
+      "expected": null
+    },
+    {
+      "name": "znaki sterujace wyciete, biale znaki zwiniete",
+      "input": "  wio\u0007sna \t  2026 ",
+      "expected": "wiosna 2026"
+    },
+    {
+      "name": "tabulator wyciety jak znak sterujacy",
+      "input": "a\tb   c",
+      "expected": "ab c"
+    },
+    {
+      "name": "CR LF wyciete",
+      "input": "wio\r\nsna",
+      "expected": "wiosna"
+    },
+    {
+      "name": "DEL wyciety",
+      "input": "wio\u007fsna",
+      "expected": "wiosna"
+    },
+    {
+      "name": "C1 NEL (U+0085) wyciety",
+      "input": "a\u0085b",
+      "expected": "ab"
+    },
+    {
+      "name": "C1 U+009F wyciety",
+      "input": "a\u009fb",
+      "expected": "ab"
+    },
+    {
+      "name": "e-mail w srodku odrzuca cala wartosc",
+      "input": "newsletter jan.kowalski@firma.pl wrzesien",
+      "expected": null
+    },
+    {
+      "name": "e-mail wielkimi literami odrzucony",
+      "input": "JAN.NOWAK@WP.PL",
+      "expected": null
+    },
+    {
+      "name": "e-mail z plusem i subdomena odrzucony",
+      "input": "x+tag@mail.firma.com.pl",
+      "expected": null
+    },
+    {
+      "name": "e-mail rozbity znakiem sterujacym wykryty po czyszczeniu",
+      "input": "jan\u0007@firma.pl",
+      "expected": null
+    },
+    {
+      "name": "e-mail za granica 100 znakow nadal odrzuca",
+      "input": {
+        "concat": [
+          {
+            "repeat": "a",
+            "times": 120
+          },
+          " jan@firma.pl"
+        ]
+      },
+      "expected": null
+    },
+    {
+      "name": "adres bez domeny najwyzszego poziomu zostaje",
+      "input": "jan@firma",
+      "expected": "jan@firma"
+    },
+    {
+      "name": "jednoliterowa domena najwyzszego poziomu zostaje",
+      "input": "jan@firma.p",
+      "expected": "jan@firma.p"
+    },
+    {
+      "name": "przyciecie do 100 znakow",
+      "input": {
+        "repeat": "x",
+        "times": 150
+      },
+      "expected": {
+        "repeat": "x",
+        "times": 100
+      }
+    },
+    {
+      "name": "spacja na granicy zdjeta po przycieciu",
+      "input": {
+        "concat": [
+          {
+            "repeat": "a",
+            "times": 99
+          },
+          " bbb"
+        ]
+      },
+      "expected": {
+        "repeat": "a",
+        "times": 99
+      }
+    },
+    {
+      "name": "polskie litery bez zmian",
+      "input": "Wiosna \u0141\u00f3d\u017a",
+      "expected": "Wiosna \u0141\u00f3d\u017a"
+    },
+    {
+      "name": "emoji to jeden znak (punkt kodowy, jak left() w SQL)",
+      "input": {
+        "repeat": "\ud83d\ude00",
+        "times": 60
+      },
+      "expected": {
+        "repeat": "\ud83d\ude00",
+        "times": 60
+      }
+    },
+    {
+      "name": "emoji na granicy 100 nie zostawia samotnego surogatu",
+      "input": {
+        "concat": [
+          {
+            "repeat": "a",
+            "times": 99
+          },
+          "\ud83d\ude00",
+          "b"
+        ]
+      },
+      "expected": {
+        "concat": [
+          {
+            "repeat": "a",
+            "times": 99
+          },
+          "\ud83d\ude00"
+        ]
+      }
+    },
+    {
+      "name": "BOM U+FEFF: TS usuwa, SQL zostawia",
+      "input": "\ufeffwiosna",
+      "expected": "wiosna",
+      "sqlExpected": "\ufeffwiosna",
+      "asymmetry": "JS \\s i trim() obejmuja U+FEFF, a [[:space:]] Postgresa nie - w zadnym locale ani dostawcy; TS jest surowszy, a jego wynik jest punktem stalym SQL"
+    },
+    {
+      "name": "NBSP zwiniety w TS",
+      "input": "\u00a0wiosna\u00a02026\u00a0",
+      "expected": "wiosna 2026",
+      "sqlLocaleSensitive": true,
+      "asymmetry": "[[:space:]] w SQL zalezy od locale bazy (C: tylko ASCII; C.UTF-8: m.in. U+2003 i U+2028, bez NBSP; ICU: takze NBSP), a JS \\s obejmuje je zawsze; surowa asercja SQL pominieta, punkt staly sprawdzany"
+    },
+    {
+      "name": "separator wiersza U+2028 zwiniety w TS",
+      "input": "a\u2028b",
+      "expected": "a b",
+      "sqlLocaleSensitive": true,
+      "asymmetry": "[[:space:]] w SQL zalezy od locale bazy (C: tylko ASCII; C.UTF-8: m.in. U+2003 i U+2028, bez NBSP; ICU: takze NBSP), a JS \\s obejmuje je zawsze; surowa asercja SQL pominieta, punkt staly sprawdzany"
+    },
+    {
+      "name": "spacja EM U+2003 zwinieta w TS",
+      "input": "a\u2003b",
+      "expected": "a b",
+      "sqlLocaleSensitive": true,
+      "asymmetry": "[[:space:]] w SQL zalezy od locale bazy (C: tylko ASCII; C.UTF-8: m.in. U+2003 i U+2028, bez NBSP; ICU: takze NBSP), a JS \\s obejmuje je zawsze; surowa asercja SQL pominieta, punkt staly sprawdzany"
+    }
+  ],
+  "touch": [
+    {
+      "name": "pelne klikniecie Google Ads ze zgoda",
+      "adConsent": true,
+      "input": {
+        "utm_source": " Google ",
+        "utm_medium": "CPC",
+        "utm_campaign": "Wio\u0007sna",
+        "utm_term": "energia",
+        "utm_content": "baner",
+        "gad_source": "1",
+        "gad_campaign_id": "987654321",
+        "click_id_type": "gclid",
+        "click_id": "Cj0KCQjw-abc_DEF1234",
+        "landing_path": "/events/kongres",
+        "referrer_host": "WWW.Google.PL"
+      },
+      "expected": {
+        "utm_source": "google",
+        "utm_medium": "cpc",
+        "utm_campaign": "Wiosna",
+        "utm_term": "energia",
+        "utm_content": "baner",
+        "gad_source": "1",
+        "gad_campaign_id": "987654321",
+        "click_id_type": "gclid",
+        "click_id": "Cj0KCQjw-abc_DEF1234",
+        "landing_path": "/events/kongres",
+        "referrer_host": "google.pl"
+      }
+    },
+    {
+      "name": "e-mail w utm_content odrzucony, reszta zostaje",
+      "adConsent": false,
+      "input": {
+        "utm_source": "newsletter",
+        "utm_content": "jan.kowalski@example.org"
+      },
+      "expected": {
+        "utm_source": "newsletter"
+      }
+    },
+    {
+      "name": "sam e-mail w utm_content to wejscie bezposrednie",
+      "adConsent": false,
+      "input": {
+        "utm_content": "ktos@firma.pl"
+      },
+      "expected": null
+    },
+    {
+      "name": "e-mail w zrodle to wejscie bezposrednie",
+      "adConsent": false,
+      "input": {
+        "utm_source": "Jan@Firma.PL"
+      },
+      "expected": null
+    },
+    {
+      "name": "utm_term przyciety do 100",
+      "adConsent": false,
+      "input": {
+        "utm_term": {
+          "repeat": "x",
+          "times": 150
+        }
+      },
+      "expected": {
+        "utm_term": {
+          "repeat": "x",
+          "times": 100
+        }
+      }
+    },
+    {
+      "name": "utm_campaign przyciety do 100",
+      "adConsent": false,
+      "input": {
+        "utm_campaign": {
+          "repeat": "k",
+          "times": 101
+        }
+      },
+      "expected": {
+        "utm_campaign": {
+          "repeat": "k",
+          "times": 100
+        }
+      }
+    },
+    {
+      "name": "utm_content z emoji na granicy 100",
+      "adConsent": false,
+      "input": {
+        "utm_content": {
+          "concat": [
+            {
+              "repeat": "a",
+              "times": 99
+            },
+            "\ud83d\ude00",
+            "b"
+          ]
+        }
+      },
+      "expected": {
+        "utm_content": {
+          "concat": [
+            {
+              "repeat": "a",
+              "times": 99
+            },
+            "\ud83d\ude00"
+          ]
+        }
+      }
+    },
+    {
+      "name": "zrodlo i medium malymi literami",
+      "adConsent": false,
+      "input": {
+        "utm_source": "GOOGLE",
+        "utm_medium": "Email"
+      },
+      "expected": {
+        "utm_source": "google",
+        "utm_medium": "email"
+      }
+    },
+    {
+      "name": "kampania, fraza i tresc zachowuja wielkosc liter",
+      "adConsent": false,
+      "input": {
+        "utm_campaign": "Wiosna_2026",
+        "utm_term": "Energia",
+        "utm_content": "Baner"
+      },
+      "expected": {
+        "utm_campaign": "Wiosna_2026",
+        "utm_term": "Energia",
+        "utm_content": "Baner"
+      }
+    },
+    {
+      "name": "zrodlo z polskimi literami malymi literami",
+      "adConsent": false,
+      "input": {
+        "utm_source": "\u0141\u00d3D\u0179"
+      },
+      "expected": {
+        "utm_source": "\u0142\u00f3d\u017a"
+      },
+      "sqlLocaleSensitive": true,
+      "asymmetry": "lower() w SQL poza ASCII zalezy od locale bazy (C nie zmienia liter spoza ASCII, C.UTF-8 zmienia jak JS toLowerCase); surowa asercja SQL pominieta, punkt staly sprawdzany"
+    },
+    {
+      "name": "bez zgody reklamowej identyfikator zdjety, rodzaj zostaje",
+      "adConsent": false,
+      "input": {
+        "click_id_type": "gbraid",
+        "click_id": "Cj0KCQjw-abc_DEF1234"
+      },
+      "expected": {
+        "click_id_type": "gbraid"
+      }
+    },
+    {
+      "name": "identyfikator 9 znakow odrzucony, rodzaj zostaje",
+      "adConsent": true,
+      "input": {
+        "click_id_type": "gclid",
+        "click_id": "abcdefghi"
+      },
+      "expected": {
+        "click_id_type": "gclid"
+      }
+    },
+    {
+      "name": "identyfikator 10 znakow przyjety",
+      "adConsent": true,
+      "input": {
+        "click_id_type": "gclid",
+        "click_id": "abcdefghij"
+      },
+      "expected": {
+        "click_id_type": "gclid",
+        "click_id": "abcdefghij"
+      }
+    },
+    {
+      "name": "identyfikator 512 znakow przyjety",
+      "adConsent": true,
+      "input": {
+        "click_id_type": "wbraid",
+        "click_id": {
+          "repeat": "a",
+          "times": 512
+        }
+      },
+      "expected": {
+        "click_id_type": "wbraid",
+        "click_id": {
+          "repeat": "a",
+          "times": 512
+        }
+      }
+    },
+    {
+      "name": "identyfikator 513 znakow odrzucony",
+      "adConsent": true,
+      "input": {
+        "click_id_type": "gclid",
+        "click_id": {
+          "repeat": "a",
+          "times": 513
+        }
+      },
+      "expected": {
+        "click_id_type": "gclid"
+      }
+    },
+    {
+      "name": "kropka w identyfikatorze odrzucona",
+      "adConsent": true,
+      "input": {
+        "click_id_type": "gclid",
+        "click_id": "abcdefghij."
+      },
+      "expected": {
+        "click_id_type": "gclid"
+      }
+    },
+    {
+      "name": "nowa linia na koncu identyfikatora odrzucona",
+      "adConsent": true,
+      "input": {
+        "click_id_type": "gclid",
+        "click_id": "abcdefghij\n"
+      },
+      "expected": {
+        "click_id_type": "gclid"
+      }
+    },
+    {
+      "name": "fbclid nie jest kliknieciem Google",
+      "adConsent": true,
+      "input": {
+        "click_id_type": "fbclid",
+        "click_id": "abcdefghijk"
+      },
+      "expected": null
+    },
+    {
+      "name": "rodzaj klikniecia wielkimi literami odrzucony",
+      "adConsent": true,
+      "input": {
+        "click_id_type": "GCLID",
+        "click_id": "abcdefghijk"
+      },
+      "expected": null
+    },
+    {
+      "name": "gad_source 10 cyfr przyjety",
+      "adConsent": false,
+      "input": {
+        "gad_source": "1234567890"
+      },
+      "expected": {
+        "gad_source": "1234567890"
+      }
+    },
+    {
+      "name": "gad_source 11 cyfr odrzucony",
+      "adConsent": false,
+      "input": {
+        "gad_source": "12345678901"
+      },
+      "expected": null
+    },
+    {
+      "name": "gad_source z litera odrzucony",
+      "adConsent": false,
+      "input": {
+        "gad_source": "abc",
+        "utm_source": "x"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "cyfra arabsko-indyjska nie jest cyfra",
+      "adConsent": false,
+      "input": {
+        "gad_source": "\u0661"
+      },
+      "expected": null
+    },
+    {
+      "name": "gad_campaign_id 20 cyfr przyjety",
+      "adConsent": false,
+      "input": {
+        "gad_campaign_id": "12345678901234567890"
+      },
+      "expected": {
+        "gad_campaign_id": "12345678901234567890"
+      }
+    },
+    {
+      "name": "gad_campaign_id 21 cyfr odrzucony",
+      "adConsent": false,
+      "input": {
+        "gad_campaign_id": "123456789012345678901"
+      },
+      "expected": null
+    },
+    {
+      "name": "gad_campaign_id z litera odrzucony",
+      "adConsent": false,
+      "input": {
+        "gad_campaign_id": "12a",
+        "utm_source": "x"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "odsylacz: male litery, bez www",
+      "adConsent": false,
+      "input": {
+        "referrer_host": "WWW.Bing.com"
+      },
+      "expected": {
+        "referrer_host": "bing.com"
+      }
+    },
+    {
+      "name": "odsylacz: adres IP przyjety",
+      "adConsent": false,
+      "input": {
+        "referrer_host": "10.0.0.1"
+      },
+      "expected": {
+        "referrer_host": "10.0.0.1"
+      }
+    },
+    {
+      "name": "odsylacz bez kropki odrzucony",
+      "adConsent": false,
+      "input": {
+        "referrer_host": "localhost"
+      },
+      "expected": null
+    },
+    {
+      "name": "odsylacz ze spacja odrzucony",
+      "adConsent": false,
+      "input": {
+        "referrer_host": "bad host!",
+        "utm_source": "x"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "odsylacz 253 znaki przyjety",
+      "adConsent": false,
+      "input": {
+        "referrer_host": {
+          "concat": [
+            {
+              "repeat": "a",
+              "times": 249
+            },
+            ".com"
+          ]
+        }
+      },
+      "expected": {
+        "referrer_host": {
+          "concat": [
+            {
+              "repeat": "a",
+              "times": 249
+            },
+            ".com"
+          ]
+        }
+      }
+    },
+    {
+      "name": "odsylacz 254 znaki odrzucony",
+      "adConsent": false,
+      "input": {
+        "referrer_host": {
+          "concat": [
+            {
+              "repeat": "a",
+              "times": 250
+            },
+            ".com"
+          ]
+        }
+      },
+      "expected": null
+    },
+    {
+      "name": "bramka platnosci nie jest filtrowana na poziomie dotkniecia",
+      "adConsent": false,
+      "input": {
+        "referrer_host": "checkout.stripe.com"
+      },
+      "expected": {
+        "referrer_host": "checkout.stripe.com"
+      }
+    },
+    {
+      "name": "odsylacz ze znakiem kelwina malymi literami",
+      "adConsent": false,
+      "input": {
+        "referrer_host": "\u212a.com"
+      },
+      "expected": {
+        "referrer_host": "k.com"
+      },
+      "sqlLocaleSensitive": true,
+      "asymmetry": "JS toLowerCase() zamienia znak kelwina U+212A na k, lower() w SQL tylko w locale C.UTF-8 (w C odsylacz odpada) - TS jest tu LAGODNIEJSZY od bazy w locale C, ale wynik TS jest punktem stalym SQL w kazdym locale"
+    },
+    {
+      "name": "sciezka z query odrzucona",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "/x?y=1"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "sciezka z fragmentem odrzucona",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "/x#y"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "sciezka bez ukosnika odrzucona",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "events"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "sciezka ze spacja odrzucona",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "/a b"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "sciezka z BEL odrzucona",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "/a\u0007b"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "sciezka z DEL odrzucona",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "/a\u007fb"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "sciezka z NEL odrzucona",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "/a\u0085b"
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "sciezka 512 znakow przyjeta",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": {
+          "concat": [
+            "/",
+            {
+              "repeat": "a",
+              "times": 511
+            }
+          ]
+        }
+      },
+      "expected": {
+        "utm_source": "x",
+        "landing_path": {
+          "concat": [
+            "/",
+            {
+              "repeat": "a",
+              "times": 511
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "sciezka 513 znakow odrzucona",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": {
+          "concat": [
+            "/",
+            {
+              "repeat": "a",
+              "times": 512
+            }
+          ]
+        }
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "sciezka z emoji liczona w punktach kodowych",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": {
+          "concat": [
+            "/",
+            {
+              "repeat": "\ud83d\ude00",
+              "times": 300
+            }
+          ]
+        }
+      },
+      "expected": {
+        "utm_source": "x",
+        "landing_path": {
+          "concat": [
+            "/",
+            {
+              "repeat": "\ud83d\ude00",
+              "times": 300
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "sciezka z emoji ponad 512 punktow kodowych odrzucona",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": {
+          "concat": [
+            "/",
+            {
+              "repeat": "\ud83d\ude00",
+              "times": 512
+            }
+          ]
+        }
+      },
+      "expected": {
+        "utm_source": "x"
+      }
+    },
+    {
+      "name": "sciezka z polskimi literami przyjeta",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "/wydarzenia/\u0142\u00f3d\u017a"
+      },
+      "expected": {
+        "utm_source": "x",
+        "landing_path": "/wydarzenia/\u0142\u00f3d\u017a"
+      }
+    },
+    {
+      "name": "sciezka z BOM: TS odrzuca, SQL przyjmuje",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "/a\ufeffb"
+      },
+      "expected": {
+        "utm_source": "x"
+      },
+      "sqlExpected": {
+        "utm_source": "x",
+        "landing_path": "/a\ufeffb"
+      },
+      "asymmetry": "JS \\s i trim() obejmuja U+FEFF, a [[:space:]] Postgresa nie - w zadnym locale ani dostawcy; TS jest surowszy, a jego wynik jest punktem stalym SQL"
+    },
+    {
+      "name": "sciezka z NBSP odrzucona w TS",
+      "adConsent": false,
+      "input": {
+        "utm_source": "x",
+        "landing_path": "/a\u00a0b"
+      },
+      "expected": {
+        "utm_source": "x"
+      },
+      "sqlLocaleSensitive": true,
+      "asymmetry": "[[:space:]] w SQL zalezy od locale bazy (C: tylko ASCII; C.UTF-8: m.in. U+2003 i U+2028, bez NBSP; ICU: takze NBSP), a JS \\s obejmuje je zawsze; surowa asercja SQL pominieta, punkt staly sprawdzany"
+    },
+    {
+      "name": "sama sciezka to nie sygnal",
+      "adConsent": false,
+      "input": {
+        "landing_path": "/events/kongres"
+      },
+      "expected": null
+    },
+    {
+      "name": "same bledne pola to wejscie bezposrednie",
+      "adConsent": true,
+      "input": {
+        "gad_campaign_id": "abc",
+        "click_id_type": "fbclid",
+        "landing_path": "/x?y"
+      },
+      "expected": null
+    },
+    {
+      "name": "puste napisy to wejscie bezposrednie",
+      "adConsent": true,
+      "input": {
+        "utm_source": "",
+        "utm_medium": "",
+        "utm_campaign": "",
+        "utm_term": "",
+        "utm_content": "",
+        "gad_source": "",
+        "gad_campaign_id": "",
+        "click_id_type": "",
+        "click_id": "",
+        "landing_path": "",
+        "referrer_host": ""
+      },
+      "expected": null
+    },
+    {
+      "name": "brak pol to wejscie bezposrednie",
+      "adConsent": true,
+      "input": {},
+      "expected": null
+    },
+    {
+      "name": "sama fraza bez zrodla to dotkniecie",
+      "adConsent": false,
+      "input": {
+        "utm_term": "energia"
+      },
+      "expected": {
+        "utm_term": "energia"
+      }
+    }
+  ],
+  "window": [
+    {
+      "name": "teraz",
+      "ageMs": 0,
+      "fresh": true
+    },
+    {
+      "name": "89 dni",
+      "ageMs": 7689600000,
+      "fresh": true
+    },
+    {
+      "name": "dokladnie 90 dni (granica wlacznie)",
+      "ageMs": 7776000000,
+      "fresh": true
+    },
+    {
+      "name": "90 dni i 1 ms",
+      "ageMs": 7776000001,
+      "fresh": false
+    },
+    {
+      "name": "dzien w przyszlosci (zegar klienta)",
+      "ageMs": -86400000,
+      "fresh": true
+    }
+  ]
+}
+$cases$::jsonb AS doc;
+
+-- Tekst z listy: napis, {"repeat","times"} albo {"concat":[...]} - jak `text()`
+-- w adAttributionSqlMirror.test.ts.
+CREATE FUNCTION pg_temp.ad_text(p jsonb) RETURNS text
+LANGUAGE sql IMMUTABLE AS $fn$
+  SELECT CASE
+    WHEN p IS NULL OR jsonb_typeof(p) = 'null' THEN NULL
+    WHEN jsonb_typeof(p) = 'string' THEN p #>> '{}'
+    WHEN p ? 'repeat' THEN repeat(p->>'repeat', (p->>'times')::integer)
+    ELSE (SELECT string_agg(pg_temp.ad_text(part), '' ORDER BY ord)
+            FROM jsonb_array_elements(p->'concat') WITH ORDINALITY AS e(part, ord))
+  END
+$fn$;
+
+-- Pola dotkniecia z listy -> obiekt jsonb z rozwinietymi tekstami.
+CREATE FUNCTION pg_temp.ad_touch_value(p jsonb) RETURNS jsonb
+LANGUAGE sql IMMUTABLE AS $fn$
+  SELECT CASE WHEN p IS NULL OR jsonb_typeof(p) = 'null' THEN NULL ELSE COALESCE(
+    (SELECT jsonb_object_agg(e.key, to_jsonb(pg_temp.ad_text(e.value))) FROM jsonb_each(p) AS e),
+    '{}'::jsonb) END
+$fn$;
+
+-- Projekcja porownania (patrz naglowek): rodzaj klikniecia tylko obok
+-- identyfikatora, bez NULL-i.
+CREATE FUNCTION pg_temp.ad_touch_projection(p jsonb) RETURNS jsonb
+LANGUAGE sql IMMUTABLE AS $fn$
+  SELECT CASE WHEN p IS NULL OR jsonb_typeof(p) = 'null' THEN NULL ELSE jsonb_strip_nulls(jsonb_build_object(
+    'landing_path', p->'landing_path',
+    'referrer_host', p->'referrer_host',
+    'utm_source', p->'utm_source',
+    'utm_medium', p->'utm_medium',
+    'utm_campaign', p->'utm_campaign',
+    'utm_term', p->'utm_term',
+    'utm_content', p->'utm_content',
+    'gad_source', p->'gad_source',
+    'gad_campaign_id', p->'gad_campaign_id',
+    'click_id', p->'click_id',
+    'click_id_type', CASE WHEN p->>'click_id' IS NULL THEN NULL ELSE p->'click_id_type' END
+  )) END
+$fn$;
+
+-- `_event_ads_touch` na polach z listy, z `ts` w ms epoki jak u klienta.
+CREATE FUNCTION pg_temp.ad_touch_sql(p_fields jsonb, p_consent boolean, p_ts_ms numeric, p_now_ms numeric)
+RETURNS jsonb LANGUAGE sql STABLE AS $fn$
+  SELECT pg_temp.ad_touch_projection(public._event_ads_touch(
+    p_fields || jsonb_build_object('ts', p_ts_ms), p_consent, to_timestamp(p_now_ms / 1000.0)))
+$fn$;
+
+-- -- 1-3. Funkcje i lista ---------------------------------------------------------
+SELECT has_function('public', '_event_ads_clean', ARRAY['text', 'integer'],
+  '_event_ads_clean(text, integer) istnieje');
+SELECT has_function('public', '_event_ads_touch', ARRAY['jsonb', 'boolean', 'timestamp with time zone'],
+  '_event_ads_touch(jsonb, boolean, timestamptz) istnieje');
+
+SELECT ok(
+  (SELECT (doc->>'version')::integer = 1
+      AND jsonb_array_length(doc->'rules') > 0
+      AND jsonb_array_length(doc->'clean') > 0
+      AND jsonb_array_length(doc->'touch') > 0
+      AND jsonb_array_length(doc->'window') > 0
+     FROM ad_attribution_cases),
+  'wspolna lista przypadkow wczytana (wersja 1, cztery niepuste sekcje)');
+
+-- -- 4. Literaly regul w ZYWEJ definicji ---------------------------------------------
+-- COALESCE: brak funkcji (to_regprocedure = NULL) to tez naruszenie, nie cisza.
+SELECT is(
+  ARRAY(
+    SELECT format('%s (%s): brak literalu %s', r->>'name', r->>'fn', s)
+      FROM ad_attribution_cases,
+           jsonb_array_elements(doc->'rules') AS r,
+           jsonb_array_elements_text(r->'sql') AS s
+     WHERE COALESCE(strpos(pg_get_functiondef(to_regprocedure(r->>'fn')), s), 0) = 0
+     ORDER BY 1),
+  ARRAY[]::text[],
+  'kazdy literal SQL z listy regul stoi w ZYWEJ definicji funkcji');
+
+-- -- 5-6. _event_ads_clean jak cleanUtm ----------------------------------------------
+SELECT is(
+  ARRAY(
+    SELECT format('%s: oczekiwano %s, jest %s', c->>'name',
+             COALESCE(quote_literal(left(want, 120)), 'NULL'), COALESCE(quote_literal(left(got, 120)), 'NULL'))
+      FROM (SELECT c,
+                   public._event_ads_clean(pg_temp.ad_text(c->'input'), 100) AS got,
+                   pg_temp.ad_text(CASE WHEN c ? 'sqlExpected' THEN c->'sqlExpected' ELSE c->'expected' END) AS want
+              FROM ad_attribution_cases, jsonb_array_elements(doc->'clean') AS c
+             WHERE NOT COALESCE((c->>'sqlLocaleSensitive')::boolean, false)) x
+     WHERE got IS DISTINCT FROM want
+     ORDER BY 1),
+  ARRAY[]::text[],
+  '_event_ads_clean daje dla kazdego przypadku to samo co cleanUtm (poza jawnymi asymetriami)');
+
+SELECT is(
+  ARRAY(
+    SELECT c->>'name'
+      FROM ad_attribution_cases, jsonb_array_elements(doc->'clean') AS c
+     WHERE pg_temp.ad_text(c->'expected') IS NOT NULL
+       AND public._event_ads_clean(pg_temp.ad_text(c->'expected'), 100)
+           IS DISTINCT FROM pg_temp.ad_text(c->'expected')
+     ORDER BY 1),
+  ARRAY[]::text[],
+  'wynik cleanUtm przechodzi przez _event_ads_clean bez zmian (punkt staly, kazde locale)');
+
+-- -- 7-8. _event_ads_touch jak sanitizeTouch -----------------------------------------
+SELECT is(
+  ARRAY(
+    SELECT format('%s: oczekiwano %s, jest %s', c->>'name',
+             COALESCE(left(want::text, 160), 'NULL'), COALESCE(left(got::text, 160), 'NULL'))
+      FROM (SELECT c,
+                   pg_temp.ad_touch_sql(pg_temp.ad_touch_value(c->'input'), (c->>'adConsent')::boolean,
+                                        (doc->>'nowMs')::numeric, (doc->>'nowMs')::numeric) AS got,
+                   pg_temp.ad_touch_projection(pg_temp.ad_touch_value(
+                     CASE WHEN c ? 'sqlExpected' THEN c->'sqlExpected' ELSE c->'expected' END)) AS want
+              FROM ad_attribution_cases, jsonb_array_elements(doc->'touch') AS c
+             WHERE NOT COALESCE((c->>'sqlLocaleSensitive')::boolean, false)) x
+     WHERE got IS DISTINCT FROM want
+     ORDER BY 1),
+  ARRAY[]::text[],
+  '_event_ads_touch daje dla kazdego przypadku to samo co sanitizeTouch (poza jawnymi asymetriami)');
+
+SELECT is(
+  ARRAY(
+    SELECT c->>'name'
+      FROM ad_attribution_cases, jsonb_array_elements(doc->'touch') AS c
+     WHERE jsonb_typeof(c->'expected') = 'object'
+       AND pg_temp.ad_touch_sql(pg_temp.ad_touch_value(c->'expected'), (c->>'adConsent')::boolean,
+                                (doc->>'nowMs')::numeric, (doc->>'nowMs')::numeric)
+           IS DISTINCT FROM pg_temp.ad_touch_projection(pg_temp.ad_touch_value(c->'expected'))
+     ORDER BY 1),
+  ARRAY[]::text[],
+  'dotkniecie z sanitizeTouch przechodzi przez _event_ads_touch bez zmian (punkt staly, kazde locale)');
+
+-- -- 9. Okno 90 dni -------------------------------------------------------------------
+SELECT is(
+  ARRAY(
+    SELECT w->>'name'
+      FROM ad_attribution_cases, jsonb_array_elements(doc->'window') AS w
+     WHERE (pg_temp.ad_touch_sql(jsonb_build_object('utm_source', 'x'), false,
+              (doc->>'nowMs')::numeric - (w->>'ageMs')::numeric, (doc->>'nowMs')::numeric) IS NOT NULL)
+           <> (w->>'fresh')::boolean
+     ORDER BY 1),
+  ARRAY[]::text[],
+  'okno 90 dni: _event_ads_touch odcina dokladnie tam, gdzie freshAttribution');
+
+SELECT * FROM finish();
+ROLLBACK;
