@@ -34,6 +34,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, type SupabaseFromStub } from "@/test/supabaseChain";
 import { analyticsCouponsKey, analyticsStatusKey } from "@/lib/analytics/queryKeys";
+import { freezeClock } from "@/test/time";
 import type { ExtRow } from "../CouponsListPage";
 
 /** Ksztalt pytania, ktore panel zadaje przed usunieciem (patrz `@/lib/appDialogs`). */
@@ -43,6 +44,11 @@ type ConfirmDialogOptions = {
   destructive?: boolean;
   confirmLabel?: string;
 };
+
+// Zegar zamrożony (`check:clock-freeze`): kupony "przeszłe" (2020) i "przyszłe"
+// (2099-12-31) mają takie zostać względem stałego "teraz" (FIXED_NOW, 2099-06-15),
+// a nie względem dnia przebiegu; daty w kluczach analityki to tylko etykiety zakresu.
+freezeClock();
 
 const h = vi.hoisted(() => ({
   from: null as unknown,

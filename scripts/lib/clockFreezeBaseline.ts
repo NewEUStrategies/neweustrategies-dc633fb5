@@ -48,7 +48,6 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
     1,
   ],
   ["src/components/admin/clubs/__tests__/ClubMembersTab.test.tsx", 3],
-  ["src/components/admin/coupons/organisms/__tests__/CouponsListPage.test.tsx", 4],
   ["src/components/admin/donations/organisms/__tests__/AdminDonations.test.tsx", 3],
   ["src/components/admin/donations/organisms/__tests__/DonationsRecordsPanel.test.tsx", 4],
   ["src/components/admin/events/__tests__/EventAudienceGrantHistoryPanel.test.tsx", 8],
