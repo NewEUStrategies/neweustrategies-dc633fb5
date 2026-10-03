@@ -85,33 +85,6 @@ export default defineConfig({
         "src/routeTree.gen.ts",
         "src/integrations/supabase/types.ts",
         "src/lib/icons/lucideIconNodes.generated.ts",
-        // USTALENIE 2026-09-03 o SĄSIEDZIE tego wpisu, zapisane tutaj, bo
-        // `src/lib/icons/DynamicIconFull.tsx` NIE MA progu per-ścieżka (obowiązuje
-        // go próg globalny) - a to jest jedyne miejsce w tej konfiguracji, które
-        // mówi o tym katalogu.
-        //
-        // `DynamicIconFull.tsx` MIERZY SIĘ NIEDETERMINISTYCZNIE i NIE JEST TO
-        // REGRESJA. Wydanie 9 zmierzyło szum własny pomiaru na dwóch pełnych
-        // przebiegach TEGO SAMEGO HEAD-a: gałęzie 7 -> 9 (linie 12 i funkcje 4
-        // stabilne).
-        //
-        // MECHANIZM: `iconFor()` trzyma MEMO NA POZIOMIE MODUŁU
-        // (`const cache = new Map()`), a gałąź `if (!Cmp)` zależy od tego, czy
-        // ktoś PRZED nami poprosił już o tę samą nazwę ikony. Moduł jest
-        // współdzielony przez trzy pliki testowe
-        // (`lib/icons/__tests__/DynamicIcon.test.tsx`, `lib/__tests__/brandIcons.test.ts`,
-        // `components/clubs/__tests__/clubAtomChips.test.tsx`), więc zbiór
-        // wykonanych gałęzi zależy od KOLEJNOŚCI i PODZIAŁU plików na forki -
-        // czyli od szeregowania vitesta, nie od kodu. Dodatkowo gałęzie aliasu
-        // (`LUCIDE_ICON_NODES[kebab] ? kebab : LUCIDE_ICON_ALIASES[kebab]`)
-        // wykonują się tylko dla nazw, o które ktoś realnie zapytał.
-        //
-        // ŚWIADOMIE BEZ ZMIANY: memo per moduł jest tu zachowaniem
-        // PRODUKCYJNYM (stabilna tożsamość komponentu dla Reacta), więc
-        // determinizacja pomiaru wymagałaby albo hooka czyszczącego cache
-        // w produkcji, albo scalenia trzech plików testowych. Jedno i drugie
-        // jest droższe niż wartość dwóch gałęzi. Zapisane, żeby następna osoba
-        // nie szukała regresji tam, gdzie jej nie ma.
         // Test-only helpers.
         "src/test/**",
         // Pure code-splitting glue (React.lazy + Suspense wrappers). The actual

@@ -14,10 +14,13 @@
 // tego testu bramka zaczęłaby mierzyć listę, która nie opisuje już niczego.
 //
 // KOSZT NAZWY SPOZA TEJ LISTY. `DynamicIcon` dla nieznanej nazwy dociąga
-// leniwy chunk pełnego rejestru ikon (`lucideIconNodes.generated.ts`:
+// leniwie JEDNĄ z 4 porcji danych SVG (`chunks/icons-N.json`, mniej więcej
+// ćwierć rejestru: 106-116 KB źródła, 23-25 KB gzip - zmierzone 2026-10-03
+// na plikach JSON; dwie porcje, gdy nazwa jest aliasem ikony z innej porcji).
+// Do 2026-09-29 był to cały rejestr naraz (`lucideIconNodes.generated.ts`:
 // 473 KB źródeł, 109 KB gzip). W treści i w panelu to poprawny kompromis;
 // w chrome (menu, mega panel, pasek dolny) nazwy pochodzą z konfiguracji
-// w bazie, więc jedna literówka redaktora kosztowałaby ten chunk KAŻDEGO
+// w bazie, więc jedna literówka redaktora kosztowałaby tę porcję KAŻDEGO
 // anonima. Stąd bramka i stąd `MenuIcon` (wariant bez prawa do rejestru).
 
 /**

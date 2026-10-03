@@ -10,7 +10,8 @@
 // nie pokazuje pol formularza newslettera, ktore nie maja sensu poza inline.
 import { useDraggable } from "@dnd-kit/core";
 // DynamicIcon zamiast namespace-importu lucide-react (namespace-import
-// materializuje pełny rejestr ikon w bundlu entry - patrz DynamicIconFull).
+// materializuje pełny rejestr ikon w bundlu entry - patrz
+// scripts/gen-lucide-icon-nodes.mjs).
 import { Square } from "lucide-react";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
 import type { NlWidgetType, NlLang, NlWidget } from "@/lib/newsletter-builder/types";

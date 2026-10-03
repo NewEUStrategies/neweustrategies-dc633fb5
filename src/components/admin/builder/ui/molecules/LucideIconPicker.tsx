@@ -4,7 +4,7 @@
 import { useMemo, useState } from "react";
 // Katalog nazw z wygenerowanych danych ikon (klucze kebab-case) - bez
 // jakichkolwiek importów rejestru lucide-react, które materializowałyby
-// pełny zestaw ikon w bundlu entry (patrz lib/icons/DynamicIconFull).
+// pełny zestaw ikon w bundlu entry (patrz scripts/gen-lucide-icon-nodes.mjs).
 import iconNames from "@/lib/icons/iconNames.generated.json";
 // Same NAZWY zestawu kuratorowanego - czyste dane, bez `lucide-react`, więc
 // import nie dokłada do grafu ani jednej ikony (patrz curatedIconNames.ts).
@@ -790,7 +790,7 @@ export function LucideIconPicker({
                     // ikona jest poprawnym wyborem. Ale ten sam picker ustawia
                     // ikony POZYCJI MENU (MenuManager), a tam nazwa spoza
                     // zestawu kuratorowanego każe przeglądarce KAŻDEGO anonima
-                    // pobrać pełny rejestr ikon (473 KB źródeł, 109 KB gzip),
+                    // pobrać leniwą porcję rejestru ikon (23-25 KB gzip),
                     // żeby narysować jedną ikonkę w nagłówku. Kropka mówi więc
                     // o koszcie PRZED kliknięciem - taniej niż obcięcie oferty,
                     // które zabrałoby redakcji ikony w treści. Znacznik jest
