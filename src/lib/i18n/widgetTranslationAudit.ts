@@ -112,24 +112,28 @@ export function classifyPair(
   en: unknown,
   defaults: { pl?: unknown; en?: unknown } = {},
 ): WidgetI18nIssueKind | null {
-  const plText = toText(pl);
-  const enText = toText(en);
-  if (plText === null && enText === null) return null;
-
-  const plNorm = normalize(plText ?? "");
-  const enNorm = normalize(enText ?? "");
-  if (!plNorm && !enNorm) return null;
-  // Treść tylko po angielsku (np. cytat źródłowy) nie jest defektem PL->EN.
+  // Bez treści PL nie ma czego tłumaczyć: pusta para, wartość nietekstowa
+  // albo treść tylko po angielsku (np. cytat źródłowy) - żadna z nich nie jest
+  // defektem PL->EN. Jedno wyjście zamiast trzech osobnych sprawdzeń, które
+  // i tak kończyły się tym samym `null`.
+  const plNorm = normalize(toText(pl) ?? "");
   if (!plNorm) return null;
+  const enText = toText(en) ?? "";
+  const enNorm = normalize(enText);
 
   const defPl = normalize(toText(defaults.pl) ?? "");
   const defEn = normalize(toText(defaults.en) ?? "");
   if (defEn && enNorm === defEn && plNorm !== defPl) return "stale_default";
 
   if (!enNorm) return "missing";
-  if (looksPolish(enText ?? "")) return "pl_text_in_en";
+  if (looksPolish(enText)) return "pl_text_in_en";
   if (enNorm === plNorm) return "same_as_pl";
   return null;
+}
+
+interface WidgetRef {
+  id: string;
+  type: string;
 }
 
 /**
@@ -144,54 +148,44 @@ export function auditBuilderI18n(
   const issues: WidgetI18nIssue[] = [];
   const seen = new Set<object>();
 
-  const visitContent = (widgetId: string, widgetType: string, content: Record<string, unknown>) => {
-    const defaults = getDefaults(widgetType) ?? {};
-    for (const key of Object.keys(content)) {
+  /** Pary `_pl`/`_en` jednego rekordu treści, zgłaszane pod widgetem `widget`. */
+  const auditPairs = (
+    widget: WidgetRef,
+    record: Record<string, unknown>,
+    defaults: Record<string, unknown>,
+  ) => {
+    for (const key of Object.keys(record)) {
       if (!key.endsWith("_pl")) continue;
+      const plText = toText(record[key]);
+      if (plText === null) continue;
       const base = key.slice(0, -3);
-      const kind = classifyPair(content[key], content[`${base}_en`], {
-        pl: defaults[key],
-        en: defaults[`${base}_en`],
-      });
+      const enKey = `${base}_en`;
+      const kind = classifyPair(plText, record[enKey], { pl: defaults[key], en: defaults[enKey] });
       if (!kind) continue;
       issues.push({
-        widgetId,
-        widgetType,
+        widgetId: widget.id,
+        widgetType: widget.type,
         field: base,
         kind,
         severity: SEVERITY[kind],
-        pl: preview(toText(content[key]) ?? ""),
-        en: preview(toText(content[`${base}_en`]) ?? ""),
+        pl: preview(plText),
+        en: preview(toText(record[enKey]) ?? ""),
       });
-    }
-    // Kolekcje wewnątrz widgetu (items, slides, faq...) - obiekty z własnymi
-    // parami `_pl`/`_en`. Defaultów dla nich nie znamy, więc bez stale_default.
-    for (const value of Object.values(content)) {
-      if (!Array.isArray(value)) continue;
-      for (const item of value) {
-        if (!isRecord(item)) continue;
-        for (const key of Object.keys(item)) {
-          if (!key.endsWith("_pl")) continue;
-          const base = key.slice(0, -3);
-          const kind = classifyPair(item[key], item[`${base}_en`]);
-          if (!kind) continue;
-          issues.push({
-            widgetId,
-            widgetType,
-            field: base,
-            kind,
-            severity: SEVERITY[kind],
-            pl: preview(toText(item[key]) ?? ""),
-            en: preview(toText(item[`${base}_en`]) ?? ""),
-          });
-        }
-      }
     }
   };
 
-  const walk = (node: unknown): void => {
+  // `owner` = widget, w którego treści właśnie jesteśmy. Kolekcje wewnątrz
+  // widgetu (items, slides, faq...) są audytowane NA KAŻDEJ GŁĘBOKOŚCI:
+  // domyślne treści palety mają pary dwa poziomy niżej (mega-menu
+  // `columns[].links[]` i `columns[].featured`, program wydarzenia
+  // `days[].sessions[]`, sponsorzy `tiers[].sponsors[]`), a renderer robi dla
+  // nich ten sam fallback na PL. Wcześniejsza wersja schodziła tylko o jeden
+  // poziom kolekcji, więc te pola były niewidoczne dla audytu, choć
+  // `widgetTranslationFill` je tłumaczy. Defaultów dla kolekcji nie znamy,
+  // więc tam bez stale_default.
+  const walk = (node: unknown, owner: WidgetRef | null): void => {
     if (Array.isArray(node)) {
-      for (const child of node) walk(child);
+      for (const child of node) walk(child, owner);
       return;
     }
     if (!isRecord(node)) return;
@@ -201,13 +195,24 @@ export function auditBuilderI18n(
     const type = node["type"];
     const content = node["content"];
     if (typeof type === "string" && isRecord(content)) {
-      const id = typeof node["id"] === "string" ? node["id"] : "";
-      visitContent(id, type, content);
+      const widget: WidgetRef = { id: typeof node["id"] === "string" ? node["id"] : "", type };
+      // `content` oznaczony jako odwiedzony - inaczej jego pary wróciłyby
+      // drugi raz jako „kolekcja", już bez porównania z szablonem.
+      seen.add(content);
+      auditPairs(widget, content, getDefaults(type) ?? {});
+      for (const value of Object.values(content)) walk(value, widget);
+      // Poza `content` (style, ustawienia, dzieci) treści widgetu nie ma -
+      // szukamy tam wyłącznie kolejnych widgetów.
+      for (const [key, value] of Object.entries(node)) {
+        if (key !== "content") walk(value, null);
+      }
+      return;
     }
-    for (const value of Object.values(node)) walk(value);
+    if (owner) auditPairs(owner, node, {});
+    for (const value of Object.values(node)) walk(value, owner);
   };
 
-  walk(document);
+  walk(document, null);
   return issues;
 }
 

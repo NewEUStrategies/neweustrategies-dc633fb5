@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Languages } from "lucide-react";
 
 import { WidgetI18nAuditPane } from "@/components/admin/i18n/WidgetI18nAuditPane";
+import { ensureI18n as ensureWidgetAuditI18n } from "@/lib/i18n-admin-widget-audit";
 import { activeLang } from "@/lib/seo/head";
 import { getRequestUrl } from "@/lib/seo/request";
 import { SITE_NAME } from "@/lib/seo/meta";
@@ -16,6 +17,12 @@ export const Route = createFileRoute("/admin/i18n")({
     // w NON_LOCALIZED_PREFIXES, więc w praktyce rozstrzyga ciasteczko języka; to
     // jednak ta sama wartość, którą widzi ciało strony, a o zgodność karty
     // przeglądarki z interfejsem tu właśnie chodzi.
+    //
+    // Słownika panelu (`adminWidgetI18nAudit.*`) tu celowo NIE czytamy:
+    // `head()` zostaje w shellu trasy, a import nakładki na tym poziomie
+    // wciągnąłby ją do paczki wejściowej (ta sama decyzja co
+    // `admin.settings.cookie-banner.tsx`). Że tytuł karty zaczyna się od
+    // `adminWidgetI18nAudit.title`, przypina `adminI18nRoute.test.tsx`.
     const lang = activeLang(getRequestUrl() || "/admin/i18n");
     return {
       meta: [
@@ -39,9 +46,12 @@ export const Route = createFileRoute("/admin/i18n")({
 });
 
 function AdminI18nAuditPage() {
-  const { i18n } = useTranslation();
-  const lang = i18n.language === "en" ? "en" : "pl";
-  const L = (pl: string, en: string) => (lang === "pl" ? pl : en);
+  // Rejestracja nakładki w komponencie (nie na poziomie modułu) - słownik
+  // jedzie chunkiem trasy panelu, nie shellem z `head()`. Nagłówek i panel
+  // niżej czytają ten sam słownik tym samym `t()`, więc nie mogą wybrać
+  // różnych języków.
+  ensureWidgetAuditI18n();
+  const { t } = useTranslation();
 
   return (
     <div className="space-y-5">
@@ -50,15 +60,8 @@ function AdminI18nAuditPage() {
           <Languages className="h-5 w-5" />
         </span>
         <div>
-          <h1 className="text-lg font-semibold">
-            {L("Audyt tłumaczeń widgetów", "Widget translation audit")}
-          </h1>
-          <p className="text-[0.8125rem] text-muted-foreground">
-            {L(
-              "Widgety, które na wersji angielskiej pokażą polską treść lub tekst szablonowy.",
-              "Widgets that render Polish or template copy on the English version.",
-            )}
-          </p>
+          <h1 className="text-lg font-semibold">{t("adminWidgetI18nAudit.title")}</h1>
+          <p className="text-[0.8125rem] text-muted-foreground">{t("adminWidgetI18nAudit.lead")}</p>
         </div>
       </header>
 

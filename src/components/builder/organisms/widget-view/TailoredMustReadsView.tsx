@@ -84,31 +84,37 @@ function useCurrentUserFirstName(): string {
       const first = (data?.first_name ?? "").trim();
       if (first) return first;
       const display = (data?.display_name ?? "").trim();
-      return display.split(/\s+/)[0] ?? "";
+      return display.split(/\s+/)[0];
     },
   });
-  return (
-    data ??
-    (user?.user_metadata?.first_name as string | undefined) ??
-    (user?.user_metadata?.full_name as string | undefined)?.split(/\s+/)[0] ??
-    ""
-  );
+  // `||`, nie `??`: profil bez imienia zwraca "" (nie null), a wtedy imię z
+  // metadanych konta znikało zaraz po odpowiedzi bazy.
+  const meta = user?.user_metadata;
+  return data || metaText(meta?.first_name) || metaText(meta?.full_name).split(/\s+/)[0];
+}
+
+/** user_metadata to dowolny JSON od użytkownika - liczba zamiast napisu
+ *  wywracała widget na `.trim()`. */
+function metaText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function renderLabel(template: string, name: string, lang: Lang): string {
-  if (!name) {
+  const nominative = name.trim();
+  if (!nominative) {
     // Zwiń wyrażenia typu ", {name}" / " {name}!" gdy brak imienia.
     return template
       .replace(/[,\s]*\{name(?:\.[a-z]+)?\}[!.?]?/gi, "")
       .replace(/\s{2,}/g, " ")
       .trim();
   }
-  const nominative = name.trim();
   const vocative = lang === "pl" ? toPlVocative(nominative) : nominative;
+  // Funkcja zamiast napisu: w napisie zastępczym "$&" / "$'" to wzorce, więc
+  // imię z takimi znakami wstawiało fragmenty szablonu zamiast siebie.
   return template
-    .replace(/\{name\.nominative\}/gi, nominative)
-    .replace(/\{name\.vocative\}/gi, vocative)
-    .replace(/\{name\}/gi, vocative);
+    .replace(/\{name\.nominative\}/gi, () => nominative)
+    .replace(/\{name\.vocative\}/gi, () => vocative)
+    .replace(/\{name\}/gi, () => vocative);
 }
 
 type AuthorInfo = { display_name: string | null; slug: string | null; avatar_url: string | null };

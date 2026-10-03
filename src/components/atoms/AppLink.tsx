@@ -1,4 +1,5 @@
-import { useRouter } from "@tanstack/react-router";
+import { useRouter, type AnyRouter } from "@tanstack/react-router";
+import { executeRewriteInput } from "@tanstack/router-core";
 import { warmCommonWidgetChunks } from "@/components/builder/organisms/widget-view/warmWidgetChunks";
 import {
   forwardRef,
@@ -49,6 +50,35 @@ function claimPreload(href: string, now: number): boolean {
   if (preloadMemory.has(href)) return false;
   preloadMemory.set(href, now);
   return true;
+}
+
+/**
+ * Preload trasy, na którą prowadzi `href` odnośnika.
+ *
+ * `preloadRoute` NIE ZNA opcji `href` - zna ją wyłącznie `navigate`
+ * (router-core: `buildAndCommitLocation`). `preloadRoute` buduje lokalizację
+ * przez `buildLocation`, który `href` pomija, a brak `to` znaczy „bieżąca
+ * trasa": `preloadRoute({ href })` preloadował stronę, NA KTÓREJ stoimy (na /a
+ * najechanie na /b ponownie dopasowywało /a), a loader celu czekał na klik.
+ *
+ * Przekładamy więc `href` dokładnie tak, jak robi to `navigate({ href })`:
+ * ścieżka przez `rewrite.input` routera (zdejmuje prefiks języka - "/en/b" to
+ * trasa kanoniczna "/b", patrz `src/router.tsx`), query przez parser routera,
+ * hash bez "#". Preload buduje wtedy te same dopasowania (ten sam identyfikator,
+ * te same `loaderDeps`), które za chwilę zbuduje klik.
+ *
+ * `async` celowo: wyjątek przekładu staje się odrzuceniem, które wywołujący
+ * połyka razem z błędem samego preloadu - nic nie ucieka z timera do UI.
+ */
+async function preloadHref(router: AnyRouter, href: string): Promise<void> {
+  const url = new URL(href, router.origin ?? window.location.origin);
+  const search = router.options.parseSearch(url.search);
+  const hash = url.hash.slice(1);
+  await router.preloadRoute({
+    to: executeRewriteInput(router.rewrite, url).pathname,
+    search,
+    hash,
+  });
 }
 
 function isModifiedEvent(event: MouseEvent<HTMLAnchorElement>): boolean {
@@ -115,7 +145,7 @@ export const AppLink = forwardRef<HTMLAnchorElement, AppLinkProps>(function AppL
       // Prepare reading widgets only after navigation intent, not on every
       // page load. This keeps unused article chunks out of the initial visit.
       warmCommonWidgetChunks();
-      void router.preloadRoute({ href: clientHref } as never).catch(() => undefined);
+      void preloadHref(router, clientHref).catch(() => undefined);
     }, PRELOAD_DELAY_MS);
   };
 

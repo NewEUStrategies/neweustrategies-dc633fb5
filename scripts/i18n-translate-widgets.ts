@@ -15,6 +15,11 @@
  *     więc ponowne uruchomienie nie płaci drugi raz za te same segmenty,
  *   - zapis idzie per wiersz i tylko gdy cokolwiek się zmieniło.
  *
+ * Szablony palety (`WIDGETS` z `registry.tsx`) idą do zbierania i zapisu jako
+ * `getDefaults` - te same, którymi panel liczy `stale_default`. Dzięki temu
+ * skrypt tłumaczy EN zostawione na szablonie przy ZMIENIONYM PL (panel zgłasza
+ * to jako błąd), a nietkniętego szablonu palety nie rusza.
+ *
  * Usage:
  *   bun run scripts/i18n-translate-widgets.ts                 # podgląd
  *   bun run scripts/i18n-translate-widgets.ts --write         # zapis
@@ -26,9 +31,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
+import { WIDGETS } from "../src/lib/builder/registry";
 import {
   applyEnTranslations,
   collectTranslatableTexts,
+  type FillOptions,
 } from "../src/lib/i18n/widgetTranslationFill";
 import { chunkSegments, translateSegmentsPlToEn } from "../src/lib/server/aiTranslate.server";
 
@@ -43,18 +50,47 @@ const WRITE = args.includes("--write");
 const SLUG = args.find((a) => a.startsWith("--slug="))?.slice("--slug=".length);
 const MAX_CHARS = Number(args.find((a) => a.startsWith("--max-chars="))?.split("=")[1] ?? 20_000);
 
-const url = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
-const key = process.env["SUPABASE_SERVICE_ROLE_KEY"];
-
 function fail(message: string): never {
   console.error(`✗ ${message}`);
   process.exit(1);
 }
 
-if (!url) fail("Brak SUPABASE_URL / VITE_SUPABASE_URL.");
-if (!key) fail("Brak SUPABASE_SERVICE_ROLE_KEY - zapis treści wymaga klucza serwisowego.");
+/** Widget palety: typ i fabryka treści domyślnej (kształt `WIDGETS`). */
+interface PaletteWidget {
+  readonly type: string;
+  readonly defaults: () => Record<string, unknown>;
+}
 
-const supabase = createClient(url, key, { auth: { persistSession: false } });
+/**
+ * Opcje wypełniania - JEDNE dla zbierania i zapisu, więc oba kroki widzą te
+ * same pary. `getDefaults` daje szablon palety, jak `DEFAULTS_BY_TYPE`
+ * w `WidgetI18nAuditPane.tsx`: bez niego EN zostawione na szablonie przy
+ * zmienionym PL (w panelu błąd `stale_default`) nigdy nie szło do
+ * tłumaczenia, a listy nie były porównywane z szablonem element po elemencie.
+ * Szablon liczony RAZ na typ, nie przy każdym węźle.
+ */
+export function widgetFillOptions(
+  widgets: readonly PaletteWidget[],
+  maxFieldChars: number,
+): FillOptions {
+  const defaults = new Map(widgets.map((widget) => [widget.type, widget.defaults()]));
+  return { maxFieldChars, getDefaults: (type) => defaults.get(type) };
+}
+
+/**
+ * Klient z kluczem serwisowym. Konfiguracja czytana przy STARCIE przebiegu,
+ * nie przy imporcie modułu - import (test) nie kończy procesu i nie łączy się
+ * z bazą.
+ */
+function connect() {
+  const url = process.env["SUPABASE_URL"] || process.env["VITE_SUPABASE_URL"];
+  const key = process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  if (!url) fail("Brak SUPABASE_URL / VITE_SUPABASE_URL.");
+  if (!key) fail("Brak SUPABASE_SERVICE_ROLE_KEY - zapis treści wymaga klucza serwisowego.");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+type Client = ReturnType<typeof connect>;
 
 interface Row {
   id: string;
@@ -81,7 +117,7 @@ function saveCache(dict: ReadonlyMap<string, string>): void {
   writeFileSync(CACHE_PATH, `${JSON.stringify(Object.fromEntries(dict), null, 2)}\n`);
 }
 
-async function loadRows(table: "pages" | "posts"): Promise<Row[]> {
+async function loadRows(supabase: Client, table: "pages" | "posts"): Promise<Row[]> {
   let query = supabase
     .from(table)
     .select("id, slug, builder_data")
@@ -93,11 +129,12 @@ async function loadRows(table: "pages" | "posts"): Promise<Row[]> {
   return (data ?? []) as Row[];
 }
 
-async function main(): Promise<void> {
-  const opts = { maxFieldChars: MAX_CHARS };
+export async function main(): Promise<void> {
+  const supabase = connect();
+  const opts = widgetFillOptions(WIDGETS, MAX_CHARS);
   const tables = ["pages", "posts"] as const;
   const rows = new Map<(typeof tables)[number], Row[]>();
-  for (const table of tables) rows.set(table, await loadRows(table));
+  for (const table of tables) rows.set(table, await loadRows(supabase, table));
 
   // 1. Zbierz UNIKALNE segmenty z całego korpusu - jedno tłumaczenie na tekst,
   //    nawet jeśli ten sam nagłówek stoi na pięciu stronach.
@@ -188,4 +225,6 @@ async function main(): Promise<void> {
   if (!WRITE) console.log("Uruchom ponownie z --write, żeby zapisać.");
 }
 
-main().catch((e) => fail(e instanceof Error ? e.message : String(e)));
+// Przebieg tylko przy `bun run` tego pliku; import (test helpera i `main`)
+// niczego nie uruchamia - konwencja `check-i18n-default-value.ts`.
+if (import.meta.main) main().catch((e) => fail(e instanceof Error ? e.message : String(e)));

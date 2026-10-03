@@ -8718,6 +8718,157 @@ export default defineConfig({
           lines: 98,
           branches: 98,
         },
+        // >>> PF-I18N thresholds (begin)
+        // Przekrojowy kubełek „słowniki i18n" nie miał DOTĄD ŻADNEGO progu (audyt
+        // 2026-08-18, rozdz. 9: „design system i słowniki i18n - zero progów"),
+        // więc spadek pokrycia warstwy, przez którą przechodzi każdy napis
+        // serwisu, nie przewracał niczego. ZMIERZONE 2026-10-03 przebiegiem 557
+        // plików testowych (wszystkie testy importujące te moduły + bramki i18n):
+        // każdy plik niżej 100 / 100 / 100 / 100, z jednym wyjątkiem -
+        // WidgetI18nAuditPane.tsx gałęzie 67/68 (obronne `issue.pl || "—"`,
+        // nieosiągalne: audyt zgłasza wyłącznie pary z niepustym PL). Próg 98
+        // to konwencja tego pliku dla warstw zmierzonych na 100.
+        //
+        // Nakładki `src/lib/i18n-*.ts` (161 plików) liczy jeden glob: wszystkie
+        // stoją na 100 (L 1074/1074, B 216/216, F 124/124) dzięki bramce
+        // `src/lib/__tests__/i18nOverlayIntegrity.gate.test.ts`, która importuje
+        // każdą nakładkę i woła każde `ensure*I18n` dwukrotnie.
+        "src/lib/i18n.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/commonLabels.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/format.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/langCookie.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/langNegotiation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/localePath.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/localeRuntime.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/pickLocalized.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/plVocative.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/polishVocative.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/switchUiLanguage.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/useLang.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/widgetTranslationAudit.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n/widgetTranslationFill.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/locale/invitation.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/i18n/WidgetI18nAuditPane.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/routes/admin.i18n.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/atoms/LangToggle.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/atoms/LangReelSwitcher.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/components/admin/atoms/EditorLangSwitch.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        "src/lib/i18n-*.ts": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // AppLink: wstępne ładowanie celu linku (także z prefiksem /en) zamiast
+        // bieżącej trasy - runda 2 kampanii i18n. ZMIERZONE 2026-10-03: 100 / 100
+        // / 100 / 100 (AppLink.test + AppLink.preloadTarget.test, prawdziwy router).
+        "src/components/atoms/AppLink.tsx": {
+          statements: 98,
+          functions: 98,
+          lines: 98,
+          branches: 98,
+        },
+        // <<< PF-I18N thresholds (end)
       },
     },
   },

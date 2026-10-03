@@ -10,83 +10,34 @@
 // porownywac - brak wpisu to nie rozjazd, to cisza.
 //
 // Defaulty w komponentach zostaja jako ostatnia linia obrony (nowy klucz
-// dopisany bez wpisu tutaj nadal cos wyrenderuje), ale zrodlem prawdy jest ten
-// plik: `addResourceBundle` ma priorytet nad `defaultValue`.
+// dopisany bez wpisu w slowniku nadal cos wyrenderuje), ale zrodlem prawdy jest
+// slownik - rdzen plus ten plik: wpis w magazynie ma priorytet nad
+// `defaultValue`.
 import i18n from "./i18n";
 
+// TYLKO KLUCZE, KTORYCH RDZEN NIE MA. Cala reszta powierzchni (skrzynka,
+// filtry, grupowanie, preferencje kanalow, panel zgod) zyje w rdzeniu
+// (`locale/{pl,en}.ts`), a rdzen jezyka strony jest w magazynie przed
+// pierwszym renderem (patrz `src/lib/i18n.ts`). Do 2026-10-03 nakladka niosla
+// KOPIE tych kluczy z overwrite=true, a `ConsentsPanel` i dzwonek w naglowku
+// renderuja sie tam, gdzie tej nakladki nie ma (/profile/privacy, kazda strona
+// z naglowkiem; do tej zmiany takze skrzynka `NotificationsCenter` na
+// /messages): ten sam ekran zmienial napis po pierwszej wizycie na
+// /profile/notifications, a na serwerze - po pierwszym takim renderze
+// w isolate. Kopie rozjechaly sie z rdzeniem w 31 miejscach (7 PL, 24 EN,
+// m.in. „Communication consents" nad panelem z przelacznikami cookie). Kopia
+// zgodna z rdzeniem tez nie jest bezpieczna - rozjezdza sie przy pierwszej
+// poprawce rdzenia - wiec nie ma tu zadnej. Goly `grouped.moreMessages` tez
+// wypadl: rdzen ma formy mnogie (`moreMessages_one/_other`), a i18next przy
+// `count` bierze je PRZED golym kluczem, wiec kopia nigdy sie nie renderowala.
+// Zmiana brzmienia nalezy do rdzenia; `i18nNotifications.test.ts`
+// i `i18nOverlayIntegrity.gate.test.ts` oblewaja kazdy klucz rdzenia dopisany
+// tutaj.
 export const notificationsPl = {
   notifications: {
-    title: "Powiadomienia",
-    inboxSubtitle: "Wszystko, co wymaga Twojej uwagi - w jednym miejscu.",
-    empty: "Brak powiadomień",
-    noMatches: "Brak wyników dla zadanych filtrów",
-    loadMore: "Załaduj więcej",
-    markAllRead: "Oznacz wszystkie",
-    markRead: "Oznacz jako przeczytane",
-    markUnread: "Oznacz jako nieprzeczytane",
-    markGroupRead: "Oznacz całą rozmowę jako przeczytaną",
-    markGroupUnread: "Oznacz całą rozmowę jako nieprzeczytaną",
-    deleteGroup: "Usuń całą rozmowę",
-    openInbox: "Otwórz skrzynkę",
-    searchPlaceholder: "Szukaj po treści, nadawcy...",
-    filters: {
-      all: "Wszystkie",
-      unread: "Nieprzeczytane",
-      allKinds: "Wszystkie typy",
-      settings: "Ustawienia",
-    },
-    grouped: {
-      messagesFrom: "Wiadomości od {{name}}",
-      moreMessages: "i {{count}} więcej",
-    },
     settings: {
-      title: "Ustawienia powiadomień",
-      subtitle: "Wybierz, jakie alerty trafiają do skrzynki.",
       subtitleLead:
         "Zdecyduj, o czym Cię powiadamiamy i którymi kanałami. Zmiany zapisują się od razu.",
-      kindsHeader: "Typy powiadomień",
-      behaviourHeader: "Zachowanie domyślne",
-      channelsHeader: "Kanały doręczeń",
-      channelsSubtitle: "Powiadomienia poza aplikacją: push w przeglądarce i zbiorczy e-mail.",
-      kinds: {
-        security: "Alerty bezpieczeństwa (zawsze włączone)",
-      },
-      push: "Powiadomienia push w tej przeglądarce",
-      pushHint: "Alert pojawi się nawet przy zamkniętej karcie. Każde urządzenie włączasz osobno.",
-      pushDenied: "Przeglądarka odmówiła zgody na powiadomienia.",
-      pushError: "Nie udało się włączyć powiadomień push.",
-      pushUnsupported: "Ta przeglądarka lub instalacja nie wspiera powiadomień push.",
-      digest: "Digest e-mail z nieprzeczytanych powiadomień",
-      digestHint: "Jedno zbiorcze podsumowanie zamiast pojedynczych e-maili.",
-      digestOff: "Wyłączony",
-      digestDaily: "Codziennie",
-      digestWeekly: "Co tydzień",
-      groupByConversation: "Grupuj powiadomienia o wiadomościach wg rozmowy",
-      groupByConversationHint: "Zwiń wiele wiadomości z tego samego czatu w jeden wpis.",
-      autoMarkOnOpen: "Automatycznie oznaczaj wiadomości jako przeczytane po otwarciu czatu",
-      autoMarkOnOpenHint: "Wyłącz, żeby powiadomienia zostawały do ręcznego zamknięcia.",
-      chatBell: "Ikona czatu (dzwonek) w nagłówku",
-      chatBellHint:
-        "Wyłącz, żeby ukryć skrót do czatu w topbarze. Rozmowy nadal działają w /messages i doku.",
-      saved: "Zapisano preferencje",
-      saveError: "Nie udało się zapisać preferencji",
-    },
-    consents: {
-      title: "Zgody komunikacji",
-      subtitle:
-        "Zdecyduj, jakie wiadomości mogą do Ciebie trafiać. Każdą zmianę zapisujemy w niezmiennym rejestrze RODO.",
-      requiredBadge: "Wymagana",
-      notDecided: "Nie podjęto decyzji",
-      given: "Udzielono {{date}}",
-      withdrawn: "Wycofano {{date}}",
-      version: "Wersja {{version}}",
-      versionOutdated: "Nowa wersja tej zgody - potwierdź ponownie",
-      stateGiven: "udzielono",
-      stateWithdrawn: "wycofano",
-      history: "Historia zmian",
-      historyEmpty: "Brak zapisanych zmian.",
-      saved: "Zapisano zgodę",
-      saveError: "Nie udało się zapisać zgody",
     },
     page: {
       metaTitle: "Ustawienia powiadomień",
@@ -103,77 +54,9 @@ export const notificationsPl = {
 
 export const notificationsEn = {
   notifications: {
-    title: "Notifications",
-    inboxSubtitle: "Everything that needs your attention - in one place.",
-    empty: "No notifications",
-    noMatches: "No results for the selected filters",
-    loadMore: "Load more",
-    markAllRead: "Mark all",
-    markRead: "Mark as read",
-    markUnread: "Mark as unread",
-    markGroupRead: "Mark the whole conversation as read",
-    markGroupUnread: "Mark the whole conversation as unread",
-    deleteGroup: "Delete the whole conversation",
-    openInbox: "Open inbox",
-    searchPlaceholder: "Search by content, sender...",
-    filters: {
-      all: "All",
-      unread: "Unread",
-      allKinds: "All types",
-      settings: "Settings",
-    },
-    grouped: {
-      messagesFrom: "Messages from {{name}}",
-      moreMessages: "and {{count}} more",
-    },
     settings: {
-      title: "Notification settings",
-      subtitle: "Choose which alerts reach your inbox.",
       subtitleLead:
         "Decide what we notify you about and through which channels. Changes save immediately.",
-      kindsHeader: "Notification types",
-      behaviourHeader: "Default behaviour",
-      channelsHeader: "Delivery channels",
-      channelsSubtitle: "Notifications outside the app: browser push and a batched email.",
-      kinds: {
-        security: "Security alerts (always on)",
-      },
-      push: "Push notifications in this browser",
-      pushHint: "The alert shows even when the tab is closed. Enable it separately on each device.",
-      pushDenied: "The browser denied permission for notifications.",
-      pushError: "Could not enable push notifications.",
-      pushUnsupported: "This browser or installation does not support push notifications.",
-      digest: "Email digest of unread notifications",
-      digestHint: "One batched summary instead of individual emails.",
-      digestOff: "Off",
-      digestDaily: "Daily",
-      digestWeekly: "Weekly",
-      groupByConversation: "Group message notifications by conversation",
-      groupByConversationHint: "Collapse multiple messages from the same chat into one entry.",
-      autoMarkOnOpen: "Automatically mark messages as read when the chat opens",
-      autoMarkOnOpenHint: "Turn off to keep notifications until you dismiss them yourself.",
-      chatBell: "Chat icon (bell) in the header",
-      chatBellHint:
-        "Turn off to hide the chat shortcut in the topbar. Conversations still work in /messages and the dock.",
-      saved: "Preferences saved",
-      saveError: "Could not save preferences",
-    },
-    consents: {
-      title: "Communication consents",
-      subtitle:
-        "Decide which messages may reach you. Every change is recorded in an immutable GDPR register.",
-      requiredBadge: "Required",
-      notDecided: "No decision yet",
-      given: "Given {{date}}",
-      withdrawn: "Withdrawn {{date}}",
-      version: "Version {{version}}",
-      versionOutdated: "New version of this consent - please confirm again",
-      stateGiven: "given",
-      stateWithdrawn: "withdrawn",
-      history: "Change history",
-      historyEmpty: "No recorded changes.",
-      saved: "Consent saved",
-      saveError: "Could not save the consent",
     },
     page: {
       metaTitle: "Notification settings",

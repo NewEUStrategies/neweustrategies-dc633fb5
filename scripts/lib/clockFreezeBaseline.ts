@@ -209,7 +209,6 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   ["src/lib/realtime/__tests__/useEntityPresence.test.tsx", 10],
   ["src/lib/realtime/__tests__/useEventConfirmedMutationBranches.test.tsx", 1],
   ["src/lib/server/__tests__/ttsServer.test.ts", 2],
-  ["src/lib/tracker/__tests__/feedServer.test.ts", 2],
   ["src/routes/__tests__/adminBillingAuditRoute.test.tsx", 7],
   ["src/routes/__tests__/adminBillingReconcileRoute.test.tsx", 2],
   ["src/routes/__tests__/adminCareersRoute.test.tsx", 46],
@@ -286,18 +285,10 @@ export const CLOCK_FREEZE_BASELINE: readonly (readonly [string, number])[] = [
   // (`src/test/time.ts`). Liczby przy plikach mogą już tylko maleć.
   ["src/routes/__tests__/sitemapRoute.test.tsx", 1],
   ["src/routes/__tests__/trackerIndexRoute.test.tsx", 3],
-  // 2026-09-22 - BILETY WYDARZEŃ (zmiany 0038-0040 z panelu Lovable): trzy testy
-  // weszły z literałami daty bez zamrożenia zegara. Triage przeczytany na
-  // produkcji - żaden literał nie jest mierzony względem `Date.now()`:
-  //   * `EventTicketsPanel` - daty okna sprzedaży i progu są WYŁĄCZNIE wejściem
-  //     `formatDateTime` w napisach; status biletu (`ticketStatus`) bierze
-  //     `availability` z fixture (`adminSalesRows`: "on_sale"), więc do zegara
-  //     nie schodzi,
-  //   * `eventCodesApi` - `validFrom`/`validUntil` porównywane MIĘDZY SOBĄ
-  //     (kolejność okna kodu) i konwertowane `toISOString`,
-  //   * `ticketPresentation` - `ticketStatus` dostaje JAWNE `now` z testu.
-  // Liczby przy plikach mogą już tylko maleć.
-  ["src/components/admin/events/__tests__/EventTicketsPanel.test.tsx", 5],
-  ["src/lib/events/__tests__/eventCodesApi.test.ts", 2],
-  ["src/lib/events/__tests__/ticketPresentation.test.ts", 3],
+  // 2026-10-03 - ZAPADKA ZESZŁA ZA STANEM FAKTYCZNYM: trzy testy biletów
+  // wydarzeń (`EventTicketsPanel`, `eventCodesApi`, `ticketPresentation`, wpisy
+  // z 2026-09-22) zamrażają już zegar (`freezeClock()` + `relativeIso`, b58f2cd),
+  // a `tracker/feedServer` - `vi.useFakeTimers` + `vi.setSystemTime` (b3d53ab).
+  // Bramka zgłaszała je jako rozbrojone (`--print-baseline`: 0), więc ich wpisy
+  // zeszły z listy.
 ];

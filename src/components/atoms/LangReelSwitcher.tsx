@@ -1,10 +1,7 @@
 // Mobilny przełącznik języka w formie "taśmy": w spoczynku widać aktywny
 // język, a hover / focus / tap odsłania język docelowy przesunięciem w pionie.
-import { useTranslation } from "react-i18next";
-import { useRouter } from "@tanstack/react-router";
-
-import { localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
-import { setClientLang } from "@/lib/i18n/localeRuntime";
+import type { AppLang } from "@/lib/i18n/localePath";
+import { useUiLangSwitch } from "@/lib/i18n/switchUiLanguage";
 import { cn } from "@/lib/utils";
 
 type FlagCode = "pl" | "gb";
@@ -42,38 +39,10 @@ function FlagSvg({ code }: { code: FlagCode }) {
 const FLAGS: Record<AppLang, FlagCode> = { pl: "pl", en: "gb" };
 
 export function LangReelSwitcher({ label, className }: { label: string; className?: string }) {
-  const { i18n } = useTranslation();
-  const router = useRouter({ warn: false });
-  const routerPath = router?.state?.location?.pathname ?? "/";
-  const pathLang = stripLangPrefix(routerPath).lang;
-  const current: AppLang = pathLang ?? ((i18n.language ?? "pl").startsWith("en") ? "en" : "pl");
+  // Wspólna ścieżka przełączenia (src/lib/i18n/switchUiLanguage.ts) - ta sama
+  // co w `LangToggle` i widgecie "language switch" buildera.
+  const { current, switchTo } = useUiLangSwitch();
   const target: AppLang = current === "pl" ? "en" : "pl";
-
-  const switchTo = (next: AppLang) => {
-    if (next === current) return;
-    setClientLang(next);
-    void i18n.changeLanguage(next);
-    try {
-      localStorage.setItem("i18nextLng", next);
-      document.documentElement.lang = next;
-    } catch {
-      /* noop */
-    }
-    const internal = stripLangPrefix(
-      router?.state?.location?.pathname ??
-        (typeof window !== "undefined" ? window.location.pathname : "/"),
-    ).pathname;
-    const href = localizedPath(internal, next);
-    if (router) {
-      try {
-        void router.navigate({ href, replace: true, resetScroll: false });
-        return;
-      } catch {
-        /* fallthrough */
-      }
-    }
-    if (typeof window !== "undefined") window.location.href = href;
-  };
 
   return (
     <button

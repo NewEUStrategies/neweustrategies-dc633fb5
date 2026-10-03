@@ -53,6 +53,46 @@ export const SITE_TIME_ZONE = "Europe/Warsaw";
  */
 export const DATE_ONLY_TIME_ZONE = "UTC";
 
+/**
+ * Pamięć zbudowanych formaterów `Intl` (klucz: locale + opcje).
+ *
+ * Budowa `Intl.DateTimeFormat`/`Intl.NumberFormat` to najdroższa część
+ * formatowania: zmierzone na Node 22 ~74 µs za każdą budowę wobec ~2 µs za samo
+ * `format()` gotowym formaterem. Wcześniej płaciło się to przy KAŻDEJ dacie,
+ * czyli listing z kilkudziesięcioma datami tracił milisekundy CPU na render -
+ * w SSR na Workers (budżet CPU) i w hydratacji. Kombinacji jest mało i są stałe
+ * (kilkanaście literałów opcji × 2 języki), więc każdy formater buduje się raz.
+ * Ten sam wzorzec: `isUsableTimeZone` w `lib/events/timezone.ts`.
+ *
+ * Bezpieczne, bo formater nie zależy od niczego poza kluczem: strefa jest w
+ * opcjach zawsze jawna (`formatDate` ją domyka), więc strefa maszyny nie ma
+ * wstępu. Konstrukcja, która rzuca, niczego nie zapisuje - gałęzie ratunkowe
+ * działają jak dawniej.
+ *
+ * Limit jest bezpiecznikiem, nie optymalizacją: opcje z danych (strefa, waluta
+ * z bazy) nie mogą rozdmuchać pamięci. Po jego przekroczeniu formater buduje
+ * się jak dawniej - poprawność nie zależy od pamięci, tylko szybkość.
+ */
+const FORMATTER_CACHE_LIMIT = 64;
+const dateFormatters = new Map<string, Intl.DateTimeFormat>();
+const numberFormatters = new Map<string, Intl.NumberFormat>();
+
+function cachedFormatter<F>(
+  cache: Map<string, F>,
+  locale: string,
+  opts: object | undefined,
+  build: () => F,
+): F {
+  // Klucz po WARTOŚCI opcji: miejsca wywołania podają świeży literał za
+  // każdym razem, więc tożsamość obiektu nigdy by nie trafiła.
+  const key = `${locale}|${JSON.stringify(opts ?? {})}`;
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
+  const formatter = build();
+  if (cache.size < FORMATTER_CACHE_LIMIT) cache.set(key, formatter);
+  return formatter;
+}
+
 export function uiLocale(lang: string | undefined): string {
   return LOCALE[uiLang(lang)];
 }
@@ -88,7 +128,13 @@ export function formatDate(
   const withZone: Intl.DateTimeFormatOptions =
     opts.timeZone === undefined ? { ...opts, timeZone: SITE_TIME_ZONE } : opts;
   try {
-    return new Intl.DateTimeFormat(uiLocale(lang), withZone).format(d);
+    const locale = uiLocale(lang);
+    return cachedFormatter(
+      dateFormatters,
+      locale,
+      withZone,
+      () => new Intl.DateTimeFormat(locale, withZone),
+    ).format(d);
   } catch {
     // GAŁĄŹ RATUNKOWA MUSI BYĆ W TEJ SAMEJ STREFIE co gałąź główna - inaczej
     // sama degradacja produkuje rozjazd, którego ten plik ma nie dopuszczać.
@@ -190,7 +236,13 @@ export function formatNumber(
   opts?: Intl.NumberFormatOptions,
 ): string {
   try {
-    return new Intl.NumberFormat(uiLocale(lang), opts).format(value);
+    const locale = uiLocale(lang);
+    return cachedFormatter(
+      numberFormatters,
+      locale,
+      opts,
+      () => new Intl.NumberFormat(locale, opts),
+    ).format(value);
   } catch {
     return String(value);
   }

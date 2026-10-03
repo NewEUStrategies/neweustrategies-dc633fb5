@@ -1,11 +1,10 @@
 // Small site-chrome widgets (header/footer), extracted from SimpleWidgets.
 
 import { useTranslation } from "react-i18next";
-import { useRouter } from "@tanstack/react-router";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { useTheme } from "@/components/ThemeProvider";
-import { localizedPath, stripLangPrefix, type AppLang } from "@/lib/i18n/localePath";
-import { setClientLang } from "@/lib/i18n/localeRuntime";
+import type { AppLang } from "@/lib/i18n/localePath";
+import { useUiLangSwitch } from "@/lib/i18n/switchUiLanguage";
 
 type FlagCode = "pl" | "gb";
 
@@ -42,37 +41,10 @@ function FlagSvg({ code }: { code: FlagCode }) {
  * tekstowej etykiety obok przełącznika.
  */
 export function LangSwitcherDropdown({ label }: { label: string }) {
-  const { i18n, t } = useTranslation();
-  const router = useRouter({ warn: false });
-  const routerPath = router?.state?.location?.pathname ?? "/";
-  const pathLang = stripLangPrefix(routerPath).lang;
-  const current: AppLang = pathLang ?? ((i18n.language ?? "pl").startsWith("en") ? "en" : "pl");
-
-  const switchTo = (target: AppLang) => {
-    if (target === current) return;
-    setClientLang(target);
-    void i18n.changeLanguage(target);
-    try {
-      localStorage.setItem("i18nextLng", target);
-      document.documentElement.lang = target;
-    } catch {
-      /* noop */
-    }
-    const currentPath =
-      router?.state?.location?.pathname ??
-      (typeof window !== "undefined" ? window.location.pathname : "/");
-    const internal = stripLangPrefix(currentPath).pathname;
-    const href = localizedPath(internal, target);
-    if (router) {
-      try {
-        void router.navigate({ href, replace: true, resetScroll: false });
-        return;
-      } catch {
-        /* fallthrough */
-      }
-    }
-    if (typeof window !== "undefined") window.location.href = href;
-  };
+  const { t } = useTranslation();
+  // Wspólna ścieżka przełączenia (src/lib/i18n/switchUiLanguage.ts) - ta sama
+  // co w headerze (`LangReelSwitcher`) i mobilnej szufladzie (`LangToggle`).
+  const { current, switchTo } = useUiLangSwitch();
 
   const options: ReadonlyArray<{ lang: AppLang; flag: FlagCode; name: string }> = [
     { lang: "pl", flag: "pl", name: t("common.lang.pl") },

@@ -3,7 +3,6 @@ import { createStart, createMiddleware, createCsrfMiddleware } from "@tanstack/r
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
 import { gpcMiddleware } from "@/lib/consent/gpc.server";
 import { isLocalizablePath, localizedPath, normalizeLang } from "@/lib/i18n/localePath";
-import { LANG_COOKIE, LANG_COOKIE_MAX_AGE } from "@/lib/i18n/langCookie";
 import { langCookieHeaderValue, resolveHomepageLang } from "@/lib/i18n/langNegotiation";
 import { maybeLog404, resolveRedirectForRequest } from "@/lib/seo/redirects.server";
 import { documentCacheMiddleware } from "@/lib/http/documentCache.server";
@@ -65,6 +64,22 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   }
 });
 
+/**
+ * Czy klient rozmawia z nami po https - od tego zależy atrybut `Secure`
+ * ciasteczka języka. Za proxy/CDN `url.protocol` opisuje tylko odcinek
+ * proxy -> origin, więc rozstrzyga pierwszy (najbliższy klientowi) wpis
+ * `x-forwarded-proto`; pusty albo brak -> schemat samego żądania. Jedna
+ * definicja dla obu middleware'ów językowych: dawniej każdy parsował nagłówek
+ * osobno, a dwie kopie mogły się rozjechać i zapisać różne warianty tego
+ * samego ciasteczka zależnie od wejścia.
+ */
+function isHttpsRequest(request: Request, url: URL): boolean {
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+    url.protocol.replace(":", "");
+  return proto === "https";
+}
+
 // Legacy `?lang=` deep links predate URL-path i18n. Redirect them to the
 // canonical, path-prefixed URL so link equity consolidates on one URL per
 // language and the destination is edge-cacheable. Localizable paths map the
@@ -94,15 +109,12 @@ const legacyLangQueryMiddleware = createMiddleware().server(async ({ request, ne
       headers: { Location: `${localizedPath(url.pathname, lang)}${suffix}` },
     });
   }
-  const proto =
-    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
-    url.protocol.replace(":", "");
-  const secure = proto === "https" ? "; Secure" : "";
+  // Ten sam serializer co negocjacja "/" - jedno źródło atrybutów ciasteczka.
   return new Response(null, {
     status: 302,
     headers: {
       Location: `${url.pathname}${suffix}`,
-      "Set-Cookie": `${LANG_COOKIE}=${lang}; Path=/; Max-Age=${LANG_COOKIE_MAX_AGE}; SameSite=Lax${secure}`,
+      "Set-Cookie": langCookieHeaderValue(lang, isHttpsRequest(request, url)),
     },
   });
 });
@@ -137,12 +149,12 @@ const homepageLangMiddleware = createMiddleware().server(async ({ request, next 
   );
   if (!decision.lang) return next();
 
-  const proto =
-    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
-    url.protocol.replace(":", "");
   const headers = new Headers();
   if (decision.persistCookie) {
-    headers.append("Set-Cookie", langCookieHeaderValue(decision.lang, proto === "https"));
+    headers.append(
+      "Set-Cookie",
+      langCookieHeaderValue(decision.lang, isHttpsRequest(request, url)),
+    );
   }
 
   if (!decision.location) {

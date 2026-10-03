@@ -5,11 +5,22 @@
  * ("Cześć, Marku" zamiast "Cześć, Marek"). Zasada bezpieczeństwa: jeśli imię
  * jest nietypowe (obce znaki, inicjały, wielowyrazowe), zwracamy mianownik -
  * lepiej neutralnie niż błędnie.
+ *
+ * To JEDYNY silnik wołacza w repo: nagłówek widgetu "Tailored must-reads"
+ * (`toPlVocative` w `./plVocative`) deleguje tu odmianę każdego członu.
+ * Wcześniej widget miał własne reguły i ten sam użytkownik dostawał w mailu
+ * "Mateuszu", a na stronie "Mateusu".
  */
 
 export type PolishGender = "male" | "female" | "unknown";
 
-/** Wyjątki, których nie da się poprawnie wyprowadzić regułami. */
+/**
+ * Wyjątki, których nie da się poprawnie wyprowadzić regułami.
+ *
+ * Czytamy WYŁĄCZNIE przez `irregularVocative` (Object.hasOwn): zwykły odczyt
+ * `IRREGULAR[imię]` trafiał w Object.prototype, więc imię "Constructor" dawało
+ * funkcję zamiast napisu i wołacz rzucał TypeError (a z nim cały mail).
+ */
 const IRREGULAR: Record<string, string> = {
   paweł: "Pawle",
   karol: "Karolu",
@@ -40,22 +51,46 @@ const IRREGULAR: Record<string, string> = {
   iza: "Izo",
   kuba: "Kubo",
   barnaba: "Barnabo",
+  // Ruchome "e" (Kacper, Kacpra) - reguła -r -> -rze dałaby "Kacperze".
+  kacper: "Kacprze",
 };
 
+function irregularVocative(lower: string): string | undefined {
+  return Object.hasOwn(IRREGULAR, lower) ? IRREGULAR[lower].toLowerCase() : undefined;
+}
+
 /** Męskie imiona zakończone na -a. */
-const MALE_A = new Set(["kuba", "barnaba", "bonawentura", "aleksy", "kosma"]);
+const MALE_A = new Set(["kuba", "barnaba", "bonawentura", "kosma"]);
 
 const POLISH_NAME_RE = /^[A-Za-zĄĆĘŁŃÓŚŹŻąćęłńóśźż'-]+$/;
 
-function isVowel(ch: string): boolean {
-  return "aeiouyąęóAEIOUYĄĘÓ".includes(ch);
-}
+/** Miękkie spółgłoski przed samogłoską piszemy przez "i": Staś -> Stasiu. */
+const SOFT_BEFORE_VOWEL: ReadonlyMap<string, string> = new Map([
+  ["ś", "si"],
+  ["ź", "zi"],
+  ["ć", "ci"],
+  ["ń", "ni"],
+]);
 
-function keepCase(source: string, produced: string): string {
-  if (source[0] && source[0] === source[0].toUpperCase()) {
-    return produced.charAt(0).toUpperCase() + produced.slice(1);
+/**
+ * Przenosi wielkość liter z mianownika na wołacz. Wspólny początek zachowuje
+ * litery źródła znak po znaku (McDonald -> McDonaldzie, O'Brien -> O'Brienie);
+ * dopisana końcówka jest wielka tylko dla imienia pisanego WERSALIKAMI
+ * (ANNA -> ANNO). Dawne `keepCase` zmniejszało wszystko poza pierwszą literą,
+ * więc "Anna-Maria" wychodziła jako "Anna-mario".
+ */
+function restoreCase(source: string, producedLower: string): string {
+  let same = 0;
+  while (
+    same < source.length &&
+    same < producedLower.length &&
+    source[same].toLowerCase() === producedLower[same]
+  ) {
+    same++;
   }
-  return produced.toLowerCase();
+  const tail = producedLower.slice(same);
+  const allCaps = source === source.toUpperCase();
+  return source.slice(0, same) + (allCaps ? tail.toUpperCase() : tail);
 }
 
 export function detectPolishGender(name: string): PolishGender {
@@ -67,47 +102,75 @@ export function detectPolishGender(name: string): PolishGender {
 }
 
 function femaleVocative(lower: string): string {
+  // Żeńskie imiona spoza wzorca -a (Nicole, Karin, Miriam) są nieodmienne -
+  // bez tego rodzaj "female" ze słownika dawał "Nicolo" i "Kario".
+  if (!lower.endsWith("a")) return lower;
   const stem = lower.slice(0, -1);
-  // Zdrobnienia z miękkim tematem: Kasia -> Kasiu, Ania -> Aniu, Zosia -> Zosiu.
-  if (/(si|ci|ni|zi|dzi|ki|gi)$/.test(stem)) return `${stem}u`;
+  // Zdrobnienia z miękkim tematem: Kasia -> Kasiu, Zosia -> Zosiu, Jadzia ->
+  // Jadziu. W rodzimej pisowni -sia/-cia/-zia to zawsze zdrobnienie (pełne
+  // imiona piszemy przez -j-: Lucja, Felicja, Anastazja).
+  if (/(si|ci|zi)$/.test(stem)) return `${stem}u`;
+  // -nia bywa zdrobnieniem (Ania, Bronia, Gienia -> -niu) albo pełnym imieniem
+  // (Stefania, Melania, Eugenia -> -nio). Zdrobnienie jest dwusylabowe: przed
+  // "-nia" stoi jedna samogłoska. "i" przed inną samogłoską tylko zmiękcza
+  // (Gie-nia), ale przed spółgłoską tworzy sylabę (Ki-nia -> Kiniu).
+  if (/^(?:[^aeiouyąęó]|i(?=[aeouyąęó]))*[aeiouyąęó]nia$/.test(lower)) return `${stem}u`;
   // Krótkie zdrobnienia typu Ola/Ala/Ula.
   if (lower.length <= 4 && stem.endsWith("l")) return `${stem}u`;
   return `${stem}o`;
 }
 
 function maleVocative(lower: string): string {
+  // Męskie na -a odmieniają się jak żeńskie twardotematowe: Kosma -> Kosmo,
+  // Bonawentura -> Bonawenturo (wcześniej wracały w mianowniku).
+  if (lower.endsWith("a")) return `${lower.slice(0, -1)}o`;
   // Temat zakończony -ek gubi "e": Marek -> Marku, Jacek -> Jacku.
   if (lower.endsWith("ek")) return `${lower.slice(0, -2)}ku`;
-  if (/(sz|cz|rz|ż|dz|c|j|l|ń|ś|ź|ch)$/.test(lower)) return `${lower}u`;
-  if (/[kg]$/.test(lower)) return `${lower}u`;
+  const soft = SOFT_BEFORE_VOWEL.get(lower.slice(-1));
+  if (soft) return `${lower.slice(0, -1)}${soft}u`;
+  // Twarde -h odmienia się jak -ch: Noah -> Noahu.
+  if (/(sz|cz|rz|dz|[żcjlkgh])$/.test(lower)) return `${lower}u`;
   if (lower.endsWith("ł")) return `${lower.slice(0, -1)}le`;
   if (lower.endsWith("r")) return `${lower}ze`;
   if (lower.endsWith("st")) return `${lower.slice(0, -2)}ście`;
   if (lower.endsWith("t")) return `${lower.slice(0, -1)}cie`;
   if (lower.endsWith("d")) return `${lower.slice(0, -1)}dzie`;
-  if (lower.endsWith("n")) return `${lower}ie`;
-  if (/[bpfwmsz]$/.test(lower)) return `${lower}ie`;
-  if (isVowel(lower[lower.length - 1] ?? "")) return lower;
-  return `${lower}ie`;
+  if (/[nbpfwmszvxq]$/.test(lower)) return `${lower}ie`;
+  // Samogłoska na końcu (Jerzy, Antoni, Iwo) - wołacz równy mianownikowi.
+  return lower;
+}
+
+/** Wołacz pojedynczego członu imienia (bez spacji i łączników). */
+function vocativeWord(word: string, gender: PolishGender): string {
+  if (word.length < 2 || !POLISH_NAME_RE.test(word)) return word;
+  const lower = word.toLowerCase();
+  const resolved = gender === "unknown" ? detectPolishGender(lower) : gender;
+  const produced =
+    irregularVocative(lower) ??
+    (resolved === "female" ? femaleVocative(lower) : maleVocative(lower));
+  return restoreCase(word, produced);
+}
+
+/**
+ * Odmienia KAŻDY człon rozdzielony spacją lub łącznikiem ("Anna-Maria" ->
+ * "Anno-Mario", "Jan Paweł" -> "Janie Pawle"); separatory zostają bez zmian,
+ * a człony nietypowe (inicjały, cyfry, obce znaki) wracają w mianowniku.
+ */
+export function polishVocativeParts(text: string, gender: PolishGender = "unknown"): string {
+  return text
+    .split(/(\s|-)/)
+    .map((part) => vocativeWord(part, gender))
+    .join("");
 }
 
 /**
  * Zwraca imię w wołaczu. Dla nieznanych/obcych form zwraca wejście bez zmian.
  */
 export function polishVocative(rawName: string, gender: PolishGender = "unknown"): string {
-  const name = rawName.trim();
-  if (!name) return "";
   // Tylko pierwszy człon (np. "Anna Maria" -> "Anno").
-  const first = name.split(/\s+/)[0] ?? "";
-  if (first.length < 2 || !POLISH_NAME_RE.test(first)) return first;
-
-  const lower = first.toLowerCase();
-  const irregular = IRREGULAR[lower];
-  if (irregular) return keepCase(first, irregular);
-
-  const resolved = gender === "unknown" ? detectPolishGender(first) : gender;
-  const produced = resolved === "female" ? femaleVocative(lower) : maleVocative(lower);
-  return keepCase(first, produced);
+  // `split` zawsze zwraca co najmniej jeden element (dla "" - [""]).
+  const first = rawName.trim().split(/\s+/)[0];
+  return polishVocativeParts(first, gender);
 }
 
 /**

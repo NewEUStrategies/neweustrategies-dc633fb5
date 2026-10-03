@@ -148,6 +148,7 @@ import { fail, ok, supabaseFromStub, type SupabaseFromStub } from "@/test/supaba
 import { supabaseRpcStub, type SupabaseRpcStub } from "@/test/supabase/rpc";
 import { realtimeStub, type FakeChannel, type RealtimeStub } from "@/test/supabase/realtime";
 import { axeViolations, summarize } from "@/test/axe";
+import i18n from "@/lib/i18n";
 import { realT } from "@/test/i18nReal";
 import { activeChannelCount } from "@/lib/realtime/tableChannelHub";
 import { DEFAULT_NOTIFICATION_PREFERENCES } from "@/lib/notifications/preferences";
@@ -857,6 +858,28 @@ describe("NotificationsCenter - tryby", () => {
     expect(screen.getByLabelText(t("notifications.settings.kinds.security"))).toBeDisabled();
     // Ustawienia nie niosą skrzynki.
     expect(screen.queryByLabelText(t("notifications.searchPlaceholder"))).toBeNull();
+  });
+
+  it("tryb `preferences` bierze podtytuł ze słownika także po angielsku, bez pomocy trasy", async () => {
+    // `notifications.settings.subtitleLead` wnosi WYŁĄCZNIE nakładka
+    // `i18n-notifications`. Komponent czyta ten klucz sam (wybiera go ternary,
+    // więc `check:i18n-overlay-imports` go nie widzi), a nakładkę importowała
+    // dotąd tylko trasa /profile/notifications. Ten plik jej nie importuje -
+    // jak każde inne miejsce, które zamontuje tryb `preferences` - i bez importu
+    // w komponencie angielski interfejs dostawał polski `defaultValue`.
+    const key = "notifications.settings.subtitleLead";
+    await i18n.changeLanguage("en");
+    try {
+      await mountCenter("preferences");
+      const lead = realT("en")(key);
+      expect(lead).not.toBe(key);
+      expect(screen.getByText(lead)).toBeInTheDocument();
+    } finally {
+      // Najpierw odmontowanie: powrót języka przy zamontowanym drzewie to
+      // re-render poza `act`.
+      cleanup();
+      await i18n.changeLanguage("pl");
+    }
   });
 
   it("tryb `consents` montuje panel zgód zamiast skrzynki i ustawień", async () => {
