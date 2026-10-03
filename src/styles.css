@@ -3112,11 +3112,18 @@ select option {
     line-height: 1.55;
   }
 
-  /* Hide app chrome */
-  header,
-  footer,
+  /* Hide app chrome. Tylko chrome serwisu - <header> artykułu (tytuł, meta)
+     MUSI zostać, więc nie celujemy w gołe `header`/`footer`. */
+  [data-site-shell] > header,
+  [data-site-shell] > footer,
   nav,
-  aside[aria-label],
+  aside,
+  [data-reading-header],
+  [role="dialog"],
+  [data-sonner-toaster],
+  main button,
+  main [role="button"],
+  iframe,
   [data-site-header],
   [data-site-footer],
   [data-floating-share],
@@ -3164,11 +3171,36 @@ select option {
     height: auto !important;
   }
 
-  /* Expand link URLs after the text */
-  a[href]:not([href^="#"])::after {
+  /* Treść zawsze ciemna i czytelna na papierze (ekranowe muted/opacity
+     dawały szary, ledwie widoczny tekst). */
+  main *,
+  main *::before {
+    color: #111 !important;
+    opacity: 1 !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+  main {
+    background: #fff !important;
+  }
+  main h1 {
+    font-size: 22pt !important;
+    line-height: 1.2 !important;
+    margin: 0 0 4mm !important;
+    text-align: left !important;
+  }
+  main header {
+    text-align: left !important;
+    margin-bottom: 6mm !important;
+  }
+  main a {
+    text-decoration: underline;
+  }
+  /* Adres tylko dla linków zewnętrznych w treści, drobno - bez zaśmiecania. */
+  .article-body a[href^="http"]::after {
     content: " (" attr(href) ")";
-    font-size: 9pt;
-    color: #555;
+    font-size: 8pt;
+    color: #666 !important;
     word-break: break-all;
   }
 
@@ -3218,6 +3250,10 @@ select option {
     word-break: break-all;
   }
   .print-brief-footer {
+    gap: 6mm;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     position: fixed;
     bottom: 0;
     left: 0;
