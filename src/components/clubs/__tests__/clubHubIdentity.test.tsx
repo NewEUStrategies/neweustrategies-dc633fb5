@@ -69,6 +69,7 @@ vi.mock("@/components/clubs/molecules/ClubCoverEditor", () => ({
   },
 }));
 
+import { QueryClientProvider } from "@tanstack/react-query";
 import { ClubHubIdentity } from "@/components/clubs/molecules/ClubHubIdentity";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { clubViewRow } from "@/test/clubs/fixtures";
@@ -152,6 +153,32 @@ describe("ClubHubIdentity - pas okładki", () => {
     expect(img).toHaveAttribute("loading", "eager");
     expect(img).toHaveAttribute("fetchpriority", "high");
     expect(img?.className).not.toContain("oi-fade-in");
+  });
+
+  // `OptimizedImage` trzyma stan błędu lokalnie. Bez `key` po jednym 404 pas
+  // zostawał na zaślepce także po udanym wgraniu NOWEJ okładki, a zaślepka
+  // wychodziła z `aria-hidden` jako nienazwany `role="img"`.
+  it("po błędzie ładowania pas zostaje dekoracją, a nowa okładka montuje obraz od zera", () => {
+    const view = mount({ cover_image_url: "https://obrazy.example/zepsuta.jpg" });
+    fireEvent.error(view.container.querySelector("img") as HTMLImageElement);
+
+    expect(view.container.querySelector("img")).toBeNull();
+    const fallback = view.container.querySelector("[aria-hidden='true'] svg")?.parentElement;
+    expect(fallback?.getAttribute("aria-hidden")).toBe("true");
+    expect(view.container.querySelector("[role='img']")).toBeNull();
+
+    view.rerender(
+      <QueryClientProvider client={view.queryClient}>
+        <ClubHubIdentity
+          club={clubViewRow({ cover_image_url: "https://obrazy.example/nowa.jpg" })}
+          locale={LOCALE}
+        />
+      </QueryClientProvider>,
+    );
+    expect(view.container.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://obrazy.example/nowa.jpg",
+    );
   });
 
   // Podgląd w edytorze ma proporcję TEGO pasa, który widzi moderator - stała

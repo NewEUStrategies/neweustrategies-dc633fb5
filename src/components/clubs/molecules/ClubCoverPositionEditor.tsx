@@ -152,7 +152,10 @@ export function ClubCoverPositionEditor({
           {t("club.hub.identity.cover.position.label")}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      {/* `max-h` + przewijanie: z podglądem strony i miniaturami dialog jest
+          wyższy niż ekran telefonu w poziomie, a wyśrodkowany `fixed` bez
+          przewijania chował wtedy „Zapisz" i „Anuluj" poza krawędzią. */}
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{t("club.hub.identity.cover.position.title")}</DialogTitle>
           <DialogDescription>{t("club.hub.identity.cover.position.hint")}</DialogDescription>

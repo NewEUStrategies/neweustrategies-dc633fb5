@@ -2592,11 +2592,16 @@ SELECT pg_temp.assert(NOT public.club_is_cover_moderator('b0000000-0000-0000-000
 SET request.jwt.claim.sub = '';
 SELECT pg_temp.assert(NOT public.club_is_cover_moderator(NULL, :'cover_path'),
   'A36: anonim NIE');
--- Sondowanie: czlonek pyta o uprawnienie prowadzacego. Odpowiedz dotyczy
--- wylacznie wolajacego, wiec cudze konto daje FALSE, nie prawde o nim.
-SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000003';
+-- Sondowanie: admin najemcy pyta o uprawnienie prowadzacego. Kierunek jest
+-- ISTOTNY: `club_capabilities` sam podmienia `_user_id` na wolajacego, gdy
+-- wolajacy NIE jest adminem - para "czlonek pyta o prowadzacego" przechodzila
+-- wiec takze bez wiazania `_user_id = auth.uid()`. Adminowi podmiany nie ma,
+-- wiec bez wiazania ta asercja pada (predykat oddalby prawde o prowadzacym).
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
 SELECT pg_temp.assert(NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', :'cover_path'),
-  'A36: predykat nie odpowiada o CUDZE konto (brak sondowania uprawnien)');
+  'A36: predykat nie odpowiada o CUDZE konto - nawet adminowi (brak sondowania uprawnien)');
+SELECT pg_temp.assert(NOT public.club_can_edit_cover(:'cover_club'::uuid, 'c0000000-0000-0000-0000-000000000001'),
+  'A36: club_can_edit_cover wywolane wprost tez odpowiada wylacznie o wolajacego');
 SET request.jwt.claim.sub = 'c0000000-0000-0000-0000-000000000001';
 SELECT pg_temp.assert(
   NOT public.club_is_cover_moderator('c0000000-0000-0000-0000-000000000001', 'club-covers/okladka.jpg')
@@ -2738,6 +2743,63 @@ SELECT pg_temp.assert(
     'https://tracker.example/media/club-covers/' || :'cover_club' || '/c.png')
   = 'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/c.png',
   'A36: obcy host NIE trafia do kolumny - zapisujemy domene marki');
+
+-- Origin z BIALEJ LISTY: domena najemcy klubu (i alias www.) zostaje, bo
+-- origin mediow jest konfiguracja wdrozenia. Obcy i techniczny host schodza do
+-- domeny najemcy, a nie do stalej marki.
+UPDATE public.tenants SET domain = 'klub-a.example' WHERE id = '11111111-1111-1111-1111-111111111111';
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://klub-a.example/media/club-covers/' || :'cover_club' || '/d.jpg')
+  = 'https://klub-a.example/media/club-covers/' || :'cover_club' || '/d.jpg',
+  'A36: domena najemcy klubu zostaje w adresie');
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://www.klub-a.example/media/club-covers/' || :'cover_club' || '/e.jpg')
+  = 'https://www.klub-a.example/media/club-covers/' || :'cover_club' || '/e.jpg',
+  'A36: alias www. domeny najemcy zostaje');
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/f.jpg')
+  = 'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/f.jpg',
+  'A36: domena marki zostaje rowniez przy najemcy z wlasna domena');
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://tracker.example/media/club-covers/' || :'cover_club' || '/g.jpg')
+  = 'https://klub-a.example/media/club-covers/' || :'cover_club' || '/g.jpg',
+  'A36: obcy host schodzi do domeny NAJEMCY, nie do stalej marki');
+SELECT pg_temp.assert(
+  public.club_set_cover(:'cover_club'::uuid,
+    'https://abcdefghijklmnop.supabase.co/storage/v1/object/public/media/club-covers/' || :'cover_club' || '/h.jpg')
+  = 'https://klub-a.example/media/club-covers/' || :'cover_club' || '/h.jpg',
+  'A36: host techniczny magazynu schodzi do domeny najemcy');
+UPDATE public.tenants SET domain = NULL WHERE id = '11111111-1111-1111-1111-111111111111';
+
+-- Ustawienia klubu NIE sa druga sciezka zapisu okladki: bez walidacji adresu
+-- i z wlasna bramka (prowadzacy klubu zarchiwizowanego ja przechodzi).
+DO $$
+DECLARE v_state text; v_msg text;
+BEGIN
+  BEGIN
+    PERFORM public.club_update_settings((SELECT id FROM public.clubs WHERE slug = 'okladka'),
+      '{"cover_image_url":"https://tracker.example/p.gif"}'::jsonb);
+  EXCEPTION WHEN OTHERS THEN v_state := SQLSTATE; v_msg := SQLERRM;
+  END;
+  PERFORM set_config('pg_temp_a36.settings_cover', COALESCE(v_state, '') || '|' || COALESCE(v_msg, ''), false);
+  v_state := NULL; v_msg := NULL;
+  BEGIN
+    PERFORM public.club_update_settings((SELECT id FROM public.clubs WHERE slug = 'okladka'),
+      '{"cover_position_y":10}'::jsonb);
+  EXCEPTION WHEN OTHERS THEN v_state := SQLSTATE; v_msg := SQLERRM;
+  END;
+  PERFORM set_config('pg_temp_a36.settings_position', COALESCE(v_state, '') || '|' || COALESCE(v_msg, ''), false);
+END $$;
+SELECT pg_temp.assert(
+  current_setting('pg_temp_a36.settings_cover') = '22023|clubs: cover is written by club_set_cover',
+  format('A36: club_update_settings odrzuca cover_image_url (%s)', current_setting('pg_temp_a36.settings_cover')));
+SELECT pg_temp.assert(
+  current_setting('pg_temp_a36.settings_position') = '22023|clubs: cover is written by club_set_cover',
+  format('A36: club_update_settings odrzuca cover_position_y (%s)', current_setting('pg_temp_a36.settings_position')));
 SELECT pg_temp.assert_raises(
   format($q$ SELECT public.club_set_cover('%s'::uuid, 'https://neweuropeanstrategies.com/media/club-covers/%s/x.jpg') $q$,
     :'cover_club', :'cover_club2'),
@@ -2832,6 +2894,32 @@ SELECT public.club_set_cover(:'cover_club'::uuid,
 SELECT pg_temp.assert(
   (SELECT cover_position_y FROM public.clubs WHERE id = :'cover_club'::uuid) = 70,
   'A36: ponowny zapis TEGO SAMEGO adresu zostawia kadr');
+
+-- Reset zyje w triggerze, wiec obejmuje tez panel administracyjny
+-- (`admin_club_upsert`), ktory zmienia `cover_image_url` bez dotykania kadru.
+SET request.jwt.claim.sub = 'a0000000-0000-0000-0000-000000000001';
+SELECT public.admin_club_upsert(jsonb_build_object('id', :'cover_club',
+  'cover_image_url', 'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/panel.jpg'));
+SELECT pg_temp.assert(
+  (SELECT cover_position_y FROM public.clubs WHERE id = :'cover_club'::uuid) = 50,
+  'A36: zmiana zdjecia w panelu admina tez zeruje kadr (trigger)');
+SELECT public.club_set_cover_position(:'cover_club'::uuid, 15::smallint);
+-- Ten sam plik pod innym hostem (np. hurtowe przemarkowanie domeny) to nie
+-- nowe zdjecie - kadr zostaje.
+RESET ROLE;
+UPDATE public.clubs
+   SET cover_image_url = 'https://abcdefghijklmnop.supabase.co/storage/v1/object/public/media/club-covers/' || :'cover_club' || '/panel.jpg'
+ WHERE id = :'cover_club'::uuid;
+SELECT pg_temp.assert(
+  (SELECT cover_position_y FROM public.clubs WHERE id = :'cover_club'::uuid) = 15,
+  'A36: zmiana samego hosta (ten sam plik) nie rusza kadru');
+UPDATE public.clubs
+   SET cover_image_url = 'https://neweuropeanstrategies.com/media/club-covers/' || :'cover_club' || '/inne.jpg',
+       cover_position_y = 80
+ WHERE id = :'cover_club'::uuid;
+SELECT pg_temp.assert(
+  (SELECT cover_position_y FROM public.clubs WHERE id = :'cover_club'::uuid) = 80,
+  'A36: jawny kadr w tej samej instrukcji co nowy plik wygrywa z resetem');
 
 \echo '== A36.7 Klub zarchiwizowany: prowadzenie traci prawo, administracja nie =='
 RESET ROLE;

@@ -199,6 +199,24 @@ describe("ClubCoverPositionEditor", () => {
     expect(frameRatio("page")).toBe(4);
   });
 
+  // Z podglądem strony i miniaturami dialog jest wyższy niż ekran telefonu
+  // w poziomie; wyśrodkowany `fixed` bez przewijania chował „Zapisz".
+  it("dialog ma limit wysokości i własne przewijanie", () => {
+    render(
+      <ClubCoverPositionEditor
+        clubId={CLUB_IDS.club}
+        coverImageUrl="https://example.com/cover.png"
+        positionY={30}
+        canEdit={true}
+        onChanged={vi.fn()}
+      />,
+    );
+    fireEvent.click(openButton());
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.className).toContain("max-h-[90vh]");
+    expect(dialog.className).toContain("overflow-y-auto");
+  });
+
   it("miniatury pokazują ten sam kadr w proporcjach bramki, minisite i katalogu", () => {
     render(
       <ClubCoverPositionEditor

@@ -26819,6 +26819,7 @@ export type Database = {
           reason: string
         }[]
       }
+      club_cover_media_path: { Args: { _url: string }; Returns: string }
       club_create_thread: {
         Args: {
           p_anchor_id?: string

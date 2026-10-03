@@ -20,9 +20,11 @@
 --   2. macierz uprawnień predykatu magazynu - rola, kadencja, status, inny
 --      klub, administracja, obcy najemca, sondowanie cudzego konta, ścieżki,
 --   3. parytet z UI: `club_view.can_moderate` == predykat dla każdego aktora,
---   4. `club_set_cover`: domena marki, postać kanoniczna, prefiks TEGO klubu,
---      odmowy i granica najemcy,
---   5. `club_set_cover_position`: ten sam predykat; nowe zdjęcie zeruje kadr.
+--   4. `club_set_cover`: domena marki, biała lista domen najemcy, postać
+--      kanoniczna, prefiks TEGO klubu, odmowy i granica najemcy;
+--      `club_update_settings` nie zapisuje okładki,
+--   5. `club_set_cover_position`: ten sam predykat; zmiana pliku (także
+--      w panelu admina) zeruje kadr triggerem, zmiana samego hosta nie.
 --
 -- DML na `storage.objects` (wykonanie polityk z roli `authenticated`) żyje
 -- w `scripts/pg-harness/runtime_test.sql` (sekcja A36): tam schemat storage
@@ -35,7 +37,7 @@
 -- i rozstrzygają wołającego z JWT, nie z roli bazy.
 -- ============================================================================
 BEGIN;
-SELECT plan(45);
+SELECT plan(51);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -159,8 +161,6 @@ SELECT ok(public.club_is_cover_moderator('cccccccc-0000-0000-0000-000000000004',
 SELECT set_config('request.jwt.claims', '{"sub":"cccccccc-0000-0000-0000-000000000005"}', true);
 SELECT ok(NOT public.club_is_cover_moderator('cccccccc-0000-0000-0000-000000000005', current_setting('test.cover_path')),
   'zwykly czlonek NIE');
-SELECT ok(NOT public.club_is_cover_moderator('cccccccc-0000-0000-0000-000000000003', current_setting('test.cover_path')),
-  'predykat nie odpowiada o CUDZE konto (czlonek pyta o prowadzacego)');
 
 SELECT set_config('request.jwt.claims', '{"sub":"cccccccc-0000-0000-0000-000000000006"}', true);
 SELECT ok(NOT public.club_is_cover_moderator('cccccccc-0000-0000-0000-000000000006', current_setting('test.cover_path')),
@@ -192,6 +192,12 @@ SELECT ok(NOT public.club_is_cover_moderator('cccccccc-0000-0000-0000-0000000000
 SELECT set_config('request.jwt.claims', '{"sub":"cccccccc-0000-0000-0000-000000000001"}', true);
 SELECT ok(public.club_is_cover_moderator('cccccccc-0000-0000-0000-000000000001', current_setting('test.cover_path')),
   'admin najemcy klubu moze');
+-- Sondowanie: kierunek ISTOTNY. `club_capabilities` sam podmienia `_user_id`
+-- na wolajacego, gdy wolajacy NIE jest adminem, wiec para "czlonek pyta
+-- o prowadzacego" przechodzila takze bez wiazania `_user_id = auth.uid()`.
+-- Adminowi podmiany nie ma - bez wiazania ta asercja pada.
+SELECT ok(NOT public.club_is_cover_moderator('cccccccc-0000-0000-0000-000000000003', current_setting('test.cover_path')),
+  'predykat nie odpowiada o CUDZE konto - nawet adminowi (brak sondowania)');
 
 SELECT set_config('request.jwt.claims', '{"sub":"cccccccc-0000-0000-0000-000000000002"}', true);
 SELECT ok(public.club_is_cover_moderator('cccccccc-0000-0000-0000-000000000002', current_setting('test.cover_path')),
@@ -275,6 +281,34 @@ SELECT throws_ok(
 SELECT is(public.club_set_cover(current_setting('test.cover_club')::uuid, NULL), NULL,
   'NULL zdejmuje okladke');
 
+-- Origin z BIALEJ LISTY: domena najemcy klubu zostaje, obcy host schodzi do
+-- domeny najemcy (nie do stalej marki).
+UPDATE public.tenants SET domain = 'klub-okladka-test.example'
+ WHERE id = '11111111-1111-1111-1111-111111111111';
+SELECT is(
+  public.club_set_cover(current_setting('test.cover_club')::uuid,
+    'https://klub-okladka-test.example/media/club-covers/' || current_setting('test.cover_club') || '/d.jpg'),
+  'https://klub-okladka-test.example/media/club-covers/' || current_setting('test.cover_club') || '/d.jpg',
+  'domena najemcy klubu zostaje w adresie');
+SELECT is(
+  public.club_set_cover(current_setting('test.cover_club')::uuid,
+    'https://tracker.example/media/club-covers/' || current_setting('test.cover_club') || '/g.jpg'),
+  'https://klub-okladka-test.example/media/club-covers/' || current_setting('test.cover_club') || '/g.jpg',
+  'obcy host schodzi do domeny NAJEMCY');
+UPDATE public.tenants SET domain = NULL WHERE id = '11111111-1111-1111-1111-111111111111';
+
+-- Ustawienia klubu nie sa druga sciezka zapisu okladki.
+SELECT throws_ok(
+  format($q$ SELECT public.club_update_settings('%s'::uuid, '{"cover_image_url":"https://tracker.example/p.gif"}'::jsonb) $q$,
+    current_setting('test.cover_club')),
+  '22023', 'clubs: cover is written by club_set_cover',
+  'club_update_settings odrzuca cover_image_url');
+SELECT throws_ok(
+  format($q$ SELECT public.club_update_settings('%s'::uuid, '{"cover_position_y":10}'::jsonb) $q$,
+    current_setting('test.cover_club')),
+  '22023', 'clubs: cover is written by club_set_cover',
+  'club_update_settings odrzuca cover_position_y');
+
 SELECT set_config('request.jwt.claims', '{"sub":"cccccccc-0000-0000-0000-000000000004"}', true);
 SELECT isnt(
   public.club_set_cover(current_setting('test.cover_club')::uuid,
@@ -345,6 +379,22 @@ SELECT public.club_set_cover(current_setting('test.cover_club')::uuid,
 SELECT is(
   (SELECT cover_position_y FROM public.clubs WHERE id = current_setting('test.cover_club')::uuid), 70::smallint,
   'ponowny zapis tego samego adresu zostawia kadr');
+
+-- Reset kadru to trigger: obejmuje tez panel administracyjny.
+SELECT set_config('request.jwt.claims', '{"sub":"cccccccc-0000-0000-0000-000000000001"}', true);
+SELECT public.admin_club_upsert(jsonb_build_object('id', current_setting('test.cover_club'),
+  'cover_image_url', 'https://neweuropeanstrategies.com/media/club-covers/' || current_setting('test.cover_club') || '/panel.jpg'));
+SELECT is(
+  (SELECT cover_position_y FROM public.clubs WHERE id = current_setting('test.cover_club')::uuid), 50::smallint,
+  'zmiana zdjecia w panelu admina tez zeruje kadr');
+SELECT public.club_set_cover_position(current_setting('test.cover_club')::uuid, 15::smallint);
+UPDATE public.clubs
+   SET cover_image_url = 'https://abcdefghijklmnop.supabase.co/storage/v1/object/public/media/club-covers/'
+                         || current_setting('test.cover_club') || '/panel.jpg'
+ WHERE id = current_setting('test.cover_club')::uuid;
+SELECT is(
+  (SELECT cover_position_y FROM public.clubs WHERE id = current_setting('test.cover_club')::uuid), 15::smallint,
+  'zmiana samego hosta (ten sam plik) nie rusza kadru');
 
 SELECT * FROM finish();
 ROLLBACK;

@@ -85,10 +85,14 @@ export function OptimizedImage({
   const imgClassName = [className, hoverClass, fadeClass].filter(Boolean).join(" ") || undefined;
 
   if (errored || !finalSrc) {
+    // Obraz dekoracyjny (`alt=""` albo jawne `aria-hidden`) zostaje dekoracją
+    // także po błędzie. Wcześniej zaślepka zawsze była `role="img"` z pustą
+    // etykietą: ukryty pas okładki klubu stawał się po 404 nienazwanym
+    // obrazem w drzewie dostępności (axe: role-img-alt).
+    const decorative = alt === "" || rest["aria-hidden"] === true || rest["aria-hidden"] === "true";
     return (
       <span
-        aria-label={alt}
-        role="img"
+        {...(decorative ? { "aria-hidden": true } : { "aria-label": alt, role: "img" })}
         className={`inline-flex items-center justify-center bg-muted/40 text-muted-foreground ${className ?? ""}`}
         style={{ ...(ratio ? { aspectRatio: String(ratio) } : null), ...style }}
       >

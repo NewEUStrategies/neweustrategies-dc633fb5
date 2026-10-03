@@ -71,6 +71,7 @@ export function ClubCover({
           kafel 16:9 o szerokości ~380 px ściągał plik w pełnej rozdzielczości,
           a siatka katalogu ma ich na ekranie kilkanaście. */}
       <OptimizedImage
+        key={url}
         src={url}
         alt=""
         responsive

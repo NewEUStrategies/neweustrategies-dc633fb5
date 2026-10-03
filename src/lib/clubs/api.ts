@@ -1350,7 +1350,9 @@ export interface ClubSettingsPatch {
   rules_en?: string | null;
   icon?: string;
   accent_color?: string | null;
-  cover_image_url?: string | null;
+  // Okładki i kadru świadomie NIE ma: zapisują je wyłącznie `club_set_cover`
+  // i `club_set_cover_position` (walidacja adresu, jeden predykat uprawnień);
+  // `club_update_settings` odrzuca oba klucze.
   policy_area?: string | null;
   layout?: ClubLayout;
   who_can_post?: ClubPostPolicy;

@@ -87,7 +87,11 @@ export function ClubHubIdentity({
           // pas jest nad zgięciem, a zalecany plik ma 1920 px - telefon nie musi
           // go ściągać w pełnej rozdzielczości. `sizes` odpowiada szerokości
           // pasa: pełna szerokość ekranu aż do powłoki `max-w-[1600px]`.
+          // `key` = adres: nowe zdjęcie montuje obraz od zera. `OptimizedImage`
+          // trzyma stan błędu lokalnie, więc bez klucza po jednym 404 pas
+          // zostawał na zaślepce także po udanym wgraniu nowej okładki.
           <OptimizedImage
+            key={coverUrl}
             src={coverUrl}
             alt=""
             aria-hidden="true"
