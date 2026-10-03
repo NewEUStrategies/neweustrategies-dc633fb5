@@ -158,8 +158,8 @@ i pada na pliku z `HEAD` (podmiana pliku produkcyjnego, ten sam test).
 - **Zamknięcie okna sterowanego propem `open` gubiło ognisko na `<body>`**
   (WCAG 2.4.3): Radix oddaje je tylko swojemu `Trigger`, a większość okien
   w repo (wszystkie arkusze - moduł nie eksportuje `SheetTrigger`, hosty
-  potwierdzeń) go nie ma. Hook `useReturnFocus` (w `dialog.tsx`, używany też przez
-  `Sheet` i `AlertDialog`) oddaje ognisko elementowi, który je miał przy
+  potwierdzeń) go nie ma. Hook `useReturnFocus` (`src/lib/utils.ts`, używany przez
+  `Dialog`, `Sheet` i `AlertDialog`) oddaje ognisko elementowi, który je miał przy
   otwarciu; `onCloseAutoFocus` wywołującego z `preventDefault()` ma
   pierwszeństwo, a `<body>` (klik bez ogniska, np. Safari) nie jest celem -
   wtedy zostaje `Trigger` Radiksa.
@@ -210,9 +210,18 @@ lokalnie, porównanie zbiorów modułów w chunkach publicznych tą samą reguł
 `adminOnlyByGraph`) dał dwie przyczyny, obie w decyzjach Rollupa
 `experimentalMinChunkSize: 2048`, a nie w nowym kodzie:
 
-1. **Mikromoduł `return-focus.ts`** (~0,6 KB) przestawił scalanie tak, że chunk
-   pomocników date-fns (5,6 KB gz) wszedł do domknięcia startowego (boot 9 → 10
-   chunków). Hook przeniesiony do `dialog.tsx` - boot wraca do 9 chunków.
+1. **Nowy mały moduł przestawiał scalanie chunków startowych.** Hook
+   `useReturnFocus` w osobnym pliku (~0,6 KB) stawał się małym chunkiem, a jego
+   doklejenie przesuwało kolejne scalenia: do domknięcia startowego wchodził
+   chunk pomocników date-fns (5,6 KB gz, boot 9 → 10 chunków). Próba
+   naprawienia skutku podziałem trasy `/checkout/success` tylko przerzuciła
+   scalenia gdzie indziej (do wejścia trafił komponent `admin.analytics`
+   z ikonami spoza `vendor-lucide-boot`, boot 491,6 KB), więc ją wycofałem.
+   Eksport hooka z `dialog.tsx` wywracał 66 plików testowych z atrapą
+   `@/components/ui/dialog`. Hook mieszka więc w `src/lib/utils.ts`: plik jest
+   już w chunku wejściowym i importują go wszystkie trzy prymitywy, więc graf
+   modułów zostaje taki jak bez hooka, a przyrost ląduje w chunku, którego
+   rozmiar nie wpływa na decyzje scalania.
 2. **Pulpit analityki admina w grafie publicznym** (~190 KB kodu: AdminDashboard,
    ChartCard, `i18n-admin-analytics`). Trasa `/admin/` dzieli
    `loadAdminDashboard` między `loader` i komponent, więc splitter TanStacka
