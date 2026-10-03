@@ -30,8 +30,9 @@ const DialogPortal = DialogPrimitive.Portal;
 //
 // Hook żyje w tym pliku, a nie w osobnym module: `Sheet` i `AlertDialog`
 // importują go stąd. Osobny mikromoduł (~0,6 KB) zmieniał decyzje scalania
-// małych chunków Rollupa (`experimentalMinChunkSize`) i przerzucał pulpit
-// analityki admina do grafu publicznego (bramka `check:bundle`).
+// małych chunków Rollupa (`experimentalMinChunkSize`) i dokładał chunk
+// pomocników date-fns (5,6 KB gz) do domknięcia startowego każdej strony -
+// zmierzone `check:bundle` (boot 9 -> 10 chunków), wraca po przeniesieniu.
 
 type FocusHandler = (event: Event) => void;
 

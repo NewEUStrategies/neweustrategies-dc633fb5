@@ -158,13 +158,15 @@ i pada na pliku z `HEAD` (podmiana pliku produkcyjnego, ten sam test).
 - **Zamknięcie okna sterowanego propem `open` gubiło ognisko na `<body>`**
   (WCAG 2.4.3): Radix oddaje je tylko swojemu `Trigger`, a większość okien
   w repo (wszystkie arkusze - moduł nie eksportuje `SheetTrigger`, hosty
-  potwierdzeń) go nie ma. Nowy `return-focus.ts` (`useReturnFocus`) w `Dialog`,
-  `Sheet` i `AlertDialog` oddaje ognisko elementowi, który je miał przy otwarciu;
-  `onCloseAutoFocus` wywołującego z `preventDefault()` ma pierwszeństwo.
+  potwierdzeń) go nie ma. Hook `useReturnFocus` (w `dialog.tsx`, używany też przez
+  `Sheet` i `AlertDialog`) oddaje ognisko elementowi, który je miał przy
+  otwarciu; `onCloseAutoFocus` wywołującego z `preventDefault()` ma
+  pierwszeństwo, a `<body>` (klik bez ogniska, np. Safari) nie jest celem -
+  wtedy zostaje `Trigger` Radiksa.
 - Pliki wiersza: `accordion`, `alert-dialog`, `alert`, `avatar`, `badge`,
   `breadcrumb`, `button`, `card`, `checkbox`, `command`, `context-menu`, `dialog`,
   `hover-card`, `input`, `label`, `link-preview`, `popover`, `progress`,
-  `return-focus`, `scroll-area`, `select`, `sheet`, `skeleton`, `slider`, `sonner`,
+  `scroll-area`, `select`, `sheet`, `skeleton`, `slider`, `sonner`,
   `subscribe-button`, `switch`, `table`, `tabs`, `textarea`.
 
 ### 2.5. Galeria showcase (`signup-showcase.tsx`, `field-box.tsx`)
@@ -199,6 +201,31 @@ i pada na pliku z `HEAD` (podmiana pliku produkcyjnego, ten sam test).
   slajdu, więc obszar zdjęcia stał pusty do hydratacji.
 - Kalendarz: patrz 2.3 (brak przemontowań, mapa klas raz na moduł).
 - Globalny CSS: -238 wierszy martwego `.dlb-*`.
+
+### 2.8. Budżet paczek (`check:bundle`) - skutek uboczny scalania chunków
+
+Pierwszy push oblał „Bundle size budget": public 2892,0 KB przy progu 2877
+(`main`: 2854,7). Rozbiór inwentarzem chunków (`BUNDLE_INVENTORY=1`, oba buildy
+lokalnie, porównanie zbiorów modułów w chunkach publicznych tą samą regułą co
+`adminOnlyByGraph`) dał dwie przyczyny, obie w decyzjach Rollupa
+`experimentalMinChunkSize: 2048`, a nie w nowym kodzie:
+
+1. **Mikromoduł `return-focus.ts`** (~0,6 KB) przestawił scalanie tak, że chunk
+   pomocników date-fns (5,6 KB gz) wszedł do domknięcia startowego (boot 9 → 10
+   chunków). Hook przeniesiony do `dialog.tsx` - boot wraca do 9 chunków.
+2. **Pulpit analityki admina w grafie publicznym** (~190 KB kodu: AdminDashboard,
+   ChartCard, `i18n-admin-analytics`). Trasa `/admin/` dzieli
+   `loadAdminDashboard` między `loader` i komponent, więc splitter TanStacka
+   wydzielał go do mikromodułu `admin.index.tsx?tsr-shared=1` (~140 B). Rollup
+   dokleja taki mikromoduł do chunku wybranego po rozmiarach innych chunków: na
+   `main` trafiał do chunku trasy admina, po zmianie rozmiarów kilku widgetów
+   z tego PR-a - do `CalendarView`, a w innym buildzie do chunku wejściowego.
+   Krawędź `import()` pulpitu wychodziła wtedy z publicznego chunku.
+   `scripts/lib/routeCodeSplitting.ts` trzyma teraz dla `/admin/` `loader`
+   w jednej grupie z komponentem: import zostaje w chunku `admin.index-*`
+   niezależnie od rozmiarów reszty bundla (test w `routeCodeSplitting.test.ts`).
+
+BUDZET_WSTAWKA
 
 ---
 
