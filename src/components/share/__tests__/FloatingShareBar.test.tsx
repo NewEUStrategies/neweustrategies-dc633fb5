@@ -33,8 +33,8 @@
 //      kotwicami i licznikiem; `MutationObserver` przelicza listę po
 //      domontowaniu treści; klik woła `smoothScrollToAnchor` z tym id, zamyka
 //      arkusz mobilny i ustawia aktywną pozycję; klik w pozycję, której elementu
-//      NIE MA w DOM, nie robi NIC i nie rzuca; scrollspy przez
-//      `IntersectionObserver` wybiera NAJWYŻSZY widoczny nagłówek.
+//      NIE MA w DOM, nie robi NIC i nie rzuca; scrollspy liczony z geometrii
+//      nagłówków reaguje raz na klatkę i nie gubi sekcji przy szybkim ruchu.
 //   9. ARKUSZ MOBILNY: otwarcie, zamknięcie krzyżykiem i tłem, `Escape`,
 //      `useFocusTrap` dostaje `true` dokładnie wtedy, gdy arkusz jest otwarty,
 //      a listener `keydown` jest ZDJĘTY z okna po zamknięciu (asercja na
@@ -349,12 +349,16 @@ let articleRoot: HTMLElement | null = null;
 function mountArticle(headings: Heading[], rect: { top: number; height: number }): HTMLElement {
   const root = document.createElement("div");
   root.className = "article-body";
-  for (const heading of headings) {
+  headings.forEach((heading, index) => {
     const el = document.createElement(`h${heading.level}`);
     el.id = heading.id;
     el.textContent = heading.text;
+    Object.defineProperty(el, "getBoundingClientRect", {
+      configurable: true,
+      value: () => rectAtTop(300 + index * 1_000),
+    });
     root.appendChild(el);
-  }
+  });
   Object.defineProperty(root, "getBoundingClientRect", {
     configurable: true,
     value: () => ({
@@ -373,6 +377,15 @@ function mountArticle(headings: Heading[], rect: { top: number; height: number }
   articleRoot = root;
   h.articleRoot = root;
   return root;
+}
+
+function setHeadingTop(id: string, top: number): void {
+  const heading = document.getElementById(id);
+  if (!heading) throw new Error(`nagłówek #${id} nie istnieje`);
+  Object.defineProperty(heading, "getBoundingClientRect", {
+    configurable: true,
+    value: () => rectAtTop(top),
+  });
 }
 
 const HEADINGS: Heading[] = [
@@ -562,7 +575,9 @@ function fabOf(container: HTMLElement): HTMLElement {
 function progressWidth(scope: HTMLElement): string {
   const fill = scope.querySelector<HTMLElement>('div[aria-hidden="true"] > div');
   if (!fill) throw new Error("pasek postępu nie został wyrenderowany");
-  return fill.style.width;
+  const match = fill.style.transform.match(/^scaleX\((\d+(?:\.\d+)?)\)$/);
+  if (!match) return "";
+  return `${Math.round(Number(match[1]) * 100)}%`;
 }
 
 function hasProgressBar(scope: HTMLElement): boolean {
@@ -1524,80 +1539,59 @@ describe("FloatingShareBar - spis treści", () => {
     expect(isSheetOpen(container)).toBe(true);
   });
 
-  it("scrollspy przez IntersectionObserver wybiera NAJWYŻSZY widoczny nagłówek", () => {
+  it("scrollspy wybiera ostatni nagłówek nad linią aktywacji bez przeskakiwania sekcji", () => {
     mountArticle(HEADINGS, { top: 0, height: 3000 });
     h.scanned = HEADINGS;
     const { container } = renderBar();
     const rail = railOf(container);
 
-    const observer = latestObserver();
-    expect(observer.observed.map((el) => el.id)).toEqual(["wstep", "kontekst", "wnioski"]);
-    expect(observer.rootMargin).toBe("-80px 0px -70% 0px");
-    expect(observer.thresholds).toEqual([0.01]);
-
-    const el = (id: string): Element => {
-      const found = document.getElementById(id);
-      if (!found) throw new Error(`nagłówek #${id} nie istnieje`);
-      return found;
-    };
-
-    // Dwa nagłówki widoczne jednocześnie, podane w kolejności ODWROTNEJ do
-    // układu - wygrać ma ten wyżej na ekranie, nie pierwszy z listy zdarzeń.
-    observer.emit([
-      intersectionEntry(el("wnioski"), true, 420),
-      intersectionEntry(el("kontekst"), true, 90),
-      intersectionEntry(el("wstep"), false, -300),
-    ]);
+    setHeadingTop("wstep", -300);
+    setHeadingTop("kontekst", 90);
+    setHeadingTop("wnioski", 420);
+    scrollWindowTo(500);
     expect(activeTocId(rail)).toBe("Kontekst instytucjonalny");
     expect(within(rail).getByText("2/3")).toBeInTheDocument();
 
-    // Wejście kolejnej sekcji przesuwa podświetlenie.
-    observer.emit([intersectionEntry(el("wnioski"), true, 40)]);
+    // Następna sekcja przejmuje stan dokładnie po przekroczeniu linii.
+    setHeadingTop("wnioski", 40);
+    scrollWindowTo(900);
     expect(activeTocId(rail)).toBe("Wnioski");
   });
 
-  it("scrollspy IGNORUJE zdarzenia, w których nic nie jest widoczne", () => {
+  it("scrollspy zachowuje bieżącą sekcję w przestrzeni między nagłówkami", () => {
     mountArticle(HEADINGS, { top: 0, height: 3000 });
     h.scanned = HEADINGS;
     const { container } = renderBar();
     const rail = railOf(container);
-    const observer = latestObserver();
-    const el = (id: string): Element => {
-      const found = document.getElementById(id);
-      if (!found) throw new Error(`nagłówek #${id} nie istnieje`);
-      return found;
-    };
 
-    observer.emit([intersectionEntry(el("kontekst"), true, 90)]);
+    setHeadingTop("wstep", -500);
+    setHeadingTop("kontekst", 90);
+    setHeadingTop("wnioski", 2_000);
+    scrollWindowTo(600);
     expect(activeTocId(rail)).toBe("Kontekst instytucjonalny");
 
-    // Wyjście wszystkiego z kadru NIE gasi podświetlenia - czytelnik między
-    // sekcjami nadal widzi, gdzie jest.
-    observer.emit([
-      intersectionEntry(el("kontekst"), false, -500),
-      intersectionEntry(el("wnioski"), false, 2000),
-    ]);
+    setHeadingTop("kontekst", -500);
+    scrollWindowTo(750);
     expect(activeTocId(rail)).toBe("Kontekst instytucjonalny");
   });
 
-  it("scrollspy NIE jest zakładany, gdy żadnego nagłówka nie ma w dokumencie", () => {
+  it("scrollspy nie zmienia stanu, gdy żadnego nagłówka nie ma w dokumencie", () => {
     mountArticle([], { top: 0, height: 3000 });
     h.scanned = [{ id: "brak-w-dom", text: "Sekcja bez elementu", level: 2 }];
-    renderBar();
+    const { container } = renderBar();
 
-    expect(observers).toHaveLength(0);
+    scrollWindowTo(900);
+    expect(activeTocId(railOf(container))).toBeNull();
   });
 
-  it("odmontowanie panelu rozłącza scrollspy", () => {
+  it("odmontowanie panelu anuluje oczekującą klatkę scrollspy", () => {
     mountArticle(HEADINGS, { top: 0, height: 3000 });
     h.scanned = HEADINGS;
     const { unmount } = renderBar();
-    const observer = latestObserver();
-    expect(observer.disconnected).toBe(false);
-
+    act(() => window.dispatchEvent(new Event("scroll")));
+    expect(pendingFrames.size).toBeGreaterThan(0);
     unmount();
-
-    expect(observer.disconnected).toBe(true);
+    expect(pendingFrames.size).toBe(0);
   });
 
   it("stopka arkusza mobilnego pokazuje procent i tytuł BIEŻĄCEJ sekcji", () => {

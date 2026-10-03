@@ -27,7 +27,7 @@ import "@/lib/i18n-share";
 import { toast } from "sonner";
 import { SaveArticleButton } from "@/components/atoms/SaveArticleButton";
 import type { BookmarkEntityType } from "@/hooks/useBookmarks";
-import { smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
+import { getAnchorScrollOffset, smoothScrollToAnchor } from "@/lib/smoothAnchorScroll";
 import { rafThrottle } from "@/lib/rafThrottle";
 import type { ReadingPanelSettings, SocialKey } from "@/lib/sidebarBuilder/types";
 import { DEFAULT_READING_PANEL_SETTINGS } from "@/lib/sidebarBuilder/types";
