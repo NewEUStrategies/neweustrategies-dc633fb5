@@ -363,11 +363,11 @@ describe("wartości domyślne i kształt stanu historii", () => {
     smoothScrollToAnchor("sekcja");
     const driven = driver();
     // Brak nagłówka w drzewie -> offset domyślny 80; dystans 2920 -> czas
-    // 2920*0,34 = 992,8 ms, ucięte do 950 ms - długi skok pozostaje płynny,
-    // ale nie blokuje czytelnika prawie dwie sekundy.
-    driven.tick(949);
+    // 2920*0,34 = 992,8 ms (poniżej limitu 1100 ms) - długi skok pozostaje
+    // płynny, ale nie blokuje czytelnika prawie dwie sekundy.
+    driven.tick(990);
     expect(driven.pending()).toBe(true);
-    driven.tick(950);
+    driven.tick(1000);
     expect(scrolled[scrolled.length - 1]).toBe(2920);
   });
 
@@ -375,7 +375,7 @@ describe("wartości domyślne i kształt stanu historii", () => {
     anchor("sekcja", 50_000);
     smoothScrollToAnchor("sekcja");
     const driven = driver();
-    driven.tick(950);
+    driven.tick(1100);
     expect(driven.pending()).toBe(false);
     expect(scrolled[scrolled.length - 1]).toBe(49_920);
   });
