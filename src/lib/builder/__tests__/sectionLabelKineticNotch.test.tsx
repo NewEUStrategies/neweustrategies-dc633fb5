@@ -171,6 +171,9 @@ describe("Kinetic Signal Notch", () => {
     expect(action?.className).toContain("text-[11px]");
     expect(action?.className).toContain("font-normal");
     expect(action?.className).not.toContain("font-medium");
+    // Wnetrze akcji wyjete z globalnej typografii Theme Designu, zeby nie
+    // dziedziczylo pogrubienia opisu (waga 800).
+    expect(action?.getAttribute("data-typography-exempt")).not.toBeNull();
     // Theme Design per widget (selektor `[data-w-id]x3 [data-description-root]`,
     // 0-4-0 + !important) narzuca „więcej" rozmiar (12 px) i wagę (800) opisu.
     // Kinetic musi więc mieć konkretniejszy selektor (0-5-0) z !important.
