@@ -1105,7 +1105,7 @@ export function SectionLabelRender({
 
     case "kinetic-signal-notch": {
       // Kinetic Signal Notch (23): wiersz sygnalu - trzy rowne paski i tytul
-      // inline; akcja ("wiecej") unosi sie nad nimi, wyrownana do prawej, mala,
+      // inline; akcja ("wiecej") unosi sie nad nimi, wyrownana do lewej, mala,
       // minuskulowa i szaro-pastelowa, z cienkim chevronem bez obudowy. Kolor
       // akcji w hoverze bierze sie z inline zmiennej --nes-accent (akcent
       // liczony jest w JS, wiec nie ma dla niego klasy); sama akcja stylowana
@@ -1125,9 +1125,11 @@ export function SectionLabelRender({
         : "font-display text-[12px] font-black uppercase tracking-[0.08em] transition-[letter-spacing] duration-300 motion-reduce:transition-none group-hover:tracking-[0.12em]";
       // Akcja: mala, minuskulowa, w stonowanej szaro-pastelowej szarosci
       // (kolor bazowy z `.nes-kinetic-action` w styles.css).
+      // Rozmiar akcji zabezpieczony w CSS (Theme Design force rozmiar opisu) -
+      // klasy zostaja tylko jako fallback poza widzetem.
       const actCls = isSm
-        ? "text-[9px] font-medium"
-        : "text-[11px] font-medium tracking-[0.02em]";
+        ? "text-[8px] font-medium"
+        : "text-[10px] font-medium";
       const actionStyleVars: AccentVarStyle = { "--nes-accent": accent };
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
@@ -1176,8 +1178,8 @@ export function SectionLabelRender({
         <div className={`${wrapperBase} nes-kinetic-shell group w-full min-w-0 ${padY}`}>
           {action ? (
             <div
-              className="flex w-full min-w-0 justify-end"
-              style={{ marginBottom: isSm ? "6px" : "9px" }}
+              className="flex w-full min-w-0 justify-start"
+              style={{ marginBottom: isSm ? "4px" : "3px" }}
             >
               {href && !isSm ? (
                 <AppLink

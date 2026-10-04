@@ -334,6 +334,10 @@ body {
   --audio-control-border: color-mix(in oklab, var(--brand) 80%, #000);
   --audio-icon-border: color-mix(in oklab, var(--background) 82%, var(--foreground));
   --voice-stop-border: color-mix(in oklab, var(--primary) 72%, #000);
+  /* Szary ton akcji "wiecej" w etykiecie sekcji (Kinetic Signal Notch). To
+     neutralna szarosc bez ocieplenia brandem - na jasnej plycie odrobinie
+     jaśniejsza od --muted-foreground, ale nadal WCAG AA (>4,5:1). */
+  --nes-kinetic-action: oklch(0.56 0.004 250);
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
      rozmowy. Text sits on the darker stop for guaranteed WCAG AA. */
@@ -933,6 +937,8 @@ body {
   --audio-control-border: transparent;
   --audio-icon-border: transparent;
   --voice-stop-border: transparent;
+  /* Na ciemnej plycie ten sam szary ton, tylko wyrazniejszy od otoczenia. */
+  --nes-kinetic-action: oklch(0.66 0.004 250);
   --chat-user-from: #f8934a;
   --chat-user-to: #d95a12;
   --chat-user-foreground: #ffffff;
@@ -8015,7 +8021,16 @@ html[data-mbb="on"] [data-site-shell] {
 }
 
 /* Akcja wisi NAD wierszem sygnalu, wiec scisk przy wezkich widgetach
-   adresuje ja bezposrednio, a nie przez .nes-kinetic-row. */
+   adresuje ja bezposrednio, a nie przez .nes-kinetic-row.
+
+   Theme Design per widzet (selektor `[data-w-id][data-w-id][data-w-id]
+   [data-description-root]`, 0-4-0 + !important) narzuca „wiecej" rozmiar opisu
+   (12 px), bo akcja pelni role opisu etykiety. Kinetic wygrywa konkretniejszym
+   selektorem (0-5-0), dzieki czemu „wiecej" ma wlasna, mniejsza czcionke. */
+[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action {
+  font-size: 10px !important;
+}
+
 @container (max-width: 360px) {
   .nes-kinetic-row {
     column-gap: 8px !important;
@@ -8026,14 +8041,14 @@ html[data-mbb="on"] [data-site-shell] {
     letter-spacing: 0.05em !important;
   }
 
-  .nes-kinetic-action {
-    font-size: 9px !important;
+  [data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action {
+    font-size: 8px !important;
     letter-spacing: 0;
   }
 }
 
 .nes-kinetic-action {
-  color: var(--muted-foreground);
+  color: var(--nes-kinetic-action, var(--muted-foreground));
   transition: color 0.3s ease-in-out;
 }
 

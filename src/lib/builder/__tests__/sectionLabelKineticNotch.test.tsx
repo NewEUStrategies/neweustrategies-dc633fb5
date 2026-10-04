@@ -123,6 +123,20 @@ describe("Kinetic Signal Notch", () => {
     expect(row?.previousElementSibling?.contains(action ?? null)).toBe(true);
   });
 
+  it("akcja stoi po lewej, nisko nad wierszem i w neutralnej szarości", () => {
+    const { container } = renderVariant();
+    const row = container.querySelector<HTMLElement>(".nes-kinetic-row");
+    const holder = row?.previousElementSibling as HTMLElement | null;
+    // "przesuń na lewą stronę" - akcja startuje od lewej krawędzi widgetu.
+    expect(holder?.className).toContain("justify-start");
+    expect(holder?.className).not.toContain("justify-end");
+    // "nieco niżej" - minimalny oddech nad wierszem sygnału.
+    expect(holder?.style.marginBottom).toBe("3px");
+    // "bardziej szarawy" - ton akcji to token, nie kolor w komponencie.
+    expect(stylesCss).toMatch(/--nes-kinetic-action: oklch\(/);
+    expect(stylesCss).toContain("color: var(--nes-kinetic-action");
+  });
+
   it("akcja jest linkiem niosącym akcent w zmiennej --nes-accent", () => {
     const { container } = renderVariant({ href: "/raporty" });
     const link = container.querySelector<HTMLAnchorElement>("a.nes-kinetic-action");
@@ -148,7 +162,17 @@ describe("Kinetic Signal Notch", () => {
     const { container } = renderVariant();
     const action = container.querySelector<HTMLElement>(".nes-kinetic-action");
     expect(action?.className).not.toContain("uppercase");
-    expect(action?.className).toContain("text-[11px]");
+    // "mniejsza czcionka" - 10px na desktopie, 8px w wezkiej kolumnie.
+    expect(action?.className).toContain("text-[10px]");
+    // Theme Design per widzet (selektor `[data-w-id]x3 [data-description-root]`,
+    // 0-4-0 + !important) narzuca „wiecej" rozmiar opisu (12 px). Kinetic musi
+    // wiec miec konkretniejszy selektor (0-5-0) z !important.
+    const winsOverThemeDesign = (px: string) =>
+      new RegExp(
+        `\\[data-w-id\\]\\[data-w-id\\]\\[data-w-id\\] \\.nes-kinetic-shell \\.nes-kinetic-action \\{[^}]*font-size: ${px}px !important;`,
+      );
+    expect(stylesCss).toMatch(winsOverThemeDesign("10"));
+    expect(stylesCss).toMatch(winsOverThemeDesign("8"));
   });
 
   it("ustawienie strzałki żyje: none zdejmuje ikonę, chevron daje znak", () => {
