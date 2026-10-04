@@ -84,6 +84,18 @@ const h = vi.hoisted(() => ({
   /** Gdy `true`, odczyt profili oddaje `data: null` (kształt realnie możliwy). */
   adminProfilesNull: false,
   /**
+   * Odpowiedź odczytu profili do dowiązania ZALEŻNA od porcji adresów - gdy
+   * ustawiona, zastępuje stałe `adminProfiles`. Bez tego każda porcja
+   * dostawałaby tę samą listę i test nie odróżniłby „scala wyniki wszystkich
+   * porcji" od „bierze wynik jednej".
+   */
+  adminProfilesFor: null as
+    ((emails: string[]) => { id: string; email: string | null; slug: string | null }[]) | null,
+  /** Awaria odczytu profili do dowiązania (np. 414 z bramki przed PostgREST-em). */
+  adminProfilesError: null as { message: string } | null,
+  /** Listy adresów z kolejnych `.in("email", …)` odczytu profili - dowód na porcje. */
+  adminProfileEmailBatches: [] as string[][],
+  /**
    * Gdy `true`, `createUser` pada TYLKO przy pierwszym wywołaniu. Sterowanie
    * stanem, a nie `vi.spyOn` na zamockowanym module: podszycie się pod
    * `PostgrestQueryBuilder`/`AdminUserAttributes` wymagałoby rzutowania,
@@ -203,12 +215,26 @@ vi.mock("@/integrations/supabase/client.server", () => ({
         // oraz wiersz subskrypcji zapraszanego (`.eq().in().order().limit().maybeSingle()`),
         // z którego wynika zakres obietnicy w treści maila. Każde ogniwo jest
         // jednocześnie obietnicą i łańcuchem, więc oba użycia działają.
-        const result = () =>
-          Promise.resolve({ data: h.adminProfilesNull ? null : h.adminProfiles, error: null });
+        let emailBatch: string[] | null = null;
+        const result = () => {
+          if (h.adminProfilesError)
+            return Promise.resolve({ data: null, error: h.adminProfilesError });
+          if (h.adminProfilesNull) return Promise.resolve({ data: null, error: null });
+          const rows =
+            h.adminProfilesFor && emailBatch ? h.adminProfilesFor(emailBatch) : h.adminProfiles;
+          return Promise.resolve({ data: rows, error: null });
+        };
         const chain: Record<string, unknown> = {};
-        for (const method of ["eq", "in", "order", "limit"]) {
+        for (const method of ["eq", "order", "limit"]) {
           chain[method] = () => Object.assign(result(), chain);
         }
+        chain["in"] = (column: string, values: string[]) => {
+          if (column === "email") {
+            emailBatch = values;
+            h.adminProfileEmailBatches.push(values);
+          }
+          return Object.assign(result(), chain);
+        };
         // `maybeSingle` obsługuje DWA odczyty i muszą się różnić po tabeli:
         // slug istniejącego profilu (hydracja czyta go, żeby NIE nadpisać
         // publicznego adresu) oraz wiersz subskrypcji zapraszanego.
@@ -386,6 +412,9 @@ beforeEach(() => {
   h.adminWrites = [];
   h.adminProfiles = [];
   h.adminProfilesNull = false;
+  h.adminProfilesFor = null;
+  h.adminProfilesError = null;
+  h.adminProfileEmailBatches = [];
   h.authFailsFirstOnly = false;
   h.emails = [];
   h.emailOk = true;
@@ -2027,6 +2056,13 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
     expect(h.adminWrites.find((write) => write.table === "user_roles")?.row).toMatchObject({
       role: "editor",
     });
+    // Profil SCALA (`DO UPDATE`), a nie pomija istniejącego wiersza: na tej
+    // ścieżce opiera się zachowanie sluga - zastany wiersz dostaje dane
+    // z widgetu, a kolumny spoza ładunku (slug) zostają nietknięte.
+    expect(h.adminWrites.find((write) => write.table === "profiles")?.options).toEqual({
+      onConflict: "id",
+      ignoreDuplicates: false,
+    });
 
     // Ślad audytowy: status `accepted` i źródło ze slugiem strony.
     const insert = db
@@ -2039,6 +2075,8 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
       status: "accepted",
       source: "provision:o-nas",
       invited_by: IDS.caller,
+      // Ślad wskazuje konto, które `createUser` właśnie oddał.
+      auth_user_id: h.authUserId,
     });
     // Metadane niosą widget, żeby dało się odtworzyć, skąd konto się wzięło.
     expect(insert.metadata).toEqual({ widgetId: "w-1", provisioned: true });
@@ -2060,6 +2098,31 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
       "user_roles",
     ]);
     expect(h.adminWrites[0].row).toMatchObject({ id: IDS.existingUser });
+  });
+
+  it("ISTNIEJĄCE konto BEZ zaproszenia dostaje DOKŁADNIE JEDEN ślad - z identyfikatorem TEGO konta", async () => {
+    // `skipped` nie zwalnia ze śladu: import ma zostawić rekord, skąd osoba
+    // trafiła do zespołu, także gdy jej konto powstało wcześniej innym
+    // kanałem. Ślad nie może też zależeć od tego, czy w przebiegu powstało
+    // JAKIEKOLWIEK nowe konto (warunek w rodzaju `created > 0`) - tu nie
+    // powstało żadne. I musi wskazywać konto ZASTANE, a nie identyfikator,
+    // który oddałby `createUser` (atrapa ma inny), gdyby go wywołano.
+    db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
+    db.setResponse("user_invitations", (chain) => (chain.has("insert") ? ok(null) : ok([])));
+    rpcUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    const result = await provision({ pageSlug: "o-nas", role: "editor", autoLink: false });
+    expect(result).toEqual({ created: 0, skipped: 1, linked: 0, errors: [] });
+    expect(h.authCalls).toHaveLength(0);
+    const inserts = provisionAuditInserts();
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({
+      tenant_id: IDS.tenant,
+      email: "nowa@example.org",
+      role: "editor",
+      status: "accepted",
+      source: "provision:o-nas",
+      auth_user_id: IDS.existingUser,
+    });
   });
 
   it("konto bez adresu w wyniku RPC nie jest uznane za istniejące", async () => {
@@ -2267,8 +2330,9 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
       bio_pl: "Bio PL",
       phone: "+48000000000",
       job_title: "Analityczka",
-      slug: "nowa-osoba",
     });
+    // Slugu tu NIE MA - nadaje go baza (dowód i powód: sekcja 11).
+    expect(profile).not.toHaveProperty("slug");
     const author = h.adminWrites.find((write) => write.table === "author_profiles")?.row as {
       org_functions: { pl: string; en: string }[];
       is_public: boolean;
@@ -2449,15 +2513,160 @@ describe("provisionTeamMembers - zapis roli i odmowa zapisu hydracji", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 9c. PROVISIONING: JEDEN odczyt istniejących zaproszeń zamiast N+1.
+// 9c. PROVISIONING: istniejące zaproszenia czytane PORCJAMI przed pętlą,
+//     zamiast N+1 - i zamiast jednego GET-a, którego URL rośnie z zespołem.
 // ---------------------------------------------------------------------------
 
-describe("provisionTeamMembers - jeden odczyt istniejących zaproszeń na stronę", () => {
+describe("provisionTeamMembers - odczyt istniejących zaproszeń porcjami, przed pętlą osób", () => {
   beforeEach(() => {
     grantAdmin();
   });
 
-  it("strona z KILKOMA osobami pyta `user_invitations` dokładnie RAZ", async () => {
+  // Ta sama liczba co `INVITATION_LOOKUP_CHUNK_SIZE` w module - celowo
+  // nieeksportowana, żeby nie poszerzać powierzchni modułu server functions.
+  // Wynika z pomiaru długości URL-a (~52 znaki na adres), więc jej zmiana
+  // tam ma być świadoma także tutaj.
+  const CHUNK = 50;
+
+  /** Strona z `n` osobami (`osoba<i>@example.org`); oddaje adresy w kolejności. */
+  function bigTeamPage(n: number): string[] {
+    const emails = Array.from({ length: n }, (_, i) => `osoba${i}@example.org`);
+    db.setResponse(
+      "pages",
+      ok({
+        id: IDS.page,
+        builder_data: builderDoc(
+          emails.map((email, i) => teamWidget({ id: `w-${i}`, email, name: `Osoba ${i}` })),
+        ),
+      }),
+    );
+    return emails;
+  }
+
+  /** Listy adresów z kolejnych odczytów `user_invitations` (bez wstawień śladu). */
+  function lookupBatches(): string[][] {
+    return db
+      .chainsFor("user_invitations")
+      .filter((chain) => !chain.has("insert"))
+      .map((chain) => chain.argsOf("in")?.[1] as string[]);
+  }
+
+  it("strona WIĘKSZA niż porcja: ceil(n/porcja) odczytów po najwyżej porcję adresów - trafienia z KAŻDEJ wyciszają ślad", async () => {
+    // 2 * 50 + 1: dwie pełne porcje i reszta z jednego adresu - krawędź,
+    // na której gubi się ostatnia osoba albo powstaje pusty odczyt.
+    const emails = bigTeamPage(2 * CHUNK + 1);
+    // Każda porcja oddaje jako „już zaproszony" swój OSTATNI adres. Gdyby
+    // zbiór brał wynik tylko jednej porcji (np. pierwszej albo ostatniej),
+    // osoby z pozostałych dostałyby drugi rekord śladu.
+    db.setResponse("user_invitations", (chain) => {
+      if (chain.has("insert")) return ok(null);
+      const asked = chain.argsOf("in")?.[1] as string[];
+      return ok([{ email: asked[asked.length - 1] }]);
+    });
+    const result = await provisionPage();
+    expect(result.errors).toEqual([]);
+
+    const batches = lookupBatches();
+    expect(batches).toHaveLength(Math.ceil(emails.length / CHUNK));
+    for (const batch of batches) expect(batch.length).toBeLessThanOrEqual(CHUNK);
+    // Razem dokładnie wszystkie adresy, każdy raz, w kolejności strony.
+    expect(batches.flat()).toEqual(emails);
+    // Każda porcja nadal zawężona do najemcy wywołującego.
+    for (const chain of db.chainsFor("user_invitations").filter((c) => !c.has("insert"))) {
+      expect(chain.calls.filter((call) => call.method === "eq").map((call) => call.args)).toEqual([
+        ["tenant_id", IDS.tenant],
+      ]);
+    }
+
+    const silenced = [emails[CHUNK - 1], emails[2 * CHUNK - 1], emails[2 * CHUNK]];
+    expect(provisionAuditInserts().map((row) => row.email)).toEqual(
+      emails.filter((email) => !silenced.includes(email)),
+    );
+  });
+
+  it("awaria DRUGIEJ porcji odrzuca CAŁE wywołanie, zanim powstanie jakiekolwiek konto", async () => {
+    // Pierwsza porcja przeszła i osoby z niej „wiadomo" - mimo to nikt nie
+    // jest zakładany: pominięcie porcji, która padła, dałoby jej osobom dubel
+    // śladu, a założonych kont nie da się już cofnąć.
+    const emails = bigTeamPage(CHUNK + 1);
+    db.setResponse("user_invitations", (chain) => {
+      if (chain.has("insert")) return ok(null);
+      const asked = chain.argsOf("in")?.[1] as string[];
+      return asked.includes(emails[CHUNK]) ? fail("414 Request-URI Too Large") : ok([]);
+    });
+    await expect(provisionPage({ pageSlug: "o-nas", autoLink: true })).rejects.toThrow(
+      "414 Request-URI Too Large",
+    );
+    expect(lookupBatches()).toHaveLength(2);
+    expect(h.authCalls).toHaveLength(0);
+    expect(h.adminWrites).toHaveLength(0);
+    expect(provisionAuditInserts()).toHaveLength(0);
+    expect(db.chainsFor("pages").some((chain) => chain.has("update"))).toBe(false);
+  });
+
+  it("dowiązanie widgetów czyta profile TYMI SAMYMI porcjami i scala trafienia z każdej", async () => {
+    // Odczyt profili do dowiązania też ma `.in("email", …)` w adresie GET -
+    // jeden odczyt na stronę dawał na dużym zespole 414, a ten błąd nie był
+    // czytany: konta powstawały, a wynik mówił `linked: 0`, `errors: []`.
+    const emails = bigTeamPage(2 * CHUNK + 1);
+    db.setResponse("pages", (chain) =>
+      chain.has("update")
+        ? ok(null)
+        : ok({
+            id: IDS.page,
+            builder_data: builderDoc(
+              emails.map((email, i) => teamWidget({ id: `w-${i}`, email, name: `Osoba ${i}` })),
+            ),
+          }),
+    );
+    db.setResponse("user_invitations", (chain) => (chain.has("insert") ? ok(null) : ok([])));
+    // Każda porcja zna tylko SWÓJ pierwszy adres - wynik jednej porcji nie
+    // wystarczy, żeby dowiązać wszystkie trzy osoby.
+    h.adminProfilesFor = (asked) => [
+      { id: `id-${asked[0]}`, email: asked[0], slug: `slug-${asked[0]}` },
+    ];
+    const result = await provisionPage({ pageSlug: "o-nas", autoLink: true });
+
+    expect(result.errors).toEqual([]);
+    expect(h.adminProfileEmailBatches).toHaveLength(Math.ceil(emails.length / CHUNK));
+    for (const batch of h.adminProfileEmailBatches) {
+      expect(batch.length).toBeLessThanOrEqual(CHUNK);
+    }
+    expect(h.adminProfileEmailBatches.flat()).toEqual(emails);
+    expect(result.linked).toBe(3);
+    expect(db.chainsFor("pages").some((chain) => chain.has("update"))).toBe(true);
+  });
+
+  it("awaria odczytu profili do dowiązania jest JAWNYM błędem - strona nie jest zapisywana", async () => {
+    bigTeamPage(3);
+    db.setResponse("user_invitations", (chain) => (chain.has("insert") ? ok(null) : ok([])));
+    h.adminProfilesError = { message: "414 Request-URI Too Large" };
+    await expect(provisionPage({ pageSlug: "o-nas", autoLink: true })).rejects.toThrow(
+      "link_lookup_failed:414 Request-URI Too Large",
+    );
+    expect(db.chainsFor("pages").some((chain) => chain.has("update"))).toBe(false);
+  });
+
+  it("odmowa zapisu dowiązanej strony jest JAWNYM błędem, a nie `linked` bez skutku", async () => {
+    const emails = bigTeamPage(1);
+    db.setResponse("pages", (chain) =>
+      chain.has("update")
+        ? fail("new row violates row-level security policy")
+        : ok({
+            id: IDS.page,
+            builder_data: builderDoc([
+              teamWidget({ id: "w-0", email: emails[0], name: "Osoba 0" }),
+            ]),
+          }),
+    );
+    db.setResponse("user_invitations", (chain) => (chain.has("insert") ? ok(null) : ok([])));
+    h.adminProfiles = [{ id: IDS.existingUser, email: emails[0], slug: "osoba-0" }];
+    await expect(provisionPage({ pageSlug: "o-nas", autoLink: true })).rejects.toThrow(
+      "link_write_failed:new row violates row-level security policy",
+    );
+  });
+
+  it("strona mieszcząca się w JEDNEJ porcji pyta `user_invitations` dokładnie RAZ", async () => {
     db.setResponse(
       "pages",
       ok({
@@ -2589,9 +2798,10 @@ describe("system zaproszeń - slug profilu autora", () => {
   // się w KRESKĘ. Naprawa: `replaceStrokeLetters` PRZED `NFD` - ta sama mapa,
   // której używa `slugifyTaxonomy`.
   //
-  // Slug jest publicznym adresem profilu autora (`/author/<slug>`), a ta sama
-  // funkcja tworzy go w `performSend` i w `provisionTeamMembers`, czyli na OBU
-  // ścieżkach powstawania kont.
+  // Slug jest publicznym adresem profilu autora (`/author/<slug>`). `slugify`
+  // liczy go już TYLKO w `performSend` (i tylko dla profilu bez sluga);
+  // `provisionTeamMembers` nie wysyła sluga wcale i zostawia go bazie - patrz
+  // ostatni test tej sekcji.
   it("„ł” staje się „l”, a nie dywizem - nazwisko nie jest okaleczone", async () => {
     grantAdmin();
     db.setResponse("user_invitations", (chain) =>
@@ -2667,6 +2877,47 @@ describe("system zaproszeń - slug profilu autora", () => {
       slug: string;
     };
     expect(profile.slug).toBe("soren-weiss-duric");
+  });
+
+  it("provisioning NIE wysyła sluga - ani dla nowego konta, ani dla zastanego o zmienionej nazwie", async () => {
+    // Dawniej `slug: slugify(d.name)` szło przy KAŻDYM przebiegu, a
+    // `profiles_slug_unique` jest globalny: imiennik z dowolnego obszaru
+    // wywracał osobę na `profile_write_failed` za każdym ponowieniem, a import
+    // po zmianie nazwy w widgetcie przepisywał opublikowany adres autora.
+    // Upsert JEDNEGO obiektu nie dotyka kolumn spoza jego kluczy, więc slug
+    // nowego konta zostaje ten z `handle_new_user`, zastanego - nietknięty, a
+    // profil osierocony dostaje unikalny z `profiles_0_ensure_slug_trg`
+    // (sprawdzone na bazie z migracji - komentarz przy zapisie w module).
+    // Asercja na KLUCZ, nie na wartość: `slug: null` też byłby błędem, bo
+    // BEFORE INSERT `profiles_0_ensure_slug_trg` uzupełnia slug wiersza
+    // proponowanego (EXCLUDED) z nowej nazwy, a `DO UPDATE SET slug =
+    // EXCLUDED.slug` nadpisałby nim opublikowany adres.
+    grantAdmin();
+    db.setResponse(
+      "pages",
+      ok({
+        id: IDS.page,
+        builder_data: builderDoc([
+          teamWidget({ id: "w-1", email: "nowa@example.org", name: "Michał Kowalski" }),
+          teamWidget({ id: "w-2", email: "zastana@example.org", name: "Łucja Nowe Nazwisko" }),
+        ]),
+      }),
+    );
+    db.setResponse("user_invitations", (chain) => (chain.has("insert") ? ok(null) : ok([])));
+    rpcUsers = [{ id: IDS.existingUser, email: "zastana@example.org" }];
+    const result = await callServerFn<{ created: number; skipped: number; errors: unknown[] }>(
+      provisionTeamMembers,
+      { data: { pageSlug: "o-nas", autoLink: false }, context: context() },
+    );
+    expect(result).toMatchObject({ created: 1, skipped: 1, errors: [] });
+    const profileRows = h.adminWrites
+      .filter((write) => write.table === "profiles")
+      .map((write) => write.row as Record<string, unknown>);
+    expect(profileRows.map((row) => row.id)).toEqual([
+      "aaaa1111-2222-4333-8444-555566667777",
+      IDS.existingUser,
+    ]);
+    for (const row of profileRows) expect(Object.keys(row)).not.toContain("slug");
   });
 });
 
