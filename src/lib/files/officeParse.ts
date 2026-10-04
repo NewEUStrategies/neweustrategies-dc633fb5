@@ -66,6 +66,11 @@ export async function parseDocx(buffer: ArrayBuffer): Promise<DocxResult> {
   // `mammoth` mapuje w package.json wejścia node -> browser, więc zwykły
   // import wystarcza; obrazy osadzone w pliku zostają jako data URI, bo bez
   // nich podgląd raportu gubi wykresy i zrzuty.
+  //
+  // TYLKO ODCZYT. Bundel przeglądarki nie niesie zapisu XML mammoth ani
+  // tablicy encji HTML xmldom (`scripts/lib/officeParserTrim.ts`, ~22 KB gzip
+  // martwego kodu): `embedStyleMap` i parsowanie HTML przez xmldom rzucą tu
+  // błędem zamiast zadziałać. `convertToHtml` niczego z tego nie używa.
   const mammoth = await import("mammoth");
   const result = await mammoth.convertToHtml(
     { arrayBuffer: buffer },

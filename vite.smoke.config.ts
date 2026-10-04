@@ -25,6 +25,7 @@ import type { Rollup } from "vite";
 import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
 import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
+import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";
 import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
 
 // `minify: true` jak w produkcyjnym vite.config.ts - smoke ma odwzorowywać
@@ -56,6 +57,9 @@ export default defineConfig({
       widgetChunkPlugin(),
       adminCssPlugin(),
       chunkInventoryPlugin(true),
+      // Parytet z vite.config.ts: boot-test ma mierzyć ten sam bundel parsera
+      // .docx, który jedzie na produkcję.
+      officeParserTrimPlugin(),
     ],
 
     // These are only reached through TanStack Start's dev-time SSR/client

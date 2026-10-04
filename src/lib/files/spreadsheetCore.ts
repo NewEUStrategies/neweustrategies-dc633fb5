@@ -61,7 +61,20 @@ export function readSpreadsheetRows(buffer: ArrayBuffer): SpreadsheetRows[] {
   return out;
 }
 
-/** Eksport: jeden arkusz z podanych wierszy do bajtów pliku `.xlsx`. */
+/**
+ * Eksport: jeden arkusz z podanych wierszy do bajtów pliku `.xlsx`.
+ *
+ * `writeXLSX`, NIE `write` - i to jest decyzja o wadze procesu, nie o stylu.
+ * `XLSX.write` rozdziela zlecenie po `bookType` na KAŻDY pisarz biblioteki
+ * (xlsb, xls/BIFF2-8, ods, numbers, xlml, csv, sylk, dbf, ...), więc bundler
+ * nie może żadnego z nich wyrzucić, choć wołamy wyłącznie xlsx. `writeXLSX` to
+ * wejście, które SheetJS wystawia właśnie pod tree-shaking: ta sama ścieżka
+ * `write_zip_xlsx` co `write(..., { bookType: "xlsx" })`, bez pozostałych
+ * pisarzy. Plik wynikowy jest ten sam bajt w bajt (test w
+ * `__tests__/spreadsheetCore.test.ts`), a proces arkuszy chudnie o ~18 KB gzip
+ * na `xlsx` 0.18.5 i więcej na 0.20.3 runnera (kronika w
+ * `scripts/check-bundle-size.ts`, wpis XXII).
+ */
 export function writeSpreadsheet(
   sheetName: string,
   rows: readonly (readonly WritableCell[])[],
@@ -72,7 +85,7 @@ export function writeSpreadsheet(
     XLSX.utils.aoa_to_sheet(rows.map((row) => [...row])),
     sheetName,
   );
-  return XLSX.write(book, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+  return XLSX.writeXLSX(book, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
 }
 
 /** Jedyne wejście procesu arkuszy - rozdziela zlecenie na trzy operacje. */
