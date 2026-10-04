@@ -7996,9 +7996,9 @@ html[data-mbb="on"] [data-site-shell] {
 
 /* --------------------------------------------------------------------------
    Etykieta sekcji - wariant Kinetic Signal Notch (23).
-   Trzy poziome paski "sygnału" rozsuwaja sie na hoverze sprezysta krzywa, a
-   akcja zmienia kolor na akcent pobrany z inline zmiennej --nes-accent (ten
-   akcent liczony jest w JS, wiec nie ma dla niego klasy Tailwind).
+   Trzy poziome paski "sygnału" w szarym pastelu rozsuwają się na hoverze
+   sprężystą krzywą; mała akcja nad paskami pozostaje neutralna i na hoverze
+   tylko przyciemnia się do koloru tekstu.
    -------------------------------------------------------------------------- */
 .nes-kinetic-bar {
   transition:
@@ -8025,8 +8025,8 @@ html[data-mbb="on"] [data-site-shell] {
   }
 
   .nes-kinetic-row .nes-kinetic-action {
-    font-size: 10px !important;
-    letter-spacing: 0;
+    font-size: 8px !important;
+    letter-spacing: 0.06em !important;
   }
 }
 
@@ -8037,7 +8037,7 @@ html[data-mbb="on"] [data-site-shell] {
 
 .nes-kinetic-action:hover,
 .nes-kinetic-action:focus-visible {
-  color: var(--nes-accent, var(--primary));
+  color: var(--foreground);
 }
 
 @media (prefers-reduced-motion: reduce) {
