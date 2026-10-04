@@ -158,10 +158,10 @@ export const CHART_SLOTS: readonly PaletteSlot[] = [
     // i nie wolno go użyć jako samej linii bez obwódki.
     slot: 2,
     key: "ochra",
-    light: "#FA9346",
-    dark: "#FA9346",
+    light: "#fa9346",
+    dark: "#fa9346",
     textLight: "#b95e00",
-    textDark: "#FA9346",
+    textDark: "#fa9346",
     inkLight: "#12161c",
     inkDark: "#12161c",
     bandLight: 0.16,
