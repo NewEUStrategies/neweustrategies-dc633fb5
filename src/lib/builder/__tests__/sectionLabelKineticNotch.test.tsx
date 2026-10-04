@@ -27,6 +27,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 });
 
 import {
+  readSectionLabelProps,
   SectionLabelRender,
   SECTION_LABEL_VARIANTS,
   type SectionLabelVariant,
@@ -212,7 +213,7 @@ describe("Kinetic Signal Notch", () => {
   });
 
   it("linia pod rzędem słucha showRule, a jej oddech słucha gapY", () => {
-    const withRule = renderVariant();
+    const withRule = renderVariant({ showRule: true });
     expect(withRule.container.querySelector(".border-b")).not.toBeNull();
     withRule.unmount();
 
@@ -220,10 +221,30 @@ describe("Kinetic Signal Notch", () => {
     expect(noRule.container.querySelector(".border-b")).toBeNull();
     noRule.unmount();
 
-    const airy = renderVariant({ gapY: "20px" });
+    const airy = renderVariant({ showRule: true, gapY: "20px" });
     const row = airy.container.querySelector<HTMLElement>(".border-b");
     expect(row?.style.paddingBottom).toBe("20px");
     airy.unmount();
+  });
+
+  it("nie rysuje linii pod etykietą, dopóki opcja „Pokaż linię” nie zostanie włączona", () => {
+    // Widget na stronie nie zapisuje `showRule` - liczy się domysł z
+    // `readSectionLabelProps`. Kinetic ma go wyłączonym (żadnego podkreślenia
+    // pod etykietą), a „Pokaż linię" w panelu go przywraca.
+    const base = { variant: V, label_pl: "Najnowszy raport" };
+    expect(readSectionLabelProps(base, "pl").showRule).toBe(false);
+    expect(readSectionLabelProps({ ...base, showRule: true }, "pl").showRule).toBe(true);
+    // Pozostałe warianty nie zmieniają zachowania.
+    expect(
+      readSectionLabelProps({ variant: "left-bar", label_pl: "Sekcja" }, "pl").showRule,
+    ).toBe(true);
+  });
+
+  it("akcja nie dostaje podkreślenia w żadnym stanie", () => {
+    // `text-decoration` spływa z rodzica na potomnych, więc podkreślenie
+    // nadane całemu widżetowi (hover Theme Designu) wylądowałoby pod
+    // „więcej". Własne `none` na akcji to odcina.
+    expect(stylesCss).toMatch(/\.nes-kinetic-action\s*\{[^}]*text-decoration:\s*none/);
   });
 
   it("nadpisuje kolor i rozmiar tytułu", () => {

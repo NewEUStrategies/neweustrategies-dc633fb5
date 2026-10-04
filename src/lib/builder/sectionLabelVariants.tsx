@@ -224,7 +224,10 @@ export function readSectionLabelProps(
     actionSize: str("actionSize") || undefined,
     indexNumber: str("indexNumber") || undefined,
     category: str(`category_${lang}`) || str("category_pl") || undefined,
-    showRule: bool("showRule", true),
+    // Kinetic Signal Notch (23) nie ma podkreślenia pod etykietą: linia pod
+    // rzędem jest wyłączona dopóki ktoś nie włączy „Pokaż linię" w panelu.
+    // Pozostałe warianty zachowują dotychczasowy domysł (linia włączona).
+    showRule: bool("showRule", variant !== "kinetic-signal-notch"),
     numberFont: str("numberFont") || undefined,
     numberSize: str("numberSize") || undefined,
     categoryFont: str("categoryFont") || undefined,

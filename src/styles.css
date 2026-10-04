@@ -8057,6 +8057,10 @@ html[data-mbb="on"] [data-site-shell] {
 .nes-kinetic-action {
   color: var(--nes-kinetic-action, var(--muted-foreground));
   transition: color 0.3s ease-in-out;
+  /* „więcej" nie może zostać podkreślone w żadnym stanie (spoczynek, hover,
+     focus, kliknięcie): text-decoration rodzica - np. hover Theme Designu na
+     całym widżecie - spływa do potomnych, a własne `none` na akcji to odcina. */
+  text-decoration: none;
 }
 
 /* Chevron „>" nie ma wlasnego koloru - dokladnie ten sam ton co tekst akcji

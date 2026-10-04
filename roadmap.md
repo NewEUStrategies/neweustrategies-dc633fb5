@@ -73,6 +73,8 @@
 - [x] „więcej" powiększone o 1 px (11 px, w wezkiej kolumnie 9 px) i odgrobione (waga 400): ten sam selektor kinetic pilnuje teraz rowniez wagi, a `data-typography-exempt` na akcji i jej wnetrzu wyjmuje je z globalnej typografii Theme Designu (gaiaz `:is(p, span, a, ...)` wkladala wage 800 bezposrednio w kazdy span); chevron „>" w em (wysokosc = wysokosc czcionki), ~1 px od slowa, w kolorze tekstu (currentColor), bez podkreslenia, z akcentem dopiero po najechaniu.
 - [x] Chevron „>" ma teraz dokladnie taka sama grubosc kreski jak trzy paski sygnału (3 px, w pigułce 2 px): `strokeWidth` = grubosc paska + `vector-effect="non-scaling-stroke"`, wiec grubosc nie zalezy od skalowania viewBoxa; pole znka jest szersze (1,1 em) i punkty sa cofniete o pol kreski od krawedzi, dzieki czemu gruby znak sie nie uciql i nie zbija w plame; odstep od slowa zmniejszony do 0,08 em, zeby „>" zostalo blisko.
 
+- [x] Etykieta „więcej" bez podkreślenia w żadnym stanie: `.nes-kinetic-action` ma `text-decoration: none` (odcina też podkreślenie nadane całemu widżetowi przez Theme Design), a linia pod rzędem nie jest rysowana, dopóki opcja „Pokaż linię" nie zostanie włączona - `showRule` ma wyłączoną wartość domyślną tylko dla tego wariantu, pozostałe warianty bez zmian.
+
 ## Firmowy kolor akcentu
 
 - [x] Usunąć bursztynowe akcenty z interfejsu i zapisanych ustawień motywu; domyślnie używać #FA9346 w jasnym i ciemnym motywie.
