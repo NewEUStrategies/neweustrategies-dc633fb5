@@ -1165,11 +1165,12 @@ export function SectionLabelRender({
             strokeLinejoin="round"
             // Chevron w em, ale o 1 px mniejszy niz wysokosc czcionki akcji
             // (calc(1em - 1px)), wiec nie przewyzsza liter „wiecej”. Kolor bierze
-            // z currentColor (ten sam co tekst). `relative -top-px` podnosi znak o
-            // 1 px, bo pole em ma zapas na dolna czesc (descendery) - bez tego
-            // ptaszek siedzi nizej niz litery i nie rowna ich wysokosci.
+            // z currentColor (ten sam co tekst). Znak nie ma przesuniecia w osi Y:
+            // wycentrowany w inline-flex trafia dokladnie w pas wysokosci x ->
+            // linia bazowa liter (pomiar zrzutu: gora strzalki 0,25 px pod x-height,
+            // dol na linii bazowej).
             style={{ width: "calc(1.1em - 1px)", height: "calc(1em - 1px)" }}
-            className="relative -top-px shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
+            className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
             {/* „subtelny ptaszek": kreska jest cienka (chevronStroke), a nie
                 taka jak pasek sygnału - wektor liczy stroke-width w pikselach

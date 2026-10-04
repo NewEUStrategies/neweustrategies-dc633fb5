@@ -157,13 +157,14 @@ describe("Kinetic Signal Notch", () => {
     const svg = link?.querySelector("svg");
     expect(svg?.querySelector("polyline")).not.toBeNull();
     expect(svg?.querySelector('path[d="M5 12h14"]')).toBeNull();
-    // Chevron w em, ale o 1 px nizszy niz czcionka akcji i podniesiony o 1 px,
-    // zeby rownal wysokosci liter „wiecej” (pole em ma zapas na descendery).
+    // Chevron w em, ale o 1 px nizszy niz czcionka akcji, zeby rownal wysokosci
+    // liter „wiecej”. Bez przesuniecia w osi Y - wycentrowanie w inline-flex trafia
+    // w pas miedzys highose x a linia bazowa liter.
     const svgStyle = svg?.getAttribute("style") ?? "";
     expect(svgStyle).toContain("height: calc(1em - 1px)");
     expect(svgStyle).toContain("width: calc(1.1em - 1px)");
-    expect(svg?.getAttribute("class")).toMatch(/(^|\s)relative(\s|$)/);
-    expect(svg?.getAttribute("class")).toMatch(/(^|\s)-top-px(\s|$)/);
+    const svgClass = svg?.getAttribute("class") ?? "";
+    expect(svgClass).not.toMatch(/(^|\s)-?(top|bottom|translate)-/);
     // Kolor z currentColor (ten sam co tekst), a nie z osobnej klasy.
     expect(svg?.getAttribute("stroke")).toBe("currentColor");
     expect(stylesCss).toMatch(/\.nes-kinetic-action svg \{[^}]*color: inherit;/);
