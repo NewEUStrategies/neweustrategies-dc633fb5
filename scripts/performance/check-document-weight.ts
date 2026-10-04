@@ -169,6 +169,24 @@ async function main(): Promise<void> {
   const budgetsFile = loadBudgets(budgetsPath);
   const samples = Math.max(1, Number.parseInt(opts.samples ?? "5", 10) || 5);
 
+  // Bramka aktywna (artefakt albo --html z --assert) bez pliku progów nie ma
+  // z czym porównać pomiaru. Dawniej kończyła się kodem 0 z samą informacją,
+  // więc PR, który przemianował albo usunął plik progów, przechodził bez
+  // pomiaru. Sprawdzenie stoi PRZED pomiarem: brak progów to błąd konfiguracji,
+  // nie artefaktu. Plik progów tworzy wyłącznie --ratchet.
+  const gate = !opts.html || opts.assert;
+  if (gate && !opts.ratchet && !budgetsFile) {
+    console.error(
+      `✗ Brak pliku progów ${budgetsPath} - bramka wagi dokumentu nie ma z czym porównać pomiaru.`,
+    );
+    console.error(
+      "  Przywróć scripts/performance/document-weight-budgets.json albo wskaż plik przez --budgets; " +
+        "nowy plik progów tworzy wyłącznie --ratchet z artefaktu.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   let weights: DocumentWeight[];
   let context: string;
   if (opts.html) {
@@ -196,7 +214,6 @@ async function main(): Promise<void> {
   console.log(`Waga dokumentu: ${context}`);
   printWeight(representative);
 
-  const gate = !opts.html || opts.assert;
   const results = budgetsFile
     ? checkBudgets({ ...representative, ...medians }, budgetsFile.budgets)
     : [];
