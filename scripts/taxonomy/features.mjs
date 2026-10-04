@@ -595,7 +595,7 @@ export const FEATURES_3 = [
     // loader->head() z wpisów ich nie obejmował), podmiana miniatury per wpis
     // i wybór rozmiaru wariantu.
     patterns: [
-      /^src\/lib\/builder\/(heroImage|thumbnailOverrides|widgetImageSizes|imageSlot|imageSlotContext)\.tsx?$/,
+      /^src\/lib\/builder\/(heroImage|logoAlt|thumbnailOverrides|widgetImageSizes|imageSlot|imageSlotContext)\.tsx?$/,
     ],
   },
   {
