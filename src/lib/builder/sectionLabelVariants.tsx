@@ -92,7 +92,7 @@ export function resolveFontFamily(font?: string): string | undefined {
 export type SectionLabelArrow = "arrow" | "chevron" | "long" | "none";
 
 export const SECTION_LABEL_ARROWS: { value: SectionLabelArrow; label: string }[] = [
-  { value: "arrow", label: "Strzałka >" },
+  { value: "arrow", label: "Strzałka ↗" },
   { value: "chevron", label: "Chevron ›" },
   { value: "long", label: "Długa strzałka ⟶" },
   { value: "none", label: "Bez strzałki" },
@@ -116,6 +116,26 @@ export function arrowGlyph(kind?: string): string {
 // w pikselach ekranu (non-scaling-stroke), więc nie grubieje wraz z czcionką.
 // Wysokość w em minus 1 px trzyma znak w pasie x-height - linia bazowej liter,
 // a kolor dziedziczy z currentColor (ten sam co tekst akcji).
+// Premium strzałka "↗" (north-east) dla akcji "więcej" w widgetach: cienka
+// linia ukośna i otwarty narożnik, kreska liczona w pikselach ekranu.
+export function NorthEastArrow({ isSm, className }: { isSm: boolean; className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 10 10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={isSm ? 0.8 : 1}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ width: "calc(0.75em - 1px)", height: "calc(0.75em - 1px)" }}
+      className={className}
+    >
+      <path d="M2.2 7.8 7.8 2.2M3.6 2.2h4.2v4.2" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
 export function AngleChevron({
   side,
   isSm,
@@ -363,7 +383,7 @@ export function SectionLabelRender({
         {glyph}
       </span>
     ) : (
-      <AngleChevron side="right" isSm={isSm} className="shrink-0" />
+      <NorthEastArrow isSm={isSm} className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:-translate-y-px group-hover/link:translate-x-px" />
     );
 
   const ActionEl = action ? (
@@ -1200,13 +1220,10 @@ export function SectionLabelRender({
       // hoverze. Geometria i kreska zyvia we wspolnym `AngleChevron` (ten sam
       // znak co domyslna strzalka akcji w pozostalych wariantach).
       const chevronSvg = (side: "left" | "right"): React.ReactNode => (
-        <AngleChevron
-          side={side}
+        <NorthEastArrow
           isSm={isSm}
           className={`shrink-0 transition-transform duration-300 motion-reduce:transition-none ${
-            side === "left"
-              ? "group-hover/link:-translate-x-0.5"
-              : "group-hover/link:translate-x-0.5"
+            side === "left" ? "" : "group-hover/link:-translate-y-px group-hover/link:translate-x-px"
           }`}
         />
       );

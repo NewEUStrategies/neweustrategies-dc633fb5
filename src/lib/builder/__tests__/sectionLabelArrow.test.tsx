@@ -89,7 +89,7 @@ describe("strzałka akcji w etykiecie sekcji", () => {
 
   it("etykieta opcji w edytorze nie pokazuje już glifu z ogonkiem", () => {
     const arrow = SECTION_LABEL_ARROWS.find((a) => a.value === "arrow");
-    expect(arrow?.label).toBe("Strzałka >");
+    expect(arrow?.label).toBe("Strzałka ↗");
     for (const a of SECTION_LABEL_ARROWS) {
       expect(a.label).not.toContain("\u2192");
     }
