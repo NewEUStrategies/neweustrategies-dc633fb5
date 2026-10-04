@@ -1149,19 +1149,25 @@ export function SectionLabelRender({
         ) : (
           <svg
             aria-hidden
-            viewBox="0 0 6 10"
+            viewBox="0 0 11 10"
             fill="none"
             stroke="currentColor"
-            strokeWidth={1.4}
+            strokeWidth={barH}
             strokeLinecap="round"
             strokeLinejoin="round"
             // Chevron w em: wysokość = wysokość czcionki akcji, więc znak jest
             // dokładnie tej samej wielkości co „więcej”. Kolor bierze z
             // currentColor (ten sam co tekst), a hover akcentuje całość.
-            style={{ width: "0.6em", height: "1em" }}
+            style={{ width: "1.1em", height: "1em" }}
             className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
-            <polyline points="0.9 1.2 4.7 5 0.9 8.8" />
+            {/* „taką samą grubość mają mieć kreski": grubość kreski chevronu to
+                dokładnie grubość paska sygnału (barH). vector-effect liczy
+                stroke-width w pikselach ekranu, więc skalowanie viewBoxa (em)
+                nie zmienia grubości linii. Pole jest szersze niż sam znak, a
+                punkty cofnięte o pół kreski od krawędzi, żeby gruby chevron
+                ani się nie uciął, ani nie zbijał w jedną plamę. */}
+            <polyline points="2.2 2 8.4 5 2.2 8" vectorEffect="non-scaling-stroke" />
           </svg>
         );
 
@@ -1169,7 +1175,7 @@ export function SectionLabelRender({
       // Theme Designu (gaiaz `:is(p, span, a, ...)` z ~0-8-0 + !important),
       // zeby „wiecej" nie dziedziczylo pogrubienia opisu.
       const actionInner = (
-        <span className="inline-flex items-center gap-[0.12em]" data-typography-exempt>
+        <span className="inline-flex items-center gap-[0.08em]" data-typography-exempt>
           <span className="min-w-0" data-typography-exempt>
             {action}
           </span>
