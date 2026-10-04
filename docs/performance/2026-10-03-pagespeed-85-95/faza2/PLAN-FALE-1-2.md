@@ -257,3 +257,47 @@ https://claude.ai/code/session_01M84vURVZ4xnvk1AVmdDF5B`.
 | Tryb A `lighthouse.yml`: Chrome runnera vs Chromium Playwrighta                                                       | Chrome runnera                                                                                                                              |
 | `PSI_API_KEY` dla `psi.yml`, eksporty PSI JSON z `hl=pl` (D13), `psi-baseline.json`                                   | po stronie człowieka; plan mierzy na fixture                                                                                                |
 | Kryterium porzucenia P2.1 i co wtedy (mobile ≤ ~78 bez P2.1)                                                          | eskalacja do człowieka po 1 dniu planu B                                                                                                    |
+
+## 6. Uzupełnienia po raporcie P0.5 (`faza2/P0.5-diagnoza-dlugich-zadan.md`, 2026-10-04 13:15 UTC)
+
+Raport końcowy P0.5 koryguje liczby z §1 (tam: jeden reprezentatywny przebieg) na mediany z pięciu ważnych
+przebiegów i zmienia kilka przypisań. Obowiązują wartości poniżej.
+
+| Wielkość                                     | §1 (jeden przebieg)   | Raport P0.5 (mediana, n = 5)                                                                                                         |
+| -------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Księga W0 mobile x4 / z C3                   | 214 / 368 ms          | **214 / 402 ms**                                                                                                                     |
+| Księga W0 desktop x4 / z C3                  | 359 / 539 ms          | **359 / 539 ms**                                                                                                                     |
+| Księga W0 desktop x5 / z C3                  | 615 / 834 ms          | **615 / 832 ms**                                                                                                                     |
+| Sprzężenie C3 (pary z tego samego przebiegu) | +154 mobile           | **+154 mobile, +148 d4, +159 d5** (PLAN §1.5 zakładał +529 mobile)                                                                   |
+| Fixture po W1 (×0,5 / pełne)                 | 218–258 (PLAN)        | **mobile 174 / 174; d4 286 / 266; d5 515 / 451**                                                                                     |
+| Fixture po W2 z C3 (×0,5 / pełne)            | 234–457 (PLAN)        | **mobile 201 / 87; d4 244 / 130; d5 450 / 229**                                                                                      |
+| PSI po W2 (mapowanie M-b, centralnie)        | mobile 84, desktop 84 | **mobile 89 / 93; desktop x4 86 / 95, x5 81 / 93** (zastrzeżenia: dokument PSI 569 KB wobec 391 KB fixture, k z flagami nieustalone) |
+
+Zmiany przypisań i zakresu (lista F1–F26 w §8 raportu; „uzupełnienie zakresu” = plik należy do pozycji, mechanizm
+tego nie wymieniał):
+
+- **K8 „zadanie kompozytora” to start animacji CSS**, nie warstwy: `.oi-fade-in` ×7 (`styles.css:1622-1624`),
+  szkielety `lv-shimmer` ×40 sekcji strumieniowanych (`styles.css:2391-2406`) i ticker. Ablacja `nofade` zdejmuje
+  zadanie w 3/3 przebiegach (mobile 214 → 140 ms, z C3 402 → 218). **F1 i F1b wchodzą do P1.2 w fali 1** (oba w
+  `styles.css`); każda z nich jest drobną zmianą widoczną (brak fade-in obrazów z SSR, statyczny szkielet sekcji),
+  więc wymaga zgody właściciela przed startem fali 1. Pozostałe źródła K8: ticker → P2.3 (F9–F11), test animacji →
+  P2.4 (F17).
+- **P1.2 dostaje też F2b** (efekt `settled` nie przełącza `data-settled` przy montażu) i **F3 jako kandydata**
+  (ta sama zasada co `--sticky-header-h` dla `--hdr-*` i `data-metrics`, dopiero po potwierdzeniu wyzwalacza K13b w
+  bramce fali 1). **F4 = zakaz**: `Header.tsx:394` i `:516` (`document.fonts?.ready`) nie usuwać i nie przenosić do
+  rAF bez podziału commitu, bo to jedyny Layout w K12.
+- **Przebieg korzenia K9 to wznowienie po TLA `i18n.ts:131`**, nie router: P1.7 realizuje F5 (bez klonu JSON słownika
+  na kliencie, jeden tik `setTimeout(0)` między `i18n.init` a ewaluacją zależnych modułów), F6 (podział ciała
+  timera z `router.tsx:210`) i F7 (szybka ścieżka anonima). „161 el.” z pytań obowiązkowych to wymuszony styl z
+  `Header.tsx:516` w commicie na desktopie, nie K13.
+- **Fala 2:** P2.2 dostaje F13 (kolumny `gridColumn`/`gridTemplateColumns` → klasy, `BuilderRenderer.tsx:655-661,
+692-703`) i F14b (mniej granic strumieniowanych ze szkieletem nad zgięciem); P2.3 dostaje F9–F11 (ticker:
+  `transform-origin` poza `@keyframes`, `tt-flame-flicker` bez `will-change`, bloki `<style>` przez `StyleSink`);
+  P2.4: F12, F15–F17; P2.5 + P2.6: F18, F19.
+- **P3.4 (stopniowany burst bootu, F20) zalecany jako MUST już teraz**: K7 `ScriptCatchup` leży w oknie TBT na
+  desktopie na W0 (d4 81 ms, d5 117 ms) i w C3 na mobile w 4/5 przebiegów. **P3.3 (`content-visibility` sekcji ≥ 2,
+  F21) prawdopodobnie MUST na desktopie**: w C3 K5 w oknie w 5/5 przebiegów (77–96 ms sym.); potwierdzić na
+  księdze W2.
+- Otwarte: JSON-y PSI z D13 (rekalibracja k, decyzja LA-C5), k z flagami (≥ 5 przebiegów na formę przy load ≤ 3 na
+  bazie W1), wyzwalacz K13b (ślad `invalidationTracking` na desktopie w bramce W1), efekt pośredni ablacji animacji
+  (A/B u właściciela P1.2), wskazówki kompilacji V8 (eksperyment P5.2 razem z P3.4).
