@@ -170,7 +170,7 @@ describe("Kinetic Signal Notch", () => {
   });
 
   it("bez akcji rysuje sam tytuł z sygnałem", () => {
-    const { container } = renderVariant({ action: undefined });
+    const { container } = renderVariant({ action: null });
     expect(container.querySelector(".nes-kinetic-action")).toBeNull();
     expect(container.querySelectorAll(".nes-kinetic-bar")).toHaveLength(3);
     expect(container.textContent).toContain("Najnowszy raport");
