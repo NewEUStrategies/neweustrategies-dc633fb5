@@ -4,8 +4,9 @@
 // przejmuje kontrolę bez utraty ciągłości.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Download, Headphones } from "@/lib/lucide-shim";
+import { Loader2, Headphones } from "@/lib/lucide-shim";
 import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
+import { AnimatedDownloadIcon } from "@/components/audio/atoms/AnimatedDownloadIcon";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -231,7 +232,7 @@ export function SidebarListenCard({
             data-playing={playing ? "true" : "false"}
             className={[
               "listen-play-toggle inline-flex h-10 w-full items-center justify-center gap-2 rounded-[6px]",
-              "bg-brand text-brand-foreground transition-all",
+              "bg-brand text-background transition-all",
               "hover:brightness-110 active:scale-[0.98] disabled:opacity-70",
               "cms-widget-label font-semibold tracking-tight",
               FOCUS_RING,
@@ -240,7 +241,9 @@ export function SidebarListenCard({
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
-              <Headphones className="h-4 w-4" aria-hidden />
+              <span className="relative size-4 shrink-0" aria-hidden>
+                <MorphPlayPause playing={playing} />
+              </span>
             )}
             <span>
               {loading
@@ -262,7 +265,7 @@ export function SidebarListenCard({
             data-playing={playing ? "true" : "false"}
             className={[
               "listen-play-toggle shrink-0 h-9 w-9 rounded-[6px]",
-              "bg-brand text-brand-foreground transition-all",
+              "bg-brand text-background transition-all",
               "hover:brightness-110 active:scale-95 disabled:opacity-70",
               FOCUS_RING,
             ].join(" ")}
@@ -341,7 +344,7 @@ export function SidebarListenCard({
           {downloading ? (
             <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
           ) : (
-            <Download className="h-3 w-3" aria-hidden />
+            <AnimatedDownloadIcon downloading={false} className="h-3.5 w-3.5" />
           )}
           <span className="cms-widget-note font-semibold tracking-[0.15em] uppercase">
             {shared("download")}

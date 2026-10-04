@@ -1,4 +1,4 @@
-// Atom: czytelna ikona play <-> stop z płynnym crossfade + skalowaniem.
+// Atom: czytelna ikona play <-> pauza z płynnym crossfade + skalowaniem.
 // Kolory z currentColor (dark/light OK). Kształty w SVG dla ostrości na każdym DPI.
 import { cn } from "@/lib/utils";
 
@@ -10,23 +10,24 @@ export interface MorphPlayPauseProps {
 export function MorphPlayPause({ playing, className }: MorphPlayPauseProps) {
   return (
     <span className={cn("mpp", className)} data-playing={playing ? "true" : "false"} aria-hidden>
-      {/* Play - trójkąt z lekko zaokrąglonymi wierzchołkami */}
+      {/* Play - geometrycznie wycentrowany trójkąt. */}
       <svg
         className="mpp-svg mpp-svg-play"
         viewBox="0 0 24 24"
         fill="currentColor"
         focusable="false"
       >
-        <path d="M8.4 5.5c0-1.1 1.2-1.8 2.15-1.24l10.02 6.5a1.44 1.44 0 0 1 0 2.48l-10.02 6.5A1.44 1.44 0 0 1 8.4 18.5V5.5Z" />
+        <path d="M8.75 5.9c0-1.08 1.18-1.75 2.12-1.2l9.72 6.1a1.4 1.4 0 0 1 0 2.4l-9.72 6.1a1.4 1.4 0 0 1-2.12-1.2V5.9Z" />
       </svg>
-      {/* Stop - zaokrąglony kwadrat */}
+      {/* Pauza - dwa optycznie wycentrowane, zaokrąglone słupki. */}
       <svg
-        className="mpp-svg mpp-svg-stop"
+        className="mpp-svg mpp-svg-pause"
         viewBox="0 0 24 24"
         fill="currentColor"
         focusable="false"
       >
-        <rect x="5.5" y="5.5" width="13" height="13" rx="2.2" />
+        <rect x="6.5" y="5" width="4.25" height="14" rx="1.4" />
+        <rect x="13.25" y="5" width="4.25" height="14" rx="1.4" />
       </svg>
     </span>
   );
