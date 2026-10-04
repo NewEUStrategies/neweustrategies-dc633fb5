@@ -10,12 +10,15 @@
 // detektor jest JEDEN na dokument, a konsumenci tylko się w nim zapisują:
 // wszyscy zapisani przed punktem ciszy startują w TYM SAMYM punkcie, przez
 // `postInteractionQueue` (jedno zadanie na klatkę, w kolejności klas
-// priorytetu - gtag ostatni). Punkt jest zatrzaskiem: konsument zapisany po
-// nim trafia do kolejki od razu, bez nowego okna.
+// priorytetu - gtag ostatni; zadanie zwracające promise trzyma kolejkę do
+// jego rozstrzygnięcia). Punkt jest zatrzaskiem: konsument zapisany po nim
+// trafia do kolejki od razu, bez nowego okna. Punkt, który zapada przy
+// wciśniętym przycisku, czeka na koniec gestu: detektor trzyma nasłuch gestów
+// kolejki (`watchGestures`) aż do przekazania konsumentów.
 //
 // DEFINICJA CISZY.
 //   cisza = max(koniec ostatniego `longtask`, koniec ostatniego LICZONEGO
-//               wpisu `resource`, `load`, powrót karty do widoczności)
+//               wpisu `resource`, początek `load`, powrót karty do widoczności)
 //   punkt  = widoczna karta, co najmniej QUIESCENCE_MIN_AFTER_LOAD_MS po `load`
 //            ORAZ co najmniej QUIESCENCE_WINDOW_MS od ciszy;
 //   limit  = QUIESCENCE_CAP_MS po `load` - punkt zapada mimo pracy strony
@@ -32,8 +35,20 @@
 // samo minimum. Strona prerenderowana (Speculation Rules) nie liczy niczego
 // przed aktywacją, a `load` sprzed aktywacji liczy się od aktywacji.
 //
+// ŻĄDANIA W LOCIE nie trzymają okna: wpis `resource` przychodzi dopiero po
+// `responseEnd`, więc żądanie trwające dłużej niż okno (wolne API, długie
+// odpytywanie) nie wstrzymuje punktu. Ślad Lighthouse'a kończy się przy
+// „network-2-quiet", więc zagrożeniem jest dopiero więcej niż 2 żądania w
+// locie albo żądanie krytyczne dłuższe niż ~4 s - pilnuje tego e2e
+// `third-party-quiescence` (P1.1). Wpisy już ZAKOŃCZONE, a jeszcze
+// niedostarczone (przeglądarka oddaje je obserwatorowi asynchronicznie),
+// detektor dobiera przed każdym sprawdzeniem przez `takeRecords()` obu
+// obserwatorów - zasób zakończony tuż przed sprawdzeniem też przesuwa okno.
+//
 // IGNOROWANE ZASOBY (nie przesuwają okna):
-//  - `initiatorType === "img"` rozpoczęte po `load`: leniwe obrazy i kolejne
+//  - `initiatorType === "img"` rozpoczęte po początku `load` (`loadEventStart`
+//    z Navigation Timing, więc także obraz uruchomiony w handlerze `load`
+//    zarejestrowanym przed detektorem): leniwe obrazy i kolejne
 //    slajdy autoodtwarzania (co 4,5-5,5 s - bez tego cisza nie zapadłaby nigdy
 //    przed limitem); obraz zaczęty PRZED `load` liczy się normalnie;
 //  - `/api/public/version` - sondowanie `cacheBusting` (pierwsze ~+8 s);
@@ -53,11 +68,24 @@
 // obowiązuje każdego odwiedzającego. Interakcja jest osobnym, wcześniejszym
 // sygnałem (`postInteractionQueue`) - o jej użyciu decyduje konsument.
 //
+// PÓŹNY IMPORT. Moduł można załadować dynamicznie po `load` (np. żeby nie
+// płacić za niego w zamknięciu boot): obserwatory z `buffered: true` oddają
+// wpisy sprzed startu (bufor Resource Timing ma domyślnie 250 wpisów), a
+// dokument już załadowany liczy minimum od `loadEventStart` z Navigation
+// Timing. Kolejka i pierwsza interakcja tracą wtedy gesty i przewinięcia
+// sprzed importu (kliknięcie łapie lepka aktywacja) - to decyzja konsumenta.
+//
 // SSR: no-op. Moduł trzyma stan na poziomie modułu (jeden detektor na
 // dokument); testy zerują go `__resetQuiescenceForTests()`.
 
 import { afterPrerendering, isPrerendering } from "@/lib/prerender";
-import { enqueue, type CancelQueuedTask, type QueuePriority } from "./postInteractionQueue";
+import {
+  enqueue,
+  watchGestures,
+  type CancelQueuedTask,
+  type QueuedTask,
+  type QueuePriority,
+} from "./postInteractionQueue";
 
 /** Najwcześniejszy punkt ciszy po `load`, nawet gdy wszystko milczy. */
 export const QUIESCENCE_MIN_AFTER_LOAD_MS = 5_000;
@@ -98,7 +126,7 @@ export interface Quiescence {
 }
 
 interface Consumer {
-  readonly task: () => void;
+  readonly task: QueuedTask;
   readonly priority: QueuePriority;
   cancelQueued: CancelQueuedTask | null;
 }
@@ -120,14 +148,16 @@ let stopDetector: (() => void) | null = null;
 
 const noop = (): void => {};
 
+/** Wołane wyłącznie w przeglądarce (każda ścieżka SSR kończy się wcześniej no-opem). */
 function now(): number {
-  return typeof performance !== "undefined" && typeof performance.now === "function"
-    ? performance.now()
-    : Date.now();
+  return performance.now();
 }
 
-/** Koniec `load` z Navigation Timing, gdy dokument był załadowany przed startem detektora. */
-function navigationLoadEnd(): number | null {
+/**
+ * Początek `load` z Navigation Timing (`loadEventStart` jest ustawiony już w
+ * trakcie handlerów `load`); `null`, gdy go nie ma - wołający bierze „teraz".
+ */
+function navigationLoadStart(): number | null {
   try {
     if (typeof performance === "undefined" || typeof performance.getEntriesByType !== "function") {
       return null;
@@ -135,11 +165,11 @@ function navigationLoadEnd(): number | null {
     const [navigation] = performance.getEntriesByType("navigation");
     if (
       navigation &&
-      "loadEventEnd" in navigation &&
-      typeof navigation.loadEventEnd === "number" &&
-      navigation.loadEventEnd > 0
+      "loadEventStart" in navigation &&
+      typeof navigation.loadEventStart === "number" &&
+      navigation.loadEventStart > 0
     ) {
-      return navigation.loadEventEnd;
+      return navigation.loadEventStart;
     }
   } catch {
     // Brak Navigation Timing - wołający bierze „teraz".
@@ -193,11 +223,14 @@ function isIgnoredResource(entry: PerformanceEntry, loadedAt: number | null): bo
 
 /**
  * Obserwator jednego typu wpisu (`buffered` - wpisy sprzed startu też się
- * liczą). Typ nieobsługiwany (Safari: `longtask`) albo brak API = no-op.
+ * liczą). Do `flushers` dokłada funkcję dobierającą wpisy jeszcze
+ * niedostarczone (`takeRecords`). Typ nieobsługiwany (Safari: `longtask`)
+ * albo brak API = no-op.
  */
 function observeEntries(
   type: "longtask" | "resource",
   onEntry: (entry: PerformanceEntry) => void,
+  flushers: Array<() => void>,
 ): () => void {
   if (typeof PerformanceObserver === "undefined") return noop;
   const supported: ReadonlyArray<string> | undefined = PerformanceObserver.supportedEntryTypes;
@@ -207,6 +240,11 @@ function observeEntries(
       for (const entry of list.getEntries()) onEntry(entry);
     });
     observer.observe({ type, buffered: true });
+    if (typeof observer.takeRecords === "function") {
+      flushers.push(() => {
+        for (const entry of observer.takeRecords()) onEntry(entry);
+      });
+    }
     return () => observer.disconnect();
   } catch {
     // Silnik bez danego typu wpisu rzuca przy `observe` - cisza z definicji.
@@ -224,22 +262,25 @@ function handOff(consumer: Consumer): void {
 function reach(reason: QuiescenceReason): void {
   if (reached) return;
   reached = { at: now(), reason };
-  stopDetector?.();
-  stopDetector = null;
   const waiting = [...consumers];
   consumers.clear();
   for (const consumer of waiting) handOff(consumer);
+  // Detektor (z nasłuchem gestów) schodzi dopiero PO przekazaniu: kolejka ma
+  // już wpisy, więc wciśnięcie trwające w tej chwili dalej ją wstrzymuje.
+  stopDetector?.();
+  stopDetector = null;
 }
 
 /** Uruchamia jedyny detektor ciszy dokumentu; zwraca funkcję go zatrzymującą. */
 function startDetector(): () => void {
   const cleanups: Array<() => void> = [];
+  const flushers: Array<() => void> = [];
   let stopped = false;
   let timer = 0;
   let loadedAt: number | null = null;
-  let lastLongTaskEnd = Number.NEGATIVE_INFINITY;
-  let lastResourceEnd = Number.NEGATIVE_INFINITY;
-  let visibleAt = Number.NEGATIVE_INFINITY;
+  let lastLongTaskEnd = -Infinity;
+  let lastResourceEnd = -Infinity;
+  let visibleAt = -Infinity;
 
   const arm = (delay: number) => {
     window.clearTimeout(timer);
@@ -257,6 +298,7 @@ function startDetector(): () => void {
       else arm(capLeft);
       return;
     }
+    for (const flush of flushers) flush();
     const quietSince = Math.max(loadedAt, lastLongTaskEnd, lastResourceEnd, visibleAt);
     const sinceQuiet = t - quietSince;
     if (sinceLoad >= QUIESCENCE_MIN_AFTER_LOAD_MS && sinceQuiet >= QUIESCENCE_WINDOW_MS) {
@@ -291,10 +333,11 @@ function startDetector(): () => void {
 
   const begin = (activatedAt: number) => {
     if (stopped) return;
+    cleanups.push(watchGestures());
     if (document.readyState === "complete") {
-      markLoaded(Math.max(navigationLoadEnd() ?? now(), activatedAt));
+      markLoaded(Math.max(navigationLoadStart() ?? now(), activatedAt));
     } else {
-      const onLoad = () => markLoaded(now());
+      const onLoad = () => markLoaded(navigationLoadStart() ?? now());
       window.addEventListener("load", onLoad, { once: true });
       const origin = Number.isFinite(activatedAt) ? activatedAt : 0;
       const deadline = window.setTimeout(
@@ -307,20 +350,28 @@ function startDetector(): () => void {
       });
     }
     cleanups.push(
-      observeEntries("longtask", (entry) => {
-        lastLongTaskEnd = Math.max(lastLongTaskEnd, entry.startTime + entry.duration);
-      }),
-      observeEntries("resource", (entry) => {
-        if (isIgnoredResource(entry, loadedAt)) return;
-        lastResourceEnd = Math.max(lastResourceEnd, entry.startTime + entry.duration);
-      }),
+      observeEntries(
+        "longtask",
+        (entry) => {
+          lastLongTaskEnd = Math.max(lastLongTaskEnd, entry.startTime + entry.duration);
+        },
+        flushers,
+      ),
+      observeEntries(
+        "resource",
+        (entry) => {
+          if (isIgnoredResource(entry, loadedAt)) return;
+          lastResourceEnd = Math.max(lastResourceEnd, entry.startTime + entry.duration);
+        },
+        flushers,
+      ),
     );
     document.addEventListener("visibilitychange", onVisibilityChange);
     cleanups.push(() => document.removeEventListener("visibilitychange", onVisibilityChange));
   };
 
   const prerendering = isPrerendering();
-  cleanups.push(afterPrerendering(() => begin(prerendering ? now() : Number.NEGATIVE_INFINITY)));
+  cleanups.push(afterPrerendering(() => begin(prerendering ? now() : -Infinity)));
 
   return () => {
     stopped = true;
@@ -333,12 +384,13 @@ function startDetector(): () => void {
  * Zapisuje `task` w jedynym punkcie ciszy strony. W punkcie (albo od razu,
  * jeśli już zapadł) zadanie trafia do `postInteractionQueue` z podanym
  * priorytetem i biegnie najwyżej raz - jedno zadanie na klatkę, w kolejności
- * klas. Zapis NIE uruchamia osobnego okna: wszyscy konsumenci dzielą jeden
- * detektor, więc żądania jednego nie przesuwają punktu pozostałym.
+ * klas; zwrócony promise trzyma kolejkę (KONTRAKT ZADANIA kolejki). Zapis NIE
+ * uruchamia osobnego okna: wszyscy konsumenci dzielą jeden detektor, więc
+ * żądania jednego nie przesuwają punktu pozostałym.
  *
  * Zwraca funkcję odwołującą (cleanup efektu). Na serwerze no-op.
  */
-export function onQuiescent(task: () => void, options: OnQuiescentOptions): CancelQuiescent {
+export function onQuiescent(task: QueuedTask, options: OnQuiescentOptions): CancelQuiescent {
   if (typeof window === "undefined" || typeof document === "undefined") return noop;
   const consumer: Consumer = { task, priority: options.priority, cancelQueued: null };
   if (reached) {

@@ -1,5 +1,6 @@
 // Pierwsza interakcja: jeden współdzielony nasłuch (capture + passive),
-// dostarczenie raz, spóźnieni subskrybenci, lepka aktywacja, SSR.
+// tylko zdarzenia zaufane, dostarczenie raz, spóźnieni subskrybenci, lepka
+// aktywacja, SSR.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -80,6 +81,25 @@ describe("onFirstInteraction", () => {
     track.dispatchEvent(new Event("wheel", { bubbles: true }));
     expect(callback).toHaveBeenCalledOnce();
     expect(callback.mock.calls[0][0]).toMatchObject({ type: "wheel", target: track });
+  });
+
+  it("zdarzenie wysłane skryptem (isTrusted === false) nie jest interakcją", () => {
+    const callback = vi.fn();
+    onFirstInteraction(callback);
+    for (const type of ["pointerdown", "keydown", "wheel"]) {
+      const synthetic = new Event(type, { bubbles: true });
+      Object.defineProperty(synthetic, "isTrusted", { value: false });
+      window.dispatchEvent(synthetic);
+    }
+    const scroll = new Event("scroll", { bubbles: true });
+    Object.defineProperty(scroll, "isTrusted", { value: false });
+    document.dispatchEvent(scroll);
+    expect(callback).not.toHaveBeenCalled();
+    expect(getFirstInteraction()).toBeNull();
+
+    // Zaufane (w przeglądarce `true`; atrapa happy-dom nie ma pola) - liczy się.
+    window.dispatchEvent(new Event("pointerdown"));
+    expect(callback).toHaveBeenCalledOnce();
   });
 
   it("inne zdarzenia (mousemove, click) nie są pierwszą interakcją", () => {
