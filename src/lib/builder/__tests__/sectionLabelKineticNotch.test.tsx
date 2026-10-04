@@ -107,6 +107,35 @@ describe("Kinetic Signal Notch", () => {
     expect(new Set(widths).size).toBe(1);
   });
 
+  it("paski są węższe - krótka baza i umiarkowane rozsunięcie w hoverze", () => {
+    const { container } = renderVariant();
+    const bars = [...container.querySelectorAll<HTMLElement>(".nes-kinetic-bar")];
+    // "bazowe linie maja byc wezsze" - baza 16 px (w-4), nie 24 px.
+    for (const bar of bars) {
+      expect(bar.className).toContain("w-4");
+      expect(bar.className).not.toMatch(/(?:^|\s)w-(3|5|6)\b/);
+    }
+    // "rozsuniecie nie ma byc tak szerokie" - najdłuższy pasek dochodzi do
+    // 28 px (w-7), najkrótszy do 20 px (w-5); szerokie 32-40 px zniknęły.
+    const grows = bars
+      .map((bar) => bar.className.match(/(?:^|\s)(group-hover:w-[^\s]+)/)?.[1])
+      .sort();
+    expect(grows).toEqual(["group-hover:w-5", "group-hover:w-6", "group-hover:w-7"]);
+    expect(grows.join(" ")).not.toMatch(/w-(8|9|10)\b|w-\[2[2-9]px\]/);
+  });
+
+  it("pigułka (sm) trzyma ten sam proporcjonalny skrót szerokości", () => {
+    const { container } = renderVariant({ size: "sm" });
+    const bars = [...container.querySelectorAll<HTMLElement>(".nes-kinetic-bar")];
+    for (const bar of bars) {
+      expect(bar.className).toContain("w-2.5");
+    }
+    const grows = bars
+      .map((bar) => bar.className.match(/(?:^|\s)(group-hover:w-[^\s]+)/)?.[1])
+      .sort();
+    expect(grows).toEqual(["group-hover:w-3", "group-hover:w-3.5", "group-hover:w-[18px]"]);
+  });
+
   it("utrzymuje sygnał i tytuł w jednym wierszu, a akcję nad nimi", () => {
     const { container } = renderVariant();
     const row = container.querySelector<HTMLElement>(".nes-kinetic-row");
