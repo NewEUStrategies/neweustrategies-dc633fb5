@@ -5226,6 +5226,14 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid var(--audio-control-border);
+}
+/* Przycisk odtwarzania w dolnym pasku (atom `AudioIconButton`, wariant
+   `primary`) musi mieć tę samą krawędź co karta sidebaru - inaczej ten sam
+   przycisk play wyglądałby inaczej w zależności od tego, który pasek właśnie
+   go pokazuje. */
+.audio-control-btn {
+  border: 1px solid var(--audio-control-border);
 }
 /* MARTWY KOD USUNIĘTY 2026-09-21: `.lpt-icon` / `.lpt-play` / `.lpt-pause`
    i klatki `lpt-keyframes-fill`. MECHANIZM: `SidebarListenCard` nosi samą
@@ -5260,6 +5268,15 @@ textarea::placeholder {
 }
 .mpp-svg-play {
   transform-origin: 50% 50%;
+}
+/* Delikatnie ciemniejsza krawędź trójkąta. Wypełnienie trójkąta to
+   `text-background`, czyli w jasnym motywie niemal biel - na pomarańczu
+   zlewała się z tłem przycisku. `stroke` siedzi na krawędzi ścieżki i nie
+   rusza jej środka, więc wyśrodkowanie pilnowane przez testy zostaje. */
+.mpp-svg-play path {
+  stroke: var(--audio-icon-border);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
 }
 .mpp[data-playing="false"] .mpp-svg-play {
   opacity: 1;
