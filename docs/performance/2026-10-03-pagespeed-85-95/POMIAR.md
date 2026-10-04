@@ -319,4 +319,16 @@ księga Lantern zgodna z audytem w 10/10 przebiegach.
   z preloadem): manifest trasy `/` wymienia chunk `spreadsheetWorker-*.js` (wspólny chunk z komponentem błędu
   trasy). Zasada fali 1: żadna z tych liczb nie rośnie.
 
-A/A (`--compare . . --runs 4`, te same flagi): w toku, wynik dopisany niżej.
+A/A (`--compare . . --runs 4 --forms mobile,desktop4x --client-backend fixture --third-party fake-gtag`, przeplot,
+load 2,1-2,2 na starcie, wszystkie 16 przebiegów ważnych):
+
+| forma     | mediana A / B TBT | ΔTBT B−A | σΔ TBT | MDE(t) TBT, n = 4 | MDE(t) TBT, n = 5 (przeliczone) | AA \|ΔFCP\| / \|ΔLCP\| | σΔ FCP / LCP    |
+| --------- | ----------------- | -------- | ------ | ----------------- | ------------------------------- | ---------------------- | --------------- |
+| mobile    | 1007 / 1032 ms    | +25 ms   | 101 ms | 210 ms            | ok. 125 ms                      | 0,013 / 0,017 s (OK)   | 0,054 / 0,104 s |
+| desktop4x | 1705 / 1430 ms    | −274 ms  | 361 ms | 752 ms            | ok. 448 ms                      | 0,017 / 0,005 s (OK)   | 0,136 / 0,151 s |
+
+Wnioski dla dowodów pozycji fali 1: mediana ΔTBT mobile mniejsza niż ok. −125 ms (n = 5) jest rozróżnialna od szumu;
+na desktop4x szum jest ok. 3,5 raza większy, więc tam rozstrzyga księga per zadanie (znika zadanie-cel albo dzieli się
+poniżej 50 ms sym. we wszystkich przebiegach ważnych B), a mediana ma tylko kierunek. Ta sama seria A/A na mobile dała
+medianę 1007-1032 ms wobec 832 ms w serii bazy (przeplot dwóch serwerów na jednej maszynie podnosi koszt głównego
+wątku), dlatego pozycje porównuje się wyłącznie w A/B z przeplotem, nigdy z liczbą bazy bezwzględnie.
