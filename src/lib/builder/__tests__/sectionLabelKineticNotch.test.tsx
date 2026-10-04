@@ -162,9 +162,17 @@ describe("Kinetic Signal Notch", () => {
     const { container } = renderVariant();
     const action = container.querySelector<HTMLElement>(".nes-kinetic-action");
     expect(action?.className).not.toContain("uppercase");
-    // "mniejsza czcionka" - 10px na desktopie, 8px na płytce podglądu.
+    // "mniejsza czcionka" - 10px na desktopie, 8px w wezkiej kolumnie.
     expect(action?.className).toContain("text-[10px]");
-    expect(stylesCss).toMatch(/\.nes-kinetic-action \{\s+font-size: 8px !important;/);
+    // Theme Design per widzet (selektor `[data-w-id]x3 [data-description-root]`,
+    // 0-4-0 + !important) narzuca „wiecej" rozmiar opisu (12 px). Kinetic musi
+    // wiec miec konkretniejszy selektor (0-5-0) z !important.
+    const winsOverThemeDesign = (px: string) =>
+      new RegExp(
+        `\\[data-w-id\\]\\[data-w-id\\]\\[data-w-id\\] \\.nes-kinetic-shell \\.nes-kinetic-action \\{[^}]*font-size: ${px}px !important;`,
+      );
+    expect(stylesCss).toMatch(winsOverThemeDesign("10"));
+    expect(stylesCss).toMatch(winsOverThemeDesign("8"));
   });
 
   it("ustawienie strzałki żyje: none zdejmuje ikonę, chevron daje znak", () => {
