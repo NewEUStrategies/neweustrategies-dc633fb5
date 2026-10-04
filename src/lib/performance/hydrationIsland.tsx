@@ -28,19 +28,33 @@
 // zdarzeniu dyskretnym na odwodnionej granicy próbuje ją uwodnić
 // synchronicznie (`dispatchEvent` -> `attemptSynchronousHydration`); `use()`
 // na promise bez `status: "fulfilled"` zawiesiłby się jeszcze raz, a klik
-// przepadłby (`stopPropagation`). Bramka otwiera się DOPIERO po
-// `Promise.allSettled(chunks)` - loaderach zagnieżdżonych leniwych widgetów
-// wyspy (krytyka M5): ponowiona hydratacja nie trafia na leniwy komponent bez
-// chunku, czyli nie zostawia w środku odwodnionych granic, które późniejsza
-// aktualizacja mogłaby wyrenderować po stronie klienta.
+// przepadłby (`stopPropagation`).
+//
+// CHUNKI (krytyka M5). Bramka otwiera się DOPIERO po `chunks`: loaderach
+// (`() => import(...)`) i komponentach `React.lazy` zagnieżdżonych widgetów
+// wyspy. Sam załadowany moduł NIE wystarcza komponentowi `lazy`: przy
+// pierwszym renderze woła on WŁASNĄ fabrykę, a status „resolved" dostaje
+// dopiero w `.then`, czyli w mikrozadaniu - render rzuca thenable, a
+// hydratacja synchroniczna przy zdarzeniu dyskretnym (`renderRootSync`) nie
+// ponawia i klik przepada, także gdy widget siedzi we własnej granicy
+// (`withSuspense`). Dlatego komponent `lazy` podany w `chunks` wyspa
+// GRUNTUJE (`primeLazy`: `_init(_payload)`, ten sam protokół react/react-dom,
+// którym react-dom rozwiązuje `lazy` przy renderze), a bramka czeka na jego
+// rozstrzygnięcie - pierwszy render jest wtedy synchroniczny. Każdy
+// `React.lazy` w wyspie trzeba więc podać w `chunks` JAKO KOMPONENT, nie jego
+// loader (test „loader zamiast komponentu lazy gubi klik"). Komponent `lazy`
+// rozwiązany wcześniej (np. przez inną wyspę) jest gotowy synchronicznie:
+// tor pilny otwiera wtedy bramkę w tym samym mikrozadaniu.
 //
 // WYZWALACZE (`trigger`, czytane przy montażu; domyślnie: własne zdarzenia i
 // zapas ciszy). Żaden nie otwiera bramki synchronicznie w handlerze zdarzenia
 // - każdy tylko zakłada wpis w kolejce P0.3; wyjątkiem jest tor pilny, który
 // biegnie w pierwszym mikrozadaniu po handlerze:
 //  - `visible: {rootMargin}` - IntersectionObserver na `[data-sec-id]` w
-//    wyspie (albo jej dzieciach, albo korzeniu) -> `enqueue(open, {priority:
-//    "islands", target: korzeń, release: "immediate"})`;
+//    wyspie (albo jej dzieciach-elementach) -> `enqueue(open, {priority:
+//    "islands", target: korzeń, release: "immediate"})`; treść bez elementów
+//    zostawia sam korzeń, który z domyślną klasą `contents` nie ma pudełka i
+//    nigdy się nie przetnie (w DEV ostrzeżenie z `id`);
 //  - `interaction: "any"` - pierwsza interakcja gdziekolwiek ->
 //    `enqueue(open, {priority: "islands", target: korzeń})` (kolejka stawia
 //    wyspę pod palcem na początku, resztę puszcza po jednej na klatkę);
@@ -68,21 +82,33 @@
 //
 // KONTRAKT ZADANIA (P0.3): zadanie otwarcia zwraca promise rozstrzygany PO
 // COMMICIE wyspy (efekt warstwy wewnątrz granicy), więc kolejka nie nakłada
-// następnej pracy na hydratację tej wyspy.
+// następnej pracy na hydratację tej wyspy. Zagnieżdżone granice (np. widgety
+// `withSuspense`) hydratują dopiero w kolejnych przebiegach Offscreen po tym
+// commicie, więc kolejka może zwolnić następną wyspę, zanim skończy się ich
+// praca - to praca w torze Idle, dzielona na kawałki, więc szkoda jest mała.
 //
 // GÓRNA GRANICA. Zmiana kontekstu nad czekającą wyspą (także w
 // `startTransition`) dociera do jej odwodnionej granicy: przejście NIE
 // zostanie zatwierdzone, dopóki wyspa się nie uwodni - i to na CAŁEJ stronie
-// (React nie wie, czy treść wyspy czyta zmieniony kontekst), a Sync renderuje
-// wyspę po stronie klienta. React próbuje wtedy wyrenderować treść wyspy w
-// trybie KLIENTA - w odróżnieniu od każdej próby hydratacji (pierwszej,
-// ponowionej po przerwanym przebiegu, synchronicznej przy zdarzeniu).
+// (React nie wie, czy treść wyspy czyta zmieniony kontekst), a aktualizacja
+// poza przejściem (Sync i Default) renderuje wyspę po stronie klienta. React
+// próbuje wtedy wyrenderować treść wyspy w trybie KLIENTA - w odróżnieniu od
+// każdej próby hydratacji (pierwszej, ponowionej po przerwanym przebiegu,
+// synchronicznej przy zdarzeniu).
 // `IslandGate` rozpoznaje tryb sondą `useSyncExternalStore` z IDENTYCZNĄ
 // migawką (React woła `getServerSnapshot` wyłącznie przy hydratacji) i przy
 // renderze klienta czekającej treści otwiera wyspę przez kolejkę
 // (`island-target`, `immediate`): przejście czeka najwyżej na chunki i klatkę,
 // a fallback po renderze klienta znika równie szybko. W DEV - ostrzeżenie z
 // `id` wyspy (sygnał dla audytu providerów P2.2: taka wyspa nie jest odroczona).
+// UWAGA: na bazie cc1a3767 górną granicę wyzwala u KAŻDEGO gościa
+// `AuthProvider` (`useAuth.tsx`: `startTransition(() =>
+// setSessionLoading(false))` w pierwszym przebiegu efektów zmienia wartość
+// kontekstu), a przy zapisanym motywie innym niż `SERVER_THEME` także
+// `ThemeProvider` (`readStored` w przejściu). Dopóki providery nad wyspami
+// zmieniają wartość kontekstu przy boocie, wyspy otwierają się zaraz po nim
+// (podział na klatki zostaje, odroczenia poza okno TBT nie ma) - wymóg dla
+// P1.7 i P2.2: stała wartość kontekstu przy boocie gościa.
 //
 // `data-island-state` (kontrakt P0.6, `@/lib/webVitals`): DOKŁADNIE
 // `pending` (w HTML serwera i do commitu granicy) i `hydrated` (po commicie).
@@ -91,7 +117,8 @@
 //
 // WARUNKI DLA KONSUMENTÓW (P2.2, P2.3):
 //  - kontekst nad wyspą nie może się zmieniać, dopóki wyspa czeka (GÓRNA
-//    GRANICA otworzy ją wtedy przedwcześnie, Sync dodatkowo porzuci jej HTML);
+//    GRANICA otworzy ją wtedy przedwcześnie, a każda aktualizacja poza
+//    `startTransition` - Sync i Default - dodatkowo porzuci jej HTML);
 //    urządzenie z `useViewportDevice()` WEWNĄTRZ wyspy, nie z kontekstu ani
 //    propsów; motyw, sesja, język nad wyspami - przez magazyny czytane w
 //    środku albo klasę na `<html>`, nie przez wartość kontekstu;
@@ -99,9 +126,17 @@
 //    zewnętrznych (react-query, i18next): dane zapytania czytanego w wyspie
 //    albo język zmienione przed jej otwarciem dają rozjazd hydratacji i render
 //    klienta wyspy (test „ograniczenie dla P2.2");
-//  - wyspa jest `memo`: dzieci porównywane płytko jako element (typ, klucz,
-//    propsy), `trigger` i `chunks` nie biorą udziału (czytane przy montażu),
-//    `id` stały i unikalny na stronie (klucz elementu);
+//  - wyspa jest `memo` (`islandPropsEqual`): dzieci i `fallback` porównywane
+//    strukturalnie - element (typ, klucz, propsy), tablica (kilkoro dzieci,
+//    fragment) i zwykły obiekt (np. `style`) pole po polu, a funkcje i
+//    instancje klas WYŁĄCZNIE referencyjnie. Dziecko wyspy musi więc mieć
+//    stabilne propsy: bez inline callbacków (`onPick={() => …}` - zamiast
+//    tego `useCallback` albo funkcja modułu) i bez nowych instancji klas przy
+//    każdym renderze rodzica; inaczej re-render rodzica dociera do czekającej
+//    granicy i porzuca jej HTML (w DEV ostrzeżenie z `id`). `trigger` i
+//    `chunks` nie biorą udziału (czytane przy montażu); `id` stały i unikalny
+//    na stronie (klucz elementu);
+//  - każdy `React.lazy` w wyspie podany w `chunks` jako komponent (CHUNKI);
 //  - wyspa nie może obejmować komponentów zawieszających się na SERWERZE
 //    (bramka danych sekcji) - jej granica przejęłaby strumień;
 //  - `disabled` (np. `editorPreview`) i kanwa buildera (`useBuilderMode()`) =
@@ -173,15 +208,35 @@ export interface IslandTrigger {
   readonly quiescent?: boolean;
 }
 
-/** Loader zagnieżdżonego leniwego widgetu wyspy (ten sam, którego używa `React.lazy`). */
+/**
+ * Loader modułu potrzebnego treści wyspy (`() => import(...)`). Tylko ładuje
+ * kod - NIE gruntuje `React.lazy` zbudowanego na tym samym imporcie (patrz
+ * CHUNKI w nagłówku); taki komponent podaje się w `chunks` wprost.
+ */
 export type IslandChunkLoader = () => PromiseLike<unknown>;
+
+/**
+ * Komponent `React.lazy` (`LazyExoticComponent` z `@types/react` pasuje
+ * strukturalnie). Wyspa woła jego inicjalizator, zanim otworzy bramkę.
+ */
+export interface IslandLazyComponent {
+  readonly $$typeof: symbol;
+  readonly _result: unknown;
+}
+
+/** Wpis `chunks`: loader albo komponent `React.lazy`. */
+export type IslandChunk = IslandChunkLoader | IslandLazyComponent;
 
 export interface HydrationIslandProps {
   /** Stały, unikalny na stronie identyfikator (`data-island-id`); używać też jako `key`. */
   readonly id: string;
   readonly trigger?: IslandTrigger;
-  /** Loadery chunków, bez których treść wyspy nie uwodni się w całości. */
-  readonly chunks?: readonly IslandChunkLoader[];
+  /**
+   * Chunki, bez których treść wyspy nie uwodni się w całości: loadery i
+   * komponenty `React.lazy` (te drugie wyspa gruntuje - pierwszy render
+   * synchroniczny, klik toru pilnego nie przepada).
+   */
+  readonly chunks?: readonly IslandChunk[];
   /**
    * Fallback granicy - widoczny tylko przy renderze po stronie klienta (świeży
    * montaż z zawieszonym dzieckiem albo awaryjne porzucenie HTML serwera);
@@ -202,7 +257,8 @@ type GateStatus = "pending" | "fulfilled";
 type IslandGateThenable = Promise<void> & { status: GateStatus; value: undefined };
 
 const NO_TRIGGER: IslandTrigger = {};
-const NO_CHUNKS: readonly IslandChunkLoader[] = [];
+const NO_CHUNKS: readonly IslandChunk[] = [];
+const REACT_LAZY_TYPE = Symbol.for("react.lazy");
 const LISTENER_OPTIONS: AddEventListenerOptions = { capture: true, passive: true };
 const EDITABLE_SELECTOR =
   'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
@@ -228,6 +284,48 @@ function isImmediate(trigger: IslandTrigger): boolean {
     report(error);
   }
   return mediaMatches(trigger.media);
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === "object" && value !== null && typeof Reflect.get(value, "then") === "function"
+  );
+}
+
+/**
+ * Gruntuje komponent `React.lazy`: woła jego inicjalizator dokładnie tak, jak
+ * react-dom przy renderze (`lazy._init(lazy._payload)`; pola spoza typów
+ * publicznych, ale to protokół między `react` a rendererami - ten sam od 16.6
+ * do 19.2, korzystają z niego też zewnętrzne renderery na
+ * `react-reconciler`). Pierwsze wywołanie uruchamia fabrykę (import chunku) i
+ * rzuca jej thenable; po jego rozstrzygnięciu payload ma status „resolved",
+ * więc render komponentu jest synchroniczny. Zwraca `null`, gdy komponent
+ * jest gotowy już teraz, albo promise rozstrzygany PO `.then` Reacta
+ * (zarejestrowanym wcześniej, w inicjalizatorze).
+ */
+function primeLazy(component: IslandLazyComponent): PromiseLike<unknown> | null {
+  const init: unknown = Reflect.get(component, "_init");
+  if (component.$$typeof !== REACT_LAZY_TYPE || typeof init !== "function") {
+    return Promise.reject(
+      new TypeError("[hydration-island] chunks: expected a loader or a React.lazy component"),
+    );
+  }
+  try {
+    Reflect.apply(init, undefined, [Reflect.get(component, "_payload")]);
+    return null;
+  } catch (thrown) {
+    return isThenable(thrown) ? Promise.resolve(thrown) : Promise.reject(thrown);
+  }
+}
+
+/** Uruchamia wpis `chunks`; `null` = gotowy synchronicznie. */
+function startChunk(chunk: IslandChunk): PromiseLike<unknown> | null {
+  if (typeof chunk !== "function") return primeLazy(chunk);
+  try {
+    return chunk();
+  } catch (error) {
+    return Promise.reject(error);
+  }
 }
 
 // --- Delegowane nasłuchy na `window` (jeden komplet na stronę) --------------
@@ -315,11 +413,20 @@ function subscribeGlobalKeys(subscription: GlobalKeySubscription): () => void {
 }
 
 /** Elementy, których widoczność otwiera wyspę: sekcje buildera, dzieci otoczki albo ona sama. */
-function visibilityTargets(root: HTMLElement): Element[] {
+function visibilityTargets(root: HTMLElement, id: string): Element[] {
   const sections = Array.from(root.querySelectorAll("[data-sec-id]"));
   if (sections.length > 0) return sections;
   const children = Array.from(root.children);
-  return children.length > 0 ? children : [root];
+  if (children.length > 0) return children;
+  // Sama treść tekstowa: zostaje otoczka. Z domyślną klasą `contents` nie ma
+  // ona pudełka, więc IO nigdy nie zgłosi przecięcia (bez odczytu układu tu
+  // tego nie sprawdzimy - stąd tylko ostrzeżenie w DEV).
+  if (import.meta.env.DEV) {
+    console.warn(
+      `[hydration-island] "${id}": the visible trigger has no element to observe besides the wrapper; with display: contents it never intersects. Wrap the content in an element or give the wrapper a box (className).`,
+    );
+  }
+  return [root];
 }
 
 // --- Sterownik jednej wyspy --------------------------------------------------
@@ -331,7 +438,7 @@ class IslandController {
   /** Otoczka wyspy przeszła commit (patrz HYDRATACJA A ŚWIEŻY MONTAŻ). */
   wrapperCommitted = false;
   private readonly trigger: IslandTrigger;
-  private readonly chunks: readonly IslandChunkLoader[];
+  private readonly chunks: readonly IslandChunk[];
   private readonly immediate: boolean;
   private resolveGate: () => void = noop;
   private resolveCommitted: () => void = noop;
@@ -345,7 +452,7 @@ class IslandController {
   private onBlocked: (() => void) | null = null;
   private readonly id: string;
 
-  constructor(id: string, trigger: IslandTrigger, chunks: readonly IslandChunkLoader[]) {
+  constructor(id: string, trigger: IslandTrigger, chunks: readonly IslandChunk[]) {
     this.id = id;
     this.trigger = trigger;
     this.chunks = chunks;
@@ -369,6 +476,11 @@ class IslandController {
     return this.gate.status === "fulfilled";
   }
 
+  /** Treść wyspy przeszła commit (hydratacja albo świeży montaż). */
+  isCommitted(): boolean {
+    return this.hydrated;
+  }
+
   /** Otwiera bramkę: `status` synchronicznie, potem rozwiązanie promise (ping Reacta). */
   private release(): void {
     if (this.gate.status === "fulfilled") return;
@@ -385,7 +497,8 @@ class IslandController {
   /**
    * React renderuje czekającą treść w trybie KLIENTA (nie hydratacji), czyli
    * aktualizacja dotarła do odwodnionej granicy: przejście (kontekst nad wyspą
-   * zmieniony w `startTransition`) albo Sync (render klienta z fallbackiem).
+   * zmieniony w `startTransition`) albo aktualizacja poza przejściem, Sync i
+   * Default (render klienta z fallbackiem).
    * Przejście czeka wtedy na hydratację wyspy - i to na CAŁEJ stronie, bo
    * React nie wie, czy treść wyspy czyta zmieniony kontekst - więc wyspa
    * otwiera się przez kolejkę (GÓRNA GRANICA w nagłówku pliku). Próby w
@@ -398,7 +511,7 @@ class IslandController {
     this.blocked = true;
     if (import.meta.env.DEV) {
       console.warn(
-        `[hydration-island] "${this.id}": an update reached the pending island (context above it changed); opening it early.`,
+        `[hydration-island] "${this.id}": an update reached the pending island (context above it or its props changed); opening it early.`,
       );
     }
     // Poza renderem: zapis do kolejki dopiero w mikrozadaniu.
@@ -420,17 +533,24 @@ class IslandController {
     if (this.opening || this.isOpen()) this.resolveCommitted();
   }
 
+  /**
+   * Ładuje loadery i gruntuje komponenty `lazy` (CHUNKI w nagłówku), raz.
+   * Wszystko gotowe synchronicznie (np. `lazy` rozwiązane wcześniej) =
+   * `chunksReady` od razu, bez mikrozadania.
+   */
   private loadChunks(): Promise<void> {
     if (this.chunksReady) return Promise.resolve();
-    this.chunksLoading ??= Promise.allSettled(
-      this.chunks.map((load) => {
-        try {
-          return load();
-        } catch (error) {
-          return Promise.reject(error);
-        }
-      }),
-    ).then((results) => {
+    if (this.chunksLoading) return this.chunksLoading;
+    const pending: PromiseLike<unknown>[] = [];
+    for (const chunk of this.chunks) {
+      const started = startChunk(chunk);
+      if (started !== null) pending.push(started);
+    }
+    if (pending.length === 0) {
+      this.chunksReady = true;
+      return Promise.resolve();
+    }
+    this.chunksLoading = Promise.allSettled(pending).then((results) => {
       // Chunk, który nie przyszedł, i tak zgłosi błąd przy renderze (granica
       // błędu konsumenta) - jak dziś bez wyspy. Bramka się otwiera.
       for (const result of results) if (result.status === "rejected") report(result.reason);
@@ -448,8 +568,13 @@ class IslandController {
     return this.committed;
   }
 
-  /** Tor pilny: przy załadowanych chunkach bramka otwiera się w tym samym mikrozadaniu. */
+  /**
+   * Tor pilny: chunki gotowe (albo gotowe synchronicznie, np. `lazy`
+   * rozwiązane wcześniej) = bramka otwarta w tym samym mikrozadaniu, przed
+   * nasłuchem Reacta na dokumencie.
+   */
   openUrgent(): Promise<void> {
+    void this.loadChunks();
     if (this.chunksReady) this.release();
     return this.requestOpen();
   }
@@ -498,7 +623,7 @@ class IslandController {
         },
         { rootMargin: visible.rootMargin ?? "0px" },
       );
-      for (const target of visibilityTargets(root)) observer.observe(target);
+      for (const target of visibilityTargets(root, this.id)) observer.observe(target);
       cleanups.push(() => observer.disconnect());
     }
 
@@ -628,16 +753,10 @@ function IslandGate({
   );
 }
 
-function IslandBoundary({
-  id,
-  trigger,
-  chunks,
-  fallback,
-  fallbackMinHeight,
-  className,
-  children,
-}: HydrationIslandProps): ReactElement {
+function IslandBoundary(props: HydrationIslandProps): ReactElement {
+  const { id, trigger, chunks, fallback, fallbackMinHeight, className, children } = props;
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const seenProps = useRef(props);
   // Serwer nie potrzebuje bramki: renderuje dzieci wprost.
   const [island] = useState<IslandController | null>(() =>
     import.meta.env.SSR
@@ -650,6 +769,19 @@ function IslandBoundary({
   useLayoutEffect(() => {
     if (island) island.wrapperCommitted = true;
   }, [island]);
+
+  // DEV: nierówne propsy czekającej wyspy (komparator `memo` przepuścił
+  // re-render rodzica) docierają do odwodnionej granicy - poza przejściem
+  // porzucają jej HTML (WARUNKI DLA KONSUMENTÓW: stabilne propsy dziecka).
+  useLayoutEffect(() => {
+    const previous = seenProps.current;
+    seenProps.current = props;
+    if (!import.meta.env.DEV || island === null || previous === props) return;
+    if (island.isCommitted() || islandPropsEqual(previous, props)) return;
+    console.warn(
+      `[hydration-island] "${id}": props changed while the island is pending (inline callback or a new class instance in its children?); the update reaches its dehydrated boundary.`,
+    );
+  });
 
   useEffect(() => {
     const root = rootRef.current;
@@ -682,36 +814,69 @@ function IslandBoundary({
   );
 }
 
-function shallowEqualObjects(a: object, b: object): boolean {
+/** Głębokość porównania strukturalnego; głębiej = „nierówne" (bezpieczny kierunek). */
+const MAX_COMPARE_DEPTH = 16;
+
+function isArray(value: unknown): value is readonly unknown[] {
+  return Array.isArray(value);
+}
+
+function isPlainObject(value: unknown): value is object {
+  if (typeof value !== "object" || value === null) return false;
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function equivalentFields(a: object, b: object, depth: number): boolean {
   const keys = Object.keys(a);
   if (keys.length !== Object.keys(b).length) return false;
   return keys.every(
     (key) =>
       Object.prototype.hasOwnProperty.call(b, key) &&
-      Object.is(Reflect.get(a, key), Reflect.get(b, key)),
-  );
-}
-
-/** Ten sam węzeł albo element tego samego typu i klucza z płytko równymi propsami. */
-function sameNode(a: ReactNode, b: ReactNode): boolean {
-  if (Object.is(a, b)) return true;
-  if (!isValidElement(a) || !isValidElement(b)) return false;
-  if (a.type !== b.type || a.key !== b.key) return false;
-  const propsA = a.props;
-  const propsB = b.props;
-  return (
-    typeof propsA === "object" &&
-    propsA !== null &&
-    typeof propsB === "object" &&
-    propsB !== null &&
-    shallowEqualObjects(propsA, propsB)
+      equivalent(Reflect.get(a, key), Reflect.get(b, key), depth),
   );
 }
 
 /**
+ * Równoważność wartości w propsach wyspy: ta sama wartość (`Object.is`) albo
+ * strukturalnie - element tego samego typu i klucza o równoważnych propsach
+ * (także `children` w środku), tablica tej samej długości (kilkoro dzieci,
+ * fragment) i zwykły obiekt (np. `style`) o równoważnych polach. Funkcje i
+ * instancje klas porównywane WYŁĄCZNIE referencyjnie (inline callback =
+ * nierówne). Pominięcie re-renderu przy równoważnych propsach to semantyka
+ * `memo` dla czystych komponentów.
+ */
+function equivalent(a: unknown, b: unknown, depth: number): boolean {
+  if (Object.is(a, b)) return true;
+  if (depth >= MAX_COMPARE_DEPTH) return false;
+  if (isArray(a)) {
+    return (
+      isArray(b) &&
+      a.length === b.length &&
+      a.every((item, index) => equivalent(item, b[index], depth + 1))
+    );
+  }
+  if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) return false;
+  if (isValidElement(a)) {
+    if (!isValidElement(b) || a.type !== b.type || a.key !== b.key) return false;
+    const propsA: unknown = a.props;
+    const propsB: unknown = b.props;
+    return (
+      typeof propsA === "object" &&
+      propsA !== null &&
+      typeof propsB === "object" &&
+      propsB !== null &&
+      equivalentFields(propsA, propsB, depth + 1)
+    );
+  }
+  return isPlainObject(a) && isPlainObject(b) && equivalentFields(a, b, depth + 1);
+}
+
+/**
  * Re-render rodzica z równoważnymi propsami kończy się na wyspie (bailout),
- * zanim granica dostanie nowe propsy - aktualizacja Sync rodzica (np.
- * `useQuery` nad wyspą) nie dociera do odwodnionej treści.
+ * zanim granica dostanie nowe propsy - aktualizacja rodzica poza przejściem
+ * (Sync, Default; np. `useQuery` nad wyspą) nie dociera do odwodnionej treści,
+ * dopóki dzieci spełniają warunek stabilnych propsów (nagłówek pliku).
  */
 function islandPropsEqual(prev: HydrationIslandProps, next: HydrationIslandProps): boolean {
   return (
@@ -719,8 +884,8 @@ function islandPropsEqual(prev: HydrationIslandProps, next: HydrationIslandProps
     prev.disabled === next.disabled &&
     prev.className === next.className &&
     prev.fallbackMinHeight === next.fallbackMinHeight &&
-    sameNode(prev.fallback, next.fallback) &&
-    sameNode(prev.children, next.children)
+    equivalent(prev.fallback, next.fallback, 0) &&
+    equivalent(prev.children, next.children, 0)
   );
 }
 

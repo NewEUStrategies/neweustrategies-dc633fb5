@@ -24,6 +24,7 @@ import {
   type ReactNode,
 } from "react";
 import { renderToString } from "react-dom/server";
+import { flushSync } from "react-dom";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import i18next, { type i18n as I18n } from "i18next";
@@ -33,7 +34,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import { ISLAND_STATE_ATTR, ISLAND_STATES } from "@/lib/webVitals";
-import { HydrationIsland, type IslandChunkLoader, type IslandTrigger } from "../hydrationIsland";
+import { HydrationIsland, type IslandChunk, type IslandTrigger } from "../hydrationIsland";
 import { __resetFirstInteractionForTests } from "../firstInteraction";
 import { __resetPostInteractionQueueForTests, enqueue } from "../postInteractionQueue";
 import { onQuiescent } from "../whenQuiescent";
@@ -324,7 +325,7 @@ function Island({
 }: {
   id?: string;
   trigger?: IslandTrigger;
-  chunks?: readonly IslandChunkLoader[];
+  chunks?: readonly IslandChunk[];
   children?: ReactNode;
 }): ReactElement {
   return (
@@ -498,7 +499,7 @@ describe("HTML serwera i kontrakt data-island-state (P0.6)", () => {
 // --- Aktualizacje przed otwarciem bramki --------------------------------------
 
 describe("HTML serwera zachowany przy aktualizacjach przed otwarciem bramki", () => {
-  it("Sync rodzica, zapytanie i i18n nad wyspą, urządzenie z magazynu: wyspa nietknięta i zamknięta; po otwarciu bez rozjazdu, potem urządzenie klienta", async () => {
+  it("Sync i Default rodzica, zapytanie i i18n nad wyspą, urządzenie z magazynu: wyspa nietknięta i zamknięta; po otwarciu bez rozjazdu, potem urządzenie klienta", async () => {
     installMatchMedia(() => false); // telefon: żaden próg min-width nie pasuje
     const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
     queryClient.setQueryData(["counter"], 1);
@@ -544,7 +545,8 @@ describe("HTML serwera zachowany przy aktualizacjach przed otwarciem bramki", ()
 
     const t = await hydrate(<App />);
     await act(async () => {
-      bump(); // Sync
+      flushSync(() => bump()); // Sync (SyncLane)
+      bump(); // Default (setState bez zdarzenia i bez przejścia)
       queryClient.setQueryData(["counter"], 2); // uSES react-query
       await i18n.changeLanguage("en");
       publishViewportDevice("mobile");
@@ -553,7 +555,7 @@ describe("HTML serwera zachowany przy aktualizacjach przed otwarciem bramki", ()
 
     // Nad wyspą wszystko się zaktualizowało...
     expect(t.container.querySelector("nav")?.textContent).toBe("Menu EN 2 mobile");
-    expect(t.container.querySelector("output")?.textContent).toBe("1");
+    expect(t.container.querySelector("output")?.textContent).toBe("2");
     // ...a wyspa czeka nietknięta: bez renderu klienta, bez próby hydratacji.
     expect(t.lost()).toEqual([]);
     expect(t.fallbackShown()).toBe(false);
@@ -637,20 +639,112 @@ describe("HTML serwera zachowany przy aktualizacjach przed otwarciem bramki", ()
     expect(t.container.querySelector('[data-probe="badge"]')?.textContent).toBe("dark ala");
     expect(t.container.querySelector('[data-probe="island-theme"]')?.textContent).toBe("dark ala");
   });
+
+  it("kilkoro dzieci, fragment, zagnieżdżone elementy i obiekt `style`: re-render rodzica (Sync i Default) kończy się na wyspie; po otwarciu bez rozjazdu", async () => {
+    let bump: () => void = () => {};
+    function App(): ReactElement {
+      const [count, setCount] = useState(0);
+      bump = () => setCount((value) => value + 1);
+      return (
+        <>
+          <output data-probe="count">{count}</output>
+          <HydrationIsland id="multi" trigger={{ quiescent: false }}>
+            <p data-probe="p1">jeden</p>
+            <>
+              <p data-probe="p2" style={{ marginTop: 4 }}>
+                dwa
+              </p>
+              <Content name="c">
+                <em data-probe="em">zagnieżdżone</em>
+              </Content>
+            </>
+          </HydrationIsland>
+        </>
+      );
+    }
+
+    const t = await hydrate(<App />);
+    await act(async () => {
+      flushSync(() => bump()); // Sync
+    });
+    await act(async () => {
+      bump(); // Default
+    });
+
+    expect(t.container.querySelector("output")?.textContent).toBe("2");
+    expect(t.lost()).toEqual([]);
+    expect(t.fallbackShown()).toBe(false);
+    expect(t.state("multi")).toBe("pending");
+    expect(consoleWarn).not.toHaveBeenCalled();
+
+    const button = t.probe("c-button");
+    await act(async () => {
+      button.dispatchEvent(pointer("pointerdown"));
+      await flushMicrotasks();
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(clicks).toEqual(["c"]);
+    expect(t.state("multi")).toBe("hydrated");
+    expect(t.lost()).toEqual([]);
+    expect(t.errors).toEqual([]);
+  });
+
+  it("warunek dla konsumentów: inline callback w dziecku przepuszcza re-render rodzica (Default) do odwodnionej granicy - HTML porzucony, w DEV ostrzeżenie z `id`", async () => {
+    let bump: () => void = () => {};
+    function Picker({ onPick }: { onPick: () => void }): ReactElement {
+      return (
+        <button type="button" data-probe="pick" onClick={onPick}>
+          Wybierz
+        </button>
+      );
+    }
+    function App(): ReactElement {
+      const [count, setCount] = useState(0);
+      bump = () => setCount((value) => value + 1);
+      return (
+        <HydrationIsland id="inline" trigger={{ quiescent: false }}>
+          <Picker onPick={() => clicks.push(String(count))} />
+        </HydrationIsland>
+      );
+    }
+
+    const t = await hydrate(<App />);
+    await act(async () => {
+      bump();
+    });
+
+    expect(t.lost()).toContain("pick");
+    const warnings = consoleWarn.mock.calls.map(([message]) => String(message));
+    expect(warnings).toContainEqual(
+      expect.stringContaining('"inline": props changed while the island is pending'),
+    );
+    // Szkody ograniczone jak przy kontekście: górna granica otwiera wyspę.
+    await frame();
+    expect(t.state("inline")).toBe("hydrated");
+    expect(t.fallbackShown()).toBe(false);
+
+    // Po commicie wyspy nierówne propsy to zwykła aktualizacja - bez ostrzeżeń.
+    consoleWarn.mockClear();
+    await act(async () => {
+      bump();
+    });
+    expect(consoleWarn).not.toHaveBeenCalled();
+  });
 });
 
 // --- Kontrole negatywne: MUSZĄ wykryć render klienta --------------------------
 
 describe("kontrole negatywne (uprząż musi wykryć render klienta)", () => {
-  it("(b) urządzenie przez kontekst nad wyspą, zmienione synchronicznie: HTML wyspy porzucony", async () => {
+  /** (b) Urządzenie przez kontekst nad wyspą - tak NIE wolno go dostarczać. */
+  function deviceContextCase() {
     const DeviceContext = createContext("desktop");
-    let setDevice: (device: string) => void = () => {};
+    const control = { setDevice: (_device: string): void => {} };
     function DeviceText(): ReactElement {
       return <p data-probe="ctx-device">{useContext(DeviceContext)}</p>;
     }
     function App(): ReactElement {
       const [device, apply] = useState("desktop");
-      setDevice = apply;
+      control.setDevice = apply;
       return (
         <DeviceContext value={device}>
           <Island trigger={{ quiescent: false }}>
@@ -661,12 +755,33 @@ describe("kontrole negatywne (uprząż musi wykryć render klienta)", () => {
         </DeviceContext>
       );
     }
+    return { App, control };
+  }
 
+  it("(b) urządzenie przez kontekst nad wyspą, zmienione synchronicznie (`flushSync`, SyncLane): HTML wyspy porzucony", async () => {
+    const { App, control } = deviceContextCase();
     const t = await hydrate(<App />);
     expect(t.lost()).toEqual([]);
 
     await act(async () => {
-      setDevice("mobile"); // Sync - tak NIE wolno dostarczać urządzenia
+      flushSync(() => control.setDevice("mobile"));
+    });
+
+    expect(t.lost()).toEqual(expect.arrayContaining(["a-article", "a-button", "ctx-device"]));
+    expect(t.fallbackShown()).toBe(true);
+    await frame();
+    expect(t.fallbackShown()).toBe(false);
+    expect(t.state()).toBe("hydrated");
+    expect(t.container.querySelector('[data-probe="ctx-device"]')?.textContent).toBe("mobile");
+  });
+
+  it("(b) urządzenie przez kontekst nad wyspą, zmienione poza przejściem (Default, `setState` bez zdarzenia): HTML wyspy porzucony", async () => {
+    const { App, control } = deviceContextCase();
+    const t = await hydrate(<App />);
+    expect(t.lost()).toEqual([]);
+
+    await act(async () => {
+      control.setDevice("mobile"); // Default - tak NIE wolno dostarczać urządzenia
     });
 
     expect(t.lost()).toEqual(expect.arrayContaining(["a-article", "a-button", "ctx-device"]));
@@ -852,6 +967,193 @@ describe("bramka otwiera się dopiero po chunkach", () => {
   });
 });
 
+// --- Leniwe widgety (`React.lazy`) a tor pilny --------------------------------
+
+describe("leniwe widgety w wyspie: komponent `React.lazy` w `chunks` jest gruntowany", () => {
+  function Widget(): ReactElement {
+    return (
+      <button type="button" data-probe="widget" onClick={() => clicks.push("widget")}>
+        Zapisz
+      </button>
+    );
+  }
+
+  /** Moduł widgetu już w pamięci: fabryka `lazy` zwraca rozwiązany promise. */
+  function lazyWidget() {
+    const ready = Promise.resolve({ default: Widget });
+    const factory = vi.fn(() => ready);
+    return { Lazy: lazy(factory), factory, ready };
+  }
+
+  /** Widget we własnej granicy (`withSuspense`): na serwerze statycznie (jak `serverReadingWidgets`). */
+  const serverWidget = (
+    <Suspense fallback={null}>
+      <Widget />
+    </Suspense>
+  );
+
+  async function hydrateWidget(
+    server: ReactNode,
+    client: ReactNode,
+    chunks: readonly IslandChunk[],
+  ): Promise<Hydrated> {
+    const trigger: IslandTrigger = { quiescent: false };
+    return hydrate(
+      <Island id="w" trigger={trigger}>
+        {server}
+      </Island>,
+      <Island id="w" trigger={trigger} chunks={chunks}>
+        {client}
+      </Island>,
+    );
+  }
+
+  /** Pierwsze dotknięcie: `pointerdown`, mikrozadania toru pilnego, `click`. */
+  async function firstTap(target: Element, microtasks: "one" | "all"): Promise<void> {
+    await act(async () => {
+      target.dispatchEvent(pointer("pointerdown"));
+      if (microtasks === "one") await Promise.resolve();
+      else await flushMicrotasks();
+      target.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+  }
+
+  it("widget we własnej granicy (`withSuspense`), komponent `lazy` w `chunks`: pierwszy klik dochodzi, fabryka wołana raz", async () => {
+    const { Lazy, factory } = lazyWidget();
+    const t = await hydrateWidget(
+      serverWidget,
+      <Suspense fallback={<i data-probe="widget-fallback" />}>
+        <Lazy />
+      </Suspense>,
+      [Lazy],
+    );
+
+    await firstTap(t.probe("widget"), "all");
+
+    expect(clicks).toEqual(["widget"]);
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(t.state("w")).toBe("hydrated");
+    expect(t.lost()).toEqual([]);
+    expect(t.errors).toEqual([]);
+  });
+
+  it("`lazy` wprost w wyspie (bez własnej granicy), komponent w `chunks`: bramka czeka na rozstrzygnięcie `lazy`, wyspa hydratuje w jednym przebiegu, pierwszy klik dochodzi", async () => {
+    const module = deferred<{ default: () => ReactElement }>();
+    const factory = vi.fn(() => module.promise);
+    const Lazy = lazy(factory);
+    let renders = 0;
+    function Counted(): null {
+      renders += 1;
+      return null;
+    }
+    const t = await hydrateWidget(
+      <>
+        <Counted />
+        <Widget />
+      </>,
+      <>
+        <Counted />
+        <Lazy />
+      </>,
+      [Lazy],
+    );
+    renders = 0; // bez renderu serwera
+    const button = t.probe("widget");
+
+    await act(async () => {
+      button.dispatchEvent(pointer("pointerdown"));
+      await flushMicrotasks();
+      // Tor pilny zagruntował `lazy` (fabryka wołana przez wyspę), moduł
+      // jeszcze nie doszedł: bramka zamknięta, treść wyspy nietknięta.
+      expect(factory).toHaveBeenCalledTimes(1);
+      expect(renders).toBe(0);
+      module.resolve({ default: Widget });
+      await flushMicrotasks();
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(clicks).toEqual(["widget"]);
+    // Jeden przebieg: render treści nie trafił na `lazy` bez statusu.
+    expect(renders).toBe(1);
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(t.state("w")).toBe("hydrated");
+    expect(t.lost()).toEqual([]);
+    expect(t.errors).toEqual([]);
+  });
+
+  it("kontrola negatywna: loader zamiast komponentu `lazy` (moduł w pamięci, ale payload `lazy` nieustalony) gubi pierwszy klik", async () => {
+    const { Lazy, factory } = lazyWidget();
+    const t = await hydrateWidget(
+      serverWidget,
+      <Suspense fallback={<i data-probe="widget-fallback" />}>
+        <Lazy />
+      </Suspense>,
+      [factory],
+    );
+
+    await firstTap(t.probe("widget"), "all");
+
+    // Wyspa uwodniona, ale hydratacja synchroniczna granicy widgetu trafiła na
+    // `lazy` bez statusu - React zwinął pracę i zatrzymał klik.
+    expect(clicks).toEqual([]);
+    expect(t.state("w")).toBe("hydrated");
+
+    // Granica widgetu hydratuje później (ponowienie po rozwiązaniu `lazy`).
+    await frame();
+    clickNow(t.probe("widget"));
+    expect(clicks).toEqual(["widget"]);
+    expect(t.lost()).toEqual([]);
+  });
+
+  it("`lazy` rozwiązany wcześniej (np. przez inną wyspę): tor pilny otwiera bramkę w tym samym mikrozadaniu", async () => {
+    const { Lazy, ready } = lazyWidget();
+    const elsewhere = document.createElement("div");
+    const other = createRoot(elsewhere);
+    await act(async () => {
+      other.render(
+        <Suspense fallback={null}>
+          <Lazy />
+        </Suspense>,
+      );
+    });
+    await act(async () => {
+      await ready;
+    });
+    cleanups.push(async () => {
+      await act(async () => other.unmount());
+    });
+    const t = await hydrateWidget(
+      serverWidget,
+      <Suspense fallback={null}>
+        <Lazy />
+      </Suspense>,
+      [Lazy],
+    );
+
+    await firstTap(t.probe("widget"), "one");
+
+    expect(clicks).toEqual(["widget"]);
+    expect(t.lost()).toEqual([]);
+    expect(t.errors).toEqual([]);
+  });
+
+  it("wpis `chunks`, który nie jest loaderem ani `React.lazy`: TypeError zgłoszony, bramka i tak się otwiera", async () => {
+    const reported = vi.fn();
+    vi.stubGlobal("reportError", reported);
+    const notLazy = { $$typeof: Symbol.for("react.memo"), _result: null };
+    const t = await hydrate(<Island chunks={[notLazy]} />);
+
+    await reachQuiescence();
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(reported).toHaveBeenCalledWith(expect.any(TypeError));
+    expect(t.state()).toBe("hydrated");
+    expect(t.lost()).toEqual([]);
+  });
+});
+
 // --- Wyzwalacze ---------------------------------------------------------------
 
 describe("wyzwalacze i zwolnienie przez kolejkę P0.3", () => {
@@ -888,6 +1190,18 @@ describe("wyzwalacze i zwolnienie przez kolejkę P0.3", () => {
     const [observer] = FakeIntersectionObserver.instances;
     expect(observer?.options.rootMargin).toBe("0px");
     expect(observer?.observed.map((node) => node.tagName)).toEqual(["ARTICLE"]);
+  });
+
+  it("visible przy treści bez elementów: IO obserwuje samą otoczkę, w DEV ostrzeżenie z `id` (`display: contents` się nie przetnie)", async () => {
+    const t = await hydrate(
+      <HydrationIsland id="txt" trigger={{ visible: {} }}>
+        sam tekst
+      </HydrationIsland>,
+    );
+    const [observer] = FakeIntersectionObserver.instances;
+    expect(observer?.observed).toEqual([t.island("txt")]);
+    expect(consoleWarn).toHaveBeenCalledTimes(1);
+    expect(String(consoleWarn.mock.calls[0]?.[0])).toContain('"txt"');
   });
 
   it('interaction "any": wpis `islands` z celem czeka na pierwszą interakcję gdziekolwiek', async () => {
