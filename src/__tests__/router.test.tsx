@@ -293,6 +293,90 @@ describe("getRouter - gałąź KLIENTA i budżet hydratacji", () => {
     warn.mockRestore();
   });
 
+  // PODZIAŁ NA MAKROZADANIA (P1.7, F6). Literał `setTimeout(0)` po hydratacji
+  // integracji zostaje (doktryna wyżej); dochodzą dwa ustąpienia: przed
+  // hydratacją integracji (poza zadaniem `createRouter`) i po imporcie chunków
+  // dopasowanych tras (reszta hydratacji routera w osobnym zadaniu).
+  it("hydratacja routera idzie w osobnych makrozadaniach: integracja, chunki tras, reszta", async () => {
+    // Kolejka makrozadań pod kontrolą testu: każde `setTimeout(fn, 0)` trafia do
+    // `tasks`, a test zwalnia je po jednym (fałszywe timery vitesta odpalają
+    // przy kroku także timery 0 ms utworzone w trakcie kroku, więc nie dają
+    // policzyć zadań). Pozostałe timery (budżet 1 500 ms) idą do prawdziwego zegara.
+    const realSetTimeout = globalThis.setTimeout;
+    const tasks: (() => void)[] = [];
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      fn: () => void,
+      ms?: number,
+    ) => {
+      if (!ms) {
+        tasks.push(fn);
+        return 0;
+      }
+      return realSetTimeout(fn, ms);
+    }) as typeof setTimeout);
+    const settle = () => new Promise((resolve) => realSetTimeout(resolve, 0));
+    const runTask = async () => {
+      const task = tasks.shift();
+      if (!task) throw new Error("brak makrozadania w kolejce");
+      task();
+      await settle();
+    };
+    const order: string[] = [];
+    h.server = false;
+    h.hydrateImpl = async () => {
+      order.push("integracja");
+    };
+    try {
+      const r = getRouter();
+      vi.spyOn(r, "loadRouteChunk").mockImplementation((route) => {
+        order.push(`chunk:${route.id}`);
+        return Promise.resolve();
+      });
+      void Promise.resolve(r.options.hydrate!({} as never)).then(() => {
+        order.push("koniec");
+      });
+      await settle();
+      // Zadanie `createRouter`: hak niczego jeszcze nie zrobił.
+      expect(order).toEqual([]);
+      await runTask();
+      expect(order).toEqual(["integracja"]);
+      await runTask();
+      // Chunki dopasowanych tras PRZED ostatnim ustąpieniem...
+      expect(order).toEqual(["integracja", "chunk:__root__"]);
+      await runTask();
+      // ...a reszta hydratacji routera (router-core po haku) w następnym zadaniu.
+      expect(order).toEqual(["integracja", "chunk:__root__", "koniec"]);
+      expect(tasks).toEqual([]);
+    } finally {
+      timeoutSpy.mockRestore();
+      h.hydrateImpl = undefined;
+    }
+  });
+
+  it("awaria rozgrzewki chunków nie zatrzymuje hydratacji i nie zostawia odrzucenia", async () => {
+    h.server = false;
+    h.hydrateImpl = async () => {};
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const sync = getRouter();
+      vi.spyOn(sync, "loadRouteChunk").mockImplementation(() => {
+        throw new Error("chunk wybuchł synchronicznie");
+      });
+      await sync.options.hydrate!({} as never);
+      const async = getRouter();
+      vi.spyOn(async, "loadRouteChunk").mockImplementation(() =>
+        Promise.reject(new Error("Failed to fetch dynamically imported module")),
+      );
+      await async.options.hydrate!({} as never);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+      h.hydrateImpl = undefined;
+    }
+  });
+
   it("real integration does not await an open query stream; later data still hydrates", async () => {
     const { setupCoreRouterSsrQueryIntegration } = await import("@tanstack/router-ssr-query-core");
     const { QueryClient, dehydrate } = await import("@tanstack/query-core");

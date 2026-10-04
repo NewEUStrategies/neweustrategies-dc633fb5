@@ -7,11 +7,18 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
-import type { Session, User } from "@supabase/supabase-js";
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  STORED_SESSION_KEY_RE,
+  hasStoredAuthSession,
+  onSupabaseClientCreated,
+  urlHasAuthParams,
+} from "@/integrations/supabase/sessionHint";
 import { hasAnonPersonalization, mergeAnonPersonalization } from "@/lib/personalization/anonMerge";
 import { AUTH_DEFAULTS, AUTH_SETTINGS_KEY } from "@/lib/authSettings";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
@@ -70,56 +77,6 @@ export const ROLE_SETTLE_TIMEOUT_MS = 8_000;
  */
 const NO_ROLES: Role[] = [];
 
-/**
- * Klucze, pod którymi klient Supabase trzyma sesję w `localStorage`:
- * `sb-<subdomena projektu>-auth-token` (`defaultStorageKey`
- * w `@supabase/supabase-js`), wariant dzielony na części (`...-auth-token.0`)
- * oraz historyczne `supabase.auth.token`. Ten sam wzorzec zna rejestr
- * ciasteczek (`lib/cookieBanner/registry.ts`).
- */
-const STORED_SESSION_KEY_RE = /^(?:sb-.+-auth-token(?:\.\d+)?|supabase\.auth\.token)$/;
-
-/**
- * Czy w przeglądarce LEŻY zapisana sesja - rozstrzygane synchronicznie, bez
- * sieci i bez `getSession()`.
- *
- * PO CO. „Brak sesji" jest wiedzą LOKALNĄ: sesja Supabase mieszka w
- * `localStorage` (`persistSession: true` w `integrations/supabase/client.ts`),
- * nie w ciasteczku, więc pusty magazyn to PEWNE „to gość" - bez jednego bajtu
- * ruchu i bez czekania na klienta Supabase. Dopiero zapisana sesja wymaga
- * czekania, bo może być przeterminowana i wymagać odświeżenia w sieci.
- *
- * Na serwerze zwraca `false`, ale NIE korzystamy z tego do zasiewu stanu
- * startowego: `/admin` renderuje serwerowo szkielet powłoki dokładnie na
- * `useAuth().loading === true` (audyt CWV 2026-09-20, F32) i pierwszy render
- * klienta musi wyjść identycznie, inaczej hydratacja się rozjeżdża.
- *
- * NIE JEST EKSPORTOWANA celowo: eksport funkcji z modułu komponentu psuje
- * fast refresh (`react-refresh/only-export-components`), a kontrakt i tak
- * mierzy się przez zachowanie `AuthProvider` - patrz
- * `hooks/__tests__/useAuth.test.tsx` i `components/profile/__tests__/AuthGate.test.tsx`.
- *
- * W RAMCE POŚREDNIKA (podgląd Lovable) magazynem nie jest `localStorage`, tylko
- * broker `postMessage` do edytora (`previewAuthStorage.ts`) - pusty
- * `localStorage` nie znaczy tam „brak sesji", więc w ramce wracamy do czekania
- * na `getSession()`.
- */
-function hasStoredAuthSession(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    if (window.parent && window.parent !== window) return true;
-    const store = window.localStorage;
-    for (let i = 0; i < store.length; i += 1) {
-      const key = store.key(i);
-      if (key && STORED_SESSION_KEY_RE.test(key) && store.getItem(key)) return true;
-    }
-  } catch {
-    // Zablokowany magazyn (tryb prywatny, zablokowane ciasteczka): klient
-    // Supabase odczyta z niego dokładnie tyle samo, co my - nic.
-  }
-  return false;
-}
-
 interface AuthCtx {
   session: Session | null;
   user: User | null;
@@ -144,8 +101,89 @@ const Ctx = createContext<AuthCtx>({
   signOut: async () => {},
 });
 
+// ── ROZRUCH GOŚCIA: STAŁA WARTOŚĆ KONTEKSTU (P1.7, wymóg I2 z recenzji P1.6) ──
+//
+// PROBLEM. Do P1.7 gość dostawał rozstrzygnięcie w pierwszym przebiegu efektów:
+// `startTransition(() => setSessionLoading(false))`. To ZMIANA WARTOŚCI
+// KONTEKSTU nad całą stroną, a React 19 propaguje zmianę kontekstu do KAŻDEJ
+// odwodnionej granicy Suspense (`DehydratedFragment` - nie wie, kto w środku
+// czyta kontekst). Każda wyspa hydratacji (P1.6, P2.2/P2.3) budziła się więc
+// zaraz po boocie u każdego anonima, a przejście czekało, aż wyspy się uwodnią
+// - czyli wyspy nie odraczały niczego poza okno TBT.
+//
+// DLACZEGO NIE „loading: false OD PIERWSZEGO RENDERU". Serwer nie zna
+// magazynu, więc renderuje „nie wiemy" (`loading === true`), a konsumenci
+// renderują od tego inny HTML (szkielet `EventMePanel`, spinner `AuthGate`).
+// Pierwszy render klienta z `loading: false` to rozjazd hydratacji.
+//
+// ROZWIĄZANIE. Gość od startu (pusty magazyn, adres bez parametrów auth -
+// `isGuestBoot()`) dostaje WARTOŚĆ KONTEKSTU ZAMROŻONĄ w stanie z serwera,
+// a rozstrzygnięcie „to gość" dostaje KAŻDY KONSUMENT osobno, w `useAuth()`:
+//   * świeży montaż (nawigacja SPA, trasy `ssr: false`, `useHydrated()`) -
+//     od razu `loading: false`, bez spinnera;
+//   * montaż w hydratacji - wartość z serwera (`loading: true`, parytet HTML);
+//     jeśli konsument PRZECZYTAŁ `loading` w renderze, po commicie dostaje
+//     rozstrzygnięcie we własnym przejściu (tylko on się renderuje ponownie,
+//     wartość kontekstu nad wyspami stoi); jeśli nie przeczytał - nie renderuje
+//     się wcale, a późniejszy odczyt (handler, efekt) widzi już `false`.
+// Zalogowany (sesja w magazynie) i powrót z linku magicznego/OAuth idą ścieżką
+// dotychczasową: SDK od razu, wartość kontekstu zmienia się z rozstrzygnięciem
+// (wyspy P2.2/P2.3 mają wtedy `immediateWhen: hasStoredAuthSession`).
+// Wartość zamrożona przestaje obowiązywać przy pierwszej sesji (logowanie
+// w tej albo innej karcie) - wtedy kontekst zmienia się normalnie.
+
+/**
+ * Czy pierwszy render klienta już wie, że to gość: pusty magazyn sesji (poza
+ * ramką podglądu) i adres bez parametrów przepływu auth. Na serwerze `false`.
+ */
+function isGuestBoot(): boolean {
+  if (typeof window === "undefined") return false;
+  return !hasStoredAuthSession() && !urlHasAuthParams();
+}
+
+/**
+ * Zamrożona wartość kontekstu z rozruchu gościa -> ta sama wartość
+ * z rozstrzygniętym gościem (`loading: false`). Klucz to obiekt wartości, więc
+ * każda zmiana stanu prowajdera (nowy obiekt) sama wyłącza warstwę gościa.
+ */
+const guestResolution = new WeakMap<AuthCtx, AuthCtx>();
+
+/** Stan konsumenta zamontowanego w hydratacji z wartością „nie wiemy". */
+interface GuestHold {
+  /** Konsument przeczytał `loading` przed swoim efektem (w renderze). */
+  read: boolean;
+  /** Konsument nie czytał `loading` w renderze - kolejne odczyty widzą gościa. */
+  released: boolean;
+}
+
+/**
+ * Wartość dla konsumenta uwodnionego z „nie wiemy": pola zamrożonej wartości,
+ * a `loading` jako getter, który odnotowuje odczyt. Odczyt w renderze zwraca
+ * `true` (parytet z serwerem); po zwolnieniu - `false`.
+ */
+function heldView(value: AuthCtx, hold: GuestHold): AuthCtx {
+  const view = { ...value };
+  Object.defineProperty(view, "loading", {
+    enumerable: true,
+    configurable: true,
+    get() {
+      if (hold.released) return false;
+      hold.read = true;
+      return true;
+    },
+  });
+  return view;
+}
+
+const subscribeNever = () => () => {};
+const snapshotZero = () => 0;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  // Rozstrzygane RAZ, w pierwszym renderze klienta (inicjalizator stanu):
+  // efekty dzieci biegną przed efektem prowajdera, więc decyzja musi zapaść,
+  // zanim którykolwiek konsument zapyta o nią w swoim efekcie.
+  const [startedAsGuest] = useState(isGuestBoot);
   const [session, setSession] = useState<Session | null>(null);
   const [roles, setRoles] = useState<Role[]>(NO_ROLES);
   const [tenantId, setTenantId] = useState<string | null>(null);
@@ -236,19 +274,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Czy sesja startowa DOSTAŁA już odpowiedź (jakąkolwiek - z magazynu, z
     // sieci albo odmowną). Steruje wyłącznie terminem niżej.
     let sessionAnswered = false;
-    // TERMIN NA „NIE WIEMY". Patrz SESSION_SETTLE_TIMEOUT_MS: po jego upływie
-    // schodzimy z `loading` PILNIE (poza `startTransition`), bo przejście może
-    // być właśnie tym, co wisi. Magazynu nie ruszamy - to nie jest wylogowanie,
-    // tylko rezygnacja z czekania, więc spóźniona odpowiedź nadal promuje
-    // użytkownika z powrotem na zalogowanego.
-    let settleTimer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
-      settleTimer = undefined;
-      if (sessionAnswered) return;
-      console.warn(
-        `[auth] sesja nie rozstrzygnęła się w ${SESSION_SETTLE_TIMEOUT_MS} ms - traktujemy odwiedzającego jak gościa (magazyn sesji nietknięty)`,
-      );
-      setSessionLoading(false);
-    }, SESSION_SETTLE_TIMEOUT_MS);
+    // TERMIN NA „NIE WIEMY" - tylko na ścieżce z SDK (gość od startu nie czeka
+    // na nic, więc nie ma czego ograniczać). Patrz SESSION_SETTLE_TIMEOUT_MS: po
+    // jego upływie schodzimy z `loading` PILNIE (poza `startTransition`), bo
+    // przejście może być właśnie tym, co wisi. Magazynu nie ruszamy - to nie
+    // jest wylogowanie, tylko rezygnacja z czekania, więc spóźniona odpowiedź
+    // nadal promuje użytkownika z powrotem na zalogowanego.
+    let settleTimer: ReturnType<typeof setTimeout> | undefined;
+    let stopWaitingForClient: (() => void) | undefined;
+    let stopWatchingStorage: (() => void) | undefined;
     const answerSession = () => {
       sessionAnswered = true;
       if (settleTimer !== undefined) {
@@ -256,16 +290,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         settleTimer = undefined;
       }
     };
-    // PUSTY MAGAZYN = PEWNE „TO GOŚĆ", i wiemy to OD RAZU - bez `getSession()`,
-    // bez sieci, bez klienta Supabase. Bramki tożsamości dostają wtedy swoją
-    // odpowiedź w pierwszym przebiegu efektów po hydratacji, zamiast czekać na
-    // round-trip przez magazyn i kolejkę zdarzeń klienta. `startTransition` jak
-    // niżej: zasłona hydratacji zawieszonych wysp ma zostać nienaruszona
-    // (`hooks/__tests__/authHydration.test.tsx`).
-    if (!hasStoredAuthSession()) {
-      answerSession();
-      startTransition(() => setSessionLoading(false));
-    }
     const ensureContext = (uid: string | null) => {
       if (uid === contextLoadedForUid) return;
       contextLoadedForUid = uid;
@@ -297,95 +321,170 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void loadContext(uid, request);
       }, 0);
     };
-    try {
-      ({ data: sub } = supabase.auth.onAuthStateChange((event, s) => {
-        setSession(s);
-        const uid = s?.user?.id ?? null;
-        // TOKEN_REFRESHED odpala się cyklicznie (co ~godzinę + focus tab) z
-        // tą samą tożsamością - nie potrzebujemy wtedy nic przeładowywać
-        // (bearer i tak jest odświeżany na poziomie klienta Supabase).
-        //
-        // ALE TO ZDARZENIE BYWA ZMIANĄ KONTA. `setSession()` z PRZETERMINOWANYM
-        // tokenem odświeża go i emituje WYŁĄCZNIE TOKEN_REFRESHED z sesją
-        // innego konta, bez SIGNED_IN (`_setSession` w `@supabase/auth-js`) -
-        // także do pozostałych kart przez BroadcastChannel. Tak kończy się
-        // wyjście z podglądu jako inny użytkownik trwające dłużej niż ważność
-        // zapisanego tokenu admina (`lib/admin/impersonation.ts`). Bezwarunkowy
-        // powrót zostawiał wtedy sesję admina z rolami i tenantem podglądanego
-        // konta przy `loading === false`.
-        if (event === "TOKEN_REFRESHED" && uid === lastUidRef.current) return;
+    const onAuthEvent = (event: AuthChangeEvent, s: Session | null) => {
+      setSession(s);
+      const uid = s?.user?.id ?? null;
+      // TOKEN_REFRESHED odpala się cyklicznie (co ~godzinę + focus tab) z
+      // tą samą tożsamością - nie potrzebujemy wtedy nic przeładowywać
+      // (bearer i tak jest odświeżany na poziomie klienta Supabase).
+      //
+      // ALE TO ZDARZENIE BYWA ZMIANĄ KONTA. `setSession()` z PRZETERMINOWANYM
+      // tokenem odświeża go i emituje WYŁĄCZNIE TOKEN_REFRESHED z sesją
+      // innego konta, bez SIGNED_IN (`_setSession` w `@supabase/auth-js`) -
+      // także do pozostałych kart przez BroadcastChannel. Tak kończy się
+      // wyjście z podglądu jako inny użytkownik trwające dłużej niż ważność
+      // zapisanego tokenu admina (`lib/admin/impersonation.ts`). Bezwarunkowy
+      // powrót zostawiał wtedy sesję admina z rolami i tenantem podglądanego
+      // konta przy `loading === false`.
+      if (event === "TOKEN_REFRESHED" && uid === lastUidRef.current) return;
+      if (startedAsGuest) {
+        // GOŚĆ OD STARTU: tożsamość startowa („gość") zapadła bez SDK, więc
+        // KAŻDA sesja, która przyjdzie potem - SIGNED_IN z formularza w tej
+        // karcie, INITIAL_SESSION klienta utworzonego po logowaniu w innej -
+        // jest ZMIANĄ tożsamości: inwalidacja jak przy logowaniu. Pierwsza
+        // sesja kończy też wartość zamrożoną (`sessionLoading` schodzi razem
+        // z nią, więc `loading` czeka już tylko na role). `INITIAL_SESSION`
+        // bez sesji (klient utworzony przez zapytanie o dane) nie zmienia
+        // niczego: ten sam `null`, ten sam `lastUid`, ten sam kontekst.
+        reauthorizeContent(uid);
+        if (uid !== null) setSessionLoading(false);
+      } else if (
         // Przed INITIAL_SESSION odświeżenie przeterminowanego tokenu z magazynu
         // USTALA tożsamość startową - jak INITIAL_SESSION, bez inwalidacji
         // cache'u, na którym stoi hydratacja treści.
-        if (event === "INITIAL_SESSION" || (event === "TOKEN_REFRESHED" && !initialSessionSeen)) {
-          if (event === "INITIAL_SESSION") initialSessionSeen = true;
-          lastUidRef.current = uid;
-        } else {
-          // SIGNED_IN / SIGNED_OUT / USER_UPDATED / TOKEN_REFRESHED innego
-          // konta -> re-gate cached content.
-          reauthorizeContent(uid);
+        event === "INITIAL_SESSION" ||
+        (event === "TOKEN_REFRESHED" && !initialSessionSeen)
+      ) {
+        if (event === "INITIAL_SESSION") initialSessionSeen = true;
+        lastUidRef.current = uid;
+      } else {
+        // SIGNED_IN / SIGNED_OUT / USER_UPDATED / TOKEN_REFRESHED innego
+        // konta -> re-gate cached content.
+        reauthorizeContent(uid);
+      }
+      ensureContext(uid);
+      // Domknij administracyjne zaproszenie po pierwszym poprawnym wejściu.
+      // RPC jest idempotentne i może zaakceptować wyłącznie zaproszenie
+      // przypisane do bieżącego konta, e-maila i tenanta.
+      if (
+        uid &&
+        uid !== invitationAcceptedForUid &&
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION")
+      ) {
+        invitationAcceptedForUid = uid;
+        setTimeout(() => {
+          void supabase.rpc("accept_my_user_invitation").then(({ error }) => {
+            if (error) console.warn("[auth] invitation acceptance sync failed", error.message);
+          });
+        }, 0);
+      }
+      if (
+        s?.user &&
+        (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
+        hasAnonPersonalization()
+      ) {
+        const mergeUid = s.user.id;
+        setTimeout(() => {
+          void mergeAnonPersonalization(mergeUid, queryClient).catch((err) => {
+            console.warn("[auth] anon personalization merge failed", err);
+          });
+        }, 0);
+      }
+    };
+    const subscribe = () => {
+      if (sub) return;
+      ({ data: sub } = supabase.auth.onAuthStateChange(onAuthEvent));
+    };
+
+    if (startedAsGuest) {
+      // SZYBKA ŚCIEŻKA GOŚCIA (F7): pusty magazyn i adres bez parametrów auth
+      // to pewne „to gość" - BEZ dotknięcia `supabase` (bez inicjalizacji
+      // GoTrue, bez `getSession()`, bez żądań `/auth/v1`) i bez zmiany stanu,
+      // więc wartość kontekstu zostaje zamrożona (patrz `guestResolution`).
+      //
+      // Nasłuch sesji podpina się, gdy klienta utworzy KTOKOLWIEK: formularz
+      // logowania w tej karcie, zapytanie o dane. Słuchacz biegnie przed
+      // zwrotem dostępu, który tworzy klienta, więc SIGNED_IN nie przepada.
+      stopWaitingForClient = onSupabaseClientCreated(() => {
+        try {
+          subscribe();
+        } catch (error) {
+          console.error("[auth] Supabase client unavailable - continuing signed-out", error);
         }
-        ensureContext(uid);
-        // Domknij administracyjne zaproszenie po pierwszym poprawnym wejściu.
-        // RPC jest idempotentne i może zaakceptować wyłącznie zaproszenie
-        // przypisane do bieżącego konta, e-maila i tenanta.
-        if (
-          uid &&
-          uid !== invitationAcceptedForUid &&
-          (event === "SIGNED_IN" || event === "INITIAL_SESSION")
-        ) {
-          invitationAcceptedForUid = uid;
-          setTimeout(() => {
-            void supabase.rpc("accept_my_user_invitation").then(({ error }) => {
-              if (error) console.warn("[auth] invitation acceptance sync failed", error.message);
+      });
+      // LOGOWANIE W INNEJ KARCIE. SDK synchronizuje karty przez
+      // BroadcastChannel, ale tylko między ISTNIEJĄCYMI klientami - ta karta
+      // klienta nie ma. Zapis sesji w `localStorage` przez inną kartę budzi
+      // klienta tutaj: dotknięcie `supabase` go tworzy (nasłuch wyżej podpina
+      // się przed odczytem), `getSession()` czyta sesję z magazynu.
+      const onStorage = (event: StorageEvent) => {
+        if (event.key === null || !event.newValue || !STORED_SESSION_KEY_RE.test(event.key)) {
+          return;
+        }
+        try {
+          void supabase.auth.getSession().then(
+            ({ data }) => {
+              const s = data.session;
+              if (s && s.user.id !== lastUidRef.current) onAuthEvent("SIGNED_IN", s);
+            },
+            (error: unknown) => {
+              console.warn("[auth] nie udało się odczytać sesji z innej karty", error);
+            },
+          );
+        } catch (error) {
+          console.error("[auth] Supabase client unavailable - continuing signed-out", error);
+        }
+      };
+      window.addEventListener("storage", onStorage);
+      stopWatchingStorage = () => window.removeEventListener("storage", onStorage);
+    } else {
+      // ZALOGOWANY (sesja w magazynie, także ramka podglądu) ALBO POWRÓT
+      // Z LINKU MAGICZNEGO/OAUTH/ODZYSKIWANIA HASŁA (tokeny w adresie): SDK od
+      // razu - `detectSessionInUrl` wymienia tokeny z adresu na sesję właśnie
+      // przy utworzeniu klienta, a przeterminowany token trzeba odświeżyć.
+      settleTimer = setTimeout(() => {
+        settleTimer = undefined;
+        if (sessionAnswered) return;
+        console.warn(
+          `[auth] sesja nie rozstrzygnęła się w ${SESSION_SETTLE_TIMEOUT_MS} ms - traktujemy odwiedzającego jak gościa (magazyn sesji nietknięty)`,
+        );
+        setSessionLoading(false);
+      }, SESSION_SETTLE_TIMEOUT_MS);
+      try {
+        subscribe();
+        supabase.auth
+          .getSession()
+          .then(({ data }) => {
+            // Listener już obsłużył INITIAL_SESSION dla tej samej sesji - tu tylko
+            // domykamy `loading`, żeby konsument (route guards, header) mógł się
+            // odpalić bez dodatkowego round-tripu.
+            // Preserve the server-rendered reading surface while lazy widgets
+            // hydrate. Initial auth settlement can wait; later identity changes
+            // and logout remain urgent.
+            answerSession();
+            startTransition(() => {
+              setSession(data.session);
+              ensureContext(data.session?.user?.id ?? null);
+              setSessionLoading(false);
             });
-          }, 0);
-        }
-        if (
-          s?.user &&
-          (event === "SIGNED_IN" || event === "INITIAL_SESSION") &&
-          hasAnonPersonalization()
-        ) {
-          const mergeUid = s.user.id;
-          setTimeout(() => {
-            void mergeAnonPersonalization(mergeUid, queryClient).catch((err) => {
-              console.warn("[auth] anon personalization merge failed", err);
-            });
-          }, 0);
-        }
-      }));
-      supabase.auth
-        .getSession()
-        .then(({ data }) => {
-          // Listener już obsłużył INITIAL_SESSION dla tej samej sesji - tu tylko
-          // domykamy `loading`, żeby konsument (route guards, header) mógł się
-          // odpalić bez dodatkowego round-tripu.
-          // Preserve the server-rendered reading surface while lazy widgets
-          // hydrate. Initial auth settlement can wait; later identity changes
-          // and logout remain urgent.
-          answerSession();
-          startTransition(() => {
-            setSession(data.session);
-            ensureContext(data.session?.user?.id ?? null);
+          })
+          .catch((error) => {
+            // ODMOWA ODCZYTU SESJI NIE JEST WYLOGOWANIEM. `getSession()` odrzuca,
+            // gdy odświeżenie tokenu padnie na sieci - a to znaczy „nie wiemy",
+            // nie „nie ma sesji". Przestajemy więc czekać (bramka pokaże CTA
+            // logowania), ale zostawiamy magazyn w spokoju: `onAuthStateChange`
+            // po powrocie sieci dostarczy sesję i widok wróci do zalogowanego.
+            // Bez tego `catch` `loading` nie schodziło NIGDY, a odrzucenie
+            // lądowało w `unhandledrejection`.
+            answerSession();
+            console.warn("[auth] nie udało się odczytać sesji - traktujemy jak gościa", error);
             setSessionLoading(false);
           });
-        })
-        .catch((error) => {
-          // ODMOWA ODCZYTU SESJI NIE JEST WYLOGOWANIEM. `getSession()` odrzuca,
-          // gdy odświeżenie tokenu padnie na sieci - a to znaczy „nie wiemy",
-          // nie „nie ma sesji". Przestajemy więc czekać (bramka pokaże CTA
-          // logowania), ale zostawiamy magazyn w spokoju: `onAuthStateChange`
-          // po powrocie sieci dostarczy sesję i widok wróci do zalogowanego.
-          // Bez tego `catch` `loading` nie schodziło NIGDY, a odrzucenie
-          // lądowało w `unhandledrejection`.
-          answerSession();
-          console.warn("[auth] nie udało się odczytać sesji - traktujemy jak gościa", error);
-          setSessionLoading(false);
-        });
-    } catch (error) {
-      console.error("[auth] Supabase client unavailable - continuing signed-out", error);
-      answerSession();
-      setSessionLoading(false);
+      } catch (error) {
+        console.error("[auth] Supabase client unavailable - continuing signed-out", error);
+        answerSession();
+        setSessionLoading(false);
+      }
     }
     return () => {
       // Odpowiedzi w locie należą do odmontowanego prowajdera - unieważnione.
@@ -395,9 +494,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(roleTimerRef.current);
         roleTimerRef.current = undefined;
       }
+      stopWaitingForClient?.();
+      stopWatchingStorage?.();
       sub?.subscription.unsubscribe();
     };
-  }, []);
+  }, [startedAsGuest]);
 
   const signOut = useCallback(async () => {
     // Resolve the admin-configured post-logout destination BEFORE clearing the
@@ -456,10 +557,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [session, roles, tenantId, loading, isStaff, isAdmin, isSuperAdmin, signOut],
   );
+  // WARTOŚĆ ZAMROŻONA: gość od startu, bez żadnej sesji od montażu. Rejestracja
+  // w renderze (idempotentna, klucz = obiekt z `useMemo`), bo konsumenci pytają
+  // o nią w swoich efektach, a te biegną przed efektem prowajdera.
+  if (startedAsGuest && sessionLoading && session === null && !guestResolution.has(value)) {
+    guestResolution.set(value, { ...value, loading: false });
+  }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export const useAuth = () => useContext(Ctx);
+/**
+ * Tożsamość z `AuthProvider`.
+ *
+ * Poza rozruchem gościa to wprost wartość kontekstu. W rozruchu gościa
+ * (wartość zamrożona, patrz blok „ROZRUCH GOŚCIA") rozstrzygnięcie dostaje
+ * każdy konsument osobno:
+ *   * świeży montaż - od razu `loading: false`;
+ *   * montaż w hydratacji - `loading: true` jak na serwerze; konsument, który
+ *     przeczytał `loading` w renderze, po commicie przechodzi na `false` we
+ *     własnym `startTransition` (tylko on się renderuje), a ten, który nie
+ *     przeczytał, nie renderuje się wcale - jego późniejsze odczyty widzą już
+ *     `false`.
+ * Hydratację od świeżego montażu odróżnia sonda `useSyncExternalStore`
+ * z identyczną migawką (ten sam chwyt, co `IslandGate` z P1.6): React woła
+ * `getServerSnapshot` wyłącznie przy hydratacji (i na serwerze), a identyczna
+ * migawka nie wymusza renderu po hydratacji.
+ */
+export function useAuth(): AuthCtx {
+  const value = useContext(Ctx);
+  const resolved = guestResolution.get(value);
+  let hydrating = false;
+  useSyncExternalStore(subscribeNever, snapshotZero, () => {
+    hydrating = true;
+    return 0;
+  });
+  const [holding, setHolding] = useState(() => hydrating && resolved !== undefined);
+  const [hold] = useState<GuestHold>(() => ({ read: false, released: false }));
+  const held = useMemo(
+    () => (holding && resolved !== undefined ? heldView(value, hold) : null),
+    [holding, resolved, value, hold],
+  );
+  const frozen = resolved !== undefined;
+  useEffect(() => {
+    if (!holding || !frozen || hold.released) return;
+    if (hold.read) {
+      // Ten sam tor, którym dotąd jechało rozstrzygnięcie startowe: przejście
+      // (zasłona zawieszonych granic w poddrzewie TEGO konsumenta zostaje).
+      startTransition(() => setHolding(false));
+    } else {
+      hold.released = true;
+    }
+  }, [holding, frozen, hold]);
+  if (resolved === undefined) return value;
+  return held ?? resolved;
+}
 
 export function useRequiredTenant(): string {
   const { tenantId } = useAuth();

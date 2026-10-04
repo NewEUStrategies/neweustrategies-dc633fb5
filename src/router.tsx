@@ -194,8 +194,39 @@ export const getRouter = () => {
     // integration's hydrate lets every already-delivered stream chunk settle
     // into the cache first; router-core awaits options.hydrate before React
     // hydration begins, so this delays first paint by at most one tick.
+    //
+    // PODZIAŁ NA MAKROZADANIA (P1.7, F6 z diagnozy P0.5). Hak biegnie
+    // w renderze `StartClient` (zadanie K10: `createRouter` + skrypty `$_TSR`),
+    // a po nim router-core w JEDNYM zadaniu dopasowuje trasy, importuje ich
+    // chunki (pomocnik `__vitePreload` dokleja przy tym `modulepreload`
+    // zależności) i woła `head()` tras - to zadanie K11 timera. Każdy kawałek
+    // dostaje teraz własne makrozadanie (`setTimeout(0)`, nie
+    // `scheduler.postTask` - Safari go nie ma, a to ścieżka krytyczna):
+    //   1. hydratacja cache'u zapytań (integracja) - poza zadaniem
+    //      `createRouter`;
+    //   2. (doktryna wyżej, literał zostaje) ustąpienie po hydratacji
+    //      integracji, potem import chunków dopasowanych tras;
+    //   3. ostatnie ustąpienie - router-core dokańcza (dopasowanie, magazyny
+    //      dopasowań, `head()`) już z gotowymi obietnicami chunków
+    //      (`loadRouteChunk` jest idempotentny) i oddaje router Reactowi
+    //      (`Await` w `StartClient` -> hydratacja drzewa).
+    // Koszt: dwa dodatkowe tyknięcia przed hydratacją drzewa (poniżej progu
+    // zaciskania zagnieżdżonych timerów, czyli ~0 ms każde).
+    const prewarmRouteChunks = () => {
+      try {
+        const { matchedRoutes } = router.getMatchedRoutes(router.latestLocation.pathname);
+        for (const route of matchedRoutes) {
+          void Promise.resolve(router.loadRouteChunk(route)).catch(() => undefined);
+        }
+      } catch {
+        // Rozgrzewka tylko PRZESUWA pracę: router-core zaraz po haku woła
+        // `loadRouteChunk` sam i to on zgłasza błąd chunku na swojej ścieżce.
+      }
+    };
     const integrationHydrate = router.options.hydrate;
     router.options.hydrate = async (dehydrated) => {
+      // Makrozadanie 1: hydratacja zapytań nie dokleja się do `createRouter`.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
       // This bounds the hydration HOOK, including any upstream ogHydrate.
       // The pinned integration reads queryStream in the background and does
       // not await its completion. Actual application readiness is measured
@@ -207,6 +238,9 @@ export const getRouter = () => {
       // produkcyjne bez zmian. Tam też jest zapisane, czego ten bezpiecznik
       // w obecnej wersji integracji NIE ŚCINA (zmierzone).
       await withHydrateBudget(integrationHydrate?.(dehydrated), { label: "router-hydrate" });
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+      // Makrozadanie 2: chunki tras; makrozadanie 3: reszta hydratacji routera.
+      prewarmRouteChunks();
       await new Promise<void>((resolve) => setTimeout(resolve, 0));
     };
   }
