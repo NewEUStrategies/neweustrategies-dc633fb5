@@ -130,8 +130,8 @@ describe("Kinetic Signal Notch", () => {
     // "przesuń na lewą stronę" - akcja startuje od lewej krawędzi widgetu.
     expect(holder?.className).toContain("justify-start");
     expect(holder?.className).not.toContain("justify-end");
-    // "nieco niżej" - minimalny oddech nad wierszem sygnału.
-    expect(holder?.style.marginBottom).toBe("3px");
+    // "nieco niżej" + "bliżej trzech kresek" - minimalny oddech nad wierszem.
+    expect(holder?.style.marginBottom).toBe("2px");
     // "bardziej szarawy" - ton akcji to token, nie kolor w komponencie.
     expect(stylesCss).toMatch(/--nes-kinetic-action: oklch\(/);
     expect(stylesCss).toContain("color: var(--nes-kinetic-action");
@@ -148,31 +148,38 @@ describe("Kinetic Signal Notch", () => {
     expect(style).toContain("#FA9346");
   });
 
-  it("akcja ma podkreślenie rysowane od lewej i cienki chevron bez obudowy", () => {
+  it("akcja nie ma podkreślenia, a chevron dzieli kolor i wysokość tekstu", () => {
     const { container } = renderVariant({ href: "/raporty" });
     const link = container.querySelector("a.nes-kinetic-action");
-    const underline = link?.querySelector("span[aria-hidden]");
-    expect(underline?.className).toContain("group-hover/link:w-full");
+    // "usuń podkreślenie" - żaden element akcji nie rysuje linii od lewej.
+    expect(link?.querySelector("[class*='group-hover/link:w-full']")).toBeNull();
     const svg = link?.querySelector("svg");
     expect(svg?.querySelector("polyline")).not.toBeNull();
     expect(svg?.querySelector('path[d="M5 12h14"]')).toBeNull();
+    // Chevron w em => wysokość = wysokość czcionki akcji.
+    expect(svg?.getAttribute("style")).toContain("height: 1em");
+    // Kolor z currentColor (ten sam co tekst), a nie z osobnej klasy.
+    expect(svg?.getAttribute("stroke")).toBe("currentColor");
+    expect(stylesCss).toMatch(/\.nes-kinetic-action svg \{[^}]*color: inherit;/);
   });
 
-  it("akcja jest minuskulowa i mniejsza od tytułu", () => {
+  it("akcja jest minuskulowa, nie pogrubiona i mniejsza od tytułu", () => {
     const { container } = renderVariant();
     const action = container.querySelector<HTMLElement>(".nes-kinetic-action");
     expect(action?.className).not.toContain("uppercase");
-    // "mniejsza czcionka" - 10px na desktopie, 8px w wezkiej kolumnie.
-    expect(action?.className).toContain("text-[10px]");
-    // Theme Design per widzet (selektor `[data-w-id]x3 [data-description-root]`,
-    // 0-4-0 + !important) narzuca „wiecej" rozmiar opisu (12 px). Kinetic musi
-    // wiec miec konkretniejszy selektor (0-5-0) z !important.
+    // "powiększ o 1px" + "nie ma być pogrubione" - 11px / 9px, font-normal.
+    expect(action?.className).toContain("text-[11px]");
+    expect(action?.className).toContain("font-normal");
+    expect(action?.className).not.toContain("font-medium");
+    // Theme Design per widget (selektor `[data-w-id]x3 [data-description-root]`,
+    // 0-4-0 + !important) narzuca „więcej" rozmiar opisu (12 px). Kinetic musi
+    // więc mieć konkretniejszy selektor (0-5-0) z !important.
     const winsOverThemeDesign = (px: string) =>
       new RegExp(
         `\\[data-w-id\\]\\[data-w-id\\]\\[data-w-id\\] \\.nes-kinetic-shell \\.nes-kinetic-action \\{[^}]*font-size: ${px}px !important;`,
       );
-    expect(stylesCss).toMatch(winsOverThemeDesign("10"));
-    expect(stylesCss).toMatch(winsOverThemeDesign("8"));
+    expect(stylesCss).toMatch(winsOverThemeDesign("11"));
+    expect(stylesCss).toMatch(winsOverThemeDesign("9"));
   });
 
   it("ustawienie strzałki żyje: none zdejmuje ikonę, chevron daje znak", () => {
