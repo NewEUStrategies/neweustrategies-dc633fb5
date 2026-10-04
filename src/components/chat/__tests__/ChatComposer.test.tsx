@@ -556,11 +556,15 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
 
   /** Stop przenosi do odsłuchu; wysyłka wymaga osobnego kliknięcia. */
   async function stopAndSend(): Promise<void> {
-    fireEvent.click(screen.getByRole("button", { name: t.voice.stop }));
-    for (let i = 0; i < 5; i++) await Promise.resolve();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: t.voice.stop }));
+    });
     const send = screen.queryByRole("button", { name: t.voice.send });
-    if (send) fireEvent.click(send);
-    for (let i = 0; i < 5; i++) await Promise.resolve();
+    if (send) {
+      await act(async () => {
+        fireEvent.click(send);
+      });
+    }
   }
 
   beforeEach(() => {
@@ -587,9 +591,7 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     h.recorder.finish = vi.fn(async () => recordedVoice(4096, 7));
     const { props } = renderComposer();
 
-    await act(async () => {
-      await stopAndSend();
-    });
+    await stopAndSend();
 
     expect(h.uploads).toHaveLength(1);
     expect(props.onSend).toHaveBeenCalledWith(
@@ -606,9 +608,7 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     h.recorder.finish = vi.fn(async () => null);
     const { props } = renderComposer();
 
-    await act(async () => {
-      await stopAndSend();
-    });
+    await stopAndSend();
 
     expect(h.uploads).toHaveLength(0);
     expect(props.onSend).not.toHaveBeenCalled();
@@ -619,9 +619,7 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     h.recorder.finish = vi.fn(async () => recordedVoice(MAX_ATTACHMENT_BYTES + 1, 600));
     renderComposer();
 
-    await act(async () => {
-      await stopAndSend();
-    });
+    await stopAndSend();
 
     expect(h.toast.error).toHaveBeenCalledWith(t.attachmentTooLarge);
     expect(h.uploads).toHaveLength(0);
@@ -633,9 +631,7 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     h.recorder.finish = vi.fn(async () => recordedVoice());
     renderComposer();
 
-    await act(async () => {
-      await stopAndSend();
-    });
+    await stopAndSend();
 
     expect(h.toast.error).toHaveBeenCalledWith(t.uploadFailed);
     await waitFor(() => expect(screen.queryByText("42%")).toBeNull());
@@ -673,9 +669,7 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     h.recorder.finish = vi.fn(async () => recordedVoice());
     const { props } = renderComposer();
 
-    await act(async () => {
-      await stopAndSend();
-    });
+    await stopAndSend();
 
     expect(h.uploads).toHaveLength(0);
     expect(props.onSend).not.toHaveBeenCalled();
