@@ -21,13 +21,11 @@ import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-r
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
 import { Search as SearchIcon } from "@/lib/lucide-shim";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
-import { parsePageSearch } from "@/lib/routing/pageSearch";
 import {
   SEARCH_PAGE_SIZE,
   searchQueryOptions,
