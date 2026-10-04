@@ -4,8 +4,8 @@
 // Przed tym testem miał 6,8% linii i 0 z 3 funkcji - czyli nic nie pilnowało ani
 // spójności katalogu (65 slotów w 20 grupach), ani tego, co ląduje w CSS.
 //
-// Czego NIE testujemy: konkretnych wartości kolorów marki (to decyzja
-// redakcyjna, nie kontrakt) - pilnujemy STRUKTURY katalogu i REGUŁ emisji.
+// Konkretne wartości neutralne pozostają decyzją redakcyjną, ale kolor marki
+// jest kontraktem: akcenty i główne przyciski mają domyślnie używać #FA9346.
 import { describe, it, expect } from "vitest";
 import {
   GLOBAL_COLOR_CATEGORIES,
@@ -83,6 +83,15 @@ describe("katalog kolorów globalnych - spójność", () => {
   it("EMPTY_GLOBAL_COLORS jest pustą wartością", () => {
     expect(EMPTY_GLOBAL_COLORS).toEqual({});
   });
+
+  it("domyślne akcenty i główne przyciski używają firmowego #FA9346", () => {
+    const byKey = new Map(ALL_SLOTS.map((slot) => [slot.key, slot]));
+
+    for (const key of ["highlight", "highlight-hover", "btn-bg", "btn-hover-bg"] as const) {
+      expect(byKey.get(key)?.defaultLight).toBe("#FA9346");
+      expect(byKey.get(key)?.defaultDark).toBe("#FA9346");
+    }
+  });
 });
 
 describe("isSlotHoverable", () => {
@@ -158,13 +167,10 @@ describe("globalColorsToCss - struktura wyjścia", () => {
     expect(out).toContain("--gc-header-icon:");
   });
 
-  it("13 slotów bez `defaultLight` nie emituje zmiennej, dopóki użytkownik jej nie ustawi", () => {
+  it("10 slotów bez `defaultLight` nie emituje zmiennej, dopóki użytkownik jej nie ustawi", () => {
     // Te sloty MUSZĄ milczeć: emisja pustej wartości nadpisałaby działający
     // token shadcn (np. --primary) niczym.
     const silent = [
-      "btn-bg",
-      "btn-text",
-      "btn-hover-bg",
       "btn-hover-text",
       "switcher-light-icon",
       "switcher-light-bg",
