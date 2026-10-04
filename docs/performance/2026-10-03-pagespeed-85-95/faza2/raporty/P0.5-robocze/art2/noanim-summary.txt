@@ -1,0 +1,6 @@
+noanim-mobile-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=2.91 perf=72 FCP=4061 LCP=4811 TBT=123 SI=4061 TTI=5868
+noanim-desktop-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=2.22 perf=98 FCP=809 LCP=929 TBT=0 SI=809 TTI=929
+noanim-mobile-2 code=0 warm=200 x-nes-cache=HIT raw=390992 load=1.73 perf=72 FCP=4066 LCP=4816 TBT=108 SI=4066 TTI=5961
+noanim-desktop-2 code=0 warm=200 x-nes-cache=HIT raw=390992 load=1.41 perf=98 FCP=813 LCP=933 TBT=0 SI=813 TTI=933
+noanim-mobile-3 code=0 warm=200 x-nes-cache=HIT raw=390992 load=0.82 perf=72 FCP=4061 LCP=4811 TBT=119 SI=4061 TTI=5964
+noanim-desktop-3 code=0 warm=200 x-nes-cache=HIT raw=390992 load=0.96 perf=98 FCP=809 LCP=929 TBT=0 SI=809 TTI=929

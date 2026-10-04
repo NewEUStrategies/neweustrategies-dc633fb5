@@ -1,0 +1,23 @@
+# /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/p05/art/w0-desktop-4
+# TBT(audit Lantern)=10 FCPsim opt/pes=742/742 TTIsim opt/pes=1279/1365 cpuMult=1 okna opt=[742,1279] pes=[742,1365]
+obsStart obsDur  simStart(o/p)  simDur(o/p)  L  class          block opt/pes/avg  urls
+     62   57.3    285/285      57/57       ScriptCatchup     0/    0/    0  pl,AccountMenuWidget,SearchButtonWidget,sectionLabelVariants,PostListView,PaginatedPostGrid
+          dzieci: DocumentLoader::CommitNavigationx3=48.1 DocumentLoader::StartLoadingResponsex3=39.6 DocumentLoader::CreateParserPostCommitx3=39.6 LocalWindowProxy::Initializex2=16.9 LocalWindowProxy::CreateContextx2=11.7 V8.DeserializeContextx3=8.2 NavigationBodyLoader::StartLoadingBodyx1=6.8 NavigationBodyLoader::OnReadablex1=6.8 NavigationBodyLoader::ReadFromDataPipex1=6.8 DocumentLoader::BodyDataReceivedImplx3=6.8 DocumentLoader::HandleDatax3=6.4 DocumentLoader::CommitDatax2=6.4
+    188   64.8    690/690      65/65       ParseCSS          0/    0/    0  
+          dzieci: ParseAuthorStyleSheetx1=58.8
+    417   49.9    458/458      50/50       ScriptCatchup     0/    0/    0  index,vendor-react,vendor-tanstack,vendor-i18n,vendor-zod,vendor-lucide-boot
+          dzieci: ScriptCatchupx18=14.2
+    508   94.3    543/543      94/94       Frame             0/    0/    0  
+          dzieci: 
+    685  105.0    637/637      53/53    L  Script            0/    0/    0  
+          dzieci: UpdateLayoutTreex1=56.0 Layoutx2=25.3 RunMicrotasksx1=12.1 Paintx5=5.7 Commitx1=2.0 PrePaintx2=1.8 Layerizex1=1.4
+          RunMicrotasks 12.1ms @777  :: 
+          UpdateLayoutTree 56.0ms el=376 @685 
+          Layout 25.2ms dirty=379/644 @741 
+    918  137.4   1296/1296     69/69    L  Script            0/   19/   10  vendor-react,vendor-tanstack,index,_lighthouse-eval.js,vendor-supabase
+          dzieci: v8.callFunctionx58=137.7 FunctionCallx34=129.5 UpdateLayoutTreex2=9.6 RunMicrotasksx1=7.9 ParseHTMLx12=6.4 V8.BytecodeBudgetInterruptx269=6.2 MinorGCx1=5.5 V8.GCScavengerx1=5.5 V8.GC_SCAVENGERx1=5.5 V8.GC_SCAVENGER_SCAVENGEx1=5.5 V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASEx1=5.1 V8.GC_SCAVENGER_SCAVENGE_PARALLELx1=1.8
+          v8.callFunction 137.0ms @918  :: 
+          FunctionCall 129.1ms @918 _t vendor-react:1:10765 
+          RunMicrotasks 7.9ms @1047  :: 
+          UpdateLayoutTree 9.1ms el=161 @940 (anon)@index:422:14022 < le@vendor-react:8:92463 < ty@vendor-react:8:107691 < Tt@vendor-react:8:107575
+# suma księgi = 9.5 ; audyt = 10 ; różnica = 0.00 ms

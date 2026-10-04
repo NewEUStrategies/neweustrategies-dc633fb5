@@ -1,0 +1,20 @@
+// P0.5: błędy konsoli i błędy odzyskiwalne hydratacji na artefakcie (mobile 412x823), bez Lighthouse.
+import { resolve } from "node:path";
+const WT = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/wt/P0.5";
+const { freePort, startArtifact, startFront, warmDocument, DEFAULT_ACCEPT_LANGUAGE } = await import(`${WT}/scripts/performance/artifactServer.ts`);
+const { chromium } = await import("/home/user/neweustrategies-dc633fb5/node_modules/playwright-core/index.mjs");
+const root = resolve(process.argv[2]);
+const up = await freePort();
+const artifact = await startArtifact({ root, port: up, fixture: true });
+const front = await startFront({ transport: "h2", upstreamPort: up, listenPort: await freePort() });
+const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome", args: ["--no-sandbox", "--disable-gpu", "--no-proxy-server", ...front.chromeFlags.map((f) => f.replace(/'/g, ""))] });
+const ctx = await browser.newContext({ viewport: { width: 412, height: 823 }, deviceScaleFactor: 1.75, isMobile: true, hasTouch: true, extraHTTPHeaders: { "Accept-Language": DEFAULT_ACCEPT_LANGUAGE }, ignoreHTTPSErrors: true });
+const page = await ctx.newPage();
+const msgs = [];
+page.on("console", (m) => { if (["error", "warning"].includes(m.type())) msgs.push(`${m.type()}: ${m.text().slice(0, 300)}`); });
+page.on("pageerror", (e) => msgs.push(`pageerror: ${String(e).slice(0, 300)}`));
+await warmDocument(artifact.origin, "/");
+await page.goto(`${front.baseUrl}/`, { waitUntil: "load" });
+await page.waitForTimeout(4000);
+console.log(msgs.length ? msgs.join("\n") : "(brak błędów/ostrzeżeń konsoli)");
+await browser.close(); await front.stop(); await artifact.stop();

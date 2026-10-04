@@ -1,0 +1,3 @@
+profhook-mobile-1 code=0 warm=200 x-nes-cache=HIT raw=391098 load=6.77 perf=69 FCP=4589 LCP=5270 TBT=68 SI=4589 TTI=5270
+profhook-mobile-2 code=0 warm=200 x-nes-cache=HIT raw=391098 load=6.15 perf=68 FCP=4459 LCP=5164 TBT=171 SI=4459 TTI=5164
+profhook-desktop-1 code=0 warm=200 x-nes-cache=HIT raw=391098 load=6.48 perf=99 FCP=422 LCP=1013 TBT=42 SI=542 TTI=1013

@@ -1,0 +1,20 @@
+# /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/p05/art2/w0q-desktop-6
+# TBT(audit Lantern)=50 FCPsim opt/pes=472/472 TTIsim opt/pes=1321/1449 cpuMult=1 okna opt=[472,1321] pes=[472,1449]
+obsStart obsDur  simStart(o/p)  simDur(o/p)  L  class          block opt/pes/avg  urls
+    582  114.8   1265/1265    115/115      Timer             6/   65/   36  index,events._slug_.cfp-submit,vendor-lucide,MoneyText,events._slug.agenda,PostListCard
+          dzieci: TimerFirex1=103.9 v8.callFunctionx1=103.9 RunMicrotasksx1=103.8 V8.StackGuardx2=1.4 V8.HandleInterruptsx2=1.4
+          TimerFire 103.9ms @582  :: 
+          v8.callFunction 103.9ms @582  :: 
+          RunMicrotasks 103.8ms @582  :: 
+    720  123.1    627/627      62/62    L  Script           12/   12/   12  
+          dzieci: UpdateLayoutTreex1=65.7 Layoutx1=45.3 RunMicrotasksx1=6.8 Paintx2=1.5 Commitx1=1.1
+          RunMicrotasks 6.8ms @836  :: 
+          UpdateLayoutTree 65.7ms el=177 @720 
+          Layout 45.3ms dirty=175/644 @785 
+    931  108.6   1395/1395     54/54    L  Script            0/    4/    2  vendor-react,vendor-tanstack,index,_lighthouse-eval.js,vendor-supabase
+          dzieci: v8.callFunctionx58=107.6 FunctionCallx34=95.4 RunMicrotasksx1=12.0 UpdateLayoutTreex2=6.3 MinorGCx1=5.5 V8.GCScavengerx1=5.5 V8.GC_SCAVENGERx1=5.5 V8.GC_SCAVENGER_SCAVENGEx1=5.4 V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASEx1=5.0 V8.GC_SCAVENGER_SCAVENGE_PARALLELx1=4.0 V8.BytecodeBudgetInterruptx268=3.2 ParseHTMLx12=2.6
+          v8.callFunction 107.2ms @931  :: 
+          FunctionCall 95.2ms @931 _t vendor-react:1:10765 
+          RunMicrotasks 12.0ms @1026  :: 
+          UpdateLayoutTree 5.9ms el=161 @947 (anon)@index:422:14022 < le@vendor-react:8:92463 < ty@vendor-react:8:107691 < Tt@vendor-react:8:107575
+# suma księgi = 49.5 ; audyt = 50 ; różnica = 0.00 ms

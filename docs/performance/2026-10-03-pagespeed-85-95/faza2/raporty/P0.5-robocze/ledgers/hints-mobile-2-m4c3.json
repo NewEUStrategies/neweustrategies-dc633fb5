@@ -1,0 +1,1729 @@
+{
+ "dir": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/p05/wi/tmp-hints-mobile-2-m4c3-mobile",
+ "audit": 375,
+ "tbtExact": 374.5,
+ "fcp": {
+  "opt": 1510.7930000000001,
+  "pes": 1510.7930000000001
+ },
+ "tti": {
+  "opt": 2260.793,
+  "pes": 4873.793
+ },
+ "cpu": 4,
+ "sum": 374.5,
+ "tasks": [
+  {
+   "obsStart": 46.1,
+   "obsDur": 40.1,
+   "optSimStart": 1061,
+   "pesSimStart": 1061,
+   "optSimDur": 160,
+   "pesSimDur": 160,
+   "layout": false,
+   "cls": "ScriptCatchup",
+   "opt": 0,
+   "pes": 0,
+   "avg": 0,
+   "urls": [
+    "pl",
+    "AccountMenuWidget",
+    "SearchButtonWidget",
+    "sectionLabelVariants",
+    "PostListView",
+    "PaginatedPostGrid"
+   ],
+   "agg": {
+    "FrameStartedLoading": {
+     "n": 1,
+     "ms": 0
+    },
+    "EventDispatch": {
+     "n": 4,
+     "ms": 0.027
+    },
+    "unloadEventStart": {
+     "n": 1,
+     "ms": 0
+    },
+    "unloadEventEnd": {
+     "n": 1,
+     "ms": 0
+    },
+    "markAsMainFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "DocumentLoader::DocumentLoader": {
+     "n": 3,
+     "ms": 0.031
+    },
+    "ResourceSendRequest": {
+     "n": 31,
+     "ms": 0
+    },
+    "ResourceReceiveResponse": {
+     "n": 1,
+     "ms": 0
+    },
+    "commitNavigationEnd": {
+     "n": 1,
+     "ms": 0
+    },
+    "FrameLoader": {
+     "n": 2,
+     "ms": 0
+    },
+    "DocumentLoader::CommitNavigation": {
+     "n": 3,
+     "ms": 36.13
+    },
+    "DocumentLoader::InitializeWindow": {
+     "n": 3,
+     "ms": 0.549
+    },
+    "BackForwardCacheBufferLimitTracker::DidRemoveFrameOrWorkerFromBackForwardCache": {
+     "n": 1,
+     "ms": 0.006
+    },
+    "domLoading": {
+     "n": 1,
+     "ms": 0
+    },
+    "InvalidateLayout": {
+     "n": 1,
+     "ms": 0
+    },
+    "DocumentLoader::RecordUseCountersForCommit": {
+     "n": 3,
+     "ms": 0.033
+    },
+    "DocumentLoader::DidInstallNewDocument": {
+     "n": 3,
+     "ms": 0.123
+    },
+    "DocumentLoader::DidCommitNavigation": {
+     "n": 1,
+     "ms": 0.09
+    },
+    "CommitLoad": {
+     "n": 1,
+     "ms": 0.052
+    },
+    "DocumentLoader::StartLoadingResponse": {
+     "n": 3,
+     "ms": 32.432
+    },
+    "DocumentLoader::CreateParserPostCommit": {
+     "n": 3,
+     "ms": 32.418
+    },
+    "responseEnd": {
+     "n": 1,
+     "ms": 0
+    },
+    "LocalWindowProxy::Initialize": {
+     "n": 2,
+     "ms": 12.023
+    },
+    "LocalWindowProxy::CreateContext": {
+     "n": 2,
+     "ms": 3.894
+    },
+    "V8.DeserializeContext": {
+     "n": 3,
+     "ms": 2.104
+    },
+    "ScriptCatchup": {
+     "n": 14,
+     "ms": 0.09800000000000002
+    },
+    "V8.BytecodeBudgetInterrupt": {
+     "n": 2,
+     "ms": 0.011
+    },
+    "LocalWindowProxy::SetupWindowPrototypeChain": {
+     "n": 2,
+     "ms": 0.015
+    },
+    "LocalWindowProxy::UpdateDocumentProperty": {
+     "n": 2,
+     "ms": 0.008
+    },
+    "ContextCreatedNotification": {
+     "n": 2,
+     "ms": 1.9409999999999998
+    },
+    "InstallConditionalFeatures": {
+     "n": 2,
+     "ms": 0.5840000000000001
+    },
+    "v8.newInstance": {
+     "n": 1,
+     "ms": 0.008
+    },
+    "NavigationBodyLoader::StartLoadingBody": {
+     "n": 1,
+     "ms": 4.366
+    },
+    "NavigationBodyLoader::OnReadable": {
+     "n": 1,
+     "ms": 4.321
+    },
+    "NavigationBodyLoader::ReadFromDataPipe": {
+     "n": 1,
+     "ms": 4.318
+    },
+    "DocumentLoader::BodyDataReceivedImpl": {
+     "n": 3,
+     "ms": 4.308
+    },
+    "ResourceReceivedData": {
+     "n": 1,
+     "ms": 0
+    },
+    "DocumentLoader::HandleData": {
+     "n": 3,
+     "ms": 3.861
+    },
+    "DocumentLoader::CommitData": {
+     "n": 2,
+     "ms": 3.857
+    },
+    "DecodedDataDocumentParser::AppendBytes": {
+     "n": 1,
+     "ms": 3.851
+    },
+    "HTMLDocumentParser::MaybeFetchQueuedPreloads": {
+     "n": 1,
+     "ms": 0.778
+    },
+    "PreloadRenderBlockingStatusChange": {
+     "n": 3,
+     "ms": 0
+    }
+   },
+   "fcalls": [],
+   "ult": [],
+   "lay": [],
+   "parse": []
+  },
+  {
+   "obsStart": 207,
+   "obsDur": 13.8,
+   "optSimStart": 1230,
+   "pesSimStart": 1230,
+   "optSimDur": 55,
+   "pesSimDur": 55,
+   "layout": false,
+   "cls": "ParseHTML-doc",
+   "opt": 0,
+   "pes": 0,
+   "avg": 0,
+   "urls": [],
+   "agg": {
+    "ParseHTML": {
+     "n": 1,
+     "ms": 13.678
+    },
+    "V8.DeserializeContext": {
+     "n": 1,
+     "ms": 0.392
+    },
+    "RunMicrotasks": {
+     "n": 1,
+     "ms": 0.023
+    },
+    "EvaluateScript": {
+     "n": 4,
+     "ms": 3.375
+    },
+    "v8.compile": {
+     "n": 4,
+     "ms": 0.484
+    },
+    "ScriptCatchup": {
+     "n": 8,
+     "ms": 0.030000000000000006
+    },
+    "ScriptCompiled": {
+     "n": 4,
+     "ms": 2.852
+    },
+    "v8.run": {
+     "n": 4,
+     "ms": 2.8150000000000004
+    },
+    "TimerInstall": {
+     "n": 1,
+     "ms": 0
+    },
+    "v8.produceCache": {
+     "n": 4,
+     "ms": 0.004
+    },
+    "v8.newInstance": {
+     "n": 5,
+     "ms": 0.020000000000000004
+    },
+    "UpdateCounters": {
+     "n": 1,
+     "ms": 0
+    }
+   },
+   "fcalls": [
+    {
+     "name": "EvaluateScript",
+     "ms": 2.695,
+     "obs": 217.598,
+     "url": "/",
+     "line": 200,
+     "col": 11712
+    }
+   ],
+   "ult": [],
+   "lay": [],
+   "parse": [
+    {
+     "ms": 13.678,
+     "obs": 206.963,
+     "url": "/",
+     "line": 199,
+     "end": 199
+    }
+   ]
+  },
+  {
+   "obsStart": 266.4,
+   "obsDur": 62.1,
+   "optSimStart": 1382,
+   "pesSimStart": 1382,
+   "optSimDur": 124,
+   "pesSimDur": 124,
+   "layout": true,
+   "cls": "Script",
+   "opt": 0,
+   "pes": 0,
+   "avg": 0,
+   "urls": [],
+   "agg": {
+    "BeginMainThreadFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "AnimationFrame::Render": {
+     "n": 2,
+     "ms": 0
+    },
+    "FireAnimationFrame": {
+     "n": 2,
+     "ms": 1.0899999999999999
+    },
+    "v8.callFunction": {
+     "n": 2,
+     "ms": 1.064
+    },
+    "FunctionCall": {
+     "n": 2,
+     "ms": 1.044
+    },
+    "UpdateCounters": {
+     "n": 2,
+     "ms": 0
+    },
+    "v8.newInstance": {
+     "n": 6,
+     "ms": 0.019
+    },
+    "V8.BytecodeBudgetInterruptWithStackCheck": {
+     "n": 1,
+     "ms": 0.155
+    },
+    "AnimationFrame::StyleAndLayout": {
+     "n": 2,
+     "ms": 0
+    },
+    "UpdateLayoutTree": {
+     "n": 1,
+     "ms": 23.867
+    },
+    "InvalidateLayout": {
+     "n": 4,
+     "ms": 0
+    },
+    "LayoutImageUnsized": {
+     "n": 2,
+     "ms": 0
+    },
+    "V8.StackGuard": {
+     "n": 1,
+     "ms": 0.01
+    },
+    "V8.HandleInterrupts": {
+     "n": 1,
+     "ms": 0.005
+    },
+    "Layout": {
+     "n": 2,
+     "ms": 22.798
+    },
+    "Animation": {
+     "n": 18,
+     "ms": 0
+    },
+    "SetLayerTreeId": {
+     "n": 2,
+     "ms": 0
+    },
+    "PrePaint": {
+     "n": 2,
+     "ms": 2.044
+    },
+    "IntersectionObserverController::computeIntersections": {
+     "n": 2,
+     "ms": 0.034
+    },
+    "AnimationFrame": {
+     "n": 3,
+     "ms": 0
+    },
+    "DOMStats": {
+     "n": 2,
+     "ms": 0
+    },
+    "Paint": {
+     "n": 5,
+     "ms": 3.3050000000000006
+    },
+    "PaintTimingVisualizer::LayoutObjectPainted": {
+     "n": 67,
+     "ms": 0
+    },
+    "PaintImage": {
+     "n": 15,
+     "ms": 0.41100000000000003
+    },
+    "Draw LazyPixelRef": {
+     "n": 14,
+     "ms": 0
+    },
+    "viewport": {
+     "n": 1,
+     "ms": 0
+    },
+    "PaintTimingVisualizer::Viewport": {
+     "n": 1,
+     "ms": 0
+    },
+    "Layerize": {
+     "n": 1,
+     "ms": 1.511
+    },
+    "layerId": {
+     "n": 17,
+     "ms": 0
+    },
+    "Commit": {
+     "n": 1,
+     "ms": 0.186
+    },
+    "UpdateLayer": {
+     "n": 13,
+     "ms": 0.05300000000000001
+    },
+    "BeginCommitCompositorFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "RunMicrotasks": {
+     "n": 1,
+     "ms": 6.547
+    }
+   },
+   "fcalls": [
+    {
+     "name": "FireAnimationFrame",
+     "ms": 1.009,
+     "obs": 266.488,
+     "url": ""
+    },
+    {
+     "name": "v8.callFunction",
+     "ms": 1.002,
+     "obs": 266.492,
+     "url": ""
+    },
+    {
+     "name": "FunctionCall",
+     "ms": 0.992,
+     "obs": 266.492,
+     "fn": "$RV",
+     "url": "/",
+     "line": 650,
+     "col": 90473
+    },
+    {
+     "name": "RunMicrotasks",
+     "ms": 6.547,
+     "obs": 321.611,
+     "url": ""
+    }
+   ],
+   "ult": [
+    {
+     "ms": 23.867,
+     "obs": 267.551,
+     "el": 546,
+     "stack": []
+    }
+   ],
+   "lay": [
+    {
+     "ms": 22.773,
+     "obs": 291.427,
+     "dirty": 532,
+     "total": 532,
+     "partial": false,
+     "stack": []
+    }
+   ],
+   "parse": []
+  },
+  {
+   "obsStart": 336.2,
+   "obsDur": 40.6,
+   "optSimStart": 1506,
+   "pesSimStart": 1506,
+   "optSimDur": 163,
+   "pesSimDur": 163,
+   "layout": false,
+   "cls": "ScriptCatchup",
+   "opt": 108,
+   "pes": 108,
+   "avg": 108,
+   "urls": [
+    "index",
+    "vendor-react",
+    "vendor-tanstack",
+    "vendor-i18n",
+    "vendor-zod",
+    "vendor-lucide-boot"
+   ],
+   "agg": {
+    "AnimationFrame::Script::Execute": {
+     "n": 2,
+     "ms": 0
+    },
+    "ScriptCatchup": {
+     "n": 18,
+     "ms": 2.0769999999999995
+    },
+    "firstMeaningfulPaintCandidate": {
+     "n": 1,
+     "ms": 0
+    },
+    "firstContentfulPaint": {
+     "n": 1,
+     "ms": 0
+    },
+    "firstImagePaint": {
+     "n": 1,
+     "ms": 0
+    },
+    "LargestTextPaint::Candidate": {
+     "n": 1,
+     "ms": 0
+    },
+    "LargestImagePaint::Candidate": {
+     "n": 1,
+     "ms": 0
+    },
+    "largestContentfulPaint::Candidate": {
+     "n": 1,
+     "ms": 0
+    },
+    "firstMeaningfulPaint": {
+     "n": 2,
+     "ms": 0
+    },
+    "AnimationFrame": {
+     "n": 2,
+     "ms": 0
+    },
+    "AnimationFrame::Presentation": {
+     "n": 2,
+     "ms": 0
+    }
+   },
+   "fcalls": [],
+   "ult": [],
+   "lay": [],
+   "parse": []
+  },
+  {
+   "obsStart": 376.9,
+   "obsDur": 34.9,
+   "optSimStart": 1669,
+   "pesSimStart": 1669,
+   "optSimDur": 140,
+   "pesSimDur": 140,
+   "layout": false,
+   "cls": "Frame",
+   "opt": 90,
+   "pes": 90,
+   "avg": 90,
+   "urls": [],
+   "agg": {
+    "ScheduleStyleRecalculation": {
+     "n": 1,
+     "ms": 0
+    },
+    "Animation": {
+     "n": 9,
+     "ms": 0
+    },
+    "BeginMainThreadFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "AnimationFrame::Render": {
+     "n": 2,
+     "ms": 0
+    },
+    "AnimationFrame::StyleAndLayout": {
+     "n": 2,
+     "ms": 0
+    },
+    "UpdateLayoutTree": {
+     "n": 1,
+     "ms": 0.232
+    },
+    "LayoutImageUnsized": {
+     "n": 1,
+     "ms": 0
+    },
+    "SetLayerTreeId": {
+     "n": 1,
+     "ms": 0
+    },
+    "PrePaint": {
+     "n": 1,
+     "ms": 0.207
+    },
+    "IntersectionObserverController::computeIntersections": {
+     "n": 2,
+     "ms": 0.017
+    },
+    "AnimationFrame": {
+     "n": 3,
+     "ms": 0
+    },
+    "Layerize": {
+     "n": 1,
+     "ms": 0.729
+    },
+    "Commit": {
+     "n": 1,
+     "ms": 0.161
+    },
+    "UpdateLayer": {
+     "n": 14,
+     "ms": 0.022000000000000006
+    },
+    "BeginCommitCompositorFrame": {
+     "n": 1,
+     "ms": 0
+    }
+   },
+   "fcalls": [],
+   "ult": [],
+   "lay": [],
+   "parse": []
+  },
+  {
+   "obsStart": 421.7,
+   "obsDur": 19.5,
+   "optSimStart": 1809,
+   "pesSimStart": 1809,
+   "optSimDur": 78,
+   "pesSimDur": 78,
+   "layout": false,
+   "cls": "ModuleEval",
+   "opt": 28,
+   "pes": 28,
+   "avg": 28,
+   "urls": [
+    "pl",
+    "vendor-react"
+   ],
+   "agg": {
+    "ScriptCatchup": {
+     "n": 2,
+     "ms": 0.109
+    },
+    "v8.evaluateModule": {
+     "n": 1,
+     "ms": 2.845
+    },
+    "V8.GC_HEAP_EXTERNAL_PROLOGUE": {
+     "n": 2,
+     "ms": 0.011
+    },
+    "MinorGC": {
+     "n": 2,
+     "ms": 3.322
+    },
+    "V8.GC_HEAP_PROLOGUE": {
+     "n": 2,
+     "ms": 0.003
+    },
+    "V8.GCScavenger": {
+     "n": 2,
+     "ms": 3.2039999999999997
+    },
+    "V8.GC_TIME_TO_SAFEPOINT": {
+     "n": 2,
+     "ms": 0.003
+    },
+    "V8.GC_SCAVENGER": {
+     "n": 2,
+     "ms": 3.137
+    },
+    "V8.GC_HEAP_PROLOGUE_SAFEPOINT": {
+     "n": 2,
+     "ms": 0.003
+    },
+    "V8.GC_SCAVENGER_SCAVENGE": {
+     "n": 2,
+     "ms": 3.075
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_WEAK_GLOBAL_HANDLES_IDENTIFY": {
+     "n": 2,
+     "ms": 0.074
+    },
+    "ComputeWeaknessProcessor start": {
+     "n": 6,
+     "ms": 0.003
+    },
+    "V8.GC_SCAVENGER_TRACED_HANDLES_COMPUTE_WEAKNESS_PARALLEL": {
+     "n": 2,
+     "ms": 0.015
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_ROOTS": {
+     "n": 2,
+     "ms": 0.253
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE": {
+     "n": 2,
+     "ms": 2.45
+    },
+    "Parallel scavenge started": {
+     "n": 8,
+     "ms": 0.003
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_PARALLEL": {
+     "n": 2,
+     "ms": 2.336
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_WEAK_GLOBAL_HANDLES_PROCESS": {
+     "n": 2,
+     "ms": 0.049
+    },
+    "ClearWeaknessProcessor start": {
+     "n": 6,
+     "ms": 0.004
+    },
+    "V8.GC_SCAVENGER_TRACED_HANDLES_RESET_PARALLEL": {
+     "n": 2,
+     "ms": 0.018
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_FINALIZE": {
+     "n": 2,
+     "ms": 0.13
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_UPDATE_REFS": {
+     "n": 2,
+     "ms": 0.003
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_RESTORE_AND_QUARANTINE_PINNED": {
+     "n": 2,
+     "ms": 0.003
+    },
+    "V8.GC_SCAVENGER_FREE_REMEMBERED_SET": {
+     "n": 2,
+     "ms": 0.028999999999999998
+    },
+    "V8.GC_SCAVENGER_RESIZE_NEW_SPACE": {
+     "n": 2,
+     "ms": 0.01
+    },
+    "V8.GC_HEAP_EPILOGUE_SAFEPOINT": {
+     "n": 2,
+     "ms": 0.024
+    },
+    "V8.GC_HEAP_EPILOGUE": {
+     "n": 2,
+     "ms": 0.032
+    },
+    "V8.GC_HEAP_EXTERNAL_EPILOGUE": {
+     "n": 2,
+     "ms": 0.019
+    },
+    "UpdateCounters": {
+     "n": 3,
+     "ms": 0
+    },
+    "ModuleEvaluated": {
+     "n": 1,
+     "ms": 0.014
+    },
+    "RunMicrotasks": {
+     "n": 1,
+     "ms": 14.505
+    },
+    "AnimationFrame::Script::Execute": {
+     "n": 2,
+     "ms": 0
+    },
+    "V8.BytecodeBudgetInterrupt": {
+     "n": 62,
+     "ms": 0.28
+    },
+    "V8.StackGuard": {
+     "n": 8,
+     "ms": 0.10300000000000001
+    },
+    "V8.HandleInterrupts": {
+     "n": 8,
+     "ms": 0.08700000000000001
+    },
+    "V8.BytecodeBudgetInterruptWithStackCheck": {
+     "n": 3,
+     "ms": 0.032
+    },
+    "AnimationFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "AnimationFrame::Presentation": {
+     "n": 1,
+     "ms": 0
+    },
+    "v8.callFunction": {
+     "n": 1,
+     "ms": 0.109
+    },
+    "FunctionCall": {
+     "n": 1,
+     "ms": 0.096
+    }
+   },
+   "fcalls": [
+    {
+     "name": "v8.evaluateModule",
+     "ms": 2.845,
+     "obs": 423.719,
+     "url": ""
+    },
+    {
+     "name": "RunMicrotasks",
+     "ms": 14.505,
+     "obs": 426.598,
+     "url": ""
+    }
+   ],
+   "ult": [],
+   "lay": [],
+   "parse": []
+  },
+  {
+   "obsStart": 544.3,
+   "obsDur": 51.6,
+   "optSimStart": 1887,
+   "pesSimStart": 1887,
+   "optSimDur": 103,
+   "pesSimDur": 103,
+   "layout": true,
+   "cls": "Script",
+   "opt": 53,
+   "pes": 53,
+   "avg": 53,
+   "urls": [
+    "vendor-react",
+    "vendor-tanstack",
+    "index",
+    "_lighthouse-eval.js",
+    "vendor-supabase"
+   ],
+   "agg": {
+    "AnimationFrame::Script::Execute": {
+     "n": 2,
+     "ms": 0
+    },
+    "v8.callFunction": {
+     "n": 58,
+     "ms": 51.82999999999998
+    },
+    "FunctionCall": {
+     "n": 34,
+     "ms": 49.64800000000004
+    },
+    "V8.BytecodeBudgetInterrupt": {
+     "n": 274,
+     "ms": 1.479999999999998
+    },
+    "V8.StackGuard": {
+     "n": 60,
+     "ms": 0.7020000000000003
+    },
+    "V8.HandleInterrupts": {
+     "n": 62,
+     "ms": 0.6100000000000002
+    },
+    "V8.BytecodeBudgetInterruptWithStackCheck": {
+     "n": 42,
+     "ms": 0.16400000000000003
+    },
+    "v8.newInstance": {
+     "n": 12,
+     "ms": 0.033
+    },
+    "TimerRemove": {
+     "n": 15,
+     "ms": 0
+    },
+    "TimerInstall": {
+     "n": 34,
+     "ms": 0
+    },
+    "UpdateLayoutTree": {
+     "n": 2,
+     "ms": 3.624
+    },
+    "LayoutImageUnsized": {
+     "n": 2,
+     "ms": 0
+    },
+    "ScheduleStyleRecalculation": {
+     "n": 2,
+     "ms": 0
+    },
+    "InvalidateLayout": {
+     "n": 1,
+     "ms": 0
+    },
+    "AnimationFrame": {
+     "n": 2,
+     "ms": 0
+    },
+    "AnimationFrame::Presentation": {
+     "n": 2,
+     "ms": 0
+    },
+    "Layout": {
+     "n": 1,
+     "ms": 0.361
+    },
+    "RequestAnimationFrame": {
+     "n": 3,
+     "ms": 0
+    },
+    "RequestIdleCallback": {
+     "n": 1,
+     "ms": 0
+    },
+    "V8.DeoptimizeCode": {
+     "n": 26,
+     "ms": 0.058000000000000024
+    },
+    "V8.GC_HEAP_EXTERNAL_PROLOGUE": {
+     "n": 1,
+     "ms": 0.006
+    },
+    "MinorGC": {
+     "n": 1,
+     "ms": 1.827
+    },
+    "V8.GC_HEAP_PROLOGUE": {
+     "n": 1,
+     "ms": 0.002
+    },
+    "V8.GCScavenger": {
+     "n": 1,
+     "ms": 1.786
+    },
+    "V8.GC_TIME_TO_SAFEPOINT": {
+     "n": 1,
+     "ms": 0.002
+    },
+    "V8.GC_SCAVENGER": {
+     "n": 1,
+     "ms": 1.776
+    },
+    "V8.GC_HEAP_PROLOGUE_SAFEPOINT": {
+     "n": 1,
+     "ms": 0.001
+    },
+    "V8.GC_SCAVENGER_SCAVENGE": {
+     "n": 1,
+     "ms": 1.753
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_WEAK_GLOBAL_HANDLES_IDENTIFY": {
+     "n": 1,
+     "ms": 0.051
+    },
+    "ComputeWeaknessProcessor start": {
+     "n": 3,
+     "ms": 0.002
+    },
+    "V8.GC_SCAVENGER_TRACED_HANDLES_COMPUTE_WEAKNESS_PARALLEL": {
+     "n": 1,
+     "ms": 0.023
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_ROOTS": {
+     "n": 1,
+     "ms": 0.076
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASE": {
+     "n": 1,
+     "ms": 1.379
+    },
+    "Parallel scavenge started": {
+     "n": 5,
+     "ms": 0.001
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_PARALLEL": {
+     "n": 1,
+     "ms": 1.273
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_WEAK_GLOBAL_HANDLES_PROCESS": {
+     "n": 1,
+     "ms": 0.038
+    },
+    "ClearWeaknessProcessor start": {
+     "n": 3,
+     "ms": 0.002
+    },
+    "V8.GC_SCAVENGER_TRACED_HANDLES_RESET_PARALLEL": {
+     "n": 1,
+     "ms": 0.012
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_FINALIZE": {
+     "n": 1,
+     "ms": 0.15
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_UPDATE_REFS": {
+     "n": 1,
+     "ms": 0.002
+    },
+    "V8.GC_SCAVENGER_SCAVENGE_RESTORE_AND_QUARANTINE_PINNED": {
+     "n": 1,
+     "ms": 0.003
+    },
+    "V8.GC_SCAVENGER_FREE_REMEMBERED_SET": {
+     "n": 1,
+     "ms": 0.02
+    },
+    "V8.GC_SCAVENGER_RESIZE_NEW_SPACE": {
+     "n": 1,
+     "ms": 0.003
+    },
+    "V8.GC_HEAP_EPILOGUE_SAFEPOINT": {
+     "n": 1,
+     "ms": 0.011
+    },
+    "V8.GC_HEAP_EPILOGUE": {
+     "n": 1,
+     "ms": 0.003
+    },
+    "V8.GC_HEAP_EXTERNAL_EPILOGUE": {
+     "n": 1,
+     "ms": 0.009
+    },
+    "UpdateCounters": {
+     "n": 47,
+     "ms": 0
+    },
+    "ParseHTML": {
+     "n": 12,
+     "ms": 2.6069999999999998
+    },
+    "RunMicrotasks": {
+     "n": 1,
+     "ms": 2.005
+    },
+    "ResourceSendRequest": {
+     "n": 2,
+     "ms": 0
+    }
+   },
+   "fcalls": [
+    {
+     "name": "v8.callFunction",
+     "ms": 51.443,
+     "obs": 544.278,
+     "url": ""
+    },
+    {
+     "name": "FunctionCall",
+     "ms": 49.426,
+     "obs": 544.278,
+     "fn": "_t",
+     "url": "vendor-react",
+     "line": 2,
+     "col": 10765
+    },
+    {
+     "name": "RunMicrotasks",
+     "ms": 2.005,
+     "obs": 593.713,
+     "url": ""
+    }
+   ],
+   "ult": [
+    {
+     "ms": 0.533,
+     "obs": 551.082,
+     "el": 9,
+     "stack": [
+      "S@index:423:12493",
+      "(anon)@index:423:12648",
+      "le@vendor-react:9:92463",
+      "ty@vendor-react:9:107691"
+     ]
+    },
+    {
+     "ms": 3.091,
+     "obs": 552.412,
+     "el": 56,
+     "stack": [
+      "(anon)@index:423:14022",
+      "le@vendor-react:9:92463",
+      "ty@vendor-react:9:107691",
+      "Tt@vendor-react:9:107575"
+     ]
+    }
+   ],
+   "lay": [
+    {
+     "ms": 0.361,
+     "obs": 555.51,
+     "dirty": 7,
+     "total": 800,
+     "partial": false,
+     "stack": [
+      "(anon)@index:423:14022",
+      "le@vendor-react:9:92463",
+      "ty@vendor-react:9:107691",
+      "Tt@vendor-react:9:107575"
+     ]
+    }
+   ],
+   "parse": []
+  },
+  {
+   "obsStart": 595.9,
+   "obsDur": 29.2,
+   "optSimStart": 1990,
+   "pesSimStart": 1990,
+   "optSimDur": 58,
+   "pesSimDur": 58,
+   "layout": true,
+   "cls": "Script",
+   "opt": 8,
+   "pes": 8,
+   "avg": 8,
+   "urls": [
+    "index",
+    "_lighthouse-eval.js"
+   ],
+   "agg": {
+    "BeginMainThreadFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "AnimationFrame::Render": {
+     "n": 2,
+     "ms": 0
+    },
+    "FireAnimationFrame": {
+     "n": 3,
+     "ms": 0.13299999999999998
+    },
+    "v8.callFunction": {
+     "n": 6,
+     "ms": 0.29000000000000004
+    },
+    "FunctionCall": {
+     "n": 6,
+     "ms": 0.263
+    },
+    "RequestIdleCallback": {
+     "n": 3,
+     "ms": 0
+    },
+    "UpdateCounters": {
+     "n": 6,
+     "ms": 0
+    },
+    "AnimationFrame::StyleAndLayout": {
+     "n": 2,
+     "ms": 0
+    },
+    "UpdateLayoutTree": {
+     "n": 1,
+     "ms": 26.792
+    },
+    "InvalidateLayout": {
+     "n": 1,
+     "ms": 0
+    },
+    "LayoutImageUnsized": {
+     "n": 2,
+     "ms": 0
+    },
+    "Layout": {
+     "n": 1,
+     "ms": 0.163
+    },
+    "SetLayerTreeId": {
+     "n": 2,
+     "ms": 0
+    },
+    "PrePaint": {
+     "n": 2,
+     "ms": 0.34700000000000003
+    },
+    "IntersectionObserverController::computeIntersections": {
+     "n": 3,
+     "ms": 0.040999999999999995
+    },
+    "v8.newInstance": {
+     "n": 2,
+     "ms": 0.009000000000000001
+    },
+    "TimerRemove": {
+     "n": 2,
+     "ms": 0
+    },
+    "TimerInstall": {
+     "n": 2,
+     "ms": 0
+    },
+    "AnimationFrame": {
+     "n": 3,
+     "ms": 0
+    },
+    "DOMStats": {
+     "n": 1,
+     "ms": 0
+    },
+    "Paint": {
+     "n": 4,
+     "ms": 0.36500000000000005
+    },
+    "Layerize": {
+     "n": 1,
+     "ms": 0.7
+    },
+    "Commit": {
+     "n": 1,
+     "ms": 0.091
+    },
+    "UpdateLayer": {
+     "n": 14,
+     "ms": 0.024000000000000007
+    },
+    "BeginCommitCompositorFrame": {
+     "n": 1,
+     "ms": 0
+    }
+   },
+   "fcalls": [],
+   "ult": [
+    {
+     "ms": 26.792,
+     "obs": 596.202,
+     "el": 798,
+     "stack": []
+    }
+   ],
+   "lay": [],
+   "parse": []
+  },
+  {
+   "obsStart": 657.5,
+   "obsDur": 13.2,
+   "optSimStart": 2048,
+   "pesSimStart": 2048,
+   "optSimDur": 53,
+   "pesSimDur": 53,
+   "layout": false,
+   "cls": "Script",
+   "opt": 3,
+   "pes": 3,
+   "avg": 3,
+   "urls": [
+    "vendor-react",
+    "vendor-tanstack",
+    "index"
+   ],
+   "agg": {
+    "AnimationFrame::Script::Execute": {
+     "n": 2,
+     "ms": 0
+    },
+    "v8.callFunction": {
+     "n": 1,
+     "ms": 13.169
+    },
+    "FunctionCall": {
+     "n": 1,
+     "ms": 13.16
+    },
+    "V8.BytecodeBudgetInterrupt": {
+     "n": 5,
+     "ms": 0.07300000000000001
+    },
+    "TimerInstall": {
+     "n": 19,
+     "ms": 0
+    },
+    "V8.StackGuard": {
+     "n": 2,
+     "ms": 0.06999999999999999
+    },
+    "V8.HandleInterrupts": {
+     "n": 2,
+     "ms": 0.042
+    },
+    "UpdateLayoutTree": {
+     "n": 1,
+     "ms": 0.613
+    },
+    "ScheduleStyleRecalculation": {
+     "n": 1,
+     "ms": 0
+    },
+    "UpdateCounters": {
+     "n": 1,
+     "ms": 0
+    }
+   },
+   "fcalls": [
+    {
+     "name": "v8.callFunction",
+     "ms": 13.169,
+     "obs": 657.517,
+     "url": ""
+    },
+    {
+     "name": "FunctionCall",
+     "ms": 13.16,
+     "obs": 657.518,
+     "fn": "_t",
+     "url": "vendor-react",
+     "line": 2,
+     "col": 10765
+    }
+   ],
+   "ult": [
+    {
+     "ms": 0.613,
+     "obs": 669.646,
+     "el": 2,
+     "stack": [
+      "a@index:423:16016",
+      "(anon)@index:423:16034",
+      "le@vendor-react:9:92463",
+      "sa@vendor-react:9:108637"
+     ]
+    }
+   ],
+   "lay": [],
+   "parse": []
+  },
+  {
+   "obsStart": 1116.7,
+   "obsDur": 15.7,
+   "optSimStart": 4811,
+   "pesSimStart": 4811,
+   "optSimDur": 63,
+   "pesSimDur": 63,
+   "layout": false,
+   "cls": "Script",
+   "opt": 0,
+   "pes": 13,
+   "avg": 6.5,
+   "urls": [
+    "vendor-react",
+    "vendor-tanstack"
+   ],
+   "agg": {
+    "AnimationFrame::Script::Execute": {
+     "n": 2,
+     "ms": 0
+    },
+    "v8.callFunction": {
+     "n": 2,
+     "ms": 15.683
+    },
+    "FunctionCall": {
+     "n": 2,
+     "ms": 15.644
+    },
+    "TimerRemove": {
+     "n": 1,
+     "ms": 0
+    },
+    "V8.BytecodeBudgetInterrupt": {
+     "n": 17,
+     "ms": 0.13300000000000003
+    },
+    "V8.StackGuard": {
+     "n": 5,
+     "ms": 0.082
+    },
+    "V8.HandleInterrupts": {
+     "n": 5,
+     "ms": 0.07
+    },
+    "TimerInstall": {
+     "n": 2,
+     "ms": 0
+    },
+    "V8.DeoptimizeCode": {
+     "n": 3,
+     "ms": 0.034999999999999996
+    },
+    "v8.newInstance": {
+     "n": 2,
+     "ms": 0.007
+    },
+    "ScheduleStyleRecalculation": {
+     "n": 1,
+     "ms": 0
+    },
+    "V8.BytecodeBudgetInterruptWithStackCheck": {
+     "n": 1,
+     "ms": 0.097
+    },
+    "UpdateCounters": {
+     "n": 2,
+     "ms": 0
+    },
+    "RunMicrotasks": {
+     "n": 1,
+     "ms": 0.022
+    }
+   },
+   "fcalls": [
+    {
+     "name": "v8.callFunction",
+     "ms": 15.67,
+     "obs": 1116.698,
+     "url": ""
+    },
+    {
+     "name": "FunctionCall",
+     "ms": 15.634,
+     "obs": 1116.699,
+     "fn": "_t",
+     "url": "vendor-react",
+     "line": 2,
+     "col": 10765
+    }
+   ],
+   "ult": [],
+   "lay": [],
+   "parse": []
+  },
+  {
+   "obsStart": 1132.5,
+   "obsDur": 14,
+   "optSimStart": 2101,
+   "pesSimStart": 2101,
+   "optSimDur": 56,
+   "pesSimDur": 56,
+   "layout": false,
+   "cls": "Script",
+   "opt": 6,
+   "pes": 6,
+   "avg": 6,
+   "urls": [
+    "vendor-react",
+    "vendor-tanstack",
+    "vendor-supabase"
+   ],
+   "agg": {
+    "AnimationFrame::Script::Execute": {
+     "n": 2,
+     "ms": 0
+    },
+    "v8.callFunction": {
+     "n": 56,
+     "ms": 14.074999999999987
+    },
+    "FunctionCall": {
+     "n": 32,
+     "ms": 12.420000000000007
+    },
+    "V8.BytecodeBudgetInterrupt": {
+     "n": 25,
+     "ms": 0.05700000000000002
+    },
+    "v8.newInstance": {
+     "n": 2,
+     "ms": 0.006
+    },
+    "V8.StackGuard": {
+     "n": 2,
+     "ms": 0.012
+    },
+    "V8.HandleInterrupts": {
+     "n": 2,
+     "ms": 0.008
+    },
+    "TimerRemove": {
+     "n": 3,
+     "ms": 0
+    },
+    "TimerInstall": {
+     "n": 5,
+     "ms": 0
+    },
+    "V8.DeoptimizeCode": {
+     "n": 2,
+     "ms": 0.04
+    },
+    "UpdateLayoutTree": {
+     "n": 1,
+     "ms": 1.809
+    },
+    "ScheduleStyleRecalculation": {
+     "n": 1,
+     "ms": 0
+    },
+    "UpdateCounters": {
+     "n": 32,
+     "ms": 0
+    },
+    "RunMicrotasks": {
+     "n": 1,
+     "ms": 1.338
+    },
+    "V8.BytecodeBudgetInterruptWithStackCheck": {
+     "n": 1,
+     "ms": 0.006
+    },
+    "ResourceSendRequest": {
+     "n": 2,
+     "ms": 0
+    }
+   },
+   "fcalls": [
+    {
+     "name": "v8.callFunction",
+     "ms": 13.674,
+     "obs": 1132.507,
+     "url": ""
+    },
+    {
+     "name": "FunctionCall",
+     "ms": 12.322,
+     "obs": 1132.507,
+     "fn": "_t",
+     "url": "vendor-react",
+     "line": 2,
+     "col": 10765
+    },
+    {
+     "name": "RunMicrotasks",
+     "ms": 1.338,
+     "obs": 1144.841,
+     "url": ""
+    }
+   ],
+   "ult": [
+    {
+     "ms": 1.809,
+     "obs": 1141.989,
+     "el": 16,
+     "stack": [
+      "(anon)@vendor-radix:41:11332",
+      "le@vendor-react:9:92463",
+      "Wv@vendor-react:9:96976",
+      "xt@vendor-react:9:105843"
+     ]
+    }
+   ],
+   "lay": [],
+   "parse": []
+  },
+  {
+   "obsStart": 1155.4,
+   "obsDur": 25.5,
+   "optSimStart": 2157,
+   "pesSimStart": 2157,
+   "optSimDur": 102,
+   "pesSimDur": 102,
+   "layout": false,
+   "cls": "Script",
+   "opt": 52,
+   "pes": 52,
+   "avg": 52,
+   "urls": [
+    "vendor-react"
+   ],
+   "agg": {
+    "AnimationFrame::Script::Execute": {
+     "n": 2,
+     "ms": 0
+    },
+    "v8.callFunction": {
+     "n": 2,
+     "ms": 25.441
+    },
+    "FunctionCall": {
+     "n": 2,
+     "ms": 25.413999999999998
+    },
+    "V8.BytecodeBudgetInterrupt": {
+     "n": 7,
+     "ms": 0.020999999999999998
+    },
+    "V8.DeoptimizeCode": {
+     "n": 1,
+     "ms": 0.015
+    },
+    "V8.StackGuard": {
+     "n": 6,
+     "ms": 0.184
+    },
+    "V8.HandleInterrupts": {
+     "n": 6,
+     "ms": 0.17099999999999999
+    },
+    "V8.BytecodeBudgetInterruptWithStackCheck": {
+     "n": 2,
+     "ms": 0.006
+    },
+    "ParseHTML": {
+     "n": 50,
+     "ms": 18.411000000000005
+    },
+    "UpdateCounters": {
+     "n": 52,
+     "ms": 0
+    },
+    "ScheduleStyleRecalculation": {
+     "n": 1,
+     "ms": 0
+    },
+    "RunMicrotasks": {
+     "n": 1,
+     "ms": 0.017
+    }
+   },
+   "fcalls": [
+    {
+     "name": "v8.callFunction",
+     "ms": 25.43,
+     "obs": 1155.39,
+     "url": ""
+    },
+    {
+     "name": "FunctionCall",
+     "ms": 25.406,
+     "obs": 1155.391,
+     "fn": "_t",
+     "url": "vendor-react",
+     "line": 2,
+     "col": 10765
+    }
+   ],
+   "ult": [],
+   "lay": [],
+   "parse": []
+  },
+  {
+   "obsStart": 1181.3,
+   "obsDur": 22.6,
+   "optSimStart": 2259,
+   "pesSimStart": 2259,
+   "optSimDur": 90,
+   "pesSimDur": 90,
+   "layout": false,
+   "cls": "Frame",
+   "opt": 0,
+   "pes": 40,
+   "avg": 20,
+   "urls": [],
+   "agg": {
+    "BeginMainThreadFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "AnimationFrame::Render": {
+     "n": 2,
+     "ms": 0
+    },
+    "AnimationFrame::StyleAndLayout": {
+     "n": 2,
+     "ms": 0
+    },
+    "UpdateLayoutTree": {
+     "n": 1,
+     "ms": 22.014
+    },
+    "LayoutImageUnsized": {
+     "n": 1,
+     "ms": 0
+    },
+    "SetLayerTreeId": {
+     "n": 1,
+     "ms": 0
+    },
+    "PrePaint": {
+     "n": 1,
+     "ms": 0.247
+    },
+    "IntersectionObserverController::computeIntersections": {
+     "n": 2,
+     "ms": 0.06
+    },
+    "AnimationFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "DOMStats": {
+     "n": 1,
+     "ms": 0
+    },
+    "Layerize": {
+     "n": 1,
+     "ms": 0.002
+    },
+    "Commit": {
+     "n": 1,
+     "ms": 0.075
+    },
+    "BeginCommitCompositorFrame": {
+     "n": 1,
+     "ms": 0
+    }
+   },
+   "fcalls": [],
+   "ult": [
+    {
+     "ms": 22.014,
+     "obs": 1181.41,
+     "el": 706,
+     "stack": []
+    }
+   ],
+   "lay": [],
+   "parse": []
+  }
+ ]
+}
