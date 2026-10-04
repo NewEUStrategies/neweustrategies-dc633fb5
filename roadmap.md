@@ -87,6 +87,6 @@
 
 ## Styl Kinetic Signal Notch na wszystkich stronach CMS Builder
 
-- [ ] Zinwentaryzować wszystkie strony i etykiety sekcji w Builderze
-- [ ] Podmienić wariant wszystkich etykiet sekcji na `kinetic-signal-notch` z zachowaniem treści PL/EN i ustawień
-- [ ] Zweryfikować zapis, renderowanie mobilne i desktopowe oraz testy
+- [x] Zinwentaryzować wszystkie strony i etykiety sekcji w Builderze
+- [x] Podmienić wariant wszystkich etykiet sekcji na `kinetic-signal-notch` z zachowaniem treści PL/EN i ustawień
+- [x] Zweryfikować zapis, renderowanie mobilne i desktopowe oraz testy

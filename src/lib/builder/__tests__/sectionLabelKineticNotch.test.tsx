@@ -286,6 +286,12 @@ describe("Kinetic Signal Notch", () => {
     ).toBe(true);
   });
 
+  it("jest domyślnym stylem etykiety również bez zapisanego wariantu", () => {
+    const props = readSectionLabelProps({ label_pl: "Sekcja", label_en: "Section" }, "en");
+    expect(props.variant).toBe("kinetic-signal-notch");
+    expect(props.showRule).toBe(false);
+  });
+
   it("akcja nie dostaje podkreślenia w żadnym stanie", () => {
     // `text-decoration` spływa z rodzica na potomnych, więc podkreślenie
     // nadane całemu widżetowi (hover Theme Designu) wylądowałoby pod
