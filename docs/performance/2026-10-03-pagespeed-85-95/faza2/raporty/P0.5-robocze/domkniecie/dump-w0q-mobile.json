@@ -1,0 +1,1037 @@
+[
+{
+"run": "w0q-mobile-1",
+"obs": 60.1,
+"dur": 40.2,
+"L": false,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 161,
+"m4c3": 161
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 157.8,
+"dur": 19.3,
+"L": false,
+"cls": "ParseCSS (arkusz blokuj\u0105cy)",
+"b": {
+"m4": 27,
+"m4c3": 13.5
+},
+"sim": {
+"m4": 77,
+"m4c3": 77
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 210.9,
+"dur": 17.4,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 70,
+"m4c3": 70
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 229.6,
+"dur": 21.8,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 87,
+"m4c3": 87
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 251.5,
+"dur": 128.4,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"m4": 23,
+"m4c3": 173
+},
+"sim": {
+"m4": 257,
+"m4c3": 257
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 401.1,
+"dur": 37.1,
+"L": true,
+"cls": "druga klatka (ods\u0142oni\u0119cie sekcji strumieniowanych $RV)",
+"b": {
+"m4": 24,
+"m4c3": 24
+},
+"sim": {
+"m4": 74,
+"m4c3": 74
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 445.4,
+"dur": 47.1,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"m4": 138,
+"m4c3": 138
+},
+"sim": {
+"m4": 188,
+"m4c3": 188
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 515.1,
+"dur": 24,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"m4": 46,
+"m4c3": 46
+},
+"sim": {
+"m4": 96,
+"m4c3": 96
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 541.9,
+"dur": 13.7,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"m4": 5,
+"m4c3": 5
+},
+"sim": {
+"m4": 55,
+"m4c3": 55
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 597.2,
+"dur": 24.4,
+"L": false,
+"cls": "inne",
+"b": {
+"m4": 47,
+"m4c3": 47
+},
+"sim": {
+"m4": 97,
+"m4c3": 97
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 679.6,
+"dur": 77.2,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"m4": 52,
+"m4c3": 104
+},
+"sim": {
+"m4": 154,
+"m4c3": 154
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 756.8,
+"dur": 25.3,
+"L": true,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"m4": 1,
+"m4c3": 1
+},
+"sim": {
+"m4": 51,
+"m4c3": 51
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 834.5,
+"dur": 17.7,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"m4": 21,
+"m4c3": 10.5
+},
+"sim": {
+"m4": 71,
+"m4c3": 71
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 894.3,
+"dur": 13.1,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"m4": 1,
+"m4c3": 1
+},
+"sim": {
+"m4": 52,
+"m4c3": 52
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 1366.6,
+"dur": 12.6,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"m4": 0.5,
+"m4c3": 0.5
+},
+"sim": {
+"m4": 51,
+"m4c3": 51
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 1401.8,
+"dur": 20.8,
+"L": false,
+"cls": "ParseHTML w commicie Reacta (innerHTML arkuszy)",
+"b": {
+"m4": 16.5,
+"m4c3": 16.5
+},
+"sim": {
+"m4": 83,
+"m4c3": 83
+}
+},
+{
+"run": "w0q-mobile-1",
+"obs": 1423.2,
+"dur": 24.5,
+"L": false,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"m4": 48,
+"m4c3": 24
+},
+"sim": {
+"m4": 98,
+"m4c3": 98
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 41.1,
+"dur": 30.6,
+"L": false,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 122,
+"m4c3": 122
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 74.5,
+"dur": 21,
+"L": false,
+"cls": "inne",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 84,
+"m4c3": 84
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 219.6,
+"dur": 19.2,
+"L": false,
+"cls": "ParseCSS (arkusz blokuj\u0105cy)",
+"b": {
+"m4": 0,
+"m4c3": 13.5
+},
+"sim": {
+"m4": 77,
+"m4c3": 77
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 287.9,
+"dur": 26.1,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 52,
+"m4c3": 52
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 314.1,
+"dur": 32,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"m4": 0,
+"m4c3": 47
+},
+"sim": {
+"m4": 128,
+"m4c3": 128
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 346.2,
+"dur": 38,
+"L": true,
+"cls": "druga klatka (ods\u0142oni\u0119cie sekcji strumieniowanych $RV)",
+"b": {
+"m4": 0,
+"m4c3": 26
+},
+"sim": {
+"m4": 76,
+"m4c3": 76
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 399.4,
+"dur": 23.1,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"m4": 42,
+"m4c3": 42
+},
+"sim": {
+"m4": 92,
+"m4c3": 92
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 422.5,
+"dur": 28.1,
+"L": false,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"m4": 63,
+"m4c3": 63
+},
+"sim": {
+"m4": 113,
+"m4c3": 113
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 452.4,
+"dur": 15.5,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"m4": 12,
+"m4c3": 12
+},
+"sim": {
+"m4": 62,
+"m4c3": 62
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 565.9,
+"dur": 73.7,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"m4": 48.5,
+"m4c3": 97
+},
+"sim": {
+"m4": 147,
+"m4c3": 147
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 639.6,
+"dur": 28.8,
+"L": true,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"m4": 8,
+"m4c3": 8
+},
+"sim": {
+"m4": 58,
+"m4c3": 58
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 1120.6,
+"dur": 12.6,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 50,
+"m4c3": 50
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 1159.4,
+"dur": 13.1,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"m4": 1,
+"m4c3": 1
+},
+"sim": {
+"m4": 52,
+"m4c3": 52
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 1194,
+"dur": 32,
+"L": false,
+"cls": "ParseHTML w commicie Reacta (innerHTML arkuszy)",
+"b": {
+"m4": 39,
+"m4c3": 40.5
+},
+"sim": {
+"m4": 128,
+"m4c3": 128
+}
+},
+{
+"run": "w0q-mobile-2",
+"obs": 1226.7,
+"dur": 21.4,
+"L": false,
+"cls": "styl po prze\u0142\u0105czeniu urz\u0105dzenia (data-device + style kolumn)",
+"b": {
+"m4": 0,
+"m4c3": 18
+},
+"sim": {
+"m4": 86,
+"m4c3": 86
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 256,
+"dur": 39.9,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 80,
+"m4c3": 80
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 296.1,
+"dur": 57.3,
+"L": true,
+"cls": "druga klatka (ods\u0142oni\u0119cie sekcji strumieniowanych $RV)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 115,
+"m4c3": 115
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 354.1,
+"dur": 40.7,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"m4": 0,
+"m4c3": 6
+},
+"sim": {
+"m4": 163,
+"m4c3": 163
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 407.8,
+"dur": 30.2,
+"L": false,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"m4": 0,
+"m4c3": 71
+},
+"sim": {
+"m4": 121,
+"m4c3": 121
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 440.3,
+"dur": 23.2,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"m4": 43,
+"m4c3": 43
+},
+"sim": {
+"m4": 93,
+"m4c3": 93
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 467.5,
+"dur": 21.7,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"m4": 37,
+"m4c3": 37
+},
+"sim": {
+"m4": 87,
+"m4c3": 87
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 489.7,
+"dur": 14.5,
+"L": false,
+"cls": "timer startu (cia\u0142o po setTimeout(0) router.tsx:210)",
+"b": {
+"m4": 4,
+"m4c3": 8
+},
+"sim": {
+"m4": 58,
+"m4c3": 58
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 635.6,
+"dur": 98.8,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"m4": 74,
+"m4c3": 148
+},
+"sim": {
+"m4": 198,
+"m4c3": 198
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 734.4,
+"dur": 39.1,
+"L": true,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"m4": 28,
+"m4c3": 28
+},
+"sim": {
+"m4": 78,
+"m4c3": 78
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 1344.9,
+"dur": 31.9,
+"L": false,
+"cls": "ParseHTML w commicie Reacta (innerHTML arkuszy)",
+"b": {
+"m4": 78,
+"m4c3": 39
+},
+"sim": {
+"m4": 128,
+"m4c3": 128
+}
+},
+{
+"run": "w0q-mobile-3",
+"obs": 1380,
+"dur": 28.1,
+"L": false,
+"cls": "styl po prze\u0142\u0105czeniu urz\u0105dzenia (data-device + style kolumn)",
+"b": {
+"m4": 0,
+"m4c3": 31
+},
+"sim": {
+"m4": 112,
+"m4c3": 112
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 38.5,
+"dur": 23.4,
+"L": false,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 94,
+"m4c3": 94
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 176.2,
+"dur": 21.3,
+"L": false,
+"cls": "ParseCSS (arkusz blokuj\u0105cy)",
+"b": {
+"m4": 0,
+"m4c3": 35
+},
+"sim": {
+"m4": 85,
+"m4c3": 85
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 221.8,
+"dur": 13.2,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 53,
+"m4c3": 53
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 246,
+"dur": 29.4,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 59,
+"m4c3": 59
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 276.6,
+"dur": 36.8,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 147,
+"m4c3": 147
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 313.5,
+"dur": 42.8,
+"L": true,
+"cls": "druga klatka (ods\u0142oni\u0119cie sekcji strumieniowanych $RV)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 86,
+"m4c3": 86
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 366.9,
+"dur": 22.6,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"m4": 40,
+"m4c3": 40
+},
+"sim": {
+"m4": 90,
+"m4c3": 90
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 389.6,
+"dur": 30.4,
+"L": false,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"m4": 71,
+"m4c3": 71
+},
+"sim": {
+"m4": 121,
+"m4c3": 121
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 420.2,
+"dur": 12.8,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"m4": 1,
+"m4c3": 1
+},
+"sim": {
+"m4": 51,
+"m4c3": 51
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 435.5,
+"dur": 13.4,
+"L": false,
+"cls": "timer startu (cia\u0142o po setTimeout(0) router.tsx:210)",
+"b": {
+"m4": 3,
+"m4c3": 3
+},
+"sim": {
+"m4": 53,
+"m4c3": 53
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 523.7,
+"dur": 72.5,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"m4": 47.5,
+"m4c3": 95
+},
+"sim": {
+"m4": 145,
+"m4c3": 145
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 596.3,
+"dur": 30.6,
+"L": true,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"m4": 11,
+"m4c3": 11
+},
+"sim": {
+"m4": 61,
+"m4c3": 61
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 1099.8,
+"dur": 22.1,
+"L": false,
+"cls": "ParseHTML w commicie Reacta (innerHTML arkuszy)",
+"b": {
+"m4": 38,
+"m4c3": 38
+},
+"sim": {
+"m4": 88,
+"m4c3": 88
+}
+},
+{
+"run": "w0q-mobile-4",
+"obs": 1122.5,
+"dur": 22.1,
+"L": false,
+"cls": "styl po prze\u0142\u0105czeniu urz\u0105dzenia (data-device + style kolumn)",
+"b": {
+"m4": 0,
+"m4c3": 38
+},
+"sim": {
+"m4": 88,
+"m4c3": 88
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 33.5,
+"dur": 39.2,
+"L": false,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 157,
+"m4c3": 157
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 162.8,
+"dur": 51.1,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 102,
+"m4c3": 102
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 214.2,
+"dur": 21.9,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 88,
+"m4c3": 88
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 246.5,
+"dur": 64.4,
+"L": true,
+"cls": "druga klatka (ods\u0142oni\u0119cie sekcji strumieniowanych $RV)",
+"b": {
+"m4": 0,
+"m4c3": 77
+},
+"sim": {
+"m4": 129,
+"m4c3": 129
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 354.2,
+"dur": 34.6,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"m4": 0,
+"m4c3": 88
+},
+"sim": {
+"m4": 138,
+"m4c3": 138
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 400.2,
+"dur": 18.2,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"m4": 23,
+"m4c3": 23
+},
+"sim": {
+"m4": 73,
+"m4c3": 73
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 420.9,
+"dur": 12.6,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"m4": 0,
+"m4c3": 0
+},
+"sim": {
+"m4": 50,
+"m4c3": 50
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 520.4,
+"dur": 72.3,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"m4": 95,
+"m4c3": 95
+},
+"sim": {
+"m4": 145,
+"m4c3": 145
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 659.7,
+"dur": 44.8,
+"L": true,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"m4": 0,
+"m4c3": 40
+},
+"sim": {
+"m4": 90,
+"m4c3": 90
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 1108.9,
+"dur": 18.1,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"m4": 11.5,
+"m4c3": 11.5
+},
+"sim": {
+"m4": 73,
+"m4c3": 73
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 1147.1,
+"dur": 27.5,
+"L": false,
+"cls": "ParseHTML w commicie Reacta (innerHTML arkuszy)",
+"b": {
+"m4": 60,
+"m4c3": 60
+},
+"sim": {
+"m4": 110,
+"m4c3": 110
+}
+},
+{
+"run": "w0q-mobile-5",
+"obs": 1178.8,
+"dur": 32.7,
+"L": true,
+"cls": "styl po prze\u0142\u0105czeniu urz\u0105dzenia (data-device + style kolumn)",
+"b": {
+"m4": 7.5,
+"m4c3": 7.5
+},
+"sim": {
+"m4": 65,
+"m4c3": 65
+}
+}
+]

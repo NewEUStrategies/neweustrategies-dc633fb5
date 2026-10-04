@@ -1,0 +1,1760 @@
+[
+{
+"run": "w0q-desktop-1",
+"obs": 42,
+"dur": 26.9,
+"L": false,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"d4": 0,
+"d4c3": 0,
+"d5": 0,
+"d5c3": 4
+},
+"sim": {
+"d4": 107,
+"d4c3": 107,
+"d5": 134,
+"d5c3": 134
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 117.5,
+"dur": 14.4,
+"L": false,
+"cls": "ParseCSS (arkusz blokuj\u0105cy)",
+"b": {
+"d4": 0,
+"d4c3": 8,
+"d5": 0,
+"d5c3": 22
+},
+"sim": {
+"d4": 58,
+"d4c3": 58,
+"d5": 72,
+"d5c3": 72
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 145.9,
+"dur": 29.9,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d4": 0,
+"d4c3": 70,
+"d5": 0,
+"d5c3": 100
+},
+"sim": {
+"d4": 120,
+"d4c3": 120,
+"d5": 150,
+"d5c3": 150
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 188.5,
+"dur": 23.9,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d4": 0,
+"d4c3": 46,
+"d5": 0,
+"d5c3": 69
+},
+"sim": {
+"d4": 96,
+"d4c3": 96,
+"d5": 119,
+"d5c3": 119
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 216.1,
+"dur": 38.5,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"d4": 0,
+"d4c3": 27,
+"d5": 41,
+"d5c3": 46
+},
+"sim": {
+"d4": 77,
+"d4c3": 77,
+"d5": 96,
+"d5c3": 96
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 254.9,
+"dur": 10.3,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d5": 2,
+"d5c3": 2
+},
+"sim": {
+"d5": 52,
+"d5c3": 52
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 292.7,
+"dur": 31.7,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"d4": 77,
+"d4c3": 77,
+"d5": 108,
+"d5c3": 108
+},
+"sim": {
+"d4": 127,
+"d4c3": 127,
+"d5": 158,
+"d5c3": 158
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 332.9,
+"dur": 32.5,
+"L": false,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"d4": 80,
+"d4c3": 80,
+"d5": 113,
+"d5c3": 113
+},
+"sim": {
+"d4": 130,
+"d4c3": 130,
+"d5": 163,
+"d5c3": 163
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 365.6,
+"dur": 18.9,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"d4": 26,
+"d4c3": 26,
+"d5": 45,
+"d5c3": 45
+},
+"sim": {
+"d4": 76,
+"d4c3": 76,
+"d5": 95,
+"d5c3": 95
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 391.5,
+"dur": 12.7,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"d4": 1,
+"d4c3": 1,
+"d5": 13,
+"d5c3": 13
+},
+"sim": {
+"d4": 51,
+"d4c3": 51,
+"d5": 63,
+"d5c3": 63
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 405.7,
+"dur": 18.8,
+"L": false,
+"cls": "timer startu (cia\u0142o po setTimeout(0) router.tsx:210)",
+"b": {
+"d4": 25,
+"d4c3": 25,
+"d5": 44,
+"d5c3": 44
+},
+"sim": {
+"d4": 75,
+"d4c3": 75,
+"d5": 94,
+"d5c3": 94
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 514.9,
+"dur": 90.8,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"d4": 132,
+"d4c3": 132,
+"d5": 177,
+"d5c3": 177
+},
+"sim": {
+"d4": 182,
+"d4c3": 182,
+"d5": 227,
+"d5c3": 227
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 605.7,
+"dur": 23.9,
+"L": true,
+"cls": "inne",
+"b": {
+"d5": 10,
+"d5c3": 10
+},
+"sim": {
+"d5": 60,
+"d5c3": 60
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 644.3,
+"dur": 52.8,
+"L": true,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"d4": 56,
+"d4c3": 56,
+"d5": 82,
+"d5c3": 82
+},
+"sim": {
+"d4": 106,
+"d4c3": 106,
+"d5": 132,
+"d5c3": 132
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 711.7,
+"dur": 10.8,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"d5": 4,
+"d5c3": 4
+},
+"sim": {
+"d5": 54,
+"d5c3": 54
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 730,
+"dur": 13.8,
+"L": false,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"d4": 5,
+"d4c3": 2.5,
+"d5": 19,
+"d5c3": 9.5
+},
+"sim": {
+"d4": 55,
+"d4c3": 55,
+"d5": 69,
+"d5c3": 69
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 794.5,
+"dur": 12.6,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 0,
+"d4c3": 0,
+"d5": 6.5,
+"d5c3": 6.5
+},
+"sim": {
+"d4": 50,
+"d4c3": 50,
+"d5": 63,
+"d5c3": 63
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 912.6,
+"dur": 13.9,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 2.5,
+"d4c3": 2.5,
+"d5": 9.5,
+"d5c3": 9.5
+},
+"sim": {
+"d4": 55,
+"d4c3": 55,
+"d5": 69,
+"d5c3": 69
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 937.5,
+"dur": 25,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 25,
+"d4c3": 25,
+"d5": 37.5,
+"d5c3": 37.5
+},
+"sim": {
+"d4": 100,
+"d4c3": 100,
+"d5": 125,
+"d5c3": 125
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 1102.8,
+"dur": 11.7,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"d5": 4.5,
+"d5c3": 4.5
+},
+"sim": {
+"d5": 59,
+"d5c3": 59
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 1383.8,
+"dur": 10.4,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 1,
+"d5c3": 1
+},
+"sim": {
+"d5": 52,
+"d5c3": 52
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 1396.7,
+"dur": 28.3,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 31.5,
+"d4c3": 31.5,
+"d5": 46,
+"d5c3": 46
+},
+"sim": {
+"d4": 113,
+"d4c3": 113,
+"d5": 142,
+"d5c3": 142
+}
+},
+{
+"run": "w0q-desktop-1",
+"obs": 1427.3,
+"dur": 12.4,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 0,
+"d4c3": 0,
+"d5": 6,
+"d5c3": 6
+},
+"sim": {
+"d4": 50,
+"d4c3": 50,
+"d5": 62,
+"d5c3": 62
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 32.2,
+"dur": 40.5,
+"L": false,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"d4": 0,
+"d4c3": 0,
+"d5": 0,
+"d5c3": 7
+},
+"sim": {
+"d4": 162,
+"d4c3": 162,
+"d5": 202,
+"d5c3": 202
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 124.3,
+"dur": 26.5,
+"L": false,
+"cls": "ParseCSS (arkusz blokuj\u0105cy)",
+"b": {
+"d4": 0,
+"d4c3": 56,
+"d5": 0,
+"d5c3": 83
+},
+"sim": {
+"d4": 106,
+"d4c3": 106,
+"d5": 133,
+"d5c3": 133
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 167.3,
+"dur": 10.8,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d5": 0,
+"d5c3": 4
+},
+"sim": {
+"d5": 54,
+"d5c3": 54
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 180.1,
+"dur": 10.2,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d5": 0,
+"d5c3": 1
+},
+"sim": {
+"d5": 51,
+"d5c3": 51
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 190.3,
+"dur": 42.7,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"d4": 0,
+"d4c3": 35,
+"d5": 0,
+"d5c3": 57
+},
+"sim": {
+"d4": 85,
+"d4c3": 85,
+"d5": 107,
+"d5c3": 107
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 234.8,
+"dur": 11.4,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d5": 0,
+"d5c3": 7
+},
+"sim": {
+"d5": 57,
+"d5c3": 57
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 256.4,
+"dur": 10.3,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d5": 1,
+"d5c3": 1
+},
+"sim": {
+"d5": 51,
+"d5c3": 51
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 269.5,
+"dur": 39.7,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"d4": 101,
+"d4c3": 109,
+"d5": 149,
+"d5c3": 149
+},
+"sim": {
+"d4": 159,
+"d4c3": 159,
+"d5": 199,
+"d5c3": 199
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 316.5,
+"dur": 40.5,
+"L": false,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"d4": 112,
+"d4c3": 112,
+"d5": 152,
+"d5c3": 152
+},
+"sim": {
+"d4": 162,
+"d4c3": 162,
+"d5": 202,
+"d5c3": 202
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 357.4,
+"dur": 16.9,
+"L": false,
+"cls": "inne",
+"b": {
+"d4": 18,
+"d4c3": 18,
+"d5": 35,
+"d5c3": 35
+},
+"sim": {
+"d4": 68,
+"d4c3": 68,
+"d5": 85,
+"d5c3": 85
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 377.8,
+"dur": 34.6,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"d4": 88,
+"d4c3": 88,
+"d5": 123,
+"d5c3": 123
+},
+"sim": {
+"d4": 138,
+"d4c3": 138,
+"d5": 173,
+"d5c3": 173
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 415.6,
+"dur": 13.3,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"d4": 3,
+"d4c3": 3,
+"d5": 17,
+"d5c3": 17
+},
+"sim": {
+"d4": 53,
+"d4c3": 53,
+"d5": 67,
+"d5c3": 67
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 554.2,
+"dur": 96.6,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"d4": 71.5,
+"d4c3": 71.5,
+"d5": 96,
+"d5c3": 96
+},
+"sim": {
+"d4": 193,
+"d4c3": 193,
+"d5": 242,
+"d5c3": 242
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 652.7,
+"dur": 53.9,
+"L": true,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 29,
+"d4c3": 29,
+"d5": 42.5,
+"d5c3": 42.5
+},
+"sim": {
+"d4": 108,
+"d4c3": 108,
+"d5": 135,
+"d5c3": 135
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 756,
+"dur": 14.7,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 4.5,
+"d4c3": 4.5,
+"d5": 12,
+"d5c3": 12
+},
+"sim": {
+"d4": 59,
+"d4c3": 59,
+"d5": 74,
+"d5c3": 74
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 899,
+"dur": 15.8,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 6.5,
+"d4c3": 6.5,
+"d5": 14.5,
+"d5c3": 14.5
+},
+"sim": {
+"d4": 63,
+"d4c3": 63,
+"d5": 79,
+"d5c3": 79
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 1334,
+"dur": 14.8,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 4.5,
+"d4c3": 4.5,
+"d5": 12,
+"d5c3": 12
+},
+"sim": {
+"d4": 59,
+"d4c3": 59,
+"d5": 74,
+"d5c3": 74
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 1395.7,
+"dur": 17.5,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 10,
+"d4c3": 10,
+"d5": 19,
+"d5c3": 19
+},
+"sim": {
+"d4": 70,
+"d4c3": 70,
+"d5": 88,
+"d5c3": 88
+}
+},
+{
+"run": "w0q-desktop-2",
+"obs": 1443.8,
+"dur": 10.1,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 0,
+"d5c3": 0
+},
+"sim": {
+"d5": 50,
+"d5c3": 50
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 34.9,
+"dur": 48.7,
+"L": false,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"d4": 0,
+"d4c3": 65,
+"d5": 0,
+"d5c3": 113
+},
+"sim": {
+"d4": 195,
+"d4c3": 195,
+"d5": 243,
+"d5c3": 243
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 97.8,
+"dur": 13,
+"L": false,
+"cls": "ParseCSS (arkusz blokuj\u0105cy)",
+"b": {
+"d4": 0,
+"d4c3": 2,
+"d5": 0,
+"d5c3": 15
+},
+"sim": {
+"d4": 52,
+"d4c3": 52,
+"d5": 65,
+"d5c3": 65
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 113.6,
+"dur": 10.1,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d5": 0,
+"d5c3": 1
+},
+"sim": {
+"d5": 51,
+"d5c3": 51
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 129.8,
+"dur": 12.5,
+"L": false,
+"cls": "inne",
+"b": {
+"d4": 0,
+"d4c3": 0,
+"d5": 0,
+"d5c3": 13
+},
+"sim": {
+"d4": 50,
+"d4c3": 50,
+"d5": 63,
+"d5c3": 63
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 142.3,
+"dur": 21,
+"L": true,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"d5": 0,
+"d5c3": 2
+},
+"sim": {
+"d5": 52,
+"d5c3": 52
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 163.4,
+"dur": 28.5,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d4": 0,
+"d4c3": 64,
+"d5": 0,
+"d5c3": 92
+},
+"sim": {
+"d4": 114,
+"d4c3": 114,
+"d5": 142,
+"d5c3": 142
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 192.4,
+"dur": 23.7,
+"L": true,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"d5": 7,
+"d5c3": 9
+},
+"sim": {
+"d5": 59,
+"d5c3": 59
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 218.3,
+"dur": 11.5,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d5": 7,
+"d5c3": 7
+},
+"sim": {
+"d5": 57,
+"d5c3": 57
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 234.3,
+"dur": 75.1,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"d4": 100,
+"d4c3": 100,
+"d5": 138,
+"d5c3": 138
+},
+"sim": {
+"d4": 150,
+"d4c3": 150,
+"d5": 188,
+"d5c3": 188
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 311.9,
+"dur": 10.8,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d5": 4,
+"d5c3": 4
+},
+"sim": {
+"d5": 54,
+"d5c3": 54
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 353.7,
+"dur": 33.4,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"d4": 84,
+"d4c3": 84,
+"d5": 117,
+"d5c3": 117
+},
+"sim": {
+"d4": 134,
+"d4c3": 134,
+"d5": 167,
+"d5c3": 167
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 400.4,
+"dur": 19.9,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"d4": 29,
+"d4c3": 29,
+"d5": 49,
+"d5c3": 49
+},
+"sim": {
+"d4": 79,
+"d4c3": 79,
+"d5": 99,
+"d5c3": 99
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 423.1,
+"dur": 13,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"d4": 1,
+"d4c3": 1,
+"d5": 15,
+"d5c3": 15
+},
+"sim": {
+"d4": 52,
+"d4c3": 52,
+"d5": 65,
+"d5c3": 65
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 530.9,
+"dur": 82.7,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"d4": 57.5,
+"d4c3": 57.5,
+"d5": 157,
+"d5c3": 78.5
+},
+"sim": {
+"d4": 165,
+"d4c3": 165,
+"d5": 207,
+"d5c3": 207
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 613.7,
+"dur": 20.5,
+"L": true,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"d5": 0.5,
+"d5c3": 0.5
+},
+"sim": {
+"d5": 51,
+"d5c3": 51
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 658.6,
+"dur": 55.2,
+"L": true,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"d4": 30,
+"d4c3": 30,
+"d5": 44,
+"d5c3": 44
+},
+"sim": {
+"d4": 110,
+"d4c3": 110,
+"d5": 138,
+"d5c3": 138
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 731.9,
+"dur": 10.8,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 2,
+"d5c3": 2
+},
+"sim": {
+"d5": 54,
+"d5c3": 54
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 884,
+"dur": 15.4,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 6,
+"d4c3": 6,
+"d5": 13.5,
+"d5c3": 13.5
+},
+"sim": {
+"d4": 62,
+"d4c3": 62,
+"d5": 77,
+"d5c3": 77
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 1346.1,
+"dur": 13.9,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 3,
+"d4c3": 3,
+"d5": 10,
+"d5c3": 10
+},
+"sim": {
+"d4": 56,
+"d4c3": 56,
+"d5": 70,
+"d5c3": 70
+}
+},
+{
+"run": "w0q-desktop-3",
+"obs": 1463.9,
+"dur": 11.5,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 4,
+"d5c3": 4
+},
+"sim": {
+"d5": 58,
+"d5c3": 58
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 117,
+"dur": 48,
+"L": true,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"d4": 0,
+"d4c3": 0,
+"d5": 0,
+"d5c3": 4
+},
+"sim": {
+"d4": 96,
+"d4c3": 96,
+"d5": 120,
+"d5c3": 120
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 166.2,
+"dur": 18.6,
+"L": false,
+"cls": "ParseCSS (arkusz blokuj\u0105cy)",
+"b": {
+"d4": 4,
+"d4c3": 24,
+"d5": 0,
+"d5c3": 43
+},
+"sim": {
+"d4": 74,
+"d4c3": 74,
+"d5": 93,
+"d5c3": 93
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 190.9,
+"dur": 12.2,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d5": 0,
+"d5c3": 11
+},
+"sim": {
+"d5": 61,
+"d5c3": 61
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 212.9,
+"dur": 13.1,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d4": 0,
+"d4c3": 2,
+"d5": 0,
+"d5c3": 15
+},
+"sim": {
+"d4": 52,
+"d4c3": 52,
+"d5": 65,
+"d5c3": 65
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 235.2,
+"dur": 32.1,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"d4": 0,
+"d4c3": 14,
+"d5": 0,
+"d5c3": 30
+},
+"sim": {
+"d4": 64,
+"d4c3": 64,
+"d5": 80,
+"d5c3": 80
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 269.2,
+"dur": 42.3,
+"L": true,
+"cls": "druga klatka (ods\u0142oni\u0119cie sekcji strumieniowanych $RV)",
+"b": {
+"d4": 0,
+"d4c3": 35,
+"d5": 0,
+"d5c3": 56
+},
+"sim": {
+"d4": 85,
+"d4c3": 85,
+"d5": 106,
+"d5c3": 106
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 312.8,
+"dur": 34.6,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"d4": 0,
+"d4c3": 88,
+"d5": 123,
+"d5c3": 123
+},
+"sim": {
+"d4": 138,
+"d4c3": 138,
+"d5": 173,
+"d5c3": 173
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 357,
+"dur": 19.8,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"d4": 29,
+"d4c3": 29,
+"d5": 49,
+"d5c3": 49
+},
+"sim": {
+"d4": 79,
+"d4c3": 79,
+"d5": 99,
+"d5c3": 99
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 377.9,
+"dur": 32.6,
+"L": false,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"d4": 81,
+"d4c3": 81,
+"d5": 113,
+"d5c3": 113
+},
+"sim": {
+"d4": 131,
+"d4c3": 131,
+"d5": 163,
+"d5c3": 163
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 410.7,
+"dur": 13.5,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"d4": 2,
+"d4c3": 2,
+"d5": 18,
+"d5c3": 11
+},
+"sim": {
+"d4": 54,
+"d4c3": 54,
+"d5": 68,
+"d5c3": 68
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 512,
+"dur": 66.7,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"d4": 41.5,
+"d4c3": 41.5,
+"d5": 95.5,
+"d5c3": 58.5
+},
+"sim": {
+"d4": 133,
+"d4c3": 133,
+"d5": 167,
+"d5c3": 167
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 578.8,
+"dur": 27.1,
+"L": true,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"d4": 4,
+"d4c3": 2,
+"d5": 18,
+"d5c3": 9
+},
+"sim": {
+"d4": 54,
+"d4c3": 54,
+"d5": 68,
+"d5c3": 68
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 643.7,
+"dur": 10.9,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 2.5,
+"d5c3": 2.5
+},
+"sim": {
+"d5": 55,
+"d5c3": 55
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 790.2,
+"dur": 17,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 9,
+"d4c3": 9,
+"d5": 17.5,
+"d5c3": 17.5
+},
+"sim": {
+"d4": 68,
+"d4c3": 68,
+"d5": 85,
+"d5c3": 85
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 885.7,
+"dur": 19.6,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 14,
+"d4c3": 14,
+"d5": 24,
+"d5c3": 24
+},
+"sim": {
+"d4": 78,
+"d4c3": 78,
+"d5": 98,
+"d5c3": 98
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 905.7,
+"dur": 15.1,
+"L": false,
+"cls": "timer startu (cia\u0142o po setTimeout(0) router.tsx:210)",
+"b": {
+"d4": 5,
+"d4c3": 5,
+"d5": 12.5,
+"d5c3": 12.5
+},
+"sim": {
+"d4": 60,
+"d4c3": 60,
+"d5": 75,
+"d5c3": 75
+}
+},
+{
+"run": "w0q-desktop-4",
+"obs": 960.4,
+"dur": 10.3,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 0.5,
+"d5c3": 0.5
+},
+"sim": {
+"d5": 51,
+"d5c3": 51
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 37,
+"dur": 30.5,
+"L": false,
+"cls": "nav (commit nawigacji + pocz\u0105tek parsowania)",
+"b": {
+"d4": 0,
+"d4c3": 0,
+"d5": 0,
+"d5c3": 0
+},
+"sim": {
+"d4": 122,
+"d4c3": 122,
+"d5": 153,
+"d5c3": 153
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 93.2,
+"dur": 40.8,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d4": 0,
+"d4c3": 113,
+"d5": 0,
+"d5c3": 154
+},
+"sim": {
+"d4": 163,
+"d4c3": 163,
+"d5": 204,
+"d5c3": 204
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 165.1,
+"dur": 16.3,
+"L": false,
+"cls": "ParseHTML dokumentu (+inline skrypty)",
+"b": {
+"d4": 0,
+"d4c3": 15,
+"d5": 0,
+"d5c3": 32
+},
+"sim": {
+"d4": 65,
+"d4c3": 65,
+"d5": 82,
+"d5c3": 82
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 195.8,
+"dur": 33.4,
+"L": true,
+"cls": "pierwsza klatka (Style+Layout dokumentu)",
+"b": {
+"d4": 0,
+"d4c3": 17,
+"d5": 0,
+"d5c3": 33
+},
+"sim": {
+"d4": 67,
+"d4c3": 67,
+"d5": 83,
+"d5c3": 83
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 241.4,
+"dur": 42.5,
+"L": true,
+"cls": "druga klatka (ods\u0142oni\u0119cie sekcji strumieniowanych $RV)",
+"b": {
+"d4": 0,
+"d4c3": 35,
+"d5": 56,
+"d5c3": 56
+},
+"sim": {
+"d4": 85,
+"d4c3": 85,
+"d5": 106,
+"d5c3": 106
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 288.6,
+"dur": 32.9,
+"L": false,
+"cls": "ScriptCatchup (kompilacja zestawu bootu)",
+"b": {
+"d4": 81,
+"d4c3": 81,
+"d5": 114,
+"d5c3": 114
+},
+"sim": {
+"d4": 131,
+"d4c3": 131,
+"d5": 164,
+"d5c3": 164
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 331.7,
+"dur": 24.3,
+"L": false,
+"cls": "start animacji CSS (kompozytor, animationstart)",
+"b": {
+"d4": 47,
+"d4c3": 47,
+"d5": 71,
+"d5c3": 71
+},
+"sim": {
+"d4": 97,
+"d4c3": 97,
+"d5": 121,
+"d5c3": 121
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 356.2,
+"dur": 20.6,
+"L": false,
+"cls": "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)",
+"b": {
+"d4": 33,
+"d4c3": 33,
+"d5": 53,
+"d5c3": 53
+},
+"sim": {
+"d4": 83,
+"d4c3": 83,
+"d5": 103,
+"d5c3": 103
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 383.5,
+"dur": 13.8,
+"L": false,
+"cls": "hydrateStart: createRouter (processRouteTree) + hydracja zapyta\u0144",
+"b": {
+"d4": 5,
+"d4c3": 5,
+"d5": 19,
+"d5c3": 19
+},
+"sim": {
+"d4": 55,
+"d4c3": 55,
+"d5": 69,
+"d5c3": 69
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 502.1,
+"dur": 105,
+"L": true,
+"cls": "commit hydratacji + efekty pasywne + re-render sync",
+"b": {
+"d4": 160,
+"d4c3": 160,
+"d5": 212,
+"d5c3": 212
+},
+"sim": {
+"d4": 210,
+"d4c3": 210,
+"d5": 262,
+"d5c3": 262
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 607.2,
+"dur": 34.4,
+"L": true,
+"cls": "styl nag\u0142\u00f3wka (--sticky-header-h / --hdr-*, Header.tsx:566/472)",
+"b": {
+"d4": 19,
+"d4c3": 19,
+"d5": 36,
+"d5c3": 36
+},
+"sim": {
+"d4": 69,
+"d4c3": 69,
+"d5": 86,
+"d5c3": 86
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 717.4,
+"dur": 10.1,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 1,
+"d5c3": 1
+},
+"sim": {
+"d5": 51,
+"d5c3": 51
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 840.3,
+"dur": 16.9,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 8.5,
+"d4c3": 8.5,
+"d5": 17,
+"d5c3": 17
+},
+"sim": {
+"d4": 67,
+"d4c3": 67,
+"d5": 84,
+"d5c3": 84
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 914,
+"dur": 12.3,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 6,
+"d5c3": 6
+},
+"sim": {
+"d5": 62,
+"d5c3": 62
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 928.6,
+"dur": 13.8,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 2.5,
+"d4c3": 2.5,
+"d5": 9.5,
+"d5c3": 9.5
+},
+"sim": {
+"d4": 55,
+"d4c3": 55,
+"d5": 69,
+"d5c3": 69
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 948.9,
+"dur": 11.5,
+"L": false,
+"cls": "timer startu (cia\u0142o po setTimeout(0) router.tsx:210)",
+"b": {
+"d5": 4,
+"d5c3": 4
+},
+"sim": {
+"d5": 58,
+"d5c3": 58
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 990.1,
+"dur": 11.5,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 4,
+"d5c3": 4
+},
+"sim": {
+"d5": 58,
+"d5c3": 58
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 1003.5,
+"dur": 11,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d5": 2.5,
+"d5c3": 2.5
+},
+"sim": {
+"d5": 55,
+"d5c3": 55
+}
+},
+{
+"run": "w0q-desktop-5",
+"obs": 1349.6,
+"dur": 14,
+"L": false,
+"cls": "plaster Reacta po commicie (leniwe granice, efekty)",
+"b": {
+"d4": 3,
+"d4c3": 3,
+"d5": 10,
+"d5c3": 10
+},
+"sim": {
+"d4": 56,
+"d4c3": 56,
+"d5": 70,
+"d5c3": 70
+}
+}
+]
