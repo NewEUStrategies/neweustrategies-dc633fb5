@@ -1141,6 +1141,7 @@ export function SectionLabelRender({
         glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
           <span
             aria-hidden
+            data-typography-exempt
             className="leading-none transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
             {glyph}
@@ -1164,9 +1165,14 @@ export function SectionLabelRender({
           </svg>
         );
 
+      // `data-typography-exempt` zdejmuje z wnetrza akcji globalna typografie
+      // Theme Designu (gaiaz `:is(p, span, a, ...)` z ~0-8-0 + !important),
+      // zeby „wiecej" nie dziedziczylo pogrubienia opisu.
       const actionInner = (
-        <span className="inline-flex items-center gap-[0.12em]">
-          <span className="min-w-0">{action}</span>
+        <span className="inline-flex items-center gap-[0.12em]" data-typography-exempt>
+          <span className="min-w-0" data-typography-exempt>
+            {action}
+          </span>
           {arrowVisual}
         </span>
       );
@@ -1185,6 +1191,7 @@ export function SectionLabelRender({
               {href && !isSm ? (
                 <AppLink
                   data-description-root
+                  data-typography-exempt
                   href={href}
                   className={actionCls}
                   style={actionStyleVars}
@@ -1192,7 +1199,12 @@ export function SectionLabelRender({
                   {actionInner}
                 </AppLink>
               ) : (
-                <span data-description-root className={actionCls} style={actionStyleVars}>
+                <span
+                  data-description-root
+                  data-typography-exempt
+                  className={actionCls}
+                  style={actionStyleVars}
+                >
                   {actionInner}
                 </span>
               )}
