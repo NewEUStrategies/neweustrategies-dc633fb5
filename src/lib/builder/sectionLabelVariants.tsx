@@ -134,7 +134,7 @@ export function AngleChevron({
       strokeWidth={isSm ? 0.7 : 0.85}
       strokeLinecap="round"
       strokeLinejoin="round"
-      style={{ width: "calc(1.1em - 1px)", height: "calc(1em - 1px)" }}
+      style={{ width: "calc(0.85em - 1px)", height: "calc(0.75em - 1px)" }}
       className={className}
     >
       {/* Ramiona cofnięte od krawędzi pola, żeby znak nigdy się nie uciął. */}
