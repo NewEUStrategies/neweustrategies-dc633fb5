@@ -65,3 +65,7 @@
 - [x] /people/$slug dla każdego użytkownika, /author tylko z roli/zaproszenia autora, redirect 301
 - [x] Linki klub/wzmianki/wyszukiwarka/organizacje -> /people
 - [x] Sitemap aktualizacja + widok/plik w Admin > SEO
+
+## Etykieta sekcji: wariant „Kinetic Signal Notch"
+
+- [x] 23. wariant etykiety sekcji: trzy paski sygnału rozsuwające się na hoverze, tytuł z szerszym trackingiem, akcja z podkreśleniem rysowanym od lewej i wysuwaną strzałką; tłumaczenie EN, kontrolki edytora, animacje CSS, 11 testów.

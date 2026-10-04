@@ -908,6 +908,8 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "21 - Ticker Strip (pasek z pulsującą kropką)": "21 - Ticker Strip (bar with a pulsing dot)",
   "22 - Underline Sweep (animowane podkreślenie 2px)":
     "22 - Underline Sweep (animated 2px underline)",
+  "23 - Kinetic Signal Notch (sygnał trzech pasków + animowana akcja)":
+    "23 - Kinetic Signal Notch (three signal bars + animated action)",
 
   // ------------------------------------------------------- sidebar styles
   "Style 1 - Solid Classic": "Style 1 - Solid Classic",
