@@ -92,6 +92,6 @@ describe("strzałka akcji w etykiecie sekcji", () => {
     expect(arrow?.label).toBe("Strzałka >");
     for (const a of SECTION_LABEL_ARROWS) {
       expect(a.label).not.toContain("\u2192");
-ed    }
+    }
   });
 });
