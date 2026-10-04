@@ -25,7 +25,7 @@ kalibracja k fixture -> PSI - opis, wyniki i liczby w §7. Dawne `narzedzia/meas
 | `scripts/performance/clientBackend.ts`                                       | (P0.1) Żywy PostgREST klienta na 127.0.0.1:4199 dla `--client-backend fixture`: te same wiersze co SSR (`homeFixture.fixtureResponse`), CORS jak brama Supabase (preflight 200, echo nagłówków, `Content-Range`), HTTP i HTTPS na jednym porcie, licznik żądań per przebieg.                                                                                                         |
 | `scripts/performance/fakeGoogle.ts`                                          | (P0.1) Atrapa `gtag/js` (G + dociągany AW) i pingów dla `--third-party fake-gtag`: transfer jak produkcja, zadania produkcji (M3) x 3702,5 / benchmarkIndex hosta zmierzony w Chrome Lighthouse'a; front wstrzykuje `window.__NES_GA_ANY_HOST__=true` do `<head>` strumieniowo.                                                                                                      |
 | `scripts/performance/lanternTasks.ts`                                        | (P0.1) Księga TBT per zadanie z artefaktów (`--save-artifacts` / `lighthouse -G`): blokowanie każdego symulowanego węzła CPU jak Lantern (suma = audyt ±1 ms), klasa zadania, Layout, URL, tryb FCP, `scriptBytesEndedBeforeObsLcp` (`--exclude-script`, domyślnie `/~flock.js`), `--diff A B`, `--diff-series <katalog>`.                                                           |
-| `scripts/performance/harness-ext.test.mjs`                                   | (P0.1) Testy rozszerzeń (`node --test scripts/performance/harness-ext.test.mjs`): STALE/MISS/SSR -> `excluded`, rozgrzanie, powtórki, pary/MDE, k, formy, wstrzyknięcie do `<head>`, backend, atrapa, księga.                                                                                                                                                                        |
+| `scripts/performance/harness-ext.test.mjs`                                   | (P0.1) Testy rozszerzeń (`node --test scripts/performance/harness-ext.test.mjs`): STALE/MISS/SSR -> `excluded`, rozgrzanie, powtórki, pary/MDE, k, formy, wstrzyknięcie do `<head>`, backend, atrapa, księga; (P0.1-FIX) wariant dokumentu i restart, tryb FCP, obciążenie, wynik serii, MDE(t), §1.1.                                                                               |
 | `docs/performance/2026-10-03-pagespeed-85-95/lighthouse-local-baseline.json` | Zapisany baseline harnessu (fixture, h2, rozgrzewka przeglądarką) - plik porównania dla `lighthouse-local.mjs`, gdy `reports/lighthouse-local-baseline.json` (gitignorowany) nie istnieje.                                                                                                                                                                                           |
 
 Uruchomienie (sandbox chmurowy; w CI `LIGHTHOUSE_CLI` można pominąć - wtedy `npx --yes lighthouse@13`):
@@ -46,6 +46,67 @@ node scripts/performance/check-document-weight.ts --html home-produkcja.html --h
 
 Wyniki lądują w `reports/lighthouse-local/<label>/` (gitignorowane): pełne LHR, `*.audits.txt`,
 `summary.json` (mediany, przebiegi, `loadavg` przy każdym przebiegu), HTML i nagłówki dokumentu.
+
+### 1.1 Ważność przebiegu, wariant dokumentu i wynik serii (P0.1-FIX, 2026-10-04)
+
+Poprawki po recenzji scalonego P0.1 (`faza2/raporty/P0.1-REVIEW-scalony.md`, raport
+`faza2/raporty/P0.1-FIX.md`). Liczby A/A, k i baseline z flagami (§7) zapisuje osobny etap pomiarowy.
+
+- **Wariant dokumentu.** Wzorcem serii jest wpis z rozgrzewki początkowej (pierwszy MISS na zimnym
+  procesie = pełny render, `s-maxage=900`); odcisk = `cache-control` wpisu + długość body bez
+  kompresji (tolerancja 64 B). Rewalidacja w tle daje na artefakcie wpis ze zdegradowanym chrome'em
+  (`max-age=0, s-maxage=30, stale-while-revalidate=300`, o 191 B dłuższy), więc rozgrzewka przed
+  przebiegiem, gdy wpis ma inny wariant, mniej niż `--min-fresh` s świeżości (liczonej od s-maxage
+  TEGO wpisu, najwyżej 180 s) albo jest STALE, restartuje serwer artefaktu na tym samym porcie
+  (pusty magazyn, log dopisywany) i rozgrzewa go od nowa. Przebieg z innym wariantem niż wzorzec
+  jest `excluded` („wariant dokumentu (…; wzorzec …)"); linia `cache:` pokazuje wariant i liczbę
+  restartów. Po restarcie rozgrzewka pobiera raz także zasoby dokumentu (skrypty, style, fonty
+  originu: `zasoby N` w linii `cache:`), a linia VALID podaje liczbę ważnych przebiegów po
+  restarcie (`po restarcie serwera: 1/5`) - etap pomiarowy sprawdza, czy nie skupiają się po jednej
+  stronie A/A.
+- **Wzorzec przy krótkiej świeżości.** Gdy pierwszy zimny render ma s-maxage < 180 s, jeden restart
+  rozstrzyga: pełny wariant po restarcie = przegrany wyścig chrome'u, ten sam wariant = polityka
+  trasy (`/live`: s-maxage=30) i to on jest wzorcem (linia `wzorzec: …`). Wzorzec o świeżości
+  ≤ `--min-fresh` przerywa serię od razu z podpowiedzią (dla s-maxage=30: `--min-fresh 10`), bo
+  żaden HIT nie miałby wymaganego zapasu.
+- **`--max-load`** domyślnie 0,6 × CPU (2,4 na 4 CPU). loadavg jest mierzony po czekaniu i drugi
+  raz po rozgrzewce (restart serwera też obciąża); przebieg, w którym większy z pomiarów przekracza
+  próg, jest `excluded` („obciążenie (x > y)"); czekanie `--idle-wait` zostaje.
+- **`--min-valid N`** domyślnie `--runs`, nie mniej niż min(3, runs); wartość nieliczbowa jest błędem
+  wywołania. Forma (albo strona A/B) z `n_valid` poniżej progu drukuje `FAIL …`, kończy serię kodem
+  1 i nie trafia do baseline'u (`--save-baseline` bez żadnej formy nie nadpisuje pliku). Wyjątek
+  w trakcie przebiegów (np. serwer nie wstał po restarcie) kończy serię, ale summary.json i linie
+  VALID/PAIRS/AA liczą się z przebiegów ukończonych; wynik: `FAIL seria przerwana: …`, kod 1, bez
+  baseline'u.
+- **Ścieżka bez cache.** Rozgrzewka początkowa z odpowiedzią spoza cache (3xx-5xx, bez
+  `x-nes-cache`, BYPASS) przerywa serię komunikatem `PRZERWANE: …`. W środku serii dwie takie
+  odpowiedzi kończą rozgrzewkę `ok=false`: przebieg jest `excluded` i powtarzany, seria idzie dalej.
+  `--allow-uncached` mierzy taką ścieżkę świadomie: dokument nie musi być HIT, ważny przebieg =
+  żadnego renderu SSR poza samą nawigacją Lighthouse'a. BYPASS w logu serwera jest renderem SSR.
+- **`--client-backend none`** przerywa serię, gdy ktoś słucha na 127.0.0.1:4199.
+- **Linie A/B.** `PAIRS … (n=5, t(df=4)=3.72): … MDE(t)=… MDE(z)=…` - MDE(t) = (t₀,₉₇₅ + t₀,₈)(df =
+  n−1)·σΔ/√n jest progiem obowiązującym, MDE(z) = 2,8·σΔ/√n tylko do porównania. Z księgą
+  (`--save-artifacts`): `PAIRS … tryb FCP: pełny 3, częściowy 1; pary mieszane 1/5`, linie PAIRS
+  per tryb (≥ 2 pary) i AA per tryb (`AA mobile [trybFCP=pełny, nA=3, nB=4]`). Tryb FCP przebiegu =
+  udział bajtów skryptów grafu FCP Lantern w bajtach skryptów startowych zakończonych przed
+  obserwowanym LCP, oba wyłącznie z originu dokumentu (tag Google z `--third-party fake-gtag` nie
+  przesuwa progu; `/~flock.js` jest w mianowniku): `pełny` ≥ 0,9, `częściowy` < 0,5, `pośredni`
+  pomiędzy, `bez-js` bez skryptów.
+  Obserwowane FCP/LCP księgi liczą się z głównej ramki nawigacji, od jej startu, z
+  `largestContentfulPaint::Invalidate`.
+- **Linia K** kalibruje wyłącznie z pełnymi flagami (`client-backend=fixture,third-party=fake-gtag`);
+  bez nich ma dopisek `(bez flag, nie kalibruje)` albo `(niepełne flagi, nie kalibruje)`.
+- **`summary.json` (schema 3):** `records[].variant` (`cacheControl`, `bytes`), `records[].fcpMode`,
+  `records[].rewarm.{restores,assets,failure,uncached}`, `records[].{load,loadBefore,loadAfter}`
+  (`load` = większy z dwóch, ten bramkuje), `records[].file|artifacts` względem katalogu
+  wyników, `targets[].referenceVariant`, `targets[].root` (względny w repo, `poza-repo:<nazwa>` poza
+  nim), `forms[*].validity.{variants,fcpModes,restored}`, `aborted`, `outcome`
+  (`exitCode`, `failures`, `baselineForms`, `refusedBaselineForms`, `aborted`),
+  `pairs[forma].{all,byMode,mixed,unknown,total}`, `calibration[forma].calibrates`, `minValid`,
+  `maxLoad`, `allowUncached`, `lighthouse` (nazwa i wersja, nie ścieżka) i `lighthouseVersion` z LHR.
+  **Baseline (schema 3):**
+  `root` względem repo (`poza-repo:<nazwa>` poza nim), `referenceVariant`, `forms[*].{variants,fcpModes}`, `minValid`, `maxLoad`,
+  `lighthouse`, `lighthouseVersion`.
 
 ## 2. Parytet z PSI - co harness robi inaczej niż dawne `measure-local.sh` i dlaczego
 
@@ -72,9 +133,9 @@ Wszystkie cztery punkty są ZMIERZONE na tym samym artefakcie (`fd94e61` = `orig
 4. **Obciążenie maszyny.** TBT jest pracą CPU zmierzoną NA HOŚCIE i pomnożoną x4: na tym samym
    artefakcie mediana TBT mobile wynosiła 328 ms przy loadavg ~4 i **5 146 ms** przy loadavg ~8
    (4 CPU). FCP/LCP są odporniejsze (4,07-4,26 s), ale nie odporne (pkt 3 w §3). Harness czeka
-   przed każdym przebiegiem, aż loadavg(1 min) < `--max-load` (domyślnie liczba CPU, do
-   `--idle-wait` s), zapisuje loadavg przy każdym przebiegu i ostrzega w DELTA, gdy
-   `benchmarkIndex` różni się o > 25 %. Po błędzie wykonania (`NO_NAVSTART` pod obciążeniem)
+   przed każdym przebiegiem, aż loadavg(1 min) < `--max-load` (od P0.1-FIX domyślnie 0,6 × CPU,
+   do `--idle-wait` s; przebieg zaczęty powyżej progu jest `excluded`), zapisuje loadavg przy
+   każdym przebiegu i ostrzega w DELTA, gdy `benchmarkIndex` różni się o > 25 %. Po błędzie wykonania (`NO_NAVSTART` pod obciążeniem)
    przebieg jest powtarzany raz.
 
 ## 3. Baseline (fixture, `fd94e61`, h2, rozgrzewka przeglądarką)

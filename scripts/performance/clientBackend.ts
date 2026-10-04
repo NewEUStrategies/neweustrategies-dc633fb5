@@ -26,7 +26,7 @@ import {
   type ServerResponse,
 } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
-import { createServer as createNetServer, type Socket } from "node:net";
+import { connect, createServer as createNetServer, type Socket } from "node:net";
 import { fixtureTls, type Stoppable } from "./artifactServer.ts";
 import { fixtureResponse } from "./homeFixture.ts";
 
@@ -197,6 +197,29 @@ export async function handleClientBackendRequest(
     }
     return { response: withCors(postgrestError(500, "XX000", message)), kind: "error" };
   }
+}
+
+/**
+ * Czy ktoś słucha na `host:port` (sonda `connect`, bez wysyłania danych).
+ * Tryb `--client-backend none` mierzy MARTWY backend klienta: pozostawiony
+ * albo obcy proces na 4199 dałby po cichu żywy backend przy fladze `none`,
+ * czyli wynik niezgodny z etykietą flag (recenzja P0.1, D2).
+ */
+export function isPortListening(
+  port: number = CLIENT_BACKEND_PORT,
+  host = "127.0.0.1",
+  timeoutMs = 1000,
+): Promise<boolean> {
+  return new Promise((done) => {
+    const socket = connect({ port, host });
+    const finish = (open: boolean) => {
+      socket.destroy();
+      done(open);
+    };
+    socket.setTimeout(timeoutMs, () => finish(false));
+    socket.once("connect", () => finish(true));
+    socket.once("error", () => finish(false));
+  });
 }
 
 export interface RunningClientBackend extends Stoppable {

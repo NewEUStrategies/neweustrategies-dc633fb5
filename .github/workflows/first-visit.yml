@@ -22,8 +22,8 @@ jobs:
     # npx i czekanie na spadek obciążenia (`--idle-wait 30`, najwyżej 10 x 30 s)
     # = ~21-34 min. Krok A/B ma własny limit 25 min i `continue-on-error`, więc
     # zawieszony Lighthouse nie przewraca joba; 45 = 13,2 + 25 + zapas na
-    # wysyłkę artefaktów. PR bez zmian w `src/**`, `vite*.config.ts` ani
-    # `package.json` A/B pomija i kończy się w dotychczasowym czasie.
+    # wysyłkę artefaktów. PR bez zmian w zakresie filtru `lighthouse-scope`
+    # (niżej) A/B pomija i kończy się w dotychczasowym czasie.
     timeout-minutes: 45
     # Build both artifacts first, then alternate equivalent cases on ONE runner.
     steps:
@@ -40,24 +40,47 @@ jobs:
       # FILTR ŚCIEŻEK DLA A/B LIGHTHOUSE'A - liczony z DRZEW, nie z historii git.
       # Checkouty są płytkie (`fetch-depth: 1`), więc `git diff base...head` nie
       # ma na czym pracować; porównanie plików baseline/ z candidate/ daje ten
-      # sam zbiór zmian bez dociągania historii. Zakres z werdyktu M2: `src/**`,
-      # `vite*.config.ts`, `package.json` - wszystko, co zmienia dokument albo
-      # graf chunków. PR, który dotyka wyłącznie docs/, testów czy workflowów,
-      # nie płaci ~15 minut runnera za raport bez sygnału. Krok stoi PRZED
-      # buildami, bo build regeneruje `src/routeTree.gen.ts`.
+      # sam zbiór zmian bez dociągania historii. PR, który dotyka wyłącznie
+      # docs/, testów czy workflowów, nie płaci ~15 minut runnera za raport bez
+      # sygnału. Krok stoi PRZED buildami, bo build regeneruje
+      # `src/routeTree.gen.ts`.
+      #
+      # ZAKRES (wejścia `build:smoke`, które zmieniają dokument albo graf chunków):
+      #   - `src/` - kod aplikacji;
+      #   - `scripts/lib/` - wtyczki Vite i podział chunków, które importują
+      #     `vite.config.ts` i `vite.smoke.config.ts` (bootVendorSplit,
+      #     routeCodeSplitting, widgetChunkPlugin, localeChunkPlugin,
+      #     chunkInventoryPlugin, adminCssPlugin, officeParserTrim);
+      #   - `public/` - pliki kopiowane do artefaktu;
+      #   - `vite*.config.ts` (także nowy albo usunięty), `tsconfig.json`
+      #     (aliasy ścieżek, JSX);
+      #   - `package.json` i `bun.lock` - zakresy i zamrożone wersje zależności.
+      # Poza zakresem zostają m.in. `scripts/` poza `lib/` (narzędzia CI
+      # i pomiaru), docs/, testy e2e i workflowy. Niezależnie od filtru bramka
+      # wagi dokumentu (`check:document-weight`) mierzy KAŻDY PR, więc filtr
+      # decyduje tylko o raporcie A/B, nie o blokadzie.
       - name: Decide whether the Lighthouse A/B report runs
         id: lighthouse-scope
         run: |
           shopt -s nullglob
           changed=()
-          if ! diff -rq baseline/src candidate/src > /dev/null 2>&1; then
-            changed+=("src/")
-          fi
-          files=(package.json)
+          # Ścieżka nieobecna w OBU drzewach to brak zmiany (diff/cmp dałyby 2).
+          for d in src scripts/lib public; do
+            if [ ! -e "baseline/$d" ] && [ ! -e "candidate/$d" ]; then
+              continue
+            fi
+            if ! diff -rq "baseline/$d" "candidate/$d" > /dev/null 2>&1; then
+              changed+=("$d/")
+            fi
+          done
+          files=(package.json bun.lock tsconfig.json)
           for f in baseline/vite*.config.ts candidate/vite*.config.ts; do
             files+=("${f#*/}")
           done
           for f in $(printf '%s\n' "${files[@]}" | sort -u); do
+            if [ ! -e "baseline/$f" ] && [ ! -e "candidate/$f" ]; then
+              continue
+            fi
             if ! cmp -s "baseline/$f" "candidate/$f"; then
               changed+=("$f")
             fi
@@ -66,7 +89,7 @@ jobs:
             echo "A/B Lighthouse'a pojedzie - zmienione: ${changed[*]}"
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
-            echo "A/B Lighthouse'a pominiete - brak zmian w src/, vite*.config.ts ani package.json"
+            echo "A/B Lighthouse'a pominiete - brak zmian w src/, scripts/lib/, public/, vite*.config.ts, tsconfig.json, package.json ani bun.lock"
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/setup-node@v4

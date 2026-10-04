@@ -34,9 +34,45 @@
 //     koszt zadań = produkcja przeliczona przez benchmarkIndex hosta.
 //   - `--save-artifacts`: ślad + devtoolsLog każdego przebiegu (`-GA`), na końcu
 //     księga Lantern per zadanie (lanternTasks.ts) z kontrolą zgodności z audytem.
-//   - tryb A/B: σΔ i MDE = 2,8·σΔ/√n z par ważnych przebiegów (linia PAIRS),
+//   - tryb A/B: σΔ i MDE z par ważnych przebiegów (linia PAIRS),
 //     przy A = B (A/A) kontrola |ΔFCP|, |ΔLCP| ≤ 0,02 s (linia AA); linie K =
 //     kalibracja TBT fixture -> PSI (`--psi-reference plik.json` nadpisuje PSI 2026-10-03).
+//
+// P0.1-FIX (2026-10-04, recenzja scalonego P0.1):
+//   - WARIANT DOKUMENTU (B1, D7): wzorcem serii jest wariant z rozgrzewki
+//     początkowej (pełny render: `s-maxage=900`; odcisk = `cache-control` wpisu
+//     + długość body). Rewalidacja w tle daje na tym artefakcie wariant ze
+//     zdegradowanym chrome'em (`s-maxage=30`, diagnoza w P0.1-FIX.md), więc
+//     rozgrzewka przed przebiegiem, gdy wpis ma inny wariant, za mało świeżości
+//     albo jest STALE, RESTARTUJE serwer artefaktu (pusty magazyn) i rozgrzewa
+//     go od nowa. Przebieg z innym wariantem niż wzorzec jest `excluded`.
+//     Wariant i tryb FCP każdego przebiegu trafiają do summary.json.
+//   - `--max-load` (I2): domyślnie 0,6 x CPU; przebieg przy wyższym loadavg
+//     jest `excluded` (dawniej czekanie kończyło się i przebieg szedł dalej).
+//   - `--min-valid` (I3, D8): domyślnie `--runs` (nie mniej niż min(3, runs));
+//     forma poniżej progu = kod wyjścia 1 i odmowa zapisu baseline'u tej formy.
+//     Dwie odpowiedzi rozgrzewki spoza cache (3xx-5xx, bez `x-nes-cache`,
+//     BYPASS) przerywają serię; `--allow-uncached` mierzy taką ścieżkę świadomie
+//     (ważny przebieg = żadnego renderu poza samym dokumentem Lighthouse'a).
+//   - MDE (I4): mnożnik t(df = n-1) zamiast 2,8; linia PAIRS podaje MDE(t)
+//     i MDE(z). Pary i AA warstwowane po trybie FCP z księgi (I1) z licznikiem
+//     par mieszanych.
+//   - `--client-backend none` sprawdza, że nikt nie słucha na 127.0.0.1:4199 (D2);
+//     zapisy bez ścieżek maszyny (D3); linia K bez pełnych flag ma dopisek
+//     „nie kalibruje" (D6).
+//
+// P0.1-FIX runda 2 (2026-10-04, weryfikacja poprawki):
+//   - wzorzec (`warmReferenceVariant`): jeden restart odróżnia przegrany wyścig
+//     chrome'u od własnej polityki trasy (`/live`: s-maxage=30); wzorzec
+//     o świeżości ≤ --min-fresh przerywa serię z podpowiedzią niższego zapasu;
+//   - restart serwera rozgrzewa też zasoby statyczne nowego procesu, VALID
+//     podaje liczbę ważnych przebiegów po restarcie, a bramka obciążenia bierze
+//     większy z pomiarów przed i po rozgrzewce (`classifyAttempt`);
+//   - w środku serii ścieżka spoza cache wyklucza przebieg zamiast przerywać
+//     serię, a wyjątek w trakcie przebiegów zostawia summary.json z ukończonymi
+//     przebiegami (kod 1, bez baseline'u);
+//   - nieliczbowe --min-valid jest błędem; korzeń poza repo zapisuje się jako
+//     `poza-repo:<nazwa>`; tryb FCP liczy tylko skrypty originu dokumentu.
 //
 // Lighthouse NIE jest zależnością repo: LIGHTHOUSE_CLI=<ścieżka do cli/index.js>
 // albo `npx --yes lighthouse@13`. Chrome z CHROME_PATH (chrome-launcher).
@@ -48,7 +84,7 @@
 //        [--build] [--no-dump]
 //        [--client-backend none|fixture] [--third-party none|fake-gtag] [--fake-gtag-scale N]
 //        [--save-artifacts] [--no-ledger] [--repeats 2] [--min-fresh 30]
-//        [--psi-reference plik.json]
+//        [--psi-reference plik.json] [--min-valid N] [--allow-uncached]
 //   node scripts/performance/lighthouse-local.mjs --compare <root-A> <root-B> [--runs 3] ...
 //        [--transport-b h1|h2]   (tylko A/B: inny transport dla B, eksperyment parytetu)
 //        [--html-transform plik.mjs] [--html-transform-b plik.mjs]
@@ -66,7 +102,7 @@
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { cpus, loadavg } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { gzipSync } from "node:zlib";
@@ -75,6 +111,7 @@ import {
   DEFAULT_ACCEPT_LANGUAGE,
   DEFAULT_MIN_FRESH_S,
   HARNESS_ROOT,
+  RewarmAbort,
   WARM_USER_AGENT,
   freePort,
   hostResolverFlag,
@@ -82,11 +119,15 @@ import {
   rewarmDocument,
   startArtifact,
   startFront,
+  warmAssets,
   warmDocument,
+  warmReferenceVariant,
 } from "./artifactServer.ts";
 import {
+  CLIENT_BACKEND_PORT,
   diffClientBackendStats,
   formatClientBackendStats,
+  isPortListening,
   startClientBackend,
 } from "./clientBackend.ts";
 import {
@@ -95,33 +136,51 @@ import {
   measureChromeBenchmarkIndex,
   startFakeGoogle,
 } from "./fakeGoogle.ts";
-import { analyzeArtifacts, formatLedger, resolveLighthouseCore } from "./lanternTasks.ts";
 import {
+  analyzeArtifacts,
+  formatFcpMode,
+  formatLedger,
+  lighthouseLabel,
+  resolveLighthouseCore,
+} from "./lanternTasks.ts";
+import {
+  CALIBRATION_FLAGS,
   FORMS,
   MAX_EXCLUDED_REPEATS,
   PSI_REFERENCE_2026_10_03,
   aggregate,
-  classifyRun,
+  classifyAttempt,
   comparabilityWarnings,
+  defaultMaxLoad,
   deltaLine,
   documentFromDevtoolsLog,
+  documentVariant,
   dumpAudits,
   extractMetrics,
   flagsLabel,
   formatAaCheck,
-  formatCalibration,
+  formatCalibrationLine,
+  formatCounts,
   formatMedian,
+  formatModePairs,
   formatObservation,
   formatPairedStats,
   formatRun,
   formatValidity,
+  formatVariant,
   isServerRender,
   pairedStats,
+  pairsByFcpMode,
   parseForms,
   parsePsiReference,
   parseServerLogDocs,
+  portableRoot,
+  resolveMinValid,
   runWithRepeats,
+  scrubPaths,
+  seriesOutcome,
   summarizeValidity,
+  validMetricsByFcpMode,
   validPairs,
 } from "./lighthouseReport.ts";
 
@@ -172,6 +231,8 @@ const { values: opts, positionals } = parseArgs({
     repeats: { type: "string", default: String(MAX_EXCLUDED_REPEATS) },
     "min-fresh": { type: "string", default: String(DEFAULT_MIN_FRESH_S) },
     "psi-reference": { type: "string" },
+    "min-valid": { type: "string" },
+    "allow-uncached": { type: "boolean", default: false },
     help: { type: "boolean", default: false },
   },
 });
@@ -203,9 +264,12 @@ const acceptLanguage = process.env.ACCEPT_LANGUAGE ?? DEFAULT_ACCEPT_LANGUAGE;
 const warmUa = opts["warm-ua"] === "bot" ? "bot" : "browser";
 const warmUserAgent = warmUa === "bot" ? BOT_USER_AGENT : WARM_USER_AGENT;
 // Obciążenie maszyny: przed każdym przebiegiem czekamy (do --idle-wait s), aż
-// loadavg(1 min) spadnie poniżej --max-load (domyślnie liczba CPU). TBT na
-// przeciążonym hoście rośnie wielokrotnie (zmierzone: 330 ms -> 5 s przy load 8 na 4 CPU).
-const maxLoad = Number.parseFloat(opts["max-load"] ?? String(cpus().length));
+// loadavg(1 min) spadnie poniżej --max-load (domyślnie 0,6 x CPU, protokół P0.5),
+// a przebieg zaczęty przy wyższym jest `excluded` (I2). TBT na przeciążonym
+// hoście rośnie wielokrotnie (zmierzone: 330 ms -> 5 s przy load 8 na 4 CPU).
+const maxLoad = Number.parseFloat(opts["max-load"] ?? String(defaultMaxLoad(cpus().length)));
+if (!Number.isFinite(maxLoad) || maxLoad <= 0)
+  throw new Error(`--max-load ${opts["max-load"]}: oczekiwana liczba > 0`);
 const idleWaitMs = Math.max(0, Number.parseFloat(opts["idle-wait"]) || 0) * 1000;
 
 function oneOf(name, value, allowed) {
@@ -218,6 +282,9 @@ const thirdPartyMode = oneOf("third-party", opts["third-party"], ["none", "fake-
 const flags = flagsLabel(clientBackendMode, thirdPartyMode);
 const repeats = Math.max(0, Number.parseInt(opts.repeats, 10) || 0);
 const minFreshS = Math.max(0, Number.parseFloat(opts["min-fresh"]) || 0);
+// Tekst z CLI wprost: nieliczbowe `--min-valid` jest błędem wywołania (runda 2).
+const minValid = resolveMinValid(opts["min-valid"], runs);
+const allowUncached = opts["allow-uncached"];
 const saveArtifacts = opts["save-artifacts"];
 const measuredPathname = new URL(opts.path, "https://fixture.invalid").pathname;
 
@@ -258,6 +325,11 @@ function lighthouseCommand() {
 }
 
 const lh = lighthouseCommand();
+/** `lighthouseVersion` z pierwszego LHR serii (do summary.json i baseline'u). */
+let seenLighthouseVersion = null;
+
+/** Plik serii do zapisu: względny wobec katalogu wyników `base` (D3), `.` dla samego `base`. */
+const relPath = (path, base) => relative(base, path) || ".";
 const children = [];
 let stopping = false;
 async function stopAll() {
@@ -321,14 +393,19 @@ async function waitForIdle() {
  */
 async function runLighthouseWithRetry(url, form, chromeFlags, outputPath, artifactsDir, prepare) {
   let ctx = null;
+  let loadBefore = Number.NaN;
+  let loadAfter = Number.NaN;
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const load = await waitForIdle();
+    loadBefore = await waitForIdle();
     ctx = await prepare();
+    // Drugi pomiar PO rozgrzewce: restart serwera i render MISS też obciążają
+    // maszynę tuż przed Lighthouse'em (bramka bierze większy, runda 2).
+    loadAfter = loadavg()[0];
     const lhr = await runLighthouse(url, form, chromeFlags, outputPath, artifactsDir);
-    if (lhr) return { lhr, load, ctx };
+    if (lhr) return { lhr, loadBefore, loadAfter, ctx };
     if (attempt === 1) console.log("    powtórka przebiegu (błąd wykonania)");
   }
-  return { lhr: null, load: loadavg()[0], ctx };
+  return { lhr: null, loadBefore, loadAfter, ctx };
 }
 
 /** Jeden przebieg Lighthouse'a; zwraca LHR albo null (błąd wykonania nie przerywa serii). */
@@ -440,6 +517,23 @@ async function startFakeGoogleForSeries() {
   return { google, benchmark, scale };
 }
 
+/**
+ * Rozgrzewka początkowa = WZORZEC wariantu serii (B1): `warmReferenceVariant`
+ * (artifactServer.ts, testowane). Jeden restart odróżnia przegrany wyścig
+ * chrome'u od własnej polityki trasy; dokument spoza cache albo wzorzec
+ * o świeżości ≤ --min-fresh przerywa serię tutaj, zanim cokolwiek zmierzymy.
+ */
+async function warmReference(artifact) {
+  const result = await warmReferenceVariant(artifact, opts.path, {
+    acceptLanguage,
+    userAgent: warmUserAgent,
+    minFreshS,
+    allowUncached,
+  });
+  if (result.note) console.log(`  wzorzec: ${result.note}`);
+  return result;
+}
+
 async function main() {
   if (opts.build) for (const r of roots) await withBuildLock(() => build(r.root));
   const transformA = await loadTransform(opts["html-transform"]);
@@ -450,6 +544,14 @@ async function main() {
     ? parsePsiReference(JSON.parse(readFileSync(resolve(opts["psi-reference"]), "utf8")))
     : PSI_REFERENCE_2026_10_03;
 
+  // D2: tryb `none` = martwy backend klienta. Proces słuchający na 4199 dałby
+  // przeglądarce żywe odpowiedzi przy etykiecie `client-backend=none`.
+  if (clientBackendMode === "none" && (await isPortListening(CLIENT_BACKEND_PORT)))
+    throw new Error(
+      `--client-backend none, ale coś słucha na 127.0.0.1:${CLIENT_BACKEND_PORT} - ` +
+        "przeglądarka dostałaby żywy backend klienta, niezgodny z etykietą flag. " +
+        "Zatrzymaj ten proces albo mierz z --client-backend fixture.",
+    );
   const backend = clientBackendMode === "fixture" ? await startClientBackend() : null;
   if (backend) {
     children.push(backend);
@@ -474,7 +576,7 @@ async function main() {
       injectHead: fake ? GA_ANY_HOST_SNIPPET : undefined,
     });
     children.push(front);
-    const doc = await warmDocument(artifact.origin, opts.path, acceptLanguage, warmUserAgent);
+    const { doc, reference } = await warmReference(artifact);
     writeFileSync(join(outDir, `home${tagSuffix}.html`), doc.body);
     const headerLines = [`status: ${doc.status}`];
     for (const [k, v] of doc.headers) headerLines.push(`${k}: ${v}`);
@@ -483,7 +585,8 @@ async function main() {
     console.log(
       `${r.tag || "artefakt"}: ${r.root} @ ${commit} upstream :${upstreamPort} front ${front.baseUrl} ` +
         `(${ownTransport}${fixture ? ", fixture" : ", .env"}, rozgrzewka ${warmUa}) HTML ${doc.status} raw ${doc.body.length} B ` +
-        `gzip ${gzipSync(doc.body, { level: 6 }).length} B x-nes-cache=${doc.headers.get("x-nes-cache") ?? "-"}`,
+        `gzip ${gzipSync(doc.body, { level: 6 }).length} B x-nes-cache=${doc.headers.get("x-nes-cache") ?? "-"} ` +
+        `wariant wzorcowy: ${reference ? formatVariant(reference) : "brak (--allow-uncached)"}`,
     );
     const chromeFlags = [
       ...front.chromeFlags,
@@ -496,12 +599,14 @@ async function main() {
       commit,
       tagSuffix,
       doc,
+      reference,
       chromeFlags,
       log: logCursor(logFile),
     });
   }
   console.log(
-    `flagi: ${flags}; przebiegi: ${runs} x ${forms.join(",")}; powtórki excluded: ${repeats}`,
+    `flagi: ${flags}; przebiegi: ${runs} x ${forms.join(",")}; powtórki excluded: ${repeats}; ` +
+      `min-valid: ${minValid}; max-load: ${maxLoad}${allowUncached ? "; --allow-uncached" : ""}`,
   );
 
   /** Jedna próba przebiegu: rozgrzanie -> Lighthouse -> ważność. */
@@ -509,18 +614,42 @@ async function main() {
     const name = `${t.tag ? `${t.tag}-` : ""}${form}-${n}${attempt ? `r${attempt}` : ""}`;
     const file = join(outDir, `${name}.json`);
     const artifactsDir = saveArtifacts ? join(outDir, `${name}.artifacts`) : null;
-    const prepare = async () => ({
-      rewarm: await rewarmDocument(t.artifact.origin, opts.path, {
+    const prepare = async () => {
+      let assets = null;
+      const rewarm = await rewarmDocument(t.artifact.origin, opts.path, {
         acceptLanguage,
         userAgent: warmUserAgent,
         minFreshS,
-      }),
-      docMark: t.front.documents().length,
-      logMarks: targets.map((x) => x.log.mark()),
-      backendBefore: backend?.stats(),
-      googleBefore: fake?.google.stats(),
-    });
-    const { lhr, load, ctx } = await runLighthouseWithRetry(
+        referenceVariant: t.reference,
+        allowUncached,
+        // W środku serii ścieżka spoza cache NIE przerywa serii (zgubiłaby
+        // ukończone przebiegi): przebieg jest excluded i powtarzany. Ścieżkę
+        // sprawdza raz rozgrzewka początkowa (`warmReference`).
+        abortOnUncached: false,
+        // Wzorca nie przywraca rewalidacja (daje wariant ze zdegradowanym
+        // chrome'em), tylko pusty magazyn: restart serwera + rozgrzewka
+        // dokumentu i zasobów statycznych nowego procesu.
+        restore: async () => {
+          await t.artifact.restart();
+          const doc = await warmDocument(
+            t.artifact.origin,
+            opts.path,
+            acceptLanguage,
+            warmUserAgent,
+          );
+          assets = await warmAssets(t.artifact.origin, doc.body.toString("utf8"));
+        },
+      });
+      return {
+        rewarm,
+        assets,
+        docMark: t.front.documents().length,
+        logMarks: targets.map((x) => x.log.mark()),
+        backendBefore: backend?.stats(),
+        googleBefore: fake?.google.stats(),
+      };
+    };
+    const { lhr, loadBefore, loadAfter, ctx } = await runLighthouseWithRetry(
       `${t.front.baseUrl}${opts.path}`,
       form,
       t.chromeFlags,
@@ -528,17 +657,26 @@ async function main() {
       artifactsDir,
       prepare,
     );
-    const { rewarm, docMark, logMarks, backendBefore, googleBefore } = ctx;
+    const { rewarm, assets, docMark, logMarks, backendBefore, googleBefore } = ctx;
     const serverDocs = targets.flatMap((x, i) => parseServerLogDocs(x.log.since(logMarks[i])));
-    const document =
-      t.front
-        .documents()
-        .slice(docMark)
-        .find((d) => d.path === measuredPathname) ?? null;
+    const runDocuments = t.front.documents().slice(docMark);
+    const document = runDocuments.find((d) => d.path === measuredPathname) ?? null;
     const devtools = lhr ? devtoolsDocument(artifactsDir) : null;
-    const validity = lhr
-      ? classifyRun({ document, serverDocs, devtools, rewarmOk: rewarm.ok })
-      : { excluded: true, reasons: ["przebieg nieudany"] };
+    // Całe wejście ważności w jednej czystej funkcji (test w harness-ext.test.mjs).
+    const validity = classifyAttempt({
+      lhrOk: Boolean(lhr),
+      document,
+      serverDocs,
+      devtools,
+      rewarmOk: rewarm.ok,
+      referenceVariant: t.reference,
+      loadBefore,
+      loadAfter,
+      maxLoad,
+      allowUncached,
+      runDocuments,
+    });
+    const load = validity.load;
     const backendRun = backend ? diffClientBackendStats(backendBefore, backend.stats()) : null;
     const googleAfter = fake?.google.stats();
     const googleRun = fake
@@ -547,17 +685,26 @@ async function main() {
           pings: googleAfter.pings - googleBefore.pings,
         }
       : null;
+    if (lhr?.lighthouseVersion) seenLighthouseVersion ??= lhr.lighthouseVersion;
     const metrics = lhr ? extractMetrics(lhr) : null;
     if (metrics)
       console.log(
-        `${formatRun(`${t.tag ? `${t.tag} ` : ""}${name.replace(/^[AB]-/, "")}`, metrics)} load=${load.toFixed(1)}`,
+        `${formatRun(`${t.tag ? `${t.tag} ` : ""}${name.replace(/^[AB]-/, "")}`, metrics)} load=${load.toFixed(1)} ` +
+          `(${loadBefore.toFixed(1)} -> ${loadAfter.toFixed(1)} po rozgrzewce)`,
       );
     const waited = rewarm.waitedForStaleS
       ? `, czekanie na STALE ${rewarm.waitedForStaleS.toFixed(0)} s`
       : "";
+    const restarted = rewarm.restores
+      ? `, restart serwera x${rewarm.restores}` +
+        (assets
+          ? `, zasoby ${assets.count}${assets.failed ? ` (błędy ${assets.failed})` : ""}`
+          : "")
+      : "";
     console.log(
       `    cache: rozgrzewka ${formatObservation(rewarm.attempts[0])} -> ${formatObservation(rewarm.final)} ` +
-        `(${rewarm.attempts.length} żądań${waited}) | LH ${formatObservation(document)}` +
+        `(${rewarm.attempts.length} żądań${waited}${restarted}${rewarm.failure ? `; ${rewarm.failure}` : ""}) ` +
+        `| LH ${formatObservation(document)} [${document ? formatVariant(documentVariant(document)) : "-"}]` +
         (devtools ? ` | devtools ${formatObservation(devtools)}` : "") +
         ` | SSR w trakcie: ${serverDocs.filter(isServerRender).length}`,
     );
@@ -569,16 +716,27 @@ async function main() {
       n,
       attempt,
       name,
-      file,
-      artifacts: artifactsDir,
+      // D3: ścieżki względne wobec katalogu wyników (summary.json leży obok).
+      file: relPath(file, outDir),
+      artifacts: artifactsDir ? relPath(artifactsDir, outDir) : null,
       valid: !validity.excluded,
       reasons: validity.reasons,
+      // Bramka obciążenia = większy z pomiarów przed i po rozgrzewce.
       load,
+      loadBefore,
+      loadAfter,
+      // B1: wariant dokumentu, który dostał Lighthouse; tryb FCP dopisuje księga.
+      variant: document ? documentVariant(document) : null,
+      fcpMode: null,
       rewarm: {
         first: rewarm.attempts[0],
         final: rewarm.final,
         requests: rewarm.attempts.length,
         waitedForStaleS: rewarm.waitedForStaleS,
+        restores: rewarm.restores,
+        assets,
+        failure: rewarm.failure,
+        uncached: rewarm.uncached,
         ms: rewarm.ms,
       },
       document,
@@ -594,30 +752,47 @@ async function main() {
   const records = new Map();
   const loads = [];
   const key = (tag, form) => `${tag}|${form}`;
-  for (const form of forms) {
-    for (let n = 1; n <= runs; n++) {
-      const order = n % 2 === 1 ? targets : [...targets].reverse();
-      for (const t of order) {
-        const attempts = await runWithRepeats(async (i) => {
-          const rec = await attemptRun(t, form, n, i);
-          if (!rec.valid && i < repeats) console.log(`    powtórka excluded ${i + 1}/${repeats}`);
-          return rec;
-        }, repeats);
-        const list = records.get(key(t.tag, form)) ?? [];
-        for (const rec of attempts) {
-          if (rec.metrics) loads.push(rec.load);
-          const firstValid = rec.valid && !list.some((x) => x.valid);
-          if (firstValid) {
-            const dumpFile = rec.file.replace(/\.json$/, ".audits.txt");
-            writeFileSync(dumpFile, `${dumpAudits(rec.lhr, 40)}\n`);
-            if (!opts["no-dump"]) console.log(`    audyty: ${dumpFile}`);
+  // Wyjątek w trakcie serii (np. serwer nie wstał po restarcie) kończy
+  // przebiegi, ale NIE gubi ukończonych: podsumowanie, linie VALID/PAIRS/AA
+  // i summary.json liczą się z nich, a wynik serii to kod 1 bez baseline'u
+  // (runda 2; dawniej main() odrzucał obietnicę przed summary.json).
+  let aborted = null;
+  try {
+    for (const form of forms) {
+      for (let n = 1; n <= runs; n++) {
+        const order = n % 2 === 1 ? targets : [...targets].reverse();
+        for (const t of order) {
+          const attempts = await runWithRepeats(async (i) => {
+            const rec = await attemptRun(t, form, n, i);
+            if (!rec.valid && i < repeats) console.log(`    powtórka excluded ${i + 1}/${repeats}`);
+            return rec;
+          }, repeats);
+          const list = records.get(key(t.tag, form)) ?? [];
+          for (const rec of attempts) {
+            if (rec.metrics) loads.push(rec.load);
+            const firstValid = rec.valid && !list.some((x) => x.valid);
+            if (firstValid) {
+              const dumpFile = join(outDir, rec.file).replace(/\.json$/, ".audits.txt");
+              writeFileSync(dumpFile, `${dumpAudits(rec.lhr, 40)}\n`);
+              if (!opts["no-dump"]) console.log(`    audyty: ${dumpFile}`);
+            }
+            delete rec.lhr;
+            list.push(rec);
           }
-          delete rec.lhr;
-          list.push(rec);
+          records.set(key(t.tag, form), list);
         }
-        records.set(key(t.tag, form), list);
       }
     }
+  } catch (error) {
+    // D3: komunikat trafia do summary.json - bez ścieżek maszyny.
+    aborted = scrubPaths(error instanceof Error ? error.message : String(error), [
+      [outDir, "<wyniki>"],
+      [HARNESS_ROOT, "."],
+      ...roots.map((r) => [r.root, portableRoot(r.root, HARNESS_ROOT)]),
+    ]);
+    console.error(
+      `PRZERWANE w trakcie serii: ${error instanceof RewarmAbort || !(error instanceof Error) ? aborted : error.stack}`,
+    );
   }
 
   // Księga Lantern per zadanie z zapisanych artefaktów - PO wszystkich
@@ -629,19 +804,23 @@ async function main() {
     for (const [k, list] of records) {
       for (const rec of list) {
         if (!rec.valid || !rec.artifacts || !rec.metrics) continue;
+        const artifactsDir = join(outDir, rec.artifacts);
         try {
-          const ledger = await analyzeArtifacts(rec.artifacts, { lighthouseCore: core });
+          const ledger = await analyzeArtifacts(artifactsDir, { lighthouseCore: core });
+          // D3: nagłówek księgi z katalogiem względnym, nie ścieżką maszyny.
           writeFileSync(
-            rec.artifacts.replace(/\.artifacts$/, ".ledger.txt"),
-            `${formatLedger(ledger)}\n`,
+            artifactsDir.replace(/\.artifacts$/, ".ledger.txt"),
+            `${formatLedger({ ...ledger, dir: rec.artifacts })}\n`,
           );
           const delta = ledger.ledgerSum - rec.metrics.tbt;
+          rec.fcpMode = ledger.fcpMode;
           rec.ledger = {
             tbt: ledger.tbt,
             ledgerSum: ledger.ledgerSum,
             audit: rec.metrics.tbt,
             parityOk: Math.abs(delta) <= 1,
             fcpMode: ledger.fcpMode,
+            fcpModeInfo: ledger.fcpModeInfo,
             fcpGraphScripts: ledger.fcpGraphScripts,
             googleTasks: ledger.googleTasks,
             googleBlocking: ledger.googleBlocking,
@@ -650,7 +829,7 @@ async function main() {
           const sb = ledger.scriptBytesEndedBeforeObsLcp;
           console.log(
             `LEDGER ${k.replace("|", " ")} ${rec.name}: księga=${ledger.ledgerSum.toFixed(1)} audyt=${rec.metrics.tbt.toFixed(1)} ` +
-              `${rec.ledger.parityOk ? "OK" : "NIEZGODNOŚĆ"} trybFCP=${ledger.fcpMode} google=${ledger.googleTasks} zadań/${ledger.googleBlocking.toFixed(0)} ms ` +
+              `${rec.ledger.parityOk ? "OK" : "NIEZGODNOŚĆ"} trybFCP=${formatFcpMode(ledger.fcpModeInfo)} google=${ledger.googleTasks} zadań/${ledger.googleBlocking.toFixed(0)} ms ` +
               `skrypty<obsLCP=${(sb.bytes / 1024).toFixed(1)} KB (+wykluczone ${(sb.excludedBytes / 1024).toFixed(1)} KB)`,
           );
         } catch (error) {
@@ -663,8 +842,10 @@ async function main() {
   const validMetrics = (tag, form) =>
     (records.get(key(tag, form)) ?? []).filter((r) => r.valid && r.metrics).map((r) => r.metrics);
 
+  // Baseline = pojedynczy artefakt albo strona A w trybie A/B (ten sam kontrakt pliku).
+  const baseTag = opts.compare ? "A" : "";
   const summary = {
-    schema: 2,
+    schema: 3,
     label,
     savedAt: new Date().toISOString(),
     transport,
@@ -678,18 +859,27 @@ async function main() {
     fakeGtag: fake ? { scale: fake.scale, benchmark: fake.benchmark } : null,
     minFreshS,
     repeats,
+    minValid,
+    maxLoad,
+    allowUncached,
     loadavgAtRuns: loads,
     cpus: cpus().length,
-    lighthouse: process.env.LIGHTHOUSE_CLI ?? "npx lighthouse@13",
+    // D3: nazwa wersji, nie ścieżka LIGHTHOUSE_CLI; `lighthouseVersion` z LHR.
+    lighthouse: lighthouseLabel(),
+    lighthouseVersion: seenLighthouseVersion,
     targets: targets.map((t) => ({
       tag: t.tag || "single",
-      root: t.root,
+      // D3: względna wewnątrz repo harnessu, `poza-repo:<nazwa>` poza nim.
+      root: portableRoot(t.root, HARNESS_ROOT),
       commit: t.commit,
       transport: t.front.transport,
+      referenceVariant: t.reference,
     })),
     forms: {},
     pairs: {},
     calibration: {},
+    aborted,
+    outcome: null,
   };
   for (const t of targets) {
     for (const form of forms) {
@@ -707,15 +897,36 @@ async function main() {
     }
   }
 
-  // Kalibracja fixture -> PSI ze strony A (albo jedynego artefaktu).
+  // I3/D8: forma poniżej --min-valid = porażka serii (kod 1) i bez baseline'u.
+  const outcome = seriesOutcome(
+    targets.flatMap((t) =>
+      forms.map((form) => ({
+        tag: t.tag,
+        form,
+        validity: summary.forms[`${t.tag || "single"}:${form}`].validity,
+      })),
+    ),
+    { minValid, baselineTag: baseTag, aborted },
+  );
+  summary.outcome = outcome;
+  for (const line of outcome.failures) console.log(line);
+  if (outcome.exitCode) process.exitCode = outcome.exitCode;
+
+  // Kalibracja fixture -> PSI ze strony A (albo jedynego artefaktu). k ma sens
+  // wyłącznie z pełnymi flagami (D6) - linia bez nich mówi „nie kalibruje".
   const calTag = opts.compare ? "A" : "";
   for (const form of forms) {
     const list = validMetrics(calTag, form);
     if (!list.length) continue;
     const agg = aggregate(list);
-    const line = formatCalibration(form, agg.median, psiReference);
-    console.log(`${line} {${flags}}`);
-    summary.calibration[form] = { line, fixtureTbt: agg.median.tbt, flags };
+    const line = formatCalibrationLine(form, agg.median, psiReference, flags);
+    console.log(line);
+    summary.calibration[form] = {
+      line,
+      fixtureTbt: agg.median.tbt,
+      flags,
+      calibrates: flags === CALIBRATION_FLAGS,
+    };
   }
 
   if (opts.compare) {
@@ -725,17 +936,52 @@ async function main() {
       if (!a.length || !b.length) continue;
       const aggA = aggregate(a);
       const aggB = aggregate(b);
+      const recA = records.get(key("A", form)) ?? [];
+      const recB = records.get(key("B", form)) ?? [];
       console.log(deltaLine(`${label} B-A ${form}`, aggA.median, aggB.median));
-      const pairs = validPairs(
-        records.get(key("A", form)) ?? [],
-        records.get(key("B", form)) ?? [],
-      );
+      const pairs = validPairs(recA, recB);
       if (pairs.length) {
         const stats = pairedStats(pairs);
         console.log(formatPairedStats(`${label} ${form}`, stats));
-        summary.pairs[form] = stats;
+        // I1: pary tylko w tym samym trybie FCP + licznik par mieszanych.
+        const split = pairsByFcpMode(recA, recB);
+        console.log(formatModePairs(`${label} ${form}`, split));
+        const byMode = {};
+        for (const [mode, list] of split.byMode) {
+          byMode[mode] = pairedStats(list);
+          if (list.length > 1)
+            console.log(formatPairedStats(`${label} ${form} [trybFCP=${mode}]`, byMode[mode]));
+        }
+        summary.pairs[form] = {
+          all: stats,
+          byMode,
+          mixed: split.mixed,
+          unknown: split.unknown,
+          total: split.total,
+        };
       }
-      if (isAa) console.log(formatAaCheck(form, aggA.median, aggB.median));
+      if (isAa) {
+        const modesA = summarizeValidity(recA).fcpModes;
+        const modesB = summarizeValidity(recB).fcpModes;
+        const modes =
+          Object.keys(modesA).length || Object.keys(modesB).length
+            ? `A ${formatCounts(modesA) || "-"} | B ${formatCounts(modesB) || "-"}`
+            : undefined;
+        console.log(formatAaCheck(form, aggA.median, aggB.median, modes));
+        const layersB = validMetricsByFcpMode(recB);
+        for (const [mode, listA] of validMetricsByFcpMode(recA)) {
+          const listB = layersB.get(mode);
+          if (!listB) continue;
+          console.log(
+            formatAaCheck(
+              `${form} [trybFCP=${mode}, nA=${listA.length}, nB=${listB.length}]`,
+              aggregate(listA).median,
+              aggregate(listB).median,
+              modes,
+            ),
+          );
+        }
+      }
       for (const w of comparabilityWarnings(
         { transport, finalPath: aggA.finalPath, lcpElement: aggA.lcpElement },
         { transport: transportB, finalPath: aggB.finalPath, lcpElement: aggB.lcpElement },
@@ -777,41 +1023,63 @@ async function main() {
     }
   }
 
-  // Baseline = pojedynczy artefakt albo strona A w trybie A/B (ten sam kontrakt pliku).
-  const baseTag = opts.compare ? "A" : "";
   if (opts["save-baseline"]) {
     const file = resolve(opts["baseline-out"] ?? BASELINE_DEFAULT);
-    const data = {
-      schema: 2,
-      label,
-      savedAt: summary.savedAt,
-      commit: targets[0].commit,
-      root: targets[0].root,
-      transport,
-      path: opts.path,
-      fixture,
-      acceptLanguage,
-      warmUa,
-      flags,
-      loadavgAtRuns: loads,
-      forms: {},
-    };
-    for (const form of forms) {
-      const list = validMetrics(baseTag, form);
-      if (!list.length) continue;
-      const agg = aggregate(list);
-      data.forms[form] = {
-        n: agg.n,
-        median: agg.median,
-        min: agg.min,
-        max: agg.max,
-        lcpElement: agg.lcpElement,
-        finalPath: agg.finalPath,
+    if (!outcome.baselineForms.length) {
+      console.log(
+        outcome.aborted
+          ? `baseline NIE zapisany: seria przerwana (${outcome.aborted}); ${file} bez zmian`
+          : `baseline NIE zapisany: żadna forma nie ma n_valid ≥ ${minValid} ` +
+              `(${outcome.refusedBaselineForms.join(", ")}); ${file} bez zmian`,
+      );
+    } else {
+      const reference = targets.find((t) => t.tag === baseTag)?.reference ?? null;
+      const data = {
+        schema: 3,
+        label,
+        savedAt: summary.savedAt,
+        commit: targets[0].commit,
+        // D3: ścieżka względna wobec repo harnessu, `poza-repo:<nazwa>` poza nim.
+        root: portableRoot(targets[0].root, HARNESS_ROOT),
+        transport,
+        path: opts.path,
+        fixture,
+        acceptLanguage,
+        warmUa,
+        flags,
+        lighthouse: lighthouseLabel(),
+        lighthouseVersion: seenLighthouseVersion,
+        referenceVariant: reference,
+        minValid,
+        maxLoad,
+        loadavgAtRuns: loads,
+        forms: {},
       };
+      for (const form of outcome.baselineForms) {
+        const list = validMetrics(baseTag, form);
+        const agg = aggregate(list);
+        const validity = summary.forms[`${baseTag || "single"}:${form}`].validity;
+        data.forms[form] = {
+          n: agg.n,
+          median: agg.median,
+          min: agg.min,
+          max: agg.max,
+          lcpElement: agg.lcpElement,
+          finalPath: agg.finalPath,
+          variants: validity.variants,
+          fcpModes: validity.fcpModes,
+        };
+      }
+      mkdirSync(resolve(file, ".."), { recursive: true });
+      writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
+      console.log(
+        `baseline zapisany: ${file} (formy: ${outcome.baselineForms.join(", ")}` +
+          (outcome.refusedBaselineForms.length
+            ? `; odrzucone poniżej --min-valid: ${outcome.refusedBaselineForms.join(", ")}`
+            : "") +
+          ")",
+      );
     }
-    mkdirSync(resolve(file, ".."), { recursive: true });
-    writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`);
-    console.log(`baseline zapisany: ${file}`);
   }
 
   writeFileSync(join(outDir, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
@@ -820,7 +1088,14 @@ async function main() {
 
 main()
   .catch((error) => {
-    console.error(error instanceof Error ? error.stack : error);
+    // RewarmAbort = ścieżka bez HIT-u: komunikat wystarczy, stos nic nie wnosi.
+    console.error(
+      error instanceof RewarmAbort
+        ? `PRZERWANE: ${error.message}`
+        : error instanceof Error
+          ? error.stack
+          : error,
+    );
     process.exitCode = 1;
   })
   .finally(() => stopAll());

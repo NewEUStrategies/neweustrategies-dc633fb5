@@ -580,6 +580,23 @@ export function parseForms(spec: string): FormName[] {
 // asymetrycznie między A i B (ab-h1-h2: A 4x, B 2x). Dlatego: rozgrzanie przed
 // KAŻDYM przebiegiem, a przebieg, w którym Lighthouse dostał dokument inny niż
 // HIT albo w trakcie którego serwer renderował SSR, jest `excluded` i powtarzany.
+//
+// P0.1-FIX (recenzja B1, I2, I3, D1): HIT nie wystarcza. Ten sam klucz cache
+// trzyma różne WARIANTY dokumentu (pełny render, render ze zdegradowanym
+// chrome'em `s-maxage=30`, wariant bota), a `x-nes-cache` jest w nich identyczne.
+// Przebieg mierzy więc wariant wzorcowy serii (odcisk: polityka `cache-control`
+// wpisu + długość body), przy obciążeniu ≤ `--max-load` i bez renderu SSR
+// (także BYPASS) w trakcie.
+
+/**
+ * Górny pułap świeżości wpisu cache dokumentu w artefakcie, w sekundach:
+ * `DOCUMENT_CACHE_MAX_FRESH_MS` z `src/lib/http/documentCache.ts`. Tu stała,
+ * bo skrypty Node nie rozwiązują importów `src/` bez rozszerzeń; równość
+ * pilnuje test synchronizacji w `harness-ext.test.mjs` (czyta tekst tamtego
+ * pliku). Świeżość KONKRETNEGO wpisu to min(s-maxage, ten pułap)
+ * (`documentStorePolicy`), więc stała jest wyłącznie górnym limitem.
+ */
+export const DOCUMENT_FRESH_WINDOW_S = 180;
 
 /** Nagłówki cache jednej odpowiedzi dokumentu (rozgrzewka, front albo devtoolsLog LH). */
 export interface DocumentObservation {
@@ -590,6 +607,29 @@ export interface DocumentObservation {
   /** `x-nes-cache-age` w sekundach; null = brak. */
   readonly ageS: number | null;
   readonly serverTiming: string | null;
+  /**
+   * `cache-control` odpowiedzi. Na HIT/STALE magazyn odtwarza politykę
+   * ZAPISANEGO wpisu, więc to część odcisku wariantu (pełny render:
+   * `s-maxage=900`; zdegradowany chrome: `s-maxage=30`).
+   */
+  readonly cacheControl: string | null;
+  /** Świeżość wpisu w magazynie: min(s-maxage, `DOCUMENT_FRESH_WINDOW_S`); null = brak s-maxage. */
+  readonly freshS: number | null;
+  /** Długość body bez kompresji (B); null = nieznana (devtoolsLog, strumień bez końca). */
+  readonly bytes: number | null;
+}
+
+/** `s-maxage` z `cache-control` w sekundach; null = brak dyrektywy. */
+export function sharedMaxAge(cacheControl: string | null): number | null {
+  if (!cacheControl) return null;
+  const match = /(?:^|[,\s])s-maxage\s*=\s*"?(\d+)/i.exec(cacheControl);
+  return match ? Number.parseInt(match[1], 10) : null;
+}
+
+/** Świeżość wpisu w magazynie artefaktu (jak `documentStorePolicy`): min(s-maxage, pułap). */
+export function entryFreshS(cacheControl: string | null): number | null {
+  const sMaxAge = sharedMaxAge(cacheControl);
+  return sMaxAge === null ? null : Math.min(sMaxAge, DOCUMENT_FRESH_WINDOW_S);
 }
 
 /** Linia `{"kind":"doc",...}` z logu serwera artefaktu (`src/server.ts` logDocument). */
@@ -615,21 +655,119 @@ function headerValue(headers: HeaderSource, name: string): string | null {
   return null;
 }
 
-/** Obserwacja dokumentu z nagłówków odpowiedzi (Headers z fetch albo rekord z CDP / node:http). */
+/**
+ * Obserwacja dokumentu z nagłówków odpowiedzi (Headers z fetch albo rekord z CDP / node:http).
+ * `bytes` = długość body bez kompresji, jeśli wołający ją zna (rozgrzewka, front).
+ */
 export function observeDocument(
   source: DocumentObservation["source"],
   status: number,
   headers: HeaderSource,
+  bytes: number | null = null,
 ): DocumentObservation {
   const age = headerValue(headers, "x-nes-cache-age");
   const parsedAge = age === null ? Number.NaN : Number.parseFloat(age);
+  const cacheControl = headerValue(headers, "cache-control");
   return {
     source,
     status,
     cache: headerValue(headers, "x-nes-cache")?.trim().toUpperCase() || null,
     ageS: Number.isFinite(parsedAge) ? parsedAge : null,
     serverTiming: headerValue(headers, "server-timing"),
+    cacheControl,
+    freshS: entryFreshS(cacheControl),
+    bytes: bytes !== null && Number.isFinite(bytes) ? bytes : null,
   };
+}
+
+// ── odcisk wariantu dokumentu (B1) ──────────────────────────────────────────
+
+/** Odcisk wariantu: polityka `cache-control` wpisu + długość body bez kompresji. */
+export interface DocumentVariant {
+  readonly cacheControl: string | null;
+  readonly bytes: number | null;
+}
+
+/**
+ * Tolerancja długości body w obrębie JEDNEGO wariantu (B). Zmierzone
+ * 2026-10-04 na artefakcie 3ac0f43 (jeden port): pełny render 390 950 B
+ * w 3/3 zimnych renderach, render rewalidacji (zdegradowany chrome)
+ * 391 141 B w 3/3, czyli +191 B (recenzja: 391 040 vs 391 231 B, też +191 B).
+ * Wariant bota jest o ~9 KB krótszy. 64 B rozdziela je z zapasem, a nie
+ * wyklucza przebiegu za drobną różnicę liczby w danych.
+ */
+export const VARIANT_BYTES_TOLERANCE = 64;
+
+export function documentVariant(
+  o: Pick<DocumentObservation, "cacheControl" | "bytes">,
+): DocumentVariant {
+  return { cacheControl: o.cacheControl, bytes: o.bytes };
+}
+
+/** Dyrektywy bez względu na kolejność, wielkość liter i spacje wokół `=`. */
+function normalizeCacheControl(value: string | null): string | null {
+  if (!value) return null;
+  return value
+    .split(",")
+    .map((part) =>
+      part
+        .trim()
+        .toLowerCase()
+        .replace(/\s*=\s*/, "="),
+    )
+    .filter(Boolean)
+    .sort()
+    .join(", ");
+}
+
+/** `s-maxage=30, 391231 B` (polityka skrócona do s-maxage, gdy jest). */
+export function formatVariant(v: DocumentVariant | null | undefined): string {
+  if (!v) return "-";
+  const sMaxAge = sharedMaxAge(v.cacheControl);
+  const policy = sMaxAge !== null ? `s-maxage=${sMaxAge}` : (v.cacheControl ?? "bez cache-control");
+  return v.bytes === null ? policy : `${policy}, ${v.bytes} B`;
+}
+
+/**
+ * Powód niezgodności wariantu z wzorcem albo null. Różna polityka
+ * `cache-control` albo długość body poza tolerancją = inny dokument. Pole
+ * nieznane po którejś stronie (devtoolsLog nie zna bajtów) nie rozstrzyga.
+ */
+export function variantMismatch(
+  reference: DocumentVariant,
+  observed: DocumentVariant,
+  toleranceBytes: number = VARIANT_BYTES_TOLERANCE,
+): string | null {
+  const refPolicy = normalizeCacheControl(reference.cacheControl);
+  const obsPolicy = normalizeCacheControl(observed.cacheControl);
+  const policyDiffers = refPolicy !== null && obsPolicy !== null && refPolicy !== obsPolicy;
+  const bytesDiffer =
+    reference.bytes !== null &&
+    observed.bytes !== null &&
+    Math.abs(observed.bytes - reference.bytes) > toleranceBytes;
+  if (!policyDiffers && !bytesDiffer) return null;
+  return `wariant dokumentu (${formatVariant(observed)}; wzorzec ${formatVariant(reference)})`;
+}
+
+/**
+ * Wpis z pełną świeżością magazynu (s-maxage ≥ pułap) - tak wygląda pełny
+ * render (`contentCacheControl`, s-maxage=900). Render ze zdegradowanym
+ * chrome'em ma s-maxage=30 i NIE nadaje się na wzorzec serii.
+ */
+export function isFullFreshness(o: Pick<DocumentObservation, "freshS">): boolean {
+  return o.freshS !== null && o.freshS >= DOCUMENT_FRESH_WINDOW_S;
+}
+
+/**
+ * Odpowiedź, która nigdy nie stanie się HIT-em (I3): redirect albo błąd
+ * (3xx-5xx), brak `x-nes-cache` (trasa poza mechanizmem cache) albo BYPASS.
+ * Null = odpowiedź z mechanizmu cache (HIT/STALE/MISS).
+ */
+export function uncachedReason(o: Pick<DocumentObservation, "status" | "cache">): string | null {
+  if (o.status >= 300) return `status ${o.status}`;
+  if (o.cache === null) return "brak x-nes-cache";
+  if (o.cache === "BYPASS") return "BYPASS";
+  return null;
 }
 
 /** Linie `kind: doc` z fragmentu logu serwera (pozostałe linie są ignorowane). */
@@ -655,9 +793,19 @@ export function parseServerLogDocs(text: string): ServerLogDoc[] {
   return out;
 }
 
-/** Czy linia logu oznacza render SSR w procesie serwera (MISS albo rewalidacja w tle). */
+/** Odpowiedź z magazynu (HIT/STALE) - jedyne statusy, za którymi nie stoi render SSR. */
+function servedFromCache(cache: string | null): boolean {
+  const status = cache?.toUpperCase() ?? null;
+  return status === "HIT" || status === "STALE";
+}
+
+/**
+ * Czy linia logu oznacza render SSR w procesie serwera: rewalidacja w tle
+ * albo każda odpowiedź spoza magazynu (MISS, BYPASS, brak statusu). BYPASS to
+ * też pełny render (recenzja D1).
+ */
 export function isServerRender(doc: ServerLogDoc): boolean {
-  return doc.revalidation || doc.cache === "MISS" || doc.cache === null;
+  return doc.revalidation || !servedFromCache(doc.cache);
 }
 
 export interface RunValidity {
@@ -665,35 +813,160 @@ export interface RunValidity {
   readonly reasons: readonly string[];
 }
 
+const decimal = (v: number) => v.toFixed(1).replace(".", ",");
+
 /**
  * Ważność przebiegu. `document` = odpowiedź, którą dostał Lighthouse (log
  * frontu), `devtools` = ta sama odpowiedź z devtoolsLog (kontrola krzyżowa,
  * gdy zapisujemy artefakty), `serverDocs` = linie logów serwerów dopisane
- * W TRAKCIE przebiegu, `rewarmOk` = rozgrzewka skończyła się świeżym HIT-em.
- * Przebieg jest ważny wyłącznie, gdy dokument był HIT i żaden serwer nie
- * renderował SSR.
+ * W TRAKCIE przebiegu, `rewarmOk` = rozgrzewka skończyła się świeżym HIT-em
+ * wariantu wzorcowego. Przebieg jest ważny wyłącznie, gdy:
+ *   - dokument był HIT i ma wariant wzorcowy serii (`referenceVariant`, B1),
+ *   - żaden serwer nie renderował SSR (D1: także BYPASS),
+ *   - loadavg przed przebiegiem ≤ `maxLoad` (I2).
+ * `allowUncached` (`--allow-uncached`, I3): dokument nie musi być HIT, a render
+ * każdego dokumentu podanego przez front w trakcie przebiegu (`runDocuments`,
+ * czyli samej nawigacji Lighthouse'a) jest dozwolony; każdy inny render,
+ * w tym rewalidacja w tle, nadal wyklucza.
  */
 export function classifyRun(input: {
   readonly document: DocumentObservation | null;
   readonly serverDocs: readonly ServerLogDoc[];
   readonly devtools?: DocumentObservation | null;
   readonly rewarmOk?: boolean;
+  /** Wariant wzorcowy serii (rozgrzewka początkowa); null/brak = bez kontroli wariantu. */
+  readonly referenceVariant?: DocumentVariant | null;
+  readonly variantToleranceBytes?: number;
+  /** loadavg(1 min) zmierzony przed przebiegiem. */
+  readonly load?: number;
+  /** Próg `--max-load`; brak = bez bramki obciążenia. */
+  readonly maxLoad?: number;
+  readonly allowUncached?: boolean;
+  /** Dokumenty podane przez front W TRAKCIE przebiegu (tylko `allowUncached`). */
+  readonly runDocuments?: readonly DocumentObservation[];
 }): RunValidity {
   const reasons: string[] = [];
   const doc = input.document;
-  if (!doc) reasons.push("brak odpowiedzi dokumentu w logu frontu");
-  else if (doc.cache !== "HIT")
+  const allowUncached = input.allowUncached === true;
+  if (!doc) {
+    if (!allowUncached) reasons.push("brak odpowiedzi dokumentu w logu frontu");
+  } else if (doc.cache !== "HIT" && !allowUncached)
     reasons.push(`dokument ${doc.cache ?? "bez x-nes-cache"} (status ${doc.status})`);
   const dev = input.devtools;
-  if (dev && dev.cache !== "HIT" && dev.cache !== doc?.cache)
+  if (dev && dev.cache !== "HIT" && dev.cache !== doc?.cache && !allowUncached)
     reasons.push(`devtoolsLog: dokument ${dev.cache ?? "bez x-nes-cache"}`);
-  if (input.rewarmOk === false) reasons.push("rozgrzewka bez świeżego HIT (limit czasu)");
-  const renders = input.serverDocs.filter(isServerRender);
-  if (renders.length) {
-    const kinds = renders.map((r) => (r.revalidation ? "rewalidacja" : (r.cache ?? "render")));
-    reasons.push(`SSR w trakcie przebiegu: ${renders.length}x (${[...new Set(kinds)].join(", ")})`);
+  const reference = input.referenceVariant;
+  if (reference) {
+    const tolerance = input.variantToleranceBytes ?? VARIANT_BYTES_TOLERANCE;
+    const docMismatch = doc ? variantMismatch(reference, documentVariant(doc), tolerance) : null;
+    // devtoolsLog nie zna bajtów - porównuje samą politykę wpisu.
+    const devMismatch =
+      dev && !docMismatch
+        ? variantMismatch(reference, { cacheControl: dev.cacheControl, bytes: null }, tolerance)
+        : null;
+    if (docMismatch) reasons.push(docMismatch);
+    else if (devMismatch) reasons.push(`devtoolsLog: ${devMismatch}`);
   }
+  if (input.rewarmOk === false) reasons.push("rozgrzewka bez świeżego HIT wariantu wzorcowego");
+  const renders = input.serverDocs.filter(isServerRender);
+  // Render samej nawigacji LH (tylko --allow-uncached): po jednym na dokument spoza magazynu.
+  let allowed = allowUncached
+    ? (input.runDocuments ?? (doc ? [doc] : [])).filter((d) => !servedFromCache(d.cache)).length
+    : 0;
+  const excess = renders.filter((r) => {
+    if (!r.revalidation && allowed > 0) {
+      allowed -= 1;
+      return false;
+    }
+    return true;
+  });
+  if (excess.length) {
+    const kinds = excess.map((r) => (r.revalidation ? "rewalidacja" : (r.cache ?? "render")));
+    reasons.push(`SSR w trakcie przebiegu: ${excess.length}x (${[...new Set(kinds)].join(", ")})`);
+  }
+  if (
+    input.load !== undefined &&
+    input.maxLoad !== undefined &&
+    Number.isFinite(input.load) &&
+    Number.isFinite(input.maxLoad) &&
+    input.load > input.maxLoad
+  )
+    reasons.push(`obciążenie (${decimal(input.load)} > ${decimal(input.maxLoad)})`);
   return { excluded: reasons.length > 0, reasons };
+}
+
+/**
+ * Jedna próba przebiegu harnessu tak, jak widzi ją `lighthouse-local.mjs`
+ * (P0.1-FIX, runda 2, D8): komplet wejść `classifyRun` w jednym miejscu, żeby
+ * test obejmował całe okablowanie (wariant wzorcowy, wynik rozgrzewki, oba
+ * pomiary obciążenia, `--allow-uncached`), a nie tylko samą regułę.
+ */
+export interface AttemptObservation {
+  /** Lighthouse oddał LHR (false = błąd wykonania po powtórce). */
+  readonly lhrOk: boolean;
+  readonly document: DocumentObservation | null;
+  readonly serverDocs: readonly ServerLogDoc[];
+  readonly devtools: DocumentObservation | null;
+  readonly rewarmOk: boolean;
+  readonly referenceVariant: DocumentVariant | null;
+  /** loadavg(1 min) po czekaniu na bezczynność, PRZED rozgrzewką (i ewentualnym restartem). */
+  readonly loadBefore: number;
+  /** loadavg(1 min) PO rozgrzewce, tuż przed startem Lighthouse'a (restart serwera też obciąża). */
+  readonly loadAfter: number;
+  readonly maxLoad: number;
+  readonly allowUncached: boolean;
+  readonly runDocuments: readonly DocumentObservation[];
+}
+
+const ATTEMPT_FIELDS = [
+  "lhrOk",
+  "document",
+  "serverDocs",
+  "devtools",
+  "rewarmOk",
+  "referenceVariant",
+  "loadBefore",
+  "loadAfter",
+  "maxLoad",
+  "allowUncached",
+  "runDocuments",
+] as const satisfies readonly (keyof AttemptObservation)[];
+
+/**
+ * Ważność próby. Bramka obciążenia bierze WIĘKSZY z dwóch pomiarów: przed
+ * rozgrzewką (stan po czekaniu) i po niej (restart procesu serwera i render
+ * MISS dokładają CPU tuż przed Lighthouse'em). Wołający z `.mjs` nie ma
+ * kontroli typów, więc brak pola (`undefined`; brak wartości to `null`) jest
+ * błędem już przy pierwszym przebiegu, a nie cichym wyłączeniem reguły.
+ */
+export function classifyAttempt(a: AttemptObservation): RunValidity & { readonly load: number } {
+  for (const field of ATTEMPT_FIELDS)
+    if (a[field] === undefined)
+      throw new Error(`classifyAttempt: brak pola ${field} (okablowanie lighthouse-local.mjs)`);
+  const loads = [a.loadBefore, a.loadAfter].filter((v) => Number.isFinite(v));
+  const load = loads.length ? Math.max(...loads) : Number.NaN;
+  if (!a.lhrOk) return { excluded: true, reasons: ["przebieg nieudany"], load };
+  const validity = classifyRun({
+    document: a.document,
+    serverDocs: a.serverDocs,
+    devtools: a.devtools,
+    rewarmOk: a.rewarmOk,
+    referenceVariant: a.referenceVariant,
+    load,
+    maxLoad: a.maxLoad,
+    allowUncached: a.allowUncached,
+    runDocuments: a.runDocuments,
+  });
+  return { ...validity, load };
+}
+
+/**
+ * Domyślny `--max-load`: 0,6 x liczba CPU (2,4 na 4 CPU), zgodnie z protokołem
+ * P0.5 (ważne przebiegi przy load 1,0-2,8; przy load ≥ 4 na 4 CPU TBT rośnie
+ * wielokrotnie). Dawny domyślny próg = liczba CPU przepuszczał A/A przy 3,7-4,0.
+ */
+export function defaultMaxLoad(cpuCount: number): number {
+  return Math.round(0.6 * Math.max(1, cpuCount) * 10) / 10;
 }
 
 /** `nes-edge;desc="HIT", app;dur=1` -> `nes-edge=HIT,app=1` (pełna wartość zostaje w summary.json). */
@@ -747,19 +1020,50 @@ export function documentFromDevtoolsLog(log: unknown): DocumentObservation | nul
 // A/A I MINIMALNY WYKRYWALNY EFEKT
 //
 // Dla par przebiegów (A_n, B_n z tej samej rundy przeplotu): σΔ = odchylenie
-// standardowe (n-1) różnic B-A, MDE = 2,8·σΔ/√n (test sparowany, α 0,05
-// dwustronnie, moc 0,8: 1,96 + 0,84). Pozycja, której oczekiwany efekt jest
-// mniejszy niż MDE, NIE jest oceniana medianą, tylko księgą per zadanie.
+// standardowe (n-1) różnic B-A, MDE = (t₀,₉₇₅ + t₀,₈)·σΔ/√n z df = n-1 (test
+// sparowany, α 0,05 dwustronnie, moc 0,8). Dawne 2,8 = 1,96 + 0,84 to
+// przybliżenie dużych prób: przy n = 5 zaniża próg o 25 % (3,72 vs 2,8),
+// przy n = 3 prawie dwukrotnie (5,36) - recenzja P0.1, I4. Linia PAIRS podaje
+// MDE(t) (próg obowiązujący) i MDE(z) (dawne 2,8, do porównania). Pozycja,
+// której oczekiwany efekt jest mniejszy niż MDE(t), NIE jest oceniana medianą,
+// tylko księgą per zadanie.
 
 export interface PairedStat {
   readonly key: NumericKey;
   readonly n: number;
   readonly meanDelta: number;
   readonly sdDelta: number;
+  /** MDE(t) = mnożnik t(df = n-1) · σΔ/√n - próg obowiązujący. */
   readonly mde: number;
+  /** MDE(z) = 2,8 · σΔ/√n (przybliżenie dużych prób, tylko do porównania). */
+  readonly mdeZ: number;
+  /** Mnożnik użyty w MDE(t): t₀,₉₇₅(df) + t₀,₈(df). */
+  readonly tMultiplier: number;
 }
 
 export const PAIRED_KEYS: readonly NumericKey[] = ["score", "fcp", "lcp", "tbt", "si", "tti"];
+
+/** z₀,₉₇₅ + z₀,₈ ≈ 1,96 + 0,84 - mnożnik dla df > 30. */
+export const MDE_Z_MULTIPLIER = 2.8;
+
+// Kwantyle rozkładu t Studenta dla df = 1..30 (tablice standardowe, 3 miejsca).
+const T_0975 = [
+  12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228, 2.201, 2.179, 2.16, 2.145,
+  2.131, 2.12, 2.11, 2.101, 2.093, 2.086, 2.08, 2.074, 2.069, 2.064, 2.06, 2.056, 2.052, 2.048,
+  2.045, 2.042,
+];
+const T_080 = [
+  1.376, 1.061, 0.978, 0.941, 0.92, 0.906, 0.896, 0.889, 0.883, 0.879, 0.876, 0.873, 0.87, 0.868,
+  0.866, 0.865, 0.863, 0.862, 0.861, 0.86, 0.859, 0.858, 0.858, 0.857, 0.856, 0.856, 0.855, 0.855,
+  0.854, 0.854,
+];
+
+/** t₀,₉₇₅(df) + t₀,₈(df) dla df 1..30, powyżej 2,8 (z); NaN dla df < 1. */
+export function mdeMultiplier(df: number): number {
+  if (!Number.isFinite(df) || df < 1) return Number.NaN;
+  const i = Math.floor(df);
+  return i <= T_0975.length ? T_0975[i - 1] + T_080[i - 1] : MDE_Z_MULTIPLIER;
+}
 
 export function pairedStats(
   pairs: readonly (readonly [RunMetrics, RunMetrics])[],
@@ -771,12 +1075,15 @@ export function pairedStats(
     const mean = n ? deltas.reduce((s, v) => s + v, 0) / n : Number.NaN;
     const variance = n > 1 ? deltas.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1) : Number.NaN;
     const sd = Math.sqrt(variance);
+    const tMultiplier = mdeMultiplier(n - 1);
     return {
       key,
       n,
       meanDelta: mean,
       sdDelta: sd,
-      mde: n > 1 ? (2.8 * sd) / Math.sqrt(n) : Number.NaN,
+      mde: n > 1 ? (tMultiplier * sd) / Math.sqrt(n) : Number.NaN,
+      mdeZ: n > 1 ? (MDE_Z_MULTIPLIER * sd) / Math.sqrt(n) : Number.NaN,
+      tMultiplier,
     };
   });
 }
@@ -791,11 +1098,17 @@ function statValue(key: NumericKey, v: number): string {
 
 export function formatPairedStats(label: string, stats: readonly PairedStat[]): string {
   const n = stats[0]?.n ?? 0;
+  const multiplier = stats[0]?.tMultiplier;
   const parts = stats.map(
     (s) =>
-      `${s.key}: Δ=${statValue(s.key, s.meanDelta)} σΔ=${statValue(s.key, s.sdDelta)} MDE=${statValue(s.key, s.mde)}`,
+      `${s.key}: Δ=${statValue(s.key, s.meanDelta)} σΔ=${statValue(s.key, s.sdDelta)} ` +
+      `MDE(t)=${statValue(s.key, s.mde)} MDE(z)=${statValue(s.key, s.mdeZ)}`,
   );
-  return `PAIRS ${label} (n=${n}): ${parts.join(" | ")}`;
+  const tLabel =
+    multiplier !== undefined && Number.isFinite(multiplier)
+      ? `, t(df=${n - 1})=${multiplier.toFixed(2)}`
+      : "";
+  return `PAIRS ${label} (n=${n}${tLabel}): ${parts.join(" | ")}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -846,8 +1159,13 @@ export function parsePsiReference(value: unknown): PsiReference {
   const forms = value["forms"];
   if (!isRecord(forms)) throw new Error("psi-reference: brak `forms`");
   const pick = (name: "mobile" | "desktop"): Partial<Record<NumericKey, number>> => {
-    const raw = forms[name];
-    if (!isRecord(raw)) throw new Error(`psi-reference: brak formy ${name}`);
+    const form = forms[name];
+    if (!isRecord(form)) throw new Error(`psi-reference: brak formy ${name}`);
+    // Dwa kształty: płaski `forms.<forma>.tbt` albo `summary.json` z
+    // `psi-sample.mjs` (także `--from-file` z eksportów D13), który trzyma
+    // liczby w `forms.<forma>.median` obok `min`/`max`/`runs`.
+    const medians = form["median"];
+    const raw = isRecord(medians) ? medians : form;
     const out: Partial<Record<NumericKey, number>> = {};
     for (const key of NUMERIC_KEYS) {
       const v = raw[key];
@@ -865,13 +1183,21 @@ export function parsePsiReference(value: unknown): PsiReference {
 /** Próg A/A z planu (P0.1): mediany FCP i LCP obu stron różnią się o ≤ 0,02 s. */
 export const AA_TOLERANCE_MS = 20;
 
-export function formatAaCheck(form: string, a: Medians, b: Medians): string {
+/**
+ * Linia AA. `modes` (I1) = rozkład trybów FCP przebiegów ważnych obu stron,
+ * np. `A pełny x3, częściowy x2 | B pełny x5`; bez niego (brak księgi) linia
+ * mówi, że trybu nie znamy.
+ */
+export function formatAaCheck(form: string, a: Medians, b: Medians, modes?: string): string {
   const dFcp = Math.abs(b.fcp - a.fcp);
   const dLcp = Math.abs(b.lcp - a.lcp);
   const ok = dFcp <= AA_TOLERANCE_MS && dLcp <= AA_TOLERANCE_MS;
+  const hint = modes
+    ? `tryby FCP: ${modes}`
+    : "tryb FCP nieznany - uruchom z --save-artifacts (księga)";
   return (
     `AA ${form}: |ΔFCP|=${(dFcp / 1000).toFixed(3)}s |ΔLCP|=${(dLcp / 1000).toFixed(3)}s ` +
-    `${ok ? "OK (≤ 0,02 s)" : "PONAD PRÓG 0,02 s (sprawdź tryb FCP przebiegów)"}`
+    `${ok ? "OK (≤ 0,02 s)" : `PONAD PRÓG 0,02 s (${hint})`}`
   );
 }
 
@@ -904,6 +1230,12 @@ export interface RunRecordLike {
   readonly valid: boolean;
   readonly reasons?: readonly string[];
   readonly metrics?: RunMetrics | null;
+  /** Tryb FCP z księgi Lantern (`lanternTasks.fcpModeOf`); null/brak = nieznany (bez artefaktów). */
+  readonly fcpMode?: string | null;
+  /** Odcisk wariantu dokumentu, który dostał Lighthouse (B1). */
+  readonly variant?: DocumentVariant | null;
+  /** Rozgrzewka przebiegu; `restores` > 0 = Lighthouse mierzył świeżo uruchomiony proces serwera. */
+  readonly rewarm?: { readonly restores?: number } | null;
 }
 
 /** Pary (A_n, B_n) z tej samej rundy przeplotu, w których OBA przebiegi są ważne. */
@@ -911,17 +1243,79 @@ export function validPairs(
   a: readonly RunRecordLike[],
   b: readonly RunRecordLike[],
 ): [RunMetrics, RunMetrics][] {
+  return validRecordPairs(a, b).map(([x, y]) => [x.metrics, y.metrics]);
+}
+
+type ValidRecord = RunRecordLike & { readonly metrics: RunMetrics };
+
+function validRecordPairs(
+  a: readonly RunRecordLike[],
+  b: readonly RunRecordLike[],
+): [ValidRecord, ValidRecord][] {
   const byN = (list: readonly RunRecordLike[]) => {
-    const map = new Map<number, RunMetrics>();
-    for (const r of list) if (r.valid && r.metrics) map.set(r.n, r.metrics);
+    const map = new Map<number, ValidRecord>();
+    for (const r of list) if (r.valid && r.metrics) map.set(r.n, { ...r, metrics: r.metrics });
     return map;
   };
   const left = byN(a);
   const right = byN(b);
-  const out: [RunMetrics, RunMetrics][] = [];
-  for (const [n, m] of [...left].sort((x, y) => x[0] - y[0])) {
+  const out: [ValidRecord, ValidRecord][] = [];
+  for (const [n, rec] of [...left].sort((x, y) => x[0] - y[0])) {
     const other = right.get(n);
-    if (other) out.push([m, other]);
+    if (other) out.push([rec, other]);
+  }
+  return out;
+}
+
+/**
+ * Pary ważne rozwarstwione po trybie FCP (recenzja P0.1, I1). Dwumodalność FCP
+ * (graf FCP z bootem JS albo bez niego) rozjeżdża σΔ par, w których strony
+ * trafiły różne tryby - takie pary liczymy osobno (`mixed`) i nie wchodzą do
+ * żadnej warstwy. `unknown` = para bez trybu po którejś stronie (brak księgi).
+ */
+export interface ModePairs {
+  readonly byMode: ReadonlyMap<string, [RunMetrics, RunMetrics][]>;
+  readonly mixed: number;
+  readonly unknown: number;
+  readonly total: number;
+}
+
+export function pairsByFcpMode(
+  a: readonly RunRecordLike[],
+  b: readonly RunRecordLike[],
+): ModePairs {
+  const byMode = new Map<string, [RunMetrics, RunMetrics][]>();
+  let mixed = 0;
+  let unknown = 0;
+  const pairs = validRecordPairs(a, b);
+  for (const [x, y] of pairs) {
+    if (!x.fcpMode || !y.fcpMode) unknown += 1;
+    else if (x.fcpMode !== y.fcpMode) mixed += 1;
+    else byMode.set(x.fcpMode, [...(byMode.get(x.fcpMode) ?? []), [x.metrics, y.metrics]]);
+  }
+  return { byMode, mixed, unknown, total: pairs.length };
+}
+
+/** `pełny 3, częściowy 1; mieszane 1/5; nieznany 0` - jedna linia rozkładu par. */
+export function formatModePairs(label: string, split: ModePairs): string {
+  const layers = [...split.byMode]
+    .sort((x, y) => y[1].length - x[1].length)
+    .map(([mode, list]) => `${mode} ${list.length}`)
+    .join(", ");
+  return (
+    `PAIRS ${label} tryb FCP: ${layers || "-"}; pary mieszane ${split.mixed}/${split.total}` +
+    (split.unknown ? `; bez trybu ${split.unknown}/${split.total}` : "")
+  );
+}
+
+/** Metryki przebiegów ważnych pogrupowane po trybie FCP (warstwy linii AA). */
+export function validMetricsByFcpMode(
+  records: readonly RunRecordLike[],
+): Map<string, RunMetrics[]> {
+  const out = new Map<string, RunMetrics[]>();
+  for (const r of records) {
+    if (!r.valid || !r.metrics || !r.fcpMode) continue;
+    out.set(r.fcpMode, [...(out.get(r.fcpMode) ?? []), r.metrics]);
   }
   return out;
 }
@@ -935,30 +1329,220 @@ export interface ValiditySummary {
   readonly excludedAttempts: number;
   /** Powód (bez liczb w nawiasach) -> liczba prób. */
   readonly reasons: Readonly<Record<string, number>>;
+  /** Wariant dokumentu (`formatVariant`) -> liczba przebiegów ważnych (B1). */
+  readonly variants: Readonly<Record<string, number>>;
+  /** Tryb FCP -> liczba przebiegów ważnych (I1); pusty bez księgi. */
+  readonly fcpModes: Readonly<Record<string, number>>;
+  /**
+   * Przebiegi ważne, przed którymi rozgrzewka restartowała serwer (świeży
+   * proces: zimny JIT i cache izolatu). Etap pomiarowy sprawdza, czy nie
+   * skupiają się po jednej stronie A/A (recenzja P0.1-FIX, runda 2).
+   */
+  readonly restored: number;
 }
 
 export function summarizeValidity(records: readonly RunRecordLike[]): ValiditySummary {
   const rounds = new Set(records.map((r) => r.n));
   const valid = new Set(records.filter((r) => r.valid).map((r) => r.n));
   const reasons: Record<string, number> = {};
+  const variants: Record<string, number> = {};
+  const fcpModes: Record<string, number> = {};
   let excludedAttempts = 0;
+  let restored = 0;
   for (const r of records) {
-    if (r.valid) continue;
+    if (r.valid) {
+      if ((r.rewarm?.restores ?? 0) > 0) restored += 1;
+      if (r.variant) {
+        const label = formatVariant(r.variant);
+        variants[label] = (variants[label] ?? 0) + 1;
+      }
+      if (r.fcpMode) fcpModes[r.fcpMode] = (fcpModes[r.fcpMode] ?? 0) + 1;
+      continue;
+    }
     excludedAttempts += 1;
     for (const reason of r.reasons ?? []) {
       const key = reason.replace(/\s*\(.*\)$/, "").replace(/: \d+x$/, "");
       reasons[key] = (reasons[key] ?? 0) + 1;
     }
   }
-  return { nValid: valid.size, rounds: rounds.size, excludedAttempts, reasons };
+  return {
+    nValid: valid.size,
+    rounds: rounds.size,
+    excludedAttempts,
+    reasons,
+    variants,
+    fcpModes,
+    restored,
+  };
+}
+
+/** `pełny x3, częściowy x2` (malejąco). */
+export function formatCounts(counts: Readonly<Record<string, number>> | undefined): string {
+  return Object.entries(counts ?? {})
+    .sort((x, y) => y[1] - x[1])
+    .map(([k, v]) => `${k} x${v}`)
+    .join(", ");
 }
 
 export function formatValidity(label: string, s: ValiditySummary): string {
   const why = Object.entries(s.reasons)
     .map(([k, v]) => `${k} x${v}`)
     .join("; ");
+  const variants = formatCounts(s.variants);
+  const modes = formatCounts(s.fcpModes);
   return (
     `VALID ${label}: n_valid=${s.nValid}/${s.rounds} excluded=${s.excludedAttempts}` +
-    (why ? ` (${why})` : "")
+    (why ? ` (${why})` : "") +
+    (variants ? ` wariant: ${variants}` : "") +
+    (modes ? ` trybFCP: ${modes}` : "") +
+    (s.nValid ? ` po restarcie serwera: ${s.restored}/${s.nValid}` : "")
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WYNIK SERII: PRÓG `n_valid`, KOD WYJŚCIA, ZAPIS BASELINE'U (recenzja I3, D8)
+//
+// Seria, w której forma ma mniej niż `--min-valid` przebiegów ważnych, NIE jest
+// sukcesem: kod wyjścia 1 i odmowa zapisu baseline'u tej formy (dawniej zero
+// ważnych przebiegów kończyło się kodem 0, a `--save-baseline` zapisywał pusty
+// plik, który `loadBaseline` przedkładał potem nad śledzony).
+
+/**
+ * `--min-valid`: domyślnie `runs`; jawna wartość nie schodzi poniżej
+ * min(3, runs) - baseline i mediana z 1-2 przebiegów z 5 nic nie znaczą.
+ * Wartość większa niż `runs` jest nieosiągalna, a wartość nieliczbowa
+ * (`--min-valid abc`) nie jest „brakiem flagi" - obie są błędem wywołania,
+ * tak jak niepoprawne `--max-load`. Tekst z CLI parsujemy ściśle (`Number`,
+ * nie `parseInt`, więc `5abc` też jest błędem).
+ */
+export function resolveMinValid(requested: number | string | undefined, runs: number): number {
+  const floor = Math.min(3, Math.max(1, runs));
+  if (requested === undefined) return Math.max(floor, runs);
+  const parsed =
+    typeof requested === "string"
+      ? requested.trim() === ""
+        ? Number.NaN
+        : Number(requested)
+      : requested;
+  if (!Number.isFinite(parsed))
+    throw new Error(`--min-valid ${String(requested)}: oczekiwana liczba całkowita`);
+  const value = Math.floor(parsed);
+  if (value > runs) throw new Error(`--min-valid ${value} > --runs ${runs}: próg nieosiągalny`);
+  return Math.max(floor, value);
+}
+
+export interface SeriesEntry {
+  /** Strona serii: "" (pojedynczy artefakt), "A" albo "B". */
+  readonly tag: string;
+  readonly form: string;
+  readonly validity: Pick<ValiditySummary, "nValid" | "rounds">;
+}
+
+export interface SeriesOutcome {
+  readonly exitCode: 0 | 1;
+  /** Linie `FAIL …` do druku (po jednej na formę/stronę poniżej progu). */
+  readonly failures: readonly string[];
+  /** Formy strony baseline'u, które wolno zapisać (`n_valid` ≥ próg). */
+  readonly baselineForms: readonly string[];
+  /** Formy strony baseline'u, których zapisu odmawiamy. */
+  readonly refusedBaselineForms: readonly string[];
+  /** Powód przerwania serii w połowie (wyjątek w trakcie przebiegów); null = seria kompletna. */
+  readonly aborted: string | null;
+}
+
+/**
+ * Wynik serii. `aborted` (P0.1-FIX, runda 2): seria przerwana wyjątkiem
+ * w trakcie przebiegów (np. serwer artefaktu nie wstał po restarcie) NIE
+ * gubi już przebiegów ukończonych - harness liczy z nich podsumowanie
+ * i summary.json - ale jest porażką (kod 1) i nie zapisuje baseline'u
+ * żadnej formy, bo nie wiadomo, czy brakujące rundy nie zmieniłyby median.
+ */
+export function seriesOutcome(
+  entries: readonly SeriesEntry[],
+  options: {
+    readonly minValid: number;
+    readonly baselineTag: string;
+    readonly aborted?: string | null;
+  },
+): SeriesOutcome {
+  const failures: string[] = [];
+  const baselineForms: string[] = [];
+  const refusedBaselineForms: string[] = [];
+  const aborted = options.aborted ?? null;
+  if (aborted)
+    failures.push(`FAIL seria przerwana: ${aborted} (wyniki częściowe, baseline bez zapisu)`);
+  for (const e of entries) {
+    const ok = e.validity.nValid >= options.minValid && e.validity.nValid > 0;
+    if (!ok)
+      failures.push(
+        `FAIL ${e.tag ? `${e.tag} ` : ""}${e.form}: n_valid=${e.validity.nValid}/${e.validity.rounds} ` +
+          `< --min-valid ${options.minValid}`,
+      );
+    if (e.tag === options.baselineTag)
+      (ok && !aborted ? baselineForms : refusedBaselineForms).push(e.form);
+  }
+  return {
+    exitCode: failures.length ? 1 : 0,
+    failures,
+    baselineForms,
+    refusedBaselineForms,
+    aborted,
+  };
+}
+
+/**
+ * Korzeń artefaktu do zapisu (D3, runda 2): wewnątrz repo harnessu - ścieżka
+ * względna (`.`, `worktrees/x`); poza nim - `poza-repo:<nazwa katalogu>`.
+ * `relative()` dawał dla `/tmp/x/wt` ścieżkę `../../tmp/x/wt`, czyli układ
+ * maszyny w formie względnej. Tożsamość artefaktu niesie i tak `commit`.
+ */
+export function portableRoot(root: string, harnessRoot: string): string {
+  const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "");
+  const r = norm(root);
+  const base = norm(harnessRoot);
+  if (r === base) return ".";
+  if (r.startsWith(`${base}/`)) return r.slice(base.length + 1);
+  const name = r.split("/").filter(Boolean).at(-1) ?? "?";
+  return `poza-repo:${name}`;
+}
+
+/**
+ * Tekst do zapisu bez ścieżek maszyny (D3, runda 2): każde wystąpienie ścieżki
+ * z `labels` zastępuje etykieta (najdłuższe ścieżki najpierw, żeby korzeń
+ * worktree nie zjadł prefiksu ścieżki wyników). Dotyczy komunikatu przerwania
+ * serii (`aborted`), który niesie `root` z wyjątku startu serwera.
+ */
+export function scrubPaths(
+  text: string,
+  labels: readonly (readonly [path: string, label: string])[],
+): string {
+  return [...labels]
+    .filter(([path]) => path.length > 1)
+    .sort((x, y) => y[0].length - x[0].length)
+    .reduce((out, [path, label]) => out.split(path).join(label), text);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LINIA K Z FLAGAMI (recenzja D6)
+
+/** Flagi, z którymi k jest zdefiniowane (P0.1 pkt 8: TBT_PSI / TBT_fixture_z_flagami). */
+export const CALIBRATION_FLAGS = flagsLabel("fixture", "fake-gtag");
+
+const RECALC_HINT = " (|k-1| > 0,2: przelicz cele fixture)";
+
+/**
+ * Linia K z etykietą flag. Bez pełnych flag (`CALIBRATION_FLAGS`) k NIE
+ * kalibruje niczego: dopisek `(bez flag, nie kalibruje)` albo `(niepełne flagi,
+ * nie kalibruje)` i bez wskazówki przeliczenia celów.
+ */
+export function formatCalibrationLine(
+  form: FormName,
+  fixture: Medians,
+  reference: PsiReference,
+  flags: string,
+): string {
+  const line = formatCalibration(form, fixture, reference);
+  if (flags === CALIBRATION_FLAGS) return `${line} {${flags}}`;
+  const why = flags === NO_FLAGS ? "bez flag" : "niepełne flagi";
+  return `${line.replace(RECALC_HINT, "")} {${flags}} (${why}, nie kalibruje)`;
 }

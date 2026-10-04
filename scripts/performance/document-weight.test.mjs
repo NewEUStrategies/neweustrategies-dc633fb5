@@ -4,10 +4,12 @@
 //
 // Uruchomienie: node --test scripts/performance/document-weight.test.mjs
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   analyzeDocument,
   checkBudgets,
@@ -101,6 +103,44 @@ test("bramka: KONTROLA NEGATYWNA - pomiar ponad progiem oblewa, równy przechodz
   });
   const result = checkBudgets(regressed, { inlineStyleCount: { max: w.inlineStyleCount } });
   assert.equal(result[0].ok, false);
+});
+
+const CHECK = join(dirname(fileURLToPath(import.meta.url)), "check-document-weight.ts");
+
+function checkWeight(args) {
+  return spawnSync(process.execPath, [CHECK, ...args], { encoding: "utf8" });
+}
+
+test("bramka: KONTROLA NEGATYWNA - brak pliku progów przy aktywnej bramce kończy się kodem 1", () => {
+  const dir = mkdtempSync(join(tmpdir(), "nes-dw-cli-"));
+  const html = join(dir, "dokument.html");
+  writeFileSync(html, HTML);
+  const missing = join(dir, "nie-ma-progow.json");
+  const report = join(dir, "raport.json");
+  const common = ["--root", dir, "--json", report];
+
+  // --html + --assert: bramka aktywna, progów brak.
+  const asserted = checkWeight([...common, "--html", html, "--assert", "--budgets", missing]);
+  assert.equal(asserted.status, 1, asserted.stdout);
+  assert.match(asserted.stderr, /✗ Brak pliku progów .*nie-ma-progow\.json/);
+
+  // Tryb artefaktu (bramka zawsze aktywna): błąd PRZED startem artefaktu -
+  // katalog jest pusty, więc start skończyłby się innym komunikatem.
+  const artifact = checkWeight([...common, "--budgets", missing]);
+  assert.equal(artifact.status, 1, artifact.stdout);
+  assert.match(artifact.stderr, /✗ Brak pliku progów/);
+
+  // Kontrola: analiza pliku bez --assert nie jest bramką - brak progów to informacja.
+  const analysis = checkWeight([...common, "--html", html, "--budgets", missing]);
+  assert.equal(analysis.status, 0, analysis.stderr);
+  assert.match(analysis.stdout, /brak pliku progów/);
+
+  // Kontrola pozytywna: ta sama bramka z plikiem progów przechodzi.
+  const budgets = join(dir, "progi.json");
+  writeFileSync(budgets, JSON.stringify({ budgets: { htmlRawBytes: { max: 10 ** 9 } } }));
+  const ok = checkWeight([...common, "--html", html, "--assert", "--budgets", budgets]);
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.match(ok.stdout, /✓ Waga dokumentu w progach/);
 });
 
 test("ratchet: progi wyłącznie w dół", () => {

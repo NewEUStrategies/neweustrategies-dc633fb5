@@ -70,6 +70,7 @@ import {
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import {
   buildServerTimingValue,
+  type DocumentStoreOutcome,
   type NesCacheLayer,
   type SsrDbTiming,
   type SsrPhaseTiming,
@@ -671,11 +672,32 @@ export function applyDeferredDocumentStore(
    * single-flight zanim cokolwiek się zapisało.
    */
   onStore?: (work: Promise<boolean>) => void,
+  /**
+   * Wynik decyzji zapisu dla telemetrii (recenzja P0.4, MAJOR 2): linia logu
+   * dokumentu w `src/server.ts` ma mówić, co magazyn NAPRAWDĘ zrobił, a nie
+   * tylko, co obiecywały nagłówki w chwili wysłania. Wołane DOKŁADNIE RAZ
+   * i SYNCHRONICZNIE w chwili decyzji: `degraded` jeszcze w tym wywołaniu
+   * (granica handlera), reszta po zebraniu kopii, a `stored` PRZED `setEntry` -
+   * linia rewalidacji w tle jest więc w logu, zanim odświeżony wpis da się
+   * podać jako HIT (kontrakt z harnessem pomiaru: `rewarmDocument`
+   * + `logCursor` w scripts/performance/artifactServer.ts). Niewołane, gdy
+   * odpowiedź nie była zarejestrowana do zapisu. Wyjątek z telemetrii jest
+   * połykany - nie może zmienić decyzji ani zerwać zapisu.
+   */
+  onOutcome?: (outcome: DocumentStoreOutcome) => void,
 ): Response {
   if (!response.body) return response;
   const record = deferredStores.get(response.body);
   if (!record) return response;
   deferredStores.delete(response.body);
+
+  const decide = (outcome: DocumentStoreOutcome): void => {
+    try {
+      onOutcome?.(outcome);
+    } catch {
+      /* telemetria nie może zmienić losu zapisu */
+    }
+  };
 
   // A later middleware, h3 header merge, or a Suspense boundary may tighten
   // cache policy after the write was registered. Recheck at BOTH boundaries:
@@ -696,6 +718,7 @@ export function applyDeferredDocumentStore(
     // ten MISS też nie zasieje magazynu, więc dostaje to samo odświeżenie w tle
     // co gałąź w `decorateMissAndDeferStore` (ten sam limit prób per klucz).
     scheduleDegradedRevalidation(record.request, record.key, Date.now());
+    decide("degraded");
     const headers = new Headers(response.headers);
     headers.set("cache-control", "private, no-store");
     return new Response(response.body, {
@@ -727,14 +750,19 @@ export function applyDeferredDocumentStore(
       console.warn(
         `[nes-edge-cache] dokument > ${DOCUMENT_CACHE_MAX_ENTRY_BYTES} B nie wchodzi do cache: ${record.key}`,
       );
+      decide("oversize");
       return false;
     }
-    if (!body) return false;
+    if (!body) {
+      decide("failed");
+      return false;
+    }
     if (!canStillStore()) {
       // Degradacja odkryta W TRAKCIE strumieniowania (np. chrome, którego
       // `warm()` padło po flushu shella) - dokument poszedł do czytelnika, ale
       // nie wchodzi do cache'a. Tło ma szansę oddać czysty; limit prób jak wyżej.
       scheduleDegradedRevalidation(record.request, record.key, Date.now());
+      decide("degraded");
       return false;
     }
     const entry: DocumentCacheEntry = {
@@ -748,6 +776,9 @@ export function applyDeferredDocumentStore(
       freshMs: record.freshMs,
       swrMs: record.swrMs,
     };
+    // Decyzja zgłaszana PRZED `setEntry`: od `setEntry` wpis jest HIT-em
+    // (patrz `onOutcome` wyżej).
+    decide("stored");
     setEntry(record.key, entry);
     // Czysty dokument wylądował - licznik prób po degradacji tego klucza jest
     // bez znaczenia (następna degradacja zaczyna świeże okno).

@@ -31,6 +31,7 @@ import {
   resolveRequestColo,
   sanitizeRay,
   type BodyEndOutcome,
+  type DocumentStoreOutcome,
   type NesCacheLayer,
 } from "../ssrTiming";
 import {
@@ -807,6 +808,155 @@ describe("observeBodyEnd - koniec body z owijki strumienia, nie z tee", () => {
   });
 });
 
+// Recenzja P0.4, MAJOR 1 i MINOR 9: linia logu nie może zależeć od tego, czy
+// runtime wykona JS `cancel()` po zerwaniu klienta (Workers tego nie
+// gwarantuje). Bezpiecznik zgłasza `aborted` sam, raz, i nie dotyka strumienia.
+describe("observeBodyEnd - bezpiecznik telemetrii (fuseMs)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("body nieczytane i nieanulowane: `aborted` dokładnie po fuseMs, a strumień płynie dalej nietknięty", async () => {
+    vi.useFakeTimers();
+    const { stream, controller, cancelled } = controlledSource();
+    const outcomes: BodyEndOutcome[] = [];
+    const observed = observeBodyEnd(stream, (outcome) => outcomes.push(outcome), {
+      fuseMs: 22_000,
+    });
+    const first = encoder.encode("<html><body>");
+    controller.enqueue(first);
+
+    vi.advanceTimersByTime(21_999);
+    expect(outcomes).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(outcomes).toEqual(["aborted"]);
+    // Bezpiecznik zamyka TELEMETRIĘ, nie dokument: źródło nie zostało
+    // anulowane, a późny czytelnik dostaje te same chunki do końca.
+    expect(cancelled).toEqual([]);
+    controller.enqueue(encoder.encode("</body></html>"));
+    controller.close();
+    const reader = observed.getReader();
+    expect((await reader.read()).value).toBe(first);
+    expect((await reader.read()).done).toBe(false);
+    expect((await reader.read()).done).toBe(true);
+    // Koniec po bezpieczniku nie daje drugiej linii.
+    expect(outcomes).toEqual(["aborted"]);
+  });
+
+  it("normalny koniec przed bezpiecznikiem zdejmuje timer - żadnego późnego `aborted`", async () => {
+    vi.useFakeTimers();
+    const { stream, controller } = controlledSource();
+    const outcomes: BodyEndOutcome[] = [];
+    const observed = observeBodyEnd(stream, (outcome) => outcomes.push(outcome), {
+      fuseMs: 22_000,
+    });
+    expect(vi.getTimerCount()).toBe(1);
+    controller.enqueue(encoder.encode("<html>ok</html>"));
+    controller.close();
+    expect(await new Response(observed).text()).toBe("<html>ok</html>");
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(60_000);
+    expect(outcomes).toEqual(["done"]);
+  });
+
+  it("zerwanie przed bezpiecznikiem zdejmuje timer - jedno `aborted`, nie dwa", async () => {
+    vi.useFakeTimers();
+    const { stream } = controlledSource();
+    const outcomes: BodyEndOutcome[] = [];
+    const reader = observeBodyEnd(stream, (outcome) => outcomes.push(outcome), {
+      fuseMs: 22_000,
+    }).getReader();
+    await reader.cancel(new Error("klient zniknął"));
+    expect(vi.getTimerCount()).toBe(0);
+    vi.advanceTimersByTime(60_000);
+    expect(outcomes).toEqual(["aborted"]);
+  });
+
+  it.each([undefined, 0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    "fuseMs=%s nie uzbraja bezpiecznika (zachowanie sprzed poprawki)",
+    (fuseMs) => {
+      vi.useFakeTimers();
+      const { stream } = controlledSource();
+      const outcomes: BodyEndOutcome[] = [];
+      observeBodyEnd(stream, (outcome) => outcomes.push(outcome), { fuseMs });
+      expect(vi.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(60_000);
+      expect(outcomes).toEqual([]);
+    },
+  );
+});
+
+// Recenzja P0.4, MAJOR 2 + kontrakt harnessu pomiaru: linia czeka na decyzję
+// magazynu, a czytelnik, który doczytał body, ma ją już w logu.
+describe("observeBodyEnd - obietnica z `onEnd` dla `done`", () => {
+  it("wstrzymuje `done` czytelnika do swojego rozstrzygnięcia", async () => {
+    const { stream, controller } = controlledSource();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const events: string[] = [];
+    const reader = observeBodyEnd(stream, (outcome) => {
+      events.push(`onEnd:${outcome}`);
+      return gate.then(() => {
+        events.push("linia");
+      });
+    }).getReader();
+    controller.close();
+    const end = reader.read().then((result) => {
+      events.push(`czytelnik:${String(result.done)}`);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(events).toEqual(["onEnd:done"]);
+    release();
+    await end;
+    expect(events).toEqual(["onEnd:done", "linia", "czytelnik:true"]);
+  });
+
+  it("odrzucona obietnica nie zrywa dokumentu", async () => {
+    const { stream, controller } = controlledSource();
+    const observed = observeBodyEnd(stream, () => Promise.reject(new Error("log padł")));
+    controller.enqueue(encoder.encode("<html>ok</html>"));
+    controller.close();
+    expect(await new Response(observed).text()).toBe("<html>ok</html>");
+  });
+
+  it("`aborted` nigdy nie czeka na obietnicę z `onEnd`", async () => {
+    const { stream, cancelled } = controlledSource();
+    const outcomes: BodyEndOutcome[] = [];
+    const reader = observeBodyEnd(stream, (outcome) => {
+      outcomes.push(outcome);
+      return new Promise<void>(() => {});
+    }).getReader();
+    await reader.cancel(new Error("klient zniknął"));
+    expect(outcomes).toEqual(["aborted"]);
+    expect(cancelled).toHaveLength(1);
+  });
+
+  it("anulowanie w trakcie czekania na linię nie rzuca i nie daje drugiego zgłoszenia", async () => {
+    const { stream, controller } = controlledSource();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const outcomes: BodyEndOutcome[] = [];
+    const reader = observeBodyEnd(stream, (outcome) => {
+      outcomes.push(outcome);
+      return gate;
+    }).getReader();
+    controller.close();
+    const pendingRead = reader.read();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await reader.cancel(new Error("klient zniknął"));
+    expect((await pendingRead).done).toBe(true);
+    // `controller.close()` po anulowaniu jest połykane - bez nieobsłużonego
+    // odrzucenia (vitest zgłosiłby je jako błąd przebiegu).
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(outcomes).toEqual(["done"]);
+  });
+});
+
 describe("buildDocumentLogLine - pola P0.4", () => {
   it("odtwarza pełną linię MISS-a z zimnego izolatu: kolonia, warstwa, ray, klasa UA, streamMs", () => {
     expect(
@@ -902,7 +1052,17 @@ describe("buildDocumentLogLine - pola P0.4", () => {
       appMs: 812,
       revalidation: true,
     });
-    for (const key of ["isoReq", "isoAgeS", "colo", "ray", "uaClass", "streamMs", "degraded"]) {
+    for (const key of [
+      "isoReq",
+      "isoAgeS",
+      "coldEntry",
+      "colo",
+      "ray",
+      "uaClass",
+      "streamMs",
+      "degraded",
+      "store",
+    ]) {
       expect(line).not.toHaveProperty(key);
     }
     expect(line.layer).toBe("render");
@@ -952,5 +1112,50 @@ describe("buildDocumentLogLine - pola P0.4", () => {
       isoReq: 4,
       isoAgeS: 0,
     });
+  });
+});
+
+describe("buildDocumentLogLine - poprawki po recenzji P0.4", () => {
+  const base = {
+    path: "/",
+    status: 200,
+    cacheStatus: "MISS",
+    serverTiming: null,
+    serverInitMs: 0,
+    appMs: 5,
+  };
+
+  it("`coldEntry` jedzie z próbką izolatu, w obu wartościach (MINOR 4)", () => {
+    expect(
+      buildDocumentLogLine({ ...base, isolate: { isoReq: 2, isoAgeS: 0, coldEntry: true } }),
+    ).toMatchObject({ isoReq: 2, isoAgeS: 0, coldEntry: true });
+    expect(
+      buildDocumentLogLine({ ...base, isolate: { isoReq: 3, isoAgeS: 1, coldEntry: false } }),
+    ).toMatchObject({ isoReq: 3, coldEntry: false });
+  });
+
+  it("`coldEntry` odpada razem z licznikiem nie do użycia i bez próbki", () => {
+    expect(
+      buildDocumentLogLine({ ...base, isolate: { isoReq: 0, isoAgeS: 0, coldEntry: true } }),
+    ).not.toHaveProperty("coldEntry");
+    expect(
+      buildDocumentLogLine({ ...base, isolate: { isoReq: 1, isoAgeS: 0 } }),
+    ).not.toHaveProperty("coldEntry");
+  });
+
+  it.each<DocumentStoreOutcome>(["stored", "degraded", "oversize", "failed"])(
+    "wynik zapisu `%s` trafia do linii jako `store` (MAJOR 2)",
+    (storeOutcome) => {
+      expect(buildDocumentLogLine({ ...base, storeOutcome })).toMatchObject({
+        store: storeOutcome,
+      });
+    },
+  );
+
+  it("wynik spoza słownika i brak wyniku = brak klucza `store`", () => {
+    const bogus = "pending" as unknown as DocumentStoreOutcome;
+    expect(buildDocumentLogLine({ ...base, storeOutcome: bogus })).not.toHaveProperty("store");
+    expect(buildDocumentLogLine({ ...base, storeOutcome: null })).not.toHaveProperty("store");
+    expect(buildDocumentLogLine(base)).not.toHaveProperty("store");
   });
 });

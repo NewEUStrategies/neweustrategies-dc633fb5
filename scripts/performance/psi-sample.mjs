@@ -50,9 +50,28 @@
 //   node scripts/performance/psi-sample.mjs --from-file eksport.json [--from-file katalog/] ...
 //        [--baseline plik.json] [--save-baseline plik.json] [--out katalog]   (analiza offline)
 //
+// `--runs` ma górny limit MAX_RUNS (10 na formę): 2 formy x 10 przebiegów
+// x (20-60 s + 15 s odstępu) mieści się w 30-minutowym limicie kroku `psi.yml`.
+//
+// `summary.json` jest wprost wejściem kalibracji k harnessu lokalnego:
+// `lighthouse-local.mjs --psi-reference summary.json` czyta mediany
+// z `forms.<forma>.median` (parsePsiReference w lighthouseReport.ts). Wymaga
+// obu form (mobile i desktop).
+//
+// Podmiany środowiska, WYŁĄCZNIE dla testów (workflow ich nie ustawia):
+//   PSI_ENDPOINT_URL   adres API zamiast Google (lokalny serwer testu). Klucz
+//                      z PSI_API_KEY idzie pod ten adres, więc wolno tu wpisać
+//                      tylko serwer, któremu się ufa.
+//   PSI_RETRY_BASE_MS  podstawa odstępu ponowień (domyślnie 30 000 ms, czyli
+//                      30, 60 i 90 s).
+//
 // Kod wyjścia 1, gdy którakolwiek z żądanych form nie ma ANI JEDNEGO udanego
 // przebiegu - nocny workflow `psi.yml` ma wtedy być czerwony, a nie zielony
-// z pustym `summary.json`.
+// z pustym `summary.json`. Błąd API trafia do logu jedną linią
+// (`error.message` z treści odpowiedzi Google, przy błędzie sieci kod
+// z `error.cause`), bo podsumowanie joba bierze z logu pojedyncze linie.
+// Wartość PSI_API_KEY jest maskowana w każdej linii błędu, także gdy serwer
+// odbije ją w treści odpowiedzi.
 import {
   existsSync,
   mkdirSync,
@@ -83,12 +102,70 @@ export const MISS_THRESHOLD_MS = 1000;
 /** Pojedyncze wywołanie PSI trwa 20-60 s; dłużej = zawieszone połączenie. */
 const PSI_TIMEOUT_MS = 150_000;
 const PSI_ATTEMPTS = 4;
+/** Odstęp przed ponowieniem n = PSI_RETRY_BASE_MS x n (30, 60, 90 s). */
+export const PSI_RETRY_BASE_MS = 30_000;
+/** Górny limit `--runs` na formę (patrz nagłówek: limit kroku `psi.yml`). */
+export const MAX_RUNS = 10;
+
+/**
+ * Adres API i podstawa odstępu ponowień z podmianami środowiska
+ * (PSI_ENDPOINT_URL, PSI_RETRY_BASE_MS; opis w nagłówku pliku).
+ */
+export function liveSettings(env = process.env) {
+  const endpoint = env.PSI_ENDPOINT_URL || PSI_ENDPOINT;
+  if (!URL.canParse(endpoint)) throw new Error(`PSI_ENDPOINT_URL: to nie jest URL (${endpoint})`);
+  const rawBase = env.PSI_RETRY_BASE_MS;
+  const retryBaseMs = rawBase === undefined || rawBase === "" ? PSI_RETRY_BASE_MS : Number(rawBase);
+  if (!Number.isFinite(retryBaseMs) || retryBaseMs < 0) {
+    throw new Error(`PSI_RETRY_BASE_MS: oczekiwana liczba milisekund >= 0 (${rawBase})`);
+  }
+  return { endpoint, retryBaseMs };
+}
 
 /** URL zapytania PSI API v5 dla jednego przebiegu. */
-export function psiRequestUrl(target, strategy, { key, locale = DEFAULT_LOCALE } = {}) {
+export function psiRequestUrl(
+  target,
+  strategy,
+  { key, locale = DEFAULT_LOCALE, endpoint = PSI_ENDPOINT } = {},
+) {
   const params = new URLSearchParams({ url: target, strategy, category: "performance", locale });
   if (key) params.set("key", key);
-  return `${PSI_ENDPOINT}?${params}`;
+  return `${endpoint}?${params}`;
+}
+
+/** Wartość klucza API zastąpiona `***` w dowolnym tekście (linie błędów). */
+export function redactSecret(text, secret) {
+  return secret ? String(text).split(secret).join("***") : String(text);
+}
+
+function oneLine(text) {
+  return String(text).replace(/\s+/g, " ").trim().slice(0, 300);
+}
+
+/**
+ * Jedna linia z treści błędu PSI. Google odpowiada wieloliniowym JSON-em
+ * (`{ "error": { "code": 400, "message": "API key not valid...", ... } }`),
+ * a podsumowanie joba bierze z logu pojedyncze linie - stąd `error.message`,
+ * a dla innej treści (HTML bramki, pusty body) spłaszczony początek tekstu.
+ */
+export function psiErrorDetail(text) {
+  try {
+    const message = JSON.parse(text)?.error?.message;
+    if (typeof message === "string" && message.trim() !== "") return oneLine(message);
+  } catch {
+    // To nie JSON - niżej spłaszczony tekst.
+  }
+  return oneLine(text) || "(pusta odpowiedź)";
+}
+
+/**
+ * Błąd `fetch` z przyczyną: undici zgłasza samo „fetch failed", a właściwy
+ * powód (ECONNREFUSED, ENOTFOUND, UND_ERR_CONNECT_TIMEOUT) jest w `cause`.
+ */
+export function fetchErrorDetail(error) {
+  if (!(error instanceof Error)) return String(error);
+  const reason = error.cause?.code ?? error.cause?.message;
+  return reason ? `${error.message} (${String(reason)})` : error.message;
 }
 
 /** URL zapytania do logu i `summary.json` - bez klucza API. */
@@ -317,25 +394,36 @@ function writeSummary(data, { outDir, saveBaseline }) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function callPsi(requestUrl) {
+async function callPsi(requestUrl, { key, retryBaseMs }) {
   let lastError = "";
   for (let attempt = 1; attempt <= PSI_ATTEMPTS; attempt++) {
     let res = null;
     try {
       res = await fetch(requestUrl, { signal: AbortSignal.timeout(PSI_TIMEOUT_MS) });
     } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
+      lastError = redactSecret(fetchErrorDetail(error), key);
     }
-    if (res?.ok) return res.json();
-    if (res) {
+    if (res?.ok) {
+      // Bez `res.json()`: jego SyntaxError cytuje początek treści (ucięty, więc
+      // maskowanie całego klucza by go nie złapało).
       const text = await res.text();
-      if (res.status !== 429 && res.status < 500) {
-        throw new Error(`PSI HTTP ${res.status}: ${text.slice(0, 300)}`);
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error(
+          `PSI HTTP ${res.status}: odpowiedź nie jest JSON-em (${text.length} znaków)`,
+        );
       }
-      lastError = `HTTP ${res.status}`;
+    }
+    if (res) {
+      const detail = redactSecret(psiErrorDetail(await res.text()), key);
+      if (res.status !== 429 && res.status < 500) {
+        throw new Error(`PSI HTTP ${res.status}: ${detail}`);
+      }
+      lastError = `HTTP ${res.status}: ${detail}`;
     }
     if (attempt === PSI_ATTEMPTS) break;
-    const wait = 30_000 * attempt;
+    const wait = retryBaseMs * attempt;
     console.log(`  PSI ${lastError} - ponowienie za ${wait / 1000} s`);
     await sleep(wait);
   }
@@ -344,8 +432,15 @@ async function callPsi(requestUrl) {
 
 async function sampleLive(opts) {
   const key = process.env.PSI_API_KEY;
+  const { endpoint, retryBaseMs } = liveSettings();
   if (!key) console.log("UWAGA: brak PSI_API_KEY - wspólny limit anonimowy, spodziewaj się 429");
-  const runs = Math.max(1, Number.parseInt(opts.runs, 10) || 5);
+  const requestedRuns = Math.max(1, Number.parseInt(opts.runs, 10) || 5);
+  const runs = Math.min(requestedRuns, MAX_RUNS);
+  if (runs < requestedRuns) {
+    // Dwie spacje wcięcia jak w liniach UWAGA z `reportForms`: tylko taki
+    // kształt bierze grep podsumowania joba w `psi.yml`.
+    console.log(`  UWAGA: --runs ${requestedRuns} przycięte do ${MAX_RUNS} przebiegów na formę`);
+  }
   const gapMs = Math.max(0, Number.parseFloat(opts.gap) || 0) * 1000;
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const outDir = resolve(opts.out ?? join(HARNESS_ROOT, "reports/psi", stamp));
@@ -361,13 +456,13 @@ async function sampleLive(opts) {
     for (let n = 1; n <= runs; n++) {
       const label = `${strategy}-${n}`;
       const target = cacheBustedTarget(opts.url, `${stamp}-${label}`);
-      const requestUrl = psiRequestUrl(target, strategy, { key, locale: opts.locale });
+      const requestUrl = psiRequestUrl(target, strategy, { key, locale: opts.locale, endpoint });
       if (n === 1) {
         requests[strategy] = redactKey(requestUrl);
         console.log(`zapytanie PSI ${strategy}: ${requests[strategy]}`);
       }
       try {
-        const response = await callPsi(requestUrl);
+        const response = await callPsi(requestUrl, { key, retryBaseMs });
         const { lighthouseResult: lhr, ...field } = response;
         if (!isLhr(lhr)) throw new Error("odpowiedź PSI bez lighthouseResult");
         writeFileSync(join(outDir, `${label}.lhr.json`), JSON.stringify(lhr));
@@ -378,6 +473,8 @@ async function sampleLive(opts) {
           writeFileSync(join(outDir, `${label}.audits.txt`), `${dumpAudits(lhr, 40)}\n`);
         }
       } catch (error) {
+        // Komunikaty z callPsi są już zamaskowane; pozostałe (zapis plików,
+        // brak lighthouseResult) nie niosą treści odpowiedzi.
         console.log(`  ${label}: ${error instanceof Error ? error.message : error}`);
       }
       if (n < runs) await sleep(gapMs);
