@@ -1,0 +1,67 @@
+art	w0-mobile-1	1.53	0	473	4077	ważny
+art	w0-desktop-1	2.97	0	8	827	ważny
+art	w0-mobile-2	3.21	0	187	4146	load > 3
+art	w0-desktop-2	3.15	0	6	786	load > 3
+art	w0-mobile-3	2.99	1	-	-	błąd przebiegu
+art	w0-desktop-3	2.83	0	0	827	ważny
+art	w0-mobile-4	2.77	0	219	4060	ważny
+art	w0-desktop-4	3.0	0	10	742	ważny
+art	w0-mobile-5	3.07	0	269	4068	load > 3
+art	w0-desktop-5	2.84	0	0	809	ważny
+art	w0deep-mobile-1	2.3	0	1352	4060	ważny
+art	w0deep-desktop-1	6.23	0	140	810	load > 3
+art	w0inv-mobile-1	1.34	0	401	4068	ważny
+art	w0inv-mobile-2	1.29	0	324	3018	ważny
+art	w0prof-mobile-1	2.03	0	420	4072	ważny
+art	w0prof-desktop-1	1.84	1	-	-	błąd przebiegu
+art	w0prof-mobile-2	2.18	0	426	4066	ważny
+art	w0prof-desktop-2	1.5	0	0	734	ważny
+art2	hints-mobile-2	1.28	0	127	4066	ważny
+art2	hints-desktop-2	1.03	0	0	811	ważny
+art2	hints-mobile-3	1.21	1	-	-	błąd przebiegu
+art2	hints-desktop-3	1.22	0	0	813	ważny
+art2	hints-mobile-6	5.87	0	284	4092	load > 3
+art2	hints-desktop-6	5.26	0	0	830	load > 3
+art2	hints-mobile-7	5.12	0	212	4079	load > 3
+art2	hints-desktop-7	5.82	0	50	775	load > 3
+art2	noanim-mobile-1	2.91	0	123	4061	ważny
+art2	noanim-desktop-1	2.22	0	0	809	ważny
+art2	noanim-mobile-2	1.73	0	108	4066	ważny
+art2	noanim-desktop-2	1.41	0	0	813	ważny
+art2	noanim-mobile-3	0.82	0	119	4061	ważny
+art2	noanim-desktop-3	0.96	0	0	809	ważny
+art2	nofade-mobile-1	1.53	0	140	4065	ważny
+art2	nofade-mobile-2	1.59	0	110	4066	ważny
+art2	nofade-mobile-3	0.77	0	184	4067	ważny
+art2	nofade-mobile-6	5.04	0	435	4071	load > 3
+art2	nofade-mobile-7	5.14	0	314	4069	load > 3
+art2	prof-mobile-1	9.78	0	111	3308	load > 3
+art2	prof-mobile-2	10.2	0	208	3209	load > 3
+art2	prof-desktop-1	10.6	0	0	904	load > 3
+art2	profhook-mobile-1	6.77	0	68	4589	load > 3
+art2	profhook-mobile-2	6.15	0	171	4459	load > 3
+art2	profhook-desktop-1	6.48	0	42	422	load > 3
+art2	w0i-mobile-1	7.8	0	1220	4073	load > 3
+art2	w0i-mobile-2	7.9	null	-	-	błąd przebiegu
+art2	w0i-desktop-1	11.31	0	8	824	load > 3
+art2	w0p-mobile-1	1.76	0	325	4069	ważny
+art2	w0p-mobile-2	3.33	0	637	4083	load > 3
+art2	w0p-mobile-3	4.06	0	1131	4084	load > 3
+art2	w0p-desktop-1	4.84	0	6	821	load > 3
+art2	w0p-desktop-2	5.42	0	10	786	load > 3
+art2	w0q-mobile-1	2.56	0	450	1678	ważny
+art2	w0q-desktop-1	2.82	0	0	824	ważny
+art2	w0q-mobile-2	1.38	0	214	4066	ważny
+art2	w0q-desktop-2	1.8	0	0	737	ważny
+art2	w0q-mobile-3	1.1	0	264	4075	ważny
+art2	w0q-desktop-3	0.95	0	0	741	ważny
+art2	w0q-mobile-4	1.01	0	212	4064	ważny
+art2	w0q-desktop-4	1.53	0	0	812	ważny
+art2	w0q-mobile-5	1.24	0	197	4064	ważny
+art2	w0q-desktop-5	2.05	0	1	810	ważny
+art2	w0q-mobile-6	6.7	0	404	4080	load > 3
+art2	w0q-desktop-6	6.02	0	50	472	load > 3
+art2	w0q-mobile-7	4.55	0	124	4072	load > 3
+art2	w0q-desktop-7	4.07	0	10	829	load > 3
+art2	w0q-mobile-8	4.15	null	-	-	błąd przebiegu
+art2	w0q-desktop-8	39.3	0	5	750	load > 3

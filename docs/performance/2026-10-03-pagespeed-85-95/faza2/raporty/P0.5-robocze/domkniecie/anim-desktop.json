@@ -1,0 +1,78 @@
+{
+ "w0q-desktop-1": {
+  "333": {
+   "lv-shimmer": 40,
+   "ticker": 2
+  },
+  "730": {
+   "oi-fade-in": 7
+  },
+  "1328": {
+   "enter": 1
+  },
+  "4592": {
+   "ticker": 1
+  }
+ },
+ "w0q-desktop-2": {
+  "316": {
+   "lv-shimmer": 40,
+   "ticker": 2
+  },
+  "725": {
+   "oi-fade-in": 7
+  },
+  "1309": {
+   "enter": 1
+  },
+  "4640": {
+   "ticker": 1
+  }
+ },
+ "w0q-desktop-3": {
+  "234": {
+   "lv-shimmer": 40
+  },
+  "331": {
+   "ticker": 2
+  },
+  "743": {
+   "oi-fade-in": 7
+  },
+  "1320": {
+   "enter": 1
+  },
+  "4608": {
+   "ticker": 1
+  }
+ },
+ "w0q-desktop-4": {
+  "378": {
+   "ticker": 2,
+   "oi-fade-in": 7
+  },
+  "1306": {
+   "enter": 1
+  },
+  "4572": {
+   "ticker": 1
+  }
+ },
+ "w0q-desktop-5": {
+  "241": {
+   "ticker": 1
+  },
+  "287": {
+   "ticker": 1
+  },
+  "332": {
+   "oi-fade-in": 7
+  },
+  "1364": {
+   "enter": 1
+  },
+  "4587": {
+   "ticker": 1
+  }
+ }
+}

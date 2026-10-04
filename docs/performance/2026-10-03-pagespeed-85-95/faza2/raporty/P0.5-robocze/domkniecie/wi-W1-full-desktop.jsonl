@@ -1,0 +1,20 @@
+{"run": "w0q-desktop-1", "reg": "d4", "wave": "W1", "var": "full", "base": 461, "after": 275, "delta": -186, "shrunk": [[333, 0.01, "K8b"], [366, 0.35, "K9"], [406, 0.5, "K11"], [644, 0.5, "K13b"], [730, 0.01, "K8a"]]}
+{"run": "w0q-desktop-1", "reg": "d4c3", "wave": "W1", "var": "full", "base": 609, "after": 423, "delta": -186, "shrunk": [[333, 0.01, "K8b"], [366, 0.35, "K9"], [406, 0.5, "K11"], [644, 0.5, "K13b"], [730, 0.01, "K8a"]]}
+{"run": "w0q-desktop-1", "reg": "d5", "wave": "W1", "var": "full", "base": 769, "after": 498, "delta": -271, "shrunk": [[333, 0.01, "K8b"], [366, 0.35, "K9"], [406, 0.5, "K11"], [644, 0.5, "K13b"], [730, 0.01, "K8a"]]}
+{"run": "w0q-desktop-1", "reg": "d5c3", "wave": "W1", "var": "full", "base": 960, "after": 688, "delta": -272, "shrunk": [[333, 0.01, "K8b"], [366, 0.35, "K9"], [406, 0.5, "K11"], [644, 0.5, "K13b"], [730, 0.01, "K8a"]]}
+{"run": "w0q-desktop-2", "reg": "d4", "wave": "W1", "var": "full", "base": 448, "after": 277, "delta": -171, "shrunk": [[316, 0.01, "K8b"], [378, 0.35, "K9"]]}
+{"run": "w0q-desktop-2", "reg": "d4c3", "wave": "W1", "var": "full", "base": 547, "after": 347, "delta": -200, "shrunk": [[316, 0.01, "K8b"], [378, 0.35, "K9"]]}
+{"run": "w0q-desktop-2", "reg": "d5", "wave": "W1", "var": "full", "base": 673, "after": 409, "delta": -264, "shrunk": [[316, 0.01, "K8b"], [378, 0.35, "K9"]]}
+{"run": "w0q-desktop-2", "reg": "d5c3", "wave": "W1", "var": "full", "base": 832, "after": 568, "delta": -264, "shrunk": [[316, 0.01, "K8b"], [378, 0.35, "K9"]]}
+{"run": "w0q-desktop-3", "reg": "d4", "wave": "W1", "var": "full", "base": 310, "after": 266, "delta": -44, "shrunk": [[400, 0.35, "K9"], [614, 0.5, "K13b"], [659, 0.5, "K13b"]]}
+{"run": "w0q-desktop-3", "reg": "d4c3", "wave": "W1", "var": "full", "base": 442, "after": 385, "delta": -57, "shrunk": [[400, 0.35, "K9"], [614, 0.5, "K13b"], [659, 0.5, "K13b"]]}
+{"run": "w0q-desktop-3", "reg": "d5", "wave": "W1", "var": "full", "base": 568, "after": 484, "delta": -84, "shrunk": [[400, 0.35, "K9"], [614, 0.5, "K13b"], [659, 0.5, "K13b"]]}
+{"run": "w0q-desktop-3", "reg": "d5c3", "wave": "W1", "var": "full", "base": 727, "after": 643, "delta": -84, "shrunk": [[400, 0.35, "K9"], [614, 0.5, "K13b"], [659, 0.5, "K13b"]]}
+{"run": "w0q-desktop-4", "reg": "d4", "wave": "W1", "var": "full", "base": 190, "after": 73, "delta": -117, "shrunk": [[357, 0.35, "K9"], [378, 0.01, "K8a"], [579, 0.01, "K13"], [906, 0.5, "K11"]]}
+{"run": "w0q-desktop-4", "reg": "d4c3", "wave": "W1", "var": "full", "base": 346, "after": 229, "delta": -117, "shrunk": [[357, 0.35, "K9"], [378, 0.01, "K8a"], [579, 0.01, "K13"], [906, 0.5, "K11"]]}
+{"run": "w0q-desktop-4", "reg": "d5", "wave": "W1", "var": "full", "base": 474, "after": 267, "delta": -207, "shrunk": [[357, 0.35, "K9"], [378, 0.01, "K8a"], [579, 0.01, "K13"], [906, 0.5, "K11"]]}
+{"run": "w0q-desktop-4", "reg": "d5c3", "wave": "W1", "var": "full", "base": 579, "after": 403, "delta": -176, "shrunk": [[357, 0.35, "K9"], [378, 0.01, "K8a"], [579, 0.01, "K13"], [906, 0.5, "K11"]]}
+{"run": "w0q-desktop-5", "reg": "d4", "wave": "W1", "var": "full", "base": 359, "after": 260, "delta": -99, "shrunk": [[332, 0.01, "K8a"], [356, 0.35, "K9"], [607, 0.01, "K13"], [949, 0.5, "K11"]]}
+{"run": "w0q-desktop-5", "reg": "d4c3", "wave": "W1", "var": "full", "base": 539, "after": 440, "delta": -99, "shrunk": [[332, 0.01, "K8a"], [356, 0.35, "K9"], [607, 0.01, "K13"], [949, 0.5, "K11"]]}
+{"run": "w0q-desktop-5", "reg": "d5", "wave": "W1", "var": "full", "base": 615, "after": 451, "delta": -164, "shrunk": [[332, 0.01, "K8a"], [356, 0.35, "K9"], [607, 0.01, "K13"], [949, 0.5, "K11"]]}
+{"run": "w0q-desktop-5", "reg": "d5c3", "wave": "W1", "var": "full", "base": 834, "after": 670, "delta": -164, "shrunk": [[332, 0.01, "K8a"], [356, 0.35, "K9"], [607, 0.01, "K13"], [949, 0.5, "K11"]]}

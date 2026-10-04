@@ -1,0 +1,75 @@
+{
+ "w0q-mobile-1": {
+  "252": {
+   "ticker": 2,
+   "lv-shimmer": 40
+  },
+  "493": {
+   "oi-fade-in": 4
+  },
+  "818": {
+   "oi-fade-in": 3
+  },
+  "1586": {
+   "enter": 1
+  },
+  "4747": {
+   "ticker": 1
+  }
+ },
+ "w0q-mobile-2": {
+  "422": {
+   "ticker": 2,
+   "oi-fade-in": 7
+  },
+  "1582": {
+   "enter": 1
+  },
+  "4630": {
+   "ticker": 1
+  }
+ },
+ "w0q-mobile-3": {
+  "296": {
+   "ticker": 2
+  },
+  "408": {
+   "oi-fade-in": 7
+  },
+  "1564": {
+   "enter": 1
+  },
+  "4714": {
+   "ticker": 1
+  }
+ },
+ "w0q-mobile-4": {
+  "390": {
+   "ticker": 2,
+   "oi-fade-in": 7
+  },
+  "1312": {
+   "enter": 1
+  },
+  "4594": {
+   "ticker": 1
+  }
+ },
+ "w0q-mobile-5": {
+  "246": {
+   "lv-shimmer": 40
+  },
+  "330": {
+   "ticker": 2
+  },
+  "725": {
+   "oi-fade-in": 7
+  },
+  "1532": {
+   "enter": 1
+  },
+  "4581": {
+   "ticker": 1
+  }
+ }
+}
