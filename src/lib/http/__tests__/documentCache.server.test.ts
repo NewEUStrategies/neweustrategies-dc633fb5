@@ -17,6 +17,31 @@ import {
   revalidationHeader,
   setDocumentRevalidator,
 } from "../documentCache.server";
+import { setColoCacheForTests, type ColoCache } from "../documentCacheL2.server";
+
+/**
+ * Atrapa WYŁĄCZNIE wirtualnego entry frameworka (build go generuje, test nie):
+ * żądanie przechodzi przez PRAWDZIWY `handleDocumentRequest`, a dalej przez
+ * prawdziwy `src/server.ts` (tee zapisu, strażnik, owijka końca strumienia,
+ * linia logu). Render podstawia pojedynczy test.
+ */
+const entryHarness = vi.hoisted(() => ({
+  render: null as null | ((request: Request) => Response | Promise<Response>),
+}));
+
+vi.mock("@tanstack/react-start/server-entry", async () => {
+  const cache = await import("../documentCache.server");
+  return {
+    default: {
+      fetch: (request: Request) =>
+        cache.handleDocumentRequest(request, () => {
+          const render = entryHarness.render;
+          if (!render) throw new Error("test nie ustawił renderu");
+          return render(request);
+        }),
+    },
+  };
+});
 
 const CACHEABLE_HEADERS = {
   "content-type": "text/html; charset=utf-8",
@@ -644,5 +669,280 @@ describe("purgeDocumentPaths (purge selektywny L1)", () => {
     expect(purgeDocumentPaths("tenant-b.eu", ["", "https://x.example/blog"])).toBe(0);
     const still = await renderThroughEdge("/blog", next, "tenant-b.eu");
     expect(still.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+  });
+});
+
+// NES-LAYER (plan PSI 85/95, P0.4 = SC-1): status `nes-edge` mówi „z cache'a
+// czy nie", warstwa mówi „z KTÓREGO poziomu". HIT z L2 to świeży izolat grzany
+// kolonią - bez tej metryki udział zimnych izolatów wśród trafień jest
+// niewidoczny. Nagłówek jest budowany na świeżo przy każdym odtworzeniu, więc
+// asercje są dokładnymi napisami (zegar zamrożony: nes-age i ssr = 0).
+describe("nes-layer: który poziom podał dokument", () => {
+  /** Wierny funkcjonalnie zamiennik `caches.default` (mapa URL -> Response). */
+  function memoryColoCache(): ColoCache {
+    const entries = new Map<string, { body: Uint8Array; headers: Headers }>();
+    return {
+      async match(request: Request) {
+        const hit = entries.get(request.url);
+        return hit
+          ? new Response(hit.body.slice(), { headers: new Headers(hit.headers) })
+          : undefined;
+      },
+      async put(request: Request, response: Response) {
+        entries.set(request.url, {
+          body: new Uint8Array(await response.arrayBuffer()),
+          headers: new Headers(response.headers),
+        });
+      },
+    };
+  }
+
+  afterEach(() => {
+    setColoCacheForTests(undefined);
+  });
+
+  it("MISS = `render`, kolejne trafienie tego izolatu = `L1`; `nes-edge` zawsze pierwszy", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const next = vi.fn(async () => htmlResponse("<html>warstwy</html>"));
+
+    const miss = await renderThroughEdge("/warstwy", next);
+    expect(miss.headers.get("server-timing")).toBe(
+      'nes-edge;desc="MISS", ssr;dur=0.0, nes-layer;desc="render"',
+    );
+    await miss.text();
+    await settle();
+
+    const hit = await renderThroughEdge("/warstwy", next);
+    expect(hit.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    expect(hit.headers.get("server-timing")).toBe(
+      'nes-edge;desc="HIT", nes-age;dur=0, nes-layer;desc="L1"',
+    );
+  });
+
+  it("świeży izolat (pusty L1) trafiający wpis kolonii = `L2`, a następne trafienie już `L1`", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    setColoCacheForTests(memoryColoCache());
+    const next = vi.fn(async () => htmlResponse("<html>kolonia</html>"));
+    await (await renderThroughEdge("/kolonia", next)).text();
+    await settle();
+
+    // Rotacja izolatu: L1 znika, kolonia zostaje.
+    resetDocumentCacheForTests();
+    const fromColo = await renderThroughEdge("/kolonia", next);
+    expect(fromColo.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    expect(fromColo.headers.get("server-timing")).toBe(
+      'nes-edge;desc="HIT", nes-age;dur=0, nes-layer;desc="L2"',
+    );
+    expect(await fromColo.text()).toBe("<html>kolonia</html>");
+
+    // Odczyt L2 zasiał L1 - warstwa opisuje koszt BIEŻĄCEGO żądania.
+    const fromMemory = await renderThroughEdge("/kolonia", next);
+    expect(fromMemory.headers.get("server-timing")).toContain('nes-layer;desc="L1"');
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("STALE z pamięci izolatu niesie `L1` (także gdy render odświeżający padł)", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await (await renderThroughEdge("/stary", () => htmlResponse("<html>stary</html>"))).text();
+    await settle();
+    advanceClock(10 * MINUTA);
+
+    const stale = await renderThroughEdge("/stary", async () => {
+      throw new Error("db hiccup");
+    });
+    expect(stale.headers.get(NES_CACHE_HEADER)).toBe("STALE");
+    expect(stale.headers.get("server-timing")).toBe(
+      `nes-edge;desc="STALE", nes-age;dur=${10 * MINUTA}, nes-layer;desc="L1"`,
+    );
+  });
+
+  it("BYPASS nie deklaruje warstwy - cache nie był konsultowany", async () => {
+    const result = (await handleDocumentRequest(
+      new Request("https://tenant-a.eu/analiza", {
+        headers: { "x-forwarded-host": "tenant-a.eu", authorization: "Bearer t" },
+      }),
+      () => htmlResponse("<html>prywatne</html>"),
+    )) as Response;
+    expect(result.headers.get("server-timing") ?? "").not.toContain("nes-layer");
+  });
+});
+
+// PEŁNY POTOK `src/server.ts` (P0.4): linia logu PO KOŃCU body z `streamMs`
+// i licznikiem izolatu, `colo` w Server-Timing ZA nagłówkiem potoku, owijka
+// strumienia ZA tee zapisu (MISS dalej zasiewa magazyn - tożsamość body w
+// łańcuchu nienaruszona, regresja ~61 s wykluczona).
+describe("src/server.ts: telemetria dokumentu na końcu strumienia", () => {
+  const LIGHTHOUSE_UA =
+    "Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse";
+  const RAY = "8c5a3b2e9f1d4e7a-WAW";
+  const encoder = new TextEncoder();
+
+  function entryRequest(path: string, init: { method?: string; ua?: string } = {}): Request {
+    return new Request(`https://tenant-a.eu${path}`, {
+      method: init.method ?? "GET",
+      headers: {
+        "x-forwarded-host": "tenant-a.eu",
+        "cf-ray": RAY,
+        ...(init.ua ? { "user-agent": init.ua } : {}),
+      },
+    });
+  }
+
+  function docLines(log: { mock: { calls: unknown[][] } }): Record<string, unknown>[] {
+    return log.mock.calls
+      .map((call) => String(call[0]))
+      .filter((line) => line.startsWith('{"kind":"doc"'))
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+  }
+
+  async function loadEntry() {
+    return (await import("../../../server")).default;
+  }
+
+  afterEach(() => {
+    entryHarness.render = null;
+    vi.restoreAllMocks();
+  });
+
+  it("MISS: log dopiero po ostatnim bajcie, z streamMs/isoReq/klasą UA/ray/kolonią; potem HIT z L1", async () => {
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    let source: ReadableStreamDefaultController<Uint8Array> | undefined;
+    entryHarness.render = () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            source = controller;
+          },
+        }),
+        { status: 200, headers: CACHEABLE_HEADERS },
+      );
+
+    const response = await entry.fetch(entryRequest("/strumien", { ua: LIGHTHOUSE_UA }));
+    const timing = response.headers.get("server-timing") ?? "";
+    expect(timing.startsWith('nes-edge;desc="MISS"')).toBe(true);
+    expect(timing).toContain('nes-layer;desc="render"');
+    expect(timing).toMatch(/server-init;dur=\d+, app;dur=\d+, colo;desc="WAW"$/);
+    expect(timing).not.toMatch(/stream/);
+
+    const reader = response.body!.getReader();
+    source!.enqueue(encoder.encode("<html><body>"));
+    await reader.read();
+    // Body jeszcze płynie - linii logu nie ma (dawniej powstawała tu, przed body).
+    expect(docLines(log)).toHaveLength(0);
+
+    source!.enqueue(encoder.encode("</body></html>"));
+    source!.close();
+    let html = "<html><body>";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      html += new TextDecoder().decode(value);
+    }
+    expect(html).toBe("<html><body></body></html>");
+
+    const [miss] = docLines(log);
+    expect(miss).toMatchObject({
+      kind: "doc",
+      path: "/strumien",
+      status: 200,
+      cache: "MISS",
+      layer: "render",
+      colo: "WAW",
+      ray: RAY,
+      uaClass: "lighthouse",
+      degraded: false,
+      revalidation: false,
+    });
+    expect(miss).not.toHaveProperty("streamEnd");
+    expect(typeof miss!.streamMs).toBe("number");
+    expect(miss!.streamMs as number).toBeGreaterThanOrEqual(miss!.appMs as number);
+    expect(Number.isSafeInteger(miss!.isoReq)).toBe(true);
+    // Prywatność: z UA do logu trafia wyłącznie klasa.
+    expect(JSON.stringify(miss)).not.toContain("moto g power");
+
+    // Owijka siedzi ZA tee zapisu: MISS zasiał magazyn, więc kolejne żądanie
+    // to HIT z pamięci izolatu - i kolejny numer żądania tego izolatu.
+    await settle();
+    const hit = await entry.fetch(entryRequest("/strumien", { ua: LIGHTHOUSE_UA }));
+    expect(hit.headers.get(NES_CACHE_HEADER)).toBe("HIT");
+    expect(hit.headers.get("server-timing")).toContain('nes-layer;desc="L1"');
+    expect(await hit.text()).toBe("<html><body></body></html>");
+    const second = docLines(log)[1];
+    expect(second).toMatchObject({ cache: "HIT", layer: "L1", colo: "WAW" });
+    expect(second).not.toHaveProperty("degraded");
+    expect(second!.isoReq).toBe((miss!.isoReq as number) + 1);
+  });
+
+  it("zdegradowany MISS (`private, no-store` z odpornego loadera) ma `degraded: true`", async () => {
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    entryHarness.render = () =>
+      new Response("<html>fallback</html>", {
+        status: 200,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "private, no-store",
+        },
+      });
+
+    await (await entry.fetch(entryRequest("/zdegradowany"))).text();
+    expect(docLines(log)[0]).toMatchObject({
+      cache: "MISS",
+      degraded: true,
+      // Brak nagłówka user-agent to też automat (ta sama lista co beacony).
+      uaClass: "bot",
+    });
+  });
+
+  it("zerwany klient: linia logu powstaje od razu z `streamEnd: aborted`, a zerwanie dochodzi do renderu", async () => {
+    // Render NIE do zapisu (bez tee): zerwanie idzie owijka -> strażnik ->
+    // render wprost. Przy MISS-ie do zapisu gałąź tee kolektora celowo trzyma
+    // render do końca (zachowanie sprzed P0.4) - linia logu i tak powstaje
+    // natychmiast, bo owijka zgłasza zerwanie, nie czekając na źródło.
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const cancelled: unknown[] = [];
+    entryHarness.render = () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode("<html><body>"));
+          },
+          cancel(reason) {
+            cancelled.push(reason);
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "private, no-store",
+          },
+        },
+      );
+
+    const response = await entry.fetch(entryRequest("/zerwany"));
+    const reader = response.body!.getReader();
+    await reader.read();
+    expect(docLines(log)).toHaveLength(0);
+    void reader.cancel(new Error("klient zniknął"));
+
+    expect(docLines(log)[0]).toMatchObject({ path: "/zerwany", streamEnd: "aborted" });
+    await vi.waitFor(() => {
+      expect(cancelled.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("HEAD loguje od razu, bez streamMs - runtime takiego body nie czyta", async () => {
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    entryHarness.render = () => htmlResponse("<html>naglowki</html>");
+
+    const response = await entry.fetch(entryRequest("/naglowki", { method: "HEAD" }));
+    const [line] = docLines(log);
+    expect(line).toMatchObject({ path: "/naglowki", colo: "WAW", ray: RAY });
+    expect(line).not.toHaveProperty("streamMs");
+    expect(response.headers.get("server-timing")).toMatch(/colo;desc="WAW"$/);
   });
 });
