@@ -78,6 +78,7 @@
 - [x] Znak „>" to subtelny ptaszek: kreska ma 0,85 px (0,7 px w wezkiej kolumnie), nie jest pogrubiona i jest tak samo cienka jak litery oraz wyraźnie cieńsza od trzech kresek sygnału.
 - [x] Ptaszek zmniejszony o 1 px (wysokosc `calc(1em - 1px)`, szerokosc `calc(1.1em - 1px)`) i wyrownany do liter „wiecej": gora strzalki 0,25 px pod gora x-height, dol dokladnie na linii bazowej (pomiar zrzutu 4x w podgladzie).
 - [x] Kinetic Signal Notch bez obszaru bezpiecznego z gory: shell ma tylko dolny padding (`pb-2`, w pigulce `pb-1`), wiec akcja zaczyna sie dokladnie na gornym brzegu widgetu (pomiar w podgladzie: paddingTop 0 px, odstep akcji od gory 0).
+- [x] Chevrony po jednej i drugiej stronie akcji: lustrzana para "< oraz >" (czyste katy bez ogonkow) otacza „wiecej"; hover rozpycha znaki na zewnatrz, glif tekstowy (›/⟶) zostaje tylko po prawej, a ustawienie "none" zdejmuje oba. Testy 19/19, paczka buildera 2144 zielone.
 
 ## Firmowy kolor akcentu
 
