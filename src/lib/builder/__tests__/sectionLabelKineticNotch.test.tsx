@@ -101,18 +101,26 @@ describe("Kinetic Signal Notch", () => {
       );
       expect(bar.style.height).toBe("3px");
     }
+    // Kreski sa identyczne: ta sama dlugosc (grubosc rowniez - height wyzej).
+    const widths = bars.map((bar) => bar.className.match(/(?:^|\s)(w-[0-9.]+)(?:\s|$)/)?.[1]);
+    expect(new Set(widths).size).toBe(1);
   });
 
-  it("utrzymuje sygnał, tytuł i akcję w jednym wierszu", () => {
+  it("utrzymuje sygnał i tytuł w jednym wierszu, a akcję nad nimi", () => {
     const { container } = renderVariant();
     const row = container.querySelector<HTMLElement>(".nes-kinetic-row");
     const title = container.querySelector<HTMLElement>("[data-title-root]");
     const action = container.querySelector<HTMLElement>(".nes-kinetic-action");
 
-    expect(row?.className).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
+    expect(row?.className).toContain("items-center");
     expect(row?.className).not.toContain("flex-wrap");
+    expect(row?.className).not.toContain("grid-cols");
     expect(title?.className).toContain("whitespace-nowrap");
-    expect(action?.className).toContain("whitespace-nowrap");
+    // Ciasny tracking tytułu - litery blisko siebie.
+    expect(title?.className).toContain("tracking-[0.08em]");
+    // Akcja wisi NAD wierszem sygnału, nie w nim.
+    expect(row?.contains(action ?? null)).toBe(false);
+    expect(row?.previousElementSibling?.contains(action ?? null)).toBe(true);
   });
 
   it("akcja jest linkiem niosącym akcent w zmiennej --nes-accent", () => {
@@ -126,14 +134,21 @@ describe("Kinetic Signal Notch", () => {
     expect(style).toContain("#FA9346");
   });
 
-  it("akcja ma podkreślenie rysowane od lewej i strzałkę z wysuwaną kreską", () => {
+  it("akcja ma podkreślenie rysowane od lewej i cienki chevron bez obudowy", () => {
     const { container } = renderVariant({ href: "/raporty" });
     const link = container.querySelector("a.nes-kinetic-action");
     const underline = link?.querySelector("span[aria-hidden]");
     expect(underline?.className).toContain("group-hover/link:w-full");
     const svg = link?.querySelector("svg");
-    expect(svg?.querySelector('path[d="M5 12h14"]')).not.toBeNull();
     expect(svg?.querySelector("polyline")).not.toBeNull();
+    expect(svg?.querySelector('path[d="M5 12h14"]')).toBeNull();
+  });
+
+  it("akcja jest minuskulowa i mniejsza od tytułu", () => {
+    const { container } = renderVariant();
+    const action = container.querySelector<HTMLElement>(".nes-kinetic-action");
+    expect(action?.className).not.toContain("uppercase");
+    expect(action?.className).toContain("text-[11px]");
   });
 
   it("ustawienie strzałki żyje: none zdejmuje ikonę, chevron daje znak", () => {
