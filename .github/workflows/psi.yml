@@ -1,0 +1,127 @@
+name: PageSpeed Insights sampling
+
+# PRÓBKOWANIE PSI API v5 - JEDYNY INSTRUMENT, KTÓRY MIERZY LICZBĘ Z KONTRAKTU.
+#
+# Cel planu wydajności (docs/performance/2026-10-03-pagespeed-85-95/) to wynik
+# PageSpeed Insights mobile >= 85 / desktop >= 95 na
+# https://neweuropeanstrategies.com/. Lighthouse na runnerze (lighthouse.yml)
+# i harness na fixture (first-visit.yml) mierzą co innego: inny host CPU,
+# inne colo, inny stan cache dokumentu. Ten workflow pyta Google o tę samą
+# liczbę, którą widzi właściciel w pagespeed.web.dev z `hl=pl`, 5 razy na
+# formę, i zapisuje mediany, pełne LHR-y każdego przebiegu oraz dane polowe
+# CrUX (`scripts/performance/psi-sample.mjs`; opis formatu w nagłówku pliku).
+#
+# SEKRET `PSI_API_KEY` USTAWIA CZŁOWIEK (decyzja D8 planu): Google Cloud
+# Console -> APIs & Services -> włączyć „PageSpeed Insights API" -> klucz API,
+# potem repo Settings -> Secrets and variables -> Actions -> Secrets ->
+# `PSI_API_KEY`. Bez sekretu workflow kończy się na zielono z ostrzeżeniem
+# i NIE pyta API: anonimowy limit jest wspólny i daje 429, a czerwony nocny
+# przebieg w repo bez klucza byłby szumem, nie sygnałem. Z kluczem limit to
+# 25 000 zapytań na dobę; jeden przebieg zużywa 10.
+#
+# PORA: 10:17 UTC (12:17 czasu polskiego latem), czyli w ciągu dnia, gdy colo
+# PSI ma szansę na ruch czytelników - nocny przebieg mierzyłby głównie zimny
+# brzeg. Każdy przebieg jest i tak klasyfikowany HIT/MISS z
+# `server-response-time`, a przy mieszance skrypt drukuje obie mediany.
+on:
+  schedule:
+    - cron: "17 10 * * *"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Mierzony URL"
+        required: false
+        default: "https://neweuropeanstrategies.com/"
+      strategy:
+        description: "Formy (mobile,desktop)"
+        required: false
+        default: "mobile,desktop"
+      runs:
+        description: "Przebiegi na formę"
+        required: false
+        default: "5"
+
+permissions:
+  contents: read
+
+# Próbki z dwóch równoległych przebiegów mieszałyby się w czasie (ten sam
+# brzeg, ten sam limit); nowy przebieg czeka, a bieżący nie jest przerywany.
+concurrency:
+  group: psi-sampling
+  cancel-in-progress: false
+
+jobs:
+  psi:
+    runs-on: ubuntu-latest
+    # 2 formy x 5 przebiegów x (20-60 s PSI + 15 s odstępu) = ~6-13 min;
+    # ponowienia po 429/5xx (30 + 60 + 90 s na przebieg) to górna granica.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      # Ten sam runtime co pozostałe workflowy pomiarowe. Bez instalacji
+      # zależności: próbnik importuje wyłącznie moduły wbudowane node i dwa
+      # pliki .ts z repo (type stripping node 24).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+
+      - name: Check that the PSI_API_KEY secret is set
+        id: key
+        env:
+          PSI_API_KEY: ${{ secrets.PSI_API_KEY }}
+        run: |
+          if [ -n "$PSI_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=PSI_API_KEY::Brak sekretu PSI_API_KEY - probkowanie PSI pominiete. Ustawienie: komentarz na poczatku .github/workflows/psi.yml."
+          fi
+
+      # Parametry wejściowe idą przez `env:`, nie przez `${{ inputs.* }}`
+      # wklejone w skrypt - wartość z formularza nie może stać się kodem
+      # powłoki. Przebieg z harmonogramu nie ma `inputs`, stąd domyślne `||`.
+      #
+      # `set -o pipefail` JEST KONIECZNE: `run` bez jawnego `shell:` idzie przez
+      # `bash -e {0}`, BEZ pipefail, więc kod wyjścia potoku to kod `tee` (0).
+      # Bez tej linii „zero udanych przebiegów" (exit 1 próbnika) kończyłoby
+      # krok na zielono - dokładnie ta klasa cichej awarii, przed którą
+      # próbnik ustawia kod wyjścia.
+      - name: Sample PageSpeed Insights (locale=pl)
+        if: ${{ steps.key.outputs.present == 'true' }}
+        env:
+          PSI_API_KEY: ${{ secrets.PSI_API_KEY }}
+          PSI_URL: ${{ inputs.url || 'https://neweuropeanstrategies.com/' }}
+          PSI_STRATEGY: ${{ inputs.strategy || 'mobile,desktop' }}
+          PSI_RUNS: ${{ inputs.runs || '5' }}
+        run: |
+          set -o pipefail
+          node scripts/performance/psi-sample.mjs \
+            --url "$PSI_URL" --strategy "$PSI_STRATEGY" --runs "$PSI_RUNS" \
+            --gap 15 --out reports/psi/latest 2>&1 | tee psi-sample.log
+
+      # Podsumowanie: zapytanie (klucz zamaskowany), każdy przebieg z klasą
+      # cache HIT/MISS albo z błędem API, mediany (przy mieszance także mediana
+      # z samych HIT), CrUX i ostrzeżenia (przekierowanie = PSI zmierzył inną
+      # stronę niż żądana).
+      - name: Write the PSI medians to the job summary
+        if: ${{ !cancelled() && steps.key.outputs.present == 'true' }}
+        run: |
+          {
+            echo "### PageSpeed Insights (locale=pl)"
+            echo
+            echo '```'
+            grep -E '^(zapytanie PSI|MEDIAN|DELTA|  (mobile|desktop)-[0-9]+[: ]|  CrUX|  UWAGA|✗)' psi-sample.log || echo "(brak linii MEDIAN - patrz log kroku)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload PSI reports
+        if: ${{ !cancelled() && steps.key.outputs.present == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: psi-${{ github.run_id }}
+          path: |
+            reports/psi/latest/
+            psi-sample.log
+          if-no-files-found: warn
+          retention-days: 30
