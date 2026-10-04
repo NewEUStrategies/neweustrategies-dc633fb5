@@ -32,7 +32,7 @@ export function VoiceListeningIndicator({ className }: { className?: string }) {
           ))}
         </span>
         <span className="w-10 text-center text-xs tabular-nums text-muted-foreground">
-          {formatVoiceDuration(seconds * 1000)}
+          {formatVoiceDuration(seconds)}
         </span>
       </span>
     </span>
