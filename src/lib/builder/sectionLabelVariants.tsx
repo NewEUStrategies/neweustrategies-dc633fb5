@@ -1139,6 +1139,11 @@ export function SectionLabelRender({
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
 
+      // „subtelny ptaszek": kreska znaku jest celowo cienka i bez pogrubienia -
+      // 1,25 px (1 px w wezkiej kolumnie), liczona w pikselach ekranu, wiec
+      // pozostaje delikatna niezaleznie od rozmiaru czcionki akcji.
+      const chevronStroke = isSm ? 1 : 1.25;
+
       // Chevron ">" bez obudowy - cienka linia, dyskretny ruch w prawo.
       const arrowVisual =
         glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
@@ -1155,7 +1160,7 @@ export function SectionLabelRender({
             viewBox="0 0 11 10"
             fill="none"
             stroke="currentColor"
-            strokeWidth={barH}
+            strokeWidth={chevronStroke}
             strokeLinecap="round"
             strokeLinejoin="round"
             // Chevron w em: wysokość = wysokość czcionki akcji, więc znak jest
@@ -1164,13 +1169,11 @@ export function SectionLabelRender({
             style={{ width: "1.1em", height: "1em" }}
             className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
-            {/* „taką samą grubość mają mieć kreski": grubość kreski chevronu to
-                dokładnie grubość paska sygnału (barH). vector-effect liczy
-                stroke-width w pikselach ekranu, więc skalowanie viewBoxa (em)
-                nie zmienia grubości linii. Pole jest szersze niż sam znak, a
-                punkty cofnięte o pół kreski od krawędzi, żeby gruby chevron
-                ani się nie uciął, ani nie zbijał w jedną plamę. */}
-            <polyline points="2.2 2 8.4 5 2.2 8" vectorEffect="non-scaling-stroke" />
+            {/* „subtelny ptaszek": kreska jest cienka (chevronStroke), a nie
+                taka jak pasek sygnału - wektor liczy stroke-width w pikselach
+                ekranu, wiec skalowanie viewBoxa (em) jej nie pogrubia. Ramiona
+                sa cofniete od krawedzi pola, zeby znak nigdy sie nie uciql. */}
+            <polyline points="2.4 1.8 8.2 5 2.4 8.2" vectorEffect="non-scaling-stroke" />
           </svg>
         );
 

@@ -162,12 +162,15 @@ describe("Kinetic Signal Notch", () => {
     // Kolor z currentColor (ten sam co tekst), a nie z osobnej klasy.
     expect(svg?.getAttribute("stroke")).toBe("currentColor");
     expect(stylesCss).toMatch(/\.nes-kinetic-action svg \{[^}]*color: inherit;/);
-    // „taką samą grubość mają mieć kreski" - kreska chevronu jest dokładnie tak
-    // gruba jak pasek sygnału. stroke-width liczy się w pikselach ekranu
-    // (vector-effect), więc skalowanie viewBoxa nie zmienia grubości linii.
+    // „subtelny ptaszek" - kreska chevronu jest celowo cienka i bez pogrubienia,
+    // wyraźnie cieńsza niż pasek sygnału; stroke-width liczy się w pikselach
+    // ekranu (vector-effect), więc skalowanie viewBoxa jej nie pogrubia.
     const bar = container.querySelector<HTMLElement>(".nes-kinetic-bar");
     expect(bar?.style.height).toBe("3px");
-    expect(svg?.getAttribute("stroke-width")).toBe("3");
+    const stroke = Number(svg?.getAttribute("stroke-width"));
+    expect(stroke).toBeGreaterThan(0);
+    expect(stroke).toBeLessThanOrEqual(1.5);
+    expect(stroke).toBeLessThan(Number(bar?.style.height));
     expect(svg?.querySelector("polyline")?.getAttribute("vector-effect")).toBe(
       "non-scaling-stroke",
     );
