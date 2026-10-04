@@ -53,8 +53,10 @@
 //  - `visible: {rootMargin}` - IntersectionObserver na `[data-sec-id]` w
 //    wyspie (albo jej dzieciach-elementach) -> `enqueue(open, {priority:
 //    "islands", target: korzeń, release: "immediate"})`; treść bez elementów
-//    zostawia sam korzeń, który z domyślną klasą `contents` nie ma pudełka i
-//    nigdy się nie przetnie (w DEV ostrzeżenie z `id`);
+//    zostawia sam korzeń, który z klasą `contents` (domyślną albo podaną, także
+//    z wariantem, np. `md:contents`) nie ma pudełka i nigdy się nie przetnie
+//    (w DEV ostrzeżenie z `id`; korzeń z pudełkiem z `className` - bez
+//    ostrzeżenia);
 //  - `interaction: "any"` - pierwsza interakcja gdziekolwiek ->
 //    `enqueue(open, {priority: "islands", target: korzeń})` (kolejka stawia
 //    wyspę pod palcem na początku, resztę puszcza po jednej na klatkę);
@@ -74,8 +76,10 @@
 //    zapytanie pasujące już przy montażu = otwarcie od razu (jak
 //    `immediateWhen`), np. ukryty nagłówek desktopowy na desktopie (P2.3);
 //  - `immediateWhen()` (np. `hasStoredAuthSession` z P1.7) - `true` przy
-//    montażu: bramka otwarta od razu (bez chunków - zanim React dotknie
-//    granicy; z chunkami - po ich załadowaniu, bez kolejki);
+//    montażu: bramka otwarta od razu, bez kolejki. Chunki startują już w
+//    renderze otoczki (przed jej commitem i efektami); gotowe synchronicznie
+//    (brak chunków, `lazy` rozwiązane wcześniej) otwierają bramkę, zanim React
+//    dotknie granicy, pozostałe - zaraz po załadowaniu;
 //  - `quiescent` (domyślnie `true`) - zapas `onQuiescent(open, {priority:
 //    "islands"})`.
 // Pierwszy wyzwalacz, który dojdzie do skutku, zdejmuje pozostałe.
@@ -126,22 +130,27 @@
 //    zewnętrznych (react-query, i18next): dane zapytania czytanego w wyspie
 //    albo język zmienione przed jej otwarciem dają rozjazd hydratacji i render
 //    klienta wyspy (test „ograniczenie dla P2.2");
-//  - wyspa jest `memo` (`islandPropsEqual`): dzieci i `fallback` porównywane
-//    strukturalnie - element (typ, klucz, propsy), tablica (kilkoro dzieci,
-//    fragment) i zwykły obiekt (np. `style`) pole po polu, a funkcje i
-//    instancje klas WYŁĄCZNIE referencyjnie. Dziecko wyspy musi więc mieć
-//    stabilne propsy: bez inline callbacków (`onPick={() => …}` - zamiast
+//  - ścieżka wyspy jest `memo` (`islandPropsEqual`): dzieci i `fallback`
+//    porównywane strukturalnie - element (typ, klucz, propsy), tablica
+//    (kilkoro dzieci, fragment) i zwykły obiekt (np. `style`) pole po polu, a
+//    funkcje i instancje klas WYŁĄCZNIE referencyjnie. Dziecko wyspy musi więc
+//    mieć stabilne propsy: bez inline callbacków (`onPick={() => …}` - zamiast
 //    tego `useCallback` albo funkcja modułu) i bez nowych instancji klas przy
 //    każdym renderze rodzica; inaczej re-render rodzica dociera do czekającej
-//    granicy i porzuca jej HTML (w DEV ostrzeżenie z `id`). `trigger` i
-//    `chunks` nie biorą udziału (czytane przy montażu); `id` stały i unikalny
-//    na stronie (klucz elementu);
+//    granicy i porzuca jej HTML (w DEV ostrzeżenie z `id`). Tak samo działają
+//    dane, które naprawdę się zmieniają (np. odświeżone zapytanie nad wyspą
+//    podane w propsie): docierają do czekającej granicy jak każda
+//    aktualizacja. Po commicie wyspy nierówne propsy to zwykła aktualizacja;
+//    obiekt zmieniony W MIEJSCU (ta sama referencja) jest - jak przy każdym
+//    `memo` - pominięty. `trigger` i `chunks` nie biorą udziału (czytane przy
+//    montażu); `id` stały i unikalny na stronie (klucz elementu);
 //  - każdy `React.lazy` w wyspie podany w `chunks` jako komponent (CHUNKI);
 //  - wyspa nie może obejmować komponentów zawieszających się na SERWERZE
 //    (bramka danych sekcji) - jej granica przejęłaby strumień;
 //  - `disabled` (np. `editorPreview`) i kanwa buildera (`useBuilderMode()`) =
-//    dzieci wprost, bez otoczki; wartość musi być taka sama na serwerze i
-//    kliencie.
+//    dzieci wprost, bez otoczki i BEZ `memo` (każdy render rodzica dochodzi do
+//    dzieci, także po zmianie obiektu sekcji w miejscu); wartość musi być taka
+//    sama na serwerze i kliencie.
 
 import {
   isValidElement,
@@ -412,16 +421,21 @@ function subscribeGlobalKeys(subscription: GlobalKeySubscription): () => void {
   };
 }
 
+/** Klasa `contents` w atrybucie `class` (także z wariantem, np. `md:contents`). */
+const CONTENTS_CLASS = /(?:^|[\s:])contents(?:\s|$)/;
+
 /** Elementy, których widoczność otwiera wyspę: sekcje buildera, dzieci otoczki albo ona sama. */
 function visibilityTargets(root: HTMLElement, id: string): Element[] {
   const sections = Array.from(root.querySelectorAll("[data-sec-id]"));
   if (sections.length > 0) return sections;
   const children = Array.from(root.children);
   if (children.length > 0) return children;
-  // Sama treść tekstowa: zostaje otoczka. Z domyślną klasą `contents` nie ma
-  // ona pudełka, więc IO nigdy nie zgłosi przecięcia (bez odczytu układu tu
-  // tego nie sprawdzimy - stąd tylko ostrzeżenie w DEV).
-  if (import.meta.env.DEV) {
+  // Sama treść tekstowa: zostaje otoczka. Z klasą `contents` (domyślną albo
+  // z `className`) nie ma ona pudełka, więc IO nigdy nie zgłosi przecięcia.
+  // Patrzymy tylko na atrybut `class` (bez odczytu układu, który wymusiłby
+  // layout) - stąd tylko ostrzeżenie w DEV, a otoczka z pudełkiem z
+  // `className` (np. `block`) go nie dostaje.
+  if (import.meta.env.DEV && CONTENTS_CLASS.test(root.getAttribute("class") ?? "")) {
     console.warn(
       `[hydration-island] "${id}": the visible trigger has no element to observe besides the wrapper; with display: contents it never intersects. Wrap the content in an element or give the wrapper a box (className).`,
     );
@@ -468,8 +482,14 @@ class IslandController {
       this.resolveCommitted = resolve;
     });
     this.immediate = isImmediate(trigger);
-    // Bez chunków bramka jest otwarta, zanim React dotknie granicy.
-    if (this.immediate && this.chunksReady) this.release();
+    // Otwarcie od razu, bez kolejki - ta sama ścieżka co tor pilny. Konstruktor
+    // biegnie w renderze otoczki, więc chunki startują przed jej commitem i
+    // przed efektami (import nie czeka na commit hydratacji strony), a gotowe
+    // synchronicznie (brak chunków, `lazy` rozwiązane wcześniej) otwierają
+    // bramkę, zanim React dotknie granicy. Podwójny inicjalizator `useState`
+    // w StrictMode (DEV) startuje chunki drugi raz - `import()` i `_init` są
+    // idempotentne.
+    if (this.immediate) void this.openUrgent();
   }
 
   isOpen(): boolean {
@@ -569,9 +589,10 @@ class IslandController {
   }
 
   /**
-   * Tor pilny: chunki gotowe (albo gotowe synchronicznie, np. `lazy`
-   * rozwiązane wcześniej) = bramka otwarta w tym samym mikrozadaniu, przed
-   * nasłuchem Reacta na dokumencie.
+   * Tor pilny (i `immediate` w konstruktorze): chunki gotowe (albo gotowe
+   * synchronicznie, np. `lazy` rozwiązane wcześniej) = bramka otwarta w tym
+   * samym wywołaniu - na torze pilnym w tym samym mikrozadaniu, przed
+   * nasłuchem Reacta na dokumencie; pozostałe - zaraz po załadowaniu.
    */
   openUrgent(): Promise<void> {
     void this.loadChunks();
@@ -581,11 +602,8 @@ class IslandController {
 
   /** Zakłada wyzwalacze na korzeniu wyspy; zwraca ich zdjęcie. */
   arm(root: HTMLElement): () => void {
-    if (this.isOpen()) return noop;
-    if (this.immediate) {
-      void this.requestOpen();
-      return noop;
-    }
+    // `immediate`: otwarcie zlecone już w konstruktorze, bez wyzwalaczy.
+    if (this.isOpen() || this.immediate) return noop;
     const trigger = this.trigger;
     const cleanups: Array<() => void> = [];
     let armed = true;
@@ -771,15 +789,16 @@ function IslandBoundary(props: HydrationIslandProps): ReactElement {
   }, [island]);
 
   // DEV: nierówne propsy czekającej wyspy (komparator `memo` przepuścił
-  // re-render rodzica) docierają do odwodnionej granicy - poza przejściem
-  // porzucają jej HTML (WARUNKI DLA KONSUMENTÓW: stabilne propsy dziecka).
+  // re-render rodzica: zmienione dane, inline callback, nowa instancja klasy)
+  // docierają do odwodnionej granicy - poza przejściem porzucają jej HTML
+  // (WARUNKI DLA KONSUMENTÓW: stabilne propsy dziecka).
   useLayoutEffect(() => {
     const previous = seenProps.current;
     seenProps.current = props;
     if (!import.meta.env.DEV || island === null || previous === props) return;
     if (island.isCommitted() || islandPropsEqual(previous, props)) return;
     console.warn(
-      `[hydration-island] "${id}": props changed while the island is pending (inline callback or a new class instance in its children?); the update reaches its dehydrated boundary.`,
+      `[hydration-island] "${id}": props changed while the island is pending (changed data, an inline callback or a new class instance in its children?); the update reaches its dehydrated boundary.`,
     );
   });
 
@@ -877,11 +896,11 @@ function equivalent(a: unknown, b: unknown, depth: number): boolean {
  * zanim granica dostanie nowe propsy - aktualizacja rodzica poza przejściem
  * (Sync, Default; np. `useQuery` nad wyspą) nie dociera do odwodnionej treści,
  * dopóki dzieci spełniają warunek stabilnych propsów (nagłówek pliku).
+ * `disabled` nie bierze udziału: ścieżka wyspy renderuje się tylko bez niego.
  */
 function islandPropsEqual(prev: HydrationIslandProps, next: HydrationIslandProps): boolean {
   return (
     prev.id === next.id &&
-    prev.disabled === next.disabled &&
     prev.className === next.className &&
     prev.fallbackMinHeight === next.fallbackMinHeight &&
     equivalent(prev.fallback, next.fallback, 0) &&
@@ -889,15 +908,19 @@ function islandPropsEqual(prev: HydrationIslandProps, next: HydrationIslandProps
   );
 }
 
+/** Ścieżka wyspy z komparatorem strukturalnym (tylko ona jest `memo`). */
+const MemoIslandBoundary = memo(IslandBoundary, islandPropsEqual);
+
 /**
  * Wyspa hydratacji (opis mechanizmu, wyzwalaczy i warunków w nagłówku pliku).
  * Na serwerze: otoczka `data-island-state="pending"` i dzieci w `<Suspense>`.
  * Na kliencie: hydratacja treści dopiero po wyzwoleniu i po `chunks`.
+ * Sam przełącznik NIE jest `memo`: `disabled` i kanwa buildera renderują
+ * dzieci wprost przy każdym renderze rodzica - bez głębokiego porównania i bez
+ * bailoutu (podgląd edytora odświeża się także po zmianie obiektu w miejscu).
  */
-export const HydrationIsland = memo(function HydrationIsland(
-  props: HydrationIslandProps,
-): ReactElement {
+export function HydrationIsland(props: HydrationIslandProps): ReactElement {
   const inEditor = useBuilderMode() !== null;
   if (props.disabled === true || inEditor) return <>{props.children}</>;
-  return <IslandBoundary {...props} />;
-}, islandPropsEqual);
+  return <MemoIslandBoundary {...props} />;
+}

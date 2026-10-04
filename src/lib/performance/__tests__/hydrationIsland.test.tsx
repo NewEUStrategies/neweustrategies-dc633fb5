@@ -732,6 +732,189 @@ describe("HTML serwera zachowany przy aktualizacjach przed otwarciem bramki", ()
   });
 });
 
+// --- Komparator `memo`: kierunek „nierówne" ------------------------------------
+
+describe("komparator `memo`: nierówne propsy docierają do treści wyspy", () => {
+  let mounts = 0;
+
+  beforeEach(() => {
+    mounts = 0;
+  });
+
+  function Label({ text, children }: { text: string; children?: ReactNode }): ReactElement {
+    return (
+      <p data-probe="label" title={text}>
+        {children}
+      </p>
+    );
+  }
+
+  function Mounted(): ReactElement {
+    useLayoutEffect(() => {
+      mounts += 1;
+    }, []);
+    return <span data-probe="mounted">montaż</span>;
+  }
+
+  interface Setters {
+    count(value: number): void;
+    text(value: string): void;
+    gap(value: number): void;
+    childKey(value: string): void;
+  }
+
+  /** Wyspa uwodniona (punkt ciszy); rodzic zmienia po jednej wartości w jej dzieciach. */
+  async function hydratedIsland(): Promise<{ t: Hydrated; set: Setters }> {
+    const set: Setters = { count: () => {}, text: () => {}, gap: () => {}, childKey: () => {} };
+    function App(): ReactElement {
+      const [count, setCount] = useState(1);
+      const [text, setText] = useState("pierwsza");
+      const [gap, setGap] = useState(4);
+      const [childKey, setChildKey] = useState("k1");
+      set.count = setCount;
+      set.text = setText;
+      set.gap = setGap;
+      set.childKey = setChildKey;
+      return (
+        <HydrationIsland id="upd">
+          <Label text={text}>{count}</Label>
+          <div data-probe="styled" style={{ marginTop: gap }} />
+          <Mounted key={childKey} />
+        </HydrationIsland>
+      );
+    }
+    const t = await hydrate(<App />);
+    await reachQuiescence();
+    expect(t.state("upd")).toBe("hydrated");
+    expect(mounts).toBe(1);
+    return { t, set };
+  }
+
+  function styleOf(node: Element): CSSStyleDeclaration {
+    if (!(node instanceof HTMLElement)) throw new Error("oczekiwano HTMLElement");
+    return node.style;
+  }
+
+  it("uwodniona wyspa: zmieniony tekst w `children` i prymityw w propsie dziecka docierają do DOM", async () => {
+    const { t, set } = await hydratedIsland();
+    const label = t.probe("label");
+
+    await act(async () => set.count(2));
+    expect(label.textContent).toBe("2");
+
+    await act(async () => set.text("druga"));
+    expect(label.getAttribute("title")).toBe("druga");
+
+    // Zwykła aktualizacja w miejscu: te same węzły, bez ponownego montażu.
+    expect(t.lost()).toEqual([]);
+    expect(mounts).toBe(1);
+    expect(consoleWarn).not.toHaveBeenCalled();
+  });
+
+  it("uwodniona wyspa: zmieniona wartość w obiekcie `style` dociera do DOM", async () => {
+    const { t, set } = await hydratedIsland();
+    expect(styleOf(t.probe("styled")).marginTop).toBe("4px");
+
+    await act(async () => set.gap(8));
+
+    expect(styleOf(t.probe("styled")).marginTop).toBe("8px");
+    expect(t.lost()).toEqual([]);
+  });
+
+  it("uwodniona wyspa: zmiana `key` dziecka montuje je od nowa", async () => {
+    const { t, set } = await hydratedIsland();
+
+    await act(async () => set.childKey("k2"));
+
+    expect(mounts).toBe(2);
+    expect(t.lost()).toEqual(["mounted"]);
+    expect(t.container.querySelector('[data-probe="mounted"]')).not.toBeNull();
+  });
+
+  it.each(["disabled", "builder"] as const)(
+    "ścieżka przepustowa (%s): zmieniony prymityw i obiekt zmieniony w miejscu docierają do DOM - bez `memo`",
+    async (path) => {
+      const section = { title: "A" };
+      let setCount: (value: number) => void = () => {};
+      let rerender: () => void = () => {};
+      function Section({ data, count }: { data: { title: string }; count: number }): ReactElement {
+        return (
+          <p data-probe="section">
+            {data.title} {count}
+          </p>
+        );
+      }
+      function App(): ReactElement {
+        const [count, applyCount] = useState(1);
+        const [, setTick] = useState(0);
+        setCount = applyCount;
+        rerender = () => setTick((value) => value + 1);
+        const island = (
+          <HydrationIsland id="pass" disabled={path === "disabled"}>
+            <Section data={section} count={count} />
+          </HydrationIsland>
+        );
+        return path === "builder" ? (
+          <BuilderModeProvider mode="light">{island}</BuilderModeProvider>
+        ) : (
+          island
+        );
+      }
+
+      const t = await hydrate(<App />);
+      const node = t.probe("section");
+      expect(node.textContent).toBe("A 1");
+
+      await act(async () => setCount(2));
+      expect(node.textContent).toBe("A 2");
+
+      // Edytor zmienia obiekt sekcji w miejscu (ta sama referencja) i
+      // renderuje rodzica: podgląd ma się odświeżyć.
+      section.title = "B";
+      await act(async () => rerender());
+      expect(node.textContent).toBe("B 2");
+
+      expect(t.lost()).toEqual([]);
+      expect(t.container.querySelector("[data-island-id]")).toBeNull();
+      expect(enqueue).not.toHaveBeenCalled();
+    },
+  );
+
+  it("czekająca wyspa i zmieniony prymityw w dziecku: ostrzeżenie DEV z `id`, górna granica otwiera wyspę, DOM pokazuje nową wartość", async () => {
+    let setText: (value: string) => void = () => {};
+    function App(): ReactElement {
+      const [text, apply] = useState("pierwsza");
+      setText = apply;
+      return (
+        <HydrationIsland id="data" trigger={{ quiescent: false }}>
+          <Label text={text}>stała treść</Label>
+        </HydrationIsland>
+      );
+    }
+
+    const t = await hydrate(<App />);
+    await act(async () => setText("druga"));
+
+    // Dane to też propsy: zmiana dociera do odwodnionej granicy (Default).
+    const warnings = consoleWarn.mock.calls.map(([message]) => String(message));
+    expect(warnings).toContainEqual(
+      expect.stringContaining('"data": props changed while the island is pending'),
+    );
+    expect(enqueueCalls()).toContainEqual({
+      priority: "island-target",
+      release: "immediate",
+      target: t.island("data"),
+    });
+
+    await frame();
+
+    expect(t.state("data")).toBe("hydrated");
+    expect(t.fallbackShown()).toBe(false);
+    expect(t.container.querySelector('[data-probe="label"]')?.getAttribute("title")).toBe("druga");
+    expect(t.errors).toEqual([]);
+  });
+});
+
 // --- Kontrole negatywne: MUSZĄ wykryć render klienta --------------------------
 
 describe("kontrole negatywne (uprząż musi wykryć render klienta)", () => {
@@ -1204,6 +1387,25 @@ describe("wyzwalacze i zwolnienie przez kolejkę P0.3", () => {
     expect(String(consoleWarn.mock.calls[0]?.[0])).toContain('"txt"');
   });
 
+  it("visible przy treści bez elementów i otoczce z pudełkiem (`className`): bez ostrzeżenia; `contents` z wariantem - z ostrzeżeniem", async () => {
+    const t = await hydrate(
+      <>
+        <HydrationIsland id="box" className="block" trigger={{ visible: {} }}>
+          sam tekst
+        </HydrationIsland>
+        <HydrationIsland id="md" className="block md:contents" trigger={{ visible: {} }}>
+          sam tekst
+        </HydrationIsland>
+      </>,
+    );
+    const [boxObserver, mdObserver] = FakeIntersectionObserver.instances;
+    expect(boxObserver?.observed).toEqual([t.island("box")]);
+    expect(mdObserver?.observed).toEqual([t.island("md")]);
+    const warnings = consoleWarn.mock.calls.map(([message]) => String(message));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('"md"');
+  });
+
   it('interaction "any": wpis `islands` z celem czeka na pierwszą interakcję gdziekolwiek', async () => {
     const t = await hydrate(<Island trigger={{ interaction: "any", ownEvents: [] }} />);
     expect(enqueueCalls()).toEqual([
@@ -1365,6 +1567,60 @@ describe("wyzwalacze i zwolnienie przez kolejkę P0.3", () => {
     });
     expect(u.state("later")).toBe("hydrated");
     expect(enqueue).not.toHaveBeenCalled();
+  });
+
+  it("immediateWhen z chunkami: loader i `lazy` startują już w renderze otoczki (przed jej commitem), bramka po obu, bez kolejki", async () => {
+    const order: string[] = [];
+    const chunk = deferred();
+    const loader = vi.fn(() => {
+      order.push("loader");
+      return chunk.promise;
+    });
+    const module = deferred<{ default: () => ReactElement }>();
+    const factory = vi.fn(() => {
+      order.push("lazy");
+      return module.promise;
+    });
+    const Lazy = lazy(factory);
+    function CommitProbe(): null {
+      useLayoutEffect(() => {
+        order.push("commit");
+      }, []);
+      return null;
+    }
+    const trigger: IslandTrigger = { immediateWhen: () => true };
+    const t = await hydrate(
+      <>
+        <Island id="early" trigger={trigger} />
+        <CommitProbe />
+      </>,
+      <>
+        <Island id="early" trigger={trigger} chunks={[loader, Lazy]} />
+        <CommitProbe />
+      </>,
+    );
+
+    // Import nie czeka na commit (i efekty) hydratacji strony.
+    expect(order).toEqual(["loader", "lazy", "commit"]);
+    expect(t.state("early")).toBe("pending");
+
+    await act(async () => {
+      chunk.resolve();
+      await flushMicrotasks();
+    });
+    expect(t.state("early")).toBe("pending"); // `lazy` jeszcze nie przyszedł
+
+    await act(async () => {
+      module.resolve({ default: () => <i /> });
+      await flushMicrotasks();
+    });
+    expect(t.state("early")).toBe("hydrated");
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(onQuiescent).not.toHaveBeenCalled();
+    expect(t.lost()).toEqual([]);
+    expect(t.errors).toEqual([]);
   });
 
   it("immediateWhen rzucające: błąd zgłoszony, wyspa czeka na zwykłe wyzwalacze", async () => {
