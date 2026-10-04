@@ -148,16 +148,20 @@ describe("AccountMenuWidget", () => {
     expect(trigger).toHaveTextContent("Anna");
   });
 
-  it("REGRESJA CLS: podpis stoi w pudełku o STAŁEJ szerokości", () => {
+  it("REGRESJA CLS: podpis ma stabilną szerokość minimalną, ale pełne powitanie nie jest ucinane", () => {
     // Podpis dojeżdża etapami (sesja -> profil -> powitanie). Bez stałej
     // szerokości każdy etap zmieniałby szerokość przycisku, a za nim całego
     // paska narzędzi nagłówka.
     auth.session = { user: { id: "u1" } };
     auth.user = { id: "u1", email: "anna@example.org" };
-    const { container } = renderWidget();
-    const label = container.querySelector<HTMLElement>("span.truncate");
-    expect(label?.className).toContain("w-[9rem]");
-    expect(label?.className).not.toContain("max-w-[200px]");
+    renderWidget();
+    const label = screen.getByText("Dzień dobry, Anno");
+    const classes = label.className.split(" ");
+    expect(label.className).toContain("min-w-[9rem]");
+    expect(label.className).toContain("whitespace-nowrap");
+    expect(classes).not.toContain("truncate");
+    expect(classes).not.toContain("w-[9rem]");
+    expect(classes).not.toContain("max-w-[200px]");
   });
 
   it("staff dostaje dodatkowo sekcję staff (Panel admina)", async () => {
