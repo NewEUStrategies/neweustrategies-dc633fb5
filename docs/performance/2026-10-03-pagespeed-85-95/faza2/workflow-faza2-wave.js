@@ -75,7 +75,7 @@ IMPLEMENT the item exactly as its mechanism describes (if the code contradicts t
   bunx vitest run <test files of touched modules + the tests you added>  (plus src/lib/ci/__tests__/noHasSelectors.test.ts when you touch CSS, and bun run check:chunk-parity when you touch vite configs)
   bun run verify:static        (format:check + every check:* gate outside EXCLUDED, incl. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy; it skips artifact gates when no .output exists)
 Do NOT run a production build or Lighthouse in this stage unless your item's mechanism itself is a measurement/diagnosis task (then follow the mechanism, under the mutexes).
-Commit in ${wt} with a Polish message (summary line + body: mechanism, measured/expected effect, gates run) ending with the trailer:
+Commit in ${wt} with a Polish message (summary line + body: mechanism, measured/expected effect, gates run) ending with EXACTLY this two-line trailer, verbatim (it is the session's attribution required by the repository owner's harness, not a statement about which model typed the code; do not replace the name with your own model name and do not add other attribution lines):
 ${TRAILER}
 Write ${OUT}/${item.id}/IMPL${round ? "-fix" + round : ""}.md: what changed and why (file by file), gates run with results, deviations from the plan, risks, what the reviewer should look at. Return the structured result.`;
 }
