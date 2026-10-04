@@ -90,6 +90,10 @@ jobs:
     # górna granica - dla trybu C nic się nie zmienia, bo ten kończył się
     # dotąd znacznie poniżej 30 minut. Gdyby lista URL-i urosła powyżej
     # siedmiu, ten limit trzeba przeliczyć razem z nią.
+    #
+    # Tryb A od 2026-10-04 płaci jeszcze dwie rozgrzewki (najwyżej 7 URL-i
+    # x 2 przejścia x MISS ~3 s = ~45 s na profil) - mieści się w tym samym
+    # limicie.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -167,6 +171,56 @@ jobs:
           echo "URL-e trybu A (kazdy przechodzi te same budzety):"
           cat lhci-urls.txt
 
+      # ROZGRZEWKA TRYBU A - UA PRZEGLĄDARKI, Z LOGIEM NAGŁÓWKÓW (werdykt M5).
+      # Cache dokumentu na brzegu jest per colo i ma 3 min świeżości, więc
+      # runner GitHuba bez rozgrzewki mierzy MISS (TTFB 1,8-3,3 s, SI zawyżone)
+      # - a pierwszy MISS w colo decyduje, KTÓRY wariant dokumentu trafia do
+      # cache: goły curl (`isbot()` = true) zapisałby buforowany wariant BOTA
+      # (allReady), którego przeglądarka normalnie nie dostaje. Dlatego jawny
+      # UA Chrome i nagłówek Accept nawigacji.
+      #
+      # Accept-Language = to, co wyśle LHCI: konfiguracje trybu A nie ustawiają
+      # `locale`, więc Lighthouse idzie z en-US i `/` odpowiada 302 na `/en`
+      # (homepageLangMiddleware w src/start.ts). `curl -L` idzie za
+      # przekierowaniem, czyli rozgrzewa dokładnie ten wpis, który LHCI zmierzy;
+      # log pokazuje przeskok wprost. Uwaga przy czytaniu wyników: PSI z `hl=pl`
+      # mierzy `/`, a nie `/en`.
+      #
+      # Dwa przejścia na URL: pierwsze rozgrzewa, drugie dowodzi w logu, że colo
+      # oddaje HIT (`x-nes-cache`, `x-nes-cache-age`, `server-timing`, `cf-ray`
+      # z sufiksem colo). Skrypt jest zapisywany do pliku, bo profil mobilny
+      # rozgrzewa PONOWNIE tuż przed swoim przebiegiem - desktop trwa dłużej niż
+      # 3-minutowe okno świeżości. Rozgrzewka nigdy nie przewraca joba: awaria
+      # sieci wyjdzie i tak w LHCI.
+      - name: Warm the deployed URLs with a browser UA (mode A)
+        if: ${{ vars.LHCI_URL != '' }}
+        run: |
+          cat > lhci-warm.sh <<'WARM'
+          #!/usr/bin/env bash
+          # Użycie: bash lhci-warm.sh desktop|mobile  (URL-e z lhci-urls.txt)
+          set +e
+          if [ "${1:-desktop}" = "mobile" ]; then
+            ua='Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Mobile Safari/537.36'
+          else
+            ua='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
+          fi
+          accept='text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8'
+          lang='en-US,en;q=0.9'
+          while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            for pass in 1 2; do
+              echo "== rozgrzewka ${1:-desktop} $pass/2: $url"
+              curl -sS -L -o /dev/null -D - --max-time 90 \
+                -A "$ua" -H "Accept: $accept" -H "Accept-Language: $lang" "$url" \
+                | tr -d '\r' \
+                | grep -iE '^(HTTP/|location:|x-nes-|server-timing:|cf-ray:|cf-cache-status:)' \
+                | sed 's/^/   /'
+            done
+          done < lhci-urls.txt
+          exit 0
+          WARM
+          bash lhci-warm.sh desktop
+
       - name: Lighthouse against deployed URL - desktop (blocking)
         if: ${{ vars.LHCI_URL != '' }}
         run: |
@@ -197,6 +251,7 @@ jobs:
       - name: Lighthouse against deployed URL - mobile profile (blocking)
         if: ${{ vars.LHCI_URL != '' }}
         run: |
+          bash lhci-warm.sh mobile
           flags=(--config=lighthouserc.deployed.mobile.json)
           while IFS= read -r url; do
             [ -n "$url" ] || continue
