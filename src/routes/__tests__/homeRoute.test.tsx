@@ -24,7 +24,10 @@
 //     pomyłka tutaj to albo migający ekran po hydracji, albo przejście
 //     zatrzymane na najwolniejszym zapytaniu spod zgięcia.
 //  6. PODPOWIEDŹ LCP JEST BAJTOWO ZGODNA z malowanym obrazem (ten sam srcSet
-//     i sizes), inaczej przeglądarka pobiera plik dwa razy.
+//     i sizes), inaczej przeglądarka pobiera plik dwa razy. Dla kanwy buildera
+//     (P1.4) preload jest JEDEN i pochodzi z `preload()` react-dom w komponencie
+//     trasy (klucz zasobu wspólny z `<img>` kandydata), a nie z `head()`; kanwa
+//     jest rendererem-właścicielem kandydata (`lcpOwner`).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE:
 //  * CZYSTYCH DECYZJI ATOMÓW - `homeContent`/`homeBuilderSource`/
@@ -156,9 +159,24 @@ vi.mock("@/lib/builder/prefetch", async (importOriginal) => ({
 }));
 
 vi.mock("@/components/builder/organisms/BuilderRenderer", () => ({
-  BuilderRenderer: ({ lang, stream }: { lang: string; stream?: boolean }) => {
+  BuilderRenderer: ({
+    lang,
+    stream,
+    lcpOwner,
+  }: {
+    lang: string;
+    stream?: boolean;
+    lcpOwner?: boolean;
+  }) => {
     if (h.builderThrows) throw new Error("kanwa nie umiała się wyrenderować");
-    return <div data-testid="kanwa" data-lang={lang} data-stream={stream ? "1" : "0"} />;
+    return (
+      <div
+        data-testid="kanwa"
+        data-lang={lang}
+        data-stream={stream ? "1" : "0"}
+        data-lcp-owner={lcpOwner ? "1" : "0"}
+      />
+    );
   },
 }));
 vi.mock("@/components/ads/FooterSlideup", () => ({ FooterSlideup: () => null }));
@@ -523,6 +541,109 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     // Adres kanoniczny spada do postaci RELATYWNEJ - link pozostaje poprawny,
     // choć nie da się z niego zbudować absolutnego `@id` encji.
     expect(linkByRel(view.links(), "canonical")).toBe("/");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KANDYDAT LCP KANWY (P1.4) - PRZEPISANY KONTRAKT PRELOADU, ŚWIADOMIE.
+// Dawniej `head()` dokładał `<link rel=preload>` z `builderHeroPreload`
+// (pierwszy preloadowalny widget w DOM - na `/` karta listy 25vw), a React
+// drugi z `<img>` hero: dwa preloady, w tym jeden złego kandydata. Teraz obraz
+// kandydata (`lcpCandidates`) idzie przez `preload()` z react-dom w komponencie
+// trasy - jedyny preload tego obrazu - a nagłówek `Link` dalej z loadera.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
+  /** Unikalny plik na test: `preload()` react-dom deduplikuje klucz na całą stronę. */
+  const hero = (name: string) =>
+    `https://przyklad.supabase.co/storage/v1/object/public/media/${name}.jpg`;
+
+  function heroDoc(src: string, extraSections: unknown[] = []): unknown {
+    return {
+      version: 1,
+      sections: [
+        ...extraSections,
+        {
+          id: "s-hero",
+          kind: "section",
+          children: [
+            {
+              id: "c-hero",
+              kind: "column",
+              span: { desktop: 12 },
+              children: [
+                { id: "w-hero", kind: "widget", type: "image", content: { src, alt_pl: "Hero" } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  const preloadInHead = (file: string) =>
+    document.head.querySelector<HTMLLinkElement>(
+      `link[rel="preload"][as="image"][imagesrcset*="${file}"]`,
+    );
+
+  beforeEach(() => {
+    h.homeMode = "static_page";
+  });
+
+  it("kanwa jest rendererem-WŁAŚCICIELEM kandydata LCP strony", async () => {
+    h.homePage = homePageData();
+    await mountHome();
+    expect(screen.getByTestId("kanwa")).toHaveAttribute("data-lcp-owner", "1");
+  });
+
+  it("obraz kandydata: brak linku w `head()`, jeden `preload()` react-dom i nagłówek `Link`", async () => {
+    const src = hero("kandydat-1");
+    h.homePage = homePageData({ builder_data: heroDoc(src) });
+    const view = await mountHome();
+    // `head()` nie dubluje preloadu - to robił dawny `imagePreloadLink`.
+    expect(imagePreload(view.links())).toBeUndefined();
+    // `preload()` z react-dom: na kliencie wstawia link do <head>, w SSR
+    // trafia do preambuły pod kluczem `<img>` (dowód SSR:
+    // builderRenderer.streaming.test.tsx, „jedno źródło preloadu").
+    const link = preloadInHead("kandydat-1");
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("fetchpriority")).toBe("high");
+    expect(link?.getAttribute("imagesrcset")).toContain("/storage/v1/render/image/public/");
+    expect(link?.getAttribute("imagesizes")).toBeTruthy();
+    expect(
+      document.head.querySelectorAll('link[as="image"][imagesrcset*="kandydat-1"]'),
+    ).toHaveLength(1);
+    // Nagłówek `Link` (103 Early Hints na brzegu) karmiony TYM SAMYM kandydatem.
+    const header = h.linkHeaders.find((value) => value.includes(src));
+    expect(header).toContain('rel="preload"');
+    expect(header).toContain("fetchpriority=high");
+    expect(header).toContain(`imagesizes="${link?.getAttribute("imagesizes")}"`);
+  });
+
+  it("kanwa BEZ obrazu w oknie: ani linku, ani nagłówka `Link`, ani preloadu", async () => {
+    h.homePage = homePageData();
+    const view = await mountHome();
+    expect(imagePreload(view.links())).toBeUndefined();
+    expect(h.linkHeaders.some((value) => value.includes('as="image"'))).toBe(false);
+  });
+
+  it("obraz poza oknem trzech sekcji nie jest kandydatem i nie dostaje preloadu", async () => {
+    const src = hero("poza-oknem");
+    const text = (id: string) => ({
+      id,
+      kind: "section",
+      children: [
+        {
+          id: `${id}-c`,
+          kind: "column",
+          span: { desktop: 12 },
+          children: [{ id: `${id}-w`, kind: "widget", type: "text", content: { html: "Tekst" } }],
+        },
+      ],
+    });
+    h.homePage = homePageData({ builder_data: heroDoc(src, [text("t1"), text("t2"), text("t3")]) });
+    await mountHome();
+    expect(preloadInHead("poza-oknem")).toBeNull();
+    expect(h.linkHeaders.some((value) => value.includes(src))).toBe(false);
   });
 });
 

@@ -9,7 +9,7 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetNode, WidgetType, WidgetContent } from "@/lib/builder/types";
-import { AboveFoldProvider } from "@/lib/builder/aboveFold";
+import { LcpCandidatesProvider } from "@/lib/builder/aboveFold";
 import { BuilderImageSlotContext } from "@/lib/builder/imageSlotContext";
 import { imageWidgetSizes } from "@/lib/builder/widgetImageSizes";
 import type { ImageSlot } from "@/lib/builder/imageSlot";
@@ -62,13 +62,13 @@ let nextId = 0;
 function renderNode(
   type: WidgetType,
   content: WidgetContent,
-  opts: { lang?: "pl" | "en"; editable?: boolean; aboveFold?: boolean; slot?: ImageSlot } = {},
+  opts: { lang?: "pl" | "en"; editable?: boolean; lcpCandidate?: boolean; slot?: ImageSlot } = {},
 ) {
   const node: WidgetNode = { id: `mw-${nextId++}`, kind: "widget", type, content };
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <AboveFoldProvider aboveFold={opts.aboveFold ?? false}>
+      <LcpCandidatesProvider widgetIds={opts.lcpCandidate ? [node.id] : []}>
         <BuilderImageSlotContext.Provider value={opts.slot}>
           <WidgetView
             node={node}
@@ -78,7 +78,7 @@ function renderNode(
             onContentChange={opts.editable ? () => {} : undefined}
           />
         </BuilderImageSlotContext.Provider>
-      </AboveFoldProvider>
+      </LcpCandidatesProvider>
     </QueryClientProvider>,
   );
 }
@@ -160,20 +160,62 @@ describe("PostsSliderWidget - profile autorów slajdów", () => {
 });
 
 describe("ImageWidget - logo strony i fallbacki", () => {
-  it.each([false, true])("preserves column sizes and loading policy aboveFold=%s", (aboveFold) => {
-    const slot: ImageSlot = { desktop: { vw: 50, cap: 680 }, tablet: { vw: 100, cap: 900 } };
-    const content = {
-      src: "https://p.supabase.co/storage/v1/object/public/covers/full.jpg",
-      href: "/raporty",
-    };
-    const { container } = renderNode("image", content, { slot, aboveFold });
-    const img = container.querySelector("img")!;
-    expect(img).toHaveAttribute("sizes", imageWidgetSizes(content, slot));
-    expect(img.getAttribute("srcset")).toContain("/render/image/public/");
-    expect(img).toHaveAttribute("loading", aboveFold ? "eager" : "lazy");
-    expect(img).toHaveAttribute("fetchpriority", aboveFold ? "high" : "auto");
-    expect(container.querySelector("figure")).toHaveClass("w-full");
-    expect(container.querySelector("a")?.parentElement?.style.width).toBe("100%");
+  // PRZEPISANE ŚWIADOMIE (P1.4). Dawniej priorytet dawała pozycja sekcji
+  // (`AboveFoldProvider aboveFold`): każdy obraz trzech czołowych sekcji był
+  // eager + high. Teraz wyłącznie widget wskazany przez renderer-właściciela
+  // (`lcpCandidates` -> `LcpCandidatesProvider`) - i tylko on niesie znacznik
+  // `data-lcp-candidate`, którego szuka boot po LCP (P2.1).
+  it.each([false, true])(
+    "preserves column sizes; eager/high + marker only for the LCP candidate=%s",
+    (lcpCandidate) => {
+      const slot: ImageSlot = { desktop: { vw: 50, cap: 680 }, tablet: { vw: 100, cap: 900 } };
+      const content = {
+        src: "https://p.supabase.co/storage/v1/object/public/covers/full.jpg",
+        href: "/raporty",
+      };
+      const { container } = renderNode("image", content, { slot, lcpCandidate });
+      const img = container.querySelector("img")!;
+      // Obraz bez ramki nie używa `auto, ` - sizes równe deskryptorowi
+      // preloadu (heroImage) w obu stanach.
+      expect(img).toHaveAttribute("sizes", imageWidgetSizes(content, slot));
+      expect(img.getAttribute("srcset")).toContain("/render/image/public/");
+      expect(img).toHaveAttribute("loading", lcpCandidate ? "eager" : "lazy");
+      expect(img).toHaveAttribute("fetchpriority", lcpCandidate ? "high" : "auto");
+      expect(img.hasAttribute("data-lcp-candidate")).toBe(lcpCandidate);
+      expect(container.querySelector("figure")).toHaveClass("w-full");
+      expect(container.querySelector("a")?.parentElement?.style.width).toBe("100%");
+    },
+  );
+
+  it("framed image candidate: priority and marker land on the visible foreground img", () => {
+    const { container } = renderNode(
+      "image",
+      { src: "https://p.supabase.co/storage/v1/object/public/covers/framed.jpg", ratio: "16/9" },
+      { lcpCandidate: true },
+    );
+    const img = container.querySelector("img.widget-media-fg")!;
+    expect(img).toHaveAttribute("loading", "eager");
+    expect(img).toHaveAttribute("fetchpriority", "high");
+    expect(img).toHaveAttribute("data-lcp-candidate", "");
+    // Kandydat: sizes BEZ `auto, ` - inaczej klucz preloadu nie pasowałby.
+    expect(img.getAttribute("sizes")).not.toMatch(/^auto, /);
+  });
+
+  it("light/dark pair never gets priority even when listed as a candidate", () => {
+    // `lcpCandidates` nie wskaże pary (oba obrazy są w DOM), ale gdyby kontekst
+    // ją wskazał, eager podwoiłby transfer - renderer zostaje przy lazy.
+    const { container } = renderNode(
+      "image",
+      {
+        src: "https://p.supabase.co/storage/v1/object/public/covers/light.jpg",
+        srcDark: "https://p.supabase.co/storage/v1/object/public/covers/dark.jpg",
+      },
+      { lcpCandidate: true },
+    );
+    for (const img of container.querySelectorAll("img")) {
+      expect(img).toHaveAttribute("loading", "lazy");
+      expect(img.hasAttribute("data-lcp-candidate")).toBe(false);
+    }
   });
 
   it("uses auto sizes only when a frame reserves the image dimensions", () => {
@@ -275,5 +317,83 @@ describe("ImageWidget - logo strony i fallbacki", () => {
     // Obie warstwy w ramce ratio.
     expect(container.querySelector(".gc-img-light.widget-media-fg")).not.toBeNull();
     expect(container.querySelector(".gc-img-dark.widget-media-fg")).not.toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KANDYDAT LCP W POZOSTAŁYCH GAŁĘZIACH (P1.4): slider, dark-featured-card,
+// post-lista. Wspólna reguła: priorytet + `data-lcp-candidate` WYŁĄCZNIE dla
+// widgetu wskazanego przez renderer-właściciela; każdy inny obraz jest leniwy.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("kandydat LCP - slider, dark-featured-card, post-lista", () => {
+  const slides = {
+    variant: "editorial-hero",
+    autoplay: false,
+    items: [
+      { image: "https://cdn.example.com/s1.jpg", title_pl: "Slajd 1" },
+      { image: "https://cdn.example.com/s2.jpg", title_pl: "Slajd 2" },
+    ],
+  };
+
+  it("slider-kandydat: slajd 0 eager + high + znacznik, slajd 1 leniwy", async () => {
+    const { container } = renderNode("slider", slides, { lcpCandidate: true });
+    await waitFor(() => expect(container.querySelector("img.eh-img")).not.toBeNull());
+    const imgs = container.querySelectorAll("img.eh-img");
+    expect(imgs[0]).toHaveAttribute("loading", "eager");
+    expect(imgs[0]).toHaveAttribute("fetchpriority", "high");
+    expect(imgs[0]).toHaveAttribute("data-lcp-candidate", "");
+    expect(imgs[1]).toHaveAttribute("loading", "lazy");
+    expect(container.querySelectorAll("[data-lcp-candidate]")).toHaveLength(1);
+  });
+
+  it("slider spoza kandydata NIE dziedziczy historycznego „slajd 0 zawsze High”", async () => {
+    // 4 z 9 obrazów High na fixture `/` to były slidery multi-card spod zgięcia.
+    const { container } = renderNode("slider", slides);
+    await waitFor(() => expect(container.querySelector("img.eh-img")).not.toBeNull());
+    const first = container.querySelector("img.eh-img")!;
+    expect(first).toHaveAttribute("loading", "lazy");
+    expect(first.getAttribute("fetchpriority")).not.toBe("high");
+    expect(container.querySelectorAll("[data-lcp-candidate]")).toHaveLength(0);
+  });
+
+  it("dark-featured-card: obraz kandydata eager + high + znacznik; poza kandydatem leniwy", () => {
+    const content = { image: "https://cdn.example.com/card.jpg", title_pl: "Karta" };
+    const candidate = renderNode("dark-featured-card", content, { lcpCandidate: true });
+    const img = candidate.container.querySelector("img")!;
+    expect(img).toHaveAttribute("loading", "eager");
+    expect(img).toHaveAttribute("fetchpriority", "high");
+    expect(img).toHaveAttribute("data-lcp-candidate", "");
+    cleanup();
+    const other = renderNode("dark-featured-card", content);
+    const lazyImg = other.container.querySelector("img")!;
+    expect(lazyImg).toHaveAttribute("loading", "lazy");
+    expect(lazyImg.hasAttribute("data-lcp-candidate")).toBe(false);
+  });
+
+  it("post-lista: priorytet tylko dla okładki WIODĄCEJ kandydata, reszta leniwa", async () => {
+    db.tables.posts = [1, 2, 3].map((n) => ({
+      id: `p${n}`,
+      slug: `wpis-${n}`,
+      title_pl: `Wpis ${n}`,
+      title_en: null,
+      excerpt_pl: null,
+      excerpt_en: null,
+      cover_image_url: `https://cdn.example.com/okladka-${n}.jpg`,
+      published_at: "2026-01-01T00:00:00Z",
+      author_id: null,
+      post_format: null,
+    }));
+    const candidate = renderNode("post-list", { variant: "card" }, { lcpCandidate: true });
+    await waitFor(() => expect(candidate.container.querySelectorAll("img")).toHaveLength(3));
+    expect(
+      [...candidate.container.querySelectorAll("img")].map((i) => i.getAttribute("loading")),
+    ).toEqual(["eager", "lazy", "lazy"]);
+    expect(candidate.container.querySelector("img")).toHaveAttribute("fetchpriority", "high");
+    cleanup();
+    const other = renderNode("post-list", { variant: "card" });
+    await waitFor(() => expect(other.container.querySelectorAll("img")).toHaveLength(3));
+    expect(
+      [...other.container.querySelectorAll("img")].map((i) => i.getAttribute("loading")),
+    ).toEqual(["lazy", "lazy", "lazy"]);
   });
 });

@@ -11,6 +11,14 @@
  * pobieraną z priorytetem High przy starcie i CSS blokujący renderowanie.
  * Uzasadnienie metryk: nagłówek `documentWeight.ts`.
  *
+ * ŚCIEŻKA KRYTYCZNA OBRAZU LCP (P1.4, LP-10 + LA-C3): co najwyżej dwa
+ * `img[data-lcp-candidate]` (`lcpCandidateCount`), żadnego obrazu eager poza
+ * kandydatem i logo w `<header>` (`imgEagerNonCandidate`), preload obrazu
+ * `fetchpriority=high` wyłącznie dla kandydata - ten sam `imagesrcset` +
+ * `imagesizes` co `<img>` (`imagePreloadNonCandidate`), nagłówek `Link`
+ * wyłącznie z dozwolonych wpisów (`linkHeaderDisallowed`) i bajty przed LCP
+ * (`preLcpTransferBytes`). Kontrola negatywna: `document-weight.test.mjs`.
+ *
  * Progi są RATCHETEM z pomiaru fixture: wolno je wyłącznie obniżać
  * (`--ratchet` przepisuje plik progów, ale nigdy w górę).
  *
@@ -161,6 +169,11 @@ function printWeight(w: DocumentWeight): void {
       `  CSS blokujący: ${w.renderBlockingCssCount} plik(ów), ${w.renderBlockingCssRawBytes} B raw / ${w.renderBlockingCssGzipBytes} B gzip`,
     );
   }
+  console.log(
+    `  ścieżka LCP: kandydaci ${w.lcpCandidateCount}${w.lcpCandidateMissing ? " (BRAK znacznika)" : ""}, eager poza kandydatem/logo ${w.imgEagerNonCandidate}, ` +
+      `preload obrazu High poza kandydatem ${w.imagePreloadNonCandidate}, Link spoza listy ${w.linkHeaderDisallowed}; ` +
+      `przed LCP ${w.preLcpTransferBytes} B (fonty ${w.fontPreloadBytes} B, obraz z artefaktu ${w.lcpImageBytes} B)`,
+  );
 }
 
 async function main(): Promise<void> {

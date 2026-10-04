@@ -176,6 +176,12 @@ export function renderSimpleWidget(
   editable: boolean = false,
   onContentChange?: (key: string, value: string | number) => void,
   typography?: WidgetTypography,
+  /**
+   * Widget jest kandydatem LCP strony (P1.4, `useIsLcpWidget` w ramce): tylko
+   * wtedy jego pierwszy obraz idzie eager + fetchpriority=high i dostaje
+   * `data-lcp-candidate`. Domyślnie `false` - obraz leniwy.
+   */
+  isLcp: boolean = false,
 ): ReactNode | undefined {
   const c = node.content;
 
@@ -1097,6 +1103,7 @@ export function renderSimpleWidget(
           theme={theme}
           editable={editable}
           onContentChange={onContentChange}
+          isLcp={isLcp}
         />
       );
     }
@@ -1107,7 +1114,7 @@ export function renderSimpleWidget(
       // predicate is shared with the SSR prefetch registry so the server
       // warms exactly the query this branch will read.
       if (sliderUsesPostsSource(c)) {
-        return <PostsSliderWidget c={c} lang={lang} typography={typography} />;
+        return <PostsSliderWidget c={c} lang={lang} typography={typography} isLcp={isLcp} />;
       }
 
       const rawItems = Array.isArray(c.items)
@@ -1205,7 +1212,7 @@ export function renderSimpleWidget(
       if (!hasRealItems && editable) {
         return (
           <div className="relative w-full">
-            <SliderRender config={{ ...cfg, typography }} lang={lang} />
+            <SliderRender config={{ ...cfg, typography }} lang={lang} lcp={isLcp} />
             <div className="pointer-events-none absolute top-2 left-2 z-10 rounded-md bg-background/85 backdrop-blur px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground border border-border">
               {lang === "pl"
                 ? "Podgląd · dodaj slajdy w panelu"
@@ -1214,7 +1221,7 @@ export function renderSimpleWidget(
           </div>
         );
       }
-      return <SliderRender config={{ ...cfg, typography }} lang={lang} />;
+      return <SliderRender config={{ ...cfg, typography }} lang={lang} lcp={isLcp} />;
     }
     case "animated-heading": {
       const rotateRaw = c[`rotateWords_${lang}`] ?? c.rotateWords_pl;

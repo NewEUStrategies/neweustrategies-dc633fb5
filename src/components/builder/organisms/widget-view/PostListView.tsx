@@ -9,7 +9,7 @@ import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { WidgetContent } from "@/lib/builder/types";
 import { getBool, getNum, getStr } from "./frame";
 import { useUsedPostIds } from "@/lib/builder/usedPostIds";
-import { useAboveFold } from "@/lib/builder/aboveFold";
+import { lcpCandidateAttr } from "@/lib/builder/aboveFold";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { WidgetMediaImage } from "@/components/atoms/WidgetMediaImage";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -105,11 +105,25 @@ export function PostListView({
   lang,
   carousel = false,
   typography,
+  isLcp = false,
 }: {
   c: WidgetContent;
   lang: Lang;
   carousel?: boolean;
   typography?: import("@/lib/builder/types").WidgetTypography;
+  /**
+   * Widget jest kandydatem LCP strony (P1.4, `lcpCandidates`). Tylko wtedy
+   * obraz WIODĄCY (pierwsza karta / lead) idzie eager + fetchpriority=high
+   * z `data-lcp-candidate` - to on bywa elementem LCP, gdy strona otwiera się
+   * post-listą zamiast sliderem. Bez tego każda okładka listy jest leniwa i nie
+   * konkuruje o pasmo z prawdziwym obrazem LCP (dawniej priorytet dostawał
+   * lead KAŻDEGO widgetu trzech czołowych sekcji).
+   *
+   * Znacznik idzie atrybutem `data-lcp-candidate` do `WidgetMediaImage`;
+   * atom przekazuje go na `<img>` dopiero po zmianie zgłoszonej poza
+   * własnością P1.4 (IMPL.md, out_of_ownership_needs).
+   */
+  isLcp?: boolean;
 }) {
   // Prezentacje autora rozstrzyga JEDEN rezolwer wspoldzielony z warstwa
   // zapytania (`authorDisplayMode` w postListQuery) i z panelem wlasciwosci.
@@ -166,11 +180,6 @@ export function PostListView({
   const mobileHScroll = getBool(c, "mobileHorizontalScroll", false);
 
   const used = useUsedPostIds();
-  // Widget w sekcji nad zgięciem: WYŁĄCZNIE obraz wiodący (pierwsza karta /
-  // lead) dostaje eager + fetchpriority=high - to on bywa elementem LCP, gdy
-  // strona otwiera się post-listą zamiast sliderem. Miniatury list zostają
-  // leniwe: nie konkurują o pasmo z prawdziwym kandydatem LCP.
-  const aboveFold = useAboveFold();
   // Stable, snapshot-independent query: the server prefetch / stream gate and the
   // client resolve the SAME cache entry, so a streamed uniqueOnPage widget reuses
   // the dehydrated rows instead of refetching under a divergent key (no skeleton
@@ -295,7 +304,7 @@ export function PostListView({
             excerpt={excerpt(p)}
             titleStyle={tStyle}
             excerptStyle={eStyle}
-            priority={aboveFold && i === 0}
+            priority={isLcp && i === 0}
             authorNode={<AuthorMeta p={p} />}
             authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
           />
@@ -542,7 +551,8 @@ export function PostListView({
                 alt=""
                 frameClassName={`${tileFrame(aspect)} rounded-md mb-4`}
                 sizes={POST_LIST_CLASSIC_COVER_SIZES}
-                priority={aboveFold && i === 0}
+                priority={isLcp && i === 0}
+                data-lcp-candidate={lcpCandidateAttr(isLcp && i === 0)}
                 foregroundClassName={COVER_IMG_CLASS}
                 hoverEffect="zoom"
               />
@@ -577,7 +587,8 @@ export function PostListView({
                 alt=""
                 frameClassName={`relative block aspect-[16/9] md:aspect-[16/10] w-full shrink-0 overflow-hidden bg-muted`}
                 sizes={POST_LIST_FLEX_LEAD_SIZES}
-                priority={aboveFold}
+                priority={isLcp}
+                data-lcp-candidate={lcpCandidateAttr(isLcp)}
                 foregroundClassName={`${COVER_IMG_CLASS} transition-transform duration-500 group-hover:scale-[1.03]`}
               />
             </div>
@@ -697,7 +708,7 @@ export function PostListView({
           excerpt={excerpt(p)}
           titleStyle={tStyle}
           excerptStyle={eStyle}
-          priority={aboveFold && i === 0}
+          priority={isLcp && i === 0}
           authorNode={<AuthorMeta p={p} />}
           authorOverlayNode={<AuthorMeta p={p} tone="onDark" />}
         />
@@ -865,7 +876,11 @@ function PostCard({
   excerpt: string;
   titleStyle?: React.CSSProperties;
   excerptStyle?: React.CSSProperties;
-  /** Karta wiodąca widgetu nad zgięciem - okładka jako kandydat LCP. */
+  /**
+   * Karta wiodąca widgetu-kandydata LCP (P1.4): okładka eager + high
+   * + `data-lcp-candidate`. Priorytet dostaje WYŁĄCZNIE kandydat, więc ta sama
+   * flaga steruje znacznikiem.
+   */
   priority?: boolean;
   authorNode?: React.ReactNode;
   authorOverlayNode?: React.ReactNode;
@@ -885,6 +900,7 @@ function PostCard({
           frameClassName={overlayFrame(aspect)}
           sizes={GRID_COVER_SIZES}
           priority={priority}
+          data-lcp-candidate={lcpCandidateAttr(priority)}
           foregroundClassName={`${COVER_IMG_CLASS} transition-transform duration-700 group-hover:scale-[1.06]`}
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/5 sm:from-black/90 sm:via-black/45" />
@@ -917,6 +933,7 @@ function PostCard({
             frameClassName={`${tileFrame(aspect)} rounded-sm mb-3`}
             sizes={GRID_COVER_SIZES}
             priority={priority}
+            data-lcp-candidate={lcpCandidateAttr(priority)}
             foregroundClassName={COVER_IMG_CLASS}
             hoverEffect="zoom"
           />
@@ -946,6 +963,7 @@ function PostCard({
           frameClassName={tileFrame(aspect)}
           sizes={GRID_COVER_SIZES}
           priority={priority}
+          data-lcp-candidate={lcpCandidateAttr(priority)}
           foregroundClassName={COVER_IMG_CLASS}
           hoverEffect="zoom"
         />

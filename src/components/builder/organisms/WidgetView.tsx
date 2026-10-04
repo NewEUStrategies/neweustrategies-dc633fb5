@@ -7,6 +7,7 @@ import type { Device, WidgetNode } from "@/lib/builder/types";
 import { safeUrl, safeImageUrl } from "@/lib/sanitizePure";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { WIDGET_MEDIA_SPLIT_SIZES } from "@/lib/builder/widgetImageSizes";
+import { lcpCandidateAttr } from "@/lib/builder/aboveFold";
 // Heavy, non-critical widgets are code-split via lazyWidgets so they never
 // weigh down the shared Header/Footer bundle on pages that don't render them.
 // SSR streaming still renders them server-side, so the HTML is unchanged.
@@ -99,7 +100,7 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
     onContentChange,
     effectiveMode,
     activeTypography,
-    aboveFold,
+    isLcp,
     c,
     canEdit,
     commit,
@@ -114,6 +115,7 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
     editable,
     onContentChange,
     activeTypography,
+    isLcp,
   );
   if (simple !== undefined) return wrap(simple);
 
@@ -144,11 +146,19 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
       );
     }
     case "post-list": {
-      return wrap(<PostListView c={c} lang={lang} typography={activeTypography ?? undefined} />);
+      return wrap(
+        <PostListView c={c} lang={lang} typography={activeTypography ?? undefined} isLcp={isLcp} />,
+      );
     }
     case "carousel": {
       return wrap(
-        <PostListView c={c} lang={lang} carousel typography={activeTypography ?? undefined} />,
+        <PostListView
+          c={c}
+          lang={lang}
+          carousel
+          typography={activeTypography ?? undefined}
+          isLcp={isLcp}
+        />,
       );
     }
     case "tailored-must-reads": {
@@ -489,7 +499,8 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
                 alt=""
                 responsive
                 sizes={WIDGET_MEDIA_SPLIT_SIZES}
-                priority={aboveFold}
+                priority={isLcp}
+                data-lcp-candidate={lcpCandidateAttr(isLcp)}
                 className={`absolute block h-full w-full object-contain ${imgAnimCls}`}
               />
             </div>

@@ -1,4 +1,5 @@
-import { columnImageSlot, type ImageSlot } from "./imageSlot";
+import type { ImageSlot } from "./imageSlot";
+import { isPostListLeadVariant, lcpCandidates, type PostListLeadVariant } from "./lcpCandidate";
 // Preload LCP dla dokumentów buildera (strona główna, strony publiczne).
 //
 // Wpisy mają kontrakt loader->head() z preloadem okładki od dawna ($.tsx +
@@ -14,18 +15,20 @@ import { columnImageSlot, type ImageSlot } from "./imageSlot";
 // samego buildImageSrcSet. Preload innego kandydata niż malowany to podwójny
 // transfer zamiast przyspieszenia.
 //
+// JEDNO ŹRÓDŁO KANDYDATA (P1.4, werdykt LP-2). Który widget jest obrazem LCP,
+// rozstrzyga WYŁĄCZNIE `lcpCandidates` (lcpCandidate.ts) - ta sama czysta
+// funkcja dokumentu, z której renderer bierze priorytet i znacznik
+// `data-lcp-candidate`. Ten moduł dokłada do kandydata tylko to, czego
+// dokument nie zna: adres obrazu z treści albo z cache React Query. Gdy dla
+// kandydata adresu nie da się wyznaczyć (pusty cache, wiersz bez okładki),
+// preloadu NIE MA - nie przechodzimy do kolejnego widgetu, bo ten po P1.4 jest
+// leniwy (preload leniwego obrazu = podwójny priorytet dla nie-LCP, F4).
+//
 // Zasada ostrożności: gdy pierwszego obrazu nie da się wyznaczyć jednoznacznie
-// (sekcja z eksperymentem A/B, para light/dark, logo, placeholder) - zwracamy
-// null. Brak preloadu kosztuje tylko tyle, co dotychczas; zły preload zawsze
-// kosztuje podwójny transfer.
+// (para light/dark, logo, placeholder) - zwracamy null. Brak preloadu kosztuje
+// tylko tyle, co dotychczas; zły preload zawsze kosztuje podwójny transfer.
 import type { QueryClient } from "@tanstack/react-query";
-import type {
-  BuilderDocument,
-  SectionChild,
-  SectionNode,
-  WidgetContent,
-  WidgetNode,
-} from "@/lib/builder/types";
+import type { BuilderDocument, WidgetContent, WidgetNode } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
 import type { ImagePreloadInput } from "@/lib/seo/meta";
 import { asBool, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
@@ -144,8 +147,10 @@ function darkFeaturedCardPreload(widget: WidgetNode): ImagePreloadInput | null {
 }
 
 /** Warianty post-listy, których obraz WIODĄCY dostaje priority w renderze
- *  (PostListView) - tylko dla nich preload ma parytet z malowanym `<img>`. */
-const POST_LIST_LEAD_SIZES: Readonly<Record<string, string>> = {
+ *  (PostListView) - tylko dla nich preload ma parytet z malowanym `<img>`.
+ *  Klucze typuje zbiór kandydatów z lcpCandidate.ts (kompilator trzyma oba
+ *  miejsca razem). */
+const POST_LIST_LEAD_SIZES: Readonly<Record<PostListLeadVariant, string>> = {
   card: POST_LIST_GRID_COVER_SIZES,
   minimal: POST_LIST_GRID_COVER_SIZES,
   overlay: POST_LIST_GRID_COVER_SIZES,
@@ -166,7 +171,11 @@ function postListPreload(
   // karuzeli nadal maluje GRID - preload musi liczyć tę samą wartość.
   const isCarousel = widget.type === "carousel";
   const variant = getStr(c, "variant") || "card";
-  const sizes = isCarousel ? POST_LIST_GRID_COVER_SIZES : POST_LIST_LEAD_SIZES[variant];
+  const sizes = isCarousel
+    ? POST_LIST_GRID_COVER_SIZES
+    : isPostListLeadVariant(variant)
+      ? POST_LIST_LEAD_SIZES[variant]
+      : null;
   if (!sizes) return null;
   const rows = queryClient.getQueryData<PostRow[]>(postListQueryOptions(c, lang).queryKey);
   if (!rows || rows.length === 0) return null;
@@ -198,54 +207,43 @@ function widgetPreload(
   }
 }
 
-/** Widget schowany na desktopie nie jest malowany w SSR (pierwszy render jest
- *  deterministycznie desktopowy - patrz BuilderRenderer). */
-function hiddenOnDesktop(widget: WidgetNode): boolean {
-  return Boolean(widget.advanced?.hideOn?.desktop);
-}
-
-/** Kolumny/inner-sekcje widoczne przy pierwszym malowaniu (aktywna zakładka). */
-function visibleChildren(section: SectionNode): SectionChild[] {
-  const children = (Array.isArray(section.children) ? section.children : []).filter(
-    (child): child is NonNullable<typeof child> => Boolean(child),
-  );
-  const tabs = section.tabs;
-  if (!tabs?.enabled || !tabs.items || tabs.items.length === 0) return children;
-  const initialTabId =
-    tabs.defaultTabId && tabs.items.some((t) => t.id === tabs.defaultTabId)
-      ? tabs.defaultTabId
-      : tabs.items[0].id;
-  return children.filter((child) => !child.tabId || child.tabId === initialTabId);
-}
-
-function sectionWidgetsInPaintOrder(
-  section: SectionNode,
-): Array<{ widget: WidgetNode; slot: ImageSlot }> {
-  const out: Array<{ widget: WidgetNode; slot: ImageSlot }> = [];
-  const children = visibleChildren(section);
-  for (const child of children) {
-    if (child.kind === "column") {
-      const slot = columnImageSlot(section, child, children);
-      (child.children ?? []).forEach((widget) => {
-        if (widget?.kind === "widget") out.push({ widget, slot });
-      });
-    } else {
-      (child.columns ?? []).forEach((column) => {
-        if (!column) return;
-        const slot = columnImageSlot(child, column, child.columns ?? []);
-        (column.children ?? []).forEach((widget) => {
-          if (widget?.kind === "widget") out.push({ widget, slot });
-        });
-      });
-    }
-  }
-  return out;
+/** Klucz deduplikacji - ten sam, którym React łączy preload z `<img>`. */
+function preloadKey(input: ImagePreloadInput): string {
+  return input.imageSrcSet ? `${input.imageSrcSet}\n${input.imageSizes ?? ""}` : input.href;
 }
 
 /**
- * Deskryptor preloadu LCP dla dokumentu buildera: pierwszy jednoznacznie
- * wyznaczalny obraz z sekcji nad zgięciem. Wołać PO rozgrzaniu zapytań
- * widgetów (loader trasy), inaczej tryby danych zwrócą null. Nigdy nie rzuca.
+ * Deskryptory preloadu obrazów LCP dokumentu buildera - po jednym na kandydata
+ * z `lcpCandidates` (maks. 2, najpierw desktopowy), bez duplikatów. Wołać PO
+ * rozgrzaniu zapytań widgetów (loader trasy), inaczej tryby danych dadzą pustą
+ * listę. Nigdy nie rzuca.
+ */
+export function builderHeroPreloads(
+  doc: BuilderDocument,
+  queryClient: QueryClient,
+  lang: Lang,
+  aboveFoldSections: number = ABOVE_FOLD_SECTION_COUNT,
+): ImagePreloadInput[] {
+  try {
+    const safeDoc = safeParseBuilderDoc(doc);
+    const out: ImagePreloadInput[] = [];
+    for (const candidate of lcpCandidates(safeDoc, { sections: aboveFoldSections })) {
+      // Kandydat bez wyznaczalnego obrazu: brak preloadu, BEZ przejścia do
+      // następnego widgetu (ten jest leniwy - preload byłby stratą pasma).
+      const preload = widgetPreload(candidate.widget, queryClient, lang, candidate.slot);
+      if (preload && !out.some((p) => preloadKey(p) === preloadKey(preload))) out.push(preload);
+    }
+    return out;
+  } catch {
+    // Preload jest czystą optymalizacją - żaden kształt dokumentu nie może
+    // wywrócić loadera trasy.
+    return [];
+  }
+}
+
+/**
+ * Pierwszy deskryptor z `builderHeroPreloads` (kandydat desktopowy, a gdy jego
+ * obrazu nie da się wyznaczyć - mobilny) albo null. Nigdy nie rzuca.
  */
 export function builderHeroPreload(
   doc: BuilderDocument,
@@ -253,23 +251,5 @@ export function builderHeroPreload(
   lang: Lang,
   aboveFoldSections: number = ABOVE_FOLD_SECTION_COUNT,
 ): ImagePreloadInput | null {
-  try {
-    const safeDoc = safeParseBuilderDoc(doc);
-    for (const section of safeDoc.sections.slice(0, Math.max(0, aboveFoldSections))) {
-      if (!section) continue;
-      // Sekcje eksperymentów A/B: wariant losuje się na kliencie, więc SSR
-      // nie wie, który obraz zostanie pokazany - ostrożnie odpuszczamy.
-      if (section.advanced?.abTest) continue;
-      for (const { widget, slot } of sectionWidgetsInPaintOrder(section)) {
-        if (hiddenOnDesktop(widget)) continue;
-        const preload = widgetPreload(widget, queryClient, lang, slot);
-        if (preload) return preload;
-      }
-    }
-    return null;
-  } catch {
-    // Preload jest czystą optymalizacją - żaden kształt dokumentu nie może
-    // wywrócić loadera trasy.
-    return null;
-  }
+  return builderHeroPreloads(doc, queryClient, lang, aboveFoldSections)[0] ?? null;
 }

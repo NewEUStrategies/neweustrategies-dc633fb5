@@ -294,6 +294,18 @@ interface RenderProps {
   config: SliderConfig;
   lang: "pl" | "en";
   preview?: boolean;
+  /**
+   * Kandydat LCP strony (P1.4). Trzy stany, celowo:
+   *  - `true`  - widget wskazany przez `lcpCandidates`: slajd 0 eager +
+   *              fetchpriority=high + `data-lcp-candidate`,
+   *  - `false` - każdy inny slider w rendererze buildera: wszystkie slajdy
+   *              leniwe (dawniej slajd 0 był High bezwarunkowo - 4 z 9 obrazów
+   *              High na fixture `/` to były slidery spod zgięcia),
+   *  - brak    - render poza rendererem buildera (podgląd w panelu slidera,
+   *              testy jednostkowe): zachowanie historyczne, slajd 0 eager/high
+   *              BEZ znacznika, bo tu nie ma właściciela strony.
+   */
+  lcp?: boolean;
 }
 
 interface ResilientSliderImageProps {
@@ -303,6 +315,8 @@ interface ResilientSliderImageProps {
   active: boolean;
   onBrokenSource: (src: string) => void;
   priority?: boolean;
+  /** `<img>` kandydata LCP strony - znacznik `data-lcp-candidate` (P1.4). */
+  lcpCandidate?: boolean;
   /** `sizes` responsywnych kandydatów - wariant przekazuje wartość ze
    *  wspólnego modułu sliderSizes, tego samego, z którego budowany jest
    *  preload LCP (bajtowa zgodność `<img sizes>` z `imagesizes` preloadu). */
@@ -322,6 +336,7 @@ function ResilientSliderImage({
   active,
   onBrokenSource,
   priority = false,
+  lcpCandidate = false,
   sizes = SLIDER_FULL_BLEED_SIZES,
   className,
   style,
@@ -369,6 +384,7 @@ function ResilientSliderImage({
       alt=""
       draggable={false}
       data-fill-image
+      data-lcp-candidate={lcpCandidate ? "" : undefined}
       loading={priority ? "eager" : "lazy"}
       // Slajdy 2..N leżą w viewporcie (stack absolute, ukryte tylko przez
       // opacity), więc natywne lazy i tak startuje ich pobieranie od razu -
@@ -724,7 +740,7 @@ function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = fals
 // Main render: shared state + variant routing
 // ------------------------------------------------------------------
 
-export function SliderRender({ config, lang, preview = false }: RenderProps) {
+export function SliderRender({ config, lang, preview = false, lcp }: RenderProps) {
   const imageSlot = useBuilderImageSlot();
   const rawItems = useMemo(() => config.items || [], [config.items]);
   const postIds = useMemo(
@@ -1056,6 +1072,9 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
   const authorStyle: CSSProperties = { fontSize: `${author.nameSizePx}px`, lineHeight: 1.35 };
 
   const sharedProps = {
+    // Patrz `RenderProps.lcp`: brak = historycznie slajd 0 High, `false` = leniwie.
+    firstSlidePriority: lcp !== false,
+    firstSlideLcpCandidate: lcp === true,
     items,
     safeIdx,
     setIdx,
@@ -1118,6 +1137,10 @@ export function SliderRender({ config, lang, preview = false }: RenderProps) {
 // ------------------------------------------------------------------
 
 type VariantProps = {
+  /** Slajd/karta 0 eager + fetchpriority=high (kandydat LCP albo render poza builderem). */
+  firstSlidePriority: boolean;
+  /** Slajd/karta 0 niesie `data-lcp-candidate` (tylko kandydat wskazany przez właściciela). */
+  firstSlideLcpCandidate: boolean;
   items: SliderItem[];
   safeIdx: number;
   setIdx: (n: number) => void;
@@ -1200,7 +1223,8 @@ function EditorialHeroVariant(p: VariantProps) {
               fallbackSrc={p.fallbackImages[i % Math.max(1, p.fallbackImages.length)]}
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
               active={i === p.safeIdx}
-              priority={i === 0}
+              priority={p.firstSlidePriority && i === 0}
+              lcpCandidate={p.firstSlideLcpCandidate && i === 0}
               sizes={p.imageSizes}
               onBrokenSource={p.markImageFailed}
             />
@@ -1417,10 +1441,11 @@ function MultiCardVariant(p: VariantProps) {
                         placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
                         active
                         alwaysVisible
-                        // Pierwsza karta jest kandydatem LCP tego wariantu -
-                        // bez priority ładowała się leniwie mimo pozycji
-                        // above-the-fold (jedyny wariant slidera bez eager).
-                        priority={i === 0}
+                        // Pierwsza karta jest obrazem LCP tego wariantu, gdy
+                        // widget jest kandydatem strony (P1.4) - wtedy eager +
+                        // high; w każdym innym miejscu strony leniwie.
+                        priority={p.firstSlidePriority && i === 0}
+                        lcpCandidate={p.firstSlideLcpCandidate && i === 0}
                         sizes={p.imageSizes}
                         onBrokenSource={p.markImageFailed}
                         className="eh-hover-zoom absolute inset-0 w-full h-full object-cover"
@@ -1564,7 +1589,8 @@ function CinematicOverlayVariant(p: VariantProps) {
               fallbackSrc={p.fallbackImages[i % Math.max(1, p.fallbackImages.length)]}
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
               active={i === p.safeIdx}
-              priority={i === 0}
+              priority={p.firstSlidePriority && i === 0}
+              lcpCandidate={p.firstSlideLcpCandidate && i === 0}
               sizes={p.imageSizes}
               onBrokenSource={p.markImageFailed}
             />
@@ -1708,7 +1734,8 @@ function SplitFeatureVariant(p: VariantProps) {
               fallbackSrc={p.fallbackImages[i % Math.max(1, p.fallbackImages.length)]}
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
               active={i === p.safeIdx}
-              priority={i === 0}
+              priority={p.firstSlidePriority && i === 0}
+              lcpCandidate={p.firstSlideLcpCandidate && i === 0}
               sizes={p.imageSizes}
               onBrokenSource={p.markImageFailed}
             />
@@ -1844,7 +1871,8 @@ function MinimalStripVariant(p: VariantProps) {
               fallbackSrc={p.fallbackImages[i % Math.max(1, p.fallbackImages.length)]}
               placeholderSrc={SLIDER_IMAGE_PLACEHOLDER}
               active={i === p.safeIdx}
-              priority={i === 0}
+              priority={p.firstSlidePriority && i === 0}
+              lcpCandidate={p.firstSlideLcpCandidate && i === 0}
               sizes={p.imageSizes}
               onBrokenSource={p.markImageFailed}
             />

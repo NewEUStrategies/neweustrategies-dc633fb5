@@ -1,0 +1,385 @@
+// Kandydat LCP strony (P1.4) - czysta funkcja dokumentu buildera.
+//
+// CO TEN PLIK DOWODZI:
+//  1. NA STRONIE JEST CO NAJWYŻEJ DWÓCH KANDYDATÓW: największy slot desktopowy
+//     i pierwszy obraz w kolejności malowania na telefonie (`order.mobile`) -
+//     przy zgodności obu reguł JEDEN.
+//  2. KANDYDAT POCHODZI Z PIERWSZEJ SEKCJI Z WIDGETEM OBRAZOWYM w oknie
+//     malowanych sekcji (wariant A eksperymentu tak, wariant B nie), a strona
+//     bez obrazu w oknie nie ma kandydata (więc ani priorytetu, ani preloadu).
+//  3. WYKLUCZENIA SĄ TE SAME, CO W heroImage.ts (logo, para jasny/ciemny,
+//     brak źródła, warianty miniaturowe) plus `hideOn.mobile`/`hideOn.desktop`.
+//  4. MODUŁ JEST CZYSTY: nie importuje warstwy zapytań (check:entry-purity,
+//     krytyka M4a) - lista importów źródła jest zamknięta.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
+import {
+  LCP_CANDIDATE_LIMIT,
+  LCP_SCAN_SECTIONS,
+  POST_LIST_LEAD_VARIANTS,
+  isPostListLeadVariant,
+  lcpCandidateIds,
+  lcpCandidateKind,
+  lcpCandidates,
+} from "@/lib/builder/lcpCandidate";
+import type {
+  BuilderDocument,
+  ColumnNode,
+  InnerSectionNode,
+  SectionChild,
+  SectionNode,
+  SectionTabsConfig,
+  WidgetContent,
+  WidgetNode,
+} from "@/lib/builder/types";
+
+const COVER = "https://p.supabase.co/storage/v1/object/public/covers/hero.jpg";
+
+let nodeId = 0;
+function widget(
+  type: string,
+  content: WidgetContent = {},
+  extra: Partial<WidgetNode> = {},
+): WidgetNode {
+  return {
+    id: `w-${(nodeId += 1)}`,
+    kind: "widget",
+    type: type as WidgetNode["type"],
+    content,
+    ...extra,
+  };
+}
+
+function column(widgets: WidgetNode[], span = 12, extra: Partial<ColumnNode> = {}): ColumnNode {
+  return {
+    id: `c-${(nodeId += 1)}`,
+    kind: "column",
+    span: { desktop: span },
+    children: widgets,
+    ...extra,
+  };
+}
+
+function innerSection(columns: ColumnNode[], extra: Partial<InnerSectionNode> = {}) {
+  return {
+    id: `is-${(nodeId += 1)}`,
+    kind: "inner-section",
+    columns,
+    ...extra,
+  } satisfies InnerSectionNode;
+}
+
+function section(children: SectionChild[], extra: Partial<SectionNode> = {}): SectionNode {
+  return { id: `s-${(nodeId += 1)}`, kind: "section", children, ...extra };
+}
+
+function docWith(sections: SectionNode[]): BuilderDocument {
+  return { version: 1, sections };
+}
+
+const image = (src = COVER, extra: WidgetContent = {}) =>
+  widget("image", { src, alt_pl: "Zdjęcie", ...extra });
+const slider = (content: WidgetContent = { source: "posts" }) => widget("slider", content);
+const postList = (content: WidgetContent = {}) => widget("post-list", content);
+const heading = () => widget("heading", { text_pl: "Nagłówek" });
+
+/** Kształt sekcji 0 strony głównej fixture (e2e/fixtures/first-visit.json). */
+function homeHeroSection(order: { left: number; hero: number; right: number }) {
+  const left = column([widget("section-label"), postList({ variant: "card" }), postList()], 3, {
+    order: { mobile: order.left },
+  });
+  const hero = column([slider({ source: "posts", variant: "editorial-hero" })], 6, {
+    order: { mobile: order.hero },
+  });
+  const right = column([widget("section-label"), postList({ variant: "ranked" })], 3, {
+    order: { mobile: order.right },
+  });
+  return { section: section([left, hero, right]), left, hero, right };
+}
+
+describe("lcpCandidates - reguła wyboru", () => {
+  it("okno skanowania jest tym samym oknem, które rozgrzewa prefetch SSR", () => {
+    expect(LCP_SCAN_SECTIONS).toBe(ABOVE_FOLD_SECTION_COUNT);
+    expect(LCP_CANDIDATE_LIMIT).toBe(2);
+  });
+
+  it("strona główna fixture: hero jest i największy, i pierwszy na telefonie - JEDEN kandydat", () => {
+    const { section: s0, hero } = homeHeroSection({ left: 2, hero: 1, right: 3 });
+    const candidates = lcpCandidates(docWith([s0, section([column([image()])])]));
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]).toMatchObject({
+      sectionId: s0.id,
+      kind: "slider",
+      viewports: ["desktop", "mobile"],
+    });
+    expect(candidates[0].widget.id).toBe(hero.children[0].id);
+    // Slot kandydata to slot kolumny hero: 6/12 szerokości desktopu.
+    expect(candidates[0].slot.desktop.vw).toBe(50);
+  });
+
+  it("inna kolejność kolumn na telefonie daje DRUGIEGO kandydata (pierwszy wg order.mobile)", () => {
+    // Werdykt LP-1 (blokujące 2): sam „największy slot desktopowy" zrobiłby
+    // obraz pierwszego ekranu telefonu leniwym - regres LCP mobile.
+    const { section: s0, hero, left } = homeHeroSection({ left: 1, hero: 2, right: 3 });
+    const candidates = lcpCandidates(docWith([s0]));
+    expect(candidates.map((c) => c.widget.id)).toEqual([hero.children[0].id, left.children[1].id]);
+    expect(candidates.map((c) => c.viewports)).toEqual([["desktop"], ["mobile"]]);
+  });
+
+  it("kolumny BEZ order.mobile mają na telefonie kolejność 0 - jak reguła CSS renderera", () => {
+    // Renderer pisze `order: ${mobile ?? 0}` tylko kolumnom z obiektem `order`,
+    // reszta ma domyślne 0. Kolumna z order.mobile = 1 spada więc ZA kolumnę bez order.
+    const first = column([image(`${COVER}?pierwszy=1`)], 4, { order: { mobile: 1 } });
+    const plain = column([image(`${COVER}?drugi=1`)], 8);
+    const candidates = lcpCandidates(docWith([section([first, plain])]));
+    // Desktop: większy slot (8/12) = `plain`; telefon: `plain` (0) przed `first` (1).
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].widget.id).toBe(plain.children[0].id);
+  });
+
+  it("największy slot desktopowy wygrywa, nawet gdy w DOM stoi dalej", () => {
+    const small = column([image(`${COVER}?maly=1`)], 3);
+    const big = column([image(`${COVER}?duzy=1`)], 9);
+    const candidates = lcpCandidates(docWith([section([small, big])]));
+    // Telefon: pierwszy w DOM (mały) - stąd dwóch kandydatów, desktop pierwszy.
+    expect(candidates.map((c) => c.widget.id)).toEqual([big.children[0].id, small.children[0].id]);
+  });
+
+  it("remis slotu: slider > obraz > dark-featured-card > lead listy, potem kolejność", () => {
+    const list = postList();
+    const card = widget("dark-featured-card", { image: COVER });
+    const img = image();
+    const sl = slider();
+    const cols = [column([list], 3), column([card], 3), column([img], 3), column([sl], 3)];
+    const [desktop] = lcpCandidates(docWith([section(cols)]));
+    expect(desktop.widget.id).toBe(sl.id);
+    const withoutSlider = lcpCandidates(docWith([section(cols.slice(0, 3))]));
+    expect(withoutSlider[0].widget.id).toBe(img.id);
+    const twoImages = [column([image(`${COVER}?a=1`)], 6), column([image(`${COVER}?b=1`)], 6)];
+    expect(lcpCandidateIds(docWith([section(twoImages)]))).toEqual([twoImages[0].children[0].id]);
+  });
+
+  it("remis slotu respektuje kolejność desktopową (order.desktop), nie tylko DOM", () => {
+    const a = column([image(`${COVER}?a=1`)], 6, { order: { desktop: 2 } });
+    const b = column([image(`${COVER}?b=1`)], 6, { order: { desktop: 1 } });
+    const [desktop] = lcpCandidates(docWith([section([a, b])]));
+    expect(desktop.widget.id).toBe(b.children[0].id);
+  });
+
+  it("udział obrazu w slocie: multi-card i siatka listy dzielą slot na karty", () => {
+    // Multi-card z 3 kolumnami w slocie 8/12 maluje karty po ~22% szerokości -
+    // mniej niż pojedynczy obraz w slocie 4/12 (33%).
+    const multi = slider({ source: "posts", variant: "multi-card", columns: 3 });
+    const img = image();
+    const [desktop] = lcpCandidates(docWith([section([column([multi], 8), column([img], 4)])]));
+    expect(desktop.widget.id).toBe(img.id);
+    // Siatka 4 kolumn w slocie 8/12 (17%) też przegrywa z obrazem 4/12.
+    const grid = postList({ variant: "card", columns: 4 });
+    const img2 = image(`${COVER}?2=1`);
+    const [desktop2] = lcpCandidates(docWith([section([column([grid], 8), column([img2], 4)])]));
+    expect(desktop2.widget.id).toBe(img2.id);
+    // Wariant classic maluje lead na całą szerokość slotu - wygrywa z obrazem 4/12.
+    const classic = postList({ variant: "classic", columns: 4 });
+    const [desktop3] = lcpCandidates(
+      docWith([section([column([classic], 8), column([image(`${COVER}?3=1`)], 4)])]),
+    );
+    expect(desktop3.widget.id).toBe(classic.id);
+  });
+
+  it("w jednej kolumnie pierwszy widget obrazowy wygrywa (kolejność DOM)", () => {
+    const first = image(`${COVER}?pierwszy=1`);
+    const second = image(`${COVER}?drugi=1`);
+    expect(lcpCandidateIds(docWith([section([column([heading(), first, second])])]))).toEqual([
+      first.id,
+    ]);
+  });
+
+  it("nigdy więcej niż dwóch kandydatów i bez duplikatów", () => {
+    const cols = [1, 2, 3, 4].map((i) =>
+      column([image(`${COVER}?k=${i}`)], i === 4 ? 6 : 2, { order: { mobile: 5 - i } }),
+    );
+    const ids = lcpCandidateIds(docWith([section(cols)]));
+    expect(ids.length).toBeLessThanOrEqual(LCP_CANDIDATE_LIMIT);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("lcpCandidates - sekcje i okno", () => {
+  it("strona BEZ obrazu w oknie nie ma kandydata (więc ani priorytetu, ani preloadu)", () => {
+    const text = () => section([column([heading()])]);
+    expect(lcpCandidates(docWith([text(), text(), text()]))).toEqual([]);
+    // Obraz w czwartej sekcji jest poza oknem 3 sekcji.
+    expect(lcpCandidates(docWith([text(), text(), text(), section([column([image()])])]))).toEqual(
+      [],
+    );
+  });
+
+  it("cienka sekcja tekstowa nad hero nie odbiera mu kandydatury (werdykt LP-1, blokujące 3)", () => {
+    const hero = image();
+    const candidates = lcpCandidates(
+      docWith([section([column([heading()])]), section([column([hero])])]),
+    );
+    expect(candidates.map((c) => c.widget.id)).toEqual([hero.id]);
+  });
+
+  it("kandydat pochodzi WYŁĄCZNIE z pierwszej sekcji z widgetem obrazowym", () => {
+    const first = image(`${COVER}?pierwsza=1`);
+    const later = slider();
+    const candidates = lcpCandidates(
+      docWith([section([column([first], 4)]), section([column([later])])]),
+    );
+    expect(candidates.map((c) => c.widget.id)).toEqual([first.id]);
+  });
+
+  it("okno 0 i okno ujemne wyłączają kandydata; większe niż dokument nie wywraca", () => {
+    const doc = docWith([section([column([image()])])]);
+    expect(lcpCandidates(doc, { sections: 0 })).toEqual([]);
+    expect(lcpCandidates(doc, { sections: -3 })).toEqual([]);
+    expect(lcpCandidates(doc, { sections: 99 })).toHaveLength(1);
+  });
+
+  it("A/B: wariant B nie jest malowany w SSR, wariant A jest - i bywa kandydatem", () => {
+    const b = image(`${COVER}?b=1`);
+    const a = image(`${COVER}?a=1`);
+    const doc = docWith([
+      section([column([b])], { advanced: { abTest: { experimentId: "e1", variant: "b" } } }),
+      section([column([a])], { advanced: { abTest: { experimentId: "e1", variant: "a" } } }),
+    ]);
+    expect(lcpCandidateIds(doc)).toEqual([a.id]);
+  });
+
+  it("okno liczy się po sekcjach MALOWANYCH (wariant B nie zabiera miejsca w oknie)", () => {
+    const text = () => section([column([heading()])]);
+    const img = image();
+    const doc = docWith([
+      text(),
+      section([column([image(`${COVER}?b=1`)])], {
+        advanced: { abTest: { experimentId: "e1", variant: "b" } },
+      }),
+      text(),
+      section([column([img])]),
+    ]);
+    // Malowane: text, text, obraz - obraz jest trzecią malowaną sekcją.
+    expect(lcpCandidateIds(doc)).toEqual([img.id]);
+  });
+
+  it("zakładki: liczy się tylko zakładka domyślna", () => {
+    const tabs: SectionTabsConfig = {
+      enabled: true,
+      items: [
+        { id: "t1", label_pl: "Pierwsza" },
+        { id: "t2", label_pl: "Druga" },
+      ],
+      defaultTabId: "t2",
+    };
+    const hidden = image(`${COVER}?ukryta=1`);
+    const active = image(`${COVER}?aktywna=1`);
+    const doc = docWith([
+      section([column([hidden], 12, { tabId: "t1" }), column([active], 12, { tabId: "t2" })], {
+        tabs,
+      }),
+    ]);
+    expect(lcpCandidateIds(doc)).toEqual([active.id]);
+  });
+
+  it("widgety w inner-sekcji są widziane tak samo jak w kolumnie", () => {
+    const inside = image();
+    const doc = docWith([section([innerSection([column([inside])])])]);
+    expect(lcpCandidateIds(doc)).toEqual([inside.id]);
+  });
+
+  it("nigdy nie rzuca: null, sekcje null, getter z wyjątkiem", () => {
+    expect(lcpCandidates(null)).toEqual([]);
+    expect(lcpCandidates(undefined)).toEqual([]);
+    expect(lcpCandidates({ version: 1, sections: [null] } as unknown as BuilderDocument)).toEqual(
+      [],
+    );
+    const hostile = {
+      version: 1,
+      get sections(): SectionNode[] {
+        throw new Error("uszkodzony dokument");
+      },
+    } as unknown as BuilderDocument;
+    expect(lcpCandidates(hostile)).toEqual([]);
+  });
+
+  it("wynik jest funkcją dokumentu: ten sam po serializacji (parytet SSR/hydratacja)", () => {
+    const { section: s0 } = homeHeroSection({ left: 1, hero: 2, right: 3 });
+    const doc = docWith([s0]);
+    const roundTrip = JSON.parse(JSON.stringify(doc)) as BuilderDocument;
+    expect(lcpCandidateIds(roundTrip)).toEqual(lcpCandidateIds(doc));
+  });
+});
+
+describe("lcpCandidateKind - wykluczenia jak w heroImage.ts", () => {
+  it.each([
+    ["obraz jednoźródłowy", image(), "image"],
+    ["srcDark identyczny z src to nie para", image(COVER, { srcDark: COVER }), "image"],
+    ["para jasny/ciemny", image(COVER, { srcDark: `${COVER}?dark=1` }), null],
+    ["logo w alcie PL", image(COVER, { alt_pl: "Logo serwisu" }), null],
+    ["logo w alcie EN", image(COVER, { alt_en: "Company LOGO" }), null],
+    ["flaga useSiteLogo", image(COVER, { useSiteLogo: "main" }), null],
+    ["brak źródła", widget("image", { alt_pl: "Bez źródła" }), null],
+    ["źródło o niebezpiecznym schemacie", image("javascript:alert(1)"), null],
+    ["slider", slider(), "slider"],
+    ["slider z wyłączonym coverem", slider({ showCover: false }), null],
+    [
+      "dark-featured-card z obrazem",
+      widget("dark-featured-card", { image: COVER }),
+      "dark-featured-card",
+    ],
+    ["dark-featured-card bez obrazu", widget("dark-featured-card", {}), null],
+    ["post-lista (domyślna siatka)", postList(), "post-list"],
+    ["post-lista z wyłączonym coverem", postList({ showCover: "0" }), null],
+    ["post-lista miniaturowa (list)", postList({ variant: "list" }), null],
+    ["post-lista ranked", postList({ variant: "ranked" }), null],
+    ["post-lista spoza katalogu", postList({ variant: "z-kosmosu" }), null],
+    [
+      "karuzela w wariancie list (maluje siatkę)",
+      widget("carousel", { variant: "list" }),
+      "post-list",
+    ],
+    ["nagłówek", heading(), null],
+  ] as const)("%s", (_label, node, expected) => {
+    expect(lcpCandidateKind(node)).toBe(expected);
+  });
+
+  it.each([{ mobile: true }, { desktop: true }])(
+    "widget schowany na urządzeniu (%o) nie jest kandydatem - preload obrazu, którego jedno urządzenie nie maluje",
+    (hideOn) => {
+      const hidden = image(`${COVER}?ukryty=1`, {});
+      hidden.advanced = { hideOn };
+      const visible = image();
+      expect(lcpCandidateKind(hidden)).toBeNull();
+      expect(lcpCandidateIds(docWith([section([column([hidden, visible])])]))).toEqual([
+        visible.id,
+      ]);
+    },
+  );
+
+  it("katalog wariantów wiodących post-listy jest strażnikiem typu", () => {
+    for (const variant of POST_LIST_LEAD_VARIANTS)
+      expect(isPostListLeadVariant(variant)).toBe(true);
+    expect(isPostListLeadVariant("numbered")).toBe(false);
+  });
+});
+
+describe("lcpCandidate.ts - czystość modułu (check:entry-purity)", () => {
+  it("importuje WYŁĄCZNIE imageSlot, typy i dwa liście bez własnych importów", () => {
+    // BuilderRenderer jest w chunku wejściowym. Import heroImage.ts albo
+    // jakiegokolwiek modułu zapytań ciągnąłby warstwę danych do entry
+    // (heroImage.ts:36-47) - dokładnie to, przed czym chroni ten moduł.
+    const source = readFileSync(join(process.cwd(), "src/lib/builder/lcpCandidate.ts"), "utf8");
+    const specifiers = [...source.matchAll(/^import\s[^;]*?from\s+"([^"]+)";/gms)].map((m) => m[1]);
+    expect(specifiers.sort()).toEqual(
+      ["./imageSlot", "./types", "@/lib/content-model/contentValue", "@/lib/sanitizePure"].sort(),
+    );
+    expect(source).toMatch(/^import type \{[^}]*\} from "\.\/types";$/m);
+    for (const leaf of ["src/lib/content-model/contentValue.ts", "src/lib/sanitizePure.ts"]) {
+      const leafSource = readFileSync(join(process.cwd(), leaf), "utf8");
+      expect(leafSource, leaf).not.toMatch(/^import\s/m);
+    }
+  });
+});

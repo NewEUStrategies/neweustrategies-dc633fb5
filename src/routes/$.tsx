@@ -83,7 +83,8 @@ import {
   absoluteUrl,
   SITE_NAME,
 } from "@/lib/seo/meta";
-import { builderHeroPreload } from "@/lib/builder/heroImage";
+import { builderHeroPreloads } from "@/lib/builder/heroImage";
+import { preloadLcpImages } from "@/lib/builder/aboveFold";
 import { citationMetaTags } from "@/lib/seo/citations";
 import type { CitationAuthor } from "@/lib/citations/format";
 import { CitationBox } from "@/components/post/CitationBox";
@@ -223,8 +224,9 @@ const NO_STORE = contentCacheControl({ preview: true });
 
 // Kształt preloadu okładki JEST kontraktem `ImagePreloadInput` z warstwy SEO -
 // nazwa zostaje (czyta ją deklaracja `ContentDocument`), ale pola opcjonalne
-// muszą być opcjonalne również tutaj, bo `builderHeroPreload`/`archivePreload`
-// zwracają dokładnie ten typ (hero bez `srcSet` emituje sam `href`).
+// muszą być opcjonalne również tutaj, bo `builderHeroPreloads` (lista)
+// i `archivePreload` oddają dokładnie ten kształt (hero bez `srcSet` emituje
+// sam `href`).
 interface CoverPreload {
   href: string;
   imageSrcSet?: string;
@@ -259,6 +261,7 @@ interface DegradedDocument {
   degraded: true;
   seoSettings: null;
   coverPreload: null;
+  heroPreloads?: undefined;
 }
 
 /**
@@ -269,7 +272,15 @@ interface DegradedDocument {
  */
 type ResolvedDocument = ResolvedContent & {
   seoSettings: SeoSettings;
+  /** Okładka WPISU - emitowana przez `head()` (strony: zawsze null). */
   coverPreload: CoverPreload | null;
+  /**
+   * Obrazy kandydatów LCP dokumentu buildera STRONY (P1.4, `lcpCandidates`) -
+   * emitowane przez `preload()` z react-dom w komponencie trasy, nie przez
+   * `head()`: wspólny klucz zasobu z automatycznym preloadem `<img>` daje
+   * dokładnie jeden preload na kandydata. Wpisy: zawsze pusta lista.
+   */
+  heroPreloads: CoverPreload[];
   degraded?: undefined;
 };
 
@@ -656,8 +667,9 @@ export const Route = createFileRoute("/$")({
     // settings were just warmed above, so this reads from cache (no extra
     // round-trip) and falls back to defaults if that prefetch was rejected.
     // Pages: hero żyje w dokumencie buildera - po rozgrzaniu zapytań sekcji
-    // nad zgięciem (wyżej) pierwszy malowany obraz wyznacza builderHeroPreload
-    // z tych samych modułów sizes/srcSet co renderery widgetów.
+    // nad zgięciem (wyżej) obraz kandydata LCP (`lcpCandidates`) wyznacza
+    // builderHeroPreloads z tych samych modułów sizes/srcSet co renderery
+    // widgetów; emituje go komponent trasy przez `preload()` (P1.4).
     const coverPreload =
       data.kind === "post"
         ? buildCoverPreload(
@@ -666,12 +678,15 @@ export const Route = createFileRoute("/$")({
               postLayoutSettingsQueryOptions().queryKey,
             ) ?? defaultPostLayoutSettings(),
           )
-        : builderHeroPreload(doc, context.queryClient, lang);
+        : null;
+    const heroPreloads =
+      data.kind === "page" ? builderHeroPreloads(doc, context.queryClient, lang) : [];
     // Preload także jako nagłówek HTTP `Link` - przeglądarka startuje fetch
     // hero z nagłówków (przed parsowaniem HTML), a NES Edge Cache odtwarza go
     // na HIT/STALE (droga do 103 Early Hints na Cloudflare).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    return { ...data, seoSettings, coverPreload };
+    for (const hero of heroPreloads) appendLinkHeader(imagePreloadLinkHeaderValue(hero));
+    return { ...data, seoSettings, coverPreload, heroPreloads };
   },
   head: (ctx) => {
     // ŁADUNEK CZYTANY PRZEZ DEKLARACJĘ, NIE PRZEZ INFERENCJĘ ROUTERA - jedyne
@@ -908,7 +923,11 @@ function PublicPage() {
 }
 
 function PublicPageFromLoader() {
-  const { kind } = Route.useLoaderData();
+  const { kind, heroPreloads } = Route.useLoaderData();
+  // Obraz kandydata LCP strony z buildera (P1.4): `preload()` w renderze
+  // trasy = jedyny preload tego obrazu w preambule SSR (klucz wspólny
+  // z automatycznym preloadem `<img>`). Wpisy i render zdegradowany: brak.
+  preloadLcpImages(heroPreloads);
   // BRAMKA DEGRADACJI STOI PRZED `useSuspenseQuery`, i to jest wymóg, nie
   // porządek: loader zdegradowany USUNĄŁ wpis treści z cache'u, więc
   // `useSuspenseQuery` zawiesiłby się tu na nowym pobraniu - na serwerze
@@ -1367,6 +1386,10 @@ function ResolvedPage({ data }: { data: ResolvedContent }) {
             currentPostCtx={currentPostCtx}
             stream
             eagerFirstImage={isPost && !coverAboveBody}
+            // Okładka nad treścią jest wtedy JEDYNYM kandydatem LCP wpisu
+            // (preload z `head()`), więc dokument buildera w treści nie
+            // wyznacza drugiego (P1.4: jeden `data-lcp-candidate` na stronę).
+            lcpOwner={!coverAboveBody}
           />
           <FootnotesList notes={notes} lang={lang} />
         </>

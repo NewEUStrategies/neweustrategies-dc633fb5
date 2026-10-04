@@ -2,10 +2,15 @@
 // I CO SIĘ DZIEJE PRZY BRAKU DANYCH ŹRÓDŁOWYCH.
 //
 // ── CO TU MA DOWÓD ─────────────────────────────────────────────────────────
-// * okno `aboveFoldCount` - wartość domyślna to `ABOVE_FOLD_SECTION_COUNT` (3),
-//   i to jest MIERZALNE: sekcje czołowe oznaczają swój pierwszy obraz jako
-//   kandydata LCP (`loading="eager"` + `fetchpriority="high"`), a dalsze jako
-//   leniwy. Zmiana progu widać w atrybutach obrazów,
+// * KANDYDAT LCP STRONY (P1.4) - PRZEPISANE ŚWIADOMIE. Dawniej każda z trzech
+//   czołowych sekcji oznaczała swój pierwszy obraz `eager` + `high`
+//   (`["eager","eager","eager","lazy","lazy"]`), co na fixture `/` dawało 9
+//   obrazów High. Teraz tylko renderer-właściciel (`lcpOwner`) wyznacza
+//   kandydata (`lcpCandidates`): DOKŁADNIE jeden obraz eager + high
+//   + `data-lcp-candidate`, reszta leniwa; renderer bez `lcpOwner` (powłoka,
+//   popup, kanwa) nie ma kandydata wcale. Okno `aboveFoldCount` (domyślnie
+//   `ABOVE_FOLD_SECTION_COUNT`) zawęża skan kandydata. Dowód SSR: preload
+//   z trasy (`preloadLcpImages`) i `<img>` kandydata dają JEDEN `<link>`,
 // * `stream` włączone i wyłączone dla sekcji ZALEŻNEJ OD DANYCH i dla statycznej
 //   - z dowodem, że na ścieżce KLIENCKIEJ treść jest identyczna,
 // * brak danych źródłowych: widget listy wpisów z pustą odpowiedzią Supabase
@@ -30,8 +35,12 @@
 //    rezerwuje ZERO, a na kliencie żaden z tych fallbacków się nie pokazuje.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Suspense, lazy, type ReactElement } from "react";
+import { renderToString } from "react-dom/server";
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { LcpCandidatesProvider, preloadLcpImages } from "@/lib/builder/aboveFold";
+import type { ImagePreloadInput } from "@/lib/seo/meta";
 import "@/test/i18nReal";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import { shouldStreamSection } from "@/lib/builder/sectionStreaming";
@@ -117,12 +126,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** Sekcja z JEDNYM obrazem - priorytet ładowania zdradza okno „nad zgięciem". */
-const sekcjaZObrazem = (id: string) =>
+/** Sekcja z JEDNYM obrazem - priorytet ładowania zdradza kandydata LCP. */
+const sekcjaZObrazem = (id: string, src = "https://example.org/obraz.png") =>
   section(id, [
     column(`${id}-c`, [
       widget(`${id}-img`, "image", {
-        content: { src: "https://example.org/obraz.png", alt_pl: `Obraz ${id}` },
+        content: { src, alt_pl: `Obraz ${id}` },
       }),
     ]),
   ]);
@@ -134,35 +143,172 @@ const sekcjaZDanymi = (id: string) =>
 const priorytety = (container: HTMLElement) =>
   [...container.querySelectorAll("img")].map((img) => img.getAttribute("loading"));
 
-describe("okno nad zgięciem (aboveFoldCount)", () => {
-  it("domyślnie czołowe sekcje to ABOVE_FOLD_SECTION_COUNT, czyli 3", () => {
-    expect(ABOVE_FOLD_SECTION_COUNT).toBe(3);
+const kandydaci = (root: ParentNode) => root.querySelectorAll("img[data-lcp-candidate]");
+
+describe("kandydat LCP strony (lcpOwner, P1.4)", () => {
+  it("renderer BEZ lcpOwner (nagłówek, stopka, popup) nie ma kandydata - każdy obraz leniwy", () => {
     const { container } = renderWithQueryClient(
-      <BuilderRenderer doc={doc([0, 1, 2, 3, 4].map((i) => sekcjaZObrazem(`s${i}`)))} lang="pl" />,
+      <BuilderRenderer doc={doc([0, 1, 2].map((i) => sekcjaZObrazem(`s${i}`)))} lang="pl" />,
     );
-    // Trzy pierwsze obrazy to kandydaci LCP, pozostałe schodzą leniwie.
-    expect(priorytety(container)).toEqual(["eager", "eager", "eager", "lazy", "lazy"]);
-    const pierwszy = container.querySelector("img");
-    expect(pierwszy?.getAttribute("fetchpriority")).toBe("high");
+    expect(priorytety(container)).toEqual(["lazy", "lazy", "lazy"]);
+    expect(kandydaci(container)).toHaveLength(0);
+    for (const img of container.querySelectorAll("img"))
+      expect(img.getAttribute("fetchpriority")).toBe("auto");
   });
 
-  it("aboveFoldCount=1 zawęża okno do jednej sekcji", () => {
+  it("renderer-właściciel: DOKŁADNIE jeden obraz eager + high + data-lcp-candidate", () => {
+    expect(ABOVE_FOLD_SECTION_COUNT).toBe(3);
     const { container } = renderWithQueryClient(
       <BuilderRenderer
-        doc={doc([0, 1, 2].map((i) => sekcjaZObrazem(`s${i}`)))}
+        doc={doc([0, 1, 2, 3, 4].map((i) => sekcjaZObrazem(`s${i}`)))}
         lang="pl"
+        lcpOwner
+      />,
+    );
+    // Dawniej: ["eager","eager","eager","lazy","lazy"] - trzy obrazy High.
+    expect(priorytety(container)).toEqual(["eager", "lazy", "lazy", "lazy", "lazy"]);
+    const [kandydat] = kandydaci(container);
+    expect(kandydaci(container)).toHaveLength(1);
+    expect(kandydat.getAttribute("fetchpriority")).toBe("high");
+    expect(kandydat.getAttribute("alt")).toBe("Obraz s0");
+  });
+
+  it("cienka sekcja tekstowa nad hero: kandydatem jest obraz sekcji 1", () => {
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer
+        doc={doc([simpleSection("tytul"), sekcjaZObrazem("hero"), sekcjaZObrazem("dalej")])}
+        lang="pl"
+        lcpOwner
+      />,
+    );
+    expect(priorytety(container)).toEqual(["eager", "lazy"]);
+    expect(kandydaci(container)[0]?.getAttribute("alt")).toBe("Obraz hero");
+  });
+
+  it("okno skanu: domyślnie 3 sekcje, `aboveFoldCount` je zawęża, 0 wyłącza", () => {
+    const tekst = [0, 1, 2].map((i) => simpleSection(`t${i}`));
+    const poza = renderWithQueryClient(
+      <BuilderRenderer doc={doc([...tekst, sekcjaZObrazem("s3")])} lang="pl" lcpOwner />,
+    );
+    expect(kandydaci(poza.container)).toHaveLength(0);
+    cleanup();
+    const waskie = renderWithQueryClient(
+      <BuilderRenderer
+        doc={doc([simpleSection("t"), sekcjaZObrazem("s1")])}
+        lang="pl"
+        lcpOwner
         aboveFoldCount={1}
       />,
     );
-    expect(priorytety(container)).toEqual(["eager", "lazy", "lazy"]);
+    expect(priorytety(waskie.container)).toEqual(["lazy"]);
+    cleanup();
+    const zerowe = renderWithQueryClient(
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" lcpOwner aboveFoldCount={0} />,
+    );
+    expect(priorytety(zerowe.container)).toEqual(["lazy"]);
+    expect(zerowe.container.querySelector("img")?.getAttribute("fetchpriority")).toBe("auto");
   });
 
-  it("aboveFoldCount=0 (strona główna) nie wyróżnia ŻADNEJ sekcji", () => {
+  it("zagnieżdżony renderer BEZ lcpOwner nie dziedziczy kandydatów rodzica", () => {
+    // Kandydaci renderera-właściciela wiszą w kontekście. Renderer powłoki
+    // (np. popup otwarty nad treścią) ustawia własną, pustą listę - inaczej
+    // widget o tym samym id dostałby priorytet i drugi znacznik na stronie.
     const { container } = renderWithQueryClient(
-      <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" aboveFoldCount={0} />,
+      <LcpCandidatesProvider widgetIds={["s0-img"]}>
+        <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" />
+      </LcpCandidatesProvider>,
     );
+    expect(kandydaci(container)).toHaveLength(0);
     expect(priorytety(container)).toEqual(["lazy"]);
-    expect(container.querySelector("img")?.getAttribute("fetchpriority")).toBe("auto");
+  });
+
+  it("kanwa buildera (editorPreview) nie wyznacza kandydata nawet z lcpOwner", () => {
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" lcpOwner editorPreview />,
+    );
+    expect(kandydaci(container)).toHaveLength(0);
+  });
+});
+
+/**
+ * Render SERWEROWY strony: trasa woła `preloadLcpImages` (jak `index.tsx`
+ * i `$.tsx`), a pod nią renderuje się kanwa z kandydatem.
+ */
+function ssrPage(preloads: ImagePreloadInput[], content: ReactElement): string {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function Trasa() {
+    preloadLcpImages(preloads);
+    return content;
+  }
+  return renderToString(
+    <QueryClientProvider client={qc}>
+      <Trasa />
+    </QueryClientProvider>,
+  );
+}
+
+const imagePreloadLinks = (html: string) =>
+  html.match(/<link[^>]*rel="preload"[^>]*as="image"[^>]*>/g) ?? [];
+
+describe("SSR: jedno źródło preloadu obrazu LCP (werdykt LP-2)", () => {
+  const STORAGE = "https://p.supabase.co/storage/v1/object/public/covers/hero.jpg";
+
+  it("preload z trasy i automatyczny preload `<img>` kandydata to JEDEN `<link>`", () => {
+    // Ten sam klucz zasobu (bez srcSet: `href`) - React nie emituje drugiego.
+    // Dawniej trasa dokładała osobny `<link>` z `head()`, a React drugi z `<img>`.
+    const src = "https://example.org/ssr-hero.png";
+    const html = ssrPage(
+      [{ href: src }],
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0", src)])} lang="pl" lcpOwner />,
+    );
+    const links = imagePreloadLinks(html);
+    expect(links).toHaveLength(1);
+    expect(links[0]).toContain(`href="${src}"`);
+    expect(links[0]).toMatch(/fetchPriority="high"/i);
+    expect(html.match(/data-lcp-candidate/g)).toHaveLength(1);
+  });
+
+  it("obraz responsywny: preload ma TEN SAM imagesrcset i imagesizes co `<img>` kandydata", () => {
+    const html = ssrPage(
+      [],
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0", STORAGE)])} lang="pl" lcpOwner />,
+    );
+    const img = /<img[^>]*data-lcp-candidate[^>]*>/.exec(html)?.[0] ?? "";
+    const srcset = /srcSet="([^"]+)"/i.exec(img)?.[1];
+    const sizes = /sizes="([^"]+)"/.exec(img)?.[1];
+    expect(srcset).toContain("/storage/v1/render/image/public/");
+    const [link] = imagePreloadLinks(html);
+    expect(link).toContain(`imageSrcSet="${srcset}"`);
+    expect(link).toContain(`imageSizes="${sizes}"`);
+  });
+
+  it("KONTROLA NEGATYWNA: preload o innych `sizes` niż `<img>` daje DWA linki", () => {
+    // Dowód, że jedność zależy od klucza `srcSet\nsizes`, a nie od szczęścia:
+    // deskryptor z innym `imageSizes` to inny zasób - przeglądarka pobrałaby
+    // wtedy dwa warianty obrazu LCP.
+    const html = ssrPage(
+      [{ href: STORAGE, imageSrcSet: `${STORAGE}?w=1 1w`, imageSizes: "1px" }],
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0", STORAGE)])} lang="pl" lcpOwner />,
+    );
+    expect(imagePreloadLinks(html)).toHaveLength(2);
+  });
+
+  it("strona bez obrazu w oknie: ani kandydata, ani preloadu obrazu", () => {
+    const html = ssrPage(
+      [],
+      <BuilderRenderer doc={doc([simpleSection("a"), simpleSection("b")])} lang="pl" lcpOwner />,
+    );
+    expect(html).not.toContain("data-lcp-candidate");
+    expect(imagePreloadLinks(html)).toHaveLength(0);
+  });
+
+  it("renderer BEZ lcpOwner nie emituje preloadu obrazu (obrazy leniwe)", () => {
+    const html = ssrPage(
+      [],
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0", STORAGE)])} lang="pl" />,
+    );
+    expect(imagePreloadLinks(html)).toHaveLength(0);
+    expect(html).toContain('loading="lazy"');
   });
 });
 

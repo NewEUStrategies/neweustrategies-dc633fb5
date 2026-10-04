@@ -59,7 +59,8 @@ import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
 import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
-import { AboveFoldProvider } from "@/lib/builder/aboveFold";
+import { LcpCandidatesProvider } from "@/lib/builder/aboveFold";
+import { lcpCandidateIds } from "@/lib/builder/lcpCandidate";
 import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
@@ -106,8 +107,22 @@ interface Props {
    * TTFB flat as documents grow. See lib/builder/sectionStreaming.
    */
   stream?: boolean;
-  /** Leading sections whose images receive above-fold loading priority. */
+  /**
+   * Okno sekcji skanowanych przez `lcpCandidates` (liczone po sekcjach
+   * malowanych w pierwszym renderze). Domyślnie `ABOVE_FOLD_SECTION_COUNT` -
+   * to samo okno, które rozgrzewa prefetch SSR i skanuje preload trasy.
+   */
   aboveFoldCount?: number;
+  /**
+   * WŁAŚCICIEL KANDYDATA LCP STRONY (P1.4). Tylko główny renderer treści
+   * (`HomeBuilderContent`, `ContentRenderer`) wyznacza kandydatów
+   * (`lcpCandidates`): ich pierwszy obraz dostaje `eager` +
+   * `fetchpriority=high` + `data-lcp-candidate`. Każdy inny renderer
+   * (nagłówek, stopka, menu mobilne, popup, kanwa) zostawia WSZYSTKIE obrazy
+   * leniwe - inaczej `data-lcp-candidate` nie byłby jedyny na stronie, a boot
+   * po LCP (P2.1) trafiałby w obraz z nagłówka (werdykt LP-1, blokujące 1).
+   */
+  lcpOwner?: boolean;
   /**
    * Builder-canvas mode: show every A/B variant side by side (with badges)
    * instead of bucketing the viewer, and never record experiment events.
@@ -202,6 +217,9 @@ export function BuilderEmptyPickerProvider({
  */
 const ChromeReserveContext = createContext(false);
 
+/** Stała tożsamość pustej listy - `SectionsList` jest `memo`. */
+const NO_LCP_CANDIDATES: readonly string[] = Object.freeze([]);
+
 const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
 
@@ -233,6 +251,7 @@ export function BuilderRenderer({
   aboveFoldCount = ABOVE_FOLD_SECTION_COUNT,
   editorPreview = false,
   chrome = false,
+  lcpOwner = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   // Pierwszy render MUSI byc deterministyczny (desktop-first), inaczej SSR
@@ -246,6 +265,16 @@ export function BuilderRenderer({
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
   const { debug, isPrimary } = useBuilderDebug();
+  // Kandydaci LCP - czysta funkcja dokumentu (ten sam wynik w SSR i przy
+  // hydratacji). Kanwa (`editorPreview`) pokazuje oba warianty A/B i nie jest
+  // stroną dla czytelnika, więc kandydatów nie ma.
+  const lcpWidgetIds = useMemo(
+    () =>
+      lcpOwner && !editorPreview
+        ? lcpCandidateIds(safeDoc, { sections: aboveFoldCount })
+        : NO_LCP_CANDIDATES,
+    [aboveFoldCount, editorPreview, lcpOwner, safeDoc],
+  );
 
   useEffect(() => {
     if (device) {
@@ -292,14 +321,15 @@ export function BuilderRenderer({
           data-debug={debug ? "1" : "0"}
           data-device={effectiveDevice}
         >
-          <SectionsList
-            sections={safeDoc.sections}
-            lang={lang}
-            device={effectiveDevice}
-            stream={stream}
-            aboveFoldCount={aboveFoldCount}
-            editorPreview={editorPreview}
-          />
+          <LcpCandidatesProvider widgetIds={lcpWidgetIds}>
+            <SectionsList
+              sections={safeDoc.sections}
+              lang={lang}
+              device={effectiveDevice}
+              stream={stream}
+              editorPreview={editorPreview}
+            />
+          </LcpCandidatesProvider>
         </div>
       </ChromeReserveContext.Provider>
       {isPrimary && <BuilderDebugOverlay debug={debug} doc={safeDoc} />}
@@ -343,14 +373,12 @@ const SectionsList = memo(function SectionsList({
   lang,
   device,
   stream,
-  aboveFoldCount,
   editorPreview,
 }: {
   sections: SectionNode[];
   lang: "pl" | "en";
   device: Device;
   stream: boolean;
-  aboveFoldCount: number;
   editorPreview: boolean;
 }) {
   const accessCtx = useAccessContext();
@@ -367,28 +395,26 @@ const SectionsList = memo(function SectionsList({
   );
   return (
     <>
-      {visible.map((s, index) => {
+      {visible.map((s) => {
         const abTag = s.advanced?.abTest;
         const rendered = (
           <RenderErrorBoundary label={`section:${s.id}`}>
             <RenderSection section={s} lang={lang} device={device} />
           </RenderErrorBoundary>
         );
+        // Priorytet obrazów NIE wynika już z indeksu sekcji: kandydatów LCP
+        // wyznacza renderer-właściciel (`lcpOwner`) i podaje kontekstem
+        // `LcpCandidatesProvider` nad listą sekcji.
         return (
-          // Sekcje czołowe (index < aboveFoldCount - ten sam próg co prefetch
-          // SSR) oznaczają swoje widgety jako kandydatów LCP: pierwszy obraz
-          // widgetu dostaje eager + fetchpriority=high zamiast lazy.
-          <AboveFoldProvider key={s.id} aboveFold={index < aboveFoldCount}>
-            <StreamingSection section={s} lang={lang} device={device} enabled={stream}>
-              {abTag && !editorPreview && assignments ? (
-                <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
-                  {rendered}
-                </ExperimentSection>
-              ) : (
-                rendered
-              )}
-            </StreamingSection>
-          </AboveFoldProvider>
+          <StreamingSection key={s.id} section={s} lang={lang} device={device} enabled={stream}>
+            {abTag && !editorPreview && assignments ? (
+              <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
+                {rendered}
+              </ExperimentSection>
+            ) : (
+              rendered
+            )}
+          </StreamingSection>
         );
       })}
     </>

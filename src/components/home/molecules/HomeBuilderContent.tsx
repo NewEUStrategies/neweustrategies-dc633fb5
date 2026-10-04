@@ -64,7 +64,10 @@ export function HomeBuilderContent({
   const articleRef = useRef<HTMLDivElement>(null);
   return (
     <div ref={articleRef}>
-      <BuilderRenderer doc={doc} lang={lang} stream />
+      {/* `lcpOwner`: kanwa strony głównej jest GŁÓWNĄ treścią strony, więc to
+          ona wyznacza kandydata LCP (P1.4) - jedyny obraz eager/high
+          z `data-lcp-candidate`; preload tego samego obrazu emituje trasa. */}
+      <BuilderRenderer doc={doc} lang={lang} stream lcpOwner />
       {footnotes.length > 0 && (
         <div className="max-w-[1400px] mx-auto px-4 lg:px-8">
           <FootnotesList notes={footnotes} lang={lang} />

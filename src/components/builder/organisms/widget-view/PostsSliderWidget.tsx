@@ -36,10 +36,13 @@ export function PostsSliderWidget({
   c,
   lang,
   typography,
+  isLcp = false,
 }: {
   c: WidgetNode["content"];
   lang: Lang;
   typography?: WidgetTypography;
+  /** Kandydat LCP strony (P1.4): tylko wtedy pierwszy slajd jest eager/high. */
+  isLcp?: boolean;
 }) {
   const variant = asOneOf(c.variant, SLIDER_VARIANT_VALUES, "editorial-hero");
   const ratio = asOneOf(c.ratio, SLIDER_RATIOS, "16/9");
@@ -158,5 +161,7 @@ export function PostsSliderWidget({
       };
     }),
   };
-  return <SliderRender config={cfg} lang={lang} />;
+  // `lcp` zawsze jawnie: slider wewnątrz renderera buildera NIE dziedziczy
+  // historycznego „slajd 0 zawsze eager/high" (P1.4, werdykt LP-1).
+  return <SliderRender config={cfg} lang={lang} lcp={isLcp} />;
 }
