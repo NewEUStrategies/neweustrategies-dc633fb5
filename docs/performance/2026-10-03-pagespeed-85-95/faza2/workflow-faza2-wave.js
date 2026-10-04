@@ -53,7 +53,9 @@ function implPrompt(item, round, review) {
 YOUR ITEM: ${item.id} (wave ${WAVE}). ${item.notes ? "Orchestrator notes for this item: " + item.notes : ""}
 ${
   round === 0
-    ? `SETUP (do exactly this, once):
+    ? item.resume
+      ? `RESUME: the worktree ${wt} (branch perf/w${WAVE}-${item.id}, base ${BASE_REF}) ALREADY EXISTS with partial, uncommitted work of a previous attempt that was interrupted by a usage limit. Do NOT run git worktree add. First run \`git -C ${wt} status --short\` and \`git -C ${wt} diff\`, read every modified/new file whole, decide what is correct and complete, fix or finish the rest, and then continue with the normal gates and commit. mkdir -p ${OUT}/${item.id}. Work ONLY inside ${wt} (never edit ${WT} itself).`
+      : `SETUP (do exactly this, once):
   git -C ${WT} worktree add -B perf/w${WAVE}-${item.id} ${wt} ${BASE_REF}
   ln -s ${WT}/node_modules ${wt}/node_modules
   mkdir -p ${OUT}/${item.id}
