@@ -260,7 +260,7 @@ export function readSectionLabelProps(
   const label = str(`label_${lang}`) || str("label_pl") || opts.labelFallback || "Sekcja";
   const actionRaw = str(`action_${lang}`) || str("action_pl") || opts.actionFallback || "";
   const href = str("href");
-  const variant = (str("variant") || "left-bar") as SectionLabelVariant;
+  const variant = (str("variant") || "kinetic-signal-notch") as SectionLabelVariant;
   const customAccent = str("accentColor");
   const colorBase = customAccent || str("color") || "brand";
   const accent = resolveAccentColor(
