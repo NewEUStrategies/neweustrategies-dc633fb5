@@ -437,7 +437,9 @@ async function sampleLive(opts) {
   const requestedRuns = Math.max(1, Number.parseInt(opts.runs, 10) || 5);
   const runs = Math.min(requestedRuns, MAX_RUNS);
   if (runs < requestedRuns) {
-    console.log(`UWAGA: --runs ${requestedRuns} przycięte do ${MAX_RUNS} przebiegów na formę`);
+    // Dwie spacje wcięcia jak w liniach UWAGA z `reportForms`: tylko taki
+    // kształt bierze grep podsumowania joba w `psi.yml`.
+    console.log(`  UWAGA: --runs ${requestedRuns} przycięte do ${MAX_RUNS} przebiegów na formę`);
   }
   const gapMs = Math.max(0, Number.parseFloat(opts.gap) || 0) * 1000;
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");

@@ -21,6 +21,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { createServer as createNetServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -47,6 +48,7 @@ import {
 } from "./psi-sample.mjs";
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "psi-sample.mjs");
+const PSI_WORKFLOW = join(dirname(SCRIPT), "../../.github/workflows/psi.yml");
 
 /** Minimalny LHR, który przechodzi przez `extractMetrics`. */
 function lhr({
@@ -386,6 +388,25 @@ function assertKeyNowhere(run) {
   }
 }
 
+/**
+ * Linie logu, które trafią do podsumowania joba. Wzorzec `grep -E` jest wyjęty
+ * wprost z `psi.yml`, żeby test pilnował styku z workflowem, a nie własnej kopii.
+ */
+function summaryLines(stdout) {
+  const workflow = readFileSync(PSI_WORKFLOW, "utf8");
+  const grep = workflow.match(/grep -E '([^']+)' psi-sample\.log/);
+  assert.ok(grep, "psi.yml: brak kroku `grep -E '...' psi-sample.log`");
+  const pattern = new RegExp(grep[1]);
+  return stdout.split("\n").filter((line) => pattern.test(line));
+}
+
+test("podsumowanie joba w psi.yml bierze linie UWAGA tylko z wcięciem", () => {
+  const line = "UWAGA: --runs 12 przycięte do 10 przebiegów na formę";
+  assert.deepEqual(summaryLines(`  ${line}\n`), [`  ${line}`]);
+  // Kontrola negatywna: linia bez wcięcia (stan sprzed poprawki) do podsumowania nie trafia.
+  assert.deepEqual(summaryLines(`${line}\n`), []);
+});
+
 function okResponse() {
   return {
     kind: "pagespeedonline#result",
@@ -486,27 +507,58 @@ test("live (iii): 503, potem 200 -> jedno ponowienie i exit 0", async () => {
 });
 
 test("live: błąd sieci -> cztery próby, powód z error.cause w logu, exit 1", async () => {
-  // Port, który przed chwilą był wolny i jest już zamknięty: ECONNREFUSED.
-  const probe = await fakePsi([{ status: 200, body: {} }]);
-  await probe.close();
-  const run = await sample(probe.endpoint, ["--strategy", "mobile", "--runs", "1"]);
-  assert.equal(run.status, 1);
-  assert.equal(run.stdout.match(/ponowienie za/g)?.length, 3);
-  assert.match(
-    run.stdout,
-    /mobile-1: PSI: wyczerpane ponowienia \(fetch failed \(ECONNREFUSED\)\)/,
-  );
-  assert.match(run.stderr, /✗ PSI: zero udanych przebiegów dla: mobile/);
-  assertKeyNowhere(run);
+  // Serwer TCP przyjmuje połączenie i od razu je zrywa, więc fetch pada z
+  // `error.cause`. Serwer żyje przez cały test: nie ma wyścigu o zwolniony port
+  // (jak przy porcie zamkniętym tuż przed testem), a liczba połączeń to liczba
+  // prób próbnika.
+  let connections = 0;
+  const server = createNetServer((socket) => {
+    connections++;
+    socket.destroy();
+  });
+  await new Promise((done) => server.listen(0, "127.0.0.1", done));
+  try {
+    const { port } = server.address();
+    const run = await sample(`http://127.0.0.1:${port}/psi`, [
+      "--strategy",
+      "mobile",
+      "--runs",
+      "1",
+    ]);
+    assert.equal(run.status, 1);
+    assert.equal(connections, 4);
+    assert.equal(run.stdout.match(/ponowienie za/g)?.length, 3);
+    // Kod przyczyny należy do undici (dziś UND_ERR_SOCKET), więc test wymaga
+    // tylko, żeby był. Samo `fetch failed` (bez error.cause) tego nie spełnia.
+    assert.match(
+      run.stdout,
+      /^ {2}mobile-1: PSI: wyczerpane ponowienia \(fetch failed \([^()]+\)\)$/m,
+    );
+    assert.match(run.stderr, /✗ PSI: zero udanych przebiegów dla: mobile/);
+    assertKeyNowhere(run);
+  } finally {
+    await new Promise((done) => server.close(done));
+  }
 });
 
 test("live: błąd fetch cytujący URL zapytania - klucz zamaskowany", async () => {
-  // undici odrzuca URL z danymi logowania komunikatem, który cytuje CAŁY URL,
-  // razem z `key=`. Serwer nie jest potrzebny: fetch pada przed połączeniem.
-  const run = await sample("http://u:p@127.0.0.1:9/psi", ["--strategy", "mobile", "--runs", "1"]);
+  // undici odrzuca URL z danymi logowania błędem, który cytuje CAŁY URL razem
+  // z `key=`. Serwer nie jest potrzebny: fetch pada przed połączeniem. Asercje
+  // nie zależą od brzmienia komunikatu undici, tylko od tego, że cytuje URL.
+  // To jest warunek wstępny, sprawdzany tu wprost: bez klucza w surowym błędzie
+  // test maskowania niczego by nie dowodził.
+  const endpoint = "http://u:p@127.0.0.1:9/psi";
+  const raw = await fetch(psiRequestUrl("https://x.test/", "mobile", { key: KEY, endpoint })).then(
+    () => null,
+    (error) => error,
+  );
+  assert.ok(
+    fetchErrorDetail(raw).includes(`key=${KEY}`),
+    `warunek wstępny: surowy błąd fetch nie cytuje już klucza (${raw}), test trzeba oprzeć na innym wyzwalaczu`,
+  );
+  const run = await sample(endpoint, ["--strategy", "mobile", "--runs", "1"]);
   assert.equal(run.status, 1);
-  assert.match(run.stdout, /mobile-1: PSI: wyczerpane ponowienia \(Request cannot be constructed/);
-  assert.match(run.stdout, /key=\*\*\*/);
+  assert.match(run.stdout, /^ {2}mobile-1: PSI: wyczerpane ponowienia \(.*key=\*\*\*.*\)$/m);
   assertKeyNowhere(run);
 });
 
@@ -516,7 +568,12 @@ test("live: --runs powyżej limitu jest przycinane do MAX_RUNS", async () => {
   try {
     const run = await sample(psi.endpoint, ["--strategy", "mobile", "--runs", "12"]);
     assert.equal(run.status, 0, run.stderr);
-    assert.match(run.stdout, /UWAGA: --runs 12 przycięte do 10 przebiegów na formę/);
+    // Linia trafia do podsumowania joba, a nie tylko do logu: filtruje ją ten
+    // sam wzorzec, którego używa grep w `psi.yml`.
+    assert.ok(
+      summaryLines(run.stdout).includes("  UWAGA: --runs 12 przycięte do 10 przebiegów na formę"),
+      run.stdout,
+    );
     assert.equal(psi.seen.length, MAX_RUNS);
     // Kontrola negatywna: liczba w limicie nie jest ruszana.
     const within = await sample(psi.endpoint, ["--strategy", "mobile", "--runs", "2"]);
