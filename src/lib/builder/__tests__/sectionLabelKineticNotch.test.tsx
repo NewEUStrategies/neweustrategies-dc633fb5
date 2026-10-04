@@ -195,8 +195,8 @@ describe("Kinetic Signal Notch", () => {
     // w pas miedzys highose x a linia bazowa liter.
     for (const svg of svgs) {
       const svgStyle = svg.getAttribute("style") ?? "";
-      expect(svgStyle).toContain("height: calc(1em - 1px)");
-      expect(svgStyle).toContain("width: calc(1.1em - 1px)");
+      expect(svgStyle).toContain("height: calc(0.75em - 1px)");
+      expect(svgStyle).toContain("width: calc(0.85em - 1px)");
       const svgClass = svg.getAttribute("class") ?? "";
       expect(svgClass).not.toMatch(/(^|\s)-?(top|bottom|translate)-/);
       // Kolor z currentColor (ten sam co tekst), a nie z osobnej klasy.
