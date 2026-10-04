@@ -327,12 +327,13 @@ body {
      darker ink; the foreground on orange buttons is dark for WCAG AA. */
   --brand-ink: #a94e0b;
   /* Krawędzie kontrolek odsłuchu w jasnym motywie. Pomarańczowy przycisk,
-     biały trójkąt play i kwadrat "stop" na jasnym tle zlewały się krawędziami,
-     więc każdy dostaje delikatnie ciemniejszą linię własnej powierzchni
-     (mieszanka z atramentem, nie osobny kolor). W bloku `.dark` tokeny wracają
-     do `transparent`, czyli w ciemnym motywie nic nie dochodzi. */
+     trójkąt play, słupki pauzy i kwadrat "stop" na jasnym tle zlewały się
+     krawędziami, więc każdy dostaje delikatnie ciemniejszą linię. Krawędź
+     ikony to ciemnopomarańczna mieszanka brandu z czernią - ta sama rodzina
+     koloru co przycisk, a nie szarość wyjęta z tekstu. W bloku `.dark` tokeny
+     wracają do `transparent`, czyli w ciemnym motywie nic nie dochodzi. */
   --audio-control-border: color-mix(in oklab, var(--brand) 80%, #000);
-  --audio-icon-border: color-mix(in oklab, var(--background) 82%, var(--foreground));
+  --audio-icon-border: color-mix(in oklab, var(--brand) 70%, #000);
   --voice-stop-border: color-mix(in oklab, var(--primary) 72%, #000);
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
@@ -5269,11 +5270,13 @@ textarea::placeholder {
 .mpp-svg-play {
   transform-origin: 50% 50%;
 }
-/* Delikatnie ciemniejsza krawędź trójkąta. Wypełnienie trójkąta to
-   `text-background`, czyli w jasnym motywie niemal biel - na pomarańczu
-   zlewała się z tłem przycisku. `stroke` siedzi na krawędzi ścieżki i nie
-   rusza jej środka, więc wyśrodkowanie pilnowane przez testy zostaje. */
-.mpp-svg-play path {
+/* Ciemnopomarańczowa krawędź obu ikon: trójkąta play i słupków pauzy.
+   Wypełnienie obu to `text-background`, czyli w jasnym motywie niemal biel -
+   na pomarańczowym przycisku zlewały się z jego tłem. `stroke` siedzi na
+   krawędzi kształtu i nie rusza jego środka, więc wyśrodkowanie pilnowane
+   przez testy (`audioAtoms`) pozostaje nietknięte. */
+.mpp-svg-play path,
+.mpp-svg-pause rect {
   stroke: var(--audio-icon-border);
   stroke-width: 1.1;
   stroke-linejoin: round;
