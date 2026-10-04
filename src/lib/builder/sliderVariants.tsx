@@ -686,7 +686,7 @@ function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = fals
           onClick={onPrev}
           className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition"
         >
-          <ArrowLeft className="w-4 h-4" />
+          <AngleChevron side="left" isSm={false} className="h-3.5 w-3.5" />
         </button>
       )}
       <div className="flex items-center gap-1">
@@ -713,7 +713,7 @@ function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = fals
           onClick={onNext}
           className="h-8 w-8 inline-flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition"
         >
-          <ArrowRight className="w-4 h-4" />
+          <AngleChevron side="right" isSm={false} className="h-3.5 w-3.5" />
         </button>
       )}
     </div>
