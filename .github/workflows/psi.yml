@@ -37,7 +37,7 @@ on:
         required: false
         default: "mobile,desktop"
       runs:
-        description: "Przebiegi na formę"
+        description: "Przebiegi na formę (najwyżej 10)"
         required: false
         default: "5"
 
@@ -53,8 +53,15 @@ concurrency:
 jobs:
   psi:
     runs-on: ubuntu-latest
-    # 2 formy x 5 przebiegów x (20-60 s PSI + 15 s odstępu) = ~6-13 min;
-    # ponowienia po 429/5xx (30 + 60 + 90 s na przebieg) to górna granica.
+    # 2 formy x 5 przebiegów x (20-60 s PSI + 15 s odstępu) = ~6-13 min,
+    # przy górnym limicie `--runs` 10 (MAX_RUNS w psi-sample.mjs) ~12-25 min.
+    # Najgorszy przypadek już przy 2 x 5 przebiegach to jednak ~130 min:
+    # 10 x (4 próby x 150 s timeoutu + 30 + 60 + 90 s odstępów ponowień). Dlatego
+    # limit 30 min stoi na KROKU próbkowania: przekroczenie kończy krok błędem,
+    # ale nie anuluje joba, więc podsumowanie i wysyłka (`!cancelled()`) jadą
+    # dalej i zostaje dowód awarii PSI (log i LHR-y zapisanych przebiegów).
+    # Limit joba (gdyby to on zadziałał, job byłby anulowany i bez artefaktu)
+    # = 30 min kroku + checkout, setup-node i wysyłka + zapas.
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
@@ -89,6 +96,7 @@ jobs:
       # próbnik ustawia kod wyjścia.
       - name: Sample PageSpeed Insights (locale=pl)
         if: ${{ steps.key.outputs.present == 'true' }}
+        timeout-minutes: 30
         env:
           PSI_API_KEY: ${{ secrets.PSI_API_KEY }}
           PSI_URL: ${{ inputs.url || 'https://neweuropeanstrategies.com/' }}

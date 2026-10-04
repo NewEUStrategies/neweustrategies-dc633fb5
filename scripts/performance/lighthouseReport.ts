@@ -846,8 +846,13 @@ export function parsePsiReference(value: unknown): PsiReference {
   const forms = value["forms"];
   if (!isRecord(forms)) throw new Error("psi-reference: brak `forms`");
   const pick = (name: "mobile" | "desktop"): Partial<Record<NumericKey, number>> => {
-    const raw = forms[name];
-    if (!isRecord(raw)) throw new Error(`psi-reference: brak formy ${name}`);
+    const form = forms[name];
+    if (!isRecord(form)) throw new Error(`psi-reference: brak formy ${name}`);
+    // Dwa kształty: płaski `forms.<forma>.tbt` albo `summary.json` z
+    // `psi-sample.mjs` (także `--from-file` z eksportów D13), który trzyma
+    // liczby w `forms.<forma>.median` obok `min`/`max`/`runs`.
+    const medians = form["median"];
+    const raw = isRecord(medians) ? medians : form;
     const out: Partial<Record<NumericKey, number>> = {};
     for (const key of NUMERIC_KEYS) {
       const v = raw[key];

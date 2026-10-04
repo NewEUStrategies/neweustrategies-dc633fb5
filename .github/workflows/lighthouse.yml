@@ -91,9 +91,13 @@ jobs:
     # dotąd znacznie poniżej 30 minut. Gdyby lista URL-i urosła powyżej
     # siedmiu, ten limit trzeba przeliczyć razem z nią.
     #
-    # Tryb A od 2026-10-04 płaci jeszcze dwie rozgrzewki (najwyżej 7 URL-i
-    # x 2 przejścia x MISS ~3 s = ~45 s na profil) - mieści się w tym samym
-    # limicie.
+    # Tryb A od 2026-10-04 płaci jeszcze dwie rozgrzewki. Typowo: najwyżej
+    # 7 URL-i x 2 przejścia x MISS ~3 s = ~42 s na profil, ~1,5 min na oba.
+    # Górna granica przy hoście, który przyjmuje połączenie i milczy:
+    # `curl --max-time 30` x 7 URL-i x 2 przejścia = 7 min na profil, 14 min
+    # na oba (host, do którego nie da się połączyć, kończy się najpóźniej po
+    # `--connect-timeout 10`: najwyżej ~2,3 min na profil). Wcześniejsze
+    # `--max-time 90` dawało do 42 min, czyli prawie cały limit joba.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -191,7 +195,9 @@ jobs:
       # z sufiksem colo). Skrypt jest zapisywany do pliku, bo profil mobilny
       # rozgrzewa PONOWNIE tuż przed swoim przebiegiem - desktop trwa dłużej niż
       # 3-minutowe okno świeżości. Rozgrzewka nigdy nie przewraca joba: awaria
-      # sieci wyjdzie i tak w LHCI.
+      # sieci wyjdzie i tak w LHCI. Limity curl (`--connect-timeout 10`,
+      # `--max-time 30` na całe żądanie z przekierowaniami) ograniczają jej
+      # koszt przy zawieszonym hoście; arytmetyka przy `timeout-minutes` joba.
       - name: Warm the deployed URLs with a browser UA (mode A)
         if: ${{ vars.LHCI_URL != '' }}
         run: |
@@ -210,7 +216,7 @@ jobs:
             [ -n "$url" ] || continue
             for pass in 1 2; do
               echo "== rozgrzewka ${1:-desktop} $pass/2: $url"
-              curl -sS -L -o /dev/null -D - --max-time 90 \
+              curl -sS -L -o /dev/null -D - --connect-timeout 10 --max-time 30 \
                 -A "$ua" -H "Accept: $accept" -H "Accept-Language: $lang" "$url" \
                 | tr -d '\r' \
                 | grep -iE '^(HTTP/|location:|x-nes-|server-timing:|cf-ray:|cf-cache-status:)' \

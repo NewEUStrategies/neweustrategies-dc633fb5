@@ -1,27 +1,48 @@
-// Testy warstw czystych próbnika PSI (psi-sample.mjs, P0.2 planu PSI 85/95):
-// locale=pl w zapytaniu, zamaskowany klucz, cache-buster `utm_source`,
-// klasyfikacja HIT/MISS z `server-response-time`, wykrycie przekierowania
-// i rozpoznawanie zapisanych raportów (odpowiedź API v5, sam LHR z eksportu
-// pagespeed.web.dev, raport HTML). Każda klasyfikacja ma kontrolę negatywną.
+// Testy próbnika PSI (psi-sample.mjs, P0.2 planu PSI 85/95).
+//
+// Warstwy czyste: locale=pl w zapytaniu, zamaskowany klucz, cache-buster
+// `utm_source`, klasyfikacja HIT/MISS z `server-response-time`, wykrycie
+// przekierowania, rozpoznawanie zapisanych raportów (odpowiedź API v5, sam LHR
+// z eksportu pagespeed.web.dev, raport HTML) i jednoliniowa diagnostyka błędów.
+//
+// Ścieżka live na LOKALNYM serwerze (PSI_ENDPOINT_URL, PSI_RETRY_BASE_MS):
+// zapis `<forma>-<n>.lhr.json` i `.field.json`, exit 1 przy zerze udanych
+// przebiegów (na tym stoi czerwony krok `psi.yml`), ponowienie po 5xx, limit
+// `--runs` i to, że wartość PSI_API_KEY nie trafia ani do logu, ani do plików.
+// Test nie pyta Google.
+//
+// Styk z harnessem: `summary.json` z `--from-file` przechodzi wprost przez
+// `parsePsiReference` (`lighthouse-local.mjs --psi-reference`).
+//
+// Każda klasyfikacja ma kontrolę negatywną.
 //
 // Uruchomienie: node --test scripts/performance/psi-sample.test.mjs
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
+import { parsePsiReference } from "./lighthouseReport.ts";
 import {
   DEFAULT_LOCALE,
+  MAX_RUNS,
   MISS_THRESHOLD_MS,
+  PSI_ENDPOINT,
+  PSI_RETRY_BASE_MS,
   cacheBustedTarget,
   cacheCounts,
   classifyCache,
   expandInputs,
+  fetchErrorDetail,
+  liveSettings,
   parsePsiInput,
+  psiErrorDetail,
   psiRequestUrl,
   redactKey,
+  redactSecret,
   runInfo,
 } from "./psi-sample.mjs";
 
@@ -32,6 +53,7 @@ function lhr({
   form = "mobile",
   srt = 300,
   score = 0.53,
+  tbt = 600,
   requested = "https://x.test/",
   final = requested,
 } = {}) {
@@ -46,7 +68,7 @@ function lhr({
       "server-response-time": { numericValue: srt },
       "first-contentful-paint": { numericValue: 3000 },
       "largest-contentful-paint": { numericValue: 6000 },
-      "total-blocking-time": { numericValue: 600 },
+      "total-blocking-time": { numericValue: tbt },
       "speed-index": { numericValue: 7000 },
       "cumulative-layout-shift": { numericValue: 0 },
     },
@@ -129,7 +151,7 @@ test("rozpoznaje odpowiedź API v5, sam LHR (eksport pagespeed.web.dev) i raport
   assert.equal(bare.kind, "lhr");
   assert.equal(bare.response, null);
 
-  // Lighthouse koduje `<` w JSON-ie raportu HTML jako < - także w treści audytów.
+  // Lighthouse koduje `<` w JSON-ie raportu HTML jako `\u003c` - także w treści audytów.
   report.audits["server-response-time"].displayValue = "</script><b>";
   const json = JSON.stringify(report).replace(/</g, "\\u003c");
   const html = `<!doctype html><html><body><script>window.__LIGHTHOUSE_JSON__ = ${json};</script><script>render()</script></body></html>`;
@@ -199,4 +221,309 @@ test("kontrola negatywna CLI: jawnie podany plik bez raportu kończy się kodem 
   const run = spawnSync(process.execPath, [SCRIPT, "--from-file", file], { encoding: "utf8" });
   assert.equal(run.status, 1);
   assert.match(run.stderr, /to nie jest raport Lighthouse'a/);
+});
+
+// ── Styk z harnessem: summary.json -> --psi-reference (kalibracja k) ─────────
+
+test("summary.json z --from-file przechodzi przez parsePsiReference (mediany TBT obu form)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "nes-psi-ref-"));
+  const out = join(dir, "out");
+  writeFileSync(join(dir, "m1.lhr.json"), JSON.stringify(lhr({ form: "mobile", tbt: 500 })));
+  writeFileSync(join(dir, "m2.lhr.json"), JSON.stringify(lhr({ form: "mobile", tbt: 700 })));
+  writeFileSync(join(dir, "d1.lhr.json"), JSON.stringify(lhr({ form: "desktop", tbt: 200 })));
+  writeFileSync(join(dir, "d2.lhr.json"), JSON.stringify(lhr({ form: "desktop", tbt: 400 })));
+  const run = spawnSync(process.execPath, [SCRIPT, "--from-file", dir, "--out", out], {
+    encoding: "utf8",
+  });
+  assert.equal(run.status, 0, run.stderr);
+  const summary = JSON.parse(readFileSync(join(out, "summary.json"), "utf8"));
+  // Prawdziwy kształt próbnika: liczby w `forms.<forma>.median`, nie na płasko.
+  assert.equal(summary.forms.mobile.tbt, undefined);
+  assert.equal(summary.forms.mobile.median.tbt, 600);
+
+  const ref = parsePsiReference(summary);
+  assert.equal(ref.forms.mobile.tbt, 600);
+  assert.equal(ref.forms.desktop.tbt, 300);
+  assert.equal(ref.forms.mobile.score, 53);
+  assert.equal(ref.forms.mobile.fcp, 3000);
+
+  // Kontrola negatywna: mediana bez TBT nie kalibruje niczego - błąd, nie cisza.
+  delete summary.forms.mobile.median.tbt;
+  assert.throws(() => parsePsiReference(summary), /forma mobile bez liczby `tbt`/);
+});
+
+// ── Diagnostyka błędów i podmiany środowiska ────────────────────────────────
+
+const GOOGLE_400 = `{
+  "error": {
+    "code": 400,
+    "message": "API key not valid. Please pass a valid API key.",
+    "errors": [
+      {
+        "message": "API key not valid. Please pass a valid API key.",
+        "domain": "global",
+        "reason": "badRequest"
+      }
+    ],
+    "status": "INVALID_ARGUMENT"
+  }
+}
+`;
+
+test("błąd PSI to jedna linia: error.message z JSON-a Google, inaczej spłaszczony tekst", () => {
+  assert.equal(psiErrorDetail(GOOGLE_400), "API key not valid. Please pass a valid API key.");
+  // Kontrola negatywna: treść, która nie jest błędem Google, nie ginie i nie łamie linii.
+  const html = "<html>\n  <body>\n    502 Bad Gateway\n  </body>\n</html>";
+  assert.equal(psiErrorDetail(html), "<html> <body> 502 Bad Gateway </body> </html>");
+  assert.equal(psiErrorDetail(JSON.stringify({ error: { code: 500 } })), '{"error":{"code":500}}');
+  assert.equal(psiErrorDetail("x".repeat(1000)).length, 300);
+  assert.equal(psiErrorDetail(" \n "), "(pusta odpowiedź)");
+});
+
+test("błąd fetch pokazuje przyczynę z error.cause (kod, potem komunikat)", () => {
+  const refused = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:9"), {
+    code: "ECONNREFUSED",
+  });
+  assert.equal(
+    fetchErrorDetail(new TypeError("fetch failed", { cause: refused })),
+    "fetch failed (ECONNREFUSED)",
+  );
+  assert.equal(
+    fetchErrorDetail(new TypeError("fetch failed", { cause: new Error("other side closed") })),
+    "fetch failed (other side closed)",
+  );
+  // Kontrola negatywna: bez przyczyny zostaje sam komunikat.
+  assert.equal(fetchErrorDetail(new Error("The operation timed out")), "The operation timed out");
+  assert.equal(fetchErrorDetail("napis"), "napis");
+});
+
+test("klucz w dowolnym tekście jest maskowany; pusty klucz niczego nie rusza", () => {
+  assert.equal(redactSecret("zły klucz K-1 (K-1)", "K-1"), "zły klucz *** (***)");
+  assert.equal(redactSecret("bez klucza", undefined), "bez klucza");
+  assert.equal(redactSecret("bez klucza", ""), "bez klucza");
+});
+
+test("PSI_ENDPOINT_URL i PSI_RETRY_BASE_MS: domyślnie Google i 30 s, podmiana, zła wartość = błąd", () => {
+  assert.deepEqual(liveSettings({}), { endpoint: PSI_ENDPOINT, retryBaseMs: PSI_RETRY_BASE_MS });
+  assert.equal(PSI_RETRY_BASE_MS, 30_000);
+  assert.deepEqual(
+    liveSettings({ PSI_ENDPOINT_URL: "http://127.0.0.1:9/psi", PSI_RETRY_BASE_MS: "5" }),
+    { endpoint: "http://127.0.0.1:9/psi", retryBaseMs: 5 },
+  );
+  assert.equal(liveSettings({ PSI_RETRY_BASE_MS: "0" }).retryBaseMs, 0);
+  assert.equal(
+    new URL(psiRequestUrl("https://x.test/", "mobile", { endpoint: "http://127.0.0.1:9/psi" }))
+      .host,
+    "127.0.0.1:9",
+  );
+  // Kontrola negatywna: literówka nie wraca po cichu do 30 s ani do Google.
+  assert.throws(() => liveSettings({ PSI_RETRY_BASE_MS: "abc" }), /PSI_RETRY_BASE_MS/);
+  assert.throws(() => liveSettings({ PSI_RETRY_BASE_MS: "-1" }), /PSI_RETRY_BASE_MS/);
+  assert.throws(() => liveSettings({ PSI_ENDPOINT_URL: "nie url" }), /PSI_ENDPOINT_URL/);
+});
+
+// ── Ścieżka live na lokalnym serwerze ───────────────────────────────────────
+
+const KEY = "SEKRET-psi-test-7f3a";
+
+/** Lokalne „PSI": kolejne odpowiedzi z listy, ostatnia powtarzana. */
+async function fakePsi(replies) {
+  const seen = [];
+  const server = createServer((req, res) => {
+    const reply = replies[Math.min(seen.length, replies.length - 1)];
+    seen.push(new URL(req.url ?? "/", "http://127.0.0.1"));
+    const body = typeof reply.body === "string" ? reply.body : JSON.stringify(reply.body);
+    res.writeHead(reply.status, { "content-type": "application/json; charset=utf-8" });
+    res.end(body);
+  });
+  await new Promise((done) => server.listen(0, "127.0.0.1", done));
+  const { port } = server.address();
+  return {
+    endpoint: `http://127.0.0.1:${port}/pagespeedonline/v5/runPagespeed`,
+    seen,
+    close: () => new Promise((done) => server.close(done)),
+  };
+}
+
+/** Próbnik jako osobny proces (asynchronicznie: serwer żyje w tym procesie). */
+function sample(endpoint, args) {
+  const out = mkdtempSync(join(tmpdir(), "nes-psi-live-"));
+  const child = spawn(
+    process.execPath,
+    [SCRIPT, "--url", "https://x.test/", "--gap", "0", "--out", out, ...args],
+    {
+      env: {
+        ...process.env,
+        PSI_API_KEY: KEY,
+        PSI_ENDPOINT_URL: endpoint,
+        PSI_RETRY_BASE_MS: "5",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8").on("data", (chunk) => (stdout += chunk));
+  child.stderr.setEncoding("utf8").on("data", (chunk) => (stderr += chunk));
+  return new Promise((done, fail) => {
+    child.on("error", fail);
+    child.on("close", (status) => done({ status, stdout, stderr, out }));
+  });
+}
+
+/**
+ * Wartość klucza nie występuje w logu ani w ŻADNYM zapisanym pliku. Sprawdzany
+ * jest też sam prefiks: ucięty cytat treści zdradziłby początek klucza.
+ */
+function assertKeyNowhere(run) {
+  for (const secret of [KEY, KEY.slice(0, 6)]) {
+    assert.equal(run.stdout.includes(secret), false, `${secret} w stdout`);
+    assert.equal(run.stderr.includes(secret), false, `${secret} w stderr`);
+    for (const name of readdirSync(run.out)) {
+      const text = readFileSync(join(run.out, name), "utf8");
+      assert.equal(text.includes(secret), false, `${secret} w ${name}`);
+    }
+  }
+}
+
+function okResponse() {
+  return {
+    kind: "pagespeedonline#result",
+    id: "https://x.test/",
+    loadingExperience: {
+      overall_category: "AVERAGE",
+      metrics: { LARGEST_CONTENTFUL_PAINT_MS: { percentile: 2900, category: "AVERAGE" } },
+    },
+    lighthouseResult: lhr({ srt: 250 }),
+  };
+}
+
+test("live (i): 200 -> exit 0, mobile-1.lhr.json i mobile-1.field.json bez lighthouseResult", async () => {
+  const psi = await fakePsi([{ status: 200, body: okResponse() }]);
+  try {
+    const run = await sample(psi.endpoint, ["--strategy", "mobile", "--runs", "1"]);
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(psi.seen.length, 1);
+    // Klucz naprawdę poszedł w zapytaniu - inaczej „brak klucza w logu" nic nie dowodzi.
+    assert.equal(psi.seen[0].searchParams.get("key"), KEY);
+    assert.equal(psi.seen[0].searchParams.get("locale"), "pl");
+    const saved = JSON.parse(readFileSync(join(run.out, "mobile-1.lhr.json"), "utf8"));
+    assert.equal(saved.lighthouseVersion, "13.5.0");
+    const field = JSON.parse(readFileSync(join(run.out, "mobile-1.field.json"), "utf8"));
+    assert.equal("lighthouseResult" in field, false);
+    assert.equal(field.loadingExperience.overall_category, "AVERAGE");
+    const summary = JSON.parse(readFileSync(join(run.out, "summary.json"), "utf8"));
+    assert.equal(summary.forms.mobile.n, 1);
+    assert.equal(new URL(summary.requests.mobile).searchParams.get("key"), "***");
+    assert.match(run.stdout, /CrUX URL \[AVERAGE\]: LARGEST_CONTENTFUL_PAINT=p75 2900/);
+    assertKeyNowhere(run);
+  } finally {
+    await psi.close();
+  }
+});
+
+test("live (ii): 400 przy każdym wywołaniu -> exit 1, bez ponowień, błąd jedną linią", async () => {
+  const psi = await fakePsi([{ status: 400, body: GOOGLE_400 }]);
+  try {
+    const run = await sample(psi.endpoint, ["--strategy", "mobile", "--runs", "2"]);
+    assert.equal(run.status, 1);
+    assert.match(run.stderr, /✗ PSI: zero udanych przebiegów dla: mobile/);
+    // 400 to błąd klienta: jedno wywołanie na przebieg, żadnego ponowienia.
+    assert.equal(psi.seen.length, 2);
+    assert.doesNotMatch(run.stdout, /ponowienie/);
+    // Linia, którą bierze grep podsumowania joba, niesie powód, a nie `{`.
+    assert.match(
+      run.stdout,
+      /^ {2}mobile-1: PSI HTTP 400: API key not valid\. Please pass a valid API key\.$/m,
+    );
+    const summary = JSON.parse(readFileSync(join(run.out, "summary.json"), "utf8"));
+    assert.deepEqual(summary.forms, {});
+    assertKeyNowhere(run);
+  } finally {
+    await psi.close();
+  }
+});
+
+test("live: serwer odbijający klucz w treści - klucz zamaskowany w każdej linii błędu", async () => {
+  // Trzy ścieżki: 503 -> linia ponowienia, 400 -> błąd przebiegu, 200 z treścią,
+  // która nie jest JSON-em -> własny komunikat bez cytatu treści (SyntaxError
+  // z `res.json()` cytowałby jej UCIĘTY początek, czyli prefiks klucza).
+  const echo = (code) => ({ error: { code, message: `API key ${KEY} not valid` } });
+  const psi = await fakePsi([
+    { status: 503, body: echo(503) },
+    { status: 400, body: echo(400) },
+    { status: 200, body: `<html>${KEY}</html>` },
+  ]);
+  try {
+    const run = await sample(psi.endpoint, ["--strategy", "mobile", "--runs", "2"]);
+    assert.equal(run.status, 1);
+    assert.equal(psi.seen.length, 3);
+    assert.match(run.stdout, /PSI HTTP 503: API key \*\*\* not valid - ponowienie/);
+    assert.match(run.stdout, /mobile-1: PSI HTTP 400: API key \*\*\* not valid$/m);
+    assert.match(run.stdout, /mobile-2: PSI HTTP 200: odpowiedź nie jest JSON-em \(\d+ znaków\)$/m);
+    assertKeyNowhere(run);
+  } finally {
+    await psi.close();
+  }
+});
+
+test("live (iii): 503, potem 200 -> jedno ponowienie i exit 0", async () => {
+  const psi = await fakePsi([
+    { status: 503, body: { error: { code: 503, message: "Backend unavailable" } } },
+    { status: 200, body: okResponse() },
+  ]);
+  try {
+    const run = await sample(psi.endpoint, ["--strategy", "mobile", "--runs", "1"]);
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(psi.seen.length, 2);
+    assert.equal(run.stdout.match(/ponowienie za/g)?.length, 1);
+    assert.match(run.stdout, /PSI HTTP 503: Backend unavailable - ponowienie za 0\.005 s/);
+    assert.ok(readFileSync(join(run.out, "mobile-1.lhr.json"), "utf8").length > 0);
+    assertKeyNowhere(run);
+  } finally {
+    await psi.close();
+  }
+});
+
+test("live: błąd sieci -> cztery próby, powód z error.cause w logu, exit 1", async () => {
+  // Port, który przed chwilą był wolny i jest już zamknięty: ECONNREFUSED.
+  const probe = await fakePsi([{ status: 200, body: {} }]);
+  await probe.close();
+  const run = await sample(probe.endpoint, ["--strategy", "mobile", "--runs", "1"]);
+  assert.equal(run.status, 1);
+  assert.equal(run.stdout.match(/ponowienie za/g)?.length, 3);
+  assert.match(
+    run.stdout,
+    /mobile-1: PSI: wyczerpane ponowienia \(fetch failed \(ECONNREFUSED\)\)/,
+  );
+  assert.match(run.stderr, /✗ PSI: zero udanych przebiegów dla: mobile/);
+  assertKeyNowhere(run);
+});
+
+test("live: błąd fetch cytujący URL zapytania - klucz zamaskowany", async () => {
+  // undici odrzuca URL z danymi logowania komunikatem, który cytuje CAŁY URL,
+  // razem z `key=`. Serwer nie jest potrzebny: fetch pada przed połączeniem.
+  const run = await sample("http://u:p@127.0.0.1:9/psi", ["--strategy", "mobile", "--runs", "1"]);
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /mobile-1: PSI: wyczerpane ponowienia \(Request cannot be constructed/);
+  assert.match(run.stdout, /key=\*\*\*/);
+  assertKeyNowhere(run);
+});
+
+test("live: --runs powyżej limitu jest przycinane do MAX_RUNS", async () => {
+  assert.equal(MAX_RUNS, 10);
+  const psi = await fakePsi([{ status: 200, body: okResponse() }]);
+  try {
+    const run = await sample(psi.endpoint, ["--strategy", "mobile", "--runs", "12"]);
+    assert.equal(run.status, 0, run.stderr);
+    assert.match(run.stdout, /UWAGA: --runs 12 przycięte do 10 przebiegów na formę/);
+    assert.equal(psi.seen.length, MAX_RUNS);
+    // Kontrola negatywna: liczba w limicie nie jest ruszana.
+    const within = await sample(psi.endpoint, ["--strategy", "mobile", "--runs", "2"]);
+    assert.equal(within.status, 0, within.stderr);
+    assert.doesNotMatch(within.stdout, /przycięte/);
+    assert.equal(psi.seen.length, MAX_RUNS + 2);
+  } finally {
+    await psi.close();
+  }
 });
