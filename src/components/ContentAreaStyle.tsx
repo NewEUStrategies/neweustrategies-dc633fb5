@@ -4,7 +4,7 @@
 import { useMemo } from "react";
 import { usePostLayoutSettings } from "@/hooks/usePostLayoutSettings";
 import { defaultPostLayoutSettings, type PostLayoutSettings } from "@/lib/postLayouts";
-import { hardenStyleCss } from "@/lib/sanitizePure";
+import { StyleSink } from "@/components/theme/StyleSink";
 
 /** Jedna instancja defaultów - `defaultPostLayoutSettings()` tworzy nowy obiekt. */
 const DEFAULT_SETTINGS: PostLayoutSettings = defaultPostLayoutSettings();
@@ -31,10 +31,6 @@ function contentAreaCss(s: PostLayoutSettings): string {
   // ContentRenderer w treści wpisów) oraz `.post-content` (zapasowy alias
   // używany m.in. w podglądach edytora). Bez tego zmiany z /admin/content-area
   // nie miały efektu na produkcyjnym widoku wpisu.
-  // Nazwa `rules`, a NIE `css`: bramka `check:dangerous-html` rozwiązuje
-  // wyrażenie z `__html` po NAZWIE wiązania w całym pliku, więc druga stała
-  // `css` (tu: surowy literał) przykrywałaby tę utwardzoną niżej i sink
-  // wyglądałby na niesanityzowany.
   const rules = `
 .post-content, .single-post-content {
   --pc-link: ${linkColorLight};
@@ -118,8 +114,10 @@ ${
  */
 export function ContentAreaStyle() {
   const { data } = usePostLayoutSettings();
-  // Utwardzanie CSS zależy WYŁĄCZNIE od wiersza ustawień, a komponent wisi przy
-  // korzeniu aplikacji - bez memo przeliczał się przy każdym renderze drzewa.
-  const css = useMemo(() => hardenStyleCss(contentAreaCss(data ?? DEFAULT_SETTINGS)), [data]);
-  return <style data-content-area dangerouslySetInnerHTML={{ __html: css }} />;
+  // CSS zależy WYŁĄCZNIE od wiersza ustawień, a komponent wisi przy korzeniu
+  // aplikacji - bez memo przeliczał się przy każdym renderze drzewa.
+  // `StyleSink` utwardza go w miejscu renderu i nie przepisuje `<style>`, gdy
+  // re-render korzenia daje ten sam napis (P1.2).
+  const css = useMemo(() => contentAreaCss(data ?? DEFAULT_SETTINGS), [data]);
+  return <StyleSink data-content-area css={css} />;
 }

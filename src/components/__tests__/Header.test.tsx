@@ -38,6 +38,10 @@
  *     z koalescencją w `requestAnimationFrame`, pomiar wymiarów spoczynkowych
  *     (`--hdr-nat` / `--hdr-tt` / `--hdr-extra` + `data-metrics`) i publikacja
  *     `--sticky-header-h` dla kotwic.
+ *  7. START BEZ PRZELICZENIA STYLU DOKUMENTU (P1.2): brak zapisu
+ *     `--sticky-header-h` na <html>, gdy pomiar = domyślna z CSS (± < 2 px),
+ *     brak przełączenia `data-settled` przy montażu i brak renderu wnętrza
+ *     (paska "na czasie") w commitach zwijania - bramka `memo` na `HeaderInner`.
  *
  * CO JEST ZAATRAPOWANE I DLACZEGO.
  *  * `react-i18next` - atrapa Z PRAWDZIWYM `t`. Fabryka `vi.mock` jest
@@ -118,6 +122,8 @@ const h = vi.hoisted(() => ({
   preloads: [] as string[],
   languageChanges: [] as string[],
   clientLangWrites: [] as string[],
+  /** Rendery atrapy paska "na czasie" - dowód bramki `memo` na `HeaderInner`. */
+  tickerRenders: 0,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -202,19 +208,22 @@ vi.mock("@/components/header/TrendingTicker", () => ({
     limit: number;
     fullWidth: boolean;
     labelPl?: string;
-  }) => (
-    <div
-      className="cms-trending"
-      data-testid="ticker"
-      data-source={props.source}
-      data-mode={props.mode}
-      data-layout={props.layoutStyle}
-      data-days={String(props.days)}
-      data-limit={String(props.limit)}
-      data-full-width={String(props.fullWidth)}
-      data-label-pl={props.labelPl ?? ""}
-    />
-  ),
+  }) => {
+    h.tickerRenders += 1;
+    return (
+      <div
+        className="cms-trending"
+        data-testid="ticker"
+        data-source={props.source}
+        data-mode={props.mode}
+        data-layout={props.layoutStyle}
+        data-days={String(props.days)}
+        data-limit={String(props.limit)}
+        data-full-width={String(props.fullWidth)}
+        data-label-pl={props.labelPl ?? ""}
+      />
+    );
+  },
 }));
 
 vi.mock("@/components/header/mobile/MobileDrawerBody", () => ({
@@ -1468,6 +1477,190 @@ describe("Header - koalescencja klatek animacji", () => {
     view.unmount();
     expect(frames.length).toBe(0);
     expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("");
+  });
+});
+
+// --- Bez zapisu stylu <html> i przełączeń przy starcie (P1.2) ---------------
+
+/**
+ * Domyślna wysokość z arkusza, tak jak `styles.css` niesie ją per breakpoint.
+ * happy-dom nie ładuje `styles.css`, więc test wstrzykuje regułę sam.
+ */
+function injectStickyDefault(px: number): () => void {
+  const style = document.createElement("style");
+  style.textContent = `:root { --sticky-header-h: ${px}px; }`;
+  document.head.appendChild(style);
+  return () => style.remove();
+}
+
+/** Zapisy `--sticky-header-h` na <html> (inne właściwości <html> pomijamy). */
+function spyStickyWrites() {
+  const spy = vi.spyOn(document.documentElement.style, "setProperty");
+  return () => spy.mock.calls.filter(([name]) => name === "--sticky-header-h");
+}
+
+describe("Header - start bez przeliczenia stylu dokumentu (P1.2, F2/F2b)", () => {
+  it("wysokość równa domyślnej z CSS: montaż NIE zapisuje --sticky-header-h na <html>", async () => {
+    const removeDefault = injectStickyDefault(212);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(rect(212));
+    const writes = spyStickyWrites();
+    try {
+      renderHeader({ header: { builder_data: doc(1) } });
+      await settleLazyOverlay();
+
+      // Środowisko naprawdę widzi domyślną z arkusza - inaczej brak zapisu
+      // byłby przypadkiem, a nie decyzją komponentu.
+      expect(getComputedStyle(document.documentElement).getPropertyValue("--sticky-header-h")).toBe(
+        "212px",
+      );
+      expect(writes()).toEqual([]);
+      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("");
+    } finally {
+      removeDefault();
+    }
+  });
+
+  it("różnica mniejsza niż 2 px też nie zapisuje; 2 px i więcej publikuje pomiar", async () => {
+    const removeDefault = injectStickyDefault(212);
+    const boundingRect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue(rect(211));
+    const writes = spyStickyWrites();
+    try {
+      const view = renderHeader({ header: { builder_data: doc(1) } });
+      await settleLazyOverlay();
+      expect(writes()).toEqual([]);
+      view.unmount();
+
+      boundingRect.mockReturnValue(rect(214));
+      renderHeader({ header: { builder_data: doc(1) } });
+      await settleLazyOverlay();
+      expect(writes()).toEqual([["--sticky-header-h", "214px"]]);
+      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("214px");
+    } finally {
+      removeDefault();
+    }
+  });
+
+  it("po montażu bez zapisu obserwator nadal publikuje realną zmianę wysokości", async () => {
+    vi.useFakeTimers();
+    stubFrames();
+    stubResizeObserver();
+    const removeDefault = injectStickyDefault(212);
+    const boundingRect = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue(rect(212));
+    try {
+      renderHeader({ header: { builder_data: doc(1) } });
+      await settleLazyOverlay();
+      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("");
+
+      // Zmiana o mniej niż 2 px wobec domyślnej - dalej bez zapisu.
+      boundingRect.mockReturnValue(rect(213));
+      act(() => {
+        fireResizeObservers();
+        vi.advanceTimersByTime(200);
+        flushFrames();
+      });
+      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("");
+
+      // Realna zmiana (np. baner reklamowy po hydratacji) - publikacja jak dotąd.
+      boundingRect.mockReturnValue(rect(320));
+      act(() => {
+        fireResizeObservers();
+        vi.advanceTimersByTime(200);
+        flushFrames();
+      });
+      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("320px");
+
+      // Od tej chwili porównanie idzie z ostatnim zapisem, nie z domyślną.
+      boundingRect.mockReturnValue(rect(321));
+      act(() => {
+        fireResizeObservers();
+        vi.advanceTimersByTime(200);
+        flushFrames();
+      });
+      expect(document.documentElement.style.getPropertyValue("--sticky-header-h")).toBe("320px");
+    } finally {
+      removeDefault();
+    }
+  });
+
+  it("montaż nie przełącza data-settled (true -> false -> true) - tylko zmiana scrolled to robi", async () => {
+    vi.useFakeTimers();
+    stubScroll(0, 6000);
+    const settledChanges: MutationRecord[] = [];
+    const observer = new MutationObserver((records) => settledChanges.push(...records));
+    observer.observe(document.body, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-settled"],
+    });
+    renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    settledChanges.push(...observer.takeRecords());
+
+    expect(settledChanges).toEqual([]);
+    expect(headerEl()).toHaveAttribute("data-settled", "true");
+
+    // Kontrola: zmiana stanu zwinięcia NADAL przełącza tryb na czas animacji.
+    stubScroll(200, 6000);
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersByTime(32);
+    });
+    settledChanges.push(...observer.takeRecords());
+    expect(headerEl()).toHaveAttribute("data-settled", "false");
+    expect(settledChanges.length).toBeGreaterThan(0);
+    observer.disconnect();
+  });
+
+  it("zmiana trybu paska w trakcie animacji nie zostawia nagłówka w data-settled=false", async () => {
+    vi.useFakeTimers();
+    stubScroll(0, 6000);
+    h.pathname = "/";
+    renderHeader({ header: { builder_data: doc(1) } });
+    await settleLazyOverlay();
+
+    stubScroll(200, 6000);
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersByTime(32);
+    });
+    expect(headerEl()).toHaveAttribute("data-settled", "false");
+
+    // Nawigacja na wpis (tryb czytania) PRZED końcem animacji: timer jest
+    // sprzątany, więc bez przywrócenia stan zostałby na `false`.
+    navigateTo("/post/przyklad");
+    expect(headerEl()).toHaveAttribute("data-header-mode", "reading");
+    expect(headerEl()).toHaveAttribute("data-settled", "true");
+  });
+
+  it("zwijanie (scrolled/settled) nie przerenderowuje chrome'u: pasek na czasie zostaje nietknięty", async () => {
+    vi.useFakeTimers();
+    stubScroll(0, 6000);
+    renderHeader({ header: { builder_data: doc(1), trending: { source: "trending" } } });
+    await settleLazyOverlay();
+    const before = h.tickerRenders;
+    expect(before).toBeGreaterThan(0);
+
+    stubScroll(200, 6000);
+    act(() => {
+      window.dispatchEvent(new Event("scroll"));
+      vi.advanceTimersByTime(32);
+    });
+    expect(headerEl()).toHaveAttribute("data-scrolled", "true");
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    expect(headerEl()).toHaveAttribute("data-settled", "true");
+
+    // Dwa commity warstwy zewnętrznej (zwinięcie, koniec animacji), zero
+    // renderów wnętrza - jego bloki `<style>` nie dostają nowych `{__html}`.
+    expect(h.tickerRenders).toBe(before);
   });
 });
 
