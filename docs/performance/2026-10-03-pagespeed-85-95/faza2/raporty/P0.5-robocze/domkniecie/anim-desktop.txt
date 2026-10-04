@@ -1,0 +1,21 @@
+w0q-desktop-1 zadanie 333/32.5 ms: {'lv-shimmer': 40, 'ticker': 2}  -> start animacji CSS (kompozytor, animatio {"d4": 80, "d4c3": 80, "d5": 113, "d5c3": 113}
+w0q-desktop-1 zadanie 730/13.8 ms: {'oi-fade-in': 7}  -> start animacji CSS (kompozytor, animatio {"d4": 5, "d4c3": 2.5, "d5": 19, "d5c3": 9.5}
+w0q-desktop-1 zadanie 1328/11.5 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-desktop-1 zadanie 4592/8.0 ms: {'ticker': 1}  -> (poniżej progu księgi)
+w0q-desktop-2 zadanie 316/40.5 ms: {'lv-shimmer': 40, 'ticker': 2}  -> start animacji CSS (kompozytor, animatio {"d4": 112, "d4c3": 112, "d5": 152, "d5c3": 152}
+w0q-desktop-2 zadanie 725/9.5 ms: {'oi-fade-in': 7}  -> (poniżej progu księgi)
+w0q-desktop-2 zadanie 1309/7.2 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-desktop-2 zadanie 4640/8.5 ms: {'ticker': 1}  -> (poniżej progu księgi)
+w0q-desktop-3 zadanie 234/75.1 ms: {'lv-shimmer': 40}  -> pierwsza klatka (Style+Layout dokumentu) {"d4": 100, "d4c3": 100, "d5": 138, "d5c3": 138}
+w0q-desktop-3 zadanie 331/10.9 ms: {'ticker': 2}  -> (poniżej progu księgi)
+w0q-desktop-3 zadanie 743/6.7 ms: {'oi-fade-in': 7}  -> (poniżej progu księgi)
+w0q-desktop-3 zadanie 1320/7.6 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-desktop-3 zadanie 4608/7.1 ms: {'ticker': 1}  -> (poniżej progu księgi)
+w0q-desktop-4 zadanie 378/32.6 ms: {'ticker': 2, 'oi-fade-in': 7}  -> start animacji CSS (kompozytor, animatio {"d4": 81, "d4c3": 81, "d5": 113, "d5c3": 113}
+w0q-desktop-4 zadanie 1306/6.2 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-desktop-4 zadanie 4572/6.2 ms: {'ticker': 1}  -> (poniżej progu księgi)
+w0q-desktop-5 zadanie 241/42.5 ms: {'ticker': 1}  -> druga klatka (odsłonięcie sekcji strumie {"d4": 0, "d4c3": 35, "d5": 56, "d5c3": 56}
+w0q-desktop-5 zadanie 287/1.8 ms: {'ticker': 1}  -> (poniżej progu księgi)
+w0q-desktop-5 zadanie 332/24.3 ms: {'oi-fade-in': 7}  -> start animacji CSS (kompozytor, animatio {"d4": 47, "d4c3": 47, "d5": 71, "d5c3": 71}
+w0q-desktop-5 zadanie 1364/8.0 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-desktop-5 zadanie 4587/8.1 ms: {'ticker': 1}  -> (poniżej progu księgi)

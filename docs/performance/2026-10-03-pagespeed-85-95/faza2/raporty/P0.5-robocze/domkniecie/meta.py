@@ -1,0 +1,23 @@
+# P0.5 (domknięcie): opis klas, plik:linia (krótko), właściciel i współczynnik poprawki (pełne, reguła x0,5) + podstawa.
+META = {
+ 'K12': ('commit hydratacji: efekty pasywne + re-render SyncLane', '`Header.tsx:73`, `:375-404`, `:516` (L); `ChromeWidgetView.tsx:1144`; `utils.ts:5`', 'P2.2 (+ P1.7, P2.3, P2.4)', 0.5, 0.75, 'wyspy i podział zadania (PLAN §1.5); Layout z `Header.tsx:516` zostaje (reguła 4)'),
+ 'K9': ('przebieg korzenia: wznowienie po TLA i18n → ewaluacja entry → `hydrateRoot`', '`i18n.ts:131`, `:54`; `langCookie.ts:69`; entry `index:1:1`', 'P1.7 (+ P5.2)', 0.35, 0.67, 'PLAN §1.5 (korzeń)'),
+ 'K15': ('`ParseHTML` w commicie przełączenia urządzenia (`<style>` per widget)', '`BuilderRenderer.tsx:250-282` → `ChromeWidgetView.tsx:309,392`', 'P2.4', 0.4, 0.7, 'PLAN §1.5 (arkusze per widget)'),
+ 'K13': ('zapis `--sticky-header-h` na `<html>` (restyle 696-909 el.)', '`Header.tsx:566` (z `:576`); `data-settled` `Header.tsx:367-374,593`', 'P1.2', 0.01, 0.01, 'werdykt H5-alt + ślad inwalidacji (stos `Header.tsx:566`)'),
+ 'K13b': ('klatka stylu i layoutu nagłówka po commicie (wyzwalacz niepotwierdzony)', 'kandydat: `Header.tsx:466-475` (`--hdr-*`, `data-metrics`) → `styles.css:6574-6604` (`zoom`)', 'brak potwierdzonego właściciela (kandydat P1.2 F3)', 0.5, 1.0, 'brak potwierdzenia przyczyny — w regule x0,5 bez zysku'),
+ 'K10': ('`hydrateStart`: `createRouter` (`processRouteTree`) + hydracja zapytań', '`router.tsx:42`', 'P5.2 (+ P1.7)', 1.0, 1.0, 'W1-W3 bez zmian (P5.2 = W5, stretch)'),
+ 'K14': ('plastry Reacta po commicie (leniwe granice, efekty)', '`liveTypography.ts:121`, `lazyWidgets.tsx:463`, `CountryCombobox.tsx:58`, `carouselDefaults.ts:33`', 'P2.2 (+ P2.4 f)', 0.4, 0.7, 'PLAN §1.5 (plasterki)'),
+ 'K7': ('`ScriptCatchup` zestawu bootu (bez ramek JS)', 'zestaw `modulepreload` bootu (brak pliku źródłowego)', 'P3.4 (+ P5.1, P5.2)', 0.35, 0.67, 'PLAN §1.5 (P3.4) — dopiero W3'),
+ 'K8': ('start animacji CSS (K8a+K8b+K8c)', 'zob. K8a / K8b / K8c', 'P1.2 (F1, F1b) + P2.3', 0.01, None, 'zob. §2.5'),
+ 'K8a': ('start animacji CSS: `oi-fade-in` ×7 (+ ticker)', '`styles.css:1622-1624`, `OptimizedImage.tsx:83`', 'P1.2 (F1, uzupełnienie zakresu)', 0.01, 0.01, 'ablacja `nofade`: zadanie znika w 3/3 przebiegach'),
+ 'K8b': ('start animacji CSS: szkielety `lv-shimmer` ×40 (+ ticker)', '`styles.css:2391-2406`, `sectionStreaming.tsx:168-195`', 'P1.2 (F1b, uzupełnienie zakresu)', 0.01, 0.5, 'ablacja `noanim` (desktop 3/3); osobnej ablacji szkieletów brak'),
+ 'K8c': ('utworzenie animacji tickera', '`TrendingTicker.tsx:834-840,848-864`', 'P2.3 (F9, F10)', 0.01, 1.0, 'ablacja `noanim` (wszystkie animacje)'),
+ 'K16': ('styl po przełączeniu urządzenia (`data-device` + style kolumn)', '`BuilderRenderer.tsx:655-661,692-703`', 'P2.4 + P2.2', 0.4, 0.7, 'PLAN §1.5 (styl per widget)'),
+ 'K6': ('druga klatka: odsłonięcie sekcji strumieniowanych (`$RV`)', '`sectionStreaming.tsx:168-195,221-248`', 'P2.2 (+ P3.3)', 0.6, 0.8, 'szacunek P0.5: mniej granic ze szkieletem nad zgięciem'),
+ 'K5': ('pierwsza klatka: Style + Layout dokumentu', 'dokument (wstawienia `$RV` `/:650`)', 'P2.4 (HW-2) + P2.6; warunkowo P3.3', 0.69, 0.85, 'zmierzony pakiet no-JS (PLAN §1.5)'),
+ 'K4': ('`ParseHTML` dokumentu (porcje strumienia, inline `<style>`/skrypty)', 'dokument: `$tsr` `/:650`, `/:645:1287`', 'P2.5 + P2.6', 0.4, 0.6, 'PLAN §1.5 (ParseHTML dokumentu)'),
+ 'K2': ('`ParseCSS` arkusza blokującego', '`styles-*.css` (79 KB)', 'P4.1 (higiena)', 1.0, 1.0, 'nie liczone do celu'),
+ 'K11': ('timer startu: ciało po `setTimeout(0)`', '`router.tsx:210`', 'P1.7 (+ P5.2/P9.1)', 0.5, 0.75, 'PLAN §1.5 (timer)'),
+ 'K1': ('commit nawigacji (Blink)', '— (platforma)', 'brak właściciela (platforma)', 1.0, 1.0, 'bez kodu aplikacji'),
+ 'K-': ('inne (klatki bez JS, `Layerize`, GC)', '—', 'brak właściciela', 1.0, 1.0, '—'),
+}

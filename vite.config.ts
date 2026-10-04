@@ -15,6 +15,7 @@ import { loadEnv, type Rollup } from "vite";
 import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
 import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
+import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";
 import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
 
@@ -98,7 +99,16 @@ export default defineConfig({
     // Przyrząd pomiarowy składu bundla - INERTNY, dopóki nie ustawisz
     // BUNDLE_INVENTORY=1 (patrz nagłówek wtyczki). Nie duplikuje żadnej wtyczki
     // z @lovable.dev/vite-tanstack-config: ma wyłącznie hook `generateBundle`.
-    plugins: [chunkInventoryPlugin(), localeChunkPlugin(), widgetChunkPlugin(), adminCssPlugin()],
+    // `officeParserTrimPlugin`: martwy kod parsera .docx (zapis XML mammoth,
+    // tablica encji HTML xmldom) poza bundlem przeglądarki - przekierowania
+    // zawężone do importera, uzasadnienie w nagłówku wtyczki.
+    plugins: [
+      chunkInventoryPlugin(),
+      localeChunkPlugin(),
+      widgetChunkPlugin(),
+      adminCssPlugin(),
+      officeParserTrimPlugin(),
+    ],
 
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły
     // `entities/lib/decode.js`, więc każdy zagnieżdżony nowszy egzemplarz

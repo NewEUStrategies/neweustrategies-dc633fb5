@@ -1,0 +1,20 @@
+{"run": "w0q-desktop-1", "reg": "d4", "wave": "K8a", "var": "half", "base": 461, "after": 456, "delta": -5, "shrunk": [[730, 0.01, "K8a"]]}
+{"run": "w0q-desktop-1", "reg": "d4c3", "wave": "K8a", "var": "half", "base": 609, "after": 607, "delta": -2, "shrunk": [[730, 0.01, "K8a"]]}
+{"run": "w0q-desktop-1", "reg": "d5", "wave": "K8a", "var": "half", "base": 769, "after": 754, "delta": -15, "shrunk": [[730, 0.01, "K8a"]]}
+{"run": "w0q-desktop-1", "reg": "d5c3", "wave": "K8a", "var": "half", "base": 960, "after": 950, "delta": -10, "shrunk": [[730, 0.01, "K8a"]]}
+{"run": "w0q-desktop-2", "reg": "d4", "wave": "K8a", "var": "half", "base": 448, "after": 448, "delta": 0, "shrunk": []}
+{"run": "w0q-desktop-2", "reg": "d4c3", "wave": "K8a", "var": "half", "base": 547, "after": 547, "delta": 0, "shrunk": []}
+{"run": "w0q-desktop-2", "reg": "d5", "wave": "K8a", "var": "half", "base": 673, "after": 673, "delta": 0, "shrunk": []}
+{"run": "w0q-desktop-2", "reg": "d5c3", "wave": "K8a", "var": "half", "base": 832, "after": 832, "delta": 0, "shrunk": []}
+{"run": "w0q-desktop-3", "reg": "d4", "wave": "K8a", "var": "half", "base": 310, "after": 310, "delta": 0, "shrunk": []}
+{"run": "w0q-desktop-3", "reg": "d4c3", "wave": "K8a", "var": "half", "base": 442, "after": 442, "delta": 0, "shrunk": []}
+{"run": "w0q-desktop-3", "reg": "d5", "wave": "K8a", "var": "half", "base": 568, "after": 568, "delta": 0, "shrunk": []}
+{"run": "w0q-desktop-3", "reg": "d5c3", "wave": "K8a", "var": "half", "base": 727, "after": 727, "delta": 0, "shrunk": []}
+{"run": "w0q-desktop-4", "reg": "d4", "wave": "K8a", "var": "half", "base": 190, "after": 123, "delta": -67, "shrunk": [[378, 0.01, "K8a"]]}
+{"run": "w0q-desktop-4", "reg": "d4c3", "wave": "K8a", "var": "half", "base": 346, "after": 266, "delta": -80, "shrunk": [[378, 0.01, "K8a"]]}
+{"run": "w0q-desktop-4", "reg": "d5", "wave": "K8a", "var": "half", "base": 474, "after": 360, "delta": -114, "shrunk": [[378, 0.01, "K8a"]]}
+{"run": "w0q-desktop-4", "reg": "d5c3", "wave": "K8a", "var": "half", "base": 579, "after": 466, "delta": -113, "shrunk": [[378, 0.01, "K8a"]]}
+{"run": "w0q-desktop-5", "reg": "d4", "wave": "K8a", "var": "half", "base": 359, "after": 312, "delta": -47, "shrunk": [[332, 0.01, "K8a"]]}
+{"run": "w0q-desktop-5", "reg": "d4c3", "wave": "K8a", "var": "half", "base": 539, "after": 492, "delta": -47, "shrunk": [[332, 0.01, "K8a"]]}
+{"run": "w0q-desktop-5", "reg": "d5", "wave": "K8a", "var": "half", "base": 615, "after": 544, "delta": -71, "shrunk": [[332, 0.01, "K8a"]]}
+{"run": "w0q-desktop-5", "reg": "d5c3", "wave": "K8a", "var": "half", "base": 834, "after": 763, "delta": -71, "shrunk": [[332, 0.01, "K8a"]]}

@@ -1,13 +1,15 @@
 // Jeden punkt ciszy strony: minimum po load, okno 5 s przesuwane przez długie
 // zadania i LICZONE zasoby, lista ignorowanych (slajdy, poll wersji, flock,
 // Google, własne żądania konsumentów), brak kaskady między konsumentami,
-// limit 20 s także w ukrytej karcie, wstrzymanie okna w tle, Safari, prerender.
+// limit 20 s także w ukrytej karcie, wstrzymanie okna w tle, Safari, prerender,
+// punkt przy wciśniętym przycisku, promise konsumenta, `takeRecords`.
 // Fałszywe zegary (z `performance.now` i rAF co 16 ms) i atrapa
-// `PerformanceObserver` z rozdziałem typu wpisu.
+// `PerformanceObserver` z rozdziałem typu wpisu i trybem spóźnionego
+// dostarczania (przeglądarka oddaje wpisy asynchronicznie).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { __resetFirstInteractionForTests } from "../firstInteraction";
-import { __resetPostInteractionQueueForTests } from "../postInteractionQueue";
+import { GESTURE_FALLBACK_MS, __resetPostInteractionQueueForTests } from "../postInteractionQueue";
 import {
   QUIESCENCE_CAP_MS,
   QUIESCENCE_LOAD_DEADLINE_MS,
@@ -27,12 +29,17 @@ interface FakeEntry {
   readonly initiatorType?: string;
 }
 
-/** Atrapa `PerformanceObserver`: wpis trafia WYŁĄCZNIE do obserwatorów swojego typu. */
+/**
+ * Atrapa `PerformanceObserver`: wpis trafia WYŁĄCZNIE do obserwatorów swojego
+ * typu. `emit` dostarcza od razu, `emitLate` - jak przeglądarka: wpis czeka w
+ * buforze obserwatora (widoczny dla `takeRecords()`) na późniejsze `deliver()`.
+ */
 class FakePerformanceObserver {
   static supportedEntryTypes: string[] | undefined = ["longtask", "resource"];
   static readonly active = new Set<FakePerformanceObserver>();
   static readonly observed: Array<{ type: string; buffered?: boolean }> = [];
   type: string | null = null;
+  pending: FakeEntry[] = [];
 
   constructor(readonly callback: (list: { getEntries: () => FakeEntry[] }) => void) {}
 
@@ -40,6 +47,17 @@ class FakePerformanceObserver {
     this.type = init.type;
     FakePerformanceObserver.observed.push(init);
     FakePerformanceObserver.active.add(this);
+  }
+
+  takeRecords(): FakeEntry[] {
+    const records = this.pending;
+    this.pending = [];
+    return records;
+  }
+
+  deliver(): void {
+    const records = this.takeRecords();
+    if (records.length) this.callback({ getEntries: () => records });
   }
 
   disconnect(): void {
@@ -50,6 +68,12 @@ class FakePerformanceObserver {
 function emit(entry: FakeEntry): void {
   for (const observer of [...FakePerformanceObserver.active]) {
     if (observer.type === entry.entryType) observer.callback({ getEntries: () => [entry] });
+  }
+}
+
+function emitLate(entry: FakeEntry): void {
+  for (const observer of FakePerformanceObserver.active) {
+    if (observer.type === entry.entryType) observer.pending.push(entry);
   }
 }
 
@@ -85,6 +109,20 @@ function setVisibility(state: DocumentVisibilityState): void {
 /** Przesuwa zegar DO chwili `at` na osi `performance.now()`. */
 function advanceTo(at: number): void {
   vi.advanceTimersByTime(Math.max(0, at - performance.now()));
+}
+
+/** Navigation Timing z podanym `loadEventStart` (koniec `load` 40 ms później). */
+function stubNavigation(loadEventStart: number): void {
+  const navigation = {
+    entryType: "navigation",
+    name: ORIGIN,
+    startTime: 0,
+    duration: loadEventStart + 40,
+    loadEventStart,
+    loadEventEnd: loadEventStart + 40,
+    toJSON: () => ({}),
+  };
+  vi.spyOn(performance, "getEntriesByType").mockReturnValue([navigation]);
 }
 
 function resetAll(): void {
@@ -183,24 +221,61 @@ describe("minimum po load i okno ciszy", () => {
     expect(task).toHaveBeenCalledOnce();
   });
 
-  it("dokument załadowany przed zapisem: minimum liczone od loadEventEnd z Navigation Timing", () => {
+  it("dokument załadowany przed zapisem (późny import): minimum liczone od loadEventStart z Navigation Timing", () => {
     advanceTo(3_000);
     readyState.mockReturnValue("complete");
-    const navigation = {
-      entryType: "navigation",
-      name: ORIGIN,
-      startTime: 0,
-      duration: 1_200,
-      loadEventEnd: 1_200,
-      toJSON: () => ({}),
-    };
-    vi.spyOn(performance, "getEntriesByType").mockReturnValue([navigation]);
+    stubNavigation(1_150);
     const task = vi.fn();
     onQuiescent(task, { priority: "analytics" });
 
-    advanceTo(1_200 + QUIESCENCE_MIN_AFTER_LOAD_MS - 1);
+    advanceTo(1_150 + QUIESCENCE_MIN_AFTER_LOAD_MS - 1);
     expect(task).not.toHaveBeenCalled();
-    advanceTo(1_200 + QUIESCENCE_MIN_AFTER_LOAD_MS + DRAIN_MS);
+    advanceTo(1_150 + QUIESCENCE_MIN_AFTER_LOAD_MS + DRAIN_MS);
+    expect(task).toHaveBeenCalledOnce();
+  });
+
+  it("granica load = loadEventStart: obraz z wcześniejszego handlera load nie przesuwa okna", () => {
+    const task = vi.fn();
+    onQuiescent(task, { priority: "analytics" });
+    advanceTo(1_000);
+    stubNavigation(1_000);
+    // Wcześniejszy handler `load` strony (np. start autoodtwarzania) trwa 40 ms
+    // i uruchamia obraz, zanim nasz handler w ogóle się wykona.
+    advanceTo(1_040);
+    pageLoaded();
+    advanceTo(4_000);
+    emit({
+      entryType: "resource",
+      name: `${ORIGIN}/media/slide-2.webp`,
+      initiatorType: "img",
+      startTime: 1_010,
+      duration: 2_990,
+    });
+
+    advanceTo(1_000 + QUIESCENCE_MIN_AFTER_LOAD_MS + DRAIN_MS);
+    expect(task).toHaveBeenCalledOnce();
+    expect(getQuiescence()).toEqual({ at: 1_000 + QUIESCENCE_MIN_AFTER_LOAD_MS, reason: "quiet" });
+  });
+
+  it("wpis jeszcze niedostarczony (takeRecords) też przesuwa okno, zanim punkt zapadnie", () => {
+    const task = vi.fn();
+    onQuiescent(task, { priority: "analytics" });
+    pageLoaded();
+
+    advanceTo(QUIESCENCE_MIN_AFTER_LOAD_MS - 1);
+    const end = performance.now();
+    emitLate({
+      entryType: "resource",
+      name: `${ORIGIN}/assets/late-chunk.js`,
+      initiatorType: "script",
+      startTime: end - 30,
+      duration: 30,
+    });
+    advanceTo(QUIESCENCE_MIN_AFTER_LOAD_MS + DRAIN_MS);
+    expect(task).not.toHaveBeenCalled();
+    expect(getQuiescence()).toBeNull();
+    for (const observer of FakePerformanceObserver.active) observer.deliver();
+    advanceTo(end + QUIESCENCE_WINDOW_MS + DRAIN_MS);
     expect(task).toHaveBeenCalledOnce();
   });
 });
@@ -358,11 +433,84 @@ describe("jeden punkt dla wszystkich konsumentów (brak kaskady)", () => {
     expect(remove.mock.calls.map(([type]) => type)).toContain("visibilitychange");
   });
 
+  it("konsument zwracający promise (import i montaż banera) trzyma następnego do rozstrzygnięcia", async () => {
+    const ranAt: Record<string, number> = {};
+    onQuiescent(
+      () => {
+        ranAt.shell = performance.now();
+        return new Promise<void>((resolve) => window.setTimeout(resolve, 400));
+      },
+      { priority: "shell" },
+    );
+    onQuiescent(() => (ranAt.analytics = performance.now()), { priority: "analytics" });
+    pageLoaded();
+
+    await vi.advanceTimersByTimeAsync(QUIESCENCE_MIN_AFTER_LOAD_MS + 3 * DRAIN_MS);
+    expect(ranAt.shell).toBeGreaterThanOrEqual(QUIESCENCE_MIN_AFTER_LOAD_MS);
+    expect(ranAt.analytics).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(ranAt.analytics - ranAt.shell).toBeGreaterThanOrEqual(400);
+    expect(ranAt.analytics - ranAt.shell).toBeLessThan(400 + DRAIN_MS);
+  });
+
   it("zapis wielu konsumentów to wciąż jeden detektor (jeden komplet obserwatorów)", () => {
     onQuiescent(vi.fn(), { priority: "analytics" });
     onQuiescent(vi.fn(), { priority: "overlays" });
     onQuiescent(vi.fn(), { priority: "islands" });
     expect(FakePerformanceObserver.observed).toHaveLength(2);
+  });
+});
+
+describe("punkt ciszy przy wciśniętym przycisku", () => {
+  function heldButton(): HTMLButtonElement {
+    const button = document.createElement("button");
+    document.body.append(button);
+    return button;
+  }
+
+  it("punkt zapada, ale konsument czeka na koniec gestu (pointerup + click)", () => {
+    const button = heldButton();
+    const task = vi.fn();
+    onQuiescent(task, { priority: "shell" });
+    pageLoaded();
+
+    advanceTo(QUIESCENCE_MIN_AFTER_LOAD_MS - 100);
+    button.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    advanceTo(QUIESCENCE_MIN_AFTER_LOAD_MS + 150);
+    expect(getQuiescence()).not.toBeNull();
+    expect(task).not.toHaveBeenCalled();
+
+    button.dispatchEvent(new Event("pointerup", { bubbles: true }));
+    advanceTo(QUIESCENCE_MIN_AFTER_LOAD_MS + 180);
+    expect(task).not.toHaveBeenCalled();
+    button.dispatchEvent(new Event("click", { bubbles: true }));
+    advanceTo(QUIESCENCE_MIN_AFTER_LOAD_MS + 180 + DRAIN_MS);
+    expect(task).toHaveBeenCalledOnce();
+  });
+
+  it("przytrzymanie bez końca: konsument rusza po GESTURE_FALLBACK_MS od wciśnięcia", () => {
+    const button = heldButton();
+    const task = vi.fn();
+    onQuiescent(task, { priority: "shell" });
+    pageLoaded();
+
+    const pressedAt = QUIESCENCE_MIN_AFTER_LOAD_MS - 100;
+    advanceTo(pressedAt);
+    button.dispatchEvent(new Event("pointerdown", { bubbles: true }));
+    advanceTo(pressedAt + GESTURE_FALLBACK_MS - 1);
+    expect(task).not.toHaveBeenCalled();
+    advanceTo(pressedAt + GESTURE_FALLBACK_MS + DRAIN_MS);
+    expect(task).toHaveBeenCalledOnce();
+  });
+
+  it("po punkcie i opróżnieniu kolejki nasłuch gestów jest zdjęty", () => {
+    const remove = vi.spyOn(window, "removeEventListener");
+    onQuiescent(vi.fn(), { priority: "analytics" });
+    pageLoaded();
+    advanceTo(QUIESCENCE_MIN_AFTER_LOAD_MS + DRAIN_MS);
+    expect(remove.mock.calls.map(([type]) => type)).toEqual(
+      expect.arrayContaining(["pointerdown", "pointerup", "click", "keyup"]),
+    );
   });
 });
 

@@ -24,6 +24,12 @@
 //    włącznie) bez żadnej interakcji, także w śladzie Lighthouse'a. Ręczne
 //    przewinięcie elementu poprzedza zawsze `pointerdown`, `touchstart`,
 //    `wheel` albo `keydown`, więc nic nie ginie.
+//  - liczą się wyłącznie zdarzenia ZAUFANE: `dispatchEvent` obcego skryptu
+//    (`isTrusted === false`) nie zwalnia odroczonej pracy. To nie chroni przed
+//    programowym przewinięciem DOKUMENTU (`scrollTo`, `scrollIntoView`,
+//    `focus()` emitują zaufany `scroll`) - takie wywołania przed interakcją są
+//    błędem strony, nie tego modułu. Atrapy DOM w testach (happy-dom) nie mają
+//    `isTrusted`, więc filtr pomija tylko jawne `false`.
 // Nasłuch powstaje leniwie przy pierwszej subskrypcji i znika po pierwszej
 // interakcji albo wtedy, gdy ostatni subskrybent zrezygnuje.
 //
@@ -31,7 +37,8 @@
 // w fazie capture na `window` - czyli PRZED handlerami strony i w tym samym
 // zadaniu, które liczy się do INP tej interakcji. Ma być tani: zapisać fakt,
 // zaplanować pracę. Cięższą pracę wolno puścić wyłącznie przez
-// `postInteractionQueue`, która schodzi po klatce i po handlerach interakcji.
+// `postInteractionQueue`, która schodzi po końcu gestu (`pointerup` + `click`,
+// `keyup`), po klatce i po handlerach interakcji.
 // Wyjątek jednego subskrybenta nie zatrzymuje pozostałych (`reportError`).
 //
 // INTERAKCJA SPRZED SUBSKRYPCJI. Nasłuchu nie ma, zanim ktoś się nie
@@ -110,10 +117,9 @@ const deferred = new Set<() => void>();
 
 const noop = (): void => {};
 
+/** Wołane wyłącznie w przeglądarce (każda ścieżka SSR kończy się wcześniej no-opem). */
 function now(): number {
-  return typeof performance !== "undefined" && typeof performance.now === "function"
-    ? performance.now()
-    : Date.now();
+  return performance.now();
 }
 
 function report(error: unknown): void {
@@ -154,7 +160,7 @@ function deliver(interaction: FirstInteraction): void {
 
 function handleEvent(event: Event): void {
   const type = FIRST_INTERACTION_EVENTS.find((candidate) => candidate === event.type);
-  if (!type) return;
+  if (!type || event.isTrusted === false) return;
   // Przewinięcie elementu (np. programowe `scrollTo` karuzeli) nie jest
   // interakcją - patrz NASŁUCH w nagłówku.
   if (type === "scroll" && event.target !== document) return;

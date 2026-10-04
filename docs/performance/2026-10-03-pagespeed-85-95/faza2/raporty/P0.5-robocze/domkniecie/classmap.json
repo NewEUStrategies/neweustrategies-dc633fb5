@@ -1,0 +1,149 @@
+{
+ "nav (commit nawigacji + początek parsowania)": {
+  "src": "Blink: commit nawigacji, inicjalizacja okna, pierwsza porcja parsera (bez JS aplikacji)",
+  "owner": "nieprzypisane (platforma)",
+  "f": 1.0,
+  "fdesc": "bez zmian",
+  "id": "K1"
+ },
+ "ParseCSS (arkusz blokujący)": {
+  "src": "parsowanie arkusza blokującego `styles-*.css` (79 KB)",
+  "owner": "P4.1 (higiena), P2.4 HW-2",
+  "f": 0.9,
+  "fdesc": "x0,9, mniej reguł",
+  "id": "K2"
+ },
+ "ParseHTML+CSS dokumentu (head: arkusz blokujący, inline <style>)": {
+  "src": "head: 50 bloków inline `<style>` (133 KB) + arkusz blokujący",
+  "owner": "P2.4 (HW-2), P2.6",
+  "f": 0.6,
+  "fdesc": "x0,6",
+  "id": "K3"
+ },
+ "ParseHTML dokumentu (+inline skrypty)": {
+  "src": "porcje strumienia HTML: inline `<style>`, stan `$tsr` (`/:650`), skrypty $RC/$RV",
+  "owner": "P2.5 + P2.6 (pakiet dokumentu)",
+  "f": 0.6,
+  "fdesc": "x0,6, reguła planu",
+  "id": "K4"
+ },
+ "pierwsza klatka (Style+Layout dokumentu)": {
+  "src": "pierwszy styl+layout całego dokumentu (~520-550 el., ~530 obiektów) + wstawienia z `$RV` (`/:650:90473`)",
+  "owner": "P2.5/P2.6; warunkowo P3.3",
+  "f": 0.69,
+  "fdesc": "x0,69, zmierzony pakiet no-JS",
+  "id": "K5"
+ },
+ "druga klatka (odsłonięcie sekcji strumieniowanych $RV)": {
+  "src": "`$RV` (`/:650:90808`) podmienia szkielety `skeleton-shimmer` sekcji strumieniowanych (Removed from layout x64, DIV#placeholder x32) — `sectionStreaming.tsx:221-248`",
+  "owner": "P2.2 (sectionStreaming) + P3.3",
+  "f": 0.6,
+  "fdesc": "x0,6",
+  "id": "K6"
+ },
+ "ScriptCatchup (kompilacja zestawu bootu)": {
+  "src": "brak ramek JS: finalizacja kompilacji strumieniowej i instancjacja grafu 18 modułów bootu naraz (`ScriptCatchup` x18, `(program)` w profilu V8)",
+  "owner": "P3.4 (+ objętość P5.1/P5.2)",
+  "f": 0.33,
+  "fdesc": "x0,33, podział na 3 grupy",
+  "id": "K7"
+ },
+ "start animacji CSS (kompozytor, animationstart)": {
+  "src": "`PendingAnimations::notifyCompositorAnimationStarted` + `animationstart` do nasłuchu korzenia Reacta; animacje: `.oi-fade-in` x7 (`OptimizedImage.tsx:83`, `styles.css:1614-1624`), `tt-flip`/`tt-flame-flicker` (`TrendingTicker.tsx:840,848,864`), `animate-in` banera zgód",
+  "owner": "P2.4 (g) + P1.2 (styles.css w W1); ticker P2.3",
+  "f": 0.0,
+  "fdesc": "0, zadanie znika",
+  "id": "K8"
+ },
+ "przebieg korzenia (ewaluacja entry po TLA i18n + hydrateRoot)": {
+  "src": "kontynuacja po TLA `src/lib/i18n.ts:131`: ewaluacja entry (drzewo tras + schematy zod), `storeCopy` `i18n.ts:54`, `langCookie.ts:69`, `hydrateRoot`",
+  "owner": "P1.7 (+ P5.2 trasy)",
+  "f": 0.67,
+  "fdesc": "x0,67, reguła planu",
+  "id": "K9"
+ },
+ "hydrateStart: createRouter (processRouteTree) + hydracja zapytań": {
+  "src": "`getRouter` `src/router.tsx:42` → `createRouter` → `processRouteTree`/`parseSegments` (390 tras, 213 admin) + `hydrate` react-query",
+  "owner": "P5.2 (powłoki tras); P1.7 (router.tsx)",
+  "f": 0.7,
+  "fdesc": "x0,7",
+  "id": "K10"
+ },
+ "timer startu (ciało po setTimeout(0) router.tsx:210)": {
+  "src": "ciało po `setTimeout(0)` z `src/router.tsx:210`: router-core `ssr-client.hydrate` → `loadRouteChunk` → `__vitePreload` (appendChild modulepreload: `events._slug_.cfp-submit`, `vendor-lucide`, `MoneyText`, `events._slug.agenda`, `PostListCard`) + `head()` (`index.tsx:268`, `__root.tsx:433`)",
+  "owner": "P1.7 (+ P9.1/P5.2 mapDeps)",
+  "f": 0.5,
+  "fdesc": "x0,5, podział ciała",
+  "id": "K11"
+ },
+ "commit hydratacji + efekty pasywne + re-render sync": {
+  "src": "`flushPassiveEffects` → subskrypcje `useQuery` (`useBaseQuery.js:59` → `queryObserver.onSubscribe`/`#updateStaleTimeout`, setTimeout x33) → re-render SyncLane: `HeaderInner` `Header.tsx:73`, `FramedChromeWidgetView` `ChromeWidgetView.tsx:1144`, `cn` `utils.ts:5`, `typographyCss.ts`; efekty `Header.tsx:375-405` (scrollHeight, L) i `:433-516` (`document.fonts.ready`, L); auth-js; innerHTML x12 (`TrendingTicker.tsx:671,761,817,823`)",
+  "owner": "P2.2 (+ P1.7, P2.3, P2.4)",
+  "f": 0.5,
+  "fdesc": "x0,5, wyspy, podział; zachować Layout",
+  "id": "K12"
+ },
+ "styl nagłówka (--sticky-header-h / --hdr-*, Header.tsx:566/472)": {
+  "src": "`root.style.setProperty('--sticky-header-h')` `Header.tsx:566` (+ `data-settled`) → restyle ~800-900 el.; desktop: `--hdr-*`/`data-metrics` `Header.tsx:472-479` (161 el.)",
+  "owner": "P1.2",
+  "f": 0.0,
+  "fdesc": "0, brak zapisu przy montażu",
+  "id": "K13"
+ },
+ "plaster Reacta po commicie (leniwe granice, efekty)": {
+  "src": "hydratacja leniwych granic + efekty: `#updateStaleTimeout` (timery 1 ms), `liveTypography.ts:121` (`ChromeWidgetView.tsx:237`), `BackToTop.tsx:22`, `ChromeWidgetView.tsx:1112` (lazy → `__vitePreload`), `CountryCombobox.tsx:58-72`, `carouselDefaults.ts:33` (zod safeParse)",
+  "owner": "P2.2 (+ P2.4 f)",
+  "f": 0.5,
+  "fdesc": "x0,5",
+  "id": "K14"
+ },
+ "ParseHTML w commicie Reacta (innerHTML arkuszy)": {
+  "src": "commit przełączenia urządzenia (`BuilderRenderer.tsx:241-279`, transition desktop→mobile): `setProp` → innerHTML `<style>` per widget (`ChromeWidgetView.tsx:392`, x~50)",
+  "owner": "P2.4 (StyleSink per widget, HW-2)",
+  "f": 0.4,
+  "fdesc": "x0,4",
+  "id": "K15"
+ },
+ "styl po przełączeniu urządzenia (data-device + style kolumn)": {
+  "src": "`data-device` na `[data-builder-renderer]` + inline `gridColumn`/`gridTemplateColumns` x25 (`BuilderRenderer.tsx:655-674,702-703`) → restyle ~706 el.",
+  "owner": "P2.4 (CSS po data-device) + P2.2 (BuilderRenderer)",
+  "f": 0.5,
+  "fdesc": "x0,5",
+  "id": "K16"
+ },
+ "styl/klatka późna (inne)": {
+  "src": "późna klatka stylu (różne)",
+  "owner": "nieprzypisane",
+  "f": 1.0,
+  "fdesc": "bez zmian",
+  "id": "K-"
+ },
+ "GC": {
+  "src": "GC",
+  "owner": "pośrednio (mniej JS)",
+  "f": 1.0,
+  "fdesc": "bez zmian",
+  "id": "K-"
+ },
+ "timer (inny)": {
+  "src": "timer (inny)",
+  "owner": "nieprzypisane",
+  "f": 1.0,
+  "fdesc": "bez zmian",
+  "id": "K-"
+ },
+ "render hydratacji (plaster przed commitem)": {
+  "src": "plaster renderu hydratacji przed commitem",
+  "owner": "P2.2",
+  "f": 0.5,
+  "fdesc": "x0,5",
+  "id": "K-"
+ },
+ "inne": {
+  "src": "inne (klatki bez JS, Layerize)",
+  "owner": "nieprzypisane",
+  "f": 1.0,
+  "fdesc": "bez zmian",
+  "id": "K-"
+ }
+}
