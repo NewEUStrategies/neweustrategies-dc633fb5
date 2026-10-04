@@ -47,6 +47,7 @@ import {
   activeMemberIds,
   asClubMemberRole,
   assignableClubRoles,
+  canEditClubSettings,
   canManageClubRoster,
   canSeeClubRoster,
   clubRosterListQuery,
@@ -123,6 +124,36 @@ describe("bramka zarządzania rolami - ta sama polityka pustki", () => {
 });
 
 // --- argumenty zapytań ------------------------------------------------------
+
+describe("bramka edycji danych klubu - lustro club_update_settings", () => {
+  it("administracja (`can_manage`) edytuje", () => {
+    expect(canEditClubSettings({ can_manage: true, can_moderate: true, my_role: null })).toBe(true);
+  });
+
+  it("prowadzący z `can_moderate` edytuje, choć `can_manage` ma tylko administracja", () => {
+    expect(canEditClubSettings({ can_manage: false, can_moderate: true, my_role: "lead" })).toBe(
+      true,
+    );
+  });
+
+  it("prowadzący bez `can_moderate` (klub zarchiwizowany, kadencja minęła) nie edytuje", () => {
+    expect(canEditClubSettings({ can_manage: false, can_moderate: false, my_role: "lead" })).toBe(
+      false,
+    );
+  });
+
+  it("moderator z `can_moderate` nie edytuje - RPC wpuszcza tylko prowadzącego", () => {
+    expect(
+      canEditClubSettings({ can_manage: false, can_moderate: true, my_role: "moderator" }),
+    ).toBe(false);
+  });
+
+  it("brak karty klubu i pustka znaczą odmowę", () => {
+    expect(canEditClubSettings(null)).toBe(false);
+    expect(canEditClubSettings(undefined)).toBe(false);
+    expect(canEditClubSettings({ my_role: "lead" })).toBe(false);
+  });
+});
 
 describe("argumenty zapytań o skład - odmowa zapada PRZED zapytaniem", () => {
   it("z uprawnieniem jedzie identyfikator klubu", () => {

@@ -84,6 +84,7 @@ import { ClubGroupBar } from "@/components/clubs/molecules/ClubGroupTree";
 import { ClubGroupPanel } from "@/components/clubs/molecules/ClubGroupPanel";
 import { ClubStreamFilters } from "@/components/clubs/molecules/ClubStreamFilters";
 import { buildClubGroupTree, clubGroupPath } from "@/lib/clubs/groupTree";
+import { canEditClubSettings } from "@/lib/clubs/memberRoster";
 import { ClubCreatePanel } from "@/components/clubs/molecules/ClubCreatePanel";
 import { ClubFreshDocsPanel, ClubStagePanel } from "@/components/clubs/molecules/ClubHubContext";
 import { ClubBoardPanel } from "@/components/clubs/molecules/ClubBoardPanel";
@@ -392,7 +393,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
       <Breadcrumbs items={breadcrumbItems} className="mb-3" />
       {/* Edycja danych klubu stoi PRZY kluby, nie w panelu: prowadzacy klubu
           nie ma dostepu do panelu administracyjnego. */}
-      {club.can_manage ? (
+      {canEditClubSettings(club) ? (
         <div className="mb-2 flex justify-end">
           <Button
             variant="outline"

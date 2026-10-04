@@ -1348,11 +1348,11 @@ export interface ClubSettingsPatch {
   description_en?: string | null;
   rules_pl?: string | null;
   rules_en?: string | null;
-  icon?: string;
-  accent_color?: string | null;
   // Okładki i kadru świadomie NIE ma: zapisują je wyłącznie `club_set_cover`
   // i `club_set_cover_position` (walidacja adresu, jeden predykat uprawnień);
-  // `club_update_settings` odrzuca oba klucze.
+  // `club_update_settings` odrzuca oba klucze. Ikony i koloru akcentu też nie
+  // (20261004090000): kolor ląduje w atrybucie `style` stron publicznych, więc
+  // zmienia go tylko administracja przez `admin_club_upsert`.
   policy_area?: string | null;
   layout?: ClubLayout;
   who_can_post?: ClubPostPolicy;
