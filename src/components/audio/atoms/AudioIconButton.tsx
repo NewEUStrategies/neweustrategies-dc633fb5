@@ -20,13 +20,13 @@ export const AUDIO_FOCUS_RING =
 /** Warianty geometrii. `primary` to duży przycisk odtwarzania, resztę robi rząd. */
 export const AUDIO_ICON_BUTTON_VARIANTS = {
   primary:
-    "relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[6px] bg-brand text-brand-foreground shadow-md overflow-hidden hover:brightness-110 active:scale-95 transition disabled:opacity-70",
+    "relative inline-grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[6px] bg-brand text-background shadow-md transition hover:brightness-110 active:scale-95 disabled:opacity-70",
   outline:
-    "inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground hover:text-brand hover:bg-muted transition disabled:opacity-50",
+    "inline-grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border text-muted-foreground transition hover:bg-muted hover:text-brand disabled:opacity-50",
   ghost:
-    "inline-flex h-9 w-9 items-center justify-center rounded-[6px] text-muted-foreground hover:text-brand hover:bg-muted transition disabled:opacity-50",
+    "inline-grid h-9 w-9 shrink-0 place-items-center rounded-[6px] text-muted-foreground transition hover:bg-muted hover:text-brand disabled:opacity-50",
   danger:
-    "inline-flex h-9 w-9 items-center justify-center rounded-[6px] text-muted-foreground hover:text-destructive hover:bg-muted transition disabled:opacity-50",
+    "inline-grid h-9 w-9 shrink-0 place-items-center rounded-[6px] text-muted-foreground transition hover:bg-muted hover:text-destructive disabled:opacity-50",
 } as const;
 
 export type AudioIconButtonVariant = keyof typeof AUDIO_ICON_BUTTON_VARIANTS;
@@ -75,7 +75,11 @@ export function AudioIconButton({
       aria-busy={busy || undefined}
       className={cn(AUDIO_ICON_BUTTON_VARIANTS[variant], AUDIO_FOCUS_RING, className)}
     >
-      {children ?? (Icon ? <Icon className={iconClassName} aria-hidden /> : null)}
+      {children || Icon ? (
+        <span className="pointer-events-none grid size-full place-items-center" aria-hidden>
+          {children ?? (Icon ? <Icon className={iconClassName} /> : null)}
+        </span>
+      ) : null}
     </button>
   );
 }

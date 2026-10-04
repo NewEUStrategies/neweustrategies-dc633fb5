@@ -15,6 +15,7 @@ import {
   AudioIconButton,
 } from "@/components/audio/atoms/AudioIconButton";
 import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
+import { AnimatedDownloadIcon } from "@/components/audio/atoms/AnimatedDownloadIcon";
 
 describe("AudioIconButton - kontrakt a11y", () => {
   it("jest przyciskiem o nazwie dostępnej z etykiety (ikona nie jest nazwą)", () => {
@@ -52,6 +53,8 @@ describe("AudioIconButton - kontrakt a11y", () => {
     const button = screen.getByRole("button", { name: "Pauza", pressed: true });
     expect(button).toHaveAttribute("aria-pressed", "true");
     expect(button.className).toContain("bg-brand");
+    expect(button.className).toContain("text-background");
+    expect(button.className).toContain("place-items-center");
   });
 
   it("przycisk AKCJI nie ogłasza stanu, którego nie ma", () => {
@@ -135,6 +138,7 @@ describe("MorphPlayPause - atom ikony", () => {
     const { container } = render(<MorphPlayPause playing />);
     expect(container.querySelectorAll("svg")).toHaveLength(2);
     expect(container.querySelector(".mpp-svg-play")).not.toBeNull();
+    expect(container.querySelector(".mpp-svg-pause")).not.toBeNull();
   });
 
   it("ikony SVG są wyjęte z kolejności tabulacji", () => {
@@ -150,5 +154,14 @@ describe("MorphPlayPause - atom ikony", () => {
     const cls = container.firstElementChild?.className ?? "";
     expect(cls).toContain("mpp");
     expect(cls).toContain("h-4");
+  });
+});
+
+describe("AnimatedDownloadIcon", () => {
+  it("wiąże animację z rzeczywistym stanem pobierania", () => {
+    const { container, rerender } = render(<AnimatedDownloadIcon downloading={false} />);
+    expect(container.querySelector("svg")).toHaveAttribute("data-downloading", "false");
+    rerender(<AnimatedDownloadIcon downloading />);
+    expect(container.querySelector("svg")).toHaveAttribute("data-downloading", "true");
   });
 });

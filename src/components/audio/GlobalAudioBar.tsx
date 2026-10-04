@@ -4,8 +4,9 @@
 import { browserPublicOrigin } from "@/lib/http/host";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Download, X, Share2 } from "@/lib/lucide-shim";
+import { Loader2, X, Share2 } from "@/lib/lucide-shim";
 import { MorphPlayPause } from "@/components/audio/atoms/MorphPlayPause";
+import { AnimatedDownloadIcon } from "@/components/audio/atoms/AnimatedDownloadIcon";
 import { Rewind, FastForward } from "lucide-react";
 import { formatAudioTime, useGlobalAudioPlayer } from "@/lib/audio/global-player";
 import { formatPlaybackRate, nextPlaybackRate } from "@/lib/audio/playbackRate";
@@ -338,11 +339,7 @@ export function GlobalAudioBar() {
                     busy={downloading}
                     className="hidden xs:inline-flex disabled:cursor-not-allowed"
                   >
-                    {downloading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                    ) : (
-                      <Download className="h-4 w-4" aria-hidden />
-                    )}
+                    <AnimatedDownloadIcon downloading={downloading} className="h-4 w-4" />
                   </AudioIconButton>
                 </ActionTip>
                 <ActionTip label={copy("share")}>

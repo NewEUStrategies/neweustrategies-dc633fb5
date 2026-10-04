@@ -5219,8 +5219,8 @@ textarea::placeholder {
    klasę `.listen-play-toggle` i przełącza ikonę w Reakcie; dzieci `.lpt-*`
    nie wypisuje - reguły `display: none` nie miały czego chować. */
 
-/* ===== Play <-> Stop icon (SVG crossfade) =====
- * Renderuje dwie ikony (trójkąt play + zaokrąglony kwadrat stop) w warstwie
+/* ===== Play <-> Pause icon (SVG crossfade) =====
+ * Renderuje dwie ikony (trójkąt play + pauza) w warstwie
  * absolutnej wewnątrz przycisku. Zmiana stanu = crossfade + subtelny scale,
  * z respektem dla prefers-reduced-motion. Kolor przez currentColor.
  */
@@ -5246,22 +5246,56 @@ textarea::placeholder {
   will-change: transform, opacity;
 }
 .mpp-svg-play {
-  /* mikro-optyczne wyśrodkowanie trójkąta */
-  transform-origin: 45% 50%;
-  margin-left: 4%;
+  transform-origin: 50% 50%;
 }
 .mpp[data-playing="false"] .mpp-svg-play {
   opacity: 1;
   transform: scale(1);
 }
-.mpp[data-playing="true"] .mpp-svg-stop {
+.mpp[data-playing="true"] .mpp-svg-pause {
   opacity: 1;
   transform: scale(1);
+}
+
+/* Strzałka pobierania porusza się wyłącznie podczas rzeczywistego pobierania. */
+.audio-download-icon {
+  display: block;
+  overflow: visible;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.audio-download-icon__tray {
+  opacity: 0.82;
+}
+.audio-download-icon[data-downloading="true"] .audio-download-icon__arrow {
+  animation: audio-download-drop 720ms cubic-bezier(0.32, 0.72, 0, 1) infinite;
+}
+.audio-download-icon[data-downloading="true"] {
+  /* Wyłączamy obrót kontenera z klasy kompatybilności - porusza się sama strzałka. */
+  animation: none;
+}
+@keyframes audio-download-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .mpp-svg {
     transition: opacity 120ms linear !important;
     transform: none !important;
+  }
+  .audio-download-icon__arrow {
+    animation: none !important;
   }
 }
 
