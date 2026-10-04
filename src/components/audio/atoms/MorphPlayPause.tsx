@@ -10,7 +10,8 @@ export interface MorphPlayPauseProps {
 export function MorphPlayPause({ playing, className }: MorphPlayPauseProps) {
   return (
     <span className={cn("mpp", className)} data-playing={playing ? "true" : "false"} aria-hidden>
-      {/* Play - geometrycznie wycentrowany trójkąt. */}
+      {/* Play - obrys trójkąta wyśrodkowany w polu 24x24 (krawędź lewa 5.75,
+          czubek 18.27), więc w okrągłym przycisku nie ucieka w prawo. */}
       <svg
         className="mpp-svg mpp-svg-play"
         viewBox="0 0 24 24"
