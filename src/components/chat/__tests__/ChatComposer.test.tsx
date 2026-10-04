@@ -557,10 +557,10 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
   /** Stop przenosi do odsłuchu; wysyłka wymaga osobnego kliknięcia. */
   async function stopAndSend(): Promise<void> {
     fireEvent.click(screen.getByRole("button", { name: t.voice.stop }));
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let i = 0; i < 5; i++) await Promise.resolve();
     const send = screen.queryByRole("button", { name: t.voice.send });
     if (send) fireEvent.click(send);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
   }
 
   beforeEach(() => {
