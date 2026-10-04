@@ -225,8 +225,8 @@ export function readSectionLabelProps(
     indexNumber: str("indexNumber") || undefined,
     category: str(`category_${lang}`) || str("category_pl") || undefined,
     // Kinetic Signal Notch (23) nie ma podkreślenia pod etykietą: linia pod
-    // rzędem jest tu wyłączona dopóki ktoś nie włączy „Pokaż linię" w panelu.
-    // Pozostałe warianty保持 dotychczasowy domysł (linia włączona).
+    // rzędem jest wyłączona dopóki ktoś nie włączy „Pokaż linię" w panelu.
+    // Pozostałe warianty zachowują dotychczasowy domysł (linia włączona).
     showRule: bool("showRule", variant !== "kinetic-signal-notch"),
     numberFont: str("numberFont") || undefined,
     numberSize: str("numberSize") || undefined,

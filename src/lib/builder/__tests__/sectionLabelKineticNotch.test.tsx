@@ -27,6 +27,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 });
 
 import {
+  readSectionLabelProps,
   SectionLabelRender,
   SECTION_LABEL_VARIANTS,
   type SectionLabelVariant,
