@@ -92,7 +92,7 @@ export function resolveFontFamily(font?: string): string | undefined {
 export type SectionLabelArrow = "arrow" | "chevron" | "long" | "none";
 
 export const SECTION_LABEL_ARROWS: { value: SectionLabelArrow; label: string }[] = [
-  { value: "arrow", label: "Strzałka →" },
+  { value: "arrow", label: "Strzałka >" },
   { value: "chevron", label: "Chevron ›" },
   { value: "long", label: "Długa strzałka ⟶" },
   { value: "none", label: "Bez strzałki" },
@@ -109,6 +109,41 @@ export function arrowGlyph(kind?: string): string {
     default:
       return "→";
   }
+}
+
+// Nowoczesna, prosta strzałka akcji - sam kąt („>" / „<") bez ogonka. Kreska
+// jest celowo cieńsza niż litery (0,85 px; 0,7 px w wąskiej kolumnie) i liczona
+// w pikselach ekranu (non-scaling-stroke), więc nie grubieje wraz z czcionką.
+// Wysokość w em minus 1 px trzyma znak w pasie x-height - linia bazowej liter,
+// a kolor dziedziczy z currentColor (ten sam co tekst akcji).
+export function AngleChevron({
+  side,
+  isSm,
+  className,
+}: {
+  side: "left" | "right";
+  isSm: boolean;
+  className?: string;
+}) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 11 10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={isSm ? 0.7 : 0.85}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ width: "calc(1.1em - 1px)", height: "calc(1em - 1px)" }}
+      className={className}
+    >
+      {/* Ramiona cofnięte od krawędzi pola, żeby znak nigdy się nie uciął. */}
+      <polyline
+        points={side === "left" ? "8.2 1.8 2.4 5 8.2 8.2" : "2.4 1.8 8.2 5 2.4 8.2"}
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
 }
 
 // Resolve preset color names to CSS color values (also supports raw hex/oklch).
@@ -318,19 +353,38 @@ export function SectionLabelRender({
   if (actionColor) actionStyle.color = actionColor;
   if (actionSize && !isSm) actionStyle.fontSize = actionSize;
 
+  // Strzałka akcji: domyślnie nowoczesny, prosty kąt ">" bez ogonka - cienki
+  // SVG (wspólny `AngleChevron`, ten sam znak co w wariancie kinetic).
+  // Tekstowe glify zostają tylko dla wyraźnie wybranych opcji "chevron" (›)
+  // i "long" (⟶); "none" zdejmuje znak całkowicie.
+  const arrowMark =
+    glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
+      <span aria-hidden className="leading-none">
+        {glyph}
+      </span>
+    ) : (
+      <AngleChevron side="right" isSm={isSm} className="shrink-0" />
+    );
+
   const ActionEl = action ? (
     href && !isSm ? (
       <AppLink
         data-description-root
         href={href}
-        className={`${actionCls} shrink-0`}
+        className={`${actionCls} inline-flex min-w-0 items-center gap-[0.15em] shrink-0`}
         style={{ color: actionColor || accent, ...actionStyle }}
       >
-        {glyph ? `${action} ${glyph}` : action}
+        <span className="min-w-0">{action}</span>
+        {arrowMark}
       </AppLink>
     ) : (
-      <span data-description-root className={`${actionCls} shrink-0`} style={actionStyle}>
-        {glyph ? `${action} ${glyph}` : action}
+      <span
+        data-description-root
+        className={`${actionCls} inline-flex min-w-0 items-center gap-[0.15em] shrink-0`}
+        style={actionStyle}
+      >
+        <span className="min-w-0">{action}</span>
+        {arrowMark}
       </span>
     )
   ) : null;
@@ -1141,45 +1195,21 @@ export function SectionLabelRender({
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
 
-      // „subtelny ptaszek": kreska znaku jest celowo cieńsza niż litery -
-      // 0,85 px (0,7 px w wezkiej kolumnie), liczona w pikselach ekranu, wiec
-      // pozostaje delikatna niezaleznie od rozmiaru czcionki akcji.
-      const chevronStroke = isSm ? 0.7 : 0.85;
-
       // Chevrony "<" oraz ">" po jednej i drugiej stronie akcji - czyste katy
       // bez ogonkow (zadnej poziomej linii strzalki). Lustrzany znak po lewej
-      // i prawej: cienka linia, dyskretny ruch na zewnatrz w hoverze.
+      // i prawej: dyskretny ruch na zewnatrz w hoverze. Geometria i kreska
+      // zyvia we wspolnym `AngleChevron` (ten sam znak co domyslna strzalka
+      // akcji w pozostalych wariantach).
       const chevronSvg = (side: "left" | "right"): React.ReactNode => (
-        <svg
-          aria-hidden
-          viewBox="0 0 11 10"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={chevronStroke}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          // Chevron w em, ale o 1 px mniejszy niz wysokosc czcionki akcji
-          // (calc(1em - 1px)), wiec nie przewyzsza liter „wiecej”. Kolor bierze
-          // z currentColor (ten sam co tekst). Znak nie ma przesuniecia w osi Y:
-          // wycentrowany w inline-flex trafia dokladnie w pas wysokosci x ->
-          // linia bazowa liter (pomiar zrzutu: gora strzalki 0,25 px pod x-height,
-          // dol na linii bazowej).
-          style={{ width: "calc(1.1em - 1px)", height: "calc(1em - 1px)" }}
+        <AngleChevron
+          side={side}
+          isSm={isSm}
           className={`shrink-0 transition-transform duration-300 motion-reduce:transition-none ${
             side === "left"
               ? "group-hover/link:-translate-x-0.5"
               : "group-hover/link:translate-x-0.5"
           }`}
-        >
-          {/* „subtelny ptaszek": kreska jest cienka (chevronStroke), a nie
-              taka jak pasek sygnału - wektor liczy stroke-width w pikselach
-              ekranu, wiec skalowanie viewBoxa (em) jej nie pogrubia. Ramiona
-              sa cofniete od krawedzi pola, zeby znak nigdy sie nie uciql. */}
-          <polyline
-            points={side === "left" ? "8.2 1.8 2.4 5 8.2 8.2" : "2.4 1.8 8.2 5 2.4 8.2"}
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
+        />
       );
 
       // Tekstowy glif (chevron ›/dluga strzalka) zostaje tylko po prawej -

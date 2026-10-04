@@ -874,6 +874,7 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Podwójny chevron »": "Double chevron »",
   "Angle (cienki kąt)": "Angle (thin angle)",
   "Strzałka (z trzonem)": "Arrow (with a shaft)",
+  "Strzałka >": "Arrow >",
   "Strzałka długa": "Long arrow",
   "Strzałka z ogonem": "Arrow with a tail",
 
