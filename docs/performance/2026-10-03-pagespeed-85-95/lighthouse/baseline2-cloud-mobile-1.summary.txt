@@ -1,0 +1,165 @@
+URL: http://127.0.0.1:4582/  formFactor=mobile  throttling=simulate  LH 13.5.0
+PERFORMANCE SCORE: 51
+  first-contentful-paint                            5.0 s  score=0.09
+  largest-contentful-paint                          5.6 s  score=0.18
+  total-blocking-time                              620 ms  score=0.48
+  speed-index                                       5.0 s  score=0.63
+  cumulative-layout-shift                               0  score=1
+  interactive                                       8.4 s  score=0.39
+  max-potential-fid                                310 ms  score=0.33
+  server-response-time             Root document took 30 ms  score=1
+
+== LCP element / phases
+  [lcp-discovery-insight] score=1 
+     {"type": "checklist", "items": "{\"priorityHinted\": {\"label\": \"fetchpriority=high applied\", \"value\": true}, \"requestDiscoverable\": {\"label\": \"Request is "}
+     {"type": "node", "lhId": "page-1-IMG", "path": "1,HTML,1,BODY,5,DIV,4,MAIN,3,DIV,0,DIV,1,DIV,0,DIV,1,SECTION,2,DIV,0,DIV,0,DIV,1,DIV,0,DIV,0,DIV,0,DIV,0,DIV,1,DIV,0,DIV,2,DIV,1,DIV,0,DIV,0,IMG", "selector": "div.w-full > div.relative > div.pointer-events-none > img.eh-img", "boundingRect": "{\"top\": 123, \"bottom\": 319, \"left\": 32, \"right\": 380, \"width\": 348, \"height\": 196}", "snippet": 
+  [lcp-breakdown-insight] score=1 
+     {"type": "table", "headings": [{"key": "label", "valueType": "text", "label": "Subpart"}, {"key": "duration", "valueType": "ms", "label": "Duration"}], "items": [{"subpart": "timeToFirstByte", "label": "Time to first byte", "duration": 37.838}, {"subpart": "resourceLoadDelay", "label": "Resource load delay", "duration": 61.667}, {"subpart": "resourceLoadDuration", "label": "Resource load duration"
+     {"type": "node", "lhId": "page-1-IMG", "path": "1,HTML,1,BODY,5,DIV,4,MAIN,3,DIV,0,DIV,1,DIV,0,DIV,1,SECTION,2,DIV,0,DIV,0,DIV,1,DIV,0,DIV,0,DIV,0,DIV,0,DIV,1,DIV,0,DIV,2,DIV,1,DIV,0,DIV,0,IMG", "selector": "div.w-full > div.relative > div.pointer-events-none > img.eh-img", "boundingRect": "{\"top\": 123, \"bottom\": 319, \"left\": 32, \"right\": 380, \"width\": 348, \"height\": 196}", "snippet": 
+
+== Render-blocking / document latency
+  [render-blocking-insight] score=0 Est savings of 470 ms savings=None
+     {"url": "http://127.0.0.1:4582/assets/styles-DjfYz07w.css", "totalBytes": 69971, "wastedMs": 2424}
+  [document-latency-insight] score=1  savings=None
+     {"noRedirects": "{\"label\": \"Avoids redirects\", \"value\": true}", "serverResponseIsFast": "{\"label\": \"Server responds quickly (observed 27 ms)\", \"value\": true}", "usesCompression": "{\"label\": \"Applies text compression\", \"value\": true}"}
+  [network-dependency-tree-insight] score=1  savings=None
+     {"type": "list-section", "value": "{\"type\": \"network-tree\", \"chains\": {\"AD631340D293088FAB6D2AC2CC21F7E5\": {\"url\": \"http://127.0.0.1:4582/\", \"navStartToEnd"}
+     {"type": "list-section", "title": "Preconnected origins", "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. Th
+     {"type": "list-section", "title": "Preconnect candidates", "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4.", "value": "{\"type\": \"table\", \"headings\": [{\"key\": \
+
+== Network requests (sorted by transferSize)
+  requests=122 transfer=1054284 resource=3575850
+   Script       n= 79 transfer=   751588 resource=  2471259
+   Image        n=  2 transfer=   113548 resource=   113074
+   Stylesheet   n=  1 transfer=    69971 resource=   537876
+   Document     n=  1 transfer=    47124 resource=   382426
+   Font         n=  2 transfer=    45316 resource=    44732
+   Other        n=  1 transfer=    26737 resource=    26483
+   Fetch        n= 18 transfer=        0 resource=        0
+   Preflight    n= 18 transfer=        0 resource=        0
+   transfer  resource     prio     type  start    end  url
+     229740    838201     High   Script     99    369  http://127.0.0.1:4582/assets/index-DPN2YAij.js
+     113032    112795     High    Image     98    266  https://fixture.invalid/cover.jpg
+      69971    537876 VeryHigh Stylesheet     80    262  http://127.0.0.1:4582/assets/styles-DjfYz07w.css
+      58526    195480     High   Script     99    289  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+      54811    224170     High   Script    102    378  http://127.0.0.1:4582/assets/vendor-supabase-Pf0Abwmk.js
+      50884    168861     High   Script     99    360  http://127.0.0.1:4582/assets/vendor-tanstack-CQRiBJTn.js
+      47124    382426 VeryHigh Document      4     36  http://127.0.0.1:4582/
+      34449    112017     High   Script   1250   1270  http://127.0.0.1:4582/assets/vendor-radix-CIuvgUd0.js
+      30964     30672     High     Font     80    132  http://127.0.0.1:4582/assets/red-hat-display-latin-BX-N26TK.woff2
+      26737     26483     High    Other    739    903  http://127.0.0.1:4582/favicon.ico
+      26242     69000     High   Script     93    195  http://127.0.0.1:4582/assets/pl-Do3AbvCF.js
+      25837    105489     High   Script   1481   1497  http://127.0.0.1:4582/assets/icons-3-DopDgETA.js
+      18117     63039     High   Script    720    850  http://127.0.0.1:4582/assets/vendor-lucide-BMca3yYd.js
+      16339     49099     High   Script    100    321  http://127.0.0.1:4582/assets/vendor-i18n-Bk2PYBzJ.js
+      14572     45275     High   Script    101    340  http://127.0.0.1:4582/assets/vendor-lucide-boot-DKEkhQGq.js
+      14352     14060     High     Font     81    137  http://127.0.0.1:4582/assets/red-hat-display-latin-ext-Do32GAgg.woff2
+      12137     54091     High   Script    100    328  http://127.0.0.1:4582/assets/vendor-zod-oLpi5p-c.js
+      11425     41008     High   Script     98    263  http://127.0.0.1:4582/assets/sliderVariants-Cl4hnw1I.js
+       9987     35470     High   Script   1676   1690  http://127.0.0.1:4582/assets/vendor-sonner-BA-3S3ka.js
+       9892     26217     High   Script    732    912  http://127.0.0.1:4582/assets/vendor-dompurify-CaN5i-uU.js
+       8489     27511     High   Script    102    362  http://127.0.0.1:4582/assets/vendor-tw-merge-BKkUfl9q.js
+       7951     24400     High   Script   2085   2173  http://127.0.0.1:4582/assets/ConsentBanner-DseClAzm.js
+       7659     20795     High   Script   2034   2046  http://127.0.0.1:4582/assets/JoinUsForm-rFD3GnQr.js
+       7012     21046     High   Script     96    186  http://127.0.0.1:4582/assets/SearchButtonWidget-Dq-L6vjd.js
+       6700     18628     High   Script   1591   1625  http://127.0.0.1:4582/assets/vendor-radix-select-Ur93xSXf.js
+       5808     18142     High   Script    730    904  http://127.0.0.1:4582/assets/pl-DF8VX0lg.js
+       5501     14593     High   Script     94    171  http://127.0.0.1:4582/assets/AccountMenuWidget-0_9IS02u.js
+       5349     20988     High   Script     96    186  http://127.0.0.1:4582/assets/sectionLabelVariants-BtnlXesS.js
+       5274     13666     High   Script   2040   2061  http://127.0.0.1:4582/assets/NewsletterDocRenderer-D5w8GWy-.js
+       5144     17228     High   Script     97    185  http://127.0.0.1:4582/assets/PostListView-BPrcVz22.js
+       4909     13028     High   Script   2042   2153  http://127.0.0.1:4582/assets/TopicsDroplist-BQaJCcmA.js
+       4804     20688     High   Script     98    265  http://127.0.0.1:4582/assets/animatedHeadingVariants-CzT8mCNF.js
+       4645     10071     High   Script   2042   2153  http://127.0.0.1:4582/assets/speakerRow-C2VR8iXK.js
+       4056     10679     High   Script   1587   1615  http://127.0.0.1:4582/assets/WidgetView-CAa584dW.js
+       3846      9905     High   Script   1286   1309  http://127.0.0.1:4582/assets/i18n-search-Dof0D_nA.js
+       3660      7186     High   Script   2140   2227  http://127.0.0.1:4582/assets/PopupImage-HZmKdA8A.js
+       3640      8914     High   Script   2139   2213  http://127.0.0.1:4582/assets/NewsletterPopup-BSc-oSff.js
+       3485      7250     High   Script   1786   1799  http://127.0.0.1:4582/assets/TailoredMustReadsView-CHeZHdtv.js
+       3434     12408     High   Script    716    726  http://127.0.0.1:4582/assets/events._slug_.cfp-submit-_UnRBpG3.js
+       3223      7413     High   Script   1592   1620  http://127.0.0.1:4582/assets/MessageComposerField-BlVIHDZ1.js
+
+== Main thread breakdown
+  total 10.0 s
+   Script Evaluation                      4789 ms
+   Other                                  2944 ms
+   Style & Layout                         1036 ms
+   Parse HTML & CSS                        684 ms
+   Rendering                               248 ms
+   Garbage Collection                      199 ms
+   Script Parsing & Compilation            112 ms
+
+== Bootup time per script (top)
+  total 4.9 s
+   total= 5450 script= 4447 parse=    2  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   total= 2513 script=  143 parse=   78  http://127.0.0.1:4582/
+   total=  972 script=   80 parse=    0  Unattributable
+   total=  387 script=    0 parse=    0  http://127.0.0.1:4582/assets/styles-DjfYz07w.css
+   total=  130 script=   87 parse=    1  http://127.0.0.1:4582/assets/vendor-supabase-Pf0Abwmk.js
+   total=  105 script=    0 parse=    6  http://127.0.0.1:4582/assets/AccountMenuWidget-0_9IS02u.js
+   total=   56 script=   12 parse=    5  http://127.0.0.1:4582/assets/index-DPN2YAij.js
+
+== Unused JavaScript (top)
+  Est savings of 210 KiB savingsBytes=215056
+   wasted= 117339 of total= 229027 (51%)  http://127.0.0.1:4582/assets/index-DPN2YAij.js
+   wasted=  43746 of total=  54447 (80%)  http://127.0.0.1:4582/assets/vendor-supabase-Pf0Abwmk.js
+   wasted=  27016 of total=  50519 (53%)  http://127.0.0.1:4582/assets/vendor-tanstack-CQRiBJTn.js
+   wasted=  26955 of total=  34086 (79%)  http://127.0.0.1:4582/assets/vendor-radix-CIuvgUd0.js
+
+== Unused CSS
+
+== Long tasks
+  20 long tasks found
+   start=  3948 dur=  387  http://127.0.0.1:4582/assets/styles-DjfYz07w.css
+   start=  6290 dur=  310  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=  1475 dur=  204  Unattributable
+   start=  1679 dur=  173  http://127.0.0.1:4582/
+   start=  2010 dur=  163  http://127.0.0.1:4582/
+   start=  1318 dur=  157  http://127.0.0.1:4582/
+   start=  5213 dur=  153  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=  6600 dur=  119  http://127.0.0.1:4582/assets/index-DPN2YAij.js
+   start=  1201 dur=  117  http://127.0.0.1:4582/
+   start=  6176 dur=  114  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=   938 dur=  105  http://127.0.0.1:4582/assets/AccountMenuWidget-0_9IS02u.js
+   start=  4492 dur=  101  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=  4593 dur=   89  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=  6095 dur=   81  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=  5138 dur=   75  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=  8440 dur=   71  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=  6834 dur=   68  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=  6939 dur=   67  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+   start=  1043 dur=   63  http://127.0.0.1:4582/
+   start=  6719 dur=   62  http://127.0.0.1:4582/assets/vendor-react-DbdJcebo.js
+
+== Forced reflow
+  score=1 
+     {"type": "table", "headings": [{"key": "source", "valueType": "source-location", "label": "Source"}, {"key": "reflowTime", "valueType": "ms", "granularity": 1, "label": "Total reflow time"}], "items": []}
+
+== Non-composited animations
+     {"node": "<div class=\"relative flex max-h-[calc(100svh-1.5rem)] flex-col gap-3 overflow-y-auto r…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Filter-related property may move pixels\", \"animation\": \"enter\"}]}"}
+     {"node": "<span aria-hidden=\"true\" class=\"rounded-full transition-all w-2 h-2 bg-foreground/25 group-hover:bg-foregr…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported CSS Property: width\", \"animation\": \"width\"}, {\"failureReas"}
+     {"node": "<span aria-hidden=\"true\" class=\"rounded-full transition-all w-2 h-2 bg-foreground/25 group-hover:bg-foregr…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported CSS Property: width\", \"animation\": \"width\"}, {\"failureReas"}
+     {"node": "<span aria-hidden=\"true\" class=\"rounded-full transition-all w-2 h-2 bg-foreground/25 group-hover:bg-foregr…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported CSS Property: width\", \"animation\": \"width\"}, {\"failureReas"}
+     {"node": "<span aria-hidden=\"true\" class=\"rounded-full transition-all w-2 h-2 bg-foreground/25 group-hover:bg-foregr…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported CSS Property: width\", \"animation\": \"width\"}, {\"failureReas"}
+     {"node": "<span aria-hidden=\"true\" class=\"rounded-full transition-all w-2 h-2 bg-foreground/25 group-hover:bg-foregr…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported CSS Property: width\", \"animation\": \"width\"}, {\"failureReas"}
+     {"node": "<span aria-hidden=\"true\" class=\"rounded-full transition-all w-2 h-2 bg-foreground/25 group-hover:bg-foregr…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported CSS Property: width\", \"animation\": \"width\"}, {\"failureReas"}
+     {"node": "<span aria-hidden=\"true\" class=\"rounded-full transition-all w-2 h-2 bg-foreground/25 group-hover:bg-foregr…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported CSS Property: width\", \"animation\": \"width\"}, {\"failureReas"}
+     {"node": "<span aria-hidden=\"true\" class=\"rounded-full transition-all w-2 h-2 bg-foreground/25 group-hover:bg-foregr…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported CSS Property: width\", \"animation\": \"width\"}, {\"failureReas"}
+     {"node": "<span aria-hidden=\"true\" class=\"rounded-full transition-all w-2 h-2 bg-foreground/25 group-hover:bg-foregr…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported CSS Property: width\", \"animation\": \"width\"}, {\"failureReas"}
+
+== Third parties
+
+== DOM size
+  None
+
+== Cache TTL offenders
+
+== Image delivery
+  [image-delivery-insight] Est savings of 45 KiB
+     {"url": "https://fixture.invalid/cover.jpg", "totalBytes": 112795, "wastedBytes": 45950, "subItems": "{\"type\": \"subitems\", \"items\": [{\"reason\": \"This image file is larger than it needs to be (1001x900) for its displayed di"}
+
+== Other insights
+
+== User timing marks/measures count
+  None  n=0
+    []

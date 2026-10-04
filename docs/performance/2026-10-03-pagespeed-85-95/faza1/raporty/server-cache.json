@@ -1,0 +1,339 @@
+{
+  "key": "server-cache",
+  "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/server-cache.md",
+  "summary": "Under PSI simulate, doc TTFB does not move FCP/LCP but Speed Index (observedSpeedIndex is Lantern's optimistic SI): +2.5 s TTFB on the artifact -> mobile SI 5.0->6.7 s, desktop SI 1.0-1.2->2.4-2.6 s, desktop perf 94-96->90-91; FCP/LCP unchanged. So one MISS costs ~4-6 desktop / 2-5 mobile points: HIT for PSI colos must be ~100 %. Cold MISS = 4 serial DB waves (settings -> pages -> get_entity_content -> 5x posts) before the shell; at 200 ms/call the 600 ms home deadline lapses and the reader gets a degraded 163 KB page with private,no-store (not stored). Cache is per-colo (Cache API), fresh capped at 180 s (HIT age <180 s is by construction), warmer only from US GitHub runners, purge only in the editor's colo. Production app;dur 942 ms vs TTFB 2.75-3.3 s: 1.8-2.4 s outside the handler (cold isolate/hosting). Doc ships gzip 89 KB; brotli would save ~26 KB (~0.14 s mobile Lantern).",
+  "findings": [
+    {
+      "id": "SC-F1",
+      "claim": "Lantern (PSI simulate) ignores document TTFB for FCP/LCP but charges it to Speed Index via observedSpeedIndex; a MISS lowers desktop perf by ~4-6 points and mobile by ~2-5 in the target state.",
+      "evidence": "phase1/server-cache/ttfb-experiment-summary.txt: doc0 vs doc2500 mobile FCP 5003-5015 vs 5034-5036, LCP 5549-5709 vs 5578-5592, SI 4982-5015 vs 6669-6726; desktop SI 1029-1235 vs 2408-2620, perf 94-96 vs 90-91. trace_engine lantern/metrics/SpeedIndex.js getEstimateFromSimulation (optimistic = observedSpeedIndex, coeff 1.4/0.4 at 150 ms RTT). lh/prod-desktop.summary.txt: MISS 3300 ms, FCP 0.8 s, SI 2.7 s.",
+      "metric": "SI (10 %), perf score",
+      "severity": "high"
+    },
+    {
+      "id": "SC-F2",
+      "claim": "Lantern uses a per-origin median server latency, so the slow document is diluted by ~100 fast same-origin asset requests.",
+      "evidence": "lantern/core/NetworkAnalyzer.js:443 (summary.median), simulation/ConnectionPool.js:40; lh/prod-mobile.json network-server-latency origin 237.6 ms vs doc 2752 ms; prod-desktop 56.6 ms vs 3301 ms.",
+      "metric": "FCP/LCP model",
+      "severity": "medium"
+    },
+    {
+      "id": "SC-F3",
+      "claim": "Cold homepage MISS runs 4 serial DB waves before the shell; above ~150-200 ms per PostgREST call the shared 600 ms home deadline lapses, the render is degraded (fallback page) and served private,no-store, so it is not stored.",
+      "evidence": "phase1/server-cache/trace-120.jsonl (W1 104-258, W2 230-377, W3 355-500, W4 494-618, headers 874 ms) and trace-200 (cache-control private,no-store, 162748 B vs 388060 B, log '[ssr-resilient] degraded render, seeded fallback for home.page'); src/lib/ssr/homeSsrBudget.ts:15-17; src/routes/index.tsx:121-143,212-230,251; src/lib/ssr/resilientLoad.ts:131-153,185; src/lib/queries/public.ts:470-525.",
+      "metric": "MISS TTFB, stored-vs-degraded",
+      "severity": "critical"
+    },
+    {
+      "id": "SC-F4",
+      "claim": "Widget data keys (builder:*, ad_placements:*, ticker_posts:*) are not in the colo L2 data snapshot, so every cold isolate repays W3/W4 even in a warm colo.",
+      "evidence": "src/lib/ssrCache.ts:65-72 (6 prefixes only); src/lib/ads/queries.ts:176,250; src/lib/builder/contentRefs.ts:102; src/lib/views/postViews.functions.ts:289; src/lib/builder/postListQuery.ts:447, sliderPostsQuery.ts:151.",
+      "metric": "MISS TTFB",
+      "severity": "high"
+    },
+    {
+      "id": "SC-F5",
+      "claim": "Document cache is per-colo only (L1 isolate Map + L2 caches.default); no cross-colo layer, freshness capped at 180 s, purge (bump/delete) reaches only the colo that served the admin request; the warmer runs only from US GitHub runners.",
+      "evidence": "src/lib/http/documentCacheL2.server.ts:1-23,139-174,214-246; src/lib/http/documentCache.ts:41-57; src/lib/http/documentCache.server.ts:950-1006; .github/workflows/scheduler.yml:30-33,160-176; scripts/warm-edge-cache.mjs:34-40.",
+      "metric": "HIT ratio for PSI colos",
+      "severity": "high"
+    },
+    {
+      "id": "SC-F6",
+      "claim": "x-nes-cache-age < ~130 s on HIT is a tautology of the 180 s fresh cap (HIT requires age < freshMs); samples are 129 s and 36 s, not a constant band. The cap forces a full re-render per key every ~3 min per isolate generation, because L1 STALE revalidates without checking a fresher L2.",
+      "evidence": "src/lib/http/documentCache.ts:47; src/lib/http/documentCache.server.ts:829-842,293-322 (single-flight per isolate); psi/h1.txt age 129; docs/performance/2026-10-03-pagespeed-85-95/faza1/server-cache/hb-1.txt age 36.",
+      "metric": "render count, HIT ratio",
+      "severity": "medium"
+    },
+    {
+      "id": "SC-F7",
+      "claim": "Production MISS app;dur 942 ms (edge-routing 280, ssr 662, db 2029 summed over 23 calls = 88 ms/call) explains < 1/3 of the 2.75-3.3 s TTFB; the rest is outside the handler (isolate cold start of a 13 MB worker is unmeasured: server-init times only the lazy import), hosting dispatch, possibly body buffering.",
+      "evidence": "EVIDENCE.md section 2; lh/prod-mobile.summary.txt server-response-time 2750 ms, prod-desktop 3300 ms; src/server.ts:241-268; vite.config.ts:29-35; BYPASS warm renders app;dur 53/276/495 ms in faza1/server-cache/h-bypass-1..3.txt.",
+      "metric": "MISS TTFB",
+      "severity": "high"
+    },
+    {
+      "id": "SC-F8",
+      "claim": "The routing prefix (tenant directory + redirect rules, 2 serial service-role reads with 1500 ms budgets) runs before the document cache, so a HIT on a cold isolate pays it (edge-routing 280 ms on MISS sample, 177 ms on a BYPASS sample, 0 when warm).",
+      "evidence": "src/start.ts:341-373,544-563; src/lib/seo/redirects.server.ts:67,86,128-157; src/lib/server/tenant.server.ts:49,73,131; faza1/server-cache/h-bypass-2.txt edge-routing 177.",
+      "metric": "HIT TTFB",
+      "severity": "medium"
+    },
+    {
+      "id": "SC-F9",
+      "claim": "The document is delivered gzip (89 371 B for 575 523 B raw) although Chrome offers br; brotli q9 = 57.3 KB, q11 = 52.2 KB. In Lantern all parser-discovered requests start only after the document node completes, so doc bytes are on the FCP/LCP critical path (~0.14 s mobile for 26 KB).",
+      "evidence": "lh/prod-mobile.json network-requests Document transfer 89371; psi/home.html gzip-6 78598, br-q9 57304, br-q11 52169 (node zlib); lantern/simulation/Simulator.js:171-173, graph/PageDependencyGraph.js:126-150.",
+      "metric": "FCP/LCP/SI mobile",
+      "severity": "medium"
+    },
+    {
+      "id": "SC-F10",
+      "claim": "Link header (4 038 B, 33 entries) and 103 Early Hints cannot help the PSI score: Lantern hangs Link-initiated requests off the root document node and ignores 103; the header carries stray route modulepreloads and a 1 771 B absolute-URL image preload. No 103 is emitted today.",
+      "evidence": "psi/h1.txt Link breakdown (19 modulepreload incl. admin.analytics, blog.index, EventPortalContent, Footnotes, useInFeedAds, prepareContent, headings, 2x index-*); src/lib/http/frameworkPreloads.server.ts:8-34; PageDependencyGraph.js:126-150.",
+      "metric": "doc bytes, bandwidth contention",
+      "severity": "low"
+    },
+    {
+      "id": "SC-F11",
+      "claim": "Hosting overwrites the document Cache-Control to 'no-cache, must-revalidate, max-age=0' (app emits public, max-age=60, s-maxage=900, swr=86400); no-cache does not block bfcache; browser max-age is irrelevant for PSI; __cf_bm Set-Cookie is Cloudflare bot management, not the app, and does not cause BYPASS. Comments claiming the hosting strips Server-Timing/x-nes-cache are stale.",
+      "evidence": "psi/h1.txt; phase1/server-cache/trace-h-120-1.txt (app header); src/lib/http/cachePolicy.ts:45-47; src/server.ts:207; src/lib/http/documentCache.server.ts:184-188; src/lib/http/documentCache.ts:202-206.",
+      "metric": "none (PSI); repeat-visit UX",
+      "severity": "low"
+    },
+    {
+      "id": "SC-F12",
+      "claim": "Bots/Lighthouse are never bypassed, but isbot() is true for Chrome-Lighthouse/HeadlessChrome/Googlebot, so on a MISS TanStack holds the first byte until stream.allReady (below-fold W5 included). PSI may also be 302-redirected '/' -> '/en' when its Chrome sends Accept-Language en without a lang cookie (extra Lantern hop).",
+      "evidence": "node_modules/@tanstack/react-router/dist/esm/ssr/renderRouterToStream.js:31; isbot check run in sandbox (true for both Chrome-Lighthouse UAs and HeadlessChrome); src/start.ts:136-183; src/lib/i18n/langNegotiation.ts:66-91.",
+      "metric": "MISS TTFB for bots; FCP/LCP mobile if redirected",
+      "severity": "medium"
+    },
+    {
+      "id": "SC-F13",
+      "claim": "Document L2 keys carry no build id, so after a deploy up to 24 h of STALE HTML can reference chunks of the previous build (client-side cacheBusting reload uses ?_v= which is a BYPASS full render).",
+      "evidence": "src/lib/http/documentCacheL2.server.ts:166-174; src/routes/api/public/version.ts:14-16; src/lib/cacheBusting.ts:1-20; src/lib/http/documentCache.ts:215-220.",
+      "metric": "correctness after deploy, MISS after deploy",
+      "severity": "medium"
+    }
+  ],
+  "changes": [
+    {
+      "id": "SC-1",
+      "title": "Privacy-safe cache/TTFB observability: colo, layer, cold-isolate flag, stream end, degraded label, UA class",
+      "files": [
+        "src/server.ts",
+        "src/lib/http/ssrTiming.ts",
+        "src/lib/http/documentCache.server.ts"
+      ],
+      "mechanism": "Extend buildDocumentLogLine and Server-Timing (new metrics nes-layer, nes-colo desc, iso-req, stream) with request.cf.colo, serving layer (L1/L2/L3/render), per-isolate request counter and module age, body-stream end time from the tee collector, the loadResilient label that degraded, coarse uaClass (browser/bot/lighthouse). No IP, no full UA, path only.",
+      "metric": "none directly (enables HIT-ratio and TTFB decomposition)",
+      "expected_effect": "Answers which colos MISS, whether MISS coincide with cold isolates, and the 1.8-2.4 s gap between app;dur and TTFB.",
+      "estimate_basis": "Gap measured: app;dur 942 ms vs Lighthouse TTFB 2750-3300 ms on production MISS.",
+      "risk": "low",
+      "risk_notes": "Server-Timing must keep token-safe names (METRIC_NAME_RE); existing parsers/tests rely on nes-edge first.",
+      "gates": [
+        "ssrTiming.server.test.ts",
+        "documentCache.server.test.ts",
+        "startPipeline tests",
+        "lint",
+        "typecheck"
+      ],
+      "verification": "Workers Logs: per-colo share of MISS, isoReq==1 share among MISS, streamMs-appMs distribution; curl series shows nes-layer.",
+      "effort": "S"
+    },
+    {
+      "id": "SC-2",
+      "title": "Add widget/ad/ticker keys to the colo L2 data snapshot",
+      "files": ["src/lib/ssrCache.ts"],
+      "mechanism": "Append 'builder:', 'ad_placements:', 'ticker_posts:' to EDGE_TTL_L2_KEY_PREFIXES so a cold isolate in a warm colo reads W3/W4 data from caches.default (150 ms timeout) instead of PostgREST.",
+      "metric": "MISS TTFB (cold isolate, warm colo); share of degraded renders",
+      "expected_effect": "Homepage cold-isolate MISS: 4 DB waves -> ~0; -0.4...-0.8 s TTFB at 140-200 ms/call; fewer degraded no-store renders.",
+      "estimate_basis": "Fixture trace: W3+W4 = 355-618 ms at 120 ms/call; production 88-142 ms/call; settings/tokens/menus/home already L2.",
+      "risk": "low",
+      "risk_notes": "Values capped at 512 KB; ad emission windows are projected after cache (ads/queries.ts:181); freshness semantics identical to today's L1 (TTL 60 s, stale x5) but shared per colo.",
+      "gates": ["ssrCache tests", "check:ssr-budgets", "check:loader-policy"],
+      "verification": "Fixture: kill and restart only the process but keep an injected colo cache -> trace shows no W3/W4 calls; production: db n on MISS drops from 23.",
+      "effort": "S"
+    },
+    {
+      "id": "SC-3",
+      "title": "Soft purge (re-render instead of delete) + L1-STALE consults L2 + colo revalidation lease",
+      "files": [
+        "src/lib/http/documentCache.server.ts",
+        "src/server.ts",
+        "src/lib/server/audit.server.ts"
+      ],
+      "mechanism": "purgeDocumentPaths/purgeDocumentCache trigger the existing documentRevalidator for '/', '/en', '/blog', '/en/blog' and the post paths under waitUntil (anonymous synthetic request), so the colo gets a fresh document within ~1 s; on L1 STALE first l2Match and adopt a fresher L2 entry; best-effort colo lease key in caches.default dedupes revalidations across isolates.",
+      "metric": "HIT ratio after publish; render count",
+      "expected_effect": "No post-publish MISS of '/' in the editor's colo (saves 1.3-3.3 s or a degraded page for those readers); revalidation renders per colo divided by #isolates.",
+      "estimate_basis": "Code: selective purge deletes L1+L2 (documentCache.server.ts:987-1006); STALE revalidates per isolate (835-842).",
+      "risk": "medium",
+      "risk_notes": "Synthetic request must never carry admin cookies/Authorization (reuse revalidationHeaders); waitUntil lifetime; bounded number of paths.",
+      "gates": [
+        "documentCache.server.test.ts",
+        "platformCacheLifecycle.test.ts",
+        "degradedRenderCachePipeline.test.ts",
+        "typecheck"
+      ],
+      "verification": "Fixture: purge then immediate GET returns HIT with age ~1 s; production: after a publish, curl '/' from the editor's network shows HIT/age small, never MISS.",
+      "effort": "M",
+      "depends_on": ["SC-1"]
+    },
+    {
+      "id": "SC-4",
+      "title": "Document-cache lookup before redirectMiddleware for GET text/html on cacheable paths",
+      "files": [
+        "src/start.ts",
+        "src/lib/seo/redirects.server.ts",
+        "src/lib/http/documentCache.server.ts"
+      ],
+      "mechanism": "Move documentCacheMiddleware (lookup half) above redirectMiddleware for GET HTML that planDocumentCache would key; MISS falls through to redirects as today. Saving a redirect rule purges its source path (recordAudit documentPaths). Tenant lookup stays (trustedPublicHost) for key safety.",
+      "metric": "HIT TTFB on cold isolates",
+      "expected_effect": "-10...-280 ms on cold-isolate HIT (P1b redirect-index read removed from HIT path); HIT p95 < 200 ms together with SC-6.",
+      "estimate_basis": "edge-routing 280 ms (MISS sample), 177 ms (BYPASS sample), 0 warm.",
+      "risk": "medium",
+      "risk_notes": "A new rule for an already cached path applies only after purge; preserve homepageLang before it; middleware order doctrine (gpc/tenantAssertion after cache replay) must stay.",
+      "gates": ["startPipeline.test.ts", "documentCache.server.test.ts", "redirects tests"],
+      "verification": "Production curl series on fresh isolates: HIT edge-routing absent/0; fixture with injected tenant delay shows HIT TTFB unaffected.",
+      "effort": "S",
+      "depends_on": ["SC-1"]
+    },
+    {
+      "id": "SC-5",
+      "title": "Warmers from EU and US, after deploy, with real Chrome UA and pl/en",
+      "files": [
+        "scripts/warm-edge-cache.mjs",
+        ".github/workflows/scheduler.yml",
+        "supabase/migrations/<new> (pg_cron + pg_net warm job)"
+      ],
+      "mechanism": "pg_cron job every 60 s calling net.http_get on '/', '/en', '/blog', '/en/blog' from the DB region; external multi-region monitor (EU-West near PSI europe-west, EU-Central, US-East, US-Central) at 60-120 s; post-deploy step polls /api/public/version until it changes and then warms; UA = desktop and mobile Chrome, Accept-Language pl and en.",
+      "metric": "HIT ratio for PSI colos",
+      "expected_effect": "MISS probability ~0 in warmed colos; together with SC-6 one warmer keeps the global snapshot fresh.",
+      "estimate_basis": "Today only a US colo is warmed (GitHub-hosted runners) every 5 min; per-colo L2 means PSI's EU colo is not.",
+      "risk": "low",
+      "risk_notes": "Cost trivial (HIT ~1 ms CPU); GitHub schedules can lag or be disabled after 60 days of inactivity; DB region unknown.",
+      "gates": [
+        "check:workflow-env-contract",
+        "check:sql-migration-replay",
+        "check:migration-ledger"
+      ],
+      "verification": "Workers Logs (SC-1): per-colo MISS share for '/' < 3 %; 10 PSI API runs per form factor all with server-response-time < 400 ms.",
+      "effort": "S"
+    },
+    {
+      "id": "SC-6",
+      "title": "Global L3 document snapshot (KV, else Supabase Storage + Smart CDN) with contentVersion and buildId",
+      "files": [
+        "src/lib/http/documentCache.server.ts",
+        "src/lib/http/documentCacheL3.server.ts (new)",
+        "vite.config.ts (KV binding) or supabase/migrations/<new> (bucket)"
+      ],
+      "mechanism": "Read after L1/L2 miss with a 300 ms timeout; on hit with matching buildId serve HIT/STALE and seed L2/L1; write after every clean store under waitUntil (brotli body + storedAt, contentVersion, buildId, link, cacheControl). Only documents that passed documentStorePolicy (anonymous public shell).",
+      "metric": "HIT ratio from any colo; MISS TTFB",
+      "expected_effect": "Cold-colo request (PSI US/EU DC, Googlebot): 1.3-3.3 s render or degraded page -> 0.05-0.3 s snapshot read; HIT ratio for '/' > 99 %.",
+      "estimate_basis": "KV hot reads ~ms, cold tens-hundreds of ms; Supabase CDN is Cloudflare-fronted; measured MISS 2.75-3.3 s.",
+      "risk": "medium",
+      "risk_notes": "Whether Lovable honours custom wrangler bindings is unknown; Storage egress cost small (~60 KB br per L3 miss); deploy skew handled by buildId; public bucket exposes only the same anonymous HTML.",
+      "gates": [
+        "new unit tests with injected L3 store",
+        "check:server-entry-purity",
+        "check:entry-purity",
+        "documentCache.server.test.ts",
+        "typecheck"
+      ],
+      "verification": "Production: curl '/' through a US vantage on a never-warmed colo shows nes-layer=L3 and TTFB < 400 ms; Workers Logs layer histogram.",
+      "effort": "L",
+      "depends_on": ["SC-1", "SC-7"]
+    },
+    {
+      "id": "SC-7",
+      "title": "Brotli-precompressed bodies in the document cache, served with encodeBody manual",
+      "files": ["src/lib/http/documentCache.server.ts", "src/lib/http/documentCacheL2.server.ts"],
+      "mechanism": "At store time (background, waitUntil) brotli q9 via node:zlib (nodejs_compat); keep identity for clients without br; replay with content-encoding: br, Vary: Accept-Encoding and encodeBody: 'manual' on HIT/STALE/L3.",
+      "metric": "FCP/LCP/SI mobile (Lantern document download)",
+      "expected_effect": "Document transfer 89 KB -> ~63 KB: ~-0.14 s mobile FCP/LCP/SI (~+1 point), ~0 desktop; L1 capacity ~10x (24 MiB holds ~400 br docs vs ~42 raw).",
+      "estimate_basis": "psi/home.html: gzip-6 78.6 KB vs br-q9 57.3 KB; prod transfer 89 371 B incl. ~10 KB headers; Lantern 1474 kbps download, children wait for document completion.",
+      "risk": "medium",
+      "risk_notes": "Hosting proxy may re-encode or strip; CPU of q9 on 575 KB in background (~tens of ms); must not break the 61 s stream-identity doctrine (only replay path changes).",
+      "gates": ["documentCache.server.test.ts", "documentCacheL2.test.ts", "artifact boot tests"],
+      "verification": "curl -sI -H 'accept-encoding: br' shows content-encoding: br on HIT; PSI JSON Document transferSize ~60-65 KB.",
+      "effort": "M",
+      "depends_on": ["SC-1"]
+    },
+    {
+      "id": "SC-8",
+      "title": "Homepage bundle RPC (+ optional chrome_bootstrap) seeding the same query keys",
+      "files": [
+        "src/lib/queries/public.ts",
+        "src/routes/index.tsx",
+        "src/routes/__root.tsx",
+        "supabase/migrations/<new> (get_homepage_bundle, chrome_bootstrap)"
+      ],
+      "mechanism": "One SQL call returns reading settings + homepage row + gated body (replaces W2 pages and W3 get_entity_content chain); optional chrome_bootstrap returns settings + tokens + menus (4 connections at t0 -> 1). Results seed the existing react-query keys so SSR/hydration parity is unchanged.",
+      "metric": "MISS TTFB on a fully cold path; stored-vs-degraded",
+      "expected_effect": "Fully cold '/': 4 -> 2 serial waves, -0.3...-0.45 s at 150-200 ms/call; data ready ~400 ms < 600 ms deadline, so the first render is clean and stored instead of degraded.",
+      "estimate_basis": "Fixture trace at 200 ms/call degraded in W3 (556-886 ms); at 120 ms/call W2+W3 = 230-500 ms.",
+      "risk": "medium",
+      "risk_notes": "Gated body access rules must be identical inside the RPC; dehydrationWritesPerLoader ceiling 11 in __root has zero slack.",
+      "gates": [
+        "check:ssr-budgets",
+        "check:loader-policy",
+        "check:rpc-contract",
+        "check:sql-tenant-scope",
+        "pgTAP",
+        "homeRoute.test.tsx",
+        "SSR/hydration parity tests"
+      ],
+      "verification": "run-trace.sh 200 on the new artifact: cache-control public, full-size body, <= 2 waves before headers.",
+      "effort": "M",
+      "depends_on": ["SC-2"]
+    },
+    {
+      "id": "SC-9",
+      "title": "Event-driven freshness via content version token (fresh up to 6 h while unchanged)",
+      "files": [
+        "src/lib/http/documentCache.ts",
+        "src/lib/http/documentCache.server.ts",
+        "src/lib/server/audit.server.ts",
+        "supabase/migrations/<new> (site_content_version + bump paths)"
+      ],
+      "mechanism": "Entries record contentVersion; isolates refresh the version in the background every <= 30 s (colo snapshot); same version and age < 6 h = HIT, else STALE + revalidate; 15-30 min cap for time-dependent content (ticker, ad windows); scheduler bumps when scheduled posts go live.",
+      "metric": "HIT ratio, render count, cross-colo editorial freshness",
+      "expected_effect": "Renders only on change instead of every ~3 min per isolate generation; remote-colo publish visibility <= 30-60 s (today 3 min + next request).",
+      "estimate_basis": "DOCUMENT_CACHE_MAX_FRESH_MS=180 s exists only because purge is colo-local (documentCache.ts:41-47).",
+      "risk": "high",
+      "risk_notes": "Editorial freshness depends on bump coverage (all tables feeding the homepage, scheduled posts); ticker freshness is a product decision.",
+      "gates": [
+        "documentCache.test.ts",
+        "cachePolicy.test.ts",
+        "check:sql-*",
+        "check:migration-ledger"
+      ],
+      "verification": "Publish a post: all probe colos show the new version within 60 s; Workers Logs render count per hour drops.",
+      "effort": "M",
+      "depends_on": ["SC-3", "SC-6"]
+    },
+    {
+      "id": "SC-10",
+      "title": "Trim the Link header to critical hints; relative imagesrcset",
+      "files": ["src/lib/http/frameworkPreloads.server.ts", "src/lib/seo/rootHead.ts"],
+      "mechanism": "Drop manifest modulepreloads of stray route chunks and keep CSS, fonts, LCP image (+ boot chunks if boot-js keeps them); emit relative URLs in the image preload imagesrcset.",
+      "metric": "document bytes; bandwidth contention",
+      "expected_effect": "Link 4.0 KB -> ~2 KB (~-10 ms mobile Lantern); stray High-priority preloads removed (main gain counted by boot-js).",
+      "estimate_basis": "psi/h1.txt Link 4038 B, 33 entries, image preload 1771 B.",
+      "risk": "low",
+      "risk_notes": "Coordinate with boot-js/lcp-path; Early Hints not worth pursuing for PSI (Lantern ignores 103).",
+      "gates": ["platformPreloads.test.ts", "check:chunks", "check:entry-purity"],
+      "verification": "curl -sI shows <= 15 Link entries; PSI Document transferSize.",
+      "effort": "S"
+    },
+    {
+      "id": "SC-11",
+      "title": "Verify PSI final URL and decide on the '/' -> '/en' Accept-Language redirect",
+      "files": ["src/start.ts", "src/lib/i18n/langNegotiation.ts"],
+      "mechanism": "Read finalDisplayedUrl and the redirects audit in the PSI JSON; if PSI is redirected, serve '/' without redirect on first visit (client-side language suggestion) or accept that PSI measures '/en' and warm it.",
+      "metric": "FCP/LCP mobile",
+      "expected_effect": "-0.2...-0.4 s mobile FCP/LCP if PSI is currently redirected; 0 otherwise.",
+      "estimate_basis": "Lantern adds the redirect request (RTT 150 ms + origin latency 20-240 ms) before the document.",
+      "risk": "medium",
+      "risk_notes": "Product/SEO decision on language negotiation.",
+      "gates": ["startPipeline.test.ts", "langNegotiation tests"],
+      "verification": "PSI JSON finalDisplayedUrl == https://neweuropeanstrategies.com/ and no redirects entry.",
+      "effort": "S"
+    }
+  ],
+  "conflicts_with_other_workstreams": [
+    "html-weight: document bytes are on Lantern's critical path; brotli (SC-7) and HTML reduction compound - agree on who measures the doc transferSize baseline.",
+    "lcp-path: Early Hints / Link-header preloads give no Lantern benefit (root-node dependency); do not budget PSI points on 103.",
+    "boot-js: SC-10 touches frameworkPreloads.server.ts (stray route modulepreloads) - single owner needed.",
+    "hydration/boot-js: SSR seeds with updatedAt 0 (refetch storm) live in the same loaders SC-8 changes (__root.tsx, index.tsx) - file ownership must be serialized.",
+    "measurement/lighthouse-analyst: fixture FCP is bimodal (2.1-2.4 s vs 5.0 s across identical runs) and TBT swings 375-5960 ms under contention - only SI/FCP/LCP deltas of paired runs are usable here."
+  ],
+  "open_questions": [
+    "Does Lovable's publish pipeline honour custom wrangler bindings (KV) from vite.config.ts cloudflare.wrangler? Decides SC-6 option A vs B.",
+    "Supabase project region (unnltowbgszpdzwpawdu) and Worker->PostgREST RTT per colo (audit item 0.4) - decides where the EU warmer lands and the real wave cost.",
+    "Does the hosting proxy buffer the streamed body (TTFB == full render)? Test in section 8 step 4.",
+    "From which Google region does PSI run for this user, and is it redirected '/' -> '/en' (finalDisplayedUrl)?",
+    "Are previous-deploy /assets still served after a Lovable publish (deploy skew for STALE HTML)?",
+    "Editorial decision: acceptable staleness of the trending ticker and ad emission windows under SC-9."
+  ]
+}

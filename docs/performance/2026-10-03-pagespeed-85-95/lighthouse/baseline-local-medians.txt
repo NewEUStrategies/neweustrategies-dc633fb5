@@ -1,0 +1,10 @@
+server pid 1875 port 4309, proxy pid 1876 port 4310
+  baseline-mobile-1.json                   perf= 70 FCP=3.11s LCP=6.90s TBT=18ms SI=3.11s CLS=0.000 TTFB=9ms
+  baseline-mobile-2.json                   perf= 71 FCP=3.16s LCP=6.40s TBT=11ms SI=3.16s CLS=0.000 TTFB=11ms
+  baseline-mobile-3.json                   perf= 69 FCP=3.16s LCP=8.06s TBT=12ms SI=3.43s CLS=0.000 TTFB=9ms
+  baseline-desktop-1.json                  perf= 94 FCP=0.65s LCP=1.63s TBT=0ms SI=0.82s CLS=0.000 TTFB=8ms
+  baseline-desktop-2.json                  perf= 96 FCP=0.65s LCP=1.32s TBT=0ms SI=0.78s CLS=0.000 TTFB=8ms
+  baseline-desktop-3.json                  perf= 95 FCP=0.65s LCP=1.46s TBT=0ms SI=0.72s CLS=0.000 TTFB=8ms
+MEDIAN baseline mobile: perf=70 FCP=3.16s LCP=6.90s TBT=12ms SI=3.16s (n=3)
+MEDIAN baseline desktop: perf=95 FCP=0.65s LCP=1.46s TBT=0ms SI=0.78s (n=3)
+summaries: /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/lh/results/baseline-{mobile,desktop}-1.summary.txt

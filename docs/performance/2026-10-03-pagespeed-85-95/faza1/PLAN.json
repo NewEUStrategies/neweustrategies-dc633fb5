@@ -1,0 +1,2138 @@
+{
+  "plan_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/PLAN.md",
+  "targets": {
+    "mobile": "PSI ≥ 85 (hl=pl, mediana 5 przebiegów; oczekiwana wartość po mieszance HIT/MISS z P0.4): FCP ≤ 1,9 s, LCP ≤ 3,0 s, TBT ≤ ~340 ms przy metrykach W2 (≤ ~375 przy LCP 2,7 s; zapas ≤ 250), SI ≤ 4,0 s, CLS ≤ 0,001; fixture z flagami: FCP ≤ 1,6 s, LCP ≤ 2,4 s, TBT ≤ 200 ms (przeliczane przez k z W0). Projekcja (księga per zadanie; centralnie = mapowanie M-b skalibrowane do bazy i reguła ×0,5; zakres M-b'…M-a; po ukośniku pełne szacunki): 65 po W1; 84 (81-87) / 90 po W2; 86 (83-89) / 92-93 po W3 i W5. 85 domyka się centralnie bez zapasu do progu bramki 87; przy mapowaniu pesymistycznym M-b' (k = 1) wymaga ≥ ~60 % dostarczenia szacunków pozycji niezweryfikowanych.",
+    "desktop": "PSI ≥ 95 jako STRETCH (D12), próg akceptacji ≥ 90: z C3 FCP ~0,45 s, LCP ~0,81 s, SI ~1,3 s, TBT ≤ 150 ms (dla 90: ≤ ~235 ms); fixture desktop4x ≤ 110 ms (cel 95) / ≤ 200 ms (twardy próg DoD), desktop5x raportowane. Projekcja (centralnie / pełne, host ~x4): 78 po W1; 84 / 92 po W2; 87 / 98 po W3; 88 / 98 po W5; host ~x5: 85 (78-88) / 96 po W5. 95 NIE domyka się centralnie: wymaga ≥ ~85 % dostarczenia szacunków pozycji niezweryfikowanych i hostu ~x4 (x5: ≥ ~89-96 %); desktop ≥ 90 wymaga ≥ ~60 % (x4)."
+  },
+  "waves": [
+    {
+      "wave": 0,
+      "goal": "Fala 0 — fundament pomiaru, kalibracji i diagnozy. Fundament: pomiar offline zbliżony do produkcji (żywy backend klienta, fałszywy gtag, desktop x4 i x5, ponowne rozgrzanie dokumentu przed KAŻDYM przebiegiem, księga TBT per zadanie z zapisanych artefaktów, prawdziwe A/A z minimalnym wykrywalnym efektem), kalibracja fixture→PSI, bramka wagi dokumentu w CI, wspólne prymitywy planowania pracy po załadowaniu (jeden punkt ciszy, jedna kolejka po pierwszej interakcji), diagnoza długich zadań z listą poprawek plik:linia, RUM (INP, stan cache) i rozgrzewanie colo PSI. Zero punktów, ale bez tej fali pozycji W1-W3 nie da się zweryfikować ani policzyć. Bramka fali: A/A z flagami zapisane (σΔ, MDE per metryka); `n_valid` = 5 we wszystkich seriach (żaden przebieg STALE/MISS, log `x-nes-cache` per przebieg); `lanternTasks` odtwarza audyt TBT ±1 ms; współczynniki k (fixture→PSI) mobile/desktop4x/desktop5x w POMIAR.md, a przy |k−1| > 0,2 cele §1.4 przeliczone; raport P0.5 z listą poprawek plik:linia zatwierdzony przez orkiestratora; testy harnessu i bramki CI zielone; RUM P0.6 i rozgrzewka P0.7 gotowe do wdrożenia przed W1.",
+      "expected_scores_after": "mobile 53 / desktop 70 (bez zmian w kodzie produktu). Wyjście: baseline W0 z flagami, współczynniki mapowania k (fixture→PSI) mobile/desktop, księga per zadanie W0 w obu reżimach (bez i z C3), lista poprawek P0.5, rozgrzewka colo (mniej przebiegów PSI na MISS).",
+      "items": [
+        {
+          "id": "P0.1",
+          "workstream": "measurement:M1+M3, lighthouse-analyst:LA-C6, lighthouse-analyst:LA-C1 (bramka, poprawiona)",
+          "title": "[MUST] Harness: desktop4x/desktop5x, żywy backend klienta, fałszywy gtag, rozgrzanie przed każdym przebiegiem, artefakty i księga Lantern per zadanie, A/A z MDE, kalibracja k",
+          "files": [
+            "scripts/performance/lighthouse-local.mjs",
+            "scripts/performance/artifactServer.ts",
+            "scripts/performance/lighthouseReport.ts",
+            "scripts/performance/homeFixture.ts",
+            "scripts/performance/clientBackend.ts (nowy)",
+            "scripts/performance/fakeGoogle.ts (nowy)",
+            "scripts/performance/lanternTasks.ts (nowy)",
+            "scripts/performance/harness-ext.test.mjs (nowy)",
+            "playwright.artifact.config.ts",
+            "docs/performance/2026-10-03-pagespeed-85-95/POMIAR.md",
+            "docs/performance/2026-10-03-pagespeed-85-95/EVIDENCE.md",
+            "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/measure-local.sh",
+            "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/measure-local-cloud.sh",
+            "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/measure-ab-cloud.sh"
+          ],
+          "mechanism": "(1) Formy `desktop4x` (`--preset=desktop --throttling.cpuSlowdownMultiplier=4`) i `desktop5x` (x5; werdykt LA-C1: model analityka stawia host PSI desktop bliżej x5). (2) `--client-backend fixture`: serwer HTTP na 127.0.0.1:4199 odpowiadający na `GET/OPTIONS /rest/v1/*` i `/rest/v1/rpc/*` danymi `homeFixture.fixtureResponse()` z nagłówkami CORS jak PostgREST (`font_scale` = `'{}'` jak domyślna kolumna), żeby refetch-rerendery i przepisanie `style[data-brand-tokens]` zachodziły jak na produkcji (6 PostgREST + 6 preflight). (3) `--third-party fake-gtag`: `fakeGoogle.ts` (produktyzacja `$SCRATCH/phase1/third-party/exp/fake-google.mjs`) przez `--host-resolver-rules`, transformacja dokumentu wstrzykuje `window.__NES_GA_ANY_HOST__=true`, kształt zadań skalibrowany do produkcji (AW ≈183 ms, G ≈69/51 ms symulowane na M3, przeliczone przez `benchmarkIndex`), nie 2,2x jak w eksperymencie. (4) **Ponowne rozgrzanie przed KAŻDYM przebiegiem** (werdykt M1 #1, którego brakowało): `fetchDocument(url, {ua: warmUa})` tuż przed każdym `runLighthouseWithRetry`, log per przebieg `x-nes-cache`, `x-nes-cache-age`, `server-timing` odpowiedzi rozgrzewki i dokumentu z `devtoolsLog` LH, plus znacznik rewalidacji z logu serwera artefaktu; przebieg, w którym dokument LH był STALE/MISS albo w trakcie którego serwer renderował SSR (rewalidator w tym samym procesie Node, który serwuje assety), jest oznaczany `excluded` i powtarzany (maks. 2 razy); podsumowanie podaje `n_valid`. (5) `--save-artifacts`: zapis śladu i devtoolsLog każdego przebiegu (tryb gather jak `lighthouse -G`), bo zadania z Layout (mnożnik x mult/2) i okna FCP/TTI są widoczne tylko w śladzie (krytyka m7). (6) `lanternTasks.ts` = produktyzacja `$SCRATCH/phase1/ledger/tbt-tasks.mjs`: z zapisanych artefaktów liczy blokowanie KAŻDEGO symulowanego węzła CPU dokładnie jak Lantern (0,5 optymistyczny + 0,5 pesymistyczny, każdy w swoim oknie [FCP, TTI]; suma odtwarza audyt TBT co do 1 ms — sprawdzone: 356 ms baza, 885 ms z transformacją C3 na `lha1-mobile`), klasyfikuje węzeł (ParseHTML / Style / Script:<chunk> / Timer / GC / ScriptCatchup / Layerize-UpdateLayer / Paint), podaje start i czas obserwowany, flagę Layout i URL; `--diff A B` paruje zadania po starcie, klasie i URL-u i drukuje, które zniknęło/skróciło się. Plus `scriptBytesEndedBeforeObsLcp` z jawną listą wykluczeń `--exclude-script` (domyślnie `^/~flock\\.js$`, wstrzykiwany przez hosting; raportowany osobno — krytyka m11) i tryb FCP każdego przebiegu. (7) Prawdziwe A/A (`--compare . .`, 5+5, z flagami i bez): odchylenie standardowe różnic par σΔ per metryka i **minimalny wykrywalny efekt** MDE = 2,8·σΔ/√n (α 0,05, moc 0,8) zapisane w POMIAR.md; pozycje, których oczekiwany efekt TBT < MDE, są oceniane wyłącznie księgą per zadanie (protokół §2). (8) **Kalibracja fixture→PSI** (krytyka M8): baseline W0 z flagami dla mobile, desktop4x, desktop5x zestawiony z PSI (600/740 oraz medianami JSON-ów z D13): `k = TBT_PSI / TBT_fixture_z_flagami` per forma, zapis w POMIAR.md; jeśli |k−1| > 0,2, cele fixture wszystkich bramek są przeliczane przez k (orkiestrator aktualizuje §1.4), a forma desktopowa, której baseline z flagami jest bliższy PSI 740, staje się formą bramek desktopu. (9) Wariant fixture dla `playwright.artifact.config.ts` (env jak `playwright.performance.config.ts`, `node --import scripts/performance/replayFetch.mjs`), żeby `bun run test:e2e:artifact` działał offline; stare `measure-*.sh` w repo → stub `exit 1` ze wskazaniem harnessu (M3); kopie w `$SCRATCH/lh/` stubuje orkiestrator.",
+          "expected_effect": "0 pkt. Umożliwia ocenę: TP-1 (na fixture gtag się nie ładuje — bramka hosta `src/lib/analytics/tagIds.ts:71-75`), H2 (martwy backend ukrywa przepisanie arkusza), desktopu (x1 na sandboksie = TBT 0), sprzężenia C3 (deterministycznie: what-if `dropscripts-before-lcp` na W0 daje mobile x4 356 → 885 ms, desktop x4 444 → 538, x5 765 → 879). Usuwa znane źródło szumu A/A (rewalidacja SSR w trakcie przebiegów). Podstawa: werdykty M1, M2, M3, LA-C1, TP-1.",
+          "risk": "niski. Fałszywy backend/tag ≠ produkcja → kalibracja k (pkt 8) i opis w POMIAR.md; flagi domyślnie WYŁĄCZONE (porównywalność z zapisanym baseline'em); obie strony A/B zawsze z tymi samymi flagami; ponowne rozgrzanie wydłuża serię o ~1 s na przebieg.",
+          "gates": [
+            "typecheck:scripts",
+            "lint",
+            "format:check",
+            "node --test scripts/performance/harness-ext.test.mjs scripts/performance/document-weight.test.mjs",
+            "check:gate-coverage"
+          ],
+          "verification": "A/A: `node scripts/performance/lighthouse-local.mjs --compare . . --runs 5 --forms mobile,desktop4x,desktop5x --client-backend fixture --third-party fake-gtag --save-artifacts` → |ΔFCP|,|ΔLCP| ≤ 0,02 s, σΔ i MDE TBT zapisane; `n_valid` = 5 (żaden przebieg STALE — log `x-nes-cache` per przebieg); `node scripts/performance/lanternTasks.ts <artefakty>` odtwarza audyt TBT ±1 ms na 3 przebiegach; kontrola pozytywna: z `--third-party fake-gtag` księga pokazuje zadania googletagmanager, bez flagi nie; z `--client-backend fixture` odpowiedzi 200 z 127.0.0.1:4199 i mutacja `style[data-brand-tokens]` w śladzie; test jednostkowy: symulowana odpowiedź `x-nes-cache: STALE` → przebieg `excluded`; `bun run test:e2e:artifact` przechodzi offline na bazie; tabela k w POMIAR.md.",
+          "depends_on": [],
+          "parallel_group": "w0-harness",
+          "effort": "L"
+        },
+        {
+          "id": "P0.2",
+          "workstream": "measurement:M2+M5+M6, prior-art:PA-C3",
+          "title": "[MUST] Bramka wagi dokumentu w CI, instrumenty PSI (locale=pl, pełny LHR), rozgrzewka trybu A",
+          "files": [
+            "package.json",
+            ".github/workflows/first-visit.yml",
+            ".github/workflows/psi.yml (nowy)",
+            ".github/workflows/lighthouse.yml",
+            "scripts/verify-static.ts",
+            "scripts/performance/psi-sample.mjs"
+          ],
+          "mechanism": "`\"check:document-weight\": \"node scripts/performance/check-document-weight.ts\"` (node, nie bun: zlib buna zawyża gzip o ~2 % i bramka jest czerwona na bazie — werdykty M2/PA-C3) oraz `test:measurement-harness`. W first-visit.yml kandydat przez `bun run check:document-weight -- --root ../candidate --json reports/document-weight.json` (dokładnie raz, `check:gate-coverage`), baseline przez `node scripts/performance/check-document-weight.ts --root ../baseline --json reports/document-weight-baseline.json || true`, `node --test` testów harnessu, upload raportów; A/B Lighthouse tylko raportowo, n=5, `--idle-wait 30`, filtr ścieżek (`src/**`, `vite*.config.ts`, `package.json`), bez blokady bajtowej z LH (redundantna z bramką statyczną). `scripts/verify-static.ts` EXCLUDED: `check:document-weight` (wymaga artefaktu). `psi-sample.mjs`: `locale=pl` (dziś brak → PSI mierzy 302 na `/en`), zapis pełnego `lighthouseResult`, `utm_source` per przebieg, klasyfikacja HIT/MISS z `server-response-time`, `--from-file` przyjmuje też JSON-y eksportowane ręcznie z pagespeed.web.dev (D13). `psi.yml`: cron + workflow_dispatch z sekretem `PSI_API_KEY` (ustawia człowiek, D8). `lighthouse.yml` (tryb A, `vars.LHCI_URL`): krok rozgrzewki UA przeglądarki z logiem `x-nes-cache`/`server-timing`/`cf-ray`; `CHROME_PATH` przez `$GITHUB_ENV` (nie `env:` — `check:workflow-env-contract`).",
+          "expected_effect": "0 pkt. Deterministyczna blokada regresji struktury dokumentu (≈6 s na stronę A/B); PSI z kluczem = jedyny instrument mierzący liczbę z kontraktu (53/70). Zweryfikowane (M2 osłabione, PA-C3 potwierdzone co do efektu).",
+          "risk": "niski-średni: liczniki z zerowym zapasem (`inlineStyleCount` 50/50, `modulepreloadCount` 25/25) zablokują PR z nowym widgetem nad zgięciem → reguła `_comment` (osobny commit z pomiarem); budżety z node 22 lokalnie vs node 24 w CI → pierwszy log runnera jako ręczny re-baseline z uzasadnieniem (`--ratchet` nie umie podnieść progu).",
+          "gates": [
+            "check:gate-coverage",
+            "check:workflow-env-contract",
+            "check:ci-gates",
+            "verify:static (bez artefaktu przechodzi)",
+            "format:check"
+          ],
+          "verification": "`bun run check:gate-coverage && bun run check:workflow-env-contract && bun run verify:static`; `node scripts/performance/check-document-weight.ts` zielone na bazie; kontrola negatywna istniejącego testu (dodatkowy inline `<style>` → czerwone); `node scripts/performance/psi-sample.mjs --from-file $SCRATCH/lh/prod-mobile.json` działa, URL zapytania PSI zawiera `locale=pl`, a przebieg z `server-response-time` > 1 000 ms jest oznaczony MISS.",
+          "depends_on": [],
+          "parallel_group": "w0-ci",
+          "effort": "M"
+        },
+        {
+          "id": "P0.3",
+          "workstream": "third-party:TP-4 (prymityw) + krytyka M11 (kolejka po pierwszej interakcji, jeden punkt ciszy)",
+          "title": "[MUST] Prymitywy: jeden globalny punkt ciszy onQuiescent(), onFirstInteraction() i priorytetowa kolejka pracy po pierwszej interakcji",
+          "files": [
+            "src/lib/performance/whenQuiescent.ts (nowy)",
+            "src/lib/performance/firstInteraction.ts (nowy)",
+            "src/lib/performance/postInteractionQueue.ts (nowy)",
+            "src/lib/performance/__tests__/whenQuiescent.test.ts (nowy)",
+            "src/lib/performance/__tests__/firstInteraction.test.ts (nowy)",
+            "src/lib/performance/__tests__/postInteractionQueue.test.ts (nowy)"
+          ],
+          "mechanism": "(1) **Jeden detektor ciszy na stronę** (`whenQuiescent.ts`): `onQuiescent(task, {priority})` rejestruje konsumenta zamiast uruchamiać własne okno — wszyscy konsumenci (gtag P1.1, zapas interaktywnego banera P1.3, nakładki, import `cacheBusting`, zapas wysp P1.6) czekają na TEN SAM moment ciszy, więc żądania jednego konsumenta nie przesuwają okna pozostałych (krytyka M11: kaskada). Cisza = max(koniec ostatniego `longtask`, koniec ostatniego **liczonego** wpisu `resource`, `load`), min 5 s po `load`, okno 5 s, cap 20 s; sprawdzanie `setTimeout(max(250, okno − upłynęło))` (nie pętla rIC); okno pauzowane przy `visibilityState==='hidden'`, cap działa także w ukrytej karcie (werdykt TP-1); Safari bez `longtask` — cisza zasobów + minimum. **Lista ignorowanych zasobów** (nie resetują okna): `initiatorType==='img'` rozpoczęte po `load` (leniwe obrazy, kolejne slajdy autoodtwarzania co 4,5-5,5 s), `/api/public/version` (poll `cacheBusting`), `/~flock.js`, domeny Google, oraz wzorce zgłoszone przez konsumentów `registerOwnedRequest(pattern)`. Po osiągnięciu ciszy konsumenci są uruchamiani przez kolejkę z pkt 3 w kolejności priorytetów, gtag ostatni. (2) `onFirstInteraction(cb)`: jeden współdzielony nasłuch `pointerdown|keydown|touchstart|scroll|wheel` (capture, passive). (3) `postInteractionQueue.ts`: `enqueue(task, {priority, target?})` z klasami `shell` (interaktywny baner zgód) → `island-target` (wyspa pod palcem/fokusem) → `header` → `islands` → `overlays` → `analytics` (gtag); po pierwszej interakcji kolejka opróżnia się **jedno zadanie na klatkę** (`requestAnimationFrame` → `scheduler.postTask(fn,{priority:'background'})`, fallback `setTimeout(0)`; lokalny interfejs typów, bez `unknown`-castów), zawsze po własnych handlerach interakcji; wpis z `target` zawierającym `event.target` wskakuje na początek. Uzasadnienie okna 5 s: dłuższe niż progi ciszy Lighthouse'a (1 s, `wait-for-condition.js:409-480`), więc praca nie trafia do śladu — klasyczna reguła TTI, nie wykrywanie Lighthouse'a; kolejka chroni INP pierwszej interakcji (krytyka M11).",
+          "expected_effect": "0 pkt bezpośrednio; jeden przetestowany punkt ciszy i jedna kolejka dla P1.1, P1.3, P1.6, P2.2, P2.3. Ogranicza utratę `page_view` przez kaskadę ciszy (bez listy ignorowanych gtag często czekałby do capu 20 s).",
+          "risk": "niski; zagłodzenie przez stronę produkującą zadania bez końca → `capMs`; zbyt szeroka lista ignorowanych mogłaby wpuścić konsumenta do śladu → test z autoodtwarzaniem i pollingiem oraz e2e `third-party-quiescence` (P1.1).",
+          "gates": [
+            "vitest (FakePerformanceObserver z rozdziałem typu wpisu)",
+            "typecheck",
+            "lint",
+            "check:unknown-casts",
+            "check:clock-freeze",
+            "check:entry-purity"
+          ],
+          "verification": "`bunx vitest run src/lib/performance/__tests__` — przypadki: nic przed 5 s po `load`; zasób i długie zadanie w oknie przesuwają; obraz slajdu co 5 s po `load` i poll `/api/public/version` NIE przesuwają; dwóch konsumentów, z których pierwszy po uruchomieniu pobiera skrypt, uruchamia się w tym samym punkcie ciszy (brak kaskady); cap 20 s także w ukrytej karcie; kolejka: kolejność priorytetów, jedno zadanie na klatkę, `target` wskakuje na początek; brak observerów (Safari).",
+          "depends_on": [],
+          "parallel_group": "w0-prims",
+          "effort": "M"
+        },
+        {
+          "id": "P0.4",
+          "workstream": "server-cache:SC-1",
+          "title": "[HIGIENA] Obserwowalność cache/TTFB (z trzema poprawkami werdyktu SC-1)",
+          "files": [
+            "src/server.ts",
+            "src/lib/http/ssrTiming.ts",
+            "src/lib/http/documentCache.server.ts",
+            "src/lib/http/__tests__/ssrTiming.server.test.ts",
+            "src/lib/http/__tests__/documentCache.server.test.ts"
+          ],
+          "mechanism": "Server-Timing dostaje `nes-layer` (L1/L2/render) i `colo` (`request.cf?.colo`, fallback sufiks `cf-ray`, pole opcjonalne), dopisane PO `nes-edge`; linia logu (nie nagłówek): `isoReq` (licznik żądań izolatu = flaga zimnego startu), `ray`, `uaClass`, `degradedBy` z korelacji istniejącego `console.warn` `[ssr-resilient]`. `streamMs` przez owijkę `TransformStream.flush()` na już przebudowanym `Response` w `server.ts` PO `applyDeferredDocumentStore` i `guardDocumentResponse` (doktryna incydentu ~61 s), nie z tee; żadnej metryki `stream` w Server-Timing (nagłówek wychodzi przed ciałem).",
+          "expected_effect": "0 pkt (werdykt). Dane do: HIT ratio per colo (MISS na PSI kosztuje SI: −3,4 pkt mobile / −4,8 desktop na przebieg) — wejście dla oczekiwanego wyniku po mieszance HIT/MISS w DoD §8.2, udziału zimnych izolatów i zdegradowanych renderów.",
+          "risk": "niski: testy dokładnych ciągów Server-Timing do aktualizacji (`ssrTiming.server.test.ts:187-361`, `documentCache.server.test.ts:598`); tożsamość body nienaruszona.",
+          "gates": [
+            "vitest ssrTiming.server/documentCache.server/startPipeline",
+            "check:server-entry-purity",
+            "typecheck",
+            "lint"
+          ],
+          "verification": "testy jednostkowe; na artefakcie z fixture `curl -sI` pokazuje `server-timing: nes-edge…, nes-layer;desc=L1`, a linia logu po zakończeniu strumienia zawiera `streamMs` i `isoReq`.",
+          "depends_on": [],
+          "parallel_group": "w0-server",
+          "effort": "S"
+        },
+        {
+          "id": "P0.5",
+          "workstream": "lighthouse-analyst:LA-C1 (a) = hydration:H12 (diagnoza) + krytyka M1/M16 (księga per zadanie, lista poprawek plik:linia)",
+          "title": "[MUST] Diagnoza długich zadań i księga TBT per zadanie W0 (build profilujący React, mapy źródeł) — lista poprawek plik:linia z właścicielami",
+          "files": [],
+          "mechanism": "Worktree eksperymentalny bez zmian produktu (`$SCRATCH/phase2/p05/`); narzędzia już istniejące, niezależne od P0.1: `$SCRATCH/phase1/hydration/trace.mjs --backend=ok` (CDP 4x z działającym backendem w procesie), `$SCRATCH/phase1/ledger/tbt-tasks.mjs` (księga Lantern per węzeł CPU), `$SCRATCH/phase1/lighthouse-analyst/whatif.py` (deterministyczne what-if na zapisanych artefaktach), alias `react-dom/client → react-dom/profiling` + React Performance Tracks, build z mapami źródeł (`build.sourcemap:'hidden'`; raport boot-js: mapa entry wychodzi pusta — naprawić w eksperymencie albo atrybuować przez profil komponentów). Zakres: (i) księga W0 per zadanie dla mobile x4, desktop x4, desktop x5, w reżimie bazowym i z transformacją C3 (`dropscripts-before-lcp`), rozpoczęta w PLAN §1.5 (tabela z `lha1-*`) i odtworzona na bazie W0; (ii) dla KAŻDEGO zadania ≥ 50 ms sym. w którymkolwiek reżimie: przyczyna (komponent z Performance Tracks, plik:linia z mapy źródeł), flaga Layout (reguła 4: nie usuwać ostatniego Layout bez podziału), pozycja-właściciel, oczekiwany czas sym. po poprawce. Obowiązkowe pytania: commit 95,6 ms (obs 680 ms; dziecko ParseHTML — który `innerHTML`; UpdateLayoutTree wymuszony z `index:422:14025`, 161 el.), przebieg korzenia 34,3 ms (`RunMicrotasks` 27,4 — TLA `src/lib/i18n.ts:120-131` czy router), zadanie timera 23,5 ms (obs 529; `setTimeout(0)` przed hydrate z `src/router.tsx:210`?), zadanie `ScriptCatchup` x18 (obs 422 mobile / 376 desktop, 35,5/40,4 ms — kompilacja całego zestawu bootu naraz), pierwsza klatka 78,7 ms z Layout (Style 531 el. + Layout 26 ms), zadanie kompozytora 40,5/37,8 ms (`UpdateLayer` x11-14, `Layerize`, IntersectionObserver — lista warstw i ich przyczyna w CSS/JS), ParseHTML w commicie Reacta 37,3 ms (obs 1626), styl 32,4 ms (obs 1664 — przełączenie urządzenia?); (iii) lista poprawek `plik:linia → pozycja` dla W1 (P1.2, P1.3, P1.7), W2 (P2.2-P2.6), W3 (P3.1, P3.4) i W5 (P5.1), sprawdzona z macierzą §4: poprawka w pliku innej pozycji tej samej fali trafia do właściciela pliku jako uzupełnienie zakresu przypisane przez orkiestratora PRZED startem fali; (iv) analiza JSON-ów PSI z D13, gdy są (`analyze.py`: obs LCP vs obs DCL, element LCP, bajty i CPU w grafie LCP, `benchmarkIndex`, lista `long-tasks` desktop z atrybucją, obecność gtag w śladzie, nazwy 99 user-timing) → aktualizacja k (P0.1) i decyzja o LA-C5.",
+          "expected_effect": "0 pkt bezpośrednio. Zamienia budżety „poprawek z diagnozy\" na pozycje z plikami i liczbami (krytyka M16); przypisuje właściciela kubłowi „other\" (kompozytor, timer, GC — krytyka B2/M10a); dostarcza deterministyczną księgę, którą protokół §2 traktuje jako główne kryterium przyjęcia TBT.",
+          "risk": "niski (bez zmian produktu); brak jednoznacznej przyczyny zadania → zadanie zostaje w księdze z właścicielem „nieprzypisane\" i jest raportowane w bramce W1, a odpowiednia część budżetu P1.7/P2.4 spada do 0.",
+          "gates": [
+            "brak bramek repo (eksperyment); raport z odtwarzalnymi komendami",
+            "suma księgi = audyt TBT ±1 ms dla każdego śladu"
+          ],
+          "verification": "`$SCRATCH/phase2/p05/REPORT.md`: tabela zadań (start/czas obs i sym., opt/pes, klasa, plik:linia, właściciel, oczekiwany czas po poprawce), komendy odtworzenia (`node $SCRATCH/phase1/ledger/tbt-tasks.mjs <artefakty>`, `python3 whatif.py …`), lista poprawek z przypisaniem do plików macierzy §4; orkiestrator zatwierdza listę przed startem W1.",
+          "depends_on": [],
+          "parallel_group": "w0-diagnosis",
+          "effort": "M"
+        },
+        {
+          "id": "P0.6",
+          "workstream": "measurement:M7 (przeniesione z W7) + krytyka M11 (INP i page_view jako warunek wdrożenia)",
+          "title": "[MUST] RUM: stan cache dokumentu, colo i atrybucja INP w ładunku web-vitals; linia bazowa przed wdrożeniem",
+          "files": ["src/lib/webVitals.ts", "src/lib/__tests__/webVitals.test.ts"],
+          "mechanism": "Odczyt `PerformanceNavigationTiming.serverTiming` (`nes-edge` desc HIT/MISS/STALE; `nes-layer` i `colo` z P0.4, gdy są — pola opcjonalne, brak twardej zależności) do beaconu web-vitals; dla INP (już mierzone w `webVitals.ts`) dodatkowo zgrubna atrybucja: typ zdarzenia, czy przed hydratacją wyspy (`data-island-state` z P1.6, gdy obecny), czas od `load`; bez identyfikatorów. Linia bazowa INP p75 i liczby `page_view`/sesję (GA4) zapisana przed wdrożeniem W1 — warunek wdrożenia P1.1, P1.3, P2.2, P2.3 (DoD §8.2, kryteria wycofania).",
+          "expected_effect": "0 pkt; p75 TTFB/LCP/INP realnych czytelników per HIT/MISS/colo; wykrywa regres INP przez pracę przeniesioną na pierwszą interakcję.",
+          "risk": "niski (prywatność: zgrubne colo, brak identyfikatorów).",
+          "gates": ["vitest webVitals", "typecheck", "lint"],
+          "verification": "test ładunku (pola obecne/nieobecne); po wdrożeniu zapytanie w panelu analityki: p75 INP i rozkład HIT/MISS per colo.",
+          "depends_on": [],
+          "parallel_group": "w0-rum",
+          "effort": "S"
+        },
+        {
+          "id": "P0.7",
+          "workstream": "server-cache:SC-5 (przeniesione z W7 na ścieżkę wyniku, krytyka M8)",
+          "title": "[MUST] Rozgrzewanie colo EU+US z UA przeglądarki co 60 s i po wdrożeniu",
+          "files": [
+            "scripts/warm-edge-cache.mjs",
+            ".github/workflows/scheduler.yml",
+            "supabase/migrations/<nowy>_edge_warm_cron.sql"
+          ],
+          "mechanism": "pg_cron + pg_net co 60 s `GET` na `/`, `/en`, `/blog`, `/en/blog` z UA Chrome i `Accept-Language` pl/en (wariant strumieniowy, nie bot — pierwszy MISS w colo wybiera wariant na 3 min); zewnętrzny monitor wieloregionowy (EU-West blisko europe-west PSI, EU-Central, US-East, US-Central) co 60-120 s; po wdrożeniu odpytywanie `/api/public/version` do zmiany i rozgrzanie regionów; log `x-nes-cache` per region.",
+          "expected_effect": "0 pkt w modelu laboratoryjnym na przebieg HIT; zmniejsza udział przebiegów PSI na MISS (każdy MISS: −3,4 pkt mobile / −4,8 desktop przez SI; werdykt SC-5: P(MISS) w rozgrzanych colo ≈ 0). Wchodzi do oczekiwanego wyniku po mieszance HIT/MISS (DoD §8.2). Niezweryfikowane (bez egressu).",
+          "risk": "niski: koszt trywialny; cron GH wyłączany po 60 dniach bezczynności repo; nie zmienia semantyki świeżości (D2).",
+          "gates": [
+            "check:workflow-env-contract",
+            "check:sql-*",
+            "ledger migracji",
+            "verify:static"
+          ],
+          "verification": "lokalnie: `node scripts/warm-edge-cache.mjs --dry-run` drukuje UA przeglądarki i `Accept-Language`; (człowiek) seria curl z `x-nes-cache: HIT` i `nes-layer` w regionach; Workers Logs (P0.4): udział MISS per colo przed/po.",
+          "depends_on": [],
+          "parallel_group": "w0-warm",
+          "effort": "S"
+        }
+      ]
+    },
+    {
+      "wave": 1,
+      "goal": "Fala 1 — program TBT część A (bez C3), poprawki korzenia z diagnozy, powłoka zgód, jeden kandydat LCP, prymityw wysp. Program TBT część A bez C3: gtag poza śladem, koniec przepisywania arkuszy korzenia, poprawki zadań korzenia z diagnozy P0.5 (przed wyspami — werdykt LA-C1: „tani pierwszy krok\"), nakładki i interaktywny baner poza oknem, powłoka banera zgód (SI), jeden kandydat LCP (warunek C3), prymityw wysp z pełnym API wyzwalaczy. Każda pozycja poprawia dzisiejsze PSI samodzielnie. Bramka fali zawiera pomiar sprzężenia C3 na drzewie W1 — decyduje o składzie W2/W3. Bramka fali: (a) księga `lanternTasks --diff` W0→W1: zadania gtag, przepisania arkusza marki, metryk nagłówka i z listy P0.5 zniknęły albo skrócone we wszystkich przebiegach; mediana TBT mobile i desktop4x < baza W0 (kierunek, n = 5, porównane z MDE); (b) FCP/LCP ±0,02 s; (c) SI: `observedSpeedIndex` mobile ≤ baza − 0,1 s ALBO baner w pierwszej klatce treści histogramu filmstripu (`$SCRATCH/phase1/lcp-path/si/thumbs.cjs`) ALBO Lantern SI na W1 + transformacji C3 ≤ W0 + transformacja − 0,1 s (na fixture SI = FCP, więc nie bezpośrednio); (d) CLS ≤ 0,001 i brak pojedynczego przesunięcia > 0,0005; (e) `imgFetchpriorityHigh` ≤ 2 i element LCP = `img[data-lcp-candidate]` we wszystkich przebiegach; (f) **pomiar sprzężenia przed W2**: drzewo W1 z `--html-transform-b $SCRATCH/phase1/verdicts/boot-js-C3/c3-lcpobs.mjs` (obie strony, flagi P0.1, ≥ 5 przebiegów, `--save-artifacts`) oraz deterministyczny what-if `dropscripts-before-lcp` na artefaktach W1 → tabela zadań w oknie po C3 z właścicielami W2/W3 i projekcja W2; jeśli projekcja W2 (księga × k) > 340 ms TBT PSI mobile, P3.3 i P3.4 stają się MUST przed wdrożeniem.",
+      "expected_scores_after": "PSI mobile 64-68 (centralnie 65): TBT 600 → 130-280 ms (centralnie ~220; mapowania M-a…M-b', §1.5), SI 4,9 → ~4,2 s; PSI desktop 77-79 (centralnie 78): TBT 740 → ~400-430 ms. Fixture (księga deterministyczna, W0-ekwiwalent): mobile x4 356 → 218-258 ms, desktop x4 444 → 393-411, x5 765 → 632-635; FCP/LCP bez zmian; sprzężenie C3 zmierzone na drzewie W1.",
+      "items": [
+        {
+          "id": "P1.1",
+          "workstream": "third-party:TP-1+TP-2 (+TP-6 e2e), lighthouse-analyst:LA-C2 (gtag)",
+          "title": "[MUST] gtag poza śladem: polityka v2 (globalny punkt ciszy) i GA4 bez kontenera Ads do zgody marketingowej",
+          "files": [
+            "src/lib/analytics/gtagLoadPolicy.ts",
+            "src/lib/analytics/__tests__/gtagLoadPolicy.test.ts",
+            "src/lib/analytics/ga4Client.ts",
+            "src/lib/analytics/__tests__/ga4Client.test.ts",
+            "src/components/ConsentScriptInjector.tsx",
+            "src/components/__tests__/ConsentScriptInjector.test.tsx",
+            "e2e-performance/third-party-quiescence.spec.ts (nowy)"
+          ],
+          "mechanism": "TP-2 najpierw: `ga4SsrSnippet(measurementId, adsId)` zachowuje sygnaturę (bez zmian w `__root.tsx:492`), ale nie emituje `gtag('config', AW)`; Consent Mode `default` z `wait_for_update:500` bajt w bajt. `bootstrapGa4` bez configu AW; nowe idempotentne `ga4ConfigureAds(adsId)` (flaga modułu ORAZ skan `window.dataLayer` na istniejące `['config', adsId]` z HTML-a sprzed wdrożenia) wołane w TYM SAMYM efekcie co `ga4ConsentUpdate(categories)` w `ConsentScriptInjector.tsx:233-236`, PO nim, wyłącznie gdy `categories.marketing===true` (GPC → `useEffectiveConsent` daje false). TP-1: sygnał (c) w `gtagLoadPolicy.ts:187-219` zastąpiony subskrypcją globalnego punktu ciszy `onQuiescent(load, {priority:'analytics'})` z P0.3 (min 5 s po `load`, okno 5 s, cap 20 s, `LOAD_DEADLINE_MS` 10 s gdy `load` nie nadchodzi; gtag rejestruje własne URL-e przez `registerOwnedRequest`); sygnały (a) interakcja i (b) zapisana decyzja bez zmian, ale wstrzyknięcie po interakcji idzie przez `postInteractionQueue` z priorytetem `analytics` — OSTATNIE, po powłoce zgód, wyspie pod palcem, nagłówku i pozostałych wyspach (krytyka M11: kumulacja pracy przy pierwszej interakcji). Nagłówek modułu: kompromis (odbicia bez interakcji przed ~load+10 s nie wysyłają page_view; Ads w trybie basic bez zgody marketingowej), uzasadnienie Lantern i zgoda właściciela. Warunek wdrożenia: RUM P0.6 zbiera INP i linię bazową page_view.",
+          "expected_effect": "PSI mobile TBT −215 ms (−200…−225) ⇒ +6 pkt (+4…+8); PSI desktop −120…−280 ms ⇒ +2…+6 (centralnie +4). TP-2 po TP-1 ≈0 w laboratorium (ubezpieczenie −133 ms, gdy gtag trafi do śladu przez cap na wolnym hoście); realni użytkownicy bez zgody marketingowej: −200 KB, −185 ms CPU. Na fixture bez `--third-party fake-gtag` efekt 0 (zadania gtag poza księgą fixture — liczone osobno w §1.5). Zweryfikowane (TP-1 osłabione, TP-2 potwierdzone).",
+          "risk": "średni (kompromis biznesowy zaakceptowany). INP: gtag ostatni w kolejce po interakcji, jedno zadanie na klatkę; kolejność komend w kolejce gtag (config AW po consent update); podwójny config AW z HTML-a z cache → skan dataLayer; wyjątek od `docs/performance/2026-09-30-critical-boot.md:5` zatwierdzony przez właściciela, zapis w P6.2; utrata page_view mierzona RUM/GA4 (kryterium wycofania w §8.2).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "vitest gtagLoadPolicy (przepisany blok sygnału (c) `:164-270`, `:290` liczba `disconnect`, FakePerformanceObserver z rozdziałem typów)",
+            "vitest ga4Client (`:103-211`, `:372-382`)",
+            "vitest ConsentScriptInjector (`:605-626`: configCount(AW)=0, po zgodzie marketingowej =1; komentarze `:267/:503`)",
+            "nowy e2e-performance spec (stub gtag)"
+          ],
+          "verification": "Główne kryterium (księga): `node scripts/performance/lighthouse-local.mjs --compare <base-w1> <wt-P1.1> --runs 5 --forms mobile,desktop4x --third-party fake-gtag --client-backend fixture --save-artifacts`, `lanternTasks --diff`: w B 0 zadań i 0 żądań googletagmanager/google-analytics we wszystkich przebiegach; potwierdzenie kierunku: mediana ΔTBT < 0 (n=5, porównanie z MDE z P0.1), FCP/LCP ±0,02 s; e2e: brak żądania gtag przed load+5 s+okno, `page.mouse.down()` ładuje gtag jako ostatni element kolejki (po zadaniach z wyższym priorytetem) w ≤1 s, brak `config AW-` w dataLayer przed zgodą marketingową. Po wdrożeniu: PSI JSON bez Google Tag Manager w `third-parties-insight`, TTI ≈7 s zamiast 10,6 s.",
+          "depends_on": ["P0.3", "P0.1", "P0.6"],
+          "parallel_group": "w1-analytics",
+          "effort": "M"
+        },
+        {
+          "id": "P1.2",
+          "workstream": "hydration:H2 (wariant memo-liść z werdyktu; część „projekcja font_scale” porzucona) + hydration:H5 (wariant alternatywny z werdyktu)",
+          "title": "[MUST] Koniec przepisywania arkuszy korzenia (StyleSink z hardenStyleCss) i zapisu --sticky-header-h na <html> przy starcie",
+          "files": [
+            "src/components/theme/StyleSink.tsx (nowy)",
+            "src/components/theme/__tests__/StyleSink.test.tsx (nowy)",
+            "src/components/DesignTokensStyle.tsx",
+            "src/components/ThemeOptionsStyle.tsx",
+            "src/components/theme/ThemeDesignStyle.tsx",
+            "src/components/theme/ThemeFontSizesStyle.tsx",
+            "src/components/ContentAreaStyle.tsx",
+            "src/components/Header.tsx",
+            "src/components/__tests__/Header.test.tsx",
+            "src/styles.css"
+          ],
+          "mechanism": "(1) `StyleSink = React.memo(function StyleSink({css, ...attrs}) { return <style {...attrs} dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} /> })` — `hardenStyleCss` (idempotentne, `@/lib/sanitizePure`) wywoływane W TYM SAMYM PLIKU w miejscu renderu, z literałem `{__html}` (bramka `check:dangerous-html` akceptuje dla `<style>` wyłącznie `hardenStyleCss` z dowodem w pliku — `src/lib/ci/dangerousHtml.ts:18`, reguła `:1078`; wzór `DesignTokensStyle.tsx:65-68`; bez wpisu w allowliście); wywołujący przekazują surowy string (`DesignTokensStyle` usuwa własne `useMemo(hardenStyleCss)`). Porównanie po prymitywnym stringu, więc React 19 nie robi `innerHTML=` przy re-renderze z identycznym tekstem (dziś `updateProperties` porównuje obiekt `__html` po tożsamości, `react-dom-client.development.js:21122-21127`, i przepisuje 26,6 KB arkusza `:root` → przeliczenie stylu całego dokumentu + layout 260-390 ms przy CDP 4x). Zastosować w DesignTokensStyle (`:75`), ThemeOptionsStyle, ThemeDesignStyle (`:93`), ThemeFontSizesStyle (`:50`), ContentAreaStyle (`:124`) i w dwóch blokach `<style>` nagłówka (werdykt H2: przepisywane w commicie `data-settled`), z zachowaniem `data-css-hash`. Dotyczy WYŁĄCZNIE arkuszy korzenia i nagłówka; arkusze per widget należą do P2.4 (brak podwójnego liczenia). (2) Część „font_scale w `designTokensQueryOptions`” z poprzedniej wersji planu — **porzucona** zgodnie z werdyktem H2 (0 pkt ponad memo-liść; dotykała seeda `EMPTY_TOKENS` w `__root.tsx:676-677`, mocka `rootRoute.test.tsx:136` i 4 testów spoza listy — krytyka M4c/m1); fetch `site_font_scale` po hydratacji zostaje (1 PostgREST + preflight, 0 pkt), ale nie przepisuje już arkusza. (3) `Header.tsx:548-585`: nie publikować `--sticky-header-h` na `<html>` przy montażu, gdy |zmierzona − domyślna CSS| < 2 px; domyślne wartości per breakpoint w `styles.css:6678-6683` = zmierzone wysokości nagłówka (fixture mobile 107 px; produkcja z zapisanego HTML-a). NIE ruszać `document.fonts.ready` ani `measure()` (reguła Layout x mult/2, werdykt H5: +190 ms) i NIE zmieniać `[id]{scroll-margin-top}`.",
+          "expected_effect": "H2 (memo-liść daje co najmniej efekt H2 — werdykt): mobile TBT −80…−150 ms na hoście sandboksa (centralnie −115; PSI w modelu M-a), desktop PSI −50…−95 ms (centralnie −72); H5-alt: mobile −16…−31 ms, desktop 0…−20; w księdze fixture (bez żywego backendu) widoczne tylko zadanie metryk nagłówka (obs 776 ms, 31 ms blokowania). Zweryfikowane (H2 osłabione z tańszą alternatywą — tu ta alternatywa; H5 obalone jako specyfikacja — tu wariant z werdyktu).",
+          "risk": "niski: parytet hasha CSS SSR/klient (ten sam tekst → test); offset kotwic ≤2 px, gdy wartość domyślna pasuje.",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:dangerous-html (0 nowych wpisów allowlisty)",
+            "vitest DesignTokensStyle/Theme*/ContentAreaStyle/StyleSink",
+            "Header.test.tsx (`:1316-1324`, `:1427-1471` — zapis synchroniczny tylko przy różnicy ≥2 px)",
+            "noHasSelectors"
+          ],
+          "verification": "test jednostkowy z MutationObserver: re-render rodzica z identycznym CSS → 0 mutacji `childList` w `<style>`; księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w1> <wt-P1.2> --runs 5 --forms mobile,desktop4x --client-backend fixture --save-artifacts`, `lanternTasks --diff`: w B brak zadania UpdateLayoutTree+Layout po mutacji `data-brand-tokens` i brak zadania metryk nagłówka z inwalidacją 'Inline CSS style declaration was mutated' na `<html>` we wszystkich przebiegach; kierunek: mediana ΔTBT ≤ 0.",
+          "depends_on": ["P0.1"],
+          "parallel_group": "w1-styles",
+          "effort": "S"
+        },
+        {
+          "id": "P1.3",
+          "workstream": "lcp-path:LP-4 = hydration:H9 (zgody) + third-party:TP-4 (nakładki), lighthouse-analyst:LA-C2 (część zgód); krytyka M7, m4",
+          "title": "[MUST] Powłoka banera zgód z SSR (widoczna z FCP, decyzja utrwalana od razu), interaktywność przez kolejkę po interakcji, nakładki poza oknem",
+          "files": [
+            "src/routes/__root.tsx",
+            "src/lib/consent/consentInitScript.ts (nowy)",
+            "src/lib/consent/__tests__/consentInitScript.test.ts (nowy)",
+            "src/components/consent/ConsentShell.tsx (nowy)",
+            "src/components/consent/__tests__/ConsentShell.test.tsx (nowy)",
+            "src/components/ConsentBanner.tsx",
+            "src/components/__tests__/ConsentBanner.test.tsx",
+            "src/components/__tests__/consentBannerIntegrity.test.tsx",
+            "src/lib/ads/consent.ts",
+            "src/lib/overlayCoordinator.ts",
+            "src/lib/__tests__/overlayCoordinator.test.ts",
+            "src/components/NewsletterPopup.tsx",
+            "src/lib/newsletter/popupTelemetry.ts",
+            "src/components/popups/PopupHost.tsx",
+            "src/lib/cacheBusting.ts",
+            "scripts/lib/dangerousHtmlAllowlist.ts",
+            "src/routes/__tests__/rootRoute.test.tsx",
+            "e2e-performance/on-demand-overlays.spec.ts",
+            "e2e-performance/popup-first-render.spec.ts",
+            "e2e-performance/consent-shell-geometry.spec.ts (nowy)",
+            "e2e/popup-registration.spec.ts"
+          ],
+          "mechanism": "(1) `CONSENT_INIT_SCRIPT` zaraz po `THEME_INIT_SCRIPT` (`__root.tsx:935`), statyczny literał (wpis w `dangerousHtmlAllowlist.ts`): ustawia `html[data-consent-decided]`, gdy `localStorage['consent:v2']` ma `version===CONSENT_VERSION` lub cookie `nes_cookie_consent` niesie ważną decyzję — wyrażenie ważności eksportowane z `src/lib/ads/consent.ts` jako fragment tekstu (wzorzec `themeChoice.ts`, bez dryfu kopii); `html[data-consent-gpc]` przy GPC, jeśli wariant karty to różni; try/catch → niezdecydowany (= dzisiejsze zachowanie). (2) **Klik w powłoce utrwala decyzję od razu** (krytyka m4c: przy C3 boot jest później, nawigacja MPA przed bootem gubiłaby decyzję): delegowany `click` na `[data-consent-action]` zapisuje rekord `consent:v2` i cookie `nes_cookie_consent` serializatorem eksportowanym z `consent.ts` jako fragment tekstu (ten sam kształt JSON, wersja, kategorie; GPC → marketing false), wypycha do `dataLayer` `gtag('consent','update',…)` jak `ga4ConsentUpdate`, ustawia `html[data-consent-decided]` i ukrywa powłokę; interaktywny `ConsentBanner` po montażu wykrywa już zapisaną decyzję i tylko ją finalizuje (`setMarketingConsent`/`setConsentOverlayVisible` — nadal jedyny pisarz stanu w aplikacji). (3) `ConsentShell` w SSR i pierwszym renderze klienta: statyczny markup kompaktowej karty (te same klasy i geometria, teksty z odwodnionych ustawień `privacy` + i18n, inline SVG, bez lucide/radix), tylko gdy `privacy.cookie_banner && banner.enabled`; ukrywanie wariantem Tailwind `[html[data-consent-decided]_&]:hidden` (bez edycji `styles.css`, bez `:has()`); `data-nosnippet` na korzeniu powłoki (tekst cookies w HTML każdej strony — SEO, krytyka m4a); ta sama rola i etykiety ARIA co baner; przy podmianie powłoka → baner fokus przenoszony na odpowiadającą kontrolkę (`data-consent-action` → ta sama akcja) (krytyka m4b). (4) Interaktywny `ConsentBanner` montowany przez `postInteractionQueue` z priorytetem `shell` (pierwszy po interakcji), natychmiast przy kliknięciu powłoki z intencją „ustawienia\", a w ostateczności przez `onQuiescent`; zastępuje powłokę w jednym commicie bez `animate-in`; `overlayCoordinator.consentReported` ustawiany ze stanu powłoki (hook w `__root`); kontrakt `consentReady` (`__root.tsx:224-257`) przepisany jawnie: baner widoczny bezwarunkowo (powłoka), opóźniona tylko interaktywność; ikony lucide → inline SVG. (5) **Geometria a element LCP** (krytyka M7; `__root.tsx:214-221` — akapit banera bywał elementem LCP, F30): test e2e na fixture i na zapisanym HTML-u produkcji przy 412×823 @1,75 i 1350×940 @1: pole największego bloku tekstu powłoki < widoczne pole `img[data-lcp-candidate]` (dziś: akapit 19 116 px² vs hero 68 121 px² mobile); na stronach bez kandydata LCP = powłoka w FCP (akceptowane: LCP ≈ FCP). (6) TP-4, tylko części niewidoczne: `NewsletterPopup.prepare()` dla wyzwalaczy scroll/exit-intent na pierwszy scroll/pointermove/touchstart (delay bez zmian), zdarzenie `impression` razem z `open`, import `cacheBusting` przez `onQuiescent` (priorytet `overlays`; poll `/api/public/version` na liście ignorowanych P0.3); `PopupHost` nie montuje się tylko wtedy, gdy istniejące dane SSR jednoznacznie mówią „brak aktywnych popupów\" bez nowego zapisu dehydratacji; `Toaster` BEZ zmian. Część TP-5 w `consent.ts:503` (`onAuthStateChange` tylko przy istniejącym kliencie) należy do P3.1 (wymaga `onSupabaseClientCreated` z P1.7).",
+          "expected_effect": "PSI mobile SI −0,55…−0,95 s (+1,1…+1,6 pkt; baner = 27 pp histogramu ostatniej klatki); zapobiega regresowi SI +0,3…0,8 s po C3; desktop SI −0,03 s. Na fixture SI = FCP (SI niemierzalne przed C3 — krytyka M2), więc efekt SI ocenia się z `observedSpeedIndex`/histogramu filmstripu albo Lantern SI na drzewie z transformacją C3. TBT mobile −50…−120 ms, desktop −20…−60 ms (niezweryfikowane: LA-C2 — grupa zgoda/radix/sonner/popupy ≈60 ms PSI; w budżecie ×0,5: −42/−20, poza księgą fixture, gdzie te zadania są < 12,5 ms obs).",
+          "risk": "średni (prawny; zgoda właściciela pod warunkiem równoważności): odwiedzający z decyzją nigdy nie widzi powłoki (skrypt przed parsowaniem body); Consent Mode/GPC/zapisane decyzje bajt w bajt (test: rekord zapisany przez powłokę = rekord zapisany przez baner, poza znacznikiem czasu); parytet hydratacji powłoki; +2-3 KB HTML (osobny commit z pomiarem w budżecie wagi); INP pierwszej interakcji (kolejka P0.3).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:dangerous-html",
+            "consentInitScript (happy-dom: decided/undecided/zły JSON/zła wersja/cookie/GPC/zapis z kliknięcia = zapis banera)",
+            "ConsentShell parity + a11y (rola, etykiety, przeniesienie fokusu)",
+            "ConsentBanner + consentBannerIntegrity",
+            "overlayCoordinator",
+            "gtagLoadPolicy (sygnał decyzji nadal działa)",
+            "rootRoute",
+            "e2e-performance on-demand-overlays/popup-first-render/consent-shell-geometry",
+            "e2e popup-registration",
+            "noHasSelectors",
+            "check:ssr-budgets (0 nowych zapisów)",
+            "check-document-weight"
+          ],
+          "verification": "e2e: cookie decyzji → powłoka `display:none` na zrzucie przy FCP; klik w powłoce przed hydratacją → rekord zapisany natychmiast, nawigacja MPA na inną stronę przed bootem → baner nie wraca; geometria z pkt 5 przy obu rozdzielczościach; `node scripts/performance/lighthouse-local.mjs --compare <base-w1> <wt-P1.3> --runs 5 --forms mobile,desktop --client-backend fixture --save-artifacts`: `observedSpeedIndex` mobile −0,1…−0,3 s i w histogramie filmstripu (`$SCRATCH/phase1/lcp-path/si/thumbs.cjs`) baner w pierwszej klatce treści; drugi pomiar z transformacją C3 (`--html-transform-b $SCRATCH/phase1/verdicts/boot-js-C3/c3-lcpobs.mjs` po obu stronach): Lantern SI ≤ baza − 0,1 s; element LCP = `img[data-lcp-candidate]` we wszystkich przebiegach; do końca śladu brak chunków ConsentBanner/vendor-lucide/NewsletterDocRenderer/JoinUsForm w `network-requests`; CLS ≤ 0,001 i brak pojedynczego przesunięcia > 0,0005.",
+          "depends_on": ["P0.3", "P0.1"],
+          "parallel_group": "w1-root-overlays",
+          "effort": "L"
+        },
+        {
+          "id": "P1.4",
+          "workstream": "lcp-path:LP-1+LP-2+LP-10, lighthouse-analyst:LA-C3 (metryka pochodna)",
+          "title": "[MUST] Jeden kandydat LCP na stronę i jedno źródło preloadu (marker dla C3) + bramka ścieżki krytycznej",
+          "files": [
+            "src/lib/builder/lcpCandidate.ts (nowy)",
+            "src/lib/builder/__tests__/lcpCandidate.test.ts (nowy)",
+            "scripts/taxonomy/features.mjs",
+            "src/lib/builder/heroImage.ts",
+            "src/lib/builder/__tests__/heroImage.test.ts",
+            "src/lib/builder/aboveFold.tsx",
+            "src/components/builder/organisms/BuilderRenderer.tsx",
+            "src/components/builder/organisms/ChromeWidgetView.tsx",
+            "src/lib/builder/sliderVariants.tsx",
+            "src/components/builder/organisms/widget-view/lazySliderRender.tsx",
+            "src/components/builder/organisms/widget-view/SimpleWidgets.tsx",
+            "src/components/builder/organisms/widget-view/PostListView.tsx",
+            "src/components/builder/organisms/WidgetView.tsx",
+            "src/components/builder/organisms/widget-view/mediaWidgets.tsx",
+            "src/components/builder/organisms/widget-view/PostsSliderWidget.tsx",
+            "src/components/home/molecules/HomeBuilderContent.tsx",
+            "src/components/content/ContentRenderer.tsx",
+            "src/routes/index.tsx",
+            "src/routes/$.tsx",
+            "src/components/builder/organisms/__tests__/builderRenderer.streaming.test.tsx",
+            "src/components/builder/organisms/widget-view/__tests__/mediaWidgetsBranches.test.tsx",
+            "src/routes/__tests__/homeRoute.test.tsx",
+            "scripts/performance/documentWeight.ts",
+            "scripts/performance/check-document-weight.ts",
+            "scripts/performance/document-weight-budgets.json",
+            "scripts/performance/document-weight.test.mjs"
+          ],
+          "mechanism": "Czysta funkcja `lcpCandidates(doc)` w nowym module (zależności tylko `imageSlot` + typy — nie wciąga importów zapytań `heroImage.ts:36-47` do entry): skanuje widoczne sekcje wariantu A w oknie `ABOVE_FOLD_SECTION_COUNT` (te same filtry co `SectionsList`, `BuilderRenderer.tsx:363-368`), w pierwszej sekcji z widgetem obrazowym bierze największy slot desktopowy (remisy: slider > obraz nie-logo > dark-featured-card > lead listy, potem DOM) oraz pierwszy wg `order.mobile`, maks. 2 kandydatów, z wykluczeniami z `heroImage.ts` (pary jasny/ciemny, logo, A/B, `hideOn.mobile` i `hideOn.desktop`). Kandydatów wyznacza wyłącznie główny renderer treści (prop `lcpOwner` w HomeBuilderContent i ContentRenderer); `AboveFoldProvider` niesie `lcpWidgetIds`; slider `priority={isLcp && i===0}` (dziś bezwarunkowo `i===0` w `sliderVariants.tsx:1203/1423/1567/1711/1847`), PostListView/WidgetView/mediaWidgets/ChromeWidgetView (`:193/:461`) `priority={isLcp}`; pozostałe obrazy `loading=lazy fetchpriority=auto`; `img` kandydata dostaje `data-lcp-candidate`. LP-2: `builderHeroPreload` deleguje do kandydatów i zwraca null bez przechodzenia do następnego widgetu; w trasie `preload(href,{as:'image',imageSrcSet,imageSizes,fetchPriority:'high'})` z react-dom zamiast `imagePreloadLink` (ten sam klucz `srcSet\\nsizes` co auto-preload `<img>` → dokładnie jeden preload); nagłówek `Link` zostaje, karmiony kandydatem; tryb `latest_posts`, wpisy i archiwa bez zmian. LP-10 + LA-C3: bramka `check-document-weight` — `imgFetchpriorityHigh ≤ 2`, preload(y) obrazu `fetchpriority=high` równe `srcset/sizes` `img[data-lcp-candidate]`, brak eager obrazów poza kandydatem i logo, allow-lista wpisów `Link`, metryka `preLcpTransferBytes`. **Taksonomia** (krytyka M4a): nowy plik produkcyjny w module 3 (`classifyPath` → 3, `featureForPath` → null) — wiersz w `scripts/taxonomy/features.mjs` w funkcjonalności `cms-builder-images` (obok `heroImage.ts`); `check:feature-taxonomy` biegnie w CI (`.github/workflows/ci.yml:257`). Fixture z różnymi okładkami leadów (wariant `homeFixture` w teście, nie zmiana danych baseline) do weryfikacji P2.1.",
+          "expected_effect": "0 ms / 0 pkt dziś na mobile i desktop (zweryfikowane: LP-1, LP-2 osłabione). Ubezpieczenie: każdy lead z inną okładką +0,15…0,23 s LCP mobile, 6 leadów +0,9…1,4 s (−2,4…−3,3 pkt dziś, −2,6…−9,3 pkt po C3); preloady obrazów w head 5→1; HTML −7,1 KB raw / −144 B gz. Warunek konieczny markera wyzwalacza P2.1.",
+          "risk": "niski-średni: parytet SSR/hydratacji (funkcja dokumentu, nie danych zapytań — test); strona bez obrazu w sekcji 0; regres LCP mobile przy innej kolejności kolumn (drugi kandydat wg `order.mobile`); świadome przepisanie testów kontraktu (`builderRenderer.streaming.test.tsx:137-166`, `mediaWidgetsBranches.test.tsx:163-174`, `homeRoute.test.tsx:603-611`).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:feature-taxonomy",
+            "check:entry-purity (nowy moduł bez importów zapytań)",
+            "lcpCandidate/heroImage testy",
+            "check:loader-policy",
+            "document-weight.test.mjs (kontrola negatywna: 7 obrazów high → czerwone)",
+            "first-visit e2e (CLS)"
+          ],
+          "verification": "`node scripts/performance/check-document-weight.ts --root <wt>`: `imgFetchpriorityHigh` 9→≤2, preload obrazu = kandydat; `--html $SCRATCH/psi/home.html --headers $SCRATCH/psi/h1.txt` czerwone (kontrola); `node scripts/performance/lighthouse-local.mjs --compare <base-w1> <wt-P1.4> --runs 3`: ΔLCP ≥ −0,02 s, w śladzie jeden `largestContentfulPaint::Candidate` = `img[data-lcp-candidate]` we wszystkich przebiegach, CLS ≤ 0,001; `bun run check:feature-taxonomy` zielone.",
+          "depends_on": ["P0.1"],
+          "parallel_group": "w1-lcp-candidate",
+          "effort": "L"
+        },
+        {
+          "id": "P1.6",
+          "workstream": "hydration:H7 (prymityw), lighthouse-analyst:LA-C1 (b, podstawa); krytyka M4a/M4d/M5/M12",
+          "title": "[MUST] Prymityw wysp hydratacji z pełnym API wyzwalaczy i urządzenie przez lustro useState+startTransition (bez useSyncExternalStore)",
+          "files": [
+            "src/lib/performance/hydrationIsland.tsx (nowy)",
+            "src/lib/performance/viewportDevice.ts (nowy)",
+            "src/lib/performance/__tests__/hydrationIsland.test.tsx (nowy)",
+            "src/lib/performance/__tests__/viewportDevice.test.ts (nowy)"
+          ],
+          "mechanism": "Umiejscowienie: `src/lib/performance/` (moduł 20 mapy taksonomii, bez śledzenia funkcjonalności — sprawdzone `classifyPath`), więc pozycja nie dotyka `scripts/taxonomy/features.mjs` (właściciel w W1: P1.4). `HydrationIsland({id, trigger, chunks, fallbackMinHeight, children})`: na serwerze (IS_SSR) renderuje dzieci wprost (bez zawieszenia — brak fallbacku w HTML serwera); na kliencie w tej samej granicy `<Suspense>` `use(islandGate(id))` rzuca do wyzwolenia — React zostawia granicę odwodnioną i ponawia ją na Retry lane. **Pełne API wyzwalaczy od razu** (krytyka M4d — P2.3 nie edytuje prymitywu): `trigger = {visible?: false | {rootMargin}` (IO na `[data-sec-id]` albo korzeniu wyspy), `interaction?: 'any' | 'own' | false`, `ownEvents?: ('pointerdown'|'pointerover'|'touchstart'|'focusin'|'keydown')[]` (capture na korzeniu; domyślnie pointerdown/focusin/keydown — przed `click`), `globalKeys?: string[]` (np. `['/']` dla wyszukiwarki), `media?: string` (np. `'(min-width: 1024px)'` — wyspa hydratuje, gdy zapytanie zaczyna pasować), `immediateWhen?: () => boolean` (np. `hasStoredAuthSession` z P1.7 — hydratacja w przebiegu korzenia jak dziś), `quiescent?: boolean` (zapas przez `onQuiescent`, domyślnie tak)}`; wyłączone w builderze/`editorPreview`; zwolnienie bramki przez `postInteractionQueue` (wyspa pod palcem pierwsza, potem pozostałe po jednej na klatkę). **Bramka otwiera się dopiero po `Promise.all(chunks.map(load => load()))`** — `chunks` to loadery zagnieżdżonych leniwych widgetów wyspy (rejestrowane przez renderer), więc ponowiona hydratacja nie trafia na odwodnione granice `lazy` bez chunku (klasa CLS 0,421 z boot-js §1.3; krytyka M5). **Urządzenie wewnątrz wysp**: `useViewportDevice()` = lustro `useState(serverDevice)` + subskrypcja magazynu `viewportDevice`, która woła `startTransition(() => setDevice(next))` — NIE `useSyncExternalStore` (niezgodność `getServerSnapshot` po hydratacji wymusza synchroniczny re-render w SyncLane przez `forceStoreRerender`, który dociera do jeszcze odwodnionych zagnieżdżonych granic → client-render i CLS; werdykt H6: dzisiejsze przełączenie jest transition, czyli bezpieczne). Przełączenie urządzenia nie przechodzi przez kontekst nad wyspą ani przez jej propsy; element wyspy w `React.memo` z propsami niezależnymi od urządzenia (bailout przed granicą); fallback granicy = `SectionStreamSkeleton minHeight` (siatka bezpieczeństwa CLS); atrybut `data-island-state` (pending/hydrated) dla RUM P0.6 i testów.",
+          "expected_effect": "0 pkt sam; podstawa P2.2/P2.3. Niezweryfikowane (H7 bez werdyktu).",
+          "risk": "średni: twardy warunek — żadna aktualizacja Default/Sync (propsy, kontekst, uSES) nie może dotrzeć do odwodnionej wyspy (audyt: ThemeProvider, I18nextProvider, AccessContext, AboveFoldProvider, builder mode, device); kliknięcia na nieuwodnione przyciski nie są odtwarzane (wyzwalacz w capture); przejście (motyw) czekające na wyspę bez górnej granicy → mitygacja w P2.2 (klasa motywu na `<html>` synchronicznie).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "test wzorowany na `src/hooks/__tests__/authHydration.test.tsx`: HTML SSR zachowany, gdy bramka czeka, przy aktualizacjach auth (transition), motywu, i18n, zapytań i urządzenia; po otwarciu bramki hydratacja bez mismatch i re-render z urządzeniem klienta w transition; 0 `console.error` hydratacji",
+            "kontrole negatywne (muszą wykryć client-render): (a) wariant z `useSyncExternalStore` i snapshotem serwera 'desktop' vs klienta 'mobile' przy zagnieżdżonym `React.lazy`, którego chunk nie przychodzi; (b) urządzenie przez kontekst nad wyspą"
+          ],
+          "verification": "`bunx vitest run src/lib/performance/__tests__/hydrationIsland.test.tsx src/lib/performance/__tests__/viewportDevice.test.ts`: lustro transition zachowuje HTML przy zagnieżdżonym leniwym widgecie bez chunku i mobilnym snapshocie, a obie kontrole negatywne wykrywają client-render; testy każdego wyzwalacza (IO, interakcja dowolna/własna, pointerover/touchstart, klawisz '/', media query, immediateWhen, zapas ciszy) i kolejności zwalniania przez kolejkę P0.3; bramka nie otwiera się przed rozwiązaniem `chunks`.",
+          "depends_on": ["P0.3"],
+          "parallel_group": "w1-islands-prim",
+          "effort": "M"
+        },
+        {
+          "id": "P1.7",
+          "workstream": "lighthouse-analyst:LA-C1 (c, część niezależna od C3) = hydration:H12 (poprawki) + third-party:TP-5 (bez consent.ts); krytyka M16, B2",
+          "title": "[MUST] Poprawki zadań korzenia z listy P0.5 (przed wyspami) + szybka ścieżka AuthProvider dla anonima + sessionHint",
+          "files": [
+            "src/router.tsx",
+            "src/__tests__/router.test.tsx",
+            "src/hooks/useAuth.tsx",
+            "src/hooks/__tests__/useAuth.test.tsx",
+            "src/hooks/__tests__/authHydration.test.tsx",
+            "src/components/profile/__tests__/AuthGate.test.tsx",
+            "src/integrations/supabase/client.ts",
+            "src/integrations/supabase/sessionHint.ts (nowy)",
+            "src/integrations/supabase/__tests__/sessionHint.test.ts (nowy)",
+            "src/lib/i18n.ts"
+          ],
+          "mechanism": "Zakres zamknięty listą `plik:linia` z P0.5 (zatwierdzoną przez orkiestratora przed startem W1); kandydaci już zidentyfikowani w księdze W0 (`lha1-*`): (a) zadanie timera 23,5 ms obs (start obs 529 ms, `TimerFire` → `v8.newInstance` x3) = ciało `setTimeout(0)` przed hydrate w `src/router.tsx:210` — doktryna `setTimeout(0)` zostaje (literał pilnowany przez `router.test.tsx`/`check:ssr-budgets`), zmienia się tylko jego ciało: utworzenie routera i store'ów w pierwszym makrozadaniu, `hydrateRoot` w drugim (zagnieżdżony `setTimeout(0)`; bez `scheduler.postTask` na ścieżce krytycznej, bo Safari go nie ma); (b) przebieg korzenia 34,3 ms obs (`RunMicrotasks` 27,4 ms) — jeśli P0.5 przypisze go do TLA słownika (`src/lib/i18n.ts:120-131`), słownik ładowany przed wywołaniem hydrate w osobnym zadaniu (wariant A/B z `scripts/measure-boot-ab.ts`, F18/3.12); jeśli do zapisów store'ów w trakcie hydratacji (router, auth przez `useSyncExternalStore`) — przeniesienie zapisu do efektu pasywnego lub `startTransition`; `setState` w efektach layoutu → pasywne; (c) wymuszone przeliczenie stylu w commicie z `index:422:14025` (161 el.) — źródło z mapy źródeł; jeśli to pomiar w efekcie layoutu, przeniesienie do rAF po commicie BEZ usuwania ostatniego Layout z długiego zadania bez jego podziału (reguła 4). (d) TP-5 bez `consent.ts`: efekt `useAuth.tsx:300` nie dotyka `supabase`, gdy `!hasStoredAuthSession() && !urlHasAuthParams()` (`?code=`, `#access_token`, `refresh_token`, `type=recovery|magiclink`, `error_description`); `onSupabaseClientCreated(cb)` w `client.ts` podpina `onAuthStateChange` synchronicznie przy utworzeniu klienta przez cokolwiek; nasłuch `storage` dla `sb-*-auth-token`; pierwszy render bez zmian (kontrakt `authHydration.test.tsx`). (e) `sessionHint.ts`: `hasStoredAuthSession()`, `STORED_SESSION_KEY_RE` i `STORED_SESSION_EXPR` (fragment tekstu dla skryptów inline — używa go bootstrap P2.1) przeniesione z `useAuth.tsx:107` bez zmiany zachowania; P2.2/P2.3 używają go jako `immediateWhen`. Poprawki z listy P0.5 w plikach innych pozycji W1 (`__root.tsx`, `consent.ts` → P1.3; `Header.tsx` → P1.2) dostają te pozycje jako uzupełnienie przed startem fali; zależne od C3 → P3.1; `__root.tsx`/`Header.tsx`, które nie zmieszczą się w W1 → P5.1 (W5, bezwarunkowa).",
+          "expected_effect": "Księga deterministyczna (fixture W0, mobile x4): zadania korzenia i timera = 87 + 44 ms blokowania w oknie w obu reżimach; desktop x4: przebieg korzenia 43 ms. Łącznie z P1.2 (zadanie metryk nagłówka) W1 daje fixture mobile 356 → 258 ms (reguła ×0,5) / 218 ms (pełny szacunek), desktop x4 444 → 393-411 ms; PSI w modelu M-a (k ≈ 0,6 dla zadań wspólnych) −40…−80 ms mobile. TP-5: −10…−20 ms sym. (tworzenie klienta Supabase 19 ms@4x poza commitem). Niezweryfikowane (diagnoza w P0.5) — liczone regułą ×0,5.",
+          "risk": "średni: zmiana kolejności aktualizacji może przywrócić mismatch hydratacji (doktryna `setTimeout(0)` zostaje — zmienia się ciało); magic-link/OAuth/recovery muszą ładować SDK natychmiast; podział ciała timera wydłuża boot o jeden tik (≤ 4 ms).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "router/useAuth/authHydration/AuthGate/sessionHint testy",
+            "e2e `e2e/user-paths.spec.ts` (logowanie, wylogowanie, cross-tab, reset hasła, magic-link)",
+            "check:entry-purity",
+            "check:ssr-budgets (literał `setTimeout(0)` zostaje)"
+          ],
+          "verification": "Księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w1> <wt-P1.7> --runs 5 --forms mobile,desktop4x --client-backend fixture --save-artifacts`, `lanternTasks --diff`: zadania z listy P0.5 znikają albo dzielą się na kawałki < 12,5 ms obs we wszystkich przebiegach B; kierunek: mediana ΔTBT ≤ 0; e2e: anonim na `/` bez żądań `/auth/v1`, zalogowany reload rozwiązuje sesję i role, link magic-link loguje.",
+          "depends_on": ["P0.5", "P0.1"],
+          "parallel_group": "w1-root",
+          "effort": "M"
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "goal": "Fala 2 — boot po LCP + spłata sprzężenia liczona per zadanie (wyspy, nagłówek, per widget, pakiet dokumentu). Boot po LCP (największa dźwignia mobile) razem z programem spłaty sprzężenia C3↔TBT, liczonym per zadanie: wyspy hydratacji sekcji i stopki, nagłówek w oknie (ukryty nagłówek desktopowy jako wyspa na mobile, widgety na intencję), tańsza hydratacja per widget z szablonem typografii (HW-2 zawężone), dieta stanu dehydratacji (HW-3) i statyczne style → klasy (HW-6) — **pakiet dokumentu przeniesiony z higieny na ścieżkę wyniku** (świadome odstępstwo od notatki orkiestratora, która dotyczyła reżimu sprzed C3: księga deterministyczna pokazuje, że po C3 zadania parsowania i stylu dokumentu wchodzą do okna TBT). P2.1 nie trafia do wdrożenia bez zielonej bramki fali (albo bramki W3). Bramka fali: mobile FCP ≤ 1,6 s, LCP ≤ 2,4 s, `scriptBytesEndedBeforeObsLcp` = 0 (bez `/~flock.js`) we wszystkich przebiegach; **TBT mobile fixture z flagami ≤ 200 ms (mediana przebiegów ważnych, n ≥ 5) i księga deterministyczna drzewa ≤ 200 ms, ALBO projekcja `score.py` ≥ 87 po przełożeniu przez k z W0** (dawny próg ≤ 250 ms dawał po przełożeniu PSI 310-400 ms, czyli 83-86 — nie gwarantował celu); desktop4x ≤ 150 ms, desktop5x raportowane; brak zadania ParseHTML ani inline EvaluateScript ≥ 50 ms sym. w [FCP, TTI] (pakiet dokumentu); CLS ≤ 0,001 bez pojedynczego przesunięcia > 0,0005 w ≥ 5 przebiegach; wariant bota (`--warm-ua bot`) spełnia te same progi. Niezaliczone ⇒ P2.1 zostaje w gałęzi PR, P3.1, P3.3 i P3.4 obowiązkowe, wdrożenie dopiero po zielonej bramce W3.",
+      "expected_scores_after": "Fixture (księga deterministyczna, reguła ×0,5 / pełne szacunki): mobile x4 457 / 234 ms (C3 sam: 885), desktop x4 305 / 195, x5 514 / 331; FCP 1,37-1,52 s, LCP 2,12-2,27 s. PSI mobile centralnie 84 (81-87 zależnie od mapowania M-b'…M-a, §1.5; pełne szacunki 89-92) przy FCP ~1,8 s, LCP 2,7-3,0 s, SI 3,4-4,2 s; PSI desktop centralnie 84 (83-85; pełne 92) przy hoście ~x4, 82 (75-85) przy ~x5; FCP ~0,45 s, LCP ~0,85 s, SI ~1,3 s.",
+      "items": [
+        {
+          "id": "P2.1",
+          "workstream": "boot-js:C3 = lcp-path:LP-3 (+lcp-path:LP-9 część Link, measurement:M8, lighthouse-analyst:LA-C4, prior-art:PA-C5; boot-js:C2 zastąpione); krytyka M7, M8, M15",
+          "title": "[MUST] Boot po LCP: wyzwalacz z wpisu largest-contentful-paint (kandydat albo element nie mniejszy od kandydata), manifest bez preloadów, zestaw bootu wstrzykiwany po stronie serwera; plan B i kryterium porzucenia",
+          "files": [
+            "vite.config.ts",
+            "vite.smoke.config.ts",
+            "scripts/lib/bootAfterLcpPlugin.ts (nowy)",
+            "scripts/lib/localeChunkPlugin.ts",
+            "scripts/lib/widgetChunkPlugin.ts",
+            "src/lib/boot/bootLoaderScript.ts (nowy)",
+            "src/lib/boot/bootSet.server.ts (nowy)",
+            "src/lib/boot/__tests__/bootLoaderScript.test.ts (nowy)",
+            "src/lib/boot/__tests__/bootSet.server.test.ts (nowy)",
+            "src/router.tsx",
+            "src/routes/__root.tsx",
+            "src/routes/index.tsx",
+            "src/routes/$.tsx",
+            "src/server.ts",
+            "src/lib/http/frameworkPreloads.server.ts",
+            "src/lib/http/__tests__/platformPreloads.test.ts",
+            "src/lib/seo/rootHead.ts",
+            "src/lib/seo/widgetPreloads.ts",
+            "src/lib/seo/__tests__/widgetPreloads.test.ts",
+            "src/lib/observability/bootProbeScript.ts",
+            "src/lib/observability/__tests__/bootProbeScript.test.ts",
+            "scripts/lib/dangerousHtmlAllowlist.ts",
+            "e2e/boot-home.spec.ts",
+            "e2e/boot-timing.spec.ts",
+            "e2e-performance/on-demand-overlays.spec.ts",
+            "scripts/performance/documentWeight.ts",
+            "scripts/performance/check-document-weight.ts",
+            "scripts/performance/document-weight-budgets.json",
+            "scripts/performance/document-weight.test.mjs",
+            "src/lib/ci/__tests__/viteChunkParity.test.ts",
+            "src/lib/ci/__tests__/localeChunkPlugin.test.ts",
+            "src/lib/ci/__tests__/widgetChunkPlugin.test.ts",
+            "src/__tests__/router.test.tsx",
+            "src/routes/__tests__/rootRoute.test.tsx",
+            "src/routes/__tests__/homeRoute.test.tsx"
+          ],
+          "mechanism": "(a) `bootAfterLcpPlugin` (identycznie w obu configach Vite — `check:chunk-parity`; tylko build) przepisuje wirtualny moduł manifestu TanStack Start (start-manifest-plugin, środowisko serwera): opróżnia `preloads` korzenia i tras, usuwa `scripts` entry i przenosi je do serwerowego `BOOT_MANIFEST` (URL entry, preloady per trasa, URL słownika per język z `localeChunkPlugin`, mapa chunków widgetów z `widgetChunkPlugin`) — `<HeadContent>/<Scripts>` w SSR i odwodniony manifest klienta (`router-core ssr-client.js:40-41`) renderują to samo (nic), więc parytet hydratacji trzyma się konstrukcyjnie. Spike ≤ 0,5 dnia z dowodem parytetu przed resztą. (b) `bootSet.server.ts` składa per żądanie: domknięcie entry + słownik aktywnego języka + chunk komponentu trasy (+ bezpośrednie importy) + chunki widgetów nad zgięciem (`widgetPreloadHeaders(doc, ABOVE_FOLD_SECTION_COUNT)` i widgety nagłówka z root loadera — warunek CLS 0, boot-js §1.3) i wstrzykuje `<script type=\"application/json\" id=\"nes-boot-set\">` (`<` → `\\u003c`) przez `router.serverSsr.injectHtml` — poza drzewem React, utrwalane w ciele w cache dokumentu, **także na ścieżce allReady (wariant bota, który PSI dostaje na MISS — `isbot` łapie „Chrome-Lighthouse\"; krytyka M8)**; tryb `afterLcp` tylko dla publicznych tras SSR z kandydatem (`/`, `/en`, strony buildera `/$`), wszędzie indziej `immediate`. (c) `BOOT_LOADER_SCRIPT` — statyczny literał w `<head>` (jak `BOOT_PROBE_SCRIPT`, wpis allowlisty): `immediate`, gdy tryb serwera `immediate`, zapisana sesja (`STORED_SESSION_EXPR` z `sessionHint.ts`, P1.7), ramka (podgląd), `document.prerendering` lub brak PerformanceObserver; w `afterLcp`: `PerformanceObserver({type:'largest-contentful-paint', buffered:true})` **przyjmuje wpis, gdy (i) `entry.element` ma `data-lcp-candidate` albo `entry.url === candidate.currentSrc`, albo (ii) `entry.size ≥` widoczne pole kandydata zmierzone przy DCL (`getBoundingClientRect` ∩ viewport)** — w przypadku (ii) kandydat nie może już wygenerować późniejszego wpisu (LCP raportuje tylko elementy ściśle większe), więc LCP jest ostateczny względem kandydata (np. powłoka zgód większa niż mały kandydat); wpisy mniejsze od kandydata (tekst w FCP przy `font-display: swap`) są ignorowane (krytyka M7) → `setTimeout(boot, 50)`; `load` jako zapas czeka jeszcze 500 ms na przyjęty wpis; pierwsze `pointerdown/keydown/touchstart/focusin` (capture) → boot natychmiast; brak kandydata przy DCL albo `error` obrazu → `rAF+setTimeout(0)`; twardy limit DCL+3 s. `boot()` wstawia `<link rel=modulepreload>` całej listy i `<script type=module src=entry>`; `setTimeout(0)` przed hydrate w `router.tsx:210` zostaje (ciało dzieli P1.7). (d) `Link`: `frameworkPreloads.server.ts` przestaje kopiować modulepreload; `rootHead.ts:94`, `__root.tsx:522-532,743`, `widgetPreloads.ts:25`, `index.tsx:213-215` nie emitują JS dla dokumentów `afterLcp` — zostają CSS, fonty, obraz kandydata. (e) `bootProbeScript.ts:68`: watchdog `__nesBootDead` (15 s) liczony od startu bootu. (f) Testy: `e2e/boot-home.spec.ts:26-29` i `e2e/boot-timing.spec.ts:961-1012` przepisane na asercje zestawu bootu i braku modulepreload w `Link`; `documentWeight.ts` czyta domknięcie z `#nes-boot-set`; budżety `modulepreloadCount`, `preloadedJs*`, `linkHeaderEntries` w dół. (g) **Plan B (krytyka M15)**: jeśli spike (a) nie da dowodu parytetu w 0,5 dnia — transformacja strumienia dokumentu w `src/server.ts` (ścieżka dokumentu, po `applyDeferredDocumentStore`/`guardDocumentResponse`): usunięcie `<link rel=modulepreload>` i `<script type=module … src=/assets/index-*>` z głowy oraz modulepreload z `Link`, wstrzyknięcie bootstrapu i zestawu, PLUS deterministyczne przepisanie listy preloadów/skryptów w odwodnionym manifeście (`$tsr`), tak by klient renderował to samo; dowód parytetu: hydratacja z 0 `console.error` na `/`, `/en`, stronie buildera, wariant bota i przeglądarki, HIT i MISS. **Kryterium porzucenia**: plan B bez zielonego dowodu parytetu po 1 dniu → P2.1 odroczone i zgłoszone człowiekowi; wtedy mobile 85 jest w tym PR nieosiągalne (jedyna tańsza alternatywa — modulepreload tylko entry / `fetchpriority=low` — daje fixture LCP 3,03-3,32 s, PSI LCP ≈ 3,6-4,0 s, mobile ≤ ~78).",
+          "expected_effect": "Fixture mobile FCP −2,55 s (4,07→1,52), LCP −2,55 s (4,82→2,27), SI −1,3…−1,8 s. Sprzężenie TBT zmierzone deterministycznie na artefaktach W0 (what-if `dropscripts-before-lcp`): mobile x4 356 → 885 ms (+529), desktop x4 444 → 538 (+94), x5 765 → 879 (+114); na PSI +320…+700 mobile zależnie od mapowania (§1.5), czyli zgodnie z werdyktami C3/LP-3 (TBT PSI 1 100-1 300 bez programu TBT). PSI mobile: LCP 6,6→2,7-3,0 s, FCP→~1,8 s, SI→3,8-4,2 s (z P1.3 ~3,4-3,8); sam: 68-70; z programem TBT tej fali i W1: §5. Desktop +0…+1,5 pkt z FCP/LCP. Zweryfikowane (osłabione: wyzwalacz i dostarczenie skorygowane — tu w wersji skorygowanej).",
+          "risk": "wysoki. (1) Sprzężenie TBT → spłacane pozycjami P1.2, P1.7, P2.2-P2.6 i (warunkowo) P3.3/P3.4, liczonymi per zadanie; brak wdrożenia bez zielonej bramki. (2) Hydratacja później o czas transferu obrazu (pierwsze dotknięcie startuje boot natychmiast). (3) CLS przez odrzucenie leniwej granicy widgetu bez chunku → chunki widgetów nad zgięciem w tym samym burście, ≥5 przebiegów. (4) Wyścig z tekstem jako pierwszym wpisem LCP → reguła (i)/(ii). (5) `/~flock.js` (8,4 KB, hosting) zostaje w zbiorze LCP (≈+50 ms, poza repo) — wykluczony jawnie z metryki. (6) Zalogowani/edytor/admin/ramka podglądu: tryb `immediate`. (7) Wariant bota: te same progi co wariant przeglądarki.",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:chunks",
+            "check:chunk-parity",
+            "check:bundle (graf chunków nietknięty — bez pogorszenia)",
+            "check:dangerous-html",
+            "bun run test:e2e:artifact (boot-home, boot-timing przepisane; tryb fixture z P0.1)",
+            "first-visit e2e (CLS/DOM)",
+            "check-document-weight (ratchet w dół)",
+            "router.test.tsx (setTimeout(0))",
+            "bootSet.server.test: `#nes-boot-set` obecny w dokumencie renderowanym ścieżką allReady (UA bota) i w ciele z cache",
+            "noHasSelectors"
+          ],
+          "verification": "`node scripts/performance/lighthouse-local.mjs --compare <base-w2> <wt-P2.1> --runs 5 --forms mobile,desktop,desktop4x,desktop5x --client-backend fixture --third-party fake-gtag --save-artifacts` w DWÓCH ramionach rozgrzewki (`--warm-ua browser` i `--warm-ua bot`, te same progi): mobile FCP ≤1,6 s, LCP ≤2,4 s, `scriptBytesEndedBeforeObsLcp`=0 (bez `/~flock.js`) i start burstu po `observedLargestContentfulPaint` we wszystkich przebiegach, CLS ≤ 0,001; dodatkowo na fixture z widoczną powłoką zgód (pierwsza wizyta) i na wariancie z różnymi okładkami leadów (P1.4); desktop FCP ≤0,45 s; TBT: księga `lanternTasks --diff` (oczekiwany wzrost = sprzężenie, rozliczane bramką fali); `curl -sI` na artefakcie: `Link` bez modulepreload; `bun run test:e2e:artifact` zielone; e2e `e2e/user-paths.spec.ts`: zalogowany i edytor bootują natychmiast.",
+          "depends_on": ["P1.4", "P1.3", "P1.7", "P0.1", "P0.2"],
+          "parallel_group": "w2-boot",
+          "effort": "L"
+        },
+        {
+          "id": "P2.2",
+          "workstream": "hydration:H7 + lighthouse-analyst:LA-C1 (b) (hydration:H6 zastąpione); krytyka M5, m5, m6, m10",
+          "title": "[MUST] Wyspy hydratacji: sekcje ≥1 i stopka (urządzenie przez transition, bramka po chunkach, natychmiast przy zapisanej sesji)",
+          "files": [
+            "src/lib/builder/sectionStreaming.tsx",
+            "src/components/builder/organisms/BuilderRenderer.tsx",
+            "src/components/Footer.tsx",
+            "src/lib/performance/hydrationIsland.tsx",
+            "src/lib/performance/viewportDevice.ts",
+            "src/lib/performance/__tests__/hydrationIsland.test.tsx",
+            "src/components/ThemeProvider.tsx",
+            "src/components/__tests__/ThemeProvider.test.tsx",
+            "src/components/builder/organisms/__tests__/builderRenderer.device.test.tsx",
+            "src/components/builder/organisms/__tests__/builderRenderer.streaming.test.tsx",
+            "src/components/builder/organisms/__tests__/builderRenderer.streamingServer.test.tsx",
+            "e2e-performance/first-visit.spec.ts"
+          ],
+          "mechanism": "`SectionsList` (`BuilderRenderer.tsx:341-399`) opakowuje sekcje o indeksie ≥1 w `HydrationIsland` wewnątrz `StreamingSection` (`sectionStreaming.tsx:221-248`; sekcja bez granicy dostaje tę samą granicę na serwerze i kliencie, ~20 B HTML); stopka (`Footer.tsx`) jako jedna wyspa. Wyzwalacze: `visible` (IO, rootMargin `0px 0px 100% 0px`), `interaction:'any'` (potem pozostałe wyspy po jednej na klatkę przez kolejkę P0.3), `ownEvents` pointerdown/focusin/keydown, `immediateWhen: hasStoredAuthSession` (zalogowani i redaktorzy: bez odroczenia — bloki zależne od roli w sekcjach ≥1 od razu poprawne; krytyka m10), zapas `onQuiescent`. Każda wyspa rejestruje `chunks` = loadery leniwych widgetów swojej sekcji (z rejestru `widgetChunkPlugin`/`lazyWidgets`), więc bramka otwiera się po ich załadowaniu (krytyka M5). Urządzenie dla treści wysp z `useViewportDevice()` (lustro useState + startTransition z P1.6; NIE uSES), elementy wysp memoizowane z propsami niezależnymi od urządzenia, więc przełączenie desktop→mobile (`BuilderRenderer.tsx:241-279`, transition) kończy się bailoutem przed odwodnionymi granicami; koszt korekty urządzenia w wyspie (commit z podmianami `<style>`, werdykt H6 ~90 ms sym. na renderer przy x4) wliczony w księgę jako zadanie po hydratacji wyspy — poza oknem, bo wyspy sekcji ≥1 na mobile hydratują po interakcji/IO. `shouldStreamSection` memoizowane per obiekt sekcji (WeakMap; H10(c)). Wyspy wyłączone dla sekcji z widżetem TOC (AGENTS.md: aktywność TOC z geometrii nagłówków w jednym nasłuchu scroll throttlowanym rAF) i w trybie buildera. **Motyw** (krytyka m6): `ThemeProvider.setTheme` (`ThemeProvider.tsx:127`) najpierw synchronicznie `applyTheme(next, …, document.documentElement)` (klasa na `<html>`), potem `startTransition(setThemeState)` — przełącznik nie czeka na odwodnione wyspy. **Serwer** (krytyka m5): wyspa nie zawiesza się na serwerze; test w `builderRenderer.streamingServer.test.tsx`: HTML serwera nie zawiera fallbacku/szkieletu wysp, kolejność strumienia bez zmian (klasa incydentu PR #423/#431).",
+          "expected_effect": "Księga deterministyczna (fixture W0-ekwiwalent, kombinacja C3 + W1): commit z obs 680 ms (141 ms blokowania w reżimie C3) + plasterki → mobile x4 −95 ms (reguła ×0,5: commit x0,75, plasterki x0,7) / −150 ms (pełne: x0,5 / x0,4; eksperyment regionów: React −25 %, styl −48 %, layout −70 %); desktop x4 (commit 91 ms obs 658 + plasterki) −121 / −148 ms (`ledger/chain.out`). Niezweryfikowane (H7 bez werdyktu). Zdejmuje też katalog kategorii/tagów z okna (połowa H3).",
+          "risk": "średni-wysoki: client-render wyspy (utrata HTML, CLS — 25 pkt w banku) przy aktualizacji Default/Sync → warunki P1.6 + audyt providerów; kliknięcia nieuwodnione → wyzwalacz w capture; INP pierwszej interakcji (kolejka P0.3, jedno zadanie na klatkę).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:chunks",
+            "check:chunk-parity",
+            "check:bundle",
+            "check:ssr-budgets (bez zmian loadera)",
+            "first-visit e2e: zachowanie DOM + CLS + przewijanie hydratuje wyspy bez przesunięć",
+            "e2e z zapisaną sesją: brak odroczenia, bloki roli poprawne",
+            "e2e motywu: przełączenie przed hydratacją wysp stosuje klasę w ≤ 1 klatkę",
+            "hydrationIsland/device/streaming/streamingServer testy",
+            "noHasSelectors"
+          ],
+          "verification": "Księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w2> <wt-P2.2> --runs 5 --forms mobile,desktop4x --client-backend fixture --save-artifacts` (obie strony z transformacją C3, gdy P2.1 jeszcze nie scalone): `lanternTasks --diff` — commit hydratacji < 50 ms sym. albo rozbity, plasterki sekcji ≥1 poza oknem; brak chunków JoinUsForm/TailoredMustReads/WidgetView w `network-requests` do końca śladu (mobile); CLS ≤ 0,001 bez pojedynczego przesunięcia > 0,0005; kierunek: mediana ΔTBT < 0; `node scripts/performance/run-first-visit.mjs --compare <base-w2> <wt-P2.2>`: CLS 0, DOM zachowany.",
+          "depends_on": ["P1.6", "P1.2", "P1.3", "P1.7"],
+          "parallel_group": "w2-islands",
+          "effort": "L"
+        },
+        {
+          "id": "P2.3",
+          "workstream": "hydration:H8 + boot-js:C8 (bez zamiany sanitizera) + krytyka M10b (ukryty nagłówek desktop na mobile), M12 (zalogowani)",
+          "title": "[MUST-desktop] Nagłówek w oknie: ukryty nagłówek desktopowy jako wyspa na mobile, widgety konta i wyszukiwarki na intencję (natychmiast przy zapisanej sesji)",
+          "files": [
+            "src/components/builder/organisms/widget-view/lazyWidgets.tsx",
+            "src/components/builder/organisms/widget-view/AccountMenuWidget.tsx",
+            "src/components/builder/organisms/widget-view/SearchButtonWidget.tsx",
+            "src/components/Header.tsx",
+            "src/components/header/TrendingTicker.tsx",
+            "e2e-performance/header-intent.spec.ts (nowy)"
+          ],
+          "mechanism": "(1) **Ukryty nagłówek desktopowy na mobile** (`Header.tsx:267`, `<div className=\"hidden lg:block\">` z `BuilderRenderer chrome`; 37,2 KB HTML, `display:none` < 1024 px, dziś parsowany I hydratowany): `HydrationIsland id=\"hdr-desktop\" trigger={{visible:false, interaction:false, quiescent:false, media:'(min-width: 1024px)', immediateWhen: hasStoredAuthSession}}` — na mobile nie hydratuje w oknie (niewidoczny, HTML identyczny, parytet SSR zachowany), po obrocie/zmianie szerokości ≥ 1024 px hydratuje; na desktopie zapytanie pasuje od startu → hydratacja w przebiegu korzenia (dziś). Reguła `lazyWidgets.tsx:35-36` („nawigacja hydratuje pierwsza\") dotyczy WIDOCZNEJ nawigacji — na mobile to nagłówek mobilny (4,1 KB), który hydratuje jak dziś. (2) AccountMenuWidget dla gościa renderuje statycznie `AppLink` + ikonę logowania (ten sam markup SSR), menu zalogowanego (radix Popover/Avatar z `ui/popover` w chunku `eventLanguages`, greetings z `admin.users`, supabase) ładowane leniwie przy otwarciu; SearchButtonWidget: `useVoiceSearch`, `facetModel→archives`, `i18n-search` (`SearchButtonWidget.tsx:16-28`) na intencję; oba jako `HydrationIsland` z `ownEvents: ['pointerover','focusin','touchstart','keydown']`, `globalKeys: ['/']` (wyszukiwarka), `visible:false`, **`immediateWhen: hasStoredAuthSession`** — zalogowany widzi swój awatar zaraz po boocie, jak dziś (krytyka M12: HTML w cache jest anonimowy, wyspa „na intencję\" nie przyjęłaby aktualizacji auth przed hydratacją); korzysta wyłącznie z API P1.6 (bez edycji prymitywu). (3) TrendingTicker jako wyspa tylko jeśli marquee jest czysto CSS w stanie nieuwodnionym (sprawdzić); poprawka warstwy/animacji tickera, jeśli P0.5 przypisze mu zadanie kompozytora. Mega-menu i nawigacja widoczna bez zmian.",
+          "expected_effect": "Niezweryfikowane: ukryty nagłówek — część przebiegu korzenia mobile (Header `p2` 52 ms inkluzywnie przy 4x dla całego nagłówka, widgety nagłówka w `cz`/`fz`) → mobile TBT −20…−60 ms (×0,5: −20); widgety: −150 KB raw JS ewaluowanego w oknie (vendor-radix 112 KB raw, admin.users/greetings, zależności wyszukiwarki) i ~40 ms hydratacji przy 4x → TBT mobile −30…−80 ms, desktop −20…−50 ms (×0,5: −27/−17). W księdze zawarte we wspólnych zadaniach przebiegu korzenia (P1.7) i plasterków (P2.2) — NIE dodawane osobno (brak podwójnego liczenia); liczby powyżej to szacunek autora do raportu pozycji, rozliczany `lanternTasks --diff`.",
+          "risk": "średni: parytet SSR nagłówka (doktryna parytetu chrome); zmiana szerokości okna na desktopie w trakcie ładowania (media query → hydratacja, test); opóźnienie pierwszego dotknięcia (touchstart poprzedza click o ≥100 ms); dostępność (focus wyzwala).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "Header/chrome SSR parity testy",
+            "check:chunks",
+            "check:bundle",
+            "nowy e2e: przy 412 px nagłówek desktopowy bez hydratacji do końca śladu, po resize do 1350 px hydratuje bez przesunięć; pierwsze dotknięcie otwiera wyszukiwarkę i menu konta; z zapisaną sesją awatar w ≤ 1 s po boocie; brak vendor-radix/useVoiceSearch w zasobach gościa przed interakcją"
+          ],
+          "verification": "`node scripts/performance/lighthouse-local.mjs --compare <base-w2> <wt-P2.3> --runs 5 --forms mobile,desktop4x --client-backend fixture --save-artifacts`: brak `vendor-radix`, `useVoiceSearch`, `admin.users` w `network-requests` gościa do końca śladu; księga: przebieg korzenia mobile krótszy o część nagłówka desktopowego (`lanternTasks --diff`); kierunek: mediana ΔTBT ≤ 0; e2e header-intent zielone.",
+          "depends_on": ["P1.6", "P1.7"],
+          "parallel_group": "w2-header",
+          "effort": "M"
+        },
+        {
+          "id": "P2.4",
+          "workstream": "hydration:H10 (a,d,e,f) + StyleSink per widget + html-weight:HW-2 (zawężone do ChromeWidgetView, zmienne kluczowane `data-device`; werdykt HW-2) + css:C9 (animacje kompozytorowe) + właściciel CSS-owej części kubła „other” z P0.5",
+          "title": "[MUST-desktop] Tańsza hydratacja per widget + szablon typografii widgetów (HW-2 zawężone) + animacje i warstwy kompozytora w oknie",
+          "files": [
+            "src/components/builder/organisms/ChromeWidgetView.tsx",
+            "src/lib/builder/globalWidgets.ts",
+            "src/lib/builder/typographyCss.ts",
+            "src/lib/builder/liveTypography.ts",
+            "src/lib/utils.ts",
+            "src/lib/icons/DynamicIcon.tsx",
+            "src/components/interests/CountryCombobox.tsx",
+            "scripts/check-entry-purity.ts",
+            "src/styles.css",
+            "src/components/builder/organisms/widget-view/__tests__/typographyMapping.test.tsx",
+            "src/components/molecules/AuthorByline.tsx",
+            "src/components/molecules/__tests__/AuthorByline.cascade.test.tsx",
+            "src/components/builder/organisms/__tests__/chromeWidgetViewParity.test.tsx",
+            "src/components/builder/organisms/__tests__/widgetFrameOwnership.test.tsx",
+            "src/lib/builder/__tests__/typographyMinFontSize.test.ts",
+            "src/lib/builder/__tests__/liveTypography.test.ts",
+            "src/lib/builder/__tests__/sliderTypographyFidelity.test.tsx",
+            "src/lib/ci/__tests__/loadAnimations.test.ts (nowy)"
+          ],
+          "mechanism": "(a) `useGlobalWidgetNode` tylko w dziecku renderowanym, gdy `instanceNode.globalId` jest ustawione (`ChromeWidgetView.tsx:168`). (b) **HW-2 zawężone** (werdykt HW-2: „restrict HW-2 to `ChromeWidgetView` with `data-device`-keyed vars\"): szablony typografii (`[data-wt~=\"fs\"][data-w-id][data-w-id] :is(…)…{font-size:var(--wt-fs)!important}` — ta sama specyficzność 0,3,0 i `!important`) dopisane NIEWARSTWOWO na końcu publicznego CSS; instancja emituje `data-wt=\"tfs dfs\"` + `style=\"--wt-tfs-d:16px;…\"` zamiast bloku `<style>` ~1,5 KB; bramka `data-wt~=` obowiązkowa; nazwy zmiennych per token szablonu (bez przecieku między szablonem ogólnym a tytułowym przy zagnieżdżeniu); urządzenie przez `[data-builder-renderer][data-device=…]` (nie viewport `@media`); wartości przez whitelistę jak `cssLen` (`sliderVariants.tsx:860-868`); joinUs i slider poza zakresem; live typography (`liveTypography.ts:39-56`) — reguła per id w head na zmiennych. (b') pozostałe arkusze per widget (hover/scoped/kolor, `ChromeWidgetView.tsx:247-283,308`) przez `StyleSink` z P1.2 — re-render i przełączenie urządzenia nie przepisują identycznego tekstu (arkusze korzenia liczy P1.2, tu wyłącznie per widget — bez podwójnego liczenia). (d) `cn()` z ograniczonym cache; (e) `DynamicIcon` (`:362-394`): dla nazw spoza kuratorskiego zestawu SVG z DOM SSR zamiast ładowania `icons-N` (103-115 KB raw); (f) CountryCombobox: lista `Intl` leniwie przy otwarciu. (g) css:C9 i CSS-owa część kubła „other\" wg P0.5: `@keyframes enter/exit` bez `filter` zaraz po `@import \"tw-animate-css\"` (tylko gdy P0.5 potwierdzi, że animacja żyje w oknie po P1.3), `oi-fade-in` nie dla obrazów w pierwszym viewporcie, `mbb-strok` dopiero po `html[data-interacted]`, inne źródła warstw kompozytora (`will-change`, `backdrop-filter`) wskazane przez P0.5; test `loadAnimations` (statyczny: animacje uruchamiane przy ładowaniu animują wyłącznie `transform`/`opacity`). (h) HW-6 dla AuthorByline (awatar 163 B ×33, `AuthorByline.tsx:121,140,153`) → klasy Tailwind (ten sam plik testu kaskady co HW-2). Strażnik w `check-entry-purity`: generator typografii nie wraca do entry. Weryfikacja na nazwach komponentów z buildu profilującego/mapy źródeł, nie na zminifikowanych `cz/fz/Tn/rD` (krytyka m2).",
+          "expected_effect": "Księga deterministyczna: ParseHTML w commitach Reacta (obs 1626, 50 ms bl.) i styl po przełączeniu urządzenia (obs 1664, 40 ms) → w kombinacji W2 −42 ms (×0,5: x0,7) / −116 ms (pełne: x0,4) mobile x4 (`ledger/chain.out`); zadanie kompozytora (obs 379 mobile / 423 desktop, 112/101 ms bl.) — współwłasność z P2.6 wg atrybucji P0.5 (×0,5: −28; pełne: −56); pierwsza klatka stylu/layoutu (obs 273, 107 ms bl.) — współwłasność z P2.5/P2.6 (HW-2 usuwa ~130 reguł `:is()` z `!important`; zmierzony pakiet no-JS: Style & Layout 401 → 276 ms). H10 (a,d,e,f): −250…−350 ms pracy Reacta przy 4x (niezweryfikowane) → TBT mobile −60…−120 ms, desktop −30…−60 ms. HTML −58 KB raw / −5 KB gz (HW-2), CSS blokujący +0,85 KB gz.",
+          "risk": "średni: parytet wizualny HW-2 (edytor live, symulacja urządzeń, tryb ciemny, kaskada — szablon niewarstwowy, inaczej warstwowe `!important` odwróci kaskadę); zagnieżdżone renderery z różnym urządzeniem; nieprawidłowe wartości autora (`unset` przez `var()` — whitelist); pamięć cache `cn`; ikony spoza zestawu.",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:entry-purity",
+            "check:menu-icons",
+            "check:dangerous-html",
+            "SSR/hydration parity (chromeWidgetViewParity, typographyMapping, AuthorByline.cascade, widgetFrameOwnership, typographyMinFontSize, liveTypography, sliderTypographyFidelity)",
+            "sonda parytetu stylów obliczonych (Playwright: `getComputedStyle` dla `[data-w-id]` przy 390/820/1350 px, jasny/ciemny — diff pusty)",
+            "check:bundle (publicCss: zapas ~3 KB — zmierzyć)",
+            "check-document-weight (`inlineStyleCount` −~30)",
+            "loadAnimations test",
+            "noHasSelectors"
+          ],
+          "verification": "Księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w2> <wt-P2.4> --runs 5 --forms mobile,desktop4x --client-backend fixture --save-artifacts`, `lanternTasks --diff`: w B zadania przypisane P2.4 skrócone/zniknięte we wszystkich przebiegach (nazwy komponentów z profilu); brak `icons-N` na `/`; sonda parytetu pusta; kierunek: mediana ΔTBT ≤ 0; CLS ≤ 0,001.",
+          "depends_on": ["P1.2", "P0.5"],
+          "parallel_group": "w2-widgets",
+          "effort": "L"
+        },
+        {
+          "id": "P2.5",
+          "workstream": "html-weight:HW-3 (wariant tańszy z werdyktu: a bez podziału na poziom główny, b, c; d i e porzucone) — pakiet dokumentu, część 1 (krytyka B1)",
+          "title": "[MUST] Dieta stanu dehydratacji (projekcje w funkcjach zapytań) — lek na zadania parsowania wciągnięte do okna przez C3",
+          "files": [
+            "src/lib/menus/menu.functions.ts",
+            "src/lib/menus/queries.ts",
+            "src/components/menu/SiteMenu.tsx",
+            "src/components/menu/__tests__/SiteMenu.test.tsx",
+            "src/lib/builder/postListQuery.ts",
+            "src/lib/builder/sliderPostsQuery.ts",
+            "src/lib/builder/ratedListQuery.ts",
+            "src/lib/builder/__tests__/sectionPrefetch.test.ts",
+            "src/lib/views/headerTickerQuery.ts",
+            "src/hooks/useNewsletterSettings.ts",
+            "src/components/builder/organisms/widget-view/PostListView.tsx",
+            "src/components/builder/organisms/widget-view/PostsSliderWidget.tsx",
+            "src/components/builder/organisms/widget-view/NewsTickerView.tsx",
+            "src/lib/ci/__tests__/dehydratedPayload.test.ts (nowy)"
+          ],
+          "mechanism": "Projekcje w funkcjach zapytań, nie w `dehydrate` (`serializeData` nie zna klucza — SSR, hydratacja i refetch muszą mieć ten sam kształt): (a) publiczna funkcja menu z polami `id,parent_id,position,item_type,label(lang),href` (+target/visibility/icon tylko gdy niedomyślne), projektowana z tego samego wpisu `edgeTtlCache(menuCacheKey(key))` (`menu.functions.ts:104-115`; purge `:250` i listy L2 bez zmian), BEZ podziału na poziom główny (dzieci zostają: hover, szuflada, mega, `hasPanel`); (b) projekcja wierszy postów na język z fallbackami identycznymi jak konsumenci (`PostListView.tsx:269-277`: tytuł PL→EN, excerpt bez fallbacku; `PostsSliderWidget.tsx:149-151`; `NewsTickerView.tsx:61`), klucz tickera z `lang` i `placeholderData: keepPreviousData` (bez zapadania paska przy miękkiej zmianie języka — komentarz `__root.tsx:726-731` pozostaje prawdziwy); (c) projekcja `newsletter-settings` dla formularza inline (pełny klucz dla popupu, admina i `registrationFields.ts:67`). (d) porzucone (klucze czytane w pierwszym renderze — werdykt HW-3). (e) porzucone (wymaga filtra w `router.tsx:67` i bramkowania font_scale = część H2, którą werdykt H2 każe porzucić). Test `dehydratedPayload`: stan SSR `/` na fixture bez zakazanych pól (`menu_id`, domyślne `mega_config`, `*_en` w wierszach PL, `popup_*` w odwodnionym newsletterze); budżet ładunku per zapytanie z dekodowaniem `$tsr` = HW-7 w P6.1. Bramka fali dla pakietu dokumentu (P2.4-P2.6): brak zadania ParseHTML ani inline EvaluateScript ≥ 50 ms sym. w [FCP, TTI] w księdze drzewa W2 z C3.",
+          "expected_effect": "Stan −8,4 KB gz / ~−50 KB raw (prod; fixture −3,0 KB gz); FCP/LCP 0; TBT mobile 0 dziś, −15…−35 ms po C3 (werdykt HW-3, osłabione). W księdze: zadania ParseHTML dokumentu (obs 221/244 ms, 106 ms blokowania w reżimie C3) — współwłasność z P2.6; cały pakiet dokumentu (P2.4 HW-2 + P2.5 + P2.6) w księdze deterministycznej: −151 ms (reguła ×0,5: parse x0,6, pierwsza klatka x0,85) / −142 ms (pełne: parse x0,4, styl x0,69) mobile x4 w kombinacji W2 (608 → 457 / 376 → 234); zmierzony pakiet no-JS na HTML produkcji: TBT mediana 158 → 25 ms (gzip, N=5).",
+          "risk": "średni: kształt danych dla konsumentów; miękka zmiana języka (keepPreviousData); testy `menu-with-items` (SiteMenu, MenuManager, ssrCacheL2, sectionPrefetch).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:ssr-budgets",
+            "check:loader-policy",
+            "dehydratedPayload test",
+            "check:i18n-parity",
+            "homeRoute/rootRoute",
+            "sectionPrefetch test (`RATED_LIST_POST_COLUMNS`)",
+            "SiteMenu/MenuManager testy"
+          ],
+          "verification": "`node scripts/performance/check-document-weight.ts`: `dehydratedStateBytes` w dół o ≥3 KB gz na fixture; księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w2> <wt-P2.5> --runs 5 --forms mobile --client-backend fixture --save-artifacts` (obie strony z transformacją C3, gdy P2.1 nie scalone): zadania ParseHTML/EvaluateScript dokumentu krótsze we wszystkich przebiegach; kierunek ΔTBT ≤ 0; CLS ≤ 0,001; e2e miękkiej zmiany języka: pasek tickera nie zapada się.",
+          "depends_on": ["P0.5"],
+          "parallel_group": "w2-dehydration",
+          "effort": "M"
+        },
+        {
+          "id": "P2.6",
+          "workstream": "html-weight:HW-6 (statyczne style → klasy) + css:C9 (kropki slidera) + markup kubła „other” z P0.5 — pakiet dokumentu, część 2 (krytyka B1)",
+          "title": "[MUST] Dieta znaczników w oknie TBT: powtarzalne statyczne style → klasy, kropki slidera kompozytorowo",
+          "files": [
+            "src/components/builder/organisms/BuilderWidgetNode.tsx",
+            "src/lib/builder/sliderVariants.tsx",
+            "src/lib/builder/__tests__/sliderVariantCatalogs.test.tsx"
+          ],
+          "mechanism": "HW-6: powtarzalne statyczne `style=\"\"` (ramka widgetu `BuilderWidgetNode.tsx:101-115` ×23; przejście FillImage `sliderVariants.tsx:384` ×21; szerokość multi-card `:1377` ×20) → klasy Tailwind (bez edycji `styles.css` — właściciel w W2: P2.4); część AuthorByline (163 B ×33, `AuthorByline.tsx:121,140,153`) robi P2.4, bo jest właścicielem `AuthorByline.cascade.test.tsx` (test kaskady generatora typografii); parytet SSR/klient (te same klasy). C9: kropki paginacji slidera (`sliderVariants.tsx:704`, `:1654`: `transition-all` + `w-2 h-2` ↔ `w-2.5 h-2.5`) → stały `size-2.5` + `scale-[.8]` dla nieaktywnych + `transition-[transform,opacity]`. Plus poprawki znaczników przypisane przez P0.5 zadaniu kompozytora/pierwszej klatki w tych plikach. Testy: katalogi slidera zaktualizowane o klasy zamiast inline style; `sliderVariantCatalogs.test.tsx:555` (jeden `style[data-href=\"nes-slider-shared-v1\"]`) bez zmian.",
+          "expected_effect": "−33 KB raw / −2,2 KB gz HTML (prod), mniej parsowania atrybutów `style` w zadaniach ParseHTML dokumentu po C3 (część zmierzonego pakietu no-JS, krok P2→P3: zadania parsowania znikają); mniej animowanych warstw w oknie. Niezweryfikowane (HW-6 bez werdyktu) — liczone w pakiecie dokumentu regułą ×0,5 (§1.5).",
+          "risk": "niski-średni: kolejność kaskady klas zamiast inline style (klasa Tailwind może przegrać z regułą autora tam, gdzie inline wygrywał — sonda parytetu stylów obliczonych z P2.4 obejmuje te elementy).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "SSR parity",
+            "sonda parytetu stylów obliczonych (wspólna z P2.4)",
+            "check-document-weight (bajty w dół)",
+            "noHasSelectors"
+          ],
+          "verification": "`check-document-weight`: `htmlRawBytes` w dół; księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w2> <wt-P2.6> --runs 5 --forms mobile,desktop4x --client-backend fixture --save-artifacts`: zadania ParseHTML dokumentu krótsze, brak niekompozytorowej animacji kropek w audycie `non-composited-animations`; kierunek ΔTBT ≤ 0; CLS ≤ 0,001.",
+          "depends_on": ["P0.5"],
+          "parallel_group": "w2-markup",
+          "effort": "S"
+        }
+      ]
+    },
+    {
+      "wave": 3,
+      "goal": "Fala 3 — domknięcie po C3: poprawki zależne od C3, margines LCP, warunkowe: stopniowany burst i content-visibility. Domknięcie po C3: poprawki zadań wciągniętych do okna dopiero przez C3 (P3.1), margines LCP mobile (hero 640w, jeden font PL — LP-7/LP-8), oraz dwie pozycje WARUNKOWO-MUST liczone do celu, uruchamiane, gdy księga drzewa W2 pokaże ich zadania w oknie: stopniowany burst bootu (zadanie `ScriptCatchup` kompilacji zestawu bootu) i `content-visibility` sekcji ≥2 (pierwsza klatka stylu/layoutu). Bramka W3 jest bramką wdrożenia P2.1, jeśli bramka W2 nie przeszła. Bramka fali: jak W2 (TBT mobile ≤ 200 ms fixture z flagami i w księdze ALBO projekcja ≥ 87; desktop4x ≤ 150 ms) PLUS ΔLCP mobile ≤ −0,1 s (P3.2) i brak zadania `ScriptCatchup` ≥ 50 ms sym. w oknie (gdy P3.4 uruchomione); desktop4x i desktop5x zmierzone — raport, czy próg D12 (desktop ≥ 90) jest w zasięgu przy k z W0. Ta bramka jest bramką wdrożenia P2.1, jeśli bramka W2 nie przeszła.",
+      "expected_scores_after": "Fixture (księga, reguła ×0,5 / pełne): mobile x4 410 / 163 ms, desktop x4 252 / 87, x5 447 / 190 (z P3.4; P3.3 niemodelowane). PSI mobile centralnie 86 (83-89 zależnie od mapowania; pełne 92-93); LCP ~2,7 s. PSI desktop centralnie 87 (86-88; pełne 98) przy hoście ~x4, 84 (78-87; pełne 96) przy ~x5.",
+      "items": [
+        {
+          "id": "P3.1",
+          "workstream": "lighthouse-analyst:LA-C1 (c, część zależna od C3) + third-party:TP-5 (część consent.ts)",
+          "title": "[MUST-desktop] Poprawki zadań wciągniętych do okna przez C3 (lista z księgi W2) + TP-5 w consent.ts",
+          "files": [
+            "src/router.tsx",
+            "src/lib/ads/consent.ts",
+            "src/lib/i18n.ts",
+            "src/__tests__/router.test.tsx",
+            "src/lib/ads/__tests__/consent.test.tsx"
+          ],
+          "mechanism": "Zakres = zadania, które w księdze drzewa W2 (z C3) są ≥ 50 ms sym. i NIE były w oknie przed C3 ani nie mają właściciela w W2 (np. ewaluacja modułów bootu, praca routera po spóźnionym boocie, mikrozadania TLA słownika przy hydracji po LCP); lista `plik:linia` z `lanternTasks --diff` W1↔W2 zatwierdzana przez orkiestratora przed startem W3, poprawki zgodnie z regułami P1.7 (bez usuwania ostatniego Layout z długiego zadania bez podziału). TP-5 w `consent.ts:503`: `onAuthStateChange` tylko przez `onSupabaseClientCreated` z P1.7 (gość bez klienta nie tworzy go dla zgód). Poprawki wymagające `__root.tsx`/`Header.tsx` (właściciele w W3: P3.2 tylko import fontu; nikt dla Header) — `__root.tsx` → P5.1 (W5, bezwarunkowa), `Header.tsx` → P5.1; to jest realny slot nadmiaru (krytyka M4e).",
+          "expected_effect": "Niezweryfikowane, liczone ×0,5: −10…−30 ms mobile/desktop (zależne od listy z księgi W2); TP-5 w zgodach: −5…−10 ms sym.",
+          "risk": "średni: kolejność aktualizacji (mismatch hydratacji) — doktryna `setTimeout(0)` zostaje; zgody dla zalogowanego (subskrypcja auth musi nadal działać po zalogowaniu w karcie — test).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "router/consent testy",
+            "e2e `e2e/user-paths.spec.ts`",
+            "check:entry-purity"
+          ],
+          "verification": "Księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w3> <wt-P3.1> --runs 5 --forms mobile,desktop4x --client-backend fixture --save-artifacts`: zadania z listy zniknęły/skrócone we wszystkich przebiegach; kierunek ΔTBT ≤ 0; e2e: gość bez `/auth/v1` i bez klienta Supabase na `/`; logowanie w drugiej karcie aktualizuje zgody.",
+          "depends_on": ["P2.1", "P1.7", "P0.5"],
+          "parallel_group": "w3-c3-fixes",
+          "effort": "M"
+        },
+        {
+          "id": "P3.2",
+          "workstream": "lcp-path:LP-7 + lcp-path:LP-8 (= css:C10, jeden projekt), html-weight:HW-4 (drabina z zachowanym 640w; krytyka M6, m9)",
+          "title": "[MUST-margines] Bajty zbioru LCP po C3: sizes hero z marginesem sekcji (640w w drabinie), jeden preload fontu latin+PL z zachowaną metryką",
+          "files": [
+            "src/lib/cropSizes.ts",
+            "src/lib/__tests__/cropSizes.test.ts",
+            "src/components/atoms/OptimizedImage.tsx",
+            "src/lib/builder/sliderVariants.tsx",
+            "src/components/header/TrendingTicker.tsx",
+            "src/lib/builder/imageSlot.ts",
+            "src/lib/builder/sliderSizes.ts",
+            "src/lib/builder/widgetImageSizes.ts",
+            "src/lib/builder/heroImage.ts",
+            "src/styles.css",
+            "src/lib/seo/fontPreload.ts",
+            "src/lib/seo/rootHead.ts",
+            "src/routes/__root.tsx",
+            "src/assets/fonts/red-hat-display-latin-pl.woff2 (nowy)",
+            "src/lib/ci/__tests__/fontGlyphCoverage.test.ts (nowy)",
+            "src/lib/builder/__tests__/heroImage.test.ts",
+            "src/lib/builder/__tests__/heroCandidateSelection.test.ts (nowy)"
+          ],
+          "mechanism": "LP-7: `ImageSlot` dostaje mobilne `{vw, gutterPx}` z paddingu sekcji, `imageSlotSizes` (i deskryptor slidera/hero przez tę samą funkcję, więc preload z P1.4 = `<img>`) emituje `(max-width: 767px) calc(100vw - {2*gutter}px)` → przy 412 px × DPR 1,75 i gutterze 32 px: 348 × 1,75 = 609 px → **640w** (25,1 KB) zamiast 768w (37,9 KB), gęstość 1,84x ≥ DPR. HW-4 (ten sam kod, jeden właściciel): drabina **[480, 640, 768, 1280, 1920]** zamiast 9 szerokości `RESPONSIVE_WIDTHS` (`cropSizes.ts:209,216-227`) — 640 ZOSTAJE (krytyka M6: drabina [480, 768, 1280, 1920] z poprzedniej wersji usuwała szerokość, na której stoi zysk LP-7; what-if lcp-path po C3: sam hero T1 = 0 ms, sam font T3 = 0 ms, tylko razem E6 = −150 ms); awatary 1x/2x (`:254-257`, ticker). Test wyboru (`heroCandidateSelection`, nowy): dla 412×823 @1,75 i 1350×940 @1 z rzeczywistymi paddingami sekcji fixture i produkcji (`$SCRATCH/psi/home.html`) przeglądarkowy algorytm wyboru z `srcset`/`sizes` (implementacja referencyjna w teście) wybiera 640w na mobile (przy gutterze 16 px: 768w — test dokumentuje oba przypadki) i 768w na desktopie; preload z P1.4 ma identyczne `imagesrcset/imagesizes`. LP-8: jeden zmienny plik Red Hat Display z osią 400-900 i zakresem U+0000-00FF, U+0104-0107, U+0118-0119, U+0141-0144, U+015A-015B, U+0179-017C, U+2000-206F, U+20AC, U+2122 (~32 KB), generowany offline narzędziem z npm (`subset-font`/harfbuzzjs zachowuje osie), preloadowany jako jedyny font, dotychczasowe latin-ext jako niepreloadowana twarz z `unicode-range` bez kodów PL; `font-display: swap` i dopasowana metryka fallbacku (`styles.css:87-94`) bez zmian; test `fontGlyphCoverage`: pokrycie glifów słowników pl/en i treści fixture ORAZ **metryki pionowe OS/2 (`sTypoAscender/Descender/LineGap`, `usWinAscent/Descent`) i `hhea` podzbioru identyczne z dzisiejszym plikiem** (krytyka m9: inna metryka = CLS przy `swap`).",
+          "expected_effect": "Niezweryfikowane (what-if Lantern lcp-path S1/B3/T1/E6, bez werdyktu). Po C3 (zbiór przed LCP ≈ dokument + CSS + font + hero): −13 KB hero i −13 KB fontu ≈ −0,15 s LCP mobile (E6: 1667→1517 ms na fixture) ⇒ +0,8…+1,1 pkt przy LCP ~2,85 s; desktop LCP −0,04 s; FCP 0 (swap). HW-4: HTML ~−30 KB raw / −2,5 KB gz (≈0).",
+          "risk": "niski-średni: pokrycie glifów i metryki (test), wybór kandydata przy nietypowym DPR (sąsiedni wariant w drabinie), parytet preloadu z P1.4 (ta sama funkcja `sizes`).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "heroImage/imageSlot/cropSizes testy",
+            "heroCandidateSelection (412×823 @1,75 i 1350×940 @1)",
+            "fontGlyphCoverage (glify + metryki OS/2/hhea)",
+            "SSR parity",
+            "check-document-weight (preload obrazu = kandydat, bajty srcset w dół)",
+            "check:bundle (assets)"
+          ],
+          "verification": "LH mobile: żądanie hero `?width=640`, jedno żądanie fontu preloadowane; `node scripts/performance/lighthouse-local.mjs --compare <base-w3> <wt-P3.2> --runs 5 --forms mobile,desktop`: ΔLCP mobile ≤ −0,1 s (reżim C3), ΔFCP ≈ 0, CLS ≤ 0,001; `check-document-weight`: preload obrazu = `img[data-lcp-candidate]`.",
+          "depends_on": ["P1.4", "P2.1"],
+          "parallel_group": "w3-lcp-bytes",
+          "effort": "M"
+        },
+        {
+          "id": "P3.3",
+          "workstream": "css:C7 (content-visibility — przeskalowane z FCP na TBT w reżimie C3) + krytyka B1 (lek na pierwszą klatkę stylu/layoutu)",
+          "title": "[WARUNKOWO-MUST] content-visibility:auto dla sekcji ≥2 poza pierwszym ekranem (warunek: zadanie stylu/layoutu dokumentu ≥ 50 ms sym. w oknie po W2)",
+          "files": [
+            "src/components/builder/organisms/BuilderRenderer.tsx",
+            "src/components/builder/organisms/__tests__/builderRenderer.contentVisibility.test.tsx (nowy)",
+            "e2e-performance/content-visibility.spec.ts (nowy)"
+          ],
+          "mechanism": "Uruchamiane, gdy księga drzewa W2 pokazuje zadanie pierwszej klatki (Style/Layout/Paint dokumentu; W0: obs 273 ms, 78,7 ms z Layout, 107 ms blokowania w reżimie C3) ≥ 50 ms sym. w [FCP, TTI]. Wrapper sekcji o indeksie ≥2 na publicznych stronach buildera dostaje inline `style={{contentVisibility: 'auto', containIntrinsicSize: 'auto ' + estimateSectionHeight(section) + 'px'}}` (szacunek z `sectionStreaming.tsx:170-197`, ten sam na serwerze i kliencie — parytet; bez edycji `styles.css`, której właścicielem w W3 jest P3.2). Wyłączone: sekcje z widżetem TOC i nagłówkami, których geometrię czyta nasłuch TOC (AGENTS.md: aktywność TOC z geometrii nagłówków w jednym nasłuchu scroll throttlowanym rAF — `content-visibility` zmienia geometrię pominiętych poddrzew), sekcja zawierająca cel `location.hash`, tryb buildera/`editorPreview`, druk. Dziś stopka i RelatedPosts już używają `.cv-auto`.",
+          "expected_effect": "Niezmierzone w reżimie C3 (css:C7 zmierzone przed C3: FCP +0,03 s, TBT nieoceniane) — liczone 0 w centralnej projekcji, raportowane jako dźwignia domykająca (stretch); oczekiwanie: pierwsza klatka stylu/layoutu −20…−40 % (sekcje 2-8 = 47 % elementów prod), czyli −20…−45 ms blokowania mobile x4.",
+          "risk": "średni: CLS przy wejściu sekcji do widoku (rozmiar szacunkowy → rzeczywisty; `auto` zapamiętuje rozmiar) — ≥5 przebiegów CLS ≤ 0,001 i e2e przewijania; kotwice i TOC (wyłączenia + e2e); find-in-page działa z `content-visibility:auto`.",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "builderRenderer.contentVisibility test (parytet SSR/klient, wyłączenia TOC/hash/builder)",
+            "e2e: przewijanie do końca strony bez przesunięć widocznych elementów, kotwica `#id` w sekcji 5 trafia w cel, aktywny wpis TOC poprawny na wpisie",
+            "first-visit e2e (CLS)",
+            "noHasSelectors"
+          ],
+          "verification": "Księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w3> <wt-P3.3> --runs 5 --forms mobile,desktop4x --client-backend fixture --save-artifacts`: zadanie pierwszej klatki krótsze we wszystkich przebiegach; CLS ≤ 0,001 bez pojedynczego przesunięcia > 0,0005; kierunek ΔTBT ≤ 0.",
+          "depends_on": ["P2.2"],
+          "parallel_group": "w3-cv",
+          "effort": "S"
+        },
+        {
+          "id": "P3.4",
+          "workstream": "boot-js:C3 (dostarczenie, uzupełnienie) + krytyka B2 (kubeł „other”: kompilacja zestawu bootu w jednym zadaniu)",
+          "title": "[WARUNKOWO-MUST] Stopniowany burst bootu: modulepreloady w trzech grupach w osobnych zadaniach, entry po ostatniej (warunek: zadanie ScriptCatchup ≥ 50 ms sym. w oknie po W2)",
+          "files": [
+            "src/lib/boot/bootLoaderScript.ts",
+            "src/lib/boot/__tests__/bootLoaderScript.test.ts",
+            "e2e/boot-timing.spec.ts"
+          ],
+          "mechanism": "Uruchamiane, gdy księga drzewa W2 pokazuje zadanie `ScriptCatchup` (W0: obs 422 ms mobile / 376 desktop, 35,5/40,4 ms, x18 zdarzeń — dokończenie strumieniowej kompilacji całego zestawu bootu naraz; 92/111 ms blokowania w reżimie C3) ≥ 50 ms sym. `boot()` w `BOOT_LOADER_SCRIPT` wstawia `<link rel=modulepreload>` w trzech grupach — (1) domknięcie entry (vendory + entry), (2) słownik aktywnego języka + chunk trasy, (3) chunki widgetów nad zgięciem — każdą w osobnym zadaniu (`setTimeout(0)` między grupami), a `<script type=module src=entry>` dopiero po zażądaniu ostatniej grupy, więc reguła CLS „wszystkie chunki widgetów nad zgięciem w tym samym burście co entry\" (boot-js §1.3) obowiązuje nadal: żaden moduł nie ewaluuje się przed zażądaniem wszystkich. Cel: dokończenia kompilacji lądują w różnych zadaniach (każde < 12,5 ms obs). Jeśli pomiar pokaże, że przeglądarka i tak scala dokończenia w jedno zadanie (wszystko przychodzi w jednej rundzie sieci), pozycja jest wycofywana, a dźwignią zostaje objętość bootu (P5.1/P5.2).",
+          "expected_effect": "Księga deterministyczna (podział zadania modelowany skróceniem): mobile x4 −47 ms (×0,5) / −71 ms (pełne), desktop x4 −53 / −108, x5 −67 / −141 w kombinacji W2. Niezweryfikowane (zależność od grupowania obserwowanego) — liczone ×0,5.",
+          "risk": "niski-średni: hydratacja o ~2 tiki później (≤ 10 ms); test, że entry nie startuje przed zażądaniem wszystkich grup; CLS ≥5 przebiegów.",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "bootLoaderScript test (kolejność grup, entry po ostatniej grupie, tryb immediate bez grup)",
+            "bun run test:e2e:artifact (boot-timing)",
+            "first-visit e2e (CLS)"
+          ],
+          "verification": "Księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w3> <wt-P3.4> --runs 5 --forms mobile,desktop4x,desktop5x --client-backend fixture --save-artifacts`: zamiast jednego zadania `ScriptCatchup` kilka zadań < 50 ms sym. we wszystkich przebiegach; CLS ≤ 0,001; LCP/FCP bez zmian (±0,02 s); kierunek ΔTBT < 0.",
+          "depends_on": ["P2.1"],
+          "parallel_group": "w3-boot-staging",
+          "effort": "S"
+        }
+      ]
+    },
+    {
+      "wave": 4,
+      "goal": "Fala 4 — higiena po C3 (nie liczona do celów). Higiena po C3 (nie liczona do celów): CSS blokujący etap 1 (bez C9, które przeszło do P2.4, i bez obalonej resztki C6), względne URL-e mediów WYŁĄCZNIE w ścieżce renderu HTML, logo nagłówka eager. Pakiet dokumentu (HW-2 zawężone, HW-3, HW-6) przeniesiony do W2 na ścieżkę wyniku. Bramka fali: brak regresji (higiena; zysk raportowany, nie liczony do celów); meta i JSON-LD bajt w bajt (P4.2); e2e odtworzenia zminimalizowanych czatów przy 412 i 1350 px (P4.1).",
+      "expected_scores_after": "nie liczone do celów; możliwe +0…+1 pkt mobile (FCP/LCP −0,05…−0,08 s z CSS), desktop +0…+0,5 (SI logo).",
+      "items": [
+        {
+          "id": "P4.1",
+          "workstream": "css:C2+C3+C1 (tylko silnik)+C11; krytyka M14 (zasada AGENTS.md o zminimalizowanych czatach)",
+          "title": "[HIGIENA] CSS blokujący etap 1: druk, powierzchnie członkowskie i admina (bez stanu zminimalizowanych czatów), silnik wykresów, bramka render-blocking",
+          "files": [
+            "src/styles.css",
+            "src/styles/print.css (nowy)",
+            "src/admin-styles.css",
+            "src/components/charts/charts.css",
+            "src/components/charts/ChartFrame.tsx",
+            "src/components/chat/chat.css (nowy)",
+            "src/components/dock/dock.css (nowy)",
+            "src/components/clubs/clubs.css (nowy)",
+            "src/components/careers/careers.css (nowy)",
+            "src/components/profile/profile.css (nowy)",
+            "src/components/experts/cv-print.css (nowy)",
+            "src/components/{chat,dock,clubs,careers,profile,experts}/**",
+            "src/lib/seo/rootHead.ts",
+            "src/routes/$.tsx",
+            "scripts/check-bundle-size.ts",
+            "src/lib/ci/__tests__/cssSurfaces.test.ts (nowy)",
+            "e2e/minimized-chats-restore.spec.ts (nowy)"
+          ],
+          "mechanism": "C2: `print.css` przez `rootDocumentLinks` z `media=\"print\"`. C3: hand CSS powierzchni członkowskich/admina (`styles.css` chat `:4818-5134`, dock `:7137-7405`, kluby, kariery, profil, cv-print, admin) współlokowany z modułami (CSS leniwego chunku przez preload helper Vite albo `css` manifestu trasy); 13 reguł `[data-sidebar]` na koniec `admin-styles.css`. **Wyjątek AGENTS.md** (krytyka M14): style stanu zminimalizowanego — `.wd-pill`, szyna `MinimizedChats` (bańki awatarów na mobile, pigułki na desktopie) i `.avg-*` (AvatarGroup, `styles.css:7406-7542`) — ZOSTAJĄ w rdzeniu; do `dock.css`/`chat.css` przechodzą tylko style rozwiniętego docka i okien rozmów, ładowane razem z ich chunkiem (`WorkspaceDock` jest `lazy` w `SiteChrome.tsx:14`). C1 tylko silnik: usunięcie `@import` w `styles.css:19`, `ChartFrame` renderuje `<link rel=stylesheet href={chartsCssUrl} precedence=\"nes-widgets\">`; paleta `--chart-*` ZOSTAJE w rdzeniu. C11: linia `render-blocking css` w `check:bundle` + test `cssSurfaces`, kontrakt sumy `publicCss` zmieniony świadomie z wpisem kroniki. Usunięte z poprzedniej wersji: C9 (→ P2.4), resztka C6 (obalona — werdykt C6: niewykonalna bez regresji na `/`).",
+          "expected_effect": "CSS blokujący −10…−15 KB gz (etap 1 bez palety); po C3 FCP/LCP mobile −0,05…−0,08 s (+0,4…+0,8 pkt), desktop ≈0; dziś ≈0. Zweryfikowane częściowo (css:C1 osłabione: +0,1…+0,3; C2/C3/C11 niezweryfikowane). Higiena — nie liczona do 85.",
+          "risk": "niski-średni: brak stylów na przeniesionej powierzchni (cssSurfaces + e2e tras członkowskich), kolejność kaskady (precedence), historia rewertów podziału wykresów (`1488dfe`/`fa67890`, `9d164f8`/`d02c50f`) → tylko silnik + wpis kroniki; czaty zminimalizowane (e2e niżej).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:bundle (publicCss/css/render-blocking)",
+            "noHasSelectors",
+            "chartClasses/palette testy",
+            "cssSurfaces",
+            "e2e minimized-chats-restore: zapis szyny w sessionStorage (`minimizedChats` STORAGE_KEY) → po przeładowaniu przy 412 px ≤ 3 bańki awatarów nad prawą stroną paska, przy 1350 px pigułki + „+N”, styl obliczony w pierwszej klatce (bez FOUC), CLS 0",
+            "CLS 0 na `/`, `/en`, wpisie, kategorii, klubie"
+          ],
+          "verification": "`bun run check:bundle`: linia render-blocking w dół o ≥10 KB gz; `node scripts/performance/lighthouse-local.mjs --compare <base-w4> <wt-P4.1> --runs 5 --forms mobile,desktop`: ΔFCP/ΔLCP mobile ≤ 0, CLS ≤ 0,001 na `/`, `/en`, wpisie, kategorii, klubie; e2e odtworzenia czatów zielone.",
+          "depends_on": ["P2.1"],
+          "parallel_group": "w4-css",
+          "effort": "L"
+        },
+        {
+          "id": "P4.2",
+          "workstream": "html-weight:HW-5 (zawężone do renderu HTML; krytyka M13) + lcp-path:LP-6",
+          "title": "[HIGIENA] Względne URL-e mediów tylko w srcset/src renderowanym do HTML (nigdy w stemplowaniu, OG/JSON-LD/RSS/sitemap, e-mailach) + logo nagłówka eager",
+          "files": [
+            "src/lib/cropSizes.ts",
+            "src/lib/__tests__/cropSizes.test.ts",
+            "src/components/atoms/OptimizedImage.tsx",
+            "src/components/builder/organisms/widget-view/mediaWidgets.tsx",
+            "scripts/performance/compare-head-meta.mjs (nowy)"
+          ],
+          "mechanism": "HW-5 zawężone: `buildImageSrcSet`/`buildScaledImageUrl` (`cropSizes.ts:100-105,166-171`) dostają opcję `{relativeSameOrigin: true}`, przekazywaną WYŁĄCZNIE przez komponenty renderujące `<img>`/`srcset` do HTML (OptimizedImage, mediaWidgets) i tylko gdy origin = stała kanonicznego SITE (deterministycznie, multi-tenant bezpieczne); domyślnie zachowanie bez zmian. `src/lib/media/publicUrl.ts` NIE jest zmieniany (używają go m.in. `src/lib/media/upload.ts` — stemplowanie `public_url` w bazie, builder newslettera `PropertiesPanel.tsx` — e-maile, `wordpress-import.functions.ts`, `wp-media.server.ts`, `seo/ogCardCanvas.ts`); OG, JSON-LD, RSS, sitemap i e-maile zostają absolutne. `compare-head-meta.mjs`: porównuje `<head>` meta i wszystkie `script[type=\"application/ld+json\"]` dokumentów `/` i wpisu z artefaktu bazy i kandydata — muszą być bajtowo równe. LP-6: logo w chrome nagłówka `loading=eager` bez `fetchpriority=high` (prop `isLogo` w chrome przez OptimizedImage/mediaWidgets) — dziś desktopowe logo żądane po layoucie (3665 ms) i kończone 6289 ms.",
+          "expected_effect": "HTML −19,7 KB raw / −2,1 KB gz (≈0 dla FCP/LCP); desktop SI −0,03…−0,06 s (logo w pierwszej klatce treści) ≈ +0,1…+0,3. Niezweryfikowane (bez werdyktów). Higiena.",
+          "risk": "niski: zakres zamknięty opcją wywołania; jeden dodatkowy obraz Low przy parsowaniu na desktopie (5,7 KB).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "cropSizes testy (domyślnie absolutne; względne tylko z opcją i kanonicznym originem)",
+            "compare-head-meta (meta i JSON-LD bajt w bajt)",
+            "SSR parity",
+            "check:public-assets",
+            "check-document-weight (bajty w dół)"
+          ],
+          "verification": "`node scripts/performance/compare-head-meta.mjs <base-w4> <wt-P4.2>` → równe; `check-document-weight`: `htmlRawBytes` w dół; `node scripts/performance/lighthouse-local.mjs --compare <base-w4> <wt-P4.2> --runs 3 --forms mobile,desktop`: brak regresji, filmstrip desktop z logo w pierwszej klatce treści, CLS ≤ 0,001.",
+          "depends_on": ["P2.1"],
+          "parallel_group": "w4-markup",
+          "effort": "S"
+        }
+      ]
+    },
+    {
+      "wave": 5,
+      "goal": "Fala 5 — desktop: objętość bootu i chrome (bezwarunkowa). Desktop (BEZWARUNKOWO — krytyka B2): objętość bootu i hydratacja chrome, czyli te zadania z księgi, których W1-W3 nie dotykają (kompilacja/ewaluacja entry, nagłówek desktopowy w przebiegu korzenia), plus nadmiar poprawek P1.7/P3.1 w `__root.tsx`/`Header.tsx`. P5.1 liczony regułą ×0,5; P5.2 jako stretch (nie liczony). Bramka fali: desktop4x ≤ 110 ms (cel 95) raportowane wobec twardego progu DoD ≤ 200 ms (D12: desktop ≥ 90); desktop5x raportowane; CLS ≤ 0,001; brak regresji mobile.",
+      "expected_scores_after": "Fixture (księga, entry −30 % jako górna granica P5.1+P5.2): mobile x4 396 / 163 ms, desktop x4 236 / 84, x5 427 / 179. PSI desktop centralnie 88 (88-89; pełne 98) przy hoście ~x4, 85 (78-88; pełne 96) przy ~x5; mobile 86 (84-89). Desktop 95 wymaga ≥ ~85 % dostarczenia szacunków pozycji niezweryfikowanych (§1.5).",
+      "items": [
+        {
+          "id": "P5.1",
+          "workstream": "boot-js:C11 (konkretnie, na poziomie plików i funkcji) + nadmiar P1.7/P3.1",
+          "title": "[MUST-desktop] Chrome poza entry: prefetch i chromeDefaults tylko serwer/leniwie, dyspozytor widgetów chrome per typ (serwer eager / klient lazy w burście), ticker",
+          "files": [
+            "src/routes/__root.tsx",
+            "src/lib/builder/prefetch.ts",
+            "src/lib/builder/sectionQueryOptions.ts (nowy)",
+            "src/lib/builder/useSectionPreload.ts",
+            "src/lib/builder/sectionStreaming.tsx",
+            "src/lib/builder/chromeDefaults.ts",
+            "src/components/builder/organisms/ChromeWidgetView.tsx",
+            "src/components/builder/organisms/widget-view/SimpleWidgets.tsx",
+            "src/components/builder/organisms/widget-view/lazyWidgets.tsx",
+            "scripts/lib/widgetChunkPlugin.ts",
+            "src/components/Header.tsx",
+            "src/components/header/TrendingTicker.tsx",
+            "scripts/taxonomy/features.mjs",
+            "src/routes/__tests__/rootRoute.test.tsx",
+            "src/lib/ci/__tests__/widgetChunkPlugin.test.ts"
+          ],
+          "mechanism": "(a) `prefetch.ts` (53,6 KB pre-min, 13 fabryk zapytań, `worldMapGeo` 8 KB) poza entry: fabryki opcji zapytań używane w renderze (`BuilderRenderer`, `useSectionPreload`, `sectionStreaming.shouldStreamSection`, `heroImage`) wydzielone do małego `sectionQueryOptions.ts` (nowy plik w module 3 → wiersz w `scripts/taxonomy/features.mjs` w funkcjonalności renderu buildera); `__root.tsx:98` importuje prefetch chrome przez `createIsomorphicFn().server(() => prefetchChrome(...)).client(async () => (await import('@/lib/builder/prefetch')).prefetchChrome(...))` — loader korzenia rzadko biegnie po stronie klienta (nawigacja). (b) `chromeDefaults.ts` (13,9 KB; `__root.tsx:97` `defaultDocFor`) tylko po stronie serwera przez `createIsomorphicFn`; klient dostaje dokument z odwodnionego stanu. (c) `ChromeWidgetView.tsx:83-85`: `MegaMenu` (30,5 KB), `SiteMenu` (23 KB) i `renderSimpleWidget` (`SimpleWidgets.tsx`, do 110 KB pre-min) → wzorzec serwer eager / klient `React.lazy` w tej samej granicy (jak widgety czytania, `lazyWidgets.tsx:49-56`), chunki zarejestrowane w `widgetChunkPlugin` i dołączane do zestawu bootu nagłówka przez P2.1 (`bootSet.server.ts` czyta mapę), więc przychodzą w tym samym burście (warunek CLS); `SiteMenu` (widoczna nawigacja) w pierwszej grupie burstu. (d) `TrendingTicker` (41 KB) serwer eager / klient lazy, jeśli P2.3 nie zrobił z niego wyspy. (e) Nadmiar z P1.7/P3.1 w `__root.tsx` i `Header.tsx` (lista z P0.5/księgi W2).",
+          "expected_effect": "Entry −24…−40 KB gz (−10…−15 % surowego bootu) → zadanie `ScriptCatchup`/ewaluacji entry proporcjonalnie krótsze (księga: górna granica entry −30 % łącznie z P5.2 = desktop x4 −16 ms ×0,5 po P3.4; bez P3.4 −24…−48), mniej pracy hydratacji chrome w przebiegu korzenia na desktopie. Niezweryfikowane — liczone ×0,5.",
+          "risk": "wysoki: CLS tickera/nagłówka (chunki w burście; ≥5 przebiegów), doktryna parytetu chrome, interaktywność nagłówka, `createIsomorphicFn` w loaderze korzenia (`check:loader-policy` wyklucza `__root.tsx` — testy rootRoute).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:ssr-budgets",
+            "check:entry-purity",
+            "check:chunks",
+            "check:chunk-parity",
+            "check:feature-taxonomy",
+            "first-visit CLS (≥5 przebiegów)",
+            "e2e interakcji nagłówka (menu, wyszukiwarka, konto)",
+            "rootRoute/widgetChunkPlugin testy"
+          ],
+          "verification": "`bun run report:chunk-inventory index --modules`: brak `prefetch.ts`, `chromeDefaults.ts`, `MegaMenu`, `SiteMenu`, `SimpleWidgets` w entry; entry gzip w dół; księga: `node scripts/performance/lighthouse-local.mjs --compare <base-w5> <wt-P5.1> --runs 5 --forms mobile,desktop4x,desktop5x --client-backend fixture --save-artifacts`: zadanie kompilacji/ewaluacji entry krótsze we wszystkich przebiegach; CLS ≤ 0,001; kierunek ΔTBT < 0.",
+          "depends_on": ["P3.1", "P2.1", "P2.3"],
+          "parallel_group": "w5-chrome",
+          "effort": "L"
+        },
+        {
+          "id": "P5.2",
+          "workstream": "boot-js:C6 (opcja b, konkretnie) + boot-js:C7 (część admin)",
+          "title": "[STRETCH] Odchudzenie powłok tras admin w entry: fabryki head/beforeLoad/validateSearch i puste listy mapDeps dla tras admin",
+          "files": [
+            "src/lib/routes/adminShell.ts (nowy)",
+            "src/routes/admin*.tsx",
+            "scripts/codemods/admin-shell-factories.mjs (nowy)",
+            "scripts/lib/routeCodeSplitting.ts",
+            "vite.config.ts",
+            "vite.smoke.config.ts",
+            "src/lib/ci/__tests__/viteChunkParity.test.ts"
+          ],
+          "mechanism": "Opcja (b) z boot-js C6, bez zmiany drzewa tras: `adminShell.ts` eksportuje `adminRoute({titleKey, permission, search})` zwracające `{head, beforeLoad, validateSearch}` (wspólne: tytuł z i18n, guard `requireAdmin(permission)` z istniejącego `beforeLoad`, parser search) — codemod (`admin-shell-factories.mjs`, deterministyczny, z raportem plików, których nie dało się przepisać) zastępuje inline'owe `head()/beforeLoad/validateSearch` w 213 plikach `src/routes/admin*.tsx` wywołaniem fabryki (typowane trasy TanStack zostają: `createFileRoute(path)(adminRoute({...}))`); C7 (część admin): `build.modulePreload.resolveDependencies` zwraca `[]` dla importów, których chunk-gospodarz jest komponentem trasy admin/club/profile (−25,7 KB tablic mapDeps), w obu configach (`check:chunk-parity`). Opcja (a) (splat `/admin/$`) — nie w tym PR.",
+          "expected_effect": "Szacunek: powłoki admin 95 KB pre-min (średnio 446 B) → ~−50 % → entry ≈ −9 KB gz, mapDeps ≈ −7 KB gz; razem z P5.1 górna granica entry −30 % w księdze; TBT mobile −10…−30 ms przez krótszą kompilację entry. Niezweryfikowane — NIE liczone (stretch).",
+          "risk": "wysoki: typowane linki, guardy auth w `beforeLoad`, nota ADMIN_COCKPIT_SPLIT, duży zasięg (213 plików) — codemod z testem migawkowym listy tras i `check:permissions-parity`.",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:loader-policy",
+            "check:entry-purity",
+            "check:bundle",
+            "check:chunks",
+            "check:chunk-parity",
+            "check:permissions-parity",
+            "e2e admin (logowanie, nawigacja po kokpicie, guard bez uprawnień)"
+          ],
+          "verification": "inwentarz: mniej bajtów `src/routes/admin*` w entry, mapDeps admin puste; e2e admin zielone; A/B jak P5.1.",
+          "depends_on": ["P3.1"],
+          "parallel_group": "w5-routes",
+          "effort": "XL"
+        }
+      ]
+    },
+    {
+      "wave": 6,
+      "goal": "Fala 6 — zapadki i dokumentacja. Zapadki na końcowym drzewie PR i dokumentacja (dodatek W7-W9 może wejść osobnym PR — wtedy ponowny zacisk boot tamże). Bramka fali: `check:bundle` i bramka wagi dokumentu (z ładunkiem stanu per zapytanie) zielone na nowych progach; kontrole negatywne czerwone.",
+      "expected_scores_after": "bez zmiany wyniku (blokada regresji: 102 KB luzu bootu ≈ 0,5 s LCP mobile, preloady, obrazy high, inline style, ładunek stanu per zapytanie).",
+      "items": [
+        {
+          "id": "P6.1",
+          "workstream": "prior-art:PA-C1, measurement (ratchet), lcp-path:LP-10 (finał), lighthouse-analyst:LA-C1 (bramka), css:C11 (ratchet), html-weight:HW-7 (przeniesione z dawnego P4.2)",
+          "title": "[MUST] Zapadki: budżet boot 579 → zmierzony, waga dokumentu i ładunek stanu per zapytanie, CSS blokujący, LHCI desktop x4/x5, raport księgi Lantern",
+          "files": [
+            "scripts/check-bundle-size.ts",
+            "scripts/performance/document-weight-budgets.json",
+            "scripts/performance/documentWeight.ts",
+            "scripts/performance/check-document-weight.ts",
+            "scripts/performance/document-weight.test.mjs",
+            "lighthouserc.json",
+            ".github/workflows/first-visit.yml",
+            "src/lib/ci/__tests__/platformBuildGuards.test.ts"
+          ],
+          "mechanism": "Boot w `FROZEN_BUDGET_KB` 579 → `ceil(zmierzone × 1,00466) + 1` z końcowego artefaktu (≈481 KB przy 477,1; po dodatku W7-W9 ponowny zacisk w tamtym PR z wpisem kroniki), wpis kroniki XXII: przyczyny OVERALL liczone wobec `46452fe88`, próg OVERALL ≈4826 KB do potwierdzenia pierwszym zielonym logiem runnera (wpis V); jedna bramka surowych bajtów bootu = `bootClosureRawBytes` w document-weight (bez szóstego budżetu, PA-C2). HW-7: budżet ładunku per zapytanie (dekodowanie `$tsr` serovalem w bramce) i zakazane pola (`menu_id`, domyślne `mega_config`, `*_en` w wierszach PL, `popup_*` w odwodnionym newsletterze), `inlineTypographyBlocks == 0`. `check-document-weight --ratchet` na końcowym drzewie (`modulepreloadCount` 0, `imgFetchpriorityHigh` ≤2, preloady obrazów, inline style, stan) z datą i commitem w `_comment`; budżet render-blocking CSS w dół; `lighthouserc.json`: kolekcje desktop z `throttling.cpuSlowdownMultiplier=4` i `=5`, asercja TBT `warn`; first-visit.yml: raport księgi Lantern (`lanternTasks`) mobile/desktop4x/desktop5x jako ostrzeżenie (runner ±50 %).",
+          "expected_effect": "0 pkt; blokuje dryf bajtów i powrót preloadów/obrazów high, arkuszy inline i pól stanu.",
+          "risk": "niski-średni: progi z hosta vs runner (formuła z pliku, re-floor z pierwszego logu runnera).",
+          "gates": [
+            "check:bundle",
+            "check:ci-gates",
+            "platformBuildGuards",
+            "check:gate-coverage",
+            "check:workflow-env-contract",
+            "node --test scripts/performance/document-weight.test.mjs"
+          ],
+          "verification": "`bun run check:bundle` na końcowym artefakcie: boot w nowym progu, OVERALL nie gorszy niż main; `node scripts/performance/check-document-weight.ts` zielone po ratchecie; kontrole negatywne (powiększony chunk boot → czerwone, `platformBuildGuards.test.ts:73-113`; dodatkowe pole `popup_doc` w stanie → czerwone).",
+          "depends_on": ["P3.2", "P4.1", "P4.2", "P5.1", "P2.5"],
+          "parallel_group": "w6-ratchets",
+          "effort": "S"
+        },
+        {
+          "id": "P6.2",
+          "workstream": "prior-art:PA-C6 + dokumentacja",
+          "title": "[MUST] Dokument wdrożenia, kronika, korekty dokumentów, link z README",
+          "files": [
+            "docs/performance/2026-10-XX-pagespeed-85-95-wdrozenie.md (nowy)",
+            "docs/performance/2026-10-02-pagespeed-przyczyny.md",
+            "docs/performance/2026-09-30-critical-boot.md",
+            "docs/performance/2026-10-03-pagespeed-85-95/POMIAR.md",
+            "docs/performance/2026-10-03-pagespeed-85-95/README.md",
+            "docs/performance/README.md"
+          ],
+          "mechanism": "Dokument wdrożenia: każda pozycja z księgą per zadanie (przed/po), pomiarem A/B (mediany, DELTA B-A, n_valid, MDE), odchyleniami od planu, kompromisami (TP-1/TP-2, powłoka zgód, odstępstwo „pakiet dokumentu na ścieżce wyniku\"), decyzjami człowieka (D1-D13); naprawa uszkodzonego duplikatu w `przyczyny.md` (linie ~290-564, ponowne złączenie wiersza C4 tabeli §8a); notatka w `critical-boot.md` o wyjątku zatwierdzonym przez właściciela (okno ciszy 5 s dla gtag); POMIAR.md: końcowy baseline, k, protokół PSI z mieszanką HIT/MISS; link z `docs/performance/README.md` (konwencja repo — krytyka m8) w nowej linii, z ominięciem linii zmienianej przez PR #466.",
+          "expected_effect": "0 pkt; powtarzalność i spójność cytowań.",
+          "risk": "niski (konflikt z PR #466 → osobna linia, rebase po jego scaleniu).",
+          "gates": ["format:check"],
+          "verification": "`bunx prettier --check` na zmienionych plikach; tabela §8a renderuje wiersze C1-C5; link z README działa; liczby końcowe (progi P6.1, mediany DoD) wpisuje orkiestrator po scaleniu fali.",
+          "depends_on": ["P5.1"],
+          "parallel_group": "w6-docs",
+          "effort": "S"
+        }
+      ]
+    },
+    {
+      "wave": 7,
+      "goal": "Fala 7 — dodatek: realni użytkownicy (cache, RPC, lucide). Dodatek: realni użytkownicy (poza ścieżką wyniku PSI w modelu laboratoryjnym; zalecany osobny PR po wdrożeniu). Zatwierdzone (przyspiesza, nie psuje), ale nie liczone do 85/95. Rozgrzewka (dawne P7.1) i RUM (dawne P7.4) przeniesione do W0. Bramka fali: testy jednostkowe/pgTAP zielone; weryfikacja produkcyjna przez człowieka; osobny PR dopuszczalny.",
+      "expected_scores_after": "PSI laboratoryjnie 0; realni użytkownicy: MISS TTFB −0,3…−0,8 s, mniej zdegradowanych renderów, dokument ~−30 KB (brotli).",
+      "items": [
+        {
+          "id": "P7.2",
+          "workstream": "server-cache:SC-2+SC-3 (mark-stale)+SC-4+SC-7, measurement:M4",
+          "title": "[REAL-USER] Cache dokumentu: dane L2 widgetów z markerem purge, mark-stale, lookup przed redirectem, ciała brotli, deterministyczny wariant bot/przeglądarka",
+          "files": [
+            "src/lib/ssrCache.ts",
+            "src/lib/ssrCacheL2.server.ts",
+            "src/lib/http/documentCache.ts",
+            "src/lib/http/documentCache.server.ts",
+            "src/lib/http/documentCacheL2.server.ts",
+            "src/start.ts",
+            "src/lib/server/audit.server.ts"
+          ],
+          "mechanism": "SC-2: prefiksy `builder:`, `ad_placements:`, `ticker_posts:` w `EDGE_TTL_L2_KEY_PREFIXES` (`ssrCache.ts:65-72`) + per-host marker `purgedAt` przy selektywnym purge zawierającym `/`. SC-3 w wariancie tańszym z werdyktu: purge cofa `storedAt` wpisu L1/L2 do `now − freshMs` (STALE natychmiast, rewalidacja istniejącym `scheduleRevalidation`). SC-4: lookup cache przed `redirectMiddleware` dla GET text/html na ścieżkach cache'owalnych (`src/start.ts:544-563`). SC-7: ciała brotli q9 prekompresowane w tle, `encodeBody:'manual'`, `Vary: Accept-Encoding`. M4: rendery `isbot()` nie zapisywane (albo wariant w kluczu) — decyzja po A/B `--warm-ua bot` vs `browser`.",
+          "expected_effect": "0 pkt PSI (werdykty SC-2/SC-3: obalone dla wyniku); realni użytkownicy: MISS zimnego izolatu −0,4…−0,8 s, brak MISS po publikacji w colo redakcji, dokument 89→~57 KB, deterministyczny wariant dla PSI.",
+          "risk": "średni: świeżość po publikacji (marker), przekodowanie przez hosting, kolejność middleware.",
+          "gates": [
+            "vitest documentCache*/ssrCache*/startPipeline/platformCacheLifecycle/degradedRenderCachePipeline",
+            "check:server-entry-purity"
+          ],
+          "verification": "testy z wstrzykniętym adapterem L2 (`setEdgeTtlL2Adapter`); (człowiek) `curl -sI -H 'accept-encoding: br' https://neweuropeanstrategies.com/` → `content-encoding: br`.",
+          "depends_on": ["P0.4"],
+          "parallel_group": "w7-doc-cache",
+          "effort": "L"
+        },
+        {
+          "id": "P7.3",
+          "workstream": "server-cache:SC-8",
+          "title": "[REAL-USER] RPC paczki strony głównej (zimny MISS: 4 → 2 fale DB, render zapisany zamiast zdegradowanego)",
+          "files": [
+            "src/lib/queries/public.ts",
+            "src/routes/index.tsx",
+            "src/routes/__root.tsx",
+            "supabase/migrations/<nowy>_get_homepage_bundle.sql"
+          ],
+          "mechanism": "`get_homepage_bundle(_lang)` = ustawienia czytania + wiersz strony + bramkowane ciało w jednym SQL, zasiewające TE SAME klucze react-query (parytet SSR/hydratacji) i stosujące te same projekcje co P2.5; opcjonalnie `chrome_bootstrap()`.",
+          "expected_effect": "0 pkt laboratoryjnie; zimny `/`: −0,3…−0,45 s przy 150-200 ms/zapytanie, render zapisany zamiast `private, no-store` 163 KB.",
+          "risk": "średni: RLS/bramkowane ciało w RPC, parytet kluczy.",
+          "gates": [
+            "check:ssr-budgets",
+            "check:loader-policy",
+            "check:rpc-contract",
+            "pgTAP",
+            "homeRoute",
+            "SSR/hydration parity"
+          ],
+          "verification": "fixture z opóźnieniem 200 ms/zapytanie (`$SCRATCH/phase1/server-cache/delay-proxy.mjs`): odpowiedź `/` cache'owalna, nie `private, no-store`.",
+          "depends_on": ["P2.5"],
+          "parallel_group": "w7-bundle-rpc",
+          "effort": "M"
+        },
+        {
+          "id": "P7.5",
+          "workstream": "boot-js:C13",
+          "title": "[REAL-USER] Mniejszy vendor-lucide-boot (jawna mapa ikon chrome)",
+          "files": [
+            "src/components/builder/organisms/ChromeWidgetView.tsx",
+            "src/components/builder/organisms/widget-view/SearchButtonWidget.tsx",
+            "src/lib/lucide-shim.tsx",
+            "scripts/lib/bootVendorSplit.ts"
+          ],
+          "mechanism": "`import * as LucideIcons` (`ChromeWidgetView.tsx:42`, `SearchButtonWidget.tsx:9`) zastąpiony jawną mapą ikon chrome; osiągalność po nazwach w `bootVendorSplit` zostawia w `vendor-lucide-boot` tylko używane ikony (dziś 190 ikon, 45 KB raw).",
+          "expected_effect": "Niezweryfikowane: vendor-lucide-boot 14,8 → ~6 KB gz; po C3 poza ścieżką krytyczną (≈0 pkt; trochę krótsza kompilacja zestawu bootu).",
+          "risk": "niski: brakująca ikona w mapie (check:menu-icons + test).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:menu-icons",
+            "check:entry-purity",
+            "bootVendorSplit testy",
+            "check:chunks"
+          ],
+          "verification": "`bun run report:chunk-inventory vendor-lucide-boot --modules`: liczba modułów w dół; `bun run test:e2e:artifact` zielone.",
+          "depends_on": ["P2.3"],
+          "parallel_group": "w7-lucide",
+          "effort": "S"
+        }
+      ]
+    },
+    {
+      "wave": 8,
+      "goal": "Fala 8 — dodatek: gość bez SDK Supabase. Dodatek (realni użytkownicy, cd.): gość bez SDK Supabase — zatwierdzone przez właściciela z obsługą tokenów w URL; ≈0 pkt w reżimie C3 (księga deterministyczna: usunięcie żądania vendor-supabase po C3 nie zmienia TBT; werdykt C4: ≈+1 mobile przez krótszą kompilację), więc poza ścieżką wyniku. Bramka fali: e2e przepływów logowania (magic-link, OAuth, recovery, cross-tab) zielone; gość bez vendor-supabase do pierwszego zapytania; ponowny zacisk boot z wpisem kroniki.",
+      "expected_scores_after": "≈0…+1 pkt mobile w reżimie C3, desktop 0; realni użytkownicy −58 KB gz i 55-113 ms CPU (4x).",
+      "items": [
+        {
+          "id": "P8.1",
+          "workstream": "boot-js:C4 (wariant tańszy z werdyktu)",
+          "title": "[REAL-USER] Gość bez SDK Supabase w boot (leniwe pełne SDK, obsługa tokenów w URL)",
+          "files": [
+            "src/integrations/supabase/client.ts",
+            "src/integrations/supabase/client.full.ts (nowy)",
+            "src/integrations/supabase/sessionHint.ts",
+            "src/integrations/supabase/auth-attacher.ts",
+            "src/hooks/useAuth.tsx",
+            "src/lib/ads/consent.ts",
+            "src/lib/theme/customFonts.ts",
+            "scripts/check-entry-purity.ts",
+            "vite.config.ts",
+            "vite.smoke.config.ts",
+            "src/lib/ci/__tests__/viteChunkParity.test.ts",
+            "src/hooks/__tests__/useAuth.test.tsx",
+            "src/hooks/__tests__/authHydration.test.tsx",
+            "src/components/profile/__tests__/AuthGate.test.tsx"
+          ],
+          "mechanism": "Proxy klienta: pełne SDK ładowane leniwie przy pierwszym `from/rpc/auth/channel/storage`; gość: `auth.getSession()` → `{session:null}` bez ładowania, `onAuthStateChange` kolejkuje słuchaczy, `storage.getPublicUrl` synchronicznie. `wantsFull()` = istniejący klient ∨ zapisana sesja (`sessionHint.ts` z P1.7) ∨ tokeny w URL (`access_token`, `refresh_token`, `error_description`, `code`, `type=`) — implicit flow z `detectSessionInUrl` (magic-link `ClubAccessGate.tsx:323`, OAuth `AuthFormBlocks.tsx:481,883`, recovery `:1109-1114`). `attachSupabaseAuth` (`auth-attacher.ts:9`) krótkie spięcie dla gościa. Rejestrator łańcucha mutowalny (`src/lib/admin/community.ts:124`). Podział `vendor-supabase` w `manualChunks` (inaczej `import('@supabase/postgrest-js')` ładuje cały chunk 224 KB) i `tslib` współdzielony z vendor-radix (werdykt C4).",
+          "expected_effect": "Boot −58,4 KB gz / −224 KB raw; po C3 ≈0…+1 pkt mobile, desktop 0; realni użytkownicy −58 KB i 55-113 ms CPU przy 4x. Zweryfikowane (osłabione).",
+          "risk": "średni: przepływy auth z tokenem w URL; kolejność słuchaczy przy logowaniu gościa bez SDK; 786 plików testów mockuje klienta (ten sam eksport); podgląd Lovable w ramce.",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:entry-purity (marker `@supabase/auth-js`)",
+            "check:chunks",
+            "check:chunk-parity",
+            "check:bundle (boot w dół)",
+            "useAuth/authHydration/AuthGate",
+            "e2e user-paths (login, logout, cross-tab, reset hasła, magic-link)"
+          ],
+          "verification": "inwentarz: entry bez statycznego importu vendor-supabase; LH gościa na `/`: brak żądania vendor-supabase przed pierwszym zapytaniem klienta; zalogowany: SDK przed zapytaniem o role; `node scripts/performance/lighthouse-local.mjs --compare <base-w8> <wt-P8.1> --runs 5 --forms mobile --client-backend fixture` ΔTBT ≤ 0.",
+          "depends_on": ["P3.1", "P1.7"],
+          "parallel_group": "w8-supabase",
+          "effort": "L"
+        }
+      ]
+    },
+    {
+      "wave": 9,
+      "goal": "Fala 9 — dodatek: higiena grafu chunków. Dodatek (realni użytkownicy i trwałość grafu chunków): krawędzie statyczne trasy `/`, `experimentalMinChunkSize`, bramka czystości zestawu bootu, `resolveDependencies` — ≈0 pkt (księga werdyktów: boot-js:C1 0…+0,5, C10 ≈0). Bramka fali: check:chunks acykliczny, PUBLIC/OVERALL nie gorsze niż baza, CLS ≤ 0,001 w ≥ 5 przebiegach, nowa bramka czystości zestawu bootu zielona.",
+      "expected_scores_after": "≈0 pkt; hydratacja `/` 1-2 RTT wcześniej u realnych użytkowników, blokada parkowania modułów admina w boot.",
+      "items": [
+        {
+          "id": "P9.1",
+          "workstream": "boot-js:C1+C10+C9+C7 = hydration:H11",
+          "title": "[REAL-USER] Higiena grafu chunków trasy `/` i bramka czystości zestawu bootu",
+          "files": [
+            "src/routes/index.tsx",
+            "src/components/home/molecules/HomeBuilderContent.tsx",
+            "src/components/home/organisms/LatestPostsHome.tsx",
+            "scripts/lib/routeCodeSplitting.ts",
+            "src/lib/ci/__tests__/routeCodeSplitting.test.ts",
+            "vite.config.ts",
+            "vite.smoke.config.ts",
+            "src/lib/ci/__tests__/viteChunkParity.test.ts",
+            "scripts/check-entry-purity.ts",
+            "scripts/lib/bootClosure.ts (nowy)",
+            "src/routes/__tests__/homeRoute.test.tsx"
+          ],
+          "mechanism": "C1: `LatestPostsHome` i `Footnotes` przez wzorzec `createIsomorphicFn` (serwer eager, klient `React.lazy` w tej samej granicy; NIE goły `React.lazy` — `lazyWidgets.tsx:49-56`), chunk `LatestPostsHome` w zestawie bootu w trybie `latest_posts`; `FooterSlideup` montowany na kliencie po `whenIdle` (SSR i pierwszy render = null); `routeSplitBehavior('/')=[['component']]` + poprawka mylącego komentarza i testu (`routeCodeSplitting.test.ts:21-26`). C10: `experimentalMinChunkSize` 2048 → 1 w obu configach, PUBLIC/OVERALL zmierzone przed scaleniem. C9: bramka czystości zestawu bootu w `check-entry-purity` przez wspólny `bootClosure.ts`. C7/H11: `build.modulePreload = {polyfill:false, resolveDependencies}` bez chunków bootu (część admin w P5.2).",
+          "expected_effect": "≈0 pkt (zweryfikowane: C1 osłabione 0…+0,5, C10 ≈0); domknięcie `/` 56,2→16-18 KB gz, −12 żądań w burście bootu (realni użytkownicy).",
+          "risk": "średni: `check:bundle` OVERALL (już czerwony na main) — przy minChunk 1 zmierzyć, nie pogorszyć; dodatkowy poziom wodospadu zależności widgetu (≥5 przebiegów CLS).",
+          "gates": [
+            "G-std = `bun run verify:static` (format:check, check:gate-coverage i wszystkie bramki `check:*` spoza listy EXCLUDED w `scripts/verify-static.ts`, m.in. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:i18n-*), `bun run typecheck`, `bun run lint`, celowany vitest (w tym check:chunk-parity i noHasSelectors); na artefakcie build:smoke: check:bundle (nie gorzej niż baza), check:chunks, check:entry-purity, check:server-entry-purity, test:e2e:artifact, check-document-weight (node)",
+            "check:chunks (acykliczny)",
+            "check:chunk-parity",
+            "check:bundle (PUBLIC/OVERALL nie gorsze — raport moves)",
+            "check:entry-purity (nowa bramka czerwona na bazie z 4 nazwanymi chunkami, zielona po)",
+            "routeCodeSplitting test",
+            "first-visit e2e CLS",
+            "bun run test:e2e:artifact"
+          ],
+          "verification": "`bun run report:chunk-inventory index --modules`; `$SCRATCH/phase1/boot-js/hydset.py <wt>`: brak chunków `admin./events./author./blog.` w zestawie hydratacji; `node scripts/performance/lighthouse-local.mjs --compare <base-w9> <wt-P9.1> --runs 5 --forms mobile,desktop4x --client-backend fixture`: CLS ≤ 0,001, ΔTBT ≤ 0.",
+          "depends_on": ["P2.1"],
+          "parallel_group": "w9-chunks",
+          "effort": "M"
+        }
+      ]
+    }
+  ],
+  "file_ownership": [
+    {
+      "path_pattern": ".github/workflows/first-visit.yml",
+      "owner_item_ids": ["P0.2", "P6.1"]
+    },
+    {
+      "path_pattern": ".github/workflows/lighthouse.yml",
+      "owner_item_ids": ["P0.2"]
+    },
+    {
+      "path_pattern": ".github/workflows/psi.yml",
+      "owner_item_ids": ["P0.2"]
+    },
+    {
+      "path_pattern": ".github/workflows/scheduler.yml",
+      "owner_item_ids": ["P0.7"]
+    },
+    {
+      "path_pattern": "docs/performance/2026-09-30-critical-boot.md",
+      "owner_item_ids": ["P6.2"]
+    },
+    {
+      "path_pattern": "docs/performance/2026-10-02-pagespeed-przyczyny.md",
+      "owner_item_ids": ["P6.2"]
+    },
+    {
+      "path_pattern": "docs/performance/2026-10-03-pagespeed-85-95/EVIDENCE.md",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "docs/performance/2026-10-03-pagespeed-85-95/POMIAR.md",
+      "owner_item_ids": ["P0.1", "P6.2"]
+    },
+    {
+      "path_pattern": "docs/performance/2026-10-03-pagespeed-85-95/README.md",
+      "owner_item_ids": ["P6.2"]
+    },
+    {
+      "path_pattern": "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/measure-ab-cloud.sh",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/measure-local-cloud.sh",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/measure-local.sh",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "docs/performance/2026-10-XX-pagespeed-85-95-wdrozenie.md",
+      "owner_item_ids": ["P6.2"]
+    },
+    {
+      "path_pattern": "docs/performance/README.md",
+      "owner_item_ids": ["P6.2"]
+    },
+    {
+      "path_pattern": "e2e-performance/consent-shell-geometry.spec.ts",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "e2e-performance/content-visibility.spec.ts",
+      "owner_item_ids": ["P3.3"]
+    },
+    {
+      "path_pattern": "e2e-performance/first-visit.spec.ts",
+      "owner_item_ids": ["P2.2"]
+    },
+    {
+      "path_pattern": "e2e-performance/header-intent.spec.ts",
+      "owner_item_ids": ["P2.3"]
+    },
+    {
+      "path_pattern": "e2e-performance/on-demand-overlays.spec.ts",
+      "owner_item_ids": ["P1.3", "P2.1"]
+    },
+    {
+      "path_pattern": "e2e-performance/popup-first-render.spec.ts",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "e2e-performance/third-party-quiescence.spec.ts",
+      "owner_item_ids": ["P1.1"]
+    },
+    {
+      "path_pattern": "e2e/boot-home.spec.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "e2e/boot-timing.spec.ts",
+      "owner_item_ids": ["P2.1", "P3.4"]
+    },
+    {
+      "path_pattern": "e2e/minimized-chats-restore.spec.ts",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "e2e/popup-registration.spec.ts",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "lighthouserc.json",
+      "owner_item_ids": ["P6.1"]
+    },
+    {
+      "path_pattern": "package.json",
+      "owner_item_ids": ["P0.2"]
+    },
+    {
+      "path_pattern": "playwright.artifact.config.ts",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "scripts/check-bundle-size.ts",
+      "owner_item_ids": ["P4.1", "P6.1"]
+    },
+    {
+      "path_pattern": "scripts/check-entry-purity.ts",
+      "owner_item_ids": ["P2.4", "P8.1", "P9.1"]
+    },
+    {
+      "path_pattern": "scripts/codemods/admin-shell-factories.mjs",
+      "owner_item_ids": ["P5.2"]
+    },
+    {
+      "path_pattern": "scripts/lib/bootAfterLcpPlugin.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "scripts/lib/bootClosure.ts",
+      "owner_item_ids": ["P9.1"]
+    },
+    {
+      "path_pattern": "scripts/lib/bootVendorSplit.ts",
+      "owner_item_ids": ["P7.5"]
+    },
+    {
+      "path_pattern": "scripts/lib/dangerousHtmlAllowlist.ts",
+      "owner_item_ids": ["P1.3", "P2.1"]
+    },
+    {
+      "path_pattern": "scripts/lib/localeChunkPlugin.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "scripts/lib/routeCodeSplitting.ts",
+      "owner_item_ids": ["P5.2", "P9.1"]
+    },
+    {
+      "path_pattern": "scripts/lib/widgetChunkPlugin.ts",
+      "owner_item_ids": ["P2.1", "P5.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/artifactServer.ts",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/check-document-weight.ts",
+      "owner_item_ids": ["P1.4", "P2.1", "P6.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/clientBackend.ts",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/compare-head-meta.mjs",
+      "owner_item_ids": ["P4.2"]
+    },
+    {
+      "path_pattern": "scripts/performance/document-weight-budgets.json",
+      "owner_item_ids": ["P1.4", "P2.1", "P6.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/document-weight.test.mjs",
+      "owner_item_ids": ["P1.4", "P2.1", "P6.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/documentWeight.ts",
+      "owner_item_ids": ["P1.4", "P2.1", "P6.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/fakeGoogle.ts",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/harness-ext.test.mjs",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/homeFixture.ts",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/lanternTasks.ts",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/lighthouse-local.mjs",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/lighthouseReport.ts",
+      "owner_item_ids": ["P0.1"]
+    },
+    {
+      "path_pattern": "scripts/performance/psi-sample.mjs",
+      "owner_item_ids": ["P0.2"]
+    },
+    {
+      "path_pattern": "scripts/taxonomy/features.mjs",
+      "owner_item_ids": ["P1.4", "P5.1"]
+    },
+    {
+      "path_pattern": "scripts/verify-static.ts",
+      "owner_item_ids": ["P0.2"]
+    },
+    {
+      "path_pattern": "scripts/warm-edge-cache.mjs",
+      "owner_item_ids": ["P0.7"]
+    },
+    {
+      "path_pattern": "src/__tests__/router.test.tsx",
+      "owner_item_ids": ["P1.7", "P2.1", "P3.1"]
+    },
+    {
+      "path_pattern": "src/admin-styles.css",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/assets/fonts/red-hat-display-latin-pl.woff2",
+      "owner_item_ids": ["P3.2"]
+    },
+    {
+      "path_pattern": "src/components/ConsentBanner.tsx",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/components/ConsentScriptInjector.tsx",
+      "owner_item_ids": ["P1.1"]
+    },
+    {
+      "path_pattern": "src/components/ContentAreaStyle.tsx",
+      "owner_item_ids": ["P1.2"]
+    },
+    {
+      "path_pattern": "src/components/DesignTokensStyle.tsx",
+      "owner_item_ids": ["P1.2"]
+    },
+    {
+      "path_pattern": "src/components/Footer.tsx",
+      "owner_item_ids": ["P2.2"]
+    },
+    {
+      "path_pattern": "src/components/Header.tsx",
+      "owner_item_ids": ["P1.2", "P2.3", "P5.1"]
+    },
+    {
+      "path_pattern": "src/components/NewsletterPopup.tsx",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/components/ThemeOptionsStyle.tsx",
+      "owner_item_ids": ["P1.2"]
+    },
+    {
+      "path_pattern": "src/components/ThemeProvider.tsx",
+      "owner_item_ids": ["P2.2"]
+    },
+    {
+      "path_pattern": "src/components/__tests__/ConsentBanner.test.tsx",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/components/__tests__/ConsentScriptInjector.test.tsx",
+      "owner_item_ids": ["P1.1"]
+    },
+    {
+      "path_pattern": "src/components/__tests__/Header.test.tsx",
+      "owner_item_ids": ["P1.2"]
+    },
+    {
+      "path_pattern": "src/components/__tests__/ThemeProvider.test.tsx",
+      "owner_item_ids": ["P2.2"]
+    },
+    {
+      "path_pattern": "src/components/__tests__/consentBannerIntegrity.test.tsx",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/components/atoms/OptimizedImage.tsx",
+      "owner_item_ids": ["P3.2", "P4.2"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/BuilderRenderer.tsx",
+      "owner_item_ids": ["P1.4", "P2.2", "P3.3"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/BuilderWidgetNode.tsx",
+      "owner_item_ids": ["P2.6"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/ChromeWidgetView.tsx",
+      "owner_item_ids": ["P1.4", "P2.4", "P5.1", "P7.5"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/WidgetView.tsx",
+      "owner_item_ids": ["P1.4"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/__tests__/builderRenderer.contentVisibility.test.tsx",
+      "owner_item_ids": ["P3.3"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/__tests__/builderRenderer.device.test.tsx",
+      "owner_item_ids": ["P2.2"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/__tests__/builderRenderer.streaming.test.tsx",
+      "owner_item_ids": ["P1.4", "P2.2"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/__tests__/builderRenderer.streamingServer.test.tsx",
+      "owner_item_ids": ["P2.2"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/__tests__/chromeWidgetViewParity.test.tsx",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/__tests__/widgetFrameOwnership.test.tsx",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/AccountMenuWidget.tsx",
+      "owner_item_ids": ["P2.3"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/NewsTickerView.tsx",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/PostListView.tsx",
+      "owner_item_ids": ["P1.4", "P2.5"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/PostsSliderWidget.tsx",
+      "owner_item_ids": ["P1.4", "P2.5"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/SearchButtonWidget.tsx",
+      "owner_item_ids": ["P2.3", "P7.5"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/SimpleWidgets.tsx",
+      "owner_item_ids": ["P1.4", "P5.1"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/__tests__/mediaWidgetsBranches.test.tsx",
+      "owner_item_ids": ["P1.4"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/__tests__/typographyMapping.test.tsx",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/lazySliderRender.tsx",
+      "owner_item_ids": ["P1.4"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/lazyWidgets.tsx",
+      "owner_item_ids": ["P2.3", "P5.1"]
+    },
+    {
+      "path_pattern": "src/components/builder/organisms/widget-view/mediaWidgets.tsx",
+      "owner_item_ids": ["P1.4", "P4.2"]
+    },
+    {
+      "path_pattern": "src/components/careers/careers.css",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/components/charts/ChartFrame.tsx",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/components/charts/charts.css",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/components/chat/chat.css",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/components/clubs/clubs.css",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/components/consent/ConsentShell.tsx",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/components/consent/__tests__/ConsentShell.test.tsx",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/components/content/ContentRenderer.tsx",
+      "owner_item_ids": ["P1.4"]
+    },
+    {
+      "path_pattern": "src/components/dock/dock.css",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/components/experts/cv-print.css",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/components/header/TrendingTicker.tsx",
+      "owner_item_ids": ["P2.3", "P3.2", "P5.1"]
+    },
+    {
+      "path_pattern": "src/components/home/molecules/HomeBuilderContent.tsx",
+      "owner_item_ids": ["P1.4", "P9.1"]
+    },
+    {
+      "path_pattern": "src/components/home/organisms/LatestPostsHome.tsx",
+      "owner_item_ids": ["P9.1"]
+    },
+    {
+      "path_pattern": "src/components/interests/CountryCombobox.tsx",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/components/menu/SiteMenu.tsx",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/components/menu/__tests__/SiteMenu.test.tsx",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/components/molecules/AuthorByline.tsx",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/components/molecules/__tests__/AuthorByline.cascade.test.tsx",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/components/popups/PopupHost.tsx",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/components/profile/__tests__/AuthGate.test.tsx",
+      "owner_item_ids": ["P1.7", "P8.1"]
+    },
+    {
+      "path_pattern": "src/components/profile/profile.css",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/components/theme/StyleSink.tsx",
+      "owner_item_ids": ["P1.2"]
+    },
+    {
+      "path_pattern": "src/components/theme/ThemeDesignStyle.tsx",
+      "owner_item_ids": ["P1.2"]
+    },
+    {
+      "path_pattern": "src/components/theme/ThemeFontSizesStyle.tsx",
+      "owner_item_ids": ["P1.2"]
+    },
+    {
+      "path_pattern": "src/components/theme/__tests__/StyleSink.test.tsx",
+      "owner_item_ids": ["P1.2"]
+    },
+    {
+      "path_pattern": "src/components/{chat,dock,clubs,careers,profile,experts}/**",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/hooks/__tests__/authHydration.test.tsx",
+      "owner_item_ids": ["P1.7", "P8.1"]
+    },
+    {
+      "path_pattern": "src/hooks/__tests__/useAuth.test.tsx",
+      "owner_item_ids": ["P1.7", "P8.1"]
+    },
+    {
+      "path_pattern": "src/hooks/useAuth.tsx",
+      "owner_item_ids": ["P1.7", "P8.1"]
+    },
+    {
+      "path_pattern": "src/hooks/useNewsletterSettings.ts",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/integrations/supabase/__tests__/sessionHint.test.ts",
+      "owner_item_ids": ["P1.7"]
+    },
+    {
+      "path_pattern": "src/integrations/supabase/auth-attacher.ts",
+      "owner_item_ids": ["P8.1"]
+    },
+    {
+      "path_pattern": "src/integrations/supabase/client.full.ts",
+      "owner_item_ids": ["P8.1"]
+    },
+    {
+      "path_pattern": "src/integrations/supabase/client.ts",
+      "owner_item_ids": ["P1.7", "P8.1"]
+    },
+    {
+      "path_pattern": "src/integrations/supabase/sessionHint.ts",
+      "owner_item_ids": ["P1.7", "P8.1"]
+    },
+    {
+      "path_pattern": "src/lib/__tests__/cropSizes.test.ts",
+      "owner_item_ids": ["P3.2", "P4.2"]
+    },
+    {
+      "path_pattern": "src/lib/__tests__/overlayCoordinator.test.ts",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/lib/__tests__/webVitals.test.ts",
+      "owner_item_ids": ["P0.6"]
+    },
+    {
+      "path_pattern": "src/lib/ads/__tests__/consent.test.tsx",
+      "owner_item_ids": ["P3.1"]
+    },
+    {
+      "path_pattern": "src/lib/ads/consent.ts",
+      "owner_item_ids": ["P1.3", "P3.1", "P8.1"]
+    },
+    {
+      "path_pattern": "src/lib/analytics/__tests__/ga4Client.test.ts",
+      "owner_item_ids": ["P1.1"]
+    },
+    {
+      "path_pattern": "src/lib/analytics/__tests__/gtagLoadPolicy.test.ts",
+      "owner_item_ids": ["P1.1"]
+    },
+    {
+      "path_pattern": "src/lib/analytics/ga4Client.ts",
+      "owner_item_ids": ["P1.1"]
+    },
+    {
+      "path_pattern": "src/lib/analytics/gtagLoadPolicy.ts",
+      "owner_item_ids": ["P1.1"]
+    },
+    {
+      "path_pattern": "src/lib/boot/__tests__/bootLoaderScript.test.ts",
+      "owner_item_ids": ["P2.1", "P3.4"]
+    },
+    {
+      "path_pattern": "src/lib/boot/__tests__/bootSet.server.test.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "src/lib/boot/bootLoaderScript.ts",
+      "owner_item_ids": ["P2.1", "P3.4"]
+    },
+    {
+      "path_pattern": "src/lib/boot/bootSet.server.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "src/lib/builder/__tests__/heroCandidateSelection.test.ts",
+      "owner_item_ids": ["P3.2"]
+    },
+    {
+      "path_pattern": "src/lib/builder/__tests__/heroImage.test.ts",
+      "owner_item_ids": ["P1.4", "P3.2"]
+    },
+    {
+      "path_pattern": "src/lib/builder/__tests__/lcpCandidate.test.ts",
+      "owner_item_ids": ["P1.4"]
+    },
+    {
+      "path_pattern": "src/lib/builder/__tests__/liveTypography.test.ts",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/lib/builder/__tests__/sectionPrefetch.test.ts",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/lib/builder/__tests__/sliderTypographyFidelity.test.tsx",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/lib/builder/__tests__/sliderVariantCatalogs.test.tsx",
+      "owner_item_ids": ["P2.6"]
+    },
+    {
+      "path_pattern": "src/lib/builder/__tests__/typographyMinFontSize.test.ts",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/lib/builder/aboveFold.tsx",
+      "owner_item_ids": ["P1.4"]
+    },
+    {
+      "path_pattern": "src/lib/builder/chromeDefaults.ts",
+      "owner_item_ids": ["P5.1"]
+    },
+    {
+      "path_pattern": "src/lib/builder/globalWidgets.ts",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/lib/builder/heroImage.ts",
+      "owner_item_ids": ["P1.4", "P3.2"]
+    },
+    {
+      "path_pattern": "src/lib/builder/imageSlot.ts",
+      "owner_item_ids": ["P3.2"]
+    },
+    {
+      "path_pattern": "src/lib/builder/lcpCandidate.ts",
+      "owner_item_ids": ["P1.4"]
+    },
+    {
+      "path_pattern": "src/lib/builder/liveTypography.ts",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/lib/builder/postListQuery.ts",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/lib/builder/prefetch.ts",
+      "owner_item_ids": ["P5.1"]
+    },
+    {
+      "path_pattern": "src/lib/builder/ratedListQuery.ts",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/lib/builder/sectionQueryOptions.ts",
+      "owner_item_ids": ["P5.1"]
+    },
+    {
+      "path_pattern": "src/lib/builder/sectionStreaming.tsx",
+      "owner_item_ids": ["P2.2", "P5.1"]
+    },
+    {
+      "path_pattern": "src/lib/builder/sliderPostsQuery.ts",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/lib/builder/sliderSizes.ts",
+      "owner_item_ids": ["P3.2"]
+    },
+    {
+      "path_pattern": "src/lib/builder/sliderVariants.tsx",
+      "owner_item_ids": ["P1.4", "P2.6", "P3.2"]
+    },
+    {
+      "path_pattern": "src/lib/builder/typographyCss.ts",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/lib/builder/useSectionPreload.ts",
+      "owner_item_ids": ["P5.1"]
+    },
+    {
+      "path_pattern": "src/lib/builder/widgetImageSizes.ts",
+      "owner_item_ids": ["P3.2"]
+    },
+    {
+      "path_pattern": "src/lib/cacheBusting.ts",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/lib/ci/__tests__/cssSurfaces.test.ts",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "src/lib/ci/__tests__/dehydratedPayload.test.ts",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/lib/ci/__tests__/fontGlyphCoverage.test.ts",
+      "owner_item_ids": ["P3.2"]
+    },
+    {
+      "path_pattern": "src/lib/ci/__tests__/loadAnimations.test.ts",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/lib/ci/__tests__/localeChunkPlugin.test.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "src/lib/ci/__tests__/platformBuildGuards.test.ts",
+      "owner_item_ids": ["P6.1"]
+    },
+    {
+      "path_pattern": "src/lib/ci/__tests__/routeCodeSplitting.test.ts",
+      "owner_item_ids": ["P9.1"]
+    },
+    {
+      "path_pattern": "src/lib/ci/__tests__/viteChunkParity.test.ts",
+      "owner_item_ids": ["P2.1", "P5.2", "P8.1", "P9.1"]
+    },
+    {
+      "path_pattern": "src/lib/ci/__tests__/widgetChunkPlugin.test.ts",
+      "owner_item_ids": ["P2.1", "P5.1"]
+    },
+    {
+      "path_pattern": "src/lib/consent/__tests__/consentInitScript.test.ts",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/lib/consent/consentInitScript.ts",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/lib/cropSizes.ts",
+      "owner_item_ids": ["P3.2", "P4.2"]
+    },
+    {
+      "path_pattern": "src/lib/http/__tests__/documentCache.server.test.ts",
+      "owner_item_ids": ["P0.4"]
+    },
+    {
+      "path_pattern": "src/lib/http/__tests__/platformPreloads.test.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "src/lib/http/__tests__/ssrTiming.server.test.ts",
+      "owner_item_ids": ["P0.4"]
+    },
+    {
+      "path_pattern": "src/lib/http/documentCache.server.ts",
+      "owner_item_ids": ["P0.4", "P7.2"]
+    },
+    {
+      "path_pattern": "src/lib/http/documentCache.ts",
+      "owner_item_ids": ["P7.2"]
+    },
+    {
+      "path_pattern": "src/lib/http/documentCacheL2.server.ts",
+      "owner_item_ids": ["P7.2"]
+    },
+    {
+      "path_pattern": "src/lib/http/frameworkPreloads.server.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "src/lib/http/ssrTiming.ts",
+      "owner_item_ids": ["P0.4"]
+    },
+    {
+      "path_pattern": "src/lib/i18n.ts",
+      "owner_item_ids": ["P1.7", "P3.1"]
+    },
+    {
+      "path_pattern": "src/lib/icons/DynamicIcon.tsx",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/lib/lucide-shim.tsx",
+      "owner_item_ids": ["P7.5"]
+    },
+    {
+      "path_pattern": "src/lib/menus/menu.functions.ts",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/lib/menus/queries.ts",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/lib/newsletter/popupTelemetry.ts",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/lib/observability/__tests__/bootProbeScript.test.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "src/lib/observability/bootProbeScript.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "src/lib/overlayCoordinator.ts",
+      "owner_item_ids": ["P1.3"]
+    },
+    {
+      "path_pattern": "src/lib/performance/__tests__/firstInteraction.test.ts",
+      "owner_item_ids": ["P0.3"]
+    },
+    {
+      "path_pattern": "src/lib/performance/__tests__/hydrationIsland.test.tsx",
+      "owner_item_ids": ["P1.6", "P2.2"]
+    },
+    {
+      "path_pattern": "src/lib/performance/__tests__/postInteractionQueue.test.ts",
+      "owner_item_ids": ["P0.3"]
+    },
+    {
+      "path_pattern": "src/lib/performance/__tests__/viewportDevice.test.ts",
+      "owner_item_ids": ["P1.6"]
+    },
+    {
+      "path_pattern": "src/lib/performance/__tests__/whenQuiescent.test.ts",
+      "owner_item_ids": ["P0.3"]
+    },
+    {
+      "path_pattern": "src/lib/performance/firstInteraction.ts",
+      "owner_item_ids": ["P0.3"]
+    },
+    {
+      "path_pattern": "src/lib/performance/hydrationIsland.tsx",
+      "owner_item_ids": ["P1.6", "P2.2"]
+    },
+    {
+      "path_pattern": "src/lib/performance/postInteractionQueue.ts",
+      "owner_item_ids": ["P0.3"]
+    },
+    {
+      "path_pattern": "src/lib/performance/viewportDevice.ts",
+      "owner_item_ids": ["P1.6", "P2.2"]
+    },
+    {
+      "path_pattern": "src/lib/performance/whenQuiescent.ts",
+      "owner_item_ids": ["P0.3"]
+    },
+    {
+      "path_pattern": "src/lib/queries/public.ts",
+      "owner_item_ids": ["P7.3"]
+    },
+    {
+      "path_pattern": "src/lib/routes/adminShell.ts",
+      "owner_item_ids": ["P5.2"]
+    },
+    {
+      "path_pattern": "src/lib/seo/__tests__/widgetPreloads.test.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "src/lib/seo/fontPreload.ts",
+      "owner_item_ids": ["P3.2"]
+    },
+    {
+      "path_pattern": "src/lib/seo/rootHead.ts",
+      "owner_item_ids": ["P2.1", "P3.2", "P4.1"]
+    },
+    {
+      "path_pattern": "src/lib/seo/widgetPreloads.ts",
+      "owner_item_ids": ["P2.1"]
+    },
+    {
+      "path_pattern": "src/lib/server/audit.server.ts",
+      "owner_item_ids": ["P7.2"]
+    },
+    {
+      "path_pattern": "src/lib/ssrCache.ts",
+      "owner_item_ids": ["P7.2"]
+    },
+    {
+      "path_pattern": "src/lib/ssrCacheL2.server.ts",
+      "owner_item_ids": ["P7.2"]
+    },
+    {
+      "path_pattern": "src/lib/theme/customFonts.ts",
+      "owner_item_ids": ["P8.1"]
+    },
+    {
+      "path_pattern": "src/lib/utils.ts",
+      "owner_item_ids": ["P2.4"]
+    },
+    {
+      "path_pattern": "src/lib/views/headerTickerQuery.ts",
+      "owner_item_ids": ["P2.5"]
+    },
+    {
+      "path_pattern": "src/lib/webVitals.ts",
+      "owner_item_ids": ["P0.6"]
+    },
+    {
+      "path_pattern": "src/router.tsx",
+      "owner_item_ids": ["P1.7", "P2.1", "P3.1"]
+    },
+    {
+      "path_pattern": "src/routes/$.tsx",
+      "owner_item_ids": ["P1.4", "P2.1", "P4.1"]
+    },
+    {
+      "path_pattern": "src/routes/__root.tsx",
+      "owner_item_ids": ["P1.3", "P2.1", "P3.2", "P5.1", "P7.3"]
+    },
+    {
+      "path_pattern": "src/routes/__tests__/homeRoute.test.tsx",
+      "owner_item_ids": ["P1.4", "P2.1", "P9.1"]
+    },
+    {
+      "path_pattern": "src/routes/__tests__/rootRoute.test.tsx",
+      "owner_item_ids": ["P1.3", "P2.1", "P5.1"]
+    },
+    {
+      "path_pattern": "src/routes/admin*.tsx",
+      "owner_item_ids": ["P5.2"]
+    },
+    {
+      "path_pattern": "src/routes/index.tsx",
+      "owner_item_ids": ["P1.4", "P2.1", "P7.3", "P9.1"]
+    },
+    {
+      "path_pattern": "src/server.ts",
+      "owner_item_ids": ["P0.4", "P2.1"]
+    },
+    {
+      "path_pattern": "src/start.ts",
+      "owner_item_ids": ["P7.2"]
+    },
+    {
+      "path_pattern": "src/styles.css",
+      "owner_item_ids": ["P1.2", "P2.4", "P3.2", "P4.1"]
+    },
+    {
+      "path_pattern": "src/styles/print.css",
+      "owner_item_ids": ["P4.1"]
+    },
+    {
+      "path_pattern": "supabase/migrations/<nowy>_edge_warm_cron.sql",
+      "owner_item_ids": ["P0.7"]
+    },
+    {
+      "path_pattern": "supabase/migrations/<nowy>_get_homepage_bundle.sql",
+      "owner_item_ids": ["P7.3"]
+    },
+    {
+      "path_pattern": "vite.config.ts",
+      "owner_item_ids": ["P2.1", "P5.2", "P8.1", "P9.1"]
+    },
+    {
+      "path_pattern": "vite.smoke.config.ts",
+      "owner_item_ids": ["P2.1", "P5.2", "P8.1", "P9.1"]
+    }
+  ],
+  "decisions_for_human": [
+    "D1 Polityka analityki (globalny punkt ciszy 5 s, GA4 bez Ads do zgody marketingowej, gtag ostatni w kolejce po interakcji): ZATWIERDZONE przez właściciela — plan wdraża P1.1; kompromis (odbicia bez interakcji przed ~load+10 s bez page_view, Ads w trybie basic) i wyjątek od docs/performance/2026-09-30-critical-boot.md:5 dokumentowane (P6.2); warunek wdrożenia: linia bazowa INP i page_view z RUM P0.6 i GA4, kryteria wycofania w §8.2; otwarte R10 (odzysk page_view) i R14 (cel AW-11463700688).",
+    "D2 Świeżość cache dokumentu (cap 3 min per colo) vs świeżość redakcyjna, snapshot między colo: OTWARTE — plan nie zmienia świeżości; rozgrzewka P0.7 nie zmienia semantyki; RUM (P0.6) dostarcza danych do decyzji (R11).",
+    "D3 UX banera zgód (powłoka SSR widoczna z FCP, decyzja z powłoki utrwalana od razu tym samym serializatorem co baner, interaktywność przez kolejkę po pierwszej interakcji): ZATWIERDZONE pod warunkiem równoważności Consent Mode/GPC/zapisanych decyzji — P1.3 z testem bajtowej równości rekordu zapisanego przez powłokę i przez baner.",
+    "D4 /~flock.js (analityka hosta, 8,4 KB w zbiorze LCP, ≈ −50 ms LCP/SI mobile po wyłączeniu): OTWARTE (R4) — plan zakłada, że zostaje, i wyłącza go jawnie z metryki scriptBytesEndedBeforeObsLcp (--exclude-script).",
+    "D5 302 / → /en dla pierwszej wizyty EN (PSI hl=en mierzy /en po skoku): OTWARTE (R3) — zostaje; wszystkie pomiary PSI z hl=pl.",
+    "D6 Próg przeglądarek dla usunięcia fallbacku color-mix (css:C5): OTWARTE (R2) — bez zmian.",
+    "D7 Zmiany czasu popupów 'immediate', paska FooterSlideup i autoodtwarzania slidera (R1, R6): OTWARTE — bez zmian; R1 do sprawdzenia w JSON-ach PSI z D13 (czy tick slidera wypada w śladzie).",
+    "D8 Sekrety/zmienne PSI_API_KEY i vars.LHCI_URL: do ustawienia przez człowieka — P0.2 przygotowuje workflowy; nie blokuje D13 (eksport ręczny z pagespeed.web.dev).",
+    "D9 Infrastruktura: Early Hints, AVIF (płatne), cache brzegowy /assets i /media bez Workera (mediana opóźnienia originu 238 ms ≈ −3…−4 pkt desktop), wiązania KV: OTWARTE (R7-R9, R11) — plan nic nie zakłada.",
+    "D10 check:bundle OVERALL czerwony na main (+31,5 KB przez spreadsheet.worker): plan nie pogarsza; próg OVERALL z pierwszego zielonego logu runnera (wpis kroniki V), zacisk boot 579 → ~481 w P6.1 na końcowym drzewie.",
+    "D11 Fala W5 (desktop: chrome poza entry P5.1, powłoki tras admin P5.2): ZMIENIONE — W5 jest bezwarunkowa (P5.1 liczony ×0,5, P5.2 stretch), bo centralna projekcja desktopu bez niej nie domyka nawet progu 90; decyzja człowieka przeniesiona do D12.",
+    "D12 (NOWE) Próg akceptacji desktopu: przy regule ×0,5 centralna projekcja PSI desktop po W5 ≈ 89 (host ~x4), 95 wymaga dostarczenia ≥ ~80 % szacunków pozycji niezweryfikowanych i hostu PSI zachowującego się jak x4 (przy x5: ≈ 80-86 nawet z W5). Założenie planu do decyzji: próg akceptacji tego PR = desktop ≥ 90 (mediana przebiegów PSI hl=pl, oczekiwana wartość po mieszance HIT/MISS), 95 = cel stretch; wszystkie dźwignie desktopu (P1.7, P2.2-P2.6, P3.4, P5.1) są wdrażane niezależnie od decyzji (zgoda właściciela obejmuje optymalizacje, które nie psują działania).",
+    "D13 (NOWE, warunek wejścia W2) Eksport JSON-ów PSI teraz: człowiek pobiera z pagespeed.web.dev (przycisk eksportu JSON) ≥ 3 przebiegi na formę (mobile, desktop) dla https://neweuropeanstrategies.com/ z hl=pl, w odstępach ≥ 10 min, i kładzie je w $SCRATCH/psi/json/; P0.5 analizuje je (obs LCP vs obs DCL, element LCP, bajty i CPU w grafie LCP, benchmarkIndex, long-tasks desktop z atrybucją, obecność gtag, nazwy 99 user-timing) → re-baseline k i §1.5, decyzja o LA-C5 (HTML przed hero) i R1. W1 może startować bez nich; W2 nie."
+  ],
+  "dropped_or_deferred": [
+    "hydration:H1 — odrzucone (obalone: 0 żądań/0 ms; regres świeżości przy SWR 24 h).",
+    "hydration:H2 część 'font_scale w designTokensQueryOptions' i H2(c) rozgrzanie post_layout_settings — porzucone zgodnie z werdyktem H2 (memo-liść P1.2 daje ten sam TBT; rozgrzanie odwraca decyzję PR #314 i dokłada podzapytanie SSR na każdej trasie).",
+    "hydration:H3 — odroczone (0…+1 pkt; katalog zdejmuje P2.2, pasek reklamowy = R6).",
+    "hydration:H5 w specyfikacji — zastąpione wariantem w P1.2 (@property nie usuwa przeliczenia; (b) +190 ms TBT przez regułę Layout ×0,5).",
+    "hydration:H6 — zastąpione lustrem urządzenia useState+startTransition w P1.6 (NIE useSyncExternalStore); opcja A (SSR klasy urządzenia) = R5.",
+    "html-weight:HW-1 — odroczone (≈0 dziś, +25…30 ms FCP/LCP po C3, publicCss przekroczone).",
+    "html-weight:HW-2 — zawężone do ChromeWidgetView ze zmiennymi kluczowanymi data-device i przeniesione do P2.4 (ścieżka wyniku); joinUs i slider poza zakresem.",
+    "html-weight:HW-3(d) i HW-3(e) — odrzucone (klucze czytane w pierwszym renderze; (e) wymaga filtra w router.tsx i bramkowania font_scale = część H2 porzucona); HW-3(a,b,c) → P2.5 (ścieżka wyniku).",
+    "html-weight:HW-5 — zawężone do ścieżki renderu HTML (P4.2); publicUrl.ts, stemplowanie, OG/JSON-LD/RSS/sitemap i e-maile bez zmian.",
+    "html-weight:HW-6 → P2.6 + P2.4 (ścieżka wyniku); HW-7 → P6.1; HW-8 — odroczone (tylko powtórne wizyty).",
+    "css:C1 pełne przeniesienie palety — zawężone do silnika w P4.1 (konsumenci --chart-* poza ChartFrame).",
+    "css:C4 — odroczone (L, niezweryfikowane; etap 2 po pomiarze etapu 1).",
+    "css:C5 — rekomendacja R2 (zmiana wyglądu dla starszych przeglądarek).",
+    "css:C6 — odrzucone w całości, łącznie z resztką z poprzedniej wersji P4.1 (werdykt: niewykonalne bez regresji na /).",
+    "css:C7 — przeskalowane z FCP na TBT po C3 jako warunkowe P3.3 (przed C3 zmierzone: brak zysku FCP).",
+    "css:C9 → P2.4 (animacje kompozytorowe w oknie, wg atrybucji P0.5).",
+    "boot-js:C2 — zastąpione przez P2.1 (samo zdjęcie preloadów ≈0 ms lub wodospad).",
+    "boot-js:C5 (słownik) i C12 (zod) — odroczone (po C3 poza grafem LCP; nadal część zadania ScriptCatchup — zod ≈ 3 % surowego bootu; kandydat następnej rundy po P3.4/P5.1).",
+    "boot-js:C8 część sanitizera — odroczona (semantyka bezpieczeństwa).",
+    "boot-js:C11 → P5.1 (bezwarunkowe, konkretne); boot-js:C6 (b) → P5.2 (stretch).",
+    "boot-js:C1/C7/C9/C10 — dodatek W9 (P9.1, ≈0 pkt); boot-js:C4 — dodatek W8 (P8.1; księga deterministyczna po C3 ≈0); boot-js:C13 — dodatek W7 (P7.5).",
+    "lighthouse-analyst:LA-C3 edycja frameworkPreloads — odrzucona (≈0 ms); metryki przeniesione do P0.1/P1.4.",
+    "lighthouse-analyst:LA-C5 — odroczone z regułą decyzji: jeśli JSON-y PSI (D13) pokażą obs LCP po obs DCL i CPU parsowania HTML przed hero w grafie LCP (wyjaśnienie wyrazu wolnego 1,64 s zamiast 0,9 s), LA-C5 wchodzi jako pozycja W3; inaczej zamknięte.",
+    "third-party:TP-3 — rekomendacja R10 (0 pkt; problemy prawne i jakości danych).",
+    "third-party:TP-4 część Toaster — odrzucona (gubiłaby toasty z bezpośrednich importów sonner).",
+    "third-party:TP-6 asercja LHCI third-party:count ≤ 0 — odrzucona (Supabase to inny origin); zastąpiona specem e2e.",
+    "prior-art:PA-C2 — zastąpione zaciskiem istniejącego budżetu boot (P6.1).",
+    "prior-art:PA-C4 — zamknięte (atrybucja żądań wykonana w raporcie hydration).",
+    "measurement:M2 blokada bajtowa z LH — odrzucona (redundantna).",
+    "server-cache:SC-2/SC-3/SC-4/SC-7/SC-8, measurement:M4 — dodatek W7 (0 pkt PSI); SC-5 → P0.7 (ścieżka wyniku: mniej przebiegów PSI na MISS); M7 → P0.6.",
+    "server-cache:SC-6/SC-9 — rekomendacja R11; SC-10 wchłonięte przez P2.1; SC-11 = R3.",
+    "lcp-path:LP-5 = R1, LP-9 Early Hints = R7, LP-11 = R8, LP-6 SVGO — odroczone (reszta LP-6 w P4.2).",
+    "Zamknięcia odnotowane jawnie (krytyka M10d): speculation rules (eagerness moderate, 0 prefetchy w śladzie — prior-art D8), TTL awatarów i /~flock.js (kosmetyczne, insights bez wagi), 99 user-timing marks (kosmetyczne; nazwy sprawdzić w JSON-ach D13), vendor-zod 54 KB w boot (po C3 poza grafem LCP; zostaje w zadaniu ScriptCatchup — P3.4/P5.1 i C12 w następnej rundzie)."
+  ]
+}
