@@ -8027,9 +8027,12 @@ html[data-mbb="on"] [data-site-shell] {
    [data-description-root]`, 0-4-0 + !important) narzuca „wiecej" rozmiar opisu
    (12 px), bo akcja pelni role opisu etykiety. Kinetic wygrywa konkretniejszym
    selektorem (0-5-0), dzieki czemu „wiecej" ma wlasna, mniejsza czcionke. */
-[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action {
+/* Selektor obejmuje tez wewnetrzne spany: Theme Design (gaiaz `:is(p, span, a,
+   ...)`) zapisuje wage 800 bezposrednio na dziecku, a deklaracja wlasna zawsze
+   wygrywa z odziedziczona - dlatego samo „rodzic ma 400" nie wystarcza. */
+[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action,
+[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action span {
   font-size: 11px !important;
-  /* Theme Design narzuca tez wage opisu (800) - „wiecej" ma byc nie pogrubione. */
   font-weight: 400 !important;
 }
 
@@ -8043,8 +8046,10 @@ html[data-mbb="on"] [data-site-shell] {
     letter-spacing: 0.05em !important;
   }
 
-  [data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action {
+  [data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action,
+  [data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action span {
     font-size: 9px !important;
+    font-weight: 400 !important;
     letter-spacing: 0;
   }
 }
