@@ -1195,11 +1195,10 @@ export function SectionLabelRender({
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
 
-      // Chevrony "<" oraz ">" po jednej i drugiej stronie akcji - czyste katy
-      // bez ogonkow (zadnej poziomej linii strzalki). Lustrzany znak po lewej
-      // i prawej: dyskretny ruch na zewnatrz w hoverze. Geometria i kreska
-      // zyvia we wspolnym `AngleChevron` (ten sam znak co domyslna strzalka
-      // akcji w pozostalych wariantach).
+      // Chevron ">" tylko po prawej stronie akcji - czysty kat bez ogonka
+      // (zadnej poziomej linii strzalki). Dyskretny ruch na zewnatrz w
+      // hoverze. Geometria i kreska zyvia we wspolnym `AngleChevron` (ten sam
+      // znak co domyslna strzalka akcji w pozostalych wariantach).
       const chevronSvg = (side: "left" | "right"): React.ReactNode => (
         <AngleChevron
           side={side}
@@ -1213,9 +1212,8 @@ export function SectionLabelRender({
       );
 
       // Tekstowy glif (chevron ›/dluga strzalka) zostaje tylko po prawej -
-      // para "<...>" dotyczy domyslnego chevrona wektorowego; "none" zdejmuje
-      // oba znaki.
-      const useChevronPair = glyph !== "" && arrow !== "chevron" && arrow !== "long";
+      // ">" dotyczy domyslnego chevrona wektorowego; "none" zdejmuje znak.
+      const useChevronMark = glyph !== "" && arrow !== "chevron" && arrow !== "long";
       const arrowVisual =
         glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
           <span
@@ -1232,11 +1230,10 @@ export function SectionLabelRender({
       // zeby „wiecej" nie dziedziczylo pogrubienia opisu.
       const actionInner = (
         <span className="inline-flex items-center gap-[0.08em]" data-typography-exempt>
-          {useChevronPair ? chevronSvg("left") : null}
           <span className="min-w-0" data-typography-exempt>
             {action}
           </span>
-          {arrowVisual ?? (useChevronPair ? chevronSvg("right") : null)}
+          {arrowVisual ?? (useChevronMark ? chevronSvg("right") : null)}
         </span>
       );
 
