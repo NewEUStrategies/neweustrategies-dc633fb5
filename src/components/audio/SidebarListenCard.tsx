@@ -341,11 +341,7 @@ export function SidebarListenCard({
             FOCUS_RING,
           ].join(" ")}
         >
-          {downloading ? (
-            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-          ) : (
-            <AnimatedDownloadIcon downloading={false} className="h-3.5 w-3.5" />
-          )}
+          <AnimatedDownloadIcon downloading={downloading} className="h-3.5 w-3.5" />
           <span className="cms-widget-note font-semibold tracking-[0.15em] uppercase">
             {shared("download")}
           </span>

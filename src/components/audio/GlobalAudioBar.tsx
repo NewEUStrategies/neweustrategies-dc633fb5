@@ -339,11 +339,7 @@ export function GlobalAudioBar() {
                     busy={downloading}
                     className="hidden xs:inline-flex disabled:cursor-not-allowed"
                   >
-                    {downloading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                    ) : (
-                      <AnimatedDownloadIcon downloading={false} className="h-4 w-4" />
-                    )}
+                    <AnimatedDownloadIcon downloading={downloading} className="h-4 w-4" />
                   </AudioIconButton>
                 </ActionTip>
                 <ActionTip label={copy("share")}>
