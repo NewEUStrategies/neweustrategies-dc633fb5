@@ -411,9 +411,9 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         </AvatarFallback>
       </Avatar>
       {/* Minimalna szerokość stabilizuje pasek, gdy podpis dojeżdża etapami
-          (sesja -> profil -> powitanie). Powitania i imienia NIE ucinamy -
-          pełny tekst zawsze widoczny. */}
-      <span className="hidden sm:inline-block w-[9rem] shrink-0 truncate text-right align-middle">
+          (sesja -> profil -> powitanie). Kontener rozszerza się dla pełnego
+          powitania, dlatego tekst wraz z imieniem nigdy nie jest ucinany. */}
+      <span className="hidden min-w-[9rem] shrink-0 whitespace-nowrap text-right align-middle sm:inline-block">
         {triggerLabel}
       </span>
     </button>
