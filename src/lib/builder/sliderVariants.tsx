@@ -4,7 +4,7 @@ import { useBuilderImageSlot } from "./imageSlotContext";
 // autoplay, drag), and each variant renders the slides differently.
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight } from "@/lib/lucide-shim";
+import { AngleChevron } from "./sectionLabelVariants";
 import { safeImageUrl, safeUrl } from "@/lib/sanitize";
 import { buildImageSrcSet, buildTransformedImageUrl } from "@/lib/cropSizes";
 import { SLIDER_FULL_BLEED_SIZES, sliderImageSizes } from "./sliderSizes";
