@@ -8021,7 +8021,16 @@ html[data-mbb="on"] [data-site-shell] {
 }
 
 /* Akcja wisi NAD wierszem sygnalu, wiec scisk przy wezkich widgetach
-   adresuje ja bezposrednio, a nie przez .nes-kinetic-row. */
+   adresuje ja bezposrednio, a nie przez .nes-kinetic-row.
+
+   Theme Design per widzet (selektor `[data-w-id][data-w-id][data-w-id]
+   [data-description-root]`, 0-4-0 + !important) narzuca „wiecej" rozmiar opisu
+   (12 px), bo akcja pelni role opisu etykiety. Kinetic wygrywa konkretniejszym
+   selektorem (0-5-0), dzieki czemu „wiecej" ma wlasna, mniejsza czcionke. */
+[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action {
+  font-size: 10px !important;
+}
+
 @container (max-width: 360px) {
   .nes-kinetic-row {
     column-gap: 8px !important;
@@ -8032,7 +8041,7 @@ html[data-mbb="on"] [data-site-shell] {
     letter-spacing: 0.05em !important;
   }
 
-  .nes-kinetic-action {
+  [data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action {
     font-size: 8px !important;
     letter-spacing: 0;
   }
