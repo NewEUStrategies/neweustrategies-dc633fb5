@@ -1,0 +1,10 @@
+{"run": "w0q-mobile-1", "reg": "m4", "wave": "K8", "var": "half", "base": 450, "after": 450, "delta": 0, "shrunk": []}
+{"run": "w0q-mobile-1", "reg": "m4c3", "wave": "K8", "var": "half", "base": 604, "after": 604, "delta": 0, "shrunk": []}
+{"run": "w0q-mobile-2", "reg": "m4", "wave": "K8", "var": "half", "base": 214, "after": 190, "delta": -24, "shrunk": [[422, 0.01, "K8a"]]}
+{"run": "w0q-mobile-2", "reg": "m4c3", "wave": "K8", "var": "half", "base": 368, "after": 316, "delta": -52, "shrunk": [[422, 0.01, "K8a"]]}
+{"run": "w0q-mobile-3", "reg": "m4", "wave": "K8", "var": "half", "base": 264, "after": 264, "delta": 0, "shrunk": [[408, 0.01, "K8a"]]}
+{"run": "w0q-mobile-3", "reg": "m4c3", "wave": "K8", "var": "half", "base": 411, "after": 340, "delta": -71, "shrunk": [[408, 0.01, "K8a"]]}
+{"run": "w0q-mobile-4", "reg": "m4", "wave": "K8", "var": "half", "base": 212, "after": 141, "delta": -71, "shrunk": [[390, 0.01, "K8a"]]}
+{"run": "w0q-mobile-4", "reg": "m4c3", "wave": "K8", "var": "half", "base": 332, "after": 261, "delta": -71, "shrunk": [[390, 0.01, "K8a"]]}
+{"run": "w0q-mobile-5", "reg": "m4", "wave": "K8", "var": "half", "base": 197, "after": 197, "delta": 0, "shrunk": []}
+{"run": "w0q-mobile-5", "reg": "m4c3", "wave": "K8", "var": "half", "base": 402, "after": 402, "delta": 0, "shrunk": []}

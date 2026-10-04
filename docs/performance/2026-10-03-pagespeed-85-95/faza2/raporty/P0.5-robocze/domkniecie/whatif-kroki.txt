@@ -1,0 +1,30 @@
+# batch.sh (pod mutexem; przerwany przez orkiestratora ok. 12:57 w kroku desktop half W2 - rekordy tego kroku usunięte i policzone od nowa)
+=== mobile half K8 start 12:25:35 load 2.42 2.09 1.57
+=== mobile half K8 koniec 12:26:21
+=== mobile half W1 start 12:26:21 load 2.34 2.12 1.60
+=== mobile half W1 koniec 12:28:27
+=== mobile full W1 start 12:28:27 load 2.09 1.99 1.61
+=== mobile full W1 koniec 12:30:43
+=== mobile half W2 start 12:30:43 load 2.21 2.01 1.67
+=== mobile half W2 koniec 12:33:40
+=== mobile full W2 start 12:33:40 load 2.56 2.30 1.85
+=== mobile full W2 koniec 12:36:33
+=== mobile half W3 start 12:36:33 load 1.43 2.00 1.82
+=== mobile half W3 koniec 12:39:40
+=== mobile full W3 start 12:39:40 load 1.46 1.73 1.75
+=== mobile full W3 koniec 12:42:48
+=== desktop half K8a start 12:42:48 load 1.58 1.57 1.67
+=== desktop half K8a koniec 12:44:14
+=== desktop half W1 start 12:44:14 load 3.23 2.12 1.86
+=== desktop half W1 koniec 12:48:09
+=== desktop full W1 start 12:48:09 load 1.66 2.15 1.96
+=== desktop full W1 koniec 12:52:40
+=== desktop half W2 start 12:52:40 load 2.94 2.40 2.09
+Terminated
+# run-nolock.sh (bez mutexu, nice -n 10)
+=== desktop half W2 start 12:59:13 load 1.50 1.83 1.93
+=== desktop full W2 start 12:59:13 load 1.50 1.83 1.93
+=== desktop half W3 start 13:01:24 load 3.12 2.38 2.13
+=== desktop half W3 koniec 13:11:56 kod 0
+=== desktop full W3 start 13:01:24 load 3.12 2.38 2.13
+=== desktop full W3 koniec 13:12:12 kod 0

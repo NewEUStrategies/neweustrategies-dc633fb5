@@ -1,0 +1,20 @@
+w0q-mobile-1 zadanie 252/128.4 ms: {'ticker': 2, 'lv-shimmer': 40}  -> pierwsza klatka (Style+Layout dokumentu) {"m4": 23, "m4c3": 173}
+w0q-mobile-1 zadanie 493/7.7 ms: {'oi-fade-in': 4}  -> (poniżej progu księgi)
+w0q-mobile-1 zadanie 818/6.0 ms: {'oi-fade-in': 3}  -> (poniżej progu księgi)
+w0q-mobile-1 zadanie 1586/11.9 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-mobile-1 zadanie 4747/10.3 ms: {'ticker': 1}  -> (poniżej progu księgi)
+w0q-mobile-2 zadanie 422/28.1 ms: {'ticker': 2, 'oi-fade-in': 7}  -> start animacji CSS (kompozytor, animatio {"m4": 63, "m4c3": 63}
+w0q-mobile-2 zadanie 1582/8.4 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-mobile-2 zadanie 4630/14.4 ms: {'ticker': 1}  -> (poniżej progu księgi)
+w0q-mobile-3 zadanie 296/57.3 ms: {'ticker': 2}  -> druga klatka (odsłonięcie sekcji strumie {"m4": 0, "m4c3": 0}
+w0q-mobile-3 zadanie 408/30.2 ms: {'oi-fade-in': 7}  -> start animacji CSS (kompozytor, animatio {"m4": 0, "m4c3": 71}
+w0q-mobile-3 zadanie 1564/7.6 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-mobile-3 zadanie 4714/7.2 ms: {'ticker': 1}  -> (poniżej progu księgi)
+w0q-mobile-4 zadanie 390/30.4 ms: {'ticker': 2, 'oi-fade-in': 7}  -> start animacji CSS (kompozytor, animatio {"m4": 71, "m4c3": 71}
+w0q-mobile-4 zadanie 1312/8.1 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-mobile-4 zadanie 4594/8.8 ms: {'ticker': 1}  -> (poniżej progu księgi)
+w0q-mobile-5 zadanie 246/64.4 ms: {'lv-shimmer': 40}  -> druga klatka (odsłonięcie sekcji strumie {"m4": 0, "m4c3": 77}
+w0q-mobile-5 zadanie 330/9.5 ms: {'ticker': 2}  -> (poniżej progu księgi)
+w0q-mobile-5 zadanie 725/7.3 ms: {'oi-fade-in': 7}  -> (poniżej progu księgi)
+w0q-mobile-5 zadanie 1532/6.6 ms: {'enter': 1}  -> (poniżej progu księgi)
+w0q-mobile-5 zadanie 4581/6.1 ms: {'ticker': 1}  -> (poniżej progu księgi)
