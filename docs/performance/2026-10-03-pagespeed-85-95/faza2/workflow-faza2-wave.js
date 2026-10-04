@@ -98,7 +98,7 @@ ${
   ln -s ${WT}/node_modules ${wt}/node_modules
   mkdir -p ${OUT}/${item.id}
 Work ONLY inside ${wt} (never edit ${WT} itself).`
-    : `FIX ROUND ${round}: your worktree ${wt} (branch perf/w${WAVE}-${item.id}) already holds your implementation. The findings below came back; address every BLOCKING one (and the cheap non-blocking ones; for a non-blocking finding you reject, say why in the report), add/adjust tests, re-run the fast gates, and add a new commit (do not rewrite history).
+    : `FIX ROUND ${round}: your worktree ${wt} (branch perf/w${WAVE}-${item.id}) already holds your implementation (an interrupted earlier attempt of this round may have left UNCOMMITTED changes: run 'git -C ${wt} status --short' and 'git -C ${wt} diff' first, read them and build on what is correct). The findings below came back; address every BLOCKING one (and the cheap non-blocking ones; for a non-blocking finding you reject, say why in the report), add/adjust tests, re-run the fast gates, and add a new commit (do not rewrite history).
 FINDINGS:
 ${JSON.stringify(review, null, 2)}`
 }
@@ -273,15 +273,38 @@ log(
 const results = await pipeline(
   ITEMS,
   async (item) => {
-    let impl = await agent(implPrompt(item, 0), {
-      label: `impl:${item.id}`,
-      phase: "Implement",
-      schema: IMPL_SCHEMA,
-      effort: "xhigh",
-    });
+    // Wznowienie po przerwie (restart kontenera): `start: "fix"` = runda poprawek z `item.findings`
+    // na istniejącym worktree, potem recenzja; `start: "prove-fix"` = poprawka po dowodzie i nowy dowód.
+    const resumed = item.start === "fix" || item.start === "prove-fix";
+    let impl = resumed
+      ? {
+          item_id: item.id,
+          worktree: `${SCRATCH}/wt/${item.id}`,
+          branch: `perf/w${WAVE}-${item.id}`,
+          commit: "HEAD",
+          report_path: item.report || `${OUT}/${item.id}/IMPL.md`,
+        }
+      : await agent(implPrompt(item, 0), {
+          label: `impl:${item.id}`,
+          phase: "Implement",
+          schema: IMPL_SCHEMA,
+          effort: "xhigh",
+        });
     if (!impl) return { item, status: "no_impl" };
+    if (item.start === "prove-fix")
+      return { item, impl, reviews: [], proveFindings: item.findings };
+    const firstRound = item.start === "fix" ? item.fix_round || 1 : 0;
+    if (item.start === "fix") {
+      const fixed = await agent(implPrompt(item, firstRound, item.findings), {
+        label: `fix:${item.id}#${firstRound}`,
+        phase: "Fix",
+        schema: IMPL_SCHEMA,
+        effort: "xhigh",
+      });
+      if (fixed) impl = fixed;
+    }
     const reviews = [];
-    for (let round = 0; round <= MAX_FIX_ROUNDS; round++) {
+    for (let round = firstRound; round <= Math.max(MAX_FIX_ROUNDS, firstRound + 1); round++) {
       const review = await agent(reviewPrompt(item, impl, round), {
         label: `review:${item.id}${round ? "#" + round : ""}`,
         phase: "Review",
@@ -290,7 +313,11 @@ const results = await pipeline(
       });
       reviews.push(review);
       const blocking = review ? review.findings.filter((f) => f.severity === "blocking") : [];
-      if (!review || (review.verdict === "approve" && !blocking.length) || round === MAX_FIX_ROUNDS)
+      if (
+        !review ||
+        (review.verdict === "approve" && !blocking.length) ||
+        round === Math.max(MAX_FIX_ROUNDS, firstRound + 1)
+      )
         break;
       log(
         `${item.id}: review round ${round} -> ${review.verdict} (${blocking.length} blocking); fixing`,
@@ -307,7 +334,16 @@ const results = await pipeline(
   },
   async (r) => {
     if (!r || !r.impl || r.item.prove === false) return r;
-    let prove = await agent(provePrompt(r.item, r.impl, 0), {
+    if (r.proveFindings) {
+      const fixed = await agent(implPrompt(r.item, 9, r.proveFindings), {
+        label: `fix:${r.item.id}#prove`,
+        phase: "Fix",
+        schema: IMPL_SCHEMA,
+        effort: "xhigh",
+      });
+      if (fixed) r.impl = fixed;
+    }
+    let prove = await agent(provePrompt(r.item, r.impl, r.proveFindings ? 2 : 0), {
       label: `prove:${r.item.id}`,
       phase: "Prove",
       schema: PROVE_SCHEMA,
