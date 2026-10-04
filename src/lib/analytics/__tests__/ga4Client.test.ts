@@ -1,6 +1,9 @@
 // GA4 w przeglądarce: tryb domyślnej odmowy Google, konfiguracja strumienia,
 // aktualizacja zgody, przejęcie tagu ze snippetu SSR, kształt poleceń w
-// `dataLayer` i czytanie identyfikatora klienta z cookie.
+// `dataLayer`, Google Ads dopiero po zgodzie marketingowej (P1.1, TP-2:
+// `ga4ConfigureAds` idempotentne flagą i skanem warstwy danych), promise
+// dociągnięcia gtag.js (KONTRAKT ZADANIA kolejki P0.3) i czytanie
+// identyfikatora klienta z cookie.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -8,6 +11,7 @@ import {
   asGoogleAdsId,
   bootstrapGa4,
   ga4ClientId,
+  ga4ConfigureAds,
   ga4ConsentUpdate,
   ga4Event,
   ga4PageView,
@@ -44,11 +48,36 @@ const GTAG_SRC = "https://www.googletagmanager.com/gtag/js";
 /**
  * Snippet SSR z `__root.tsx` wykonany tak, jak robi to przeglądarka (tekst
  * `<script>` w `<head>`). Od 2026-09-20 to CAŁY udział SSR: sam `<script src>`
- * dociąga bootstrap kliencki po bezczynności (F20), a snippet zostawia po
- * sobie wyłącznie warstwę danych, polecenia i pieczątkę.
+ * dociąga bootstrap kliencki na sygnał polityki (F20, P1.1), a snippet
+ * zostawia po sobie wyłącznie warstwę danych, polecenia i pieczątkę.
+ * `__root.tsx` podaje też identyfikator Ads - snippet go nie używa (TP-2).
  */
 function uruchomSnippetSsr(ga4 = "G-TEST123", ads = "AW-123456789"): void {
   new Function(ga4SsrSnippet(ga4, ads))();
+}
+
+/**
+ * Snippet SPRZED P1.1 (wpis w cache brzegowym dokumentu): ten sam tekst, ale z
+ * `gtag('config', AW)` PRZED konfiguracją GA4 - dokładnie tak, jak go
+ * składał stary `ga4SsrSnippet`. Na nim `ga4ConfigureAds` musi rozpoznać, że
+ * miejsce docelowe Ads jest już w warstwie danych.
+ */
+function uruchomSnippetSprzedP11(ga4 = "G-TEST123", ads = "AW-123456789"): void {
+  const nowy = ga4SsrSnippet(ga4, ads);
+  const configGa4 = `gtag('config',${JSON.stringify(ga4)}`;
+  expect(nowy).toContain(configGa4);
+  new Function(nowy.replace(configGa4, `gtag('config',${JSON.stringify(ads)});${configGa4}`))();
+}
+
+/** Polecenia `config` dla dowolnego miejsca docelowego Google Ads. */
+function policzConfigAds(): number {
+  return warstwa().filter(
+    (wpis) => wpis[0] === "config" && typeof wpis[1] === "string" && wpis[1].startsWith("AW-"),
+  ).length;
+}
+
+function indeks(wpis: ArrayLike<unknown> | undefined): number {
+  return wpis === undefined ? -1 : warstwa().indexOf(wpis);
 }
 
 /**
@@ -99,8 +128,9 @@ describe("GA4 w przeglądarce", () => {
     expect(isGa4Ready()).toBe(true);
   });
 
-  it("tag ładuje się identyfikatorem GA4, nawet gdy podano też Google Ads", () => {
-    bootstrapGa4("G-TEST123", "AW-123456789");
+  it("tag ładuje się identyfikatorem GA4, a Google Ads nie ma osobnego skryptu", () => {
+    bootstrapGa4("G-TEST123");
+    ga4ConfigureAds("AW-123456789");
     const scripts = document.head.querySelectorAll<HTMLScriptElement>(
       "script[src*=googletagmanager]",
     );
@@ -112,17 +142,19 @@ describe("GA4 w przeglądarce", () => {
     expect(scripts[0].getAttribute("data-ga4-tag")).toBe("G-TEST123");
   });
 
-  it("konfiguruje zarówno Google Ads, jak i GA4, gdy oba identyfikatory są podane", () => {
-    bootstrapGa4("G-TEST123", "AW-123456789");
-    expect(policz("config", "AW-123456789")).toBe(1);
+  it("bootstrap konfiguruje WYŁĄCZNIE GA4 - Google Ads czeka na zgodę marketingową (TP-2)", () => {
+    bootstrapGa4("G-TEST123");
     expect(znajdz("config", "G-TEST123")?.[2]).toEqual({ send_page_view: false });
+    // `config AW` w warstwie danych kazałby gtag.js dociągnąć kontener Ads
+    // (~200 KB, ~185 ms CPU) każdemu odwiedzającemu, także bez zgody.
+    expect(policzConfigAds()).toBe(0);
   });
 
   it("nie duplikuje skryptu gtag.js, gdy już istnieje inny tag", () => {
     const existing = document.createElement("script");
     existing.src = `${GTAG_SRC}?id=G-EXISTING`;
     document.head.appendChild(existing);
-    bootstrapGa4("G-TEST123", "AW-123456789");
+    bootstrapGa4("G-TEST123");
     expect(document.head.querySelectorAll("script[src*=googletagmanager]").length).toBe(1);
     // Inny identyfikator to nie „nasz" tag z SSR - konfiguracja idzie normalnie.
     expect(policz("config", "G-TEST123")).toBe(1);
@@ -149,12 +181,14 @@ describe("GA4 w przeglądarce", () => {
   });
 
   it("polecenia trafiają do dataLayer jako obiekty `arguments`, nie tablice", () => {
-    bootstrapGa4("G-TEST123", "AW-123456789");
-    ga4ConsentUpdate({ necessary: true, functional: false, analytics: true, marketing: false });
+    bootstrapGa4("G-TEST123");
+    ga4ConsentUpdate({ necessary: true, functional: false, analytics: true, marketing: true });
+    ga4ConfigureAds("AW-123456789");
     ga4Event("test_event", { a: 1 });
     ga4PageView("/", "Start", "pl");
     const wpisy = warstwa();
-    expect(wpisy.length).toBeGreaterThanOrEqual(8);
+    expect(wpisy.length).toBeGreaterThanOrEqual(9);
+    expect(policz("config", "AW-123456789")).toBe(1);
     for (const wpis of wpisy) {
       // gtag.js rozpoznaje komendę WYŁĄCZNIE po tym kształcie - tablica byłaby
       // zwykłym wpisem warstwy danych i zgoda/odsłona nigdy by nie dojechały.
@@ -172,15 +206,15 @@ describe("GA4 w przeglądarce", () => {
     expect(znajdz("event", "z_globalnej")?.[2]).toEqual({ x: 1 });
   });
 
-  it("snippet SSR i bootstrap klienta nie konfigurują strumienia dwa razy", () => {
+  it("snippet SSR i bootstrap klienta nie konfigurują strumienia dwa razy (i żaden nie konfiguruje Ads)", () => {
     uruchomSnippetSsr("G-TEST123", "AW-123456789");
     expect(ssrGtagId()).toBe("G-TEST123");
 
-    bootstrapGa4("G-TEST123", "AW-123456789");
+    bootstrapGa4("G-TEST123");
 
     expect(policz("consent", "default")).toBe(1);
     expect(policz("js")).toBe(1);
-    expect(policz("config", "AW-123456789")).toBe(1);
+    expect(policzConfigAds()).toBe(0);
     expect(policz("config", "G-TEST123")).toBe(1);
     // Snippet nie ładuje już tagu, więc DOCIĄGNIĘCIE należy do klienta - ale
     // dokładnie jedno i tym samym identyfikatorem, którym SSR skonfigurował
@@ -194,7 +228,7 @@ describe("GA4 w przeglądarce", () => {
   it("dokument SPRZED odroczenia tagu (z `<script src>` w head) nadal nie dostaje drugiego tagu", () => {
     uruchomStarySnippetSsr("G-TEST123", "AW-123456789");
 
-    bootstrapGa4("G-TEST123", "AW-123456789");
+    bootstrapGa4("G-TEST123");
 
     expect(policz("consent", "default")).toBe(1);
     expect(policz("config", "G-TEST123")).toBe(1);
@@ -206,9 +240,9 @@ describe("GA4 w przeglądarce", () => {
   // idą do `dataLayer` natychmiast (inaczej zgoda i pierwsza odsłona jechałyby
   // z opóźnieniem albo ginęły), drugi czeka na decyzję wołającego.
   it("polecenia idą do warstwy NATYCHMIAST, a skrypt dopiero gdy wołający na to pozwoli", () => {
-    let dociagnij: (() => void) | null = null;
+    let dociagnij: (() => Promise<void>) | null = null;
 
-    bootstrapGa4("G-TEST123", "AW-123456789", {
+    bootstrapGa4("G-TEST123", {
       scheduleScript: (load) => {
         dociagnij = load;
       },
@@ -224,14 +258,67 @@ describe("GA4 w przeglądarce", () => {
     expect(znajdz("event", "test_event")).toBeDefined();
 
     expect(dociagnij).toBeTypeOf("function");
-    (dociagnij as unknown as () => void)();
+    void (dociagnij as unknown as () => Promise<void>)();
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
+  });
+
+  // KONTRAKT ZADANIA kolejki P0.3: zadanie gtag oddaje promise, który
+  // rozstrzyga się dopiero na `load`/`error` skryptu - kolejka nie puszcza
+  // następnego kroku na ewaluację gtag.js.
+  it.each(["load", "error"])(
+    "dociągnięcie zwraca promise rozstrzygany dopiero na `%s` skryptu gtag.js",
+    async (zdarzenie) => {
+      // happy-dom z wyłączonym pobieraniem JS sam odpala `error` po wstawieniu
+      // skryptu - węzeł przechwytujemy przed DOM, żeby zdarzenie dał test.
+      const wstawione: Node[] = [];
+      vi.spyOn(document.head, "appendChild").mockImplementation(<T extends Node>(node: T): T => {
+        wstawione.push(node);
+        return node;
+      });
+      let dociagnij: (() => Promise<void>) | null = null;
+      bootstrapGa4("G-TEST123", {
+        scheduleScript: (load) => {
+          dociagnij = load;
+        },
+      });
+      let rozstrzygniety = false;
+      void (dociagnij as unknown as () => Promise<void>)().then(() => {
+        rozstrzygniety = true;
+      });
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+      expect(rozstrzygniety).toBe(false);
+
+      const [tag] = wstawione;
+      expect(tag).toBeInstanceOf(HTMLScriptElement);
+      expect((tag as HTMLScriptElement).getAttribute("data-ga4-tag")).toBe("G-TEST123");
+      tag?.dispatchEvent(new Event(zdarzenie));
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+      expect(rozstrzygniety).toBe(true);
+      vi.restoreAllMocks();
+    },
+  );
+
+  it("skrypt, który już jest w dokumencie, nie trzyma kolejki (promise rozstrzygnięty od razu)", async () => {
+    const loads: Array<() => Promise<void>> = [];
+    bootstrapGa4("G-TEST123", { scheduleScript: (load) => loads.push(load) });
+    void loads[0]?.();
+    // Drugi montaż po anulowanym planie: skrypt już stoi, nowy plan nic nie wstawia.
+    resetGa4BootstrapForTests();
+    bootstrapGa4("G-TEST123", { scheduleScript: (load) => loads.push(load) });
+    expect(loads).toHaveLength(1);
+    let rozstrzygniety = false;
+    void loads[0]?.().then(() => {
+      rozstrzygniety = true;
+    });
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    expect(rozstrzygniety).toBe(true);
     expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
   });
 
   it("anulowane dociągnięcie jest ponawiane przy ponownym montażu (inaczej tag nigdy by nie dojechał)", () => {
     // Pierwszy montaż: plan dociągnięcia zostaje ANULOWANY razem z efektem
     // (odmontowanie, podwójny efekt StrictMode w dev) - nikt go nie woła.
-    bootstrapGa4("G-TEST123", "", { scheduleScript: () => {} });
+    bootstrapGa4("G-TEST123", { scheduleScript: () => {} });
     expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(0);
 
     // Drugi montaż z tą samą parą identyfikatorów: poleceń nie powtarzamy,
@@ -368,18 +455,32 @@ describe("GA4 w przeglądarce", () => {
     expect(warstwa().some((wpis) => wpis[0] === "set")).toBe(false);
   });
 
-  it("snippet SSR: zgoda domyślna PRZED konfiguracją, oba miejsca docelowe, brak parametrów UA", () => {
+  it("snippet SSR: zgoda domyślna PRZED konfiguracją, wyłącznie GA4 (bez `config AW`), brak parametrów UA", () => {
     const snippet = ga4SsrSnippet(" G-TEST123 ", "AW-123456789");
     expect(snippet.indexOf("gtag('consent','default'")).toBeGreaterThanOrEqual(0);
     expect(snippet.indexOf("gtag('consent','default'")).toBeLessThan(
       snippet.indexOf("gtag('config'"),
     );
-    expect(snippet).toContain(`gtag('config',"AW-123456789");`);
+    // Consent Mode `default` z `wait_for_update:500` - bajt w bajt jak przed P1.1.
+    expect(snippet).toContain(
+      "gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',functionality_storage:'denied',personalization_storage:'denied',security_storage:'granted',wait_for_update:500});",
+    );
     expect(snippet).toContain(`gtag('config',"G-TEST123",{send_page_view:false});`);
+    // TP-2: identyfikator Ads zostaje w sygnaturze (`__root.tsx`), ale do
+    // snippetu nie trafia - przed zgodą marketingową nie ma czego konfigurować.
+    expect(snippet).not.toContain("AW-123456789");
+    expect(snippet.match(/gtag\('config'/g)).toHaveLength(1);
     expect(snippet).not.toContain("anonymize_ip");
     expect(snippet).toContain("window.gtag=gtag;");
+    expect(snippet).toContain(`window.__nesGa4SsrTag="G-TEST123";`);
     expect(ga4SsrSnippet("", "")).toBe("");
-    expect(ga4SsrSnippet("", "AW-123456789")).toContain(`gtag('config',"AW-123456789");`);
+    expect(ga4SsrSnippet("", "AW-123456789")).toBe("");
+  });
+
+  it("snippet SSR wykonany w przeglądarce nie zostawia `config AW` w warstwie danych", () => {
+    uruchomSnippetSsr("G-TEST123", "AW-123456789");
+    expect(policz("config", "G-TEST123")).toBe(1);
+    expect(policzConfigAds()).toBe(0);
   });
 
   it("resolveBrowserGa4Id: tag z SSR > wpis panelu > konektor > stała; klucz API nigdy nie przechodzi", () => {
@@ -416,5 +517,105 @@ describe("GA4 w przeglądarce", () => {
   it("czyta identyfikator klienta z cookie _ga", () => {
     document.cookie = "_ga=GA1.1.1234567890.1699999999";
     expect(ga4ClientId()).toBe("1234567890.1699999999");
+  });
+});
+
+describe("Google Ads dopiero po zgodzie marketingowej - ga4ConfigureAds (P1.1, TP-2)", () => {
+  const ADS = "AW-123456789";
+  const zgodaMarketingowa = {
+    necessary: true,
+    functional: false,
+    analytics: true,
+    marketing: true,
+  };
+
+  beforeEach(() => {
+    resetGa4BootstrapForTests();
+    (window as Layered).dataLayer = [];
+    document.head.querySelectorAll(`script[src^="${GTAG_SRC}"]`).forEach((el) => el.remove());
+  });
+
+  it("wypycha DOKŁADNIE jedno `config AW` jako obiekt `arguments`, za aktualizacją zgody", () => {
+    uruchomSnippetSsr();
+    bootstrapGa4("G-TEST123");
+    ga4ConsentUpdate(zgodaMarketingowa);
+    ga4ConfigureAds(ADS);
+
+    expect(policz("config", ADS)).toBe(1);
+    const config = znajdz("config", ADS);
+    expect(Object.prototype.toString.call(config)).toBe("[object Arguments]");
+    // gtag.js przetwarza warstwę po kolei: `config AW` przed `consent update`
+    // wysłałby pierwsze trafienie Ads w stanie `denied`.
+    const update = znajdz("consent", "update");
+    expect((update?.[2] as Record<string, unknown>).ad_storage).toBe("granted");
+    expect(indeks(update)).toBeLessThan(indeks(config));
+  });
+
+  it("idempotentne flagą modułu: kolejne zmiany kategorii i ponowny montaż nie dokładają drugiego `config`", () => {
+    bootstrapGa4("G-TEST123");
+    ga4ConsentUpdate(zgodaMarketingowa);
+    ga4ConfigureAds(ADS);
+    ga4ConsentUpdate({ ...zgodaMarketingowa, functional: true });
+    ga4ConfigureAds(ADS);
+    ga4ConfigureAds(` ${ADS} `);
+    expect(policz("config", ADS)).toBe(1);
+  });
+
+  it("idempotentne skanem warstwy: dokument z cache sprzed P1.1 (`config AW` w snippecie) nie dostaje drugiego", () => {
+    uruchomSnippetSprzedP11("G-TEST123", ADS);
+    expect(policz("config", ADS)).toBe(1);
+    bootstrapGa4("G-TEST123");
+    ga4ConsentUpdate(zgodaMarketingowa);
+
+    ga4ConfigureAds(ADS);
+
+    expect(policz("config", ADS)).toBe(1);
+    expect(policz("config", "G-TEST123")).toBe(1);
+  });
+
+  it("zwykła tablica `['config', AW]` nie jest poleceniem gtag - nie blokuje prawdziwej konfiguracji", () => {
+    bootstrapGa4("G-TEST123");
+    (window as Layered).dataLayer?.push(["config", ADS]);
+    ga4ConfigureAds(ADS);
+    const polecenia = warstwa().filter(
+      (wpis) =>
+        Object.prototype.toString.call(wpis) === "[object Arguments]" &&
+        wpis[0] === "config" &&
+        wpis[1] === ADS,
+    );
+    expect(polecenia).toHaveLength(1);
+  });
+
+  it("inny identyfikator Ads to osobne miejsce docelowe (flaga per identyfikator)", () => {
+    bootstrapGa4("G-TEST123");
+    ga4ConfigureAds(ADS);
+    ga4ConfigureAds("AW-987654321");
+    expect(policz("config", ADS)).toBe(1);
+    expect(policz("config", "AW-987654321")).toBe(1);
+  });
+
+  it("pusty identyfikator i host spoza produkcji (podgląd) - no-op", () => {
+    bootstrapGa4("G-TEST123");
+    ga4ConfigureAds("   ");
+    expect(policzConfigAds()).toBe(0);
+
+    resetGa4BootstrapForTests();
+    (window as Layered).dataLayer = [];
+    const flaga: unknown = Reflect.get(window, "__NES_GA_ANY_HOST__");
+    Reflect.set(window, "__NES_GA_ANY_HOST__", false);
+    try {
+      ga4ConfigureAds(ADS);
+    } finally {
+      Reflect.set(window, "__NES_GA_ANY_HOST__", flaga);
+    }
+    expect(policzConfigAds()).toBe(0);
+  });
+
+  it("`resetGa4BootstrapForTests` zeruje także flagę Ads", () => {
+    ga4ConfigureAds(ADS);
+    resetGa4BootstrapForTests();
+    (window as Layered).dataLayer = [];
+    ga4ConfigureAds(ADS);
+    expect(policz("config", ADS)).toBe(1);
   });
 });

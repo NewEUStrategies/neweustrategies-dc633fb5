@@ -1,64 +1,90 @@
 // Polityka dociągania gtag.js - KIEDY wolno wpuścić ~90 KB obcego originu.
 //
-// PO CO. PSI produkcji pokazał dwa skrypty Google (GA4 + miejsce docelowe
-// Google Ads): ~367 KB transferu i ~580 ms głównego wątku na mobile. Do
-// 2026-10-02 dociągał je `afterPageLoad(…, 2000)` (load -> klatka -> bezczynność
-// z limitem 2 s). Na telefonie, gdzie interaktywność przychodzi późno, to okno
-// nadal wypadało W ŚRODKU hydratacji i pierwszej interakcji: skrypt lądował w
-// oknie liczonym do TBT i cofał ciche okno TTI. Polecenia (zgoda domyślna,
-// `config`, odsłony) nie są tym dotknięte - czekają w `window.dataLayer`,
-// natywnej kolejce gtag.js, więc odroczenie skryptu nie gubi zdarzeń, DOPÓKI
-// skrypt w końcu dojedzie.
+// PO CO. PSI produkcji pokazał dwa skrypty Google (GA4 + kontener Google Ads):
+// ~367 KB transferu i ~580 ms głównego wątku na mobile; na śladzie PSI mobile
+// gtag to 153 z 202 ms TBT (76 %) i TTI 7,1 -> 10,6 s. Polecenia (zgoda
+// domyślna, `config`, odsłony) nie są tym dotknięte - czekają w
+// `window.dataLayer`, natywnej kolejce gtag.js, więc odroczenie skryptu nie
+// gubi zdarzeń, DOPÓKI skrypt w końcu dojedzie.
 //
-// POLITYKA: ładujemy przy NAJWCZEŚNIEJSZYM z trzech sygnałów.
-//  (a) pierwsza interakcja odwiedzającego (pointerdown / keydown / touchstart /
-//      scroll) - nasłuch pasywny i w fazie capture (handler, który zatrzymuje
-//      propagację, nie ukryje interakcji). Samo dociągnięcie schodzi PO
-//      obsłudze tej interakcji i po następnej klatce (rAF -> setTimeout 0), żeby
-//      nie wydłużyć jej INP;
-//  (b) jawna decyzja o zgodzie - wołający podaje subskrypcję w
-//      `onDecision` (w aplikacji: `subscribeConsentChange` + `hasConsentDecision`
-//      z `@/lib/ads/consent`). Decyzja z banera jest zwykle też interakcją (a),
-//      ale decyzja z innej karty (zdarzenie `storage`) nie - a odwiedzający,
-//      który ją podjął, chce być mierzony;
-//  (c) bezczynność: po `load` czekamy co najmniej `QUIET_AFTER_LOAD_MS`, a
-//      potem na okres bez długich zadań (`PerformanceObserver` typu `longtask`,
-//      cisza `LONG_TASK_QUIET_MS`) w `requestIdleCallback`. Twardy limit
-//      `LOAD_CAP_MS` po `load` gwarantuje, że wizyta bez interakcji (odbicie,
-//      ale z czytaniem) też zdąży zaraportować `page_view`.
+// POLITYKA v2 (P1.1, 2026-10-04): ładujemy przy NAJWCZEŚNIEJSZYM z trzech
+// sygnałów, wszystkie przez wspólne prymitywy P0.3 (`src/lib/performance/`):
+//  (a) pierwsza interakcja odwiedzającego - `enqueue(fire, {priority:
+//      "analytics"})`: kolejka po interakcji (`postInteractionQueue.ts`)
+//      zwalnia wpis na `pointerdown`/`keydown`/`touchstart`/`wheel`/przewinięcie
+//      DOKUMENTU (`firstInteraction.ts`: wyłącznie zdarzenia zaufane; `scroll`
+//      ELEMENTU, np. programowe `scrollTo` autoodtwarzanej karuzeli, NIE jest
+//      interakcją - dawny nasłuch tego modułu na `window` w fazie capture łapał
+//      go i ładował gtag bez udziału odwiedzającego). gtag schodzi OSTATNI: po
+//      końcu gestu (strażnik gestu), po klatce, po powłoce zgód, wyspie pod
+//      palcem, nagłówku, wyspach i nakładkach, jedno zadanie na klatkę;
+//  (b) jawna decyzja o zgodzie - wołający podaje subskrypcję w `onDecision`
+//      (w aplikacji: `subscribeConsentChange` + `hasConsentDecision` z
+//      `@/lib/ads/consent`); decyzja trafia do tej samej kolejki z `release:
+//      "immediate"`, bez czekania na interakcję (decyzja z innej karty przez
+//      `storage` nie jest interakcją, a odwiedzający, który ją podjął, chce być
+//      mierzony);
+//  (c) globalny punkt ciszy strony - `onQuiescent(fire, {priority:
+//      "analytics"})` (`whenQuiescent.ts`): co najmniej 5 s po `load` i 5 s bez
+//      długich zadań i bez liczonych zasobów, limit 20 s po `load` (także w
+//      ukrytej karcie), 10 s od nawigacji, gdy `load` nie przychodzi. Jeden
+//      detektor na dokument dla wszystkich konsumentów, więc żądania innych
+//      konsumentów (baner, nakładki, wyspy) nie przesuwają okna gtag - i
+//      odwrotnie: własne URL-e gtag są zgłoszone `registerOwnedRequest`.
+// `fire` jest idempotentne i ZWRACA promise rozstrzygany na `load`/`error`
+// gtag.js (KONTRAKT ZADANIA kolejki P0.3), więc kolejka nie puszcza
+// następnego kroku na ewaluację tagu.
 //
-// ŚWIADOMY KOMPROMIS. Odwiedzający, który wychodzi PRZED pierwszą interakcją
-// i PRZED progiem bezczynności (zwykle 2-8 s po `load`), nie wyśle `page_view`.
-// To realna strata części odbić w GA4 - przyjęta w zamian za to, że żaden
-// odwiedzający nie płaci ~580 ms głównego wątku za pomiar w chwili, gdy
-// próbuje zacząć czytać albo kliknąć. Dawna reguła „2 s po load" też gubiła
-// najkrótsze wizyty; nowa przesuwa próg dalej, ale tylko dla kart, które
-// niczego nie dotknęły.
+// UZASADNIENIE (Lantern). Lighthouse kończy ślad po `load` + 1 s, 1 s ciszy
+// sieci (network-2-quiet) i 1 s ciszy CPU (`wait-for-condition.js:409-480`).
+// Lantern liczy TBT z KAŻDEGO długiego zadania w śladzie, kończy TTI na
+// ostatnim długim zadaniu i NIE symuluje timerów - przesunięcie gtag „później"
+// wewnątrz śladu (dawne `load` + 2-8 s) nie zdejmuje z TBT ani milisekundy.
+// Pomaga tylko praca, która startuje po końcu śladu. Okno 5 s jest dłuższe niż
+// progi Lighthouse'a, więc gtag ląduje poza śladem; to klasyczna reguła TTI
+// (5 s bez długich zadań i bez żądań), a nie wykrywanie Lighthouse'a: ten sam
+// punkt obowiązuje każdego odwiedzającego.
 //
-// Moduł jest czysty: żadnego stanu modułowego, wszystkie zależności to globalne
-// API przeglądarki czytane leniwie (SSR dostaje no-op). Testy: fałszywe zegary
-// plus symulowane interakcje i długie zadania.
+// ŚWIADOMY KOMPROMIS. Odwiedzający, który wychodzi PRZED pierwszą interakcją i
+// PRZED punktem ciszy (zwykle ok. `load` + 10 s, najdalej `load` + 20 s), nie
+// wyśle `page_view` (dawniej próg wynosił 2-8 s po `load`). Strata skupia się
+// na odbiciach bez dotknięcia strony - ruchu, który GA4 i tak raportuje z
+// zaangażowaniem bliskim zeru. Interakcja przed punktem ciszy płaci za
+// ewaluację gtag zaraz po swoim geście (ostatnia w kolejce, po klatce), co
+// pilnuje RUM P0.6 (INP z atrybucją). Wyjątek od reguły z
+// `docs/performance/2026-09-30-critical-boot.md:5` („nie odraczać pracy tylko
+// poza okno audytu") ZATWIERDZIŁ właściciel produktu: faza1/ORCHESTRATOR-NOTES.md,
+// sekcja „Owner decision" (2026-10-03, TP-1 i TP-2), decyzja D1 w
+// faza1/PLAN.md §7. KRYTERIUM WYCOFANIA: spadek `page_view` (GA4 albo RUM)
+// o więcej niż 10 % względem linii bazowej sprzed wdrożenia (PLAN.md §8.2) -
+// najpierw przegląd listy ignorowanych zasobów i limitu w `whenQuiescent.ts`,
+// potem powrót do krótszego okna.
+//
+// Moduł nie trzyma własnego stanu: stan (jeden detektor ciszy, jedna kolejka,
+// jedna pierwsza interakcja) należy do prymitywów P0.3; testy zerują go ich
+// hakami `__reset…ForTests`. SSR dostaje no-op.
 
-/** Pierwsza możliwa chwila dociągnięcia po `load`, gdy nikt niczego nie dotknął. */
-export const QUIET_AFTER_LOAD_MS = 2_000;
-/** Minimalna cisza bez długich zadań, zanim skrypt wejdzie na główny wątek. */
-export const LONG_TASK_QUIET_MS = 1_500;
-/** Twardy limit po `load` - po nim ładujemy mimo długich zadań (odbicia muszą raportować). */
-export const LOAD_CAP_MS = 8_000;
-/**
- * Gdy `load` nie przychodzi (wiszący zasób obcy), traktujemy dokument jak
- * załadowany po tym czasie - ten sam zapas, co w `afterPageLoad`.
- */
-export const LOAD_DEADLINE_MS = 10_000;
-/**
- * Ile najdłużej czekamy na klatkę po interakcji. rAF w karcie w tle nie
- * przychodzi wcale; decyzja z innej karty nie może przez to utknąć na zawsze.
- */
-const YIELD_CAP_MS = 1_000;
+import { enqueue, type QueuePriority } from "@/lib/performance/postInteractionQueue";
+import { onQuiescent, registerOwnedRequest } from "@/lib/performance/whenQuiescent";
 
-const INTERACTION_EVENTS = ["pointerdown", "keydown", "touchstart", "scroll"] as const;
+/** Klasa kolejki P0.3 dla gtag: zawsze ostatnia (`QUEUE_PRIORITIES`). */
+export const GTAG_QUEUE_PRIORITY = "analytics" satisfies QueuePriority;
+
+/**
+ * Żądania tagu Google (gtag.js i kontener Ads, kolekcja GA4, pingi Ads/ccm,
+ * także `www.google.<tld>/pagead|ccm|ads/…`), zgłaszane detektorowi ciszy jako
+ * własne - nie przesuwają punktu ciszy pozostałym konsumentom, gdy gtag
+ * dojedzie po interakcji przed tym punktem. Detektor ignoruje dziś hosty
+ * Google sam z siebie; zgłoszenie jest kontraktem P0.3, niezależnym od jego
+ * listy. Po hoście wymagany `/`, więc `googletagmanager.com.evil.io` nie pasuje.
+ */
+export const GTAG_OWNED_REQUESTS =
+  /^https:\/\/([a-z0-9-]+\.)*((googletagmanager\.com|google-analytics\.com|analytics\.google\.com|doubleclick\.net|googlesyndication\.com|googleadservices\.com)\/|google\.[a-z]{2,3}(\.[a-z]{2})?\/(pagead|ccm|ads)\/)/i;
 
 export type CancelGtagLoad = () => void;
+
+/** Wstrzyknięcie gtag.js; promise (rozstrzygany na `load`/`error` skryptu) trzyma kolejkę. */
+export type GtagLoad = () => void | PromiseLike<unknown>;
 
 export interface GtagLoadPolicyOptions {
   /**
@@ -69,162 +95,58 @@ export interface GtagLoadPolicyOptions {
   onDecision?: (fire: () => void) => () => void;
 }
 
-interface IdleWindow {
-  requestIdleCallback?: (
-    callback: (deadline: { didTimeout: boolean; timeRemaining: () => number }) => void,
-    options?: { timeout?: number },
-  ) => number;
-  cancelIdleCallback?: (handle: number) => void;
-}
-
-function now(): number {
-  return typeof performance !== "undefined" && typeof performance.now === "function"
-    ? performance.now()
-    : Date.now();
-}
-
-/**
- * Nasłuch długich zadań. Zwraca funkcję czytającą chwilę KOŃCA ostatniego
- * długiego zadania (−∞ gdy żadnego nie było albo API nie istnieje - Safari
- * nie zna `longtask`, więc tam decyduje sama bezczynność i limit) oraz
- * funkcję odpinającą obserwatora.
- */
-function observeLongTasks(): { lastEnd: () => number; disconnect: () => void } {
-  let lastEnd = Number.NEGATIVE_INFINITY;
-  if (typeof PerformanceObserver === "undefined") {
-    return { lastEnd: () => lastEnd, disconnect: () => {} };
-  }
-  try {
-    const observer = new PerformanceObserver((list) => {
-      // `PerformanceEntry` niesie `startTime` i `duration` - rzutowanie zbędne
-      // (`check:unknown-casts`).
-      for (const entry of list.getEntries()) {
-        lastEnd = Math.max(lastEnd, entry.startTime + entry.duration);
-      }
-    });
-    // `buffered` - długie zadania sprzed subskrypcji (hydratacja) też się liczą.
-    observer.observe({ type: "longtask", buffered: true } as PerformanceObserverInit);
-    return { lastEnd: () => lastEnd, disconnect: () => observer.disconnect() };
-  } catch {
-    // Przeglądarka bez wpisu `longtask` rzuca przy `observe` - cisza z definicji.
-    return { lastEnd: () => lastEnd, disconnect: () => {} };
-  }
-}
-
-/** `requestIdleCallback` z limitem, a bez niego zwykły `setTimeout(limit)`. */
-function whenIdleOrAfter(callback: () => void, timeout: number): () => void {
-  const w = window as Window & IdleWindow;
-  if (typeof w.requestIdleCallback === "function") {
-    const handle = w.requestIdleCallback(() => callback(), { timeout });
-    return () => w.cancelIdleCallback?.(handle);
-  }
-  const handle = window.setTimeout(callback, timeout);
-  return () => window.clearTimeout(handle);
-}
-
 /**
  * Planuje dociągnięcie gtag.js według polityki z nagłówka pliku. `load` biegnie
- * najwyżej raz. Zwrócona funkcja odwołuje WSZYSTKO (nasłuchy, zegary,
- * obserwatora) - wołać w cleanupie efektu.
+ * najwyżej raz. Zwrócona funkcja odwołuje WSZYSTKIE sygnały (wpisy kolejki,
+ * zapis w punkcie ciszy, subskrypcję decyzji) - wołać w cleanupie efektu.
  */
 export function scheduleGtagLoad(
-  load: () => void,
+  load: GtagLoad,
   options: GtagLoadPolicyOptions = {},
 ): CancelGtagLoad {
   if (typeof window === "undefined" || typeof document === "undefined") return () => {};
 
-  let settled = false;
-  const cleanups: Array<() => void> = [];
-  const addCleanup = (fn: () => void) => cleanups.push(fn);
-  const cancel: CancelGtagLoad = () => {
-    settled = true;
-    while (cleanups.length) cleanups.pop()?.();
+  let fired = false;
+  let result: void | PromiseLike<unknown>;
+  let decisionQueued = false;
+  const signals: Array<() => void> = [];
+  const releaseSignals = () => {
+    while (signals.length) signals.pop()?.();
+  };
+  // Własne URL-e gtag zostają zgłoszone także po załadowaniu (pingi biegną
+  // dalej); wycofujemy je tylko, gdy polityka zostaje odwołana przed `fire`.
+  const unregisterOwned = registerOwnedRequest(GTAG_OWNED_REQUESTS);
+
+  const fire = (): void | PromiseLike<unknown> => {
+    if (fired) return result;
+    fired = true;
+    // Pozostałe sygnały schodzą PRZED wstrzyknięciem: wpisy kolejki i zapis w
+    // punkcie ciszy nie wystartują drugi raz, subskrypcja decyzji jest odpięta.
+    releaseSignals();
+    result = load();
+    return result;
   };
 
-  const fire = () => {
-    if (settled) return;
-    cancel();
-    load();
-  };
+  // (a) pierwsza interakcja: wpis czeka na zwolnienie kolejki.
+  signals.push(enqueue(fire, { priority: GTAG_QUEUE_PRIORITY }));
 
-  // --- sygnały (a) i (b): zejście po obsłudze interakcji i po klatce ---------
-  let yielding = false;
-  const fireAfterPaint = () => {
-    if (settled || yielding) return;
-    yielding = true;
-    let frame = 0;
-    let after = 0;
-    // Zapas na kartę w tle, w której rAF nie przychodzi.
-    const cap = window.setTimeout(fire, YIELD_CAP_MS);
-    frame = window.requestAnimationFrame(() => {
-      after = window.setTimeout(fire, 0);
-    });
-    addCleanup(() => {
-      window.clearTimeout(cap);
-      window.cancelAnimationFrame(frame);
-      window.clearTimeout(after);
-    });
-  };
-
-  const listenerOptions: AddEventListenerOptions = { passive: true, capture: true };
-  for (const type of INTERACTION_EVENTS) {
-    window.addEventListener(type, fireAfterPaint, listenerOptions);
-    addCleanup(() => window.removeEventListener(type, fireAfterPaint, listenerOptions));
-  }
-
+  // (b) jawna decyzja o zgodzie: ta sama kolejka, bez czekania na interakcję;
+  // seria decyzji (baner, panel, druga karta) zakłada najwyżej jeden wpis.
   if (options.onDecision) {
-    addCleanup(options.onDecision(fireAfterPaint));
+    signals.push(
+      options.onDecision(() => {
+        if (fired || decisionQueued) return;
+        decisionQueued = true;
+        signals.push(enqueue(fire, { priority: GTAG_QUEUE_PRIORITY, release: "immediate" }));
+      }),
+    );
   }
 
-  // --- sygnał (c): bezczynność po load ----------------------------------------
-  const longTasks = observeLongTasks();
-  addCleanup(longTasks.disconnect);
+  // (c) globalny punkt ciszy strony.
+  signals.push(onQuiescent(fire, { priority: GTAG_QUEUE_PRIORITY }));
 
-  let loadedAt = 0;
-  let cancelIdle: () => void = () => {};
-  addCleanup(() => cancelIdle());
-
-  const checkQuiet = () => {
-    if (settled) return;
-    const t = now();
-    const sinceLoad = t - loadedAt;
-    const sinceLongTask = t - longTasks.lastEnd();
-    if (sinceLoad >= LOAD_CAP_MS || sinceLongTask >= LONG_TASK_QUIET_MS) {
-      fire();
-      return;
-    }
-    // Główny wątek wciąż pracuje: wracamy, gdy minie wymagana cisza albo limit -
-    // cokolwiek pierwsze. Najmniej 50 ms, żeby nie wirować na jednym zadaniu.
-    const wait = Math.max(
-      50,
-      Math.min(LONG_TASK_QUIET_MS - sinceLongTask, LOAD_CAP_MS - sinceLoad),
-    );
-    cancelIdle = whenIdleOrAfter(checkQuiet, wait);
+  return () => {
+    releaseSignals();
+    if (!fired) unregisterOwned();
   };
-
-  let loadStarted = false;
-  const onLoaded = () => {
-    if (settled || loadStarted) return;
-    loadStarted = true;
-    window.removeEventListener("load", onLoaded);
-    window.clearTimeout(loadDeadline);
-    loadedAt = now();
-    // Pierwsze podejście dopiero po `QUIET_AFTER_LOAD_MS` (twardy zegar, nie
-    // rIC - bezczynność tuż po load to jeszcze ogon hydratacji, czyli dokładnie
-    // okno, z którego skrypt zabieramy), a dalej już w pętli bezczynności.
-    const first = window.setTimeout(() => {
-      cancelIdle = whenIdleOrAfter(checkQuiet, LONG_TASK_QUIET_MS);
-    }, QUIET_AFTER_LOAD_MS);
-    addCleanup(() => window.clearTimeout(first));
-  };
-
-  const loadDeadline = window.setTimeout(onLoaded, LOAD_DEADLINE_MS);
-  addCleanup(() => {
-    window.clearTimeout(loadDeadline);
-    window.removeEventListener("load", onLoaded);
-  });
-  if (document.readyState === "complete") onLoaded();
-  else window.addEventListener("load", onLoaded, { once: true });
-
-  return cancel;
 }
