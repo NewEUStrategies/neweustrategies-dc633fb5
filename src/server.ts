@@ -17,6 +17,10 @@
 //      limitu frameworka (60 s) i ubija go błędem - każda strona "odpowiada"
 //      po ~61 s, a monitory (np. operatora płatności) raportują serwis jako offline.
 //
+//   5. Telemetria dokumentu (Workers Logs + Server-Timing): jedna linia JSON
+//      per dokument HTML, emitowana PO KOŃCU body (owijka strumienia za
+//      strażnikiem), z licznikiem żądań izolatu, kolonią, ray-em i klasą UA.
+//
 // Wpięcie: vite.config.ts -> tanstackStart.server.entry: "server".
 import "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
@@ -28,8 +32,16 @@ import {
   revalidationHeader,
   setDocumentRevalidator,
 } from "./lib/http/documentCache.server";
+import { NES_CACHE_HEADER, documentStorePolicy } from "./lib/http/documentCache";
 import { LANG_COOKIE } from "./lib/i18n/langCookie";
-import { buildDocumentLogLine } from "./lib/http/ssrTiming";
+import {
+  buildDocumentLogLine,
+  buildEntryServerTimingValue,
+  observeBodyEnd,
+  resolveRequestColo,
+  type BodyEndOutcome,
+  type IsolateSample,
+} from "./lib/http/ssrTiming";
 import type { Register } from "@tanstack/react-router";
 import type { RequestHandler } from "@tanstack/react-start/server";
 
@@ -180,7 +192,9 @@ async function revalidateDocument(request: Request): Promise<boolean> {
   const normalized = await normalizeCatastrophicSsrResponse(synthetic, rendered);
   // Render w tle też idzie do logu - z flagą, bo to koszt CPU izolatu, a nie
   // czas czytelnika; bez niej zaniżałby rozkład TTFB i zawyżał udział MISS.
-  logDocument(synthetic, normalized, 0, Date.now() - startedAt);
+  // Bez `streamMs`: body tej odpowiedzi czyta tylko kolektor zapisu niżej,
+  // a log ma powstać także wtedy, gdy wiszący render nigdy się nie domknie.
+  logDocument(synthetic, normalized, { serverInitMs: 0, appMs: Date.now() - startedAt });
 
   let storeWork: Promise<boolean> | null = null;
   const finalized = applyDeferredDocumentStore(normalized, (work) => {
@@ -203,17 +217,72 @@ async function revalidateDocument(request: Request): Promise<boolean> {
 setDocumentRevalidator(revalidateDocument);
 
 /**
+ * Licznik żądań TEGO izolatu i znacznik jego pierwszego żądania - flaga
+ * zimnego startu w logu (`isoReq == 1`) i wiek izolatu (`isoAgeS`).
+ *
+ * Znacznik jest brany LENIWIE, przy pierwszym żądaniu, a nie w zasięgu
+ * modułu: zegar Workers stoi w czasie czystej pracy CPU (Date.now() rusza
+ * się tylko na I/O), więc czas „załadowania modułu" - liczony w trakcie
+ * parsowania 13 MB bundla - nie znaczyłby nic (werdykt SC-1, poprawka b).
+ * Liczymy KAŻDE żądanie, które weszło do `fetch` (też API i assety
+ * przechodzące przez worker): zimny start płaci pierwsze z nich, nie
+ * pierwsze żądanie dokumentu. Rewalidacja w tle nie jest liczona - nie
+ * przyszła z zewnątrz.
+ */
+let isolateRequests = 0;
+let isolateFirstRequestAt: number | null = null;
+
+function countIsolateRequest(now: number): IsolateSample {
+  isolateRequests += 1;
+  if (isolateFirstRequestAt === null) isolateFirstRequestAt = now;
+  return {
+    isoReq: isolateRequests,
+    isoAgeS: Math.max(0, Math.round((now - isolateFirstRequestAt) / 1000)),
+  };
+}
+
+/** Kolonia z `request.cf.colo` (Workers), fallback: sufiks nagłówka `cf-ray`. */
+function requestColo(request: Request): string | null {
+  const cf = "cf" in request ? request.cf : undefined;
+  return resolveRequestColo(cf, request.headers.get("cf-ray"));
+}
+
+/**
+ * Czy MISS pełnego dokumentu wyszedł zdegradowany: polityka zapisu odmówiła
+ * mu wspólnego cache'a (`private, no-store` z odpornego loadera albo z
+ * dociśnięcia na granicy handlera w `applyDeferredDocumentStore`). Ta sama
+ * definicja co gałąź `degradedRevalidation` w documentCache.server.ts.
+ * Undefined poza MISS-em 200/HTML - HIT/STALE z definicji podają czysty wpis,
+ * a BYPASS nie konsultował cache'a. Degradacji odkrytej dopiero W TRAKCIE
+ * strumieniowania nagłówki nie widzą (loguje ją sam magazyn).
+ */
+function degradedMiss(response: Response): boolean | undefined {
+  const contentType = response.headers.get("content-type");
+  if (response.headers.get(NES_CACHE_HEADER) !== "MISS") return undefined;
+  if (response.status !== 200 || !contentType?.includes("text/html")) return undefined;
+  return !documentStorePolicy(response.status, contentType, response.headers.get("cache-control"))
+    .store;
+}
+
+interface DocumentLogTiming {
+  serverInitMs: number;
+  appMs: number;
+  /** Próbka licznika izolatu - tylko żądania z zewnątrz (nie rewalidacja). */
+  isolate?: IsolateSample;
+  colo?: string | null;
+  /** Koniec body względem wejścia żądania; brak = odpowiedź bez body. */
+  streamMs?: number;
+  streamEnd?: BodyEndOutcome;
+}
+
+/**
  * Jedna linia JSON per dokument HTML do Workers Logs (audyt 0.1 / F40).
  * Hosting zdejmuje `Server-Timing` i `x-nes-cache` z odpowiedzi, więc to
  * JEDYNE miejsce, w którym rozkład TTFB na fazy i status cache przeżywają.
- * Bez PII: sama ścieżka (bez query), status, liczby. Nigdy nie rzuca.
+ * Bez PII: sama ścieżka (bez query), status, liczby, kolonia, `cf-ray`
+ * i KLASA user-agenta (nigdy sam napis, nigdy IP). Nigdy nie rzuca.
  */
-function logDocument(
-  request: Request,
-  response: Response,
-  serverInitMs: number,
-  appMs: number,
-): void {
+function logDocument(request: Request, response: Response, timing: DocumentLogTiming): void {
   if (!response.headers.get("content-type")?.includes("text/html")) return;
   try {
     const [markerName, markerValue] = revalidationHeader();
@@ -224,9 +293,16 @@ function logDocument(
           status: response.status,
           cacheStatus: response.headers.get("x-nes-cache"),
           serverTiming: response.headers.get("server-timing"),
-          serverInitMs,
-          appMs,
+          serverInitMs: timing.serverInitMs,
+          appMs: timing.appMs,
           revalidation: request.headers.get(markerName) === markerValue,
+          streamMs: timing.streamMs,
+          streamEnd: timing.streamEnd,
+          colo: timing.colo,
+          isolate: timing.isolate,
+          userAgent: request.headers.get("user-agent"),
+          cfRay: request.headers.get("cf-ray"),
+          degraded: degradedMiss(response),
         }),
       ),
     );
@@ -239,6 +315,7 @@ export default {
   async fetch(request: Request): Promise<Response> {
     try {
       const startedAt = Date.now();
+      const isolate = countIsolateRequest(startedAt);
       const handler = await getServerEntry();
       const initializedAt = Date.now();
       const response = await fetchWithFrameworkPreloads(handler.fetch, request);
@@ -256,12 +333,34 @@ export default {
       // Measured outside the router's SSR budget and outside the cache write:
       // includes current middleware and cache lookup work on both MISS/HIT.
       // Body streaming and network transport happen later, so this is not TTFB.
+      // Zegar Workers stoi w czasie czystej pracy CPU, więc appMs i streamMs
+      // nie widzą CPU renderu między await-ami ani startu izolatu; to daje
+      // dopiero `cpuTimeMs`/`wallTimeMs` wywołania w Workers Logs.
       const serverInitMs = initializedAt - startedAt;
       const appMs = Date.now() - startedAt;
-      logDocument(request, guarded, serverInitMs, appMs);
+      const colo = requestColo(request);
       const headers = new Headers(guarded.headers);
-      headers.append("server-timing", `server-init;dur=${serverInitMs}, app;dur=${appMs}`);
-      return new Response(guarded.body, {
+      // Bez metryki końca strumienia: nagłówki wychodzą PRZED body.
+      headers.append("server-timing", buildEntryServerTimingValue(serverInitMs, appMs, colo));
+      const timing: DocumentLogTiming = { serverInitMs, appMs, isolate, colo };
+      // Linia logu powstaje PO KOŃCU body, żeby niosła `streamMs`. Owijka
+      // siedzi na JUŻ przebudowanym Response - za tee zapisu i za strażnikiem,
+      // poza zasięgiem porównania tożsamości body egzekutora (incydent ~61 s).
+      // HEAD i odpowiedź bez body nie mają końca strumienia, na który dałoby
+      // się czekać (runtime takiego body nie czyta) - logujemy od razu.
+      let body: ReadableStream<Uint8Array> | null = guarded.body;
+      if (body && request.method !== "HEAD") {
+        body = observeBodyEnd(body, (outcome) =>
+          logDocument(request, guarded, {
+            ...timing,
+            streamMs: Date.now() - startedAt,
+            streamEnd: outcome,
+          }),
+        );
+      } else {
+        logDocument(request, guarded, timing);
+      }
+      return new Response(body, {
         status: guarded.status,
         statusText: guarded.statusText,
         headers,

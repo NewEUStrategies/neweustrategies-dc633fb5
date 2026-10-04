@@ -21,7 +21,18 @@
 // z testowanych gałęzi (`activeRequest`).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildDocumentLogLine, buildServerTimingValue, parseServerTiming } from "../ssrTiming";
+import {
+  buildDocumentLogLine,
+  buildEntryServerTimingValue,
+  buildServerTimingValue,
+  classifyUserAgent,
+  observeBodyEnd,
+  parseServerTiming,
+  resolveRequestColo,
+  sanitizeRay,
+  type BodyEndOutcome,
+  type NesCacheLayer,
+} from "../ssrTiming";
 import {
   readDbTiming,
   readRequestPhases,
@@ -500,5 +511,446 @@ describe("buildDocumentLogLine", () => {
       appMs: 2,
     });
     expect(line.path).toHaveLength(2048);
+  });
+});
+
+// OBSERWOWALNOŚĆ CACHE'U DOKUMENTÓW I TTFB (plan PSI 85/95, P0.4 = SC-1).
+//
+// Werdykt SC-1 dał trzy poprawki, które te testy przypinają: (a) żadnej
+// metryki `stream` w Server-Timing - koniec body idzie WYŁĄCZNIE do logu,
+// mierzony owijką strumienia, nie kolektorem tee; (b) flaga zimnego startu
+// z licznika żądań izolatu, nie z wieku modułu; (c) `ray` w linii logu jako
+// klucz korelacji. Do tego zasada prywatności: z user-agenta tylko klasa,
+// zero IP, zero napisów od klienta bez walidacji kształtu.
+const LIGHTHOUSE_MOBILE_UA =
+  "Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse";
+const CHROME_DESKTOP_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+const RAY = "8c5a3b2e9f1d4e7a-WAW";
+
+describe("nes-layer w nagłówku Server-Timing", () => {
+  it.each<[NesCacheLayer, string]>([
+    ["L1", 'nes-edge;desc="HIT", nes-age;dur=1200, edge-routing;dur=3.0, nes-layer;desc="L1"'],
+    ["L2", 'nes-edge;desc="HIT", nes-age;dur=1200, edge-routing;dur=3.0, nes-layer;desc="L2"'],
+  ])("warstwa %s stoi NA KOŃCU, za fazami - `nes-edge` dalej pierwszy", (layer, expected) => {
+    expect(
+      buildServerTimingValue(
+        "HIT",
+        undefined,
+        null,
+        1200,
+        [{ name: "edge-routing", durationMs: 3 }],
+        layer,
+      ),
+    ).toBe(expected);
+  });
+
+  it("MISS niesie `render` za kosztem bazy", () => {
+    expect(
+      buildServerTimingValue("MISS", 674, { count: 19, totalMs: 2697 }, undefined, [], "render"),
+    ).toBe(
+      'nes-edge;desc="MISS", ssr;dur=674.0, db;dur=2697.0;desc="n=19", nes-layer;desc="render"',
+    );
+  });
+
+  it("brak warstwy nie zmienia nagłówka ani o bajt (wołający sprzed P0.4)", () => {
+    const before = buildServerTimingValue("HIT", undefined, null, 5, [
+      { name: "edge-routing", durationMs: 1 },
+    ]);
+    expect(
+      buildServerTimingValue("HIT", undefined, null, 5, [{ name: "edge-routing", durationMs: 1 }]),
+    ).toBe(before);
+    expect(
+      buildServerTimingValue(
+        "HIT",
+        undefined,
+        null,
+        5,
+        [{ name: "edge-routing", durationMs: 1 }],
+        null,
+      ),
+    ).toBe(before);
+  });
+
+  it("wartość spoza słownika warstw nie trafia do nagłówka (zamknięty słownik dla RUM)", () => {
+    const bogus: string = "L3";
+    expect(
+      buildServerTimingValue("HIT", undefined, null, undefined, [], bogus as NesCacheLayer),
+    ).toBe('nes-edge;desc="HIT"');
+  });
+
+  it("parser oddaje warstwę jako opis metryki - kontrakt dla RUM (P0.6)", () => {
+    expect(
+      parseServerTiming(buildServerTimingValue("STALE", undefined, null, 0, [], "L2")),
+    ).toEqual([
+      { name: "nes-edge", description: "STALE" },
+      { name: "nes-age", durationMs: 0 },
+      { name: "nes-layer", description: "L2" },
+    ]);
+  });
+});
+
+describe("resolveRequestColo - kolonia z `request.cf` albo z sufiksu `cf-ray`", () => {
+  it("bierze `cf.colo`, gdy runtime je daje (Workers)", () => {
+    expect(resolveRequestColo({ colo: "FRA", country: "DE" }, RAY)).toBe("FRA");
+  });
+
+  it("normalizuje wielkość liter i białe znaki kodu z `cf`", () => {
+    expect(resolveRequestColo({ colo: " waw " }, null)).toBe("WAW");
+  });
+
+  it.each([undefined, null, "WAW", 7, {}, { colo: 42 }, { colo: "WARSAW" }, { colo: "" }])(
+    "bez użytecznego `cf` (%j) spada na sufiks `cf-ray`",
+    (cf) => {
+      expect(resolveRequestColo(cf, RAY)).toBe("WAW");
+    },
+  );
+
+  it.each([
+    null,
+    undefined,
+    "",
+    "8c5a3b2e9f1d4e7a",
+    "8c5a3b2e9f1d4e7a-",
+    "8c5a3b2e9f1d4e7a-WARS",
+    'x"-WAW',
+    "8c5a3b2e9f1d4e7a-W1W",
+  ])("bez `cf` i bez poprawnego ray-a (%j) zwraca null - brak klucza, nie śmieć", (cfRay) => {
+    expect(resolveRequestColo(undefined, cfRay)).toBeNull();
+  });
+});
+
+describe("sanitizeRay", () => {
+  it.each([RAY, "8c5a3b2e9f1d4e7a", "0123456789ABCDEF-ams", ` ${RAY} `])(
+    "przepuszcza kształt ray-a: %j",
+    (value) => {
+      expect(sanitizeRay(value)).toBe(value.trim());
+    },
+  );
+
+  it.each([
+    null,
+    undefined,
+    "",
+    "nie-ray",
+    "8c5a3b2e9f1d4e7a-WAW; ip=203.0.113.7",
+    "g".repeat(16),
+    "a".repeat(40),
+    "1234567",
+  ])("odrzuca wszystko inne: %j", (value) => {
+    expect(sanitizeRay(value)).toBeNull();
+  });
+});
+
+describe("classifyUserAgent - z UA do logu trafia wyłącznie klasa", () => {
+  it.each<[string | null | undefined, string]>([
+    [LIGHTHOUSE_MOBILE_UA, "lighthouse"],
+    ["Mozilla/5.0 (compatible; Google-PageSpeed Insights)", "lighthouse"],
+    ["Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", "bot"],
+    ["curl/8.5.0", "bot"],
+    ["Mozilla/5.0 HeadlessChrome/141.0.0.0", "bot"],
+    ["", "bot"],
+    [null, "bot"],
+    [undefined, "bot"],
+    [CHROME_DESKTOP_UA, "browser"],
+  ])("%j -> %s", (ua, expected) => {
+    expect(classifyUserAgent(ua)).toBe(expected);
+  });
+});
+
+describe("buildEntryServerTimingValue - część dopisywana w src/server.ts", () => {
+  it("bez kolonii to bajt w bajt dawny napis", () => {
+    expect(buildEntryServerTimingValue(0, 37)).toBe("server-init;dur=0, app;dur=37");
+    expect(buildEntryServerTimingValue(0, 37, null)).toBe("server-init;dur=0, app;dur=37");
+  });
+
+  it("z kolonią dopisuje `colo;desc=` na końcu", () => {
+    expect(buildEntryServerTimingValue(412, 3105, "WAW")).toBe(
+      'server-init;dur=412, app;dur=3105, colo;desc="WAW"',
+    );
+  });
+
+  it.each(['WAW", evil;dur=1', "waw", "WARSAW", ""])(
+    "kolonia spoza kształtu (%j) nie wchodzi do nagłówka",
+    (colo) => {
+      expect(buildEntryServerTimingValue(1, 2, colo)).toBe("server-init;dur=1, app;dur=2");
+    },
+  );
+
+  it("nie ma metryki końca strumienia - nagłówki wychodzą PRZED body (werdykt SC-1 a)", () => {
+    const value = buildEntryServerTimingValue(1, 2, "WAW");
+    expect(parseServerTiming(value).map((entry) => entry.name)).toEqual([
+      "server-init",
+      "app",
+      "colo",
+    ]);
+    expect(value).not.toMatch(/stream/);
+  });
+});
+
+const encoder = new TextEncoder();
+
+/** Źródło sterowane z testu: kolejne chunki, domknięcie albo błąd na żądanie. */
+function controlledSource(): {
+  stream: ReadableStream<Uint8Array>;
+  controller: ReadableStreamDefaultController<Uint8Array>;
+  cancelled: unknown[];
+} {
+  let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const cancelled: unknown[] = [];
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+    },
+    cancel(reason) {
+      cancelled.push(reason);
+    },
+  });
+  if (!controller) throw new Error("ReadableStream nie wywołał start()");
+  return { stream, controller, cancelled };
+}
+
+describe("observeBodyEnd - koniec body z owijki strumienia, nie z tee", () => {
+  it("przepuszcza TE SAME chunki i zgłasza `done` dokładnie raz, przed domknięciem czytnika", async () => {
+    const { stream, controller } = controlledSource();
+    const outcomes: BodyEndOutcome[] = [];
+    const reader = observeBodyEnd(stream, (outcome) => outcomes.push(outcome)).getReader();
+
+    const first = encoder.encode("<html><body>");
+    const second = encoder.encode("</body></html>");
+    controller.enqueue(first);
+    const read1 = await reader.read();
+    expect(read1.value).toBe(first);
+    // Strumień trwa - końca jeszcze nie ma, więc i linii logu nie może być.
+    expect(outcomes).toEqual([]);
+
+    controller.enqueue(second);
+    controller.close();
+    const read2 = await reader.read();
+    expect(read2.value).toBe(second);
+    const end = await reader.read();
+    expect(end.done).toBe(true);
+    // `flush()` biegnie, zanim czytnik zobaczy `done` - wołający, który
+    // doczytał body, ma już linię logu.
+    expect(outcomes).toEqual(["done"]);
+  });
+
+  it("błąd źródła zgłasza `aborted` i dociera do konsumenta jak dotąd", async () => {
+    const { stream, controller } = controlledSource();
+    const outcomes: BodyEndOutcome[] = [];
+    const reader = observeBodyEnd(stream, (outcome) => outcomes.push(outcome)).getReader();
+
+    controller.error(new Error("render padł"));
+    await expect(reader.read()).rejects.toThrow("render padł");
+    await vi.waitFor(() => {
+      expect(outcomes).toEqual(["aborted"]);
+    });
+  });
+
+  it("anulowanie przez konsumenta (zerwany klient) dociera do źródła i zgłasza `aborted`", async () => {
+    const { stream, controller, cancelled } = controlledSource();
+    const outcomes: BodyEndOutcome[] = [];
+    const observed = observeBodyEnd(stream, (outcome) => outcomes.push(outcome));
+    const reader = observed.getReader();
+    controller.enqueue(encoder.encode("<html>"));
+    await reader.read();
+
+    await reader.cancel(new Error("klient zniknął"));
+    await vi.waitFor(() => {
+      expect(outcomes).toEqual(["aborted"]);
+    });
+    // Strażnik dokumentu i render MUSZĄ dostać sygnał zerwania - inaczej
+    // upstream wisiałby z wyczyszczonymi timerami.
+    expect(cancelled).toHaveLength(1);
+  });
+
+  it("zerwanie zgłasza OD RAZU, nawet gdy anulowanie źródła wisi (gałąź tee kolektora zapisu)", () => {
+    // `cancel()` gałęzi `tee()` rozstrzyga się dopiero po anulowaniu drugiej
+    // gałęzi albo końcu źródła - a kolektor zapisu czyta swoją do końca
+    // renderu. Owijka oparta na `pipeTo` czekałaby na to; ta nie czeka.
+    const outcomes: BodyEndOutcome[] = [];
+    const hanging = new ReadableStream<Uint8Array>({
+      cancel: () => new Promise<void>(() => {}),
+    });
+    const reader = observeBodyEnd(hanging, (outcome) => outcomes.push(outcome)).getReader();
+    void reader.cancel(new Error("klient zniknął"));
+    expect(outcomes).toEqual(["aborted"]);
+  });
+
+  it("czyta źródło dopiero na żądanie konsumenta (backpressure jak transform tożsamościowy)", async () => {
+    let pulls = 0;
+    const source = new ReadableStream<Uint8Array>(
+      {
+        pull(controller) {
+          pulls += 1;
+          controller.enqueue(encoder.encode(`chunk-${pulls}`));
+        },
+      },
+      { highWaterMark: 0 },
+    );
+    const reader = observeBodyEnd(source, () => {}).getReader();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(pulls).toBe(0);
+    await reader.read();
+    expect(pulls).toBe(1);
+    await reader.cancel();
+  });
+
+  it("wyjątek z telemetrii nie zrywa dokumentu", async () => {
+    const { stream, controller } = controlledSource();
+    const observed = observeBodyEnd(stream, () => {
+      throw new Error("log padł");
+    });
+    controller.enqueue(encoder.encode("<html>ok</html>"));
+    controller.close();
+    expect(await new Response(observed).text()).toBe("<html>ok</html>");
+  });
+});
+
+describe("buildDocumentLogLine - pola P0.4", () => {
+  it("odtwarza pełną linię MISS-a z zimnego izolatu: kolonia, warstwa, ray, klasa UA, streamMs", () => {
+    expect(
+      buildDocumentLogLine({
+        path: "/",
+        status: 200,
+        cacheStatus: "MISS",
+        serverTiming: buildServerTimingValue(
+          "MISS",
+          674,
+          { count: 19, totalMs: 2697 },
+          undefined,
+          [{ name: "edge-routing", durationMs: 284.2 }],
+          "render",
+        ),
+        serverInitMs: 412,
+        appMs: 3105,
+        streamMs: 3140,
+        streamEnd: "done",
+        colo: "WAW",
+        isolate: { isoReq: 1, isoAgeS: 0 },
+        userAgent: LIGHTHOUSE_MOBILE_UA,
+        cfRay: RAY,
+        degraded: false,
+      }),
+    ).toEqual({
+      kind: "doc",
+      path: "/",
+      status: 200,
+      cache: "MISS",
+      revalidation: false,
+      serverInitMs: 412,
+      appMs: 3105,
+      streamMs: 3140,
+      layer: "render",
+      colo: "WAW",
+      isoReq: 1,
+      isoAgeS: 0,
+      uaClass: "lighthouse",
+      ray: RAY,
+      degraded: false,
+      edgeRoutingMs: 284.2,
+      ssrMs: 674,
+      dbMs: 2697,
+      dbCount: 19,
+    });
+  });
+
+  it("prywatność: ani napis UA, ani nic spoza kształtu ray-a nie trafia do linii", () => {
+    const line = JSON.stringify(
+      buildDocumentLogLine({
+        path: "/en/blog",
+        status: 200,
+        cacheStatus: "HIT",
+        serverTiming: buildServerTimingValue("HIT", undefined, null, 10, [], "L1"),
+        serverInitMs: 0,
+        appMs: 4,
+        userAgent: CHROME_DESKTOP_UA,
+        cfRay: "8c5a3b2e9f1d4e7a-WAW; ip=203.0.113.7",
+      }),
+    );
+    expect(line).not.toContain("Windows");
+    expect(line).not.toContain("Chrome/");
+    expect(line).not.toContain("203.0.113.7");
+    expect(JSON.parse(line)).toMatchObject({ uaClass: "browser", layer: "L1" });
+    expect(JSON.parse(line)).not.toHaveProperty("ray");
+  });
+
+  it("zerwany strumień jest oznaczony; normalny koniec nie dokłada klucza", () => {
+    const base = {
+      path: "/x",
+      status: 200,
+      cacheStatus: "HIT",
+      serverTiming: null,
+      serverInitMs: 0,
+      appMs: 1,
+      streamMs: 9,
+    };
+    expect(buildDocumentLogLine({ ...base, streamEnd: "aborted" })).toMatchObject({
+      streamMs: 9,
+      streamEnd: "aborted",
+    });
+    expect(buildDocumentLogLine({ ...base, streamEnd: "done" })).not.toHaveProperty("streamEnd");
+  });
+
+  it("brak źródła = brak klucza: rewalidacja bez licznika izolatu, kolonii i ray-a", () => {
+    const line = buildDocumentLogLine({
+      path: "/blog",
+      status: 200,
+      cacheStatus: "MISS",
+      serverTiming: 'nes-edge;desc="MISS", ssr;dur=12.0, nes-layer;desc="render"',
+      serverInitMs: 0,
+      appMs: 812,
+      revalidation: true,
+    });
+    for (const key of ["isoReq", "isoAgeS", "colo", "ray", "uaClass", "streamMs", "degraded"]) {
+      expect(line).not.toHaveProperty(key);
+    }
+    expect(line.layer).toBe("render");
+  });
+
+  it.each([
+    { isoReq: 0, isoAgeS: 0 },
+    { isoReq: -1, isoAgeS: 0 },
+    { isoReq: 1.5, isoAgeS: 0 },
+    { isoReq: Number.NaN, isoAgeS: 0 },
+  ])("odrzuca licznik izolatu nie do użycia: %j", (isolate) => {
+    const line = buildDocumentLogLine({
+      path: "/",
+      status: 200,
+      cacheStatus: "HIT",
+      serverTiming: null,
+      serverInitMs: 0,
+      appMs: 0,
+      isolate,
+    });
+    expect(line).not.toHaveProperty("isoReq");
+    expect(line).not.toHaveProperty("isoAgeS");
+  });
+
+  it("niepoprawny wiek izolatu i streamMs spadają do zera, a warstwa spoza słownika odpada", () => {
+    expect(
+      buildDocumentLogLine({
+        path: "/",
+        status: 200,
+        cacheStatus: "HIT",
+        serverTiming: 'nes-layer;desc="L9", colo;desc="WAW"',
+        serverInitMs: 0,
+        appMs: 0,
+        streamMs: Number.NaN,
+        colo: "nie-kolonia",
+        isolate: { isoReq: 4, isoAgeS: -3 },
+      }),
+    ).toEqual({
+      kind: "doc",
+      path: "/",
+      status: 200,
+      cache: "HIT",
+      revalidation: false,
+      serverInitMs: 0,
+      appMs: 0,
+      streamMs: 0,
+      isoReq: 4,
+      isoAgeS: 0,
+    });
   });
 });
