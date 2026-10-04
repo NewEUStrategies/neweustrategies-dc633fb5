@@ -41,10 +41,17 @@
 --   2. `club_update_settings`, bo poszerzenie CHECK odsłania jej bramkę:
 --      `is_club_admin OR effective_role = 'lead'` wpuszczała prowadzącego
 --      klubu zarchiwizowanego i szkicu. Teraz jak okładka (20261003170000):
---      administracja albo prowadzący z `can_moderate` (aktywny klub, aktywne
---      członkostwo, ważna kadencja). Przy okazji:
+--      `club_capabilities` raz, `can_manage` (administracja) albo prowadzący
+--      z `can_moderate` (aktywny klub, aktywne członkostwo, ważna kadencja) -
+--      ten sam predykat, z którego klient liczy przycisk ustawień. Przy okazji:
+--        * kolor akcentu i ikona NIE są ustawieniami prowadzącego. Funkcja
+--          przyjmowała je jako dowolny tekst, a `accent_color` ląduje
+--          w atrybucie `style` renderowanym SSR na stronach publicznych
+--          (`ClubWidgets`, `ClubHubView`) - po odblokowaniu zapisu prowadzący
+--          wstrzykiwałby CSS (nakładka na całą stronę, zasób z obcego hosta).
+--          Okno ustawień ich nie wysyła; zmienia je administracja przez
+--          `admin_club_upsert`,
 --        * jeden odczyt wiersza `FOR UPDATE` zamiast EXISTS + UPDATE,
---          `club_capabilities` tylko dla nie-administratora,
 --        * nieznane klucze i wartości inne niż tekst/null → 22023 (dawniej
 --          ignorowane, ale wpisywane do dziennika jako „zmienione"),
 --        * brak różnicy → `false` bez UPDATE i bez wpisu (klient od początku
@@ -108,10 +115,10 @@ DECLARE
   v_old     public.clubs%ROWTYPE;
   v_new     public.clubs%ROWTYPE;
   v_changed text;
+  -- Bez `accent_color` i `icon` - patrz nagłówek (CSS w atrybucie `style`).
   c_keys    CONSTANT text[] := ARRAY[
     'name_pl', 'name_en', 'tagline_pl', 'tagline_en', 'description_pl', 'description_en',
-    'rules_pl', 'rules_en', 'icon', 'accent_color', 'policy_area', 'layout', 'who_can_post',
-    'join_policy'];
+    'rules_pl', 'rules_en', 'policy_area', 'layout', 'who_can_post', 'join_policy'];
 BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION 'clubs: sign in required' USING ERRCODE = '42501';
@@ -122,13 +129,13 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'clubs: not found' USING ERRCODE = '42501';
   END IF;
-  -- Ten sam predykat co zapis okładki: rola efektywna (kadencja), aktywne
-  -- członkostwo, aktywny klub. Administracja nie liczy capabilities wcale.
-  IF NOT public.is_club_admin(v_uid) THEN
-    SELECT * INTO v_caps FROM public.club_capabilities(p_club_id, NULL, v_uid);
-    IF NOT (v_caps.effective_role = 'lead' AND v_caps.can_moderate) THEN
-      RAISE EXCEPTION 'clubs: forbidden' USING ERRCODE = '42501';
-    END IF;
+  -- Jeden predykat z `club_capabilities`, ten sam co przycisk w kliencie
+  -- (`canEditClubSettings`): administracja (`can_manage`) albo prowadzący
+  -- z `can_moderate` - rola efektywna (kadencja), aktywne członkostwo,
+  -- aktywny klub. Zbanowany w klubie administrator nie ma ani jednego.
+  SELECT * INTO v_caps FROM public.club_capabilities(p_club_id, NULL, v_uid);
+  IF NOT (v_caps.can_manage OR (v_caps.effective_role = 'lead' AND v_caps.can_moderate)) THEN
+    RAISE EXCEPTION 'clubs: forbidden' USING ERRCODE = '42501';
   END IF;
 
   IF p IS NULL OR jsonb_typeof(p) <> 'object' THEN
@@ -160,8 +167,6 @@ BEGIN
   v_new.description_en := CASE WHEN p ? 'description_en' THEN NULLIF(btrim(p->>'description_en'), '') ELSE v_old.description_en END;
   v_new.rules_pl       := CASE WHEN p ? 'rules_pl' THEN NULLIF(btrim(p->>'rules_pl'), '') ELSE v_old.rules_pl END;
   v_new.rules_en       := CASE WHEN p ? 'rules_en' THEN NULLIF(btrim(p->>'rules_en'), '') ELSE v_old.rules_en END;
-  v_new.icon           := COALESCE(NULLIF(btrim(p->>'icon'), ''), v_old.icon);
-  v_new.accent_color   := CASE WHEN p ? 'accent_color' THEN NULLIF(btrim(p->>'accent_color'), '') ELSE v_old.accent_color END;
   v_new.policy_area    := CASE WHEN p ? 'policy_area' THEN NULLIF(btrim(p->>'policy_area'), '') ELSE v_old.policy_area END;
   v_new.layout         := COALESCE(NULLIF(p->>'layout', ''), v_old.layout);
   v_new.who_can_post   := COALESCE(NULLIF(p->>'who_can_post', ''), v_old.who_can_post);
@@ -185,8 +190,6 @@ BEGIN
     description_en = v_new.description_en,
     rules_pl = v_new.rules_pl,
     rules_en = v_new.rules_en,
-    icon = v_new.icon,
-    accent_color = v_new.accent_color,
     policy_area = v_new.policy_area,
     layout = v_new.layout,
     who_can_post = v_new.who_can_post,
@@ -203,7 +206,7 @@ END;
 $function$;
 
 COMMENT ON FUNCTION public.club_update_settings(uuid, jsonb) IS
-  'Dane klubu (nazwy, opisy, zasady, ikona, kolor, polityka publikacji i dolaczania) - administracja albo prowadzacy z can_moderate. false = brak zmian (bez UPDATE i wpisu); dziennik: club_updated/club z lista zmienionych kolumn. Okladka: club_set_cover.';
+  'Dane klubu (nazwy, opisy, zasady, dzial polityki, uklad, polityka publikacji i dolaczania) - can_manage albo prowadzacy z can_moderate. Kolor akcentu i ikona tylko przez admin_club_upsert. false = brak zmian (bez UPDATE i wpisu); dziennik: club_updated/club z lista zmienionych kolumn. Okladka: club_set_cover.';
 
 REVOKE ALL ON FUNCTION public.club_update_settings(uuid, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.club_update_settings(uuid, jsonb) TO authenticated, service_role;

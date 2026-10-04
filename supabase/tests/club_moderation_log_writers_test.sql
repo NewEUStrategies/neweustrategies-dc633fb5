@@ -25,7 +25,7 @@
 -- i rozstrzygają wołającego z JWT.
 -- ============================================================================
 BEGIN;
-SELECT plan(48);
+SELECT plan(51);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -44,6 +44,7 @@ VALUES ('eeeeeeee-0000-0000-0000-000000000001', 'modlog-admin-a@test.local'),
        ('eeeeeeee-0000-0000-0000-000000000007', 'modlog-candidate@test.local'),
        ('eeeeeeee-0000-0000-0000-000000000008', 'modlog-hidden@test.local'),
        ('eeeeeeee-0000-0000-0000-000000000009', 'modlog-archived-lead@test.local'),
+       ('eeeeeeee-0000-0000-0000-000000000010', 'modlog-banned-admin@test.local'),
        ('ffffffff-0000-0000-0000-000000000001', 'modlog-admin-b@test.local')
 ON CONFLICT (id) DO NOTHING;
 
@@ -57,12 +58,14 @@ VALUES ('eeeeeeee-0000-0000-0000-000000000001', '11111111-1111-1111-1111-1111111
        ('eeeeeeee-0000-0000-0000-000000000007', '11111111-1111-1111-1111-111111111111', 'Candidate', true, 'Energetyka Dziennik'),
        ('eeeeeeee-0000-0000-0000-000000000008', '11111111-1111-1111-1111-111111111111', 'Hidden', false, 'Energetyka Dziennik'),
        ('eeeeeeee-0000-0000-0000-000000000009', '11111111-1111-1111-1111-111111111111', 'Archived lead', true, NULL),
+       ('eeeeeeee-0000-0000-0000-000000000010', '11111111-1111-1111-1111-111111111111', 'Banned admin', true, NULL),
        ('ffffffff-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'Admin B', true, 'Energetyka Dziennik');
 
 -- super_admin CELOWO bez osobnej roli 'admin' (inwariant super_admin >= admin).
 INSERT INTO public.user_roles (user_id, role, tenant_id)
 VALUES ('eeeeeeee-0000-0000-0000-000000000001', 'admin', '11111111-1111-1111-1111-111111111111'),
        ('eeeeeeee-0000-0000-0000-000000000006', 'super_admin', '11111111-1111-1111-1111-111111111111'),
+       ('eeeeeeee-0000-0000-0000-000000000010', 'admin', '11111111-1111-1111-1111-111111111111'),
        ('ffffffff-0000-0000-0000-000000000001', 'admin', '22222222-2222-2222-2222-222222222222');
 
 SELECT set_config('request.jwt.claims', '{"sub":"eeeeeeee-0000-0000-0000-000000000001"}', true);
@@ -83,6 +86,10 @@ SELECT public.admin_club_member_upsert(current_setting('test.club')::uuid, m.uid
     ('eeeeeeee-0000-0000-0000-000000000003'::uuid, 'moderator'),
     ('eeeeeeee-0000-0000-0000-000000000004'::uuid, 'member')
   ) AS m(uid, role);
+-- Administrator najemcy zbanowany w TYM klubie: `club_capabilities` odmawia mu
+-- wszystkiego, więc przycisk ustawień się nie pokazuje - RPC też ma odmówić.
+SELECT public.admin_club_member_upsert(current_setting('test.club')::uuid,
+  'eeeeeeee-0000-0000-0000-000000000010', 'member', 'banned', NULL);
 SELECT public.admin_club_member_upsert(current_setting('test.archived')::uuid,
   'eeeeeeee-0000-0000-0000-000000000009', 'lead', 'active', NULL);
 SELECT public.admin_club_upsert(jsonb_build_object('id', current_setting('test.archived'), 'status', 'archived'));
@@ -176,7 +183,7 @@ SELECT results_eq(
   $$ VALUES ('eeeeeeee-0000-0000-0000-000000000001'::uuid, 'layout'::text) $$,
   'wpis administratora wskazuje jego i zmienioną kolumnę');
 SELECT set_config('request.jwt.claims', '{"sub":"eeeeeeee-0000-0000-0000-000000000006"}', true);
-SELECT is(public.club_update_settings(current_setting('test.club')::uuid, '{"icon":"scale"}'::jsonb),
+SELECT is(public.club_update_settings(current_setting('test.club')::uuid, '{"rules_pl":"Zasady"}'::jsonb),
   true, 'super_admin bez roli admin zapisuje ustawienia');
 
 SELECT set_config('request.jwt.claims', '{"sub":"eeeeeeee-0000-0000-0000-000000000003"}', true);
@@ -195,6 +202,10 @@ SELECT set_config('request.jwt.claims', '{"sub":"ffffffff-0000-0000-0000-0000000
 SELECT throws_ok(
   format($q$ SELECT public.club_update_settings('%s'::uuid, '{"tagline_pl":"x"}'::jsonb) $q$, current_setting('test.club')),
   '42501', 'clubs: not found', 'administrator innego najemcy nie widzi klubu');
+SELECT set_config('request.jwt.claims', '{"sub":"eeeeeeee-0000-0000-0000-000000000010"}', true);
+SELECT throws_ok(
+  format($q$ SELECT public.club_update_settings('%s'::uuid, '{"tagline_pl":"x"}'::jsonb) $q$, current_setting('test.club')),
+  '42501', 'clubs: forbidden', 'administrator zbanowany w klubie nie omija bramki - ten sam predykat co przycisk');
 SELECT set_config('request.jwt.claims', '', true);
 SELECT throws_ok(
   format($q$ SELECT public.club_update_settings('%s'::uuid, '{"tagline_pl":"x"}'::jsonb) $q$, current_setting('test.club')),
@@ -207,6 +218,16 @@ SELECT set_config('request.jwt.claims', '{"sub":"eeeeeeee-0000-0000-0000-0000000
 SELECT throws_ok(
   format($q$ SELECT public.club_update_settings('%s'::uuid, '{"visibility":"public"}'::jsonb) $q$, current_setting('test.club')),
   '22023', 'clubs: invalid settings', 'klucz spoza ustawień odrzucony, zamiast udawać zmianę w dzienniku');
+-- Kolor akcentu ląduje w atrybucie `style` renderowanym SSR na stronach
+-- publicznych - dowolny tekst od prowadzącego to wstrzyknięcie CSS.
+SELECT throws_ok(
+  format($q$ SELECT public.club_update_settings('%s'::uuid,
+             '{"accent_color":"red;position:fixed;inset:0;background:url(https://evil.example/x.png)"}'::jsonb) $q$,
+         current_setting('test.club')),
+  '22023', 'clubs: invalid settings', 'kolor akcentu nie jest ustawieniem prowadzącego - zmienia go administracja');
+SELECT throws_ok(
+  format($q$ SELECT public.club_update_settings('%s'::uuid, '{"icon":"scale"}'::jsonb) $q$, current_setting('test.club')),
+  '22023', 'clubs: invalid settings', 'ikona nie jest ustawieniem prowadzącego');
 SELECT throws_ok(
   format($q$ SELECT public.club_update_settings('%s'::uuid, '{"tagline_pl":{"a":1}}'::jsonb) $q$, current_setting('test.club')),
   '22023', 'clubs: invalid settings', 'wartość niebędąca tekstem odrzucona');

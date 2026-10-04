@@ -16,7 +16,8 @@
 --
 -- Jak. Na PEŁNYM schemacie (wszystkie migracje):
 --   1. białe listy = CHECK postaci `col = ANY (ARRAY[...])`, także z
---      `col IS NULL OR` (pg_get_constraintdef),
+--      `col IS NULL OR` i dodane `NOT VALID` (pg_get_constraintdef) - takie
+--      ograniczenie też sprawdza każdy nowy wiersz,
 --   2. leksykalizacja ciała każdej funkcji plpgsql/sql, która robi INSERT /
 --      UPDATE / ON CONFLICT DO UPDATE na tabeli z białą listą,
 --   3. dla każdej kolumny z listą - literały, które wyrażenie może ZAPISAĆ:
@@ -38,7 +39,7 @@
 -- ten plik, dopóki wpis nie zniknie.
 -- ============================================================================
 BEGIN;
-SELECT plan(10);
+SELECT plan(11);
 
 -- 1. Leksykalizacja ciała funkcji (bajty UTF-8, O(1) dostęp).
 --    kind: 'id' (identyfikator, małe litery), 'str' (literał), 'num',
@@ -329,9 +330,9 @@ LANGUAGE sql STABLE AS $f$
            coalesce(m1[1], m2[2], m3[1]) AS col,
            coalesce(m1[2], m2[3], m3[2]) AS arr
       FROM defs,
-           LATERAL (SELECT regexp_match(def, '^CHECK \(\((\w+) = ANY \(ARRAY\[(.*)\]\)\)\)$') AS m1,
-                           regexp_match(def, '^CHECK \(\(\((\w+) IS NULL\) OR \((\w+) = ANY \(ARRAY\[(.*)\]\)\)\)\)$') AS m2,
-                           regexp_match(def, '^CHECK \(\(\((\w+)\)::text = ANY \(\(ARRAY\[(.*)\]\)::text\[\]\)\)\)$') AS m3) m
+           LATERAL (SELECT regexp_match(def, '^CHECK \(\((\w+) = ANY \(ARRAY\[(.*)\]\)\)\)( NOT VALID)?$') AS m1,
+                           regexp_match(def, '^CHECK \(\(\((\w+) IS NULL\) OR \((\w+) = ANY \(ARRAY\[(.*)\]\)\)\)\)( NOT VALID)?$') AS m2,
+                           regexp_match(def, '^CHECK \(\(\((\w+)\)::text = ANY \(\(ARRAY\[(.*)\]\)::text\[\]\)\)\)( NOT VALID)?$') AS m3) m
      WHERE coalesce(m1[1], m2[2], m3[1]) IS NOT NULL
        AND (m2 IS NULL OR m2[1] = m2[2])
   )
@@ -417,6 +418,8 @@ SELECT ok((SELECT count(*) FROM pg_temp.wl_lists()) >= 100,
 SELECT ok((SELECT 'club_updated' = ANY (allowed) FROM pg_temp.wl_lists()
             WHERE tbl = 'club_moderation_log' AND col = 'action'),
   'lista akcji dziennika klubów jest odczytana razem z club_updated');
+SELECT ok((SELECT count(*) FROM pg_temp.wl_lists() WHERE tbl = 'notifications' AND col = 'kind') = 1,
+  'lista dodana NOT VALID też jest czytana - notifications_kind_check');
 SELECT ok(EXISTS (
     SELECT 1 FROM pg_proc p, pg_temp.wl_writes(p.prosrc) w
      WHERE p.oid = 'public.club_update_settings(uuid, jsonb)'::regprocedure
