@@ -472,9 +472,12 @@ w('<section>')
 w('  <span class="eyebrow">Bramki, progi, baza i determinizm</span>')
 w('  <h2>Co jest chronione, a co tylko zmierzone</h2>')
 t17_10, _ = sekcja(10)
-w('  ' + proza(t17_10.split('\n\n')[0]))
+linie10 = t17_10.split('\n')
+i_tab = next(i for i, l in enumerate(linie10) if l.startswith('|'))
+k_tab = next(i for i in range(i_tab, len(linie10) + 1) if i == len(linie10) or not linie10[i].startswith('|'))
+w('  ' + proza('\n'.join(linie10[:i_tab])))
 w('  ' + tabela_html(*tabele(t17_10)[0]))
-w('  ' + proza('\n\n'.join(t17_10.split('\n\n')[2:])))
+w('  ' + proza('\n'.join(linie10[k_tab:])))
 t17_11, tyt11 = sekcja(11)
 w(f'  <h3 style="margin-top:22px">{html.escape(tyt11)}</h3>')
 w('  ' + proza(t17_11))
@@ -571,7 +574,7 @@ archiwum = ('<section>\n<details class="archiwum"><summary><span class="sm-num">
             + cialo12 + '\n  </div></details>\n</section>')
 stopka = ('<footer><span>Audyt pokrycia testami NES · wydanie 13 · HEAD <code>5b8c77c01</code> · 2026-10-04</span>'
           '<span>Dokument źródłowy: <code>docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md</code>, rozdział 17 (PR #470)</span>'
-          '<span>Weryfikacja liczb: <code>bun scripts/audit/verify-edition-13.mjs</code> - 192 asercje na drzewie <code>5b8c77c01</code> czytanym z obiektów gita, 192 zielone, 0 czerwonych (commit <code>b244f0cae</code>)</span>'
+          '<span>Weryfikacja liczb: <code>bun scripts/audit/verify-edition-13.mjs</code> - 192 asercje na drzewie <code>5b8c77c01</code> czytanym z obiektów gita, 192 zielone, 0 czerwonych (commit <code>2c362a199</code>)</span>'
           '<span>Dane: <code>docs/audyt-ed13/</code> (pomiar, defekty z werdyktami, migawka agentów, rynek, Lighthouse, nagłówki wdrożenia)</span></footer>')
 wynik = glowa + '<div class="wrap">\n' + ed13 + '\n\n' + archiwum + '\n\n' + stopka + '\n</div>\n'
 for zly in ('\u2014', '\u2013'):
