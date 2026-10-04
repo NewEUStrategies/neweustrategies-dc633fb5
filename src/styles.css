@@ -5272,6 +5272,10 @@ textarea::placeholder {
 .audio-download-icon[data-downloading="true"] .audio-download-icon__arrow {
   animation: audio-download-drop 720ms cubic-bezier(0.32, 0.72, 0, 1) infinite;
 }
+.audio-download-icon[data-downloading="true"] {
+  /* Wyłączamy obrót kontenera z klasy kompatybilności - porusza się sama strzałka. */
+  animation: none;
+}
 @keyframes audio-download-drop {
   0% {
     opacity: 0;

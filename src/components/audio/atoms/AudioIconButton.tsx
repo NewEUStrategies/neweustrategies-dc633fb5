@@ -75,9 +75,11 @@ export function AudioIconButton({
       aria-busy={busy || undefined}
       className={cn(AUDIO_ICON_BUTTON_VARIANTS[variant], AUDIO_FOCUS_RING, className)}
     >
-      <span className="pointer-events-none grid size-full place-items-center" aria-hidden>
-        {children ?? (Icon ? <Icon className={iconClassName} /> : null)}
-      </span>
+      {children || Icon ? (
+        <span className="pointer-events-none grid size-full place-items-center" aria-hidden>
+          {children ?? (Icon ? <Icon className={iconClassName} /> : null)}
+        </span>
+      ) : null}
     </button>
   );
 }

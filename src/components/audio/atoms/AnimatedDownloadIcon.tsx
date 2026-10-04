@@ -17,7 +17,7 @@ export function AnimatedDownloadIcon({
     <svg
       viewBox="0 0 24 24"
       fill="none"
-      className={cn("audio-download-icon", className)}
+      className={cn("audio-download-icon", downloading && "animate-spin", className)}
       data-downloading={downloading ? "true" : "false"}
       focusable="false"
       aria-hidden
