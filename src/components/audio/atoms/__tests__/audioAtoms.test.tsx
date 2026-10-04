@@ -155,6 +155,26 @@ describe("MorphPlayPause - atom ikony", () => {
     expect(cls).toContain("mpp");
     expect(cls).toContain("h-4");
   });
+
+  it("trójkąt play jest wyśrodkowany w polu 24x24 (nie ucieka w prawo w okrągłym przycisku)", () => {
+    const { container } = render(<MorphPlayPause playing={false} />);
+    const d = container.querySelector(".mpp-svg-play path")?.getAttribute("d") ?? "";
+    const left = Number(/^M([-\d.]+)/.exec(d)?.[1]);
+    // Szerokość kształtu: zaokrąglenie lewej krawędzi (2.12) + ramię (9.72)
+    // + bulwa czubka (łuk r=1.4 na cięciwie 2.4).
+    const width = 2.12 + 9.72 + (1.4 - Math.sqrt(1.4 ** 2 - 1.2 ** 2));
+    expect(left + width / 2).toBeCloseTo(12, 1);
+  });
+
+  it("słupki pauzy są symetryczne względem środka pola", () => {
+    const { container } = render(<MorphPlayPause playing />);
+    const rects = [...container.querySelectorAll(".mpp-svg-pause rect")];
+    const xs = rects.map((r) => Number(r.getAttribute("x")));
+    const ws = rects.map((r) => Number(r.getAttribute("width")));
+    const left = Math.min(...xs);
+    const right = Math.max(...xs.map((x, i) => x + ws[i]));
+    expect((left + right) / 2).toBeCloseTo(12, 2);
+  });
 });
 
 describe("AnimatedDownloadIcon", () => {
