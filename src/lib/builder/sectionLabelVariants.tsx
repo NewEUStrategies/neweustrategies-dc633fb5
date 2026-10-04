@@ -1126,10 +1126,12 @@ export function SectionLabelRender({
       // Akcja: mala, minuskulowa, w stonowanej szaro-pastelowej szarosci
       // (kolor bazowy z `.nes-kinetic-action` w styles.css).
       // Rozmiar akcji zabezpieczony w CSS (Theme Design force rozmiar opisu) -
-      // klasy zostaja tylko jako fallback poza widzetem.
+      // klasy zostaja tylko jako fallback poza widzetem. Akcja NIE jest
+      // pogrubiona (font-normal), a jej rozmiar to 11 px (9 px w wezkiej
+      // kolumnie) - o 1 px wiecej niz wczesniej.
       const actCls = isSm
-        ? "text-[8px] font-medium"
-        : "text-[10px] font-medium";
+        ? "text-[9px] font-normal"
+        : "text-[11px] font-normal";
       const actionStyleVars: AccentVarStyle = { "--nes-accent": accent };
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
@@ -1139,6 +1141,7 @@ export function SectionLabelRender({
         glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
           <span
             aria-hidden
+            data-typography-exempt
             className="leading-none transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
             {glyph}
@@ -1146,44 +1149,49 @@ export function SectionLabelRender({
         ) : (
           <svg
             aria-hidden
-            viewBox="0 0 16 16"
+            viewBox="0 0 6 10"
             fill="none"
             stroke="currentColor"
-            strokeWidth={1.5}
+            strokeWidth={1.4}
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={`${isSm ? "h-2.5 w-2.5" : "h-3 w-3"} shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5`}
+            // Chevron w em: wysokość = wysokość czcionki akcji, więc znak jest
+            // dokładnie tej samej wielkości co „więcej”. Kolor bierze z
+            // currentColor (ten sam co tekst), a hover akcentuje całość.
+            style={{ width: "0.6em", height: "1em" }}
+            className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
-            <polyline points="6 3.5 10.5 8 6 12.5" />
+            <polyline points="0.9 1.2 4.7 5 0.9 8.8" />
           </svg>
         );
 
+      // `data-typography-exempt` zdejmuje z wnetrza akcji globalna typografie
+      // Theme Designu (gaiaz `:is(p, span, a, ...)` z ~0-8-0 + !important),
+      // zeby „wiecej" nie dziedziczylo pogrubienia opisu.
       const actionInner = (
-        <>
-          <span className="relative z-10 inline-flex items-center gap-1">
-            <span className="min-w-0">{action}</span>
-            {arrowVisual}
+        <span className="inline-flex items-center gap-[0.12em]" data-typography-exempt>
+          <span className="min-w-0" data-typography-exempt>
+            {action}
           </span>
-          <span
-            aria-hidden
-            className="pointer-events-none absolute bottom-0 left-0 h-px w-0 transition-[width] duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none group-hover/link:w-full"
-            style={{ background: "currentColor" }}
-          />
-        </>
+          {arrowVisual}
+        </span>
       );
 
-      const actionCls = `group/link nes-kinetic-action relative inline-flex min-w-0 items-center whitespace-nowrap pb-1 ${actCls}`;
+      // Bez podkreslenia i bez wewnetrznego paddingu - caly oddech nad wierszem
+      // kresek sterowany jest jednym `marginBottom` nizej.
+      const actionCls = `group/link nes-kinetic-action inline-flex min-w-0 items-center whitespace-nowrap ${actCls}`;
 
       return (
         <div className={`${wrapperBase} nes-kinetic-shell group w-full min-w-0 ${padY}`}>
           {action ? (
             <div
               className="flex w-full min-w-0 justify-start"
-              style={{ marginBottom: isSm ? "4px" : "3px" }}
+              style={{ marginBottom: isSm ? "3px" : "2px" }}
             >
               {href && !isSm ? (
                 <AppLink
                   data-description-root
+                  data-typography-exempt
                   href={href}
                   className={actionCls}
                   style={actionStyleVars}
@@ -1191,7 +1199,12 @@ export function SectionLabelRender({
                   {actionInner}
                 </AppLink>
               ) : (
-                <span data-description-root className={actionCls} style={actionStyleVars}>
+                <span
+                  data-description-root
+                  data-typography-exempt
+                  className={actionCls}
+                  style={actionStyleVars}
+                >
                   {actionInner}
                 </span>
               )}

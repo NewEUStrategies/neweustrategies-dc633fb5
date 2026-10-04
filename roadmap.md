@@ -70,6 +70,7 @@
 
 - [x] 23. wariant etykiety sekcji: trzy równe kreski sygnału i tytuł (ciasny tracking) inline; akcja „więcej" nad wierszem, mała, minuskulowa, szaro-pastelowa, z cienkim chevronem bez obudowy; paski rozsuwane na hoverze, podkreślenie rysowane od lewej, tłumaczenie EN, kontrolki edytora i testy.
 - [x] „więcej" wyrownane do lewej, nisko nad wierszem (3 px), w neutralnej szarości z tokenu `--nes-kinetic-action`; wlasny rozmiar (10 px, w wezkiej kolumnie 8 px) chroniony selektorem `[data-w-id]x3 .nes-kinetic-shell .nes-kinetic-action` z `!important`, bo Theme Design widzetu narzucał rozmiar opisu (12 px).
+- [x] „więcej" powiększone o 1 px (11 px, w wezkiej kolumnie 9 px) i odgrobione (waga 400): ten sam selektor kinetic pilnuje teraz rowniez wagi, a `data-typography-exempt` na akcji i jej wnetrzu wyjmuje je z globalnej typografii Theme Designu (gaiaz `:is(p, span, a, ...)` wkladala wage 800 bezposrednio w kazdy span); chevron „>" w em (wysokosc = wysokosc czcionki), ~1 px od slowa, w kolorze tekstu (currentColor), bez podkreslenia, z akcentem dopiero po najechaniu.
 
 ## Firmowy kolor akcentu
 
