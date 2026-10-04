@@ -389,9 +389,9 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   const [settled, setSettled] = useState(true);
   const settledForScrolled = useRef(scrolled);
   useEffect(() => {
-    if (settledForScrolled.current === scrolled) return;
+    const changed = settledForScrolled.current !== scrolled;
     settledForScrolled.current = scrolled;
-    if (!stickyShrink || forceCompact) return;
+    if (!changed || !stickyShrink || forceCompact) return;
     setSettled(false);
     const HDR_DURATION_MS = 460;
     const timer = window.setTimeout(() => setSettled(true), HDR_DURATION_MS + 40);
