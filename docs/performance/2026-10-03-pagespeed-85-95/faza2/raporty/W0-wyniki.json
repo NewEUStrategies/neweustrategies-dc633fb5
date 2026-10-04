@@ -1,0 +1,351 @@
+[
+  {
+    "item_id": "P0.3",
+    "worktree": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/wt/P0.3",
+    "branch": "perf/w0-P0.3",
+    "commit": "fa2699941b0d7e5bcd5c037e7b68d3d1f8e7b1da",
+    "files_changed": [
+      "src/lib/performance/whenQuiescent.ts",
+      "src/lib/performance/firstInteraction.ts",
+      "src/lib/performance/postInteractionQueue.ts",
+      "src/lib/performance/__tests__/whenQuiescent.test.ts",
+      "src/lib/performance/__tests__/firstInteraction.test.ts",
+      "src/lib/performance/__tests__/postInteractionQueue.test.ts"
+    ],
+    "gates": [
+      {
+        "name": "prettier --write/--check (6 files)",
+        "result": "green"
+      },
+      {
+        "name": "eslint (6 files)",
+        "result": "green",
+        "note": "0 problems"
+      },
+      {
+        "name": "vitest src/lib/performance/__tests__",
+        "result": "green",
+        "note": "64/64. 60 are new P0.3 tests (whenQuiescent 24, firstInteraction 17, postInteractionQueue 19); the other 4 are the existing afterPageLoad tests."
+      },
+      {
+        "name": "bun run typecheck (tsc + scripts)",
+        "result": "green",
+        "note": "Final full run on the final files passed (typecheck-5.log). Two earlier runs were OOM-killed by other items' builds and tsc running at the same time, so I ran it under .build-lock once memory was free. A tsc run limited to the six P0.3 files also passed, with a negative control (TS2322)."
+      },
+      {
+        "name": "bun run verify:static",
+        "result": "green",
+        "note": "All 33 gates passed in 234 s, including format:check, gate-coverage, feature-taxonomy, dangerous-html, clock-freeze (220/220), unknown-casts (178, unchanged), ssr-budgets and loader-policy."
+      },
+      {
+        "name": "check:entry-purity",
+        "result": "skipped",
+        "note": "Needs a build artifact (in EXCLUDED); the modules are not imported anywhere yet, so they cannot be reached from the entry chunk."
+      },
+      {
+        "name": "noHasSelectors / check:chunk-parity",
+        "result": "skipped",
+        "note": "Does not apply: no CSS or Vite config was touched."
+      }
+    ],
+    "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/wave0/P0.3/IMPL.md",
+    "summary": "I reviewed the six files left uncommitted by the interrupted attempt against the P0.3 mechanism, the TP-1 verdict, and what P1.1, P1.3, P1.6, P2.2 and P2.3 will need from them. The core logic was correct, and I made three changes.\n\n1. Bug fix in firstInteraction.ts: a `scroll` event now counts as a first interaction only when its target is the document. The capture listener on `window` was also catching element scroll events. The PostListView carousel autoplay calls `scrollTo` on its track every few seconds, so each tick would have released all deferred work, including gtag, with no user input and possibly inside the Lighthouse trace. Today's gtagLoadPolicy has the same bug; it goes away when P1.1 switches to this primitive. Tests were added for a document scroll, an element scroll from the carousel, and a queue that the carousel does not release.\n2. The first-interaction target is now held through a WeakRef (with a strong-reference fallback when WeakRef is missing), so a page removed by SPA navigation is not kept in memory. The queue no longer stores its own copy of the interaction and reads the target each time it picks a task. Tests were added, and a later entry under the tapped island is still promoted first.\n3. A comment explains that the detector keeps running after the last consumer cancels, because the quiet point belongs to the document and a remount must not restart the window.\n\nWhat the three modules provide:\n- `onQuiescent(task, {priority})`: one detector per document. The point needs at least 5 s after load and 5 s without long tasks or counted resources, with a 20 s cap that also applies in a hidden tab and a 10 s fallback when `load` never comes. Checks use `setTimeout(max(250, remaining))`.\n- The ignore list covers images started after load, `/api/public/version`, `/~flock.js` and `/~api/analytics`, Google hosts, and patterns from `registerOwnedRequest`.\n- `onFirstInteraction`: one shared capture, passive listener. A click made before anyone subscribed is caught through sticky user activation.\n- `enqueue(task, {priority, target?, release?})`: priority classes shell, island-target, header, islands, overlays, analytics. An entry whose target contains the first interaction goes first. One task runs per frame (rAF, then `scheduler.postTask` background, or `setTimeout(0)` without the API), using a local interface with no `unknown` casts.\n\nAt the quiet point all registered consumers run through the queue in class order, gtag last. The point latches, so there is no cascade. The direct score effect is 0 points, as planned. Nothing is wired to consumers yet; that happens in wave 1.",
+    "status": "done",
+    "deviations": [
+      "`scroll` counts as a first interaction only when its target is the document. The plan just says \"listen to scroll\"; element scrolls are excluded because the PostListView carousel autoplay fires programmatic `scrollTo` scroll events.",
+      "Additions the consumers need: `release: 'immediate'` in `enqueue` (how the quiet point hands over its consumers, and for IntersectionObserver or own-event island triggers), `getQuiescence()` and `getFirstInteraction()`, the sticky-activation signal `'activation'`, `/~api/analytics` (flock's beacon endpoint) on the ignore list, and the moment the tab becomes visible again counted as a quiet-window start.",
+      "In a hidden tab the quiet window restarts when the tab becomes visible again (TP-1 report §2.2: 'restarts the window') instead of pausing and keeping the time already elapsed.",
+      "The first-interaction target is held through a WeakRef so a removed page is not kept in memory; this is not in the plan.",
+      "The commit trailer is `Co-Authored-By: Claude Opus 5.5` (per the session's attribution instruction and the model that did the work), not `Claude Fable 5.1` as the computed task asked. If Fable is required, amending the trailer is enough."
+    ],
+    "out_of_ownership_needs": [
+      "P1.3 (not a file edit here): the queue releases on `pointerdown`, so the first `shell` task can run about one frame later, before `pointerup`/`click` of the same tap. For islands (P1.6) this is wanted, because hydration keeps the DOM nodes and the click lands on the hydrated element. For the consent shell, which P1.3 replaces with a different tree, swapping it in the middle of a tap can lose the click. P1.3 must handle this, for example by having the shell's delegated click save the decision regardless of the swap, or by swapping only after `pointerup`.",
+      "P1.1 (note): the current `gtagLoadPolicy.ts:169-173` capture listener also treats element scroll events (carousel autoplay) as an interaction. Moving to `onFirstInteraction` / `postInteractionQueue` fixes this; the P1.1 tests should include a negative case for an element scroll."
+    ],
+    "_stage": "impl:P0.3"
+  },
+  {
+    "item_id": "P0.6",
+    "worktree": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/wt/P0.6",
+    "branch": "perf/w0-P0.6",
+    "commit": "cac56cf8d5ba66f20b5e64479a7ba5298955936b",
+    "files_changed": ["src/lib/webVitals.ts", "src/lib/__tests__/webVitals.test.ts"],
+    "gates": [
+      {
+        "name": "prettier --write (2 files)",
+        "result": "green"
+      },
+      {
+        "name": "eslint src/lib/webVitals.ts src/lib/__tests__/webVitals.test.ts",
+        "result": "green"
+      },
+      {
+        "name": "vitest webVitals + observability/index + api/public/-vitals + rootShellRender",
+        "result": "green",
+        "note": "181/181 passed; webVitals 106/106, 30 of them new"
+      },
+      {
+        "name": "bun run typecheck",
+        "result": "green",
+        "note": "Took 5m43s. The first attempt was OOM-killed (SIGKILL) while P0.4's tsc ran at the same time on 15 GB. The rerun waited for that to finish, held .build-lock, then released it."
+      },
+      {
+        "name": "bun run verify:static",
+        "result": "green",
+        "note": "33 gates OK in 222.7 s, including format:check, feature-taxonomy, dangerous-html, clock-freeze, unknown-casts (unchanged), ssr-budgets and loader-policy"
+      },
+      {
+        "name": "noHasSelectors / check:chunk-parity",
+        "result": "skipped",
+        "note": "Not applicable: no CSS or Vite config was touched"
+      },
+      {
+        "name": "build / Lighthouse",
+        "result": "skipped",
+        "note": "Not a measurement item, and the load path is unchanged (the reporter is a lazy chunk loaded only after consent)"
+      }
+    ],
+    "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/wave0/P0.6/IMPL.md",
+    "summary": "The web-vitals reporter now adds three fields to every sample: `edgeCache`, `edgeLayer` and `colo`. It reads them once per document from `PerformanceNavigationTiming.serverTiming`, taking `nes-edge` as HIT/STALE/MISS/BYPASS, `nes-layer` as L1/L2/L3/render and `colo` as a 3-letter code. All three are optional allowlisted fields: anything missing or not on the list leaves the key out. They do not depend on P0.4 because production already sends `nes-edge` today.\n\nINP samples also carry three attribution fields for the interaction that sets the percentile, not the most recent one:\n- `inpEvent`: the type of the interaction's longest event, from a closed list, otherwise `other`.\n- `inpPreHydration`: the `data-island-state` (pending/hydrated, from P1.6) of the nearest island at the moment of the event. It is captured by a passive capture listener on window for pointerdown/keydown, kept in an 8-entry ring and matched to the event entry by timestamp. Reading it in the observer would be too late, because that same interaction has already hydrated the island.\n- `inpSinceLoad`: ms since `load`, negative if the interaction came before load.\n\nThere are no identifiers and no new network calls. Revoking consent removes the listener and clears the ring. In the worst case one sample is 877 chars and a batch of 8 is 7,037, under the ingest's 8,000 MAX_BODY; a test enforces this.\n\nTwo plan steps are not done. The new fields are not stored in `web_vitals` yet, because the ingest route only writes columns on its allowlist; that route is outside this item's files and is listed as an out-of-ownership need. The pre-W1 baseline (INP p75 and GA4 page_view per session) was not recorded, because the sandbox has no network; IMPL.md has suggested queries for it.",
+    "status": "done",
+    "deviations": [
+      "The pre-W1 baseline (INP p75 and GA4 page_view per session) is not recorded: it needs production database and GA4 access, and the sandbox has no network. This is a human or production step before W1; IMPL.md lists the queries. INP is already stored, so the INP baseline needs none of the new fields.",
+      "The new fields reach the external collector (VITE_OBSERVABILITY_ENDPOINT) straight away. They will reach `web_vitals` only once the ingest route and a migration accept them, and both are outside this item's files.",
+      "Unknown values are left out of the sample instead of being sent as null (navigationType and the other existing context fields send null). This was chosen because every key is paid for eight times in the MAX_BODY budget, and the plan calls these fields optional.",
+      "The commit trailer is `Co-Authored-By: Claude Opus 5.5`, following the session's attribution instruction; the computed task asked for `Claude Fable 5.1`, but the commit was written by an Opus 5.5 agent."
+    ],
+    "out_of_ownership_needs": [
+      "src/routes/api/public/vitals.ts and src/routes/api/public/-vitals.test.ts must validate and store the new fields: edgeCache (enum HIT/STALE/MISS/BYPASS), edgeLayer (enum L1/L2/L3/render), colo (^[A-Z]{3}$), inpEvent (6-value enum), inpPreHydration (strict boolean) and inpSinceLoad (integer, |x| <= 86400000). `withoutNavigationContext` must also drop the new columns when retrying after PGRST204/42703, and the MAX_BODY comment should be updated to 877 per sample and 7,037 per batch (the 8,000 limit itself stays).",
+      "A new migration supabase/migrations/<ts>_web_vitals_edge_inp.sql adding the columns edge_cache, edge_layer, colo, inp_event, inp_pre_hydration and inp_since_load_ms with CHECKs, using 20260920121000_web_vitals_navigation_context.sql as the pattern, followed by regenerating src/integrations/supabase/types.ts.",
+      "P0.4 should emit the Server-Timing entries as `nes-layer;desc=\"L1|L2|L3|render\"` and `colo;desc=\"XXX\"` (in desc, not dur), appended after `nes-edge`, so the client parser picks them up.",
+      "P1.6 must keep `data-island-state` to exactly `pending` and `hydrated`; any other value means the reporter does not fill `inpPreHydration`."
+    ],
+    "_stage": "impl:P0.6"
+  },
+  {
+    "item_id": "P0.3",
+    "verdict": "fix_required",
+    "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/wave0/P0.3/REVIEW.md",
+    "findings": [
+      {
+        "severity": "major",
+        "file": "src/lib/performance/postInteractionQueue.ts",
+        "finding": "The queue is released on pointerdown, touchstart or keydown (onInteraction calls scheduleStep at lines 221-226), and the first task runs about one frame later. On a phone tap, pointerup and click usually arrive 60-120 ms after pointerdown, so 1 to 6 queued tasks (one per frame: banner mount, island hydration) can run inside the same tap. A pointerup or click that arrives during a task waits for it to finish, and that input delay counts toward the INP of the first interaction. The plan's stated purpose for this queue is to protect that INP (critique M11). The same timing is why IMPL warns that P1.3 can lose the click. The test at postInteractionQueue.test.ts:91-104 locks in this behaviour.",
+        "fix": "Change the release rule inside the P0.3 files. For pointerdown and touchstart, release the queue on the end of the sequence (pointerup, pointercancel or click, capture and passive), with a fallback of about 300 ms. For keydown, release on keyup with the same fallback. Keep wheel and scroll as an immediate release, since they are not INP events. Only then run rAF followed by postTask. Keep promoting the island under the finger by the pointerdown target; P1.6 islands keep their own ownEvents capture trigger with release 'immediate', so they do not get slower. Add tests: pointerdown, then N frames, nothing runs; after pointerup or click, the first task runs on the next frame; also cover the timeout fallback. Alternatively, write this contract into the module header and into P1.3 and P1.6."
+      },
+      {
+        "severity": "minor",
+        "file": "src/lib/performance/whenQuiescent.ts",
+        "finding": "Requests still in flight never hold the quiescence window, because a resource entry only arrives after responseEnd. A request that runs for more than 5 s (a slow API call or a long poll) lets consumers fire while Lighthouse may still be recording. The TP-1 verdict names this as the only route by which work gets into the trace. This matches the wording of the plan ('end of the last counted entry'), but the module header does not say it.",
+        "fix": "Say this limitation explicitly in the module header. Make sure the P1.1 e2e test third-party-quiescence includes a case with a request that stays in flight."
+      },
+      {
+        "severity": "minor",
+        "file": "src/lib/performance/firstInteraction.ts",
+        "finding": "handleEvent does not check event.isTrusted. A synthetic event from third-party code, such as document.dispatchEvent(new Event('scroll')) or a dispatched KeyboardEvent, would release all deferred work, gtag included. Today only tests dispatch such events, and they dispatch on window, which the scroll filter already rejects.",
+        "fix": "Optional hardening: ignore events where isTrusted is false. The happy-dom tests would then need a different way to inject events, or a seam for testing."
+      },
+      {
+        "severity": "minor",
+        "file": "src/lib/performance/whenQuiescent.ts",
+        "finding": "The 'image started after load' boundary is loadedAt = now() taken inside the module's own load handler, which may run after other load handlers (line 297). An image started by an earlier onload handler, for example autoplay starting in onload, has startTime < loadedAt, so it is counted and moves the window.",
+        "fix": "Take the boundary from Navigation Timing loadEventStart when it is available, and fall back to now()."
+      },
+      {
+        "severity": "minor",
+        "file": "src/lib/performance/postInteractionQueue.ts",
+        "finding": "Every queue class, including shell and island-target, runs with scheduler.postTask priority 'background'. Background tasks yield to every normal task, including the React scheduler and network callbacks, so on a busy main thread the interactive consent banner or the island under the finger can be delayed a long time. The plan asks for background, so this is not a deviation.",
+        "fix": "Consider 'user-visible' priority for shell and island-target if RUM P0.6 shows delays. At least document the starvation behaviour in the module header."
+      }
+    ],
+    "_stage": "review:P0.3"
+  },
+  {
+    "item_id": "P0.2",
+    "worktree": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/wt/P0.2",
+    "branch": "perf/w0-P0.2",
+    "commit": "868b2a6",
+    "files_changed": [
+      "package.json",
+      "scripts/verify-static.ts",
+      "scripts/performance/psi-sample.mjs",
+      ".github/workflows/first-visit.yml",
+      ".github/workflows/lighthouse.yml",
+      ".github/workflows/psi.yml"
+    ],
+    "gates": [
+      {
+        "name": "prettier --check (6 touched files)",
+        "result": "green"
+      },
+      {
+        "name": "eslint (verify-static.ts, psi-sample.mjs)",
+        "result": "green"
+      },
+      {
+        "name": "check:gate-coverage",
+        "result": "green",
+        "note": "51 check:* gates, each wired exactly once per job; the candidate's bun run check:document-weight appears once"
+      },
+      {
+        "name": "check:workflow-env-contract",
+        "result": "green",
+        "note": "77 declarations, 0 orphaned; CHROME_PATH goes only through $GITHUB_ENV"
+      },
+      {
+        "name": "verify:static",
+        "result": "green",
+        "note": "33 gates in 222.5 s; check:document-weight is in EXCLUDED (19 exclusions)"
+      },
+      {
+        "name": "typecheck (tsc + typecheck:scripts)",
+        "result": "green",
+        "note": "First attempt OOM-killed by the cgroup (tsc 8.4 GB RSS next to another agent's build). Re-run under the .build-lock mutex: green in 5 min. Lock released."
+      },
+      {
+        "name": "check:ci-gates",
+        "result": "green",
+        "note": "First run 1649/1650: publicRouteLoaders.test.ts timed out (180 s) while P0.5's build loaded the machine. That file is untouched here. Re-run alone: 54/54."
+      },
+      {
+        "name": "test:measurement-harness (node --test)",
+        "result": "green",
+        "note": "7/7 (document-weight.test.mjs; harness-ext from P0.1 joins through the glob after merge)"
+      },
+      {
+        "name": "check-document-weight under node on the base artifact (existing .output, no new build)",
+        "result": "green",
+        "note": "19/19 metrics, HIT, 7.5 s"
+      },
+      {
+        "name": "negative control: +1 inline <style>",
+        "result": "green",
+        "note": "red as expected: inlineStyleCount 51 > 50, exit 1; the unmodified document exits 0"
+      },
+      {
+        "name": "psi-sample --from-file $SCRATCH/lh/prod-mobile.json",
+        "result": "green",
+        "note": "cache=MISS (server-response-time=2752ms); PSI request URL contains locale=pl, key shown as ***; an HTML report generated by LH 13.5 parses back to an identical LHR"
+      },
+      {
+        "name": "proposed psi-sample.test.mjs (outside repo, run against the worktree module)",
+        "result": "green",
+        "note": "10/10"
+      },
+      {
+        "name": "YAML parse + extracted-step shell tests",
+        "result": "green",
+        "note": "PyYAML parses all 3 workflows. The first-visit scope filter was checked on 6 cases. The lighthouse.yml warm-up was run against a local server (302 /->/en, x-nes-cache headers) and an unreachable host: exit 0 both times."
+      },
+      {
+        "name": "production build / Lighthouse",
+        "result": "skipped",
+        "note": "not required by this item's mechanism"
+      }
+    ],
+    "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/wave0/P0.2/IMPL.md",
+    "summary": "I finished P0.2 in the existing worktree and committed it as 868b2a6. All repo gates are green; typecheck and check:ci-gates were each re-run once after machine-load failures (an out-of-memory kill and a timeout in an untouched test). One part is left for the user: the browser for Lighthouse mode A (see deviations).\n\nI reviewed every file the interrupted attempt had changed. Most of its work was correct. I fixed four things:\n- **psi.yml:** the step `node psi-sample.mjs ... | tee` had no `pipefail`. GitHub runs `run:` steps with `bash -e` only, so when the sampler exited 1 (\"zero successful runs\") the step still passed. Added `set -o pipefail`.\n- **psi.yml:** the job summary now also lists each run with its HIT/MISS class or its API error.\n- **psi-sample.mjs:** a broken comment about how Lighthouse escapes the HTML report is now correct (`<`, checked against Lighthouse 13.5's report generator).\n- **psi-sample.mjs:** a file without `categories` is now rejected with a clear \"not a report\" error. Before, it crashed with a TypeError.\n\nWhat the commit contains:\n- **package.json:** `check:document-weight` runs through node, because bun's zlib inflates gzip sizes by about 2 % and the gate would be red on the base. New `test:measurement-harness` runs the harness tests with `node --test`.\n- **verify-static.ts:** `check:document-weight` is excluded, since it needs a built `.output`.\n- **first-visit.yml:**\n  - The harness tests run before the builds.\n  - The baseline's document weight is reported only, under its own `--json`. The candidate's is blocking, called exactly once with `bun run check:document-weight -- --root ../candidate --json reports/document-weight.json`.\n  - Lighthouse A/B on mobile is report-only: n=5, `--idle-wait 30`, `continue-on-error`, 25 min step limit.\n  - A/B only runs when `src/`, `vite*.config.ts` or `package.json` differ; this is decided by comparing the two checked-out trees.\n  - `CHROME_PATH` goes through `$GITHUB_ENV`. Reports are uploaded, and the job timeout goes from 20 to 45 min.\n- **psi-sample.mjs:**\n  - Every request has `locale=pl`, the API key is masked in logs, and each run gets its own `utm_source`.\n  - The full `lighthouseResult` is saved per run, with field data in a separate file.\n  - Runs with `server-response-time` above 1000 ms are marked MISS; with mixed results it also prints a HIT-only median. Redirects such as `/` to `/en` are flagged.\n  - `--from-file` accepts API responses, bare reports exported from pagespeed.web.dev, and HTML reports, as files or directories.\n  - It exits 1 when a form has no successful run.\n- **psi.yml (new):** daily cron plus manual dispatch. Without the `PSI_API_KEY` secret (the human sets it) it ends green with a warning.\n- **lighthouse.yml:** before the mode A desktop run, and again before mobile, a warm-up requests every URL with a browser user agent. It logs `x-nes-cache`, `server-timing` and `cf-ray`, and never fails the job.\n\nVerification: the document-weight gate under node on the existing base build passes 19/19. Adding one inline `<style>` turns it red (`inlineStyleCount 51 > 50`). `psi-sample --from-file` on the saved production mobile report marks the run MISS (2752 ms), and the request URL contains `locale=pl`. No production build or Lighthouse measurement was run.",
+    "status": "done",
+    "deviations": [
+      "Lighthouse mode A stays on the runner's Chrome, as before this change. The previous attempt had switched mode A to Playwright's Chromium, matching the plan's mention of CHROME_PATH. On ubuntu-latest (24.04) that build very likely cannot start without --no-sandbox: it has no SUID sandbox helper or AppArmor profile, and I found no setting in the runner image that lifts the restriction. Mode C's lighthouserc.json already passes that flag. I tried to add the same flag to the mode A LHCI calls, but the permission system blocked it as a sandbox-disabling flag, and I did not work around that. I reverted the shared install/pinning so this item adds no new launch-failure risk. The warm-up, the core of verdict M5, is fully in place. The human decides between the runner's Chrome and pinned Chromium plus flags.",
+      "There is no psi-sample.mjs test in the repo, because scripts/performance/psi-sample.test.mjs is not in the §4 ownership matrix. A ready test (prettier-formatted, 10/10 green) is at $SCRATCH/phase2/wave0/P0.2/proposed/psi-sample.test.mjs. The test:measurement-harness glob already lists it, so it runs as soon as the file is added.",
+      "psi.yml passes no --baseline, so there is no delta line against a saved PSI baseline. psi-baseline.json from M6 belongs to no item.",
+      "The document-weight gate is in first-visit.yml, as the plan (M2) says, not in ci.yml's build job as verdict PA-C3 suggested. ci.yml is not owned by this item.",
+      "The commit trailer is 'Co-Authored-By: Claude Opus 5.5' plus Claude-Session, following the harness attribution instruction, not 'Claude Fable 5.1' as the computed task text said."
+    ],
+    "out_of_ownership_needs": [
+      "scripts/performance/psi-sample.test.mjs (new): add the ready test from $SCRATCH/phase2/wave0/P0.2/proposed/psi-sample.test.mjs. The test:measurement-harness glob already includes this path.",
+      "Human decision on the browser for Lighthouse mode A. Either keep the runner's Chrome, as now, or pin Playwright's Chromium and give mode A the same Chrome flags mode C has (in lighthouse.yml or in lighthouserc.deployed.json / lighthouserc.deployed.mobile.json, which are not owned by this item). Adding the sandbox-disabling flag was blocked by the permission system in this session.",
+      "Optional: docs/performance/2026-10-03-pagespeed-85-95/psi-baseline.json, a saved PSI baseline that would give psi.yml a delta line."
+    ],
+    "_stage": "impl:P0.2"
+  },
+  {
+    "item_id": "P0.4",
+    "worktree": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/wt/P0.4",
+    "branch": "perf/w0-P0.4",
+    "commit": "32d8ee0866b7abff49b5cf141ebf818e4ef4e763",
+    "files_changed": [
+      "src/server.ts",
+      "src/lib/http/ssrTiming.ts",
+      "src/lib/http/documentCache.server.ts",
+      "src/lib/http/__tests__/ssrTiming.server.test.ts",
+      "src/lib/http/__tests__/documentCache.server.test.ts"
+    ],
+    "gates": [
+      {
+        "name": "prettier (5 touched files)",
+        "result": "green"
+      },
+      {
+        "name": "eslint (5 touched files)",
+        "result": "green"
+      },
+      {
+        "name": "bun run typecheck (tsc + scripts)",
+        "result": "green",
+        "note": "1st run caught a ReadableStream<Uint8Array<ArrayBufferLike>> vs Response.body mismatch in server.ts; fixed with a local type annotation; 2nd run exit 0 (typecheck2.log)"
+      },
+      {
+        "name": "vitest ssrTiming.server + documentCache.server (owned)",
+        "result": "green",
+        "note": "159/159 (ssrTiming 58->125, documentCache 26->34)"
+      },
+      {
+        "name": "vitest src/lib/http + startPipeline + platformServerFailures + serverEntryPurity",
+        "result": "green",
+        "note": "all green including documentCacheL2, degradedRenderCachePipeline, platformDeferredCache, documentStreamGuard"
+      },
+      {
+        "name": "vitest src/__tests__/serverEntryRequestOptions.test.ts (outside ownership)",
+        "result": "red",
+        "note": "1 test: 'logs one JSON line per HTML document' asserts exact log keys with toEqual, so new keys (streamMs, isoReq, isoAgeS, uaClass, degraded) fail it. The verified patch serverEntryRequestOptions.test.patch makes it 13/13; git apply --check is clean"
+      },
+      {
+        "name": "bun run verify:static",
+        "result": "green",
+        "note": "33 gates OK in 219.7 s"
+      },
+      {
+        "name": "bun run build:smoke (under .build-lock)",
+        "result": "green",
+        "note": "262 s, lock released 08:34:21"
+      },
+      {
+        "name": "check:server-entry-purity",
+        "result": "green",
+        "note": "server graph clean, 1789 artifact files scanned"
+      },
+      {
+        "name": "curl on fixture-served artifact",
+        "result": "green",
+        "note": "MISS shows nes-edge MISS ... nes-layer;desc=\"render\" ... colo;desc=\"WAW\". HIT shows nes-layer;desc=\"L1\". The log line arrives after the body with streamMs 492 > appMs 406 and isoReq/uaClass/ray/colo/layer/degraded. curl -sI is BYPASS because HEAD is a cache bypass by design"
+      },
+      {
+        "name": "noHasSelectors / check:chunk-parity",
+        "result": "skipped",
+        "note": "no CSS or vite config touched"
+      },
+      {
+        "name": "Lighthouse",
+        "result": "skipped",
+        "note": "not a measurement item; expected effect is 0 points"
+      }
+    ],
+    "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/wave0/P0.4/IMPL.md",
+    "summary": "P0.4 (SC-1) is implemented with the three corrections from the verdict. One test outside this item's files is red and needs a patch that is ready and verified (see out_of_ownership_needs).\n\nServer-Timing now carries `nes-layer;desc=\"L1|L2|render\"`, added at the end of the router's Server-Timing value. All 8 replay call sites in documentCache.server.ts say explicitly whether the copy came from L1 or L2; a fresh MISS render is `render`; BYPASS is unchanged. It also carries `colo;desc=\"...\"`, appended by server.ts after server-init/app. Colo comes from `request.cf.colo`, falls back to the `cf-ray` suffix, and is omitted when neither gives a valid code. With no layer and no colo the header is byte-identical to before, and there is no `stream` metric (correction a).\n\nThe document log line is now emitted after the body ends. A wrapper on the already rebuilt Response in server.ts reports the end of the stream. It sits after applyDeferredDocumentStore and guardDocumentResponse, which keeps the ~61 s incident doctrine. Because it does not depend on the tee, `streamMs` also exists on HIT/STALE, BYPASS and degraded MISS responses. HEAD and empty-body responses log immediately.\n\nNew log fields:\n- `isoReq` counts every request into fetch; `isoAgeS` is measured from a timestamp taken at the isolate's first request, not from module age (correction b).\n- `ray` is the validated cf-ray (correction c).\n- `uaClass` is browser, bot or lighthouse. The UA string and IP are never logged.\n- `layer` and `colo`.\n- `degraded` is set on 200 HTML MISS lines, using the same documentStorePolicy definition as the store.\n- `streamEnd: aborted` only when the body did not finish normally.\n\nDeviations, explained in IMPL.md:\n1. The wrapper is a pull-based mirror stream (highWaterMark 0), not TransformStream.flush()+pipeTo. With pipeTo, cancelling a tee branch waits for the cache collector's branch, so a client disconnect produced no log line; a test caught this as a timeout. Semantics are otherwise flush-equivalent.\n2. `degradedBy` became a boolean `degraded`. The loader label is joined from the existing `[ssr-resilient]` line of the same invocation. Putting the label in the line would need either resilientLoad.ts (outside ownership) or a global console.warn hook, which is unsafe with concurrent requests in one isolate.\n3. `curl -sI` cannot show `nes-layer` because HEAD is a cache bypass by design. Verification used GET header dumps.\n\nArtifact verification on the fixture shows exactly the expected headers and log lines (curl.txt, doc-log-lines.jsonl). The orchestrator had already committed my final tree as 32d8ee0 and merged and pushed it in 6beb52b. I did not rewrite that published history; all gates ran on that exact tree, and the full intended commit message is in commit-msg.txt. Side observation: the artifact server keeps running after SIGTERM, and the base artifact does the same, so it predates this change.",
+    "status": "done",
+    "deviations": [
+      "The body wrapper is a pull-based mirror ReadableStream (highWaterMark 0) that calls onEnd('done') just before close and onEnd('aborted') immediately on cancel or error, instead of TransformStream.flush() with pipeTo. pipeTo only settles after the source cancel resolves, and on a storable MISS the source is a tee branch whose cancel waits for the cache collector's branch, so a disconnect gave a late log line or none. Placement and doctrine are unchanged: in server.ts, after applyDeferredDocumentStore and guardDocumentResponse.",
+      "`degradedBy` is implemented as a boolean `degraded` on 200 HTML MISS lines (documentStorePolicy refusal, the same definition as degradedRevalidation). The loader label is joined from the existing '[ssr-resilient] degraded render, seeded fallback for <label>' line of the same Workers invocation, which is the verdict's cheaper option. Degradation discovered mid-stream is not visible in headers.",
+      "Verification uses GET header dumps (curl -s -D - -o /dev/null). `curl -sI` (HEAD) is a BYPASS by design in planDocumentCache (method !== GET), so it shows nes-edge BYPASS + colo but no nes-layer; documentCache.ts is not in the file list.",
+      "colo is appended in server.ts's part of Server-Timing, after server-init/app, not inside buildServerTimingValue: request.cf is reliable at the entry, and this also covers BYPASS and the 500 page. It still comes after nes-edge.",
+      "The background-revalidation log line stays immediate (before the drain), without streamMs or isoReq, so a hung revalidation render still logs. It does get uaClass, because the copied UA decides the bot or browser variant that gets stored.",
+      "No new commit of my own: the orchestrator's safekeeping commit 32d8ee0 already holds the final tree byte-for-byte and is merged and pushed (6beb52b), so I did not rewrite published history. The intended full Polish commit message is in phase2/wave0/P0.4/commit-msg.txt."
+    ],
+    "out_of_ownership_needs": [
+      "src/__tests__/serverEntryRequestOptions.test.ts:182: the test 'logs one JSON line per HTML document' pins the log line with toEqual, so the new keys make it fail. This is now red on the PR branch after 6beb52b. Apply /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/wave0/P0.4/serverEntryRequestOptions.test.patch, which adds streamMs: 37, isoReq and isoAgeS as expect.any(Number), uaClass: 'bot', and degraded: true (the fixture render has no Cache-Control). Verified 13/13 on a temporary untracked copy; git apply --check is clean."
+    ],
+    "_stage": "impl:P0.4"
+  }
+]

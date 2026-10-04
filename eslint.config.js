@@ -39,6 +39,8 @@ export default tseslint.config(
       // funkcji asynchronicznej (`return` i `await` na najwyższym poziomie),
       // więc parser ESLint odrzuca je jako moduły; nie są kodem aplikacji.
       "docs/performance/**/workflow-*.js",
+      // Surowe artefakty diagnozy P0.5 (skrypty robocze trzymane dosłownie jako dowód pomiaru).
+      "docs/performance/**/raporty/P0.5-robocze/**",
     ],
   },
   {

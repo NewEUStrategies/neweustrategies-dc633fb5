@@ -75,3 +75,6 @@ src/integrations/supabase/previewAuthStorage.ts
 
 # PostgreSQL psql includes are SQL, not HTML/PHP .inc files.
 **/*.sql.inc
+# Surowe artefakty diagnozy P0.5 (księgi Lantern per zadanie, podsumowania przebiegów,
+# skrypty robocze) trzymane dosłownie, poza formatowaniem - to dowody pomiaru, nie kod produktu.
+docs/performance/*/faza2/raporty/P0.5-robocze/
