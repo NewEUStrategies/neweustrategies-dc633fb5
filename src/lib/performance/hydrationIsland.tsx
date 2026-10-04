@@ -130,20 +130,32 @@
 //    zewnętrznych (react-query, i18next): dane zapytania czytanego w wyspie
 //    albo język zmienione przed jej otwarciem dają rozjazd hydratacji i render
 //    klienta wyspy (test „ograniczenie dla P2.2");
-//  - ścieżka wyspy jest `memo` (`islandPropsEqual`): dzieci i `fallback`
-//    porównywane strukturalnie - element (typ, klucz, propsy), tablica
-//    (kilkoro dzieci, fragment) i zwykły obiekt (np. `style`) pole po polu, a
-//    funkcje i instancje klas WYŁĄCZNIE referencyjnie. Dziecko wyspy musi więc
-//    mieć stabilne propsy: bez inline callbacków (`onPick={() => …}` - zamiast
-//    tego `useCallback` albo funkcja modułu) i bez nowych instancji klas przy
-//    każdym renderze rodzica; inaczej re-render rodzica dociera do czekającej
+//  - ścieżka wyspy jest `memo` na dwóch poziomach: cała wyspa
+//    (`islandPropsEqual`) i osobno jej granica (`IslandContent`,
+//    `contentPropsEqual`). Do granicy docierają WYŁĄCZNIE dzieci, `fallback` i
+//    `fallbackMinHeight`. `className` i `id` otoczki (oraz jej stan) do niej
+//    nie docierają: zmiana samej klasy czekającej wyspy (np. zależnej od
+//    układu, P2.3) aktualizuje tylko otoczkę, a HTML serwera zostaje.
+//    `fallbackMinHeight` dociera do granicy jak zmiana danych (niżej), więc ma
+//    być stały, dopóki wyspa czeka;
+//  - dzieci i `fallback` porównywane strukturalnie - element (typ, klucz,
+//    propsy), tablica (kilkoro dzieci, fragment) i zwykły obiekt (np. `style`)
+//    pole po polu, a funkcje, instancje klas i refy WYŁĄCZNIE referencyjnie
+//    (`ref` elementu i zwykły obiekt z jedynym polem `current`, np.
+//    `inputRef={r}`: dwa różne, jeszcze nieprzypięte refy nie są „równe", więc
+//    podmiana refu dochodzi do treści i po hydratacji przypięty jest nowy).
+//    Dziecko wyspy musi więc mieć stabilne propsy: bez inline callbacków
+//    (`onPick={() => …}` - zamiast tego `useCallback` albo funkcja modułu),
+//    bez nowych instancji klas i nowych refów przy każdym renderze rodzica
+//    (`useRef` jest stabilny); inaczej re-render rodzica dociera do czekającej
 //    granicy i porzuca jej HTML (w DEV ostrzeżenie z `id`). Tak samo działają
 //    dane, które naprawdę się zmieniają (np. odświeżone zapytanie nad wyspą
-//    podane w propsie): docierają do czekającej granicy jak każda
-//    aktualizacja. Po commicie wyspy nierówne propsy to zwykła aktualizacja;
-//    obiekt zmieniony W MIEJSCU (ta sama referencja) jest - jak przy każdym
-//    `memo` - pominięty. `trigger` i `chunks` nie biorą udziału (czytane przy
-//    montażu); `id` stały i unikalny na stronie (klucz elementu);
+//    podane w propsie, podmieniony ref): docierają do czekającej granicy jak
+//    każda aktualizacja. Po commicie wyspy nierówne propsy to zwykła
+//    aktualizacja; obiekt zmieniony W MIEJSCU (ta sama referencja) jest - jak
+//    przy każdym `memo` - pominięty. `trigger` i `chunks` nie biorą udziału
+//    (czytane przy montażu); `id` stały i unikalny na stronie (klucz
+//    elementu);
 //  - każdy `React.lazy` w wyspie podany w `chunks` jako komponent (CHUNKI);
 //  - wyspa nie może obejmować komponentów zawieszających się na SERWERZE
 //    (bramka danych sekcji) - jej granica przejęłaby strumień;
@@ -160,7 +172,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
   useSyncExternalStore,
@@ -788,17 +799,18 @@ function IslandBoundary(props: HydrationIslandProps): ReactElement {
     if (island) island.wrapperCommitted = true;
   }, [island]);
 
-  // DEV: nierówne propsy czekającej wyspy (komparator `memo` przepuścił
-  // re-render rodzica: zmienione dane, inline callback, nowa instancja klasy)
-  // docierają do odwodnionej granicy - poza przejściem porzucają jej HTML
-  // (WARUNKI DLA KONSUMENTÓW: stabilne propsy dziecka).
+  // DEV: nierówne pola granicy czekającej wyspy (dzieci, `fallback`,
+  // `fallbackMinHeight`: zmienione dane, inline callback, nowa instancja klasy,
+  // podmieniony ref) docierają do odwodnionej granicy - poza przejściem
+  // porzucają jej HTML (WARUNKI DLA KONSUMENTÓW: stabilne propsy dziecka).
+  // Sama klasa i `id` otoczki do granicy nie docierają, więc nie ostrzegają.
   useLayoutEffect(() => {
     const previous = seenProps.current;
     seenProps.current = props;
     if (!import.meta.env.DEV || island === null || previous === props) return;
-    if (island.isCommitted() || islandPropsEqual(previous, props)) return;
+    if (island.isCommitted() || contentPropsEqual(previous, props)) return;
     console.warn(
-      `[hydration-island] "${id}": props changed while the island is pending (changed data, an inline callback or a new class instance in its children?); the update reaches its dehydrated boundary.`,
+      `[hydration-island] "${id}": props changed while the island is pending (changed data, an inline callback, a new class instance or a swapped ref in its children, or a new fallback / fallbackMinHeight?); the update reaches its dehydrated boundary.`,
     );
   });
 
@@ -812,23 +824,20 @@ function IslandBoundary(props: HydrationIslandProps): ReactElement {
     };
   }, [island]);
 
-  // Ten sam element granicy przy zmianie samego stanu otoczki: React kończy
-  // na otoczce (bailout), granica nie dostaje nowych propsów.
-  const boundary = useMemo(
-    () => (
-      <Suspense fallback={fallback ?? <IslandFallback minHeight={fallbackMinHeight} />}>
-        <IslandGate island={island} onCommit={markHydrated}>
-          {children}
-        </IslandGate>
-      </Suspense>
-    ),
-    [island, markHydrated, fallback, fallbackMinHeight, children],
-  );
-
+  // Granica za własnym `memo` (`IslandContent`): zmiana samej otoczki (stan,
+  // `className`, `id`) kończy się na nim, odwodniona granica nie dostaje
+  // nowych propsów.
   const attributes: IslandStateAttributes = { "data-island-state": state };
   return (
     <div ref={rootRef} data-island-id={id} className={className ?? "contents"} {...attributes}>
-      {boundary}
+      <IslandContent
+        island={island}
+        onCommit={markHydrated}
+        fallback={fallback}
+        fallbackMinHeight={fallbackMinHeight}
+      >
+        {children}
+      </IslandContent>
     </div>
   );
 }
@@ -846,6 +855,12 @@ function isPlainObject(value: unknown): value is object {
   return prototype === Object.prototype || prototype === null;
 }
 
+/** Ref obiektowy (`useRef`, `createRef`): zwykły obiekt z jedynym polem `current`. */
+function isRefObject(value: object): boolean {
+  const keys = Object.keys(value);
+  return keys.length === 1 && keys[0] === "current";
+}
+
 function equivalentFields(a: object, b: object, depth: number): boolean {
   const keys = Object.keys(a);
   if (keys.length !== Object.keys(b).length) return false;
@@ -860,10 +875,11 @@ function equivalentFields(a: object, b: object, depth: number): boolean {
  * Równoważność wartości w propsach wyspy: ta sama wartość (`Object.is`) albo
  * strukturalnie - element tego samego typu i klucza o równoważnych propsach
  * (także `children` w środku), tablica tej samej długości (kilkoro dzieci,
- * fragment) i zwykły obiekt (np. `style`) o równoważnych polach. Funkcje i
- * instancje klas porównywane WYŁĄCZNIE referencyjnie (inline callback =
- * nierówne). Pominięcie re-renderu przy równoważnych propsach to semantyka
- * `memo` dla czystych komponentów.
+ * fragment) i zwykły obiekt (np. `style`) o równoważnych polach. Funkcje,
+ * instancje klas i refy (`ref` elementu, zwykły obiekt z jedynym polem
+ * `current`) porównywane WYŁĄCZNIE referencyjnie (inline callback, podmieniony
+ * ref = nierówne). Pominięcie re-renderu przy równoważnych propsach to
+ * semantyka `memo` dla czystych komponentów.
  */
 function equivalent(a: unknown, b: unknown, depth: number): boolean {
   if (Object.is(a, b)) return true;
@@ -885,10 +901,33 @@ function equivalent(a: unknown, b: unknown, depth: number): boolean {
       propsA !== null &&
       typeof propsB === "object" &&
       propsB !== null &&
+      // React 19: `ref` to zwykły props elementu - ref podmieniony na inny
+      // (także oba jeszcze nieprzypięte) jest zmianą, nie „równym" obiektem.
+      Object.is(Reflect.get(propsA, "ref"), Reflect.get(propsB, "ref")) &&
       equivalentFields(propsA, propsB, depth + 1)
     );
   }
-  return isPlainObject(a) && isPlainObject(b) && equivalentFields(a, b, depth + 1);
+  // Ref w dowolnym propsie (np. `inputRef={r}`) - tylko referencyjnie.
+  if (!isPlainObject(a) || !isPlainObject(b) || isRefObject(a) || isRefObject(b)) return false;
+  return equivalentFields(a, b, depth + 1);
+}
+
+/** Pola, które docierają do granicy wyspy (`IslandContent`). */
+type IslandContentFields = Pick<
+  HydrationIslandProps,
+  "fallback" | "fallbackMinHeight" | "children"
+>;
+
+/**
+ * Równoważność pól granicy: `fallbackMinHeight` przez `===`, `fallback` i
+ * dzieci strukturalnie. Wspólna dla `memo` granicy i ostrzeżenia DEV.
+ */
+function contentPropsEqual(prev: IslandContentFields, next: IslandContentFields): boolean {
+  return (
+    prev.fallbackMinHeight === next.fallbackMinHeight &&
+    equivalent(prev.fallback, next.fallback, 0) &&
+    equivalent(prev.children, next.children, 0)
+  );
 }
 
 /**
@@ -899,16 +938,43 @@ function equivalent(a: unknown, b: unknown, depth: number): boolean {
  * `disabled` nie bierze udziału: ścieżka wyspy renderuje się tylko bez niego.
  */
 function islandPropsEqual(prev: HydrationIslandProps, next: HydrationIslandProps): boolean {
+  return prev.id === next.id && prev.className === next.className && contentPropsEqual(prev, next);
+}
+
+interface IslandContentProps extends IslandContentFields {
+  readonly island: IslandController | null;
+  readonly onCommit: () => void;
+}
+
+function islandContentPropsEqual(prev: IslandContentProps, next: IslandContentProps): boolean {
   return (
-    prev.id === next.id &&
-    prev.className === next.className &&
-    prev.fallbackMinHeight === next.fallbackMinHeight &&
-    equivalent(prev.fallback, next.fallback, 0) &&
-    equivalent(prev.children, next.children, 0)
+    prev.island === next.island && prev.onCommit === next.onCommit && contentPropsEqual(prev, next)
   );
 }
 
-/** Ścieżka wyspy z komparatorem strukturalnym (tylko ona jest `memo`). */
+/**
+ * Granica wyspy (`<Suspense>` z bramką) za własnym `memo`: re-render otoczki
+ * (stan `data-island-state`, `className`, `id`) przy równoważnych polach
+ * granicy kończy się tutaj (bailout), więc aktualizacja nie dociera do
+ * odwodnionej granicy i React zostawia HTML serwera - także poza przejściem.
+ */
+const IslandContent = memo(function IslandContent({
+  island,
+  onCommit,
+  fallback,
+  fallbackMinHeight,
+  children,
+}: IslandContentProps): ReactElement {
+  return (
+    <Suspense fallback={fallback ?? <IslandFallback minHeight={fallbackMinHeight} />}>
+      <IslandGate island={island} onCommit={onCommit}>
+        {children}
+      </IslandGate>
+    </Suspense>
+  );
+}, islandContentPropsEqual);
+
+/** Ścieżka wyspy z komparatorem strukturalnym (przełącznik niżej nie jest `memo`). */
 const MemoIslandBoundary = memo(IslandBoundary, islandPropsEqual);
 
 /**

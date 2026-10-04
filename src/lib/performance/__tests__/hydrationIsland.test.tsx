@@ -689,6 +689,52 @@ describe("HTML serwera zachowany przy aktualizacjach przed otwarciem bramki", ()
     expect(t.errors).toEqual([]);
   });
 
+  it.each(["Default", "Sync"] as const)(
+    "zmiana samej klasy otoczki czekającej wyspy (%s): do granicy nie dociera - HTML zachowany, bez ostrzeżenia i bez górnej granicy",
+    async (lane) => {
+      let setClassName: (value: string) => void = () => {};
+      function App(): ReactElement {
+        const [className, apply] = useState("contents");
+        setClassName = apply;
+        // Dzieci równoważne, ale nowe przy każdym renderze rodzica (jak u
+        // każdego konsumenta) - granicę chroni tylko jej własne `memo`.
+        return (
+          <HydrationIsland id="cls" className={className} trigger={{ quiescent: false }}>
+            <Content name="c" />
+          </HydrationIsland>
+        );
+      }
+
+      const t = await hydrate(<App />);
+      await act(async () => {
+        if (lane === "Sync") flushSync(() => setClassName("block"));
+        else setClassName("block");
+      });
+
+      // Otoczka zaktualizowana, granica nietknięta.
+      expect(t.island("cls").className).toBe("block");
+      expect(t.lost()).toEqual([]);
+      expect(t.fallbackShown()).toBe(false);
+      expect(t.state("cls")).toBe("pending");
+      expect(enqueueCalls().filter((call) => call.priority === "island-target")).toEqual([]);
+      expect(consoleWarn).not.toHaveBeenCalled();
+      expect(commits).toEqual([]);
+
+      // Po otwarciu: hydratacja bez rozjazdu, klasa otoczki zostaje.
+      const button = t.probe("c-button");
+      await act(async () => {
+        button.dispatchEvent(pointer("pointerdown"));
+        await flushMicrotasks();
+        button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      expect(clicks).toEqual(["c"]);
+      expect(t.state("cls")).toBe("hydrated");
+      expect(t.island("cls").className).toBe("block");
+      expect(t.lost()).toEqual([]);
+      expect(t.errors).toEqual([]);
+    },
+  );
+
   it("warunek dla konsumentów: inline callback w dziecku przepuszcza re-render rodzica (Default) do odwodnionej granicy - HTML porzucony, w DEV ostrzeżenie z `id`", async () => {
     let bump: () => void = () => {};
     function Picker({ onPick }: { onPick: () => void }): ReactElement {
@@ -913,6 +959,98 @@ describe("komparator `memo`: nierówne propsy docierają do treści wyspy", () =
     expect(t.container.querySelector('[data-probe="label"]')?.getAttribute("title")).toBe("druga");
     expect(t.errors).toEqual([]);
   });
+
+  it("czekająca wyspa i zmieniony `fallbackMinHeight`: dociera do granicy jak zmiana danych - ostrzeżenie DEV z `id`, górna granica otwiera wyspę", async () => {
+    let setMinHeight: (value: number) => void = () => {};
+    function App(): ReactElement {
+      const [minHeight, apply] = useState(120);
+      setMinHeight = apply;
+      return (
+        <HydrationIsland id="fmh" fallbackMinHeight={minHeight} trigger={{ quiescent: false }}>
+          <Content name="f" />
+        </HydrationIsland>
+      );
+    }
+
+    const t = await hydrate(<App />);
+    await act(async () => setMinHeight(240));
+
+    const warnings = consoleWarn.mock.calls.map(([message]) => String(message));
+    expect(warnings).toContainEqual(
+      expect.stringContaining('"fmh": props changed while the island is pending'),
+    );
+    expect(enqueueCalls()).toContainEqual({
+      priority: "island-target",
+      release: "immediate",
+      target: t.island("fmh"),
+    });
+
+    await frame();
+
+    expect(t.state("fmh")).toBe("hydrated");
+    expect(t.fallbackShown()).toBe(false);
+    expect(t.errors).toEqual([]);
+  });
+
+  it.each(["ref", "inputRef"] as const)(
+    "czekająca wyspa i podmieniony ref (`%s`, oba jeszcze nieprzypięte): zmiana dociera do treści, po hydratacji przypięty nowy",
+    async (prop) => {
+      type SpanRef = { current: HTMLSpanElement | null };
+      const refs: { a: SpanRef; b: SpanRef } = { a: { current: null }, b: { current: null } };
+      let setWhich: (value: "a" | "b") => void = () => {};
+      function Field({ inputRef }: { inputRef: SpanRef }): ReactElement {
+        return (
+          <span data-probe="field" ref={inputRef}>
+            pole
+          </span>
+        );
+      }
+      function App(): ReactElement {
+        refs.a = useRef<HTMLSpanElement | null>(null);
+        refs.b = useRef<HTMLSpanElement | null>(null);
+        const [which, apply] = useState<"a" | "b">("a");
+        setWhich = apply;
+        const ref = which === "a" ? refs.a : refs.b;
+        return (
+          <HydrationIsland id="ref" trigger={{ quiescent: false }}>
+            {prop === "ref" ? (
+              <span data-probe="field" ref={ref}>
+                pole
+              </span>
+            ) : (
+              <Field inputRef={ref} />
+            )}
+          </HydrationIsland>
+        );
+      }
+
+      const t = await hydrate(<App />);
+      expect(refs.a.current).toBeNull();
+      expect(refs.b.current).toBeNull();
+      await act(async () => {
+        startTransition(() => setWhich("b"));
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+
+      // `{current: null}` i `{current: null}` to dwa różne refy, nie „równe"
+      // obiekty: `memo` przepuszcza zmianę, górna granica otwiera wyspę.
+      expect(t.lost()).toEqual([]);
+      expect(enqueueCalls()).toContainEqual({
+        priority: "island-target",
+        release: "immediate",
+        target: t.island("ref"),
+      });
+
+      await frame();
+
+      expect(t.state("ref")).toBe("hydrated");
+      // Jak bez wyspy: przypięty ref z ostatniego renderu, stary odpięty.
+      expect(refs.b.current).toBe(t.probe("field"));
+      expect(refs.a.current).toBeNull();
+      expect(t.lost()).toEqual([]);
+      expect(t.errors).toEqual([]);
+    },
+  );
 });
 
 // --- Kontrole negatywne: MUSZĄ wykryć render klienta --------------------------
@@ -1589,14 +1727,17 @@ describe("wyzwalacze i zwolnienie przez kolejkę P0.3", () => {
       return null;
     }
     const trigger: IslandTrigger = { immediateWhen: () => true };
+    // Sonda commitu PRZED wyspą: efekty warstwy idą w kolejności drzewa, więc
+    // jej efekt biegnie przed każdym efektem otoczki. Start chunków w efekcie
+    // otoczki (a nie w jej renderze) dałby `["commit", "loader", "lazy"]`.
     const t = await hydrate(
       <>
-        <Island id="early" trigger={trigger} />
         <CommitProbe />
+        <Island id="early" trigger={trigger} />
       </>,
       <>
-        <Island id="early" trigger={trigger} chunks={[loader, Lazy]} />
         <CommitProbe />
+        <Island id="early" trigger={trigger} chunks={[loader, Lazy]} />
       </>,
     );
 
