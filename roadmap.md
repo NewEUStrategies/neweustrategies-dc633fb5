@@ -75,6 +75,8 @@
 
 - [x] Etykieta „więcej" bez podkreślenia w żadnym stanie: `.nes-kinetic-action` ma `text-decoration: none` (odcina też podkreślenie nadane całemu widżetowi przez Theme Design), a linia pod rzędem nie jest rysowana, dopóki opcja „Pokaż linię" nie zostanie włączona - `showRule` ma wyłączoną wartość domyślną tylko dla tego wariantu, pozostałe warianty bez zmian.
 
+- [x] Znak „>" to subtelny ptaszek: kreska ma 1 px (0,8 px w wezkiej kolumnie), nie jest pogrubiona i pozostaje cieńsza od liter oraz od trzech kresek sygnału.
+
 ## Firmowy kolor akcentu
 
 - [x] Usunąć bursztynowe akcenty z interfejsu i zapisanych ustawień motywu; domyślnie używać #FA9346 w jasnym i ciemnym motywie.
