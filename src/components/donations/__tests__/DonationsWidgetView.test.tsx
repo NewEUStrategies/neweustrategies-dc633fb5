@@ -331,7 +331,7 @@ describe("stats-strip", () => {
   });
 
   it("kolor akcentu barwi etykiety boksów", () => {
-    renderWidget({ variant: "stats-strip", accent: "#d97706" });
+    renderWidget({ variant: "stats-strip", accent: "#FA9346" });
 
     const label = screen.getByText("donationsWidget.donors");
     expect(label.getAttribute("style") ?? "").toMatch(/d97706|217, 119, 6/i);
@@ -464,10 +464,10 @@ describe("thermometer", () => {
 // ---------------------------------------------------------------------------
 describe("kolor akcentu", () => {
   it.each(VARIANTS)("wariant %s wystawia akcent jako zmienną CSS i barwi przycisk", (variant) => {
-    const { container } = renderWidget({ variant, accent: "  #d97706  " });
+    const { container } = renderWidget({ variant, accent: "  #FA9346  " });
 
     const root = container.firstElementChild as HTMLElement;
-    expect(root.style.getPropertyValue("--donation-accent")).toBe("#d97706");
+    expect(root.style.getPropertyValue("--donation-accent")).toBe("#FA9346");
     expect(cta().getAttribute("style") ?? "").toMatch(/d97706|217, 119, 6/i);
   });
 

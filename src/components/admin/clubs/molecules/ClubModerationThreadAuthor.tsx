@@ -30,7 +30,7 @@ export function ClubModerationThreadAuthor({
   return (
     <div className="text-xs text-muted-foreground">
       {isThreadIdentityProtected(row) ? (
-        <span className="text-amber-700 dark:text-amber-300">
+        <span className="text-brand-ink dark:text-brand">
           {t("adminClubs.threads.protectedIdentity")} · {row.author_name}
         </span>
       ) : (

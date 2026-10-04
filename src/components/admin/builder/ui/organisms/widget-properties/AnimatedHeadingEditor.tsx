@@ -79,7 +79,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
     : [];
 
   const color = (typeof c.color === "string" ? c.color : "") || "";
-  const accentColor = (typeof c.accentColor === "string" ? c.accentColor : "") || "#f97316";
+  const accentColor = (typeof c.accentColor === "string" ? c.accentColor : "") || "#FA9346";
   const durationMs = typeof c.durationMs === "number" ? c.durationMs : 1600;
   const delayMs = typeof c.delayMs === "number" ? c.delayMs : 200;
   const loop = c.loop !== false;
@@ -124,7 +124,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
   };
 
   const accentPresets = [
-    "#f97316",
+    "#FA9346",
     "#ef4444",
     "#eab308",
     "#22c55e",
@@ -335,7 +335,7 @@ export function AnimatedHeadingEditor({ c, lang, setContent }: Props) {
           <ColorField
             value={accentColor}
             onChange={(v) => setContent("accentColor", v ?? "")}
-            placeholder="#f97316"
+            placeholder="#FA9346"
           />
         </PropField>
         <div className="flex flex-wrap gap-1.5">

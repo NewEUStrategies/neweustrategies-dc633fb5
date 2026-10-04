@@ -55,7 +55,7 @@ export interface ChartDrillDetail {
 
 const TONE_CLS: Record<ChartDrillTone, string> = {
   good: "text-emerald-600 dark:text-emerald-400",
-  warn: "text-amber-600 dark:text-amber-400",
+  warn: "text-brand-ink dark:text-brand",
   bad: "text-rose-600 dark:text-rose-400",
   neutral: "text-foreground",
 };

@@ -182,7 +182,7 @@ function AuditCoverageNotice({ coverage }: { coverage: SeoContentCoverage }) {
   return (
     <p
       data-widget-i18n-coverage={coverage.state}
-      className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400"
+      className="rounded-lg border border-brand/100/40 bg-brand/100/5 px-3 py-2 text-xs text-brand-ink dark:text-brand"
     >
       {coverage.state === "truncated"
         ? t("adminWidgetI18nAudit.coverageTruncated", {

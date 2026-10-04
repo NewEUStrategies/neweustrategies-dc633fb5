@@ -503,7 +503,7 @@ function MenuNode({
                   <Sparkles size={10} />
                   Mega
                   {usingDerivedMega ? (
-                    <span className="ml-1 rounded bg-amber-100 px-1 py-[1px] text-[8px] text-amber-800">
+                    <span className="ml-1 rounded bg-brand/15 px-1 py-[1px] text-[8px] text-brand-ink">
                       auto
                     </span>
                   ) : null}
@@ -511,7 +511,7 @@ function MenuNode({
               ) : null}
               {megaHasFeatured ? (
                 <span
-                  className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600"
+                  className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand/100/10 text-brand-ink"
                   title="Wyróżniony wpis skonfigurowany"
                 >
                   <Star size={10} />
@@ -568,13 +568,13 @@ function MenuNode({
             {usingDerivedMega ? (
               <>
                 <span className="opacity-30">·</span>
-                <span className="inline-flex items-center gap-1 text-amber-700">auto z drzewa</span>
+                <span className="inline-flex items-center gap-1 text-brand-ink">auto z drzewa</span>
               </>
             ) : null}
             {megaHasFeatured ? (
               <>
                 <span className="opacity-30">·</span>
-                <span className="inline-flex items-center gap-1 text-amber-600">
+                <span className="inline-flex items-center gap-1 text-brand-ink">
                   <Star size={10} /> Wyróżniony wpis
                 </span>
               </>
@@ -987,7 +987,7 @@ function MegaPreview({
         <span className="text-xs font-semibold">
           {t("admin.menu.preview")}
           {usingDerived && hasContent ? (
-            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800">
+            <span className="ml-2 rounded bg-brand/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-brand-ink">
               {t("admin.menu.autoFromTree")}
             </span>
           ) : null}

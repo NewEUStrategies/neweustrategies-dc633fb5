@@ -12,7 +12,7 @@ import type { PermissionLevel } from "@/lib/authz/permissionMatrix";
 const LEVEL_STYLE: Readonly<Record<PermissionLevel, string>> = {
   full: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-300",
   partial:
-    "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/60 dark:text-amber-300",
+    "border-brand/25 bg-brand/10 text-brand-ink dark:border-brand/50 dark:bg-brand/60 dark:text-brand",
   none: "border-border bg-muted/60 text-muted-foreground",
   not_applicable: "border-dashed border-border/70 bg-transparent text-muted-foreground/70",
 };

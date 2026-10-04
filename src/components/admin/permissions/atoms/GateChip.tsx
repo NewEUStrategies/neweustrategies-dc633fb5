@@ -34,7 +34,7 @@ export function GateChip({ object, kind, securityDefiner = false, className }: G
       <span className="truncate font-mono">{object}</span>
       {securityDefiner && (
         <ShieldAlert
-          className="h-3 w-3 shrink-0 text-amber-600 dark:text-amber-400"
+          className="h-3 w-3 shrink-0 text-brand-ink dark:text-brand"
           aria-hidden="true"
         />
       )}

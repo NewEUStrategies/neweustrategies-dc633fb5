@@ -44,7 +44,7 @@ function Pill({ ok, label, title }: { ok: boolean; label: string; title?: string
         "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide border",
         ok
           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-          : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+          : "border-brand/100/30 bg-brand/100/10 text-brand-ink dark:text-brand",
       )}
     >
       {ok ? <Check className="w-2.5 h-2.5" /> : <AlertTriangle className="w-2.5 h-2.5" />}

@@ -148,7 +148,7 @@ export function EventTermsPanel({ eventId }: { eventId: string }) {
                     {` · ${t(`adminEventTerms.displays.${row.display}`)}`}
                   </p>
                   {stale === 0 ? null : (
-                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                    <p className="text-xs text-brand-ink dark:text-brand">
                       {t("adminEventTerms.labels.staleAcceptances", { count: stale })}
                     </p>
                   )}

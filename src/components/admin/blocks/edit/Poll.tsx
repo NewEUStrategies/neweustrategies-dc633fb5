@@ -67,7 +67,7 @@ export function PollBlockEdit({ block, onChange }: Props) {
         </p>
       )}
       {selected?.status === "draft" && (
-        <p className="text-xs text-amber-600 dark:text-amber-500">
+        <p className="text-xs text-brand-ink dark:text-brand0">
           To szkic: publicznie pojawi się dopiero po otwarciu ankiety.
         </p>
       )}

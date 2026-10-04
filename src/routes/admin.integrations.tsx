@@ -506,7 +506,7 @@ function StatCard({
       case "wait":
         return "text-sky-600 dark:text-sky-400";
       case "warn":
-        return "text-amber-600 dark:text-amber-400";
+        return "text-brand-ink dark:text-brand";
       case "err":
         return "text-destructive";
     }

@@ -440,7 +440,7 @@ function CfpSubmissionBody({
             })}
           </p>
           {detail.summary.reviewsCount < detail.minReviews ? (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
+            <p className="text-xs text-brand-ink dark:text-brand">
               {t("adminEventCfp.detail.belowMin")}
             </p>
           ) : null}
@@ -459,7 +459,7 @@ function CfpSubmissionBody({
                   <span className="text-xs text-muted-foreground">{when(review.updatedAt)}</span>
                 </div>
                 {review.conflictOfInterest ? (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                  <p className="text-xs text-brand-ink dark:text-brand">
                     {t("adminEventCfp.detail.conflict")}
                   </p>
                 ) : (

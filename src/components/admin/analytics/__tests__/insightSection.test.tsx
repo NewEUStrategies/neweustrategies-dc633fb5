@@ -213,7 +213,7 @@ describe("InsightSection - kolejność i liczniki", () => {
 
     const klasy = wpisy().map((li) => li.className);
     expect(klasy[0]).toContain("border-red-500/30");
-    expect(klasy[1]).toContain("border-amber-500/30");
+    expect(klasy[1]).toContain("border-brand/100/30");
     expect(klasy[2]).toContain("border-sky-500/30");
     expect(klasy[3]).toContain("border-emerald-500/30");
     expect(new Set(klasy).size).toBe(4);
@@ -264,7 +264,7 @@ describe("InsightSection - treść wpisu", () => {
     );
 
     const wpis = wpisy()[0];
-    expect(wpis.className).toContain("border-amber-500/30");
+    expect(wpis.className).toContain("border-brand/100/30");
     expect(within(wpis).getByText("Wniosek x")).toBeTruthy();
     expect(
       within(wpis)

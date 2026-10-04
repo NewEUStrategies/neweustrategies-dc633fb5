@@ -284,7 +284,7 @@ describe("ton kafelka zapala się dopiero powyżej zera", () => {
     const odmowy = screen.getByText(`${T}.deniedTotal`).closest("div.p-3");
     const nieobecni = screen.getByText(`${T}.noShowTotal`).closest("div.p-3");
     expect(odmowy?.querySelector(".text-destructive")).toBeNull();
-    expect(nieobecni?.querySelector(".text-amber-600")).toBeNull();
+    expect(nieobecni?.querySelector(".text-brand-ink")).toBeNull();
   });
 
   it("pierwsza odmowa i pierwszy nieobecny podnoszą wzrok kolorem", () => {
@@ -294,7 +294,7 @@ describe("ton kafelka zapala się dopiero powyżej zera", () => {
     const odmowy = screen.getByText(`${T}.deniedTotal`).closest("div.p-3");
     const nieobecni = screen.getByText(`${T}.noShowTotal`).closest("div.p-3");
     expect(odmowy?.querySelector(".text-destructive")).not.toBeNull();
-    expect(nieobecni?.querySelector(".text-amber-600")).not.toBeNull();
+    expect(nieobecni?.querySelector(".text-brand-ink")).not.toBeNull();
     // Kolor jest DODATKIEM: liczba nadal czyta się bez niego.
     expect(kafelek("deniedTotal")).toBe("1");
   });

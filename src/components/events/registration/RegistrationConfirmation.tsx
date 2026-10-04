@@ -138,7 +138,7 @@ export function RegistrationConfirmation({
           wejściówkę. Przed migracją `20260828206000` ten stan w ogóle nie
           istniał: płatny bilet był wydawany za darmo, z działającym kodem QR. */}
       {result.paymentRequired && !cancelled && (
-        <div className="space-y-2 rounded-[6px] border border-amber-500/50 bg-amber-500/5 p-4">
+        <div className="space-y-2 rounded-[6px] border border-brand/100/50 bg-brand/100/5 p-4">
           {!planSettled && (
             <>
               <h2 className="text-sm font-semibold text-foreground">

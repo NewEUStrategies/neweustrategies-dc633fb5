@@ -29,7 +29,7 @@ import "@/lib/i18n-profile-intent";
 const FILL: Record<ProfileCompletenessGrade, string> = {
   strong: "bg-emerald-500",
   partial: "bg-[var(--brand)]",
-  thin: "bg-amber-500",
+  thin: "bg-brand/100",
 };
 
 /** Progi wchodzą do etykiet pól jako interpolacja - jedna mapa, zero literałów w JSX. */
@@ -80,7 +80,7 @@ export function ProfileCompletenessCard({
               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
               : status.grade === "partial"
                 ? "border-[var(--brand)]/40 bg-[var(--brand)]/10 text-[var(--brand)]"
-                : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400",
+                : "border-brand/100/40 bg-brand/100/10 text-brand-ink dark:text-brand",
           )}
         >
           {t(`profileCompleteness.grade.${status.grade}`)}

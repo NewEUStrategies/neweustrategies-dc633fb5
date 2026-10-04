@@ -67,14 +67,14 @@ export function PodcastFeedReadinessCard({
       className={`grid gap-2 rounded-lg border p-4 ${
         ready
           ? "border-emerald-500/40 bg-emerald-50/40 dark:bg-emerald-950/20"
-          : "border-amber-500/50 bg-amber-50/40 dark:bg-amber-950/20"
+          : "border-brand/100/50 bg-brand/40 dark:bg-brand/20"
       }`}
     >
       <div className="flex items-center gap-2">
         {ready ? (
           <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden />
         ) : (
-          <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden />
+          <AlertTriangle className="h-4 w-4 text-brand-ink" aria-hidden />
         )}
         <h3 className="text-sm font-semibold">
           {t("adminPodcasts.settings.apple.readinessTitle")}

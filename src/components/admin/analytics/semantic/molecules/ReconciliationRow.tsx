@@ -45,7 +45,7 @@ export function ReconciliationRow({ entry, deltaPct }: ReconciliationRowProps) {
   return (
     <li
       className={
-        "rounded-md border bg-card p-3 " + (attention ? "border-amber-500/40" : "border-border")
+        "rounded-md border bg-card p-3 " + (attention ? "border-brand/100/40" : "border-border")
       }
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

@@ -156,7 +156,7 @@ export function EventSpeakersManager({ eventId }: { eventId: string }) {
   return (
     <div className="space-y-3">
       {isDraft && (
-        <p className="flex gap-2 rounded-[6px] border border-amber-500/40 bg-amber-500/10 p-3 text-xs leading-snug text-foreground">
+        <p className="flex gap-2 rounded-[6px] border border-brand/100/40 bg-brand/100/10 p-3 text-xs leading-snug text-foreground">
           <EyeOff className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {t("adminCommunityEvents.speakers.draftNotice")}
         </p>

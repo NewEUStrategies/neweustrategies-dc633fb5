@@ -155,7 +155,7 @@ describe("SerpMeter - ton paska per poziom", () => {
   // redaktor rozpoznaje stan bez czytania etykiety.
   const TONE: ReadonlyArray<readonly [SerpMetric["grade"], string]> = [
     ["empty", "bg-muted-foreground/30"],
-    ["short", "bg-amber-500"],
+    ["short", "bg-brand/100"],
     ["good", "bg-emerald-500"],
     ["long", "bg-destructive"],
   ];

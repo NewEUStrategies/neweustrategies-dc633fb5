@@ -60,7 +60,7 @@ export function ScannerOutboxPanel({
       </header>
 
       {!persistent && (
-        <p className="rounded-[6px] border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+        <p className="rounded-[6px] border border-brand/100/40 bg-brand/100/10 px-3 py-2 text-xs text-brand-ink dark:text-brand">
           {t("eventScanner.session.memoryOnly")}
         </p>
       )}

@@ -21,7 +21,7 @@ const ROLE_ICON: Readonly<Record<AppRole, typeof Shield>> = {
 
 const ROLE_TONE: Readonly<Record<AppRole, string>> = {
   super_admin: "border-red-200 dark:border-red-900/70",
-  admin: "border-amber-200 dark:border-amber-900/70",
+  admin: "border-brand/25 dark:border-brand/70",
   editor: "border-blue-200 dark:border-blue-900/70",
   author: "border-emerald-200 dark:border-emerald-900/70",
   user: "border-border",

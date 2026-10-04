@@ -22,7 +22,7 @@ export function EditPresenceBanner({ entityType, entityId }: EditPresenceBannerP
     <div
       role="status"
       aria-live="polite"
-      className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300"
+      className="flex items-center gap-2 rounded-lg border border-brand/100/40 bg-brand/100/10 px-3 py-2 text-xs text-brand-ink dark:text-brand"
     >
       <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
       <span>

@@ -433,7 +433,7 @@ describe("readableInkOn", () => {
   it("na jasnym tle daje czarny napis (bialy na zoltym bylby nieczytelny)", () => {
     expect(readableInkOn("#ffffff")).toBe("#000000");
     expect(readableInkOn("#ffff00")).toBe("#000000");
-    expect(readableInkOn("#f59e0b")).toBe("#000000");
+    expect(readableInkOn("#FA9346")).toBe("#000000");
     expect(readableInkOn("#00ff00")).toBe("#000000");
   });
 
@@ -465,7 +465,7 @@ describe("readableInkOn", () => {
     "#1a237e",
     "#2563eb",
     "#e11d48",
-    "#f59e0b",
+    "#FA9346",
     "#737373",
     "#757575",
     "#767676",

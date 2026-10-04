@@ -14,24 +14,24 @@ import "@/lib/i18n-newsletter-runner";
 
 const DOT: Record<RunnerState, string> = {
   running: "bg-emerald-500",
-  idle: "bg-amber-500",
-  misconfigured: "bg-amber-500",
+  idle: "bg-brand/100",
+  misconfigured: "bg-brand/100",
   disabled: "bg-muted-foreground/50",
   error: "bg-destructive",
 };
 
 const TEXT: Record<RunnerState, string> = {
   running: "text-emerald-600 dark:text-emerald-400",
-  idle: "text-amber-600 dark:text-amber-400",
-  misconfigured: "text-amber-600 dark:text-amber-400",
+  idle: "text-brand-ink dark:text-brand",
+  misconfigured: "text-brand-ink dark:text-brand",
   disabled: "text-muted-foreground",
   error: "text-destructive",
 };
 
 const SURFACE: Record<RunnerState, string> = {
   running: "bg-emerald-500/10",
-  idle: "bg-amber-500/10",
-  misconfigured: "bg-amber-500/10",
+  idle: "bg-brand/100/10",
+  misconfigured: "bg-brand/100/10",
   disabled: "bg-muted",
   error: "bg-destructive/10",
 };

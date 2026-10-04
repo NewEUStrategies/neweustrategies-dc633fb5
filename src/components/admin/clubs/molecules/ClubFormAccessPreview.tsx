@@ -53,15 +53,15 @@ export function ClubFormAccessPreview({
       </Card>
 
       {warnings.length === 0 ? null : (
-        <Card className="border-amber-500/40 bg-amber-500/5">
+        <Card className="border-brand/100/40 bg-brand/100/5">
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+            <CardTitle className="flex items-center gap-2 text-sm text-brand-ink dark:text-brand">
               <AlertTriangle className="h-4 w-4" />
               {t("adminClubs.accessWarning.title")}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-2 text-xs text-amber-800 dark:text-amber-200">
+            <ul className="space-y-2 text-xs text-brand-ink dark:text-brand">
               {warnings.map((warning) => (
                 <li key={warning}>{t(`adminClubs.accessWarning.${warning}`)}</li>
               ))}

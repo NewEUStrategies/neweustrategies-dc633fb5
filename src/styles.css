@@ -277,8 +277,8 @@ body {
 
   /* Widget form-field interaction tokens - shared across every widget input.
      Override per-widget by setting these vars on the widget shell. */
-  --gc-input-hover-border: #fdb078; /* light-orange hover ring, per brand */
-  --gc-input-focus-border: #fdb078; /* focus uses the same orange for continuity */
+  --gc-input-hover-border: #FA9346; /* light-orange hover ring, per brand */
+  --gc-input-focus-border: #FA9346; /* focus uses the same orange for continuity */
   /* TABELA ROZMIARÓW CZCIONEK (admin → Wygląd → Rozmiary czcionek).
      Jedyne źródło prawdy dla globalnych reguł typografii UI - katalog tokenów
      żyje w `src/lib/theme/fontScale.ts`, nadpisania tenanta wstrzykuje
@@ -530,7 +530,7 @@ body {
      2,25:1, #ed751a ma 2,93:1 wobec wymaganych 3,0 dla grafiki i 4,5 dla
      tekstu. To nie znaczy, że nie wolno go używać - znaczy, że na jasnym tle
      akcent NIE MOŻE BYĆ JEDYNYM NOŚNIKIEM INFORMACJI. Wolno nim wypełnić
-     powierzchnię pod ciemnym tekstem (tusz na #fa9346 ma 8,06:1, na #fdb078
+     powierzchnię pod ciemnym tekstem (tusz na #fa9346 ma 8,06:1, na #FA9346
      10,07:1, na #fff4ed 16,78:1 - biel na pomarańczu ma 2,25:1 i jest
      wykluczona) oraz podbić element już wyróżniony pozycją lub etykietą.
      Nie wolno nim pisać liczb, etykiet osi ani podpisów na jasnym tle.
@@ -553,7 +553,7 @@ body {
      więc przesunęła się razem z nią (patrz SLOTS_CLASHING_WITH_ACCENT). */
   --chart-accent: #fa9346;
   --chart-accent-text: #ed751a;
-  --chart-accent-fill: #fdb078;
+  --chart-accent-fill: #FA9346;
   --chart-accent-bg: #fff4ed;
   --chart-accent-audit: #ab5517;
   --chart-accent-audit-graphic: #cb7032;
@@ -977,7 +977,7 @@ body {
      wypełnienia i markera.
      ============================================================ */
   --chart-1: #2196f3; /* granat           6,14:1 */
-  --chart-2: #fdb078; /* ochra            10,64:1 */
+  --chart-2: #FA9346; /* ochra            10,64:1 */
   --chart-3: #76c457; /* szalwia [bezp.]  8,95:1 */
   --chart-4: #e7bcde; /* sliwka [bezp.]   11,54:1 */
   --chart-5: #92eeff; /* lazur            14,51:1 */
@@ -1009,7 +1009,7 @@ body {
      przeoczenie, to konsekwencja tego, że na ciemnym tle rozjaśnianie
      PODNOSI kontrast, a zmiękczenie rozjaśniło całą paletę. */
   --chart-1t: #2196f3; /* 6,14:1 - bez zmiany */
-  --chart-2t: #fdb078; /* 10,64:1 - bez zmiany */
+  --chart-2t: #FA9346; /* 10,64:1 - bez zmiany */
   --chart-3t: #76c457; /* 8,95:1 - bez zmiany */
   --chart-4t: #e7bcde; /* 11,54:1 - bez zmiany */
   --chart-5t: #92eeff; /* 14,51:1 - bez zmiany */
@@ -1091,7 +1091,7 @@ body {
      plamą. */
   --chart-accent: #fa9346;
   --chart-accent-text: #ed751a;
-  --chart-accent-fill: #fdb078;
+  --chart-accent-fill: #FA9346;
   --chart-accent-bg: #262424;
   --chart-accent-audit: #fa9346;
   /* Warianty audytowe SĄ TU RÓWNE TOKENOWI, i to nie jest przeoczenie:
@@ -3585,10 +3585,10 @@ textarea::placeholder {
   opacity: 1 !important;
 }
 .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
   background: var(--gc-input-bg, var(--background));
 }
 .dark .cf-shell .cf-input {
@@ -3596,11 +3596,11 @@ textarea::placeholder {
   border-color: var(--gc-input-border, color-mix(in oklab, var(--foreground) 30%, transparent));
 }
 .dark .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 .dark .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, color-mix(in oklab, var(--background) 65%, var(--foreground) 14%));
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
 }
 
 /* Image background */
@@ -3737,7 +3737,7 @@ textarea::placeholder {
 /* Contact-form input focus: orange border only, no glow. */
 .cf-shell .cf-input:focus,
 .dark .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
 }
 
 @layer components {
@@ -3779,10 +3779,10 @@ textarea::placeholder {
       ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     select
   ):hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 :where([data-w-id]) :where(textarea):hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 :where([data-w-id])
   :where(
@@ -3801,7 +3801,7 @@ textarea::placeholder {
     select
   ):focus-visible {
   outline: none;
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
   background: var(--gc-input-bg, var(--background));
   /* Kill Tailwind ring utilities (they'd stack an extra blue box-shadow). */
   --tw-ring-color: transparent;
@@ -4376,11 +4376,11 @@ input.icon-input-with-action {
   border-color: var(--gc-input-border, var(--cf-border, var(--border)));
 }
 .light .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 .light .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, var(--background));
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
 }
 .light
   :where([data-w-id])

@@ -792,7 +792,7 @@ function MeteringImpactPreview({
               <dt className="text-xs text-muted-foreground">
                 {t("admin.paywall.meteringImpactWarning")}
               </dt>
-              <dd className="font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+              <dd className="font-semibold tabular-nums text-brand-ink dark:text-brand">
                 {fmt.format(row.members_warning)}
               </dd>
             </div>

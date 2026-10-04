@@ -101,7 +101,7 @@ export function WordPressPreviewDialog({ open, onOpenChange, siteDomain, wpId, w
               <span className="text-sky-700 dark:text-sky-300">
                 Gutenberg: {data.coverage.gutenbergMapped}
               </span>
-              <span className="text-amber-700 dark:text-amber-300">
+              <span className="text-brand-ink dark:text-brand">
                 Fallback: {data.coverage.fallback}
               </span>
               <span className="text-muted-foreground">
@@ -129,11 +129,11 @@ export function WordPressPreviewDialog({ open, onOpenChange, siteDomain, wpId, w
             </div>
 
             {data.warnings.length > 0 && (
-              <details className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs">
-                <summary className="cursor-pointer font-medium text-amber-800 dark:text-amber-200">
+              <details className="rounded-md border border-brand/100/40 bg-brand/100/5 px-3 py-2 text-xs">
+                <summary className="cursor-pointer font-medium text-brand-ink dark:text-brand">
                   {lang === "pl" ? "Ostrzeżenia" : "Warnings"} ({data.warnings.length})
                 </summary>
-                <ul className="mt-2 space-y-1 pl-4 text-amber-900 dark:text-amber-100">
+                <ul className="mt-2 space-y-1 pl-4 text-brand-ink dark:text-brand">
                   {data.warnings.slice(0, 20).map((w, i) => (
                     <li key={i} className="list-disc">
                       {w}

@@ -80,7 +80,7 @@ export const BLOCK_PALETTE_VAR: Record<string, string> = {
   primary: "var(--primary)",
   accent: "var(--accent-foreground, var(--primary))",
   success: "var(--success, #16a34a)",
-  warning: "var(--warning, #d97706)",
+  warning: "var(--warning, #FA9346)",
   danger: "var(--destructive)",
 };
 

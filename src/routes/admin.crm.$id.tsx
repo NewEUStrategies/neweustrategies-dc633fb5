@@ -134,7 +134,7 @@ type LeadDetail = {
 
 const STAGE_STYLE: Record<Stage, string> = {
   new: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
-  contacted: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  contacted: "bg-brand/100/15 text-brand-ink dark:text-brand",
   qualified: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
   proposal: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   won: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",

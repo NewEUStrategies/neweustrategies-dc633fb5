@@ -167,7 +167,7 @@ function SeoSocialTab() {
       ? "text-emerald-500"
       : verdict === "unknown"
         ? "text-muted-foreground"
-        : "text-amber-500";
+        : "text-brand0";
 
   // Wybór POLA po języku podglądu (nie tekstu) - mapa zamiast ternary, żeby
   // było widać, że to odczyt kolumny, a nie kopia treści w dwóch wersjach.
@@ -199,14 +199,14 @@ function SeoSocialTab() {
       <p className="text-sm text-muted-foreground">{t("adminSeoHub.socialIntro")}</p>
 
       {isAdmin ? null : (
-        <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+        <p className="rounded-lg border border-brand/100/40 bg-brand/100/5 px-3 py-2 text-xs text-brand-ink dark:text-brand">
           {t("adminSeoHub.readOnlyNotice")}
         </p>
       )}
 
       {publicOrigin === null ? (
         <p
-          className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400"
+          className="rounded-lg border border-brand/100/40 bg-brand/100/5 px-3 py-2 text-xs text-brand-ink dark:text-brand"
           data-seo-no-domain
         >
           {t("adminSeoHub.noPublicDomain")}

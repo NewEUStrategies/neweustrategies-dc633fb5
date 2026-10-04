@@ -374,7 +374,7 @@ export function CrmPartnerEndpointsPanel({ lang, stageLabels }: Props) {
                           {t("sekret ustawiony", "secret set")}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] text-amber-600">
+                        <Badge variant="outline" className="text-[10px] text-brand-ink">
                           {t("bez sekretu", "no secret")}
                         </Badge>
                       )}

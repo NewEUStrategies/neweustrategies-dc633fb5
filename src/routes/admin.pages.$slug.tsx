@@ -809,9 +809,9 @@ function SeoDescriptionField({
 
   const toneColor = {
     empty: "text-muted-foreground",
-    short: "text-amber-600 dark:text-amber-400",
+    short: "text-brand-ink dark:text-brand",
     good: "text-emerald-600 dark:text-emerald-400",
-    long: "text-amber-600 dark:text-amber-400",
+    long: "text-brand-ink dark:text-brand",
     tooLong: "text-destructive",
   }[tone];
 
@@ -875,7 +875,7 @@ function SeoDescriptionField({
                 ? "bg-destructive"
                 : tone === "empty"
                   ? "bg-transparent"
-                  : "bg-amber-500"
+                  : "bg-brand/100"
           }`}
           style={{ width: `${Math.min(100, (len / MAX) * 100)}%` }}
         />

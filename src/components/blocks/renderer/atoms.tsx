@@ -195,7 +195,7 @@ export const renderQuote: BlockRenderer = ({ block, fnHtml, cls }) => {
     accent: "var(--accent-foreground, var(--primary))",
     primary: "var(--primary)",
     success: "var(--success, #16a34a)",
-    warning: "var(--warning, #d97706)",
+    warning: "var(--warning, #FA9346)",
     danger: "var(--destructive)",
   };
   const accent = paletteVar[palette] ?? paletteVar.neutral;
@@ -310,7 +310,7 @@ export const renderCallout: BlockRenderer = ({ block, cls }) => {
   const text = str(block.data, "text");
   const map: Record<string, string> = {
     info: "bg-muted border-border text-foreground",
-    warning: "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300",
+    warning: "bg-brand/100/10 border-brand/100/30 text-brand-ink dark:text-brand",
     success: "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
     danger: "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300",
   };

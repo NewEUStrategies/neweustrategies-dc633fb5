@@ -130,7 +130,7 @@ function LangColumn({
             </p>
           )}
           {voiceChanged && (
-            <p className="mt-2 text-[11px] font-medium text-amber-600 dark:text-amber-500">
+            <p className="mt-2 text-[11px] font-medium text-brand-ink dark:text-brand0">
               {t("adminPostPanes.sections.ttsRenditionVoiceChanged")}
             </p>
           )}

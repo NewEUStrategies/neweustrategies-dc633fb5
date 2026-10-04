@@ -49,7 +49,7 @@ import {
 const TONE_MARK = {
   neutral: "bg-muted",
   positive: "bg-emerald-500/10",
-  attention: "bg-amber-500/10",
+  attention: "bg-brand/100/10",
   danger: "bg-destructive/10",
   info: "bg-primary/10",
 } as const;

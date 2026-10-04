@@ -40,7 +40,7 @@ export function ClubTableRow({ view }: { view: ClubsTableRowView }) {
       <TableCell className="text-right tabular-nums">{view.threadCount}</TableCell>
       <TableCell className="text-right tabular-nums">
         {view.hasPending ? (
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500/15 px-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand/100/15 px-1.5 text-[11px] font-semibold text-brand-ink dark:text-brand">
             {view.pendingCount}
           </span>
         ) : (

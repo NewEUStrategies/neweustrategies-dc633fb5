@@ -45,7 +45,7 @@ export function InlineEntityNodeView({ node, selected }: NodeViewProps) {
           title={t("blocks.inlineEntity.missing")}
           className={cn(
             INLINE_ENTITY_CLASSES.static,
-            "cursor-pointer rounded-[0.3em] border-b border-dashed border-amber-500 text-amber-700 dark:text-amber-300",
+            "cursor-pointer rounded-[0.3em] border-b border-dashed border-brand/100 text-brand-ink dark:text-brand",
             selected && "ring-2 ring-ring ring-offset-1",
           )}
         >

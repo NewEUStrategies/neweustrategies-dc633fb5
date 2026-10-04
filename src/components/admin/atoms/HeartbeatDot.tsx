@@ -12,14 +12,14 @@ ensureI18n();
 
 const DOT: Record<SchedulerFreshness, string> = {
   fresh: "bg-emerald-500",
-  lagging: "bg-amber-500",
+  lagging: "bg-brand/100",
   stale: "bg-destructive motion-safe:animate-pulse",
   never: "bg-muted-foreground/50",
 };
 
 const TEXT: Record<SchedulerFreshness, string> = {
   fresh: "text-emerald-600 dark:text-emerald-400",
-  lagging: "text-amber-600 dark:text-amber-400",
+  lagging: "text-brand-ink dark:text-brand",
   stale: "text-destructive",
   never: "text-muted-foreground",
 };

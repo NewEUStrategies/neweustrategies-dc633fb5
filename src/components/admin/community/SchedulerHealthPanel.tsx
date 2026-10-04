@@ -339,7 +339,7 @@ export function SchedulerHealthPanel() {
                 className={
                   runner.lastTickStatus === "dispatched"
                     ? "m-0 text-muted-foreground"
-                    : "m-0 text-amber-600 dark:text-amber-400"
+                    : "m-0 text-brand-ink dark:text-brand"
                 }
               >
                 {t(`adminScheduler.runner.tickStatus.${runner.lastTickStatus}`, {
@@ -357,7 +357,7 @@ export function SchedulerHealthPanel() {
                   className={
                     runner.communityCron.lastTickStatus === "dispatched"
                       ? "m-0 text-muted-foreground"
-                      : "m-0 text-amber-600 dark:text-amber-400"
+                      : "m-0 text-brand-ink dark:text-brand"
                   }
                 >
                   {t(`adminScheduler.runner.communityTick.${runner.communityCron.lastTickStatus}`, {

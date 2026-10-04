@@ -404,7 +404,7 @@ function LiveBlogAdmin() {
                       {new Date(e.occurred_at).toLocaleString("pl-PL")}
                     </time>
                     {e.pinned && (
-                      <span className="text-[10px] uppercase text-amber-600">
+                      <span className="text-[10px] uppercase text-brand-ink">
                         {t("adminMiscRoutes.liveBlog.pinnedBadge")}
                       </span>
                     )}

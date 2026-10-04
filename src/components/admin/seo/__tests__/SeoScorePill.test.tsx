@@ -36,7 +36,7 @@ const SCORES: readonly number[] = [-5, 0, 1, 50, 100, 120];
 
 const TONE: Record<SeoGrade, string> = {
   good: "bg-emerald-500",
-  warn: "bg-amber-500",
+  warn: "bg-brand/100",
   poor: "bg-destructive",
 };
 

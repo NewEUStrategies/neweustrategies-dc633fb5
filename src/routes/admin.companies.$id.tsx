@@ -873,7 +873,7 @@ function AdminCompanyDetailPage() {
                           </span>
                           <div className="h-2 flex-1 overflow-hidden rounded bg-muted">
                             <div
-                              className="h-full rounded bg-amber-500"
+                              className="h-full rounded bg-brand/100"
                               style={{ width: `${(count / maxBand) * 100}%` }}
                             />
                           </div>

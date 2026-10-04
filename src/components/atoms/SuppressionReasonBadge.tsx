@@ -13,7 +13,7 @@ const TONE: Record<SuppressionReason, string> = {
   hard_bounce: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30",
   blocked: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30",
   invalid: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30",
-  soft_bounce: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+  soft_bounce: "bg-brand/100/10 text-brand-ink dark:text-brand border-brand/100/30",
   unsubscribe: "bg-muted text-muted-foreground border-border",
   manual: "bg-muted text-muted-foreground border-border",
 };

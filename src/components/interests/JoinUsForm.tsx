@@ -922,7 +922,7 @@ export function JoinUsForm({
     newsletterDisabled && inBuilder ? (
       <p
         role="status"
-        className="mb-3 rounded border border-amber-500/60 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-600"
+        className="mb-3 rounded border border-brand/100/60 bg-brand/100/10 px-2 py-1 text-[11px] font-medium text-brand-ink"
       >
         Newsletter jest wyłączony w ustawieniach — ten widget nie wyświetla się na stronie.
       </p>

@@ -48,7 +48,7 @@ const STAT_ICON: Record<ClubStatId, IconType> = {
 
 const TONE_CLASS: Record<ClubStatTone, string> = {
   ok: "text-emerald-600 dark:text-emerald-400",
-  warn: "text-amber-600 dark:text-amber-400",
+  warn: "text-brand-ink dark:text-brand",
   bad: "text-destructive",
   neutral: "",
 };

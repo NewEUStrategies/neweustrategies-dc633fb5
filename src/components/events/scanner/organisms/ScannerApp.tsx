@@ -188,7 +188,7 @@ export function ScannerApp({ initialToken }: { initialToken: string | null }) {
         />
 
         {hoursLeft !== null && hoursLeft <= EXPIRY_WARNING_HOURS && (
-          <p className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+          <p className="flex items-center gap-2 text-xs text-brand-ink dark:text-brand">
             <Signal className="h-3.5 w-3.5" aria-hidden="true" />
             {t("eventScanner.session.expiresSoon")}
           </p>

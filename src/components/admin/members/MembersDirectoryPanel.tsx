@@ -36,7 +36,7 @@ import "@/lib/i18n-admin-members";
 const ALL = "__all__";
 
 function sourceTone(source: MemberDirectoryRow["tierSource"]): string {
-  if (source === "grant") return "bg-amber-500/15 text-amber-600 dark:text-amber-400";
+  if (source === "grant") return "bg-brand/100/15 text-brand-ink dark:text-brand";
   if (source === "subscription") return "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400";
   return "bg-muted text-muted-foreground";
 }

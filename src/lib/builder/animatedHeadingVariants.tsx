@@ -248,7 +248,7 @@ export interface AnimatedHeadingConfig {
  * darker light-mode text ink.
  */
 export function animatedHeadingAccent(color: string | undefined): string {
-  return !color || /^(?:#fa9346|#f97316|var\(--(?:brand|primary)\))$/i.test(color.trim())
+  return !color || /^(?:#fa9346|#FA9346|var\(--(?:brand|primary)\))$/i.test(color.trim())
     ? "var(--widget-orange-accent)"
     : color;
 }

@@ -140,7 +140,7 @@ export function PostSponsoredCard({
               podmiotu to współpraca reklamowa, nie barter. Ostrzeżenie stoi przy
               wyborze, bo tam podejmowana jest zła decyzja. */}
           {form.sponsored_kind === "barter" && (
-            <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11.5px] leading-relaxed">
+            <p className="rounded-md border border-brand/100/40 bg-brand/100/10 px-3 py-2 text-[11.5px] leading-relaxed">
               {t("adminPostPanes.sponsored.barterWarning")}
             </p>
           )}

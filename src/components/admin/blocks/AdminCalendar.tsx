@@ -51,7 +51,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
               <button
                 type="button"
                 onClick={() => setView("month")}
-                className="admin-calendar-caption-btn text-sm font-medium capitalize px-3 py-1 rounded-md hover:bg-[#FDB078] hover:text-foreground transition"
+                className="admin-calendar-caption-btn text-sm font-medium capitalize px-3 py-1 rounded-md hover:bg-[#FA9346] hover:text-foreground transition"
               >
                 {format(calendarMonth.date, "LLLL yyyy", { locale })}
               </button>
@@ -74,7 +74,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
           <button
             type="button"
             onClick={() => setMonth(new Date(month.getFullYear() - 1, month.getMonth(), 1))}
-            className="h-7 w-7 rounded-md hover:bg-[#FDB078] hover:text-foreground inline-flex items-center justify-center transition"
+            className="h-7 w-7 rounded-md hover:bg-[#FA9346] hover:text-foreground inline-flex items-center justify-center transition"
             aria-label={isEn ? "Previous year" : "Poprzedni rok"}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -82,14 +82,14 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
           <button
             type="button"
             onClick={() => setView("year")}
-            className="text-sm font-semibold px-3 py-1 rounded-md hover:bg-[#FDB078] hover:text-foreground transition"
+            className="text-sm font-semibold px-3 py-1 rounded-md hover:bg-[#FA9346] hover:text-foreground transition"
           >
             {month.getFullYear()}
           </button>
           <button
             type="button"
             onClick={() => setMonth(new Date(month.getFullYear() + 1, month.getMonth(), 1))}
-            className="h-7 w-7 rounded-md hover:bg-[#FDB078] hover:text-foreground inline-flex items-center justify-center transition"
+            className="h-7 w-7 rounded-md hover:bg-[#FA9346] hover:text-foreground inline-flex items-center justify-center transition"
             aria-label={isEn ? "Next year" : "Następny rok"}
           >
             <ChevronRight className="h-4 w-4" />
@@ -112,7 +112,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
                 }}
                 className={cn(
                   "h-9 rounded-md text-xs font-medium capitalize transition",
-                  "hover:bg-[#FDB078] hover:text-foreground",
+                  "hover:bg-[#FA9346] hover:text-foreground",
                   isSelected && "bg-primary text-primary-foreground",
                   !isSelected && isToday && "ring-1 ring-border",
                 )}
@@ -136,7 +136,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
         <button
           type="button"
           onClick={() => setMonth(new Date(baseYear - YEAR_PAGE_SIZE, month.getMonth(), 1))}
-          className="h-7 w-7 rounded-md hover:bg-[#FDB078] hover:text-foreground inline-flex items-center justify-center transition"
+          className="h-7 w-7 rounded-md hover:bg-[#FA9346] hover:text-foreground inline-flex items-center justify-center transition"
           aria-label={isEn ? "Previous decade" : "Poprzednia dekada"}
         >
           <ChevronLeft className="h-4 w-4" />
@@ -147,7 +147,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
         <button
           type="button"
           onClick={() => setMonth(new Date(baseYear + YEAR_PAGE_SIZE, month.getMonth(), 1))}
-          className="h-7 w-7 rounded-md hover:bg-[#FDB078] hover:text-foreground inline-flex items-center justify-center transition"
+          className="h-7 w-7 rounded-md hover:bg-[#FA9346] hover:text-foreground inline-flex items-center justify-center transition"
           aria-label={isEn ? "Next decade" : "Następna dekada"}
         >
           <ChevronRight className="h-4 w-4" />
@@ -167,7 +167,7 @@ export function AdminCalendar({ selected, onSelect, locale, className }: Props) 
               }}
               className={cn(
                 "h-9 rounded-md text-xs font-medium transition",
-                "hover:bg-[#FDB078] hover:text-foreground",
+                "hover:bg-[#FA9346] hover:text-foreground",
                 isSelected && "bg-primary text-primary-foreground",
                 !isSelected && isCurrent && "ring-1 ring-border",
               )}

@@ -169,7 +169,7 @@ function BadgesAdmin() {
             />
           </div>
           {duplicate && (
-            <p className="text-xs text-amber-700 dark:text-amber-400" role="status">
+            <p className="text-xs text-brand-ink dark:text-brand" role="status">
               {t("adminCommunity.badges.selectedMemberAlreadyHas")}
             </p>
           )}

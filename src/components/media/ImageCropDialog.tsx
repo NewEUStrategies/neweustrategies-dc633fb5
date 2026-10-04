@@ -222,7 +222,7 @@ export function ImageCropDialog({
         )}
 
         {aspectWarn && (
-          <div className="flex items-start gap-2 rounded-[6px] border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-900 dark:text-amber-200">
+          <div className="flex items-start gap-2 rounded-[6px] border border-brand/100/40 bg-brand/100/10 p-2 text-xs text-brand-ink dark:text-brand">
             <ImageOff className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
             <span>{t.aspectMismatch}</span>
           </div>

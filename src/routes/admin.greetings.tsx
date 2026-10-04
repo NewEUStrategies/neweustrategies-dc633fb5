@@ -324,7 +324,7 @@ function GreetingsAdmin() {
                                   ? "np. Dzień dobry, {name}!"
                                   : "e.g. Good morning, {name}!"
                               }
-                              className={`h-8 text-sm ${!hasName ? "border-amber-500/60" : ""}`}
+                              className={`h-8 text-sm ${!hasName ? "border-brand/100/60" : ""}`}
                             />
                             <Button
                               type="button"

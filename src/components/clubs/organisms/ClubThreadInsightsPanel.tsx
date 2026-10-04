@@ -33,7 +33,7 @@ import { formatDateShort } from "@/lib/i18n/format";
  *  czwórki, która jest układem, a nie decyzją o danych. */
 const SERIES_CLASS: Record<InsightSeriesKey, string> = {
   replies: "bg-primary/80",
-  questions: "bg-amber-500/80",
+  questions: "bg-brand/100/80",
   documents: "bg-sky-500/80",
   milestones: "bg-emerald-500/80",
 };

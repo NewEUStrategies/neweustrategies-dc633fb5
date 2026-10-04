@@ -23,7 +23,7 @@ function Check({ ok, label }: { ok: boolean; label: string }) {
       className={
         ok
           ? "flex items-start gap-2 text-foreground"
-          : "flex items-start gap-2 text-amber-700 dark:text-amber-300"
+          : "flex items-start gap-2 text-brand-ink dark:text-brand"
       }
     >
       <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

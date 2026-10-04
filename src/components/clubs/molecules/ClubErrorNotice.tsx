@@ -37,12 +37,12 @@ export function ClubErrorNotice({
   return (
     <div
       role="status"
-      className={`flex flex-col items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 text-center ${
+      className={`flex flex-col items-center gap-3 rounded-lg border border-brand/100/40 bg-brand/100/5 text-center ${
         compact ? "p-4" : "p-8"
       } ${className ?? ""}`}
     >
       <AlertTriangle
-        className={compact ? "h-5 w-5 text-amber-600" : "h-7 w-7 text-amber-600"}
+        className={compact ? "h-5 w-5 text-brand-ink" : "h-7 w-7 text-brand-ink"}
         aria-hidden="true"
       />
       <div className="space-y-1">

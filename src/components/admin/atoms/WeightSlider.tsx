@@ -57,7 +57,7 @@ export function WeightSlider({
           </Label>
           <p className="text-xs text-muted-foreground">{hint}</p>
           {inert && (
-            <p id={hintId} className="mt-0.5 text-xs font-medium text-amber-600">
+            <p id={hintId} className="mt-0.5 text-xs font-medium text-brand-ink">
               {disabledReason}
             </p>
           )}

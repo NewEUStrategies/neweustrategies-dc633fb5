@@ -242,7 +242,7 @@ export function ClubModerationTab({ clubId }: { clubId: string }) {
         <CardHeader className="gap-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <ShieldAlert className="h-4 w-4 text-brand-ink dark:text-brand" />
               {t("adminClubs.moderation.queueTitle")}
               {queueTotal > 0 ? (
                 <Badge variant="secondary" className="tabular-nums">
@@ -710,7 +710,7 @@ function RevealAuthorDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-left">
-            <ShieldOff className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <ShieldOff className="h-4 w-4 text-brand-ink dark:text-brand" />
             {t("adminClubs.moderation.revealTitle")}
           </DialogTitle>
           <DialogDescription className="text-left">
@@ -727,7 +727,7 @@ function RevealAuthorDialog({
 
         {result === null ? (
           <div className="space-y-3">
-            <p className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-200">
+            <p className="rounded-lg border border-brand/100/40 bg-brand/100/5 p-3 text-xs text-brand-ink dark:text-brand">
               {t("adminClubs.moderation.revealWarning")}
             </p>
             <div className="space-y-1.5">
@@ -765,7 +765,7 @@ function RevealAuthorDialog({
                 {t("adminClubs.moderation.revealOpenProfile")}
               </Link>
             ) : null}
-            <p className="text-xs text-amber-800 dark:text-amber-200">
+            <p className="text-xs text-brand-ink dark:text-brand">
               {t("adminClubs.moderation.revealLogged")}
             </p>
           </div>
@@ -778,7 +778,7 @@ function RevealAuthorDialog({
           {result === null ? (
             <Button
               variant="outline"
-              className="text-amber-700 dark:text-amber-300"
+              className="text-brand-ink dark:text-brand"
               disabled={!accepted || revealM.isPending}
               onClick={submit}
             >
@@ -878,7 +878,7 @@ function ModeratorEditDialog({
               onChange={(e) => setBody(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+          <div className="space-y-1.5 rounded-lg border border-brand/100/40 bg-brand/100/5 p-3">
             <Label htmlFor="club-mod-edit-reason">{t("adminClubs.moderation.editReason")}</Label>
             <Input
               id="club-mod-edit-reason"
@@ -887,7 +887,7 @@ function ModeratorEditDialog({
               onChange={(e) => setReason(e.target.value)}
               placeholder={t("adminClubs.moderation.editReasonPlaceholder")}
             />
-            <p className="text-xs text-amber-800 dark:text-amber-200">
+            <p className="text-xs text-brand-ink dark:text-brand">
               {t("adminClubs.moderation.editWarning")}
             </p>
           </div>

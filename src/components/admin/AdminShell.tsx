@@ -275,7 +275,7 @@ function AdminNavRow({
       ) : null}
       {!groupLabel && typeof item.badge === "number" && item.badge > 0 && !compact ? (
         <span
-          className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold tabular-nums text-amber-700 dark:text-amber-300"
+          className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand/100/20 px-1 text-[10px] font-semibold tabular-nums text-brand-ink dark:text-brand"
           aria-label={badgeLabel}
         >
           {item.badge > 99 ? "99+" : item.badge}

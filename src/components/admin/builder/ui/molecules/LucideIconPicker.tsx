@@ -823,7 +823,7 @@ export function LucideIconPicker({
                         {leniwa ? (
                           <span
                             aria-hidden="true"
-                            className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-amber-500/70"
+                            className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-brand/100/70"
                           />
                         ) : null}
                       </button>

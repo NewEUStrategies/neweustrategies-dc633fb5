@@ -32,10 +32,10 @@ defineEditorMatrix(editorsOf("part1"), { sharedPreviews: true });
 // ŚWIADOMIE BEZ TESTU zostaje JEDNA gałąź edytora: prawa strona
 // `accentColor || "var(--foreground)"` w miniaturce kształtu. Jest NIEOSIĄGALNA
 // i nie jest to defekt: `accentColor` liczy się wyżej jako
-// `(typeof c.accentColor === "string" ? c.accentColor : "") || "#f97316"`, więc
+// `(typeof c.accentColor === "string" ? c.accentColor : "") || "#FA9346"`, więc
 // nigdy nie jest pustym łańcuchem. Zapasowa wartość `var(--foreground)` to
 // martwa asekuracja po tamtej wartości domyślnej, a nie druga ścieżka
-// zachowania - autor, który skasuje kolor akcentu, dostaje #f97316 tak samo
+// zachowania - autor, który skasuje kolor akcentu, dostaje #FA9346 tak samo
 // w miniaturkach, jak w podglądzie na żywo. Zapisane, żeby następna osoba nie
 // szukała scenariusza, którego nie ma.
 import { describe, it, expect } from "vitest";

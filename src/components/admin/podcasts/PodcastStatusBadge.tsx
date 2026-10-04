@@ -13,7 +13,7 @@ export function PodcastStatusBadge({ status }: { status: PodcastStatus }) {
   const { t } = useTranslation();
   const map: Record<PodcastStatus, string> = {
     published: "bg-green-500/10 text-green-700 dark:text-green-400",
-    draft: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+    draft: "bg-brand/100/10 text-brand-ink dark:text-brand",
     archived: "bg-muted text-muted-foreground",
   };
   const label: Record<PodcastStatus, string> = {

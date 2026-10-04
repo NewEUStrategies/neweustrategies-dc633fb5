@@ -332,7 +332,7 @@ export function WordPressImportDialog({ trigger }: { trigger: React.ReactNode })
                           ? `Nadpisania: ${summary.overwrite}`
                           : `Overwrites: ${summary.overwrite}`}
                       </span>
-                      <span className="text-amber-700 dark:text-amber-300">
+                      <span className="text-brand-ink dark:text-brand">
                         {lang === "pl"
                           ? `Pary PL/EN: ${summary.paired}`
                           : `PL/EN pairs: ${summary.paired}`}

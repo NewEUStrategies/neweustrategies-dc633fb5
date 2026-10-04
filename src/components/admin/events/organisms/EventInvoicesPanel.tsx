@@ -95,7 +95,7 @@ export function EventInvoicesPanel({ eventId }: { eventId: string }) {
       {settingsQ.data !== undefined && !enabled ? (
         <div
           role="status"
-          className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3"
+          className="space-y-2 rounded-md border border-brand/100/50 bg-brand/100/10 p-3"
         >
           <p className="text-sm font-semibold">{t("adminEventInvoices.disabled.title")}</p>
           <p className="text-sm">{t("adminEventInvoices.disabled.body")}</p>

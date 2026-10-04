@@ -3,7 +3,7 @@ export type LedgerTone = "positive" | "warning" | "negative" | "neutral";
 
 const TONE: Record<LedgerTone, string> = {
   positive: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-  warning: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  warning: "bg-brand/100/10 text-brand-ink border-brand/100/20",
   negative: "bg-destructive/10 text-destructive border-destructive/20",
   neutral: "bg-muted text-muted-foreground border-border",
 };

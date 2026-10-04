@@ -78,7 +78,7 @@ export function ClubTableCard({ view }: { view: ClubsTableRowView }) {
           {t("adminClubs.openPublic")}
         </button>
         {view.hasPending ? (
-          <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+          <span className="rounded-full bg-brand/100/15 px-2 py-0.5 text-[11px] font-semibold text-brand-ink dark:text-brand">
             {t("adminClubs.columns.pending")}: {view.pendingCount}
           </span>
         ) : null}

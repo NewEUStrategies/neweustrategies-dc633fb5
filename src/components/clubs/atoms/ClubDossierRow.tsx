@@ -42,7 +42,7 @@ export type ClubDossierTone =
 const SPINE: Record<ClubDossierTone, string> = {
   thread: "bg-primary/60",
   discussion: "bg-violet-500/60",
-  question: "bg-amber-500/70",
+  question: "bg-brand/100/70",
   position: "bg-rose-500/60",
   resource: "bg-teal-500/60",
   announcement: "bg-orange-500/60",
@@ -56,7 +56,7 @@ const SPINE: Record<ClubDossierTone, string> = {
 const ICON_BOX: Record<ClubDossierTone, string> = {
   thread: "border-primary/30 bg-primary/10 text-foreground",
   discussion: "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
-  question: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  question: "border-brand/100/30 bg-brand/100/10 text-brand-ink dark:text-brand",
   position: "border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300",
   resource: "border-teal-500/30 bg-teal-500/10 text-teal-700 dark:text-teal-300",
   announcement: "border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300",
