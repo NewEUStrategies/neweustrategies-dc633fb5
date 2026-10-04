@@ -14,7 +14,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const MAX_RECORDING_MS = 30_000; // twardy sufit, żeby użytkownik nie „zapomniał" mikrofonu
+// Nagrywanie trwa, aż użytkownik sam kliknie stop. Jedyny bezpiecznik to
+// 5 minut, żeby porzucona karta nie trzymała mikrofonu w nieskończoność.
+const MAX_RECORDING_MS = 5 * 60_000;
 const SILENCE_AFTER_SPEECH_MS = 1100; // auto-stop po ciszy, gdy juz coś powiedziano
 const NO_SPEECH_TIMEOUT_MS = 6000; // gdy nic nie wykryto - zamykamy szybciej niż hard cap
 const CALIBRATION_MS = 400; // pierwsze ~400ms - pomiar szumu tła
@@ -206,7 +208,7 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
     const rec = new Ctor();
     rec.lang = lang === "en" ? "en-US" : "pl-PL";
     rec.interimResults = true;
-    rec.continuous = false;
+    rec.continuous = true;
     rec.maxAlternatives = 1;
     rec.onresult = (e) => {
       let text = "";
@@ -222,6 +224,16 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
       if (hasFinal) onFinalRef.current?.(phrase);
     };
     rec.onend = () => {
+      // Przeglądarka sama kończy rozpoznawanie po ciszy - wznawiamy, dopóki
+      // użytkownik nie kliknie stop (wtedy speechRecRef jest już wyzerowany).
+      if (speechRecRef.current === rec) {
+        try {
+          rec.start();
+          return;
+        } catch {
+          /* nie da się wznowić - kończymy */
+        }
+      }
       speechRecRef.current = null;
       setListening(false);
     };
@@ -358,12 +370,8 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
           const sinceVoice = now - lastVoiceAt;
           if (sinceVoice > SPEECH_HANGOVER_MS && silenceTimerRef.current == null) {
             const wait = Math.max(0, SILENCE_AFTER_SPEECH_MS - (sinceVoice - SPEECH_HANGOVER_MS));
-            silenceTimerRef.current = window.setTimeout(() => stopRecording(), wait);
+            void wait; // cisza nie kończy nagrania - tylko przycisk stop
           }
-        } else if (elapsed > NO_SPEECH_TIMEOUT_MS) {
-          // Nic sensownego się nie pojawiło - kończymy, żeby nie palić czasu ani kredytów.
-          stopRecording();
-          return;
         }
         analyserRafRef.current = requestAnimationFrame(tick);
       };
