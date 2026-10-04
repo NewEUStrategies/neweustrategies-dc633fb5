@@ -162,12 +162,18 @@ describe("Kinetic Signal Notch", () => {
     // Kolor z currentColor (ten sam co tekst), a nie z osobnej klasy.
     expect(svg?.getAttribute("stroke")).toBe("currentColor");
     expect(stylesCss).toMatch(/\.nes-kinetic-action svg \{[^}]*color: inherit;/);
-    // „taką samą grubość mają mieć kreski" - kreska chevronu jest dokładnie tak
-    // gruba jak pasek sygnału. stroke-width liczy się w pikselach ekranu
-    // (vector-effect), więc skalowanie viewBoxa nie zmienia grubości linii.
+    // „subtelny ptaszek" - kreska chevronu jest celowo cienka i bez pogrubienia,
+    // wyraźnie cieńsza niż pasek sygnału; stroke-width liczy się w pikselach
+    // ekranu (vector-effect), więc skalowanie viewBoxa jej nie pogrubia.
     const bar = container.querySelector<HTMLElement>(".nes-kinetic-bar");
     expect(bar?.style.height).toBe("3px");
-    expect(svg?.getAttribute("stroke-width")).toBe("3");
+    const stroke = Number(svg?.getAttribute("stroke-width"));
+    expect(stroke).toBeGreaterThan(0);
+    expect(svg?.getAttribute("stroke-width")).toBe("0.85");
+    expect(stroke).toBeLessThanOrEqual(1);
+    const barH = Number((bar?.style.height ?? "").replace(/[^0-9.]/g, ""));
+    expect(barH).toBe(3);
+    expect(stroke).toBeLessThan(barH);
     expect(svg?.querySelector("polyline")?.getAttribute("vector-effect")).toBe(
       "non-scaling-stroke",
     );
@@ -259,9 +265,9 @@ describe("Kinetic Signal Notch", () => {
     expect(container.querySelectorAll(".nes-kinetic-bar")).toHaveLength(3);
     expect(container.querySelector("a.nes-kinetic-action")).toBeNull();
     expect(container.querySelector("span.nes-kinetic-action")).not.toBeNull();
-    // W pigułce paski mają 2 px, więc i kreska chevronu ma 2 px.
+    // W pigułce paski mają 2 px, a kreska ptaszka pozostaje od nich cieńsza (0,7 px).
     expect(container.querySelector<HTMLElement>(".nes-kinetic-bar")?.style.height).toBe("2px");
-    expect(container.querySelector("svg")?.getAttribute("stroke-width")).toBe("2");
+    expect(container.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.7");
   });
 
   it("bez akcji rysuje sam tytuł z sygnałem", () => {
