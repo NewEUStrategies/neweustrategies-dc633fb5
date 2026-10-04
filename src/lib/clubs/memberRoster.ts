@@ -86,6 +86,26 @@ export function canManageClubRoster(club: ClubRosterGate | null | undefined): bo
   return club?.can_manage === true;
 }
 
+/** Minimum karty klubu, jakiego potrzebuje bramka edycji danych klubu. */
+export interface ClubSettingsGate {
+  readonly can_manage?: boolean | null;
+  readonly can_moderate?: boolean | null;
+  readonly my_role?: string | null;
+}
+
+/**
+ * Czy pokazać edycję danych klubu (`club_update_settings`). Lustro bramki RPC
+ * z migracji 20261004090000: administracja (`can_manage`) albo prowadzący
+ * z `can_moderate` - ta flaga niesie kadencję, aktywne członkostwo i aktywny
+ * klub, więc prowadzący klubu zarchiwizowanego albo po kadencji przycisku nie
+ * dostaje. Samo `can_manage` (jak dotąd) chowało edycję przed prowadzącym,
+ * dla którego ją zbudowano - prowadzący nie ma panelu administracyjnego.
+ */
+export function canEditClubSettings(club: ClubSettingsGate | null | undefined): boolean {
+  if (club?.can_manage === true) return true;
+  return club?.my_role === "lead" && club.can_moderate === true;
+}
+
 /**
  * Identyfikator klubu dla zapytań o skład - albo `undefined`, gdy pytać NIE
  * WOLNO.
