@@ -14,6 +14,7 @@ import {
   getRecentSearches,
 } from "@/lib/search/recentSearches";
 import { useVoiceSearch } from "@/lib/search/useVoiceSearch";
+import { VoiceListeningIndicator } from "@/components/voice/VoiceListeningIndicator";
 import {
   suggestBucketOf,
   suggestionHref,
@@ -616,13 +617,11 @@ export function SearchButtonWidget({
             style={hideVoice ? { visibility: "hidden" } : undefined}
             className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
           >
-            <LucideIcons.Mic
-              className={`w-[18px] h-[18px] ${voice.listening ? "animate-pulse" : ""}`}
-              // Inline style wygrywa z regułą .builder-search-widget button svg
-              // - mikrofon świeci na czerwono przez cały czas nagrywania.
-              style={voice.listening ? { color: "var(--destructive)" } : undefined}
-              aria-hidden
-            />
+            {voice.listening ? (
+              <VoiceListeningIndicator />
+            ) : (
+              <LucideIcons.Mic className="w-[18px] h-[18px]" aria-hidden />
+            )}
           </button>
         </div>
       </div>
