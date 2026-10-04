@@ -1163,10 +1163,13 @@ export function SectionLabelRender({
             strokeWidth={chevronStroke}
             strokeLinecap="round"
             strokeLinejoin="round"
-            // Chevron w em: wysokość = wysokość czcionki akcji, więc znak jest
-            // dokładnie tej samej wielkości co „więcej”. Kolor bierze z
-            // currentColor (ten sam co tekst), a hover akcentuje całość.
-            style={{ width: "1.1em", height: "1em" }}
+            // Chevron w em, ale o 1 px mniejszy niz wysokosc czcionki akcji
+            // (calc(1em - 1px)), wiec nie przewyzsza liter „wiecej”. Kolor bierze
+            // z currentColor (ten sam co tekst). Znak nie ma przesuniecia w osi Y:
+            // wycentrowany w inline-flex trafia dokladnie w pas wysokosci x ->
+            // linia bazowa liter (pomiar zrzutu: gora strzalki 0,25 px pod x-height,
+            // dol na linii bazowej).
+            style={{ width: "calc(1.1em - 1px)", height: "calc(1em - 1px)" }}
             className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
             {/* „subtelny ptaszek": kreska jest cienka (chevronStroke), a nie

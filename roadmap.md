@@ -76,6 +76,7 @@
 - [x] Etykieta „więcej" bez podkreślenia w żadnym stanie: `.nes-kinetic-action` ma `text-decoration: none` (odcina też podkreślenie nadane całemu widżetowi przez Theme Design), a linia pod rzędem nie jest rysowana, dopóki opcja „Pokaż linię" nie zostanie włączona - `showRule` ma wyłączoną wartość domyślną tylko dla tego wariantu, pozostałe warianty bez zmian.
 
 - [x] Znak „>" to subtelny ptaszek: kreska ma 0,85 px (0,7 px w wezkiej kolumnie), nie jest pogrubiona i jest tak samo cienka jak litery oraz wyraźnie cieńsza od trzech kresek sygnału.
+- [x] Ptaszek zmniejszony o 1 px (wysokosc `calc(1em - 1px)`, szerokosc `calc(1.1em - 1px)`) i wyrownany do liter „wiecej": gora strzalki 0,25 px pod gora x-height, dol dokladnie na linii bazowej (pomiar zrzutu 4x w podgladzie).
 
 ## Firmowy kolor akcentu
 
