@@ -83,3 +83,4 @@
 ## Firmowy kolor akcentu
 
 - [x] Usunąć bursztynowe akcenty z interfejsu i zapisanych ustawień motywu; domyślnie używać #FA9346 w jasnym i ciemnym motywie.
+- [2026-10-04] Strzałka akcji w etykietach sekcji: domyślny glif tekstowy "→" zastąpiony cienkim kątem SVG ">" bez ogonka (wspólny `AngleChevron`, ten sam znak co para chevronów w Kinetic Signal Notch); opcje "chevron" (›) i "long" (⟶) zachowują tekstowe glify, "none" zdejmuje znak; etykieta edytora "Strzałka >", tłumaczenia EN + kolekcja SECTION_LABEL_ARROWS w labelsEn.test; nowe testy sectionLabelArrow.test.tsx (4) - cała paczka buildera zielona.
