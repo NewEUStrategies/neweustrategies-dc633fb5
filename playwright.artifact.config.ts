@@ -26,6 +26,7 @@
 // mierzą artefakt cloudflare'owy. Opisane w `.github/workflows/ci.yml`.
 import { defineConfig, devices } from "@playwright/test";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 // Ta sama detekcja przeglądarki co w `playwright.config.ts` - sandbox trzyma
 // Chromium w /opt/pw-browsers i nigdy nie wołamy `playwright install`.
@@ -39,6 +40,37 @@ const LOCAL_CHROMIUM = [
 
 const PORT = 4181;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
+
+// WARIANT FIXTURE (P0.1, 2026-10-04): artefakt z danymi z
+// `scripts/performance/replayFetch.mjs` - DOKŁADNIE jak
+// `playwright.performance.config.ts` (`node --import replayFetch.mjs`,
+// SUPABASE_URL na 127.0.0.1:4199) - żeby `bun run test:e2e:artifact` działał
+// bez sieci (sandbox bez wyjścia do Supabase, maszyna dewelopera offline).
+//   NES_ARTIFACT_FIXTURE=1 - zawsze fixture; =0 - zawsze środowisko procesu;
+//   brak zmiennej - fixture tylko wtedy, gdy środowisko NIE ma ani
+//   SUPABASE_URL, ani VITE_SUPABASE_URL. CI ustawia obie (sekret albo
+//   placeholder), więc krok CI biegnie bez zmian.
+//   NES_ARTIFACT_ROOT - katalog z `.output/` (domyślnie bieżący), np. baza
+//   fali zbudowana w innym worktree.
+// Zastąpiony jest wyłącznie `fetch` procesu serwera; żaden warunek ani trasa
+// testowa nie trafia do artefaktu.
+const FIXTURE_MODE = process.env.NES_ARTIFACT_FIXTURE;
+const ARTIFACT_FIXTURE =
+  FIXTURE_MODE === "1" ||
+  (FIXTURE_MODE !== "0" && !process.env.SUPABASE_URL && !process.env.VITE_SUPABASE_URL);
+const ARTIFACT_ROOT = process.env.NES_ARTIFACT_ROOT ?? process.cwd();
+const shellQuote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'";
+const SERVER_COMMAND = ARTIFACT_FIXTURE
+  ? `node --import ${shellQuote(resolve("scripts/performance/replayFetch.mjs"))} .output/server/index.mjs`
+  : "node .output/server/index.mjs";
+const FIXTURE_ENV: Record<string, string> = ARTIFACT_FIXTURE
+  ? {
+      SUPABASE_URL: "http://127.0.0.1:4199",
+      SUPABASE_PUBLISHABLE_KEY: "performance-fixture",
+      SUPABASE_SERVICE_ROLE_KEY: "performance-fixture-admin",
+      NES_PERFORMANCE_CASE: "artifact-boot",
+    }
+  : {};
 
 export default defineConfig({
   testDir: "./e2e",
@@ -87,14 +119,16 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
     // Zbudowany serwer Node, nie dev-server. `.output/package.json` deklaruje
-    // `{"main":"./server/index.mjs"}`.
-    command: "node .output/server/index.mjs",
+    // `{"main":"./server/index.mjs"}`. W wariancie fixture z `--import replayFetch`.
+    command: SERVER_COMMAND,
+    cwd: ARTIFACT_ROOT,
     url: BASE_URL,
     env: {
       PORT: String(PORT),
       HOST: "127.0.0.1",
       NITRO_PORT: String(PORT),
       NITRO_HOST: "127.0.0.1",
+      ...FIXTURE_ENV,
     },
     // NIGDY nie przejmuj cudzego serwera: przy `reuseExistingServer` test
     // mógłby zmierzyć dev-server z poprzedniego przebiegu i przejść na zielono,
