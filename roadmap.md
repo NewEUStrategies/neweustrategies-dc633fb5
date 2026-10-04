@@ -68,7 +68,7 @@
 
 ## Etykieta sekcji: wariant „Kinetic Signal Notch"
 
-- [x] 23. wariant etykiety sekcji: mała akcja "więcej >" nad trzema paskami sygnału w szarym pastelu (ostra szewronka bez okonka, neutralne kolory); tytuł obok kolumny, paski rozsuwane na hoverze, podkreślenie rysowane od lewej, tłumaczenie EN, kontrolki edytora i testy.
+- [x] 23. wariant etykiety sekcji: trzy paski sygnału, tytuł i akcja zawsze inline; paski rozsuwane na hoverze, podkreślenie rysowane od lewej, wysuwana strzałka, tłumaczenie EN, kontrolki edytora i testy.
 
 ## Firmowy kolor akcentu
 
