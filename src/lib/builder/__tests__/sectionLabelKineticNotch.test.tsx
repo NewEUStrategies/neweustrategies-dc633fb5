@@ -161,7 +161,7 @@ describe("Kinetic Signal Notch", () => {
     // zeby rownal wysokosci liter „wiecej” (pole em ma zapas na descendery).
     const svgStyle = svg?.getAttribute("style") ?? "";
     expect(svgStyle).toContain("height: calc(1em - 1px)");
-    expect(svgStyle).toContain("width: calc((1em - 1px) * 1.1)");
+    expect(svgStyle).toContain("width: calc(1.1em - 1px)");
     expect(svg?.getAttribute("class")).toMatch(/(^|\s)relative(\s|$)/);
     expect(svg?.getAttribute("class")).toMatch(/(^|\s)-top-px(\s|$)/);
     // Kolor z currentColor (ten sam co tekst), a nie z osobnej klasy.

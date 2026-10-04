@@ -1168,7 +1168,7 @@ export function SectionLabelRender({
             // z currentColor (ten sam co tekst). `relative -top-px` podnosi znak o
             // 1 px, bo pole em ma zapas na dolna czesc (descendery) - bez tego
             // ptaszek siedzi nizej niz litery i nie rowna ich wysokosci.
-            style={{ width: "calc((1em - 1px) * 1.1)", height: "calc(1em - 1px)" }}
+            style={{ width: "calc(1.1em - 1px)", height: "calc(1em - 1px)" }}
             className="relative -top-px shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
             {/* „subtelny ptaszek": kreska jest cienka (chevronStroke), a nie
