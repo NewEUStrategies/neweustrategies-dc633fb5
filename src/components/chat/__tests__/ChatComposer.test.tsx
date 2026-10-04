@@ -554,13 +554,41 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     return { file, durationSeconds };
   }
 
+  /** Stop przenosi do odsłuchu; wysyłka wymaga osobnego kliknięcia. */
+  async function stopAndSend(): Promise<void> {
+    fireEvent.click(screen.getByRole("button", { name: t.voice.stop }));
+    await Promise.resolve();
+    await Promise.resolve();
+    const send = screen.queryByRole("button", { name: t.voice.send });
+    if (send) fireEvent.click(send);
+  }
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => "blob:voice");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it("STOP nie wysyła - nagranie czeka na odsłuch, a Usuń je odrzuca", async () => {
+    h.recorder.state = "recording";
+    h.recorder.finish = vi.fn(async () => recordedVoice(4096, 7));
+    const { props } = renderComposer();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: t.voice.stop }));
+    });
+    expect(h.uploads).toHaveLength(0);
+    expect(props.onSend).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: t.voice.delete }));
+    expect(screen.queryByRole("button", { name: t.voice.send })).toBeNull();
+    expect(h.uploads).toHaveLength(0);
+  });
+
   it("zakończone nagranie leci jako wiadomość `audio` z DŁUGOŚCIĄ", async () => {
     h.recorder.state = "recording";
     h.recorder.finish = vi.fn(async () => recordedVoice(4096, 7));
     const { props } = renderComposer();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+      await stopAndSend();
     });
 
     expect(h.uploads).toHaveLength(1);
@@ -579,7 +607,7 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     const { props } = renderComposer();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+      await stopAndSend();
     });
 
     expect(h.uploads).toHaveLength(0);
@@ -592,7 +620,7 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     renderComposer();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+      await stopAndSend();
     });
 
     expect(h.toast.error).toHaveBeenCalledWith(t.attachmentTooLarge);
@@ -606,14 +634,14 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     renderComposer();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+      await stopAndSend();
     });
 
     expect(h.toast.error).toHaveBeenCalledWith(t.uploadFailed);
     await waitFor(() => expect(screen.queryByText("42%")).toBeNull());
   });
 
-  it("OSIĄGNIĘTY LIMIT DŁUGOŚCI wysyła nagranie sam, bez kliknięcia", async () => {
+  it("OSIĄGNIĘTY LIMIT DŁUGOŚCI przechodzi do odsłuchu - wysyłka dopiero po kliknięciu", async () => {
     renderComposer();
     expect(h.recorderOptions?.onLimitReached).toBeTypeOf("function");
 
@@ -622,6 +650,10 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
       await Promise.resolve();
     });
 
+    expect(h.uploads).toHaveLength(0);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+    });
     await waitFor(() => expect(h.uploads).toHaveLength(1));
   });
 
@@ -642,7 +674,7 @@ describe("notatki głosowe - to, co kompozytor robi z nagraniem", () => {
     const { props } = renderComposer();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: t.voice.send }));
+      await stopAndSend();
     });
 
     expect(h.uploads).toHaveLength(0);
