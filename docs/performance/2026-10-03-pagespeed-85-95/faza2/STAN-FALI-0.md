@@ -1,5 +1,13 @@
 # Stan fali 0 (zapis przed przerwą limitu, 2026-10-04 08:45 UTC)
 
+> **Stan końcowy (2026-10-04 11:40 UTC).** PR #467 scalony do `main` o 11:30 UTC (merge d466993, zawiera wszystko do
+> 966583c). Po scaleniu fali 0 CI było czerwone w trzech nowych miejscach i zostało naprawione w cc43efd: test
+> `serverEntryRequestOptions` (przypinał wiersz logu dokumentu sprzed P0.4), format i lint surowych artefaktów P0.5
+> (katalog `raporty/P0.5-robocze/` wyłączony z prettier i eslint). Bramki na scalonym drzewie: `bun run typecheck`
+> zielony (6 min 37 s), `bun run verify:static` 33 bramek OK (3 min 43 s). `check:bundle` pozostaje czerwony tak samo
+> jak `main` przed PR (`spreadsheet.worker` +157 KB). Gałąź `perf/pagespeed-mobile85-desktop95-t595d6` wznowiona z
+> `main`; plan fal 1 i 2 z promptami idzie jako PR #468. Poniższa tabela i instrukcja wznowienia są historyczne.
+
 **Aktualizacja 08:45:** na polecenie właściciela („review nie jest potrzebny teraz, zakończ implementację”) gałęzie
 `perf/w0-P0.3`, `perf/w0-P0.2`, `perf/w0-P0.6` (commit cac56cf) i `perf/w0-P0.1` zostały scalone do gałęzi PR bez etapu
 recenzji (merge --no-ff, bez konfliktów). Bramki repo na scalonym drzewie (typecheck, verify:static, build:smoke,
