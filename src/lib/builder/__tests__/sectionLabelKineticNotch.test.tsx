@@ -210,7 +210,7 @@ describe("Kinetic Signal Notch", () => {
       );
     }
     // Hover rozpycha ">" na zewnątrz - w prawo.
-    expect(svgs[0]?.getAttribute("class")).toContain("group-hover/link:translate-x-0.5");
+    expect(svgs[0]?.getAttribute("class")).toContain("group-hover/link:translate-x-px");
     expect(stylesCss).toMatch(/\.nes-kinetic-action svg \{[^}]*color: inherit;/);
     // Kreska jest cieńsza niż pasek sygnału (3 px).
     const bar = container.querySelector<HTMLElement>(".nes-kinetic-bar");
