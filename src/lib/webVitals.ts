@@ -37,16 +37,22 @@
  * `VitalsNavigationContext` niżej. Bez nich p75 miesza zimne pierwsze wejście
  * z czwartą miękką nawigacją tego samego czytelnika (audyt CWV, F40).
  *
- * STAN CACHE DOKUMENTU I COLO W ŁADUNKU. Ten sam kontekst niesie do trzech
- * pól z nagłówka `Server-Timing` DOKUMENTU (`PerformanceNavigationTiming
- * .serverTiming`): `edgeCache` (HIT/STALE/MISS/BYPASS z `nes-edge`),
- * `edgeLayer` (L1/L2/L3/render z `nes-layer`) i `colo` (kod kolonii
- * Cloudflare z `colo`). Wszystkie są OPCJONALNE - metryki, której nie ma
- * w nagłówku, nie ma też w próbce. Opis przy `VitalsEdgeContext`.
+ * STAN CACHE DOKUMENTU I COLO W ŁADUNKU. Próbki PIERWSZEJ trasy dokumentu
+ * niosą do trzech pól z nagłówka `Server-Timing` DOKUMENTU
+ * (`PerformanceNavigationTiming.serverTiming`): `edgeCache`
+ * (HIT/STALE/MISS/BYPASS z `nes-edge`), `edgeLayer` (L1/L2/render
+ * z `nes-layer`) i `colo` (kod kolonii Cloudflare z `colo`). Wszystkie są
+ * OPCJONALNE - metryki, której nie ma w nagłówku, nie ma też w próbce. Opis
+ * przy `VitalsEdgeContext`.
  *
  * ZGRUBNA ATRYBUCJA INP. Próbka INP niesie dodatkowo `inpEvent`,
- * `inpPreHydration` i `inpSinceLoad` - typ zdarzenia, stan wyspy hydratacji
- * w chwili zdarzenia i czas względem `load`. Opis przy `InteractionRecord`.
+ * `inpPreHydration`, `inpSinceLoad` i `inpFirst` - typ zdarzenia, stan wyspy
+ * hydratacji w chwili zdarzenia, czas względem `load` i znacznik PIERWSZEJ
+ * interakcji dokumentu. Opis przy `InteractionRecord`.
+ *
+ * SŁOWNIKI ŁADUNKU SĄ EKSPORTOWANE (`EDGE_CACHE_STATUSES`, `EDGE_LAYERS`,
+ * `INP_EVENT_VALUES`, `MAX_SINCE_LOAD_MS`, kontrakt `data-island-state`):
+ * walidacja ingestu i wyspy hydratacji mają brać je stąd, a nie przepisywać.
  *
  * DEFINICJE CLS I INP SĄ TE SAME, CO W BRAMCE CI. Obie metryki liczymy tak,
  * jak liczy je specyfikacja Web Vitals (a za nią Chrome, CrUX i Lighthouse):
@@ -62,9 +68,11 @@ import { rateVital, type VitalName, type VitalRating } from "@/lib/observability
 // Import the transport from the module that owns it - directly, NOT through
 // `@/lib/observability`, which imports this file (that barrel would be a cycle).
 import { sendBeaconPayload, vitalsEndpoint } from "@/lib/observability/report";
-// Wyłącznie typ (wymazywany przy kompilacji): lista statusów NES Edge Cache
-// ma jedno źródło, a reporter nie dociąga do grafu klienta modułu polityki cache.
+// Wyłącznie typy (wymazywane przy kompilacji): listy statusów i warstw NES Edge
+// Cache mają jedno źródło, a reporter nie dociąga do grafu klienta ani modułu
+// polityki cache, ani potoku `Server-Timing`.
 import type { NesCacheStatus } from "@/lib/http/documentCache";
+import type { NesCacheLayer } from "@/lib/http/ssrTiming";
 
 interface VitalMetric {
   name: Extract<VitalName, "LCP" | "CLS" | "INP" | "FCP" | "TTFB">;
@@ -134,7 +142,7 @@ type VitalEffectiveType = (typeof EFFECTIVE_TYPES)[number];
  * NOWY status serwera trzeba dopisać tu ręcznie - do tego czasu próbka
  * z takim dokumentem po prostu nie ma pola `edgeCache`.
  */
-const EDGE_CACHE_STATUSES = [
+export const EDGE_CACHE_STATUSES = [
   "HIT",
   "STALE",
   "MISS",
@@ -142,17 +150,25 @@ const EDGE_CACHE_STATUSES = [
 ] as const satisfies readonly NesCacheStatus[];
 type VitalEdgeCache = (typeof EDGE_CACHE_STATUSES)[number];
 
-/** Warstwa, która podała dokument (`nes-layer;desc=...`, P0.4). */
-const EDGE_LAYERS = ["L1", "L2", "L3", "render"] as const;
+/**
+ * Warstwa, która podała dokument (`nes-layer;desc=...`, P0.4). `satisfies`
+ * jak przy statusach: warstwy, której serwer (`NesCacheLayer`) nie emituje,
+ * nie ma na liście - inaczej kolumna `edge_layer` utrwalałaby w CHECK-u
+ * wartość, której nikt nie wysyła. Stąd bez `L3`: jeśli trzecia warstwa
+ * (R11) kiedyś powstanie, dopisuje się ją po obu stronach i w migracji.
+ */
+export const EDGE_LAYERS = ["L1", "L2", "render"] as const satisfies readonly NesCacheLayer[];
 type VitalEdgeLayer = (typeof EDGE_LAYERS)[number];
 
 /** Kod kolonii Cloudflare: trzy litery kodu lotniska (PRG, WAW, FRA). */
 const COLO_RE = /^[A-Z]{3}$/;
 
 /**
- * Ile metryk `Server-Timing` w ogóle przeglądamy. Sami wystawiamy ich kilka
- * (`nes-edge`, `nes-age`, `edge-routing`, `server-init`, `app` i dwie z P0.4);
- * limit jest pasem bezpieczeństwa na nagłówek napompowany po drodze.
+ * Ile metryk `Server-Timing` w ogóle przeglądamy. Sami wystawiamy ich do
+ * dziewięciu w dwóch nagłówkach, które przeglądarka łączy w jedną listę:
+ * potok dokumentu (`nes-edge`, `ssr`, `db`, `nes-age`, `edge-routing`,
+ * `nes-layer`) i dopisek wejścia Workera (`server-init`, `app`, `colo`).
+ * Limit jest pasem bezpieczeństwa na nagłówek napompowany po drodze.
  */
 const MAX_SERVER_TIMING_ENTRIES = 32;
 
@@ -183,16 +199,45 @@ const MAX_SERVER_TIMING_ENTRIES = 32;
  * informacja; przy zdublowanej metryce wygrywa PIERWSZA - nasz potok stawia
  * `nes-edge` na początku nagłówka.
  *
+ * WYŁĄCZNIE PIERWSZA TRASA DOKUMENTU. Stan cache opisuje dokument, ale LCP,
+ * CLS i INP trasy SPA nie mają z tym dokumentem nic wspólnego - routing
+ * klienta nie pyta kolonii o HTML. Pola gasi więc pierwsza miękka nawigacja
+ * (`markWebVitalsPage`, razem z `coldStart`). Bez tego podział „INP/CLS per
+ * HIT/MISS" mieszałby populacje, a po stronie zapytania nie dałoby się ich
+ * rozdzielić: `coldStart=false` mają i trasy miękkie, i ciepłe twarde
+ * wejścia, a `navigationType` opisuje dokument. Obciążenie jest to samo co
+ * przy `coldStart`: zgoda wyrażona dopiero na trzeciej trasie da próbki tej
+ * trasy z polami dokumentu.
+ *
+ * DOKUMENT Z LOKALNEGO CACHE PRZEGLĄDARKI - BEZ PÓL. Przy nawigacji historią
+ * bez bfcache Chrome potrafi podać dokument z dysku bez walidacji (mimo
+ * `no-cache`), a `serverTiming` jest wtedy ODTWORZONY z zapisanej
+ * odpowiedzi: TTFB ~0, `edgeCache` z pierwotnego pobrania (np. MISS). Taka
+ * próbka zaniżałaby p75 TTFB dla MISS, więc dokument, który w tej
+ * nawigacji nie przeszedł przez sieć (`transferSize === 0` przy niezerowym
+ * `decodedBodySize`), nie dostaje żadnego z trzech pól.
+ *
  * ZERO IDENTYFIKATORÓW. Kolonia to kod lotniska centrum danych - ten sam,
  * który i tak jest publiczny w sufiksie `cf-ray` - i opisuje region, z
  * którego obsłużono dokument, nie osobę. Wiek wpisu (`nes-age`) i koszt bazy
  * (`db`) świadomie NIE jadą: podział HIT/MISS per colo ich nie potrzebuje,
  * a każdy kolejny klucz to bajty w każdej próbce.
  *
+ * `BYPASS` BYWA ATRYBUTEM OSOBOWYM. NES Edge Cache omija cache m.in. przy ciasteczku
+ * sesji `sb-*` i nagłówku `authorization` (`planDocumentCache`,
+ * `src/lib/http/documentCache.ts`). Dziś sesja Supabase żyje w
+ * `localStorage`, więc `BYPASS` na ścieżce publicznej to głównie
+ * nieobsługiwane zapytanie - ale gdy sesja trafi do ciasteczka, `BYPASS` stanie
+ * się pośrednikiem stanu zalogowania i u nielicznych redaktorów, razem ze
+ * ścieżką i czasem, zawęzi populację. To nie identyfikator, ale panel ma
+ * pokazywać wyłącznie agregaty z progiem minimalnej liczności, a notatka DPO
+ * telemetrii RUM musi to wymieniać.
+ *
  * INGEST. `/api/public/vitals` składa wiersz z białej listy kolumn, więc pola
- * trafią do `web_vitals` dopiero razem z kolumnami (trasa + migracja to
- * osobna zmiana); zewnętrzny kolektor (`VITE_OBSERVABILITY_ENDPOINT`) dostaje
- * je od razu.
+ * trafią do `web_vitals` dopiero razem z kolumnami. Trasa, migracja i typy
+ * to pozycja P1.0b planu PSI 85/95 (`faza2/PLAN-FALE-1-2.md`), która
+ * walidację bierze ze słowników eksportowanych z tego pliku. Zewnętrzny
+ * kolektor (`VITE_OBSERVABILITY_ENDPOINT`) dostaje pola od razu.
  */
 interface VitalsEdgeContext {
   edgeCache?: VitalEdgeCache;
@@ -209,15 +254,18 @@ const COLD_START_KEY = "nes:vitals:nav-seen";
 
 /**
  * Opisowy kontekst odsłony - liczony RAZ na dokument (`readNavigationContext`).
- * Jedyne pole, które potem się zmienia, to `coldStart`: gasi je pierwsza
- * miękka nawigacja (patrz `navContext`).
+ * Jedyne pola, które potem się zmieniają, to `coldStart` i `edge`: oba gasi
+ * pierwsza miękka nawigacja (patrz `navContext`).
  */
 interface VitalsNavigationContext {
   navigationType: VitalNavigationType | null;
   deviceMemory: VitalDeviceMemory | null;
   effectiveType: VitalEffectiveType | null;
   coldStart: boolean;
-  /** Stan cache dokumentu z `Server-Timing` - opisuje DOKUMENT, jak `navigationType`. */
+  /**
+   * Stan cache dokumentu z `Server-Timing` - opisuje DOKUMENT, ale tylko jego
+   * PIERWSZĄ trasę: gaśnie (`{}`) razem z `coldStart` (patrz `VitalsEdgeContext`).
+   */
   edge: VitalsEdgeContext;
 }
 
@@ -253,6 +301,8 @@ interface QueuedVital extends VitalMetric {
   inpEvent?: VitalInpEvent;
   inpPreHydration?: boolean;
   inpSinceLoad?: number;
+  /** Wyłącznie `true`: brak pola = interakcja nie pierwsza albo nieznana. */
+  inpFirst?: true;
 }
 
 /**
@@ -265,9 +315,10 @@ interface QueuedVital extends VitalMetric {
  * `src/routes/api/public/vitals.ts`) w całości, więc najgorsza próbka razy
  * ten limit musi się w nim mieścić - ze ścieżką przyciętą do `MAX_PATH`, ze
  * wszystkimi polami kontekstu, stanu cache i atrybucji INP naraz. Pilnuje
- * tego test „najgorszy batch mieści się w MAX_BODY" (dziś 7 037 znaków:
- * 877 na próbkę z kompletem pól razy osiem). Zapas to ~960 znaków - kolejne
- * pole w KAŻDEJ próbce trzeba policzyć razy osiem.
+ * tego test „najgorszy batch mieści się w MAX_BODY" (dziś 7 229 znaków:
+ * 901 na próbkę z kompletem pól, `inpFirst` i najdłuższymi zapisami liczb,
+ * razy osiem). Zapas to ~770 znaków - kolejne pole w KAŻDEJ próbce trzeba
+ * policzyć razy osiem.
  */
 const MAX_METRICS = 8;
 /** Coalescing window for the init-time FCP/TTFB pair only - see the docblock. */
@@ -313,10 +364,47 @@ const INP_INTERACTIONS_PER_DISCARD = 50;
  */
 const INP_EVENT_TYPES = ["pointerdown", "pointerup", "click", "keydown", "keyup"] as const;
 type VitalInpEvent = (typeof INP_EVENT_TYPES)[number] | "other";
+/** Komplet wartości `inpEvent` w ładunku - słownik walidacji ingestu (P1.0b). */
+export const INP_EVENT_VALUES: readonly VitalInpEvent[] = [...INP_EVENT_TYPES, "other"];
 
-/** Atrybut stanu wyspy hydratacji (`HydrationIsland`, P1.6): `pending` | `hydrated`. */
-const ISLAND_STATE_ATTR = "data-island-state";
+/**
+ * KONTRAKT `data-island-state` Z P1.6 (`HydrationIsland`) - jedno źródło dla
+ * obu stron. Reporter czyta atrybut przez `closest()` w chwili
+ * `pointerdown`/`keydown` (`onInteractionStart`) i rozpoznaje WYŁĄCZNIE
+ * wartości z `ISLAND_STATES`. Pole `inpPreHydration` działa więc tylko wtedy,
+ * gdy wyspa:
+ *   1. renderuje atrybut JUŻ W HTML SSR, z wartością `pending`, na elemencie
+ *      OBEJMUJĄCYM jej interaktywne potomki. Bez otoczki `closest()` nie ma
+ *      czego znaleźć, a atrybut ustawiony dopiero w efekcie na kliencie gubi
+ *      dokładnie interakcje sprzed hydratacji, dla których pole istnieje;
+ *   2. przełącza go na `hydrated` dopiero po commicie granicy, nie przy
+ *      wyzwoleniu bramki;
+ *   3. nie wprowadza trzeciego stanu (np. `hydrating`) - nieznaną wartość
+ *      reporter świadomie zamienia na brak pola.
+ *
+ * WIĄZANIE BEZ KOSZTU W CHUNKU WYSPY. Kod wyspy importuje stąd WYŁĄCZNIE typy
+ * (`import type { IslandStateAttributes } from "@/lib/webVitals"`). Są
+ * wymazywane, więc reporter nie trafia do grafu wyspy, a literówka w nazwie
+ * atrybutu albo trzecia wartość w wyspie jest błędem kompilacji. Import
+ * WARTOŚCI z tego modułu w kodzie wyspy wciągnąłby leniwy reporter do jej
+ * chunku. Testy wyspy (SSR HTML z `pending` na otoczce, przejście na
+ * `hydrated` po commicie) mogą importować `ISLAND_STATE_ATTR` i
+ * `ISLAND_STATES` normalnie.
+ */
+export const ISLAND_STATE_ATTR = "data-island-state";
+export const ISLAND_STATES = ["pending", "hydrated"] as const;
+export type IslandState = (typeof ISLAND_STATES)[number];
+/** Atrybut otoczki wyspy w kształcie propsów JSX (`<div {...attributes}>`). */
+export type IslandStateAttributes = { readonly [K in typeof ISLAND_STATE_ATTR]: IslandState };
 const ISLAND_SELECTOR = `[${ISLAND_STATE_ATTR}]`;
+/**
+ * Stan wyspy -> `inpPreHydration`. `Record` po `IslandState` wymusza decyzję
+ * dla każdej wartości słownika - nowy stan bez niej nie skompiluje się.
+ */
+const PRE_HYDRATION_BY_STATE: Readonly<Record<IslandState, boolean>> = {
+  pending: true,
+  hydrated: false,
+};
 
 /** Zdarzenia OTWIERAJĄCE interakcję - na nich zapisujemy stan wyspy. */
 const INTERACTION_START_EVENTS = ["pointerdown", "keydown"] as const;
@@ -334,7 +422,7 @@ const INTERACTION_START_MAX_GAP_MS = 5_000;
 /** Tolerancja porównania `timeStamp` zdarzenia ze `startTime` wpisu (zgrubnienie zegara). */
 const INTERACTION_START_TOLERANCE_MS = 1;
 /** Granica `inpSinceLoad`: doba, jak `sinceNav` w ingeście - dalej to już nie atrybucja. */
-const MAX_SINCE_LOAD_MS = 24 * 60 * 60 * 1_000;
+export const MAX_SINCE_LOAD_MS = 24 * 60 * 60 * 1_000;
 
 const queue: QueuedVital[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -358,6 +446,10 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
  * ODCIĄĆ (audyt CWV, F40). `sinceNav` tego nie naprawia u odbiorcy, który
  * grupuje po samym booleanie. Zgaszenie siedzi w `markWebVitalsPage`, PO
  * zrzucie metryk poprzedniej trasy.
+ *
+ * STAN CACHE DOKUMENTU (`edge`) GAŚNIE RAZEM Z `coldStart`, w tym samym
+ * miejscu: opisuje dokument, ale wpływa wyłącznie na metryki jego pierwszej
+ * trasy (`VitalsEdgeContext`).
  *
  * TEARDOWN ZGODY KONTEKSTU NIE ZERUJE (stąd `??=` w `initWebVitals`) - i to
  * działa w obie strony. Ponowna zgoda w tej samej odsłonie nie może ogłosić
@@ -393,6 +485,7 @@ function readNavigationType(
  */
 function readEdgeContext(nav: PerformanceNavigationTiming | undefined): VitalsEdgeContext {
   const edge: VitalsEdgeContext = {};
+  if (servedFromLocalCache(nav)) return edge;
   let list: unknown;
   try {
     // Typ DOM obiecuje tablicę, ale nie każdy silnik wystawia to pole,
@@ -423,6 +516,23 @@ function readEdgeContext(nav: PerformanceNavigationTiming | undefined): VitalsEd
     }
   }
   return edge;
+}
+
+/**
+ * Czy dokument w tej nawigacji NIE przeszedł przez sieć: zero bajtów transferu
+ * przy niepustym ciele, czyli cache HTTP przeglądarki. `serverTiming` jest
+ * wtedy odtworzony z zapisanej odpowiedzi (patrz `VitalsEdgeContext`). Zero
+ * w OBU polach (silnik, który ich nie wystawia, ochrona przed odciskiem
+ * palca) nie jest dowodem cache'u i pól nie gasi.
+ */
+function servedFromLocalCache(nav: PerformanceNavigationTiming | undefined): boolean {
+  try {
+    return (
+      nav?.transferSize === 0 && typeof nav.decodedBodySize === "number" && nav.decodedBodySize > 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** Próg pamięci urządzenia (kubełek W DÓŁ) albo `null`, gdy przeglądarka nie podaje. */
@@ -538,6 +648,7 @@ interface InpAttribution {
   inpEvent: VitalInpEvent;
   inpPreHydration?: boolean;
   inpSinceLoad?: number;
+  inpFirst?: true;
 }
 
 function report(metric: VitalMetric, pathname: string, inp?: InpAttribution): void {
@@ -574,6 +685,7 @@ function report(metric: VitalMetric, pathname: string, inp?: InpAttribution): vo
     sample.inpEvent = inp.inpEvent;
     if (inp.inpPreHydration !== undefined) sample.inpPreHydration = inp.inpPreHydration;
     if (inp.inpSinceLoad !== undefined) sample.inpSinceLoad = inp.inpSinceLoad;
+    if (inp.inpFirst === true) sample.inpFirst = true;
   }
   queue.push(sample);
   if (queue.length >= MAX_METRICS) {
@@ -593,7 +705,7 @@ interface EventTimingEntry extends PerformanceEntry {
 }
 
 /**
- * ZGRUBNA ATRYBUCJA INP - jedna interakcja i trzy pola OPISOWE, które jej
+ * ZGRUBNA ATRYBUCJA INP - jedna interakcja i cztery pola OPISOWE, które jej
  * próbka INP niesie w ładunku. Bez identyfikatorów: ani selektora celu, ani
  * tekstu, ani `interactionId` (licznik przeglądarki, zbędny po stronie bazy).
  *
@@ -602,15 +714,28 @@ interface EventTimingEntry extends PerformanceEntry {
  * interaktywność banera zgód P1.3). Lighthouse tego nie zobaczy, a realny
  * czytelnik zapłaci to w INP - te pola mają odróżnić regres „przez pracę
  * przeniesioną na interakcję" od zwykłego wolnego handlera:
- *   - `inpEvent` - typ zdarzenia, które WYZNACZYŁO opóźnienie interakcji
- *     (jej najdłuższy wpis `event`), z listy `INP_EVENT_TYPES`, inaczej
- *     `"other"`;
+ *   - `inpEvent` - typ PIERWSZEGO z najdłuższych wpisów `event` interakcji,
+ *     z listy `INP_EVENT_TYPES`, inaczej `"other"`. To „pierwsze zdarzenie
+ *     najwolniejszej klatki", NIE handler, który wykonał pracę: wpisy jednej
+ *     interakcji wysłane w tym samym zadaniu (`pointerup` i `click`) kończą
+ *     się przy TYM SAMYM malowaniu, `duration` jest zaokrąglane do 8 ms,
+ *     więc wcześniejszy wpis ma czas >= późniejszego, a remis wygrywa
+ *     pierwszy. Tapnięcie raportuje więc zwykle `pointerup`/`pointerdown`,
+ *     nawet gdy całą pracę robi handler `click` - `GROUP BY inp_event` dzieli
+ *     interakcje na wskaźnik i klawiaturę, a nie wskazuje winnego zdarzenia;
  *   - `inpPreHydration` - czy interakcja ZACZĘŁA SIĘ na wyspie, która nie
  *     była jeszcze uwodniona (`data-island-state="pending"` najbliższej
  *     wyspy celu); `false` = wyspa była już `hydrated`; brak pola = cel poza
  *     wyspą albo start interakcji nieznany (np. sprzed zgody, z bufora);
  *   - `inpSinceLoad` - ms od startu zdarzenia `load` dokumentu do początku
- *     interakcji; UJEMNE = interakcja przed `load` (patrz `msSinceLoad`).
+ *     interakcji; UJEMNE = interakcja przed `load` (patrz `msSinceLoad`);
+ *   - `inpFirst` - `true`, gdy to PIERWSZA interakcja DOKUMENTU (nie trasy);
+ *     brak pola = późniejsza albo nieznana. Kolejka po interakcji (P0.3:
+ *     powłoka zgód P1.3, wyspy, gtag P1.1) robi swoją pracę przy pierwszej
+ *     interakcji, kiedykolwiek ona nastąpi. `inpSinceLoad` tego nie wydzieli
+ *     (pierwsza interakcja 30 s po `load` i dziesiąta w tej samej chwili są
+ *     nieodróżnialne), a `inpPreHydration` widzi wyłącznie wyspy, nie powłokę
+ *     zgód ani gtag. Opis przy `firstInteractionStart`.
  *
  * DLACZEGO STAN WYSPY CZYTAMY W CHWILI ZDARZENIA, A NIE W OBSERWERZE. Wpis
  * `event` dociera do obserwera PO następnym malowaniu, a interakcja na
@@ -621,21 +746,30 @@ interface EventTimingEntry extends PerformanceEntry {
  * `window` (pierwszy w ścieżce zdarzenia, przed nasłuchem wyspy na jej
  * korzeniu) zapisuje stan w pierścieniu `interactionStarts`, a obserwer
  * łączy go z interakcją po czasie: `startTime` wpisu `event` to `timeStamp`
- * zdarzenia. Start zapisujemy przy KAŻDYM naciśnięciu, także poza wyspą -
- * inaczej interakcja spoza wyspy dziedziczyłaby stan poprzedniej.
+ * zdarzenia. Start zapisujemy przy KAŻDYM naciśnięciu użytkownika, także
+ * poza wyspą - inaczej interakcja spoza wyspy dziedziczyłaby stan
+ * poprzedniej - ale nie przy zdarzeniu syntetycznym (`isTrusted`).
  *
  * KOSZT. Jeden `closest()` na naciśnięcie (mikrosekundy) i pierścień ośmiu
  * rekordów; zero pracy, dopóki nikt nie klika.
  */
 interface InteractionRecord {
+  /** `interactionId` przeglądarki - tylko do dopasowania `first-input`, nie do ładunku. */
+  id: number;
   /** Opóźnienie interakcji = najdłuższy z jej wpisów `event`. */
   latency: number;
-  /** Typ najdłuższego wpisu - zdarzenie, które wyznaczyło opóźnienie. */
+  /** Typ pierwszego z najdłuższych wpisów - patrz `inpEvent` wyżej. */
   eventType: VitalInpEvent;
   /** Najwcześniejszy `startTime` wpisów tej interakcji = jej początek. */
   start: number;
   /** Stan wyspy w chwili początku interakcji; `null` = poza wyspą / nieznany. */
   preHydration: boolean | null;
+  /**
+   * `timeStamp` zdarzenia otwierającego (`pointerdown`/`keydown`) dopasowanego
+   * z pierścienia; `null` = nieznany. Różni się od `start`, gdy otwierający
+   * wpis był krótszy niż próg obserwera i najwcześniejszym wpisem jest `click`.
+   */
+  openedAt: number | null;
 }
 
 /** Start interakcji zapisany w chwili zdarzenia (`onInteractionStart`). */
@@ -656,34 +790,84 @@ function islandStateOf(target: EventTarget | null): boolean | null {
   if (typeof Element === "undefined" || !(target instanceof Element)) return null;
   try {
     const state = target.closest(ISLAND_SELECTOR)?.getAttribute(ISLAND_STATE_ATTR);
-    // Słownik P1.6 to dokładnie `pending`/`hydrated`. Nieznanej wartości nie
+    // Słownik P1.6 to dokładnie `ISLAND_STATES`. Nieznanej wartości nie
     // zgadujemy w żadną stronę - fałszywe `false` ukryłoby regres, a fałszywe
     // `true` przypisałoby go wyspom.
-    if (state === "pending") return true;
-    if (state === "hydrated") return false;
-    return null;
+    const known = ISLAND_STATES.find((candidate) => candidate === state);
+    return known === undefined ? null : PRE_HYDRATION_BY_STATE[known];
   } catch {
     return null;
   }
 }
 
 function onInteractionStart(event: Event): void {
+  // Wyłącznie naciśnięcia użytkownika. `dispatchEvent` biblioteki między
+  // `pointerdown` a `click` przesunąłby dopasowanie po czasie na rekord,
+  // który nie opisuje żadnego gestu (`isTrusted === false`).
+  if (!event.isTrusted) return;
   interactionStarts.push({ at: event.timeStamp, preHydration: islandStateOf(event.target) });
   if (interactionStarts.length > INTERACTION_STARTS_KEPT) interactionStarts.shift();
 }
 
 /**
- * Stan wyspy dla interakcji zaczętej w `start`: najpóźniejszy zapisany start
- * nie późniejszy niż `start` (pierścień jest chronologiczny), o ile nie jest
- * starszy niż `INTERACTION_START_MAX_GAP_MS`.
+ * Zapisany start interakcji zaczętej w `start`: najpóźniejszy rekord nie
+ * późniejszy niż `start` (pierścień jest chronologiczny), o ile nie jest
+ * starszy niż `INTERACTION_START_MAX_GAP_MS`; inaczej `null`.
  */
-function islandStateAt(start: number): boolean | null {
+function startRecordAt(start: number): InteractionStart | null {
   for (let index = interactionStarts.length - 1; index >= 0; index -= 1) {
     const record = interactionStarts[index];
     if (record === undefined || record.at > start + INTERACTION_START_TOLERANCE_MS) continue;
-    return start - record.at <= INTERACTION_START_MAX_GAP_MS ? record.preHydration : null;
+    return start - record.at <= INTERACTION_START_MAX_GAP_MS ? record : null;
   }
   return null;
+}
+
+/**
+ * PIERWSZA INTERAKCJA DOKUMENTU (`inpFirst`). Najwcześniejszy znany początek
+ * interakcji w tym DOKUMENCIE: minimum z wpisu `first-input` i z każdego
+ * wpisu `event` z `interactionId`. `first-input` jest buforowany BEZ progu
+ * czasu, więc widzi także interakcję sprzed zgody i krótszą niż 40 ms, której
+ * wpisów `event` obserwer nie dostanie nigdy (bufor typu `event` trzyma tylko
+ * wpisy >= 104 ms, a na żywo obowiązuje próg 40 ms).
+ *
+ * ŻYJE DŁUŻEJ NIŻ TRASA. `resetAccumulators` (miękka nawigacja) go nie
+ * zeruje: druga trasa nie ma własnej „pierwszej interakcji", a kliknięcie,
+ * które wywołało miękką nawigację, dociera do obserwera już po niej. Zeruje
+ * go teardown zgody, a ponowna inicjalizacja odzyskuje go z bufora
+ * `first-input`.
+ *
+ * DOPASOWANIE (`isFirstInteraction`). Gdy wpis `first-input` niesie
+ * `interactionId` (> 0), decyduje równość identyfikatorów. Inaczej decyduje
+ * czas, z tolerancją `INTERACTION_START_TOLERANCE_MS`: z tym minimum musi się
+ * zgadzać początek interakcji (`start`) albo jej zdarzenie otwierające
+ * z pierścienia (`openedAt` - gdy `pointerdown` był krótszy niż próg
+ * i najwcześniejszym wpisem jest `click`). Niepewność kończy się brakiem
+ * pola, nie zgadywaniem.
+ */
+let firstInteractionStart: number | null = null;
+/** `interactionId` wpisu `first-input`, gdy przeglądarka go podaje (> 0). */
+let firstInteractionId: number | null = null;
+
+function noteDocumentInteraction(start: number): void {
+  if (!Number.isFinite(start)) return;
+  if (firstInteractionStart === null || start < firstInteractionStart) {
+    firstInteractionStart = start;
+  }
+}
+
+function noteFirstInput(entry: EventTimingEntry): void {
+  noteDocumentInteraction(entry.startTime);
+  const id = entry.interactionId;
+  if (typeof id === "number" && id > 0) firstInteractionId = id;
+}
+
+function isFirstInteraction(record: InteractionRecord): boolean {
+  if (firstInteractionId !== null) return record.id === firstInteractionId;
+  const first = firstInteractionStart;
+  if (first === null) return false;
+  const near = (at: number): boolean => Math.abs(at - first) <= INTERACTION_START_TOLERANCE_MS;
+  return near(record.start) || (record.openedAt !== null && near(record.openedAt));
 }
 
 /**
@@ -711,6 +895,9 @@ function inpAttribution(record: InteractionRecord): InpAttribution {
   if (record.preHydration !== null) attribution.inpPreHydration = record.preHydration;
   const sinceLoad = msSinceLoad(record.start);
   if (sinceLoad !== null) attribution.inpSinceLoad = sinceLoad;
+  // Liczone przy ZRZUCIE, nie przy wpisie: buforowany `first-input` może
+  // dotrzeć po pierwszym wpisie `event` i dopiero wtedy obniżyć minimum.
+  if (isFirstInteraction(record)) attribution.inpFirst = true;
   return attribution;
 }
 
@@ -816,16 +1003,21 @@ function addLayoutShift(value: number, startTime: number): void {
 
 /**
  * Zapamiętaj interakcję: jej opóźnieniem jest NAJDŁUŻSZE z jej zdarzeń, typem
- * zdarzenia - typ tego najdłuższego, a początkiem - najwcześniejszy wpis.
+ * zdarzenia - typ pierwszego z najdłuższych (remis nie przepisuje typu),
+ * a początkiem - najwcześniejszy wpis.
  */
 function addInteraction(interactionId: number, entry: EventTimingEntry): void {
+  noteDocumentInteraction(entry.startTime);
   const known = interactions.get(interactionId);
   if (known === undefined) {
+    const opening = startRecordAt(entry.startTime);
     interactions.set(interactionId, {
+      id: interactionId,
       latency: entry.duration,
       eventType: inpEventType(entry.name),
       start: entry.startTime,
-      preHydration: islandStateAt(entry.startTime),
+      preHydration: opening?.preHydration ?? null,
+      openedAt: opening?.at ?? null,
     });
     return;
   }
@@ -834,8 +1026,10 @@ function addInteraction(interactionId: number, entry: EventTimingEntry): void {
     known.eventType = inpEventType(entry.name);
   }
   if (entry.startTime < known.start) {
+    const opening = startRecordAt(entry.startTime);
     known.start = entry.startTime;
-    known.preHydration = islandStateAt(entry.startTime);
+    known.preHydration = opening?.preHydration ?? null;
+    known.openedAt = opening?.at ?? null;
   }
 }
 
@@ -885,6 +1079,7 @@ function resetAccumulators(): void {
   clsWindowOpen = false;
   // Pierścień startów (`interactionStarts`) zostaje: kliknięcie, które wywołało
   // tę miękką nawigację, dociera do obserwera PO niej i potrzebuje swojego startu.
+  // Pierwsza interakcja (`firstInteractionStart`) też zostaje - opisuje DOKUMENT.
   interactions.clear();
   lcpReported = false;
   clsReported = -1;
@@ -911,11 +1106,12 @@ export function markWebVitalsPage(pathname: string): void {
   // zgłoszenia, więc wszystko, co `flushCurrent` wyżej zakolejkowało, ma już
   // wpisane `coldStart` poprzedniej trasy (dla pierwszej: `true`) i ta linia
   // tego nie przepisuje; zgaszenie flagi WYŻEJ kazałoby jedynej naprawdę
-  // zimnej trasie zaraportować się jako ciepła. Podmieniamy wyłącznie
-  // `coldStart` - pozostałe trzy pola opisują DOKUMENT i miękka nawigacja ich
-  // nie zmienia.
-  if (navContext !== null && navContext.coldStart) {
-    navContext = { ...navContext, coldStart: false };
+  // zimnej trasie zaraportować się jako ciepła. Tak samo i z tego samego
+  // powodu gaśnie stan cache dokumentu (`edge`): oba opisują wyłącznie
+  // pierwszą trasę. Pozostałe trzy pola opisują DOKUMENT i urządzenie, więc
+  // miękka nawigacja ich nie zmienia.
+  if (navContext !== null) {
+    navContext = { ...navContext, coldStart: false, edge: {} };
   }
   currentPath = pathname;
   resetAccumulators();
@@ -970,7 +1166,10 @@ export function initWebVitals(): () => void {
   try {
     const inpObs = new PerformanceObserver((list) => {
       for (const e of list.getEntries() as EventTimingEntry[]) {
-        if (e.interactionId) addInteraction(e.interactionId, e);
+        // `first-input` NIE wchodzi do puli INP (ta zostaje przy progu 40 ms):
+        // wyznacza wyłącznie pierwszą interakcję dokumentu dla `inpFirst`.
+        if (e.entryType === "first-input") noteFirstInput(e);
+        else if (e.interactionId) addInteraction(e.interactionId, e);
       }
     });
     inpObs.observe({
@@ -979,6 +1178,14 @@ export function initWebVitals(): () => void {
       durationThreshold: 40,
     } as PerformanceObserverInit);
     observers.push(inpObs);
+    // Pierwsza interakcja dokumentu (`firstInteractionStart`). Osobny `try`:
+    // brak typu `first-input` nie może zabrać pomiaru INP - zostaje wtedy
+    // najwcześniejszy zaobserwowany wpis `event`.
+    try {
+      inpObs.observe({ type: "first-input", buffered: true });
+    } catch {
+      /* unsupported */
+    }
   } catch {
     /* unsupported */
   }
@@ -1041,7 +1248,10 @@ export function initWebVitals(): () => void {
       removeEventListener(type, onInteractionStart, { capture: true });
     }
     // Starty zapisane przed cofnięciem zgody nie mogą opisać interakcji po niej.
+    // Pierwszą interakcję ponowna inicjalizacja odzyska z bufora `first-input`.
     interactionStarts.length = 0;
+    firstInteractionStart = null;
+    firstInteractionId = null;
     // Consent withdrawn: cancel the pending drain and DROP what is buffered.
     // A stray timer firing after teardown would beacon samples AFTER the user
     // revoked analytics consent - exactly what this teardown exists to stop.
