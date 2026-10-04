@@ -22,7 +22,9 @@
 // z `vi.stubEnv("DEV", false)`.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildEntryServerTimingValue, buildServerTimingValue } from "@/lib/http/ssrTiming";
 import type { VitalRating } from "@/lib/observability/vitalsThresholds";
+import type { IslandState, IslandStateAttributes } from "@/lib/webVitals";
 
 /** Wpis wydajnościowy na tyle bogaty, by pokryć LCP, layout-shift i event. */
 interface FakeEntry {
@@ -217,6 +219,13 @@ describe("initWebVitals - bramki wejścia", () => {
     // 40 ms to progowanie zdarzeń: bez niego przeglądarka zalewa obserwer
     // każdym kliknięciem, a INP mierzy tylko te odczuwalne.
     expect(FakeObserver.forType("event").accepted[0]).toMatchObject({ durationThreshold: 40 });
+    // Ten sam obserwer subskrybuje `first-input` (buforowany, BEZ progu) -
+    // wyłącznie dla `inpFirst`, bez czwartego obserwera do rozłączenia.
+    expect(FakeObserver.forType("event").requested).toEqual(["event", "first-input"]);
+    expect(FakeObserver.forType("event").accepted[1]).toEqual({
+      type: "first-input",
+      buffered: true,
+    });
   });
 
   it("drugie wywołanie jest no-opem i NIE rozłącza obserwerów z pierwszego", async () => {
@@ -1608,6 +1617,8 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
     serverTiming?: unknown;
     loadEventStart?: number;
     type?: string;
+    transferSize?: number;
+    decodedBodySize?: number;
   }): PerformanceEntry {
     const entry: Record<string, unknown> = {
       name: "",
@@ -1620,6 +1631,8 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
     };
     if ("serverTiming" in options) entry.serverTiming = options.serverTiming;
     if (options.loadEventStart !== undefined) entry.loadEventStart = options.loadEventStart;
+    if (options.transferSize !== undefined) entry.transferSize = options.transferSize;
+    if (options.decodedBodySize !== undefined) entry.decodedBodySize = options.decodedBodySize;
     return entry as unknown as PerformanceEntry;
   }
 
@@ -1659,18 +1672,33 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
   /**
    * Naciśnięcie z KONKRETNYM `timeStamp` - tym samym, który przeglądarka wpisuje
    * jako `startTime` wpisu `event` tej interakcji. Własność instancji przykrywa
-   * getter prototypu, więc test nie zależy od zegara środowiska.
+   * getter prototypu, więc test nie zależy od zegara środowiska. `isTrusted`
+   * tak samo: happy-dom go nie wystawia, a `dispatchEvent` w przeglądarce daje
+   * `false` - domyślnie udajemy naciśnięcie użytkownika.
    */
-  function press(target: EventTarget, at: number, type: "pointerdown" | "keydown"): void {
+  function press(
+    target: EventTarget,
+    at: number,
+    type: "pointerdown" | "keydown",
+    trusted = true,
+  ): void {
     const event = new Event(type, { bubbles: true, cancelable: true });
     Object.defineProperty(event, "timeStamp", { value: at });
+    Object.defineProperty(event, "isTrusted", { value: trusted });
     target.dispatchEvent(event);
   }
 
+  /** Wpis `first-input` (buforowany bez progu) - kopia pierwszego wpisu interakcji. */
+  function firstInputEntry(name: string, startTime: number, interactionId = 0): FakeEntry {
+    return { name, entryType: "first-input", startTime, duration: 8, interactionId };
+  }
+
   describe("stan cache dokumentu i colo z Server-Timing", () => {
-    it("nagłówek po P0.4: edgeCache, edgeLayer i colo w KAŻDEJ próbce, także po miękkiej nawigacji", async () => {
-      // Pola opisują DOKUMENT (jak `navigationType`), więc trasa SPA ich nie
-      // zmienia - a p75 TTFB/LCP per HIT/MISS potrzebuje ich w każdym wierszu.
+    it("nagłówek po P0.4: edgeCache, edgeLayer i colo w KAŻDEJ próbce PIERWSZEJ trasy, a po miękkiej nawigacji już w żadnej", async () => {
+      // Stan cache opisuje dokument, ale wpływa wyłącznie na metryki jego
+      // pierwszej trasy: LCP/CLS/INP trasy SPA nie pochodzą z dokumentu podanego
+      // z NES Edge Cache, a po stronie zapytania nie da się ich odciąć
+      // (`coldStart=false` mają też ciepłe twarde wejścia).
       mockNavigation(navigationWith({ serverTiming: PRODUCTION_TIMING }));
       const sent = captureBeacons();
       const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
@@ -1689,9 +1717,161 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
         "LCP",
         "TTFB",
       ]);
-      for (const metric of metrics) {
+      const firstRoute = metrics.filter((metric) => metric.url === "/en");
+      const softRoute = metrics.filter((metric) => metric.url === "/blog");
+      expect(firstRoute).toHaveLength(3);
+      expect(softRoute).toHaveLength(2);
+      for (const metric of firstRoute) {
         expect(metric).toMatchObject({ edgeCache: "HIT", edgeLayer: "L2", colo: "PRG" });
       }
+      for (const metric of softRoute) {
+        expect(metric).not.toHaveProperty("edgeCache");
+        expect(metric).not.toHaveProperty("edgeLayer");
+        expect(metric).not.toHaveProperty("colo");
+        // Kontrola: reszta kontekstu dokumentu zostaje - gaśnie wyłącznie stan cache.
+        expect(metric).toMatchObject({ navigationType: "navigate", coldStart: false });
+      }
+    });
+
+    it("trasa miękka po CIEPŁYM twardym wejściu (coldStart=false od początku) też gubi stan cache", async () => {
+      // Zgaszenie nie może zależeć od `coldStart`: ciepłe wejście nie ma czego
+      // gasić w fladze, ale stan cache dokumentu nadal opisuje tylko trasę pierwszą.
+      sessionStorage.setItem("nes:vitals:nav-seen", "1");
+      mockNavigation(navigationWith({ serverTiming: [timing("nes-edge", "MISS")] }));
+      const sent = captureBeacons();
+      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+      initWebVitals();
+      markWebVitalsPage("/blog");
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(900)]);
+      window.dispatchEvent(new Event("pagehide"));
+
+      const metrics = await allMetrics(sent);
+      expect(named(metrics, "TTFB")[0]).toMatchObject({ edgeCache: "MISS", coldStart: false });
+      const [lcp] = named(metrics, "LCP");
+      expect(lcp).toMatchObject({ url: "/blog" });
+      expect(lcp).not.toHaveProperty("edgeCache");
+    });
+
+    it("dokument z lokalnego cache HTTP (transferSize 0, niepuste ciało): Server-Timing jest odtworzony, więc bez pól", async () => {
+      // Nawigacja historią bez bfcache: Chrome podaje dokument z dysku mimo
+      // `no-cache`, TTFB ~0, a `nes-edge` mówi o PIERWOTNYM pobraniu.
+      mockNavigation(
+        navigationWith({
+          serverTiming: PRODUCTION_TIMING,
+          type: "back_forward",
+          transferSize: 0,
+          decodedBodySize: 48_213,
+        }),
+      );
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+      window.dispatchEvent(new Event("pagehide"));
+
+      const [ttfb] = named(await allMetrics(sent), "TTFB");
+      expect(ttfb).toMatchObject({ navigationType: "back_forward" });
+      expect(ttfb).not.toHaveProperty("edgeCache");
+      expect(ttfb).not.toHaveProperty("edgeLayer");
+      expect(ttfb).not.toHaveProperty("colo");
+    });
+
+    const networkSizes: Array<[string, { transferSize: number; decodedBodySize: number }]> = [
+      ["transfer przez sieć", { transferSize: 48_513, decodedBodySize: 48_213 }],
+      [
+        "oba pola zerowe (silnik bez Resource Timing rozmiarów)",
+        { transferSize: 0, decodedBodySize: 0 },
+      ],
+    ];
+    for (const [label, sizes] of networkSizes) {
+      it(`kontrola: ${label} -> pola stanu cache zostają`, async () => {
+        mockNavigation(navigationWith({ serverTiming: PRODUCTION_TIMING, ...sizes }));
+        const sent = captureBeacons();
+        const { initWebVitals } = await loadWebVitals();
+        initWebVitals();
+        window.dispatchEvent(new Event("pagehide"));
+
+        const [ttfb] = named(await allMetrics(sent), "TTFB");
+        expect(ttfb).toMatchObject({ edgeCache: "HIT", edgeLayer: "L2", colo: "PRG" });
+      });
+    }
+
+    describe("kontrakt z potokiem Server-Timing (P0.4, `src/lib/http/ssrTiming.ts`)", () => {
+      /**
+       * Minimalny parser nagłówka w kształcie `PerformanceServerTiming`: metryki
+       * po `,`, parametry po `;`, `desc` bez cudzysłowów, `dur` jako liczba.
+       * Opis może zawierać `=` (`db;desc="n=3"`), więc dzielimy na PIERWSZYM.
+       */
+      function parseServerTiming(header: string): Array<Record<string, unknown>> {
+        return header.split(",").map((metric) => {
+          const [name = "", ...params] = metric.trim().split(";");
+          let description = "";
+          let duration = 0;
+          for (const param of params) {
+            const eq = param.indexOf("=");
+            const key = (eq < 0 ? param : param.slice(0, eq)).trim();
+            const value =
+              eq < 0
+                ? ""
+                : param
+                    .slice(eq + 1)
+                    .trim()
+                    .replace(/^"|"$/g, "");
+            if (key === "desc") description = value;
+            if (key === "dur") duration = Number(value);
+          }
+          return timing(name.trim(), description, duration);
+        });
+      }
+
+      it("każdy status i każda warstwa z budowniczych serwera dociera do próbki, a colo z dopisku wejścia Workera", async () => {
+        // Przeglądarka łączy oba nagłówki (`src/server.ts` dopisuje drugi) w
+        // jedną listę. Zmiana nazwy metryki albo formy (`desc` -> `dur`) po
+        // stronie P0.4 wywraca ten test, a nie dopiero panel analityki.
+        const { EDGE_CACHE_STATUSES, EDGE_LAYERS } = await loadWebVitals();
+        for (const status of EDGE_CACHE_STATUSES) {
+          for (const layer of EDGE_LAYERS) {
+            const header = [
+              buildServerTimingValue(
+                status,
+                662.4,
+                { count: 23, totalMs: 2029 },
+                129_280,
+                [{ name: "edge-routing", durationMs: 0.4 }],
+                layer,
+              ),
+              buildEntryServerTimingValue(0, 5, "PRG"),
+            ].join(", ");
+            mockNavigation(navigationWith({ serverTiming: parseServerTiming(header) }));
+            const sent = captureBeacons();
+            const { initWebVitals } = await loadWebVitals();
+            const teardown = initWebVitals();
+            window.dispatchEvent(new Event("pagehide"));
+            teardown();
+
+            const [ttfb] = named(await allMetrics(sent), "TTFB");
+            expect(ttfb, `${status}/${layer}`).toMatchObject({
+              edgeCache: status,
+              edgeLayer: layer,
+              colo: "PRG",
+            });
+          }
+        }
+      });
+
+      it("warstwa spoza słownika serwera (`L3`) nie jest przepisywana - kolumna nie utrwali wartości, której nikt nie wysyła", async () => {
+        mockNavigation(
+          navigationWith({ serverTiming: [timing("nes-edge", "HIT"), timing("nes-layer", "L3")] }),
+        );
+        const sent = captureBeacons();
+        const { initWebVitals, EDGE_LAYERS } = await loadWebVitals();
+        initWebVitals();
+        window.dispatchEvent(new Event("pagehide"));
+
+        expect(EDGE_LAYERS).toEqual(["L1", "L2", "render"]);
+        const [ttfb] = named(await allMetrics(sent), "TTFB");
+        expect(ttfb).toMatchObject({ edgeCache: "HIT" });
+        expect(ttfb).not.toHaveProperty("edgeLayer");
+      });
     });
 
     it("nagłówek sprzed P0.4 (sam nes-edge): jest edgeCache, a edgeLayer i colo NIE MA", async () => {
@@ -1837,9 +2017,14 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
     }> {
       const sent = captureBeacons();
       const { initWebVitals } = await loadWebVitals();
-      initWebVitals();
-      act({ emit: (entries) => FakeObserver.forType("event").emit(entries) });
+      const teardown = initWebVitals();
+      // NAJNOWSZY obserwer `event`: kilka wywołań w jednym teście to kilka
+      // świeżych instancji modułu, a `forType` oddaje pierwszą.
+      const observer = FakeObserver.instances.filter((o) => o.requested.includes("event")).at(-1);
+      act({ emit: (entries) => observer?.emit(entries) });
       window.dispatchEvent(new Event("pagehide"));
+      // Teardown zdejmuje nasłuch i flagę inicjalizacji przed kolejnym wywołaniem.
+      teardown();
       const metrics = await allMetrics(sent);
       return { inp: named(metrics, "INP")[0], metrics };
     }
@@ -1865,6 +2050,26 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
           expect(metric).not.toHaveProperty("inpSinceLoad");
         }
       }
+    });
+
+    it("remis czasów (wpisy jednej klatki, zaokrąglone do 8 ms): inpEvent to PIERWSZY z najdłuższych, nie click", async () => {
+      // Realne czasy: `pointerup` i `click` z jednego zadania kończą się przy
+      // tym samym malowaniu, więc wcześniejszy `pointerup` ma czas >= `click`.
+      // Wartość kolumny to „pierwsze zdarzenie najwolniejszej klatki", nie handler.
+      const { inp } = await inpAfter(({ emit }) => {
+        emit([
+          eventEntry("pointerdown", 1000, 48, 5),
+          eventEntry("pointerup", 1064, 208, 5),
+          eventEntry("click", 1072, 200, 5),
+        ]);
+        emit([eventEntry("pointerup", 2000, 200, 6), eventEntry("click", 2000, 200, 6)]);
+      });
+      expect(inp).toMatchObject({ value: 208, inpEvent: "pointerup" });
+
+      const tie = await inpAfter(({ emit }) => {
+        emit([eventEntry("pointerup", 2000, 200, 6), eventEntry("click", 2000, 200, 6)]);
+      });
+      expect(tie.inp).toMatchObject({ value: 200, inpEvent: "pointerup" });
     });
 
     it("typ zdarzenia spoza zamkniętej listy schodzi do other", async () => {
@@ -1930,15 +2135,61 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
       expect(inp).toMatchObject({ inpEvent: "click", inpPreHydration: true });
     });
 
-    it("start nieznany (wpis z bufora sprzed inicjalizacji) albo starszy niż 5 s: brak pola", async () => {
-      const { button } = islandButton("pending");
+    it("start nieznany (wpis z bufora sprzed inicjalizacji): brak pola", async () => {
+      // Wyspa w DOM jest `pending`, ale naciśnięcia nikt nie zapisał - nie
+      // zgadujemy stanu z DOM w chwili obserwatora.
+      islandButton("pending");
       const { inp } = await inpAfter(({ emit }) => {
         emit([eventEntry("pointerdown", 500, 200, 1)]);
+      });
+      expect(inp).toMatchObject({ value: 200 });
+      expect(inp).not.toHaveProperty("inpPreHydration");
+    });
+
+    it("zapisany start starszy niż 5 s: brak pola, choć rekord był na nieuwodnionej wyspie", async () => {
+      const { button } = islandButton("pending");
+      const { inp } = await inpAfter(({ emit }) => {
         press(button, 1000, "pointerdown");
         emit([eventEntry("click", 7000, 300, 2)]);
       });
       expect(inp).toMatchObject({ value: 300 });
       expect(inp).not.toHaveProperty("inpPreHydration");
+    });
+
+    it("tolerancja zegara: start zapisany do 1 ms PO startTime wpisu to nadal ta interakcja, 1,5 ms - już nie", async () => {
+      // `timeStamp` zdarzenia i `startTime` wpisu mogą się różnić zgrubnieniem zegara.
+      const { button } = islandButton("pending");
+      const within = await inpAfter(({ emit }) => {
+        press(button, 1000.8, "pointerdown");
+        emit([eventEntry("pointerdown", 1000, 300, 1)]);
+      });
+      expect(within.inp).toMatchObject({ inpPreHydration: true });
+
+      const beyond = await inpAfter(({ emit }) => {
+        press(button, 1001.5, "pointerdown");
+        emit([eventEntry("pointerdown", 1000, 300, 1)]);
+      });
+      expect(beyond.inp).toMatchObject({ value: 300 });
+      expect(beyond.inp).not.toHaveProperty("inpPreHydration");
+    });
+
+    it("zdarzenie syntetyczne (isTrusted=false) nie trafia do pierścienia i nie przesuwa dopasowania", async () => {
+      // `dispatchEvent` biblioteki między `pointerdown` a `click`: bez filtra
+      // `click` dopasowałby się do syntetycznego rekordu spoza wyspy.
+      const { button } = islandButton("pending");
+      const outside = plainButton();
+      const { inp } = await inpAfter(({ emit }) => {
+        press(button, 1000, "pointerdown");
+        press(outside, 1050, "pointerdown", false);
+        emit([eventEntry("click", 1090, 250, 3)]);
+      });
+      expect(inp).toMatchObject({ inpEvent: "click", inpPreHydration: true });
+
+      const onlySynthetic = await inpAfter(({ emit }) => {
+        press(button, 1000, "pointerdown", false);
+        emit([eventEntry("pointerdown", 1000, 250, 3)]);
+      });
+      expect(onlySynthetic.inp).not.toHaveProperty("inpPreHydration");
     });
 
     it("atrybucja opisuje interakcję WYZNACZAJĄCĄ INP, nie ostatnią", async () => {
@@ -1951,6 +2202,167 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
         emit([eventEntry("pointerdown", 2000, 80, 2)]);
       });
       expect(inp).toMatchObject({ value: 400, inpEvent: "keydown", inpPreHydration: true });
+    });
+
+    it("kliknięcie wywołujące miękką nawigację, którego wpis dociera PO markWebVitalsPage, zachowuje stan wyspy", async () => {
+      // Dokładnie ten przypadek uzasadnia, że `resetAccumulators` nie czyści pierścienia.
+      const { button } = islandButton("pending");
+      const sent = captureBeacons();
+      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+      initWebVitals();
+      press(button, 1000, "pointerdown");
+      markWebVitalsPage("/blog");
+      FakeObserver.forType("event").emit([eventEntry("pointerdown", 1000, 300, 1)]);
+      window.dispatchEvent(new Event("pagehide"));
+
+      const [inp] = named(await allMetrics(sent), "INP");
+      expect(inp).toMatchObject({
+        url: "/blog",
+        value: 300,
+        inpPreHydration: true,
+        inpFirst: true,
+      });
+    });
+
+    describe("inpFirst - pierwsza interakcja DOKUMENTU", () => {
+      it("INP wyznacza PIERWSZA interakcja: inpFirst = true", async () => {
+        const { inp } = await inpAfter(({ emit }) => {
+          emit([eventEntry("pointerdown", 1000, 400, 1)]);
+          emit([eventEntry("keydown", 3000, 80, 2)]);
+        });
+        expect(inp).toMatchObject({ value: 400, inpFirst: true });
+      });
+
+      it("INP wyznacza DRUGA interakcja: pola nie ma", async () => {
+        const { inp } = await inpAfter(({ emit }) => {
+          emit([eventEntry("pointerdown", 1000, 80, 1)]);
+          emit([eventEntry("keydown", 3000, 400, 2)]);
+        });
+        expect(inp).toMatchObject({ value: 400 });
+        expect(inp).not.toHaveProperty("inpFirst");
+      });
+
+      it("pierwsza interakcja krótsza niż próg 40 ms (widzi ją tylko first-input): późniejsza NIE jest pierwsza", async () => {
+        // Bez buforowanego `first-input` pierwszą widzianą interakcją byłaby ta
+        // o 3000 i dostałaby fałszywe `true`.
+        const { inp } = await inpAfter(({ emit }) => {
+          emit([eventEntry("keydown", 3000, 400, 2)]);
+          emit([firstInputEntry("pointerdown", 1000)]);
+        });
+        expect(inp).toMatchObject({ value: 400 });
+        expect(inp).not.toHaveProperty("inpFirst");
+      });
+
+      it("first-input z interactionId: decyduje równość identyfikatorów, nie czas", async () => {
+        const first = await inpAfter(({ emit }) => {
+          emit([firstInputEntry("pointerdown", 1000, 11)]);
+          emit([eventEntry("click", 1090, 300, 11)]);
+        });
+        expect(first.inp).toMatchObject({ value: 300, inpFirst: true });
+
+        const other = await inpAfter(({ emit }) => {
+          emit([firstInputEntry("pointerdown", 1000, 11)]);
+          emit([eventEntry("pointerdown", 1000, 60, 11), eventEntry("keydown", 1000.5, 300, 12)]);
+        });
+        expect(other.inp).toMatchObject({ value: 300 });
+        expect(other.inp).not.toHaveProperty("inpFirst");
+      });
+
+      it("pointerdown krótszy niż próg (najwcześniejszy wpis to click): dopasowanie przez zapisane naciśnięcie", async () => {
+        const { button } = islandButton("hydrated");
+        const { inp } = await inpAfter(({ emit }) => {
+          press(button, 1000, "pointerdown");
+          emit([firstInputEntry("pointerdown", 1000)]);
+          emit([eventEntry("click", 1090, 250, 3)]);
+        });
+        expect(inp).toMatchObject({ inpEvent: "click", inpPreHydration: false, inpFirst: true });
+      });
+
+      it("miękka nawigacja NIE zeruje pierwszej interakcji: druga trasa nie ma własnej", async () => {
+        const sent = captureBeacons();
+        const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+        initWebVitals();
+        const events = FakeObserver.forType("event");
+        events.emit([firstInputEntry("pointerdown", 1000)]);
+        events.emit([eventEntry("pointerdown", 1000, 120, 1)]);
+        markWebVitalsPage("/blog");
+        events.emit([eventEntry("keydown", 5000, 300, 2)]);
+        window.dispatchEvent(new Event("pagehide"));
+
+        const inps = named(await allMetrics(sent), "INP");
+        expect(inps).toHaveLength(2);
+        expect(inps[0]).toMatchObject({ url: "/en", value: 120, inpFirst: true });
+        expect(inps[1]).toMatchObject({ url: "/blog", value: 300 });
+        expect(inps[1]).not.toHaveProperty("inpFirst");
+      });
+
+      it("brak typu first-input w przeglądarce: INP działa, a pierwsza jest najwcześniejsza widziana interakcja", async () => {
+        FakeObserver.failFor = ["first-input"];
+        const { inp } = await inpAfter(({ emit }) => {
+          emit([eventEntry("pointerdown", 1000, 400, 1)]);
+          emit([eventEntry("keydown", 3000, 80, 2)]);
+        });
+        expect(inp).toMatchObject({ value: 400, inpFirst: true });
+      });
+
+      it("teardown zgody zeruje stan pierwszej interakcji - po ponownej zgodzie decyduje tylko nowy obserwer", async () => {
+        // Bez zerowania start sprzed cofnięcia zgody (1000) przeżyłby teardown.
+        // Tu nowy obserwer nie dostaje `first-input`, więc pierwszą jest
+        // najwcześniejsza interakcja widziana PO zgodzie.
+        FakeObserver.failFor = ["first-input"];
+        const sent = captureBeacons();
+        const { initWebVitals } = await loadWebVitals();
+        const teardown = initWebVitals();
+        FakeObserver.forType("event").emit([eventEntry("pointerdown", 1000, 60, 1)]);
+        teardown();
+
+        initWebVitals();
+        FakeObserver.instances[FakeObserver.instances.length - 1]?.emit([
+          eventEntry("keydown", 4000, 300, 2),
+        ]);
+        window.dispatchEvent(new Event("pagehide"));
+
+        const [inp] = named(await allMetrics(sent), "INP");
+        expect(inp).toMatchObject({ value: 300, inpFirst: true });
+      });
+    });
+
+    describe("kontrakt data-island-state z P1.6", () => {
+      it("nazwa atrybutu i słownik stanów są przypięte - zmiana po jednej stronie wywraca ten test", async () => {
+        const { ISLAND_STATE_ATTR, ISLAND_STATES } = await loadWebVitals();
+        expect(ISLAND_STATE_ATTR).toBe("data-island-state");
+        expect(ISLAND_STATES).toEqual(["pending", "hydrated"]);
+      });
+
+      it("typ IslandStateAttributes przyjmuje wyłącznie słownik reportera (sprawdza tsc)", () => {
+        const pending: IslandStateAttributes = { "data-island-state": "pending" };
+        const hydrated: IslandStateAttributes = { "data-island-state": "hydrated" };
+        // @ts-expect-error - trzeci stan oznaczałby brak pola inpPreHydration
+        const hydrating: IslandStateAttributes = { "data-island-state": "hydrating" };
+        // @ts-expect-error - literówka w nazwie atrybutu: closest() niczego nie znajdzie
+        const typo: IslandStateAttributes = { "data-island": "pending" };
+        expect([pending, hydrated, hydrating, typo]).toHaveLength(4);
+      });
+
+      it("każdy stan ze słownika daje pole, a otoczka obejmuje cel w głębi drzewa", async () => {
+        const { ISLAND_STATE_ATTR, ISLAND_STATES } = await loadWebVitals();
+        const expected: Record<IslandState, boolean> = { pending: true, hydrated: false };
+        for (const state of ISLAND_STATES) {
+          const root = document.createElement("section");
+          root.setAttribute(ISLAND_STATE_ATTR, state);
+          const wrapper = document.createElement("div");
+          const nested = document.createElement("span");
+          wrapper.append(nested);
+          root.append(wrapper);
+          document.body.append(root);
+          mountedIslands.push(root);
+          const { inp } = await inpAfter(({ emit }) => {
+            press(nested, 1000, "pointerdown");
+            emit([eventEntry("pointerdown", 1000, 300, 1)]);
+          });
+          expect(inp, state).toMatchObject({ inpPreHydration: expected[state] });
+        }
+      });
     });
 
     describe("inpSinceLoad", () => {
@@ -2023,14 +2435,17 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
   describe("prywatność i budżet bajtów", () => {
     /**
      * Najcięższa możliwa próbka: ścieżka ponad limit, najdłuższe wartości
-     * każdego pola z listy i wszystkie pola opcjonalne naraz.
+     * każdego pola z listy i wszystkie pola opcjonalne naraz. Liczby też
+     * najdłuższe: `value` 24 znaki (najdłuższy zapis liczby bez wykładnika),
+     * `sinceNav` 10 cyfr (karta otwarta ~4 miesiące), `inpSinceLoad` 9 znaków
+     * z minusem (granica doby).
      */
     async function heaviestInpSample(): Promise<Record<string, unknown>> {
       history.replaceState({}, "", "/" + "p".repeat(900));
       sessionStorage.setItem("nes:vitals:nav-seen", "1"); // coldStart: false (5 znaków)
       patchNavigator("deviceMemory", 8);
       patchNavigator("connection", { effectiveType: "slow-2g" });
-      vi.spyOn(performance, "now").mockReturnValue(86_399_999);
+      vi.spyOn(performance, "now").mockReturnValue(9_999_999_999);
       mockNavigation(
         navigationWith({
           type: "back_forward",
@@ -2047,7 +2462,9 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
       const { initWebVitals } = await loadWebVitals();
       initWebVitals();
       press(button, 1000, "pointerdown");
-      FakeObserver.forType("event").emit([eventEntry("pointerdown", 1000, 1234.5678901234567, 77)]);
+      FakeObserver.forType("event").emit([
+        eventEntry("pointerdown", 1000, 0.0000012345678901234567, 77),
+      ]);
       window.dispatchEvent(new Event("pagehide"));
       const [inp] = named(await allMetrics(sent), "INP");
       expect(inp).toBeDefined();
@@ -2066,6 +2483,7 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
         "effectiveType",
         "id",
         "inpEvent",
+        "inpFirst",
         "inpPreHydration",
         "inpSinceLoad",
         "name",
@@ -2083,7 +2501,10 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
         inpEvent: "pointerdown",
         inpPreHydration: false,
         inpSinceLoad: -86_399_999,
+        inpFirst: true,
+        sinceNav: 9_999_999_999,
       });
+      expect(JSON.stringify(sample.value)).toHaveLength(24);
     });
 
     it("najgorszy batch (MAX_METRICS najcięższych próbek) mieści się w MAX_BODY ingestu", async () => {
@@ -2091,7 +2512,8 @@ describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
       // dłuższe odpada W CAŁOŚCI), MAX_METRICS = 8 - jak w `webVitals.ts`.
       // Zakładamy osiem próbek INP (z atrybucją), choć naturalny batch ma
       // jedną, i najdłuższą ocenę z trzech możliwych. Zmierzone przy tej
-      // zmianie: 877 znaków na próbkę, 7 037 na batch - zapas ~960 znaków.
+      // zmianie (z `inpFirst` i najdłuższymi zapisami liczb): 901 znaków na
+      // próbkę, 7 229 na batch - zapas ~770 znaków.
       const sample = await heaviestInpSample();
       expect(String(sample.url)).toHaveLength(512);
       const worst = JSON.stringify({ ...sample, rating: "needs-improvement" });
