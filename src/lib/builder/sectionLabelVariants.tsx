@@ -1196,8 +1196,12 @@ export function SectionLabelRender({
       // kresek sterowany jest jednym `marginBottom` nizej.
       const actionCls = `group/link nes-kinetic-action inline-flex min-w-0 items-center whitespace-nowrap ${actCls}`;
 
+      // „Usuń obszar bezpieczny z góry": akcja ma zaczynać się dokładnie na górnym
+      // brzegu widgetu, więc górny padding jest zerowy - zostaje tylko oddech na dole.
+      const kineticPad = isSm ? "pb-1" : "pb-2";
+
       return (
-        <div className={`${wrapperBase} nes-kinetic-shell group w-full min-w-0 ${padY}`}>
+        <div className={`${wrapperBase} nes-kinetic-shell group w-full min-w-0 ${kineticPad}`}>
           {action ? (
             <div
               className="flex w-full min-w-0 justify-start"
