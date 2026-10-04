@@ -1,11 +1,11 @@
 export const meta = {
   name: "pagespeed-phase2-wave",
   description:
-    "PageSpeed 85/95: implement one wave of PLAN.md items in parallel git worktrees (Opus): implement -> adversarial review -> fix -> build + repo gates + interleaved Lighthouse A/B against the baseline artifact",
+    "PageSpeed 85/95: implement one wave of PLAN.md items in parallel git worktrees (Opus): implement -> adversarial review -> fix -> (optional) build + repo gates + Lighthouse A/B against the wave base",
   phases: [
     {
       title: "Implement",
-      detail: "one Opus agent per item in its own worktree, fast gates, commit",
+      detail: "one Opus agent per item in its own worktree, G-std gates, commit",
     },
     {
       title: "Review",
@@ -15,7 +15,7 @@ export const meta = {
     {
       title: "Prove",
       detail:
-        "build:smoke under the machine mutex, check:* gates, document-weight gate, lighthouse-local --compare vs baseline (3 interleaved runs)",
+        "build:smoke under the machine mutex, artifact gates, document-weight gate, lighthouse-local --compare vs the wave base",
     },
   ],
 };
@@ -23,49 +23,53 @@ export const meta = {
 const SCRATCH =
   "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad";
 const WT = "/home/user/neweustrategies-dc633fb5";
-const EVIDENCE = WT + "/docs/performance/2026-10-03-pagespeed-85-95/EVIDENCE.md";
-const PLAN = (args && args.plan_path) || SCRATCH + "/phase1/PLAN.md";
+const DOCS = WT + "/docs/performance/2026-10-03-pagespeed-85-95";
+const PLAN_MD = DOCS + "/faza1/PLAN.md";
+const PLAN_JSON = DOCS + "/faza1/PLAN.json";
+const NOTES = DOCS + "/faza1/ORCHESTRATOR-NOTES.md";
+const EVIDENCE = DOCS + "/EVIDENCE.md";
 const BASE_REF = (args && args.base_ref) || "perf/pagespeed-mobile85-desktop95-t595d6";
 const BASELINE_WT = (args && args.baseline_wt) || WT;
-const WAVE = (args && args.wave) || 1;
-const ITEMS = (args && args.items) || [];
+const WAVE = (args && args.wave) == null ? 1 : args.wave;
+const ITEMS = (args && args.items) || []; // [{id, prove?: boolean, notes?: string}]
 const OUT = SCRATCH + "/phase2/wave" + WAVE;
 const MAX_FIX_ROUNDS = 2;
-
-if (!ITEMS.length) throw new Error("args.items is empty");
+if (!ITEMS.length) throw new Error("args.items = [{id, prove?, notes?}] is required");
 
 const TRAILER = `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01M84vURVZ4xnvk1AVmdDF5B`;
 
 const COMMON = `
-You are a senior engineer (Opus) implementing ONE item of a web-performance plan under a Fable 5.1 orchestrator, in a TanStack Start + React 19 + Vite 7 + Nitro (Cloudflare Workers) + Supabase content platform. Goal of the whole effort: Lighthouse mobile >= 85, desktop >= 95 on https://neweuropeanstrategies.com/.
-Read first: ${PLAN} (your item and the file-ownership matrix), ${EVIDENCE} section 0-cloud (environment: no network, fixture backend, 4 CPUs, one build at a time) and the report of the workstream your item comes from (${SCRATCH}/phase1/<workstream>.md).
-Repository rules: Polish for comments, docs and commit messages (imperative, like the git log); TypeScript strict; no new dependencies; prettier formatting (bunx prettier --write on files you touch); keep SSR/hydration parity byte-for-byte for chrome; respect chunk-graph doctrine (no manualChunks changes without reading scripts/lib/bootVendorSplit.ts and the 2026-07-20 incident notes; check:chunks must stay acyclic); keep setTimeout(0) before hydrate in router.tsx; i18n via dictionaries only (check:i18n-hardcoded); every behavioural change gets or updates a vitest test; mark bundle-budget moves in the kronika of scripts/check-bundle-size.ts only when a budget line must change and only with measured numbers.
-Never touch files outside your item's ownership (the matrix in PLAN.md) — if you must, stop and report it in your output instead.
+You are a senior engineer (Opus) implementing ONE item of a web-performance plan under a Fable 5.1 orchestrator, in a TanStack Start + React 19 + Vite 7 + Nitro (Cloudflare Workers) + Supabase content platform. Goal of the whole effort: Lighthouse/PSI mobile >= 85, desktop >= 95 on https://neweuropeanstrategies.com/.
+Read first, in this order: (1) your item in ${PLAN_JSON} (waves[].items[] with your id: files = the ONLY files you may touch, mechanism, gates, verification, depends_on) and the same item plus its wave context, §1.3 Lantern invariants, §2 agent protocol and §4 file-ownership matrix in ${PLAN_MD}; (2) ${NOTES} (owner decision, verdict ledger, corrections); (3) ${EVIDENCE} section 0-cloud (environment: no network, fixture backend, 4 CPUs, one build at a time); (4) the workstream report and the verdict your item cites (${DOCS}/faza1/raporty/<workstream>.md, ${DOCS}/faza1/raporty/werdykty/<workstream>--<id>.md) — the verdicts' blocking issues are requirements.
+Repository rules: Polish for comments, docs and commit messages (imperative, like the git log); TypeScript strict; no new dependencies; prettier formatting (bunx prettier --write on files you touch); keep SSR/hydration parity byte-for-byte for chrome; respect chunk-graph doctrine (no manualChunks/hoistTransitiveImports changes without check:chunks and the 2026-07-20 incident notes in scripts/lib/bootVendorSplit.ts); keep setTimeout(0) before hydrate in src/router.tsx; i18n via dictionaries only; every behavioural change gets or updates a vitest test; AGENTS.md rules apply. Budget moves in scripts/check-bundle-size.ts only with measured numbers and a kronika entry.
+Never touch files outside your item's file list (PLAN.md §4). If a change truly needs another file, stop that part and report it in out_of_ownership_needs instead of editing it.
+Machine: 4 CPUs, 15 GB RAM. Builds: at most one at a time (mutex: until mkdir ${SCRATCH}/.build-lock 2>/dev/null; do sleep 15; done ... rmdir ${SCRATCH}/.build-lock — ALWAYS release it, also on failure). Lighthouse: one at a time (mutex ${SCRATCH}/.lh-lock), never while .build-lock exists. Treat timings on this shared machine as noisy; structural evidence and per-task ledgers decide.
 `;
 
 function implPrompt(item, round, review) {
   const wt = `${SCRATCH}/wt/${item.id}`;
   return `${COMMON}
-YOUR ITEM (wave ${WAVE}): ${JSON.stringify(item, null, 2)}
+YOUR ITEM: ${item.id} (wave ${WAVE}). ${item.notes ? "Orchestrator notes for this item: " + item.notes : ""}
 ${
   round === 0
-    ? `SETUP (do exactly this):
-  git -C ${WT} worktree add -B impl/${item.id} ${wt} ${BASE_REF}
+    ? `SETUP (do exactly this, once):
+  git -C ${WT} worktree add -B perf/w${WAVE}-${item.id} ${wt} ${BASE_REF}
   ln -s ${WT}/node_modules ${wt}/node_modules
   mkdir -p ${OUT}/${item.id}
-Work ONLY inside ${wt}.`
-    : `FIX ROUND ${round}: your worktree ${wt} (branch impl/${item.id}) already holds your implementation. The adversarial reviewer returned the findings below; address every BLOCKING one (and the cheap non-blocking ones), add/adjust tests, re-run the fast gates, and amend by adding a new commit (do not rewrite history).
+Work ONLY inside ${wt} (never edit ${WT} itself).`
+    : `FIX ROUND ${round}: your worktree ${wt} (branch perf/w${WAVE}-${item.id}) already holds your implementation. The adversarial reviewer returned the findings below; address every BLOCKING one (and the cheap non-blocking ones), add/adjust tests, re-run the fast gates, and add a new commit (do not rewrite history).
 REVIEW FINDINGS:
 ${JSON.stringify(review, null, 2)}`
 }
-IMPLEMENT the item exactly as the plan's mechanism describes (if the code contradicts the plan, implement the closest correct variant and explain the deviation). Then run the FAST gates inside ${wt} and make them green:
+IMPLEMENT the item exactly as its mechanism describes (if the code contradicts the plan, implement the closest correct variant and explain the deviation). Then run the FAST gates inside ${wt} and make them green:
   bunx prettier --write <touched files>
   bunx eslint <touched files>
-  bun run typecheck            (~3 min; required)
-  bunx vitest run <test files related to touched modules>   (the tests you added/changed plus the existing tests of touched modules; the gates relevant to your item from: check:entry-purity, check:ssr-budgets, check:loader-policy, check:chunk-parity, noHasSelectors test — the ones that do not need a build)
-Do NOT run a build or Lighthouse in this stage (the Prove stage does it under the machine mutex).
-Commit in ${wt} with a Polish message (summary line + body explaining mechanism and measured/expected effect) ending with the trailer:
+  bun run typecheck            (required; ~3-4 min)
+  bunx vitest run <test files of touched modules + the tests you added>  (plus src/lib/ci/__tests__/noHasSelectors.test.ts when you touch CSS, and bun run check:chunk-parity when you touch vite configs)
+  bun run verify:static        (format:check + every check:* gate outside EXCLUDED, incl. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy; it skips artifact gates when no .output exists)
+Do NOT run a production build or Lighthouse in this stage unless your item's mechanism itself is a measurement/diagnosis task (then follow the mechanism, under the mutexes).
+Commit in ${wt} with a Polish message (summary line + body: mechanism, measured/expected effect, gates run) ending with the trailer:
 ${TRAILER}
 Write ${OUT}/${item.id}/IMPL${round ? "-fix" + round : ""}.md: what changed and why (file by file), gates run with results, deviations from the plan, risks, what the reviewer should look at. Return the structured result.`;
 }
@@ -110,14 +114,14 @@ const IMPL_SCHEMA = {
 };
 
 function reviewPrompt(item, impl, round) {
-  return `You are an adversarial code reviewer (Opus) for a web-performance change in a TanStack Start + React 19 + Nitro + Supabase platform. Context: ${EVIDENCE} (section 0-cloud), plan ${PLAN}, the item ${JSON.stringify(item)}, the implementer's report ${impl.report_path}.
-Review the diff in the worktree ${impl.worktree}: \`git -C ${impl.worktree} diff ${BASE_REF}...HEAD\` (and read the touched files whole). Try hard to REFUTE that the change is correct and safe:
-- SSR vs client HTML parity (hydration mismatch), streaming boundaries, document-cache identity, Suspense/lazy semantics;
+  return `You are an adversarial code reviewer (Opus) for a web-performance change in a TanStack Start + React 19 + Nitro + Supabase platform. Context: ${NOTES}, the item ${item.id} in ${PLAN_JSON} and ${PLAN_MD} (its mechanism, file list in §4, gates), the verdict(s) it cites under ${DOCS}/faza1/raporty/werdykty/, the implementer's report ${impl.report_path}.
+Review the diff in the worktree ${impl.worktree}: \`git -C ${impl.worktree} diff ${BASE_REF}...HEAD\` and read the touched files whole. Try hard to REFUTE that the change is correct, safe and within scope:
+- files outside the item's list (PLAN.md §4) = blocking; mechanism deviating from the plan without a stated reason = blocking;
+- SSR vs client HTML parity (hydration mismatch), streaming boundaries, document-cache identity, Suspense/lazy semantics, React 19 specifics (identity-compared props, dangerouslySetInnerHTML rewrites, startTransition vs useSyncExternalStore);
 - chunk graph: new static import edges into the entry/boot closure, cycles, hoistTransitiveImports doctrine, named-chunk expectations of check:bundle/check:chunks;
-- behaviour for logged-in users/editors/admins and for EN (/en) pages, i18n keys, a11y (focus, aria), CLS and visual regressions, SEO (links present in HTML, meta/preload correctness);
-- tests: do the added tests actually assert the mechanism (not just render)? would they catch a regression?
-- repo gates: entry-purity, ssr-budgets, loader-policy, chunk-parity, noHasSelectors, i18n-hardcoded, dangerous-html, ownership (new files need owners in the ownership registry? check scripts/check-ownership.ts conventions);
-- commit message and docs in Polish, prettier-clean, no new dependencies, no stray files (worktree junk, logs).
+- behaviour for logged-in users/editors/admins and for EN (/en) pages, i18n keys, a11y (focus, aria), CLS, SEO (links present in HTML, meta/preload correctness), consent semantics;
+- tests: do the added tests assert the mechanism (not just render)? would they catch a regression? Polish comments/commit message, prettier-clean, no new dependencies, no stray files;
+- repo gates: run in the worktree what is cheap (bunx eslint on touched files, bunx vitest run <touched tests>, bun run verify:static) and report results.
 You may run read-only commands and the fast gates in the worktree. Do NOT edit files. Write ${OUT}/${item.id}/REVIEW${round ? "-" + round : ""}.md and return the structured verdict (blocking = must fix before merge).`;
 }
 
@@ -145,17 +149,18 @@ const REVIEW_SCHEMA = {
 };
 
 function provePrompt(item, impl) {
-  return `You are the measurement engineer (Opus) proving ONE implemented change. Context: ${EVIDENCE} section 0-cloud (read the 'Harness details'), the item ${JSON.stringify(item)}, implementer report ${impl.report_path}.
-Worktree with the change: ${impl.worktree} (branch ${impl.branch}, commit ${impl.commit}). Baseline artifact (already built, unchanged base): ${BASELINE_WT}/.output.
-STEPS (in this order; everything heavy runs under the machine mutex — take it and hold it for the whole stage):
-  until mkdir ${SCRATCH}/.build-lock 2>/dev/null; do sleep 15; done     # wait for the mutex
-  trap 'rmdir ${SCRATCH}/.build-lock' EXIT                                 # always release it
-  cd ${impl.worktree} && BUNDLE_INVENTORY=1 bun run build:smoke > ${OUT}/${item.id}/build.log 2>&1   (~2-4 min, 8 GB heap)
-  then the artifact gates in the worktree: bun run check:bundle (record the full output; it is RED on main by 31.5 KB overall — your job is that this change does not make overall/public/entry/boot WORSE than the baseline numbers, and ideally better; copy the 'Boot closure' and chunk-move lines), bun run check:chunks, bun run check:entry-purity, bun run check:ssr-budgets, bun run check:loader-policy, bun run check:chunk-parity, bunx vitest run src/lib/ci/__tests__/noHasSelectors.test.ts; also the repo's artifact boot tests if they run offline: bunx playwright test --config playwright.artifact.config.ts (skip with a note if it needs network).
-  then the document-weight gate on the candidate: cd ${impl.worktree} && node scripts/performance/check-document-weight.ts --json ${OUT}/${item.id}/document-weight.json (ratchet thresholds in scripts/performance/document-weight-budgets.json: it must stay green; if the change legitimately lowers a metric, ratchet the threshold DOWN in the budgets file as part of the item, never up) and the same on the baseline for comparison: cd ${BASELINE_WT} && node scripts/performance/check-document-weight.ts --json ${OUT}/${item.id}/document-weight-baseline.json;
-  then the Lighthouse A/B with the canonical harness (h2 same-origin proxy, browser-UA warm-up, fixture images; read POMIAR.md first): cd ${BASELINE_WT} && LIGHTHOUSE_CLI=${SCRATCH}/tools/node_modules/lighthouse/cli/index.js CHROME_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node scripts/performance/lighthouse-local.mjs --compare ${BASELINE_WT} ${impl.worktree} --runs 3 --label w${WAVE}-${item.id} --out ${OUT}/${item.id}/lh > ${OUT}/${item.id}/ab.log 2>&1 ; read the MEDIAN and DELTA B-A lines (mobile and desktop) and the per-run lines (spread = noise); compare the two documents from the gate JSONs (raw/gzip bytes, inline <style>/<script> bytes, modulepreload count, preload duplicates, boot closure raw/gzip, High-priority JS pool) and the audits dump of one mobile run per side (request count, transfer bytes, High JS bytes ended before the LCP image, LCP element and breakdown).
-  release the mutex (rmdir) BEFORE writing the report.
-Judge: does the measured delta match the plan's expected effect (direction and rough size)? Note the noise level (spread of the 3 runs). If a gate is red because of this change, say exactly which and why (the implementer gets one fix round).
+  return `You are the measurement engineer (Opus) proving ONE implemented change. Context: ${EVIDENCE} section 0-cloud (read 'Harness details'), ${DOCS}/POMIAR.md, the item ${item.id} in ${PLAN_JSON} (expected_effect, verification) and the implementer report ${impl.report_path}.
+Worktree with the change: ${impl.worktree} (branch ${impl.branch}, commit ${impl.commit}). Wave base artifact (already built): ${BASELINE_WT}/.output.
+STEPS, in this order, under the machine mutexes (ALWAYS release them, also on failure; trap 'rmdir ...' EXIT):
+  until mkdir ${SCRATCH}/.build-lock 2>/dev/null; do sleep 15; done
+  cd ${impl.worktree} && BUNDLE_INVENTORY=1 bun run build:smoke > ${OUT}/${item.id}/build.log 2>&1   (~2.5-4 min, 8 GB heap)
+  artifact gates in the worktree: bun run check:bundle (record the full output; main is RED by +31.5 KB overall from spreadsheet.worker — your job is that this change does not make overall/public/entry/boot WORSE than the base; copy the 'Boot closure' line and the moves list), bun run check:chunks, bun run check:entry-purity, bun run check:server-entry-purity, bun run test:e2e:artifact (skip with a note if it needs network), node scripts/performance/check-document-weight.ts --json ${OUT}/${item.id}/document-weight.json (ratchet: must stay green; if the change legitimately lowers a metric, the item may ratchet the threshold DOWN in document-weight-budgets.json, never up) and the same gate on the base: cd ${BASELINE_WT} && node scripts/performance/check-document-weight.ts --json ${OUT}/${item.id}/document-weight-base.json
+  rmdir ${SCRATCH}/.build-lock
+  until mkdir ${SCRATCH}/.lh-lock 2>/dev/null; do sleep 30; done   (and wait while .build-lock exists)
+  cd ${BASELINE_WT} && LIGHTHOUSE_CLI=${SCRATCH}/tools/node_modules/lighthouse/cli/index.js CHROME_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node scripts/performance/lighthouse-local.mjs --compare ${BASELINE_WT} ${impl.worktree} --runs ${item.runs || 3} --forms ${item.forms || "mobile,desktop"} --label w${WAVE}-${item.id} --out ${OUT}/${item.id}/lh ${item.lh_flags || ""} > ${OUT}/${item.id}/ab.log 2>&1
+  rmdir ${SCRATCH}/.lh-lock
+Read the MEDIAN and DELTA B-A lines per form and the per-run spread (noise); compare the two document-weight JSONs (raw/gzip, inline style/script, modulepreload count, duplicates, boot closure, High JS pool) and the audits dump of one mobile run per side (requests, transfer, High JS bytes ended before the LCP image, LCP element and breakdown). If the harness supports the flags the item's verification names (--client-backend, --third-party, --save-artifacts, lanternTasks), use them; if not yet (P0.1 not merged), say so.
+Judge: does the measured delta match the plan's expected effect (direction and rough size), within the A/A noise (FCP/LCP ±0.02 s; TBT up to ±464 ms at n=3)? If a gate is red because of this change, say exactly which and why (the implementer gets one fix round).
 Write ${OUT}/${item.id}/PROVE.md with all numbers (tables) and return the structured result.`;
 }
 
@@ -183,7 +188,7 @@ const PROVE_SCHEMA = {
         entry_kb: { type: "number" },
         boot_gzip_kb: { type: "number" },
         boot_raw_kb: { type: "number" },
-        delta_vs_baseline: { type: "string" },
+        delta_vs_base: { type: "string" },
       },
     },
     lighthouse: {
@@ -218,7 +223,9 @@ const PROVE_SCHEMA = {
 };
 
 phase("Implement");
-log(`Wave ${WAVE}: ${ITEMS.length} items -> ${ITEMS.map((i) => i.id).join(", ")}`);
+log(
+  `Wave ${WAVE}: ${ITEMS.length} items -> ${ITEMS.map((i) => i.id).join(", ")} (base ${BASE_REF})`,
+);
 
 const results = await pipeline(
   ITEMS,
@@ -259,7 +266,7 @@ const results = await pipeline(
     return { item, impl, reviews };
   },
   async (r) => {
-    if (!r || !r.impl) return r;
+    if (!r || !r.impl || r.item.prove === false) return r;
     let prove = await agent(provePrompt(r.item, r.impl), {
       label: `prove:${r.item.id}`,
       phase: "Prove",
@@ -306,7 +313,7 @@ const results = await pipeline(
 
 const done = results.filter(Boolean);
 log(
-  `Wave ${WAVE} finished: ${done.filter((r) => r.prove && !r.prove.needs_fix).length}/${ITEMS.length} items proven`,
+  `Wave ${WAVE} finished: ${done.filter((r) => r.impl && (!r.prove || !r.prove.needs_fix)).length}/${ITEMS.length} items ready for merge review`,
 );
 return done.map((r) => ({
   id: r.item.id,
@@ -315,7 +322,12 @@ return done.map((r) => ({
   worktree: r.impl && r.impl.worktree,
   commit: r.impl && r.impl.commit,
   files_changed: r.impl && r.impl.files_changed,
+  out_of_ownership_needs: r.impl && r.impl.out_of_ownership_needs,
   review_verdicts: (r.reviews || []).filter(Boolean).map((v) => v.verdict),
+  open_blocking: (r.reviews || [])
+    .filter(Boolean)
+    .slice(-1)
+    .flatMap((v) => v.findings.filter((f) => f.severity === "blocking").map((f) => f.finding)),
   prove: r.prove
     ? {
         gates: r.prove.gates,
