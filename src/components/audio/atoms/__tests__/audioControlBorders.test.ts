@@ -7,7 +7,7 @@
 // Bramka pilnuje trzech rzeczy, których nie widać w jednym screenshocie:
 //
 //  1. Krawędź jest MESZANKĄ z atramentem, a nie nową marką. Tokeny typu
-//     `--audio-control-border` są mieszane z `#000` albo `var(--foreground)`,
+//     `--audio-control-border` i `--audio-icon-border` są mieszane z `#000`,
 //     więc zmiana brandu czy tekstu rusza je automatycznie.
 //  2. "Delikatnie" ma górną i dolną granicę. Mieszanka poniżej 60% to już
 //     wyraźna obwódka, powyżej 90% - krawędź znikająca. Próg notujemy tu,
