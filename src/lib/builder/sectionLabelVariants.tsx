@@ -1183,7 +1183,9 @@ export function SectionLabelRender({
       );
 
       // Tekstowy glif (chevron ›/dluga strzalka) zostaje tylko po prawej -
-      // para "<...>" dotyczy domyslnego chevrona wektorowego.
+      // para "<...>" dotyczy domyslnego chevrona wektorowego; "none" zdejmuje
+      // oba znaki.
+      const useChevronPair = glyph !== "" && arrow !== "chevron" && arrow !== "long";
       const arrowVisual =
         glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
           <span
@@ -1200,11 +1202,11 @@ export function SectionLabelRender({
       // zeby „wiecej" nie dziedziczylo pogrubienia opisu.
       const actionInner = (
         <span className="inline-flex items-center gap-[0.08em]" data-typography-exempt>
-          {arrowVisual ? null : chevronSvg("left")}
+          {useChevronPair ? chevronSvg("left") : null}
           <span className="min-w-0" data-typography-exempt>
             {action}
           </span>
-          {arrowVisual ?? chevronSvg("right")}
+          {arrowVisual ?? (useChevronPair ? chevronSvg("right") : null)}
         </span>
       );
 
