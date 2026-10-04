@@ -5269,6 +5269,28 @@ textarea::placeholder {
 .audio-download-icon__tray {
   opacity: 0.82;
 }
+.audio-download-icon__arrow {
+  transition:
+    opacity 350ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 350ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.audio-download-icon__check {
+  stroke-width: 2.1;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  transition:
+    stroke-dashoffset 350ms ease-out 120ms,
+    opacity 150ms ease-out;
+}
+.audio-download-icon[data-done="true"] .audio-download-icon__arrow {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.audio-download-icon[data-done="true"] .audio-download-icon__check {
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
 .audio-download-icon[data-downloading="true"] .audio-download-icon__arrow {
   animation: audio-download-drop 720ms cubic-bezier(0.32, 0.72, 0, 1) infinite;
 }
