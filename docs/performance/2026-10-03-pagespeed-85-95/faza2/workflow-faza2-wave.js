@@ -44,7 +44,11 @@ You are a senior engineer (Opus) implementing ONE item of a web-performance plan
 Read first, in this order: (1) your item in ${PLAN_JSON} (waves[].items[] with your id: files = the ONLY files you may touch, mechanism, gates, verification, depends_on) and the same item plus its wave context, §1.3 Lantern invariants, §2 agent protocol and §4 file-ownership matrix in ${PLAN_MD}; (2) ${NOTES} (owner decision, verdict ledger, corrections); (3) ${EVIDENCE} section 0-cloud (environment: no network, fixture backend, 4 CPUs, one build at a time); (4) the workstream report and the verdict your item cites (${DOCS}/faza1/raporty/<workstream>.md, ${DOCS}/faza1/raporty/werdykty/<workstream>--<id>.md) — the verdicts' blocking issues are requirements.
 Repository rules: Polish for comments, docs and commit messages (imperative, like the git log); TypeScript strict; no new dependencies; prettier formatting (bunx prettier --write on files you touch); keep SSR/hydration parity byte-for-byte for chrome; respect chunk-graph doctrine (no manualChunks/hoistTransitiveImports changes without check:chunks and the 2026-07-20 incident notes in scripts/lib/bootVendorSplit.ts); keep setTimeout(0) before hydrate in src/router.tsx; i18n via dictionaries only; every behavioural change gets or updates a vitest test; AGENTS.md rules apply. Budget moves in scripts/check-bundle-size.ts only with measured numbers and a kronika entry.
 Never touch files outside your item's file list (PLAN.md §4). If a change truly needs another file, stop that part and report it in out_of_ownership_needs instead of editing it.
-Machine: 4 CPUs, 15 GB RAM. Builds: at most one at a time (mutex: until mkdir ${SCRATCH}/.build-lock 2>/dev/null; do sleep 15; done ... rmdir ${SCRATCH}/.build-lock — ALWAYS release it, also on failure). Lighthouse: one at a time (mutex ${SCRATCH}/.lh-lock), never while .build-lock exists. Treat timings on this shared machine as noisy; structural evidence and per-task ledgers decide.
+Machine: 4 CPUs, 15 GB RAM, shared by several agents. HARD LOCK DISCIPLINE (the kernel OOM-killed tsc three times when two typechecks overlapped):
+  - HEAVY = bun run typecheck (tsc needs 7-9 GB), bun run build:smoke (8 GB heap), any Lighthouse/Playwright measurement. Exactly ONE heavy step machine-wide at a time, through ONE shared mutex: until mkdir ${SCRATCH}/.heavy-lock 2>/dev/null; do sleep 20; done; trap 'rmdir ${SCRATCH}/.heavy-lock 2>/dev/null' EXIT; <heavy step>; rmdir ${SCRATCH}/.heavy-lock. (.build-lock and .lh-lock from older notes are superseded by .heavy-lock; also wait while either of those still exists.)
+  - Never run typecheck more than once per fix round; run targeted vitest files (not the whole suite) outside the lock only when they are small; run 'bun run verify:static' outside the lock (it is light).
+  - Before any Lighthouse measurement check 'uptime': if the 1-min load average is above 4, wait (sleep 60 and retry up to 20 times) — traces taken under load are invalid and must be discarded, not reported.
+  - Treat timings on this shared machine as noisy; structural evidence and per-task ledgers decide.
 `;
 
 function implPrompt(item, round, review) {
@@ -67,7 +71,7 @@ ${JSON.stringify(review, null, 2)}`
 IMPLEMENT the item exactly as its mechanism describes (if the code contradicts the plan, implement the closest correct variant and explain the deviation). Then run the FAST gates inside ${wt} and make them green:
   bunx prettier --write <touched files>
   bunx eslint <touched files>
-  bun run typecheck            (required; ~3-4 min)
+  bun run typecheck            (required; ~3-4 min; ONLY under ${SCRATCH}/.heavy-lock, see lock discipline)
   bunx vitest run <test files of touched modules + the tests you added>  (plus src/lib/ci/__tests__/noHasSelectors.test.ts when you touch CSS, and bun run check:chunk-parity when you touch vite configs)
   bun run verify:static        (format:check + every check:* gate outside EXCLUDED, incl. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy; it skips artifact gates when no .output exists)
 Do NOT run a production build or Lighthouse in this stage unless your item's mechanism itself is a measurement/diagnosis task (then follow the mechanism, under the mutexes).
@@ -153,14 +157,14 @@ const REVIEW_SCHEMA = {
 function provePrompt(item, impl) {
   return `You are the measurement engineer (Opus) proving ONE implemented change. Context: ${EVIDENCE} section 0-cloud (read 'Harness details'), ${DOCS}/POMIAR.md, the item ${item.id} in ${PLAN_JSON} (expected_effect, verification) and the implementer report ${impl.report_path}.
 Worktree with the change: ${impl.worktree} (branch ${impl.branch}, commit ${impl.commit}). Wave base artifact (already built): ${BASELINE_WT}/.output.
-STEPS, in this order, under the machine mutexes (ALWAYS release them, also on failure; trap 'rmdir ...' EXIT):
-  until mkdir ${SCRATCH}/.build-lock 2>/dev/null; do sleep 15; done
+STEPS, in this order, under the machine mutex ${SCRATCH}/.heavy-lock (ALWAYS release it, also on failure; trap 'rmdir ...' EXIT; hold it for the build + artifact gates, release, then re-take it for the Lighthouse A/B after checking that the 1-min load average is below 4):
+  until mkdir ${SCRATCH}/.heavy-lock 2>/dev/null; do sleep 20; done
   cd ${impl.worktree} && BUNDLE_INVENTORY=1 bun run build:smoke > ${OUT}/${item.id}/build.log 2>&1   (~2.5-4 min, 8 GB heap)
   artifact gates in the worktree: bun run check:bundle (record the full output; main is RED by +31.5 KB overall from spreadsheet.worker — your job is that this change does not make overall/public/entry/boot WORSE than the base; copy the 'Boot closure' line and the moves list), bun run check:chunks, bun run check:entry-purity, bun run check:server-entry-purity, bun run test:e2e:artifact (skip with a note if it needs network), node scripts/performance/check-document-weight.ts --json ${OUT}/${item.id}/document-weight.json (ratchet: must stay green; if the change legitimately lowers a metric, the item may ratchet the threshold DOWN in document-weight-budgets.json, never up) and the same gate on the base: cd ${BASELINE_WT} && node scripts/performance/check-document-weight.ts --json ${OUT}/${item.id}/document-weight-base.json
-  rmdir ${SCRATCH}/.build-lock
-  until mkdir ${SCRATCH}/.lh-lock 2>/dev/null; do sleep 30; done   (and wait while .build-lock exists)
+  rmdir ${SCRATCH}/.heavy-lock
+  until mkdir ${SCRATCH}/.heavy-lock 2>/dev/null; do sleep 30; done; until [ "$(cut -d' ' -f1 /proc/loadavg | cut -d. -f1)" -lt 4 ]; do sleep 60; done
   cd ${BASELINE_WT} && LIGHTHOUSE_CLI=${SCRATCH}/tools/node_modules/lighthouse/cli/index.js CHROME_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome node scripts/performance/lighthouse-local.mjs --compare ${BASELINE_WT} ${impl.worktree} --runs ${item.runs || 3} --forms ${item.forms || "mobile,desktop"} --label w${WAVE}-${item.id} --out ${OUT}/${item.id}/lh ${item.lh_flags || ""} > ${OUT}/${item.id}/ab.log 2>&1
-  rmdir ${SCRATCH}/.lh-lock
+  rmdir ${SCRATCH}/.heavy-lock
 Read the MEDIAN and DELTA B-A lines per form and the per-run spread (noise); compare the two document-weight JSONs (raw/gzip, inline style/script, modulepreload count, duplicates, boot closure, High JS pool) and the audits dump of one mobile run per side (requests, transfer, High JS bytes ended before the LCP image, LCP element and breakdown). If the harness supports the flags the item's verification names (--client-backend, --third-party, --save-artifacts, lanternTasks), use them; if not yet (P0.1 not merged), say so.
 Judge: does the measured delta match the plan's expected effect (direction and rough size), within the A/A noise (FCP/LCP ±0.02 s; TBT up to ±464 ms at n=3)? If a gate is red because of this change, say exactly which and why (the implementer gets one fix round).
 Write ${OUT}/${item.id}/PROVE.md with all numbers (tables) and return the structured result.`;
