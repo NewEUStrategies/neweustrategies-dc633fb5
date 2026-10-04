@@ -276,6 +276,19 @@ describe("Kinetic Signal Notch", () => {
     expect(container.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.7");
   });
 
+  it("nie ma obszaru bezpiecznego z góry - oddech zostaje tylko na dole", () => {
+    const { container } = renderVariant();
+    const shell = container.querySelector<HTMLElement>(".nes-kinetic-shell");
+    const cls = shell?.className ?? "";
+    // Górny padding jest zerowy (widget zaczyna się od akcji), dolny zostaje.
+    expect(cls).toContain("pb-2");
+    expect(cls).not.toMatch(/(^|\s)(pt|py)-/);
+    const { container: smBox } = renderVariant({ size: "sm" });
+    const smCls = smBox.querySelector<HTMLElement>(".nes-kinetic-shell")?.className ?? "";
+    expect(smCls).toContain("pb-1");
+    expect(smCls).not.toMatch(/(^|\s)(pt|py)-/);
+  });
+
   it("bez akcji rysuje sam tytuł z sygnałem", () => {
     const { container } = renderVariant({ action: null });
     expect(container.querySelector(".nes-kinetic-action")).toBeNull();
