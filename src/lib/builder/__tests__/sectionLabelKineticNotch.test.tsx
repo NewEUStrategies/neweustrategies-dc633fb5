@@ -264,9 +264,9 @@ describe("Kinetic Signal Notch", () => {
     expect(container.querySelectorAll(".nes-kinetic-bar")).toHaveLength(3);
     expect(container.querySelector("a.nes-kinetic-action")).toBeNull();
     expect(container.querySelector("span.nes-kinetic-action")).not.toBeNull();
-    // W pigułce paski mają 2 px, a kreska ptaszka pozostaje od nich cieńsza (1 px).
+    // W pigułce paski mają 2 px, a kreska ptaszka pozostaje od nich cieńsza (0,8 px).
     expect(container.querySelector<HTMLElement>(".nes-kinetic-bar")?.style.height).toBe("2px");
-    expect(container.querySelector("svg")?.getAttribute("stroke-width")).toBe("1");
+    expect(container.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.8");
   });
 
   it("bez akcji rysuje sam tytuł z sygnałem", () => {

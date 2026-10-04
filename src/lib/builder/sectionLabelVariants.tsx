@@ -1139,10 +1139,10 @@ export function SectionLabelRender({
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
 
-      // „subtelny ptaszek": kreska znaku jest celowo cienka i bez pogrubienia -
-      // 1,25 px (1 px w wezkiej kolumnie), liczona w pikselach ekranu, wiec
+      // „subtelny ptaszek": kreska znaku jest celowo cieńsza niż litery -
+      // 1 px (0,8 px w wezkiej kolumnie), liczona w pikselach ekranu, wiec
       // pozostaje delikatna niezaleznie od rozmiaru czcionki akcji.
-      const chevronStroke = isSm ? 1 : 1.25;
+      const chevronStroke = isSm ? 0.8 : 1;
 
       // Chevron ">" bez obudowy - cienka linia, dyskretny ruch w prawo.
       const arrowVisual =
