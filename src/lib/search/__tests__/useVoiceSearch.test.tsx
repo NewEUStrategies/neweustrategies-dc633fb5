@@ -360,7 +360,7 @@ describe("useVoiceSearch - detektor mowy (VAD)", () => {
     expect(frames.length).toBeGreaterThan(0);
   });
 
-  it("MOWA, potem CISZA - auto-stop po oknie ciszy", async () => {
+  it("MOWA, potem CISZA - nagranie trwa dalej, kończy je tylko stop", async () => {
     const { result } = await startRecording();
     await act(async () => {
       // Kalibracja tła (cisza).
@@ -380,25 +380,28 @@ describe("useVoiceSearch - detektor mowy (VAD)", () => {
       vi.advanceTimersByTime(1200);
       await Promise.resolve();
     });
-    expect(result.current.listening).toBe(false);
+    expect(result.current.listening).toBe(true);
   });
 
-  it("CISZA BEZ MOWY zamyka nagranie szybciej niż twardy sufit", async () => {
+  it("CISZA BEZ MOWY nie zamyka nagrania", async () => {
     const { result } = await startRecording();
     ctl.amplitude = 0;
     await act(async () => {
       // Ponad NO_SPEECH_TIMEOUT_MS (6 s), bez ani jednej klatki z mową.
       for (let i = 0; i < 14; i++) frame(500);
     });
-    expect(result.current.listening).toBe(false);
-    // Pętla klatek się kończy - nie pali baterii w tle.
-    expect(frames).toHaveLength(0);
+    expect(result.current.listening).toBe(true);
   });
 
-  it("TWARDY SUFIT zamyka nagranie, gdy użytkownik zapomni o mikrofonie", async () => {
+  it("30 s nie zamyka nagrania; bezpiecznik 5 min tak", async () => {
     const { result } = await startRecording();
     await act(async () => {
       vi.advanceTimersByTime(30_000);
+      await Promise.resolve();
+    });
+    expect(result.current.listening).toBe(true);
+    await act(async () => {
+      vi.advanceTimersByTime(5 * 60_000);
       await Promise.resolve();
     });
     expect(result.current.listening).toBe(false);
@@ -571,9 +574,11 @@ describe("useVoiceSearch - fallback Web Speech API", () => {
     expect(opts.onText).not.toHaveBeenCalled();
   });
 
-  it("koniec rozpoznawania GASI nasłuch - przycisk wraca do stanu spoczynku", async () => {
+  it("koniec rozpoznawania po ciszy WZNAWIA nasłuch; gasi go dopiero stop", async () => {
     const { result, rec } = await startFallback();
+    act(() => rec.onend?.());
     expect(result.current.listening).toBe(true);
+    act(() => result.current.toggle());
     act(() => rec.onend?.());
     expect(result.current.listening).toBe(false);
   });
@@ -582,6 +587,7 @@ describe("useVoiceSearch - fallback Web Speech API", () => {
     const { result, rec } = await startFallback();
     act(() => rec.onerror?.());
     expect(result.current.listening).toBe(true);
+    act(() => result.current.stop());
     act(() => rec.onend?.());
     expect(result.current.listening).toBe(false);
   });
