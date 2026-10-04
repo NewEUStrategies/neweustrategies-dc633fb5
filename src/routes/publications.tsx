@@ -21,13 +21,11 @@ import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-r
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { z } from "zod";
 import { Search as SearchIcon } from "@/lib/lucide-shim";
 import { getRequestUrl } from "@/lib/seo/request";
 import { activeLang } from "@/lib/seo/head";
 import { buildContentHead, splitUrl, SITE_NAME } from "@/lib/seo/meta";
 import { safeJsonLd } from "@/lib/seo/jsonld";
-import { parsePageSearch } from "@/lib/routing/pageSearch";
 import {
   SEARCH_PAGE_SIZE,
   searchQueryOptions,
@@ -122,33 +120,7 @@ function plural(lang: "pl" | "en", count: number): string {
 // odpowiadał więc 307 na `/publications?q=` (kanoniczny adres z head()
 // przekierowywał), a każdy link paska stron niósłby `q=`. Pusta fraza jest
 // brakiem frazy - komponent czyta ją jako `search.q ?? ""`.
-const PublicationsParams = z.object({
-  q: z.string().optional(),
-  spec: z.string().optional(),
-  type: z.string().optional(),
-  region: z.string().optional(),
-  topic: z.string().optional(),
-  project: z.string().optional(),
-  series: z.string().optional(),
-  org: z.string().optional(),
-  author: z.string().optional(),
-  format: z.string().optional(),
-  lang: z.enum(["pl", "en"]).optional(),
-  access: z.string().optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
-  year: z.string().optional(),
-  sort: z.enum(["newest", "popular", "relevance"]).optional(),
-  // Numer strony wyników. Ten sam defensywny parser co /blog i strona główna
-  // (`parsePageSearch`): śmieci, ułamki poniżej 1 i strona 1 znikają z adresu,
-  // więc `/publications` i `/publications?page=1` to JEDEN adres, a nie dwa
-  // warianty tej samej treści w cache i w indeksie. Zła strona nie oblewa
-  // walidacji (jak nieznany `sort`) - adres z ręcznie wpisanym `?page=abc` ma
-  // otworzyć bibliotekę, nie ekran błędu.
-  page: z.unknown().transform((raw) => parsePageSearch({ page: raw }).page),
-});
-
-type PublicationsInput = z.infer<typeof PublicationsParams>;
+import { PublicationsParams, type PublicationsInput } from "@/lib/publications/params";
 
 /**
  * Kanoniczny search biblioteki: puste wartości znikają, reszta przechodzi
