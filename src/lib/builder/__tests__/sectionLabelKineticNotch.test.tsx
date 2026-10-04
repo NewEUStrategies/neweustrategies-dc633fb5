@@ -141,8 +141,8 @@ describe("Kinetic Signal Notch", () => {
     expect(underline?.className).toContain("group-hover/link:w-full");
     const svg = link?.querySelector("svg");
     expect(svg).not.toBeNull();
-    expect(svg?.getAttribute("strokeLinecap")).toBe("butt");
-    expect(svg?.getAttribute("strokeLinejoin")).toBe("miter");
+    expect(svg?.getAttribute("stroke-linecap")).toBe("butt");
+    expect(svg?.getAttribute("stroke-linejoin")).toBe("miter");
     expect(svg?.querySelector("polyline")).not.toBeNull();
     // Strzałka bez okonka: bez wysuwanej kreski doklejanej do szewronki.
     expect(svg?.querySelector('path[d="M5 12h14"]')).toBeNull();
