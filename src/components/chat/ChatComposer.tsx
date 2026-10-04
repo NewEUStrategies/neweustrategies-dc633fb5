@@ -50,6 +50,7 @@ import type { SendMessageInput } from "@/lib/chat/useMessages";
 import type { ChatMessage } from "@/lib/chat/types";
 import type { ChatLang } from "@/lib/chat/time";
 import { cn } from "@/lib/utils";
+import { VoiceRecordingBar, VoiceReview } from "./molecules/VoiceRecorderUi";
 // Lazy: the emoji dataset (~20 KB) loads only when the picker first opens.
 const EmojiPicker = lazy(() => import("./EmojiPicker").then((m) => ({ default: m.EmojiPicker })));
 
@@ -309,8 +310,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
   };
 
+  // Nagranie czeka na decyzję: wyślij albo usuń - nic nie wychodzi automatycznie.
+  const [pendingVoice, setPendingVoice] = useState<RecordedVoice | null>(null);
   const recorder = useVoiceRecorder({
-    onLimitReached: (voice) => void sendVoice(voice),
+    onLimitReached: (voice) => setPendingVoice(voice),
     onError: (kind) =>
       toast.error(kind === "denied" ? t("chat.voice.micDenied") : t("chat.voice.unsupported")),
   });
@@ -438,41 +441,32 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         </div>
       )}
 
-      {recording ? (
-        <div
-          className="flex h-10 items-center gap-2 rounded-[6px] border border-destructive/30 bg-destructive/5 px-2"
-          role="status"
-          aria-label={t("chat.voice.recording")}
-        >
-          <span
-            className="ml-1 h-2.5 w-2.5 shrink-0 rounded-full bg-destructive motion-safe:animate-pulse"
-            aria-hidden
-          />
-          <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">
-            {t("chat.voice.recording")}
-          </span>
-          <span className="shrink-0 text-[12px] font-medium tabular-nums">
-            {formatVoiceDuration(recorder.elapsed)}
-          </span>
-          <button
-            type="button"
-            onClick={() => recorder.cancel()}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-            aria-label={t("chat.voice.cancel")}
-            title={t("chat.voice.cancel")}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden />
-          </button>
-          <button
-            type="button"
-            onClick={() => void recorder.finish().then(sendVoice)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--chat-user-to)] text-white transition-opacity hover:opacity-90"
-            aria-label={t("chat.voice.send")}
-            title={t("chat.voice.send")}
-          >
-            <Send className="h-4 w-4 text-white" aria-hidden />
-          </button>
-        </div>
+      {pendingVoice ? (
+        <VoiceReview
+          voice={pendingVoice}
+          onDelete={() => setPendingVoice(null)}
+          onSend={() => {
+            const v = pendingVoice;
+            setPendingVoice(null);
+            void sendVoice(v);
+          }}
+          labels={{
+            review: t("chat.voice.review"),
+            delete: t("chat.voice.delete"),
+            send: t("chat.voice.send"),
+          }}
+        />
+      ) : recording ? (
+        <VoiceRecordingBar
+          elapsed={formatVoiceDuration(recorder.elapsed)}
+          onCancel={() => recorder.cancel()}
+          onStop={() => void recorder.finish().then((v) => setPendingVoice(v))}
+          labels={{
+            recording: t("chat.voice.recording"),
+            cancel: t("chat.voice.cancel"),
+            stop: t("chat.voice.stop"),
+          }}
+        />
       ) : (
         // Card-style composer: pełnej szerokości pole tekstowe, a pod nim pasek
         // narzędzi (emoji + załącznik po lewej, mikrofon/wyślij po prawej).
