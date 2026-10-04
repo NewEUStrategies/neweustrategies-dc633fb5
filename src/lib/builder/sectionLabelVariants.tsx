@@ -1146,7 +1146,44 @@ export function SectionLabelRender({
       // pozostaje delikatna niezaleznie od rozmiaru czcionki akcji.
       const chevronStroke = isSm ? 0.7 : 0.85;
 
-      // Chevron ">" bez obudowy - cienka linia, dyskretny ruch w prawo.
+      // Chevrony "<" oraz ">" po jednej i drugiej stronie akcji - czyste katy
+      // bez ogonkow (zadnej poziomej linii strzalki). Lustrzany znak po lewej
+      // i prawej: cienka linia, dyskretny ruch na zewnatrz w hoverze.
+      const chevronSvg = (side: "left" | "right"): React.ReactNode => (
+        <svg
+          aria-hidden
+          viewBox="0 0 11 10"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={chevronStroke}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          // Chevron w em, ale o 1 px mniejszy niz wysokosc czcionki akcji
+          // (calc(1em - 1px)), wiec nie przewyzsza liter „wiecej”. Kolor bierze
+          // z currentColor (ten sam co tekst). Znak nie ma przesuniecia w osi Y:
+          // wycentrowany w inline-flex trafia dokladnie w pas wysokosci x ->
+          // linia bazowa liter (pomiar zrzutu: gora strzalki 0,25 px pod x-height,
+          // dol na linii bazowej).
+          style={{ width: "calc(1.1em - 1px)", height: "calc(1em - 1px)" }}
+          className={`shrink-0 transition-transform duration-300 motion-reduce:transition-none ${
+            side === "left"
+              ? "group-hover/link:-translate-x-0.5"
+              : "group-hover/link:translate-x-0.5"
+          }`}
+        >
+          {/* „subtelny ptaszek": kreska jest cienka (chevronStroke), a nie
+              taka jak pasek sygnału - wektor liczy stroke-width w pikselach
+              ekranu, wiec skalowanie viewBoxa (em) jej nie pogrubia. Ramiona
+              sa cofniete od krawedzi pola, zeby znak nigdy sie nie uciql. */}
+          <polyline
+            points={side === "left" ? "8.2 1.8 2.4 5 8.2 8.2" : "2.4 1.8 8.2 5 2.4 8.2"}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      );
+
+      // Tekstowy glif (chevron ›/dluga strzalka) zostaje tylko po prawej -
+      // para "<...>" dotyczy domyslnego chevrona wektorowego.
       const arrowVisual =
         glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
           <span
@@ -1156,41 +1193,18 @@ export function SectionLabelRender({
           >
             {glyph}
           </span>
-        ) : (
-          <svg
-            aria-hidden
-            viewBox="0 0 11 10"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={chevronStroke}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            // Chevron w em, ale o 1 px mniejszy niz wysokosc czcionki akcji
-            // (calc(1em - 1px)), wiec nie przewyzsza liter „wiecej”. Kolor bierze
-            // z currentColor (ten sam co tekst). Znak nie ma przesuniecia w osi Y:
-            // wycentrowany w inline-flex trafia dokladnie w pas wysokosci x ->
-            // linia bazowa liter (pomiar zrzutu: gora strzalki 0,25 px pod x-height,
-            // dol na linii bazowej).
-            style={{ width: "calc(1.1em - 1px)", height: "calc(1em - 1px)" }}
-            className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
-          >
-            {/* „subtelny ptaszek": kreska jest cienka (chevronStroke), a nie
-                taka jak pasek sygnału - wektor liczy stroke-width w pikselach
-                ekranu, wiec skalowanie viewBoxa (em) jej nie pogrubia. Ramiona
-                sa cofniete od krawedzi pola, zeby znak nigdy sie nie uciql. */}
-            <polyline points="2.4 1.8 8.2 5 2.4 8.2" vectorEffect="non-scaling-stroke" />
-          </svg>
-        );
+        ) : null;
 
       // `data-typography-exempt` zdejmuje z wnetrza akcji globalna typografie
       // Theme Designu (gaiaz `:is(p, span, a, ...)` z ~0-8-0 + !important),
       // zeby „wiecej" nie dziedziczylo pogrubienia opisu.
       const actionInner = (
         <span className="inline-flex items-center gap-[0.08em]" data-typography-exempt>
+          {arrowVisual ? null : chevronSvg("left")}
           <span className="min-w-0" data-typography-exempt>
             {action}
           </span>
-          {arrowVisual}
+          {arrowVisual ?? chevronSvg("right")}
         </span>
       );
 
