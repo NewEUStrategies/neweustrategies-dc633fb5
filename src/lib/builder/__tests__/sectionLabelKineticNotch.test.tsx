@@ -172,14 +172,15 @@ describe("Kinetic Signal Notch", () => {
     expect(action?.className).toContain("font-normal");
     expect(action?.className).not.toContain("font-medium");
     // Theme Design per widget (selektor `[data-w-id]x3 [data-description-root]`,
-    // 0-4-0 + !important) narzuca „więcej" rozmiar opisu (12 px). Kinetic musi
-    // więc mieć konkretniejszy selektor (0-5-0) z !important.
-    const winsOverThemeDesign = (px: string) =>
-      new RegExp(
-        `\\[data-w-id\\]\\[data-w-id\\]\\[data-w-id\\] \\.nes-kinetic-shell \\.nes-kinetic-action \\{[^}]*font-size: ${px}px !important;`,
-      );
-    expect(stylesCss).toMatch(winsOverThemeDesign("11"));
-    expect(stylesCss).toMatch(winsOverThemeDesign("9"));
+    // 0-4-0 + !important) narzuca „więcej" rozmiar (12 px) i wagę (800) opisu.
+    // Kinetic musi więc mieć konkretniejszy selektor (0-5-0) z !important.
+    const kineticRule =
+      /\[data-w-id\]\[data-w-id\]\[data-w-id\] \.nes-kinetic-shell \.nes-kinetic-action \{([^}]*)\}/g;
+    const rules = [...stylesCss.matchAll(kineticRule)].map((m) => m[1]);
+    expect(rules.length).toBeGreaterThanOrEqual(2);
+    expect(rules.some((r) => /font-size: 11px !important;/.test(r))).toBe(true);
+    expect(rules.some((r) => /font-size: 9px !important;/.test(r))).toBe(true);
+    expect(rules.some((r) => /font-weight: 400 !important;/.test(r))).toBe(true);
   });
 
   it("ustawienie strzałki żyje: none zdejmuje ikonę, chevron daje znak", () => {
