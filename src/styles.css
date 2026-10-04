@@ -8052,6 +8052,14 @@ html[data-mbb="on"] [data-site-shell] {
   transition: color 0.3s ease-in-out;
 }
 
+/* Chevron „>" nie ma wlasnego koloru - dokladnie ten sam ton co tekst akcji
+   (currentColor), wiec w spoczynku oba sa szare, a w hoverze schodza sie
+   z akcentem w tym samym momencie. */
+.nes-kinetic-action svg {
+  color: inherit;
+  opacity: 1;
+}
+
 .nes-kinetic-action:hover,
 .nes-kinetic-action:focus-visible {
   color: var(--nes-accent, var(--primary));
