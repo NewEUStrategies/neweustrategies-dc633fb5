@@ -574,7 +574,7 @@ stopka = ('<footer><span>Audyt pokrycia testami NES · wydanie 13 · HEAD <code>
           '<span>Weryfikacja liczb: <code>bun scripts/audit/verify-edition-13.mjs</code> - 192 asercje na drzewie <code>5b8c77c01</code> czytanym z obiektów gita, 192 zielone, 0 czerwonych (commit <code>b244f0cae</code>)</span>'
           '<span>Dane: <code>docs/audyt-ed13/</code> (pomiar, defekty z werdyktami, migawka agentów, rynek, Lighthouse, nagłówki wdrożenia)</span></footer>')
 wynik = glowa + '<div class="wrap">\n' + ed13 + '\n\n' + archiwum + '\n\n' + stopka + '\n</div>\n'
-for zly in ('—', '–'):
+for zly in ('\u2014', '\u2013'):
     n = ed13.count(zly) + stopka.count(zly)
     assert n == 0, f'znak {zly!r} w nowej czesci: {n}'
 open(WYJSCIE, 'w', encoding='utf-8').write(wynik)
