@@ -1165,27 +1165,22 @@ export function SectionLabelRender({
         );
 
       const actionInner = (
-        <>
-          <span className="relative z-10 inline-flex items-center gap-1">
-            <span className="min-w-0">{action}</span>
-            {arrowVisual}
-          </span>
-          <span
-            aria-hidden
-            className="pointer-events-none absolute bottom-0 left-0 h-px w-0 transition-[width] duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none group-hover/link:w-full"
-            style={{ background: "currentColor" }}
-          />
-        </>
+        <span className="inline-flex items-center gap-[0.12em]">
+          <span className="min-w-0">{action}</span>
+          {arrowVisual}
+        </span>
       );
 
-      const actionCls = `group/link nes-kinetic-action relative inline-flex min-w-0 items-center whitespace-nowrap pb-1 ${actCls}`;
+      // Bez podkreslenia i bez wewnetrznego paddingu - caly oddech nad wierszem
+      // kresek sterowany jest jednym `marginBottom` nizej.
+      const actionCls = `group/link nes-kinetic-action inline-flex min-w-0 items-center whitespace-nowrap ${actCls}`;
 
       return (
         <div className={`${wrapperBase} nes-kinetic-shell group w-full min-w-0 ${padY}`}>
           {action ? (
             <div
               className="flex w-full min-w-0 justify-start"
-              style={{ marginBottom: isSm ? "4px" : "3px" }}
+              style={{ marginBottom: isSm ? "3px" : "2px" }}
             >
               {href && !isSm ? (
                 <AppLink
