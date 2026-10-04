@@ -16,11 +16,13 @@
 // emituje dla niego automatycznego preloadu. Renderery powłoki (nagłówek,
 // stopka, menu mobilne, popupy) nie są właścicielami - podają pustą listę.
 //
-// Wartość jest czystą pochodną dokumentu, identyczną w SSR i pierwszym renderze
-// klienta - zero ryzyka rozjazdu hydratacji.
+// Wartość jest czystą pochodną dokumentu i kontekstu dostępu czytelnika (tego
+// samego, którym `SectionsList` filtruje sekcje), identyczną w SSR i pierwszym
+// renderze klienta - parytet hydratacji taki sam jak samych sekcji.
 import { createContext, useContext, type ReactNode } from "react";
 import { preload } from "react-dom";
 import type { ImagePreloadInput } from "@/lib/seo/meta";
+import { useAccessContext } from "@/lib/builder/accessControl";
 
 const NO_CANDIDATES: readonly string[] = Object.freeze([]);
 
@@ -57,16 +59,39 @@ export function lcpCandidateAttr(isLcp: boolean): "" | undefined {
   return isLcp ? "" : undefined;
 }
 
+/**
+ * Deskryptor preloadu obrazu LCP. `media` ma tylko kandydat JEDNEGO urządzenia
+ * (dwóch kandydatów: desktop `(min-width: 768px)`, telefon `(max-width: 767px)`,
+ * granica reguły `order.mobile` renderera) - telefon nie pobiera z High obrazu,
+ * który u niego leży niżej, i odwrotnie (recenzja P1.4, m2).
+ */
+export interface LcpImagePreload extends ImagePreloadInput {
+  readonly media?: string;
+}
+
+/**
+ * JEDNA wartość domyślna `sizes` dla preloadu obrazu LCP - ta sama, którą
+ * emitują `OptimizedImage` (`sizes ?? "100vw"`) i nagłówek `Link`
+ * (`imagePreloadLinkHeaderValue`). Deduplikacja i `preload()` liczą klucz z tej
+ * samej wartości, więc nie powstaną dwa preloady jednego obrazu (recenzja m3).
+ */
+const lcpImageSizes = (input: ImagePreloadInput) => input.imageSizes ?? "100vw";
+
+/** Klucz zasobu - ten sam, którym React łączy `preload()` z `<img>` (`srcSet\nsizes` albo `href`). */
+export function lcpImagePreloadKey(input: ImagePreloadInput): string {
+  return input.imageSrcSet ? `${input.imageSrcSet}\n${lcpImageSizes(input)}` : input.href;
+}
+
 /** Opcje `ReactDOM.preload` dla deskryptora obrazu LCP (bez pustego `imageSrcSet`). */
-export function lcpImagePreloadOptions(input: ImagePreloadInput) {
-  return input.imageSrcSet
-    ? {
-        as: "image" as const,
-        fetchPriority: "high" as const,
-        imageSrcSet: input.imageSrcSet,
-        imageSizes: input.imageSizes ?? "100vw",
-      }
-    : { as: "image" as const, fetchPriority: "high" as const };
+function lcpImagePreloadOptions(input: LcpImagePreload) {
+  return {
+    as: "image" as const,
+    fetchPriority: "high" as const,
+    ...(input.imageSrcSet
+      ? { imageSrcSet: input.imageSrcSet, imageSizes: lcpImageSizes(input) }
+      : null),
+    ...(input.media ? { media: input.media } : null),
+  };
 }
 
 /**
@@ -77,8 +102,20 @@ export function lcpImagePreloadOptions(input: ImagePreloadInput) {
  * w preambule - także wtedy, gdy sekcja z obrazem dostrumieniowuje się później.
  * Na kliencie (nawigacja SPA) wstawia ten sam link do `<head>`, gdy go nie ma.
  */
-export function preloadLcpImages(preloads: readonly ImagePreloadInput[] | null | undefined): void {
+export function preloadLcpImages(preloads: readonly LcpImagePreload[] | null | undefined): void {
   for (const input of preloads ?? []) {
     if (input.href) preload(input.href, lcpImagePreloadOptions(input));
   }
+}
+
+/**
+ * Hook trasy: preload kandydatów policzonych przez loader DLA GOŚCIA
+ * (`builderHeroPreloads` - SSR jest zawsze anonimowy). Zalogowany czytelnik może
+ * widzieć inną sekcję 0 (reguły `advanced.access`), a renderer liczy jego
+ * kandydata z jego kontekstem - preload gościa byłby wtedy pobraniem z High
+ * obrazu, którego nikt nie maluje (recenzja P1.4, B1). Dla zalogowanego
+ * priorytet niesie sam `<img>` kandydata. SSR i hydratacja gościa - bez zmian.
+ */
+export function usePreloadLcpImages(preloads: readonly LcpImagePreload[] | null | undefined): void {
+  if (!useAccessContext().isAuthenticated) preloadLcpImages(preloads);
 }

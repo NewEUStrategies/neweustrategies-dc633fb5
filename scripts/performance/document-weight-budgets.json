@@ -14,8 +14,8 @@
     "",
     "P1.4 (fala 1, 2026-10-04) - ŚCIEŻKA KRYTYCZNA OBRAZU LCP (LP-10 + LA-C3). Kandydata LCP wyznacza czysta funkcja dokumentu `lcpCandidates` (src/lib/builder/lcpCandidate.ts); priorytet i `data-lcp-candidate` dostaje WYŁĄCZNIE on, a preload obrazu emituje `preload()` z react-dom (jeden klucz zasobu z `<img>`). Progi:",
     "  * `imgFetchpriorityHigh` 9 -> 2 (granica z planu: maks. dwóch kandydatów - największy slot desktopowy i pierwszy wg order.mobile; fixture `/` ma jednego, więc oczekiwany pomiar to 1). `measured` 9 to pomiar BAZY fali 1 (cc1a3767, przed P1.4); etap dowodu zaciska próg `--ratchet` z artefaktu P1.4.",
-    "  * NOWE: `lcpCandidateCount` <= 2, `lcpCandidateMissing` = 0 (`/` musi mieć znacznik - warunek P1.3 i P2.1), `imgEagerNonCandidate` = 0 (obraz nie-leniwy poza kandydatem i logo w `<header>`), `imagePreloadNonCandidate` = 0 (preload obrazu `fetchpriority=high` o kluczu `imagesrcset`+`imagesizes` / `href` innym niż `<img data-lcp-candidate>`), `linkHeaderDisallowed` = 0 (nagłówek `Link`: modulepreload, preconnect, dns-prefetch, preload stylu/fontu/skryptu i obrazu kandydata). Na dokumencie bazy fali 1 (cc1a3767) `imgEagerNonCandidate` / `imagePreloadNonCandidate` / `linkHeaderDisallowed` / `lcpCandidateMissing` dają 8 / 3 / 1 / 1 - kontrola negatywna na prawdziwym HTML-u (IMPL.md P1.4).",
-    "  * NOWE: `preLcpTransferBytes` = HTML gzip + CSS blokujący gzip + pula JS High gzip + preloadowane fonty (raw woff2) + obraz kandydata z artefaktu (obraz z CDN/fixture nie jest liczony - wariant zależy od viewportu, werdykt LA-C3). Próg = ceil(pomiar bazy fali 1 741 999 B x 1,02); cel 300 KB z modelu wyniku (ORCHESTRATOR-NOTES: zbiór przed LCP <= ~300 KB).",
+    "  * NOWE: `lcpCandidateCount` <= 2, `lcpCandidateMissing` = 0 (`/` musi mieć znacznik - warunek P1.3 i P2.1), `imgEagerNonCandidate` = 0 (obraz nie-leniwy poza kandydatem i logo w nagłówku powłoki `<header data-site-header>`; inny `<header>` - karta, sekcja - nie zwalnia), `imagePreloadNonCandidate` = 0 (preload obrazu `fetchpriority=high` o kluczu `imagesrcset`+`imagesizes` / `href` innym niż `<img data-lcp-candidate>`), `linkHeaderDisallowed` = 0 (nagłówek `Link`: modulepreload, preconnect, dns-prefetch, preload stylu/fontu/skryptu i obrazu kandydata). Na dokumencie bazy fali 1 (cc1a3767) `imgEagerNonCandidate` / `imagePreloadNonCandidate` / `linkHeaderDisallowed` / `lcpCandidateMissing` dają 8 / 3 / 1 / 1 - kontrola negatywna na prawdziwym HTML-u (IMPL.md P1.4).",
+    "  * NOWE: `preLcpTransferBytes` = HTML gzip + CSS blokujący gzip + pula JS High gzip + preloadowane fonty (raw woff2) + obraz kandydata z artefaktu (obraz z CDN/fixture nie jest liczony - wariant zależy od viewportu, werdykt LA-C3). Próg = pomiar bazy fali 1 (741 999 B, HTML bazy z artefaktu cc1a3767) BEZ zapasu - zasada fali: żadna metryka nie rośnie (recenzja P1.4, m4; pierwsza wersja miała x1,02). Przyrost chunku wejściowego od `lcpCandidate.ts` (szacunek w IMPL-fix1.md) zmierzy etap dowodu; `--ratchet` może próg tylko obniżyć. Cel 300 KB z modelu wyniku (ORCHESTRATOR-NOTES: zbiór przed LCP <= ~300 KB).",
     "  * Cztery czerwone metryki modulepreload na bazie fali 1 (zbłąkany spreadsheetWorker w manifeście trasy `/`) są POZA P1.4 - progi bez zmian."
   ],
   "path": "/",
@@ -143,7 +143,7 @@
       "target": 0
     },
     "preLcpTransferBytes": {
-      "max": 756839,
+      "max": 741999,
       "measured": 741999,
       "target": 307200
     }

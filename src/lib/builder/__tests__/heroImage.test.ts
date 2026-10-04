@@ -4,8 +4,15 @@ import { imageSlotSizes } from "../imageSlot";
 // srcSet z buildImageSrcSet) oraz ostrożność - lepiej zero preloadu niż zły.
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { builderHeroPreload, builderHeroPreloads } from "@/lib/builder/heroImage";
-import { lcpCandidateIds } from "@/lib/builder/lcpCandidate";
+import {
+  builderContentHeroPreloads,
+  builderHeroPreload,
+  builderHeroPreloads,
+  lcpPreloadLinkHeaderValue,
+} from "@/lib/builder/heroImage";
+import { lcpCandidateIds as lcpCandidateIdsFor } from "@/lib/builder/lcpCandidate";
+import { GUEST_ACCESS_CONTEXT, evaluateAccess } from "@/lib/builder/accessControl";
+import { imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
@@ -28,6 +35,10 @@ import type {
 } from "@/lib/builder/types";
 
 const COVER = "https://p.supabase.co/storage/v1/object/public/covers/hero.jpg";
+
+/** Kandydaci dla gościa - te same reguły dostępu, których używa loader trasy. */
+const lcpCandidateIds = (doc: BuilderDocument) =>
+  lcpCandidateIdsFor(doc, { isAccessible: (rule) => evaluateAccess(rule, GUEST_ACCESS_CONTEXT) });
 
 /** Pełne wiersze zapytań - setQueryData jest typowane kluczem (DataTag). */
 function sliderRow(cover: string) {
@@ -332,6 +343,23 @@ describe("builderHeroPreloads - delegacja do kandydatów LCP", () => {
     ]);
     expect(builderHeroPreloads(doc, qc, "pl").map((p) => p.href)).toEqual([big, small]);
     expect(builderHeroPreload(doc, qc, "pl")?.href).toBe(big);
+    // Każdy kandydat jednego urządzenia niesie `media` (recenzja m2): telefon nie
+    // pobiera z High obrazu desktopowego i odwrotnie. Granica = reguła order.mobile.
+    expect(builderHeroPreloads(doc, qc, "pl").map((p) => p.media)).toEqual([
+      "(min-width: 768px)",
+      "(max-width: 767px)",
+    ]);
+  });
+
+  it("jeden kandydat dla obu urządzeń: preload BEZ `media`", () => {
+    const qc = new QueryClient();
+    const [preload, ...rest] = builderHeroPreloads(
+      docWith([sectionWith([widget("image", { src: COVER, alt_pl: "Hero" })])]),
+      qc,
+      "pl",
+    );
+    expect(rest).toEqual([]);
+    expect(preload).not.toHaveProperty("media");
   });
 
   it("dwóch kandydatów z TYM SAMYM kluczem zasobu daje jeden deskryptor", () => {
@@ -356,7 +384,25 @@ describe("builderHeroPreloads - delegacja do kandydatów LCP", () => {
         columnSpan([widget("image", { src: COVER, alt_pl: "B" })], 8, 2),
       ]),
     ]);
-    expect(builderHeroPreloads(sameStorageFile, qc, "pl")).toHaveLength(2);
+    // Dwa klucze (różne `sizes`) - dwa preloady, każdy ze swoim `media`.
+    expect(builderHeroPreloads(sameStorageFile, qc, "pl").map((p) => p.media)).toEqual([
+      "(min-width: 768px)",
+      "(max-width: 767px)",
+    ]);
+  });
+
+  it("reguły dostępu GOŚCIA (recenzja B1): sekcja „tylko dla zalogowanych” nie dostaje preloadu", () => {
+    // Ścieżka kliencka (nawigacja SPA): dokument w przeglądarce nie jest odarty
+    // z węzłów zamkniętych, więc predykat gościa musi je pominąć sam.
+    const qc = new QueryClient();
+    const gated = `${COVER}?zalogowani=1`;
+    const doc = docWith([
+      sectionWith([widget("image", { src: gated, alt_pl: "Tylko dla członków" })], {
+        advanced: { access: { auth: "user" } },
+      }),
+      sectionWith([widget("image", { src: COVER, alt_pl: "Dla wszystkich" })]),
+    ]);
+    expect(builderHeroPreloads(doc, qc, "pl").map((p) => p.href)).toEqual([COVER]);
   });
 
   it("widget schowany na telefonie nie jest preloadowany (hideOn.mobile)", () => {
@@ -819,5 +865,49 @@ describe("builderHeroPreload - okno nad zgięciem i odporność", () => {
     const doc = docWith([sectionWith([widget("slider", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")?.href).toBe(COVER);
     expect(builderHeroPreload(doc, qc, "en")).toBeNull();
+  });
+});
+
+describe("builderContentHeroPreloads - silnik treści strony (recenzja m7)", () => {
+  const heroDoc = () => docWith([sectionWith([widget("image", { src: COVER, alt_pl: "Hero" })])]);
+
+  it("treść malowana silnikiem buildera: preload kandydata", () => {
+    const qc = new QueryClient();
+    const preloads = builderContentHeroPreloads(
+      { editor: "builder", builderDoc: heroDoc() },
+      qc,
+      "pl",
+    );
+    expect(preloads.map((p) => p.href)).toEqual([COVER]);
+  });
+
+  it.each(["blocks", "richtext", "markdown", null])(
+    "edytor %s z pozostałym builder_data: brak preloadu (ContentRenderer tego nie maluje)",
+    (editor) => {
+      const qc = new QueryClient();
+      expect(builderContentHeroPreloads({ editor, builderDoc: heroDoc() }, qc, "pl")).toEqual([]);
+    },
+  );
+
+  it("edytor builder z pustym dokumentem: brak preloadu", () => {
+    const qc = new QueryClient();
+    expect(builderContentHeroPreloads({ editor: "builder", builderDoc: null }, qc, "pl")).toEqual(
+      [],
+    );
+  });
+});
+
+describe("lcpPreloadLinkHeaderValue - nagłówek Link kandydata", () => {
+  const input = { href: COVER, imageSrcSet: `${COVER}?w=480 480w`, imageSizes: "50vw" };
+
+  it("bez `media` = dotychczasowa wartość z warstwy SEO (imagesrcset + imagesizes)", () => {
+    expect(lcpPreloadLinkHeaderValue(input)).toBe(imagePreloadLinkHeaderValue(input));
+    expect(lcpPreloadLinkHeaderValue(input)).toContain('imagesizes="50vw"');
+  });
+
+  it("kandydat jednego urządzenia: parametr `media` jak w preloadzie dokumentu", () => {
+    expect(lcpPreloadLinkHeaderValue({ ...input, media: "(max-width: 767px)" })).toBe(
+      `${imagePreloadLinkHeaderValue(input)}; media="(max-width: 767px)"`,
+    );
   });
 });

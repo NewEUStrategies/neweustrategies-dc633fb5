@@ -269,8 +269,8 @@ export interface DocumentWeight {
   readonly lcpCandidateMissing: number;
   /**
    * Obrazy NIE-leniwe (bez `loading="lazy"`, czyli eager albo domyślne) poza
-   * kandydatem LCP i poza `<header>` (logo powłoki). Każdy taki obraz dostaje
-   * w SSR automatyczny preload Reacta i konkuruje o pasmo z obrazem LCP.
+   * kandydatem LCP i poza nagłówkiem powłoki `<header data-site-header>` (logo
+   * `Header.tsx`). Każdy taki obraz konkuruje o pasmo z obrazem LCP.
    */
   readonly imgEagerNonCandidate: number;
   /**
@@ -347,11 +347,33 @@ export function imageResourceKey(srcset: string, sizes: string, src: string): st
 const LINK_ALLOWED_RELS = new Set(["modulepreload", "preconnect", "dns-prefetch"]);
 const LINK_ALLOWED_PRELOAD_AS = new Set(["style", "font", "script"]);
 
-/** Zakresy `<header ...>...</header>` (powłoka: logo wolno ładować eager). */
-function headerRanges(html: string): Array<[number, number]> {
+/**
+ * Zakresy nagłówka POWŁOKI `<header data-site-header ...>...</header>` - tylko
+ * tam wolno ładować logo eager (`Header.tsx`). Dowolny inny `<header>` (karta,
+ * sekcja treści) nie zwalnia obrazu z bramki. Zagnieżdżone `<header>` są
+ * liczone (głębokość), a treść `<script>`/`<style>` maskowana spacjami tej samej
+ * długości (napis „<header>” w komentarzu CSS nie przesuwa zakresu; indeksy
+ * zostają indeksami oryginału) - recenzja P1.4, m5.
+ */
+function siteHeaderRanges(html: string): Array<[number, number]> {
+  const masked = html.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, (m) =>
+    " ".repeat(m.length),
+  );
   const out: Array<[number, number]> = [];
-  const re = /<header\b[\s\S]*?<\/header>/gi;
-  for (const m of html.matchAll(re)) out.push([m.index ?? 0, (m.index ?? 0) + m[0].length]);
+  let start = -1;
+  let depth = 0;
+  for (const m of masked.matchAll(/<(\/?)header\b([^>]*)>/gi)) {
+    const at = m.index ?? 0;
+    if (start < 0) {
+      if (!m[1] && /\sdata-site-header\b/i.test(m[2])) [start, depth] = [at, 1];
+      continue;
+    }
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) {
+      out.push([start, at + m[0].length]);
+      start = -1;
+    }
+  }
   return out;
 }
 
@@ -381,7 +403,7 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   );
   const imgMatches = [...html.matchAll(/<img\b[^>]*>/gi)];
   const imgs = imgMatches.map((m) => parseAttributes(m[0]));
-  const headers = headerRanges(html);
+  const headers = siteHeaderRanges(html);
   const inHeader = (index: number) => headers.some(([from, to]) => index >= from && index < to);
   const candidates = imgs.filter((a) => "data-lcp-candidate" in a);
   const candidateKeys = new Set(

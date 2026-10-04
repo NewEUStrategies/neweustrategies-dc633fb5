@@ -11,20 +11,31 @@
 //     brak źródła, warianty miniaturowe) plus `hideOn.mobile`/`hideOn.desktop`.
 //  4. MODUŁ JEST CZYSTY: nie importuje warstwy zapytań (check:entry-purity,
 //     krytyka M4a) - lista importów źródła jest zamknięta.
+//  5. TE SAME FILTRY DOSTĘPU CO RENDERER (recenzja P1.4, B1): sekcja, kolumna,
+//     inner-sekcja, kolumna inner-sekcji i widget z regułą `advanced.access`,
+//     której czytelnik nie spełnia, nie dają kandydata - ani nie zajmują okna,
+//     ani nie zmieniają podziału slotu rodzeństwa.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import {
+  GUEST_ACCESS_CONTEXT,
+  evaluateAccess,
+  type AccessContext,
+} from "@/lib/builder/accessControl";
+import {
   LCP_CANDIDATE_LIMIT,
   LCP_SCAN_SECTIONS,
   POST_LIST_LEAD_VARIANTS,
   isPostListLeadVariant,
-  lcpCandidateIds,
+  lcpCandidateIds as lcpCandidateIdsFor,
   lcpCandidateKind,
-  lcpCandidates,
+  lcpCandidates as lcpCandidatesFor,
+  type LcpCandidatesOptions,
 } from "@/lib/builder/lcpCandidate";
 import type {
+  AccessControlSettings,
   BuilderDocument,
   ColumnNode,
   InnerSectionNode,
@@ -34,6 +45,21 @@ import type {
   WidgetContent,
   WidgetNode,
 } from "@/lib/builder/types";
+
+/** Predykat dostępu z kontekstu czytelnika - dokładnie to, co podaje renderer. */
+const accessOf =
+  (ctx: AccessContext) =>
+  (rule: AccessControlSettings | undefined): boolean =>
+    evaluateAccess(rule, ctx);
+const GUEST = accessOf(GUEST_ACCESS_CONTEXT);
+const USER = accessOf({ isAuthenticated: true, roles: [] });
+
+type Opts = Partial<LcpCandidatesOptions>;
+/** Domyślnie czytelnik-gość (jak loader trasy i SSR). */
+const lcpCandidates = (doc: BuilderDocument | null | undefined, opts: Opts = {}) =>
+  lcpCandidatesFor(doc, { isAccessible: GUEST, ...opts });
+const lcpCandidateIds = (doc: BuilderDocument | null | undefined, opts: Opts = {}) =>
+  lcpCandidateIdsFor(doc, { isAccessible: GUEST, ...opts });
 
 const COVER = "https://p.supabase.co/storage/v1/object/public/covers/hero.jpg";
 
@@ -310,6 +336,83 @@ describe("lcpCandidates - sekcje i okno", () => {
     const doc = docWith([s0]);
     const roundTrip = JSON.parse(JSON.stringify(doc)) as BuilderDocument;
     expect(lcpCandidateIds(roundTrip)).toEqual(lcpCandidateIds(doc));
+  });
+});
+
+describe("lcpCandidates - reguły dostępu jak w rendererze (recenzja B1)", () => {
+  const onlyUsers: AccessControlSettings = { auth: "user" };
+  const onlyGuests: AccessControlSettings = { auth: "guest" };
+
+  it("sekcja „tylko dla zalogowanych”: gość dostaje kandydata z następnej sekcji, zalogowany - z niej", () => {
+    const gated = image(`${COVER}?zalogowani=1`);
+    const open = image(`${COVER}?wszyscy=1`);
+    const doc = docWith([
+      section([column([gated])], { advanced: { access: onlyUsers } }),
+      section([column([open])]),
+    ]);
+    expect(lcpCandidateIds(doc)).toEqual([open.id]);
+    expect(lcpCandidateIds(doc, { isAccessible: USER })).toEqual([gated.id]);
+  });
+
+  it("sekcja „tylko dla gości” (promo) nie jest kandydatem zalogowanego i nie zajmuje mu okna", () => {
+    const text = () => section([column([heading()])]);
+    const promo = image(`${COVER}?promo=1`);
+    const hero = image(`${COVER}?hero=1`);
+    const doc = docWith([
+      section([column([promo])], { advanced: { access: onlyGuests } }),
+      text(),
+      text(),
+      section([column([hero])]),
+    ]);
+    expect(lcpCandidateIds(doc)).toEqual([promo.id]);
+    // Zalogowany: malowane są text, text, hero - hero jest trzecią sekcją okna.
+    expect(lcpCandidateIds(doc, { isAccessible: USER })).toEqual([hero.id]);
+  });
+
+  it("kolumna z regułą: pomijana, a slot liczy się z rodzeństwa DOSTĘPNEGO (jak `visibleCols`)", () => {
+    const gated = column([image(`${COVER}?duza=1`)], 8, { advanced: { access: onlyUsers } });
+    const open = column([image(`${COVER}?mala=1`)], 4);
+    const [candidate, ...rest] = lcpCandidates(docWith([section([gated, open])]));
+    expect(rest).toEqual([]);
+    expect(candidate.widget.id).toBe(open.children[0].id);
+    // Renderer gościa maluje jedną kolumnę - zajmuje cały wiersz.
+    expect(candidate.slot.desktop.vw).toBe(100);
+    const [forUser] = lcpCandidates(docWith([section([gated, open])]), { isAccessible: USER });
+    expect(forUser.widget.id).toBe(gated.children[0].id);
+    expect(forUser.slot.desktop.vw).toBeCloseTo((8 / 12) * 100);
+  });
+
+  it("inner-sekcja z regułą i kolumna inner-sekcji z regułą są pomijane jak w `RenderInner`", () => {
+    const gatedInner = innerSection([column([image(`${COVER}?inner=1`)])], {
+      advanced: { access: onlyUsers },
+    });
+    const after = image(`${COVER}?po=1`);
+    expect(lcpCandidateIds(docWith([section([gatedInner, column([after])])]))).toEqual([after.id]);
+
+    const gatedCol = column([image(`${COVER}?kol=1`)], 6, { advanced: { access: onlyUsers } });
+    const openCol = column([image(`${COVER}?otwarta=1`)], 6);
+    const [candidate] = lcpCandidates(docWith([section([innerSection([gatedCol, openCol])])]));
+    expect(candidate.widget.id).toBe(openCol.children[0].id);
+    // Jedyna dostępna kolumna inner-sekcji dostaje cały jej slot.
+    expect(candidate.slot.desktop.vw).toBe(100);
+  });
+
+  it("widget z regułą nie jest kandydatem - kandydatem zostaje następny malowany widget", () => {
+    const gated = image(`${COVER}?ukryty=1`);
+    gated.advanced = { access: onlyUsers };
+    const next = image(`${COVER}?nastepny=1`);
+    const doc = docWith([section([column([gated, next])])]);
+    expect(lcpCandidateIds(doc)).toEqual([next.id]);
+    expect(lcpCandidateIds(doc, { isAccessible: USER })).toEqual([gated.id]);
+  });
+
+  it("nieczytelna reguła (wartość spoza unii) ukrywa węzeł także dla kandydata", () => {
+    const broken = image(`${COVER}?zepsuta=1`);
+    broken.advanced = { access: { auth: "z-kosmosu" } as unknown as AccessControlSettings };
+    const next = image(`${COVER}?nastepny=1`);
+    expect(
+      lcpCandidateIds(docWith([section([column([broken, next])])]), { isAccessible: USER }),
+    ).toEqual([next.id]);
   });
 });
 

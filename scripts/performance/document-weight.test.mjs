@@ -132,7 +132,7 @@ function lcpHtml({ preloadSizes = "50vw", extraBody = "", extraHead = "" } = {})
 <link rel="stylesheet" href="/assets/styles-A.css"/>
 <link rel="preload" as="font" href="/assets/font-F.woff2" crossorigin=""/>
 ${extraHead}</head><body>
-<header><img src="/logo.svg" alt="Logo" loading="eager" decoding="async"/></header>
+<header data-site-header="true"><img src="/logo.svg" alt="Logo" loading="eager" decoding="async"/></header>
 <main><img src="https://x.test/hero.webp" srcSet="${LCP_SRCSET}" sizes="50vw" loading="eager" fetchPriority="high" data-lcp-candidate=""/>
 <img src="https://x.test/b.webp" loading="lazy" fetchPriority="auto"/>${extraBody}</main>
 <script type="module" async src="/assets/index-E.js"></script>
@@ -174,7 +174,7 @@ test("ścieżka LCP: kandydat + preload o TYM SAMYM imagesrcset/imagesizes + Lin
   assert.equal(w.lcpCandidateCount, 1);
   assert.equal(w.lcpCandidateMissing, 0);
   assert.equal(w.imgFetchpriorityHigh, 1);
-  // Logo w <header> jest eager z definicji (wyjątek bramki), lazy się nie liczy.
+  // Logo w nagłówku powłoki jest eager z definicji (wyjątek bramki), lazy się nie liczy.
   assert.equal(w.imgEagerNonCandidate, 0);
   assert.equal(w.imagePreloadNonCandidate, 0);
   assert.equal(w.linkHeaderDisallowed, 0);
@@ -206,6 +206,46 @@ test("ścieżka LCP: KONTROLA NEGATYWNA - obraz eager poza kandydatem i poza nag
   });
   assert.equal(w.imgEagerNonCandidate, 1);
   assert.equal(gate(w, "imgEagerNonCandidate").ok, false);
+});
+
+test("ścieżka LCP: wyjątek logo TYLKO w nagłówku powłoki - nie w <header> karty/sekcji (recenzja m5)", () => {
+  // `<header>` karty w treści NIE zwalnia obrazu eager z bramki.
+  const card = analyzeDocument({
+    html: lcpHtml({
+      extraBody:
+        '<article><header><img src="https://x.test/karta.webp" loading="eager"/></header></article>',
+    }),
+    linkHeader: LCP_LINK,
+  });
+  assert.equal(card.imgEagerNonCandidate, 1);
+  assert.equal(gate(card, "imgEagerNonCandidate").ok, false);
+  // Zagnieżdżony <header> w nagłówku powłoki nie zamyka jego zakresu: logo
+  // po wewnętrznym `</header>` dalej jest w powłoce. Napis „<header>” w CSS
+  // przed powłoką niczego nie przesuwa; obraz eager ZA powłoką się liczy.
+  const nested = analyzeDocument({
+    html:
+      "<html><head><style>/* <header> wrapper */ :where(header svg){color:red}</style></head><body>" +
+      '<header data-site-header="true"><header class="w"><span>menu</span></header>' +
+      '<img src="/logo.svg" alt="Logo" loading="eager"/></header>' +
+      '<img src="https://x.test/za-powloka.webp" loading="eager"/></body></html>',
+  });
+  assert.equal(nested.imgEagerNonCandidate, 1);
+});
+
+test("ścieżka LCP: dwóch kandydatów z `media` urządzenia - preload i Link nadal kandydatami", () => {
+  const MOBILE = "https://x.test/m.webp?w=480 480w";
+  const html = lcpHtml({
+    extraHead: `<link rel="preload" as="image" imageSrcSet="${MOBILE}" imageSizes="100vw" fetchPriority="high" media="(max-width: 767px)"/>`,
+    extraBody: `<img src="https://x.test/m.webp" srcSet="${MOBILE}" sizes="100vw" loading="eager" fetchPriority="high" data-lcp-candidate=""/>`,
+  });
+  const link =
+    `${LCP_LINK}, <https://x.test/m.webp>; rel="preload"; as="image"; fetchpriority=high; ` +
+    `imagesrcset="${MOBILE}"; imagesizes="100vw"; media="(max-width: 767px)"`;
+  const w = analyzeDocument({ html, linkHeader: link });
+  assert.equal(w.lcpCandidateCount, 2);
+  assert.equal(w.imagePreloadNonCandidate, 0);
+  assert.equal(w.linkHeaderDisallowed, 0);
+  assert.equal(gate(w, "imgFetchpriorityHigh").ok, true);
 });
 
 test("ścieżka LCP: KONTROLA NEGATYWNA - nagłówek Link spoza listy dozwolonych", () => {

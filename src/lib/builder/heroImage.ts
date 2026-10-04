@@ -1,5 +1,10 @@
 import type { ImageSlot } from "./imageSlot";
-import { isPostListLeadVariant, lcpCandidates, type PostListLeadVariant } from "./lcpCandidate";
+import {
+  isPostListLeadVariant,
+  lcpCandidates,
+  type LcpCandidateViewport,
+  type PostListLeadVariant,
+} from "./lcpCandidate";
 // Preload LCP dla dokumentów buildera (strona główna, strony publiczne).
 //
 // Wpisy mają kontrakt loader->head() z preloadem okładki od dawna ($.tsx +
@@ -27,11 +32,23 @@ import { isPostListLeadVariant, lcpCandidates, type PostListLeadVariant } from "
 // Zasada ostrożności: gdy pierwszego obrazu nie da się wyznaczyć jednoznacznie
 // (para light/dark, logo, placeholder) - zwracamy null. Brak preloadu kosztuje
 // tylko tyle, co dotychczas; zły preload zawsze kosztuje podwójny transfer.
+// Odmowy dotyczące SAMEGO WIDGETU (para light/dark, logo, wyłączona okładka,
+// wariant miniaturowy) rozstrzyga `lcpCandidateKind` - tutaj trafia wyłącznie
+// kandydat, więc te reguły nie są powtarzane (jedno miejsce, mniej kodu
+// w chunku wejściowym - recenzja P1.4, M3).
+//
+// DOSTĘP: loader liczy kandydatów DLA GOŚCIA (`GUEST_ACCESS_CONTEXT`). Na
+// serwerze dokument jest już odarty z węzłów zamkniętych dla gościa (no-op),
+// w przeglądarce (nawigacja SPA) nie jest - bez predykatu preload mógłby
+// wskazać obraz sekcji „tylko dla zalogowanych" (recenzja P1.4, B1).
 import type { QueryClient } from "@tanstack/react-query";
 import type { BuilderDocument, WidgetContent, WidgetNode } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
-import type { ImagePreloadInput } from "@/lib/seo/meta";
-import { asBool, asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
+import { imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
+import { lcpImagePreloadKey, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { GUEST_ACCESS_CONTEXT, evaluateAccess } from "@/lib/builder/accessControl";
+import { resolveContentEngine, type ContentEngineInput } from "@/lib/content/contentEngine";
+import { asNumInRange, asOneOf, asStr } from "@/lib/content-model/contentValue";
 import { safeImageUrl } from "@/lib/sanitizePure";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
@@ -60,8 +77,8 @@ function getStr(c: WidgetContent, key: string): string {
 }
 
 /** Deskryptor preloadu z parą srcSet/sizes zbudowaną z jednego URL-a. */
-function preloadOf(href: string, sizes: string): ImagePreloadInput {
-  return { href, imageSrcSet: buildImageSrcSet(href), imageSizes: sizes };
+function preloadOf(href: string, sizes: string): LcpImagePreload | null {
+  return href ? { href, imageSrcSet: buildImageSrcSet(href), imageSizes: sizes } : null;
 }
 
 /**
@@ -75,9 +92,8 @@ function sliderPreload(
   queryClient: QueryClient,
   lang: Lang,
   slot?: ImageSlot,
-): ImagePreloadInput | null {
+): LcpImagePreload | null {
   const c = widget.content;
-  if (!asBool(c.showCover, true)) return null;
   const variant = asOneOf(c.variant, SLIDER_VARIANT_VALUES, "editorial-hero");
   const columns = Math.round(asNumInRange(c.columns, 3, 1, 4));
   const sizes = sliderImageSizes(variant, columns, slot);
@@ -112,38 +128,18 @@ function sliderPreload(
     );
     firstImage = safeImageUrl(fallback?.[0] ?? "");
   }
-  if (!firstImage) return null;
   return preloadOf(firstImage, sizes);
 }
 
 /**
- * Widget "image": tylko wariant jednoźródłowy i nie-logo. Para light/dark
- * wybiera się motywem czytelnika (nieznanym na serwerze), a logo podmienia
- * się na asset z ustawień - w obu przypadkach preload zgadywałby.
+ * Widget "image" i dark-featured-card: jednoźródłowy obraz z treści (para
+ * light/dark i logo nie są kandydatami - `lcpCandidateKind`).
  */
-function imageWidgetPreload(widget: WidgetNode, slot?: ImageSlot): ImagePreloadInput | null {
+function contentImagePreload(widget: WidgetNode, slot?: ImageSlot): LcpImagePreload | null {
   const c = widget.content;
-  const src = safeImageUrl(getStr(c, "src"));
-  const srcDark = safeImageUrl(getStr(c, "srcDark"));
-  if (!src) return null;
-  if (srcDark && srcDark !== src) return null;
-  // Heurystyka logo sprawdza OBA alty: renderer czyta `alt_${lang}` z
-  // fallbackiem na alt_pl, więc "Logo" w którymkolwiek języku może podmienić
-  // src na asset z ustawień - preload zgadywałby.
-  if (
-    getStr(c, "useSiteLogo") ||
-    /logo/i.test(getStr(c, "alt_pl")) ||
-    /logo/i.test(getStr(c, "alt_en"))
-  ) {
-    return null;
-  }
-  return preloadOf(src, imageWidgetSizes(c, slot));
-}
-
-function darkFeaturedCardPreload(widget: WidgetNode): ImagePreloadInput | null {
-  const img = safeImageUrl(getStr(widget.content, "image"));
-  if (!img) return null;
-  return preloadOf(img, WIDGET_MEDIA_SPLIT_SIZES);
+  return widget.type === "image"
+    ? preloadOf(safeImageUrl(getStr(c, "src")), imageWidgetSizes(c, slot))
+    : preloadOf(safeImageUrl(getStr(c, "image")), WIDGET_MEDIA_SPLIT_SIZES);
 }
 
 /** Warianty post-listy, których obraz WIODĄCY dostaje priority w renderze
@@ -163,75 +159,74 @@ function postListPreload(
   widget: WidgetNode,
   queryClient: QueryClient,
   lang: Lang,
-): ImagePreloadInput | null {
+): LcpImagePreload | null {
   const c = widget.content;
-  if (getStr(c, "showCover") === "0") return null;
   // Karuzela renderuje KAŻDY wariant przez PostCard (overlay/minimal/default
   // card - wszystkie z sizes siatki), więc wariant "classic"/"flex-grid" na
   // karuzeli nadal maluje GRID - preload musi liczyć tę samą wartość.
-  const isCarousel = widget.type === "carousel";
+  // Wariant spoza `POST_LIST_LEAD_VARIANTS` nie jest kandydatem (`lcpCandidateKind`).
   const variant = getStr(c, "variant") || "card";
-  const sizes = isCarousel
-    ? POST_LIST_GRID_COVER_SIZES
-    : isPostListLeadVariant(variant)
-      ? POST_LIST_LEAD_SIZES[variant]
-      : null;
-  if (!sizes) return null;
-  const rows = queryClient.getQueryData<PostRow[]>(postListQueryOptions(c, lang).queryKey);
-  if (!rows || rows.length === 0) return null;
-  const first = rows[0];
-  const overrides = readThumbnailOverrides(c);
-  const cover = safeImageUrl(overrides[first.id] ?? first.cover_image_url ?? "");
-  if (!cover) return null;
-  return preloadOf(cover, sizes);
-}
-
-function widgetPreload(
-  widget: WidgetNode,
-  queryClient: QueryClient,
-  lang: Lang,
-  slot?: ImageSlot,
-): ImagePreloadInput | null {
-  switch (widget.type) {
-    case "slider":
-      return sliderPreload(widget, queryClient, lang, slot);
-    case "image":
-      return imageWidgetPreload(widget, slot);
-    case "dark-featured-card":
-      return darkFeaturedCardPreload(widget);
-    case "post-list":
-    case "carousel":
-      return postListPreload(widget, queryClient, lang);
-    default:
-      return null;
-  }
-}
-
-/** Klucz deduplikacji - ten sam, którym React łączy preload z `<img>`. */
-function preloadKey(input: ImagePreloadInput): string {
-  return input.imageSrcSet ? `${input.imageSrcSet}\n${input.imageSizes ?? ""}` : input.href;
+  const sizes =
+    widget.type === "carousel" || !isPostListLeadVariant(variant)
+      ? POST_LIST_GRID_COVER_SIZES
+      : POST_LIST_LEAD_SIZES[variant];
+  const first = queryClient.getQueryData<PostRow[]>(postListQueryOptions(c, lang).queryKey)?.[0];
+  if (!first) return null;
+  return preloadOf(
+    safeImageUrl(readThumbnailOverrides(c)[first.id] ?? first.cover_image_url ?? ""),
+    sizes,
+  );
 }
 
 /**
+ * Media kandydata JEDNEGO urządzenia (recenzja P1.4, m2): granica 768 px to
+ * granica reguły `order.mobile` renderera (`@media (max-width: 767px)`).
+ */
+const LCP_VIEWPORT_MEDIA: Readonly<Record<LcpCandidateViewport, string>> = {
+  desktop: "(min-width: 768px)",
+  mobile: "(max-width: 767px)",
+};
+
+/**
  * Deskryptory preloadu obrazów LCP dokumentu buildera - po jednym na kandydata
- * z `lcpCandidates` (maks. 2, najpierw desktopowy), bez duplikatów. Wołać PO
- * rozgrzaniu zapytań widgetów (loader trasy), inaczej tryby danych dadzą pustą
- * listę. Nigdy nie rzuca.
+ * z `lcpCandidates` (maks. 2, najpierw desktopowy; reguły dostępu GOŚCIA), bez
+ * duplikatów. Przy dwóch kandydatach każdy deskryptor niesie `media` swojego
+ * urządzenia; ten sam zasób u obu kandydatów to jeden deskryptor bez `media`.
+ * Wołać PO rozgrzaniu zapytań widgetów (loader trasy), inaczej tryby danych dadzą
+ * pustą listę. Nigdy nie rzuca.
  */
 export function builderHeroPreloads(
-  doc: BuilderDocument,
+  doc: BuilderDocument | null | undefined,
   queryClient: QueryClient,
   lang: Lang,
   aboveFoldSections: number = ABOVE_FOLD_SECTION_COUNT,
-): ImagePreloadInput[] {
+): LcpImagePreload[] {
   try {
-    const safeDoc = safeParseBuilderDoc(doc);
-    const out: ImagePreloadInput[] = [];
-    for (const candidate of lcpCandidates(safeDoc, { sections: aboveFoldSections })) {
+    const out: LcpImagePreload[] = [];
+    const candidates = lcpCandidates(safeParseBuilderDoc(doc), {
+      sections: aboveFoldSections,
+      isAccessible: (rule) => evaluateAccess(rule, GUEST_ACCESS_CONTEXT),
+    });
+    for (const { widget, slot, viewports } of candidates) {
       // Kandydat bez wyznaczalnego obrazu: brak preloadu, BEZ przejścia do
       // następnego widgetu (ten jest leniwy - preload byłby stratą pasma).
-      const preload = widgetPreload(candidate.widget, queryClient, lang, candidate.slot);
-      if (preload && !out.some((p) => preloadKey(p) === preloadKey(preload))) out.push(preload);
+      const preload =
+        widget.type === "slider"
+          ? sliderPreload(widget, queryClient, lang, slot)
+          : widget.type === "image" || widget.type === "dark-featured-card"
+            ? contentImagePreload(widget, slot)
+            : postListPreload(widget, queryClient, lang);
+      if (!preload) continue;
+      const key = lcpImagePreloadKey(preload);
+      const same = out.findIndex((p) => lcpImagePreloadKey(p) === key);
+      // Ten sam zasób u obu kandydatów: jeden preload dla obu urządzeń.
+      if (same >= 0) out[same] = preload;
+      else
+        out.push(
+          viewports.length === 1
+            ? { ...preload, media: LCP_VIEWPORT_MEDIA[viewports[0]] }
+            : preload,
+        );
     }
     return out;
   } catch {
@@ -250,6 +245,28 @@ export function builderHeroPreload(
   queryClient: QueryClient,
   lang: Lang,
   aboveFoldSections: number = ABOVE_FOLD_SECTION_COUNT,
-): ImagePreloadInput | null {
+): LcpImagePreload | null {
   return builderHeroPreloads(doc, queryClient, lang, aboveFoldSections)[0] ?? null;
+}
+
+/**
+ * Preloady kandydatów treści STRONY - tylko gdy treść maluje silnik buildera
+ * (`resolveContentEngine`, ta sama decyzja co `ContentRenderer`). Strona
+ * w edytorze html/bloków z pozostałym `builder_data` nie dostaje preloadu
+ * obrazu, którego nikt nie namaluje (recenzja P1.4, m7).
+ */
+export function builderContentHeroPreloads(
+  content: ContentEngineInput,
+  queryClient: QueryClient,
+  lang: Lang,
+): LcpImagePreload[] {
+  return resolveContentEngine(content) === "builder"
+    ? builderHeroPreloads(content.builderDoc, queryClient, lang)
+    : [];
+}
+
+/** Wartość nagłówka `Link` dla preloadu kandydata - z `media` kandydata jednego urządzenia. */
+export function lcpPreloadLinkHeaderValue(input: LcpImagePreload): string {
+  const value = imagePreloadLinkHeaderValue(input);
+  return input.media ? `${value}; media="${input.media}"` : value;
 }

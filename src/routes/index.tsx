@@ -41,8 +41,8 @@ import {
   siteDescription,
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
-import { builderHeroPreloads } from "@/lib/builder/heroImage";
-import { preloadLcpImages } from "@/lib/builder/aboveFold";
+import { builderHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
+import { usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import {
@@ -163,7 +163,7 @@ export const Route = createFileRoute("/")({
     // preloadem `<img>` - w dokumencie zostaje DOKŁADNIE jeden preload na
     // kandydata (dawniej: link z `head()` + preload Reacta = duplikat).
     let coverPreload: ImagePreloadInput | null = null;
-    let heroPreloads: ImagePreloadInput[] = [];
+    let heroPreloads: LcpImagePreload[] = [];
 
     if (!contentDegraded && homeMode === "latest_posts") {
       const pageSize = resolvePostsPerPage(settingsRes.data);
@@ -263,7 +263,7 @@ export const Route = createFileRoute("/")({
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    for (const hero of heroPreloads) appendLinkHeader(imagePreloadLinkHeaderValue(hero));
+    for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     // An unknown mode also means an unknown SEO document. Do not advertise
     // the static page's canonical/image while the UI intentionally shows a
     // recovery notice (the configured mode could actually be latest_posts).
@@ -373,8 +373,9 @@ function Index() {
   const settingsQuery = useSuspenseQuery(siteSettingsQueryOptions);
   // Obraz kandydata LCP kanwy (P1.4): `preload()` w renderze trasy trafia do
   // preambuły SSR jako jedyny `<link rel=preload as=image fetchpriority=high>`
-  // dla tego obrazu (ten sam klucz co automatyczny preload `<img>`).
-  preloadLcpImages(Route.useLoaderData({ select: (data) => data.heroPreloads }));
+  // dla tego obrazu (ten sam klucz co automatyczny preload `<img>`). Loader
+  // liczy kandydata dla gościa - zalogowanemu hook preloadu nie emituje.
+  usePreloadLcpImages(Route.useLoaderData({ select: (data) => data.heroPreloads }));
   const homePage = pageQuery.data;
   const homeMode = modeQuery.data;
   // Query state, not a latched loader flag: a successful browser refetch must

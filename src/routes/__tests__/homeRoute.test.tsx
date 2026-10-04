@@ -80,7 +80,25 @@ const h = vi.hoisted(() => ({
   linkHeaders: [] as string[],
   /** Wymuszona awaria RENDERU kanwy - osobna powierzchnia od awarii DANYCH. */
   builderThrows: false,
+  /** Sesja czytelnika (`null` = gość - wartość domyślna kontekstu `useAuth`). */
+  session: null as { user: { id: string } } | null,
 }));
+
+// Sesja czytelnika: domyślnie prawdziwy `useAuth` (gość). Blok kandydata LCP
+// ustawia sesję, żeby dowieść, że preload liczony w loaderze DLA GOŚCIA nie
+// trafia do dokumentu zalogowanego (recenzja P1.4, B1).
+vi.mock("@/hooks/useAuth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useAuth")>();
+  return {
+    ...actual,
+    useAuth: () => {
+      const base = actual.useAuth();
+      return h.session
+        ? { ...base, session: h.session, user: h.session.user, loading: false }
+        : base;
+    },
+  };
+});
 
 vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
@@ -339,6 +357,7 @@ beforeEach(() => {
   h.linkHeaders = [];
   h.builderThrows = false;
   h.renderLang = "pl";
+  h.session = null;
 });
 
 afterEach(() => {
@@ -617,6 +636,52 @@ describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
     expect(header).toContain('rel="preload"');
     expect(header).toContain("fetchpriority=high");
     expect(header).toContain(`imagesizes="${link?.getAttribute("imagesizes")}"`);
+  });
+
+  it("ZALOGOWANY: preload loadera (dla gościa) nie trafia do <head>; nagłówek `Link` bez zmian", async () => {
+    // Loader nie zna sesji - liczy kandydata dla gościa (SSR jest anonimowy).
+    // Zalogowany może widzieć inną sekcję 0, więc hook trasy nie emituje
+    // preloadu; priorytet niesie `<img>` kandydata policzonego z jego kontekstem.
+    const src = hero("kandydat-zalogowany");
+    h.homePage = homePageData({ builder_data: heroDoc(src) });
+    h.session = { user: { id: "u-1" } };
+    await mountHome();
+    expect(preloadInHead("kandydat-zalogowany")).toBeNull();
+    expect(h.linkHeaders.some((value) => value.includes(src))).toBe(true);
+  });
+
+  it("kandydat jednego urządzenia: nagłówek `Link` i preload niosą `media`", async () => {
+    // Desktop: kolumna 8/12; telefon: kolumna 4/12 z order.mobile 1.
+    const big = hero("media-duzy");
+    const small = hero("media-maly");
+    const col = (id: string, src: string, span: number, mobile: number) => ({
+      id: `c-${id}`,
+      kind: "column",
+      span: { desktop: span },
+      order: { mobile },
+      children: [{ id: `w-${id}`, kind: "widget", type: "image", content: { src, alt_pl: id } }],
+    });
+    h.homePage = homePageData({
+      builder_data: {
+        version: 1,
+        sections: [
+          {
+            id: "s-media",
+            kind: "section",
+            children: [col("maly", small, 4, 1), col("duzy", big, 8, 2)],
+          },
+        ],
+      },
+    });
+    await mountHome();
+    expect(h.linkHeaders.find((value) => value.includes(big))).toContain(
+      'media="(min-width: 768px)"',
+    );
+    expect(h.linkHeaders.find((value) => value.includes(small))).toContain(
+      'media="(max-width: 767px)"',
+    );
+    expect(preloadInHead("media-duzy")?.getAttribute("media")).toBe("(min-width: 768px)");
+    expect(preloadInHead("media-maly")?.getAttribute("media")).toBe("(max-width: 767px)");
   });
 
   it("kanwa BEZ obrazu w oknie: ani linku, ani nagłówka `Link`, ani preloadu", async () => {

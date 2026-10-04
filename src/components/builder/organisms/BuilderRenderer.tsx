@@ -265,15 +265,22 @@ export function BuilderRenderer({
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
   const { debug, isPrimary } = useBuilderDebug();
-  // Kandydaci LCP - czysta funkcja dokumentu (ten sam wynik w SSR i przy
-  // hydratacji). Kanwa (`editorPreview`) pokazuje oba warianty A/B i nie jest
-  // stroną dla czytelnika, więc kandydatów nie ma.
+  // Kandydaci LCP - czysta funkcja dokumentu i kontekstu dostępu (ten sam wynik
+  // w SSR i przy hydratacji). Reguły `advanced.access` liczy TEN SAM kontekst,
+  // którym `SectionsList`/`RenderSection`/`RenderColumn` filtrują węzły - inaczej
+  // kandydatem bywał widget, którego renderer nie maluje (zalogowany, nawigacja
+  // SPA: dokument w przeglądarce nie jest odzierany). Kanwa (`editorPreview`)
+  // pokazuje oba warianty A/B i nie jest stroną dla czytelnika - bez kandydatów.
+  const { isAuthenticated, roles } = useAccessContext();
   const lcpWidgetIds = useMemo(
     () =>
       lcpOwner && !editorPreview
-        ? lcpCandidateIds(safeDoc, { sections: aboveFoldCount })
+        ? lcpCandidateIds(safeDoc, {
+            sections: aboveFoldCount,
+            isAccessible: (rule) => evaluateAccess(rule, { isAuthenticated, roles }),
+          })
         : NO_LCP_CANDIDATES,
-    [aboveFoldCount, editorPreview, lcpOwner, safeDoc],
+    [aboveFoldCount, editorPreview, isAuthenticated, lcpOwner, roles, safeDoc],
   );
 
   useEffect(() => {

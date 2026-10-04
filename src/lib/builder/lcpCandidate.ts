@@ -17,6 +17,13 @@
 //  * skanujemy sekcje malowane w pierwszym renderze (SSR i pierwszy render
 //    klienta pokazują wariant A eksperymentu - `isSectionVisibleForAssignments`
 //    bez przydziałów), w oknie `sections` (domyślnie = ABOVE_FOLD_SECTION_COUNT),
+//  * TE SAME FILTRY DOSTĘPU CO RENDERER (`advanced.access` sekcji, kolumn,
+//    inner-sekcji, kolumn inner-sekcji i widgetów - `SectionsList`,
+//    `RenderSection`, `RenderInner`, `isRenderedWidget`): predykat
+//    `isAccessible` podaje wołający (renderer - kontekst czytelnika, loader -
+//    gość). Bez tego w przeglądarce, gdzie dokument NIE jest odzierany
+//    (`stripBuilderAccessForAnonymousRender` działa tylko w SSR), kandydatem
+//    zostawał widget, którego renderer nie maluje (recenzja P1.4, B1),
 //  * bierzemy PIERWSZĄ sekcję, w której jest widget obrazowy (slider, obraz
 //    jednoźródłowy nie-logo, dark-featured-card, post-lista z obrazem wiodącym),
 //  * kandydat „desktop": największy udział slotu desktopowego (udział kolumny
@@ -43,7 +50,14 @@
 // renderery i heroImage, żeby kandydat nie rozjechał się z malowanym obrazem.
 // Pilnuje tego test `lcpCandidate.test.ts` (lista importów źródła).
 import { columnImageSlot, type ImageSlot } from "./imageSlot";
-import type { BuilderDocument, SectionChild, SectionNode, WidgetNode } from "./types";
+import type {
+  AccessControlSettings,
+  BuilderDocument,
+  ColumnNode,
+  SectionChild,
+  SectionNode,
+  WidgetNode,
+} from "./types";
 import { asBool, asNumInRange, asStr } from "@/lib/content-model/contentValue";
 import { safeImageUrl } from "@/lib/sanitizePure";
 
@@ -112,10 +126,21 @@ function paintedAtFirstRender(section: SectionNode): boolean {
   return !tag || tag.variant === "a";
 }
 
-/** Kolumny/inner-sekcje widoczne przy pierwszym malowaniu (aktywna zakładka). */
-function visibleSectionChildren(section: SectionNode): SectionChild[] {
+/**
+ * Predykat reguły dostępu węzła (`advanced.access`). Moduł nie importuje
+ * `accessControl.ts` (ciągnie `useAuth`) - predykat podaje wołający:
+ * `BuilderRenderer` - `evaluateAccess(rule, useAccessContext())`, loader trasy
+ * (heroImage.ts) - `evaluateAccess(rule, GUEST_ACCESS_CONTEXT)`.
+ */
+export type LcpAccessPredicate = (rule: AccessControlSettings | undefined) => boolean;
+
+/**
+ * Kolumny/inner-sekcje widoczne przy pierwszym malowaniu: dostępne dla
+ * czytelnika (jak `allChildren` w `RenderSection`) i z aktywnej zakładki.
+ */
+function visibleSectionChildren(section: SectionNode, ok: LcpAccessPredicate): SectionChild[] {
   const children = (Array.isArray(section.children) ? section.children : []).filter(
-    (child): child is NonNullable<typeof child> => Boolean(child),
+    (child): child is NonNullable<typeof child> => Boolean(child) && ok(child.advanced?.access),
   );
   const tabs = section.tabs;
   if (!tabs?.enabled || !tabs.items || tabs.items.length === 0) return children;
@@ -138,28 +163,39 @@ interface PaintedWidget {
   readonly domIndex: number;
 }
 
-function paintedWidgets(section: SectionNode): PaintedWidget[] {
+function paintedWidgets(section: SectionNode, ok: LcpAccessPredicate): PaintedWidget[] {
   const out: PaintedWidget[] = [];
-  const children = visibleSectionChildren(section);
+  const children = visibleSectionChildren(section, ok);
   children.forEach((child, childIndex) => {
     // Renderer ustawia `order` tylko kolumnom najwyższego poziomu: inline
     // `order.desktop` (resolveOrder) i regułę `@media (max-width: 767px)`
     // z `order.mobile ?? 0` dla kolumn z obiektem `order`. Reszta ma 0.
-    const desktopOrder = child.kind === "column" ? (child.order?.desktop ?? 0) : 0;
-    const mobileOrder = child.kind === "column" ? (child.order?.mobile ?? 0) : 0;
-    const push = (widget: WidgetNode | null | undefined, slot: ImageSlot) => {
-      if (widget?.kind !== "widget") return;
-      out.push({ widget, slot, childIndex, desktopOrder, mobileOrder, domIndex: out.length });
+    const order = child.kind === "column" ? child.order : undefined;
+    const push = (column: ColumnNode, slot: ImageSlot) => {
+      for (const widget of column.children ?? []) {
+        // Widget z regułą dostępu, której czytelnik nie spełnia, nie jest
+        // malowany (`isRenderedWidget`) - nie może być kandydatem.
+        if (widget?.kind !== "widget" || !ok(widget.advanced?.access)) continue;
+        out.push({
+          widget,
+          slot,
+          childIndex,
+          desktopOrder: order?.desktop ?? 0,
+          mobileOrder: order?.mobile ?? 0,
+          domIndex: out.length,
+        });
+      }
     };
     if (child.kind === "column") {
-      const slot = columnImageSlot(section, child, children);
-      (child.children ?? []).forEach((widget) => push(widget, slot));
+      // Rodzeństwo slotu = kolumny DOSTĘPNE z aktywnej zakładki (`visibleCols`
+      // renderera) - ten sam podział szerokości, co `BuilderImageSlotContext`.
+      push(child, columnImageSlot(section, child, children));
     } else {
-      (child.columns ?? []).forEach((column) => {
-        if (!column) return;
-        const slot = columnImageSlot(child, column, child.columns ?? []);
-        (column.children ?? []).forEach((widget) => push(widget, slot));
-      });
+      // Kolumny inner-sekcji filtruje dostęp tak samo jak `RenderInner`.
+      const columns = (child.columns ?? []).filter(
+        (column): column is ColumnNode => Boolean(column) && ok(column.advanced?.access),
+      );
+      for (const column of columns) push(column, columnImageSlot(child, column, columns));
     }
   });
   return out;
@@ -244,27 +280,38 @@ function byMobile(a: Scored, b: Scored): number {
 export interface LcpCandidatesOptions {
   /** Okno sekcji (liczone po sekcjach malowanych). Domyślnie `LCP_SCAN_SECTIONS`. */
   readonly sections?: number;
+  /**
+   * Reguły dostępu czytelnika - WYMAGANE, żeby żaden wołający nie pominął
+   * filtra, który stosuje renderer (patrz `LcpAccessPredicate`).
+   */
+  readonly isAccessible: LcpAccessPredicate;
 }
 
 /**
  * Kandydaci LCP dokumentu: 0, 1 albo 2 widgety, najpierw kandydat desktopowy.
- * Funkcja dokumentu, nie danych - SSR i hydratacja liczą ją z tego samego
- * dokumentu, więc atrybuty priorytetu i znacznik `data-lcp-candidate` są
- * identyczne po obu stronach. Nigdy nie rzuca.
+ * Funkcja dokumentu i reguł dostępu czytelnika, nie danych - SSR i hydratacja
+ * liczą ją z tego samego dokumentu i tego samego kontekstu dostępu (ten sam,
+ * którym `SectionsList` filtruje sekcje), więc atrybuty priorytetu i znacznik
+ * `data-lcp-candidate` są identyczne po obu stronach. Nigdy nie rzuca.
  */
 export function lcpCandidates(
   doc: BuilderDocument | null | undefined,
-  options: LcpCandidatesOptions = {},
+  options: LcpCandidatesOptions,
 ): LcpCandidate[] {
   try {
+    const ok = options.isAccessible;
     const sections = Array.isArray(doc?.sections) ? doc.sections : [];
     const windowSize = Math.max(0, Math.floor(options.sections ?? LCP_SCAN_SECTIONS));
+    // Okno liczone po sekcjach, które renderer MALUJE (`SectionsList`: dostęp
+    // + wariant A), więc sekcja niewidoczna dla czytelnika nie zajmuje miejsca.
     const painted = sections
-      .filter((s): s is SectionNode => Boolean(s) && paintedAtFirstRender(s))
+      .filter(
+        (s): s is SectionNode => Boolean(s) && paintedAtFirstRender(s) && ok(s.advanced?.access),
+      )
       .slice(0, windowSize);
     for (const section of painted) {
       const scored: Scored[] = [];
-      for (const entry of paintedWidgets(section)) {
+      for (const entry of paintedWidgets(section, ok)) {
         const kind = lcpCandidateKind(entry.widget);
         if (!kind) continue;
         scored.push({
@@ -304,7 +351,7 @@ export function lcpCandidates(
 /** Identyfikatory widgetów-kandydatów (dla kontekstu renderera). */
 export function lcpCandidateIds(
   doc: BuilderDocument | null | undefined,
-  options: LcpCandidatesOptions = {},
+  options: LcpCandidatesOptions,
 ): string[] {
   return lcpCandidates(doc, options).map((candidate) => candidate.widget.id);
 }

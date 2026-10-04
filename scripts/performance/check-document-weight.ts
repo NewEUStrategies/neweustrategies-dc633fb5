@@ -13,7 +13,8 @@
  *
  * ŚCIEŻKA KRYTYCZNA OBRAZU LCP (P1.4, LP-10 + LA-C3): co najwyżej dwa
  * `img[data-lcp-candidate]` (`lcpCandidateCount`), żadnego obrazu eager poza
- * kandydatem i logo w `<header>` (`imgEagerNonCandidate`), preload obrazu
+ * kandydatem i logo w nagłówku powłoki `<header data-site-header>`
+ * (`imgEagerNonCandidate`), preload obrazu
  * `fetchpriority=high` wyłącznie dla kandydata - ten sam `imagesrcset` +
  * `imagesizes` co `<img>` (`imagePreloadNonCandidate`), nagłówek `Link`
  * wyłącznie z dozwolonych wpisów (`linkHeaderDisallowed`) i bajty przed LCP

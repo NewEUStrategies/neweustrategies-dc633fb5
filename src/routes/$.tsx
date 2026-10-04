@@ -83,8 +83,8 @@ import {
   absoluteUrl,
   SITE_NAME,
 } from "@/lib/seo/meta";
-import { builderHeroPreloads } from "@/lib/builder/heroImage";
-import { preloadLcpImages } from "@/lib/builder/aboveFold";
+import { builderContentHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
+import { usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
 import { citationMetaTags } from "@/lib/seo/citations";
 import type { CitationAuthor } from "@/lib/citations/format";
 import { CitationBox } from "@/components/post/CitationBox";
@@ -280,7 +280,7 @@ type ResolvedDocument = ResolvedContent & {
    * `head()`: wspólny klucz zasobu z automatycznym preloadem `<img>` daje
    * dokładnie jeden preload na kandydata. Wpisy: zawsze pusta lista.
    */
-  heroPreloads: CoverPreload[];
+  heroPreloads: LcpImagePreload[];
   degraded?: undefined;
 };
 
@@ -668,8 +668,11 @@ export const Route = createFileRoute("/$")({
     // round-trip) and falls back to defaults if that prefetch was rejected.
     // Pages: hero żyje w dokumencie buildera - po rozgrzaniu zapytań sekcji
     // nad zgięciem (wyżej) obraz kandydata LCP (`lcpCandidates`) wyznacza
-    // builderHeroPreloads z tych samych modułów sizes/srcSet co renderery
-    // widgetów; emituje go komponent trasy przez `preload()` (P1.4).
+    // builderContentHeroPreloads z tych samych modułów sizes/srcSet co renderery
+    // widgetów; emituje go komponent trasy przez `preload()` (P1.4). Tylko gdy
+    // treść maluje silnik buildera (`resolveContentEngine`, jak `ContentRenderer`)
+    // - strona html/bloków z pozostałym `builder_data` nie preloaduje obrazu,
+    // którego nikt nie namaluje.
     const coverPreload =
       data.kind === "post"
         ? buildCoverPreload(
@@ -680,12 +683,18 @@ export const Route = createFileRoute("/$")({
           )
         : null;
     const heroPreloads =
-      data.kind === "page" ? builderHeroPreloads(doc, context.queryClient, lang) : [];
+      data.kind === "page"
+        ? builderContentHeroPreloads(
+            { editor: data.item.editor, builderDoc: doc },
+            context.queryClient,
+            lang,
+          )
+        : [];
     // Preload także jako nagłówek HTTP `Link` - przeglądarka startuje fetch
     // hero z nagłówków (przed parsowaniem HTML), a NES Edge Cache odtwarza go
     // na HIT/STALE (droga do 103 Early Hints na Cloudflare).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    for (const hero of heroPreloads) appendLinkHeader(imagePreloadLinkHeaderValue(hero));
+    for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     return { ...data, seoSettings, coverPreload, heroPreloads };
   },
   head: (ctx) => {
@@ -927,7 +936,8 @@ function PublicPageFromLoader() {
   // Obraz kandydata LCP strony z buildera (P1.4): `preload()` w renderze
   // trasy = jedyny preload tego obrazu w preambule SSR (klucz wspólny
   // z automatycznym preloadem `<img>`). Wpisy i render zdegradowany: brak.
-  preloadLcpImages(heroPreloads);
+  // Loader liczy kandydata dla gościa - zalogowanemu hook preloadu nie emituje.
+  usePreloadLcpImages(heroPreloads);
   // BRAMKA DEGRADACJI STOI PRZED `useSuspenseQuery`, i to jest wymóg, nie
   // porządek: loader zdegradowany USUNĄŁ wpis treści z cache'u, więc
   // `useSuspenseQuery` zawiesiłby się tu na nowym pobraniu - na serwerze

@@ -396,4 +396,33 @@ describe("kandydat LCP - slider, dark-featured-card, post-lista", () => {
       [...other.container.querySelectorAll("img")].map((i) => i.getAttribute("loading")),
     ).toEqual(["lazy", "lazy", "lazy"]);
   });
+
+  // ZAREJESTROWANY DEFEKT (`it.fails`, recenzja P1.4 M1) - POZA WŁASNOŚCIĄ P1.4.
+  // `PostListView` podaje `data-lcp-candidate` okładce wiodącej, ale atom
+  // `WidgetMediaImage` (src/components/atoms/WidgetMediaImage.tsx) przekazuje do
+  // `OptimizedImage` tylko znane propsy - znacznik ginie, a priorytet zostaje.
+  // Strona, której hero jest post-listą albo karuzelą wpisów, nie ma wtedy
+  // `img[data-lcp-candidate]` (P1.3, P2.1). Łatka atomu czeka na decyzję
+  // orkiestratora (IMPL-fix1.md, out_of_ownership_needs); po niej ten test
+  // PRZEJDZIE, `it.fails` go wywali - zamienić na `it`.
+  it.fails("DEFEKT: okładka wiodąca post-listy-kandydata niesie data-lcp-candidate", async () => {
+    db.tables.posts = [1, 2].map((n) => ({
+      id: `p${n}`,
+      slug: `wpis-${n}`,
+      title_pl: `Wpis ${n}`,
+      title_en: null,
+      excerpt_pl: null,
+      excerpt_en: null,
+      cover_image_url: `https://cdn.example.com/okladka-${n}.jpg`,
+      published_at: "2026-01-01T00:00:00Z",
+      author_id: null,
+      post_format: null,
+    }));
+    const { container } = renderNode("post-list", { variant: "card" }, { lcpCandidate: true });
+    await waitFor(() => expect(container.querySelectorAll("img")).toHaveLength(2));
+    const [lead, rest] = container.querySelectorAll("img");
+    expect(lead).toHaveAttribute("fetchpriority", "high");
+    expect(rest.hasAttribute("data-lcp-candidate")).toBe(false);
+    expect(lead).toHaveAttribute("data-lcp-candidate", "");
+  });
 });
