@@ -8014,6 +8014,8 @@ html[data-mbb="on"] [data-site-shell] {
   column-gap: 14px;
 }
 
+/* Akcja wisi NAD wierszem sygnalu, wiec scisk przy wezkich widgetach
+   adresuje ja bezposrednio, a nie przez .nes-kinetic-row. */
 @container (max-width: 360px) {
   .nes-kinetic-row {
     column-gap: 8px !important;
@@ -8021,11 +8023,11 @@ html[data-mbb="on"] [data-site-shell] {
 
   .nes-kinetic-row [data-title-root] {
     font-size: 10px !important;
-    letter-spacing: 0.12em !important;
+    letter-spacing: 0.05em !important;
   }
 
-  .nes-kinetic-row .nes-kinetic-action {
-    font-size: 10px !important;
+  .nes-kinetic-action {
+    font-size: 9px !important;
     letter-spacing: 0;
   }
 }
