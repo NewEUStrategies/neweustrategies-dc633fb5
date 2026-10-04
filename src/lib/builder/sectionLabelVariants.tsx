@@ -1126,10 +1126,12 @@ export function SectionLabelRender({
       // Akcja: mala, minuskulowa, w stonowanej szaro-pastelowej szarosci
       // (kolor bazowy z `.nes-kinetic-action` w styles.css).
       // Rozmiar akcji zabezpieczony w CSS (Theme Design force rozmiar opisu) -
-      // klasy zostaja tylko jako fallback poza widzetem.
+      // klasy zostaja tylko jako fallback poza widzetem. Akcja NIE jest
+      // pogrubiona (font-normal), a jej rozmiar to 11 px (9 px w wezkiej
+      // kolumnie) - o 1 px wiecej niz wczesniej.
       const actCls = isSm
-        ? "text-[8px] font-medium"
-        : "text-[10px] font-medium";
+        ? "text-[9px] font-normal"
+        : "text-[11px] font-normal";
       const actionStyleVars: AccentVarStyle = { "--nes-accent": accent };
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
@@ -1146,15 +1148,19 @@ export function SectionLabelRender({
         ) : (
           <svg
             aria-hidden
-            viewBox="0 0 16 16"
+            viewBox="0 0 6 10"
             fill="none"
             stroke="currentColor"
-            strokeWidth={1.5}
+            strokeWidth={1.4}
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={`${isSm ? "h-2.5 w-2.5" : "h-3 w-3"} shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5`}
+            // Chevron w em: wysokość = wysokość czcionki akcji, więc znak jest
+            // dokładnie tej samej wielkości co „więcej”. Kolor bierze z
+            // currentColor (ten sam co tekst), a hover akcentuje całość.
+            style={{ width: "0.6em", height: "1em" }}
+            className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
-            <polyline points="6 3.5 10.5 8 6 12.5" />
+            <polyline points="0.9 1.2 4.7 5 0.9 8.8" />
           </svg>
         );
 
