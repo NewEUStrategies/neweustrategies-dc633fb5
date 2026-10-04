@@ -529,7 +529,7 @@
   /* OBRAMOWANIE Z WARIANTU AUDYTOWEGO GRAFIKI, i to jest dokładnie ten
      przypadek, dla którego on istnieje: linia, która ma NIEŚĆ GRANICĘ SAMA,
      musi przejść próg 3,0:1. #cb7032 ma 3,30:1 na tle strony i 3,29:1 na
-     samym podkładzie; jaśniejszy #fdb078 miałby 1,67:1, czyli granicę tak
+     samym podkładzie; firmowy #FA9346 ma 2,09:1, czyli granicę nadal zbyt
      samo niewidoczną jak sama zmiana tła. W ciemnym motywie ten token jest
      równy akcentowi (6,86:1 na podniesionej powierzchni), więc jedna
      deklaracja obsługuje oba tryby. */

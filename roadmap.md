@@ -69,3 +69,7 @@
 ## Etykieta sekcji: wariant „Kinetic Signal Notch"
 
 - [x] 23. wariant etykiety sekcji: trzy paski sygnału rozsuwające się na hoverze, tytuł z szerszym trackingiem, akcja z podkreśleniem rysowanym od lewej i wysuwaną strzałką; tłumaczenie EN, kontrolki edytora, animacje CSS, 11 testów.
+
+## Firmowy kolor akcentu
+
+- [x] Usunąć bursztynowe akcenty z interfejsu i zapisanych ustawień motywu; domyślnie używać #FA9346 w jasnym i ciemnym motywie.
