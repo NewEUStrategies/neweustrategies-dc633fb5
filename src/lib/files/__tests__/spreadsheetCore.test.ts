@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import {
@@ -114,6 +116,35 @@ describe("lead export workbook", () => {
     const rows: string[][] = [["a", "b"]];
     writeSpreadsheet("X", rows);
     expect(rows).toEqual([["a", "b"]]);
+  });
+
+  // WAGA PROCESU ARKUSZY (kronika `scripts/check-bundle-size.ts`, wpis XXII).
+  // Eksport idzie przez `XLSX.writeXLSX` - wejście SheetJS pod tree-shaking -
+  // a nie przez rozdzielacz `XLSX.write`, który trzyma w bundlu KAŻDY pisarz
+  // biblioteki (xlsb, BIFF, ods, numbers, xlml, ...). Dwa testy niżej pilnują
+  // obu połów tej zamiany: pliku (ten sam bajt w bajt) i źródła (powrót do
+  // `XLSX.write` po cichu oddałby ~20 KB gzip w procesie i bramkę `overall`).
+  it("writes exactly the bytes `XLSX.write` produces for bookType xlsx", () => {
+    const rows = [
+      ["Imię", "Telefon", "Zgoda", "Kwota"],
+      ["Żaneta", "+48 500 000 001", true, 12.5],
+      ["Ewa", null, false, -3],
+    ];
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), "Leady");
+    const expected = XLSX.write(book, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
+
+    expect(new Uint8Array(writeSpreadsheet("Leady", rows))).toEqual(new Uint8Array(expected));
+  });
+
+  it("the core never calls the all-formats dispatcher `XLSX.write`", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/lib/files/spreadsheetCore.ts"), "utf8")
+      .split("\n")
+      .filter((line) => !/^\s*(\*|\/\/)/.test(line))
+      .join("\n");
+    expect(source).toContain("XLSX.writeXLSX(");
+    expect(source).not.toMatch(/XLSX\.write\s*\(/);
+    expect(source).not.toMatch(/\bwriteFile\b/);
   });
 });
 

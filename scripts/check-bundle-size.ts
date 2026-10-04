@@ -1749,6 +1749,59 @@ const CLIENT_DIR =
 // planu sali i klonu na hoscie (~+1,7) = 4770,2 - ta sama wartosc.
 // Pierwszy zielony log runnera rozstrzyga (wpis V) - w dol, jesli pokaze mniej.
 
+// 2026-10-04 XXII  PROCES ARKUSZY I PODGLĄD .DOCX BEZ MARTWEGO KODU. ŻADEN PRÓG
+//             NIE RUSZONY - redukcja; bramka `overall` wraca pod 4772.
+//
+// STAN WYJŚCIOWY. Runner (main d466993): overall 4806,9 przy progu 4772
+// (+34,9), public 2865,3 / 2877, boot 473,9 / 579. Raport ruchów wskazywał
+// `spreadsheet.worker +157,1 (NOWY)` - to artefakt baseline'u b006c2e (pomiar
+// bez procesu arkuszy), nie wzrost; sam proces jest ten sam co we wpisie XVIII.
+// Host na tym samym drzewie (`xlsx` 0.18.5 z npm, wpis XX): overall 4809,9,
+// public 2861,0, proces arkuszy 139,8.
+//
+// GDZIE BYŁ MARTWY KOD (pełny build `BUNDLE_INVENTORY=1` + mikrobuildy tym samym
+// Vite/esbuild, które dają te same kilobajty co chunk z pełnego buildu):
+//   * proces arkuszy: eksport wołał `XLSX.write`, który rozdziela po `bookType`
+//     na KAŻDY pisarz SheetJS (numbers, ods, xlsb, BIFF2-8, xlml, csv, ...).
+//     Wołamy wyłącznie xlsx. `XLSX.writeXLSX` (wejście SheetJS pod
+//     tree-shaking) idzie tą samą ścieżką `write_zip_xlsx` - plik bajt w bajt
+//     ten sam, test w `src/lib/files/__tests__/spreadsheetCore.test.ts`;
+//   * chunk podglądu .docx (mammoth, PUBLICZNY - `DocumentViewerBody`):
+//     `xmlbuilder` (zapis XML, osiągalny tylko z `embedStyleMap`) i tablica
+//     encji HTML xmldom (tylko dla `text/html`, a mammoth parsuje wyłącznie XML).
+//     Oba wycina `scripts/lib/officeParserTrim.ts` przekierowaniem zawężonym do
+//     importera; założenia o źródłach pakietów i HTML z prawdziwego .docx
+//     identyczny z nietkniętą biblioteką pilnują
+//     `src/lib/ci/__tests__/officeParserTrim{,Build}.test.ts`.
+//
+// POMIAR NA HOŚCIE (pełny build, ta sama komenda co job `build` w CI):
+//                         przed     po      różnica
+//   spreadsheet.worker    139,8    121,5    -18,3
+//   podgląd .docx         100,3     78,7    -21,6
+//   public               2861,0   2820,8    -40,2
+//   overall              4809,9   4769,5    -40,4   (próg 4772 - zielono)
+// Boot, chunk wejściowy i CSS bez zmian (477,1 / 254,4 / 95,5).
+//
+// RZUT NA RUNNER (zasada z wpisu XX: delta host-do-hosta, nie mnożnik).
+// Chunk .docx nie zależy od `xlsx`, więc -21,6 przenosi się 1:1. Proces arkuszy
+// na 0.20.3 traci więcej niż na hoście: wpis XVIII mierzył tam 120,9 (sam
+// odczyt) -> 157,1 (odczyt + `XLSX.write`), czyli pisarze kosztują 36,2, z czego
+// zostaje sam pisarz xlsx (~10-12 KB). Widełki: -20,6 (proporcja hosta, wariant
+// pesymistyczny) do -26,3. Runner: 4806,9 - 42,2..47,9 = 4759..4765 KB.
+// PIERWSZY ZIELONY LOG RUNNERA ROZSTRZYGA (wpis V); progi i baseline zostają.
+//
+// ODRZUCONE, Z LICZBAMI (host), żeby następna osoba nie mierzyła od zera:
+//   * build „mini" SheetJS (`xlsx.mini.min.js`): bez XLS/XLSB/SpreadsheetML,
+//     a import danych wykresu przyjmuje `.xls` (`charts/importTable.ts`) -
+//     zmiana zachowania, odpada bez względu na wagę;
+//   * `parse_zip`/`parse_xlscfb` zamiast `XLSX.read` (-17,0 w procesie): gubi
+//     „.xls", które są w środku HTML-em, XML 2003 albo CSV - zmiana zachowania;
+//   * własny pisarz xlsx zamiast SheetJS (-7 netto): zmienia bajty eksportu;
+//   * zwarta tablica `dingbat-to-unicode` (-8,4, ta sama treść w innym zapisie):
+//     rezerwa na następny raz, dziś niepotrzebna;
+//   * duplikat zip między procesem a `vendor-jszip`: nie istnieje - proces to
+//     osobny build Rollupa, a jszip ciągnie mammoth (podgląd .docx/.pptx).
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet

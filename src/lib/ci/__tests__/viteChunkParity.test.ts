@@ -73,6 +73,20 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("oba presety tną martwy kod parsera .docx TĄ SAMĄ wtyczką", () => {
+    // `officeParserTrimPlugin` przekierowuje dwa moduły w bundlu przeglądarki
+    // (zapis XML mammoth, tablica encji HTML xmldom). Smoke bez niej
+    // budowałby inny chunk podglądu .docx niż produkcja.
+    const helperImport = 'import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";';
+    for (const [file, source] of [
+      ["vite.config.ts", main],
+      ["vite.smoke.config.ts", smoke],
+    ] as const) {
+      expect(source, file).toContain(helperImport);
+      expect(source, file).toMatch(/plugins: \[[^\]]*officeParserTrimPlugin\(\)/);
+    }
+  });
+
   it("reguła vendorowa pomija moduł WEJŚCIOWY (pułapka zapadania się chunku)", () => {
     // Bez tej linii `manualChunks` może przypisać entry do nazwanego chunku,
     // a wtedy Rollup wciąga cały ten chunk z powrotem do entry - bez ostrzeżenia.
