@@ -284,3 +284,39 @@ To jest JEDYNY instrument, który mierzy dokładnie liczbę ze zlecenia (53/70).
    HIT/MISS/STALE) i colo (nowy wpis `server-timing` `colo;desc="WAW"` z `request.cf.colo`
    w `src/server.ts`). Daje p75 TTFB/LCP rozbite na HIT/MISS per colo dla PRAWDZIWYCH czytelników -
    to rozstrzyga, czy krótkie okno świeżości (3 min per colo) jest problemem dla ludzi, czy tylko dla PSI.
+
+## 7. Baza fali 1 (2026-10-04, `cc1a3767`)
+
+Drzewo bazy: `origin/main` z falą 0, PR #469 i późniejszymi commitami z `main` (gałąź `claude/zen-johnson-wpzoxv`),
+`BUNDLE_INVENTORY=1 bun run build:smoke` (2 min 40 s), zależności z lockfile (`xlsx` 0.20.3 bez podmiany, więc liczby
+`check:bundle` są porównywalne z CI). Komenda:
+
+```sh
+node scripts/performance/lighthouse-local.mjs --root . --runs 5 --forms mobile,desktop4x \
+  --client-backend fixture --third-party fake-gtag --save-artifacts \
+  --save-baseline --baseline-out docs/performance/2026-10-03-pagespeed-85-95/lighthouse-local-baseline-w1.json --label base-w1
+```
+
+Fałszywy gtag w skali x2,29 (benchmarkIndex Chrome 1616,5), load 1,3-2,2 w trakcie serii, wszystkie przebiegi ważne,
+księga Lantern zgodna z audytem w 10/10 przebiegach.
+
+| forma     | n ważnych | perf | FCP    | LCP    | TBT (mediana, zakres)   | SI     | CLS   | TTI     | żądania | JS        | High przed obrazem LCP |
+| --------- | --------- | ---- | ------ | ------ | ----------------------- | ------ | ----- | ------- | ------- | --------- | ---------------------- |
+| mobile    | 5/5       | 54   | 4,00 s | 4,84 s | **832 ms** (763-1301)   | 4,00 s | 0,000 | 10,55 s | 113     | 1083,7 KB | 619,5 KB               |
+| desktop4x | 5/5       | 65   | 1,02 s | 1,09 s | **1769 ms** (1195-1949) | 1,51 s | 0,003 | 4,80 s  | 117     | 1083,7 KB | 619,5 KB               |
+
+- Księga per przebieg (TBT = suma blokowania): mobile 763,0 / 901,5 / 832,0 / 1300,7 / 808,0 ms; desktop4x 1887,9 /
+  1769,0 / 1949,3 / 1194,5 / 1472,6 ms. Zadania Google (atrapa gtag) w każdym przebiegu: 3 zadania, 243-345 ms obs.
+- Tryb FCP: mobile pełny x4, częściowy x1 (przebieg 4: FCP 1,70 s, TBT 1301 ms) - bimodalność FCP znana z P0.5.
+- `K` (TBT fixture → PSI 2026-10-03): mobile k = 0,72, desktop4x k = 0,42. Oba |k − 1| > 0,2, więc cele fixture z
+  planu (mobile 356 → 218-258 ms, desktop4x 444 → 393-411 ms) przeliczamy względnie od tej bazy, nie bezwzględnie:
+  plan liczył bazę z flagami ok. 356 ms, ten host z pełnymi flagami daje 832 ms (inny benchmarkIndex i koszt atrapy
+  gtag). Decyduje różnica B−A w A/B z przeplotem i księga per zadanie.
+- Bramki artefaktu bazy: `check:chunks`, `check:entry-purity`, `check:server-entry-purity` zielone.
+  `check:bundle` CZERWONY już na bazie: overall 4783,7 KB > 4772 KB (public 2730,3 KB, największy chunk 254,3 KB,
+  CSS 95,8 KB, boot 476,9 KB gzip / 1569,0 KB raw). `check:document-weight` CZERWONY już na bazie w czterech
+  metrykach preloadów modułów (26 > 25 modulepreload, 32 > 31 wpisów Link, 23 > 22 duplikatów, 26 > 25 JS
+  z preloadem): manifest trasy `/` wymienia chunk `spreadsheetWorker-*.js` (wspólny chunk z komponentem błędu
+  trasy). Zasada fali 1: żadna z tych liczb nie rośnie.
+
+A/A (`--compare . . --runs 4`, te same flagi): w toku, wynik dopisany niżej.
