@@ -186,8 +186,8 @@ describe("Kinetic Signal Notch", () => {
     // "usuń po lewej stronie <" - zostaje wyłącznie chevron ">" po prawej.
     const svgs = link?.querySelectorAll("svg") ?? [];
     expect(svgs.length).toBe(1);
-    const right = svgs[0]?.querySelector("polyline")?.getAttribute("points") ?? "";
-    expect(right).toBe("2.4 1.8 8.2 5 2.4 8.2");
+    const right = svgs[0]?.querySelector("path")?.getAttribute("d") ?? "";
+    expect(right).toBe("M2.2 7.8 7.8 2.2M3.6 2.2h4.2v4.2");
     // "bez ogonków" - czysty kąt, żadnej poziomej linii strzałki.
     expect(link?.querySelector('path[d="M5 12h14"]')).toBeNull();
     // Chevron w em, ale o 1 px nizszy niz czcionka akcji, zeby rownal wysokosci
@@ -196,7 +196,7 @@ describe("Kinetic Signal Notch", () => {
     for (const svg of svgs) {
       const svgStyle = svg.getAttribute("style") ?? "";
       expect(svgStyle).toContain("height: calc(0.75em - 1px)");
-      expect(svgStyle).toContain("width: calc(0.85em - 1px)");
+      expect(svgStyle).toContain("width: calc(0.75em - 1px)");
       const svgClass = svg.getAttribute("class") ?? "";
       expect(svgClass).not.toMatch(/(^|\s)-?(top|bottom|translate)-/);
       // Kolor z currentColor (ten sam co tekst), a nie z osobnej klasy.
@@ -204,7 +204,7 @@ describe("Kinetic Signal Notch", () => {
       // „subtelny ptaszek" - kreska chevronu jest celowo cienka i bez pogrubienia,
       // wyraźnie cieńsza niż pasek sygnału; stroke-width liczy się w pikselach
       // ekranu (vector-effect), więc skalowanie viewBoxa jej nie pogrubia.
-      expect(svg.getAttribute("stroke-width")).toBe("0.85");
+      expect(svg.getAttribute("stroke-width")).toBe("1");
       expect(svg.querySelector("polyline")?.getAttribute("vector-effect")).toBe(
         "non-scaling-stroke",
       );
@@ -307,7 +307,7 @@ describe("Kinetic Signal Notch", () => {
     expect(container.querySelector("span.nes-kinetic-action")).not.toBeNull();
     // W pigułce paski mają 2 px, a kreska ptaszka pozostaje od nich cieńsza (0,7 px).
     expect(container.querySelector<HTMLElement>(".nes-kinetic-bar")?.style.height).toBe("2px");
-    expect(container.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.7");
+    expect(container.querySelector("svg")?.getAttribute("stroke-width")).toBe("0.8");
   });
 
   it("nie ma obszaru bezpiecznego z góry - oddech zostaje tylko na dole", () => {
