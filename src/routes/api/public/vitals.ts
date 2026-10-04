@@ -17,6 +17,15 @@
 // się `null`, a próbka mimo to zostaje zapisana - kontekst jest dodatkiem do
 // pomiaru, więc jego odrzucenie nie może kosztować samej metryki.
 //
+// STAN CACHE DOKUMENTU, COLO I ATRYBUCJA INP (od 2026-10-04, plan PSI 85/95:
+// P0.6 -> P1.0b). Siedem kolejnych pól opisowych z reportera: `edgeCache`,
+// `edgeLayer`, `colo` (pierwsza trasa dokumentu) oraz `inpEvent`,
+// `inpPreHydration`, `inpSinceLoad`, `inpFirst` (wyłącznie próbka INP).
+// Walidacja ta sama, „miękka": pole spoza słownika albo zakresu staje się
+// `null`, próbka zostaje. Słowniki są wiązane ze źródłem w reporterze
+// (`src/lib/webVitals.ts`) typem i testem - opis przy `dictionary` niżej.
+// Ponowienie po braku kolumny jest DWUSTOPNIOWE (opis przy `insert`).
+//
 // WIERSZ JEST TYPOWANY WPROST `TablesInsert<"web_vitals">` (od 2026-09-21).
 // Do czasu regeneracji `src/integrations/supabase/types.ts` stało tu przecięcie
 // `TablesInsert<"web_vitals"> & { since_nav_ms?…, cold_start?… }` plus zmienna
@@ -34,6 +43,17 @@ import { resolveTenantIdForHost } from "@/lib/server/tenant.server";
 import { currentTenantHost } from "@/lib/http/requestHost";
 import { redactUrl } from "@/lib/observability/redact";
 import type { TablesInsert } from "@/integrations/supabase/types";
+// Słowniki ładunku z reportera - WYŁĄCZNIE TYPY, wymazywane przy kompilacji.
+// Import WARTOŚCI wciągnąłby do statycznego grafu Workera cały leniwy reporter
+// (`webVitals.ts` jest też celem `import()` z `__root.tsx`, więc Rollup nie
+// wytrząśnie z niego reszty, tylko scali jego chunk SSR, ~12 KB, z chunkiem
+// routera ładowanym przy każdym zimnym izolacie). Typ daje to samo wiązanie
+// bez ani jednego bajtu w artefakcie - patrz `dictionary`.
+import type {
+  EDGE_CACHE_STATUSES as CLIENT_EDGE_CACHE_STATUSES,
+  EDGE_LAYERS as CLIENT_EDGE_LAYERS,
+  INP_EVENT_VALUES as CLIENT_INP_EVENT_VALUES,
+} from "@/lib/webVitals";
 
 const VALID_METRICS = new Set(["LCP", "CLS", "INP", "FCP", "TTFB", "FID"]);
 // The client batches (src/lib/webVitals.ts): one request carries FCP+TTFB at
@@ -57,6 +77,14 @@ const MAX_METRICS = 8;
 // znaków - nadal Z ZAPASEM poniżej 8 000, więc ta granica NIE JEST rozluźniana
 // razem z rozszerzeniem ładunku (byłby to cichy upust w budżecie pamięci
 // workera przy okazji zmiany o czym innym).
+// P0.6 (2026-10-04) dokłada stan cache dokumentu (`edgeCache`, `edgeLayer`,
+// `colo`) i atrybucję INP (`inpEvent`, `inpPreHydration`, `inpSinceLoad`,
+// `inpFirst`). Test reportera „najgorszy batch mieści się w MAX_BODY"
+// (`src/lib/__tests__/webVitals.test.ts`) składa najcięższą próbkę - komplet
+// pól, `inpFirst` i najdłuższe zapisy liczb (`value` 24 znaki, `sinceNav`
+// 10 cyfr) - i mierzy 901 znaków na próbkę, czyli 7 229 na batch ośmiu takich
+// z opakowaniem. Zapas ok. 770 znaków, więc granica ZOSTAJE 8 000; kolejne
+// pole w KAŻDEJ próbce trzeba policzyć razy osiem.
 const MAX_BODY = 8_000;
 
 // ---------------------------------------------------------------------------
@@ -85,6 +113,85 @@ const DEVICE_MEMORY_BUCKETS = new Set([1, 2, 4, 8]);
  */
 const MAX_SINCE_NAV_MS = 24 * 60 * 60 * 1_000;
 
+// ---------------------------------------------------------------------------
+// STAN CACHE DOKUMENTU, COLO I ATRYBUCJA INP (plan PSI 85/95: P0.6 -> P1.0b).
+//
+// Znaczenie pól opisuje reporter (`src/lib/webVitals.ts`, przy
+// `VitalsEdgeContext` i `InteractionRecord`); tu jest tylko kontrakt zapisu.
+// ZERO identyfikatorów: kolonia to publiczny kod lotniska centrum danych
+// (ten sam co w `cf-ray`), reszta to zamknięte słowniki, flagi i czas
+// względem `load` tej jednej odsłony.
+//
+// KONWENCJA: `null`, NIE KOD ODRZUCENIA. Wartość spoza słownika albo zakresu
+// schodzi do `null`, a próbka zostaje - dokładnie jak pięć pól kontekstu
+// nawigacji wyżej. Osobny „kod odrzucenia" nie miałby odbiorcy: każda ścieżka
+// tej trasy oddaje 204, a `sendBeacon` odpowiedzi nie czyta. Odrzucenie całej
+// próbki za jedno złe pole opisowe kosztowałoby pomiar, którego ono dotyczy.
+// Drugą bramką są CHECK-i migracji 20261004140000 - przyszły pisarz spoza tej
+// trasy nie wpisze do kolumny wartości spoza słownika.
+
+/**
+ * Lista dozwolonych zbudowana z `Record` po unii słownika REPORTERA.
+ *
+ * SŁOWNIK WIĄŻE KOMPILATOR, NIE KOPIA. Typ wartości bierze się z eksportu
+ * `src/lib/webVitals.ts` (`import type` wyżej), a literał przekazany z jawnym
+ * argumentem typu nie może ani POMINĄĆ wartości, którą reporter wysyła
+ * (brakujący klucz `Record`), ani DODAĆ takiej, której reporter nie zna
+ * (nadmiarowy klucz literału) - oba rozjazdy są błędem `tsc`. Test trasy
+ * przepuszcza przez ingest każdą wartość z eksportów reportera, więc równość
+ * jest pilnowana z obu stron: typem tutaj i zachowaniem w teście. Zmiana
+ * słownika w reporterze wymaga więc zmiany tutaj i nowej migracji CHECK.
+ */
+function dictionary<Value extends string>(
+  entries: Readonly<Record<Value, true>>,
+): ReadonlySet<string> {
+  return new Set(Object.keys(entries));
+}
+
+/** Status NES Edge Cache z `nes-edge;desc` (reporter: `EDGE_CACHE_STATUSES`). */
+const EDGE_CACHE_STATUSES = dictionary<(typeof CLIENT_EDGE_CACHE_STATUSES)[number]>({
+  HIT: true,
+  STALE: true,
+  MISS: true,
+  BYPASS: true,
+});
+/**
+ * Warstwa z `nes-layer;desc` (reporter: `EDGE_LAYERS`). BEZ `L3`: serwer
+ * (`NesCacheLayer` w `src/lib/http/ssrTiming.ts`) emituje L1/L2/render, a
+ * reporter po poprawce P0.6 (`satisfies readonly NesCacheLayer[]`) wysyła
+ * tylko te trzy. `L3` dopisuje się po wszystkich stronach naraz albo wcale.
+ */
+const EDGE_LAYERS = dictionary<(typeof CLIENT_EDGE_LAYERS)[number]>({
+  L1: true,
+  L2: true,
+  render: true,
+});
+/**
+ * Pierwsze zdarzenie najwolniejszej klatki interakcji wyznaczającej INP
+ * (reporter: `INP_EVENT_VALUES`, sześć wartości; wszystko spoza pięciu nazw
+ * zdarzeń reporter sam sprowadza do `other`).
+ */
+const INP_EVENTS = dictionary<(typeof CLIENT_INP_EVENT_VALUES)[number]>({
+  pointerdown: true,
+  pointerup: true,
+  click: true,
+  keydown: true,
+  keyup: true,
+  other: true,
+});
+/**
+ * Kod kolonii Cloudflare: DOKŁADNIE trzy wielkie litery. Bez normalizacji
+ * wielkości liter, jak w `enumValue`: reporter wysyła już wielkie (`prg` ->
+ * `PRG` po jego stronie), więc małe litery znaczą obcego nadawcę.
+ */
+const COLO_RE = /^[A-Z]{3}$/;
+/**
+ * Granica |`inpSinceLoad`|: doba. Ta sama liczba co `MAX_SINCE_LOAD_MS`
+ * reportera - tam typ to `number`, więc tę równość wiąże wyłącznie test
+ * (wartość graniczna przechodzi w obie strony, o 1 ms dalej już nie).
+ */
+const MAX_SINCE_LOAD_MS = 24 * 60 * 60 * 1_000;
+
 interface IncomingVital {
   name?: unknown;
   value?: unknown;
@@ -95,6 +202,13 @@ interface IncomingVital {
   deviceMemory?: unknown;
   effectiveType?: unknown;
   coldStart?: unknown;
+  edgeCache?: unknown;
+  edgeLayer?: unknown;
+  colo?: unknown;
+  inpEvent?: unknown;
+  inpPreHydration?: unknown;
+  inpSinceLoad?: unknown;
+  inpFirst?: unknown;
 }
 
 /**
@@ -102,6 +216,9 @@ interface IncomingVital {
  * migracja jeszcze nie dojechała. Składany jawnie, polem po polu, z tego
  * samego powodu co wiersz główny: `delete` na kopii albo `rest` ze spreadu
  * przepuściłyby każdą kolumnę, która w międzyczasie do niego trafi.
+ *
+ * To DRUGI stopień ponowienia - zrzuca także pięć kolumn kontekstu nawigacji
+ * (20260920121000). Pierwszy stopień to `withoutEdgeAndInpContext`.
  */
 function withoutNavigationContext(row: TablesInsert<"web_vitals">): TablesInsert<"web_vitals"> {
   const base: TablesInsert<"web_vitals"> = {
@@ -112,6 +229,40 @@ function withoutNavigationContext(row: TablesInsert<"web_vitals">): TablesInsert
   };
   if (row.tenant_id !== undefined) base.tenant_id = row.tenant_id;
   return base;
+}
+
+/**
+ * PIERWSZY stopień ponowienia: wiersz BEZ siedmiu kolumn P0.6 (stan cache,
+ * colo, atrybucja INP), ale Z pięcioma kolumnami kontekstu nawigacji, które
+ * w bazie są od 20260920121000. Kod tej trasy może wejść na produkcję przed
+ * migracją 20261004140000 (`check:migration-ledger` jest bramką
+ * powdrożeniową), a wtedy jednostopniowe ponowienie przez
+ * `withoutNavigationContext` kosztowałoby pięć DZIAŁAJĄCYCH kolumn - przez
+ * całe okno kod-przed-migracją panel straciłby podział zimne/ciepłe wejście,
+ * który miał już dane.
+ *
+ * Składany jawnie jak wyżej: rdzeń z `withoutNavigationContext` (sam złożony
+ * polem po polu, więc spread jego wyniku nie przepuszcza niczego obcego)
+ * plus pięć kolumn kontekstu wymienionych z nazwy.
+ */
+function withoutEdgeAndInpContext(row: TablesInsert<"web_vitals">): TablesInsert<"web_vitals"> {
+  return {
+    ...withoutNavigationContext(row),
+    since_nav_ms: row.since_nav_ms,
+    navigation_type: row.navigation_type,
+    device_memory: row.device_memory,
+    effective_type: row.effective_type,
+    cold_start: row.cold_start,
+  };
+}
+
+/**
+ * „Nie ma takiej kolumny": PostgREST `PGRST204` (kolumna spoza cache schematu)
+ * albo Postgres `42703` (`undefined_column`). Wyłącznie ta przyczyna uzasadnia
+ * ponowienie - zwykły błąd sieci albo RLS-u nie kosztuje drugiego round-tripu.
+ */
+function isMissingColumn(error: { code?: string } | null): boolean {
+  return error !== null && (error.code === "PGRST204" || error.code === "42703");
 }
 
 /**
@@ -209,6 +360,47 @@ function coldStartFlag(raw: unknown): boolean | null {
   return typeof raw === "boolean" ? raw : null;
 }
 
+/** Kod kolonii (`^[A-Z]{3}$`) albo `null` - bez obcinania, bez normalizacji. */
+function coloCode(raw: unknown): string | null {
+  return typeof raw === "string" && COLO_RE.test(raw) ? raw : null;
+}
+
+/**
+ * `inpPreHydration` jako boolean albo `null` - ŚCIŚLE `typeof === "boolean"`,
+ * z powodu opisanego przy `coldStartFlag`. `false` (interakcja na wyspie już
+ * uwodnionej) jest pomiarem, nie brakiem pomiaru.
+ */
+function preHydrationFlag(raw: unknown): boolean | null {
+  return typeof raw === "boolean" ? raw : null;
+}
+
+/**
+ * `inpSinceLoad` w milisekundach albo `null`: ŚCIŚLE liczba całkowita w JSON-ie,
+ * |x| <= doba. Ujemna jest LEGALNA - to interakcja przed `load`, czyli
+ * dokładnie populacja, dla której pole istnieje.
+ *
+ * Inaczej niż `sinceNav`: bez napisów i bez zaokrąglania. Reporter zaokrągla
+ * sam (`Math.round` w `msSinceLoad`) i wysyła liczbę, więc ułamek albo liczba
+ * w cudzysłowie znaczą obcego nadawcę, a pole jest nowe - nie ma starego
+ * kolektora, dla którego warto by poszerzać publiczną ścieżkę zapisu.
+ */
+function sinceLoadMs(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isInteger(raw) && Math.abs(raw) <= MAX_SINCE_LOAD_MS
+    ? raw
+    : null;
+}
+
+/**
+ * `inpFirst`: reporter wysyła pole WYŁĄCZNIE jako `true` (pierwsza interakcja
+ * DOKUMENTU); brak pola znaczy „późniejsza albo nieznana". Dlatego `false`
+ * NIE jest tu pomiarem - przyjęcie go udawałoby wiedzę, której klient nie ma
+ * - i schodzi do `null` jak każda inna wartość. CHECK kolumny dopuszcza
+ * wyłącznie TRUE albo NULL.
+ */
+function firstInteractionFlag(raw: unknown): true | null {
+  return raw === true ? true : null;
+}
+
 function noContent(): Response {
   return new Response(null, { status: 204, headers: { "Cache-Control": "no-store" } });
 }
@@ -244,6 +436,13 @@ export const Route = createFileRoute("/api/public/vitals")({
             // the four good ones sharing its beacon. Validating per row is what
             // keeps batching from turning a partial payload into total loss.
             if (!VALID_METRICS.has(metric) || value === null) continue;
+            // ATRYBUCJA INP WYŁĄCZNIE NA PRÓBCE INP. Reporter dokłada cztery
+            // pola `inp*` tylko do próbki INP; na wierszu LCP albo CLS
+            // opisywałyby interakcję, która tego pomiaru nie wyznaczała, a
+            // `GROUP BY inp_event` bez `WHERE metric = 'INP'` liczyłby ją
+            // podwójnie. Ten sam kontrakt pilnuje CHECK
+            // `web_vitals_inp_attribution_only_inp` w migracji.
+            const isInp = metric === "INP";
             // NIEZNANE POLA ODPADAJĄ Z KONSTRUKCJI. Wiersz jest SKŁADANY pole po
             // polu z jawnej listy - nie ma tu `...sample` ani pętli po kluczach,
             // więc cokolwiek dorzuci nadawca (`evil`, `tenant_id`, `id`,
@@ -261,6 +460,13 @@ export const Route = createFileRoute("/api/public/vitals")({
               device_memory: deviceMemoryBucket(sample.deviceMemory),
               effective_type: enumValue(sample.effectiveType, EFFECTIVE_TYPES),
               cold_start: coldStartFlag(sample.coldStart),
+              edge_cache: enumValue(sample.edgeCache, EDGE_CACHE_STATUSES),
+              edge_layer: enumValue(sample.edgeLayer, EDGE_LAYERS),
+              colo: coloCode(sample.colo),
+              inp_event: isInp ? enumValue(sample.inpEvent, INP_EVENTS) : null,
+              inp_pre_hydration: isInp ? preHydrationFlag(sample.inpPreHydration) : null,
+              inp_since_load_ms: isInp ? sinceLoadMs(sample.inpSinceLoad) : null,
+              inp_first: isInp ? firstInteractionFlag(sample.inpFirst) : null,
             });
           }
           // Validate BEFORE resolving the tenant: an all-junk batch must not
@@ -301,10 +507,23 @@ export const Route = createFileRoute("/api/public/vitals")({
           // dostawałby 204, a w bazie nie lądowałby ani jeden wiersz - awaria
           // bez jednego nieudanego żądania, po której nikt nie pozna, że
           // panel wydajności zamarł. Ponawiamy WYŁĄCZNIE na „nie ma takiej
-          // kolumny" (PostgREST `PGRST204`, Postgres `42703`), żeby zwykły
-          // błąd sieci nie kosztował drugiego round-tripu.
-          if (error && (error.code === "PGRST204" || error.code === "42703")) {
-            await supabaseAdmin.from("web_vitals").insert(payload.map(withoutNavigationContext));
+          // kolumny" (`isMissingColumn`), żeby zwykły błąd sieci nie
+          // kosztował drugiego round-tripu.
+          //
+          // DWA STOPNIE, OD NAJMŁODSZYCH KOLUMN. Najpierw bez siedmiu kolumn
+          // P0.6 (migracja 20261004140000), z pięcioma kolumnami kontekstu
+          // nawigacji, które w bazie już są - brak najmłodszej migracji nie
+          // może kosztować danych, które starsza już zbiera. Dopiero gdy i to
+          // trafia na brak kolumny, zapis schodzi do samego rdzenia
+          // (`withoutNavigationContext`). Najgorszy przypadek to trzy
+          // round-tripy na batch, wyłącznie w oknie przed migracjami.
+          if (isMissingColumn(error)) {
+            const retry = await supabaseAdmin
+              .from("web_vitals")
+              .insert(payload.map(withoutEdgeAndInpContext));
+            if (isMissingColumn(retry.error)) {
+              await supabaseAdmin.from("web_vitals").insert(payload.map(withoutNavigationContext));
+            }
           }
         } catch {
           // Ingest is best-effort - never error the beacon.

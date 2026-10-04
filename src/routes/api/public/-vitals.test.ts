@@ -41,8 +41,18 @@ vi.mock("@/lib/http/requestHost", () => ({
 const req = vi.hoisted(() => ({ current: null as Request | null }));
 vi.mock("@tanstack/react-start/server", () => ({ getRequest: () => req.current }));
 
+import { readFileSync } from "node:fs";
 import { routeServerHandlers } from "@/test/routeHarness";
 import { Route } from "@/routes/api/public/vitals";
+// Słowniki ładunku z REPORTERA - w teście jako wartości. Trasa wiąże je
+// wyłącznie typem (`import type`), więc to tutaj zachowanie ingestu jest
+// porównywane z jedynym źródłem słowników (blok P0.6 niżej).
+import {
+  EDGE_CACHE_STATUSES,
+  EDGE_LAYERS,
+  INP_EVENT_VALUES,
+  MAX_SINCE_LOAD_MS,
+} from "@/lib/webVitals";
 
 const handler = routeServerHandlers(Route).POST!;
 
@@ -67,7 +77,12 @@ async function post(body: unknown, raw?: string | Blob) {
 
 /** Wiersze przekazane do `insert` w PIERWSZYM wywołaniu (batch = jedna tablica). */
 function rows(): Record<string, unknown>[] {
-  const arg = h.insert.mock.calls[0]?.[0];
+  return rowsAt(0);
+}
+
+/** Wiersze z n-tego wywołania `insert` (stopnie awaryjnego ponowienia to wywołania nr 2 i 3). */
+function rowsAt(call: number): Record<string, unknown>[] {
+  const arg = h.insert.mock.calls[call]?.[0];
   return (Array.isArray(arg) ? arg : arg ? [arg] : []) as Record<string, unknown>[];
 }
 
@@ -404,12 +419,6 @@ describe("odporność", () => {
 // NIEPODPISANA ścieżka zapisu, więc każde pole musi mieć własną odpowiedź na
 // pytanie „co, jeśli nadawca wpisze tu cokolwiek".
 describe("kontekst nawigacji", () => {
-  /** Wiersze z n-tego wywołania `insert` (awaryjne ponowienie to wywołanie nr 2). */
-  function rowsAt(call: number): Record<string, unknown>[] {
-    const arg = h.insert.mock.calls[call]?.[0];
-    return (Array.isArray(arg) ? arg : arg ? [arg] : []) as Record<string, unknown>[];
-  }
-
   const context = {
     sinceNav: 2456,
     navigationType: "back_forward",
@@ -531,8 +540,15 @@ describe("kontekst nawigacji", () => {
     expect(Object.keys(row).sort()).toEqual(
       [
         "cold_start",
+        "colo",
         "device_memory",
+        "edge_cache",
+        "edge_layer",
         "effective_type",
+        "inp_event",
+        "inp_first",
+        "inp_pre_hydration",
+        "inp_since_load_ms",
         "metric",
         "navigation_type",
         "path",
@@ -548,7 +564,10 @@ describe("kontekst nawigacji", () => {
   });
 
   describe("okno między wdrożeniem kodu a migracją", () => {
-    it("brak kolumny (PGRST204) ponawia zapis BEZ kontekstu, zamiast gubić cały RUM", async () => {
+    // Ponowienie jest DWUSTOPNIOWE (P1.0b): pierwszy stopień zrzuca wyłącznie
+    // siedem kolumn P0.6 i ZACHOWUJE ten kontekst; dopiero drugi brak kolumny
+    // schodzi do samego rdzenia. Oba stopnie z kompletem pól - w bloku P0.6.
+    it("brak kolumny (PGRST204) ponawia zapis, zamiast gubić cały RUM - kontekst nawigacji zostaje", async () => {
       h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
       h.insert.mockResolvedValueOnce({ error: null });
 
@@ -556,7 +575,25 @@ describe("kontekst nawigacji", () => {
 
       expect(res.status).toBe(204);
       expect(h.insert).toHaveBeenCalledTimes(2);
-      const retried = rowsAt(1)[0]!;
+      expect(rowsAt(1)[0]).toMatchObject({
+        metric: "LCP",
+        value: 2100,
+        tenant_id: "tenant-1",
+        since_nav_ms: 2456,
+        cold_start: true,
+      });
+    });
+
+    it("drugi brak kolumny ponawia zapis BEZ kontekstu nawigacji (sam rdzeń)", async () => {
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      const res = await post({ metrics: [sample(context)] });
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(3);
+      const retried = rowsAt(2)[0]!;
       expect(retried).toMatchObject({ metric: "LCP", value: 2100, tenant_id: "tenant-1" });
       expect(Object.keys(retried)).not.toContain("since_nav_ms");
       expect(Object.keys(retried)).not.toContain("cold_start");
@@ -580,6 +617,376 @@ describe("kontekst nawigacji", () => {
 
       expect(res.status).toBe(204);
       expect(h.insert).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// STAN CACHE DOKUMENTU, COLO I ATRYBUCJA INP (plan PSI 85/95: P0.6 -> P1.0b).
+//
+// Siedem pól, które reporter wysyła od P0.6, a ingest do tej pory po cichu
+// gubił (biała lista kolumn). Kontrakt jest ten sam co dla kontekstu
+// nawigacji - pole spoza słownika schodzi na NULL, próbka zostaje - plus dwie
+// rzeczy nowe: słowniki mają JEDNO źródło w reporterze (trasa wiąże je typem,
+// ten blok - zachowaniem), a ponowienie po braku kolumny jest dwustopniowe.
+// Test kontraktu Server-Timing (nagłówek z `ssrTiming.ts` czytany przez
+// `readNavigationContext()`) żyje w `src/lib/__tests__/webVitals.test.ts`
+// i nie jest tu dublowany.
+describe("stan cache dokumentu, colo i atrybucja INP (P0.6)", () => {
+  const ROUTE_FILE = "src/routes/api/public/vitals.ts";
+  const MIGRATION_FILE = "supabase/migrations/20261004140000_web_vitals_edge_inp.sql";
+
+  const navigation = {
+    sinceNav: 2456,
+    navigationType: "navigate",
+    deviceMemory: 4,
+    effectiveType: "4g",
+    coldStart: true,
+  };
+  const edge = { edgeCache: "MISS", edgeLayer: "render", colo: "WAW" };
+  const inp = {
+    inpEvent: "pointerup",
+    inpPreHydration: true,
+    inpSinceLoad: -350,
+    inpFirst: true,
+  };
+
+  /** Najcięższa próbka, jaką wysyła reporter: INP pierwszej trasy z kompletem pól. */
+  function fullInp(patch: Record<string, unknown> = {}): Record<string, unknown> {
+    return sample({ name: "INP", value: 312, ...navigation, ...edge, ...inp, ...patch });
+  }
+
+  const P06_COLUMNS = [
+    "edge_cache",
+    "edge_layer",
+    "colo",
+    "inp_event",
+    "inp_pre_hydration",
+    "inp_since_load_ms",
+    "inp_first",
+  ] as const;
+
+  describe("zapis kompletnej próbki", () => {
+    it("próbka INP z kompletem pól: każde pole ląduje w SWOJEJ kolumnie", async () => {
+      await post({ metrics: [fullInp()] });
+
+      expect(rows()[0]).toEqual({
+        metric: "INP",
+        value: 312,
+        rating: "good",
+        path: "/wpis/x",
+        tenant_id: "tenant-1",
+        since_nav_ms: 2456,
+        navigation_type: "navigate",
+        device_memory: 4,
+        effective_type: "4g",
+        cold_start: true,
+        edge_cache: "MISS",
+        edge_layer: "render",
+        colo: "WAW",
+        inp_event: "pointerup",
+        inp_pre_hydration: true,
+        inp_since_load_ms: -350,
+        inp_first: true,
+      });
+    });
+
+    it("batch pierwszej trasy: stan cache na KAŻDEJ próbce, atrybucja wyłącznie na INP", async () => {
+      // Kształt z reportera: pola `edge*`/`colo` niesie każda próbka pierwszej
+      // trasy, pola `inp*` - tylko próbka INP.
+      await post({
+        metrics: [
+          sample({ name: "LCP", value: 2100, ...navigation, ...edge }),
+          sample({ name: "CLS", value: 0.02, ...navigation, ...edge }),
+          fullInp(),
+        ],
+      });
+
+      const [lcp, cls, inpRow] = rows();
+      for (const row of [lcp, cls, inpRow]) {
+        expect(row).toMatchObject({ edge_cache: "MISS", edge_layer: "render", colo: "WAW" });
+      }
+      for (const row of [lcp, cls]) {
+        expect(row).toMatchObject({
+          inp_event: null,
+          inp_pre_hydration: null,
+          inp_since_load_ms: null,
+          inp_first: null,
+        });
+      }
+      expect(inpRow).toMatchObject({ inp_event: "pointerup", inp_first: true });
+    });
+
+    it("próbka BEZ pól P0.6 (klient sprzed P0.6) zapisuje siedem NULL-i, kontekst nawigacji bez zmian", async () => {
+      await post({ metrics: [sample({ name: "INP", value: 180, ...navigation })] });
+
+      const row = rows()[0]!;
+      expect(row).toMatchObject({
+        metric: "INP",
+        value: 180,
+        since_nav_ms: 2456,
+        cold_start: true,
+      });
+      for (const column of P06_COLUMNS) expect(row[column]).toBeNull();
+    });
+
+    it("`inpPreHydration: false` to POMIAR (interakcja na wyspie uwodnionej), nie brak pomiaru", async () => {
+      await post({ metrics: [fullInp({ inpPreHydration: false })] });
+
+      expect(rows()[0]?.inp_pre_hydration).toBe(false);
+    });
+
+    it("brak `inpFirst` (interakcja późniejsza albo nieznana) zapisuje NULL", async () => {
+      const withoutFirst = fullInp();
+      delete withoutFirst.inpFirst;
+
+      await post({ metrics: [withoutFirst] });
+
+      expect(rows()[0]?.inp_first).toBeNull();
+    });
+  });
+
+  describe("słowniki z reportera (`src/lib/webVitals.ts`)", () => {
+    it("KAŻDY status cache z `EDGE_CACHE_STATUSES` przechodzi bez zmian", async () => {
+      await post({ metrics: EDGE_CACHE_STATUSES.map((edgeCache) => sample({ edgeCache })) });
+
+      expect(rows().map((row) => row.edge_cache)).toEqual([...EDGE_CACHE_STATUSES]);
+    });
+
+    it("KAŻDA warstwa z `EDGE_LAYERS` przechodzi bez zmian - i nie ma wśród nich `L3`", async () => {
+      await post({ metrics: EDGE_LAYERS.map((edgeLayer) => sample({ edgeLayer })) });
+
+      expect(rows().map((row) => row.edge_layer)).toEqual([...EDGE_LAYERS]);
+      // Serwer (`NesCacheLayer`) emituje L1/L2/render; `L3` w słowniku
+      // utrwalałoby w CHECK-u wartość, której nikt nie wysyła.
+      expect(EDGE_LAYERS).not.toContain("L3");
+    });
+
+    it("KAŻDE z sześciu zdarzeń `INP_EVENT_VALUES` przechodzi bez zmian", async () => {
+      expect(INP_EVENT_VALUES).toHaveLength(6);
+
+      await post({ metrics: INP_EVENT_VALUES.map((inpEvent) => fullInp({ inpEvent })) });
+
+      expect(rows().map((row) => row.inp_event)).toEqual([...INP_EVENT_VALUES]);
+    });
+
+    it("granica `MAX_SINCE_LOAD_MS` reportera przechodzi w OBIE strony, o 1 ms dalej już nie", async () => {
+      // Reporter typuje granicę jako `number`, więc tę równość wiąże wyłącznie
+      // ten test: wartość graniczna przechodzi, następna liczba całkowita - nie.
+      await post({
+        metrics: [
+          fullInp({ inpSinceLoad: MAX_SINCE_LOAD_MS }),
+          fullInp({ inpSinceLoad: -MAX_SINCE_LOAD_MS }),
+          fullInp({ inpSinceLoad: 0 }),
+          fullInp({ inpSinceLoad: MAX_SINCE_LOAD_MS + 1 }),
+          fullInp({ inpSinceLoad: -MAX_SINCE_LOAD_MS - 1 }),
+        ],
+      });
+
+      expect(rows().map((row) => row.inp_since_load_ms)).toEqual([
+        MAX_SINCE_LOAD_MS,
+        -MAX_SINCE_LOAD_MS,
+        0,
+        null,
+        null,
+      ]);
+    });
+
+    it("CHECK-i migracji powtarzają DOKŁADNIE słowniki reportera", () => {
+      // SQL nie zaimportuje słowników, więc migracja je przepisuje - a ten test
+      // pilnuje, że przepisała wiernie (druga bramka nie może być węższa ani
+      // szersza od pierwszej). Zmiana słownika = nowa migracja i nowy plik tutaj.
+      const sql = readFileSync(MIGRATION_FILE, "utf8");
+      const inList = (column: string): string[] => {
+        const match = new RegExp(`${column}\\s+IN\\s*\\(([^)]*)\\)`).exec(sql);
+        return (match?.[1] ?? "").split(",").map((item) => item.trim().replace(/^'|'$/g, ""));
+      };
+
+      expect(inList("edge_cache")).toEqual([...EDGE_CACHE_STATUSES]);
+      expect(inList("edge_layer")).toEqual([...EDGE_LAYERS]);
+      expect(inList("inp_event")).toEqual([...INP_EVENT_VALUES]);
+      expect(sql).toContain(`inp_since_load_ms >= -${MAX_SINCE_LOAD_MS}`);
+      expect(sql).toContain(`inp_since_load_ms <= ${MAX_SINCE_LOAD_MS}`);
+      expect(sql).toContain("colo ~ '^[A-Z]{3}$'");
+    });
+
+    it("trasa importuje słowniki reportera WYŁĄCZNIE jako typy", () => {
+      // Import WARTOŚCI z `@/lib/webVitals` scaliłby leniwy reporter z chunkiem
+      // routera Workera (moduł jest też celem `import()` z `__root.tsx`, więc
+      // Rollup go nie wytrząśnie). Typ daje to samo wiązanie za zero bajtów.
+      const source = readFileSync(ROUTE_FILE, "utf8");
+      const imports = [
+        ...source.matchAll(/import\s+(type\s+)?[^;]*?from\s+["']@\/lib\/webVitals["']/g),
+      ];
+
+      expect(imports.length).toBeGreaterThan(0);
+      for (const found of imports) expect(found[1]).toBe("type ");
+      expect(source).not.toMatch(/import\(\s*["']@\/lib\/webVitals["']\s*\)/);
+    });
+  });
+
+  describe("wartości spoza kontraktu schodzą na NULL, nie kasują próbki", () => {
+    const cases: Array<[string, Record<string, unknown>, (typeof P06_COLUMNS)[number]]> = [
+      ["status cache małymi literami (bez normalizacji)", { edgeCache: "hit" }, "edge_cache"],
+      ["status cache spoza słownika", { edgeCache: "EXPIRED" }, "edge_cache"],
+      ["status cache jako liczba", { edgeCache: 1 }, "edge_cache"],
+      ["warstwa `L3` (serwer jej nie emituje)", { edgeLayer: "L3" }, "edge_layer"],
+      ["warstwa małymi literami", { edgeLayer: "l1" }, "edge_layer"],
+      ["warstwa jako obiekt", { edgeLayer: { layer: "L1" } }, "edge_layer"],
+      ["kolonia małymi literami", { colo: "waw" }, "colo"],
+      ["kolonia z czterech liter", { colo: "WAWA" }, "colo"],
+      ["kolonia z dwóch liter", { colo: "WA" }, "colo"],
+      ["kolonia z cyfrą", { colo: "W1W" }, "colo"],
+      ["kolonia ze spacją", { colo: " WAW" }, "colo"],
+      ["kolonia z diakrytykiem", { colo: "ŁÓD" }, "colo"],
+      ["kolonia jako liczba", { colo: 123 }, "colo"],
+      ["zdarzenie spoza sześciu", { inpEvent: "scroll" }, "inp_event"],
+      ["zdarzenie wielką literą", { inpEvent: "Click" }, "inp_event"],
+      ["zdarzenie jako liczba", { inpEvent: 5 }, "inp_event"],
+      ['`inpPreHydration` jako napis `"true"`', { inpPreHydration: "true" }, "inp_pre_hydration"],
+      ["`inpPreHydration` jako liczba", { inpPreHydration: 1 }, "inp_pre_hydration"],
+      ["`inpPreHydration` jako null", { inpPreHydration: null }, "inp_pre_hydration"],
+      ["`inpSinceLoad` ułamkowe", { inpSinceLoad: 12.5 }, "inp_since_load_ms"],
+      ["`inpSinceLoad` w cudzysłowie", { inpSinceLoad: "100" }, "inp_since_load_ms"],
+      ["`inpSinceLoad` jako null", { inpSinceLoad: null }, "inp_since_load_ms"],
+      ["`inpSinceLoad` jako boolean", { inpSinceLoad: true }, "inp_since_load_ms"],
+      ["`inpFirst: false` (reporter go nie wysyła)", { inpFirst: false }, "inp_first"],
+      ['`inpFirst` jako napis `"true"`', { inpFirst: "true" }, "inp_first"],
+      ["`inpFirst` jako liczba", { inpFirst: 1 }, "inp_first"],
+    ];
+
+    for (const [label, patch, column] of cases) {
+      it(label, async () => {
+        await post({ metrics: [fullInp(patch)] });
+
+        const row = rows()[0]!;
+        // Próbka ZOSTAJE, a złe pole kosztuje wyłącznie siebie: reszta pól
+        // P0.6 i kontekst nawigacji są zapisane jak w kompletnej próbce.
+        expect(row).toMatchObject({ metric: "INP", value: 312, since_nav_ms: 2456 });
+        expect(row[column]).toBeNull();
+        for (const other of P06_COLUMNS) {
+          if (other !== column) expect(row[other]).not.toBeNull();
+        }
+      });
+    }
+
+    it("atrybucja INP na próbce INNEJ niż INP jest zerowana, stan cache zostaje", async () => {
+      // Atrybucja opisuje interakcję wyznaczającą INP; na wierszu LCP byłaby
+      // fałszywa (to samo pilnuje CHECK `web_vitals_inp_attribution_only_inp`).
+      await post({ metrics: [sample({ name: "LCP", value: 2100, ...edge, ...inp })] });
+
+      expect(rows()[0]).toMatchObject({
+        metric: "LCP",
+        edge_cache: "MISS",
+        colo: "WAW",
+        inp_event: null,
+        inp_pre_hydration: null,
+        inp_since_load_ms: null,
+        inp_first: null,
+      });
+    });
+  });
+
+  describe("dwustopniowe ponowienie po braku kolumny", () => {
+    const NAVIGATION_COLUMNS = [
+      "since_nav_ms",
+      "navigation_type",
+      "device_memory",
+      "effective_type",
+      "cold_start",
+    ];
+    const CORE_COLUMNS = ["metric", "value", "rating", "path", "tenant_id"];
+
+    it("stopień 1: brak kolumny P0.6 zrzuca WYŁĄCZNIE siedem kolumn P0.6, kontekst nawigacji zostaje", async () => {
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      const res = await post({ metrics: [fullInp()] });
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(2);
+      const retried = rowsAt(1)[0]!;
+      expect(Object.keys(retried).sort()).toEqual([...CORE_COLUMNS, ...NAVIGATION_COLUMNS].sort());
+      expect(retried).toEqual({
+        metric: "INP",
+        value: 312,
+        rating: "good",
+        path: "/wpis/x",
+        tenant_id: "tenant-1",
+        since_nav_ms: 2456,
+        navigation_type: "navigate",
+        device_memory: 4,
+        effective_type: "4g",
+        cold_start: true,
+      });
+    });
+
+    it("stopień 2: drugi brak kolumny (42703) schodzi do samego rdzenia", async () => {
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: { code: "42703" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      const res = await post({ metrics: [fullInp()] });
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(3);
+      expect(rowsAt(2)[0]).toEqual({
+        metric: "INP",
+        value: 312,
+        rating: "good",
+        path: "/wpis/x",
+        tenant_id: "tenant-1",
+      });
+    });
+
+    it("stopnie nie mnożą się: trzeci brak kolumny nie daje czwartego zapisu", async () => {
+      h.insert.mockResolvedValue({ error: { code: "PGRST204" } });
+
+      const res = await post({ metrics: [fullInp()] });
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(3);
+    });
+
+    it("INNY błąd na stopniu 1 kończy ponawianie - bez stopnia 2", async () => {
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: { code: "53300", message: "too many connections" } });
+
+      const res = await post({ metrics: [fullInp()] });
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(2);
+    });
+
+    it("oba stopnie niosą CAŁY batch, każdy wiersz z tenantem", async () => {
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      await post({
+        metrics: [
+          sample({ name: "LCP", ...navigation, ...edge }),
+          fullInp(),
+          sample({ name: "CLS", value: 0.1 }),
+        ],
+      });
+
+      for (const call of [1, 2]) {
+        expect(rowsAt(call).map((row) => row.metric)).toEqual(["LCP", "INP", "CLS"]);
+        for (const row of rowsAt(call)) expect(row.tenant_id).toBe("tenant-1");
+      }
+    });
+
+    it("bez tenanta stopnie ponowienia też nie wymyślają kolumny `tenant_id`", async () => {
+      h.tenantId = null;
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      await post({ metrics: [fullInp()] });
+
+      expect(Object.keys(rowsAt(1)[0]!)).not.toContain("tenant_id");
+      expect(Object.keys(rowsAt(2)[0]!)).not.toContain("tenant_id");
     });
   });
 });
