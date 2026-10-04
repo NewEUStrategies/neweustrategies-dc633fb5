@@ -153,7 +153,8 @@ function iconPath(container: HTMLElement): string {
   return container.querySelector("svg path")?.getAttribute("d") ?? "";
 }
 
-const PLAY_ICON = "M8 5v14l11-7z";
+// Trójkąt play wyśrodkowany w polu 24x24 (krawędź lewa 6.5, czubek 17.5).
+const PLAY_ICON = "M6.5 5v14l11-7z";
 const PAUSE_ICON = "M6 5h4v14H6zM14 5h4v14h-4z";
 
 beforeEach(() => {
