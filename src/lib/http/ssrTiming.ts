@@ -12,6 +12,11 @@
 // zdegradowanego MISS-a i `streamMs` (koniec body, mierzony owijką strumienia
 // w `src/server.ts`). Wszystko tutaj to czyste funkcje: kształt nagłówka
 // i linii jest testowalny bez runtime'u Workers.
+//
+// Poprawki po recenzji P0.4: owijka końca body ma bezpiecznik czasowy (linia
+// nie ginie, gdy nikt body nie czyta ani nie anuluje), linia niesie wynik
+// odroczonego zapisu (`store`) i flagę `coldEntry` (żądanie weszło, zanim
+// import entry się rozstrzygnął).
 import { isBotUserAgent } from "./botFilter";
 
 export interface SsrDbTiming {
@@ -202,6 +207,17 @@ export function buildEntryServerTimingValue(
 /** Jak skończył się strumień body: normalnie albo przerwaniem (błąd/anulowanie). */
 export type BodyEndOutcome = "done" | "aborted";
 
+export interface ObserveBodyEndOptions {
+  /**
+   * Bezpiecznik telemetrii (recenzja P0.4, MAJOR 1): po tylu ms od utworzenia
+   * owijki koniec zgłasza się sam jako `aborted`, jeśli body do tej pory ani
+   * się nie domknęło, ani nie zostało anulowane. Strumień płynie dalej
+   * nietknięty - bezpiecznik zamyka WYŁĄCZNIE telemetrię, nie dokument.
+   * Brak / wartość nieskończona / niedodatnia = bez bezpiecznika.
+   */
+  fuseMs?: number;
+}
+
 /**
  * Lustro strumienia `source`, które zgłasza JEDEN raz jego koniec: `done`
  * tuż PRZED domknięciem (jak `TransformStream.flush()` - kto doczytał body do
@@ -224,22 +240,43 @@ export type BodyEndOutcome = "done" | "aborted";
  * - podmiana body wewnątrz łańcucha to mechanizm incydentu ~61 s (patrz
  * documentCache.server.ts). `onEnd` nie może zerwać strumienia: wyjątek
  * z telemetrii jest połykany.
+ *
+ * `onEnd` dla `done` może oddać thenable: czytelnik zobaczy wtedy `done`
+ * dopiero po jego rozstrzygnięciu (odrzucenie połykane), więc kto doczytał
+ * body, ma już linię logu także wtedy, gdy linia czeka na decyzję magazynu
+ * (`src/server.ts`). Wołający odpowiada za to, żeby to czekanie było KRÓTKIE -
+ * ono wstrzymuje koniec body czytelnika. `aborted` nigdy nie czeka.
+ *
+ * Bezpiecznik (`options.fuseMs`) zgłasza `aborted` sam: na Workers zerwanie
+ * klienta nie gwarantuje, że `cancel()` się wykona, a body, którego nikt nie
+ * czyta ani nie anuluje, nie dałoby linii wcale. Flaga `reported` gwarantuje
+ * jedno zgłoszenie niezależnie od tego, co przyjdzie pierwsze.
  */
 export function observeBodyEnd(
   source: ReadableStream<Uint8Array>,
-  onEnd: (outcome: BodyEndOutcome) => void,
+  onEnd: (outcome: BodyEndOutcome) => unknown,
+  options: ObserveBodyEndOptions = {},
 ): ReadableStream<Uint8Array> {
   const reader = source.getReader();
   let reported = false;
-  const report = (outcome: BodyEndOutcome): void => {
-    if (reported) return;
+  let fuse: ReturnType<typeof setTimeout> | undefined;
+  const report = (outcome: BodyEndOutcome): PromiseLike<void> | undefined => {
+    if (reported) return undefined;
     reported = true;
+    if (fuse !== undefined) clearTimeout(fuse);
+    fuse = undefined;
     try {
-      onEnd(outcome);
+      const pending = onEnd(outcome);
+      if (isThenable(pending)) return Promise.resolve(pending).then(noop, noop);
     } catch {
       /* telemetria nie może zerwać dokumentu */
     }
+    return undefined;
   };
+  const fuseMs = options.fuseMs;
+  if (typeof fuseMs === "number" && Number.isFinite(fuseMs) && fuseMs > 0) {
+    fuse = setTimeout(() => void report("aborted"), fuseMs);
+  }
   return new ReadableStream<Uint8Array>(
     {
       async pull(controller) {
@@ -252,8 +289,13 @@ export function observeBodyEnd(
           return;
         }
         if (chunk.done) {
-          report("done");
-          controller.close();
+          const pending = report("done");
+          if (pending) await pending;
+          try {
+            controller.close();
+          } catch {
+            /* konsument anulował w trakcie czekania na linię logu */
+          }
           return;
         }
         controller.enqueue(chunk.value);
@@ -268,6 +310,39 @@ export function observeBodyEnd(
     { highWaterMark: 0 },
   );
 }
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    (typeof value === "object" || typeof value === "function") &&
+    value !== null &&
+    typeof (value as { then?: unknown }).then === "function"
+  );
+}
+
+function noop(): void {}
+
+// ── Wynik odroczonego zapisu NES Edge Cache ────────────────────────────────
+
+/**
+ * Co magazyn dokumentów ZROBIŁ z MISS-em, który zarejestrował do zapisu
+ * (recenzja P0.4, MAJOR 2). Zgłasza to `applyDeferredDocumentStore`
+ * (documentCache.server.ts) w chwili decyzji:
+ *   - `stored`   - wpis wylądował w L1 (L2 dopisuje się w tle),
+ *   - `degraded` - polityka zapisu odmówiła: dyrektywa trasy zawęziła się na
+ *                  granicy handlera albo dopiero W TRAKCIE strumieniowania,
+ *   - `oversize` - dokument większy niż limit wpisu,
+ *   - `failed`   - strumień renderu padł, zanim kopia się zebrała.
+ * Słownik żyje tutaj, przy linii logu, żeby magazyn i linia mówiły tym samym
+ * zamkniętym zbiorem wartości.
+ */
+export type DocumentStoreOutcome = "stored" | "degraded" | "oversize" | "failed";
+
+const DOCUMENT_STORE_OUTCOMES: ReadonlySet<string> = new Set<DocumentStoreOutcome>([
+  "stored",
+  "degraded",
+  "oversize",
+  "failed",
+]);
 
 // ── Log dokumentu do Workers Logs (audyt 0.1 / F40) ─────────────────────────
 //
@@ -351,11 +426,15 @@ export interface DocumentLogLine {
   /**
    * Od wejścia żądania do KOŃCA body (ta sama baza co `appMs`), mierzone
    * owijką strumienia w `src/server.ts`; `streamMs - appMs` = ogon
-   * strumieniowania. Brak klucza: odpowiedź bez body (HEAD, 204) albo
-   * rewalidacja w tle (nikt jej nie czyta).
+   * strumieniowania. Brak klucza: odpowiedź bez body (HEAD, 204), strona 500
+   * ze ścieżki `catch` (body to napis) albo rewalidacja w tle (nikt jej nie
+   * czyta). Po bezpieczniku owijki = czas do bezpiecznika.
    */
   streamMs?: number;
-  /** Tylko gdy body NIE domknęło się normalnie (zerwanie klienta, błąd źródła). */
+  /**
+   * Tylko gdy body NIE domknęło się normalnie: zerwanie klienta, błąd źródła
+   * albo bezpiecznik (body nieprzeczytane i nieanulowane do jego upływu).
+   */
   streamEnd?: "aborted";
   /** Poziom, który podał dokument (`nes-layer` z Server-Timing potoku). */
   layer?: NesCacheLayer;
@@ -372,29 +451,47 @@ export interface DocumentLogLine {
    * w czasie czystej pracy CPU, więc „wiek modułu" byłby fikcją).
    */
   isoAgeS?: number;
+  /**
+   * Czy żądanie weszło, zanim import bundla entry się rozstrzygnął. Przy
+   * współbieżnym zimnym starcie wszystkie żądania czekające na ten sam import
+   * płacą zimny start, a `isoReq == 1` ma tylko pierwsze. Obok `isoReq`, z tym
+   * samym brakiem klucza na rewalidacji w tle.
+   */
+  coldEntry?: boolean;
   /** Zgrubna klasa UA - nigdy sam napis user-agenta. */
   uaClass?: UaClass;
   /** `cf-ray` żądania: klucz korelacji z sondami zewnętrznymi i liniami wywołania. */
   ray?: string;
   /**
    * Tylko dla MISS-a pełnego dokumentu (200, HTML): czy render wyszedł
-   * zdegradowany, czyli polityka zapisu odmówiła mu wspólnego cache'a
-   * (`private, no-store` z odpornego loadera) - ta sama definicja co
-   * `degradedRevalidation` w documentCache.server.ts. KTÓRY loader się
-   * zdegradował, mówi linia `[ssr-resilient] ... for <etykieta>` z tego
-   * samego wywołania (korelacja po wywołaniu Workers / `ray`).
+   * zdegradowany, czyli polityka zapisu odmówiła mu wspólnego cache'a -
+   * z nagłówków (`private, no-store` z odpornego loadera) ALBO z decyzji
+   * magazynu (`store: "degraded"`, dyrektywa zawężona w trakcie
+   * strumieniowania). Ta sama definicja co odświeżenie po degradacji
+   * w documentCache.server.ts. KTÓRY loader się zdegradował, mówi linia
+   * `[ssr-resilient] ... for <etykieta>` z tego samego wywołania (korelacja
+   * po wywołaniu Workers / `ray`).
    */
   degraded?: boolean;
+  /**
+   * Wynik odroczonego zapisu (`DocumentStoreOutcome`), gdy magazyn
+   * zarejestrował ten MISS do zapisu i decyzja zapadła przed linią. Brak
+   * klucza: odpowiedź nie była kandydatem do zapisu (HIT, BYPASS, `no-store`
+   * z nagłówków) albo linia wyszła wcześniej (zerwanie, bezpiecznik,
+   * zamknięcie wymuszone przez strażnika, gdy render wciąż trwa).
+   */
+  store?: DocumentStoreOutcome;
   edgeRoutingMs?: number;
   ssrMs?: number;
   dbMs?: number;
   dbCount?: number;
 }
 
-/** Próbka licznika izolatu z `src/server.ts` (patrz `isoReq`/`isoAgeS`). */
+/** Próbka licznika izolatu z `src/server.ts` (patrz `isoReq`/`isoAgeS`/`coldEntry`). */
 export interface IsolateSample {
   isoReq: number;
   isoAgeS: number;
+  coldEntry?: boolean;
 }
 
 export interface DocumentLogInput {
@@ -415,6 +512,8 @@ export interface DocumentLogInput {
   /** Surowy nagłówek `cf-ray` - do logu trafia tylko po walidacji kształtu. */
   cfRay?: string | null;
   degraded?: boolean;
+  /** Wynik odroczonego zapisu - do linii trafia tylko wartość ze słownika. */
+  storeOutcome?: DocumentStoreOutcome | null;
 }
 
 /** Ścieżka w logu ma górny limit - URL od klienta może mieć kilobajty. */
@@ -457,11 +556,14 @@ export function buildDocumentLogLine(input: DocumentLogInput): DocumentLogLine {
   if (isolate && Number.isSafeInteger(isolate.isoReq) && isolate.isoReq > 0) {
     line.isoReq = isolate.isoReq;
     line.isoAgeS = Math.round(safeMs(isolate.isoAgeS));
+    if (typeof isolate.coldEntry === "boolean") line.coldEntry = isolate.coldEntry;
   }
   if (input.userAgent !== undefined) line.uaClass = classifyUserAgent(input.userAgent);
   const ray = sanitizeRay(input.cfRay);
   if (ray) line.ray = ray;
   if (typeof input.degraded === "boolean") line.degraded = input.degraded;
+  const store = input.storeOutcome;
+  if (store && DOCUMENT_STORE_OUTCOMES.has(store)) line.store = store;
   return line;
 }
 

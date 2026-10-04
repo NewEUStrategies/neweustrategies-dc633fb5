@@ -20,12 +20,15 @@
 //   5. Telemetria dokumentu (Workers Logs + Server-Timing): jedna linia JSON
 //      per dokument HTML, emitowana PO KOŃCU body (owijka strumienia za
 //      strażnikiem), z licznikiem żądań izolatu, kolonią, ray-em i klasą UA.
+//      Obietnica końca body jedzie pod `ctx.waitUntil` z bezpiecznikiem, linia
+//      niesie wynik odroczonego zapisu, a strona 500 ze ścieżki `catch` też
+//      ma swoją linię (recenzja P0.4).
 //
 // Wpięcie: vite.config.ts -> tanstackStart.server.entry: "server".
 import "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { consumeLastCapturedError } from "./lib/error-capture";
-import { guardDocumentResponse } from "./lib/http/documentStreamGuard.server";
+import { DOC_GUARD_MAX_MS, guardDocumentResponse } from "./lib/http/documentStreamGuard.server";
 import { fetchWithFrameworkPreloads } from "./lib/http/frameworkPreloads.server";
 import {
   applyDeferredDocumentStore,
@@ -33,6 +36,7 @@ import {
   setDocumentRevalidator,
 } from "./lib/http/documentCache.server";
 import { NES_CACHE_HEADER, documentStorePolicy } from "./lib/http/documentCache";
+import { runAfterResponse } from "./lib/http/waitUntil.server";
 import { LANG_COOKIE } from "./lib/i18n/langCookie";
 import {
   buildDocumentLogLine,
@@ -40,6 +44,7 @@ import {
   observeBodyEnd,
   resolveRequestColo,
   type BodyEndOutcome,
+  type DocumentStoreOutcome,
   type IsolateSample,
 } from "./lib/http/ssrTiming";
 import type { Register } from "@tanstack/react-router";
@@ -62,12 +67,19 @@ import type { RequestHandler } from "@tanstack/react-start/server";
 type ServerEntry = { fetch: RequestHandler<Register> };
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
+/**
+ * Import bundla entry już się rozstrzygnął. Żądanie, które weszło przed tym
+ * momentem, płaci zimny start - także gdy nie jest pierwsze (`coldEntry`
+ * w linii logu; recenzja P0.4, MINOR 4).
+ */
+let serverEntryReady = false;
 
 async function getServerEntry(): Promise<ServerEntry> {
   if (!serverEntryPromise) {
-    serverEntryPromise = import("@tanstack/react-start/server-entry").then(
-      (m) => (m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry),
-    );
+    serverEntryPromise = import("@tanstack/react-start/server-entry").then((m) => {
+      serverEntryReady = true;
+      return (m as { default?: ServerEntry }).default ?? (m as unknown as ServerEntry);
+    });
   }
   return serverEntryPromise;
 }
@@ -170,6 +182,23 @@ function revalidationHeaders(request: Request): Headers {
 }
 
 /**
+ * Bezpiecznik linii logu dokumentu (recenzja P0.4, MAJOR 1 i MINOR 9).
+ *
+ * Na Workers zerwanie klienta nie gwarantuje, że wykona się JS `cancel()`
+ * owijki końca body ani że kontekst wywołania dożyje końca strumienia. Dlatego
+ * obietnica „linia zapisana" jedzie pod `runAfterResponse` (`ctx.waitUntil`),
+ * a ten bezpiecznik rozstrzyga ją najpóźniej po DOC_GUARD_MAX_MS + 2 s: twardy
+ * sufit strażnika dokumentu (20 s) domyka body wcześniej, więc bezpiecznik
+ * odpala tylko wtedy, gdy body nikt nie czyta ani nie anuluje, albo gdy
+ * strażnik jest wyłączony (SSR_DOC_GUARD=off, wisząca serializacja do ~60 s).
+ * Linia wychodzi wtedy ze `streamEnd: "aborted"` i `streamMs` = czas do
+ * bezpiecznika. 22 s mieści się w 30 s, które `waitUntil` daje po odpowiedzi.
+ * Nastawa `SSR_DOC_GUARD_MAX_MS` z env NIE przesuwa bezpiecznika - podniesiona
+ * powyżej 20 s da linię `aborted`, zanim strażnik domknie body.
+ */
+const DOC_LOG_FUSE_MS = DOC_GUARD_MAX_MS + 2_000;
+
+/**
  * Odświeżanie wpisów NES Edge Cache ZA odpowiedzią (stale-while-revalidate).
  *
  * Dlaczego tutaj, a nie w middleware: rewalidacja musi przejść PEŁNY potok
@@ -190,28 +219,65 @@ async function revalidateDocument(request: Request): Promise<boolean> {
   const handler = await getServerEntry();
   const rendered = await fetchWithFrameworkPreloads(handler.fetch, synthetic);
   const normalized = await normalizeCatastrophicSsrResponse(synthetic, rendered);
+  const appMs = Date.now() - startedAt;
+
   // Render w tle też idzie do logu - z flagą, bo to koszt CPU izolatu, a nie
   // czas czytelnika; bez niej zaniżałby rozkład TTFB i zawyżał udział MISS.
-  // Bez `streamMs`: body tej odpowiedzi czyta tylko kolektor zapisu niżej,
-  // a log ma powstać także wtedy, gdy wiszący render nigdy się nie domknie.
-  logDocument(synthetic, normalized, { serverInitMs: 0, appMs: Date.now() - startedAt });
+  // Bez `streamMs`: body tej odpowiedzi czyta tylko kolektor zapisu niżej.
+  //
+  // KIEDY (recenzja P0.4, MINOR 5): po decyzji magazynu, żeby `degraded`
+  // miało tę samą definicję co na ścieżce czytelnika (także degradacja
+  // odkryta W TRAKCIE strumieniowania), ale PRZED wpisem w L1 - `onOutcome`
+  // woła się synchronicznie przed `setEntry`, więc harness pomiaru, który po
+  // HIT-cie rozgrzewki stawia kursor logu, nie zobaczy tej linii w przebiegu
+  // Lighthouse'a. Bez rejestracji zapisu decyzji nie ma na co czekać - linia
+  // wychodzi od razu, jak dotąd. Wiszący render: bezpiecznik jak na ścieżce
+  // czytelnika (< 30 s budżetu `scheduleRevalidation`).
+  //
+  // Kolonia i `ray` pochodzą z żądania WYZWALAJĄCEGO i idą wyłącznie do
+  // logu - nigdy jako nagłówki syntetycznego żądania, bo te wpływają na render.
+  let logged = false;
+  let fuse: ReturnType<typeof setTimeout> | undefined;
+  const logOnce = (storeOutcome?: DocumentStoreOutcome): void => {
+    if (logged) return;
+    logged = true;
+    if (fuse !== undefined) clearTimeout(fuse);
+    logDocument(synthetic, normalized, {
+      serverInitMs: 0,
+      appMs,
+      colo: requestColo(request),
+      cfRay: request.headers.get("cf-ray"),
+      storeOutcome,
+    });
+  };
 
   let storeWork: Promise<boolean> | null = null;
-  const finalized = applyDeferredDocumentStore(normalized, (work) => {
-    storeWork = work;
-  });
+  const finalized = applyDeferredDocumentStore(
+    normalized,
+    (work) => {
+      storeWork = work;
+    },
+    logOnce,
+  );
+  const pending = storeWork as Promise<boolean> | null;
+  if (pending) fuse = setTimeout(() => logOnce(), DOC_LOG_FUSE_MS);
+  else logOnce();
   // Kolektor zapisu czyta jedną gałąź tee - druga (ta "dla klienta") musi
   // zostać skonsumowana, inaczej strumień renderu nigdy nie dojdzie do końca.
   // Strażnik strumienia jest tu zbędny: nikt na tę odpowiedź nie czeka, a
   // wiszący render zamknie się własnym budżetem albo poleci w catch wołającego.
   await finalized.arrayBuffer().catch(() => undefined);
 
-  const pending = storeWork as Promise<boolean> | null;
   // Brak rejestracji zapisu = render nie dał dokumentu nadającego się do
   // cache'owania (redirect, 404, `no-store`). Wpis zostaje STALE i kolejne
   // żądanie spróbuje ponownie - nigdy nie nadpisujemy go czymś gorszym.
   if (!pending) return false;
-  return await pending;
+  try {
+    return await pending;
+  } finally {
+    // Zapis rozstrzygnął się bez decyzji (np. odrzucona praca) - linia i tak.
+    logOnce();
+  }
 }
 
 setDocumentRevalidator(revalidateDocument);
@@ -238,7 +304,75 @@ function countIsolateRequest(now: number): IsolateSample {
   return {
     isoReq: isolateRequests,
     isoAgeS: Math.max(0, Math.round((now - isolateFirstRequestAt) / 1000)),
+    coldEntry: !serverEntryReady,
   };
+}
+
+/**
+ * Odroczony zapis NES Edge Cache razem z jego wynikiem dla linii logu
+ * (recenzja P0.4, MAJOR 2). Własność pracy zapisu przejmuje wołający
+ * (`onStore`), więc wiadomo, czy tee ruszył i decyzja jeszcze przed nami.
+ */
+interface TrackedStore {
+  /** Praca zapisu (tee) albo null: odpowiedź nie była zarejestrowana do zapisu. */
+  readonly work: Promise<boolean> | null;
+  /** Decyzja magazynu; undefined = brak zapisu albo decyzja jeszcze nie zapadła. */
+  readonly outcome: DocumentStoreOutcome | undefined;
+  /** Rozstrzyga się z decyzją magazynu (od razu, gdy zapisu nie ma). */
+  readonly decided: Promise<void>;
+}
+
+function applyTrackedDocumentStore(response: Response): {
+  response: Response;
+  store: TrackedStore;
+} {
+  let work: Promise<boolean> | null = null;
+  let outcome: DocumentStoreOutcome | undefined;
+  let markDecided: () => void = () => {};
+  const decided = new Promise<void>((resolve) => {
+    markDecided = resolve;
+  });
+  const finalized = applyDeferredDocumentStore(
+    response,
+    (pending) => {
+      work = pending;
+    },
+    (result) => {
+      outcome = result;
+      markDecided();
+    },
+  );
+  const store: TrackedStore = {
+    get work() {
+      return work;
+    },
+    get outcome() {
+      return outcome;
+    },
+    decided,
+  };
+  if (!store.work) markDecided();
+  return { response: finalized, store };
+}
+
+/**
+ * Czekanie na decyzję magazynu przy NORMALNYM końcu body - najwyżej jedno
+ * makrozadanie. Gdy źródło renderu domknęło się samo, gałąź tee kolektora
+ * zapisu dostaje `done` w tym samym kroku co gałąź czytelnika, a decyzja
+ * zapada w tej samej serii mikrozadań; makrozadanie jest wyłącznie
+ * bezpiecznikiem. Dłużej czekać nie wolno, bo owijka wstrzymuje koniec body
+ * czytelnika do rozstrzygnięcia: po zamknięciu wymuszonym przez strażnika
+ * (sentinel/idle/timeout) render wciąż trwa, a kolektor czyta go dalej -
+ * wtedy linia wychodzi bez `store`, z `degraded` z nagłówków.
+ */
+function awaitStoreDecision(store: TrackedStore): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const cap = setTimeout(resolve, 0);
+    void store.decided.then(() => {
+      clearTimeout(cap);
+      resolve();
+    });
+  });
 }
 
 /** Kolonia z `request.cf.colo` (Workers), fallback: sufiks nagłówka `cf-ray`. */
@@ -249,17 +383,22 @@ function requestColo(request: Request): string | null {
 
 /**
  * Czy MISS pełnego dokumentu wyszedł zdegradowany: polityka zapisu odmówiła
- * mu wspólnego cache'a (`private, no-store` z odpornego loadera albo z
- * dociśnięcia na granicy handlera w `applyDeferredDocumentStore`). Ta sama
- * definicja co gałąź `degradedRevalidation` w documentCache.server.ts.
+ * mu wspólnego cache'a - `private, no-store` w nagłówkach (odporny loader
+ * albo dociśnięcie na granicy handlera w `applyDeferredDocumentStore`) ALBO
+ * decyzja magazynu `degraded` (dyrektywa trasy zawężona dopiero W TRAKCIE
+ * strumieniowania - nagłówki już wyszły, więc tego nie widzą). Ta sama
+ * definicja co odświeżenie po degradacji w documentCache.server.ts.
  * Undefined poza MISS-em 200/HTML - HIT/STALE z definicji podają czysty wpis,
- * a BYPASS nie konsultował cache'a. Degradacji odkrytej dopiero W TRAKCIE
- * strumieniowania nagłówki nie widzą (loguje ją sam magazyn).
+ * a BYPASS nie konsultował cache'a.
  */
-function degradedMiss(response: Response): boolean | undefined {
+function degradedMiss(
+  response: Response,
+  storeOutcome: DocumentStoreOutcome | undefined,
+): boolean | undefined {
   const contentType = response.headers.get("content-type");
   if (response.headers.get(NES_CACHE_HEADER) !== "MISS") return undefined;
   if (response.status !== 200 || !contentType?.includes("text/html")) return undefined;
+  if (storeOutcome === "degraded") return true;
   return !documentStorePolicy(response.status, contentType, response.headers.get("cache-control"))
     .store;
 }
@@ -270,9 +409,16 @@ interface DocumentLogTiming {
   /** Próbka licznika izolatu - tylko żądania z zewnątrz (nie rewalidacja). */
   isolate?: IsolateSample;
   colo?: string | null;
+  /**
+   * `cf-ray` do linii zamiast nagłówka `request` - rewalidacja w tle podaje
+   * ray żądania, które ją wyzwoliło (syntetyczne żądanie go nie niesie).
+   */
+  cfRay?: string | null;
   /** Koniec body względem wejścia żądania; brak = odpowiedź bez body. */
   streamMs?: number;
   streamEnd?: BodyEndOutcome;
+  /** Decyzja odroczonego zapisu, jeśli zapadła przed linią. */
+  storeOutcome?: DocumentStoreOutcome;
 }
 
 /**
@@ -301,8 +447,9 @@ function logDocument(request: Request, response: Response, timing: DocumentLogTi
           colo: timing.colo,
           isolate: timing.isolate,
           userAgent: request.headers.get("user-agent"),
-          cfRay: request.headers.get("cf-ray"),
-          degraded: degradedMiss(response),
+          cfRay: timing.cfRay !== undefined ? timing.cfRay : request.headers.get("cf-ray"),
+          degraded: degradedMiss(response, timing.storeOutcome),
+          storeOutcome: timing.storeOutcome,
         }),
       ),
     );
@@ -313,19 +460,24 @@ function logDocument(request: Request, response: Response, timing: DocumentLogTi
 
 export default {
   async fetch(request: Request): Promise<Response> {
+    // Licznik izolatu PRZED `try`: strona 500 z `catch` też ma linię logu
+    // (recenzja P0.4, MINOR 8), także gdy padł import entry na zimnym izolacie.
+    const startedAt = Date.now();
+    const isolate = countIsolateRequest(startedAt);
+    let initializedAt: number | null = null;
     try {
-      const startedAt = Date.now();
-      const isolate = countIsolateRequest(startedAt);
       const handler = await getServerEntry();
-      const initializedAt = Date.now();
+      initializedAt = Date.now();
       const response = await fetchWithFrameworkPreloads(handler.fetch, request);
       const normalized = await normalizeCatastrophicSsrResponse(request, response);
       // Odroczony zapis NES Edge Cache: tee strumienia dokumentu MUSI się
       // wydarzyć dopiero tutaj, ZA egzekutorem middleware TanStack Start -
       // tee w środku łańcucha łamie tożsamość body koperty SSR i egzekutor
       // wołał serverSsr.cleanup() w trakcie streamowania (incydent ~61 s,
-      // patrz documentCache.server.ts).
-      const stored = applyDeferredDocumentStore(normalized);
+      // patrz documentCache.server.ts). Praca zapisu jedzie pod `waitUntil`
+      // jak dotąd; przejmujemy ją tylko po to, żeby linia logu znała wynik.
+      const { response: stored, store } = applyTrackedDocumentStore(normalized);
+      if (store.work) runAfterResponse(store.work);
       // Dokumenty HTML wychodzą wyłącznie przez strażnika strumienia - body
       // ZAWSZE się kończy, niezależnie od stanu serializacji frameworka.
       const guarded = guardDocumentResponse(request, stored);
@@ -350,13 +502,40 @@ export default {
       // się czekać (runtime takiego body nie czyta) - logujemy od razu.
       let body: ReadableStream<Uint8Array> | null = guarded.body;
       if (body && request.method !== "HEAD") {
-        body = observeBodyEnd(body, (outcome) =>
+        let lineWritten: () => void = () => {};
+        const written = new Promise<void>((resolve) => {
+          lineWritten = resolve;
+        });
+        const write = (outcome: BodyEndOutcome, endedAt: number): void => {
           logDocument(request, guarded, {
             ...timing,
-            streamMs: Date.now() - startedAt,
+            streamMs: endedAt - startedAt,
             streamEnd: outcome,
-          }),
+            storeOutcome: store.outcome,
+          });
+          lineWritten();
+        };
+        body = observeBodyEnd(
+          body,
+          (outcome) => {
+            const endedAt = Date.now();
+            // Zerwanie i bezpiecznik: linia OD RAZU, z tym, co magazyn już
+            // wie (tee kolektora potrafi trzymać render jeszcze długo).
+            if (outcome !== "done" || !store.work || store.outcome !== undefined) {
+              write(outcome, endedAt);
+              return undefined;
+            }
+            // Normalny koniec MISS-a do zapisu: decyzja magazynu zapada
+            // w tej samej serii mikrozadań - czytelnik zobaczy `done` po
+            // linii z prawdziwym `degraded`/`store` (owijka czeka na tę
+            // obietnicę, najwyżej jedno makrozadanie).
+            return awaitStoreDecision(store).then(() => write(outcome, endedAt));
+          },
+          { fuseMs: DOC_LOG_FUSE_MS },
         );
+        // Na Workers kontekst wywołania żyje tyle, ile `waitUntil` - bez tego
+        // linia zerwanego dokumentu mogłaby nie powstać wcale (MAJOR 1).
+        runAfterResponse(written);
       } else {
         logDocument(request, guarded, timing);
       }
@@ -370,13 +549,25 @@ export default {
         return new Response(null, { status: 499, headers: { "cache-control": "no-store" } });
       }
       console.error(error);
-      return new Response(renderErrorPage(), {
+      const page = new Response(renderErrorPage(), {
         status: 500,
         headers: {
           "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
         },
       });
+      // Wyjątek przed dispatchem (też padnięty import entry na zimnym
+      // izolacie) to dokument jak każdy inny: linia z licznikiem izolatu
+      // i kolonią, bez `streamMs` (body to gotowy napis). Server-Timing tej
+      // strony zostaje bez zmian - kolonia jest tu tylko w logu.
+      const failedAt = Date.now();
+      logDocument(request, page, {
+        serverInitMs: (initializedAt ?? failedAt) - startedAt,
+        appMs: failedAt - startedAt,
+        isolate,
+        colo: requestColo(request),
+      });
+      return page;
     }
   },
 };
