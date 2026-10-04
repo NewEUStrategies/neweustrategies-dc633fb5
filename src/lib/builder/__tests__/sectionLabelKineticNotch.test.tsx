@@ -40,16 +40,23 @@ const editorSrc = readFileSync(
   "utf8",
 );
 
-function renderVariant(
-  props: Omit<ComponentProps<typeof SectionLabelRender>, "variant" | "accent" | "label" | "action"> = {},
-) {
+// `label`/`action` są wymagane w RenderProps, więc helper podaje ich wartości
+// domyślne. `action: null` oznacza „brak akcji” (renderer traktuje pusty tekst
+// jak jej brak), a `undefined` zostawia domyślny „więcej”.
+type VariantProps = Omit<
+  ComponentProps<typeof SectionLabelRender>,
+  "variant" | "accent" | "label" | "action"
+> & { action?: string | null };
+
+function renderVariant(props: VariantProps = {}) {
+  const { action, ...rest } = props;
   return render(
     <SectionLabelRender
       label="Najnowszy raport"
-      action="więcej"
+      action={action === null ? "" : "więcej"}
       accent="#FA9346"
       variant={V}
-      {...props}
+      {...rest}
     />,
   );
 }
