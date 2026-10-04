@@ -11,7 +11,6 @@ import {
   Pencil,
   Send,
   Smile,
-  Trash2,
   X,
   Image as ImageIcon,
   FileText,
