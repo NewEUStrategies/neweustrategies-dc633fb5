@@ -1,12 +1,15 @@
 import json, sys
 W='/root/.claude/projects/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/subagents/workflows/'
-def wyniki(run):
+def wyniki(run, pierwszy=True):
+    """Wyniki agentow z journal.jsonl po etykiecie. pierwszy=True: wygrywa PIERWSZY wynik danej etykiety
+    (przebieg oryginalny); wznowienie, ktore powtorzylo gotowego agenta na zywo, nie nadpisuje wyniku."""
     lab={}; out={}
     for l in open(W+run+'/journal.jsonl'):
         try: e=json.loads(l)
         except Exception: continue
         if e.get('type')=='started': lab[e['key']]=e.get('label')
-        elif e.get('type')=='result': out[lab.get(e['key'],e['key'])]=e.get('result')
+        elif e.get('type')=='result':
+            k=lab.get(e['key'],e['key'])
+            if pierwszy and k in out and out[k] is not None: continue
+            out[k]=e.get('result')
     return out
-if __name__=='__main__':
-    r=wyniki(sys.argv[1]); print({k:(type(v).__name__) for k,v in r.items()})

@@ -1,0 +1,78 @@
+# Rozdzial 17, czesc C: bramki i progi (17.10), baza (17.11), determinizm i it.fails (17.12).
+# Zrodla: tor CI i tor DB (migawka.json, przekroj:CI i przekroj:DB, po probie obalenia), progi13.json, pgrls13.json, rls13.json.
+import json, sys
+def n(x):
+    return f'{x:,}'.replace(',', ' ')
+
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+SNAP = json.load(open(S + '/migawka.json'))
+PR = json.load(open(S + '/progi13.json'))
+PG = json.load(open(S + '/pgrls13.json'))
+RLS = json.load(open(S + '/rls13.json'))
+CI = SNAP['G3']['przekroj:CI']
+DB = SNAP['G6']['przekroj:DB']
+V_CI = {x['id']: x for x in SNAP['G3']['obal:CI']['werdykty']}
+V_DB = {x['id']: x for x in SNAP['G6']['obal:DB']['werdykty']}
+o = []
+w = o.append
+
+w('### 17.10. Bramki, progi i warstwy dowodu')
+w('')
+w(f"**Main jest czerwony na bramce wydania.** Na `5b8c77c01` check `Required release checks` pada, bo job `build` przekracza budżet bundla w kroku `Bundle size budget`: łącznie 4 806,5 KB po kompresji gzip przy budżecie 4 772 KB. Po zielonym `b8b53ae5` kolejne commity z 2026-10-03 mają `build: failure`, a mimo to na `main` trafiały następne - bramka blokuje scalenia PR-ów, ale nie wypchnięcia bezpośrednie. Tor CI czytał wyniki przebiegów przez API GitHuba (check-runs i log joba), weryfikator potwierdził defekt z wagą wysoką. Ten audyt mierzy drzewo, a nie wdrożenie: pomiar pokrycia jest zielony, czerwony jest budżet wielkości. PR #469 (wydajność), scalony po pomiarze, mógł to zmienić - nie mierzyłem go.")
+w('')
+w('| Warstwa | Wydanie 12 | Wydanie 13 | Co się zmieniło |')
+w('| --- | --- | --- | --- |')
+w(f"| Progi per ścieżka | {PR['ED12']['progow']} | **{PR['TERAZ']['progow']}** | 113 nowych, 0 usuniętych, 0 obniżonych, 26 podniesionych (np. `src/routes/api/tts.ts` z 27/37/50/22 do 100/100/100/100, `src/components/audio/**` z 62/77/48/64 do 97/96/100/100) |")
+w('| Próg globalny (instrukcje / funkcje / linie / gałęzie) | 79 / 77 / 80 / 73 | **79 / 77 / 80 / 73** | bez zmian - dziś o 15-21 pp poniżej pomiaru |')
+w(f"| Pliki produkcyjne pod progiem per ścieżka | {n(PR['ED12']['objete'])} ({PR['ED12']['pct']:.2f}%) | **{n(PR['TERAZ']['objete'])} ({PR['TERAZ']['pct']:.2f}%)** | +{PR['TERAZ']['objete'] - PR['ED12']['objete']} plików |".replace('.', ','))
+w('| Martwe progi (wzorzec bez pliku) | 5 | **5** | te same; piąty (`suppressionTable.ts`) ma błędną wielkość liter - istniejący `SuppressionTable.tsx` nie ma progu |')
+w('| Zapadka `clockFreeze` (wpisy / literały) | 228 / 1 197 | **219 / 1 168** | w dół, ale zamrożenie dalej per plik (Z10) |')
+w('| Zapadka `i18nHardcoded` | 111 / 784 | **109 / 770** | w dół |')
+w('| Zapadka `i18nOverlayImport` | 349 / 3 571 | **340 / 3 410** | w dół |')
+w('| Zapadka `unknownCast` | 120 / 187 | **115 / 178** | w dół |')
+w('| Bramki-testy `*.gate.test.*` | 34 | **38** | +4 |')
+w('| Testy Playwright / pliki / konfiguracje | 314 / 25 / 6 | **314 / 25 / 6** | bez zmian; test płatnej ścieżki uczestnika nadal nie biegnie w żadnym workflow |')
+w('')
+w('Pozostałe ustalenia toru CI:')
+w('')
+w('- `ci.yml` zmienił się w oknie o jeden komentarz; lista `needs` bramki wydania (`verify, test, build, pgtap, pg-harness`) jest ta sama, a `post-deploy` z `continue-on-error` dalej tylko informuje.')
+w('- Taksonomia: nowa reguła kieruje każdą trasę `admin.newsletter.*` do modułu 11 (wcześniej `admin.newsletter.deliverability` trafiała do modułu 7 przez człon „live\" w „deLIVErability\"), doszła taksonomia `FEATURES_7`. Plik `searchOverflow.ts` jest przypisany do dwóch funkcjonalności modułu 3 i bramka tego nie widzi (defekt niski).')
+w('- Nowe skrypty pierwszej wizyty (`firstVisitLcp.ts`, `firstVisitMainThread.ts`, `firstVisitStreaming.ts`) biegną w osobnym workflow `first-visit.yml`, który blokuje tylko wtedy, gdy ruleset gałęzi jest zastosowany - tego nadal nie da się potwierdzić z repozytorium (rejestr R300).')
+w('- Logika podziału chunków bootowych (`scripts/lib/bootVendorSplit.ts`, 268 linii) jest poza pomiarem pokrycia, bo `coverage.include` obejmuje tylko `src/` (defekt niski).')
+w('- `scripts/audit/verify-edition-12.mjs` ma liczby wydania 12 na sztywno (834 progi, 346 `it.fails`), więc na `5b8c77c01` jest czerwony z definicji - to zamierzone: skrypt przypina stan dokumentu, nie repozytorium. Nie jest podpięty w CI. Weryfikator tego wydania czyta drzewo przypięte do `5b8c77c01` (17.17).')
+w('- Limit pamięci `typecheck` podniesiony z 8 192 do 10 240 MB; `bun.lock` dostał pole `configVersion` (nowszy bun), a job `verify` z `--frozen-lockfile` na bun 1.2.23 je przyjmuje.')
+w('')
+st_ci = ', '.join(f"{s['id']} {s['status']}" + ('' if V_CI.get(s['id'], {}).get('werdykt') == 'POTWIERDZONY' else f" ({V_CI.get(s['id'], {}).get('werdykt', 'bez weryfikacji').lower()})") for s in CI['statusDefektow'])
+w(f'Statusy defektów CI z rejestru: {st_ci}.')
+w('')
+
+w('### 17.11. Baza: pasy migracji, dziennik produkcji i testy warstwy danych')
+w('')
+w(f"Migracje: supabase 1 059 → **1 082** (+23), `drizzle/migrations` 146 → **176** (+30), dziennik `_journal.json` 116 → **145** wpisów. Odtworzenie migracji daje {RLS['teraz_supabase']['tabel']} tabel `public`, każda z `ENABLE ROW LEVEL SECURITY`; {len(RLS['teraz_supabase']['rlsBezPolityk'])} z nich nie ma żadnej polityki (dostęp tylko przez rolę serwisową albo funkcje `SECURITY DEFINER`), nowa w oknie: `analytics_search_peppers` - i to jest zamierzone (`REVOKE` dla PUBLIC, `anon` i `authenticated`, klucz HMAC zakłada funkcja `SECURITY DEFINER` z `EXECUTE` tylko dla roli serwisowej; pgTAP przypina zero polityk). Polityki RLS: {PG['ed12']['polityki']} → **{PG['teraz']['polityki']}** na {PG['teraz']['tabeleZPolitykami']} tabelach: doszły `analytics_events_hide_search_rows` (RESTRICTIVE, ukrywa wiersze wyszukiwania przed rolami klienckimi) i „club covers moderator select\" na `storage.objects`; odtworzone polityki (`intro_read`, CV kariery, okładki klubów) wiążą `tenant_id`.")
+w('')
+w('- **Bliźniaki:** z 30 nowych plików drizzle 28 ma bliźniaka w supabase o identycznym SQL wykonywalnym (według `executableSql` z bramki), dwa są świadomie `drizzleOnly` (`0137` - same `COMMENT ON`, `0140` - różni się od `20261003170000` tylko pięcioma `COMMENT ON`, 121 = 121 instrukcji). Każdy z 23 nowych plików supabase ma odpowiednik w drizzle.')
+w('- **Dziennik produkcji:** każdy z 29 nowych wpisów ma `when` większe od dotychczasowego maksimum i ciąg jest rosnący, więc produkcja wykona wszystkie. Jeden plik nie ma wpisu: `drizzle/migrations/0131_event_seat_state_single_source.sql` - w dzienniku jest jego kopia `0131_20261002210000_event_seat_state_single_source` (ten sam SQL), więc produkcja nic nie traci, ale rejestr bramki wskazuje jako bliźniaka plik, którego produkcja nie wykona. Sprzed okna pięć wpisów ma `when` mniejsze od maksimum (`0062`, `0063`, `0064`, `0114`, `0115`) - te produkcja pomija.')
+w('- **Bramka parytetu czyta katalog, nie dziennik.** W trybie testu (lista plików z katalogu) jest zielona: 176 plików, 100 bliźniaków, 32 `drizzleOnly`, 0 naruszeń. Gdy wejściem są tagi z dziennika, czyli to, co faktycznie wykonuje produkcja, zgłasza 31 naruszeń „wpis bez pliku\" (30 starych wpisów `0055`-`0076`, jeden nowy: `0131`). Nie sprawdza też monotoniczności `when` (defekt niski).')
+w('- **Pięć par migracji drizzle z identycznym SQL ma oba wpisy w dzienniku** (np. `0130_20261002200000_post_views_dwell_signal`), więc produkcja wykonuje każdą dwa razy - dziś bez skutku, bo SQL jest idempotentny, ale bramka tego nie wychwytuje (defekt niski).')
+w('- **Funkcje `SECURITY DEFINER` zmienione w oknie:** 46 definicji w 23 plikach, wszystkie z `SET search_path`; pięć bez `pg_temp` (np. `club_can_edit_cover`, `club_is_cover_moderator`). Funkcje pomocnicze mają `REVOKE` z PUBLIC, `anon` i `authenticated`, funkcje wyłącznie serwisowe - `GRANT` tylko dla roli serwisowej.')
+w(f"- **pgTAP:** {PG['ed12']['pgtapFiles']} → **{PG['teraz']['pgtapFiles']}** plików, {n(PG['ed12']['asercje'])} → **{n(PG['teraz']['asercje'])}** asercji, `planned = counted` w każdym pliku, zero zepsutych. 20 z 22 nowych plików odpowiada migracjom okna; bez testu zostały m.in. `event_seat_state` (jest tylko w harnessie wydarzeń), kasowanie CV przy usunięciu wiadomości, idempotentny wpis dziennika poczty i reset kadru okładki.")
+w('- `my_introduction_requests` nie wiąże najemcy, choć polityka `intro_read` z tej samej migracji go wiąże (defekt niski).')
+w('')
+napr = [s['id'] for s in DB['statusDefektow'] if s['status'] == 'naprawiony']
+otw = [s['id'] for s in DB['statusDefektow'] if s['status'] == 'otwarty']
+zm = [s['id'] for s in DB['statusDefektow'] if s['status'] == 'zmieniony']
+w(f"Statusy defektów bazy z rejestru ({len(DB['statusDefektow'])}): naprawione {len(napr)} ({', '.join(napr)}), zmienione {len(zm)} ({', '.join(zm)}), otwarte {len(otw)}. Weryfikator potwierdził {sum(1 for x in V_DB.values() if x['typ'] == 'status' and x['werdykt'] == 'POTWIERDZONY')} z nich.")
+w('')
+
+w('### 17.12. Determinizm i rejestr defektów `it.fails`')
+w('')
+w(f"Rejestr `it.fails` (przypadki, które dokumentują znany defekt i mają padać, dopóki go ktoś nie naprawi) stopniał z {PR['ED12']['fails']} do **{PR['TERAZ']['fails']}** wpisów i ze {len(PR['ED12']['failsPliki'])} do **{len(PR['TERAZ']['failsPliki'])}** plików. W przebiegu daje to 320 przypadków „expected fail\" (część wpisów siedzi w pętlach). `it.skip` jest jeden, `it.todo` i `it.only` - zero, jak w wydaniu 12.")
+w('')
+w('**Pominięte przypadki w przebiegu to dokładnie Z9:** 45 w `src/__tests__/db-schema-invariant.test.ts` i 5 w `src/__tests__/lang-parity.test.ts` - oba pliki przełączają się na `describe.skip`, gdy brak zmiennych Supabase, a żaden job CI ich nie dostarcza. To jedyne 50 pominiętych przypadków w 85 101.')
+w('')
+w('**Sieć w testach (pozycja 11 planu) bez zmian.** Nie ma globalnej osłony `fetch` w `vitest.setup.ts` ani globalnego wyłączenia ładowania ramek, CSS i skryptów w happy-dom; jedyna zmiana to lokalna atrapa w `adminSeoHubRoutes.test.tsx`. Weryfikator naliczył 5 plików testów z literałem `api.nbp.pl` (wydanie 12 mówiło o dziesięciu wywołującym ten host - liczby nie da się porównać bez rejestratora sieci, którego tym razem nie uruchamiałem).')
+w('')
+w('**Zegar (Z10):** zapadki baz zeszły w dół we wszystkich czterech rejestrach (17.10), ale ta sama luka, przez którą w wydaniu 12 wypadł z linii bazowej `publicCatchAllRoute`, w oknie zdjęła z niej `podcastEpisodeRoute` - plik dostał lokalne `useFakeTimers({ shouldAdvanceTime: true })` dla timera przycisku kopiowania, a literałów dat nie zamroził.')
+w('')
+open(S + '/r17c.md', 'w').write('\n'.join(o))
+print('ok', len(o))

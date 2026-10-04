@@ -1,0 +1,37 @@
+{
+  "klucz": "jiia",
+  "typ": "glowna",
+  "url": "https://www.jiia.or.jp/en/",
+  "run": 3,
+  "ms": 32777,
+  "blad": null,
+  "finalUrl": "https://www.jiia.or.jp/eng/",
+  "fetchTime": "2026-10-04T15:56:10.237Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2394.5,
+  "runtimeError": null,
+  "warnings": [
+    "The page may not be loading as expected because your test URL (https://www.jiia.or.jp/en/) was redirected to https://www.jiia.or.jp/eng/. Try testing the second URL directly."
+  ],
+  "kategorie": { "performance": 0.47, "accessibility": 0.8, "best-practices": 1, "seo": 1 },
+  "metryki": {
+    "first-contentful-paint": 8871.059000000001,
+    "largest-contentful-paint": 27149.682,
+    "total-blocking-time": 345.5,
+    "cumulative-layout-shift": 0,
+    "speed-index": 16899.389265675964,
+    "interactive": 27569.682,
+    "server-response-time": 224.808,
+    "total-byte-weight": 9689357,
+    "dom-size": 1398,
+    "network-requests": null,
+    "mainthread-work-breakdown": 6115.84799999994,
+    "bootup-time": 956.5360000000027,
+    "third-party-summary": null
+  },
+  "a11yBledy": ["button-name", "color-contrast", "link-name"],
+  "bpBledy": [],
+  "seoBledy": [],
+  "lcpElement": null,
+  "tytul": true
+}

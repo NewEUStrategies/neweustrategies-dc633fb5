@@ -1,0 +1,44 @@
+export const meta = {
+  name: 'audyt-ed13-krytyk-bez-obalania',
+  description: 'Wydanie 13: krytyk kompletnosci platformy (trzy soczewki) i sledztwo w kazdej luce - bez etapu obalania (polecenie uzytkownika)',
+  phases: [
+    { title: 'Krytyk', detail: 'czego audyt nie zbadal: bezpieczenstwo/RODO/najemca, produkt/dowod, wdrozenie publiczne (SSR, i18n, wydajnosc)' },
+    { title: 'Sledztwo', detail: 'po jednym agencie na luke' },
+  ],
+}
+const REPO = '/home/user/neweustrategies-dc633fb5'
+const SPD = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+const ZASADY = `ZASADY: repozytorium ${REPO}, HEAD 5b8c77c01 (drzewo robocze przypiete do tego commita - nie rob checkout); drzewo wydania 12 (b8b53ae5): ${SPD}/old-full. TYLKO CZYTASZ, bez vitest/playwright/tsc. Kazde twierdzenie z cytatem sciezka:linia. Baza: dwa pasy migracji, stan = odtworzenie po kolei (produkcja wykonuje wpisy z drizzle/migrations/meta/_journal.json). Po polsku, dywiz "-", nigdy dluga kreska ani polpauza, bez emoji, bez prawdziwych danych osobowych. BUDZET: najwyzej okolo 40 wywolan narzedzi.`
+const WEJSCIE = `Wejscie (przeczytaj): ${SPD}/wznowienie/skrot-torow13.md (skrot map, defektow i statusow 31 torow wydania 13 oraz znalezisk Z i raportow wdrozen), ${SPD}/wznowienie/zmienione-pliki13.txt (pliki src/, supabase/, drizzle/ dodane lub zmienione w oknie b8b53ae5..5b8c77c01 z liczba linii +/-), ${SPD}/wznowienie/wdrozenie-obserwacje13.md (co agent oceniajacy i pomiar Lighthouse zobaczyli na publicznym wdrozeniu neweuropeanstrategies.com).`
+const LUKI = { type: 'object', properties: { luki: { type: 'array', items: { type: 'object', properties: {
+  obszar: { type: 'string' }, dlaczego: { type: 'string' }, pliki: { type: 'array', items: { type: 'string' } }, pytanie: { type: 'string', description: 'konkretne pytanie, na ktore sledztwo ma odpowiedziec tak/nie z dowodem' },
+}, required: ['obszar', 'dlaczego', 'pliki', 'pytanie'] } } }, required: ['luki'] }
+const SLEDZTWO = { type: 'object', properties: {
+  odpowiedz: { type: 'string', enum: ['DEFEKT', 'BRAK_PROBLEMU', 'NIE_DO_USTALENIA'] },
+  tytul: { type: 'string' }, waga: { type: 'string', enum: ['krytyczny', 'wysoki', 'sredni', 'niski', 'brak'] },
+  plik: { type: 'string' }, linia: { type: 'integer' }, dowod: { type: 'string' }, skutek: { type: 'string' },
+}, required: ['odpowiedz', 'tytul', 'waga', 'plik', 'linia', 'dowod', 'skutek'] }
+const OBAL = { type: 'object', properties: {
+  werdykt: { type: 'string', enum: ['POTWIERDZONY', 'OBALONY', 'NIEROZSTRZYGNIETY'] }, dowod: { type: 'string' }, korektaWagi: { type: 'string' },
+}, required: ['werdykt', 'dowod', 'korektaWagi'] }
+const SOCZEWKI = [
+  { k: 'bezpieczenstwo', p: 'granica najemcy (tenant_id), autoryzacja funkcji serwerowych i tras api, dane osobowe i zgody (RODO), sekrety i klucze, zapisy pieniedzy (kupony, zwroty, platnosci), publiczne powierzchnie bez logowania i limity prob (kody, kupony, wyszukiwanie), funkcje SECURITY DEFINER dodane albo zmienione w oknie' },
+  { k: 'produkt', p: 'zmienione w oknie sciezki bez testu wykonujacego kod (tylko atrapy), martwy kod produkcyjny, i18n PL/EN zmienionych ekranow (tekst na sztywno, brak EN), dostepnosc zmienionych komponentow, rozjazd komentarzy z kodem, deklaracje raportow wdrozen sprzeczne z kodem' },
+  { k: 'wdrozenie', p: 'objawy na publicznym wdrozeniu (plik wdrozenie-obserwacje13.md): niekompletny SSR (strona glowna z komunikatem zastepczym, tresc EN artykulu tylko w danych JSON, bledy list w SSR), surowe klucze tlumaczen w interfejsie, puste listy ekspertow w SSR, przesuniecia ukladu (CLS) i czas odpowiedzi serwera. Szukaj przyczyny W KODZIE 5b8c77c01; jesli objaw wynika z tresci albo konfiguracji wdrozenia, a nie z kodu, nazwij to wprost' },
+]
+phase('Krytyk')
+const krytycy = await parallel(SOCZEWKI.map((s) => () => agent(`Jestes krytykiem kompletnosci audytu platformy NES (wydanie 13). Soczewka: ${s.p}. ${ZASADY}
+${WEJSCIE}
+ZADANIE: wskaz najwyzej 3 luki - miejsca w kodzie (dla soczewek bezpieczenstwo i produkt: NOWYM albo ZMIENIONYM w oknie), ktorych tory audytu nie zbadaly (nie ma ich w skrocie torow), a ktore z Twojej soczewki niosa realne ryzyko. Kazda luka: konkretne pliki i jedno pytanie rozstrzygalne kodem. Nie powtarzaj defektow, ktore juz sa w skrocie.`, { label: `krytyk:${s.k}`, phase: 'Krytyk', schema: LUKI, effort: 'high' })))
+const luki = krytycy.filter(Boolean).flatMap((r, i) => r.luki.slice(0, 3).map((l) => ({ ...l, soczewka: SOCZEWKI[i].k })))
+log(`luk do sledztwa: ${luki.length}`)
+const wyniki = await pipeline(
+  luki,
+  (l) => agent(`Prowadzisz sledztwo w jednej luce audytu platformy NES. ${ZASADY}
+LUKA: ${l.obszar}
+DLACZEGO: ${l.dlaczego}
+PLIKI: ${l.pliki.join(', ')}
+PYTANIE: ${l.pytanie}
+Odpowiedz DEFEKT (z cytatem i waga - badz sceptyczny wobec wlasnego zgloszenia: zanim je zglosisz, sprawdz wrapper, middleware, polityke RLS, pozniejsza migracje i bramke wyzej w lancuchu), BRAK_PROBLEMU (z dowodem, dlaczego nie) albo NIE_DO_USTALENIA.`, { label: `sledztwo:${l.soczewka}:${l.obszar.slice(0, 30)}`, phase: 'Sledztwo', schema: SLEDZTWO, effort: 'high' }).then((r) => (r ? { luka: l, sledztwo: r } : null)),
+)
+return { luki, wyniki: wyniki.filter(Boolean) }

@@ -1,0 +1,59 @@
+Pomiar naglowkow dokumentu neweuropeanstrategies.com - 2026-10-04 ok. 20:05 UTC, curl przez wyjscie sieciowe sesji (USA-East),
+bez ciasteczek, bez parametrow zapytania, Accept-Language: pl. Po dwa zadania GET pod rzad na kazdy adres, potem jedno HEAD.
+Cel: sprawdzic zdanie z obserwacji wdrozenia "artykul: nes-edge BYPASS" (krytyk kompletnosci: GET bez ciasteczek nie ma powodu BYPASS).
+
+== GET / (1)
+cache-control: no-cache, must-revalidate, max-age=0
+server-timing: nes-edge;desc="MISS", ssr;dur=600.0, db;dur=1815.0;desc="n=7", edge-routing;dur=843.0, nes-layer;desc="render"
+server-timing: server-init;dur=0, app;dur=1443
+x-nes-cache: MISS
+ttfb=4.672124s status=200
+== GET / (2)
+cache-control: no-cache, must-revalidate, max-age=0
+server-timing: nes-edge;desc="MISS", ssr;dur=600.0, db;dur=1110.0;desc="n=4", edge-routing;dur=693.0, nes-layer;desc="render"
+server-timing: server-init;dur=0, app;dur=1293
+x-nes-cache: MISS
+ttfb=3.642593s status=200
+== GET /en (1)
+cache-control: no-cache, must-revalidate, max-age=0
+server-timing: nes-edge;desc="MISS", ssr;dur=600.0, db;dur=1570.0;desc="n=6", edge-routing;dur=704.0, nes-layer;desc="render"
+server-timing: server-init;dur=0, app;dur=1304
+x-nes-cache: MISS
+ttfb=3.563751s status=200
+== GET /en (2)
+cache-control: no-cache, must-revalidate, max-age=0
+server-timing: nes-edge;desc="MISS", ssr;dur=500.0, db;dur=1523.0;desc="n=6", edge-routing;dur=0.0, nes-layer;desc="render"
+server-timing: server-init;dur=0, app;dur=500
+x-nes-cache: MISS
+ttfb=1.248733s status=200
+== GET /blog/jakie-zagrozenia-dla-europy-niesie-uzaleznienie-energetyczne-od-rosji (1)
+cache-control: no-cache, must-revalidate, max-age=0
+server-timing: nes-edge;desc="MISS", ssr;dur=1345.0, db;dur=6189.0;desc="n=19", edge-routing;dur=706.0, nes-layer;desc="render"
+server-timing: server-init;dur=0, app;dur=2051
+x-nes-cache: MISS
+ttfb=4.302108s status=200
+== GET /blog/jakie-zagrozenia-dla-europy-niesie-uzaleznienie-energetyczne-od-rosji (2)
+cache-control: no-cache, must-revalidate, max-age=0
+server-timing: nes-edge;desc="MISS", ssr;dur=729.0, db;dur=3171.0;desc="n=19", edge-routing;dur=307.0, nes-layer;desc="render"
+server-timing: server-init;dur=0, app;dur=1036
+x-nes-cache: MISS
+ttfb=3.917429s status=200
+== GET /en/blog/jakie-zagrozenia-dla-europy-niesie-uzaleznienie-energetyczne-od-rosji (1)
+cache-control: no-cache, must-revalidate, max-age=0
+server-timing: nes-edge;desc="MISS", ssr;dur=1283.0, db;dur=4661.0;desc="n=19", edge-routing;dur=492.0, nes-layer;desc="render"
+server-timing: server-init;dur=0, app;dur=1775
+x-nes-cache: MISS
+ttfb=3.885274s status=200
+== GET /en/blog/jakie-zagrozenia-dla-europy-niesie-uzaleznienie-energetyczne-od-rosji (2)
+cache-control: no-cache, must-revalidate, max-age=0
+server-timing: nes-edge;desc="MISS", ssr;dur=1208.0, db;dur=5596.0;desc="n=19", edge-routing;dur=747.0, nes-layer;desc="render"
+server-timing: server-init;dur=0, app;dur=1955
+x-nes-cache: MISS
+ttfb=5.271659s status=200
+== HEAD /en/blog/jakie-zagrozenia-dla-europy-niesie-uzaleznienie-energetyczne-od-rosji
+cache-control: no-cache, must-revalidate, max-age=0
+server-timing: nes-edge;desc="BYPASS", edge-routing;dur=0.0
+server-timing: server-init;dur=0, app;dur=699
+
+Wniosek: GET 8/8 MISS (takze drugie zadanie pod rzad), HEAD -> BYPASS (powod "method" w planDocumentCache).
+"artykul: BYPASS" z obserwacji wdrozenia pochodzil z zadania HEAD.

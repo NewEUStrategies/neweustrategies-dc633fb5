@@ -1,0 +1,194 @@
+{
+  "osw": {
+    "artykul": "https://www.osw.waw.pl/pl/publikacje/analizy/2026-10-01/wstrzas-na-tureckiej-gieldzie-kolejny-kryzys-zaufania-do-rynku",
+    "wyszukiwarka": "https://www.osw.waw.pl/pl/publikacje?text=Ukraina",
+    "tech": "Drupal 8+ (data-drupal-*, motyw osw2018sass, Views i Facets, Search API Solr z search_api_autocomplete, Better Exposed Filters). Cache: nagłówki x-drupal-cache, x-shield-cache-status, s-maxage=3600, stale-while-revalidate; nagłówek x-server: OSW-A, CDN nie jest zidentyfikowany. Font Awesome z cdnjs.cloudflare.com, Google Fonts (Roboto, Noto Serif). Analityka: Google Analytics 4 (gtag, G-J19JH33WRP, lokalna kopia gtag.js) oraz skrypt analityczny GetResponse. Zgoda na cookies: moduł EU Cookie Compliance (sliding-popup). Newsletter: osadzony formularz GetResponse. JSON-LD schema.org Article, RSS /pl/rss.xml. Wykresy w Chart.js tylko na mikrostronie /pl/chinska-pulapka. Podcasty z Spotify, wideo z YouTube.",
+    "dostepnosc": "Strona pobiera się przez curl bez blokad (HTTP 200, HTML renderowany po stronie serwera, Drupal). Wyjątki: /pl/wydarzenia zwraca 403 z drupalową stroną \"Odmowa dostępu\" (sekcja zamknięta, nie blokada botów). /pl/chinska-pulapka raz zwróciła reset połączenia, za drugim razem 200. /sitemap.xml zwraca "
+  },
+  "pism": {
+    "artykul": "https://pism.pl/publikacje/wojenny-budzet-ukrainy",
+    "wyszukiwarka": "https://pism.pl/wyniki_wyszukiwania?searchFilter=Ukraina",
+    "tech": "Backend CakePHP: wyjatek Cake\\Http\\Exception\\MissingControllerException i DebugKit widoczne na /en. Frontend: jQuery, Bootstrap, select2, jQVMap (mapa swiata), AddCalEvent (dodawanie do kalendarza). WAF i CDN: Imperva Incapsula. Analityka: Google Tag Manager GTM-KNJ4G78C i gtag z UA-39137229-1. Zgoda na cookies: cookie-bar z cdn.jsdelivr.net (kategorie techniczne i analityczne, przyciski Zaakceptuj/Odrzuc/Dostosuj). Newsletter i strona Strategic Ark na GetResponse (newsletter.pism.pl, pismstrategicark.grwebsite.pl). Media: embedy Spotify i YouTube, RSS /rss. Pliki PDF w /webroot/upload/files/. Ksiegarnia na osobnej domenie eksiegarnia.pism.pl. Jest tryb kontrastu (/settings/contrast) i deklaracja dostepnosci.",
+    "dostepnosc": "Bezposredni curl blokowany przez Imperva Incapsula: kazdy adres (/, /en, /robots.txt, /sitemap.xml, /rss, www.pism.pl) zwracal HTTP 200 z ramka \"Request unsuccessful. Incapsula incident ID\" (ok. 850-960 B), takze z naglowkami Accept/Accept-Language i cookie jar. WebFetch na pism.pl i pism.pl/en zwro"
+  },
+  "pi": {
+    "artykul": "https://www.politykainsight.pl/bibliotekaraportow/2352107,1,droga-do-g20-polskie-aspiracje-i-perspektywy-czlonkostwa.read",
+    "wyszukiwarka": "https://www.politykainsight.pl/search/analysis?phrase=Ukraina",
+    "tech": "Wlasny CMS grupy wydawniczej Polityka (adresy *.read z ID, moduly /portal_modules/*.json, zasoby static.polityka.pl i zasoby.politykainsight.pl), dostawca prawdopodobnie Vavatech (odwolania do zasoby.politykainsight.test.vavatech.pl). Serwer Apache za Google Cloud Load Balancer ('via: 1.1 google'), cache-control no-cache,private. Stary landing: jQuery 2.1/3.6, Bootstrap, ScrollMagic, slick, Magnific Popup; nowy szablon serwisu: klasy utility w stylu Tailwind, tryb ciemny. Logowanie SSO (/sso/logout, Spring Security j_spring_security_logout), platnosci PayU. Analityka: Google Analytics 4 (gtag G-471DPZHDGY) z wymiarami niestandardowymi o uzytkowniku (status konta, branza, plec, jezyk, autor i tytul analizy). Zgoda na cookies: cookieconsent2 1.0.10 z cdnjs (prosty baner informacyjny, bez CMP). Newslettery: Mailchimp (politykainsight.us17.list-manage.com). Media: YouTube (PI Live, API playlist), SoundCloud (podcasty).",
+    "dostepnosc": "curl dziala bez blokad (HTTP 200, brak WAF/captcha; robots.txt wymaga jedynie Crawl-delay 5). WebFetch nie byl potrzebny. Ograniczenia: (1) strona glowna https://politykainsight.pl/ przekierowuje na landing /nowa?login_success=...; (2) tresc analiz jest za twardym paywallem: kazdy URL analizy (*.rea"
+  },
+  "ik": {
+    "artykul": "https://ik.org.pl/2026/07/03/instytut-kosciuszki-wspiera-inicjatywe-powolania-w-polsce-centrum-doskonalosci-nato-ds-sztucznej-inteligencji/",
+    "wyszukiwarka": "https://ik.org.pl/?s=Ukraine",
+    "tech": "WordPress z motywem Codevz (wtyczka codevz-plus), WPBakery Page Builder, slady Elementora, Slider Revolution 6.7.34, WPML 4.7.4 (PL/EN), Contact Form 7 z reCAPTCHA v3, Popup Maker, formularz i sledzenie GetResponse (ga.getresponse.com), Google Analytics Universal UA-120566498-2 przez analytics.js. Zgoda na cookies to wlasny pasek motywu (codevz-plus-cookie) z jednym przyciskiem Zaakceptuj i zamknij, bez CMP i bez wyboru kategorii. Publiczne REST API i xmlrpc.php. CDN nie zostal potwierdzony, bo zapytanie o naglowki przekroczylo limit czasu.",
+    "dostepnosc": "Strona pobiera sie curl-em (HTTP 200, statyczny HTML z WordPressa, tresc dostepna bez JS). Brak blokady botow, ale serwer niestabilny: kilka zadan zakonczylo sie timeoutem 30 s lub SSL_ERROR_SYSCALL (/kariera, /wydarzenia/ i /projekty/general-talks/ za pierwszym razem, naglowki HEAD strony glownej);"
+  },
+  "warsawinstitute": {
+    "artykul": "https://warsawinstitute.org/ratko-mladic-is-gone-the-western-balkans-have-still-not-reckoned-with-the-war/",
+    "wyszukiwarka": "https://warsawinstitute.org/?s=energy",
+    "tech": "WordPress 4.8.25 (meta generator), motyw Divi (Elegant Themes) z motywem potomnym 1CONTENT, Polylang (EN/PL, lang-item), Yoast SEO (sitemap_index.xml), Cloudflare (server: cloudflare, Rocket Loader, email-protection), Google Tag Manager GTM-TKWLK9B, newsletter przez iframe SALESmanago, darowizny przez formularze PayPal, osadzenia YouTube. Nie wykryto skryptu zgody na cookies (Cookiebot, Complianz itp.).",
+    "dostepnosc": "Wszystkie strony pobrane przez curl bez blokad (HTTP 200, Cloudflare bez wyzwania JS). Tresc renderowana po stronie serwera (WordPress), WebFetch niepotrzebny. 404: /annual-report/, /author/patrycja-sokolowska/. Sklep store.warsawinstitute.org zwraca 503. W katalogu roboczym byly tez pliki z wczesni"
+  },
+  "wei": {
+    "artykul": "https://wei.org.pl/2026/aktualnosci/admin/raport-dofinansowanie-posilkow-pracowniczych-w-polsce/",
+    "wyszukiwarka": "https://wei.org.pl/?s=Ukraina",
+    "tech": "WordPress 7.1.2 (meta generator) z page builderem Elementor 4.3.3 (formularze i wyszukiwarka Elementor, filtry data-filter na listach), Yoast SEO 28.6 (schema.org Article, BreadcrumbList, SearchAction), Polylang do wersji PL/EN (ciasteczko pll_language), serwer Apache (bez widocznego CDN typu Cloudflare w nagłówkach), REST API WordPress otwarte (X-WP-Total 3905 wpisów). Analityka: Google Tag Manager GTM-WKM8SDMM i gtag. W HTML nie widać zewnętrznej platformy zgody na cookies (brak Cookiebot, Complianz, CookieYes itp.; tylko link do polityki prywatności i cookies), choć baner mógłby być wstrzykiwany przez GTM. Newsletter przez GetResponse (landing grwebsite.pl), darowizny przez wtyczkę flexible_donation z PayU oraz PayPal i Patronite. Osadzenia Spotify i linki YouTube, przyciski udostępniania Facebook/LinkedIn/X.",
+    "dostepnosc": "Pełna dostępność przez curl (HTTP 200, HTML renderowany po stronie serwera, bez blokady botów i bez treści ładowanej przez JS). Pobrano m.in. stronę główną, /?s=Ukraina, /?s=energia, /analizy/, /publikacje/, /zespol/, /zespol/lukasz-wojdyga/, /zespol/sebastian-stodolak/, /author/sstodolak/, /o-nas/,"
+  },
+  "kj": {
+    "artykul": "https://klubjagiellonski.pl/2026/09/27/czy-sankcje-na-rosje-sa-skuteczne-podsumowanie-po-czterech-i-pol-roku-wojny/",
+    "wyszukiwarka": "https://klubjagiellonski.pl/?s=Ukraina",
+    "tech": "WordPress z własnym motywem kj2021 (wp-content/themes/kj2021) i własnymi typami treści (profil, publikacje, zbiorka, petycje, ramki) oraz taksonomiami (temat, kategorie_ludzi, kategoria_publikacji). jQuery 3.7.1, Font Awesome 4.7. CDN i ochrona: Cloudflare (server: cloudflare, ochrona e-maili cdn-cgi, cache-control no-store). Analityka: Google gtag z identyfikatorem Universal Analytics UA-121206221-1 oraz Hotjar. Google reCAPTCHA v3 w formularzach newslettera. Zgoda na cookies: tylko prosty baner informacyjny ('Informujemy, że korzystamy z cookies. Zamknij'), brak platformy CMP (nie wykryto Cookiebot, Complianz, OneTrust itp.). Mapa strony XML, kanały RSS (/feed/).",
+    "dostepnosc": "Bez blokad. Wszystkie strony pobrane curl z kodem 200 (strona główna, artykuł, wyszukiwarka, /ludzie/, profile, publikacje, raporty, /english/, dane i sprawozdania, wesprzyj, kontakt, kategorie spotkania/event/video/analiza, sitemap). Serwer za Cloudflare (server: cloudflare, cf-cache-status: DYNAMI"
+  },
+  "bruegel": {
+    "artykul": "https://www.bruegel.org/analysis/how-climate-policies-can-speed-manufacturing-decarbonisation-western-balkans",
+    "wyszukiwarka": "https://www.bruegel.org/search?search_term=energy",
+    "tech": "Drupal 10 (meta Generator, naglowki x-drupal-cache, widoki views-exposed-form z Better Exposed Filters, autocomplete entity_reference), CDN i ochrona Cloudflare (server: cloudflare, cf-ray, wyzwanie JS na /search, ochrona e-mail cdn-cgi/l/email-protection), Google Tag Manager (GTM-P9F9XGP), modul zgody eu-cookie-compliance, fonty Adobe Typekit, formularze newslettera i rejestracji na wydarzenia w Salesforce Sites (Visualforce), wykresy Flourish/iframe, audio przez SoundCloud oEmbed, projekt i wdrozenie agencji Soapbox.",
+    "dostepnosc": "Strona glowna, listy publikacji, ekspertow, wydarzen, zbiorow danych, tematow, o nas, przejrzystosci, raportow rocznych, czlonkostwa, kontaktu i strony pojedynczych tresci pobieraja sie curl bez problemu (HTTP 200, HTML renderowany po stronie serwera). Wyjatek: wyszukiwarka /search?search_term=energ"
+  },
+  "ecfr": {
+    "artykul": "https://ecfr.eu/publication/bewitched-sleep-russians-views-on-ukraine-and-the-world/",
+    "wyszukiwarka": "https://ecfr.eu/?s=Ukraine",
+    "tech": "WordPress (motyw wlasny 'ecfr', wp-content, xmlrpc, jQuery), cache FlyingPress, Cloudflare (server: cloudflare, cdn-cgi email-protection, Turnstile przy formularzach), wyszukiwarka Algolia (wp-search-with-algolia, InstantSearch.js, insights wlaczone), Fluent Forms Pro (newsletter), Max Mega Menu Pro, WP Google Maps, Slim SEO (JSON-LD), Font Awesome kit, analityka Matomo Cloud (Matomo Tag Manager), zgoda na cookies Cookiebot, wykresy Datawrapper, osadzenia YouTube nocookie; serwis danych datacollection.ecfr.eu na SvelteKit z Tailwind i Adobe Typekit.",
+    "dostepnosc": "Wszystkie strony pobrane przez curl bez blokad (HTTP 200, Cloudflare bez wyzwania). Wyniki wyszukiwania renderuje JS (Algolia InstantSearch) - w HTML tylko pusty kontener, wiec dzialanie wyszukiwarki ustalono z konfiguracji w HTML (var algolia, publiczny klucz wyszukiwania) oraz z pliku algolia-inst"
+  },
+  "chathamhouse": {
+    "artykul": "https://www.chathamhouse.org/2026/09/china-shock-20-and-europes-industrial-future",
+    "wyszukiwarka": "https://www.chathamhouse.org/search?search_api_fulltext=Ukraine",
+    "tech": "CMS: Drupal 10 (meta Generator, motyw custom 'numiko', moduly search_api i search_api_autocomplete, walidacja Parsley). CDN i ochrona: Cloudflare (bot management, Turnstile, cookie __cf_bm). Analityka i marketing: Google Tag Manager (GTM-WJHKX9N), Google Analytics, Hotjar, VWO (testy A/B), Mida, Meta Pixel, X/Twitter ads, Spotify pixel, LinkedIn. Zgoda na cookies: Cookiebot (kategorie Essential, Preferences, Performance, Marketing, obsluga IAB TCF v2). Osadzenia: YouTube, Vimeo, SoundCloud, ArcGIS Experience Builder, Mapbox. Fonty Calibre i Charter self-hosted.",
+    "dostepnosc": "Strona glowna pobrana curl (HTTP 200, ok. 51 KB, pelny HTML z Drupala). Wszystkie podstrony (search, our-people, events, about-us/*, membership, artykul, sitemap.xml, endpoint autocomplete) zwrocily 403 \"Attention Required! | Cloudflare\", takze przy innych naglowkach i HTTP/1.1. WebFetch tez dostal "
+  },
+  "ceps": {
+    "artykul": "https://www.ceps.eu/canadas-suggested-associate-membership-could-become-a-new-model-for-the-eus-non-european-allies/",
+    "wyszukiwarka": "https://www.ceps.eu/?s=energy",
+    "tech": "WordPress (wp-json, xmlrpc, oEmbed) z dedykowanym motywem \\\"ceps_new\\\" od United Themes, frontend UIkit + jQuery 3.7.1. Wtyczki: Contact Form 7, MC4WP (Mailchimp, grupy zainteresowan), AddToAny (udostepnianie). Schemat schema.org (BreadcrumbList, ReadAction) typowy dla wtyczki SEO. Analityka Google Analytics 4 przez gtag (G-PJ2LW9W4ST). Wlasny baner zgody na cookies (kategorie Necessary/Analytics/Third-Party, cookie_consent, blokowanie iframe do zgody). CDN Cloudflare z Bot Management (challenge na stronach pojedynczych tresci, cf-mitigated), obrazy z cdn.ceps.eu. Rejestracja na wydarzenia przez Salesforce Sites (ceps.my.salesforce-sites.com/eventregistration), czasem Microsoft Forms i Confenta. Subdomeny membership.ceps.eu i annualreport.ceps.eu.",
+    "dostepnosc": "Czesciowa. curl (UA Chrome) zwraca 200 dla stron listowych: strona glowna, /ceps-publications/, /ceps-latest/, /ceps-staff/, /ceps-events/, /subscribe/, /membership/, /about-ceps/, /press-page/, /ceps-topics/, /ceps-units/, /ceps-projects/, /ceps-news/, /ceps-task-forces/, /ceps-ideas-lab/, wyszukiw"
+  },
+  "iiss": {
+    "artykul": "https://www.iiss.org/online-analysis/online-analysis/2026/09/us-defence-cooperation-in-the-gulf-since-trumps-return/",
+    "wyszukiwarka": "https://www.iiss.org/search/?query=Ukraine",
+    "tech": "Cloudflare jako CDN/WAF z Managed Challenge (strona 'Just a moment...', _cf_chl_opt, cZone dla www.iiss.org i subdomen). CMS najpewniej Optimizely (dawniej Episerver) - wnioskuje ze sciezek /globalassets/ typowych dla Optimizely i hosta web-opti-prod.iiss.org; HTML strony glownej nie byl dostepny, wiec to wniosek posredni. Marketing i formularze: ClickDimensions (Microsoft Dynamics 365 CRM) na web.iiss.org, analityka analytics-eu.clickdimensions.com, Google reCAPTCHA, jQuery. Darowizny w USA przez PayPal. Banera zgody na cookies, analityki na www (GA/GTM) ani reszty frontendu nie udalo sie ustalic przez blokade Cloudflare.",
+    "dostepnosc": "Domena www.iiss.org jest w calosci za Cloudflare Managed Challenge: curl (UA Chrome, Accept/Accept-Language) zwraca 403 i strone \"Just a moment... Enable JavaScript and cookies to continue\" (_cf_chl_opt, cType 'managed') dla /, /search/?query=Ukraine, /people/, /events/, /robots.txt, /sitemap.xml i "
+  },
+  "swp": {
+    "artykul": "https://www.swp-berlin.org/en/publication/yet-another-sham-election-in-russia",
+    "wyszukiwarka": "https://www.swp-berlin.org/en/search?search%5Bq%5D=energy",
+    "tech": "TYPO3 CMS (meta TYPO3, ścieżki typo3temp, znaczniki TYPO3SEARCH, rozszerzenia dreipc*, np. tx_dreipcnewslettersubscription i tx_dreipcswpdb, co wskazuje na agencję 3pc). Frontend to własny bundle.js/bundle.css z aplikacją wyszukiwania na axios i JSON API /api/v1/... Serwer openresty z cache Varnish 7.3 (nagłówki via i x-cache: hit), bez widocznego zewnętrznego CDN. Analityka: Matomo (matomo.js/matomo.php w bundle). Nie wykryłem banera zgody na cookies (brak Usercentrics, Cookiebot, Klaro i podobnych). Podcast hostowany na Spotify, Apple i Deezer, wideo na YouTube.",
+    "dostepnosc": "Wszystkie strony pobrane przez curl bez blokad: HTTP 200, brak 403 i brak challenge. Treść redakcyjna (artykuły, strony ekspertów, newsletter, strony o instytucji) jest w HTML renderowanym po stronie serwera. Wyszukiwarka, lista publikacji i lista ekspertów to aplikacja JS (section#search-app), któr"
+  },
+  "ifri": {
+    "artykul": "https://www.ifri.org/en/studies/strategic-shift-natos-support-ukraine-study-nsatu-and-purl-initiatives",
+    "wyszukiwarka": "https://www.ifri.org/en/research/search-publications",
+    "tech": "Drupal, wywnioskowany ze wzorców adresów: /fr/user/login, /fr/user/register, /fr/node/NNNNN, webform /fr/form/inscription-newsletter, /sites/default/files/RRRR-MM/, migrated_files, parametry Views field_..._target_id, term_node_tid_depth_1, sort_by i sort_order. Przed serwisem stoi Cloudflare z zarządzanym wyzwaniem JS (cf-mitigated: challenge, nagłówki COEP/COOP, server: cloudflare). Według komunikatu Ifri stronę zbudowała agencja Ability. Analityki i narzędzia zgody na cookies nie dało się ustalić, bo HTML strony był niedostępny (403).",
+    "dostepnosc": "Strona była całkowicie zablokowana dla pobierania automatycznego. curl (UA Chrome, także Googlebot) dostawał HTTP 403 z zarządzanym wyzwaniem Cloudflare (cf-mitigated: challenge, strona \"Just a moment...\") na każdej ścieżce: /, /en, /fr, /robots.txt, /sitemap.xml, /rss.xml, /feed, /jsonapi, /sites/d"
+  },
+  "clingendael": {
+    "artykul": "https://www.clingendael.org/publication/syrias-transition-mid-2026-need-course-change",
+    "wyszukiwarka": "https://www.clingendael.org/publications",
+    "tech": "Drupal (sygnaly z URL: /sites/default/files/YYYY-MM/, /taxonomy/term/<id>, /node, /form/<slug> Webform, fasety Search API f[0]=authors:<id>, /user/login na Spectatorze); CDN i WAF Cloudflare z wyzwaniem managed challenge (naglowki server: cloudflare, cf-mitigated: challenge, cf-ray ...-IAD, NEL); raporty roczne jako osobne mikrostrony /pub/YYYY/. Analityki i banera zgody na cookies nie dalo sie ustalic, bo HTML strony nie byl dostepny.",
+    "dostepnosc": "Strona NIEDOSTEPNA do bezposredniej analizy. curl (UA Chrome 128, takze z pelnym zestawem naglowkow przegladarki i HTTP/2) dostaje 403 z naglowkiem cf-mitigated: challenge i strona 'Just a moment...' (Cloudflare managed challenge, cType managed) na KAZDEJ sciezce: /, /search?search_api_fulltext=Ukra"
+  },
+  "csis": {
+    "artykul": "https://www.csis.org/analysis/energy-truce-viable-ukraine-war",
+    "wyszukiwarka": "https://www.csis.org/search?keyword=Ukraine",
+    "tech": "Drupal 10 (meta Generator), motyw \\\"composer\\\", Drupal Search API z Facets (parametry f[0]=..., keyword, sort_by, archive), webformy Drupal (subskrypcja, rejestracja na wydarzenia). CDN i ochrona: Cloudflare (server: cloudflare, cf-ray, cf-cache-status HIT, wyzwanie JS dla URL z query) plus Varnish (via: 1.1 varnish). Pliki na Amazon S3 (csis-website-prod.s3.amazonaws.com). Analityka: Google Tag Manager GTM-MNGQTH. Wykresy Datawrapper, nagrania YouTube. Nie znaleziono w HTML banera zgody na cookies (OneTrust, Cookiebot itp.) - moze byc ladowany przez GTM. Mikrostrony (missilethreat, chinapower) na osobnych subdomenach, prawdopodobnie WordPress (AddToAny, szablony {{ data.permalink }}).",
+    "dostepnosc": "curl dziala dla stron bez parametrow zapytania (strona glowna, /analysis, /events, /search bez frazy, /people/..., /about/..., /subscribe - HTTP 200, HTML renderowany po stronie serwera, Drupal). Kazdy URL z query stringiem (/search?keyword=Ukraine, /search?search_api_fulltext=Ukraine, /analysis?key"
+  },
+  "brookings": {
+    "artykul": "https://www.brookings.edu/articles/what-did-the-trump-xi-summit-actually-accomplish/",
+    "wyszukiwarka": "https://www.brookings.edu/?s=Ukraine",
+    "tech": "WordPress VIP (naglowek x-powered-by: WordPress VIP, motyw wp-theme-brookings, konkatenacja /_static/, wp-json) za Cloudflare (server: cloudflare, cf-cache-status: HIT, cache-control max-age=14400). Wyszukiwarka i feedy: Algolia (plugin tm-algolia, indeks prod_searchable_posts, algoliaAutocomplete). Front: UIkit 3.15.1 z cdn.jsdelivr.net i klasy Tailwind. Analityka: Google Tag Manager (GTM-WHWFZ5), Parse.ly (p.js i vip-experiments). Marketing i formularze: HubSpot (hs-scripts 241939, connect.brookings.edu do rejestracji na wydarzenia, formularze newslettera hs-*). Zgoda na cookies: Osano CMP. Antyspam: Google reCAPTCHA v3. Wizualizacje: Datawrapper i Flourish. Wideo: YouTube embed.",
+    "dostepnosc": "Wszystkie sprawdzane strony pobraly sie przez curl (HTTP 200, brak blokady botow, Cloudflare przed WordPress VIP). Wyniki wyszukiwarki i listy tresci na stronach ekspertow i tematow sa renderowane przez JS (Algolia InstantSearch), wiec w HTML widac tylko szkielet filtrow. Liczby trafien sprawdzono, "
+  },
+  "carnegie": {
+    "artykul": "https://carnegieendowment.org/research/2026/10/what-canada-knows-about-american-power",
+    "wyszukiwarka": "https://carnegieendowment.org/search?query=Ukraine",
+    "tech": "Next.js (App Router, React Server Components - self.__next_f, /_next/static), CMS Payload (klasa payload-richtext, NEXT_PUBLIC_PAYLOAD_URL; agencja Fusionary - assets.production.carnegie.fusionary.io), wyszukiwanie Typesense przez typesense-instantsearch-adapter (search.carnegieendowment.org, indeks content_en), formularze newslettera i rejestracji Marketo (mktorest.com), Google Tag Manager (GTM-5ZQP7QS), CDN Amazon CloudFront (naglowki via/x-amz-cf-pop, server envoy), zasoby na assets.carnegieendowment.org i S3 (ceipfiles), wykresy Flourish, wideo YouTube, portal darowizn za Cloudflare. W HTML strony glownej i artykulu nie wykryto zadnego narzedzia zgody na cookies (OneTrust, Cookiebot, Osano itp.).",
+    "dostepnosc": "Domena glowna carnegieendowment.org pobiera sie curl bez blokad (HTTP 200, CloudFront cache hit). Uwaga: nieistniejace adresy (/newsletters, /support, /subscribe, /topics, /regions, /individual-giving) zwracaja HTTP 200 ze strona \"Page Not Found\" (soft 404). Subdomena darowizn donate.carnegieendowme"
+  },
+  "rand": {
+    "artykul": "https://www.rand.org/pubs/research_reports/RRA5195-1.html",
+    "wyszukiwarka": "https://www.rand.org/search.html?q=Ukraine",
+    "tech": "CMS: Adobe Experience Manager (sciezki /etc.clientlibs/rand/..., /content/rand/.../jcr:content, /content/dam/rand/pubs/...). CDN: Amazon CloudFront (server: CloudFront, x-cache: Hit from cloudfront). Analityka: Adobe Experience Platform Launch/DTM (assets.adobedtm.com satelliteLib) oraz Google Tag Manager/gtag. Formularze chroni Google reCAPTCHA. Ksiegarnia na Shopify (shop.rand.org, obecnie zamknieta haslem). Wlasne kroje pisma preloadowane jako woff2 (Monument Grotesk, Suisse Works, Fraktion Mono). W HTML strony glownej nie wykryto platformy zgody na cookies (OneTrust, Cookiebot, Usercentrics, TrustArc ani Osano).",
+    "dostepnosc": "Pelna dostepnosc przez curl (HTTP 200, bez blokady botow, WebFetch niepotrzebny). Wyniki wyszukiwania i listy ekspertow ladowane asynchronicznie, ale endpointy AEM (/content/rand/search/jcr:content/par/sitesearch.html?q=..., /content/rand/about/people/jcr:content/par/stafflist.html) zwracaja pelny H"
+  },
+  "cfr": {
+    "artykul": "https://www.cfr.org/articles/brazils-2026-election-what-to-know-and-whats-at-stake",
+    "wyszukiwarka": "https://www.cfr.org/search?q=Ukraine",
+    "tech": "Next.js (App Router, payload RSC, zasoby z static.cfr.org/_next) jako frontend dla headless WordPress VIP (sciezki wp-content, wpvip, indeks wp_prd_searchable_posts). CDN i ochrona Cloudflare (server: cloudflare, cf-ray, wyzwanie bot na /search, cache-control max-age 3600 z stale-while-revalidate). Obrazy przez Cloudinary (assets.cfr.org, t_cfrimg, f_auto). Wyszukiwanie Algolia. Analityka: Google Tag Manager (GTM-N55RCSQL), Google Analytics, Parse.ly, DoubleClick. Newslettery Sailthru (link.cfr.org, ak.sail-horizon.com). Wizualizacje Tableau Public i Datawrapper, wideo YouTube, formularze Typeform. Zgoda na cookies: Google Consent Mode (ConsentModeDefault/ConsentModeUpdater, consentPurposeId); nie wykryto OneTrust ani Cookiebot.",
+    "dostepnosc": "Strona glowna, artykuly, raporty, eksperci, wydarzenia, tematy, regiony, czlonkostwo, raport roczny i strony o nas pobieraja sie przez curl z kodem 200. Pelny HTML jest renderowany po stronie serwera (Next.js z payloadem RSC), wiec tresc widac bez JS. Wyjatek to wyszukiwarka: /search?keyword=Ukraine"
+  },
+  "piie": {
+    "artykul": "https://www.piie.com/blogs/realtime-economics/2026/lost-tabulation-diverging-us-china-trade-data-point-tariff-evasion",
+    "wyszukiwarka": "https://www.piie.com/search?search_api_fulltext=energy",
+    "tech": "Drupal 10 (meta Generator), Search API z fasetami (search_api_fulltext, f[0]=author_s_/content_type, sort_by=field_date). Cloudflare jako CDN i ochrona przed botami (Rocket Loader, wyzwanie na /search). Google Tag Manager i gtag (GA4). Zgoda na cookies przez Termly (link 'Consent Preferences'). Marketing automation Salesforce Pardot (clicks.piie.com, formularze newslettera w iframe), rejestracja na wydarzenia przez FormTitan z campaignid Salesforce. Wykresy Datawrapper, MathJax z cdnjs, przyciski udostepniania AddToAny, fonty Hoefler (cloud.typography.com), nagrania na YouTube, darowizny przez zewnetrzna platforme support.piie.com. JSON-LD schema.org (Organization, isAccessibleForFree).",
+    "dostepnosc": "Strony tresci (glowna, artykuly, eksperci, wydarzenia, about, subscribe, trackers, listy tematyczne) pobieraja sie curl-em z kodem 200 jako pelny HTML renderowany po stronie serwera (Drupal 10). Wyjatek: /search (np. ?search_api_fulltext=energy oraz ?sort_by=field_date) zwraca 403 z wyzwaniem Cloudf"
+  },
+  "atlanticcouncil": {
+    "artykul": "https://www.atlanticcouncil.org/dispatches/what-could-make-ai-self-regulation-work/",
+    "wyszukiwarka": "https://www.atlanticcouncil.org/search/",
+    "tech": "WordPress 7.1.1 (meta generator, wlasny motyw 'atlantic-council', bloki Gutenberg, WP REST API /wp-json/) hostowany na Pantheon (naglowki x-pantheon-styx-hostname, Varnish; cache-control max-age 604800), serwer nginx. Wyszukiwanie: Algolia (indeks atlantic-council-search) w aplikacji React 18 z wp-element. Formularze newslettera, kontaktu i rejestracji: HubSpot (js.hsforms.net, portal na1). Darowizny: DonorBox + Stripe. Analityka i monitoring: Google Tag Manager (wtyczka gtm4wp), gtag/Google Analytics, Hotjar, New Relic Browser. Zgoda na cookies: wtyczka Cookie Notice / Cookie Compliance (Hu-manity.co) v3.1.11. Wizualizacje: Flourish, wpDataTables, scrollama (unpkg). Media: YouTube, Vimeo, Plyr. Tlumaczenie i dostepnosc: wtyczka ultimate-ada-translator z Google Translate. Tooltips Pro, FWDU3DCar.",
+    "dostepnosc": "Wszystkie strony daly sie pobrac curl (HTTP 200, bez blokady botow, bez potrzeby WebFetch). 404 tylko dla nieistniejacych adresow: /newsletters/, /about-us/, /about-us/annual-reports/, /es/, /corrections-policy/. /about-us/our-experts/ przekierowuje na stary wpis bloga (wlasciwa lista to /people/). "
+  },
+  "wilson": {
+    "artykul": "https://www.wilsoncenter.org/article/limits-sanctions-relief-syrias-reconstruction",
+    "wyszukiwarka": "https://www.wilsoncenter.org/search?keywords=Ukraine",
+    "tech": "Drupal (wiele odwołań drupalSettings i data-drupal-link-system-path, /sites/default/files/js, motyw 'wilson', /user/login), wyszukiwanie przez Search API (ss_search_api_id wskazuje na Solr) z własnym endpointem /api/search/*, jQuery, fonty Adobe Typekit (use.typekit.net), Google Tag Manager (GTM-5DH9QL), baner cookies z modułu Drupala eu_cookie_compliance (popup_enabled true, z linkiem do polityki prywatności), newsletter i darowizny na EveryAction/NGP VAN (engage.wilsoncenter.org, static.everyaction.com), rejestracja na wydarzenia przez Zoom, wideo w tle hero jako własny plik MP4. W nagłówkach HTML nie zidentyfikowano CDN.",
+    "dostepnosc": "curl działa dla większości stron: strona główna, /search, /insight-analysis, /events, /person/*, /article/*, /event/*, /leadership, /990-formsbudgets, /2023-donors, /issue/*, /program/*, /programs, /support-the-wilson-center zwracają 200 z treścią renderowaną po stronie serwera (Drupal). Wyjątki: /e"
+  },
+  "iseas": {
+    "artykul": "https://www.iseas.edu.sg/articles-commentaries/iseas-perspective/2026-71-the-enduring-daw-aung-san-suu-kyi-factor-in-myanmar-politics-by-kyaw-yin-hlaing/",
+    "wyszukiwarka": "https://www.iseas.edu.sg/?s=energy",
+    "tech": "WordPress na iseas.edu.sg (125 odwolan do wp-content, Elementor, jQuery, wtyczka Modern Events Calendar dla wydarzen, DataTables na liscie badaczy). Fulcrum.sg to WordPress z Jetpack (stats.wp.com, i0.wp.com, fonts-api.wp.com) i OneSignal (web push). Bookshop to osobna aplikacja (nie WP) z zakupami przez zewnetrzny readabook.store. Analityka: Google Tag Manager GTM-K3D33G2V, GA4 G-R5PZWR7T6W, legacy UA-66067717-1. Na stronie glownej brak banera zgody na cookies (brak OneTrust, Cookiebot i slow cookie/consent w HTML). Formularz mailingowy na form.gov.sg przez skracacz for.edu.sg. Nie wykryto CDN w naglowkach HTML.",
+    "dostepnosc": "Wszystkie strony pobrane curl bez blokad (HTTP 200, HTML renderowany po stronie serwera, WordPress). Pobrano m.in. strone glowna, ISEAS Perspective 2026/71, wyszukiwarke ?s=energy, liste i profil badacza, wydarzenia, Corporate Membership, raport roczny, rade powiernikow, kontakt, wsparcie, Fulcrum.s"
+  },
+  "lowy": {
+    "artykul": "https://www.lowyinstitute.org/the-interpreter/how-beijing-could-throttle-taiwan-without-firing-a-shot",
+    "wyszukiwarka": "https://www.lowyinstitute.org/publications (brak globalnej wyszukiwarki; /search?q=Ukraine przekierowuje 301 na /?q=Ukraine)",
+    "tech": "Next.js (App Router, Turbopack, nagłówek x-powered-by: Next.js, data-dpl-id), hosting i CDN Vercel (server: Vercel, x-vercel-cache: HIT, region syd1), headless CMS Sanity (cdn.sanity.io dla obrazów i PDF, /studio/ zablokowane w robots.txt), komponenty UI Radix/shadcn i Tailwind, Google Analytics 4 (gtag G-2Q1HP4FKQV), HubSpot (js.hs-scripts.com, prawdopodobnie formularze newslettera/CRM). Nie znaleziono w HTML skryptu banera zgody na cookies (Cookiebot, OneTrust itp.). Dane strukturalne JSON-LD: WebSite z SearchAction, NewsArticle, ScholarlyArticle, Person, Organization. Sitemap.xml z 15215 adresami.",
+    "dostepnosc": "Strona pobiera się curl bez blokad (HTTP 200, serwer Vercel, x-vercel-cache: HIT), HTML renderowany po stronie serwera (Next.js), więc większość treści widać w HTML. Wyjątki renderowane w JS: lista /events/upcoming i /the-interpreter/archive - sprawdzone przez WebFetch. Uwaga: nieistniejące adresy ("
+  },
+  "orf": {
+    "artykul": "https://www.orfonline.org/expert-speak/how-ports-can-catalyse-the-blue-economy",
+    "wyszukiwarka": "https://www.orfonline.org/search?q=energy",
+    "tech": "Wlasna aplikacja PHP, najpewniej Laravel: meta csrf-token, ukryte pola _token i _method=put, panel admina /login na szablonie Creative Tim. Wykonawca: Sterco Digitex (stopka). Frontend: Bootstrap, jQuery 3.7.1 i Owl Carousel z cdnjs.cloudflare.com, Font Awesome. Cloudflare (cdn-cgi, email-decode, zaciemnianie e-maili). Analityka: Google Tag Manager GTM-KZ28GV9Q. Newsletter: Mailchimp (us10.list-manage.com). Wideo: YouTube. Dane strukturalne JSON-LD (datePublished/dateModified) i link canonical. Nie wykryto banera zgody na cookies (brak OneTrust/Cookiebot i podobnych; grep 'cookie' bez trafien). robots.txt blokuje /search i deklaruje 13 map witryny.",
+    "dostepnosc": "Strona w pelni dostepna przez curl (HTTP 200, HTML renderowany po stronie serwera, brak blokady botow), WebFetch nie byl potrzebny. 404 zwracaja: /podcasts, /data, /annual-report, /donate, /event-reports, /content-type/surveys-polls, /surveys-and-polls (ten ostatni jest linkowany ze stopki, wiec to "
+  },
+  "rsis": {
+    "artykul": "https://rsis.edu.sg/rsis-publication/idss/ip26107-the-shortcomings-of-a-second-island-chain-strategy/",
+    "wyszukiwarka": "https://rsis.edu.sg/search/?q=energy",
+    "tech": "WordPress z wlasnym motywem 'rsis' (/wp-content/themes/rsis/), WP Rocket 3.23 (meta generator: lazy rendering, preload, CDN), Contact Form 7 6.1.4 z reCAPTCHA, jQuery. Cloudflare jako CDN i ochrona przed botami (wyzwanie 'Just a moment', /cdn-cgi/ z obfuskacja e-maili). Analityka: Google Tag Manager GTM-NL654GZV i GA4 G-27PZQCF3KN. Wlasny baner cookies (cookie-banner-box). Wyszukiwarka: Google Programmable Search (gcse). Newsletter: webformy GetResponse. Udostepnianie: AddThis. Osadzenia: Spotify, SoundCloud, YouTube, Google Maps. Rejestracja na wydarzenia przez event.ntu.edu.sg, darowizny przez bbis.ntu.edu.sg.",
+    "dostepnosc": "curl na kazdy adres (/, /feed/, /wp-json/, /sitemap.xml, /?s=energy, rowniez rsis.edu.sg bez www) zwracal 403 ze strona wyzwania Cloudflare \"Just a moment...\"; tylko /robots.txt dal 200. WebFetch takze dostal 403. web.archive.org i archive.ph byly nieosiagalne przez proxy (polaczenie zerwane). Tresc"
+  },
+  "asan": {
+    "artykul": "https://asaninst.org/bbs/board.php?bo_table=s1_1_eng&wr_id=288",
+    "wyszukiwarka": "https://asaninst.org/bbs/search.php?sfl=wr_subject%7C%7Cwr_content&stx=Ukraine&sop=and&gr_id=&srows=20&onetable=&lang=eng",
+    "tech": "Obecny serwis: PHP z silnikiem Gnuboard (koreanski CMS forumowy - /bbs/board.php?bo_table=&wr_id=, /bbs/search.php z sfl/stx/sop/gr_id/onetable, zalaczniki w /data/file/<tablica>/), statyczne podstrony /eng/sX/sX_Y.php, mikroserwisy /plenum/ i /nuclear/, takze /cms/?cidx=. CDN i ochrona: Cloudflare (HTTP/2 403, cf-mitigated: challenge, Turnstile, NEL). Poprzedni serwis en.asaninst.org na WordPress (wp-content/uploads), dzis przekierowanie na asaninst.org/eng/. Analityki i banera zgody na cookies nie dalo sie ustalic (HTML za wyzwaniem).",
+    "dostepnosc": "Bezposrednio niedostepna. https://en.asaninst.org/ przekierowuje (stary WordPress) na https://asaninst.org/eng/, a kazdy adres domeny (strona glowna, /eng/, robots.txt, sitemap.xml, /feed/, bbs/search.php, bbs/board.php, eng/s3/s3_3_2.php, bbs/login.php, takze theasanforum.org) zwraca curl HTTP 403 "
+  },
+  "tkfd": {
+    "artykul": "https://www.tokyofoundation.org/research/detail.php?id=1012",
+    "wyszukiwarka": "https://www.tokyofoundation.org/search/?freeword=energy",
+    "tech": "Wlasny CMS w PHP (adresy detail.php?id=, region.php?ca=, result.php?ca=, index.php?page=), serwer nginx (naglowek Server: nginx), brak widocznego CDN w naglowkach. Analityka: Google Tag Manager GTM-WJB9DVG. Google Fonts (Open Sans), CSS inline krytyczny + preload style.css. Brak banera zgody na cookies w HTML (grep 'cookie' bez trafien). Newsletter przez zewnetrzny serwis krs.bz, rejestracja na wydarzenia przez cp-entry.com. Wersja japonska na osobnej domenie tkfd.or.jp z ta sama struktura URL.",
+    "dostepnosc": "Wszystkie strony pobrane curl bez blokad (HTTP 200, HTML renderowany po stronie serwera, bez potrzeby WebFetch). Jedno chwilowe zerwanie polaczenia (curl 35 Connection reset) przy wyszukiwaniu z filtrem, ponowienie zadzialalo. Sprawdzone 404: /donation/, /support/, /annual-report/, /about/plan/ (ten"
+  },
+  "jiia": {
+    "artykul": "https://www.jiia.or.jp/eng/report/2026/06/strategic_comment_2026-18.html",
+    "wyszukiwarka": "https://www.jiia.or.jp/eng/result/#q=Ukraine",
+    "tech": "Wlasny CMS ze statycznymi stronami .html i wspolnymi zasobami pod /jpn/assets/. Front-end: jQuery, GSAP z ScrollTrigger, Swiper, Google Fonts (Noto Sans JP, Roboto, EB Garamond, Shippori Mincho) i YakuHanJP z cdn.jsdelivr.net. Serwer nginx/1.18.0 (Ubuntu), brak widocznego CDN w naglowkach. Analityka przez Google Tag Manager (GTM-TKZZLDP). Wyszukiwarka to MARS FINDER (marsflag.com, komponent Vue, API finder.api.mf.marsflag.com). Nie znalazlem banera zgody na cookies (zadnego CMP, np. OneTrust ani Cookiebot). Stary subserwis www2.jiia.or.jp (PHP) obsluguje newsletter, logowanie czlonkow i publikacje. Repozytorium publikacji dziala na jiia.repo.nii.ac.jp (platforma NII).",
+    "dostepnosc": "Strona pobiera sie bez blokad przez curl (HTTP 200, nginx/Ubuntu). https://www.jiia.or.jp/en/ przekierowuje na https://www.jiia.or.jp/eng/. Tresc list i artykulow jest renderowana po stronie serwera. Wyjatkiem sa wyniki wyszukiwania: komponent MARS FINDER (Vue) laduje je JS-em, wiec sprawdzilem je b"
+  },
+  "csisid": {
+    "artykul": "https://www.csis.or.id/publication/testing-the-assumptions-behind-indonesias-2027-budget/",
+    "wyszukiwarka": "https://www.csis.or.id/search/?q=energy",
+    "tech": "Wlasna aplikacja renderowana po stronie serwera, najpewniej Django (naglowki X-Frame-Options: DENY i nosniff, parametry filtrow w stylu django-filter dept_contains/author_contains, poddomena violence z plikami Django). Front: szablon na jQuery z plugins.js i functions.js oraz Font Awesome z cdnjs. ECharts 5.4.3 z fastly.jsdelivr na stronie glownej. CDN i ochrona: Cloudflare (server: cloudflare, cdn-cgi email-protection). Statyki i PDF-y na AWS S3 (s3-csis-web, ap-southeast-1). Analityka: Google Analytics w wycofanej wersji Universal Analytics (UA-132538907-1), samodzielnie hostowany skrypt analytics.csis.or.id/script.js z data-website-id (wzorzec Umami) i tag api.csis.or.id/orm/api/analytics/tag.js. Hate Speech Dashboard: osadzony Power BI i Leaflet z unpkg, GA4 G-RNSY7QC7K1. Brak banera zgody na cookies (grep na CMP: 0 trafien). Brak sitemap.xml.",
+    "dostepnosc": "www.csis.or.id dalo sie pobrac curl bez blokad (HTTP 200, HTML renderowany po stronie serwera, nie trzeba JS). Brak blokady botow mimo Cloudflare. Poddomeny hatespeech.csis.or.id i violence.csis.or.id po HTTPS zwracaly \"Connection reset by peer\". Po HTTP hatespeech dzialal, a violence zwracal pusty "
+  },
+  "nes": {
+    "artykul": "https://neweuropeanstrategies.com/blog/jakie-zagrozenia-dla-europy-niesie-uzaleznienie-energetyczne-od-rosji",
+    "wyszukiwarka": "https://neweuropeanstrategies.com/search?q=energy",
+    "tech": "Własna aplikacja React (SPA z SSR; bundle Vite /assets/*.js, TanStack, i18n, Radix UI, lucide, Tailwind, zod) na backendzie Supabase (REST/RPC i realtime: unnltowbgszpdzwpawdu.supabase.co, publiczny klucz anon w window.__SUPABASE_CONFIG__). CDN i proxy: Cloudflare (server: cloudflare, cf-ray), HSTS, rozbudowany CSP. Płatności Stripe (js.stripe.com, api.stripe.com), kursy walut z api.nbp.pl. Analityka: Google tag/gtag (9 odwołań), Google Ads/DoubleClick w CSP, Plausible (3 odwołania). Zgoda na cookies: w HTML artykułu jedno odwołanie \\\"consent\\\", jest podstrona /cookies i /zarzadzanie-polityka-prywatnosci, ale banera nie zweryfikowałem w HTML z serwera. Obrazy częściowo z i0.wp.com (Jetpack/WordPress starego bloga). SEO: canonical, hreflang, JSON-LD NewsArticle i BreadcrumbList, sitemap index, news sitemap, llms.txt, RSS.",
+    "dostepnosc": "Wszystkie strony pobrały się przez curl (HTTP 200), bez blokady botów (Cloudflare, robots.txt zezwala na wszystkich, także na boty AI, Content-Signal search/ai-input/ai-train=yes). Strona to SPA z renderowaniem po stronie serwera (SSR), ale SSR jest niekompletny: polska strona główna w HTML z serwer"
+  }
+}

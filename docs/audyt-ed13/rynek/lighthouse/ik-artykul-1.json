@@ -1,0 +1,37 @@
+{
+  "klucz": "ik",
+  "typ": "artykul",
+  "url": "https://ik.org.pl/2026/07/03/instytut-kosciuszki-wspiera-inicjatywe-powolania-w-polsce-centrum-doskonalosci-nato-ds-sztucznej-inteligencji/",
+  "run": 1,
+  "ms": 18657,
+  "blad": "Runtime error encountered: Lighthouse was unable to reliably load the page you requested. Make sure you are testing the correct URL and that the server is properly responding to all requests. (Status code: 502)\n",
+  "finalUrl": "https://ik.org.pl/2026/07/03/instytut-kosciuszki-wspiera-inicjatywe-powolania-w-polsce-centrum-doskonalosci-nato-ds-sztucznej-inteligencji/",
+  "fetchTime": "2026-10-04T15:16:46.255Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2159.5,
+  "runtimeError": "ERRORED_DOCUMENT_REQUEST",
+  "warnings": [
+    "Lighthouse was unable to reliably load the page you requested. Make sure you are testing the correct URL and that the server is properly responding to all requests. (Status code: 502)"
+  ],
+  "kategorie": { "performance": null, "accessibility": null, "best-practices": null, "seo": null },
+  "metryki": {
+    "first-contentful-paint": null,
+    "largest-contentful-paint": null,
+    "total-blocking-time": null,
+    "cumulative-layout-shift": null,
+    "speed-index": null,
+    "interactive": null,
+    "server-response-time": null,
+    "total-byte-weight": null,
+    "dom-size": null,
+    "network-requests": null,
+    "mainthread-work-breakdown": null,
+    "bootup-time": null,
+    "third-party-summary": null
+  },
+  "a11yBledy": [],
+  "bpBledy": [],
+  "seoBledy": [],
+  "lcpElement": null,
+  "tytul": false
+}

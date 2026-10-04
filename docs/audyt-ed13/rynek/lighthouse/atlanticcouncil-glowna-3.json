@@ -1,0 +1,37 @@
+{
+  "klucz": "atlanticcouncil",
+  "typ": "glowna",
+  "url": "https://www.atlanticcouncil.org/",
+  "run": 3,
+  "ms": 87013,
+  "blad": null,
+  "finalUrl": "https://www.atlanticcouncil.org/",
+  "fetchTime": "2026-10-04T15:52:59.267Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2342,
+  "runtimeError": null,
+  "warnings": [
+    "The page loaded too slowly to finish within the time limit. Results may be incomplete."
+  ],
+  "kategorie": { "performance": 0.44, "accessibility": 0.91, "best-practices": 0.75, "seo": 0.92 },
+  "metryki": {
+    "first-contentful-paint": 3133.7110000000002,
+    "largest-contentful-paint": 4195.284000000001,
+    "total-blocking-time": 2129,
+    "cumulative-layout-shift": 0,
+    "speed-index": 8455.855505664395,
+    "interactive": 29069.367949999996,
+    "server-response-time": 283.648,
+    "total-byte-weight": 4656699,
+    "dom-size": 2519,
+    "network-requests": null,
+    "mainthread-work-breakdown": 29855.40399999822,
+    "bootup-time": 9989.59199999978,
+    "third-party-summary": null
+  },
+  "a11yBledy": ["color-contrast", "link-name", "target-size"],
+  "bpBledy": ["third-party-cookies", "errors-in-console", "inspector-issues"],
+  "seoBledy": ["link-text"],
+  "lcpElement": "<img width=\"1000\" height=\"566\" src=\"https://www.atlanticcouncil.org/wp-content/uploads/2026/09/2026-09-28T1300…\" class=\"gta-home2021-banner--img\" alt=\"Brazil’s upcoming election is bigger than Lula or",
+  "tytul": true
+}

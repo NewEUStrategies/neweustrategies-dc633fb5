@@ -1,0 +1,46 @@
+# Rozdzial 17, czesc F: krytyk kompletnosci (trzy soczewki, dziewiec sledztw, bez etapu obalania) - blok na koniec 17.8.
+# Zrodlo: migawka.json['KRY'] (przebieg wf_03d1b21e-0a6). Liczby i werdykty z danych, opis po polsku pisany recznie
+# po przeczytaniu kazdego sledztwa i sprawdzeniu cytowanych linii w 5b8c77c01.
+import json
+
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+KRY = json.load(open(S + '/migawka.json'))['KRY']
+sl = {k: v for k, v in KRY.items() if k.startswith('sledztwo:') and v}
+luki = sum(len((KRY.get(f'krytyk:{s}') or {}).get('luki', [])) for s in ('bezpieczenstwo', 'produkt', 'wdrozenie'))
+defekty = [v for v in sl.values() if v.get('odpowiedz') == 'DEFEKT']
+bez = [v for v in sl.values() if v.get('odpowiedz') != 'DEFEKT']
+assert luki == 9 and len(sl) == 9, (luki, len(sl))
+assert len(defekty) == 3 and all(v.get('waga') == 'sredni' for v in defekty), [v.get('waga') for v in defekty]
+
+o = []
+w = o.append
+w('**Krytyk kompletności (śledztwo bez próby obalenia).** Trzy soczewki - bezpieczeństwo, produkt i wdrożenie - szukały miejsc zmienionych w oknie, '
+  f'których nie zbadał żaden tor, i wskazały {luki} luk; w każdej śledztwo prowadził osobny agent z jednym pytaniem tak/nie. Etapu obalania nie było '
+  '(polecenie zamawiającego), więc trzy defekty poniżej mają status zgłoszeń, jak 45 pozycji z tabeli wyżej, i nie wchodzą do liczby potwierdzonych. '
+  'Cytowane linie sprawdziłem w `5b8c77c01`.')
+w('')
+w('- **(średni) Zakup pakietu przypisuje zamówienie do dowolnej firmy z kartoteki CRM.** `event_package_purchase` bierze `company_id` wprost z `p_payload` '
+  '(`supabase/migrations/20261001210000_event_code_scalar_verdicts.sql:180`), zapisuje je w zamówieniu (`:239-249`) i ma `GRANT` dla `authenticated` (`:323-324`); '
+  'klucz obcy sprawdza tylko, czy firma należy do tego samego najemcy. Identyfikatory firm zwraca każdemu zalogowanemu `search_companies_public`. Skutek: zamówienie '
+  'w panelu pod cudzą firmą, na liście kandydatów do faktury i na osi czasu tej firmy w CRM; bez straty pieniędzy i bez wycieku między najemcami.')
+w('- **(średni) Monitor 404 zapisuje pełne zapytanie i nagłówek Referer, bez limitu i bez retencji.** `maybeLog404` przekazuje do `seo_404_hits` '
+  '`${url.pathname}${url.search}` i surowy Referer (`src/lib/seo/redirects.server.ts:467-469`); jedyną obróbką jest obcięcie do 500 znaków. Limit zapisów okno dodało '
+  'tylko trafieniom przekierowań, a migracja retencji `20261003190000` czyści trzy inne tabele - więc tokeny i adresy e-mail z linków w wiadomościach mogą leżeć '
+  'w bazie bez terminu, a każde anonimowe żądanie o nową ścieżkę dokłada wiersz. `docs/SEO.md:188` twierdzi, że zapis jest „rate-limited". To nie regresja okna: '
+  'wydanie 12 zapisywało to samo.')
+w('- **(średni) Skala czcionek nie jest grzana w SSR, więc odroczony generator CSS ładuje się przy każdej wizycie.** `DesignTokensStyle` czyta `useFontScale()` '
+  '(`src/components/DesignTokensStyle.tsx:48`), a loader korzenia tych danych nie grzeje: u najemcy z ustawionymi rozmiarami czcionek skrót wejścia po stronie klienta '
+  'nie zgadza się z `data-css-hash` z serwera, przeglądarka dociąga generator (`designTokensCss` razem z `globalColors.ts`, 47 kB źródła) i podmienia CSS po hydratacji, '
+  'a rozmiary pisma skaczą. Skok istniał w wydaniu 12; nowe jest pobieranie generatora, przez które zysk commita `81d84b1fb` znika dla największego bloku. '
+  'Czy to tłumaczy przesunięcie układu 1,28-1,40 na wdrożeniu (17.14), nie sprawdzałem.')
+w('')
+w(f'Sześć śledztw nie znalazło defektu, a trzy z nich prostują ten rozdział. (1) Surowe klucze `ttsPlayer.card.label` i `club.hub.*` z wdrożenia nie mają przyczyny '
+  'w kodzie `5b8c77c01`: rejestracja obu nakładek zawsze poprzedza render, który ich używa, a cyklu importów przez `i18n.ts` nie ma - sprawdziły to dwa niezależne '
+  'śledztwa, każde z innej strony. (2) Zdegradowany render strony głównej dostaje `private, no-store`, ale w samym kodzie pętli bez wyjścia nie ma: odświeżenie w tle ma zapisać '
+  'czysty dokument. Na wdrożeniu nie zapisuje, bo żaden dokument nie trafia do magazynu (17.14), więc w praktyce każdy render płaci budżet 600 ms, który nie ma zapasu. (3) Polityka cache dokumentu nie daje analizie '
+  '`BYPASS` przy GET - zanotowany `BYPASS` pochodził z żądania HEAD; sprawdziłem to na wdrożeniu (17.14). Pozostałe: eksport danych RODO zgadza się z manifestem '
+  '(cel prośby o wprowadzenie dostaje tylko wiersze przekazane, pośrednik - wszystkie, co manifest deklaruje), a podział odtwarzacza audio nie zgubił żadnej '
+  'poprawki modułu 1 - każdą pilnuje test, który pada na silniku sprzed `683e60e8b`. Ten ostatni agent zauważył poza zakresem pytania i bez uruchomienia, że '
+  '`close()` powłoki przed załadowaniem silnika może nie anulować odtwarzania (`src/lib/audio/global-player.tsx:236-239`) - do sprawdzenia przy torze 1.')
+open(S + '/r17f.md', 'w').write('\n'.join(o) + '\n')
+print('ok', luki, len(defekty), len(bez))

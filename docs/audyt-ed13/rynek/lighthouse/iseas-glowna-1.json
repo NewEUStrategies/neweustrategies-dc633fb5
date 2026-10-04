@@ -1,0 +1,42 @@
+{
+  "klucz": "iseas",
+  "typ": "glowna",
+  "url": "https://www.iseas.edu.sg/",
+  "run": 1,
+  "ms": 28415,
+  "blad": null,
+  "finalUrl": "https://www.iseas.edu.sg/",
+  "fetchTime": "2026-10-04T15:13:40.585Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2304.5,
+  "runtimeError": null,
+  "warnings": [],
+  "kategorie": { "performance": 0.21, "accessibility": 0.78, "best-practices": 0.93, "seo": 0.83 },
+  "metryki": {
+    "first-contentful-paint": 4895.78848,
+    "largest-contentful-paint": 19381.696639999995,
+    "total-blocking-time": 1133.499999999999,
+    "cumulative-layout-shift": 0.25298262550400175,
+    "speed-index": 9636.593802585863,
+    "interactive": 27232.258416999994,
+    "server-response-time": 330.164,
+    "total-byte-weight": 4177515,
+    "dom-size": 1208,
+    "network-requests": null,
+    "mainthread-work-breakdown": 8244.327999999778,
+    "bootup-time": 3898.6560000000063,
+    "third-party-summary": null
+  },
+  "a11yBledy": [
+    "aria-hidden-focus",
+    "color-contrast",
+    "heading-order",
+    "image-alt",
+    "link-name",
+    "target-size"
+  ],
+  "bpBledy": ["image-aspect-ratio", "image-size-responsive"],
+  "seoBledy": ["meta-description", "image-alt"],
+  "lcpElement": "<img width=\"700\" height=\"480\" src=\"/wp-content/uploads/2026/09/SEACO26-Carousel-Banner.jpg\" class=\"attachment-featured_large_thumb size-featured_large_thumb wp-post-image\" alt=\"\" decoding=\"async\" fetc",
+  "tytul": true
+}

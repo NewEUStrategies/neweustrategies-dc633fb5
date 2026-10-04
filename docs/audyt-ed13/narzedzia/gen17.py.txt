@@ -1,0 +1,245 @@
+# Rozdzial 17 dokumentu audytu (wydanie 13) i naglowek wydania - generator z danych pomiaru i migawki agentow.
+# Czesc A: pomiar (17.2-17.6) i bramki/baza/determinizm (17.10-17.12). Czesc B (agenci) w gen17b.py.
+import json, collections, re, os, sys
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+J = lambda n: json.load(open(f'{S}/{n}'))
+M = J('metryki13.json'); INV = J('inwentarz13.json'); PG = J('pgrls13.json'); PR = J('progi13.json'); RLS = J('rls13.json')
+SI = J('sieroty13.json'); DY = J('dyscypliny13.json'); POK = J('pokrycie13.json'); E12 = J('ed12-pokrycie-moduly.json')
+FUN = J('funkcjonalnosci13.json'); SNAP = J('migawka.json')
+F12 = json.load(open(S + '/../ed12/funkcjonalnosci12.json'))['wiersze']
+ED12_80 = sum(1 for x in F12 if x['linie'] < 80)
+
+
+def n(x, nd=None):
+    if isinstance(x, float):
+        s = f'{x:,.{2 if nd is None else nd}f}'
+    else:
+        s = f'{x:,}'
+    return s.replace(',', ' ').replace('.', ',')
+
+
+def d(a, b, nd=None):
+    v = b - a
+    if isinstance(v, float):
+        v = round(v, 2 if nd is None else nd)
+    return ('+' if v > 0 else '') + n(v, nd) if v != 0 else '0'
+
+
+def pl(k, a, b, c):
+    k = int(k)
+    if k == 1:
+        return f'{k} {a}'
+    if 2 <= k % 10 <= 4 and not 12 <= k % 100 <= 14:
+        return f'{n(k)} {b}'
+    return f'{n(k)} {c}'
+
+
+def p2(x):
+    return n(float(x))
+
+
+def pc(a, b):
+    return 100.0 * a / b if b else 100.0
+
+
+def cl(s):
+    return re.sub(r'\s+', ' ', str(s)).replace('|', '/').replace('\u2014', '-').replace('\u2013', '-').strip()
+
+
+NAZWY = {str(r['k']): r['name'] for r in INV['rows']}
+NAZWY.update({'X-admin-shell': 'powłoka panelu admin + atomy/molekuły', 'X-design-system': 'design system (`components/ui`)', 'X-i18n': 'słowniki i18n', 'NULL': 'poza mapą modułów'})
+
+
+def kl(k):
+    try:
+        return (0, int(k))
+    except Exception:
+        return (1, str(k))
+
+
+o = []
+w = o.append
+
+# ---------------------------------------------------------------- 17.2
+T, E = M['teraz'], M['ed12']
+w('### 17.2. Skala i delta okna - jedna definicja na dwóch drzewach')
+w('')
+w('Definicje bez zmian względem 16.2, a każda pozycja liczona tym samym skryptem na obu drzewach (`metryki13.mjs` i pokrewne w `docs/audyt-ed13/narzedzia/`). Plik produkcyjny = `.ts`/`.tsx`/`.js`/`.jsx`/`.mjs` pod `src/`, bez testów, `__tests__/` i `.d.ts`; wiersz = linia bez pustego ogona pliku. Polityki RLS i asercje pgTAP liczą biblioteki repozytorium (`extractLatestPolicies`, `analyzePgTapFile`).')
+w('')
+rows = [
+    ('Pliki kodu produkcyjnego', E['prodFiles'], T['prodFiles']),
+    ('Wiersze kodu produkcyjnego', E['prodLines'], T['prodLines']),
+    ('Pliki testowe', E['testFiles'], T['testFiles']),
+    ('Wiersze testów', E['testLines'], T['testLines']),
+    ('Przypadki testowe (skan statyczny)', E['cases'], T['cases']),
+    ('Wywołania `expect` (skan statyczny)', E['expects'], T['expects']),
+    ('Pliki testowe bez atrapy `vi.*`', E['noMockTests'], T['noMockTests']),
+    ('Trasy (pliki w `src/routes`)', E['routes'], T['routes']),
+    ('Komponenty design systemu (`components/ui`)', E['uiComponents'], T['uiComponents']),
+]
+w('| Metryka | Wydanie 12 (`b8b53ae5`) | Wydanie 13 (`5b8c77c01`) | Δ |')
+w('| --- | ---: | ---: | ---: |')
+for a, b, c in rows:
+    w(f'| {a} | {n(b)} | **{n(c)}** | {d(b, c)} |')
+w(f"| Skrypty `package.json` / bramki `check:*` | {E['scripts']} / {E['checkScripts']} | **{T['scripts']} / {T['checkScripts']}** | 0 / 0 |")
+w('| Moduły `src/lib/ci` | 53 | **53** | 0 |')
+w('| Bramki-testy `*.gate.test.*` | 34 | **38** | +4 |')
+w(f"| Migracje `supabase/migrations` | {n(E['migrationsSupabase'])} | **{n(T['migrationsSupabase'])}** | {d(E['migrationsSupabase'], T['migrationsSupabase'])} |")
+w(f"| Migracje `drizzle/migrations` (SQL) | {E['migrationsDrizzle']} | **{T['migrationsDrizzle']}** | {d(E['migrationsDrizzle'], T['migrationsDrizzle'])} |")
+w(f"| Pliki pgTAP / asercje (analizator repo) | {PG['ed12']['pgtapFiles']} / {n(PG['ed12']['asercje'])} | **{PG['teraz']['pgtapFiles']} / {n(PG['teraz']['asercje'])}** | {d(PG['ed12']['pgtapFiles'], PG['teraz']['pgtapFiles'])} / {d(PG['ed12']['asercje'], PG['teraz']['asercje'])} |")
+w(f"| Polityki RLS / tabele z politykami (repo) | {PG['ed12']['polityki']} / {PG['ed12']['tabeleZPolitykami']} | **{PG['teraz']['polityki']} / {PG['teraz']['tabeleZPolitykami']}** | {d(PG['ed12']['polityki'], PG['teraz']['polityki'])} / {d(PG['ed12']['tabeleZPolitykami'], PG['teraz']['tabeleZPolitykami'])} |")
+w('| Testy e2e / pliki / konfiguracje | 314 / 25 / 6 | **314 / 25 / 6** | 0 / 0 / 0 |')
+w(f"| Progi pokrycia per ścieżka (martwe) | {PR['ED12']['progow']} ({len(PR['ED12']['martwe'])}) | **{PR['TERAZ']['progow']} ({len(PR['TERAZ']['martwe'])})** | {d(PR['ED12']['progow'], PR['TERAZ']['progow'])} (0) |")
+w(f"| Pliki produkcyjne pod progiem per ścieżka | {n(PR['ED12']['objete'])} ({n(PR['ED12']['pct'])}%) | **{n(PR['TERAZ']['objete'])} ({n(PR['TERAZ']['pct'])}%)** | {d(PR['ED12']['objete'], PR['TERAZ']['objete'])} |")
+w(f"| Wpisy `it.fails` / plików | {PR['ED12']['fails']} / {len(PR['ED12']['failsPliki'])} | **{PR['TERAZ']['fails']} / {len(PR['TERAZ']['failsPliki'])}** | {d(PR['ED12']['fails'], PR['TERAZ']['fails'])} / {d(len(PR['ED12']['failsPliki']), len(PR['TERAZ']['failsPliki']))} |")
+w('| Przepływy GitHub Actions | 7 | **7** | 0 |')
+w('| Dokumenty w `docs/` | 168 | **184** | +16 |')
+w('')
+w(f"**Okno jest kampanią testową, nie funkcjonalną.** Kod produkcyjny urósł o {n(T['prodFiles'] - E['prodFiles'])} pliki i {n(T['prodLines'] - E['prodLines'])} wierszy (+{n(pc(T['prodLines'] - E['prodLines'], E['prodLines']), 1)}%), a testy o {n(T['testFiles'] - E['testFiles'])} plików i {n(T['testLines'] - E['testLines'])} wierszy (+{n(pc(T['testLines'] - E['testLines'], E['testLines']), 1)}%) - pięć razy szybciej. Wywołań `expect` przybyło {n(T['expects'] - E['expects'])}, progów per ścieżka {PR['TERAZ']['progow'] - PR['ED12']['progow']} (żaden nie został obniżony ani usunięty - 17.10), plików pgTAP {PG['teraz']['pgtapFiles'] - PG['ed12']['pgtapFiles']} z {PG['teraz']['asercje'] - PG['ed12']['asercje']} asercjami, a rejestr `it.fails` stopniał o {PR['ED12']['fails'] - PR['TERAZ']['fails']} wpisów. Warstwa ścieżek użytkownika stoi w miejscu: te same 314 testów Playwright w 25 plikach i 6 konfiguracjach co w wydaniu 12.")
+w('')
+w('W oknie są 402 commity (117 scaleń, PR-y #427-#466). Jedenaście kampanii naprawczych zostawiło raport w `docs/` (moduły 1, 4, 7, 13 i 19, wyszukiwarka, design system, katalog osób i profil organizacji, przypomnienia uczestnika, sygnał czasu czytania, kody wydarzeń), a trzy kolejne raporty dotyczą wydajności pierwszej wizyty - ich twierdzenia sprawdza 17.13.')
+w('')
+
+# ---------------------------------------------------------------- 17.3
+w('### 17.3. Co przyszło: 68 nowych plików i pięć usuniętych')
+w('')
+w('Okno dodało 68 plików produkcyjnych i usunęło pięć: `src/components/ui/download-button.tsx` i `src/components/ui/form-link.tsx` (martwy kod design systemu, commit `676c4e666`), `src/lib/i18n-download-button.ts`, `src/lib/i18n-admin-event-sessions.ts` i `src/lib/icons/DynamicIconFull.tsx`. Żadnej nowej powierzchni produktu w skali wydania 12 (CFP, rozsadzenie, faktury, portfele) - prawie każdy nowy plik to wydzielona reguła, która domyka defekt albo rekomendację. Moduł podaję z taksonomii repozytorium (`classifyPath`), opis - z map torów, sprawdzony w kodzie:')
+w('')
+OPIS = {
+    '1': 'Leniwy silnik globalnego odtwarzacza audio (`global-player-engine.tsx`), beacon czasu aktywnego czytania (`api/public/post-dwell.ts`) i reguła dat CV autora (`cvDates.ts`).',
+    '3': 'Wspólne zawężenie taksonomią po stronie bazy dla widgetów list (`taxonomyPivot.ts`), znacznik `data-search-overflow` liczony z danych dokumentu i rozdzielony renderer widgetu tekstu.',
+    '4': 'Paginacja keyset biblioteki mediów, odroczone generatory CSS korzenia i wydzielone reguły panelu motywu.',
+    '5': 'Ranking powiązanych taksonomii ze współwystępowania (`useRelatedTaxonomies.ts` nad funkcją bazy `related_taxonomies`) i paginacja linkowa biblioteki publikacji.',
+    '7': 'Wspólne reguły zapisu obu paneli programów (`programs/adminForm.ts`) i pokrewne wydzielenia z kampanii modułu 7.',
+    '8': 'Publiczny origin najemcy dla ekranów SEO (`useTenantPublicOrigin`), wspólny odczyt treści kokpitu z jawną kompletnością i polityka wygaszania starego podpisu webhooka OG.',
+    '9': 'Wspólny klient zapytań hooków wzmianek i skróty Markdown kompozytora niezależne od układu klawiatury.',
+    '10': 'Katalog ról wprowadzeń wspólny dla interfejsu i eksportu RODO.',
+    '11': 'Jedna definicja adresu wypisu z obsługą RFC 8058 (`unsubscribeUrl.ts`) i deterministyczna tożsamość wiadomości dla idempotencji.',
+    '13': 'Podgląd kuponu planu przez funkcję serwerową z limitem prób (`couponPreview.functions.ts`, `couponPreview.server.ts`).',
+    '15': 'Kanoniczny odczyt własnego profilu przez `get_own_profile` (`ownProfile.ts`) i linki do osób wyliczane w bazie.',
+    '16': 'Wspólne kadrowanie okładki klubu (`coverFrame.ts`) i lekki loader nagłówka tras liściowych.',
+    '17': 'Flaga zalogowanego w ingeście bez zapisu konta (`signedIn.server.ts`), klucze cache panelu analityki z najemcą, retencja telemetrii i wspólny czytnik totali GA4.',
+    '18': 'Zdjęcia profilowe leadów pobierane po stronie serwera (`leadAvatars.ts`).',
+    '19': 'Unieważnianie cache kuponów B2B po mutacji (`couponQueries.ts`).',
+    '20': 'Cache mediów w kolokacji Cloudflare (`mediaCache.server.ts`), leniwy ekran błędu z bramką chunku i reguła adresu tła nagłówka archiwum.',
+    '22': 'Odsłonięcie ukrytych biletów kodem przez serwer z limitem prób (`eventCodeReveal.*`), treść przypomnień uczestnika (`reminderNotice.server.ts`), klucz idempotencji odprawy (`clientScanUid.ts`) i jedna klasyfikacja odmów skanera (`scannerErrorKind.ts`).',
+    'NULL': 'Pomocniczy plik harnessu testowego poza mapą modułów.',
+    'X-admin-shell': 'Odczyt i zapis reguły dostępu z kontrolą wersji oraz style motywu generowane na serwerze.',
+    'X-i18n': 'Wspólny moduł przełączania języka interfejsu (`switchUiLanguage.ts`), reguła języka z adresu (`localeRuntime.ts`) i słowniki paneli wyniesione z JSX.',
+}
+lok = {}
+REPO = '/home/user/neweustrategies-dc633fb5'
+for r in INV['rows']:
+    if not r['addedProd']:
+        continue
+    tot = 0
+    for f in r['added']:
+        try:
+            t = open(f'{REPO}/{f}', encoding='utf8').read()
+            k = t.split('\n')
+            tot += len(k) - (1 if t.endswith('\n') else 0)
+        except FileNotFoundError:
+            pass
+    lok[str(r['k'])] = (r['addedProd'], tot)
+w('| Moduł (taksonomia) | Nowe pliki | Wiersze | Co przyszło |')
+w('| --- | ---: | ---: | --- |')
+sp = sw = 0
+for k in sorted(lok, key=kl):
+    p, l = lok[k]
+    sp += p; sw += l
+    w(f"| {k if k in ('NULL',) or k.startswith('X-') else k} | {p} | {n(l)} | {OPIS.get(k, '')} |")
+w(f'| **Razem** | **{sp}** | **{n(sw)}** | |')
+w('')
+NOWE_WIERSZE = sw
+
+# ---------------------------------------------------------------- 17.4
+TT = POK['T']
+w('### 17.4. Wynik pomiaru: pokrycie całości i przebieg suity')
+w('')
+w('Przebieg: 12 shardów `vitest run --config vitest.shard.config.ts --coverage --shard=i/12 --reporter=blob` (2026-10-04, 09:51-10:55 UTC), potem `vitest --merge-reports --coverage` z progami z `vitest.config.ts` (10:55-10:57), provider `istanbul`, `coverage.all: true`, strefa UTC, cztery rdzenie. Konfiguracja pokrycia jest ta sama co w wydaniu 12 (porównany blok `coverage`), więc delta jest przyrostem pracy testowej.')
+w('')
+w('| Metryka | Wydanie 12 (pokryte / wszystkie) | Wydanie 12 | Wydanie 13 (pokryte / wszystkie) | Wydanie 13 | Δ pp |')
+w('| --- | ---: | ---: | ---: | ---: | ---: |')
+ED12T = {'L': (129595, 133561), 'S': (146944, 152976), 'F': (40176, 41926), 'B': (124977, 136176)}
+for nm, key in [('Linie', 'L'), ('Instrukcje', 'S'), ('Funkcje', 'F'), ('Gałęzie', 'B')]:
+    a, b = ED12T[key]
+    c, e = TT[key + 'c'], TT[key]
+    w(f'| {nm} | {n(a)} / {n(b)} | {n(pc(a, b))}% | {n(c)} / {n(e)} | **{n(pc(c, e))}%** | {d(round(pc(a, b), 2), round(pc(c, e), 2))} |')
+w(f"| Plików w mianowniku | | 3 909 | | **{n(TT['files'])}** | {d(3909, TT['files'])} |")
+w(f"| Pliki na zerze (linie) | | 79 | | **{TT['zero']}** | {d(79, TT['zero'])} |")
+w(f"| Niepokryte linie | | 3 966 | | **{n(TT['L'] - TT['Lc'])}** | {d(3966, TT['L'] - TT['Lc'])} |")
+w(f"| Martwe funkcje nazwane (0 wywołań) | | 235 | | **{TT['dead']}** | {d(235, TT['dead'])} |")
+w('')
+w('| Przebieg | Wynik |')
+w('| --- | ---: |')
+w('| Pliki testowe | 3 253 zielone, **0 czerwonych**, 2 pominięte |')
+w('| Przypadki | 84 731 zielone, **0 czerwonych**, 320 „expected fail", 50 pominiętych (85 101) |')
+w('| Naruszenia progów (scalenie) | **0** - globalny i 947 progów per ścieżka |')
+w('| Paczka `xlsx` | prawdziwa 0.20.3 z `cdn.sheetjs.com` (host osiągalny w tej sesji) - bez zaślepki |')
+w('')
+w('**Pierwszy przebieg w tej serii bez ani jednej czerwieni i bez zastrzeżenia środowiskowego.** W wydaniu 12 19 czerwonych przypadków pochodziło z lokalnej zaślepki `xlsx` (16.1), bo `cdn.sheetjs.com` był zablokowany; dziś host jest osiągalny, paczka zainstalowała się z lockfile i wszystkie 19 przypadków jest zielonych. Liczba 320 „expected fail" jest większa od 310 wpisów `it.fails` w skanie statycznym, bo część wpisów siedzi w pętlach i generuje kilka przypadków.')
+w('')
+zera = sorted(((k, f, l) for k, r in POK['perKey'].items() for f, l in r.get('zeros', [])), key=lambda z: -z[2])
+w(f"**Na zerze zostaje {len(zera)} plików ({n(sum(z[2] for z in zera))} linii), dwanaście z nich to pliki tras.** W wydaniu 12 było ich 79 (1 346 linii). Cztery największe to te same ekrany panelu z modułu 4, które stały na zerze już w wydaniu 12 - funkcjonalność „Taksonomie, pola meta i układy eksperta\" ma przez nie 55,24% linii, najmniej ze wszystkich (17.6). Reszta to cienkie definicje tras (przekierowanie, kanał, leniwy komponent) i dwa małe pliki spoza `src/routes`:")
+w('')
+w('| Plik | Moduł | Linie |')
+w('| --- | --- | ---: |')
+for k, f, l in zera:
+    w(f'| `{f}` | {k} | {l} |')
+w('')
+
+# ---------------------------------------------------------------- 17.5
+w('### 17.5. Pokrycie per moduł - cała tabela')
+w('')
+w('| Klucz | Moduł | Pliki ed12 → ed13 | Linie ed12 | Linie ed13 | Δ pp | Funkcje ed12 | Funkcje ed13 | Gałęzie ed13 | Na zerze | Niepokryte linie |')
+w('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |')
+zysk, strata, sto = [], [], []
+for k in sorted(POK['perKey'], key=kl):
+    r = POK['perKey'][k]; e = E12.get(k)
+    li, fu, ga = pc(r['Lc'], r['L']), pc(r['Fc'], r['F']), pc(r['Bc'], r['B'])
+    nz = NAZWY.get(k, '')
+    if e:
+        dl = round(li - e['lines'], 2)
+        w(f"| {k} | {nz} | {e['files']} → {r['files']} | {n(e['lines'])}% | **{n(li)}%** | {d(e['lines'], round(li, 2))} | {n(e['funcs'])}% | {n(fu)}% | {n(ga)}% | {e['zeros']} → {r['zero']} | {n(r['L'] - r['Lc'])} |")
+        (zysk if dl > 0.3 else strata if dl < 0 else []).append((k, nz, dl, e['zeros'], r['zero']))
+    else:
+        w(f"| {k} | {nz} | - → {r['files']} | - | **{n(li)}%** | - | - | {n(fu)}% | {n(ga)}% | {r['zero']} | {n(r['L'] - r['Lc'])} |")
+    if r['L'] == r['Lc'] and r['F'] == r['Fc']:
+        sto.append((k, nz))
+w('')
+zysk.sort(key=lambda z: -z[2])
+w('**Kto zyskał:** ' + '; '.join(f'{nz} ({k}) +{n(dl)} pp linii, na zerze {z1} → {z2}' for k, nz, dl, z1, z2 in zysk) + '.')
+w('')
+if strata:
+    w('**Kto stracił (wszystko poniżej 0,05 pp - szum zmian w istniejących plikach):** ' + '; '.join(f'{nz} ({k}) {n(dl)} pp' for k, nz, dl, z1, z2 in sorted(strata, key=lambda z: z[2])) + '.')
+    w('')
+w('**100% linii i funkcji:** ' + ', '.join(f'{nz} ({k})' for k, nz in sto) + '. Każdy z tych obszarów był celem kampanii z raportem w oknie (17.13) albo jej skutkiem ubocznym; moduł 21 miał 100% już w wydaniu 12.')
+w('')
+sl = sorted(((pc(r['Lc'], r['L']), k, r) for k, r in POK['perKey'].items() if k != 'NULL'))[:3]
+w('**Najsłabiej:** ' + '; '.join(f"{NAZWY.get(k, '')} ({k}) {n(li)}% linii, {n(pc(r['Bc'], r['B']))}% gałęzi, {pl(r['zero'], 'plik', 'pliki', 'plików')} na zerze, {n(r['L'] - r['Lc'])} niepokrytych linii" for li, k, r in sl) + '. Więcej niż jeden plik na zerze mają tylko moduły 4 i 20, po cztery: w module 4 to te same cztery ekrany panelu od dwóch wydań (razem 162 linie), w module 20 - cienkie definicje tras po 1-3 linie.')
+w('')
+
+# ---------------------------------------------------------------- 17.6
+W = FUN['wiersze']
+tp = sum(t['pliki'] for t in FUN['torPokrycie']); to_ = sum(t['objete'] for t in FUN['torPokrycie'])
+nowe = [x for x in W if x['nowa']]
+w('### 17.6. Funkcjonalności: mapa wydania 12 przeniesiona na nowe drzewo')
+w('')
+w(f"**{len(W)} funkcjonalności** (w wydaniu 12: 323): {sum(1 for x in W if x['ed12Znaleziona'])} niesie dokładną nazwę z mapy wydania 12 (każda z 323 nazw wydania 12 została przeniesiona, żadna nie zniknęła), **{len(nowe)} jest nowych**. Tory dzielone (3a/3b, 22a-d) scalam po nazwie i liczę pokrycie na sumie plików, jak w 16.6. Wzorce ścieżek obejmują {n(to_)} z {n(tp)} plików torów w mianowniku pomiaru (**{n(pc(to_, tp))}%**; w wydaniu 12: 98,64%); {pl(FUN['wiele'], 'plik trafia', 'pliki trafiają', 'plików trafia')} do więcej niż jednej funkcjonalności, martwe wzorce {len(FUN['martweWzorce'])} (" + '; '.join(f'`{p}` w „{nm}\" (tor {t})' for t, nm, p in FUN['martweWzorce']) + f"), błędne wyrażenia {len(FUN['zle'])}.")
+w('')
+b = collections.Counter('100' if x['linie'] >= 100 else '95' if x['linie'] >= 95 else '90' if x['linie'] >= 90 else '80' if x['linie'] >= 80 else '0' for x in W)
+w(f"Rozkład: {b['100']} funkcjonalności ma 100% linii, {b['95']} między 95% a 100%, {b['90']} między 90% a 95%, {b['80']} między 80% a 90% i {b['0']} poniżej 80%. W wydaniu 12 poniżej 80% było {ED12_80}.")
+w('')
+sl = sorted(W, key=lambda x: x['linie'])[:6]
+w('Najsłabsze: ' + '; '.join(f"{cl(x['nazwa'])} (moduł {x['klucz']}, {p2(x['linie'])}% linii" + (f", ed12 {p2(x['ed12Linie'])}%" if x['ed12Linie'] is not None else '') + (f", {x['zero']} na zerze" if x['zero'] else '') + ')' for x in sl) + '. Jedyny spadek większy niż 0,5 pp to „Kody rejestracyjne i kody dostępu biletu" (71,83% → 69,70%): kod przybył (limit prób, 17.8) szybciej niż testy jego reguły.')
+w('')
+w('| Moduł | Funkcjonalność | Pliki | Linie kodu | Linie | Funkcje | Gałęzie | Na zerze | Niepokryte | Linie ed12 |')
+w('| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |')
+for x in sorted(W, key=lambda x: (kl(x['klucz']), x['nazwa'].lower())):
+    nm = ('**nowa** ' if x['nowa'] else '') + cl(x['nazwa'])
+    e12 = f"{p2(x['ed12Linie'])}%" if x['ed12Linie'] is not None else '-'
+    w(f"| {x['klucz']} | {nm} | {x['pliki']} | {n(x['loc'])} | {p2(x['linie'])}% | {p2(x['funkcje'])}% | {p2(x['galezie'])}% | {x['zero']} | {n(x['niepokryte'])} | {e12} |")
+w('')
+
+open(S + '/r17a.md', 'w').write('\n'.join(o))
+print('ok', len(o), 'nowe pliki', sp, 'wiersze', NOWE_WIERSZE)
