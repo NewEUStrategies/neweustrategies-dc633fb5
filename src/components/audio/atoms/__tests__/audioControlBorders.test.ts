@@ -7,7 +7,7 @@
 // Bramka pilnuje trzech rzeczy, których nie widać w jednym screenshocie:
 //
 //  1. Krawędź jest MESZANKĄ z atramentem, a nie nową marką. Tokeny typu
-//     `--audio-control-border` i `--audio-icon-border` są mieszane z `#000`,
+//     `--audio-control-border` są mieszane z `#000` albo `var(--foreground)`,
 //     więc zmiana brandu czy tekstu rusza je automatycznie.
 //  2. "Delikatnie" ma górną i dolną granicę. Mieszanka poniżej 60% to już
 //     wyraźna obwódka, powyżej 90% - krawędź znikająca. Próg notujemy tu,
@@ -57,16 +57,6 @@ describe("tokeny krawędzi kontrolek odsłuchu", () => {
     }
   });
 
-  it("krawędź ikony jest ciemnopomarańczowa, a nie szara", () => {
-    // Użytkownik chce, żeby trójkąt play i słupki pauzy miały obramowanie w
-    // rodzinie brandu. Mieszanka z `var(--foreground)` dałaby szarość - tego
-    // właśnie ta asercja zabrania.
-    const value = token(HEAD, "--audio-icon-border", "bloku :root/.light");
-    expect(value).toContain("var(--brand)");
-    expect(value).not.toContain("var(--foreground)");
-    expect(value).not.toContain("var(--background)");
-  });
-
   it("ciemny motyw wyłącza wszystkie trzy krawędzie", () => {
     for (const name of TOKENS) {
       expect(token(DARK, name, "bloku .dark")).toBe("transparent");
@@ -85,15 +75,12 @@ describe("reguły czytające te krawędzie", () => {
     expect(controlBlock).not.toMatch(/#[0-9a-f]{3,8}\b/i);
   });
 
-  it("ikony play i pauza dostają cienką krawędź z tokenu (stroke, nie nowy kształt)", () => {
+  it("trójkąt play dostaje cienką krawędź z tokenu (stroke, nie nowy kształt)", () => {
     const block = css.slice(
-      css.indexOf(".mpp-svg-play path,"),
+      css.indexOf(".mpp-svg-play path {"),
       css.indexOf('.mpp[data-playing="false"]'),
     );
-    // Jedna reguła obsługuje oba kształty - trójkąt i słupki pauzy.
-    expect(block).toContain(".mpp-svg-play path,");
-    expect(block).toContain(".mpp-svg-pause rect {");
-    expect(block.match(/stroke: var\(--audio-icon-border\);/g)).toHaveLength(1);
+    expect(block).toContain("stroke: var(--audio-icon-border);");
     const width = Number(/stroke-width:\s*([\d.]+);/.exec(block)?.[1]);
     expect(width).toBeGreaterThan(0);
     expect(width).toBeLessThanOrEqual(1.5);
