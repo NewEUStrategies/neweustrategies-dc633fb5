@@ -227,7 +227,7 @@ describe("Kinetic Signal Notch", () => {
     airy.unmount();
   });
 
-  it("nie rysuje linii pod etykietą, dopóki „Pokaż linię" nie zostanie włączone", () => {
+  it("nie rysuje linii pod etykietą, dopóki opcja „Pokaż linię” nie zostanie włączona", () => {
     // Widget na stronie nie zapisuje `showRule` - liczy się domysł z
     // `readSectionLabelProps`. Kinetic ma go wyłączonym (żadnego podkreślenia
     // pod etykietą), a „Pokaż linię" w panelu go przywraca.
