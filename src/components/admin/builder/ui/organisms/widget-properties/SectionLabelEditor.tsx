@@ -183,7 +183,13 @@ export function SectionLabelEditor({ c, lang, setContent }: Props) {
     "stacked-serif-lede",
     "split-rule-duo",
   ];
-  const EXTRA_VARIANTS = ["bracket-label", "dotted-leader", "ticker-strip", "underline-sweep"];
+  const EXTRA_VARIANTS = [
+    "bracket-label",
+    "dotted-leader",
+    "ticker-strip",
+    "underline-sweep",
+    "kinetic-signal-notch",
+  ];
   const showNumberControls = NUMBER_VARIANTS.includes(variant);
   const showCategoryControls = CATEGORY_VARIANTS.includes(variant);
   const isEditorial =
