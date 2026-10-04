@@ -33,10 +33,18 @@
 //      bajtów), ALTER TABLE (ADD/DROP CONSTRAINT, ADD/DROP COLUMN, USING INDEX,
 //      RENAME tabeli/kolumny/ograniczenia, SET SCHEMA), CREATE [UNIQUE] INDEX,
 //      DROP INDEX, ALTER INDEX RENAME, DROP TABLE.
-//   B. Cele `onConflict` z kodu produkcyjnego `src/**` (bez testów): opcje
-//      `.upsert(...)` z literałem albo ze stałą `const X = "…"` z tego samego
-//      pliku; tabela z najbliższego `.from("…")` w łańcuchu odbiorcy, a gdy
-//      go nie ma - z literału nazywającego znaną tabelę w wywołaniu pomocnika
+//   B. Cele `onConflict` z kodu produkcyjnego `src/**` (bez testów), czytane
+//      DRZEWEM SKŁADNIOWYM kompilatora TypeScript (TS albo TSX wg
+//      rozszerzenia): każde wywołanie `.upsert(...)` (także `?.`, `!`,
+//      `["upsert"]`), opcje z drugiego argumentu. Cel to literał (także
+//      szablon bez `${}`) albo identyfikator rozwiązany LEKSYKALNIE do
+//      najbliższej deklaracji - liczy się wyłącznie `const` z literałem;
+//      parametr, `let`/`var`, destrukturyzacja, zmienna pętli, `catch` czy
+//      import tej nazwy na ścieżce rozwiązania to cel nie do sprawdzenia.
+//      Tabela z łańcucha odbiorcy (wywołania, `.`/`[]`, `await`, nawiasy, `!`,
+//      `as`, `satisfies`): najbliższe `.from(…)` z literałem albo stałą;
+//      zmienna-zapytanie (`const query = db.from("t")`) rozwiązywana tak samo;
+//      bez `.from` - literał znanej tabeli w wywołaniu pomocnika
 //      (`write(context, "crm_leads").upsert(...)`).
 //   C. Cel musi mieć ARBITRA: PK, UNIQUE albo UNIQUE INDEX bez `WHERE`, bez
 //      wyrażeń i bez `DEFERRABLE`, o identycznym zbiorze kolumn. PostgREST
@@ -48,24 +56,47 @@
 // ── ZASADA: ZAMKNIĘTE NA NIEPEWNOŚĆ ─────────────────────────────────────────
 // Każde wystąpienie `onConflict: …` w kodzie produkcyjnym musi zostać
 // rozstrzygnięte do pary (tabela, kolumny). Wartość nieliteralna (import,
-// wyrażenie, szablon z `${}`), tabela nie do ustalenia albo `onConflict` poza
-// opcjami `.upsert(...)` to osobna kategoria raportu i ZAPALA bramkę - cicha
-// pominięta pozycja wyglądałaby identycznie jak spełniony inwariant. Ten sam
-// powód stoi za oblaniem przy zerowym skanie: bramka, która po refaktorze
-// przestaje cokolwiek widzieć, nie może być zielona.
+// wyrażenie, szablon z `${}`, parametr, `let`), tabela nie do ustalenia
+// (`.from(zmienna)`, odbiorca-parametr, `cond ? a : b` z różnymi tabelami,
+// `.schema("inny")`), opcje, które nie są literałem obiektu, rozkład `...x` za
+// ostatnim jawnym `onConflict`, klucz obliczany nie do rozstrzygnięcia albo
+// `onConflict` poza opcjami `.upsert(...)` to osobna kategoria raportu
+// i ZAPALA bramkę - cicha pominięta pozycja wyglądałaby identycznie jak
+// spełniony inwariant. Obrona w głąb: KAŻDE tekstowe wystąpienie `onConflict`
+// poza komentarzem musi trafić w węzeł, który przebieg po drzewie
+// sklasyfikował - inaczej też czerwień. Ten sam powód stoi za oblaniem przy
+// zerowym skanie: bramka, która po refaktorze przestaje cokolwiek widzieć, nie
+// może być zielona.
 //
-// ── POLITYKA BLOKÓW `DO $$ … $$` ────────────────────────────────────────────
+// ── DLACZEGO KOMPILATOR, A NIE WŁASNY LEKSER ────────────────────────────────
+// Pierwsza wersja maskowała napisy i komentarze dwoma ręcznymi lekserami
+// (`bezKomentarzy`, potem drugi) i szukała składni wyrażeniami regularnymi.
+// Przegląd adwersaryjny znalazł trzy ciche zielenie, wszystkie z tego samego
+// źródła: (1) cofanie się po odbiorcy przechodziło przez `}` zamykający
+// poprzedni blok `if`/`for`/`try`, więc `.from()` z TAMTEGO bloku dawało
+// tabelę; (2) „pierwsze `const query =` w pliku" wygrywało z najbliższym, a
+// stała pliku przesłonięta parametrem/`let`/destrukturyzacją dawała wartość
+// zewnętrzną; (3) apostrof w tekście JSX (`Don't`) i `accept="image/*"`
+// rozjechały oba leksery tak, że reszta pliku zniknęła razem z upsertami.
+// Parser TypeScriptu zna regex vs dzielenie, JSX i szablony z definicji.
+//
+// ── POLITYKA BLOKÓW `DO $$ … $$` I DYNAMICZNEGO DDL ─────────────────────────
 // Bloki DO WYKONUJĄ się przy migracji, więc ich DDL należy do modelu. Bramka
 // wchodzi do ciała, dzieli je na instrukcje i stosuje DDL tak, JAKBY KAŻDA
 // GAŁĄŹ SIĘ WYKONAŁA. Strażniki w repo są idempotentne („dodaj, jeśli nie ma
 // ograniczenia o tej nazwie", `EXCEPTION WHEN duplicate_object`), a model
 // trzyma klucze po nazwie, więc zastosowanie strażnika „na ślepo" daje ten sam
-// stan co wykonanie warunkowe. `EXECUTE '…'` z JEDNYM literałem jest
-// rozwijany i stosowany jak zwykła instrukcja. `EXECUTE format(…)` i sklejanie
-// tekstu są poza zasięgiem analizy statycznej: trafiają do raportu jako
-// „dynamiczne DDL" (informacyjnie, bez blokowania). Lekarstwo na fałszywy
-// alarm z takiego miejsca to statyczny DDL w nowej, idempotentnej migracji
-// (`CREATE UNIQUE INDEX IF NOT EXISTS …`) - model zobaczy go od razu.
+// stan co wykonanie warunkowe. `EXECUTE` z JEDNYM literałem (`'…'`, `E'…'`,
+// `$q$…$q$`) jest rozwijany i stosowany jak zwykła instrukcja.
+// `EXECUTE format(…)`, sklejanie tekstu i `EXECUTE zmienna` są poza zasięgiem
+// analizy statycznej - a NIE są tylko źródłem fałszywych alarmów: dynamiczne
+// `DROP CONSTRAINT %I` na kluczu unikalnym daje zielony model i 42P10 w bazie.
+// Dlatego dynamiczne DDL zdolne zmienić klucz (słowa z `KEY_DDL_HINT_RE` w
+// tekście polecenia; przy `EXECUTE zmienna` - w literałach całego bloku) jest
+// ZAPADKĄ: `DYNAMIC_DDL_BASELINE` niżej wylicza pliki i liczby takich miejsc,
+// które pomiar różnicowy z 2026-10-04 objął. Nowy plik albo zmiana liczby
+// ZAPALA bramkę; lekarstwo to statyczny DDL (`ALTER TABLE … DROP CONSTRAINT
+// nazwa`, `CREATE UNIQUE INDEX IF NOT EXISTS …`) - model zobaczy go od razu.
 // Ciała `CREATE FUNCTION` NIE są wykonywane przy migracji i model ich nie czyta.
 // Granica tej polityki, nazwana wprost: gałąź, która w realnym przebiegu się
 // NIE wykonuje, a DODAJE klucz, dałaby w modelu klucz, którego baza nie ma.
@@ -82,27 +113,35 @@
 // `public` zgodnych dokładnie, 616/616 kluczy (328 PK, 185 UNIQUE, 103 UNIQUE
 // INDEX - w tym 60 częściowych i 18 na wyrażeniach) zgodnych co do nazwy,
 // rodzaju, kolumn i flag; zero kluczy tylko w modelu, zero tylko w katalogu.
-// Każdy z 46 różnych celów (tabela, kolumny) z kodu dostał na tej bazie
-// `Conflict Arbiter Indexes` w `EXPLAIN INSERT … ON CONFLICT`, a stary cel
-// `user_roles (user_id, role)` - 42P10. Nazwy domyślne (przycięcie do 63
+// Pomiar powtórzony po przejściu na drzewo składniowe i surowe migracje - ten
+// sam wynik. Każdy z 46 różnych celów (tabela, kolumny) z kodu dostał na tej
+// bazie `Conflict Arbiter Indexes` w `EXPLAIN INSERT … ON CONFLICT`, a stary
+// cel `user_roles (user_id, role)` - 42P10. Nazwy domyślne (przycięcie do 63
 // bajtów, `_key1` przy kolizji, scalenie UNIQUE z PK) sprawdzone tak samo.
 //
 // Moduł jest CZYSTY - odczyt migracji i źródeł żyje w
-// `scripts/check-on-conflict-arbiters.ts`, test w
-// `src/lib/ci/__tests__/onConflictArbiters.test.ts`.
-import { bezKomentarzy } from "./sourceScan";
+// `scripts/lib/onConflictArbitersInputs.ts` (wspólny dla runnera
+// `scripts/check-on-conflict-arbiters.ts` i testu
+// `src/lib/ci/__tests__/onConflictArbiters.test.ts`).
+import ts from "typescript";
+import { MigrationLexError, lexStatements } from "./migrationSplit";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Typy publiczne
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Plik migracji. Komentarze SQL mogą zostać - parser je pomija. */
+/**
+ * Plik migracji w postaci SUROWEJ. Komentarze, `$tag$` i `E'…'` rozbiera
+ * lekser tego modułu - nie przepuszczaj tekstu przez `stripSqlComments`
+ * (`scripts/lib/sqlMigrations.ts`): nie zna dollar-quote i potrafi połknąć
+ * `DROP` stojący za `$$ SELECT '--' $$`.
+ */
 export interface MigrationFile {
   readonly file: string;
   readonly sql: string;
 }
 
-/** Plik źródłowy TS/TSX w postaci SUROWEJ - komentarze maskuje sam moduł. */
+/** Plik źródłowy TS/TSX w postaci SUROWEJ - parsuje go kompilator TypeScript. */
 export interface SourceFile {
   readonly file: string;
   readonly code: string;
@@ -128,10 +167,32 @@ export interface UniqueKey {
   readonly file: string;
 }
 
-/** `EXECUTE` z tekstem składanym w czasie wykonania - poza modelem. */
+/** `EXECUTE` z tekstem składanym w czasie wykonania, zdolnym zmienić klucz - poza modelem. */
 export interface DynamicDdl {
   readonly file: string;
   readonly text: string;
+}
+
+/** Migracja (albo ciało DO / literał EXECUTE w niej), której `lexStatements` nie podzielił. */
+export interface UnsplittableMigration {
+  readonly file: string;
+  readonly message: string;
+}
+
+/** Wpis zapadki dynamicznego DDL: ile takich miejsc plik ma i czemu model mimo to jest wierny. */
+export interface DynamicDdlBaselineEntry {
+  readonly count: number;
+  readonly why: string;
+}
+
+/** Plik migracji, w którym liczba dynamicznych DDL kluczy rozjechała się z zapadką. */
+export interface DynamicDdlDrift {
+  readonly file: string;
+  /** Liczba z `DYNAMIC_DDL_BASELINE` (0 - pliku tam nie ma). */
+  readonly expected: number;
+  readonly actual: number;
+  /** Teksty poleceń z pliku - żeby raport dało się przeczytać bez otwierania migracji. */
+  readonly texts: readonly string[];
 }
 
 /** Stan końcowy schematu `public` w zakresie, którego potrzebuje bramka. */
@@ -141,6 +202,8 @@ export interface UniqueKeyModel {
   /** Widoki żywe w stanie końcowym (cel upsertu, który okazuje się widokiem). */
   readonly views: ReadonlySet<string>;
   readonly dynamicDdl: readonly DynamicDdl[];
+  /** Teksty, których lekser instrukcji nie podzielił - ich DDL nie weszło do modelu. */
+  readonly unsplittable: readonly UnsplittableMigration[];
   /** Liczba instrukcji przejrzanych na najwyższym poziomie - kontrola, że model coś widział. */
   readonly statements: number;
 }
@@ -192,6 +255,10 @@ export interface OnConflictArbitersReport {
   readonly violations: readonly ArbiterViolation[];
   readonly unresolved: readonly UnresolvedOnConflict[];
   readonly dynamicDdl: readonly DynamicDdl[];
+  /** Dynamiczne DDL kluczy poza zapadką `DYNAMIC_DDL_BASELINE` - zapala bramkę. */
+  readonly dynamicDdlDrift: readonly DynamicDdlDrift[];
+  /** Migracje, których lekser nie podzielił - model ich nie zna, zapala bramkę. */
+  readonly unsplittable: readonly UnsplittableMigration[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -367,30 +434,32 @@ function lexSql(sql: string, onChunk: (kind: SqlChunk, start: number, end: numbe
   flush(sql.length);
 }
 
-/** Instrukcje rozdzielone `;` najwyższego poziomu, z komentarzami zamienionymi na spację. */
+/**
+ * Instrukcje najwyższego poziomu: komentarze zamienione na spację, bez
+ * końcowego `;`. GRANICE wyznacza `lexStatements` z `migrationSplit.ts` - ten
+ * sam lekser, który tnie migracje pod wdrożenie (reguły psql: `;` w nawiasie
+ * i w `BEGIN ATOMIC … END` nie kończy instrukcji, `E'…'` sklejany przez nową
+ * linię). `lexSql` tego modułu tylko wygasza komentarze WEWNĄTRZ jednej
+ * instrukcji, więc ewentualny rozjazd dwóch lekserów nie przekroczy jej
+ * granicy (lekcja z TS: dwa leksery po całym pliku zgubiły resztę pliku).
+ * Przełączenie zmierzone 2026-10-04: identyczny podział wszystkich 1082
+ * migracji (z ciałami DO i literałami EXECUTE), zero błędów leksera, model ==
+ * pg_index 616/616. Wejście, którego lekser nie przyjmuje (meta-polecenie
+ * psql, `COPY … FROM STDIN`, niedomknięty literał), rzuca `MigrationLexError`.
+ */
 export function splitSqlStatementsDeep(sql: string): string[] {
   const out: string[] = [];
-  let current = "";
-  lexSql(sql, (kind, start, end) => {
-    if (kind === "comment") {
-      current += " ";
-      return;
-    }
-    if (kind !== "code") {
-      current += sql.slice(start, end);
-      return;
-    }
-    let segment = start;
-    for (let i = start; i < end; i += 1) {
-      if (sql[i] !== ";") continue;
-      current += sql.slice(segment, i);
-      if (current.trim() !== "") out.push(current.trim());
-      current = "";
-      segment = i + 1;
-    }
-    current += sql.slice(segment, end);
-  });
-  if (current.trim() !== "") out.push(current.trim());
+  for (const segment of lexStatements(sql)) {
+    if (segment.codeStart < 0) continue;
+    const text = segment.text.slice(segment.codeStart - segment.start);
+    let code = "";
+    lexSql(text, (kind, start, end) => {
+      code += kind === "comment" ? " " : text.slice(start, end);
+    });
+    code = code.trim();
+    if (segment.terminated && code.endsWith(";")) code = code.slice(0, -1).trim();
+    if (code !== "") out.push(code);
+  }
   return out;
 }
 
@@ -495,6 +564,7 @@ class SchemaState {
   readonly plainIndexes = new Map<string, string>();
   readonly views = new Set<string>();
   readonly dynamicDdl: DynamicDdl[] = [];
+  readonly unsplittable: UnsplittableMigration[] = [];
   statements = 0;
 
   nameTaken(name: string): boolean {
@@ -592,23 +662,133 @@ const COLUMN_ELEMENT_TAIL_RE = new RegExp(
   "i",
 );
 
-/** Element indeksu: kolumna (z opcjonalnym COLLATE/opclass/ASC) albo wyrażenie. */
+/** Zdejmuje nawiasy obejmujące CAŁE wyrażenie (`((a))` -> `a`) - w parserze nie tworzą węzła. */
+function stripWrappingParens(text: string): string {
+  let current = text.trim();
+  while (current.startsWith("(") && matchParenSql(current, 0) === current.length - 1) {
+    current = current.slice(1, -1).trim();
+  }
+  return current;
+}
+
+const TRAILING_COLLATE_RE = new RegExp(String.raw`\s+COLLATE\s+${QNAME}\s*$`, "i");
+const CAST_TYPE_RE = new RegExp(String.raw`^(${QNAME})(?:\s*\([^)]*\))?(?:\s*\[\s*\])*$`);
+const CALL_HEAD_RE = new RegExp(String.raw`^(${QNAME})\s*\(`);
+const QNAME_ONLY_RE = new RegExp(String.raw`^${QNAME}$`);
+/** Typy, które gramatyka Postgresa zamienia na nazwy wewnętrzne (`SystemTypeName`). */
+const SYSTEM_TYPE_NAMES: Readonly<Record<string, string>> = {
+  int: "int4",
+  integer: "int4",
+  smallint: "int2",
+  bigint: "int8",
+  real: "float4",
+  float: "float8",
+  boolean: "bool",
+  decimal: "numeric",
+  dec: "numeric",
+};
+
+/** Atom wyrażenia: nawias obejmujący całość, wywołanie funkcji albo (kwalifikowana) nazwa. */
+function isAtom(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.startsWith("(") && matchParenSql(trimmed, 0) === trimmed.length - 1) return true;
+  const call = CALL_HEAD_RE.exec(trimmed);
+  if (call !== null && matchParenSql(trimmed, call[0].length - 1) === trimmed.length - 1) {
+    return true;
+  }
+  return QNAME_ONLY_RE.test(trimmed);
+}
+
+/**
+ * Operand rzutowania obejmującego CAŁE wyrażenie (`atom::typ`, także
+ * `atom::a::b`) i nazwa typu; `null`, gdy `::` wiąże tylko kawałek - `::`
+ * wiąże mocniej niż operatory, więc `a || b::text` to `a || (b::text)`.
+ */
+function wholeCast(text: string): { operand: string; type: string } | null {
+  const view = sqlView(text, true);
+  const cast = view.lastIndexOf("::");
+  if (cast <= 0) return null;
+  const type = CAST_TYPE_RE.exec(text.slice(cast + 2).trim());
+  if (type === null) return null;
+  const operand = text.slice(0, cast).trim();
+  if (!isAtom(operand) && wholeCast(operand) === null) return null;
+  const parts = splitQualified(type[1]);
+  const name = normalizeIdent(parts[parts.length - 1]);
+  return { operand, type: parts.length === 1 ? (SYSTEM_TYPE_NAMES[name] ?? name) : name };
+}
+
+/**
+ * `FigureIndexColname` z Postgresa w zakresie spotykanym w indeksach: nazwa
+ * członu domyślnej nazwy indeksu dla elementu-wyrażenia. Kolumna i funkcja
+ * (także `schemat.f(…)`) dają swoją nazwę z siłą 2, rzutowanie całości
+ * `x::typ` - nazwę operandu, a gdy ten nie ma mocnej nazwy, nazwę typu (siła
+ * 1), `CASE` - `case`, `ARRAY[…]` - `array`; reszta (operator, literał) -
+ * nic, czyli `expr` w `ChooseIndexColumnNames`. Zmierzone na PG16:
+ * `(lower(x))` -> `lower`, `(pg_catalog.upper(a))` -> `upper`,
+ * `(CASE … END)` -> `case`, `(a || b::text)` -> `expr`.
+ */
+function figureIndexColname(raw: string): { name: string; strength: 1 | 2 } | null {
+  const text = stripWrappingParens(raw).replace(TRAILING_COLLATE_RE, "");
+  const cast = wholeCast(text);
+  if (cast !== null) {
+    const inner = figureIndexColname(cast.operand);
+    return inner !== null && inner.strength === 2 ? inner : { name: cast.type, strength: 1 };
+  }
+  if (/^CASE\b/i.test(text)) return { name: "case", strength: 1 };
+  if (/^ARRAY\s*\[/i.test(text)) return { name: "array", strength: 2 };
+  const call = CALL_HEAD_RE.exec(text);
+  if (call !== null && matchParenSql(text, call[0].length - 1) === text.length - 1) {
+    const parts = splitQualified(call[1]);
+    return { name: normalizeIdent(parts[parts.length - 1]), strength: 2 };
+  }
+  if (new RegExp(String.raw`^${IDENT}$`).test(text)) {
+    return { name: normalizeIdent(text), strength: 2 };
+  }
+  return null;
+}
+
+/**
+ * Element indeksu: kolumna (z opcjonalnym COLLATE/opclass/ASC) albo wyrażenie.
+ *
+ * `(a)`, `((a))` i `(a COLLATE "C")` to KOLUMNA, nie wyrażenie: Postgres
+ * (`ComputeIndexAttrs`) zdejmuje `COLLATE`, a goły `Var` traktuje jak prosty
+ * atrybut - `indexprs` zostaje puste, a indeks jest arbitrem listy kolumn
+ * (zmierzone na PG16: `((a), b)` daje `indkey 2 3`, `Conflict Arbiter
+ * Indexes` dla `ON CONFLICT (a, b)`). Uznanie go za wyrażenie dawało fałszywy
+ * alarm „brak arbitra".
+ */
 function parseIndexElement(raw: string): KeyElement {
   const text = raw.trim();
-  const head = new RegExp(String.raw`^(${IDENT})([\s\S]*)$`).exec(text);
-  if (head === null || text.startsWith("(")) {
+  if (text.startsWith("(")) {
+    const close = matchParenSql(text, 0);
+    const tail = close < 0 ? "" : text.slice(close + 1).trim();
+    if (close > 0 && (tail === "" || COLUMN_ELEMENT_TAIL_RE.test(tail))) {
+      const inner = stripWrappingParens(text.slice(1, close)).replace(TRAILING_COLLATE_RE, "");
+      if (new RegExp(String.raw`^${IDENT}$`).test(inner)) {
+        const column = normalizeIdent(inner);
+        return { text: column, expression: false, nameHint: column };
+      }
+    }
     return {
       text: `(${text.replace(/^\(([\s\S]*)\)$/, "$1").trim()})`,
       expression: true,
-      nameHint: "expr",
+      nameHint: figureIndexColname(close > 0 ? text.slice(0, close + 1) : text)?.name ?? "expr",
     };
   }
-  const rest = head[2].trim();
-  if (rest.startsWith("(")) {
-    // Wywołanie funkcji: `lower(email)` - Postgres nazywa element nazwą funkcji.
-    return { text: `(${text})`, expression: true, nameHint: normalizeIdent(head[1]) };
+  const call = CALL_HEAD_RE.exec(text);
+  if (call !== null) {
+    // Wywołanie funkcji: `lower(email)` - Postgres nazywa element nazwą funkcji
+    // (bez schematu: `public.f(x)` daje człon `f`).
+    const parts = splitQualified(call[1]);
+    return {
+      text: `(${text})`,
+      expression: true,
+      nameHint: normalizeIdent(parts[parts.length - 1]),
+    };
   }
-  if (rest === "" || COLUMN_ELEMENT_TAIL_RE.test(rest)) {
+  const head = new RegExp(String.raw`^(${IDENT})([\s\S]*)$`).exec(text);
+  const rest = head === null ? null : head[2].trim();
+  if (head !== null && rest !== null && (rest === "" || COLUMN_ELEMENT_TAIL_RE.test(rest))) {
     const column = normalizeIdent(head[1]);
     return { text: column, expression: false, nameHint: column };
   }
@@ -863,7 +1043,11 @@ function applyDropIndex(state: SchemaState, statement: string): boolean {
   for (const raw of splitTopLevelSql(match[1])) {
     const name = publicName(raw);
     if (name === null) continue;
-    state.keys.delete(name);
+    // Indeksu, za którym stoi ograniczenie PK/UNIQUE, `DROP INDEX` nie zdejmie
+    // - Postgres odmawia („cannot drop index … because constraint … requires
+    // it"), także z `IF EXISTS` i `CASCADE`. Klucz zostaje; zdejmuje go
+    // wyłącznie `ALTER TABLE … DROP CONSTRAINT`.
+    if (state.keys.get(name)?.origin === "index") state.keys.delete(name);
     state.plainIndexes.delete(name);
   }
   return true;
@@ -1067,15 +1251,26 @@ function applyAlterTable(state: SchemaState, statement: string, file: string): b
 
     const dropConstraint = DROP_CONSTRAINT_RE.exec(action);
     if (dropConstraint !== null) {
+      // Gołe `CREATE UNIQUE INDEX` NIE jest ograniczeniem: `DROP CONSTRAINT
+      // IF EXISTS <nazwa indeksu>` kończy się w Postgresie NOTICE „does not
+      // exist, skipping" i indeks zostaje (bez `IF EXISTS` - błąd).
       const name = normalizeIdent(dropConstraint[1]);
-      if (state.keys.get(name)?.table === table) state.keys.delete(name);
+      const key = state.keys.get(name);
+      if (key !== undefined && key.table === table && key.origin !== "index") {
+        state.keys.delete(name);
+      }
       continue;
     }
 
     const dropColumn = DROP_COLUMN_RE.exec(action);
     if (dropColumn !== null) {
       const column = normalizeIdent(dropColumn[1]);
-      if (["constraint", "not", "default", "identity", "expression"].includes(column)) continue;
+      // Słowo kluczowe w miejscu nazwy to inna akcja; cytowane `"constraint"`
+      // to już kolumna o takiej nazwie.
+      const keyword = !dropColumn[1].startsWith('"');
+      if (keyword && ["constraint", "not", "default", "identity", "expression"].includes(column)) {
+        continue;
+      }
       state.tables.get(table)?.columns?.delete(column);
       // Postgres zdejmuje każdy indeks i każde ograniczenie tabeli, które
       // dotyka kolumny - także wielokolumnowe, bez CASCADE.
@@ -1091,10 +1286,35 @@ function applyAlterTable(state: SchemaState, statement: string, file: string): b
 
 const DDL_HEAD_RE =
   /\b(?:ALTER\s+TABLE|ALTER\s+INDEX|DROP\s+TABLE|DROP\s+INDEX|CREATE\s+(?:UNIQUE\s+)?INDEX|CREATE\s+(?:(?:GLOBAL|LOCAL)\s+)?(?:(?:TEMP|TEMPORARY|UNLOGGED)\s+)?TABLE|CREATE\s+(?:OR\s+REPLACE\s+)?(?:MATERIALIZED\s+)?VIEW|DROP\s+(?:MATERIALIZED\s+)?VIEW)\b/i;
+/**
+ * Słowa, przy których tekst dynamicznego polecenia może zmienić klucz
+ * unikalny: ADD/DROP CONSTRAINT, CREATE/DROP/ALTER INDEX, RENAME, DROP
+ * COLUMN/TABLE, PRIMARY KEY/UNIQUE, CREATE TABLE, SET SCHEMA (tabela wychodzi
+ * z `public`). Szerokie celowo - nadmiar kosztuje wpis w zapadce, niedomiar
+ * to cicha zieleń.
+ */
 const KEY_DDL_HINT_RE =
-  /\b(?:UNIQUE|PRIMARY\s+KEY|CONSTRAINT|INDEX|RENAME|DROP\s+TABLE|DROP\s+COLUMN|CREATE\s+TABLE)\b/i;
+  /\b(?:UNIQUE|PRIMARY\s+KEY|CONSTRAINT|INDEX|RENAME|DROP\s+TABLE|DROP\s+COLUMN|CREATE\s+TABLE|SET\s+SCHEMA)\b/i;
 
-/** Ciało bloku `DO` - patrz „POLITYKA BLOKÓW DO" w nagłówku. */
+/** Treść wszystkich literałów (`'…'`, `E'…'`, `$tag$…$tag$`) tekstu SQL, sklejona spacją. */
+function literalText(sql: string): string {
+  const out: string[] = [];
+  lexSql(sql, (kind, start, end) => {
+    if (kind === "literal") out.push(sql.slice(start, end));
+  });
+  return out.join(" ");
+}
+
+/** Argument `EXECUTE` będący JEDNYM literałem - jego tekst SQL; inaczej `null`. */
+function singleLiteralSql(argument: string): string | null {
+  const quoted = /^(E?)'((?:[^']|'')*)'$/.exec(argument);
+  if (quoted !== null) return quoted[2].replace(/''/g, "'");
+  const dollar = /^(\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$)([\s\S]*)\1$/.exec(argument);
+  if (dollar !== null && !dollar[2].includes(dollar[1])) return dollar[2];
+  return null;
+}
+
+/** Ciało bloku `DO` - patrz „POLITYKA BLOKÓW DO I DYNAMICZNEGO DDL" w nagłówku. */
 function applyDoBlock(state: SchemaState, statement: string, file: string, depth: number): void {
   const head = /^DO\s+(?:LANGUAGE\s+\w+\s+)?/i.exec(statement);
   if (head === null) return;
@@ -1104,24 +1324,48 @@ function applyDoBlock(state: SchemaState, statement: string, file: string, depth
   const bodyStart = tag.index + tag[0].length;
   const bodyEnd = statement.indexOf(tag[0], bodyStart);
   const body = statement.slice(bodyStart, bodyEnd < 0 ? statement.length : bodyEnd);
+  let bodyLiterals: string | null = null;
 
-  for (const fragment of splitSqlStatementsDeep(body)) {
+  for (const fragment of statementsOf(state, file, body)) {
     const view = sqlView(fragment, false);
-    const execute = /\bEXECUTE\b/i.exec(view);
+    // `EXECUTE FUNCTION f()` w `CREATE TRIGGER` to nie dynamiczny SQL.
+    const execute = /\bEXECUTE\b(?!\s+(?:FUNCTION|PROCEDURE)\b)/i.exec(view);
     if (execute !== null) {
       const argument = fragment.slice(execute.index + execute[0].length).trim();
-      const literal = /^(E?)'((?:[^']|'')*)'$/.exec(argument);
-      if (literal !== null) {
-        const sql = literal[2].replace(/''/g, "'");
-        for (const inner of splitSqlStatementsDeep(sql))
+      const sql = singleLiteralSql(argument);
+      if (sql !== null) {
+        for (const inner of statementsOf(state, file, sql)) {
           applyStatement(state, inner, file, depth + 1);
-      } else if (KEY_DDL_HINT_RE.test(argument)) {
+        }
+        continue;
+      }
+      // Tekst polecenia bywa złożony WCZEŚNIEJ w bloku (`v_sql := '…' || …;
+      // EXECUTE v_sql`) albo doklejony ze zmiennej - słowa, które czynią go
+      // groźnym dla kluczy, stoją wtedy w literałach całego ciała, nie
+      // w argumencie. Zakres skanu to więc argument + wszystkie literały bloku.
+      bodyLiterals ??= literalText(body);
+      if (KEY_DDL_HINT_RE.test(`${argument} ${bodyLiterals}`)) {
         state.dynamicDdl.push({ file, text: argument.replace(/\s+/g, " ").slice(0, 200) });
       }
       continue;
     }
     const ddl = DDL_HEAD_RE.exec(view);
     if (ddl !== null) applyStatement(state, fragment.slice(ddl.index), file, depth + 1);
+  }
+}
+
+/**
+ * Podział z zamknięciem na niepewność: tekst, którego lekser nie podzieli,
+ * nie wnosi DDL do modelu, ale trafia do raportu i zapala bramkę - model bez
+ * tego pliku byłby zieloną zgadywanką.
+ */
+function statementsOf(state: SchemaState, file: string, sql: string): string[] {
+  try {
+    return splitSqlStatementsDeep(sql);
+  } catch (error) {
+    if (!(error instanceof MigrationLexError)) throw error;
+    state.unsplittable.push({ file, message: error.message });
+    return [];
   }
 }
 
@@ -1152,7 +1396,7 @@ function applyStatement(state: SchemaState, raw: string, file: string, depth: nu
 export function buildUniqueKeyModel(migrations: readonly MigrationFile[]): UniqueKeyModel {
   const state = new SchemaState();
   for (const { file, sql } of migrations) {
-    for (const statement of splitSqlStatementsDeep(sql)) {
+    for (const statement of statementsOf(state, file, sql)) {
       state.statements += 1;
       applyStatement(state, statement, file, 0);
     }
@@ -1179,6 +1423,7 @@ export function buildUniqueKeyModel(migrations: readonly MigrationFile[]): Uniqu
     tables,
     views: new Set(state.views),
     dynamicDdl: state.dynamicDdl,
+    unsplittable: state.unsplittable,
     statements: state.statements,
   };
 }
@@ -1189,361 +1434,284 @@ export function isArbiterCandidate(key: UniqueKey): boolean {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Leksyka TS: maskowanie napisów
+// Kod TS/TSX: drzewo składniowe kompilatora TypeScript
 // ═══════════════════════════════════════════════════════════════════════════
 
-interface StringToken {
-  readonly start: number;
-  /** Indeks ZA znakiem zamykającym. */
-  readonly end: number;
-  /** Treść; `null` - szablon z `${}` albo napis niedomknięty. */
-  readonly value: string | null;
-}
+/** Nazwa opcji celu konfliktu w supabase-js (`upsert(values, { onConflict })`). */
+const CONFLICT_KEY = "onConflict";
+/** Limit skoków przez stałe/zmienne-zapytania - ochrona przed cyklem `const a = b, b = a`. */
+const MAX_HOPS = 8;
 
-interface LexedSource {
-  /** Kod z komentarzami ORAZ treścią napisów/wyrażeń regularnych zamienioną na spacje. */
-  readonly code: string;
-  readonly strings: ReadonlyMap<number, StringToken>;
-}
-
-const REGEX_PRECEDERS = new Set("(,=:[!&|?{};+-*%<>~^\n".split(""));
-const REGEX_KEYWORDS = new Set(["return", "typeof", "case", "in", "of", "new", "delete", "void"]);
-
-/** Ta sama heurystyka co w `sourceScan.ts`: czy `/` zaczyna wyrażenie regularne. */
-function startsRegex(src: string, i: number): boolean {
-  let j = i - 1;
-  while (j >= 0 && (src[j] === " " || src[j] === "\t")) j -= 1;
-  if (j < 0) return true;
-  if (REGEX_PRECEDERS.has(src[j])) return true;
-  if (/[a-z]/.test(src[j])) {
-    let start = j;
-    while (start > 0 && /[a-zA-Z]/.test(src[start - 1])) start -= 1;
-    return REGEX_KEYWORDS.has(src.slice(start, j + 1));
-  }
-  return false;
-}
+const TARGET_REASON =
+  "wartość `onConflict` nie jest literałem ani stałą napisową tego pliku - cel nie do sprawdzenia";
+const OUTSIDE_REASON =
+  "`onConflict` poza literałem opcji `.upsert(...)` (zmienna z opcjami, pomocnik) - cel nie do powiązania z tabelą";
+const OPTIONS_REASON =
+  "opcje `.upsert(...)` nie są literałem obiektu (zmienna, wywołanie, wyrażenie) - bramka nie widzi, czy niosą `onConflict`";
+const SPREAD_REASON =
+  "opcje `.upsert(...)` rozkładają obiekt (`...`) za ostatnim jawnym `onConflict` - cel może przyjść z rozkładu, a bramka nie widzi jego wartości";
+const COMPUTED_KEY_REASON =
+  "klucz obliczany (`[…]`) w opcjach `.upsert(...)` nie daje się rozstrzygnąć - może to być `onConflict`";
+const ACCESSOR_REASON =
+  "`onConflict` jako metoda albo akcesor w opcjach `.upsert(...)` - cel nie do sprawdzenia";
+const FROM_REASON = "nazwa tabeli w `.from(...)` nie jest literałem ani stałą tego pliku";
+const SCHEMA_REASON = "odbiorca ustawia `.schema(...)` - cel poza schematem public";
+const NO_TABLE_REASON = 'nie da się ustalić tabeli (brak `.from("…")` i literału znanej tabeli)';
+const UNCLASSIFIED_REASON =
+  "wystąpienie `onConflict`, którego przebieg po drzewie składniowym nie sklasyfikował - obrona w głąb";
 
 /**
- * Wejście: źródło PO `bezKomentarzy`. Wyjście: ten sam tekst (ta sama długość
- * i numeracja linii), w którym treść napisów, szablonów i wyrażeń regularnych
- * to spacje, plus mapa napisów po pozycji otwarcia. Dzięki temu składnię
- * (`.upsert(`, `onConflict:`, nawiasy) szuka się bez trafień w treść napisów,
- * a wartości literałów czyta się z mapy.
+ * Opakowania, które nie zmieniają wartości ani odbiorcy: nawiasy, `as`,
+ * `satisfies`, `!`, `<T>x` i `await` (`(await db).from(…)`).
  */
-function lexSource(src: string): LexedSource {
-  const out: string[] = [];
-  const strings = new Map<number, StringToken>();
-  const blank = (ch: string) => (ch === "\n" ? "\n" : " ");
-  let i = 0;
-  while (i < src.length) {
-    const c = src[i];
-    if (c === '"' || c === "'") {
-      const start = i;
-      let value = "";
-      let closed = false;
-      out.push(c);
-      i += 1;
-      // Zwykły napis nie przechodzi przez koniec linii - apostrof w tekście
-      // JSX nie może więc połknąć więcej niż reszty swojej linii.
-      while (i < src.length && src[i] !== "\n") {
-        if (src[i] === "\\") {
-          value += src[i + 1] ?? "";
-          out.push(" ", blank(src[i + 1] ?? " "));
-          i += 2;
-          continue;
-        }
-        if (src[i] === c) {
-          out.push(c);
-          i += 1;
-          closed = true;
-          break;
-        }
-        value += src[i];
-        out.push(" ");
-        i += 1;
-      }
-      strings.set(start, { start, end: i, value: closed ? value : null });
-      continue;
-    }
-    if (c === "`") {
-      const start = i;
-      let value = "";
-      let dynamic = false;
-      let closed = false;
-      let depth = 0;
-      out.push(c);
-      i += 1;
-      while (i < src.length) {
-        const d = src[i];
-        if (depth === 0) {
-          if (d === "\\") {
-            value += src[i + 1] ?? "";
-            out.push(" ", blank(src[i + 1] ?? " "));
-            i += 2;
-            continue;
-          }
-          if (d === "`") {
-            out.push("`");
-            i += 1;
-            closed = true;
-            break;
-          }
-          if (d === "$" && src[i + 1] === "{") {
-            dynamic = true;
-            depth = 1;
-            out.push(" ", " ");
-            i += 2;
-            continue;
-          }
-          value += d;
-          out.push(blank(d));
-          i += 1;
-          continue;
-        }
-        if (d === "{") depth += 1;
-        else if (d === "}") depth -= 1;
-        out.push(blank(d));
-        i += 1;
-      }
-      strings.set(start, { start, end: i, value: closed && !dynamic ? value : null });
-      continue;
-    }
-    if (c === "/" && startsRegex(src, i)) {
-      out.push("/");
-      i += 1;
-      let inClass = false;
-      while (i < src.length && src[i] !== "\n") {
-        const d = src[i];
-        if (d === "\\") {
-          out.push(" ", blank(src[i + 1] ?? " "));
-          i += 2;
-          continue;
-        }
-        if (d === "[") inClass = true;
-        else if (d === "]") inClass = false;
-        else if (d === "/" && !inClass) {
-          out.push("/");
-          i += 1;
-          break;
-        }
-        out.push(" ");
-        i += 1;
-      }
-      continue;
-    }
-    out.push(c);
-    i += 1;
+function unwrap(node: ts.Expression): ts.Expression {
+  let current = node;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isAwaitExpression(current)
+  ) {
+    current = current.expression;
   }
-  return { code: out.join(""), strings };
+  return current;
 }
 
-/** Indeks nawiasu zamykającego w kodzie z zamaskowanymi napisami. */
-function matchCloseTs(code: string, open: number): number {
-  const pairs: Record<string, string> = { "(": ")", "[": "]", "{": "}" };
-  const stack: string[] = [];
-  for (let i = open; i < code.length; i += 1) {
-    const ch = code[i];
-    if (ch in pairs) stack.push(pairs[ch]);
-    else if (ch === ")" || ch === "]" || ch === "}") {
-      stack.pop();
-      if (stack.length === 0) return i;
-    }
+/** Nazwa członu wywołania: `x.m` / `x?.m` / `x["m"]`; inaczej `null`. */
+function memberName(callee: ts.Expression): string | null {
+  if (ts.isPropertyAccessExpression(callee)) return callee.name.text;
+  if (ts.isElementAccessExpression(callee) && ts.isStringLiteralLike(callee.argumentExpression)) {
+    return callee.argumentExpression.text;
   }
-  return -1;
+  return null;
 }
 
-/** Zakresy argumentów wywołania - przecinki najwyższego poziomu między nawiasami. */
-function argumentRanges(code: string, open: number, close: number): [number, number][] {
-  const ranges: [number, number][] = [];
-  let depth = 0;
-  let start = open + 1;
-  for (let i = open + 1; i < close; i += 1) {
-    const ch = code[i];
-    if (ch === "(" || ch === "[" || ch === "{") depth += 1;
-    else if (ch === ")" || ch === "]" || ch === "}") depth -= 1;
-    else if (ch === "," && depth === 0) {
-      ranges.push([start, i]);
-      start = i + 1;
-    }
-  }
-  if (code.slice(start, close).trim() !== "") ranges.push([start, close]);
-  return ranges;
+/** Odbiorca członu (`x` w `x.m`) - wołać tylko, gdy `memberName` dał nazwę. */
+function memberReceiver(callee: ts.Expression): ts.Expression {
+  return (callee as ts.PropertyAccessExpression | ts.ElementAccessExpression).expression;
 }
+
+function isUpsertCall(node: ts.Node): node is ts.CallExpression {
+  return ts.isCallExpression(node) && memberName(unwrap(node.expression)) === "upsert";
+}
+
+// ── Rozwiązywanie nazw: zasięgi leksykalne ──────────────────────────────────
 
 /**
- * Początek wyrażenia-odbiorcy dla `.upsert` na pozycji `dot`: cofamy się przez
- * łańcuch (wywołania, indeksowanie, rzutowania w nawiasach) aż do granicy
- * wyrażenia na najniższym poziomie.
+ * Co stoi za identyfikatorem w miejscu użycia. Liczy się NAJBLIŻSZA
+ * deklaracja na ścieżce zasięgów od użycia w górę - dokładnie jak w JS - więc
+ * stała pliku przesłonięta parametrem, `let`, destrukturyzacją, zmienną pętli
+ * albo `catch` to ta przesłaniająca wiązka, nie stała.
  */
-function receiverStart(code: string, dot: number): number {
-  let depth = 0;
-  for (let i = dot - 1; i >= 0; i -= 1) {
-    const ch = code[i];
-    if (ch === '"' || ch === "'" || ch === "`") {
-      // Treść napisów jest zamaskowana - otwarcie to poprzedni ten sam znak.
-      const open = code.lastIndexOf(ch, i - 1);
-      i = open < 0 ? 0 : open;
-      continue;
-    }
-    if (ch === ")" || ch === "]" || ch === "}") depth += 1;
-    else if (ch === "(" || ch === "[" || ch === "{") {
-      if (depth === 0) return i + 1;
-      depth -= 1;
-    } else if (depth === 0) {
-      if (ch === ";" || ch === "," || ch === "=" || ch === ":" || ch === "&" || ch === "|") {
-        return i + 1;
+type Binding =
+  | { readonly kind: "const"; readonly initializer: ts.Expression }
+  | { readonly kind: "other"; readonly detail: string }
+  | { readonly kind: "none" };
+
+function isBlockScopedList(list: ts.VariableDeclarationList): boolean {
+  return (list.flags & ts.NodeFlags.BlockScoped) !== 0;
+}
+
+/** Deklaracje nazwy `wanted` we wzorcu wiązania; właścicielem jest deklaracja albo element wzorca. */
+function collectBinding(
+  name: ts.BindingName,
+  wanted: string,
+  owner: ts.Node,
+  out: ts.Node[],
+): void {
+  if (ts.isIdentifier(name)) {
+    if (name.text === wanted) out.push(owner);
+    return;
+  }
+  for (const element of name.elements) {
+    if (ts.isBindingElement(element)) collectBinding(element.name, wanted, element, out);
+  }
+}
+
+function collectList(list: ts.VariableDeclarationList, wanted: string, out: ts.Node[]): void {
+  for (const declaration of list.declarations)
+    collectBinding(declaration.name, wanted, declaration, out);
+}
+
+/** Deklaracje blokowe (`let`/`const`, funkcje, klasy, enumy, importy) bezpośrednio w liście instrukcji. */
+function collectStatements(
+  statements: readonly ts.Statement[],
+  wanted: string,
+  out: ts.Node[],
+): void {
+  for (const statement of statements) {
+    if (ts.isVariableStatement(statement)) {
+      if (isBlockScopedList(statement.declarationList)) {
+        collectList(statement.declarationList, wanted, out);
       }
-      if (ch === "?" && code[i + 1] !== ".") return i + 1;
+    } else if (
+      (ts.isFunctionDeclaration(statement) ||
+        ts.isClassDeclaration(statement) ||
+        ts.isEnumDeclaration(statement)) &&
+      statement.name?.text === wanted
+    ) {
+      out.push(statement);
+    } else if (ts.isImportDeclaration(statement) && statement.importClause !== undefined) {
+      const clause = statement.importClause;
+      if (clause.name?.text === wanted) out.push(clause);
+      const bindings = clause.namedBindings;
+      if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
+        if (bindings.name.text === wanted) out.push(bindings);
+      } else if (bindings !== undefined) {
+        for (const element of bindings.elements)
+          if (element.name.text === wanted) out.push(element);
+      }
+    } else if (ts.isImportEqualsDeclaration(statement) && statement.name.text === wanted) {
+      out.push(statement);
     }
   }
-  return 0;
 }
 
-function lineOf(code: string, index: number): number {
-  let line = 1;
-  for (let i = 0; i < index && i < code.length; i += 1) if (code[i] === "\n") line += 1;
-  return line;
+/** `var` wynoszone do zasięgu funkcji (albo pliku) - z dowolnie głębokich bloków, bez zagnieżdżonych funkcji. */
+function collectHoistedVars(root: ts.Node, wanted: string, out: ts.Node[]): void {
+  const visit = (node: ts.Node): void => {
+    if (ts.isFunctionLike(node) || ts.isClassLike(node)) return;
+    if (ts.isVariableDeclarationList(node) && !isBlockScopedList(node))
+      collectList(node, wanted, out);
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(root, visit);
 }
 
-function excerptAt(raw: string, index: number): string {
-  const start = raw.lastIndexOf("\n", index - 1) + 1;
-  const end = raw.indexOf("\n", index);
-  return raw.slice(start, end < 0 ? raw.length : end).trim();
+function isFunctionScope(node: ts.Node): node is ts.FunctionLikeDeclaration {
+  return (
+    ts.isFunctionDeclaration(node) ||
+    ts.isFunctionExpression(node) ||
+    ts.isArrowFunction(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isConstructorDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isSetAccessorDeclaration(node)
+  );
 }
 
-/**
- * Stałe napisowe pliku: `const NAZWA = "…"` (także `as const` i z adnotacją
- * typu). Nazwa zadeklarowana w pliku więcej niż raz jest niejednoznaczna
- * (cieniowanie) - wtedy brak wpisu i cel trafia do nierozstrzygniętych.
- */
-function stringConstants(lexed: LexedSource): Map<string, string | null> {
-  // Wyłącznie `const`: `let` można nadpisać, więc jego wartość z deklaracji
-  // nie jest wartością w miejscu wywołania.
-  const re = /\bconst\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*/g;
-  const out = new Map<string, string | null>();
-  let match: RegExpExecArray | null;
-  while ((match = re.exec(lexed.code)) !== null) {
-    const token = lexed.strings.get(match.index + match[0].length);
-    const tail = token === undefined ? "" : lexed.code.slice(token.end);
-    const value =
-      token !== undefined && token.value !== null && /^\s*(?:as\s+const\s*)?[;,\n)]/.test(tail)
-        ? token.value
-        : null;
-    out.set(match[1], out.has(match[1]) ? null : value);
+/** Deklaracje nazwy wprowadzane przez JEDEN węzeł-zasięg. */
+function declarationsIn(scope: ts.Node, wanted: string): ts.Node[] {
+  const out: ts.Node[] = [];
+  if (ts.isSourceFile(scope)) {
+    collectStatements(scope.statements, wanted, out);
+    collectHoistedVars(scope, wanted, out);
+  } else if (ts.isBlock(scope) || ts.isModuleBlock(scope)) {
+    collectStatements(scope.statements, wanted, out);
+  } else if (ts.isCaseBlock(scope)) {
+    for (const clause of scope.clauses) collectStatements(clause.statements, wanted, out);
+  } else if (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) {
+    const init = scope.initializer;
+    if (init !== undefined && ts.isVariableDeclarationList(init) && isBlockScopedList(init)) {
+      collectList(init, wanted, out);
+    }
+  } else if (ts.isCatchClause(scope)) {
+    const variable = scope.variableDeclaration;
+    if (variable !== undefined) collectBinding(variable.name, wanted, variable, out);
+  } else if (isFunctionScope(scope)) {
+    for (const parameter of scope.parameters)
+      collectBinding(parameter.name, wanted, parameter, out);
+    if (ts.isFunctionExpression(scope) && scope.name?.text === wanted) out.push(scope);
+    if (scope.body !== undefined) collectHoistedVars(scope.body, wanted, out);
+  } else if (ts.isClassExpression(scope) && scope.name?.text === wanted) {
+    out.push(scope);
   }
   return out;
 }
 
-/** Literał napisowy zaczynający się na `at` (po białych znakach), z granicą wyrażenia. */
-function literalAt(lexed: LexedSource, at: number): StringToken | null {
-  let j = at;
-  while (j < lexed.code.length && /\s/.test(lexed.code[j])) j += 1;
-  const token = lexed.strings.get(j);
-  if (token === undefined) return null;
-  const tail = lexed.code.slice(token.end);
-  return /^\s*(?:as\s+const\s*)?[,})\]]/.test(tail) ? token : null;
+function classifyDeclaration(node: ts.Node): Binding {
+  const other = (detail: string): Binding => ({ kind: "other", detail });
+  if (ts.isVariableDeclaration(node)) {
+    if (ts.isCatchClause(node.parent)) return other("zmienna `catch`");
+    const list = node.parent;
+    if (ts.isForOfStatement(list.parent) || ts.isForInStatement(list.parent)) {
+      return other("zmienna pętli `for … of/in`");
+    }
+    // `using`/`await using` mają własne bity - stała to WYŁĄCZNIE `const`.
+    if ((list.flags & ts.NodeFlags.BlockScoped) !== ts.NodeFlags.Const) {
+      return other("`let`/`var` - wartość może się zmienić przed wywołaniem");
+    }
+    if (node.initializer === undefined) return other("`const` bez inicjalizatora");
+    return { kind: "const", initializer: node.initializer };
+  }
+  if (ts.isParameter(node)) return other("parametr funkcji - wartość przychodzi z wywołania");
+  if (ts.isBindingElement(node)) return other("destrukturyzacja - wartość przychodzi z obiektu");
+  if (
+    ts.isImportClause(node) ||
+    ts.isImportSpecifier(node) ||
+    ts.isNamespaceImport(node) ||
+    ts.isImportEqualsDeclaration(node)
+  ) {
+    return other("import - wartość spoza pliku");
+  }
+  return other("funkcja, klasa albo enum - nie napis");
 }
 
-interface ConflictProperty {
-  /** Pozycja nazwy właściwości. */
-  readonly at: number;
-  /** Pozycja ZA dwukropkiem. */
-  readonly valueAt: number;
+function resolveBinding(identifier: ts.Identifier): Binding {
+  for (let scope: ts.Node | undefined = identifier.parent; scope; scope = scope.parent) {
+    const found = declarationsIn(scope, identifier.text);
+    if (found.length > 1)
+      return { kind: "other", detail: "kilka deklaracji tej nazwy w jednym zasięgu" };
+    if (found.length === 1) return classifyDeclaration(found[0]);
+  }
+  return { kind: "none" };
 }
 
-/**
- * Wszystkie właściwości `onConflict: …` (także `"onConflict": …`) poza typami.
- * `onConflict?: string` i `onConflict: string` w typie nie są celem konfliktu.
- */
-function conflictProperties(lexed: LexedSource): ConflictProperty[] {
-  const out: ConflictProperty[] = [];
-  const identRe = /(?<![\w$.])onConflict\s*(\?\s*)?:/g;
-  let match: RegExpExecArray | null;
-  while ((match = identRe.exec(lexed.code)) !== null) {
-    if (match[1] !== undefined) continue;
-    out.push({ at: match.index, valueAt: match.index + match[0].length });
-  }
-  // Skrót `{ onConflict }` - wartością jest zmienna o tej nazwie; bez tego
-  // wpisu cel przechodziłby obok bramki bez śladu.
-  const shorthandRe = /(?<![\w$.])onConflict(?=\s*[,}])/g;
-  while ((match = shorthandRe.exec(lexed.code)) !== null) {
-    out.push({ at: match.index, valueAt: match.index });
-  }
-  for (const token of lexed.strings.values()) {
-    if (token.value !== "onConflict") continue;
-    const colon = /^\s*:/.exec(lexed.code.slice(token.end));
-    if (colon !== null) out.push({ at: token.start, valueAt: token.end + colon[0].length });
-  }
-  return out
-    .filter(({ valueAt }) => {
-      const value = lexed.code.slice(valueAt, valueAt + 64);
-      return !/^\s*(?:string|undefined|null|never)\b\s*(?:[;,})|]|$)/.test(value);
-    })
-    .sort((a, b) => a.at - b.at);
+interface StringValue {
+  readonly value: string;
+  /** Nazwa stałej w miejscu użycia, gdy wartość nie była literałem. */
+  readonly viaConstant: string | null;
+  /** Węzeł w miejscu użycia (literał albo identyfikator) - do numeru linii. */
+  readonly node: ts.Node;
 }
 
-/** Tabela z odbiorcy: najbliższe `.from("…")`, potem pomocnik z literałem znanej tabeli. */
-function resolveTable(
-  lexed: LexedSource,
-  constants: ReadonlyMap<string, string | null>,
-  start: number,
-  end: number,
+/** Napis znany statycznie: literał, szablon bez `${}` albo `const` z takim inicjalizatorem. */
+function resolveString(expression: ts.Expression, hops = 0): StringValue | { reason: string } {
+  const node = unwrap(expression);
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    return { value: node.text, viaConstant: null, node };
+  }
+  if (ts.isTemplateExpression(node)) return { reason: "szablon z `${}`" };
+  if (!ts.isIdentifier(node)) return { reason: "wyrażenie, nie literał ani stała" };
+  const binding = resolveBinding(node);
+  if (binding.kind === "none") return { reason: `\`${node.text}\` nie ma deklaracji w tym pliku` };
+  if (binding.kind === "other") return { reason: `\`${node.text}\`: ${binding.detail}` };
+  if (hops >= MAX_HOPS) return { reason: "zbyt długi łańcuch stałych" };
+  const inner = resolveString(binding.initializer, hops + 1);
+  if ("reason" in inner) return { reason: `stała \`${node.text}\` - ${inner.reason}` };
+  return { value: inner.value, viaConstant: node.text, node };
+}
+
+/** Klucz członu literału obiektu; `null` - klucz obliczany, którego nie da się rozstrzygnąć. */
+function propertyKey(member: ts.ObjectLiteralElementLike): string | null {
+  if (ts.isSpreadAssignment(member)) return null;
+  const name = member.name;
+  if (ts.isComputedPropertyName(name)) {
+    const key = resolveString(name.expression);
+    return "reason" in key ? null : key.value;
+  }
+  if (ts.isIdentifier(name) || ts.isPrivateIdentifier(name)) return name.text;
+  if (ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) return name.text;
+  return null;
+}
+
+// ── Tabela z łańcucha odbiorcy ──────────────────────────────────────────────
+
+/** Wynik zejścia po łańcuchu: tabela, twardy powód albo „to ogniwo nie mówi nic" (`soft`). */
+type ReceiverTable =
+  { readonly table: string } | { readonly reason: string } | { readonly soft: true };
+
+/** Pomocnik: `write(context, "crm_leads")` - literał w argumentach nazywający znaną tabelę. */
+function helperTable(
+  call: ts.CallExpression,
   knownTables: ReadonlySet<string>,
-  depth = 0,
-): { table: string } | { reason: string } {
-  const receiver = lexed.code.slice(start, end);
-  const schema = /\.schema\s*\(\s*/g.exec(receiver);
-  if (schema !== null) {
-    const token = literalAt(lexed, start + schema.index + schema[0].length);
-    if (token?.value !== "public") {
-      return { reason: "odbiorca ustawia `.schema(...)` - cel poza schematem public" };
-    }
-  }
-
-  const fromRe = /\.from\s*(?:<[^>()]*>\s*)?\(\s*/g;
-  let last: RegExpExecArray | null = null;
-  let match: RegExpExecArray | null;
-  while ((match = fromRe.exec(receiver)) !== null) last = match;
-  if (last !== null) {
-    const at = start + last.index + last[0].length;
-    const token = literalAt(lexed, at) ?? lexed.strings.get(at) ?? null;
-    if (token !== null) {
-      return token.value === null
-        ? { reason: "nazwa tabeli w `.from(...)` jest szablonem z `${}`" }
-        : { table: token.value };
-    }
-    const ident = /^([A-Za-z_$][\w$]*)\s*(?:as\s+[^)]*)?\)/.exec(lexed.code.slice(at));
-    const constant = ident === null ? undefined : constants.get(ident[1]);
-    if (constant !== undefined && constant !== null) return { table: constant };
-    return { reason: "nazwa tabeli w `.from(...)` nie jest literałem ani stałą tego pliku" };
-  }
-
-  // Odbiorca bez `.from`: zmienna z zapytaniem (`const q = db.from("t")`).
-  const bare = /^\s*(?:(?:return|await|yield)\s+)*([A-Za-z_$][\w$]*)\s*$/.exec(receiver);
-  if (bare !== null && depth === 0) {
-    const decl = new RegExp(
-      String.raw`\bconst\s+${bare[1].replace(/\$/g, "\\$")}\s*(?::[^=;]+)?=`,
-    ).exec(lexed.code.slice(0, start));
-    if (decl !== null) {
-      const initStart = decl.index + decl[0].length;
-      const semi = lexed.code.indexOf(";", initStart);
-      const resolved = resolveTable(
-        lexed,
-        constants,
-        initStart,
-        semi < 0 ? start : Math.min(semi, start),
-        knownTables,
-        depth + 1,
-      );
-      if ("table" in resolved) return resolved;
-    }
-  }
-
-  // Pomocnik: `write(context, "crm_leads").upsert(...)`.
+): ReceiverTable | null {
   const candidates = new Set<string>();
-  for (const token of lexed.strings.values()) {
-    if (token.start < start || token.end > end || token.value === null) continue;
-    if (knownTables.has(token.value)) candidates.add(token.value);
+  for (const argument of call.arguments) {
+    const node = unwrap(argument);
+    if (ts.isStringLiteralLike(node) && knownTables.has(node.text)) candidates.add(node.text);
   }
   if (candidates.size === 1) return { table: [...candidates][0] };
   if (candidates.size > 1) {
@@ -1551,8 +1719,106 @@ function resolveTable(
       reason: `odbiorca wskazuje kilka znanych tabel: ${[...candidates].sort().join(", ")}`,
     };
   }
-  return { reason: 'nie da się ustalić tabeli (brak `.from("…")` i literału znanej tabeli)' };
+  return null;
 }
+
+/**
+ * `.schema("x")` z `x` innym niż `public` gdziekolwiek NIŻEJ w łańcuchu (także
+ * przez stałą-klienta `const db = supabase.schema("x")`) - powód; inaczej `null`.
+ */
+function schemaBelow(expression: ts.Expression, hops: number): string | null {
+  let node = unwrap(expression);
+  for (let step = 0; step < 64; step += 1) {
+    if (ts.isCallExpression(node)) {
+      const callee = unwrap(node.expression);
+      const method = memberName(callee);
+      if (method === null) return null;
+      if (method === "schema") {
+        const argument = node.arguments[0];
+        const schema = argument === undefined ? null : resolveString(argument);
+        if (schema === null || "reason" in schema || schema.value !== "public")
+          return SCHEMA_REASON;
+      }
+      node = unwrap(memberReceiver(callee));
+    } else if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      node = unwrap(node.expression);
+    } else if (ts.isIdentifier(node) && hops < MAX_HOPS) {
+      const binding = resolveBinding(node);
+      if (binding.kind !== "const") return null;
+      node = unwrap(binding.initializer);
+      hops += 1;
+    } else {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Tabela odbiorcy `.upsert`: schodzimy po WĘZŁACH łańcucha (nie po tekście),
+ * więc blok `if`/`for`/`try` przed instrukcją nie ma jak się wmieszać.
+ * Pierwsze `.from(…)` od strony `.upsert` wygrywa; zmienna-zapytanie
+ * prowadzi do inicjalizatora swojej NAJBLIŻSZEJ deklaracji `const`.
+ */
+function receiverTable(
+  expression: ts.Expression,
+  knownTables: ReadonlySet<string>,
+  hops: number,
+): ReceiverTable {
+  const node = unwrap(expression);
+  if (hops > MAX_HOPS * 4) return { reason: "łańcuch odbiorcy zbyt długi" };
+  if (ts.isCallExpression(node)) {
+    const callee = unwrap(node.expression);
+    const method = memberName(callee);
+    if (method === "from") {
+      const argument = node.arguments[0];
+      const table = argument === undefined ? null : resolveString(argument);
+      if (table === null) return { reason: FROM_REASON };
+      if ("reason" in table) return { reason: `${FROM_REASON} (${table.reason})` };
+      // `.schema("x")` NIŻEJ w łańcuchu przestawia także to `.from`.
+      const below = schemaBelow(memberReceiver(callee), hops);
+      return below === null ? { table: table.value } : { reason: below };
+    }
+    if (method === "schema") {
+      const below = schemaBelow(node, hops);
+      if (below !== null) return { reason: below };
+      return receiverTable(memberReceiver(callee), knownTables, hops + 1);
+    }
+    if (method !== null) {
+      const inner = receiverTable(memberReceiver(callee), knownTables, hops + 1);
+      if (!("soft" in inner)) return inner;
+      return helperTable(node, knownTables) ?? inner;
+    }
+    return helperTable(node, knownTables) ?? { soft: true };
+  }
+  if (ts.isIdentifier(node)) {
+    const binding = resolveBinding(node);
+    if (binding.kind === "const") return receiverTable(binding.initializer, knownTables, hops + 1);
+    if (binding.kind === "other") {
+      return { reason: `odbiorca \`${node.text}\`: ${binding.detail} - tabela nie do ustalenia` };
+    }
+    return { soft: true };
+  }
+  if (ts.isConditionalExpression(node)) {
+    const whenTrue = receiverTable(node.whenTrue, knownTables, hops + 1);
+    const whenFalse = receiverTable(node.whenFalse, knownTables, hops + 1);
+    if ("table" in whenTrue && "table" in whenFalse && whenTrue.table === whenFalse.table) {
+      return whenTrue;
+    }
+    return { reason: "odbiorca wybiera zapytanie warunkowo (`? :`) - tabela nie do ustalenia" };
+  }
+  return { soft: true };
+}
+
+function tableOf(
+  call: ts.CallExpression,
+  knownTables: ReadonlySet<string>,
+): { table: string } | { reason: string } {
+  const resolved = receiverTable(memberReceiver(unwrap(call.expression)), knownTables, 0);
+  return "soft" in resolved ? { reason: NO_TABLE_REASON } : resolved;
+}
+
+// ── Przebieg po pliku ───────────────────────────────────────────────────────
 
 /** Normalizacja celu tak, jak widzi go PostgREST: przecinki, bez cudzysłowów. */
 export function parseConflictTarget(target: string): string[] {
@@ -1568,6 +1834,263 @@ export interface ExtractedTargets {
   readonly upsertCalls: number;
 }
 
+interface FileScan {
+  readonly file: string;
+  readonly raw: string;
+  readonly source: ts.SourceFile;
+  readonly knownTables: ReadonlySet<string>;
+  readonly sites: OnConflictSite[];
+  readonly unresolved: UnresolvedOnConflict[];
+  /** Członkowie literałów z kluczem `onConflict`, które przebieg rozstrzygnął (cel albo powód). */
+  readonly classified: Set<ts.Node>;
+  /** Literały opcji `.upsert(...)` - poza nimi `onConflict` to osobna kategoria. */
+  readonly upsertOptions: Set<ts.Node>;
+}
+
+function lineAt(scan: FileScan, position: number): number {
+  return scan.source.getLineAndCharacterOfPosition(position).line + 1;
+}
+
+function report(scan: FileScan, at: ts.Node | number, reason: string): void {
+  const position = typeof at === "number" ? at : at.getStart(scan.source);
+  const start = scan.raw.lastIndexOf("\n", position - 1) + 1;
+  const end = scan.raw.indexOf("\n", position);
+  scan.unresolved.push({
+    file: scan.file,
+    line: lineAt(scan, position),
+    reason,
+    excerpt: scan.raw.slice(start, end < 0 ? scan.raw.length : end).trim(),
+  });
+}
+
+/** Opcje `undefined`/`null`/`void 0` - brak celu, PostgREST bierze klucz główny. */
+function isNullish(node: ts.Expression): boolean {
+  return (
+    (ts.isIdentifier(node) && node.text === "undefined") ||
+    node.kind === ts.SyntaxKind.NullKeyword ||
+    ts.isVoidExpression(node)
+  );
+}
+
+function scanUpsert(scan: FileScan, call: ts.CallExpression): void {
+  if (call.arguments.some((argument) => ts.isSpreadElement(argument))) {
+    report(scan, call.arguments[0], OPTIONS_REASON);
+    return;
+  }
+  const argument = call.arguments[1];
+  if (argument === undefined) return;
+  const options = unwrap(argument);
+  if (isNullish(options)) return;
+  if (!ts.isObjectLiteralExpression(options)) {
+    report(scan, argument, OPTIONS_REASON);
+    return;
+  }
+  scan.upsertOptions.add(options);
+
+  const targets: ts.ObjectLiteralElementLike[] = [];
+  let lastTarget = -1;
+  let lastSpread = -1;
+  options.properties.forEach((member, index) => {
+    if (ts.isSpreadAssignment(member)) {
+      lastSpread = index;
+      return;
+    }
+    const key = propertyKey(member);
+    if (key === null) {
+      report(scan, member, COMPUTED_KEY_REASON);
+    } else if (key === CONFLICT_KEY) {
+      targets.push(member);
+      lastTarget = index;
+    }
+  });
+  // Późniejszy klucz literału nadpisuje wcześniejszy - rozkład PRZED jawnym
+  // `onConflict` nie zmieni celu, rozkład ZA nim (albo bez niego) już tak.
+  if (lastSpread > lastTarget) report(scan, options.properties[lastSpread], SPREAD_REASON);
+  if (targets.length === 0) return;
+
+  const table = tableOf(call, scan.knownTables);
+  for (const member of targets) {
+    scan.classified.add(member);
+    const value = ts.isPropertyAssignment(member)
+      ? member.initializer
+      : ts.isShorthandPropertyAssignment(member)
+        ? member.name
+        : null;
+    if (value === null) {
+      report(scan, member, ACCESSOR_REASON);
+      continue;
+    }
+    // `onConflict: undefined` - supabase-js pomija wtedy `on_conflict`
+    // (`if (onConflict !== undefined)`), konflikt idzie po kluczu głównym.
+    const plain = unwrap(value);
+    if (
+      ts.isIdentifier(plain) &&
+      plain.text === "undefined" &&
+      resolveBinding(plain).kind === "none"
+    ) {
+      continue;
+    }
+    const target = resolveString(value);
+    if ("reason" in target) {
+      report(scan, member, `${TARGET_REASON} (${target.reason})`);
+      continue;
+    }
+    if ("reason" in table) {
+      report(scan, member, table.reason);
+      continue;
+    }
+    const columns = parseConflictTarget(target.value);
+    if (columns.length === 0) {
+      report(scan, member, "pusty cel `onConflict`");
+      continue;
+    }
+    scan.sites.push({
+      file: scan.file,
+      line: lineAt(scan, target.node.getStart(scan.source)),
+      table: table.table,
+      target: target.value,
+      columns,
+      viaConstant: target.viaConstant,
+    });
+  }
+}
+
+/** Każdy literał obiektu POZA opcjami `.upsert(...)` z kluczem `onConflict` - zamknięte na niepewność. */
+function scanStrayObjects(scan: FileScan, node: ts.Node): void {
+  if (ts.isObjectLiteralExpression(node) && !scan.upsertOptions.has(node)) {
+    for (const member of node.properties) {
+      if (ts.isSpreadAssignment(member) || propertyKey(member) !== CONFLICT_KEY) continue;
+      scan.classified.add(member);
+      report(scan, member, OUTSIDE_REASON);
+    }
+  }
+  ts.forEachChild(node, (child) => scanStrayObjects(scan, child));
+}
+
+/**
+ * Gdzie w drzewie leży pozycja: token (z `getChildren`, więc także
+ * interpunkcja), `"comment"` - komentarz w trywiach (także JSDoc i komentarz
+ * za kodem w tej samej linii), albo `null` - trywia bez komentarza.
+ */
+function locate(source: ts.SourceFile, position: number): ts.Node | "comment" | null {
+  let node: ts.Node = source;
+  for (;;) {
+    let child: ts.Node | undefined;
+    for (const candidate of node.getChildren(source)) {
+      // JSDoc jako dziecko zaczyna się w trywiach następnego tokenu - pomijamy
+      // je, żeby komentarz rozpoznał `forEach…CommentRange` niżej.
+      if (candidate.kind === ts.SyntaxKind.JSDoc) continue;
+      if (candidate.pos <= position && position < candidate.end) {
+        child = candidate;
+        break;
+      }
+    }
+    if (child === undefined) return null;
+    if (position < child.getStart(source)) {
+      let comment = false;
+      const within = (pos: number, end: number): void => {
+        if (pos <= position && position < end) comment = true;
+      };
+      ts.forEachLeadingCommentRange(source.text, child.pos, within);
+      ts.forEachTrailingCommentRange(source.text, child.pos, within);
+      return comment ? "comment" : null;
+    }
+    if (child.getChildCount(source) === 0) return child;
+    node = child;
+  }
+}
+
+/** Węzły-tokeny, w których tekście może stać słowo: identyfikatory, literały, JSX, regex. */
+function isTextToken(node: ts.Node): boolean {
+  return (
+    ts.isIdentifier(node) ||
+    ts.isPrivateIdentifier(node) ||
+    ts.isStringLiteralLike(node) ||
+    ts.isTemplateLiteralToken(node) ||
+    ts.isRegularExpressionLiteral(node) ||
+    ts.isJsxText(node)
+  );
+}
+
+/** Członek literału obiektu, którego NAZWĄ (wprost albo w `[…]`) jest ten token. */
+function memberNamedBy(token: ts.Node): ts.ObjectLiteralElementLike | null {
+  const owner = ts.isComputedPropertyName(token.parent) ? token.parent.parent : token.parent;
+  const name = ts.isComputedPropertyName(token.parent) ? token.parent : token;
+  if (
+    owner !== undefined &&
+    ts.isObjectLiteralElementLike(owner) &&
+    !ts.isSpreadAssignment(owner) &&
+    ts.isObjectLiteralExpression(owner.parent) &&
+    owner.name === name
+  ) {
+    return owner;
+  }
+  return null;
+}
+
+/**
+ * Obrona w głąb: KAŻDE tekstowe wystąpienie `onConflict` poza komentarzem
+ * musi siedzieć w tokenie tekstowym, a jeśli jest nazwą członu literału
+ * obiektu z kluczem `onConflict` - ten członek musi być rozstrzygnięty przez
+ * przebieg wyżej. Wszystko inne jest czerwone, a nie pominięte: rozjazd
+ * między tekstem a drzewem to dokładnie ta klasa błędu, przez którą dawny
+ * lekser gubił resztę pliku.
+ */
+function checkTextualOccurrences(scan: FileScan): void {
+  const word = new RegExp(CONFLICT_KEY, "g");
+  let match: RegExpExecArray | null;
+  while ((match = word.exec(scan.raw)) !== null) {
+    const where = locate(scan.source, match.index);
+    if (where === "comment") continue;
+    if (where === null || !isTextToken(where)) {
+      report(scan, match.index, UNCLASSIFIED_REASON);
+      continue;
+    }
+    const member = memberNamedBy(where);
+    if (member !== null && propertyKey(member) === CONFLICT_KEY && !scan.classified.has(member)) {
+      report(scan, match.index, UNCLASSIFIED_REASON);
+    }
+  }
+}
+
+/** Błędy składni plików przez publiczne API programu (bez typów, bez lib, bez importów). */
+function syntaxErrors(sources: readonly ts.SourceFile[]): Map<ts.SourceFile, ts.Diagnostic> {
+  const byName = new Map(sources.map((source) => [source.fileName, source]));
+  const host: ts.CompilerHost = {
+    getSourceFile: (name) => byName.get(name),
+    getDefaultLibFileName: () => "lib.d.ts",
+    writeFile: () => undefined,
+    getCurrentDirectory: () => "",
+    getCanonicalFileName: (name) => name,
+    useCaseSensitiveFileNames: () => true,
+    getNewLine: () => "\n",
+    fileExists: (name) => byName.has(name),
+    readFile: () => undefined,
+  };
+  const program = ts.createProgram({
+    rootNames: [...byName.keys()],
+    options: { noLib: true, noResolve: true, types: [] },
+    host,
+  });
+  const out = new Map<ts.SourceFile, ts.Diagnostic>();
+  for (const source of sources) {
+    const [first] = program.getSyntacticDiagnostics(source);
+    if (first !== undefined) out.set(source, first);
+  }
+  return out;
+}
+
+/**
+ * Każdy plik jak moduł ES - tak ładuje go Vite. W „skrypcie" (plik bez
+ * `import`/`export`) TypeScript czyta `await (x).upsert(…)` na najwyższym
+ * poziomie jako WYWOŁANIE funkcji `await`, a odbiorca znika w argumencie.
+ * Hak jest publiczny (`CreateSourceFileOptions`), samo pole - wewnętrzne
+ * (to, co ustawia `moduleDetection: "force"`).
+ */
+function asEsModule(file: ts.SourceFile): void {
+  Object.assign(file, { externalModuleIndicator: true });
+}
+
 /** Cele `onConflict` ze źródeł - patrz punkt B i „ZAMKNIĘTE NA NIEPEWNOŚĆ" w nagłówku. */
 export function extractOnConflictTargets(
   sources: readonly SourceFile[],
@@ -1577,101 +2100,139 @@ export function extractOnConflictTargets(
   const unresolved: UnresolvedOnConflict[] = [];
   let upsertCalls = 0;
 
-  for (const { file, code: raw } of sources) {
-    if (!raw.includes("upsert") && !raw.includes("onConflict")) continue;
-    const lexed = lexSource(bezKomentarzy(raw));
-    const { code } = lexed;
-    const properties = conflictProperties(lexed);
-    const consumed = new Set<number>();
-    const constants = stringConstants(lexed);
-    const report = (at: number, reason: string) =>
-      unresolved.push({ file, line: lineOf(code, at), reason, excerpt: excerptAt(raw, at) });
+  // Tani filtr tekstowy: plik bez obu słów nie ma ani wywołania, ani celu.
+  const parsed = sources
+    .filter(({ code }) => code.includes("upsert") || code.includes(CONFLICT_KEY))
+    .map(({ file, code }) => ({
+      file,
+      raw: code,
+      source: ts.createSourceFile(
+        file,
+        code,
+        { languageVersion: ts.ScriptTarget.Latest, setExternalModuleIndicator: asEsModule },
+        true,
+        file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+      ),
+    }));
+  const errors = syntaxErrors(parsed.map(({ source }) => source));
 
-    const upsertRe = /\.upsert\s*(?:<[^>()]*>\s*)?\(/g;
-    let call: RegExpExecArray | null;
-    while ((call = upsertRe.exec(code)) !== null) {
-      upsertCalls += 1;
-      const open = call.index + call[0].length - 1;
-      const close = matchCloseTs(code, open);
-      if (close < 0) continue;
-      const args = argumentRanges(code, open, close);
-      if (args.length < 2) continue;
-      // Opcje to OSTATNI argument: przecinek w generyku pierwszego
-      // (`x as Record<string, Json>`) nie przesuwa ich wtedy pozycji.
-      const [argStart, argEnd] = args[args.length - 1];
-      const objectStart = code.indexOf("{", argStart);
-      if (
-        objectStart < 0 ||
-        objectStart >= argEnd ||
-        code.slice(argStart, objectStart).trim() !== ""
-      ) {
-        continue;
-      }
-      const objectEnd = matchCloseTs(code, objectStart);
-      const inside = properties.filter((prop) => prop.at > objectStart && prop.at < objectEnd);
-      if (inside.length === 0) continue;
-
-      const table = resolveTable(
-        lexed,
-        constants,
-        receiverStart(code, call.index),
-        call.index,
-        knownTables,
-      );
-      for (const prop of inside) {
-        consumed.add(prop.at);
-        const literal = literalAt(lexed, prop.valueAt);
-        let target: string | null = literal?.value ?? null;
-        let viaConstant: string | null = null;
-        let valueAt = literal?.start ?? prop.valueAt;
-        if (literal === null) {
-          const ident = /^\s*([A-Za-z_$][\w$]*)\s*(?:as\s+const\s*)?[,}]/.exec(
-            code.slice(prop.valueAt),
-          );
-          const constant = ident === null ? undefined : constants.get(ident[1]);
-          if (ident !== null && constant !== undefined && constant !== null) {
-            target = constant;
-            viaConstant = ident[1];
-            valueAt = prop.valueAt + ident[0].indexOf(ident[1]);
-          }
-        }
-        if (target === null) {
-          report(
-            prop.at,
-            "wartość `onConflict` nie jest literałem ani stałą napisową tego pliku - cel nie do sprawdzenia",
-          );
-          continue;
-        }
-        if ("reason" in table) {
-          report(prop.at, table.reason);
-          continue;
-        }
-        const columns = parseConflictTarget(target);
-        if (columns.length === 0) {
-          report(prop.at, "pusty cel `onConflict`");
-          continue;
-        }
-        sites.push({
-          file,
-          line: lineOf(code, valueAt),
-          table: table.table,
-          target,
-          columns,
-          viaConstant,
-        });
-      }
-    }
-
-    for (const prop of properties) {
-      if (consumed.has(prop.at)) continue;
+  for (const { file, raw, source } of parsed) {
+    const scan: FileScan = {
+      file,
+      raw,
+      source,
+      knownTables,
+      sites,
+      unresolved,
+      classified: new Set(),
+      upsertOptions: new Set(),
+    };
+    const error = errors.get(source);
+    if (error !== undefined) {
+      const message = ts.flattenDiagnosticMessageText(error.messageText, " ");
       report(
-        prop.at,
-        "`onConflict` poza literałem opcji `.upsert(...)` (zmienna z opcjami, pomocnik) - cel nie do powiązania z tabelą",
+        scan,
+        error.start ?? 0,
+        `plik ma błąd składni (${message}) - drzewo nie jest wiarygodne`,
       );
     }
+    const visit = (node: ts.Node): void => {
+      if (isUpsertCall(node)) {
+        upsertCalls += 1;
+        scanUpsert(scan, node);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    scanStrayObjects(scan, source);
+    checkTextualOccurrences(scan);
   }
 
   return { sites, unresolved, upsertCalls };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Zapadka dynamicznego DDL
+// ═══════════════════════════════════════════════════════════════════════════
+
+const MEASURED = "pomiar 2026-10-04 (model == pg_index, 616/616) objął ten plik";
+
+/**
+ * Pliki migracji z dynamicznym DDL zdolnym zmienić klucz unikalny i DOKŁADNA
+ * liczba takich `EXECUTE` w każdym. Model ich nie wykonuje, ale pomiar
+ * różnicowy z nagłówka objął stan PO nich - każde jest więc sprawdzone
+ * katalogiem, nie założone.
+ *
+ * ZAPADKA: lista może tylko MALEĆ. Wpis usuwa się, gdy plik zniknie albo DDL
+ * zostanie przepisany statycznie. Nowy plik albo inna liczba zapala bramkę;
+ * domyślne lekarstwo to statyczny DDL. Dopisanie wpisu jest wyjątkiem i wymaga
+ * nowego porównania modelu z `pg_index` bazy odtworzonej z migracji (zero
+ * rozbieżności), z datą tego pomiaru w uzasadnieniu.
+ */
+export const DYNAMIC_DDL_BASELINE: Readonly<Record<string, DynamicDdlBaselineEntry>> = {
+  "20260720124500_follow_publish_alerts.sql": {
+    count: 1,
+    why: `DROP CONSTRAINT %I wybiera wyłącznie CHECK (contype = 'c') user_follows - ${MEASURED}`,
+  },
+  "20260720125526_e5987a7f-2285-4bb5-a79b-9d5821cd1df5.sql": {
+    count: 1,
+    why: `bliźniak poprzedniego: DROP CONSTRAINT %I tylko dla CHECK user_follows - ${MEASURED}`,
+  },
+  "20260815110844_54c27fbd-795e-4ad4-b4a4-e2ccc05135cc.sql": {
+    count: 3,
+    why: `CHECK programs (contype 'c') oraz FK research_program_* (contype 'f') - zdjęte i dodane - ${MEASURED}`,
+  },
+  "20260823140000_event_sessions.sql": {
+    count: 1,
+    why: `ADD CONSTRAINT … EXCLUDE USING gist - nie arbiter listy kolumn - ${MEASURED}`,
+  },
+  "20260823180000_event_onsite.sql": {
+    count: 1,
+    why: `ADD CONSTRAINT … EXCLUDE USING gist (event_checkins) - nie arbiter - ${MEASURED}`,
+  },
+  "20260823190000_event_meetings.sql": {
+    count: 3,
+    why: `trzy ADD CONSTRAINT … EXCLUDE USING gist (event_meeting_*) - nie arbitrzy - ${MEASURED}`,
+  },
+  "20260824083841_20857804-c3de-4bf0-b5c9-6a70404271f4.sql": {
+    count: 1,
+    why: `bliźniak event_sessions: EXCLUDE USING gist - nie arbiter - ${MEASURED}`,
+  },
+  "20260824101235_a8f6e612-baeb-4796-bf6f-eeb5f2d71c08.sql": {
+    count: 1,
+    why: `bliźniak event_onsite: EXCLUDE USING gist - nie arbiter - ${MEASURED}`,
+  },
+  "20260825062550_e3e4c344-184d-4f94-b3ed-8645d7d77117.sql": {
+    count: 3,
+    why: `bliźniak event_meetings: trzy EXCLUDE USING gist - nie arbitrzy - ${MEASURED}`,
+  },
+  "20260915090000_legal_document_versions_compliance_pack_keys.sql": {
+    count: 1,
+    why: `DROP CONSTRAINT %I wybiera wyłącznie CHECK (contype = 'c') legal_document_versions - ${MEASURED}`,
+  },
+};
+
+/**
+ * Rozjazd z zapadką dla plików z WEJŚCIA. Wpis bazy, którego pliku nie ma
+ * w wejściu (fixture testu, migracje spłaszczone), nie jest tu błędem - że
+ * każdy wpis wskazuje istniejącą migrację, pilnuje test stanu repozytorium.
+ */
+export function dynamicDdlDrift(
+  migrations: readonly MigrationFile[],
+  dynamicDdl: readonly DynamicDdl[],
+  baseline: Readonly<Record<string, DynamicDdlBaselineEntry>> = DYNAMIC_DDL_BASELINE,
+): DynamicDdlDrift[] {
+  const texts = new Map<string, string[]>();
+  for (const entry of dynamicDdl)
+    texts.set(entry.file, [...(texts.get(entry.file) ?? []), entry.text]);
+  const drift: DynamicDdlDrift[] = [];
+  for (const { file } of migrations) {
+    const found = texts.get(file) ?? [];
+    const expected = Object.hasOwn(baseline, file) ? baseline[file].count : 0;
+    if (found.length !== expected)
+      drift.push({ file, expected, actual: found.length, texts: found });
+  }
+  return drift;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1711,15 +2272,18 @@ export function checkArbiter(site: OnConflictSite, model: UniqueKeyModel): Arbit
 }
 
 export interface OnConflictArbitersInput {
-  /** Migracje POSORTOWANE chronologicznie. */
+  /** Migracje POSORTOWANE chronologicznie, tekst SUROWY. */
   readonly migrations: readonly MigrationFile[];
-  /** Kod produkcyjny (bez testów) - surowy, komentarze maskuje moduł. */
+  /** Kod produkcyjny (bez testów) - surowy, parsuje go kompilator TypeScript. */
   readonly sources: readonly SourceFile[];
+  /** Zapadka dynamicznego DDL - domyślnie `DYNAMIC_DDL_BASELINE` (wstrzykiwana w testach). */
+  readonly dynamicDdlBaseline?: Readonly<Record<string, DynamicDdlBaselineEntry>>;
 }
 
 export function analyzeOnConflictArbiters({
   migrations,
   sources,
+  dynamicDdlBaseline = DYNAMIC_DDL_BASELINE,
 }: OnConflictArbitersInput): OnConflictArbitersReport {
   const model = buildUniqueKeyModel(migrations);
   const extracted = extractOnConflictTargets(sources, new Set(model.tables.keys()));
@@ -1739,6 +2303,8 @@ export function analyzeOnConflictArbiters({
     violations: violations.sort((a, b) => byPosition(a.site, b.site)),
     unresolved: [...extracted.unresolved].sort(byPosition),
     dynamicDdl: model.dynamicDdl,
+    dynamicDdlDrift: dynamicDdlDrift(migrations, model.dynamicDdl, dynamicDdlBaseline),
+    unsplittable: model.unsplittable,
   };
 }
 
@@ -1751,7 +2317,9 @@ export function onConflictArbitersFailed(report: OnConflictArbitersReport): bool
     report.sites.length === 0 ||
     report.tablesInModel === 0 ||
     report.violations.length > 0 ||
-    report.unresolved.length > 0
+    report.unresolved.length > 0 ||
+    report.dynamicDdlDrift.length > 0 ||
+    report.unsplittable.length > 0
   );
 }
 
@@ -1834,11 +2402,47 @@ export function renderOnConflictArbitersReport(report: OnConflictArbitersReport)
     );
   }
 
+  if (report.dynamicDdlDrift.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push(
+      `✗ [on-conflict-arbiters] ${report.dynamicDdlDrift.length} migracji z dynamicznym DDL kluczy ` +
+        "poza zapadką DYNAMIC_DDL_BASELINE (model go nie wykonuje):",
+    );
+    for (const drift of report.dynamicDdlDrift) {
+      lines.push(`    ${drift.file}  w zapadce: ${drift.expected}, w pliku: ${drift.actual}`);
+      for (const text of drift.texts) lines.push(`      EXECUTE ${text}`);
+    }
+    lines.push(
+      "",
+      "  `EXECUTE format(…)`, sklejany tekst albo `EXECUTE zmienna` może zdjąć lub dodać",
+      "  klucz unikalny, którego model nie zobaczy - bramka byłaby zielona przy 42P10",
+      "  w bazie. Zapisz DDL statycznie (`ALTER TABLE … DROP CONSTRAINT nazwa`,",
+      "  `CREATE UNIQUE INDEX IF NOT EXISTS …`) - model zobaczy go od razu. Wyjątkowo:",
+      "  dopisz plik do DYNAMIC_DDL_BASELINE (src/lib/ci/onConflictArbiters.ts) dopiero",
+      "  po porównaniu modelu z pg_index bazy odtworzonej z migracji (zero rozbieżności).",
+      "  Gdy liczba spadła albo plik zniknął - zmniejsz wpis: zapadka może tylko maleć.",
+    );
+  }
+
+  if (report.unsplittable.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push(
+      `✗ [on-conflict-arbiters] ${report.unsplittable.length} tekstów SQL nie daje się podzielić ` +
+        "na instrukcje (lexStatements) - ich DDL nie weszło do modelu:",
+    );
+    for (const entry of report.unsplittable) lines.push(`    ${entry.file}  ${entry.message}`);
+    lines.push(
+      "",
+      "  Model bez tych instrukcji mógłby nie znać zdjętego albo dodanego klucza. Popraw",
+      "  składnię migracji (czysty SQL, bez meta-poleceń psql i `COPY … FROM STDIN`).",
+    );
+  }
+
   if (lines.length === 0) {
     return (
       `✓ Arbitrzy onConflict OK (${report.sites.length} celów w ${report.upsertCalls} wywołaniach ` +
       `.upsert, ${report.scannedFiles} plików; model: ${report.tablesInModel} tabel z ` +
-      `${report.migrationStatements} instrukcji migracji; dynamiczne DDL poza modelem: ` +
+      `${report.migrationStatements} instrukcji migracji; dynamiczne DDL kluczy w zapadce: ` +
       `${report.dynamicDdl.length}).`
     );
   }

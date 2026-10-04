@@ -282,7 +282,7 @@ jobs:
       # zamieniła ten klucz na `(tenant_id, user_id, role)`; test na atrapie
       # bazy zamroził zły cel. Model kluczy zgadza się z `pg_index` bazy
       # odtworzonej z migracji co do tabeli, nazwy i flag. Czyta wyłącznie
-      # pliki repo (~2,5 s): src/lib/ci/onConflictArbiters.ts.
+      # pliki repo (~3 s): src/lib/ci/onConflictArbiters.ts.
       - name: Arbitrzy onConflict (upsert ⇄ klucze unikalne migracji)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:on-conflict-arbiters

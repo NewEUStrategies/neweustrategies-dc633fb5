@@ -8,14 +8,28 @@
 // z migracji 20260531180217 (linia 29) i 20260531181120 (linie 49-50): zły cel
 // musi być czerwony, a dobry - w dowolnej kolejności kolumn - zielony.
 //
+// Bloki „przegląd adwersaryjny" to reprodukcje cichych zieleni znalezionych
+// w pierwszej wersji bramki (cofanie się po tekście przez `}` poprzedniego
+// bloku, „pierwsze `const query`" zamiast najbliższego, cieniowanie stałej,
+// apostrof JSX + `accept="image/*"`, dynamiczne `DROP CONSTRAINT %I`,
+// `stripSqlComments` połykający DROP, fałszywe alarmy modelu) - każda jako
+// kontrola negatywna z POPRAWNYM werdyktem.
+//
 // Fixture'y są atrapami SQL i TS (przedmiotem dowodu jest reakcja na KSZTAŁT
-// wejścia), a ostatni blok liczy bramkę na PRAWDZIWYM repozytorium, żeby
-// inwariant jechał także w `bun run test` i w `check:ci-gates`.
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
-import { describe, expect, it } from "vitest";
-import { loadMigrationFiles } from "../../../../scripts/lib/sqlMigrations";
+// wejścia), a ostatni blok liczy bramkę na PRAWDZIWYM repozytorium przez TEN
+// SAM loader co runner CI, żeby inwariant jechał także w `bun run test`
+// i w `check:ci-gates`.
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
 import {
+  loadProductionSources,
+  loadRawMigrationFiles,
+} from "../../../../scripts/lib/onConflictArbitersInputs";
+import { MIGRATIONS_DIR, stripSqlComments } from "../../../../scripts/lib/sqlMigrations";
+import {
+  DYNAMIC_DDL_BASELINE,
   analyzeOnConflictArbiters,
   buildUniqueKeyModel,
   extractOnConflictTargets,
@@ -563,13 +577,16 @@ await db.from("user_roles").upsert(row, { onConflict: MUTABLE });`,
     expect(unresolved.every((entry) => entry.file === "src/lib/bad.ts")).toBe(true);
     const reasonAt = (line: number) => unresolved.find((entry) => entry.line === line)?.reason;
     expect(unresolved.map((entry) => entry.line).sort((a, b) => a - b)).toEqual([
-      3, 4, 5, 6, 8, 9, 10, 12,
+      3, 4, 5, 6, 7, 8, 9, 10, 12,
     ]);
     // Import, wyrażenie, szablon z `${}` i `let` (do nadpisania) - nie stała.
     for (const line of [3, 4, 5, 12]) {
       expect(reasonAt(line), `linia ${line}`).toContain("nie jest literałem ani stałą napisową");
     }
+    expect(reasonAt(12)).toContain("`MUTABLE`: `let`/`var`");
     expect(reasonAt(6)).toContain("poza literałem opcji");
+    // Opcje w zmiennej: cel może w nich siedzieć, a bramka go nie widzi.
+    expect(reasonAt(7)).toContain("opcje `.upsert(...)` nie są literałem obiektu");
     expect(reasonAt(8)).toContain("`.from(...)` nie jest literałem ani stałą");
     expect(reasonAt(9)).toContain("nie da się ustalić tabeli");
     expect(reasonAt(10)).toContain("`.schema(...)`");
@@ -611,43 +628,765 @@ describe("bramka nie może być cicho zielona", () => {
   });
 });
 
-/**
- * Zakres skanu jak w `scripts/check-on-conflict-arbiters.ts`: kod produkcyjny
- * `src/**` bez katalogów testowych, plików `.test`/`.spec` i `src/test/**`.
- */
-function productionSources(): SourceFile[] {
-  const skip = new Set(["node_modules", "__tests__", "__snapshots__", "__mocks__"]);
-  const walk = (dir: string, out: string[]): string[] => {
-    for (const entry of readdirSync(dir)) {
-      if (skip.has(entry)) continue;
-      const full = join(dir, entry);
-      if (statSync(full).isDirectory()) walk(full, out);
-      else out.push(full);
-    }
-    return out;
+// ═══════════════════════════════════════════════════════════════════════════
+// Przegląd adwersaryjny - reprodukcje z POPRAWNYM werdyktem
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Schemat do kontroli negatywnych: każdy cel ma tu jednoznaczną odpowiedź. */
+const ADVERSARIAL_SCHEMA: MigrationFile[] = [
+  sql(`
+CREATE TABLE public.user_roles (id uuid PRIMARY KEY, user_id uuid, role text, tenant_id uuid);
+CREATE UNIQUE INDEX user_roles_unique_per_tenant ON public.user_roles (tenant_id, user_id, role);
+CREATE TABLE public.site_settings (tenant_id uuid, key text, PRIMARY KEY (tenant_id, key));
+CREATE TABLE public.crm_leads (id uuid PRIMARY KEY, tenant_id uuid, email_norm text, UNIQUE (tenant_id, email_norm));`),
+];
+
+type Verdict = "VIOLATION" | "UNRESOLVED" | "PASS" | "NO-SITES";
+
+/** Werdykt bramki dla jednego pliku (naruszenie > nierozstrzygnięte > zielone). */
+function verdictOf(code: string, file = "src/lib/fixture.ts") {
+  const report = analyzeOnConflictArbiters({
+    migrations: ADVERSARIAL_SCHEMA,
+    sources: [ts(code, file)],
+  });
+  const verdict: Verdict =
+    report.violations.length > 0
+      ? "VIOLATION"
+      : report.unresolved.length > 0
+        ? "UNRESOLVED"
+        : report.sites.length > 0
+          ? "PASS"
+          : "NO-SITES";
+  return {
+    verdict,
+    report,
+    tables: report.sites.map((site) => [site.line, site.table, site.target]),
+    reasons: report.unresolved.map((entry) => entry.reason),
   };
-  return walk("src", [])
-    .map((path) => relative(process.cwd(), path).replaceAll("\\", "/"))
-    .filter((file) => /\.(?:ts|tsx)$/.test(file) && !/\.(?:test|spec)\.(?:ts|tsx)$/.test(file))
-    .filter((file) => !file.startsWith("src/test/"))
-    .sort()
-    .map((file) => ({ file, code: readFileSync(file, "utf8") }));
 }
 
-describe("bramka arbitrów onConflict (stan faktyczny repozytorium)", () => {
-  const report = analyzeOnConflictArbiters({
-    migrations: loadMigrationFiles(),
-    sources: productionSources(),
+describe("przegląd adwersaryjny: odbiorca to węzły łańcucha, nie tekst przed `.upsert` (G1)", () => {
+  // Stara bramka cofała się po tekście przez `}` poprzedniego bloku i brała
+  // `.from()` z jego wnętrza - zła tabela, a cel przechodził na zielono.
+  it.each([
+    [
+      "zmienna-zapytanie po bloku if",
+      `export async function f(x: boolean) {
+  const query = supabase.from("user_roles");
+  if (x) {
+    await supabase.from("site_settings").select();
+  }
+  await query.upsert(row, { onConflict: "tenant_id,key" });
+}`,
+      [6, "user_roles", "tenant_id,key"],
+    ],
+    [
+      "pomocnik po pętli for",
+      `export async function f(xs: string[]) {
+  for (const x of xs) {
+    await supabase.from("site_settings").delete().eq("key", x);
+  }
+  await write(context, "crm_leads").upsert(rows, { onConflict: "tenant_id,key" });
+}`,
+      [5, "crm_leads", "tenant_id,key"],
+    ],
+    [
+      "zmienna-zapytanie po try/catch",
+      `export async function f() {
+  const q = supabase.from("user_roles");
+  try {
+    await supabase.from("site_settings").select();
+  } catch {}
+  await q.upsert(row, { onConflict: "tenant_id,key" });
+}`,
+      [6, "user_roles", "tenant_id,key"],
+    ],
+  ])("%s - tabela z własnego łańcucha, naruszenie", (_label, code, site) => {
+    const { verdict, tables } = verdictOf(code);
+    expect(verdict).toBe("VIOLATION");
+    expect(tables).toEqual([site]);
   });
+
+  it("`.schema()` z poprzedniego bloku nie przestawia odbiorcy; `.schema()` w łańcuchu - tak", () => {
+    const earlier = verdictOf(`export async function f(x: boolean) {
+  if (x) {
+    await supabase.schema("analytics").from("events").select();
+  }
+  await supabase.from("site_settings").upsert(row, { onConflict: "tenant_id,key" });
+}`);
+    expect(earlier.verdict).toBe("PASS");
+
+    const inChain = verdictOf(`export async function f(x: boolean) {
+  if (x) {
+    await supabase.schema("public").from("site_settings").select();
+  }
+  await supabase.schema("archive").from("site_settings").upsert(row, { onConflict: "tenant_id,key" });
+}`);
+    expect(inChain.verdict).toBe("UNRESOLVED");
+    expect(inChain.reasons).toEqual([expect.stringContaining("`.schema(...)`")]);
+
+    const viaClient = verdictOf(`const db = supabase.schema("archive");
+await db.from("site_settings").upsert(row, { onConflict: "tenant_id,key" });`);
+    expect(viaClient.verdict).toBe("UNRESOLVED");
+  });
+
+  it("odbiorca warunkowy: różne tabele - nierozstrzygnięte, ta sama - sprawdzana", () => {
+    const split = verdictOf(
+      'await (cond ? db.from("site_settings") : db.from("user_roles")).upsert(row, { onConflict: "tenant_id,key" });',
+    );
+    expect(split.verdict).toBe("UNRESOLVED");
+    expect(split.reasons).toEqual([expect.stringContaining("warunkowo")]);
+
+    const same = verdictOf(
+      'await (cond ? db.from("user_roles") : db.from("user_roles")).upsert(row, { onConflict: "tenant_id,key" });',
+    );
+    expect(same.verdict).toBe("VIOLATION");
+  });
+});
+
+describe("przegląd adwersaryjny: nazwy rozwiązywane leksykalnie, najbliższa deklaracja (G3)", () => {
+  it("dwie funkcje z `const query`: każda dostaje SWOJĄ tabelę", () => {
+    const { verdict, tables } = verdictOf(`async function a() {
+  const query = supabase.from("site_settings");
+  await query.upsert(r, { onConflict: "tenant_id,key" });
+}
+async function b() {
+  const query = supabase.from("user_roles");
+  await query.upsert(r, { onConflict: "tenant_id,key" });
+}`);
+    expect(verdict).toBe("VIOLATION");
+    expect(tables).toEqual([
+      [3, "site_settings", "tenant_id,key"],
+      [7, "user_roles", "tenant_id,key"],
+    ]);
+  });
+
+  it("stała przesłonięta wewnętrzną stałą: liczy się wewnętrzna", () => {
+    const { verdict, report } = verdictOf(`const T = "tenant_id,user_id,role";
+function f() { const T = "user_id,role"; return db.from("user_roles").upsert(row, { onConflict: T }); }`);
+    expect(verdict).toBe("VIOLATION");
+    expect(report.sites[0]).toMatchObject({ target: "user_id,role", viaConstant: "T" });
+  });
+
+  const OUTER = 'const T = "tenant_id,user_id,role";\n';
+  it.each([
+    [
+      "parametr",
+      'function f(T: string) { return db.from("user_roles").upsert(row, { onConflict: T }); }',
+      "parametr funkcji",
+    ],
+    [
+      "let",
+      'function f() { let T = "user_id,role"; return db.from("user_roles").upsert(row, { onConflict: T }); }',
+      "`let`/`var`",
+    ],
+    [
+      "var wyniesione z bloku",
+      'function f(x: boolean) { if (x) { var T = "user_id,role"; } return db.from("user_roles").upsert(row, { onConflict: T }); }',
+      "`let`/`var`",
+    ],
+    [
+      "destrukturyzacja",
+      'function f(o: any) { const { T } = o; return db.from("user_roles").upsert(row, { onConflict: T }); }',
+      "destrukturyzacja",
+    ],
+    [
+      "zmienna pętli for…of",
+      'for (const T of ["user_id,role"]) { await db.from("user_roles").upsert(row, { onConflict: T }); }',
+      "zmienna pętli",
+    ],
+    [
+      "zmienna catch",
+      'try {} catch (T) { await db.from("user_roles").upsert(row, { onConflict: T }); }',
+      "zmienna `catch`",
+    ],
+    [
+      "parametr strzałki",
+      'const g = (T: string) => db.from("user_roles").upsert(row, { onConflict: T });',
+      "parametr funkcji",
+    ],
+  ])(
+    "stała pliku przesłonięta (%s) - cel NIE jest wartością zewnętrzną",
+    (_label, inner, detail) => {
+      const { verdict, reasons } = verdictOf(OUTER + inner);
+      expect(verdict).toBe("UNRESOLVED");
+      expect(reasons).toEqual([expect.stringContaining(detail)]);
+    },
+  );
+
+  it.each([
+    [
+      "`let` przesłania stałą tabeli",
+      'const TBL = "site_settings";\nfunction f() { let TBL = "user_roles"; return db.from(TBL).upsert(row, { onConflict: "tenant_id,key" }); }',
+      "`.from(...)` nie jest literałem ani stałą",
+    ],
+    [
+      "parametr przesłania stałą tabeli",
+      'const TBL = "site_settings";\nfunction f(TBL: string) { return db.from(TBL).upsert(row, { onConflict: "tenant_id,key" }); }',
+      "`.from(...)` nie jest literałem ani stałą",
+    ],
+    [
+      "zapytanie w `let` nadpisane",
+      'let q = db.from("site_settings");\nq = db.from("user_roles");\nawait q.upsert(row, { onConflict: "tenant_id,key" });',
+      "odbiorca `q`",
+    ],
+    [
+      "parametr przesłania zapytanie",
+      'const q = db.from("site_settings");\nfunction f(q: any) { return q.upsert(row, { onConflict: "tenant_id,key" }); }',
+      "odbiorca `q`: parametr",
+    ],
+  ])("%s - tabela nierozstrzygnięta", (_label, code, reason) => {
+    const { verdict, reasons } = verdictOf(code);
+    expect(verdict).toBe("UNRESOLVED");
+    expect(reasons).toEqual([expect.stringContaining(reason)]);
+  });
+
+  it("zapytanie przesłonięte wewnętrzną stałą: tabela z NAJBLIŻSZEJ deklaracji", () => {
+    const { verdict, tables } = verdictOf(`const q = db.from("site_settings");
+function f() { const q = db.from("user_roles"); return q.upsert(row, { onConflict: "tenant_id,key" }); }`);
+    expect(verdict).toBe("VIOLATION");
+    expect(tables).toEqual([[2, "user_roles", "tenant_id,key"]]);
+  });
+});
+
+describe("przegląd adwersaryjny: parser TS zamiast dwóch lekserów (G5)", () => {
+  it('apostrof w tekście JSX i `accept="image/*"` nie gubią reszty pliku', () => {
+    const { verdict, report } = verdictOf(
+      `export function Avatar() {
+  return (
+    <div>
+      <p>Don't upload large files.</p>
+      <Button title="It's private" />
+      <input type="file" accept="image/*" />
+    </div>
+  );
+}
+
+export async function save(row: Row) {
+  await supabase.from("user_roles").upsert(row, { onConflict: "user_id,role" });
+}
+`,
+      "src/components/Avatar.tsx",
+    );
+    expect(report.upsertCalls).toBe(1);
+    expect(verdict).toBe("VIOLATION");
+    expect(report.violations[0].site).toMatchObject({ line: 12, table: "user_roles" });
+  });
+
+  it.each([
+    [
+      "apostrof JSX wieloliniowo",
+      'export const C = () => (\n  <div>\n    Don\'t worry <button onClick={() => db.from("user_roles").upsert(row, { onConflict: "user_id,role" })}>x</button>\n  </div>\n);',
+      "src/x.tsx",
+    ],
+    [
+      "adres URL w tekście JSX",
+      'export const C = () => (\n  <p>See https://example.com <b onClick={() => db.from("user_roles").upsert(row, { onConflict: "user_id,role" })} /></p>\n);',
+      "src/x.tsx",
+    ],
+    [
+      "`{` w szablonie",
+      'const s = `${"{"}`;\nawait db.from("user_roles").upsert(row, { onConflict: "user_id,role" });\nconst t = `x`;',
+      "src/x.ts",
+    ],
+    [
+      "regex z apostrofem",
+      'const re = /\'/; await db.from("user_roles").upsert(row, { onConflict: "user_id,role" });',
+      "src/x.ts",
+    ],
+    [
+      "dzielenie, potem apostrof",
+      'const a = total / count; const s = \'it\'; await db.from("user_roles").upsert(row, { onConflict: "user_id,role" });',
+      "src/x.ts",
+    ],
+  ])("%s - upsert widoczny, naruszenie", (_label, code, file) => {
+    const { verdict, report } = verdictOf(code, file);
+    expect(report.upsertCalls).toBe(1);
+    expect(verdict).toBe("VIOLATION");
+  });
+
+  it("plik bez importów: `await (…)` na najwyższym poziomie to `await`, nie wywołanie funkcji", () => {
+    const { verdict, tables } = verdictOf(
+      'await (db.from("user_roles")).upsert(row, { onConflict: "user_id,role" });',
+    );
+    expect(verdict).toBe("VIOLATION");
+    expect(tables).toEqual([[1, "user_roles", "user_id,role"]]);
+  });
+
+  it("błąd składni zapala bramkę - drzewo z odzysku parsera nie jest dowodem", () => {
+    const { reasons } = verdictOf(
+      'const x = ;\nawait db.from("user_roles").upsert(row, { onConflict: "tenant_id,user_id,role" });',
+    );
+    expect(reasons).toEqual([expect.stringContaining("błąd składni")]);
+  });
+});
+
+describe("przegląd adwersaryjny: kształty opcji i celu - kontrole negatywne (G8)", () => {
+  it.each<[string, string, Verdict, string | null]>([
+    [
+      "rozkład opcji ze zmiennej",
+      'const opts = { onConflict: "user_id,role" };\nawait db.from("user_roles").upsert(row, { ...opts });',
+      "UNRESOLVED",
+      "rozkładają obiekt",
+    ],
+    [
+      "rozkład importu bez jawnego celu",
+      'import { OPTS } from "./x";\nawait db.from("user_roles").upsert(row, { ...OPTS, ignoreDuplicates: true });',
+      "UNRESOLVED",
+      "rozkładają obiekt",
+    ],
+    [
+      "rozkład PRZED jawnym celem",
+      'import { OPTS } from "./x";\nawait db.from("user_roles").upsert(row, { ...OPTS, onConflict: "tenant_id,user_id,role" });',
+      "PASS",
+      null,
+    ],
+    [
+      "opcje z importu",
+      'import { OPTS } from "./x";\nawait db.from("user_roles").upsert(row, OPTS);',
+      "UNRESOLVED",
+      "nie są literałem obiektu",
+    ],
+    [
+      "opcje z wywołania",
+      'await db.from("user_roles").upsert(row, makeOpts("user_id,role"));',
+      "UNRESOLVED",
+      "nie są literałem obiektu",
+    ],
+    ["opcje `undefined`", 'await db.from("user_roles").upsert(row, undefined);', "NO-SITES", null],
+    [
+      'klucz w nawiasach `["onConflict"]`',
+      'await db.from("user_roles").upsert(row, { ["onConflict"]: "user_id,role" });',
+      "VIOLATION",
+      null,
+    ],
+    [
+      "klucz ze stałej",
+      'const K = "onConflict";\nawait db.from("user_roles").upsert(row, { [K]: "user_id,role" });',
+      "VIOLATION",
+      null,
+    ],
+    [
+      "klucz obliczany nieznany",
+      'export function f(k: string) { return db.from("user_roles").upsert(row, { [k]: "user_id,role" }); }',
+      "UNRESOLVED",
+      "klucz obliczany",
+    ],
+    [
+      "klucz w cudzysłowie",
+      'await db.from("user_roles").upsert(row, { "onConflict": "user_id,role" });',
+      "VIOLATION",
+      null,
+    ],
+    [
+      '`["upsert"]` zamiast `.upsert`',
+      'await db.from("user_roles")["upsert"](row, { onConflict: "user_id,role" });',
+      "VIOLATION",
+      null,
+    ],
+    [
+      "upsert przez `.bind`",
+      'const up = db.from("user_roles").upsert.bind(db);\nawait up(row, { onConflict: "user_id,role" });',
+      "UNRESOLVED",
+      "poza literałem opcji",
+    ],
+    [
+      "cel w `.rpc(...)`",
+      'await db.rpc("x", { onConflict: "user_id,role" });',
+      "UNRESOLVED",
+      "poza literałem opcji",
+    ],
+    [
+      "cel w `.insert(...)`",
+      'await db.from("user_roles").insert(row, { onConflict: "user_id,role" } as any);',
+      "UNRESOLVED",
+      "poza literałem opcji",
+    ],
+    [
+      "cel w wierszu, nie w opcjach",
+      'await db.from("user_roles").upsert({ user_id: 1, onConflict: "user_id,role" });',
+      "UNRESOLVED",
+      "poza literałem opcji",
+    ],
+    [
+      "cel zagnieżdżony w opcjach",
+      'await db.from("user_roles").upsert(row, { meta: { onConflict: "x" }, onConflict: "tenant_id,user_id,role" });',
+      "UNRESOLVED",
+      "poza literałem opcji",
+    ],
+    [
+      "`onConflict: undefined`",
+      'await db.from("user_roles").upsert(row, { onConflict: undefined });',
+      "NO-SITES",
+      null,
+    ],
+    [
+      "`onConflict: null`",
+      'await db.from("user_roles").upsert(row, { onConflict: null });',
+      "UNRESOLVED",
+      "nie jest literałem ani stałą",
+    ],
+    [
+      "sklejanie literałów",
+      'await db.from("user_roles").upsert(row, { onConflict: "user_id," + "role" });',
+      "UNRESOLVED",
+      "nie jest literałem ani stałą",
+    ],
+    [
+      "stała z warunku",
+      'const T = cond ? "a" : "user_id,role";\nawait db.from("user_roles").upsert(row, { onConflict: T });',
+      "UNRESOLVED",
+      "stała `T`",
+    ],
+    [
+      "druga stała w jednej deklaracji",
+      'const A = "tenant_id,user_id,role", B = "user_id,role";\nawait db.from("user_roles").upsert(row, { onConflict: B });',
+      "VIOLATION",
+      null,
+    ],
+    [
+      "stała z `as string`",
+      'const T = "user_id,role" as string;\nawait db.from("user_roles").upsert(row, { onConflict: T });',
+      "VIOLATION",
+      null,
+    ],
+    [
+      "stała z `satisfies`",
+      'const T = "user_id,role" satisfies string;\nawait db.from("user_roles").upsert(row, { onConflict: T });',
+      "VIOLATION",
+      null,
+    ],
+    [
+      "właściwość stałej obiektu",
+      'const C = { t: "user_id,role" } as const;\nawait db.from("user_roles").upsert(row, { onConflict: C.t });',
+      "UNRESOLVED",
+      "nie jest literałem ani stałą",
+    ],
+    [
+      "opcje w nawiasach i `as const`",
+      'await db.from("user_roles").upsert(row, ({ onConflict: "user_id,role" }) as const);',
+      "VIOLATION",
+      null,
+    ],
+    [
+      "odbiorca nieznany (`q` bez deklaracji)",
+      'const x = supabase.from("site_settings")\nq.upsert(r, { onConflict: "tenant_id,key" })',
+      "UNRESOLVED",
+      "nie da się ustalić tabeli",
+    ],
+    [
+      "pomocnik z jedną znaną tabelą",
+      'await write(ctx, "site_settings", "user_roles_x").upsert(row, { onConflict: "tenant_id,key" });',
+      "PASS",
+      null,
+    ],
+    [
+      "pomocnik z dwiema znanymi tabelami",
+      'await write("site_settings", "user_roles").upsert(row, { onConflict: "tenant_id,key" });',
+      "UNRESOLVED",
+      "kilka znanych tabel",
+    ],
+  ])("%s -> %s", (_label, code, expected, reason) => {
+    const { verdict, reasons } = verdictOf(code);
+    expect(verdict).toBe(expected);
+    if (reason !== null) expect(reasons.join(" | ")).toContain(reason);
+  });
+
+  it("wzmianki w komentarzach, JSDoc, napisach, regexach, szablonach i tekście JSX nie są celem", () => {
+    const { sites, unresolved } = extractOnConflictTargets(
+      [
+        ts(
+          `/** Przykład: db.from("x").upsert(r, { onConflict: "a" }) */
+export function C() {
+  const s = \`onConflict: \${1}\`; // { onConflict: "b" }
+  return <p title="onConflict: c">Ustaw onConflict: "d" {/* { onConflict: "e" } */}</p>;
+}`,
+          "src/components/Hint.tsx",
+        ),
+      ],
+      new Set(["x"]),
+    );
+    expect(sites).toEqual([]);
+    expect(unresolved).toEqual([]);
+  });
+});
+
+describe("przegląd adwersaryjny: fałszywe alarmy modelu kluczy (G6)", () => {
+  it("`((a), b)` z COLLATE/opclass to kolumny - arbiter, nazwa jak w PG16", () => {
+    // Zmierzone na PostgreSQL 16: indkey bez wyrażeń, `Conflict Arbiter
+    // Indexes: zz_g6t_a_b_idx` dla `ON CONFLICT (a, b)`.
+    const migrations = [
+      sql(`
+CREATE TABLE public.zz_g6t (id int PRIMARY KEY, a text, b int, email text);
+CREATE UNIQUE INDEX ON public.zz_g6t ((a) text_pattern_ops, b);
+CREATE UNIQUE INDEX ON public.zz_g6t ((a COLLATE "C") DESC, id);
+CREATE UNIQUE INDEX ON public.zz_g6t (((a)), email);
+CREATE UNIQUE INDEX ON public.zz_g6t ((lower(email)));
+CREATE UNIQUE INDEX ON public.zz_g6t ((CASE WHEN b > 0 THEN a END));
+CREATE UNIQUE INDEX ON public.zz_g6t ((pg_catalog.upper(a)));
+CREATE UNIQUE INDEX ON public.zz_g6t ((a || b::text));`),
+    ];
+    const keys = keysOf(migrations, "zz_g6t");
+    expect(keys.map((key) => [key.name, key.columns.join(","), key.expression])).toEqual([
+      ["zz_g6t_a_b_idx", "a,b", false],
+      ["zz_g6t_a_email_idx", "a,email", false],
+      ["zz_g6t_a_id_idx", "a,id", false],
+      ["zz_g6t_case_idx", "(CASE WHEN b > 0 THEN a END)", true],
+      ["zz_g6t_expr_idx", "(a || b::text)", true],
+      ["zz_g6t_lower_idx", "(lower(email))", true],
+      ["zz_g6t_pkey", "id", false],
+      ["zz_g6t_upper_idx", "(pg_catalog.upper(a))", true],
+    ]);
+    const report = analyzeOnConflictArbiters({
+      migrations,
+      sources: [ts('await db.from("zz_g6t").upsert(r, { onConflict: "b,a" });')],
+    });
+    expect(report.violations).toEqual([]);
+  });
+
+  it("`DROP CONSTRAINT IF EXISTS` nazwy gołego UNIQUE INDEX nic nie zdejmuje (PG: NOTICE, skipping)", () => {
+    const migrations = [
+      sql(`
+CREATE TABLE public.zz_adv (id int PRIMARY KEY, a int, b int, UNIQUE (a, b));
+CREATE UNIQUE INDEX zz_adv_pure ON public.zz_adv (b);
+ALTER TABLE public.zz_adv DROP CONSTRAINT IF EXISTS zz_adv_pure;`),
+    ];
+    expect(keysOf(migrations, "zz_adv").map((key) => key.name)).toEqual([
+      "zz_adv_a_b_key",
+      "zz_adv_pkey",
+      "zz_adv_pure",
+    ]);
+    const report = analyzeOnConflictArbiters({
+      migrations,
+      sources: [ts('await db.from("zz_adv").upsert(r, { onConflict: "b" });')],
+    });
+    expect(report.violations).toEqual([]);
+  });
+
+  it("`DROP INDEX` indeksu ograniczenia nie zdejmuje klucza (PG odmawia), `DROP CONSTRAINT` - tak", () => {
+    const kept = keysOf(
+      [
+        sql(`
+CREATE TABLE public.t (id int PRIMARY KEY, a int, b int, UNIQUE (a, b));
+DROP INDEX IF EXISTS public.t_a_b_key;
+DROP INDEX public.t_pkey CASCADE;`),
+      ],
+      "t",
+    );
+    expect(kept.map((key) => key.name)).toEqual(["t_a_b_key", "t_pkey"]);
+    const dropped = keysOf(
+      [
+        sql(`
+CREATE TABLE public.t (id int PRIMARY KEY, a int, b int, UNIQUE (a, b));
+ALTER TABLE public.t DROP CONSTRAINT t_a_b_key;`),
+      ],
+      "t",
+    );
+    expect(dropped.map((key) => key.name)).toEqual(["t_pkey"]);
+  });
+
+  it('`DROP COLUMN "constraint"` (cytowana nazwa) to kolumna - jej klucz znika', () => {
+    const keys = keysOf(
+      [
+        sql(`
+CREATE TABLE public.t (id int PRIMARY KEY, "constraint" int, b int, UNIQUE ("constraint", b));
+ALTER TABLE public.t DROP COLUMN "constraint";`),
+      ],
+      "t",
+    );
+    expect(keys.map((key) => key.name)).toEqual(["t_pkey"]);
+  });
+});
+
+describe("przegląd adwersaryjny: dynamiczne DDL to zapadka, nie informacja (G2)", () => {
+  const dynamicDrop: MigrationFile[] = [
+    sql(
+      "CREATE TABLE public.user_roles (id uuid PRIMARY KEY, user_id uuid, role text, tenant_id uuid, UNIQUE (user_id, role));",
+      "1.sql",
+    ),
+    sql(
+      `DO $$
+DECLARE v_conname text;
+BEGIN
+  SELECT conname INTO v_conname FROM pg_constraint
+   WHERE conrelid = 'public.user_roles'::regclass AND contype = 'u';
+  IF v_conname IS NOT NULL THEN
+    EXECUTE format('ALTER TABLE public.user_roles DROP CONSTRAINT %I', v_conname);
+  END IF;
+END $$;
+CREATE UNIQUE INDEX user_roles_unique_per_tenant ON public.user_roles (tenant_id, user_id, role);`,
+      "2.sql",
+    ),
+  ];
+  const staleTarget = ts('await db.from("user_roles").upsert(r, { onConflict: "user_id,role" });');
+
+  it("dynamiczne DROP CONSTRAINT klucza spoza zapadki ZAPALA bramkę (Postgres dałby 42P10)", () => {
+    const report = analyzeOnConflictArbiters({ migrations: dynamicDrop, sources: [staleTarget] });
+    // Model nadal widzi UNIQUE (user_id, role) - bez zapadki byłaby zieleń.
+    expect(report.violations).toEqual([]);
+    expect(report.dynamicDdlDrift).toEqual([
+      {
+        file: "2.sql",
+        expected: 0,
+        actual: 1,
+        texts: ["format('ALTER TABLE public.user_roles DROP CONSTRAINT %I', v_conname)"],
+      },
+    ]);
+    expect(onConflictArbitersFailed(report)).toBe(true);
+    const rendered = renderOnConflictArbitersReport(report);
+    expect(rendered).toContain("2.sql  w zapadce: 0, w pliku: 1");
+    expect(rendered).toContain("Zapisz DDL statycznie");
+  });
+
+  it("wpis zapadki z tą samą liczbą przepuszcza; zmiana liczby w którąkolwiek stronę - nie", () => {
+    const covered = analyzeOnConflictArbiters({
+      migrations: dynamicDrop,
+      sources: [staleTarget],
+      dynamicDdlBaseline: { "2.sql": { count: 1, why: "fixture" } },
+    });
+    expect(covered.dynamicDdlDrift).toEqual([]);
+    for (const count of [0, 2]) {
+      const drifted = analyzeOnConflictArbiters({
+        migrations: dynamicDrop,
+        sources: [staleTarget],
+        dynamicDdlBaseline: { "2.sql": { count, why: "fixture" } },
+      });
+      expect(
+        drifted.dynamicDdlDrift.map((d) => [d.expected, d.actual]),
+        `count ${count}`,
+      ).toEqual([[count, 1]]);
+    }
+  });
+
+  it("`EXECUTE zmienna` z tekstem złożonym wcześniej w bloku też jest dynamicznym DDL kluczy", () => {
+    const model = buildUniqueKeyModel([
+      sql(`
+CREATE TABLE public.t (id int PRIMARY KEY, a int UNIQUE);
+DO $$
+DECLARE v_sql text;
+BEGIN
+  v_sql := 'ALTER TABLE public.t DROP CONSTRAINT ' || quote_ident('t_a_key');
+  EXECUTE v_sql;
+END $$;`),
+    ]);
+    expect(model.dynamicDdl.map((entry) => entry.text)).toEqual(["v_sql"]);
+  });
+
+  it("`EXECUTE` z jednym literałem (`'…'`, `$q$…$q$`) jest stosowany, a `EXECUTE FUNCTION` pomijany", () => {
+    const model = buildUniqueKeyModel([
+      sql(`
+CREATE TABLE public.t (id int PRIMARY KEY, a int, b int);
+DO $$ BEGIN
+  EXECUTE 'CREATE UNIQUE INDEX t_a ON public.t (a)';
+  EXECUTE $q$CREATE UNIQUE INDEX t_b ON public.t (b)$q$;
+  CREATE TRIGGER t_unique_guard BEFORE INSERT ON public.t FOR EACH ROW EXECUTE FUNCTION public.guard();
+END $$;`),
+    ]);
+    expect(model.dynamicDdl).toEqual([]);
+    expect(model.tables.get("t")?.map((key) => key.name)).toEqual(["t_a", "t_b", "t_pkey"]);
+  });
+});
+
+describe("przegląd adwersaryjny: migracje SUROWE przez loader runnera (G4)", () => {
+  const before =
+    "CREATE TABLE public.user_roles (id uuid PRIMARY KEY, user_id uuid, role text, tenant_id uuid, UNIQUE (user_id, role));";
+  const after = `COMMENT ON TABLE public.user_roles IS $$Roles; it's per tenant now$$;
+CREATE OR REPLACE FUNCTION public.noop() RETURNS text LANGUAGE sql AS $$ SELECT '--' $$;
+ALTER TABLE public.user_roles DROP CONSTRAINT IF EXISTS user_roles_user_id_role_key;
+CREATE UNIQUE INDEX user_roles_unique_per_tenant ON public.user_roles (tenant_id, user_id, role);`;
+  const dir = mkdtempSync(join(tmpdir(), "on-conflict-arbiters-"));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("`$$ SELECT '--' $$` nie połyka DROP: zły cel zostaje czerwony", () => {
+    writeFileSync(join(dir, "20990101000001_before.sql"), before);
+    writeFileSync(join(dir, "20990101000002_after.sql"), after);
+    const migrations = loadRawMigrationFiles(dir);
+    expect(migrations.map((migration) => migration.sql)).toEqual([before, after]);
+    const report = analyzeOnConflictArbiters({
+      migrations,
+      sources: [ts('await db.from("user_roles").upsert(r, { onConflict: "user_id,role" });')],
+    });
+    expect(report.violations.map((violation) => violation.site.target)).toEqual(["user_id,role"]);
+    // Dlaczego nie `loadMigrationFiles()`: jego `stripSqlComments` bierze
+    // `--` w ciele `$$` za komentarz i ucina resztę linii - DROP ląduje
+    // w niedomkniętym ciele i znika z modelu (zły cel byłby zielony). Lekser
+    // instrukcji łapie to dziś jako niedzielony tekst, ale wejściem bramki
+    // ma być plik bajt w bajt, nie obrona drugiej linii.
+    const stripped = [before, after].map((text, index) =>
+      sql(stripSqlComments(text), `${index}.sql`),
+    );
+    expect(stripped[1].sql).toContain("AS $$ SELECT '\n");
+    const lossy = analyzeOnConflictArbiters({
+      migrations: stripped,
+      sources: [ts('await db.from("user_roles").upsert(r, { onConflict: "user_id,role" });')],
+    });
+    expect(lossy.violations).toEqual([]);
+    expect(lossy.unsplittable).toEqual([{ file: "1.sql", message: expect.stringContaining("$$") }]);
+  });
+});
+
+describe("podział instrukcji przez lexStatements (G7)", () => {
+  it("`BEGIN ATOMIC … END` to jedna instrukcja, `;` w nawiasie jej nie kończy", () => {
+    expect(
+      splitSqlStatementsDeep(
+        "CREATE FUNCTION f() RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT 1; SELECT 2; END;\nCREATE UNIQUE INDEX t_a ON public.t (a);",
+      ),
+    ).toEqual([
+      "CREATE FUNCTION f() RETURNS int LANGUAGE sql BEGIN ATOMIC SELECT 1; SELECT 2; END",
+      "CREATE UNIQUE INDEX t_a ON public.t (a)",
+    ]);
+  });
+
+  it("tekst, którego lekser nie podzieli, zapala bramkę zamiast cicho wypaść z modelu", () => {
+    const report = analyzeOnConflictArbiters({
+      migrations: [...USER_ROLES_HISTORY, sql("\\\\set ON_ERROR_STOP on\nSELECT 1;", "z.sql")],
+      sources: [roleUpsert("tenant_id,user_id,role")],
+    });
+    expect(report.unsplittable).toEqual([
+      { file: "z.sql", message: expect.stringContaining("Meta-polecenie psql") },
+    ]);
+    expect(onConflictArbitersFailed(report)).toBe(true);
+    expect(renderOnConflictArbitersReport(report)).toContain("lexStatements");
+  });
+});
+
+describe("bramka arbitrów onConflict (stan faktyczny repozytorium)", () => {
+  // TEN SAM loader co runner CI - test nie ma własnej kopii zakresu skanu.
+  const migrations = loadRawMigrationFiles();
+  const report = analyzeOnConflictArbiters({ migrations, sources: loadProductionSources() });
 
   it("bramka faktycznie coś widzi - pusty skan nie może być zielony", () => {
     expect(report.tablesInModel).toBeGreaterThan(300);
     expect(report.sites.length).toBeGreaterThan(50);
+    expect(report.upsertCalls).toBeGreaterThanOrEqual(report.sites.length);
   });
 
   it("każdy cel onConflict w kodzie produkcyjnym ma arbitra i daje się sprawdzić statycznie", () => {
     expect(report.unresolved).toEqual([]);
     expect(report.violations).toEqual([]);
+    expect(report.unsplittable).toEqual([]);
+    expect(report.dynamicDdlDrift).toEqual([]);
     expect(renderOnConflictArbitersReport(report)).toContain("Arbitrzy onConflict OK");
+  });
+
+  it("zapadka dynamicznego DDL wskazuje wyłącznie istniejące migracje (może tylko maleć)", () => {
+    const files = new Set(migrations.map((migration) => migration.file));
+    for (const [file, entry] of Object.entries(DYNAMIC_DDL_BASELINE)) {
+      expect(files.has(file), file).toBe(true);
+      expect(entry.count, file).toBeGreaterThan(0);
+      expect(entry.why, file).toContain("616/616");
+    }
+    const total = Object.values(DYNAMIC_DDL_BASELINE).reduce((sum, entry) => sum + entry.count, 0);
+    expect(report.dynamicDdl).toHaveLength(total);
+  });
+
+  it("loader podaje migracje SUROWE - bajt w bajt jak na dysku, w kolejności nazw", () => {
+    const names = migrations.map((migration) => migration.file);
+    expect(names).toEqual([...names].sort());
+    for (const migration of migrations) {
+      expect(migration.sql, migration.file).toBe(
+        readFileSync(join(MIGRATIONS_DIR, migration.file), "utf8"),
+      );
+    }
   });
 });
