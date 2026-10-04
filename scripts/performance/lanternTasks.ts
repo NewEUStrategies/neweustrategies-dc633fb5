@@ -52,6 +52,8 @@ export interface TraceEventLike {
   readonly ts: number;
   readonly dur?: number;
   readonly args?: {
+    /** Ramka zdarzenia (`navigationStart`, `firstContentfulPaint`, `largestContentfulPaint::*`). */
+    readonly frame?: string;
     readonly data?: {
       readonly url?: string;
       readonly stackTrace?: readonly { readonly url?: string }[];
@@ -370,6 +372,105 @@ export function scriptBytesEndedBefore(
   return { bytes, count, excludedBytes, excludedCount, excludedUrls };
 }
 
+// ── obserwowane FCP/LCP nawigacji (recenzja D5) ──────────────────────────────
+
+export const LCP_CANDIDATE = "largestContentfulPaint::Candidate";
+export const LCP_INVALIDATE = "largestContentfulPaint::Invalidate";
+
+/**
+ * Zdarzenia głównej ramki nawigacji od `t0`: ślad zawiera też ramki podrzędne
+ * (iframe'y) i zdarzenia sprzed nawigacji (about:blank). Bez ramki (stare
+ * ślady bez `args.frame`) - filtr tylko po czasie.
+ */
+function navigationEvents(
+  events: readonly TraceEventLike[],
+  t0: number,
+  frame: string | undefined,
+): TraceEventLike[] {
+  return events.filter((e) => e.ts >= t0 && (!frame || e.args?.frame === frame));
+}
+
+/** Obserwowane FCP nawigacji (ts µs) albo undefined. */
+export function observedFcpTs(
+  events: readonly TraceEventLike[],
+  t0: number,
+  frame: string | undefined,
+): number | undefined {
+  return navigationEvents(events, t0, frame)
+    .filter((e) => e.name === "firstContentfulPaint")
+    .sort((a, b) => a.ts - b.ts)[0]?.ts;
+}
+
+/**
+ * Obserwowane LCP nawigacji (ts µs) jak w Lighthouse (`TraceProcessor`):
+ * OSTATNIE zdarzenie `largestContentfulPaint::Candidate|Invalidate` głównej
+ * ramki od `t0`; gdy ostatnie jest `Invalidate`, LCP nie ma (undefined).
+ */
+export function observedLcpTs(
+  events: readonly TraceEventLike[],
+  t0: number,
+  frame: string | undefined,
+): number | undefined {
+  let last: TraceEventLike | undefined;
+  for (const e of navigationEvents(events, t0, frame)) {
+    if (e.name !== LCP_CANDIDATE && e.name !== LCP_INVALIDATE) continue;
+    if (!last || e.ts >= last.ts) last = e;
+  }
+  return last?.name === LCP_CANDIDATE ? last.ts : undefined;
+}
+
+// ── tryb FCP (recenzja I1) ───────────────────────────────────────────────────
+//
+// Dwumodalność FCP mobile (POMIAR.md §3): albo boot JS wchodzi do grafu FCP
+// Lantern (cały, ~500 KB na 1,6 Mb/s = FCP ~4,2 s), albo tylko jego część
+// (~120 KB, FCP ~2,1 s). Dawny próg „> 50 KB = js" oznaczał OBA tryby jako `js`
+// (17 skryptów / 118 KB i 25 / 506 KB). Tryb = udział bajtów skryptów grafu FCP
+// w bajtach skryptów startowych zakończonych przed obserwowanym LCP.
+
+export type FcpMode = "pełny" | "pośredni" | "częściowy" | "bez-js" | "?";
+
+/** Udział ≥ 0,9: graf FCP niesie (prawie) cały boot. */
+export const FCP_MODE_FULL_SHARE = 0.9;
+/** Udział < 0,5: graf FCP niesie mniejszość bootu. */
+export const FCP_MODE_PARTIAL_SHARE = 0.5;
+
+export interface FcpModeInfo {
+  readonly mode: FcpMode;
+  /** Bajty grafu FCP / bajty skryptów startowych (NaN, gdy mianownik nieznany). */
+  readonly share: number;
+  readonly graphScripts: number;
+  readonly graphBytes: number;
+  readonly startupBytes: number;
+}
+
+export function fcpModeOf(
+  graphScripts: number,
+  graphBytes: number,
+  startupBytes: number,
+): FcpModeInfo {
+  const base = { graphScripts, graphBytes, startupBytes };
+  if (graphScripts === 0 || graphBytes <= 0) return { ...base, mode: "bez-js", share: 0 };
+  if (!(startupBytes > 0)) return { ...base, mode: "?", share: Number.NaN };
+  const share = graphBytes / startupBytes;
+  const mode: FcpMode =
+    share >= FCP_MODE_FULL_SHARE
+      ? "pełny"
+      : share < FCP_MODE_PARTIAL_SHARE
+        ? "częściowy"
+        : "pośredni";
+  return { ...base, mode, share };
+}
+
+/** `pełny (25 skr. / 506,2 KB = 97 % z 520,0 KB)` - tryb z liczbami, do ksiąg i linii LEDGER. */
+export function formatFcpMode(info: FcpModeInfo): string {
+  const kb = (v: number) => (v / 1024).toFixed(1).replace(".", ",");
+  const share = Number.isFinite(info.share) ? `${Math.round(info.share * 100)} %` : "?";
+  return (
+    `${info.mode} (${info.graphScripts} skr. / ${kb(info.graphBytes)} KB = ${share} ` +
+    `z ${kb(info.startupBytes)} KB)`
+  );
+}
+
 export interface DiffRow {
   readonly a: TaskRow | null;
   readonly b: TaskRow | null;
@@ -440,7 +541,9 @@ export interface Ledger {
   /** Skrypty w pesymistycznym grafie FCP Lantern = „tryb FCP" przebiegu (dwumodalność, M3). */
   readonly fcpGraphScripts: number;
   readonly fcpGraphScriptBytes: number;
-  readonly fcpMode: "js" | "bez-js";
+  /** Tryb FCP z udziału bajtów grafu FCP w skryptach startowych (`fcpModeOf`, I1). */
+  readonly fcpMode: FcpMode;
+  readonly fcpModeInfo: FcpModeInfo;
   readonly scriptBytesEndedBeforeObsLcp: ScriptBytes;
   readonly tasks: readonly TaskRow[];
   /** Zadania z kodu Google (googletagmanager) - kontrola pozytywna `--third-party fake-gtag`. */
@@ -459,7 +562,7 @@ export function formatLedger(ledger: Ledger, minBlocking = 1): string {
       `FCPsim opt/pes=${ms(ledger.fcpSim.optimistic)}/${ms(ledger.fcpSim.pessimistic)} ` +
       `TTIsim opt/pes=${ms(ledger.ttiSim.optimistic)}/${ms(ledger.ttiSim.pessimistic)} ` +
       `obsFCP=${ms(ledger.obsFcp)} obsLCP=${ms(ledger.obsLcp)}`,
-    `# trybFCP=${ledger.fcpMode} (graf FCP: ${ledger.fcpGraphScripts} skryptów, ${(ledger.fcpGraphScriptBytes / 1024).toFixed(1)} KB) ` +
+    `# trybFCP=${formatFcpMode(ledger.fcpModeInfo)} ` +
       `scriptBytesEndedBeforeObsLcp=${(sb.bytes / 1024).toFixed(1)} KB (${sb.count}) ` +
       `+ wykluczone ${(sb.excludedBytes / 1024).toFixed(1)} KB (${sb.excludedUrls.join(",") || "-"}) ` +
       `google: ${ledger.googleTasks} zadań / ${ms(ledger.googleBlocking)} ms`,
@@ -551,6 +654,25 @@ export function resolveLighthouseCore(explicit?: string): string | null {
   return null;
 }
 
+/**
+ * Nazwa i wersja Lighthouse'a do zapisów harnessu (summary.json, baseline):
+ * `lighthouse 13.5.0` z `package.json` instalacji LIGHTHOUSE_CLI, NIE ścieżka
+ * maszyny (recenzja P0.1, D3). Bez LIGHTHOUSE_CLI harness woła `npx lighthouse@13`.
+ */
+export function lighthouseLabel(cli: string | undefined = process.env.LIGHTHOUSE_CLI): string {
+  if (!cli) return "npx lighthouse@13";
+  try {
+    const pkg: unknown = JSON.parse(
+      readFileSync(join(dirname(dirname(cli)), "package.json"), "utf8"),
+    );
+    const { name, version } = (pkg ?? {}) as { name?: unknown; version?: unknown };
+    if (typeof name === "string" && typeof version === "string") return `${name} ${version}`;
+  } catch {
+    /* niestandardowy układ instalacji - zostaje etykieta bez wersji */
+  }
+  return "lighthouse (LIGHTHOUSE_CLI, wersja nieznana)";
+}
+
 async function importCore<T>(core: string, rel: string): Promise<T> {
   const mod: T = await import(pathToFileURL(join(core, rel)).href);
   return mod;
@@ -616,10 +738,11 @@ export async function analyzeArtifacts(
     (e) => e.name === "navigationStart" && e.args?.data?.isLoadingMainFrame === true,
   );
   const t0 = nav?.ts ?? 0;
-  const firstOf = (name: string) => events.find((e) => e.name === name && e.ts >= t0)?.ts;
-  const lcpEvents = events.filter((e) => e.name === "largestContentfulPaint::Candidate");
-  const obsFcpTs = firstOf("firstContentfulPaint");
-  const obsLcpTs = lcpEvents.length ? lcpEvents[lcpEvents.length - 1].ts : undefined;
+  // Tylko główna ramka nawigacji i zdarzenia od jej startu; LCP unieważnione
+  // (`Invalidate`) jak w Lighthouse (D5).
+  const mainFrame = nav?.args?.frame;
+  const obsFcpTs = observedFcpTs(events, t0, mainFrame);
+  const obsLcpTs = observedLcpTs(events, t0, mainFrame);
 
   const cpuNodes = new Map<string, CpuTaskInput>();
   const optimistic = new Map<string, SimTiming>();
@@ -659,6 +782,18 @@ export async function analyzeArtifacts(
   const records = await NetworkRecords.request(devtoolsLog, context);
   const excludes = (options.excludeScripts ?? DEFAULT_EXCLUDE_SCRIPTS).map((s) => new RegExp(s));
   const google = tasks.filter((t) => /googletagmanager|google-analytics/.test(t.url));
+  const scriptBytesEndedBeforeObsLcp = scriptBytesEndedBefore(
+    records,
+    obsLcpTs === undefined ? Number.POSITIVE_INFINITY : obsLcpTs / 1000,
+    excludes,
+  );
+  // Mianownik trybu FCP: WSZYSTKIE skrypty startowe przed LCP (także wykluczone
+  // z sumy, np. /~flock.js - graf FCP też je widzi).
+  const fcpModeInfo = fcpModeOf(
+    fcpGraphScripts,
+    fcpGraphScriptBytes,
+    scriptBytesEndedBeforeObsLcp.bytes + scriptBytesEndedBeforeObsLcp.excludedBytes,
+  );
   return {
     dir,
     cpuMultiplier: settings.throttling?.cpuSlowdownMultiplier ?? 1,
@@ -670,13 +805,9 @@ export async function analyzeArtifacts(
     obsLcp: obsLcpTs === undefined ? Number.NaN : (obsLcpTs - t0) / 1000,
     fcpGraphScripts,
     fcpGraphScriptBytes,
-    // Próg 50 KB: tryb „js" = boot (setki KB) w grafie FCP; „bez-js" = sam CSS/fonty.
-    fcpMode: fcpGraphScriptBytes > 50 * 1024 ? "js" : "bez-js",
-    scriptBytesEndedBeforeObsLcp: scriptBytesEndedBefore(
-      records,
-      obsLcpTs === undefined ? Number.POSITIVE_INFINITY : obsLcpTs / 1000,
-      excludes,
-    ),
+    fcpMode: fcpModeInfo.mode,
+    fcpModeInfo,
+    scriptBytesEndedBeforeObsLcp,
     tasks,
     googleTasks: google.filter((t) => t.simDur >= 1).length,
     googleBlocking: google.reduce((s, t) => s + t.blocking, 0),
@@ -708,18 +839,24 @@ interface SummaryRun {
   readonly valid?: boolean;
 }
 
-function seriesPairs(resultsDir: string, form: string): [string, string][] {
+/**
+ * Pary katalogów artefaktów A/B formy `form` z ważnych przebiegów serii
+ * (summary.json), a bez niego - po nazwach katalogów.
+ */
+export function seriesPairs(resultsDir: string, form: string): [string, string][] {
   const summaryFile = join(resultsDir, "summary.json");
   const pairs: [string, string][] = [];
   if (existsSync(summaryFile)) {
     const summary = JSON.parse(readFileSync(summaryFile, "utf8")) as {
       forms?: Record<string, { runs?: SummaryRun[]; records?: SummaryRun[] }>;
     };
+    // Ścieżki w summary.json są względne wobec katalogu wyników (D3: bez ścieżek
+    // maszyny); `resolve` przyjmuje też dawne, bezwzględne.
     const valid = (key: string) =>
       new Map(
         (summary.forms?.[key]?.records ?? [])
           .filter((r) => r.valid && r.artifacts && typeof r.n === "number")
-          .map((r) => [r.n as number, r.artifacts as string]),
+          .map((r) => [r.n as number, resolve(resultsDir, r.artifacts as string)]),
       );
     const a = valid(`A:${form}`);
     const b = valid(`B:${form}`);
