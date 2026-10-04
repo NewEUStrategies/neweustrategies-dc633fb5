@@ -205,7 +205,7 @@ describe("Kinetic Signal Notch", () => {
       // wyraźnie cieńsza niż pasek sygnału; stroke-width liczy się w pikselach
       // ekranu (vector-effect), więc skalowanie viewBoxa jej nie pogrubia.
       expect(svg.getAttribute("stroke-width")).toBe("1");
-      expect(svg.querySelector("polyline")?.getAttribute("vector-effect")).toBe(
+      expect(svg.querySelector("path")?.getAttribute("vector-effect")).toBe(
         "non-scaling-stroke",
       );
     }
