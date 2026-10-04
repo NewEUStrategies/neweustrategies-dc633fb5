@@ -18,14 +18,14 @@ export type MetricTone = "neutral" | "ok" | "warn" | "danger";
 const ICON_TONE: Record<MetricTone, string> = {
   neutral: "text-muted-foreground",
   ok: "text-emerald-600 dark:text-emerald-400",
-  warn: "text-amber-600 dark:text-amber-400",
+  warn: "text-brand-ink dark:text-brand",
   danger: "text-destructive",
 };
 
 const VALUE_TONE: Record<MetricTone, string> = {
   neutral: "",
   ok: "",
-  warn: "text-amber-600 dark:text-amber-400",
+  warn: "text-brand-ink dark:text-brand",
   danger: "text-destructive",
 };
 

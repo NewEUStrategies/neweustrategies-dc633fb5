@@ -48,7 +48,7 @@ export function WebhookSetupCard({ setup, locale }: WebhookSetupCardProps) {
     <section
       className={cn(
         "rounded-xl border p-5 space-y-4",
-        setup.webhookConfigured ? "bg-card border-border" : "bg-amber-500/5 border-amber-500/40",
+        setup.webhookConfigured ? "bg-card border-border" : "bg-brand/5 border-brand/40",
       )}
     >
       <header className="flex items-start justify-between gap-3 flex-wrap">
@@ -56,13 +56,13 @@ export function WebhookSetupCard({ setup, locale }: WebhookSetupCardProps) {
           <div
             className={cn(
               "w-8 h-8 rounded-md flex items-center justify-center shrink-0",
-              setup.webhookConfigured ? "bg-primary/10" : "bg-amber-500/15",
+              setup.webhookConfigured ? "bg-primary/10" : "bg-brand/15",
             )}
           >
             <Webhook
               className={cn(
                 "w-4 h-4",
-                setup.webhookConfigured ? "text-primary" : "text-amber-600 dark:text-amber-400",
+                setup.webhookConfigured ? "text-primary" : "text-brand-ink dark:text-brand",
               )}
             />
           </div>
@@ -85,7 +85,7 @@ export function WebhookSetupCard({ setup, locale }: WebhookSetupCardProps) {
             healthy
               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               : setup.webhookConfigured
-                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                ? "bg-brand/10 text-brand-ink dark:text-brand"
                 : "bg-destructive/10 text-destructive",
           )}
         >
@@ -101,7 +101,7 @@ export function WebhookSetupCard({ setup, locale }: WebhookSetupCardProps) {
       </header>
 
       {!setup.webhookConfigured && (
-        <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+        <p className="text-xs text-brand-ink dark:text-brand leading-relaxed">
           {t("adminDeliverability.setup.missingBody")}
         </p>
       )}

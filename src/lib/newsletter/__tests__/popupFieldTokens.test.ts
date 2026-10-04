@@ -72,7 +72,7 @@ const source: PopupColorSource = {
   popup_bg_color: "#0b0b0f",
   popup_text_color: "#ffffff",
   popup_muted_color: "#a8a8b3",
-  popup_accent_color: "#fa9346",
+  popup_accent_color: "#FA9346",
   popup_accent_text_color: "#141414",
   popup_overlay_color: "rgba(10,10,15,0.55)",
   popup_showcase_grad_from: null,
@@ -118,7 +118,7 @@ describe("popupPaletteVars - tokeny pól", () => {
     expect(vars["--gc-input-placeholder"]).toBe("color-mix(in srgb, #ffffff 74%, transparent)");
     expect(vars["--gc-input-placeholder-dark"]).toBe(vars["--gc-input-placeholder"]);
     // Po focusie / wypełnieniu etykieta bierze `--ring`, a chip `--background`.
-    expect(vars["--ring"]).toBe("#fa9346");
+    expect(vars["--ring"]).toBe("#FA9346");
     expect(vars["--background"]).toBe("#0b0b0f");
   });
 

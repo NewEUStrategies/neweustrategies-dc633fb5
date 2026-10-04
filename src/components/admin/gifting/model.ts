@@ -7,7 +7,7 @@ export const EVENT_PILL_CLS: Record<GiftEventType, string> = {
   redeemed: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
   revoked: "bg-destructive/10 text-destructive border-destructive/20",
   expired: "bg-muted text-muted-foreground border-border",
-  exhausted: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+  exhausted: "bg-brand/10 text-brand-ink border-brand/20",
 };
 
 // `Object.hasOwn`, NIE operator `in`: `in` przeszukuje caly lancuch prototypow,

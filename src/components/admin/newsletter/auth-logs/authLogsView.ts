@@ -53,7 +53,7 @@ export const PAGE_SIZE = DEFAULT_PAGE_SIZE;
  */
 export function statusTone(status: AuthEventStatus): string {
   if (status === "enqueued") return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-  if (status === "rejected") return "bg-amber-500/10 text-amber-600 border-amber-500/20";
+  if (status === "rejected") return "bg-brand/10 text-brand-ink border-brand/20";
   return "bg-destructive/10 text-destructive border-destructive/20";
 }
 

@@ -16,7 +16,7 @@ interface QueueDepthStatProps {
 
 const TONE: Record<NonNullable<QueueDepthStatProps["tone"]>, string> = {
   neutral: "border-border bg-muted/40 text-foreground",
-  warn: "border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400",
+  warn: "border-brand/40 bg-brand/5 text-brand-ink dark:text-brand",
   danger: "border-destructive/40 bg-destructive/5 text-destructive",
 };
 

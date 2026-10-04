@@ -305,7 +305,7 @@ export function BlockInserter({
                   key={pattern.key}
                   type="button"
                   onClick={() => choosePattern(pattern)}
-                  className="w-full flex items-start gap-2.5 rounded border border-border p-2.5 text-left hover:border-[#FDB078] hover:bg-[#FDB078]/20 transition-colors"
+                  className="w-full flex items-start gap-2.5 rounded border border-border p-2.5 text-left hover:border-[#FA9346] hover:bg-[#FA9346]/20 transition-colors"
                 >
                   <Icon className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
                   <span className="min-w-0">
@@ -388,8 +388,8 @@ function renderItem(
       title={spec.description}
       className={`flex flex-col items-center gap-1 p-2 rounded border text-center disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
         opts.active
-          ? "border-[#FDB078] bg-[#FDB078]/20"
-          : "border-border hover:border-[#FDB078] hover:bg-[#FDB078]/20"
+          ? "border-[#FA9346] bg-[#FA9346]/20"
+          : "border-border hover:border-[#FA9346] hover:bg-[#FA9346]/20"
       }`}
     >
       <Icon className="w-4 h-4" />

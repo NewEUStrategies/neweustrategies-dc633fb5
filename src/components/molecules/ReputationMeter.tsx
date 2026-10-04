@@ -20,7 +20,7 @@ interface ReputationMeterProps {
 
 const FILL: Record<ReputationMetric["status"], string> = {
   healthy: "bg-emerald-500",
-  watch: "bg-amber-500",
+  watch: "bg-brand",
   critical: "bg-destructive",
   insufficient_data: "bg-muted-foreground/40",
 };

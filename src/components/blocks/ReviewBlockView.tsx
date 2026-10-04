@@ -19,7 +19,7 @@ interface Props {
 function colorForScore(pct: number): string {
   if (pct >= 0.8) return "bg-emerald-500";
   if (pct >= 0.6) return "bg-lime-500";
-  if (pct >= 0.4) return "bg-amber-500";
+  if (pct >= 0.4) return "bg-brand";
   if (pct >= 0.2) return "bg-orange-500";
   return "bg-red-500";
 }

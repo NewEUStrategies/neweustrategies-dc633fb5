@@ -198,7 +198,7 @@ function StatusBadge({ status }: { status: string }) {
     status === "subscribed"
       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
       : status === "pending"
-        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+        ? "bg-brand/10 text-brand-ink dark:text-brand"
         : "bg-muted text-muted-foreground";
   return <span className={`text-[11px] px-2 py-0.5 rounded font-medium ${style}`}>{status}</span>;
 }

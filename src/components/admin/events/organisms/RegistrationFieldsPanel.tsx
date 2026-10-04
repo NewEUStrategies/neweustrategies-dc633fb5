@@ -281,7 +281,7 @@ function ConsentDocumentLine({
 }) {
   const missing = url.trim() === "";
   return (
-    <p className={missing ? "break-all text-amber-600 dark:text-amber-400" : "break-all"}>
+    <p className={missing ? "break-all text-brand-ink dark:text-brand" : "break-all"}>
       {label}: {missing ? missingLabel : url}
     </p>
   );

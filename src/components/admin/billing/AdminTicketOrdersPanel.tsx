@@ -17,7 +17,7 @@ import { uiLocale } from "@/lib/i18n/format";
 const STATUS_TONE: Record<string, string> = {
   paid: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
   processed: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
-  pending: "bg-amber-500/14 text-amber-700 dark:text-amber-300",
+  pending: "bg-brand/14 text-brand-ink dark:text-brand",
   processing: "bg-sky-500/12 text-sky-700 dark:text-sky-300",
   received: "bg-sky-500/12 text-sky-700 dark:text-sky-300",
   refunded: "bg-muted text-muted-foreground",

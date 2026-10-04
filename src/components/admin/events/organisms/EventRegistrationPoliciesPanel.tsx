@@ -173,7 +173,7 @@ function PoliciesForm({
           </div>
         </fieldset>
         {draft.refundMode === "none" ? (
-          <p role="note" className="text-xs text-amber-600 dark:text-amber-400">
+          <p role="note" className="text-xs text-brand-ink dark:text-brand">
             {t("adminEventParticipant.policies.refund.noneWarning")}
           </p>
         ) : null}

@@ -266,7 +266,7 @@ function RedemptionsPage() {
                             ) : (
                               <Badge
                                 variant="outline"
-                                className="text-amber-600 border-amber-500/50"
+                                className="text-brand-ink border-brand/50"
                               >
                                 {L("czeka na płatność", "awaiting payment")}
                               </Badge>

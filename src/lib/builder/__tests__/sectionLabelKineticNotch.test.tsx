@@ -97,7 +97,7 @@ describe("Kinetic Signal Notch", () => {
     expect(bars).toHaveLength(3);
     for (const bar of bars) {
       expect(bar.style.background || bar.style.backgroundColor).toMatch(
-        /#fa9346|rgb\(250, 147, 70\)/i,
+        /#FA9346|rgb\(250, 147, 70\)/i,
       );
       expect(bar.style.height).toBe("3px");
     }

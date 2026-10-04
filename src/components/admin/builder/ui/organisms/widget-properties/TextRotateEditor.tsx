@@ -60,7 +60,7 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
   const staggerFrom = (typeof c.staggerFrom === "string" ? c.staggerFrom : "first") as StaggerFrom;
 
   const color = (typeof c.color === "string" ? c.color : "") || "";
-  const accent = (typeof c.accentColor === "string" ? c.accentColor : "") || "#f97316";
+  const accent = (typeof c.accentColor === "string" ? c.accentColor : "") || "#FA9346";
   const intervalMs = typeof c.rotationInterval === "number" ? c.rotationInterval : 2200;
   const staggerMs = typeof c.staggerDurationMs === "number" ? c.staggerDurationMs : 30;
   const transitionMs = typeof c.transitionMs === "number" ? c.transitionMs : 450;
@@ -143,7 +143,7 @@ export function TextRotateEditor({ c, lang, setContent }: Props) {
           <ColorField
             value={accent}
             onChange={(v) => setContent("accentColor", v ?? "")}
-            placeholder="#f97316"
+            placeholder="#FA9346"
           />
         </PropField>
       </section>

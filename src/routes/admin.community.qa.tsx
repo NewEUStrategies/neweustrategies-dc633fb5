@@ -66,12 +66,12 @@ const SESSION_TONE: Record<QaSessionStatus, string> = {
   draft: "bg-muted text-muted-foreground",
   scheduled: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
   open: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-  answering: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  answering: "bg-brand/15 text-brand-ink dark:text-brand",
   closed: "bg-destructive/10 text-destructive",
 };
 
 const QUESTION_TONE: Record<QaQuestionStatus, string> = {
-  pending: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  pending: "bg-brand/15 text-brand-ink dark:text-brand",
   approved: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
   rejected: "bg-destructive/15 text-destructive",
   answered: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
@@ -199,7 +199,7 @@ function AdminCommunityQa() {
                         title={t("adminCommunity.qa.startAnswering")}
                         onClick={() => sessionStatusM.mutate({ id: s.id, status: "answering" })}
                       >
-                        <MessageSquare className="w-4 h-4 text-amber-600" />
+                        <MessageSquare className="w-4 h-4 text-brand-ink" />
                       </Button>
                     )}
                     {s.status !== "closed" && (

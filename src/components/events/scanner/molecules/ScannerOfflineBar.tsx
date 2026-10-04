@@ -60,7 +60,7 @@ export function ScannerOfflineBar({
         <p
           className={
             state === "stale" || state === "none"
-              ? "text-amber-700 dark:text-amber-300"
+              ? "text-brand-ink dark:text-brand"
               : "text-muted-foreground"
           }
         >
@@ -89,7 +89,7 @@ export function ScannerOfflineBar({
       )}
 
       {clockSkewed && (
-        <p className="flex items-center gap-1.5 text-amber-700 dark:text-amber-300">
+        <p className="flex items-center gap-1.5 text-brand-ink dark:text-brand">
           <Clock3 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           {t("eventScanner.session.clockSkew", {
             count: Math.max(1, Math.round(Math.abs(clockOffsetMs) / 60_000)),

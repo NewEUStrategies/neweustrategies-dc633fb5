@@ -44,7 +44,7 @@ function getTone(status: string): {
       };
     case "draft":
       return {
-        classes: "border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400",
+        classes: "border-brand/40 bg-brand/15 text-brand-ink dark:text-brand",
         icon: Pencil,
       };
     case "pending_review":

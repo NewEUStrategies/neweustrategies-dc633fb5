@@ -180,7 +180,7 @@ function RegistrationCard({ item }: { item: ParticipantRegistration }) {
       {item.paymentStatus === "unpaid" &&
         item.status !== "cancelled" &&
         item.status !== "rejected" && (
-          <section className="rounded-[6px] border border-amber-500/50 bg-amber-500/5 p-3">
+          <section className="rounded-[6px] border border-brand/50 bg-brand/5 p-3">
             <h3 className="text-sm font-semibold text-foreground">
               {t("participantTickets.payment.unpaid")}
             </h3>

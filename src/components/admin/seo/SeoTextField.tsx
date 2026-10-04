@@ -118,7 +118,7 @@ export function SeoTextField({
       <p
         id={warnId}
         role={severityLiveRole("warning")}
-        className={cn("text-[11px] text-amber-600 dark:text-amber-400", showPixelWarning && "mt-1")}
+        className={cn("text-[11px] text-brand-ink dark:text-brand", showPixelWarning && "mt-1")}
       >
         {showPixelWarning ? t("admin.seo.field.warnPixel") : null}
       </p>

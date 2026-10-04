@@ -1166,7 +1166,7 @@ export function ResetPasswordFormView({ data, lang }: { data: ResetPasswordData;
     <AuthShell variant={variant}>
       <Header title={title} subtitle={subtitle} Icon={ShieldCheck} variant={variant} />
       {!ready ? (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+        <div className="rounded-md border border-brand/30 bg-brand/10 px-4 py-3 text-sm text-brand-ink dark:text-brand">
           {L.noToken}
         </div>
       ) : saved ? (

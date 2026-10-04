@@ -21,7 +21,7 @@ type Tone = "neutral" | "positive" | "attention" | "danger" | "info";
 const TONE_CLASS: Record<Tone, string> = {
   neutral: "bg-muted text-muted-foreground border-border/60",
   positive: "bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300",
-  attention: "bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300",
+  attention: "bg-brand/10 text-brand-ink border-brand/30 dark:text-brand",
   danger: "bg-destructive/10 text-destructive border-destructive/30",
   info: "bg-primary/10 text-primary border-primary/30",
 };

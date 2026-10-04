@@ -1434,7 +1434,7 @@ function DocProps({
         label="Kolor akcentu"
         value={p.accent}
         onChange={(v) => onPatchPopup({ accent: v ?? undefined })}
-        fallback="#f97316"
+        fallback="#FA9346"
       />
       <div>
         <Label>Overlay (rgba)</Label>

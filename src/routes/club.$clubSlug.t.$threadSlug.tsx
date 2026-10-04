@@ -831,12 +831,12 @@ function ClubThreadView() {
 
           {/* Kolejka moderacji - komunikat, który nie znika razem z toastem. */}
           {queued ? (
-            <div className="mt-6 flex items-start gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+            <div className="mt-6 flex items-start gap-3 rounded-xl border border-brand/40 bg-brand/10 p-4">
               <ShieldQuestion
-                className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+                className="mt-0.5 h-4 w-4 shrink-0 text-brand-ink dark:text-brand"
                 aria-hidden="true"
               />
-              <p className="text-sm text-amber-900 dark:text-amber-200">
+              <p className="text-sm text-brand-ink dark:text-brand">
                 {t("club.replyQueuedHint")}
               </p>
             </div>
@@ -1059,7 +1059,7 @@ function ReplyBranch(props: ReplyBranchProps) {
                 </Badge>
               ) : null}
               {reply.status === "pending" ? (
-                <Badge variant="outline" className="text-[11px] text-amber-700 dark:text-amber-300">
+                <Badge variant="outline" className="text-[11px] text-brand-ink dark:text-brand">
                   {t("club.threadStatus.pending")}
                 </Badge>
               ) : null}

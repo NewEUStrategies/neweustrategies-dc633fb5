@@ -537,7 +537,7 @@ function EventOverview() {
                 </span>
               )}
               {!isPast && rsvpBeforeOpen && earlyRank !== null && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand-ink dark:text-brand">
                   <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                   {t("community.events.earlyForMembers")}
                 </span>
@@ -722,7 +722,7 @@ function EventOverview() {
             </div>
 
             {!isPast && user && rsvpBeforeOpen && hasEarlyAccess && (
-              <p className="text-sm text-amber-700 dark:text-amber-400" aria-live="polite">
+              <p className="text-sm text-brand-ink dark:text-brand" aria-live="polite">
                 {t("community.events.rsvpEarlyAccessOpen", { when: whenOpens })}
               </p>
             )}

@@ -189,7 +189,7 @@ describe("palette - progi WCAG", () => {
   it("każdy slot NIESIE KSZTAŁT na płycie swojego motywu - sam albo obwódką", () => {
     // Reguła ma DWA wejścia, i to nie jest rozluźnienie progu, tylko opisanie
     // tego, co naprawdę niesie kształt. Wypełnienie w kolorze marki bywa pod
-    // progiem (#fa9346 ma 2,25:1 na białej płycie) i nie wolno go podmienić,
+    // progiem (#FA9346 ma 2,25:1 na białej płycie) i nie wolno go podmienić,
     // bo po to jest kolorem marki. Kształt niesie wtedy obwódka, a `barFillOf`
     // dociąga ją do progu niezależnie od tego, ile kroków jasności to wymaga.
     // Warunek jest więc taki: ALBO wypełnienie przechodzi samo, ALBO slot jest
@@ -408,7 +408,7 @@ describe("palette - KOLORY MARKI są w palecie, co do hexa", () => {
   // inny test by tego nie zauważył, bo wszystkie progi dalej by przechodziły.
   const ZADANE_JASNE = [
     "#03346e",
-    "#fa9346",
+    "#FA9346",
     "#8c56d4",
     "#2bbbd7",
     "#bb8760",
@@ -433,7 +433,7 @@ describe("palette - KOLORY MARKI są w palecie, co do hexa", () => {
   ];
   const ZADANE_CIEMNE = [
     "#2196f3",
-    "#fdb078",
+    "#fa9346",
     "#76c457",
     "#e7bcde",
     "#92eeff",
@@ -457,7 +457,7 @@ describe("palette - KOLORY MARKI są w palecie, co do hexa", () => {
 
   it("każdy zadany odcień JASNY stoi w palecie jako wartość jasna", () => {
     const jasne = new Set(CHART_SLOTS.map((s) => s.light.toLowerCase()));
-    for (const hex of ZADANE_JASNE) expect(jasne.has(hex), hex).toBe(true);
+    for (const hex of ZADANE_JASNE) expect(jasne.has(hex.toLowerCase()), hex).toBe(true);
   });
 
   it("każdy zadany odcień CIEMNY stoi w palecie jako wartość ciemna", () => {
@@ -1008,10 +1008,10 @@ describe("palette - DRUGA POWIERZCHNIA SEKCYJNA i furtki audytowe akcentu", () =
     const bg = hexToken(LIGHT_BLOCK, "--chart-accent-bg");
     expect(contrastRatio(bg, CHART_SURFACES.pageLight)).toBeLessThan(1.01);
     expect(contrastRatio(ACCENT_AUDIT.graphic, bg)).toBeGreaterThanOrEqual(CONTRAST_MIN.graphic);
-    // Jaśniejszy token wypełnienia granicy NIE uniesie - 1,67:1.
+    // Token wypełnienia granicy NIE uniesie - pozostaje poniżej progu 3:1.
     expect(
       contrastRatio(hexToken(LIGHT_BLOCK, "--chart-accent-fill"), CHART_SURFACES.pageLight),
-    ).toBeLessThan(2);
+    ).toBeLessThan(CONTRAST_MIN.graphic);
   });
 });
 

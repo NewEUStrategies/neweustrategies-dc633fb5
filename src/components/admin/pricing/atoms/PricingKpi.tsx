@@ -10,7 +10,7 @@ export type KpiTone = "primary" | "sky" | "amber" | "emerald";
 const KPI_TONES: Record<KpiTone, { icon: string; ring: string }> = {
   primary: { icon: "bg-primary/10 text-primary", ring: "ring-primary/20" },
   sky: { icon: "bg-sky-500/10 text-sky-600 dark:text-sky-400", ring: "ring-sky-500/20" },
-  amber: { icon: "bg-amber-500/10 text-amber-600 dark:text-amber-400", ring: "ring-amber-500/20" },
+  amber: { icon: "bg-brand/10 text-brand-ink dark:text-brand", ring: "ring-brand/20" },
   emerald: {
     icon: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     ring: "ring-emerald-500/20",

@@ -86,7 +86,7 @@ function VerdictBadge({ verdict }: { verdict: string | undefined }) {
     if (v === "PARTIAL")
       return {
         Icon: AlertTriangle,
-        cls: "text-amber-600 bg-amber-500/10 border-amber-500/20",
+        cls: "text-brand-ink bg-brand/10 border-brand/20",
         label: t("admin.seo.gsc.verdict.partial"),
       };
     if (v === "FAIL")

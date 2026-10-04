@@ -220,7 +220,7 @@ export function ConsentsPanel({
                   key={definition.key}
                   className={cn(
                     "rounded-md border border-border/60 bg-card px-3.5 py-3 shadow-sm transition-colors",
-                    showOutdated && "border-amber-400/60 bg-amber-50/60 dark:bg-amber-950/20",
+                    showOutdated && "border-brand/60 bg-brand/60 dark:bg-brand/20",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -260,7 +260,7 @@ export function ConsentsPanel({
                               })}
                       </p>
                       {showOutdated && (
-                        <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                        <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-brand/10 px-2 py-1 text-[11px] font-medium text-brand-ink dark:text-brand">
                           <AlertTriangle className="h-3 w-3" aria-hidden />
                           {t("notifications.consents.versionOutdated")}
                         </p>

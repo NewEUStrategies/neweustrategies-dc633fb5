@@ -332,7 +332,7 @@ export function ClubBoardPanel({
                     <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                       <ClubTopicChip topic={row.topic} lang={lang} catalog={topics} size="sm" />
                       {isNoticeExpiringSoon(row.expires_at) ? (
-                        <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                        <span className="text-[10px] font-medium text-brand-ink dark:text-brand">
                           {t("club.network.board.expiresIn", { count: daysLeft })}
                         </span>
                       ) : null}

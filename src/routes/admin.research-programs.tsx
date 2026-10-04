@@ -378,7 +378,7 @@ function AdminResearchPrograms() {
                     ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
                     : p.status === "archived"
                       ? "bg-muted text-muted-foreground"
-                      : "bg-amber-500/10 text-amber-700 dark:text-amber-300")
+                      : "bg-brand/10 text-brand-ink dark:text-brand")
                 }
               >
                 {t(`admin.status.${p.status}`)}

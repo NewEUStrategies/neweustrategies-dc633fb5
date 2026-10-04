@@ -122,7 +122,7 @@ describe("FxRateNotice - źródło kursu", () => {
     // Ani zieleń „świeżego” kursu, ani bursztyn kotwicy awaryjnej - ton neutralny.
     expect(status).toHaveClass("border-muted");
     expect(status).not.toHaveClass("border-emerald-500/30");
-    expect(status).not.toHaveClass("border-amber-500/30");
+    expect(status).not.toHaveClass("border-brand/30");
     // Kwota wciąż pochodzi z ostatniego udanego odczytu NBP - z jego tabelą.
     expect(status).toHaveTextContent("checkout.fx.tableA(date=2026-08-13)");
     // Linia z przyczyną należy do kotwicy awaryjnej; kurs z NBP jej nie dostaje,
@@ -146,7 +146,7 @@ describe("FxRateNotice - źródło kursu", () => {
 
     expect(await screen.findByText("checkout.fx.fallbackTitle")).toBeInTheDocument();
     const status = screen.getByRole("status");
-    expect(status).toHaveClass("border-amber-500/30");
+    expect(status).toHaveClass("border-brand/30");
     expect(status).toHaveTextContent("checkout.fx.rate(rate=4.3000)");
     // Kotwica nie ma daty tabeli NBP - zdanie o tabeli A byłoby nieprawdą.
     expect(status).not.toHaveTextContent("checkout.fx.tableA");

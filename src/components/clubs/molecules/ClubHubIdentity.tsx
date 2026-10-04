@@ -198,7 +198,7 @@ export function ClubHubIdentity({
 
       {/* Powód informacyjny mówi się PRZED napisaniem, nie po odrzuceniu wpisu. */}
       {club.reason === "pre_moderation" ? (
-        <p className="border-t border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-800 dark:text-amber-200 sm:px-5">
+        <p className="border-t border-brand/40 bg-brand/10 px-4 py-2 text-sm text-brand-ink dark:text-brand sm:px-5">
           {t("club.reason.pre_moderation")}
         </p>
       ) : null}

@@ -25,7 +25,7 @@ export function PaidTicketAccountNotice() {
   return (
     <div
       role="status"
-      className="space-y-2 rounded-[6px] border border-amber-500/50 bg-amber-500/5 p-4"
+      className="space-y-2 rounded-[6px] border border-brand/50 bg-brand/5 p-4"
     >
       <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <KeyRound className="h-4 w-4" aria-hidden="true" />

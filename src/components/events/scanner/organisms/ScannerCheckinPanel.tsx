@@ -246,7 +246,7 @@ export function ScannerCheckinPanel({
             })}
           />
           {local.approximateCapacity && (
-            <p className="text-xs text-amber-700 dark:text-amber-300">
+            <p className="text-xs text-brand-ink dark:text-brand">
               {t("eventScanner.offline.approximateCapacity")}
             </p>
           )}

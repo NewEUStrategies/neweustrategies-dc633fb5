@@ -73,7 +73,7 @@ const STAGE_LABELS: Record<CareerStage, [string, string]> = {
 /** Kolor etapu w panelu - te same tokeny, co etapy leada na karcie CRM. */
 export const CAREER_STAGE_STYLE: Record<CareerStage, string> = {
   new: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
-  screening: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  screening: "bg-brand/15 text-brand-ink dark:text-brand",
   interview: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
   offer: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
   hired: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",

@@ -29,7 +29,7 @@ const CELL: Record<
   },
   cond: {
     Icon: Settings2,
-    className: "size-4 text-amber-600 dark:text-amber-400",
+    className: "size-4 text-brand-ink dark:text-brand",
     legendKey: "clubElements.matrix.legendCond",
   },
   no: {

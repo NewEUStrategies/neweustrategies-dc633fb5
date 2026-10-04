@@ -41,7 +41,7 @@ function statusTone(status: string): string {
   if (status === "sent") return "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400";
   if (status === "pending") return "bg-sky-500/12 text-sky-600 dark:text-sky-400";
   if (status === "suppressed" || status === "complained")
-    return "bg-amber-500/15 text-amber-600 dark:text-amber-400";
+    return "bg-brand/15 text-brand-ink dark:text-brand";
   return "bg-destructive/12 text-destructive";
 }
 
@@ -96,7 +96,7 @@ export function EmailOutboxPanel() {
     {
       key: "suppressed",
       value: data?.stats.suppressed ?? 0,
-      tone: "text-amber-600 dark:text-amber-400",
+      tone: "text-brand-ink dark:text-brand",
     },
     { key: "pending", value: data?.stats.pending ?? 0, tone: "text-sky-600 dark:text-sky-400" },
   ] as const;
@@ -235,7 +235,7 @@ export function EmailOutboxPanel() {
       </div>
 
       {data?.truncated && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">{t("adminOutbox.truncated")}</p>
+        <p className="text-xs text-brand-ink dark:text-brand">{t("adminOutbox.truncated")}</p>
       )}
       {query.isError && <p className="text-sm text-destructive">{t("adminOutbox.error")}</p>}
 

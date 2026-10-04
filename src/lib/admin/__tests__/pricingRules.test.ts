@@ -276,8 +276,8 @@ describe("groupTiersByAudience - żadna warstwa nie ginie", () => {
 
 describe("rankTone - hierarchia widoczna w panelu", () => {
   it("ranga premium (od 30) dostaje tonację złotą", () => {
-    expect(rankTone(30).dot).toBe("bg-amber-500");
-    expect(rankTone(99).dot).toBe("bg-amber-500");
+    expect(rankTone(30).dot).toBe("bg-brand");
+    expect(rankTone(99).dot).toBe("bg-brand");
   });
 
   it("progi są rosnące i rozłączne: 29 to marka, 14 pomocnicza, 4 neutralna", () => {

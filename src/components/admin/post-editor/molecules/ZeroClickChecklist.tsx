@@ -13,7 +13,7 @@ import "@/lib/i18n-admin-zero-click";
 
 const STATUS_STYLE: Record<ZeroClickStatus, { icon: typeof Check; className: string }> = {
   ok: { icon: Check, className: "text-emerald-600 dark:text-emerald-400" },
-  warn: { icon: AlertTriangle, className: "text-amber-600 dark:text-amber-400" },
+  warn: { icon: AlertTriangle, className: "text-brand-ink dark:text-brand" },
   todo: { icon: Circle, className: "text-muted-foreground" },
 };
 

@@ -356,7 +356,7 @@ function DraftEditor({
       {mismatch ? (
         <p
           role="status"
-          className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm"
+          className="rounded-md border border-brand/50 bg-brand/10 p-3 text-sm"
         >
           {t("adminEventInvoices.draft.sourcesMismatch", {
             lines: money(preview.totals.grossCents),

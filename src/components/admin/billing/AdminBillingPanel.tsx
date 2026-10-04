@@ -60,7 +60,7 @@ interface WebhookRow {
 const STATUS_TONE: Record<string, string> = {
   active: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
   trialing: "bg-sky-500/12 text-sky-700 dark:text-sky-300",
-  past_due: "bg-amber-500/14 text-amber-700 dark:text-amber-300",
+  past_due: "bg-brand/14 text-brand-ink dark:text-brand",
   paused: "bg-muted text-muted-foreground",
   canceled: "bg-destructive/10 text-destructive",
   processed: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
@@ -229,7 +229,7 @@ export function AdminBillingPanel() {
                 {t("adminBilling.schedulerActive")} {runnerQ.data.base_url}
               </p>
             ) : (
-              <p className="text-amber-700 dark:text-amber-300">
+              <p className="text-brand-ink dark:text-brand">
                 {t("adminBilling.schedulerInactiveEnableJobRunner")}{" "}
                 <Link to="/admin/newsletter/campaigns" className="underline">
                   /admin/newsletter/campaigns

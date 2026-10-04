@@ -938,18 +938,18 @@ export function VisualCanvas({
     /* Global-widget instances: amber accents + a corner badge so editors know
        edits synchronize across every page referencing the global. */
     [data-visual-canvas] [data-widget-id][data-widget-global="1"]{
-      outline:1px dashed color-mix(in oklab, #f59e0b 55%, transparent);
+      outline:1px dashed color-mix(in oklab, #FA9346 55%, transparent);
       outline-offset:2px;
     }
     [data-visual-canvas] [data-widget-id][data-widget-global="1"]::after{
       content:"Globalny";
       position:absolute;top:-8px;right:6px;z-index:40;
       padding:1px 6px;border-radius:999px;
-      background:#f59e0b;color:#1c1917;
+      background:#FA9346;color:#1c1917;
       font-size:9px;line-height:1.3;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
       pointer-events:none;
     }
-    [data-visual-canvas] [data-widget-id][data-widget-global="1"].is-selected{outline:2px solid #f59e0b}
+    [data-visual-canvas] [data-widget-id][data-widget-global="1"].is-selected{outline:2px solid #FA9346}
     /* A/B experiment variants: violet frame + variant ribbon on the canvas. */
     [data-visual-canvas] [data-sec-id][data-ab-variant]{
       outline:1px dashed color-mix(in oklab, #8b5cf6 60%, transparent);

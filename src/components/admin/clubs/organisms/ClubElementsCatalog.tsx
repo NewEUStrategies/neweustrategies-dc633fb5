@@ -195,7 +195,7 @@ export function ClubElementsCatalog() {
               {t("clubElements.matrix.legendYes")}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <Settings2 className="size-3.5 text-amber-600 dark:text-amber-400" />
+              <Settings2 className="size-3.5 text-brand-ink dark:text-brand" />
               {t("clubElements.matrix.legendCond")}
             </span>
             <span className="inline-flex items-center gap-1.5">

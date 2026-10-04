@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import "@/lib/i18n-dock";
 
 const SWATCH: Record<NoteColor, string> = {
-  amber: "bg-amber-200 dark:bg-amber-500/40",
+  amber: "bg-brand/20 dark:bg-brand/40",
   rose: "bg-rose-200 dark:bg-rose-500/40",
   sky: "bg-sky-200 dark:bg-sky-500/40",
   emerald: "bg-emerald-200 dark:bg-emerald-500/40",

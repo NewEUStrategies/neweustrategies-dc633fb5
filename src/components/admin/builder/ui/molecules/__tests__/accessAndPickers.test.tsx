@@ -184,7 +184,7 @@ describe("ColorPicker", () => {
     fireEvent.click(trigger());
     // Porównanie bez wielkości liter - dokument mógł zapisać hex wielkimi.
     expect(screen.getByLabelText("#ef4444").className).toContain("ring-2");
-    expect(screen.getByLabelText("#f97316").className).toContain("border-border/60");
+    expect(screen.getByLabelText("#FA9346").className).toContain("border-border/60");
   });
 
   it("własna paleta zastępuje domyślną", () => {

@@ -63,7 +63,7 @@ export function ClubFormTextField({
         <p className="text-xs text-muted-foreground">{t(field.hintKey)}</p>
       )}
       {warningKey === undefined ? null : (
-        <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+        <p className="flex items-start gap-1.5 text-xs text-brand-ink dark:text-brand">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           {t(warningKey)}
         </p>

@@ -166,7 +166,7 @@ describe("TocDefaultsSchema - domykanie braków i odsiew niezgodnych typów", ()
   it("pusty obiekt daje pełny zestaw wartości domyślnych", () => {
     const parsed = TocDefaultsSchema.parse({});
     expect(parsed).toEqual(TOC_DEFAULTS);
-    expect(parsed.colors.accent).toBe("#fa9346");
+    expect(parsed.colors.accent).toBe("#FA9346");
   });
 
   it("brakujące pole zagnieżdżone jest domykane, podane zostaje", () => {

@@ -255,7 +255,7 @@ const WEJSCIE_ZAPISU: EventTrackInput = {
   key: "sciezka_cyfrowa",
   namePl: "Ścieżka Cyfrowa",
   nameEn: "Digital Track",
-  accentColor: "#fa9346",
+  accentColor: "#FA9346",
   taglinePl: null,
   taglineEn: null,
   descriptionPl: null,
@@ -292,7 +292,7 @@ const BRAK_NAPISU = null as unknown as string;
 /** Wiersz `admin_event_tracks_list` - pełny kształt sygnatury, nie wycinek. */
 function trackRow(overrides: Partial<EventTrackRow> = {}): EventTrackRow {
   return {
-    accent_color: "#fa9346",
+    accent_color: "#FA9346",
     cover_url: "https://cdn.example.com/pasmo.jpg",
     created_at: "2026-08-01T09:00:00.000Z",
     default_room_id: "a6000000-0000-4000-8000-000000000001",

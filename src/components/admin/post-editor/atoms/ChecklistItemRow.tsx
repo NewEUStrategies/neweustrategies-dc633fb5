@@ -19,7 +19,7 @@ export function ChecklistItemRow({ item }: { item: ChecklistItem }) {
       ) : item.level === "required" ? (
         <X className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden />
       ) : (
-        <Circle className="h-3 w-3 shrink-0 text-amber-500" aria-hidden />
+        <Circle className="h-3 w-3 shrink-0 text-brand0" aria-hidden />
       )}
       <span className={item.ok ? "text-muted-foreground line-through decoration-border" : ""}>
         {label}

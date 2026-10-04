@@ -127,7 +127,7 @@ export function EventStudioTopBar({
            Plakietka zamiast droplisty: kontrolka, ktora nie moze nic zmienic,
            klamie samym tym, ze wyglada na klikalna. */
         <span className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs text-muted-foreground">
-          <span className="h-2 w-2 rounded-full bg-amber-500" aria-hidden="true" />
+          <span className="h-2 w-2 rounded-full bg-brand" aria-hidden="true" />
           {t(STATUS_LABEL_KEYS.draft)}
         </span>
       ) : (
@@ -138,7 +138,7 @@ export function EventStudioTopBar({
                 className={cn(
                   "h-2 w-2 rounded-full",
                   status === "published" && "bg-emerald-500",
-                  status === "draft" && "bg-amber-500",
+                  status === "draft" && "bg-brand",
                   status === "cancelled" && "bg-destructive",
                 )}
                 aria-hidden="true"

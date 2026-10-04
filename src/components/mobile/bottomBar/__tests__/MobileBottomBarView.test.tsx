@@ -195,7 +195,7 @@ describe("MobileBottomBarView - wierność referencji", () => {
     const style = nav!.style;
     // Aktywna jest strona główna: brand-ink na jasnym, brand na ciemnym.
     expect(style.getPropertyValue("--mbb-active-light")).toBe("#FA9346");
-    expect(style.getPropertyValue("--mbb-active-dark")).toBe("#fa9346");
+    expect(style.getPropertyValue("--mbb-active-dark")).toBe("#FA9346");
     expect(style.getPropertyValue("--mbb-radius")).toBe("20px");
     expect(style.getPropertyValue("--mbb-bg-light")).toBe("#ffffff");
     expect(style.getPropertyValue("--mbb-bg-dark")).toBe("#111318");

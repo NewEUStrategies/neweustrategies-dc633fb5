@@ -123,7 +123,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
       {issues.length > 0 ? (
         <div
           role="alert"
-          className="mb-3 rounded border border-amber-400/60 bg-amber-50/70 dark:bg-amber-950/30 px-3 py-2 text-[12px] text-amber-900 dark:text-amber-100"
+          className="mb-3 rounded border border-brand/60 bg-brand/70 dark:bg-brand/30 px-3 py-2 text-[12px] text-brand-ink dark:text-brand"
         >
           <div className="flex items-center gap-1.5 font-semibold mb-1">
             <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
@@ -135,7 +135,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                 <button
                   type="button"
                   onClick={() => scrollToOrigin(iss.path)}
-                  className="font-medium underline decoration-dotted underline-offset-2 hover:text-amber-950 dark:hover:text-amber-50"
+                  className="font-medium underline decoration-dotted underline-offset-2 hover:text-brand-ink dark:hover:text-brand"
                   title={t("admin.autoFootnotes.jumpToBlock")}
                 >
                   {t("admin.autoFootnotes.blockLabel", {
@@ -145,7 +145,7 @@ export function AutoFootnotesPreview({ doc, onChange }: Props) {
                 </button>
                 : {iss.message}
                 {iss.excerpt ? (
-                  <code className="ml-1 rounded bg-amber-100/70 dark:bg-amber-900/40 px-1 py-0.5 text-[11px]">
+                  <code className="ml-1 rounded bg-brand/70 dark:bg-brand/40 px-1 py-0.5 text-[11px]">
                     {iss.excerpt}
                   </code>
                 ) : null}
