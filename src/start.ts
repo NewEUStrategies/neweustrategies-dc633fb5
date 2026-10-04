@@ -475,8 +475,10 @@ export function applySecurityHeaders(request: Request, response: Response): Resp
     headers.set(
       "Permissions-Policy",
       [
-        "camera=()",
-        "microphone=()",
+        // Nagrania głosowe w czacie i skaner kodów wymagają mikrofonu/kamery
+        // na własnej domenie; `()` blokowało je bez pytania użytkownika.
+        "camera=(self)",
+        "microphone=(self)",
         "geolocation=()",
         'payment=(self "https://js.stripe.com" "https://checkout.stripe.com" "https://m.stripe.network" "https://b.stripecdn.com" "https://hooks.stripe.com" "https://pay.google.com")',
         "browsing-topics=()",
