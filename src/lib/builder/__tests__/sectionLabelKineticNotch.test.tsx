@@ -175,7 +175,7 @@ describe("Kinetic Signal Notch", () => {
     // 0-4-0 + !important) narzuca „więcej" rozmiar (12 px) i wagę (800) opisu.
     // Kinetic musi więc mieć konkretniejszy selektor (0-5-0) z !important.
     const kineticRule =
-      /\[data-w-id\]\[data-w-id\]\[data-w-id\] \.nes-kinetic-shell \.nes-kinetic-action \{([^}]*)\}/g;
+      /\[data-w-id\]\[data-w-id\]\[data-w-id\] \.nes-kinetic-shell \.nes-kinetic-action(?: span)? \{([^}]*)\}/g;
     const rules = [...stylesCss.matchAll(kineticRule)].map((m) => m[1]);
     expect(rules.length).toBeGreaterThanOrEqual(2);
     expect(rules.some((r) => /font-size: 11px !important;/.test(r))).toBe(true);
