@@ -1149,7 +1149,7 @@ export function SectionLabelRender({
         ) : (
           <svg
             aria-hidden
-            viewBox="0 0 8 10"
+            viewBox="0 0 11 10"
             fill="none"
             stroke="currentColor"
             strokeWidth={barH}
@@ -1158,15 +1158,16 @@ export function SectionLabelRender({
             // Chevron w em: wysokość = wysokość czcionki akcji, więc znak jest
             // dokładnie tej samej wielkości co „więcej”. Kolor bierze z
             // currentColor (ten sam co tekst), a hover akcentuje całość.
-            style={{ width: "0.8em", height: "1em" }}
+            style={{ width: "1.1em", height: "1em" }}
             className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
           >
             {/* „taką samą grubość mają mieć kreski": grubość kreski chevronu to
                 dokładnie grubość paska sygnału (barH). vector-effect liczy
                 stroke-width w pikselach ekranu, więc skalowanie viewBoxa (em)
-                nie zmienia grubości linii. Punkty są cofnięte o pół kreski od
-                krawędzi, żeby gruby znak nie uciął się na brzegu pola. */}
-            <polyline points="1.9 1.9 6.1 5 1.9 8.1" vectorEffect="non-scaling-stroke" />
+                nie zmienia grubości linii. Pole jest szersze niż sam znak, a
+                punkty cofnięte o pół kreski od krawędzi, żeby gruby chevron
+                ani się nie uciął, ani nie zbijał w jedną plamę. */}
+            <polyline points="2.2 2 8.4 5 2.2 8" vectorEffect="non-scaling-stroke" />
           </svg>
         );
 
