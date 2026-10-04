@@ -918,12 +918,31 @@ export interface AttemptObservation {
   readonly runDocuments: readonly DocumentObservation[];
 }
 
+const ATTEMPT_FIELDS = [
+  "lhrOk",
+  "document",
+  "serverDocs",
+  "devtools",
+  "rewarmOk",
+  "referenceVariant",
+  "loadBefore",
+  "loadAfter",
+  "maxLoad",
+  "allowUncached",
+  "runDocuments",
+] as const satisfies readonly (keyof AttemptObservation)[];
+
 /**
  * Ważność próby. Bramka obciążenia bierze WIĘKSZY z dwóch pomiarów: przed
  * rozgrzewką (stan po czekaniu) i po niej (restart procesu serwera i render
- * MISS dokładają CPU tuż przed Lighthouse'em).
+ * MISS dokładają CPU tuż przed Lighthouse'em). Wołający z `.mjs` nie ma
+ * kontroli typów, więc brak pola (`undefined`; brak wartości to `null`) jest
+ * błędem już przy pierwszym przebiegu, a nie cichym wyłączeniem reguły.
  */
 export function classifyAttempt(a: AttemptObservation): RunValidity & { readonly load: number } {
+  for (const field of ATTEMPT_FIELDS)
+    if (a[field] === undefined)
+      throw new Error(`classifyAttempt: brak pola ${field} (okablowanie lighthouse-local.mjs)`);
   const loads = [a.loadBefore, a.loadAfter].filter((v) => Number.isFinite(v));
   const load = loads.length ? Math.max(...loads) : Number.NaN;
   if (!a.lhrOk) return { excluded: true, reasons: ["przebieg nieudany"], load };

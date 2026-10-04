@@ -1339,6 +1339,17 @@ test("classifyAttempt: całe okablowanie próby - wariant, rozgrzewka, obciąże
   };
   assert.equal(classifyAttempt({ ...uncached, allowUncached: true }).excluded, false);
   assert.equal(classifyAttempt(uncached).excluded, true);
+  // wołający z .mjs bez kontroli typów: pominięte pole to błąd, nie cicho wyłączona reguła
+  for (const field of Object.keys(base)) {
+    const partial = { ...base };
+    delete partial[field];
+    assert.throws(() => classifyAttempt(partial), new RegExp(`brak pola ${field}`));
+  }
+  // null to wartość (brak wzorca przy --allow-uncached, brak devtoolsLog), nie brak pola
+  assert.equal(
+    classifyAttempt({ ...base, referenceVariant: null, devtools: null }).excluded,
+    false,
+  );
 });
 
 /** Atrapa artefaktu dla `warmReferenceVariant`: odpowiedź rozgrzewki przed restartem i po nim. */
