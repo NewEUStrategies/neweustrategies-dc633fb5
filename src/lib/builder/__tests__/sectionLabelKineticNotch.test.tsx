@@ -5,9 +5,9 @@
 // renderera, ale NIE pilnuje, czy nowy wpis ma cokolwiek pod spodem: dopisany
 // bez `case` w `SectionLabelRender` wariant renderuje pusty fragment, a dopisany
 // bez tłumaczenia w `labelsEn.ts` wlewa polski do angielskiego panelu. Ten plik
-// zamyka obie dziury na konkretnym wariancie: trzy paski sygnału, akcent w
-// zmiennej CSS, podkreślenie akcji, posłuszeństwo `showRule` / `gapY` / `arrow`
-// oraz obecność stylów i kontrolek.
+// zamyka obie dziury na konkretnym wariancie: trzy szare paski sygnału, mała
+// akcja nad nimi (neutralna, z ostrą szewronką ">"), podkreślenie akcji,
+// posłuszeństwo `showRule` / `gapY` / `arrow` oraz obecność stylów i kontrolek.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { readFileSync } from "node:fs";
@@ -91,49 +91,61 @@ describe("katalog wariantów", () => {
 });
 
 describe("Kinetic Signal Notch", () => {
-  it("rysuje trzy paski sygnału w akcencie", () => {
+  it("rysuje trzy paski sygnału w szarym pastelu", () => {
     const { container } = renderVariant();
     const bars = [...container.querySelectorAll<HTMLElement>(".nes-kinetic-bar")];
     expect(bars).toHaveLength(3);
     for (const bar of bars) {
-      expect(bar.style.background || bar.style.backgroundColor).toMatch(
-        /#FA9346|rgb\(250, 147, 70\)/i,
+      expect(bar.style.background || bar.style.backgroundColor).toContain(
+        "var(--muted-foreground)",
       );
       expect(bar.style.height).toBe("3px");
     }
   });
 
-  it("utrzymuje sygnał, tytuł i akcję w jednym wierszu", () => {
+  it("układa małą akcję nad paskami w jednej kolumnie, z tytułem obok", () => {
     const { container } = renderVariant();
     const row = container.querySelector<HTMLElement>(".nes-kinetic-row");
     const title = container.querySelector<HTMLElement>("[data-title-root]");
     const action = container.querySelector<HTMLElement>(".nes-kinetic-action");
+    const bars = [...container.querySelectorAll<HTMLElement>(".nes-kinetic-bar")];
 
-    expect(row?.className).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
+    expect(row?.className).toContain("grid-cols-[auto_minmax(0,1fr)]");
     expect(row?.className).not.toContain("flex-wrap");
+    // Akcja stoi przed paskami (nad nimi) w tej samej kolumnie.
+    expect(action).not.toBeNull();
+    expect(bars[0] ? action?.compareDocumentPosition(bars[0]) : 0).toBeTruthy();
+    expect(action?.parentElement?.querySelector(".nes-kinetic-bar")).not.toBeNull();
+    // Akcja jest mniejsza od tytułu.
+    expect(action?.className).toContain("text-[10px]");
+    expect(title?.className).toContain("text-[12px]");
     expect(title?.className).toContain("whitespace-nowrap");
     expect(action?.className).toContain("whitespace-nowrap");
   });
 
-  it("akcja jest linkiem niosącym akcent w zmiennej --nes-accent", () => {
+  it("akcja jest neutralna - link bez akcentu w stylu inline", () => {
     const { container } = renderVariant({ href: "/raporty" });
     const link = container.querySelector<HTMLAnchorElement>("a.nes-kinetic-action");
     expect(link).not.toBeNull();
     expect(link?.getAttribute("href")).toBe("/raporty");
     expect(link?.getAttribute("data-description-root")).not.toBeNull();
     const style = link?.getAttribute("style") ?? "";
-    expect(style).toContain("--nes-accent");
-    expect(style).toContain("#FA9346");
+    expect(style).not.toContain("--nes-accent");
+    expect(style).not.toMatch(/#FA9346|rgb\(250, 147, 70\)/i);
   });
 
-  it("akcja ma podkreślenie rysowane od lewej i strzałkę z wysuwaną kreską", () => {
+  it("akcja ma podkreślenie rysowane od lewej i ostrą szewronkę bez okonka", () => {
     const { container } = renderVariant({ href: "/raporty" });
     const link = container.querySelector("a.nes-kinetic-action");
     const underline = link?.querySelector("span[aria-hidden]");
     expect(underline?.className).toContain("group-hover/link:w-full");
     const svg = link?.querySelector("svg");
-    expect(svg?.querySelector('path[d="M5 12h14"]')).not.toBeNull();
+    expect(svg).not.toBeNull();
+    expect(svg?.getAttribute("stroke-linecap")).toBe("butt");
+    expect(svg?.getAttribute("stroke-linejoin")).toBe("miter");
     expect(svg?.querySelector("polyline")).not.toBeNull();
+    // Strzałka bez okonka: bez wysuwanej kreski doklejanej do szewronki.
+    expect(svg?.querySelector('path[d="M5 12h14"]')).toBeNull();
   });
 
   it("ustawienie strzałki żyje: none zdejmuje ikonę, chevron daje znak", () => {

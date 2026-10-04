@@ -1104,12 +1104,12 @@ export function SectionLabelRender({
     }
 
     case "kinetic-signal-notch": {
-      // Kinetic Signal Notch (23): trzy poziome paski "sygnału" w akcencie zamiast
-      // pionowej kreski. Na hoverze rzędu paski rozsuwają się sprężyście, tytuł
-      // odetchnie szerszym trackingiem, a akcja dostaje podkreślenie rysowane od
-      // lewej i strzałkę z wysuwaną kreską. Kolor akcji bierze się z inline
-      // zmiennej --nes-accent (akcent liczony jest w JS, więc nie ma dla niego
-      // klasy); samą akcję styluje `.nes-kinetic-action` w styles.css.
+      // Kinetic Signal Notch (23): trzy poziome paski "sygnału" w szarym
+      // pastelu zamiast pionowej kreski, a nad nimi mała, prestiżowa akcja
+      // ("więcej >"). Na hoverze rzędu paski rozsuwają się sprężyście, tytuł
+      // odetchnie szerszym trackingiem, a akcja dostaje podkreślenie rysowane
+      // od lewej. Całość pozostaje neutralna (szare pastele); akcję styluje
+      // `.nes-kinetic-action` w styles.css.
       const barH = isSm ? 2 : 3;
       const bars: ReadonlyArray<{
         id: string;
@@ -1118,19 +1118,19 @@ export function SectionLabelRender({
         dim: string;
         delay: string;
       }> = [
-        { id: "lead", w: isSm ? "w-3" : "w-7", grow: "group-hover:w-10", dim: "", delay: "0ms" },
+        { id: "lead", w: isSm ? "w-3" : "w-7", grow: "group-hover:w-10", dim: "opacity-70", delay: "0ms" },
         {
           id: "mid",
           w: isSm ? "w-2" : "w-5",
           grow: "group-hover:w-8",
-          dim: "opacity-60",
+          dim: "opacity-40",
           delay: "75ms",
         },
         {
           id: "tail",
           w: isSm ? "w-2.5" : "w-6",
           grow: "group-hover:w-4",
-          dim: "opacity-80",
+          dim: "opacity-55",
           delay: "150ms",
         },
       ];
@@ -1138,12 +1138,14 @@ export function SectionLabelRender({
         ? "text-[8px] font-black uppercase tracking-[0.14em]"
         : "font-display text-[12px] font-black uppercase tracking-[0.22em] transition-[letter-spacing] duration-300 motion-reduce:transition-none group-hover:tracking-[0.28em]";
       const actCls = isSm
-        ? "text-[8px] font-bold uppercase"
-        : "text-[12px] font-bold uppercase tracking-wider";
-      const actionStyleVars: AccentVarStyle = { "--nes-accent": accent };
+        ? "text-[7px] font-semibold uppercase tracking-[0.16em]"
+        : "text-[10px] font-semibold uppercase tracking-[0.24em]";
+      const actionStyleVars: AccentVarStyle = {};
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
 
+      // Strzałka bez okonka: ostra szewronka ">" - cienka, bez zaokrągleń
+      // i bez wysuwanej kreski, w kolorze tekstu akcji.
       const arrowVisual =
         glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
           <span
@@ -1158,29 +1160,25 @@ export function SectionLabelRender({
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth={2.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className={`${isSm ? "h-3 w-3" : "h-5 w-5"} relative z-10 shrink-0 transition-transform duration-500 motion-reduce:transition-none group-hover/link:translate-x-1`}
+            strokeWidth={1.75}
+            strokeLinecap="butt"
+            strokeLinejoin="miter"
+            className={`${isSm ? "h-2.5 w-2.5" : "h-3.5 w-3.5"} shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5`}
           >
-            <path
-              d="M5 12h14"
-              className="opacity-0 transition-opacity duration-300 motion-reduce:transition-none group-hover/link:opacity-100"
-            />
-            <polyline points="12 5 19 12 12 19" />
+            <polyline points="9.5 5.5 16 12 9.5 18.5" />
           </svg>
         );
 
       const actionInner = (
         <>
-          <span className="relative z-10 inline-flex items-center gap-1.5 transition-transform duration-300 motion-reduce:transition-none group-hover/link:-translate-x-1">
+          <span className="relative z-10 inline-flex items-center gap-1 transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5">
             <span className="min-w-0">{action}</span>
             {arrowVisual}
           </span>
           <span
             aria-hidden
             className="pointer-events-none absolute bottom-0 left-0 h-[2px] w-0 transition-[width] duration-500 ease-[cubic-bezier(0.65,0,0.35,1)] motion-reduce:transition-none group-hover/link:w-full"
-            style={{ background: accent }}
+            style={{ background: "currentColor" }}
           />
         </>
       );
@@ -1190,22 +1188,44 @@ export function SectionLabelRender({
       return (
         <div className={`${wrapperBase} nes-kinetic-shell group w-full min-w-0 ${padY}`}>
           <div
-            className={`nes-kinetic-row grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center ${showRule ? "border-b border-border" : ""}`}
+            className={`nes-kinetic-row grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center ${showRule ? "border-b border-border" : ""}`}
             style={{ gap: gapXPx, paddingBottom: gapY || (isSm ? "4px" : "10px") }}
           >
-            <span
-              aria-hidden
-              className="inline-flex shrink-0 flex-col"
-              style={{ gap: isSm ? "3px" : "5px" }}
-            >
-              {bars.map((bar) => (
-                <span
-                  key={bar.id}
-                  className={`nes-kinetic-bar rounded-full ${bar.w} ${bar.grow} ${bar.dim}`}
-                  style={{ height: barH, background: accent, transitionDelay: bar.delay }}
-                />
-              ))}
-            </span>
+            <div className="flex min-w-0 shrink-0 flex-col items-start" style={{ gap: isSm ? "3px" : "6px" }}>
+              {action ? (
+                href && !isSm ? (
+                  <AppLink
+                    data-description-root
+                    href={href}
+                    className={actionCls}
+                    style={actionStyleVars}
+                  >
+                    {actionInner}
+                  </AppLink>
+                ) : (
+                  <span data-description-root className={actionCls} style={actionStyleVars}>
+                    {actionInner}
+                  </span>
+                )
+              ) : null}
+              <span
+                aria-hidden
+                className="inline-flex shrink-0 flex-col"
+                style={{ gap: isSm ? "3px" : "5px" }}
+              >
+                {bars.map((bar) => (
+                  <span
+                    key={bar.id}
+                    className={`nes-kinetic-bar rounded-full ${bar.w} ${bar.grow} ${bar.dim}`}
+                    style={{
+                      height: barH,
+                      background: "var(--muted-foreground)",
+                      transitionDelay: bar.delay,
+                    }}
+                  />
+                ))}
+              </span>
+            </div>
             <span
               data-title-root
               className={`${titleCls} min-w-0 whitespace-nowrap`}
@@ -1213,22 +1233,6 @@ export function SectionLabelRender({
             >
               {label}
             </span>
-            {action ? (
-              href && !isSm ? (
-                <AppLink
-                  data-description-root
-                  href={href}
-                  className={actionCls}
-                  style={actionStyleVars}
-                >
-                  {actionInner}
-                </AppLink>
-              ) : (
-                <span data-description-root className={actionCls} style={actionStyleVars}>
-                  {actionInner}
-                </span>
-              )
-            ) : null}
           </div>
         </div>
       );
