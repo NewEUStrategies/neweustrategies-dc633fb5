@@ -8006,6 +8006,30 @@ html[data-mbb="on"] [data-site-shell] {
     opacity 0.5s ease;
 }
 
+.nes-kinetic-shell {
+  container-type: inline-size;
+}
+
+.nes-kinetic-row {
+  column-gap: 14px;
+}
+
+@container (max-width: 360px) {
+  .nes-kinetic-row {
+    column-gap: 8px !important;
+  }
+
+  .nes-kinetic-row [data-title-root] {
+    font-size: 10px !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .nes-kinetic-row .nes-kinetic-action {
+    font-size: 10px !important;
+    letter-spacing: 0;
+  }
+}
+
 .nes-kinetic-action {
   color: var(--muted-foreground);
   transition: color 0.3s ease-in-out;

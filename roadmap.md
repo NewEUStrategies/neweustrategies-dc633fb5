@@ -68,7 +68,7 @@
 
 ## Etykieta sekcji: wariant „Kinetic Signal Notch"
 
-- [x] 23. wariant etykiety sekcji: trzy paski sygnału rozsuwające się na hoverze, tytuł z szerszym trackingiem, akcja z podkreśleniem rysowanym od lewej i wysuwaną strzałką; tłumaczenie EN, kontrolki edytora, animacje CSS, 11 testów.
+- [x] 23. wariant etykiety sekcji: trzy paski sygnału, tytuł i akcja zawsze inline; paski rozsuwane na hoverze, podkreślenie rysowane od lewej, wysuwana strzałka, tłumaczenie EN, kontrolki edytora i testy.
 
 ## Firmowy kolor akcentu
 

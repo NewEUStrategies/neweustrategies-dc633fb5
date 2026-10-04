@@ -1135,8 +1135,8 @@ export function SectionLabelRender({
         },
       ];
       const titleCls = isSm
-        ? "text-[8px] font-black uppercase tracking-[0.18em]"
-        : "font-display text-[13px] font-black uppercase tracking-[0.3em] transition-[letter-spacing] duration-300 motion-reduce:transition-none group-hover:tracking-[0.35em]";
+        ? "text-[8px] font-black uppercase tracking-[0.14em]"
+        : "font-display text-[12px] font-black uppercase tracking-[0.22em] transition-[letter-spacing] duration-300 motion-reduce:transition-none group-hover:tracking-[0.28em]";
       const actCls = isSm
         ? "text-[8px] font-bold uppercase"
         : "text-[12px] font-bold uppercase tracking-wider";
@@ -1185,34 +1185,33 @@ export function SectionLabelRender({
         </>
       );
 
-      const actionCls = `group/link nes-kinetic-action relative inline-flex shrink-0 items-center pb-1 ${actCls}`;
+      const actionCls = `group/link nes-kinetic-action relative inline-flex min-w-0 items-center whitespace-nowrap pb-1 ${actCls}`;
 
       return (
-        <div className={`${wrapperBase} group w-full min-w-0 ${padY}`}>
+        <div className={`${wrapperBase} nes-kinetic-shell group w-full min-w-0 ${padY}`}>
           <div
-            className={`flex w-full min-w-0 flex-wrap items-center justify-between gap-y-1 ${showRule ? "border-b border-border" : ""}`}
+            className={`nes-kinetic-row grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center ${showRule ? "border-b border-border" : ""}`}
             style={{ gap: gapXPx, paddingBottom: gapY || (isSm ? "4px" : "10px") }}
           >
             <span
-              className="inline-flex min-w-0 flex-wrap items-center"
-              style={{ gap: isSm ? "8px" : "22px" }}
+              aria-hidden
+              className="inline-flex shrink-0 flex-col"
+              style={{ gap: isSm ? "3px" : "5px" }}
             >
-              <span
-                aria-hidden
-                className="inline-flex shrink-0 flex-col"
-                style={{ gap: isSm ? "3px" : "5px" }}
-              >
-                {bars.map((bar) => (
-                  <span
-                    key={bar.id}
-                    className={`nes-kinetic-bar rounded-full ${bar.w} ${bar.grow} ${bar.dim}`}
-                    style={{ height: barH, background: accent, transitionDelay: bar.delay }}
-                  />
-                ))}
-              </span>
-              <span data-title-root className={`${titleCls} min-w-0 break-words`} style={labelStyle}>
-                {label}
-              </span>
+              {bars.map((bar) => (
+                <span
+                  key={bar.id}
+                  className={`nes-kinetic-bar rounded-full ${bar.w} ${bar.grow} ${bar.dim}`}
+                  style={{ height: barH, background: accent, transitionDelay: bar.delay }}
+                />
+              ))}
+            </span>
+            <span
+              data-title-root
+              className={`${titleCls} min-w-0 whitespace-nowrap`}
+              style={labelStyle}
+            >
+              {label}
             </span>
             {action ? (
               href && !isSm ? (

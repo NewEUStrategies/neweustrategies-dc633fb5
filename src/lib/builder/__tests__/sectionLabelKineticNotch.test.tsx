@@ -103,6 +103,18 @@ describe("Kinetic Signal Notch", () => {
     }
   });
 
+  it("utrzymuje sygnał, tytuł i akcję w jednym wierszu", () => {
+    const { container } = renderVariant();
+    const row = container.querySelector<HTMLElement>(".nes-kinetic-row");
+    const title = container.querySelector<HTMLElement>("[data-title-root]");
+    const action = container.querySelector<HTMLElement>(".nes-kinetic-action");
+
+    expect(row?.className).toContain("grid-cols-[auto_minmax(0,1fr)_auto]");
+    expect(row?.className).not.toContain("flex-wrap");
+    expect(title?.className).toContain("whitespace-nowrap");
+    expect(action?.className).toContain("whitespace-nowrap");
+  });
+
   it("akcja jest linkiem niosącym akcent w zmiennej --nes-accent", () => {
     const { container } = renderVariant({ href: "/raporty" });
     const link = container.querySelector<HTMLAnchorElement>("a.nes-kinetic-action");
