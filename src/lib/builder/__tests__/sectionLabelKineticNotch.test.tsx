@@ -178,40 +178,48 @@ describe("Kinetic Signal Notch", () => {
     expect(style).toContain("#FA9346");
   });
 
-  it("akcja nie ma podkreślenia, a chevron dzieli kolor i wysokość tekstu", () => {
+  it("akcja nie ma podkreślenia, a chevrony dzielą kolor i wysokość tekstu", () => {
     const { container } = renderVariant({ href: "/raporty" });
     const link = container.querySelector("a.nes-kinetic-action");
     // "usuń podkreślenie" - żaden element akcji nie rysuje linii od lewej.
     expect(link?.querySelector("[class*='group-hover/link:w-full']")).toBeNull();
-    const svg = link?.querySelector("svg");
-    expect(svg?.querySelector("polyline")).not.toBeNull();
-    expect(svg?.querySelector('path[d="M5 12h14"]')).toBeNull();
+    const svgs = link?.querySelectorAll("svg") ?? [];
+    expect(svgs.length).toBe(2);
+    // "po jednej i drugiej stronie < oraz >" - lustrzane chevrony wokół akcji.
+    const left = svgs[0]?.querySelector("polyline")?.getAttribute("points") ?? "";
+    const right = svgs[1]?.querySelector("polyline")?.getAttribute("points") ?? "";
+    expect(left).toBe("8.2 1.8 2.4 5 8.2 8.2");
+    expect(right).toBe("2.4 1.8 8.2 5 2.4 8.2");
+    // "bez ogonków" - czyste kąty, żadnej poziomej linii strzałki.
+    expect(link?.querySelector('path[d="M5 12h14"]')).toBeNull();
     // Chevron w em, ale o 1 px nizszy niz czcionka akcji, zeby rownal wysokosci
     // liter „wiecej”. Bez przesuniecia w osi Y - wycentrowanie w inline-flex trafia
     // w pas miedzys highose x a linia bazowa liter.
-    const svgStyle = svg?.getAttribute("style") ?? "";
-    expect(svgStyle).toContain("height: calc(1em - 1px)");
-    expect(svgStyle).toContain("width: calc(1.1em - 1px)");
-    const svgClass = svg?.getAttribute("class") ?? "";
-    expect(svgClass).not.toMatch(/(^|\s)-?(top|bottom|translate)-/);
-    // Kolor z currentColor (ten sam co tekst), a nie z osobnej klasy.
-    expect(svg?.getAttribute("stroke")).toBe("currentColor");
+    for (const svg of svgs) {
+      const svgStyle = svg.getAttribute("style") ?? "";
+      expect(svgStyle).toContain("height: calc(1em - 1px)");
+      expect(svgStyle).toContain("width: calc(1.1em - 1px)");
+      const svgClass = svg.getAttribute("class") ?? "";
+      expect(svgClass).not.toMatch(/(^|\s)-?(top|bottom|translate)-/);
+      // Kolor z currentColor (ten sam co tekst), a nie z osobnej klasy.
+      expect(svg.getAttribute("stroke")).toBe("currentColor");
+      // „subtelny ptaszek" - kreska chevronu jest celowo cienka i bez pogrubienia,
+      // wyraźnie cieńsza niż pasek sygnału; stroke-width liczy się w pikselach
+      // ekranu (vector-effect), więc skalowanie viewBoxa jej nie pogrubia.
+      expect(svg.getAttribute("stroke-width")).toBe("0.85");
+      expect(svg.querySelector("polyline")?.getAttribute("vector-effect")).toBe(
+        "non-scaling-stroke",
+      );
+    }
+    // Hover rozpycha znaki na zewnątrz: "<" w lewo, ">" w prawo.
+    expect(svgs[0]?.getAttribute("class")).toContain("group-hover/link:-translate-x-0.5");
+    expect(svgs[1]?.getAttribute("class")).toContain("group-hover/link:translate-x-0.5");
     expect(stylesCss).toMatch(/\.nes-kinetic-action svg \{[^}]*color: inherit;/);
-    // „subtelny ptaszek" - kreska chevronu jest celowo cienka i bez pogrubienia,
-    // wyraźnie cieńsza niż pasek sygnału; stroke-width liczy się w pikselach
-    // ekranu (vector-effect), więc skalowanie viewBoxa jej nie pogrubia.
+    // Kreska jest cieńsza niż pasek sygnału (3 px).
     const bar = container.querySelector<HTMLElement>(".nes-kinetic-bar");
     expect(bar?.style.height).toBe("3px");
-    const stroke = Number(svg?.getAttribute("stroke-width"));
-    expect(stroke).toBeGreaterThan(0);
-    expect(svg?.getAttribute("stroke-width")).toBe("0.85");
-    expect(stroke).toBeLessThanOrEqual(1);
     const barH = Number((bar?.style.height ?? "").replace(/[^0-9.]/g, ""));
-    expect(barH).toBe(3);
-    expect(stroke).toBeLessThan(barH);
-    expect(svg?.querySelector("polyline")?.getAttribute("vector-effect")).toBe(
-      "non-scaling-stroke",
-    );
+    expect(0.85).toBeLessThan(barH);
   });
 
   it("akcja jest minuskulowa, nie pogrubiona i mniejsza od tytułu", () => {
