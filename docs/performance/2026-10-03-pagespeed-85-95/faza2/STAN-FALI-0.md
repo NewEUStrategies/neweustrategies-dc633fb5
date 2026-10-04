@@ -1,4 +1,9 @@
-# Stan fali 0 (zapis przed przerwą limitu, 2026-10-04 08:40 UTC)
+# Stan fali 0 (zapis przed przerwą limitu, 2026-10-04 08:45 UTC)
+
+**Aktualizacja 08:45:** na polecenie właściciela („review nie jest potrzebny teraz, zakończ implementację”) gałęzie
+`perf/w0-P0.3`, `perf/w0-P0.2`, `perf/w0-P0.6` (commit cac56cf) i `perf/w0-P0.1` zostały scalone do gałęzi PR bez etapu
+recenzji (merge --no-ff, bez konfliktów). Bramki repo na scalonym drzewie (typecheck, verify:static, build:smoke,
+check:document-weight) NIE były jeszcze uruchamiane; to pierwszy krok po wznowieniu. P0.4 i P0.5 pozostają bez commita.
 
 Orkiestrator: Fable 5.1 (ultracode); wykonawcy: agenci Opus 5.5 w dwóch workflowach
 (`wf_8083dde8-726`: P0.1, P0.3, P0.6; `wf_f0771b98-74b`: P0.5, P0.2, P0.4), skrypt `workflow-faza2-wave.js`.
