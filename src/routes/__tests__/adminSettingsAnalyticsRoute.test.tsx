@@ -88,6 +88,16 @@ const h = vi.hoisted(() => ({
   statusCalls: 0,
   /** Odpowiedź serwerowej diagnostyki dla bieżącego testu. */
   statusImpl: null as null | (() => Promise<AnalyticsStatus>),
+  /** Najemca zwracany przez atrapę `useCurrentTenantId`. */
+  tenantId: null as string | null,
+}));
+
+// Najemca jako ATRAPA (wzór: `vitalsBiDashboard.test.tsx`). Klucz diagnostyki
+// niesie najemcę (`@/lib/analytics/queryKeys`), a prawdziwy hook ciągnąłby
+// sesję `useAuth`, której harness tras nie ma - bez atrapy najemca byłby
+// `null` na zawsze i diagnostyka nigdy by nie ruszyła.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -144,9 +154,11 @@ import { realT } from "@/test/i18nReal";
 import i18n from "@/lib/i18n";
 import { fail, ok, supabaseFromStub } from "@/test/supabaseChain";
 import { renderRoute, routeMeta } from "@/test/routeHarness";
+import { analyticsStatusKey } from "@/lib/analytics/queryKeys";
 import { Route as AnalyticsRoute } from "@/routes/admin.settings.analytics";
 
 const PATH = "/admin/settings/analytics";
+const TENANT = "tenant-alfa";
 
 // ---------------------------------------------------------------------------
 // Dwa warsztaty. Wartości są rozłączne w KAŻDYM polu, żeby jakikolwiek wyciek
@@ -373,6 +385,7 @@ beforeEach(async () => {
   h.liveSyncEmits = 0;
   h.statusCalls = 0;
   h.statusImpl = null;
+  h.tenantId = TENANT;
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   active = "alfa";
@@ -959,6 +972,57 @@ describe("odświeżenie stanu połączeń", () => {
     for (const button of Array.from(document.querySelectorAll("button"))) {
       expect((button.textContent ?? "").trim()).not.toBe(checking);
     }
+  });
+});
+
+describe("najemca w kluczu diagnostyki", () => {
+  it("diagnostyka leży w cache'u pod kluczem z najemcą", async () => {
+    const view = await mountPanel();
+    await waitFor(() => expect(h.statusCalls).toBe(1));
+
+    await waitFor(() =>
+      expect(view.queryClient.getQueryState(analyticsStatusKey(TENANT))?.status).toBe("success"),
+    );
+    // Żaden wpis nie powstał pod kluczem-zaślepką z pustym najemcą.
+    expect(view.queryClient.getQueryState(analyticsStatusKey(""))).toBeUndefined();
+  });
+
+  it("bez ustalonego najemcy diagnostyka nie rusza, odznaki czekają, odświeżanie jest wyłączone", async () => {
+    const t = realT("pl");
+    h.tenantId = null;
+    await mountPanel();
+    await act(async () => {});
+
+    expect(h.statusCalls).toBe(0);
+    expect(badge(t("admin.analyticsSettings.gsc.title"))).toBe(
+      t("admin.analyticsSettings.status.checking"),
+    );
+    // `refetch()` ignoruje `enabled` - stąd blokada na przycisku.
+    const refresh = buttonWithText(t("admin.analyticsSettings.status.refresh"));
+    expect(refresh.disabled).toBe(true);
+    fireEvent.click(refresh);
+    await act(async () => {});
+    expect(h.statusCalls).toBe(0);
+  });
+
+  it("zapis unieważnia diagnostykę po KORZENIU - także wpis innego najemcy", async () => {
+    // Korzeń, a nie klucz bieżącego najemcy: wpis zapamiętany pod innym
+    // obszarem roboczym (przełączenie w tej samej karcie) też ma przestać
+    // uchodzić za świeży po zmianie konfiguracji.
+    const view = await mountPanel();
+    await waitFor(() => expect(h.statusCalls).toBe(1));
+    view.queryClient.setQueryData(analyticsStatusKey("tenant-beta"), status());
+    expect(view.queryClient.getQueryState(analyticsStatusKey("tenant-beta"))?.isInvalidated).toBe(
+      false,
+    );
+
+    fireEvent.change(inputByPlaceholder("123456789"), { target: { value: "444444444" } });
+    fireEvent.click(saveBar() as HTMLButtonElement);
+
+    await waitFor(() => expect(h.statusCalls).toBe(2));
+    expect(view.queryClient.getQueryState(analyticsStatusKey("tenant-beta"))?.isInvalidated).toBe(
+      true,
+    );
   });
 });
 

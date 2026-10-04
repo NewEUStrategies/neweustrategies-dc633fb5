@@ -16,16 +16,21 @@
 //   4. WYSYLKA, KTORA NIE ODNOTUJE SIE W KAMPANII. Bez zapisania
 //      `newsletter_campaign_id` i statusu `sent` ta sama kampania da sie
 //      wyslac drugi raz.
+//   5. WYGENEROWANE KODY, KTORYCH ANALITYKA NIE ZNA. Hurt z kampanii to nowe
+//      kupony najemcy, a ranking na /admin/coupons/analytics liczy po
+//      wszystkich jego kuponach. Do 2026-10 generowanie uniewaznialo liste,
+//      ale nie analityke (`["admin-analytics", <najemca>, "b2b-coupons", ...]`).
 //
 // GRANICE vs SASIEDZI. `CampaignCreateDialog` biegnie PRAWDZIWY (sasiad
 // z `@/components/admin/coupons/*`). Atrapowane sa granice: klient Supabase
-// (wraz z `rpc`), toasty, i18n, API obiektow URL przegladarki oraz Radiksowy
-// Dialog.
+// (wraz z `rpc`), toasty, i18n, najemca (`useCurrentTenantId`), API obiektow
+// URL przegladarki oraz Radiksowy Dialog.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, type SupabaseFromStub, type SupabaseResult } from "@/test/supabaseChain";
+import { analyticsCouponsKey } from "@/lib/analytics/queryKeys";
 import type { CampaignRow } from "../CampaignsPage";
 
 const h = vi.hoisted(() => ({
@@ -34,11 +39,14 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   ensureI18n: vi.fn(),
+  /** Najemca z `useCurrentTenantId`. */
+  tenantId: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa" as string | null,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/lib/i18n-admin-coupons", () => ({ ensureI18n: h.ensureI18n }));
+vi.mock("@/lib/tenant", () => ({ useCurrentTenantId: () => h.tenantId }));
 
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -138,6 +146,7 @@ beforeEach(() => {
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.ensureI18n.mockClear();
+  h.tenantId = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
   pobraneBloby.length = 0;
   zwolnioneUrl.length = 0;
   // happy-dom nie implementuje API obiektow URL. To granica przegladarki,
@@ -359,6 +368,37 @@ describe("CampaignsPage - generowanie kodow", () => {
     );
     await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("brak uprawnien do RPC"));
     expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("wygenerowane kody uniewazniaja LISTE kuponow i ANALITYKE kuponow tego najemcy", async () => {
+    // Analityka trzyma zakres dat z wlasnego ekranu - mutacja go nie zna,
+    // wiec trafia prefiksem w kazdy zapamietany zakres, ale nie w cudzy.
+    const zakres = analyticsCouponsKey(
+      "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
+      "2026-07-01T00:00:00.000Z",
+      null,
+    );
+    const cudzy = analyticsCouponsKey("bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb", null, null);
+    const { queryClient } = await renderPage([kampania({ status: "draft" })]);
+    const wiersze = await wiersz("Q1 2026 VIP");
+    for (const key of [["admin", "b2b-coupons"], zakres, cudzy]) queryClient.setQueryData(key, []);
+    fireEvent.click(within(wiersze).getByRole("button", { name: "adminCoupons.generate" }));
+
+    await waitFor(() => expect(queryClient.getQueryState(zakres)?.isInvalidated).toBe(true));
+    expect(queryClient.getQueryState(["admin", "b2b-coupons"])?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(cudzy)?.isInvalidated).toBe(false);
+  });
+
+  it("ODMOWA RPC NIE uniewaznia analityki kuponow - zadnych nowych kodow", async () => {
+    h.rpc.mockResolvedValue({ data: null, error: new Error("brak uprawnien do RPC") });
+    const zakres = analyticsCouponsKey("aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa", null, null);
+    const { queryClient } = await renderPage([kampania({ status: "draft" })]);
+    const wiersze = await wiersz("Q1 2026 VIP");
+    queryClient.setQueryData(zakres, []);
+    fireEvent.click(within(wiersze).getByRole("button", { name: "adminCoupons.generate" }));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("brak uprawnien do RPC"));
+    expect(queryClient.getQueryState(zakres)?.isInvalidated).toBe(false);
   });
 });
 

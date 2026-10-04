@@ -54,13 +54,16 @@
  * jest.
  *
  * CO JEST ATRAPĄ I DLACZEGO: dwie granice danych (`@/lib/admin/community`,
- * `@/lib/admin/network`), toasty (`sonner`) i SILNIK WYKRESU
- * (`@/components/admin/analytics/EChart`) - ten ostatni dlatego, że happy-dom
- * nie ma canvasu, a nie po to, żeby cokolwiek ukryć; uzasadnienie stoi przy
- * samej atrapie. i18n, router, react-query i Radix są PRAWDZIWE, więc asercje
- * mierzą napisy ze słownika, a nie literały wpisane w teście. Prawdziwy jest
- * też cały `AdminBiStrip` z kartami wykresów - to stamtąd bierze się nagłówek
- * poziomu drugiego, którego ten pulpit kiedyś nie miał.
+ * `@/lib/admin/network`) i toasty (`sonner`). Silnik wykresu atrapą już NIE
+ * jest - uzasadnienie stoi w miejscu, w którym atrapa kiedyś stała (blok
+ * „GRANICY WYKRESU JUŻ TU NIE MA" niżej). i18n, router, react-query i Radix
+ * są PRAWDZIWE, więc asercje mierzą napisy ze słownika, a nie literały wpisane
+ * w teście. Prawdziwy jest też cały `AdminBiStrip` z kartami wykresów; z
+ * `useAuth` atrapą są wyłącznie ROLE, które pasek czyta, bo od 2026-10 widzi
+ * go tylko admin najemcy (`h.roles`, domyślnie `admin`). Najemca zostaje
+ * nieustalony (atrapa nie ma `user`, więc prawdziwy `useCurrentTenantId` nie
+ * pyta bazy), więc pasek admina stoi na „Pomiar" i nie pyta serwera, a pasek
+ * redaktora nie istnieje - asercje dotyczą tylko nagłówków.
  * `react-i18next` świadomie NIE
  * jest atrapowany - fabryka takiego mocka sięga po `@/lib/i18n`, czyli moduł
  * importujący właśnie mockowany pakiet, i zakleszcza plik (ostrzeżenie
@@ -77,6 +80,8 @@ import type { CommunityModulesSettings, CommunityStats } from "@/lib/admin/commu
 import type { NetworkStats, UserReportRow } from "@/lib/admin/network";
 
 const h = vi.hoisted(() => ({
+  /** Role oddawane przez atrapę `useAuth` - czyta je wyłącznie `AdminBiStrip`. */
+  roles: ["admin"] as string[],
   stats: null as CommunityStats | null,
   statsFails: false,
   statsCalls: 0,
@@ -167,6 +172,13 @@ vi.mock("@/lib/admin/network", () => ({
     h.resolveCalls.push({ id, action });
     if (h.resolveFails) throw new Error("test: rozstrzygnięcie odrzucone");
   },
+}));
+
+// Sesja: TYLKO role, które czyta pasek analityki (`roles`, `loading`). Trasa
+// sama `useAuth` nie woła (przypięte niżej odczytem pliku), a brak `user`
+// trzyma prawdziwy `useCurrentTenantId` na nieustalonym najemcy bez zapytania.
+vi.mock("@/hooks/useAuth", () => ({
+  useAuth: () => ({ roles: h.roles, loading: false, user: null }),
 }));
 
 vi.mock("sonner", () => ({
@@ -321,6 +333,7 @@ function openSelect(trigger: HTMLElement): HTMLElement {
 const confirmSpy = vi.fn<(message?: string) => boolean>(() => true);
 
 beforeEach(() => {
+  h.roles = ["admin"];
   h.stats = communityStats();
   h.statsFails = false;
   h.statsCalls = 0;
@@ -926,18 +939,29 @@ describe("pulpit społeczności - dostępność", () => {
    * CO SIĘ ZMIENIŁO. Commit 3d4b684 dołożył `AdminBiStrip` (pasek analityki
    * modułu 17), a `src/routes/admin.community.index.tsx` osadza go zaraz pod
    * nagłówkiem strony (`<AdminBiStrip days={14} />`). Pasek renderuje własny
-   * `<h2>{t("adminAnalytics.bi.stripTitle")}</h2>`, więc drabina nagłówków jest
-   * pełna: `h1` -> `h2` -> `h3` i axe nie ma czego zgłosić. Zgodnie z zasadą
-   * z nagłówka sekcji „defekty zastane" („naprawa defektu zapali kontrolę
-   * i wymusi aktualizację obu") oba przypadki są zaktualizowane i PRZENIESIONE
-   * tutaj - od tej chwili pilnują braku przeskoku, a nie jego obecności.
+   * `<h2>{t("adminAnalytics.bi.stripTitle")}</h2>`, więc drabina nagłówków
+   * stała się pełna: `h1` -> `h2` -> `h3`. Zgodnie z zasadą z nagłówka sekcji
+   * „defekty zastane" („naprawa defektu zapali kontrolę i wymusi aktualizację
+   * obu") oba przypadki są zaktualizowane i PRZENIESIONE tutaj - od tej chwili
+   * pilnują braku przeskoku, a nie jego obecności.
    *
-   * CZEGO TEN TEST NIE TWIERDZI: że tytuły sekcji („Dostępność modułów",
-   * „Akcje serwisowe", „Sieć kontaktów") są już nagłówkami. Nadal są `<div>`
-   * i nadal nie da się po nich nawigować czytnikiem ekranu - to jednak nie
-   * jest naruszenie reguły `heading-order` i nie ma tu udawać, że jest.
+   * I ZMIENIŁO SIĘ DRUGI RAZ (2026-10). Pasek widzi już tylko admin najemcy
+   * (redaktor dostawał w nim kartę „Forbidden"), więc dla redaktora `h2` z
+   * paska zniknął i przeskok `h1` -> `h3` wróciłby po cichu. Drabina nie stoi
+   * więc dłużej na pasku: tytuł karty „Sieć kontaktów" - rodzica kolejki
+   * zgłoszeń `<h3>` - jest teraz `<h2>`. Dlatego oba testy niżej biegną dla
+   * OBU ról: z paskiem i bez niego.
+   *
+   * CZEGO TEN TEST NIE TWIERDZI: że pozostałe tytuły sekcji („Dostępność
+   * modułów", „Akcje serwisowe") są już nagłówkami. Nadal są `<div>` i nadal
+   * nie da się po nich nawigować czytnikiem ekranu - to jednak nie jest
+   * naruszenie reguły `heading-order` i nie ma tu udawać, że jest.
    */
-  it("kolejność poziomów nagłówków nie przeskakuje poziomu", async () => {
+  it.each([
+    ["admin (z paskiem analityki)", ["admin"]],
+    ["redaktor (bez paska analityki)", ["editor"]],
+  ])("%s: kolejność poziomów nagłówków nie przeskakuje poziomu", async (_, roles) => {
+    h.roles = roles;
     const { container } = await mountOverview();
     await screen.findByText(t("adminCommunity.overview.userReports"));
     const violations = await axeViolations(container);
@@ -947,15 +971,29 @@ describe("pulpit społeczności - dostępność", () => {
     ).not.toContain("heading-order");
   });
 
-  it("drabina nagłówków to `h1` -> `h2` -> `h3`, a poziom drugi daje pasek analityki", async () => {
-    // Kontrola nazywa ŹRÓDŁO poziomu drugiego. Sama lista `["H1","H2","H3"]`
-    // przeszłaby też wtedy, gdyby `h2` przyszedł skądkolwiek - a wtedy usunięcie
-    // paska analityki z tej trasy po cichu przywróciłoby przeskok poziomu.
+  it("admin: drabina `h1` -> `h2` (pasek) -> `h2` (sieć kontaktów) -> `h3`", async () => {
+    // Kontrola nazywa ŹRÓDŁO każdego poziomu drugiego. Sama lista tagów
+    // przeszłaby też wtedy, gdyby `h2` przyszedł skądkolwiek.
     await mountOverview();
     await screen.findByText(t("adminCommunity.overview.userReports"));
     const headings = screen.getAllByRole("heading");
-    expect(headings.map((el) => el.tagName)).toEqual(["H1", "H2", "H3"]);
+    expect(headings.map((el) => el.tagName)).toEqual(["H1", "H2", "H2", "H3"]);
     expect(headings[1]).toHaveTextContent(t("adminAnalytics.bi.stripTitle"));
+    expect(headings[2]).toHaveTextContent(t("adminCommunity.overview.network"));
+    expect(headings[3]).toHaveTextContent(t("adminCommunity.overview.userReports"));
+  });
+
+  it("redaktor: bez paska analityki drabina to nadal `h1` -> `h2` -> `h3`", async () => {
+    // Redaktor nie widzi paska (i nie dostaje karty „Forbidden"), a poziom
+    // drugi niesie tytuł karty sieci kontaktów - rodzic kolejki zgłoszeń.
+    h.roles = ["editor"];
+    await mountOverview();
+    await screen.findByText(t("adminCommunity.overview.userReports"));
+    expect(screen.queryByText(t("adminAnalytics.bi.stripTitle"))).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    const headings = screen.getAllByRole("heading");
+    expect(headings.map((el) => el.tagName)).toEqual(["H1", "H2", "H3"]);
+    expect(headings[1]).toHaveTextContent(t("adminCommunity.overview.network"));
   });
 });
 
@@ -1149,9 +1187,10 @@ describe("pulpit społeczności - defekty zastane", () => {
   });
 
   // PRZESKOK POZIOMU NAGŁÓWKA (`h1` -> `h3`) BYŁ CZWARTYM DEFEKTEM TEJ SEKCJI.
-  // Został zamknięty - `AdminBiStrip` wstawił między nie własny `<h2>` - więc
-  // oba przypadki (`it.fails` i jego kontrola dodatnia) przeniosły się w górę,
+  // Został zamknięty - najpierw `<h2>` paska analityki, od 2026-10 `<h2>`
+  // tytułu karty sieci kontaktów (pasek widzi już tylko admin) - więc oba
+  // przypadki (`it.fails` i jego kontrola dodatnia) przeniosły się w górę,
   // do sekcji „pulpit społeczności - dostępność", i tam pilnują dziś BRAKU
-  // przeskoku. Pełna historia i mechanizm stoją w komentarzu nad
+  // przeskoku dla obu ról. Pełna historia i mechanizm stoją w komentarzu nad
   // „kolejność poziomów nagłówków nie przeskakuje poziomu".
 });

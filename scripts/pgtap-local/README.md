@@ -72,3 +72,40 @@ kosztowna klasa fałszywego negatywu, jaką to narzędzie może wygenerować.
 Zmienne: `PGTAP_DIR` (domyślnie `/tmp/nespgtap`) i `PGTAP_PORT` (domyślnie `5434`).
 Równoległe przebiegi **muszą** dostać własny katalog i port — dwa runnery na jednym
 porcie podłączają się do bazy poprzednika i sypią setkami fałszywych „already exists".
+
+## Równoległe przebiegi pod `flock`
+
+Kilka przebiegów naraz (np. równoległych agentów) serializuje się blokadą pliku —
+**z flagą `-o`**:
+
+```bash
+flock -o /tmp/pgtap.lock env PGTAP_DIR=/tmp/pgtap-a PGTAP_PORT=5463 \
+  bash scripts/pgtap-local/run.sh all post_views_tenant
+```
+
+**Odziedziczone deskryptory.** Runner celowo zostawia serwer działający po zakończeniu
+(tryb `test` z niego korzysta), więc postmaster jest demonem, który przeżywa `run.sh`.
+Proces potomny dziedziczy każdy otwarty deskryptor rodzica, a `flock plik polecenie`
+bez `-o` przekazuje poleceniu deskryptor blokady; blokada `flock(2)` trwa, dopóki żyje
+**którakolwiek** kopia tego deskryptora. Dawniej trzymał ją więc postmaster — aż do
+zatrzymania serwera — i każdy kolejny `flock` na tym pliku czekał w nieskończoność
+(kilka takich zakleszczeń przy równoległych przebiegach). Teraz `run.sh` startuje serwer
+z podpowłoki, która zamyka wszystkie deskryptory poza 0/1/2: blokada zwalnia się razem
+z końcem `run.sh`, a serwer działa dalej.
+
+`-o` zalecamy mimo to: zamyka deskryptor blokady jeszcze przed uruchomieniem polecenia,
+więc chroni też przed każdym innym demonem startowanym w tym samym poleceniu i przed
+starszą wersją skryptu z innej gałęzi. Kto trzyma wiszącą blokadę: `fuser -v /tmp/pgtap.lock`
+(albo `lsof /tmp/pgtap.lock`). Serwer po przebiegu zatrzymuje się ręcznie, jako root:
+`su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D $PGTAP_DIR/data stop -m fast"`
+(bez roota wystarczy samo `pg_ctl -D … stop`).
+
+**Uprawnienia `PGTAP_DIR`.** Uruchomiony jako root runner zakłada katalog sam, ale
+`initdb` i serwer pracują jako `postgres` — ten użytkownik potrzebuje prawa przejścia
+(`x`) przez **każdego przodka** `PGTAP_DIR`. Pod katalogiem `root:root 0700` (np.
+prywatnym `/tmp/<agent>/…`) root wszystko założy bez błędu, a `initdb` padnie na
+„Permission denied". Runner sprawdza to przed `initdb` i przerywa z komunikatem
+wskazującym pierwszą przeszkodę; najprościej podać katalog bezpośrednio pod `/tmp`
+(`PGTAP_DIR=/tmp/pgtap-<nazwa>`). Każdą inną porażkę `initdb` (np. nieistniejące
+`PGTAP_INITDB_LOCALE`) runner też zgłasza wprost, z ogonem `$PGTAP_DIR/initdb.log`,
+zamiast mylącego „serwer nie odpowiada".

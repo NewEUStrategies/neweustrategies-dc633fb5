@@ -9,6 +9,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAnalyticsAdmin } from "@/lib/analytics/gateway.server";
 import { resolveUserTenantId } from "@/lib/server/userTenant.server";
 import {
   aggregateClientErrors,
@@ -34,13 +35,9 @@ export const getClientErrorsReport = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<ClientErrorsReport> => {
     // Bramka admina: has_role() filtruje user_roles po current_tenant_id(),
-    // więc rola z innego tenanta nigdy nie autoryzuje tego odczytu.
-    const { data: isAdmin, error: roleErr } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (roleErr) throw new Error(roleErr.message);
-    if (!isAdmin) throw new Error("Forbidden: admin role required");
+    // więc rola z innego tenanta nigdy nie autoryzuje tego odczytu. Wspólna
+    // bramka analityki (`gateway.server.ts`), wołana przed odczytem service role.
+    await requireAnalyticsAdmin(context);
 
     const now = Date.now();
     const untilMs = data.untilIso ? Date.parse(data.untilIso) : now;

@@ -326,10 +326,16 @@ function NetworkPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
+        {/* NAGŁÓWEK POZIOMU DRUGIEGO, nie `CardTitle` (ten renderuje `<div>`).
+            Kolejka zgłoszeń niżej to `<h3>` W TEJ karcie, więc potrzebuje
+            rodzica `<h2>` na tej stronie. Do 2026-10 jedynym `<h2>` był
+            pasek analityki (`AdminBiStrip`) - a ten od 2026-10 widzi tylko
+            admin najemcy, więc redaktor wracał do przeskoku `h1` -> `h3`
+            (axe: `heading-order`). Klasy = klasy `CardTitle` + układ ikony. */}
+        <h2 className="flex items-center gap-2 text-base font-semibold leading-none tracking-tight">
           <UsersRound className="w-4 h-4" />
           {t("adminCommunity.overview.network")}
-        </CardTitle>
+        </h2>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

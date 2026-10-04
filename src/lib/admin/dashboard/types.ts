@@ -12,7 +12,12 @@ export interface TrafficTotals {
   events: number;
   sessions: number;
   visitors: number;
-  /** Sesje zalogowanych - ilu z ruchu to nasi ludzie, a nie przechodnie. */
+  /**
+   * Sesje zalogowanych - ilu z ruchu to nasi ludzie, a nie przechodnie.
+   * Liczone jako RÓŻNE `session_id` z flagą `signed_in`, nie jako konta:
+   * ingest świadomie nie zapisuje identyfikatora konta (migracja
+   * 20261003180000), więc jedna osoba w dwóch kartach to dwie sesje.
+   */
   members: number;
   countries: number;
 }
@@ -151,6 +156,10 @@ export interface AudienceReport {
 export interface RealtimeReport {
   /** Sesje widziane w ostatnich `REALTIME_ACTIVE_MINUTES` minutach. */
   activeSessions: number;
+  /**
+   * Z `activeSessions` te, w których padło zdarzenie zalogowanego - SESJE,
+   * nie konta (ta sama miara co `TrafficTotals.members`).
+   */
   activeMembers: number;
   windowSessions: number;
   windowViews: number;

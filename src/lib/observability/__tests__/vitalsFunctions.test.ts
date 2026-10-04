@@ -657,7 +657,7 @@ describe("getVitalsSummary - trend dzienny p75", () => {
   });
 
   it("baza bez `p_until` (PGRST202) przy jawnym `untilIso` zostawia trend z pamięci", async () => {
-    // Kod wdrożony przed migracją 20261003120000: PostgREST nie znajduje
+    // Kod wdrożony przed migracją 20261003171000: PostgREST nie znajduje
     // trzyargumentowej sygnatury. Wykres ma spaść na trend z próbki, a raport
     // zostać - to degradacja trendu, nie awaria odczytu.
     adminRpc.setError(

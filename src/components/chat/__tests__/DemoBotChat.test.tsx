@@ -32,6 +32,18 @@ afterEach(() => {
 });
 
 describe("DemoBotChat", () => {
+  it("nie uruchamia nad klawiaturą podpowiedzi kart, haseł ani danych adresowych", () => {
+    renderDemo();
+    const textarea = screen.getByLabelText(chatPl.chat.inputPlaceholder);
+
+    expect(textarea).toHaveAttribute("data-chat-composer-input");
+    expect(textarea).toHaveAttribute("autocomplete", "one-time-code");
+    expect(textarea).toHaveAttribute("data-form-type", "other");
+    expect(textarea).toHaveAttribute("data-1p-ignore", "true");
+    expect(textarea).toHaveAttribute("data-lpignore", "true");
+    expect(textarea).toHaveAttribute("data-bwignore", "true");
+  });
+
   it("renders the welcome message inside a real inbound bubble with a day separator", () => {
     renderDemo();
 

@@ -33,17 +33,22 @@
 // w widoczną plakietkę, więc atrapa w tym miejscu skasowałaby dowód z punktu 2.
 //
 // CZEGO TEN TEST NIE DOWODZI I DLACZEGO NIE MOŻE. Uprawnień: trasa nie ma
-// własnego middleware, rolę sztabową wymusza `requireAdmin` po stronie funkcji
-// serwerowej (`getAnalyticsStatus`) i RLS, a nie render - w teście nie ma
+// własnego middleware, rolę admina wymusza `requireAnalyticsAdmin`
+// (`gateway.server.ts`) po stronie funkcji serwerowych (`getAnalyticsStatus`,
+// `getVitalsSummary`, `sendGa4Event`) i RLS, a nie render - w teście nie ma
 // sesji, więc „użytkownik bez roli" nie jest tu rozstrzygalny. Izolacji
-// najemcy: każda z trzech funkcji serwerowych rozwiązuje najemcę SAMA
-// (`resolveUserTenantId`, `has_role` filtrowane po `current_tenant_id()`), więc
-// atrapa klienta dowiodłaby jedynie tego, co sama zwraca; kontrakt najemcy
-// tych funkcji jest testowany u nich (`statusFunctions`, `vitalsFunctions`,
-// `ga4Functions`) i w `check:tenant-isolation`.
+// najemcy PO STRONIE DANYCH: każda z trzech funkcji serwerowych rozwiązuje
+// najemcę SAMA (`resolveUserTenantId`, `has_role` filtrowane po
+// `current_tenant_id()`), więc atrapa klienta dowiodłaby jedynie tego, co sama
+// zwraca; kontrakt najemcy tych funkcji jest testowany u nich
+// (`statusFunctions`, `vitalsFunctions`, `ga4Functions`) i w
+// `check:tenant-isolation`. Dowodzona TUTAJ jest część kliencka: najemca
+// w KLUCZU cache'u i brak odczytu, dopóki najemcy nie ma (blok „najemca
+// w kluczu zapytań”; atrapa `@/lib/tenant` jak w `vitalsBiDashboard.test.tsx`).
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { createRoute, type AnyRoute } from "@tanstack/react-router";
+import { QueryClient } from "@tanstack/react-query";
 import type { AnalyticsStatus } from "@/lib/analytics/status.functions";
 import type { VitalMetricSummary } from "@/lib/observability/aggregate";
 
@@ -63,6 +68,8 @@ const h = vi.hoisted(() => ({
   vitals: null as unknown,
   vitalsError: null as Error | null,
   vitalsGate: null as null | (() => void),
+  vitalsCalls: 0,
+  tenantId: null as string | null,
   ga4Result: null as unknown,
   ga4Error: null as Error | null,
   ga4Payloads: [] as unknown[],
@@ -73,6 +80,12 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
+// Najemca jako ATRAPA sterowana z testu: prawdziwy `useCurrentTenantId` ciągnie
+// klienta Supabase i sesję `useAuth`, której harness tras nie ma - bez atrapy
+// najemca byłby `null` na zawsze i żadne zapytanie panelu by nie ruszyło.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
+}));
 vi.mock("sonner", () => ({
   toast: {
     success: (...a: unknown[]) => void h.toastSuccess.push(a),
@@ -107,6 +120,7 @@ vi.mock("@tanstack/react-start", async (importOriginal) => ({
       return h.status;
     }
     if (name === "fn:vitals") {
+      h.vitalsCalls += 1;
       if (h.vitalsGate) await new Promise<void>((resolve) => (h.vitalsGate = resolve));
       if (h.vitalsError) throw h.vitalsError;
       return h.vitals;
@@ -146,6 +160,7 @@ vi.mock("@/components/admin/analytics/semantic/organisms/SemanticReconciliationP
 }));
 
 import { renderRoute, type RenderedRoute } from "@/test/routeHarness";
+import { analyticsStatusKey, analyticsVitalsMiniKey } from "@/lib/analytics/queryKeys";
 // Panel mieszka w trasie INDEKSOWEJ. `admin.analytics.tsx` jest od rozdzielenia
 // sekcji (commit 3d4b684) wyłącznie ramką routingu z `<Outlet/>`: 725 linii
 // przeniosło się do `admin.analytics.index.tsx`, a warsztat BI do
@@ -158,7 +173,11 @@ import { Route as AnalyticsRoute } from "@/routes/admin.analytics.index";
 import { Route as AnalyticsFrameRoute } from "@/routes/admin.analytics";
 
 const PATH = "/admin/analytics";
-const STATUS_KEY = ["analytics-status"] as const;
+const TENANT = "tenant-analytics";
+// Klucz z fabryki z TYM najemcą, którego zwraca atrapa: stary literał
+// (`["analytics-status"]`) zawiesiłby `mount()`, a klucz z pustym najemcą
+// przechodziłby bez jednego odczytu.
+const STATUS_KEY = analyticsStatusKey(TENANT);
 
 /** Status z wszystkim wyłączonym - testy włączają POJEDYNCZE flagi. */
 function status(
@@ -282,6 +301,8 @@ beforeEach(() => {
   h.vitals = vitalsSummary([]);
   h.vitalsError = null;
   h.vitalsGate = null;
+  h.vitalsCalls = 0;
+  h.tenantId = TENANT;
   h.ga4Result = { ok: true, configured: true } satisfies Ga4MpResultLike;
   h.ga4Error = null;
   h.ga4Payloads = [];
@@ -867,6 +888,67 @@ describe("osadzony raport wymaga DWÓCH warunków", () => {
 });
 
 // ---------------------------------------------------------------------------
+describe("najemca w kluczu zapytań", () => {
+  it("status i mini-panel RUM niosą najemcę w kluczu", async () => {
+    const view = await mount();
+    await waitFor(() => expect(h.vitalsCalls).toBe(1));
+
+    const keys = view.queryClient
+      .getQueryCache()
+      .getAll()
+      .map((q) => q.queryKey);
+    expect(keys).toEqual(
+      expect.arrayContaining([analyticsStatusKey(TENANT), analyticsVitalsMiniKey(TENANT, 7)]),
+    );
+    expect(view.queryClient.getQueryState(STATUS_KEY)?.data).toEqual(h.status);
+  });
+
+  it("bez ustalonego najemcy nic się nie pobiera, a przegląd czeka na status", async () => {
+    h.tenantId = null;
+    const view = await renderRoute({ route: AnalyticsRoute, path: PATH, initialEntry: PATH });
+    // Pełny obrót pętli - wyłączone zapytania i tak nie ruszą.
+    await act(async () => {});
+
+    expect(h.statusCalls).toBe(0);
+    expect(h.vitalsCalls).toBe(0);
+    expect(screen.getByText("admin.analyticsPanel.loadingStatus")).toBeTruthy();
+    for (const query of view.queryClient.getQueryCache().getAll()) {
+      expect(query.state.data).toBeUndefined();
+    }
+  });
+
+  it("mini-panel RUM bez najemcy mówi „wczytywanie”, nie „brak próbek”", async () => {
+    // Mini-panel montuje się dopiero pod danymi statusu, więc stan „status
+    // jest, najemcy nie ma" odgrywamy wpisem pod kluczem-zaślepką - dokładnie
+    // tam, gdzie przed blokadą przycisku odświeżania lądował `refetch()`
+    // wołany bez najemcy. Wyłączone zapytanie RUM ma wtedy `isLoading: false`
+    // i bez `!tenantId` panel spadałby do gałęzi danych z „brak próbek".
+    h.tenantId = null;
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(analyticsStatusKey(""), status());
+    await renderRoute({ route: AnalyticsRoute, path: PATH, initialEntry: PATH, queryClient });
+    await act(async () => {});
+
+    expect(screen.getByText("admin.analyticsPanel.vitals.loading")).toBeTruthy();
+    expect(screen.queryByText("admin.analyticsPanel.vitals.empty")).toBeNull();
+    expect(h.vitalsCalls).toBe(0);
+  });
+
+  it("bez najemcy odświeżanie jest wyłączone - `refetch()` ignoruje `enabled`", async () => {
+    h.tenantId = null;
+    await renderRoute({ route: AnalyticsRoute, path: PATH, initialEntry: PATH });
+    await act(async () => {});
+
+    const refresh = screen.getByRole("button", { name: /admin\.analyticsPanel\.refresh/ });
+    expect(refresh).toBeDisabled();
+    await act(async () => {
+      fireEvent.click(refresh);
+    });
+    expect(h.statusCalls).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 describe("mini-panel RUM w przeglądzie", () => {
   it("dopóki próbki nie dojechały, pokazuje wczytywanie", async () => {
     h.vitalsGate = () => {};
@@ -1185,7 +1267,8 @@ function polishLiterals(): string[] {
 // Wzorzec montażu powłoki z dziećmi jak w `adminCommunityShellRoute.test.tsx`:
 // ścieżki dzieci są PRODUKCYJNE (`/` i `bi` - patrz `routeTree.gen.ts`), a ich
 // treść zastępcza, bo przedmiotem dowodu jest wypuszczenie podstrony, nie jej
-// zawartość.
+// zawartość. Prawdziwy warsztat BI (z kluczem statusu) ma własny plik:
+// `adminAnalyticsBiRoute.test.tsx`.
 async function mountFrame(entry: string): Promise<RenderedRoute> {
   const frame: AnyRoute = AnalyticsFrameRoute;
   frame.addChildren([

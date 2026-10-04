@@ -7,6 +7,8 @@ import { ensureI18n as ensureAdminCouponsI18n } from "@/lib/i18n-admin-coupons";
 import { Plus, Loader2, Send, Archive, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { ADMIN_COUPONS_KEY, invalidateCouponQueries } from "@/lib/admin/couponQueries";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +51,9 @@ export function CampaignsPage() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  // Najemca do unieważnienia analityki kuponów po hurtowym wygenerowaniu kodów
+  // (`invalidateCouponQueries`) - nowe kody od razu stają w jej rankingu.
+  const tenantId = useCurrentTenantId();
 
   const campaignsQ = useQuery({
     queryKey: ["admin", "b2b-coupon-campaigns"],
@@ -66,7 +71,7 @@ export function CampaignsPage() {
   });
 
   const tiersQ = useQuery({
-    queryKey: ["admin", "b2b-coupons", "tiers"],
+    queryKey: [...ADMIN_COUPONS_KEY, "tiers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("membership_tiers")
@@ -91,7 +96,8 @@ export function CampaignsPage() {
       // formy (1 kod / 2 kody / 5 kodów), których „${n} kodów" nie odda.
       toast.success(t("adminCoupons.codesGenerated", { count: n }));
       void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupon-campaigns"] });
-      void qc.invalidateQueries({ queryKey: ["admin", "b2b-coupons"] });
+      // Wygenerowane kody to nowe kupony: lista i analityka kuponów najemcy.
+      void invalidateCouponQueries(qc, tenantId);
     },
     onError: (e: Error) => toast.error(e.message),
   });
