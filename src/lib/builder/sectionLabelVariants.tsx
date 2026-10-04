@@ -1125,11 +1125,11 @@ export function SectionLabelRender({
         : "font-display text-[12px] font-black uppercase tracking-[0.08em] transition-[letter-spacing] duration-300 motion-reduce:transition-none group-hover:tracking-[0.12em]";
       // Akcja: mala, minuskulowa, w stonowanej szaro-pastelowej szarosci
       // (kolor bazowy z `.nes-kinetic-action` w styles.css).
-    // Rozmiar akcji zabezpieczony w CSS (Theme Design force rozmiar opisu) —
-    // klasy zostają tylko jako fallback poza widżetem.
-    const actCls = isSm
-      ? "text-[8px] font-medium"
-      : "text-[10px] font-medium";
+      // Rozmiar akcji zabezpieczony w CSS (Theme Design force rozmiar opisu) -
+      // klasy zostaja tylko jako fallback poza widzetem.
+      const actCls = isSm
+        ? "text-[8px] font-medium"
+        : "text-[10px] font-medium";
       const actionStyleVars: AccentVarStyle = { "--nes-accent": accent };
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
