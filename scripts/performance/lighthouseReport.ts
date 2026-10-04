@@ -381,13 +381,23 @@ export function deltaLine(label: string, base: Medians, current: Medians): strin
  * Kontrola porównywalności: różnica w transporcie, ścieżce albo elemencie LCP
  * oznacza, że DELTA porównuje różne rzeczy (np. `/` vs redirect `/en`).
  */
-export function comparabilityWarnings(
-  base: { transport?: string; finalPath?: string; lcpElement?: string; benchmarkIndex?: number },
-  current: { transport?: string; finalPath?: string; lcpElement?: string; benchmarkIndex?: number },
-): string[] {
+export interface ComparableSide {
+  transport?: string;
+  finalPath?: string;
+  lcpElement?: string;
+  benchmarkIndex?: number;
+  /** Flagi harnessu (`client-backend=…,third-party=…`); brak = zapis sprzed P0.1 (bez flag). */
+  flags?: string;
+}
+
+export function comparabilityWarnings(base: ComparableSide, current: ComparableSide): string[] {
   const out: string[] = [];
   if (base.transport && current.transport && base.transport !== current.transport)
     out.push(`transport ${base.transport} -> ${current.transport}`);
+  if (current.flags !== undefined && (base.flags ?? NO_FLAGS) !== current.flags)
+    out.push(
+      `flagi harnessu ${base.flags ?? NO_FLAGS} -> ${current.flags} (inny backend/tag - delta nieporównywalna)`,
+    );
   if (base.finalPath && current.finalPath && base.finalPath !== current.finalPath)
     out.push(`ścieżka końcowa ${base.finalPath} -> ${current.finalPath}`);
   if (base.lcpElement && current.lcpElement && base.lcpElement !== current.lcpElement)
@@ -499,4 +509,456 @@ export function dumpAudits(lhr: Lhr, top = 40): string {
         `${shortUrl(str(it["url"]))}`,
     );
   return out.join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FORMY POMIARU (P0.1, 2026-10-04)
+//
+// `desktop` przy x1 na tym sandboksie daje TBT 0, a PSI desktop mierzy 740 ms -
+// host PSI jest wielokrotnie wolniejszy (EVIDENCE §1). `desktop4x`/`desktop5x`
+// to preset desktopowy (sieć, ekran, UA) z mnożnikiem CPU Lantern x4/x5
+// (werdykt LA-C1: model analityka stawia host PSI desktop bliżej x5). Mnożnik
+// jest SYMULOWANY (throttlingMethod=simulate), więc obserwowany ślad jest ten
+// sam co przy x1, a TBT liczy Lantern z czasów x mult (Layout: x mult/2).
+
+export type FormName = "mobile" | "desktop" | "desktop4x" | "desktop5x";
+
+/** Opis flag harnessu w zapisach (summary/baseline); wartość domyślna = bez flag. */
+export const NO_FLAGS = "client-backend=none,third-party=none";
+
+export function flagsLabel(clientBackend: string, thirdParty: string): string {
+  return `client-backend=${clientBackend},third-party=${thirdParty}`;
+}
+
+export interface FormSpec {
+  readonly name: FormName;
+  /** Forma PSI, z którą porównujemy (kalibracja k). */
+  readonly psiForm: "mobile" | "desktop";
+  /** Dodatkowe argumenty CLI Lighthouse'a. */
+  readonly args: readonly string[];
+}
+
+export const FORMS: Readonly<Record<FormName, FormSpec>> = {
+  mobile: { name: "mobile", psiForm: "mobile", args: [] },
+  desktop: { name: "desktop", psiForm: "desktop", args: ["--preset=desktop"] },
+  desktop4x: {
+    name: "desktop4x",
+    psiForm: "desktop",
+    args: ["--preset=desktop", "--throttling.cpuSlowdownMultiplier=4"],
+  },
+  desktop5x: {
+    name: "desktop5x",
+    psiForm: "desktop",
+    args: ["--preset=desktop", "--throttling.cpuSlowdownMultiplier=5"],
+  },
+};
+
+export function isFormName(value: string): value is FormName {
+  return Object.hasOwn(FORMS, value);
+}
+
+/** `mobile,desktop4x` -> lista form; nieznana forma = błąd (literówka nie może zmierzyć czegoś innego). */
+export function parseForms(spec: string): FormName[] {
+  const out: FormName[] = [];
+  for (const raw of spec.split(",")) {
+    const name = raw.trim();
+    if (!name) continue;
+    if (!isFormName(name))
+      throw new Error(`Nieznana forma: ${name} (dozwolone: ${Object.keys(FORMS).join(", ")})`);
+    if (!out.includes(name)) out.push(name);
+  }
+  if (!out.length) throw new Error("Pusta lista form");
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WAŻNOŚĆ PRZEBIEGU: STAN CACHE DOKUMENTU I RENDER SSR W TRAKCIE (werdykt M1 #1)
+//
+// Okno świeżości wpisu cache dokumentu to 3 min (DOCUMENT_CACHE_MAX_FRESH_MS).
+// Rozgrzewka raz na serię kończyła się dokumentem STALE w środku serii i
+// rewalidacją SSR w tym samym procesie Node, który serwuje wszystkie JS/CSS -
+// asymetrycznie między A i B (ab-h1-h2: A 4x, B 2x). Dlatego: rozgrzanie przed
+// KAŻDYM przebiegiem, a przebieg, w którym Lighthouse dostał dokument inny niż
+// HIT albo w trakcie którego serwer renderował SSR, jest `excluded` i powtarzany.
+
+/** Nagłówki cache jednej odpowiedzi dokumentu (rozgrzewka, front albo devtoolsLog LH). */
+export interface DocumentObservation {
+  readonly source: "warm" | "front" | "devtools";
+  readonly status: number;
+  /** `x-nes-cache`: HIT | STALE | MISS | BYPASS; null = brak nagłówka. */
+  readonly cache: string | null;
+  /** `x-nes-cache-age` w sekundach; null = brak. */
+  readonly ageS: number | null;
+  readonly serverTiming: string | null;
+}
+
+/** Linia `{"kind":"doc",...}` z logu serwera artefaktu (`src/server.ts` logDocument). */
+export interface ServerLogDoc {
+  readonly path: string;
+  readonly status: number;
+  readonly cache: string | null;
+  /** true = odświeżenie w tle (stale-while-revalidate), czyli render SSR. */
+  readonly revalidation: boolean;
+  readonly appMs: number;
+}
+
+type HeaderSource =
+  Headers | Readonly<Record<string, string | readonly string[] | number | undefined>>;
+
+function headerValue(headers: HeaderSource, name: string): string | null {
+  if (headers instanceof Headers) return headers.get(name);
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() !== name) continue;
+    if (value === undefined) return null;
+    return Array.isArray(value) ? value.join(", ") : String(value);
+  }
+  return null;
+}
+
+/** Obserwacja dokumentu z nagłówków odpowiedzi (Headers z fetch albo rekord z CDP / node:http). */
+export function observeDocument(
+  source: DocumentObservation["source"],
+  status: number,
+  headers: HeaderSource,
+): DocumentObservation {
+  const age = headerValue(headers, "x-nes-cache-age");
+  const parsedAge = age === null ? Number.NaN : Number.parseFloat(age);
+  return {
+    source,
+    status,
+    cache: headerValue(headers, "x-nes-cache")?.trim().toUpperCase() || null,
+    ageS: Number.isFinite(parsedAge) ? parsedAge : null,
+    serverTiming: headerValue(headers, "server-timing"),
+  };
+}
+
+/** Linie `kind: doc` z fragmentu logu serwera (pozostałe linie są ignorowane). */
+export function parseServerLogDocs(text: string): ServerLogDoc[] {
+  const out: ServerLogDoc[] = [];
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{") || !trimmed.includes('"kind":"doc"')) continue;
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (!isRecord(parsed) || parsed["kind"] !== "doc") continue;
+      out.push({
+        path: str(parsed["path"]),
+        status: num(parsed["status"]),
+        cache: typeof parsed["cache"] === "string" ? parsed["cache"] : null,
+        revalidation: parsed["revalidation"] === true,
+        appMs: num(parsed["appMs"]),
+      });
+    } catch {
+      /* obcięta linia na granicy odczytu - pomijamy */
+    }
+  }
+  return out;
+}
+
+/** Czy linia logu oznacza render SSR w procesie serwera (MISS albo rewalidacja w tle). */
+export function isServerRender(doc: ServerLogDoc): boolean {
+  return doc.revalidation || doc.cache === "MISS" || doc.cache === null;
+}
+
+export interface RunValidity {
+  readonly excluded: boolean;
+  readonly reasons: readonly string[];
+}
+
+/**
+ * Ważność przebiegu. `document` = odpowiedź, którą dostał Lighthouse (log
+ * frontu), `devtools` = ta sama odpowiedź z devtoolsLog (kontrola krzyżowa,
+ * gdy zapisujemy artefakty), `serverDocs` = linie logów serwerów dopisane
+ * W TRAKCIE przebiegu, `rewarmOk` = rozgrzewka skończyła się świeżym HIT-em.
+ * Przebieg jest ważny wyłącznie, gdy dokument był HIT i żaden serwer nie
+ * renderował SSR.
+ */
+export function classifyRun(input: {
+  readonly document: DocumentObservation | null;
+  readonly serverDocs: readonly ServerLogDoc[];
+  readonly devtools?: DocumentObservation | null;
+  readonly rewarmOk?: boolean;
+}): RunValidity {
+  const reasons: string[] = [];
+  const doc = input.document;
+  if (!doc) reasons.push("brak odpowiedzi dokumentu w logu frontu");
+  else if (doc.cache !== "HIT")
+    reasons.push(`dokument ${doc.cache ?? "bez x-nes-cache"} (status ${doc.status})`);
+  const dev = input.devtools;
+  if (dev && dev.cache !== "HIT" && dev.cache !== doc?.cache)
+    reasons.push(`devtoolsLog: dokument ${dev.cache ?? "bez x-nes-cache"}`);
+  if (input.rewarmOk === false) reasons.push("rozgrzewka bez świeżego HIT (limit czasu)");
+  const renders = input.serverDocs.filter(isServerRender);
+  if (renders.length) {
+    const kinds = renders.map((r) => (r.revalidation ? "rewalidacja" : (r.cache ?? "render")));
+    reasons.push(`SSR w trakcie przebiegu: ${renders.length}x (${[...new Set(kinds)].join(", ")})`);
+  }
+  return { excluded: reasons.length > 0, reasons };
+}
+
+/** `nes-edge;desc="HIT", app;dur=1` -> `nes-edge=HIT,app=1` (pełna wartość zostaje w summary.json). */
+export function compactServerTiming(value: string | null): string {
+  if (!value) return "-";
+  return value
+    .split(",")
+    .map((entry) => {
+      const [name = "", ...params] = entry.trim().split(";");
+      const param = (key: string) =>
+        params
+          .map((p) => p.trim())
+          .find((p) => p.startsWith(`${key}=`))
+          ?.slice(key.length + 1)
+          .replace(/^"|"$/g, "");
+      const shown = param("desc") ?? param("dur");
+      return shown === undefined ? name : `${name}=${shown}`;
+    })
+    .filter(Boolean)
+    .join(",");
+}
+
+/** Jedna linia logu stanu cache przebiegu. */
+export function formatObservation(o: DocumentObservation | null): string {
+  if (!o) return "-";
+  const age = o.ageS === null ? "-" : `${o.ageS}s`;
+  return `${o.cache ?? "-"} age=${age} st=${compactServerTiming(o.serverTiming)}`;
+}
+
+/**
+ * Odpowiedź dokumentu głównej ramki z devtoolsLog Lighthouse'a (pierwsze
+ * `Network.responseReceived` typu Document) - to, co przeglądarka NAPRAWDĘ dostała.
+ */
+export function documentFromDevtoolsLog(log: unknown): DocumentObservation | null {
+  if (!Array.isArray(log)) return null;
+  for (const entry of log) {
+    if (!isRecord(entry) || entry["method"] !== "Network.responseReceived") continue;
+    const params = entry["params"];
+    if (!isRecord(params) || params["type"] !== "Document") continue;
+    const response = params["response"];
+    if (!isRecord(response)) continue;
+    const headers = response["headers"];
+    const flat: Record<string, string> = {};
+    if (isRecord(headers)) for (const [k, v] of Object.entries(headers)) flat[k] = String(v);
+    return observeDocument("devtools", num(response["status"]), flat);
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A/A I MINIMALNY WYKRYWALNY EFEKT
+//
+// Dla par przebiegów (A_n, B_n z tej samej rundy przeplotu): σΔ = odchylenie
+// standardowe (n-1) różnic B-A, MDE = 2,8·σΔ/√n (test sparowany, α 0,05
+// dwustronnie, moc 0,8: 1,96 + 0,84). Pozycja, której oczekiwany efekt jest
+// mniejszy niż MDE, NIE jest oceniana medianą, tylko księgą per zadanie.
+
+export interface PairedStat {
+  readonly key: NumericKey;
+  readonly n: number;
+  readonly meanDelta: number;
+  readonly sdDelta: number;
+  readonly mde: number;
+}
+
+export const PAIRED_KEYS: readonly NumericKey[] = ["score", "fcp", "lcp", "tbt", "si", "tti"];
+
+export function pairedStats(
+  pairs: readonly (readonly [RunMetrics, RunMetrics])[],
+  keys: readonly NumericKey[] = PAIRED_KEYS,
+): PairedStat[] {
+  return keys.map((key) => {
+    const deltas = pairs.map(([a, b]) => b[key] - a[key]);
+    const n = deltas.length;
+    const mean = n ? deltas.reduce((s, v) => s + v, 0) / n : Number.NaN;
+    const variance = n > 1 ? deltas.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1) : Number.NaN;
+    const sd = Math.sqrt(variance);
+    return {
+      key,
+      n,
+      meanDelta: mean,
+      sdDelta: sd,
+      mde: n > 1 ? (2.8 * sd) / Math.sqrt(n) : Number.NaN,
+    };
+  });
+}
+
+function statValue(key: NumericKey, v: number): string {
+  if (!Number.isFinite(v)) return "-";
+  if (key === "fcp" || key === "lcp" || key === "si" || key === "tti")
+    return `${(v / 1000).toFixed(3)}s`;
+  if (key === "score") return v.toFixed(1);
+  return `${Math.round(v)}ms`;
+}
+
+export function formatPairedStats(label: string, stats: readonly PairedStat[]): string {
+  const n = stats[0]?.n ?? 0;
+  const parts = stats.map(
+    (s) =>
+      `${s.key}: Δ=${statValue(s.key, s.meanDelta)} σΔ=${statValue(s.key, s.sdDelta)} MDE=${statValue(s.key, s.mde)}`,
+  );
+  return `PAIRS ${label} (n=${n}): ${parts.join(" | ")}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KALIBRACJA FIXTURE -> PSI (krytyka M8)
+//
+// k = TBT_PSI / TBT_fixture_z_flagami per forma. PSI 2026-10-03 18:58 CEST
+// (EVIDENCE §1, raporty użytkownika, hl=pl). Mediany JSON-ów PSI z D13
+// zastąpią te liczby, gdy powstaną (`--psi-reference plik.json`).
+
+export interface PsiReference {
+  readonly label: string;
+  readonly forms: Readonly<Record<"mobile" | "desktop", Partial<Record<NumericKey, number>>>>;
+}
+
+export const PSI_REFERENCE_2026_10_03: PsiReference = {
+  label: "PSI 2026-10-03 18:58 CEST (hl=pl)",
+  forms: {
+    mobile: { score: 53, fcp: 3100, lcp: 6600, tbt: 600, si: 4900, cls: 0 },
+    desktop: { score: 70, fcp: 600, lcp: 1100, tbt: 740, si: 1500, cls: 0 },
+  },
+};
+
+/** k = PSI / fixture; NaN, gdy fixture = 0 (TBT 0 nie kalibruje niczego). */
+export function calibrationK(psi: number, fixture: number): number {
+  return fixture > 0 && Number.isFinite(psi) ? psi / fixture : Number.NaN;
+}
+
+export function formatCalibration(
+  form: FormName,
+  fixture: Medians,
+  reference: PsiReference = PSI_REFERENCE_2026_10_03,
+): string {
+  const psi = reference.forms[FORMS[form].psiForm];
+  const tbtPsi = psi.tbt ?? Number.NaN;
+  const k = calibrationK(tbtPsi, fixture.tbt);
+  const flag =
+    Number.isFinite(k) && Math.abs(k - 1) > 0.2 ? " (|k-1| > 0,2: przelicz cele fixture)" : "";
+  return (
+    `K ${form}: TBT fixture=${ms(fixture.tbt)} PSI(${FORMS[form].psiForm})=${ms(tbtPsi)} ` +
+    `k=${Number.isFinite(k) ? k.toFixed(2) : "-"}${flag} [${reference.label}]`
+  );
+}
+
+/** Wczytanie `--psi-reference` (np. mediany JSON-ów PSI z D13) z walidacją kształtu. */
+export function parsePsiReference(value: unknown): PsiReference {
+  if (!isRecord(value) || Array.isArray(value))
+    throw new Error("psi-reference: oczekiwany obiekt JSON");
+  const forms = value["forms"];
+  if (!isRecord(forms)) throw new Error("psi-reference: brak `forms`");
+  const pick = (name: "mobile" | "desktop"): Partial<Record<NumericKey, number>> => {
+    const raw = forms[name];
+    if (!isRecord(raw)) throw new Error(`psi-reference: brak formy ${name}`);
+    const out: Partial<Record<NumericKey, number>> = {};
+    for (const key of NUMERIC_KEYS) {
+      const v = raw[key];
+      if (typeof v === "number" && Number.isFinite(v)) out[key] = v;
+    }
+    if (out.tbt === undefined) throw new Error(`psi-reference: forma ${name} bez liczby \`tbt\``);
+    return out;
+  };
+  return {
+    label: str(value["label"]) || "psi-reference",
+    forms: { mobile: pick("mobile"), desktop: pick("desktop") },
+  };
+}
+
+/** Próg A/A z planu (P0.1): mediany FCP i LCP obu stron różnią się o ≤ 0,02 s. */
+export const AA_TOLERANCE_MS = 20;
+
+export function formatAaCheck(form: string, a: Medians, b: Medians): string {
+  const dFcp = Math.abs(b.fcp - a.fcp);
+  const dLcp = Math.abs(b.lcp - a.lcp);
+  const ok = dFcp <= AA_TOLERANCE_MS && dLcp <= AA_TOLERANCE_MS;
+  return (
+    `AA ${form}: |ΔFCP|=${(dFcp / 1000).toFixed(3)}s |ΔLCP|=${(dLcp / 1000).toFixed(3)}s ` +
+    `${ok ? "OK (≤ 0,02 s)" : "PONAD PRÓG 0,02 s (sprawdź tryb FCP przebiegów)"}`
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SERIA: POWTÓRKI PRZEBIEGÓW `excluded` I PARY A/B
+
+/** Ile razy najwyżej powtarzamy przebieg `excluded` (PLAN P0.1 pkt 4). */
+export const MAX_EXCLUDED_REPEATS = 2;
+
+/**
+ * Próba + do `repeats` powtórek, dopóki próba jest nieważna. Zwraca WSZYSTKIE
+ * próby (do logu i summary.json); ważna jest co najwyżej ostatnia.
+ */
+export async function runWithRepeats<T extends { readonly valid: boolean }>(
+  attempt: (index: number) => Promise<T>,
+  repeats: number = MAX_EXCLUDED_REPEATS,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i <= Math.max(0, repeats); i++) {
+    const result = await attempt(i);
+    out.push(result);
+    if (result.valid) break;
+  }
+  return out;
+}
+
+/** Minimalny kształt rekordu przebiegu w summary.json, z którego liczymy pary i `n_valid`. */
+export interface RunRecordLike {
+  readonly n: number;
+  readonly valid: boolean;
+  readonly reasons?: readonly string[];
+  readonly metrics?: RunMetrics | null;
+}
+
+/** Pary (A_n, B_n) z tej samej rundy przeplotu, w których OBA przebiegi są ważne. */
+export function validPairs(
+  a: readonly RunRecordLike[],
+  b: readonly RunRecordLike[],
+): [RunMetrics, RunMetrics][] {
+  const byN = (list: readonly RunRecordLike[]) => {
+    const map = new Map<number, RunMetrics>();
+    for (const r of list) if (r.valid && r.metrics) map.set(r.n, r.metrics);
+    return map;
+  };
+  const left = byN(a);
+  const right = byN(b);
+  const out: [RunMetrics, RunMetrics][] = [];
+  for (const [n, m] of [...left].sort((x, y) => x[0] - y[0])) {
+    const other = right.get(n);
+    if (other) out.push([m, other]);
+  }
+  return out;
+}
+
+export interface ValiditySummary {
+  /** Rundy z ważnym przebiegiem. */
+  readonly nValid: number;
+  /** Rundy (różne `n`). */
+  readonly rounds: number;
+  /** Próby oznaczone `excluded` (także te, po których powtórka się udała). */
+  readonly excludedAttempts: number;
+  /** Powód (bez liczb w nawiasach) -> liczba prób. */
+  readonly reasons: Readonly<Record<string, number>>;
+}
+
+export function summarizeValidity(records: readonly RunRecordLike[]): ValiditySummary {
+  const rounds = new Set(records.map((r) => r.n));
+  const valid = new Set(records.filter((r) => r.valid).map((r) => r.n));
+  const reasons: Record<string, number> = {};
+  let excludedAttempts = 0;
+  for (const r of records) {
+    if (r.valid) continue;
+    excludedAttempts += 1;
+    for (const reason of r.reasons ?? []) {
+      const key = reason.replace(/\s*\(.*\)$/, "").replace(/: \d+x$/, "");
+      reasons[key] = (reasons[key] ?? 0) + 1;
+    }
+  }
+  return { nValid: valid.size, rounds: rounds.size, excludedAttempts, reasons };
+}
+
+export function formatValidity(label: string, s: ValiditySummary): string {
+  const why = Object.entries(s.reasons)
+    .map(([k, v]) => `${k} x${v}`)
+    .join("; ");
+  return (
+    `VALID ${label}: n_valid=${s.nValid}/${s.rounds} excluded=${s.excludedAttempts}` +
+    (why ? ` (${why})` : "")
+  );
 }

@@ -26,7 +26,15 @@
 // Tryb `h1` zostaje wyłącznie dla porównania z pomiarami sprzed tej zmiany.
 
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, openSync, readFileSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  statSync,
+} from "node:fs";
 import {
   createServer as createHttpServer,
   request as httpRequest,
@@ -56,6 +64,7 @@ import {
   type BrotliCompress,
   type Gzip,
 } from "node:zlib";
+import { observeDocument, type DocumentObservation } from "./lighthouseReport.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** Korzeń repozytorium, w którym leży TEN skrypt (źródło fixture i obrazów). */
@@ -233,10 +242,17 @@ export async function startArtifact(options: ArtifactOptions): Promise<RunningAr
     child,
     stop: () =>
       new Promise<void>((done) => {
-        if (child.exitCode !== null) return done();
-        child.once("exit", () => done());
+        if (child.exitCode !== null || child.signalCode !== null) return done();
+        // Timer NIE jest `unref()`: Nitro na SIGTERM czeka na zamknięcie
+        // połączeń keep-alive frontu, a proces harnessu bez aktywnych uchwytów
+        // kończył się wcześniej i zostawiał serwer-sierotę (zmierzone
+        // 2026-10-04: kolejne serie dokładały procesy na porcie i CPU).
+        const kill = setTimeout(() => child.kill("SIGKILL"), 3000);
+        child.once("exit", () => {
+          clearTimeout(kill);
+          done();
+        });
         child.kill("SIGTERM");
-        setTimeout(() => child.kill("SIGKILL"), 3000).unref();
       }),
   };
 }
@@ -375,11 +391,75 @@ function forwardHeaders(headers: IncomingHttpHeaders, upstreamPort: number): Out
  */
 export type DocumentTransform = (html: string, headers: OutgoingHttpHeaders) => string;
 
+/**
+ * Wstrzyknięcie fragmentu HTML zaraz po otwarciu `<head>` BEZ buforowania
+ * dokumentu (w przeciwieństwie do `DocumentTransform`): bajty czekają tylko do
+ * końca znacznika `<head ...>`, dalej strumień płynie bez zmian. Dzięki temu
+ * flaga `__NES_GA_ANY_HOST__` (P0.1 `--third-party fake-gtag`) nie zmienia
+ * dostarczania dokumentu - transformacja buforująca dawała stronie B
+ * systematycznie inny czas głównego wątku (werdykt M1 #4).
+ */
+export interface HeadInjector {
+  /** Kolejny kawałek odpowiedzi -> bajty do wysłania (może być pusty, gdy czekamy na `<head>`). */
+  push(chunk: Buffer): Buffer;
+  /** Koniec odpowiedzi: reszta bufora (gdy `<head>` się nie pojawił - bez zmian). */
+  flush(): Buffer;
+}
+
+const HEAD_OPEN = /<head\b[^>]*>/i;
+/** Ile bajtów wolno przetrzymać w poszukiwaniu `<head>`, zanim się poddamy. */
+const HEAD_SEARCH_LIMIT = 64 * 1024;
+
+export function createHeadInjector(snippet: string): HeadInjector {
+  let pending: Buffer[] = [];
+  let pendingBytes = 0;
+  let done = false;
+  return {
+    push(chunk) {
+      if (done) return chunk;
+      pending.push(chunk);
+      pendingBytes += chunk.length;
+      const joined = Buffer.concat(pending);
+      const text = joined.toString("latin1");
+      const match = HEAD_OPEN.exec(text);
+      if (!match && pendingBytes < HEAD_SEARCH_LIMIT) return Buffer.alloc(0);
+      done = true;
+      pending = [];
+      if (!match) return joined;
+      const at = match.index + match[0].length;
+      return Buffer.concat([
+        joined.subarray(0, at),
+        Buffer.from(snippet, "utf8"),
+        joined.subarray(at),
+      ]);
+    },
+    flush() {
+      const rest = Buffer.concat(pending);
+      pending = [];
+      done = true;
+      return rest;
+    },
+  };
+}
+
+/** Odpowiedź dokumentu zarejestrowana przez front (to, co dostała przeglądarka). */
+export interface FrontDocument extends DocumentObservation {
+  readonly path: string;
+  readonly at: number;
+}
+
+interface ProxyOptions {
+  readonly transform?: DocumentTransform | null;
+  readonly injectHead?: string | null;
+  readonly onDocument?: (doc: FrontDocument) => void;
+}
+
 function proxyHandler(
   upstreamPort: number,
   images: FixtureImages | null,
-  transform: DocumentTransform | null = null,
+  options: ProxyOptions = {},
 ) {
+  const transform = options.transform ?? null;
   return (req: AnyRequest, raw: ServerResponse | Http2ServerResponse): void => {
     const res = sinkOf(raw);
     const url = req.url ?? "/";
@@ -400,6 +480,15 @@ function proxyHandler(
       },
       (ur) => {
         const contentType = String(ur.headers["content-type"] ?? "");
+        const isHtml = /^text\/html/i.test(contentType);
+        if (isHtml && options.onDocument) {
+          options.onDocument({
+            ...observeDocument("front", ur.statusCode ?? 0, ur.headers),
+            path: pathname,
+            at: Date.now(),
+          });
+        }
+        const inject = isHtml && options.injectHead ? createHeadInjector(options.injectHead) : null;
         const accept = String(req.headers["accept-encoding"] ?? "");
         const wantBr = /\bbr\b/.test(accept);
         const wantGz = /\bgzip\b/.test(accept);
@@ -409,10 +498,17 @@ function proxyHandler(
         for (const [name, value] of Object.entries(ur.headers)) {
           if (!HOP_BY_HOP.has(name) && value !== undefined) out[name] = value;
         }
+        if (inject) delete out["content-length"];
         if (!canCompress) {
           res.writeHead(ur.statusCode ?? 200, out);
-          ur.on("data", (chunk: Buffer) => res.write(chunk));
-          ur.on("end", () => res.end());
+          ur.on("data", (chunk: Buffer) => {
+            const bytes = inject ? inject.push(chunk) : chunk;
+            if (bytes.length) res.write(bytes);
+          });
+          ur.on("end", () => {
+            const rest = inject?.flush();
+            res.end(rest?.length ? rest : undefined);
+          });
           return;
         }
         delete out["content-length"];
@@ -420,7 +516,9 @@ function proxyHandler(
           const chunks: Buffer[] = [];
           ur.on("data", (chunk: Buffer) => chunks.push(chunk));
           ur.on("end", () => {
-            const html = transform(Buffer.concat(chunks).toString("utf8"), out);
+            let html = transform(Buffer.concat(chunks).toString("utf8"), out);
+            if (options.injectHead)
+              html = html.replace(HEAD_OPEN, (m) => `${m}${options.injectHead}`);
             const body = Buffer.from(html, "utf8");
             const encoded = wantBr
               ? brotliCompressSync(body, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } })
@@ -445,10 +543,16 @@ function proxyHandler(
         encoder.on("data", (chunk: Buffer) => res.write(chunk));
         encoder.on("end", () => res.end());
         ur.on("data", (chunk: Buffer) => {
-          encoder.write(chunk);
+          const bytes = inject ? inject.push(chunk) : chunk;
+          if (!bytes.length) return;
+          encoder.write(bytes);
           if (streamed) encoder.flush();
         });
-        ur.on("end", () => encoder.end());
+        ur.on("end", () => {
+          const rest = inject?.flush();
+          if (rest?.length) encoder.write(rest);
+          encoder.end();
+        });
       },
     );
     upstream.on("error", (error) => {
@@ -490,14 +594,29 @@ export interface FrontOptions {
   readonly imagePort?: number;
   /** Opcjonalne przekształcenie dokumentu (eksperymenty „co-jeśli"). */
   readonly transformHtml?: DocumentTransform;
+  /** Fragment wstrzykiwany strumieniowo po `<head>` (np. flaga fałszywego gtag). */
+  readonly injectHead?: string;
 }
 
 export interface RunningFront extends Stoppable {
   /** URL, który dostaje Lighthouse (bez ścieżki). */
   readonly baseUrl: string;
-  /** Flagi Chrome specyficzne dla tego frontu (mapowanie hosta, certyfikat). */
+  /** Flagi Chrome specyficzne dla tego frontu (certyfikat) - BEZ mapowania hostów. */
   readonly chromeFlags: readonly string[];
+  /**
+   * Reguły `MAP host 127.0.0.1:port` tego frontu. Chrome przyjmuje JEDNĄ flagę
+   * `--host-resolver-rules`, więc składa je `hostResolverFlag` razem z regułami
+   * innych serwerów (fałszywy Google).
+   */
+  readonly hostResolverRules: readonly string[];
   readonly transport: Transport;
+  /** Odpowiedzi HTML, które przeszły przez front (kolejność przyjścia). */
+  documents(): readonly FrontDocument[];
+}
+
+/** Jedna flaga `--host-resolver-rules` z reguł wielu serwerów (pusta lista = brak flagi). */
+export function hostResolverFlag(rules: readonly string[]): string[] {
+  return rules.length ? [`--host-resolver-rules='${rules.join(", ")}'`] : [];
 }
 
 /**
@@ -508,23 +627,29 @@ export interface RunningFront extends Stoppable {
  */
 export async function startFront(options: FrontOptions): Promise<RunningFront> {
   const images = loadFixtureImages();
+  const log: FrontDocument[] = [];
+  const proxyOptions: ProxyOptions = {
+    transform: options.transformHtml ?? null,
+    injectHead: options.injectHead ?? null,
+    onDocument: (doc) => void log.push(doc),
+  };
+  const documents = () => log.slice();
   if (options.transport === "h2") {
     const tls = fixtureTls();
-    const handler = proxyHandler(options.upstreamPort, images, options.transformHtml ?? null);
+    const handler = proxyHandler(options.upstreamPort, images, proxyOptions);
     const server = createSecureServer({ ...tls, allowHTTP1: true }, handler);
     const stoppable = await listen(server, options.listenPort);
     return {
       ...stoppable,
       transport: "h2",
       baseUrl: `https://${FIXTURE_HOST}`,
-      chromeFlags: [
-        "--ignore-certificate-errors",
-        `--host-resolver-rules='MAP ${FIXTURE_HOST} 127.0.0.1:${options.listenPort}'`,
-      ],
+      chromeFlags: ["--ignore-certificate-errors"],
+      hostResolverRules: [`MAP ${FIXTURE_HOST} 127.0.0.1:${options.listenPort}`],
+      documents,
     };
   }
   const proxy = await listen(
-    createHttpServer(proxyHandler(options.upstreamPort, null, options.transformHtml ?? null)),
+    createHttpServer(proxyHandler(options.upstreamPort, null, proxyOptions)),
     options.listenPort,
   );
   const imagePort = options.imagePort ?? (await freePort());
@@ -538,10 +663,9 @@ export async function startFront(options: FrontOptions): Promise<RunningFront> {
   return {
     transport: "h1",
     baseUrl: `http://127.0.0.1:${options.listenPort}`,
-    chromeFlags: [
-      "--ignore-certificate-errors",
-      `--host-resolver-rules='MAP ${FIXTURE_HOST} 127.0.0.1:${imagePort}'`,
-    ],
+    chromeFlags: ["--ignore-certificate-errors"],
+    hostResolverRules: [`MAP ${FIXTURE_HOST} 127.0.0.1:${imagePort}`],
+    documents,
     stop: async () => {
       await Promise.all([proxy.stop(), imageStop.stop()]);
     },
@@ -596,4 +720,123 @@ export async function warmDocument(
   await sleep(1000);
   await fetchDocument(origin, path, acceptLanguage, userAgent);
   return fetchDocument(origin, path, acceptLanguage);
+}
+
+export interface RewarmResult {
+  /** Odpowiedzi rozgrzewki po kolei (pierwsza = stan wpisu przed przebiegiem). */
+  readonly attempts: readonly DocumentObservation[];
+  /** Ostatnia odpowiedź; `cache === "HIT"`, jeśli rozgrzewka się udała. */
+  readonly final: DocumentObservation;
+  /** true = HIT z zapasem świeżości `minFreshS` (warunek ważności przebiegu). */
+  readonly ok: boolean;
+  /** Ile sekund czekaliśmy, aż zbyt stary HIT przejdzie w STALE (wymuszenie odświeżenia). */
+  readonly waitedForStaleS: number;
+  readonly ms: number;
+}
+
+/**
+ * Okno świeżości wpisu cache dokumentu (`DOCUMENT_CACHE_MAX_FRESH_MS` w
+ * `src/lib/http/documentCache.ts`; tu stała, bo skrypty Node nie rozwiązują
+ * importów `src/` bez rozszerzeń).
+ */
+export const DOCUMENT_FRESH_WINDOW_S = 180;
+/**
+ * Minimalny zapas świeżości po rozgrzewce: Lighthouse prosi o dokument kilka
+ * sekund po starcie Chrome'a (pod obciążeniem do ~10 s). HIT starszy niż
+ * okno - zapas przeszedłby w STALE w trakcie przebiegu i uruchomił render SSR.
+ */
+export const DEFAULT_MIN_FRESH_S = 30;
+
+export interface RewarmOptions {
+  readonly acceptLanguage?: string;
+  readonly userAgent?: string;
+  readonly minFreshS?: number;
+  readonly freshWindowS?: number;
+  readonly timeoutMs?: number;
+  /** Wstrzykiwany zegar/sen (testy). */
+  readonly sleep?: (ms: number) => Promise<void>;
+  readonly fetchDocument?: (
+    origin: string,
+    path: string,
+    acceptLanguage: string,
+    userAgent: string,
+  ) => Promise<{ status: number; headers: Headers }>;
+}
+
+/**
+ * Ponowne rozgrzanie PRZED KAŻDYM przebiegiem (werdykt M1 #1). Wpis cache żyje
+ * świeżo 3 min; po tym czasie pierwsze żądanie dostaje STALE i uruchamia
+ * rewalidację SSR w tle - w tym samym procesie, który serwuje JS/CSS pomiaru.
+ * Rozgrzewka pyta więc dokument UA wybranego wariantu, aż dostanie HIT
+ * z zapasem świeżości `minFreshS` (STALE/MISS = czekamy na zapis odświeżonego
+ * wpisu; HIT bez zapasu = czekamy, aż przejdzie w STALE, i odświeżamy go
+ * sami), i dopiero wtedy oddaje sterowanie Lighthouse'owi. Render rewalidacji
+ * kończy się PRZED HIT-em (wpis zapisuje się po końcu strumienia), więc nie
+ * nachodzi na przebieg. Rewalidacja kopiuje UA żądania, które ją wywołało
+ * (`src/server.ts` revalidationHeaders), więc wariant wpisu zostaje ten sam.
+ */
+export async function rewarmDocument(
+  origin: string,
+  path: string,
+  options: RewarmOptions = {},
+): Promise<RewarmResult> {
+  const acceptLanguage = options.acceptLanguage ?? DEFAULT_ACCEPT_LANGUAGE;
+  const userAgent = options.userAgent ?? WARM_USER_AGENT;
+  const minFreshS = options.minFreshS ?? DEFAULT_MIN_FRESH_S;
+  const freshWindowS = options.freshWindowS ?? DOCUMENT_FRESH_WINDOW_S;
+  const timeoutMs = options.timeoutMs ?? 240_000;
+  const nap = options.sleep ?? sleep;
+  const get = options.fetchDocument ?? fetchDocument;
+  const started = Date.now();
+  const attempts: DocumentObservation[] = [];
+  let waitedForStaleS = 0;
+  for (;;) {
+    const res = await get(origin, path, acceptLanguage, userAgent);
+    const obs = observeDocument("warm", res.status, res.headers);
+    attempts.push(obs);
+    const age = obs.ageS ?? 0;
+    const fresh = obs.cache === "HIT" && age <= freshWindowS - minFreshS;
+    const elapsed = Date.now() - started;
+    if (fresh || elapsed >= timeoutMs) {
+      return { attempts, final: obs, ok: fresh, waitedForStaleS, ms: elapsed };
+    }
+    if (obs.cache === "HIT") {
+      // Za mało świeżości na przebieg: czekamy na koniec okna (+0,5 s), następne
+      // żądanie dostanie STALE i wywoła rewalidację, a pętla poczeka na nowy HIT.
+      const waitS = Math.max(0.5, freshWindowS - age + 0.5);
+      waitedForStaleS += waitS;
+      await nap(waitS * 1000);
+      continue;
+    }
+    await nap(attempts.length === 1 ? 500 : 250);
+  }
+}
+
+/**
+ * Kursor po pliku logu serwera artefaktu: `mark()` przed przebiegiem,
+ * `since(mark)` po nim zwraca linie dopisane W TRAKCIE (znacznik rewalidacji
+ * `"revalidation":true`, MISS-y). Serwer pisze stdout do pliku synchronicznie.
+ */
+export interface LogCursor {
+  mark(): number;
+  since(mark: number): string;
+}
+
+export function logCursor(file: string): LogCursor {
+  return {
+    mark: () => (existsSync(file) ? statSync(file).size : 0),
+    since: (mark) => {
+      if (!existsSync(file)) return "";
+      const size = statSync(file).size;
+      if (size <= mark) return "";
+      const fd = openSync(file, "r");
+      try {
+        const buf = Buffer.alloc(size - mark);
+        readSync(fd, buf, 0, buf.length, mark);
+        return buf.toString("utf8");
+      } finally {
+        closeSync(fd);
+      }
+    },
+  };
 }
