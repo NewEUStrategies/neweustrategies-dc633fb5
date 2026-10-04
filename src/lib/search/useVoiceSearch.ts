@@ -18,7 +18,6 @@ import { supabase } from "@/integrations/supabase/client";
 // 5 minut, żeby porzucona karta nie trzymała mikrofonu w nieskończoność.
 const MAX_RECORDING_MS = 5 * 60_000;
 const SILENCE_AFTER_SPEECH_MS = 1100; // auto-stop po ciszy, gdy juz coś powiedziano
-const NO_SPEECH_TIMEOUT_MS = 6000; // gdy nic nie wykryto - zamykamy szybciej niż hard cap
 const CALIBRATION_MS = 400; // pierwsze ~400ms - pomiar szumu tła
 const MIN_SPEECH_MS = 250; // ile mowy musi się nazbierać, żeby uznać nagranie za sensowne
 const NOISE_MULT = 2.2; // próg mowy = max(baseFloor, noiseFloor * NOISE_MULT)
@@ -396,7 +395,9 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
   const toggle = useCallback(() => {
     if (busy || startingRef.current) return;
     if (speechRecRef.current) {
-      speechRecRef.current.stop();
+      const rec = speechRecRef.current;
+      speechRecRef.current = null; // sygnał dla onend: to stop użytkownika
+      rec.stop();
       return;
     }
     if (recorderRef.current) {
@@ -417,8 +418,11 @@ export function useVoiceSearch({ lang, onText, onFinal }: VoiceSearchOptions): V
   }, [busy, startRecording, startWebSpeechFallback, stopRecording]);
 
   const stop = useCallback(() => {
-    if (speechRecRef.current) speechRecRef.current.stop();
-    else stopRecording();
+    const rec = speechRecRef.current;
+    if (rec) {
+      speechRecRef.current = null;
+      rec.stop();
+    } else stopRecording();
   }, [stopRecording]);
 
   return { supported, listening, busy, toggle, stop };
