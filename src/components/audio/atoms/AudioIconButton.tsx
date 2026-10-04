@@ -20,7 +20,7 @@ export const AUDIO_FOCUS_RING =
 /** Warianty geometrii. `primary` to duży przycisk odtwarzania, resztę robi rząd. */
 export const AUDIO_ICON_BUTTON_VARIANTS = {
   primary:
-    "relative inline-grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[6px] bg-brand text-background shadow-md transition hover:brightness-110 active:scale-95 disabled:opacity-70",
+    "audio-control-btn relative inline-grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[6px] bg-brand text-background shadow-md transition hover:brightness-110 active:scale-95 disabled:opacity-70",
   outline:
     "inline-grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border text-muted-foreground transition hover:bg-muted hover:text-brand disabled:opacity-50",
   ghost:

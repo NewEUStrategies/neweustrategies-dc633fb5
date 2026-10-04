@@ -9216,7 +9216,7 @@ input[type="reset"],
 @keyframes voice-stop-spin { 0% { transform: rotate(0) } 50% { transform: rotate(180deg) } 100% { transform: rotate(360deg) } }
 @keyframes voice-pill-in { from { opacity: 0; transform: scaleX(.6) } to { opacity: 1; transform: scaleX(1) } }
 .voice-eq-bar--active { animation: voice-eq 1s ease-in-out infinite; }
-.voice-stop-square { animation: voice-stop-spin 2s ease-in-out infinite; }
+.voice-stop-square { animation: voice-stop-spin 2s ease-in-out infinite; box-shadow: 0 0 0 1px var(--voice-stop-border); }
 .voice-pill-enter { animation: voice-pill-in .4s cubic-bezier(.22,1,.36,1) both; transform-origin: left center; }
 @media (prefers-reduced-motion: reduce) {
   .voice-eq-bar--active, .voice-stop-square, .voice-pill-enter { animation: none; }
