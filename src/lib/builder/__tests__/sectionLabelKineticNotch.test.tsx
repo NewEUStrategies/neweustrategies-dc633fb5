@@ -178,19 +178,17 @@ describe("Kinetic Signal Notch", () => {
     expect(style).toContain("#FA9346");
   });
 
-  it("akcja nie ma podkreślenia, a chevrony dzielą kolor i wysokość tekstu", () => {
+  it("akcja nie ma podkreślenia, a chevron dzieli kolor i wysokość tekstu", () => {
     const { container } = renderVariant({ href: "/raporty" });
     const link = container.querySelector("a.nes-kinetic-action");
     // "usuń podkreślenie" - żaden element akcji nie rysuje linii od lewej.
     expect(link?.querySelector("[class*='group-hover/link:w-full']")).toBeNull();
+    // "usuń po lewej stronie <" - zostaje wyłącznie chevron ">" po prawej.
     const svgs = link?.querySelectorAll("svg") ?? [];
-    expect(svgs.length).toBe(2);
-    // "po jednej i drugiej stronie < oraz >" - lustrzane chevrony wokół akcji.
-    const left = svgs[0]?.querySelector("polyline")?.getAttribute("points") ?? "";
-    const right = svgs[1]?.querySelector("polyline")?.getAttribute("points") ?? "";
-    expect(left).toBe("8.2 1.8 2.4 5 8.2 8.2");
+    expect(svgs.length).toBe(1);
+    const right = svgs[0]?.querySelector("polyline")?.getAttribute("points") ?? "";
     expect(right).toBe("2.4 1.8 8.2 5 2.4 8.2");
-    // "bez ogonków" - czyste kąty, żadnej poziomej linii strzałki.
+    // "bez ogonków" - czysty kąt, żadnej poziomej linii strzałki.
     expect(link?.querySelector('path[d="M5 12h14"]')).toBeNull();
     // Chevron w em, ale o 1 px nizszy niz czcionka akcji, zeby rownal wysokosci
     // liter „wiecej”. Bez przesuniecia w osi Y - wycentrowanie w inline-flex trafia
@@ -211,9 +209,8 @@ describe("Kinetic Signal Notch", () => {
         "non-scaling-stroke",
       );
     }
-    // Hover rozpycha znaki na zewnątrz: "<" w lewo, ">" w prawo.
-    expect(svgs[0]?.getAttribute("class")).toContain("group-hover/link:-translate-x-0.5");
-    expect(svgs[1]?.getAttribute("class")).toContain("group-hover/link:translate-x-0.5");
+    // Hover rozpycha ">" na zewnątrz - w prawo.
+    expect(svgs[0]?.getAttribute("class")).toContain("group-hover/link:translate-x-0.5");
     expect(stylesCss).toMatch(/\.nes-kinetic-action svg \{[^}]*color: inherit;/);
     // Kreska jest cieńsza niż pasek sygnału (3 px).
     const bar = container.querySelector<HTMLElement>(".nes-kinetic-bar");
