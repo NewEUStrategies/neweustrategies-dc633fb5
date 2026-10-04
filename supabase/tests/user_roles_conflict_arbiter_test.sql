@@ -31,8 +31,10 @@
 --      indeksu nie psuje aplikacji. Indeks częściowy albo wyrażeniowy NIE byłby
 --      arbitrem dla gołej listy kolumn, a deferowalny - błędem przy wnioskowaniu.
 --   2. PONOWNA WYSYŁKA JEST IDEMPOTENTNA. Ten sam zapis dwa razy zostawia
---      dokładnie jeden wiersz, a drugi nie rusza pierwszego (ten sam `id`
---      i `created_at` - `DO NOTHING`, nie usunięcie i ponowny wstaw).
+--      dokładnie jeden wiersz, a drugi nie rusza pierwszego (ten sam `id` -
+--      `DO NOTHING`, nie usunięcie i ponowny wstaw). Sam `created_at` niczego
+--      tu nie rozróżnia: `now()` jest stałe w transakcji, więc ponowny wstaw
+--      dostałby tę samą wartość; odróżnia go dopiero nowy `gen_random_uuid()`.
 --   3. UNIKALNOŚĆ JEST PER NAJEMCA. Ta sama osoba z tą samą rolą w drugim
 --      najemcy to osobny wiersz - dokładnie model z 20260531181120.
 --   4. STARY CEL NIE MA ARBITRA. `ON CONFLICT (user_id, role)` kończy się 42P10
@@ -102,7 +104,7 @@ SELECT lives_ok(
 
 RESET ROLE;
 CREATE TEMP TABLE ur_first_send ON COMMIT DROP AS
-  SELECT id, created_at FROM public.user_roles
+  SELECT id FROM public.user_roles
    WHERE tenant_id = 'c0f1a000-0000-4000-8000-0000000000a1'
      AND user_id = 'c0f10000-0000-4000-8000-000000000001'
      AND role = 'author';
@@ -131,12 +133,12 @@ SELECT is(
 SELECT is(
   (SELECT count(*)::int
      FROM public.user_roles r
-     JOIN ur_first_send s USING (id, created_at)
+     JOIN ur_first_send s USING (id)
     WHERE r.tenant_id = 'c0f1a000-0000-4000-8000-0000000000a1'
       AND r.user_id = 'c0f10000-0000-4000-8000-000000000001'
       AND r.role = 'author'),
   1,
-  'ponowna wysyłka nie rusza istniejącego wiersza - ten sam id i created_at co po pierwszej'
+  'ponowna wysyłka nie rusza istniejącego wiersza - ten sam id co po pierwszej'
 );
 
 -- ── (3) Unikalność per najemca ──────────────────────────────────────────────
