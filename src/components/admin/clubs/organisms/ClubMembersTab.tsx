@@ -208,7 +208,7 @@ export function ClubMembersTab({ clubId }: { clubId: string }) {
       {/* Kolejka próśb o dostęp                                              */}
       {/* ------------------------------------------------------------------ */}
       {pending.length > 0 ? (
-        <Card className="border-brand/100/40 bg-brand/100/5">
+        <Card className="border-brand/40 bg-brand/5">
           <CardHeader className="gap-1 pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               {t("adminClubs.members.requestsTitle")}

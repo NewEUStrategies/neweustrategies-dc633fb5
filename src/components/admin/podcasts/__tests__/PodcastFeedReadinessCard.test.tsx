@@ -144,7 +144,7 @@ describe("PodcastFeedReadinessCard - braki na ekranie", () => {
         ]}
       />,
     );
-    expect(ramka(container)).toContain("border-brand/100/50");
+    expect(ramka(container)).toContain("border-brand/50");
     expect(screen.getByText(napis("readinessBlocking"))).toBeInTheDocument();
     expect(wiersze()).toEqual([napis("blocking.image"), napis("blocking.ownerEmailShape")]);
     // Potwierdzenie gotowości NIE MOŻE stać nad listą braków.
@@ -237,7 +237,7 @@ describe("PodcastFeedReadinessCard - drogi wejścia", () => {
     const { container } = renderWithQueryClient(
       <PodcastFeedReadinessCard readiness={{ ready: true, blocking: ["image"], warnings: [] }} />,
     );
-    expect(ramka(container)).toContain("border-brand/100/50");
+    expect(ramka(container)).toContain("border-brand/50");
     expect(screen.queryByText(napis("readinessOk"))).toBeNull();
     expect(wiersze()).toEqual([napis("blocking.image")]);
   });

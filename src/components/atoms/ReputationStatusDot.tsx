@@ -9,7 +9,7 @@ import "@/lib/i18n-newsletter-deliverability";
 
 const DOT: Record<ReputationStatus, string> = {
   healthy: "bg-emerald-500",
-  watch: "bg-brand/100",
+  watch: "bg-brand",
   critical: "bg-destructive",
   insufficient_data: "bg-muted-foreground/50",
 };

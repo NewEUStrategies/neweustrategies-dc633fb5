@@ -185,7 +185,7 @@ export function ScannerDeviceDialog({
             />
           </div>
 
-          <div className="space-y-2 rounded-md border border-brand/100/40 bg-brand/100/5 p-3">
+          <div className="space-y-2 rounded-md border border-brand/40 bg-brand/5 p-3">
             <div className="flex items-start gap-2">
               <Checkbox
                 id="device-offline-roster"

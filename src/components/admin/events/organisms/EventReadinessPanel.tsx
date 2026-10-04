@@ -203,7 +203,7 @@ function ReadinessItem({ item, eventId }: { item: ReadinessCheck; eventId: strin
             "flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border",
             blocker
               ? "border-destructive/40 bg-destructive/10 text-destructive"
-              : "border-brand/100/40 bg-brand/100/10 text-brand-ink dark:text-brand",
+              : "border-brand/40 bg-brand/10 text-brand-ink dark:text-brand",
           )}
           aria-hidden="true"
         >

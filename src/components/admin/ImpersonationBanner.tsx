@@ -62,7 +62,7 @@ export function ImpersonationBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="sticky top-0 z-[60] flex items-center justify-center gap-3 bg-brand/100 px-4 py-2 text-sm font-medium text-brand-ink shadow-sm"
+      className="sticky top-0 z-[60] flex items-center justify-center gap-3 bg-brand px-4 py-2 text-sm font-medium text-brand-ink shadow-sm"
     >
       <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden />
       <span className="truncate">

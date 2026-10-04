@@ -85,7 +85,7 @@ describe("wiersz tabeli klubów", () => {
     renderRow({ pending_count: 5 });
 
     const badge = screen.getByText("5");
-    expect(badge.className).toContain("bg-brand/100/15");
+    expect(badge.className).toContain("bg-brand/15");
   });
 
   it("brak zgłoszeń to KRESKA, nie pusta komórka", () => {

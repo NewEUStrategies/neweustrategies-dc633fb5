@@ -12,7 +12,7 @@ interface Props {
 const CALLOUT_STYLES: Record<Variant, { cls: string; Icon: typeof Info }> = {
   info: { cls: "bg-muted border-border text-foreground", Icon: Info },
   warning: {
-    cls: "bg-brand/100/10 border-brand/100/30 text-brand-ink dark:text-brand",
+    cls: "bg-brand/10 border-brand/30 text-brand-ink dark:text-brand",
     Icon: AlertTriangle,
   },
   success: {

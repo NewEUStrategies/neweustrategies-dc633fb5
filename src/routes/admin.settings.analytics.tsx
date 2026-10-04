@@ -73,7 +73,7 @@ function StatusBadge({ kind, label }: { kind: StatusKind; label: string }) {
     },
     partial: {
       icon: <AlertTriangle className="w-3.5 h-3.5" />,
-      cls: "bg-brand/100/10 text-brand-ink dark:text-brand border-brand/100/30",
+      cls: "bg-brand/10 text-brand-ink dark:text-brand border-brand/30",
     },
     off: {
       icon: <XCircle className="w-3.5 h-3.5" />,
@@ -220,7 +220,7 @@ function Ga4ConnectDialog({
             />
           </label>
           {missingSecrets.length > 0 && (
-            <div className="rounded-md border border-brand/100/30 bg-brand/100/5 p-3 space-y-2">
+            <div className="rounded-md border border-brand/30 bg-brand/5 p-3 space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-brand-ink dark:text-brand">
                 {t("admin.analyticsSettings.ga4.secretsNeeded")}
               </p>

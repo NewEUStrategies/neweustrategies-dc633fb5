@@ -5,14 +5,14 @@ import { SCORE_BAND_LABELS } from "@/lib/crm/scoring";
 
 const BAND_CLASS: Record<ScoreBand, string> = {
   hot: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
-  warm: "bg-brand/100/15 text-brand-ink dark:text-brand",
+  warm: "bg-brand/15 text-brand-ink dark:text-brand",
   cool: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
   cold: "bg-muted text-muted-foreground",
 };
 
 const DOT_CLASS: Record<ScoreBand, string> = {
   hot: "bg-rose-500",
-  warm: "bg-brand/100",
+  warm: "bg-brand",
   cool: "bg-sky-500",
   cold: "bg-muted-foreground/50",
 };

@@ -1101,7 +1101,7 @@ describe("admin.greetings - walidacja i blokada zapisu", () => {
     await greetingsReady();
     expect(requireButton("Zapisz").disabled).toBe(false);
     const warned = elements('input[placeholder^="np."]').filter((input) =>
-      input.className.includes("border-brand/100/60"),
+      input.className.includes("border-brand/60"),
     );
     expect(warned).toHaveLength(1);
   });

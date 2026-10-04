@@ -831,7 +831,7 @@ function ClubThreadView() {
 
           {/* Kolejka moderacji - komunikat, który nie znika razem z toastem. */}
           {queued ? (
-            <div className="mt-6 flex items-start gap-3 rounded-xl border border-brand/100/40 bg-brand/100/10 p-4">
+            <div className="mt-6 flex items-start gap-3 rounded-xl border border-brand/40 bg-brand/10 p-4">
               <ShieldQuestion
                 className="mt-0.5 h-4 w-4 shrink-0 text-brand-ink dark:text-brand"
                 aria-hidden="true"

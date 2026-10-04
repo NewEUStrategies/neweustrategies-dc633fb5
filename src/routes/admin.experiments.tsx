@@ -93,7 +93,7 @@ function ExperimentCard({
     experiment.status === "running"
       ? "bg-emerald-500/15 text-emerald-600"
       : experiment.status === "paused"
-        ? "bg-brand/100/15 text-brand-ink"
+        ? "bg-brand/15 text-brand-ink"
         : "bg-muted text-muted-foreground";
 
   const s = stats.data;

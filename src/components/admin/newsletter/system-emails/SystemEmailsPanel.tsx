@@ -164,7 +164,7 @@ export function SystemEmailsPanel() {
       </header>
 
       {data && !data.infraReady ? (
-        <div className="flex items-start gap-2 rounded-[6px] border border-brand/100/30 bg-brand/100/10 px-4 py-3 text-[0.8125rem] text-brand-ink">
+        <div className="flex items-start gap-2 rounded-[6px] border border-brand/30 bg-brand/10 px-4 py-3 text-[0.8125rem] text-brand-ink">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden />
           <span>{t("systemEmails.notReady")}</span>
         </div>

@@ -14,7 +14,7 @@ const LABELS: Record<"pl" | "en", readonly [string, string, string, string]> = {
 };
 
 // Kolory segmentu i etykiety per poziom: czerwony -> bursztyn -> limonka -> zielony.
-const SEGMENT_COLORS = ["bg-red-500", "bg-brand/100", "bg-lime-500", "bg-green-500"] as const;
+const SEGMENT_COLORS = ["bg-red-500", "bg-brand", "bg-lime-500", "bg-green-500"] as const;
 const LABEL_COLORS = [
   "text-red-600 dark:text-red-400",
   "text-brand-ink dark:text-brand",

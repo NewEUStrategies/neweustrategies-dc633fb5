@@ -17,7 +17,7 @@ const VERDICT_CLASS: Record<ReconciliationVerdict, string> = {
   expected_drift: "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30",
   single_source: "bg-muted text-muted-foreground border-border",
   incomparable: "bg-muted text-muted-foreground border-border",
-  divergent: "bg-brand/100/15 text-brand-ink dark:text-brand border-brand/100/30",
+  divergent: "bg-brand/15 text-brand-ink dark:text-brand border-brand/30",
   order_inverted: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30",
   unavailable: "bg-muted text-muted-foreground border-dashed border-border",
 };

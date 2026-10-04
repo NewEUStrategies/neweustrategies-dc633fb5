@@ -602,7 +602,7 @@ function PeopleInner() {
       </details>
 
       {filters.semantic && semanticUnavailable && (
-        <p className="mb-3 rounded-[4px] border border-brand/100/40 bg-brand/100/5 px-2.5 py-1.5 text-[11px] leading-snug text-brand-ink dark:text-brand">
+        <p className="mb-3 rounded-[4px] border border-brand/40 bg-brand/5 px-2.5 py-1.5 text-[11px] leading-snug text-brand-ink dark:text-brand">
           {t("people.semanticUnavailable")}
         </p>
       )}

@@ -55,7 +55,7 @@ export function AdminMonetizationLedger() {
       ) : (
         <>
           {!ledger.data.tenantResolved && (
-            <p className="mb-4 rounded-[6px] border border-brand/100/20 bg-brand/100/10 p-3 text-sm text-brand-ink">
+            <p className="mb-4 rounded-[6px] border border-brand/20 bg-brand/10 p-3 text-sm text-brand-ink">
               {t("adminMonetization.tenantMissing", { lng: lang })}
             </p>
           )}

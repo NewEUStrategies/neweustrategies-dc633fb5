@@ -139,7 +139,7 @@ export function SubscribersPanel() {
       <ImportCsvDialog open={importOpen} onOpenChange={setImportOpen} />
 
       {subs && isFetchCapped(subs.length) && (
-        <div className="rounded-lg border border-brand/100/40 bg-brand/100/10 px-3 py-2 text-xs text-brand-ink dark:text-brand">
+        <div className="rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-xs text-brand-ink dark:text-brand">
           {t("adminNewsletter.subscribers.capWarning", {
             count: formatNumber(SUBSCRIBER_FETCH_CAP, i18n.language),
           })}
@@ -286,7 +286,7 @@ function StatusBadge({ status }: { status: string }) {
     status === "subscribed"
       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
       : status === "pending"
-        ? "bg-brand/100/10 text-brand-ink dark:text-brand"
+        ? "bg-brand/10 text-brand-ink dark:text-brand"
         : "bg-muted text-muted-foreground";
   return <span className={`text-[11px] px-2 py-0.5 rounded font-medium ${style}`}>{status}</span>;
 }

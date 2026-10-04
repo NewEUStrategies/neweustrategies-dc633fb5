@@ -21,7 +21,7 @@ import type { InboxTone } from "@/lib/clubs/adminApplicationsInbox";
 const TONE_CLASS: Record<InboxTone, string> = {
   positive: "border-emerald-500/40 text-emerald-600 dark:text-emerald-400",
   negative: "border-destructive/40 text-destructive",
-  warning: "border-brand/100/40 text-brand-ink dark:text-brand",
+  warning: "border-brand/40 text-brand-ink dark:text-brand",
   neutral: "border-border text-muted-foreground",
 };
 

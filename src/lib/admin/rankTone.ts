@@ -20,10 +20,10 @@ export interface RankTone {
 
 const GOLD: RankTone = {
   header: "from-brand0/10 via-brand0/5 to-transparent",
-  iconBg: "bg-brand/100/15",
+  iconBg: "bg-brand/15",
   iconFg: "text-brand-ink dark:text-brand",
-  pill: "bg-brand/100/10 text-brand-ink dark:text-brand",
-  dot: "bg-brand/100",
+  pill: "bg-brand/10 text-brand-ink dark:text-brand",
+  dot: "bg-brand",
 };
 
 const PRIMARY: RankTone = {

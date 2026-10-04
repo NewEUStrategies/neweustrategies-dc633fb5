@@ -344,6 +344,6 @@ export function ExpertRequestDialog({ open, onOpenChange, prefill }: ExpertReque
 /** Baner puli: neutralny gdy są zapytania, ostrzegawczy gdy wyczerpane/brak. */
 function cnQuota(warn: boolean): string {
   return warn
-    ? "rounded-[6px] border border-brand/100/40 bg-brand/100/10 px-3 py-2 text-xs font-medium text-brand-ink dark:text-brand"
+    ? "rounded-[6px] border border-brand/40 bg-brand/10 px-3 py-2 text-xs font-medium text-brand-ink dark:text-brand"
     : "rounded-[6px] border border-border bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground";
 }

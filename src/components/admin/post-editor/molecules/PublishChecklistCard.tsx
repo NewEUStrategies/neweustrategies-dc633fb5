@@ -15,7 +15,7 @@ export function PublishChecklistCard({ checklist }: { checklist: PublishChecklis
     checklist.score >= 80
       ? "bg-emerald-500"
       : checklist.score >= 50
-        ? "bg-brand/100"
+        ? "bg-brand"
         : "bg-destructive";
 
   return (

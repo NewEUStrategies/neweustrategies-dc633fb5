@@ -1734,7 +1734,7 @@ function GlobalWidgetBanner({ globalId, onUnlink }: { globalId: string; onUnlink
   const { t } = useTranslation();
   const meta = useGlobalWidgetMeta(globalId);
   return (
-    <div className="mb-2 px-2 py-1.5 rounded border border-brand/100/50 bg-brand/100/10 space-y-1">
+    <div className="mb-2 px-2 py-1.5 rounded border border-brand/50 bg-brand/10 space-y-1">
       <div className="flex items-center gap-1.5 text-[11px] font-medium text-brand-ink dark:text-brand">
         <Globe className="w-3.5 h-3.5 shrink-0" />
         <span className="truncate">{meta?.name ?? t("builder.widgetProps.globalWidget")}</span>

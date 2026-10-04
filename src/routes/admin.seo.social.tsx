@@ -199,14 +199,14 @@ function SeoSocialTab() {
       <p className="text-sm text-muted-foreground">{t("adminSeoHub.socialIntro")}</p>
 
       {isAdmin ? null : (
-        <p className="rounded-lg border border-brand/100/40 bg-brand/100/5 px-3 py-2 text-xs text-brand-ink dark:text-brand">
+        <p className="rounded-lg border border-brand/40 bg-brand/5 px-3 py-2 text-xs text-brand-ink dark:text-brand">
           {t("adminSeoHub.readOnlyNotice")}
         </p>
       )}
 
       {publicOrigin === null ? (
         <p
-          className="rounded-lg border border-brand/100/40 bg-brand/100/5 px-3 py-2 text-xs text-brand-ink dark:text-brand"
+          className="rounded-lg border border-brand/40 bg-brand/5 px-3 py-2 text-xs text-brand-ink dark:text-brand"
           data-seo-no-domain
         >
           {t("adminSeoHub.noPublicDomain")}

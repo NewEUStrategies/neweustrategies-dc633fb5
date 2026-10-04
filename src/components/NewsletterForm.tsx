@@ -176,7 +176,7 @@ export function NewsletterForm({
     return (
       <div
         role="status"
-        className="rounded border border-dashed border-brand/100/60 bg-brand/100/10 px-3 py-2 text-[11px] font-medium text-brand-ink"
+        className="rounded border border-dashed border-brand/60 bg-brand/10 px-3 py-2 text-[11px] font-medium text-brand-ink"
       >
         {!s
           ? "Newsletter: wczytywanie ustawień…"

@@ -512,7 +512,7 @@ describe("ClubPresenceAvatar - twarz plus sygnał obecności", () => {
 
 describe("ClubNoticeKindPill - kierunek transakcji widać przed przeczytaniem", () => {
   const TONE: Record<(typeof CLUB_NOTICE_KINDS)[number], string> = {
-    seeking: "bg-brand/100/10",
+    seeking: "bg-brand/10",
     offering: "bg-emerald-500/10",
   };
 
@@ -534,7 +534,7 @@ describe("ClubNoticeKindPill - kierunek transakcji widać przed przeczytaniem", 
     const seeking = screen.getByText("club.network.board.kind.seeking");
     const offering = screen.getByText("club.network.board.kind.offering");
     expect(seeking.className).not.toContain("bg-emerald-500/10");
-    expect(offering.className).not.toContain("bg-brand/100/10");
+    expect(offering.className).not.toContain("bg-brand/10");
     const seekingIcon = seeking.querySelector("svg")?.innerHTML ?? "";
     const offeringIcon = offering.querySelector("svg")?.innerHTML ?? "";
     expect(seekingIcon).not.toBe("");
@@ -553,14 +553,14 @@ describe("ClubNoticeKindPill - kierunek transakcji widać przed przeczytaniem", 
     // rzutowania zakazanego regułami repozytorium.
     render(<ClubNoticeKindPill kind={toClubNoticeKind("barter")} />);
     const pill = screen.getByText("club.network.board.kind.seeking");
-    expect(pill.className).toContain("bg-brand/100/10");
+    expect(pill.className).toContain("bg-brand/10");
   });
 
   it("`className` dokłada się do pigułki bez utraty tonu", () => {
     render(<ClubNoticeKindPill kind="seeking" className="ml-auto" />);
     const pill = screen.getByText("club.network.board.kind.seeking");
     expect(pill.className).toContain("ml-auto");
-    expect(pill.className).toContain("bg-brand/100/10");
+    expect(pill.className).toContain("bg-brand/10");
   });
 });
 

@@ -320,7 +320,7 @@ export function AuthEmailLogsPanel() {
                       className={cn(
                         "inline-block rounded border px-1.5 py-0.5",
                         row.langFallback
-                          ? "bg-brand/100/10 text-brand-ink border-brand/100/20"
+                          ? "bg-brand/10 text-brand-ink border-brand/20"
                           : "border-border text-muted-foreground",
                       )}
                     >

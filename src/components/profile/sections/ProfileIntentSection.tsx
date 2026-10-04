@@ -301,7 +301,7 @@ export function ProfileIntentSection({ editable = true }: { editable?: boolean }
           </div>
 
           {staleMonths > 0 && (
-            <p className="rounded-[4px] border border-brand/100/40 bg-brand/100/5 px-2.5 py-1.5 text-[11px] leading-snug text-brand-ink dark:text-brand">
+            <p className="rounded-[4px] border border-brand/40 bg-brand/5 px-2.5 py-1.5 text-[11px] leading-snug text-brand-ink dark:text-brand">
               {t("profileIntent.stale", { months: staleMonths })}
             </p>
           )}

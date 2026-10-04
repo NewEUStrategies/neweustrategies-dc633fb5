@@ -131,7 +131,7 @@ export function CommunitySubNav() {
                 {t(tab.labelKey)}
                 {tab.key === "clubs" && clubPending > 0 ? (
                   <span
-                    className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand/100/20 px-1 text-[10px] font-semibold tabular-nums text-brand-ink dark:text-brand"
+                    className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand/20 px-1 text-[10px] font-semibold tabular-nums text-brand-ink dark:text-brand"
                     aria-label={t("adminCommunity.nav.clubsPendingLabel")}
                   >
                     {clubPending > 99 ? "99+" : clubPending}

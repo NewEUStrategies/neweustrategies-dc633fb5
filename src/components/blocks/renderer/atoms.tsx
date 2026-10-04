@@ -310,7 +310,7 @@ export const renderCallout: BlockRenderer = ({ block, cls }) => {
   const text = str(block.data, "text");
   const map: Record<string, string> = {
     info: "bg-muted border-border text-foreground",
-    warning: "bg-brand/100/10 border-brand/100/30 text-brand-ink dark:text-brand",
+    warning: "bg-brand/10 border-brand/30 text-brand-ink dark:text-brand",
     success: "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
     danger: "bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300",
   };

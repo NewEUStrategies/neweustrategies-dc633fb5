@@ -3,7 +3,7 @@
 // CO BYŁO W ORGANIZMIE. Ta sama plakietka stała w `ClubModerationTab` DWA
 // RAZY - raz w komórce tabeli (od `lg`), raz w karcie (poniżej `lg`) - i za
 // każdym razem miała własną kopię warunku wyróżnienia
-// (`r.action === "reveal_author" ? "border-brand/100/40 ..." : "text-[11px]"`).
+// (`r.action === "reveal_author" ? "border-brand/40 ..." : "text-[11px]"`).
 // Dwie kopie jednej decyzji o kolorze znaczą, że poprawka w jednym układzie
 // milczy w drugim.
 //
@@ -23,7 +23,7 @@ export function ClubModerationLogBadge({ action, label }: { action: string; labe
       data-reveal={reveal ? "true" : "false"}
       className={
         reveal
-          ? "border-brand/100/40 text-[11px] text-brand-ink dark:text-brand"
+          ? "border-brand/40 text-[11px] text-brand-ink dark:text-brand"
           : "text-[11px]"
       }
     >

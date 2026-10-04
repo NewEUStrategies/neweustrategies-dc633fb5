@@ -62,7 +62,7 @@ const DEFAULTS: AlertBarCfg = {
 const STYLE_MAP: Record<AlertStyle, string> = {
   brand: "bg-brand text-brand-foreground",
   info: "bg-sky-600 text-white",
-  warning: "bg-brand/100 text-black",
+  warning: "bg-brand text-black",
   success: "bg-emerald-600 text-white",
 };
 

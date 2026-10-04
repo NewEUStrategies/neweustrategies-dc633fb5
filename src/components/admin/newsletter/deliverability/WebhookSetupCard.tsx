@@ -48,7 +48,7 @@ export function WebhookSetupCard({ setup, locale }: WebhookSetupCardProps) {
     <section
       className={cn(
         "rounded-xl border p-5 space-y-4",
-        setup.webhookConfigured ? "bg-card border-border" : "bg-brand/100/5 border-brand/100/40",
+        setup.webhookConfigured ? "bg-card border-border" : "bg-brand/5 border-brand/40",
       )}
     >
       <header className="flex items-start justify-between gap-3 flex-wrap">
@@ -56,7 +56,7 @@ export function WebhookSetupCard({ setup, locale }: WebhookSetupCardProps) {
           <div
             className={cn(
               "w-8 h-8 rounded-md flex items-center justify-center shrink-0",
-              setup.webhookConfigured ? "bg-primary/10" : "bg-brand/100/15",
+              setup.webhookConfigured ? "bg-primary/10" : "bg-brand/15",
             )}
           >
             <Webhook
@@ -85,7 +85,7 @@ export function WebhookSetupCard({ setup, locale }: WebhookSetupCardProps) {
             healthy
               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
               : setup.webhookConfigured
-                ? "bg-brand/100/10 text-brand-ink dark:text-brand"
+                ? "bg-brand/10 text-brand-ink dark:text-brand"
                 : "bg-destructive/10 text-destructive",
           )}
         >

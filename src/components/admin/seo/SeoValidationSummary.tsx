@@ -139,7 +139,7 @@ export function SeoValidationSummary({
         "space-y-1 rounded-md border px-3 py-2 text-[11px]",
         hasError
           ? "border-destructive/50 bg-destructive/5 text-destructive"
-          : "border-brand/100/50 bg-brand/100/5 text-brand-ink dark:text-brand",
+          : "border-brand/50 bg-brand/5 text-brand-ink dark:text-brand",
       )}
     >
       <SeverityBadge severity={hasError ? "error" : "warning"} />

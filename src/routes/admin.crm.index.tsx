@@ -1171,7 +1171,7 @@ function LeadCell({
 function StageBadge({ stage, L }: { stage: Stage; L: typeof PL }) {
   const map: Record<Stage, string> = {
     new: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
-    contacted: "bg-brand/100/15 text-brand-ink dark:text-brand",
+    contacted: "bg-brand/15 text-brand-ink dark:text-brand",
     qualified: "bg-violet-500/15 text-violet-700 dark:text-violet-300",
     proposal: "bg-cyan-500/15 text-cyan-700 dark:text-cyan-300",
     won: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
@@ -1555,7 +1555,7 @@ function LeadTimeline({ leadId, L }: { leadId: string; L: typeof PL }) {
   const ICONS: Record<LeadTimelineEvent["type"], string> = {
     submit: "bg-blue-500/15 text-blue-600 dark:text-blue-300",
     consent: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
-    note: "bg-brand/100/15 text-brand-ink dark:text-brand",
+    note: "bg-brand/15 text-brand-ink dark:text-brand",
     stage_change: "bg-violet-500/15 text-violet-600 dark:text-violet-300",
     webhook: "bg-orange-500/15 text-orange-600 dark:text-orange-300",
     newsletter: "bg-sky-500/15 text-sky-600 dark:text-sky-300",

@@ -4,7 +4,7 @@ import type { SeoGrade } from "@/lib/seo/contentStatus";
 
 const GRADE_BAR: Record<SeoGrade, string> = {
   good: "bg-emerald-500",
-  warn: "bg-brand/100",
+  warn: "bg-brand",
   poor: "bg-destructive",
 };
 

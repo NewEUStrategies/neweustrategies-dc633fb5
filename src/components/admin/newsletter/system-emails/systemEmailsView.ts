@@ -44,7 +44,7 @@ export function deliveryRateLabel(rate: number | null | undefined): string {
 /** Ton odznaki statusu. Wysłane na zielono, w kolejce na żółto, DLQ alarmowo. */
 export function statusTone(status: SystemEmailStatus): string {
   if (status === "sent") return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-  if (status === "pending") return "bg-brand/100/10 text-brand-ink border-brand/100/20";
+  if (status === "pending") return "bg-brand/10 text-brand-ink border-brand/20";
   if (status === "suppressed") return "bg-muted text-muted-foreground border-border";
   return "bg-destructive/10 text-destructive border-destructive/20";
 }

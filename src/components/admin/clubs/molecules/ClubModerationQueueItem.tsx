@@ -74,7 +74,7 @@ export function ClubModerationQueueItem({
             {item.is_anonymous ? (
               <Badge
                 variant="outline"
-                className="border-brand/100/40 text-[11px] text-brand-ink dark:text-brand"
+                className="border-brand/40 text-[11px] text-brand-ink dark:text-brand"
               >
                 {t("adminClubs.moderation.anonymous")}
               </Badge>

@@ -21,7 +21,7 @@ export function ContentCoverageNotice({ coverage }: { coverage: SeoContentCovera
   return (
     <p
       data-seo-coverage={coverage.state}
-      className="rounded-lg border border-brand/100/40 bg-brand/100/5 px-3 py-2 text-xs text-brand-ink dark:text-brand"
+      className="rounded-lg border border-brand/40 bg-brand/5 px-3 py-2 text-xs text-brand-ink dark:text-brand"
     >
       {coverage.state === "truncated"
         ? t("adminSeoHub.coverageTruncated", { shown: coverage.shown, total: coverage.total })

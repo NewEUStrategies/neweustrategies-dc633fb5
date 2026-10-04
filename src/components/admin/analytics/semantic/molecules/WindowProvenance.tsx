@@ -65,7 +65,7 @@ export function WindowProvenance({
         "text-[10px] " +
         (window.crossStreamSafe
           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          : "border-brand/100/30 bg-brand/100/10 text-brand-ink dark:text-brand")
+          : "border-brand/30 bg-brand/10 text-brand-ink dark:text-brand")
       }
     >
       {t(

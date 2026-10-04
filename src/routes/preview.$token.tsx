@@ -106,7 +106,7 @@ function PreviewPage() {
       <PostContentStyle />
       <div
         role="status"
-        className="sticky top-0 z-40 bg-brand/100/95 text-brand-ink text-sm px-4 py-2 text-center font-medium"
+        className="sticky top-0 z-40 bg-brand/95 text-brand-ink text-sm px-4 py-2 text-center font-medium"
       >
         {c.banner} · {c.expires}: {expires}
       </div>

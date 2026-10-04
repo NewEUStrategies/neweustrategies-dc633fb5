@@ -41,7 +41,7 @@ function statusChipClass(status: string): string {
     case "withdrawn":
       return "bg-muted text-muted-foreground";
     default:
-      return "bg-brand/100/10 text-brand-ink dark:text-brand";
+      return "bg-brand/10 text-brand-ink dark:text-brand";
   }
 }
 

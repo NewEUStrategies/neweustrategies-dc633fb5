@@ -355,7 +355,7 @@ export function AdminPaymentsDiagnosticsPanel() {
                           c.providerDiscountId ? (
                             <Badge
                               variant="outline"
-                              className="border-0 bg-brand/100/12 text-[0.75rem] text-brand-ink dark:text-brand"
+                              className="border-0 bg-brand/12 text-[0.75rem] text-brand-ink dark:text-brand"
                             >
                               {t("adminBilling.eventCodeStaleCopy")}
                             </Badge>

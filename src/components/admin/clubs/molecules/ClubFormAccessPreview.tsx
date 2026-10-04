@@ -53,7 +53,7 @@ export function ClubFormAccessPreview({
       </Card>
 
       {warnings.length === 0 ? null : (
-        <Card className="border-brand/100/40 bg-brand/100/5">
+        <Card className="border-brand/40 bg-brand/5">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm text-brand-ink dark:text-brand">
               <AlertTriangle className="h-4 w-4" />

@@ -98,7 +98,7 @@ function Tile({
 }) {
   const toneRing =
     tone === "warn"
-      ? "hover:border-brand/100/60"
+      ? "hover:border-brand/60"
       : tone === "ok"
         ? "hover:border-emerald-500/60"
         : "hover:border-brand/60";
@@ -133,7 +133,7 @@ function Chip({
     tone === "ok"
       ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
       : tone === "warn"
-        ? "bg-brand/100/15 text-brand-ink dark:text-brand"
+        ? "bg-brand/15 text-brand-ink dark:text-brand"
         : tone === "brand"
           ? "bg-brand/10 text-brand"
           : tone === "danger"

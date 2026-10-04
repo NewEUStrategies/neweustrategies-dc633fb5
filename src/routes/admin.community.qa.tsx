@@ -66,12 +66,12 @@ const SESSION_TONE: Record<QaSessionStatus, string> = {
   draft: "bg-muted text-muted-foreground",
   scheduled: "bg-blue-500/15 text-blue-700 dark:text-blue-300",
   open: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-  answering: "bg-brand/100/15 text-brand-ink dark:text-brand",
+  answering: "bg-brand/15 text-brand-ink dark:text-brand",
   closed: "bg-destructive/10 text-destructive",
 };
 
 const QUESTION_TONE: Record<QaQuestionStatus, string> = {
-  pending: "bg-brand/100/15 text-brand-ink dark:text-brand",
+  pending: "bg-brand/15 text-brand-ink dark:text-brand",
   approved: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
   rejected: "bg-destructive/15 text-destructive",
   answered: "bg-blue-500/15 text-blue-700 dark:text-blue-300",

@@ -435,7 +435,7 @@ function PostsList() {
             setLangFilter(PARITY_GAP_FILTERS.lang);
             setPage(PARITY_GAP_FILTERS.page);
           }}
-          className="mb-3 inline-flex items-center gap-2 rounded-md border border-brand/100/40 bg-brand/100/10 px-3 py-1.5 text-xs text-brand-ink dark:text-brand hover:bg-brand/100/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="mb-3 inline-flex items-center gap-2 rounded-md border border-brand/40 bg-brand/10 px-3 py-1.5 text-xs text-brand-ink dark:text-brand hover:bg-brand/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>

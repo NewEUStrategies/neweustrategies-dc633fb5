@@ -537,7 +537,7 @@ function EventOverview() {
                 </span>
               )}
               {!isPast && rsvpBeforeOpen && earlyRank !== null && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-brand/100/10 px-2.5 py-0.5 text-xs font-medium text-brand-ink dark:text-brand">
+                <span className="inline-flex items-center gap-1 rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-medium text-brand-ink dark:text-brand">
                   <Clock className="h-3.5 w-3.5" aria-hidden="true" />
                   {t("community.events.earlyForMembers")}
                 </span>

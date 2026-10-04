@@ -511,7 +511,7 @@ function MenuNode({
               ) : null}
               {megaHasFeatured ? (
                 <span
-                  className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand/100/10 text-brand-ink"
+                  className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand/10 text-brand-ink"
                   title="Wyróżniony wpis skonfigurowany"
                 >
                   <Star size={10} />

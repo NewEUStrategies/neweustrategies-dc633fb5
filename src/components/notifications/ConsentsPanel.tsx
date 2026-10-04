@@ -260,7 +260,7 @@ export function ConsentsPanel({
                               })}
                       </p>
                       {showOutdated && (
-                        <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-brand/100/10 px-2 py-1 text-[11px] font-medium text-brand-ink dark:text-brand">
+                        <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md bg-brand/10 px-2 py-1 text-[11px] font-medium text-brand-ink dark:text-brand">
                           <AlertTriangle className="h-3 w-3" aria-hidden />
                           {t("notifications.consents.versionOutdated")}
                         </p>

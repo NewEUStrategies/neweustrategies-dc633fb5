@@ -459,7 +459,7 @@ export function WidgetLibrary({
                           name: g.name,
                           label: bl(def?.label) ?? g.data.type,
                         })}
-                        className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 bg-brand/100/10 hover:bg-brand/100/20 border border-brand/100/40 rounded inline-flex items-center gap-1.5 cursor-grab active:cursor-grabbing"
+                        className="flex-1 min-w-0 text-left text-xs px-2 py-1.5 bg-brand/10 hover:bg-brand/20 border border-brand/40 rounded inline-flex items-center gap-1.5 cursor-grab active:cursor-grabbing"
                       >
                         <Icon className="w-3.5 h-3.5 shrink-0 text-brand-ink" />
                         <span className="truncate">{g.name}</span>

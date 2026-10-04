@@ -385,7 +385,7 @@ function ClubNewThread() {
               "masz niedokończony tekst" jest bezużyteczna po tym, jak ktoś
               zacznie pisać od nowa. */}
           {draft.restored !== null ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand/100/40 bg-brand/100/5 px-3 py-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brand/40 bg-brand/5 px-3 py-2 text-sm">
               <span className="flex-1">
                 {t("club.composer.draftFound", {
                   when: formatDateTime(draft.restored.savedAt, i18n.language),

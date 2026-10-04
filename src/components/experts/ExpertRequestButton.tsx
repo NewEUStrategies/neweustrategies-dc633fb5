@@ -125,7 +125,7 @@ export function ExpertRequestButton({
           className={cn(
             "ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
             exhausted
-              ? "bg-brand/100/15 text-brand-ink dark:text-brand"
+              ? "bg-brand/15 text-brand-ink dark:text-brand"
               : "bg-primary/10 text-primary",
           )}
         >
@@ -137,7 +137,7 @@ export function ExpertRequestButton({
       {hasAllowance && iconOnly && exhausted && (
         <span
           aria-hidden
-          className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-brand/100"
+          className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-brand"
         />
       )}
     </Button>

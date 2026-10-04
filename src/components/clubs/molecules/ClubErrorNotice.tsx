@@ -37,7 +37,7 @@ export function ClubErrorNotice({
   return (
     <div
       role="status"
-      className={`flex flex-col items-center gap-3 rounded-lg border border-brand/100/40 bg-brand/100/5 text-center ${
+      className={`flex flex-col items-center gap-3 rounded-lg border border-brand/40 bg-brand/5 text-center ${
         compact ? "p-4" : "p-8"
       } ${className ?? ""}`}
     >

@@ -236,7 +236,7 @@ type Copy = (typeof T)["pl"] | (typeof T)["en"];
 function StatusPill({ status, L }: { status: FunnelRow["status"]; L: Copy }) {
   const tone: Record<FunnelRow["status"], string> = {
     subscribed: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20",
-    pending: "bg-brand/100/10 text-brand-ink dark:text-brand border-brand/100/20",
+    pending: "bg-brand/10 text-brand-ink dark:text-brand border-brand/20",
     unsubscribed: "bg-muted text-muted-foreground border-border/60",
     bounced: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20",
     complained: "bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20",

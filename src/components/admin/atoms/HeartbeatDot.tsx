@@ -12,7 +12,7 @@ ensureI18n();
 
 const DOT: Record<SchedulerFreshness, string> = {
   fresh: "bg-emerald-500",
-  lagging: "bg-brand/100",
+  lagging: "bg-brand",
   stale: "bg-destructive motion-safe:animate-pulse",
   never: "bg-muted-foreground/50",
 };

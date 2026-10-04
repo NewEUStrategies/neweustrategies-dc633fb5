@@ -5,7 +5,7 @@ import type { SerpMetric } from "@/lib/seo/serp";
 
 const GRADE_BAR: Record<SerpMetric["grade"], string> = {
   empty: "bg-muted-foreground/30",
-  short: "bg-brand/100",
+  short: "bg-brand",
   good: "bg-emerald-500",
   long: "bg-destructive",
 };

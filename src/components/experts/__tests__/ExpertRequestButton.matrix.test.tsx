@@ -177,7 +177,7 @@ describe("ExpertRequestButton - macierz", () => {
     const { container } = renderWithQueryClient(
       <ExpertRequestButton expertId="expert-1" expertName="Jan Kowalski" iconOnly />,
     );
-    expect(container.querySelector("span.bg-brand/100")).toBeInTheDocument();
+    expect(container.querySelector("span.bg-brand")).toBeInTheDocument();
   });
 
   it("wariant ikonowy z wolna pula NIE pokazuje kropki", () => {
@@ -185,6 +185,6 @@ describe("ExpertRequestButton - macierz", () => {
     const { container } = renderWithQueryClient(
       <ExpertRequestButton expertId="expert-1" expertName="Jan Kowalski" iconOnly />,
     );
-    expect(container.querySelector("span.bg-brand/100")).toBeNull();
+    expect(container.querySelector("span.bg-brand")).toBeNull();
   });
 });

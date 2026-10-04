@@ -115,7 +115,7 @@ export function EventGroupsPermissionsPanel({ row }: { row: AdminEventDetailRow 
         )}
 
         {row.chatham_house ? (
-          <p className="inline-flex items-start gap-1.5 rounded-[6px] border border-brand/100/40 bg-brand/100/5 p-3 text-xs text-brand-ink dark:text-brand">
+          <p className="inline-flex items-start gap-1.5 rounded-[6px] border border-brand/40 bg-brand/5 p-3 text-xs text-brand-ink dark:text-brand">
             <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {t("adminEvents.studio.groupsPage.chathamWarning")}
           </p>

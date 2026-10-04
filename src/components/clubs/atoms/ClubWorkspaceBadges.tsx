@@ -130,7 +130,7 @@ const EVENT_TONES: Record<ClubEventKind, string> = {
   deadline: "border-destructive/40 bg-destructive/10 text-destructive",
   consultation: "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-300",
   publication: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  vote: "border-brand/100/40 bg-brand/100/10 text-brand-ink dark:text-brand",
+  vote: "border-brand/40 bg-brand/10 text-brand-ink dark:text-brand",
   workshop: "border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300",
   other: "border-border/60 bg-muted/40 text-muted-foreground",
 };

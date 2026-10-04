@@ -727,7 +727,7 @@ function RevealAuthorDialog({
 
         {result === null ? (
           <div className="space-y-3">
-            <p className="rounded-lg border border-brand/100/40 bg-brand/100/5 p-3 text-xs text-brand-ink dark:text-brand">
+            <p className="rounded-lg border border-brand/40 bg-brand/5 p-3 text-xs text-brand-ink dark:text-brand">
               {t("adminClubs.moderation.revealWarning")}
             </p>
             <div className="space-y-1.5">
@@ -878,7 +878,7 @@ function ModeratorEditDialog({
               onChange={(e) => setBody(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5 rounded-lg border border-brand/100/40 bg-brand/100/5 p-3">
+          <div className="space-y-1.5 rounded-lg border border-brand/40 bg-brand/5 p-3">
             <Label htmlFor="club-mod-edit-reason">{t("adminClubs.moderation.editReason")}</Label>
             <Input
               id="club-mod-edit-reason"

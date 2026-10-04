@@ -41,7 +41,7 @@ function statusTone(status: string): string {
   if (status === "sent") return "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400";
   if (status === "pending") return "bg-sky-500/12 text-sky-600 dark:text-sky-400";
   if (status === "suppressed" || status === "complained")
-    return "bg-brand/100/15 text-brand-ink dark:text-brand";
+    return "bg-brand/15 text-brand-ink dark:text-brand";
   return "bg-destructive/12 text-destructive";
 }
 

@@ -56,7 +56,7 @@ export function FxRateNotice({ displayCurrency }: { displayCurrency: "PLN" | "EU
   const toneCls = isFresh
     ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-800 dark:text-emerald-300"
     : isFallback
-      ? "border-brand/100/30 bg-brand/100/5 text-brand-ink dark:text-brand"
+      ? "border-brand/30 bg-brand/5 text-brand-ink dark:text-brand"
       : "border-muted bg-muted/30 text-muted-foreground";
 
   return (

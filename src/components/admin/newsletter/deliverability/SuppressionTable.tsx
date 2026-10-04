@@ -218,7 +218,7 @@ export function SuppressionTable({ locale }: SuppressionTableProps) {
       </div>
 
       {isSuppressionListCapped(query.data?.length ?? 0) && (
-        <div className="rounded-lg border border-brand/100/40 bg-brand/100/10 px-3 py-2 text-xs text-brand-ink dark:text-brand">
+        <div className="rounded-lg border border-brand/40 bg-brand/10 px-3 py-2 text-xs text-brand-ink dark:text-brand">
           {t("adminDeliverability.list.capWarning", {
             count: SUPPRESSION_LIST_LIMIT.toLocaleString(locale),
           })}

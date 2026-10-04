@@ -128,7 +128,7 @@ export function RecommendationsSection({
       </header>
 
       {pending.length > 0 && (
-        <div className="mb-6 rounded-xl border border-brand/50 bg-brand/40 p-4 dark:border-brand/100/30 dark:bg-brand/20">
+        <div className="mb-6 rounded-xl border border-brand/50 bg-brand/40 p-4 dark:border-brand/30 dark:bg-brand/20">
           <div className="mb-3 text-sm font-medium">
             {t("network.recommendations.pendingHeading", { count: pending.length })}
           </div>

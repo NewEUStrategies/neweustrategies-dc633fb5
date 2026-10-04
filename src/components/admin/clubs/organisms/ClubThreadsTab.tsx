@@ -573,7 +573,7 @@ function ThreadComposerDialog({
 
           {/* Publikacja w imieniu: pole opcjonalne, z ostrzeżeniem widocznym
               ZANIM administrator kliknie zapisz, nie po. */}
-          <div className="space-y-1.5 rounded-lg border border-brand/100/40 bg-brand/100/5 p-3">
+          <div className="space-y-1.5 rounded-lg border border-brand/40 bg-brand/5 p-3">
             <Label>{t("adminClubs.threads.onBehalfLabel")}</Label>
             <MemberPicker
               value={authorId}

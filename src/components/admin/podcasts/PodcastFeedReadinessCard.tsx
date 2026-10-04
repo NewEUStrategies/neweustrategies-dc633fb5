@@ -67,7 +67,7 @@ export function PodcastFeedReadinessCard({
       className={`grid gap-2 rounded-lg border p-4 ${
         ready
           ? "border-emerald-500/40 bg-emerald-50/40 dark:bg-emerald-950/20"
-          : "border-brand/100/50 bg-brand/40 dark:bg-brand/20"
+          : "border-brand/50 bg-brand/40 dark:bg-brand/20"
       }`}
     >
       <div className="flex items-center gap-2">

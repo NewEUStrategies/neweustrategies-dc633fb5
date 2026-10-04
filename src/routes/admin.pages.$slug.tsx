@@ -875,7 +875,7 @@ function SeoDescriptionField({
                 ? "bg-destructive"
                 : tone === "empty"
                   ? "bg-transparent"
-                  : "bg-brand/100"
+                  : "bg-brand"
           }`}
           style={{ width: `${Math.min(100, (len / MAX) * 100)}%` }}
         />

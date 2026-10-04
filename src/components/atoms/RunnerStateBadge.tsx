@@ -14,8 +14,8 @@ import "@/lib/i18n-newsletter-runner";
 
 const DOT: Record<RunnerState, string> = {
   running: "bg-emerald-500",
-  idle: "bg-brand/100",
-  misconfigured: "bg-brand/100",
+  idle: "bg-brand",
+  misconfigured: "bg-brand",
   disabled: "bg-muted-foreground/50",
   error: "bg-destructive",
 };
@@ -30,8 +30,8 @@ const TEXT: Record<RunnerState, string> = {
 
 const SURFACE: Record<RunnerState, string> = {
   running: "bg-emerald-500/10",
-  idle: "bg-brand/100/10",
-  misconfigured: "bg-brand/100/10",
+  idle: "bg-brand/10",
+  misconfigured: "bg-brand/10",
   disabled: "bg-muted",
   error: "bg-destructive/10",
 };

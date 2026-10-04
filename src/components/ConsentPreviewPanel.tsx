@@ -36,7 +36,7 @@ export function ConsentPreviewPanel() {
           {t("consent.preview.title")}
         </p>
         <span
-          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${preview ? "bg-brand/100/20 text-brand-ink" : "bg-muted text-muted-foreground"}`}
+          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${preview ? "bg-brand/20 text-brand-ink" : "bg-muted text-muted-foreground"}`}
         >
           {preview ? t("consent.preview.active") : t("consent.preview.inactive")}
         </span>

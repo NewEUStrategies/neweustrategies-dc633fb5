@@ -44,8 +44,8 @@ const STYLE: Record<InsightSeverity, { ring: string; badge: string; icon: ReactN
     icon: <Info className="w-4 h-4 text-sky-500" />,
   },
   warn: {
-    ring: "border-brand/100/30",
-    badge: "bg-brand/100/15 text-brand-ink dark:text-brand border-brand/100/30",
+    ring: "border-brand/30",
+    badge: "bg-brand/15 text-brand-ink dark:text-brand border-brand/30",
     icon: <AlertTriangle className="w-4 h-4 text-brand0" />,
   },
   critical: {

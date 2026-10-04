@@ -25,7 +25,7 @@ import { uiLocale } from "@/lib/i18n/format";
 
 const STATUS_TONE: Record<string, string> = {
   paid: "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
-  pending: "bg-brand/100/14 text-brand-ink dark:text-brand",
+  pending: "bg-brand/14 text-brand-ink dark:text-brand",
   processing: "bg-sky-500/12 text-sky-700 dark:text-sky-300",
   refunded: "bg-muted text-muted-foreground",
   canceled: "bg-muted text-muted-foreground",
@@ -146,7 +146,7 @@ export function AdminPaymentOrdersPanel() {
         </nav>
 
         {summary && summary.stuck > 0 ? (
-          <p className="flex items-start gap-2 rounded-[6px] bg-brand/100/10 px-3 py-2 text-[0.8125rem] text-brand-ink dark:text-brand">
+          <p className="flex items-start gap-2 rounded-[6px] bg-brand/10 px-3 py-2 text-[0.8125rem] text-brand-ink dark:text-brand">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             {t("adminBilling.ordersWithoutSession", { count: summary.stuck })}
           </p>

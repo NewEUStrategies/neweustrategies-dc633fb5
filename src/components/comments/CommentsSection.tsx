@@ -768,7 +768,7 @@ function CommentItem({
             </span>
           )}
           {isPending && (
-            <span className="text-xs rounded bg-brand/100/10 text-brand-ink dark:text-brand px-2 py-0.5">
+            <span className="text-xs rounded bg-brand/10 text-brand-ink dark:text-brand px-2 py-0.5">
               {t("comments.pendingBadge")}
             </span>
           )}

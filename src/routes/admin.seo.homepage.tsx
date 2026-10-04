@@ -240,7 +240,7 @@ function SeoHomepageTab() {
 
       {publicOrigin === null ? (
         <p
-          className="rounded-lg border border-brand/100/40 bg-brand/100/5 px-3 py-2 text-xs text-brand-ink dark:text-brand"
+          className="rounded-lg border border-brand/40 bg-brand/5 px-3 py-2 text-xs text-brand-ink dark:text-brand"
           data-seo-no-domain
         >
           {t("adminSeoHub.noPublicDomain")}
@@ -332,7 +332,7 @@ function SeoHomepageTab() {
               <div key={lang} className="space-y-2">
                 <h3 className="text-xs font-medium text-muted-foreground">{t(headingKey)}</h3>
                 {overriding && (
-                  <div className="rounded-lg border border-brand/100/40 bg-card p-3">
+                  <div className="rounded-lg border border-brand/40 bg-card p-3">
                     <p className="text-xs text-brand0">
                       {t("adminSeoHub.staticHomepageNotice")}
                     </p>

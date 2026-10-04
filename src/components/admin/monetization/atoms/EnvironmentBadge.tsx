@@ -3,7 +3,7 @@ import type { MonetizationEnvironment } from "@/lib/admin/monetization/model";
 
 const TONE: Record<MonetizationEnvironment, string> = {
   live: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
-  sandbox: "bg-brand/100/10 text-brand-ink border-brand/100/20",
+  sandbox: "bg-brand/10 text-brand-ink border-brand/20",
   unknown: "bg-muted text-muted-foreground border-border",
 };
 
