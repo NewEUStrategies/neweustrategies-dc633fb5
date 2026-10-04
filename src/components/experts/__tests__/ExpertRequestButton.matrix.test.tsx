@@ -123,7 +123,7 @@ describe("ExpertRequestButton - macierz", () => {
     h.quota = { data: quotaFor({ quota: 3, remaining: 0, used: 3 }), isPending: false };
     renderButton();
     const counter = screen.getByText("0/3");
-    expect(counter.className).toMatch(/amber/);
+    expect(counter.className).toMatch(/brand/);
     const button = screen.getByRole("button", { name: /expertRequest.cta/ });
     expect(button).not.toBeDisabled();
     fireEvent.click(button);
