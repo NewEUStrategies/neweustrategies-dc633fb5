@@ -5,11 +5,10 @@
 // klienta: serwer liczy CSS synchronicznie, klient przy hydratacji przepisuje
 // gotowy blok z HTML-a, a generator dociąga przez `import()` dopiero przy
 // zmianie ustawień - patrz `theme/useDeferredStyleCss` (audyt PSI 2026-10-02).
-import { useMemo } from "react";
 import { createIsomorphicFn } from "@tanstack/react-start";
-import { hardenStyleCss } from "@/lib/sanitizePure";
 import { useSiteSetting } from "@/lib/useSiteSetting";
 import { useDeferredStyleCss, type StyleGenerator } from "@/components/theme/useDeferredStyleCss";
+import { StyleSink } from "@/components/theme/StyleSink";
 import {
   themeOptionsStyleCss as serverThemeOptionsStyleCss,
   type ThemeOptionsCfg,
@@ -40,15 +39,6 @@ export function ThemeOptionsStyle() {
     serverGenerate,
     loadGenerate,
   });
-  // `hardenStyleCss` jest idempotentne: na migawce z SSR (już utwardzonej
-  // przez generator) to no-op, więc HTML serwera i klienta pozostają
-  // identyczne - a bramka `check:dangerous-html` ma dowód w TYM pliku.
-  const html = useMemo(() => hardenStyleCss(css), [css]);
-  return (
-    <style
-      data-theme-options
-      data-css-hash={hash || undefined}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
+  // Utwardzenie i memo po surowym napisie: `StyleSink` (P1.2).
+  return <StyleSink data-theme-options data-css-hash={hash || undefined} css={css} />;
 }

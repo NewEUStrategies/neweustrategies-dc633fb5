@@ -6732,6 +6732,23 @@ html[data-reading-header-active] {
     --reading-header-h: 48px;
   }
 }
+/* Domyślna --sticky-header-h = ZMIERZONA wysokość nagłówka (P1.2, F2). Header.tsx
+   nie zapisuje zmiennej na <html> przy starcie, gdy pomiar różni się od tej
+   wartości o mniej niż 2 px - zapis stylu <html> w oknie TBT to przeliczenie
+   stylu całego dokumentu (~800-900 elementów, zadanie K13 raportu P0.5).
+   123 px = pasek "na czasie" 57 px + pasek mobilny 65 px + obramowanie 1 px,
+   zmierzone na HTML-u produkcji 2026-10-03 (Chromium, fonty załadowane, 360-768
+   px; zrzut PSI mobile daje tę samą geometrię). Fixture harnessu ma inny pasek
+   "na czasie" (41 px -> nagłówek 107 px), więc tam zapis zostaje.
+   TYLKO poniżej `lg`: ta reguła obowiązuje też na stronach bez publicznego
+   nagłówka (/admin, /login, /quiz), a duża wartość desktopowa (259 px przy
+   1350 px) przesuwałaby tam fokus klawiatury i kotwice o ~160 px. Wartość
+   desktopowa czeka na znacznik publicznego chrome'u na <html> (SSR). */
+@media (max-width: 1023px) {
+  :root {
+    --sticky-header-h: 123px;
+  }
+}
 html {
   scroll-padding-top: calc(max(var(--sticky-header-h, 96px), var(--reading-header-h, 0px)) + 15px);
 }
@@ -9182,13 +9199,56 @@ input[type="reset"],
 }
 
 /* Wiadomości głosowe: pigułka nagrywania/odsłuchu */
-@keyframes voice-eq { 0%,100% { height: 2px } 35% { height: 13px } 65% { height: 6px } }
-@keyframes voice-stop-spin { 0% { transform: rotate(0) } 50% { transform: rotate(180deg) } 100% { transform: rotate(360deg) } }
-@keyframes voice-pill-in { from { opacity: 0; transform: scaleX(.6) } to { opacity: 1; transform: scaleX(1) } }
-.voice-eq-bar--active { animation: voice-eq 1s ease-in-out infinite; }
-.voice-stop-square { animation: voice-stop-spin 2s ease-in-out infinite; }
-.voice-pill-enter { animation: voice-pill-in .4s cubic-bezier(.22,1,.36,1) both; transform-origin: left center; }
+@keyframes voice-eq {
+  0%,
+  100% {
+    height: 2px;
+  }
+  35% {
+    height: 13px;
+  }
+  65% {
+    height: 6px;
+  }
+}
+@keyframes voice-stop-spin {
+  0% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(180deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes voice-pill-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+.voice-eq-bar--active {
+  animation: voice-eq 1s ease-in-out infinite;
+}
+.voice-stop-square {
+  animation: voice-stop-spin 2s ease-in-out infinite;
+}
+.voice-pill-enter {
+  animation: voice-pill-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: left center;
+}
 @media (prefers-reduced-motion: reduce) {
-  .voice-eq-bar--active, .voice-stop-square, .voice-pill-enter { animation: none; }
-  .voice-eq-bar--active { height: 6px; }
+  .voice-eq-bar--active,
+  .voice-stop-square,
+  .voice-pill-enter {
+    animation: none;
+  }
+  .voice-eq-bar--active {
+    height: 6px;
+  }
 }
