@@ -1,5 +1,13 @@
 # Stan fali 0 (zapis przed przerwą limitu, 2026-10-04 08:45 UTC)
 
+> **Domknięcie (2026-10-04 13:20 UTC, PR #469).** Recenzje kontradyktoryjne pięciu scalonych pozycji są w
+> `raporty/*-REVIEW-scalony.md` (wszystkie `fix_required`); poprawki P0.6 (8ccaf60) i P0.3 (b7fbcb5) scalone,
+> poprawki P0.4, P0.1 i P0.2 nie zostały rozpoczęte na polecenie właściciela. Raport diagnozy P0.5 jest w
+> `P0.5-diagnoza-dlugich-zadan.md` (mediany z 5 ważnych przebiegów, sprzężenie C3 +154 ms mobile, lista F1 do F26),
+> `check:bundle` zszedł pod próg bez zmiany progów (lokalnie 4769,5 KB; `spreadsheet.worker` przez `XLSX.writeXLSX`,
+> podgląd .docx bez `xmlbuilder` i encji HTML), plan fal 1 i 2 z promptami w `PLAN-FALE-1-2.md`, `PROMPTY-FALA-1.md`,
+> `PROMPTY-FALA-2.md`. Potwierdzenie wagi przy `xlsx` 0.20.3 daje CI tego PR.
+
 > **Stan końcowy (2026-10-04 11:40 UTC).** PR #467 scalony do `main` o 11:30 UTC (merge d466993, zawiera wszystko do
 > 966583c). Po scaleniu fali 0 CI było czerwone w trzech nowych miejscach i zostało naprawione w cc43efd: test
 > `serverEntryRequestOptions` (przypinał wiersz logu dokumentu sprzed P0.4), format i lint surowych artefaktów P0.5
