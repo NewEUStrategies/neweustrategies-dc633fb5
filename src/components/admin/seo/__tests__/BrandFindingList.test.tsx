@@ -38,7 +38,7 @@ describe("BrandFindingList", () => {
     const row = screen.getByTestId("brand-finding");
     expect(row.getAttribute("data-severity")).toBe("warning");
     expect(screen.getByText("adminSeoHub.severityWarning")).toBeTruthy();
-    expect(row.innerHTML).toContain("text-amber-500");
+    expect(row.innerHTML).toContain("text-brand0");
   });
 
   it("BŁĄD dostaje plakietkę destrukcyjną i swój nagłówek", () => {

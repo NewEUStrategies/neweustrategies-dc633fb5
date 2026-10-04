@@ -139,7 +139,7 @@ function AdminBillingReconcile() {
             })}
           </p>
           {report.warnings.map((code) => (
-            <p key={code} className="mb-2 text-xs text-amber-600 dark:text-amber-400">
+            <p key={code} className="mb-2 text-xs text-brand-ink dark:text-brand">
               {t(`adminReconcile.warnings.${code}`, { defaultValue: code })}
             </p>
           ))}

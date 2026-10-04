@@ -86,7 +86,7 @@ export function ClubNoticeKindPill({
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-lg border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
         kind === "seeking"
-          ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+          ? "border-brand/40 bg-brand/10 text-brand-ink dark:text-brand"
           : "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
         className,
       )}

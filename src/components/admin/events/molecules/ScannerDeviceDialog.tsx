@@ -185,7 +185,7 @@ export function ScannerDeviceDialog({
             />
           </div>
 
-          <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+          <div className="space-y-2 rounded-md border border-brand/40 bg-brand/5 p-3">
             <div className="flex items-start gap-2">
               <Checkbox
                 id="device-offline-roster"
@@ -206,7 +206,7 @@ export function ScannerDeviceDialog({
                 </p>
               </div>
             </div>
-            <p className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+            <p className="flex items-start gap-2 text-xs text-brand-ink dark:text-brand">
               <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               {t("adminEventOnsite.devices.dialog.offlineRosterWarning")}
             </p>

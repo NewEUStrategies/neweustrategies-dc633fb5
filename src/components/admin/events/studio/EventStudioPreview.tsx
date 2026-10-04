@@ -424,7 +424,7 @@ export function EventStudioPreview({
  * motyw przelacza: `text-primary` na bialej pastylce dawal prawie czern
  * w jasnym motywie i prawie biel w ciemnym, czyli w ciemnym napis aktywnej
  * zakladki ZNIKAL na bialym tle. `--brand-ink` tu nie pomaga, bo tez sie
- * przelacza (w ciemnym wraca do #fa9346 = 2.2:1 na bieli). Jedyny token stalych
+ * przelacza (w ciemnym wraca do #FA9346 = 2.2:1 na bieli). Jedyny token stalych
  * wartosci w obu motywach to `--brand`, a jego rola z definicji jest TLEM
  * (`src/lib/__tests__/brandContrast.test.ts` pilnuje, ze jako tekst na jasnym
  * nie przechodzi AA) - stad pomaranczowa pastylka z prawie czarnym napisem,

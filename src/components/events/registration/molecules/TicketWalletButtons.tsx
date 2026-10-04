@@ -52,7 +52,7 @@ function AppleWalletGlyph() {
       <rect x="3" y="5" width="26" height="22" rx="4" fill="#ffffff" />
       <rect x="5" y="8" width="22" height="4" rx="1.5" fill="#3b82f6" />
       <rect x="5" y="12" width="22" height="4" rx="1.5" fill="#22c55e" />
-      <rect x="5" y="16" width="22" height="4" rx="1.5" fill="#f59e0b" />
+      <rect x="5" y="16" width="22" height="4" rx="1.5" fill="#FA9346" />
       <path
         d="M5 21h7c1 2.4 2.4 3.5 4 3.5s3-1.1 4-3.5h7v2a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"
         fill="#ef4444"

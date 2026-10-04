@@ -46,7 +46,7 @@ const DEFAULT_BRAND_PALETTE: BrandColor[] = [
   { name: "Background Light", value: "#F8F6F4" },
 
   { name: "Pomarańcz", value: "#FA9346" },
-  { name: "Pomarańcz Light", value: "#FDB078" },
+  { name: "Pomarańcz Light", value: "#FA9346" },
   { name: "Pomarańcz Very Light", value: "#FFF4ED" },
   { name: "Złoty", value: "#E1B076" },
   { name: "Czerwień", value: "#CD393B" },

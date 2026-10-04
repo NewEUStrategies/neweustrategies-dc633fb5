@@ -325,7 +325,7 @@ function sessionRow(overrides: Partial<EventSessionRow> = {}): EventSessionRow {
 /** Wiersz `admin_event_tracks_list` - pełny kształt sygnatury. */
 function trackRow(overrides: Partial<EventTrackRow> = {}): EventTrackRow {
   return {
-    accent_color: "#fa9346",
+    accent_color: "#FA9346",
     cover_url: "",
     created_at: "2026-08-01T09:00:00.000Z",
     default_room_id: "",
@@ -619,7 +619,7 @@ describe("filtry jadą do warstwy danych", () => {
       within(screen.getByLabelText("adminEventAgenda.nav.tracks")).getByText("Digital Track"),
     ).toBeTruthy();
     expect(h.diagram?.tracks).toEqual([
-      { id: "track-a", name: "Digital Track", accentColor: "#fa9346", sessionsCount: 3 },
+      { id: "track-a", name: "Digital Track", accentColor: "#FA9346", sessionsCount: 3 },
     ]);
   });
 });
@@ -704,7 +704,7 @@ describe("nagłówek i diagram", () => {
     h.language = "en";
     renderuj();
     expect(h.diagram?.tracks).toEqual([
-      { id: "track-a", name: "Digital Track", accentColor: "#fa9346", sessionsCount: 3 },
+      { id: "track-a", name: "Digital Track", accentColor: "#FA9346", sessionsCount: 3 },
     ]);
   });
 });
@@ -835,13 +835,13 @@ describe("treść wiersza sesji", () => {
   // pasma nie może dostać czarnego paska - to wyglądałoby na pasmo bez nazwy.
   it("pasek pasma bierze kolor ścieżki, a sesja bez pasma zostaje bez koloru", () => {
     h.sessions = [
-      sessionRow({ id: "a", title_pl: "W paśmie", track_accent_color: "#fa9346" }),
+      sessionRow({ id: "a", title_pl: "W paśmie", track_accent_color: "#FA9346" }),
       sessionRow({ id: "b", title_pl: "Bez pasma", track_accent_color: "" }),
     ];
     renderuj();
     const zKolorem = wiersz("W paśmie").querySelector("span[aria-hidden='true']");
     const bezKoloru = wiersz("Bez pasma").querySelector("span[aria-hidden='true']");
-    expect(zKolorem?.getAttribute("style")).toContain("#fa9346");
+    expect(zKolorem?.getAttribute("style")).toContain("#FA9346");
     expect(bezKoloru?.getAttribute("style")).toContain("transparent");
   });
 

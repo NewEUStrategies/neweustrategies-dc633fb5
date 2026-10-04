@@ -755,7 +755,7 @@ describe("EventSpeakerCreateDialog - karta po kliknieciu", () => {
     expect(cardInput("Napis na przycisku EN")).not.toHaveAttribute("maxLength");
     expect(cardInput("Adres przycisku")).toBeInTheDocument();
     expect(cardInput("Kolor przycisku")).toBeInTheDocument();
-    expect(cardInput("Wybierz kolor przycisku").value).toBe("#fa9346");
+    expect(cardInput("Wybierz kolor przycisku").value).toBe("#FA9346");
     // Obszar zdjecia osoby zostaje PIERWSZYM obszarem wgrywania w popupie.
     const areas = document.querySelectorAll('[data-slot="upload-area"]');
     expect(areas).toHaveLength(3);

@@ -120,7 +120,7 @@ function roomRow(overrides: Partial<EventRoomRow> = {}): EventRoomRow {
 /** Wiersz `admin_event_tracks_list` - pełny kształt sygnatury, nie wycinek. */
 function trackRow(overrides: Partial<EventTrackRow> = {}): EventTrackRow {
   return {
-    accent_color: "#fa9346",
+    accent_color: "#FA9346",
     cover_url: "https://cdn.test/tracks/a.jpg",
     created_at: "2026-08-01T09:00:00.000Z",
     default_room_id: "room-a",
@@ -251,7 +251,7 @@ describe("EventTrackDialog - tryb tworzenia kontra tryb edycji", () => {
     expect(screen.getByText(`${K}editTitle`)).toBeInTheDocument();
     expect(poleNazwyPl()).toHaveValue("Ścieżka Cyfrowa");
     expect(poleNazwyEn()).toHaveValue("Digital Track");
-    expect(poleKoloru()).toHaveValue("#fa9346");
+    expect(poleKoloru()).toHaveValue("#FA9346");
     expect(poleZajawkiPl()).toHaveValue("Reguły dla danych");
     expect(poleZajawkiEn()).toHaveValue("Rules for data");
     expect(poleOpisuPl()).toHaveValue("Suwerenność cyfrowa");
@@ -407,7 +407,7 @@ describe("EventTrackDialog - ładunek zapisu", () => {
     wypelnijNazwy();
     fireEvent.change(poleKoloru(), { target: { value: " #FA9346 " } });
     fireEvent.click(przyciskZapisu());
-    expect(ladunek(onSubmit).accentColor).toBe("#fa9346");
+    expect(ladunek(onSubmit).accentColor).toBe("#FA9346");
   });
 
   it("wszystkie decyzje formularza dochodzą do warstwy zapisu", () => {

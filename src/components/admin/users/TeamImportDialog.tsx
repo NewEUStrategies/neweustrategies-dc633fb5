@@ -232,7 +232,7 @@ export function TeamImportDialog({ open, onOpenChange, pageSlug = "o-nas", onDon
                             {t("adminTeamMedia.teamImport.statusExists")}
                           </span>
                         ) : c.existingInvitationId ? (
-                          <span className="text-amber-600">
+                          <span className="text-brand-ink">
                             {t("adminTeamMedia.teamImport.statusQueued")}
                           </span>
                         ) : (

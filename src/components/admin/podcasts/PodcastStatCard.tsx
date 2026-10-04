@@ -22,7 +22,7 @@ export function PodcastStatCard({
     tone === "success"
       ? "bg-green-500/10 text-green-700 dark:text-green-400"
       : tone === "warning"
-        ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+        ? "bg-brand/10 text-brand-ink dark:text-brand"
         : "bg-primary/10 text-primary";
   return (
     <div className="bg-card border border-border rounded-lg p-4 flex items-center gap-3">

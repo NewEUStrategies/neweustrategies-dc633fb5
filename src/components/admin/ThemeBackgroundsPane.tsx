@@ -75,7 +75,7 @@ function InputGroupPreview({ draft }: { draft: GlobalColorsValue }) {
     "--gc-input-border": resolveColor(draft, "input-border", "light", "#e2e8f0"),
     "--gc-input-hover-bg": resolveColor(draft, "input-hover-bg", "light", "#f8fafc"),
     "--gc-input-hover-border": resolveColor(draft, "input-hover-border", "light", "#cbd5e1"),
-    "--gc-input-focus-border": resolveColor(draft, "input-focus-border", "light", "#fa9346"),
+    "--gc-input-focus-border": resolveColor(draft, "input-focus-border", "light", "#FA9346"),
   } as CSSProperties;
 
   const dark: CSSProperties = {
@@ -85,7 +85,7 @@ function InputGroupPreview({ draft }: { draft: GlobalColorsValue }) {
     "--gc-input-border": resolveColor(draft, "input-border", "dark", "#1f1f1f"),
     "--gc-input-hover-bg": resolveColor(draft, "input-hover-bg", "dark", "#1f1f1f"),
     "--gc-input-hover-border": resolveColor(draft, "input-hover-border", "dark", "#334155"),
-    "--gc-input-focus-border": resolveColor(draft, "input-focus-border", "dark", "#fbbf24"),
+    "--gc-input-focus-border": resolveColor(draft, "input-focus-border", "dark", "#FA9346"),
   } as CSSProperties;
 
   return (

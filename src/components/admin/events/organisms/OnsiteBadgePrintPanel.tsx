@@ -256,7 +256,7 @@ export function OnsiteBadgePrintPanel({
       )}
 
       {reprintRisk ? (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+        <p className="rounded-md border border-brand/40 bg-brand/10 p-3 text-sm">
           {t("adminEventOnsite.print.reprintWarning")}
         </p>
       ) : null}

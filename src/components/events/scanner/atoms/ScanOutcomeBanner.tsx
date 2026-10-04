@@ -20,7 +20,7 @@ const TONE: Record<ScanTone, { box: string; icon: typeof CheckCircle2 }> = {
     icon: XCircle,
   },
   warning: {
-    box: "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    box: "border-brand/50 bg-brand/10 text-brand-ink dark:text-brand",
     icon: AlertTriangle,
   },
   neutral: {

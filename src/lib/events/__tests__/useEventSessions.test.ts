@@ -180,7 +180,7 @@ const WEJSCIE_SCIEZKI: EventTrackInput = {
   key: "cyber",
   namePl: "Cyfrowa",
   nameEn: "Digital",
-  accentColor: "#fa9346",
+  accentColor: "#FA9346",
   taglinePl: null,
   taglineEn: null,
   descriptionPl: null,

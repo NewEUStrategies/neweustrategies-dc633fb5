@@ -88,7 +88,7 @@ export function ZeroClickCheatSheet() {
                 {t(`adminZeroClick.rules.${id}.do`)}
               </p>
               <p className="text-xs leading-relaxed">
-                <span className="font-semibold text-amber-600 dark:text-amber-400">✕ </span>
+                <span className="font-semibold text-brand-ink dark:text-brand">✕ </span>
                 {t(`adminZeroClick.rules.${id}.dont`)}
               </p>
             </div>

@@ -277,8 +277,8 @@ body {
 
   /* Widget form-field interaction tokens - shared across every widget input.
      Override per-widget by setting these vars on the widget shell. */
-  --gc-input-hover-border: #fdb078; /* light-orange hover ring, per brand */
-  --gc-input-focus-border: #fdb078; /* focus uses the same orange for continuity */
+  --gc-input-hover-border: #FA9346; /* light-orange hover ring, per brand */
+  --gc-input-focus-border: #FA9346; /* focus uses the same orange for continuity */
   /* TABELA ROZMIARÓW CZCIONEK (admin → Wygląd → Rozmiary czcionek).
      Jedyne źródło prawdy dla globalnych reguł typografii UI - katalog tokenów
      żyje w `src/lib/theme/fontScale.ts`, nadpisania tenanta wstrzykuje
@@ -305,8 +305,8 @@ body {
   --card-foreground: oklch(0.18 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0 0);
-  --primary: oklch(0.18 0 0);
-  --primary-foreground: oklch(1 0 0);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
   --secondary: oklch(0.96 0.005 80);
   --secondary-foreground: oklch(0.18 0 0);
   --muted: oklch(0.95 0.006 80);
@@ -320,12 +320,24 @@ body {
   --border: oklch(0.9 0.005 80);
   --input: oklch(0.9 0.005 80);
   --ring: oklch(0.18 0 0);
-  --brand: #fa9346;
+  --brand: #FA9346;
   --brand-foreground: #141414;
-  --widget-orange-accent: #fa9346;
+  --widget-orange-accent: #FA9346;
   /* Orange fills keep the brand color. Text on light surfaces needs the
      darker ink; the foreground on orange buttons is dark for WCAG AA. */
   --brand-ink: #a94e0b;
+  /* Krawędzie kontrolek odsłuchu w jasnym motywie. Pomarańczowy przycisk,
+     biały trójkąt play i kwadrat "stop" na jasnym tle zlewały się krawędziami,
+     więc każdy dostaje delikatnie ciemniejszą linię własnej powierzchni
+     (mieszanka z atramentem, nie osobny kolor). W bloku `.dark` tokeny wracają
+     do `transparent`, czyli w ciemnym motywie nic nie dochodzi. */
+  --audio-control-border: color-mix(in oklab, var(--brand) 80%, #000);
+  --audio-icon-border: color-mix(in oklab, var(--background) 82%, var(--foreground));
+  --voice-stop-border: color-mix(in oklab, var(--primary) 72%, #000);
+  /* Szary ton akcji "wiecej" w etykiecie sekcji (Kinetic Signal Notch). To
+     neutralna szarosc bez ocieplenia brandem - na jasnej plycie odrobinie
+     jaśniejsza od --muted-foreground, ale nadal WCAG AA (>4,5:1). */
+  --nes-kinetic-action: oklch(0.56 0.004 250);
   /* Chat bubble tokens — own (outgoing) messages. Brand-consistent gradient
      with a distinct hue from generic primary so dymki wyróżniają się w toku
      rozmowy. Text sits on the darker stop for guaranteed WCAG AA. */
@@ -337,18 +349,18 @@ body {
   --cat-military: oklch(0.62 0.22 25);
   --cat-finance: oklch(0.7 0.18 145);
   --cat-transport: oklch(0.8 0.15 75);
-  --cat-diplomacy: #fa9346;
+  --cat-diplomacy: #FA9346;
   --cat-cyber: oklch(0.6 0.18 320);
-  --hot: #fa9346;
+  --hot: #FA9346;
 
   /* ---- Semantyczne gradienty marki (light) ----
      Używane przez nagłówki/CTA/przyciski z variant="gradient".
      Light: jasny brand -> głęboki brand-ink (WCAG AA na tekście, brak
      mętnego przejścia w czerń). */
-  --gradient-brand: linear-gradient(90deg, #fbaa6d 0%, #fa9346 100%);
-  --gradient-brand-soft: linear-gradient(135deg, #fed7b5 0%, #fa9346 100%);
+  --gradient-brand: linear-gradient(90deg, #fbaa6d 0%, #FA9346 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #fed7b5 0%, #FA9346 100%);
   --gradient-heading-stop-1: #ed6d1f;
-  --gradient-heading-stop-2: #fa9346;
+  --gradient-heading-stop-2: #FA9346;
 
   /* ============================================================
      WYKRESY - MOTYW JASNY (silnik SVG src/components/charts, także pod
@@ -372,7 +384,7 @@ body {
      pierwsze serie wykresu, decyduje `SLOT_SEQUENCE` w
      `src/lib/charts/palette.ts`, wyliczona z pomiaru rozdzielności.
      Gdyby serie dalej brały sloty po kolei 1, 2, 3..., druga i trzecia
-     (#fa9346 i #58a537) miałyby po symulacji protanopii odległość 5,57 przy
+     (#FA9346 i #58a537) miałyby po symulacji protanopii odległość 5,57 przy
      podłodze 22,5 - czyli dla protanopa byłyby jednym kolorem.
 
      TRZY POZIOMY, nie jeden. Sześć pierwszych pozycji sekwencji trzyma pełną
@@ -385,7 +397,7 @@ body {
      tylko wtedy, gdy autor wybierze numer slotu wprost.
 
      CZĘŚĆ TOKENÓW NIE PRZECHODZI PROGU 3:1 SAMA, i to też jest decyzja, nie
-     przeoczenie: #fa9346 ma na białej płycie 2,25:1, a #ffdab3 1,32:1. To są
+     przeoczenie: #FA9346 ma na białej płycie 2,25:1, a #ffdab3 1,32:1. To są
      kolory marki, więc token zostaje dokładnie taki, jaki zadano, a kształt
      niesie z nich OBWÓDKA `--chart-N-edge`, którą `barFillOf` dociąga do
      progu niezależnie od tego, ile kroków jasności to wymaga (dla #ffdab3
@@ -399,7 +411,7 @@ body {
      w komentarzu przy każdym tokenie; tam, gdzie jest poniżej 3,0:1, kształt
      niesie obwódka (patrz nagłówek sekcji). */
   --chart-1: #03346e; /* granat           12,21:1 */
-  --chart-2: #fa9346; /* ochra            2,25:1 */
+  --chart-2: #FA9346; /* ochra            2,25:1 */
   --chart-3: #58a537; /* szalwia [bezp.]  3,06:1 */
   --chart-4: #8c56d4; /* sliwka [bezp.]   4,78:1 */
   --chart-5: #2bbbd7; /* lazur            2,28:1 */
@@ -518,11 +530,11 @@ body {
      Wyróżnia najważniejszy element (jeden słupek, jeden punkt) i NIGDY nie
      oznacza kategorii. Wartości są te same co pomarańcz marki (--brand).
 
-     NA JASNYM TLE AKCENT NIE PRZECHODZI ŻADNEGO PROGU WCAG: #fa9346 ma
+     NA JASNYM TLE AKCENT NIE PRZECHODZI ŻADNEGO PROGU WCAG: #FA9346 ma
      2,25:1, #ed751a ma 2,93:1 wobec wymaganych 3,0 dla grafiki i 4,5 dla
      tekstu. To nie znaczy, że nie wolno go używać - znaczy, że na jasnym tle
      akcent NIE MOŻE BYĆ JEDYNYM NOŚNIKIEM INFORMACJI. Wolno nim wypełnić
-     powierzchnię pod ciemnym tekstem (tusz na #fa9346 ma 8,06:1, na #fdb078
+     powierzchnię pod ciemnym tekstem (tusz na #FA9346 ma 8,06:1, na #FA9346
      10,07:1, na #fff4ed 16,78:1 - biel na pomarańczu ma 2,25:1 i jest
      wykluczona) oraz podbić element już wyróżniony pozycją lub etykietą.
      Nie wolno nim pisać liczb, etykiet osi ani podpisów na jasnym tle.
@@ -543,9 +555,9 @@ body {
      13,50, czyli pod podłogą palety. Przed zmiękczeniem kolidował z ochrą
      (1,62 przy deuteranopii) - lista jest liczona z palety, a nie pamiętana,
      więc przesunęła się razem z nią (patrz SLOTS_CLASHING_WITH_ACCENT). */
-  --chart-accent: #fa9346;
+  --chart-accent: #FA9346;
   --chart-accent-text: #ed751a;
-  --chart-accent-fill: #fdb078;
+  --chart-accent-fill: #FA9346;
   --chart-accent-bg: #fff4ed;
   --chart-accent-audit: #ab5517;
   --chart-accent-audit-graphic: #cb7032;
@@ -901,8 +913,8 @@ body {
   --card-foreground: #ede9e7;
   --popover: #0f0f0f;
   --popover-foreground: #ede9e7;
-  --primary: oklch(0.98 0 0);
-  --primary-foreground: #141414;
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-foreground);
   --secondary: #1f1f1f;
   --secondary-foreground: #ede9e7;
   --muted: #0f0f0f;
@@ -916,10 +928,17 @@ body {
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 10%);
   --ring: oklch(0.98 0 0);
-  --brand: #fa9346;
+  --brand: #FA9346;
   --brand-foreground: #141414;
   /* Na ciemnym tle oryginalny pomarańcz ma ~7.6:1 - atrament wraca do brandu. */
-  --brand-ink: #fa9346;
+  --brand-ink: #FA9346;
+  /* Ciemna płyta nie potrzebuje dopracowania krawędzi: dopisana linia byłaby
+     tu jasną ramką wokół przycisku, trójkąta i "stopa", a nie detalem. */
+  --audio-control-border: transparent;
+  --audio-icon-border: transparent;
+  --voice-stop-border: transparent;
+  /* Na ciemnej plycie ten sam szary ton, tylko wyrazniejszy od otoczenia. */
+  --nes-kinetic-action: oklch(0.66 0.004 250);
   --chat-user-from: #f8934a;
   --chat-user-to: #d95a12;
   --chat-user-foreground: #ffffff;
@@ -929,15 +948,15 @@ body {
   --cat-military: oklch(0.68 0.22 25);
   --cat-finance: oklch(0.7 0.18 145);
   --cat-transport: oklch(0.8 0.15 75);
-  --cat-diplomacy: #fa9346;
+  --cat-diplomacy: #FA9346;
   --cat-cyber: oklch(0.65 0.18 320);
-  --hot: #fa9346;
+  --hot: #FA9346;
 
   /* ---- Semantyczne gradienty marki (dark) ----
      Ciemny motyw: cieplejszy, bardziej świetlisty przebieg tak, by na tle
      #141414 zachować żywość i kontrast >= 4.5:1. */
   --gradient-brand: linear-gradient(90deg, #ffc79a 0%, #f8934a 100%);
-  --gradient-brand-soft: linear-gradient(135deg, #7a3410 0%, #fa9346 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #7a3410 0%, #FA9346 100%);
   --gradient-heading-stop-1: #ffc79a;
   --gradient-heading-stop-2: #f8934a;
 
@@ -964,7 +983,7 @@ body {
      wypełnienia i markera.
      ============================================================ */
   --chart-1: #2196f3; /* granat           6,14:1 */
-  --chart-2: #fdb078; /* ochra            10,64:1 */
+  --chart-2: #FA9346; /* ochra            10,64:1 */
   --chart-3: #76c457; /* szalwia [bezp.]  8,95:1 */
   --chart-4: #e7bcde; /* sliwka [bezp.]   11,54:1 */
   --chart-5: #92eeff; /* lazur            14,51:1 */
@@ -996,7 +1015,7 @@ body {
      przeoczenie, to konsekwencja tego, że na ciemnym tle rozjaśnianie
      PODNOSI kontrast, a zmiękczenie rozjaśniło całą paletę. */
   --chart-1t: #2196f3; /* 6,14:1 - bez zmiany */
-  --chart-2t: #fdb078; /* 10,64:1 - bez zmiany */
+  --chart-2t: #FA9346; /* 10,64:1 - bez zmiany */
   --chart-3t: #76c457; /* 8,95:1 - bez zmiany */
   --chart-4t: #e7bcde; /* 11,54:1 - bez zmiany */
   --chart-5t: #92eeff; /* 14,51:1 - bez zmiany */
@@ -1070,23 +1089,23 @@ body {
   --chart-ink-positive: #12161c;
   --chart-ink-negative: #12161c;
 
-  /* W TRYBIE CIEMNYM AKCENT DZIAŁA BEZ ZASTRZEŻEŃ: #fa9346 ma na płycie
+  /* W TRYBIE CIEMNYM AKCENT DZIAŁA BEZ ZASTRZEŻEŃ: #FA9346 ma na płycie
      8,51:1, #ed751a 6,54:1 - oba przechodzą próg tekstowy. Można nimi pisać
      liczby, rysować linie, obwodzić słupki. Podkład akcentu schodzi
      z ciepłego #fff4ed na PODNIESIONĄ POWIERZCHNIĘ, bo pomarańczowy podkład
      na ciemnym tle miałby ~16:1 i przestałby być podkładem - stałby się
      plamą. */
-  --chart-accent: #fa9346;
+  --chart-accent: #FA9346;
   --chart-accent-text: #ed751a;
-  --chart-accent-fill: #fdb078;
+  --chart-accent-fill: #FA9346;
   --chart-accent-bg: #262424;
-  --chart-accent-audit: #fa9346;
+  --chart-accent-audit: #FA9346;
   /* Warianty audytowe SĄ TU RÓWNE TOKENOWI, i to nie jest przeoczenie:
      w trybie ciemnym akcent przechodzi próg tekstowy sam (8,51:1), więc nie
      ma czego przyciemniać. Przyciemniony #ab5517 miałby na płycie 2,50:1,
      czyli byłby GORSZY od tokena - furtka audytowa ma tu wartość tokena
      właśnie dlatego, że jest niepotrzebna. */
-  --chart-accent-audit-graphic: #fa9346;
+  --chart-accent-audit-graphic: #FA9346;
 
   /* ---- Druga powierzchnia sekcyjna: W CIEMNYM JEJ NIE MA ----
      Ciemne tło strony jest już samym #141313, a wprowadzanie pod nie jeszcze
@@ -1144,12 +1163,12 @@ body {
   --chart-1-deep: #63b3ff;
   --chart-1-mid: #4baaff;
   --chart-1-face: #31a1ff;
-  --chart-2-edge: #ffd8be;
-  --chart-2-inner: #3b1b01;
-  --chart-2-hover: #4e2704;
-  --chart-2-deep: #ffd8be;
-  --chart-2-mid: #ffcba7;
-  --chart-2-face: #ffbf92;
+  --chart-2-edge: #ffbd91;
+  --chart-2-inner: #3d1a00;
+  --chart-2-hover: #512500;
+  --chart-2-deep: #ffbd91;
+  --chart-2-mid: #ffaf78;
+  --chart-2-face: #ffa260;
   --chart-3-edge: #92e274;
   --chart-3-inner: #0d2d00;
   --chart-3-hover: #1a3c09;
@@ -1947,7 +1966,7 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
 }
 .cms-social a:hover,
 .cms-social__btn:hover {
-  color: var(--td-si-hover-color, #fa9346);
+  color: var(--td-si-hover-color, #FA9346);
   background: var(--td-si-hover-bg, transparent);
 }
 
@@ -3569,10 +3588,10 @@ textarea::placeholder {
   opacity: 1 !important;
 }
 .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
   background: var(--gc-input-bg, var(--background));
 }
 .dark .cf-shell .cf-input {
@@ -3580,11 +3599,11 @@ textarea::placeholder {
   border-color: var(--gc-input-border, color-mix(in oklab, var(--foreground) 30%, transparent));
 }
 .dark .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 .dark .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, color-mix(in oklab, var(--background) 65%, var(--foreground) 14%));
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
 }
 
 /* Image background */
@@ -3721,7 +3740,7 @@ textarea::placeholder {
 /* Contact-form input focus: orange border only, no glow. */
 .cf-shell .cf-input:focus,
 .dark .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
 }
 
 @layer components {
@@ -3763,10 +3782,10 @@ textarea::placeholder {
       ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     select
   ):hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 :where([data-w-id]) :where(textarea):hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 :where([data-w-id])
   :where(
@@ -3785,7 +3804,7 @@ textarea::placeholder {
     select
   ):focus-visible {
   outline: none;
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
   background: var(--gc-input-bg, var(--background));
   /* Kill Tailwind ring utilities (they'd stack an extra blue box-shadow). */
   --tw-ring-color: transparent;
@@ -4360,11 +4379,11 @@ input.icon-input-with-action {
   border-color: var(--gc-input-border, var(--cf-border, var(--border)));
 }
 .light .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #fdb078);
+  border-color: var(--gc-input-hover-border, #FA9346);
 }
 .light .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, var(--background));
-  border-color: var(--gc-input-focus-border, #fdb078);
+  border-color: var(--gc-input-focus-border, #FA9346);
 }
 .light
   :where([data-w-id])
@@ -4510,7 +4529,7 @@ input.icon-input-with-action {
 .key-takeaways__icon {
   width: 40px;
   height: 40px;
-  background: var(--kt-icon-bg, #fa9346);
+  background: var(--kt-icon-bg, #FA9346);
   color: var(--kt-icon, #ffffff);
 }
 .key-takeaways__title {
@@ -4527,17 +4546,17 @@ input.icon-input-with-action {
 }
 .key-takeaways__card .key-takeaways__list::marker,
 .key-takeaways__card .key-takeaways__list > li::marker {
-  color: var(--kt-accent, #fa9346);
+  color: var(--kt-accent, #FA9346);
 }
 .key-takeaways--heading .key-takeaways__list {
   color: var(--kt-text, #1f2937);
-  border-top-color: color-mix(in oklab, var(--kt-accent, #fa9346) 30%, transparent);
+  border-top-color: color-mix(in oklab, var(--kt-accent, #FA9346) 30%, transparent);
 }
 .dark .key-takeaways--heading .key-takeaways__list {
   color: var(--kt-text-dark, #e5e7eb);
 }
 .key-takeaways__bullet {
-  background: var(--kt-accent, #fa9346);
+  background: var(--kt-accent, #FA9346);
 }
 
 /* Wariant "ghost" - wielki, półprzezroczysty nagłówek renderowany ZA listą.
@@ -4581,7 +4600,7 @@ h2.key-takeaways__ghost-title > span {
 /* Podświetlone słowa - tylko kolor się zmienia, transparentność ta sama. */
 .key-takeaways .key-takeaways__ghost-title .key-takeaways__ghost-title-hl,
 h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
-  color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, #fa9346)) 22%, transparent);
+  color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, #FA9346)) 22%, transparent);
 }
 .key-takeaways--ghost .key-takeaways__list {
   color: var(--kt-text, #1f2937);
@@ -4590,7 +4609,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   color: var(--kt-text-dark, #e5e7eb);
 }
 .key-takeaways__ghost-item + .key-takeaways__ghost-item {
-  border-top: 1px solid color-mix(in oklab, var(--kt-accent, #fa9346) 22%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--kt-accent, #FA9346) 22%, transparent);
 }
 
 /* -------------------------------------------------------------
@@ -5210,6 +5229,14 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid var(--audio-control-border);
+}
+/* Przycisk odtwarzania w dolnym pasku (atom `AudioIconButton`, wariant
+   `primary`) musi mieć tę samą krawędź co karta sidebaru - inaczej ten sam
+   przycisk play wyglądałby inaczej w zależności od tego, który pasek właśnie
+   go pokazuje. */
+.audio-control-btn {
+  border: 1px solid var(--audio-control-border);
 }
 /* MARTWY KOD USUNIĘTY 2026-09-21: `.lpt-icon` / `.lpt-play` / `.lpt-pause`
    i klatki `lpt-keyframes-fill`. MECHANIZM: `SidebarListenCard` nosi samą
@@ -5244,6 +5271,15 @@ textarea::placeholder {
 }
 .mpp-svg-play {
   transform-origin: 50% 50%;
+}
+/* Delikatnie ciemniejsza krawędź trójkąta. Wypełnienie trójkąta to
+   `text-background`, czyli w jasnym motywie niemal biel - na pomarańczu
+   zlewała się z tłem przycisku. `stroke` siedzi na krawędzi ścieżki i nie
+   rusza jej środka, więc wyśrodkowanie pilnowane przez testy zostaje. */
+.mpp-svg-play path {
+  stroke: var(--audio-icon-border);
+  stroke-width: 1.1;
+  stroke-linejoin: round;
 }
 .mpp[data-playing="false"] .mpp-svg-play {
   opacity: 1;
@@ -7979,6 +8015,89 @@ html[data-mbb="on"] [data-site-shell] {
 }
 
 /* --------------------------------------------------------------------------
+   Etykieta sekcji - wariant Kinetic Signal Notch (23).
+   Trzy poziome paski "sygnału" rozsuwaja sie na hoverze sprezysta krzywa, a
+   akcja zmienia kolor na akcent pobrany z inline zmiennej --nes-accent (ten
+   akcent liczony jest w JS, wiec nie ma dla niego klasy Tailwind).
+   -------------------------------------------------------------------------- */
+.nes-kinetic-bar {
+  transition:
+    width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.5s ease;
+}
+
+.nes-kinetic-shell {
+  container-type: inline-size;
+}
+
+.nes-kinetic-row {
+  column-gap: 14px;
+}
+
+/* Akcja wisi NAD wierszem sygnalu, wiec scisk przy wezkich widgetach
+   adresuje ja bezposrednio, a nie przez .nes-kinetic-row.
+
+   Theme Design per widzet (selektor `[data-w-id][data-w-id][data-w-id]
+   [data-description-root]`, 0-4-0 + !important) narzuca „wiecej" rozmiar opisu
+   (12 px), bo akcja pelni role opisu etykiety. Kinetic wygrywa konkretniejszym
+   selektorem (0-5-0), dzieki czemu „wiecej" ma wlasna, mniejsza czcionke. */
+/* Selektor obejmuje tez wewnetrzne spany: Theme Design (gaiaz `:is(p, span, a,
+   ...)`) zapisuje wage 800 bezposrednio na dziecku, a deklaracja wlasna zawsze
+   wygrywa z odziedziczona - dlatego samo „rodzic ma 400" nie wystarcza. */
+[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action,
+[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action span {
+  font-size: 11px !important;
+  font-weight: 400 !important;
+}
+
+@container (max-width: 360px) {
+  .nes-kinetic-row {
+    column-gap: 8px !important;
+  }
+
+  .nes-kinetic-row [data-title-root] {
+    font-size: 10px !important;
+    letter-spacing: 0.05em !important;
+  }
+
+  [data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action,
+  [data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action span {
+    font-size: 9px !important;
+    font-weight: 400 !important;
+    letter-spacing: 0;
+  }
+}
+
+.nes-kinetic-action {
+  color: var(--nes-kinetic-action, var(--muted-foreground));
+  transition: color 0.3s ease-in-out;
+  /* „więcej" nie może zostać podkreślone w żadnym stanie (spoczynek, hover,
+     focus, kliknięcie): text-decoration rodzica - np. hover Theme Designu na
+     całym widżecie - spływa do potomnych, a własne `none` na akcji to odcina. */
+  text-decoration: none;
+}
+
+/* Chevron „>" nie ma wlasnego koloru - dokladnie ten sam ton co tekst akcji
+   (currentColor), wiec w spoczynku oba sa szare, a w hoverze schodza sie
+   z akcentem w tym samym momencie. */
+.nes-kinetic-action svg {
+  color: inherit;
+  opacity: 1;
+}
+
+.nes-kinetic-action:hover,
+.nes-kinetic-action:focus-visible {
+  color: var(--nes-accent, var(--primary));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nes-kinetic-bar,
+  .nes-kinetic-action {
+    transition: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Hub Klubów Dyskusyjnych - wariant ARCHITECTURAL PRESTIGE (v5).
    Instytucjonalna paleta z akcentem złota; osobne wartości dla light/dark,
    żeby wariant wyglądał 1:1 w obu trybach zamiast rozjaśnianego granatu.
@@ -8435,7 +8554,7 @@ sup.fn-ref {
 .cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
   --cms-list-marker-col: 1.65rem;
   --cms-list-lh: var(--lh-body, 1.65);
-  --cms-list-accent: #fa9346;
+  --cms-list-accent: #FA9346;
   margin-block: 0.85em;
   padding: 0 !important;
   list-style: none !important;
@@ -8494,7 +8613,7 @@ sup.fn-ref {
   margin-top: calc((1em * var(--cms-list-lh, 1.65) - 6px) / 2);
   margin-left: 0.3rem;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 55%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 55%, transparent);
   transition:
     transform 180ms ease,
     background-color 180ms ease;
@@ -8502,7 +8621,7 @@ sup.fn-ref {
 .cms-content-list--unordered > .cms-list-item:hover > .cms-list-bullet,
 .cms-block-list-editor--unordered > .cms-block-list-editor__item:hover > .cms-list-bullet {
   transform: scale(1.3);
-  background: var(--cms-list-accent, #fa9346);
+  background: var(--cms-list-accent, #FA9346);
 }
 .cms-content-list--unordered .cms-content-list--unordered .cms-list-bullet,
 .cms-block-list-editor--unordered
@@ -8512,7 +8631,7 @@ sup.fn-ref {
   height: 5px;
   margin-top: calc((1em * var(--cms-list-lh, 1.65) - 5px) / 2);
   border-radius: 1px;
-  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 32%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 32%, transparent);
   transform: none;
 }
 .cms-list-number {
@@ -8527,8 +8646,8 @@ sup.fn-ref {
   /* wyśrodkowanie plakietki względem wysokości pierwszej linii tekstu */
   margin-top: calc((1em * var(--cms-list-lh, 1.65) - 1.3rem) / 2);
   border-radius: 6px;
-  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 14%, transparent);
-  color: var(--cms-list-accent, #fa9346);
+  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 14%, transparent);
+  color: var(--cms-list-accent, #FA9346);
   font-family: var(--font-heading);
   font-weight: 800;
   line-height: 1;
@@ -8574,8 +8693,8 @@ sup.fn-ref {
   justify-content: center;
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 1.3rem) / 2);
   border-radius: 6px;
-  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 14%, transparent);
-  color: var(--cms-list-accent, #fa9346);
+  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 14%, transparent);
+  color: var(--cms-list-accent, #FA9346);
   font-family: var(--font-heading);
   font-size: 0.72rem;
   font-weight: 800;
@@ -8595,7 +8714,7 @@ sup.fn-ref {
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 6px) / 2);
   margin-left: 0.3rem;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 55%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 55%, transparent);
   transition:
     transform 180ms ease,
     background-color 180ms ease;
@@ -8604,7 +8723,7 @@ sup.fn-ref {
   ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):hover::before {
   transform: scale(1.3);
-  background: var(--cms-list-accent, #fa9346);
+  background: var(--cms-list-accent, #FA9346);
 }
 .cms-rich-content li > :is(ul, ol):not(.task-list):not(.contains-task-list) {
   grid-column: 2;
@@ -8619,13 +8738,13 @@ sup.fn-ref {
   height: 5px !important;
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 5px) / 2);
   border-radius: 1px !important;
-  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 32%, transparent) !important;
+  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 32%, transparent) !important;
   transform: none !important;
 }
 .cms-block-list-editor {
   --cms-list-marker-col: 1.65rem;
   --cms-list-lh: var(--lh-body, 1.65);
-  --cms-list-accent: #fa9346;
+  --cms-list-accent: #FA9346;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -9234,6 +9353,7 @@ input[type="reset"],
 }
 .voice-stop-square {
   animation: voice-stop-spin 2s ease-in-out infinite;
+  box-shadow: 0 0 0 1px var(--voice-stop-border);
 }
 .voice-pill-enter {
   animation: voice-pill-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;

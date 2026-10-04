@@ -657,7 +657,7 @@ function JobPanel({
               e.level === "error"
                 ? "text-destructive"
                 : e.level === "warn"
-                  ? "text-amber-600 dark:text-amber-400"
+                  ? "text-brand-ink dark:text-brand"
                   : "text-foreground/80"
             }
           >

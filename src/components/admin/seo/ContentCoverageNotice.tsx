@@ -21,7 +21,7 @@ export function ContentCoverageNotice({ coverage }: { coverage: SeoContentCovera
   return (
     <p
       data-seo-coverage={coverage.state}
-      className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-600 dark:text-amber-400"
+      className="rounded-lg border border-brand/40 bg-brand/5 px-3 py-2 text-xs text-brand-ink dark:text-brand"
     >
       {coverage.state === "truncated"
         ? t("adminSeoHub.coverageTruncated", { shown: coverage.shown, total: coverage.total })
@@ -34,7 +34,7 @@ export function ContentCoverageNotice({ coverage }: { coverage: SeoContentCovera
 export function PartialTag() {
   const { t } = useTranslation();
   return (
-    <span data-seo-partial className="ml-1 text-amber-600 dark:text-amber-400">
+    <span data-seo-partial className="ml-1 text-brand-ink dark:text-brand">
       ({t("adminSeoHub.coveragePartialTag")})
     </span>
   );

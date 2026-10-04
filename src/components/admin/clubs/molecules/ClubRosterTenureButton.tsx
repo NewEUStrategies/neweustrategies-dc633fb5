@@ -51,7 +51,7 @@ export function ClubRosterTenureButton({
       {tenure.kind === "none" ? (
         <span className="text-muted-foreground">{t("adminClubs.members.tenureNone")}</span>
       ) : tenure.kind === "expired" ? (
-        <span className="text-amber-700 dark:text-amber-300">
+        <span className="text-brand-ink dark:text-brand">
           {t("adminClubs.members.roleExpired")}
         </span>
       ) : (

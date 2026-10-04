@@ -14,7 +14,7 @@ const STYLE: Readonly<Record<TenantRef, string>> = {
   caller:
     "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-300",
   row: "border-border bg-muted/50 text-muted-foreground",
-  none: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300",
+  none: "border-brand/25 bg-brand/10 text-brand-ink dark:border-brand/50 dark:bg-brand/50 dark:text-brand",
 };
 
 const ICON: Readonly<Record<TenantRef, typeof Building2>> = {

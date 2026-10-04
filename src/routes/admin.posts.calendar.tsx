@@ -90,7 +90,7 @@ function DraggableEntry({
       style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}
       className={`group flex items-center gap-1 rounded px-1.5 py-1 text-[11px] leading-tight border ${
         scheduled
-          ? "border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+          ? "border-brand/40 bg-brand/10 text-brand-ink dark:text-brand"
           : "border-emerald-500/30 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200"
       } ${isDragging ? "opacity-60 z-30 relative shadow-lg" : ""}`}
     >
@@ -307,7 +307,7 @@ function EditorialCalendar() {
           {t("admin.status.published")}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm border border-amber-500/40 bg-amber-500/20" />
+          <span className="h-2.5 w-2.5 rounded-sm border border-brand/40 bg-brand/20" />
           {t("admin.status.scheduled")}
         </span>
         {canPublish && <span>{t("admin.calendar.dragHint")}</span>}

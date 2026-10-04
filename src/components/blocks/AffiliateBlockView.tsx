@@ -67,7 +67,7 @@ export function AffiliateBlockView(p: Props) {
             {[1, 2, 3, 4, 5].map((n) => (
               <Star
                 key={n}
-                className={`w-3.5 h-3.5 ${n <= Math.round(p.rating ?? 0) ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                className={`w-3.5 h-3.5 ${n <= Math.round(p.rating ?? 0) ? "fill-brand text-brand" : "text-muted-foreground"}`}
               />
             ))}
             <span className="ml-1 text-xs text-muted-foreground">{p.rating.toFixed(1)}</span>

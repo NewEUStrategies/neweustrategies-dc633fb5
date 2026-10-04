@@ -74,7 +74,7 @@ const STATUS_META: Record<
   },
   sending: {
     icon: Send,
-    className: "bg-amber-100 text-amber-800",
+    className: "bg-brand/15 text-brand-ink",
     labelKey: "adminNewsletter.campaigns.status.sending",
   },
   sent: {

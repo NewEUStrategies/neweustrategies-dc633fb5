@@ -26,7 +26,8 @@ export type SectionLabelVariant =
   | "numbered-rail"
   | "split-rule-duo"
   | "ticker-strip"
-  | "underline-sweep";
+  | "underline-sweep"
+  | "kinetic-signal-notch";
 
 export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string }[] = [
   { value: "left-bar", label: "01 - Pionowy pasek" },
@@ -56,6 +57,10 @@ export const SECTION_LABEL_VARIANTS: { value: SectionLabelVariant; label: string
   { value: "split-rule-duo", label: "20 - Split Rule Duo (dwie etykiety z kreską)" },
   { value: "ticker-strip", label: "21 - Ticker Strip (pasek z pulsującą kropką)" },
   { value: "underline-sweep", label: "22 - Underline Sweep (animowane podkreślenie 2px)" },
+  {
+    value: "kinetic-signal-notch",
+    label: "23 - Kinetic Signal Notch (sygnał trzech pasków + animowana akcja)",
+  },
 ];
 
 // ---- Typografia konfigurowalna (numer / kategoria / tytuł) ----
@@ -87,7 +92,7 @@ export function resolveFontFamily(font?: string): string | undefined {
 export type SectionLabelArrow = "arrow" | "chevron" | "long" | "none";
 
 export const SECTION_LABEL_ARROWS: { value: SectionLabelArrow; label: string }[] = [
-  { value: "arrow", label: "Strzałka →" },
+  { value: "arrow", label: "Strzałka ↗" },
   { value: "chevron", label: "Chevron ›" },
   { value: "long", label: "Długa strzałka ⟶" },
   { value: "none", label: "Bez strzałki" },
@@ -104,6 +109,61 @@ export function arrowGlyph(kind?: string): string {
     default:
       return "→";
   }
+}
+
+// Nowoczesna, prosta strzałka akcji - sam kąt („>" / „<") bez ogonka. Kreska
+// jest celowo cieńsza niż litery (0,85 px; 0,7 px w wąskiej kolumnie) i liczona
+// w pikselach ekranu (non-scaling-stroke), więc nie grubieje wraz z czcionką.
+// Wysokość w em minus 1 px trzyma znak w pasie x-height - linia bazowej liter,
+// a kolor dziedziczy z currentColor (ten sam co tekst akcji).
+// Premium strzałka "↗" (north-east) dla akcji "więcej" w widgetach: cienka
+// linia ukośna i otwarty narożnik, kreska liczona w pikselach ekranu.
+export function NorthEastArrow({ isSm, className }: { isSm: boolean; className?: string }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 10 10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={isSm ? 0.8 : 1}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ width: "calc(0.75em - 1px)", height: "calc(0.75em - 1px)" }}
+      className={className}
+    >
+      <path d="M2.2 7.8 7.8 2.2M3.6 2.2h4.2v4.2" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+export function AngleChevron({
+  side,
+  isSm,
+  className,
+}: {
+  side: "left" | "right";
+  isSm: boolean;
+  className?: string;
+}) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 11 10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={isSm ? 0.7 : 0.85}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ width: "calc(0.85em - 1px)", height: "calc(0.75em - 1px)" }}
+      className={className}
+    >
+      {/* Ramiona cofnięte od krawędzi pola, żeby znak nigdy się nie uciął. */}
+      <polyline
+        points={side === "left" ? "8.2 1.8 2.4 5 8.2 8.2" : "2.4 1.8 8.2 5 2.4 8.2"}
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
+  );
 }
 
 // Resolve preset color names to CSS color values (also supports raw hex/oklch).
@@ -200,7 +260,7 @@ export function readSectionLabelProps(
   const label = str(`label_${lang}`) || str("label_pl") || opts.labelFallback || "Sekcja";
   const actionRaw = str(`action_${lang}`) || str("action_pl") || opts.actionFallback || "";
   const href = str("href");
-  const variant = (str("variant") || "left-bar") as SectionLabelVariant;
+  const variant = (str("variant") || "kinetic-signal-notch") as SectionLabelVariant;
   const customAccent = str("accentColor");
   const colorBase = customAccent || str("color") || "brand";
   const accent = resolveAccentColor(
@@ -219,7 +279,10 @@ export function readSectionLabelProps(
     actionSize: str("actionSize") || undefined,
     indexNumber: str("indexNumber") || undefined,
     category: str(`category_${lang}`) || str("category_pl") || undefined,
-    showRule: bool("showRule", true),
+    // Kinetic Signal Notch (23) nie ma podkreślenia pod etykietą: linia pod
+    // rzędem jest wyłączona dopóki ktoś nie włączy „Pokaż linię" w panelu.
+    // Pozostałe warianty zachowują dotychczasowy domysł (linia włączona).
+    showRule: bool("showRule", variant !== "kinetic-signal-notch"),
     numberFont: str("numberFont") || undefined,
     numberSize: str("numberSize") || undefined,
     categoryFont: str("categoryFont") || undefined,
@@ -256,6 +319,9 @@ interface RenderProps {
   /** Odstęp pionowy między linią a tekstem (rytm bloku). */
   gapY?: string;
 }
+
+/** Inline styl z dopuszczoną zmienną CSS akcentu (bez `any`). */
+type AccentVarStyle = React.CSSProperties & { "--nes-accent"?: string };
 
 export function SectionLabelRender({
   label,
@@ -307,19 +373,38 @@ export function SectionLabelRender({
   if (actionColor) actionStyle.color = actionColor;
   if (actionSize && !isSm) actionStyle.fontSize = actionSize;
 
+  // Strzałka akcji: domyślnie nowoczesny, prosty kąt ">" bez ogonka - cienki
+  // SVG (wspólny `AngleChevron`, ten sam znak co w wariancie kinetic).
+  // Tekstowe glify zostają tylko dla wyraźnie wybranych opcji "chevron" (›)
+  // i "long" (⟶); "none" zdejmuje znak całkowicie.
+  const arrowMark =
+    glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
+      <span aria-hidden className="leading-none">
+        {glyph}
+      </span>
+    ) : (
+      <NorthEastArrow isSm={isSm} className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:-translate-y-px group-hover/link:translate-x-px" />
+    );
+
   const ActionEl = action ? (
     href && !isSm ? (
       <AppLink
         data-description-root
         href={href}
-        className={`${actionCls} shrink-0`}
+        className={`${actionCls} inline-flex min-w-0 items-center gap-[0.15em] shrink-0`}
         style={{ color: actionColor || accent, ...actionStyle }}
       >
-        {glyph ? `${action} ${glyph}` : action}
+        <span className="min-w-0">{action}</span>
+        {arrowMark}
       </AppLink>
     ) : (
-      <span data-description-root className={`${actionCls} shrink-0`} style={actionStyle}>
-        {glyph ? `${action} ${glyph}` : action}
+      <span
+        data-description-root
+        className={`${actionCls} inline-flex min-w-0 items-center gap-[0.15em] shrink-0`}
+        style={actionStyle}
+      >
+        <span className="min-w-0">{action}</span>
+        {arrowMark}
       </span>
     )
   ) : null;
@@ -1090,6 +1175,146 @@ export function SectionLabelRender({
               />
             </span>
             {ActionEl}
+          </div>
+        </div>
+      );
+    }
+
+    case "kinetic-signal-notch": {
+      // Kinetic Signal Notch (23): wiersz sygnalu - trzy rowne paski i tytul
+      // inline; akcja ("wiecej") unosi sie nad nimi, wyrownana do lewej, mala,
+      // minuskulowa i szaro-pastelowa, z cienkim chevronem bez obudowy. Kolor
+      // akcji w hoverze bierze sie z inline zmiennej --nes-accent (akcent
+      // liczony jest w JS, wiec nie ma dla niego klasy); sama akcja stylowana
+      // jest przez `.nes-kinetic-action` w styles.css.
+      const barH = isSm ? 2 : 3;
+      // Kreski sa identyczne: ta sama grubosc i dlugosc. Baza jest waska
+      // (16 px / 10 px), a rozsuniecie w hoverze umiarkowane - najdłuższy pasek
+      // dochodzi do 28 px / 18 px, więc efekt pozostaje delikatnym sygnałem, a
+      // nie rozbudowanym paskiem. Opoznienia daja efekt fali.
+      const barW = isSm ? "w-2.5" : "w-4";
+      const bars: ReadonlyArray<{ id: string; grow: string; delay: string }> = [
+        { id: "lead", grow: isSm ? "group-hover:w-3.5" : "group-hover:w-6", delay: "0ms" },
+        { id: "mid", grow: isSm ? "group-hover:w-[18px]" : "group-hover:w-7", delay: "75ms" },
+        { id: "tail", grow: isSm ? "group-hover:w-3" : "group-hover:w-5", delay: "150ms" },
+      ];
+      // Ciasny tracking tytulu (litery blisko siebie), z-delikatnym otwarciem na hoverze.
+      const titleCls = isSm
+        ? "text-[8px] font-black uppercase tracking-[0.05em]"
+        : "font-display text-[12px] font-black uppercase tracking-[0.08em] transition-[letter-spacing] duration-300 motion-reduce:transition-none group-hover:tracking-[0.12em]";
+      // Akcja: mala, minuskulowa, w stonowanej szaro-pastelowej szarosci
+      // (kolor bazowy z `.nes-kinetic-action` w styles.css).
+      // Rozmiar akcji zabezpieczony w CSS (Theme Design force rozmiar opisu) -
+      // klasy zostaja tylko jako fallback poza widzetem. Akcja NIE jest
+      // pogrubiona (font-normal), a jej rozmiar to 11 px (9 px w wezkiej
+      // kolumnie) - o 1 px wiecej niz wczesniej.
+      const actCls = isSm
+        ? "text-[9px] font-normal"
+        : "text-[11px] font-normal";
+      const actionStyleVars: AccentVarStyle = { "--nes-accent": accent };
+      if (actionColor) actionStyleVars.color = actionColor;
+      if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
+
+      // Chevron ">" tylko po prawej stronie akcji - czysty kat bez ogonka
+      // (zadnej poziomej linii strzalki). Dyskretny ruch na zewnatrz w
+      // hoverze. Geometria i kreska zyvia we wspolnym `AngleChevron` (ten sam
+      // znak co domyslna strzalka akcji w pozostalych wariantach).
+      const chevronSvg = (side: "left" | "right"): React.ReactNode => (
+        <NorthEastArrow
+          isSm={isSm}
+          className={`shrink-0 transition-transform duration-300 motion-reduce:transition-none ${
+            side === "left" ? "" : "group-hover/link:-translate-y-px group-hover/link:translate-x-px"
+          }`}
+        />
+      );
+
+      // Tekstowy glif (chevron ›/dluga strzalka) zostaje tylko po prawej -
+      // ">" dotyczy domyslnego chevrona wektorowego; "none" zdejmuje znak.
+      const useChevronMark = glyph !== "" && arrow !== "chevron" && arrow !== "long";
+      const arrowVisual =
+        glyph === "" ? null : arrow === "chevron" || arrow === "long" ? (
+          <span
+            aria-hidden
+            data-typography-exempt
+            className="leading-none transition-transform duration-300 motion-reduce:transition-none group-hover/link:translate-x-0.5"
+          >
+            {glyph}
+          </span>
+        ) : null;
+
+      // `data-typography-exempt` zdejmuje z wnetrza akcji globalna typografie
+      // Theme Designu (gaiaz `:is(p, span, a, ...)` z ~0-8-0 + !important),
+      // zeby „wiecej" nie dziedziczylo pogrubienia opisu.
+      const actionInner = (
+        <span className="inline-flex items-center gap-[0.08em]" data-typography-exempt>
+          <span className="min-w-0" data-typography-exempt>
+            {action}
+          </span>
+          {arrowVisual ?? (useChevronMark ? chevronSvg("right") : null)}
+        </span>
+      );
+
+      // Bez podkreslenia i bez wewnetrznego paddingu - caly oddech nad wierszem
+      // kresek sterowany jest jednym `marginBottom` nizej.
+      const actionCls = `group/link nes-kinetic-action inline-flex min-w-0 items-center whitespace-nowrap ${actCls}`;
+
+      // „Usuń obszar bezpieczny z góry": akcja ma zaczynać się dokładnie na górnym
+      // brzegu widgetu, więc górny padding jest zerowy - zostaje tylko oddech na dole.
+      const kineticPad = isSm ? "pb-1" : "pb-2";
+
+      return (
+        <div className={`${wrapperBase} nes-kinetic-shell group w-full min-w-0 ${kineticPad}`}>
+          {action ? (
+            <div
+              className="flex w-full min-w-0 justify-start"
+              style={{ marginBottom: isSm ? "3px" : "2px" }}
+            >
+              {href && !isSm ? (
+                <AppLink
+                  data-description-root
+                  data-typography-exempt
+                  href={href}
+                  className={actionCls}
+                  style={actionStyleVars}
+                >
+                  {actionInner}
+                </AppLink>
+              ) : (
+                <span
+                  data-description-root
+                  data-typography-exempt
+                  className={actionCls}
+                  style={actionStyleVars}
+                >
+                  {actionInner}
+                </span>
+              )}
+            </div>
+          ) : null}
+          <div
+            className={`nes-kinetic-row flex w-full min-w-0 items-center ${showRule ? "border-b border-border" : ""}`}
+            style={{ gap: gapXPx, paddingBottom: gapY || (isSm ? "4px" : "10px") }}
+          >
+            <span
+              aria-hidden
+              className="inline-flex shrink-0 flex-col"
+              style={{ gap: isSm ? "3px" : "5px" }}
+            >
+              {bars.map((bar) => (
+                <span
+                  key={bar.id}
+                  className={`nes-kinetic-bar rounded-full ${barW} ${bar.grow}`}
+                  style={{ height: barH, background: accent, transitionDelay: bar.delay }}
+                />
+              ))}
+            </span>
+            <span
+              data-title-root
+              className={`${titleCls} min-w-0 whitespace-nowrap`}
+              style={labelStyle}
+            >
+              {label}
+            </span>
           </div>
         </div>
       );

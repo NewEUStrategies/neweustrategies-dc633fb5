@@ -14,7 +14,7 @@ import { useActionName } from "./useActionName";
 const TONE_CLASS: Record<StatusTone, string> = {
   success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
   danger: "bg-destructive/10 text-destructive border-destructive/30",
-  warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+  warning: "bg-brand/10 text-brand-ink dark:text-brand border-brand/30",
   neutral: "bg-muted text-muted-foreground border-border",
 };
 

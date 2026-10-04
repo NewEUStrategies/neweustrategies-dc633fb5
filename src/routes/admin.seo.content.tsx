@@ -163,7 +163,7 @@ function SeoContentOverview() {
       key: "image",
       label: t("admin.seoOverview.tileDefaultImage"),
       value: summary.defaultImage,
-      tone: summary.defaultImage ? "text-amber-500" : "text-emerald-500",
+      tone: summary.defaultImage ? "text-brand0" : "text-emerald-500",
       filter: "default_image" as const,
     },
     {

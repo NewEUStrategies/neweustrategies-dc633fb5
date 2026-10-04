@@ -573,7 +573,7 @@ function ThreadComposerDialog({
 
           {/* Publikacja w imieniu: pole opcjonalne, z ostrzeżeniem widocznym
               ZANIM administrator kliknie zapisz, nie po. */}
-          <div className="space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+          <div className="space-y-1.5 rounded-lg border border-brand/40 bg-brand/5 p-3">
             <Label>{t("adminClubs.threads.onBehalfLabel")}</Label>
             <MemberPicker
               value={authorId}
@@ -588,7 +588,7 @@ function ThreadComposerDialog({
                 clear: t("adminClubs.filterAny"),
               }}
             />
-            <p className="text-xs text-amber-800 dark:text-amber-200">
+            <p className="text-xs text-brand-ink dark:text-brand">
               {t(`adminClubs.threads.${onBehalfLabel(authorId)}`)}
             </p>
           </div>
@@ -815,7 +815,7 @@ function ThreadDetailDialog({
             </Button>
           </div>
           {authorId !== "" ? (
-            <p className="text-xs text-amber-800 dark:text-amber-200">
+            <p className="text-xs text-brand-ink dark:text-brand">
               {t("adminClubs.threads.onBehalfWarning")}
             </p>
           ) : null}

@@ -148,7 +148,7 @@ function CfpSettingsForm({ eventId, settings }: { eventId: string; settings: Cfp
               })}
             </p>
             {settings.eventStatus === "published" ? null : (
-              <p className="text-amber-600 dark:text-amber-400">
+              <p className="text-brand-ink dark:text-brand">
                 {t("adminEventCfp.settings.eventNotPublished")}
               </p>
             )}

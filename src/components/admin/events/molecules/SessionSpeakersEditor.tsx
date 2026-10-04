@@ -206,7 +206,7 @@ function CastEditor({
                     </span>
                   )}
                   {!member.isPublic && (
-                    <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                    <span className="flex items-center gap-1 text-[11px] text-brand-ink dark:text-brand">
                       <EyeOff className="h-3 w-3" aria-hidden="true" />
                       {t("adminEventAgenda.sessionSpeakers.notPublic")}
                     </span>

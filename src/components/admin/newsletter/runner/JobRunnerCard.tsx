@@ -153,7 +153,7 @@ export function JobRunnerCard() {
             </p>
           )}
           {backlog > BACKLOG_WARN_THRESHOLD && (
-            <p className="m-0 text-xs text-amber-700 dark:text-amber-400">
+            <p className="m-0 text-xs text-brand-ink dark:text-brand">
               {t("adminRunner.queues.backlogWarning", { count: backlog })}
             </p>
           )}
@@ -194,5 +194,5 @@ export function JobRunnerCard() {
 function cnHint(state: RunnerState): string {
   return state === "error"
     ? "m-0 text-xs leading-relaxed text-destructive"
-    : "m-0 text-xs leading-relaxed text-amber-700 dark:text-amber-400";
+    : "m-0 text-xs leading-relaxed text-brand-ink dark:text-brand";
 }

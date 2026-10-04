@@ -446,7 +446,7 @@ export function EventSessionDialog({
         </div>
 
         {castDirty && (
-          <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+          <p role="status" className="text-xs text-brand-ink dark:text-brand">
             {t("adminEventAgenda.sessionSpeakers.saveCastFirst")}
           </p>
         )}

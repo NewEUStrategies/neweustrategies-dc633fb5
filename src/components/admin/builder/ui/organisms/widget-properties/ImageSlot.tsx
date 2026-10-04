@@ -282,7 +282,7 @@ export function ImageSlot({
         </div>
       )}
       {sizeNotice && (
-        <div className="flex items-start gap-1 text-[10px] text-amber-600 dark:text-amber-400">
+        <div className="flex items-start gap-1 text-[10px] text-brand-ink dark:text-brand">
           <AlertCircle className="w-3 h-3 mt-[1px] shrink-0" />
           <span>{sizeNotice}</span>
         </div>

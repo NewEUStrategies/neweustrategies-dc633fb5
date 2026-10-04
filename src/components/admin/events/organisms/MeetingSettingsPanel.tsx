@@ -400,7 +400,7 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
                       <span>
                         {groupName(group, lang)}
                         {group.can_meet ? null : (
-                          <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                          <span className="ml-2 inline-flex items-center gap-1 text-xs text-brand-ink dark:text-brand">
                             <AlertTriangle className="h-3 w-3" aria-hidden="true" />
                             {t("adminEventMeetings.settings.groupCannotMeetBadge")}
                           </span>
@@ -456,12 +456,12 @@ export function MeetingSettingsPanel({ eventId }: { eventId: string }) {
           </li>
         </ul>
         {settings.with_availability_count > 0 ? null : (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
+          <p className="text-xs text-brand-ink dark:text-brand">
             {t("adminEventMeetings.settings.readinessNoAvailability")}
           </p>
         )}
         {settings.tables_count > 0 ? null : (
-          <p className="text-xs text-amber-600 dark:text-amber-400">
+          <p className="text-xs text-brand-ink dark:text-brand">
             {t("adminEventMeetings.settings.readinessNoTables")}
           </p>
         )}

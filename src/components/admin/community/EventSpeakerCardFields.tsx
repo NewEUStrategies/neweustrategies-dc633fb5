@@ -39,7 +39,7 @@ import "@/lib/i18n-admin-event-agenda";
 ensureCommunityEventsI18n();
 
 /** Kolor pokazywany w wybieraku, dopoki redaktor nie wybral wlasnego. */
-const PICKER_FALLBACK = "#fa9346";
+const PICKER_FALLBACK = "#FA9346";
 
 function FieldError({ id, message }: { id: string; message: string | null }) {
   if (message === null) return null;

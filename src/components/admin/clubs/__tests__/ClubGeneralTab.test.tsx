@@ -213,17 +213,17 @@ describe("ClubGeneralTab - slug", () => {
 
   it("ostrzega o zepsutych linkach przy realnej zmianie istniejącego klubu", () => {
     panel({ slug: "nowy-adres" }, { persistedSlug: "klub-energetyczny" });
-    expect(document.querySelector(".text-amber-700")).not.toBeNull();
+    expect(document.querySelector(".text-brand-ink")).not.toBeNull();
   });
 
   it("zgodny slug NIE ostrzega - inaczej ostrzeżenie wisi zawsze", () => {
     panel({ slug: "klub-energetyczny" }, { persistedSlug: "klub-energetyczny" });
-    expect(document.querySelector(".text-amber-700")).toBeNull();
+    expect(document.querySelector(".text-brand-ink")).toBeNull();
   });
 
   it("klub jeszcze niezapisany NIE ostrzega, choć slug jest inny niż pusty", () => {
     panel({ slug: "nowy-klub" }, { persistedSlug: "" });
-    expect(document.querySelector(".text-amber-700")).toBeNull();
+    expect(document.querySelector(".text-brand-ink")).toBeNull();
   });
 
   it.fails("ostrzeżenie POWINNO mówić coś więcej niż podpowiedź pod polem", () => {
@@ -234,7 +234,7 @@ describe("ClubGeneralTab - slug", () => {
     // Naprawa wymaga NOWEGO klucza i18n w PL i EN, czyli zmiany treści -
     // dlatego test jest zgłoszeniem, a nie poprawką.
     panel({ slug: "nowy-adres" }, { persistedSlug: "klub-energetyczny" });
-    const warning = document.querySelector(".text-amber-700");
+    const warning = document.querySelector(".text-brand-ink");
     expect(warning?.textContent).not.toBe("adminClubs.fields.slugHint");
   });
 });

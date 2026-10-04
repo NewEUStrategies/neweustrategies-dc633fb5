@@ -11,7 +11,7 @@ const BADGE_ICONS: Readonly<Record<ProfileBadgeKind, LucideIcon>> = {
 
 const BADGE_STYLES: Readonly<Record<ProfileBadgeKind, string>> = {
   verified: "bg-primary/10 text-primary ring-primary/15",
-  expert: "bg-amber-500/15 text-amber-700 ring-amber-500/20 dark:text-amber-400",
+  expert: "bg-brand/15 text-brand-ink ring-brand/20 dark:text-brand",
   staff: "bg-muted text-muted-foreground ring-border",
   contributor: "bg-emerald-500/15 text-emerald-700 ring-emerald-500/20 dark:text-emerald-400",
 };

@@ -272,7 +272,7 @@ export function DeliverabilityPanel() {
                   <td
                     className={cn(
                       "p-3 text-right tabular-nums",
-                      c.bounced > 0 && "text-amber-600 dark:text-amber-400",
+                      c.bounced > 0 && "text-brand-ink dark:text-brand",
                     )}
                   >
                     {c.bounced.toLocaleString(locale)}

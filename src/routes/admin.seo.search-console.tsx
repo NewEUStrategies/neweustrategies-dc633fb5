@@ -189,13 +189,13 @@ function SearchConsolePanel() {
       )}
 
       {notConfigured && (
-        <div className="bg-amber-500/10 border border-amber-500/40 rounded-[6px] p-4 text-sm">
+        <div className="bg-brand/10 border border-brand/40 rounded-[6px] p-4 text-sm">
           {t("admin.gsc.notConfigured")}
         </div>
       )}
 
       {noSites && (
-        <div className="bg-amber-500/10 border border-amber-500/40 rounded-[6px] p-4 text-sm">
+        <div className="bg-brand/10 border border-brand/40 rounded-[6px] p-4 text-sm">
           {t("admin.gsc.noSites")}
         </div>
       )}

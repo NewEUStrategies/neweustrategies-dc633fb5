@@ -333,7 +333,7 @@ export function ChartDataSpreadsheetDialog({
               className={
                 "inline-flex items-center gap-1.5 rounded-[6px] border px-2 py-1 text-[11px] font-medium shrink-0 " +
                 (syncing
-                  ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-200"
+                  ? "border-brand/35 bg-brand/10 text-brand-ink dark:border-brand/40 dark:bg-brand/10 dark:text-brand"
                   : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/10 dark:text-emerald-200")
               }
             >

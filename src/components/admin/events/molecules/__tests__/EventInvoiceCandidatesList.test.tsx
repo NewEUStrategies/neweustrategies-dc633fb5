@@ -206,7 +206,7 @@ describe("EventInvoiceCandidatesList", () => {
     ]);
     renderList();
     const row = (await screen.findByText("Netto")).closest("li");
-    const notes = [...(row?.querySelectorAll("p.text-amber-700") ?? [])].map(
+    const notes = [...(row?.querySelectorAll("p.text-brand-ink") ?? [])].map(
       (note) => note.textContent,
     );
     expect(notes).toEqual(["adminEventInvoices.candidates.priceListNet"]);

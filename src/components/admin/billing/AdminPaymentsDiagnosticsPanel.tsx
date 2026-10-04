@@ -51,7 +51,7 @@ function StateIcon({ state }: { state: "ok" | "warn" | "error" }) {
   if (state === "ok")
     return <CheckCircle2 className="h-4 w-4 text-emerald-600" aria-hidden="true" />;
   if (state === "warn")
-    return <CircleAlert className="h-4 w-4 text-amber-600" aria-hidden="true" />;
+    return <CircleAlert className="h-4 w-4 text-brand-ink" aria-hidden="true" />;
   return <CircleX className="h-4 w-4 text-destructive" aria-hidden="true" />;
 }
 
@@ -355,7 +355,7 @@ export function AdminPaymentsDiagnosticsPanel() {
                           c.providerDiscountId ? (
                             <Badge
                               variant="outline"
-                              className="border-0 bg-amber-500/12 text-[0.75rem] text-amber-800 dark:text-amber-300"
+                              className="border-0 bg-brand/12 text-[0.75rem] text-brand-ink dark:text-brand"
                             >
                               {t("adminBilling.eventCodeStaleCopy")}
                             </Badge>

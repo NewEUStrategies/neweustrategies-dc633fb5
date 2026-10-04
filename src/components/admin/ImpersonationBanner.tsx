@@ -62,7 +62,7 @@ export function ImpersonationBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="sticky top-0 z-[60] flex items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-amber-950 shadow-sm"
+      className="sticky top-0 z-[60] flex items-center justify-center gap-3 bg-brand px-4 py-2 text-sm font-medium text-brand-ink shadow-sm"
     >
       <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden />
       <span className="truncate">
@@ -71,7 +71,7 @@ export function ImpersonationBanner() {
       <Button
         size="sm"
         variant="outline"
-        className="h-7 gap-1 border-amber-950/30 bg-white/80 text-amber-950 hover:bg-white"
+        className="h-7 gap-1 border-brand/30 bg-white/80 text-brand-ink hover:bg-white"
         onClick={onExit}
       >
         <LogOut className="h-3.5 w-3.5" /> {t.exit}

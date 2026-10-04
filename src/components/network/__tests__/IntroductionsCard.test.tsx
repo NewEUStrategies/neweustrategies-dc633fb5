@@ -254,7 +254,7 @@ describe("IntroductionsCard - chip statusu", () => {
     };
     renderCard();
     expect(screen.getByText(k("network.introductions.status.pending")).className).toContain(
-      "bg-amber-500/10",
+      "bg-brand/10",
     );
     expect(screen.getByText(k("network.introductions.status.forwarded")).className).toContain(
       "bg-primary/10",

@@ -579,7 +579,7 @@ describe("kafel sesji", () => {
   });
 
   it("kolor pasma ląduje na lewej krawędzi kafla", () => {
-    h.sessions = [sessionRow({ track_accent_color: "#fa9346" })];
+    h.sessions = [sessionRow({ track_accent_color: "#FA9346" })];
     renderuj();
 
     expect(kafel("Otwarcie").style.borderLeftWidth).toBe("3px");

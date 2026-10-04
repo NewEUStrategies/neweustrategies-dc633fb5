@@ -185,7 +185,7 @@ function CfpSubmissionsList({ eventId, settings }: { eventId: string; settings: 
             </Button>
           ))}
           {counts.needsReviews > 0 ? (
-            <p className="self-center text-xs text-amber-600 dark:text-amber-400">
+            <p className="self-center text-xs text-brand-ink dark:text-brand">
               {t("adminEventCfp.submissions.counts.needsReviews", {
                 count: counts.needsReviews,
                 min: counts.minReviews,

@@ -313,10 +313,10 @@ describe("useThemeDesign - odczyt i scalanie", () => {
   });
 
   it("PODMIENIA stare kolory odziedziczone na referencję do tokenu", async () => {
-    // Wiersze sprzed wprowadzenia dziedziczenia trzymają literał (#fa9346),
+    // Wiersze sprzed wprowadzenia dziedziczenia trzymają literał (#FA9346),
     // który ODCINA zakładkę „Przyciski”: zmiana koloru marki nie ruszałaby
     // przycisku „czytaj więcej”.
-    h.settings = { theme_design: { readMoreButton: { color: "#fa9346" } } };
+    h.settings = { theme_design: { readMoreButton: { color: "#FA9346" } } };
     const { result } = renderHook(() => useThemeDesign(), { wrapper });
     await waitFor(() =>
       expect(result.current.data?.readMoreButton.color).toBe(

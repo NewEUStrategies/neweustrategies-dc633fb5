@@ -146,6 +146,18 @@ describe("defaultDocFor - kontrakt dokumentu", () => {
   });
 });
 
+describe("buildHomepageDocument - etykiety sekcji", () => {
+  it("uses Kinetic Signal Notch for every section label", () => {
+    const labels = widgetsOf(buildHomepageDocument()).filter(
+      (widget) => widget.type === "section-label",
+    );
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      expect(label.content.variant).toBe("kinetic-signal-notch");
+    }
+  });
+});
+
 describe("buildHomepageDocument", () => {
   it("zwraca dokument w wersji 1 z ośmioma sekcjami", () => {
     const doc = buildHomepageDocument();

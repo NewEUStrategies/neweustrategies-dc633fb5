@@ -74,7 +74,7 @@ export function ClubModerationQueueItem({
             {item.is_anonymous ? (
               <Badge
                 variant="outline"
-                className="border-amber-500/40 text-[11px] text-amber-700 dark:text-amber-300"
+                className="border-brand/40 text-[11px] text-brand-ink dark:text-brand"
               >
                 {t("adminClubs.moderation.anonymous")}
               </Badge>
@@ -119,7 +119,7 @@ export function ClubModerationQueueItem({
           <Button
             size="sm"
             variant="ghost"
-            className="ml-auto h-8 text-amber-700 dark:text-amber-300"
+            className="ml-auto h-8 text-brand-ink dark:text-brand"
             onClick={onReveal}
           >
             <ShieldOff className="mr-1.5 h-3.5 w-3.5" />

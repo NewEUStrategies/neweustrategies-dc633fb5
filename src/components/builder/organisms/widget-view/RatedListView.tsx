@@ -429,7 +429,7 @@ export function RatedListView({
                         className="absolute inset-0"
                         style={{
                           background:
-                            "linear-gradient(90deg, #ef4444 0%, #f97316 25%, #facc15 50%, #a3e635 75%, #22c55e 100%)",
+                            "linear-gradient(90deg, #ef4444 0%, #FA9346 25%, #facc15 50%, #a3e635 75%, #22c55e 100%)",
                         }}
                       />
                       <div

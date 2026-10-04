@@ -275,7 +275,7 @@ const STREFA = "Europe/Warsaw";
 /** Wiersz `admin_event_tracks_list` - pełny kształt sygnatury, nie wycinek. */
 function trackRow(overrides: Partial<EventTrackRow> = {}): EventTrackRow {
   return {
-    accent_color: "#fa9346",
+    accent_color: "#FA9346",
     cover_url: "",
     created_at: "2026-08-01T09:00:00.000Z",
     default_room_id: "",
@@ -487,7 +487,7 @@ describe("diagram struktury", () => {
     renderuj();
     expect(h.diagram?.highlight).toBe("tracks");
     expect(h.diagram?.tracks).toEqual([
-      { id: "track-a", name: "Ścieżka Cyfrowa", accentColor: "#fa9346", sessionsCount: 3 },
+      { id: "track-a", name: "Ścieżka Cyfrowa", accentColor: "#FA9346", sessionsCount: 3 },
     ]);
   });
 
@@ -609,7 +609,7 @@ describe("przełącznik „aktywna” w wierszu", () => {
         key: "sciezka_cyfrowa",
         namePl: "Ścieżka Cyfrowa",
         nameEn: "Digital Track",
-        accentColor: "#fa9346",
+        accentColor: "#FA9346",
         taglinePl: "Pasmo cyfrowe",
         taglineEn: null,
         descriptionPl: "Opis",

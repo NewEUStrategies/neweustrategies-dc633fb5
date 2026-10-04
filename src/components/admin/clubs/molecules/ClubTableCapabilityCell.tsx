@@ -24,7 +24,7 @@ const ICON: Record<CapabilityValue, typeof Check> = {
 
 const ICON_CLASS: Record<CapabilityValue, string> = {
   yes: "h-4 w-4 text-emerald-600 dark:text-emerald-400",
-  cond: "h-4 w-4 text-amber-600 dark:text-amber-400",
+  cond: "h-4 w-4 text-brand-ink dark:text-brand",
   no: "h-4 w-4 text-muted-foreground/60",
 };
 

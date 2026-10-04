@@ -40,7 +40,7 @@ function hitRatio(snapshot: DocumentCacheSnapshot): number | null {
 
 const STATUS_TONE: Record<string, string> = {
   HIT: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  STALE: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  STALE: "border-brand/30 bg-brand/10 text-brand-ink dark:text-brand",
   MISS: "border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-400",
   BYPASS: "border-border bg-muted text-muted-foreground",
 };

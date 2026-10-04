@@ -334,9 +334,9 @@ function CandidateRow({
             : ` · ${t(PAID_VIA_LABEL_KEYS[row.paid_via === "card" ? "card" : "transfer"])}`}
         </p>
         {row.amount_source === "price_list" ? (
-          <p className="text-xs text-amber-700">{t("adminEventInvoices.candidates.priceList")}</p>
+          <p className="text-xs text-brand-ink">{t("adminEventInvoices.candidates.priceList")}</p>
         ) : row.amount_source === "price_list_net" ? (
-          <p className="text-xs text-amber-700">
+          <p className="text-xs text-brand-ink">
             {t("adminEventInvoices.candidates.priceListNet")}
           </p>
         ) : null}

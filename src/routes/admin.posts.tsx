@@ -435,7 +435,7 @@ function PostsList() {
             setLangFilter(PARITY_GAP_FILTERS.lang);
             setPage(PARITY_GAP_FILTERS.page);
           }}
-          className="mb-3 inline-flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="mb-3 inline-flex items-center gap-2 rounded-md border border-brand/40 bg-brand/10 px-3 py-1.5 text-xs text-brand-ink dark:text-brand hover:bg-brand/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
         >
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <span>
@@ -586,14 +586,14 @@ function PostsList() {
                             search={{ lang: viewLang }}
                             className="block group"
                           >
-                            <div className="font-medium text-[13px] truncate max-w-[420px] text-[#231f20] dark:text-[#F8F6F4] group-hover:text-[#FDB078] group-hover:underline underline-offset-2">
+                            <div className="font-medium text-[13px] truncate max-w-[420px] text-[#231f20] dark:text-[#F8F6F4] group-hover:text-[#FA9346] group-hover:underline underline-offset-2">
                               {rowTitleOf(p, viewLang) ?? (
                                 <span className="italic text-muted-foreground">
                                   - {t("admin.list.untitled")} -
                                 </span>
                               )}
                             </div>
-                            <div className="text-[10px] text-[#231f20] dark:text-[#F8F6F4] truncate max-w-[420px] group-hover:text-[#FDB078] group-hover:underline">
+                            <div className="text-[10px] text-[#231f20] dark:text-[#F8F6F4] truncate max-w-[420px] group-hover:text-[#FA9346] group-hover:underline">
                               /{p.slug}
                             </div>
                           </Link>

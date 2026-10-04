@@ -43,7 +43,7 @@ const AXIS_COLOR: Record<string, string> = {
   openness: "bg-violet-500",
   conscientiousness: "bg-sky-500",
   extraversion: "bg-emerald-500",
-  agreeableness: "bg-amber-500",
+  agreeableness: "bg-brand",
   neuroticism: "bg-rose-500",
 };
 

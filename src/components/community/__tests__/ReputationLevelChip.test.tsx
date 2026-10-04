@@ -77,7 +77,7 @@ const EXPECTED: Record<ReputationLevelKey, { icon: string; style: string }> = {
   observer: { icon: "lucide-sprout", style: "bg-muted" },
   participant: { icon: "lucide-users", style: "bg-primary/10" },
   voice: { icon: "lucide-megaphone", style: "bg-sky-500/15" },
-  expert: { icon: "lucide-award", style: "bg-amber-500/15" },
+  expert: { icon: "lucide-award", style: "bg-brand/15" },
   pillar: { icon: "lucide-landmark", style: "bg-emerald-500/15" },
 };
 

@@ -13,7 +13,10 @@ import { BUILDER_LABELS_EN, builderLabel } from "../labelsEn";
 import { WIDGET_SCHEMAS } from "../schemas";
 import { WIDGETS } from "../registry";
 import { SLIDER_VARIANTS, NAV_ARROW_VARIANTS } from "../sliderVariants";
-import { SECTION_LABEL_VARIANTS } from "../sectionLabelVariants";
+import {
+  SECTION_LABEL_ARROWS,
+  SECTION_LABEL_VARIANTS,
+} from "../sectionLabelVariants";
 import { ANIMATED_SHAPES, ANIMATED_MODES } from "../animatedHeadingVariants";
 import { SIDEBAR_STYLES, SIDEBAR_ICON_FIELDS } from "../sidebarStyles";
 import { DYNAMIC_TAG_GROUPS } from "../dynamicText";
@@ -60,6 +63,7 @@ function collectLabels(): Map<string, string> {
   for (const v of SLIDER_VARIANTS) add(v.label, `SLIDER_VARIANTS.${v.value}`);
   for (const v of NAV_ARROW_VARIANTS) add(v.label, `NAV_ARROW_VARIANTS.${v.value}`);
   for (const v of SECTION_LABEL_VARIANTS) add(v.label, `SECTION_LABEL_VARIANTS.${v.value}`);
+  for (const a of SECTION_LABEL_ARROWS) add(a.label, `SECTION_LABEL_ARROWS.${a.value}`);
   for (const v of ANIMATED_SHAPES) add(v.label, `ANIMATED_SHAPES.${v.value}`);
   for (const v of ANIMATED_MODES) add(v.label, `ANIMATED_MODES.${v.value}`);
   for (const s of SIDEBAR_STYLES) {

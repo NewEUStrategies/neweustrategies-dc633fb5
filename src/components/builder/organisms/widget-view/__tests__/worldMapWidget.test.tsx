@@ -103,7 +103,7 @@ describe("WorldMapWidgetView", () => {
     const c = {
       ...baseContent,
       lineColor: "#0ea5e9",
-      pointColor: "#f59e0b",
+      pointColor: "#FA9346",
       dotColor: "#123456",
       bgColor: "#ffffff",
     } as unknown as WidgetContent;
@@ -112,7 +112,7 @@ describe("WorldMapWidgetView", () => {
     expect(root.style.background).toBeTruthy();
     // Kropki lądu to prostokąt pod maską - to on niesie kolor z panelu.
     expect(container.querySelector("rect[mask]")?.getAttribute("fill")).toBe("#123456");
-    expect(container.querySelector(".nes-world-map__core")?.getAttribute("fill")).toBe("#f59e0b");
+    expect(container.querySelector(".nes-world-map__core")?.getAttribute("fill")).toBe("#FA9346");
     expect(container.querySelector("stop[offset='6%']")?.getAttribute("stop-color")).toBe(
       "#0ea5e9",
     );

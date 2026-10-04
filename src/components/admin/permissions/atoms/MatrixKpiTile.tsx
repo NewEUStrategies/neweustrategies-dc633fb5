@@ -24,14 +24,14 @@ export function MatrixKpiTile({
       title={title}
       className={cn(
         "flex items-center gap-3 rounded-md border bg-card px-3 py-2.5",
-        tone === "warning" ? "border-amber-300/70 dark:border-amber-900" : "border-border/60",
+        tone === "warning" ? "border-brand/70 dark:border-brand/50" : "border-border/60",
       )}
     >
       <div
         className={cn(
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px]",
           tone === "warning"
-            ? "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300"
+            ? "bg-brand/15 text-brand-ink dark:bg-brand/60 dark:text-brand"
             : "bg-muted/60 text-muted-foreground",
         )}
       >

@@ -161,7 +161,7 @@ describe("PricingKpi - licznik czytelny bez patrzenia na ikonę", () => {
     );
 
     expect(sky.querySelector("dl")!.className).toContain("ring-sky-500/20");
-    expect(amber.querySelector("dl")!.className).toContain("ring-amber-500/20");
+    expect(amber.querySelector("dl")!.className).toContain("ring-brand/20");
   });
 });
 
@@ -180,7 +180,7 @@ describe("FieldGroup - grupa pól ma nazwę grupy", () => {
 
   it("znacznik i ikona są ukryte dla czytnika", () => {
     const { container } = render(
-      <FieldGroup icon={Users} title="Cena" accent="bg-amber-500">
+      <FieldGroup icon={Users} title="Cena" accent="bg-brand">
         <span>pole</span>
       </FieldGroup>,
     );

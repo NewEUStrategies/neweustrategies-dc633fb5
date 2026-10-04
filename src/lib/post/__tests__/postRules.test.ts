@@ -71,8 +71,8 @@ describe("pickTextColor - czytelność etykiety na kolorze redakcji", () => {
     expect(pickTextColor("#0000ff")).toBe(LIGHT_TEXT);
   });
 
-  it("kolor marki (#fa9346) dostaje CIEMNY napis", () => {
-    expect(pickTextColor("#fa9346")).toBe(DARK_TEXT);
+  it("kolor marki (#FA9346) dostaje CIEMNY napis", () => {
+    expect(pickTextColor("#FA9346")).toBe(DARK_TEXT);
     expect(LIGHT_BACKGROUND_LUMINANCE).toBe(0.6);
   });
 

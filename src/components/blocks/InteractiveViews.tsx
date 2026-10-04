@@ -294,7 +294,7 @@ interface ProgressProps {
 const PROGRESS_COLORS: Record<NonNullable<ProgressProps["color"]>, string> = {
   primary: "bg-primary",
   success: "bg-emerald-500",
-  warning: "bg-amber-500",
+  warning: "bg-brand",
   danger: "bg-destructive",
 };
 

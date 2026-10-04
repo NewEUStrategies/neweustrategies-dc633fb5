@@ -528,7 +528,7 @@ export function EventGeneralPanel({ row }: { row: AdminEventDetailRow }) {
       </EventStudioRow>
 
       {warnings.length === 0 ? null : (
-        <ul className="space-y-1 py-4 text-xs text-amber-600 dark:text-amber-400">
+        <ul className="space-y-1 py-4 text-xs text-brand-ink dark:text-brand">
           {warnings.map((warning) => (
             <li key={warning}>{t(warning)}</li>
           ))}

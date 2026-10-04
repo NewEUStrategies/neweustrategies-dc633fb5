@@ -354,9 +354,9 @@ const ALERT_STYLES: Record<
     icon: CheckCircle2,
   },
   warning: {
-    bg: "bg-amber-50 dark:bg-amber-950/30",
-    text: "text-amber-900 dark:text-amber-100",
-    border: "border-amber-200 dark:border-amber-900",
+    bg: "bg-brand/10 dark:bg-brand/30",
+    text: "text-brand-ink dark:text-brand",
+    border: "border-brand/25 dark:border-brand/50",
     icon: AlertTriangle,
   },
   danger: {

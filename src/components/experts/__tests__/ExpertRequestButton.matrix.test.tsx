@@ -123,7 +123,7 @@ describe("ExpertRequestButton - macierz", () => {
     h.quota = { data: quotaFor({ quota: 3, remaining: 0, used: 3 }), isPending: false };
     renderButton();
     const counter = screen.getByText("0/3");
-    expect(counter.className).toMatch(/amber/);
+    expect(counter.className).toMatch(/brand/);
     const button = screen.getByRole("button", { name: /expertRequest.cta/ });
     expect(button).not.toBeDisabled();
     fireEvent.click(button);
@@ -177,7 +177,7 @@ describe("ExpertRequestButton - macierz", () => {
     const { container } = renderWithQueryClient(
       <ExpertRequestButton expertId="expert-1" expertName="Jan Kowalski" iconOnly />,
     );
-    expect(container.querySelector("span.bg-amber-500")).toBeInTheDocument();
+    expect(container.querySelector("span.bg-brand")).toBeInTheDocument();
   });
 
   it("wariant ikonowy z wolna pula NIE pokazuje kropki", () => {
@@ -185,6 +185,6 @@ describe("ExpertRequestButton - macierz", () => {
     const { container } = renderWithQueryClient(
       <ExpertRequestButton expertId="expert-1" expertName="Jan Kowalski" iconOnly />,
     );
-    expect(container.querySelector("span.bg-amber-500")).toBeNull();
+    expect(container.querySelector("span.bg-brand")).toBeNull();
   });
 });

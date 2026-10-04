@@ -65,7 +65,7 @@ export function WindowProvenance({
         "text-[10px] " +
         (window.crossStreamSafe
           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-          : "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400")
+          : "border-brand/30 bg-brand/10 text-brand-ink dark:text-brand")
       }
     >
       {t(
@@ -145,7 +145,7 @@ export function WindowProvenance({
                   className={
                     "h-3.5 w-3.5 shrink-0 " +
                     (warn
-                      ? "text-amber-500"
+                      ? "text-brand0"
                       : note === "excludes_open_day"
                         ? "text-emerald-500"
                         : "text-sky-500")

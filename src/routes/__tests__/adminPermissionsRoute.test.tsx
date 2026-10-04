@@ -115,7 +115,7 @@ describe("/admin/permissions - nagłówek i KPI", () => {
     const tile = screen.getByText(t("kpi.gatesWithoutCallerTenant")).closest("div[title]");
     expect(tile).toHaveAttribute("title", t("tenant.rowHint"));
     if (matrix.summary.gatesWithoutCallerTenant > 0) {
-      expect(tile?.className).toContain("border-amber-300/70");
+      expect(tile?.className).toContain("border-brand/70");
     } else {
       expect(tile?.className).toContain("border-border/60");
     }
