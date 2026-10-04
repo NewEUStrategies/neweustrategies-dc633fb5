@@ -1183,6 +1183,66 @@ describe("src/server.ts: telemetria dokumentu na końcu strumienia", () => {
     expect(docLines(log)).toHaveLength(1);
   });
 
+  // Recenzja P0.4, runda 2: strażnik pompuje źródło sam i domyka SWOJE
+  // wyjście niezależnie od tempa klienta, a owijka idzie w tempie czytelnika.
+  // Bezpiecznik odpala więc też przy wolnym czytelniku, a liczy się od powrotu
+  // handlera - `streamMs` linii to `appMs` + 22 000, nie 22 000.
+  it("wolny czytelnik: jedna linia `aborted` ze `streamMs - appMs` = 22 000, a dokument dochodzi w całości", async () => {
+    vi.useFakeTimers({ now: 3_000_000 });
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const RENDER_MS = 400;
+    const parts = ["<html><head></head>", "<body>wolny czytelnik</body></html>"];
+    entryHarness.render = async () => {
+      await new Promise((resolve) => setTimeout(resolve, RENDER_MS));
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (const part of parts) controller.enqueue(encoder.encode(part));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: CACHEABLE_HEADERS },
+      );
+    };
+
+    const pending = entry.fetch(entryRequest("/wolny-czytelnik"));
+    await vi.advanceTimersByTimeAsync(RENDER_MS);
+    const response = await pending;
+    expect(response.headers.get("x-ssr-doc-guard")).toBe("on");
+    const decoder = new TextDecoder();
+    const reader = response.body!.getReader();
+    const first = await reader.read();
+    let text = decoder.decode(first.value, { stream: true });
+
+    // Render skończony, strażnik domknięty, kopia w magazynie - tylko klient
+    // nie doczytał reszty body.
+    await vi.advanceTimersByTimeAsync(DOC_GUARD_MAX_MS + 2_000 - 1);
+    expect(docLines(log)).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(docLines(log)).toHaveLength(1);
+    const [line] = docLines(log);
+    expect(line).toMatchObject({
+      path: "/wolny-czytelnik",
+      cache: "MISS",
+      streamEnd: "aborted",
+      appMs: RENDER_MS,
+      degraded: false,
+      store: "stored",
+    });
+    expect(Number(line!.streamMs) - Number(line!.appMs)).toBe(DOC_GUARD_MAX_MS + 2_000);
+
+    // Bezpiecznik zamyka wyłącznie telemetrię: reszta body dochodzi bez
+    // ucięcia, a drugiej linii nie ma.
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      text += decoder.decode(next.value, { stream: true });
+    }
+    expect(text + decoder.decode()).toBe(parts.join(""));
+    expect(docLines(log)).toHaveLength(1);
+  });
+
   // Recenzja P0.4, MINOR 9: kill-switch strażnika oznacza wiszącą
   // serializację do ~60 s - bezpiecznik daje linię po 22 s, nie po minucie.
   it("SSR_DOC_GUARD=off i wiszący render: linia `aborted` po bezpieczniku, mimo że klient czyta", async () => {

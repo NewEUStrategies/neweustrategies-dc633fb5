@@ -187,14 +187,19 @@ function revalidationHeaders(request: Request): Headers {
  * Na Workers zerwanie klienta nie gwarantuje, że wykona się JS `cancel()`
  * owijki końca body ani że kontekst wywołania dożyje końca strumienia. Dlatego
  * obietnica „linia zapisana" jedzie pod `runAfterResponse` (`ctx.waitUntil`),
- * a ten bezpiecznik rozstrzyga ją najpóźniej po DOC_GUARD_MAX_MS + 2 s: twardy
- * sufit strażnika dokumentu (20 s) domyka body wcześniej, więc bezpiecznik
- * odpala tylko wtedy, gdy body nikt nie czyta ani nie anuluje, albo gdy
- * strażnik jest wyłączony (SSR_DOC_GUARD=off, wisząca serializacja do ~60 s).
- * Linia wychodzi wtedy ze `streamEnd: "aborted"` i `streamMs` = czas do
- * bezpiecznika. 22 s mieści się w 30 s, które `waitUntil` daje po odpowiedzi.
- * Nastawa `SSR_DOC_GUARD_MAX_MS` z env NIE przesuwa bezpiecznika - podniesiona
- * powyżej 20 s da linię `aborted`, zanim strażnik domknie body.
+ * a ten bezpiecznik rozstrzyga ją najpóźniej po DOC_GUARD_MAX_MS + 2 s od
+ * utworzenia owijki. Twardy sufit strażnika dokumentu (20 s) domyka wcześniej
+ * WYJŚCIE strażnika, ale strażnik pompuje źródło sam, niezależnie od tempa
+ * klienta, a owijka idzie w tempie czytelnika. Bezpiecznik odpala więc wtedy,
+ * gdy body nie skończyło się w 22 s: nikt go nie czyta ani nie anuluje,
+ * czytelnik jest bardzo wolny (dokument i tak dochodzi później w całości,
+ * tylko linia ma już `aborted`) albo strażnik jest wyłączony
+ * (SSR_DOC_GUARD=off, wisząca serializacja do ~60 s). Linia wychodzi wtedy ze
+ * `streamEnd: "aborted"`, a `streamMs` ≈ `appMs` + 22 000, bo `streamMs` liczy
+ * się od wejścia żądania, a bezpiecznik od powrotu handlera. 22 s mieści się
+ * w 30 s, które `waitUntil` daje po odpowiedzi. Nastawa `SSR_DOC_GUARD_MAX_MS`
+ * z env NIE przesuwa bezpiecznika - podniesiona powyżej 20 s da linię
+ * `aborted`, zanim strażnik domknie body.
  */
 const DOC_LOG_FUSE_MS = DOC_GUARD_MAX_MS + 2_000;
 
@@ -236,6 +241,9 @@ async function revalidateDocument(request: Request): Promise<boolean> {
   //
   // Kolonia i `ray` pochodzą z żądania WYZWALAJĄCEGO i idą wyłącznie do
   // logu - nigdy jako nagłówki syntetycznego żądania, bo te wpływają na render.
+  // Ten sam `ray` ma więc też linia czytelnika, która ją wyzwoliła (STALE
+  // albo zdegradowany MISS): kto deduplikuje linie po `ray`, musi rozróżniać
+  // `revalidation`.
   let logged = false;
   let fuse: ReturnType<typeof setTimeout> | undefined;
   const logOnce = (storeOutcome?: DocumentStoreOutcome): void => {
@@ -559,7 +567,10 @@ export default {
       // Wyjątek przed dispatchem (też padnięty import entry na zimnym
       // izolacie) to dokument jak każdy inny: linia z licznikiem izolatu
       // i kolonią, bez `streamMs` (body to gotowy napis). Server-Timing tej
-      // strony zostaje bez zmian - kolonia jest tu tylko w logu.
+      // strony zostaje bez zmian - kolonia jest tu tylko w logu. Dotyczy
+      // KAŻDEGO żądania, które tu wpadło, także /api i zasobów idących przez
+      // worker: strona błędu to HTML, więc linia ma `kind: "doc"`
+      // i `cache: null`, a harness pomiaru liczy ją jako render serwera.
       const failedAt = Date.now();
       logDocument(request, page, {
         serverInitMs: (initializedAt ?? failedAt) - startedAt,

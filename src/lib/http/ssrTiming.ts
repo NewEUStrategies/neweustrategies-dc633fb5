@@ -14,9 +14,10 @@
 // i linii jest testowalny bez runtime'u Workers.
 //
 // Poprawki po recenzji P0.4: owijka końca body ma bezpiecznik czasowy (linia
-// nie ginie, gdy nikt body nie czyta ani nie anuluje), linia niesie wynik
-// odroczonego zapisu (`store`) i flagę `coldEntry` (żądanie weszło, zanim
-// import entry się rozstrzygnął).
+// nie ginie, gdy body nie skończy się w porę: nikt go nie czyta ani nie
+// anuluje albo czytelnik jest bardzo wolny), linia niesie wynik odroczonego
+// zapisu (`store`) i flagę `coldEntry` (żądanie weszło, zanim import entry się
+// rozstrzygnął).
 import { isBotUserAgent } from "./botFilter";
 
 export interface SsrDbTiming {
@@ -249,8 +250,12 @@ export interface ObserveBodyEndOptions {
  *
  * Bezpiecznik (`options.fuseMs`) zgłasza `aborted` sam: na Workers zerwanie
  * klienta nie gwarantuje, że `cancel()` się wykona, a body, którego nikt nie
- * czyta ani nie anuluje, nie dałoby linii wcale. Flaga `reported` gwarantuje
- * jedno zgłoszenie niezależnie od tego, co przyjdzie pierwsze.
+ * czyta ani nie anuluje, nie dałoby linii wcale. Liczy się od utworzenia
+ * owijki, a owijka idzie w tempie konsumenta, więc odpala też przy bardzo
+ * wolnym czytelniku, który do tej pory nie doczytał: strumień płynie wtedy
+ * dalej i dochodzi w całości, tylko telemetria ma już `aborted`. Flaga
+ * `reported` gwarantuje jedno zgłoszenie niezależnie od tego, co przyjdzie
+ * pierwsze.
  */
 export function observeBodyEnd(
   source: ReadableStream<Uint8Array>,
@@ -417,7 +422,12 @@ export interface DocumentLogLine {
   /** Sama ścieżka: bez query string, bez hosta - zero PII i zero tokenów z `?`. */
   path: string;
   status: number;
-  /** Status NES Edge Cache z `x-nes-cache` (HIT/STALE/MISS/BYPASS) albo null. */
+  /**
+   * Status NES Edge Cache z `x-nes-cache` (HIT/STALE/MISS/BYPASS) albo null.
+   * Null ma też strona 500 ze ścieżki `catch` w `src/server.ts` - dla KAŻDEGO
+   * żądania, które tam padło (także /api i zasoby idące przez worker), bo
+   * strona błędu to HTML.
+   */
   cache: string | null;
   /** Czy to syntetyczne odświeżenie wpisu w tle, a nie żądanie czytelnika. */
   revalidation: boolean;
@@ -428,12 +438,17 @@ export interface DocumentLogLine {
    * owijką strumienia w `src/server.ts`; `streamMs - appMs` = ogon
    * strumieniowania. Brak klucza: odpowiedź bez body (HEAD, 204), strona 500
    * ze ścieżki `catch` (body to napis) albo rewalidacja w tle (nikt jej nie
-   * czyta). Po bezpieczniku owijki = czas do bezpiecznika.
+   * czyta). Po bezpieczniku owijki ≈ `appMs` + 22 000: bezpiecznik liczy się
+   * od powrotu handlera, a `streamMs` od wejścia żądania. Linie bezpiecznika
+   * rozpoznaje więc `streamEnd: "aborted"` ze `streamMs - appMs` ≈ 22 000,
+   * nie samo `streamMs`.
    */
   streamMs?: number;
   /**
    * Tylko gdy body NIE domknęło się normalnie: zerwanie klienta, błąd źródła
-   * albo bezpiecznik (body nieprzeczytane i nieanulowane do jego upływu).
+   * albo bezpiecznik (body niedoczytane do końca w 22 s od powrotu handlera:
+   * nikt go nie czyta ani nie anuluje albo czytelnik jest bardzo wolny -
+   * wtedy dokument dochodzi później w całości, a linia zostaje `aborted`).
    */
   streamEnd?: "aborted";
   /** Poziom, który podał dokument (`nes-layer` z Server-Timing potoku). */
@@ -460,7 +475,13 @@ export interface DocumentLogLine {
   coldEntry?: boolean;
   /** Zgrubna klasa UA - nigdy sam napis user-agenta. */
   uaClass?: UaClass;
-  /** `cf-ray` żądania: klucz korelacji z sondami zewnętrznymi i liniami wywołania. */
+  /**
+   * `cf-ray` żądania: klucz korelacji z sondami zewnętrznymi i liniami
+   * wywołania. Rewalidacja w tle niesie `ray` żądania, które ją wyzwoliło
+   * (linii STALE albo zdegradowanego MISS-a czytelnika), więc jedna wartość
+   * `ray` to wtedy dwie linie - deduplikacja po `ray` musi rozróżniać
+   * `revalidation`.
+   */
   ray?: string;
   /**
    * Tylko dla MISS-a pełnego dokumentu (200, HTML): czy render wyszedł
@@ -470,7 +491,11 @@ export interface DocumentLogLine {
    * strumieniowania). Ta sama definicja co odświeżenie po degradacji
    * w documentCache.server.ts. KTÓRY loader się zdegradował, mówi linia
    * `[ssr-resilient] ... for <etykieta>` z tego samego wywołania (korelacja
-   * po wywołaniu Workers / `ray`).
+   * po wywołaniu Workers / `ray`). Gdy linia nie ma `store`, `degraded`
+   * pochodzi wyłącznie z nagłówków. MISS 200 bez `streamEnd`, z `degraded:
+   * false` i bez `store` znaczy: decyzja magazynu była nieznana w chwili
+   * zapisu linii (typowo strażnik domknął body, gdy render jeszcze trwał),
+   * więc degradacji odkrytej później ta linia nie widzi.
    */
   degraded?: boolean;
   /**
