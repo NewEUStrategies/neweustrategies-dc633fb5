@@ -21199,10 +21199,17 @@ export type Database = {
       web_vitals: {
         Row: {
           cold_start: boolean | null
+          colo: string | null
           created_at: string
           device_memory: number | null
+          edge_cache: string | null
+          edge_layer: string | null
           effective_type: string | null
           id: string
+          inp_event: string | null
+          inp_first: boolean | null
+          inp_pre_hydration: boolean | null
+          inp_since_load_ms: number | null
           metric: string
           navigation_type: string | null
           path: string | null
@@ -21213,10 +21220,17 @@ export type Database = {
         }
         Insert: {
           cold_start?: boolean | null
+          colo?: string | null
           created_at?: string
           device_memory?: number | null
+          edge_cache?: string | null
+          edge_layer?: string | null
           effective_type?: string | null
           id?: string
+          inp_event?: string | null
+          inp_first?: boolean | null
+          inp_pre_hydration?: boolean | null
+          inp_since_load_ms?: number | null
           metric: string
           navigation_type?: string | null
           path?: string | null
@@ -21227,10 +21241,17 @@ export type Database = {
         }
         Update: {
           cold_start?: boolean | null
+          colo?: string | null
           created_at?: string
           device_memory?: number | null
+          edge_cache?: string | null
+          edge_layer?: string | null
           effective_type?: string | null
           id?: string
+          inp_event?: string | null
+          inp_first?: boolean | null
+          inp_pre_hydration?: boolean | null
+          inp_since_load_ms?: number | null
           metric?: string
           navigation_type?: string | null
           path?: string | null
