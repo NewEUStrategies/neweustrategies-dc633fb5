@@ -1,0 +1,88 @@
+# Mechaniczne sygnaly rynkowe: naglowki bezpieczenstwa, SEO i dane strukturalne, zewnetrzne skrypty, zgoda, robots/sitemap/rss/llms.
+import json, re, subprocess, sys, urllib.parse, collections, os
+S='/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13/rynek'
+UA='Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36'
+def curl(url, head=False, out=None):
+    cmd=['curl','-sS','-L','-m','40','--compressed','-A',UA,'-D','-']
+    cmd+=['-o', out or '/dev/null']
+    cmd.append(url)
+    r=subprocess.run(cmd,capture_output=True,text=True,errors='replace')
+    blocks=[b for b in re.split(r'\r?\n\r?\n', r.stdout.strip()) if b.startswith('HTTP/')]
+    last=blocks[-1] if blocks else ''
+    status=int(re.match(r'HTTP/[\d.]+ (\d+)',last).group(1)) if last else 0
+    h={}
+    for l in last.splitlines()[1:]:
+        if ':' in l:
+            k,v=l.split(':',1); h.setdefault(k.strip().lower(),[]).append(v.strip())
+    return status,h,r.stderr.strip()
+CONSENT={'OneTrust':r'onetrust|optanon','Cookiebot':r'cookiebot','Didomi':r'didomi','CookieYes':r'cookieyes|cky-consent','Usercentrics':r'usercentrics','Iubenda':r'iubenda','Complianz':r'complianz','Borlabs':r'borlabs','Klaro':r'klaro','Termly':r'termly','CookieConsent(orestbida)':r'cookieconsent\.(?:umd|min)?\.?js|orestbida|cc--main|cc_cookie','Osano':r'osano','TrustArc':r'trustarc|consent\.truste\.com|truste\.com/','Quantcast':r'quantcast choice|__tcfapi'}
+TRACK={'GA4/gtag':r'googletagmanager\.com/gtag|gtag\(','GTM':r'googletagmanager\.com/gtm\.js|GTM-[A-Z0-9]+','Matomo':r'matomo|piwik','Plausible':r'plausible\.io','Parse.ly':r'parsely|parse\.ly','Chartbeat':r'chartbeat','Hotjar':r'hotjar','Meta Pixel':r'connect\.facebook\.net|fbq\(','LinkedIn Insight':r'snap\.licdn\.com|_linkedin_partner','Twitter/X pixel':r'static\.ads-twitter|twq\(','Microsoft Clarity':r'clarity\.ms','Adobe Analytics':r'omtrdc|adobedtm|assets\.adobedtm','Segment':r'cdn\.segment\.com','Fathom':r'usefathom','Cloudflare Insights':r'cloudflareinsights'}
+CMS={'WordPress':r'wp-content|wp-includes|wp-json','Drupal':r'drupal|/sites/default/files','Next.js':r'__NEXT_DATA__|/_next/','Nuxt':r'__NUXT__|/_nuxt/','Gatsby':r'___gatsby','Craft':r'craftcms|/cpresources/','Umbraco':r'umbraco','Sitecore':r'sitecore','Squarespace':r'squarespace','Webflow':r'webflow','TYPO3':r'typo3','Django/Wagtail':r'wagtail','Ghost':r'ghost-','TanStack Start':r'tanstack|__TSR|\$_TSR'}
+def analiza(html, base):
+    low=html.lower()
+    def meta(name):
+        m=re.search(r'<meta[^>]+(?:name|property)=["\']'+re.escape(name)+r'["\'][^>]*content=["\']([^"\']*)', html, re.I) or re.search(r'<meta[^>]+content=["\']([^"\']*)["\'][^>]*(?:name|property)=["\']'+re.escape(name)+r'["\']', html, re.I)
+        return m.group(1) if m else None
+    lang=re.search(r'<html[^>]*\slang=["\']([^"\']+)',html,re.I)
+    canon=re.search(r'<link[^>]+rel=["\']canonical["\'][^>]*>',html,re.I)
+    hreflang=set(m.group(1).lower() for m in re.finditer(r'<link[^>]+hreflang=["\']([^"\']+)',html,re.I))
+    ld=[]
+    for m in re.finditer(r'<script[^>]+application/ld\+json[^>]*>(.*?)</script>',html,re.I|re.S):
+        try:
+            j=json.loads(m.group(1).strip())
+            def types(o):
+                if isinstance(o,dict):
+                    t=o.get('@type'); 
+                    if t: ld.extend(t if isinstance(t,list) else [t])
+                    for v in o.values(): types(v)
+                elif isinstance(o,list):
+                    for v in o: types(v)
+            types(j)
+        except Exception: ld.append('(niepoprawny JSON-LD)')
+    rss=bool(re.search(r'application/(rss|atom)\+xml',html,re.I))
+    host=urllib.parse.urlparse(base).hostname or ''
+    root='.'.join(host.split('.')[-2:])
+    srcs=[m.group(1) for m in re.finditer(r'<script[^>]+src=["\']([^"\']+)',html,re.I)]
+    third=sorted(set(urllib.parse.urlparse(urllib.parse.urljoin(base,s)).hostname for s in srcs if urllib.parse.urlparse(urllib.parse.urljoin(base,s)).hostname and not urllib.parse.urlparse(urllib.parse.urljoin(base,s)).hostname.endswith(root)))
+    return {'htmlBajty':len(html.encode()),'lang':lang.group(1) if lang else None,'title':bool(re.search(r'<title>[^<]+</title>',html,re.I)),'metaDescription':bool(meta('description')),
+            'canonical':bool(canon),'hreflang':sorted(hreflang),'jsonLd':sorted(set(ld)),'ogTitle':bool(meta('og:title')),'ogImage':bool(meta('og:image')),'twitterCard':meta('twitter:card'),
+            'rss':rss,'skrypty':len(srcs),'domenyZewnSkryptow':third,'zgoda':[k for k,v in CONSENT.items() if re.search(v,low)],'sledzenie':[k for k,v in TRACK.items() if re.search(v,html,re.I)],
+            'cms':[k for k,v in CMS.items() if re.search(v,html,re.I)],'skipLink':bool(re.search(r'href=["\']#(main|content|main-content|skip)[^"\']*["\']',html,re.I)),
+            'formularzSzukania':bool(re.search(r'<form[^>]*(search|szukaj|wyszuk)|type=["\']search["\']|role=["\']search["\']',html,re.I))}
+SEC=['strict-transport-security','content-security-policy','content-security-policy-report-only','x-frame-options','referrer-policy','permissions-policy','x-content-type-options','cross-origin-opener-policy']
+def main(klucze=None, typ='glowna', urle=None):
+    strony=json.load(open(S+'/strony.json'))
+    out={}
+    for s in strony:
+        if klucze and s['klucz'] not in klucze: continue
+        url=(urle or {}).get(s['klucz'], s['url']) if typ!='glowna' else s['url']
+        if not url: continue
+        f=f"{S}/mech/{s['klucz']}-{typ}.html"
+        st,h,err=curl(url,out=f)
+        html=open(f,encoding='utf-8',errors='replace').read() if os.path.exists(f) else ''
+        przez='curl'
+        if st>=400 or st==0 or len(html)<8000:
+            pr=subprocess.run(['node',S+'/pw-pobierz.cjs',url,f],capture_output=True,text=True,timeout=120)
+            try:
+                pj=json.loads(pr.stdout or '{}')
+                if pj.get('status',0)>0 and os.path.getsize(f)>len(html):
+                    st=pj['status']; h={k.lower():[v] for k,v in pj['headers'].items()}; html=open(f,encoding='utf-8',errors='replace').read(); przez='przegladarka'
+            except Exception: pass
+        r={'pobranie':przez,'url':url,'status':st,'blad':err[:200],'naglowki':{k:(h.get(k,[None])[0]) for k in SEC},'serwer':(h.get('server',[None])[0]),'cdn':[k for k in ('cf-ray','x-amz-cf-id','x-akamai-transformed','x-fastly-request-id','x-vercel-id','x-served-by','x-cache','x-sucuri-id','x-kinsta-cache','x-wpe-request-id') if k in h]}
+        r.update(analiza(html,url))
+        if typ=='glowna':
+            p=urllib.parse.urlparse(s['url']); base=f"{p.scheme}://{p.hostname}"
+            for nm,path in (('robots','/robots.txt'),('sitemap','/sitemap.xml'),('llms','/llms.txt')):
+                fs=f"{S}/mech/{s['klucz']}-{nm}.txt"
+                st2,_,_=curl(base+path,out=fs)
+                body=open(fs,encoding='utf-8',errors='replace').read() if os.path.exists(fs) else ''
+                r[nm]={'status':st2,'bajty':len(body)}
+                if nm=='robots': r[nm]['sitemapy']=len(re.findall(r'(?im)^sitemap:',body)); r[nm]['aiBoty']=sorted(set(m.lower() for m in re.findall(r'(?im)^user-agent:\s*(GPTBot|ClaudeBot|CCBot|Google-Extended|PerplexityBot|anthropic-ai|Bytespider|Amazonbot|Applebot-Extended)',body)))
+                if nm=='sitemap': r[nm]['xml']=body.lstrip().startswith('<?xml') or '<urlset' in body or '<sitemapindex' in body
+        out[s['klucz']]=r
+        print(s['klucz'], st, r['htmlBajty'], 'jsonld:',r['jsonLd'][:4], 'zgoda:',r['zgoda'], 'cms:',r['cms'], flush=True)
+    json.dump(out,open(f"{S}/mech-{typ}.json",'w'),ensure_ascii=False,indent=1)
+if __name__=='__main__':
+    typ=sys.argv[1] if len(sys.argv)>1 else 'glowna'
+    urle=json.load(open(S+'/urle-artykulow.json')) if typ=='artykul' else None
+    main(typ=typ, urle=urle)

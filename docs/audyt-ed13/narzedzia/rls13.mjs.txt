@@ -1,0 +1,44 @@
+// Stan RLS przez odtworzenie migracji po kolei. Wariant A: sam pas supabase. Wariant B: supabase + drizzle.
+import fs from "node:fs";
+const ROOT = "/home/user/neweustrategies-dc633fb5";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13";
+const strip = (s) => s.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+// ciala funkcji $$...$$ wycinamy, zeby CREATE POLICY w DO-blokach liczyly sie, ale teksty w funkcjach nie
+const T = (n) => n.replace(/"/g, "").replace(/^public\./i, "").toLowerCase();
+const nameRe = String.raw`((?:"?public"?\.)?"?[a-z_][a-z0-9_]*"?)`;
+function replay(files) {
+  const tables = new Map(); // name -> {rls, policies:Set}
+  const sieroty = new Set(); // zdarzenia RLS/polityk dla tabel bez CREATE TABLE w migracjach
+  for (const f of files) {
+    const sql = strip(fs.readFileSync(f, "utf8"));
+    const ev = [];
+    for (const m of sql.matchAll(new RegExp(String.raw`create\s+table\s+(?:if\s+not\s+exists\s+)?` + nameRe, "gi"))) ev.push([m.index, "create", T(m[1])]);
+    for (const m of sql.matchAll(new RegExp(String.raw`drop\s+table\s+(?:if\s+exists\s+)?` + nameRe, "gi"))) ev.push([m.index, "drop", T(m[1])]);
+    for (const m of sql.matchAll(new RegExp(String.raw`alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?` + nameRe + String.raw`\s+(enable|disable)\s+row\s+level\s+security`, "gi"))) ev.push([m.index, m[2].toLowerCase(), T(m[1])]);
+    for (const m of sql.matchAll(new RegExp(String.raw`create\s+policy\s+("[^"]+"|[a-z0-9_]+)\s+on\s+` + nameRe, "gi"))) ev.push([m.index, "cpol", T(m[2]), m[1].replace(/"/g, "")]);
+    for (const m of sql.matchAll(new RegExp(String.raw`drop\s+policy\s+(?:if\s+exists\s+)?("[^"]+"|[a-z0-9_]+)\s+on\s+` + nameRe, "gi"))) ev.push([m.index, "dpol", T(m[2]), m[1].replace(/"/g, "")]);
+    ev.sort((a, b) => a[0] - b[0]);
+    for (const [, k, t, p] of ev) {
+      if (/^(auth|storage|realtime|extensions|pg_|information_schema)/.test(t)) continue;
+      if (k === "create") { if (!tables.has(t)) tables.set(t, { rls: false, pol: new Set(), src: f }); }
+      else if (k === "drop") tables.delete(t);
+      else if (k === "enable") { const x = tables.get(t); if (x) x.rls = true; else sieroty.add(t); }
+      else if (k === "disable") { const x = tables.get(t); if (x) x.rls = false; }
+      else if (k === "cpol") { const x = tables.get(t); if (x) x.pol.add(p); else sieroty.add(t); }
+      else if (k === "dpol") { const x = tables.get(t); if (x) x.pol.delete(p); }
+    }
+  }
+  const all = [...tables.entries()];
+  return { sieroty: [...sieroty].filter((t) => !tables.has(t)), tabel: all.length, rls: all.filter(([, v]) => v.rls).length, rlsBezPolityk: all.filter(([, v]) => v.rls && v.pol.size === 0).map(([k]) => k), bezRls: all.filter(([, v]) => !v.rls).map(([k, v]) => [k, v.src.replace(ROOT + "/", "")]) };
+}
+const sup = fs.readdirSync(ROOT + "/supabase/migrations").filter((f) => f.endsWith(".sql")).sort().map((f) => ROOT + "/supabase/migrations/" + f);
+const drz = fs.readdirSync(ROOT + "/drizzle/migrations").filter((f) => f.endsWith(".sql")).sort().map((f) => ROOT + "/drizzle/migrations/" + f);
+const added = new Set(fs.readFileSync(SP + "/wejscie/db-delta.txt", "utf8").split("\n").filter((l) => l.startsWith("A\tsupabase/migrations/")).map((l) => ROOT + "/" + l.split("\t")[1]));
+const supOld = sup.filter((f) => !added.has(f));
+const R = { ed12_supabase: replay(supOld), teraz_supabase: replay(sup), teraz_supabase_drizzle: replay([...sup, ...drz]) };
+fs.writeFileSync(SP + "/rls13.json", JSON.stringify(R, null, 1));
+console.log("migracji supabase: ed12", supOld.length, "-> teraz", sup.length, "| drizzle sql:", drz.length);
+for (const [k, v] of Object.entries(R)) console.log(k.padEnd(24), `sierot ${v.sieroty.length} | tabel ${v.tabel} | z RLS ${v.rls} | RLS bez polityk ${v.rlsBezPolityk.length} | bez RLS ${v.bezRls.length}`);
+console.log("bez RLS (teraz, supabase):", R.teraz_supabase.bezRls.slice(0, 20).map(([t]) => t).join(", "));
+const nowyBez = R.teraz_supabase_drizzle.bezRls.filter(([t]) => !R.ed12_supabase.bezRls.find(([o]) => o === t));
+console.log("NOWE tabele bez RLS (wzgl. ed12):", nowyBez.length); nowyBez.forEach(([t, s]) => console.log("   ", t, "<-", s));

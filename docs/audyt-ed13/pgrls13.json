@@ -1,0 +1,43 @@
+{
+  "ed12": {
+    "pgtapFiles": 115,
+    "asercje": 2093,
+    "planned": 2093,
+    "zepsute": [],
+    "polityki": 666,
+    "tabeleZPolitykami": 291,
+    "noweTesty": []
+  },
+  "teraz": {
+    "pgtapFiles": 137,
+    "asercje": 2678,
+    "planned": 2678,
+    "zepsute": [],
+    "polityki": 668,
+    "tabeleZPolitykami": 291,
+    "noweTesty": [
+      "push_queue_batch_report_test.sql",
+      "telemetry_retention_and_search_hash_test.sql",
+      "career_cv_reference_tenant_binding_test.sql",
+      "analytics_events_signed_in_sessions_test.sql",
+      "profile_slug_always_set_test.sql",
+      "club_cover_write_capabilities_test.sql",
+      "redirects_seo_404_tenant_rls_test.sql",
+      "mention_targets_public_footprint_test.sql",
+      "related_taxonomies_test.sql",
+      "event_code_guessing_test.sql",
+      "menu_items_save_atomic_test.sql",
+      "event_participant_reminders_test.sql",
+      "archive_layout_hero_image_test.sql",
+      "club_reveal_author_admin_card_test.sql",
+      "search_posts_offset_test.sql",
+      "web_vitals_daily_p75_until_test.sql",
+      "media_library_pagination_usage_scan_test.sql",
+      "post_views_tenant_viewed_idx_test.sql",
+      "ad_attribution_mirror_test.sql",
+      "post_views_dwell_signal_test.sql",
+      "newsletter_unsubscribe_suppression_test.sql",
+      "profile_link_routes_test.sql"
+    ]
+  }
+}

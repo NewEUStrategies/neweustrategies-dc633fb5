@@ -1,0 +1,278 @@
+{
+  "profil": {
+    "oceny": [
+      {
+        "kryterium": "K1",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Pelna gama formatow: wpisy z post_format (analiza, raport, wideo, podcast), raporty i zalaczniki PDF przez blok \"file\", audio wpisu (TTS), relacje na zywo (blok liveblog + indeks /live), siec podcastow z RSS per program, web stories (takze AMP), slowniczek, quizy i mapy, biblioteka materialow czlonkowskich (report/brief/transcript/slides/data), tracker legislacyjny UE oraz modul NES Digital Features (os czasu, sankey, porownywarka panstw, macierz ryzyka, karta wskaznika, siec powiazan, mapa korytarzy, nota metodologiczna). Hub /publications z pelnym archiwum i fasetami, box \"Cytuj te analize\" z tagami Highwire. Kalendarz redakcyjny wspiera rytm publikacji.",
+        "dowody": [
+          "src/routes/publications.tsx:1-3 (hub publikacji: typ, specjalizacja, region, temat, projekt, seria, rok, jezyk)",
+          "src/lib/blocks/schema.ts:40-129 (bloki file, audio, liveblog, faq, timeline, comparison-table, chart, data-map)",
+          "src/routes/live.tsx:1-5 (publiczny indeks relacji na zywo)",
+          "src/routes/podcasts.index.tsx, src/routes/podcasts.$show.tsx, src/routes/podcasts.$show.rss[.]xml.ts, src/routes/podcast.$slug.tsx",
+          "src/routes/web-stories.index.tsx, src/routes/web-stories.$slug.amp.ts",
+          "src/routes/glossary.tsx:1-2 (DefinedTermSet JSON-LD)",
+          "src/routes/library.tsx:1-4 (biblioteka materialow, kategorie report/brief/transcript/slides/data wg CHECK w migracjach)",
+          "src/lib/features/types.ts:1-5 (NES Digital Features)",
+          "src/components/post/CitationBox.tsx:48 (cytowanie akademickie)",
+          "src/routes/admin.posts.calendar.tsx (kalendarz redakcyjny)",
+          "src/routes/api/tts.ts (audio wpisu)"
+        ],
+        "publicznieBezLogowania": "Tak dla wpisow, publikacji, podcastow, web stories, /live, /glossary, /tracker, /quiz. Biblioteka /library: metadane publiczne (teaser z klodka), pobranie pliku dopiero po autoryzacji rangi warstwy (downloadMemberResource). Tresci za paywallem podlegaja meteringowi.",
+        "ograniczenia": "Regularnosc rytmu publikacji to kwestia redakcyjna, kod jej nie gwarantuje. Brak osobnego typu \"raport\" z dedykowana strona landingowa raportu (raport = wpis z post_format report + blok file)."
+      },
+      {
+        "kryterium": "K2",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Katalog ekspertow z funkcja, obszarami i liczba publikacji, filtrowany po obszarze i programie. Hub eksperta /author/$slug agreguje stanowisko, programy, obszary, kontakt bezposredni i kontakt dla mediow (email/telefon), sekcje \"W mediach\" oraz filtrowalny zbior materialow (publikacje, raporty, wideo, podcasty, wydarzenia). Konfigurowalny uklad huba per najemca (expert_layout_settings) z edytorem inline. CTA \"Zapytanie do eksperta\" z kwotami per warstwa. Filtrowanie tresci po autorze w wyszukiwarce (parametr author).",
+        "dowody": [
+          "src/routes/experts.tsx:2-4 (katalog z filtrami obszar/program)",
+          "src/routes/author.$slug.tsx:2-5 (hub eksperta), :647 (ExpertRequestButton), :701-703 (ExpertInTheNews)",
+          "src/components/experts/ExpertLayoutRenderer.tsx:36, :974-975 (Kontakt dla mediow: media_contact_email, media_contact_phone)",
+          "src/components/experts/ExpertRequestButton.tsx:1-7 (tylko zalogowani, warstwy Plus/Pro, kwota my_expert_request_quota)",
+          "src/lib/chat/expertRequestGate.ts (bramka globalna tenanta + per-user)",
+          "src/lib/community/modulesSettings.ts:15-16, :35 (expert_requests_enabled domyslnie true)",
+          "src/lib/search/facetModel.ts:44 (filtr author w SearchUrl)",
+          "src/routes/admin.expert-layouts.tsx, src/routes/admin.expert-requests.tsx"
+        ],
+        "publicznieBezLogowania": "Katalog /experts i hub /author/$slug z kontaktem dla mediow sa publiczne. Przycisk \"Zapytanie do eksperta\" wymaga logowania i planu Plus/Pro. Katalog spolecznosci /people, profile /people/$slug i /contributors sa za AuthGate (noindex).",
+        "ograniczenia": "Dziennikarz bez konta ma tylko statyczny kontakt mailowy/telefoniczny eksperta - brak publicznego formularza zapytania medialnego (zapytanie do eksperta jest funkcja platnych warstw). Jakosc zalezy od wypelnienia pol media_contact_* przez ekspertow."
+      },
+      {
+        "kryterium": "K3",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Wielowymiarowa taksonomia: kategorie (specjalizacje), typ publikacji, region z hierarchia region-panstwo, temat, projekt, seria, organizacja, plus tagi. Kuratorowane huby: programy badawcze /programs/$slug z obserwowaniem i RSS, serie/dossier /series/$slug z uporzadkowanymi czesciami, huby ekspertow, tracker z obszarami polityk, archiwa kategorii i tagow z 6 ukladami, mega menu.",
+        "dowody": [
+          "src/lib/search/facetModel.ts:62-70 (DIM_PARAM: category, pub_type, region, topic, project, series, organization)",
+          "src/lib/search/facetModel.ts:3-4 (hierarchia region -> panstwo)",
+          "src/routes/programs.$slug.tsx:63 (hub programu, FollowButton w l.1), src/routes/programs.$slug.rss[.]xml.ts",
+          "src/routes/series.$slug.tsx:1 (strona serii/dossier)",
+          "src/routes/category.$slug.tsx:1-3 (archiwum z 6 ukladami), src/routes/tag.$slug.tsx",
+          "src/routes/admin.research-programs.tsx, src/routes/admin.programs.tsx",
+          "src/components/megaMenu"
+        ],
+        "publicznieBezLogowania": "Tak - archiwa, programy, serie, tagi i fasety sa publiczne.",
+        "ograniczenia": "Region i temat istnieja jako fasety wyszukiwarki i hubu /publications, ale nie maja wlasnych dedykowanych stron hubowych (brak trasy /region/$slug); rola hubu regionalnego spada na kategorie/tagi."
+      },
+      {
+        "kryterium": "K4",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Wyszukiwarka premium: fasety po wszystkich wymiarach taksonomii, autorze, formacie, jezyku, dostepie i datach; sortowanie trafnosc/najnowsze/popularne; tryby dopasowania i zakresu; autosuggest w czterech kubelkach; tolerancja literowek (fuzzy w RPC, trigram) i polska fleksja; zakladka Osoby (osoby i organizacje w wynikach, z warstwa semantyczna); zapisane wyszukiwania z alertem o nowych wynikach (skan co 20 min, web push i digest e-mail); paginacja linkowa; paleta polecen.",
+        "dowody": [
+          "src/routes/search.tsx:5-6 (autosuggest, tolerancja literowek, fleksja, zapisane wyszukiwania), :205-213 (osoby i organizacje), :253-259 (podpowiedzi)",
+          "src/lib/search/facetModel.ts:20-28 (zakladki all/titles/types/topics/people), :38-58 (parametry faset)",
+          "src/lib/search/fuzzy.ts:1-3",
+          "src/lib/search/semantic.functions.ts, src/lib/search/peopleSemantic.functions.ts",
+          "src/components/search/SavedSearchesPanel.tsx:1-4 (alert o nowych wynikach)",
+          "supabase/migrations/20260720170000_saved_search_alerts.sql:21, :34 (run_saved_search_alerts, alert_enabled)",
+          "supabase/migrations/20261003100100_search_posts_offset.sql (paginacja)"
+        ],
+        "publicznieBezLogowania": "Wyszukiwanie, fasety, podpowiedzi i literowki - publicznie. Zapisane wyszukiwania i alerty - tylko dla zalogowanych.",
+        "ograniczenia": "Brak twardego dowodu w tej probce, ze osoby w wynikach obejmuja anonimowych gosci w pelnym zakresie (katalog /people jest za AuthGate); zakladka people moze zwracac ograniczony zbior dla gosci."
+      },
+      {
+        "kryterium": "K5",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Dwujezycznosc PL/EN jako bramka CI (parytet slownikow). Tresci maja pary pol *_pl/*_en (tytul, lead, tresc), edytory blokow i buildera maja przelacznik edytowanej wersji jezykowej. Publicznie: prefiks /en, przelacznik jezyka w chrome, klaster hreflang z x-default, osobne mapy witryny i RSS, wartosci danych widgetow w zapisie \"PL|EN\".",
+        "dowody": [
+          "src/lib/seo/meta.ts:118-139 (hreflangLinks: x-default + PL bez prefiksu, EN pod /en)",
+          "src/lib/seo/head.ts:1-3, :10 (jezyk z prefiksu sciezki)",
+          "src/components/builder/organisms/widget-view/chromeWidgets.tsx:43 (LangSwitcherDropdown)",
+          "src/components/admin/atoms/EditorLangSwitch.tsx:1-8 (przelacznik wersji jezykowej tresci w edytorach)",
+          "src/lib/queries/archiveListing.ts:44 (title_pl, title_en, excerpt_pl, excerpt_en)",
+          "src/lib/features/types.ts:7-10, :26-27 (dane widgetow PL|EN z fallbackiem)",
+          "README.md:96 (161 slownikow, parytet PL/EN jako bramka)"
+        ],
+        "publicznieBezLogowania": "Tak - obie wersje jezykowe i przelacznik sa publiczne.",
+        "ograniczenia": "Tylko dwa jezyki (brak np. DE/FR/UA czy jezykow azjatyckich). hreflangLinks (meta.ts:123-139) buduje alternatywy z samej sciezki, bez sprawdzenia, czy konkretny wpis ma wypelniona wersje EN - ryzyko deklarowania pustych/fallbackowych alternatyw (do weryfikacji na poziomie trasy post). Parytet tresci (nie interfejsu) zalezy od redakcji."
+      },
+      {
+        "kryterium": "K6",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Newsletter z double opt-in, kampaniami, kreatorem maila, telemetria i dostarczalnoscia; wiele list mailingowych wybieranych w formularzu (widget field.mailing-lists) i zainteresowania w meta subskrybenta; obserwowanie autorow, kategorii, tagow i programow z powiadomieniem o publikacji (notify_followers); alerty z zapisanych wyszukiwan; centrum preferencji powiadomien (web push, digest e-mail, grupowanie); popup i formularze inline.",
+        "dowody": [
+          "src/components/newsletter/NewsletterDocRenderer.tsx:185-191, :550-552 (wybor list mailingowych)",
+          "src/lib/newsletter/preferences.ts:4-8 (interests i mailing_lists)",
+          "src/routes/profile.follows.tsx (obserwowani autorzy/kategorie/tagi)",
+          "src/components/FollowButton.tsx:31 (target_type/target_id)",
+          "supabase/migrations/20260711221058_9dbe5dcf-e0b7-4760-a0a7-c40e80042a56.sql:156-161 (notify_followers z user_follows)",
+          "src/routes/profile.notifications.tsx:1-20 (ustawienia powiadomien: web push, digest)",
+          "src/routes/newsletter.confirm.tsx, src/routes/api.public.newsletter.confirm.ts",
+          "src/routes/admin.newsletter.campaigns.index.tsx, src/routes/admin.newsletter.deliverability.tsx"
+        ],
+        "publicznieBezLogowania": "Zapis na newsletter z wyborem list - publicznie. Obserwowanie, alerty per autor/temat, alerty wyszukiwan i centrum preferencji - wymagaja konta.",
+        "ograniczenia": "Strony rezygnacji (/unsubscribe, /newsletter/unsubscribe) dzialaja na tokenie bez wyboru per lista - subskrybent bez konta nie ma samoobslugowego centrum preferencji list, tylko pelna rezygnacje."
+      },
+      {
+        "kryterium": "K7",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Pelna platforma wydarzen: katalog z podzialem na nadchodzace i archiwum, portal wydarzenia (agenda z sesjami i sciezkami, prelegenci, partnerzy, dyskusje, uczestnicy), rejestracja z polami i zgodami, bilety i pakiety, faktury, zaproszenia z tokenem, CFP z recenzentami, gielda spotkan 1-1, transmisja (stream_url na wydarzeniu i sesji), materialy prelegentow, karty Apple/Google Wallet, onsite: skaner, identyfikatory, punkty kontroli, raport sponsora.",
+        "dowody": [
+          "src/routes/events.index.tsx:203-213 (upcoming/past), :79, :180 (bramka events_enabled)",
+          "src/routes/events.$slug.agenda.tsx, events.$slug.speakers.tsx, events.$slug.partners.tsx, events.$slug.cfp.tsx, events.$slug_.register.tsx, events.$slug_.ticket.tsx, events.$slug_.packages.tsx",
+          "src/lib/events/publicEventApi.ts:202-215 (canStream, streamUrl), src/lib/events/sessionsApi.ts:282",
+          "src/components/events/public/organisms/EventMaterialsSection.tsx, src/components/events/SpeakerMaterialsList.tsx",
+          "src/routes/api/public/events.wallet.apple.ts, events.wallet.google.ts",
+          "src/routes/scanner.tsx:1-3 (aplikacja skanera onsite)",
+          "src/routes/meetings.$eventSlug.tsx (spotkania 1-1)",
+          "src/lib/community/modulesSettings.ts:30 (events_enabled domyslnie true)"
+        ],
+        "publicznieBezLogowania": "Katalog, strona wydarzenia, agenda, prelegenci, partnerzy - publicznie (gdy events_enabled=true, domyslnie wlaczone). Rejestracja, bilet, /events/saved, spotkania 1-1 i panel uczestnika wymagaja konta.",
+        "ograniczenia": "Calosc mozna wylaczyc jednym przelacznikiem najemcy (events_enabled) - wtedy trasy pokazuja CommunityDisabled. Transmisja to link (stream_url), nie wbudowany odtwarzacz z nagraniem w archiwum."
+      },
+      {
+        "kryterium": "K8",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Darowizny przez wlasny Stripe Embedded checkout; plany, cennik, checkout i czlonkostwo; program B2B z miejscami organizacji (samoobsluga wlasciciela); paywall z meteringiem miesiecznego limitu darmowych artykulow (MeterBanner, QuotaMeter); podarowane artykuly; kupony i kampanie; reklamy i sponsoring; pakiety sponsorskie wydarzen; konta czlonkowskie z rozliczeniami, fakturami i subskrypcja.",
+        "dowody": [
+          "src/routes/donate.tsx:1-4 (Stripe Embedded)",
+          "src/routes/pricing.tsx, src/routes/plans.$planId.tsx, src/routes/checkout.$planId.tsx, src/routes/membership-join.tsx",
+          "src/components/molecules/MeterBanner.tsx:28, src/components/atoms/QuotaMeter.tsx:7, src/components/Paywall.tsx",
+          "src/lib/crm/meteringUsage.ts:1 (limit bezplatnych artykulow)",
+          "src/routes/profile.organization.tsx:1-5 (miejsca B2B: org_add_seat, organization_seats)",
+          "src/components/gifting/GiftBanner.tsx, src/routes/admin.gifting.tsx",
+          "src/routes/admin.coupons.index.tsx, src/routes/admin.ads.tsx",
+          "src/routes/profile.billing.tsx, profile.invoices.tsx, profile.subscription.tsx"
+        ],
+        "publicznieBezLogowania": "Darowizna, cennik, plany i checkout dostepne publicznie; metering dziala na anonimowym czytelniku. Panel organizacji i rozliczen - po zalogowaniu.",
+        "ograniczenia": "Faktyczne wlaczenie paywalla/meteringu i planow zalezy od konfiguracji najemcy (admin.paywall, admin.pricing) - w kodzie nie widac, czy produkcja ma je aktywne."
+      },
+      {
+        "kryterium": "K9",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Konto z profilem, MFA, eksportem RODO; zakladki i lista lektur (zapisane / obserwowane / rekomendacje); zainteresowania i personalizacja z laczeniem stanu anonimowego po logowaniu; obserwowanie autorow i tematow; alerty; spolecznosc: siec kontaktow, komunikator, Q&A, ankiety, odznaki, program kontrybutorow, kluby dyskusyjne.",
+        "dowody": [
+          "src/routes/reading-list.tsx:1 (zapisane/obserwowane/rekomendacje), :67-80 (wylacznik personalizacji, tryb goscinny)",
+          "src/routes/profile.bookmarks.tsx, profile.interests.tsx, profile.follows.tsx, profile.notifications.tsx",
+          "src/lib/personalization/anonMerge.ts",
+          "src/routes/admin.personalized.tsx (ustawienia personalizacji)",
+          "src/routes/network.tsx:106, src/routes/messages.tsx, src/routes/qa.tsx:177, src/routes/polls.tsx:168",
+          "src/routes/club.tsx, src/lib/community/modulesSettings.ts:17-22, :36 (clubs_enabled domyslnie false)"
+        ],
+        "publicznieBezLogowania": "Lista lektur dla goscia tylko gdy najemca wlaczy allowGuests. Pozostale funkcje konta i spolecznosci wymagaja logowania. Kluby domyslnie wylaczone (clubs_enabled=false), pozostale moduly spolecznosci domyslnie wlaczone.",
+        "ograniczenia": "Ogolnodostepna wartosc dla anonimowego czytelnika jest mala - personalizacja zaczyna dzialac po zalozeniu konta. Kluby wymagaja swiadomego wlaczenia przez najemce."
+      },
+      {
+        "kryterium": "K10",
+        "punktyZdolnosci": 3,
+        "zdolnosci": "Wlasny silnik wykresow SVG (kartezjanski, kolowy, heatmapa, beeswarm, boxplot, histogram, fan chart, tornado, small multiples, index base, choropleta 5 kontynentow) z tooltipami i tabela a11y; bloki chart i data-map we wpisach; NES Digital Features (sankey, porownywarka panstw, macierz ryzyka, siec powiazan, mapa korytarzy); tracker legislacyjny UE z explorerem stanowisk 27 panstw (wzorzec ECFR Coalition Explorer), dashboardem i RSS zmian; quizy; biblioteka z kategoria data.",
+        "dowody": [
+          "src/components/charts/ (BeeswarmChart.tsx, ChoroplethMap.tsx, FanChart.tsx, HeatmapChart.tsx, SmallMultiplesChart.tsx, TornadoChart.tsx)",
+          "src/components/charts/ChoroplethMap.tsx:151 (interakcja onPointerMove/tooltip)",
+          "src/components/blocks/DataVizViews.tsx:1 (publiczne renderery chart i data-map)",
+          "src/lib/features/types.ts:1-5",
+          "src/routes/tracker.explorer.tsx:1-6 (macierz dossier x 27 panstw), src/routes/tracker.index.tsx:1-3, src/routes/tracker.changes.tsx, src/routes/tracker.rss[.]xml.ts",
+          "src/routes/quiz.tsx",
+          "src/routes/library.tsx:1-4 (pobranie pliku za bramka rangi)"
+        ],
+        "publicznieBezLogowania": "Wykresy, mapy, digital features, tracker i explorer - publicznie. Pliki danych z biblioteki - tylko dla czlonkow z odpowiednia warstwa.",
+        "ograniczenia": "Brak publicznego pobierania danych spod wykresow (CSV/XLSX) - eksport obrazu (lib/charts/exportImage.ts) uzywany tylko w panelu analityki i raporcie sponsora; brak otwartego API/zbioru danych trackera do pobrania dla gosci."
+      },
+      {
+        "kryterium": "K11",
+        "punktyZdolnosci": 2,
+        "zdolnosci": "Wersjonowane dokumenty prawne publikowane z panelu (statut, regulaminy, RODO, polityka prywatnosci, zwroty, polityka przetwarzania danych, regulamin klubow i wydarzen); strona przejrzystosci AI; oznaczanie tresci sponsorowanych na listach; strony 'o nas' i dowolne strony instytucjonalne budowane w page builderze (resolver $.tsx); zatrudniamy/kariera; llms.txt z opisem publikacji.",
+        "dowody": [
+          "src/routes/statut.tsx:1-2, src/routes/przejrzystosc-ai.tsx:1-2 (tresc z lib/legal/content, wersja z /admin/versions ma pierwszenstwo)",
+          "src/lib/legal/content/ (statute.ts, aiTransparency.ts, privacyGovernance.ts, moderation.ts, rodo.ts)",
+          "src/lib/legal/versions.ts",
+          "src/routes/$.tsx:1-5 (uniwersalny resolver stron CMS)",
+          "src/lib/queries/archiveListing.ts:44 (SPONSORED_LIST_COLS - oznaczenie sponsoringu)",
+          "src/routes/zatrudniamy.tsx, src/routes/llms[.]txt.ts:1-5"
+        ],
+        "publicznieBezLogowania": "Tak - wszystkie strony prawne i strony CMS sa publiczne.",
+        "ograniczenia": "Brak dedykowanych, ustrukturyzowanych modulow: ujawnienie zrodel finansowania/darczyncow, zarzad i rada programowa, raport roczny, standardy redakcyjne i polityka korekt/sprostowan (brak pola korekty przy wpisie - grep correction/errata/sprostowanie bez trafien w modelu wpisu). Mozna je zbudowac jako strony w builderze, ale platforma ich nie wymusza ani nie modeluje."
+      }
+    ],
+    "zdolnosciPozaRubryka": [
+      {
+        "nazwa": "Multi-tenant z izolacja RLS",
+        "opis": "Najemca rozwiazywany z hosta przed routerem, izolacja danych politykami RLS wiazacymi tenant_id (666 polityk na 291 tabelach), cache brzegowy prefiksowany hostem - jedna instalacja obsluguje wiele osrodkow.",
+        "dowod": "README.md:21-23, :110-114; src/lib/community/modulesSettings.ts:1-3 (site_settings per tenant)"
+      },
+      {
+        "nazwa": "Page builder typu Elementor + silnik blokow typu Gutenberg",
+        "opis": "Dwa silniki tresci, szablony stron i archiwow, widgety globalne, reguly wyswietlania sekcji (dostep, popupy, testy A/B), tokeny projektowe, import z WordPressa.",
+        "dowod": "scripts/taxonomy/features.mjs:362-691; src/routes/admin.import-wordpress.tsx; src/routes/admin.experiments.tsx"
+      },
+      {
+        "nazwa": "CRM z lejkiem i scoringiem leadow",
+        "opis": "Kontakty, firmy, lejek, zadania, zapisane widoki, import/eksport CSV, behawioralny scoring, karta meteringu dla sprzedazy, most subskrypcja-CRM.",
+        "dowod": "src/routes/admin.crm.index.tsx, src/routes/admin.crm.funnel.index.tsx, src/lib/crm/meteringUsage.ts:1-5, supabase/migrations/20260723140000_subscription_retention_crm_bridge.sql"
+      },
+      {
+        "nazwa": "Analityka i BI",
+        "opis": "Wlasne zbieranie zdarzen, warstwa semantyczna metryk, panele BI, integracje GA4 i Search Console, Core Web Vitals, telemetria dwell time i klikniec powiazanych.",
+        "dowod": "src/routes/admin.analytics.bi.tsx, src/routes/api/public/track.ts, src/routes/api/public/vitals.ts, src/routes/api/public/post-dwell.ts"
+      },
+      {
+        "nazwa": "Kluby dyskusyjne i spolecznosc",
+        "opis": "Kluby z macierza dostepu, watkami, kalendarzem, dokumentami, ekspertami, minisite; Q&A, ankiety, odznaki, program kontrybutorow, komunikator z obecnoscia i zalacznikami, siec kontaktow.",
+        "dowod": "src/routes/club.$clubSlug.*.tsx, src/routes/messages.tsx, src/routes/network.tsx, scripts/taxonomy/features.mjs:46-179"
+      },
+      {
+        "nazwa": "Event operations onsite",
+        "opis": "Aplikacja skanera dla wolontariuszy, identyfikatory, punkty kontroli, urzadzenia, leady wystawcow, rozsadzenie, faktury, gielda spotkan 1-1, raport sponsora, lejek reklam wydarzenia.",
+        "dowod": "src/routes/scanner.tsx:1-3, src/routes/admin.events_.$eventId.onsite.*.tsx, src/routes/events.$slug_.sponsor-report.tsx"
+      },
+      {
+        "nazwa": "Serwer MCP i powierzchnia GEO dla asystentow AI",
+        "opis": "Endpoint MCP (list-tools, invoke-tool) z OAuth protected resource oraz llms.txt opisujacy publikacje dla answer engines.",
+        "dowod": "src/routes/mcp.ts, src/routes/[.mcp]/list-tools.ts, src/routes/[.well-known]/oauth-protected-resource.ts, src/routes/llms[.]txt.ts:1-5"
+      },
+      {
+        "nazwa": "Audio: TTS i STT",
+        "opis": "Odsluch wpisow (text-to-speech) i transkrypcja mowy.",
+        "dowod": "src/routes/api/tts.ts, src/routes/api/stt.ts, src/routes/api/public/post-tts.ts"
+      },
+      {
+        "nazwa": "Rekrutacja",
+        "opis": "Oferty pracy, formularz z CV, retencja dokumentow, lejek rekrutacyjny.",
+        "dowod": "src/routes/zatrudniamy.tsx, src/routes/admin.hiring.tsx, src/routes/admin.careers.tsx"
+      },
+      {
+        "nazwa": "Workflow i zadania tla",
+        "opis": "Silnik workflow, harmonogram cron (billing, community, jobs tick), szyna zdarzen domenowych.",
+        "dowod": "src/routes/admin.workflows.tsx, supabase/migrations/20260711204000_workflow_engine.sql, src/routes/api/public/jobs-tick.ts"
+      }
+    ],
+    "luki": [
+      "K11: brak ustrukturyzowanego ujawnienia finansowania i darczyncow, stron zarzadu/rady, raportu rocznego oraz polityki korekt z polem sprostowania przy wpisie - mozliwe tylko jako recznie budowane strony CMS ($.tsx)",
+      "K10: brak publicznego pobierania danych (CSV/XLSX) spod wykresow i trackera; eksport obrazu wykresu tylko w panelu admina; pliki data w /library tylko dla czlonkow",
+      "K5: tylko dwa jezyki (PL/EN) - konkurencja UE/Azja czesto ma 3+; hreflangLinks (src/lib/seo/meta.ts:123-139) nie sprawdza istnienia tlumaczenia danej tresci",
+      "K6: rezygnacja z newslettera bez konta jest tokenowa i calkowita - brak samoobslugowego centrum preferencji list dla subskrybenta anonimowego",
+      "K2: dziennikarz bez konta nie moze wyslac zapytania przez platforme (ExpertRequestButton tylko dla zalogowanych Plus/Pro); zostaje statyczny kontakt media_contact_*",
+      "K3: brak dedykowanych stron hubowych dla regionow i tematow (tylko fasety w /search i /publications)",
+      "K7: transmisja jako link stream_url, brak wbudowanego odtwarzacza i archiwum nagran sesji jako odrebnego formatu",
+      "K9: personalizacja i lista lektur domyslnie wymagaja konta (allowGuests zalezne od najemcy); kluby domyslnie wylaczone (clubs_enabled=false)",
+      "Ogolnie: wiele zdolnosci jest sterowanych przelacznikami najemcy (community_modules, personalizacja, paywall, cennik) - z samego kodu nie da sie stwierdzic, ktore sa aktywne na produkcji neweuropeanstrategies.com"
+    ]
+  },
+  "weryfikacja": {
+    "korekty": [
+      {
+        "kryterium": "K2",
+        "bylo": 3,
+        "powinnoByc": 2,
+        "dowod": "Kontakt dla mediow (email/telefon) NIE jest publiczny: supabase/migrations/20260730120000_author_contact_privacy.sql:1-40 (phone, contact_email, media_contact_email, media_contact_phone czytelne tylko dla wlasciciela, admina najemcy i service_role; widok author_profiles_public bez kolumn kontaktowych) oraz 20260817120000_author_profiles_public_read_view_only.sql:1-40 (anon traci wszystkie granty do tabeli bazowej); get_expert_hub w 20260731211632_832b5da6-50c1-4907-86b5-8abf90033136.sql:63 zwraca tylko media_contact_name. Blok w src/components/experts/ExpertLayoutRenderer.tsx:974-975 dla goscia nie dostaje danych (pokazuje je tylko jako placeholder w edytorze). CTA 'Zapytanie do eksperta' (src/components/experts/ExpertRequestButton.tsx:1-7) jest widoczne wylacznie dla zalogowanych w warstwach Plus/Pro, wiec dziennikarz bez konta nie ma zadnej sciezki kontaktu z ekspertem. Zostaje: strona eksperta z dorobkiem, obszarami i filtrowalnym zbiorem materialow oraz faseta author w wyszukiwarce (src/lib/search/facetModel.ts:46, :86, :227-232) - to poziom 2 publicznie; poziom 3 tylko jako zdolnosc dla platnych czlonkow."
+      },
+      {
+        "kryterium": "K5",
+        "bylo": 3,
+        "powinnoByc": 2,
+        "dowod": "Parytet tresci nie jest egzekwowany: wersja EN to w checkliscie publikacji tylko pozycja 'recommended' (src/lib/content/publishChecklist.ts:102-106), a bramka CI parytetu (src/lib/ci/i18nParity.ts) obejmuje slowniki UI, nie tresci. Render EN po cichu spada do PL (src/routes/$.tsx:714, :718, :960: title_en || title_pl). hreflangLinks (src/lib/seo/meta.ts:123-139) jest emitowany bezwarunkowo dla kazdej strony (meta.ts:237-239, wylaczany tylko przy canonicalOverride), wiec alternate hreflang=en wskazuje takze strony bez tlumaczenia. Brak przelacznika per tresc ukrywajacego nieprzetlumaczone wersje. Jest: dwa jezyki, prefiks /en, przelacznik w chrome, hreflang z x-default, pola *_pl/*_en - to poziom 2."
+      }
+    ],
+    "obaloneZdolnosciPozaRubryka": [
+      {
+        "nazwa": "Serwer MCP i powierzchnia GEO dla asystentow AI (czesciowo)",
+        "dowod": "src/lib/mcp/index.ts:1-40: endpoint /mcp jest zabezpieczony auth.oauth.issuer z issuerem Supabase Auth, czyli wymaga tokenu zalogowanego uzytkownika tej aplikacji (fail-closed bez SUPABASE_URL); udostepnia tylko 3 narzedzia read-only (src/lib/mcp/tools: search-posts, get-post, list-recent-posts). Publiczny asystent AI bez konta nie skorzysta z MCP - publiczna powierzchnia GEO to w praktyce tylko llms.txt (src/routes/llms[.]txt.ts). Trasa invoke-tool istnieje jako katalog src/routes/[.mcp]/invoke-tool/."
+      },
+      {
+        "nazwa": "Kluby dyskusyjne (wylaczone domyslnie)",
+        "dowod": "src/lib/community/modulesSettings.ts:17-22 i :38 (COMMUNITY_MODULES_DEFAULTS.clubs_enabled: false) - modul klubow istnieje w kodzie, ale nie jest osiagalny publicznie, dopoki najemca go swiadomie nie wlaczy. Pozostale elementy spolecznosci (chat, connections, qa, polls, badges, contributor program) sa domyslnie wlaczone."
+      }
+    ],
+    "uwagi": "Zweryfikowane i utrzymane (3 pkt): K1 (post_format w migracji 20260601054247:71, bloki liveblog/audio/file w src/lib/blocks/schema.ts:45-61, trasy /live, /podcasts, web-stories z AMP; uwaga: 'regularny rytm publikacji' to kwestia redakcyjna, niesprawdzalna w kodzie), K3, K4 (did-you-mean pg_trgm word_similarity w supabase/migrations/20260712110000_search_premium.sql:110-132, alerty zapisanych wyszukiwan pg_cron */20 w 20260720170000_saved_search_alerts.sql:296-298; src/lib/search/fuzzy.ts to tylko klientowy matcher podsekwencji, nie tolerancja literowek w RPC), K6 (powiadomienia o publikacji dla obserwujacych autora/kategorie/tag/program w 20260720124500_follow_publish_alerts.sql:86-133, digest e-mail, preferencje; ZASTRZEZENIE: listy mailingowe sa tylko zapisywane w meta subskrybenta - filtr odbiorcow kampanii w src/lib/newsletter-campaigns.functions.ts:88-102 nie pozwala celowac w liste ani zainteresowanie, wiec 'kilka list' jest kosmetyczne; 3 pkt broni sie przez alerty per autor/temat), K7 (events_enabled domyslnie true, modulesSettings.ts:29; stream_url zwracany tylko uprawnionym, publicEventApi.ts:200-216), K8 (metering i Paywall realnie wpiete w src/routes/$.tsx:58-68, :1076-1105, :1232), K9 (rekomendacje get_recommended_posts_v2, takze dla goscia; kluby wylaczone domyslnie), K10 (tracker UE na tabelach eu_policy_items/eu_policy_updates, src/lib/tracker/queries.ts:80-133, podglad publiczny, obserwowanie od warstwy Pro wg 20260723090000_tier_content_gating_tracker.sql; ZASTRZEZENIE: brak publicznego pobierania danych CSV/JSON - pobieranie tylko z biblioteki czlonkowskiej src/routes/library.tsx:3, :161-170). K11 2 pkt utrzymane: statut opisuje organy (Rada, Zarzad) i zrodla dochodow (src/lib/legal/content/statute.ts:102-119), polityka sprostowan jest tylko akapitem na stronie przejrzystosci AI (aiTransparency.ts:103-108), brak raportu rocznego i imiennego skladu zarzadu - 3 pkt nie przysluguje. Multi-tenant, workflow (notify_followers instalowany kazdemu najemcy, workflow_engine.sql:393-402), TTS/STT (zalezne od ELEVENLABS_API_KEY / LOVABLE_API_KEY), scanner i MCP potwierdzone jako kod; liczby '666 polityk na 291 tabelach' nie weryfikowalem. Po korektach suma: 31 z 33 pkt.\""
+  }
+}

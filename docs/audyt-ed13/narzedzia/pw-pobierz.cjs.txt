@@ -1,0 +1,18 @@
+// Pobranie strony prawdziwa przegladarka (gdy curl dostaje blokade botow): naglowki dokumentu + HTML po zaladowaniu.
+const { chromium } = require('/home/user/neweustrategies-dc633fb5/node_modules/playwright-core');
+const fs = require('fs');
+(async () => {
+  const [url, out] = process.argv.slice(2);
+  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', proxy: { server: 'http://127.0.0.1:45361' }, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  const ctx = await browser.newContext({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36', locale: 'en-US' });
+  const page = await ctx.newPage();
+  let status = 0, headers = {};
+  try {
+    const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForTimeout(4000);
+    if (resp) { status = resp.status(); headers = await resp.allHeaders(); }
+    fs.writeFileSync(out, await page.content());
+  } catch (e) { fs.writeFileSync(out, ''); status = -1; headers = { error: String(e).slice(0, 200) }; }
+  process.stdout.write(JSON.stringify({ status, headers, finalUrl: page.url() }));
+  await browser.close();
+})();
