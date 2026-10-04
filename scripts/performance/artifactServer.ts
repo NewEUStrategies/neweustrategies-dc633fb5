@@ -64,7 +64,16 @@ import {
   type BrotliCompress,
   type Gzip,
 } from "node:zlib";
-import { observeDocument, type DocumentObservation } from "./lighthouseReport.ts";
+import {
+  DOCUMENT_FRESH_WINDOW_S,
+  documentVariant,
+  observeDocument,
+  uncachedReason,
+  variantMismatch,
+  VARIANT_BYTES_TOLERANCE,
+  type DocumentObservation,
+  type DocumentVariant,
+} from "./lighthouseReport.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** Korzeń repozytorium, w którym leży TEN skrypt (źródło fixture i obrazów). */
@@ -175,7 +184,32 @@ export interface ArtifactOptions {
 export interface RunningArtifact extends Stoppable {
   readonly port: number;
   readonly origin: string;
+  /** Bieżący proces serwera (po `restart()` - nowy). */
   readonly child: ChildProcess;
+  /**
+   * Restart procesu na TYM SAMYM porcie, z pustym magazynem cache dokumentu
+   * (P0.1-FIX, B1): jedyny sposób, żeby wpis znów zasiał pierwszy MISS na
+   * zimnym procesie (pełny wariant). Log serwera jest DOPISYWANY (kursory
+   * `logCursor` liczą bajty od początku pliku). Front i jego port zostają.
+   */
+  restart(): Promise<void>;
+}
+
+/** Zatrzymanie procesu serwera: SIGTERM, po 3 s SIGKILL. */
+function stopChild(child: ChildProcess): Promise<void> {
+  return new Promise<void>((done) => {
+    if (child.exitCode !== null || child.signalCode !== null) return done();
+    // Timer NIE jest `unref()`: Nitro na SIGTERM czeka na zamknięcie
+    // połączeń keep-alive frontu, a proces harnessu bez aktywnych uchwytów
+    // kończył się wcześniej i zostawiał serwer-sierotę (zmierzone
+    // 2026-10-04: kolejne serie dokładały procesy na porcie i CPU).
+    const kill = setTimeout(() => child.kill("SIGKILL"), 3000);
+    child.once("exit", () => {
+      clearTimeout(kill);
+      done();
+    });
+    child.kill("SIGTERM");
+  });
 }
 
 /** Uruchamia `.output/server/index.mjs` jak `playwright.performance.config.ts`. */
@@ -215,45 +249,45 @@ export async function startArtifact(options: ArtifactOptions): Promise<RunningAr
     env = { ...process.env, ...fromFile, ...portEnv };
   }
   args.push(entry);
-  let stdio: "ignore" | number = "ignore";
-  if (options.logFile) {
-    mkdirSync(dirname(options.logFile), { recursive: true });
-    stdio = openSync(options.logFile, "w");
-  }
-  const child = spawn(process.execPath, args, {
-    cwd: root,
-    env,
-    stdio: ["ignore", stdio, stdio],
-  });
   const origin = `http://127.0.0.1:${options.port}`;
-  const exited = new Promise<never>((_, reject) =>
-    child.once("exit", (code) =>
-      reject(new Error(`Serwer artefaktu ${root} zakończył się kodem ${code ?? "?"}`)),
-    ),
-  );
-  exited.catch(() => undefined);
-  // Gotowość sprawdzamy na `/robots.txt` (ścieżka z rozszerzeniem omija cache
-  // dokumentu), żeby PIERWSZY render mierzonej strony należał do rozgrzewki
-  // (`warmDocument`) i to ona wybrała wariant zapisany w cache.
-  await Promise.race([waitForHttp(`${origin}/robots.txt`), exited]);
+  if (options.logFile) mkdirSync(dirname(options.logFile), { recursive: true });
+
+  /** Start procesu i czekanie na gotowość; `append` = dopisywanie do logu (restart). */
+  const launch = async (append: boolean): Promise<ChildProcess> => {
+    let stdio: "ignore" | number = "ignore";
+    if (options.logFile) stdio = openSync(options.logFile, append ? "a" : "w");
+    const spawned = spawn(process.execPath, args, {
+      cwd: root,
+      env,
+      stdio: ["ignore", stdio, stdio],
+    });
+    // Dziecko ma własną kopię deskryptora; nasza zamknięta nie przecieka przy restartach.
+    if (typeof stdio === "number") closeSync(stdio);
+    const exited = new Promise<never>((_, reject) =>
+      spawned.once("exit", (code) =>
+        reject(new Error(`Serwer artefaktu ${root} zakończył się kodem ${code ?? "?"}`)),
+      ),
+    );
+    exited.catch(() => undefined);
+    // Gotowość sprawdzamy na `/robots.txt` (ścieżka z rozszerzeniem omija cache
+    // dokumentu), żeby PIERWSZY render mierzonej strony należał do rozgrzewki
+    // (`warmDocument`) i to ona wybrała wariant zapisany w cache.
+    await Promise.race([waitForHttp(`${origin}/robots.txt`), exited]);
+    return spawned;
+  };
+
+  let child = await launch(false);
   return {
     port: options.port,
     origin,
-    child,
-    stop: () =>
-      new Promise<void>((done) => {
-        if (child.exitCode !== null || child.signalCode !== null) return done();
-        // Timer NIE jest `unref()`: Nitro na SIGTERM czeka na zamknięcie
-        // połączeń keep-alive frontu, a proces harnessu bez aktywnych uchwytów
-        // kończył się wcześniej i zostawiał serwer-sierotę (zmierzone
-        // 2026-10-04: kolejne serie dokładały procesy na porcie i CPU).
-        const kill = setTimeout(() => child.kill("SIGKILL"), 3000);
-        child.once("exit", () => {
-          clearTimeout(kill);
-          done();
-        });
-        child.kill("SIGTERM");
-      }),
+    get child() {
+      return child;
+    },
+    restart: async () => {
+      await stopChild(child);
+      child = await launch(true);
+    },
+    stop: () => stopChild(child),
   };
 }
 
@@ -442,11 +476,18 @@ export function createHeadInjector(snippet: string): HeadInjector {
   };
 }
 
-/** Odpowiedź dokumentu zarejestrowana przez front (to, co dostała przeglądarka). */
+/**
+ * Odpowiedź dokumentu zarejestrowana przez front (to, co dostała przeglądarka).
+ * Wpis powstaje przy nagłówkach; `bytes` (długość body z upstreamu, bez
+ * kompresji i przed wstrzyknięciem/transformacją - ta sama miara co
+ * rozgrzewka) uzupełnia się na końcu strumienia, do tego czasu null.
+ */
 export interface FrontDocument extends DocumentObservation {
   readonly path: string;
   readonly at: number;
 }
+
+type MutableFrontDocument = { -readonly [K in keyof FrontDocument]: FrontDocument[K] };
 
 interface ProxyOptions {
   readonly transform?: DocumentTransform | null;
@@ -482,10 +523,20 @@ function proxyHandler(
         const contentType = String(ur.headers["content-type"] ?? "");
         const isHtml = /^text\/html/i.test(contentType);
         if (isHtml && options.onDocument) {
-          options.onDocument({
+          const record: MutableFrontDocument = {
             ...observeDocument("front", ur.statusCode ?? 0, ur.headers),
             path: pathname,
             at: Date.now(),
+          };
+          options.onDocument(record);
+          // Odcisk wariantu (B1): długość body z upstreamu, liczona niezależnie od
+          // ścieżki niżej (kompresja, wstrzyknięcie, transformacja).
+          let bytes = 0;
+          ur.on("data", (chunk: Buffer) => {
+            bytes += chunk.length;
+          });
+          ur.on("end", () => {
+            record.bytes = bytes;
           });
         }
         const inject = isHtml && options.injectHead ? createHeadInjector(options.injectHead) : null;
@@ -727,32 +778,67 @@ export interface RewarmResult {
   readonly attempts: readonly DocumentObservation[];
   /** Ostatnia odpowiedź; `cache === "HIT"`, jeśli rozgrzewka się udała. */
   readonly final: DocumentObservation;
-  /** true = HIT z zapasem świeżości `minFreshS` (warunek ważności przebiegu). */
+  /** true = HIT wariantu wzorcowego z zapasem świeżości `minFreshS` (warunek ważności przebiegu). */
   readonly ok: boolean;
-  /** Ile sekund czekaliśmy, aż zbyt stary HIT przejdzie w STALE (wymuszenie odświeżenia). */
+  /** Ile sekund czekaliśmy, aż zbyt stary HIT przejdzie w STALE (tryb bez `restore`). */
   readonly waitedForStaleS: number;
   readonly ms: number;
+  /** Ile razy przywracaliśmy wariant wzorcowy (`restore`: restart serwera + rozgrzewka). */
+  readonly restores: number;
+  /** Powód `ok = false` (log i summary.json); null przy `ok`. */
+  readonly failure: string | null;
+  /** `--allow-uncached` i dokument spoza cache: przebieg idzie bez HIT. */
+  readonly uncached: boolean;
 }
 
-/**
- * Okno świeżości wpisu cache dokumentu (`DOCUMENT_CACHE_MAX_FRESH_MS` w
- * `src/lib/http/documentCache.ts`; tu stała, bo skrypty Node nie rozwiązują
- * importów `src/` bez rozszerzeń).
- */
-export const DOCUMENT_FRESH_WINDOW_S = 180;
+/** Górny limit świeżości wpisu (s); świeżość konkretnego wpisu = min(s-maxage, limit). */
+export { DOCUMENT_FRESH_WINDOW_S };
 /**
  * Minimalny zapas świeżości po rozgrzewce: Lighthouse prosi o dokument kilka
  * sekund po starcie Chrome'a (pod obciążeniem do ~10 s). HIT starszy niż
- * okno - zapas przeszedłby w STALE w trakcie przebiegu i uruchomił render SSR.
+ * świeżość wpisu - zapas przeszedłby w STALE w trakcie przebiegu i uruchomił
+ * render SSR.
  */
 export const DEFAULT_MIN_FRESH_S = 30;
+/** Ile odpowiedzi spoza cache (3xx-5xx, brak `x-nes-cache`, BYPASS) przerywa rozgrzewkę (I3). */
+export const MAX_UNCACHED_RESPONSES = 2;
+/** Ile razy jedna rozgrzewka może przywracać wariant wzorcowy, zanim się podda. */
+export const DEFAULT_MAX_RESTORES = 2;
+
+/**
+ * Rozgrzewka nie ma szans na HIT (redirect, BYPASS, `no-store`, błąd) - seria
+ * jest przerywana z jasnym komunikatem zamiast młócić SSR co 250 ms przez
+ * limit czasu (recenzja I3: ~960 renderów na próbę, ok. 2 h na serię).
+ */
+export class RewarmAbort extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RewarmAbort";
+  }
+}
 
 export interface RewarmOptions {
   readonly acceptLanguage?: string;
   readonly userAgent?: string;
   readonly minFreshS?: number;
+  /** Górny limit świeżości (domyślnie `DOCUMENT_FRESH_WINDOW_S`); zapas liczy się od s-maxage wpisu. */
   readonly freshWindowS?: number;
   readonly timeoutMs?: number;
+  /** Wariant wzorcowy serii (B1); HIT innego wariantu nie oddaje sterowania. */
+  readonly referenceVariant?: DocumentVariant | null;
+  readonly variantToleranceBytes?: number;
+  /**
+   * Przywrócenie wariantu wzorcowego: restart serwera artefaktu (pusty magazyn)
+   * i rozgrzewka. Wołane, gdy wpis ma inny wariant, za mało świeżości albo jest
+   * STALE. Czekanie na STALE i rewalidację wzorca NIE przywraca: rewalidacja
+   * w tle daje na tym artefakcie wpis ze zdegradowanym chrome'em
+   * (`s-maxage=30`; diagnoza w P0.1-FIX.md). Bez `restore` - dawne zachowanie:
+   * czekanie na STALE i nowy wpis.
+   */
+  readonly restore?: () => Promise<void>;
+  readonly maxRestores?: number;
+  /** `--allow-uncached`: odpowiedź spoza cache kończy rozgrzewkę bez błędu. */
+  readonly allowUncached?: boolean;
   /** Wstrzykiwany zegar/sen (testy). */
   readonly sleep?: (ms: number) => Promise<void>;
   readonly fetchDocument?: (
@@ -760,20 +846,24 @@ export interface RewarmOptions {
     path: string,
     acceptLanguage: string,
     userAgent: string,
-  ) => Promise<{ status: number; headers: Headers }>;
+  ) => Promise<{ status: number; headers: Headers; body?: Uint8Array }>;
 }
 
 /**
- * Ponowne rozgrzanie PRZED KAŻDYM przebiegiem (werdykt M1 #1). Wpis cache żyje
- * świeżo 3 min; po tym czasie pierwsze żądanie dostaje STALE i uruchamia
- * rewalidację SSR w tle - w tym samym procesie, który serwuje JS/CSS pomiaru.
- * Rozgrzewka pyta więc dokument UA wybranego wariantu, aż dostanie HIT
- * z zapasem świeżości `minFreshS` (STALE/MISS = czekamy na zapis odświeżonego
- * wpisu; HIT bez zapasu = czekamy, aż przejdzie w STALE, i odświeżamy go
- * sami), i dopiero wtedy oddaje sterowanie Lighthouse'owi. Render rewalidacji
- * kończy się PRZED HIT-em (wpis zapisuje się po końcu strumienia), więc nie
- * nachodzi na przebieg. Rewalidacja kopiuje UA żądania, które ją wywołało
- * (`src/server.ts` revalidationHeaders), więc wariant wpisu zostaje ten sam.
+ * Ponowne rozgrzanie PRZED KAŻDYM przebiegiem (werdykt M1 #1, recenzja B1).
+ * Rozgrzewka pyta dokument UA wybranego wariantu, aż dostanie HIT wariantu
+ * wzorcowego z zapasem świeżości `minFreshS` liczonym od świeżości TEGO wpisu
+ * (min(s-maxage, 180 s) - wpis ze zdegradowanym chrome'em żyje świeżo 30 s,
+ * nie 180), i dopiero wtedy oddaje sterowanie Lighthouse'owi:
+ *   - z `restore` (harness): wpis innego wariantu, bez zapasu albo STALE ->
+ *     restart serwera i rozgrzewka od zera (pierwszy MISS na zimnym procesie
+ *     zasiewa pełny wariant), najwyżej `maxRestores` razy na przebieg;
+ *   - bez `restore`: HIT bez zapasu = czekamy, aż przejdzie w STALE, i
+ *     odświeżamy go sami; STALE/MISS = czekamy na zapis nowego wpisu (render
+ *     rewalidacji kończy się PRZED HIT-em, więc nie nachodzi na przebieg);
+ *     HIT innego wariantu = też czekanie na STALE, najwyżej `maxRestores` razy.
+ * Dwie odpowiedzi spoza cache (3xx-5xx, bez `x-nes-cache`, BYPASS) przerywają
+ * serię (`RewarmAbort`), chyba że `allowUncached`.
  */
 export async function rewarmDocument(
   origin: string,
@@ -785,25 +875,68 @@ export async function rewarmDocument(
   const minFreshS = options.minFreshS ?? DEFAULT_MIN_FRESH_S;
   const freshWindowS = options.freshWindowS ?? DOCUMENT_FRESH_WINDOW_S;
   const timeoutMs = options.timeoutMs ?? 240_000;
+  const reference = options.referenceVariant ?? null;
+  const tolerance = options.variantToleranceBytes ?? VARIANT_BYTES_TOLERANCE;
+  const maxRestores = options.maxRestores ?? DEFAULT_MAX_RESTORES;
   const nap = options.sleep ?? sleep;
   const get = options.fetchDocument ?? fetchDocument;
   const started = Date.now();
   const attempts: DocumentObservation[] = [];
+  const uncached: string[] = [];
   let waitedForStaleS = 0;
+  let restores = 0;
+  let variantWaits = 0;
+  const finish = (final: DocumentObservation, failure: string | null, isUncached = false) => ({
+    attempts,
+    final,
+    ok: failure === null,
+    waitedForStaleS,
+    ms: Date.now() - started,
+    restores,
+    failure,
+    uncached: isUncached,
+  });
   for (;;) {
     const res = await get(origin, path, acceptLanguage, userAgent);
-    const obs = observeDocument("warm", res.status, res.headers);
+    const obs = observeDocument("warm", res.status, res.headers, res.body?.byteLength ?? null);
     attempts.push(obs);
+    const notCached = uncachedReason(obs);
+    if (notCached) {
+      if (options.allowUncached) return finish(obs, null, true);
+      uncached.push(notCached);
+      if (uncached.length >= MAX_UNCACHED_RESPONSES)
+        throw new RewarmAbort(
+          `rozgrzewka ${path}: ${uncached.length} odpowiedzi dokumentu spoza cache ` +
+            `(${uncached.join("; ")}) - ta ścieżka nie da HIT-u (redirect, BYPASS, no-store ` +
+            "albo błąd serwera). Zmień --path albo mierz bez cache: --allow-uncached",
+        );
+      await nap(250);
+      continue;
+    }
+    const fromStore = obs.cache === "HIT" || obs.cache === "STALE";
+    const mismatch =
+      fromStore && reference ? variantMismatch(reference, documentVariant(obs), tolerance) : null;
+    const freshS = Math.min(obs.freshS ?? freshWindowS, freshWindowS);
     const age = obs.ageS ?? 0;
-    const fresh = obs.cache === "HIT" && age <= freshWindowS - minFreshS;
-    const elapsed = Date.now() - started;
-    if (fresh || elapsed >= timeoutMs) {
-      return { attempts, final: obs, ok: fresh, waitedForStaleS, ms: elapsed };
+    if (obs.cache === "HIT" && !mismatch && age <= freshS - minFreshS) return finish(obs, null);
+    if (Date.now() - started >= timeoutMs)
+      return finish(
+        obs,
+        mismatch ?? `limit czasu ${Math.round(timeoutMs / 1000)} s (${obs.cache})`,
+      );
+    if (fromStore && options.restore) {
+      if (restores >= maxRestores)
+        return finish(obs, mismatch ?? `brak świeżego HIT po ${restores} restartach serwera`);
+      restores += 1;
+      await options.restore();
+      continue;
     }
     if (obs.cache === "HIT") {
-      // Za mało świeżości na przebieg: czekamy na koniec okna (+0,5 s), następne
-      // żądanie dostanie STALE i wywoła rewalidację, a pętla poczeka na nowy HIT.
-      const waitS = Math.max(0.5, freshWindowS - age + 0.5);
+      if (mismatch && ++variantWaits > maxRestores) return finish(obs, mismatch);
+      // Za mało świeżości (albo inny wariant): czekamy na koniec świeżości TEGO
+      // wpisu (+0,5 s), następne żądanie dostanie STALE i wywoła rewalidację,
+      // a pętla poczeka na nowy HIT.
+      const waitS = Math.max(0.5, freshS - age + 0.5);
       waitedForStaleS += waitS;
       await nap(waitS * 1000);
       continue;
