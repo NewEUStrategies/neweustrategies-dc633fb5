@@ -876,6 +876,10 @@ export const BUILDER_LABELS_EN: Readonly<Record<string, string>> = {
   "Strzałka (z trzonem)": "Arrow (with a shaft)",
   "Strzałka długa": "Long arrow",
   "Strzałka z ogonem": "Arrow with a tail",
+  "Strzałka >": "Arrow >",
+  "Chevron ›": "Chevron ›",
+  "Długa strzałka ⟶": "Long arrow",
+  "Bez strzałki": "No arrow",
 
   // --------------------------------------------------- section label variants
   "01 - Pionowy pasek": "01 - Vertical bar",
