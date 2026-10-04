@@ -27,7 +27,10 @@ export function VoiceListeningIndicator({ className }: { className?: string }) {
             <span
               key={i}
               className="voice-eq-bar voice-eq-bar--active w-0.5 rounded-full bg-primary"
-              style={{ animationDelay: `${i * 0.05}s`, animationDuration: `${0.8 + (i % 4) * 0.12}s` }}
+              style={{
+                animationDelay: `${i * 0.05}s`,
+                animationDuration: `${0.8 + (i % 4) * 0.12}s`,
+              }}
             />
           ))}
         </span>
