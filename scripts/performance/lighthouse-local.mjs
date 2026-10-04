@@ -61,6 +61,19 @@
 //     zapisy bez ścieżek maszyny (D3); linia K bez pełnych flag ma dopisek
 //     „nie kalibruje" (D6).
 //
+// P0.1-FIX runda 2 (2026-10-04, weryfikacja poprawki):
+//   - wzorzec (`warmReferenceVariant`): jeden restart odróżnia przegrany wyścig
+//     chrome'u od własnej polityki trasy (`/live`: s-maxage=30); wzorzec
+//     o świeżości ≤ --min-fresh przerywa serię z podpowiedzią niższego zapasu;
+//   - restart serwera rozgrzewa też zasoby statyczne nowego procesu, VALID
+//     podaje liczbę ważnych przebiegów po restarcie, a bramka obciążenia bierze
+//     większy z pomiarów przed i po rozgrzewce (`classifyAttempt`);
+//   - w środku serii ścieżka spoza cache wyklucza przebieg zamiast przerywać
+//     serię, a wyjątek w trakcie przebiegów zostawia summary.json z ukończonymi
+//     przebiegami (kod 1, bez baseline'u);
+//   - nieliczbowe --min-valid jest błędem; korzeń poza repo zapisuje się jako
+//     `poza-repo:<nazwa>`; tryb FCP liczy tylko skrypty originu dokumentu.
+//
 // Lighthouse NIE jest zależnością repo: LIGHTHOUSE_CLI=<ścieżka do cli/index.js>
 // albo `npx --yes lighthouse@13`. Chrome z CHROME_PATH (chrome-launcher).
 //
@@ -96,7 +109,6 @@ import { gzipSync } from "node:zlib";
 import {
   BOT_USER_AGENT,
   DEFAULT_ACCEPT_LANGUAGE,
-  DEFAULT_MAX_RESTORES,
   DEFAULT_MIN_FRESH_S,
   HARNESS_ROOT,
   RewarmAbort,
@@ -107,7 +119,9 @@ import {
   rewarmDocument,
   startArtifact,
   startFront,
+  warmAssets,
   warmDocument,
+  warmReferenceVariant,
 } from "./artifactServer.ts";
 import {
   CLIENT_BACKEND_PORT,
@@ -135,7 +149,7 @@ import {
   MAX_EXCLUDED_REPEATS,
   PSI_REFERENCE_2026_10_03,
   aggregate,
-  classifyRun,
+  classifyAttempt,
   comparabilityWarnings,
   defaultMaxLoad,
   deltaLine,
@@ -154,19 +168,18 @@ import {
   formatRun,
   formatValidity,
   formatVariant,
-  isFullFreshness,
   isServerRender,
-  observeDocument,
   pairedStats,
   pairsByFcpMode,
   parseForms,
   parsePsiReference,
   parseServerLogDocs,
+  portableRoot,
   resolveMinValid,
   runWithRepeats,
+  scrubPaths,
   seriesOutcome,
   summarizeValidity,
-  uncachedReason,
   validMetricsByFcpMode,
   validPairs,
 } from "./lighthouseReport.ts";
@@ -269,10 +282,8 @@ const thirdPartyMode = oneOf("third-party", opts["third-party"], ["none", "fake-
 const flags = flagsLabel(clientBackendMode, thirdPartyMode);
 const repeats = Math.max(0, Number.parseInt(opts.repeats, 10) || 0);
 const minFreshS = Math.max(0, Number.parseFloat(opts["min-fresh"]) || 0);
-const minValid = resolveMinValid(
-  opts["min-valid"] === undefined ? undefined : Number.parseInt(opts["min-valid"], 10),
-  runs,
-);
+// Tekst z CLI wprost: nieliczbowe `--min-valid` jest błędem wywołania (runda 2).
+const minValid = resolveMinValid(opts["min-valid"], runs);
 const allowUncached = opts["allow-uncached"];
 const saveArtifacts = opts["save-artifacts"];
 const measuredPathname = new URL(opts.path, "https://fixture.invalid").pathname;
@@ -317,8 +328,8 @@ const lh = lighthouseCommand();
 /** `lighthouseVersion` z pierwszego LHR serii (do summary.json i baseline'u). */
 let seenLighthouseVersion = null;
 
-/** Ścieżka do zapisu: względna wobec `base` (D3), `.` dla samego `base`. */
-const relPath = (path, base = HARNESS_ROOT) => relative(base, path) || ".";
+/** Plik serii do zapisu: względny wobec katalogu wyników `base` (D3), `.` dla samego `base`. */
+const relPath = (path, base) => relative(base, path) || ".";
 const children = [];
 let stopping = false;
 async function stopAll() {
@@ -382,14 +393,19 @@ async function waitForIdle() {
  */
 async function runLighthouseWithRetry(url, form, chromeFlags, outputPath, artifactsDir, prepare) {
   let ctx = null;
+  let loadBefore = Number.NaN;
+  let loadAfter = Number.NaN;
   for (let attempt = 1; attempt <= 2; attempt++) {
-    const load = await waitForIdle();
+    loadBefore = await waitForIdle();
     ctx = await prepare();
+    // Drugi pomiar PO rozgrzewce: restart serwera i render MISS też obciążają
+    // maszynę tuż przed Lighthouse'em (bramka bierze większy, runda 2).
+    loadAfter = loadavg()[0];
     const lhr = await runLighthouse(url, form, chromeFlags, outputPath, artifactsDir);
-    if (lhr) return { lhr, load, ctx };
+    if (lhr) return { lhr, loadBefore, loadAfter, ctx };
     if (attempt === 1) console.log("    powtórka przebiegu (błąd wykonania)");
   }
-  return { lhr: null, load: loadavg()[0], ctx };
+  return { lhr: null, loadBefore, loadAfter, ctx };
 }
 
 /** Jeden przebieg Lighthouse'a; zwraca LHR albo null (błąd wykonania nie przerywa serii). */
@@ -502,38 +518,20 @@ async function startFakeGoogleForSeries() {
 }
 
 /**
- * Rozgrzewka początkowa = WZORZEC wariantu serii (B1). Pierwszy MISS na zimnym
- * procesie zasiewa pełny render (`s-maxage=900`); gdyby trafił wariant ze
- * zdegradowanym chrome'em (krótsza świeżość), restart serwera i ponowna
- * rozgrzewka, najwyżej `DEFAULT_MAX_RESTORES` razy. Dokument spoza cache
- * (redirect, BYPASS, błąd) przerywa serię już tutaj, chyba że `--allow-uncached`.
+ * Rozgrzewka początkowa = WZORZEC wariantu serii (B1): `warmReferenceVariant`
+ * (artifactServer.ts, testowane). Jeden restart odróżnia przegrany wyścig
+ * chrome'u od własnej polityki trasy; dokument spoza cache albo wzorzec
+ * o świeżości ≤ --min-fresh przerywa serię tutaj, zanim cokolwiek zmierzymy.
  */
 async function warmReference(artifact) {
-  let doc = await warmDocument(artifact.origin, opts.path, acceptLanguage, warmUserAgent);
-  let obs = observeDocument("warm", doc.status, doc.headers, doc.body.length);
-  const notCached = uncachedReason(obs);
-  if (notCached) {
-    if (!allowUncached)
-      throw new RewarmAbort(
-        `rozgrzewka początkowa ${opts.path}: dokument spoza cache (${notCached}) - ta ścieżka ` +
-          "nie da HIT-u (redirect, BYPASS, no-store albo błąd). Zmień --path albo --allow-uncached",
-      );
-    return { doc, reference: null };
-  }
-  for (let i = 0; !isFullFreshness(obs) && i < DEFAULT_MAX_RESTORES; i++) {
-    console.log(
-      `  wariant początkowy ${formatVariant(documentVariant(obs))} bez pełnej świeżości - restart serwera`,
-    );
-    await artifact.restart();
-    doc = await warmDocument(artifact.origin, opts.path, acceptLanguage, warmUserAgent);
-    obs = observeDocument("warm", doc.status, doc.headers, doc.body.length);
-  }
-  if (!isFullFreshness(obs))
-    console.log(
-      `  UWAGA: wzorzec serii ma niepełną świeżość (${formatVariant(documentVariant(obs))}) - ` +
-        "to nie jest pełny render, z którym porównuje baseline",
-    );
-  return { doc, reference: documentVariant(obs) };
+  const result = await warmReferenceVariant(artifact, opts.path, {
+    acceptLanguage,
+    userAgent: warmUserAgent,
+    minFreshS,
+    allowUncached,
+  });
+  if (result.note) console.log(`  wzorzec: ${result.note}`);
+  return result;
 }
 
 async function main() {
@@ -616,26 +614,42 @@ async function main() {
     const name = `${t.tag ? `${t.tag}-` : ""}${form}-${n}${attempt ? `r${attempt}` : ""}`;
     const file = join(outDir, `${name}.json`);
     const artifactsDir = saveArtifacts ? join(outDir, `${name}.artifacts`) : null;
-    const prepare = async () => ({
-      rewarm: await rewarmDocument(t.artifact.origin, opts.path, {
+    const prepare = async () => {
+      let assets = null;
+      const rewarm = await rewarmDocument(t.artifact.origin, opts.path, {
         acceptLanguage,
         userAgent: warmUserAgent,
         minFreshS,
         referenceVariant: t.reference,
         allowUncached,
+        // W środku serii ścieżka spoza cache NIE przerywa serii (zgubiłaby
+        // ukończone przebiegi): przebieg jest excluded i powtarzany. Ścieżkę
+        // sprawdza raz rozgrzewka początkowa (`warmReference`).
+        abortOnUncached: false,
         // Wzorca nie przywraca rewalidacja (daje wariant ze zdegradowanym
-        // chrome'em), tylko pusty magazyn: restart serwera + rozgrzewka.
+        // chrome'em), tylko pusty magazyn: restart serwera + rozgrzewka
+        // dokumentu i zasobów statycznych nowego procesu.
         restore: async () => {
           await t.artifact.restart();
-          await warmDocument(t.artifact.origin, opts.path, acceptLanguage, warmUserAgent);
+          const doc = await warmDocument(
+            t.artifact.origin,
+            opts.path,
+            acceptLanguage,
+            warmUserAgent,
+          );
+          assets = await warmAssets(t.artifact.origin, doc.body.toString("utf8"));
         },
-      }),
-      docMark: t.front.documents().length,
-      logMarks: targets.map((x) => x.log.mark()),
-      backendBefore: backend?.stats(),
-      googleBefore: fake?.google.stats(),
-    });
-    const { lhr, load, ctx } = await runLighthouseWithRetry(
+      });
+      return {
+        rewarm,
+        assets,
+        docMark: t.front.documents().length,
+        logMarks: targets.map((x) => x.log.mark()),
+        backendBefore: backend?.stats(),
+        googleBefore: fake?.google.stats(),
+      };
+    };
+    const { lhr, loadBefore, loadAfter, ctx } = await runLighthouseWithRetry(
       `${t.front.baseUrl}${opts.path}`,
       form,
       t.chromeFlags,
@@ -643,24 +657,26 @@ async function main() {
       artifactsDir,
       prepare,
     );
-    const { rewarm, docMark, logMarks, backendBefore, googleBefore } = ctx;
+    const { rewarm, assets, docMark, logMarks, backendBefore, googleBefore } = ctx;
     const serverDocs = targets.flatMap((x, i) => parseServerLogDocs(x.log.since(logMarks[i])));
     const runDocuments = t.front.documents().slice(docMark);
     const document = runDocuments.find((d) => d.path === measuredPathname) ?? null;
     const devtools = lhr ? devtoolsDocument(artifactsDir) : null;
-    const validity = lhr
-      ? classifyRun({
-          document,
-          serverDocs,
-          devtools,
-          rewarmOk: rewarm.ok,
-          referenceVariant: t.reference,
-          load,
-          maxLoad,
-          allowUncached,
-          runDocuments,
-        })
-      : { excluded: true, reasons: ["przebieg nieudany"] };
+    // Całe wejście ważności w jednej czystej funkcji (test w harness-ext.test.mjs).
+    const validity = classifyAttempt({
+      lhrOk: Boolean(lhr),
+      document,
+      serverDocs,
+      devtools,
+      rewarmOk: rewarm.ok,
+      referenceVariant: t.reference,
+      loadBefore,
+      loadAfter,
+      maxLoad,
+      allowUncached,
+      runDocuments,
+    });
+    const load = validity.load;
     const backendRun = backend ? diffClientBackendStats(backendBefore, backend.stats()) : null;
     const googleAfter = fake?.google.stats();
     const googleRun = fake
@@ -673,12 +689,18 @@ async function main() {
     const metrics = lhr ? extractMetrics(lhr) : null;
     if (metrics)
       console.log(
-        `${formatRun(`${t.tag ? `${t.tag} ` : ""}${name.replace(/^[AB]-/, "")}`, metrics)} load=${load.toFixed(1)}`,
+        `${formatRun(`${t.tag ? `${t.tag} ` : ""}${name.replace(/^[AB]-/, "")}`, metrics)} load=${load.toFixed(1)} ` +
+          `(${loadBefore.toFixed(1)} -> ${loadAfter.toFixed(1)} po rozgrzewce)`,
       );
     const waited = rewarm.waitedForStaleS
       ? `, czekanie na STALE ${rewarm.waitedForStaleS.toFixed(0)} s`
       : "";
-    const restarted = rewarm.restores ? `, restart serwera x${rewarm.restores}` : "";
+    const restarted = rewarm.restores
+      ? `, restart serwera x${rewarm.restores}` +
+        (assets
+          ? `, zasoby ${assets.count}${assets.failed ? ` (błędy ${assets.failed})` : ""}`
+          : "")
+      : "";
     console.log(
       `    cache: rozgrzewka ${formatObservation(rewarm.attempts[0])} -> ${formatObservation(rewarm.final)} ` +
         `(${rewarm.attempts.length} żądań${waited}${restarted}${rewarm.failure ? `; ${rewarm.failure}` : ""}) ` +
@@ -699,7 +721,10 @@ async function main() {
       artifacts: artifactsDir ? relPath(artifactsDir, outDir) : null,
       valid: !validity.excluded,
       reasons: validity.reasons,
+      // Bramka obciążenia = większy z pomiarów przed i po rozgrzewce.
       load,
+      loadBefore,
+      loadAfter,
       // B1: wariant dokumentu, który dostał Lighthouse; tryb FCP dopisuje księga.
       variant: document ? documentVariant(document) : null,
       fcpMode: null,
@@ -709,6 +734,7 @@ async function main() {
         requests: rewarm.attempts.length,
         waitedForStaleS: rewarm.waitedForStaleS,
         restores: rewarm.restores,
+        assets,
         failure: rewarm.failure,
         uncached: rewarm.uncached,
         ms: rewarm.ms,
@@ -726,30 +752,47 @@ async function main() {
   const records = new Map();
   const loads = [];
   const key = (tag, form) => `${tag}|${form}`;
-  for (const form of forms) {
-    for (let n = 1; n <= runs; n++) {
-      const order = n % 2 === 1 ? targets : [...targets].reverse();
-      for (const t of order) {
-        const attempts = await runWithRepeats(async (i) => {
-          const rec = await attemptRun(t, form, n, i);
-          if (!rec.valid && i < repeats) console.log(`    powtórka excluded ${i + 1}/${repeats}`);
-          return rec;
-        }, repeats);
-        const list = records.get(key(t.tag, form)) ?? [];
-        for (const rec of attempts) {
-          if (rec.metrics) loads.push(rec.load);
-          const firstValid = rec.valid && !list.some((x) => x.valid);
-          if (firstValid) {
-            const dumpFile = join(outDir, rec.file).replace(/\.json$/, ".audits.txt");
-            writeFileSync(dumpFile, `${dumpAudits(rec.lhr, 40)}\n`);
-            if (!opts["no-dump"]) console.log(`    audyty: ${dumpFile}`);
+  // Wyjątek w trakcie serii (np. serwer nie wstał po restarcie) kończy
+  // przebiegi, ale NIE gubi ukończonych: podsumowanie, linie VALID/PAIRS/AA
+  // i summary.json liczą się z nich, a wynik serii to kod 1 bez baseline'u
+  // (runda 2; dawniej main() odrzucał obietnicę przed summary.json).
+  let aborted = null;
+  try {
+    for (const form of forms) {
+      for (let n = 1; n <= runs; n++) {
+        const order = n % 2 === 1 ? targets : [...targets].reverse();
+        for (const t of order) {
+          const attempts = await runWithRepeats(async (i) => {
+            const rec = await attemptRun(t, form, n, i);
+            if (!rec.valid && i < repeats) console.log(`    powtórka excluded ${i + 1}/${repeats}`);
+            return rec;
+          }, repeats);
+          const list = records.get(key(t.tag, form)) ?? [];
+          for (const rec of attempts) {
+            if (rec.metrics) loads.push(rec.load);
+            const firstValid = rec.valid && !list.some((x) => x.valid);
+            if (firstValid) {
+              const dumpFile = join(outDir, rec.file).replace(/\.json$/, ".audits.txt");
+              writeFileSync(dumpFile, `${dumpAudits(rec.lhr, 40)}\n`);
+              if (!opts["no-dump"]) console.log(`    audyty: ${dumpFile}`);
+            }
+            delete rec.lhr;
+            list.push(rec);
           }
-          delete rec.lhr;
-          list.push(rec);
+          records.set(key(t.tag, form), list);
         }
-        records.set(key(t.tag, form), list);
       }
     }
+  } catch (error) {
+    // D3: komunikat trafia do summary.json - bez ścieżek maszyny.
+    aborted = scrubPaths(error instanceof Error ? error.message : String(error), [
+      [outDir, "<wyniki>"],
+      [HARNESS_ROOT, "."],
+      ...roots.map((r) => [r.root, portableRoot(r.root, HARNESS_ROOT)]),
+    ]);
+    console.error(
+      `PRZERWANE w trakcie serii: ${error instanceof RewarmAbort || !(error instanceof Error) ? aborted : error.stack}`,
+    );
   }
 
   // Księga Lantern per zadanie z zapisanych artefaktów - PO wszystkich
@@ -826,7 +869,8 @@ async function main() {
     lighthouseVersion: seenLighthouseVersion,
     targets: targets.map((t) => ({
       tag: t.tag || "single",
-      root: relPath(t.root),
+      // D3: względna wewnątrz repo harnessu, `poza-repo:<nazwa>` poza nim.
+      root: portableRoot(t.root, HARNESS_ROOT),
       commit: t.commit,
       transport: t.front.transport,
       referenceVariant: t.reference,
@@ -834,6 +878,7 @@ async function main() {
     forms: {},
     pairs: {},
     calibration: {},
+    aborted,
     outcome: null,
   };
   for (const t of targets) {
@@ -861,7 +906,7 @@ async function main() {
         validity: summary.forms[`${t.tag || "single"}:${form}`].validity,
       })),
     ),
-    { minValid, baselineTag: baseTag },
+    { minValid, baselineTag: baseTag, aborted },
   );
   summary.outcome = outcome;
   for (const line of outcome.failures) console.log(line);
@@ -982,8 +1027,10 @@ async function main() {
     const file = resolve(opts["baseline-out"] ?? BASELINE_DEFAULT);
     if (!outcome.baselineForms.length) {
       console.log(
-        `baseline NIE zapisany: żadna forma nie ma n_valid ≥ ${minValid} ` +
-          `(${outcome.refusedBaselineForms.join(", ")}); ${file} bez zmian`,
+        outcome.aborted
+          ? `baseline NIE zapisany: seria przerwana (${outcome.aborted}); ${file} bez zmian`
+          : `baseline NIE zapisany: żadna forma nie ma n_valid ≥ ${minValid} ` +
+              `(${outcome.refusedBaselineForms.join(", ")}); ${file} bez zmian`,
       );
     } else {
       const reference = targets.find((t) => t.tag === baseTag)?.reference ?? null;
@@ -992,8 +1039,8 @@ async function main() {
         label,
         savedAt: summary.savedAt,
         commit: targets[0].commit,
-        // D3: ścieżka względna wobec repo harnessu, nie ścieżka maszyny.
-        root: relPath(targets[0].root),
+        // D3: ścieżka względna wobec repo harnessu, `poza-repo:<nazwa>` poza nim.
+        root: portableRoot(targets[0].root, HARNESS_ROOT),
         transport,
         path: opts.path,
         fixture,

@@ -461,6 +461,64 @@ export function fcpModeOf(
   return { ...base, mode, share };
 }
 
+/** Wejścia `fcpModeOf` z jednego przebiegu (P0.1-FIX, runda 2). */
+export interface FcpModeInputs {
+  /** Skrypty pierwszej strony w pesymistycznym grafie FCP Lantern. */
+  readonly graphScripts: number;
+  readonly graphBytes: number;
+  /**
+   * Mianownik: bajty transferu skryptów PIERWSZEJ STRONY zakończonych przed
+   * obserwowanym LCP, RAZEM z wykluczonymi z sumy inwariantu 1 (np.
+   * `/~flock.js`) - graf FCP też je widzi.
+   */
+  readonly startupBytes: number;
+  /** Bajty skryptów obcych originów przed LCP, pominięte w mianowniku (diagnostyka). */
+  readonly thirdPartyBytes: number;
+}
+
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Tryb FCP liczony WYŁĄCZNIE ze skryptów originu dokumentu (recenzja
+ * P0.1-FIX, runda 2). Tag Google (`--third-party fake-gtag`, ~170 KB
+ * transferu) kończy się przed obserwowanym LCP w części przebiegów, a w części
+ * nie; w mianowniku przesuwałby udział przez próg 0,9 (`pełny` -> `pośredni`)
+ * bez zmiany grafu FCP pierwszej strony, czyli fałszywe pary mieszane.
+ * Licznik (graf FCP) filtrujemy tak samo, żeby udział nie przekraczał 1.
+ * Nieznany origin dokumentu = bez filtra (dawne zachowanie).
+ */
+export function fcpModeInputs(
+  graphRequests: readonly NetworkRecordLike[],
+  records: readonly NetworkRecordLike[],
+  lcpMs: number,
+  documentUrl: string,
+): FcpModeInputs {
+  const own = originOf(documentUrl);
+  const firstParty = (r: NetworkRecordLike) => own === null || originOf(r.url) === own;
+  let graphScripts = 0;
+  let graphBytes = 0;
+  for (const r of graphRequests) {
+    if (r.resourceType !== "Script" || !firstParty(r)) continue;
+    graphScripts += 1;
+    graphBytes += r.transferSize ?? 0;
+  }
+  let startupBytes = 0;
+  let thirdPartyBytes = 0;
+  for (const r of records) {
+    if (r.resourceType !== "Script") continue;
+    if (!((r.networkEndTime ?? Number.POSITIVE_INFINITY) < lcpMs)) continue;
+    if (firstParty(r)) startupBytes += r.transferSize ?? 0;
+    else thirdPartyBytes += r.transferSize ?? 0;
+  }
+  return { graphScripts, graphBytes, startupBytes, thirdPartyBytes };
+}
+
 /** `pełny (25 skr. / 506,2 KB = 97 % z 520,0 KB)` - tryb z liczbami, do ksiąg i linii LEDGER. */
 export function formatFcpMode(info: FcpModeInfo): string {
   const kb = (v: number) => (v / 1024).toFixed(1).replace(".", ",");
@@ -541,7 +599,10 @@ export interface Ledger {
   /** Skrypty w pesymistycznym grafie FCP Lantern = „tryb FCP" przebiegu (dwumodalność, M3). */
   readonly fcpGraphScripts: number;
   readonly fcpGraphScriptBytes: number;
-  /** Tryb FCP z udziału bajtów grafu FCP w skryptach startowych (`fcpModeOf`, I1). */
+  /**
+   * Tryb FCP z udziału bajtów grafu FCP w skryptach startowych, oba liczone
+   * dla originu dokumentu (`fcpModeInputs`, `fcpModeOf`, I1).
+   */
   readonly fcpMode: FcpMode;
   readonly fcpModeInfo: FcpModeInfo;
   readonly scriptBytesEndedBeforeObsLcp: ScriptBytes;
@@ -612,7 +673,11 @@ interface LanternNode {
   readonly event?: TraceEventLike;
   readonly childEvents?: readonly TraceEventLike[];
   readonly duration?: number;
-  readonly request?: { readonly resourceType?: string; readonly transferSize?: number };
+  readonly request?: {
+    readonly url: string;
+    readonly resourceType?: string;
+    readonly transferSize?: number;
+  };
 }
 
 interface LanternEstimate {
@@ -771,28 +836,28 @@ export async function analyzeArtifacts(
   const documentUrl = art.URL?.mainDocumentUrl ?? art.URL?.finalDisplayedUrl ?? "";
   const tasks = ledgerRows([...cpuNodes.values()], optimistic, pessimistic, windows, documentUrl);
 
-  let fcpGraphScripts = 0;
-  let fcpGraphScriptBytes = 0;
+  // Skrypty pesymistycznego grafu FCP (wszystkie originy; tryb FCP liczy
+  // z nich tylko pierwszą stronę - `fcpModeInputs`).
+  const fcpGraphRequests: NetworkRecordLike[] = [];
   fcp.pessimisticGraph?.traverse((node) => {
     if (node.type !== "network" || node.request?.resourceType !== "Script") return;
-    fcpGraphScripts += 1;
-    fcpGraphScriptBytes += node.request.transferSize ?? 0;
+    fcpGraphRequests.push(node.request);
   });
+  const fcpGraphScripts = fcpGraphRequests.length;
+  const fcpGraphScriptBytes = fcpGraphRequests.reduce((s, r) => s + (r.transferSize ?? 0), 0);
 
   const records = await NetworkRecords.request(devtoolsLog, context);
   const excludes = (options.excludeScripts ?? DEFAULT_EXCLUDE_SCRIPTS).map((s) => new RegExp(s));
   const google = tasks.filter((t) => /googletagmanager|google-analytics/.test(t.url));
-  const scriptBytesEndedBeforeObsLcp = scriptBytesEndedBefore(
-    records,
-    obsLcpTs === undefined ? Number.POSITIVE_INFINITY : obsLcpTs / 1000,
-    excludes,
-  );
-  // Mianownik trybu FCP: WSZYSTKIE skrypty startowe przed LCP (także wykluczone
-  // z sumy, np. /~flock.js - graf FCP też je widzi).
+  const obsLcpMs = obsLcpTs === undefined ? Number.POSITIVE_INFINITY : obsLcpTs / 1000;
+  const scriptBytesEndedBeforeObsLcp = scriptBytesEndedBefore(records, obsLcpMs, excludes);
+  // Tryb FCP: skrypty pierwszej strony w grafie FCP / skrypty pierwszej strony
+  // przed LCP (także wykluczone z sumy, np. /~flock.js), bez tagu Google.
+  const modeInputs = fcpModeInputs(fcpGraphRequests, records, obsLcpMs, documentUrl);
   const fcpModeInfo = fcpModeOf(
-    fcpGraphScripts,
-    fcpGraphScriptBytes,
-    scriptBytesEndedBeforeObsLcp.bytes + scriptBytesEndedBeforeObsLcp.excludedBytes,
+    modeInputs.graphScripts,
+    modeInputs.graphBytes,
+    modeInputs.startupBytes,
   );
   return {
     dir,
