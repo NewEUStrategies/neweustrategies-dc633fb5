@@ -154,13 +154,14 @@ describe("AccountMenuWidget", () => {
     // paska narzędzi nagłówka.
     auth.session = { user: { id: "u1" } };
     auth.user = { id: "u1", email: "anna@example.org" };
-    const { container } = renderWidget();
+    renderWidget();
     const label = screen.getByText("Dzień dobry, Anno");
+    const classes = label.className.split(" ");
     expect(label.className).toContain("min-w-[9rem]");
     expect(label.className).toContain("whitespace-nowrap");
-    expect(label.className).not.toContain("truncate");
-    expect(label.className).not.toContain("w-[9rem]");
-    expect(label?.className).not.toContain("max-w-[200px]");
+    expect(classes).not.toContain("truncate");
+    expect(classes).not.toContain("w-[9rem]");
+    expect(classes).not.toContain("max-w-[200px]");
   });
 
   it("staff dostaje dodatkowo sekcję staff (Panel admina)", async () => {
