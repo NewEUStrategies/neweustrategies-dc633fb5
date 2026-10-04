@@ -18,6 +18,25 @@ import {
   setDocumentRevalidator,
 } from "../documentCache.server";
 import { setColoCacheForTests, type ColoCache } from "../documentCacheL2.server";
+import { DOC_GUARD_MAX_MS } from "../documentStreamGuard.server";
+import type { DocumentStoreOutcome } from "../ssrTiming";
+
+/**
+ * Praca „za odpowiedzią" (`runAfterResponse`) przechwycona do asercji. Poza
+ * Workers prawdziwa funkcja i tak jest fire-and-forget (`cloudflare:workers`
+ * się nie rozwiązuje) - atrapa robi to samo, a do tego pozwala sprawdzić, że
+ * obietnica końca body linii logu trafia pod `waitUntil` (recenzja P0.4,
+ * MAJOR 1). Kolejność rejestracji w `src/server.ts`: praca zapisu (tee), potem
+ * obietnica linii - więc linia to zawsze OSTATNI wpis żądania.
+ */
+const afterResponse = vi.hoisted(() => ({ work: [] as Promise<unknown>[] }));
+
+vi.mock("@/lib/http/waitUntil.server", () => ({
+  runAfterResponse: (work: Promise<unknown>): void => {
+    afterResponse.work.push(work);
+    void work.catch(() => undefined);
+  },
+}));
 
 /**
  * Atrapa WYŁĄCZNIE wirtualnego entry frameworka (build go generuje, test nie):
@@ -111,6 +130,7 @@ function backgroundRevalidator(render: () => Response | Promise<Response>) {
 
 beforeEach(() => {
   resetDocumentCacheForTests();
+  afterResponse.work.length = 0;
 });
 
 afterEach(() => {
@@ -767,6 +787,101 @@ describe("nes-layer: który poziom podał dokument", () => {
   });
 });
 
+// Recenzja P0.4, MAJOR 2 (ii): magazyn zgłasza PRAWDZIWY wynik zapisu, żeby
+// linia logu dokumentu nie zgadywała go z nagłówków wysłanych przed body.
+describe("applyDeferredDocumentStore: wynik decyzji zapisu (`onOutcome`)", () => {
+  async function registeredMiss(path: string, body: BodyInit | null): Promise<Response> {
+    return (await handleDocumentRequest(
+      docRequest(path),
+      () => new Response(body, { status: 200, headers: CACHEABLE_HEADERS }),
+    )) as Response;
+  }
+
+  it("`stored` przychodzi PRZED wpisem w L1 - kontrakt kolejności linii rewalidacji z harnessem", async () => {
+    const seen: Array<{ outcome: DocumentStoreOutcome; entries: number }> = [];
+    const miss = await registeredMiss("/zapis", "<html>zapis</html>");
+    let work: Promise<boolean> | null = null;
+    const finalized = applyDeferredDocumentStore(
+      miss,
+      (pending) => {
+        work = pending;
+      },
+      (outcome) => {
+        seen.push({ outcome, entries: getDocumentCacheSnapshot().entries });
+      },
+    );
+    expect(await finalized.text()).toBe("<html>zapis</html>");
+    expect(await (work as Promise<boolean> | null)).toBe(true);
+    // W chwili zgłoszenia wpisu jeszcze nie ma; zaraz po nim już jest.
+    expect(seen).toEqual([{ outcome: "stored", entries: 0 }]);
+    expect(getDocumentCacheSnapshot().entries).toBe(1);
+  });
+
+  it("`degraded` synchronicznie, gdy polityka zawęziła się na granicy handlera", async () => {
+    const miss = await registeredMiss("/granica", "<html>granica</html>");
+    const headers = new Headers(miss.headers);
+    headers.set("cache-control", "private, no-store");
+    const boundary = new Response(miss.body, { status: 200, headers });
+    const seen: DocumentStoreOutcome[] = [];
+    const finalized = applyDeferredDocumentStore(boundary, undefined, (outcome) => {
+      seen.push(outcome);
+    });
+    expect(seen).toEqual(["degraded"]);
+    expect(finalized.headers.get("cache-control")).toBe("private, no-store");
+    await finalized.text();
+    await settle();
+    expect(seen).toEqual(["degraded"]);
+  });
+
+  it("`oversize` dla dokumentu ponad limit wpisu", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const miss = await registeredMiss("/duzy", "x".repeat(DOCUMENT_CACHE_MAX_ENTRY_BYTES + 1));
+    const seen: DocumentStoreOutcome[] = [];
+    const finalized = applyDeferredDocumentStore(miss, undefined, (outcome) => {
+      seen.push(outcome);
+    });
+    await finalized.text();
+    await settle();
+    expect(seen).toEqual(["oversize"]);
+    vi.restoreAllMocks();
+  });
+
+  it("`failed`, gdy strumień renderu pada przed zebraniem kopii", async () => {
+    const miss = await registeredMiss(
+      "/padl",
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(new Error("render padł"));
+        },
+      }),
+    );
+    const seen: DocumentStoreOutcome[] = [];
+    const finalized = applyDeferredDocumentStore(miss, undefined, (outcome) => {
+      seen.push(outcome);
+    });
+    await finalized.text().catch(() => undefined);
+    await settle();
+    expect(seen).toEqual(["failed"]);
+  });
+
+  it("brak rejestracji = brak wywołania; wyjątek z telemetrii nie zmienia losu zapisu", async () => {
+    const seen: DocumentStoreOutcome[] = [];
+    const passthrough = new Response("plain", { headers: { "content-type": "text/plain" } });
+    expect(applyDeferredDocumentStore(passthrough, undefined, (o) => seen.push(o))).toBe(
+      passthrough,
+    );
+    expect(seen).toEqual([]);
+
+    const miss = await registeredMiss("/telemetria-padla", "<html>ok</html>");
+    const finalized = applyDeferredDocumentStore(miss, undefined, () => {
+      throw new Error("log padł");
+    });
+    expect(await finalized.text()).toBe("<html>ok</html>");
+    await settle();
+    expect(getDocumentCacheSnapshot().entries).toBe(1);
+  });
+});
+
 // PEŁNY POTOK `src/server.ts` (P0.4): linia logu PO KOŃCU body z `streamMs`
 // i licznikiem izolatu, `colo` w Server-Timing ZA nagłówkiem potoku, owijka
 // strumienia ZA tee zapisu (MISS dalej zasiewa magazyn - tożsamość body w
@@ -853,7 +968,11 @@ describe("src/server.ts: telemetria dokumentu na końcu strumienia", () => {
       uaClass: "lighthouse",
       degraded: false,
       revalidation: false,
+      // Recenzja P0.4, MAJOR 2: linia niesie decyzję magazynu, a czytelnik
+      // zobaczył `done` dopiero po niej (asercja tuż po pętli odczytu).
+      store: "stored",
     });
+    expect(docLines(log)).toHaveLength(1);
     expect(miss).not.toHaveProperty("streamEnd");
     expect(typeof miss!.streamMs).toBe("number");
     expect(miss!.streamMs as number).toBeGreaterThanOrEqual(miss!.appMs as number);
@@ -887,12 +1006,15 @@ describe("src/server.ts: telemetria dokumentu na końcu strumienia", () => {
       });
 
     await (await entry.fetch(entryRequest("/zdegradowany"))).text();
+    expect(docLines(log)).toHaveLength(1);
     expect(docLines(log)[0]).toMatchObject({
       cache: "MISS",
       degraded: true,
       // Brak nagłówka user-agent to też automat (ta sama lista co beacony).
       uaClass: "bot",
     });
+    // Magazyn takiego MISS-a nie rejestrował - nie ma wyniku zapisu.
+    expect(docLines(log)[0]).not.toHaveProperty("store");
   });
 
   it("zerwany klient: linia logu powstaje od razu z `streamEnd: aborted`, a zerwanie dochodzi do renderu", async () => {
@@ -928,10 +1050,240 @@ describe("src/server.ts: telemetria dokumentu na końcu strumienia", () => {
     expect(docLines(log)).toHaveLength(0);
     void reader.cancel(new Error("klient zniknął"));
 
+    expect(docLines(log)).toHaveLength(1);
     expect(docLines(log)[0]).toMatchObject({ path: "/zerwany", streamEnd: "aborted" });
     await vi.waitFor(() => {
       expect(cancelled.length).toBeGreaterThan(0);
     });
+    await settle();
+    expect(docLines(log)).toHaveLength(1);
+  });
+
+  // Recenzja P0.4, MINOR 6: wariant, dla którego owijka NIE jest
+  // `TransformStream` - MISS do zapisu, tee aktywne, a anulowanie gałęzi
+  // czytelnika czeka na kolektor zapisu (spec ReadableStreamDefaultTee).
+  it("zerwany klient na MISS-ie DO ZAPISU (tee aktywne): jedna linia `aborted` od razu, render dalej zasiewa magazyn", async () => {
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    let source: ReadableStreamDefaultController<Uint8Array> | undefined;
+    entryHarness.render = () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            source = controller;
+            controller.enqueue(encoder.encode("<html><body>"));
+          },
+        }),
+        { status: 200, headers: CACHEABLE_HEADERS },
+      );
+
+    const response = await entry.fetch(entryRequest("/zerwany-do-zapisu"));
+    const reader = response.body!.getReader();
+    await reader.read();
+    expect(docLines(log)).toHaveLength(0);
+    void reader.cancel(new Error("klient zniknął"));
+
+    // OD RAZU, nie po renderze: decyzja magazynu jeszcze nie zapadła, więc
+    // linia nie ma `store`, a `degraded` mówi to, co nagłówki.
+    expect(docLines(log)).toHaveLength(1);
+    expect(docLines(log)[0]).toMatchObject({
+      path: "/zerwany-do-zapisu",
+      cache: "MISS",
+      streamEnd: "aborted",
+      degraded: false,
+    });
+    expect(docLines(log)[0]).not.toHaveProperty("store");
+
+    // Kolektor zapisu czyta swoją gałąź do końca renderu (zachowanie sprzed
+    // P0.4) - koniec źródła nie dokłada drugiej linii.
+    source!.enqueue(encoder.encode("</body></html>"));
+    source!.close();
+    await settle();
+    expect(docLines(log)).toHaveLength(1);
+    expect(getDocumentCacheSnapshot().entries).toBe(1);
+  });
+
+  it("GET z body `null` (204): jedna linia od razu, bez `streamMs`", async () => {
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    entryHarness.render = () =>
+      new Response(null, { status: 204, headers: { "content-type": "text/html; charset=utf-8" } });
+
+    const response = await entry.fetch(entryRequest("/bez-tresci"));
+    expect(response.body).toBeNull();
+    expect(docLines(log)).toHaveLength(1);
+    expect(docLines(log)[0]).toMatchObject({ path: "/bez-tresci", status: 204, colo: "WAW" });
+    expect(docLines(log)[0]).not.toHaveProperty("streamMs");
+    // Nic nie czeka na koniec body, więc nic nie trafia pod `waitUntil`.
+    expect(afterResponse.work).toHaveLength(0);
+  });
+
+  it("dokument za duży na wpis: `store: oversize`, `degraded: false` (MAJOR 2)", async () => {
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const huge = `<html><body>${"x".repeat(DOCUMENT_CACHE_MAX_ENTRY_BYTES)}</body></html>`;
+    entryHarness.render = () => htmlResponse(huge);
+
+    const response = await entry.fetch(entryRequest("/za-duzy"));
+    expect((await response.text()).length).toBe(huge.length);
+    expect(docLines(log)).toHaveLength(1);
+    expect(docLines(log)[0]).toMatchObject({ cache: "MISS", degraded: false, store: "oversize" });
+    expect(getDocumentCacheSnapshot().entries).toBe(0);
+  });
+
+  // Recenzja P0.4, MAJOR 1: przed P0.4 linia szła synchronicznie przed
+  // zwrotem Response; teraz powstaje na końcu body, więc obietnica końca body
+  // MUSI jechać pod `waitUntil` z bezpiecznikiem poniżej 30 s.
+  it("klient ani nie czyta, ani nie anuluje: obietnica linii pod `runAfterResponse`, bezpiecznik daje jedną linię `aborted`", async () => {
+    vi.useFakeTimers({ now: 1_000_000 });
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    entryHarness.render = () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode("<html><body>"));
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "text/html; charset=utf-8",
+            "cache-control": "private, no-store",
+          },
+        },
+      );
+
+    const response = await entry.fetch(entryRequest("/porzucony"));
+    expect(response.headers.get("x-ssr-doc-guard")).toBe("on");
+    const line = afterResponse.work.at(-1);
+    if (!line) throw new Error("obietnica linii nie trafiła pod runAfterResponse");
+    let lineSettled = false;
+    void line.then(() => {
+      lineSettled = true;
+    });
+
+    // Strażnik domyka SWOJE wyjście (idle 12 s, max 20 s), ale owijki nikt
+    // nie ciągnie - bez bezpiecznika linii nie byłoby nigdy.
+    await vi.advanceTimersByTimeAsync(DOC_GUARD_MAX_MS + 2_000 - 1);
+    expect(docLines(log)).toHaveLength(0);
+    expect(lineSettled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(docLines(log)).toHaveLength(1);
+    const [aborted] = docLines(log);
+    expect(aborted).toMatchObject({ path: "/porzucony", streamEnd: "aborted", degraded: true });
+    expect(aborted!.streamMs).toBe(DOC_GUARD_MAX_MS + 2_000);
+    expect(lineSettled).toBe(true);
+
+    // Późny czytelnik nie dokłada drugiej linii.
+    vi.useRealTimers();
+    await response.text();
+    expect(docLines(log)).toHaveLength(1);
+  });
+
+  // Recenzja P0.4, runda 2: strażnik pompuje źródło sam i domyka SWOJE
+  // wyjście niezależnie od tempa klienta, a owijka idzie w tempie czytelnika.
+  // Bezpiecznik odpala więc też przy wolnym czytelniku, a liczy się od powrotu
+  // handlera - `streamMs` linii to `appMs` + 22 000, nie 22 000.
+  it("wolny czytelnik: jedna linia `aborted` ze `streamMs - appMs` = 22 000, a dokument dochodzi w całości", async () => {
+    vi.useFakeTimers({ now: 3_000_000 });
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const RENDER_MS = 400;
+    const parts = ["<html><head></head>", "<body>wolny czytelnik</body></html>"];
+    entryHarness.render = async () => {
+      await new Promise((resolve) => setTimeout(resolve, RENDER_MS));
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            for (const part of parts) controller.enqueue(encoder.encode(part));
+            controller.close();
+          },
+        }),
+        { status: 200, headers: CACHEABLE_HEADERS },
+      );
+    };
+
+    const pending = entry.fetch(entryRequest("/wolny-czytelnik"));
+    await vi.advanceTimersByTimeAsync(RENDER_MS);
+    const response = await pending;
+    expect(response.headers.get("x-ssr-doc-guard")).toBe("on");
+    const decoder = new TextDecoder();
+    const reader = response.body!.getReader();
+    const first = await reader.read();
+    let text = decoder.decode(first.value, { stream: true });
+
+    // Render skończony, strażnik domknięty, kopia w magazynie - tylko klient
+    // nie doczytał reszty body.
+    await vi.advanceTimersByTimeAsync(DOC_GUARD_MAX_MS + 2_000 - 1);
+    expect(docLines(log)).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(docLines(log)).toHaveLength(1);
+    const [line] = docLines(log);
+    expect(line).toMatchObject({
+      path: "/wolny-czytelnik",
+      cache: "MISS",
+      streamEnd: "aborted",
+      appMs: RENDER_MS,
+      degraded: false,
+      store: "stored",
+    });
+    expect(Number(line!.streamMs) - Number(line!.appMs)).toBe(DOC_GUARD_MAX_MS + 2_000);
+
+    // Bezpiecznik zamyka wyłącznie telemetrię: reszta body dochodzi bez
+    // ucięcia, a drugiej linii nie ma.
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      text += decoder.decode(next.value, { stream: true });
+    }
+    expect(text + decoder.decode()).toBe(parts.join(""));
+    expect(docLines(log)).toHaveLength(1);
+  });
+
+  // Recenzja P0.4, MINOR 9: kill-switch strażnika oznacza wiszącą
+  // serializację do ~60 s - bezpiecznik daje linię po 22 s, nie po minucie.
+  it("SSR_DOC_GUARD=off i wiszący render: linia `aborted` po bezpieczniku, mimo że klient czyta", async () => {
+    vi.stubEnv("SSR_DOC_GUARD", "off");
+    vi.useFakeTimers({ now: 2_000_000 });
+    const entry = await loadEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    let source: ReadableStreamDefaultController<Uint8Array> | undefined;
+    entryHarness.render = () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            source = controller;
+            controller.enqueue(encoder.encode("<html><body>"));
+          },
+        }),
+        { status: 200, headers: CACHEABLE_HEADERS },
+      );
+
+    const response = await entry.fetch(entryRequest("/bez-straznika"));
+    expect(response.headers.get("x-ssr-doc-guard")).toBeNull();
+    const line = afterResponse.work.at(-1);
+    const reader = response.body!.getReader();
+    await reader.read();
+    const stalled = reader.read();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(docLines(log)).toHaveLength(1);
+    expect(docLines(log)[0]).toMatchObject({
+      path: "/bez-straznika",
+      cache: "MISS",
+      streamEnd: "aborted",
+      streamMs: DOC_GUARD_MAX_MS + 2_000,
+    });
+    await expect(line).resolves.toBeUndefined();
+    // Sprzątanie: anulowanie gałęzi tee czeka na kolektor zapisu, więc nie
+    // czekamy na nie, tylko domykamy render. Drugiej linii nie ma.
+    void reader.cancel();
+    expect((await stalled).done).toBe(true);
+    source!.close();
+    expect(docLines(log)).toHaveLength(1);
   });
 
   it("HEAD loguje od razu, bez streamMs - runtime takiego body nie czyta", async () => {

@@ -28,8 +28,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import serverEntry from "../server";
-import { revalidationHeader } from "../lib/http/documentCache.server";
-import { appendLinkHeader } from "../lib/http/responseHeaders";
+import {
+  getDocumentCacheSnapshot,
+  handleDocumentRequest,
+  resetDocumentCacheForTests,
+  revalidationHeader,
+} from "../lib/http/documentCache.server";
+import { appendLinkHeader, setCacheControlHeader } from "../lib/http/responseHeaders";
 import type { DocumentRevalidator } from "../lib/http/documentCache.server";
 
 const HTML_HEADERS = { "content-type": "text/html; charset=utf-8" } as const;
@@ -42,6 +47,8 @@ const hoisted = vi.hoisted(() => ({
   render: null as null | ((request: Request) => Response | Promise<Response>),
   /** Driver rewalidacji w tle, przechwycony z `setDocumentRevalidator`. */
   revalidator: null as DocumentRevalidator | null,
+  /** Gdy ustawione, entry rzuca tym PRZED dispatchem (ścieżka `catch` w server.ts). */
+  failBeforeDispatch: undefined as unknown,
 }));
 
 vi.mock("@tanstack/react-start/server-entry", async () => {
@@ -58,6 +65,7 @@ vi.mock("@tanstack/react-start/server-entry", async () => {
       // 1:1, żeby test mierzył ARNOŚĆ wywołania z `src/server.ts`, a nie naszą.
       fetch: (...args: ReadonlyArray<unknown>) => {
         hoisted.calls.push(args);
+        if (hoisted.failBeforeDispatch !== undefined) throw hoisted.failBeforeDispatch;
         const [request, requestOpts] = args;
         if (!(request instanceof Request)) {
           throw new Error("pierwszym argumentem entry musi być Request");
@@ -119,6 +127,7 @@ function htmlRender(headers: Record<string, string> = {}): () => Response {
 beforeEach(() => {
   hoisted.calls.length = 0;
   hoisted.render = htmlRender();
+  hoisted.failBeforeDispatch = undefined;
 });
 
 afterEach(() => {
@@ -197,6 +206,8 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
       streamMs: 37,
       isoReq: expect.any(Number),
       isoAgeS: expect.any(Number),
+      // Dokładne wartości licznika przypina blok „świeży moduł" na końcu pliku.
+      coldEntry: expect.any(Boolean),
       // Żądanie bez nagłówka user-agent to automat (lista z botFilter.ts).
       uaClass: "bot",
       // Atrapa renderu nie niesie Cache-Control, więc wg polityki zapisu
@@ -406,5 +417,288 @@ describe("entry SSR: potok awaryjny między zmienionymi liniami nie ucierpiał",
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(body.length).toBeGreaterThan(0);
     expect(errors).toHaveBeenCalled();
+  });
+});
+
+const CACHEABLE_HEADERS = {
+  "content-type": "text/html; charset=utf-8",
+  "cache-control": "public, max-age=60, s-maxage=900, stale-while-revalidate=86400",
+} as const;
+const RAY = "8c5a3b2e9f1d4e7a-WAW";
+const encoder = new TextEncoder();
+
+function docLines(log: { mock: { calls: unknown[][] } }): Record<string, unknown>[] {
+  return log.mock.calls
+    .map((call) => String(call[0]))
+    .filter((line) => line.startsWith('{"kind":"doc"'))
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+/** Żądanie dokumentu z hostem tenanta tak, jak podaje go proxy produkcyjne. */
+function documentRequest(path: string, headers: Record<string, string> = {}): Request {
+  return new Request(`https://tenant-a.eu${path}`, {
+    headers: { "x-forwarded-host": "tenant-a.eu", ...headers },
+  });
+}
+
+/** Render przez PRAWDZIWY `handleDocumentRequest` (rejestracja odroczonego zapisu). */
+function cachedRender(render: () => Response): (request: Request) => Promise<Response> {
+  return async (request) => (await handleDocumentRequest(request, render)) as Response;
+}
+
+/**
+ * Dokument do zapisu, którego trasa zawęża dyrektywę cache'ową DOPIERO PO
+ * pierwszym chunku - dokładnie przypadek z documentCache.server.ts („degradacja
+ * odkryta W TRAKCIE strumieniowania"): nagłówki wyszły jako publiczne,
+ * a magazyn przy drugiej kontroli odmawia zapisu.
+ *
+ * Mechanika testu: `setCacheControlHeader` potrzebuje zasięgu żądania h3
+ * (AsyncLocalStorage), a odczyt strumienia biegnie już poza nim. Dlatego
+ * kontynuacja zawężenia jest rejestrowana W zasięgu (w renderze), a odpala ją
+ * drugi `pull` źródła - czyli chwila, w której pierwszy chunk przeszedł już
+ * przez tee zapisu (`highWaterMark: 0`: nikt nie czyta źródła przed tee).
+ */
+function narrowedAfterFirstChunk(): Response {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const narrowed = gate.then(() => setCacheControlHeader("private, no-store"));
+  let pulls = 0;
+  const body = new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        pulls += 1;
+        if (pulls === 1) {
+          controller.enqueue(encoder.encode("<html><body>"));
+          return;
+        }
+        release();
+        await narrowed;
+        controller.enqueue(encoder.encode("</body></html>"));
+        controller.close();
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  return new Response(body, { status: 200, headers: CACHEABLE_HEADERS });
+}
+
+// Recenzja P0.4, MAJOR 2: `degraded` w linii ma mówić, co magazyn ZROBIŁ, nie
+// co obiecywały nagłówki wysłane przed body. Potrzebny prawdziwy zasięg
+// żądania h3 (dyrektywa trasy), więc test żyje tutaj, nie w documentCache.
+describe("entry SSR: linia dokumentu niesie prawdziwy wynik zapisu", () => {
+  beforeEach(() => {
+    resetDocumentCacheForTests();
+  });
+
+  it("dyrektywa `no-store` ustawiona PO pierwszym chunku daje `degraded: true` i `store: degraded`", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    hoisted.render = cachedRender(narrowedAfterFirstChunk);
+
+    const response = await entryFetch(documentRequest("/w-trakcie"));
+    // Nagłówki wyszły jako publiczne - z nich samych `degraded` byłoby false.
+    expect(response.headers.get("cache-control")).toContain("public");
+    expect(response.headers.get("x-nes-cache")).toBe("MISS");
+    expect(await response.text()).toBe("<html><body></body></html>");
+
+    // Linia jest w logu, zanim czytelnik zobaczył `done` (kontrakt harnessu).
+    const lines = docLines(log);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      path: "/w-trakcie",
+      cache: "MISS",
+      degraded: true,
+      store: "degraded",
+    });
+    expect(lines[0]).not.toHaveProperty("streamEnd");
+    expect(getDocumentCacheSnapshot().entries).toBe(0);
+  });
+
+  it("kontrola: czysty MISS do zapisu daje `degraded: false`, `store: stored` i wpis w L1", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    hoisted.render = cachedRender(
+      () => new Response(DOC, { status: 200, headers: CACHEABLE_HEADERS }),
+    );
+
+    const response = await entryFetch(documentRequest("/czysty"));
+    expect(await response.text()).toBe(DOC);
+    const lines = docLines(log);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ cache: "MISS", degraded: false, store: "stored" });
+    expect(getDocumentCacheSnapshot().entries).toBe(1);
+  });
+});
+
+// Recenzja P0.4, MINOR 5 + twardy kontrakt harnessu pomiaru (P0.1:
+// scripts/performance/artifactServer.ts `rewarmDocument` + `logCursor`):
+// kursor logu staje po HIT-cie rozgrzewki, a każda linia `revalidation:true`
+// po nim liczy się jako render serwera w przebiegu Lighthouse'a.
+describe("entry SSR: linia rewalidacji w tle", () => {
+  beforeEach(() => {
+    resetDocumentCacheForTests();
+  });
+
+  it("powstaje po decyzji magazynu, ale ZANIM odświeżony wpis da się podać jako HIT", async () => {
+    const entriesAtLine: number[] = [];
+    const log = vi.spyOn(console, "log").mockImplementation((line: unknown) => {
+      if (String(line).includes('"revalidation":true')) {
+        entriesAtLine.push(getDocumentCacheSnapshot().entries);
+      }
+    });
+    hoisted.render = cachedRender(
+      () => new Response(DOC, { status: 200, headers: CACHEABLE_HEADERS }),
+    );
+
+    const trigger = documentRequest("/odswiezany?page=2", { "cf-ray": RAY });
+    expect(await hoisted.revalidator!(trigger)).toBe(true);
+
+    // W chwili zapisu linii wpisu w L1 jeszcze nie było; po rewalidacji jest.
+    expect(entriesAtLine).toEqual([0]);
+    expect(getDocumentCacheSnapshot().entries).toBe(1);
+    const lines = docLines(log);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      path: "/odswiezany",
+      cache: "MISS",
+      revalidation: true,
+      degraded: false,
+      store: "stored",
+      // Kolonia i ray żądania WYZWALAJĄCEGO - pola logu do korelacji.
+      colo: "WAW",
+      ray: RAY,
+    });
+    for (const key of ["isoReq", "isoAgeS", "coldEntry", "streamMs"]) {
+      expect(lines[0]).not.toHaveProperty(key);
+    }
+    // ...i nigdy nagłówek syntetycznego żądania - ten wpływa na render.
+    const synthetic = hoisted.calls.at(-1)![0] as Request;
+    expect(synthetic.headers.get("cf-ray")).toBeNull();
+  });
+
+  it("degradacja odkryta W TRAKCIE strumieniowania: ta sama definicja `degraded` co na ścieżce czytelnika", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    hoisted.render = cachedRender(narrowedAfterFirstChunk);
+
+    expect(await hoisted.revalidator!(documentRequest("/odswiezany-zdegradowany"))).toBe(false);
+
+    const lines = docLines(log);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      revalidation: true,
+      cache: "MISS",
+      degraded: true,
+      store: "degraded",
+    });
+    // Żądanie wyzwalające bez `cf-ray`: brak kolonii i ray-a, a nie śmieci.
+    expect(lines[0]).not.toHaveProperty("colo");
+    expect(lines[0]).not.toHaveProperty("ray");
+    expect(getDocumentCacheSnapshot().entries).toBe(0);
+  });
+});
+
+// Recenzja P0.4, MINOR 8: wyjątek PRZED dispatchem routera (też padnięty
+// import entry na zimnym izolacie) daje stronę 500 - do tej pory bez linii.
+describe("entry SSR: strona 500 ze ścieżki `catch` ma linię dokumentu", () => {
+  it("linia z licznikiem izolatu, kolonią i ray-em, bez `streamMs`; Server-Timing bez zmian", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failure = new Error("entry padło przed routerem");
+    hoisted.failBeforeDispatch = failure;
+
+    const response = await entryFetch(
+      new Request("https://tenant-a.eu/blog?token=sekret", { headers: { "cf-ray": RAY } }),
+    );
+    expect(response.status).toBe(500);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(response.headers.get("server-timing")).toBeNull();
+    expect(errors).toHaveBeenCalledWith(failure);
+
+    const lines = docLines(log);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toEqual({
+      kind: "doc",
+      path: "/blog",
+      status: 500,
+      cache: null,
+      revalidation: false,
+      serverInitMs: expect.any(Number),
+      appMs: expect.any(Number),
+      colo: "WAW",
+      isoReq: expect.any(Number),
+      isoAgeS: expect.any(Number),
+      coldEntry: expect.any(Boolean),
+      uaClass: "bot",
+      ray: RAY,
+    });
+    expect(JSON.stringify(lines[0])).not.toContain("sekret");
+  });
+
+  it("kontrola: zerwany klient (499, nie HTML) nadal bez linii dokumentu", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    hoisted.failBeforeDispatch = Object.assign(new Error("socket"), { code: "ECONNRESET" });
+
+    const response = await entryFetch(new Request("https://tenant-a.eu/blog"));
+    expect(response.status).toBe(499);
+    expect(docLines(log)).toHaveLength(0);
+  });
+});
+
+// Recenzja P0.4, MINOR 3 i 4. Licznik izolatu żyje w zasięgu modułu
+// `src/server.ts` i nie da się go cofnąć - świeży import modułu to świeży
+// izolat. MUSI stać na końcu pliku: `vi.resetModules()` podmienia instancje
+// modułów (w tym znacznik rewalidacji), z których korzystają testy wyżej.
+describe("entry SSR: licznik izolatu na świeżym module", () => {
+  async function freshEntry(): Promise<RuntimeFetch> {
+    vi.resetModules();
+    const fresh = await import("../server");
+    return fresh.default.fetch;
+  }
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("pierwsze żądanie: `isoReq` 1, `isoAgeS` 0 i `coldEntry`; po 5 s drugie: 2, 5, ciepłe", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-04T10:00:00Z"), toFake: ["Date"] });
+    const fetchFresh = await freshEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    // Wiek liczy się od PIERWSZEGO ŻĄDANIA, nie od załadowania modułu.
+    vi.advanceTimersByTime(7_000);
+
+    await (await fetchFresh(new Request("https://tenant-a.eu/pierwsze"))).text();
+    vi.advanceTimersByTime(5_000);
+    await (await fetchFresh(new Request("https://tenant-a.eu/drugie"))).text();
+
+    expect(
+      docLines(log).map(({ path, isoReq, isoAgeS, coldEntry }) => ({
+        path,
+        isoReq,
+        isoAgeS,
+        coldEntry,
+      })),
+    ).toEqual([
+      { path: "/pierwsze", isoReq: 1, isoAgeS: 0, coldEntry: true },
+      { path: "/drugie", isoReq: 2, isoAgeS: 5, coldEntry: false },
+    ]);
+  });
+
+  it("dwa równoległe żądania na zimnym izolacie: oba `coldEntry`, choć `isoReq` 1 ma tylko pierwsze", async () => {
+    const fetchFresh = await freshEntry();
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const [first, second] = await Promise.all([
+      fetchFresh(new Request("https://tenant-a.eu/rownolegle-a")),
+      fetchFresh(new Request("https://tenant-a.eu/rownolegle-b")),
+    ]);
+    await first.text();
+    await second.text();
+    await (await fetchFresh(new Request("https://tenant-a.eu/po-starcie"))).text();
+
+    const byPath = new Map(docLines(log).map((line) => [line.path, line]));
+    expect(byPath.get("/rownolegle-a")).toMatchObject({ isoReq: 1, coldEntry: true });
+    // `isoReq == 1` uznałoby to żądanie za ciepłe, choć czekało na ten sam import.
+    expect(byPath.get("/rownolegle-b")).toMatchObject({ isoReq: 2, coldEntry: true });
+    expect(byPath.get("/po-starcie")).toMatchObject({ isoReq: 3, coldEntry: false });
   });
 });
