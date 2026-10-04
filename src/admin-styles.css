@@ -796,7 +796,7 @@ aside[data-sidebar="sidebar"][data-sidebar-style="style-5"] [data-sidebar="group
   color: var(--td-tb-hover-color, var(--foreground));
 }
 .cms-tb-btn[data-active="true"] {
-  background: var(--td-tb-active-bg, #fa9346);
+  background: var(--td-tb-active-bg, #FA9346);
   color: var(--td-tb-active-color, #ffffff);
 }
 .cms-tb-btn:disabled {

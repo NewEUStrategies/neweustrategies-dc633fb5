@@ -157,13 +157,13 @@ export function defaultNewsletterSettings(): NewsletterSettings {
     popup_require_privacy: true,
     popup_privacy_html_pl: null,
     popup_privacy_html_en: null,
-    // Domyślna paleta ciemna zgodna z marką: --brand (#fa9346) jako akcent,
+    // Domyślna paleta ciemna zgodna z marką: --brand (#FA9346) jako akcent,
     // ciemny atrament na akcencie (WCAG AA na pomarańczu), głębsze tło niż
     // czysta czerń i jaśniejszy tekst pomocniczy (kontrast > 7:1).
     popup_bg_color: "#0b0b0f",
     popup_text_color: "#ffffff",
     popup_muted_color: "#a8a8b3",
-    popup_accent_color: "#fa9346",
+    popup_accent_color: "#FA9346",
     popup_accent_text_color: "#141414",
     popup_overlay_color: "rgba(8,8,12,0.72)",
     popup_border_radius_px: 6,

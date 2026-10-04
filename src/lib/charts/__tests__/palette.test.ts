@@ -189,7 +189,7 @@ describe("palette - progi WCAG", () => {
   it("każdy slot NIESIE KSZTAŁT na płycie swojego motywu - sam albo obwódką", () => {
     // Reguła ma DWA wejścia, i to nie jest rozluźnienie progu, tylko opisanie
     // tego, co naprawdę niesie kształt. Wypełnienie w kolorze marki bywa pod
-    // progiem (#fa9346 ma 2,25:1 na białej płycie) i nie wolno go podmienić,
+    // progiem (#FA9346 ma 2,25:1 na białej płycie) i nie wolno go podmienić,
     // bo po to jest kolorem marki. Kształt niesie wtedy obwódka, a `barFillOf`
     // dociąga ją do progu niezależnie od tego, ile kroków jasności to wymaga.
     // Warunek jest więc taki: ALBO wypełnienie przechodzi samo, ALBO slot jest
@@ -408,7 +408,7 @@ describe("palette - KOLORY MARKI są w palecie, co do hexa", () => {
   // inny test by tego nie zauważył, bo wszystkie progi dalej by przechodziły.
   const ZADANE_JASNE = [
     "#03346e",
-    "#fa9346",
+    "#FA9346",
     "#8c56d4",
     "#2bbbd7",
     "#bb8760",

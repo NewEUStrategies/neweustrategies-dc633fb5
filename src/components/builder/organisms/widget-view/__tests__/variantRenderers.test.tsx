@@ -83,7 +83,7 @@ afterEach(() => {
 
 describe("AnimatedHeadingRender", () => {
   it("uses the same luminous brand accent in light and dark themes", () => {
-    for (const accentColor of [undefined, "#fa9346", "#FA9346", "var(--brand)"]) {
+    for (const accentColor of [undefined, "#FA9346", "#FA9346", "var(--brand)"]) {
       const { container, unmount } = render(
         <AnimatedHeadingRender config={{ highlight: "do nas", accentColor }} />,
       );

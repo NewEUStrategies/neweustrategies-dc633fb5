@@ -70,7 +70,7 @@ export const SOCIAL_HOUSE_TONES = ["amber", "cognac", "ember", "sunset"] as cons
 export type SocialHouseTone = (typeof SOCIAL_HOUSE_TONES)[number];
 
 /**
- * Firmowe tonacje gradientu - liczone z tokenu `--brand` (#fa9346), żeby zmiana
+ * Firmowe tonacje gradientu - liczone z tokenu `--brand` (#FA9346), żeby zmiana
  * koloru marki w Opcjach motywu przeszła przez cały zestaw.
  *
  * Każda rampa jest DOMIESZANA ciepłą ciemnością (palona umbra, nie zimna czerń),

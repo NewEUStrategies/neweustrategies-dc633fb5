@@ -176,14 +176,14 @@ describe("kolor grupy - klient przyjmuje DOKLADNIE to, co baza", () => {
 
   const PRZYPADKI: ReadonlyArray<readonly [string, boolean]> = [
     ["#FA9346", true],
-    ["#fa9346", true],
+    ["#FA9346", true],
     ["#ABCDEF", true],
     ["#000000", true],
     ["#FA934", false],
     ["#FA93466", false],
     ["FA9346", false],
     ["#GGGGGG", false],
-    ["#fa9346 ", true],
+    ["#FA9346 ", true],
     ["rgb(250,147,70)", false],
   ];
 

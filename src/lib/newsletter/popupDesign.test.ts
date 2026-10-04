@@ -17,7 +17,7 @@ const source = (overrides: Partial<PopupColorSource> = {}): PopupColorSource => 
   popup_bg_color: "#0b0b0f",
   popup_text_color: "#ffffff",
   popup_muted_color: "#a8a8b3",
-  popup_accent_color: "#fa9346",
+  popup_accent_color: "#FA9346",
   popup_accent_text_color: "#141414",
   popup_overlay_color: "rgba(8,8,12,0.72)",
   popup_showcase_grad_from: null,
@@ -123,7 +123,7 @@ describe("paleta", () => {
     const s = source();
     const dark = resolvePopupPalette(s, "dark");
     expect(dark.bg).toBe("#0b0b0f");
-    expect(dark.accent).toBe("#fa9346");
+    expect(dark.accent).toBe("#FA9346");
     expect(dark.onDark).toBe(true);
     expect(dark.mode).toBe("dark");
 
@@ -136,7 +136,7 @@ describe("paleta", () => {
   it("domyślny gradient galerii startuje z tła panelu, nie z akcentu", () => {
     const dark = resolvePopupPalette(source(), "dark");
     expect(dark.gradFrom).toBe("#0b0b0f");
-    expect(dark.gradTo).toBe("color-mix(in srgb, #fa9346 14%, #0b0b0f)");
+    expect(dark.gradTo).toBe("color-mix(in srgb, #FA9346 14%, #0b0b0f)");
   });
 
   it("jawne kolory gradientu wygrywają", () => {
@@ -156,7 +156,7 @@ describe("paleta", () => {
     const vars = popupPaletteVars(resolvePopupPalette(source(), "dark"), 6);
     expect(vars["--nl-bg"]).toBe("#0b0b0f");
     expect(vars["--nl-radius"]).toBe("6px");
-    expect(vars["--brand"]).toBe("#fa9346");
+    expect(vars["--brand"]).toBe("#FA9346");
     expect(vars["--brand-foreground"]).toBe("#141414");
   });
 
@@ -166,8 +166,8 @@ describe("paleta", () => {
     const vars = popupPaletteVars(resolvePopupPalette(source(), "dark"), 6);
     expect(vars["--background"]).toBe("#0b0b0f");
     expect(vars["--foreground"]).toBe("#ffffff");
-    expect(vars["--ring"]).toBe("#fa9346");
-    expect(vars["--primary"]).toBe("#fa9346");
+    expect(vars["--ring"]).toBe("#FA9346");
+    expect(vars["--primary"]).toBe("#FA9346");
     expect(vars["--muted-foreground"]).toBe("#a8a8b3");
     expect(vars["--border"]).toContain("var" in vars ? "" : "color-mix");
   });
@@ -220,9 +220,9 @@ describe("colorLuminance / isDarkSurface", () => {
 describe("kolory kontrolek (checkboxy + CTA)", () => {
   it("bez nadpisań tokeny płyną z palety", () => {
     const vars = popupPaletteVars(resolvePopupPalette(source(), "dark"), 6);
-    expect(vars["--nl-cb-checked"]).toBe("#fa9346");
+    expect(vars["--nl-cb-checked"]).toBe("#FA9346");
     expect(vars["--nl-cb-label"]).toBe("#a8a8b3");
-    expect(vars["--nl-btn-bg"]).toBe("#fa9346");
+    expect(vars["--nl-btn-bg"]).toBe("#FA9346");
     expect(vars["--nl-btn-fg"]).toBe(resolvePopupPalette(source(), "dark").accentFg);
   });
 

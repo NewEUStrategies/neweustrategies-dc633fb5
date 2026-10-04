@@ -289,7 +289,7 @@ describe("PanelColorField - pole koloru", () => {
 
   it("BRAK wartości z selektora schodzi do pustego łańcucha, nie do `undefined`", () => {
     const onChange = vi.fn();
-    render(<PanelColorField label="Akcent" value="#fa9346" onChange={onChange} />);
+    render(<PanelColorField label="Akcent" value="#FA9346" onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: "Akcent" }));
     expect(onChange).toHaveBeenCalledWith("");
     expect(onChange).toHaveBeenCalledTimes(1);

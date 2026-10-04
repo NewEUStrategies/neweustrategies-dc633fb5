@@ -162,7 +162,7 @@ export const GALLERY_SLOT_DIMENSIONS = [
 ] as const;
 
 /**
- * Paleta jasna spójna z tokenami marki: akcent na brandzie NES (#fa9346),
+ * Paleta jasna spójna z tokenami marki: akcent na brandzie NES (#FA9346),
  * żeby przycisk CTA był rozpoznawalny jak reszta platformy. Tekst na akcencie
  * wybierany jest przez accentInk() - na jasnym tle zostanie ciemny atrament.
  * Galeria zostaje ciemna (jak w projekcie referencyjnym) - zdjęcia mają na
@@ -174,7 +174,7 @@ export function defaultPopupLightTheme(): PopupThemeColors {
     bg: "#ffffff",
     fg: "#0b0b0f",
     muted: "#55555f",
-    accent: "#fa9346",
+    accent: "#FA9346",
     accentFg: "#ffffff",
     overlay: "rgba(10,10,15,0.55)",
     gradFrom: "#101014",
@@ -449,7 +449,7 @@ export function contrastRatio(a: string, b: string): number | null {
 /**
  * Czytelny atrament dla danego tła - wybieramy z dwóch kandydatów ten o
  * lepszym kontraście, a nie po progu luminancji: markowy pomarańcz
- * (#fa9346, L≈0.42) leży dokładnie na granicy i próg wskazywałby biel,
+ * (#FA9346, L≈0.42) leży dokładnie na granicy i próg wskazywałby biel,
  * która daje na nim 2.2:1, gdy ciemny atrament daje 8:1.
  */
 export function readableInk(bg: string): string {
@@ -499,7 +499,7 @@ export function resolvePopupPalette(
     };
   }
   const bg = source.popup_bg_color || "#0b0b0f";
-  const accent = source.popup_accent_color || "#fa9346";
+  const accent = source.popup_accent_color || "#FA9346";
   return {
     bg,
     fg: source.popup_text_color || "#ffffff",

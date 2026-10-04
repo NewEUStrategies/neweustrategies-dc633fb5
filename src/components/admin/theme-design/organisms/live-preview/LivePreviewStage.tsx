@@ -48,7 +48,7 @@ export function LivePreviewStage({
             className="cms-thumb relative overflow-hidden"
             style={{
               aspectRatio: draft.thumbnail.aspectRatio,
-              background: "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)",
+              background: "linear-gradient(135deg, #FA9346 0%, #b0552a 100%)",
             }}
           >
             <span
@@ -224,7 +224,7 @@ export function LivePreviewStage({
                     background:
                       index % 2
                         ? "linear-gradient(135deg, #2b3550 0%, #0f172a 100%)"
-                        : "linear-gradient(135deg, #fa9346 0%, #b0552a 100%)",
+                        : "linear-gradient(135deg, #FA9346 0%, #b0552a 100%)",
                   }}
                 />
                 <h3 className="cms-post-title" style={{ fontSize: "14px" }}>
@@ -257,7 +257,7 @@ export function LivePreviewStage({
             className="cms-thumb relative overflow-hidden"
             style={{
               aspectRatio: draft.thumbnail.aspectRatio,
-              background: "linear-gradient(135deg, #fa9346 0%, #b0552a 55%, #3a1e10 100%)",
+              background: "linear-gradient(135deg, #FA9346 0%, #b0552a 55%, #3a1e10 100%)",
             }}
           >
             <div

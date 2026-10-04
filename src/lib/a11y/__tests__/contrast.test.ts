@@ -3,9 +3,9 @@ import { contrastRatio, readableForeground, readableBrandText } from "../contras
 import { bannerStyleVars, COOKIE_BANNER_COLOR_DEFAULTS } from "../../cookieBanner/config";
 
 it("keeps accessible colors and corrects white labels on the orange brand fill", () => {
-  expect(readableForeground("#fa9346", "#fff")).toBe("#000000");
+  expect(readableForeground("#FA9346", "#fff")).toBe("#000000");
   expect(readableForeground("#141414", "#fff")).toBe("#fff");
-  expect(contrastRatio("#000", "#fa9346")).toBeGreaterThan(4.5);
+  expect(contrastRatio("#000", "#FA9346")).toBeGreaterThan(4.5);
   expect(readableForeground("var(--background)", "var(--foreground)")).toBe("var(--foreground)");
 });
 
@@ -20,13 +20,13 @@ it("uses readable ink for brand text without replacing other editorial colors", 
 it("corrects configured cookie buttons and text without requiring CMS changes", () => {
   const style = bannerStyleVars({
     ...COOKIE_BANNER_COLOR_DEFAULTS,
-    accent: "#fa9346",
+    accent: "#FA9346",
     accentForeground: "#ffffff",
     surface: "#fff",
     foreground: "#aaa",
   });
   expect(style).toMatchObject({
-    "--cb-accent": "#fa9346",
+    "--cb-accent": "#FA9346",
     "--cb-accent-fg": "#000000",
     "--cb-fg": "#000000",
   });

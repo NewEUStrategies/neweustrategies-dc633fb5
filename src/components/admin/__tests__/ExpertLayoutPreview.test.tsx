@@ -126,7 +126,7 @@ function settings(overrides: Partial<ExpertLayoutSettings> = {}): ExpertLayoutSe
     hero_bg_color_dark: "#141414",
     hero_text_color: "#141414",
     hero_text_color_dark: "#f5f5f5",
-    accent_color: "#fa9346",
+    accent_color: "#FA9346",
     accent_color_dark: "#FA9346",
     bio_bullet_color: "#dddddd",
     bio_bullet_color_dark: "#333333",
@@ -286,7 +286,7 @@ describe("ExpertLayoutPreview - szkic", () => {
 
     toggle("Dark");
     expect(hero().last()?.settings.hero_bg_color).toBe("#ffffff");
-    expect(hero().last()?.settings.accent_color).toBe("#fa9346");
+    expect(hero().last()?.settings.accent_color).toBe("#FA9346");
   });
 
   it("wyłączenie przykładowych treści przechodzi do obu części renderera", async () => {

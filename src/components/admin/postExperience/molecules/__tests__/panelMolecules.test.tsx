@@ -191,7 +191,7 @@ describe("KeyTakeawaysHighlightSection - STARSZY wiersz bez pól podświetlenia"
         labelPl="Z tego"
         labelEn="From this"
         highlight={legacy}
-        accent="#fa9346"
+        accent="#FA9346"
         onChange={onChange}
       />,
     );
@@ -206,14 +206,14 @@ describe("KeyTakeawaysHighlightSection - STARSZY wiersz bez pól podświetlenia"
         labelPl="Z tego"
         labelEn=""
         highlight={legacy}
-        accent="#fa9346"
+        accent="#FA9346"
         onChange={() => {}}
       />,
     );
     const picker = screen.getByRole("button", {
       name: "adminPostPanes.keyTakeaways.highlightColor",
     });
-    expect(picker).toHaveAttribute("data-color", "#fa9346");
+    expect(picker).toHaveAttribute("data-color", "#FA9346");
     expect(screen.getByRole("slider", { name: /highlightSize/ })).toHaveValue("1");
   });
 
@@ -224,14 +224,14 @@ describe("KeyTakeawaysHighlightSection - STARSZY wiersz bez pól podświetlenia"
         labelPl="Z tego"
         labelEn=""
         highlight={legacy}
-        accent="#fa9346"
+        accent="#FA9346"
         onChange={onChange}
       />,
     );
     fireEvent.click(
       screen.getByRole("button", { name: "adminPostPanes.keyTakeaways.highlightColor" }),
     );
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ color: "#fa9346" }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ color: "#FA9346" }));
     expect(onChange).toHaveBeenCalledTimes(1);
   });
 
@@ -241,7 +241,7 @@ describe("KeyTakeawaysHighlightSection - STARSZY wiersz bez pól podświetlenia"
         labelPl="Z tego"
         labelEn=""
         highlight={legacy}
-        accent="#fa9346"
+        accent="#FA9346"
         onChange={() => {}}
       />,
     );

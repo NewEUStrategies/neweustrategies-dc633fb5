@@ -115,7 +115,7 @@ const STREFA = "Europe/Warsaw";
 
 function trackRow(overrides: Partial<EventTrackRow> = {}): EventTrackRow {
   return {
-    accent_color: "#fa9346",
+    accent_color: "#FA9346",
     cover_url: "",
     created_at: "2026-08-01T09:00:00.000Z",
     default_room_id: "",

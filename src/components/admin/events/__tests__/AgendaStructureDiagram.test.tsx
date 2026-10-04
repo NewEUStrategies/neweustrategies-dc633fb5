@@ -37,7 +37,7 @@ function pasmo(overrides: Partial<AgendaDiagramTrack> = {}): AgendaDiagramTrack 
   return {
     id: "track-a",
     name: "Ścieżka Cyfrowa",
-    accentColor: "#fa9346",
+    accentColor: "#FA9346",
     sessionsCount: 2,
     ...overrides,
   };
@@ -201,7 +201,7 @@ describe("AgendaStructureDiagram - kafle sesji", () => {
     expect(kolorowe[0]).toHaveStyle({
       borderLeftWidth: "3px",
       borderLeftStyle: "solid",
-      borderLeftColor: "#fa9346",
+      borderLeftColor: "#FA9346",
     });
     expect(kolorowe[0].className).toContain("bg-muted");
 

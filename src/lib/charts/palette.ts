@@ -158,7 +158,7 @@ export const CHART_SLOTS: readonly PaletteSlot[] = [
     // i nie wolno go użyć jako samej linii bez obwódki.
     slot: 2,
     key: "ochra",
-    light: "#fa9346",
+    light: "#FA9346",
     dark: "#fdb078",
     textLight: "#b95e00",
     textDark: "#fdb078",
@@ -645,7 +645,7 @@ export const SEQ_RAMP = {
 /**
  * Warianty AUDYTOWE akcentu - dwa, bo próg zależy od tego, czym akcent ma być.
  *
- * Akcent marki nie przechodzi na jasnym tle ŻADNEGO progu WCAG (`#fa9346` ma
+ * Akcent marki nie przechodzi na jasnym tle ŻADNEGO progu WCAG (`#FA9346` ma
  * 2,25:1 na płycie, `#ed751a` 2,93:1), więc nie może być jedynym nośnikiem
  * informacji. Gdy audyt dostępności wymaga, żeby ten sam odcień zadziałał jako
  * czytelny tekst na jasnym tle BEZ podkładu, trzeba go przyciemnić - i mamy
