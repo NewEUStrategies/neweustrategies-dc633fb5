@@ -896,6 +896,71 @@ export function classifyRun(input: {
 }
 
 /**
+ * Jedna próba przebiegu harnessu tak, jak widzi ją `lighthouse-local.mjs`
+ * (P0.1-FIX, runda 2, D8): komplet wejść `classifyRun` w jednym miejscu, żeby
+ * test obejmował całe okablowanie (wariant wzorcowy, wynik rozgrzewki, oba
+ * pomiary obciążenia, `--allow-uncached`), a nie tylko samą regułę.
+ */
+export interface AttemptObservation {
+  /** Lighthouse oddał LHR (false = błąd wykonania po powtórce). */
+  readonly lhrOk: boolean;
+  readonly document: DocumentObservation | null;
+  readonly serverDocs: readonly ServerLogDoc[];
+  readonly devtools: DocumentObservation | null;
+  readonly rewarmOk: boolean;
+  readonly referenceVariant: DocumentVariant | null;
+  /** loadavg(1 min) po czekaniu na bezczynność, PRZED rozgrzewką (i ewentualnym restartem). */
+  readonly loadBefore: number;
+  /** loadavg(1 min) PO rozgrzewce, tuż przed startem Lighthouse'a (restart serwera też obciąża). */
+  readonly loadAfter: number;
+  readonly maxLoad: number;
+  readonly allowUncached: boolean;
+  readonly runDocuments: readonly DocumentObservation[];
+}
+
+const ATTEMPT_FIELDS = [
+  "lhrOk",
+  "document",
+  "serverDocs",
+  "devtools",
+  "rewarmOk",
+  "referenceVariant",
+  "loadBefore",
+  "loadAfter",
+  "maxLoad",
+  "allowUncached",
+  "runDocuments",
+] as const satisfies readonly (keyof AttemptObservation)[];
+
+/**
+ * Ważność próby. Bramka obciążenia bierze WIĘKSZY z dwóch pomiarów: przed
+ * rozgrzewką (stan po czekaniu) i po niej (restart procesu serwera i render
+ * MISS dokładają CPU tuż przed Lighthouse'em). Wołający z `.mjs` nie ma
+ * kontroli typów, więc brak pola (`undefined`; brak wartości to `null`) jest
+ * błędem już przy pierwszym przebiegu, a nie cichym wyłączeniem reguły.
+ */
+export function classifyAttempt(a: AttemptObservation): RunValidity & { readonly load: number } {
+  for (const field of ATTEMPT_FIELDS)
+    if (a[field] === undefined)
+      throw new Error(`classifyAttempt: brak pola ${field} (okablowanie lighthouse-local.mjs)`);
+  const loads = [a.loadBefore, a.loadAfter].filter((v) => Number.isFinite(v));
+  const load = loads.length ? Math.max(...loads) : Number.NaN;
+  if (!a.lhrOk) return { excluded: true, reasons: ["przebieg nieudany"], load };
+  const validity = classifyRun({
+    document: a.document,
+    serverDocs: a.serverDocs,
+    devtools: a.devtools,
+    rewarmOk: a.rewarmOk,
+    referenceVariant: a.referenceVariant,
+    load,
+    maxLoad: a.maxLoad,
+    allowUncached: a.allowUncached,
+    runDocuments: a.runDocuments,
+  });
+  return { ...validity, load };
+}
+
+/**
  * Domyślny `--max-load`: 0,6 x liczba CPU (2,4 na 4 CPU), zgodnie z protokołem
  * P0.5 (ważne przebiegi przy load 1,0-2,8; przy load ≥ 4 na 4 CPU TBT rośnie
  * wielokrotnie). Dawny domyślny próg = liczba CPU przepuszczał A/A przy 3,7-4,0.
@@ -1169,6 +1234,8 @@ export interface RunRecordLike {
   readonly fcpMode?: string | null;
   /** Odcisk wariantu dokumentu, który dostał Lighthouse (B1). */
   readonly variant?: DocumentVariant | null;
+  /** Rozgrzewka przebiegu; `restores` > 0 = Lighthouse mierzył świeżo uruchomiony proces serwera. */
+  readonly rewarm?: { readonly restores?: number } | null;
 }
 
 /** Pary (A_n, B_n) z tej samej rundy przeplotu, w których OBA przebiegi są ważne. */
@@ -1266,6 +1333,12 @@ export interface ValiditySummary {
   readonly variants: Readonly<Record<string, number>>;
   /** Tryb FCP -> liczba przebiegów ważnych (I1); pusty bez księgi. */
   readonly fcpModes: Readonly<Record<string, number>>;
+  /**
+   * Przebiegi ważne, przed którymi rozgrzewka restartowała serwer (świeży
+   * proces: zimny JIT i cache izolatu). Etap pomiarowy sprawdza, czy nie
+   * skupiają się po jednej stronie A/A (recenzja P0.1-FIX, runda 2).
+   */
+  readonly restored: number;
 }
 
 export function summarizeValidity(records: readonly RunRecordLike[]): ValiditySummary {
@@ -1275,8 +1348,10 @@ export function summarizeValidity(records: readonly RunRecordLike[]): ValiditySu
   const variants: Record<string, number> = {};
   const fcpModes: Record<string, number> = {};
   let excludedAttempts = 0;
+  let restored = 0;
   for (const r of records) {
     if (r.valid) {
+      if ((r.rewarm?.restores ?? 0) > 0) restored += 1;
       if (r.variant) {
         const label = formatVariant(r.variant);
         variants[label] = (variants[label] ?? 0) + 1;
@@ -1290,7 +1365,15 @@ export function summarizeValidity(records: readonly RunRecordLike[]): ValiditySu
       reasons[key] = (reasons[key] ?? 0) + 1;
     }
   }
-  return { nValid: valid.size, rounds: rounds.size, excludedAttempts, reasons, variants, fcpModes };
+  return {
+    nValid: valid.size,
+    rounds: rounds.size,
+    excludedAttempts,
+    reasons,
+    variants,
+    fcpModes,
+    restored,
+  };
 }
 
 /** `pełny x3, częściowy x2` (malejąco). */
@@ -1311,7 +1394,8 @@ export function formatValidity(label: string, s: ValiditySummary): string {
     `VALID ${label}: n_valid=${s.nValid}/${s.rounds} excluded=${s.excludedAttempts}` +
     (why ? ` (${why})` : "") +
     (variants ? ` wariant: ${variants}` : "") +
-    (modes ? ` trybFCP: ${modes}` : "")
+    (modes ? ` trybFCP: ${modes}` : "") +
+    (s.nValid ? ` po restarcie serwera: ${s.restored}/${s.nValid}` : "")
   );
 }
 
@@ -1326,12 +1410,23 @@ export function formatValidity(label: string, s: ValiditySummary): string {
 /**
  * `--min-valid`: domyślnie `runs`; jawna wartość nie schodzi poniżej
  * min(3, runs) - baseline i mediana z 1-2 przebiegów z 5 nic nie znaczą.
- * Wartość większa niż `runs` jest nieosiągalna, więc to błąd wywołania.
+ * Wartość większa niż `runs` jest nieosiągalna, a wartość nieliczbowa
+ * (`--min-valid abc`) nie jest „brakiem flagi" - obie są błędem wywołania,
+ * tak jak niepoprawne `--max-load`. Tekst z CLI parsujemy ściśle (`Number`,
+ * nie `parseInt`, więc `5abc` też jest błędem).
  */
-export function resolveMinValid(requested: number | undefined, runs: number): number {
+export function resolveMinValid(requested: number | string | undefined, runs: number): number {
   const floor = Math.min(3, Math.max(1, runs));
-  const value =
-    requested === undefined || !Number.isFinite(requested) ? runs : Math.floor(requested);
+  if (requested === undefined) return Math.max(floor, runs);
+  const parsed =
+    typeof requested === "string"
+      ? requested.trim() === ""
+        ? Number.NaN
+        : Number(requested)
+      : requested;
+  if (!Number.isFinite(parsed))
+    throw new Error(`--min-valid ${String(requested)}: oczekiwana liczba całkowita`);
+  const value = Math.floor(parsed);
   if (value > runs) throw new Error(`--min-valid ${value} > --runs ${runs}: próg nieosiągalny`);
   return Math.max(floor, value);
 }
@@ -1351,15 +1446,31 @@ export interface SeriesOutcome {
   readonly baselineForms: readonly string[];
   /** Formy strony baseline'u, których zapisu odmawiamy. */
   readonly refusedBaselineForms: readonly string[];
+  /** Powód przerwania serii w połowie (wyjątek w trakcie przebiegów); null = seria kompletna. */
+  readonly aborted: string | null;
 }
 
+/**
+ * Wynik serii. `aborted` (P0.1-FIX, runda 2): seria przerwana wyjątkiem
+ * w trakcie przebiegów (np. serwer artefaktu nie wstał po restarcie) NIE
+ * gubi już przebiegów ukończonych - harness liczy z nich podsumowanie
+ * i summary.json - ale jest porażką (kod 1) i nie zapisuje baseline'u
+ * żadnej formy, bo nie wiadomo, czy brakujące rundy nie zmieniłyby median.
+ */
 export function seriesOutcome(
   entries: readonly SeriesEntry[],
-  options: { readonly minValid: number; readonly baselineTag: string },
+  options: {
+    readonly minValid: number;
+    readonly baselineTag: string;
+    readonly aborted?: string | null;
+  },
 ): SeriesOutcome {
   const failures: string[] = [];
   const baselineForms: string[] = [];
   const refusedBaselineForms: string[] = [];
+  const aborted = options.aborted ?? null;
+  if (aborted)
+    failures.push(`FAIL seria przerwana: ${aborted} (wyniki częściowe, baseline bez zapisu)`);
   for (const e of entries) {
     const ok = e.validity.nValid >= options.minValid && e.validity.nValid > 0;
     if (!ok)
@@ -1367,9 +1478,48 @@ export function seriesOutcome(
         `FAIL ${e.tag ? `${e.tag} ` : ""}${e.form}: n_valid=${e.validity.nValid}/${e.validity.rounds} ` +
           `< --min-valid ${options.minValid}`,
       );
-    if (e.tag === options.baselineTag) (ok ? baselineForms : refusedBaselineForms).push(e.form);
+    if (e.tag === options.baselineTag)
+      (ok && !aborted ? baselineForms : refusedBaselineForms).push(e.form);
   }
-  return { exitCode: failures.length ? 1 : 0, failures, baselineForms, refusedBaselineForms };
+  return {
+    exitCode: failures.length ? 1 : 0,
+    failures,
+    baselineForms,
+    refusedBaselineForms,
+    aborted,
+  };
+}
+
+/**
+ * Korzeń artefaktu do zapisu (D3, runda 2): wewnątrz repo harnessu - ścieżka
+ * względna (`.`, `worktrees/x`); poza nim - `poza-repo:<nazwa katalogu>`.
+ * `relative()` dawał dla `/tmp/x/wt` ścieżkę `../../tmp/x/wt`, czyli układ
+ * maszyny w formie względnej. Tożsamość artefaktu niesie i tak `commit`.
+ */
+export function portableRoot(root: string, harnessRoot: string): string {
+  const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "");
+  const r = norm(root);
+  const base = norm(harnessRoot);
+  if (r === base) return ".";
+  if (r.startsWith(`${base}/`)) return r.slice(base.length + 1);
+  const name = r.split("/").filter(Boolean).at(-1) ?? "?";
+  return `poza-repo:${name}`;
+}
+
+/**
+ * Tekst do zapisu bez ścieżek maszyny (D3, runda 2): każde wystąpienie ścieżki
+ * z `labels` zastępuje etykieta (najdłuższe ścieżki najpierw, żeby korzeń
+ * worktree nie zjadł prefiksu ścieżki wyników). Dotyczy komunikatu przerwania
+ * serii (`aborted`), który niesie `root` z wyjątku startu serwera.
+ */
+export function scrubPaths(
+  text: string,
+  labels: readonly (readonly [path: string, label: string])[],
+): string {
+  return [...labels]
+    .filter(([path]) => path.length > 1)
+    .sort((x, y) => y[0].length - x[0].length)
+    .reduce((out, [path, label]) => out.split(path).join(label), text);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

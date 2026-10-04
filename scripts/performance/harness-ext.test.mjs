@@ -7,6 +7,10 @@
 // wynik serii i rozgrzewka spoza cache (I3, D8), MDE z t(df) (I4), BYPASS (D1),
 // sonda portu 4199 (D2), zapisy bez ścieżek maszyny (D3), synchronizacja
 // pułapu świeżości (D4), LCP głównej ramki (D5), linia K bez flag (D6).
+// P0.1-FIX runda 2: okablowanie próby (`classifyAttempt`), wzorzec z jednym
+// restartem i polityką trasy, --min-fresh ponad świeżość wpisu, rozgrzewka
+// spoza cache w środku serii, seria przerwana, restart bez sieroty, zasoby po
+// restarcie, VALID po restarcie, tryb FCP z originu dokumentu, korzeń poza repo.
 //
 // Uruchomienie: node --test scripts/performance/harness-ext.test.mjs
 import assert from "node:assert/strict";
@@ -23,12 +27,15 @@ import {
   DOCUMENT_FRESH_WINDOW_S,
   RewarmAbort,
   createHeadInjector,
+  documentAssetPaths,
   freePort,
   hostResolverFlag,
   logCursor,
   rewarmDocument,
   startArtifact,
   startFront,
+  warmAssets,
+  warmReferenceVariant,
 } from "./artifactServer.ts";
 import {
   POSTGREST_EXPOSE_HEADERS,
@@ -53,6 +60,7 @@ import {
   blockingInWindow,
   classifyTask,
   diffLedgers,
+  fcpModeInputs,
   fcpModeOf,
   formatFcpMode,
   lanternWindows,
@@ -71,6 +79,7 @@ import {
   NO_FLAGS,
   PSI_REFERENCE_2026_10_03,
   calibrationK,
+  classifyAttempt,
   classifyRun,
   compactServerTiming,
   comparabilityWarnings,
@@ -95,8 +104,10 @@ import {
   parseForms,
   parsePsiReference,
   parseServerLogDocs,
+  portableRoot,
   resolveMinValid,
   runWithRepeats,
+  scrubPaths,
   seriesOutcome,
   summarizeValidity,
   uncachedReason,
@@ -1097,8 +1108,11 @@ test("--min-valid: domyślnie runs, nie mniej niż min(3, runs), więcej niż ru
   assert.equal(resolveMinValid(1, 5), 3);
   assert.equal(resolveMinValid(4, 5), 4);
   assert.equal(resolveMinValid(undefined, 1), 1);
-  assert.equal(resolveMinValid(Number.NaN, 2), 2);
+  assert.equal(resolveMinValid("4", 5), 4);
   assert.throws(() => resolveMinValid(6, 5), /nieosiągalny/);
+  // runda 2: wartość nieliczbowa to błąd wywołania (jak --max-load), nie „brak flagi"
+  for (const bad of ["abc", "5abc", "", Number.NaN])
+    assert.throws(() => resolveMinValid(bad, 5), /oczekiwana liczba całkowita/);
 });
 
 test("rozgrzewka: dwie odpowiedzi spoza cache przerywają serię, --allow-uncached mierzy (I3)", async () => {
@@ -1273,4 +1287,420 @@ test("linia K bez pełnych flag: dopisek „nie kalibruje” i bez wskazówki pr
     `${formatCalibration("mobile", median, PSI_REFERENCE_2026_10_03)} {${CALIBRATION_FLAGS}}`,
   );
   assert.match(flagged, /przelicz cele fixture/);
+});
+
+// ── P0.1-FIX, runda 2 (weryfikacja poprawki) ────────────────────────────────
+
+test("classifyAttempt: całe okablowanie próby - wariant, rozgrzewka, obciążenie po restarcie, LHR (D8, runda 2)", () => {
+  const reference = { cacheControl: FULL_CC, bytes: 390_950 };
+  const doc = hitDoc(FULL_CC, 390_950, 3);
+  const base = {
+    lhrOk: true,
+    document: doc,
+    serverDocs: [],
+    devtools: null,
+    rewarmOk: true,
+    referenceVariant: reference,
+    loadBefore: 1.0,
+    loadAfter: 1.2,
+    maxLoad: 2.4,
+    allowUncached: false,
+    runDocuments: [doc],
+  };
+  assert.deepEqual(classifyAttempt(base), { excluded: false, reasons: [], load: 1.2 });
+  // wariant wzorcowy jest przekazany: dokument zdegradowany wyklucza ...
+  const degraded = { ...base, document: hitDoc(DEGRADED_CC, 391_141, 3) };
+  assert.match(classifyAttempt(degraded).reasons.join(" "), /wariant dokumentu \(s-maxage=30/);
+  // ... a bez wzorca ten sam dokument przechodzi (kontrola: to wzorzec rozstrzyga)
+  assert.equal(classifyAttempt({ ...degraded, referenceVariant: null }).excluded, false);
+  // bramka obciążenia bierze większy z pomiarów: restart podniósł load PO czekaniu
+  const afterRestart = classifyAttempt({ ...base, loadBefore: 2.0, loadAfter: 3.0 });
+  assert.deepEqual(afterRestart.reasons, ["obciążenie (3,0 > 2,4)"]);
+  assert.equal(afterRestart.load, 3.0);
+  assert.equal(classifyAttempt({ ...base, loadBefore: 3.0, loadAfter: 1.0 }).excluded, true);
+  assert.equal(classifyAttempt({ ...base, loadBefore: Number.NaN, loadAfter: 1.0 }).load, 1.0);
+  // wynik rozgrzewki i nieudany Lighthouse
+  assert.deepEqual(classifyAttempt({ ...base, rewarmOk: false }).reasons, [
+    "rozgrzewka bez świeżego HIT wariantu wzorcowego",
+  ]);
+  assert.deepEqual(classifyAttempt({ ...base, lhrOk: false }), {
+    excluded: true,
+    reasons: ["przebieg nieudany"],
+    load: 1.2,
+  });
+  // --allow-uncached jest przekazany: render samej nawigacji LH dozwolony tylko z flagą
+  const bypass = observeDocument("front", 200, { "x-nes-cache": "BYPASS" });
+  const uncached = {
+    ...base,
+    document: bypass,
+    runDocuments: [bypass],
+    referenceVariant: null,
+    serverDocs: parseServerLogDocs(docLine({ cache: "BYPASS" })),
+  };
+  assert.equal(classifyAttempt({ ...uncached, allowUncached: true }).excluded, false);
+  assert.equal(classifyAttempt(uncached).excluded, true);
+  // wołający z .mjs bez kontroli typów: pominięte pole to błąd, nie cicho wyłączona reguła
+  for (const field of Object.keys(base)) {
+    const partial = { ...base };
+    delete partial[field];
+    assert.throws(() => classifyAttempt(partial), new RegExp(`brak pola ${field}`));
+  }
+  // null to wartość (brak wzorca przy --allow-uncached, brak devtoolsLog), nie brak pola
+  assert.equal(
+    classifyAttempt({ ...base, referenceVariant: null, devtools: null }).excluded,
+    false,
+  );
+});
+
+/** Atrapa artefaktu dla `warmReferenceVariant`: odpowiedź rozgrzewki przed restartem i po nim. */
+function coldArtifact(before, after) {
+  let current = before;
+  const state = { restarts: 0 };
+  return {
+    state,
+    artifact: {
+      origin: "http://up",
+      restart: async () => {
+        state.restarts += 1;
+        current = after;
+      },
+    },
+    warm: async () => {
+      const headers = new Headers();
+      if (current.cache) headers.set("x-nes-cache", current.cache);
+      if (current.cc) headers.set("cache-control", current.cc);
+      return { status: current.status ?? 200, headers, body: Buffer.alloc(current.bytes ?? 0) };
+    },
+  };
+}
+
+test("wzorzec serii: jeden restart odróżnia wyścig chrome'u od polityki trasy (/live) (runda 2)", async () => {
+  const full = { cache: "HIT", cc: FULL_CC, bytes: 390_950 };
+  const degraded = { cache: "HIT", cc: DEGRADED_CC, bytes: 391_141 };
+  // pełny zimny render: wzorzec od razu, bez restartu
+  const a = coldArtifact(full, full);
+  const first = await warmReferenceVariant(a.artifact, "/", { warm: a.warm });
+  assert.deepEqual([first.restores, first.note, a.state.restarts], [0, null, 0]);
+  assert.equal(formatVariant(first.reference), "s-maxage=900, 390950 B");
+  // przegrany wyścig chrome'u na zimnym procesie: po restarcie pełny
+  const b = coldArtifact(degraded, full);
+  const raced = await warmReferenceVariant(b.artifact, "/", { warm: b.warm });
+  assert.equal(formatVariant(raced.reference), "s-maxage=900, 390950 B");
+  assert.match(raced.note ?? "", /po restarcie pełny/);
+  // /live: s-maxage=30 to polityka trasy - JEDEN restart (dawniej 2) i zgodny wariant
+  const live = { cache: "HIT", cc: DEGRADED_CC, bytes: 50_000 };
+  const c = coldArtifact(live, live);
+  const own = await warmReferenceVariant(c.artifact, "/live", { warm: c.warm, minFreshS: 10 });
+  assert.equal(c.state.restarts, 1);
+  assert.equal(formatVariant(own.reference), "s-maxage=30, 50000 B");
+  assert.match(own.note ?? "", /polityka trasy s-maxage=30, 50000 B: 2 zimne rendery zgodne/);
+  assert.doesNotMatch(own.note ?? "", /UWAGA/);
+  // ... a przy domyślnym --min-fresh 30 żaden HIT nie da zapasu: przerwanie z podpowiedzią
+  const d = coldArtifact(live, live);
+  await assert.rejects(
+    warmReferenceVariant(d.artifact, "/live", { warm: d.warm }),
+    (error) =>
+      error instanceof RewarmAbort &&
+      /polityka trasy s-maxage=30.*świeżość wpisu 30 s ≤ --min-fresh 30 s.*--min-fresh 10/.test(
+        error.message,
+      ),
+  );
+  // dwa różne krótkie warianty: ostrzeżenie, wzorcem jest ostatni
+  const e = coldArtifact(degraded, {
+    cache: "HIT",
+    cc: "public, max-age=0, s-maxage=60, stale-while-revalidate=300",
+    bytes: 391_141,
+  });
+  assert.match(
+    (await warmReferenceVariant(e.artifact, "/", { warm: e.warm })).note ?? "",
+    /UWAGA: zimne rendery różnią się/,
+  );
+  // dokument spoza cache: przerwanie przy rozgrzewce początkowej albo pomiar z --allow-uncached
+  const f = coldArtifact({ status: 302 }, full);
+  await assert.rejects(
+    warmReferenceVariant(f.artifact, "/en-redirect", { warm: f.warm }),
+    (error) => error instanceof RewarmAbort && /spoza cache \(status 302\)/.test(error.message),
+  );
+  const g = coldArtifact({ status: 302 }, full);
+  const allowed = await warmReferenceVariant(g.artifact, "/en-redirect", {
+    warm: g.warm,
+    allowUncached: true,
+  });
+  assert.deepEqual([allowed.reference, allowed.restores, g.state.restarts], [null, 0, 0]);
+});
+
+test("rozgrzewka z wzorcem o świeżości ≤ --min-fresh: powód z podpowiedzią, bez restartów (runda 2)", async () => {
+  const live = { cacheControl: DEGRADED_CC, bytes: 50_000 };
+  const entry = (age) => ({ cache: "HIT", age, cc: DEGRADED_CC, bytes: 50_000 });
+  const fake = scriptedDocs([entry(5)]);
+  let restores = 0;
+  const hopeless = await rewarmDocument("http://up", "/live", {
+    referenceVariant: live,
+    minFreshS: 30,
+    fetchDocument: fake.fetchDocument,
+    sleep: async () => assert.fail("bez czekania"),
+    restore: async () => {
+      restores += 1;
+      fake.replace([entry(1)]);
+    },
+  });
+  assert.deepEqual([hopeless.ok, hopeless.restores, restores], [false, 0, 0]);
+  assert.match(hopeless.failure ?? "", /świeżość wpisu 30 s ≤ --min-fresh 30 s.*--min-fresh 10/);
+  // kontrola negatywna: zapas 10 s - wpis w wieku 25 s idzie do restartu, potem HIT w wieku 1 s
+  const ok = scriptedDocs([entry(25)]);
+  const fine = await rewarmDocument("http://up", "/live", {
+    referenceVariant: live,
+    minFreshS: 10,
+    fetchDocument: ok.fetchDocument,
+    restore: async () => ok.replace([entry(1)]),
+  });
+  assert.deepEqual([fine.ok, fine.restores, fine.final.ageS], [true, 1, 1]);
+});
+
+test("rozgrzewka w środku serii: odpowiedzi spoza cache = ok=false i powtórka, nie przerwanie serii (runda 2)", async () => {
+  const fake = scriptedDocs([{ status: 502 }]);
+  const result = await rewarmDocument("http://up", "/", {
+    abortOnUncached: false,
+    fetchDocument: fake.fetchDocument,
+    sleep: async () => undefined,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(fake.calls.length, 2);
+  assert.equal(result.failure, "2 odpowiedzi dokumentu spoza cache (status 502; status 502)");
+  assert.equal(
+    classifyAttempt({
+      lhrOk: true,
+      document: null,
+      serverDocs: [],
+      devtools: null,
+      rewarmOk: result.ok,
+      referenceVariant: null,
+      loadBefore: 1,
+      loadAfter: 1,
+      maxLoad: 2.4,
+      allowUncached: false,
+      runDocuments: [],
+    }).excluded,
+    true,
+  );
+  // kontrola negatywna: domyślnie (rozgrzewka początkowa, testy I3) dalej przerywa serię
+  await assert.rejects(
+    rewarmDocument("http://up", "/", {
+      fetchDocument: scriptedDocs([{ status: 502 }]).fetchDocument,
+      sleep: async () => undefined,
+    }),
+    RewarmAbort,
+  );
+});
+
+test("seria przerwana w połowie: kod 1, bez baseline'u żadnej formy, linia FAIL z powodem (runda 2)", () => {
+  const entries = [
+    { tag: "", form: "mobile", validity: { nValid: 5, rounds: 5 } },
+    { tag: "", form: "desktop4x", validity: { nValid: 2, rounds: 2 } },
+  ];
+  const cut = seriesOutcome(entries, {
+    minValid: 5,
+    baselineTag: "",
+    aborted: "Serwer http://127.0.0.1:1/robots.txt nie odpowiedział w 60000 ms",
+  });
+  assert.equal(cut.exitCode, 1);
+  assert.match(
+    cut.failures[0],
+    /^FAIL seria przerwana: Serwer .* \(wyniki częściowe, baseline bez zapisu\)$/,
+  );
+  assert.equal(cut.failures[1], "FAIL desktop4x: n_valid=2/2 < --min-valid 5");
+  assert.deepEqual(cut.baselineForms, []);
+  assert.deepEqual(cut.refusedBaselineForms, ["mobile", "desktop4x"]);
+  assert.match(cut.aborted ?? "", /nie odpowiedział/);
+  // kontrola negatywna: bez przerwania forma kompletna trafia do baseline'u
+  const whole = seriesOutcome(entries.slice(0, 1), { minValid: 5, baselineTag: "" });
+  assert.deepEqual([whole.exitCode, whole.baselineForms, whole.aborted], [0, ["mobile"], null]);
+});
+
+/** Atrapa `.output/server/index.mjs`: każdy start dopisuje PID; od `brokenFrom`-tego startu 503. */
+function fakeServerRoot(brokenFrom) {
+  const root = mkdtempSync(join(tmpdir(), "nes-restart-"));
+  mkdirSync(join(root, ".output/server"), { recursive: true });
+  writeFileSync(
+    join(root, ".output/server/index.mjs"),
+    [
+      'import { appendFileSync, existsSync, readFileSync } from "node:fs";',
+      'import { createServer } from "node:http";',
+      'const file = "pids.log";',
+      'const starts = existsSync(file) ? readFileSync(file, "utf8").split("\\n").filter(Boolean).length : 0;',
+      "appendFileSync(file, `${process.pid}\\n`);",
+      `const broken = starts >= ${brokenFrom};`,
+      "createServer((req, res) => { res.statusCode = broken ? 503 : 200; res.end(String(process.pid)); })",
+      '  .listen(Number(process.env.PORT), "127.0.0.1");',
+    ].join("\n"),
+  );
+  return root;
+}
+
+const pidsOf = (root) =>
+  readFileSync(join(root, "pids.log"), "utf8").trim().split("\n").filter(Boolean).map(Number);
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test("restart, który nie wstaje, nie zostawia sieroty; stop() w trakcie restartu nie startuje procesu (runda 2)", async () => {
+  // drugi start odpowiada 503: restart kończy się błędem gotowości
+  const root = fakeServerRoot(1);
+  const artifact = await startArtifact({
+    root,
+    port: await freePort(),
+    fixture: false,
+    readyTimeoutMs: 1500,
+  });
+  try {
+    await assert.rejects(artifact.restart(), /nie odpowiedział w 1500 ms/);
+    const pids = pidsOf(root);
+    assert.equal(pids.length, 2);
+    // nowy proces zatrzymany przez sam restart, a `child` wskazuje właśnie jego
+    assert.equal(alive(pids[1]), false);
+    assert.equal(artifact.child.pid, pids[1]);
+    await assert.rejects(fetch(`${artifact.origin}/x`));
+  } finally {
+    await artifact.stop();
+  }
+  // SIGINT/SIGTERM w trakcie restartu: stop() zamyka serwer i żaden nowy proces nie wstaje
+  const healthy = fakeServerRoot(99);
+  const second = await startArtifact({ root: healthy, port: await freePort(), fixture: false });
+  const restarting = second.restart();
+  await second.stop();
+  await assert.rejects(restarting, /zatrzymany - bez ponownego startu/);
+  assert.equal(pidsOf(healthy).length, 1);
+  await assert.rejects(fetch(`${second.origin}/x`));
+});
+
+test("po restarcie rozgrzewka pobiera zasoby dokumentu: skrypty, style i fonty originu (runda 2)", async () => {
+  const html = [
+    '<link rel="stylesheet" href="/assets/s.css" data-precedence="default"/>',
+    '<link rel="modulepreload" href="/assets/a.js"/>',
+    '<link rel="preload" as="font" type="font/woff2" href="/assets/f.woff2" crossorigin="anonymous"/>',
+    '<link rel="preload" as="image" href="https://fixture.invalid/cover.jpg" fetchPriority="high"/>',
+    '<link rel="preload" as="image" href="/media/x.jpg"/>',
+    '<link rel="icon" href="/favicon.ico"/>',
+    '<link rel="canonical" href="https://127.0.0.1:1/"/>',
+    '<script type="module" src="/assets/entry.js"></script><script>inline()</script>',
+    "<link rel='modulepreload' href='/assets/a.js'>",
+    '<script src="//cdn.example/x.js"></script>',
+  ].join("");
+  assert.deepEqual(documentAssetPaths(html), [
+    "/assets/s.css",
+    "/assets/a.js",
+    "/assets/f.woff2",
+    "/assets/entry.js",
+  ]);
+  const fetched = [];
+  const result = await warmAssets("http://up", html, async (url) => {
+    fetched.push(url);
+    if (url.endsWith(".woff2")) throw new Error("ECONNRESET");
+    return { ok: !url.endsWith(".css"), arrayBuffer: async () => new ArrayBuffer(10) };
+  });
+  assert.equal(fetched[0], "http://up/assets/s.css");
+  assert.deepEqual(result, { count: 2, failed: 2, bytes: 30 });
+});
+
+test("VALID podaje liczbę ważnych przebiegów po restarcie serwera (runda 2)", () => {
+  const summary = summarizeValidity([
+    { n: 1, valid: true, rewarm: { restores: 1 } },
+    { n: 2, valid: true, rewarm: { restores: 0 } },
+    { n: 3, valid: false, reasons: ["obciążenie (3,0 > 2,4)"], rewarm: { restores: 2 } },
+    { n: 3, valid: true },
+  ]);
+  assert.equal(summary.restored, 1);
+  assert.match(
+    formatValidity("aa A mobile", summary),
+    /n_valid=3\/3 .* po restarcie serwera: 1\/3$/,
+  );
+  // bez ważnych przebiegów nie ma czego warstwować
+  assert.doesNotMatch(
+    formatValidity("x", summarizeValidity([{ n: 1, valid: false, rewarm: { restores: 1 } }])),
+    /po restarcie/,
+  );
+});
+
+test("tryb FCP z originu dokumentu: /~flock.js w mianowniku, tag Google poza nim (I1, runda 2)", () => {
+  const doc = "https://fixture.invalid/";
+  const own = (path, kb, end) => ({
+    url: `https://fixture.invalid${path}`,
+    resourceType: "Script",
+    transferSize: Math.round(kb * 1024),
+    networkEndTime: end,
+  });
+  const gtag = {
+    url: "https://www.googletagmanager.com/gtag/js?id=G-TEST",
+    resourceType: "Script",
+    transferSize: PRODUCTION_GTAG_BYTES.g.transfer,
+    networkEndTime: 1200,
+  };
+  const lcpMs = 2000;
+  // pełny: graf 506,2 KB, skrypty originu przed LCP 520 KB (z /~flock.js 13,8 KB)
+  const graph = [own("/assets/a.js", 400, 900), own("/assets/b.js", 106.2, 950)];
+  const flock = own("/~flock.js", 13.8, 800);
+  const records = [...graph, flock, gtag, own("/assets/late.js", 50, 5000)];
+  const inputs = fcpModeInputs([...graph, gtag], records, lcpMs, doc);
+  assert.equal(inputs.graphScripts, 2);
+  assert.equal(inputs.graphBytes, graph[0].transferSize + graph[1].transferSize);
+  assert.equal(inputs.startupBytes, inputs.graphBytes + flock.transferSize);
+  assert.equal(inputs.thirdPartyBytes, PRODUCTION_GTAG_BYTES.g.transfer);
+  assert.equal(
+    fcpModeOf(inputs.graphScripts, inputs.graphBytes, inputs.startupBytes).mode,
+    "pełny",
+  );
+  // kontrola negatywna: z tagiem Google w mianowniku ten sam przebieg spadałby do `pośredni`
+  assert.equal(
+    fcpModeOf(2, inputs.graphBytes, inputs.startupBytes + inputs.thirdPartyBytes).mode,
+    "pośredni",
+  );
+  // częściowy: wykluczone z sumy inwariantu 1 (/~flock.js) MUSZĄ być w mianowniku -
+  // bez nich udział 118,1 / 218,1 KB = 54 % dawałby `pośredni` zamiast `częściowy`
+  const partialGraph = [own("/assets/boot.js", 118.1, 900)];
+  const partialRecords = [
+    ...partialGraph,
+    own("/assets/rest.js", 100, 1500),
+    own("/~flock.js", 20, 700),
+  ];
+  const partial = fcpModeInputs(partialGraph, partialRecords, lcpMs, doc);
+  const startup = scriptBytesEndedBefore(
+    partialRecords,
+    lcpMs,
+    DEFAULT_EXCLUDE_SCRIPTS.map((x) => new RegExp(x)),
+  );
+  assert.equal(partial.startupBytes, startup.bytes + startup.excludedBytes);
+  assert.equal(fcpModeOf(1, partial.graphBytes, partial.startupBytes).mode, "częściowy");
+  assert.equal(fcpModeOf(1, partial.graphBytes, startup.bytes).mode, "pośredni");
+  // nieznany origin dokumentu: bez filtra (dawne zachowanie)
+  assert.equal(
+    fcpModeInputs([...graph, gtag], records, lcpMs, "").startupBytes,
+    inputs.startupBytes + PRODUCTION_GTAG_BYTES.g.transfer,
+  );
+});
+
+test("korzeń artefaktu poza repo harnessu zapisuje się bez układu maszyny (D3, runda 2)", () => {
+  assert.equal(portableRoot("/repo", "/repo"), ".");
+  assert.equal(portableRoot("/repo/worktrees/x/", "/repo"), "worktrees/x");
+  assert.equal(portableRoot("/tmp/claude-0/s/wt/fix-P0.1", "/repo"), "poza-repo:fix-P0.1");
+  // prefiks nazwy to nie zawieranie: /repo-other leży poza /repo
+  assert.equal(portableRoot("/repo-other", "/repo"), "poza-repo:repo-other");
+  assert.equal(portableRoot("/home/ci/baseline", "/home/ci/harness"), "poza-repo:baseline");
+  // komunikat przerwania serii (summary.json): ścieżki zastąpione etykietami, najdłuższa najpierw
+  const message =
+    "Serwer artefaktu /tmp/s/wt/fix-P0.1 zakończył się kodem 1 (log /tmp/s/wt/fix-P0.1/out/server.log)";
+  const scrubbed = scrubPaths(message, [
+    ["/tmp/s/wt/fix-P0.1", portableRoot("/tmp/s/wt/fix-P0.1", "/repo")],
+    ["/tmp/s/wt/fix-P0.1/out", "<wyniki>"],
+  ]);
+  assert.equal(
+    scrubbed,
+    "Serwer artefaktu poza-repo:fix-P0.1 zakończył się kodem 1 (log <wyniki>/server.log)",
+  );
+  assert.doesNotMatch(scrubbed, /\/tmp\//);
 });
