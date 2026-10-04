@@ -1849,6 +1849,7 @@ export const WIDGETS: WidgetDef[] = [
       action_pl: "więcej",
       action_en: "more",
       href: "",
+      variant: "kinetic-signal-notch",
     }),
   },
   {
