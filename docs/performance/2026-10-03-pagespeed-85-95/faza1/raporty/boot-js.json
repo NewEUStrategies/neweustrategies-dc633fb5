@@ -1,0 +1,465 @@
+{
+  "key": "boot-js",
+  "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/boot-js.md",
+  "summary": "PSI mobile FCP/LCP/SI are bandwidth-bound by first-party JS that finishes before observed FCP: prod 27 files/567 KB transfer (86% boot closure: entry 257 KB, supabase 58.6, react 61, tanstack 52). Lantern counts every High script ended before observed FCP as render-blocking; fetchpriority=low is ignored (all stay High). Fixture experiments: starting the boot set after load gives mobile FCP 5.04->1.40 s, LCP 5.61->2.66 s, SI 5.04->3.08 s, desktop FCP 1.03->0.38 s, CLS 0; but 600-1125 ms of long-task excess now hidden before simulated FCP would enter TBT (+530..770 ms) unless hydration/parse CPU drops. Entry 1.43 MB pre-min: 62% root/chrome closure, 30% route shells (213 admin), 9% Vite mapDeps. experimentalMinChunkSize 2048 creates cross-route edges (prod entry imports admin.analytics; reproduced). Dictionary 26.9 KB gz is 94% admin/blocks.",
+  "findings": [
+    {
+      "id": "F1",
+      "claim": "Pre-FCP High-priority JS dominates simulated mobile FCP/LCP/SI: in production 27 first-party scripts (567 117 B transfer) finished before observed FCP; 86% is the boot closure.",
+      "evidence": "$SCRATCH/lh/prod-mobile.json network-requests vs observedFirstContentfulPaint 3252 ms: entry index-Cjx74syR 257 132, vendor-supabase 58 635, vendor-react 61 367, vendor-tanstack 52 311, pl dict 26 799, widget chunks 40 886, route '/' chunks 10 792 B; round-2 history -87 KB gz -> -0.45 s FCP (docs/performance/2026-10-02-pagespeed-przyczyny.md §8a)",
+      "metric": "FCP, LCP, SI (mobile), FCP/LCP desktop",
+      "severity": "critical"
+    },
+    {
+      "id": "F2",
+      "claim": "Lantern treats any High-priority Script that ended before observed FCP as render-blocking; module scripts cannot use the EvaluateScript escape hatch; LCP keeps every non-low-image node ended before observed LCP regardless of priority.",
+      "evidence": "@paulirish/trace_engine/models/trace/lantern/metrics/FirstContentfulPaint.js getFirstPaintBasedGraph; graph/NetworkNode.js:68-75 hasRenderBlockingPriority; metrics/LargestContentfulPaint.js isNotLowPriorityImageNode (under $SCRATCH/tools/node_modules)",
+      "metric": "FCP, LCP",
+      "severity": "high"
+    },
+    {
+      "id": "F3",
+      "claim": "fetchpriority=low on modulepreload links and on the module script is ignored by Chromium 1194: all 79 scripts stay High and FCP/LCP do not move.",
+      "evidence": "variant bj3-low-mobile-{1,3}: FCP 4.85/4.89 s, LCP 5.84/5.60 s vs control 5.04/5.61 s; priorities {'High': 79}; $SCRATCH/phase1/boot-js/lh/variants3.log",
+      "metric": "FCP, LCP",
+      "severity": "medium"
+    },
+    {
+      "id": "F4",
+      "claim": "Starting the whole boot set (entry closure + dictionary + route + above-fold widget chunks) only after the load event removes JS from the FCP/LCP graphs: mobile FCP 5.04->1.40 s, LCP 5.61->2.66 s, SI 5.04->3.08 s; desktop FCP 1.03->0.38 s, LCP 1.14->0.60 s; CLS 0 in 5/5 runs.",
+      "evidence": "variants bj3-control-* vs bj3-defer-load-pre-* (n=3 mobile), bj2-defer-load-pre-desktop-{1,2}, bj3-defer-load-pre-desktop-3; proxy $SCRATCH/phase1/boot-js/rewrite-proxy.mjs mode defer-load-pre",
+      "metric": "FCP, LCP, SI",
+      "severity": "critical"
+    },
+    {
+      "id": "F5",
+      "claim": "TBT/FCP coupling: 600-1125 ms of long-task excess (HTML parse ~0.9-1.9 s, early hydration) happens before simulated FCP and is not counted today; moving FCP to ~1.4 s without CPU reduction adds ~+530..770 ms TBT (score 88 at TBT 335 ms vs 74 at 1000 ms).",
+      "evidence": "counterfactual over long-tasks of bj2-control-mobile-1 (282->813 ms), bj2-control-mobile-2 (502->1273), baseline2-mobile-1 (599->1441), baseline2-mobile-2 (637->991); scorer $SCRATCH/phase1/boot-js/score.py reproduces control score 60",
+      "metric": "TBT",
+      "severity": "high"
+    },
+    {
+      "id": "F6",
+      "claim": "Widget modulepreloads are load-bearing for CLS: dropping them (keeping only the entry closure) produced CLS 0.421 on a hero column in 1 of 5 runs (lazy widget boundary discarded and client-rendered before its chunk arrived).",
+      "evidence": "$SCRATCH/phase1/boot-js/lh/bootjs-strip-route-mobile-2.json layout-shifts: div[data-column-slot][data-col-id=...001b] score 0.4208; hazard documented src/components/builder/organisms/widget-view/lazyWidgets.tsx:19-23; preloads from src/lib/seo/widgetPreloads.ts:25-55, src/routes/index.tsx:213-215",
+      "metric": "CLS",
+      "severity": "high"
+    },
+    {
+      "id": "F7",
+      "claim": "Entry index-DPN2YAij.js (1 427 732 B pre-min / 836 921 raw / 257 464 gzip, 788 modules) is 62.4% root/router closure (chrome, providers, builder renderer), ~28% route shells of 377 non-hot routes + routeTree.gen (admin 213 shells = 99.9 KB exclusive), 6.2% hot routes, 2.1% framework.",
+      "evidence": "reports/chunk-inventory.json; $SCRATCH/phase1/boot-js/classify.py output: root 891 007, public-secondary shells 138 706, admin 99 917, events 35 105, club 29 056, profile 17 851, billing 14 579, routeTree.gen 62 026, hot 87 909, framework 29 661",
+      "metric": "TBT (parse/compile/eval), FCP/LCP via bytes",
+      "severity": "high"
+    },
+    {
+      "id": "F8",
+      "claim": "Largest deferrable sub-closures of the root: SimpleWidgets (110 KB pre-min exclusive), lib/builder/prefetch + 13 query factories (53.6 KB), TrendingTicker (41 KB), MegaMenu (30.5 KB), SiteMenu (23 KB), useNewsletterSettings/popupDesign (18.5 KB), chromeDefaults (13.9 KB), ads/consent (13.6 KB).",
+      "evidence": "$SCRATCH/phase1/boot-js/excl.py; edges src/components/builder/organisms/ChromeWidgetView.tsx:83-85, src/components/Header.tsx:18, src/routes/__root.tsx:77,97,98,839",
+      "metric": "entry bytes -> TBT/FCP",
+      "severity": "medium"
+    },
+    {
+      "id": "F9",
+      "claim": "Vite preload machinery is 9% of the entry: __vite__mapDeps file table 32 148 chars (840 files) + 559 index arrays 46 941 chars = 78 KB raw / ~23 KB gzip; 204 admin route imports alone carry 25.7 KB of arrays; 2 397 of 11 280 refs point to already-loaded boot chunks.",
+      "evidence": "analysis of .output/public/assets/index-DPN2YAij.js (gzip with tables 257 464 vs without 234 151); vite.config.ts:308 hoistTransitiveImports:false",
+      "metric": "entry bytes",
+      "severity": "medium"
+    },
+    {
+      "id": "F10",
+      "claim": "routeSplitBehavior returning undefined for '/' does NOT keep the route in the entry: undefined falls back to default groupings, so '/' has a component chunk and an errorComponent chunk, and the manifest preloads both plus the component's direct imports.",
+      "evidence": "scripts/lib/routeCodeSplitting.ts:28-34 (comment claims whole module stays); node_modules/@tanstack/router-plugin/dist/esm/core/router-code-splitter-plugin.js:79; constants.js:11-15; start-plugin-core manifestBuilder.js:161-167,252-260; manifest '/' preloads = index-BHIMq0Mj, blog.index, headings, Footnotes, PaginatedPostGrid, useInFeedAds, prepareContent, eventInvoiceMath (errorComponent merged with lib/events/eventInvoiceMath + billing/nip)",
+      "metric": "FCP/LCP (pre-FCP requests), hygiene",
+      "severity": "medium"
+    },
+    {
+      "id": "F11",
+      "claim": "The '/' component statically imports LatestPostsHome (latest_posts mode only), FooterSlideup (renders null initially) and Footnotes; FooterSlideup sits in the blog.index chunk, so '/' inherits /blog's imports: events._slug_.cfp-submit (FriendlyErrorPage+AuthGate+DegradedDataNotice) -> vendor-lucide 63 KB raw, MoneyText -> author._slug -> cfpSettingsDraft, date-fns locales. '/' static closure beyond boot = 19 chunks / 56.2 KB gzip.",
+      "evidence": "src/routes/index.tsx:8,17,411,419; src/components/home/molecules/HomeBuilderContent.tsx:51; src/components/ads/FooterSlideup.tsx:23,64; inventory chunk modules; $SCRATCH/phase1/boot-js/homeset.py baseline",
+      "metric": "post-boot High fetches (TBT/SI), pre-FCP requests",
+      "severity": "medium"
+    },
+    {
+      "id": "F12",
+      "claim": "experimentalMinChunkSize 2048 (1 290 chunks, 503 merged) parks entry-needed tiny modules in admin-named chunks: production entry statically imports admin.analytics-D7PYqOYF.js; my prototype reproduced it (entry -> admin.analytics-BsK4WgFx.js = 40.4 KB date-fns + eventVideoHeader/mentionTargets/notFoundIfClean), boot 482.4 -> 486.6 KB gzip.",
+      "evidence": "vite.config.ts:312; $SCRATCH/psi/h1.txt Link line 31 (between vendor-lucide-boot and vendor-radix-boot = root preloads = entry imports); $SCRATCH/phase1/boot-js/build-proto.log ('1290 chunks, of which 503 are below minChunkSize'), chunk-inventory-proto1.json",
+      "metric": "boot bytes, admin code reachable from entry",
+      "severity": "high"
+    },
+    {
+      "id": "F13",
+      "claim": "With experimentalMinChunkSize 0 (+'/' cleanup) the boot closure is the 8 vendors only (479.9 KB gz), the '/' hydration set drops 638.7 -> 601.8 KB gzip with the same request count (44 -> 45) and no foreign-route chunks; cost +422 files and +55 KB on the sum-of-all-chunks metric.",
+      "evidence": "$SCRATCH/phase1/boot-js/hydset.py on baseline vs exp build 3 (chunk-inventory-proto2-min0.json, manifest-proto2-min0.mjs); total JS 885 files/4 891 543 gz -> 1 307/4 946 796",
+      "metric": "post-boot bytes, hygiene, check:bundle overall",
+      "severity": "medium"
+    },
+    {
+      "id": "F14",
+      "claim": "vendor-supabase (224 170 raw / 58 436 gzip) is in boot only through the static createClient import in client.ts; guests do not need auth/realtime/storage, but boot code touches the SDK via AuthProvider, consent listener and the global serverFn auth middleware (every RPC, e.g. header ticker refetch).",
+      "evidence": "src/integrations/supabase/client.ts:14,48-54; src/hooks/useAuth.tsx:80,107-121 (hasStoredAuthSession), :301 onAuthStateChange, :358 getSession; src/lib/ads/consent.ts:503; src/integrations/supabase/auth-attacher.ts:9; src/routes/__root.tsx:161-205 realtime already user-gated; 95 entry importers (78 from, 29 rpc, 12 auth); postgrest-js is 13% of the SDK pre-min",
+      "metric": "pre-FCP bytes (FCP/LCP/SI), bootup",
+      "severity": "high"
+    },
+    {
+      "id": "F15",
+      "claim": "Core dictionary pl (70.9 KB JSON / 26.9 KB gzip, top-level awaited and preloaded) is 94% admin-only namespaces: admin 41.6 KB, blocks 15.4, notifications 6.7, comments 1.9, adminComments 0.6; public core is 4.8 KB / 2.3 KB gzip (en 1.9 KB).",
+      "evidence": "src/lib/locale/pl.ts, src/lib/i18n.ts:120-131; $SCRATCH/phase1/boot-js/dict.mts, dict2.mts; admin.* keys referenced only by admin route files, blocks.* only by src/components/admin/blocks/**",
+      "metric": "pre-FCP bytes",
+      "severity": "medium"
+    },
+    {
+      "id": "F16",
+      "claim": "vendor-zod (54 091 raw / 12 301 gzip) stays in boot through ~9 boot-reachable schemas (seo/settings, podcast/types, menus/types, web-stories/types, analytics/config, search/searchParams, footerSettings, publications and error routes).",
+      "evidence": "entry inventory + source scan: src/lib/seo/settings.ts (24 z.), src/lib/podcast/types.ts (83 z.), src/routes/__root.tsx:112,411 AnalyticsConfigSchema",
+      "metric": "pre-FCP bytes",
+      "severity": "low"
+    },
+    {
+      "id": "F17",
+      "claim": "Post-boot wave: 58 first-party files / 221 KB transfer fetched at High after boot in production, incl. vendor-radix 36.9 KB (AccountMenuWidget popover/avatar for guests), vendor-lucide 18.7 KB (merged cfp-submit chunk), vendor-dompurify 9.8 KB (slider/heading/accordion), search extras (voice search, facets, archives, i18n-search) and admin-named merged chunks.",
+      "evidence": "$SCRATCH/lh/prod-mobile.json requests from 3374 ms; src/components/builder/organisms/widget-view/AccountMenuWidget.tsx:17-18; SearchButtonWidget.tsx:9,16-28",
+      "metric": "TBT, SI, bandwidth for below-fold images",
+      "severity": "medium"
+    },
+    {
+      "id": "F18",
+      "claim": "lucide-boot carries 190 icons (45 KB raw / 14.8 KB gzip) because ChromeWidgetView and SearchButtonWidget namespace-import the whole lucide-shim.",
+      "evidence": "src/components/builder/organisms/ChromeWidgetView.tsx:42, SearchButtonWidget.tsx:9; inventory vendor-lucide-boot 190 modules",
+      "metric": "pre-FCP bytes",
+      "severity": "low"
+    },
+    {
+      "id": "F19",
+      "claim": "Local harness serves HTTP/1.1 through the node proxy, which over-penalizes many small requests versus production h2: strip-route removed ~69 KB but moved FCP by 0.87 s (~12.6 ms/KB) vs ~5 ms/KB in round-2 history; use deltas in bytes for production estimates.",
+      "evidence": "bj3-strip-route vs bj3-control (JS before oFCP 525.6 -> 456.8 KB); $SCRATCH/lh/br-proxy.mjs (http.createServer)",
+      "metric": "measurement validity",
+      "severity": "low"
+    }
+  ],
+  "changes": [
+    {
+      "id": "C3",
+      "title": "Boot-after-LCP bootstrap: request the boot set after the LCP candidate painted (or first interaction), never before first paint",
+      "files": [
+        "src/routes/__root.tsx",
+        "src/lib/http/frameworkPreloads.server.ts",
+        "src/lib/seo/rootHead.ts",
+        "src/lib/seo/widgetPreloads.ts",
+        "scripts/lib/localeChunkPlugin.ts",
+        "new: src/lib/boot/bootLoaderScript.ts (inline script)",
+        "new: scripts/lib/bootSetPlugin.ts (build-time boot-set file list incl. above-fold widget chunks)",
+        "vite.config.ts",
+        "vite.smoke.config.ts"
+      ],
+      "mechanism": "Stop emitting <link rel=modulepreload> in head and Link for JS; replace the manifest's <script type=module async src=entry> with a tiny inline bootstrap (same markup SSR and client, generated from the manifest so hydration parity holds). It waits for the hero img[fetchpriority=high] load+decode + 1 rAF, or window load, or first pointerdown/keydown/touchstart/focusin, hard cap ~3 s after DOMContentLoaded, then inserts modulepreload links for the whole boot set (entry closure, active-language dictionary, matched route component chunk, above-fold widget chunks) in one burst and appends the module script. Keeps setTimeout(0)-before-hydrate in router.tsx; keeps CSS/font/LCP-image preloads.",
+      "metric": "FCP, LCP, SI (mobile + desktop); TBT side effect",
+      "expected_effect": "Fixture measured: mobile FCP -3.6 s (5.04->1.40), LCP -2.95 s (5.61->2.66), SI -1.96 s (5.04->3.08); desktop FCP -0.65 s, LCP -0.54 s; CLS 0. Without CPU cuts TBT +0.5..0.8 s mobile (score ~74); with TBT <=335 ms score ~88, <=250 ms ~91.",
+      "estimate_basis": "HTML-rewriting proxy over the unmodified artifact (variant defer-load-pre, n=3 mobile, 3 desktop), Lantern source rules (F2), counterfactual TBT from control long-task lists (F5), LH13 scorer.",
+      "risk": "medium",
+      "risk_notes": "Hydration starts later on real devices (by roughly hero transfer time); early clicks on JS-only controls wait (links work natively). Boot set must include above-fold widget chunks or CLS 0.42 hydration-discard can recur (F6). BOOT_DEAD_TIMEOUT_MS 15 s watchdog (src/lib/observability/bootProbeScript.ts:68) must not fire. Speculation rules / edge-cached Link headers change. Requires TBT reductions from hydration/html-weight workstreams in the same wave.",
+      "gates": [
+        "check:ssr-budgets",
+        "check:chunk-parity",
+        "check:entry-purity",
+        "check:bundle",
+        "SSR/hydration parity tests (e2e first-visit, authHydration.test.tsx)",
+        "check:first-visit-regression",
+        "noHasSelectors"
+      ],
+      "verification": "measure-local.sh 3 runs: no first-party script ends before observed FCP/LCP (network-requests), FCP<=1.6 s, LCP<=2.8 s mobile on fixture, CLS 0 in >=5 runs; e2e boot test shows __nesAppReady; PSI after deploy.",
+      "effort": "M",
+      "depends_on": ["C1", "C9"]
+    },
+    {
+      "id": "C1",
+      "title": "Cut static edges of the '/' route component (mode-specific and overlay code out)",
+      "files": [
+        "src/routes/index.tsx",
+        "src/components/home/molecules/HomeBuilderContent.tsx",
+        "scripts/lib/routeCodeSplitting.ts",
+        "src/lib/ci/__tests__/routeCodeSplitting.test.ts"
+      ],
+      "mechanism": "React.lazy LatestPostsHome (only latest_posts mode, already inside Suspense); FooterSlideup mounted client-only after whenIdle (SSR renders null today, parity kept); Footnotes list/tooltips lazily only when footnotes.length>0; routeSplitBehavior('/') = [['component']] so error/notFound components stay in the shell and are not preloaded; fix the misleading comment (undefined = default groupings).",
+      "metric": "post-boot High requests (TBT/SI), pre-FCP request count",
+      "expected_effect": "Prototype build: '/' closure beyond boot 19 chunks/56.2 KB gz -> 7-8 chunks/16-18 KB gz; removes cfp-submit, vendor-lucide (18.7 KB transfer prod), MoneyText, author._slug, cfpSettingsDraft, date-fns chunk, PostListCard, ArchivePagination from the hydration window. Lantern: TBT/SI -20..-50 ms; FCP/LCP ~0 unless they end before observed LCP.",
+      "estimate_basis": "Measured on prototype builds (homeset.py, hydset.py); production post-boot wave timings (start 3374 ms > oLCP 3303 ms).",
+      "risk": "low",
+      "risk_notes": "With minChunkSize 2048 Rollup re-parks tiny modules into an admin-named chunk imported by the entry (+4.2 KB gz boot, reproduced) - ship only with C10 and C9.",
+      "gates": [
+        "check:chunks",
+        "check:entry-purity",
+        "check:bundle",
+        "check:chunk-parity",
+        "routeCodeSplitting.test.ts",
+        "first-visit e2e (DOM retention, CLS)"
+      ],
+      "verification": "hydset.py/homeset.py on the build: '/' closure <=20 KB gz, no chunk named admin./events./author./blog. in the hydration set; Lighthouse network-requests shows no cfp-submit/vendor-lucide on '/'.",
+      "effort": "S",
+      "depends_on": ["C10"]
+    },
+    {
+      "id": "C9",
+      "title": "CI gate: public boot-set purity and size",
+      "files": [
+        "scripts/check-entry-purity.ts",
+        "scripts/check-bundle-size.ts",
+        "new: scripts/lib/bootClosure.ts (shared closure helper promised in check-entry-purity header)"
+      ],
+      "mechanism": "From chunk-inventory + TanStack manifest compute boot set = entry static closure ∪ static closure of '/' and '/$' route preloads ∪ above-fold widget chunks (WIDGET_CHUNK_URLS); fail if any member contains modules from src/routes/(admin|club|profile|events|checkout)… or src/components/admin/**, if any route preload chunk contains only ?tsr-split=errorComponent|notFoundComponent modules, or if vendor-supabase / vendor-zod / vendor-radix (non-boot) are reachable; budget gzip of the set.",
+      "metric": "regression prevention (boot bytes)",
+      "expected_effect": "Would have failed on production's admin.analytics static import and on the baseline '/' closure (admin.users, author._slug, blog.index, events cfp-submit).",
+      "estimate_basis": "hydset.py reproduces the violations on baseline and passes on the minChunkSize-0 prototype.",
+      "risk": "low",
+      "gates": ["check:entry-purity", "check:bundle", "check:ci-gates"],
+      "verification": "Run on baseline artifact (must fail with 4 named chunks), on fixed artifact (must pass).",
+      "effort": "S"
+    },
+    {
+      "id": "C10",
+      "title": "Constrain experimentalMinChunkSize merging so public code never statically imports foreign-route chunks",
+      "files": [
+        "vite.config.ts",
+        "vite.smoke.config.ts",
+        "src/lib/ci/__tests__/viteChunkParity.test.ts"
+      ],
+      "mechanism": "Either lower experimentalMinChunkSize (0 measured; 512 to measure) or add closure-safe manual chunk for date-fns (vendor-date-fns: no deps outside itself), keeping both configs identical (chunk-parity) and the vendor-closure doctrine (incident 2026-07-20).",
+      "metric": "boot bytes, post-boot wave",
+      "expected_effect": "minChunkSize 0 + C1: boot closure 482.4 -> 479.9 KB gz (no admin.analytics), hydration set 638.7 -> 601.8 KB gz, same request count; +422 files, +55 KB gz on all-assets sum (check:bundle overall).",
+      "estimate_basis": "Prototype build 3 (chunk-inventory-proto2-min0.json).",
+      "risk": "medium",
+      "risk_notes": "More tiny files on deep admin routes; check:bundle overall budget (already red) gets +55 KB; must keep check:chunks acyclic.",
+      "gates": ["check:chunks", "check:chunk-parity", "check:bundle", "check:entry-purity"],
+      "verification": "hydset.py: no suspicious chunk in hydration set; check:chunks green; boot-test in browser on smoke build.",
+      "effort": "S"
+    },
+    {
+      "id": "C2",
+      "title": "Preload filter and dedupe for head + Link (interim policy until C3)",
+      "files": [
+        "src/lib/http/frameworkPreloads.server.ts",
+        "src/routes/__root.tsx",
+        "src/lib/seo/rootHead.ts",
+        "new: scripts/lib/routePreloadFilterPlugin.ts"
+      ],
+      "mechanism": "Build-time list of chunk files that contain only ?tsr-split=errorComponent|notFoundComponent modules or foreign-route modules; filter them from onEarlyHints links and from head modulepreloads (same list on server and client so head stays parity-safe); dedupe Link entries (PaginatedPostGrid appears twice in prod Link); keep entry closure, dictionary, route component chunk and above-fold widget chunks.",
+      "metric": "FCP, LCP, SI",
+      "expected_effect": "Production pre-FCP JS -6..-12 KB (admin.analytics 5.7, error chunks, duplicates) -> mobile FCP/LCP -0.05..-0.1 s; fixture variant that also dropped widget preloads gave -0.87 s FCP but is unsafe (F6).",
+      "estimate_basis": "Byte deltas x ~5-7 ms/KB (round-2 history), h2 in production; strip-route experiment as upper bound.",
+      "risk": "low",
+      "gates": ["check:ssr-budgets", "check:chunk-parity", "SSR head parity tests"],
+      "verification": "curl Link header + head on artifact: no errorComponent chunks, no duplicates; LH network-requests pre-FCP bytes.",
+      "effort": "S",
+      "depends_on": ["C9"]
+    },
+    {
+      "id": "C4",
+      "title": "Lazy Supabase facade: no SDK in the boot closure for anonymous readers",
+      "files": [
+        "src/integrations/supabase/client.ts",
+        "new: src/integrations/supabase/client.full.ts",
+        "new: src/integrations/supabase/sessionHint.ts (hasStoredAuthSession moved from useAuth)",
+        "src/integrations/supabase/auth-attacher.ts",
+        "src/hooks/useAuth.tsx",
+        "src/lib/ads/consent.ts",
+        "src/lib/theme/customFonts.ts",
+        "scripts/check-entry-purity.ts"
+      ],
+      "mechanism": "Client-only Proxy: from/rpc/schema return a chain recorder (thenable) replayed on postgrest-js (guests, lazy ~8 KB gz chunk with identical apikey/Authorization/x-tenant-host headers) or on the full SDK (stored session or after any auth call); auth.getSession() resolves {session:null} for guests without loading; onAuthStateChange queues listeners until the SDK loads; storage.getPublicUrl computed synchronously; channel/functions/other auth.* load the SDK; storage event on sb-*-auth-token triggers load. Server keeps the static client.",
+      "metric": "pre-FCP bytes (FCP/LCP/SI), bootup/TBT",
+      "expected_effect": "Boot closure -58.4 KB gz / -224 KB raw; without C3 mobile FCP/LCP/SI ~-0.3 s, desktop ~-50 ms; bootup -57..-130 ms simulated (vendor-supabase bootup in LH).",
+      "estimate_basis": "Inventory bytes x 5-7 ms/KB; LH bootup-time for vendor-supabase (baseline2 130 ms, bootjs runs 57-130 ms).",
+      "risk": "medium",
+      "risk_notes": "Builder identity/instanceof users, listener ordering on sign-in, attachSupabaseAuth short-circuit, preview frame (hasStoredAuthSession returns true in frames), 824 rpc + 336 from call sites rely on chain semantics; needs replay unit tests and e2e login/logout/cross-tab.",
+      "gates": [
+        "check:entry-purity (new marker for @supabase/auth-js)",
+        "check:bundle",
+        "check:chunks",
+        "useAuth.test.tsx",
+        "authHydration.test.tsx",
+        "AuthGate.test.tsx",
+        "e2e login flow"
+      ],
+      "verification": "Boot closure without vendor-supabase (inventory); guest page load: no vendor-supabase request; signed-in load: SDK loads before roles query; LH pre-FCP bytes -58 KB.",
+      "effort": "M"
+    },
+    {
+      "id": "C5",
+      "title": "Core dictionary = public keys only (admin/blocks/notifications/comments/adminComments to overlays)",
+      "files": [
+        "src/lib/locale/pl.ts",
+        "src/lib/locale/en.ts",
+        "new overlays src/lib/i18n-admin-core.ts, src/lib/i18n-blocks.ts, src/lib/i18n-notifications.ts, src/lib/i18n-comments.ts",
+        "admin route components / AdminSession ensureI18n calls",
+        "scripts/check-entry-purity.ts HEAVY_DICTIONARIES"
+      ],
+      "mechanism": "Move the five namespaces into overlay modules loaded with ensureI18n() from post-hydration parts of admin/notifications/comments surfaces (pattern documented in check-entry-purity remedies); add a marker for an admin core string to HEAVY_DICTIONARIES.",
+      "metric": "pre-FCP bytes (FCP/LCP/SI)",
+      "expected_effect": "pl chunk 26.9 -> 2.3 KB gz (en 23.5 -> 1.9); mobile FCP/LCP ~-0.12 s (w/o C3); smaller storeCopy JSON clone.",
+      "estimate_basis": "dict2.mts gzip of reduced objects x 5 ms/KB.",
+      "risk": "low",
+      "risk_notes": "Missing ensureI18n on some admin screen shows raw keys; i18n parity/key-usage gates must learn the overlay locations.",
+      "gates": [
+        "check:i18n-parity",
+        "check:i18n-overlay-imports",
+        "check:i18n-hardcoded",
+        "check:entry-purity"
+      ],
+      "verification": "Link-preloaded pl-*.js <= 3 KB gz; admin e2e smoke shows translated labels.",
+      "effort": "M"
+    },
+    {
+      "id": "C8",
+      "title": "Guest-path header widgets without heavy deps (AccountMenu, SearchButton, slider/heading sanitization)",
+      "files": [
+        "src/components/builder/organisms/widget-view/AccountMenuWidget.tsx",
+        "src/components/builder/organisms/widget-view/SearchButtonWidget.tsx",
+        "src/lib/builder/sliderVariants.tsx",
+        "src/lib/builder/animatedHeadingVariants.tsx",
+        "src/components/builder/organisms/widget-view/AccordionWidget.tsx"
+      ],
+      "mechanism": "AccountMenu: guest branch renders AppLink+LogIn statically, signed-in menu (radix Popover/Avatar, greetings, supabase) lazy; SearchButton: voice search, facetModel/archives and i18n-search overlay loaded on pointerenter/focus/open; slider/heading/accordion sanitize via sanitizePure on the client instead of DOMPurify where input is server-sanitized.",
+      "metric": "post-boot bytes (TBT, SI); with C3 boot-set size",
+      "expected_effect": "Hydration window -~60 KB gz (vendor-radix 36.9, dompurify 9.8, search ~12); TBT -30..-80 ms mobile (parse/compile/eval).",
+      "estimate_basis": "Production post-boot transfer sizes (prod-mobile.json) and module sizes.",
+      "risk": "medium",
+      "risk_notes": "SSR parity of the account widget for guests; sanitization semantics must stay equivalent (security).",
+      "gates": [
+        "check:dangerous-html",
+        "check:entry-purity",
+        "SSR/hydration parity tests",
+        "noHasSelectors"
+      ],
+      "verification": "LH network-requests on '/' (guest): no vendor-radix/dompurify/useVoiceSearch before interaction.",
+      "effort": "M",
+      "depends_on": ["C1"]
+    },
+    {
+      "id": "C7",
+      "title": "build.modulePreload: polyfill off, resolveDependencies without boot chunks and without admin-route dep lists",
+      "files": ["vite.config.ts", "vite.smoke.config.ts"],
+      "mechanism": "environments.client.build.modulePreload = { polyfill: false, resolveDependencies(file, deps, ctx) => drop vendor boot chunks; return [] when the host import targets admin/club/profile route chunks }.",
+      "metric": "entry bytes",
+      "expected_effect": "Measured (boot filter only, with C1): entry 257.5 -> 256.0 KB gz; with admin lists dropped est. -5 KB gz more.",
+      "estimate_basis": "Prototype build 2 (mapDeps arrays 46 941 -> 41 337 chars); admin arrays 25.7 KB.",
+      "risk": "low",
+      "risk_notes": "Admin navigations fetch deps in a waterfall (one level per hop).",
+      "gates": ["check:chunk-parity", "check:bundle", "check:chunks"],
+      "verification": "Entry gzip and mapDeps size in artifact; admin e2e navigation smoke.",
+      "effort": "S"
+    },
+    {
+      "id": "C12",
+      "title": "zod out of the boot closure",
+      "files": [
+        "src/lib/seo/settings.ts",
+        "src/lib/analytics/config.ts",
+        "src/lib/menus/types.ts",
+        "src/lib/podcast/types.ts",
+        "src/lib/web-stories/types.ts",
+        "src/lib/theme/footerSettings.ts",
+        "src/lib/search/searchParams.ts",
+        "src/routes/publications.tsx",
+        "src/routes/error.tsx"
+      ],
+      "mechanism": "Replace boot-reachable zod schemas with total hand-written parsers (or zod/v4-mini from zod 3.25.76); keep zod for server functions and lazy admin code; add vendor-zod to the boot-closure gate.",
+      "metric": "pre-FCP bytes",
+      "expected_effect": "-12.3 KB gz boot -> mobile ~-60 ms FCP/LCP (w/o C3).",
+      "estimate_basis": "Inventory bytes x 5 ms/KB.",
+      "risk": "low",
+      "risk_notes": "Parsing semantics drift; needs parity unit tests per schema.",
+      "gates": ["check:entry-purity", "typecheck", "unit tests of parsers"],
+      "verification": "Entry imports no vendor-zod.",
+      "effort": "M"
+    },
+    {
+      "id": "C11",
+      "title": "Chrome lazy islands with SSR parity (TrendingTicker, MegaMenu, SiteMenu, SimpleWidgets per type, prefetch on the client)",
+      "files": [
+        "src/components/Header.tsx",
+        "src/components/builder/organisms/ChromeWidgetView.tsx",
+        "src/components/builder/organisms/widget-view/SimpleWidgets.tsx",
+        "src/components/builder/organisms/widget-view/lazyWidgets.tsx",
+        "src/lib/builder/prefetch.ts",
+        "src/routes/__root.tsx",
+        "src/lib/builder/useSectionPreload.ts"
+      ],
+      "mechanism": "Server-eager / client-lazy pattern already used for reading widgets (createIsomorphicFn + React.lazy inside the same Suspense on both sides) so SSR HTML is identical and the client hydrates the island when its chunk arrives; prefetch.ts imported dynamically on the client (root loader rarely re-runs client-side); chromeDefaults server-only.",
+      "metric": "entry bytes -> TBT, pre-FCP bytes",
+      "expected_effect": "Entry -24..-40 KB gz (TrendingTicker 41, MegaMenu 30.5, SiteMenu 23, prefetch 53.6, SimpleWidgets up to 110 KB pre-min).",
+      "estimate_basis": "Exclusive closure bytes (excl.py) x 0.18 gzip ratio.",
+      "risk": "high",
+      "risk_notes": "Hydration-discard CLS (F6) unless island chunks are in the boot set or hydrate-on-idle; ticker height CLS history; doctrine of SSR HTML parity for chrome.",
+      "gates": [
+        "SSR/hydration parity tests",
+        "check:ssr-budgets",
+        "check:entry-purity",
+        "check:chunks",
+        "first-visit e2e CLS"
+      ],
+      "verification": "Entry gzip delta; CLS 0 in >=5 LH runs; header interactivity e2e.",
+      "effort": "L",
+      "depends_on": ["C3", "C9"]
+    },
+    {
+      "id": "C6",
+      "title": "Route groups out of the entry (admin first)",
+      "files": [
+        "src/routeTree.gen.ts (generator config)",
+        "src/routes/admin*.tsx (213)",
+        "src/router.tsx",
+        "vite.config.ts tanstackStart.router",
+        "scripts/lib/routeCodeSplitting.ts"
+      ],
+      "mechanism": "TanStack has no lazy subtrees: options are (a) one /admin/$ splat route whose component lazily mounts an inner admin router/tree, or (b) aggressive shell slimming (head/beforeLoad/validateSearch into tiny shared factories) plus C7 for mapDeps. Start with (b) measurement, decide (a) only with owner buy-in.",
+      "metric": "entry bytes -> TBT/FCP",
+      "expected_effect": "Route shells + routeTree + exclusive helpers ~400 KB pre-min (~28% of entry) -> entry -45..-70 KB gz; TBT -30..-60 ms mobile.",
+      "estimate_basis": "classify.py group bytes x gzip ratio (0.11-0.18).",
+      "risk": "high",
+      "risk_notes": "Typed links to admin routes, auth guards in beforeLoad, admin cockpit split note; large blast radius.",
+      "gates": [
+        "check:loader-policy",
+        "check:entry-purity",
+        "check:bundle",
+        "check:chunks",
+        "check:permissions-parity",
+        "typecheck"
+      ],
+      "verification": "Inventory: no src/routes/admin* in entry; admin e2e.",
+      "effort": "XL"
+    },
+    {
+      "id": "C13",
+      "title": "Shrink vendor-lucide-boot (named icon registry for chrome instead of namespace import)",
+      "files": [
+        "src/components/builder/organisms/ChromeWidgetView.tsx",
+        "src/components/builder/organisms/widget-view/SearchButtonWidget.tsx",
+        "src/lib/lucide-shim.tsx",
+        "scripts/lib/bootVendorSplit.ts"
+      ],
+      "mechanism": "Replace import * as LucideIcons with an explicit chrome icon map; bootVendorSplit's name-based reachability then keeps only used icons in vendor-lucide-boot.",
+      "metric": "pre-FCP bytes",
+      "expected_effect": "vendor-lucide-boot 14.8 -> ~6 KB gz (est.).",
+      "estimate_basis": "190 icons in boot vs ~60-80 actually used by chrome (to verify).",
+      "risk": "low",
+      "gates": ["check:menu-icons", "check:entry-purity", "bootVendorSplit tests"],
+      "verification": "Inventory module count of vendor-lucide-boot.",
+      "effort": "S"
+    }
+  ],
+  "conflicts_with_other_workstreams": [
+    "hydration: C3 moves FCP before HTML-parse and hydration long tasks (+0.5..0.8 s TBT counterfactual) - C3 must ship in the same wave as hydration CPU cuts; C8/C11 touch ChromeWidgetView.tsx, lazyWidgets.tsx, AccountMenuWidget.tsx, SearchButtonWidget.tsx",
+    "html-weight: parse long tasks at 0.9-1.9 s (simulated) become TBT-visible after C3; their reduction is a precondition for the C3 score gain",
+    "lcp-path: C3 trigger keys off the LCP candidate (hero img); needs the single correct hero preload and a hero visible without JS (true on fixture: img.eh-img painted with no JS)",
+    "third-party: gtagLoadPolicy (load + quiet window) will see hydration long tasks after load once C3 lands",
+    "server-cache: Link header persisted in the edge document cache (frameworkPreloads.server.ts:5-6); preload changes reach users after cache refresh",
+    "css: none directly; render-blocking CSS remains the FCP floor once JS is out of the FCP graph"
+  ],
+  "open_questions": [
+    "Is delaying hydration until the hero has painted (C3) acceptable product-wise (early clicks on JS-only controls wait ~hero download time)?",
+    "Which experimentalMinChunkSize value (0 measured, 512 untested) or a vendor-date-fns manual chunk is preferred given the already-red check:bundle overall budget (+55 KB at 0)?",
+    "Does the TanStack Start server-fn client transform keep inputValidator (zod) code on the client for *.functions.ts? (inventory suggests stubs only; confirm before C12)",
+    "Why the hidden-sourcemap build emitted an empty map for the entry chunk only (some plugin drops it) - needed for exact per-module minified attribution",
+    "Production h2/h3 per-request overhead vs the local HTTP/1.1 proxy: the ms/KB conversion for C2/C4/C5 is 5-7 ms/KB (history) vs 12.6 ms/KB locally"
+  ]
+}

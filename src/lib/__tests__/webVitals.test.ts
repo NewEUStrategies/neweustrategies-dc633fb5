@@ -1513,3 +1513,592 @@ describe("kontekst nawigacji w ładunku", () => {
     expect(second[0]).toMatchObject({ value: 2100, sinceNav: 180_000 });
   });
 });
+
+// ---------------------------------------------------------------------------
+// P0.6 planu PSI 85/95: stan cache dokumentu, colo i zgrubna atrybucja INP.
+//
+// PO CO TE TESTY ISTNIEJĄ. Wszystkie nowe pola są OPISOWE i OPCJONALNE, więc
+// ich defekty są ciche: źle sparsowany `Server-Timing` nie rzuca, tylko
+// wpisuje MISS jako brak danych (albo dowolny napis jako kolonię), a stan
+// wyspy przeczytany o jedno malowanie za późno przenosi najgorsze interakcje
+// do „po hydratacji". Ładunek czytamy z BEACONU (`DEV=false`), bo w DEV
+// `report()` kończy na `console.debug`.
+describe("stan cache dokumentu, colo i atrybucja INP w ładunku (P0.6)", () => {
+  let originalSendBeacon: typeof navigator.sendBeacon;
+  const patchedNavigatorKeys: string[] = [];
+  const mountedIslands: Element[] = [];
+
+  function patchNavigator(key: string, value: unknown): void {
+    patchedNavigatorKeys.push(key);
+    Object.defineProperty(navigator, key, { configurable: true, writable: true, value });
+  }
+
+  beforeEach(() => {
+    originalSendBeacon = navigator.sendBeacon;
+    vi.stubEnv("DEV", false);
+    vi.stubEnv("VITE_OBSERVABILITY_ENDPOINT", "");
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "sendBeacon", {
+      configurable: true,
+      writable: true,
+      value: originalSendBeacon,
+    });
+    for (const key of patchedNavigatorKeys.splice(0)) Reflect.deleteProperty(navigator, key);
+    for (const root of mountedIslands.splice(0)) root.remove();
+    sessionStorage.clear();
+  });
+
+  function captureBeacons(): Array<{ url: string; body: BodyInit | null | undefined }> {
+    const sent: Array<{ url: string; body: BodyInit | null | undefined }> = [];
+    Object.defineProperty(navigator, "sendBeacon", {
+      configurable: true,
+      writable: true,
+      value: (url: string | URL, body?: BodyInit | null) => {
+        sent.push({ url: String(url), body });
+        return true;
+      },
+    });
+    return sent;
+  }
+
+  /** Wszystkie próbki ze wszystkich beaconów, w kolejności wysyłki. */
+  async function allMetrics(
+    sent: Array<{ body: BodyInit | null | undefined }>,
+  ): Promise<Array<Record<string, unknown>>> {
+    const out: Array<Record<string, unknown>> = [];
+    for (const { body } of sent) {
+      const text = body instanceof Blob ? await body.text() : String(body);
+      out.push(...(JSON.parse(text) as { metrics: Array<Record<string, unknown>> }).metrics);
+    }
+    return out;
+  }
+
+  function named(
+    metrics: Array<Record<string, unknown>>,
+    name: string,
+  ): Array<Record<string, unknown>> {
+    return metrics.filter((metric) => metric.name === name);
+  }
+
+  /** Wpis `PerformanceServerTiming` w kształcie, w jakim czyta go reporter. */
+  function timing(name: string, description = "", duration = 0): Record<string, unknown> {
+    return { name, description, duration };
+  }
+
+  /** Nagłówek dokumentu po P0.4, w kolejności z produkcji (`nes-edge` pierwsze). */
+  const PRODUCTION_TIMING = [
+    timing("nes-edge", "HIT"),
+    timing("nes-age", "", 129_280),
+    timing("edge-routing", "", 0),
+    timing("nes-layer", "L2"),
+    timing("colo", "PRG"),
+    timing("server-init", "", 0),
+    timing("app", "", 0),
+  ];
+
+  /**
+   * Wpis Navigation Timing. `responseStart` jest obowiązkowy, bo ten sam wpis
+   * czyta blok TTFB przy inicjalizacji; `serverTiming` i `loadEventStart` są
+   * opcjonalne jak w prawdziwych silnikach (brak klucza = brak API).
+   */
+  function navigationWith(options: {
+    serverTiming?: unknown;
+    loadEventStart?: number;
+    type?: string;
+  }): PerformanceEntry {
+    const entry: Record<string, unknown> = {
+      name: "",
+      entryType: "navigation",
+      startTime: 0,
+      duration: 0,
+      responseStart: 210,
+      type: options.type ?? "navigate",
+      toJSON: () => ({ entryType: "navigation" }),
+    };
+    if ("serverTiming" in options) entry.serverTiming = options.serverTiming;
+    if (options.loadEventStart !== undefined) entry.loadEventStart = options.loadEventStart;
+    return entry as unknown as PerformanceEntry;
+  }
+
+  function mockNavigation(entry: PerformanceEntry): void {
+    vi.spyOn(performance, "getEntriesByType").mockReturnValue([
+      entry,
+    ] as unknown as PerformanceEntryList);
+  }
+
+  function eventEntry(
+    name: string,
+    startTime: number,
+    duration: number,
+    interactionId: number,
+  ): FakeEntry {
+    return { name, entryType: "event", startTime, duration, interactionId };
+  }
+
+  /** Wyspa hydratacji w DOM (atrybut jak w `HydrationIsland`, P1.6) i przycisk w niej. */
+  function islandButton(state: string): { root: HTMLElement; button: HTMLButtonElement } {
+    const root = document.createElement("section");
+    root.setAttribute("data-island-state", state);
+    const button = document.createElement("button");
+    root.append(button);
+    document.body.append(root);
+    mountedIslands.push(root);
+    return { root, button };
+  }
+
+  function plainButton(): HTMLButtonElement {
+    const button = document.createElement("button");
+    document.body.append(button);
+    mountedIslands.push(button);
+    return button;
+  }
+
+  /**
+   * Naciśnięcie z KONKRETNYM `timeStamp` - tym samym, który przeglądarka wpisuje
+   * jako `startTime` wpisu `event` tej interakcji. Własność instancji przykrywa
+   * getter prototypu, więc test nie zależy od zegara środowiska.
+   */
+  function press(target: EventTarget, at: number, type: "pointerdown" | "keydown"): void {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "timeStamp", { value: at });
+    target.dispatchEvent(event);
+  }
+
+  describe("stan cache dokumentu i colo z Server-Timing", () => {
+    it("nagłówek po P0.4: edgeCache, edgeLayer i colo w KAŻDEJ próbce, także po miękkiej nawigacji", async () => {
+      // Pola opisują DOKUMENT (jak `navigationType`), więc trasa SPA ich nie
+      // zmienia - a p75 TTFB/LCP per HIT/MISS potrzebuje ich w każdym wierszu.
+      mockNavigation(navigationWith({ serverTiming: PRODUCTION_TIMING }));
+      const sent = captureBeacons();
+      const { initWebVitals, markWebVitalsPage } = await loadWebVitals();
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+      markWebVitalsPage("/blog");
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(900)]);
+      markWebVitalsPage("/glossary");
+
+      const metrics = await allMetrics(sent);
+      // CLS = 0 jedzie razem z LCP (reguła „bez zalewania zerami" przepuszcza je, gdy LCP wystrzelił).
+      expect(metrics.map((metric) => metric.name).sort()).toEqual([
+        "CLS",
+        "CLS",
+        "LCP",
+        "LCP",
+        "TTFB",
+      ]);
+      for (const metric of metrics) {
+        expect(metric).toMatchObject({ edgeCache: "HIT", edgeLayer: "L2", colo: "PRG" });
+      }
+    });
+
+    it("nagłówek sprzed P0.4 (sam nes-edge): jest edgeCache, a edgeLayer i colo NIE MA", async () => {
+      // Brak twardej zależności od P0.4: dzisiejsza produkcja wystawia samo
+      // `nes-edge` i to ono ma już dzielić populację na HIT/MISS.
+      mockNavigation(
+        navigationWith({
+          serverTiming: [
+            timing("nes-edge", "MISS"),
+            timing("ssr", "", 662),
+            timing("db", "n=23", 2029),
+            timing("edge-routing", "", 280),
+          ],
+        }),
+      );
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+      window.dispatchEvent(new Event("pagehide"));
+
+      const [lcp] = named(await allMetrics(sent), "LCP");
+      expect(lcp).toMatchObject({ edgeCache: "MISS" });
+      expect(lcp).not.toHaveProperty("edgeLayer");
+      expect(lcp).not.toHaveProperty("colo");
+    });
+
+    const missingHeaders: Array<[string, PerformanceEntry]> = [
+      ["wpis bez pola serverTiming", navigationWith({})],
+      ["pusta lista", navigationWith({ serverTiming: [] })],
+      ["napis zamiast listy", navigationWith({ serverTiming: 'nes-edge;desc="HIT"' })],
+      [
+        "śmieci w liście",
+        navigationWith({
+          serverTiming: [null, 42, "nes-edge", { name: 1, description: "HIT" }, { name: "colo" }],
+        }),
+      ],
+    ];
+    for (const [label, entry] of missingHeaders) {
+      it(`brak czytelnego Server-Timing (${label}) -> żadnego z trzech pól i żadnego rzutu`, async () => {
+        mockNavigation(entry);
+        const sent = captureBeacons();
+        const { initWebVitals } = await loadWebVitals();
+        expect(() => initWebVitals()).not.toThrow();
+        FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+        window.dispatchEvent(new Event("pagehide"));
+
+        const metrics = await allMetrics(sent);
+        expect(metrics.length).toBeGreaterThan(0);
+        for (const metric of metrics) {
+          expect(metric).not.toHaveProperty("edgeCache");
+          expect(metric).not.toHaveProperty("edgeLayer");
+          expect(metric).not.toHaveProperty("colo");
+        }
+      });
+    }
+
+    it("wartości spoza listy dozwolonych odpadają, zamiast wjechać do ładunku", async () => {
+      // Nagłówek może zmienić pośrednik po drodze; pole przepisywane „jak
+      // leci" byłoby kanałem dowolnego napisu do bazy.
+      mockNavigation(
+        navigationWith({
+          serverTiming: [
+            timing("nes-edge", "EVIL"),
+            timing("nes-layer", "L9"),
+            timing("colo", "PRAGUE"),
+          ],
+        }),
+      );
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+      window.dispatchEvent(new Event("pagehide"));
+
+      const [lcp] = named(await allMetrics(sent), "LCP");
+      expect(lcp).toBeDefined();
+      expect(lcp).not.toHaveProperty("edgeCache");
+      expect(lcp).not.toHaveProperty("edgeLayer");
+      expect(lcp).not.toHaveProperty("colo");
+    });
+
+    for (const colo of ["P1G", "<b>", "PR", ""]) {
+      it(`kolonia spoza wzorca trzech liter (${JSON.stringify(colo)}) nie jest przepisywana`, async () => {
+        mockNavigation(navigationWith({ serverTiming: [timing("colo", colo)] }));
+        const sent = captureBeacons();
+        const { initWebVitals } = await loadWebVitals();
+        initWebVitals();
+        window.dispatchEvent(new Event("pagehide"));
+
+        const [ttfb] = named(await allMetrics(sent), "TTFB");
+        expect(ttfb).toBeDefined();
+        expect(ttfb).not.toHaveProperty("colo");
+      });
+    }
+
+    it("wielkość liter jest normalizowana, a przy zdublowanej metryce wygrywa PIERWSZA", async () => {
+      // Potok serwera stawia `nes-edge` na początku nagłówka; dopisek tej samej
+      // metryki przez pośrednika nie może nadpisać naszego statusu.
+      mockNavigation(
+        navigationWith({
+          serverTiming: [
+            timing("nes-edge", " stale "),
+            timing("nes-edge", "HIT"),
+            timing("nes-layer", "Render"),
+            timing("colo", "waw"),
+            timing("colo", "FRA"),
+          ],
+        }),
+      );
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+      window.dispatchEvent(new Event("pagehide"));
+
+      const [ttfb] = named(await allMetrics(sent), "TTFB");
+      expect(ttfb).toMatchObject({ edgeCache: "STALE", edgeLayer: "render", colo: "WAW" });
+    });
+
+    it("ponowna zgoda w tej samej odsłonie NIE przelicza stanu cache - to nadal ten sam dokument", async () => {
+      mockNavigation(navigationWith({ serverTiming: [timing("nes-edge", "HIT")] }));
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      const teardown = initWebVitals();
+      teardown();
+
+      mockNavigation(navigationWith({ serverTiming: [timing("nes-edge", "MISS")] }));
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(900)]);
+      window.dispatchEvent(new Event("pagehide"));
+
+      const [lcp] = named(await allMetrics(sent), "LCP");
+      expect(lcp).toMatchObject({ edgeCache: "HIT" });
+    });
+  });
+
+  describe("zgrubna atrybucja INP", () => {
+    async function inpAfter(
+      act: (vitals: { emit: (entries: FakeEntry[]) => void }) => void,
+    ): Promise<{
+      inp: Record<string, unknown> | undefined;
+      metrics: Array<Record<string, unknown>>;
+    }> {
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+      act({ emit: (entries) => FakeObserver.forType("event").emit(entries) });
+      window.dispatchEvent(new Event("pagehide"));
+      const metrics = await allMetrics(sent);
+      return { inp: named(metrics, "INP")[0], metrics };
+    }
+
+    it("inpEvent to typ NAJDŁUŻSZEGO wpisu interakcji, a atrybucję niesie WYŁĄCZNIE próbka INP", async () => {
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+      FakeObserver.forType("largest-contentful-paint").emit([lcpEntry(2100)]);
+      FakeObserver.forType("event").emit([
+        eventEntry("pointerdown", 1000, 48, 5),
+        eventEntry("pointerup", 1070, 56, 5),
+        eventEntry("click", 1080, 200, 5),
+      ]);
+      window.dispatchEvent(new Event("pagehide"));
+
+      const metrics = await allMetrics(sent);
+      expect(named(metrics, "INP")[0]).toMatchObject({ value: 200, inpEvent: "click" });
+      for (const name of ["LCP", "CLS"]) {
+        for (const metric of named(metrics, name)) {
+          expect(metric).not.toHaveProperty("inpEvent");
+          expect(metric).not.toHaveProperty("inpPreHydration");
+          expect(metric).not.toHaveProperty("inpSinceLoad");
+        }
+      }
+    });
+
+    it("typ zdarzenia spoza zamkniętej listy schodzi do other", async () => {
+      const { inp } = await inpAfter(({ emit }) => {
+        emit([eventEntry("contextmenu", 1000, 160, 2)]);
+      });
+      expect(inp).toMatchObject({ inpEvent: "other" });
+    });
+
+    it("interakcja na NIEUWODNIONEJ wyspie: true, nawet gdy wyspa uwodniła się, zanim wpis dotarł", async () => {
+      // Sedno odczytu w chwili zdarzenia: to właśnie ta interakcja uwadnia
+      // wyspę, więc w obserwerze atrybut mówi już `hydrated`. Odczyt tam
+      // przeniósłby najgorszy przypadek do „po hydratacji".
+      const { root, button } = islandButton("pending");
+      const { inp } = await inpAfter(({ emit }) => {
+        press(button, 1000, "pointerdown");
+        root.setAttribute("data-island-state", "hydrated");
+        emit([eventEntry("pointerdown", 1000, 320, 9)]);
+      });
+      expect(inp).toMatchObject({ value: 320, inpEvent: "pointerdown", inpPreHydration: true });
+    });
+
+    it("wyspa uwodniona już w chwili interakcji: false", async () => {
+      const { button } = islandButton("hydrated");
+      const { inp } = await inpAfter(({ emit }) => {
+        press(button, 1000, "keydown");
+        emit([eventEntry("keydown", 1000, 120, 4)]);
+      });
+      expect(inp).toMatchObject({ inpEvent: "keydown", inpPreHydration: false });
+    });
+
+    it("nieznana wartość atrybutu nie jest zgadywana w żadną stronę", async () => {
+      const { button } = islandButton("hydrating");
+      const { inp } = await inpAfter(({ emit }) => {
+        press(button, 1000, "pointerdown");
+        emit([eventEntry("pointerdown", 1000, 120, 4)]);
+      });
+      expect(inp).toBeDefined();
+      expect(inp).not.toHaveProperty("inpPreHydration");
+    });
+
+    it("cel poza wyspą: BRAK pola - i nie dziedziczy stanu poprzedniej interakcji na wyspie", async () => {
+      // Start zapisujemy przy każdym naciśnięciu, także poza wyspą; bez tego
+      // druga interakcja „pożyczyłaby" `pending` od pierwszej.
+      const { button: onIsland } = islandButton("pending");
+      const outside = plainButton();
+      const { inp } = await inpAfter(({ emit }) => {
+        press(onIsland, 1000, "pointerdown");
+        emit([eventEntry("pointerdown", 1000, 60, 1)]);
+        press(outside, 3000, "pointerdown");
+        emit([eventEntry("pointerdown", 3000, 400, 2)]);
+      });
+      expect(inp).toMatchObject({ value: 400 });
+      expect(inp).not.toHaveProperty("inpPreHydration");
+    });
+
+    it("sam wpis click (pointerdown krótszy niż próg 40 ms) łączy się ze startem TEJ interakcji", async () => {
+      const { button } = islandButton("pending");
+      const { inp } = await inpAfter(({ emit }) => {
+        press(button, 1000, "pointerdown");
+        emit([eventEntry("click", 1090, 250, 3)]);
+      });
+      expect(inp).toMatchObject({ inpEvent: "click", inpPreHydration: true });
+    });
+
+    it("start nieznany (wpis z bufora sprzed inicjalizacji) albo starszy niż 5 s: brak pola", async () => {
+      const { button } = islandButton("pending");
+      const { inp } = await inpAfter(({ emit }) => {
+        emit([eventEntry("pointerdown", 500, 200, 1)]);
+        press(button, 1000, "pointerdown");
+        emit([eventEntry("click", 7000, 300, 2)]);
+      });
+      expect(inp).toMatchObject({ value: 300 });
+      expect(inp).not.toHaveProperty("inpPreHydration");
+    });
+
+    it("atrybucja opisuje interakcję WYZNACZAJĄCĄ INP, nie ostatnią", async () => {
+      const { button } = islandButton("pending");
+      const outside = plainButton();
+      const { inp } = await inpAfter(({ emit }) => {
+        press(button, 1000, "keydown");
+        emit([eventEntry("keydown", 1000, 400, 1)]);
+        press(outside, 2000, "pointerdown");
+        emit([eventEntry("pointerdown", 2000, 80, 2)]);
+      });
+      expect(inp).toMatchObject({ value: 400, inpEvent: "keydown", inpPreHydration: true });
+    });
+
+    describe("inpSinceLoad", () => {
+      it("ms od startu load do początku interakcji - dodatnie po load", async () => {
+        mockNavigation(navigationWith({ loadEventStart: 1500 }));
+        const { inp } = await inpAfter(({ emit }) => {
+          emit([eventEntry("click", 4000, 200, 1)]);
+        });
+        expect(inp).toMatchObject({ inpSinceLoad: 2500 });
+      });
+
+      it("interakcja przed load: wartość UJEMNA", async () => {
+        mockNavigation(navigationWith({ loadEventStart: 1500 }));
+        const { inp } = await inpAfter(({ emit }) => {
+          emit([eventEntry("pointerdown", 1000.4, 200, 1)]);
+        });
+        expect(inp).toMatchObject({ inpSinceLoad: -500 });
+      });
+
+      it("load jeszcze nie nastąpił w chwili zrzutu: odniesieniem jest TERAZ, wynik ujemny", async () => {
+        // Miękka nawigacja kliknięta w trakcie ładowania: pominięcie pola
+        // wycięłoby z rozkładu właśnie interakcje z czasu bootu.
+        mockNavigation(navigationWith({ loadEventStart: 0 }));
+        vi.spyOn(performance, "now").mockReturnValue(2600);
+        const { inp } = await inpAfter(({ emit }) => {
+          emit([eventEntry("pointerdown", 1000, 200, 1)]);
+        });
+        expect(inp).toMatchObject({ inpSinceLoad: -1600 });
+      });
+
+      it("brak Navigation Timing: brak pola, nie zero", async () => {
+        const { inp } = await inpAfter(({ emit }) => {
+          emit([eventEntry("click", 4000, 200, 1)]);
+        });
+        expect(inp).toBeDefined();
+        expect(inp).not.toHaveProperty("inpSinceLoad");
+      });
+
+      it("wartość spoza doby: brak pola", async () => {
+        mockNavigation(navigationWith({ loadEventStart: 1000 }));
+        const { inp } = await inpAfter(({ emit }) => {
+          emit([eventEntry("click", 1000 + 24 * 60 * 60 * 1_000 + 1, 200, 1)]);
+        });
+        expect(inp).toBeDefined();
+        expect(inp).not.toHaveProperty("inpSinceLoad");
+      });
+    });
+
+    it("teardown zdejmuje nasłuch startów i czyści pierścień - start sprzed cofnięcia zgody nie opisuje niczego", async () => {
+      const { button } = islandButton("pending");
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      const teardown = initWebVitals();
+      press(button, 900, "pointerdown"); // zapisany - nasłuch jeszcze żyje
+      teardown();
+      press(button, 1000, "pointerdown"); // po cofnięciu zgody: nikt nie słucha
+
+      initWebVitals();
+      FakeObserver.instances[FakeObserver.instances.length - 1]?.emit([
+        eventEntry("pointerdown", 1000, 300, 1),
+      ]);
+      window.dispatchEvent(new Event("pagehide"));
+
+      const [inp] = named(await allMetrics(sent), "INP");
+      expect(inp).toMatchObject({ value: 300 });
+      expect(inp).not.toHaveProperty("inpPreHydration");
+    });
+  });
+
+  describe("prywatność i budżet bajtów", () => {
+    /**
+     * Najcięższa możliwa próbka: ścieżka ponad limit, najdłuższe wartości
+     * każdego pola z listy i wszystkie pola opcjonalne naraz.
+     */
+    async function heaviestInpSample(): Promise<Record<string, unknown>> {
+      history.replaceState({}, "", "/" + "p".repeat(900));
+      sessionStorage.setItem("nes:vitals:nav-seen", "1"); // coldStart: false (5 znaków)
+      patchNavigator("deviceMemory", 8);
+      patchNavigator("connection", { effectiveType: "slow-2g" });
+      vi.spyOn(performance, "now").mockReturnValue(86_399_999);
+      mockNavigation(
+        navigationWith({
+          type: "back_forward",
+          loadEventStart: 1000 + 86_399_999,
+          serverTiming: [
+            timing("nes-edge", "BYPASS"),
+            timing("nes-layer", "render"),
+            timing("colo", "PRG"),
+          ],
+        }),
+      );
+      const { button } = islandButton("hydrated");
+      const sent = captureBeacons();
+      const { initWebVitals } = await loadWebVitals();
+      initWebVitals();
+      press(button, 1000, "pointerdown");
+      FakeObserver.forType("event").emit([eventEntry("pointerdown", 1000, 1234.5678901234567, 77)]);
+      window.dispatchEvent(new Event("pagehide"));
+      const [inp] = named(await allMetrics(sent), "INP");
+      expect(inp).toBeDefined();
+      return inp ?? {};
+    }
+
+    it("komplet kluczy próbki INP ze wszystkimi polami - nadal ani jednego identyfikatora", async () => {
+      const sample = await heaviestInpSample();
+
+      expect(Object.keys(sample).sort()).toEqual([
+        "coldStart",
+        "colo",
+        "deviceMemory",
+        "edgeCache",
+        "edgeLayer",
+        "effectiveType",
+        "id",
+        "inpEvent",
+        "inpPreHydration",
+        "inpSinceLoad",
+        "name",
+        "navigationType",
+        "rating",
+        "sinceNav",
+        "ts",
+        "url",
+        "value",
+      ]);
+      expect(sample).toMatchObject({
+        edgeCache: "BYPASS",
+        edgeLayer: "render",
+        colo: "PRG",
+        inpEvent: "pointerdown",
+        inpPreHydration: false,
+        inpSinceLoad: -86_399_999,
+      });
+    });
+
+    it("najgorszy batch (MAX_METRICS najcięższych próbek) mieści się w MAX_BODY ingestu", async () => {
+      // `src/routes/api/public/vitals.ts`: MAX_BODY = 8 000 znaków (ciało
+      // dłuższe odpada W CAŁOŚCI), MAX_METRICS = 8 - jak w `webVitals.ts`.
+      // Zakładamy osiem próbek INP (z atrybucją), choć naturalny batch ma
+      // jedną, i najdłuższą ocenę z trzech możliwych. Zmierzone przy tej
+      // zmianie: 877 znaków na próbkę, 7 037 na batch - zapas ~960 znaków.
+      const sample = await heaviestInpSample();
+      expect(String(sample.url)).toHaveLength(512);
+      const worst = JSON.stringify({ ...sample, rating: "needs-improvement" });
+      const maxMetrics = 8;
+      const wrapper = JSON.stringify({ metrics: [] }).length + (maxMetrics - 1);
+
+      expect(maxMetrics * worst.length + wrapper).toBeLessThanOrEqual(8_000);
+    });
+  });
+});

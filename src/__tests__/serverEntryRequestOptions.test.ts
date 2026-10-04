@@ -191,6 +191,17 @@ describe("entry SSR: slot nr 2 `handler.fetch` jest wolny dla frameworka", () =>
       ssrMs: 674,
       dbMs: 2697,
       dbCount: 19,
+      // P0.4 (SC-1): linia powstaje PO KOŃCU body - `streamMs` na tej samej
+      // bazie co `appMs` (zegar zamrożony po renderze, więc 37). Numer
+      // żądania izolatu zależy od kolejności testów w pliku, wiek też.
+      streamMs: 37,
+      isoReq: expect.any(Number),
+      isoAgeS: expect.any(Number),
+      // Żądanie bez nagłówka user-agent to automat (lista z botFilter.ts).
+      uaClass: "bot",
+      // Atrapa renderu nie niesie Cache-Control, więc wg polityki zapisu
+      // (documentStorePolicy) ten MISS jest zdegradowany - jak w magazynie.
+      degraded: true,
     });
     // Bez PII: ani query string, ani cookie, ani host nie mają prawa być w logu.
     expect(lines[0]).not.toContain("sekret");

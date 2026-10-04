@@ -1,0 +1,20 @@
+# /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/p05/art2/hints-desktop-7
+# TBT(audit Lantern)=50 FCPsim opt/pes=775/775 TTIsim opt/pes=900/900 cpuMult=1 okna opt=[775,900] pes=[775,900]
+obsStart obsDur  simStart(o/p)  simDur(o/p)  L  class          block opt/pes/avg  urls
+     57   74.8    300/300      75/75       ScriptCatchup     0/    0/    0  pl,AccountMenuWidget,SearchButtonWidget,sectionLabelVariants,PostListView,PaginatedPostGrid
+          dzieci: DocumentLoader::CommitNavigationx3=68.8 DocumentLoader::StartLoadingResponsex3=64.6 DocumentLoader::CreateParserPostCommitx3=64.6 NavigationBodyLoader::StartLoadingBodyx1=36.9 NavigationBodyLoader::OnReadablex1=36.9 NavigationBodyLoader::ReadFromDataPipex1=36.8 DocumentLoader::BodyDataReceivedImplx3=36.8 DocumentLoader::HandleDatax3=36.4 DocumentLoader::CommitDatax2=36.4 DecodedDataDocumentParser::AppendBytesx1=36.4 LocalWindowProxy::Initializex2=16.4 ContextCreatedNotificationx2=5.3
+    140  174.5    700/700     175/175      ParseHTML-doc    50/   50/   50  
+          dzieci: ParseHTMLx1=169.3 ParseAuthorStyleSheetx1=53.1 EvaluateScriptx5=3.6 ScriptCompiledx5=2.2 v8.runx5=2.1 v8.compilex5=1.2
+          ParseHTML 169.3ms @140 / linie 0-199
+    539  111.0    509/509      55/55    L  Script            0/    0/    0  
+          dzieci: UpdateLayoutTreex1=20.9 Layoutx1=15.9 RunMicrotasksx2=15.6 Paintx1=1.9 FireAnimationFramex2=1.6 v8.callFunctionx2=1.6 FunctionCallx2=1.5 PrePaintx1=1.2 Layerizex1=1.0
+          RunMicrotasks 15.6ms @634  :: 
+          UpdateLayoutTree 20.9ms el=294 @589 
+          Layout 15.9ms dirty=361/644 @610 
+    650   61.4    564/564      61/61       ScriptCatchup     0/    0/    0  index,vendor-react,vendor-tanstack,vendor-i18n,vendor-zod,vendor-lucide-boot
+          dzieci: ScriptCatchupx18=1.8
+   1108   50.5   1316/1316     50/50       Script            0/    0/    0  vendor-react,vendor-tanstack,index
+          dzieci: v8.callFunctionx1=50.4 FunctionCallx1=50.4
+          v8.callFunction 50.4ms @1108  :: 
+          FunctionCall 50.4ms @1108 _t vendor-react:2:10765 
+# suma księgi = 50.0 ; audyt = 50 ; różnica = 0.00 ms

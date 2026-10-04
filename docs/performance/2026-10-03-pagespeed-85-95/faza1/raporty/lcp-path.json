@@ -1,0 +1,317 @@
+{
+  "key": "lcp-path",
+  "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lcp-path.md",
+  "summary": "Hero is not JS-gated: SSR slide 0 is eager/high/opacity 1 and paints without JS (prod HTML no-JS LCP 224 ms); the LH 'fetchpriority=low opacity:0' snippet is a post-autoplay snapshot. Observed FCP->LCP gap 51 ms; the simulated 1.9 s gap is Lantern billing an 826 KB pre-LCP set (prod mobile), 70% JS (575 KB). Lantern what-ifs (fixture h2): today LCP 4.37 s; entry+react-only modulepreload 3.33; entry-only 3.03; no widget/stray chunks 4.22; no JS before LCP (C3) 1.67; C3+hero 640w+one PL font 1.52 (desktop 0.81->0.37). 7 img[fetchpriority=high] + 5 React auto-preloads (4 imagesizes) + wrong builderHeroPreload candidate (DOM-first 25vw card) are latent (+0.9-1.4 s LCP with distinct covers). Consent banner = 27 pp of mobile final-frame histogram, late by 1-2.5 s -> SI -0.55..-0.95 s PSI with SSR shell. Early Hints/speculation ~0 Lantern effect.",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "high",
+      "metric": "LCP (diagnosis)",
+      "claim": "The LCP hero is painted from SSR without JS. The production LH snippet (fetchpriority=low, opacity:0) is slide 0 after autoplay moved safeIdx to 1, not its state at paint. The hypothesis 'LCP gated by JS/opacity' is refuted.",
+      "evidence": "src/lib/builder/sliderVariants.tsx:334,366,372,378,382 (fp = priority&&active?high:active?auto:low; opacity = visible), :1203 priority={i===0}, :909 useState(0), :925-941 setInterval autoplay (default 4500 ms carouselDefaults.ts:14, template 5500 homepageTemplate.ts:106). Prod HTML served without JS (phase1/lcp-path/geom-mobile.json): slide 0 fp=high eager opacity 1 with src, slides 1-4 fp=low lazy, no src; LCP IMG at 224 ms mobile / 264 ms desktop. prod-mobile.json: snippet has sizes without 'auto,' (priority=true), lcp-discovery priorityHinted=true, obs FCP 3252 / obs LCP 3303, render delay 74 ms. Fixture traces lha1-*: one LCP candidate, obs FCP = LCP (375 / 336 ms)."
+    },
+    {
+      "id": "F2",
+      "severity": "critical",
+      "metric": "FCP, LCP, SI mobile",
+      "claim": "The pre-LCP set billed by Lantern is 826 KB on prod mobile, of which 575.5 KB is JS. Only 'no JS request before the LCP paint' reaches LCP < 2.5 s. Partial modulepreload policies do not.",
+      "evidence": "bw/prod-mobile.billed.txt (billed.py on prod-mobile.json): doc 89 371, CSS 78 624, fonts 44 954, entry+react 318 499, other boot vendors 164 403, pl dict 26 799, 8 widget chunks 40 886, 9 stray chunks 16 530, hero 37 940, flock 8 402. Lantern what-if (whatif.py, fixture h2 same-origin; batch2.out/batch3.out), mobile FCP/LCP ms: today 3973/4368; no widget+stray 3822/4217; boot set only 3835/4230; no supabase 3823/4218; entry+react only 2789/3334; entry only 2482/3027; no JS before LCP 1367/1667. Desktop: 772/812 -> 330/410."
+    },
+    {
+      "id": "F3",
+      "severity": "high",
+      "metric": "LCP (latent), bandwidth desktop",
+      "claim": "Seven img[fetchpriority=high] on '/' (one hero plus six post-list leads in sections 0-2, five below the fold). React 19 auto-preloads every eager img into <head>: 5 image preloads with 4 different imagesizes, plus the app's own preload, plus a Link header. Today this is masked because every widget leads with the same cover URL (mobile: one 768w request). Desktop: 3 High variants (480/768/640w), and the 640w (25 KB) is below the fold. With distinct lead covers it would put 6 extra High images (~150-230 KB) into the pre-LCP set.",
+      "evidence": "node_modules/react-dom/cjs/react-dom-server.edge.production.js:2150-2240 (pushImg: non-lazy, non-low img -> highImagePreloads (first 10 or fp=high) flushed before stylesheets). psi/home.html head offsets 185 (logo), 374/2095/3816/5543 (React), 26288 (imagePreloadLink). High imgs at offsets 161411/169105 (25vw), 177478 (hero 50vw), 246218 (37.5vw), 294246/326879/359521 (33.33vw); geom tops 726/1071/139/3425/4534/5046/5559 mobile. Causes: prefetch.ts:604 ABOVE_FOLD_SECTION_COUNT=3 -> BuilderRenderer.tsx:378-391 AboveFoldProvider; PostListView.tsx:298,545,580,700 priority={aboveFold && i===0} per widget; WidgetView.tsx:492; sliderVariants.tsx:1203,1423,1567,1711,1847 unconditional priority. prod-desktop.json: 480w 15 826 B High 3405-3769, 768w 38 016 High 3405-3667 (LCP), 640w 25 061 High 3569-5704."
+    },
+    {
+      "id": "F4",
+      "severity": "medium",
+      "metric": "LCP preload correctness",
+      "claim": "builderHeroPreload returns the first preloadable widget in DOM order (a left-column post-list card with 25vw sizes), not the visual LCP (hero slider, 50vw). The explicit head preload and the Link header therefore describe a different candidate than the LCP <img>. On desktop this fetches 480w while the hero needs 768w.",
+      "evidence": "src/lib/builder/heroImage.ts:221-247 sectionWidgetsInPaintOrder, :250-275 builderHeroPreload; routes/index.tsx:236 (descriptor), :255 (Link header), :307-312 (head imagePreloadLink); meta.ts:353-365, :377-390; widgetImageSizes.ts:39-40 POST_LIST_GRID_COVER_SIZES. Prod head 26288 imageSizes='(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw' vs hero sizes '(max-width: 767px) 100vw, (max-width: 1023px) 50vw, 50vw'. The card is DOM-first (161 411 < 177 478) but visually below the hero on mobile (top 726 vs 139)."
+    },
+    {
+      "id": "F5",
+      "severity": "medium",
+      "metric": "SI mobile (PSI), LCP on text pages",
+      "claim": "The consent banner is about 27 percentage points of the final mobile frame's histogram completeness and paints 1-2.5 s after content. Lantern SI = max(FCP, 1.4 x observed SI + 0.4 x layout SI), so it costs an estimated 0.36 s SI on the M3 run and 0.55-0.95 s on PSI. It cannot be LCP on '/' (paragraph 19 116 px^2 vs hero 68 121 px^2) but can be on pages whose largest element is under ~19 K px^2.",
+      "evidence": "__root.tsx:144-145 lazy, :222 CONSENT_IDLE_TIMEOUT_MS=1000, :262-272 rAF->whenIdle, :1004 mount; ConsentBanner.tsx:405-406 null until mounted/undecided, :544-558 fixed card with animate-in. live.json (fixture, Playwright 4x): banner 388x236 = 27% of viewport at 4810 ms vs LCP IMG 1308 ms; desktop 7% at 1162 ms. si/thumbs.cjs on prod-mobile.json: 4336 ms 72.1% -> 5420 ms 99.5% (desktop 93.7 -> 98.3). speedline on lha1-mobile trace: 91% flat from 507 ms, then 97-99% at 1953-2234 ms. SpeedIndex.js (trace_engine lantern) coefficients optimistic 1.4 / pessimistic 0.4 at RTT 150."
+    },
+    {
+      "id": "F6",
+      "severity": "low",
+      "metric": "SI desktop",
+      "claim": "The desktop header logo is a lazy builder image (header chrome never sets aboveFold). It was requested after layout and finished 2.6 s after content, so the logo appears only in the last desktop frames. On desktop the mobile logo is hidden yet still preloaded (5.7 KB Low).",
+      "evidence": "mediaWidgets.tsx:167-215 (OptimizedImage without priority -> loading=lazy, OptimizedImage.tsx:125); ChromeWidgetView.tsx:193 useAboveFold() = false in chrome; prod-desktop.json: zx9she.svg High 3665->6289 ms; film/desktop-05-06396.jpg (no logo) vs desktop-final.jpg; Header.tsx:237-243 mobile logo eager -> React preload at head offset 185."
+    },
+    {
+      "id": "F7",
+      "severity": "low",
+      "metric": "SI (PSI), TBT/TTI",
+      "claim": "Slider autoplay starts at hydration + 4.5-5.5 s. Each tick re-renders the slider, fetches a Low image and runs a 700 ms crossfade. If a tick lands inside the PSI trace, the final frame differs from all earlier frames by the hero (20% mobile / 22% desktop viewport), which inflates observed SI. It did not happen in the M3 run (mobile frames 5420=6504). This is PLAUSIBLE for PSI and unverified without PSI JSON.",
+      "evidence": "sliderVariants.tsx:925-941; geom hero rect 348x196 of 412x823 (mobile), 633x356 of 1350x940 (desktop); film md5 mobile-04 == mobile-05; prod desktop progress dip 98.3 -> 96.7 -> 99.1 (ticker/logo, not slide)."
+    },
+    {
+      "id": "F8",
+      "severity": "low",
+      "metric": "LCP mobile (bytes)",
+      "claim": "The mobile hero sizes say 100vw for a 348 css px slot (32 px gutters). The browser therefore takes 768w (37.9 KB) where 640w (25.1 KB, -34%) has the same density. Fonts are two High preloads (30.8 + 14.2 KB), although Polish needs only ~18 glyphs from latin-ext.",
+      "evidence": "imageSlot.ts imageSlotSizes '(max-width: 767px) 100vw'; sliderSizes.ts:47-51; what-if S1 (hero -34%) mobile LCP 4368->4218, T1 after C3 1667->1667, desktop 410->370; styles.css:36-56 two @font-face subsets; __root.tsx:24-25,359-360 preloads; what-if B3 (no latin-ext, with C3) LCP 2117->1968, E6 1517."
+    },
+    {
+      "id": "F9",
+      "severity": "low",
+      "metric": "none in Lantern (real-user TTFB/contention)",
+      "claim": "Early Hints cannot move Lantern FCP/LCP: requests are hung on the root document node and TTFB/103 are not simulated. Enabling them today would front-load 26 JS modulepreloads from the Link header. Speculation rules are 'moderate', with 0 prefetch/prerender requests in the prod trace. /media can only do WebP (Supabase transforms), so AVIF needs Cloudflare Image Transformations.",
+      "evidence": "psi/h1.txt Link header: 31 entries (1 CSS, 1 preconnect, 2 fonts, 26 modulepreload incl. admin.analytics and PaginatedPostGrid x2, hero); speculationRules.ts:98,109 eagerness moderate; prod-mobile.json network-requests: single Document; media.$.ts:13-22,117 (Accept passthrough, Vary: Accept)."
+    }
+  ],
+  "changes": [
+    {
+      "id": "LP-1",
+      "title": "Single LCP candidate per document: pure lcpCandidate(doc) + context; only its first image is eager+fetchpriority=high, all other images lazy",
+      "files": [
+        "src/lib/builder/heroImage.ts",
+        "src/lib/builder/aboveFold.tsx",
+        "src/components/builder/organisms/BuilderRenderer.tsx",
+        "src/lib/builder/sliderVariants.tsx",
+        "src/components/builder/organisms/widget-view/PostListView.tsx",
+        "src/components/builder/organisms/WidgetView.tsx",
+        "src/components/builder/organisms/widget-view/mediaWidgets.tsx",
+        "src/components/builder/organisms/widget-view/PostsSliderWidget.tsx"
+      ],
+      "mechanism": "New pure lcpCandidate(doc) next to sectionWidgetsInPaintOrder. It looks at section 0 only and skips abTest and hideOn.desktop. It picks the image widget with the largest desktop slot share; ties go by type rank (slider > image non-logo > dark-featured-card > post-list lead), then DOM order. It depends on the document only, so SSR and the client agree. AboveFoldProvider also carries lcpWidgetId. sliderVariants uses priority={isLcp && i===0} instead of i===0 (lines 1203/1423/1567/1711/1847). PostListView, WidgetView and mediaWidgets use priority={isLcp} instead of aboveFold. The candidate <img> gets data-lcp-candidate. Non-candidates are loading=lazy with fetchpriority auto, so React emits no head preload for them. ABOVE_FOLD_SECTION_COUNT stays 3 for data prefetch only.",
+      "metric": "LCP (mobile+desktop), High requests before LCP",
+      "expected_effect": "Mobile 0 ms today (all leads share one URL). It prevents +0.9..+1.4 s mobile LCP whenever the 6 extra leads carry distinct covers (6 x 25-38 KB High at ~6 ms/KB). Desktop: -25 KB High (640w below the fold) -> <= -0.03 s LCP. Head image preloads 5 -> 1 (plus logo). It is also the precondition for the LP-3/C3 hero signal.",
+      "estimate_basis": "prod-desktop.json image requests; psi/home.html high-img inventory; lighthouse-analyst Lantern slope 6 ms/KB mobile",
+      "risk": "low",
+      "risk_notes": "Must stay deterministic for SSR/hydration parity, which is why it is a function of the doc, not of query data. Lazy in-viewport cards on desktop load after layout (they are not LCP). Pages whose LCP is a post-list lead (latest_posts mode) still get it because the rule falls back to the post-list lead.",
+      "gates": [
+        "SSR/hydration parity tests (BuilderRenderer, serverWidgetShell, variantRenderers)",
+        "heroImage tests",
+        "PostListView tests",
+        "check:ssr-budgets",
+        "check:entry-purity",
+        "prettier/eslint/typecheck"
+      ],
+      "verification": "psi-like HTML check: count(img[fetchpriority=high])==1 and count(link[rel=preload][as=image][fetchpriority=high])==1 on / and /en (document-weight gate); LH network list: exactly one High image before LCP on desktop; trace: single largestContentfulPaint::Candidate = data-lcp-candidate; node scripts/performance/lighthouse-local.mjs --compare A B --runs 3 LCP delta >= 0.",
+      "effort": "M"
+    },
+    {
+      "id": "LP-2",
+      "title": "Preload single source of truth: React auto-preload of the candidate <img> in head; Link header from lcpCandidate; drop builder head imagePreloadLink",
+      "files": [
+        "src/routes/index.tsx",
+        "src/lib/builder/heroImage.ts",
+        "src/lib/seo/meta.ts",
+        "src/routes/$.tsx"
+      ],
+      "depends_on": ["LP-1"],
+      "mechanism": "builderHeroPreload delegates candidate choice to lcpCandidate and builds the descriptor with sliderImageSizes/imageSlotSizes, so it equals the img props. routes/index.tsx:307-312 no longer appends imagePreloadLink for builder docs, because React's highImagePreloads already emits the byte-identical link before the stylesheet. Keep imagePreloadLinkHeaderValue for the Link header (index.tsx:255) as the early-start path and the future Early Hints source. Audit $.tsx and the other routes' head() preload duplicates the same way (keep the Link header, drop the in-head copy when the cover <img> is SSR'd eagerly).",
+      "metric": "LCP preload correctness (desktop variant), HTML bytes",
+      "expected_effect": "≈0 score today. Removes the 25vw->480w mis-preload on desktop and 4 duplicate head links (~7 KB raw / ~1 KB gz). Guarantees that preload == painted candidate for any content.",
+      "estimate_basis": "prod head inventory; React pushImg semantics",
+      "risk": "low",
+      "risk_notes": "If a future change streams the hero behind Suspense, React would emit its preload late. The Link header still covers that, and the LP-10 gate asserts the head preload exists.",
+      "gates": ["routes/index head tests", "heroImage tests", "SSR parity", "check:loader-policy"],
+      "verification": "Document-weight gate: the head image preload's imagesrcset+imagesizes equals the data-lcp-candidate img srcset+sizes. The Link header image entry has the same imagesizes.",
+      "effort": "S"
+    },
+    {
+      "id": "LP-3",
+      "title": "Contract for boot-after-LCP (boot-js C3 / LA-C4): hero signal = img[data-lcp-candidate] load+decode+rAF, else LCP observer / first input / cap; nothing High before it except CSS, one font and the hero",
+      "files": [
+        "src/lib/observability/bootProbeScript.ts",
+        "src/router.tsx",
+        "src/lib/http/frameworkPreloads.server.ts"
+      ],
+      "depends_on": ["LP-1", "boot-js:C3"],
+      "mechanism": "The inline bootstrap from C3 waits for document.querySelector('img[data-lcp-candidate]'): complete || load, then img.decode(), then one rAF. Fallbacks: PerformanceObserver largest-contentful-paint first entry, the first pointerdown/keydown/touchstart, or a cap of 1.5-3 s after DOMContentLoaded; if there is no candidate, at DOMContentLoaded+rAF. It must not key on img[fetchpriority=high] (7 today), on slides 2..N, or on fonts. The hero must keep its DOM node through hydration (stable keys), otherwise a re-created img emits a new LCP candidate after JS.",
+      "metric": "FCP, LCP, SI mobile+desktop",
+      "expected_effect": "(The C3 effect itself.) Fixture mobile FCP 3973->1367, LCP 4368->1667 (with LP-7/LP-8: 1517); desktop FCP 772->330, LCP 812->410/370. PSI mobile LCP 6.6 -> ~2.0-2.5 s (pre-LCP set 826 -> ~225 KB at ~6 ms/KB).",
+      "estimate_basis": "whatif.py T0/E6 vs S0 on lha1 artifacts (deterministic); E1/E2 show entry+react-only and entry-only preload policies stay at LCP 3.33/3.03 s",
+      "risk": "medium",
+      "risk_notes": "Owned by boot-js C3. The TBT side effect (+0.5..0.8 s on the fixture) requires the LA-C1/hydration program in the same wave. Consent banner and overlays arrive later, which needs LP-4.",
+      "gates": [
+        "check:entry-purity",
+        "check:chunks",
+        "check:chunk-parity",
+        "boot e2e on artifact",
+        "setTimeout(0) before hydrate kept (router.tsx)"
+      ],
+      "verification": "Trace: every Script request starts after the observed LCP candidate; single LCP candidate; lighthouse-local --compare FCP/LCP deltas match T0 within 10%.",
+      "effort": "S"
+    },
+    {
+      "id": "LP-4",
+      "title": "Consent banner SSR shell with pre-paint decided-state script and pre-hydration click intent queue (merge with hydration H9)",
+      "files": [
+        "src/routes/__root.tsx",
+        "src/lib/consent/consentInitScript.ts",
+        "src/components/consent/ConsentShell.tsx",
+        "src/components/ConsentBanner.tsx",
+        "src/lib/ads/consent.ts",
+        "src/styles.css"
+      ],
+      "depends_on": ["hydration:H9"],
+      "mechanism": "CONSENT_INIT_SCRIPT is injected after THEME_INIT_SCRIPT (__root.tsx:935). It sets html[data-consent-decided] when consent:v2 (version-checked) or the nes_cookie_consent cookie holds a valid decision. The validity expression is shared as a string fragment from lib/ads/consent.ts, like themeChoice.ts, to avoid copy drift. It also installs one delegated click listener on [data-consent-action] that stores window.__nesConsentIntent. ConsentShell renders static markup (same classes/geometry as the compact card, texts from dehydrated cookie-banner settings + i18n, inline SVG, no lucide/radix) in SSR and on the first client render, only when privacy.cookie_banner && banner.enabled. CSS hides it under html[data-consent-decided]. The lazy ConsentBanner, mounted on idle or immediately when an intent exists, replaces the shell in one commit without animate-in and replays the intent via acceptAll/rejectAll/openPrefs. It remains the only writer of setMarketingConsent/setConsentOverlayVisible.",
+      "metric": "SI (mobile), LCP stability on text pages, non-composited animation",
+      "expected_effect": "Mobile SI -0.55..-0.95 s on PSI today (+1.1..+1.6 pts); -0.36 s on the M3 prod run; -0.15 s on the fixture. Prevents a +0.3..0.8 s SI regression after C3. Desktop SI ≈ -0.03 s. On pages where the paragraph would be LCP: LCP ≈ FCP instead of ≥4.8 s. CLS 0.",
+      "estimate_basis": "Banner = 27.4 pp (mobile) / 4.6 pp (desktop) of histogram progress (prod thumbnails); delay after content 0.95 s (M3) to 1.5-2.5 s (PSI est.); Lantern SI coefficients 1.4/0.4 mobile, 0.575/0.49 desktop; score.py SI curve (4.9 s=0.656, 4.3 s=0.762)",
+      "risk": "medium",
+      "risk_notes": "Consent compliance: a decided visitor must never see the shell (pre-paint script, try/catch -> undecided shows shell = same as today). GPC clamp, consent version bump, preview mode and disabled banner must be covered. The shell adds ~2-3 KB raw HTML. Hydration parity: the shell must render identically on the client (no time/locale-dependent text).",
+      "gates": [
+        "SSR/hydration parity tests for root chrome",
+        "ConsentBanner tests",
+        "new consentInitScript executable test (like themeInitScript)",
+        "noHasSelectors",
+        "check:entry-purity",
+        "check:ssr-budgets",
+        "document-weight budgets"
+      ],
+      "verification": "Filmstrip: the banner is in the first content frame (speedline: no progress jump after FCP); LH mobile SI delta via lighthouse-local --compare (expect -0.1..-0.2 s on fixture); e2e: decided cookie -> shell display:none before first paint (no flash in screenshots at FCP); click on shell before hydration -> consent saved after mount.",
+      "effort": "L"
+    },
+    {
+      "id": "LP-5",
+      "title": "Slider autoplay gate: start only after first user interaction or whenQuiescent() + in viewport + document visible",
+      "files": ["src/lib/builder/sliderVariants.tsx"],
+      "depends_on": ["third-party:TP-4"],
+      "mechanism": "In SliderRender (:925-941), add a gate state `autoplayArmed`. It is set on the first pointerdown/keydown/touchstart/scroll, or by the TP-4 whenQuiescent() scheduler (after LH-style 5 s quiet), and only while an IntersectionObserver reports the slider visible and document.visibilityState==='visible'. Manual navigation is unchanged. The interval effect depends on autoplayArmed.",
+      "metric": "SI (PSI), TBT/TTI",
+      "expected_effect": "Removes the risk of an in-trace slide change (hero 20% of the mobile viewport, 22% desktop). Estimated PSI SI -0..-1.1 s when it would have fired; TBT -0..-60 ms per avoided tick; no Lighthouse-window image fetch for slide 2. 0 on the M3/fixture runs (the tick fell after the trace end / identical fixture images).",
+      "estimate_basis": "geom hero rects; filmstrip md5 (mobile-04==mobile-05); interval 4500/5500 ms after hydration vs PSI TTI 10.6 s",
+      "risk": "low",
+      "risk_notes": "UX: autoplay begins on first scroll or after quiescence (a few seconds later than today). Respects reduced-motion if added. Verdict PLAUSIBLE: needs PSI JSON (measurement M6) to confirm the in-trace tick.",
+      "gates": ["sliderVariants/variantRenderers tests", "SSR parity (no SSR change)"],
+      "verification": "PSI JSON (M6): the final-screenshot hero equals the first content frame's hero; local LH trace: no setIdx re-render or slide-2 image request before trace end.",
+      "effort": "S"
+    },
+    {
+      "id": "LP-8",
+      "title": "One Latin+Polish font subset (variable 400-900) instead of latin + latin-ext preloads",
+      "files": [
+        "src/assets/fonts/red-hat-display-latin.woff2",
+        "src/assets/fonts/red-hat-display-latin-ext.woff2",
+        "src/styles.css",
+        "src/routes/__root.tsx",
+        "src/lib/http/frameworkPreloads.server.ts"
+      ],
+      "mechanism": "pyftsubset the upstream variable Red Hat Display, keeping the axis, to U+0000-00FF + U+0104-0107, U+0118-0119, U+0141-0144, U+015A-015B, U+0179-017C + U+2000-206F, U+20AC, U+2122 (plus CZ/DE/FR needs if desired) → one woff2 of about 32 KB. Keep a non-preloaded latin-ext fallback face for other scripts via unicode-range. Preload only the merged file (__root.tsx:359-360 and Link).",
+      "metric": "LCP mobile (bytes), request count",
+      "expected_effect": "-13 KB High pre-LCP and -1 request: mobile LCP ≈ -0.08 s today; -0..-0.15 s after C3 (what-if B3/E6). Desktop ≈ 0. FCP 0 (font-display swap).",
+      "estimate_basis": "what-if B3 vs B0 (LCP 2117->1968), E6 vs T1 (1667->1517); 6 ms/KB",
+      "risk": "low",
+      "risk_notes": "Glyph coverage regression (missing diacritics would render in fallback). Add a glyph-coverage test over pl/en dictionaries. Coordinate the @font-face hunk with the css workstream.",
+      "gates": ["visual/e2e font smoke", "check:bundle (assets)", "prettier"],
+      "verification": "LH network: one font request; lighthouse-local --compare LCP delta; glyph test passes for the pl dictionary.",
+      "effort": "M"
+    },
+    {
+      "id": "LP-7",
+      "title": "Mobile hero sizes account for section gutter (640w instead of 768w at DPR 1.75); optional q72 for the LCP variant",
+      "files": [
+        "src/lib/builder/imageSlot.ts",
+        "src/lib/builder/sliderSizes.ts",
+        "src/lib/builder/widgetImageSizes.ts",
+        "src/lib/cropSizes.ts"
+      ],
+      "depends_on": ["LP-1", "html-weight:HW-4"],
+      "mechanism": "ImageSlot gains mobile {vw, gutterPx} from section.layout padding. imageSlotSizes emits '(max-width: 767px) calc(100vw - {2*gutter}px)'. The slider/hero descriptor follows the same function, so preload parity holds via LP-2.",
+      "metric": "LCP mobile (bytes)",
+      "expected_effect": "Hero 37.9 -> 25.1 KB (-34%): mobile LCP -0.15 s today, 0 after C3; desktop LCP -0.04 s after C3 (633 px slot -> 640w).",
+      "estimate_basis": "what-if S1 (4368->4218), T1 (1667->1667 mobile, 410->370 desktop); prod 640w transfer 25 061 B",
+      "risk": "low",
+      "risk_notes": "Overlaps html-weight HW-4 (srcset ladders), so give it one owner. A wrong gutter just picks a neighbouring candidate.",
+      "gates": ["heroImage/imageSlot tests", "SSR parity", "document-weight gate (srcset bytes)"],
+      "verification": "LH mobile: hero request ?width=640; lighthouse-local --compare LCP delta.",
+      "effort": "S"
+    },
+    {
+      "id": "LP-6",
+      "title": "Header-chrome logo eager (fetchpriority auto, no fade) and SVGO at upload",
+      "files": [
+        "src/components/builder/organisms/widget-view/mediaWidgets.tsx",
+        "src/components/builder/organisms/ChromeWidgetView.tsx",
+        "src/lib/media/upload.ts"
+      ],
+      "mechanism": "For isLogo images rendered in header chrome, pass loading=eager (OptimizedImage priority without high, or a new eager prop). React then emits a Low preload and the logo is fetched at parse time instead of after layout. Optimize SVG logos with svgo at upload (26.7 KB raw).",
+      "metric": "SI desktop",
+      "expected_effect": "Desktop logo visible with content instead of +2.6 s: SI -0.03..-0.06 s desktop; mobile 0. -3 KB transfer with svgo.",
+      "estimate_basis": "prod-desktop.json zx9she.svg 3665->6289 ms; histogram +2.4 pp; desktop optimistic coefficient 0.575",
+      "risk": "low",
+      "risk_notes": "Eager adds one Low image request at parse on desktop (5.7 KB).",
+      "gates": ["mediaWidgets tests", "SSR parity"],
+      "verification": "LH desktop filmstrip: logo in the first content frame; network: logo requested by parser, not after layout.",
+      "effort": "S"
+    },
+    {
+      "id": "LP-10",
+      "title": "CI gate: critical-path invariants in the document-weight check",
+      "files": [
+        "scripts/performance/check-document-weight.ts",
+        "scripts/performance/document-weight-budgets.json"
+      ],
+      "depends_on": ["LP-1", "LP-2"],
+      "mechanism": "Extend the measurement workstream's gate. On / and /en (fixture artifact), assert: count(img[fetchpriority=high]) <= 1; exactly one head image preload with fetchpriority=high whose imagesrcset/imagesizes equal the data-lcp-candidate img; zero eager images outside the candidate except the logo; Link-header entries limited to an allow-list (after C3: no modulepreload); count(link[rel=modulepreload]) ratchet.",
+      "metric": "durability (LCP/FCP regressions)",
+      "expected_effect": "No direct delta. It stops the 7-high/5-preload pattern and stray JS hints from returning.",
+      "estimate_basis": "-",
+      "risk": "low",
+      "risk_notes": "Thresholds must start at the post-LP-1 values and ratchet.",
+      "gates": ["check:ci-gates", "node:test for the gate"],
+      "verification": "The gate fails on the baseline artifact (7 high imgs) and passes after LP-1/LP-2.",
+      "effort": "S"
+    },
+    {
+      "id": "LP-9",
+      "title": "Link header policy = CSS + one font + LCP image only; Cloudflare Early Hints only after that (human decision)",
+      "files": [
+        "src/lib/http/frameworkPreloads.server.ts",
+        "src/routes/index.tsx",
+        "src/lib/seo/widgetPreloads.ts"
+      ],
+      "depends_on": ["boot-js:C2", "boot-js:C3"],
+      "mechanism": "Remove modulepreload, widget and stray entries and the supabase preconnect from the Link header for anonymous documents (after C3 nothing JS-side is needed before LCP). Then enable Early Hints in the Cloudflare zone and verify that 103 carries only those 3-4 hints.",
+      "metric": "real-user TTFB-to-CSS/hero (Lantern 0)",
+      "expected_effect": "0 Lighthouse points (Lantern hangs requests on the document node and does not simulate TTFB/103). Real users on MISS start CSS/font/hero ~server time earlier. It prevents EH from front-loading ~575 KB of JS.",
+      "estimate_basis": "Lantern graph semantics; psi/h1.txt (31 Link entries)",
+      "risk": "low",
+      "risk_notes": "Workers + edge document cache + EH compatibility is unverified here (no egress). Speculation rules need no change (moderate, 0 in-trace prefetches).",
+      "gates": ["frameworkPreloads tests", "check:loader-policy"],
+      "verification": "curl -sI on production shows a Link header with <=4 entries; (human) 103 visible in Chrome netlog.",
+      "effort": "S"
+    },
+    {
+      "id": "LP-11",
+      "title": "AVIF for /media via Cloudflare Image Transformations (cf.image format=auto) — human/cost decision",
+      "files": ["src/routes/media.$.ts"],
+      "mechanism": "In media.$.ts, for transformable paths, fetch with cf.image {width, quality, format: Accept-negotiated avif|webp} instead of the Supabase render endpoint. Keep Vary: Accept and immutable caching.",
+      "metric": "LCP mobile (bytes)",
+      "expected_effect": "Hero ≈ -30%: mobile LCP -0.15 s today, 0 after C3; desktop -0.02..-0.04 s.",
+      "estimate_basis": "what-if S1/T1",
+      "risk": "medium",
+      "risk_notes": "Paid transformation quota. Decode cost of AVIF on low-end devices. Two transform pipelines.",
+      "gates": ["media route tests"],
+      "verification": "LH hero request content-type image/avif and transfer size; lighthouse-local --compare.",
+      "effort": "M"
+    }
+  ],
+  "conflicts_with_other_workstreams": [
+    "LP-4 duplicates hydration H9 (consent shell + pre-paint toggle): merge into one item, same files __root.tsx/ConsentBanner.tsx.",
+    "LP-3 is a contract on boot-js C3 / lighthouse-analyst LA-C4 (bootstrap trigger must use img[data-lcp-candidate] from LP-1, not img[fetchpriority=high] which matches 7 elements today).",
+    "LP-7 overlaps html-weight HW-4 (srcset ladders, imageSlot.ts/cropSizes.ts): assign one owner.",
+    "LP-8 edits src/styles.css @font-face, which the css workstream owns: coordinate the hunk.",
+    "LP-9 overlaps boot-js C2/C3 and LA-C3 on Link-header JS entries; LP-9 only adds the 'no Early Hints before trimming' rule.",
+    "LP-5 depends on third-party TP-4 whenQuiescent() scheduler.",
+    "LP-10 extends measurement's scripts/performance/check-document-weight.ts."
+  ],
+  "open_questions": [
+    "Does a slider autoplay tick land inside PSI's trace (SI final-frame mismatch)? Needs saved PSI JSON (measurement M6): compare the final-screenshot hero with the first content frame.",
+    "Cloudflare Early Hints with Workers + NES edge document cache: supported on this zone/plan? Human check in the dashboard (no egress here).",
+    "Consent shell UX/compliance sign-off: static shell visible before hydration with queued clicks; is replaying intent after mount acceptable to the privacy owner?",
+    "AVIF via Cloudflare Image Transformations: cost/plan decision.",
+    "lcpCandidate rule for mobile column reordering: are there builder settings that reorder columns on mobile beyond CSS order (the hero is DOM-second but visually first on mobile)?"
+  ]
+}

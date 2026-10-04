@@ -33,7 +33,8 @@
 //     trafieniu) - ten sam wzorzec co `edgeTtlCache`, ale liczony w bajtach;
 //   - klucz prefiksowany hostem tenanta ("by construction", multi-tenant safe);
 //   - Server-Timing: status cache + `ssr;dur` (czas renderu) + `db;dur`
-//     (koszt round-tripów planu anon, patrz `ssrTiming.server.ts`);
+//     (koszt round-tripów planu anon, patrz `ssrTiming.server.ts`) + na końcu
+//     `nes-layer` - poziom, który podał dokument (L1 / L2 / render);
 //   - kill-switch środowiskowy: NES_EDGE_CACHE=off.
 //
 // Spójność publikacji: purge czyści L1 bieżącego izolatu i podbija wersję L2
@@ -69,6 +70,7 @@ import {
 import { runAfterResponse } from "@/lib/http/waitUntil.server";
 import {
   buildServerTimingValue,
+  type NesCacheLayer,
   type SsrDbTiming,
   type SsrPhaseTiming,
 } from "@/lib/http/ssrTiming";
@@ -429,12 +431,21 @@ function touchEntry(key: string, entry: DocumentCacheEntry): void {
   store.set(key, entry);
 }
 
+/**
+ * Odtworzenie wpisu z magazynu. `layer` mówi, SKĄD wpis przyszedł w TYM
+ * żądaniu: z pamięci izolatu (`L1`) czy z kolonii (`L2`, świeży izolat).
+ * Wpis L2 zasiewa L1, więc kolejne trafienie tego samego izolatu jest już L1 -
+ * i tak ma być: warstwa opisuje koszt bieżącego żądania, nie historię wpisu.
+ * Nagłówek budujemy na świeżo przy każdym odtworzeniu (wpisy nie utrwalają
+ * Server-Timing), więc nowa metryka nie może wrócić „stara" z cache'a.
+ */
 function replay(
   entry: DocumentCacheEntry,
   status: NesCacheStatus,
   now: number,
   path: string,
-  phases: readonly SsrPhaseTiming[] = [],
+  phases: readonly SsrPhaseTiming[],
+  layer: Exclude<NesCacheLayer, "render">,
 ): Response {
   const ageS = Math.max(0, Math.round((now - entry.storedAt) / 1000));
   recordDecision({
@@ -455,6 +466,7 @@ function replay(
       undefined,
       now - entry.storedAt,
       phases,
+      layer,
     ),
   });
   if (entry.contentLanguage) headers.set("content-language", entry.contentLanguage);
@@ -495,9 +507,19 @@ function withCacheStatus(
 ): Response {
   const headers = new Headers(response.headers);
   headers.set(NES_CACHE_HEADER, status);
+  // Ta funkcja dekoruje wyłącznie odpowiedź świeżego renderu (MISS), więc
+  // poziomem jest zawsze `render` - także gdy w magazynie leżał wpis STALE,
+  // a czytelnik bez drivera rewalidacji zapłacił render synchronicznie.
   headers.set(
     "server-timing",
-    buildServerTimingValue(status, timing?.renderMs, timing?.db, undefined, timing?.phases),
+    buildServerTimingValue(
+      status,
+      timing?.renderMs,
+      timing?.db,
+      undefined,
+      timing?.phases,
+      "render",
+    ),
   );
   return new Response(response.body, {
     status: response.status,
@@ -830,7 +852,7 @@ export async function handleDocumentRequest<T>(
     if (age < entry.freshMs) {
       stats.hits += 1;
       touchEntry(plan.key, entry);
-      return replay(entry, "HIT", now, path, phases);
+      return replay(entry, "HIT", now, path, phases, "L1");
     }
     if (age < entry.freshMs + entry.swrMs) {
       // Właściwe stale-while-revalidate: czytelnik NIGDY nie płaci renderu,
@@ -838,13 +860,13 @@ export async function handleDocumentRequest<T>(
       if (documentRevalidator) {
         scheduleRevalidation(request, plan.key);
         stats.stale += 1;
-        return replay(entry, "STALE", now, path, phases);
+        return replay(entry, "STALE", now, path, phases, "L1");
       }
       // Bez zarejestrowanego drivera (suita jednostkowa, obce entry) zostaje
       // zachowanie sprzed zmiany: jedno żądanie płaci rewalidację synchronicznie.
       if (revalidating.has(plan.key)) {
         stats.stale += 1;
-        return replay(entry, "STALE", now, path, phases);
+        return replay(entry, "STALE", now, path, phases, "L1");
       }
       revalidating.add(plan.key);
       try {
@@ -860,7 +882,7 @@ export async function handleDocumentRequest<T>(
       } catch {
         // Render się wywalił - nieświeży dokument jest lepszy niż 500.
         stats.stale += 1;
-        return replay(entry, "STALE", now, path, phases);
+        return replay(entry, "STALE", now, path, phases, "L1");
       } finally {
         revalidating.delete(plan.key);
       }
@@ -879,7 +901,7 @@ export async function handleDocumentRequest<T>(
       setEntry(plan.key, seeded);
       stats.hits += 1;
       recordL2Serve("HIT");
-      return replay(seeded, "HIT", now, path, phases);
+      return replay(seeded, "HIT", now, path, phases, "L2");
     }
     if (l2Age < l2Entry.freshMs + l2Entry.swrMs) {
       const staleEntry = entryFromL2(l2Entry);
@@ -890,12 +912,12 @@ export async function handleDocumentRequest<T>(
         scheduleRevalidation(request, plan.key);
         stats.stale += 1;
         recordL2Serve("STALE");
-        return replay(staleEntry, "STALE", now, path, phases);
+        return replay(staleEntry, "STALE", now, path, phases, "L2");
       }
       if (revalidating.has(plan.key)) {
         stats.stale += 1;
         recordL2Serve("STALE");
-        return replay(staleEntry, "STALE", now, path, phases);
+        return replay(staleEntry, "STALE", now, path, phases, "L2");
       }
       revalidating.add(plan.key);
       try {
@@ -911,7 +933,7 @@ export async function handleDocumentRequest<T>(
       } catch {
         stats.stale += 1;
         recordL2Serve("STALE");
-        return replay(staleEntry, "STALE", now, path, phases);
+        return replay(staleEntry, "STALE", now, path, phases, "L2");
       } finally {
         revalidating.delete(plan.key);
       }

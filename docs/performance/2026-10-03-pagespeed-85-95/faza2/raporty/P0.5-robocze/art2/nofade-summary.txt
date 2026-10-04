@@ -1,0 +1,5 @@
+nofade-mobile-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=1.53 perf=67 FCP=4065 LCP=4815 TBT=140 SI=4065 TTI=5953
+nofade-mobile-2 code=0 warm=200 x-nes-cache=HIT raw=390992 load=1.59 perf=72 FCP=4066 LCP=4816 TBT=110 SI=4066 TTI=5871
+nofade-mobile-3 code=0 warm=200 x-nes-cache=HIT raw=390992 load=0.77 perf=70 FCP=4067 LCP=4817 TBT=184 SI=4067 TTI=5949
+nofade-mobile-6 code=0 warm=200 x-nes-cache=HIT raw=390992 load=5.04 perf=62 FCP=4071 LCP=4821 TBT=435 SI=4071 TTI=6192
+nofade-mobile-7 code=0 warm=200 x-nes-cache=HIT raw=390992 load=5.14 perf=66 FCP=4069 LCP=4819 TBT=314 SI=4069 TTI=6043

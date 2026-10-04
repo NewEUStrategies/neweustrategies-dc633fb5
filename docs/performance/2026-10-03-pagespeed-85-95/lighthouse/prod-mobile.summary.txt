@@ -1,0 +1,172 @@
+URL: https://neweuropeanstrategies.com/  formFactor=mobile  throttling=simulate  LH 13.5.0
+PERFORMANCE SCORE: 63
+  first-contentful-paint                            3.5 s  score=0.35
+  largest-contentful-paint                          5.4 s  score=0.2
+  total-blocking-time                              200 ms  score=0.89
+  speed-index                                       7.1 s  score=0.31
+  cumulative-layout-shift                               0  score=1
+  interactive                                      10.6 s  score=0.23
+  max-potential-fid                                180 ms  score=0.72
+  server-response-time             Root document took 2,750 ms  score=0
+
+== LCP element / phases
+  [lcp-discovery-insight] score=1 
+     {"type": "checklist", "items": "{\"priorityHinted\": {\"label\": \"fetchpriority=high applied\", \"value\": true}, \"requestDiscoverable\": {\"label\": \"Request is "}
+     {"type": "node", "lhId": "page-0-IMG", "path": "1,HTML,1,BODY,5,DIV,4,MAIN,3,DIV,0,DIV,1,DIV,0,DIV,1,SECTION,2,DIV,0,DIV,0,DIV,1,DIV,0,DIV,0,DIV,0,DIV,0,DIV,1,DIV,0,DIV,2,DIV,1,DIV,0,DIV,0,IMG", "selector": "div.w-full > div.relative > div.pointer-events-none > img.eh-img", "boundingRect": "{\"top\": 139, \"bottom\": 335, \"left\": 32, \"right\": 380, \"width\": 348, \"height\": 196}", "snippet": 
+  [lcp-breakdown-insight] score=0 
+     {"type": "table", "headings": [{"key": "label", "valueType": "text", "label": "Subpart"}, {"key": "duration", "valueType": "ms", "label": "Duration"}], "items": [{"subpart": "timeToFirstByte", "label": "Time to first byte", "duration": 2821.237}, {"subpart": "resourceLoadDelay", "label": "Resource load delay", "duration": 39.367}, {"subpart": "resourceLoadDuration", "label": "Resource load duratio
+     {"type": "node", "lhId": "page-0-IMG", "path": "1,HTML,1,BODY,5,DIV,4,MAIN,3,DIV,0,DIV,1,DIV,0,DIV,1,SECTION,2,DIV,0,DIV,0,DIV,1,DIV,0,DIV,0,DIV,0,DIV,0,DIV,1,DIV,0,DIV,2,DIV,1,DIV,0,DIV,0,IMG", "selector": "div.w-full > div.relative > div.pointer-events-none > img.eh-img", "boundingRect": "{\"top\": 139, \"bottom\": 335, \"left\": 32, \"right\": 380, \"width\": 348, \"height\": 196}", "snippet": 
+
+== Render-blocking / document latency
+  [render-blocking-insight] score=0 Est savings of 460 ms savings=None
+     {"url": "https://neweuropeanstrategies.com/assets/styles-DjfYz07w.css", "totalBytes": 78624, "wastedMs": 529}
+  [document-latency-insight] score=0 Est savings of 2,650 ms savings=None
+     {"noRedirects": "{\"label\": \"Avoids redirects\", \"value\": true}", "serverResponseIsFast": "{\"label\": \"Server responded slowly (observed 2752 ms)\", \"value\": false}", "usesCompression": "{\"label\": \"Applies text compression\", \"value\": true}"}
+  [network-dependency-tree-insight] score=0  savings=None
+     {"type": "list-section", "value": "{\"type\": \"network-tree\", \"chains\": {\"AEAD9782DA189DEEA4DB535D6BF6DF7F\": {\"url\": \"https://neweuropeanstrategies.com/\", \"n"}
+     {"type": "list-section", "title": "Preconnected origins", "description": "[preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints help the browser establish a connection earlier in the page load, saving time when the first request for that origin is made. Th
+     {"type": "list-section", "title": "Preconnect candidates", "description": "Add [preconnect](https://developer.chrome.com/docs/lighthouse/performance/uses-rel-preconnect/) hints to your most important origins, but try to use no more than 4.", "value": "{\"type\": \"text\", \"value\": \"No additional 
+
+== Network requests (sorted by transferSize)
+  requests=121 transfer=1527105 resource=4943550
+   Script       n= 88 transfer=  1166196 resource=  3615216
+   Image        n=  7 transfer=   111239 resource=   131405
+   Document     n=  1 transfer=    89371 resource=   575523
+   Stylesheet   n=  1 transfer=    78624 resource=   537876
+   Font         n=  2 transfer=    44954 resource=    44732
+   Other        n=  1 transfer=    26621 resource=    26483
+   Fetch        n= 15 transfer=    10100 resource=    12315
+   Preflight    n=  6 transfer=        0 resource=        0
+   transfer  resource     prio     type  start    end  url
+     257132    835884     High   Script   2855   3182  /assets/index-Cjx74syR.js
+     199590    622824      Low   Script   6045   6139  https://www.googletagmanager.com/gtag/js?id=AW-17612160320&cx=c&gtm=4e69u2h1
+     170002    489031      Low   Script   5867   6018  https://www.googletagmanager.com/gtag/js?id=G-EN05JH34VP
+      89371    575523 VeryHigh Document      1   2963  /
+      78624    537876 VeryHigh Stylesheet   2852   3193  /assets/styles-DjfYz07w.css
+      61367    195480     High   Script   2855   3120  /assets/vendor-react-DbdJcebo.js
+      58635    224170     High   Script   2856   3150  /assets/vendor-supabase-Pf0Abwmk.js
+      52311    168861     High   Script   2855   2980  /assets/vendor-tanstack-DIVSu6Lo.js
+      37940     37742     High    Image   2861   3228  /media/07167e87-2e0f-42e8-ac5e-72445a2d4b0a/wp-import/2efcf691413e897cc7bc787e478b7677.webp?width=768&resize=c
+      36909    112017     High   Script   3881   4181  /assets/vendor-radix-CIuvgUd0.js
+      30796     30672     High     Font   2853   3252  /assets/red-hat-display-latin-BX-N26TK.woff2
+      26799     69000     High   Script   2853   3127  /assets/pl-Do3AbvCF.js
+      26621     26483     High    Other   3378   3648  /favicon.ico
+      26491     26374      Low    Image   3589   3848  /media/07167e87-2e0f-42e8-ac5e-72445a2d4b0a/wp-import/53eb0e2b1d255e5a5b5e2a1a17ea78eb.webp?width=640&resize=c
+      25633     25492      Low    Image   3590   3887  /media/07167e87-2e0f-42e8-ac5e-72445a2d4b0a/17e16093-10a6-430c-8d80-2406bff8a15f/widgets/1782767599578-5jgrel.
+      25224    102739     High   Script   4134   4475  /assets/icons-0-DF-BxYAn.js
+      18654     63039     High   Script   3375   3682  /assets/vendor-lucide-YwXZt9JB.js
+      16261     49099     High   Script   2855   3108  /assets/vendor-i18n-Bk2PYBzJ.js
+      14871     45275     High   Script   2855   3128  /assets/vendor-lucide-boot-DKEkhQGq.js
+      14158     14060     High     Font   2853   3273  /assets/red-hat-display-latin-ext-Do32GAgg.woff2
+      12681     12582      Low    Image   3589   3728  /media/07167e87-2e0f-42e8-ac5e-72445a2d4b0a/wp-import/5f0db9e2add308df5cc266911da1d7ee.webp?width=640&resize=c
+      12365     54091     High   Script   2855   3123  /assets/vendor-zod-oLpi5p-c.js
+      11463     41008     High   Script   2854   3102  /assets/sliderVariants-D_MUJtMH.js
+      10097     35470     High   Script   3908   4181  /assets/vendor-sonner-BA-3S3ka.js
+       9841     26217     High   Script   3375   3764  /assets/vendor-dompurify-CaN5i-uU.js
+       8570     27511     High   Script   2856   3139  /assets/vendor-tw-merge-BKkUfl9q.js
+       8402     21296      Low   Script   3208   3265  /~flock.js
+       7961     24400     High   Script   3904   4167  /assets/ConsentBanner-DJWcHs0m.js
+       7641     20807     High   Script   5019   5258  /assets/JoinUsForm-BpvzpNom.js
+       6933     21052     High   Script   2854   3166  /assets/SearchButtonWidget-DIlTolr_.js
+       6692     18628     High   Script   4532   5000  /assets/vendor-radix-select-Ur93xSXf.js
+       5761     26767      Low    Image   2862   3188  /media/07167e87-2e0f-42e8-ac5e-72445a2d4b0a/17e16093-10a6-430c-8d80-2406bff8a15f/theme/logo/1782319336060-20uj
+       5738     18503     High   Script   2856   3120  /assets/admin.analytics-D7PYqOYF.js
+       5392     14627     High   Script   2854   3129  /assets/AccountMenuWidget-4HWdt2It.js
+       5264     13716     High   Script   5020   5261  /assets/NewsletterDocRenderer-C8yNL1cA.js
+       5242     20988     High   Script   2854   3100  /assets/sectionLabelVariants-BXywPhf0.js
+       5087     17258     High   Script   2854   3110  /assets/PostListView-DFhWlvyp.js
+       4794     13028     High   Script   5021   5243  /assets/TopicsDroplist-6TarM-25.js
+       4755     20688     High   Script   2855   3124  /assets/animatedHeadingVariants-DtWsAoFw.js
+       4635     10206     High   Script   5019   5301  /assets/useUnsavedChangesGuard-Twz_8R0h.js
+       4016     10679     High   Script   4531   4768  /assets/WidgetView-CpGavjDH.js
+       3836      9905     High   Script   3883   4166  /assets/i18n-search-DDCUGwXN.js
+       3651      9061     High   Script   3907   4167  /assets/NewsletterPopup-D-t8mwLj.js
+       3571      7186     High   Script   3907   4219  /assets/PopupImage-Brpcnad6.js
+       3366     12408     High   Script   3374   3701  /assets/events._slug_.cfp-submit-BILCTXG1.js
+       3317      7232     High   Script   5011   5285  /assets/TailoredMustReadsView-CW2iHThC.js
+       3102      7413     High   Script   4532   4821  /assets/MessageComposerField-D0bgjKwB.js
+       3061      6864     High    Fetch   5399   5488  https://unnltowbgszpdzwpawdu.supabase.co/rest/v1/categories?select=id%2Cslug%2Cname_pl%2Cname_en%2Cparent_id&o
+       3010      5862     High   Script   5008   5223  /assets/sha2-NVGVgJnV.js
+       2951      6794     High   Script   4532   4801  /assets/useMentionAutocomplete-DkvYygt4.js
+       2928      7087     High   Script   3883   4129  /assets/archives-Cxv6zHp-.js
+       2743      5283     High   Script   3904   4131  /assets/config-CnoUhhyW.js
+       2323      5672     High   Script   3883   4096  /assets/facetModel-DpfDg5IC.js
+       2183      4711     High   Script   3883   4141  /assets/useVoiceSearch-BYr3wpn3.js
+       2079      5667     High   Script   3904   4135  /assets/useBrandLogoUrl-DVVKeZhM.js
+       2072      5277     High   Script   3907   4131  /assets/popups-b_ALlvS9.js
+       2062      4448     High   Script   3375   3645  /assets/SponsoredBadge-r-tCAIXr.js
+       1990      4192     High   Script   2857   3108  /assets/Footnotes-CM1vKSEk.js
+       1963      4092     High   Script   4532   4777  /assets/useMentionProfile-0jGE8J_8.js
+       1910      3730     High   Script   3907   4130  /assets/PopupHost-q22M9b3Q.js
+
+== Main thread breakdown
+  total 3.4 s
+   Script Evaluation                      1548 ms
+   Other                                   817 ms
+   Style & Layout                          631 ms
+   Parse HTML & CSS                        144 ms
+   Rendering                               125 ms
+   Script Parsing & Compilation            108 ms
+   Garbage Collection                       46 ms
+
+== Bootup time per script (top)
+  total 1.6 s
+   total= 1422 script= 1203 parse=    0  /assets/vendor-react-DbdJcebo.js
+   total=  989 script=   53 parse=   19  /
+   total=  412 script=   42 parse=    0  Unattributable
+   total=  185 script=  144 parse=   39  https://www.googletagmanager.com/gtag/js?id=AW-17612160320&cx=c&gtm=4e69u2h1
+   total=  141 script=    5 parse=    3  /assets/index-Cjx74syR.js
+   total=  122 script=   86 parse=   36  https://www.googletagmanager.com/gtag/js?id=G-EN05JH34VP
+
+== Unused JavaScript (top)
+  Est savings of 364 KiB savingsBytes=373000
+   wasted= 127189 of total= 256701 (50%)  /assets/index-Cjx74syR.js
+   wasted=  77761 of total= 169670 (46%)  https://www.googletagmanager.com/gtag/js?id=G-EN05JH34VP
+   wasted=  66326 of total= 199535 (33%)  https://www.googletagmanager.com/gtag/js?id=AW-17612160320&cx=c&gtm=4e69u2h1
+   wasted=  47094 of total=  58596 (80%)  /assets/vendor-supabase-Pf0Abwmk.js
+   wasted=  29136 of total=  36843 (79%)  /assets/vendor-radix-CIuvgUd0.js
+   wasted=  25494 of total=  52272 (49%)  /assets/vendor-tanstack-DIVSu6Lo.js
+
+== Unused CSS
+
+== Long tasks
+  10 long tasks found
+   start= 10459 dur=  183  https://www.googletagmanager.com/gtag/js?id=AW-17612160320&cx=c&gtm=4e69u2h1
+   start=  1581 dur=   98  Unattributable
+   start=  1831 dur=   96  /
+   start=  1958 dur=   89  Unattributable
+   start=  6972 dur=   88  /assets/vendor-react-DbdJcebo.js
+   start=  7952 dur=   69  https://www.googletagmanager.com/gtag/js?id=G-EN05JH34VP
+   start=  4885 dur=   59  /assets/index-Cjx74syR.js
+   start=  5347 dur=   52  /assets/vendor-react-DbdJcebo.js
+   start=  1739 dur=   51  /
+   start=  8021 dur=   51  https://www.googletagmanager.com/gtag/js?id=G-EN05JH34VP
+
+== Forced reflow
+  score=1 
+     {"type": "table", "headings": [{"key": "source", "valueType": "source-location", "label": "Source"}, {"key": "reflowTime", "valueType": "ms", "granularity": 1, "label": "Total reflow time"}], "items": []}
+
+== Non-composited animations
+     {"node": "<div class=\"relative flex max-h-[calc(100svh-1.5rem)] flex-col gap-3 overflow-y-auto r…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Filter-related property may move pixels\", \"animation\": \"enter\"}]}"}
+     {"node": "<img src=\"\" srcset=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" sizes=\"auto, (max-width: 640px) 112px, 128px\" alt=\"\" loading=\"lazy\" decoding=\"async\" fetchpriority=\"auto\" class=\"absolute inset-0 block h-full w-full object-cover widget-media-fg oi-img o…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported 
+     {"node": "<img src=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" srcset=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" sizes=\"auto, (max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw\" alt=\"\" loading=\"lazy\" decoding=\"async\" fetchpriority=\"auto\" class=\"absolute inset-0 block h-full w-full object-cover widget-media-fg
+     {"node": "<img src=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" srcset=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" sizes=\"auto, (max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw\" alt=\"\" loading=\"lazy\" decoding=\"async\" fetchpriority=\"auto\" class=\"absolute inset-0 block h-full w-full object-cover widget-media-fg
+     {"node": "<img src=\"\" srcset=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" sizes=\"auto, (max-width: 640px) 112px, 128px\" alt=\"\" loading=\"lazy\" decoding=\"async\" fetchpriority=\"auto\" class=\"absolute inset-0 block h-full w-full object-cover widget-media-fg oi-img o…\">", "subItems": "{\"type\": \"subitems\", \"items\": [{\"failureReason\": \"Unsupported 
+     {"node": "<img src=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" srcset=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" sizes=\"auto, (max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw\" alt=\"\" loading=\"lazy\" decoding=\"async\" fetchpriority=\"auto\" class=\"absolute inset-0 block h-full w-full object-cover widget-media-fg
+
+== Third parties
+
+== DOM size
+  None
+
+== Cache TTL offenders
+
+== Image delivery
+
+== Other insights
+  [cache-insight] score=0 Est savings of 9 KiB
+  [network-dependency-tree-insight] score=0 
+
+== User timing marks/measures count
+  None  n=0
+    []

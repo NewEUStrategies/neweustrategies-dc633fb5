@@ -1,0 +1,2 @@
+w0deep-mobile-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=2.30 perf=48 FCP=4060 LCP=4885 TBT=1352 SI=4060 TTI=8758
+w0deep-desktop-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=6.23 perf=95 FCP=810 LCP=991 TBT=140 SI=1089 TTI=2101

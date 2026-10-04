@@ -1,0 +1,217 @@
+{
+ "dir": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/p05/art2/hints-desktop-6",
+ "audit": 0,
+ "tbtExact": 0,
+ "fcp": {
+  "opt": 830.0915,
+  "pes": 830.0915
+ },
+ "tti": {
+  "opt": 950.0915,
+  "pes": 950.0915
+ },
+ "cpu": 1,
+ "sum": 0,
+ "tasks": [
+  {
+   "obsStart": 239.2,
+   "obsDur": 168.1,
+   "optSimStart": 393,
+   "pesSimStart": 393,
+   "optSimDur": 84,
+   "pesSimDur": 84,
+   "layout": true,
+   "cls": "Script",
+   "opt": 0,
+   "pes": 0,
+   "avg": 0,
+   "urls": [],
+   "agg": {
+    "BeginMainThreadFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "AnimationFrame::Render": {
+     "n": 2,
+     "ms": 0
+    },
+    "EventDispatch": {
+     "n": 1,
+     "ms": 0.003
+    },
+    "FireAnimationFrame": {
+     "n": 2,
+     "ms": 0.9259999999999999
+    },
+    "v8.callFunction": {
+     "n": 2,
+     "ms": 0.902
+    },
+    "FunctionCall": {
+     "n": 2,
+     "ms": 0.886
+    },
+    "UpdateCounters": {
+     "n": 2,
+     "ms": 0
+    },
+    "v8.newInstance": {
+     "n": 6,
+     "ms": 0.012
+    },
+    "V8.BytecodeBudgetInterruptWithStackCheck": {
+     "n": 1,
+     "ms": 0.008
+    },
+    "AnimationFrame::StyleAndLayout": {
+     "n": 2,
+     "ms": 0
+    },
+    "UpdateLayoutTree": {
+     "n": 1,
+     "ms": 82.859
+    },
+    "InvalidateLayout": {
+     "n": 4,
+     "ms": 0
+    },
+    "LayoutImageUnsized": {
+     "n": 2,
+     "ms": 0
+    },
+    "V8.StackGuard": {
+     "n": 1,
+     "ms": 0.012
+    },
+    "V8.HandleInterrupts": {
+     "n": 1,
+     "ms": 0.006
+    },
+    "Layout": {
+     "n": 2,
+     "ms": 59.496
+    },
+    "Animation": {
+     "n": 18,
+     "ms": 0
+    },
+    "SetLayerTreeId": {
+     "n": 2,
+     "ms": 0
+    },
+    "PrePaint": {
+     "n": 2,
+     "ms": 1.462
+    },
+    "IntersectionObserverController::computeIntersections": {
+     "n": 2,
+     "ms": 0.045
+    },
+    "AnimationFrame": {
+     "n": 3,
+     "ms": 0
+    },
+    "DOMStats": {
+     "n": 2,
+     "ms": 0
+    },
+    "Paint": {
+     "n": 5,
+     "ms": 3.6990000000000003
+    },
+    "PaintTimingVisualizer::LayoutObjectPainted": {
+     "n": 76,
+     "ms": 0
+    },
+    "PaintImage": {
+     "n": 22,
+     "ms": 0.5380000000000001
+    },
+    "Draw LazyPixelRef": {
+     "n": 15,
+     "ms": 0
+    },
+    "viewport": {
+     "n": 1,
+     "ms": 0
+    },
+    "PaintTimingVisualizer::Viewport": {
+     "n": 2,
+     "ms": 0
+    },
+    "Layerize": {
+     "n": 1,
+     "ms": 1.056
+    },
+    "layerId": {
+     "n": 20,
+     "ms": 0
+    },
+    "Commit": {
+     "n": 1,
+     "ms": 9.964
+    },
+    "UpdateLayer": {
+     "n": 15,
+     "ms": 0.04500000000000001
+    },
+    "BeginCommitCompositorFrame": {
+     "n": 1,
+     "ms": 0
+    },
+    "RunMicrotasks": {
+     "n": 1,
+     "ms": 7.49
+    }
+   },
+   "fcalls": [
+    {
+     "name": "FireAnimationFrame",
+     "ms": 0.858,
+     "obs": 239.364,
+     "url": ""
+    },
+    {
+     "name": "v8.callFunction",
+     "ms": 0.851,
+     "obs": 239.367,
+     "url": ""
+    },
+    {
+     "name": "FunctionCall",
+     "ms": 0.843,
+     "obs": 239.367,
+     "fn": "$RV",
+     "url": "/",
+     "line": 650,
+     "col": 90473
+    },
+    {
+     "name": "RunMicrotasks",
+     "ms": 7.49,
+     "obs": 399.685,
+     "url": ""
+    }
+   ],
+   "ult": [
+    {
+     "ms": 82.859,
+     "obs": 240.275,
+     "el": 659,
+     "stack": []
+    }
+   ],
+   "lay": [
+    {
+     "ms": 59.473,
+     "obs": 323.143,
+     "dirty": 644,
+     "total": 644,
+     "partial": false,
+     "stack": []
+    }
+   ],
+   "parse": []
+  }
+ ]
+}

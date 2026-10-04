@@ -1,0 +1,18 @@
+# /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/p05/art2/w0p-desktop-2
+# TBT(audit Lantern)=10 FCPsim opt/pes=786/786 TTIsim opt/pes=1597/1890 cpuMult=1 okna opt=[786,1597] pes=[786,1890]
+obsStart obsDur  simStart(o/p)  simDur(o/p)  L  class          block opt/pes/avg  urls
+    422   67.0    558/558      67/67       ScriptCatchup     0/    0/    0  index,vendor-react,vendor-tanstack,vendor-i18n,vendor-zod,vendor-lucide-boot
+          dzieci: ScriptCatchupx18=9.8
+    497   83.5    625/625      84/84       Frame             0/    0/    0  
+          dzieci: Commitx1=1.5 UpdateLayerx9=1.1 Paintx41=1.1
+    925  113.7   1465/1465     57/57    L  Script            7/    7/    7  vendor-react,vendor-tanstack,index,_lighthouse-eval.js,vendor-supabase
+          dzieci: v8.callFunctionx58=113.8 FunctionCallx34=94.6 RunMicrotasksx1=18.9 UpdateLayoutTreex2=6.2 V8.BytecodeBudgetInterruptWithStackCheckx34=4.3 MinorGCx1=3.5 V8.GCScavengerx1=3.4 V8.GC_SCAVENGERx1=3.4 V8.GC_SCAVENGER_SCAVENGEx1=3.4 V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASEx1=3.2 ParseHTMLx12=2.9 V8.BytecodeBudgetInterruptx264=2.6
+          v8.callFunction 113.3ms @925  :: 
+          FunctionCall 94.3ms @925 _t vendor-react:1:10765 
+          RunMicrotasks 18.9ms @1019  :: 
+          UpdateLayoutTree 5.8ms el=161 @943 (anon)@index:422:14022 < le@vendor-react:8:92463 < ty@vendor-react:8:107691 < Tt@vendor-react:8:107575
+   6484  110.0   1835/1835     55/55    L  Script            0/    5/    3  vendor-react
+          dzieci: Layerizex1=22.7 UpdateLayoutTreex1=16.7 EventDispatchx30=7.9 Paintx7=1.2 v8.callFunctionx60=1.1
+          EventDispatch 6.6ms @6534  :: transitionstart
+          UpdateLayoutTree 16.7ms el=18 @6541 
+# suma księgi = 9.5 ; audyt = 10 ; różnica = 0.00 ms

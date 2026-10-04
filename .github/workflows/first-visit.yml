@@ -15,7 +15,16 @@ concurrency:
 jobs:
   first-visit:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 20 -> 45 min, bo doszedł raport A/B Lighthouse'a (werdykt M2, 2026-10-03).
+    # Arytmetyka: dotychczasowy job 13,2 min (run 37142944502: dwa buildy
+    # 192 + 191 s, sparowany Playwright 333 s), bramka wagi dokumentu 2 x ~6 s,
+    # A/B 5 + 5 przebiegów mobile po 60-90 s plus instalacja Lighthouse'a przez
+    # npx i czekanie na spadek obciążenia (`--idle-wait 30`, najwyżej 10 x 30 s)
+    # = ~21-34 min. Krok A/B ma własny limit 25 min i `continue-on-error`, więc
+    # zawieszony Lighthouse nie przewraca joba; 45 = 13,2 + 25 + zapas na
+    # wysyłkę artefaktów. PR bez zmian w `src/**`, `vite*.config.ts` ani
+    # `package.json` A/B pomija i kończy się w dotychczasowym czasie.
+    timeout-minutes: 45
     # Build both artifacts first, then alternate equivalent cases on ONE runner.
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +37,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: candidate
+      # FILTR ŚCIEŻEK DLA A/B LIGHTHOUSE'A - liczony z DRZEW, nie z historii git.
+      # Checkouty są płytkie (`fetch-depth: 1`), więc `git diff base...head` nie
+      # ma na czym pracować; porównanie plików baseline/ z candidate/ daje ten
+      # sam zbiór zmian bez dociągania historii. Zakres z werdyktu M2: `src/**`,
+      # `vite*.config.ts`, `package.json` - wszystko, co zmienia dokument albo
+      # graf chunków. PR, który dotyka wyłącznie docs/, testów czy workflowów,
+      # nie płaci ~15 minut runnera za raport bez sygnału. Krok stoi PRZED
+      # buildami, bo build regeneruje `src/routeTree.gen.ts`.
+      - name: Decide whether the Lighthouse A/B report runs
+        id: lighthouse-scope
+        run: |
+          shopt -s nullglob
+          changed=()
+          if ! diff -rq baseline/src candidate/src > /dev/null 2>&1; then
+            changed+=("src/")
+          fi
+          files=(package.json)
+          for f in baseline/vite*.config.ts candidate/vite*.config.ts; do
+            files+=("${f#*/}")
+          done
+          for f in $(printf '%s\n' "${files[@]}" | sort -u); do
+            if ! cmp -s "baseline/$f" "candidate/$f"; then
+              changed+=("$f")
+            fi
+          done
+          if [ "${#changed[@]}" -gt 0 ]; then
+            echo "A/B Lighthouse'a pojedzie - zmienione: ${changed[*]}"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "A/B Lighthouse'a pominiete - brak zmian w src/, vite*.config.ts ani package.json"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
@@ -45,7 +86,14 @@ jobs:
       - name: Verify the measurement and comparison contract
         working-directory: harness
         run: node --test scripts/performance/first-visit-harness.test.mjs
+      # Testy warstw czystych harnessu Lighthouse'a i bramki wagi dokumentu
+      # (kontrole negatywne: próg przekroczony oblewa, ratchet nigdy w górę).
+      # Skrypt w package.json, żeby lista plików testów żyła w jednym miejscu.
+      - name: Verify the document-weight and Lighthouse harness contract
+        working-directory: harness
+        run: bun run test:measurement-harness
       - name: Build baseline
+        id: build-baseline
         working-directory: baseline
         run: |
           bun install --frozen-lockfile
@@ -54,6 +102,7 @@ jobs:
           VITE_SUPABASE_URL: http://127.0.0.1:4199
           VITE_SUPABASE_PUBLISHABLE_KEY: performance-fixture
       - name: Build candidate
+        id: build-candidate
         if: ${{ !cancelled() }}
         working-directory: candidate
         run: bun run build:smoke
@@ -73,6 +122,65 @@ jobs:
       - name: Compare equivalent cold and warm samples
         working-directory: harness
         run: bun run check:first-visit-regression
+      # ---- WAGA DOKUMENTU SSR `/` (werdykty M2 i PA-C3) ----
+      # Bramka renderuje `/` z artefaktu na backendzie fixture (5 próbek HIT,
+      # mediana) i porównuje z `scripts/performance/document-weight-budgets.json`
+      # z PR-a (harness/). Deterministyczna, ~6 s na stronę.
+      #
+      # DLACZEGO TU DWA RÓŻNE WYWOŁANIA:
+      #   - kandydat przez `bun run check:document-weight` DOKŁADNIE RAZ - tylko
+      #     tę formę liczy `check:gate-coverage` (src/lib/ci/gateCoverage.ts),
+      #     a druga taka linia w tym jobie byłaby zgłoszona jako duplikat;
+      #   - baseline przez `node ...` wprost, wyłącznie raportowo (`|| true`) -
+      #     baza PR-a mierzona progami PR-a pokazuje, ile zmiana dołożyła.
+      # Skrypt w package.json to `node ...`, NIE `bun run ...`: zlib buna liczy
+      # gzip ~2 % wyżej niż node (htmlGzipBytes 55 567 vs 54 469 B przy progu
+      # 55 565), więc pod bunem bramka byłaby czerwona na dzisiejszej bazie.
+      # Osobne `--json`: domyślna ścieżka raportu jest wspólna i drugie
+      # wywołanie nadpisałoby pierwsze.
+      #
+      # Progi to ratchet z pomiaru node 22 w sandboksie; runner ma node 24.19.
+      # `--ratchet` progów NIE podnosi (Math.min) - gdyby pierwszy przebieg na
+      # runnerze wyszedł ponad próg na bazie, ponowne ustalenie progów jest
+      # ręcznym commitem z pomiarem z logu runnera i uzasadnieniem w `_comment`.
+      - name: Report document weight of the baseline (non-blocking)
+        if: ${{ !cancelled() && steps.build-baseline.outcome == 'success' }}
+        working-directory: harness
+        run: node scripts/performance/check-document-weight.ts --root ../baseline --json reports/document-weight-baseline.json || true
+      - name: Gate document weight of the candidate (blocking)
+        if: ${{ !cancelled() && steps.build-candidate.outcome == 'success' }}
+        working-directory: harness
+        run: bun run check:document-weight -- --root ../candidate --json reports/document-weight.json
+      # ---- A/B LIGHTHOUSE'A: WYŁĄCZNIE RAPORT ----
+      # Bez blokady: bajtowe metryki LH (`highPriorityBytesBeforeLcpImage`,
+      # `scriptTransferBytes`) dublują bramkę statyczną wyżej i `check:bundle`,
+      # a czasy na współdzielonym runnerze to szum (A/A: TBT +-464 ms, FCP
+      # mobile bimodalne 2,9 / 4,1 s). Stąd n = 5 na stronę, przeplot A/B i
+      # `--idle-wait 30` (domyślne 180 s na przebieg mogłoby dołożyć 30 min).
+      # Ocena zmiany = linia `DELTA ci B-A mobile` w logu, nie wynik absolutny.
+      #
+      # Chromium Playwrighta zamiast Chrome runnera - ten sam powód co
+      # w lighthouse.yml (parser śladów Lighthouse'a padał na buildzie runnera).
+      # CHROME_PATH idzie przez $GITHUB_ENV, nie przez `env:`: czyta go wyłącznie
+      # chrome-launcher, więc w `env:` byłby „martwym eksportem" dla
+      # `check:workflow-env-contract`.
+      - name: Resolve pinned Chromium path for Lighthouse
+        if: ${{ !cancelled() && steps.lighthouse-scope.outputs.run == 'true' }}
+        run: |
+          root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+          path="$(find "$root" -maxdepth 4 -type f -name chrome -path '*chrome-linux*' 2>/dev/null | sort | tail -1)"
+          if [ -n "$path" ] && [ -x "$path" ]; then
+            echo "CHROME_PATH=$path" >> "$GITHUB_ENV"
+            echo "Lighthouse uzyje przypietego Chromium: $path"
+          else
+            echo "UWAGA: nie znaleziono Chromium Playwrighta w $root - Lighthouse uzyje Chrome runnera."
+          fi
+      - name: Lighthouse A/B on mobile (report only)
+        if: ${{ !cancelled() && steps.lighthouse-scope.outputs.run == 'true' && steps.build-baseline.outcome == 'success' && steps.build-candidate.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 25
+        working-directory: harness
+        run: node scripts/performance/lighthouse-local.mjs --compare ../baseline ../candidate --runs 5 --forms mobile --idle-wait 30 --label ci --out reports/lighthouse-local/ci
       - name: Upload baseline evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -82,6 +190,7 @@ jobs:
             harness/reports/first-visit-baseline/
             harness/reports/first-visit-playwright/baseline-*.json
             harness/test-results-performance/baseline-*/
+            harness/reports/document-weight-baseline.json
           retention-days: 14
       - name: Upload candidate evidence
         if: ${{ !cancelled() }}
@@ -93,4 +202,6 @@ jobs:
             harness/reports/first-visit-comparison.json
             harness/reports/first-visit-playwright/
             harness/test-results-performance/
+            harness/reports/document-weight.json
+            harness/reports/lighthouse-local/ci/
           retention-days: 14

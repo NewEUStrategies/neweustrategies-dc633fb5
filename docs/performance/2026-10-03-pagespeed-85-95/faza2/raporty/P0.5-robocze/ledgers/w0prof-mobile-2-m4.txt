@@ -1,0 +1,68 @@
+# /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/p05/art/w0prof-mobile-2
+# TBT(audit Lantern)=426 FCPsim opt/pes=4066/4066 TTIsim opt/pes=5982/6748 cpuMult=4 okna opt=[4066,5982] pes=[4066,6748]
+obsStart obsDur  simStart(o/p)  simDur(o/p)  L  class          block opt/pes/avg  urls
+     36   23.5   1066/1066     94/94       ScriptCatchup     0/    0/    0  pl,AccountMenuWidget,SearchButtonWidget,sectionLabelVariants,PostListView,PaginatedPostGrid
+          dzieci: DocumentLoader::CommitNavigationx3=19.3 DocumentLoader::StartLoadingResponsex3=17.8 DocumentLoader::CreateParserPostCommitx3=17.7 LocalWindowProxy::Initializex2=8.0 NavigationBodyLoader::StartLoadingBodyx1=5.7 NavigationBodyLoader::OnReadablex1=5.6 NavigationBodyLoader::ReadFromDataPipex1=5.6 DocumentLoader::BodyDataReceivedImplx3=5.6 DocumentLoader::HandleDatax3=5.1 DocumentLoader::CommitDatax2=5.1 DecodedDataDocumentParser::AppendBytesx1=5.0 LocalWindowProxy::CreateContextx2=2.4
+    181   15.8   2716/2716     63/63       ParseCSS          0/    0/    0  
+          dzieci: ParseAuthorStyleSheetx1=9.4
+    234   12.9   1265/1265     52/52       ParseHTML-doc     0/    0/    0  
+          dzieci: ParseHTMLx1=12.7 EvaluateScriptx1=9.8 v8.compilex1=6.7 ScriptCompiledx1=3.1 v8.runx1=3.1
+          EvaluateScript 9.8ms @237  /:650:24731 
+          ParseHTML 12.7ms @234 / linie 644-649
+    263   40.4   1359/1359     81/81    L  ParseHTML-doc     0/    0/    0  
+          dzieci: UpdateLayoutTreex1=26.0 Layoutx1=10.9
+          UpdateLayoutTree 26.0ms el=371 @264 
+          Layout 10.9ms dirty=321/321 @291 
+    304   36.0   1440/1440    144/144      ScriptCatchup     0/    0/    0  index,vendor-react,vendor-tanstack,vendor-i18n,vendor-zod,vendor-lucide-boot
+          dzieci: ScriptCatchupx18=3.0
+    340   49.2   1584/1584     98/98    L  Script            0/    0/    0  
+          dzieci: Layoutx2=18.2 UpdateLayoutTreex1=14.1 RunMicrotasksx2=6.6 Paintx5=4.3 FireAnimationFramex2=1.9 v8.callFunctionx2=1.8 FunctionCallx2=1.8 PrePaintx2=1.6
+          RunMicrotasks 6.5ms @382  :: 
+          UpdateLayoutTree 14.1ms el=260 @342 
+          Layout 18.1ms dirty=293/532 @356 
+    402   23.4   5266/5266     94/94       ModuleEval       44/   44/   44  pl,vendor-react
+          dzieci: RunMicrotasksx1=20.5 MinorGCx2=3.1 V8.GCScavengerx2=2.9 V8.GC_SCAVENGERx2=2.9 V8.GC_SCAVENGER_SCAVENGEx2=2.7 V8.GC_SCAVENGER_SCAVENGE_PARALLEL_PHASEx2=2.1 V8.GC_SCAVENGER_SCAVENGE_PARALLELx2=2.0 v8.evaluateModulex1=1.0
+          RunMicrotasks 20.5ms @405  :: 
+    425   39.4   5360/5360    158/158      Script          108/  108/  108  vendor-react
+          dzieci: EventDispatchx9=2.3 v8.callFunctionx18=2.0 FunctionCallx18=1.9
+    466   24.0   5588/5588     96/96       Script           46/   46/   46  vendor-react,index,vendor-tanstack
+          dzieci: v8.callFunctionx2=23.9 FunctionCallx2=18.5 RunMicrotasksx1=5.3
+          v8.callFunction 23.8ms @466  :: 
+          FunctionCall 18.5ms @466 _t vendor-react:1:10765 
+          RunMicrotasks 5.3ms @485  :: 
+    494   17.1   5684/5684     69/69       Timer            19/   19/   19  index,events._slug_.cfp-submit,vendor-lucide,MoneyText,events._slug.agenda,PostListCard
+          dzieci: TimerFirex1=16.4 v8.callFunctionx1=16.3 RunMicrotasksx1=16.3
+          TimerFire 16.4ms @494  :: 
+          v8.callFunction 16.3ms @494  :: 
+          RunMicrotasks 16.3ms @494  :: 
+    622   90.0   6482/6482    180/180   L  Script            0/  130/   65  vendor-react,vendor-tanstack,index,_lighthouse-eval.js,vendor-supabase
+          dzieci: v8.callFunctionx85=90.4 FunctionCallx49=84.4 RunMicrotasksx1=5.6 UpdateLayoutTreex2=4.1 ParseHTMLx12=2.9 V8.StackGuardx67=2.6 V8.HandleInterruptsx69=2.3 MinorGCx1=2.1 V8.GCScavengerx1=2.0 V8.GC_SCAVENGERx1=2.0 V8.GC_SCAVENGER_SCAVENGEx1=2.0 V8.BytecodeBudgetInterruptx268=1.7
+          v8.callFunction 89.6ms @622  :: 
+          FunctionCall 84.0ms @622 _t vendor-react:1:10765 
+          RunMicrotasks 5.6ms @706  :: 
+          UpdateLayoutTree 3.2ms el=56 @640 (anon)@index:422:14022 < le@vendor-react:8:92463 < ty@vendor-react:8:107691 < Tt@vendor-react:8:107575
+    712   35.0   5518/5518     70/70    L  Script           20/   20/   20  vendor-react,index,_lighthouse-eval.js
+          dzieci: UpdateLayoutTreex1=31.2 Paintx11=1.1
+          UpdateLayoutTree 31.2ms el=798 @712 
+    782   31.6   5787/5787    126/126      Script           76/   76/   76  vendor-react,vendor-tanstack,index
+          dzieci: v8.callFunctionx1=31.5 FunctionCallx1=31.4
+          v8.callFunction 31.5ms @782  :: 
+          FunctionCall 31.4ms @782 _t vendor-react:1:10765 
+    842   13.4   5913/5913     54/54       Script            4/    4/    4  vendor-react,vendor-tanstack
+          dzieci: v8.callFunctionx2=13.3 FunctionCallx2=12.2
+          v8.callFunction 13.3ms @843  :: 
+          FunctionCall 12.1ms @844 _t vendor-react:1:10765 
+   1342   15.3   6687/6687     61/61       Script            0/   11/    6  vendor-react,vendor-tanstack,vendor-supabase
+          dzieci: v8.callFunctionx83=15.6 FunctionCallx47=12.8 RunMicrotasksx1=2.5 UpdateLayoutTreex1=2.3
+          v8.callFunction 15.1ms @1342  :: 
+          FunctionCall 12.6ms @1342 _t vendor-react:1:10765 
+          RunMicrotasks 2.5ms @1354  :: 
+          UpdateLayoutTree 2.3ms el=16 @1351 (anon)@vendor-radix:41:11332 < le@vendor-react:8:92463 < Wv@vendor-react:8:96976 < xt@vendor-react:8:105843
+   1369   31.5   6276/6276    126/126      Script            0/   76/   38  vendor-react
+          dzieci: v8.callFunctionx2=31.5 FunctionCallx2=31.5 ParseHTMLx50=24.6
+          v8.callFunction 31.5ms @1369  :: 
+          FunctionCall 31.5ms @1369 _t vendor-react:1:10765 
+   1402   30.1   1682/1682    120/120      Frame             0/    0/    0  
+          dzieci: UpdateLayoutTreex1=29.2
+          UpdateLayoutTree 29.2ms el=706 @1402 
+# suma księgi = 425.5 ; audyt = 426 ; różnica = 0.00 ms

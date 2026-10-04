@@ -1,0 +1,30 @@
+$ bun run scripts/chunk-inventory.ts index --modules
+assets/index-Dmm1yFni.js  (entry, 1395.2 kB przed minifikacja)
+  importy statyczne: 8, dynamiczne: 567
+
+Najciezsze moduly (top 25):
+     60.6 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/routeTree.gen.ts
+     59.3 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/builder/organisms/widget-view/SimpleWidgets.tsx
+     39.6 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/header/TrendingTicker.tsx
+     30.4 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/builder/organisms/ChromeWidgetView.tsx
+     23.1 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/builder/organisms/BuilderRenderer.tsx
+     22.4 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/routes/__root.tsx
+     17.4 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/menu/SiteMenu.tsx
+     17.3 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/Header.tsx
+     16.8 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/builder/organisms/widget-view/lazyWidgets.tsx
+     15.3 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/megaMenu/MegaMenu.tsx
+     15.2 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/queries/blocks.ts
+     14.7 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/routes/$.tsx
+     13.5 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/builder/chromeDefaults.ts
+     13.2 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/builder/prefetch.ts
+     13.2 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/newsletter/popupDesign.ts
+     13.0 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/queries/public.ts
+     12.5 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/ads/consent.ts
+     11.4 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/builder/molecules/SectionTabsBar.tsx
+     10.4 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/postLayouts.ts
+      9.8 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/components/builder/organisms/widget-view/socialHover.ts
+      9.7 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/seo/jsonld.ts
+      9.5 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/seo/meta.ts
+      9.5 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/lucide-shim.tsx
+      8.6 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/builder/postListQuery.ts
+      8.5 kB  /private/tmp/claude-501/-Users-igormiasnikow-Documents-GitHub-neweustrategies-dc633fb5/4193afc7-12e8-408f-90bd-72423fed6163/scratchpad/perf-main/src/lib/footnotes.ts

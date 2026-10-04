@@ -1,0 +1,2 @@
+w0inv-mobile-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=1.34 perf=63 FCP=4068 LCP=4818 TBT=401 SI=4068 TTI=6202
+w0inv-mobile-2 code=0 warm=200 x-nes-cache=HIT raw=390992 load=1.29 perf=70 FCP=3018 LCP=4818 TBT=324 SI=3018 TTI=6083

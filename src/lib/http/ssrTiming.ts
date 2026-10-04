@@ -4,6 +4,15 @@
 // ładowana WYŁĄCZNIE dynamicznie za bramką `import.meta.env.SSR` - statyczny
 // import `@tanstack/react-start/server` z modułu osiągalnego w grafie klienta
 // (documentCache.server -> start.ts) zatrzymuje build na import-protection.
+//
+// Obserwowalność cache'u dokumentów i TTFB (plan PSI 85/95, P0.4 = SC-1 z trzema
+// poprawkami werdyktu): `nes-layer` (który poziom podał dokument) i `colo`
+// (kolonia Cloudflare) w nagłówku, a w linii logu - licznik żądań izolatu
+// (`isoReq`, flaga zimnego startu), `ray`, zgrubna klasa UA, flaga
+// zdegradowanego MISS-a i `streamMs` (koniec body, mierzony owijką strumienia
+// w `src/server.ts`). Wszystko tutaj to czyste funkcje: kształt nagłówka
+// i linii jest testowalny bez runtime'u Workers.
+import { isBotUserAgent } from "./botFilter";
 
 export interface SsrDbTiming {
   /** Liczba round-tripów HTTP do PostgREST/RPC w trakcie renderu. */
@@ -46,6 +55,21 @@ export interface SsrPhaseTiming {
 const METRIC_NAME_RE = /^[A-Za-z0-9_-]{1,32}$/;
 
 /**
+ * Poziom, który PODAŁ dokument: pamięć izolatu (`L1`), Cache API kolonii
+ * (`L2`) albo pełny render (`render`). Status `nes-edge` mówi „czy z cache'a",
+ * a dopiero warstwa mówi „z którego": HIT z L2 to świeży izolat grzany
+ * kolonią, a nie gorący izolat - bez tego rozróżnienia udział zimnych izolatów
+ * w HIT-ach jest niewidoczny.
+ */
+export type NesCacheLayer = "L1" | "L2" | "render";
+
+const NES_CACHE_LAYERS: ReadonlySet<string> = new Set<NesCacheLayer>(["L1", "L2", "render"]);
+
+function isNesCacheLayer(value: string | undefined): value is NesCacheLayer {
+  return value !== undefined && NES_CACHE_LAYERS.has(value);
+}
+
+/**
  * Zbuduj wartość nagłówka Server-Timing dla dokumentu SSR: status NES Edge
  * Cache + czas renderu + (jeśli zmierzono) koszt bazy + (na HIT/STALE) wiek
  * serwowanego wpisu. Czysta funkcja - testowalna bez Response.
@@ -64,6 +88,12 @@ export function buildServerTimingValue(
    * nagłówka dla wołających sprzed tej zmiany zostają bajt w bajt te same.
    */
   phases?: readonly SsrPhaseTiming[] | null,
+  /**
+   * Poziom, który podał dokument (`nes-layer;desc=`). Dopisywany NA SAMYM
+   * KOŃCU i pomijany, gdy brak - jak fazy: nagłówek wołających sprzed tej
+   * zmiany zostaje bajt w bajt ten sam, a `nes-edge` dalej stoi pierwszy.
+   */
+  layer?: NesCacheLayer | null,
 ): string {
   const parts = [`nes-edge;desc="${status}"`];
   if (typeof renderMs === "number" && Number.isFinite(renderMs) && renderMs >= 0) {
@@ -89,7 +119,154 @@ export function buildServerTimingValue(
     if (!Number.isFinite(phase.durationMs) || phase.durationMs < 0) continue;
     parts.push(`${phase.name};dur=${phase.durationMs.toFixed(1)}`);
   }
+  // Wartość spoza listy NIE trafia do nagłówka - opis w cudzysłowie przyjąłby
+  // wszystko, ale RUM (P0.6) i zapytania logów mają dostać zamknięty słownik.
+  if (layer && isNesCacheLayer(layer)) parts.push(`nes-layer;desc="${layer}"`);
   return parts.join(", ");
+}
+
+// ── Kolonia, ray, klasa UA (pola żądania, bez PII) ─────────────────────────
+
+/** Kod kolonii Cloudflare = kod IATA lotniska (trzy wielkie litery). */
+const COLO_RE = /^[A-Z]{3}$/;
+/** `cf-ray`: identyfikator heksadecymalny, opcjonalnie z sufiksem kolonii. */
+const RAY_RE = /^[0-9a-f]{8,32}(?:-[A-Z]{3})?$/i;
+
+/**
+ * Kolonia, która obsłużyła żądanie: `request.cf.colo` (Workers), a gdy go nie
+ * ma (testy, dev, warstwa dispatch hostingu bez `cf`) - sufiks nagłówka
+ * żądania `cf-ray` (`<id>-WAW`). Pole OPCJONALNE: null, gdy żadne źródło nie
+ * daje poprawnego kodu - lepiej brak klucza niż śmieć w histogramie per colo.
+ * Kolonia i tak jest publiczna (sufiks `cf-ray` w odpowiedzi), więc to nie PII.
+ */
+export function resolveRequestColo(cf: unknown, cfRay: string | null | undefined): string | null {
+  if (typeof cf === "object" && cf !== null && "colo" in cf && typeof cf.colo === "string") {
+    const colo = cf.colo.trim().toUpperCase();
+    if (COLO_RE.test(colo)) return colo;
+  }
+  const ray = sanitizeRay(cfRay);
+  if (!ray) return null;
+  const dash = ray.lastIndexOf("-");
+  if (dash < 0) return null;
+  const suffix = ray.slice(dash + 1).toUpperCase();
+  return COLO_RE.test(suffix) ? suffix : null;
+}
+
+/**
+ * `cf-ray` żądania do linii logu - klucz korelacji z zewnętrznymi sondami
+ * (curl/PSI: `time_starttransfer` po ray) i z innymi liniami tego samego
+ * wywołania (np. `[ssr-resilient]`). Wszystko spoza kształtu ray-a odpada:
+ * nagłówek od klienta poza Cloudflare jest dowolnym napisem.
+ */
+export function sanitizeRay(value: string | null | undefined): string | null {
+  const ray = value?.trim() ?? "";
+  return RAY_RE.test(ray) ? ray : null;
+}
+
+/**
+ * Zgrubna klasa user-agenta - JEDYNA informacja o UA, która trafia do logu
+ * (nigdy sam napis). `lighthouse` osobno, bo to on (PSI, Lighthouse CI) jest
+ * celem planu i bo dostaje wariant dokumentu dla automatów (render `allReady`,
+ * nie strumień) - MISS z tej klasy zasiewa cache wariantem bota.
+ */
+export type UaClass = "browser" | "bot" | "lighthouse";
+
+const LIGHTHOUSE_UA_RE = /lighthouse|pagespeed/i;
+
+export function classifyUserAgent(userAgent: string | null | undefined): UaClass {
+  if (LIGHTHOUSE_UA_RE.test(userAgent ?? "")) return "lighthouse";
+  // Ta sama lista co filtr beaconów: brak nagłówka też jest automatem.
+  return isBotUserAgent(userAgent) ? "bot" : "browser";
+}
+
+/**
+ * Wartość Server-Timing dopisywana w `src/server.ts` ZA nagłówkiem potoku
+ * routera: czas startu entry, czas obsługi do oddania Response i (gdy znana)
+ * kolonia. Kształt `server-init`/`app` bez zmian względem wersji sprzed
+ * kolonii - bez kolonii wynik jest bajt w bajt dawnym napisem.
+ *
+ * ŚWIADOMIE BEZ metryki końca strumienia: nagłówki wychodzą PRZED body,
+ * a trailerów HTTP tu nie ma, więc `streamMs` żyje wyłącznie w logu.
+ */
+export function buildEntryServerTimingValue(
+  serverInitMs: number,
+  appMs: number,
+  colo?: string | null,
+): string {
+  const value = `server-init;dur=${serverInitMs}, app;dur=${appMs}`;
+  return colo && COLO_RE.test(colo) ? `${value}, colo;desc="${colo}"` : value;
+}
+
+// ── Koniec strumienia body (streamMs) ──────────────────────────────────────
+
+/** Jak skończył się strumień body: normalnie albo przerwaniem (błąd/anulowanie). */
+export type BodyEndOutcome = "done" | "aborted";
+
+/**
+ * Lustro strumienia `source`, które zgłasza JEDEN raz jego koniec: `done`
+ * tuż PRZED domknięciem (jak `TransformStream.flush()` - kto doczytał body do
+ * końca, ma już linię logu), `aborted` przy błędzie źródła albo NATYCHMIAST
+ * przy anulowaniu przez konsumenta.
+ *
+ * DLACZEGO WŁASNY STRUMIEŃ CIĄGNIONY, A NIE `TransformStream` + `pipeTo`.
+ * Przy `pipeTo` sygnał zerwania przychodzi dopiero wtedy, gdy rozstrzygnie się
+ * anulowanie źródła - a źródłem dokumentu MISS jest gałąź `tee()` zapisu do
+ * cache'a, której `cancel()` z definicji (Streams, ReadableStreamDefaultTee)
+ * czeka, aż anulowana zostanie TAKŻE druga gałąź albo źródło się skończy.
+ * Kolektor zapisu czyta swoją gałąź do końca renderu, więc zerwany klient
+ * dostawałby linię logu po czasie renderu albo - przy wiszącym źródle - wcale.
+ * Ciągnięcie z `highWaterMark: 0` daje to samo, co tożsamościowy transform:
+ * te same obiekty Uint8Array, chunk czytany ze źródła dopiero na żądanie
+ * konsumenta (backpressure bez zmian), a `cancel` dochodzi do źródła.
+ *
+ * Owijamy WYŁĄCZNIE gotową odpowiedź na zewnątrz egzekutora middleware
+ * (`src/server.ts`, za `applyDeferredDocumentStore` i `guardDocumentResponse`)
+ * - podmiana body wewnątrz łańcucha to mechanizm incydentu ~61 s (patrz
+ * documentCache.server.ts). `onEnd` nie może zerwać strumienia: wyjątek
+ * z telemetrii jest połykany.
+ */
+export function observeBodyEnd(
+  source: ReadableStream<Uint8Array>,
+  onEnd: (outcome: BodyEndOutcome) => void,
+): ReadableStream<Uint8Array> {
+  const reader = source.getReader();
+  let reported = false;
+  const report = (outcome: BodyEndOutcome): void => {
+    if (reported) return;
+    reported = true;
+    try {
+      onEnd(outcome);
+    } catch {
+      /* telemetria nie może zerwać dokumentu */
+    }
+  };
+  return new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        let chunk: ReadableStreamReadResult<Uint8Array>;
+        try {
+          chunk = await reader.read();
+        } catch (error) {
+          report("aborted");
+          controller.error(error);
+          return;
+        }
+        if (chunk.done) {
+          report("done");
+          controller.close();
+          return;
+        }
+        controller.enqueue(chunk.value);
+      },
+      cancel(reason) {
+        report("aborted");
+        // Jak strażnik dokumentu: odrzucone anulowanie źródła nie ma dokąd
+        // pójść (konsument już odszedł), więc nie wypuszczamy go wyżej.
+        return reader.cancel(reason).catch(() => undefined);
+      },
+    },
+    { highWaterMark: 0 },
+  );
 }
 
 // ── Log dokumentu do Workers Logs (audyt 0.1 / F40) ─────────────────────────
@@ -171,10 +348,53 @@ export interface DocumentLogLine {
   revalidation: boolean;
   serverInitMs: number;
   appMs: number;
+  /**
+   * Od wejścia żądania do KOŃCA body (ta sama baza co `appMs`), mierzone
+   * owijką strumienia w `src/server.ts`; `streamMs - appMs` = ogon
+   * strumieniowania. Brak klucza: odpowiedź bez body (HEAD, 204) albo
+   * rewalidacja w tle (nikt jej nie czyta).
+   */
+  streamMs?: number;
+  /** Tylko gdy body NIE domknęło się normalnie (zerwanie klienta, błąd źródła). */
+  streamEnd?: "aborted";
+  /** Poziom, który podał dokument (`nes-layer` z Server-Timing potoku). */
+  layer?: NesCacheLayer;
+  /** Kolonia Cloudflare (`request.cf.colo` albo sufiks `cf-ray`). */
+  colo?: string;
+  /**
+   * Numer żądania w tym izolacie (1 = pierwsze = zimny start). Brak klucza na
+   * rewalidacji w tle - ona nie jest żądaniem, które przyszło do izolatu.
+   */
+  isoReq?: number;
+  /**
+   * Sekundy od PIERWSZEGO żądania tego izolatu (znacznik brany leniwie przy
+   * pierwszym żądaniu, nie w zasięgu modułu: zegar Workers nie biegnie
+   * w czasie czystej pracy CPU, więc „wiek modułu" byłby fikcją).
+   */
+  isoAgeS?: number;
+  /** Zgrubna klasa UA - nigdy sam napis user-agenta. */
+  uaClass?: UaClass;
+  /** `cf-ray` żądania: klucz korelacji z sondami zewnętrznymi i liniami wywołania. */
+  ray?: string;
+  /**
+   * Tylko dla MISS-a pełnego dokumentu (200, HTML): czy render wyszedł
+   * zdegradowany, czyli polityka zapisu odmówiła mu wspólnego cache'a
+   * (`private, no-store` z odpornego loadera) - ta sama definicja co
+   * `degradedRevalidation` w documentCache.server.ts. KTÓRY loader się
+   * zdegradował, mówi linia `[ssr-resilient] ... for <etykieta>` z tego
+   * samego wywołania (korelacja po wywołaniu Workers / `ray`).
+   */
+  degraded?: boolean;
   edgeRoutingMs?: number;
   ssrMs?: number;
   dbMs?: number;
   dbCount?: number;
+}
+
+/** Próbka licznika izolatu z `src/server.ts` (patrz `isoReq`/`isoAgeS`). */
+export interface IsolateSample {
+  isoReq: number;
+  isoAgeS: number;
 }
 
 export interface DocumentLogInput {
@@ -186,6 +406,15 @@ export interface DocumentLogInput {
   serverInitMs: number;
   appMs: number;
   revalidation?: boolean;
+  streamMs?: number;
+  streamEnd?: BodyEndOutcome;
+  colo?: string | null;
+  isolate?: IsolateSample | null;
+  /** Surowy nagłówek `user-agent` - do logu trafia WYŁĄCZNIE jego klasa. */
+  userAgent?: string | null;
+  /** Surowy nagłówek `cf-ray` - do logu trafia tylko po walidacji kształtu. */
+  cfRay?: string | null;
+  degraded?: boolean;
 }
 
 /** Ścieżka w logu ma górny limit - URL od klienta może mieć kilobajty. */
@@ -196,6 +425,7 @@ const LOG_PATH_MAX = 2048;
  * metryki = brak klucza (nie zero), żeby w logach dało się odróżnić „render
  * trwał 0 ms" od „tego żądania render nie dotyczył" (HIT z cache).
  * `dbCount` czyta `desc="n=18"` metryki `db` - kontrakt `buildServerTimingValue`.
+ * Ta sama zasada dla pól żądania: brak/nieczytelne źródło = brak klucza.
  */
 export function buildDocumentLogLine(input: DocumentLogInput): DocumentLogLine {
   const line: DocumentLogLine = {
@@ -207,6 +437,8 @@ export function buildDocumentLogLine(input: DocumentLogInput): DocumentLogLine {
     serverInitMs: safeMs(input.serverInitMs),
     appMs: safeMs(input.appMs),
   };
+  if (typeof input.streamMs === "number") line.streamMs = safeMs(input.streamMs);
+  if (input.streamEnd === "aborted") line.streamEnd = "aborted";
   for (const entry of parseServerTiming(input.serverTiming)) {
     if (entry.name === "edge-routing" && entry.durationMs !== undefined) {
       line.edgeRoutingMs = entry.durationMs;
@@ -216,8 +448,20 @@ export function buildDocumentLogLine(input: DocumentLogInput): DocumentLogLine {
       line.dbMs = entry.durationMs;
       const count = /^n=(\d+)$/.exec(entry.description ?? "");
       if (count) line.dbCount = Number.parseInt(count[1], 10);
+    } else if (entry.name === "nes-layer" && isNesCacheLayer(entry.description)) {
+      line.layer = entry.description;
     }
   }
+  if (input.colo && COLO_RE.test(input.colo)) line.colo = input.colo;
+  const isolate = input.isolate;
+  if (isolate && Number.isSafeInteger(isolate.isoReq) && isolate.isoReq > 0) {
+    line.isoReq = isolate.isoReq;
+    line.isoAgeS = Math.round(safeMs(isolate.isoAgeS));
+  }
+  if (input.userAgent !== undefined) line.uaClass = classifyUserAgent(input.userAgent);
+  const ray = sanitizeRay(input.cfRay);
+  if (ray) line.ray = ray;
+  if (typeof input.degraded === "boolean") line.degraded = input.degraded;
   return line;
 }
 
