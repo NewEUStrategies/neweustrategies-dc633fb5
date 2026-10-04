@@ -1,10 +1,12 @@
 // Server function: analityka silnika rekomendacji per tenant.
 // Woła RPC `related_posts_signals` (SECURITY DEFINER, admin-gated w SQL) i
-// pakuje wynik w typowany DTO gotowy dla wykresów ECharts na
-// /admin/related-posts (zakładka Analiza).
+// pakuje wynik w typowany DTO, z którego panel `RelatedPostsAnalytics` na
+// /admin/related-posts (zakładka Analiza) buduje konfiguracje wykresów
+// (`biChart` -> `ChartCard`, nasz silnik SVG).
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { requireAnalyticsAdmin } from "@/lib/analytics/gateway.server";
 
 export interface TopCategory {
   category_id: string;
@@ -84,13 +86,9 @@ export const getRelatedInsights = createServerFn({ method: "POST" })
       .parse(i ?? {}),
   )
   .handler(async ({ data, context }): Promise<RelatedInsightsResult> => {
-    // Admin gate (tenant-scoped przez has_role -> current_tenant_id()).
-    const { data: isAdmin, error: roleErr } = await context.supabase.rpc("has_role", {
-      _user_id: context.userId,
-      _role: "admin",
-    });
-    if (roleErr) throw new Error(roleErr.message);
-    if (!isAdmin) throw new Error("Forbidden: admin role required");
+    // Admin gate (tenant-scoped przez has_role -> current_tenant_id()) - wspólna
+    // bramka analityki (`gateway.server.ts`), PRZED odczytem sygnałów.
+    await requireAnalyticsAdmin(context);
 
     // Najemca NIE jest parametrem: RPC bierze go z assert_admin_tenant()
     // (profil wołającego), więc podmiana uuid w żądaniu nic nie daje.

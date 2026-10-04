@@ -511,8 +511,19 @@ export function DemoBotChat({ lang, onBack }: DemoBotChatProps) {
             </span>
           </button>
           <textarea
+            data-chat-composer-input
             ref={textareaRef}
             value={input}
+            autoComplete="one-time-code"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            inputMode="text"
+            enterKeyHint="send"
+            data-form-type="other"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            data-bwignore="true"
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {

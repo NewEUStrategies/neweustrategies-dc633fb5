@@ -26,6 +26,12 @@ import { readFileSync } from "node:fs";
 /** Bramki, które NIE należą do zestawu statycznego - klucz: powód. */
 const EXCLUDED: Readonly<Record<string, string>> = {
   "check:first-visit-regression": "porównuje artefakty Playwright - workflow first-visit",
+  // Renderuje `/` z `.output/server/index.mjs` (artefakt `build:smoke`) na
+  // backendzie fixture. Bez artefaktu pada na „Brak .output/server/index.mjs",
+  // a ze starym `.output` mierzy CUDZY stan drzewa - w obu przypadkach wynik
+  // nie mówi nic o zmianie, którą ktoś właśnie wypycha. W CI jedzie w
+  // workflow first-visit na świeżo zbudowanym artefakcie kandydata.
+  "check:document-weight": "renderuje `/` z artefaktu build:smoke (.output) - workflow first-visit",
   "check:bundle": "mierzy artefakt buildu (.output) - wymaga `bun run build`",
   "check:chunks": "graf chunków z artefaktu buildu",
   "check:entry-purity": "chunk startowy z artefaktu buildu",

@@ -23,20 +23,28 @@
 //      danych", a nie pokazać pusty wykres.
 //
 // GRANICE vs SĄSIEDZI. Atrapowane są WYŁĄCZNIE granice: klient Supabase (samo
-// `rpc`), i18n oraz `EChart` - silnik wykresów doładowuje się leniwie i rysuje
-// po canvasie, którego happy-dom nie ma. Atrapa wykresu jest przy okazji
-// jedynym sposobem, żeby zobaczyć, JAKIE DANE panel do wykresu podaje.
+// `rpc`), i18n, najemca (`@/lib/tenant` - prawdziwy hook ciągnąłby sesję
+// `useAuth`, której harness tras nie ma) oraz silnik wykresów
+// (`@/components/charts/Chart`) - atrapa wystawia konfigurację, bo to ona,
+// a nie obraz, jest tu przedmiotem dowodu (patrz komentarz przy atrapie).
 // PRAWDZIWE biegną: atom `Stat` i `DatePickerField` (sąsiedzi z
 // `@/components/admin/coupons/*`).
 //
 // ZERO SIECI, ZERO danych osobowych - agregaty nie niosą tożsamości.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { axeViolations, summarize } from "@/test/axe";
 
 const h = vi.hoisted(() => ({
   rpc: vi.fn(),
   lang: "pl",
+  tenantId: null as string | null,
+}));
+
+// Najemca jako ATRAPA (wzór: `vitalsBiDashboard.test.tsx`): klucz zapytania
+// niesie najemcę, a odczyt rusza dopiero przy ustalonym najemcy.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -62,10 +70,12 @@ vi.mock("@/components/charts/Chart", () => ({
 }));
 
 import { renderRoute } from "@/test/routeHarness";
+import { analyticsCouponsKey } from "@/lib/analytics/queryKeys";
 import { Route as AnalyticsRoute } from "@/routes/admin.coupons.analytics";
 
 const PATH = "/admin/coupons/analytics";
 const RPC = "b2b_coupons_analytics";
+const TENANT = "tenant-kupony";
 
 /**
  * Dzień kalendarza używany w testach zakresu dat - ZAWSZE inny niż dzisiejszy.
@@ -201,6 +211,7 @@ function daneWykresu(): { kody: string[]; wartosci: number[] } {
 
 beforeEach(() => {
   h.lang = "pl";
+  h.tenantId = TENANT;
   h.rpc.mockReset();
   zBazy([]);
 });
@@ -265,6 +276,36 @@ describe("trasa /admin/coupons/analytics - sklejenie i zakres", () => {
     const doChwili = Date.parse(argumentyRpc()._to);
     expect(Number.isNaN(doChwili)).toBe(false);
     expect(Math.abs(Date.now() - doChwili)).toBeLessThan(60_000);
+    cleanup();
+  });
+});
+
+describe("trasa /admin/coupons/analytics - najemca w kluczu", () => {
+  it("agregaty leżą w cache'u pod kluczem z najemcą i zakresem", async () => {
+    zBazy([wiersz()]);
+    const view = await zamontuj();
+    await waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
+    const { _from, _to } = argumentyRpc();
+
+    await waitFor(() =>
+      expect(view.queryClient.getQueryState(analyticsCouponsKey(TENANT, _from, _to))?.status).toBe(
+        "success",
+      ),
+    );
+    cleanup();
+  });
+
+  it("bez ustalonego najemcy nie pyta bazy i nie twierdzi „Brak danych” pod wykresem", async () => {
+    // Wyłączone zapytanie ma `isLoading: false`: bez `!tenantId` karta
+    // rankingu mówiłaby „Brak danych." - zakres bez sprzedaży - zanim
+    // ktokolwiek zapytał bazę.
+    h.tenantId = null;
+    const view = await zamontuj();
+    await act(async () => {});
+
+    expect(h.rpc).not.toHaveBeenCalled();
+    expect(screen.getByText("Wczytywanie…")).toBeInTheDocument();
+    expect(within(view.container).queryByTestId("wykres")).toBeNull();
     cleanup();
   });
 });

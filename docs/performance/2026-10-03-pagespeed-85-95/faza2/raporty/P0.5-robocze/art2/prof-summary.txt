@@ -1,0 +1,3 @@
+prof-mobile-1 code=0 warm=200 x-nes-cache=HIT raw=391098 load=9.78 perf=79 FCP=3308 LCP=4058 TBT=111 SI=3308 TTI=4691
+prof-mobile-2 code=0 warm=200 x-nes-cache=HIT raw=391098 load=10.20 perf=71 FCP=3209 LCP=5131 TBT=208 SI=3209 TTI=5131
+prof-desktop-1 code=0 warm=200 x-nes-cache=HIT raw=391098 load=10.60 perf=97 FCP=904 LCP=1098 TBT=0 SI=904 TTI=1098

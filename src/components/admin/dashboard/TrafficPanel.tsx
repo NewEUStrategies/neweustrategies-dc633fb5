@@ -15,7 +15,11 @@ import { biChart } from "@/components/admin/analytics/biChart";
 import { chartLangFrom } from "@/lib/charts/format";
 import { computeDelta, formatCount, formatDecimal, rate } from "@/lib/admin/dashboard/compare";
 import { bucketLabel, dashboardRangeLabel } from "@/lib/admin/dashboard/labels";
-import type { DashboardRange } from "@/lib/admin/dashboard/period";
+import {
+  ANALYTICS_EVENTS_RETENTION_MONTHS,
+  previousBeyondRetention,
+  type DashboardRange,
+} from "@/lib/admin/dashboard/period";
 import type { TrafficReport } from "@/lib/admin/dashboard/types";
 import { StatTile } from "./StatTile";
 import { RankedList } from "./RankedList";
@@ -69,6 +73,16 @@ export function TrafficPanel({ report, range }: TrafficPanelProps) {
   const perSession = rate(current.pageViews, current.sessions);
   const prevPerSession = rate(previous.pageViews, previous.sessions);
 
+  // BEZ PORÓWNANIA ZA HORYZONTEM RETENCJI. Gdy okres odniesienia sięga dalej niż
+  // `analytics_events` trzyma zdarzenia (w praktyce zakładka „Rok"), baza
+  // zwraca dla niego zera albo wycinek - nie dlatego, że ruchu nie było, tylko
+  // dlatego, że go usunęliśmy. Odznaka „brak odniesienia" z podpowiedzią
+  // „poprzedni okres był pusty" twierdziłaby wtedy nieprawdę, a procent z
+  // przyciętej podstawy - jeszcze większą. Chowamy więc WSZYSTKIE delty sekcji
+  // i mówimy raz, dlaczego. Predykat jest czysty i testowany w `period.ts`.
+  const noComparison = previousBeyondRetention(range);
+  const delta = (cur: number, prev: number) => (noComparison ? undefined : computeDelta(cur, prev));
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-xs font-medium text-foreground">
@@ -84,24 +98,24 @@ export function TrafficPanel({ report, range }: TrafficPanelProps) {
         <StatTile
           label={t("adminDashboard.traffic.sessions")}
           value={formatCount(current.sessions, lang)}
-          delta={computeDelta(current.sessions, previous.sessions)}
+          delta={delta(current.sessions, previous.sessions)}
           icon={<Users className="w-4 h-4" aria-hidden="true" />}
         />
         <StatTile
           label={t("adminDashboard.traffic.pageViews")}
           value={formatCount(current.pageViews, lang)}
-          delta={computeDelta(current.pageViews, previous.pageViews)}
+          delta={delta(current.pageViews, previous.pageViews)}
           icon={<Eye className="w-4 h-4" aria-hidden="true" />}
         />
         <StatTile
           label={t("adminDashboard.traffic.visitors")}
           value={formatCount(current.visitors, lang)}
-          delta={computeDelta(current.visitors, previous.visitors)}
+          delta={delta(current.visitors, previous.visitors)}
         />
         <StatTile
           label={t("adminDashboard.traffic.members")}
           value={formatCount(current.members, lang)}
-          delta={computeDelta(current.members, previous.members)}
+          delta={delta(current.members, previous.members)}
           icon={<UserCheck className="w-4 h-4" aria-hidden="true" />}
         />
         <StatTile
@@ -112,12 +126,19 @@ export function TrafficPanel({ report, range }: TrafficPanelProps) {
           value={perSession === null ? "-" : formatDecimal(perSession, lang)}
           delta={
             perSession !== null && prevPerSession !== null
-              ? computeDelta(perSession, prevPerSession)
+              ? delta(perSession, prevPerSession)
               : undefined
           }
           icon={<Globe2 className="w-4 h-4" aria-hidden="true" />}
         />
       </div>
+      {noComparison ? (
+        <p className="text-[11px] text-muted-foreground">
+          {t("adminDashboard.traffic.noComparisonRetention", {
+            months: ANALYTICS_EVENTS_RETENTION_MONTHS,
+          })}
+        </p>
+      ) : null}
 
       <ChartCard
         title={t("adminDashboard.traffic.chartTitle")}

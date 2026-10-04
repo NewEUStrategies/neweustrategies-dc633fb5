@@ -1,0 +1,261 @@
+{
+  "key": "lighthouse-analyst",
+  "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst.md",
+  "summary": "PSI 53/70 decomposes exactly (score.py reproduces 14/14 reports). Mobile lost points: LCP 23, TBT 15, FCP 5.4, SI 3.5. Desktop: TBT 26.4 of 30. Lantern facts (source-verified): module chunks that finish before observed FCP/LCP always count, so mobile FCP≈0.9s+5.1ms/KB and LCP≈0.9s+6ms/KB of the ~800 KB pre-LCP set (boot JS 554 KB is 70% of it). Document TTFB is not simulated and hurts only SI (×1.4 observed SI). TBT is threshold-convex: fixture mobile CPU ×2/×4/×8 gives 67/356/1443 ms, desktop ×4 gives 444 ms; post-FCP CPU −50% or tasks ≤12 ms gives 0–78 ms. Projected: TBT fix alone → 66/95; plus byte diet → 73–85; plus boot-after-LCP → 91–95 mobile. Mobile 85 needs pre-LCP set ≤300 KB AND TBT ≤200–250; desktop 95 needs TBT ≤110 ms on a ~4× slower CPU.",
+  "findings": [
+    {
+      "id": "LA-F1",
+      "severity": "critical",
+      "metric": "FCP,LCP,SI (mobile)",
+      "claim": "Every High-priority module chunk that finished before the observed paint stays in Lantern's FCP and LCP graphs. Modules emit no EvaluateScript with a URL, so Lantern cannot prove they are non-blocking. Mobile FCP/LCP are therefore a linear function of the bytes in that set (≈5.1 ms/KB FCP, ≈6 ms/KB LCP at 1.6 Mb/s); CPU before FCP is under 2% of FCP.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/tools/node_modules/@paulirish/trace_engine/models/trace/lantern/metrics/FirstContentfulPaint.js:20-60 (line 54 'can't conclude... skip'), :104; /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/tools/node_modules/@paulirish/trace_engine/models/trace/lantern/metrics/LargestContentfulPaint.js:19-48; trace /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/artifacts/lha1-mobile/trace.json has 79 v8.compileModule events with URL, 22 v8.evaluateModule without URL, 0 EvaluateScript for chunks; /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/sim/parity-mobile-fcp-pess.txt: FCP 3974 = doc 919 + CSS + 526 KB JS drained serially on h2, terminal node index-*.js 230 KB (1200 ms); what-if P_preFCPcpu0: FCP −55 ms only; per-KB slope from batch1/3: entry −138 KB gives FCP −600/LCP −675, all byte cuts (≈300 KB) give FCP −1351/LCP −1426"
+    },
+    {
+      "id": "LA-F2",
+      "severity": "critical",
+      "metric": "LCP (mobile)",
+      "claim": "The production pre-LCP set is ≈800 KB transfer: boot-js 554, doc 89, CSS 79, fonts 45, hero 38, flock 8. Mobile LCP ≤2.8 s needs this set ≤≈300 KB. A byte diet alone (−300 KB) reaches LCP ≈5.2 s on PSI if PSI's extra 1.6 s FCP→LCP gap persists, which is not enough. The JS must either finish after the observed LCP (boot after LCP) or shrink to ≤≈150 KB.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/prod-mobile.analysis.txt: 31 High requests, 711.6 KB ended before obs LCP 3303 ms + doc 89 KB; byte stages a<=FCP boot-js 497 KB + vendor-supabase 57 KB; what-if P_jsAfterLCP (drop scripts ended before LCP): FCP 3974→1367, LCP 4819→2117, perf 65→78; with post50/cap12: 92–95 (batch2/3.out)"
+    },
+    {
+      "id": "LA-F3",
+      "severity": "critical",
+      "metric": "TBT (mobile+desktop)",
+      "claim": "TBT is threshold-convex in host speed and task length. 180 React hydration slices of 9–14 ms (sandbox) become 36–56 ms under ×4, right at the 50 ms threshold. A 95.6 ms commit and 3 whole-document style recalcs (31–37 ms) dominate. Halving post-FCP CPU or capping tasks at ≤12 ms obs removes 80–100% of TBT.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/batch2.out: mobile cpu ×2/3/4/6/8/12 → TBT 67/174/356/910/1443/3033; desktop ×1.5/2/3/4/5 → 9/25/254/444/765; P_post50 67, P_cap12 0, P_react50 142; batch3 D4_post50 78, D4_cap12 0, D4_cap20 127, D4_react50 206; attrib.py: mobile ×4 latent 793 ms = React slices 458 (58%), post-hydration recalcs 110, consent/popup chunks 92, other 112; tasks.py: obs 680 ms task 95.6 ms vendor-react, obs 776/1664 ms UpdateLayoutTree 37/32 ms"
+    },
+    {
+      "id": "LA-F4",
+      "severity": "high",
+      "metric": "TBT window coupling",
+      "claim": "The TBT window starts at FCP_sim. Today about 55% of the latent blocking falls before the late mobile FCP_sim (3.1–4 s) and is not counted. Any FCP/LCP win (byte diet, fetchpriority=low, boot after LCP) raises TBT unless the main-thread fix lands first.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/batch1.out: P TBT 356 → P_jsAfterLCP 885, P_scriptsLow 873 (FCP 3974→1367); attrib.py latent 793 vs reported 356; score: W3-only projection mobile 77, desktop 71 vs 91–95 with W1"
+    },
+    {
+      "id": "LA-F5",
+      "severity": "high",
+      "metric": "TBT desktop (PSI)",
+      "claim": "PSI desktop TBT 740 ms implies a host ≈6× slower than the M3 (≈3–5× slower than the sandbox). The M3 longest post-FCP task is 42–48 ms, so TBT is 0 there. The mobile and desktop PSI samples imply inconsistent host speeds (one sample each; 10-02 gave 760/450, 10-03 gave 600/740). Reliable proxy: sandbox desktop preset with cpuSlowdownMultiplier=4 (fixture 444 ms); target there ≤110 ms.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/prod-desktop.analysis.txt top observed tasks (7983,42),(3623,41),(3859,34); naive scaling k=6 → 671 ms; batch2 desktop ×4=444, ×5=765; EVIDENCE.md §1 table"
+    },
+    {
+      "id": "LA-F6",
+      "severity": "high",
+      "metric": "SI (and TTFB)",
+      "claim": "Document TTFB is not simulated: Lantern uses the per-origin median server time, 238 ms in prod instead of the 2 750 ms MISS. TTFB reaches the score only through Speed Index = max(FCP, 1.4·observedSI + 0.4·layoutSI) on mobile and 0.575/0.49 on desktop. That is the whole SI 7.1 s (local MISS) vs 4.9 s (PSI) anomaly. MISS→HIT is worth ≈+2.6 mobile / +1.3 desktop vs PSI-now, and a full Prague-like MISS costs −3.4 / −4.8.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/tools/node_modules/@paulirish/trace_engine/models/trace/lantern/core/NetworkAnalyzer.js:443 (median); /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/tools/node_modules/@paulirish/trace_engine/models/trace/lantern/simulation/ConnectionPool.js:40; /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/tools/node_modules/@paulirish/trace_engine/models/trace/lantern/metrics/SpeedIndex.js:14-15,54; prod-mobile: 1.4×3449+0.4×5722=7117; prod-desktop 0.575×3801+0.49×1081=2717; network-server-latency neweuropeanstrategies.com 238 ms"
+    },
+    {
+      "id": "LA-F7",
+      "severity": "medium",
+      "metric": "FCP/LCP desktop+mobile",
+      "claim": "Same-origin static-asset server latency (Lantern origin median) is a real lever. 19→238 ms costs desktop FCP +219/LCP +339 ms (−3 to −4 pts) and mobile +219/+294 (−1 pt). Production measured 238 ms from Prague.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/whatif srt runs: mobile 65/64/64/61/58 and desktop 98/97/95/90/78 for 19/100/238/500/1000 ms; prod-mobile network-server-latency 238 ms"
+    },
+    {
+      "id": "LA-F8",
+      "severity": "medium",
+      "metric": "LCP (PSI gap)",
+      "claim": "The hero is not JS-gated in SSR (opacity:1, fetchpriority=high, eager, at byte 177 712 after a 103 KB header). The opacity:0/fetchpriority=low snippet in LH is the end-of-run DOM after slider rotation. On the M3 and the fixture, obs LCP is within one frame of FCP and before DCL. PSI's 3.5 s FCP→LCP gap implies ≈130 KB more in the LCP set, i.e. obs LCP after DCL on a slow host (late paint behind parse/module eval). Unverified without a PSI JSON.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/psi/home.html first eh-img <img ... fetchPriority=\"high\" style=\"opacity:1\"> at byte 177712, <header> 49107..152212; /home/user/neweustrategies-dc633fb5/src/lib/builder/sliderVariants.tsx:378-384; lha1 trace LCP candidate 375 ms = FCP 375, DCL 371; prod-mobile obs FCP 3252 / LCP 3303 / DCL 3344"
+    },
+    {
+      "id": "LA-F9",
+      "severity": "medium",
+      "metric": "measurement validity",
+      "claim": "Fixture limits. The http/1.1 proxy inflated FCP by 940 ms (h2 what-if: perf 58→64); POMIAR h2 artifactServer fixes this. Hero on a separate origin with 113 KB JPEG vs 38 KB webp. No gtag, consent decision or refetch rerenders. HTML 382 vs 569 KB, DOM 1118 vs 1398. Origin median 19 vs 238 ms. TTFB always HIT, so SI is clamped to FCP and unmeasurable. Desktop ×1 on the sandbox is far faster than PSI desktop.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/batch1.out (h2: FCP 4911→3974, LCP 5568→5269); devtoolslog protocols http/1.1 ×86 vs prod h2 107/h3 14; dom-size-insight 1118 vs 1398; baseline2 SI==FCP in 6/6 runs"
+    },
+    {
+      "id": "LA-F10",
+      "severity": "low",
+      "metric": "none (cosmetic)",
+      "claim": "Forced reflow, non-composited animations, 99 user timings and cache TTL do not move the score. Render-blocking CSS savings (410–460 ms) are illusory while JS dominates the FCP set: CSS −70% gives FCP 0 ms, LCP −225. Unused JS and long tasks are score-relevant.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/prod-mobile.analysis.txt diagnostics block (forced-reflow score 1 no savings; non-composited metricSavings CLS 0; user-timings notApplicable); batch1 P_css30 FCP 3974 unchanged"
+    },
+    {
+      "id": "LA-F11",
+      "severity": "medium",
+      "metric": "LCP score curve",
+      "claim": "At PSI mobile LCP 6.6 s the score is back-loaded: −1 s LCP = +2.3 pts, −2 s = +6.6, −3 s = +13.2, −4 s = +19.8. Incremental byte work shows little score movement until LCP < ~4.5 s; judge it by LCP ms, not by score.",
+      "evidence": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/lighthouse-analyst/score.py sensitivity at PSI operating point"
+    }
+  ],
+  "changes": [
+    {
+      "id": "LA-C1",
+      "title": "Main-thread task-length program (hydration yielding, commit split, no whole-document style invalidation after hydration) with a CI gate on blocking time under 4x CPU",
+      "files": [
+        "src/router.tsx (hydrate path, keep setTimeout(0) at :210)",
+        "src/routes/__root.tsx",
+        "src/lib/builder/* widget render (owned by hydration workstream)",
+        "src/components/*Style components / theme css injection (whole-doc recalc triggers)",
+        "scripts/performance/firstVisitMainThread.ts (gate)",
+        "playwright.performance.config.ts"
+      ],
+      "mechanism": "Cut post-FCP CPU about 50% and keep every task under ~12 ms obs on the sandbox (~6 ms on M3): selective hydration (per-widget Suspense or idle hydration of below-fold widgets and the footer/mega menus), split the single 95 ms commit, avoid <style>/<html>-attribute mutations that force full-document recalcs (3 × 31–37 ms obs). Gate: sum of max(0, 4·dur−50) over post-FCP longtasks on the fixture with CDP CPU throttle 4.",
+      "metric": "TBT mobile+desktop",
+      "expected_effect": "Fixture: mobile TBT 356→0–67 ms, desktop@cpu4 444→0–78 ms. PSI projection: mobile 600→~150 (+13 pts, 53→66), desktop 740→~100 (+25 pts, 70→95).",
+      "estimate_basis": "what-if P_post50 / P_cap12 / D4_post50 / D4_cap12 in batch2/3.out (deterministic Lantern re-runs on the saved trace); score.py",
+      "risk": "high",
+      "risk_notes": "Hydration parity (SSR HTML must match), the chunk-cycle doctrine and setTimeout(0) are unchanged; yielding changes effect ordering; INP before full hydration.",
+      "gates": [
+        "SSR/hydration parity tests",
+        "check:chunks",
+        "check:entry-purity",
+        "check:bundle",
+        "noHasSelectors",
+        "test:e2e:performance (first-visit main-thread)"
+      ],
+      "verification": "measure-ab mobile ≥5 runs median TBT; desktop with --throttling.cpuSlowdownMultiplier=4; attrib.py on a gathered trace must show React slices ≤12 ms obs; whatif.py rerun of the candidate trace.",
+      "effort": "XL",
+      "depends_on": []
+    },
+    {
+      "id": "LA-C2",
+      "title": "Keep gtag/AW and the consent+popup chunk group out of the Lighthouse TBT window, or chunk their work",
+      "files": [
+        "src/lib/analytics/gtagLoadPolicy.ts:14-25,59,106",
+        "src/components/*ConsentScriptInjector*",
+        "ConsentBanner / PopupHost lazy mount"
+      ],
+      "mechanism": "gtag accounts for 153 of 202 ms TBT on the M3 run (the AW task alone is a 183 ms sim task). The consent/radix/sonner/popup group is 92–111 ms latent on the fixture. Load gtag only on interaction or consent, with a fallback after TTI that LH does not observe; or delay the consent chunk until after the first idle period following hydration, and split its mount.",
+      "metric": "TBT",
+      "expected_effect": "Mobile −120…−180 ms TBT on PSI (+3–5 pts); desktop −100…−250 ms.",
+      "estimate_basis": "prod-mobile long-tasks (gtag 133+20 blocking of 202); attrib.py third-party bucket; scaling k from LA-F5",
+      "risk": "medium",
+      "risk_notes": "Analytics coverage (page_view loss for short visits) is a business decision; consent compliance.",
+      "gates": ["gtagLoadPolicy tests (19)", "consent e2e"],
+      "verification": "PSI/LH run: third-parties-insight mainThreadTime ≈0 within TTI; long-tasks list shows no googletagmanager entries.",
+      "effort": "M",
+      "depends_on": []
+    },
+    {
+      "id": "LA-C3",
+      "title": "Pre-LCP byte budget as a CI ratchet (requests issued before LCP: doc + CSS + fonts + hero + modulepreload/Link JS)",
+      "files": [
+        "scripts/performance/documentWeight.ts",
+        "scripts/performance/document-weight-budgets.json (preloadedJsGzipBytes 561750 → target 153600)",
+        "scripts/performance/check-document-weight.ts",
+        "src/lib/http/frameworkPreloads.server.ts:14-28"
+      ],
+      "mechanism": "Lantern LCP ≈ 0.9 s + 6 ms/KB × the pre-LCP set (mobile). Add a single 'preLcpTransferBytes' metric (brotli of doc + render-blocking CSS + preloaded fonts + LCP image + every High JS preloaded or statically imported before boot). Ratchet it toward ≤300 KB. Remove stray route modulepreloads from the Link header (admin.analytics, blog.index, Footnotes, headings, useInFeedAds, prepareContent, eventInvoiceMath, PaginatedPostGrid).",
+      "metric": "FCP, LCP (mobile), SI",
+      "expected_effect": "Each −100 KB gives ≈−0.5 s FCP/−0.6 s LCP mobile and −0.08 s desktop. The full byte diet (≈−300 KB) gives fixture 65→83 (+post50: 88); PSI 53→73 (gap persists) or 85 (gap collapses), together with LA-C1.",
+      "estimate_basis": "batch1/3 what-ifs (entry40/60, supabase, css30, html55, stray, dict, M_bytes_all*) and sim/parity-mobile-lcp-pess.txt drain model",
+      "risk": "low",
+      "risk_notes": "The gate itself is low risk; the byte cuts belong to boot-js/css/html-weight (chunk-cycle doctrine applies).",
+      "gates": [
+        "check:ssr-budgets",
+        "check-document-weight",
+        "check:bundle",
+        "check:chunks",
+        "check:loader-policy"
+      ],
+      "verification": "analyze.py on candidate LH JSON: 'High/VeryHigh non-doc requests ENDED before obs LCP' KB; LCP sim delta in measure-ab.",
+      "effort": "S",
+      "depends_on": []
+    },
+    {
+      "id": "LA-C4",
+      "title": "Boot after LCP (Path B): start the entry import only after the LCP image has painted (with interaction and timeout fallbacks); intermediate B-lite: fetchpriority=low on boot modulepreloads",
+      "files": [
+        "src/lib/http/frameworkPreloads.server.ts:8-34 (no boot modulepreload in Link)",
+        "src/routes/__root.tsx head scripts / entry script tag",
+        "src/router.tsx (hydrate start)",
+        "src/lib/builder/sliderVariants.tsx:378 (hero node must stay stable)"
+      ],
+      "mechanism": "Requests that start after the observed LCP are excluded from the Lantern FCP/LCP graphs (FirstContentfulPaint.js:104). Inline loader: a PerformanceObserver('largest-contentful-paint') first entry plus rAF, or the first input, or 1.5 s triggers import(entry) and injects modulepreloads. B-lite (Low priority) removes JS from the FCP set only (FCP −2.6 s) and leaves LCP unchanged. The hero element must not be re-created or repainted larger by hydration, or obs LCP moves after JS.",
+      "metric": "FCP, LCP, SI (mobile); FCP/LCP desktop",
+      "expected_effect": "Fixture alone 65→78 (FCP 3974→1367, LCP 4819→2117, TBT 356→885). With LA-C1: 92–95 mobile and 99–100 desktop@cpu4. PSI projection with W1: mobile 91–95, desktop ~96.",
+      "estimate_basis": "what-if P_jsAfterLCP, M_jsLCP_*, D4_jsLCP_* (batch1-4); score.py scenarios",
+      "risk": "high",
+      "risk_notes": "Later hydration: header menu, search and slider interactivity wait one JS download; INP for early taps; doctrine (setTimeout(0) before hydrate, entry module cannot move). It raises TBT if shipped without LA-C1. The LCP element must stay stable.",
+      "gates": [
+        "SSR/hydration parity tests",
+        "check:chunk-parity",
+        "check:entry-purity",
+        "boot-probe artifact tests",
+        "LCP element assertion = img.eh-img in measure harness"
+      ],
+      "verification": "LH JSON: no Script request with networkEndTime ≤ observedLargestContentfulPaint (analyze.py); FCP/LCP sim deltas in measure-ab; LCP element unchanged.",
+      "effort": "L",
+      "depends_on": ["LA-C1"]
+    },
+    {
+      "id": "LA-C5",
+      "title": "Hero-first HTML: move the LCP hero ahead of the 103 KB header payload (header <style> blocks and mega-menu markup after main, or deferred)",
+      "files": [
+        "src/components/header/* (Header.tsx, megaMenu)",
+        "src/routes/__root.tsx (SiteChrome order)",
+        "inline <style> emitters for header widgets"
+      ],
+      "mechanism": "The hero <img> sits at byte 177 712 of 569 347. On slow PSI hosts the hero paints in a later frame than FCP, and the paint can slip past DCL, which pulls the post-boot wave into the LCP set (the PSI 3.5 s FCP→LCP gap vs 0.85–1.9 s elsewhere). Getting the hero into the first paint makes obs LCP equal obs FCP.",
+      "metric": "LCP (PSI mobile)",
+      "expected_effect": "Removes up to ~1.6 s of PSI-only LCP gap (+6–13 pts mobile depending on the other waves); no effect on the fixture or the M3.",
+      "estimate_basis": "PSI LCP 6.6 s ⇒ ≈930 KB set vs ≈800 KB head set (6 ms/KB); M3 and fixture obs LCP = FCP frame",
+      "risk": "medium",
+      "risk_notes": "Visual order and CSS for the header must be preserved (CLS 0 must hold); SSR chrome parity.",
+      "gates": [
+        "SSR HTML parity for chrome",
+        "CLS assertion in lighthouserc",
+        "check-document-weight headRawBytes"
+      ],
+      "verification": "Capture a PSI JSON after deploy: observedLargestContentfulPaint − observedFirstContentfulPaint < 100 ms and < observedDomContentLoaded.",
+      "effort": "M",
+      "depends_on": []
+    },
+    {
+      "id": "LA-C6",
+      "title": "Measurement contract: desktop slow-CPU proxy profile, PSI JSON capture, Lantern what-if engine for PR review",
+      "files": [
+        "scripts/performance/lighthouse-local.mjs (add --cpu-multiplier / form desktop4x)",
+        "scripts/performance/psi-sample.mjs (save full lighthouseResult)",
+        "scratch: phase1/lighthouse-analyst/{score.py,whatif.py,audit.mjs,sim-timings.mjs,attrib.py} → scripts/performance/lantern/ (optional)"
+      ],
+      "mechanism": "Desktop PSI TBT cannot be seen at ×1 on the sandbox; run --preset=desktop --throttling.cpuSlowdownMultiplier=4 as the desktop gate (fixture baseline 444 ms, target ≤110). Save the PSI lighthouseResult so analyze.py can read obs LCP vs DCL and the pre-LCP set. The what-if engine predicts a change's Lantern delta from one gathered trace without noise (A/A TBT noise is ±464 ms per POMIAR).",
+      "metric": "all (measurement validity)",
+      "expected_effect": "No direct score change; removes the false 'desktop is fine locally' signal and the noise in TBT A/B.",
+      "estimate_basis": "batch2 desktop cpu curve; POMIAR.md §3 noise",
+      "risk": "low",
+      "risk_notes": "The what-if engine edits artifacts. It is valid for removing or delaying requests and shrinking tasks, not for adding work.",
+      "gates": ["lighthouse-local harness tests"],
+      "verification": "Re-run whatif base → identical to gathered run (verified 58/96).",
+      "effort": "S",
+      "depends_on": []
+    },
+    {
+      "id": "LA-C7",
+      "title": "Static-asset and media edge latency (origin median server time 238 ms in prod)",
+      "files": [
+        "wrangler / Workers static assets config",
+        "nitro public asset handler",
+        "/media image route cache headers"
+      ],
+      "mechanism": "Lantern applies the origin median server response to every same-origin request. Serving /assets/* from the edge cache without invoking the Worker and caching /media variants at the edge lowers the median.",
+      "metric": "FCP/LCP desktop, LCP mobile",
+      "expected_effect": "238→~50 ms: desktop +3–4 pts (LCP −0.3 s), mobile +1 pt.",
+      "estimate_basis": "what-if srt series (batch: P_srt19..1000)",
+      "risk": "low",
+      "risk_notes": "Needs a production check of cf-cache-status and server-timing on /assets.",
+      "gates": ["check:public-assets"],
+      "verification": "prod LH network-server-latency for the origin < 80 ms.",
+      "effort": "S",
+      "depends_on": []
+    }
+  ],
+  "conflicts_with_other_workstreams": [
+    "measurement: POMIAR.md and scripts/performance/{artifactServer.ts,lighthouse-local.mjs,check-document-weight.ts} (untracked in the main checkout) already switch the harness to h2. My h1→h2 what-if confirms the size (−940 ms FCP, +6 perf on mobile). The desktop cpu×4 profile (LA-C6) and the preLcpTransferBytes metric (LA-C3) should be added there, not duplicated.",
+    "boot-js / lcp-path: fixes that reduce FCP (B-lite fetchpriority=low, byte diets) raise TBT through the FCP-anchored window (fixture TBT 356→873–885). Sequence them after hydration (LA-C1) or measure together.",
+    "server-cache: TTFB/MISS work moves only SI in Lantern (doc TTFB is not simulated); its FCP/LCP effect comes through the static-asset origin median (LA-C7). Claims of FCP/LCP gains from document caching should be checked against this.",
+    "css: render-blocking CSS savings do not appear while boot JS is in the FCP set (CSS −70% gives FCP 0 ms, LCP −225 ms). The CSS diet pays off for FCP after LA-C4.",
+    "hydration: owns LA-C1's code; my numbers set the target (tasks ≤12 ms obs at sandbox ×4; post-FCP CPU −50%)."
+  ],
+  "open_questions": [
+    "PSI lighthouseResult JSON is needed (machine with egress): obs LCP vs obs DCL, LCP element, bytes ended before obs LCP, network-server-latency per origin, long-tasks list. It decides whether the 3.5 s PSI FCP→LCP gap is a late paint (LA-C5) or a different LCP element (e.g. consent text).",
+    "Why do the PSI mobile and desktop samples imply ~3–5× different host speeds? More PSI samples (≥5 per form) or CrUX/LHCI on the deployed URL are needed before tuning against desktop 740 ms.",
+    "Does PSI (US datacenters) get a consent decision or region behaviour that loads gtag earlier than in Prague runs (gtagLoadPolicy (b))?",
+    "Is the 238 ms origin median for /assets in prod an edge MISS or Worker invocation? Check cf-cache-status and server-timing for /assets/*.js and /media/*.",
+    "Product acceptance of boot-after-LCP (hydration delayed by one JS download on real phones)."
+  ]
+}

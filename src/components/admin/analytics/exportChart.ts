@@ -110,41 +110,6 @@ export function exportCsv(
 }
 
 /**
- * Zrzut wykresu do PNG.
- *
- * TŁO IDZIE Z MOTYWU, NIE JEST BIELĄ NA SZTYWNO, i to jest naprawa realnej
- * usterki. Kanwa dostaje kolory tekstu, osi i etykiet z motywu ROZWIĄZANEGO
- * w chwili renderu, a `baseOption` ustawia jej tło `transparent`. Przy
- * wymuszonej bieli eksport z sesji w trybie ciemnym zapisywał więc niemal
- * biały tekst i niemal białe etykiety osi na białym tle - plik otwierał się
- * jako pusty prostokąt z samymi słupkami. Awaria była niewidoczna dla
- * eksportującego, bo na ekranie wykres wyglądał poprawnie.
- *
- * CZEGO TO NIE ZAŁATWIA - świadomie. Specyfikacja chce, żeby eksport i druk
- * szły ZAWSZE na tokenach jasnych (wykres na ciemnym tle w prezentacji na
- * jasnym slajdzie zużywa toner i wygląda jak dziura). Tu tego nie robimy, bo
- * ECharts ma kolory już wpieczone w opcję: wymuszenie jasnych wymagałoby
- * przestawienia opcji instancji, zrzutu i przywrócenia poprzedniej - czyli
- * dwóch dodatkowych `setOption(notMerge)` na każdy eksport i ryzyka, że
- * między nimi wykres zamiga albo zgubi stan interakcji. Zrzut CZYTELNY
- * w motywie sesji jest tu poprawą, której koszt wynosi jedną linię;
- * wymuszenie jasnych jest osobną zmianą, w tym samym miejscu.
- * Druk STRONY jest już wymuszony na jasnych tokenach - patrz `@media print`
- * w `src/styles.css`.
- */
-/**
- * Zrzut rysunku do PNG.
- *
- * BIERZE KONTENER, nie instancję biblioteki: silnik rysuje SVG w drzewie
- * strony, więc jedynym uchwytem, jaki karta ma, jest węzeł. Szukamy w nim
- * PIERWSZEGO `<svg>` - rama silnika stawia rysunek przed tabelą danych, a
- * tabela `<svg>` nie zawiera.
- *
- * TŁO JEST OBOWIĄZKOWE: PNG z przezroczystym tłem wklejony do dokumentu
- * o ciemnym tle pokazuje ciemny tusz na ciemnym, czyli nic. Bierzemy płytę
- * karty (`--card`), bo na niej rysunek stoi na ekranie.
- */
-/**
  * KLUCZ RYSUNKU ODCZYTANY Z DOM-U, a nie odtworzony z konfiguracji.
  *
  * DLACZEGO TAK, A NIE Z `ChartConfig`. Klucz na ekranie powstaje w silniku:
@@ -208,6 +173,18 @@ function kluczZRysunku(container: HTMLElement): WpisKlucza[] {
   });
 }
 
+/**
+ * Zrzut rysunku do PNG.
+ *
+ * BIERZE KONTENER, nie instancję biblioteki: silnik rysuje SVG w drzewie
+ * strony, więc jedynym uchwytem, jaki karta ma, jest węzeł. Szukamy w nim
+ * PIERWSZEGO `<svg>` - rama silnika stawia rysunek przed tabelą danych, a
+ * tabela `<svg>` nie zawiera.
+ *
+ * TŁO JEST OBOWIĄZKOWE: PNG z przezroczystym tłem wklejony do dokumentu
+ * o ciemnym tle pokazuje ciemny tusz na ciemnym, czyli nic. Bierzemy płytę
+ * karty (`--card`), bo na niej rysunek stoi na ekranie.
+ */
 export async function exportPng(filename: string, container: HTMLElement | null): Promise<void> {
   const svg = container?.querySelector("svg") ?? null;
   if (svg === null || container === null) return;

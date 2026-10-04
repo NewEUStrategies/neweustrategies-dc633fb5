@@ -103,6 +103,18 @@ const h = vi.hoisted(() => ({
    * przy `StatusKind` w `admin.settings.analytics.tsx`).
    */
   analyticsStatusPending: false,
+  /** Ile razy panel analityki sięgnął po diagnostykę. */
+  analyticsStatusCalls: 0,
+  /** Najemca zwracany przez atrapę `useCurrentTenantId`. */
+  tenantId: null as string | null,
+}));
+
+// Najemca jako ATRAPA (wzór: `vitalsBiDashboard.test.tsx`). Diagnostyka panelu
+// analityki ma najemcę w kluczu i rusza dopiero przy ustalonym najemcy, a
+// prawdziwy hook ciągnąłby sesję `useAuth`, której harness tras nie ma.
+// Pozostałe panele `admin.settings.*` z `@/lib/tenant` nie korzystają.
+vi.mock("@/lib/tenant", () => ({
+  useCurrentTenantId: () => h.tenantId,
 }));
 
 vi.mock("react-i18next", async () => (await import("@/test/i18nStub")).reactI18nextStub());
@@ -240,6 +252,7 @@ vi.mock("@/hooks/useGlobalColors", () => ({
 }));
 vi.mock("@/lib/analytics/status.functions", () => ({
   getAnalyticsStatus: async () => {
+    h.analyticsStatusCalls += 1;
     // Zapytanie, które nigdy się nie rozstrzyga - patrz `analyticsStatusPending`.
     if (h.analyticsStatusPending) return new Promise<unknown>(() => undefined);
     if (h.analyticsStatusError) throw new Error("status_unavailable");
@@ -301,6 +314,7 @@ vi.mock("@/components/admin/blocks/AdminSelect", () => ({
 }));
 
 import { renderRoute, routeMeta } from "@/test/routeHarness";
+import { analyticsStatusKey } from "@/lib/analytics/queryKeys";
 // Ta sama funkcja, którą podstawia atrapa `react-i18next` powyżej - dzięki
 // temu helper paska zapisu liczy napis DOKŁADNIE tak, jak policzy go panel,
 // zamiast trzymać przepisany z ręki literał.
@@ -468,6 +482,8 @@ beforeEach(() => {
   h.analyticsStatus = null;
   h.analyticsStatusError = false;
   h.analyticsStatusPending = false;
+  h.analyticsStatusCalls = 0;
+  h.tenantId = "tenant-ustawienia";
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.toastInfo.mockReset();
@@ -2017,6 +2033,34 @@ describe("admin.settings.analytics - stan połączenia i okno łączenia GA4", (
     await waitFor(() => expect(saveButton()).toBeTruthy());
     expect(document.body.textContent).toContain("admin.analyticsSettings.status.checking");
     expect(document.body.textContent).not.toContain("admin.analyticsSettings.status.error");
+  });
+
+  it("bez ustalonego najemcy diagnostyka nie rusza - wskaźnik „sprawdzanie”, nie błąd", async () => {
+    // Klucz diagnostyki niesie najemcę (`analyticsStatusKey`), więc do czasu
+    // jego ustalenia zapytanie jest wyłączone: zero wywołań serwera i stan
+    // „sprawdzanie" (`!st` bez błędu), a nie „nie skonfigurowano".
+    h.tenantId = null;
+    h.rows.analytics = {};
+    const view = await mount(AnalyticsRoute, "/admin/settings/analytics");
+    await waitFor(() => expect(saveButton()).toBeTruthy());
+    await act(async () => {});
+
+    expect(h.analyticsStatusCalls).toBe(0);
+    expect(document.body.textContent).toContain("admin.analyticsSettings.status.checking");
+    expect(document.body.textContent).not.toContain("admin.analyticsSettings.status.error");
+    expect(view.queryClient.getQueryState(analyticsStatusKey(""))?.data).toBeUndefined();
+  });
+
+  it("diagnostyka trafia do cache'u pod kluczem z najemcą", async () => {
+    h.rows.analytics = {};
+    h.analyticsStatus = status();
+    const view = await mount(AnalyticsRoute, "/admin/settings/analytics");
+    await waitFor(() =>
+      expect(view.queryClient.getQueryState(analyticsStatusKey("tenant-ustawienia"))?.status).toBe(
+        "success",
+      ),
+    );
+    expect(h.analyticsStatusCalls).toBe(1);
   });
 
   it("padnięta diagnostyka pokazuje BŁĄD, a nie wieczne „sprawdzanie”", async () => {

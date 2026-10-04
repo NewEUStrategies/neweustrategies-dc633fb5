@@ -1,0 +1,33 @@
+# Verdict css:C1 — chart palette + chart engine CSS out of the core sheet
+
+Reviewer: Opus adversarial, 2026-10-03. Repo read-only. Scripts: `verdicts/css-C1/split.mjs`, `split2.mjs` (postcss over the built `.output/public/assets/styles-DjfYz07w.css`).
+
+## Lens 1 — feasibility: WEAKENED
+
+The mechanism works in principle. React 19 Float `<link rel=stylesheet precedence="nes-widgets">` is already the pattern in `widgetStyleSheets.tsx:1-39`, and `?url` CSS imports are already used for `styles.css` in `__root.tsx`. charts.css has no `@layer` or Tailwind directives (grep), so loading it separately does not reorder layers. Fizz puts precedence sheets before the plain core `<link>`, the same cascade slot as today's `@import` at `styles.css:19`. Hydration parity holds because the link is a hoisted resource. The plan as written breaks in these places:
+
+1. **The `--chart-*` palette is used outside the components the change names** (`ChartFrame`, `features/*`, `PolicyPositionsMap`):
+   - **Public route `/tracker/explorer`.** `src/routes/tracker.explorer.tsx:264` (legend) and `:353` (every country×item cell of the stance matrix) set `style={{backgroundColor: hex, background: var(--chart-positive|negative|2|axis)}}` from `src/lib/tracker/euCountries.ts:85-106`. The route renders no chart component (imports :7-38). If the palette leaves the core, the `background` shorthand becomes invalid at computed-value time, the colour falls back to transparent, and the hex fallback does not apply because the shorthand overrides it. The whole matrix loses its colours. The `sr-only` text keeps assistive tech working; sighted users lose the data.
+   - **Admin/editor surfaces without ChartFrame**: `KpiTile.tsx:160` `stroke="var(--chart-1)"` (no fallback; used by 11 admin screens: permissions, paywall, membership, GA4/GSC/Vitals BI), `DeltaBadge.tsx:26-27`, `DashboardSection.tsx:111`, `RealtimeStrip.tsx:71-82`, `RankedList.tsx:99` (has a fallback), `admin.audience.tsx:243` (has a fallback), and the `DataVizBlocks.tsx:382,777` swatches in the block editor. `admin.tsx:66-67` links only `admin-styles.css`, so sparklines and delta colours disappear for editors.
+   - Fix: keep the tokens in the core, or ALSO link charts.css from `tracker.explorer` and `admin.tsx`. The second option is fragile: every future `var(--chart-*)` consumer must remember the link, and no gate checks it.
+2. **The tests are coupled to the palette's location.** `palette.test.ts:65-72`, `pieChart.test.tsx:1124`, `choroplethMap.test.tsx:438,758` and `geometry.test.ts:38` cut LIGHT/DARK blocks at the FIRST `:root,` / `.dark {` / `@layer base` of `styles.css`+`charts.css` concatenated. After the move, the chart tokens sit after `styles.css`'s `@layer base`, the lookups fail ("brak tokenu"), and the cut has to be rewritten. `charts.css:640-642` documents this cut ("bramka palety czyta bloki `:root,` i `.dark` przez cięcie pliku do `@layer base`").
+3. **The doctrine and history point the other way.** The split was done in `1488dfe` and reverted in `fa67890`, then done again as component imports in `9d164f8` and reverted by `d02c50f` ("restore performance CI checks"), which added `styles.css:17-19`: "Keep chart rules beside the shared palette in one compressed response". `check-bundle-size.ts:2017-2021` says the chart tokens stay in the SHARED sheet because the engine draws on public routes. C1 needs C11 (gate contract) plus a kronika entry (PA-C1 rule), or CI turns red again. `publicCss` sum: core −6.0 KB, plus ~6–7 KB gzip of standalone charts.css, so about +0.5 KB against 1.6 KB headroom.
+4. Minor: `measureText.ts:80-82` reads `--chart-font` from `documentElement`. That is fine after SSR, but on a client-only first mount during a sync render (no suspensey commit) the canvas measures with `--font-sans`. On chart pages the core sheet plus charts.css means two blocking requests and lost cross-compression (slightly worse there). PSI measures only `/`, so this does not hurt the score.
+
+No problem found with the CLS, i18n, SEO, entry-purity or loader-policy gates (a `?url` import is a string, and no chart chunk is in the `/` boot set).
+
+## Lens 2 — effect: WEAKENED
+
+- What actually leaves the core is MARGINAL, measured on the built sheet: palette decls (326 light + 322 dark) plus `.neh-*` rules = **26.9 KB raw / 6.0 KB gzip-6 / 4.1 KB br-11**. The claimed "6.6 KB gzip" is gzip of the area on its own. Split: palette 14.9 KB raw / 3.5 KB gz / 2.1 KB br; engine 11.9 / 1.9 / 1.5.
+- The area attribution behind "29.5 KB" counts the whole `:root,.light` rule (9 282 B, of which 1 743 B are brand tokens) and the whole `.dark` rule (8 417 B, of which 994 B are brand tokens) as "charts". tiers2's stage-1 simulation also drops the full `.dark` rule because it is unused in light mode, which removes brand dark tokens and overstates stage 1.
+- Lantern, mobile (analyst model): LCP ≈ 6 ms/KB of the pre-LCP set. PSI transfer is about gzip, so −6.0 KB gives **LCP ≈ −36 ms**. FCP is JS-bound today (analyst what-if: CSS −70 % gives FCP 0), so **FCP ≈ 0 now**, and about −31 ms after boot-js:C3. Fixture br elasticity of 4–6 ms/KB × 4.1 KB gives −16 to −25 ms.
+- Score (log-normal curves, weights FCP 10 / LCP 25 / SI 10): +0.06 pt (PSI prod state, LCP only), +0.12–0.21 (fixture today), +0.32 (post-plan, LCP ≈ 2.9 s). Desktop: 0.8 ms/KB × 6 = −5 ms, so 0 pt.
+- Cross-check: CSS −70 % (49 KB) measured +3 pts, which is 0.061 pt/KB; × 6 KB = +0.37 pt. Consistent.
+- Not measurable with `measure-ab` n=3: the A-arm medians alone wander ±10–30 ms (ab-critical/ab-core logs). I ran no what-if: the html-transform harness cannot swap the CSS asset, and the structural number is tighter than any n=2 run on a shared machine.
+- **Corrected estimate: −6.0 KB gzip (−4.1 KB br) render-blocking; mobile LCP −20..−36 ms, FCP 0 today (−30 ms after C3); +0.1..+0.3 mobile pt; desktop 0.** Its real value is as one part of stage 1, which shrinks the render-blocking-insight diagnostic. On its own it is not a score lever.
+
+## Cheaper or safer alternatives
+
+- **Engine-only move** (drop the `@import` at `styles.css:19`, keep the palette tokens in the core): no consumer breakage and no test re-cut, but only 1.9 KB gz / 1.5 KB br (≈ −10 ms).
+- **C5 (color-mix fallback strip)**: −5.0 KB gzip across the whole sheet with no loading mechanism and no surface risk, but it needs the browser-floor decision. Same order of effect.
+- If C1 is kept, condition it on: link charts.css from `tracker.explorer.tsx` and `admin.tsx` (or keep the tokens in the core); rewrite the test block cuts; land C11 and the kronika entry together; and add a grep gate that fails when `var(--chart-` appears in a file that does not render the charts sheet.

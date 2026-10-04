@@ -24,12 +24,12 @@
 // zanim zdąży wejść do budżetu czytelnika.
 //
 // ── CZEGO TEN TEST NIE PILNUJE ──────────────────────────────────────────────
-// `ClubInsights` nadal importuje `EChart` z katalogu panelu i trzyma tym
-// 266,8 KB ECharts w budżecie publicznym. To NIE jest przeoczenie, tylko
-// świadoma decyzja produktowa z 2026-08-30: publiczne wglądy klubu zachowują
-// pełne wykresy (wykres liniowy z trzema seriami, słupkowy i kołowy), a floor
-// bramki bierze ten koszt na siebie. Gdyby ta decyzja się zmieniła, zysk jest
-// policzalny i wynosi 266,8 KB - wtedy tutaj dochodzi drugi katalog.
+// Pozostałych publicznych powierzchni - lista niżej obejmuje WYŁĄCZNIE dwa
+// pliki renderera buildera. Przykład historyczny: `ClubInsights` (publiczne
+// wglądy klubu) importował kiedyś `EChart` z katalogu panelu i trzymał tym
+// 266,8 KB ECharts w budżecie publicznym (świadoma decyzja produktowa
+// z 2026-08-30). Dziś rysuje własnym silnikiem (`@/components/charts/Chart`),
+// więc tej krawędzi już nie ma - ale ten plik by jej nie zobaczył.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 

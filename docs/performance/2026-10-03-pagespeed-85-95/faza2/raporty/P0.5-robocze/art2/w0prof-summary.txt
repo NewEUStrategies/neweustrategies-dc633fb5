@@ -1,0 +1,5 @@
+w0prof-mobile-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=2.03 perf=63 FCP=4072 LCP=4822 TBT=420 SI=4072 TTI=6333
+w0prof-desktop-1 code=1 warm=200 x-nes-cache=HIT raw=390992 load=1.84 ERR Runtime error encountered: Something went wrong with recording the trace over your page load. Please run Lighthouse again. (NO_NAVSTART)
+
+w0prof-mobile-2 code=0 warm=200 x-nes-cache=HIT raw=390992 load=2.18 perf=62 FCP=4066 LCP=4816 TBT=426 SI=4066 TTI=6404
+w0prof-desktop-2 code=0 warm=200 x-nes-cache=HIT raw=390992 load=1.50 perf=99 FCP=734 LCP=890 TBT=0 SI=741 TTI=890

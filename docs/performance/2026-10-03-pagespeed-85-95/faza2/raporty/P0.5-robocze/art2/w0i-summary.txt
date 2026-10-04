@@ -1,0 +1,3 @@
+w0i-mobile-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=7.80 perf=48 FCP=4073 LCP=4898 TBT=1220 SI=4073 TTI=8339
+w0i-mobile-2 code=null warm=200 x-nes-cache=HIT raw=390992 load=7.90 ERR 
+w0i-desktop-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=11.31 perf=98 FCP=824 LCP=944 TBT=8 SI=956 TTI=1751

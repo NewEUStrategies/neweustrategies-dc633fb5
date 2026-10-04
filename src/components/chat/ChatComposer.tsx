@@ -495,11 +495,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
             value={text}
             rows={1}
             maxLength={MAX_BODY_LENGTH}
-            // Bez podpowiedzi menedżerów haseł/kart nad klawiaturą (iOS/Safari,
-            // 1Password, LastPass) - to pole wiadomości, nie formularz logowania.
-            name="chat-message"
-            id="chat-message-input"
-            autoComplete="off"
+            // Safari na iOS ignoruje `off` i pokazuje pasek kart, haseł oraz
+            // adresów. `one-time-code` wyłącza ten AutoFill bez zmiany klawiatury.
+            autoComplete="one-time-code"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck={false}

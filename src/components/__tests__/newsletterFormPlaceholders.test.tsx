@@ -87,7 +87,22 @@ function renderForm(widgetConfig: Cfg, lang: "pl" | "en" = "pl") {
   return { container, byType, byName, texts };
 }
 
+// Od ujednolicenia formularzy te pola i tak są domyślnie widoczne - podajemy je
+// jawnie, żeby testy placeholderów nie zależały od wartości domyślnych.
 const EXTRAS: Cfg = { showFirstName: true, showLastName: true, showCompany: true };
+
+// Układ kompaktowy (wspólne pole imienia + e-mail + przycisk) renderuje się
+// tylko bez ŻADNEGO pola dodatkowego. Skoro każda instancja domyślnie ma pełny
+// zestaw pól, ten układ trzeba dziś zamówić jawnie - tak, jak zapisuje go panel
+// ("0"). Droplista tematów też musi zgasnąć, bo sama w sobie jest "dodatkiem".
+const COMPACT: Cfg = {
+  showFirstName: "0",
+  showLastName: "0",
+  showCompany: "0",
+  showPosition: "0",
+  showPhone: "0",
+  showInterests: "0",
+};
 
 describe("newsletter: placeholdery z panelu docierają do kontrolek", () => {
   it("imię / nazwisko / firma / e-mail biorą wartość z ustawień", () => {
@@ -116,7 +131,15 @@ describe("newsletter: placeholdery z panelu docierają do kontrolek", () => {
   });
 
   it("layout kompaktowy (bez dodatkowych pól) też dostaje placeholder e-maila", () => {
-    const { byType } = renderForm({ emailPlaceholder_pl: "jan@firma.pl" });
+    const { byType, texts, container } = renderForm({
+      ...COMPACT,
+      emailPlaceholder_pl: "jan@firma.pl",
+    });
+    // Najpierw dowód, że to NAPRAWDĘ układ kompaktowy: jedno pole tekstowe i
+    // brak telefonu. Bez tego asercja spacera niżej trafiłaby w pole imienia
+    // pełnego układu (z domyślnym placeholderem i18n) i badała coś innego.
+    expect(texts()).toHaveLength(1);
+    expect(container.querySelector('input[type="tel"]')).toBeNull();
     expect(byType("email")).toHaveAttribute("placeholder", "jan@firma.pl");
     // Pole "imię i nazwisko" w tym layoucie nie ma ustawienia placeholdera,
     // więc zostaje spacer i etykieta spoczywa w środku pola.

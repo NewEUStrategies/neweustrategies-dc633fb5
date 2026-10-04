@@ -1,0 +1,16 @@
+# /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/p05/art/w0-desktop-2
+# TBT(audit Lantern)=6 FCPsim opt/pes=786/786 TTIsim opt/pes=1234/1314 cpuMult=1 okna opt=[786,1234] pes=[786,1314]
+obsStart obsDur  simStart(o/p)  simDur(o/p)  L  class          block opt/pes/avg  urls
+     36   90.1    296/296      90/90       ScriptCatchup     0/    0/    0  pl,AccountMenuWidget,SearchButtonWidget,sectionLabelVariants,PostListView,PaginatedPostGrid
+          dzieci: DocumentLoader::CommitNavigationx3=79.3 DocumentLoader::StartLoadingResponsex3=60.2 DocumentLoader::CreateParserPostCommitx3=60.1 NavigationBodyLoader::StartLoadingBodyx1=26.0 NavigationBodyLoader::OnReadablex1=26.0 NavigationBodyLoader::ReadFromDataPipex1=26.0 DocumentLoader::BodyDataReceivedImplx3=25.9 DocumentLoader::HandleDatax3=25.5 DocumentLoader::CommitDatax2=25.5 DecodedDataDocumentParser::AppendBytesx1=25.5 LocalWindowProxy::Initializex2=12.7 LocalWindowProxy::CreateContextx2=8.7
+    143   61.5    696/696      62/62       ParseHTML-doc     0/    0/    0  
+          dzieci: ParseHTMLx1=46.6 ParseAuthorStyleSheetx1=15.6 EvaluateScriptx5=9.3 ScriptCompiledx5=8.3 v8.runx5=8.2 v8.newInstancex6=4.7
+          EvaluateScript 5.2ms @169  /:200:3754 
+          EvaluateScript 3.3ms @186  /:200:11712 
+          ParseHTML 46.6ms @143 / linie 0-199
+    589   60.8   1253/1253     61/61       Timer             0/   11/    6  index,events._slug_.cfp-submit,vendor-lucide,MoneyText,events._slug.agenda,PostListCard
+          dzieci: TimerFirex1=39.5 v8.callFunctionx1=39.5 RunMicrotasksx1=39.4
+          TimerFire 39.5ms @589  :: 
+          v8.callFunction 39.5ms @589  :: 
+          RunMicrotasks 39.4ms @589  :: 
+# suma księgi = 5.5 ; audyt = 6 ; różnica = 0.00 ms

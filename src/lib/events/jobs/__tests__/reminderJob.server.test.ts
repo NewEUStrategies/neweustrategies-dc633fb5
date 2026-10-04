@@ -289,6 +289,39 @@ describe("runEventParticipantReminders", () => {
     });
   });
 
+  it("wyjątek z RPC zamknięcia też jest logowany, nie wywraca przebiegu", async () => {
+    // Druga gałąź `confirmBatch`: nie `{ error }`, tylko rzucony wyjątek
+    // (zerwane połączenie). Wynik przebiegu liczy wysyłki, nie zamknięcie.
+    const h = harness([[row(1)]]);
+    h.rpc.mockImplementation(async (fn: string) => {
+      if (fn === "_event_reminders_claim") return { data: h.claims.shift() ?? [], error: null };
+      throw new Error("socket hang up");
+    });
+    await expect(
+      runEventParticipantReminders(h.admin, { deadlineAt: farFuture() }),
+    ).resolves.toMatchObject({ claimed: 1, sent: 1 });
+    expect(console.warn).toHaveBeenCalledWith("[eventReminders] confirm threw", {
+      error: "socket hang up",
+    });
+  });
+
+  it("wyjątek, który nie jest Error, trafia do logu jako tekst i daje failed/exception", async () => {
+    // `throw "..."` z biblioteki trzeciej: `messageOf` musi go zamienić na
+    // napis, a nie zgubić (gałąź `String(err)`).
+    mail.sendTxEmail.mockImplementation(async () => {
+      throw "smtp exploded";
+    });
+    const h = harness([[row(1)]]);
+    const result = await runEventParticipantReminders(h.admin, { deadlineAt: farFuture() });
+    expect(result).toMatchObject({ claimed: 1, failed: 1 });
+    expect(h.confirmed).toEqual([[{ id: id(1), status: "failed", detail: "exception" }]]);
+    expect(console.error).toHaveBeenCalledWith("[eventReminders] delivery threw", {
+      kind: "event_reminder",
+      channel: "email",
+      error: "smtp exploded",
+    });
+  });
+
   describe("SMS", () => {
     const smsRow = (n: number, overrides: Record<string, unknown> = {}) =>
       row(n, { channel: "sms", phone: "600 100 200", email: null, ...overrides });
@@ -310,6 +343,20 @@ describe("runEventParticipantReminders", () => {
       });
       expect(result).toMatchObject({ sent: 1 });
       expect(mail.sendTxEmail).not.toHaveBeenCalled();
+    });
+
+    it("SMS przypomnienia o sesji nie ma szablonu -> skipped/no_body, bez wysyłki", async () => {
+      // `buildReminderSms` składa wyłącznie przypomnienie o wydarzeniu; wiersz
+      // sesji na kanale SMS ma zostać zamknięty jako pominięty, a nie wysłany
+      // pustą treścią ani ponawiany jako błąd.
+      notify.participantSmsEnabled.mockReturnValue(true);
+      const h = harness([
+        [smsRow(1, { kind: "session_reminder", session_id: id(77), session_title_pl: "Panel" })],
+      ]);
+      const result = await runEventParticipantReminders(h.admin, { deadlineAt: farFuture() });
+      expect(notify.sendParticipantSms).not.toHaveBeenCalled();
+      expect(h.confirmed).toEqual([[{ id: id(1), status: "skipped", detail: "no_body" }]]);
+      expect(result).toMatchObject({ claimed: 1, skipped: 1 });
     });
 
     it("budżet, wyłączony operator i zły numer to skipped; duplikat to sent; błąd to failed", async () => {

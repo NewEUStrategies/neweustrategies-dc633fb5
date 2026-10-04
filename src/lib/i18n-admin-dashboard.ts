@@ -79,6 +79,11 @@ const pl = {
       colHost: "Źródło",
       colLang: "Język",
       directTraffic: "wejścia bezpośrednie",
+      // Jedna podpowiedź zamiast pięciu odznak „brak odniesienia": porównania
+      // nie ma, bo baza usuwa zdarzenia starsze niż horyzont retencji, a nie
+      // dlatego, że poprzedni okres był pusty (TrafficPanel, `period.ts`).
+      noComparisonRetention:
+        "Bez porównania: okres odniesienia sięga dalej niż {{months}} miesięcy wstecz, a starsze zdarzenia są usuwane zgodnie z polityką prywatności - procent liczyłby się z niepełnej podstawy.",
     },
 
     geo: {
@@ -306,6 +311,8 @@ const en = {
       colHost: "Source",
       colLang: "Language",
       directTraffic: "direct visits",
+      noComparisonRetention:
+        "No comparison: the reference period reaches more than {{months}} months back, and older events are deleted under the privacy policy - a percentage would rest on an incomplete base.",
     },
 
     geo: {

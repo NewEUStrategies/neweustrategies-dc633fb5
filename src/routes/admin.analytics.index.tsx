@@ -27,14 +27,17 @@ import { adminToast } from "@/lib/adminToasts";
 import { getAnalyticsStatus, type AnalyticsStatus } from "@/lib/analytics/status.functions";
 import { sendGa4Event } from "@/lib/analytics/ga4.functions";
 import { getVitalsSummary } from "@/lib/observability/vitals.functions";
+import { analyticsStatusKey, analyticsVitalsMiniKey } from "@/lib/analytics/queryKeys";
+import { useCurrentTenantId } from "@/lib/tenant";
 import { InsightSection, type Insight } from "@/components/admin/analytics/InsightSection";
 // Nakładka wnosi gałąź `admin.analyticsPanel.*` - bez tego importu i18next
 // nie ma tych kluczy i panel renderuje surowe identyfikatory.
 import { ensureI18n as ensureExtrasI18n } from "@/lib/i18n-admin-extras";
 
-// BI dashboards are heavy (ECharts + per-widget datasets). Lazy-load them so
-// the SSR route chunk stays under V8's mark-compact ceiling during `build:dev`
-// and the browser only pays for the panel the user actually opens.
+// BI dashboards are heavy (chart configs + per-widget datasets and insight
+// logic). Lazy-load them so the SSR route chunk stays under V8's mark-compact
+// ceiling during `build:dev` and the browser only pays for the panel the user
+// actually opens.
 const GscBiDashboard = lazy(() =>
   import("@/components/admin/analytics/GscBiDashboard").then((m) => ({
     default: m.GscBiDashboard,
@@ -423,10 +426,16 @@ function vitalValue(metric: string, p75: number): string {
 function VitalsMiniPanel() {
   const { t } = useTranslation();
   const fetchVitals = useServerFn(getVitalsSummary);
+  const tenantId = useCurrentTenantId();
   const q = useQuery({
-    queryKey: ["analytics-vitals-mini"],
+    queryKey: analyticsVitalsMiniKey(tenantId ?? "", VITALS_WINDOW_DAYS),
     queryFn: () => fetchVitals({ data: { days: VITALS_WINDOW_DAYS } }),
+    enabled: Boolean(tenantId),
   });
+  // Wyłączone zapytanie (najemca jeszcze nieustalony) ma `isLoading === false`
+  // - bez `!tenantId` panel spadałby do gałęzi danych i malował
+  // `admin.analyticsPanel.vitals.empty`, czyli „brak próbek" przed pomiarem.
+  const loading = !tenantId || q.isLoading;
   return (
     <Card className="p-4">
       <div className="flex items-center justify-between mb-3">
@@ -441,7 +450,7 @@ function VitalsMiniPanel() {
           {t("admin.analyticsPanel.vitals.details")} <ExternalLink className="w-3 h-3" />
         </a>
       </div>
-      {q.isLoading ? (
+      {loading ? (
         <div className="text-xs text-muted-foreground flex items-center gap-2">
           <Loader2 className="w-3 h-3 animate-spin" /> {t("admin.analyticsPanel.vitals.loading")}
         </div>
@@ -641,9 +650,13 @@ function AnalyticsPage() {
   ensureExtrasI18n();
   const { t } = useTranslation();
   const fetchStatus = useServerFn(getAnalyticsStatus);
+  // Ten sam klucz co /admin/analytics/bi i /admin/settings/analytics - jeden
+  // wpis cache'u na najemcę (`analyticsStatusKey`).
+  const tenantId = useCurrentTenantId();
   const statusQ = useQuery({
-    queryKey: ["analytics-status"],
+    queryKey: analyticsStatusKey(tenantId ?? ""),
     queryFn: () => fetchStatus(),
+    enabled: Boolean(tenantId),
     staleTime: 30_000,
   });
   const [tab, setTab] = useState("overview");
@@ -658,7 +671,9 @@ function AnalyticsPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">{t("admin.analyticsPanel.subtitle")}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => statusQ.refetch()}>
+        {/* `refetch()` ignoruje `enabled` - bez blokady klik przed ustaleniem
+            najemcy pobrałby status pod klucz-zaślepkę z pustym tenantem. */}
+        <Button variant="outline" size="sm" disabled={!tenantId} onClick={() => statusQ.refetch()}>
           <RefreshCw className="w-3.5 h-3.5 mr-2" /> {t("admin.analyticsPanel.refresh")}
         </Button>
       </header>

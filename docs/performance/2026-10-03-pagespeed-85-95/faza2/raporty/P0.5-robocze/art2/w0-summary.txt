@@ -1,0 +1,11 @@
+w0-mobile-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=1.53 perf=61 FCP=4077 LCP=4827 TBT=473 SI=4077 TTI=6460
+w0-desktop-1 code=0 warm=200 x-nes-cache=HIT raw=390992 load=2.97 perf=98 FCP=827 LCP=947 TBT=8 SI=864 TTI=1439
+w0-mobile-2 code=0 warm=200 x-nes-cache=HIT raw=390992 load=3.21 perf=70 FCP=4146 LCP=4667 TBT=187 SI=4146 TTI=6462
+w0-desktop-2 code=0 warm=200 x-nes-cache=HIT raw=390992 load=3.15 perf=98 FCP=786 LCP=896 TBT=6 SI=786 TTI=1278
+w0-mobile-3 code=1 warm=200 x-nes-cache=HIT raw=390992 load=2.99 ERR Runtime error encountered: Something went wrong with recording the trace over your page load. Please run Lighthouse again. (NO_NAVSTART)
+
+w0-desktop-3 code=0 warm=200 x-nes-cache=HIT raw=390992 load=2.83 perf=98 FCP=827 LCP=947 TBT=0 SI=927 TTI=947
+w0-mobile-4 code=0 warm=200 x-nes-cache=HIT raw=390992 load=2.77 perf=69 FCP=4060 LCP=4810 TBT=219 SI=4060 TTI=7135
+w0-desktop-4 code=0 warm=200 x-nes-cache=HIT raw=391183 load=3.00 perf=99 FCP=742 LCP=925 TBT=10 SI=841 TTI=1326
+w0-mobile-5 code=0 warm=200 x-nes-cache=HIT raw=391183 load=3.07 perf=67 FCP=4068 LCP=4893 TBT=269 SI=4068 TTI=6334
+w0-desktop-5 code=0 warm=200 x-nes-cache=HIT raw=391183 load=2.84 perf=98 FCP=809 LCP=929 TBT=0 SI=809 TTI=929

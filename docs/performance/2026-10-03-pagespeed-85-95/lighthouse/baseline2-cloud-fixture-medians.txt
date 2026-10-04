@@ -1,0 +1,11 @@
+server pid 5580 port 4581, proxy pid 5581 port 4582; HTML raw 382426 B, gzip 50927 B
+  baseline2-mobile-1.json                      perf= 51 FCP=5.05s LCP=5.58s TBT=616ms SI=5.05s CLS=0.000 TTFB=27ms url=/ lcp=img.eh-img
+  baseline2-mobile-2.json                      perf= 53 FCP=4.98s LCP=5.53s TBT=558ms SI=4.98s CLS=0.000 TTFB=19ms url=/ lcp=img.eh-img
+  baseline2-mobile-3.json                      perf= 45 FCP=4.93s LCP=5.63s TBT=991ms SI=4.93s CLS=0.000 TTFB=28ms url=/ lcp=img.eh-img
+  baseline2-desktop-1.json                     perf= 95 FCP=1.08s LCP=1.18s TBT=50ms SI=1.08s CLS=0.000 TTFB=18ms url=/ lcp=img.eh-img
+  baseline2-desktop-2.json                     perf= 96 FCP=0.51s LCP=1.15s TBT=105ms SI=0.84s CLS=0.000 TTFB=22ms url=/ lcp=img.eh-img
+  baseline2-desktop-3.json                     perf= 96 FCP=1.00s LCP=1.14s TBT=16ms SI=1.00s CLS=0.000 TTFB=28ms url=/ lcp=?
+MEDIAN baseline2 mobile: perf=51 FCP=4.98s LCP=5.58s TBT=616ms SI=4.98s (n=3)
+MEDIAN baseline2 desktop: perf=96 FCP=1.00s LCP=1.15s TBT=50ms SI=1.00s (n=3)
+summaries: /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/lh/results/baseline2-{mobile,desktop}-1.summary.txt
+EXIT 0

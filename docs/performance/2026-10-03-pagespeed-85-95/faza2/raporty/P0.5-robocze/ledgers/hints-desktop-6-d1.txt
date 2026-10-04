@@ -1,0 +1,9 @@
+# /tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase2/p05/art2/hints-desktop-6
+# TBT(audit Lantern)=0 FCPsim opt/pes=830/830 TTIsim opt/pes=950/950 cpuMult=1 okna opt=[830,950] pes=[830,950]
+obsStart obsDur  simStart(o/p)  simDur(o/p)  L  class          block opt/pes/avg  urls
+    239  168.1    393/393      84/84    L  Script            0/    0/    0  
+          dzieci: UpdateLayoutTreex1=82.9 Layoutx2=59.5 Commitx1=10.0 RunMicrotasksx1=7.5 Paintx5=3.7 PrePaintx2=1.5 Layerizex1=1.1
+          RunMicrotasks 7.5ms @400  :: 
+          UpdateLayoutTree 82.9ms el=659 @240 
+          Layout 59.5ms dirty=644/644 @323 
+# suma księgi = 0.0 ; audyt = 0 ; różnica = 0.00 ms

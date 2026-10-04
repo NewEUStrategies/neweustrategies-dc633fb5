@@ -2,8 +2,12 @@
 //
 // Przegląd (/admin/analytics) trzyma zakładki i status źródeł; ten ekran
 // układa wszystkie dashboardy BI jeden pod drugim, żeby dało się je czytać
-// i eksportować bez przeklikiwania tabów. Każdy dashboard jest ładowany
-// leniwie - ECharts nigdy nie wchodzi do grafu SSR.
+// i eksportować bez przeklikiwania tabów. Każdy dashboard jest osobnym,
+// leniwym chunkiem. Wszystkie siedem renderuje się bezwarunkowo, więc
+// wszystkie siedem chunków rusza od razu przy wejściu - leniwość NICZEGO tu nie
+// odkłada. Daje co innego: nagłówek ekranu maluje się bez czekania na kod
+// paneli, a panele dojeżdżają NIEZALEŻNIE, każdy za własnym `Suspense`
+// z rezerwą wysokości (niżej), która trzyma układ, zanim który z nich dojedzie.
 import { createFileRoute } from "@tanstack/react-router";
 import { lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,6 +19,8 @@ import { ensureI18n as ensureAnalyticsI18n } from "@/lib/i18n-admin-analytics";
 import { ensureI18n as ensureExtrasI18n } from "@/lib/i18n-admin-extras";
 import { ensureI18n as ensureDashboardI18n } from "@/lib/i18n-admin-dashboard";
 import { getAnalyticsStatus } from "@/lib/analytics/status.functions";
+import { analyticsStatusKey } from "@/lib/analytics/queryKeys";
+import { useCurrentTenantId } from "@/lib/tenant";
 
 // RUCH WŁASNY NA POCZĄTKU LISTY, przed Web Vitals. Kolejność dashboardów na
 // tym ekranie jest kolejnością pytań: najpierw ILU ludzi przyszło i skąd,
@@ -106,9 +112,13 @@ function AnalyticsBiPage() {
   ensureDashboardI18n();
   const { t } = useTranslation();
   const fetchStatus = useServerFn(getAnalyticsStatus);
+  // Wspólny wpis cache'u z /admin/analytics i /admin/settings/analytics,
+  // z najemcą w kluczu (`analyticsStatusKey`).
+  const tenantId = useCurrentTenantId();
   const statusQ = useQuery({
-    queryKey: ["analytics-status"],
+    queryKey: analyticsStatusKey(tenantId ?? ""),
     queryFn: () => fetchStatus(),
+    enabled: Boolean(tenantId),
     staleTime: 30_000,
   });
 

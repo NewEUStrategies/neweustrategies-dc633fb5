@@ -1,0 +1,259 @@
+{
+  "key": "measurement",
+  "report_path": "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/8fd9e8e2-d544-5db4-ae5e-c509c5e3ff6c/scratchpad/phase1/measurement.md",
+  "summary": "New harness (scripts/performance/lighthouse-local.mjs + artifactServer.ts + lighthouseReport.ts) runs end-to-end; document-weight gate implemented and green; PSI sampler and 7 node:test tests added. Old harness was biased twice: bare-curl readiness seeded the document cache with the BOT variant (382 468 B/14 scripts vs browser 391 114 B/22), and it used http/1.1 + separate image origin while production is h2 same-origin (h2: mobile LCP -0.30 s, desktop FCP -0.28 s). Canonical baseline (h2, browser warm, fixture): mobile 68 / FCP 4.06 / LCP 4.81 / TBT 249 / SI 4.06; desktop 97 / 0.81 / 0.90 / 71. A/A noise: FCP/LCP +-0.01 s, TBT +464 ms, perf -13. Mobile FCP is bimodal (2.9 vs 4.1 s) because Lantern counts High scripts evaluated before first paint. What-if (no modulepreload, Low entry): mobile FCP -2.55 s, LCP -1.50 s, SI -1.91 s; fetchpriority=low on modulepreload is ignored by Chrome 141.",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "critical",
+      "metric": "measurement validity (all metrics)",
+      "claim": "The previous local harness measured the buffered BOT variant of the document, not what a browser gets: its readiness loop is a bare curl (isbot=true) to the measured path, which is the first render and is stored in the document cache whose key has no bot/browser dimension; Lighthouse then gets that body as HIT.",
+      "evidence": "$SCRATCH/lh/measure-local.sh readiness loop `curl -sf -o /dev/null http://127.0.0.1:$UP$URLPATH` (same in measure-ab.sh start()); src/lib/http/documentCache.ts:196-224 planDocumentCache key `${host}::${pathname}`; measured with $SCRATCH/phase1/measurement/bot-warm.ts and warm-variants.ts: curl-first => HIT 382 468 B / 14 <script> for browsers; browser-first => 391 114 B / 22 <script>. baseline2-home.html = 382 426 B (bot shape). Production sample psi/home.html has 15 scripts incl. one 18.6 KB react-query block (buffered shape)."
+    },
+    {
+      "id": "F2",
+      "severity": "high",
+      "metric": "LCP, FCP (Lantern network model)",
+      "claim": "Old harness served http/1.1 with fixture images on a separate origin; production serves 99/121 requests over h2 from the document origin incl. the LCP image. Lantern models h1 as 6 cloned connections per origin and h2 as one connection, so the local LCP image never queued behind JS. Same artifact A/B h2 vs h1: mobile LCP -0.30 s, desktop FCP -0.28 s, LCP -0.30 s, desktop perf 95 -> 98.",
+      "evidence": "@paulirish/trace_engine/models/trace/lantern/simulation/ConnectionPool.js (CONNECTIONS_PER_ORIGIN = 6, `minConnections = isH2 ? 1 : 6`); prod-mobile.json protocols h2 x99; baseline2-mobile-1.json http/1.1 x84; $SCRATCH/phase1/measurement/ab-h1-h2.log MEDIAN/DELTA lines."
+    },
+    {
+      "id": "F3",
+      "severity": "high",
+      "metric": "TBT, performance score (noise)",
+      "claim": "On this shared host perf score is a TBT lottery: an A/A run (same artifact both sides, 3+3 interleaved) gives FCP/LCP +-0.01 s but TBT +464 ms and perf -13; at loadavg ~8 the same artifact gives mobile TBT 4.8-5.5 s. Changes must be judged on FCP/LCP/SI/bytes at n>=3 and TBT/perf only by A/B at n>=5.",
+      "evidence": "$SCRATCH/phase1/measurement/ab-js-lowprio.log (transform proven ineffective => A/A): A TBT 249 (237-694), B 713 (351-981), DELTA score -13 tbt +464ms fcp +0.00 lcp +0.00; baseline-h2.log TBT 4762/5529 ms at load 8 vs smoke-h2 328 ms."
+    },
+    {
+      "id": "F4",
+      "severity": "high",
+      "metric": "FCP mobile (bimodal), SI",
+      "claim": "Simulated mobile FCP of the same artifact is bimodal (2.88-2.99 s vs 4.06-4.26 s; h1 also ~5.0 s). Lantern includes every High-priority script that finished before the observed FCP and started evaluating before it in the FCP graph; all ~550 KB gzip of boot+modulepreload JS is High and finishes ~300-365 ms observed vs CSS ~340 ms, so whether it lands in FCP is a tens-of-ms race. PSI has the same race.",
+      "evidence": "@paulirish/trace_engine/.../lantern/metrics/FirstContentfulPaint.js getRenderBlockingNodeData/getFirstPaintBasedGraph (High Script = render-blocking priority); runs table from $SCRATCH/phase1/measurement/fcp-modes.py (A-mobile-1 2993, B-mobile-1 2878 vs 4067-4260 others; baseline2 4928-5045)."
+    },
+    {
+      "id": "F5",
+      "severity": "high",
+      "metric": "FCP, LCP, SI mobile and desktop",
+      "claim": "What-if without build (proxy transform: remove all modulepreload from <head> and Link, entry <script type=module fetchpriority=low>) moves mobile FCP 4.07->1.52 s, LCP 4.82->3.32 s, SI 4.07->2.16 s, perf 67->75; desktop FCP 0.77->0.37 s, LCP 0.95->0.69 s; High bytes before LCP image 618->112 KB. Residual mobile LCP is the JS-gated hero (opacity:0 until hydration), not bandwidth.",
+      "evidence": "$SCRATCH/phase1/measurement/ab-js-nopreload-low.log DELTA B-A mobile fcp=-2.55s lcp=-1.50s si=-1.91s; B-mobile-1.audits.txt: entry Low at 146 ms, static imports High from 290 ms (after observed FCP), cover.jpg ends 111 ms, elementRenderDelay 164 ms; transform scripts/performance/whatif/js-no-preload-low.mjs; agrees with lighthouse-analyst offline P_scriptsLow FCP 1.37 s."
+    },
+    {
+      "id": "F6",
+      "severity": "medium",
+      "metric": "FCP/LCP (lever validity)",
+      "claim": "fetchpriority=\"low\" on <link rel=modulepreload> (and on the already-preloaded module script) is ignored by Chrome 141: all chunks stay High, FCP/LCP delta 0.00 s. Deprioritising boot JS requires removing/deferring the preloads, not the attribute.",
+      "evidence": "$SCRATCH/phase1/measurement/ab-js-lowprio/B-mobile-1.audits.txt (119 High requests after 44 injected fetchpriority=low attributes verified via curl in front-transform-test.ts); scripts/performance/whatif/js-low-priority.mjs."
+    },
+    {
+      "id": "F7",
+      "severity": "medium",
+      "metric": "FCP (document parse/transfer), LCP (bandwidth)",
+      "claim": "Document weight measured by the new gate: fixture 391 114 B raw / 54 696 B gzip, 50 inline <style> = 132 888 B, $tsr-stream-barrier 65 182 B, 25 modulepreload, 31 Link entries, 22 preload duplicates (head+Link), 9 <img fetchpriority=high>, boot closure 1 605 645 B raw / 485 279 B gzip, High JS at start 25 files / 561 750 B gzip, render-blocking CSS 79 802 B gzip. Production document: 569 347 / 78 455 B, barrier 107 041 B, LCP srcset preloaded 6x (5 in head), 27 duplicates.",
+      "evidence": "node scripts/performance/check-document-weight.ts -> $SCRATCH/phase1/measurement/document-weight-fixture.json; --html psi/home.html --headers psi/h1.txt -> document-weight-production.json; scripts/performance/document-weight-budgets.json."
+    },
+    {
+      "id": "F8",
+      "severity": "medium",
+      "metric": "production FCP/LCP consistency, TTFB",
+      "claim": "Production has the same variant hazard as F1: the first MISS in a colo (Googlebot, curl monitoring, LHCI warm-up with bare curl) decides whether browsers and PSI get the buffered or streaming document for the freshness window (3 min per colo). Owner: server-cache.",
+      "evidence": "src/lib/http/documentCache.ts:196-224 (key host::path), src/lib/http/documentCache.server.ts store/l2Put on MISS; reproduction F1; lighthouse.yml:286-297 documents the isbot branch for warm-ups."
+    },
+    {
+      "id": "F9",
+      "severity": "medium",
+      "metric": "TBT/FCP (parse+compile of boot JS)",
+      "claim": "check:bundle computes boot closure raw bytes but explicitly does not gate them; the document-weight gate now gates bootClosureRawBytes (1 605 645 B, max 1 637 758) and the High-priority JS pool (boot U modulepreload, 561 750 B gzip) which is the bandwidth that competes with the LCP image.",
+      "evidence": "scripts/check-bundle-size.ts:2471-2480 (`Raportowane, NIE bramkowane`); scripts/performance/documentWeight.ts staticClosure uses the same STATIC_EDGE_RE; production highPriorityBytesBeforeLcpImage 674.5 KB vs fixture 618 KB (psi-sample.mjs --from-file prod-mobile.json)."
+    },
+    {
+      "id": "F10",
+      "severity": "low",
+      "metric": "CI coverage (all)",
+      "claim": "Mode A has never run; when vars.LHCI_URL is set the mobile profile asserts categories:performance >= 0.8 at error (first run red by construction) and its metric thresholds are desktop-derived labels (LCP 1500, TBT 200, FCP 1100, SI 1600). The warm-up must use a browser UA or it seeds the bot variant and measures a MISS.",
+      "evidence": "lighthouserc.deployed.mobile.json:580-589; lighthouse.yml:132-218 (mode A steps), lighthouse.yml:63-70 (never ran)."
+    },
+    {
+      "id": "F11",
+      "severity": "low",
+      "metric": "measurement robustness",
+      "claim": "Under load Lighthouse fails with NO_NAVSTART in ~1 of 12 runs, and in some runs the LCP node is detached after load (slider swaps the <img>) so LH reports phases without a node; the harness retries once and falls back to the first High image for LCP byte accounting.",
+      "evidence": "baseline-h2.log mobile-2 NO_NAVSTART; ab-h1-h2 B-mobile-3.json lcp-breakdown-insight without node; scripts/performance/lighthouseReport.ts extractMetrics fallback."
+    }
+  ],
+  "changes": [
+    {
+      "id": "M1",
+      "title": "Adopt the measurement harness (new files, already created)",
+      "files": [
+        "scripts/performance/lighthouse-local.mjs",
+        "scripts/performance/artifactServer.ts",
+        "scripts/performance/lighthouseReport.ts",
+        "scripts/performance/documentWeight.ts",
+        "scripts/performance/check-document-weight.ts",
+        "scripts/performance/document-weight-budgets.json",
+        "scripts/performance/psi-sample.mjs",
+        "scripts/performance/document-weight.test.mjs",
+        "scripts/performance/whatif/js-no-preload-low.mjs",
+        "scripts/performance/whatif/js-low-priority.mjs",
+        "docs/performance/2026-10-03-pagespeed-85-95/POMIAR.md",
+        "docs/performance/2026-10-03-pagespeed-85-95/lighthouse-local-baseline.json"
+      ],
+      "mechanism": "PSI-identical Lighthouse runs on the smoke artifact with fixture backend, h2 one-origin front (document+assets+fixture images on https://fixture.invalid), browser-UA cache warm-up (readiness on /robots.txt), brotli with HTML flush, interleaved A/B, idle-wait on loadavg, retry, comparability warnings, audit dumps, document transform hook for what-ifs; document-weight gate with tighten-only ratchet; PSI API sampler.",
+      "metric": "measurement fidelity for all Lighthouse metrics",
+      "expected_effect": "Removes two measured biases of the old harness (bot variant document; h1/separate origin: +0.30 s LCP mobile, +0.28 s FCP desktop) and gives a noise-quantified A/B (A/A FCP/LCP +-0.01 s).",
+      "estimate_basis": "ab-h1-h2.log, ab-js-lowprio.log (A/A), bot-warm/warm-variants reproduction",
+      "risk": "low",
+      "risk_notes": "New files only; .ts files fall under typecheck:scripts (0 errors now). Requires openssl for the h2 cert (fallback --transport h1). Node >= 22.6 for type stripping (CI uses 24.19).",
+      "gates": [
+        "typecheck:scripts",
+        "lint",
+        "format:check",
+        "node --test scripts/performance/document-weight.test.mjs"
+      ],
+      "verification": "node scripts/performance/lighthouse-local.mjs --runs 3 prints MEDIAN + DELTA vs docs/.../lighthouse-local-baseline.json; node scripts/performance/check-document-weight.ts ends with '✓ Waga dokumentu w progach'; node --test ... 7/7.",
+      "effort": "S"
+    },
+    {
+      "id": "M2",
+      "title": "Wire document-weight gate and mobile Lighthouse A/B into first-visit.yml",
+      "files": [".github/workflows/first-visit.yml", "package.json"],
+      "mechanism": "first-visit.yml already builds baseline and candidate artifacts with fixture env on one runner; add `node --test scripts/performance/document-weight.test.mjs`, `node scripts/performance/check-document-weight.ts --root ../candidate` (blocking), baseline report, and `lighthouse-local.mjs --compare ../baseline ../candidate --runs 3 --forms mobile` (report; block only on byte deltas scriptTransferBytes/highPriorityBytesBeforeLcpImage > +1 %); upload reports; timeout 20 -> 35 min; add package.json scripts check:document-weight / test:measurement-harness wired exactly once.",
+      "metric": "regression prevention for HTML bytes, inline CSS/state, preloads, boot raw bytes, High JS pool (FCP/LCP/TBT drivers)",
+      "expected_effect": "Every PR shows document-weight table and LH A/B DELTA; regressions of inline <style>, dehydrated state, preload duplicates or boot raw bytes block merge.",
+      "estimate_basis": "gate runtime ~6 s locally; LH mobile run ~60-90 s each on 4 CPU",
+      "risk": "low",
+      "risk_notes": "Budgets were ratcheted from a build with the real public VITE_SUPABASE_URL; CI builds with http://127.0.0.1:4199 (tens of bytes difference, inside 2 % byte headroom) - re-ratchet from the first runner log per repo rule. Runner TBT noise means timing must stay report-only.",
+      "gates": ["check:gate-coverage", "check:workflow-env-contract", "check:ci-gates"],
+      "verification": "First CI run: step green, reports/document-weight.json uploaded, LH DELTA line printed; a deliberately added inline <style> on a branch turns the step red (negative control mirrored by the unit test).",
+      "effort": "M",
+      "depends_on": ["M1"]
+    },
+    {
+      "id": "M3",
+      "title": "Retire measure-local.sh / measure-ab.sh and re-baseline other workstreams",
+      "files": [
+        "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/measure-local.sh",
+        "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/measure-local-cloud.sh",
+        "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/measure-ab-cloud.sh",
+        "docs/performance/2026-10-03-pagespeed-85-95/EVIDENCE.md"
+      ],
+      "mechanism": "Mark the shell harness deprecated (bare-curl readiness seeds the bot variant; h1), point EVIDENCE §0-cloud to lighthouse-local.mjs; all phase-2 A/B numbers produced with the new harness (h2, browser warm).",
+      "metric": "comparability of all phase-2 deltas",
+      "expected_effect": "Avoids judging changes against baseline2 (bot variant + h1: mobile FCP 4.98 / LCP 5.58) instead of the browser/h2 baseline (4.06 / 4.81).",
+      "estimate_basis": "F1/F2 measurements",
+      "risk": "low",
+      "gates": ["format:check"],
+      "verification": "Implementation agents' reports cite lighthouse-local.mjs labels with transport=h2 and warmUa=browser in summary.json.",
+      "effort": "S",
+      "depends_on": ["M1"]
+    },
+    {
+      "id": "M4",
+      "title": "Make the cached document variant deterministic (bot vs browser)",
+      "files": [
+        "src/lib/http/documentCache.server.ts",
+        "src/lib/http/documentCache.ts",
+        "src/lib/http/__tests__/documentCache.server.test.ts"
+      ],
+      "mechanism": "Do not store isbot() renders in the document cache (serve them, keep the browser-seeded entry), or add the variant to the key; owner server-cache.",
+      "metric": "production FCP/LCP stability as seen by PSI; local measurement determinism",
+      "expected_effect": "PSI and readers always get the streaming browser variant (or a deliberate one) regardless of who missed first in a colo; removes a hidden source of PSI run-to-run variance.",
+      "estimate_basis": "F1/F8 reproduction (382 468 vs 391 114 B, 14 vs 22 scripts); the performance effect of each variant must be measured with `lighthouse-local.mjs --warm-ua bot` vs browser before choosing",
+      "risk": "medium",
+      "risk_notes": "Lower HIT ratio for bots if not stored; cache key change invalidates entries; must keep SSR HTML parity.",
+      "gates": ["test", "check:ssr-budgets", "SSR/hydration parity tests"],
+      "verification": "Unit test: bot MISS followed by browser request returns the browser variant; lighthouse-local A/B --warm-ua bot vs browser documents which variant scores better.",
+      "effort": "M"
+    },
+    {
+      "id": "M5",
+      "title": "Enable Lighthouse mode A (vars.LHCI_URL) with browser-UA warm-up and a measured mobile floor",
+      "files": [".github/workflows/lighthouse.yml", "lighthouserc.deployed.mobile.json"],
+      "mechanism": "Human sets vars.LHCI_URL=https://neweuropeanstrategies.com; PR adds a warm-up step (browser UA, logs x-nes-cache/server-timing/cf-ray) before the desktop and mobile LHCI steps; first run defines the floor: mobile categories:performance error minScore = measured median - 0.05 (recorded in _comment), mobile metric warn thresholds switched to mobile 'good' bounds (LCP 2500, TBT 200, FCP 1800, SI 3400); ratchet up per fix wave.",
+      "metric": "deployed perf score mobile/desktop (regression gate on real deploys)",
+      "expected_effect": "First real measurement of the deployed app in CI; expected first mobile perf 45-63, desktop 70-92.",
+      "estimate_basis": "PSI 53/70; laptop-vs-prod LH 63/92 (EVIDENCE §1)",
+      "risk": "low",
+      "risk_notes": "GitHub runner != PSI host (benchmarkIndex/colo); MISS vs HIT dominates TTFB/SI; human decision on error vs warn per file _comment.",
+      "gates": ["check:workflow-env-contract", "check:gate-coverage"],
+      "verification": "Run log shows lhci-urls.txt, warm-up headers with x-nes-cache HIT, and assertion results; floor recorded in lighthouserc.deployed.mobile.json _comment with run id.",
+      "effort": "S"
+    },
+    {
+      "id": "M6",
+      "title": "Nightly PSI sampling with an API key",
+      "files": [
+        ".github/workflows/psi.yml",
+        "scripts/performance/psi-sample.mjs",
+        "docs/performance/2026-10-03-pagespeed-85-95/psi-baseline.json"
+      ],
+      "mechanism": "Secret PSI_API_KEY; cron + workflow_dispatch runs `psi-sample.mjs --runs 5 --strategy mobile,desktop --baseline ... `; utm_source cache-buster (stripped from the document cache key); CrUX field data logged; artifacts uploaded.",
+      "metric": "the contract number itself (PSI mobile/desktop score) + CrUX p75",
+      "expected_effect": "Daily median of 5 PSI runs per form instead of single screenshots; quantifies PSI variance (F4 bimodality) on production.",
+      "estimate_basis": "PSI quota 25 000/day with key; 10 calls/night",
+      "risk": "low",
+      "gates": ["check:workflow-env-contract", "check:gate-coverage"],
+      "verification": "Workflow log shows MEDIAN psi mobile/desktop and CrUX lines; summary.json uploaded.",
+      "effort": "S",
+      "depends_on": ["M1"]
+    },
+    {
+      "id": "M7",
+      "title": "RUM: edge cache state and colo in the vitals payload",
+      "files": [
+        "src/lib/webVitals.ts",
+        "src/server.ts",
+        "src/lib/http/ssrTiming.ts",
+        "src/lib/__tests__/webVitals.test.ts"
+      ],
+      "mechanism": "Read PerformanceNavigationTiming.serverTiming (entry nes-edge desc HIT/MISS/STALE) into the beacon; emit `colo;desc=<request.cf.colo>` in server-timing next to the existing timing entries (src/server.ts:226).",
+      "metric": "production TTFB/LCP p75 split by HIT/MISS per colo (observability)",
+      "expected_effect": "Decides with real-reader data whether the 3-min per-colo freshness matters for readers or only for PSI.",
+      "estimate_basis": "design; no measurement possible offline",
+      "risk": "low",
+      "risk_notes": "No identifiers added; colo is coarse geo - keep within the privacy note in webVitals.ts.",
+      "gates": ["test", "typecheck"],
+      "verification": "Unit test of payload; dashboard query of HIT ratio per colo after deploy; cross-check with Globalping samples (POMIAR.md §6).",
+      "effort": "M"
+    },
+    {
+      "id": "M8",
+      "title": "Hand-off hypothesis: keep boot JS out of the High pool before first paint",
+      "files": [
+        "src/lib/http/frameworkPreloads.server.ts",
+        "src/routes/__root.tsx",
+        "src/router.tsx"
+      ],
+      "mechanism": "Stop emitting modulepreload for boot/widget chunks in <head> and Link (fetchpriority=low on modulepreload is ignored by Chrome 141), let the entry load at Low after CSS/fonts/hero, then un-gate the hero opacity so LCP follows FCP; owners boot-js + lcp-path, implement and prove with A/B of two artifacts.",
+      "metric": "FCP, LCP, SI (mobile and desktop)",
+      "expected_effect": "What-if measured: mobile FCP -2.55 s, LCP -1.50 s, SI -1.91 s, perf +8; desktop FCP -0.40 s, LCP -0.26 s; further LCP gain once the hero is not opacity-gated.",
+      "estimate_basis": "ab-js-nopreload-low.log (3+3 interleaved, proxy transform on the same artifact); lighthouse-analyst offline Lantern re-simulation agrees on FCP",
+      "risk": "high",
+      "risk_notes": "Module-graph waterfall delays hydration (TTI +0.25 s mobile in the what-if, TBT +376 ms within A/A noise); must respect setTimeout(0) before hydrate, chunk-cycle doctrine and SSR parity.",
+      "gates": [
+        "check:bundle",
+        "check:chunks",
+        "check:entry-purity",
+        "check:chunk-parity",
+        "SSR/hydration parity tests",
+        "check-document-weight (preloadedJsCount, modulepreloadCount ratchet down)"
+      ],
+      "verification": "lighthouse-local.mjs --compare <main> <candidate> --runs 5: DELTA mobile fcp <= -1.5 s and lcp <= -1.0 s, highPriorityBytesBeforeLcpImage < 150 KB; document-weight ratchet lowered in the same PR.",
+      "effort": "L",
+      "depends_on": ["M1"]
+    }
+  ],
+  "conflicts_with_other_workstreams": [
+    "server-cache, hydration and any report built on measure-local.sh/measure-ab.sh (baseline2) measured the bot (buffered) document variant over http/1.1 - their absolute FCP/LCP (e.g. mobile FCP ~5.0 s) are not the browser/h2 baseline (4.06 s); deltas should be re-measured with lighthouse-local.mjs.",
+    "server-cache: document cache key host::path lets a bot MISS seed the variant served to browsers/PSI (M4 belongs to server-cache).",
+    "boot-js / lcp-path: M8 is their implementation area (preload emission, hero opacity gating); this workstream only supplies the what-if measurement and the gates (modulepreloadCount, preloadedJsGzipBytes, documentPreloadDuplicates ratchets).",
+    "html-weight / css: the document-weight budgets ratchet will need to be lowered (never raised) in the same PRs that cut inline <style>, dehydrated state or preloads."
+  ],
+  "open_questions": [
+    "Which document variant (buffered bot vs streaming browser) scores better under PSI? Measure with lighthouse-local.mjs --compare . . plus a --warm-ua option per side (not yet split per side) before choosing M4's policy.",
+    "PSI host benchmarkIndex is unknown (desktop TBT 740 ms on PSI vs 0-70 ms here); a first psi-sample.mjs run with a key will give environment.benchmarkIndex of PSI hosts to calibrate local TBT.",
+    "Budgets were ratcheted from an artifact built with the real public VITE_SUPABASE_URL; confirm on the first CI run built with the fixture URL and re-ratchet from the runner log.",
+    "Human decision for mode A mobile: keep categories:performance at error with a measured floor, or warn during the fix waves (lighthouserc.deployed.mobile.json _comment rule)."
+  ]
+}

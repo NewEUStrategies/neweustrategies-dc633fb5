@@ -190,7 +190,11 @@ export async function fixtureResponse(request: Request, { delayMs = 0 } = {}): P
         rows = homeFixture.settings;
         break;
       case "site_design_tokens":
-        rows = homeFixture.tokens;
+        // Kolumna `font_scale jsonb NOT NULL DEFAULT '{}'` (migracja 20260908145237)
+        // jest w każdym wierszu produkcji; zapis fixture sprzed tej migracji jej nie
+        // ma. Brak pola i `{}` normalizują się tak samo, ale backend klienta
+        // (P0.1, `clientBackend.ts`) ma odpowiadać kształtem produkcji.
+        rows = homeFixture.tokens.map((row) => ({ font_scale: {}, ...row }));
         break;
       case "pages":
         rows = homeFixture.pages;

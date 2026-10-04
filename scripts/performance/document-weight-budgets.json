@@ -1,0 +1,115 @@
+{
+  "_comment": [
+    "BRAMKA WAGI DOKUMENTU `/` (scripts/performance/check-document-weight.ts). Plik progów; przeczytaj PRZED zmianą jakiejkolwiek liczby.",
+    "",
+    "CO MIERZY. Dokument PL `/` wyrenderowany z artefaktu `build:smoke` z backendem fixture (replayFetch.mjs, e2e/fixtures/first-visit.json), rozgrzany UA przeglądarki (wariant STRUMIENIOWY - wariant bota/curl jest inny: 382 KB zamiast 391 KB, zmierzone 2026-10-03), plus nagłówek `Link`, plus pliki `.output/public/assets` dla domknięcia bootu, puli JS z `modulepreload` i CSS blokującego. Definicje metryk: komentarze pól `DocumentWeight` w scripts/performance/documentWeight.ts.",
+    "",
+    "SKĄD `max`. Ratchet z pomiaru fixture 2026-10-03 na commicie fd94e61 (artefakt = origin/main 6a4215db; hashe vendor-react i styles identyczne z produkcją): max = ceil(największa z 5 próbek x 1,02) dla bajtów, a dla liczników (bloki, preloady, obrazy) dokładnie zmierzona wartość. 5 próbek HIT jest bajtowo identycznych; zapas 2% pokrywa różnicę długości portu/URL-i między uruchomieniami (zmierzone +191 B). `measured` to wartość z tego pomiaru.",
+    "",
+    "SKĄD `target`. NIE bramkuje - to kierunek z planu (docs/performance/2026-10-02-pagespeed-przyczyny.md §9 i EVIDENCE §8): HTML < 200 KB (#6), inline <style> -> arkusze `precedence` (#5), domknięcie bootu ~1,1 MB raw (#4), 0 duplikatów preloadów i jeden obraz z fetchpriority=high (LCP), pula JS High przy starcie <= 150 KB gzip (żeby obraz LCP nie czekał w kolejce h2 za JS na 1,6 Mb/s: 2,5 s x ~190 KB/s minus HTML, CSS, fonty i sam obraz).",
+    "",
+    "RATCHET - reguła identyczna jak FROZEN_BUDGET_KB w scripts/check-bundle-size.ts: progi wolno WYŁĄCZNIE obniżać. `--ratchet` przepisuje ten plik z nowego pomiaru i matematycznie nie umie podnieść progu (ratchetBudgets: min(stary, nowy)). Zmiana, która świadomie dokłada bajty (np. nowy widget nad zgięciem), musi to zrobić w osobnym commicie z pomiarem i uzasadnieniem tutaj - nie przez cichą edycję liczby.",
+    "",
+    "CZEGO NIE MIERZY. Produkcyjny dokument jest cięższy (569 KB, 107 KB stanu, LCP preloadowany 6x - `--html` na zapisanym HTML-u produkcji) - fixture ma mniej menu i wpisów. Bramka łapie REGRESJĘ STRUKTURY (nowe inline style, nowe preloady, przyrost stanu), nie bezwzględny rozmiar produkcji. Czas parsowania i wynik Lighthouse mierzy scripts/performance/lighthouse-local.mjs."
+  ],
+  "path": "/",
+  "measuredAt": "2026-10-03",
+  "commit": "fd94e61 (= origin/main 6a4215db + pakiet dowodowy)",
+  "budgets": {
+    "htmlRawBytes": {
+      "max": 398937,
+      "measured": 391114,
+      "target": 204800
+    },
+    "htmlGzipBytes": {
+      "max": 55565,
+      "measured": 54696,
+      "target": 30720
+    },
+    "headRawBytes": {
+      "max": 24601,
+      "measured": 24118,
+      "target": 12288
+    },
+    "inlineStyleCount": {
+      "max": 50,
+      "measured": 50,
+      "target": 5
+    },
+    "inlineStyleBytes": {
+      "max": 135546,
+      "measured": 132888,
+      "target": 20480
+    },
+    "inlineScriptBytes": {
+      "max": 96117,
+      "measured": 94232,
+      "target": 40960
+    },
+    "inlineExecutableScriptBytes": {
+      "max": 89739,
+      "measured": 87979,
+      "target": 35840
+    },
+    "dehydratedStateBytes": {
+      "max": 66486,
+      "measured": 65182,
+      "target": 30720
+    },
+    "modulepreloadCount": {
+      "max": 25,
+      "measured": 25,
+      "target": 12
+    },
+    "linkHeaderEntries": {
+      "max": 31,
+      "measured": 31,
+      "target": 16
+    },
+    "preloadDuplicates": {
+      "max": 22,
+      "measured": 22,
+      "target": 0
+    },
+    "documentPreloadDuplicates": {
+      "max": 1,
+      "measured": 1,
+      "target": 0
+    },
+    "imagePreloadCount": {
+      "max": 4,
+      "measured": 4,
+      "target": 2
+    },
+    "imgFetchpriorityHigh": {
+      "max": 9,
+      "measured": 9,
+      "target": 1
+    },
+    "bootClosureRawBytes": {
+      "max": 1637758,
+      "measured": 1605645,
+      "target": 1153434
+    },
+    "bootClosureGzipBytes": {
+      "max": 494985,
+      "measured": 485279,
+      "target": 358400
+    },
+    "preloadedJsCount": {
+      "max": 25,
+      "measured": 25,
+      "target": 12
+    },
+    "preloadedJsGzipBytes": {
+      "max": 572985,
+      "measured": 561750,
+      "target": 153600
+    },
+    "renderBlockingCssGzipBytes": {
+      "max": 81399,
+      "measured": 79802,
+      "target": 30720
+    }
+  }
+}

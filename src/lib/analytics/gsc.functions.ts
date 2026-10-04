@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
+import { requireAnalyticsAdmin } from "@/lib/analytics/gateway.server";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_search_console";
 
@@ -23,22 +24,15 @@ interface GatewayCtx {
   userId: string;
 }
 
-async function requireAdmin(context: GatewayCtx): Promise<void> {
-  // Tenant-scoped: has_role() filters user_roles by current_tenant_id().
-  //
-  // TA BRAMKA NIE ZAWĘŻA DANYCH. Konektor GSC jest jeden na wdrożenie (klucze
-  // ze środowiska), więc każdy admin każdego najemcy pyta Google tym samym
-  // kontem - o zakres DANYCH dba dopiero związanie `siteUrl` z `tenants.domain`
-  // wołającego (`assertSiteUrlBelongsToTenant`), a nie ta funkcja.
-  const { data: isAdmin, error } = await context.supabase.rpc("has_role", {
-    _user_id: context.userId,
-    _role: "admin",
-  });
-  if (error) throw new Error(error.message);
-  if (!isAdmin) {
-    throw new Error("Forbidden: admin role required");
-  }
-}
+/*
+ * BRAMKA ROLI NIE ZAWĘŻA DANYCH. Każdy handler niżej woła najpierw
+ * `requireAnalyticsAdmin` (tenant-scoped: `has_role()` filtruje `user_roles`
+ * po `current_tenant_id()`), ale konektor GSC jest jeden na wdrożenie (klucze
+ * ze środowiska), więc każdy admin każdego najemcy pyta Google tym samym
+ * kontem. O zakres DANYCH dba dopiero związanie `siteUrl` z `tenants.domain`
+ * wołającego (`siteUrlBelongsToTenant` / `assertSiteUrlBelongsToTenant`
+ * w handlerach), a nie bramka.
+ */
 
 /**
  * Najemca wołającego - z jego PROFILU, czyli z tej samej płaszczyzny, po
@@ -103,8 +97,9 @@ export interface GscSite {
 export const listGscSites = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ sites: GscSite[]; configured: boolean }> => {
-    const ctx = context as unknown as GatewayCtx;
-    await requireAdmin(ctx);
+    const ctx: GatewayCtx = context;
+    // Bramka roli - zakresu danych pilnuje odsianie listy niżej (nagłówek modułu).
+    await requireAnalyticsAdmin(ctx);
     const tenantId = await callerTenantId(ctx);
     const { siteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
     try {
@@ -148,8 +143,9 @@ export const queryGscAnalytics = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i: unknown) => analyticsInput.parse(i))
   .handler(async ({ data, context }): Promise<{ rows: GscRow[] }> => {
-    const ctx = context as unknown as GatewayCtx;
-    await requireAdmin(ctx);
+    const ctx: GatewayCtx = context;
+    // Bramka roli - zakresu danych pilnuje `assertSiteUrlBelongsToTenant` niżej.
+    await requireAnalyticsAdmin(ctx);
     // Odmowa PRZED `gwFetch`: kwerenda cudzej właściwości nie ma prawa ruszyć
     // do Google ani kosztować limitu konektora.
     const { assertSiteUrlBelongsToTenant } = await import("@/lib/server/tenant.server");
@@ -191,8 +187,9 @@ export const inspectGscUrl = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((i: unknown) => inspectInput.parse(i))
   .handler(async ({ data, context }): Promise<{ raw: string }> => {
-    const ctx = context as unknown as GatewayCtx;
-    await requireAdmin(ctx);
+    const ctx: GatewayCtx = context;
+    // Bramka roli - zakresu danych pilnują dwa `assertSiteUrlBelongsToTenant` niżej.
+    await requireAnalyticsAdmin(ctx);
     // OBA pola niosą adres: `siteUrl` wybiera właściwość, a `inspectionUrl`
     // konkretną stronę w niej. Sprawdzamy oba, bo inspekcja zwraca stan
     // indeksowania adresu, a nie właściwości.

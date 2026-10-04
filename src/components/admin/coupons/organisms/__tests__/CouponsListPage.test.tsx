@@ -16,16 +16,25 @@
 //   4. PRZELACZNIK, KTORY NIE ZAPISUJE. „Aktywny" to jedyny hamulec dla kodu,
 //      ktory wyciekl; musi trafic do bazy z odwrocona wartoscia i zawezony do
 //      TEGO wiersza.
+//   5. ANALITYKA, KTORA NIE WIE O ZMIANIE. Ranking na /admin/coupons/analytics
+//      mieszka pod fabryka analityki (`["admin-analytics", <najemca>,
+//      "b2b-coupons", od, do]`), a nie pod kluczem listy. Do 2026-10 kazda
+//      mutacja uniewazniala wylacznie liste - skasowany kod zostawal
+//      w rankingu, a nowy sie w nim nie pojawial az do `staleTime`.
 //
 // GRANICE vs SASIEDZI. `CouponCreateDialog` i `Stat` biegna PRAWDZIWE - to
 // sasiedzi z `@/components/admin/coupons/*`. Atrapowane sa wylacznie granice:
-// klient Supabase, toasty, i18n, schowek przegladarki i Radiksowe prymitywy,
-// ktore pod happy-dom nie reaguja na klikniecie.
+// klient Supabase, toasty, i18n, schowek przegladarki, najemca
+// (`useCurrentTenantId` - prawdziwy czyta `profiles` dla sesji `useAuth`)
+// i Radiksowe prymitywy, ktore pod happy-dom nie reaguja na klikniecie.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
+import type { QueryClient } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
 import { fail, ok, type SupabaseFromStub } from "@/test/supabaseChain";
+import { analyticsCouponsKey, analyticsStatusKey } from "@/lib/analytics/queryKeys";
+import { freezeClock } from "@/test/time";
 import type { ExtRow } from "../CouponsListPage";
 
 /** Ksztalt pytania, ktore panel zadaje przed usunieciem (patrz `@/lib/appDialogs`). */
@@ -35,6 +44,11 @@ type ConfirmDialogOptions = {
   destructive?: boolean;
   confirmLabel?: string;
 };
+
+// Zegar zamrożony (`check:clock-freeze`): kupony "przeszłe" (2020) i "przyszłe"
+// (2099-12-31) mają takie zostać względem stałego "teraz" (FIXED_NOW, 2099-06-15),
+// a nie względem dnia przebiegu; daty w kluczach analityki to tylko etykiety zakresu.
+freezeClock();
 
 const h = vi.hoisted(() => ({
   from: null as unknown,
@@ -53,6 +67,8 @@ const h = vi.hoisted(() => ({
   natywneConfirm: vi.fn((_message?: string) => true),
   /** Jezyk interfejsu widziany przez panel (przelaczany per przypadek). */
   lang: "pl",
+  /** Najemca z `useCurrentTenantId` (null = jeszcze nieustalony). */
+  tenantId: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa" as string | null,
 }));
 
 vi.mock("react-i18next", async () =>
@@ -61,6 +77,7 @@ vi.mock("react-i18next", async () =>
 vi.mock("sonner", () => ({ toast: { success: h.toastSuccess, error: h.toastError } }));
 vi.mock("@/lib/i18n-admin-coupons", () => ({ ensureI18n: h.ensureI18n }));
 vi.mock("@/lib/appDialogs", () => ({ confirmDialog: h.confirm }));
+vi.mock("@/lib/tenant", () => ({ useCurrentTenantId: () => h.tenantId }));
 
 vi.mock("@/integrations/supabase/client", async () => {
   const { supabaseFromStub } = await import("@/test/supabaseChain");
@@ -199,6 +216,7 @@ function kafelek(etykieta: string): string {
 beforeEach(() => {
   db().reset();
   h.lang = "pl";
+  h.tenantId = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
   h.toastSuccess.mockReset();
   h.toastError.mockReset();
   h.ensureI18n.mockClear();
@@ -728,6 +746,110 @@ describe("CouponsListPage - dialog tworzenia", () => {
     const dialog = within(await screen.findByRole("dialog"));
     expect(dialog.getByText("Plan")).toBeInTheDocument();
     expect(dialog.getByRole("option", { name: "Premium" })).toBeInTheDocument();
+  });
+});
+
+describe("CouponsListPage - uniewaznianie analityki kuponow", () => {
+  const TENANT = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+  const OBCY = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
+  // Zakres zapamietany na /admin/coupons/analytics jest dowolny - mutacja go
+  // nie zna, wiec pilnujemy DWOCH roznych zakresow tego samego najemcy.
+  const ZAKRES = analyticsCouponsKey(
+    TENANT,
+    "2026-07-01T00:00:00.000Z",
+    "2026-10-01T00:00:00.000Z",
+  );
+  const BEZ_GRANIC = analyticsCouponsKey(TENANT, null, null);
+  const CUDZY = analyticsCouponsKey(OBCY, null, null);
+  const STATUS = analyticsStatusKey(TENANT);
+
+  /** Wpisy analityki, jakie zostawilaby wczesniejsza wizyta na jej ekranie. */
+  function posiej(qc: QueryClient): void {
+    for (const key of [ZAKRES, BEZ_GRANIC, CUDZY, STATUS]) qc.setQueryData(key, []);
+  }
+
+  function uniewazniony(qc: QueryClient, key: readonly unknown[]): boolean | undefined {
+    return qc.getQueryState(key)?.isInvalidated;
+  }
+
+  /** Wszystkie odpowiedzi udane - mutacje przechodza, lista ma jeden kupon. */
+  function zgoda(): void {
+    db().setResponse("b2b_coupons", (chain) => (chain.has("select") ? ok([kupon()]) : ok(null)));
+    db().setResponse("access_plans", ok([]));
+    db().setResponse("membership_tiers", ok([]));
+  }
+
+  it("PRZELACZNIK uniewaznia analityke kuponow SWOJEGO najemcy w kazdym zakresie", async () => {
+    zgoda();
+    const { queryClient } = renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("NES-B2B-10");
+    posiej(queryClient);
+    fireEvent.click(screen.getByRole("switch", { name: "adminCoupons.toggleActive" }));
+
+    await waitFor(() => expect(uniewazniony(queryClient, ZAKRES)).toBe(true));
+    expect(uniewazniony(queryClient, BEZ_GRANIC)).toBe(true);
+    // Cudzy najemca i inne dziedziny analityki zostaja swieze.
+    expect(uniewazniony(queryClient, CUDZY)).toBe(false);
+    expect(uniewazniony(queryClient, STATUS)).toBe(false);
+  });
+
+  it("USUNIECIE uniewaznia analityke kuponow - skasowany kod znika tez z rankingu", async () => {
+    zgoda();
+    const { queryClient } = renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("NES-B2B-10");
+    posiej(queryClient);
+    fireEvent.click(screen.getByRole("button", { name: "adminCoupons.deleteAction" }));
+
+    await waitFor(() => expect(uniewazniony(queryClient, ZAKRES)).toBe(true));
+    expect(uniewazniony(queryClient, BEZ_GRANIC)).toBe(true);
+    expect(uniewazniony(queryClient, CUDZY)).toBe(false);
+  });
+
+  it("UTWORZENIE kuponu uniewaznia analityke kuponow - nowy kod staje w rankingu", async () => {
+    zgoda();
+    const { queryClient } = renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("NES-B2B-10");
+    posiej(queryClient);
+    fireEvent.click(screen.getByRole("button", { name: /adminCoupons\.newCoupon/ }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(dialog.getByLabelText("adminCoupons.code"), {
+      target: { value: "NES-NOWY" },
+    });
+    fireEvent.click(dialog.getByRole("button", { name: "adminCoupons.createCoupon" }));
+
+    await waitFor(() => expect(uniewazniony(queryClient, ZAKRES)).toBe(true));
+    expect(uniewazniony(queryClient, BEZ_GRANIC)).toBe(true);
+    expect(uniewazniony(queryClient, CUDZY)).toBe(false);
+  });
+
+  it("ODMOWA zapisu NIE uniewaznia analityki - nic sie nie zmienilo", async () => {
+    db().setResponse("b2b_coupons", (chain) =>
+      chain.has("delete") ? fail("permission denied", "42501") : ok([kupon()]),
+    );
+    db().setResponse("access_plans", ok([]));
+    db().setResponse("membership_tiers", ok([]));
+    const { queryClient } = renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("NES-B2B-10");
+    posiej(queryClient);
+    fireEvent.click(screen.getByRole("button", { name: "adminCoupons.deleteAction" }));
+
+    await waitFor(() => expect(h.toastError).toHaveBeenCalledWith("permission denied"));
+    expect(uniewazniony(queryClient, ZAKRES)).toBe(false);
+    expect(uniewazniony(queryClient, BEZ_GRANIC)).toBe(false);
+  });
+
+  it("najemca NIEUSTALONY: zapis sie odbyl, wiec analityka i tak traci swiezosc", async () => {
+    // Bez najemcy nie wiadomo, pod ktorym prefiksem lezy jego analityka -
+    // uniewaznienie idzie wtedy po korzeniu analityki, nigdy nie jest pomijane.
+    h.tenantId = null;
+    zgoda();
+    const { queryClient } = renderWithQueryClient(<CouponsListPage />);
+    await screen.findByText("NES-B2B-10");
+    posiej(queryClient);
+    fireEvent.click(screen.getByRole("switch", { name: "adminCoupons.toggleActive" }));
+
+    await waitFor(() => expect(uniewazniony(queryClient, ZAKRES)).toBe(true));
+    expect(uniewazniony(queryClient, BEZ_GRANIC)).toBe(true);
   });
 });
 

@@ -52,8 +52,8 @@ export function defaultSocialImage(origin: string): string {
  * front page and any route without its own head() stay byte-identical.
  */
 export const SITE_DEFAULT_TITLE: Record<Lang, string> = {
-  pl: "New European Strategies - bezpieczeństwo Europy",
-  en: "New European Strategies - European Security Analysis",
+  pl: "New European Strategies",
+  en: "New European Strategies",
 };
 
 /** Brand-default meta description per language (see SITE_DEFAULT_TITLE). */

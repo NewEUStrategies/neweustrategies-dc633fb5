@@ -2,11 +2,12 @@
 //
 // PO CO. To jest JEDNA Z CZTERECH publicznie osiągalnych ścieżek ZAPISU w tej
 // platformie, do której dowolny klient dociera bez sesji i bez podpisu:
-// `src/lib/analytics/track.ts` wysyła batch `sendBeacon`em, a endpoint wstawia
-// wiersze klientem service_role, czyli z pominięciem RLS. Cała jego obrona to
-// walidacja wejścia i limiter - i do wydania 8 audytu nie miał ani jednego
-// testu (0/43 linii, 0/4 funkcji), przy 95,4-100% na każdym endpoincie, który
-// swój test ma.
+// `src/lib/analytics/track.ts` wysyła batch `sendBeacon`em (anonim) albo
+// keepalive `fetch`em z bearerem (zalogowany) - bearer jest OPCJONALNY - a
+// endpoint wstawia wiersze klientem service_role, czyli z pominięciem RLS.
+// Cała jego obrona to walidacja wejścia i limiter - i do wydania 8 audytu nie
+// miał ani jednego testu (0/43 linii, 0/4 funkcji), przy 95,4-100% na każdym
+// endpoincie, który swój test ma.
 //
 // Trzy reguły, których pilnuje ten plik (wzorzec: `-popup-event.test.ts`):
 //   * nieznany `event_type` rozsypuje raport NA ZAWSZE - wiersza, którego panel
@@ -22,12 +23,19 @@
 // Czwarta, wspólna dla wszystkich beaconów: KAŻDA ścieżka oddaje 204 i połyka
 // błąd. Beacon nie ma jak obsłużyć odpowiedzi, a 5xx w odpowiedzi na
 // `sendBeacon` w części przeglądarek ląduje w konsoli odwiedzającego.
+//
+// Piąta: zalogowanie to JEDEN BIT (`signed_in`) wyliczony z bearera, który
+// serwer sam zweryfikował - nigdy identyfikator konta i nigdy pole z ciała.
+// Atrapą jest wyłącznie weryfikacja podpisu (`optionalUserIdFromRequest`);
+// odczyt nagłówka i pamięć werdyktów (`signedIn.server.ts`) biegną prawdziwe.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
   insert: vi.fn(),
   tenantId: "tenant-1" as string | null,
   tenantThrows: false,
+  /** Weryfikacja podpisu bearera: `sub` dla ważnego tokenu, `null` dla podróbki. */
+  verifyUser: vi.fn<() => Promise<string | null>>(),
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -42,12 +50,19 @@ vi.mock("@/lib/server/tenant.server", () => ({
 vi.mock("@/lib/http/requestHost", () => ({
   currentTenantHost: async () => "redakcja.example.test",
 }));
+// Podmieniona WYŁĄCZNIE weryfikacja podpisu - `optionalBearerFromRequest`
+// zostaje prawdziwy i czyta nagłówek z atrapy `getRequest` niżej.
+vi.mock("@/lib/auth/optionalUser.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/auth/optionalUser.server")>()),
+  optionalUserIdFromRequest: h.verifyUser,
+}));
 
 const req = vi.hoisted(() => ({ current: null as Request | null }));
 vi.mock("@tanstack/react-start/server", () => ({ getRequest: () => req.current }));
 
 import { routeServerHandlers } from "@/test/routeHarness";
 import { Route } from "@/routes/api/public/track";
+import { resetSignedInVerdictCacheForTests } from "@/lib/analytics/signedIn.server";
 
 const handler = routeServerHandlers(Route).POST!;
 
@@ -93,9 +108,14 @@ async function postOne(event: EventInput, headers?: Record<string, string>) {
   );
 }
 
-/** Wiersze przekazane do `insert` w ostatnim wywołaniu. */
+/** Wiersze przekazane do `insert` w pierwszym wywołaniu. */
 function insertedRows(): Record<string, unknown>[] {
-  const call = h.insert.mock.calls[0];
+  return rowsAt(0);
+}
+
+/** Wiersze przekazane do `insert` w wywołaniu numer `index` (od zera). */
+function rowsAt(index: number): Record<string, unknown>[] {
+  const call = h.insert.mock.calls[index];
   return (call?.[0] ?? []) as Record<string, unknown>[];
 }
 
@@ -104,6 +124,9 @@ beforeEach(() => {
   h.insert.mockResolvedValue({ error: null });
   h.tenantId = "tenant-1";
   h.tenantThrows = false;
+  h.verifyUser.mockReset();
+  h.verifyUser.mockResolvedValue(null);
+  resetSignedInVerdictCacheForTests();
 });
 
 // ---------------------------------------------------------------------------
@@ -519,6 +542,115 @@ describe("RODO: redakcja adresów i treści", () => {
 });
 
 // ---------------------------------------------------------------------------
+describe("zalogowany: jeden bit z ZWERYFIKOWANEGO bearera, nie konto", () => {
+  const USER_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
+  // Unikalny token na test - pamięć werdyktów jest per moduł, a `beforeEach`
+  // i tak ją czyści; osobne tokeny dowodzą, że żaden test nie jedzie na cudzym
+  // werdykcie.
+  let tokenCounter = 0;
+  function bearer(): string {
+    tokenCounter += 1;
+    return `eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.podpis-${tokenCounter}`;
+  }
+
+  it("BEZ nagłówka Authorization wiersz ma signed_in = false, a Auth nie jest pytany", async () => {
+    // Droga anonimowego beaconu nie może kosztować round-tripu do Auth.
+    await postOne({});
+
+    expect(insertedRows()[0]).toMatchObject({ signed_in: false });
+    expect(h.verifyUser).not.toHaveBeenCalled();
+  });
+
+  it("ZWERYFIKOWANY bearer daje signed_in = true na KAŻDYM wierszu partii", async () => {
+    h.verifyUser.mockResolvedValue(USER_ID);
+
+    await post(
+      {
+        events: [
+          { type: "page_view", name: "page_view" },
+          { type: "cta_click", name: "pricing_signup_click" },
+        ],
+      },
+      undefined,
+      { authorization: `Bearer ${bearer()}` },
+    );
+
+    expect(insertedRows()).toHaveLength(2);
+    for (const row of insertedRows()) expect(row).toMatchObject({ signed_in: true });
+    // Raz na partię, nie raz na wiersz.
+    expect(h.verifyUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("PODROBIONY bearer (podpis odrzucony) daje false, a zdarzenie i tak się zapisuje", async () => {
+    h.verifyUser.mockResolvedValue(null);
+
+    const res = await postOne({}, { authorization: `Bearer ${bearer()}` });
+
+    expect(res.status).toBe(204);
+    expect(insertedRows()).toHaveLength(1);
+    expect(insertedRows()[0]).toMatchObject({ signed_in: false });
+  });
+
+  it("AWARIA weryfikacji daje false i 204 - ingest nie pada przez Auth", async () => {
+    h.verifyUser.mockRejectedValue(new Error("Auth nie odpowiada"));
+
+    const res = await postOne({}, { authorization: `Bearer ${bearer()}` });
+
+    expect(res.status).toBe(204);
+    expect(insertedRows()).toHaveLength(1);
+    expect(insertedRows()[0]).toMatchObject({ signed_in: false });
+  });
+
+  it("obcy schemat (`Basic`) to anonim - bez weryfikacji", async () => {
+    await postOne({}, { authorization: "Basic dXNlcjpoYXNsbw==" });
+
+    expect(insertedRows()[0]).toMatchObject({ signed_in: false });
+    expect(h.verifyUser).not.toHaveBeenCalled();
+  });
+
+  it("wiersz NIGDY nie niesie identyfikatora konta ani tokenu", async () => {
+    // To jest cała obietnica tej zmiany: `sub` z weryfikacji umiera w helperze,
+    // token nie trafia do żadnej kolumny.
+    h.verifyUser.mockResolvedValue(USER_ID);
+    const token = bearer();
+
+    await postOne({ meta: { position: 1 } }, { authorization: `Bearer ${token}` });
+
+    const row = insertedRows()[0]!;
+    expect(row).toMatchObject({ signed_in: true });
+    expect(Object.keys(row)).not.toContain("user_id");
+    const json = JSON.stringify(insertedRows());
+    expect(json).not.toContain(USER_ID);
+    expect(json).not.toContain(token);
+  });
+
+  it("`signed_in` i `user_id` WPISANE W CIAŁO są ignorowane - flagę ustala wyłącznie serwer", async () => {
+    // Endpoint jest publiczny: gdyby ciało decydowało, każdy skrypt
+    // „logowałby się" do statystyki jednym polem.
+    await post({
+      events: [{ type: "page_view", name: "page_view", signed_in: true, user_id: USER_ID }],
+    });
+
+    const row = insertedRows()[0]!;
+    expect(row).toMatchObject({ signed_in: false });
+    expect(Object.keys(row)).not.toContain("user_id");
+    expect(JSON.stringify(row)).not.toContain(USER_ID);
+  });
+
+  it("`signed_in: false` w ciele nie wycisza ZWERYFIKOWANEGO bearera", async () => {
+    h.verifyUser.mockResolvedValue(USER_ID);
+
+    await post(
+      { events: [{ type: "page_view", name: "page_view", signed_in: false }] },
+      undefined,
+      { authorization: `Bearer ${bearer()}` },
+    );
+
+    expect(insertedRows()[0]).toMatchObject({ signed_in: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
 describe("odporność", () => {
   it("AWARIA zapisu nadal oddaje 204 - beacon nie ma jak obsłużyć błędu", async () => {
     h.insert.mockRejectedValue(new Error("baza padla"));
@@ -527,6 +659,76 @@ describe("odporność", () => {
 
     expect(res.status).toBe(204);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  describe("okno między wdrożeniem kodu a migracją", () => {
+    // Kod z `signed_in` może wejść PRZED migracją 20261003180000. postgrest-js
+    // wysyła unię kluczy partii jako listę kolumn, więc jedna nieznana kolumna
+    // odrzuca CAŁY insert - także anonimowy. Bez ponowienia ingest zamierałby
+    // w ciszy (każde żądanie dalej dostaje 204).
+    it("brak kolumny (PGRST204) ponawia zapis RAZ, bez `signed_in`, zamiast gubić partię", async () => {
+      h.verifyUser.mockResolvedValue("7c9e6679-7425-40de-944b-e07fc1f90ae7");
+      h.insert.mockResolvedValueOnce({ error: { code: "PGRST204" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      const res = await post(
+        {
+          events: [
+            { type: "page_view", name: "page_view", path: "/o-nas?email=jan@example.com" },
+            { type: "cta_click", name: "pricing_signup_click" },
+          ],
+        },
+        undefined,
+        { authorization: "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.okno-migracji" },
+      );
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(2);
+      // Pierwsza próba niosła flagę - ponowienie nie zmutowało jej partii.
+      for (const row of rowsAt(0)) expect(row).toMatchObject({ signed_in: true });
+      const retried = rowsAt(1);
+      expect(retried).toHaveLength(2);
+      for (const row of retried) expect(Object.keys(row)).not.toContain("signed_in");
+      // Reszta wiersza jedzie bez zmian - z redakcją i tenantem włącznie.
+      expect(retried[0]).toMatchObject({
+        event_type: "page_view",
+        event_name: "page_view",
+        tenant_id: "tenant-1",
+      });
+      expect(retried[0]!.path).not.toContain("jan@example.com");
+      expect(retried[1]).toMatchObject({ event_name: "pricing_signup_click" });
+    });
+
+    it("`42703` (undefined_column) z Postgresa ponawia tak samo", async () => {
+      h.insert.mockResolvedValueOnce({ error: { code: "42703" } });
+      h.insert.mockResolvedValueOnce({ error: null });
+
+      const res = await postOne({});
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(2);
+      expect(Object.keys(rowsAt(1)[0]!)).not.toContain("signed_in");
+    });
+
+    it("ponowienie, które też padnie, nie kręci pętli - dalej 204 i dokładnie dwa zapisy", async () => {
+      h.insert.mockResolvedValue({ error: { code: "PGRST204" } });
+
+      const res = await postOne({});
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(2);
+    });
+
+    it("KAŻDY INNY błąd nie kosztuje drugiego round-tripu", async () => {
+      // Ponowienie jest wąską furtką na jedną, nazwaną przyczynę. Awaria
+      // sieci albo RLS-u ma zostać awarią, a nie podwojonym ruchem do bazy.
+      h.insert.mockResolvedValue({ error: { code: "53300", message: "too many connections" } });
+
+      const res = await postOne({});
+
+      expect(res.status).toBe(204);
+      expect(h.insert).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("LIMITER (120 żetonów, 2/s) wycisza zalew z JEDNEGO adresu, nie zwracając błędu", async () => {
