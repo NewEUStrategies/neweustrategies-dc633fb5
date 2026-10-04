@@ -37,6 +37,23 @@ import {
 type AppRole = Database["public"]["Enums"]["app_role"];
 type InviteMode = Database["public"]["Enums"]["invitation_mode"];
 
+/**
+ * Cel `ON CONFLICT` zapisu roli. MUSI być dokładnie zbiorem kolumn indeksu
+ * unikalnego `user_roles_unique_per_tenant` - `(tenant_id, user_id, role)`,
+ * migracja 20260531181120, linie 49-50. Pierwotne `UNIQUE (user_id, role)`
+ * z 20260531180217 zostało tam zdjęte (`DROP CONSTRAINT IF EXISTS
+ * user_roles_user_id_role_key`), a Postgres odrzuca cel konfliktu, któremu nie
+ * odpowiada żaden indeks unikalny, błędem 42P10 („there is no unique or
+ * exclusion constraint matching the ON CONFLICT specification"). Stary cel
+ * `user_id,role` wywracał więc KAŻDĄ wysyłkę zaproszenia na `role_write_failed`,
+ * a w provisioningu - gdzie wyniku nikt nie czytał - zostawiał konta bez roli.
+ * Test jednostkowy tego nie zobaczy (baza jest atrapą; jego asercja przez długi
+ * czas UTRWALAŁA zły cel) - zgodność z indeksami z migracji sprawdza bramka
+ * kontraktowa `check:on-conflict-arbiters` (`src/lib/ci/onConflictArbiters.ts`).
+ * Jedna stała dla obu zapisów roli, żeby cele nie rozjechały się ponownie.
+ */
+const USER_ROLES_CONFLICT_TARGET = "tenant_id,user_id,role";
+
 // ---------- utils ----------------------------------------------------------
 
 /**
@@ -478,7 +495,7 @@ async function performSend(
       .from("user_roles")
       .upsert(
         { user_id: authUserId, role: inv.role, tenant_id: inv.tenant_id },
-        { onConflict: "user_id,role", ignoreDuplicates: true },
+        { onConflict: USER_ROLES_CONFLICT_TARGET, ignoreDuplicates: true },
       );
     if (roleWriteError) throw new Error(`role_write_failed:${roleWriteError.message}`);
 
@@ -913,6 +930,37 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
       if (u.email) byEmail.set(u.email.toLowerCase(), u.id);
     }
 
+    // ISTNIEJĄCE ZAPROSZENIA: JEDEN odczyt przed pętlą, nie jeden na osobę.
+    //
+    // Wcześniej pętla pytała `user_invitations` osobno o KAŻDĄ osobę (N+1:
+    // strona z 40 widgetami to 40 zapytań). Teraz jedno zapytanie zawężone do
+    // najemcy i adresów ze strony. Porównanie zostaje DOKŁADNE, jak przy
+    // dawnym `eq("email", d.email)`: kolumna jest `text`, `in` też porównuje
+    // dosłownie, a adresy ze strony `extractTeamMembers` sprowadził już do
+    // małych liter. Przy okazji znika cichy dubel: `maybeSingle()` na dwóch
+    // starych rekordach oddawał błąd i `data: null`, co czytało się jak „brak
+    // zaproszenia" i dopisywało kolejny.
+    //
+    // Awaria odczytu PRZERYWA całe wywołanie, ZANIM powstanie jakiekolwiek
+    // konto. Dawny kod czytał tylko `data`, więc błąd bazy wyglądał jak „nie
+    // ma zaproszenia" i każda osoba dostawała drugi rekord audytowy. Odmowa
+    // całości jest bezpieczniejsza: nic się nie zmieniło i można ponowić, a
+    // fałszywego śladu po założeniu kont nikt już nie odkręci.
+    const { data: existingInvites, error: existingInvitesErr } = await context.supabase
+      .from("user_invitations")
+      .select("email")
+      .eq("tenant_id", tenantId)
+      .in(
+        "email",
+        drafts.map((d) => d.email),
+      );
+    if (existingInvitesErr) throw new Error(existingInvitesErr.message);
+    const invitedEmails = new Set<string>((existingInvites ?? []).map((inv) => inv.email));
+
+    // `created` / `skipped` opisują KONTO w warstwie auth (założone teraz albo
+    // zastane), a nie powodzenie hydracji. Konto założone przez `createUser`
+    // istnieje nieodwracalnie także wtedy, gdy zapis profilu czy roli niżej
+    // padnie - ta osoba trafia wtedy DODATKOWO do `errors`.
     let created = 0;
     let skipped = 0;
     const errors: { email: string; error: string }[] = [];
@@ -944,7 +992,15 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
           skipped++;
         }
 
-        await supabaseAdmin.from("profiles").upsert(
+        // WYNIK KAŻDEGO ZAPISU JEST SPRAWDZANY - tak samo jak w `performSend`,
+        // z tymi samymi przedrostkami. Wcześniej trzy `upsert` niżej szły bez
+        // odczytu `error`, więc 42P10 z celu konfliktu roli (patrz
+        // `USER_ROLES_CONFLICT_TARGET`) był tu niewidoczny: provisioning
+        // raportował powodzenie, a konta zostawały bez roli. Rzut ląduje we
+        // wpisie TEJ osoby w `errors`, jej dalszych zapisów (ani śladu
+        // `accepted`) nie próbujemy, a pozostałe osoby idą dalej. Zapisy
+        // zostają sekwencyjne: wyzwalacze na tych tabelach zależą od kolejności.
+        const { error: profileWriteError } = await supabaseAdmin.from("profiles").upsert(
           {
             id: authUserId,
             tenant_id: tenantId,
@@ -963,6 +1019,7 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
           },
           { onConflict: "id", ignoreDuplicates: false },
         );
+        if (profileWriteError) throw new Error(`profile_write_failed:${profileWriteError.message}`);
 
         const orgFunctions: { pl: string; en: string }[] = [];
         if (d.programLabel_pl || d.programLabel_en) {
@@ -972,7 +1029,7 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
           });
         }
 
-        await supabaseAdmin.from("author_profiles").upsert(
+        const { error: authorWriteError } = await supabaseAdmin.from("author_profiles").upsert(
           {
             user_id: authUserId,
             tenant_id: tenantId,
@@ -990,22 +1047,18 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
           },
           { onConflict: "user_id" },
         );
+        if (authorWriteError) throw new Error(`author_write_failed:${authorWriteError.message}`);
 
-        await supabaseAdmin
+        const { error: roleWriteError } = await supabaseAdmin
           .from("user_roles")
           .upsert(
             { user_id: authUserId, role: data.role as AppRole, tenant_id: tenantId },
-            { onConflict: "user_id,role", ignoreDuplicates: true },
+            { onConflict: USER_ROLES_CONFLICT_TARGET, ignoreDuplicates: true },
           );
+        if (roleWriteError) throw new Error(`role_write_failed:${roleWriteError.message}`);
 
         // ślad audytowy - konto powstało w trybie provision (bez maila)
-        const { data: existingInv } = await context.supabase
-          .from("user_invitations")
-          .select("id")
-          .eq("tenant_id", tenantId)
-          .eq("email", d.email)
-          .maybeSingle();
-        if (!existingInv) {
+        if (!invitedEmails.has(d.email)) {
           await context.supabase.from("user_invitations").insert({
             tenant_id: tenantId,
             email: d.email,
@@ -1020,6 +1073,11 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
             sent_at: new Date().toISOString(),
             accepted_at: new Date().toISOString(),
           });
+          // Adres wchodzi do zbioru od razu - jak dawniej, gdy kolejne zapytanie
+          // widziało już wstawiony wiersz: drugi widget z tym samym adresem nie
+          // dostanie drugiego rekordu, nawet gdyby dedup w `extractTeamMembers`
+          // kiedyś zniknął.
+          invitedEmails.add(d.email);
         }
 
         byEmail.set(d.email, authUserId);

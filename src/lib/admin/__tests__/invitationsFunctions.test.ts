@@ -122,6 +122,13 @@ const h = vi.hoisted(() => ({
   existingProfileError: null as { message: string } | null,
   /** Odmowa zapisu hydracji per tabela (`profiles`, `author_profiles`, `user_roles`). */
   upsertErrors: {} as Record<string, { message: string }>,
+  /**
+   * Odmowa zapisu hydracji TYLKO przy pierwszym zapisie do danej tabeli
+   * (potem wpis znika). `upsertErrors` odmawia każdemu zapisowi, więc nie
+   * odróżni „porażka jednej osoby przerywa jej zapisy" od „porażka jednej
+   * osoby zatrzymuje cały import" - a provisioning ma robić to pierwsze.
+   */
+  upsertErrorsOnce: {} as Record<string, { message: string }>,
 }));
 
 vi.mock("@/integrations/supabase/client.server", () => ({
@@ -184,6 +191,11 @@ vi.mock("@/integrations/supabase/client.server", () => ({
     from: (table: string) => ({
       upsert: (row: unknown, options?: unknown) => {
         h.adminWrites.push({ table, row, options });
+        const once = h.upsertErrorsOnce[table];
+        if (once) {
+          delete h.upsertErrorsOnce[table];
+          return Promise.resolve({ data: null, error: once });
+        }
         return Promise.resolve({ data: null, error: h.upsertErrors[table] ?? null });
       },
       select: () => {
@@ -361,6 +373,7 @@ beforeEach(() => {
   h.existingProfileTenant = null;
   h.existingProfileError = null;
   h.upsertErrors = {};
+  h.upsertErrorsOnce = {};
   h.claimError = null;
   h.inviteLinkFails = false;
   h.hashedToken = null;
@@ -1264,6 +1277,15 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
   it("upsert profilu NADPISUJE, a upsert roli NIE - dwie różne reguły", async () => {
     // Profil ma się uzupełniać przy ponowieniu; rola dopisana ręcznie przez
     // admina nie może zostać zdjęta ponowną wysyłką zaproszenia.
+    //
+    // CEL KONFLIKTU ROLI musi być zbiorem kolumn indeksu unikalnego z migracji
+    // (`user_roles_unique_per_tenant` = `(tenant_id, user_id, role)`,
+    // 20260531181120). Ta asercja przez długi czas UTRWALAŁA `user_id,role` -
+    // cel po zdjętym `UNIQUE`, na którym Postgres odpowiada 42P10 i który
+    // wywracał KAŻDĄ wysyłkę. Atrapa bazy tego nie zweryfikuje (przyjmie
+    // dowolny napis); zgodność z migracjami pilnuje bramka kontraktowa
+    // `check:on-conflict-arbiters`. Tu pilnujemy tylko, że kod wysyła cel
+    // uzgodniony z tą bramką.
     withInvitation(invitationRow());
     await send();
     expect(h.adminWrites.find((write) => write.table === "profiles")?.options).toEqual({
@@ -1271,7 +1293,7 @@ describe("sendInvitation - tworzenie konta, hydracja profilu, ślad audytowy", (
       ignoreDuplicates: false,
     });
     expect(h.adminWrites.find((write) => write.table === "user_roles")?.options).toEqual({
-      onConflict: "user_id,role",
+      onConflict: "tenant_id,user_id,role",
       ignoreDuplicates: true,
     });
   });
@@ -2065,24 +2087,30 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
   });
 
   it("ISTNIEJĄCE zaproszenie NIE jest dublowane", async () => {
+    // Odczyt istniejących zaproszeń jest jeden dla całej strony (lista
+    // adresów), więc odpowiedź to lista wierszy, a nie pojedynczy rekord.
     db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
     db.setResponse("user_invitations", (chain) =>
-      chain.has("insert") ? ok(null) : ok({ id: IDS.invitation }),
+      chain.has("insert") ? ok(null) : ok([{ email: "nowa@example.org" }]),
     );
     await provision({ pageSlug: "o-nas", autoLink: false });
     expect(db.chainsFor("user_invitations").some((chain) => chain.has("insert"))).toBe(false);
   });
 
-  it("zapytanie o istniejące zaproszenie jest zawężone do NAJEMCY i adresu", async () => {
-    db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
+  it("zapytanie o istniejące zaproszenia jest zawężone do NAJEMCY i adresów ze strony", async () => {
+    // Adres z widgetu ma wielkie litery - do zapytania idzie postać
+    // znormalizowana przez parser strony, tak jak dawniej w `eq("email", …)`.
+    db.setResponse(
+      "pages",
+      ok({ id: IDS.page, builder_data: builderDoc([teamWidget({ email: "NOWA@Example.ORG" })]) }),
+    );
     db.setResponse("user_invitations", (chain) => (chain.has("insert") ? ok(null) : ok(null)));
     await provision({ pageSlug: "o-nas", autoLink: false });
     const lookup = db.chainsFor("user_invitations").find((chain) => !chain.has("insert"));
+    expect(lookup?.argsOf("select")).toEqual(["email"]);
     const eqArgs = lookup?.calls.filter((call) => call.method === "eq").map((call) => call.args);
-    expect(eqArgs).toEqual([
-      ["tenant_id", IDS.tenant],
-      ["email", "nowa@example.org"],
-    ]);
+    expect(eqArgs).toEqual([["tenant_id", IDS.tenant]]);
+    expect(lookup?.argsOf("in")).toEqual(["email", ["nowa@example.org"]]);
   });
 
   it("błąd tworzenia konta ląduje w `errors` i NIE przerywa pozostałych osób", async () => {
@@ -2300,6 +2328,214 @@ describe("provisionTeamMembers - konta od razu, bez poczty", () => {
       linked: 0,
       errors: [],
     });
+  });
+});
+
+/** Strona z dwiema osobami - do dowodów „porażka jednej nie blokuje drugiej". */
+function twoPeoplePage(): void {
+  db.setResponse(
+    "pages",
+    ok({
+      id: IDS.page,
+      builder_data: builderDoc([
+        teamWidget({ id: "w-1", email: "pierwsza@example.org", name: "Pierwsza" }),
+        teamWidget({ id: "w-2", email: "druga@example.org", name: "Druga" }),
+      ]),
+    }),
+  );
+}
+
+/** Wiersze śladu audytowego (`user_invitations` ze statusem `accepted`), w kolejności. */
+function provisionAuditInserts(): Record<string, unknown>[] {
+  return db
+    .chainsFor("user_invitations")
+    .filter((chain) => chain.has("insert"))
+    .map((chain) => chain.argsOf("insert")?.[0] as Record<string, unknown>);
+}
+
+async function provisionPage(
+  data: Record<string, unknown> = { pageSlug: "o-nas", autoLink: false },
+): Promise<{
+  created: number;
+  skipped: number;
+  linked: number;
+  errors: { email: string; error: string }[];
+}> {
+  return callServerFn(provisionTeamMembers, { data, context: context() });
+}
+
+// ---------------------------------------------------------------------------
+// 9b. PROVISIONING: cel konfliktu roli i WYNIK zapisów hydracji.
+// ---------------------------------------------------------------------------
+
+describe("provisionTeamMembers - zapis roli i odmowa zapisu hydracji", () => {
+  beforeEach(() => {
+    grantAdmin();
+    db.setResponse("user_invitations", () => ok(null));
+  });
+
+  it("upsert roli niesie TEN SAM cel konfliktu co wysyłka i wiersz z najemcą", async () => {
+    // Druga kopia tego samego zapisu co w `performSend` - i ta sama pułapka:
+    // `user_id,role` nie ma już indeksu unikalnego (42P10). Tu wynik nie był
+    // nawet czytany, więc konta z provisioningu po cichu zostawały bez roli.
+    db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
+    await provisionPage({ pageSlug: "o-nas", role: "editor", autoLink: false });
+    const roleWrite = h.adminWrites.find((write) => write.table === "user_roles");
+    expect(roleWrite?.options).toEqual({
+      onConflict: "tenant_id,user_id,role",
+      ignoreDuplicates: true,
+    });
+    expect(roleWrite?.row).toEqual({
+      user_id: "aaaa1111-2222-4333-8444-555566667777",
+      role: "editor",
+      tenant_id: IDS.tenant,
+    });
+  });
+
+  const NO_ARBITER =
+    "there is no unique or exclusion constraint matching the ON CONFLICT specification";
+
+  it.each([
+    ["profiles", "profile_write_failed", ["profiles"]],
+    ["author_profiles", "author_write_failed", ["profiles", "author_profiles"]],
+    ["user_roles", "role_write_failed", ["profiles", "author_profiles", "user_roles"]],
+  ] as const)(
+    "odmowa zapisu `%s` ląduje w `errors` jako `%s:…`, bez dalszych zapisów tej osoby - druga osoba przechodzi",
+    async (table, prefix, attempted) => {
+      twoPeoplePage();
+      // Odmowa TYLKO przy pierwszym zapisie do tabeli, czyli dla pierwszej
+      // osoby; druga ma przejść całą hydrację.
+      h.upsertErrorsOnce = { [table]: { message: NO_ARBITER } };
+      const result = await provisionPage();
+
+      expect(result.errors).toEqual([
+        { email: "pierwsza@example.org", error: `${prefix}:${NO_ARBITER}` },
+      ]);
+      // Zapisy pierwszej osoby urywają się na odmowie; druga dostaje komplet.
+      expect(h.adminWrites.map((write) => write.table)).toEqual([
+        ...attempted,
+        "profiles",
+        "author_profiles",
+        "user_roles",
+      ]);
+      expect(
+        h.adminWrites
+          .filter((write) => write.table === "profiles")
+          .map((write) => (write.row as { email: string }).email),
+      ).toEqual(["pierwsza@example.org", "druga@example.org"]);
+      // Ślad `accepted` dostaje WYŁĄCZNIE osoba, której hydracja przeszła -
+      // inaczej rekord audytowy twierdziłby, że konto jest gotowe.
+      expect(provisionAuditInserts().map((row) => row.email)).toEqual(["druga@example.org"]);
+      // `created` liczy konta auth: konto pierwszej osoby powstało (i zostaje),
+      // nawet jeśli jej hydracja padła - stąd wpis w `errors` OBOK licznika.
+      expect(result.created).toBe(2);
+      expect(result.skipped).toBe(0);
+    },
+  );
+
+  it("odmowa zapisu przy ISTNIEJĄCYM koncie liczy osobę jako pominiętą i zgłasza błąd", async () => {
+    db.setResponse("pages", ok({ id: IDS.page, builder_data: builderDoc([teamWidget()]) }));
+    rpcUsers = [{ id: IDS.existingUser, email: "nowa@example.org" }];
+    h.upsertErrors = { user_roles: { message: NO_ARBITER } };
+    const result = await provisionPage();
+    expect(result).toMatchObject({
+      created: 0,
+      skipped: 1,
+      errors: [{ email: "nowa@example.org", error: `role_write_failed:${NO_ARBITER}` }],
+    });
+    expect(h.authCalls).toHaveLength(0);
+    expect(provisionAuditInserts()).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9c. PROVISIONING: JEDEN odczyt istniejących zaproszeń zamiast N+1.
+// ---------------------------------------------------------------------------
+
+describe("provisionTeamMembers - jeden odczyt istniejących zaproszeń na stronę", () => {
+  beforeEach(() => {
+    grantAdmin();
+  });
+
+  it("strona z KILKOMA osobami pyta `user_invitations` dokładnie RAZ", async () => {
+    db.setResponse(
+      "pages",
+      ok({
+        id: IDS.page,
+        builder_data: builderDoc([
+          teamWidget({ id: "w-1", email: "pierwsza@example.org", name: "Pierwsza" }),
+          teamWidget({ id: "w-2", email: "druga@example.org", name: "Druga" }),
+          teamWidget({ id: "w-3", email: "trzecia@example.org", name: "Trzecia" }),
+        ]),
+      }),
+    );
+    db.setResponse("user_invitations", (chain) => (chain.has("insert") ? ok(null) : ok([])));
+    const result = await provisionPage();
+    expect(result.errors).toEqual([]);
+    const lookups = db.chainsFor("user_invitations").filter((chain) => !chain.has("insert"));
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0].argsOf("in")).toEqual([
+      "email",
+      ["pierwsza@example.org", "druga@example.org", "trzecia@example.org"],
+    ]);
+    expect(provisionAuditInserts().map((row) => row.email)).toEqual([
+      "pierwsza@example.org",
+      "druga@example.org",
+      "trzecia@example.org",
+    ]);
+  });
+
+  it("istniejące zaproszenie wycisza ślad TYLKO swojej osoby - hydracja idzie dla obu", async () => {
+    twoPeoplePage();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("insert") ? ok(null) : ok([{ email: "pierwsza@example.org" }]),
+    );
+    const result = await provisionPage();
+    expect(result.errors).toEqual([]);
+    expect(provisionAuditInserts().map((row) => row.email)).toEqual(["druga@example.org"]);
+    expect(h.adminWrites.map((write) => write.table)).toEqual([
+      "profiles",
+      "author_profiles",
+      "user_roles",
+      "profiles",
+      "author_profiles",
+      "user_roles",
+    ]);
+  });
+
+  it("dwa widgety z tym samym adresem dają JEDEN rekord śladu", async () => {
+    db.setResponse(
+      "pages",
+      ok({
+        id: IDS.page,
+        builder_data: builderDoc([
+          teamWidget({ id: "w-1" }),
+          teamWidget({ id: "w-2", email: "NOWA@example.org", name: "Nowa Osoba (kopia)" }),
+        ]),
+      }),
+    );
+    db.setResponse("user_invitations", (chain) => (chain.has("insert") ? ok(null) : ok([])));
+    await provisionPage();
+    const inserts = provisionAuditInserts();
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({ email: "nowa@example.org" });
+    expect(inserts[0].metadata).toEqual({ widgetId: "w-1", provisioned: true });
+  });
+
+  it("awaria odczytu zaproszeń odrzuca CAŁE wywołanie, zanim powstanie jakiekolwiek konto", async () => {
+    // Dawniej błąd odczytu czytał się jak „zaproszenia nie ma" i każdy dostawał
+    // drugi rekord. Odmowa przed pętlą zostawia stan nietknięty - do ponowienia.
+    twoPeoplePage();
+    db.setResponse("user_invitations", (chain) =>
+      chain.has("insert") ? ok(null) : fail("statement timeout"),
+    );
+    await expect(provisionPage({ pageSlug: "o-nas", autoLink: true })).rejects.toThrow(
+      "statement timeout",
+    );
+    expect(h.authCalls).toHaveLength(0);
+    expect(h.adminWrites).toHaveLength(0);
+    expect(provisionAuditInserts()).toHaveLength(0);
+    expect(db.chainsFor("pages").some((chain) => chain.has("update"))).toBe(false);
   });
 });
 
