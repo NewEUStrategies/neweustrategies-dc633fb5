@@ -84,3 +84,9 @@
 
 - [x] Usunąć bursztynowe akcenty z interfejsu i zapisanych ustawień motywu; domyślnie używać #FA9346 w jasnym i ciemnym motywie.
 - [2026-10-04] Strzałka akcji w etykietach sekcji: domyślny glif tekstowy "→" zastąpiony cienkim kątem SVG ">" bez ogonka (wspólny `AngleChevron`, ten sam znak co para chevronów w Kinetic Signal Notch); opcje "chevron" (›) i "long" (⟶) zachowują tekstowe glify, "none" zdejmuje znak; etykieta edytora "Strzałka >", tłumaczenia EN + kolekcja SECTION_LABEL_ARROWS w labelsEn.test; nowe testy sectionLabelArrow.test.tsx (4) - cała paczka buildera zielona.
+
+## Styl Kinetic Signal Notch na wszystkich stronach CMS Builder
+
+- [ ] Zinwentaryzować wszystkie strony i etykiety sekcji w Builderze
+- [ ] Podmienić wariant wszystkich etykiet sekcji na `kinetic-signal-notch` z zachowaniem treści PL/EN i ustawień
+- [ ] Zweryfikować zapis, renderowanie mobilne i desktopowe oraz testy
