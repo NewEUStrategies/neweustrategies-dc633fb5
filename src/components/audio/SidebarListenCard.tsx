@@ -186,8 +186,16 @@ export function SidebarListenCard({
   return (
     <aside
       aria-label={copy("label")}
-      className="group/card relative rounded-[6px] border border-border/60 bg-card/60 p-4"
+      className="group/card relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-b from-card to-card/50 p-4 shadow-sm transition-shadow duration-300 hover:shadow-md"
     >
+      {/* Cienka linia akcentu u góry - sygnatura marki, rośnie podczas odtwarzania. */}
+      <span
+        aria-hidden
+        className={[
+          "pointer-events-none absolute inset-x-0 top-0 h-[2px] origin-left bg-brand transition-transform duration-500 ease-out",
+          playing ? "scale-x-100" : "scale-x-[0.18]",
+        ].join(" ")}
+      />
       {/* Section label */}
       <div className="flex items-center gap-2 mb-3">
         <h3 className="cms-widget-note font-semibold tracking-[0.2em] uppercase text-muted-foreground whitespace-nowrap">
@@ -264,9 +272,10 @@ export function SidebarListenCard({
             aria-pressed={playing}
             data-playing={playing ? "true" : "false"}
             className={[
-              "listen-play-toggle shrink-0 h-9 w-9 rounded-[6px]",
-              "bg-brand text-background transition-all",
-              "hover:brightness-110 active:scale-95 disabled:opacity-70",
+              "listen-play-toggle shrink-0 h-11 w-11 rounded-[6px]",
+              "bg-brand text-background shadow-md transition-all duration-300",
+              "hover:brightness-110 hover:shadow-lg active:scale-95 disabled:opacity-70",
+              playing ? "ring-4 ring-brand/15" : "ring-0",
               FOCUS_RING,
             ].join(" ")}
           >
@@ -280,7 +289,7 @@ export function SidebarListenCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline justify-between gap-2 mb-1.5">
-            <span className="cms-widget-label font-medium tabular-nums text-foreground">
+            <span className="cms-widget-label font-semibold tabular-nums tracking-tight text-foreground">
               {showProgress ? currentLabel : loading ? "…" : "00:00"}
             </span>
             <span className="cms-widget-note tabular-nums text-muted-foreground">
@@ -290,16 +299,16 @@ export function SidebarListenCard({
 
           {/* Slider */}
           <div className="relative h-3 flex items-center">
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[3px] rounded-[6px] bg-muted" />
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 rounded-[6px] bg-muted" />
             <div
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-[3px] rounded-[6px] bg-brand/80 transition-[width] duration-150"
+              className="absolute left-0 top-1/2 -translate-y-1/2 h-1 rounded-[6px] bg-brand transition-[width] duration-150"
               style={{ width: `${displayPct}%` }}
             />
             <div
               aria-hidden
               className={[
                 "absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-[6px] bg-brand transition-transform",
-                showProgress ? "scale-0 group-hover/card:scale-100" : "scale-0",
+                showProgress ? "scale-75 group-hover/card:scale-100" : "scale-0",
               ].join(" ")}
               style={{ left: `calc(${displayPct}% - 5px)` }}
             />
