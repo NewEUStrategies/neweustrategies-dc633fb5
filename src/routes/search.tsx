@@ -80,6 +80,7 @@ import { buildContentHead } from "@/lib/seo/meta";
 import { ensureI18n as ensureSearchI18n } from "@/lib/i18n-search";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useVoiceSearch } from "@/lib/search/useVoiceSearch";
+import { VoiceListeningIndicator } from "@/components/voice/VoiceListeningIndicator";
 import {
   addRecentSearch,
   clearRecentSearches,
@@ -738,15 +739,13 @@ function SearchPage() {
                     aria-pressed={voice.listening}
                     aria-label={voice.listening ? t("search.voice_stop") : t("search.voice")}
                     title={voice.listening ? t("search.voice_stop") : t("search.voice")}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center transition-colors"
+                    className="flex h-6 min-w-6 shrink-0 items-center justify-center transition-colors"
                   >
-                    <Mic
-                      className={`h-[16px] w-[16px] ${voice.listening ? "animate-pulse" : ""}`}
-                      // Inline style wygrywa z regułą .search-page-form button svg
-                      // - mikrofon świeci na czerwono przez cały czas nagrywania.
-                      style={voice.listening ? { color: "var(--destructive)" } : undefined}
-                      aria-hidden
-                    />
+                    {voice.listening ? (
+                      <VoiceListeningIndicator />
+                    ) : (
+                      <Mic className="h-[16px] w-[16px]" aria-hidden />
+                    )}
                   </button>
                 </>
               )}
