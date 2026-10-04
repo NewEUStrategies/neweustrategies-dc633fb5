@@ -2406,6 +2406,17 @@ select option {
     animation: none;
   }
 }
+/* Szkielet sekcji strumieniowanej (`SectionStreamSkeleton`, atrybut
+   `data-section-stream-skeleton` w lib/builder/sectionStreaming.tsx) jest
+   STATYCZNY (P1.2, F1b; zgoda właściciela 2026-10-04). Ok. 40 nieskończonych
+   animacji `lv-shimmer` na `background-position` (niekompozytowanych) startowało
+   z pierwszą klatką dokumentu, zanim `$RV` podmienił szkielety na treść: osobne
+   zadanie K8b (80-112 ms blokowania na desktopie x4) albo koszt w klatkach K5/K6
+   (raport P0.5 §2.5). Połysk szkieletów klienckich (dok, listy, wpisy) zostaje. */
+[data-section-stream-skeleton] .skeleton-shimmer {
+  animation: none;
+  will-change: auto;
+}
 
 /* ============================================================
  * Per-page chrome overrides (driven by data-* on the page body)
