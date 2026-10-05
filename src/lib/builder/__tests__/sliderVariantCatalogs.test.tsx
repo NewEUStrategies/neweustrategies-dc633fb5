@@ -995,9 +995,84 @@ describe("SliderRender - obraz zepsuty już w chwili montażu", () => {
 // paginacji animowane wyłącznie przez kompozytor
 // ------------------------------------------------------------------
 
-/** Tekst wspólnego arkusza slidera (React przenosi go do `<head>`). */
-function sharedSheet(): string {
-  return document.querySelector('style[data-href="nes-slider-shared-v1"]')?.textContent ?? "";
+/** Wspólny arkusz slidera (React przenosi go do `<head>`). */
+function sharedSheetElement(): HTMLStyleElement {
+  const el = document.querySelector<HTMLStyleElement>('style[data-href="nes-slider-shared-v1"]');
+  if (!el) throw new Error("brak wspólnego arkusza slidera");
+  return el;
+}
+
+/** Selektor, którego happy-dom nie umie rozebrać, po prostu nie pasuje. */
+function matchesSafely(el: Element, selector: string): boolean {
+  try {
+    return el.matches(selector);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Wartość deklaracji `property` z reguł arkusza wspólnego, których selektor
+ * pasuje do `el`. CSSOM happy-dom odrzuca `calc()` ze zmiennymi (szerokość
+ * karty), więc reguły czytamy z tekstu - ale porównujemy WARTOŚĆ obliczoną
+ * (`evaluateCalc`), a nie zapis źródła.
+ */
+function sharedDeclarationFor(el: Element, property: string): string | undefined {
+  let found: string | undefined;
+  for (const [, selector, body] of (sharedSheetElement().textContent ?? "").matchAll(
+    /([^{}]+)\{([^{}]*)\}/g,
+  )) {
+    const sel = selector.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+    if (!sel || sel.startsWith("@") || !matchesSafely(el, sel)) continue;
+    const decl = new RegExp(`(?:^|;)\\s*${property}\\s*:([^;]+)`).exec(body);
+    if (decl) found = decl[1].trim();
+  }
+  return found;
+}
+
+/**
+ * Arytmetyka `calc()` po podstawieniu liczb: + - * / i nawiasy. Wystarczy do
+ * sprawdzenia, że karty z odstępami wypełniają tor co do piksela.
+ */
+function evaluateCalc(expression: string): number {
+  const tokens = expression.replace(/calc/g, "").match(/\d*\.?\d+|[-+*/()]/g) ?? [];
+  let i = 0;
+  const factor = (): number => {
+    const token = tokens[i++];
+    if (token === "(") {
+      const value = sum();
+      i++;
+      return value;
+    }
+    if (token === "-") return -factor();
+    return Number(token);
+  };
+  const product = (): number => {
+    let value = factor();
+    while (tokens[i] === "*" || tokens[i] === "/") {
+      const op = tokens[i++];
+      const right = factor();
+      value = op === "*" ? value * right : value / right;
+    }
+    return value;
+  };
+  const sum = (): number => {
+    let value = product();
+    while (tokens[i] === "+" || tokens[i] === "-") {
+      const op = tokens[i++];
+      const right = product();
+      value = op === "+" ? value + right : value - right;
+    }
+    return value;
+  };
+  return sum();
+}
+
+/** Ustawienia urządzenia happy-dom (media `prefers-reduced-motion`). */
+function deviceSettings(): { prefersReducedMotion: string } {
+  return (
+    window as unknown as { happyDOM: { settings: { device: { prefersReducedMotion: string } } } }
+  ).happyDOM.settings.device;
 }
 
 /**
@@ -1015,9 +1090,20 @@ function dotsOf(root: ParentNode): HTMLElement[] {
 
 const tokens = (el: Element) => el.className.split(/\s+/).filter(Boolean);
 
-/** Przejście, które każdy obraz niósł dotąd inline - teraz deklaracja arkusza. */
-const FILL_IMAGE_TRANSITION =
-  "transition: opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) var(--eh-scale-easing, ease-in-out);";
+/** Przejście, które każdy obraz niósł dotąd inline (przed P2.6). */
+const PRE_P26_INLINE_TRANSITION =
+  "opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) var(--eh-scale-easing, ease-in-out)";
+
+/**
+ * Obraz-wzorzec: kopia aktywnego obrazu z dawnym przejściem inline, w tym
+ * samym miejscu drzewa (te same reguły arkusza i te same zmienne CSS).
+ */
+function preP26Reference(img: HTMLImageElement): HTMLImageElement {
+  const reference = img.cloneNode() as HTMLImageElement;
+  reference.style.transition = PRE_P26_INLINE_TRANSITION;
+  img.after(reference);
+  return reference;
+}
 
 /** Warianty z obrazami w stosie: widoczny jest tylko aktywny slajd. */
 const STACKED_VARIANTS = [
@@ -1053,44 +1139,72 @@ describe("SliderRender - dieta znaczników obrazów i kart (P2.6)", () => {
     },
   );
 
-  it("trzyma przejście obrazu w arkuszu wspólnym z tą samą deklaracją co dawny inline", () => {
-    renderSlider();
-    const sheet = sharedSheet();
-    const rule = /\.eh-slider \[data-fill-image\] \{[^}]*\}/.exec(sheet)?.[0] ?? "";
-    expect(rule).toContain(FILL_IMAGE_TRANSITION);
-    expect(rule).toContain("--eh-scale-easing: ease-in;");
+  it("obraz bez style dostaje z arkusza to samo wyliczone przejście co dawny inline", () => {
+    const { container } = renderSlider();
+    const active = container.querySelector<HTMLImageElement>("img[data-fill-image]")!;
+    const reference = preP26Reference(active);
+    const transition = getComputedStyle(active).transition;
+    expect(transition).toContain("opacity 700ms");
+    expect(transition).toBe(getComputedStyle(reference).transition);
+    // Najechanie przestawia `--eh-scale-easing` (ease-out na wjeździe); happy-dom
+    // nie ma `:hover`, więc zmienną stawiamy wprost na obu obrazach.
+    for (const img of [active, reference]) img.style.setProperty("--eh-scale-easing", "ease-out");
+    expect(getComputedStyle(active).transition).toContain("ease-out");
+    expect(getComputedStyle(active).transition).toBe(getComputedStyle(reference).transition);
   });
 
   it("przy prefers-reduced-motion zostawia przenikanie (jak dotąd, gdy wygrywał inline), bez skali", () => {
-    renderSlider();
-    const reduced = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(
-      sharedSheet(),
-    )?.[1];
-    expect(reduced).toBeDefined();
-    expect(reduced).toContain(
-      ".eh-slider [data-fill-image] { transition: opacity 700ms cubic-bezier(.22,.61,.36,1); }",
-    );
-    expect(reduced).toContain(".eh-slider *:hover > [data-fill-image] { --eh-scale: 1; }");
-    expect(reduced).not.toContain("transition: none");
+    const device = deviceSettings();
+    const previous = device.prefersReducedMotion;
+    device.prefersReducedMotion = "reduce";
+    try {
+      const { container } = renderSlider();
+      const active = container.querySelector<HTMLImageElement>("img[data-fill-image]")!;
+      const transition = getComputedStyle(active).transition;
+      expect(transition).toContain("opacity 700ms");
+      expect(transition).not.toContain("scale");
+      // Powiększenie na najechaniu jest wyłączone (skala zostaje 1).
+      const reduced = [...sharedSheetElement().sheet!.cssRules].find(
+        (rule): rule is CSSMediaRule =>
+          rule instanceof CSSMediaRule && rule.conditionText.includes("prefers-reduced-motion"),
+      );
+      const hover = [...(reduced?.cssRules ?? [])].find(
+        (rule): rule is CSSStyleRule =>
+          rule instanceof CSSStyleRule && rule.selectorText.includes(":hover"),
+      );
+      expect(hover?.style.getPropertyValue("--eh-scale").trim()).toBe("1");
+    } finally {
+      device.prefersReducedMotion = previous;
+    }
   });
 
-  it("karty multi-card nie niosą style, a szerokość daje reguła arkusza na ich klasie", () => {
-    const { container } = renderSlider({ variant: "multi-card" });
-    const cards = [...container.querySelectorAll<HTMLElement>("article.eh-multi-card-item")];
-    expect(cards).toHaveLength(ITEMS.length);
-    for (const card of cards) {
-      expect(card.getAttribute("style")).toBeNull();
-      expect(tokens(card)).toContain("eh-card");
-    }
-    const sheet = sharedSheet();
-    expect(sheet).toContain(
-      ".eh-slider .eh-multi-card-item { width: calc((100% - (var(--eh-visible-columns) - 1) * 16px) / var(--eh-visible-columns)); }",
-    );
-    expect(sheet).toContain(".eh-slider .eh-card { flex: 0 0 auto; }");
-    // Przesunięcie toru jest stanem (indeks, przeciąganie) - zostaje inline.
-    const track = container.querySelector<HTMLElement>(".eh-multi-track");
-    expect(track?.style.transform).toContain("translateX(");
-  });
+  it.each([1, 2, 3, 4])(
+    "karty multi-card bez style, liczba kolumn %i: szerokość z arkusza i odstępy wypełniają tor co do piksela",
+    (columns) => {
+      const { container } = renderSlider({ variant: "multi-card" });
+      const cards = [...container.querySelectorAll<HTMLElement>("article.eh-multi-card-item")];
+      expect(cards).toHaveLength(ITEMS.length);
+      for (const card of cards) expect(card.getAttribute("style")).toBeNull();
+      const track = container.querySelector<HTMLElement>(".eh-multi-track")!;
+      // Przesunięcie toru jest stanem (indeks, przeciąganie) - zostaje inline.
+      expect(track.style.transform).toContain("translateX(");
+      const gap = Number.parseFloat(track.style.gap);
+      const width = sharedDeclarationFor(cards[0], "width");
+      expect(width).toBeDefined();
+      const trackWidth = 1000;
+      const cardWidth = evaluateCalc(
+        width!
+          .replace(/var\(--eh-visible-columns\)/g, String(columns))
+          .replace(/100%/g, String(trackWidth))
+          .replace(/px/g, ""),
+      );
+      expect(columns * cardWidth + (columns - 1) * gap).toBeCloseTo(trackWidth, 6);
+      // Karta nie rośnie i nie kurczy się we flexie toru - szerokość trzyma.
+      const card = getComputedStyle(cards[0]);
+      expect(card.getPropertyValue("flex-grow")).toBe("0");
+      expect(card.getPropertyValue("flex-shrink")).toBe("0");
+    },
+  );
 });
 
 describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6, css:C9)", () => {

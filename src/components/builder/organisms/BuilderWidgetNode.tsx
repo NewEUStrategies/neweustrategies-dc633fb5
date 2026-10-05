@@ -80,18 +80,34 @@ const FRAME_DECLARATION_CLASSES: ReadonlyArray<
 ];
 
 /**
+ * Deklaracje, które w KANWIE EDYTORA zostają inline mimo klasy z tabeli.
+ * `WidgetResizeOverlay` rozpoznaje tryb szerokości zaznaczonego widgetu
+ * z `el.style.width` („100%”/procent/px/auto); bez inline szerokości schodzi
+ * do porównania z szerokością rodzica, a rodzicem ramki blokowej jest kolumna
+ * z paddingiem bezpiecznym (12 px z każdej strony, 8 px na telefonie) - więc
+ * pełnoszeroki widget w typowej kolumnie dostawał plakietkę „auto”.
+ * Kanwa jest wyłącznie kliencka (`onContentChange` daje tylko
+ * `InlineEditProvider` edytora), więc dokument strony publicznej i parytet
+ * SSR/klient się nie zmieniają.
+ */
+const EDITOR_INLINE_PROPERTIES: ReadonlySet<keyof CSSProperties> = new Set(["width"]);
+const NO_INLINE_PROPERTIES: ReadonlySet<keyof CSSProperties> = new Set();
+
+/**
  * Rozdziela styl ramki na klasy (stałe deklaracje z tabeli wyżej) i resztę
  * inline. Czysta funkcja wejścia, więc SSR i klient liczą ten sam wynik
  * (parytet hydratacji). Pusty styl daje `undefined` - bez atrybutu `style`.
+ * `keepInline` wymienia właściwości, których nie zamieniamy na klasę.
  */
 function splitFrameStyle(
   baseClass: string,
   style: CSSProperties,
+  keepInline: ReadonlySet<keyof CSSProperties>,
 ): { className: string; style: CSSProperties | undefined } {
   const rest: Record<string, unknown> = { ...style };
   const classes = baseClass.split(" ");
   for (const [property, value, className] of FRAME_DECLARATION_CLASSES) {
-    if (rest[property] !== value) continue;
+    if (keepInline.has(property) || rest[property] !== value) continue;
     delete rest[property];
     if (!classes.includes(className)) classes.push(className);
   }
@@ -133,6 +149,8 @@ export const BuilderWidgetNode = memo(
     onlyOneBlock,
     onContentChange,
   }: BuilderWidgetNodeProps) {
+    // Ramka w kanwie edytora (z edycją w miejscu) - patrz `EDITOR_INLINE_PROPERTIES`.
+    const onEditorCanvas = onContentChange !== undefined;
     const { itemClass, style } = useMemo(() => {
       const adv = w.advanced as
         | {
@@ -188,9 +206,13 @@ export const BuilderWidgetNode = memo(
           : null),
         boxSizing: "border-box",
       };
-      const split = splitFrameStyle(computedItemClass, computedStyle);
+      const split = splitFrameStyle(
+        computedItemClass,
+        computedStyle,
+        onEditorCanvas ? EDITOR_INLINE_PROPERTIES : NO_INLINE_PROPERTIES,
+      );
       return { itemClass: split.className, style: split.style };
-    }, [w, device, inRow, onlyOneBlock]);
+    }, [w, device, inRow, onlyOneBlock, onEditorCanvas]);
 
     const adv = w.advanced as
       | { height?: number | "auto" | { desktop?: unknown; tablet?: unknown; mobile?: unknown } }
