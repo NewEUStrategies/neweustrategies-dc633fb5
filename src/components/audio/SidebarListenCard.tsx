@@ -272,14 +272,14 @@ export function SidebarListenCard({
             aria-pressed={playing}
             data-playing={playing ? "true" : "false"}
             className={[
-              "listen-play-toggle shrink-0 h-11 w-11 rounded-[6px]",
-              // Wariant "editorial outline": spokojny obrys marki, wypełnienie
-              // dopiero na najechaniu (albo gdy odtwarzanie trwa).
-              "border bg-background shadow-sm transition-all duration-300",
-              "hover:shadow-md active:scale-95 disabled:opacity-70",
+              "listen-play-toggle shrink-0 h-11 w-11 rounded-full",
+              // Wariant "soft tinted circle": miękko przyciemnione koło w tonie
+              // marki, ikona w kolorze marki; tint pogłębia się na najechaniu.
+              "border transition-all duration-300",
+              "shadow-sm hover:shadow-md active:scale-95 disabled:opacity-70",
               playing
                 ? "bg-brand text-background ring-4 ring-brand/15 border-brand"
-                : "border-brand text-brand hover:bg-brand hover:text-background",
+                : "border-brand/30 bg-brand/[0.08] text-brand hover:bg-brand/20 hover:border-brand/45",
               FOCUS_RING,
             ].join(" ")}
           >
