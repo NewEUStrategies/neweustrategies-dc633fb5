@@ -1,0 +1,35 @@
+// Pokrycie per modul z coverage-final.json (istanbul): linie (po numerach wierszy), instrukcje, funkcje, galezie,
+// pliki na zerze, martwe funkcje nazwane. Oprocz tego calosc i poza taksonomia.
+import fs from "node:fs";
+const ROOT = "/home/user/neweustrategies-dc633fb5";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13";
+const mm = await import(ROOT + "/scripts/taxonomy/moduleMap.mjs");
+const cov = JSON.parse(fs.readFileSync(ROOT + "/coverage/coverage-final.json", "utf8"));
+const ed12 = JSON.parse(fs.readFileSync(SP + "/ed12-pokrycie-moduly.json", "utf8"));
+const rel = (p) => p.replace(ROOT + "/", "");
+const key = (f) => { const c = mm.classifyPath(f); return c.module != null ? String(c.module) : c.crossCutting ? "X-" + c.crossCutting : "NULL"; };
+export function met(e) {
+  const L = new Map();
+  for (const [id, loc] of Object.entries(e.statementMap)) { const n = loc.start.line; L.set(n, Math.max(L.get(n) ?? 0, e.s[id] ?? 0)); }
+  const fm = Object.entries(e.f), bm = Object.values(e.b).flat();
+  const deadNamed = fm.filter(([id, h]) => h === 0 && e.fnMap[id] && !/^\(anonymous_\d+\)$/.test(e.fnMap[id].name)).map(([id]) => ({ name: e.fnMap[id].name, line: e.fnMap[id].loc?.start?.line ?? e.fnMap[id].line }));
+  const uncoveredLines = [...L.entries()].filter(([, h]) => h === 0).map(([n]) => n).sort((a, b) => a - b);
+  return { L: L.size, Lc: L.size - uncoveredLines.length, S: Object.keys(e.s).length, Sc: Object.values(e.s).filter((x) => x > 0).length, F: fm.length, Fc: fm.filter(([, h]) => h > 0).length, B: bm.length, Bc: bm.filter((x) => x > 0).length, deadNamed, uncoveredLines };
+}
+const perFile = {}, perKey = {};
+const T = { L: 0, Lc: 0, S: 0, Sc: 0, F: 0, Fc: 0, B: 0, Bc: 0, files: 0, zero: 0, dead: 0 };
+for (const [abs, e] of Object.entries(cov)) {
+  const f = rel(abs); const m = met(e); const k = key(f);
+  perFile[f] = { k, L: m.L, Lc: m.Lc, F: m.F, Fc: m.Fc, B: m.B, Bc: m.Bc, S: m.S, Sc: m.Sc, dead: m.deadNamed, unc: m.uncoveredLines };
+  const r = (perKey[k] ??= { L: 0, Lc: 0, S: 0, Sc: 0, F: 0, Fc: 0, B: 0, Bc: 0, files: 0, zero: 0, dead: 0, zeros: [] });
+  for (const q of ["L", "Lc", "S", "Sc", "F", "Fc", "B", "Bc"]) { r[q] += m[q]; T[q] += m[q]; }
+  r.files++; T.files++; r.dead += m.deadNamed.length; T.dead += m.deadNamed.length;
+  if (m.L > 0 && m.Lc === 0) { r.zero++; T.zero++; r.zeros.push([f, m.L]); }
+}
+const pc = (a, b) => (b ? (100 * a) / b : 100);
+fs.writeFileSync(SP + "/pokrycie13.json", JSON.stringify({ T, perKey, perFile }, null, 0));
+console.log(`CALOSC: plikow ${T.files} | linie ${pc(T.Lc, T.L).toFixed(2)}% (${T.Lc}/${T.L}) | instr ${pc(T.Sc, T.S).toFixed(2)}% | funkcje ${pc(T.Fc, T.F).toFixed(2)}% (${T.Fc}/${T.F}) | galezie ${pc(T.Bc, T.B).toFixed(2)}% | zer ${T.zero} | niepokrytych ${T.L - T.Lc} | martwe fn nazwane ${T.dead}`);
+const keys = Object.keys(perKey).sort((a, b) => pc(perKey[b].Lc, perKey[b].L) - pc(perKey[a].Lc, perKey[a].L));
+console.log("klucz".padEnd(16), "plikow".padStart(6), "linie".padStart(8), "Δed12".padStart(7), "funkcje".padStart(8), "Δed12".padStart(7), "galezie".padStart(8), "zer".padStart(4), "Δ".padStart(4), "niepok".padStart(7), "martwe".padStart(7));
+for (const k of keys) { const r = perKey[k], o = ed12[k]; const l = pc(r.Lc, r.L), f = pc(r.Fc, r.F);
+  console.log(k.padEnd(16), String(r.files).padStart(6), l.toFixed(2).padStart(8), (o ? (l - o.lines >= 0 ? "+" : "") + (l - o.lines).toFixed(2) : "-").padStart(7), f.toFixed(2).padStart(8), (o ? (f - o.funcs >= 0 ? "+" : "") + (f - o.funcs).toFixed(2) : "-").padStart(7), pc(r.Bc, r.B).toFixed(2).padStart(8), String(r.zero).padStart(4), (o ? String(r.zero - o.zeros) : "-").padStart(4), String(r.L - r.Lc).padStart(7), String(r.dead).padStart(7)); }

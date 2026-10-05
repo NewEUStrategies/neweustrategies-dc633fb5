@@ -26,6 +26,7 @@ import {
   setMode as setThemedMode,
   isModeOverridden,
   isThemedValue,
+  pickShared,
 } from "@/lib/builder/themed";
 import { broadcastWidgetTypography } from "@/lib/builder/liveTypography";
 import {
@@ -214,55 +215,34 @@ export function WidgetProperties({
       }
     });
 
-  // ---- Per-mode (Themed) read/write for dimension / border / shadow fields.
-  // The renderer (frame.ts styleToCSS) already handles Themed<string> via
-  // pickMode, so per-mode overrides stay backwards compatible with legacy flat
-  // values. Editing in dark mode preserves the light value and vice versa.
+  // Geometry is shared by light and dark. Legacy themed values are collapsed
+  // on the next edit, while color fields remain independently themeable.
   type StringStyleKey = "borderRadius" | "borderWidth" | "boxShadow";
   const getFlatStr = (key: StringStyleKey): string => {
     const v = widget.style?.[key] as Themed<string> | string | undefined;
-    return pickMode<string>(v as Themed<string> | undefined, mode) ?? "";
+    return pickShared<string>(v as Themed<string> | undefined) ?? "";
   };
   const setFlatStr = (key: StringStyleKey, v: string | undefined) =>
     setStyle((s) => {
-      const prev = s[key] as Themed<string> | string | undefined;
-      const next = setThemedMode<string>(
-        prev as Themed<string> | undefined,
-        mode,
-        v && v.length ? v : undefined,
-      );
-      (s[key] as Themed<string> | undefined) = next;
+      s[key] = v && v.length ? v : undefined;
     });
   const getFlatBorderStyle = (): string => {
     const v = widget.style?.borderStyle as Themed<string> | string | undefined;
-    return pickMode<string>(v as Themed<string> | undefined, mode) ?? "none";
+    return pickShared<string>(v as Themed<string> | undefined) ?? "none";
   };
   const setFlatBorderStyle = (v: CommonStyle["borderStyle"] | undefined) =>
     setStyle((s) => {
-      const prev = s.borderStyle as Themed<string> | string | undefined;
-      const next = setThemedMode<string>(prev as Themed<string> | undefined, mode, v ?? undefined);
-      (s as Record<string, unknown>).borderStyle = next;
+      s.borderStyle = v;
     });
 
-  // Typography is per-mode: editing in dark mode preserves the light values
-  // and vice versa. The renderer (resolveWidgetTypography) already handles
-  // Themed<WidgetTypography> and falls back to the opposite mode on miss.
+  // Typography is shared: light/dark can change colors, never text geometry.
   const getThemedTypography = (): WidgetTypography | undefined =>
-    pickMode<WidgetTypography>(
-      widget.style?.typography as Themed<WidgetTypography> | undefined,
-      mode,
-    ) ??
-    pickMode<WidgetTypography>(
-      widget.style?.typography as Themed<WidgetTypography> | undefined,
-      mode === "dark" ? "light" : "dark",
-    );
+    pickShared<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined);
   const setThemedTypography = (t: WidgetTypography | undefined) => {
     const next = t && Object.keys(t).length ? t : undefined;
     broadcastWidgetTypography(widget.id, next);
     setStyle((s) => {
-      const prev = s.typography as unknown as Themed<WidgetTypography> | undefined;
-      s.typography = setThemedMode<WidgetTypography>(prev, mode, next) as unknown as
-        WidgetTypography | undefined;
+      s.typography = next;
     });
   };
 
@@ -496,7 +476,7 @@ export function WidgetProperties({
 
           <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              {t("builder.widgetProps.typography")} ({md()})
+              {t("builder.widgetProps.typography")}
             </h4>
 
             <TypographyControl
@@ -698,7 +678,7 @@ export function WidgetProperties({
 
           <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              {t("builder.widgetProps.cornerRounding")} ({md()})
+              {t("builder.widgetProps.cornerRounding")}
             </h4>
             <PropField label={t("builder.widgetProps.radiusPx")}>
               <StepperInput
@@ -712,7 +692,7 @@ export function WidgetProperties({
 
           <section className="space-y-2 rounded-md border border-border p-2 bg-muted/20">
             <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              {t("builder.widgetProps.border")} ({md()})
+              {t("builder.widgetProps.border")}
             </h4>
             <div className="grid grid-cols-2 gap-2">
               <PropField label={t("builder.widgetProps.style")}>

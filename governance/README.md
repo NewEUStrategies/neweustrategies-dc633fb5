@@ -8,9 +8,9 @@ niczego.
 
 To jest rejestr, a nie dokument, z jednego powodu: dokument o własnicielstwie
 zdezaktualizowałby się przy pierwszej nowej trasie i **nikt by tego nie
-zauważył**. Rejestr pilnuje bramka `bun run check:ownership`, wpięta w
-`.github/workflows/ci.yml` - nowa trasa albo migracja poza zakresem rejestru
-przewraca CI tak samo jak błąd typów.
+zauważył**. Od 2026-10-05 rejestr nie jest bramką CI (CI zostało ograniczone do
+bramek chroniących produkcję); aktualizuje się go przy dodawaniu tras i rodzin
+tabel, a `.github/CODEOWNERS` generuje z niego `bun run generate:codeowners`.
 
 ---
 
@@ -123,8 +123,8 @@ Zwykle nic nie robisz: migracja dotykająca istniejących tabel trafia w istniej
 prefiks. Prefiks dopisujesz do `obiektyBazy`, gdy **wprowadzasz nową rodzinę
 tabel** (np. `webinar_*`) - inaczej migracja albo wpadnie do kubła
 `platforma-i-baza`, albo, co gorsza, zostanie przypisana do przypadkowej domeny
-przez poboczne odwołanie. Po dopisaniu uruchom `bun run check:ownership` i
-sprawdź, czy liczba migracji w Twojej domenie wzrosła o tyle, ile oczekujesz.
+przez poboczne odwołanie. Po dopisaniu przegeneruj CODEOWNERS
+(`bun run generate:codeowners`).
 
 ### 3.3 Obsadzam właściciela domeny
 
@@ -238,11 +238,12 @@ przeglądy dokładnie odwrotnie, niż mówi rejestr. Nie sortuj CODEOWNERS.
 
 Plik pokrywa **wyłącznie trasy**. Migracji nie da się w nim wyrazić: nazwy to
 znaczniki czasu i UUID-y, więc nie istnieje wzorzec ścieżki oddzielający domeny.
-Własnicielstwo migracji egzekwuje `check:ownership`, nie CODEOWNERS.
+Własnicielstwo migracji opisuje wyłącznie rejestr.
 
 ### 6.1 Wzorzec-łapacz
 
-Bramka odrzuca pojedynczy wzorzec tras biorący ponad **40%** wszystkich tras.
+Walidator rejestru (`src/lib/ci/ownership.ts`) odrzuca pojedynczy wzorzec tras
+biorący ponad **40%** wszystkich tras.
 Bez tego progu całą bramkę tras da się uciszyć jedną linią (`admin.*` w dowolnej
 domenie: 100% pokrycia, zero informacji). Najszerszy uczciwy wzorzec w tym
 rejestrze (`admin.events_.$eventId.*`) bierze 20,2%, więc zapas jest dwukrotny.
@@ -251,15 +252,10 @@ rejestrze (`admin.events_.$eventId.*`) bierze 20,2%, więc zapas jest dwukrotny.
 
 ## 7. Komendy
 
-| Komenda                       | Co robi                                                            |
-| ----------------------------- | ------------------------------------------------------------------ |
-| `bun run check:ownership`     | Bramka. ~0,6 s, czyta wyłącznie pliki repo                         |
-| `bun run generate:codeowners` | Przegenerowuje `.github/CODEOWNERS` z rejestru                     |
-| `bun run check:codeowners`    | Sprawdza CODEOWNERS bajt w bajt względem rejestru                  |
-| `bun run verify:static`       | Cały zestaw tanich bramek - obie powyższe wchodzą tu automatycznie |
-
-**Nowa bramka `check:*` MUSI zostać wpięta krokiem w `.github/workflows/ci.yml`** -
-inaczej oblewa meta-bramka `check:gate-coverage`, i to w każdym innym przebiegu,
-w którym jeszcze jest. Wpięcie dwa razy w tym samym jobie oblewa tak samo.
+| Komenda                                          | Co robi                                           |
+| ------------------------------------------------ | ------------------------------------------------- |
+| `bun run generate:codeowners`                    | Przegenerowuje `.github/CODEOWNERS` z rejestru    |
+| `bun run scripts/generate-codeowners.ts --check` | Sprawdza CODEOWNERS bajt w bajt względem rejestru |
+| `bun run verify:static`                          | Cały zestaw tanich bramek statycznych z CI        |
 
 Od 12.09.2026 właścicielem wszystkich domen jest Fundacja New European Strategies. Utrzymanie i zastępstwo stanowią dwie role instytucjonalne Fundacji, kierowane na konto @NewEUStrategies i office@neweuropeanstrategies.com. Nie oznacza to dwóch niezależnych osób ani zewnętrznego wykonawcy.

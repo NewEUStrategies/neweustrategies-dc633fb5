@@ -1,0 +1,85 @@
+# Zestawienie nowych defektow wydania 13: tory (po obalaniu toru), dodatkowe zgloszenia (40 po obalaniu, reszta bez),
+# krytyk (sledztwo bez obalania). Wynik: defekty13.json (lista z polami do tabeli 17.8).
+import json, re, collections, sys
+S='/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+m=json.load(open(S+'/migawka.json'))
+WAGI=['krytyczny','wysoki','sredni','niski']
+def waga_z(korekta, dom):
+    k=(korekta or '').lower().strip()
+    for w in WAGI+['średni']:
+        if k.startswith(w): return 'sredni' if w=='średni' else w
+    return dom
+out=[]
+for g in [f'G{i}' for i in range(1,9)]:
+    for k,v in m[g].items():
+        if not v: continue
+        if k.startswith('defekty:'): t=k[8:]; defs=v.get('defekty') or []
+        elif k.startswith('przekroj:'): t=k[9:]; defs=v.get('defekty') or []
+        else: continue
+        ob=m[g].get('obal:'+t) or {}
+        wer={x['id']:x for x in ob.get('werdykty',[]) if x['typ']=='nowy_defekt'}
+        for i,x in enumerate(defs):
+            vv=wer.get(f'N{i+1}')
+            out.append({'id':f'N-{t}-{i+1}','zrodlo':'tor','tor':t,'tytul':x['tytul'],'wagaZgl':x['waga'],
+                'waga':waga_z(vv.get('korektaWagi') if vv else '', x['waga']),'plik':x['plik'],'linia':x['linia'],
+                'werdykt':(vv['werdykt'] if vv else 'BRAK'),'korekta':(vv.get('korektaWagi','') if vv else ''),'dowod':(vv['dowod'] if vv else x['dowod'])[:1500],'skutek':x.get('skutek','')})
+poz=json.load(open(S+'/wznowienie/dodatkowe-pozycje.json'))
+dod={}
+for r,v in m.get('DOD',{}).items():
+    for x in (v or {}).get('werdykty',[]): dod[x['id']]=x
+for p in poz:
+    vv=dod.get(p['id'])
+    plik,_,lin=p['miejsce'].rpartition(':')
+    out.append({'id':p['id'],'zrodlo':p['zrodlo'],'tor':p['tor'],'tytul':p['tytul'],'wagaZgl':p['waga'],
+        'waga':(vv['waga'] if vv and vv['werdykt']=='POTWIERDZONY' else p['waga']),'plik':plik,'linia':int(lin) if lin.isdigit() else 0,
+        'werdykt':(vv['werdykt'] if vv else 'BRAK'),'korekta':'','duplikat':(vv.get('duplikat','') if vv else ''),'dowod':(vv['dowod'] if vv else p['dowod'])[:1500],'skutek':(vv.get('skutek','') if vv else '')})
+json.dump(out,open(S+'/defekty13-surowe.json','w'),ensure_ascii=False,indent=1)
+c=collections.Counter((x['zrodlo'] if x['zrodlo']=='tor' else 'dodatkowe', x['werdykt']) for x in out)
+print(c)
+# kandydaci na duplikaty: ten sam plik i linia +-6
+by=collections.defaultdict(list)
+for x in out: by[x['plik']].append(x)
+pary=[]
+for f,xs in by.items():
+    for i in range(len(xs)):
+        for j in range(i+1,len(xs)):
+            if abs(xs[i]['linia']-xs[j]['linia'])<=6: pary.append((xs[i]['id'],xs[j]['id'],f,xs[i]['linia'],xs[j]['linia'],xs[i]['tytul'][:70],xs[j]['tytul'][:70]))
+for p in pary: print('DUP?',p)
+
+# ---- scalanie duplikatow i klasyfikacja (recznie, po przeczytaniu dowodow) ----
+DUP = {  # duplikat -> kanoniczny
+  'Z-Z2-o1':'N-19-1','Z-Z2-s2':'N-19-1','Z-Z2-o2':'Z-Z2-s1','Z-Z2-o3':'N-19-2','D-CI-2':'N-CI-1',
+  'N-X-admin-shell-2':'N-9-2','D-9-1':'N-9-2','D-4-1':'N-4-1','R-N-PRZYPOMNIENIA_UCZESTNIKA-s3':'N-22a-1',
+  'R-N-PRZYPOMNIENIA_UCZESTNIKA-o1':'N-22a-1','D-1-1':'N-DB-2','D-20-2':'N-DB-1','D-22d-1':'N-DB-1','D-10-1':'N-DB-1',
+  'D-22a-3':'N-DB-1','Z-Z8-o1':'D-17-2','D-DB-1':'R-N-PRZYPOMNIENIA_UCZESTNIKA-s2','R-W-DESIGN_SYSTEM_SZESC_FUNKCJI-o2':'R-W-DESIGN_SYSTEM_SZESC_FUNKCJI-s1',
+  'R-W-KATALOG_OSOB_PROFIL_ORGANIZACJI-s1':'N-20-1','R-W-KATALOG_OSOB_PROFIL_ORGANIZACJI-o2':'N-20-1','R-W-MODUL_19_NAPRAWY_I_POKRYCIE-s2':'D-19-1',
+  'D-X-design-system-1':'N-X-design-system-1','D-5-1':'N-5-1',
+}
+POZA = {  # nie sa nowymi defektami: juz w rejestrze albo czesc znaleziska Z
+  'R-W-DESIGN_SYSTEM_SZESC_FUNKCJI-s2':'to R253 z rejestru wydania 12 (17.9)',
+  'Z-Z4-o1':'reszta znaleziska Z3 (17.7)',
+}
+OBALONE_PRZEZ_Z = {'Z-Z1-s1':'twierdzenie obalil weryfikator Z1 (17.7): osoba przechodzi trzy bramki, nie jedna'}
+# Potwierdzone niezaleznie przez drugiego agenta znaleziska Z (sledztwo i obalajacy doszli do tego samego mechanizmu)
+POTW_Z = {'Z-Z2-s1'}
+fin=[]
+byid={x['id']:x for x in out}
+for x in out:
+    if x['id'] in DUP or x['id'] in POZA: continue
+    y=dict(x)
+    y['scalone']=[d for d,c in DUP.items() if c==x['id']]
+    if x['id'] in OBALONE_PRZEZ_Z: y['werdykt']='OBALONY'; y['uwaga']=OBALONE_PRZEZ_Z[x['id']]
+    if x['id'] in POTW_Z: y['werdykt']='POTWIERDZONY'
+    # kanoniczny niezweryfikowany, a scalony duplikat potwierdzony -> potwierdzony
+    if y['werdykt']=='BRAK' and any(byid[d]['werdykt']=='POTWIERDZONY' for d in y['scalone']):
+        y['werdykt']='POTWIERDZONY'
+    if y['waga']=='brak': y['werdykt']='OBALONY'; y['uwaga']=y.get('uwaga') or 'weryfikator: obserwacja prawdziwa, ale bez skutku (waga brak)'
+    fin.append(y)
+# ostatnie korekty wag po przeczytaniu dowodow
+for y in fin:
+    if y['id']=='N-9-2': y['tytul']='Mobilna szyna zminimalizowanych rozmow: brak zamkniecia i wskaznika nadmiaru (limit trzech dymkow zgodny z AGENTS.md)'
+    if y['id']=='N-22a-1': y['tytul']='Szablon SMS przypomnienia: marka NES na sztywno i odeslanie do e-maila, ktory moze nie przyjsc'
+    if y['id']=='N-4-1': y['tytul']='Menedzer i picker mediow bez stanu ladowania i bledu: zmiana folderu albo blad zapytania wyglada jak pusty folder z zacheta do wgrania'
+c=collections.Counter((y['werdykt'],y['waga']) for y in fin)
+print('po scaleniu:', len(fin), dict(c))
+json.dump(fin,open(S+'/defekty13.json','w'),ensure_ascii=False,indent=1)

@@ -1193,7 +1193,7 @@ export function renderOwnershipReport(report: OwnershipReport): string {
  * WYŁĄCZNIE trasy. Migracje mają w rejestrze własnicieli, ale NIE DA SIĘ ich
  * wyrazić w CODEOWNERS: pliki migracji nazywają się znacznikiem czasu (a 68,7%
  * z nich UUID-em), więc nie istnieje wzorzec ścieżki, który oddzielałby domeny.
- * Własnicielstwo migracji egzekwuje `bun run check:ownership`, nie ten plik.
+ * Własnicielstwo migracji opisuje rejestr, nie ten plik.
  */
 export function renderCodeowners(registry: OwnershipRegistry): string {
   const routePatternCount = registry.domeny.reduce((sum, domain) => sum + domain.trasy.length, 0);
@@ -1201,12 +1201,11 @@ export function renderCodeowners(registry: OwnershipRegistry): string {
   const lines: string[] = [
     "# PLIK GENEROWANY - nie edytuj ręcznie.",
     "# Źródło: governance/ownership.json  |  Generator: bun run generate:codeowners",
-    "# Bramka spójności: bun run check:codeowners",
     "#",
     `# ${routePatternCount} wzorców tras administracyjnych w ${registry.domeny.length} domenach.`,
     "# Domyślny właściciel obejmuje repozytorium; poniżej przypisania tras.",
-    "# Atrybucję domenową migracji bazy (znaczniki czasu i UUID-y) egzekwuje bramka",
-    "# `bun run check:ownership` na podstawie tego samego rejestru.",
+    "# Atrybucja domenowa migracji bazy (znaczniki czasu i UUID-y) jest zapisana",
+    "# w tym samym rejestrze.",
     "#",
     "# UWAGA NA KOLEJNOŚĆ: GitHub stosuje regułę OSTATNIEGO trafienia, a rejestr",
     "# regułę PIERWSZEGO, więc domeny są tu wypisane w kolejności ODWROTNEJ niż",

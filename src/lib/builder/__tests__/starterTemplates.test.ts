@@ -83,7 +83,9 @@ describe("STARTER_TEMPLATES", () => {
 
   it("uses Kinetic Signal Notch for every section label", () => {
     for (const tpl of STARTER_TEMPLATES) {
-      const labels = collectWidgets(tpl.build()).filter((widget) => widget.type === "section-label");
+      const labels = collectWidgets(tpl.build()).filter(
+        (widget) => widget.type === "section-label",
+      );
       for (const label of labels) {
         expect(label.content.variant, tpl.id).toBe("kinetic-signal-notch");
       }

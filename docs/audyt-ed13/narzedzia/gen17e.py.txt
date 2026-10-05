@@ -1,0 +1,105 @@
+# Rozdzial 17, czesc E: naglowek rozdzialu i 17.1, plan (17.15), rachunek sumienia (17.16), jak sprawdzic (17.17),
+# naglowek wydania na gore dokumentu. Liczby z tych samych danych co czesci A-D.
+import json, collections
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+D = json.load(open(S + '/defekty13.json'))
+FIN = json.load(open(S + '/rejestr-stan13.json'))
+T = json.load(open(S + '/rynek/tabela13.json'))
+POK = json.load(open(S + '/pokrycie13.json'))['T']
+FUN = json.load(open(S + '/funkcjonalnosci13.json'))
+pot = [x for x in D if x['werdykt'] == 'POTWIERDZONY']
+bez = [x for x in D if x['werdykt'] == 'BRAK']
+cp = collections.Counter(x['waga'] for x in pot)
+cf = collections.Counter(v[0] for v in FIN.values())
+nes = [x for x in T if x['klucz'] == 'nes'][0]
+
+o = []
+w = o.append
+w('## 17. WYDANIE 13 - audyt po kampanii naprawczej: pokrycie 98,84%, zero czerwieni, siedem krytycznych defektów zamkniętych - i regresja, która wyłączyła zaproszenia')
+w('')
+w('Pomiar na HEAD `5b8c77c01` (2026-10-04). Wydanie 12 mierzyło `b8b53ae5` (2026-09-30). Między nimi 402 commity, w tym 117 scaleń (PR-y #427-#466). Historia jest ciągła, więc tym razem okno to zwykły zakres commitów; drzewo wydania 12 i tak rozpakowałem obok (`git archive b8b53ae5`), żeby każdą metrykę liczyć jednym skryptem na obu drzewach. Wydanie dokłada coś, czego w serii nie było: **porównanie platformy ze stronami 32 ośrodków analitycznych z Polski, UE, USA i Azji** (17.14).')
+w('')
+w('### 17.1. Trzy rzeczy, które trzeba wiedzieć przed liczbami')
+w('')
+w('**Pierwszy przebieg w tej serii bez czerwieni i bez zastrzeżenia środowiskowego.** W wydaniu 12 host `cdn.sheetjs.com` był zablokowany i pomiar szedł z lokalną zaślepką `xlsx` (19 czerwonych przypadków). Dziś host jest osiągalny, paczka zainstalowała się z lockfile, a cały przebieg - 3 253 pliki testowe, 85 101 przypadków w dwunastu shardach scalonych jak w CI - jest zielony, bez ani jednego naruszenia progu. Liczby pokrycia z 17.4 są więc liczbami, które zobaczy CI.')
+w('')
+w(f"**Okno to kampania naprawcza, nie rozwój produktu - i ma swoją cenę.** Kod produkcyjny urósł o 63 pliki, testy o 261; jedenaście kampanii zostawiło raport w `docs/`, sześć obszarów doszło do 100% linii i funkcji, a z rejestru defektów wydań 11 i 12 naprawiono {cf['naprawiony']}, w tym wszystkie siedem krytycznych. Ta sama kampania wniosła jednak najpoważniejszą regresję serii: naprawa przejęcia konta zaproszeniem (Z2) zaczęła sprawdzać błąd zapisu roli z celem konfliktu, dla którego w bazie nie ma indeksu - na bazie z migracji każda wysyłka zaproszenia kończy się błędem. Pokrycie tego nie widzi, bo test woła atrapę bazy (17.7, 17.8).")
+w('')
+w('**Drzewo jest przypięte, a rynek jest przeglądem.** Agenci, pomiar i weryfikator pracowali na `5b8c77c01`. Po pomiarze na `main` wszedł PR #469 (wydajność, `3ac0f4388`: 50 plików kodu i konfiguracji oraz 589 dokumentów) - nie jest zmierzony i nie wchodzi do liczb tego rozdziału. Porównanie rynkowe zostało, na polecenie zamawiającego, przeglądem: oceny 23 z 33 witryn przeszły próbę obalenia, kolejnych prób nie prowadziłem, a wnioski dotyczą platformy, nie konkurencji.')
+w('')
+open(S + '/r17e1.md', 'w').write('\n'.join(o))
+
+o = []
+w = o.append
+w('### 17.15. Plan naprawczy wydania 13: co robić i w jakiej kolejności')
+w('')
+w('Kolejność to ryzyko dla użytkownika i pieniędzy, potem dowód, potem treść. Każda pozycja ma nazwany defekt albo znalezisko, które zamyka.')
+w('')
+PLAN = [
+    ('Zaproszenia znowu działają', 'zamyka: N-19-1, Z2 (regresje). `onConflict: "tenant_id,user_id,role"` w `performSend` (`invitations.functions.ts:481`) i `provisionTeamMembers` (`:998`); test na prawdziwym schemacie (pgTAP albo harness bazy), który odtwarza 42P10, zamiast asercji na atrapie (`invitationsFunctions.test.ts:1273`). Gałąź dowiązania dla konta, które `handle_new_user` właśnie założył w najemcy domyślnym, z najemcą w `app_metadata` przy `createUser`.'),
+    ('Zapis ustawień klubu', 'zamyka: N-16-1. `club_updated` w `club_moderation_log_action_check` (migracja w obu pasach z wpisem w dzienniku i `when` większym od maksimum) i pgTAP wołający `club_update_settings` na prawdziwej tabeli.'),
+    ('Main zielony i chroniony', 'zamyka: N-CI-1. Budżet bundla (4 806,5 KB wobec 4 772 KB) zejść albo świadomie podnieść z uzasadnieniem; ruleset gałęzi tak, żeby czerwona bramka wydania blokowała także wypchnięcia bezpośrednie. Po pomiarze budżet na `3ac0f4388` przechodzi, ale `main` jest czerwony na progu `webVitals.ts` i na 39 testach kolorów po 111 commitach wypchniętych bez PR-a (17.10).'),
+    ('Pieniądze i dane między najemcami', 'zamyka: zwrot po wygranym sporze (D-13-3: wyzerować `refunded_amount_cents` w `restoreAccess`), notatki `ad_slots.notes` dla anonima (D-14-3: `REVOKE` kolumny albo widok publiczny), autolink `provisionTeamMembers` po e-mailu we wszystkich najemcach, Search Console bez domeny (pozycja 5 planu wydania 12), bliźniak Z3 i stempel Z4 (pozycja 8).'),
+    ('Wydajność wdrożenia publicznego', 'zamyka: K13 (17.14). Cache dokumentu na brzegu dla anonima: dziś każde żądanie GET dostaje `x-nes-cache: MISS`, także drugie pod rząd, bo dokument dociera z `no-cache, must-revalidate, max-age=0`, a magazyn zapisuje tylko `public` z `s-maxage` - ustalić w logach wdrożenia, która warstwa ten nagłówek ustawia. Do tego mediana czasu odpowiedzi serwera 0,96-4,8 s przy 19 zapytaniach do bazy na analizę; budżet SSR strony głównej (600 ms) bez zapasu wobec zmierzonego czasu aplikacji; przyczyna przesunięcia układu 1,28-1,40 na stronie głównej (kandydat do sprawdzenia: skok skali czcionek po hydratacji, 17.8); TBT 1-2 s (hydratacja); waga analizy 3,6 MB. Potem pomiar PSI produkcji - cele 85/95 z raportów wydajności okna nadal nie są potwierdzone.'),
+    ('Pełny SSR i czysty interfejs', 'zamyka: objawy z 17.14 i trzy zgłoszenia krytyka (17.8). Treść analizy EN w HTML, `/podcasts` i `/polls` w SSR, a strona główna bez komunikatu zastępczego (pozycja 5); surowe klucze tłumaczeń - najpierw ustalić build wdrożenia, bo kod `5b8c77c01` ich nie produkuje; `robots.txt` bez dyrektywy, której Lighthouse nie zna, albo świadome przyjęcie tej kary SEO. Z krytyka: `event_package_purchase` bez sprawdzenia związku z firmą, redakcja, limit i retencja monitora 404, skala czcionek grzana w SSR.'),
+    ('Decyzje RODO, które czekają od dwóch wydań', 'zamyka: Z1 (decyzja o profilach przestawionych hurtowo przez `drizzle/0001` i ślad decyzji), Z8 (PESEL w redakcji albo podpisana decyzja o przyjęciu ryzyka; GA4 przed zgodą).'),
+    ('Dowód, który dziś nie biegnie', 'zamyka: Z9 (inwarianty z poświadczeniami w CI), Z10 (zamrożenie zegara per blok i przywrócenie 11 ukrytych plików), sieć w testach (osłona w setupie), test płatnej ścieżki uczestnika w harmonogramie, bramka parytetu pasów na tagach z dziennika (N-DB-1), reguły taksonomii dla nowych powierzchni, pięć martwych progów i próg dla `suppressionRules.ts`.'),
+    ('Moduł przejrzystości instytucjonalnej', 'zamyka: K11 - jedyną lukę rubryki także w kodzie. Ustrukturyzowane strony finansowania i darczyńców, rady programowej, raportu rocznego i polityki korekt z polem sprostowania przy wpisie.'),
+    ('Treść i operacje wdrożenia (nie kod)', 'zamyka: K1, K3, K7, K10 (17.14). Przypisanie wpisów do kategorii (44 strony taksonomii są puste), usunięcie stron testowych `test-e2e-zakup` z mapy strony i z publicznego widoku, osoby na `/o-nas`, poprawny `/statut`, odznaka eksperta dla autorów (pusta lista `/experts`), dossier w trackerze, prawdziwe wydarzenia. Platforma ma na to funkcje - brakuje ich użycia.'),
+    ('Raporty kampanii z liczbami ze skryptu', 'zamyka: wzorzec z 17.13. W pięciu z jedenastu raportów co najmniej jedna liczba o samym raporcie (testy, pliki, progi, linie „przed\") nie zgadza się z repozytorium.'),
+    (f'{len(bez)} zgłoszeń bez próby obalenia', 'zamyka: tabelę „zgłoszone bez próby obalenia\" z 17.8 - potwierdzić przy naprawie każdego dotkniętego pliku, nie hurtem.'),
+]
+for i, (t, s) in enumerate(PLAN, 1):
+    w(f'{i}. **{t}** - {s}')
+w('')
+
+w('### 17.16. Rachunek sumienia wydania 13')
+w('')
+w('**Własny błąd procesu: wznowienie powtarzało gotową pracę.** Limit sesji przerwał przebiegi agentów w połowie, a ich wznowienie mechanizmem `resumeFromRunId` w potokach torów uruchomiło na nowo agentów, którzy już skończyli: pamięć wyników działa na prefiks kolejności wywołań, a w potoku ta kolejność zależy od czasu. Zatrzymałem te przebiegi po kilku minutach, a brakujące kroki (obalanie w 16 torach) dokończyłem osobnym przebiegiem, który czytał wejście z pliku. Do dokumentu wchodzi zawsze **pierwszy** wynik każdego agenta (przebieg oryginalny); powtórzone wyniki zostały w dziennikach, ale niczego nie nadpisały.')
+w('')
+w('**Co zmieniło się względem stanu pośredniego (PR #470).** Stan pośredni podawał liczby przed próbą obalenia. Po niej: wdrożenie NES w rubryce rynkowej ma 21/33, nie 23 (weryfikator obniżył taksonomię i wydarzenia do 1 pkt, bo 44 strony taksonomii są puste, a wydarzenie jest jedno, z 2021 r.); wysokich nowych defektów są cztery, nie trzy (doszła odmowa zaproszenia nowej osoby do najemcy innego niż domyślny); rejestr wydań 11 i 12 liczy dziś otwarte mechanicznie razem z otwartymi z torów (189), a nie same tory (75). Liczby pokrycia, inwentarza i bazy są bez zmian. Dokument stanu pośredniego (`docs/AUDYT_WYDANIE_13_STAN_POSREDNI_2026-10-04.md`, commit `2990916e4`) usuwam w tym samym PR-ze - zastępuje go ten rozdział, a jego treść zostaje w historii gałęzi.')
+w('')
+w('**Czego to wydanie nie zrobiło, choć planowało.** Po drugim limicie sesji zamawiający polecił zakończyć obalanie i nie prowadzić kolejnych prób. Dlatego: 63 ze 103 dodatkowych zgłoszeń o platformie nie przeszło osobnej próby obalenia (po scaleniu duplikatów zostaje ich 45 - osobna tabela w 17.8), sześć raportów wdrożeń ma tylko śledztwo, dziesięć ocen rynkowych nie ma weryfikacji, a krytyk kompletności pracował bez etapu obalania. Pomiar Lighthouse objął stronę główną 27 mierzalnych witryn (sześć blokuje wyzwanie botów) i analizę 16 z nich, w tym NES; dla pozostałych 11 tylko stronę główną.')
+w('')
+w('**Ograniczenia pomiaru rynkowego.** Wyjście sieciowe sesji jest na wschodnim wybrzeżu USA (czas odpowiedzi serwerów spoza USA zawyżony); PageSpeed Insights zwracało 429, więc nie ma danych terenowych CrUX; sześć witryn chroni wyzwanie botów. Wydajność laboratoryjna NES ma duży rozrzut między przebiegami (strona główna 14-46), dlatego podaję medianę z trzech i zakres.')
+w('')
+w('**Błędy wydania 12, które wyszły teraz.** (1) Rozdział 16.12 podał „dziesięć\" plików testów pytających `api.nbp.pl` - liczba pochodziła z rejestratora sieci (wywołania), a weryfikator wydania 13 policzył literał w plikach (5); obu liczb nie da się porównać i 16.12 powinien był podać definicję. (2) Opis Z9 w 16.7 przejął z rozdziału 15 zdanie, że inwarianty „padają lokalnie na zaślepce `.env`\" - to jest prawdopodobnie prawda (Vite ładuje `.env` sam), fałszywa jest tylko połowa o CI; agent wydania 13 najpierw się z tym nie zgodził, a weryfikator go poprawił. (3) Wydanie 12 obiecało, że z prawdziwą paczką `xlsx` pliki arkuszy „będą wyżej\" - potwierdzone: zero czerwonych, a moduł 13 ma 99,98% linii.')
+w('')
+
+w('### 17.17. Jak sprawdzić to wydanie')
+w('')
+w('- `bun scripts/audit/verify-edition-13.mjs` - wyprowadza liczby rozdziałów 17.2-17.12 niezależnie i porównuje je z dokumentem i README; liczby 17.8, 17.9 i 17.14 sprawdza na danych z `docs/audyt-ed13/`. Domyślnie czyta drzewo `5b8c77c01` **z obiektów gita** (`git ls-tree` + `git cat-file`), więc działa na każdej gałęzi, która ma ten commit w historii, i nie zależy od tego, co dziś leży w katalogu roboczym. `--zywe` sprawdza te same twierdzenia na bieżącym drzewie: czerwień w tym trybie znaczy, że repozytorium poszło dalej i rozdział trzeba przepisać, nie że coś się zepsuło. Asercje pgTAP, polityki RLS i komentarze SQL liczą biblioteki repozytorium (`analyzePgTapFile`, `extractLatestPolicies`, `stripSqlComments`) tak samo jak w 16.17, a liczbę modułów - `scripts/taxonomy/moduleMap.mjs` z drzewa pomiaru. Na gałęzi tego PR-a (baza `3ac0f4388`, czyli już z PR #469) tryb domyślny daje 192 zielone asercje i zero czerwonych. `--zywe` daje 18 czerwonych i wszystkie pochodzą z PR #469: pięć nowych plików produkcyjnych i pięć testowych, bramka `check:document-weight` i skrypt testów pomiaru w `package.json`, przepływ `psi.yml` oraz zmieniony `lighthouse.yml`. W tym ostatnim stoi R244 z rejestru - plik się zmienił, ale `@lhci/cli@0.15.x` dalej pływa, więc defekt zostaje. Test mutacyjny: zmiana jednej komórki tabeli 17.2, numeru jednej pozycji planu 17.15 i jednego wiersza README daje dokładnie trzy czerwone asercje.')
+w('- `docs/audyt-ed13/` - surowe dane wydania: metryki obu drzew, pokrycie per plik i per moduł, funkcjonalności z wzorcami, rejestr defektów i jego stan (`rejestr-stan13.json`), nowe defekty z werdyktami (`defekty13.json`), migawka wyników wszystkich agentów (`migawka.json`), rynek (`rynek/`: tabela rubryki, Lighthouse, pomiar nagłówków) i skrypty pomiarowe (`narzedzia/`, z rozszerzeniem `.txt`).')
+w('- Pomiar pokrycia powtarza `narzedzia/shardy.sh.txt` (12 shardów, około 66 minut na czterech rdzeniach), a pomiar Lighthouse `narzedzia/lh-pomiar.mjs.txt`.')
+w('')
+open(S + '/r17e2.md', 'w').write('\n'.join(o))
+
+# ---- naglowek wydania (gora dokumentu)
+h = []
+h.append('**WYDANIE 13 - audyt po kampanii naprawczej: pokrycie 98,84%, zero czerwieni, siedem krytycznych defektów')
+h.append('zamkniętych - i regresja, która wyłączyła zaproszenia.** Pomiar na HEAD `5b8c77c01` (2026-10-04), okno od wydania 12')
+h.append('(`b8b53ae5`): 402 commity, PR-y #427-#466. Kod produkcyjny +63 pliki, testy +261 plików i +84 502 wiersze - okno było')
+h.append('kampanią naprawczą, nie rozwojem produktu. Mapę 350 funkcjonalności i defekty zbudowało 31 torów agentów od mapy wydania 12,')
+h.append('a każdy nowy defekt toru przeszedł próbę obalenia. Po raz pierwszy w serii: porównanie platformy ze stronami 32 ośrodków')
+h.append('analitycznych z Polski, UE, USA i Azji. Pełny rozbiór: **rozdział 17**.')
+h.append('')
+h.append('**Linie 98,84%, funkcje 98,32%, instrukcje 98,00%, gałęzie 94,02%** na ' + f"{POK['files']:,}".replace(',', ' ') + ' plikach w mianowniku (wydanie 12: 97,03 / 95,83 / 96,06 / 91,78; ten sam')
+h.append('provider i ta sama reguła mianownika). Przebieg w dwunastu shardach scalonych jak w CI: 3 253 pliki testowe, 85 101 przypadków,')
+h.append('**zero czerwonych** (pierwszy raz w tej serii, bez zaślepki `xlsx`), 320 „expected fail", **zero naruszeń progów**. Plików na zerze')
+h.append(f"{POK['zero']} (było 79), martwych funkcji {POK['dead']} (było 235). Sześć obszarów ma 100% linii i funkcji: moduły 1, 7, 14 i 21 oraz przekroje")
+h.append('i18n i design systemu. Najsłabiej: moduł 4 (92,88% linii, te same cztery ekrany na zerze od dwóch wydań).')
+h.append('')
+h.append(f"**Rejestr defektów wydań 11 i 12 (323): naprawionych {cf['naprawiony']}, zmienionych {cf['zmieniony']}, otwartych {cf['otwarty']} - wszystkie siedem krytycznych zamknięte.**")
+h.append(f"**Nowych defektów po próbie obalenia: {len(pot)}** (wysokich {cp['wysoki']}, średnich {cp['sredni']}, niskich {cp['niski']}, krytycznych 0), {len(bez)} kolejnych i 3 od krytyka kompletności zgłoszono bez próby")
+h.append('obalenia. Najpoważniejszy: naprawa Z2 zaczęła sprawdzać błąd zapisu roli z celem konfliktu, którego w bazie nie ma, więc')
+h.append('każda wysyłka zaproszenia kończy się `role_write_failed`; test z atrapą bazy tego nie widzi. Znaleziska wydania 11: Z5-Z7')
+h.append('naprawione, Z1-Z4 i Z8 częściowo, Z9 i Z10 otwarte - w oknie nie ruszono żadnego z nich poza Z2, Z4 i Z8. Plan wydania 12:')
+h.append('3 pozycje z 14 wykonane, 3 częściowo, 8 nie. Main jest czerwony na budżecie bundla.')
+h.append('')
+h.append(f"**Na tle rynku platforma ma oprogramowanie powyżej każdej ocenionej strony (30/33 z kodu), a wdrożenie w środku stawki ({nes['suma11']}/33).**")
+h.append('NES wygrywa tam, gdzie decyduje kod: wyszukiwarka, dwujęzyczność, członkostwo, konto. Przegrywa na treści, taksonomii, wydarzeniach,')
+h.append('danych i przejrzystości - na tym, czego wdrożenie nie wypełnia - oraz na wydajności: Lighthouse mobile (mediana z trzech) 39 na')
+h.append('angielskiej stronie głównej i na analizie, 21 na polskiej; analiza czeka na odpowiedź serwera 4,8 s, a dokumentu nie buforuje brzeg.')
+h.append('Komplet nagłówków bezpieczeństwa ma w zestawieniu tylko NES i Atlantic Council.')
+open(S + '/naglowek13.md', 'w').write('\n'.join(h))
+print('ok')

@@ -1,0 +1,77 @@
+export const meta = {
+  name: 'rynek-think-tanki',
+  description: 'Ocena stron think-tankow jedna rubryka (K1-K11) z dowodami URL, potem proba obalenia ocen',
+  phases: [
+    { title: 'Ocena', detail: 'jeden agent na strone: obserwacja i punktacja wg rubryki' },
+    { title: 'Obalanie', detail: 'osobny agent sprawdza oceny skrajne i twierdzenia o braku' },
+  ],
+}
+const SPD = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13/rynek'
+const RUBRYKA = `
+RUBRYKA (punkty 0-3; ocena wedlug tego, co strona NAPRAWDE oferuje publicznie dzis, nie wedlug deklaracji):
+K1 Formaty i glebia tresci: 0 = tylko krotkie wpisy; 1 = analizy i raporty PDF; 2 = wiele formatow (analizy, raporty, komentarze, podcast lub wideo); 3 = pelna gama + formaty danych/interaktywne + regularny rytm publikacji (kilka tygodniowo).
+K2 Eksperci jako byt: 0 = brak stron ekspertow; 1 = lista z bio; 2 = strona eksperta z dorobkiem (lista publikacji) i obszarami; 3 = to plus kontakt dla mediow/zapytanie do eksperta, filtrowanie tresci po ekspercie.
+K3 Taksonomia i nawigacja: 0 = brak; 1 = kategorie; 2 = tematy + regiony + programy/serie; 3 = wielowymiarowa z kuratorowanymi hubami tematycznymi.
+K4 Wyszukiwarka: 0 = brak; 1 = proste wyniki bez filtrow; 2 = filtry/fasety (typ, data, temat, autor) i sortowanie; 3 = to plus podpowiedzi w trakcie pisania, tolerancja literowek, osoby/eksperci w wynikach, zapis wyszukiwania lub alert.
+K5 Wielojezycznosc: 0 = jeden jezyk; 1 = czesc tresci przetlumaczona; 2 = dwa lub wiecej jezykow z przelacznikiem i hreflang; 3 = pelny parytet tresci i przelacznik na poziomie pojedynczej tresci.
+K6 Newsletter i alerty: 0 = brak; 1 = jeden newsletter; 2 = kilka list tematycznych; 3 = centrum preferencji / alerty per temat lub autor.
+K7 Wydarzenia: 0 = brak; 1 = lista wydarzen; 2 = strony wydarzen z rejestracja i archiwum nagran; 3 = platforma wydarzen (agenda, prelegenci, bilety lub akredytacja, transmisja, materialy).
+K8 Model przychodow i czlonkostwo: 0 = brak; 1 = darowizny; 2 = czlonkostwo, program korporacyjny lub subskrypcja; 3 = to plus paywall/metering i konta czlonkowskie z korzysciami.
+K9 Konto i personalizacja: 0 = brak kont; 1 = konto tylko do newslettera/zakupu; 2 = konto z zapisanymi tresciami/lista lektur; 3 = to plus rekomendacje, alerty, spolecznosc (komentarze, kluby, Q&A).
+K10 Interaktywnosc i dane: 0 = brak; 1 = wykresy statyczne; 2 = interaktywne wykresy/mapy; 3 = trackery, bazy danych, narzedzia, dane do pobrania.
+K11 Przejrzystosc instytucjonalna: 0 = brak; 1 = strona "o nas"; 2 = finansowanie/darczyncy i zarzad; 3 = to plus raport roczny, standardy niezaleznosci/redakcyjne, polityka korekt.`
+
+const ZASADY = `
+ZASADY PRACY:
+- Pobieraj strony przez Bash: curl -sS -L -m 30 --compressed -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36" -o <plik> <url>; zapisuj HTML w ${SPD}/html/<klucz>/ (mkdir -p) i analizuj grep/sed/python3. Gdy curl dostaje 403/blokade botow albo pusta strone renderowana JS, sprobuj narzedzia WebFetch (zaladuj je przez ToolSearch "select:WebFetch"). Nie uzywaj innych narzedzi MCP. Nie loguj sie, nie wysylaj formularzy, nie zapisuj sie na newslettery, nie kupuj.
+- Sprawdz co najmniej: strone glowna, jedna aktualna analize/publikacje (podaj jej URL - posluzy do pomiaru wydajnosci), wyszukiwarke (wywolaj wyszukiwanie frazy, np. "energy" lub "Ukraine", i opisz wyniki: filtry, sortowanie, podpowiedzi), liste ekspertow i jedna strone eksperta, wydarzenia i jedno wydarzenie, zapis do newslettera, strony o finansowaniu/zarzadzie/raporcie rocznym, wersje jezykowe (link hreflang, przelacznik).
+- Kazda ocene podpieraj obserwacja z URL (co widac w HTML: formularz, parametr, element). Twierdzenie o BRAKU wolno postawic tylko po sprawdzeniu (np. brak formularza wyszukiwania w HTML i 404 na /search) - napisz, co sprawdziles. Jesli czegos nie da sie ustalic (np. tresc za JS), daj ocene ostrozna i wpisz to w niepewnosci.
+- Nie zmyslaj liczb. Po polsku, dywiz "-", bez dlugiej kreski (U+2014) i polpauzy (U+2013), bez emoji. Bez danych osobowych poza nazwiskami publicznych ekspertow, i to tylko jesli konieczne.
+- BUDZET: okolo 40 wywolan narzedzi.`
+
+const STR = { type: 'string' }
+const K = ['K1', 'K2', 'K3', 'K4', 'K5', 'K6', 'K7', 'K8', 'K9', 'K10', 'K11']
+const OCENA = { type: 'object', properties: {
+  klucz: STR, nazwa: STR, kraj: STR,
+  dostepnosc: { type: 'string', description: 'czy strona dala sie pobrac curl / WebFetch; blokady' },
+  urlStronyGlownej: STR, urlArtykulu: { type: 'string', description: 'URL jednej aktualnej analizy - do pomiaru wydajnosci' },
+  urlWyszukiwarki: STR,
+  jezyki: { type: 'array', items: STR },
+  oceny: { type: 'array', items: { type: 'object', properties: {
+    kryterium: { type: 'string', enum: K }, punkty: { type: 'integer', minimum: 0, maximum: 3 },
+    obserwacje: STR, dowodyUrl: { type: 'array', items: STR }, niepewnosc: STR,
+  }, required: ['kryterium', 'punkty', 'obserwacje', 'dowodyUrl', 'niepewnosc'] } },
+  wyroznikiNaTleRynku: { type: 'array', items: STR },
+  slabosci: { type: 'array', items: STR },
+  techStack: { type: 'string', description: 'co widac w HTML: CMS (WordPress, Drupal, Next.js...), CDN, analityka, zgoda na cookies' },
+}, required: ['klucz', 'nazwa', 'kraj', 'dostepnosc', 'urlStronyGlownej', 'urlArtykulu', 'urlWyszukiwarki', 'jezyki', 'oceny', 'wyroznikiNaTleRynku', 'slabosci', 'techStack'] }
+const WERYF = { type: 'object', properties: {
+  korekty: { type: 'array', items: { type: 'object', properties: {
+    kryterium: { type: 'string', enum: K }, bylo: { type: 'integer' }, powinnoByc: { type: 'integer' }, dowod: STR,
+  }, required: ['kryterium', 'bylo', 'powinnoByc', 'dowod'] } },
+  potwierdzone: { type: 'array', items: { type: 'string', enum: K } },
+  uwagi: STR,
+}, required: ['korekty', 'potwierdzone', 'uwagi'] }
+
+function ocenPrompt(s) {
+  return `Oceniasz strone internetowa osrodka analitycznego (think tanku) ${s.nazwa} (${s.kraj}), adres ${s.url}, na potrzeby porownania rynkowego platformy New European Strategies. Interesuje nas jakosc strony jako PRODUKTU cyfrowego (co czytelnik, ekspert, darczynca i dziennikarz moga na niej zrobic), nie jakosc analiz merytorycznych. ${RUBRYKA}
+${ZASADY}
+Klucz strony: ${s.klucz}. Zwroc oceny dla wszystkich kryteriow K1-K11.`
+}
+function obalPrompt(s, o) {
+  const lista = (o.oceny ?? []).map((x) => `${x.kryterium}: ${x.punkty} pkt - ${String(x.obserwacje).slice(0, 400)} | dowody: ${(x.dowodyUrl ?? []).slice(0, 3).join(' ')}`).join('\n')
+  return `Jestes niezaleznym weryfikatorem porownania rynkowego. Inny agent ocenil strone ${s.nazwa} (${s.url}) wedlug rubryki ponizej. Twoim zadaniem jest OBALIC jego oceny tam, gdzie sie pomylil. Sprawdz SAMODZIELNIE (pobierajac strony) co najmniej: wszystkie oceny 0 i 3, kazde twierdzenie o braku funkcji (wyszukiwarka, wersje jezykowe, newsletter, wydarzenia, konta) oraz K4 i K5 niezaleznie od oceny. ${RUBRYKA}
+${ZASADY}
+OCENY AGENTA:
+${lista}
+
+korekty - tylko tam, gdzie masz dowod, ze ocena jest bledna (podaj URL i obserwacje). potwierdzone - kryteria, ktore sprawdziles i sa poprawne.`
+}
+const STRONY = args.strony
+log(`Region ${args.region}: ${STRONY.length} stron`)
+const wyniki = await pipeline(
+  STRONY,
+  (s) => agent(ocenPrompt(s), { label: `ocena:${s.klucz}`, phase: 'Ocena', schema: OCENA, effort: 'high' }),
+  (o, s) => (o ? agent(obalPrompt(s, o), { label: `obal:${s.klucz}`, phase: 'Obalanie', schema: WERYF, effort: 'high' }).then((v) => ({ strona: s, ocena: o, weryfikacja: v })) : null),
+)
+return { region: args.region, wyniki: wyniki.filter(Boolean), brak: STRONY.filter((s) => !wyniki.find((w) => w && w.strona.klucz === s.klucz)).map((s) => s.klucz) }

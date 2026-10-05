@@ -124,9 +124,7 @@ export function ExpertRequestButton({
         <span
           className={cn(
             "ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums",
-            exhausted
-              ? "bg-brand/15 text-brand-ink dark:text-brand"
-              : "bg-primary/10 text-primary",
+            exhausted ? "bg-brand/15 text-brand-ink dark:text-brand" : "bg-primary/10 text-primary",
           )}
         >
           {quota.remaining}/{quota.quota}
@@ -135,10 +133,7 @@ export function ExpertRequestButton({
       {/* W trybie ikonowym pula jest tylko sygnałem wyczerpania - pełna
           informacja („x/y") żyje w tooltipie, żeby nie rozpychać paska akcji. */}
       {hasAllowance && iconOnly && exhausted && (
-        <span
-          aria-hidden
-          className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-brand"
-        />
+        <span aria-hidden className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-brand" />
       )}
     </Button>
   );

@@ -1,13 +1,23 @@
 name: CI
 
+# Zestaw bramek CI ograniczony do tego, co chroni produkcję (2026-10-05).
+#
+# Na każdym PR i każdym pushu do main jadą wyłącznie:
+#   verify      - formatowanie, typy, lint i tanie bramki statyczne, które
+#                 pilnują izolacji tenantów, migracji, RPC i XSS (sekundy),
+#   test-shards - pełna suita vitest w czterech shardach, BEZ instrumentacji
+#                 coverage (pokrycie nie jest bramką; `bun run test:coverage`
+#                 liczy je lokalnie z jednym progiem globalnym),
+#   build       - build produkcyjny, acykliczność grafu chunków i test startu
+#                 artefaktu w przeglądarce,
+#   pgtap, pg-harness - polityki RLS, role i migracje na żywym PostgreSQL.
+# `Required release checks` agreguje te joby w jeden wymagany status.
+#
+# Budżety wydajności (rozmiar bundla, czystość ścieżki startowej) jadą tylko
+# na main i na żądanie (workflow_dispatch) - nie blokują PR-ów. Pomiary A/B
+# (first-visit, Lighthouse, widgety CMS) mają własne workflowy, uruchamiane
+# po scaleniu do main albo ręcznie.
 on:
-  # Active gate between merge and production. Runs on every PR and on pushes to
-  # main. `vite build` does NOT typecheck (esbuild strips types), so the explicit
-  # Typecheck step below is the real type gate. The concurrency group cancels
-  # superseded runs, so a busy branch never spends Actions minutes on stale
-  # commits. Uses GitHub-hosted ubuntu-latest runners (no self-hosted fleet
-  # required); the bun.lock repoint step makes the private-registry pins
-  # installable from public npm in CI.
   push:
     branches: [main]
   pull_request:
@@ -24,118 +34,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # KOLEJNOŚĆ KROKÓW JEST CZĘŚCIĄ BRAMKI, nie kosmetyką.
-  #
-  # Job rósł krokami dopisywanymi po kolejnych awariach, więc najtańsze
-  # sprawdzenia wylądowały na końcu - za buildem i za suitą z coverage. Skutek
-  # zmierzony na wydaniu 2026-08-14: trzy z czterech czerwonych kroków
-  # (formatowanie, duplikat migracji, martwa referencja operatora płatności)
-  # kosztują RAZEM poniżej minuty, a informacja o nich przychodziła po ~8
-  # minutach instalacji, typów i testów. Od teraz kolejność idzie po koszcie:
-  # najpierw wszystko, co czyta wyłącznie pliki repo, potem typy i lint, potem
-  # testy, na końcu build i bramki artefaktu.
-  #
-  # 2026-08-30: DWA NAJDROŻSZE BLOKI MAJĄ JUŻ WŁASNE JOBY - `build` (Build plus
-  # trzy bramki artefaktu) i `test` (suita z coverage). Zasada kosztowa nie
-  # zniknęła, tylko przestała być realizowana JEDNYM łańcuchem kroków: wewnątrz
-  # każdego joba nadal idzie od najtańszego, a między jobami kolejność zastąpiła
-  # RÓWNOLEGŁOŚĆ. Powód w komentarzach nad `timeout-minutes` obu tych jobów -
-  # w skrócie: kroki stojące ZA suitą nie uruchamiały się wcale, bo job nie
-  # dożywał do ich numeru.
-  #
-  # Ten sam zestaw tanich bramek puszcza lokalnie JEDNA komenda
-  # `bun run verify:static` (lista wyprowadzana z package.json, więc nie
-  # rozjeżdża się z tym plikiem) - a `bun run verify:blocking` dokłada typy,
-  # lint i testy. Bramki w tym repo są dobre; trzy wydania z rzędu przeszły
-  # z czerwonym CI dlatego, że przed wypchnięciem nikt ich nie uruchomił.
   verify:
     runs-on: ubuntu-latest
-    # 2026-08-19: 20 -> 35. Job PRZESTAŁ SIĘ MIEŚCIĆ w dwudziestu minutach, a
-    # GitHub raportuje job ubity limitem jako `cancelled`, nie `failure` - więc
-    # przez kilka przebiegów wyglądało to na tajemnicze wywłaszczenie w połowie
-    # kroku `Build`, a nie na wyczerpany budżet czasu. Zmierzone na przebiegu
-    # 2400 (eb5155b): setup+install+prettier ~68 s, ~20 bramek statycznych ~12 s,
-    # Typecheck 2:04, Lint 1:30, `Test + coverage gate` 12:39, bramki 33-38
-    # ~64 s, `Build` ~2:20 - razem ~22 min. Build ginął kilkadziesiąt sekund
-    # przed metą, a `Bundle size budget`, `Chunk graph acyclicity` i `Client boot
-    # path free of payment SDKs` NIE URUCHAMIAŁY SIĘ ANI RAZU: nie dlatego, że
-    # coś w nich pada, tylko dlatego, że job nie dożywał do ich kroku.
-    # Dominującą pozycją jest suita (12:39 z instrumentacją coverage) i to ona
-    # rośnie z każdym nowym testem - 35 minut daje ~1,5x zapasu na dzisiejszy
-    # ślad, zamiast kolejnego podnoszenia progu za pół tygodnia.
-    #
-    # 2026-08-30: WYDZIELENIE WYKONANE. Zapowiedź z tego komentarza („docelowo
-    # `Build` i bramki artefaktu powinny jechać w OSOBNYM jobie") jest już
-    # zrealizowana - patrz job `build` niżej. Powód nie był teoretyczny: między
-    # 29.08 a 30.08 `Bundle size budget` nie uruchomił się ANI RAZU, więc
-    # przekroczenie budżetu rosło niewidoczne, dokładnie tak jak przy 20 minutach.
-    #
-    # Nowy ślad, zmierzony na przebiegu 2754 (`main` 0f7d306), już BEZ Builda:
-    #   setup+install 9 s, prettier 83 s, ~25 bramek statycznych 16 s,
-    #   Typecheck 2:41, Lint 2:10  ->  6:39 przed testami.
-    # Zostaje ~28 min na `Test + coverage gate` plus bramki 35-40.
-    #
-    # 2026-08-30, DRUGA ZMIANA TEGO DNIA: 35 -> 20. Poprzednia wersja tego
-    # komentarza kończyła się zobowiązaniem, które teraz zostaje dotrzymane
-    # co do słowa: „Jeśli po [wydzieleniu Builda] suita nadal nie mieści się
-    # w budżecie, następnym krokiem jest ROZDZIELENIE SUITY (własny job,
-    # ewentualnie shardowanie), a nie kolejna liczba w tej linii". Brakującej
-    # wtedy liczby już nie brakuje: `Test + coverage gate` po raz pierwszy od
-    # 2026-08-29 DOJECHAŁ DO KOŃCA (przebieg 2753, job `verify`, 11:23:25 ->
-    # 11:49:35) i trwał 26:10 - padł na progach pokrycia, nie na limicie czasu,
-    # więc czas jest zmierzony, a nie ucięty.
-    #
-    # RACHUNEK PO WYDZIELENIU SAMEGO BUILDA (przebieg 2756, głowa e6374f2):
-    #   checkout + bun + install + prettier + 25 bramek + typy + lint   7:06
-    #   `Test + coverage gate`                                         26:10
-    #   bramki 35-40 (uprawnienia, i18n, wierność widgetów, SEO)       ~1:04
-    #   ────────────────────────────────────────────────────────────────────
-    #                                                                 ~34:20
-    # przy limicie 35:00. Czterdzieści sekund zapasu na suicie, która od 19.08
-    # urosła z 12:39 do 26:10, to nie jest budżet, tylko następne `cancelled`
-    # w przyszłym tygodniu - i znowu bez ANI JEDNEGO uruchomienia kroków
-    # stojących za suitą. Wydzielenie Builda oddało 3,5 minuty i to naprawdę
-    # nie wystarczyło.
-    #
-    # Suita jedzie więc w jobie `test` niżej. W `verify` zostaje to, co czyta
-    # pliki repo, typy, lint i cztery bramki celowane: ~7:06 + ~1:04 = ~8:10.
-    # Próg 20 minut to ~2,4x zapasu - I JEST TO OBNIŻENIE PROGU, nie kolejne
-    # podniesienie. Liczba 1:04 na bramkach 35-40 pochodziła z przebiegu 2400
-    # (ostatni, w którym się w ogóle wykonały) i była z konieczności DOLNYM
-    # oszacowaniem.
-    #
-    # POTWIERDZONE WYKONANIEM (przebieg na 1de66e8, pierwszy PEŁNY przebieg
-    # tego joba po rozdzieleniu): cały `verify` 6:34, a cztery bramki celowane
-    # razem 1:02 - pierwszy raz od 2026-08-29, kiedy w ogóle się wykonały.
-    # Oszacowanie trafione co do dwóch sekund, zapas do limitu trzykrotny.
-    #
-    # ROZSTRZYGNIĘCIE KONFLIKTU Z MAINEM (2026-08-30, scalenie PR #307).
-    # Main podniósł w tym miejscu próg 35 -> 55 i opisał to uczciwie: przebieg
-    # 33320445217 (e9b3f9a) przeszedł WSZYSTKIE 40 kroków do `SEO head + schema
-    # contract`, po czym został ubity w połowie `Build` - Format 1:22,
-    # Typecheck 2:28, Lint 2:05, `Test + coverage gate` 26:21, bramki i18n
-    # i widgetów ~51 s, razem 35,2 min w chwili ubicia. Przyczyna nazwana wprost
-    # i nie jest nią spowolnienie: moduł Wydarzeń dołożył 69 plików testowych.
-    #
-    # Bierzemy ich POMIAR, odrzucamy ich LICZBĘ - i robi to ich własny wniosek,
-    # zapisany tam trzy akapity niżej: „ZALECENIE Z POPRZEDNIEGO WPISU JEST
-    # NADAL AKTUALNE I NADAL NIEWYKONANE: dopóki `Build` siedzi w tym samym
-    # jobie co suita, każdy przyrost testów zjada budżet bramek artefaktu (...).
-    # Podniesienie limitu kupuje czas, nie rozwiązuje tego". Ta gałąź wykonuje
-    # dokładnie to zalecenie, więc 55 minut nie ma już czego kupować: po
-    # rozdzieleniu `verify` nie zawiera ani suity, ani `Build`, a zmierzony
-    # koniec do końca wynosi 6:34-8:00.
-    #
-    # ICH LICZBA 26:21 IDZIE ZA TO DO BUDŻETU JOBA `test` jako najświeższy
-    # pomiar suity - i to na drzewie JUŻ Z tymi 69 plikami, czyli wyższy niż
-    # cokolwiek, co ta gałąź mierzyła sama.
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      # Keep tests and artifact measurements on the same Node runtime.
-      # Coverage uses Istanbul after V8 remapping produced invalid counters on
-      # both Node 22 and 24. Bun alone does not pin the Node runtime.
       - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
@@ -144,706 +48,76 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # `--frozen-lockfile`: bez tego runner może rozwiązać w zakresach semver
-      # nowsze wersje niż `bun.lock`, a build z innych wersji daje inny podział
-      # chunków - stąd udokumentowana w `scripts/check-bundle-size.ts` (wpis
-      # 2026-08-19 III) rozbieżność host <-> runner rzędu +10 KB na OVERALL,
-      # przez którą floor bramki bundla nie dawał się postawić z pomiaru
-      # lokalnego. `bun.lock` rozstrzyga wszystkie tarbally na publicznym
-      # rejestrze npm (jeden host dla całego locka, sumy `sha512` nietknięte),
-      # więc ta flaga egzekwuje ten sam zbiór wersji na hoście i na runnerze
-      # bez żadnej edycji locka w CI.
-
       - name: Install dependencies
-        # `id` jest potrzebne dla warunków `if:` na KAŻDYM kroku niżej -
-        # uzasadnienie w komentarzu przy pierwszym z nich („Format (prettier)").
         id: install
         run: bun install --frozen-lockfile
 
-      # ── NAJTAŃSZE SYGNAŁY (sekundy) ─────────────────────────────────────────
-
-      # Blokująca bramka formatu, PIERWSZA w całym jobie. `bun run lint` mierzy
-      # dokładnie ten sam inwariant przez eslint-plugin-prettier, ale liczy go
-      # minutami razem z regułami typowanymi - a wydanie 2026-08-14 zatrzymało
-      # się na 115 błędach `prettier/prettier` i ani jednym błędzie logiki.
-      # Osobny krok zamienia tę klasę z „ośmiu minut do informacji" na
-      # „czterdzieści sekund" i mówi wprost, że lekarstwem jest `bun run format`.
-      #
-      # WARUNEK `if:` NA TYM I NA KAŻDYM NASTĘPNYM KROKU TEGO JOBA - naprawa tej
-      # samej klasy, którą blok nad jobem `test` opisuje już dla `verify` i którą
-      # wcześniej w tym pliku naprawiono dla joba `build`. Domyślnie krok
-      # w GitHub Actions NIE WYKONUJE SIĘ, gdy wcześniejszy padł, więc jedna
-      # czerwona bramka wyłącza wszystkie za nią - a bramka, która nie biegnie,
-      # nie jest bramką.
-      #
-      # ZMIERZONE, nie założone. Przebieg 33513951757 (head gałęzi
-      # `claude/ssr-hydration-public-page-wkrnre`) i przebieg 33471613171 (main
-      # `1d5d0ed`, punkt odgałęzienia) padają w jobie `verify` na TYM SAMYM,
-      # SZÓSTYM kroku - `SQL migration replay safety` - z identycznym wydrukiem
-      # (te same cztery pliki migracji: para `page_full_path_tenant_scope` +
-      # `5b55b33f-…` i para `owner_plane_tenant_scope_read_history` +
-      # `21bb8d7a-…`; czerwień odziedziczona z maina, `git diff origin/main --
-      # supabase/migrations` na tej gałęzi jest PUSTY). Za tym krokiem stało
-      # 29 kroków, które w efekcie NIE URUCHOMIŁY SIĘ ANI RAZU - w tym
-      # `Typecheck` i `Lint`, czyli jedyne bramki w całym CI, które w ogóle
-      # patrzą na typy i reguły lintu w kodzie źródłowym tej gałęzi. Cały ten
-      # PR przejechał więc CI bez ani jednego przebiegu tsc i eslinta.
-      #
-      # DLACZEGO WARUNEK STOI NA SUKCESIE `Install dependencies`, A NIE NA
-      # `always()`. Wszystkie 32 kroki niżej są NIEZALEŻNYMI bramkami statycznymi
-      # - żadna nie konsumuje wyniku innej (jedyne dwa kroki, które czytają plik
-      # zapisany przez krok poprzedni, to uploady raportów i one mają własne
-      # `if: always()`), więc porażka którejkolwiek nie mówi nic o pozostałych
-      # i nie ma powodu ich gasić. Bez `node_modules` natomiast KAŻDA z nich
-      # zgłosiłaby brak binarki zamiast pomiaru - 32 czerwienie o jednej
-      # przyczynie to szum, nie sygnał. `!cancelled()` zamiast `always()`: przy
-      # anulowaniu przebiegu nie ma po co dokładać minut.
-      #
-      # CO SIĘ NIE ZMIENIA: kolejność kroków (`if:` jej nie rusza, więc podział
-      # na „najtańsze sygnały" i bramki minutowe nadal obowiązuje) ani wynik
-      # joba - krok z `if:`, który padnie, nadal wywraca `verify` na czerwono.
-      # Zmienia się WYŁĄCZNIE to, ile bramek raportuje swój wynik w jednym
-      # przebiegu.
+      # Każdy krok poniżej jedzie także wtedy, gdy poprzedni padł, żeby jeden
+      # przebieg pokazał wszystkie problemy naraz.
       - name: Format (prettier)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run format:check
 
-      # Bramka meta: każda bramka `check:*` z package.json JEST wpięta w workflow
-      # i nie jedzie w jednym jobie dwa razy. Repo ma udokumentowaną historię
-      # bramek, które istniały i NIE BYŁY uruchamiane - `check:authz-snapshot`
-      # (przez co zawężenie uprawnień w profiles_guard_verification przeszło bez
-      # sygnału i suita na main stała czerwona czwartą dobę), `check:pg-harness`
-      # oraz `check:careers-harness` (przez co martwa ścieżka zgłoszeń klubowych
-      # trafiła na produkcję przy zielonym CI). Bramka niewpięta wygląda w repo
-      # identycznie jak wpięta; różnicę widać tylko w tym pliku, więc mierzy ją
-      # skrypt. Ten sam skan złapał trzy przebiegi `check:authz-snapshot` i dwa
-      # `check:permissions-parity` w tym jobie - usunięte w tej zmianie.
-      - name: Gate coverage (każda bramka wpięta, żadna dwa razy)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:gate-coverage
-
-      # Bramka własnicielska. Audyt 2026-08-29 zmierzył 193 trasy admina i 918
-      # migracji BEZ wskazanego właściciela technicznego - a 631 z tych migracji
-      # (68,7%) nazywa się UUID-em nadanym przez platformę, więc z nazwy pliku
-      # nie da się odczytać NICZEGO o tym, kogo dotyczy. Dokument opisujący
-      # własnicielstwo zdezaktualizowałby się przy pierwszej nowej trasie i nikt
-      # by tego nie zauważył; rejestr `governance/ownership.json` sprawdzany tym
-      # krokiem przewraca CI dokładnie tak jak błąd typów. Bramka czyta WYŁĄCZNIE
-      # pliki repo (mierzone: 0,6 s na pełnym korpusie), więc stoi w bloku
-      # najtańszych sygnałów. Zakres i lekarstwa: `governance/README.md`.
-      - name: Własnicielstwo (każda trasa i migracja ma właściciela)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:ownership
-
-      # `.github/CODEOWNERS` jest GENEROWANY z tego samego rejestru, więc nie ma
-      # jak rozjechać się z nim po cichu - dopisanie trasy do domeny bez
-      # przegenerowania pliku zapala ten krok. Wzorzec jak `check:authz-snapshot`
-      # (ten sam skrypt pisze i weryfikuje bajt w bajt).
-      - name: CODEOWNERS zgodny z rejestrem własnicielstwa
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:codeowners
-
-      # Bramka taksonomii istniała od 2026-09-04 jako `scripts/check-feature-
-      # taxonomy.ts` i NIE BYŁA WPIĘTA W NIC: ani w `package.json`, ani w ten
-      # plik. To ta sama klasa, którą audyt 2026-08-11 (rozdz. 8.1) opisał przy
-      # `pg-harness` - skrypt istniał, uruchamiał go wyłącznie człowiek, jeśli
-      # pamiętał, i dlatego złamany CHECK trafił na produkcję. Bramka pilnuje
-      # trzech niezmienników mapy modułów (brak sieroty, brak martwej reguły,
-      # brak pustej funkcjonalności) i czyta wyłącznie pliki repo, więc stoi
-      # w bloku najtańszych sygnałów. Zmierzone przy wpięciu: OK na 3 304
-      # plikach produkcyjnych, 2 901 w modułach, 27 funkcjonalności.
-      - name: Taksonomia modułów (bez sieroty, bez martwej reguły)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:feature-taxonomy
-
-      # Blokujący inwariant odtwarzalności bazy: czy `supabase db start` (świeża
-      # baza, migracje od zera) dobiegnie do końca. Trzy klasy, wszystkie
-      # niewidoczne dla przyrostowego `db push` i wszystkie zabijające joby
-      # `pgtap` oraz `e2e` ZANIM cokolwiek się uruchomi:
-      #   1. zduplikowane prefiksy wersji (`schema_migrations.version` to KLUCZ
-      #      GŁÓWNY) - rekomendowane przez audyt trzy wydania jako ryzyko,
-      #      zmaterializowało się trzykrotnie na 20260803090000;
-      #   2. wykonywane zapisy do `storage.objects` bez sankcjonowanej furtki
-      #      `storage.allow_delete_query` - storage-api >= 0055 rzuca 42501;
-      #   3. ta sama migracja pod dwiema nazwami (plik z PR-a + plik wygenerowany
-      #      przez platformę przy zastosowaniu na hostowanej bazie). Baza to
-      #      przeżyje, ale historia migracji przestaje mówić prawdę o tym, kiedy
-      #      zmiana weszła - przy spłaszczonej historii commitów to jedyne
-      #      narzędzie datowania regresji, jakie zostaje audytowi.
       - name: SQL migration replay safety
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-migration-replay
 
-      # Blokujący kontrakt kod ⇄ schemat: każdy `onConflict` w `.upsert(...)`
-      # musi mieć arbitra - PK/UNIQUE/UNIQUE INDEX bez WHERE i bez wyrażeń,
-      # o DOKŁADNIE tym zbiorze kolumn - w stanie końcowym migracji. Inaczej
-      # KAŻDE wywołanie kończy się 42P10. Tak padała każda wysyłka zaproszenia:
-      # `user_roles` celował w `user_id,role`, a 20260531181120 (linie 49-50)
-      # zamieniła ten klucz na `(tenant_id, user_id, role)`; test na atrapie
-      # bazy zamroził zły cel. Model kluczy zgadza się z `pg_index` bazy
-      # odtworzonej z migracji co do tabeli, nazwy i flag. Czyta wyłącznie
-      # pliki repo (~3 s): src/lib/ci/onConflictArbiters.ts.
       - name: Arbitrzy onConflict (upsert ⇄ klucze unikalne migracji)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:on-conflict-arbiters
 
-      # Blocking tenant-isolation gate: fails if any SECURITY DEFINER function
-      # scopes data by public_tenant_id() (client-forgeable x-tenant-host header)
-      # while authorizing by has_role()/is_staff() (home tenant). That mismatch
-      # let an admin of tenant A forge the header to read/write tenant B's data
-      # (monetization_dashboard revenue leak). Repeatable root cause -> static gate.
       - name: SQL tenant-scope invariant
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-tenant-scope
 
-      # Blokująca bramka izolacji najemców na POLITYKACH: polityka, która raz
-      # związała wiersz z najemcą, nie może tego wiązania stracić przy
-      # późniejszym odtworzeniu. Regresja 2026-08-14: `20260814100000` zawęziło
-      # trzy polityki bucketu `career-cv` do najemcy (bez tego redaktor najemcy A
-      # czytał KAŻDE CV każdego najemcy - `is_staff()` bada wyłącznie rolę),
-      # a wygenerowany `20260814122512` odtworzył je w kształcie sprzed
-      # zawężenia. Stan końcowy uratowała WYŁĄCZNIE kolejność sortowania nazw
-      # plików. Nie widziała tego żadna istniejąca bramka: tenant-scope patrzy na
-      # funkcje, owner-tenant-scope szuka ASYMETRII (a cofnęły się wszystkie
-      # trzy polityki razem), replay porównuje TREŚĆ plików (a ten nie był
-      # bliźniakiem niczego), pgTAP stawia bazę ze stanu końcowego.
       - name: SQL policy tenant-binding regression
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-policy-tenant-regression
 
-      # Blocking tenant-isolation gate: fails if an owner-scoped RLS clause
-      # (`auth.uid() = <column>`) drops the tenant binding while a sibling
-      # clause on the SAME table keeps it. That asymmetry made author_profiles
-      # rows writable only in the home tenant yet readable AND deletable from
-      # any tenant context (fixed by 20260803140000). Self-calibrating - the
-      # schema declares the intent, so there is no hand-maintained table list.
-      # KNOWN_OPEN_GAPS carries the debt that predates the gate: it is printed
-      # on every run, any NEW gap fails immediately, and a closed gap fails
-      # until its entry is removed, so the list can only shrink.
       - name: SQL owner tenant-scope invariant
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-owner-tenant-scope
 
-      # Blocking security gate: fails if any table accepts a PERMISSIVE anonymous
-      # INSERT (anon/public role + WITH CHECK true), or if an intake table
-      # (contact_messages, crm_consent_log, related_post_clicks,
-      # builder_experiment_events, analytics_events, web_vitals) accepts a direct
-      # client INSERT at all. Regression guard for the ~30-day anon-insert holes
-      # closed by 20260730130000 / 20260730140000 (spam, RODO-consent forgery,
-      # fabricated A/B results) - that class returns silently in migration churn
-      # without a static gate.
       - name: SQL anon-insert invariant
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-anon-insert
 
-      # Blocking correctness gate: fails if any has_role() call passes a literal
-      # that is not an app_role enum value. `has_role(uuid, app_role)` casts the
-      # literal at RUNTIME (plpgsql bodies are not parsed at CREATE FUNCTION), so
-      # a typo raises 22P02 (500) instead of a clean 42501 - and only for callers
-      # that fell through the earlier OR branches, i.e. never for an admin doing
-      # a smoke test. That is how 'tenant_admin' survived unnoticed.
       - name: SQL app_role literal invariant
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-app-role
 
-      # Blocking: the SIXTH positional argument of emit_domain_event is the
-      # actor (uuid), never a flag. A12 added a second overload with a boolean
-      # there; A16 collapsed the overload but kept the boolean sixth, and the 25
-      # call sites in billing, monetization and badges stopped binding. Every
-      # emitter swallows its own exception so the fan-out cannot abort business
-      # transactions - which turned a hard 42883 into silence and an empty event
-      # bus. Judged on the FINAL migration state: migrations are forward-only,
-      # so a later file recreating the function is the fix, not an edit.
-      - name: Domain event actor is the sixth argument
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:sql-emit-actor
-
-      # Blocking contract gate between the client and the migration chain, in
-      # both directions: (1) every name the client passes to `supabase.rpc(...)`
-      # must still exist in the final state of migrations - otherwise the browser
-      # gets PGRST202; (2) no surviving function body may name a relation that a
-      # later migration renamed or dropped - otherwise the call raises 42P01.
-      # Neither is visible to the compiler, to `CREATE FUNCTION` (plpgsql/sql
-      # bodies resolve relations at CALL time) or to an incremental `db push`,
-      # so both hide until a fresh database is created. That is exactly how the
-      # five expert-request RPCs the client calls ended up dead on every new
-      # environment while production kept working (20260806160000).
       - name: RPC contract (client calls ⇄ migrations)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:rpc-contract
 
-      # Blocking gate after the Paddle -> Stripe migration: any live reference to
-      # the old provider outside comments (import, identifier, string literal,
-      # env var, gateway URL) means a code path that talks to a payment operator
-      # this project no longer has - it would fail only at runtime, mid-checkout.
-      # Scope now includes .github/ and the root manifests: the most expensive
-      # instance of this defect was a dead PADDLE_* secret in a workflow, which
-      # the src/-and-scripts-only predecessor could never see.
-      - name: No live legacy payment-provider references
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:legacy-payment-refs
-
-      # Blocking gate on the Supabase type boundary: `as never` is the repo's
-      # sanctioned escape hatch for the window between a migration and the next
-      # regeneration of src/integrations/supabase/types.ts - and nothing ever
-      # closed that window. A cast on a name the generated types already know
-      # erases both the row type (forcing a hand-written `as unknown as X` that
-      # then drifts from the database in silence) and the RPC argument type
-      # (a misspelled parameter compiles and fails as a PostgREST 400 in the
-      # browser). On 2026-08-06 the repo carried 25 such casts, some behind a
-      # "remove after regenerating types.ts" comment several releases old.
-      - name: No stale `as never` casts on the Supabase boundary
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:stale-never-casts
-
-      # Blocking gate on the ONE architectural cycle this repo ever had. Six
-      # consecutive audits named `blocks <-> builder` as the only real cycle in
-      # the codebase, and it GREW instead of shrinking: 30.07 first flagged,
-      # 13.08 at 23/17, 14.08 at 28/16. The cause was mechanical rather than
-      # conceptual - neither content engine sat "below" the other, so every new
-      # widget added an edge in whichever direction was convenient that day
-      # (`lib/blocks/wordPaste.ts` imported `toJson` from the builder purely
-      # because that was where the JSON escape hatch happened to live).
-      # The direction is now settled - shared primitives in `lib/content-model`,
-      # `blocks` never imports from `builder`, `builder` may import from
-      # `blocks` because it genuinely hosts it - and this gate is what keeps it
-      # settled. Without it the decision survives exactly until the first widget
-      # that finds the reverse direction convenient, which is precisely how the
-      # previous six releases went. Rationale: src/lib/content-model/README.md
-      - name: Content engines keep one dependency direction
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:content-layering
-
-      # Blocking gate: every `dangerouslySetInnerHTML` in src/ reaches the DOM
-      # through a trusted sanitizer. The sanitizer existed and was documented
-      # only in a comment (src/lib/sanitize.ts:2-4) - 84 sinks across 56 files,
-      # 41 of them rendering builder_data JSONB, post bodies, event copy and
-      # uploaded documents, with nothing in CI or ESLint enforcing a single one.
-      # Zero tolerance for new sinks. Constant boot scripts and generated
-      # keyframes are listed one by one, each with a written reason, in
-      # scripts/lib/dangerousHtmlAllowlist.ts. Rationale: src/lib/ci/dangerousHtml.ts
-      - name: Every dangerouslySetInnerHTML goes through the sanitizer
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:dangerous-html
-
-      # Blocking gate on the single defect that removed the login brute-force
-      # threshold entirely: every public limit keyed off `x-forwarded-for`, whose
-      # FIRST entry the client writes itself (Cloudflare appends the connection
-      # address at the END, it does not replace the client's prefix). Rotating one
-      # header rotated the bucket; `x-forwarded-for: " "` made the bucket vanish
-      # altogether, and the test suite froze both as "known behaviour". The header
-      # name may now appear in executed code only in src/lib/http/rateLimit.ts -
-      # everything else calls clientIpFromHeaders / rateLimitIpSubject from there.
-      # Named exemptions carry a written reason and a stale one fails the gate, so
-      # the allowlist can only shrink. Rationale: src/lib/ci/clientIpSource.ts
-      - name: Client IP has exactly one definition
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:client-ip-source
-
-      # Blocking gate on a defect that review cannot catch by reading: the page
-      # editor carried a comment promising autosave over code where
-      # `useAutosave` did not appear at all, so editors lost builder work on tab
-      # close for eight releases while the posts editor was wired correctly the
-      # whole time. Nothing compared the two surfaces. The scanner strips
-      # comments, so a commented-out `useAutosave(...)` cannot silence it.
-      # Rationale: src/lib/ci/editorAutosaveContract.ts
-      - name: Editor surfaces really autosave
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:editor-autosave
-
-      # Blocking gate on the THREE INTERNAL budgets of the SSR pipeline. First
-      # load already has a gate on the RESULT (`e2e/boot-timing.spec.ts` on the
-      # built artifact); until now nothing gated the CAUSES, each of which is a
-      # single literal in a single file:
-      #   * warm-up chained before the first byte - root waves 2500 + 500 ms
-      #     (frozen at 3000, ZERO headroom on purpose) and the worst sequential
-      #     `withBudget` chain in one route loader (13 000 ms, src/routes/$.tsx);
-      #   * parallel subrequests in one loader array - frozen at 6, which is the
-      #     Cloudflare Workers per-request limit, not a measured value;
-      #   * the dehydrated payload - three structural invariants in
-      #     src/router.tsx plus a lower-bound proxy on how many cache writes
-      #     feed it.
-      # Reads SOURCES only (no build, no artifact, no database), so it belongs
-      # in `verify` and its result is machine-independent. Rationale, ceilings
-      # and the honest limits of each measurement: src/lib/ci/ssrBudgets.ts.
-      # Its unit test carries the NEGATIVE CONTROLS proving it can go red:
-      # src/lib/ci/__tests__/ssrBudgets.test.ts (run by `check:ci-gates`).
-      - name: SSR pipeline internal budgets
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:ssr-budgets
-
-      # Bramka blokująca na TRZECH WZORCACH SYSTEMOWYCH z audytu CWV
-      # 2026-09-20 (§4.4). Nie na jednej zepsutej trasie - na kształcie, który
-      # powtarzał się w kilkudziesięciu plikach, bo nic go nie pilnowało:
-      #   * W1 - loader, który MOŻE ZDEGRADOWAĆ, ogłasza WŁASNY `Cache-Control`.
-      #     `check:ssr-budgets` pilnuje już przypadku „nagłówek ustawiony, ale
-      #     nieprzepuszczony przez `resilientCacheControl`"; NIE widzi
-      #     przypadku częstszego, bo NIEWIDOCZNEGO W PLIKU: loadera BEZ
-      #     ŻADNEGO nagłówka. Taka odpowiedź dostaje z
-      #     `defaultCacheControlMiddleware` domyślne `public, s-maxage=900,
-      #     stale-while-revalidate=86400`, więc render niepełny utrwala się na
-      #     brzegu na 15 minut świeżości PLUS dobę okna stale. Audyt (F07)
-      #     naliczył 42 takie trasy publiczne.
-      #   * W2 - publiczny loader wołający sieć ma BUDŻET czasu; bez niego czas
-      #     do pierwszego bajtu ogranicza wyłącznie watchdog zapytań SSR, a ten
-      #     kończy się RZUTEM, czyli statusem 500.
-      #   * W4 - PARYTET KLUCZY loader/komponent. Rozjazd (`xKeys.bySlug` vs
-      #     `xKeys.bySlugViewer`) daje round-trip przed pierwszym bajtem, który
-      #     nie zasila renderu, drugi ten sam odczyt po hydratacji i szkielet
-      #     w SSR - tak działało czternaście tras `/club/$clubSlug/**` (F09).
-      # Czyta WYŁĄCZNIE źródła (bez builda, artefaktu i bazy), więc należy do
-      # `verify`, a jej wynik jest identyczny na każdej maszynie. Zamrożone
-      # listy wyjątków (wolno je WYŁĄCZNIE skracać) i granice każdej reguły
-      # powiedziane wprost: src/lib/ci/loaderPolicy.ts. Kontrole negatywne -
-      # dowód, że bramka umie zapalić się na czerwono - stoją w
-      # src/lib/ci/__tests__/loaderPolicy.test.ts (biegnie w `check:ci-gates`).
-      - name: Public route loader policy
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:loader-policy
-
-      # Blocking gate on an icon name that CHROME cannot render synchronously.
-      # `DynamicIcon` renders a curated set from named lucide imports; ANY other
-      # name makes the browser pull one of the 4 icon registry chunks
-      # (src/lib/icons/chunks/icons-N.json: 23-25 KB gzip each; the whole
-      # registry, 109 KB gzip, when this gate was introduced) through
-      # React.lazy. Menu, mobile bottom bar and event page tiles
-      # take their icon names from CONFIGURATION (site_settings, menu_items,
-      # event_pages), so a single typo in the admin panel used to cost that
-      # chunk to EVERY anonymous visitor, on the header's render path - and
-      # nothing measured it, because the configuration lives in the database.
-      # This gate measures the SOURCES the database is filled from: default
-      # configs in code, migration payloads and column defaults. The scan found
-      # nine such names on introduction (`users-round`, `Crown`, `Ticket`,
-      # `ShoppingCart`, `ShieldCheck`, `clipboard-list`, `folder-open`,
-      # `calendar-clock`, `life-buoy`); migrations are immutable, so the fix
-      # went the other way and those icons joined the curated set.
-      # Reads SOURCES only (no build, no artifact, no database), so it belongs
-      # in `verify`. Rationale and scope: src/lib/ci/menuIcons.ts; the scanned
-      # file list with a reason per file: scripts/check-menu-icons.ts. Its unit
-      # test carries the NEGATIVE CONTROLS proving it can go red:
-      # src/lib/ci/__tests__/menuIcons.test.ts (run by `check:ci-gates`).
-      - name: Chrome icon names stay inside the curated set
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:menu-icons
-
-      # Blocking gate on the CAUSE of those casts: generated types going stale.
-      # `src/integrations/supabase/types.ts` is generated from the database, and
-      # the migrations are forward-only. Add a column by migration without
-      # regenerating, and code reading that column no longer compiles - at which
-      # point the cheapest way out is `as unknown as SomeRow` with a hand-written
-      # shape, which from then on erases EVERY difference from the database,
-      # including next year's. Stale types PRODUCE casts; casts hide the next
-      # drift. The debt is frozen in an explicit baseline the gate can only
-      # shrink; a NEW column without regeneration fails here. The scanner replays
-      # `RENAME COLUMN` / `RENAME TO` as well (correction 2026-08-14): without
-      # that it demanded a column renamed away ten days earlier - and that
-      # phantom entry was the repo's only live legacy payment-provider reference,
-      # so two good gates were blocking each other.
       - name: Generated Supabase types are not stale vs migrations
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:types-freshness
 
-      # Blocking gate on the SYMPTOM: a query result cast onto a row shape typed
-      # by hand next to it. Three of the first three files audited had already
-      # drifted - `retry_count: number | null` against a NOT NULL column,
-      # `status`/`kind` as `string` against ENUMs (so a comparison with a literal
-      # outside the enum compiled and never matched), `metadata` as an object
-      # against a `jsonb` column whose type is `Json`. Derive the shape from
-      # `Tables<...>` instead and a renamed column becomes a compile error in the
-      # file that reads it. Exceptions live in the script WITH a reason.
-      - name: No hand-written row shapes behind Supabase casts
+      - name: Every dangerouslySetInnerHTML goes through the sanitizer
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:db-row-casts
+        run: bun run check:dangerous-html
 
-      # Blocking ratchet on user-facing text that branches on language in code
-      # (`isPl ? "Zapisz" : "Save"`, `l("Zapisz", "Save")`). Every such form
-      # bypasses the PL/EN parity gate - the string exists only in code, so
-      # there is nothing to compare - and closes the door on a third language.
-      # Measured on 2026-08-13: 1 641 occurrences in 166 files. The debt is
-      # frozen PER FILE: a count may only shrink, and a file absent from the
-      # baseline must be zero, so new code cannot start out in debt. A single
-      # global counter would be compensable - trimming twenty occurrences in one
-      # file would "pay for" adding twenty in another.
-      - name: No new hardcoded PL/EN text in code
+      - name: Client IP has exactly one definition
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:i18n-hardcoded
+        run: bun run check:client-ip-source
 
-      # Blocking ratchet on `as unknown as T` - the same type-check bypass as
-      # `as any`, minus the lint rule that would flag it. The repo keeps 5 hand
-      # written `as any` under a lint rule; this class counted 362 and nobody
-      # watched it, which is why it was the one typing metric that GREW between
-      # audits. Most of it was not a database boundary: 69 occurrences came from
-      # one typo (four copies of a Supabase query-builder type declaring `then`
-      # incompatibly with `PromiseLike`, so no `await` type-checked) and 35 were
-      # hand-rolled repeats of the existing `toJson()` helper. Frozen PER FILE:
-      # a count may only shrink, a file absent from the baseline must be zero.
-      - name: No new `as unknown as` casts
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:unknown-casts
-
-      # Blocking ratchet: a test carrying a calendar literal may not read the
-      # real clock. This class of defect does not show up as a red test on the
-      # day it is introduced - it shows up weeks later, when the literal falls
-      # out of a window that production computes from `Date.now()`, with an
-      # empty diff for that day. Measured on 2026-09-06: one donations test file
-      # held twelve such fuses on a single fixture default; the first fired on
-      # 2026-09-05 at 10:00 UTC, the remaining eleven were due at 10:00 UTC the
-      # next day. Frozen PER FILE: a literal count may only shrink, a file
-      # absent from the baseline must be zero, and `vi.setSystemTime(Date.now())`
-      # - a freeze that only looks like one - is a hard zero with no baseline.
-      - name: No new clock-bomb tests
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:clock-freeze
-
-      # Blocking zero-threshold gate: a package that keeps module-level state
-      # or recognises its own objects via `instanceof` (React, Radix, TipTap,
-      # ProseMirror, TanStack, i18next, Babel's core and traverse) must have
-      # exactly ONE install path in `bun.lock`. A stale nested entry is a second
-      # copy of that state, and it never shows up at install or type-check time:
-      # on 2026-09-22 two such copies cost hours of diagnosis each - Radix
-      # dismissable layers (PR #389, a dialog inside a dialog closed on the first
-      # click) and `@babel/traverse` under the route splitter (PR #390, seven
-      # pages stopped loading) - and both surfaced only as a red e2e run. The
-      # same check runs in `postinstall` in warning mode, so the message
-      # appears on the first `bun install`, not on the first red run.
       - name: One copy of every stateful package
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:module-singletons
 
-      # Blocking zero-threshold gate: `t()` may not carry a fallback string.
-      # i18next reads `defaultValue` ONLY when the key is absent, and the drift
-      # gate (`check:i18n-parity`) proves at every run that no key is absent -
-      # so every `defaultValue` here is an unreachable branch AND a second
-      # source of truth for the same sentence. It is also the sole carrier of
-      # the `masked` failure mode: with a fallback in place, deleting a key
-      # stops showing a bare key on screen and starts showing Polish prose in
-      # the English UI. Measured on 2026-08-15: 1 342 occurrences, all provably
-      # unreachable, all removed mechanically (`bun run codemod:i18n-default-value`).
-      # Threshold is zero rather than a ratchet, because a new occurrence is
-      # removable by the same codemod in the same commit that created it.
-      - name: No fallback strings on t()
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:i18n-default-value
-
-      # Blocking ratchet: a file calling a key from an i18n overlay must import
-      # that overlay directly. Overlays (`src/lib/i18n-*.ts`) register through
-      # an import SIDE EFFECT, and i18next does not throw on a missing key - it
-      # returns the key. So the failure renders a working-looking screen showing
-      # `adminUsers.inviteUser` instead of text, and every other gate stays
-      # green over it: types check, parity compares dictionary CONTENT, the
-      # hardcoded ratchet counts literals in code. Only a human reading the diff
-      # caught it - twice in one conversion session, both times because the
-      # keys are written by a codemod and the import line by hand. Matching at
-      # FULL KEY, not namespace: overlays extend core namespaces (`admin`), so
-      # namespace granularity drowned the gate in false positives. Frozen PER
-      # FILE at 80: those work today through an indirect import, and making each
-      # one direct moves a dictionary into that file's chunk - a call to make
-      # with bundle impact in hand (three places omit it deliberately and say
-      # so with an in-file directive).
-      - name: Overlay keys are called only where the overlay is imported
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:i18n-overlay-imports
-
-      # Blocking wiring gate: every env var a workflow exports must have a
-      # reader. Workflow and script are separately valid when the names drift
-      # apart, and both sides tolerate a missing value, so the combination
-      # yields a run that checks nothing and stays green - which is exactly how
-      # the nightly billing probe slept 40 minutes a night against a secret no
-      # script ever read.
-      - name: Workflow env contract (no dead exports)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:workflow-env-contract
-
-      # Blokująca bramka wdrożeniowa: żaden plik z `public/` nie może przesłonić
-      # trasy. Wrangler wiąże `.output/public/` jako `assets`, a warstwa assetów
-      # odpowiada PRZED workerem - `public/robots.txt` (4 linie, `Allow: /` dla
-      # każdego hosta) przez miesiące unieruchamiał dynamiczną trasę
-      # /robots.txt na produkcji: bez klasyfikacji hostów, bez `X-Robots-Tag` i
-      # bez ogłoszenia news sitemap. Awarii nie widział ŻADEN inny test -
-      # dev-server serwuje trasę normalnie (audyt 2026-08-06, MODUŁ 8).
       - name: public/ nie przesłania tras
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:public-assets
 
-      # Blokująca bramka snapshotu autoryzacji, JEDEN krok na trzy dawne.
-      # `authzSnapshot.generated.ts` MUSI zgadzać się z bramkami odtworzonymi
-      # z supabase/migrations, i to BAJT W BAJT: test parytetu w Vitest porównuje
-      # snapshot SEMANTYCZNIE (bramka -> role), więc zostaje zielony, gdy plik
-      # rozjedzie się w prowenancji (`file`) i statystykach skanu. Dokładnie to
-      # się stało, gdy 20260806094104 zawęziło `profiles_guard_verification()`
-      # do samego `admin` poza PR-em - zacommitowany snapshot został 10 migracji
-      # z tyłu. Skrypt istniał od wprowadzenia macierzy uprawnień i NIE BYŁ
-      # wpięty w CI; suita na `main` stała wtedy czerwona czwartą dobę.
-      # Migracja, która przenosi albo przepisuje udokumentowaną bramkę, musi
-      # przywieźć zregenerowany artefakt (`bun run generate:authz-snapshot`)
-      # w tym samym commicie.
-      #
-      # Wcześniej ten sam skrypt jechał w tym jobie TRZY RAZY (kroki „Authz
-      # snapshot vs migrations", „Authorization snapshot parity", „Authorization
-      # snapshot freshness") - trzy nazwy, jedna komenda, zero dodatkowego
-      # pokrycia. Pilnuje tego teraz `check:gate-coverage`.
-      - name: Authorization snapshot vs migrations (byte-for-byte)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:authz-snapshot
-
-      # Blocking gate BEFORE the build, because it does not need one: it only
-      # reads two config files. `vite.smoke.config.ts` exists so a PRODUCTION
-      # artifact can be booted in a real browser (the 2026-07-20 dead-hydration
-      # incident was invisible to dev and unit tests) - and that verification is
-      # worth exactly as much as its chunk split matching production. Until now
-      # only a comment asked for it. A silently wrong chunk rule survives for
-      # weeks: `vendor-tanstack` never materialised at all because the rule
-      # assigned the client ENTRY module to it, and Rollup answers that by
-      # collapsing the whole named chunk back into the entry - no warning.
-      - name: Chunk-split config parity (prod vs smoke)
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:chunk-parity
-
-      # ── TYPY I LINT (minuty) ────────────────────────────────────────────────
-
-      # `vite build` does NOT typecheck (esbuild strips types), so this is the
-      # real type gate.
       - name: Typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run typecheck
 
-      # Blocking: the Prettier backlog was cleared (repo-wide format commit) and
-      # all remaining ESLint errors were fixed, so lint gates merges like
-      # typecheck and tests. Formatowanie samo w sobie jedzie wyżej, w kroku
-      # „Format (prettier)" - tutaj zostaje warstwa reguł typowanych.
       - name: Lint
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run lint
 
-      # ── BRAMKI CELOWANE (podzbiory suity) ───────────────────────────────────
-      #
-      # PEŁNA SUITA Z COVERAGE JEST W JOBIE `test` (patrz niżej), nie tutaj.
-      # Poniższe kroki zostają w `verify`, bo każdy z nich uruchamia WYBRANY
-      # podzbiór vitesta (kilkanaście sekund, bez instrumentacji coverage)
-      # i dwa z nich produkują artefakty czytane przez `post-deploy`.
-      # Przeniesienie ich razem z suitą nic by nie kupiło, a kosztowałoby
-      # przepięcie artefaktów.
-
-      # Kontrakt macierzy uprawnień od strony /admin/permissions: wiersze
-      # macierzy, role zawężone i rejestr capabilities kontra realne bramki SQL -
-      # zbiory ról, wiszące referencje, nowe wartości enuma i flaga
-      # enforced/decorative każdej capability. Dopełnia bramkę snapshotu wyżej
-      # (dane kontra renderer). Wcześniej ten sam skrypt jechał w tym jobie
-      # dwa razy pod dwiema nazwami.
-      - name: Permissions matrix parity
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:permissions-parity
-
-      # Blokująca bramka i18n: każdy klucz bramkowanych powierzchni (bloki
-      # Gutenberga, widgety buildera, raport porównawczy) musi mieć wersję PL
-      # i EN. Nowy blok dodany tylko po polsku wcześniej trafiał na produkcję
-      # i renderował surowy klucz na /en/*. Zapisuje reports/i18n-parity.json,
-      # który konsumuje raport zgodności wdrożenia.
-      - name: i18n PL/EN parity gate
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:i18n-parity
-
-      - name: Upload i18n parity report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: i18n-parity-report
-          path: reports/i18n-parity.json
-          if-no-files-found: ignore
-
-      # Testy własne MODUŁÓW BRAMKOWYCH z `src/lib/ci/` - odklejone od bramki
-      # i18n, w której jechały na barana przez glob katalogowy. Ten glob nie był
-      # pomyłką stylistyczną: robił z bramki JĘZYKOWEJ raportera defektów SQL,
-      # RLS, billingu, ownershipu i chunków, więc `check:i18n-parity` można było
-      # zapalić zmianą, która nie dotyka ani jednego klucza tłumaczenia - i tak
-      # się stało (dwie bliźniacze migracje z panelu, zero defektów i18n).
-      # Pomiar rozjazdu: z 42 plików katalogu 5 jest merytorycznie językowych,
-      # pozostałe 37 należy tutaj. Katalogowy glob ZOSTAJE, bo jego zaleta jest
-      # realna - nowy test bramki wchodzi do CI bez dopisywania ścieżki - tylko
-      # przenosi się pod bramkę, której nazwa nie kłamie o przedmiocie pomiaru.
-      # Bez tego kroku te 37 plików miałyby jedyne wywołanie w jobie `test`
-      # (16-26 min), czyli sygnał przyszedłby wielokrotnie później.
-      - name: CI gate module tests
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:ci-gates
-
-      # Blokująca bramka wierności ustawień widgetów (panel ⇄ renderer). Mierzy
-      # WYKONANIEM, które klucze treści panel oferuje redakcji, a które renderer
-      # naprawdę czyta - i wywala się na każdym rozjeździe bez jawnego,
-      # uzasadnionego zwolnienia. Zamyka klasę defektu, na którą metryka "100%
-      # pokrycia rejestru widgetów" była całkowicie odporna: widget istnieje i
-      # renderuje się, a pojedyncze ustawienia są martwe albo nieedytowalne
-      # (PR #141 naprawił ~40 przypadków testami punktowymi). Ten sam krok pilnuje
-      # dyscypliny danych przykładowych (żadna powierzchnia publiczna nie pokazuje
-      # próbki kontekstu wpisu) i języka w kluczach zapytań widgetów.
-      - name: Widget settings fidelity gate
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run check:widget-fidelity
-
-      - name: Upload widget fidelity report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: widget-fidelity-report
-          path: |
-            reports/widget-fidelity.txt
-            reports/widget-fidelity.json
-          if-no-files-found: ignore
-
-      # Blokujący kontrakt SEO: og:image / og:title / viewport / lang, kanoniki
-      # i klaster hreflang PL/EN oraz markup schema.org Q&A. Uruchamiany osobno,
-      # żeby regresja SEO była widoczna jako własny, nazwany krok w CI (te same
-      # findingi wracały wcześniej z audytów zewnętrznych).
-      #
-      # W tym samym kroku jedzie bramka precedencji assetów: plik statyczny z
-      # `public/` nie może przesłaniać trasy serwerowej. Tak umarła cała logika
-      # /robots.txt - zacommitowany `public/robots.txt` wygrywał z workerem, więc
-      # aliasy hostingu były zaproszone do indeksowania, a news sitemap nie była
-      # ogłoszona nigdzie. Testy jednostkowe trasy przechodziły, bo testowały kod,
-      # którego nikt nie wykonywał.
-      - name: SEO head + schema contract
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: |
-          bunx vitest run \
-            src/lib/seo/__tests__ \
-            src/routes/-sitemap.xml.test.ts \
-            src/lib/ci/__tests__/staticAssetShadowing.test.ts \
-            src/lib/server/__tests__/robotsPolicy.test.ts
-
-  # ── SUITA Z COVERAGE: OSOBNY JOB ────────────────────────────────────────────
-  #
-  # DLACZEGO WŁASNY JOB. Bo tak brzmiało zobowiązanie zapisane nad
-  # `timeout-minutes` w `verify` na wypadek, gdyby wydzielenie samego Builda
-  # nie wystarczyło - i nie wystarczyło. Suita urosła z 12:39 (2026-08-19)
-  # do 26:10 (2026-08-30, przebieg 2753) i zjada 3/4 budżetu joba, w którym
-  # stoi. Kroki ZA nią płacą za ten wzrost pierwsze: między 2026-08-29 a 30.08
-  # `Bundle size budget` nie uruchomił się ANI RAZU, więc przekroczenie budżetu
-  # bundla rosło niewidoczne przez dwa tygodnie (kronika w
-  # `scripts/check-bundle-size.ts`, wpis 2026-08-30 VI). To jest ta sama awaria
-  # w drugiej odsłonie, a nie nowa.
-  #
-  # ROZDZIELENIE, NIE PODNIESIENIE PROGU - I TO JEST RÓŻNICA MERYTORYCZNA.
-  # Podniesienie limitu w `verify` z 35 na 45 zmieściłoby suitę na jeden
-  # kwartał i nie zmieniłoby NICZEGO w mechanizmie: bramki dalej stałyby za
-  # najdroższym krokiem i dalej ginęłyby razem z nim, tyle że później.
-  # Po rozdzieleniu suita może rosnąć do 40 minut, nie zabierając ani sekundy
-  # bramkom w `verify` i `build` - bo te jadą RÓWNOLEGLE, a nie po niej.
-  #
-  # KOSZT JEST JAWNY: trzeci raz w tym samym przebiegu płacimy za checkout,
-  # bun i `bun install` (~15 s zmierzone w jobie `build` na przebiegu 2756).
-  # Piętnaście sekund za to, żeby najdroższy krok w repo przestał decydować
-  # o tym, czy pozostałe bramki w ogóle wystartują.
-  #
-  # NASTĘPNY KROK, GDYBY 40 MINUT PRZESTAŁO STARCZAĆ: shardowanie suity
-  # (`vitest --shard`) na kilka równoległych instancji tego joba, z połączeniem
-  # raportów coverage. Znowu: nie kolejna liczba w `timeout-minutes`, bo to
-  # suita rośnie, nie limit maleje.
-  #
-  # CZEGO TEN JOB NIE NAPRAWIA: na dziś suita PADA - nie na czasie, tylko na
-  # progach pokrycia dla `src/components/admin/billing/**` oraz
-  # `src/components/profile/**`. To osobny dług, tej samej klasy co floor
-  # bundla: progi ustawiono, gdy bramka jeszcze jechała, a potem przez dwa
-  # tygodnie dokładano kod przy bramce, która nie ruszyła ani razu.
   test-shards:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -855,8 +129,6 @@ jobs:
       - uses: actions/checkout@v4
 
       # Keep tests and artifact measurements on the same Node runtime.
-      # Coverage uses Istanbul after V8 remapping produced invalid counters on
-      # both Node 22 and 24. Bun alone does not pin the Node runtime.
       - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
@@ -868,125 +140,18 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Run test shard with coverage and accounting
-        run: bunx vitest run --config vitest.shard.config.ts --coverage --shard=${{ matrix.shard }}/4 --reporter=default --reporter=blob --reporter=./scripts/vitest/testAccountingReporter.ts
-      - name: Preserve shard evidence
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: vitest-shard-${{ matrix.shard }}
-          path: .vitest-reports/
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 7
+      # `testAccountingReporter` (domyślny reporter z vitest.config.ts) kończy
+      # przebieg błędem, gdy proces testowy zginie po cichu i część przypadków
+      # nie zwróci wyniku - bez tego taki shard raportowałby zielony log.
+      - name: Run test shard
+        run: bunx vitest run --shard=${{ matrix.shard }}/4
 
-  test:
-    needs: [test-shards]
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      # Keep tests and artifact measurements on the same Node runtime.
-      # Coverage uses Istanbul after V8 remapping produced invalid counters on
-      # both Node 22 and 24. Bun alone does not pin the Node runtime.
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24.19.0"
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.2.23"
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: vitest-shard-*
-          path: .vitest-reports
-          merge-multiple: true
-      - name: Require all four shard reports
-        run: node -e "const fs=require('node:fs'); if(fs.readdirSync('.vitest-reports').filter(f=>f.endsWith('.json')).length!==4) process.exit(1)"
-      - name: Test + coverage gate
-        run: bun run test:coverage --merge-reports
-      - name: Require every shard to succeed
-        if: ${{ !cancelled() }}
-        env:
-          SHARDS_RESULT: ${{ needs.test-shards.result }}
-        run: test "$SHARDS_RESULT" = success
-
-      - name: Platform module — all four coverage metrics at least 95%
-        if: ${{ !cancelled() }}
-        run: bun run check:platform-coverage
-
-      - name: Preserve coverage and test accounting, including failed runs
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ github.sha }}
-          if-no-files-found: error
-          retention-days: 30
-          path: |
-            coverage/
-            reports/platform-coverage.json
-            reports/test-accounting.json
-
-      - name: Preserve release test totals
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-test-report
-          path: reports/test-accounting.json
-          if-no-files-found: error
-
-  # ── BUILD I BRAMKI ARTEFAKTU: OSOBNY JOB ────────────────────────────────────
-  #
-  # DLACZEGO OSOBNY, A NIE NA KOŃCU `verify`. Prosi o to komentarz nad
-  # `timeout-minutes` w `verify` („Docelowo `Build` i bramki artefaktu powinny
-  # jechać w OSOBNYM jobie: wtedy zegar suity przestaje decydować o tym, czy
-  # budżet bundla w ogóle się zmierzy") - i 2026-08-30 ta przepowiednia
-  # zmaterializowała się po raz drugi, tym razem policzalnie.
-  #
-  # POMIAR (przebieg 2754, główny `main` 0f7d306, kroki joba `verify`):
-  #   setup + checkout + bun + repoint + install   9 s
-  #   Format (prettier)                           83 s
-  #   ~25 bramek statycznych                      16 s
-  #   Typecheck                                 2:41
-  #   Lint                                      2:10
-  #   ──────────────────────────────────────────────
-  #   razem PRZED testami                       6:39
-  # Przy limicie 35 minut zostawia to ~28 min na `Test + coverage gate` PLUS
-  # bramki parytetu/wierności/SEO PLUS `Build` (~2:20) PLUS trzy bramki
-  # artefaktu. Suita rośnie z każdym testem (46,5 tys. asercji) i to ONA zjada
-  # ten budżet - a płacą za to bramki stojące ZA nią, bo job umiera, zanim do
-  # nich dojdzie. Efekt jest gorszy niż czerwona bramka: `Bundle size budget`
-  # NIE URUCHOMIŁ SIĘ ANI RAZU od 2026-08-29, więc przekroczenie budżetu rosło
-  # niewidoczne. GitHub raportuje przy tym job ubity limitem jako `cancelled`,
-  # nie `failure`, więc sygnał nie wygląda nawet na awarię bramki.
-  #
-  # Ten job powtarza setup (checkout + bun + install ≈ 15 s) i to jest CAŁY
-  # jego koszt - w zamian `Build` i trzy bramki artefaktu przestają zależeć od
-  # tego, ile trwa suita, i jadą RÓWNOLEGLE do niej zamiast po niej.
   build:
     runs-on: ubuntu-latest
-    # Zmierzone na przebiegu 2754: setup+install ~15 s, `Build` ~2:20, trzy
-    # bramki artefaktu ~60 s. Gdy job zacznie się zbliżać do limitu, przyczyną
-    # będzie któryś z DWÓCH buildów, a nie sąsiedzi w tym samym jobie.
-    #
-    # 2026-09-01: 15 -> 30 min. Job robi teraz DRUGI pełny build (preset
-    # `node-server`, `bun run build:smoke`) plus instalację Chromium i boot-test
-    # na artefakcie. Zmierzony koszt dodatków: Chromium ~40 s, drugi build
-    # >=3 min 30 s, boot-test <1 min. Poprzednie 15 minut było policzone jako
-    # ~4x zapasu dla JEDNEGO builda - drugi ten zapas zjada.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      # Keep tests and artifact measurements on the same Node runtime.
-      # Coverage uses Istanbul after V8 remapping produced invalid counters on
-      # both Node 22 and 24. Bun alone does not pin the Node runtime.
       - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
@@ -995,135 +160,37 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # `--frozen-lockfile` JEST TU ISTOTNE, nie skopiowane z rozpędu: floor
-      # bramki bundla stawia się z liczby zmierzonej NA RUNNERZE, a build
-      # z innych wersji zależności daje inny podział chunków (udokumentowana
-      # w `scripts/check-bundle-size.ts` rozbieżność host <-> runner ~10 KB na
-      # OVERALL). Bez tej flagi liczba z tego joba przestaje być podstawą floora.
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Build
-        # `id` jest tu potrzebne dla warunków `if:` niżej - patrz komentarz przy
-        # „Bundle size budget".
         id: build
         run: bun run build
         env:
-          # Placeholders so Vite has defined VITE_* at build time; real values
-          # come from project secrets in deploy environments.
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || 'https://placeholder.supabase.co' }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
-      # Blocking perf gate: fails the build if the gzipped client bundle grows
-      # past budget (largest chunk / total). Reliable - no server or browser
-      # needed - unlike the separate Lighthouse job.
-      # WARUNEK `if:` NA TYM I NA KAŻDYM NASTĘPNYM KROKU TEGO JOBA - i to jest
-      # NAPRAWA, nie ozdoba. Domyślnie krok w GitHub Actions nie wykonuje się,
-      # gdy wcześniejszy padł, więc jedna czerwona bramka WYŁĄCZAŁA wszystkie
-      # następne. Zmierzone na artefakcie bazowym tej gałęzi (main `1d5d0ed`,
-      # przebieg CI 33471613171, job `build`): „Bundle size budget" padł na
-      # `overall`, a „Chunk graph acyclicity" i „Client boot path free of
-      # payment SDKs" zaraportowały się jako SKIPPED. Ponieważ czerwień
-      # `overall` jest długiem odziedziczonym z maina, a nie regresją, oznaczało
-      # to, że trzy bramki - w tym boot-test przeglądarkowy i budżet czasu
-      # pierwszego wczytania, dołożone tym samym PR-em - NIE URUCHOMIŁYBY SIĘ
-      # W CI ANI RAZU. Bramka, która nie biegnie, nie jest bramką.
-      #
-      # `!cancelled()` zamiast `always()`: przy anulowaniu przebiegu nie ma po co
-      # dokładać minut. Bramki MIERZĄCE ARTEFAKT dodatkowo wymagają, żeby krok
-      # `Build` się udał (`steps.build.outcome == 'success'`) - bez artefaktu
-      # zgłaszałyby „brak plików", czyli szum zamiast pomiaru. Kroki
-      # `build:smoke` i `test:e2e:artifact` budują sobie WŁASNY artefakt, więc
-      # potrzebują wyłącznie udanej instalacji zależności.
-      #
-      # KOLEJNOŚĆ KROKÓW POZOSTAJE KONTRAKTEM: `if:` nie zmienia porządku
-      # wykonania, a `build:smoke` nadal NADPISUJE `.output/` po bramkach
-      # mierzących artefakt cloudflare'owy.
-      # WYJŚCIE TEJ BRAMKI IDZIE RÓWNIEŻ DO PLIKU, nie tylko na stdout kroku.
-      # POWÓD: log joba czytany zdalnie (API `actions/jobs/{id}/logs`) oddaje
-      # wyłącznie KOŃCÓWKĘ (~1 MB / 5000 linii), a tę zajmują w całości kroki
-      # późniejsze - `build:smoke` (drugi pełny build) i boot-test Playwrighta.
-      # Werdykt bramki - KTÓRY budżet padł i o ile - wypada wtedy poza okno
-      # i zdalnie jest NIEODCZYTYWALNY: widać czerwony krok bez liczby, na
-      # której stanął. Kopia w pliku pozwala wypisać ten werdykt jeszcze raz na
-      # SAMYM KOŃCU joba (krok „Bundle size budget - werdykt" na dole).
-      #
-      # `tee` + `${PIPESTATUS[0]}`: kod wyjścia kroku MUSI pozostać kodem
-      # `check:bundle`, a nie `tee` - inaczej bramka przestałaby blokować.
-      # `shell: bash` jest tu warunkiem poprawności (PIPESTATUS to bashizm),
-      # a nie ozdobą, mimo że bash jest domyślną powłoką runnera.
-      # `mkdir -p` chroni sam pomiar: `reports/` istnieje w checkoucie tylko
-      # dzięki dwóm śledzonym plikom, a bramka rozmiaru nie może paść z powodu
-      # brakującego katalogu na log.
-      - name: Bundle size budget
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        shell: bash
-        run: |
-          mkdir -p reports
-          bun run check:bundle 2>&1 | tee reports/bundle-budget.log
-          exit ${PIPESTATUS[0]}
-
-      # Blocking boot-safety gate: fails on any import cycle between built
-      # client chunks. A cyclic chunk graph broke module init order in prod
-      # (2026-07-20: dead hydration on every page - full SSR visuals, zero
-      # interactivity) and is invisible to dev mode and unit tests.
+      # Cykl w grafie chunków dał na produkcji martwą hydratację - to bramka
+      # poprawności, nie wydajności, więc blokuje także PR-y.
       - name: Chunk graph acyclicity
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: bun run check:chunks
 
-      # Blokująca bramka architektury bundla: żaden ciężki SDK operatora
-      # (Stripe.js + bindingi React) nie może być STATYCZNIE osiągalny z chunku
-      # startowego przeglądarki. `check:bundle` mierzy skutek w kilobajtach i da
-      # się go skompensować cięciem gdzie indziej; ta bramka mierzy PRZYCZYNĘ -
-      # krawędź w grafie chunków - i wskazuje wprost import, który ją złamał.
-      # Regresja 2026-08-06: routes/$.tsx -> Paywall -> EmbeddedCheckoutDialog
-      # -> @stripe/*, przez co każdy anonimowy czytelnik artykułu pobierał SDK
-      # bramki płatniczej (marker js.stripe.com w chunku entry).
+      # Budżety wydajności: tylko main i uruchomienie ręczne.
+      - name: Bundle size budget
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
+        run: bun run check:bundle
+
       - name: Client boot path free of payment SDKs
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
         run: bun run check:entry-purity
 
-      # Ta sama zasada po stronie SERWERA, inny mechanizm pomiaru. `routeTree.gen.ts`
-      # importuje statycznie wszystkie pliki tras, więc jeden `import Stripe from
-      # "stripe"` w `lib/stripe.server.ts` (potrzebny webhookowi tylko po
-      # `verifyWebhook`, czyli po czystym WebCrypto) wciągał 198 kB SDK do chunku,
-      # od którego zaczyna się KAŻDY render SSR - ewaluowane przy każdym zimnym
-      # starcie izolatu Workera (audyt CWV F04, §8.1). Reguła jest mocniejsza niż
-      # „poza chunkiem startowym": paczka nie może mieć w artefakcie ANI JEDNEJ
-      # krawędzi statycznej, bo nazwy chunków serwera zależą od presetu Nitro.
-      # Bramka pilnuje też zamrożonej listy statycznych importerów
-      # `node-html-parser` (dwa synchroniczne API renderu, których dziś nie da się
-      # przepiąć na `import()`), żeby ten dług się nie rozlewał.
       - name: Server request graph free of eager server-only SDKs
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name != 'pull_request' }}
         run: bun run check:server-entry-purity
 
-      # ── BOOT-TEST PRZEGLĄDARKOWY NA ARTEFAKCIE PRODUKCYJNYM ─────────────────
-      #
-      # KOLEJNOŚĆ JEST KONTRAKTEM, NIE PREFERENCJĄ: `build:smoke` NADPISUJE
-      # `.output/`, więc MUSI biec PO `check:bundle`, `check:chunks`,
-      # `check:entry-purity` i `check:server-entry-purity`. Te cztery mierzą
-      # artefakt cloudflare'owy; gdyby smoke build je wyprzedził, mierzyłyby
-      # artefakt node-server i ich floory przestałyby cokolwiek znaczyć.
-      #
-      # PO CO TO ISTNIEJE. `vite.config.ts` przy `manualChunks` obiecuje, że
-      # klasę awarii z 2026-07-20 (cykl chunków -> wywrócona kolejność
-      # inicjalizacji -> boot padnie PRZED hydrateRoot, strona zostaje statycznym
-      # SSR-em) pilnują DWIE rzeczy: `check-chunk-graph.ts` ORAZ boot-test na
-      # buildzie `vite.smoke.config.ts`. Pierwsza połowa działała od dawna,
-      # DRUGA NIE ISTNIAŁA: żaden skrypt nie budował tego configu, żaden workflow
-      # go nie wołał, a Playwright startował aplikację przez `bun run dev`, gdzie
-      # chunków nie ma z definicji. Pilnowany był więc PARYTET KONFIGURACJI
-      # smoke'a, którego nikt nie uruchamiał.
-      #
-      # `check:chunks` łapie WYŁĄCZNIE cykle. Artefakt bez cyklu też może paść
-      # przed hydratacją (interop CJS, brakujący eksport, rzut w chunku
-      # vendorowym) - i tylko prawdziwa przeglądarka na zbudowanym serwerze to
-      # zobaczy. Test WYKONUJE INTERAKCJĘ, nie sprawdza samego braku błędu:
-      # wszystkie asercje `ssr-completeness` są spełnione przez w pełni
-      # wyrenderowany, całkowicie martwy dokument.
       - name: Install Playwright Chromium
         if: ${{ !cancelled() }}
         run: bunx playwright install --with-deps chromium
@@ -1137,26 +204,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://placeholder.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
-      # DWA PLIKI W TYM JEDNYM KROKU (`playwright.artifact.config.ts` łapie oba):
-      #   * `e2e/boot-artifact.spec.ts` - czy artefakt ŻYJE (interaktywność po
-      #     hydratacji). Awaria znaczy „strona jest martwa";
-      #   * `e2e/boot-timing.spec.ts` - ILE TO KOSZTUJE (TTFB, czas do gotowości
-      #     hydratacji, transfer ścieżki bootowania). Awaria znaczy „strona żyje,
-      #     ale wolniej niż wolno".
-      #
-      # DRUGI PLIK MIERZY CZAS NA TYM SAMYM ARTEFAKCIE, PO KTÓRYM JEDZIE
-      # BOOT-TEST - i to jest inny instrument niż job `lighthouse`, nie jego
-      # duplikat. Tamten (od 2026-09-01 też na artefakcie, nie na dev-serverze)
-      # mierzy METRYKI CZYTELNIKA przez Chrome'a z emulacją sieci i CPU; ten
-      # mierzy TTFB dokumentu, czas od `__nesBootT0` do `__nesAppReady`,
-      # transfer ścieżki bootowania oraz FCP bez emulacji. Biegnie w tym samym
-      # jobie co reszta bramek artefaktu. Lighthouse również wykonuje pomiary
-      # artefaktu i blokuje TBT/CLS; pomiar wdrożenia wymaga `LHCI_URL`.
-      #
-      # Progi w `boot-timing` są policzone na hoście deweloperskim i ŚWIADOMIE
-      # luźne - liczby z runnera nie istniały w chwili ich stawiania. Spec
-      # zachowuje historię późniejszych pomiarów CI i wypisuje wartości także
-      # przy zielonym przebiegu (`[boot-timing] ...`).
       - name: Boot test and first-load timing on the production artifact
         if: ${{ !cancelled() }}
         run: bun run test:e2e:artifact
@@ -1167,58 +214,19 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || 'placeholder-anon-key' }}
 
       - name: Upload artifact boot report
-        if: ${{ !cancelled() }}
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report-artifact-boot
           path: playwright-report/
           retention-days: 7
 
-      # WERDYKT BRAMKI ROZMIARU W OSTATNICH LINIACH LOGU JOBA - i to jest cały
-      # sens tego kroku, nie ozdobne powtórzenie. Zdalny odczyt logu oddaje
-      # tylko jego końcówkę (patrz komentarz przy „Bundle size budget"), a tę
-      # zajmują `build:smoke` i boot-test. Pomiar bramki stoi tysiące linii
-      # wcześniej i po prostu nie dociera: na PR #383 krok był czerwony przez
-      # trzy przebiegi, a KTÓRY z budżetów (largest chunk / CSS / public CSS /
-      # boot) go zapalił, nie dało się ustalić inaczej niż ściągnięciem całego
-      # archiwum logów - przy lokalnym pomiarze mieszczącym się w budżecie
-      # z zapasem 0,3 KB na CSS.
-      #
-      # `cat`, NIGDY `bun run check:bundle`: powtórne wywołanie byłoby DRUGIM
-      # pomiarem, w dodatku na innym artefakcie (`build:smoke` nadpisał
-      # `.output/` presetem node-server), a do tego zapaliłoby
-      # `check:gate-coverage`, który wymaga dokładnie JEDNEGO wywołania każdej
-      # bramki `check:*` na job.
-      #
-      # `always()` zamiast `!cancelled()` z reszty joba: koszt to ułamek
-      # sekundy, a werdykt jest najbardziej potrzebny właśnie wtedy, gdy job
-      # ginie na `timeout-minutes` - GitHub raportuje taki job jako `cancelled`,
-      # więc `!cancelled()` skasowałoby jedyną czytelną kopię pomiaru.
-      - name: Bundle size budget - werdykt (echo na końcu logu)
-        if: always()
-        shell: bash
-        run: |
-          echo "=== Bundle size budget: pełne wyjście kroku, powtórzone na końcu logu joba ==="
-          if [ -f reports/bundle-budget.log ]; then
-            cat reports/bundle-budget.log
-          else
-            echo "(brak reports/bundle-budget.log - krok 'Bundle size budget' nie wykonał się w tym przebiegu)"
-          fi
-
-  # pgTAP: RLS tenant isolation, role management and full-text search run
-  # against a real local Postgres (supabase db start applies migrations +
-  # seed.sql). Complements Vitest, which never touches RLS policies.
   pgtap:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      # Pinned CLI version: `version: latest` resolves the release through an
-      # UNAUTHENTICATED api.github.com call from shared runner IPs, which
-      # intermittently dies with "rate limit exceeded" before pgTAP even starts
-      # (PR #118 run 30662487733). A pinned version downloads the release asset
-      # directly - no API call, deterministic toolchain. Bump deliberately.
       - uses: supabase/setup-cli@v1
         with:
           version: "2.111.0"
@@ -1226,40 +234,29 @@ jobs:
       - name: Start local database (migrations + seed)
         run: supabase db start
 
-      # Fresh CI database has no pgTAP; the tests expect it in `extensions`
-      # (see supabase/tests/README.md).
       - name: Install pgTAP extension
         run: |
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
             -c 'create extension if not exists pgtap with schema extensions;'
 
-      # Fixture'y pgTAP wyłączają trigger on_auth_user_created, żeby wstawić
-      # własnych użytkowników i profile w wybranych tenantach (profiles.tenant_id
-      # jest niezmienny, więc profilu założonego przez trigger nie da się
-      # przenieść). `ALTER TABLE auth.users DISABLE TRIGGER USER` wymaga jednak
-      # WŁASNOŚCI tabeli, a `supabase test db` łączy się jako `postgres`, który
-      # auth.users nie posiada - należy ona do supabase_auth_admin. Bez tego
-      # kroku większość plików pada natychmiast na 42501 „must be owner of table
-      # users". Dotyczy WYŁĄCZNIE jednorazowej bazy CI - nie ma odpowiednika na
-      # produkcji i nie wynika z żadnej migracji.
+      # Część plików pgTAP wyłącza triggery na auth.users (DISABLE TRIGGER USER),
+      # co wymaga właściciela tabeli. Próbujemy kolejno: członkostwo
+      # supabase_auth_admin, a potem przekazanie własności; bez tego pliki
+      # padną na 42501 (must be owner of table users).
       - name: Allow test role to toggle auth triggers
         run: |
           set -u
           PG_TEST_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
           PG_ADMIN_URL="postgresql://supabase_admin:postgres@127.0.0.1:54322/postgres"
-
           probe() {
             psql "$PG_TEST_URL" -v ON_ERROR_STOP=1 -q \
               -c 'ALTER TABLE auth.users DISABLE TRIGGER USER;' \
               -c 'ALTER TABLE auth.users ENABLE TRIGGER USER;' >/dev/null 2>&1
           }
-
           if probe; then
             echo "Rola testowa juz moze przestawiac triggery na auth.users."
             exit 0
           fi
-
-          # 1) Najmniej inwazyjnie: czlonkostwo w roli wlasciciela.
           for url in "$PG_ADMIN_URL" "$PG_TEST_URL"; do
             psql "$url" -v ON_ERROR_STOP=1 -q \
               -c 'GRANT supabase_auth_admin TO postgres;' >/dev/null 2>&1 && break
@@ -1268,50 +265,23 @@ jobs:
             echo "Nadano czlonkostwo supabase_auth_admin roli postgres."
             exit 0
           fi
-
-          # 2) Zapasowo: przekazanie wlasnosci samej tabeli (baza jest jednorazowa).
           psql "$PG_ADMIN_URL" -v ON_ERROR_STOP=1 -q \
             -c 'ALTER TABLE auth.users OWNER TO postgres;' >/dev/null 2>&1 || true
           if probe; then
             echo "Przekazano wlasnosc auth.users roli postgres."
             exit 0
           fi
-
           echo "::warning::Rola testowa nie moze przestawiac triggerow na auth.users - pliki pgTAP oparte na DISABLE TRIGGER padna na 42501 (must be owner of table users)."
 
       - name: Run pgTAP tests
         run: supabase test db
 
-  # pg-harness: WYKONANIE migracji modułu Discussion Club na czystym Postgresie
-  # 16, a potem wywołanie jego RPC. Uzupełnia dwie luki, których nie zamyka
-  # żadna z pozostałych bramek:
-  #
-  #  * `check:sql-*` czytają migracje jako TEKST, więc nie widzą błędów, które
-  #    ujawniają się dopiero przy wykonaniu (`column reference is ambiguous`
-  #    w ciele plpgsql, drugie przeciążenie funkcji po zmianie listy parametrów,
-  #    niezgodność liczby kolumn `RETURNS TABLE` z `SELECT`). Oba pierwsze
-  #    REALNIE wystąpiły w tym module i przeszły przez wszystkie bramki CI.
-  #  * `pgtap` stawia bazę przez `supabase db start`, ale nie woła ani jednego
-  #    RPC zgłoszeń klubowych.
-  #
-  # Audyt 2026-08-11 (rozdz. 8.1) znalazł, że skrypt istniał od dawna i NIE BYŁ
-  # wpięty w żaden workflow - uruchamiał go wyłącznie człowiek, jeśli pamiętał.
-  # Dlatego `source_type = 'club_application'` łamiące CHECK na `crm_leads`
-  # trafiło na produkcję: ścieżka zgłoszeń nie działała w żadnym przypadku,
-  # a wszystkie bramki świeciły na zielono.
   pg-harness:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
-      # Bun tylko po to, by odczytać skrypt z package.json. `check:pg-harness`
-      # to czysty bash + psql - nie ma tu ani jednego importu z node_modules,
-      # więc job CELOWO pomija `bun install` i repointowanie bun.lock. To także
-      # jedyna bramka bazodanowa, która nie zależy od prywatnego rejestru npm.
-      # Keep tests and artifact measurements on the same Node runtime.
-      # Coverage uses Istanbul after V8 remapping produced invalid counters on
-      # both Node 22 and 24. Bun alone does not pin the Node runtime.
       - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
@@ -1320,10 +290,6 @@ jobs:
         with:
           bun-version: "1.2.23"
 
-      # Wersja SERWERA jest częścią przedmiotu testu: konfiguracja wyszukiwania
-      # `polish` nie istnieje w standardowym PostgreSQL i moduł buduje własną
-      # `nes_polish` w czasie migracji. Bierzemy 16 z repozytorium PGDG, żeby
-      # bramka nie zmieniała zachowania razem z obrazem runnera.
       - name: Install PostgreSQL 16
         run: |
           set -euo pipefail
@@ -1337,212 +303,77 @@ jobs:
           sudo apt-get install -y -qq postgresql-16 postgresql-contrib-16
           /usr/lib/postgresql/16/bin/initdb --version
 
-      # Skrypt stawia WŁASNĄ instancję na porcie 5433 (klaster systemowy z apt
-      # stoi na 5432 i jest nietykany), wykonuje harness.sql, potem migracje
-      # klubowe w kolejności Supabase CLI, potem runtime_test.sql.
-      #
-      # SPROSTOWANIE. Stało tu: „Kod wyjścia 1 oznacza albo migrację, która się
-      # nie wykonuje, albo niespełnioną asercję" - i to jest NIEPRAWDA, bo
-      # milcząco zakłada, że każdy wybrany plik jest migracją modułu. Panel
-      # Lovable emituje ZLEPKI: `20260822171037_bea8e790-...` to siedem
-      # niezależnych migracji w jednym pliku, z których tylko ostatnia jest
-      # klubowa, a pierwsze sięgają `public.content_access`
-      # i `public.member_resources` - obiektów, których atrapa CELOWO nie
-      # stawia. Ta czerwień nie mówiła o module NIC i stała na `main`.
-      # Naprawdę jest tak: zlepek nosi w treści znacznik `pg-harness: exclude`,
-      # pętla go POMIJA i wypisuje to w logu (`SKIP <plik> (znacznik ...)`,
-      # a na końcu `Zaaplikowano: N, pominieto znacznikiem: M`). Kod wyjścia 1
-      # zostaje dla migracji, która NAPRAWDĘ się nie wykonuje, dla niespełnionej
-      # asercji runtime oraz dla pustego zestawu (strażnik `applied > 0`:
-      # zielona bramka bez ani jednej wykonanej migracji byłaby kłamstwem).
-      # Reguła i uzasadnienie: scripts/pg-harness/run.sh (blok „JAWNE
-      # POMINIECIE"), wprowadzone PR #296.
       - name: Run pg-harness (migracje + asercje runtime)
         run: bun run check:pg-harness
 
-      # Ten sam klaster, drugi modul. Rekrutacja ma wlasna powierzchnie styku
-      # (contact_messages, bucket career-cv, pipeline zgloszen), wiec wlasny
-      # harness - patrz scripts/careers-harness/README.md. Cztery bledy, ktore
-      # ta bramka zlapala, przeszly przez `tsc`, `eslint` i WSZYSTKIE bramki
-      # `check:sql-*`: brak GET DIAGNOSTICS, kolizja parametru OUT z kolumna,
-      # polityka bucketu przepuszczajaca obcego najemce i fixture mierzacy
-      # fikcje, bo trigger nadpisywal znacznik czasu.
       - name: Run careers-harness (migracje + asercje runtime)
+        if: ${{ !cancelled() }}
         run: bun run check:careers-harness
 
-      # Ten sam klaster, trzeci harness - tym razem nie modul, tylko JEDNA
-      # zmiana: scalenie `public.programs` z `public.research_programs`
-      # (20260815110437 + 110844 + 111026; pierwotnie jedna reczna migracja
-      # 20260815100000, zastapiona tym lancuchem i usunieta - harness zostal
-      # wtedy wskazujacy na nieistniejacy plik i failowal, mimo ze scalenie
-      # ZASZLO; patrz README harnessu). Scalenie przenosi wiersze, przepina
-      # cztery klucze obce i podmienia tabele na widok, czyli robi wylacznie
-      # rzeczy, ktorych bramki `check:sql-*` NIE WIDZA - one czytaja migracje
-      # jako tekst. Harness zlapal tu realny blad kolejnosci: przepisanie
-      # `program_id` przed zdjeciem starego FK wywala sie na 23503, a w tekscie
-      # migracji wyglada poprawnie. Patrz scripts/programs-harness/README.md.
-      - name: Run programs-harness (scalenie tabel programow + asercje runtime)
-        run: bun run check:programs-harness
-
-      # Ten sam klaster, czwarty harness - modul wydarzen (wlasny port 5436,
-      # wiec stoi obok trzech pozostalych bez kolizji). Bramki `check:sql-*`
-      # czytaja migracje JAKO TEKST i z zalozenia nie zobacza klasy bledow, dla
-      # ktorej ten harness powstal: kolizji sygnatur miedzy migracjami, funkcji
-      # siegajacej po nieistniejaca kolumne, triggera, ktory nigdy nie odpala,
-      # ani ograniczenia EXCLUDE, ktore niczego nie wyklucza. Harness odtwarza
-      # 70 migracji modulu na czystym klastrze i wykonuje asercje runtime
-      # (m.in. 50_onsite.sql - token urzadzenia i izolacja leadow -
-      # oraz 60_meetings.sql - podwojna rezerwacja stolika i osoby).
-      # Patrz scripts/events-harness/README.md.
-      #
-      # `if: !cancelled()` NIE JEST OBEJSCIEM, tylko konsekwencja tego, ze te
-      # cztery uprzezy sa NIEZALEZNE: osobne moduly, osobne porty, osobne
-      # klastry. Awaria uprzezy rekrutacji nie mowi o module wydarzen NIC,
-      # a przy domyslnym zachowaniu (`success()`) ten krok byl POMIJANY - wiec
-      # 995 asercji tego modulu nie wykonywalo sie w CI ani razu, odkad
-      # careers-harness jest czerwony. Gorsze od niewidocznej zieleni jest
-      # niewidoczna CZERWIEN: regresja w SQL-u wydarzen przechodzilaby przez CI
-      # niezauwazona, bo krok, ktory ma ja zlapac, w ogole nie startowal.
-      # Zadanie i tak konczy sie porazka, gdy ktorykolwiek harness padnie -
-      # zmienia sie wylacznie to, ze KAZDY z nich powie, co u niego.
       - name: Run events-harness (migracje modulu wydarzen + asercje runtime)
         if: ${{ !cancelled() }}
         run: bun run check:events-harness
 
-      # Izolacja tenantow plaszczyzny wlasciciela (media_mentions,
-      # saved_searches, user_follows) - asercje RLS na zywej bazie, nie analiza
-      # statyczna. Audyt 2026-08-29: te polityki bramkowaly sam `auth.uid()`,
-      # wiec wiersz z dryfem tenanta przekraczal granice obszaru roboczego.
-      # Cudzysłów jest OBOWIĄZKOWY: `: ` w niecytowanym skalarze YAML otwiera
-      # mapę, więc bez niego CAŁY plik przestaje się parsować, a GitHub kończy
-      # bieg jako startup failure - zero jobów, zero logów, bramka milczy.
       - name: "Run tenant-isolation-harness (RLS: media_mentions / saved_searches / user_follows)"
         if: ${{ !cancelled() }}
         run: bun run check:tenant-isolation
 
-  # Bramka PO WDROŻENIU: sprawdza, że wszystkie obiekty wynikające z migracji
-  # (tabele, widoki, RPC schematu public) faktycznie istnieją w bazie, a na
-  # koniec generuje raport zgodności wdrożenia (PR-y, liczba testów, status CI,
-  # smoke). Uruchamiany na push do main i ręcznie - PR-y nie dotykają produkcji.
+  # Po scaleniu do main: czy produkcyjna baza ma wszystkie tabele, widoki i RPC
+  # oraz czy migracje z repo zostały na niej faktycznie zastosowane. Bez
+  # sekretów Supabase w repozytorium job kończy się ostrzeżeniem zamiast
+  # czerwonego statusu, bo nie ma czego sondować.
   post-deploy:
-    # Read-only diagnostics still run when a code gate fails. The report uses
-    # the release gate result, never this job's transient status.
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs: [release-gate]
     permissions:
       contents: read
-      actions: read
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL || vars.SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
     steps:
-      # Pełna historia: raport wylicza zakres PR-ów od poprzedniego tagu.
+      - name: Require Supabase credentials
+        id: creds
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Brak SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY w sekretach repozytorium - kontrola produkcyjnej bazy pominięta."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: ${{ steps.creds.outputs.ready == 'true' }}
         with:
           fetch-depth: 0
 
-      # Keep tests and artifact measurements on the same Node runtime.
-      # Coverage uses Istanbul after V8 remapping produced invalid counters on
-      # both Node 22 and 24. Bun alone does not pin the Node runtime.
       - uses: actions/setup-node@v4
+        if: ${{ steps.creds.outputs.ready == 'true' }}
         with:
           node-version: "24.19.0"
 
       - uses: oven-sh/setup-bun@v2
+        if: ${{ steps.creds.outputs.ready == 'true' }}
         with:
           bun-version: "1.2.23"
 
       - name: Install dependencies
+        if: ${{ steps.creds.outputs.ready == 'true' }}
         run: bun install --frozen-lockfile
 
-      # Resolve both existing naming conventions; absent configuration fails
-      # explicitly and is preserved in the report. No placeholder production DB.
       - name: Database contract (tables / views / RPC)
+        if: ${{ steps.creds.outputs.ready == 'true' }}
         run: bun run check:db-contract
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL || vars.SUPABASE_URL || vars.VITE_SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
       - name: Migration ledger (branch migrations actually applied)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.creds.outputs.ready == 'true' }}
         run: bun run check:migration-ledger
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL || vars.SUPABASE_URL || vars.VITE_SUPABASE_URL }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.VITE_SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY || vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-
-      - name: Download release test totals
-        if: ${{ !cancelled() }}
-        uses: actions/download-artifact@v4
-        with:
-          name: release-test-report
-          path: reports
-
-      - name: Download widget fidelity report
-        if: ${{ !cancelled() }}
-        uses: actions/download-artifact@v4
-        with:
-          name: widget-fidelity-report
-          path: reports
-
-      - name: Read E2E results for this commit
-        if: ${{ !cancelled() }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('node:fs');
-            const { owner, repo } = context.repo;
-            let checks = { e2e: 'unknown', 'e2e-seeded': 'unknown' };
-            let runUrl = null;
-            for (let attempt = 0; attempt < 20; attempt++) {
-              const { data } = await github.rest.actions.listWorkflowRuns({ owner, repo,
-                workflow_id: 'e2e.yml', head_sha: context.sha, branch: 'main', event: 'push', per_page: 5 });
-              const run = data.workflow_runs.find(r => r.head_sha === context.sha);
-              if (run?.status === 'completed') {
-                runUrl = run.html_url;
-                const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, { owner, repo, run_id: run.id });
-                for (const name of Object.keys(checks)) checks[name] = jobs.find(j => j.name === name)?.conclusion ?? 'unknown';
-                break;
-              }
-              if (attempt < 19) await new Promise(resolve => setTimeout(resolve, 15000));
-            }
-            fs.mkdirSync('reports', { recursive: true });
-            fs.writeFileSync('reports/e2e-status.json', JSON.stringify({ commit: context.sha, checks, runUrl }));
-            if (Object.values(checks).some(value => value !== 'success')) core.setFailed('E2E evidence for this commit is missing or unsuccessful');
-
-      - name: Download i18n parity report
-        if: always()
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: i18n-parity-report
-          path: reports
-
-      - name: Deployment compliance report
-        if: always()
-        run: bun run report:deployment
-        env:
-          CI_STATUS: ${{ needs.release-gate.result }}
-          DEPLOYMENT_STATUS: ${{ job.status }}
-
-      - name: Upload deployment compliance report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deployment-report
-          path: |
-            reports/deployment-report.md
-            reports/deployment-report.json
-            reports/db-contract.json
-            reports/migration-ledger.json
-            reports/test-accounting.json
-            reports/e2e-status.json
-            reports/widget-fidelity.json
-            reports/i18n-parity.json
-          if-no-files-found: ignore
 
   release-gate:
     name: Required release checks
     if: ${{ !cancelled() }}
-    needs: [verify, test, build, pgtap, pg-harness]
+    needs: [verify, test-shards, build, pgtap, pg-harness]
     runs-on: ubuntu-latest
     steps:
       - name: Require successful checks

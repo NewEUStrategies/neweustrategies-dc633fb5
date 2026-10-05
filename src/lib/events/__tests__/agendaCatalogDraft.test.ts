@@ -60,7 +60,7 @@ describe("trackDraft", () => {
     expect(
       trackDraftToInput(track({ accentColor: "red; content:x" }), EVENT).accentColor,
     ).toBeNull();
-    expect(trackDraftToInput(track({ accentColor: "#FA9346" }), EVENT).accentColor).toBe("#FA9346");
+    expect(trackDraftToInput(track({ accentColor: "#FA9346" }), EVENT).accentColor).toBe("#fa9346");
     expect(trackDraftToInput(track({ accentColor: "" }), EVENT).accentColor).toBeNull();
   });
 

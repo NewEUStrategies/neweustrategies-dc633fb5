@@ -383,7 +383,10 @@ export function SectionLabelRender({
         {glyph}
       </span>
     ) : (
-      <NorthEastArrow isSm={isSm} className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:-translate-y-px group-hover/link:translate-x-px" />
+      <NorthEastArrow
+        isSm={isSm}
+        className="shrink-0 transition-transform duration-300 motion-reduce:transition-none group-hover/link:-translate-y-px group-hover/link:translate-x-px"
+      />
     );
 
   const ActionEl = action ? (
@@ -1208,9 +1211,7 @@ export function SectionLabelRender({
       // klasy zostaja tylko jako fallback poza widzetem. Akcja NIE jest
       // pogrubiona (font-normal), a jej rozmiar to 11 px (9 px w wezkiej
       // kolumnie) - o 1 px wiecej niz wczesniej.
-      const actCls = isSm
-        ? "text-[9px] font-normal"
-        : "text-[11px] font-normal";
+      const actCls = isSm ? "text-[9px] font-normal" : "text-[11px] font-normal";
       const actionStyleVars: AccentVarStyle = { "--nes-accent": accent };
       if (actionColor) actionStyleVars.color = actionColor;
       if (actionSize && !isSm) actionStyleVars.fontSize = actionSize;
@@ -1223,7 +1224,9 @@ export function SectionLabelRender({
         <NorthEastArrow
           isSm={isSm}
           className={`shrink-0 transition-transform duration-300 motion-reduce:transition-none ${
-            side === "left" ? "" : "group-hover/link:-translate-y-px group-hover/link:translate-x-px"
+            side === "left"
+              ? ""
+              : "group-hover/link:-translate-y-px group-hover/link:translate-x-px"
           }`}
         />
       );

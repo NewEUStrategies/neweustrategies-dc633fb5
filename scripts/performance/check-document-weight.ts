@@ -18,7 +18,9 @@
  * `fetchpriority=high` wyłącznie dla kandydata - ten sam `imagesrcset` +
  * `imagesizes` co `<img>` (`imagePreloadNonCandidate`), nagłówek `Link`
  * wyłącznie z dozwolonych wpisów (`linkHeaderDisallowed`) i bajty przed LCP
- * (`preLcpTransferBytes`). Kontrola negatywna: `document-weight.test.mjs`.
+ * (`preLcpTransferBytes`). Kontrole negatywne tych reguł były w
+ * `document-weight.test.mjs`, który usunął z repo PR #475 razem z resztą testów
+ * uprzęży pomiarowej (`git log --diff-filter=D -- scripts/performance/`).
  * Do tego moduły tylko-serwerowe (`lcpCandidate.ts`, `heroImage.ts`) nie mogą
  * trafić do żadnego chunku klienta - sprawdzane z `reports/chunk-inventory.json`
  * artefaktu, gdy inwentarz istnieje i pasuje do buildu (BUNDLE_INVENTORY=1).

@@ -7,8 +7,8 @@
  * dopisanie trasy do domeny bez przegenerowania pliku przewraca bramkę.
  *
  * Usage:
- *   bun run generate:codeowners   # zapisuje .github/CODEOWNERS
- *   bun run check:codeowners      # tylko weryfikacja (CI)
+ *   bun run generate:codeowners                            # zapisuje .github/CODEOWNERS
+ *   bun run scripts/generate-codeowners.ts --check         # tylko weryfikacja
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";

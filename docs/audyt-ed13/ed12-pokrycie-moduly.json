@@ -1,0 +1,227 @@
+{
+  "1": {
+    "files": 107,
+    "lines": 86.15,
+    "funcs": 82.98,
+    "zeros": 12,
+    "uncovered": 363,
+    "statements": 84.46,
+    "branches": 76.17
+  },
+  "2": {
+    "files": 96,
+    "lines": 99.34,
+    "funcs": 98.85,
+    "zeros": 0,
+    "uncovered": 15,
+    "statements": 98.85,
+    "branches": 94.74
+  },
+  "3": {
+    "files": 488,
+    "lines": 98.73,
+    "funcs": 97.67,
+    "zeros": 0,
+    "uncovered": 294,
+    "statements": 97.62,
+    "branches": 93.17
+  },
+  "4": {
+    "files": 132,
+    "lines": 92.37,
+    "funcs": 89.47,
+    "zeros": 4,
+    "uncovered": 283,
+    "statements": 90.93,
+    "branches": 82.76
+  },
+  "5": {
+    "files": 66,
+    "lines": 96.21,
+    "funcs": 93.2,
+    "zeros": 2,
+    "uncovered": 65,
+    "statements": 94.76,
+    "branches": 82.64
+  },
+  "6": {
+    "files": 27,
+    "lines": 97.77,
+    "funcs": 95.79,
+    "zeros": 0,
+    "uncovered": 25,
+    "statements": 97.33,
+    "branches": 91.81
+  },
+  "7": {
+    "files": 111,
+    "lines": 92.71,
+    "funcs": 85.69,
+    "zeros": 3,
+    "uncovered": 329,
+    "statements": 91.37,
+    "branches": 86.35
+  },
+  "8": {
+    "files": 91,
+    "lines": 98.93,
+    "funcs": 99.03,
+    "zeros": 2,
+    "uncovered": 27,
+    "statements": 98.35,
+    "branches": 94.93
+  },
+  "9": {
+    "files": 93,
+    "lines": 96.81,
+    "funcs": 95.23,
+    "zeros": 0,
+    "uncovered": 112,
+    "statements": 94.48,
+    "branches": 87.67
+  },
+  "10": {
+    "files": 34,
+    "lines": 99.66,
+    "funcs": 99.38,
+    "zeros": 0,
+    "uncovered": 3,
+    "statements": 96.19,
+    "branches": 86.96
+  },
+  "11": {
+    "files": 153,
+    "lines": 99.16,
+    "funcs": 98.87,
+    "zeros": 1,
+    "uncovered": 44,
+    "statements": 98.47,
+    "branches": 94.53
+  },
+  "12": {
+    "files": 31,
+    "lines": 98.14,
+    "funcs": 97.42,
+    "zeros": 0,
+    "uncovered": 23,
+    "statements": 97.09,
+    "branches": 92.3
+  },
+  "13": {
+    "files": 201,
+    "lines": 95.15,
+    "funcs": 95.21,
+    "zeros": 7,
+    "uncovered": 293,
+    "statements": 94.26,
+    "branches": 90.21
+  },
+  "14": {
+    "files": 44,
+    "lines": 92.87,
+    "funcs": 90.29,
+    "zeros": 1,
+    "uncovered": 85,
+    "statements": 90.9,
+    "branches": 86.3
+  },
+  "15": {
+    "files": 104,
+    "lines": 97.64,
+    "funcs": 95.51,
+    "zeros": 3,
+    "uncovered": 93,
+    "statements": 96.8,
+    "branches": 94.33
+  },
+  "16": {
+    "files": 314,
+    "lines": 99.66,
+    "funcs": 99.51,
+    "zeros": 1,
+    "uncovered": 28,
+    "statements": 99.21,
+    "branches": 97.56
+  },
+  "17": {
+    "files": 139,
+    "lines": 97.51,
+    "funcs": 96.83,
+    "zeros": 2,
+    "uncovered": 226,
+    "statements": 96.55,
+    "branches": 92.82
+  },
+  "18": {
+    "files": 65,
+    "lines": 97.43,
+    "funcs": 97.13,
+    "zeros": 0,
+    "uncovered": 81,
+    "statements": 96.41,
+    "branches": 85.27
+  },
+  "19": {
+    "files": 156,
+    "lines": 91.44,
+    "funcs": 88.66,
+    "zeros": 14,
+    "uncovered": 460,
+    "statements": 90.62,
+    "branches": 86.58
+  },
+  "20": {
+    "files": 288,
+    "lines": 98.22,
+    "funcs": 97.3,
+    "zeros": 6,
+    "uncovered": 249,
+    "statements": 97.64,
+    "branches": 95.42
+  },
+  "21": {
+    "files": 30,
+    "lines": 100.0,
+    "funcs": 100.0,
+    "zeros": 0,
+    "uncovered": 0,
+    "statements": 99.81,
+    "branches": 97.71
+  },
+  "22": {
+    "files": 648,
+    "lines": 99.05,
+    "funcs": 99.12,
+    "zeros": 1,
+    "uncovered": 190,
+    "statements": 98.55,
+    "branches": 96.17
+  },
+  "X-admin-shell": {
+    "files": 265,
+    "lines": 92.35,
+    "funcs": 89.44,
+    "zeros": 18,
+    "uncovered": 513,
+    "statements": 91.07,
+    "branches": 85.93
+  },
+  "X-i18n": {
+    "files": 178,
+    "lines": 96.2,
+    "funcs": 86.97,
+    "zeros": 0,
+    "uncovered": 59,
+    "statements": 91.47,
+    "branches": 74.9
+  },
+  "X-design-system": {
+    "files": 48,
+    "lines": 87.47,
+    "funcs": 82.46,
+    "zeros": 2,
+    "uncovered": 106,
+    "statements": 85.68,
+    "branches": 75.8
+  }
+}

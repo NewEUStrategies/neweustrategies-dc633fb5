@@ -1,0 +1,43 @@
+{
+  "klucz": "wei",
+  "typ": "glowna",
+  "url": "https://wei.org.pl/",
+  "run": 1,
+  "ms": 27839,
+  "blad": null,
+  "finalUrl": "https://wei.org.pl/en/homepage/",
+  "fetchTime": "2026-10-04T15:05:03.899Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2253,
+  "runtimeError": null,
+  "warnings": [
+    "The page may not be loading as expected because your test URL (https://wei.org.pl/) was redirected to https://wei.org.pl/en/homepage/. Try testing the second URL directly."
+  ],
+  "kategorie": { "performance": 0.45, "accessibility": 0.97, "best-practices": 0.68, "seo": 0.92 },
+  "metryki": {
+    "first-contentful-paint": 5291.689999999999,
+    "largest-contentful-paint": 5910.827999999998,
+    "total-blocking-time": 594,
+    "cumulative-layout-shift": 0.005744666367767499,
+    "speed-index": 11728.055852269865,
+    "interactive": 15861.9326,
+    "server-response-time": 1038.527,
+    "total-byte-weight": 1819169,
+    "dom-size": 825,
+    "network-requests": null,
+    "mainthread-work-breakdown": 3786.9999999999645,
+    "bootup-time": 1509.3280000000034,
+    "third-party-summary": null
+  },
+  "a11yBledy": ["link-name"],
+  "bpBledy": [
+    "image-aspect-ratio",
+    "image-size-responsive",
+    "third-party-cookies",
+    "errors-in-console",
+    "inspector-issues"
+  ],
+  "seoBledy": ["link-text"],
+  "lcpElement": "<div class=\"kafelek kafelek1\" style=\"background-image: url(&quot;https://wei.org.pl/wp-content/uploads/2026/09/stanow…&quot;);\">",
+  "tytul": true
+}

@@ -1,0 +1,584 @@
+# Artefakt "Pokrycie testami NES" - wydanie 13 na gorze, wydanie 12 (z zagniezdzonym archiwum 11) w zwinietym archiwum.
+# Zrodla: rozdzial 17 z dokumentu w galezi (ten sam tekst co w repo), dane pomiaru i rynku z docs/audyt-ed13.
+import html, json, re, statistics
+
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+G = S + '/galaz'
+STARY = '/root/.claude/projects/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/tool-results/artifact-7c7b3873-1790862445-df94.html'
+WYJSCIE = S + '/artefakt13/pokrycie-testami-nes.html'
+
+doc = open(G + '/docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md', encoding='utf-8').read()
+rozdzial = doc[doc.index('\n## 17. '):]
+J = lambda p: json.load(open(G + '/docs/audyt-ed13/' + p, encoding='utf-8'))
+POK = J('pokrycie13.json')
+NAZWY = {str(r['k']): r['name'] for r in J('inwentarz13.json')['rows']}
+NAZWY.update({'X-admin-shell': 'powłoka panelu admin + atomy/molekuły', 'X-design-system': 'design system (components/ui)', 'X-i18n': 'słowniki i18n'})
+TAB = J('rynek/tabela13.json')
+K1215 = J('rynek/k12-15.json')['agregat']
+
+
+# ---------- markdown (podzbior uzyty w rozdziale 17) -> HTML ----------
+def inline(t):
+    t = html.escape(t.strip(), quote=False)
+    czesci = re.split(r'(`[^`]+`)', t)
+    out = []
+    for c in czesci:
+        if c.startswith('`') and c.endswith('`') and len(c) > 1:
+            out.append('<code>' + c[1:-1] + '</code>')
+        else:
+            c = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', c)
+            out.append(c)
+    return ''.join(out)
+
+
+def sekcja(nr):
+    m = re.search(r'^### 17\.%d\. .*$' % nr, rozdzial, re.M)
+    n = re.search(r'^### 17\.%d\. ' % (nr + 1), rozdzial, re.M)
+    return rozdzial[m.end():n.start() if n else len(rozdzial)].strip('\n'), m.group(0)[len('### 17.%d. ' % nr):]
+
+
+def tabele(tekst):
+    """Lista tabel markdown: (naglowki, wyrownania, wiersze) - komorki surowe (markdown)."""
+    out = []
+    linie = tekst.split('\n')
+    i = 0
+    while i < len(linie):
+        if linie[i].startswith('|') and i + 1 < len(linie) and re.match(r'^\|[\s:|-]+\|\s*$', linie[i + 1]) and '-' in linie[i + 1]:
+            rozbij = lambda l: [c.replace('\x00', '|').strip() for c in l.replace('\\|', '\x00').strip().strip('|').split('|')]
+            nag = rozbij(linie[i])
+            wyr = ['num' if c.strip().endswith(':') else '' for c in rozbij(linie[i + 1])]
+            wiersze = []
+            i += 2
+            while i < len(linie) and linie[i].startswith('|'):
+                wiersze.append(rozbij(linie[i]))
+                i += 1
+            out.append((nag, wyr, wiersze))
+        else:
+            i += 1
+    return out
+
+
+def tabela_html(nag, wyr, wiersze, klasy_wierszy=None, komorka=None):
+    h = ['<div class="tw"><table><thead><tr>']
+    for k, w in zip(nag, wyr):
+        h.append(f'<th class="{w}">{inline(k)}</th>' if w else f'<th>{inline(k)}</th>')
+    h.append('</tr></thead><tbody>')
+    for r, wiersz in enumerate(wiersze):
+        kl = klasy_wierszy(wiersz) if klasy_wierszy else ''
+        h.append(f'<tr class="{kl}">' if kl else '<tr>')
+        for c, (txt, w) in enumerate(zip(wiersz, wyr)):
+            tresc = komorka(c, txt, wiersz) if komorka else None
+            tresc = inline(txt) if tresc is None else tresc
+            h.append(f'<td class="{w}">{tresc}</td>' if w else f'<td>{tresc}</td>')
+        h.append('</tr>')
+    h.append('</tbody></table></div>')
+    return ''.join(h)
+
+
+def proza(tekst, bez_tabel=True):
+    """Akapity, listy punktowane i numerowane; tabele pomija (renderowane osobno)."""
+    bloki, biez, typ = [], [], None
+
+    def zamknij():
+        nonlocal biez, typ
+        if biez:
+            if typ == 'ul':
+                bloki.append('<ul class="mdlist">' + ''.join(f'<li>{inline(x)}</li>' for x in biez) + '</ul>')
+            elif typ == 'ol':
+                bloki.append('<ol class="mdlist">' + ''.join(f'<li>{inline(x)}</li>' for x in biez) + '</ol>')
+            else:
+                bloki.append('<p>' + inline(' '.join(biez)) + '</p>')
+        biez, typ = [], None
+
+    for l in tekst.split('\n'):
+        if l.startswith('|'):
+            zamknij()
+            continue
+        if not l.strip():
+            zamknij()
+            continue
+        m_ul = re.match(r'^- (.*)$', l)
+        m_ol = re.match(r'^\d+\. (.*)$', l)
+        if m_ul:
+            if typ != 'ul':
+                zamknij()
+                typ = 'ul'
+            biez.append(m_ul.group(1))
+        elif m_ol:
+            if typ != 'ol':
+                zamknij()
+                typ = 'ol'
+            biez.append(m_ol.group(1))
+        elif typ in ('ul', 'ol') and l.startswith('  '):
+            biez[-1] += ' ' + l.strip()
+        else:
+            if typ in ('ul', 'ol'):
+                zamknij()
+            typ = 'p'
+            biez.append(l)
+    zamknij()
+    return '\n'.join(bloki)
+
+
+def akapity(tekst):
+    """Akapity jako lista surowych tekstow (markdown), bez list i tabel."""
+    out, biez = [], []
+    for l in tekst.split('\n') + ['']:
+        if not l.strip() or l.startswith('|') or re.match(r'^(- |\d+\. )', l):
+            if biez:
+                out.append(' '.join(biez))
+            biez = []
+            continue
+        biez.append(l)
+    return out
+
+
+def punkty(tekst):
+    out = []
+    for l in tekst.split('\n'):
+        m = re.match(r'^- (.*)$', l)
+        if m:
+            out.append(m.group(1))
+        elif out and l.startswith('  ') and l.strip():
+            out[-1] += ' ' + l.strip()
+    return out
+
+
+pl = lambda x, d=None: (f'{x:,.{d}f}' if d is not None else f'{x:,}').replace(',', ' ').replace('.', ',')
+pct = lambda a, b: 100.0 * a / b if b else 100.0
+CHIP = {'naprawione': 'ok', 'naprawiony': 'ok', 'wykonana': 'ok', 'częściowo': 'part', 'otwarte': 'open', 'otwarty': 'open',
+        'niewykonana': 'open', 'zmieniony': 'info', 'potwierdzony': 'ok', 'obalony': 'open'}
+
+
+def chip(tekst, klasa=None):
+    k = klasa or CHIP.get(tekst.strip().lower().split(' ')[0].strip(',-'), 'info')
+    return f'<span class="chip {k}">{inline(tekst)}</span>'
+
+
+o = []
+w = o.append
+
+# ---------- hero ----------
+T = POK['T']
+w('<header class="hero">')
+w('  <span class="eyebrow">Audyt pokrycia testami · wydanie 13 · HEAD 5b8c77c01 · 2026-10-04 · audyt po kampanii naprawczej</span>')
+w('  <h1>Pokrycie 98,84%, zero czerwieni, siedem krytycznych defektów zamkniętych - i jedna regresja, która wyłączyła zaproszenia</h1>')
+w('  <p class="lede">Pomiar na HEAD <code>5b8c77c01</code> (2026-10-04), okno od wydania 12 (<code>b8b53ae5</code>): 402 commity, PR-y #427-#466. '
+  'Okno było kampanią naprawczą, nie rozwojem produktu: kod produkcyjny urósł o 63 pliki, testy o 261. Pokrycie poszło do <b>98,84% linii i 98,32% funkcji</b>, '
+  'przebieg jest pierwszy raz w tej serii bez ani jednej czerwieni, a z rejestru 323 defektów naprawiono 109, w tym <b>wszystkie siedem krytycznych</b>. '
+  'Ta sama kampania wniosła regresję, przez którą każda wysyłka zaproszenia kończy się błędem. Po raz pierwszy: przegląd platformy na tle 32 ośrodków analitycznych.</p>')
+w('  <div class="facts"><span><b>4 094</b> pliki produkcyjne (+63)</span><span><b>874 452</b> wiersze kodu (+13 867)</span>'
+  '<span><b>3 260</b> plików testowych · <b>66 038</b> przypadków statycznie</span><span><b>419</b> tras · <b>1 082</b> + <b>176</b> migracji (dwa pasy)</span>'
+  '<span><b>137</b> plików pgTAP · <b>2 678</b> asercji · <b>314</b> testów e2e w 6 konfiguracjach</span>'
+  '<span><b>947</b> progów per ścieżka · <b>5</b> martwych · <b>310</b> wpisów <code>it.fails</code></span>'
+  '<span><b>84 731</b> zielonych przypadków w przebiegu · <b>0</b> czerwonych · <b>320</b> „expected fail"</span></div>')
+w('</header>')
+
+# ---------- wynik globalny ----------
+ED12 = {'Linie': ('129 595 / 133 561', '97,03%', 80), 'Funkcje': ('40 176 / 41 926', '95,83%', 77),
+        'Instrukcje': ('146 944 / 152 976', '96,06%', 79), 'Gałęzie': ('124 977 / 136 176', '91,78%', 73)}
+KL = {'Linie': ('Lc', 'L'), 'Funkcje': ('Fc', 'F'), 'Instrukcje': ('Sc', 'S'), 'Gałęzie': ('Bc', 'B')}
+w('<section>')
+w('  <span class="eyebrow">Wynik globalny · 12 shardów scalonych jak w CI · provider istanbul · cały src/ w mianowniku</span>')
+w('  <div class="kpis">' + ''.join(
+    f'<div class="kpi"><span class="k">{k}</span><span class="v">{pl(pct(T[a], T[b]), 2)}%</span>'
+    f'<span class="d">{pl(T[a])} / {pl(T[b])} · ed12 {ED12[k][1]}</span><span class="thr">próg {ED12[k][2]}% <i>✓</i></span></div>'
+    for k, (a, b) in KL.items()) + '</div>')
+w('  <div class="statgrid">'
+  '<div><span class="k">Przypadki</span><span class="v">85 101</span><span class="d">0 czerwonych · 50 pominiętych (Z9)</span></div>'
+  '<div><span class="k">Pliki na zerze</span><span class="v">14</span><span class="d">ed12: 79 · 200 linii</span></div>'
+  '<div><span class="k">Martwe funkcje</span><span class="v">68</span><span class="d">ed12: 235</span></div>'
+  '<div><span class="k">Naruszenia progów</span><span class="v">0</span><span class="d">947 progów per ścieżka</span></div>'
+  '<div><span class="k">Rejestr ed11+ed12</span><span class="v">109 / 323</span><span class="d">naprawione · 7 z 7 krytycznych</span></div>'
+  '<div><span class="k">Nowe defekty</span><span class="v">79</span><span class="d">po próbie obalenia · 4 wysokie</span></div>'
+  '</div>')
+w('  <p class="section-note">Ten sam provider i ta sama reguła mianownika co w wydaniu 12 (porównane bloki <code>coverage</code>), więc delta jest przyrostem pracy testowej. '
+  'Pierwszy przebieg w tej serii bez zastrzeżenia środowiskowego: host <code>cdn.sheetjs.com</code> jest osiągalny, paczka <code>xlsx</code> zainstalowała się z lockfile, '
+  'a 19 przypadków, które w wydaniu 12 padały na zaślepce, jest zielonych.</p>')
+w('</section>')
+
+# ---------- 17.1 ----------
+t17_1, _ = sekcja(1)
+w('<section>')
+w('  <span class="eyebrow">Zanim padną liczby</span>')
+w('  <h2>Trzy rzeczy, które trzeba wiedzieć przed liczbami</h2>')
+w('  <div class="tgrid">' + ''.join(f'<div class="tcard"><p class="tproof">{inline(a)}</p></div>' for a in akapity(t17_1)) + '</div>')
+w('</section>')
+
+# ---------- najpilniejsze: 4 wysokie + krytyk ----------
+t17_8, _ = sekcja(8)
+wysokie_tekst = t17_8[t17_8.index('Cztery wysokie.'):t17_8.index('Najważniejsze średnie:')]
+pkt = punkty(wysokie_tekst)
+TYT = ['Każda wysyłka zaproszenia kończy się błędem', 'Zapis ustawień klubu przez prowadzącego zawsze pada',
+       'Zaproszenie nowej osoby do innego najemcy zawsze odmawia', 'Main jest czerwony na bramce wydania']
+w('<section>')
+w('  <span class="eyebrow">Nowe defekty wysokie · po próbie obalenia · dwa pierwsze przeczytane w kodzie osobiście</span>')
+w('  <h2>Co naprawić najpierw</h2>')
+w('  <p class="section-note">Według rubryki tego audytu krytyczny znaczy wyciek między najemcami, obejście autoryzacji albo utratę pieniędzy lub danych. '
+  'Żaden nowy defekt tego nie robi - ale pierwszy wyłącza całą funkcję zaproszeń i jest najpoważniejszą regresją okna.</p>')
+w('  <div class="fgrid" style="margin-top:14px">')
+for tyt, p in zip(TYT, pkt):
+    tresc = re.sub(r'^\*\*[^*]+\*\*\s*', '', p)
+    if tresc.startswith(','):
+        tresc = ('Na `5b8c77c01` check `Required release checks` pada na budżecie bundla: 4 806,5 KB po kompresji gzip przy budżecie 4 772 KB. '
+                 'Bramka blokuje scalenia PR-ów, ale nie wypchnięcia bezpośrednie, więc kolejne commity trafiały na `main` mimo czerwieni (17.10).')
+    w(f'    <article class="finding wysokie"><div class="fmeta"><span class="sev wysokie">wysoki</span><span class="chip ok">potwierdzony</span></div>'
+      f'<h3>{html.escape(tyt)}</h3><p>{inline(tresc)}</p></article>')
+w('  </div>')
+srednie = t17_8[t17_8.index('Najważniejsze średnie:'):].split('\n\n')[0]
+w(f'  <p class="note" style="margin-top:14px">{inline(srednie)}</p>')
+kryt = t17_8[t17_8.index('**Krytyk kompletności'):]
+kpar = akapity(kryt)
+kpkt = punkty(kryt)
+w('  <h3 style="margin-top:28px">Krytyk kompletności: śledztwo bez próby obalenia</h3>')
+kwstep = re.sub(r'^\*\*[^*]+\*\*\s*', '', kpar[0])
+w(f'  <p class="section-note">{inline(kwstep)}</p>')
+w('  <div class="zgrid" style="margin-top:12px">')
+for p in kpkt:
+    m = re.match(r'^\*\*\((\w+)\)\s*(.+?)\*\*\s*(.*)$', p)
+    w(f'    <div class="zcard t3"><div class="zhead"><span class="zname">{inline(m.group(2))}</span><span class="chip info">zgłoszone</span></div>'
+      f'<p class="tproof">{inline(m.group(3))}</p><span class="zmeta">waga: {m.group(1)}</span></div>')
+w('  </div>')
+w(f'  <p class="note" style="margin-top:12px">{inline(kpar[-1])}</p>')
+w('</section>')
+
+# ---------- rynek: przeglad z perspektywy platformy ----------
+t17_14, _ = sekcja(14)
+tk = tabele(t17_14)
+krytria, ranking = tk[0], tk[1]
+nes = next(r for r in TAB if r['klucz'] == 'nes')
+inne = [r for r in TAB if r['klucz'] != 'nes']
+perf_inne = [r['perf'] for r in inne if r.get('perf') is not None]
+med = round(statistics.median(perf_inne) * 100)
+w('<section>')
+w('  <span class="eyebrow">Przegląd rynkowy · 32 ośrodki z Polski, UE, USA i Azji · rubryka K1-K15 · bez kolejnych prób obalenia</span>')
+w('  <h2>Platforma na tle think tanków: oprogramowanie ponad rynkiem, wdrożenie w środku stawki</h2>')
+w('  <p class="section-note">NES oceniam dwa razy: <b>zdolność platformy w kodzie</b> (<code>5b8c77c01</code>) i <b>wdrożenie publiczne</b> <code>neweuropeanstrategies.com</code>. '
+  'Wprost z konkurencją porównywalne jest tylko to drugie. Oceny K1-K11 wystawiał agent na tym, co strona daje publicznie dziś; 23 z 33 przeszły próbę obalenia, '
+  'kolejnych prób nie prowadziłem. K12-K15 liczę mechanicznie: Lighthouse 12.8.2 mobile (mediana z trzech przebiegów) i nagłówki bezpieczeństwa.</p>')
+w('  <div class="statgrid">'
+  '<div><span class="k">Zdolność w kodzie</span><span class="v">30 / 33</span><span class="d">więcej niż każda oceniona strona</span></div>'
+  '<div><span class="k">Wdrożenie</span><span class="v">21 / 33</span><span class="d">13. miejsce z 33</span></div>'
+  '<div><span class="k">Najlepszy ośrodek</span><span class="v">28 / 33</span><span class="d">Chatham House</span></div>'
+  f'<div><span class="k">Lighthouse wydajność</span><span class="v">39</span><span class="d">NES · mediana 26 ośrodków {med}</span></div>'
+  '<div><span class="k">Nagłówki bezpieczeństwa</span><span class="v">3 / 3</span><span class="d">komplet: NES i Atlantic Council</span></div>'
+  '</div>')
+# wykres K1-K11: kod / wdrozenie / srednia rynku, os 0-3
+w('  <h3 style="margin-top:26px">Kryterium po kryterium: kod, wdrożenie i średnia rynku</h3>')
+w('  <div class="legend"><span><i style="background:var(--accent)"></i>NES: zdolność w kodzie</span><span><i style="background:var(--t2)"></i>NES: wdrożenie</span>'
+  '<span><i style="background:var(--ink3)"></i>średnia 32 ośrodków</span></div>')
+NAZWY_K = {'K1': 'Formaty i głębia treści', 'K2': 'Eksperci jako byt', 'K3': 'Taksonomia i huby', 'K4': 'Wyszukiwarka', 'K5': 'Wielojęzyczność',
+           'K6': 'Newsletter i alerty', 'K7': 'Wydarzenia', 'K8': 'Przychody i członkostwo', 'K9': 'Konto i personalizacja',
+           'K10': 'Interaktywność i dane', 'K11': 'Przejrzystość instytucjonalna'}
+w('  <div class="kchart" role="img" aria-label="Wykres: dla każdego kryterium K1-K11 trzy słupki na skali 0-3 - zdolność NES w kodzie, wdrożenie NES i średnia 32 ośrodków">')
+w('    <div class="kaxis"><span></span><span class="kscale"><b style="left:0">0</b><b style="left:33.333%">1</b><b style="left:66.667%">2</b><b style="left:100%">3</b></span><span></span></div>')
+for wiersz in krytria[2]:
+    k = wiersz[0].replace('*', '').strip()
+    if not k.startswith('K'):
+        continue
+    kod = float(wiersz[1].replace('*', '').replace(',', '.'))
+    wdr = float(wiersz[2].replace('*', '').replace(',', '.'))
+    sr = float(wiersz[3].replace('*', '').replace(',', '.'))
+    w(f'    <div class="krow"><span class="klab"><b>{k}</b> {NAZWY_K[k]}</span><span class="ktrack">'
+      f'<i class="kb kod" style="width:{kod / 3 * 100:.1f}%"></i><i class="kb wdr" style="width:{wdr / 3 * 100:.1f}%"></i><i class="kb ryn" style="width:{sr / 3 * 100:.1f}%"></i></span>'
+      f'<span class="kval">{pl(kod, 0)} · {pl(wdr, 0)} · {pl(sr, 2)}</span></div>')
+w('  </div>')
+# Lighthouse: pas wydajnosci 26 osrodkow + NES
+w('  <h3 style="margin-top:26px">Wydajność: gdzie NES stoi w rozkładzie</h3>')
+w('  <div class="strip" role="img" aria-label="Rozkład wyniku wydajności Lighthouse 26 zmierzonych ośrodków na skali 0-100, z zaznaczonymi pomiarami NES">')
+w('    <div class="strack"><span class="sband" style="left:0;width:25%"></span><span class="sband b2" style="left:25%;width:25%"></span><span class="sband b3" style="left:50%;width:40%"></span><span class="sband b4" style="left:90%;width:10%"></span>')
+for v in sorted(perf_inne):
+    w(f'      <i class="sdot" style="left:{v * 100:.1f}%"></i>')
+w(f'      <i class="smed" style="left:{med}%"></i>')
+punkty_nes = {}
+for etyk, klucz in [('EN', 'nes/glowna'), ('PL', 'nes/glowna-pl'), ('analiza', 'nes/artykul')]:
+    punkty_nes.setdefault(round(K1215[klucz]['performance'] * 100), []).append(etyk)
+for n_p, (v, etyki) in enumerate(sorted(punkty_nes.items())):
+    w(f'      <i class="snes" style="left:{v}%"></i><span class="snesl p{n_p % 2}" style="left:{v}%">NES {" i ".join(etyki)} {v}</span>')
+w('    </div>')
+w('    <div class="sscale"><b style="left:0">0</b><b style="left:25%">25</b><b style="left:50%">50</b><b style="left:75%">75</b><b style="left:90%">90</b><b style="left:100%">100</b></div>')
+w(f'    <p class="zmeta">Kropki: wynik wydajności 26 zmierzonych ośrodków (mediana {med}, pionowa kreska). Znaczniki: NES - strona główna po angielsku, po polsku i analiza. '
+  'Pasy tła to progi punktacji K13: poniżej 25 - 0 pkt, 25-49 - 1 pkt, 50-89 - 2 pkt, od 90 - 3 pkt.</p>')
+w('  </div>')
+w('  <h3 style="margin-top:26px">Co to znaczy dla platformy</h3>')
+w('  ' + proza('\n'.join(l for l in t17_14[t17_14.index('**Co to znaczy dla platformy:**'):].split('\n')[1:])))
+# ranking w details
+def klasa_rankingu(wiersz):
+    return 'nes' if 'New European Strategies' in wiersz[1] else ''
+w('  <details style="margin-top:16px"><summary><span class="sm-name">Pełna tabela 33 witryn</span><span class="sm-stat2">K1-K11, K12-K15, Lighthouse, uwagi</span></summary>')
+w('  ' + tabela_html(*ranking, klasy_wierszy=klasa_rankingu))
+w('  </details>')
+w('  <details><summary><span class="sm-name">Kryteria K1-K11 w liczbach</span><span class="sm-stat2">kod, wdrożenie, średnia, ile ośrodków ma 3 pkt</span></summary>')
+w('  ' + tabela_html(*krytria))
+w('  </details>')
+ogr = [a for a in akapity(t17_14) if a.startswith('**Ograniczenia')]
+if ogr:
+    w(f'  <p class="section-note">{inline(ogr[0])}</p>')
+w('</section>')
+
+# ---------- plan 17.15 ----------
+t17_15, tyt15 = sekcja(15)
+w('<section>')
+w('  <span class="eyebrow">Plan naprawczy wydania 13 · kolejność: ryzyko dla użytkownika i pieniędzy, potem dowód, potem treść</span>')
+w('  <h2>Co robić i w jakiej kolejności</h2>')
+w('  <ol class="recs">')
+for l in t17_15.split('\n'):
+    m = re.match(r'^\d+\. \*\*(.+?)\*\* - zamyka: (.*)$', l)
+    if not m:
+        continue
+    reszta = m.group(2)
+    i = reszta.find('. ')
+    if 0 < i <= 70:
+        zam, opis = reszta[:i], reszta[i + 2:]
+        w(f'    <li class="rec"><span class="rt">{inline(m.group(1))}<span class="rz">zamyka: {inline(zam)}</span></span><p>{inline(opis)}</p></li>')
+    else:
+        w(f'    <li class="rec"><span class="rt">{inline(m.group(1))}</span><p>Zamyka: {inline(reszta)}</p></li>')
+w('  </ol>')
+w('</section>')
+
+# ---------- 17.7 znaleziska i plan wydania 12 ----------
+t17_7, _ = sekcja(7)
+tz = tabele(t17_7)
+w('<section>')
+w('  <span class="eyebrow">Znaleziska wydania 11 i plan wydania 12 · każdy werdykt po próbie obalenia</span>')
+w('  <h2>Co okno zrobiło z dziesięcioma znaleziskami i czternastoma pozycjami planu</h2>')
+w(f'  <p class="section-note">{inline(akapity(t17_7)[0])}</p>')
+def kom_z(c, txt, wiersz):
+    if c in (1, 2):
+        czysty = txt.replace('*', '')
+        return chip(czysty, CHIP.get(czysty.split(',')[0].strip(), 'info'))
+    return None
+w('  ' + tabela_html(*tz[0], komorka=kom_z))
+w(f'  <h3 style="margin-top:22px">{inline(next(a for a in akapity(t17_7) if a.startswith("**Plan naprawczy")))}</h3>')
+def kom_plan(c, txt, wiersz):
+    if c == 2:
+        stan, _, reszta = txt.partition(' - ')
+        return chip(stan.strip()) + (f' <span class="dim">{inline(reszta)}</span>' if reszta else '')
+    return None
+w('  ' + tabela_html(*tz[1], komorka=kom_plan))
+w('  <h3 style="margin-top:22px">Najważniejsze ustalenia</h3>')
+w('  <ul class="mdlist">' + ''.join(f'<li>{inline(p)}</li>' for p in punkty(t17_7[t17_7.index('Najważniejsze ustalenia'):])) + '</ul>')
+w('</section>')
+
+# ---------- 17.5 pokrycie per modul ----------
+t17_5, _ = sekcja(5)
+tm = tabele(t17_5)[0]
+def kl_mod(wiersz):
+    try:
+        v = float(wiersz[4].replace('*', '').replace('%', '').replace(',', '.'))
+    except ValueError:
+        return ''
+    return 't4' if v >= 99.5 else 't3' if v >= 98 else 't2' if v >= 95 else 't1'
+def kom_mod(c, txt, wiersz):
+    if c == 1:
+        return f'<span class="mod">{inline(txt)}</span>'
+    if c == 4:
+        try:
+            v = float(txt.replace('*', '').replace('%', '').replace(',', '.'))
+        except ValueError:
+            return None
+        k = kl_mod(wiersz)
+        return f'<span class="bar {k}"><i style="width:{v:.1f}%"></i></span>{inline(txt)}'
+    if c == 5:
+        v = txt.replace('*', '')
+        k = 'up' if v.startswith('+') else 'down' if v.startswith('-') else 'flat'
+        return f'<span class="delta"><span class="{k}">{inline(v)}</span></span>'
+    return None
+w('<section>')
+w('  <span class="eyebrow">Pokrycie per moduł · 22 moduły i 3 przekroje · delta wobec wydania 12</span>')
+w('  <h2>Pokrycie modułu po module</h2>')
+w('  ' + tabela_html(*tm, klasy_wierszy=kl_mod, komorka=kom_mod))
+w('  <div class="legend"><span><i style="background:var(--t4)"></i>linie ≥ 99,5%</span><span><i style="background:var(--t3)"></i>98-99,5%</span>'
+  '<span><i style="background:var(--t2)"></i>95-98%</span><span><i style="background:var(--t1)"></i>poniżej 95%</span></div>')
+w('  ' + proza('\n\n'.join(a for a in akapity(t17_5))))
+w('</section>')
+
+# ---------- 17.6 funkcjonalnosci ----------
+t17_6, _ = sekcja(6)
+tf = tabele(t17_6)[0]
+w('<section>')
+w('  <span class="eyebrow">Funkcjonalności · mapa wydania 12 przeniesiona na nowe drzewo</span>')
+w('  <h2>350 funkcjonalności: 215 na 100% linii, dwie poniżej 80%</h2>')
+w('  ' + proza('\n\n'.join(akapity(t17_6))))
+moduly = {}
+for wiersz in tf[2]:
+    moduly.setdefault(wiersz[0], []).append(wiersz)
+def klucz_mod(k):
+    return (0, int(k)) if k.isdigit() else (1, k)
+for mod in sorted(moduly, key=klucz_mod):
+    wiersze = moduly[mod]
+    linie = [float(x[4].replace('*', '').replace('%', '').replace(',', '.')) for x in wiersze]
+    najs = min(linie)
+    k = 't4' if najs >= 99.5 else 't3' if najs >= 95 else 't2' if najs >= 80 else 't1'
+    w(f'  <details><summary><span class="sm-num">{html.escape(mod)}</span><span class="sm-name">{html.escape(NAZWY.get(mod, "moduł " + mod))}</span>'
+      f'<span class="sm-stat2">{len(wiersze)} funkcjonalności</span><span class="sm-stat {k}">najsłabsza {pl(najs, 2)}%</span></summary>')
+    w('  ' + tabela_html(tf[0][1:], tf[1][1:], [x[1:] for x in wiersze]))
+    w('  </details>')
+w('</section>')
+
+# ---------- 17.4 zera ----------
+t17_4, _ = sekcja(4)
+t4 = tabele(t17_4)
+w('<section>')
+w('  <span class="eyebrow">Pliki na zerowym pokryciu linii</span>')
+w('  <h2>Czternaście plików na zerze, z czego dwanaście to trasy</h2>')
+zp = [a for a in akapity(t17_4) if a.startswith('**Na zerze')]
+if zp:
+    w(f'  <p class="section-note">{inline(zp[0])}</p>')
+w('  ' + tabela_html(*t4[-1]))
+w('</section>')
+
+# ---------- defekty: nowe i rejestr ----------
+D = J('defekty13.json')
+WAGA = {'wysoki': 'wysokie', 'sredni': 'srednie', 'niski': ''}
+WAGA_PL = {'wysoki': 'wysoki', 'sredni': 'średni', 'niski': 'niski', 'brak': 'brak'}
+def tab_def(lista, kolumna_zrodla=True):
+    nag = ['Id', 'Waga', 'Tor', 'Defekt', 'Miejsce'] + (['Źródło'] if kolumna_zrodla else [])
+    h = ['<div class="tw"><table><thead><tr>' + ''.join(f'<th>{x}</th>' for x in nag) + '</tr></thead><tbody>']
+    for d in lista:
+        sev = WAGA.get(d.get('waga'), '')
+        wg = f'<span class="sev {sev}">{WAGA_PL.get(d.get("waga"), d.get("waga"))}</span>' if sev else WAGA_PL.get(d.get('waga'), d.get('waga') or '')
+        miejsce = f'<code>{html.escape(d.get("plik") or "")}{":" + str(d["linia"]) if d.get("linia") else ""}</code>'
+        h.append(f'<tr><td class="dim">{html.escape(d["id"])}</td><td>{wg}</td><td>{html.escape(str(d.get("tor") or ""))}</td>'
+                 f'<td>{html.escape(d.get("tytul") or "")}</td><td>{miejsce}</td>' + (f'<td class="dim">{html.escape(d.get("zrodlo") or "")}</td>' if kolumna_zrodla else '') + '</tr>')
+    h.append('</tbody></table></div>')
+    return ''.join(h)
+kol = {'wysoki': 0, 'sredni': 1, 'niski': 2, 'brak': 3}
+pot = sorted([d for d in D if d['werdykt'] == 'POTWIERDZONY'], key=lambda d: (kol.get(d['waga'], 9), d['id']))
+bez = sorted([d for d in D if d['werdykt'] == 'BRAK'], key=lambda d: (kol.get(d['waga'], 9), d['id']))
+obal = sorted([d for d in D if d['werdykt'] == 'OBALONY'], key=lambda d: d['id'])
+t17_9, _ = sekcja(9)
+t9 = tabele(t17_9)
+w('<section>')
+w('  <span class="eyebrow">Defekty · nowe po próbie obalenia i rozliczenie rejestru wydań 11 i 12</span>')
+w('  <h2>79 nowych defektów potwierdzonych, 109 z rejestru naprawionych</h2>')
+w(f'  <p class="section-note">{inline(akapity(t17_8)[0])}</p>')
+w(f'  <details><summary><span class="sm-name">Potwierdzone po próbie obalenia</span><span class="sm-stat2">wysokie 4 · średnie 19 · niskie 56</span><span class="sm-stat t2">{len(pot)}</span></summary>{tab_def(pot)}</details>')
+w(f'  <details><summary><span class="sm-name">Zgłoszone bez próby obalenia</span><span class="sm-stat2">do potwierdzenia przy naprawie</span><span class="sm-stat t3">{len(bez)}</span></summary>{tab_def(bez)}</details>')
+w(f'  <details><summary><span class="sm-name">Obalone</span><span class="sm-stat2">mechanizm nie stoi albo nie jest nowy</span><span class="sm-stat t4">{len(obal)}</span></summary>{tab_def(obal)}</details>')
+w('  <h3 style="margin-top:22px">Rejestr wydań 11 i 12: co naprawiono, co stoi</h3>')
+w('  ' + proza('\n\n'.join(akapity(t17_9)[:2])))
+w('  <div class="two">' + tabela_html(*t9[0]) + tabela_html(*t9[1]) + '</div>')
+def kom_stan(c, txt, wiersz):
+    if c == 4:
+        return chip(txt, 'open' if txt.startswith('otwarty') else 'info')
+    return None
+w(f'  <details style="margin-top:14px"><summary><span class="sm-name">Wysokie, które stoją</span><span class="sm-stat2">otwarte i zmienione</span><span class="sm-stat t1">{len(t9[2][2])}</span></summary>'
+  + tabela_html(*t9[2], komorka=kom_stan) + '</details>')
+w('</section>')
+
+# ---------- 17.10-17.12 ----------
+w('<section>')
+w('  <span class="eyebrow">Bramki, progi, baza i determinizm</span>')
+w('  <h2>Co jest chronione, a co tylko zmierzone</h2>')
+t17_10, _ = sekcja(10)
+linie10 = t17_10.split('\n')
+i_tab = next(i for i, l in enumerate(linie10) if l.startswith('|'))
+k_tab = next(i for i in range(i_tab, len(linie10) + 1) if i == len(linie10) or not linie10[i].startswith('|'))
+w('  ' + proza('\n'.join(linie10[:i_tab])))
+w('  ' + tabela_html(*tabele(t17_10)[0]))
+w('  ' + proza('\n'.join(linie10[k_tab:])))
+t17_11, tyt11 = sekcja(11)
+w(f'  <h3 style="margin-top:22px">{html.escape(tyt11)}</h3>')
+w('  ' + proza(t17_11))
+t17_12, tyt12 = sekcja(12)
+w(f'  <h3 style="margin-top:22px">{html.escape(tyt12)}</h3>')
+w('  ' + proza(t17_12))
+w('</section>')
+
+# ---------- 17.13 raporty ----------
+t17_13, _ = sekcja(13)
+w('<section>')
+w('  <span class="eyebrow">Raporty wdrożeń z okna · czy kod potwierdza to, co deklarują</span>')
+w('  <h2>Jedenaście kampanii i trzy raporty wydajności: naprawy są, liczby o sobie - nie zawsze</h2>')
+w(f'  <p class="section-note">{inline(akapity(t17_13)[0])}</p>')
+def kom_rap(c, txt, wiersz):
+    if c in (1, 2):
+        return chip(txt)
+    return None
+w('  ' + tabela_html(*tabele(t17_13)[0], komorka=kom_rap))
+w(f'  <p class="note" style="margin-top:12px">{inline(akapity(t17_13)[-1])}</p>')
+w('</section>')
+
+# ---------- 17.2-17.3 okno ----------
+t17_2, _ = sekcja(2)
+t17_3, _ = sekcja(3)
+w('<section>')
+w('  <span class="eyebrow">Skala i delta okna · jedna definicja na dwóch drzewach</span>')
+w('  <h2>402 commity, 68 nowych plików - suita rośnie pięć razy szybciej niż kod</h2>')
+w(f'  <p class="section-note">{inline(next(a for a in akapity(t17_2) if a.startswith("**Okno")))}</p>')
+w('  ' + tabela_html(*tabele(t17_2)[0]))
+w(f'  <details style="margin-top:14px"><summary><span class="sm-name">Co przyszło: nowe pliki per moduł</span><span class="sm-stat2">68 nowych, 5 usuniętych</span></summary>'
+  + tabela_html(*tabele(t17_3)[0]) + '</details>')
+w('</section>')
+
+# ---------- 17.16-17.17 ----------
+t17_16, _ = sekcja(16)
+t17_17, _ = sekcja(17)
+w('<section>')
+w('  <span class="eyebrow">Rachunek sumienia i sprawdzalność</span>')
+w('  <h2>Co w tej serii prostuję i jak sprawdzić to wydanie</h2>')
+w('  <div class="fgrid" style="margin-top:6px">' + ''.join(f'<div class="note">{inline(a)}</div>' for a in akapity(t17_16)) + '</div>')
+w('  <h3 style="margin-top:22px">Jak sprawdzić</h3>')
+w('  ' + proza(t17_17))
+w('</section>')
+
+ed13 = '\n'.join(o)
+
+# ---------- montaz z archiwum wydania 12 ----------
+s = open(STARY, encoding='utf-8').read()
+start = s.index('<title>')
+glowa_i_reszta = s[start:]
+i_wrap = glowa_i_reszta.index('<div class="wrap">')
+glowa = glowa_i_reszta[:i_wrap]
+cialo = glowa_i_reszta[i_wrap + len('<div class="wrap">'):]
+k_div = cialo.rindex('</div>')
+cialo12 = cialo[:k_div].strip('\n')
+assert cialo12.startswith('<header class="hero">') and cialo12.endswith('</footer>'), (cialo12[:40], cialo12[-40:])
+cialo12 = cialo12.replace('<header class="hero">', '<header class="hero" style="border-bottom:0">', 1)
+
+CSS13 = '''
+/* --- wydanie 13 --- */
+.tcard .tproof b{color:var(--ink)}
+tr.nes td{background:var(--accent-soft);font-weight:600}
+td .dim,span.dim{color:var(--ink3)}
+.kchart{margin-top:12px;background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:9px}
+.krow,.kaxis{display:grid;grid-template-columns:minmax(150px,230px) minmax(0,1fr) 116px;gap:12px;align-items:center}
+.klab{font-size:13px;color:var(--ink2)}
+.klab b{font:500 11.5px/1 "IBM Plex Mono",monospace;color:var(--ink3);margin-right:6px}
+.ktrack{position:relative;display:flex;flex-direction:column;gap:2px;background:linear-gradient(90deg,var(--rule2) 1px,transparent 1px) 0 0/33.333% 100%;border-right:1px solid var(--rule2);padding:2px 0}
+.kb{display:block;height:6px;border-radius:1px;min-width:2px}
+.kb.kod{background:var(--accent)}.kb.wdr{background:var(--t2)}.kb.ryn{background:var(--ink3);opacity:.75}
+.kval{font:400 12px/1.2 "IBM Plex Mono",monospace;color:var(--ink3);text-align:right;white-space:nowrap}
+.kscale{position:relative;height:14px}
+.kscale b,.sscale b{position:absolute;transform:translateX(-50%);font:400 11px/1 "IBM Plex Mono",monospace;color:var(--ink3)}
+.strip{margin-top:12px;background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:44px 22px 14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px}
+.strack{position:relative;height:34px;border-bottom:1px solid var(--rule)}
+.sband{position:absolute;top:0;bottom:0;background:var(--t1bg)}
+.sband.b2{background:var(--t2bg)}.sband.b3{background:var(--t3bg)}.sband.b4{background:var(--t4bg)}
+.sdot{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:var(--ink3);opacity:.8}
+.smed{position:absolute;top:-6px;bottom:-6px;width:2px;margin-left:-1px;background:var(--ink2)}
+.snes{position:absolute;top:50%;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;background:var(--t1);transform:rotate(45deg);border-radius:1px}
+.snesl{position:absolute;bottom:calc(100% + 3px);transform:translateX(-50%);white-space:nowrap;font:500 11px/1 "IBM Plex Mono",monospace;color:var(--t1)}
+.snesl.p1{bottom:calc(100% + 17px)}
+.sscale{position:relative;height:14px}
+ol.recs{margin:14px 0 0}
+@media (max-width:640px){.krow,.kaxis{grid-template-columns:minmax(0,1fr);gap:4px}.kaxis>span:first-child,.kaxis>span:last-child{display:none}.kval{text-align:left}}
+'''
+glowa = glowa.replace('</style>', CSS13 + '</style>', 1) if '/* --- wydanie 13 --- */' not in glowa else glowa
+# ostatni </style> w glowie to arkusz projektu (pierwszy jest szkieletem publikacji, ale ten wycinamy razem z <head>)
+assert glowa.count('/* --- wydanie 13 --- */') == 1
+
+archiwum = ('<section>\n<details class="archiwum"><summary><span class="sm-num">12</span> <span class="sm-name">Wydanie 12 · 2026-10-01 · audyt całościowy po przepisaniu historii main</span>'
+            '<span class="sm-stat2">rozwiń pełny zapis, bez zmian liczb (z archiwum wydania 11)</span></summary>\n  <div class="archbody">\n'
+            + cialo12 + '\n  </div></details>\n</section>')
+stopka = ('<footer><span>Audyt pokrycia testami NES · wydanie 13 · HEAD <code>5b8c77c01</code> · 2026-10-04</span>'
+          '<span>Dokument źródłowy: <code>docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md</code>, rozdział 17 (PR #470)</span>'
+          '<span>Weryfikacja liczb: <code>bun scripts/audit/verify-edition-13.mjs</code> - 192 asercje na drzewie <code>5b8c77c01</code> czytanym z obiektów gita, 192 zielone, 0 czerwonych (commit <code>2c362a199</code>)</span>'
+          '<span>Dane: <code>docs/audyt-ed13/</code> (pomiar, defekty z werdyktami, migawka agentów, rynek, Lighthouse, nagłówki wdrożenia)</span></footer>')
+wynik = glowa + '<div class="wrap">\n' + ed13 + '\n\n' + archiwum + '\n\n' + stopka + '\n</div>\n'
+for zly in ('\u2014', '\u2013'):
+    n = ed13.count(zly) + stopka.count(zly)
+    assert n == 0, f'znak {zly!r} w nowej czesci: {n}'
+open(WYJSCIE, 'w', encoding='utf-8').write(wynik)
+print('ok', len(wynik), 'bajtow; nowa czesc', len(ed13))

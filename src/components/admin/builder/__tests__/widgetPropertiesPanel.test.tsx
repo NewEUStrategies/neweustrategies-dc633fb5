@@ -1047,9 +1047,9 @@ describe("WidgetProperties - domknięcie gałęzi zapisu", () => {
     );
     if (!select) throw new Error("test: brak listy stylu obramowania");
     fireEvent.change(select, { target: { value: "none" } });
-    // Styl obramowania jest PER TRYB: rezygnacja w trybie jasnym zostawia
-    // ustawienie trybu ciemnego (wartość płaska dotyczyła obu).
-    expect(node()?.style?.borderStyle).toEqual({ dark: "solid" });
+    // Styl obramowania jest wspólny dla trybów (geometria nie zależy od
+    // motywu, AGENTS.md), więc rezygnacja z linii usuwa klucz w obu.
+    expect(node()?.style?.borderStyle).toBeUndefined();
   });
 
   it("slot reklamowy bez danych pokazuje pustą listę", async () => {

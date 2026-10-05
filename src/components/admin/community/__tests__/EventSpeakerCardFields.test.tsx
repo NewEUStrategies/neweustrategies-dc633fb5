@@ -348,7 +348,7 @@ describe("EventSpeakerCardFields - kolor przycisku", () => {
 
   it("pusty kolor: wybierak pokazuje kolor marki, a pole ma go jako podpowiedz", () => {
     renderFields();
-    expect(picker().value).toBe("#FA9346");
+    expect(picker().value).toBe("#fa9346");
     expect(input("Kolor przycisku")).toHaveAttribute("placeholder", "#FA9346");
     expect(input("Kolor przycisku").value).toBe("");
   });
@@ -362,7 +362,7 @@ describe("EventSpeakerCardFields - kolor przycisku", () => {
 
   it("niepoprawny kolor nie psuje wybieraka - ten wraca do koloru marki", () => {
     renderFields({ color: "#abc" });
-    expect(picker().value).toBe("#FA9346");
+    expect(picker().value).toBe("#fa9346");
   });
 
   it("wybor w wybieraku wpisuje kolor do szkicu i do pola tekstowego", () => {
@@ -394,7 +394,7 @@ describe("EventSpeakerCardFields - kolor przycisku", () => {
 
     expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY, url: "/experts/x", color: "" });
     expect(input("Kolor przycisku").value).toBe("");
-    expect(picker().value).toBe("#FA9346");
+    expect(picker().value).toBe("#fa9346");
     // Po wyczyszczeniu nie ma juz czego czyscic.
     expect(resetButton()).toBeDisabled();
   });

@@ -171,7 +171,7 @@ describe("tabela zdarzeń", () => {
       report({ bySource: [], rows: [row({ langFallback: true, langSource: "default" })] }),
     );
 
-    expect(container.innerHTML).toContain("amber");
+    expect(container.innerHTML).toContain("brand");
     expect(screen.getByText(A("sources.default"))).toBeTruthy();
   });
 

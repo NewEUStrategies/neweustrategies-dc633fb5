@@ -1,0 +1,20 @@
+// Klasyfikacja plikow obu drzew (ed12 = b8b53ae5, teraz) taksonomia z dzisiejszego repo.
+import fs from "node:fs";
+import path from "node:path";
+const ROOT = "/home/user/neweustrategies-dc633fb5";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13";
+const mm = await import(ROOT + "/scripts/taxonomy/moduleMap.mjs");
+const isTest = (f) => /(^|\/)__tests__\/|\.test\.|\.spec\./.test(f);
+const isSrc = (f) => /\.(ts|tsx|js|jsx|mjs)$/.test(f) && !/\.d\.ts$/.test(f);
+const walk = (base, d, out = []) => { if (!fs.existsSync(d)) return out; for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!/^(node_modules|\.git|dist|coverage)$/.test(e.name)) walk(base, p, out); } else out.push(path.relative(base, p)); } return out; };
+const key = (f) => { const c = mm.classifyPath(f); return c.module != null ? String(c.module) : c.crossCutting ? "X-" + c.crossCutting : "NULL"; };
+const lines = (t) => { const n = t.split("\n").length; return t.endsWith("\n") ? n - 1 : n; };
+const out = {};
+for (const [n, base] of [["teraz", ROOT], ["ed12", SP + "/old-full"]]) {
+  const files = walk(base, path.join(base, "src")).filter(isSrc);
+  out[n] = Object.fromEntries(files.map((f) => [f, { k: key(f), t: isTest(f), loc: lines(fs.readFileSync(path.join(base, f), "utf8")) }]));
+}
+out.nazwy = Object.fromEntries([...mm.MODULE_NAMES.entries()].map(([k, v]) => [String(k), v]));
+out.przekroje = mm.CROSS_CUTTING.map((c) => ({ key: "X-" + c.key, name: c.name ?? c.label ?? c.key }));
+fs.writeFileSync(SP + "/klasy13.json", JSON.stringify(out));
+console.log("teraz", Object.keys(out.teraz).length, "ed12", Object.keys(out.ed12).length, "przekroje", JSON.stringify(out.przekroje));

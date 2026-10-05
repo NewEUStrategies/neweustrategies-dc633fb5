@@ -1,0 +1,42 @@
+{
+  "klucz": "kj",
+  "typ": "glowna",
+  "url": "https://klubjagiellonski.pl/",
+  "run": 3,
+  "ms": 19802,
+  "blad": null,
+  "finalUrl": "https://klubjagiellonski.pl/",
+  "fetchTime": "2026-10-04T15:47:40.048Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2225.5,
+  "runtimeError": null,
+  "warnings": [],
+  "kategorie": { "performance": 0.76, "accessibility": 0.81, "best-practices": 0.79, "seo": 0.85 },
+  "metryki": {
+    "first-contentful-paint": 2261.282,
+    "largest-contentful-paint": 3885.4230000000002,
+    "total-blocking-time": 364,
+    "cumulative-layout-shift": 0,
+    "speed-index": 3410.618267732953,
+    "interactive": 15463.004500000003,
+    "server-response-time": 803.794,
+    "total-byte-weight": 2682002,
+    "dom-size": 1115,
+    "network-requests": null,
+    "mainthread-work-breakdown": 3493.7639999999556,
+    "bootup-time": 1789.220000000006,
+    "third-party-summary": null
+  },
+  "a11yBledy": [
+    "color-contrast",
+    "frame-title",
+    "heading-order",
+    "label",
+    "link-name",
+    "target-size"
+  ],
+  "bpBledy": ["third-party-cookies", "inspector-issues"],
+  "seoBledy": ["crawlable-anchors", "robots-txt"],
+  "lcpElement": "<div class=\"pix\" style=\"background-image: url(&quot;https://klubjagiellonski.pl/wp-content/uploads/2026/…&quot;);\">",
+  "tytul": true
+}

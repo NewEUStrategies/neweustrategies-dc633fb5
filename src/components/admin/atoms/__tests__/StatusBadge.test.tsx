@@ -13,7 +13,7 @@ afterEach(cleanup);
 
 const CASES = [
   ["published", "emerald", "lucide-check"],
-  ["draft", "amber", "lucide-pencil"],
+  ["draft", "brand", "lucide-pencil"],
   ["pending_review", "sky", "lucide-send"],
   ["scheduled", "violet", "lucide-clock"],
   ["archived", "slate", "lucide-lock"],

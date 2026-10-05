@@ -1,5 +1,5 @@
 import type { Device, Mode, Themed, WidgetTypography } from "./types";
-import { pickMode } from "./themed";
+import { pickShared } from "./themed";
 
 type Specificity = 1 | 2 | 3;
 
@@ -67,12 +67,11 @@ export function normalizeTypographyGapPx(value: unknown): number | undefined {
 
 export function resolveWidgetTypography(
   stored: Themed<WidgetTypography> | undefined,
-  mode: Mode,
+  _mode: Mode,
   live?: WidgetTypography,
 ): WidgetTypography | undefined {
   if (hasKeys(live)) return live;
-  const opposite: Mode = mode === "dark" ? "light" : "dark";
-  return pickMode<WidgetTypography>(stored, mode) ?? pickMode<WidgetTypography>(stored, opposite);
+  return pickShared<WidgetTypography>(stored);
 }
 
 export function buildWidgetTypographyCss(

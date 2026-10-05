@@ -1,6 +1,6 @@
 // Build a scoped :hover CSS block for a widget from its HoverStyle.
 import type { CommonStyle, Device, HoverStyle, Mode } from "./types";
-import { pickMode } from "./themed";
+import { isThemedValue, pickMode, pickShared } from "./themed";
 
 const escape = (s: string) => s.replace(/[^a-zA-Z0-9_-]/g, "");
 
@@ -16,8 +16,16 @@ export function hoverCss(
   device: Device,
   mode: Mode = "light",
 ): string {
-  const h = pickMode<HoverStyle>(style?.hover, mode);
-  if (!h) return "";
+  const stored = style?.hover;
+  const shared = pickShared<HoverStyle>(stored);
+  const active = pickMode<HoverStyle>(stored, mode);
+  if (!shared && !active) return "";
+  const flat = !isThemedValue<HoverStyle>(stored) ? stored : undefined;
+  const h: HoverStyle = {
+    ...shared,
+    bgColor: pickMode<string>(flat?.bgColor, mode) ?? active?.bgColor,
+    textColor: pickMode<string>(flat?.textColor, mode) ?? active?.textColor,
+  };
   const id = escape(widgetId);
   if (!id) return "";
 

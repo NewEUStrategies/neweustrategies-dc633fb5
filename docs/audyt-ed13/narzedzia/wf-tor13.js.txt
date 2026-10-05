@@ -1,0 +1,165 @@
+export const meta = {
+  name: 'audyt-ed13-tory',
+  description: 'Wydanie 13 audytu: tory modulow od mapy wydania 12 - delta mapy, nowe defekty w nowym i zmienionym kodzie, rozliczenie defektow ed11/ed12, proba obalenia',
+  phases: [
+    { title: 'Mapa', detail: 'delta mapy toru wzgledem wydania 12 + definicje funkcjonalnosci (wzorce sciezek)' },
+    { title: 'Defekty', detail: 'nowe defekty w nowym i zmienionym kodzie + status otwartych defektow w zmienionych plikach' },
+    { title: 'Obalanie', detail: 'osobny agent probuje obalic kazdy nowy defekt i kazdy status' },
+  ],
+}
+
+const REPO = '/home/user/neweustrategies-dc633fb5'
+const SPD = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+const DOC = REPO + '/docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md'
+
+const ZASADY = `
+ZASADY:
+- Repozytorium ${REPO}, HEAD 5b8c77c01 (main z 2026-10-04). Drzewo wydania 12 (stan sprzed okna, commit b8b53ae5): ${SPD}/old-full - porownuj "bylo / jest" przez: diff ${SPD}/old-full/<plik> ${REPO}/<plik> albo git -C ${REPO} diff b8b53ae5 HEAD -- <plik>.
+- TYLKO CZYTASZ. Nie zmieniasz plikow repo, nie commitujesz, NIE uruchamiasz vitest, playwright, tsc ani suity (trwa pomiar pokrycia). Wolno: grep/rg, cat/sed, diff, git log/show/diff, node one-liner czytajacy pliki.
+- Kazde twierdzenie o kodzie: sciezka:linia i cytat. Bez cytatu = nie zglaszasz.
+- Baza: stan = odtworzenie migracji po kolei (ostatnie CREATE OR REPLACE / DROP POLICY wygrywa); dwa pasy: supabase/migrations i drizzle/migrations (produkcja wykonuje tylko wpisy z drizzle/migrations/meta/_journal.json) - sprawdz oba.
+- Po polsku, dywiz "-", nigdy dluga kreska (U+2014) ani polpauza (U+2013), bez emoji. RODO: bez prawdziwych danych osobowych z kodu i fixture.
+- Waga: krytyczny = wyciek miedzy najemcami / obejscie autoryzacji / utrata pieniedzy lub danych; wysoki = realny blad na sciezce uzytkownika albo bezpieczenstwa; sredni = ograniczony zasieg; niski = higiena, martwy kod, rozjazd komentarza.
+- Kontekst poprzedniego wydania: rozdzial 16 dokumentu ${DOC} (wydanie 12). Nie przepisuj go - opisz ZMIANE.
+- BUDZET: najwyzej okolo 50 wywolan narzedzi. Czytaj fragmenty wskazane grepem, nie cale wielkie pliki. Gdy budzet sie konczy - zwroc to, co masz, i nazwij braki wprost (nie zgaduj).`
+
+const STR = { type: 'string' }
+const MAPA_SCHEMA = { type: 'object', properties: {
+  coPrzyszloWOknie: { type: 'string', description: 'Konkretnie: nowe mozliwosci dla uzytkownika i nowe elementy techniczne w tym torze od wydania 12, z plikami' },
+  noweObszary: { type: 'array', items: { type: 'object', properties: { nazwa: STR, coRobi: STR, pliki: { type: 'array', items: STR } }, required: ['nazwa', 'coRobi', 'pliki'] } },
+  noweKluczoweFunkcje: { type: 'array', items: { type: 'object', properties: { nazwa: STR, plik: STR, opis: STR }, required: ['nazwa', 'plik', 'opis'] } },
+  funkcjonalnosci: { type: 'array', description: 'WSZYSTKIE funkcjonalnosci toru (stare i nowe) z wzorcami sciezek', items: { type: 'object', properties: {
+    nazwa: STR, opis: STR,
+    wzorce: { type: 'array', items: STR, description: 'Zrodla regex JS zakotwiczone ^src/; kazdy wzorzec trafia w co najmniej jeden plik produkcyjny toru' },
+    nowa: { type: 'boolean' }, nazwaEd12: { type: 'string', description: 'dokladna nazwa funkcjonalnosci z wydania 12 albo pusty string' },
+  }, required: ['nazwa', 'opis', 'wzorce', 'nowa', 'nazwaEd12'] } },
+  usunieteFunkcjonalnosciEd12: { type: 'array', items: { type: 'object', properties: { nazwa: STR, powod: STR }, required: ['nazwa', 'powod'] } },
+  stanDowodu: { type: 'object', properties: { coDoszlo: STR, czegoNadalNieObejmuje: STR }, required: ['coDoszlo', 'czegoNadalNieObejmuje'] },
+  rekomendacjeEd12: { type: 'array', items: { type: 'object', properties: { tytul: STR, status: { type: 'string', enum: ['wykonana', 'czesciowo', 'niewykonana', 'nie_do_ustalenia'] }, dowod: STR }, required: ['tytul', 'status', 'dowod'] } },
+  noweRekomendacje: { type: 'array', items: { type: 'object', properties: { tytul: STR, tresc: STR }, required: ['tytul', 'tresc'] } },
+}, required: ['coPrzyszloWOknie', 'noweObszary', 'noweKluczoweFunkcje', 'funkcjonalnosci', 'usunieteFunkcjonalnosciEd12', 'stanDowodu', 'rekomendacjeEd12', 'noweRekomendacje'] }
+
+const STATUS = { type: 'object', properties: {
+  id: STR, tytul: STR, status: { type: 'string', enum: ['naprawiony', 'otwarty', 'zmieniony', 'nie_do_ustalenia'] }, dowod: STR,
+}, required: ['id', 'tytul', 'status', 'dowod'] }
+
+const DEF_SCHEMA = { type: 'object', properties: {
+  defekty: { type: 'array', items: { type: 'object', properties: {
+    tytul: STR, waga: { type: 'string', enum: ['krytyczny', 'wysoki', 'sredni', 'niski'] }, plik: STR, linia: { type: 'integer' },
+    dowod: { type: 'string', description: 'cytat kodu z numerami linii' }, mechanizm: STR, skutek: STR,
+  }, required: ['tytul', 'waga', 'plik', 'linia', 'dowod', 'mechanizm', 'skutek'] } },
+  statusDefektow: { type: 'array', items: STATUS },
+}, required: ['defekty', 'statusDefektow'] }
+
+const VERIFY_SCHEMA = { type: 'object', properties: {
+  werdykty: { type: 'array', items: { type: 'object', properties: {
+    typ: { type: 'string', enum: ['nowy_defekt', 'status'] }, id: { type: 'string', description: 'N<numer> dla nowego defektu albo id rejestru (R...) dla statusu' }, tytul: STR,
+    werdykt: { type: 'string', enum: ['POTWIERDZONY', 'OBALONY', 'NIEROZSTRZYGNIETY'] },
+    dowod: STR, korektaWagi: { type: 'string', description: 'poprawna waga i powod albo pusty string' },
+    poprawnyStatus: { type: 'string', description: 'dla typu status, gdy OBALONY: jaki status jest prawdziwy; inaczej pusty string' },
+  }, required: ['typ', 'id', 'tytul', 'werdykt', 'dowod', 'korektaWagi', 'poprawnyStatus'] } },
+  dodatkoweZnaleziska: { type: 'array', items: { type: 'object', properties: {
+    tytul: STR, waga: { type: 'string', enum: ['krytyczny', 'wysoki', 'sredni', 'niski'] }, plik: STR, linia: { type: 'integer' }, dowod: STR,
+  }, required: ['tytul', 'waga', 'plik', 'linia', 'dowod'] } },
+}, required: ['werdykty', 'dodatkoweZnaleziska'] }
+
+const FULL_SCHEMA = { type: 'object', properties: {
+  cel: STR,
+  ustalenia: { type: 'array', items: { type: 'object', properties: { punkt: STR, wynik: STR, dowod: STR }, required: ['punkt', 'wynik', 'dowod'] } },
+  defekty: DEF_SCHEMA.properties.defekty, statusDefektow: DEF_SCHEMA.properties.statusDefektow,
+  rekomendacje: { type: 'array', items: { type: 'object', properties: { tytul: STR, tresc: STR }, required: ['tytul', 'tresc'] } },
+}, required: ['cel', 'ustalenia', 'defekty', 'statusDefektow', 'rekomendacje'] }
+
+const wejscie = (t) => `${SPD}/delta/${t.tor}.json`
+
+function mapaPrompt(t) {
+  return `Jestes audytorem toru ${t.tor} platformy NES (TanStack Start + Supabase, multi-tenant, i18n PL/EN). ${ZASADY}
+
+WEJSCIE: ${wejscie(t)} - mapa modulu z wydania 12 (mapaEd12: bazaEd11 = cel, obszary i kluczowe funkcje; deltaEd12 = co doszlo w wydaniu 12; rekomendacjeOtwarte = rekomendacje, ktore po wydaniu 12 nie byly wykonane albo powstaly w wydaniu 12), lista nowych plikow (noweWOknie, z LOC), zmienionych (zmienioneWOknie, z liczba linii +/-), nowe i zmienione testy modulu. Lista WSZYSTKICH plikow produkcyjnych toru i definicje funkcjonalnosci wydania 12 (nazwa, opis, wzorce, pokrycie linii ed12): ${SPD}/wejscie/modul-${t.tor}.json (pola plikiProdukcyjne, funkcjonalnosciEd12).
+
+ZADANIE - NIE odtwarzaj mapy od zera. Opisz ZMIANE wzgledem wydania 12:
+1. coPrzyszloWOknie, noweObszary, noweKluczoweFunkcje - na podstawie plikow noweWOknie (przeczytaj ich naglowki i eksporty) i najwiekszych zmian w zmienioneWOknie (diff z drzewem wydania 12). Gdy w torze nic istotnego nie przyszlo, napisz to wprost.
+2. funkcjonalnosci: komplet definicji dla CALEGO toru - dla kazdej funkcjonalnosci ed12, ktora nadal istnieje, zachowaj DOKLADNA nazwe (nazwaEd12) i jej wzorce (popraw tylko, gdy pliki sie przeniosly lub doszly nowe); dopisz nowe (nowa=true). Wzorce razem maja objac co najmniej 90% plikow z plikiProdukcyjne; sprawdz to node one-linerem na liscie plikow (bez czytania tresci). Nie tworz jednej funkcjonalnosci "reszta".
+3. stanDowodu: co doszlo w testach (testyNoweModulu / testyZmienioneModulu - przeczytaj nazwy przypadkow, nie cale pliki) i czego dowod nadal nie obejmuje.
+4. rekomendacjeEd12: dla kazdej pozycji z mapaEd12.rekomendacjeOtwarte - wykonana / czesciowo / niewykonana, z jednym zdaniem dowodu (sciezka:linia). noweRekomendacje - tylko gdy nowy kod ich wymaga.`
+}
+
+function defPrompt(t) {
+  return `Jestes lowca defektow w torze ${t.tor} platformy NES (TanStack Start + Supabase, multi-tenant, i18n PL/EN). ${ZASADY}
+
+WEJSCIE: ${wejscie(t)} - noweWOknie (nowe pliki), zmienioneWOknie (zmienione pliki; zmiane sprawdz przez git -C ${REPO} diff b8b53ae5 HEAD -- <plik>), defektyDoSprawdzenia (otwarte defekty z wydan 11 i 12 z rejestru, ktorych plik zmienil sie w oknie albo ktore cytuja migracje - dla nich ustal stan; kazdy ma id R...), defektyWPlikachBezZmian (tylko kontekst - nie sprawdzaj).
+
+ZADANIE:
+1. defekty - NOWE defekty wylacznie w kodzie nowym albo zmienionym w oknie: brak zakresu najemcy (tenant_id) w zapytaniach i funkcjach serwerowych (szczegolnie supabaseAdmin / service-role), brak autoryzacji w createServerFn i trasach api, wyscigi i brak idempotencji (platnosci, webhooki, liczniki), nieograniczone zapytania, bledy logiki, niespojnosc i18n (tekst na sztywno, brak klucza EN albo PL), rozjazd komentarza z kodem, martwy kod, dostepnosc nowych komponentow. Nie zglaszaj ponownie defektu, ktory juz jest w defektyDoSprawdzenia albo defektyWPlikachBezZmian. Lepiej 3 prawdziwe niz 10 watpliwych.
+2. statusDefektow - dla KAZDEGO wpisu z defektyDoSprawdzenia (podaj jego id): naprawiony / otwarty / zmieniony, z dowodem z dzisiejszego kodu (dla migracji: czy pozniejsza migracja w ktorymkolwiek pasie zmienia ten obiekt). "zmieniony" = kod sie zmienil, defekt istnieje w innej postaci (opisz jakiej).`
+}
+
+function verifyPrompt(t, d) {
+  const nowe = (d.defekty ?? []).map((x, i) => `N${i + 1}. [${x.waga}] ${x.tytul}\n    miejsce: ${x.plik}:${x.linia}\n    dowod: ${String(x.dowod).slice(0, 900)}\n    mechanizm: ${String(x.mechanizm).slice(0, 500)}`).join('\n')
+  const stat = (d.statusDefektow ?? []).map((s) => `${s.id}. ${s.tytul}\n    status zgloszony: ${s.status}\n    dowod: ${String(s.dowod).slice(0, 700)}`).join('\n')
+  return `Jestes niezaleznym weryfikatorem w torze ${t.tor} platformy NES. Twoim zadaniem jest OBALIC twierdzenia innego agenta - domyslnie zakladaj, ze sie pomylil: czy kod pod wskazana linia naprawde tak wyglada, czy wrapper / middleware / pozniejsza migracja / bramka wyzej w lancuchu neutralizuje defekt, czy waga jest zawyzona; dla "naprawiony" - czy naprawa jest kompletna (wszystkie sciezki, oba pasy migracji, test); dla "otwarty" - czy nic jej nie naprawilo. ${ZASADY}
+
+NOWE DEFEKTY:
+${nowe || '(brak)'}
+
+STATUSY OTWARTYCH DEFEKTOW Z REJESTRU (wydania 11 i 12):
+${stat || '(brak)'}
+
+Dla kazdej pozycji: POTWIERDZONY / OBALONY / NIEROZSTRZYGNIETY z wlasnym dowodem (id: N1.. dla nowych, R... dla statusow). Rzeczy, ktorych agent nie zglosil, a ktore widzisz w kodzie nowym lub zmienionym w oknie - dodatkoweZnaleziska (z cytatem).`
+}
+
+function dbPrompt(t) {
+  return `Jestes audytorem warstwy bazy danych platformy NES (Supabase/Postgres, multi-tenant). ${ZASADY}
+
+WEJSCIE: ${SPD}/wejscie/db-delta.txt - pliki bazy dodane/zmienione w oknie (git name-status, 83 pozycje). ${wejscie(t)} - defektyDoSprawdzenia (otwarte defekty bazy z rejestru, z id). Wyniki mechaniczne, ktore juz mam (nie licz od nowa): migracje supabase 1059 -> 1082, drizzle SQL 146 -> 176; odtworzenie migracji: 320 tabel public, wszystkie z RLS; 42 tabele z RLS bez polityk (nowa: analytics_search_peppers); polityki RLS (biblioteka repo) 666 -> 668 na 291 tabelach; pgTAP 115/2 093 -> 137/2 678 asercji (22 nowe pliki: ${SPD}/pgrls13.json pole teraz.noweTesty), planned = counted w kazdym pliku.
+
+ZADANIE (kazdy punkt z dowodem, w polu ustalenia):
+1. Pasy migracji: 30 nowych plikow drizzle i 23 supabase - ile ma blizniaka w drugim pasie, czy kazdy nowy plik drizzle ma wpis w drizzle/migrations/meta/_journal.json i czy jego "when" jest wiekszy od maksimum dotychczasowych (produkcja pomija wpisy z mniejszym when), co mowi bramka src/lib/ci/migrationLaneParity.ts.
+2. analytics_search_peppers - czy dostep tylko przez service-role / SECURITY DEFINER jest zamierzony; czy zaden klient nie czyta jej kluczem uzytkownika (grep .from("analytics_search_peppers") w src).
+3. Nowe/zmienione funkcje SECURITY DEFINER w oknie: SET search_path, sprawdzenie auth.uid() i najemcy, REVOKE z PUBLIC/anon, GRANT tylko potrzebnym rolom.
+4. Nowe testy pgTAP w oknie (22 pliki): co pokrywaja; ktore nowe tabele/funkcje okna nie maja testu.
+5. Polityki RLS zmienione w oknie (668 vs 666): ktore, czy wiaza tenant_id.
+defekty: nowe defekty bazy w oknie; statusDefektow: status kazdego wpisu z defektyDoSprawdzenia (z id).`
+}
+
+function ciPrompt(t) {
+  return `Jestes audytorem CI i bramek jakosci platformy NES. ${ZASADY}
+
+WEJSCIE: ${SPD}/wejscie/ci-delta.txt - pliki CI/skryptow/konfiguracji zmienione w oknie. ${wejscie(t)} - defektyDoSprawdzenia (otwarte defekty CI z rejestru, z id). Wyniki mechaniczne, ktore juz mam: package.json 91 skryptow, 50 check:* (bez zmian); src/lib/ci 53 moduly; testow bramek *.gate.test.* 34 -> 38; progi per sciezka 834 -> 947 (5 martwych); it.fails 346 -> 310; vitest.config.ts zmieniony; workflow ci.yml zmieniony; scripts/audit/verify-edition-12.mjs dodany (przypiety do b8b53ae5, dzis czerwony z definicji).
+
+ZADANIE (kazdy punkt z dowodem, w polu ustalenia):
+1. Zmiany w .github/workflows/ci.yml w oknie: co doszlo/zniklo, co blokuje merge (release-gate needs), co tylko informuje.
+2. vitest.config.ts: jakie progi doszly (wypisz wzorce) i czy ktorykolwiek prog obnizono (zasada: wolno tylko podnosic) - porownaj z ${SPD}/old-full/vitest.config.ts mechanicznie (node one-liner na blokach thresholds).
+3. Bazy zapadek (scripts/lib/*Baseline.ts: clockFreeze, i18nHardcoded, i18nOverlayImport, unknownCast) - czy ich liczby w oknie SPADLY (dobrze) czy URSOSLY (zapadka poluzowana) - podaj liczby przed/po.
+4. scripts/taxonomy/moduleMap.mjs i features.mjs - co zmieniono w taksonomii (nowe/przeniesione reguly), wplyw na przypisanie plikow do modulow.
+5. Nowe skrypty wydajnosci (scripts/performance/firstVisit*.ts, scripts/lib/bootVendorSplit.ts) - czy sa uruchamiane w CI i czy blokuja.
+6. Status znalezisk CI z poprzednich wydan z defektyDoSprawdzenia.
+defekty: nowe defekty CI; statusDefektow: status kazdego wpisu z defektyDoSprawdzenia (z id).`
+}
+
+const TORY = args.tory
+log(`Grupa ${args.grupa}: tory ${TORY.join(', ')}`)
+const wyniki = await pipeline(
+  TORY,
+  (tor) => {
+    const t = { tor }
+    if (tor === 'DB' || tor === 'CI') {
+      return agent(tor === 'DB' ? dbPrompt(t) : ciPrompt(t), { label: `przekroj:${tor}`, phase: 'Mapa', schema: FULL_SCHEMA, effort: 'high' })
+        .then((m) => (m ? { tor, przekroj: m, def: { defekty: m.defekty, statusDefektow: m.statusDefektow } } : null))
+    }
+    return parallel([
+      () => agent(mapaPrompt(t), { label: `mapa:${tor}`, phase: 'Mapa', schema: MAPA_SCHEMA, effort: 'medium' }),
+      () => agent(defPrompt(t), { label: `defekty:${tor}`, phase: 'Defekty', schema: DEF_SCHEMA, effort: 'high' }),
+    ]).then(([m, d]) => ({ tor, mapa: m, def: d }))
+  },
+  (r) => {
+    if (!r) return null
+    const d = r.def ?? { defekty: [], statusDefektow: [] }
+    const ile = (d.defekty ?? []).length + (d.statusDefektow ?? []).length
+    if (!ile) return { ...r, weryfikacja: { werdykty: [], dodatkoweZnaleziska: [] } }
+    return agent(verifyPrompt({ tor: r.tor }, d), { label: `obal:${r.tor}`, phase: 'Obalanie', schema: VERIFY_SCHEMA, effort: 'high' })
+      .then((v) => ({ ...r, weryfikacja: v }))
+  },
+)
+const ok = wyniki.filter(Boolean)
+return { grupa: args.grupa, wyniki: ok, brakMapy: ok.filter((w) => !w.mapa && !w.przekroj).map((w) => w.tor), brakDefektow: ok.filter((w) => !w.def).map((w) => w.tor), brak: TORY.filter((t) => !ok.find((w) => w.tor === t)) }

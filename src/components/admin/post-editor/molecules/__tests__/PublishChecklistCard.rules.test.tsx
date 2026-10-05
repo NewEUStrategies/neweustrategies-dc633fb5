@@ -101,8 +101,8 @@ describe("PublishChecklistCard", () => {
     // Progi są deklaracją produktową („zielony = gotowe do publikacji"),
     // więc przesunięcie któregokolwiek zmienia sygnał dla redakcji.
     expect(colorAt(80)).toContain("emerald");
-    expect(colorAt(79)).toContain("amber");
-    expect(colorAt(50)).toContain("amber");
+    expect(colorAt(79)).toContain("brand");
+    expect(colorAt(50)).toContain("brand");
     expect(colorAt(49)).toContain("destructive");
   });
 

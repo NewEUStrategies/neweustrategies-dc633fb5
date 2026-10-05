@@ -1,0 +1,41 @@
+{
+  "klucz": "orf",
+  "typ": "artykul",
+  "url": "https://www.orfonline.org/expert-speak/how-ports-can-catalyse-the-blue-economy",
+  "run": 2,
+  "ms": 17267,
+  "blad": null,
+  "finalUrl": "https://www.orfonline.org/expert-speak/how-ports-can-catalyse-the-blue-economy",
+  "fetchTime": "2026-10-04T15:42:35.225Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2383.5,
+  "runtimeError": null,
+  "warnings": [],
+  "kategorie": { "performance": 0.52, "accessibility": 0.74, "best-practices": 0.54, "seo": 0.85 },
+  "metryki": {
+    "first-contentful-paint": 4689.782999999999,
+    "largest-contentful-paint": 12315.454000000005,
+    "total-blocking-time": 400,
+    "cumulative-layout-shift": 0,
+    "speed-index": 5771.222426135913,
+    "interactive": 12400.240500000005,
+    "server-response-time": 220.93300000000002,
+    "total-byte-weight": 1633324,
+    "dom-size": 800,
+    "network-requests": null,
+    "mainthread-work-breakdown": 2440.8560000000193,
+    "bootup-time": 1081.0839999999953,
+    "third-party-summary": null
+  },
+  "a11yBledy": ["color-contrast", "heading-order", "link-name", "listitem", "target-size"],
+  "bpBledy": [
+    "image-size-responsive",
+    "deprecations",
+    "third-party-cookies",
+    "errors-in-console",
+    "inspector-issues"
+  ],
+  "seoBledy": ["link-text", "crawlable-anchors"],
+  "lcpElement": "<img src=\"https://www.orfonline.org/public/uploads/posts/image/1791030838_img-Blue-E…\" class=\"mb-1 img-fluid w-100\" alt=\"How Ports Can Catalyse the Blue Economy\">",
+  "tytul": true
+}

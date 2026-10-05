@@ -167,7 +167,7 @@ function SeoSocialTab() {
       ? "text-emerald-500"
       : verdict === "unknown"
         ? "text-muted-foreground"
-        : "text-brand0";
+        : "text-brand";
 
   // Wybór POLA po języku podglądu (nie tekstu) - mapa zamiast ternary, żeby
   // było widać, że to odczyt kolumny, a nie kopia treści w dwóch wersjach.

@@ -242,7 +242,7 @@ function SeoDashboard() {
               key: "warnings",
               label: t("adminSeoHub.tileWarnings"),
               value: severity.warnings,
-              tone: severity.warnings ? "text-brand0" : "text-emerald-500",
+              tone: severity.warnings ? "text-brand" : "text-emerald-500",
             },
           ]}
         />
@@ -288,7 +288,7 @@ function SeoDashboard() {
               key: "image",
               label: t("adminSeoHub.tileDefaultImage"),
               value: contentSummary.defaultImage,
-              tone: contentSummary.defaultImage ? "text-brand0" : "text-emerald-500",
+              tone: contentSummary.defaultImage ? "text-brand" : "text-emerald-500",
             },
           ]}
         />

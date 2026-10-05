@@ -1,0 +1,19 @@
+#!/bin/bash
+# Pomiar pokrycia w shardach - wznawialny: shard z gotowym blobem jest pomijany.
+SP=/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13
+N=${N:-12}
+cd /home/user/neweustrategies-dc633fb5
+mkdir -p .vitest-reports $SP/shardy
+for i in $(seq 1 $N); do
+  B=.vitest-reports/blob-$i-$N.json
+  if [ -s "$B" ]; then echo "shard $i/$N: jest blob, pomijam" >> $SP/shardy/postep.log; continue; fi
+  echo "shard $i/$N: start $(date -u +%FT%TZ)" >> $SP/shardy/postep.log
+  npx vitest run --config vitest.shard.config.ts --coverage --shard=$i/$N --reporter=dot --reporter=blob --outputFile.blob=$B > $SP/shardy/shard-$i.log 2>&1
+  echo "shard $i/$N: EXIT $? koniec $(date -u +%FT%TZ)" >> $SP/shardy/postep.log
+done
+if [ "$(ls .vitest-reports/blob-*-$N.json 2>/dev/null | wc -l)" = "$N" ]; then
+  echo "merge: start $(date -u +%FT%TZ)" >> $SP/shardy/postep.log
+  rm -rf coverage
+  npx vitest run --merge-reports --coverage --reporter=dot --reporter=json --outputFile.json=$SP/vitest-results.json > $SP/shardy/merge.log 2>&1
+  echo "merge: EXIT $? koniec $(date -u +%FT%TZ)" >> $SP/shardy/postep.log
+fi

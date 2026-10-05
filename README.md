@@ -34,19 +34,18 @@ z dwujęzycznym interfejsem (polski i angielski) i pełną izolacją danych mię
 | Wymiar                                 | Stan                                   |
 | -------------------------------------- | -------------------------------------- |
 | Moduły domenowe                        | **22** oraz 3 powierzchnie przekrojowe |
-| Udokumentowane funkcjonalności         | **323**                                |
-| Pliki kodu produkcyjnego               | **4 031** (860 585 linii)              |
-| Pliki testowe                          | **2 999**                              |
-| Testy warstwy danych (pgTAP)           | 115 plików, 2 093 asercje              |
-| Testy ścieżek użytkownika (Playwright) | 25 plików, 314 testów (6 konfiguracji) |
-| Bramki jakości w CI (`check:*`)        | **50**                                 |
-| Progi pokrycia per ścieżka             | **834**                                |
-| Migracje bazy danych                   | 1 059 (+ 146 w pasie `drizzle/`)       |
-| Polityki RLS w stanie końcowym         | 666 na 291 tabelach                    |
+| Udokumentowane funkcjonalności         | **350**                                |
+| Pliki kodu produkcyjnego               | **4 094** (874 452 linie)              |
+| Pliki testowe                          | **3 059**                              |
+| Testy warstwy danych (pgTAP)           | 137 plików, 2 678 asercji              |
+| Testy ścieżek użytkownika (Playwright) | 24 pliki, 311 testów (6 konfiguracji)  |
+| Bramki jakości w CI (`check:*`)        | **25**                                 |
+| Migracje bazy danych                   | 1 082 (+ 176 w pasie `drizzle/`)       |
+| Polityki RLS w stanie końcowym         | 668 na 291 tabelach                    |
 
-Liczniki plików, testów, migracji i polityk odzwierciedlają stan repozytorium na 2026-10-01
-(HEAD `b8b53ae5`). Podział na moduły i funkcjonalności oraz wskaźniki pokrycia pochodzą z pomiaru
-audytowego z 2026-10-01 (wydanie 12).
+Liczniki migracji i polityk odzwierciedlają stan repozytorium na 2026-10-04 (HEAD `5b8c77c01`),
+a liczniki testów i bramek CI - stan po ograniczeniu suity 2026-10-05. Podział na moduły i funkcjonalności oraz wskaźniki pokrycia pochodzą z pomiaru
+audytowego z 2026-10-04 (wydanie 13).
 
 ## Moduły
 
@@ -151,19 +150,20 @@ grupami tematycznymi wspólnych primitywów; panel buildera utrzymuje własny, k
 
 Repozytorium traktuje kontrakty jakości jako kod wykonywalny, nie jako zalecenia w dokumentacji.
 
-- **50 bramek `check:*` w potoku CI** pilnują reguł domenowych, nie stylu: zakresu najemcy
-  w politykach RLS, zgodności snapshotu uprawnień z migracjami, jednokrotności migracji, budżetów
-  rozmiaru paczek, parytetu językowego, czystości wejść i grafu chunków.
-- **834 progi pokrycia per ścieżka** działają jako zapadka jednokierunkowa: wartości wolno
-  wyłącznie podnosić.
-- **115 plików pgTAP z 2 093 asercjami** dowodzą zachowania warstwy danych: izolacji najemcy,
+- **25 bramek `check:*` w potoku CI** pilnuje reguł domenowych, nie stylu: zakresu najemcy
+  w politykach RLS, kontraktu RPC z migracjami, bezpiecznego odtwarzania migracji, sanitizacji
+  HTML, budżetów rozmiaru paczek, czystości wejść i grafu chunków.
+- **Pokrycie nie jest bramką CI**: `bun run test:coverage` liczy je lokalnie z jednym progiem
+  globalnym; progi per ścieżka usunięto 2026-10-05.
+- **137 plików pgTAP z 2 678 asercjami** dowodzą zachowania warstwy danych: izolacji najemcy,
   polityk RLS, kontraktów RPC i triggerów.
-- **Pięć uprzęży odtwarzających migracje** sprawdza, że pełna historia 1 059 migracji wykonuje się na czystej bazie i że schemat po nich zachowuje się tak, jak deklaruje.
+- **Cztery uprzęże odtwarzające migracje** sprawdzają, że pełna historia 1 082 migracji wykonuje się na czystej bazie i że schemat po nich zachowuje się tak, jak deklaruje.
 - **Parytet polskiego i angielskiego jest bramką**, nie konwencją: kompletność obu słowników jest
   warunkiem przejścia potoku CI.
 - Pokrycie testami mierzone providerem `istanbul` (`vitest.config.ts:47`) na całym `src/`, z plikami
-  bez testów w mianowniku: **97,03% linii i 95,83% funkcji** w pomiarze z 2026-10-01,
-  w którym wykonano 79 399 przypadków testowych na 2 992 plikach.
+  bez testów w mianowniku: **98,84% linii i 98,32% funkcji** w pomiarze z 2026-10-04
+  (przed ograniczeniem suity 2026-10-05), w którym wykonano 85 101 przypadków testowych
+  na 3 253 plikach.
 
 Pełna metodologia i wyniki kolejnych pomiarów: `docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md`.
 
@@ -177,8 +177,8 @@ src/
   integrations/    klient bazy danych i typy generowane
   test/            fixture'y i harnessy współdzielone przez testy
 supabase/
-  migrations/      1 059 migracji SQL
-  tests/           115 plików pgTAP
+  migrations/      1 082 migracje SQL
+  tests/           137 plików pgTAP
 e2e/               ścieżki użytkownika (Playwright)
 scripts/           bramki CI, uprzęże, taksonomia modułów
 docs/              architektura, audyty, zapisy wdrożeń
@@ -241,19 +241,19 @@ interface (Polish and English) and data isolation enforced between workspaces.
 | Dimension                       | State                                  |
 | ------------------------------- | -------------------------------------- |
 | Domain modules                  | **22** plus 3 cross-cutting surfaces   |
-| Documented functionalities      | **323**                                |
-| Production source files         | **4,031** (860,585 lines)              |
-| Test files                      | **2,999**                              |
-| Data-layer tests (pgTAP)        | 115 files, 2,093 assertions            |
-| User-journey tests (Playwright) | 25 files, 314 tests (6 configurations) |
-| Quality gates in CI (`check:*`) | **50**                                 |
-| Per-path coverage thresholds    | **834**                                |
-| Database migrations             | 1,059 (+ 146 in the `drizzle/` lane)   |
-| RLS policies in final state     | 666 across 291 tables                  |
+| Documented functionalities      | **350**                                |
+| Production source files         | **4,094** (874,452 lines)              |
+| Test files                      | **3,059**                              |
+| Data-layer tests (pgTAP)        | 137 files, 2,678 assertions            |
+| User-journey tests (Playwright) | 24 files, 311 tests (6 configurations) |
+| Quality gates in CI (`check:*`) | **25**                                 |
+| Database migrations             | 1,082 (+ 176 in the `drizzle/` lane)   |
+| RLS policies in final state     | 668 across 291 tables                  |
 
-File, test, migration and policy counts reflect the state of the repository as of 2026-10-01
-(HEAD `b8b53ae5`). The module and functionality breakdown and the coverage figures come from the
-audit measurement of 2026-10-01 (edition 12).
+Migration and policy counts reflect the state of the repository as of 2026-10-04 (HEAD
+`5b8c77c01`); test and CI-gate counts reflect the state after the suite was trimmed on 2026-10-05.
+The module and functionality breakdown and the coverage figures come from the
+audit measurement of 2026-10-04 (edition 13).
 
 ## Modules
 
@@ -358,18 +358,20 @@ groupings of shared primitives; the builder admin UI maintains its own consisten
 
 The repository treats quality contracts as executable code rather than documented recommendations.
 
-- **50 `check:*` gates in the CI pipeline** enforce domain rules rather than style: tenant scope in
-  RLS policies, agreement between the permissions snapshot and migrations, migration idempotence,
-  bundle size budgets, language parity, entry purity and the chunk graph.
-- **834 per-path coverage thresholds** act as a one-way ratchet: values may only be raised.
-- **115 pgTAP files with 2,093 assertions** prove data-layer behaviour: tenant isolation, RLS
+- **25 `check:*` gates in the CI pipeline** enforce domain rules rather than style: tenant scope in
+  RLS policies, the RPC contract against migrations, safe migration replay, HTML sanitisation,
+  bundle size budgets, entry purity and the chunk graph.
+- **Coverage is not a CI gate**: `bun run test:coverage` measures it locally against a single
+  global threshold; the per-path thresholds were removed on 2026-10-05.
+- **137 pgTAP files with 2,678 assertions** prove data-layer behaviour: tenant isolation, RLS
   policies, RPC contracts and triggers.
-- **Five migration-replay harnesses** verify that the full history of 1,059 migrations executes on a clean database and that the resulting schema behaves as declared.
+- **Four migration-replay harnesses** verify that the full history of 1,082 migrations executes on a clean database and that the resulting schema behaves as declared.
 - **Polish and English parity is a gate**, not a convention: completeness of both dictionaries is
   a condition for the pipeline to pass.
 - Test coverage is measured with the `istanbul` provider (`vitest.config.ts:47`) across all of `src/`,
-  with untested files included in the denominator: **97.03% of lines and 95.83% of functions**
-  in the 2026-10-01 measurement, which ran 79,399 test cases across 2,992 files.
+  with untested files included in the denominator: **98.84% of lines and 98.32% of functions**
+  in the 2026-10-04 measurement (before the suite was trimmed on 2026-10-05), which ran 85,101
+  test cases across 3,253 files.
 
 Full methodology and the results of successive measurements:
 `docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md`.
@@ -384,8 +386,8 @@ src/
   integrations/    database client and generated types
   test/            fixtures and harnesses shared across tests
 supabase/
-  migrations/      1,059 SQL migrations
-  tests/           115 pgTAP files
+  migrations/      1,082 SQL migrations
+  tests/           137 pgTAP files
 e2e/               user journeys (Playwright)
 scripts/           CI gates, harnesses, module taxonomy
 docs/              architecture, audits, implementation records

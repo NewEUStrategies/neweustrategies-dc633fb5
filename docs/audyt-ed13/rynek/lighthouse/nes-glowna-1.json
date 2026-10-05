@@ -1,0 +1,37 @@
+{
+  "klucz": "nes",
+  "typ": "glowna",
+  "url": "https://neweuropeanstrategies.com/",
+  "run": 1,
+  "ms": 40676,
+  "blad": null,
+  "finalUrl": "https://neweuropeanstrategies.com/en",
+  "fetchTime": "2026-10-04T15:01:14.088Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2263,
+  "runtimeError": null,
+  "warnings": [
+    "The page may not be loading as expected because your test URL (https://neweuropeanstrategies.com/) was redirected to https://neweuropeanstrategies.com/en. Try testing the second URL directly."
+  ],
+  "kategorie": { "performance": 0.39, "accessibility": 0.95, "best-practices": 1, "seo": 0.92 },
+  "metryki": {
+    "first-contentful-paint": 2457.1215,
+    "largest-contentful-paint": 9751.447400000001,
+    "total-blocking-time": 1170.1987999999983,
+    "cumulative-layout-shift": 0.01052735727393925,
+    "speed-index": 11324.712654182038,
+    "interactive": 16452.34541999999,
+    "server-response-time": 1609.771,
+    "total-byte-weight": 1563214,
+    "dom-size": 1383,
+    "network-requests": null,
+    "mainthread-work-breakdown": 9214.16799999983,
+    "bootup-time": 4415.175999999961,
+    "third-party-summary": null
+  },
+  "a11yBledy": ["color-contrast", "heading-order"],
+  "bpBledy": [],
+  "seoBledy": ["robots-txt"],
+  "lcpElement": "<img src=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" srcset=\"https://neweuropeanstrategies.com/media/07167e87-2e0f-42e8-ac5e-72445a2d4b…\" sizes=\"(max-width: 767px) 10",
+  "tytul": true
+}

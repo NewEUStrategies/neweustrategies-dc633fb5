@@ -1,0 +1,57 @@
+# Agregacja pomiaru Lighthouse (mediana z przebiegow) i punktacja mechaniczna K12-K15.
+# K12 dostepnosc (Lighthouse a11y), K13 wydajnosc (Lighthouse perf, mobile lab), K14 SEO techniczne
+# (Lighthouse SEO), K15 naglowki bezpieczenstwa (HSTS, CSP, trojka XCTO + XFO/frame-ancestors + Referrer-Policy).
+# Kazde K liczone z mediany strony glownej i artykulu (srednia dwoch median, gdy oba sa).
+import json, glob, statistics, collections, os
+S='/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+runs=collections.defaultdict(list)
+for f in glob.glob(S+'/lh/wyniki/*.json'):
+    r=json.load(open(f))
+    runs[(r['klucz'],r['typ'])].append(r)
+def med(xs):
+    xs=[x for x in xs if x is not None]
+    return statistics.median(xs) if xs else None
+agg={}
+for (k,t),rs in runs.items():
+    ok=[r for r in rs if r.get('kategorie',{}).get('performance') is not None and not r.get('runtimeError')]
+    m={'przebiegi':len(rs),'udane':len(ok),'bledy':sorted({r.get('runtimeError') or ('BLAD' if r.get('blad') else '') for r in rs}-{''}),
+       'url':rs[0]['url'],'finalUrl':(ok or rs)[0].get('finalUrl'),'benchmarkIndex':med([r.get('benchmarkIndex') for r in rs])}
+    for c in ['performance','accessibility','best-practices','seo']:
+        m[c]=med([r['kategorie'].get(c) for r in ok]) if ok else med([r.get('kategorie',{}).get(c) for r in rs])
+        vals=[r['kategorie'].get(c) for r in ok]
+        m[c+'_rozrzut']=(min(vals),max(vals)) if vals else None
+    for mk in ['largest-contentful-paint','total-blocking-time','cumulative-layout-shift','first-contentful-paint','speed-index','server-response-time','total-byte-weight']:
+        m[mk]=med([r.get('metryki',{}).get(mk) for r in ok])
+    cnt=collections.Counter(x for r in ok for x in r.get('a11yBledy',[]))
+    m['a11yBledy']=[x for x,n in cnt.items() if n*2>len(ok)]
+    cnt=collections.Counter(x for r in ok for x in r.get('seoBledy',[]))
+    m['seoBledy']=[x for x,n in cnt.items() if n*2>len(ok)]
+    agg[f'{k}/{t}']=m
+mech=json.load(open(S+'/rynek/mech-glowna.json'))
+def pkt(v,progi):
+    if v is None: return None
+    for p,(lo) in zip((3,2,1),progi):
+        if v>=lo: return p
+    return 0
+wyn={}
+for s in json.load(open(S+'/rynek/strony.json')):
+    k=s['klucz']
+    strony=[agg.get(f'{k}/glowna'),agg.get(f'{k}/artykul')]
+    strony=[x for x in strony if x and x['udane']]
+    def sr(c):
+        v=[x[c] for x in strony if x.get(c) is not None]
+        return sum(v)/len(v) if v else None
+    perf,a11y,seo,bp=sr('performance'),sr('accessibility'),sr('seo'),sr('best-practices')
+    h=(mech.get(k) or {}).get('naglowki') or {}
+    csp=h.get('content-security-policy') or ''
+    trojka=bool(h.get('x-content-type-options')) and (bool(h.get('x-frame-options')) or 'frame-ancestors' in csp) and bool(h.get('referrer-policy'))
+    blok=(mech.get(k) or {}).get('status')==403 or k=='pism'
+    k15=None if blok else int(bool(h.get('strict-transport-security')))+int(bool(csp))+int(trojka)
+    wyn[k]={'nazwa':s['nazwa'],'region':s['region'],'zmierzone':len(strony),'perf':perf,'a11y':a11y,'seo':seo,'bp':bp,
+            'K12':pkt(a11y,(0.95,0.90,0.80)),'K13':pkt(perf,(0.90,0.50,0.25)),'K14':pkt(seo,(0.95,0.85,0.70)),'K15':k15,
+            'naglowki':{x:bool(h.get(x)) for x in ['strict-transport-security','content-security-policy','x-content-type-options','x-frame-options','referrer-policy','permissions-policy']},
+            'blokadaBotow':blok}
+json.dump({'agregat':agg,'punkty':wyn},open(S+'/rynek/k12-15.json','w'),ensure_ascii=False,indent=1)
+for k,v in wyn.items():
+    f=lambda x: '-' if x is None else (f'{x*100:.0f}' if isinstance(x,float) and x<=1 else str(x))
+    print(f"{k:16} {v['region']:5} n={v['zmierzone']} perf={f(v['perf'])} a11y={f(v['a11y'])} seo={f(v['seo'])} bp={f(v['bp'])} K12={v['K12']} K13={v['K13']} K14={v['K14']} K15={v['K15']}")

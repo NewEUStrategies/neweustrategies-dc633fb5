@@ -1,12 +1,14 @@
 name: CMS widget performance
+# Pomiar A/B nie blokuje PR-ów: jedzie po scaleniu do main (bazą jest poprzedni
+# commit main) albo ręcznie z dowolnej gałęzi (bazą jest main).
 on:
-  pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: cms-performance-${{ github.event.pull_request.number || github.ref }}
+  group: cms-performance-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   cms-widgets:
@@ -24,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: baseline
-          ref: ${{ github.event.pull_request.base.sha || github.event.before }}
+          ref: ${{ github.event.before || 'main' }}
       - uses: actions/checkout@v4
         with:
           path: candidate
@@ -42,7 +44,6 @@ jobs:
           ln -s ../candidate/node_modules harness/node_modules
           cd harness
           bunx playwright install --with-deps chromium
-          bun run test:cms-performance-harness
       - name: Build baseline production artifact
         working-directory: baseline
         run: |

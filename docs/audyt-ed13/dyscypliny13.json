@@ -1,0 +1,40 @@
+{
+  "ed12": {
+    "anyProd": 421,
+    "anyProdFiles": [
+      ["src/lib/ci/unknownCasts.ts", 1],
+      ["src/routeTree.gen.ts", 417],
+      ["src/routes/platform/email/auth/preview.ts", 1],
+      ["src/routes/platform/email/auth/webhook.ts", 2]
+    ],
+    "asAnyProd": 418,
+    "anyTest": 8,
+    "tsIgnore": 0,
+    "tsExpectError": 0,
+    "eslintDisable": 60,
+    "atoms": 208,
+    "molecules": 386,
+    "organisms": 395,
+    "componentsTsx": 1674,
+    "emDashProdLiterals": 0
+  },
+  "teraz": {
+    "anyProd": 422,
+    "anyProdFiles": [
+      ["src/lib/ci/unknownCasts.ts", 1],
+      ["src/routeTree.gen.ts", 418],
+      ["src/routes/platform/email/auth/preview.ts", 1],
+      ["src/routes/platform/email/auth/webhook.ts", 2]
+    ],
+    "asAnyProd": 419,
+    "anyTest": 8,
+    "tsIgnore": 0,
+    "tsExpectError": 0,
+    "eslintDisable": 62,
+    "atoms": 208,
+    "molecules": 386,
+    "organisms": 397,
+    "componentsTsx": 1678,
+    "emDashProdLiterals": 0
+  }
+}

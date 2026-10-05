@@ -1,0 +1,37 @@
+{
+  "klucz": "osw",
+  "typ": "glowna",
+  "url": "https://www.osw.waw.pl/",
+  "run": 1,
+  "ms": 21667,
+  "blad": null,
+  "finalUrl": "https://www.osw.waw.pl/pl",
+  "fetchTime": "2026-10-04T15:02:43.203Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2230,
+  "runtimeError": null,
+  "warnings": [
+    "The page may not be loading as expected because your test URL (https://www.osw.waw.pl/) was redirected to https://www.osw.waw.pl/pl. Try testing the second URL directly."
+  ],
+  "kategorie": { "performance": 0.63, "accessibility": 0.9, "best-practices": 0.96, "seo": 1 },
+  "metryki": {
+    "first-contentful-paint": 3315.0964999999997,
+    "largest-contentful-paint": 10321.7055,
+    "total-blocking-time": 150,
+    "cumulative-layout-shift": 0.02340875154359528,
+    "speed-index": 5169.356102359383,
+    "interactive": 10321.7055,
+    "server-response-time": 39.209999999999994,
+    "total-byte-weight": 3889713,
+    "dom-size": 739,
+    "network-requests": null,
+    "mainthread-work-breakdown": 2902.8879999999895,
+    "bootup-time": 692.5520000000006,
+    "third-party-summary": null
+  },
+  "a11yBledy": ["aria-required-attr", "heading-order", "target-size"],
+  "bpBledy": ["image-aspect-ratio"],
+  "seoBledy": [],
+  "lcpElement": "<img loading=\"lazy\" src=\"/sites/default/files/styles/slajd_duzy_750_417_s_c/public/slajdy/825292028…\" width=\"750\" height=\"417\" alt=\"Rosjanie atakują centra danych w Kijowie. 1679. dzień wojny\" typeof=",
+  "tytul": true
+}

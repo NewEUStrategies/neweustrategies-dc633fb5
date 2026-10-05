@@ -1,0 +1,143 @@
+# Rozdzial 17, czesc B: znaleziska Z i plan 16.15 (17.7), rejestr defektow (17.9), bramki (17.10), baza (17.11),
+# determinizm (17.12). Dane: migawka.json (pierwszy wynik kazdej etykiety), rejestr-defektow.json.
+import json, collections, re, sys
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+sys.path.insert(0, S)
+from gen17 import n, d, pl, p2, cl, NAZWY, kl  # noqa: E402
+
+SNAP = json.load(open(S + '/migawka.json'))
+R = json.load(open(S + '/rejestr-defektow.json'))
+PR = json.load(open(S + '/progi13.json'))
+PG = json.load(open(S + '/pgrls13.json'))
+RLS = json.load(open(S + '/rls13.json'))
+WAGA = {'krytyczny': 'krytyczny', 'wysoki': 'wysoki', 'sredni': 'średni', 'niski': 'niski'}
+
+
+def nst(s):
+    s = (s or '').lower().strip()
+    for z in ('naprawiony', 'otwarty', 'zmieniony'):
+        if s.startswith(z):
+            return z
+    if s.startswith('czesciowo') or s.startswith('częściowo'):
+        return 'zmieniony'
+    return 'nie_do_ustalenia'
+
+
+o = []
+w = o.append
+
+# ---------------------------------------------------------------- 17.7
+Z = SNAP['Z']
+w('### 17.7. Znaleziska wydania 11 i plan wydania 12: co zrobiło okno')
+w('')
+SPORNE = sum(len(v.get('sporneTwierdzenia', [])) for k, v in Z.items() if k.startswith('obal:') and v)
+w(f'Każdą pozycję badał osobny agent (stan na `5b8c77c01` wobec drzewa wydania 12, oba pasy migracji, testy przypinające), a jego werdykt drugi agent próbował obalić. **Żaden werdykt nie został obalony** - wszystkie dziewięć potwierdzono, ale weryfikatorzy zakwestionowali po drodze {SPORNE} pojedynczych twierdzeń (numery linii, liczby commitów, jedno ustalenie merytoryczne przy Z1) i dołożyli własne zgłoszenia, które przeszły osobną próbę obalenia (17.8). Z5, Z6 i Z7 były naprawione w wydaniu 12; ich pliki są w oknie bez zmian, a polityka dziennika impersonacji nie ma późniejszej redefinicji w żadnym pasie - sprawdziłem to sam.')
+w('')
+w('| Pozycja | Wydanie 12 | Wydanie 13 | Co zrobiło okno |')
+w('| --- | --- | --- | --- |')
+TAB = [
+    ('Z1 Dwa pasy migracji i zgoda na widoczność profilu', 'częściowo', 'częściowo', 'Nic w kodzie. Stan bazy dalej poprawny (`DEFAULT false` w obu pasach), ale decyzja RODO, ślad decyzji i poprawka opisu w `migrationLaneParity.ts:72` (pozycja 2 planu) nie powstały.'),
+    ('Z2 Przejęcie konta w obcym najemcy', 'częściowo', '**częściowo, z regresją, która wyłącza zaproszenia**', 'Rdzeń zamknięty w `5d515581e`: `performSend` porównuje najemcę profilu z najemcą zaproszenia (`invitations.functions.ts:409-411`). Z tej samej zmiany dwie regresje: każda wysyłka zaproszenia na bazie z migracji kończy się `role_write_failed`, a zaproszenie nowej osoby do najemcy innego niż domyślny zawsze odmawia.'),
+    ('Z3 Rola `author` przekierowuje crona platformy', 'częściowo', 'częściowo', 'Nic. Bliźniak `runSchedulerTickNow` (`scheduler.functions.ts:281-297`) dalej uzbraja runner originem z nagłówka `Host` pod `requireAdminEditor`.'),
+    ('Z4 Wycieki między najemcami w panelu', 'częściowo', 'częściowo', 'Alert o sporze naprawiony (`refunds.server.ts` woła `notifyTenantAdmins` z najemcą z naszego wiersza). Stempel poczty transakcyjnej nadal z `email_resolve_tenant_for_address` (`send.ts:455`, `:663`).'),
+    ('Z5, Z6, Z7', 'naprawione', 'naprawione', 'Pliki bez zmian w oknie; poprawki z wydania 12 stoją.'),
+    ('Z8 Fraza wyszukiwania w telemetrii i GA4', 'częściowo', 'częściowo', 'Kopia zdarzenia do GA4 idzie przez `redactPii`, doszły wzorce telefonu, ścieżka GA4 jest w rejestrze bramki, a baza zamienia frazę na skrót HMAC. Wzorca PESEL nie ma (test wprost go przepuszcza), GA4 nadal dostaje frazę przed zgodą.'),
+    ('Z9 Dwa inwarianty, które nie biegną nigdzie', 'otwarte', 'otwarte', 'Nic. Te same pliki, ten sam strażnik niepustości, to samo nieprawdziwe zdanie w `vitest.config.ts`.'),
+    ('Z10 Bramka zamrożenia zegara', 'otwarte', 'otwarte', 'Bramka bajt w bajt ta sama. W oknie trzecie fałszywe rozbrojenie: `podcastEpisodeRoute` zszedł z linii bazowej (6 → 0) po lokalnym `useFakeTimers` dla timera przycisku. Ścisły detektor znajduje 11 ukrytych plików.'),
+]
+for a, b, c, e in TAB:
+    w(f'| {a} | {b} | {c} | {e} |')
+w('')
+w('**Plan naprawczy wydania 12 (16.15): 3 pozycje z 14 wykonane, 3 częściowo, 8 nie.**')
+w('')
+w('| # | Pozycja planu 16.15 | Stan |')
+w('| ---: | --- | --- |')
+PLAN = [
+    (1, 'Zaproszenie nie może przenieść cudzego konta między najemcami', 'częściowo - rdzeń jest, przeniesienie konta jako jawna operacja platformowa (A4) i bariera w bazie nie powstały; dwie regresje'),
+    (2, 'Zgoda na widoczność profilu: decyzja operacyjna i ślad decyzji', 'niewykonana'),
+    (3, 'GA4 dopiero po zgodzie i bez surowej frazy; telefon i PESEL w redakcji', 'częściowo - redakcja i telefon tak, PESEL i bramka zgody nie'),
+    (4, 'Wzmianki nie mogą wystawiać anonimowi kartoteki CRM', 'wykonana - firmy tylko z publicznym śladem (`20261003150000`, bliźniak `0139`)'),
+    (5, 'Search Console: najemca bez domeny nie widzi cudzych właściwości', 'niewykonana - `tenant.server.ts:479`, `:481` bez zmian, a test przypina przepuszczanie'),
+    (6, 'Kody wydarzeń: limit prób i jedna odpowiedź dla pudła', 'wykonana - z resztką: dla wołającego z sesją próg kubełka IP wynosi 120, nie 30'),
+    (7, 'Alert o sporze tylko do administratorów najemcy, którego dotyczy', 'wykonana'),
+    (8, 'Stempel poczty transakcyjnej z kontekstu wysyłki; uzbrojenie runnera pod bramką platformową', 'niewykonana'),
+    (9, 'Dwa inwarianty, które nie biegną nigdzie, i fałszywe zdanie w konfiguracji', 'niewykonana'),
+    (10, 'Zamrożenie zegara per blok, a linia bazowa naprawdę tylko w dół', 'niewykonana'),
+    (11, 'Testy bez sieci: osłona w setupie zamiast reguły w jednym pliku', 'niewykonana - jedyna zmiana to lokalna atrapa `fetch` w jednym pliku testów'),
+    (12, 'Test ścieżki płatnego uczestnika w harmonogramie', 'niewykonana - `paid-lifecycle.spec.ts` nadal tylko ręcznie'),
+    (13, 'Taksonomia dla nowych powierzchni publicznych i pięć martwych progów', 'niewykonana - ani jednej nowej reguły `classifyPath`, pięć martwych progów stoi'),
+    (14, 'Higiena: ARCHITECTURE, UMOWA, RUNBOOK, statusy zleceń', 'częściowo - status wykonania ma 4 z 15 plików `PROMPT_*.md`'),
+]
+for i, t, s in PLAN:
+    w(f'| {i} | {t} | {s} |')
+w('')
+w('Najważniejsze ustalenia, po kolei:')
+w('')
+w('- **Z2: naprawa z regresją, która wyłącza zaproszenia.** Commit `5d515581e` („Moduł 19: defekt krytyczny zaproszeń zamknięty, 16 napraw...\") dodał sprawdzanie błędów trzech zapisów w `performSend`, w tym `upsert` do `user_roles` z `onConflict: "user_id,role"` (`invitations.functions.ts:480-483`). Na bazie odtworzonej z migracji takiego indeksu unikalnego nie ma, więc Postgres zwraca 42P10 - błąd, który wcześniej był ignorowany, teraz przerywa wysyłkę kodem `role_write_failed`. Zlecenie naprawy przewidziało dokładnie tę pułapkę (`PROMPT_ZAPROSZENIE_GRANICA_NAJEMCY.md`, rozdział 0.6 pkt 2), a test z atrapą bazy jej nie widzi. Druga regresja: nowa osoba zapraszana do najemcy innego niż domyślny dostaje odmowę `account_in_other_tenant`, bo `handle_new_user` zakłada jej profil w najemcy domyślnym, zanim `performSend` porówna najemców (`:409`). Weryfikator proponował dla pierwszej regresji wagę krytyczną; w 17.8 zostaje wysoka, bo rubryka tego wydania rezerwuje krytyczną dla wycieku między najemcami, obejścia autoryzacji i utraty pieniędzy lub danych, a tu nic nie wycieka - po prostu nic nie działa. To mimo wszystko najpoważniejsza regresja funkcjonalna wydania i pierwsza pozycja planu 17.15.')
+w('- **Z1: weryfikator obalił jedno ustalenie.** Śledztwo twierdziło, że skutek hurtowego flipu z `drizzle/0001` sięga anonima przez `search_mention_targets`. Weryfikator pokazał, że osoba przechodzi tam przez trzy bramki (zgoda, rola redakcyjna, publiczny ślad), więc flip może co najwyżej przywrócić do podpowiedzi autora, który i tak jest publicznie widoczny. Zostaje węższa reszta: `get_mention_target` po slugu wymaga tylko zgody i roli redakcyjnej.')
+w('- **Z8: wybrano wariant „redakcja\", nie „bramka zgody\".** Fraza idzie do GA4 przed zgodą, ale po `redactPii`; poza e-mailem, telefonem i tokenami (nazwiska, adresy, PESEL) idzie jawnie. Test `redact.test.ts:72` wymaga wręcz, żeby PESEL przechodził bez zmian - to jest decyzja, którą powinna podpisać osoba odpowiedzialna za RODO, a w kodzie jej nie ma.')
+w('- **Z10: mechanizm zadziałał po raz trzeci.** Ścisła kopia detektora (gołe `useFakeTimers()` nie liczy się jako zamrożenie) znajduje 231 bomb zamiast 220; 11 ukrytych plików to m.in. `useScanner` (21 literałów), `usePostEditorForm` (6), `podcastEpisodeRoute` (6) i `deliverabilityPanels` (5). Zapadki pozostałych baz zaostrzyły się (17.12), ta jedna dalej pozwala zejść z linii bazowej bez zamrożenia zegara.')
+w('')
+
+# ---------------------------------------------------------------- 17.9
+st, ver = {}, {}
+for g in [f'G{i}' for i in range(1, 9)]:
+    for k, v in SNAP[g].items():
+        if (k.startswith('defekty:') or k.startswith('przekroj:')) and v:
+            for s in (v.get('statusDefektow') or []):
+                st[s['id']] = (k.split(':', 1)[1], s['status'], s)
+    for k, v in SNAP[g].items():
+        if k.startswith('obal:') and v:
+            for x in v.get('werdykty', []):
+                if x['typ'] == 'status':
+                    ver[x['id']] = x
+FIN = {}
+for r in R:
+    if r['id'] in st:
+        t, s, _ = st[r['id']]
+        v = ver.get(r['id'])
+        if v is None:
+            FIN[r['id']] = (s, 'bez weryfikacji')
+        elif v['werdykt'] == 'OBALONY':
+            FIN[r['id']] = (nst(v.get('poprawnyStatus')), 'obalony')
+        elif v['werdykt'] == 'NIEROZSTRZYGNIETY':
+            FIN[r['id']] = (s, 'nierozstrzygnięty')
+        else:
+            FIN[r['id']] = (s, 'potwierdzony')
+    else:
+        FIN[r['id']] = ('otwarty' if r['stanPliku'] == 'plik_bez_zmian' else 'nie_do_ustalenia', 'mechanicznie')
+cnt = collections.Counter(f[0] for f in FIN.values())
+how = collections.Counter(f[1] for f in FIN.values())
+w('### 17.9. Defekty wydań 11 i 12: co naprawiono, co stoi')
+w('')
+w(f"Rejestr do rozliczenia to {len(R)} defektów, które po wydaniu 12 nadal stały: {sum(1 for r in R if r['zrodlo'] == 'ed11')} z wydania 11 i {sum(1 for r in R if r['zrodlo'] != 'ed11')} z wydania 12. Plik każdej pozycji porównałem mechanicznie z drzewem wydania 12; pozycje w plikach zmienionych w oknie (i te, które cytują migracje) rozliczały tory, a ich status próbował obalić weryfikator toru. Pozycja w pliku bajt w bajt niezmienionym jest otwarta mechanicznie - ta sama reguła co w 16.9.")
+w('')
+w(f"**Dziś: naprawionych {cnt['naprawiony']}, zmienionych (mechanizm przebudowany, defekt w innej postaci) {cnt['zmieniony']}, otwartych {cnt['otwarty']}** (z tego {how['mechanicznie']} rozliczonych mechanicznie). Statusów potwierdzonych przez weryfikatora {how['potwierdzony']}, obalonych i poprawionych {how['obalony']}, nierozstrzygniętych {how['nierozstrzygnięty']}. **Wszystkie siedem defektów krytycznych z rejestru jest naprawionych.**")
+w('')
+w('| Waga | Defektów | Naprawione | Zmienione | Otwarte |')
+w('| --- | ---: | ---: | ---: | ---: |')
+for wg in ['krytyczny', 'wysoki', 'sredni', 'niski']:
+    c = collections.Counter(FIN[r['id']][0] for r in R if r['waga'] == wg)
+    w(f"| {WAGA[wg]} | {sum(c.values())} | {c['naprawiony']} | {c['zmieniony']} | {c['otwarty']} |")
+w(f"| **Razem** | **{len(R)}** | **{cnt['naprawiony']}** | **{cnt['zmieniony']}** | **{cnt['otwarty']}** |")
+w('')
+w('| Źródło | Defektów | Naprawione | Zmienione | Otwarte |')
+w('| --- | ---: | ---: | ---: | ---: |')
+ZR = {'ed11': 'wydanie 11', 'ed12-tor': 'wydanie 12: tory', 'ed12-weryfikator': 'wydanie 12: weryfikatorzy', 'ed12-krytyk': 'wydanie 12: krytyk'}
+for z, nz in ZR.items():
+    c = collections.Counter(FIN[r['id']][0] for r in R if r['zrodlo'] == z)
+    w(f"| {nz} | {sum(c.values())} | {c['naprawiony']} | {c['zmieniony']} | {c['otwarty']} |")
+w('')
+ot = sorted([r for r in R if r['waga'] == 'wysoki' and FIN[r['id']][0] != 'naprawiony'], key=lambda r: (kl(r['tor']), r['id']))
+w(f'**Wysokie, które stoją ({len(ot)}):**')
+w('')
+w('| Id | Tor | Defekt | Miejsce | Stan |')
+w('| --- | --- | --- | --- | --- |')
+for r in ot:
+    f = FIN[r['id']]
+    w(f"| {r['id']} | {r['tor']} | {cl(r['tytul'])} | `{r['gdzie']}` | {f[0]}{' (mechanicznie)' if f[1] == 'mechanicznie' else ''} |")
+w('')
+json.dump({k: list(v) for k, v in FIN.items()}, open(S + '/rejestr-stan13.json', 'w'), ensure_ascii=False, indent=0)
+
+open(S + '/r17b.md', 'w').write('\n'.join(o))
+print('ok', len(o), dict(cnt), dict(how))

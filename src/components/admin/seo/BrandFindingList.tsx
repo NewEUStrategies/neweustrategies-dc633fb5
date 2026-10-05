@@ -47,7 +47,7 @@ export function BrandFindingList({ findings, emptyKey }: BrandFindingListProps) 
           >
             <span
               className={`shrink-0 text-[11px] font-medium ${
-                isError ? "text-destructive" : "text-brand0"
+                isError ? "text-destructive" : "text-brand"
               }`}
             >
               {isError ? t("adminSeoHub.severityError") : t("adminSeoHub.severityWarning")}

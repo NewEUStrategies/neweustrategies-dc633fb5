@@ -1113,5 +1113,6 @@ Bramki CI (w tym `check:sql-anon-insert`) blokują PR-y, ale commit pchnięty
 odrzuconego pusha. Domknięcie wymaga ustawienia po stronie GitHuba (nie da się
 tego zwersjonować w repo): Settings -> Branches -> Branch protection rule dla
 `main` z "Require a pull request before merging" oraz "Require status checks
-to pass" (checki `verify` i `pgtap` z workflow CI). Do czasu włączenia reguły
+to pass" (checki `Required release checks`, `e2e` i `e2e-seeded`; gotowy payload
+rulesetu: `governance/release/main-ruleset.json`). Do czasu włączenia reguły
 gwarancją pozostaje dyscyplina PR-owa + post-hoc run CI na push do main.

@@ -9,7 +9,7 @@ import type {
   Mode,
   WidgetTypography,
 } from "@/lib/builder/types";
-import { pickMode } from "@/lib/builder/themed";
+import { pickShared } from "@/lib/builder/themed";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 
 // Default width: widgets fill the full column width unless an explicit width
@@ -56,30 +56,27 @@ export const styleToCSS = (
   if (bgColor) css.background = bgColor;
   const textColor = resolveColorForMode(s.textColor, mode);
   if (textColor) css.color = textColor;
-  const padding = pick(pickMode(s.padding, "light") ?? pickMode(s.padding, "dark"), device);
+  const padding = pick(pickShared(s.padding), device);
   if (padding) css.padding = padding;
-  const margin = pick(pickMode(s.margin, "light") ?? pickMode(s.margin, "dark"), device);
+  const margin = pick(pickShared(s.margin), device);
   if (margin) css.margin = margin;
   const align = pick(s.align, device);
   if (align) css.textAlign = align;
-  const borderRadius = pickMode(s.borderRadius, "light") ?? pickMode(s.borderRadius, "dark");
+  const borderRadius = pickShared(s.borderRadius);
   if (borderRadius) css.borderRadius = borderRadius;
   if (s.maxWidth) css.maxWidth = s.maxWidth;
   if (s.minHeight) css.minHeight = s.minHeight;
-  const borderStyle = pickMode(s.borderStyle, "light") ?? pickMode(s.borderStyle, "dark");
+  const borderStyle = pickShared(s.borderStyle);
   if (borderStyle && borderStyle !== "none") {
     css.borderStyle = borderStyle;
-    css.borderWidth =
-      (pickMode(s.borderWidth, "light") ?? pickMode(s.borderWidth, "dark")) || "1px";
+    css.borderWidth = pickShared(s.borderWidth) || "1px";
     const borderColor = resolveColorForMode(s.borderColor, mode);
     if (borderColor) css.borderColor = borderColor;
   }
-  const boxShadow = pickMode(s.boxShadow, "light") ?? pickMode(s.boxShadow, "dark");
+  const boxShadow = pickShared(s.boxShadow);
   if (boxShadow) css.boxShadow = boxShadow;
   if (typeof s.opacity === "number") css.opacity = s.opacity;
-  const t =
-    pickMode<WidgetTypography>(s.typography, "light") ??
-    pickMode<WidgetTypography>(s.typography, "dark");
+  const t = pickShared<WidgetTypography>(s.typography);
   if (t) {
     if (t.fontFamily) css.fontFamily = t.fontFamily;
     // Do not set the title font-size on the widget wrapper. Post widgets map

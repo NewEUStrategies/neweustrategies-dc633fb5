@@ -1,0 +1,161 @@
+# Rozdzial 17, czesc D: nowe defekty (17.8), raporty wdrozen (17.13), rynek (17.14), plan (17.15),
+# rachunek sumienia (17.16), jak sprawdzic (17.17). Dane: defekty13.json, migawka.json, rynek/tabela13.json, rynek/k12-15.json.
+import json, collections, re, statistics
+S = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+D = json.load(open(S + '/defekty13.json'))
+SNAP = json.load(open(S + '/migawka.json'))
+T = json.load(open(S + '/rynek/tabela13.json'))
+AG = json.load(open(S + '/rynek/k12-15.json'))['agregat']
+CLS_V = sorted(r['metryki']['cumulative-layout-shift'] for r in (json.load(open(f)) for f in __import__('glob').glob(S + '/lh/wyniki/nes-glowna*.json')) if r.get('metryki', {}).get('cumulative-layout-shift', 0) > 1)
+CLS_DUZE = '-'.join(f'{v:.2f}'.replace('.', ',') for v in (CLS_V[0], CLS_V[-1])) if CLS_V else '0'
+PERF_INNE = [x['perf'] for k, x in json.load(open(S + '/rynek/k12-15.json'))['punkty'].items() if k != 'nes' and x['perf'] is not None]
+WAGA = {'krytyczny': 'krytyczny', 'wysoki': 'wysoki', 'sredni': 'średni', 'niski': 'niski', 'brak': 'brak'}
+ORD = ['krytyczny', 'wysoki', 'sredni', 'niski', 'brak']
+
+
+def cl(s):
+    return re.sub(r'\s+', ' ', str(s)).replace('|', '/').replace('\u2014', '-').replace('\u2013', '-').strip()
+
+
+def kl(k):
+    try:
+        return (0, int(re.sub(r'[a-d]$', '', k)), k)
+    except Exception:
+        return (1, 0, str(k))
+
+
+def f1(x):
+    return f'{x:.1f}'.replace('.', ',')
+
+
+def f2(x):
+    return f'{x:.2f}'.replace('.', ',')
+
+
+def nz(t):
+    return {'tor': 'tor', 'weryfikator toru': 'weryfikator toru', 'sledztwo znaleziska': 'śledztwo Z', 'obalanie znaleziska': 'weryfikator Z',
+            'sledztwo raportu': 'śledztwo raportu', 'obalanie raportu': 'weryfikator raportu'}.get(t, t)
+
+
+o = []
+w = o.append
+pot = [x for x in D if x['werdykt'] == 'POTWIERDZONY']
+bez = [x for x in D if x['werdykt'] == 'BRAK']
+obal = [x for x in D if x['werdykt'] == 'OBALONY']
+cp = collections.Counter(x['waga'] for x in pot)
+cb = collections.Counter(x['waga'] for x in bez)
+scal = sum(len(x.get('scalone', [])) for x in D)
+
+# ---------------------------------------------------------------- 17.8
+w('### 17.8. Nowe defekty')
+w('')
+w(f"**Potwierdzonych po próbie obalenia: {len(pot)}** - wysokich {cp['wysoki']}, średnich {cp['sredni']}, niskich {cp['niski']}, krytycznych 0. Do tego **{len(bez)} zgłoszonych bez próby obalenia** (średnich {cb['sredni']}, niskich {cb['niski']}) i {len(obal)} obalonych; krytyk kompletności dołożył trzy zgłoszenia średnie, również bez próby obalenia (koniec 17.8). Źródła: tory modułów (każdy nowy defekt toru sprawdzał weryfikator toru), dodatkowe zgłoszenia weryfikatorów torów oraz agentów badających znaleziska Z i raporty wdrożeń. Te ostatnie przeszły osobną próbę obalenia tylko w 40 ze 103 przypadków: resztę przerwał limit sesji, a potem polecenie, żeby nie prowadzić już kolejnych prób obalenia. Pozycje bez próby są w osobnej tabeli i nie wchodzą do liczby potwierdzonych. {scal} {'zgłoszenie' if scal == 1 else ('zgłoszenia' if 2 <= scal % 10 <= 4 and not 12 <= scal % 100 <= 14 else 'zgłoszeń')} scaliłem jako duplikaty (to samo miejsce i mechanizm zgłoszone przez kilku agentów); dwa nie są nowe (R253 z rejestru i reszta Z3). Wagi są po korekcie weryfikatora.")
+w('')
+w('Cztery wysokie. Dwa pierwsze sprawdziłem w kodzie sam:')
+w('')
+w('- **Moduł 19: każda wysyłka zaproszenia kończy się `role_write_failed`.** `performSend` robi `upsert` do `user_roles` z `onConflict: "user_id,role"` i od `5d515581e` przerywa wysyłkę przy błędzie (`src/lib/admin/invitations.functions.ts:478-483`). Pierwotny `UNIQUE (user_id, role)` z `20260531180217:29` został zdjęty w `20260531181120:49` (`DROP CONSTRAINT IF EXISTS user_roles_user_id_role_key`), a w jego miejsce stoi indeks `(tenant_id, user_id, role)` (`:50`). Na bazie odtworzonej z migracji Postgres odrzuca więc każde `ON CONFLICT (user_id, role)` błędem 42P10. Weryfikator Z2 nazwał to krytycznym; według rubryki tego audytu (krytyczny = wyciek między najemcami, obejście autoryzacji, utrata pieniędzy albo danych) to wysoki, ale najpoważniejszy funkcjonalnie defekt okna, bo wyłącza całą funkcję. Test z atrapą bazy go nie widzi, a asercja `invitationsFunctions.test.ts:1273` utrwala zły cel konfliktu.')
+w('- **Moduł 16: zapis ustawień klubu przez prowadzącego zawsze pada.** `club_update_settings` wpisuje do `club_moderation_log` akcję `\'club_updated\'` (`supabase/migrations/20261003170000_club_cover_write_follows_capabilities.sql:410`), a ostatni `club_moderation_log_action_check` (`20260808290000:288-292`) jej nie zna. Mechanizm nie jest nowy - ta sama akcja stoi w `20260905193621:240` i `20260919220300:119` - ale okno odtworzyło funkcję z tym samym błędem, a żaden test pgTAP nie woła jej na prawdziwej tabeli.')
+w('- **Moduł 19: zaproszenie nowej osoby do najemcy innego niż domyślny zawsze odmawia.** `handle_new_user` zakłada profil nowego konta w najemcy domyślnym, a `performSend` po `createUser` porównuje tego najemcę z najemcą zaproszenia i rzuca `account_in_other_tenant` (`invitations.functions.ts:409-411`). Zlecenie naprawy przewidziało ten przypadek (`PROMPT_ZAPROSZENIE_GRANICA_NAJEMCY.md`, 0.6 pkt 1); zgłosił go agent badający Z2, a niezależnie potwierdził weryfikator Z2.')
+w('- **CI: main jest czerwony na bramce wydania**, a commity dalej na niego trafiają (17.10).')
+w('')
+w('Najważniejsze średnie: zwrot częściowy po wygranym sporze traktowany jak pełny, odbiera dostęp i zaniża przychód netto (`refunds.server.ts:230`, `:545-552`); wewnętrzne notatki operatora `ad_slots.notes` czytelne dla anonima przez REST mimo naprawy R203 w aplikacji (grant na całą tabelę, `20260624165807:25-26`); `provisionTeamMembers` szuka profili po e-mailu we wszystkich najemcach (`invitations.functions.ts:1038`); `llms.txt` przy awarii odczytu ustawień SEO udziela pełnej zgody na cytowanie i trening; pole wiadomości czatu z wyłączoną autokorektą; przycisk „Pokaż więcej\" na `/search` powyżej 200 wyników; kontrast 2,25:1 dwóch nowych elementów buildera.')
+w('')
+w('| Waga | Tor | Defekt | Miejsce | Źródło |')
+w('| --- | --- | --- | --- | --- |')
+for x in sorted(pot, key=lambda x: (ORD.index(x['waga']), kl(x['tor']), x['id'])):
+    zr = 'tor' if x['zrodlo'] == 'tor' else nz(x['zrodlo']) + ', obalanie'
+    if x.get('scalone'):
+        zr += f" (+{len(x['scalone'])} duplikat{'y' if 2 <= len(x['scalone']) <= 4 else 'ów' if len(x['scalone']) > 4 else ''})"
+    w(f"| {WAGA[x['waga']]} | {x['tor']} | {cl(x['tytul'])} | `{x['plik']}:{x['linia']}` | {zr} |")
+w('')
+w(f'**Zgłoszone bez próby obalenia ({len(bez)}).** Mechanizm opisał jeden agent z cytatem kodu; drugi go nie sprawdzał. Traktować jako zgłoszenia do potwierdzenia przy naprawie, nie jako ustalenia:')
+w('')
+w('| Waga | Tor / pozycja | Zgłoszenie | Miejsce | Kto zgłosił |')
+w('| --- | --- | --- | --- | --- |')
+for x in sorted(bez, key=lambda x: (ORD.index(x['waga']), kl(x['tor']), x['id'])):
+    w(f"| {WAGA[x['waga']]} | {x['tor']} | {cl(x['tytul'])} | `{x['plik']}:{x['linia']}` | {nz(x['zrodlo'])} |")
+w('')
+w(f"**Obalone ({len(obal)}):** " + '; '.join(f"{cl(x['tytul'])[:110]} ({x['tor']})" for x in sorted(obal, key=lambda x: kl(x['tor']))) + '.')
+w('')
+
+# ---------------------------------------------------------------- 17.13
+RAP = SNAP['RAP']
+w('### 17.13. Raporty wdrożeń z okna: czy kod potwierdza to, co deklarują')
+w('')
+w('Okno dodało jedenaście raportów kampanii naprawczych i trzy raporty wydajności. Każdy czytał agent, który sprawdził w kodzie na `5b8c77c01` jego twierdzenia (co naprawiono, jakie testy, jakie liczby). Próbę obalenia przeszło pięć werdyktów; sześć zostało na etapie śledztwa (limit sesji, potem polecenie bez kolejnych obaleń). **Żaden raport nie kłamie w sprawie samej naprawy - każda opisana naprawa kodu jest na `5b8c77c01`.** „Częściowo\" znaczy prawie zawsze: liczby poboczne raportu się nie zgadzają albo raport przemilcza resztę, która zostaje.')
+w('')
+w('| Raport | Werdykt | Weryfikacja | Co się nie zgadza albo zostaje |')
+w('| --- | --- | --- | --- |')
+RAPY = [
+    ('NAPRAWA_REKOMENDACJE_SYGNAL_DWELL', 'N-REKOMENDACJE_SYGNAL_DWELL', 'naprawione', 'Sygnał czasu czytania ma źródło od bazy do scoringu; defekt z 16.13 zamknięty. Drobne: czas czytania nienormalizowany długością tekstu, beacon wczytuje całe ciało przed limitem.'),
+    ('WDROZENIE_WYSZUKIWARKA_NAPRAWY', 'W-WYSZUKIWARKA_NAPRAWY', 'naprawione', 'D1-D8 i przyrosty testów zgadzają się. Poza zakresem raportu zostały znaleziska 16.8 o linkach ekspertów (`/people` zamiast `/author`); nowy drobny defekt w `useVoiceSearch` (błąd sieci przy wysyłce do STT).'),
+    ('NAPRAWA_PRZYPOMNIENIA_UCZESTNIKA', 'N-PRZYPOMNIENIA_UCZESTNIKA', 'częściowo', 'Obie główne naprawy są. Liczba testów zaniżona (15 zamiast 16), konto z RSVP i zgłoszeniem bez biletu nie dostaje przypomnień, przycisk „Uruchom przypomnienia\" dalej pada na uprawnieniach (raport to przyznaje).'),
+    ('WDROZENIE_KATALOG_OSOB_PROFIL_ORGANIZACJI', 'W-KATALOG_OSOB_PROFIL_ORGANIZACJI', 'częściowo', 'Osiem defektów naprawionych. „101 nakładek\" to 98, „33 bramki\" to 34; komentarz w trasie organizacji powołuje się na usunięte klucze SEO.'),
+    ('WDROZENIE_DESIGN_SYSTEM_SZESC_FUNKCJI', 'W-DESIGN_SYSTEM_SZESC_FUNKCJI', 'częściowo', 'Wszystkie naprawy i progi są. Wiersz „przed\" karuzeli ma zamienione gałęzie z funkcjami, „po jednym teście na komponent\" nieprawdziwe, dwa bezpośrednie importy `lucide-react` zostały (R253).'),
+    ('WDROZENIE_MODUL7_POKRYCIE_100', 'W-MODUL7_POKRYCIE_100', 'częściowo', '25 napraw z testami jest; moduł 7 ma 100% linii i funkcji. Liczby progów zawyżone (27 nowych wpisów, nie 32), tytuł obiecuje „~30\" defektów, tabela ma 25.'),
+    ('WDROZENIE_MODUL_19_NAPRAWY_I_POKRYCIE', 'W-MODUL_19_NAPRAWY_I_POKRYCIE', 'częściowo', 'Krytyczny defekt wydania 12 zamknięty, ale z regresjami (17.7, 17.8); `java\\tscript:` nadal pokazywany jako ścieżka, `deleteResource` nie łapie odmowy RLS, `provisionTeamMembers` bez granicy najemcy.'),
+    ('WDROZENIE_MODUL_1_CZYTELNIK_POKRYCIE', 'W-MODUL_1_CZYTELNIK_POKRYCIE', 'częściowo', 'Naprawy są; moduł 1 ma 100% linii i funkcji. Pomiar „przed\" sprzeczny sam ze sobą (363 vs 396 linii), `/api/stt` limituje tylko zadeklarowany `Content-Length`, spis treści w treści (`TocWidget`) używa wąskiego pasa `IntersectionObserver` wbrew `AGENTS.md`.'),
+    ('WDROZENIE_MODUL_4_REKOMENDACJE_WYDANIA_11', 'W-MODUL_4_REKOMENDACJE_WYDANIA_11', 'częściowo', 'Osiem napraw jest. Fałszywe uzasadnienie R1 („permission denied\"), zawyżone liczby testów (59 nie 65, 8 nie 9), N3 połowicznie (domena per wdrożenie, nie per najemca).'),
+    ('WDROZENIE_MONETYZACJA_MODUL_13_NAPRAWY_I_POKRYCIE', 'W-MONETYZACJA_MODUL_13_NAPRAWY_I_POKRYCIE', 'częściowo', 'Dziesięć napraw fali 1 jest; moduł 13 ma 99,98% linii. Indeks na `user_subscriptions.external_ref` odłożony, 49 nowych plików testów to 46, tabela per funkcjonalność niespójna (323 vs 307 linii).'),
+    ('performance/2026-10-01..02 (3 raporty)', 'PERF', 'częściowo', 'Wszystkie zmiany kodu są. Celów 85/95 (mobile/desktop) nikt nie potwierdził pomiarem produkcji po wdrożeniu - ostatnie zmierzone to 49/74 sprzed zmian; raport z 2026-10-02 jest uszkodzony (zdublowane sekcje 0-8, ucięty wiersz C4). Dzisiejszy pomiar laboratoryjny: 17.14.'),
+]
+for nazwa, pid, st, txt in RAPY:
+    ob = RAP.get('obal:' + pid)
+    wer = 'potwierdzony' if ob and ob.get('werdykt') == 'POTWIERDZONY' else ('obalony' if ob else 'tylko śledztwo')
+    w(f'| `{nazwa}` | {st} | {wer} | {txt} |')
+w('')
+w('**Wzorzec, który się powtarza:** raport kampanii mówi prawdę o kodzie i myli się w liczbach o sobie samym (liczba testów, plików, progów, linii „przed\"). W pięciu z jedenastu raportów co najmniej jedna liczba nie zgadza się z repozytorium. To nie jest problem wiarygodności napraw, tylko powód, żeby raporty generował skrypt, a nie ręka.')
+w('')
+
+# ---------------------------------------------------------------- 17.14
+nes = [x for x in T if x['klucz'] == 'nes'][0]
+inne = [x for x in T if x['klucz'] != 'nes']
+K = [f'K{i}' for i in range(1, 12)]
+sr = {k: sum(x['K'].get(k, 0) for x in inne) / len(inne) for k in K}
+NK = SNAP['NESk']['profil-nes']
+NKO = SNAP['NESk']['obal-profil-nes']
+kor = {k['kryterium']: k['powinnoByc'] for k in NKO.get('korekty', [])}
+kod = {x['kryterium']: kor.get(x['kryterium'], x['punktyZdolnosci']) for x in NK['oceny']}
+w('### 17.14. Platforma na tle think tanków: przegląd')
+w('')
+w('Pierwsze porównanie rynkowe w tej serii. Cel: ustalić, gdzie platforma NES stoi wobec stron 32 ośrodków analitycznych z Polski (8), UE i Wielkiej Brytanii (8), USA (8) i Azji z Australią (8) - i co z tego wynika dla platformy, nie dla konkurencji.')
+w('')
+w('**Metoda.** Jedna rubryka K1-K11 (0-3 pkt): K1 formaty i głębia treści, K2 eksperci jako byt, K3 taksonomia i huby, K4 wyszukiwarka, K5 wielojęzyczność, K6 newsletter i alerty, K7 wydarzenia, K8 model przychodów i członkostwo, K9 konto i personalizacja, K10 interaktywność i dane, K11 przejrzystość instytucjonalna. Każdą witrynę oceniał agent na tym, co strona daje publicznie dziś (z URL-ami dowodów), a ocenę próbował obalić drugi agent - w 23 z 33 przypadków; dziesięciu prób nie wykonano (limit sesji, potem polecenie, żeby porównanie rynkowe zostało przeglądem). Cztery kryteria liczę mechanicznie, bez oceny agenta: K12 dostępność, K13 wydajność, K14 SEO techniczne (Lighthouse 12.8.2, profil mobilny z symulowanym ograniczeniem sieci i CPU, mediana z trzech przebiegów strony głównej i jednej analizy) i K15 nagłówki bezpieczeństwa (HSTS, CSP oraz komplet `X-Content-Type-Options` + `X-Frame-Options` albo `frame-ancestors` + `Referrer-Policy`). NES oceniam dwa razy: **zdolność platformy w kodzie** (`5b8c77c01`) i **wdrożenie publiczne** `neweuropeanstrategies.com` - porównywalne wprost z konkurencją jest tylko to drugie.')
+w('')
+w('**Ograniczenia, które trzeba znać:** pomiar szedł z wyjścia sieciowego sesji na wschodnim wybrzeżu USA, więc czas odpowiedzi serwerów europejskich i azjatyckich jest zawyżony; danych terenowych (CrUX) nie ma, bo API PageSpeed Insights odpowiadało 429 (dzienny limit wspólnego projektu); pięć witryn (IISS, Ifri, Clingendael, RSIS, Asan) stawia wyzwanie Cloudflare także prawdziwej przeglądarce, a PISM - stronę ochrony Imperva, więc ich K12-K15 nie da się zmierzyć, a K1-K11 agenci ocenili z czytnika i archiwów.')
+w('')
+w('| Kryterium | NES: zdolność w kodzie | NES: wdrożenie | Średnia 32 ośrodków | Ile ośrodków ma 3 pkt |')
+w('| --- | ---: | ---: | ---: | ---: |')
+for k in K:
+    n3 = sum(1 for x in inne if x['K'].get(k) == 3)
+    w(f"| {k} | {kod.get(k, '-')} | **{nes['K'].get(k)}** | {sr[k]:.2f} | {n3} |".replace('.', ','))
+w(f"| **Suma K1-K11** | **{sum(kod.values())} / 33** | **{nes['suma11']} / 33** | {sum(sr.values()):.1f} | |".replace('.', ','))
+w('')
+w('| # | Ośrodek | Region | K1-K11 | K12 | K13 | K14 | K15 | Lighthouse wyd. / dost. / SEO | Uwagi |')
+w('| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |')
+for i, x in enumerate(sorted(T, key=lambda x: (-x['suma11'], x['klucz'])), 1):
+    lh = '-' if x['perf'] is None else f"{round(x['perf']*100)} / {round(x['a11y']*100)} / {round(x['seo']*100)}"
+    uw = []
+    if not x['zweryfikowana']:
+        uw.append('ocena bez próby obalenia')
+    if x['blokada']:
+        uw.append(f"blokada botów ({x['blokada']})")
+    if x['zmierzone'] == 1:
+        uw.append('Lighthouse tylko strona główna')
+    nm = ('**New European Strategies (wdrożenie)**' if x['klucz'] == 'nes' else cl(x['nazwa']))
+    g = lambda v: '-' if v is None else str(v)
+    w(f"| {i} | {nm} | {x['region']} | {'**' if x['klucz'] == 'nes' else ''}{x['suma11']}{'**' if x['klucz'] == 'nes' else ''} | {g(x['K12'])} | {g(x['K13'])} | {g(x['K14'])} | {g(x['K15'])} | {lh} | {'; '.join(uw)} |")
+w('')
+a = AG
+w('**Co to znaczy dla platformy:**')
+w('')
+w(f"- **Oprogramowanie jest powyżej rynku, wdrożenie - w środku stawki.** Z kodu platforma zbiera {sum(kod.values())}/33, więcej niż jakakolwiek oceniona strona (najwyżej Chatham House 28, Brookings i CFR po 27). Wdrożenie publiczne ma {nes['suma11']}/33 i jest 13. z 33. Różnica nie leży w kodzie, tylko w tym, czego platforma nie dostaje do pokazania.")
+w('- **Gdzie NES wygrywa (3 pkt, rynek słaby):** wyszukiwarka K4 (literówki, fasety, osoby, zapisane wyszukiwania - 3 pkt mają jeszcze tylko SWP i Brookings, średnia 1,69), dwujęzyczność K5 (pełna para PL/EN z `hreflang` przy każdym artykule - nikt inny nie ma 3 pkt, średnia 1,09), członkostwo i model przychodów K8 (średnia 1,59) oraz konto i personalizacja K9 (lista lektur, obserwowanie autorów i tematów - 23 z 32 ośrodków ma tu 0, średnia 0,41). To są kryteria, o których decyduje oprogramowanie.')
+w('- **Gdzie NES przegrywa (1 pkt, rynek mocny):** treść K1 (18 wpisów z lat 2021-2023), taksonomia K3 (44 strony kategorii i organizacji, wszystkie puste - żaden z 18 wpisów nie jest przypisany do kategorii), wydarzenia K7 (jedno prawdziwe wydarzenie z 2021 r., publiczne strony testowe `test-e2e-zakup` w mapie strony), dane K10 (tracker legislacyjny bez ani jednego dossier) i przejrzystość K11 (`/o-nas` bez nazwisk pod nagłówkami zarządu i rad, `/statut` pokazuje treść `/o-nas`, brak stron finansowania i raportu rocznego). Pierwsze cztery platforma ma w kodzie na 3 pkt - to praca redakcyjna i operacyjna, nie programistyczna. K11 jest jedyną luką także w kodzie: nie ma modułu ujawnienia finansowania, rady programowej ani polityki korekt.')
+w(f"- **Wydajność jest najsłabszym mierzonym obszarem.** Mediana Lighthouse (mobile): strona główna `/` z językiem angielskim (przekierowanie na `/en`) - wydajność {round(a['nes/glowna']['performance']*100)}, LCP {f1(a['nes/glowna']['largest-contentful-paint']/1000)} s, TBT {round(a['nes/glowna']['total-blocking-time'])} ms; strona główna po polsku - {round(a['nes/glowna-pl']['performance']*100)}, LCP {f1(a['nes/glowna-pl']['largest-contentful-paint']/1000)} s, CLS w medianie {f2(a['nes/glowna-pl']['cumulative-layout-shift'])}; analiza - {round(a['nes/artykul']['performance']*100)}, TBT {round(a['nes/artykul']['total-blocking-time'])} ms, **czas odpowiedzi serwera {f1(a['nes/artykul']['server-response-time']/1000)} s**, waga {f1(a['nes/artykul']['total-byte-weight']/1e6)} MB. Dokument nie trafia do cache na brzegu: osiem żądań GET bez ciasteczek (strona główna i analiza, po polsku i po angielsku, każde dwa razy pod rząd) dostało `x-nes-cache: MISS` i `cache-control: no-cache, must-revalidate, max-age=0`, a `server-timing` pokazało od 4 do 19 zapytań do bazy (na analizie 19, łącznie 3,2-6,2 s) i do 0,8 s trasowania na brzegu (`rynek/naglowki-get-head.txt`). Magazyn dokumentów zapisuje tylko odpowiedzi `public` z `s-maxage` (`src/lib/http/documentCache.ts:235-238`), a nagłówka, który widzi klient, kod NES nie emituje (`parseCacheControl.ts:4`) - skąd się bierze, trzeba ustalić w logach wdrożenia. `BYPASS` zanotowany wcześniej na analizie pochodził z żądania HEAD (sprawdzone: HEAD daje `BYPASS`, GET `MISS`). Mediana wydajności {len(PERF_INNE)} zmierzonych ośrodków to {round(statistics.median(PERF_INNE) * 100)}. **W trzech z sześciu przebiegów strony głównej (obie wersje językowe) przesunięcie układu wyniosło {CLS_DUZE}** - zjawisko jest niedeterministyczne, ale powtarzalne, a przy nim wydajność spada do 14-21.")
+w('- **Gdzie NES jest wzorem:** nagłówki bezpieczeństwa (K15 = 3, komplet ma jeszcze tylko Atlantic Council), dostępność strony głównej 95 (do poprawy kontrast i kolejność nagłówków), `llms.txt` (mają go jeszcze tylko PIIE i ORF), dane strukturalne `NewsMediaOrganization` i `SearchAction`, kanały RSS w dwóch językach.')
+w('- **Objawy na wdrożeniu i ich przyczyny (krytyk kompletności, 17.8):** polska strona główna z komunikatem „Treść nie dotarła jeszcze z serwera" to budżet SSR strony głównej, 600 ms, w który render się nie mieści - `server-timing` pokazuje `ssr;dur=600.0`, czyli dokładnie budżet. Kod obsługuje to zgodnie z założeniem (komunikat zastępczy, odświeżenie w tle), ale bez cache dokumentu każdy zimny render płaci tę cenę; `/podcasts` i `/polls` z błędem listy to według krytyka ten sam mechanizm terminu (`errorCopy.ts:119`: „nie udało się tylko pobrać tej listy na czas"). Pusta lista ekspertów to treść: katalog bierze tylko osoby z odznaką eksperta (`src/lib/experts/directory.ts:52-54`). Surowe klucze tłumaczeń (`ttsPlayer.card.label`, 17 kluczy `club.*` na `/club`) nie mają przyczyny w kodzie `5b8c77c01` - wdrożenie stoi najpewniej na innym buildzie. Bez ustalonej przyczyny zostają treść angielskiej analizy tylko w danych JSON i `robots.txt`, który Lighthouse uznaje za nieprawidłowy przez dyrektywę `Content-Signal`.')
+w('')
+
+open(S + '/r17d.md', 'w').write('\n'.join(o))
+print('ok', len(o), len(pot), len(bez), len(obal))

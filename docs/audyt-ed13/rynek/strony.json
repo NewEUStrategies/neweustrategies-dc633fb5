@@ -1,0 +1,110 @@
+[
+  {
+    "klucz": "nes",
+    "region": "NES",
+    "nazwa": "New European Strategies",
+    "url": "https://neweuropeanstrategies.com/"
+  },
+  { "klucz": "pism", "region": "PL", "nazwa": "PISM", "url": "https://pism.pl/" },
+  { "klucz": "osw", "region": "PL", "nazwa": "OSW", "url": "https://www.osw.waw.pl/" },
+  { "klucz": "ik", "region": "PL", "nazwa": "Instytut Kościuszki", "url": "https://ik.org.pl/" },
+  {
+    "klucz": "pi",
+    "region": "PL",
+    "nazwa": "Polityka Insight",
+    "url": "https://politykainsight.pl/"
+  },
+  {
+    "klucz": "warsawinstitute",
+    "region": "PL",
+    "nazwa": "Warsaw Institute",
+    "url": "https://warsawinstitute.org/"
+  },
+  {
+    "klucz": "wei",
+    "region": "PL",
+    "nazwa": "Warsaw Enterprise Institute",
+    "url": "https://wei.org.pl/"
+  },
+  {
+    "klucz": "kj",
+    "region": "PL",
+    "nazwa": "Klub Jagielloński",
+    "url": "https://klubjagiellonski.pl/"
+  },
+  { "klucz": "pie", "region": "PL", "nazwa": "PIE", "url": "https://pie.net.pl/" },
+  { "klucz": "ecfr", "region": "EU", "nazwa": "ECFR", "url": "https://ecfr.eu/" },
+  { "klucz": "bruegel", "region": "EU", "nazwa": "Bruegel", "url": "https://www.bruegel.org/" },
+  { "klucz": "ceps", "region": "EU", "nazwa": "CEPS", "url": "https://www.ceps.eu/" },
+  {
+    "klucz": "chathamhouse",
+    "region": "EU",
+    "nazwa": "Chatham House",
+    "url": "https://www.chathamhouse.org/"
+  },
+  { "klucz": "iiss", "region": "EU", "nazwa": "IISS", "url": "https://www.iiss.org/" },
+  { "klucz": "swp", "region": "EU", "nazwa": "SWP", "url": "https://www.swp-berlin.org/" },
+  { "klucz": "ifri", "region": "EU", "nazwa": "Ifri", "url": "https://www.ifri.org/" },
+  {
+    "klucz": "clingendael",
+    "region": "EU",
+    "nazwa": "Clingendael",
+    "url": "https://www.clingendael.org/"
+  },
+  {
+    "klucz": "brookings",
+    "region": "USA",
+    "nazwa": "Brookings",
+    "url": "https://www.brookings.edu/"
+  },
+  { "klucz": "csis", "region": "USA", "nazwa": "CSIS", "url": "https://www.csis.org/" },
+  {
+    "klucz": "carnegie",
+    "region": "USA",
+    "nazwa": "Carnegie Endowment",
+    "url": "https://carnegieendowment.org/"
+  },
+  { "klucz": "rand", "region": "USA", "nazwa": "RAND", "url": "https://www.rand.org/" },
+  { "klucz": "cfr", "region": "USA", "nazwa": "CFR", "url": "https://www.cfr.org/" },
+  {
+    "klucz": "atlanticcouncil",
+    "region": "USA",
+    "nazwa": "Atlantic Council",
+    "url": "https://www.atlanticcouncil.org/"
+  },
+  { "klucz": "piie", "region": "USA", "nazwa": "PIIE", "url": "https://www.piie.com/" },
+  {
+    "klucz": "wilson",
+    "region": "USA",
+    "nazwa": "Wilson Center",
+    "url": "https://www.wilsoncenter.org/"
+  },
+  {
+    "klucz": "lowy",
+    "region": "Azja",
+    "nazwa": "Lowy Institute",
+    "url": "https://www.lowyinstitute.org/"
+  },
+  { "klucz": "iseas", "region": "Azja", "nazwa": "ISEAS", "url": "https://www.iseas.edu.sg/" },
+  { "klucz": "rsis", "region": "Azja", "nazwa": "RSIS", "url": "https://www.rsis.edu.sg/" },
+  { "klucz": "orf", "region": "Azja", "nazwa": "ORF", "url": "https://www.orfonline.org/" },
+  {
+    "klucz": "asan",
+    "region": "Azja",
+    "nazwa": "Asan Institute",
+    "url": "https://en.asaninst.org/"
+  },
+  { "klucz": "jiia", "region": "Azja", "nazwa": "JIIA", "url": "https://www.jiia.or.jp/en/" },
+  {
+    "klucz": "tkfd",
+    "region": "Azja",
+    "nazwa": "Tokyo Foundation",
+    "url": "https://www.tokyofoundation.org/"
+  },
+  {
+    "klucz": "csisid",
+    "region": "Azja",
+    "nazwa": "CSIS Indonesia",
+    "url": "https://www.csis.or.id/"
+  }
+]

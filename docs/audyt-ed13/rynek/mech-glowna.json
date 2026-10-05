@@ -1,0 +1,1790 @@
+{
+  "nes": {
+    "pobranie": "curl",
+    "url": "https://neweuropeanstrategies.com/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=31536000; includeSubDomains",
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://js.stripe.com https://*.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://www.google.com; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://unnltowbgszpdzwpawdu.supabase.co wss://unnltowbgszpdzwpawdu.supabase.co https://api.nbp.pl https://api.stripe.com https://*.googletagmanager.com https://*.google-analytics.com https://*.analytics.google.com https://analytics.google.com https://stats.g.doubleclick.net https://www.google.com https://googleads.g.doubleclick.net https://www.googleadservices.com https://pagead2.googlesyndication.com https://td.doubleclick.net; media-src 'self' https: blob:; frame-src https:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'; upgrade-insecure-requests",
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(self \"https://js.stripe.com\" \"https://checkout.stripe.com\" \"https://m.stripe.network\" \"https://b.stripecdn.com\" \"https://hooks.stripe.com\" \"https://pay.google.com\"), browsing-topics=()",
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": "same-origin"
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 577925,
+    "lang": "pl",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": ["en", "pl", "x-default"],
+    "jsonLd": [
+      "EntryPoint",
+      "ImageObject",
+      "ItemList",
+      "NewsMediaOrganization",
+      "SearchAction",
+      "SiteNavigationElement",
+      "WebSite"
+    ],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": true,
+    "skrypty": 2,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag", "GTM", "Plausible"],
+    "cms": ["TanStack Start"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 1795,
+      "sitemapy": 2,
+      "aiBoty": [
+        "amazonbot",
+        "applebot-extended",
+        "bytespider",
+        "ccbot",
+        "claudebot",
+        "google-extended",
+        "gptbot",
+        "perplexitybot"
+      ]
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 782,
+      "xml": true
+    },
+    "llms": {
+      "status": 200,
+      "bajty": 23619
+    }
+  },
+  "pism": {
+    "pobranie": "przegladarka",
+    "url": "https://pism.pl/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": null,
+      "cross-origin-opener-policy": null
+    },
+    "serwer": null,
+    "cdn": [],
+    "htmlBajty": 995,
+    "lang": null,
+    "title": false,
+    "metaDescription": false,
+    "canonical": false,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": false,
+    "skrypty": 1,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": [],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 961,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 851,
+      "xml": false
+    },
+    "llms": {
+      "status": 200,
+      "bajty": 851
+    }
+  },
+  "osw": {
+    "pobranie": "curl",
+    "url": "https://www.osw.waw.pl/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=31536000",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "",
+    "cdn": [],
+    "htmlBajty": 91005,
+    "lang": "pl",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary",
+    "rss": false,
+    "skrypty": 2,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag"],
+    "cms": ["Drupal"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 2027,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 404,
+      "bajty": 21959,
+      "xml": false
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 188
+    }
+  },
+  "ik": {
+    "pobranie": "curl",
+    "url": "https://ik.org.pl/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": "frame-ancestors 'self';",
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "no-referrer-when-downgrade",
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "Apache",
+    "cdn": [],
+    "htmlBajty": 192763,
+    "lang": "pl-PL",
+    "title": true,
+    "metaDescription": false,
+    "canonical": true,
+    "hreflang": ["en", "pl", "x-default"],
+    "jsonLd": [],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": true,
+    "skrypty": 26,
+    "domenyZewnSkryptow": ["app.getresponse.com", "www.buzzsprout.com", "www.google.com"],
+    "zgoda": [],
+    "sledzenie": [],
+    "cms": ["WordPress"],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 110,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 826,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 92098
+    }
+  },
+  "pi": {
+    "pobranie": "curl",
+    "url": "https://politykainsight.pl/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": null,
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "Apache",
+    "cdn": [],
+    "htmlBajty": 181414,
+    "lang": "pl",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["Organization"],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": false,
+    "skrypty": 17,
+    "domenyZewnSkryptow": [
+      "cdnjs.cloudflare.com",
+      "oss.maxcdn.com",
+      "www.google.com",
+      "www.googletagmanager.com",
+      "zasoby.polityka.pl",
+      "zasoby.politykainsight.test.vavatech.pl"
+    ],
+    "zgoda": ["CookieConsent(orestbida)"],
+    "sledzenie": ["GA4/gtag", "LinkedIn Insight"],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 153,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 404,
+      "bajty": 679,
+      "xml": false
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 13238
+    }
+  },
+  "warsawinstitute": {
+    "pobranie": "curl",
+    "url": "https://warsawinstitute.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 134390,
+    "lang": "en-GB",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": ["en", "pl"],
+    "jsonLd": ["Organization", "SearchAction", "WebSite"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": true,
+    "skrypty": 33,
+    "domenyZewnSkryptow": ["app2.salesmanago.pl", "use.fontawesome.com"],
+    "zgoda": [],
+    "sledzenie": ["GTM", "Hotjar", "Meta Pixel"],
+    "cms": ["WordPress"],
+    "skipLink": false,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 169,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 672765,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 73043
+    }
+  },
+  "wei": {
+    "pobranie": "curl",
+    "url": "https://wei.org.pl/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "sameorigin",
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "Apache",
+    "cdn": [],
+    "htmlBajty": 184450,
+    "lang": "pl-PL",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": ["en", "pl"],
+    "jsonLd": [
+      "BreadcrumbList",
+      "EntryPoint",
+      "ImageObject",
+      "ListItem",
+      "Organization",
+      "PropertyValueSpecification",
+      "ReadAction",
+      "SearchAction",
+      "WebPage",
+      "WebSite"
+    ],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": true,
+    "skrypty": 26,
+    "domenyZewnSkryptow": ["www.googletagmanager.com"],
+    "zgoda": ["Klaro"],
+    "sledzenie": ["GA4/gtag", "GTM"],
+    "cms": ["WordPress"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 168,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 1498,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 75258
+    }
+  },
+  "kj": {
+    "pobranie": "curl",
+    "url": "https://klubjagiellonski.pl/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": null,
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 129896,
+    "lang": "pl",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["Organization", "SearchAction", "WebPage", "WebSite"],
+    "ogTitle": true,
+    "ogImage": false,
+    "twitterCard": "summary_large_image",
+    "rss": true,
+    "skrypty": 6,
+    "domenyZewnSkryptow": ["www.google.com", "www.googletagmanager.com"],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag", "Hotjar"],
+    "cms": ["WordPress"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 580,
+      "sitemapy": 10,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 5317,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 35930
+    }
+  },
+  "pie": {
+    "pobranie": "curl",
+    "url": "https://pie.net.pl/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": null,
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "LiteSpeed",
+    "cdn": [],
+    "htmlBajty": 264591,
+    "lang": "pl-PL",
+    "title": true,
+    "metaDescription": true,
+    "canonical": false,
+    "hreflang": ["en", "pl"],
+    "jsonLd": [],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": true,
+    "skrypty": 6,
+    "domenyZewnSkryptow": ["groot.mailerlite.com", "www.googletagmanager.com"],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag"],
+    "cms": ["WordPress"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 111,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 1005,
+      "xml": true
+    },
+    "llms": {
+      "status": 200,
+      "bajty": 115245
+    }
+  },
+  "ecfr": {
+    "pobranie": "curl",
+    "url": "https://ecfr.eu/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray", "x-cache"],
+    "htmlBajty": 207813,
+    "lang": "en-GB",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["CollectionPage", "NGO", "Organization", "SearchAction", "WebPage", "WebSite"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": true,
+    "skrypty": 19,
+    "domenyZewnSkryptow": ["challenges.cloudflare.com", "kit.fontawesome.com"],
+    "zgoda": ["Cookiebot"],
+    "sledzenie": ["Matomo"],
+    "cms": ["WordPress"],
+    "skipLink": true,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 161,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 15888,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 71953
+    }
+  },
+  "bruegel": {
+    "pobranie": "curl",
+    "url": "https://www.bruegel.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": "frame-ancestors https://*.refinitiv.com https://*.thomsonreuters.com https://*.lseg.com https://*.bruegel.org https://bruegel.org.ddev.site https://bruegel-staging.sbx.so/; report-uri /report-csp-violation",
+      "content-security-policy-report-only": null,
+      "x-frame-options": "ALLOW-FROM https://bruegel.org",
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 119204,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": ["en"],
+    "jsonLd": [],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 9,
+    "domenyZewnSkryptow": ["cdnjs.cloudflare.com", "player.vimeo.com", "www.youtube.com"],
+    "zgoda": [],
+    "sledzenie": ["GTM"],
+    "cms": ["Drupal"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 2027,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 934,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 189
+    }
+  },
+  "ceps": {
+    "pobranie": "curl",
+    "url": "https://www.ceps.eu/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "same-origin",
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 288602,
+    "lang": "en-GB",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["Organization", "ReadAction", "SearchAction", "WebPage", "WebSite"],
+    "ogTitle": true,
+    "ogImage": false,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 15,
+    "domenyZewnSkryptow": ["static.addtoany.com", "www.googletagmanager.com"],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag"],
+    "cms": ["WordPress"],
+    "skipLink": false,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 659,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 403,
+      "bajty": 5584,
+      "xml": false
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 125377
+    }
+  },
+  "chathamhouse": {
+    "pobranie": "curl",
+    "url": "https://www.chathamhouse.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=31536000",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "no-referrer-when-downgrade",
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 421857,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": [
+      "City",
+      "ContactPoint",
+      "EntryPoint",
+      "ImageObject",
+      "NGO",
+      "Organization",
+      "Person",
+      "PostalAddress",
+      "SearchAction",
+      "WebPage",
+      "WebSite"
+    ],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 5,
+    "domenyZewnSkryptow": ["cdn.jsdelivr.net", "unpkg.com"],
+    "zgoda": [],
+    "sledzenie": ["GTM"],
+    "cms": ["Drupal"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 1823,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 403,
+      "bajty": 5490,
+      "xml": false
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 194
+    }
+  },
+  "iiss": {
+    "pobranie": "przegladarka",
+    "url": "https://www.iiss.org/",
+    "status": 403,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=0; includeSubDomains",
+      "content-security-policy": "default-src 'none'; script-src 'nonce-pREqY2eNf0ZdLrH7eUrASk' 'unsafe-eval' https://challenges.cloudflare.com; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com blob:; child-src 'self' https://challenges.cloudflare.com blob:; worker-src blob:; form-action http: https:; base-uri 'self'",
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "same-origin",
+      "permissions-policy": "accelerometer=(),camera=(),clipboard-read=(),clipboard-write=(),geolocation=(),gyroscope=(),hid=(),magnetometer=(),microphone=(),payment=(),publickey-credentials-get=(),screen-wake-lock=(),serial=(),sync-xhr=(),usb=(),xr-spatial-tracking=*",
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": "same-origin"
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 28523,
+    "lang": "en-US",
+    "title": true,
+    "metaDescription": false,
+    "canonical": false,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": false,
+    "skrypty": 2,
+    "domenyZewnSkryptow": ["challenges.cloudflare.com"],
+    "zgoda": [],
+    "sledzenie": [],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 403,
+      "bajty": 5582,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 403,
+      "bajty": 5606,
+      "xml": false
+    },
+    "llms": {
+      "status": 403,
+      "bajty": 5576
+    }
+  },
+  "swp": {
+    "pobranie": "curl",
+    "url": "https://www.swp-berlin.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "openresty",
+    "cdn": ["x-served-by", "x-cache"],
+    "htmlBajty": 434264,
+    "lang": "de",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": ["de", "en", "x-default"],
+    "jsonLd": ["Organization", "PostalAddress", "WebPage", "WebSite"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary",
+    "rss": false,
+    "skrypty": 1,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": [],
+    "cms": ["TYPO3"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 320,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 3006,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 155986
+    }
+  },
+  "ifri": {
+    "pobranie": "przegladarka",
+    "url": "https://www.ifri.org/",
+    "status": 403,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": "default-src 'none'; script-src 'nonce-JRaW0EXh34dUM8QTT9gObE' 'unsafe-eval' https://challenges.cloudflare.com; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com blob:; child-src 'self' https://challenges.cloudflare.com blob:; worker-src blob:; form-action http: https:; base-uri 'self'",
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "same-origin",
+      "permissions-policy": "accelerometer=(),camera=(),clipboard-read=(),clipboard-write=(),geolocation=(),gyroscope=(),hid=(),magnetometer=(),microphone=(),payment=(),publickey-credentials-get=(),screen-wake-lock=(),serial=(),sync-xhr=(),usb=(),xr-spatial-tracking=*",
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": "same-origin"
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 28566,
+    "lang": "en-US",
+    "title": true,
+    "metaDescription": false,
+    "canonical": false,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": false,
+    "skrypty": 2,
+    "domenyZewnSkryptow": ["challenges.cloudflare.com"],
+    "zgoda": [],
+    "sledzenie": [],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 403,
+      "bajty": 5646,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 403,
+      "bajty": 5649,
+      "xml": false
+    },
+    "llms": {
+      "status": 403,
+      "bajty": 5640
+    }
+  },
+  "clingendael": {
+    "pobranie": "przegladarka",
+    "url": "https://www.clingendael.org/",
+    "status": 403,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": "default-src 'none'; script-src 'nonce-GkHfgF8dot3aHpL2Dol44f' 'unsafe-eval' https://challenges.cloudflare.com; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com blob:; child-src 'self' https://challenges.cloudflare.com blob:; worker-src blob:; form-action http: https:; base-uri 'self'",
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "same-origin",
+      "permissions-policy": "accelerometer=(),camera=(),clipboard-read=(),clipboard-write=(),geolocation=(),gyroscope=(),hid=(),magnetometer=(),microphone=(),payment=(),publickey-credentials-get=(),screen-wake-lock=(),serial=(),sync-xhr=(),usb=(),xr-spatial-tracking=*",
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": "same-origin"
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 28594,
+    "lang": "en-US",
+    "title": true,
+    "metaDescription": false,
+    "canonical": false,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": false,
+    "skrypty": 2,
+    "domenyZewnSkryptow": ["challenges.cloudflare.com"],
+    "zgoda": [],
+    "sledzenie": [],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 403,
+      "bajty": 5631,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 403,
+      "bajty": 5634,
+      "xml": false
+    },
+    "llms": {
+      "status": 403,
+      "bajty": 5625
+    }
+  },
+  "brookings": {
+    "pobranie": "curl",
+    "url": "https://www.brookings.edu/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": null,
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray", "x-cache"],
+    "htmlBajty": 175052,
+    "lang": "en-US",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [
+      "ar",
+      "en-mw",
+      "en-us",
+      "es",
+      "fr",
+      "ja",
+      "ko",
+      "ne",
+      "pt",
+      "ru",
+      "zh-cn",
+      "zh-tw"
+    ],
+    "jsonLd": [
+      "BreadcrumbList",
+      "EntryPoint",
+      "ListItem",
+      "PropertyValueSpecification",
+      "ReadAction",
+      "SearchAction",
+      "WebPage",
+      "WebSite"
+    ],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": true,
+    "skrypty": 14,
+    "domenyZewnSkryptow": [
+      "cdn.jsdelivr.net",
+      "cdn.parsely.com",
+      "cmp.osano.com",
+      "experiments.parsely.com",
+      "js.hs-scripts.com",
+      "stats.wp.com",
+      "www.google.com"
+    ],
+    "zgoda": ["Osano"],
+    "sledzenie": ["GA4/gtag", "GTM", "Parse.ly"],
+    "cms": ["WordPress"],
+    "skipLink": false,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 16662,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 14302,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 88925
+    }
+  },
+  "csis": {
+    "pobranie": "curl",
+    "url": "https://www.csis.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=300",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray", "x-served-by", "x-cache"],
+    "htmlBajty": 359448,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["Organization", "WebPage"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": null,
+    "rss": false,
+    "skrypty": 17,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": ["GTM"],
+    "cms": ["Drupal"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 2120,
+      "sitemapy": 0,
+      "aiBoty": ["bytespider"]
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 3023,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 186
+    }
+  },
+  "carnegie": {
+    "pobranie": "curl",
+    "url": "https://carnegieendowment.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": null,
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "envoy",
+    "cdn": ["x-amz-cf-id", "x-cache"],
+    "htmlBajty": 319737,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": ["ar", "de", "en", "es", "fr", "hi", "th", "zh"],
+    "jsonLd": [],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 27,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": ["GTM"],
+    "cms": ["Next.js"],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 93,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 3313,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 12037
+    }
+  },
+  "rand": {
+    "pobranie": "curl",
+    "url": "https://www.rand.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=31536000",
+      "content-security-policy": "upgrade-insecure-requests;",
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "CloudFront",
+    "cdn": ["x-amz-cf-id", "x-cache"],
+    "htmlBajty": 52668,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["Organization", "PostalAddress", "SearchAction", "WebSite"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary",
+    "rss": false,
+    "skrypty": 6,
+    "domenyZewnSkryptow": ["assets.adobedtm.com", "www.google.com", "www.googletagmanager.com"],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag", "Adobe Analytics"],
+    "cms": [],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 486,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 1077086,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 17331
+    }
+  },
+  "cfr": {
+    "pobranie": "curl",
+    "url": "https://www.cfr.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=15552000; includeSubDomains; preload",
+      "content-security-policy": null,
+      "content-security-policy-report-only": "img-src 'self' data: blob: https://assets.cfr.org https://static.cfr.org https://*.go-vip.net https://*.lndo.site http://*.lndo.site https://*.dwcdn.net https://i.ytimg.com https://www.googletagmanager.com https://*.google-analytics.com https://*.doubleclick.net https://p1.parsely.com https://secure.gravatar.com https://vallenato-media.cfr.org https://cfr-vallenato-media.s3.amazonaws.com https://cfr-vallenato-media.s3.us-east-1.amazonaws.com; report-uri /api/csp-report",
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 947523,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["Organization", "SearchAction", "WebSite"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 22,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag", "GTM", "Parse.ly"],
+    "cms": ["WordPress", "Next.js"],
+    "skipLink": true,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 2649,
+      "sitemapy": 3,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 876187,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 255242
+    }
+  },
+  "atlanticcouncil": {
+    "pobranie": "curl",
+    "url": "https://www.atlanticcouncil.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=",
+      "content-security-policy": "frame-ancestors *",
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "accelerometer=(), autoplay=(), camera=(), cross-origin-isolated=(), display-capture=(self), encrypted-media=(), fullscreen=*, geolocation=(self), gyroscope=(), keyboard-map=(), magnetometer=(), microphone=(), midi=(), payment=*, picture-in-picture=*, publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=*, usb=(), xr-spatial-tracking=(), gamepad=(), serial=()",
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": "unsafe-none"
+    },
+    "serwer": "nginx",
+    "cdn": ["x-served-by", "x-cache"],
+    "htmlBajty": 389660,
+    "lang": "en-US",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": [
+      "BreadcrumbList",
+      "EntryPoint",
+      "ImageObject",
+      "ListItem",
+      "Organization",
+      "PropertyValueSpecification",
+      "ReadAction",
+      "SearchAction",
+      "WebPage",
+      "WebSite"
+    ],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": true,
+    "skrypty": 23,
+    "domenyZewnSkryptow": [
+      "js.hsforms.net",
+      "player.vimeo.com",
+      "translate.google.com",
+      "unpkg.com",
+      "view.ceros.com"
+    ],
+    "zgoda": [],
+    "sledzenie": ["GTM", "Hotjar", "LinkedIn Insight"],
+    "cms": ["WordPress"],
+    "skipLink": false,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 472,
+      "sitemapy": 6,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 12106,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 231775
+    }
+  },
+  "piie": {
+    "pobranie": "curl",
+    "url": "https://www.piie.com/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=31536000",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray", "x-served-by", "x-cache"],
+    "htmlBajty": 120705,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["ImageObject", "Organization", "Person", "PostalAddress"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 10,
+    "domenyZewnSkryptow": ["cdnjs.cloudflare.com", "static.addtoany.com"],
+    "zgoda": ["Termly"],
+    "sledzenie": ["GTM"],
+    "cms": ["Drupal"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 2139,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 1388,
+      "xml": true
+    },
+    "llms": {
+      "status": 200,
+      "bajty": 10732
+    }
+  },
+  "wilson": {
+    "pobranie": "curl",
+    "url": "https://www.wilsoncenter.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=31557600",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": null,
+    "cdn": ["x-served-by", "x-cache"],
+    "htmlBajty": 76166,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 2,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": ["GTM"],
+    "cms": ["Drupal"],
+    "skipLink": true,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 2374,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 8611,
+      "xml": true
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 198
+    }
+  },
+  "lowy": {
+    "pobranie": "curl",
+    "url": "https://www.lowyinstitute.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=63072000",
+      "content-security-policy": null,
+      "content-security-policy-report-only": "default-src 'self'; script-src 'self' 'unsafe-inline' https://*.hs-scripts.com https://*.hs-analytics.net https://*.hs-banner.com https://*.hsforms.net https://*.hsforms.com https://*.hubspot.com https://*.hsadspixel.net https://*.usemessages.com https://*.hscollectedforms.net https://*.posthog.com https://va.vercel-scripts.com https://vercel.live https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://*.hubspot.com https://*.hsforms.com; img-src 'self' https: data: blob:; font-src 'self' data: https://*.hubspot.com https://*.hsforms.com; connect-src 'self' https://5dcouzig.api.sanity.io https://5dcouzig.apicdn.sanity.io wss://5dcouzig.api.sanity.io https://cdn.sanity.io https://*.hubspot.com https://*.hsforms.com https://*.hs-analytics.net https://*.hscollectedforms.net https://*.posthog.com https://vitals.vercel-insights.com https://va.vercel-scripts.com https://vercel.live https://challenges.cloudflare.com; media-src 'self' https://*.public.blob.vercel-storage.com; worker-src 'self' blob:; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://*.hubspot.com https://*.hsforms.com https://vercel.live https://challenges.cloudflare.com https://maps.google.com https://www.google.com; frame-ancestors 'self' https://*.sanity.studio https://lowyinstitute.sanity.studio; base-uri 'self'; form-action 'self' https://forms.hsforms.com https://*.hubspot.com; object-src 'none'; upgrade-insecure-requests",
+      "x-frame-options": null,
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": "same-origin"
+    },
+    "serwer": "Vercel",
+    "cdn": ["x-vercel-id"],
+    "htmlBajty": 293624,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["Organization", "SearchAction", "WebSite"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 25,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag"],
+    "cms": ["Next.js"],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 142,
+      "sitemapy": 1,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 3192346,
+      "xml": true
+    },
+    "llms": {
+      "status": 200,
+      "bajty": 118864
+    }
+  },
+  "iseas": {
+    "pobranie": "curl",
+    "url": "https://www.iseas.edu.sg/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "strict-origin-when-cross-origin",
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": null,
+    "cdn": ["x-amz-cf-id", "x-cache"],
+    "htmlBajty": 204343,
+    "lang": "en-US",
+    "title": true,
+    "metaDescription": false,
+    "canonical": false,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": true,
+    "skrypty": 34,
+    "domenyZewnSkryptow": [
+      "ajax.googleapis.com",
+      "assets.wogaa.sg",
+      "connect.facebook.net",
+      "platform.twitter.com",
+      "www.google-analytics.com",
+      "www.googletagmanager.com"
+    ],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag", "GTM", "Meta Pixel"],
+    "cms": ["WordPress"],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 1778,
+      "sitemapy": 0,
+      "aiBoty": ["applebot-extended", "bytespider", "ccbot", "claudebot", "gptbot", "perplexitybot"]
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 1578,
+      "xml": true
+    },
+    "llms": {
+      "status": 200,
+      "bajty": 204188
+    }
+  },
+  "rsis": {
+    "pobranie": "przegladarka",
+    "url": "https://www.rsis.edu.sg/",
+    "status": 403,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+      "content-security-policy": "default-src 'none'; script-src 'nonce-jvTyDBkrlWYRWwupVuSiaI' 'unsafe-eval' https://challenges.cloudflare.com; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com blob:; child-src 'self' https://challenges.cloudflare.com blob:; worker-src blob:; form-action http: https:; base-uri 'self'",
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "same-origin",
+      "permissions-policy": "accelerometer=(),camera=(),clipboard-read=(),clipboard-write=(),geolocation=(),gyroscope=(),hid=(),magnetometer=(),microphone=(),payment=(),publickey-credentials-get=(),screen-wake-lock=(),serial=(),sync-xhr=(),usb=(),xr-spatial-tracking=*",
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": "same-origin"
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 28528,
+    "lang": "en-US",
+    "title": true,
+    "metaDescription": false,
+    "canonical": false,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": false,
+    "skrypty": 2,
+    "domenyZewnSkryptow": ["challenges.cloudflare.com"],
+    "zgoda": [],
+    "sledzenie": [],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 150,
+      "sitemapy": 2,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 403,
+      "bajty": 5609,
+      "xml": false
+    },
+    "llms": {
+      "status": 200,
+      "bajty": 2240949
+    }
+  },
+  "orf": {
+    "pobranie": "curl",
+    "url": "https://www.orfonline.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=15552000; includeSubDomains",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 207071,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["Organization", "SearchAction", "WebSite"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 7,
+    "domenyZewnSkryptow": ["ajax.googleapis.com", "cdnjs.cloudflare.com", "s3.amazonaws.com"],
+    "zgoda": [],
+    "sledzenie": ["GTM"],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 1106,
+      "sitemapy": 14,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 200,
+      "bajty": 673,
+      "xml": true
+    },
+    "llms": {
+      "status": 200,
+      "bajty": 14710
+    }
+  },
+  "asan": {
+    "pobranie": "przegladarka",
+    "url": "https://en.asaninst.org/",
+    "status": 403,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": "default-src 'none'; script-src 'nonce-zcH8cJI32yYVkZwd1oLRjS' 'unsafe-eval' https://challenges.cloudflare.com; script-src-attr 'none'; style-src 'unsafe-inline'; img-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com blob:; child-src 'self' https://challenges.cloudflare.com blob:; worker-src blob:; form-action http: https:; base-uri 'self'",
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "same-origin",
+      "permissions-policy": "accelerometer=(),camera=(),clipboard-read=(),clipboard-write=(),geolocation=(),gyroscope=(),hid=(),magnetometer=(),microphone=(),payment=(),publickey-credentials-get=(),screen-wake-lock=(),serial=(),sync-xhr=(),usb=(),xr-spatial-tracking=*",
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": "same-origin"
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 28582,
+    "lang": "en-US",
+    "title": true,
+    "metaDescription": false,
+    "canonical": false,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": false,
+    "ogImage": false,
+    "twitterCard": null,
+    "rss": false,
+    "skrypty": 2,
+    "domenyZewnSkryptow": ["challenges.cloudflare.com"],
+    "zgoda": [],
+    "sledzenie": [],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 403,
+      "bajty": 5589,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 403,
+      "bajty": 5589,
+      "xml": false
+    },
+    "llms": {
+      "status": 403,
+      "bajty": 5589
+    }
+  },
+  "jiia": {
+    "pobranie": "curl",
+    "url": "https://www.jiia.or.jp/en/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": "max-age=15768000; includeSubdomains; preload;",
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "SAMEORIGIN",
+      "referrer-policy": "no-referrer, strict-origin-when-cross-origin",
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "nginx/1.18.0 (Ubuntu)",
+    "cdn": [],
+    "htmlBajty": 726604,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 10,
+    "domenyZewnSkryptow": ["ce.mf.marsflag.com"],
+    "zgoda": [],
+    "sledzenie": ["GTM"],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": false,
+    "robots": {
+      "status": 200,
+      "bajty": 0,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 404,
+      "bajty": 48418,
+      "xml": false
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 48418
+    }
+  },
+  "tkfd": {
+    "pobranie": "curl",
+    "url": "https://www.tokyofoundation.org/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": null,
+      "referrer-policy": null,
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": null
+    },
+    "serwer": "nginx",
+    "cdn": [],
+    "htmlBajty": 118996,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": true,
+    "hreflang": [],
+    "jsonLd": ["BreadcrumbList", "ListItem", "Organization"],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "summary_large_image",
+    "rss": false,
+    "skrypty": 2,
+    "domenyZewnSkryptow": [],
+    "zgoda": [],
+    "sledzenie": ["GTM"],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 404,
+      "bajty": 67135,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 404,
+      "bajty": 67137,
+      "xml": false
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 67131
+    }
+  },
+  "csisid": {
+    "pobranie": "curl",
+    "url": "https://www.csis.or.id/",
+    "status": 200,
+    "blad": "",
+    "naglowki": {
+      "strict-transport-security": null,
+      "content-security-policy": null,
+      "content-security-policy-report-only": null,
+      "x-frame-options": "DENY",
+      "referrer-policy": "same-origin",
+      "permissions-policy": null,
+      "x-content-type-options": "nosniff",
+      "cross-origin-opener-policy": "same-origin"
+    },
+    "serwer": "cloudflare",
+    "cdn": ["cf-ray"],
+    "htmlBajty": 80962,
+    "lang": "en",
+    "title": true,
+    "metaDescription": true,
+    "canonical": false,
+    "hreflang": [],
+    "jsonLd": [],
+    "ogTitle": true,
+    "ogImage": true,
+    "twitterCard": "CSIS Indonesia",
+    "rss": false,
+    "skrypty": 8,
+    "domenyZewnSkryptow": [
+      "fastly.jsdelivr.net",
+      "s3-csis-web.s3.ap-southeast-1.amazonaws.com",
+      "www.googletagmanager.com"
+    ],
+    "zgoda": [],
+    "sledzenie": ["GA4/gtag"],
+    "cms": [],
+    "skipLink": false,
+    "formularzSzukania": true,
+    "robots": {
+      "status": 200,
+      "bajty": 51,
+      "sitemapy": 0,
+      "aiBoty": []
+    },
+    "sitemap": {
+      "status": 404,
+      "bajty": 53350,
+      "xml": false
+    },
+    "llms": {
+      "status": 404,
+      "bajty": 53350
+    }
+  }
+}

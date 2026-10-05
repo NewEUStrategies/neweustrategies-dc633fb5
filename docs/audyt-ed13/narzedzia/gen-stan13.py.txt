@@ -1,0 +1,240 @@
+# Dokument stanu posredniego wydania 13 (do PR przed limitem sesji).
+import json, sys, collections, re, os, subprocess
+S='/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+sys.path.insert(0,S)
+from journal import wyniki
+RUNS={'G1':'wf_db707daa-71c','G2':'wf_c49f2abd-ffe','G3':'wf_a5a83d38-d11','G4':'wf_62395b2a-740','G5':'wf_36078d88-651','G6':'wf_e5037968-10a','G7':'wf_83064bea-546','G8':'wf_d73f18cf-803','Z':'wf_674f144f-194','RAP':'wf_0187170d-476','PL':'wf_8a39e408-d0e','EU':'wf_8eaca63f-21f','USA':'wf_7a9be1a8-dc0','AZ':'wf_88184313-f3e','NESw':'wf_f1671459-888','NESk':'wf_a527dc5a-a56'}
+snap={k:wyniki(r) for k,r in RUNS.items()}
+json.dump(snap,open(S+'/migawka.json','w'),ensure_ascii=False)
+J=lambda n: json.load(open(f'{S}/{n}'))
+M=J('metryki13.json'); INV=J('inwentarz13.json'); PG=J('pgrls13.json'); PR=J('progi13.json'); RLS=J('rls13.json'); SI=J('sieroty13.json'); DY=J('dyscypliny13.json'); REJ=J('rejestr-defektow.json')
+MECH=json.load(open(S+'/rynek/mech-glowna.json')); STR=json.load(open(S+'/rynek/strony.json')); NESK=snap['NESk']
+def n(x):
+    if isinstance(x,float): return f'{x:,.2f}'.replace(',',' ').replace('.',',')
+    return f'{x:,}'.replace(',',' ')
+def d(a,b): 
+    v=b-a; return ('+' if v>0 else '')+n(v)
+def cl(s): return re.sub(r'\s+',' ',str(s)).replace('|','/').replace('\u2014','-').replace('\u2013','-').strip()
+def zd(s,lim):
+    s=cl(s)
+    if len(s)<=lim: return s
+    c=s[:lim]; i=max(c.rfind('. '),c.rfind('; '))
+    c=c[:i].rstrip()+'.' if i>lim*0.4 else c.rsplit(' ',1)[0]+' (...)'
+    if c.count('`')%2: c=c[:c.rfind('`')].rstrip()+' (...)'
+    return c
+NAZWY_PRZEKROJ={'NULL':'Poza mapą modułów','X-admin-shell':'Przekrój: powłoka panelu admina','X-design-system':'Przekrój: design system','X-i18n':'Przekrój: i18n'}
+def mn(k,name):
+    k=str(k)
+    if k in NAZWY_PRZEKROJ: return NAZWY_PRZEKROJ[k]+('' if k=='NULL' else f' ({k})')
+    return f'{k} {cl(name)}'
+PLS={'czesciowo':'częściowo','sredni':'średni','nie_do_ustalenia':'nie do ustalenia','naprawiony':'naprawiony'}
+def pl(s): return PLS.get(str(s),str(s))
+def nst(s):
+    s=(s or '').lower().strip()
+    for z in ('naprawiony','otwarty','zmieniony'):
+        if s.startswith(z): return z
+    return 'nie_do_ustalenia' if s.startswith('nie') else 'sporny'
+o=[]
+w=o.append
+NOC=sum(1 for g in ['PL','EU','USA','AZ'] for k in snap[g] if k.startswith('ocena:') and snap[g][k])
+w('# Audyt pokrycia testami - wydanie 13: stan pośredni (2026-10-04)\n')
+w('Ten dokument zapisuje to, co wydanie 13 zdążyło policzyć i ustalić przed końcem limitu sesji. **To nie jest zamknięte wydanie.** Pełny pomiar pokrycia jest gotowy (rozdział 5), ale część torów nie przeszła jeszcze próby obalenia, a porównanie rynkowe ma '+str(NOC)+' z 32 witryn ocenionych, bez weryfikacji - limit użycia sesji przerwał te przebiegi w połowie. Każda liczba poniżej ma oznaczony status: **policzone** (mechanicznie, powtarzalne), **zweryfikowane** (agent obalający potwierdził), **zgłoszone** (przed próbą obalenia - do potwierdzenia).\n')
+w('- Drzewo mierzone: `main` @ `5b8c77c01` (2026-10-04). Drzewo porównawcze: wydanie 12 @ `b8b53ae5`. Okno: 402 commity.')
+w('- Surowe dane i narzędzia do wznowienia: `docs/audyt-ed13/` (opis w rozdziale 9).')
+w('- Dokument główny audytu (`docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md`) i artefakt nie są jeszcze zaktualizowane - wejdą tam wyniki po domknięciu przebiegów.\n')
+w('## 1. Co jest gotowe, a co nie\n')
+w('| Część | Stan | Uwagi |')
+w('| --- | --- | --- |')
+w('| Instalacja zależności | gotowe | `xlsx` 0.20.3 z `cdn.sheetjs.com` zainstalowany naprawdę (CDN dziś osiągalny) - w wydaniu 12 była zaślepka i 19 czerwonych przypadków |')
+w('| Pełny pomiar pokrycia (12 shardów + scalenie) | gotowe (policzone) | rozdział 5: 85 101 przypadków, 0 czerwonych, 0 naruszeń progów |')
+w('| Inwentarz statyczny i delta drzew | gotowe (policzone) | rozdziały 2-4 |')
+tory_ok=0; tory=set()
+for g in ['G%d'%i for i in range(1,9)]:
+    for k in snap[g]: tory.add(k.split(':',1)[1])
+obal=[k for g in ['G%d'%i for i in range(1,9)] for k in snap[g] if k.startswith('obal:')]
+w(f'| Tory modułowe (31: mapa, defekty, obalanie) | częściowo | wyniki mapy/defektów z {len(tory)} torów; próba obalenia zakończona w {len(obal)} torach |')
+w(f'| Znaleziska Z wydania 11 i plan 16.15 | częściowo | śledztwo: {len([k for k in snap["Z"] if k.startswith("sledztwo")])}/9, obalanie: {len([k for k in snap["Z"] if k.startswith("obal")])}/9 |')
+w(f'| Raporty wdrożeń z okna (11) | częściowo | śledztwo: {len([k for k in snap["RAP"] if k.startswith("sledztwo")])}/11, obalanie: {len([k for k in snap["RAP"] if k.startswith("obal")])}/11 |')
+oc=[(g,k) for g in ['PL','EU','USA','AZ'] for k in snap[g] if k.startswith('ocena:')]
+ob=[(g,k) for g in ['PL','EU','USA','AZ'] for k in snap[g] if k.startswith('obal:')]
+w(f'| Porównanie rynkowe: oceny witryn (32) | częściowo | ocenione: {len(oc)}, zweryfikowane: {len(ob)} |')
+w('| Porównanie rynkowe: profil zdolności NES z kodu | gotowe (zweryfikowane) | rozdział 8.1 |')
+w('| Porównanie rynkowe: pomiar mechaniczny stron głównych | gotowe (policzone) | 33 witryny, rozdział 8.4 |')
+w('| Pomiar Lighthouse (wydajność, dostępność) | **niegotowe** | zaplanowany po shardach, żeby obciążenie CPU nie fałszowało wyników |\n')
+w('## 2. Skala i delta: jedna definicja na obu drzewach (policzone)\n')
+w('Definicje bez zmian względem wydania 12: plik produkcyjny = `.ts`/`.tsx`/`.js`/`.jsx`/`.mjs` pod `src/` bez testów i `.d.ts`; wiersz = linia bez pustego ogona.\n')
+w('| Metryka | Wydanie 12 (`b8b53ae5`) | Wydanie 13 (`5b8c77c01`) | Δ |')
+w('| --- | ---: | ---: | ---: |')
+lab={'prodFiles':'Pliki kodu produkcyjnego','prodLines':'Wiersze kodu produkcyjnego','testFiles':'Pliki testowe','testLines':'Wiersze testów','cases':'Przypadki testowe (skan statyczny)','expects':'Wywołania `expect` (skan statyczny)','noMockTests':'Pliki testowe bez atrapy `vi.*`','routes':'Trasy (pliki w `src/routes`)','uiComponents':'Komponenty design systemu (`components/ui`)','scripts':'Skrypty `package.json`','checkScripts':'Bramki `check:*`','migrationsSupabase':'Migracje `supabase/migrations`','migrationsDrizzle':'Migracje `drizzle/migrations` (SQL)','pgtapFiles':'Pliki pgTAP','gateTests':'Bramki-testy `*.gate.test.*`','ciModules':'Moduły `src/lib/ci`','docs':'Dokumenty w `docs/`'}
+for k,l in lab.items():
+    a,b=M['ed12'][k],M['teraz'][k]; w(f'| {l} | {n(a)} | **{n(b)}** | {d(a,b)} |')
+w(f"| Asercje pgTAP (analizator repo) | {n(PG['ed12']['asercje'])} | **{n(PG['teraz']['asercje'])}** | {d(PG['ed12']['asercje'],PG['teraz']['asercje'])} |")
+w(f"| Polityki RLS / tabele z politykami (biblioteka repo) | {PG['ed12']['polityki']} / {PG['ed12']['tabeleZPolitykami']} | **{PG['teraz']['polityki']} / {PG['teraz']['tabeleZPolitykami']}** | +2 / 0 |")
+w(f"| Progi pokrycia per ścieżka (martwe) | {PR['ED12']['progow']} ({len(PR['ED12']['martwe'])}) | **{PR['TERAZ']['progow']} ({len(PR['TERAZ']['martwe'])})** | {d(PR['ED12']['progow'],PR['TERAZ']['progow'])} |")
+w(f"| Pliki produkcyjne pod progiem per ścieżka | {n(PR['ED12']['objete'])} ({n(round(PR['ED12']['pct'],1))}%) | **{n(PR['TERAZ']['objete'])} ({n(round(PR['TERAZ']['pct'],1))}%)** | {d(PR['ED12']['objete'],PR['TERAZ']['objete'])} |")
+w(f"| Wpisy `it.fails` / pliki | {PR['ED12']['fails']} / {len(PR['ED12']['failsPliki'])} | **{PR['TERAZ']['fails']} / {len(PR['TERAZ']['failsPliki'])}** | {d(PR['ED12']['fails'],PR['TERAZ']['fails'])} / {d(len(PR['ED12']['failsPliki']),len(PR['TERAZ']['failsPliki']))} |")
+w('| Testy Playwright / pliki / konfiguracje | 314 / 25 / 6 | **314 / 25 / 6** | 0 |\n')
+w('Statyczne liczby przypadków wyżej pochodzą ze skanu treści plików (ta sama definicja co w wydaniu 12); przebieg suity liczy ich więcej (85 101), bo widzi przypadki generowane w pętlach - patrz rozdział 5.\n')
+w('**Okno jest testowe, nie funkcjonalne.** Kod produkcyjny urósł o 63 pliki (+1,6% wierszy), a testy o 261 plików (+8,0% wierszy) i 4 321 przypadków. Rejestr `it.fails` stopniał o 36 wpisów, przybyło 113 progów per ścieżka, 22 pliki pgTAP i 585 asercji bazy. Playwright stoi w miejscu: te same 314 testów w 25 plikach (`playwright test --list` osobno na każdej konfiguracji; konfiguracja integracyjna rzuca bez potwierdzenia sandboksa, jej jeden test liczony z pliku).\n')
+w('## 3. Moduł po module: skala i przyrost (policzone)\n')
+w('| Moduł | Pliki prod. | Wiersze | Pliki testowe | Przypadki | Trasy | Nowe pliki prod. |')
+w('| --- | ---: | ---: | ---: | ---: | ---: | ---: |')
+for r in INV['rows']:
+    w(f"| {mn(r['k'],r['name'])} | {r['prod']} ({d(r['prodOld'],r['prod'])}) | {n(r['loc'])} ({d(r['locOld'],r['loc'])}) | {r['test']} ({d(r['testOld'],r['test'])}) | {n(r['cases'])} ({d(r['casesOld'],r['cases'])}) | {r['routes']} | {r['addedProd']} |")
+T=INV['T']; w(f"| **Razem** | **{n(T['p'])}** | **{n(T['l'])}** | **{n(T['t'])}** | **{n(T['c'])}** | **{T['r']}** | **{T['add']}** |\n")
+w(f"Wiersze w tej tabeli liczy skrypt taksonomii (`split` po znaku nowej linii, z pustym ogonem pliku), stąd suma {n(T['l'])} = {n(T['l']-T['p'])} z rozdziału 2 + {n(T['p'])} plików. Ta sama definicja działa na obu drzewach, więc przyrosty są porównywalne. „Nowe pliki prod.” liczy pliki dodane w oknie; różnica w „Pliki prod.” uwzględnia też pliki usunięte i przeniesione między modułami.\n")
+w('Najwięcej nowych testów przyszło do modułu 20 (platforma, +52 pliki, +810 przypadków), modułu 13 (monetyzacja, +46 plików, +576 przypadków) i przekroju design systemu (+36 plików, +349 przypadków). Moduły 6, 12, 14 i 21 nie dostały ani jednego nowego pliku produkcyjnego.\n')
+w('## 4. Bramki, baza i higiena (policzone)\n')
+w(f"- **pgTAP:** {PG['teraz']['pgtapFiles']} plików, {n(PG['teraz']['asercje'])} asercji, `planned = counted` w każdym pliku (analizator `src/lib/ci/pgTapPlan.ts`, zero plików zepsutych). Nowe pliki w oknie ({len(PG['teraz']['noweTesty'])}): " + ', '.join(f'`{x}`' for x in PG['teraz']['noweTesty']) + '.')
+w(f"- **RLS:** odtworzenie migracji daje 320 tabel `public`, każda z `ENABLE ROW LEVEL SECURITY`; 42 tabele z RLS bez żadnej polityki (dostęp tylko przez service-role), nowa w oknie: `analytics_search_peppers`. Migracje: supabase {M['ed12']['migrationsSupabase']} → {M['teraz']['migrationsSupabase']}, drizzle {M['ed12']['migrationsDrizzle']} → {M['teraz']['migrationsDrizzle']}.")
+w(f"- **Martwe progi:** nadal te same 5 (`src/components/admin/analytics/ChartDataTable.tsx`, `chartTheme.ts`, `EChart.tsx`, `EChartClient.tsx`, `src/components/admin/newsletter/deliverability/suppressionTable.ts`) - pozycja 13 planu wydania 12 niewykonana.")
+w(f"- **Sieroty:** pliki produkcyjne, których nic nie importuje: 4 → 1; importowane wyłącznie przez testy: 38 → 36.")
+w(f"- **Dyscypliny:** `any` w kodzie produkcyjnym 421 → 422 (418 to wygenerowany `routeTree.gen.ts`), `as any` 418 → 419 (j.w.), `@ts-ignore` 0, `@ts-expect-error` 0, `eslint-disable` 60 → 62, myślnik długi w literałach produkcyjnych 0.\n")
+POK=J('pokrycie13.json'); P12=J('ed12-pokrycie-moduly.json')
+VR=J('vitest-results.json') if False else None
+w('## 5. Pomiar pokrycia (policzone, pełny przebieg)\n')
+w('Metoda bez zmian względem wydania 12: vitest 4.1.7, provider `istanbul`, 12 shardów (`vitest.shard.config.ts`) z blobami, scalenie `--merge-reports` z progami z `vitest.config.ts`, mianownik = cały `src/` (`all: true`). Przebieg: 2026-10-04, 09:51-10:57 UTC, na `5b8c77c01`. Tym razem bez zaślepki: `xlsx` zainstalowany z `cdn.sheetjs.com`.\n')
+T=POK['T']; pc=lambda a,b: 100*a/b
+w('| Metryka | Wydanie 12 (`b8b53ae5`) | Wydanie 13 (`5b8c77c01`) | Δ |')
+w('| --- | ---: | ---: | ---: |')
+for nazwa,stare,nowe in [('Linie',97.03,pc(T['Lc'],T['L'])),('Funkcje',95.83,pc(T['Fc'],T['F'])),('Instrukcje',96.06,pc(T['Sc'],T['S'])),('Gałęzie',91.78,pc(T['Bc'],T['B']))]:
+    w(f'| {nazwa} | {n(stare)}% | **{n(round(nowe,2))}%** | +{n(round(nowe-stare,2))} pp |')
+w('| Przypadki w przebiegu | 79 399 | **85 101** | +5 702 |')
+w('| Czerwone przypadki | 19 (zaślepka `xlsx`) | **0** | -19 |')
+w('| `expected fail` (it.fails w przebiegu) | 346 | **320** | -26 |')
+w('| Pliki testowe w przebiegu | 2 992 | **3 253** (2 pominięte) | +261 |')
+w(f"| Pliki produkcyjne z zerowym pokryciem linii | 79 | **{T['zero']}** | {d(79,T['zero'])} |")
+w(f"| Martwe funkcje nazwane (0 wywołań) | 235 | **{T['dead']}** | {d(235,T['dead'])} |")
+w('| Naruszenia progów (globalny + per ścieżka) | 0 | **0** | 0 |\n')
+w('**Najlepszy przyrost pokrycia w historii tej serii audytów.** Wszystkie cztery metryki rosną o 1,8-2,5 punktu, a czerwień spada do zera. Sześć obszarów ma dziś 100% linii i funkcji: moduły 1 (Wpisy), 7 (Typy treści specjalne), 14 (Kupony, darowizny, prezenty, reklamy) i 21 (Rekrutacja) oraz przekroje i18n i design systemu. Najsłabsze: moduł 4 (Strony, wygląd, motyw, media) - 92,88% linii i 4 pliki na zerze - oraz moduł 5 (Strona główna, archiwa, chrome) - 96,68% linii i 83,13% gałęzi.\n')
+w('| Moduł | Pliki | Linie | Δ wzgl. wyd. 12 | Funkcje | Δ | Instrukcje | Gałęzie | Pliki na zerze | Niepokryte linie |')
+w('| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |')
+nazwy={str(r['k']):r['name'] for r in INV['rows']}
+def kl(k):
+    try: return (0,int(k))
+    except Exception: return (1,k)
+for k in sorted(POK['perKey'],key=kl):
+    r=POK['perKey'][k]; o12=P12.get(k,{})
+    li=pc(r['Lc'],r['L']); fu=pc(r['Fc'],r['F'])
+    dl=f"{'+' if li-o12.get('lines',li)>=0 else ''}{n(round(li-o12.get('lines',li),2))}" if o12 else '-'
+    df=f"{'+' if fu-o12.get('funcs',fu)>=0 else ''}{n(round(fu-o12.get('funcs',fu),2))}" if o12 else '-'
+    w(f"| {mn(k,nazwy.get(k,''))} | {r['files']} | {n(round(li,2))}% | {dl} | {n(round(fu,2))}% | {df} | {n(round(pc(r['Sc'],r['S']),2))}% | {n(round(pc(r['Bc'],r['B']),2))}% | {r['zero']} | {n(r['L']-r['Lc'])} |")
+w('')
+zera=[(k,f,l) for k,r in POK['perKey'].items() for f,l in r.get('zeros',[])]
+w(f"**Pliki produkcyjne na zerowym pokryciu linii ({len(zera)}):** " + ', '.join(f'`{f}` ({l} linii, moduł {k})' for k,f,l in sorted(zera,key=lambda z:-z[2])) + '.\n')
+w('## 6. Rejestr otwartych defektów i nowe zgłoszenia\n')
+c=collections.Counter(x['zrodlo'] for x in REJ); cs=collections.Counter(x['stanPliku'] for x in REJ)
+w(f"Rejestr do rozliczenia liczy **{len(REJ)}** pozycje: {c['ed11']} defektów wydania 11, które po wydaniu 12 nadal stały, oraz {c['ed12-tor']+c['ed12-weryfikator']+c['ed12-krytyk']} nowych defektów wydania 12 ({c['ed12-tor']} z torów, {c['ed12-weryfikator']} od weryfikatorów, {c['ed12-krytyk']} od krytyka). Plik każdej pozycji porównany mechanicznie z drzewem wydania 12: {cs['plik_zmieniony']} leży w plikach zmienionych w oknie, {cs['plik_bez_zmian']} w plikach bajt w bajt niezmienionych (otwarte mechanicznie), {cs['plik_usuniety']} w plikach usuniętych.\n")
+# statusy z torow + werdykty obalania
+ver={}; dod=[]
+for g in ['G%d'%i for i in range(1,9)]:
+    for k,v in snap[g].items():
+        if k.startswith('obal:') and v:
+            t=k.split(':',1)[1]
+            for x in v.get('werdykty',[]): ver[(t,x['id'])]=x
+            for x in v.get('dodatkoweZnaleziska',[]): dod.append((t,x))
+stat=collections.Counter(); statV=collections.Counter(); nowe=[]
+for g in ['G%d'%i for i in range(1,9)]:
+    for k,v in snap[g].items():
+        typ,t=k.split(':',1)
+        if typ not in ('defekty','przekroj') or not v: continue
+        for s in v.get('statusDefektow',[]):
+            stat[s['status']]+=1
+            vv=ver.get((t,s['id']))
+            if vv:
+                fin=s['status'] if vv['werdykt']=='POTWIERDZONY' else nst(vv.get('poprawnyStatus'))
+                statV[(fin if vv['werdykt']!='NIEROZSTRZYGNIETY' else 'nierozstrzygniety')]+=1
+        for i,x in enumerate(v.get('defekty',[])):
+            vv=ver.get((t,f'N{i+1}'))
+            nowe.append((t,x,vv))
+w(f"**Statusy zgłoszone przez tory (przed obalaniem):** naprawione {stat['naprawiony']}, otwarte {stat['otwarty']}, zmienione {stat['zmieniony']}, nie do ustalenia {stat['nie_do_ustalenia']}. Z tego przeszło już próbę obalenia {sum(statV.values())}: " + ', '.join(f'{k} {v}' for k,v in statV.most_common()) + '.\n')
+wc=collections.Counter(x['waga'] for _,x,_ in nowe)
+w(f"**Nowe zgłoszenia defektów w kodzie okna:** {len(nowe)} (wysokie {wc['wysoki']}, średnie {wc['sredni']}, niskie {wc['niski']}, krytyczne {wc['krytyczny']}). Kolumna „Weryfikacja” pokazuje wynik próby obalenia, jeśli już się odbyła.\n")
+w('| Waga | Tor | Defekt | Miejsce | Weryfikacja |')
+w('| --- | --- | --- | --- | --- |')
+rank={'krytyczny':0,'wysoki':1,'sredni':2,'niski':3}
+for t,x,vv in sorted(nowe,key=lambda z:(rank[z[1]['waga']],z[0])):
+    if x['waga']=='niski': continue
+    wer=(vv['werdykt'].lower()+(f" ({zd(vv['korektaWagi'],90)})" if vv.get('korektaWagi') else '')) if vv else 'jeszcze nie'
+    w(f"| {pl(x['waga'])} | {t} | {cl(x['tytul'])} | `{x['plik']}:{x['linia']}` | {wer} |")
+w(f"\nNiskich zgłoszeń ({wc['niski']}) nie wypisuję - są w `docs/audyt-ed13/migawka.json`. Weryfikatorzy dorzucili {len(dod)} dodatkowych zgłoszeń (też w migawce), jeszcze bez własnej próby obalenia.\n")
+w('## 7. Znaleziska Z wydania 11, plan wydania 12 i raporty wdrożeń (zgłoszone)\n')
+w('Werdykty śledztwa na `5b8c77c01`; tam, gdzie zakończyła się próba obalenia, podany jest jej wynik.\n')
+w('| Pozycja | Stan w wydaniu 12 | Śledztwo (wydanie 13) | Obalanie | Co dziś stoi |')
+w('| --- | --- | --- | --- | --- |')
+ed12={'Z1':'częściowo','Z2':'częściowo','Z3':'częściowo','Z4':'częściowo','Z8':'częściowo','Z9':'otwarte','Z10':'otwarte','P4-6':'otwarte (nowe)','P11-14':'otwarte (nowe)'}
+for pid in ['Z1','Z2','Z3','Z4','Z8','Z9','Z10','P4-6','P11-14']:
+    s1=snap['Z'].get('sledztwo:'+pid); s2=snap['Z'].get('obal:'+pid)
+    if not s1: continue
+    ob='jeszcze nie' if not s2 else (s2['werdykt'].lower()+(f" → {nst(s2['poprawnyStatus'])}" if s2['werdykt']=='OBALONY' and s2.get('poprawnyStatus') else ''))
+    w(f"| {pid} | {ed12[pid]} | **{pl(s1['status'])}** | {ob} | {zd(s1['podsumowanie'],460)} |")
+w('\n**Raporty wdrożeń dodane w oknie** (czy kod potwierdza to, co raport deklaruje):\n')
+w('| Raport | Śledztwo | Obalanie | Podsumowanie |')
+w('| --- | --- | --- | --- |')
+for k,v in snap['RAP'].items():
+    if not k.startswith('sledztwo:'): continue
+    pid=k.split(':',1)[1]; s2=snap['RAP'].get('obal:'+pid)
+    ob='jeszcze nie' if not s2 else s2['werdykt'].lower()
+    w(f"| `{pid}` | **{pl(v['status'])}** | {ob} | {zd(v['podsumowanie'],420)} |")
+w('\n## 8. Platforma na tle rynku: think tanki z Polski, UE, USA i Azji (częściowo)\n')
+w('**Metoda.** Jedna rubryka K1-K11 (0-3 pkt) dla wszystkich witryn, oceniana na tym, co strona daje publicznie dziś; każdą ocenę ma sprawdzić osobny agent obalający (oceny 0 i 3 oraz każde twierdzenie o braku funkcji). Wydajność, dostępność, SEO i bezpieczeństwo mierzę mechanicznie, nie z oceny agenta. NES oceniam dwa razy: jako **zdolność platformy w kodzie** i jako **wdrożenie publiczne** `neweuropeanstrategies.com` - tylko to drugie jest porównywalne wprost z konkurencją.\n')
+w('Kryteria: K1 formaty i głębia treści, K2 eksperci jako byt, K3 taksonomia i huby, K4 wyszukiwarka, K5 wielojęzyczność, K6 newsletter i alerty, K7 wydarzenia, K8 model przychodów i członkostwo, K9 konto i personalizacja, K10 interaktywność i dane, K11 przejrzystość instytucjonalna.\n')
+w('### 8.1. Zdolność platformy NES z kodu (zweryfikowane)\n')
+p=NESK['profil-nes']; vv=NESK['obal-profil-nes']; kor={x['kryterium']:x for x in vv['korekty']}
+w('| Kryterium | Ocena agenta | Po weryfikacji | Uzasadnienie i ograniczenie |')
+w('| --- | ---: | ---: | --- |')
+suma=0
+for x in p['oceny']:
+    po=kor[x['kryterium']]['powinnoByc'] if x['kryterium'] in kor else x['punktyZdolnosci']; suma+=po
+    uz=zd(kor[x['kryterium']]['dowod'],360) if x['kryterium'] in kor else zd(x['ograniczenia'],360)
+    w(f"| {x['kryterium']} | {x['punktyZdolnosci']} | **{po}** | {uz} |")
+w(f"| **Suma** | | **{suma} / 33** | |\n")
+w('Zdolności, których typowa witryna think tanku nie ma (zweryfikowane, z zastrzeżeniami weryfikatora): ' + '; '.join(cl(x['nazwa']) for x in p['zdolnosciPozaRubryka']) + '. Weryfikator zakwestionował dwie: serwer MCP wymaga tokenu zalogowanego użytkownika (publicznie zostaje `llms.txt`), a kluby dyskusyjne są domyślnie wyłączone (`clubs_enabled: false`).\n')
+w('Luki zdolności wskazane przez profil: ' + ' '.join(f'({i+1}) {cl(x)}' for i,x in enumerate(p['luki'][:6])) + '\n')
+w('### 8.2. Witryny ocenione do chwili zapisu (zgłoszone, bez weryfikacji)\n')
+K=['K1','K2','K3','K4','K5','K6','K7','K8','K9','K10','K11']
+w('| Witryna | Region | ' + ' | '.join(K) + ' | Suma |')
+w('| --- | --- | ' + ' | '.join(['---:']*11) + ' | ---: |')
+rows=[]
+nm={x['klucz']:x for x in STR}
+for g,reg in [('NESw','NES'),('PL','PL'),('EU','UE'),('USA','USA'),('AZ','Azja')]:
+    for k,v in snap[g].items():
+        if not k.startswith('ocena:') or not v: continue
+        sc={o['kryterium']:o['punkty'] for o in v['oceny']}
+        kl=k.split(':',1)[1]
+        vk=snap[g].get('obal:'+kl)
+        if vk:
+            for kk in vk['korekty']: sc[kk['kryterium']]=kk['powinnoByc']
+        rows.append((reg,kl,sc,bool(vk)))
+for reg,kl,sc,ver2 in sorted(rows,key=lambda r:(-sum(r[2].values()))):
+    w(f"| {nm.get(kl,{}).get('nazwa',kl)}{' (wdrożenie)' if kl=='nes' else ''}{' ✓' if ver2 else ''} | {reg} | " + ' | '.join(str(sc.get(k,'')) for k in K) + f' | **{sum(sc.values())}** |')
+w('\n✓ = ocena po próbie obalenia. Pozostałe są zgłoszeniami agenta oceniającego - rozdział domknie się po weryfikacji wszystkich 32 witryn.\n')
+w('### 8.3. Pierwsze wnioski (wstępne)\n')
+w('- **Zdolność platformy jest na poziomie czołówki światowej, wdrożenie publiczne - nie.** Z kodu NES ma 30/33 pkt (po weryfikacji), czyli więcej niż każda dotąd oceniona witryna. Wdrożenie `neweuropeanstrategies.com` ma w ocenie agenta 23/33: przegrywa na K1 (mało treści i formatów w obiegu), K10 (brak trackera i danych w obiegu publicznym) i K11 (brak stron finansowania, zarządu i raportu rocznego). To różnica między produktem a jego wypełnieniem, nie między kodem a konkurencją.')
+w('- **Przewaga trwała: wyszukiwarka, dwujęzyczność, członkostwo i konto.** Żadna dotąd oceniona witryna z UE i Azji nie ma pełnej drugiej wersji językowej z `hreflang` na poziomie NES, a konta z personalizacją (lista lektur, alerty, rekomendacje) ma wśród ocenionych tylko Polityka Insight, Chatham House i CFR (po 2 pkt). Wyszukiwarka NES (fasety, podpowiedzi, literówki, osoby, zapisane wyszukiwania z alertem) ma 3 pkt, które z konkurencji ma jak dotąd tylko Brookings.')
+w('- **Luka strukturalna: przejrzystość instytucjonalna (K11).** Czołówka USA i UE (Brookings, CFR, Carnegie, RAND, Bruegel) ma 3 pkt: finansowanie z listą darczyńców, raport roczny, standardy niezależności. Platforma NES nie ma na to modułu - takie strony da się zbudować tylko ręcznie w CMS.')
+w('- **Dane (K10):** konkurencja z USA i UE publikuje trackery i dane do pobrania; NES ma tracker legislacyjny i NES Digital Features w kodzie, ale bez publicznego pobierania danych (CSV) spod wykresów.\n')
+w('### 8.4. Pomiar mechaniczny stron głównych (policzone, 33 witryny)\n')
+w('Pobranie `curl` (a przy blokadzie - prawdziwą przeglądarką Chromium przez Playwright) z wyjścia sieciowego sesji w USA (wschodnie wybrzeże), 2026-10-04. Pięć witryn zwraca wyzwanie Cloudflare także przeglądarce, a PISM - stronę ochrony Imperva z kodem 200; ich wiersze opisują stronę wyzwania, nie witrynę.\n')
+w('| Witryna | Region | HTTP | HTML (kB) | HSTS | CSP | `lang` | hreflang | JSON-LD | RSS | `llms.txt` | Domeny skryptów zewn. | Śledzenie w HTML | CMS |')
+w('| --- | --- | ---: | ---: | :---: | :---: | --- | ---: | --- | :---: | :---: | ---: | --- | --- |')
+for s0 in STR:
+    k=s0['klucz']; r=MECH.get(k)
+    if not r: continue
+    blok=r['status']==403 and r['pobranie']=='przegladarka'
+    llms='tak' if r['llms']['status']==200 and r['llms']['bajty']<200000 and not open(f"{S}/rynek/mech/{k}-llms.txt",errors='replace').read().lstrip().lower().startswith(('<!doctype','<html')) else '-'
+    jl=', '.join(x for x in r['jsonLd'] if x not in ('ListItem','EntryPoint','PropertyValueSpecification','ImageObject','PostalAddress','City','ContactPoint'))[:60] or '-'
+    imp='_Incapsula_Resource' in open(f"{S}/rynek/mech/{k}-glowna.html",errors='replace').read(4000)
+    w(f"| {s0['nazwa']} | {s0['region'].replace('EU','UE')} | {r['status']}{' (Cloudflare)' if blok else ''}{' (Imperva)' if imp else ''} | {round(r['htmlBajty']/1024)} | {'tak' if r['naglowki']['strict-transport-security'] else '-'} | {'tak' if r['naglowki']['content-security-policy'] else '-'} | {r['lang'] or '-'} | {len(r['hreflang'])} | {jl} | {'tak' if r['rss'] else '-'} | {llms} | {len(r['domenyZewnSkryptow'])} | {', '.join(r['sledzenie']) or '-'} | {', '.join(r['cms']) or '-'} |")
+w('\nWnioski z pomiaru: NES jest jedną z niewielu witryn z kompletem HSTS i CSP, `hreflang` dla dwóch języków, `llms.txt` i danymi strukturalnymi typu `NewsMediaOrganization`; ma za to jeden z cięższych dokumentów HTML w zestawieniu (~564 kB po rozpakowaniu - więcej mają tylko CFR i JIIA), co trzeba będzie skonfrontować z Lighthouse. Mechaniczne wykrycie platformy zgody na cookies pomija rozwiązania własne (tak jest u NES), dlatego tej kolumny nie pokazuję - zgodę ocenią agenci.\n')
+w('## 9. Dane surowe i wznowienie\n')
+w('Katalog `docs/audyt-ed13/` zawiera wszystko, co jest potrzebne do domknięcia wydania bez ponownego liczenia:\n')
+w('- `metryki13.json`, `inwentarz13.json`, `progi13.json`, `rls13.json`, `pgrls13.json`, `typy13.json`, `sieroty13.json`, `dyscypliny13.json` - wyniki mechaniczne (rozdziały 2-4);')
+w('- `pokrycie13.json` - pokrycie per moduł i per plik z `coverage/coverage-final.json` (rozdział 5);')
+w('- `rejestr-defektow.json` - 323 otwarte defekty wydań 11 i 12 z plikiem, torem i stanem pliku w oknie;')
+w('- `migawka.json` - pełne wyniki wszystkich agentów zebrane do chwili zapisu (tory, znaleziska, raporty, rynek);')
+w('- `rynek/` - lista witryn, pomiar mechaniczny stron głównych, profil zdolności NES;')
+w('- `narzedzia/` - skrypty pomiarowe i skrypty workflowów (rozszerzenie `.txt`, żeby lint i prettier ich nie brały jako kodu repozytorium).\n')
+w('Do domknięcia: (1) pokrycie per funkcjonalność (wzorce ścieżek z torów, gdy wszystkie przejdą weryfikację); (2) próba obalenia w torach, w których jeszcze jej nie było, i obalenie dodatkowych zgłoszeń weryfikatorów; (3) obalanie znalezisk Z i raportów; (4) oceny pozostałych '+str(32-NOC)+' witryn i weryfikacja wszystkich 32; (5) Lighthouse dla 33 witryn (strona główna i jedna analiza); (6) rozdział 17 w dokumencie głównym, weryfikator `scripts/audit/verify-edition-13.mjs`, README i artefakt.\n')
+open(S+'/stan13.md','w').write('\n'.join(o))
+print('ok', len(o))

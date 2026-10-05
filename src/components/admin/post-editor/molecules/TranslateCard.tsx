@@ -66,7 +66,7 @@ export function TranslateCard({
         {t("adminPostPanes.translate.hint")}
       </p>
       {hasEnContent && (
-        <p className="text-[11px] text-brand-ink dark:text-brand0">
+        <p className="text-[11px] text-brand-ink dark:text-brand">
           {t("adminPostPanes.translate.overwriteWarning")}
         </p>
       )}
