@@ -263,9 +263,11 @@ export function readSectionLabelProps(
   const variant = (str("variant") || "kinetic-signal-notch") as SectionLabelVariant;
   const customAccent = str("accentColor");
   const colorBase = customAccent || str("color") || "brand";
-  const accent = resolveAccentColor(
-    opts.theme === "dark" ? autoInvertColor(colorBase, "dark") : colorBase,
-  );
+  const accent = opts.theme === "dark" && str("accentColorDark")
+    ? str("accentColorDark")
+    : resolveAccentColor(
+        opts.theme === "dark" ? autoInvertColor(colorBase, "dark") : colorBase,
+      );
   const showAction = bool("showAction", true);
   return {
     label,
@@ -1307,7 +1309,7 @@ export function SectionLabelRender({
                 <span
                   key={bar.id}
                   className={`nes-kinetic-bar rounded-full ${barW} ${bar.grow}`}
-                  style={{ height: barH, background: `var(--nes-kinetic-signal, ${accent})`, transitionDelay: bar.delay }}
+                  style={{ height: barH, background: accent, transitionDelay: bar.delay }}
                 />
               ))}
             </span>
