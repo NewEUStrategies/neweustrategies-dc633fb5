@@ -730,7 +730,17 @@ describe("trasa /qa/$slug - sesja, pytania i odpowiedzi", () => {
       });
     });
 
-    expect(screen.getByText("Ładowanie...")).toBeInTheDocument();
+    // Asercja CZEKA na render, a nie łapie DOM tuż po `act`. Stan zapytania
+    // jest już „bez danych, w trakcie pobierania", ale react-query powiadamia
+    // komponent przez `setTimeout(0)` (`notifyManager`), a asynchroniczne
+    // `act` opróżnia kolejkę Reacta jednym `setImmediate` - w Node zawsze
+    // PRZED tym timerem, gdy test biegnie z fazy timerów. Synchroniczne
+    // `getByText` widziało więc STARY DOM z pełną sesją, chyba że w oknie
+    // `act` przypadkiem wpadło inne powiadomienie (sukces `site_settings`
+    // z montowania): lokalnie wpadało, w CI 37298945078 już nie. Czekanie
+    // niczego nie osłabia - zapora trzyma pobieranie otwarte, a przy
+    // odwróconej kolejności gałęzi „Ładowanie..." nie pojawi się wcale.
+    expect(await screen.findByText("Ładowanie...")).toBeInTheDocument();
     expect(screen.queryByText("Nie udało się pobrać danych.")).toBeNull();
 
     await act(async () => {
