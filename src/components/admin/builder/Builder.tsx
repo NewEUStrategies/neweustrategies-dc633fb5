@@ -30,6 +30,7 @@ import {
 import type { BuilderDocument, Device, Mode } from "@/lib/builder/types";
 import { emptyDocument, isEmptyDocument } from "@/lib/builder/types";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
+import { normalizeThemeGeometry } from "@/lib/builder/themeGeometry";
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import { useTheme } from "@/components/ThemeProvider";
 import { findWidget, findSection, findColumn, findInner } from "@/lib/builder/operations";
@@ -91,7 +92,10 @@ export function Builder({
     last: t(`builder.scope.${scope}.last`),
   };
 
-  const initial = useMemo(() => safeParseBuilderDoc(value ?? emptyDocument()), [value]);
+  const initial = useMemo(
+    () => normalizeThemeGeometry(safeParseBuilderDoc(value ?? emptyDocument())),
+    [value],
+  );
   const history = useHistory(initial, {
     onChange,
     syncExternal: true,

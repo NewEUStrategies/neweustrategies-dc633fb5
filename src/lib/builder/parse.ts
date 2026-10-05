@@ -8,7 +8,8 @@
 // additionally sanitizes every user string at render time.
 import type { BuilderDocument } from "./types";
 import { safeParseBuilderDoc } from "./schema";
+import { normalizeThemeGeometry } from "./themeGeometry";
 
 export function parseBuilderDoc(raw: unknown): BuilderDocument {
-  return safeParseBuilderDoc(raw);
+  return normalizeThemeGeometry(safeParseBuilderDoc(raw));
 }
