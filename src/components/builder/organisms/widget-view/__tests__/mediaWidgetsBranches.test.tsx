@@ -286,6 +286,30 @@ describe("ImageWidget - logo strony i fallbacki", () => {
     expect(img().className).not.toContain("rounded-xl");
   });
 
+  it("an alt containing 'logo' inside a word (\"Zegar analogowy\") keeps the photo; a whole-word 'Logo' swaps in the site logo", async () => {
+    // Dawny test /logo/i podmieniał zwykłe zdjęcie na logo serwisu (altMarksLogo).
+    db.tables.site_settings = [themeOptions];
+    const photo = "https://p.supabase.co/storage/v1/object/public/covers/zegar.jpg";
+    const { container } = renderNode("image", { src: photo, alt_pl: "Zegar analogowy" });
+    const img = () => container.querySelector("img") as HTMLImageElement;
+    // Dawny kod uznawał alt za logo już w pierwszym renderze: bez klasy wejścia
+    // (fadeIn={!isLogo}) i z podmianą src po dociągnięciu theme_options.
+    expect(img().className).toContain("oi-fade-in");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(img().className).toContain("oi-fade-in");
+    expect(img().getAttribute("src")).toContain("zegar.jpg");
+    expect(img().getAttribute("src")).not.toContain("logo.png");
+    expect(img().className).not.toContain("site-logo-img");
+    cleanup();
+
+    const logo = renderNode("image", { src: "", alt_pl: "Logo NES" });
+    await waitFor(() =>
+      expect(logo.container.querySelector(".gc-img-light")?.getAttribute("src")).toContain(
+        "logo.png",
+      ),
+    );
+  });
+
   it("falls back to the light source when the dark logo image fails to load", async () => {
     db.tables.site_settings = [themeOptions];
     const { container } = renderNode("image", {

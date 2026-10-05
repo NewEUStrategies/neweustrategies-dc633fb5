@@ -9,6 +9,7 @@ import { safeImageUrl } from "@/lib/sanitizePure";
 import { getStr, type Lang } from "./frame";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { lcpCandidateAttr, type LcpImage } from "@/lib/builder/aboveFold";
+import { altMarksLogo } from "@/lib/builder/logoAlt";
 import { imageDimensionPx, imageWidgetSizes } from "@/lib/builder/widgetImageSizes";
 import { useBuilderImageSlot } from "@/lib/builder/imageSlotContext";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
@@ -92,9 +93,10 @@ export function ImageWidget({
 
   // Fallback: use site logo from theme_options when no src is configured AND
   // either explicit useSiteLogo flag is set, or alt text indicates a logo
-  // (matches default chrome seeds where alt = "Logo").
+  // (matches default chrome seeds where alt = "Logo"). Całe słowo, nie fragment:
+  // „Zegar analogowy” to zwykłe zdjęcie (altMarksLogo, ten sam predykat co kandydat LCP).
   const siteLogoVariant = (getStr(c, "useSiteLogo") || "") as "" | SiteLogoVariant;
-  const altIsLogo = /logo/i.test(alt);
+  const altIsLogo = altMarksLogo(alt);
   const wantsSiteLogo = siteLogoVariant !== "" || altIsLogo;
   const siteLogo = useSiteLogo(siteLogoVariant || "main");
   const src = wantsSiteLogo ? siteLogo.light || rawSrc : rawSrc;

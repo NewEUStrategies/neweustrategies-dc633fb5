@@ -69,6 +69,7 @@ import type {
 } from "./types";
 import { asBool, asNumInRange, asStr } from "@/lib/content-model/contentValue";
 import { safeImageUrl } from "@/lib/sanitizePure";
+import { altMarksLogo } from "./logoAlt";
 
 /** Maksymalna liczba kandydatów: największy slot desktopowy + pierwszy na telefonie. */
 export const LCP_CANDIDATE_LIMIT = 2;
@@ -229,8 +230,9 @@ export function lcpCandidateKind(widget: WidgetNode): LcpCandidateKind | null {
       // Para jasny/ciemny: oba obrazy są w DOM (jeden schowany CSS-em).
       if (srcDark && srcDark !== src) return null;
       // Logo podmienia się na asset z ustawień - renderer czyta `alt_${lang}`
-      // z fallbackiem na alt_pl, więc sprawdzamy oba alty.
-      if (asStr(c.useSiteLogo) || /logo/i.test(asStr(c.alt_pl)) || /logo/i.test(asStr(c.alt_en)))
+      // z fallbackiem na alt_pl, więc sprawdzamy oba alty (całe słowo: altMarksLogo,
+      // ten sam predykat co renderer w mediaWidgets.tsx).
+      if (asStr(c.useSiteLogo) || altMarksLogo(asStr(c.alt_pl)) || altMarksLogo(asStr(c.alt_en)))
         return null;
       return "image";
     }

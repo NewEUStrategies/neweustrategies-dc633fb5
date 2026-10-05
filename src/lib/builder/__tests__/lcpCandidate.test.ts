@@ -429,6 +429,9 @@ describe("lcpCandidateKind - wykluczenia jak w heroImage.ts", () => {
     ["logo w alcie PL", image(COVER, { alt_pl: "Logo serwisu" }), null],
     ["logo w alcie EN", image(COVER, { alt_en: "Company LOGO" }), null],
     ["flaga useSiteLogo", image(COVER, { useSiteLogo: "main" }), null],
+    // Całe słowo, nie fragment (altMarksLogo): zwykłe zdjęcie z „logo” w środku wyrazu.
+    ["„analogowy” w alcie to nie logo", image(COVER, { alt_pl: "Zegar analogowy" }), "image"],
+    ["„logowania” w alcie EN to nie logo", image(COVER, { alt_en: "Ekran logowania" }), "image"],
     ["brak źródła", widget("image", { alt_pl: "Bez źródła" }), null],
     ["źródło o niebezpiecznym schemacie", image("javascript:alert(1)"), null],
     ["slider", slider(), "slider"],
@@ -498,7 +501,7 @@ describe("lcpCandidateKind - wykluczenia jak w heroImage.ts", () => {
 });
 
 describe("lcpCandidate.ts - czystość modułu (check:entry-purity)", () => {
-  it("importuje WYŁĄCZNIE imageSlot, typy i dwa liście bez własnych importów", () => {
+  it("importuje WYŁĄCZNIE imageSlot, typy i trzy liście bez własnych importów", () => {
     // BuilderRenderer jest w chunku wejściowym i importuje ten moduł statycznie
     // (gałąź `isServer` wycina go dopiero bundler). Import heroImage.ts albo
     // jakiegokolwiek modułu zapytań ciągnąłby warstwę danych do grafu entry
@@ -506,10 +509,21 @@ describe("lcpCandidate.ts - czystość modułu (check:entry-purity)", () => {
     const source = readFileSync(join(process.cwd(), "src/lib/builder/lcpCandidate.ts"), "utf8");
     const specifiers = [...source.matchAll(/^import\s[^;]*?from\s+"([^"]+)";/gms)].map((m) => m[1]);
     expect(specifiers.sort()).toEqual(
-      ["./imageSlot", "./types", "@/lib/content-model/contentValue", "@/lib/sanitizePure"].sort(),
+      [
+        "./imageSlot",
+        "./logoAlt",
+        "./types",
+        "@/lib/content-model/contentValue",
+        "@/lib/sanitizePure",
+      ].sort(),
     );
     expect(source).toMatch(/^import type \{[^}]*\} from "\.\/types";$/m);
-    for (const leaf of ["src/lib/content-model/contentValue.ts", "src/lib/sanitizePure.ts"]) {
+    for (const leaf of [
+      "src/lib/content-model/contentValue.ts",
+      "src/lib/sanitizePure.ts",
+      // Predykat logo dzielony z rendererem (mediaWidgets.tsx): ta sama decyzja „logo czy zdjęcie”.
+      "src/lib/builder/logoAlt.ts",
+    ]) {
       const leafSource = readFileSync(join(process.cwd(), leaf), "utf8");
       expect(leafSource, leaf).not.toMatch(/^import\s/m);
     }
