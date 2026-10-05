@@ -2,8 +2,8 @@
 
 ## Kafelki typów treści w klubie
 
-- [ ] Umieścić kafelki typów treści pod Ludzie i nad Praca w lewym panelu klubu.
-- [ ] Usunąć skrót Dynamika z Praca i sprawdzić działanie filtrów oraz testy.
+- [x] Umieścić kafelki typów treści pod Ludzie i nad Praca w lewym panelu klubu.
+- [x] Usunąć skrót Dynamika z Praca i sprawdzić działanie filtrów oraz testy.
 
 ## Moduł powiadomień
 

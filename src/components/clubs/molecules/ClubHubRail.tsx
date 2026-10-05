@@ -110,7 +110,7 @@ const SECTIONS = [
 ] as const;
 
 /** Kolejność grup jest kolejnością pytań - patrz komentarz wyżej. */
-const SECTION_GROUPS = ["club", "people", "work"] as const;
+const SECTION_GROUPS = ["club", "people", "content", "work"] as const;
 type SectionGroup = (typeof SECTION_GROUPS)[number];
 
 /** Sekcje mówiące o LUDZIACH milkną tam, gdzie klub ukrywa skład. */
@@ -214,13 +214,13 @@ function SectionTiles({
   return (
     <nav aria-label={t("club.hub.sectionsLabel")} className="space-y-2.5">
       {SECTION_GROUPS.map((group) => {
+        if (group === "content") return <ContentTiles key={group} clubSlug={clubSlug} />;
         const items = visible.filter((section) => section.group === group);
         // Grupa, z której nic nie zostało (klub ukrywa skład), znika razem
         // z nagłówkiem - pusty nagłówek jest gorszy niż jego brak.
         if (items.length === 0) return null;
         return (
           <div key={group}>
-            {group === "work" ? <ContentTiles clubSlug={clubSlug} /> : null}
             <h3 className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               {t(`club.hub.sectionGroups.${group satisfies SectionGroup}`)}
             </h3>
