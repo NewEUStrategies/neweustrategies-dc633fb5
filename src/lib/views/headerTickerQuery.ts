@@ -95,7 +95,11 @@ export type HeaderTickerPost = Pick<
  * przełącza tytuł z tego samego wpisu, bez refetchu i bez zapadania paska.
  * Zrzut na jeden język wymaga najpierw `lang` w kluczu i
  * `placeholderData: keepPreviousData` (inaczej pasek zapada się przy zmianie
- * języka - komentarz w loaderze korzenia przy rozgrzewce paska).
+ * języka - komentarz w loaderze korzenia przy rozgrzewce paska). To jest
+ * przekazanie do właściciela `__root.tsx` (fala 2: P2.1): rozgrzewka w
+ * loaderze korzenia musi złożyć klucz z językiem ŻĄDANIA, bo `currentLang()`
+ * po stronie serwera nie jest bezpiecznym źródłem - inaczej klucz SSR i
+ * klienta rozjedzie się i pasek zrobi refetch po hydratacji.
  */
 export function projectHeaderTickerPosts(rows: readonly TrendingPost[]): HeaderTickerPost[] {
   return rows.map((row) => ({

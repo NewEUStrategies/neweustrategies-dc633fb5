@@ -17,11 +17,16 @@
 // (`scripts/performance/homeFixture.ts`, dane `e2e/fixtures/first-visit.json`
 // bez zmian), a server fn (menu, pasek) - ich ciała na tym samym fixture.
 //
-// Zakazane w stanie (PLAN P2.5): `menu_id` i domyślne `mega_config` w menu,
-// pola drugiego języka w wierszach postów (`*_en` na stronie PL), pola paska,
-// których pasek nie renderuje, `popup_*` w projekcji formularza inline.
+// Zakazane w stanie (PLAN P2.5): `menu_id`, pola domyślne i domyślne
+// `mega_config` w menu (wąski, jawny wyjątek: `mega_config` pozycji
+// najwyższego poziomu - zgodność z kartą sprzed wdrożenia), pola drugiego
+// języka w wierszach postów (`*_en` na stronie PL), pola paska, których pasek
+// nie renderuje, `popup_*` w newsletterze formularza inline. Ostatnie jest
+// dziś ZNANĄ LUKĄ (`it.fails` niżej): formularze czytają etykiety pól z
+// pełnego klucza (`useNewsletterFieldLabels` -> `useRegistrationFields`).
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient, dehydrate, type DehydratedState } from "@tanstack/react-query";
 import { createClient } from "@supabase/supabase-js";
@@ -123,6 +128,9 @@ const {
   newsletterInlineSettingsQueryOptions,
   projectNewsletterInlineSettings,
 } = await import("@/hooks/useNewsletterSettings");
+const { buildRegistrationFieldsApi } = await import("@/lib/auth/registrationFields");
+const { POPUP_FIELD_KEYS, resolvePopupFields } = await import("@/lib/newsletter/popupFields");
+const { DEFAULT_MEGA_CONFIG } = await import("@/lib/menus/types");
 
 function setting(key: string): Row {
   return fixture.settings.find((s) => s.key === key)?.value ?? {};
@@ -155,33 +163,57 @@ function rowsOf(state: DehydratedState, root: string): Row[] {
 }
 
 describe("stan odwodniony `/` na fixture (P2.5)", () => {
-  it("menu: bez `menu_id` i bez domyślnego `mega_config` w pozycjach zagnieżdżonych", async () => {
+  it("menu: każda pozycja bez `menu_id` i pól domyślnych; domyślne `mega_config` WYŁĄCZNIE w korzeniach", async () => {
     const state = await homeState("pl");
     const menus = dataOf(state, "menu-with-items") as Array<{ items: Row[] } | null>;
     const main = menus.find((m) => m && m.items.length > 0);
     // Kontrola, że asercje niżej nie są puste: wszystkie 46 pozycji fixture.
     expect(main?.items).toHaveLength(fixture["menu-items"].length);
     expect(JSON.stringify(menus)).not.toContain("menu_id");
-    // Pozycje najwyższego poziomu niosą `mega_config` zawsze (zgodność z kartą
-    // sprzed wdrożenia - `compactMenuWithItems`); zagnieżdżone tylko niedomyślne.
-    const ids = new Set(main!.items.map((row) => row.id));
-    const nested = main!.items.filter((row) => row.parent_id && ids.has(row.parent_id as string));
-    expect(nested.length).toBeGreaterThan(30);
-    for (const row of nested) {
-      if (!("mega_config" in row)) continue;
-      expect(row.mega_config).not.toEqual({
-        columns_per_row: 4,
-        width: "container",
-        columns: [],
-        featured_post_id: null,
-      });
+    const items = main!.items;
+    // Korzeń = brak rodzica albo rodzic spoza wyniku (jak `buildPublicMenuTree`
+    // i `compactMenuWithItems`); brak pola `parent_id` w przesyłce znaczy `null`.
+    const ids = new Set(items.map((row) => row.id));
+    const isRoot = (row: Row) => !row.parent_id || !ids.has(row.parent_id as string);
+    const roots = items.filter(isRoot);
+    expect(roots.length).toBeGreaterThan(0);
+    expect(items.length - roots.length).toBeGreaterThan(30);
+    // KAŻDA pozycja (korzenie też): pola zawsze obecne są, a żadne pole
+    // opcjonalne nie jedzie z wartością, którą i tak podstawia normalizacja.
+    const defaults: Row = {
+      parent_id: null,
+      label_pl: "",
+      label_en: "",
+      href: "",
+      target: "_self",
+      css_class: "",
+      visibility: "all",
+      icon: "",
+      mega_enabled: false,
+    };
+    for (const row of items) {
+      for (const key of ["id", "item_type", "position", "ref_id"]) expect(row).toHaveProperty(key);
+      for (const [key, value] of Object.entries(defaults)) {
+        if (key in row) expect(row[key], `${key} w ${String(row.id)}`).not.toEqual(value);
+      }
     }
-    // Pola domyślne nie jadą (fixture: puste `css_class`/`icon`, `visibility: all`).
-    for (const row of main!.items) {
-      expect(row).not.toHaveProperty("css_class");
-      expect(row).not.toHaveProperty("visibility");
-      expect(row).not.toHaveProperty("mega_enabled");
-    }
+    // JEDYNY wyjątek, wąski i jawny: `mega_config` każdego korzenia jedzie
+    // zawsze (stary `MegaPanel` czyta `mega_config.featured_post_id` bez `?.`),
+    // więc domyślne `mega_config` niosą WYŁĄCZNIE korzenie - w fixture
+    // wszystkie 7 (konfiguracja nieprawidłowa -> domyślna). Rozszerzenie
+    // reguły na pozycje zagnieżdżone zmieni liczbę i czerwieni test.
+    for (const row of roots) expect(row).toHaveProperty("mega_config");
+    const withDefaultMega = items
+      .filter(
+        (row) => "mega_config" in row && isDeepStrictEqual(row.mega_config, DEFAULT_MEGA_CONFIG),
+      )
+      .map((row) => row.id);
+    expect(withDefaultMega).toEqual(
+      roots
+        .filter((row) => isDeepStrictEqual(row.mega_config, DEFAULT_MEGA_CONFIG))
+        .map((row) => row.id),
+    );
+    expect(withDefaultMega).toHaveLength(roots.length);
   });
 
   it("wiersze postów PL (post-lista, slider) nie niosą pól angielskich", async () => {
@@ -230,6 +262,11 @@ describe("stan odwodniony `/` na fixture (P2.5)", () => {
     const inline = await qc.fetchQuery(newsletterInlineSettingsQueryOptions());
     expect(inline.heading_pl).toEqual(expect.any(String));
     expect(Object.keys(inline).filter((k) => k.startsWith("popup_"))).toEqual([]);
+    // Etykiety pól jadą (formularze ich potrzebują), reszta konfiguracji pól nie.
+    expect(inline.field_labels).toHaveLength(POPUP_FIELD_KEYS.length);
+    for (const row of inline.field_labels) {
+      expect(Object.keys(row).sort()).toEqual(["key", "label_en", "label_pl"]);
+    }
   });
 
   it("listy mailingowe jadą do formularza inline WYŁĄCZNIE z dokumentem inline", () => {
@@ -240,5 +277,59 @@ describe("stan odwodniony `/` na fixture (P2.5)", () => {
     expect(projectNewsletterInlineSettings(base)).not.toHaveProperty("popup_mailing_lists");
     const withDoc = { ...base, inline_doc: { version: 1, rows: [] } as never };
     expect(projectNewsletterInlineSettings(withDoc).popup_mailing_lists).toEqual(lists);
+  });
+
+  it("etykiety pól z projekcji = etykiety z pełnego wiersza (każde pole, oba języki)", () => {
+    // Odbiorca etykiet: `buildRegistrationFieldsApi(...).label()` - to samo,
+    // co liczy `useNewsletterFieldLabels` z `popup_fields` pełnego klucza.
+    const full = {
+      ...defaultNewsletterSettings(),
+      popup_fields: resolvePopupFields([
+        { key: "first_name", label_pl: "Imię redakcji", label_en: "Given name" },
+        { key: "company", label_pl: "Instytucja", label_en: "" },
+        { key: "phone", enabled: true, label_pl: "Telefon kontaktowy", placeholder_pl: "+48" },
+      ]),
+    };
+    const inline = projectNewsletterInlineSettings(full);
+    for (const lang of ["pl", "en"] as const) {
+      const fromFull = buildRegistrationFieldsApi(full.popup_fields, lang);
+      const fromInline = buildRegistrationFieldsApi(inline.field_labels, lang);
+      for (const key of POPUP_FIELD_KEYS) {
+        expect(fromInline.label(key), `${key}/${lang}`).toBe(fromFull.label(key));
+      }
+    }
+    expect(buildRegistrationFieldsApi(inline.field_labels, "pl").label("company")).toBe(
+      "Instytucja",
+    );
+  });
+
+  // ZNANA LUKA (P2.5, część c - poprawka 1). Rejestr prefetchu grzeje dla
+  // widgetów `join-us`/`newsletter` nadal PEŁNY klucz, bo oba formularze
+  // czytają etykiety pól przez `useNewsletterFieldLabels` ->
+  // `useRegistrationFields` -> `useNewsletterSettings()` (pełny klucz).
+  // Przełączenie wymaga wariantu `useNewsletterFieldLabels` liczącego etykiety
+  // z `field_labels` projekcji (`newsletterFieldLabels.ts`, poza własnością
+  // P2.5). Po przełączeniu ten test zacznie przechodzić, więc `it.fails`
+  // zaczerwieni się i trzeba go zamienić na `it` (razem z kontrolą niżej).
+  it.fails("stan SSR `/`: newsletter bez pól popupu (poza listami przy `inline_doc`)", async () => {
+    const state = await homeState("pl");
+    const entries = state.queries.filter((q) => q.queryKey[0] === "newsletter-settings");
+    expect(entries.length).toBeGreaterThan(0);
+    for (const entry of entries) {
+      const data = entry.state.data as Row;
+      const popup = Object.keys(data).filter(
+        (k) => k.startsWith("popup_") && !(k === "popup_mailing_lists" && data.inline_doc),
+      );
+      expect(popup, JSON.stringify(entry.queryKey)).toEqual([]);
+    }
+  });
+
+  it("kontrola dodatnia luki: stan `/` niesie dziś JEDEN wpis newslettera, pełny klucz z `popup_*`", async () => {
+    // `it.fails` wyżej pada z właściwego powodu (pola popupu), a nie dlatego,
+    // że wpisu newslettera w stanie nie ma.
+    const state = await homeState("pl");
+    const entries = state.queries.filter((q) => q.queryKey[0] === "newsletter-settings");
+    expect(entries.map((q) => q.queryKey)).toEqual([["newsletter-settings"]]);
+    expect(entries[0].state.data).toHaveProperty("popup_fields");
   });
 });
