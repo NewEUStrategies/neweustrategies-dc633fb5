@@ -96,3 +96,6 @@ tsconfig.agentcheck.json
 
 # CMS performance traces are workflow artifacts.
 test-results-cms-performance/
+
+# Python bytecode cache (narzędzia pomiarowe w docs/performance/*/narzedzia).
+__pycache__/
