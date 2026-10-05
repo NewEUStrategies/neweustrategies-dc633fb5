@@ -60,6 +60,14 @@
 // najpierw przegląd listy ignorowanych zasobów i limitu w `whenQuiescent.ts`,
 // potem powrót do krótszego okna.
 //
+// ŁADOWANIE. Moduł NIE MA statycznych importerów w aplikacji:
+// `ConsentScriptInjector` dociąga go `import()` z efektu po hydratacji
+// (`loadGtagLoadPolicy`), więc ani on, ani prymitywy P0.3, których jest dziś
+// jedynym konsumentem, nie wchodzą do zamknięcia bootu (statyczny import
+// kosztował +2,4 KB gzip w chunku `index` i ok. +155 ms LCP na mobile
+// fixture - dowód A/B P1.1). Późne założenie sygnałów niczego nie gubi - patrz
+// PÓŹNY IMPORT w `whenQuiescent.ts`.
+//
 // Moduł nie trzyma własnego stanu: stan (jeden detektor ciszy, jedna kolejka,
 // jedna pierwsza interakcja) należy do prymitywów P0.3; testy zerują go ich
 // hakami `__reset…ForTests`. SSR dostaje no-op.

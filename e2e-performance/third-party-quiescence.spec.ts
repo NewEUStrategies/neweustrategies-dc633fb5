@@ -19,6 +19,19 @@
 //  4. Kontrole negatywne: programowe przewinięcie ELEMENTU (karuzela, zaufane
 //     zdarzenie `scroll`) i zdarzenia wysłane skryptem (`isTrusted: false`)
 //     nie ładują gtag; kółko myszy - ładuje.
+//  5. Polityka gtag (z prymitywami P0.3) jest POZA zamknięciem bootu:
+//     `ConsentScriptInjector` ładuje ją leniwym `import()` po hydratacji, więc
+//     dokument nie ma do jej chunku (`gtagLoadPolicy-*.js`) ani
+//     `modulepreload`, ani wpisu w nagłówku `Link`, a chunk dojeżdża bez
+//     interakcji (przypadek 1).
+//
+// LENIWA POLITYKA A OCZEKIWANIE NA INJECTOR. Aktualizacja zgody w warstwie
+// danych (efekt injectora) nie znaczy już, że kolejka P0.3 ma wpis gtag:
+// polityka zakłada sygnały dopiero po dojeździe swojego chunku.
+// `waitForInjector()` czeka więc także na `waitForGtagPolicy()` - wpis
+// Resource Timing chunku i `import()` tego samego adresu w stronie (ta sama
+// instancja modułu z mapy modułów, rozstrzygnięcie po jej ewaluacji), żeby
+// interakcja w przypadkach 2-4 szła torem nasłuchu, a nie lepkiej aktywacji.
 //
 // ATRAPA. Hosty Google odpowiada `page.route`: `gtag/js` to mała atrapa, która
 // zapisuje swoje uruchomienie i - jak kontener G - dociąga
@@ -30,6 +43,26 @@
 // `/favicon.ico?…` - liczony zasób, który przesuwa okno ciszy - więc punkt
 // ciszy zapada dopiero na limicie 20 s po `load`, a sygnałem w tych
 // przypadkach jest wyłącznie interakcja (albo jej brak).
+//
+// MASKA AKTYWACJI UŻYTKOWNIKA (`prepare()`). Playwright wykonuje własne
+// ewaluacje przez CDP z `userGesture: true` (także `page.evaluate` i
+// `waitForFunction` tego speca), a to nadaje dokumentowi LEPKĄ AKTYWACJĘ
+// (`navigator.userActivation.hasBeenActive === true`) tuż po `load` - bez
+// żadnego zdarzenia wejścia. `firstInteraction.ts` (P0.3) przy zakładaniu
+// nasłuchu czyta lepką aktywację jako interakcję sprzed subskrypcji
+// (kliknięcie przed hydratacją) i zwalnia kolejkę, więc w tym harnessie
+// gtag wchodził ok. 1,2-2,1 s po starcie, choć nikt nie dotknął strony
+// (diagnoza: raport Prove P1.1, §3 - przypadki 1 i 4 czerwone). W prawdziwej
+// przeglądarce i w Lighthouse nowy dokument nie ma aktywacji bez wejścia
+// (księga B: zero gtag w śladzie w 10/10 przebiegów), dlatego spec podmienia
+// `Navigator.prototype.userActivation` na wartość, która staje się `true`
+// dopiero po pierwszym ZAUFANYM zdarzeniu aktywującym z HTML
+// (`keydown`/`mousedown`/`pointerdown`/`pointerup`/`touchend`; kółko i
+// przewinięcie NIE aktywują) - jak aktywacja z prawdziwego wejścia. Maskę
+// sprawdza sam spec (`maskedActivation`): przed interakcją `false`, po
+// `mouse.down()` `true`. Przy leniwej polityce (punkt 5) maska ma drugie
+// zadanie: interakcja sprzed dojazdu chunku zwalnia kolejkę WYŁĄCZNIE przez
+// lepką aktywację, więc fałszywa aktywacja z CDP zafałszowałaby każdy wynik.
 //
 // Uruchamianie (wyłącznie pod mutexem maszyny, na zbudowanym worktree):
 //   bunx playwright test --config playwright.performance.config.ts \
@@ -53,6 +86,8 @@ const QUIESCENCE_MIN_AFTER_LOAD_MS = 5_000;
 const QUIESCENCE_WINDOW_MS = 5_000;
 const QUIESCENCE_CAP_MS = 20_000;
 const ACCEPT_ALL = /Akceptuj wszystkie|Accept all/i;
+/** Chunk leniwej polityki gtag (nazwa od modułu `gtagLoadPolicy.ts`, hash Vite). */
+const GTAG_POLICY_CHUNK = /\/gtagLoadPolicy-[\w-]+\.js$/;
 
 /**
  * Atrapa gtag.js: zapisuje uruchomienie w `window.__gtagStub`; kontener G
@@ -89,9 +124,30 @@ interface Timeline {
   readonly trustedElementScrolls: number;
 }
 
-/** Flaga hosta, sondy (pierwsze zaufane `pointerdown`, długie zadania) i bufor Resource Timing. */
+/**
+ * Flaga hosta, maska aktywacji użytkownika, sondy (pierwsze zaufane
+ * `pointerdown`, długie zadania) i bufor Resource Timing.
+ */
 async function prepare(page: Page, options: { keepBusy: boolean }): Promise<void> {
   await page.addInitScript((keepBusy: boolean) => {
+    // Maska lepkiej aktywacji nadawanej przez ewaluacje CDP Playwrighta -
+    // patrz MASKA AKTYWACJI w nagłówku. Skrypt biegnie przed skryptami strony,
+    // więc `firstInteraction.ts` widzi wyłącznie wartość z maski.
+    let activated = false;
+    for (const type of ["keydown", "mousedown", "pointerdown", "pointerup", "touchend"]) {
+      window.addEventListener(
+        type,
+        (event) => {
+          if (event.isTrusted) activated = true;
+        },
+        { capture: true, passive: true },
+      );
+    }
+    Object.defineProperty(Navigator.prototype, "userActivation", {
+      configurable: true,
+      get: () => ({ hasBeenActive: activated, isActive: activated }),
+    });
+
     Reflect.set(window, "__NES_GA_ANY_HOST__", true);
     // Domyślny bufor (250 wpisów) mógłby zgubić wpis gtag na bogatej stronie.
     performance.setResourceTimingBufferSize(5_000);
@@ -188,6 +244,15 @@ async function timeline(page: Page): Promise<Timeline> {
   });
 }
 
+/**
+ * Aktywacja widziana przez stronę (wartość z maski). `false` przed
+ * interakcją dowodzi, że maska działa mimo ewaluacji z `userGesture: true`
+ * (to wywołanie też jest taką ewaluacją) i że nie było zaufanego wejścia.
+ */
+async function maskedActivation(page: Page): Promise<boolean> {
+  return page.evaluate(() => navigator.userActivation.hasBeenActive);
+}
+
 function isGoogle(resource: TimedResource): boolean {
   try {
     return GOOGLE_HOST.test(new URL(resource.name).hostname);
@@ -228,9 +293,39 @@ async function waitForGtag(page: Page, timeout: number, prefix = GTAG_G_PREFIX):
 }
 
 /**
- * Bootstrap GA4 i polityka gtag są zaplanowane: `ConsentScriptInjector` wypycha
- * `consent update` w efekcie zadeklarowanym PO efekcie bootstrapu, więc ta
- * aktualizacja w warstwie = kolejka P0.3 ma już wpis gtag.
+ * Polityka gtag jest ZAŁOŻONA (patrz LENIWA POLITYKA w nagłówku): wpis
+ * Resource Timing chunku `gtagLoadPolicy-*.js`, a potem `import()` tego samego
+ * adresu w stronie. Mapa modułów oddaje tę samą instancję i rozstrzyga promise
+ * po jej ewaluacji; reakcja injectora (`scheduleGtagLoad`) siedzi w tej samej
+ * kolejce mikrozadań, a makrozadanie `setTimeout(0)` domyka ją na pewno.
+ * Zwraca adres chunku.
+ */
+async function waitForGtagPolicy(page: Page): Promise<string> {
+  const handle = await page.waitForFunction(
+    (source) => {
+      const pattern = new RegExp(source);
+      const entry = performance
+        .getEntriesByType("resource")
+        .find((candidate) => pattern.test(new URL(candidate.name).pathname));
+      return entry ? entry.name : false;
+    },
+    GTAG_POLICY_CHUNK.source,
+    { timeout: 10_000, polling: 50 },
+  );
+  const chunk = await handle.jsonValue();
+  if (typeof chunk !== "string") throw new Error("brak chunku polityki gtag w Resource Timing");
+  await page.evaluate(async (url) => {
+    await import(url);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  }, chunk);
+  return chunk;
+}
+
+/**
+ * Bootstrap GA4 i polityka gtag są założone: `ConsentScriptInjector` wypycha
+ * `consent update` w efekcie zadeklarowanym PO efekcie bootstrapu (bootstrap
+ * zamówił już leniwy chunk polityki), a `waitForGtagPolicy()` czeka, aż
+ * polityka założy wpis gtag w kolejce P0.3.
  */
 async function waitForInjector(page: Page): Promise<void> {
   await page.waitForFunction(() => {
@@ -245,6 +340,7 @@ async function waitForInjector(page: Page): Promise<void> {
       )
     );
   });
+  await waitForGtagPolicy(page);
 }
 
 /** `config AW-…` w warstwie danych: liczba i czy przed pierwszym stała aktualizacja z `ad_storage: granted`. */
@@ -281,6 +377,20 @@ test.describe("tag Google poza śladem (P1.1)", () => {
     const response = await page.goto("/", { waitUntil: "load" });
     expect(response?.status()).toBe(200);
 
+    // Polityka gtag poza zamknięciem bootu: dokument nie preloaduje jej chunku
+    // (ani `<link>`, ani nagłówek `Link`), a chunk dojeżdża po hydratacji bez
+    // interakcji - polityka zakłada sygnały, z punktem ciszy włącznie.
+    expect(response?.headers().link ?? "").not.toMatch(/gtagLoadPolicy-/);
+    const preloaded = await page.evaluate(() =>
+      Array.from(
+        document.querySelectorAll('link[rel="modulepreload"], link[rel="preload"]'),
+        (link) => link.getAttribute("href") ?? "",
+      ),
+    );
+    expect(preloaded.length).toBeGreaterThan(0);
+    expect(preloaded.filter((href) => GTAG_POLICY_CHUNK.test(href))).toEqual([]);
+    await waitForGtagPolicy(page);
+
     await page.waitForFunction(
       (margin) => {
         const [navigation] = performance.getEntriesByType("navigation");
@@ -297,6 +407,7 @@ test.describe("tag Google poza śladem (P1.1)", () => {
     );
     const early = await timeline(page);
     expect(early.resources.filter(isGoogle).map((resource) => resource.name)).toEqual([]);
+    expect(await maskedActivation(page)).toBe(false);
 
     await waitForGtag(page, QUIESCENCE_CAP_MS + 10_000);
     const t = await timeline(page);
@@ -342,6 +453,10 @@ test.describe("tag Google poza śladem (P1.1)", () => {
     await waitForInjector(page);
     const before = await timeline(page);
     expect(before.resources.filter(isGoogle)).toEqual([]);
+    // Jedynym źródłem zwolnienia ma być `pointerdown` poniżej: przed nim
+    // strona nie widzi aktywacji ani nie ma zapisanego zaufanego wciśnięcia.
+    expect(await maskedActivation(page)).toBe(false);
+    expect(before.pointerdownAt).toBeNull();
 
     await page.mouse.move(8, 400);
     await page.mouse.down();
@@ -354,6 +469,7 @@ test.describe("tag Google poza śladem (P1.1)", () => {
     const t = await timeline(page);
     const gtag = firstGtag(t);
     expect(t.pointerdownAt).not.toBeNull();
+    expect(await maskedActivation(page)).toBe(true);
     const delay = gtag.startTime - (t.pointerdownAt ?? 0);
     expect(delay, `gtag ${delay.toFixed(0)} ms po pointerdown`).toBeLessThanOrEqual(1_000);
     // Strażnik gestu: krok kolejki nie rusza w trakcie wciśnięcia (zapas 300 ms).
@@ -436,6 +552,7 @@ test.describe("tag Google poza śladem (P1.1)", () => {
 
     const t = await timeline(page);
     expect(t.trustedElementScrolls).toBeGreaterThan(0);
+    expect(await maskedActivation(page)).toBe(false);
     expect(gtagScripts(t)).toEqual([]);
     // Okno kontroli negatywnej skończyło się przed limitem punktu ciszy.
     expect(t.now).toBeLessThan(t.loadEventStart + QUIESCENCE_CAP_MS);

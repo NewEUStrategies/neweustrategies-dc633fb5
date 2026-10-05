@@ -23,11 +23,31 @@ import {
   GOOGLE_ADS_ID,
   resolveBrowserGa4Id,
 } from "@/lib/analytics/ga4Client";
-import { scheduleGtagLoad } from "@/lib/analytics/gtagLoadPolicy";
 
 type CleanupFn = () => void;
 
 const MARK_ATTR = "data-consent-owner";
+
+/**
+ * Polityka dociągania gtag.js ładowana LENIWIE - celowo bez statycznego
+ * importu (P1.1, poprawka po dowodzie A/B). Statyczna krawędź wciągała
+ * `gtagLoadPolicy.ts`, a z nim prymitywy P0.3 (`whenQuiescent`,
+ * `postInteractionQueue`, `firstInteraction`), do zamknięcia bootu
+ * (`__root.tsx` -> ten komponent): +2,4 KB gzip w chunku `index`, a na mobile
+ * fixture ten przyrost przekraczał próg rundy TCP w symulacji Lanterna
+ * (ok. +155 ms LCP). `import()` z efektu po hydratacji daje osobny chunk
+ * `gtagLoadPolicy-*.js`: nieosiągalny statycznie z wejścia, bez
+ * `modulepreload` w dokumencie, pobierany dopiero po montażu.
+ *
+ * NIC NIE GINIE (PÓŹNY IMPORT w `whenQuiescent.ts`): detektor ciszy czyta
+ * zbuforowane wpisy `PerformanceObserver` (`resource`, `longtask`) i liczy
+ * minimum od `loadEventStart`, a kliknięcie, klawisz albo dotknięcie sprzed
+ * importu łapie lepka aktywacja w `firstInteraction.ts`. Samo przewinięcie
+ * sprzed importu (bez aktywacji) czeka na kolejną interakcję albo na punkt
+ * ciszy; zapisana decyzja o zgodzie podjęta po imporcie idzie jak dotąd
+ * (`release: "immediate"`).
+ */
+const loadGtagLoadPolicy = () => import("@/lib/analytics/gtagLoadPolicy");
 
 /**
  * Jawna decyzja o zgodzie jako sygnał dla polityki dociągania gtag.js
@@ -223,15 +243,34 @@ export function ConsentScriptInjector() {
   // przetwarza od początku, gdy dojedzie. Kompromis (odwiedzający bez
   // interakcji, który wychodzi przed punktem ciszy, ok. load + 10 s, nie wysyła
   // `page_view`) jest opisany w nagłówku `gtagLoadPolicy.ts`.
+  //
+  // Samą politykę (i prymitywy P0.3) ładuje `import()` dopiero tutaj, po
+  // hydratacji - patrz `loadGtagLoadPolicy`. Cleanup przed jego
+  // rozstrzygnięciem (odmontowanie, zmiana strumienia) nie zakłada już
+  // żadnego sygnału. Gdy chunk nie dojedzie (np. dokument z cache brzegowego
+  // po wdrożeniu z nowymi hashami) albo polityka rzuci, tag ładuje się od razu:
+  // utracony pomiar byłby trwały, a koszt wraca tylko w tym przypadku awarii;
+  // dociąganie jest idempotentne, więc spóźniony sygnał polityki nie
+  // wstrzyknie drugiego skryptu.
   useEffect(() => {
     if (!mounted || !ga4Id) return;
+    let active = true;
     let cancelLoad: (() => void) | null = null;
     bootstrapGa4(ga4Id, {
       scheduleScript: (load) => {
-        cancelLoad = scheduleGtagLoad(load, { onDecision: onConsentDecision });
+        void loadGtagLoadPolicy()
+          .then(({ scheduleGtagLoad }) => {
+            if (active) cancelLoad = scheduleGtagLoad(load, { onDecision: onConsentDecision });
+          })
+          .catch(() => {
+            if (active) void load();
+          });
       },
     });
-    return () => cancelLoad?.();
+    return () => {
+      active = false;
+      cancelLoad?.();
+    };
   }, [mounted, ga4Id]);
 
   // ZGODA, POTEM GOOGLE ADS - w TYM SAMYM efekcie i w tej kolejności (P1.1,

@@ -20,7 +20,8 @@
 //      `JSON.stringify(config)`).
 // Do tego GA4 w trybie domyślnej odmowy (poza bramką): polecenia od razu w
 // `dataLayer`, sam gtag.js na sygnał polityki P1.1 (pierwsza interakcja przez
-// kolejkę P0.3, jawna decyzja, globalny punkt ciszy) oraz Google Ads WYŁĄCZNIE
+// kolejkę P0.3, jawna decyzja, globalny punkt ciszy; polityka dojeżdża leniwym
+// `import()`, poza zamknięciem bootu) oraz Google Ads WYŁĄCZNIE
 // po zgodzie marketingowej (TP-2): `config AW` dokładnie raz, za `consent
 // update`, nigdy przy GPC.
 //
@@ -41,6 +42,7 @@
 // więc ewaluację punktowo, tylko na czas swojego testu; reszta pliku biegnie z
 // ewaluacją wyłączoną, dzięki czemu snippety GTM/Meta/TikTok nie dokładają
 // własnych węzłów i liczenie węzłów jest deterministyczne.
+import { readFileSync } from "node:fs";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render } from "@testing-library/react";
 
@@ -87,6 +89,17 @@ vi.mock("@/lib/ads/consent", () => ({
   },
 }));
 
+// PRAWDZIWA polityka dociągania gtag.js, tylko `scheduleGtagLoad` owinięty
+// szpiegiem: komponent ładuje moduł LENIWIE (`import()` z efektu po
+// hydratacji, żeby polityka i prymitywy P0.3 nie wchodziły do zamknięcia
+// bootu), a blok „leniwy import polityki” przypina, KIEDY i czy w ogóle
+// polityka zostaje założona. Statyczny import niżej rozgrzewa moduł, więc
+// dynamiczny `import()` komponentu rozstrzyga się z rejestru vitest.
+vi.mock("@/lib/analytics/gtagLoadPolicy", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/analytics/gtagLoadPolicy")>();
+  return { ...actual, scheduleGtagLoad: vi.fn(actual.scheduleGtagLoad) };
+});
+
 import { ConsentScriptInjector } from "@/components/ConsentScriptInjector";
 import type { AnalyticsConfig, MarketingConfig } from "@/lib/analytics/config";
 import {
@@ -95,6 +108,7 @@ import {
   GOOGLE_ADS_ID,
   resetGa4BootstrapForTests,
 } from "@/lib/analytics/ga4Client";
+import { scheduleGtagLoad } from "@/lib/analytics/gtagLoadPolicy";
 import { clampCategoriesForGpc } from "@/lib/consent/gpc";
 import { __resetFirstInteractionForTests } from "@/lib/performance/firstInteraction";
 import { __resetPostInteractionQueueForTests } from "@/lib/performance/postInteractionQueue";
@@ -300,6 +314,19 @@ function renderInjector() {
 }
 
 /**
+ * Czeka, aż efekt komponentu dociągnie politykę gtag.js leniwym `import()` i
+ * założy jej sygnały (`scheduleGtagLoad`). Do tej chwili w dokumencie są
+ * wyłącznie polecenia w `dataLayer` - ani wpis kolejki, ani nasłuch decyzji,
+ * ani zapis w punkcie ciszy. `vi.dynamicImportSettled()` czeka na bezpiecznych
+ * (niepodmienionych) zegarach, więc działa też pod `vi.useFakeTimers()`.
+ */
+async function poZaladowaniuPolityki(): Promise<void> {
+  await act(async () => {
+    await vi.dynamicImportSettled();
+  });
+}
+
+/**
  * Przepuszcza sygnał polityki dociągania gtag.js - tu: PIERWSZĄ INTERAKCJĘ.
  *
  * DLACZEGO TO JEST POTRZEBNE (i dlaczego nie jest to test „z opóźnieniem").
@@ -316,9 +343,13 @@ function renderInjector() {
  * przejść przez ten sygnał. Kolejka nie rusza w trakcie gestu (strażnik
  * gestu P0.3), więc pomocnik daje CAŁE kliknięcie: `pointerdown` ->
  * `pointerup` -> `click`; dociągnięcie schodzi po klatce i jednym makrozadaniu
- * (rAF -> setTimeout 0) - 80 ms to zapas na obie ścieżki happy-dom.
+ * (rAF -> setTimeout 0) - 80 ms to zapas na obie ścieżki happy-dom. Wcześniej
+ * pomocnik czeka na leniwy import polityki (`poZaladowaniuPolityki`): happy-dom
+ * nie ma lepkiej aktywacji, więc zdarzenie sprzed założenia nasłuchu nie
+ * zostawiłoby śladu.
  */
 async function poInterakcji(): Promise<void> {
+  await poZaladowaniuPolityki();
   await act(async () => {
     for (const type of ["pointerdown", "pointerup", "click"]) {
       window.dispatchEvent(new Event(type));
@@ -329,6 +360,7 @@ async function poInterakcji(): Promise<void> {
 
 /** Zapisana decyzja odwiedzającego - sygnał (b) polityki, bez żadnej interakcji. */
 async function poDecyzjiZgody(): Promise<void> {
+  await poZaladowaniuPolityki();
   await act(async () => {
     harness.decided = true;
     for (const listener of harness.consentListeners) listener();
@@ -341,6 +373,7 @@ async function poDecyzjiZgody(): Promise<void> {
  * punkt ciszy P0.3 zapada najwcześniej 5 s po `load`.
  */
 async function poSamymLoad(): Promise<void> {
+  await poZaladowaniuPolityki();
   await act(async () => {
     window.dispatchEvent(new Event("load"));
     await new Promise((resolve) => setTimeout(resolve, 80));
@@ -387,6 +420,7 @@ beforeEach(() => {
   harness.decided = false;
   harness.consentListeners.clear();
   fetchSpy.mockClear();
+  vi.mocked(scheduleGtagLoad).mockClear();
   vi.stubGlobal("fetch", fetchSpy);
   Reflect.deleteProperty(window, "__consentTestMarker");
   resetPerformancePrimitives();
@@ -571,7 +605,7 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(1);
   });
 
-  it("bez interakcji i bez decyzji tag dojeżdża w globalnym punkcie ciszy (≥ 5 s po load), nie wcześniej", () => {
+  it("bez interakcji i bez decyzji tag dojeżdża w globalnym punkcie ciszy (≥ 5 s po load), nie wcześniej", async () => {
     vi.useFakeTimers({
       toFake: [
         "setTimeout",
@@ -589,6 +623,9 @@ describe("ConsentScriptInjector - loadery analityki", () => {
       setAnalytics({ ga4_measurement_id: GA4_ID });
       renderInjector();
       expect(configEntry(GA4_ID)).toBeDefined();
+      // Polityka (z detektorem ciszy) dojeżdża leniwym `import()`; zegar
+      // podmieniony stoi, więc minimum liczy się od tej samej chwili.
+      await poZaladowaniuPolityki();
 
       act(() => {
         vi.advanceTimersByTime(QUIESCENCE_MIN_AFTER_LOAD_MS - 1);
@@ -635,6 +672,7 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     setAnalytics({ ga4_measurement_id: GA4_ID });
 
     const view = renderInjector();
+    await poZaladowaniuPolityki();
     expect(harness.consentListeners.size).toBe(1);
     view.unmount();
     expect(harness.consentListeners.size).toBe(0);
@@ -851,6 +889,123 @@ describe("ConsentScriptInjector - loadery marketingu", () => {
     renderInjector();
 
     expect(owned(MARKETING_OWNER)).toHaveLength(0);
+  });
+});
+
+// ==========================================================================
+// Leniwy import polityki gtag.js (P1.1, poprawka po dowodzie A/B)
+// ==========================================================================
+//
+// Statyczny import `gtagLoadPolicy.ts` wciągał politykę i prymitywy P0.3 do
+// zamknięcia bootu (`__root.tsx` -> `ConsentScriptInjector`): +2,4 KB gzip w
+// chunku `index`, a na mobile fixture ok. +155 ms LCP (próg rundy TCP w
+// symulacji Lanterna). Komponent ładuje więc politykę `import()` z efektu po
+// hydratacji. Przypinamy: brak krawędzi statycznej w źródle, moment założenia
+// sygnałów, odmontowanie przed dojazdem chunku, kliknięcie sprzed dojazdu
+// (lepka aktywacja) i awarię polityki (tag ładuje się od razu).
+
+/**
+ * Czy źródło ma STATYCZNY import albo reeksport (także wielolinijkowy,
+ * `import type` i `import "…"`) z modułu o danym prefiksie. Klauzula nie
+ * przechodzi przez `;` ani nawiasy, więc `import("…")` się nie liczy.
+ */
+function hasStaticImport(source: string, specifierPrefix: string): boolean {
+  const prefix = specifierPrefix.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  const fromClause = new RegExp(
+    `(?:^|\\n)\\s*(?:import|export)\\s[^;()]*?\\sfrom\\s*["']${prefix}`,
+  );
+  const bareImport = new RegExp(`(?:^|\\n)\\s*import\\s*["']${prefix}`);
+  return fromClause.test(source) || bareImport.test(source);
+}
+
+describe("ConsentScriptInjector - leniwy import polityki gtag.js (poza zamknięciem bootu)", () => {
+  beforeEach(() => {
+    grant({ analytics: true });
+    setAnalytics({ ga4_measurement_id: GA4_ID });
+  });
+
+  it("źródło komponentu nie importuje statycznie polityki ani prymitywów P0.3 - wyłącznie `import()`", () => {
+    const source = readFileSync("src/components/ConsentScriptInjector.tsx", "utf8");
+    expect(hasStaticImport(source, "@/lib/analytics/gtagLoadPolicy")).toBe(false);
+    expect(hasStaticImport(source, "@/lib/performance/")).toBe(false);
+    expect(source).toContain('import("@/lib/analytics/gtagLoadPolicy")');
+    // Strażnik samego strażnika: wielolinijkowy import z `ga4Client` jest
+    // rozpoznawany, więc `false` wyżej nie wynika ze ślepej heurystyki.
+    expect(hasStaticImport(source, "@/lib/analytics/ga4Client")).toBe(true);
+  });
+
+  it("polityka zostaje założona dopiero po rozstrzygnięciu `import()`, nie w renderze ani w samym efekcie", async () => {
+    renderInjector();
+
+    // Polecenia są w warstwie danych od razu (bootstrap synchroniczny)...
+    expect(configEntry(GA4_ID)).toBeDefined();
+    expect(consentUpdate()).toMatchObject({ analytics_storage: "granted" });
+    // ...a polityki jeszcze nie ma: ani sygnałów, ani nasłuchu decyzji.
+    expect(scheduleGtagLoad).not.toHaveBeenCalled();
+    expect(harness.consentListeners.size).toBe(0);
+
+    await poZaladowaniuPolityki();
+    expect(scheduleGtagLoad).toHaveBeenCalledTimes(1);
+    expect(scheduleGtagLoad).toHaveBeenCalledWith(expect.any(Function), {
+      onDecision: expect.any(Function),
+    });
+    expect(harness.consentListeners.size).toBe(1);
+    // Założenie sygnałów niczego nie ładuje - czeka na interakcję/decyzję/ciszę.
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
+
+    await poInterakcji();
+    expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
+  });
+
+  it("odmontowanie przed dojazdem chunku polityki nie zakłada żadnego sygnału", async () => {
+    const view = renderInjector();
+    view.unmount();
+
+    await poZaladowaniuPolityki();
+    expect(scheduleGtagLoad).not.toHaveBeenCalled();
+    expect(harness.consentListeners.size).toBe(0);
+
+    await poInterakcji();
+    await poDecyzjiZgody();
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
+  });
+
+  it("kliknięcie sprzed dojazdu polityki nie ginie: lepka aktywacja zwalnia kolejkę przy założeniu sygnałów", async () => {
+    renderInjector();
+    // Odwiedzający kliknął, zanim chunk dojechał: nasłuchu P0.3 jeszcze nie
+    // było, ale przeglądarka pamięta lepką aktywację (happy-dom jej nie ma -
+    // definiujemy ją na czas testu, jak w `firstInteraction.test.ts`).
+    Object.defineProperty(navigator, "userActivation", {
+      configurable: true,
+      get: () => ({ hasBeenActive: true, isActive: false }),
+    });
+    try {
+      await poZaladowaniuPolityki();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      });
+      expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
+    } finally {
+      Reflect.deleteProperty(navigator, "userActivation");
+    }
+  });
+
+  it("awaria polityki (chunk nie dojechał albo `scheduleGtagLoad` rzuca): tag ładuje się od razu, bez duplikatu", async () => {
+    // Ta sama gałąź `.catch` obsługuje odrzucony `import()` i wyjątek polityki.
+    vi.mocked(scheduleGtagLoad).mockImplementationOnce(() => {
+      throw new Error("chunk polityki niedostępny");
+    });
+    renderInjector();
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
+
+    await poZaladowaniuPolityki();
+    expect(scheduleGtagLoad).toHaveBeenCalledTimes(1);
+    const tag = document.head.querySelectorAll<HTMLScriptElement>("script[data-ga4-tag]");
+    expect(tag).toHaveLength(1);
+    expect(tag[0].getAttribute("src")).toBe(`${GTAG_PREFIX}${encodeURIComponent(GA4_ID)}`);
+
+    await poInterakcji();
+    expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(1);
   });
 });
 
