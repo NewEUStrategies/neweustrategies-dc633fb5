@@ -30,6 +30,15 @@ export function pickMode<T>(v: Themed<T> | undefined, mode: Mode): T | undefined
   return v as T;
 }
 
+/**
+ * Geometry and typography are shared by light and dark modes. Legacy documents
+ * may still contain themed values, so collapse them deterministically: light
+ * wins, with dark retained as a fallback when light was never authored.
+ */
+export function pickShared<T>(v: Themed<T> | undefined): T | undefined {
+  return pickMode(v, "light") ?? pickMode(v, "dark");
+}
+
 export function setMode<T>(
   prev: Themed<T> | undefined,
   mode: Mode,

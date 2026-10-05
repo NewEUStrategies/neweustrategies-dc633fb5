@@ -118,6 +118,37 @@ describe("hoverCss - tryby light / dark", () => {
     const style = themed({ bgColor: "#fff" }, { bgColor: "#000" });
     expect(hoverCss("w1", style, "desktop")).toContain("background: #fff");
   });
+
+  it("różnicuje wyłącznie kolory, zachowując wspólną geometrię", () => {
+    const style = themed(
+      {
+        bgColor: "#fff",
+        textColor: "#111",
+        borderRadius: "12px",
+        scale: 1.02,
+        typography: { fontSize: { desktop: "18px" }, lineHeight: "1.4" },
+      },
+      {
+        bgColor: "#000",
+        textColor: "#eee",
+        borderRadius: "2px",
+        scale: 1.2,
+        typography: { fontSize: { desktop: "30px" }, lineHeight: "2" },
+      },
+    );
+    const light = css(style, "desktop", "light");
+    const dark = css(style, "desktop", "dark");
+
+    expect(light).toContain("background: #fff");
+    expect(dark).toContain("background: #000");
+    for (const output of [light, dark]) {
+      expect(output).toContain("border-radius: 12px");
+      expect(output).toContain("scale(1.02)");
+      expect(output).toContain("font-size: 18px");
+      expect(output).toContain("line-height: 1.4");
+      expect(output).not.toContain("30px");
+    }
+  });
 });
 
 describe("hoverCss - pełny zestaw deklaracji", () => {

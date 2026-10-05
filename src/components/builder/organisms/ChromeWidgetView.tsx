@@ -232,7 +232,7 @@ export function useWidgetFrame({
     : {};
 
   const scopedCss = scopeCustomCss(node.advanced?.customCss, node.id);
-  const hover = hoverCss(node.id, node.style, device);
+  const hover = hoverCss(node.id, node.style, device, effectiveMode);
 
   useEffect(() => subscribeWidgetTypography(node.id, setLiveTypography), [node.id]);
 

@@ -82,6 +82,33 @@ describe("styleToCSS", () => {
     expect(css.padding).toBe("24px");
   });
 
+  it("keeps legacy themed geometry identical in light and dark", () => {
+    const legacy = {
+      padding: {
+        light: { desktop: "24px" },
+        dark: { desktop: "8px" },
+      },
+      borderRadius: { light: "12px", dark: "2px" },
+      borderWidth: { light: "3px", dark: "1px" },
+      borderStyle: "solid",
+      boxShadow: { light: "0 8px 20px #111", dark: "none" },
+      typography: {
+        light: { fontWeight: "700", lineHeight: "1.4" },
+        dark: { fontWeight: "400", lineHeight: "2" },
+      },
+      bgColor: { light: "#fff", dark: "#000" },
+    } as unknown as CommonStyle;
+
+    const light = styleToCSS(legacy, "desktop", "light");
+    const dark = styleToCSS(legacy, "desktop", "dark");
+    expect({ ...dark, background: light.background }).toEqual(light);
+    expect(light.padding).toBe("24px");
+    expect(dark.borderRadius).toBe("12px");
+    expect(dark.fontWeight).toBe("700");
+    expect(light.background).toBe("#fff");
+    expect(dark.background).toBe("#000");
+  });
+
   it("omits the border block when borderStyle is none", () => {
     const css = styleToCSS({ borderStyle: "none", borderColor: "#000" }, "desktop");
     expect(css.borderStyle).toBeUndefined();

@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { buildWidgetTypographyCss } from "@/lib/builder/typographyCss";
+import { buildWidgetTypographyCss, resolveWidgetTypography } from "@/lib/builder/typographyCss";
+import type { Themed, WidgetTypography } from "@/lib/builder/types";
 
 const WIDGET_ID = "a777ce78-9978-4455-b322-23f82d4405e2";
 
 describe("buildWidgetTypographyCss - ochrona przed nieczytelnym rozmiarem", () => {
+  it("spłaszcza starszą typografię light/dark do wspólnej wartości light", () => {
+    const stored: Themed<WidgetTypography> = {
+      light: { fontSize: { desktop: "18px" }, lineHeight: "1.4" },
+      dark: { fontSize: { desktop: "30px" }, lineHeight: "2" },
+    };
+    expect(resolveWidgetTypography(stored, "light")).toEqual(
+      resolveWidgetTypography(stored, "dark"),
+    );
+    expect(resolveWidgetTypography(stored, "dark")).toEqual(stored.light);
+  });
   it("ignoruje rozmiar poniżej 6px i schodzi do wartości desktopowej", () => {
     const css = buildWidgetTypographyCss(
       WIDGET_ID,

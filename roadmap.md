@@ -93,6 +93,6 @@
 
 ## Spójność geometrii light/dark
 
-- [ ] Ujednolicić typografię, rozmiary, odstępy i geometrię widgetów między jasnym i ciemnym trybem.
-- [ ] Zsynchronizować istniejące zapisane wartości oraz zablokować ponowne tworzenie rozbieżności w edytorze.
-- [ ] Dodać testy kontraktowe i zweryfikować reprezentatywne strony w obu trybach.
+- [x] Ujednolicić typografię, rozmiary, odstępy i geometrię widgetów między jasnym i ciemnym trybem.
+- [x] Zsynchronizować istniejące zapisane wartości oraz zablokować ponowne tworzenie rozbieżności w edytorze.
+- [x] Dodać testy kontraktowe i zweryfikować reprezentatywne strony w obu trybach.
