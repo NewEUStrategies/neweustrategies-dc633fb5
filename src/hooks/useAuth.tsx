@@ -331,8 +331,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }, 0);
       }
     };
+    // Najwyżej raz na przebieg efektu: gość - z rejestru utworzenia klienta
+    // (słuchacz biegnie raz), zalogowany - wprost niżej.
     const subscribe = () => {
-      if (sub) return;
       ({ data: sub } = supabase.auth.onAuthStateChange(onAuthEvent));
     };
 

@@ -350,10 +350,15 @@ describe("eksporty rdzenia (`@/lib/locale/*`) nie są mutowane przez nakładki",
     const pristine = structuredClone(pl);
 
     // Forma ścieżkowa: (ścieżka, zasoby, deep) - i18next nie przesuwa `overwrite`,
-    // więc nakładka tu tylko dokłada klucze.
-    i18n.addResourceBundle("pl.translation", { auth: { pathOnly: "Ścieżka" } }, true);
+    // więc nakładka tu tylko dokłada klucze. Typy i18next jej nie opisują.
+    const addByPath = i18n.addResourceBundle.bind(i18n) as unknown as (
+      path: string,
+      resources: object,
+      deep: boolean,
+    ) => void;
+    addByPath("pl.translation", { auth: { pathOnly: "Ścieżka" } }, true);
     // 3 segmenty: i18next scala WEWNĄTRZ `common`, nie na najwyższym poziomie.
-    i18n.addResourceBundle("pl.translation.common", { pathNested: "Głębiej" }, true);
+    addByPath("pl.translation.common", { pathNested: "Głębiej" }, true);
 
     expect(i18n.t("auth.pathOnly")).toBe("Ścieżka");
     expect(i18n.t("common.pathNested")).toBe("Głębiej");

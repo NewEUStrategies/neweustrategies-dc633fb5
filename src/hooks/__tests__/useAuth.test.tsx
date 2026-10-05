@@ -31,6 +31,8 @@ const h = vi.hoisted(() => ({
   settingsMap: {} as Record<string, unknown>,
   settingsShouldReject: false,
   throwOnSubscribe: false,
+  /** `getSession()` rzuca synchronicznie (klient niedostępny przy odczycie). */
+  throwOnGetSession: false,
   fromCalls: [] as string[],
   /** Dostępy do `supabase` (każdy tworzyłby klienta, gdyby go nie było). */
   touches: 0,
@@ -50,6 +52,7 @@ vi.mock("@/integrations/supabase/client", async () => {
         return { data: { subscription: { unsubscribe: h.unsub } } };
       },
       getSession: () => {
+        if (h.throwOnGetSession) throw new Error("getSession unavailable");
         h.getSessionCalls += 1;
         return h.getSessionPromise ?? Promise.resolve(h.getSessionResult);
       },
@@ -201,6 +204,7 @@ beforeEach(() => {
   h.settingsMap = {};
   h.settingsShouldReject = false;
   h.throwOnSubscribe = false;
+  h.throwOnGetSession = false;
   h.fromCalls = [];
   h.touches = 0;
   h.getSessionCalls = 0;
@@ -542,6 +546,20 @@ describe("AuthProvider - degradacja, gdy klient Supabase jest niedostępny", () 
     expect(screen.getByTestId("uid")).toHaveTextContent("anon");
     expect(h.fromCalls).toEqual([]);
   });
+
+  it("sesja w magazynie + onAuthStateChange rzucający synchronicznie: ścieżka SDK też schodzi do gościa", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    storeSession();
+    h.throwOnSubscribe = true;
+    renderProbe();
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+    expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+    expect(h.getSessionCalls).toBe(0);
+    expect(error).toHaveBeenCalledWith(
+      "[auth] Supabase client unavailable - continuing signed-out",
+      expect.any(Error),
+    );
+  });
 });
 
 describe("useRequiredTenant()", () => {
@@ -879,6 +897,79 @@ describe("AuthProvider - szybka ścieżka gościa", () => {
     // Klient powstał przy odczycie, a nasłuch podpiął się przed nim.
     expect(h.authCb).not.toBeNull();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["unlocked-body"] });
+  });
+
+  it("zapis w innej karcie bez sesji albo z tym samym kontem nie loguje tej karty ponownie", async () => {
+    let renders = 0;
+    function Counter() {
+      renders += 1;
+      return <span data-testid="counter-uid">{useAuth().session?.user.id ?? "anon"}</span>;
+    }
+    render(
+      <QueryClientProvider client={newQueryClient()}>
+        <AuthProvider>
+          <Counter />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+    const storage = () =>
+      act(async () => {
+        window.dispatchEvent(
+          new StorageEvent("storage", {
+            key: STORED_SESSION_KEY,
+            newValue: '{"access_token":"t"}',
+          }),
+        );
+      });
+    await act(async () => {});
+    let before = renders;
+    await storage();
+    expect(h.getSessionCalls).toBe(1);
+    expect(renders).toBe(before);
+    expect(screen.getByTestId("counter-uid")).toHaveTextContent("anon");
+
+    h.getSessionResult = { data: { session: makeSession("u-ta-sama") } };
+    await storage();
+    await waitFor(() => expect(screen.getByTestId("counter-uid")).toHaveTextContent("u-ta-sama"));
+    before = renders;
+    await storage();
+    expect(h.getSessionCalls).toBe(3);
+    expect(renders).toBe(before);
+  });
+
+  it("logowanie w innej karcie przy odrzuconym odczycie sesji: ostrzeżenie, karta zostaje gościem", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    renderProbe();
+    await act(async () => {
+      h.getSessionPromise = Promise.reject(new Error("sieć"));
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: STORED_SESSION_KEY, newValue: '{"access_token":"t"}' }),
+      );
+    });
+    await waitFor(() =>
+      expect(warn).toHaveBeenCalledWith(
+        "[auth] nie udało się odczytać sesji z innej karty",
+        expect.any(Error),
+      ),
+    );
+    expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+    expect(screen.getByTestId("loading")).toHaveTextContent("false");
+  });
+
+  it("logowanie w innej karcie przy niedostępnym kliencie: błąd zalogowany, nasłuch nie rzuca", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderProbe();
+    h.throwOnGetSession = true;
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: STORED_SESSION_KEY, newValue: '{"access_token":"t"}' }),
+      );
+    });
+    expect(error).toHaveBeenCalledWith(
+      "[auth] Supabase client unavailable - continuing signed-out",
+      expect.any(Error),
+    );
+    expect(screen.getByTestId("uid")).toHaveTextContent("anon");
   });
 
   it("obcy klucz i usunięcie sesji w innej karcie nie budzą klienta", async () => {
