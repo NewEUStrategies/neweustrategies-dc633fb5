@@ -13,7 +13,12 @@
 // bloku, „pierwsze `const query`" zamiast najbliższego, cieniowanie stałej,
 // apostrof JSX + `accept="image/*"`, dynamiczne `DROP CONSTRAINT %I`,
 // `stripSqlComments` połykający DROP, fałszywe alarmy modelu) - każda jako
-// kontrola negatywna z POPRAWNYM werdyktem.
+// kontrola negatywna z POPRAWNYM werdyktem. Bloki „przegląd adwersaryjny 2"
+// robią to samo dla ścieżek, których repo dziś nie ma, a które przechodziły
+// na zielono: `DO '…'`/`E'…'`, DDL w ciele funkcji wywołanej w migracji,
+// podmiana `EXECUTE` przy tej samej liczbie, `.schema()` przez `let`/parametr/
+// warunek, kolumny `INCLUDE`, `DROP … CASCADE`, nazwy zapisane ucieczkami
+// i kwadratowy koszt dużego pliku.
 //
 // Fixture'y są atrapami SQL i TS (przedmiotem dowodu jest reakcja na KSZTAŁT
 // wejścia), a ostatni blok liczy bramkę na PRAWDZIWYM repozytorium przez TEN
@@ -37,6 +42,7 @@ import {
   parseConflictTarget,
   renderOnConflictArbitersReport,
   splitSqlStatementsDeep,
+  type DynamicDdlBaselineEntry,
   type MigrationFile,
   type SourceFile,
   type UniqueKey,
@@ -206,7 +212,12 @@ CREATE UNIQUE INDEX t_ab ON public.t (a COLLATE "C" text_pattern_ops, b DESC NUL
       "t",
     );
     expect(keys).toEqual([
-      expect.objectContaining({ name: "t_ab", columns: ["a", "b"], expression: false }),
+      expect.objectContaining({
+        name: "t_ab",
+        columns: ["a", "b"],
+        include: ["c"],
+        expression: false,
+      }),
     ]);
   });
 
@@ -358,24 +369,32 @@ END $mig$;`),
     expect(model.dynamicDdl).toEqual([
       {
         file: "20990101000000_fixture.sql",
+        block: expect.stringMatching(/^[0-9a-f]{12}$/),
         text: "format('ALTER TABLE public.pages DROP CONSTRAINT %I', v_name)",
       },
     ]);
   });
 
-  it("ciało CREATE FUNCTION nie jest wykonywane przy migracji - jego DDL nie zmienia modelu", () => {
-    const keys = keysOf(
-      [
-        sql(`
+  it("ciało CREATE FUNCTION nie zmienia modelu, ale jego DDL kluczy trafia do `unmodeled`", () => {
+    const model = buildUniqueKeyModel([
+      sql(`
 CREATE TABLE public.t (id int PRIMARY KEY, a int UNIQUE);
 CREATE OR REPLACE FUNCTION public.f() RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
   ALTER TABLE public.t DROP CONSTRAINT t_a_key;
 END $$;`),
-      ],
-      "t",
-    );
-    expect(keys.map((key) => key.name)).toEqual(["t_a_key", "t_pkey"]);
+    ]);
+    // Model nie wie, czy i kiedy funkcja się wykona - klucz zostaje, a bramka
+    // dostaje wpis z bazą zero (patrz „CIAŁA FUNKCJI I KASKADY" w module).
+    expect(model.tables.get("t")?.map((key) => key.name)).toEqual(["t_a_key", "t_pkey"]);
+    expect(model.unmodeled).toEqual([
+      {
+        file: "20990101000000_fixture.sql",
+        kind: "routine",
+        routine: "public.f",
+        text: "ALTER TABLE public.t DROP CONSTRAINT t_a_key",
+      },
+    ]);
   });
 
   it("identyfikatory: wielkość liter, cudzysłów, schemat public opcjonalny, inne schematy pominięte", () => {
@@ -1229,32 +1248,50 @@ CREATE UNIQUE INDEX user_roles_unique_per_tenant ON public.user_roles (tenant_id
         file: "2.sql",
         expected: 0,
         actual: 1,
-        texts: ["format('ALTER TABLE public.user_roles DROP CONSTRAINT %I', v_conname)"],
+        added: [
+          {
+            block: expect.stringMatching(/^[0-9a-f]{12}$/),
+            text: "format('ALTER TABLE public.user_roles DROP CONSTRAINT %I', v_conname)",
+          },
+        ],
+        removed: [],
       },
     ]);
     expect(onConflictArbitersFailed(report)).toBe(true);
     const rendered = renderOnConflictArbitersReport(report);
-    expect(rendered).toContain("2.sql  w zapadce: 0, w pliku: 1");
+    expect(rendered).toContain("2.sql  w zapadce: 0, w pliku: 1 - 1 × nowe albo zmienione EXECUTE");
+    expect(rendered).toContain("+ [blok ");
     expect(rendered).toContain("Zapisz DDL statycznie");
   });
 
-  it("wpis zapadki z tą samą liczbą przepuszcza; zmiana liczby w którąkolwiek stronę - nie", () => {
+  it("para (blok, tekst) z zapadki przepuszcza; brak albo nadmiar pary - nie", () => {
+    const measured = buildUniqueKeyModel(dynamicDrop).dynamicDdl.map(({ block, text }) => ({
+      block,
+      text,
+    }));
     const covered = analyzeOnConflictArbiters({
       migrations: dynamicDrop,
       sources: [staleTarget],
-      dynamicDdlBaseline: { "2.sql": { count: 1, why: "fixture" } },
+      dynamicDdlBaseline: { "2.sql": { executes: measured, why: "fixture" } },
     });
     expect(covered.dynamicDdlDrift).toEqual([]);
-    for (const count of [0, 2]) {
+    for (const executes of [[], [...measured, ...measured]]) {
       const drifted = analyzeOnConflictArbiters({
         migrations: dynamicDrop,
         sources: [staleTarget],
-        dynamicDdlBaseline: { "2.sql": { count, why: "fixture" } },
+        dynamicDdlBaseline: { "2.sql": { executes, why: "fixture" } },
       });
       expect(
-        drifted.dynamicDdlDrift.map((d) => [d.expected, d.actual]),
-        `count ${count}`,
-      ).toEqual([[count, 1]]);
+        drifted.dynamicDdlDrift.map((d) => [
+          d.expected,
+          d.actual,
+          d.added.length,
+          d.removed.length,
+        ]),
+        `baza ${executes.length}`,
+      ).toEqual([
+        [executes.length, 1, executes.length === 0 ? 1 : 0, executes.length === 0 ? 0 : 1],
+      ]);
     }
   });
 
@@ -1350,6 +1387,538 @@ describe("podział instrukcji przez lexStatements (G7)", () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Przegląd adwersaryjny 2 - ciche zielenie na ścieżkach, których repo dziś
+// nie ma (M1-M5, N1-N4). Każda reprodukcja z POPRAWNYM werdyktem i kontrolą.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DROP_PER_TENANT = "DROP INDEX public.user_roles_unique_per_tenant";
+const LATE = "20991231000000_adv.sql";
+
+/** Poprawny dziś cel `user_roles` po dopisaniu migracji `extra` za schematem adwersaryjnym. */
+function afterMigration(extra: string, baseline?: Record<string, DynamicDdlBaselineEntry>) {
+  return analyzeOnConflictArbiters({
+    migrations: [...ADVERSARIAL_SCHEMA, sql(extra, LATE)],
+    sources: [
+      ts('await db.from("user_roles").upsert(r, { onConflict: "tenant_id,user_id,role" });'),
+    ],
+    ...(baseline === undefined ? {} : { dynamicDdlBaseline: baseline }),
+  });
+}
+
+describe("przegląd adwersaryjny 2: blok DO w każdej postaci literału (M1)", () => {
+  // Wcześniej ciało inne niż `$tag$…$tag$` było pomijane po cichu - `DROP
+  // INDEX` z `DO '…'` znikał z modelu, a cel bez arbitra przechodził.
+  it.each([
+    ["`DO '…'`", `DO 'BEGIN ${DROP_PER_TENANT}; END';`],
+    ["`DO E'…'` z `\\'`", `DO E'BEGIN ${DROP_PER_TENANT}; RAISE NOTICE \\'zdjęty\\'; END';`],
+    ["`DO LANGUAGE plpgsql '…'`", `DO LANGUAGE plpgsql 'BEGIN ${DROP_PER_TENANT}; END';`],
+    ["`DO '…' LANGUAGE plpgsql`", `DO 'BEGIN ${DROP_PER_TENANT}; END' LANGUAGE plpgsql;`],
+    ["`DO` zagnieżdżony w `DO`", `DO $$ BEGIN DO 'BEGIN ${DROP_PER_TENANT}; END'; END $$;`],
+    ["kontrola: `DO $$…$$`", `DO $$ BEGIN ${DROP_PER_TENANT}; END $$;`],
+  ])("%s - DROP INDEX wchodzi do modelu, cel traci arbitra", (_label, extra) => {
+    const report = afterMigration(extra);
+    expect(report.unsplittable).toEqual([]);
+    expect(report.violations.map((v) => v.site.target)).toEqual(["tenant_id,user_id,role"]);
+  });
+
+  it("kontrola negatywna: DDL w napisie `RAISE` ciała `'…'` niczego nie zdejmuje", () => {
+    const report = afterMigration(`DO 'BEGIN RAISE NOTICE ''${DROP_PER_TENANT}''; END';`);
+    expect(report.violations).toEqual([]);
+    expect(onConflictArbitersFailed(report)).toBe(false);
+  });
+
+  it.each([
+    ["`U&'…'`", `DO U&'BEGIN ${DROP_PER_TENANT}; END';`, "blok DO bez ciała"],
+    [
+      "literał sklejany przez nową linię",
+      `DO 'BEGIN ${DROP_PER_TENANT}; '\n'END';`,
+      "blok DO bez ciała",
+    ],
+    [
+      "język inny niż plpgsql",
+      `DO LANGUAGE plv8 $$ plv8.execute('${DROP_PER_TENANT}') $$;`,
+      "plv8",
+    ],
+  ])("%s - ciało nie do odczytania zapala bramkę (niepodzielone)", (_label, extra, message) => {
+    const report = afterMigration(extra);
+    expect(report.violations).toEqual([]);
+    expect(report.unsplittable).toEqual([
+      { file: LATE, message: expect.stringContaining(message) },
+    ]);
+    expect(onConflictArbitersFailed(report)).toBe(true);
+  });
+});
+
+describe("przegląd adwersaryjny 2: DDL kluczy w ciałach funkcji i kaskady - baza zero (M2, N2)", () => {
+  const FN = `CREATE OR REPLACE FUNCTION public.tmp_fix() RETURNS void LANGUAGE plpgsql AS $$ BEGIN ${DROP_PER_TENANT}; END $$;`;
+  it.each([
+    [
+      "funkcja + `SELECT f()`",
+      `${FN}\nSELECT public.tmp_fix();\nDROP FUNCTION public.tmp_fix();`,
+      "public.tmp_fix",
+      DROP_PER_TENANT,
+    ],
+    [
+      "funkcja + `PERFORM f()` w DO",
+      `${FN}\nDO $$ BEGIN PERFORM public.tmp_fix(); END $$;`,
+      "public.tmp_fix",
+      DROP_PER_TENANT,
+    ],
+    [
+      "procedura SQL + `CALL`",
+      `CREATE PROCEDURE public.tmp_p() LANGUAGE sql AS $$ ${DROP_PER_TENANT} $$;\nCALL public.tmp_p();`,
+      "public.tmp_p",
+      DROP_PER_TENANT,
+    ],
+    [
+      "ciało `AS E'…'`",
+      `CREATE FUNCTION public.e() RETURNS void LANGUAGE plpgsql AS E'BEGIN ${DROP_PER_TENANT}; END';`,
+      "public.e",
+      DROP_PER_TENANT,
+    ],
+    [
+      "`ALTER TABLE … DROP` bez COLUMN",
+      "CREATE FUNCTION public.d() RETURNS void LANGUAGE sql AS 'ALTER TABLE public.user_roles DROP tenant_id';",
+      "public.d",
+      "ALTER TABLE public.user_roles DROP tenant_id",
+    ],
+    [
+      "funkcja tworzona w bloku DO",
+      `DO $$ BEGIN CREATE OR REPLACE FUNCTION public.g() RETURNS void LANGUAGE plpgsql AS $g$ BEGIN ${DROP_PER_TENANT}; END $g$; END $$;`,
+      "public.g",
+      DROP_PER_TENANT,
+    ],
+    [
+      "dynamiczne `EXECUTE` w ciele",
+      "CREATE FUNCTION public.x() RETURNS void LANGUAGE plpgsql AS $$ BEGIN EXECUTE format('DROP INDEX public.%I', 'user_roles_unique_per_tenant'); END $$;",
+      "public.x",
+      "EXECUTE format('DROP INDEX public.%I', 'user_roles_unique_per_tenant')",
+    ],
+    [
+      "kaskada w ciele",
+      "CREATE FUNCTION public.c() RETURNS void LANGUAGE sql AS 'DROP TYPE public.app_role CASCADE';",
+      "public.c",
+      "DROP TYPE public.app_role CASCADE",
+    ],
+  ])(
+    "%s - wpis `routine`, bramka czerwona przy zielonym modelu",
+    (_label, extra, routine, text) => {
+      const report = afterMigration(extra);
+      // Model nie wykonuje ciała, więc klucz stoi - bez tej kategorii zieleń.
+      expect(report.violations).toEqual([]);
+      expect(report.unmodeled).toEqual([{ file: LATE, kind: "routine", routine, text }]);
+      expect(onConflictArbitersFailed(report)).toBe(true);
+      const rendered = renderOnConflictArbitersReport(report);
+      expect(rendered).toContain(`ciało funkcji ${routine}: ${text}`);
+      expect(rendered).toContain("Przenieś");
+    },
+  );
+
+  it.each([
+    [
+      "`CREATE TEMP TABLE … PRIMARY KEY`",
+      "CREATE FUNCTION public.t() RETURNS void LANGUAGE plpgsql AS $$ BEGIN CREATE TEMP TABLE IF NOT EXISTS _c (user_id uuid PRIMARY KEY) ON COMMIT DROP; END $$;",
+    ],
+    [
+      "słowa kluczy w komentarzu i w `RAISE`",
+      "CREATE FUNCTION public.r() RETURNS void LANGUAGE plpgsql AS $$ BEGIN -- unique constraint na phone_norm\n RAISE EXCEPTION 'needs a unique key, DROP INDEX x'; END $$;",
+    ],
+    [
+      "`ALTER TABLE … ADD COLUMN` (nie dotyka kluczy)",
+      "CREATE FUNCTION public.a() RETURNS void LANGUAGE sql AS 'ALTER TABLE public.user_roles ADD COLUMN note text';",
+    ],
+    [
+      "`GRANT EXECUTE` w bloku DO",
+      "DO $$ BEGIN GRANT EXECUTE ON FUNCTION public.has_role(uuid) TO authenticated; END $$;",
+    ],
+    [
+      "`DROP TABLE … CASCADE` (model zna)",
+      "CREATE TABLE public.tmp (id int PRIMARY KEY);\nDROP TABLE public.tmp CASCADE;",
+    ],
+    ["`DROP TYPE` bez CASCADE", "DROP TYPE IF EXISTS public.app_role;"],
+    ["`DROP VIEW … CASCADE`", "DROP VIEW IF EXISTS public.v CASCADE;"],
+  ])("kontrola negatywna: %s - nic poza modelem", (_label, extra) => {
+    const report = afterMigration(extra);
+    expect(report.unmodeled).toEqual([]);
+    expect(report.dynamicDdl).toEqual([]);
+    expect(onConflictArbitersFailed(report)).toBe(false);
+  });
+
+  it.each([
+    "DROP TYPE public.app_role CASCADE",
+    "DROP DOMAIN IF EXISTS public.email_d CASCADE",
+    "DROP EXTENSION IF EXISTS citext CASCADE",
+    "DROP SCHEMA extensions CASCADE",
+    "DROP FUNCTION public.norm(text) CASCADE",
+    "DROP OWNED BY legacy_role",
+  ])("`%s` - kaskada poza modelem zapala bramkę (PG16: drop cascades to column)", (statement) => {
+    for (const extra of [`${statement};`, `DO $$ BEGIN ${statement}; END $$;`]) {
+      const report = afterMigration(extra);
+      expect(report.unmodeled, extra).toEqual([
+        { file: LATE, kind: "cascade", routine: null, text: statement },
+      ]);
+      expect(onConflictArbitersFailed(report), extra).toBe(true);
+      expect(renderOnConflictArbitersReport(report)).toContain(`kaskada zależności: ${statement}`);
+    }
+  });
+
+  it("kaskada w dynamicznym `EXECUTE` trafia do zapadki (słowo CASCADE)", () => {
+    const report = afterMigration(
+      "DO $$ BEGIN EXECUTE format('DROP TYPE public.%I CASCADE', 'app_role'); END $$;",
+    );
+    expect(report.dynamicDdlDrift.map((d) => [d.file, d.added.map((a) => a.text)])).toEqual([
+      [LATE, ["format('DROP TYPE public.%I CASCADE', 'app_role')"]],
+    ]);
+  });
+});
+
+describe("przegląd adwersaryjny 2: zapadka porównuje pary (blok, tekst), nie liczby (M3, N1)", () => {
+  const block = (pick: string, ddl: string) => `DO $$
+DECLARE v_name text;
+BEGIN
+  SELECT conname INTO v_name FROM pg_constraint
+   WHERE conrelid = 'public.user_roles'::regclass AND contype = '${pick}';
+  IF v_name IS NOT NULL THEN
+    EXECUTE format(${ddl}, v_name);
+  END IF;
+END $$;`;
+  const measured = block("c", "'ALTER TABLE public.user_roles DROP CONSTRAINT %I'");
+  const baseline = (): Record<string, DynamicDdlBaselineEntry> => ({
+    [LATE]: {
+      executes: buildUniqueKeyModel([sql(measured, LATE)]).dynamicDdl.map(({ block, text }) => ({
+        block,
+        text,
+      })),
+      why: "fixture",
+    },
+  });
+
+  it("zmierzony blok przepuszcza - także po przeformatowaniu i z komentarzami", () => {
+    expect(afterMigration(measured, baseline()).dynamicDdlDrift).toEqual([]);
+    const reformatted = `-- ten sam blok, inaczej zapisany\n${measured.replace(/\n\s*/g, "\n      ").replace("BEGIN", "BEGIN /* strażnik */")}`;
+    expect(afterMigration(reformatted, baseline()).dynamicDdlDrift).toEqual([]);
+  });
+
+  it("podmiana EXECUTE przy tej samej liczbie (R4) - para dodana i usunięta, bramka czerwona", () => {
+    const swapped = block("c", "'DROP INDEX public.%I'");
+    const report = afterMigration(swapped, baseline());
+    const [drift] = report.dynamicDdlDrift;
+    expect(drift).toMatchObject({ file: LATE, expected: 1, actual: 1 });
+    expect(drift.added.map((entry) => entry.text)).toEqual([
+      "format('DROP INDEX public.%I', v_name)",
+    ]);
+    expect(drift.removed.map((entry) => entry.text)).toEqual([
+      "format('ALTER TABLE public.user_roles DROP CONSTRAINT %I', v_name)",
+    ]);
+    expect(onConflictArbitersFailed(report)).toBe(true);
+    const rendered = renderOnConflictArbitersReport(report);
+    expect(rendered).toContain(
+      "1 × nowe albo zmienione EXECUTE; 1 × EXECUTE z zapadki, którego plik już nie ma",
+    );
+    expect(rendered).toContain("+ [blok ");
+    expect(rendered).toContain("- [blok ");
+  });
+
+  it("ten sam EXECUTE, ale blok wybiera klucz zamiast CHECK (`contype 'u'`) - rozjazd bloku", () => {
+    const report = afterMigration(
+      block("u", "'ALTER TABLE public.user_roles DROP CONSTRAINT %I'"),
+      baseline(),
+    );
+    const [drift] = report.dynamicDdlDrift;
+    expect(drift.added.map((entry) => entry.text)).toEqual(
+      drift.removed.map((entry) => entry.text),
+    );
+    expect(drift.added[0].block).not.toBe(drift.removed[0].block);
+    expect(renderOnConflictArbitersReport(report)).toContain(
+      "1 × ten sam tekst EXECUTE w zmienionym ciele bloku DO",
+    );
+  });
+
+  it("multizbiór: druga kopia zmierzonego bloku to rozjazd, choć para jest w zapadce", () => {
+    const [twice] = afterMigration(`${measured}\n${measured}`, baseline()).dynamicDdlDrift;
+    expect([twice.expected, twice.actual, twice.added.length, twice.removed.length]).toEqual([
+      1, 2, 1, 0,
+    ]);
+    // Drugi EXECUTE W TYM SAMYM bloku zmienia też skrót ciała - obie pary są nowe.
+    const doubled = measured.replace(
+      "  END IF;",
+      "    EXECUTE format('ALTER TABLE public.user_roles DROP CONSTRAINT %I', v_name);\n  END IF;",
+    );
+    const [inBlock] = afterMigration(doubled, baseline()).dynamicDdlDrift;
+    expect([
+      inBlock.expected,
+      inBlock.actual,
+      inBlock.added.length,
+      inBlock.removed.length,
+    ]).toEqual([1, 2, 2, 1]);
+  });
+
+  it("`ALTER TABLE %I DROP %I` bez słowa COLUMN (R7) to dynamiczne DDL kluczy (N1)", () => {
+    const report = afterMigration(
+      "DO $$ BEGIN EXECUTE format('ALTER TABLE public.%I DROP %I', 'user_roles', 'tenant_id'); END $$;",
+    );
+    expect(report.dynamicDdlDrift.map((d) => d.added.map((entry) => entry.text))).toEqual([
+      ["format('ALTER TABLE public.%I DROP %I', 'user_roles', 'tenant_id')"],
+    ]);
+    expect(onConflictArbitersFailed(report)).toBe(true);
+  });
+});
+
+describe("przegląd adwersaryjny 2: `.schema()` osiągalny przez let, parametr i warunek (M4)", () => {
+  const UPSERT = 'db.from("site_settings").upsert(row, { onConflict: "tenant_id,key" })';
+  it.each<[string, string, Verdict]>([
+    [
+      "`let` z inicjalizatorem",
+      `let db = supabase.schema("archive");\nawait ${UPSERT};`,
+      "UNRESOLVED",
+    ],
+    [
+      "`let` przypisany później",
+      `let db = supabase;\nif (archived) db = supabase.schema("archive");\nawait ${UPSERT};`,
+      "UNRESOLVED",
+    ],
+    [
+      "`??=` na `let`",
+      `let db = maybe;\ndb ??= supabase.schema("archive");\nawait ${UPSERT};`,
+      "UNRESOLVED",
+    ],
+    [
+      "wartość domyślna parametru",
+      `function f(db = supabase.schema("archive")) { return ${UPSERT}; }`,
+      "UNRESOLVED",
+    ],
+    [
+      "wartość domyślna we wzorcu",
+      `function f({ db = supabase.schema("archive") }: Ctx) { return ${UPSERT}; }`,
+      "UNRESOLVED",
+    ],
+    [
+      "gałąź `? :`",
+      `const db = cond ? supabase.schema("archive") : supabase;\nawait ${UPSERT};`,
+      "UNRESOLVED",
+    ],
+    [
+      "operand `??`",
+      `const db = override ?? supabase.schema("archive");\nawait ${UPSERT};`,
+      "UNRESOLVED",
+    ],
+    [
+      "operandy `&&` / `||`",
+      `const db = (enabled && supabase.schema("archive")) || supabase;\nawait ${UPSERT};`,
+      "UNRESOLVED",
+    ],
+    [
+      "kontrola: `let` bez schematu",
+      `let db = supabase;\ndb = createClient();\nawait ${UPSERT};`,
+      "PASS",
+    ],
+    [
+      "kontrola: parametr bez wartości domyślnej",
+      `function f(db: Client) { return ${UPSERT}; }`,
+      "PASS",
+    ],
+    [
+      'kontrola: `.schema("public")` w gałęzi',
+      `const db = cond ? supabase : supabase.schema("public");\nawait ${UPSERT};`,
+      "PASS",
+    ],
+    [
+      "kontrola: cykl `let` (bez schematu)",
+      `let a = b;\nlet b = a;\nawait a.from("site_settings").upsert(row, { onConflict: "tenant_id,key" });`,
+      "PASS",
+    ],
+  ])("%s -> %s", (_label, code, expected) => {
+    const { verdict, reasons } = verdictOf(code);
+    expect(verdict).toBe(expected);
+    if (expected === "UNRESOLVED")
+      expect(reasons).toEqual([expect.stringContaining("`.schema(...)`")]);
+  });
+});
+
+describe("przegląd adwersaryjny 2: kolumny INCLUDE (M5)", () => {
+  // Każda nazwa i każdy zdjęty klucz zmierzone na PostgreSQL 16 (BEGIN … ROLLBACK).
+  const created = `
+CREATE TABLE public.zzinc_a (id int, x int, y int, z int, w int, UNIQUE (x) INCLUDE (id));
+CREATE UNIQUE INDEX ON public.zzinc_a (x) INCLUDE (z);
+CREATE UNIQUE INDEX ON public.zzinc_a (w) INCLUDE (z, y);
+CREATE UNIQUE INDEX ON public.zzinc_a (lower(x::text)) INCLUDE (w);
+ALTER TABLE public.zzinc_a ADD UNIQUE (y) INCLUDE (w, z);
+ALTER TABLE public.zzinc_a ADD CONSTRAINT zzinc_named UNIQUE (z) INCLUDE (x);
+CREATE TABLE public.zzinc_b (id int PRIMARY KEY, a int, UNIQUE (id) INCLUDE (a), UNIQUE (id));
+CREATE TABLE public.zzinc_c (id int, a int, PRIMARY KEY (id) INCLUDE (a));`;
+
+  it("nazwy domyślne liczą INCLUDE, a UNIQUE z innym INCLUDE nie scala się z PK", () => {
+    const model = buildUniqueKeyModel([sql(created)]);
+    expect(model.tables.get("zzinc_a")?.map((key) => [key.name, key.columns, key.include])).toEqual(
+      [
+        ["zzinc_a_lower_w_idx", ["(lower(x::text))"], ["w"]],
+        ["zzinc_a_w_z_y_idx", ["w"], ["z", "y"]],
+        ["zzinc_a_x_id_key", ["x"], ["id"]],
+        ["zzinc_a_x_z_idx", ["x"], ["z"]],
+        ["zzinc_a_y_w_z_key", ["y"], ["w", "z"]],
+        ["zzinc_named", ["z"], ["x"]],
+      ],
+    );
+    expect(model.tables.get("zzinc_b")?.map((key) => key.name)).toEqual([
+      "zzinc_b_id_a_key",
+      "zzinc_b_pkey",
+    ]);
+    expect(model.tables.get("zzinc_c")?.map((key) => [key.name, key.include])).toEqual([
+      ["zzinc_c_pkey", ["a"]],
+    ]);
+  });
+
+  it("`DROP COLUMN` kolumny INCLUDE zdejmuje klucz - także PK (PG16)", () => {
+    const model = buildUniqueKeyModel([
+      sql(`${created}
+ALTER TABLE public.zzinc_a DROP COLUMN id;
+ALTER TABLE public.zzinc_a DROP z;
+ALTER TABLE public.zzinc_c DROP COLUMN a;`),
+    ]);
+    expect(model.tables.get("zzinc_a")?.map((key) => key.name)).toEqual(["zzinc_a_lower_w_idx"]);
+    expect(model.tables.get("zzinc_c")).toEqual([]);
+    const report = analyzeOnConflictArbiters({
+      migrations: [sql(`${created}\nALTER TABLE public.zzinc_c DROP COLUMN a;`)],
+      sources: [ts('await db.from("zzinc_c").upsert(r, { onConflict: "id" });')],
+    });
+    expect(report.violations.map((v) => v.site.target)).toEqual(["id"]);
+  });
+
+  it("kolumna INCLUDE nie należy do arbitra: `(x)` ma arbitra, `(x, id)` - 42P10 (PG16)", () => {
+    const report = analyzeOnConflictArbiters({
+      migrations: [sql(created)],
+      sources: [
+        ts(
+          [
+            'await db.from("zzinc_a").upsert(r, { onConflict: "x" });',
+            'await db.from("zzinc_a").upsert(r, { onConflict: "x,id" });',
+          ].join("\n"),
+        ),
+      ],
+    });
+    expect(report.violations.map((v) => [v.site.line, v.site.target])).toEqual([[2, "x,id"]]);
+    expect(renderOnConflictArbitersReport(report)).toContain("zzinc_a_x_id_key (x) INCLUDE (id)");
+  });
+});
+
+describe("przegląd adwersaryjny 2: ucieczki w nazwach i koszt liniowy (N3, N4)", () => {
+  it.each([
+    [
+      "`\\u` w nazwie metody i klucza",
+      'await db.from("user_roles").ups\\u0065rt(row, { on\\u0043onflict: "user_id,role" });',
+    ],
+    [
+      "`\\x` w napisie klucza i członu",
+      'await db.from("user_roles")["\\x75psert"](row, { "on\\x43onflict": "user_id,role" });',
+    ],
+  ])("%s - plik bez słów wprost i tak idzie do parsera", (_label, code) => {
+    expect(code).not.toContain("upsert");
+    expect(code).not.toContain("onConflict");
+    const { verdict, tables } = verdictOf(code);
+    expect(verdict).toBe("VIOLATION");
+    expect(tables).toEqual([[1, "user_roles", "user_id,role"]]);
+  });
+
+  it("15 tys. celów w jednym pliku: koszt liniowy (wcześniej O(N²) - ok. 54 s)", () => {
+    const lines: string[] = [];
+    for (let i = 0; i < 15_000; i += 1) {
+      lines.push(
+        `// onConflict: notatka ${i}`,
+        `export async function f${i}() { await supabase.from("user_roles").upsert(r, { onConflict: "tenant_id,user_id,role" }); }`,
+      );
+    }
+    const started = Date.now();
+    const report = analyzeOnConflictArbiters({
+      migrations: ADVERSARIAL_SCHEMA,
+      sources: [ts(lines.join("\n"), "src/lib/big.ts")],
+    });
+    const elapsed = Date.now() - started;
+    expect(report.sites).toHaveLength(15_000);
+    expect(report.violations).toEqual([]);
+    // Zmierzone 2026-10-04 (bun, ta sama maszyna): ok. 2 s po zmianie, 54 s na
+    // 596d1d4. Granica z zapasem na obciążone CI - kwadrat jej nie zmieści.
+    expect(elapsed).toBeLessThan(10_000);
+  }, 60_000);
+});
+
+describe("przegląd adwersaryjny 3: kuzyni zamkniętych ścieżek (nagłówek funkcji, tag spoza ASCII, DO U&, ucieczki)", () => {
+  // Każdy przypadek potwierdzony na PG16 w BEGIN…ROLLBACK: klucz znika, a cel
+  // dostaje 42P10 - bramka nie może tego przepuścić na zielono.
+  it.each([
+    [
+      'nazwa `U&"…"`',
+      `CREATE FUNCTION public.U&"tmp_fix" () RETURNS void LANGUAGE plpgsql AS $f$ BEGIN ${DROP_PER_TENANT}; END $f$;`,
+    ],
+    [
+      "nazwa trzyczłonowa",
+      `CREATE FUNCTION nes.public.tmp_fix () RETURNS void LANGUAGE plpgsql AS $f$ BEGIN ${DROP_PER_TENANT}; END $f$;`,
+    ],
+  ])("funkcja z nagłówkiem nie do odczytania (%s) zapala bramkę, a nie znika", (_label, extra) => {
+    const report = afterMigration(extra);
+    expect(report.unsplittable).toEqual([
+      { file: LATE, message: expect.stringContaining("nagłówkiem, którego model nie odczytał") },
+    ]);
+    expect(onConflictArbitersFailed(report)).toBe(true);
+  });
+
+  it("ciało funkcji w tagu spoza ASCII (`$ą$`) przechodzi skan DDL kluczy", () => {
+    const report = afterMigration(
+      `CREATE FUNCTION public.tmp_fix() RETURNS void LANGUAGE plpgsql AS $ą$ BEGIN ${DROP_PER_TENANT}; END $ą$;`,
+    );
+    expect(report.unmodeled).toEqual([
+      expect.objectContaining({ kind: "routine", routine: "public.tmp_fix" }),
+    ]);
+    expect(onConflictArbitersFailed(report)).toBe(true);
+  });
+
+  it("`DO $ą$` na najwyższym poziomie jest modelowany jak `DO $$`", () => {
+    const report = afterMigration(`DO $ą$ BEGIN ${DROP_PER_TENANT}; END $ą$;`);
+    expect(report.unsplittable).toEqual([]);
+    expect(report.violations.map((v) => v.site.target)).toEqual(["tenant_id,user_id,role"]);
+  });
+
+  it("zagnieżdżony `DO U&'…'` zapala bramkę tak samo jak na najwyższym poziomie", () => {
+    const report = afterMigration(`DO $$ BEGIN DO U&'BEGIN ${DROP_PER_TENANT}; END'; END $$;`);
+    expect(report.unsplittable).toEqual([
+      { file: LATE, message: expect.stringContaining("blok DO bez ciała") },
+    ]);
+    expect(onConflictArbitersFailed(report)).toBe(true);
+  });
+
+  it('ucieczka „tożsamościowa” (`"up\\sert"`, `"on\\Conflict"`) nie omija filtra plików', () => {
+    const code =
+      'await db.from("user_roles")["up\\sert"](row, { "on\\Conflict": "user_id,role" });';
+    expect(code).not.toContain("upsert");
+    expect(code).not.toContain("onConflict");
+    const { verdict, tables } = verdictOf(code);
+    expect(verdict).toBe("VIOLATION");
+    expect(tables).toEqual([[1, "user_roles", "user_id,role"]]);
+  });
+
+  it("wiele przypisań `let` × wiele wywołań: koszt liniowy, werdykt bez zmian", () => {
+    // Bez deduplikacji po deklaracji każde trafienie identyfikatora rozwijało
+    // od nowa wszystkie przypisania (zmierzone: 4000 -> ok. 82 s).
+    const lines = ["let db = supabase;"];
+    for (let i = 0; i < 2_000; i += 1) {
+      lines.push(
+        `db = db ?? supabase;`,
+        `await db.from("site_settings").upsert(r, { onConflict: "tenant_id,key" });`,
+      );
+    }
+    const started = Date.now();
+    const { report } = verdictOf(lines.join("\n"));
+    const elapsed = Date.now() - started;
+    // Odbiorca `let` jest z zasady nie do sprawdzenia - każde wywołanie ma
+    // trafić do `unresolved` (bramka czerwona), a nie zniknąć ani przejść.
+    expect(report.sites).toEqual([]);
+    expect(report.unresolved).toHaveLength(2_000);
+    expect(onConflictArbitersFailed(report)).toBe(true);
+    // Zmierzone 2026-10-05: ok. 2 s po deduplikacji, ok. 24 s bez niej.
+    expect(elapsed).toBeLessThan(10_000);
+  }, 60_000);
+});
+
 describe("bramka arbitrów onConflict (stan faktyczny repozytorium)", () => {
   // TEN SAM loader co runner CI - test nie ma własnej kopii zakresu skanu.
   const migrations = loadRawMigrationFiles();
@@ -1366,6 +1935,7 @@ describe("bramka arbitrów onConflict (stan faktyczny repozytorium)", () => {
     expect(report.violations).toEqual([]);
     expect(report.unsplittable).toEqual([]);
     expect(report.dynamicDdlDrift).toEqual([]);
+    expect(report.unmodeled).toEqual([]);
     expect(renderOnConflictArbitersReport(report)).toContain("Arbitrzy onConflict OK");
   });
 
@@ -1373,10 +1943,14 @@ describe("bramka arbitrów onConflict (stan faktyczny repozytorium)", () => {
     const files = new Set(migrations.map((migration) => migration.file));
     for (const [file, entry] of Object.entries(DYNAMIC_DDL_BASELINE)) {
       expect(files.has(file), file).toBe(true);
-      expect(entry.count, file).toBeGreaterThan(0);
+      expect(entry.executes.length, file).toBeGreaterThan(0);
+      for (const pair of entry.executes) expect(pair.block, file).toMatch(/^[0-9a-f]{12}$/);
       expect(entry.why, file).toContain("616/616");
     }
-    const total = Object.values(DYNAMIC_DDL_BASELINE).reduce((sum, entry) => sum + entry.count, 0);
+    const total = Object.values(DYNAMIC_DDL_BASELINE).reduce(
+      (sum, entry) => sum + entry.executes.length,
+      0,
+    );
     expect(report.dynamicDdl).toHaveLength(total);
   });
 

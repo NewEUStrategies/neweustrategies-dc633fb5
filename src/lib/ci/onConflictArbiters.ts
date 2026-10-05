@@ -32,7 +32,10 @@
 //      kolumnowe i tabelowe, domyślne nazwy Postgresa z przycięciem do 63
 //      bajtów), ALTER TABLE (ADD/DROP CONSTRAINT, ADD/DROP COLUMN, USING INDEX,
 //      RENAME tabeli/kolumny/ograniczenia, SET SCHEMA), CREATE [UNIQUE] INDEX,
-//      DROP INDEX, ALTER INDEX RENAME, DROP TABLE.
+//      DROP INDEX, ALTER INDEX RENAME, DROP TABLE. Kolumny `INCLUDE (…)` nie
+//      należą do arbitra, ale model je niesie: wchodzą do nazwy domyślnej
+//      (PG16: `UNIQUE (x) INCLUDE (y)` -> `t_x_y_key`), a `DROP COLUMN y`
+//      zdejmuje cały klucz - bez tego model trzymał klucz, którego baza nie ma.
 //   B. Cele `onConflict` z kodu produkcyjnego `src/**` (bez testów), czytane
 //      DRZEWEM SKŁADNIOWYM kompilatora TypeScript (TS albo TSX wg
 //      rozszerzenia): każde wywołanie `.upsert(...)` (także `?.`, `!`,
@@ -45,7 +48,11 @@
 //      `as`, `satisfies`): najbliższe `.from(…)` z literałem albo stałą;
 //      zmienna-zapytanie (`const query = db.from("t")`) rozwiązywana tak samo;
 //      bez `.from` - literał znanej tabeli w wywołaniu pomocnika
-//      (`write(context, "crm_leads").upsert(...)`).
+//      (`write(context, "crm_leads").upsert(...)`). `.schema("x")` poniżej
+//      `.from` szukamy po WSZYSTKIM, co może trafić do klienta: inicjalizator
+//      `const`/`let`/`var`, każde przypisanie w pliku, wartość domyślna
+//      parametru i wzorca, obie gałęzie `? :` i oba operandy `??`/`||`/`&&` -
+//      osiągalny schemat inny niż `public` to cel nie do sprawdzenia.
 //   C. Cel musi mieć ARBITRA: PK, UNIQUE albo UNIQUE INDEX bez `WHERE`, bez
 //      wyrażeń i bez `DEFERRABLE`, o identycznym zbiorze kolumn. PostgREST
 //      wysyła `ON CONFLICT (kolumny)` bez predykatu, więc indeks częściowy nie
@@ -80,32 +87,73 @@
 // rozjechały oba leksery tak, że reszta pliku zniknęła razem z upsertami.
 // Parser TypeScriptu zna regex vs dzielenie, JSX i szablony z definicji.
 //
-// ── POLITYKA BLOKÓW `DO $$ … $$` I DYNAMICZNEGO DDL ─────────────────────────
+// ── POLITYKA BLOKÓW `DO` I DYNAMICZNEGO DDL ─────────────────────────────────
 // Bloki DO WYKONUJĄ się przy migracji, więc ich DDL należy do modelu. Bramka
-// wchodzi do ciała, dzieli je na instrukcje i stosuje DDL tak, JAKBY KAŻDA
-// GAŁĄŹ SIĘ WYKONAŁA. Strażniki w repo są idempotentne („dodaj, jeśli nie ma
-// ograniczenia o tej nazwie", `EXCEPTION WHEN duplicate_object`), a model
-// trzyma klucze po nazwie, więc zastosowanie strażnika „na ślepo" daje ten sam
-// stan co wykonanie warunkowe. `EXECUTE` z JEDNYM literałem (`'…'`, `E'…'`,
-// `$q$…$q$`) jest rozwijany i stosowany jak zwykła instrukcja.
-// `EXECUTE format(…)`, sklejanie tekstu i `EXECUTE zmienna` są poza zasięgiem
-// analizy statycznej - a NIE są tylko źródłem fałszywych alarmów: dynamiczne
-// `DROP CONSTRAINT %I` na kluczu unikalnym daje zielony model i 42P10 w bazie.
-// Dlatego dynamiczne DDL zdolne zmienić klucz (słowa z `KEY_DDL_HINT_RE` w
-// tekście polecenia; przy `EXECUTE zmienna` - w literałach całego bloku) jest
-// ZAPADKĄ: `DYNAMIC_DDL_BASELINE` niżej wylicza pliki i liczby takich miejsc,
-// które pomiar różnicowy z 2026-10-04 objął. Nowy plik albo zmiana liczby
-// ZAPALA bramkę; lekarstwo to statyczny DDL (`ALTER TABLE … DROP CONSTRAINT
-// nazwa`, `CREATE UNIQUE INDEX IF NOT EXISTS …`) - model zobaczy go od razu.
-// Ciała `CREATE FUNCTION` NIE są wykonywane przy migracji i model ich nie czyta.
-// Granica tej polityki, nazwana wprost: gałąź, która w realnym przebiegu się
-// NIE wykonuje, a DODAJE klucz, dałaby w modelu klucz, którego baza nie ma.
-// Pomiar różnicowy niżej znalazł zero takich miejsc; każde nowe wyjdzie przy
-// następnym porównaniu z katalogiem.
+// czyta ciało w KAŻDEJ postaci, którą przyjmuje Postgres (`$tag$…$tag$`,
+// `'…'`, `E'…'`, `LANGUAGE` przed albo za literałem), dzieli je na instrukcje
+// i stosuje DDL tak, JAKBY KAŻDA GAŁĄŹ SIĘ WYKONAŁA. Ciało, którego nie umie
+// odczytać (`U&'…'`, literał sklejany przez nową linię, język inny niż
+// plpgsql), zapala bramkę jako niepodzielone - wcześniej `DO '…'` wypadał
+// z modelu po cichu, razem ze swoim `DROP INDEX`. Strażniki w repo są
+// idempotentne („dodaj, jeśli nie ma ograniczenia o tej nazwie", `EXCEPTION
+// WHEN duplicate_object`), a model trzyma klucze po nazwie, więc zastosowanie
+// strażnika „na ślepo" daje ten sam stan co wykonanie warunkowe. `EXECUTE`
+// z JEDNYM literałem (`'…'`, `E'…'`, `$q$…$q$`) jest rozwijany i stosowany jak
+// zwykła instrukcja. `EXECUTE format(…)`, sklejanie tekstu i `EXECUTE
+// zmienna` są poza zasięgiem analizy statycznej - a NIE są tylko źródłem
+// fałszywych alarmów: dynamiczne `DROP CONSTRAINT %I` na kluczu unikalnym daje
+// zielony model i 42P10 w bazie. Dlatego dynamiczne DDL zdolne zmienić klucz
+// (słowa z `KEY_DDL_HINT_RE` w tekście polecenia; przy `EXECUTE zmienna` -
+// w literałach całego bloku) jest ZAPADKĄ: `DYNAMIC_DDL_BASELINE` wylicza dla
+// każdego pliku MULTIZBIÓR par (skrót ciała bloku DO, tekst `EXECUTE`), które
+// objął pomiar różnicowy z 2026-10-04. Sama liczba nie wystarczała: podmiana
+// zmierzonego `DROP CONSTRAINT %I` (CHECK) na `DROP INDEX` klucza przy tej
+// samej liczbie przechodziła na zielono, a skrót ciała łapie też zmianę tego,
+// CO blok wybiera do `%I` (`contype = 'c'` -> `'u'`) przy niezmienionym
+// `EXECUTE`. Nowa, zmieniona albo usunięta para ZAPALA bramkę; lekarstwo to
+// statyczny DDL (`ALTER TABLE … DROP CONSTRAINT nazwa`, `CREATE UNIQUE INDEX
+// IF NOT EXISTS …`) - model zobaczy go od razu. Granica tej polityki, nazwana
+// wprost: gałąź, która w realnym przebiegu się NIE wykonuje, a DODAJE klucz,
+// dałaby w modelu klucz, którego baza nie ma. Pomiar różnicowy niżej znalazł
+// zero takich miejsc; każde nowe wyjdzie przy następnym porównaniu z katalogiem.
+//
+// ── CIAŁA FUNKCJI I KASKADY: POZA MODELEM, ZAPADKA Z BAZĄ ZERO ─────────────
+// Ciało `CREATE FUNCTION|PROCEDURE` nie wykonuje się przy definicji, ALE
+// wykonuje się przy każdym wywołaniu - także w tej samej migracji (`SELECT
+// f()`, `PERFORM f()` w bloku DO, `CALL p()`), z triggera, crona albo z kodu
+// aplikacji. Model nie wie, czy i kiedy, więc go nie odtwarza; DDL kluczy
+// w ciele (statyczne ze słowami `KEY_DDL_HINT_RE`, `EXECUTE` jak wyżej,
+// zagnieżdżone DO i funkcje) to kategoria `unmodeled` z bazą ZERO - każde
+// wystąpienie zapala bramkę, a lekarstwem jest DDL na najwyższym poziomie
+// migracji. Pomiar 2026-10-04: zero takich ciał w 2978 funkcjach i procedurach
+// z 711 plików; jedyne trafienia słów to `CREATE TEMP TABLE … PRIMARY KEY`,
+// a tabela tymczasowa nie żyje w `public`. Tak samo `DROP <typ|domena|
+// rozszerzenie|schemat|funkcja|…> … CASCADE` i `DROP OWNED`: Postgres zdejmuje
+// zależne kolumny razem z ich kluczami (PG16: `DROP TYPE … CASCADE` -> „drop
+// cascades to column k"), a model nie śledzi zależności. W repo zero - jedyne
+// kaskady to `DROP TABLE`, które model zna.
 //
 // Poza modelem, bo w repo ich nie ma: `CREATE TABLE … (LIKE … INCLUDING
 // INDEXES)` i `PARTITION OF` (kopiują indeksy rodzica). Skutkiem pojawienia się
 // byłby brakujący klucz, czyli GŁOŚNY fałszywy alarm - nigdy cicha zieleń.
+//
+// ZNANE GRANICE, nazwane wprost (każda wymaga składni, której repo dziś nie
+// używa - pomiar 2026-10-05; trzeci przegląd adwersaryjny potwierdził je na
+// PG16):
+//   * `.schema("x")` śledzimy przez wiązania i przypisania, ale NIE przez
+//     własność obiektu (`ctx.db`), pole klasy (`this.db`), przypisanie
+//     destrukturyzujące, klucz obliczany, IIFE ani `createClient(…, { db:
+//     { schema } })` - w `src` nie ma dziś ani jednego `.schema(`;
+//   * klasyfikacja dynamicznego DDL jest TEKSTOWA: słowo rozcięte `||`
+//     (`'ALTER ' || 'TABLE …'`) albo akcja z `%s` wypełnianego spoza literałów
+//     nie trafia do zapadki;
+//   * nazwa relacji trzyczłonowa (`baza.public.t`) w `DROP INDEX`/`ALTER
+//     TABLE` nie jest czytana;
+//   * w ciele funkcji `EXECUTE` sprawdzamy słowami z argumentu ORAZ literałów
+//     całego ciała, więc niewinny `EXECUTE format('SELECT …')` obok napisu
+//     ze słowem „unique" zapali bramkę - fałszywy alarm, nigdy cicha zieleń.
+// Pojawienie się którejkolwiek z tych form w kodzie to sygnał, żeby rozszerzyć
+// model, zanim bramka zacznie ją przepuszczać.
 //
 // ── DOWÓD WIERNOŚCI MODELU ──────────────────────────────────────────────────
 // Zmierzone 2026-10-04 porównaniem różnicowym z katalogiem (`pg_index`)
@@ -113,11 +161,13 @@
 // `public` zgodnych dokładnie, 616/616 kluczy (328 PK, 185 UNIQUE, 103 UNIQUE
 // INDEX - w tym 60 częściowych i 18 na wyrażeniach) zgodnych co do nazwy,
 // rodzaju, kolumn i flag; zero kluczy tylko w modelu, zero tylko w katalogu.
-// Pomiar powtórzony po przejściu na drzewo składniowe i surowe migracje - ten
-// sam wynik. Każdy z 46 różnych celów (tabela, kolumny) z kodu dostał na tej
-// bazie `Conflict Arbiter Indexes` w `EXPLAIN INSERT … ON CONFLICT`, a stary
-// cel `user_roles (user_id, role)` - 42P10. Nazwy domyślne (przycięcie do 63
-// bajtów, `_key1` przy kolizji, scalenie UNIQUE z PK) sprawdzone tak samo.
+// Pomiar powtórzony po przejściu na drzewo składniowe i surowe migracje oraz
+// po drugim przeglądzie (DO w każdej postaci, INCLUDE, ciała funkcji, kaskady;
+// porównanie objęło też listy INCLUDE - w repo puste) - ten sam wynik. Każdy
+// z 46 różnych celów (tabela, kolumny) z kodu dostał na tej bazie `Conflict
+// Arbiter Indexes` w `EXPLAIN INSERT … ON CONFLICT`, a stary cel `user_roles
+// (user_id, role)` - 42P10. Nazwy domyślne (przycięcie do 63 bajtów, `_key1`
+// przy kolizji, scalenie UNIQUE z PK, człony INCLUDE) sprawdzone tak samo.
 //
 // Moduł jest CZYSTY - odczyt migracji i źródeł żyje w
 // `scripts/lib/onConflictArbitersInputs.ts` (wspólny dla runnera
@@ -157,6 +207,12 @@ export interface UniqueKey {
   readonly origin: UniqueKeyOrigin;
   /** Elementy klucza w kolejności deklaracji: kolumna albo `(wyrażenie)`. */
   readonly columns: readonly string[];
+  /**
+   * Kolumny `INCLUDE (…)`: NIE należą do zbioru arbitra (`ON CONFLICT (x, y)`
+   * przy `(x) INCLUDE (y)` to 42P10), ale `DROP COLUMN` każdej z nich zdejmuje
+   * indeks, a ich nazwy wchodzą do nazwy domyślnej (`t_x_y_key`).
+   */
+  readonly include: readonly string[];
   /** Indeks częściowy (`WHERE …`) - bez predykatu w `ON CONFLICT` nie jest arbitrem. */
   readonly partial: boolean;
   /** Choć jeden element jest wyrażeniem - nie pasuje do listy kolumn PostgREST. */
@@ -167,9 +223,45 @@ export interface UniqueKey {
   readonly file: string;
 }
 
+/**
+ * Tożsamość jednego `EXECUTE` z dynamicznym DDL kluczy - jednostka zapadki.
+ * Sam tekst polecenia nie wystarcza: `format('… DROP CONSTRAINT %I', v)`
+ * jest bezpieczne albo zabójcze zależnie od tego, CO blok wybrał do `v`
+ * (`contype = 'c'` vs `'u'`), a `EXECUTE v_sql` nie mówi nic bez literałów,
+ * z których blok go złożył. Dlatego wpis niesie też skrót całego ciała bloku.
+ */
+export interface DynamicDdlExecute {
+  /**
+   * FNV-1a (64 bity, 12 cyfr hex) ciała bloku `DO` po normalizacji: instrukcje
+   * bez komentarzy, białe znaki scalone. Odporny na przeformatowanie i
+   * komentarze, czuły na każdą zmianę treści - także poza samym `EXECUTE`.
+   */
+  readonly block: string;
+  /** Argument `EXECUTE` w całości, bez komentarzy, z białymi znakami scalonymi do spacji. */
+  readonly text: string;
+}
+
 /** `EXECUTE` z tekstem składanym w czasie wykonania, zdolnym zmienić klucz - poza modelem. */
-export interface DynamicDdl {
+export interface DynamicDdl extends DynamicDdlExecute {
   readonly file: string;
+}
+
+/**
+ * DDL, które może zmienić klucz, a którego model z zasady NIE odtwarza -
+ * zapadka z bazą ZERO (każde wystąpienie zapala bramkę, wpisu-wyjątku nie ma).
+ *   * `routine` - DDL kluczy w ciele `CREATE FUNCTION|PROCEDURE`: wykona się
+ *     przy wywołaniu (`SELECT f()`, `PERFORM f()`, `CALL p()`, trigger, kod
+ *     aplikacji), a statycznie nie wiadomo, czy i kiedy;
+ *   * `cascade` - `DROP <typ|domena|rozszerzenie|schemat|…> … CASCADE` albo
+ *     `DROP OWNED`: Postgres zdejmuje zależne kolumny i indeksy, a model nie
+ *     śledzi zależności od typów, kolacji, klas operatorów ani właścicieli.
+ */
+export interface UnmodeledDdl {
+  readonly file: string;
+  readonly kind: "routine" | "cascade";
+  /** Funkcja albo procedura, w której ciele stoi DDL (`null` dla `cascade`). */
+  readonly routine: string | null;
+  /** Polecenie po normalizacji (bez komentarzy, białe znaki scalone). */
   readonly text: string;
 }
 
@@ -179,20 +271,23 @@ export interface UnsplittableMigration {
   readonly message: string;
 }
 
-/** Wpis zapadki dynamicznego DDL: ile takich miejsc plik ma i czemu model mimo to jest wierny. */
+/** Wpis zapadki dynamicznego DDL: które `EXECUTE` plik ma i czemu model mimo to jest wierny. */
 export interface DynamicDdlBaselineEntry {
-  readonly count: number;
+  /** Multizbiór `EXECUTE` objętych pomiarem - porównywany co do bloku i tekstu, nie liczby. */
+  readonly executes: readonly DynamicDdlExecute[];
   readonly why: string;
 }
 
-/** Plik migracji, w którym liczba dynamicznych DDL kluczy rozjechała się z zapadką. */
+/** Plik migracji, w którym dynamiczne DDL kluczy rozjechało się z zapadką. */
 export interface DynamicDdlDrift {
   readonly file: string;
-  /** Liczba z `DYNAMIC_DDL_BASELINE` (0 - pliku tam nie ma). */
+  /** Liczba `EXECUTE` w `DYNAMIC_DDL_BASELINE` (0 - pliku tam nie ma). */
   readonly expected: number;
   readonly actual: number;
-  /** Teksty poleceń z pliku - żeby raport dało się przeczytać bez otwierania migracji. */
-  readonly texts: readonly string[];
+  /** W pliku, a nie w zapadce: nowe `EXECUTE` albo zmieniony tekst lub blok. */
+  readonly added: readonly DynamicDdlExecute[];
+  /** W zapadce, a nie w pliku: usunięte `EXECUTE` albo stara wersja zmienionego. */
+  readonly removed: readonly DynamicDdlExecute[];
 }
 
 /** Stan końcowy schematu `public` w zakresie, którego potrzebuje bramka. */
@@ -202,6 +297,8 @@ export interface UniqueKeyModel {
   /** Widoki żywe w stanie końcowym (cel upsertu, który okazuje się widokiem). */
   readonly views: ReadonlySet<string>;
   readonly dynamicDdl: readonly DynamicDdl[];
+  /** DDL kluczy w ciałach funkcji i kaskady zależności - model ich nie odtwarza. */
+  readonly unmodeled: readonly UnmodeledDdl[];
   /** Teksty, których lekser instrukcji nie podzielił - ich DDL nie weszło do modelu. */
   readonly unsplittable: readonly UnsplittableMigration[];
   /** Liczba instrukcji przejrzanych na najwyższym poziomie - kontrola, że model coś widział. */
@@ -257,6 +354,8 @@ export interface OnConflictArbitersReport {
   readonly dynamicDdl: readonly DynamicDdl[];
   /** Dynamiczne DDL kluczy poza zapadką `DYNAMIC_DDL_BASELINE` - zapala bramkę. */
   readonly dynamicDdlDrift: readonly DynamicDdlDrift[];
+  /** DDL kluczy poza modelem (ciała funkcji, kaskady) - zapadka z bazą zero, zapala bramkę. */
+  readonly unmodeled: readonly UnmodeledDdl[];
   /** Migracje, których lekser nie podzielił - model ich nie zna, zapala bramkę. */
   readonly unsplittable: readonly UnsplittableMigration[];
 }
@@ -356,7 +455,10 @@ function isIdentChar(ch: string | undefined): boolean {
   return ch !== undefined && /[A-Za-z0-9_$]/.test(ch);
 }
 
-const DOLLAR_TAG_RE = /\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/y;
+// Tag jak w lekserze Postgresa (`dolq_start`/`dolq_cont`): litery, `_`,
+// cyfry poza pierwszym znakiem ORAZ każdy znak spoza ASCII. Tag `$ą$` przyjmuje
+// i baza, i `lexStatements` - ciało funkcji w nim zapisane omijało skan DDL.
+const DOLLAR_TAG_RE = /\$(?:[A-Za-z_\u0080-\uffff][A-Za-z0-9_\u0080-\uffff]*)?\$/y;
 
 /**
  * Jeden przebieg leksera SQL. `onToken` dostaje każdy fragment z rodzajem;
@@ -527,6 +629,96 @@ function splitTopLevelSql(text: string): string[] {
   return out.map((part) => part.trim()).filter((part) => part !== "");
 }
 
+/** Sekwencje `\…` literału `E'…'` (bez `''`, które obsługuje osobna gałąź). */
+const E_STRING_ESCAPE_RE =
+  /''|\\(?:([0-7]{1,3})|x([0-9A-Fa-f]{1,2})|u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|([\s\S]))/g;
+const E_STRING_SIMPLE: Readonly<Record<string, string>> = {
+  b: "\b",
+  f: "\f",
+  n: "\n",
+  r: "\r",
+  t: "\t",
+};
+
+/**
+ * Treść `E'…'` tak, jak widzi ją Postgres: `\n`, `\t`, `\ooo`, `\xhh`,
+ * `\uXXXX`, `\UXXXXXXXX`, `''`, a `\c` dla innego znaku to sam znak. Bez
+ * tego `DO E'… \'nazwa\' …'` dawałby lekserowi apostrof w środku słowa.
+ */
+function unescapeEString(raw: string): string {
+  return raw.replace(E_STRING_ESCAPE_RE, (whole, oct, hex, u4, u8, other) => {
+    if (whole === "''") return "'";
+    if (oct !== undefined) return String.fromCharCode(parseInt(oct, 8));
+    if (hex !== undefined) return String.fromCharCode(parseInt(hex, 16));
+    if (u4 !== undefined || u8 !== undefined) {
+      const code = parseInt(u4 ?? u8, 16);
+      return code <= 0x10ffff ? String.fromCodePoint(code) : "\uFFFD";
+    }
+    return E_STRING_SIMPLE[other] ?? other;
+  });
+}
+
+interface LeadingLiteral {
+  /** Wartość po zdjęciu cudzysłowów i rozwinięciu sekwencji ucieczki. */
+  readonly value: string;
+  /** Długość literału w tekście źródłowym (z cudzysłowami i prefiksem `E`). */
+  readonly length: number;
+}
+
+/**
+ * Literał napisowy na POCZĄTKU tekstu: `$tag$…$tag$`, `'…'` albo `E'…'`.
+ * `null` dla wszystkiego innego (`U&'…'`, niedomknięty literał, wyrażenie) -
+ * wołający traktuje to jako tekst nie do odczytania, nie jako „nic tu nie ma".
+ */
+function leadingLiteral(text: string): LeadingLiteral | null {
+  DOLLAR_TAG_RE.lastIndex = 0;
+  const tag = DOLLAR_TAG_RE.exec(text);
+  if (tag !== null) {
+    const close = text.indexOf(tag[0], tag[0].length);
+    if (close < 0) return null;
+    return { value: text.slice(tag[0].length, close), length: close + tag[0].length };
+  }
+  const escaped = text[0] === "E" || text[0] === "e";
+  const open = escaped ? 1 : 0;
+  if (text[open] !== "'") return null;
+  for (let j = open + 1; j < text.length; j += 1) {
+    if (escaped && text[j] === "\\") {
+      j += 1;
+      continue;
+    }
+    if (text[j] !== "'") continue;
+    if (text[j + 1] === "'") {
+      j += 1;
+      continue;
+    }
+    const raw = text.slice(open + 1, j);
+    return { value: escaped ? unescapeEString(raw) : raw.replace(/''/g, "'"), length: j + 1 };
+  }
+  return null;
+}
+
+/** Tekst SQL do porównań: białe znaki scalone do jednej spacji, bez brzegów. */
+function normalizeSql(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+const FNV64_OFFSET = 0xcbf29ce484222325n;
+const FNV64_PRIME = 0x100000001b3n;
+const FNV64_MASK = 0xffffffffffffffffn;
+
+/**
+ * FNV-1a 64 bity po bajtach UTF-8, pierwsze 12 cyfr hex - krótki, STABILNY
+ * między uruchomieniami i platformami skrót do zapadki. Nie kryptografia:
+ * chroni przed przeoczeniem zmiany, nie przed celowo dobraną kolizją.
+ */
+function digest(text: string): string {
+  let hash = FNV64_OFFSET;
+  for (const byte of utf8.encode(text)) {
+    hash = ((hash ^ BigInt(byte)) * FNV64_PRIME) & FNV64_MASK;
+  }
+  return hash.toString(16).padStart(16, "0").slice(0, 12);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Model stanu końcowego
 // ═══════════════════════════════════════════════════════════════════════════
@@ -544,6 +736,7 @@ interface StateKey {
   table: string;
   origin: UniqueKeyOrigin;
   columns: string[];
+  include: string[];
   partial: boolean;
   expression: boolean;
   deferrable: boolean;
@@ -564,6 +757,7 @@ class SchemaState {
   readonly plainIndexes = new Map<string, string>();
   readonly views = new Set<string>();
   readonly dynamicDdl: DynamicDdl[] = [];
+  readonly unmodeled: UnmodeledDdl[] = [];
   readonly unsplittable: UnsplittableMigration[] = [];
   statements = 0;
 
@@ -802,8 +996,26 @@ function parseColumnList(inner: string): string[] {
 
 interface KeyBody {
   readonly columns: readonly string[] | null;
+  /** `INCLUDE (…)` za listą kolumn (puste przy `USING INDEX` - indeks niesie własne). */
+  readonly include: readonly string[];
   readonly usingIndex: string | null;
   readonly deferrable: boolean;
+}
+
+/**
+ * `INCLUDE (…)` na początku ogona (za listą kolumn klucza albo indeksu) i
+ * długość tego fragmentu; bez `INCLUDE` - pusta lista i zero. Gramatyka
+ * stawia je ZARAZ za nawiasem kolumn, przed `NULLS`, `WITH` i `WHERE`.
+ */
+function parseInclude(tail: string): { readonly elements: string[]; readonly length: number } {
+  const head = /^\s*INCLUDE\s*\(/i.exec(tail);
+  if (head === null) return { elements: [], length: 0 };
+  const close = matchParenSql(tail, head[0].length - 1);
+  if (close < 0) return { elements: [], length: 0 };
+  return {
+    elements: splitTopLevelSql(tail.slice(head[0].length, close)),
+    length: close + 1,
+  };
 }
 
 /** `DEFERRABLE`, ale nie `NOT DEFERRABLE`; `INITIALLY DEFERRED` implikuje odraczalność. */
@@ -820,6 +1032,7 @@ function parseKeyBody(rest: string): KeyBody | null {
   if (using !== null && !/^\s*USING\s+INDEX\s+TABLESPACE\b/i.test(trimmed)) {
     return {
       columns: null,
+      include: [],
       usingIndex: normalizeIdent(using[1]),
       deferrable: isDeferrable(trimmed),
     };
@@ -828,11 +1041,13 @@ function parseKeyBody(rest: string): KeyBody | null {
   if (open < 0 || trimmed.slice(0, open).trim() !== "") return null;
   const close = matchParenSql(trimmed, open);
   if (close < 0) return null;
-  const tail = sqlView(trimmed.slice(close + 1), true);
+  const after = trimmed.slice(close + 1);
+  const include = parseInclude(after);
   return {
     columns: parseColumnList(trimmed.slice(open + 1, close)),
+    include: include.elements.map((element) => normalizeIdent(element)),
     usingIndex: null,
-    deferrable: isDeferrable(tail),
+    deferrable: isDeferrable(sqlView(after.slice(include.length), true)),
   };
 }
 
@@ -840,6 +1055,7 @@ interface PendingKey {
   readonly explicitName: string | null;
   readonly primary: boolean;
   readonly columns: readonly string[];
+  readonly include: readonly string[];
   readonly deferrable: boolean;
 }
 
@@ -860,10 +1076,12 @@ function columnConstraintKeys(column: string, definition: string): PendingKey[] 
         after,
       );
     const scope = stop === null ? after : after.slice(0, stop.index);
+    // Ograniczenie przy kolumnie nie ma `INCLUDE` - gramatyka go nie przyjmuje.
     out.push({
       explicitName: match[1] === undefined ? null : normalizeIdent(match[1]),
       primary: /^PRIMARY/i.test(match[2]),
       columns: [column],
+      include: [],
       deferrable: isDeferrable(scope),
     });
   }
@@ -888,16 +1106,19 @@ function registerKeys(
   file: string,
 ): void {
   for (const key of pending) {
+    // Nazwa domyślna liczy też kolumny `INCLUDE` (PG16: `UNIQUE (x) INCLUDE (y)`
+    // -> `t_x_y_key`) - `DefineIndex` składa ją z `indexParams` + `INCLUDE`.
     const name =
       key.explicitName ??
       (key.primary
         ? state.chooseName(table, null, "pkey")
-        : state.chooseName(table, indexNameAddition(key.columns), "key"));
+        : state.chooseName(table, indexNameAddition([...key.columns, ...key.include]), "key"));
     state.addKey({
       name,
       table,
       origin: key.primary ? "primary" : "unique",
       columns: [...key.columns],
+      include: [...key.include],
       partial: false,
       expression: false,
       deferrable: key.deferrable,
@@ -945,6 +1166,7 @@ function applyCreateTable(state: SchemaState, statement: string, file: string): 
           explicitName: keyMatch[1] === undefined ? null : normalizeIdent(keyMatch[1]),
           primary: /^PRIMARY/i.test(keyMatch[2]),
           columns: body.columns,
+          include: body.include,
           deferrable: body.deferrable,
         });
         continue;
@@ -959,8 +1181,9 @@ function applyCreateTable(state: SchemaState, statement: string, file: string): 
   }
 
   // `transformIndexConstraints`: PK idzie pierwszy, a UNIQUE identyczny
-  // z wcześniejszym kluczem (ta sama lista kolumn) jest z nim scalany - stąd
-  // `id uuid PRIMARY KEY UNIQUE` daje JEDEN indeks `<tabela>_pkey`.
+  // z wcześniejszym kluczem (ta sama lista kolumn I ta sama lista `INCLUDE`)
+  // jest z nim scalany - stąd `id uuid PRIMARY KEY UNIQUE` daje JEDEN indeks
+  // `<tabela>_pkey`, a `id PRIMARY KEY, UNIQUE (id) INCLUDE (a)` - dwa (PG16).
   const primary = collected.filter((key) => key.primary);
   const ordered = [...primary.slice(0, 1), ...collected.filter((key) => !key.primary)];
   const final: PendingKey[] = [];
@@ -968,6 +1191,7 @@ function applyCreateTable(state: SchemaState, statement: string, file: string): 
     const twin = final.find(
       (prior) =>
         prior.columns.join("\u0000") === key.columns.join("\u0000") &&
+        prior.include.join("\u0000") === key.include.join("\u0000") &&
         prior.deferrable === key.deferrable,
     );
     if (twin === undefined) {
@@ -999,13 +1223,24 @@ function applyCreateIndex(state: SchemaState, statement: string, file: string): 
   const close = matchParenSql(statement, open);
   if (close < 0) return true;
   const elements = splitTopLevelSql(statement.slice(open + 1, close)).map(parseIndexElement);
-  const tail = statement.slice(close + 1);
+  const included = parseInclude(statement.slice(close + 1));
+  const include = included.elements.map(parseIndexElement);
+  const tail = statement.slice(close + 1 + included.length);
   const tailView = sqlView(tail, true);
   const where = /\bWHERE\b/i.exec(tailView);
   const unique = match[1] !== undefined;
 
+  // `ChooseIndexColumnNames` dostaje klucz RAZEM z `INCLUDE` (zmierzone na
+  // PG16: `(w) INCLUDE (z, y)` -> `t_w_z_y_idx`, `(lower(x)) INCLUDE (w)` ->
+  // `t_lower_w_idx`) - inaczej nazwa domyślna rozjeżdża się z katalogiem,
+  // a z nią każde późniejsze `DROP INDEX` / `RENAME` po tej nazwie.
   const name =
-    explicit ?? state.chooseName(table, indexNameAddition(uniqueElementNames(elements)), "idx");
+    explicit ??
+    state.chooseName(
+      table,
+      indexNameAddition(uniqueElementNames([...elements, ...include])),
+      "idx",
+    );
 
   // Indeks na widoku zmaterializowanym zajmuje nazwę, ale celem upsertu
   // widok nie jest - nie wolno mu więc „powołać" tabeli w modelu.
@@ -1020,6 +1255,7 @@ function applyCreateIndex(state: SchemaState, statement: string, file: string): 
     table,
     origin: "index",
     columns: elements.map((element) => element.text),
+    include: include.map((element) => element.text),
     partial: where !== null,
     expression: elements.some((element) => element.expression),
     deferrable: false,
@@ -1194,6 +1430,7 @@ function applyAlterTable(state: SchemaState, statement: string, file: string): b
     for (const key of state.keys.values()) {
       if (key.table !== table) continue;
       key.columns = key.columns.map((column) => (column === from ? to : column));
+      key.include = key.include.map((column) => (column === from ? to : column));
       key.extra = key.extra.replace(mentions, `$1${to}`);
     }
     return true;
@@ -1228,7 +1465,15 @@ function applyAlterTable(state: SchemaState, statement: string, file: string): b
       registerKeys(
         state,
         table,
-        [{ explicitName, primary, columns: body.columns ?? [], deferrable: body.deferrable }],
+        [
+          {
+            explicitName,
+            primary,
+            columns: body.columns ?? [],
+            include: body.include,
+            deferrable: body.deferrable,
+          },
+        ],
         file,
       );
       continue;
@@ -1273,28 +1518,98 @@ function applyAlterTable(state: SchemaState, statement: string, file: string): b
       }
       state.tables.get(table)?.columns?.delete(column);
       // Postgres zdejmuje każdy indeks i każde ograniczenie tabeli, które
-      // dotyka kolumny - także wielokolumnowe, bez CASCADE.
+      // dotyka kolumny - także wielokolumnowe i także przez `INCLUDE` (PG16:
+      // `DROP COLUMN y` zdejmuje `UNIQUE (x) INCLUDE (y)`), bez CASCADE.
       const mentions = wordRe(column);
       for (const [name, key] of state.keys) {
         if (key.table !== table) continue;
-        if (key.columns.includes(column) || mentions.test(key.extra)) state.keys.delete(name);
+        if (
+          key.columns.includes(column) ||
+          key.include.includes(column) ||
+          mentions.test(key.extra)
+        )
+          state.keys.delete(name);
       }
     }
   }
   return true;
 }
 
-const DDL_HEAD_RE =
-  /\b(?:ALTER\s+TABLE|ALTER\s+INDEX|DROP\s+TABLE|DROP\s+INDEX|CREATE\s+(?:UNIQUE\s+)?INDEX|CREATE\s+(?:(?:GLOBAL|LOCAL)\s+)?(?:(?:TEMP|TEMPORARY|UNLOGGED)\s+)?TABLE|CREATE\s+(?:OR\s+REPLACE\s+)?(?:MATERIALIZED\s+)?VIEW|DROP\s+(?:MATERIALIZED\s+)?VIEW)\b/i;
+/** Początki instrukcji DDL, które model stosuje (wspólne dla wyszukiwania w ciałach i sprawdzenia ciał funkcji). */
+const DDL_HEAD_SOURCE = String.raw`ALTER\s+TABLE|ALTER\s+INDEX|DROP\s+TABLE|DROP\s+INDEX|CREATE\s+(?:UNIQUE\s+)?INDEX|CREATE\s+(?:(?:GLOBAL|LOCAL)\s+)?(?:(?:TEMP|TEMPORARY|UNLOGGED)\s+)?TABLE|CREATE\s+(?:OR\s+REPLACE\s+)?(?:MATERIALIZED\s+)?VIEW|DROP\s+(?:MATERIALIZED\s+)?VIEW`;
+const DDL_HEAD_START_RE = new RegExp(String.raw`^(?:${DDL_HEAD_SOURCE})\b`, "i");
+/**
+ * Gdzie w JEDNYM fragmencie ciała (`IF … THEN ALTER TABLE …`, `BEGIN DROP
+ * INDEX …`) zaczyna się instrukcja, którą trzeba obejrzeć: DDL modelu, funkcja
+ * albo procedura (jej ciało idzie do sprawdzenia „poza modelem"), KAŻDE `DROP
+ * <słowo>` (kaskady rozstrzyga `isCascadeDrop`) i zagnieżdżony `DO` - Postgres
+ * przyjmuje `DO` w ciele plpgsql (PG16), a jego DDL wykonuje się tak samo.
+ * Szukane w widoku bez literałów, więc `RAISE NOTICE 'DROP …'` nie trafia.
+ */
+const BODY_HEAD_RE = new RegExp(
+  String.raw`\b(?:${DDL_HEAD_SOURCE}|CREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|PROCEDURE)|DROP\s+[A-Za-z]|DO\s+(?:LANGUAGE\b|[$']|[Ee]'|[Uu]&'))`,
+  "i",
+);
 /**
  * Słowa, przy których tekst dynamicznego polecenia może zmienić klucz
  * unikalny: ADD/DROP CONSTRAINT, CREATE/DROP/ALTER INDEX, RENAME, DROP
  * COLUMN/TABLE, PRIMARY KEY/UNIQUE, CREATE TABLE, SET SCHEMA (tabela wychodzi
- * z `public`). Szerokie celowo - nadmiar kosztuje wpis w zapadce, niedomiar
- * to cicha zieleń.
+ * z `public`), `ALTER TABLE … DROP x` bez słowa COLUMN (gramatyka je
+ * dopuszcza), CASCADE i DROP OWNED (zależne kolumny znikają z kluczami).
+ * Szerokie celowo - nadmiar kosztuje wpis w zapadce, niedomiar to cicha
+ * zieleń. Dopisanie trzech ostatnich zmierzone 2026-10-04: z 81 `EXECUTE`
+ * nieliteralnych w blokach DO przeklasyfikowało zero (zapadka bez zmian).
  */
 const KEY_DDL_HINT_RE =
-  /\b(?:UNIQUE|PRIMARY\s+KEY|CONSTRAINT|INDEX|RENAME|DROP\s+TABLE|DROP\s+COLUMN|CREATE\s+TABLE|SET\s+SCHEMA)\b/i;
+  /\b(?:UNIQUE|PRIMARY\s+KEY|CONSTRAINT|INDEX|RENAME|DROP\s+TABLE|DROP\s+COLUMN|CREATE\s+TABLE|SET\s+SCHEMA|CASCADE|DROP\s+OWNED)\b|\bALTER\s+TABLE\b[\s\S]*?\bDROP\b/i;
+/**
+ * `EXECUTE` dynamicznego SQL w plpgsql - bez `EXECUTE FUNCTION|PROCEDURE`
+ * (`CREATE TRIGGER`) i bez `GRANT|REVOKE EXECUTE ON …` (uprawnienie, nie SQL).
+ */
+const EXECUTE_RE = /\bEXECUTE\b(?!\s+(?:FUNCTION|PROCEDURE|ON)\b)/i;
+const ROUTINE_RE = new RegExp(
+  String.raw`^CREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|PROCEDURE)\s+(${QNAME})\s*\(`,
+  "i",
+);
+const TEMP_TABLE_RE = /^CREATE\s+(?:(?:GLOBAL|LOCAL)\s+)?(?:TEMP|TEMPORARY)\s+TABLE\b/i;
+/**
+ * Słowo, bez którego ciało funkcji nie może nieść niczego, co `scanBody`
+ * obejrzy (`EXECUTE_RE`, `BODY_HEAD_RE`) - tekst bez komentarzy jest
+ * podzbiorem surowego, więc to nadzbiór. Pomijamy dzięki temu podział
+ * prawie 3 tys. ciał, które takich słów nie mają.
+ */
+const ROUTINE_DDL_WORD_RE = /\b(?:ALTER|DROP|CREATE|EXECUTE)\b|\bDO\s+(?:LANGUAGE\b|[$']|[Ee]')/i;
+/**
+ * `DROP`, którego kaskada nie zdejmie klucza tabeli `public` albo który model
+ * stosuje sam: zależnymi tabeli, indeksu i widoku są klucze obce, widoki
+ * i reguły, a sekwencji - wartości domyślne, nie kolumny.
+ */
+const CASCADE_SAFE_DROP_RE =
+  /^DROP\s+(?:TABLE|INDEX|VIEW|MATERIALIZED\s+VIEW|POLICY|TRIGGER|RULE|SEQUENCE)\b/i;
+/** Zagnieżdżenie (DO -> EXECUTE -> DO -> funkcja …), poza którym bramka nie zgaduje. */
+const MAX_SQL_DEPTH = 8;
+
+/**
+ * `DROP <typ|domena|rozszerzenie|schemat|funkcja|…> … CASCADE` albo `DROP
+ * OWNED` (zdejmuje tabele roli także bez CASCADE): Postgres usuwa zależne
+ * kolumny razem z ich kluczami, a model zależności nie śledzi.
+ */
+function isCascadeDrop(statement: string): boolean {
+  if (/^DROP\s+OWNED\b/i.test(statement)) return true;
+  if (!/^DROP\s/i.test(statement) || CASCADE_SAFE_DROP_RE.test(statement)) return false;
+  return /\bCASCADE\b/i.test(sqlView(statement, true));
+}
+
+/**
+ * Instrukcja ciała funkcji, która MOŻE zmienić klucz `public`: kaskada albo
+ * DDL modelu ze słowem z `KEY_DDL_HINT_RE`. `CREATE TEMP TABLE … PRIMARY KEY`
+ * pomijamy - tabela tymczasowa żyje w `pg_temp`, nie w `public`.
+ */
+function changesKeys(statement: string): boolean {
+  if (isCascadeDrop(statement)) return true;
+  if (!DDL_HEAD_START_RE.test(statement) || TEMP_TABLE_RE.test(statement)) return false;
+  return KEY_DDL_HINT_RE.test(statement);
+}
 
 /** Treść wszystkich literałów (`'…'`, `E'…'`, `$tag$…$tag$`) tekstu SQL, sklejona spacją. */
 function literalText(sql: string): string {
@@ -1305,52 +1620,175 @@ function literalText(sql: string): string {
   return out.join(" ");
 }
 
-/** Argument `EXECUTE` będący JEDNYM literałem - jego tekst SQL; inaczej `null`. */
-function singleLiteralSql(argument: string): string | null {
-  const quoted = /^(E?)'((?:[^']|'')*)'$/.exec(argument);
-  if (quoted !== null) return quoted[2].replace(/''/g, "'");
-  const dollar = /^(\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$)([\s\S]*)\1$/.exec(argument);
-  if (dollar !== null && !dollar[2].includes(dollar[1])) return dollar[2];
-  return null;
+/** Wartości literałów tekstu SQL - bez cudzysłowów, `E'…'` z rozwiniętymi ucieczkami. */
+function literalValues(sql: string): string[] {
+  const out: string[] = [];
+  lexSql(sql, (kind, start, end) => {
+    if (kind !== "literal") return;
+    const eString =
+      (sql[start - 1] === "E" || sql[start - 1] === "e") && !isIdentChar(sql[start - 2]);
+    const literal = leadingLiteral(sql.slice(eString ? start - 1 : start, end));
+    out.push(literal === null ? sql.slice(start, end) : literal.value);
+  });
+  return out;
+}
+
+/**
+ * Gdzie leży przeglądany tekst SQL. `routine: null` - wykonuje się TERAZ
+ * (migracja, blok DO, literał `EXECUTE`), więc DDL wchodzi do modelu; nazwa
+ * funkcji - wykona się przy wywołaniu, więc DDL kluczy idzie do `unmodeled`.
+ */
+interface SqlContext {
+  readonly file: string;
+  readonly depth: number;
+  readonly routine: string | null;
+}
+
+interface DoBody {
+  readonly code: string;
+  readonly language: string;
+}
+
+/**
+ * Ciało bloku `DO`. Gramatyka przyjmuje literał kodu i `LANGUAGE x` w DOWOLNEJ
+ * kolejności (`DO LANGUAGE plpgsql '…'`, `DO $$…$$ LANGUAGE plpgsql`), a kod
+ * w każdej postaci napisu - zmierzone na PG16 dla `$$`, `'…'` i `E'…'`.
+ * `null`: tekst, którego nie umiemy odczytać - wołający zapala bramkę.
+ */
+function doBlockBody(statement: string): DoBody | null {
+  let rest = statement.replace(/^DO\b/i, "").trimStart();
+  let code: string | null = null;
+  let language = "plpgsql";
+  while (rest !== "") {
+    const option = /^LANGUAGE\s+/i.exec(rest);
+    if (option !== null) {
+      rest = rest.slice(option[0].length);
+      const quoted = leadingLiteral(rest);
+      const ident = quoted === null ? new RegExp(String.raw`^${IDENT}`).exec(rest) : null;
+      if (quoted !== null) language = quoted.value.toLowerCase();
+      else if (ident !== null) language = normalizeIdent(ident[0]);
+      else return null;
+      rest = rest.slice(quoted?.length ?? ident?.[0].length ?? 0).trimStart();
+      continue;
+    }
+    // Drugi literał to `'a'\n'b'` (sklejanie przez nową linię) albo błąd
+    // składni - w obu razach ciała nie znamy na pewno.
+    const literal = leadingLiteral(rest);
+    if (literal === null || code !== null) return null;
+    code = literal.value;
+    rest = rest.slice(literal.length).trimStart();
+  }
+  return code === null ? null : { code, language };
 }
 
 /** Ciało bloku `DO` - patrz „POLITYKA BLOKÓW DO I DYNAMICZNEGO DDL" w nagłówku. */
-function applyDoBlock(state: SchemaState, statement: string, file: string, depth: number): void {
-  const head = /^DO\s+(?:LANGUAGE\s+\w+\s+)?/i.exec(statement);
-  if (head === null) return;
-  DOLLAR_TAG_RE.lastIndex = head[0].length;
-  const tag = DOLLAR_TAG_RE.exec(statement);
-  if (tag === null || tag.index !== head[0].length) return;
-  const bodyStart = tag.index + tag[0].length;
-  const bodyEnd = statement.indexOf(tag[0], bodyStart);
-  const body = statement.slice(bodyStart, bodyEnd < 0 ? statement.length : bodyEnd);
-  let bodyLiterals: string | null = null;
+function applyDoBlock(state: SchemaState, statement: string, context: SqlContext): void {
+  const body = doBlockBody(statement);
+  if (body === null) {
+    state.unsplittable.push({
+      file: context.file,
+      message:
+        "blok DO bez ciała, które model umie odczytać (jeden literał `$tag$…$tag$`, `'…'` albo `E'…'`) - jego DDL nie weszło do modelu",
+    });
+    return;
+  }
+  if (body.language !== "plpgsql") {
+    state.unsplittable.push({
+      file: context.file,
+      message: `blok DO w języku ${body.language} - model czyta wyłącznie plpgsql, DDL ciała nie weszło do modelu`,
+    });
+    return;
+  }
+  scanBody(state, body.code, context);
+}
 
-  for (const fragment of statementsOf(state, file, body)) {
+/**
+ * Funkcja albo procedura: definicja niczego nie zmienia, ale ciało (każdy
+ * literał za listą parametrów - `AS $$…$$`, `AS '…'` - i `BEGIN ATOMIC … END`)
+ * przechodzi sprawdzenie DDL kluczy w trybie „poza modelem".
+ */
+function applyRoutine(state: SchemaState, statement: string, context: SqlContext): boolean {
+  const match = ROUTINE_RE.exec(statement);
+  if (match === null) {
+    // Nagłówek, którego wzorzec nie czyta (nazwa `U&"…"`, nazwa trzyczłonowa
+    // `baza.schemat.f`), to wciąż funkcja z ciałem - przepuszczenie go dalej
+    // gubiło DDL ciała po cichu.
+    if (!/^CREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|PROCEDURE)\b/i.test(statement)) return false;
+    state.unsplittable.push({
+      file: context.file,
+      message:
+        "funkcja albo procedura z nagłówkiem, którego model nie odczytał - ciała nie sprawdzono",
+    });
+    return true;
+  }
+  const close = matchParenSql(statement, match[0].length - 1);
+  if (close < 0) {
+    state.unsplittable.push({
+      file: context.file,
+      message: `funkcja ${normalizeSql(match[1])} bez domkniętej listy parametrów - ciała nie sprawdzono`,
+    });
+    return true;
+  }
+  const tail = statement.slice(close + 1);
+  const inner: SqlContext = {
+    file: context.file,
+    depth: context.depth + 1,
+    routine: normalizeSql(match[1]),
+  };
+  for (const body of literalValues(tail)) {
+    if (ROUTINE_DDL_WORD_RE.test(body)) scanBody(state, body, inner);
+  }
+  // PG16 odrzuca DDL w `BEGIN ATOMIC` („not yet supported") - sprawdzamy
+  // mimo to: kolejna wersja może przyjąć, a koszt to jeden przebieg leksera.
+  const atomic = /\bBEGIN\s+ATOMIC\b/i.exec(sqlView(tail, false));
+  if (atomic !== null) scanBody(state, tail.slice(atomic.index), inner);
+  return true;
+}
+
+/**
+ * Ciało (bloku DO, literału `EXECUTE`, funkcji) podzielone na instrukcje.
+ * W kontekście wykonania DDL trafia do modelu, a dynamiczne `EXECUTE` do
+ * zapadki ze skrótem ciała; w ciele funkcji oba trafiają do `unmodeled`.
+ */
+function scanBody(state: SchemaState, body: string, context: SqlContext): void {
+  const fragments = statementsOf(state, context.file, body);
+  const nested: SqlContext = { ...context, depth: context.depth + 1 };
+  let literals: string | null = null;
+  let block: string | null = null;
+  for (const fragment of fragments) {
     const view = sqlView(fragment, false);
-    // `EXECUTE FUNCTION f()` w `CREATE TRIGGER` to nie dynamiczny SQL.
-    const execute = /\bEXECUTE\b(?!\s+(?:FUNCTION|PROCEDURE)\b)/i.exec(view);
+    const execute = EXECUTE_RE.exec(view);
     if (execute !== null) {
       const argument = fragment.slice(execute.index + execute[0].length).trim();
-      const sql = singleLiteralSql(argument);
-      if (sql !== null) {
-        for (const inner of statementsOf(state, file, sql)) {
-          applyStatement(state, inner, file, depth + 1);
+      const literal = leadingLiteral(argument);
+      if (literal !== null && literal.length === argument.length) {
+        for (const inner of statementsOf(state, context.file, literal.value)) {
+          applyStatement(state, inner, nested);
         }
         continue;
       }
       // Tekst polecenia bywa złożony WCZEŚNIEJ w bloku (`v_sql := '…' || …;
       // EXECUTE v_sql`) albo doklejony ze zmiennej - słowa, które czynią go
       // groźnym dla kluczy, stoją wtedy w literałach całego ciała, nie
-      // w argumencie. Zakres skanu to więc argument + wszystkie literały bloku.
-      bodyLiterals ??= literalText(body);
-      if (KEY_DDL_HINT_RE.test(`${argument} ${bodyLiterals}`)) {
-        state.dynamicDdl.push({ file, text: argument.replace(/\s+/g, " ").slice(0, 200) });
+      // w argumencie. Zakres skanu to więc argument + wszystkie literały ciała.
+      literals ??= literalText(body);
+      if (!KEY_DDL_HINT_RE.test(`${argument} ${literals}`)) continue;
+      const text = normalizeSql(argument);
+      if (context.routine !== null) {
+        state.unmodeled.push({
+          file: context.file,
+          kind: "routine",
+          routine: context.routine,
+          text: `EXECUTE ${text}`,
+        });
+        continue;
       }
+      block ??= digest(fragments.map(normalizeSql).join(";\n"));
+      state.dynamicDdl.push({ file: context.file, block, text });
       continue;
     }
-    const ddl = DDL_HEAD_RE.exec(view);
-    if (ddl !== null) applyStatement(state, fragment.slice(ddl.index), file, depth + 1);
+    const head = BODY_HEAD_RE.exec(view);
+    if (head !== null) applyStatement(state, fragment.slice(head.index), nested);
   }
 }
 
@@ -1369,11 +1807,35 @@ function statementsOf(state: SchemaState, file: string, sql: string): string[] {
   }
 }
 
-function applyStatement(state: SchemaState, raw: string, file: string, depth: number): void {
+function applyStatement(state: SchemaState, raw: string, context: SqlContext): void {
   const statement = raw.trim();
-  if (depth > 4) return;
+  const { file } = context;
+  if (context.depth > MAX_SQL_DEPTH) {
+    // Dawniej `return` po cichu - a DDL za granicą głębokości znikał z modelu.
+    state.unsplittable.push({
+      file,
+      message: `zagnieżdżenie SQL głębsze niż ${MAX_SQL_DEPTH} (DO/EXECUTE/funkcja) - DDL nie weszło do modelu`,
+    });
+    return;
+  }
   if (/^DO\b/i.test(statement)) {
-    applyDoBlock(state, statement, file, depth);
+    applyDoBlock(state, statement, context);
+    return;
+  }
+  if (applyRoutine(state, statement, context)) return;
+  if (context.routine !== null) {
+    if (changesKeys(statement)) {
+      state.unmodeled.push({
+        file,
+        kind: "routine",
+        routine: context.routine,
+        text: normalizeSql(statement),
+      });
+    }
+    return;
+  }
+  if (isCascadeDrop(statement)) {
+    state.unmodeled.push({ file, kind: "cascade", routine: null, text: normalizeSql(statement) });
     return;
   }
   // Kolejność ma znaczenie tylko tam, gdzie wyrażenia nachodzą na siebie:
@@ -1398,7 +1860,7 @@ export function buildUniqueKeyModel(migrations: readonly MigrationFile[]): Uniqu
   for (const { file, sql } of migrations) {
     for (const statement of statementsOf(state, file, sql)) {
       state.statements += 1;
-      applyStatement(state, statement, file, 0);
+      applyStatement(state, statement, { file, depth: 0, routine: null });
     }
   }
 
@@ -1410,6 +1872,7 @@ export function buildUniqueKeyModel(migrations: readonly MigrationFile[]): Uniqu
       name: key.name,
       origin: key.origin,
       columns: [...key.columns],
+      include: [...key.include],
       partial: key.partial,
       expression: key.expression,
       deferrable: key.deferrable,
@@ -1423,6 +1886,7 @@ export function buildUniqueKeyModel(migrations: readonly MigrationFile[]): Uniqu
     tables,
     views: new Set(state.views),
     dynamicDdl: state.dynamicDdl,
+    unmodeled: state.unmodeled,
     unsplittable: state.unsplittable,
     statements: state.statements,
   };
@@ -1506,75 +1970,81 @@ function isUpsertCall(node: ts.Node): node is ts.CallExpression {
  * albo `catch` to ta przesłaniająca wiązka, nie stała.
  */
 type Binding =
-  | { readonly kind: "const"; readonly initializer: ts.Expression }
-  | { readonly kind: "other"; readonly detail: string }
+  | {
+      readonly kind: "const";
+      readonly initializer: ts.Expression;
+      readonly declaration: ts.VariableDeclaration;
+    }
+  | {
+      readonly kind: "other";
+      readonly detail: string;
+      /** Deklaracje w najbliższym zasięgu (kilka - gdy nazwa jest tam zadeklarowana wielokrotnie). */
+      readonly declarations: readonly ts.Node[];
+    }
   | { readonly kind: "none" };
 
 function isBlockScopedList(list: ts.VariableDeclarationList): boolean {
   return (list.flags & ts.NodeFlags.BlockScoped) !== 0;
 }
 
-/** Deklaracje nazwy `wanted` we wzorcu wiązania; właścicielem jest deklaracja albo element wzorca. */
-function collectBinding(
-  name: ts.BindingName,
-  wanted: string,
-  owner: ts.Node,
-  out: ts.Node[],
-): void {
+/** Indeks jednego zasięgu: nazwa -> węzły, które ją deklarują. */
+type ScopeIndex = Map<string, ts.Node[]>;
+
+function addDeclaration(index: ScopeIndex, name: string, node: ts.Node): void {
+  const list = index.get(name);
+  if (list === undefined) index.set(name, [node]);
+  else list.push(node);
+}
+
+/** Nazwy wzorca wiązania; właścicielem jest deklaracja albo element wzorca. */
+function collectBinding(name: ts.BindingName, owner: ts.Node, index: ScopeIndex): void {
   if (ts.isIdentifier(name)) {
-    if (name.text === wanted) out.push(owner);
+    addDeclaration(index, name.text, owner);
     return;
   }
   for (const element of name.elements) {
-    if (ts.isBindingElement(element)) collectBinding(element.name, wanted, element, out);
+    if (ts.isBindingElement(element)) collectBinding(element.name, element, index);
   }
 }
 
-function collectList(list: ts.VariableDeclarationList, wanted: string, out: ts.Node[]): void {
-  for (const declaration of list.declarations)
-    collectBinding(declaration.name, wanted, declaration, out);
+function collectList(list: ts.VariableDeclarationList, index: ScopeIndex): void {
+  for (const declaration of list.declarations) collectBinding(declaration.name, declaration, index);
 }
 
 /** Deklaracje blokowe (`let`/`const`, funkcje, klasy, enumy, importy) bezpośrednio w liście instrukcji. */
-function collectStatements(
-  statements: readonly ts.Statement[],
-  wanted: string,
-  out: ts.Node[],
-): void {
+function collectStatements(statements: readonly ts.Statement[], index: ScopeIndex): void {
   for (const statement of statements) {
     if (ts.isVariableStatement(statement)) {
       if (isBlockScopedList(statement.declarationList)) {
-        collectList(statement.declarationList, wanted, out);
+        collectList(statement.declarationList, index);
       }
     } else if (
       (ts.isFunctionDeclaration(statement) ||
         ts.isClassDeclaration(statement) ||
         ts.isEnumDeclaration(statement)) &&
-      statement.name?.text === wanted
+      statement.name !== undefined
     ) {
-      out.push(statement);
+      addDeclaration(index, statement.name.text, statement);
     } else if (ts.isImportDeclaration(statement) && statement.importClause !== undefined) {
       const clause = statement.importClause;
-      if (clause.name?.text === wanted) out.push(clause);
+      if (clause.name !== undefined) addDeclaration(index, clause.name.text, clause);
       const bindings = clause.namedBindings;
       if (bindings !== undefined && ts.isNamespaceImport(bindings)) {
-        if (bindings.name.text === wanted) out.push(bindings);
+        addDeclaration(index, bindings.name.text, bindings);
       } else if (bindings !== undefined) {
-        for (const element of bindings.elements)
-          if (element.name.text === wanted) out.push(element);
+        for (const element of bindings.elements) addDeclaration(index, element.name.text, element);
       }
-    } else if (ts.isImportEqualsDeclaration(statement) && statement.name.text === wanted) {
-      out.push(statement);
+    } else if (ts.isImportEqualsDeclaration(statement)) {
+      addDeclaration(index, statement.name.text, statement);
     }
   }
 }
 
 /** `var` wynoszone do zasięgu funkcji (albo pliku) - z dowolnie głębokich bloków, bez zagnieżdżonych funkcji. */
-function collectHoistedVars(root: ts.Node, wanted: string, out: ts.Node[]): void {
+function collectHoistedVars(root: ts.Node, index: ScopeIndex): void {
   const visit = (node: ts.Node): void => {
     if (ts.isFunctionLike(node) || ts.isClassLike(node)) return;
-    if (ts.isVariableDeclarationList(node) && !isBlockScopedList(node))
-      collectList(node, wanted, out);
+    if (ts.isVariableDeclarationList(node) && !isBlockScopedList(node)) collectList(node, index);
     ts.forEachChild(node, visit);
   };
   ts.forEachChild(root, visit);
@@ -1592,37 +2062,59 @@ function isFunctionScope(node: ts.Node): node is ts.FunctionLikeDeclaration {
   );
 }
 
-/** Deklaracje nazwy wprowadzane przez JEDEN węzeł-zasięg. */
-function declarationsIn(scope: ts.Node, wanted: string): ts.Node[] {
-  const out: ts.Node[] = [];
+/** Deklaracje wprowadzane przez JEDEN węzeł-zasięg - wszystkie nazwy naraz; `null`, gdy węzeł zasięgiem nie jest. */
+function buildScopeIndex(scope: ts.Node): ScopeIndex | null {
+  const index: ScopeIndex = new Map();
   if (ts.isSourceFile(scope)) {
-    collectStatements(scope.statements, wanted, out);
-    collectHoistedVars(scope, wanted, out);
+    collectStatements(scope.statements, index);
+    collectHoistedVars(scope, index);
   } else if (ts.isBlock(scope) || ts.isModuleBlock(scope)) {
-    collectStatements(scope.statements, wanted, out);
+    collectStatements(scope.statements, index);
   } else if (ts.isCaseBlock(scope)) {
-    for (const clause of scope.clauses) collectStatements(clause.statements, wanted, out);
+    for (const clause of scope.clauses) collectStatements(clause.statements, index);
   } else if (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) {
     const init = scope.initializer;
     if (init !== undefined && ts.isVariableDeclarationList(init) && isBlockScopedList(init)) {
-      collectList(init, wanted, out);
+      collectList(init, index);
     }
   } else if (ts.isCatchClause(scope)) {
     const variable = scope.variableDeclaration;
-    if (variable !== undefined) collectBinding(variable.name, wanted, variable, out);
+    if (variable !== undefined) collectBinding(variable.name, variable, index);
   } else if (isFunctionScope(scope)) {
-    for (const parameter of scope.parameters)
-      collectBinding(parameter.name, wanted, parameter, out);
-    if (ts.isFunctionExpression(scope) && scope.name?.text === wanted) out.push(scope);
-    if (scope.body !== undefined) collectHoistedVars(scope.body, wanted, out);
-  } else if (ts.isClassExpression(scope) && scope.name?.text === wanted) {
-    out.push(scope);
+    for (const parameter of scope.parameters) collectBinding(parameter.name, parameter, index);
+    if (ts.isFunctionExpression(scope) && scope.name !== undefined) {
+      addDeclaration(index, scope.name.text, scope);
+    }
+    if (scope.body !== undefined) collectHoistedVars(scope.body, index);
+  } else if (ts.isClassExpression(scope) && scope.name !== undefined) {
+    addDeclaration(index, scope.name.text, scope);
+  } else {
+    return null;
   }
-  return out;
+  return index;
+}
+
+/**
+ * Indeksy zasięgów, liczone RAZ na węzeł. Wcześniej każde rozwiązanie nazwy
+ * przechodziło od nowa cały plik (wynoszone `var` zasięgu pliku), więc plik
+ * z N upsertami kosztował O(N²): 20 tys. celów - 42 s. Klucz to węzeł drzewa,
+ * więc wpis znika razem z drzewem (WeakMap), a wynik nie zależy od kolejności
+ * pytań - moduł zostaje czysty w sensie obserwowalnym.
+ */
+const scopeIndexes = new WeakMap<ts.Node, ScopeIndex | null>();
+
+/** Deklaracje nazwy wprowadzane przez JEDEN węzeł-zasięg. */
+function declarationsIn(scope: ts.Node, wanted: string): readonly ts.Node[] {
+  let index = scopeIndexes.get(scope);
+  if (index === undefined) {
+    index = buildScopeIndex(scope);
+    scopeIndexes.set(scope, index);
+  }
+  return index?.get(wanted) ?? [];
 }
 
 function classifyDeclaration(node: ts.Node): Binding {
-  const other = (detail: string): Binding => ({ kind: "other", detail });
+  const other = (detail: string): Binding => ({ kind: "other", detail, declarations: [node] });
   if (ts.isVariableDeclaration(node)) {
     if (ts.isCatchClause(node.parent)) return other("zmienna `catch`");
     const list = node.parent;
@@ -1634,7 +2126,7 @@ function classifyDeclaration(node: ts.Node): Binding {
       return other("`let`/`var` - wartość może się zmienić przed wywołaniem");
     }
     if (node.initializer === undefined) return other("`const` bez inicjalizatora");
-    return { kind: "const", initializer: node.initializer };
+    return { kind: "const", initializer: node.initializer, declaration: node };
   }
   if (ts.isParameter(node)) return other("parametr funkcji - wartość przychodzi z wywołania");
   if (ts.isBindingElement(node)) return other("destrukturyzacja - wartość przychodzi z obiektu");
@@ -1649,14 +2141,78 @@ function classifyDeclaration(node: ts.Node): Binding {
   return other("funkcja, klasa albo enum - nie napis");
 }
 
-function resolveBinding(identifier: ts.Identifier): Binding {
+/** Deklaracje z NAJBLIŻSZEGO zasięgu, który tę nazwę deklaruje - pusta lista: brak w pliku. */
+function resolveDeclarations(identifier: ts.Identifier): readonly ts.Node[] {
   for (let scope: ts.Node | undefined = identifier.parent; scope; scope = scope.parent) {
     const found = declarationsIn(scope, identifier.text);
-    if (found.length > 1)
-      return { kind: "other", detail: "kilka deklaracji tej nazwy w jednym zasięgu" };
-    if (found.length === 1) return classifyDeclaration(found[0]);
+    if (found.length > 0) return found;
   }
+  return [];
+}
+
+function resolveBinding(identifier: ts.Identifier): Binding {
+  const found = resolveDeclarations(identifier);
+  if (found.length > 1) {
+    return {
+      kind: "other",
+      detail: "kilka deklaracji tej nazwy w jednym zasięgu",
+      declarations: found,
+    };
+  }
+  if (found.length === 1) return classifyDeclaration(found[0]);
   return { kind: "none" };
+}
+
+/** Operatory przypisania, po których wartość prawej strony trafia do wiązania. */
+const ASSIGNMENT_OPERATORS: ReadonlySet<ts.SyntaxKind> = new Set([
+  ts.SyntaxKind.EqualsToken,
+  ts.SyntaxKind.BarBarEqualsToken,
+  ts.SyntaxKind.AmpersandAmpersandEqualsToken,
+  ts.SyntaxKind.QuestionQuestionEqualsToken,
+]);
+
+/** Przypisania w pliku: deklaracja -> prawe strony `x = …` (także `||=`, `&&=`, `??=`). */
+const assignmentIndexes = new WeakMap<ts.SourceFile, Map<ts.Node, ts.Expression[]>>();
+
+/** Każda wartość, którą plik przypisuje do wiązania tej deklaracji (poza inicjalizatorem). */
+function assignmentsTo(declaration: ts.Node): readonly ts.Expression[] {
+  const source = declaration.getSourceFile();
+  let index = assignmentIndexes.get(source);
+  if (index === undefined) {
+    const built = new Map<ts.Node, ts.Expression[]>();
+    const visit = (node: ts.Node): void => {
+      if (ts.isBinaryExpression(node) && ASSIGNMENT_OPERATORS.has(node.operatorToken.kind)) {
+        const target = unwrap(node.left);
+        if (ts.isIdentifier(target)) {
+          for (const owner of resolveDeclarations(target)) {
+            const list = built.get(owner);
+            if (list === undefined) built.set(owner, [node.right]);
+            else list.push(node.right);
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+    index = built;
+    assignmentIndexes.set(source, index);
+  }
+  return index.get(declaration) ?? [];
+}
+
+/** Wyrażenia, które mogą stać za wiązaniem: inicjalizator, wartość domyślna i każde przypisanie. */
+function valuesOf(declaration: ts.Node): ts.Expression[] {
+  const out: ts.Expression[] = [];
+  if (
+    (ts.isVariableDeclaration(declaration) ||
+      ts.isParameter(declaration) ||
+      ts.isBindingElement(declaration)) &&
+    declaration.initializer !== undefined
+  ) {
+    out.push(declaration.initializer);
+  }
+  out.push(...assignmentsTo(declaration));
+  return out;
 }
 
 interface StringValue {
@@ -1722,33 +2278,78 @@ function helperTable(
   return null;
 }
 
+/** Węzły, które `schemaBelow` obejrzy dla jednego odbiorcy - dalej nie zgaduje, tylko zapala. */
+const MAX_SCHEMA_NODES = 256;
+const SCHEMA_BUDGET_REASON =
+  "klient ma zbyt wiele możliwych źródeł do sprawdzenia `.schema(...)` - cel nie do sprawdzenia";
+
 /**
- * `.schema("x")` z `x` innym niż `public` gdziekolwiek NIŻEJ w łańcuchu (także
- * przez stałą-klienta `const db = supabase.schema("x")`) - powód; inaczej `null`.
+ * `.schema("x")` z `x` innym niż `public` OSIĄGALNE poniżej `.from` - powód;
+ * inaczej `null`. Osiągalne znaczy: w łańcuchu wywołań, w inicjalizatorze
+ * `const`/`let`/`var`, w każdym przypisaniu do wiązania, w wartości domyślnej
+ * parametru albo wzorca, w obu gałęziach `? :` i w obu operandach
+ * `??`/`||`/`&&`. Wcześniej tylko `const` - a `let db = supabase.schema("x")`,
+ * `function f(db = supabase.schema("x"))` i `cond ? supabase.schema("x") :
+ * supabase` dawały zielony cel w tabeli `public`, której upsert nie dotyka.
+ * Wynik wywołania funkcji (`getDb().from(…)`) pozostaje nieprzezroczysty, jak
+ * parametr bez wartości domyślnej - to klient z `public`, chyba że łańcuch mówi
+ * inaczej.
  */
-function schemaBelow(expression: ts.Expression, hops: number): string | null {
-  let node = unwrap(expression);
-  for (let step = 0; step < 64; step += 1) {
-    if (ts.isCallExpression(node)) {
-      const callee = unwrap(node.expression);
-      const method = memberName(callee);
-      if (method === null) return null;
-      if (method === "schema") {
-        const argument = node.arguments[0];
-        const schema = argument === undefined ? null : resolveString(argument);
-        if (schema === null || "reason" in schema || schema.value !== "public")
-          return SCHEMA_REASON;
-      }
-      node = unwrap(memberReceiver(callee));
-    } else if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
-      node = unwrap(node.expression);
-    } else if (ts.isIdentifier(node) && hops < MAX_HOPS) {
-      const binding = resolveBinding(node);
-      if (binding.kind !== "const") return null;
-      node = unwrap(binding.initializer);
-      hops += 1;
-    } else {
-      return null;
+function schemaBelow(expression: ts.Expression, seen: Set<ts.Node> = new Set()): string | null {
+  const node = unwrap(expression);
+  if (seen.has(node)) return null;
+  if (seen.size >= MAX_SCHEMA_NODES) return SCHEMA_BUDGET_REASON;
+  seen.add(node);
+  const any = (candidates: readonly ts.Expression[]): string | null => {
+    for (const candidate of candidates) {
+      const reason = schemaBelow(candidate, seen);
+      if (reason !== null) return reason;
+    }
+    return null;
+  };
+
+  if (ts.isCallExpression(node)) {
+    const callee = unwrap(node.expression);
+    const method = memberName(callee);
+    if (method === null) return null;
+    if (method === "schema") {
+      const argument = node.arguments[0];
+      const schema = argument === undefined ? null : resolveString(argument);
+      if (schema === null || "reason" in schema || schema.value !== "public") return SCHEMA_REASON;
+    }
+    return schemaBelow(memberReceiver(callee), seen);
+  }
+  if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+    return schemaBelow(node.expression, seen);
+  }
+  if (ts.isConditionalExpression(node)) return any([node.whenTrue, node.whenFalse]);
+  if (ts.isBinaryExpression(node)) {
+    const operator = node.operatorToken.kind;
+    if (
+      operator === ts.SyntaxKind.QuestionQuestionToken ||
+      operator === ts.SyntaxKind.BarBarToken ||
+      operator === ts.SyntaxKind.AmpersandAmpersandToken ||
+      operator === ts.SyntaxKind.BarBarEqualsToken ||
+      operator === ts.SyntaxKind.AmpersandAmpersandEqualsToken ||
+      operator === ts.SyntaxKind.QuestionQuestionEqualsToken
+    ) {
+      return any([node.left, node.right]);
+    }
+    if (operator === ts.SyntaxKind.EqualsToken || operator === ts.SyntaxKind.CommaToken) {
+      return schemaBelow(node.right, seen);
+    }
+    return null;
+  }
+  if (ts.isIdentifier(node)) {
+    const binding = resolveBinding(node);
+    if (binding.kind === "const") return schemaBelow(binding.initializer, seen);
+    if (binding.kind === "other") {
+      // Każde wiązanie rozwijamy RAZ na przejście: `seen` po węźle wyrażenia
+      // nie chronił przed ponownym rozwinięciem wszystkich przypisań `let`
+      // przy każdym trafieniu identyfikatora (O(wywołania × przypisania)).
+      const fresh = binding.declarations.filter((declaration) => !seen.has(declaration));
+      for (const declaration of fresh) seen.add(declaration);
+      return any(fresh.flatMap(valuesOf));
     }
   }
   return null;
@@ -1776,11 +2377,11 @@ function receiverTable(
       if (table === null) return { reason: FROM_REASON };
       if ("reason" in table) return { reason: `${FROM_REASON} (${table.reason})` };
       // `.schema("x")` NIŻEJ w łańcuchu przestawia także to `.from`.
-      const below = schemaBelow(memberReceiver(callee), hops);
+      const below = schemaBelow(memberReceiver(callee));
       return below === null ? { table: table.value } : { reason: below };
     }
     if (method === "schema") {
-      const below = schemaBelow(node, hops);
+      const below = schemaBelow(node);
       if (below !== null) return { reason: below };
       return receiverTable(memberReceiver(callee), knownTables, hops + 1);
     }
@@ -1975,16 +2576,7 @@ function scanStrayObjects(scan: FileScan, node: ts.Node): void {
 function locate(source: ts.SourceFile, position: number): ts.Node | "comment" | null {
   let node: ts.Node = source;
   for (;;) {
-    let child: ts.Node | undefined;
-    for (const candidate of node.getChildren(source)) {
-      // JSDoc jako dziecko zaczyna się w trywiach następnego tokenu - pomijamy
-      // je, żeby komentarz rozpoznał `forEach…CommentRange` niżej.
-      if (candidate.kind === ts.SyntaxKind.JSDoc) continue;
-      if (candidate.pos <= position && position < candidate.end) {
-        child = candidate;
-        break;
-      }
-    }
+    const child = childAt(source, node, position);
     if (child === undefined) return null;
     if (position < child.getStart(source)) {
       let comment = false;
@@ -1998,6 +2590,42 @@ function locate(source: ts.SourceFile, position: number): ts.Node | "comment" | 
     if (child.getChildCount(source) === 0) return child;
     node = child;
   }
+}
+
+/** Dzieci węzła bez JSDoc - liczone raz na węzeł (patrz `scopeIndexes`). */
+const tokenChildren = new WeakMap<ts.Node, readonly ts.Node[]>();
+
+/**
+ * Dziecko węzła obejmujące pozycję - wyszukiwaniem binarnym. Dzieci z
+ * `getChildren` (bez JSDoc, który zaczyna się w trywiach następnego tokenu
+ * i rozpoznaje go `forEach…CommentRange`) pokrywają węzeł kafelkami
+ * w kolejności pozycji; liniowe przeszukiwanie listy instrukcji pliku przy
+ * każdym wystąpieniu `onConflict` dawało O(N²) na dużym pliku.
+ */
+function childAt(source: ts.SourceFile, node: ts.Node, position: number): ts.Node | undefined {
+  let children = tokenChildren.get(node);
+  if (children === undefined) {
+    children = node.getChildren(source).filter((child) => child.kind !== ts.SyntaxKind.JSDoc);
+    tokenChildren.set(node, children);
+  }
+  let low = 0;
+  let high = children.length - 1;
+  let last = -1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if (children[middle].pos <= position) {
+      last = middle;
+      low = middle + 1;
+    } else high = middle - 1;
+  }
+  // Dziecko zerowej szerokości (pusta lista) może stać na tej samej pozycji
+  // co właściwe - cofamy się do pierwszego, które pozycję naprawdę obejmuje.
+  for (let index = last; index >= 0; index -= 1) {
+    const child = children[index];
+    if (position < child.end) return child;
+    if (child.pos < child.end) return undefined;
+  }
+  return undefined;
 }
 
 /** Węzły-tokeny, w których tekście może stać słowo: identyfikatory, literały, JSX, regex. */
@@ -2091,6 +2719,31 @@ function asEsModule(file: ts.SourceFile): void {
   Object.assign(file, { externalModuleIndicator: true });
 }
 
+/**
+ * Oba słowa także z ucieczką „tożsamościową" przed dowolną literą: w napisie
+ * `"up\sert"` to `upsert`, a `"on\Conflict"` to `onConflict` - kompilator
+ * zdejmuje ukośnik przed znakiem bez specjalnego znaczenia.
+ */
+const IDENTITY_ESCAPED_WORDS_RE = /u\\?p\\?s\\?e\\?r\\?t|o\\?n\\?C\\?o\\?n\\?f\\?l\\?i\\?c\\?t/;
+
+/** Sekwencja ucieczki, którą kompilator rozwija w nazwie albo w napisie klucza. */
+const ESCAPE_RE = /\\(?:u|x|[0-7]|\r|\n|\u2028|\u2029)/;
+
+/**
+ * Tani filtr tekstowy: plik bez obu słów nie ma ani wywołania, ani celu -
+ * ALE tylko wtedy, gdy nie zapisuje ich sekwencjami ucieczki. Kompilator
+ * rozwija `ups\u0065rt(…)` w identyfikatorze, `["\x75psert"]` w kluczu i `\`
+ * na końcu linii w napisie do tych samych nazw, więc plik z JAKĄKOLWIEK taką
+ * sekwencją idzie do parsera (wcześniej `ups\u0065rt` + `on\u0043onflict`
+ * omijały skan po cichu); słowa z ucieczką „tożsamościową" (`"up\\sert"`)
+ * łapie `IDENTITY_ESCAPED_WORDS_RE`. Pomiar 2026-10-04 na 4031 plikach: filtr słów
+ * przepuszcza 185, z ucieczkami 268; parsowanie wszystkich trwa ~4,5 s wobec
+ * ~1,2 s - filtr zostaje.
+ */
+function mayMentionUpsert(code: string): boolean {
+  return IDENTITY_ESCAPED_WORDS_RE.test(code) || ESCAPE_RE.test(code);
+}
+
 /** Cele `onConflict` ze źródeł - patrz punkt B i „ZAMKNIĘTE NA NIEPEWNOŚĆ" w nagłówku. */
 export function extractOnConflictTargets(
   sources: readonly SourceFile[],
@@ -2100,9 +2753,8 @@ export function extractOnConflictTargets(
   const unresolved: UnresolvedOnConflict[] = [];
   let upsertCalls = 0;
 
-  // Tani filtr tekstowy: plik bez obu słów nie ma ani wywołania, ani celu.
   const parsed = sources
-    .filter(({ code }) => code.includes("upsert") || code.includes(CONFLICT_KEY))
+    .filter(({ code }) => mayMentionUpsert(code))
     .map(({ file, code }) => ({
       file,
       raw: code,
@@ -2157,63 +2809,134 @@ export function extractOnConflictTargets(
 
 const MEASURED = "pomiar 2026-10-04 (model == pg_index, 616/616) objął ten plik";
 
+/** Para (skrót ciała bloku DO, tekst `EXECUTE`) - jednostka zapadki. */
+function execute(block: string, text: string): DynamicDdlExecute {
+  return { block, text };
+}
+
+// Bliźniacze migracje (ten sam blok w dwóch plikach) mają ten sam skrót -
+// normalizacja zdejmuje komentarze i białe znaki, więc to wprost dowód, że
+// skrót mierzy TREŚĆ bloku, nie jego zapis.
+const USER_FOLLOWS_CHECK = execute(
+  "82ce6cb95432",
+  "format('ALTER TABLE public.user_follows DROP CONSTRAINT %I', v_conname)",
+);
+const EVENT_SESSIONS_EXCLUDE = execute(
+  "61a3a046867a",
+  "format( 'ALTER TABLE public.event_sessions ADD CONSTRAINT event_sessions_room_no_overlap ' 'EXCLUDE USING gist (tenant_id %1$s WITH =, room_id %1$s WITH =, time_range WITH &&) ' 'WHERE (room_id IS NOT NULL AND status <> ''cancelled'')', v_opclass )",
+);
+const EVENT_CHECKINS_EXCLUDE = execute(
+  "f1d310f0f8eb",
+  "format( 'ALTER TABLE public.event_checkins ADD CONSTRAINT %2$I ' 'EXCLUDE USING gist (tenant_id %1$s WITH =, checkpoint_id %1$s WITH =, ' 'person_id %1$s WITH =, dedupe_range WITH &&) ' 'WHERE (result = ''granted'' AND direction = %3$L)', v_opclass, v_conname, v_direction )",
+);
+const EVENT_MEETINGS_EXCLUDES = [
+  execute(
+    "9299093a4b55",
+    "format( 'ALTER TABLE public.event_meeting_availability ' 'ADD CONSTRAINT event_meeting_availability_no_overlap ' 'EXCLUDE USING gist (tenant_id %1$s WITH =, registration_id %1$s WITH =, time_range WITH &&)', v_uuid_ops )",
+  ),
+  execute(
+    "c94d742de009",
+    "format( 'ALTER TABLE public.event_meetings ADD CONSTRAINT event_meetings_table_no_overlap ' 'EXCLUDE USING gist (' 'tenant_id %1$s WITH =, table_id %1$s WITH =, table_seat %2$s WITH =, time_range WITH &&' ') WHERE (table_id IS NOT NULL AND status IN (''accepted'', ''held'', ''no_show''))', v_uuid_ops, v_int4_ops )",
+  ),
+  execute(
+    "523784b20c64",
+    "format( 'ALTER TABLE public.event_meeting_attendees ' 'ADD CONSTRAINT event_meeting_attendees_no_overlap ' 'EXCLUDE USING gist (tenant_id %1$s WITH =, registration_id %1$s WITH =, time_range WITH &&) ' 'WHERE (status IN (''accepted'', ''held'', ''no_show''))', v_uuid_ops )",
+  ),
+];
+
 /**
- * Pliki migracji z dynamicznym DDL zdolnym zmienić klucz unikalny i DOKŁADNA
- * liczba takich `EXECUTE` w każdym. Model ich nie wykonuje, ale pomiar
- * różnicowy z nagłówka objął stan PO nich - każde jest więc sprawdzone
- * katalogiem, nie założone.
+ * Pliki migracji z dynamicznym DDL zdolnym zmienić klucz unikalny i DOKŁADNY
+ * multizbiór takich `EXECUTE` w każdym: tekst polecenia i skrót ciała bloku
+ * DO, który go niesie (patrz `DynamicDdlExecute`). Model ich nie wykonuje,
+ * ale pomiar różnicowy z nagłówka objął stan PO nich - każde jest więc
+ * sprawdzone katalogiem, nie założone.
  *
  * ZAPADKA: lista może tylko MALEĆ. Wpis usuwa się, gdy plik zniknie albo DDL
- * zostanie przepisany statycznie. Nowy plik albo inna liczba zapala bramkę;
- * domyślne lekarstwo to statyczny DDL. Dopisanie wpisu jest wyjątkiem i wymaga
- * nowego porównania modelu z `pg_index` bazy odtworzonej z migracji (zero
- * rozbieżności), z datą tego pomiaru w uzasadnieniu.
+ * zostanie przepisany statycznie. Nowa, zmieniona (tekst albo ciało bloku)
+ * albo usunięta para zapala bramkę; domyślne lekarstwo to statyczny DDL.
+ * Dopisanie pary jest wyjątkiem i wymaga nowego porównania modelu z `pg_index`
+ * bazy odtworzonej z migracji (zero rozbieżności), z datą tego pomiaru
+ * w uzasadnieniu; skrót i tekst podaje raport bramki.
  */
 export const DYNAMIC_DDL_BASELINE: Readonly<Record<string, DynamicDdlBaselineEntry>> = {
   "20260720124500_follow_publish_alerts.sql": {
-    count: 1,
+    executes: [USER_FOLLOWS_CHECK],
     why: `DROP CONSTRAINT %I wybiera wyłącznie CHECK (contype = 'c') user_follows - ${MEASURED}`,
   },
   "20260720125526_e5987a7f-2285-4bb5-a79b-9d5821cd1df5.sql": {
-    count: 1,
+    executes: [USER_FOLLOWS_CHECK],
     why: `bliźniak poprzedniego: DROP CONSTRAINT %I tylko dla CHECK user_follows - ${MEASURED}`,
   },
   "20260815110844_54c27fbd-795e-4ad4-b4a4-e2ccc05135cc.sql": {
-    count: 3,
+    executes: [
+      execute("d2850b6b392c", "format('ALTER TABLE public.programs DROP CONSTRAINT %I',v_name)"),
+      execute("e0435616eb67", "format('ALTER TABLE public.%I DROP CONSTRAINT %I',v_table,v_name)"),
+      execute(
+        "8f3b5364ba79",
+        "format('ALTER TABLE public.%I ADD CONSTRAINT %I FOREIGN KEY(program_id) REFERENCES public.programs(id) ON DELETE CASCADE',v_table,v_table||'_program_id_fkey')",
+      ),
+    ],
     why: `CHECK programs (contype 'c') oraz FK research_program_* (contype 'f') - zdjęte i dodane - ${MEASURED}`,
   },
   "20260823140000_event_sessions.sql": {
-    count: 1,
+    executes: [EVENT_SESSIONS_EXCLUDE],
     why: `ADD CONSTRAINT … EXCLUDE USING gist - nie arbiter listy kolumn - ${MEASURED}`,
   },
   "20260823180000_event_onsite.sql": {
-    count: 1,
+    executes: [EVENT_CHECKINS_EXCLUDE],
     why: `ADD CONSTRAINT … EXCLUDE USING gist (event_checkins) - nie arbiter - ${MEASURED}`,
   },
   "20260823190000_event_meetings.sql": {
-    count: 3,
+    executes: EVENT_MEETINGS_EXCLUDES,
     why: `trzy ADD CONSTRAINT … EXCLUDE USING gist (event_meeting_*) - nie arbitrzy - ${MEASURED}`,
   },
   "20260824083841_20857804-c3de-4bf0-b5c9-6a70404271f4.sql": {
-    count: 1,
+    executes: [EVENT_SESSIONS_EXCLUDE],
     why: `bliźniak event_sessions: EXCLUDE USING gist - nie arbiter - ${MEASURED}`,
   },
   "20260824101235_a8f6e612-baeb-4796-bf6f-eeb5f2d71c08.sql": {
-    count: 1,
+    executes: [EVENT_CHECKINS_EXCLUDE],
     why: `bliźniak event_onsite: EXCLUDE USING gist - nie arbiter - ${MEASURED}`,
   },
   "20260825062550_e3e4c344-184d-4f94-b3ed-8645d7d77117.sql": {
-    count: 3,
+    executes: EVENT_MEETINGS_EXCLUDES,
     why: `bliźniak event_meetings: trzy EXCLUDE USING gist - nie arbitrzy - ${MEASURED}`,
   },
   "20260915090000_legal_document_versions_compliance_pack_keys.sql": {
-    count: 1,
+    executes: [
+      execute(
+        "b8e657d18aa2",
+        "format( 'ALTER TABLE public.legal_document_versions DROP CONSTRAINT %I', v_constraint )",
+      ),
+    ],
     why: `DROP CONSTRAINT %I wybiera wyłącznie CHECK (contype = 'c') legal_document_versions - ${MEASURED}`,
   },
 };
 
+function executeKey(entry: DynamicDdlExecute): string {
+  return `${entry.block}\u0000${entry.text}`;
+}
+
+/** `left` bez elementów `right` - różnica MULTIZBIORÓW: dwa takie same `EXECUTE` to dwa wpisy. */
+function multisetMinus(
+  left: readonly DynamicDdlExecute[],
+  right: readonly DynamicDdlExecute[],
+): DynamicDdlExecute[] {
+  const pool = new Map<string, number>();
+  for (const entry of right) pool.set(executeKey(entry), (pool.get(executeKey(entry)) ?? 0) + 1);
+  const out: DynamicDdlExecute[] = [];
+  for (const entry of left) {
+    const remaining = pool.get(executeKey(entry)) ?? 0;
+    if (remaining > 0) pool.set(executeKey(entry), remaining - 1);
+    else out.push({ block: entry.block, text: entry.text });
+  }
+  return out;
+}
+
 /**
- * Rozjazd z zapadką dla plików z WEJŚCIA. Wpis bazy, którego pliku nie ma
+ * Rozjazd z zapadką dla plików z WEJŚCIA - jako różnica multizbiorów par
+ * (blok, tekst), nie liczb: ta sama liczba przy podmienionym `EXECUTE` to
+ * jedna para dodana i jedna usunięta. Wpis bazy, którego pliku nie ma
  * w wejściu (fixture testu, migracje spłaszczone), nie jest tu błędem - że
  * każdy wpis wskazuje istniejącą migrację, pilnuje test stanu repozytorium.
  */
@@ -2222,15 +2945,21 @@ export function dynamicDdlDrift(
   dynamicDdl: readonly DynamicDdl[],
   baseline: Readonly<Record<string, DynamicDdlBaselineEntry>> = DYNAMIC_DDL_BASELINE,
 ): DynamicDdlDrift[] {
-  const texts = new Map<string, string[]>();
-  for (const entry of dynamicDdl)
-    texts.set(entry.file, [...(texts.get(entry.file) ?? []), entry.text]);
+  const found = new Map<string, DynamicDdlExecute[]>();
+  for (const entry of dynamicDdl) {
+    const list = found.get(entry.file) ?? [];
+    list.push({ block: entry.block, text: entry.text });
+    found.set(entry.file, list);
+  }
   const drift: DynamicDdlDrift[] = [];
   for (const { file } of migrations) {
-    const found = texts.get(file) ?? [];
-    const expected = Object.hasOwn(baseline, file) ? baseline[file].count : 0;
-    if (found.length !== expected)
-      drift.push({ file, expected, actual: found.length, texts: found });
+    const actual = found.get(file) ?? [];
+    const expected = Object.hasOwn(baseline, file) ? baseline[file].executes : [];
+    const added = multisetMinus(actual, expected);
+    const removed = multisetMinus(expected, actual);
+    if (added.length > 0 || removed.length > 0) {
+      drift.push({ file, expected: expected.length, actual: actual.length, added, removed });
+    }
   }
   return drift;
 }
@@ -2304,6 +3033,7 @@ export function analyzeOnConflictArbiters({
     unresolved: [...extracted.unresolved].sort(byPosition),
     dynamicDdl: model.dynamicDdl,
     dynamicDdlDrift: dynamicDdlDrift(migrations, model.dynamicDdl, dynamicDdlBaseline),
+    unmodeled: model.unmodeled,
     unsplittable: model.unsplittable,
   };
 }
@@ -2319,6 +3049,7 @@ export function onConflictArbitersFailed(report: OnConflictArbitersReport): bool
     report.violations.length > 0 ||
     report.unresolved.length > 0 ||
     report.dynamicDdlDrift.length > 0 ||
+    report.unmodeled.length > 0 ||
     report.unsplittable.length > 0
   );
 }
@@ -2331,7 +3062,23 @@ function describeKey(key: UniqueKey): string {
     key.expression ? "na wyrażeniu - nie arbiter" : null,
     key.deferrable ? "DEFERRABLE - nie arbiter" : null,
   ].filter((flag): flag is string => flag !== null);
-  return `${key.name} (${key.columns.join(", ")}) [${[kind, ...flags].join("; ")}; ${key.file}]`;
+  const include = key.include.length === 0 ? "" : ` INCLUDE (${key.include.join(", ")})`;
+  return `${key.name} (${key.columns.join(", ")})${include} [${[kind, ...flags].join("; ")}; ${key.file}]`;
+}
+
+/** Co się zmieniło - słowami, żeby nie trzeba było porównywać skrótów na oko. */
+function describeDrift(drift: DynamicDdlDrift): string {
+  const removedTexts = new Set(drift.removed.map((entry) => entry.text));
+  const sameText = drift.added.filter((entry) => removedTexts.has(entry.text)).length;
+  const parts: string[] = [];
+  if (sameText > 0) parts.push(`${sameText} × ten sam tekst EXECUTE w zmienionym ciele bloku DO`);
+  if (drift.added.length > sameText) {
+    parts.push(`${drift.added.length - sameText} × nowe albo zmienione EXECUTE`);
+  }
+  if (drift.removed.length > sameText) {
+    parts.push(`${drift.removed.length - sameText} × EXECUTE z zapadki, którego plik już nie ma`);
+  }
+  return parts.join("; ");
 }
 
 export function renderOnConflictArbitersReport(report: OnConflictArbitersReport): string {
@@ -2406,21 +3153,53 @@ export function renderOnConflictArbitersReport(report: OnConflictArbitersReport)
     if (lines.length > 0) lines.push("");
     lines.push(
       `✗ [on-conflict-arbiters] ${report.dynamicDdlDrift.length} migracji z dynamicznym DDL kluczy ` +
-        "poza zapadką DYNAMIC_DDL_BASELINE (model go nie wykonuje):",
+        "rozjechanym z zapadką DYNAMIC_DDL_BASELINE (model go nie wykonuje):",
     );
     for (const drift of report.dynamicDdlDrift) {
-      lines.push(`    ${drift.file}  w zapadce: ${drift.expected}, w pliku: ${drift.actual}`);
-      for (const text of drift.texts) lines.push(`      EXECUTE ${text}`);
+      lines.push(
+        `    ${drift.file}  w zapadce: ${drift.expected}, w pliku: ${drift.actual} - ${describeDrift(drift)}`,
+      );
+      for (const entry of drift.added)
+        lines.push(`      + [blok ${entry.block}] EXECUTE ${entry.text}`);
+      for (const entry of drift.removed) {
+        lines.push(`      - [blok ${entry.block}] EXECUTE ${entry.text}`);
+      }
     }
     lines.push(
       "",
+      "  `+` jest w pliku, a nie w zapadce; `-` jest w zapadce, a nie w pliku. Ten sam",
+      "  tekst po obu stronach z innym blokiem znaczy, że zmieniło się ciało bloku DO",
+      "  (np. warunek, który wybiera ograniczenie do `%I`), a nie samo EXECUTE.",
       "  `EXECUTE format(…)`, sklejany tekst albo `EXECUTE zmienna` może zdjąć lub dodać",
       "  klucz unikalny, którego model nie zobaczy - bramka byłaby zielona przy 42P10",
       "  w bazie. Zapisz DDL statycznie (`ALTER TABLE … DROP CONSTRAINT nazwa`,",
       "  `CREATE UNIQUE INDEX IF NOT EXISTS …`) - model zobaczy go od razu. Wyjątkowo:",
-      "  dopisz plik do DYNAMIC_DDL_BASELINE (src/lib/ci/onConflictArbiters.ts) dopiero",
-      "  po porównaniu modelu z pg_index bazy odtworzonej z migracji (zero rozbieżności).",
-      "  Gdy liczba spadła albo plik zniknął - zmniejsz wpis: zapadka może tylko maleć.",
+      "  dopisz parę (blok, tekst) do DYNAMIC_DDL_BASELINE (src/lib/ci/onConflictArbiters.ts)",
+      "  dopiero po porównaniu modelu z pg_index bazy odtworzonej z migracji (zero",
+      "  rozbieżności). Gdy para zniknęła z pliku - usuń ją: zapadka może tylko maleć.",
+    );
+  }
+
+  if (report.unmodeled.length > 0) {
+    if (lines.length > 0) lines.push("");
+    lines.push(
+      `✗ [on-conflict-arbiters] ${report.unmodeled.length} miejsc z DDL kluczy poza modelem ` +
+        "(zapadka z bazą zero - wyjątków nie ma):",
+    );
+    for (const entry of report.unmodeled) {
+      const where =
+        entry.kind === "routine" ? `ciało funkcji ${entry.routine ?? "?"}` : "kaskada zależności";
+      lines.push(`    ${entry.file}  ${where}: ${entry.text}`);
+    }
+    lines.push(
+      "",
+      "  Ciało funkcji albo procedury wykona się przy wywołaniu (`SELECT f()`, `PERFORM`,",
+      "  `CALL`, trigger, cron, kod aplikacji) - model nie wie, czy i kiedy, więc klucz,",
+      "  który zdejmie, zostałby w modelu, a bramka byłaby zielona przy 42P10. Przenieś",
+      "  DDL na najwyższy poziom migracji albo do bloku DO. Kaskada (`DROP TYPE|DOMAIN|",
+      "  EXTENSION|SCHEMA|FUNCTION … CASCADE`, `DROP OWNED`) zdejmuje zależne kolumny",
+      "  razem z ich kluczami, a model nie śledzi zależności: zdejmij zależne kolumny",
+      "  jawnie (`ALTER TABLE … DROP COLUMN …`), a obiekt - bez CASCADE.",
     );
   }
 
@@ -2443,7 +3222,7 @@ export function renderOnConflictArbitersReport(report: OnConflictArbitersReport)
       `✓ Arbitrzy onConflict OK (${report.sites.length} celów w ${report.upsertCalls} wywołaniach ` +
       `.upsert, ${report.scannedFiles} plików; model: ${report.tablesInModel} tabel z ` +
       `${report.migrationStatements} instrukcji migracji; dynamiczne DDL kluczy w zapadce: ` +
-      `${report.dynamicDdl.length}).`
+      `${report.dynamicDdl.length}; DDL kluczy poza modelem: ${report.unmodeled.length}).`
     );
   }
   return lines.join("\n");
