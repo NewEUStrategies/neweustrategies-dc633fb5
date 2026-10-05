@@ -263,7 +263,9 @@ export function readSectionLabelProps(
   const variant = (str("variant") || "kinetic-signal-notch") as SectionLabelVariant;
   const customAccent = str("accentColor");
   const colorBase = customAccent || str("color") || "brand";
-  const accent = opts.theme === "dark" && str("accentColorDark")
+  const accent = str("accentColorDark") === "var(--nes-kinetic-signal)"
+    ? `var(--nes-kinetic-signal, ${resolveAccentColor(colorBase)})`
+    : opts.theme === "dark" && str("accentColorDark")
     ? str("accentColorDark")
     : resolveAccentColor(
         opts.theme === "dark" ? autoInvertColor(colorBase, "dark") : colorBase,
