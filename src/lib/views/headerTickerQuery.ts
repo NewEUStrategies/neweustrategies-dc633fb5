@@ -72,6 +72,43 @@ export function resolveTickerSource(
   return "pinned";
 }
 
+/**
+ * Wpis paska w cache - wyłącznie pola, które pasek RENDERUJE (`TrendingTicker`:
+ * tytuł w obu językach, adres, autor stylu `glassLive`; `slug` jako zapas
+ * adresu). Okładka, data, `parent_page_id` i licznik wyświetleń wracają z
+ * server fn, ale pasek ich nie czyta.
+ */
+export type HeaderTickerPost = Pick<
+  TrendingPost,
+  "id" | "slug" | "title_pl" | "title_en" | "href" | "author_display_name" | "author_avatar_url"
+>;
+
+/**
+ * DIETA STANU ODWODNIONEGO (P2.5, HW-3b): projekcja wpisów paska na pola
+ * renderowane. Pasek jedzie w stanie `$tsr` KAŻDEGO dokumentu z chrome, a
+ * okładka (pełny URL storage), data, `parent_page_id` i `views_count` nie mają
+ * w nim odbiorcy. Projekcja w `queryFn`, więc SSR, hydratacja i refetch mają
+ * ten sam kształt.
+ *
+ * Oba tytuły ZOSTAJĄ: klucz paska nie zawiera języka (loader korzenia i
+ * `TrendingTicker` składają go bez `lang`), więc miękka zmiana języka
+ * przełącza tytuł z tego samego wpisu, bez refetchu i bez zapadania paska.
+ * Zrzut na jeden język wymaga najpierw `lang` w kluczu i
+ * `placeholderData: keepPreviousData` (inaczej pasek zapada się przy zmianie
+ * języka - komentarz w loaderze korzenia przy rozgrzewce paska).
+ */
+export function projectHeaderTickerPosts(rows: readonly TrendingPost[]): HeaderTickerPost[] {
+  return rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title_pl: row.title_pl,
+    title_en: row.title_en,
+    href: row.href,
+    author_display_name: row.author_display_name,
+    author_avatar_url: row.author_avatar_url,
+  }));
+}
+
 export function headerTickerQueryOptions(cfg: TickerConfig) {
   const source = resolveTickerSource(cfg);
   const days = cfg.days ?? 7;
@@ -79,7 +116,26 @@ export function headerTickerQueryOptions(cfg: TickerConfig) {
   const pinnedPostId = cfg.pinnedPostId;
   const selectedIds = (cfg.selectedPostIds ?? []).filter(Boolean).slice(0, 3);
   const mixedFill: MixedFill = cfg.mixedFill ?? "trending";
-  return queryOptions<TrendingPost[]>({
+  const fetchRows = (): Promise<TrendingPost[]> => {
+    if (source === "trending") return getTrendingPosts({ data: { days, limit } });
+    if (source === "selected")
+      return getTickerPosts({
+        data: { source: "selected", limit, selectedPostIds: selectedIds },
+      });
+    if (source === "mixed")
+      return getTickerPosts({
+        data: {
+          source: "mixed",
+          limit,
+          days,
+          mixedFill,
+          pinnedPostId,
+          selectedPostIds: selectedIds,
+        },
+      });
+    return getTickerPosts({ data: { source, limit, pinnedPostId } });
+  };
+  return queryOptions<HeaderTickerPost[]>({
     queryKey: [
       "header_ticker",
       source,
@@ -89,25 +145,7 @@ export function headerTickerQueryOptions(cfg: TickerConfig) {
       selectedIds.join(","),
       mixedFill,
     ] as const,
-    queryFn: () => {
-      if (source === "trending") return getTrendingPosts({ data: { days, limit } });
-      if (source === "selected")
-        return getTickerPosts({
-          data: { source: "selected", limit, selectedPostIds: selectedIds },
-        });
-      if (source === "mixed")
-        return getTickerPosts({
-          data: {
-            source: "mixed",
-            limit,
-            days,
-            mixedFill,
-            pinnedPostId,
-            selectedPostIds: selectedIds,
-          },
-        });
-      return getTickerPosts({ data: { source, limit, pinnedPostId } });
-    },
+    queryFn: async () => projectHeaderTickerPosts(await fetchRows()),
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
   });
@@ -128,6 +166,6 @@ export function headerTickerQueryOptions(cfg: TickerConfig) {
 export function peekHeaderTickerPosts(
   queryClient: QueryClient,
   cfg: TickerConfig,
-): TrendingPost[] | undefined {
+): HeaderTickerPost[] | undefined {
   return queryClient.getQueryData(headerTickerQueryOptions(cfg).queryKey);
 }

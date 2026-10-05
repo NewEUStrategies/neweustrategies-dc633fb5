@@ -11,21 +11,37 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { MegaConfig, MenuItemRow, MenuWithItems } from "@/lib/menus/types";
 import { DEFAULT_MEGA_CONFIG } from "@/lib/menus/types";
 
-// Warstwa danych jest podmieniona, bo test dotyczy RENDERU: `getMenuWithItems`
-// to server fn (nie da się jej wywołać bez kontekstu żądania), a `megaFeatured`
-// idzie do Supabase. Kontrakt samych query options ma osobny test.
+// Warstwa danych jest podmieniona tylko w `queryFn`, bo test dotyczy RENDERU:
+// `getMenuWithItems` to server fn (nie da się jej wywołać bez kontekstu
+// żądania), a `megaFeatured` idzie do Supabase. Klucz, świeżość i `select`
+// pochodzą z PRAWDZIWYCH query options, a `queryFn` oddaje menu w KSZTAŁCIE
+// PRZESYŁKI (`compactMenuWithItems`, P2.5) - dokładnie to, co SSR wpisuje do
+// stanu odwodnionego. Każdy test renderu poniżej przechodzi więc przez
+// projekcję i jej odwrotność. `wire: false` podaje pełny wiersz (kontrola),
+// `noSelect: true` czyta przesyłkę BEZ `select` - jak karta otwarta przed
+// wdrożeniem, której stary kod dostaje przesyłkę z nowego serwera.
 const state = vi.hoisted(() => ({
   pending: false,
+  wire: true,
+  noSelect: false,
   data: null as MenuWithItems | null,
 }));
 
-vi.mock("@/lib/menus/queries", () => ({
-  menuWithItemsQueryOptions: (key: string) => ({
-    queryKey: ["menu-with-items", key],
-    queryFn: () =>
-      state.pending ? new Promise<MenuWithItems | null>(() => {}) : Promise.resolve(state.data),
-  }),
-}));
+vi.mock("@/lib/menus/queries", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/menus/queries")>();
+  const { compactMenuWithItems } = await import("@/lib/menus/menu.functions");
+  return {
+    ...real,
+    menuWithItemsQueryOptions: (key: string) => ({
+      ...real.menuWithItemsQueryOptions(key),
+      ...(state.noSelect ? { select: undefined } : {}),
+      queryFn: () =>
+        state.pending
+          ? new Promise<never>(() => {})
+          : Promise.resolve(state.wire ? compactMenuWithItems(state.data) : state.data),
+    }),
+  };
+});
 
 vi.mock("@/lib/menus/megaFeatured", () => ({
   megaFeaturedPostQueryOptions: (postId: string | null) => ({
@@ -76,6 +92,8 @@ async function renderMenu(props: { lang?: "pl" | "en"; mobile?: boolean } = {}) 
 
 beforeEach(() => {
   state.pending = false;
+  state.wire = true;
+  state.noSelect = false;
   state.data = { id: "menu-1", key: "main", name: "Główne", items: [] };
 });
 
@@ -514,5 +532,123 @@ describe("zamykanie panelu", () => {
     await screen.findByRole("menu");
     fireEvent.click(trigger);
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+});
+
+// DIETA STANU ODWODNIONEGO (P2.5). Cache - a więc stan `$tsr` dokumentu - niesie
+// menu w kształcie przesyłki; nagłówek dostaje przez `select` pełne wiersze.
+// Kontrakt jest zerojedynkowy: ten sam znacznik z przesyłki co z pełnego wiersza
+// (inaczej hydratacja nagłówka rozjedzie się z HTML-em starszego izolatu albo
+// z podglądem w edytorze), a w samym cache nie ma pól, które projekcja zdejmuje.
+describe("projekcja przesyłki menu (P2.5)", () => {
+  const MEGA: MegaConfig = {
+    ...DEFAULT_MEGA_CONFIG,
+    columns_per_row: 2,
+    columns: [
+      {
+        title_pl: "Bezpieczeństwo",
+        title_en: "Security",
+        href: "/bezpieczenstwo",
+        links: [{ label_pl: "NATO", label_en: "NATO", href: "/nato", icon: "shield" }],
+      },
+    ],
+  };
+
+  function richMenu(): MenuItemRow[] {
+    return [
+      item({ id: "a", label_pl: "Kontakt", label_en: "Contact", href: "/kontakt", position: 3 }),
+      item({ id: "b", label_pl: "O nas", href: "/o-nas", icon: "info", css_class: "nav-wide" }),
+      item({ id: "b1", parent_id: "b", label_pl: "Zespół", href: "/zespol", ref_id: "r-1" }),
+      item({ id: "b2", parent_id: "b", label_pl: "Kariera", href: "/kariera", position: 1 }),
+      item({
+        id: "c",
+        label_pl: "Analizy",
+        href: "/analizy",
+        mega_enabled: true,
+        mega_config: MEGA,
+      }),
+      item({ id: "d", label_pl: "Komisja", href: "https://ec.europa.eu", target: "_blank" }),
+      item({ id: "e", label_pl: "Zarejestruj się", href: "/rejestracja", visibility: "guest" }),
+    ];
+  }
+
+  async function markup(wire: boolean, mobile: boolean): Promise<string> {
+    state.wire = wire;
+    setMenu(richMenu());
+    const { container, unmount } = await renderMenu({ mobile });
+    // `useId` liczy w obrębie procesu testu, więc drugi render ma inne
+    // `aria-controls` - to szum licznika, nie różnica danych.
+    const html = container.innerHTML.replace(/_r_[0-9a-z]+_/g, "_r_");
+    unmount();
+    return html;
+  }
+
+  it("nagłówek desktopowy i szuflada mobilna z przesyłki = znacznik z pełnego wiersza", async () => {
+    for (const mobile of [false, true]) {
+      const full = await markup(false, mobile);
+      const wire = await markup(true, mobile);
+      expect(full).toContain("Analizy");
+      expect(wire).toBe(full);
+    }
+  });
+
+  it("w cache nie ma `menu_id` ani domyślnego `mega_config`; konfiguracja redaktora zostaje", async () => {
+    state.wire = true;
+    setMenu(richMenu());
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <SiteMenu menuKey="main" lang="pl" />
+      </QueryClientProvider>,
+    );
+    await screen.findByRole("navigation");
+
+    const cached = client.getQueryData<{ items: Array<Record<string, unknown>> }>([
+      "menu-with-items",
+      "main",
+    ]);
+    expect(cached?.items).toHaveLength(7);
+    const raw = JSON.stringify(cached);
+    expect(raw).not.toContain("menu_id");
+    // Domyślne `mega_config` znika z pozycji zagnieżdżonych; pozycje
+    // najwyższego poziomu niosą konfigurację zawsze (stary `MegaPanel`).
+    const nested = cached!.items.filter((row) => row.parent_id);
+    expect(nested.map((row) => row.id)).toEqual(["b1", "b2"]);
+    for (const row of nested) expect(row).not.toHaveProperty("mega_config");
+    expect(cached!.items.find((row) => row.id === "c")?.mega_config).toEqual(MEGA);
+    // `ref_id`, `position` i etykieta EN zostają - edytor menu zapisuje drzewo
+    // z tego wpisu, a schemat zapisu wymaga `ref_id` i `position`.
+    expect(cached!.items.find((row) => row.id === "b1")).toMatchObject({ ref_id: "r-1" });
+    expect(cached!.items.find((row) => row.id === "b2")).toMatchObject({ ref_id: null });
+    expect(cached!.items.find((row) => row.id === "a")).toMatchObject({
+      label_en: "Contact",
+      position: 3,
+    });
+  });
+
+  it("karta sprzed wdrożenia czyta przesyłkę BEZ `select`: ta sama kolejność i działający panel mega", async () => {
+    // Identyfikator server fn nie zależy od treści, więc stary kod (bez
+    // `select`) dostaje przesyłkę przy refetchu. „Analizy" awansuje do mega
+    // przez WNUKI (bez zgody administratora, domyślne `mega_config`).
+    const nestedMenu = [
+      ...richMenu(),
+      item({ id: "c1", parent_id: "c", label_pl: "Raporty", href: "/raporty" }),
+      item({ id: "c1a", parent_id: "c1", label_pl: "Roczne", href: "/raporty/roczne" }),
+    ].map((row) =>
+      row.id === "c" ? { ...row, mega_enabled: false, mega_config: DEFAULT_MEGA_CONFIG } : row,
+    );
+    state.wire = false;
+    setMenu(nestedMenu);
+    const { container: fullView, unmount } = await renderMenu();
+    const full = fullView.innerHTML.replace(/_r_[0-9a-z]+_/g, "_r_");
+    unmount();
+
+    state.wire = true;
+    state.noSelect = true;
+    setMenu(nestedMenu);
+    const { container } = await renderMenu();
+    expect(container.innerHTML.replace(/_r_[0-9a-z]+_/g, "_r_")).toBe(full);
+    fireEvent.click(screen.getByRole("button", { name: /Analizy/ }));
+    expect(await screen.findByText("Roczne")).toBeTruthy();
   });
 });

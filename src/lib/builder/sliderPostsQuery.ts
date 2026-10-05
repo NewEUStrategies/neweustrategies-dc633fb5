@@ -16,13 +16,17 @@ import {
   taxonomyConstraintsFromSlugs,
 } from "@/lib/queries/taxonomyPivot";
 
+/**
+ * Wiersz slidera w cache. Pola językowe są OPCJONALNE, bo zapytanie oddaje
+ * wiersz zrzutowany na język klucza (`localizeSliderPostRows`).
+ */
 export interface SliderPostRow {
   id: string;
   slug: string;
-  title_pl: string | null;
-  title_en: string | null;
-  excerpt_pl: string | null;
-  excerpt_en: string | null;
+  title_pl?: string | null;
+  title_en?: string | null;
+  excerpt_pl?: string | null;
+  excerpt_en?: string | null;
   cover_image_url: string | null;
   published_at: string | null;
   author_id: string | null;
@@ -136,6 +140,38 @@ async function fetchSliderPosts(input: SliderPostsInput): Promise<SliderPostRow[
   return (data ?? []) as SliderPostRow[];
 }
 
+/**
+ * DIETA STANU ODWODNIONEGO (P2.5, HW-3b): wiersze slidera zrzutowane na język
+ * klucza.
+ *
+ * Łańcuch fallbacków jest KOPIĄ widoku, nie ogólną regułą: `PostsSliderWidget`
+ * buduje slajd z `title_pl ?? ""`, `title_en ?? title_pl ?? ""` (zajawki tak
+ * samo), a `SliderRender` wybiera tekst przez `pickI18n` (żądany język -> PL ->
+ * EN). Dla tytułu i zajawki daje to `<lang> || <drugi> || ""` - w sliderze
+ * zajawka SCHODZI na drugi język (w post-liście nie). Projekcja wpieka ten
+ * wynik w pole języka klucza i zdejmuje pola drugiego języka, więc slajd z
+ * wiersza zrzutowanego ma ten sam tytuł i zajawkę co z pełnego.
+ */
+export function localizeSliderPostRows(
+  rows: readonly SliderPostRow[],
+  lang: Lang,
+): SliderPostRow[] {
+  return rows.map((row) => {
+    const { title_pl, title_en, excerpt_pl, excerpt_en, ...rest } = row;
+    return lang === "pl"
+      ? {
+          ...rest,
+          title_pl: title_pl || title_en || null,
+          excerpt_pl: excerpt_pl || excerpt_en || null,
+        }
+      : {
+          ...rest,
+          title_en: title_en || title_pl || null,
+          excerpt_en: excerpt_en || excerpt_pl || null,
+        };
+  });
+}
+
 export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
   const input = sliderPostsInput(c, lang);
   return queryOptions({
@@ -143,13 +179,18 @@ export const sliderPostsQueryOptions = (c: WidgetContent, lang: Lang) => {
     // jest zbiór inwalidacji live, więc rozjazd nazw jest niewyrażalny.
     // `lang` jest CZĘŚCIĄ inputu: przy orderBy="title" queryFn sortuje po
     // title_pl vs title_en, więc klucz bez języka serwował PL-owi wynik
-    // posortowany po EN (i odwrotnie) do końca okna świeżości.
+    // posortowany po EN (i odwrotnie) do końca okna świeżości. Od P2.5 język
+    // klucza decyduje też o KSZTAŁCIE wiersza (`localizeSliderPostRows`).
     queryKey: [WIDGET_QUERY_ROOTS.sliderPosts, input] as const,
-    queryFn: () =>
-      // Per-isolate TTL: hero-slider strony głównej to do 3 zapytań w 2 falach na
-      // render. Klucz cache pochodzi z całego inputu (zawiera już `lang`).
-      edgeTtlCache(`builder:slider-posts:${JSON.stringify(input)}`, 60_000, () =>
-        fetchSliderPosts(input),
+    queryFn: async () =>
+      localizeSliderPostRows(
+        // Per-isolate TTL: hero-slider strony głównej to do 3 zapytań w 2 falach na
+        // render. Klucz cache pochodzi z całego inputu (zawiera już `lang`); w
+        // cache brzegowym leży pełny wiersz, projekcja idzie po nim.
+        await edgeTtlCache(`builder:slider-posts:${JSON.stringify(input)}`, 60_000, () =>
+          fetchSliderPosts(input),
+        ),
+        input.lang,
       ),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,
