@@ -1,7 +1,7 @@
 // Widget wyszukiwarki (nagłówek/builder): cztery premium kubełki podpowiedzi,
 // nawigacja klawiaturą (combobox/aria-activedescendant), ostatnie
 // wyszukiwania, stan pusty, stopka składni + link trybów zaawansowanych.
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-library/react";
 import { SearchButtonWidget } from "../SearchButtonWidget";
 
@@ -157,6 +157,19 @@ const renderWidget = (over: Partial<Parameters<typeof SearchButtonWidget>[0]> = 
   );
 
 describe("SearchButtonWidget", () => {
+  // Model kubełków i dyktowanie widget ładuje dynamicznym importem na
+  // intencję (P2.3). Rozgrzany rejestr modułów trzyma pierwszy przypadek w
+  // limicie `findBy*` także na obciążonej maszynie (transformacja archiwów
+  // i ich zależności trwa setki milisekund). Kolejność ładowania pilnuje
+  // osobny `searchButtonWidget.intentKits.test.tsx`.
+  beforeAll(async () => {
+    await Promise.all([
+      import("@/lib/search/facetModel"),
+      import("@/lib/search/useVoiceSearch"),
+      import("@/components/voice/VoiceListeningIndicator"),
+    ]);
+  });
+
   beforeEach(() => {
     cleanup();
     localStorage.clear();
