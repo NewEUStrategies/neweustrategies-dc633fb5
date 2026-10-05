@@ -4,6 +4,7 @@ import {
   cancelOverlayRequest,
   setConsentOverlayVisible,
   setMarketingConsent,
+  reportConsentSurface,
   __resetOverlayCoordinator,
 } from "@/lib/overlayCoordinator";
 
@@ -215,5 +216,54 @@ describe("overlayCoordinator", () => {
     void requestOverlaySlot("nl-b", { marketing: true }).then(grantedB);
     await vi.advanceTimersByTimeAsync(60_000);
     expect(grantedB).not.toHaveBeenCalled();
+  });
+
+  // P1.3: powłoka zgód z SSR jest widoczna od pierwszego malowania, więc stan
+  // zgłasza korzeń (do montażu banera) TĄ SAMĄ funkcją co baner. Kolejność ma
+  // znaczenie: przy widocznej powierzchni brama zamyka się przed publikacją
+  // zgody, przy niewidocznej zgoda wchodzi przed otwarciem bramy.
+  describe("reportConsentSurface (powłoka i baner)", () => {
+    it("powierzchnia widoczna (brak decyzji): żadna nakładka, także niemarketingowa", async () => {
+      reportConsentSurface(true, null);
+      const granted = vi.fn();
+      void requestOverlaySlot("dialog", { marketing: false }).then(granted);
+      void requestOverlaySlot("popup", { marketing: true }).then(granted);
+      await vi.runOnlyPendingTimersAsync();
+      expect(granted).not.toHaveBeenCalled();
+    });
+
+    it("decyzja z odmową marketingu: niemarketingowe tak, marketingowe nigdy", async () => {
+      reportConsentSurface(true, null);
+      const dialog = vi.fn();
+      const popup = vi.fn();
+      void requestOverlaySlot("dialog", { marketing: false }).then(dialog);
+      void requestOverlaySlot("popup", { marketing: true, priority: 5 }).then(popup);
+      reportConsentSurface(false, false);
+      await vi.runOnlyPendingTimersAsync();
+      expect(dialog).toHaveBeenCalledTimes(1);
+      expect(popup).not.toHaveBeenCalled();
+    });
+
+    it("zgoda publikowana PRZED otwarciem bramy - popup marketingowy nie wchodzi na starej zgodzie", async () => {
+      // Stan „stary": zgoda marketingowa była, powierzchnia widoczna (zmiana decyzji).
+      setMarketingConsent(true);
+      reportConsentSurface(true, true);
+      const popup = vi.fn();
+      void requestOverlaySlot("popup", { marketing: true }).then(popup);
+      // Nowa decyzja: odmowa - otwarcie bramy NIE może przepuścić popupu.
+      reportConsentSurface(false, false);
+      await vi.runOnlyPendingTimersAsync();
+      expect(popup).not.toHaveBeenCalled();
+    });
+
+    it("samo zgłoszenie `null` przy niewidocznej powierzchni otwiera bramę `consentReported`", async () => {
+      const popup = vi.fn();
+      void requestOverlaySlot("popup", { marketing: true }).then(popup);
+      await vi.runOnlyPendingTimersAsync();
+      expect(popup).not.toHaveBeenCalled();
+      reportConsentSurface(false, true);
+      await vi.runOnlyPendingTimersAsync();
+      expect(popup).toHaveBeenCalledTimes(1);
+    });
   });
 });

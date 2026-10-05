@@ -150,19 +150,40 @@ export function NewsletterPopup() {
     // Use the existing trigger delay as preparation time. Data-saver visitors
     // only download resources when the trigger actually fires. No SSR fetch
     // or initial hydration work is added to the root route.
+    //
+    // Wyzwalacze scroll/exit-intent NIE mają czasu do odczekania, więc
+    // przygotowanie (chunki treści popupu, obrazy) startuje na PIERWSZY sygnał
+    // użytkownika - `scroll`, `pointermove` albo `touchstart` (P1.3, TP-4).
+    // Dawniej szło po stałej 1 s od montażu, czyli zawsze w oknie pomiaru,
+    // także u odwiedzającego, który nie przewinie ani nie ruszy myszą.
+    // Wyzwalacz jest bez zmian, a przewinięcie albo ruch myszy do krawędzi
+    // zawsze poprzedza wyzwolenie, więc przygotowanie startuje przed nim (w
+    // najgorszym razie razem z nim - `trigger()` i tak czeka na `prepare()`).
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } })
       .connection;
+    function warm() {
+      cancelWarm = whenIdle(() => {
+        void prepare().catch(() => {});
+      }, 500);
+    }
+    function stopWarmSignals() {
+      window.removeEventListener("scroll", onFirstSignal);
+      window.removeEventListener("pointermove", onFirstSignal);
+      window.removeEventListener("touchstart", onFirstSignal);
+    }
+    function onFirstSignal() {
+      stopWarmSignals();
+      warm();
+    }
     if (!connection?.saveData) {
-      warmTimer = setTimeout(
-        () => {
-          cancelWarm = whenIdle(() => {
-            void prepare().catch(() => {});
-          }, 500);
-        },
-        s.popup_trigger === "delay"
-          ? Math.max(0, Math.max(1, s.popup_delay_seconds) * 1000 - 1500)
-          : 1000,
-      );
+      if (s.popup_trigger === "delay") {
+        warmTimer = setTimeout(warm, Math.max(0, Math.max(1, s.popup_delay_seconds) * 1000 - 1500));
+      } else {
+        const passive: AddEventListenerOptions = { passive: true };
+        window.addEventListener("scroll", onFirstSignal, passive);
+        window.addEventListener("pointermove", onFirstSignal, passive);
+        window.addEventListener("touchstart", onFirstSignal, passive);
+      }
     }
 
     // The trigger only ASKS to open - the overlay coordinator defers the
@@ -235,6 +256,7 @@ export function NewsletterPopup() {
       cancelOverlayRequest("newsletter-popup");
       if (timer) clearTimeout(timer);
       if (warmTimer) clearTimeout(warmTimer);
+      stopWarmSignals();
       cancelWarm?.();
       if (onScroll) window.removeEventListener("scroll", onScroll);
       if (onMouseLeave) document.removeEventListener("mouseleave", onMouseLeave);

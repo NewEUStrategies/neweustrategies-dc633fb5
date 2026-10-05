@@ -33,6 +33,7 @@
 import { readChromeWarmup } from "@/lib/ssr/chromeWarmup";
 import { chromeDegradedCacheControl } from "@/lib/http/cachePolicy";
 import { QueryClient } from "@tanstack/react-query";
+import { createBackgroundScope } from "@/lib/backgroundScope";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GA4_MEASUREMENT_ID } from "@/lib/analytics/ga4Client";
 import { homeSsrDeadline } from "@/lib/ssr/homeSsrBudget";
@@ -71,6 +72,8 @@ const h = vi.hoisted(() => ({
   dictionaryChunk: null as string | null,
   /** Hinty chunków widgetów, które build podstawia w `WIDGET_CHUNK_URLS`. */
   widgetHints: [] as string[],
+  /** Montaże atrapy banera zgód (P1.3): props `takeover` z każdego renderu. */
+  bannerMounts: [] as unknown[],
 }));
 
 vi.mock("@/lib/i18n/localeRuntime", async (o) => ({
@@ -112,6 +115,37 @@ vi.mock("@/lib/seo/widgetPreloads", () => ({
 vi.mock("@/lib/http/responseHeaders", () => ({
   appendLinkHeader: (v: string) => h.linkHeaders.push(v),
   setCacheControlHeader: (v: string) => h.cacheControl.push(v),
+}));
+// Atrapa interaktywnego banera zgód (P1.3): dowodem jest MOMENT i SPOSÓB
+// montażu przez `ConsentSurface` (kolejka P0.3, tor pilny, zapis decyzji), a nie
+// wygląd banera - ten ma własne testy (`ConsentBanner.test.tsx`). Atrapa woła
+// `onReady` z efektu warstwy, jak prawdziwy baner.
+vi.mock("@/components/ConsentBanner", async () => {
+  const { useLayoutEffect } = await import("react");
+  return {
+    ConsentBanner: (props: { takeover?: unknown; onReady?: () => void }) => {
+      useLayoutEffect(() => {
+        props.onReady?.();
+      }, [props]);
+      h.bannerMounts.push(props.takeover);
+      return <div data-testid="consent-banner-stub" />;
+    },
+  };
+});
+// Most rejestru RODO: zapis decyzji zalogowanego idzie do funkcji serwerowej -
+// poza tym plikiem (testy mostu w `lib/consent/__tests__`).
+vi.mock("@/lib/consent/registryBridge", () => ({
+  syncCmpDecisionToRegistry: async () => undefined,
+  backfillRegistryOnLogin: async () => undefined,
+  syncGpcSignalToRegistry: async () => undefined,
+}));
+// `HeadContent`/`Scripts` czytają kontekst routera, którego goły render powłoki
+// dokumentu nie ma (wzorzec `rootShellRender.test.tsx`) - tylko na potrzeby
+// testu kolejności skryptów w `<head>` (P1.3). Reszta modułu prawdziwa.
+vi.mock("@tanstack/react-router", async (o) => ({
+  ...(await o<typeof import("@tanstack/react-router")>()),
+  HeadContent: () => null,
+  Scripts: () => null,
 }));
 vi.mock("@tanstack/router-core/isServer", () => ({
   get isServer() {
@@ -241,7 +275,15 @@ vi.mock("@/lib/seo/brandDefaults", async (o) => ({
   rememberBrandDefaults: (...a: unknown[]) => void h.brand.push(a),
 }));
 
-const { Route, ROOT_WARM_BUDGET_MS, CHROME_WARM_BUDGET_MS } = await import("@/routes/__root");
+const {
+  Route,
+  ROOT_WARM_BUDGET_MS,
+  CHROME_WARM_BUDGET_MS,
+  ConsentShellSlot,
+  ConsentSurface,
+  useNoActivePopupsFromSsr,
+  armCacheBusting,
+} = await import("@/routes/__root");
 
 type Loader = (a: {
   context: { queryClient: QueryClient };
@@ -898,5 +940,529 @@ describe("__root loader -> tag Google w SSR", () => {
     expect(r.scripts.some((s) => s.src?.includes("googletagmanager"))).toBe(false);
     expect(r.scripts.some((s) => s.children?.includes("gtag("))).toBe(false);
     expect(r.scripts.at(-1)?.type).toBe("speculationrules");
+  });
+});
+
+// ── POWŁOKA I BANER ZGÓD (P1.3) ─────────────────────────────────────────────
+//
+// CO TO DOWODZI:
+//  1. `CONSENT_INIT_SCRIPT` stoi w `<head>` ZARAZ PO `THEME_INIT_SCRIPT`, przed
+//     `<body>` - decyzja jest rozstrzygnięta przed pierwszym malowaniem.
+//  2. HYDRATACJA GNIAZDA: przeglądarka bez kodu powłoki zostawia HTML serwera
+//     nietknięty (bez błędu hydratacji, te same węzły po re-renderze rodzica);
+//     kontrola negatywna - gniazdo bez migawki traci powłokę.
+//  3. MOMENT MONTAŻU BANERA: nie przed interakcją; po `pointerdown` czeka do
+//     `click` (strażnik gestu P0.3), potem podmienia powłokę w jednym commicie;
+//     intencja „Dostosuj” i `requestConsentPreferences()` - od razu (tor
+//     pilny); fokus z kontrolki powłoki przechodzi do banera.
+//  4. DECYZJA Z POWŁOKI PO BOOCIE idzie drogą banera (`applyShellDecision`),
+//     bez znacznika „do domknięcia".
+//  5. KOORDYNATOR NAKŁADEK zna stan powłoki od hydratacji: widoczna powłoka =
+//     brama zamknięta; decyzja w powłoce ją otwiera.
+//  6. `PopupHost` bez montażu wyłącznie przy odwodnionej PUSTEJ liście popupów.
+//  7. CACHE-BUSTING (`armCacheBusting`): moduł NIE jest importowany przed punktem
+//     ciszy; chunk-load error sprzed ciszy ściąga go od razu i oddaje mu błąd,
+//     każdy inny błąd - nic (filtr = `looksLikeChunkLoadError`); sprzątanie
+//     zdejmuje nasłuchy i zapis ciszy.
+//  8. Powłoka UKRYTA bez decyzji (GPC) i powłoka z ZASIEWU ustawień: baner
+//     montuje się bez czekania na interakcję.
+describe("__root - powłoka i baner zgód (P1.3)", () => {
+  const consentMods = async () => ({
+    init: await import("@/lib/consent/consentInitScript"),
+    consent: await import("@/lib/ads/consent"),
+    queue: await import("@/lib/performance/postInteractionQueue"),
+    first: await import("@/lib/performance/firstInteraction"),
+    quiet: await import("@/lib/performance/whenQuiescent"),
+    coordinator: await import("@/lib/overlayCoordinator"),
+    rtl: await import("@testing-library/react"),
+  });
+
+  const scriptClicks: EventListener[] = [];
+
+  /** Uruchamia skrypt inline jak przeglądarka w `<head>` (nasłuch `click` na dokumencie). */
+  async function runInitScript(): Promise<void> {
+    const { init } = await consentMods();
+    const realAdd = document.addEventListener.bind(document);
+    const spy = vi.spyOn(document, "addEventListener").mockImplementation(((
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) => {
+      if (type === "click" && typeof listener === "function") scriptClicks.push(listener);
+      realAdd(type, listener, options);
+    }) as typeof document.addEventListener);
+    try {
+      new Function(init.CONSENT_INIT_SCRIPT)();
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  async function resetConsentWorld(): Promise<void> {
+    const { queue, first, quiet, coordinator, rtl } = await consentMods();
+    rtl.cleanup();
+    for (const listener of scriptClicks.splice(0)) document.removeEventListener("click", listener);
+    queue.__resetPostInteractionQueueForTests();
+    first.__resetFirstInteractionForTests();
+    quiet.__resetQuiescenceForTests();
+    coordinator.__resetOverlayCoordinator();
+    document.documentElement.removeAttribute("data-consent-decided");
+    document.documentElement.removeAttribute("data-consent-intent");
+    document.documentElement.removeAttribute("data-consent-js");
+    document.documentElement.removeAttribute("data-consent-gpc");
+    Reflect.deleteProperty(navigator, "globalPrivacyControl");
+    document.body.innerHTML = "";
+    window.localStorage.clear();
+    // Ciasteczko decyzji przeżywa `localStorage.clear()` - a `readLocal` z niego
+    // odtwarza decyzję. Bez tego test „przed decyzją" widziałby decyzję
+    // poprzedniego przypadku.
+    document.cookie = "nes_cookie_consent=; path=/; max-age=0";
+    h.bannerMounts = [];
+  }
+
+  async function mountSurface(
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+  ) {
+    const { rtl } = await consentMods();
+    const { QueryClientProvider } = await import("@tanstack/react-query");
+    const view = rtl.render(
+      <QueryClientProvider client={client}>
+        <ConsentSurface />
+      </QueryClientProvider>,
+    );
+    // Efekt korzenia dociąga prymitywy P0.3 i koordynator `import()`.
+    await rtl.act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    return view;
+  }
+
+  const shellButton = (action: string) =>
+    document.querySelector<HTMLElement>(`[data-consent-shell] [data-consent-action="${action}"]`);
+  const banner = () => document.querySelector('[data-testid="consent-banner-stub"]');
+
+  beforeEach(async () => {
+    await resetConsentWorld();
+  });
+  afterEach(async () => {
+    await resetConsentWorld();
+  });
+
+  it("`CONSENT_INIT_SCRIPT` stoi w `<head>` zaraz po `THEME_INIT_SCRIPT` (render powłoki dokumentu)", async () => {
+    const { init } = await consentMods();
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { THEME_INIT_SCRIPT } = await import("@/lib/theme/themeInitScript");
+    const { DOCK_RESERVE_INIT_SCRIPT } = await import("@/lib/dock/reservedSpace");
+    // `shellComponent` nie jest w publicznym typie `RouteOptions` (framework
+    // czyta je dynamicznie) - wzorzec `rootShellRender.test.tsx`.
+    const opts = Route.options as unknown as Record<string, unknown>;
+    const Shell = opts["shellComponent"] as (p: {
+      children: React.ReactNode;
+    }) => React.ReactElement;
+    const html = renderToStaticMarkup(<Shell>{null}</Shell>);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const scripts = [...doc.head.querySelectorAll("script")];
+    const theme = scripts.findIndex((el) => el.textContent === THEME_INIT_SCRIPT);
+    expect(theme).toBeGreaterThanOrEqual(0);
+    const consent = scripts[theme + 1];
+    expect(consent?.hasAttribute("data-consent-init")).toBe(true);
+    expect(consent?.textContent).toBe(init.CONSENT_INIT_SCRIPT);
+    expect(scripts[theme + 2]?.textContent).toBe(DOCK_RESERVE_INIT_SCRIPT);
+    // W `<head>`, nie w `<body>`: decyzja rozstrzygnięta przed parsowaniem powłoki.
+    expect(doc.body.querySelector("script[data-consent-init]")).toBeNull();
+  });
+
+  it("hydratacja gniazda: HTML serwera zostaje, bez błędu, te same węzły po re-renderze", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const { hydrateRoot } = await import("react-dom/client");
+    const { act, useState } = await import("react");
+    const Server = () => (
+      <div role="dialog" aria-label="Powłoka" data-consent-shell="">
+        <button type="button" data-consent-action="accept">
+          Akceptuj
+        </button>
+      </div>
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(
+      <>
+        <span>0</span>
+        <ConsentShellSlot server={Server} />
+      </>,
+    );
+    document.body.append(container);
+    const before = container.querySelector("[data-consent-shell]");
+    expect(before).not.toBeNull();
+
+    let bump: (n: number) => void = () => {};
+    function ClientTree() {
+      const [n, setN] = useState(0);
+      bump = setN;
+      return (
+        <>
+          <span>{n}</span>
+          <ConsentShellSlot server={null} />
+        </>
+      );
+    }
+    const errors: unknown[] = [];
+    await act(async () => {
+      hydrateRoot(container, <ClientTree />, { onRecoverableError: (e) => errors.push(e) });
+    });
+    await act(async () => bump(1));
+    expect(errors).toEqual([]);
+    expect(container.querySelector("span")?.textContent).toBe("1");
+    // TEN SAM węzeł - React nie przepisał `innerHTML` gniazda.
+    expect(container.querySelector("[data-consent-shell]")).toBe(before);
+  });
+
+  it("kontrola negatywna: gniazdo klienta bez migawki traci powłokę przy hydratacji", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const { hydrateRoot } = await import("react-dom/client");
+    const { act } = await import("react");
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(
+      <div data-consent-shell-slot="" className="contents">
+        <div data-consent-shell="">powłoka</div>
+      </div>,
+    );
+    document.body.append(container);
+    const errors: unknown[] = [];
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await act(async () => {
+      hydrateRoot(container, <div data-consent-shell-slot="" className="contents" />, {
+        onRecoverableError: (e) => errors.push(e),
+      });
+    });
+    consoleError.mockRestore();
+    expect(container.querySelector("[data-consent-shell]")).toBeNull();
+  });
+
+  it("baner NIE montuje się bez interakcji; po `pointerdown` czeka na `click`, potem zastępuje powłokę", async () => {
+    const { rtl } = await consentMods();
+    await runInitScript();
+    await mountSurface();
+    expect(shellButton("accept")).not.toBeNull();
+    expect(banner()).toBeNull();
+
+    rtl.fireEvent.pointerDown(document.body);
+    await rtl.act(async () => {
+      await new Promise((r) => setTimeout(r, 120));
+    });
+    // Strażnik gestu: w trakcie dotknięcia powłoka zostaje (klik nie zgubi celu).
+    expect(banner()).toBeNull();
+    expect(shellButton("accept")).not.toBeNull();
+
+    rtl.fireEvent.pointerUp(document.body);
+    rtl.fireEvent.click(document.body);
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    // Jeden commit: powłoki już nie ma, baner jest.
+    expect(document.querySelector("[data-consent-shell]")).toBeNull();
+    expect(h.bannerMounts.at(-1)).toEqual({ intent: null, focus: null });
+  });
+
+  it("„Dostosuj” w powłoce montuje baner OD RAZU (tor pilny) i przekazuje intencję", async () => {
+    const { rtl } = await consentMods();
+    await runInitScript();
+    await mountSurface();
+    const customize = shellButton("customize");
+    customize?.focus();
+    rtl.fireEvent.click(customize as HTMLElement);
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    expect(h.bannerMounts.at(-1)).toEqual({ intent: "customize", focus: "customize" });
+    expect(document.documentElement.hasAttribute("data-consent-intent")).toBe(false);
+    // Intencja to nie decyzja.
+    expect(window.localStorage.getItem("consent:v2")).toBeNull();
+  });
+
+  it("intencja kliknięta PRZED bootem (atrybut na `<html>`) montuje baner przy starcie", async () => {
+    const { rtl } = await consentMods();
+    document.documentElement.setAttribute("data-consent-intent", "lang-en");
+    await mountSurface();
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    expect(h.bannerMounts.at(-1)).toEqual({ intent: "lang-en", focus: null });
+  });
+
+  it("`requestConsentPreferences()` (link w stopce) montuje baner od razu; fokus z powłoki idzie za nim", async () => {
+    const { rtl, consent } = await consentMods();
+    await runInitScript();
+    await mountSurface();
+    shellButton("reject")?.focus();
+    rtl.act(() => consent.requestConsentPreferences());
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    expect(h.bannerMounts.at(-1)).toEqual({ intent: null, focus: "reject" });
+  });
+
+  it("decyzja w powłoce PO boocie idzie drogą banera: rekord, brak znacznika, powłoka ukryta", async () => {
+    const { rtl, consent } = await consentMods();
+    await runInitScript();
+    await mountSurface();
+    rtl.fireEvent.click(shellButton("reject") as HTMLElement);
+    const stored = JSON.parse(window.localStorage.getItem("consent:v2") ?? "null") as {
+      categories: Record<string, boolean>;
+      source: string;
+    } | null;
+    expect(stored?.categories).toEqual({
+      necessary: true,
+      functional: false,
+      analytics: false,
+      marketing: false,
+    });
+    expect(stored?.source).toBe("local");
+    expect(window.localStorage.getItem(consent.SHELL_PENDING_KEY)).toBeNull();
+    expect(document.documentElement.hasAttribute("data-consent-decided")).toBe(true);
+  });
+
+  it("koordynator nakładek: widoczna powłoka zamyka bramę od hydratacji, decyzja w powłoce ją otwiera", async () => {
+    const { rtl, coordinator } = await consentMods();
+    await runInitScript();
+    await mountSurface();
+    const granted = vi.fn();
+    void coordinator.requestOverlaySlot("dialog", { marketing: false }).then(granted);
+    await rtl.act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    expect(granted).not.toHaveBeenCalled();
+    rtl.fireEvent.click(shellButton("accept") as HTMLElement);
+    await rtl.waitFor(() => expect(granted).toHaveBeenCalledTimes(1));
+  });
+
+  it("decyzja zapisana przed wejściem: brama nakładek otwarta od hydratacji, bez montażu banera", async () => {
+    const { rtl, coordinator } = await consentMods();
+    window.localStorage.setItem(
+      "consent:v2",
+      JSON.stringify({
+        version: 2,
+        ts: 1,
+        categories: { necessary: true, functional: true, analytics: true, marketing: true },
+      }),
+    );
+    await mountSurface();
+    const granted = vi.fn();
+    void coordinator.requestOverlaySlot("popup", { marketing: true }).then(granted);
+    await rtl.waitFor(() => expect(granted).toHaveBeenCalledTimes(1));
+    expect(banner()).toBeNull();
+    expect(document.documentElement.hasAttribute("data-consent-decided")).toBe(true);
+  });
+
+  it("`PopupHost` bez montażu WYŁĄCZNIE przy odwodnionej pustej liście aktywnych popupów", async () => {
+    const { rtl } = await consentMods();
+    const { QueryClientProvider } = await import("@tanstack/react-query");
+    const probe = (client: QueryClient) =>
+      rtl.renderHook(() => useNoActivePopupsFromSsr(), {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }).result.current;
+    const none = new QueryClient();
+    expect(probe(none)).toBe(false);
+    const empty = new QueryClient();
+    empty.setQueryData(["builder-popups-active"], []);
+    expect(probe(empty)).toBe(true);
+    const some = new QueryClient();
+    some.setQueryData(["builder-popups-active"], [{ id: "p1" }]);
+    expect(probe(some)).toBe(false);
+  });
+
+  it("siatka cache-bustingu: chunk-load error sprzed ciszy przeładowuje raz, inny błąd - nic", async () => {
+    const { handleChunkLoadFailure } = await import("@/lib/cacheBusting");
+    const replace = vi.fn();
+    const location = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { href: "https://neweuropeanstrategies.com/a", replace },
+    });
+    try {
+      window.sessionStorage.clear();
+      handleChunkLoadFailure(new Error("Something else"));
+      expect(replace).not.toHaveBeenCalled();
+      handleChunkLoadFailure(new TypeError("Failed to fetch dynamically imported module: /x.js"));
+      expect(replace).toHaveBeenCalledTimes(1);
+      handleChunkLoadFailure("ChunkLoadError: Loading chunk 7 failed");
+      expect(replace).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: location });
+      window.sessionStorage.clear();
+    }
+  });
+
+  it("GPC: powłoka ukryta, baner (z notą) montuje się po boocie BEZ interakcji", async () => {
+    const { rtl } = await consentMods();
+    Object.defineProperty(navigator, "globalPrivacyControl", { configurable: true, value: true });
+    await runInitScript();
+    expect(document.documentElement.hasAttribute("data-consent-gpc")).toBe(true);
+    await mountSurface();
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    expect(window.localStorage.getItem("consent:v2")).toBeNull();
+  });
+
+  it("powłoka z ZASIEWU ustawień: gdy dojadą prawdziwe, baner przejmuje kartę od razu", async () => {
+    const { rtl } = await consentMods();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(["site-settings"], {}, { updatedAt: 0 });
+    await runInitScript();
+    await mountSurface(client);
+    await rtl.act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+    expect(banner()).toBeNull();
+    rtl.act(() => {
+      client.setQueryData(["site-settings"], { privacy: { cookie_banner: false } });
+    });
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+  });
+});
+
+// ── CACHE-BUSTING W PUNKCIE CISZY (P1.3, TP-4) ──────────────────────────────
+//
+// `armCacheBusting` z atrapami OBU modułów (wstrzyknięte, bez `vi.mock` -
+// reszta pliku używa prawdziwego punktu ciszy): rewersja do `whenIdle(…, 3000)`
+// albo import bez filtra błędów wywraca te testy.
+describe("__root - armCacheBusting (P1.3, TP-4)", () => {
+  function harness() {
+    const calls = { load: 0, start: 0, failures: [] as unknown[], stops: 0 };
+    const quiet = {
+      consumer: null as null | (() => unknown),
+      priority: "",
+      cancelled: false,
+    };
+    const module = {
+      startCacheBusting: () => {
+        calls.start += 1;
+        return () => {
+          calls.stops += 1;
+        };
+      },
+      handleChunkLoadFailure: (reason: unknown) => {
+        calls.failures.push(reason);
+      },
+    };
+    const load = async () => {
+      calls.load += 1;
+      return module;
+    };
+    const loadQuiet = async () => ({
+      onQuiescent: (task: () => unknown, options: { priority: string }) => {
+        quiet.consumer = task;
+        quiet.priority = options.priority;
+        return () => {
+          quiet.cancelled = true;
+        };
+      },
+    });
+    const background = createBackgroundScope();
+    const router = { invalidate: () => undefined };
+    const disarm = armCacheBusting(background, router, load, loadQuiet);
+    const settle = () => new Promise((r) => setTimeout(r, 0));
+    return { calls, quiet, background, disarm, settle };
+  }
+
+  const chunkError = () => new TypeError("Failed to fetch dynamically imported module: /a.js");
+
+  it("bez błędu moduł NIE jest importowany przed punktem ciszy; konsument ciszy (klasa `overlays`) go importuje", async () => {
+    const t = harness();
+    await t.settle();
+    expect(t.calls.load).toBe(0);
+    expect(t.quiet.priority).toBe("overlays");
+    await t.quiet.consumer?.();
+    await t.settle();
+    expect(t.calls.load).toBe(1);
+    expect(t.calls.start).toBe(1);
+    t.disarm();
+    t.background.dispose();
+    expect(t.calls.stops).toBe(1);
+  });
+
+  it("chunk-load error PRZED ciszą: import od razu i błąd trafia do `handleChunkLoadFailure`", async () => {
+    const t = harness();
+    await t.settle();
+    const error = chunkError();
+    window.dispatchEvent(new ErrorEvent("error", { error, message: error.message }));
+    await t.settle();
+    await t.settle();
+    expect(t.calls.load).toBe(1);
+    expect(t.calls.failures).toEqual([error]);
+    // Po starcie moduł ma własny nasłuch - wczesny jest zdjęty.
+    window.dispatchEvent(new ErrorEvent("error", { error: chunkError() }));
+    await t.settle();
+    expect(t.calls.failures).toHaveLength(1);
+    // Cisza po starcie nie importuje drugi raz.
+    await t.quiet.consumer?.();
+    expect(t.calls.load).toBe(1);
+    t.disarm();
+    t.background.dispose();
+  });
+
+  it("odrzucona obietnica z chunk-load error też ściąga moduł", async () => {
+    const t = harness();
+    await t.settle();
+    const reason = new Error("error loading dynamically imported module");
+    const event = new Event("unhandledrejection");
+    Object.defineProperty(event, "reason", { value: reason });
+    window.dispatchEvent(event);
+    await t.settle();
+    await t.settle();
+    expect(t.calls.load).toBe(1);
+    expect(t.calls.failures).toEqual([reason]);
+    t.disarm();
+    t.background.dispose();
+  });
+
+  it("filtr wczesnych błędów = `looksLikeChunkLoadError` dla błędów przeglądarek i Vite (`Error`, napis)", async () => {
+    const { looksLikeChunkLoadError } = await import("@/lib/cacheBusting");
+    const corpus: Array<[string, unknown]> = [
+      [
+        "ResizeObserver",
+        new Error("ResizeObserver loop completed with undelivered notifications."),
+      ],
+      ["fetch", new TypeError("Failed to fetch")],
+      ["skrypt obcy", "Script error."],
+      ["ChunkLoadError", new Error("ChunkLoadError: Loading chunk 12 failed.")],
+      ["Loading chunk (napis)", "Loading chunk vendor-react failed"],
+      ["Chrome", new TypeError("Failed to fetch dynamically imported module: https://x/a.js")],
+      ["Safari", new TypeError("Importing a module script failed.")],
+      ["Firefox", new Error("error loading dynamically imported module: /b.js")],
+      ["null", null],
+      ["pusty napis", ""],
+    ];
+    for (const [label, reason] of corpus) {
+      const t = harness();
+      await t.settle();
+      window.dispatchEvent(new ErrorEvent("error", { error: reason }));
+      await t.settle();
+      await t.settle();
+      expect(t.calls.load > 0, label).toBe(looksLikeChunkLoadError(reason));
+      t.disarm();
+      t.background.dispose();
+    }
+  });
+
+  it("obiekt spoza `Error` nie ściąga modułu przed ciszą (świadomy brak - błędy chunków to zawsze `Error`)", async () => {
+    const t = harness();
+    await t.settle();
+    window.dispatchEvent(new ErrorEvent("error", { error: { message: "Loading chunk 3 failed" } }));
+    await t.settle();
+    expect(t.calls.load).toBe(0);
+    t.disarm();
+    t.background.dispose();
+  });
+
+  it("sprzątanie zdejmuje nasłuch wczesnych błędów i zapis w punkcie ciszy", async () => {
+    const t = harness();
+    await t.settle();
+    t.disarm();
+    expect(t.quiet.cancelled).toBe(true);
+    window.dispatchEvent(new ErrorEvent("error", { error: chunkError() }));
+    await t.settle();
+    expect(t.calls.load).toBe(0);
+    t.background.dispose();
+  });
+
+  it("sprzątanie PRZED dociągnięciem prymitywu ciszy nie zostawia zapisu", async () => {
+    const t = harness();
+    t.disarm();
+    await t.settle();
+    expect(t.quiet.consumer).toBeNull();
+    t.background.dispose();
   });
 });
