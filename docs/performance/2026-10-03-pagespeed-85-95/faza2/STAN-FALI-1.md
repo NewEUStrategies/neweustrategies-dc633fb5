@@ -4,6 +4,28 @@ Bramka fali 1 programu PSI 85/95 (`PLAN-FALE-1-2.md` §2.3 pkt 5, kryteria (a)�
 `faza1/PLAN.json`, Definition of Done fali 1). Wszystkie pozycje fali 1 (P1.0b, P1.1, P1.2, P1.3, P1.4, P1.6, P1.7) są
 scalone do gałęzi PR `claude/zen-johnson-wpzoxv`.
 
+> **Aktualizacja 2026-10-05, po scaleniu P1.3b (`8d9c8d2a2`).** Kryterium (d) jest naprawione. Powłoka zgód jest
+> odsłaniana dopiero wtedy, gdy parser domknie ją w całości: statyczny skrypt `CONSENT_SHELL_REVEAL_SCRIPT` (ostatnie
+> dziecko gniazda, tylko render serwera) ustawia `html[data-consent-parsed]`, a do tego czasu karta ma `display: none`,
+> więc ucięta karta zakotwiczona od dołu nigdy się nie maluje. Dowód (raporty `P1.3b-*.md`):
+>
+> - **deterministyczny** (nowy przypadek w `e2e-performance/consent-shell-geometry.spec.ts`, dokument podany w dwóch
+>   porcjach rozciętych w środku karty z przerwą 800 ms): baza `67c87e16` oblewa (przesunięcie powłoki 0,0545 mobile,
+>   0,0138 desktop), P1.3b daje 0 przesunięć na obu formach;
+> - **A/B n = 10** (mobile, desktop4x) wobec `67c87e16`: 0/20 przebiegów z przesunięciem powłoki w B. Baza też miała
+>   0/20, bo host był szybszy niż w bramce (benchmarkIndex ok. 2300 zamiast ok. 1300) i parser rzadko oddawał wątek w
+>   środku karty; dlatego rozstrzyga dowód deterministyczny. Bez regresji: `observedSpeedIndex` mediana mobile
+>   372 → 340 ms, desktop 380 → 368 ms, TBT i LCP w szumie (pary: mobile TBT −11 ms przy MDE 58 ms, LCP +0,022 s przy
+>   MDE 0,064 s);
+> - **waga dokumentu** zielona bez zmiany progów: +127 B raw, ok. +50 B gzip (zapas htmlGzip ok. 857 B).
+>
+> Dowód P1.3b biegł na drzewie po scaleniu `main` z PR #475, więc na scalonej głowie są teraz zmierzone także
+> `build:smoke`, `check:bundle` (overall 4791,2 KB, czerwone tak jak na `main`), `check:document-weight` (zielone),
+> e2e artefaktu (8/8), spec powłoki (8/8) i Lighthouse. `/dev/null` (§0) jest znów urządzeniem znakowym 1:3 od
+> restartu kontenera. Desktopowe 0,003–0,011 (nagłówek i sekcja `…0029`) występuje po obu stronach i zostaje w
+> liście przekazania (pkt 9, P2.3). Kryteria fali po tej zmianie: (a) częściowo (K13, K9b1/K10 przekazane), (b) co do
+> intencji, (c), (d) i (e) zaliczone, (f) zmierzone (P3.3 i P3.4 obowiązkowe przed wdrożeniem).
+
 - **A = W0** = `main` @ `ff719b9a6` (produkcja bez fali 1), worktree `$SCRATCH/base-w1gate`.
 - **B = W1** = gałąź PR @ `45eb5747c` (po scaleniu P1.3 i jego raportów), worktree `$SCRATCH/gate-w1`.
 - Oba drzewa zbudowane `BUNDLE_INVENTORY=1 bun run build:smoke`; kopie `lighthouse-local.mjs` po obu stronach bajt w
