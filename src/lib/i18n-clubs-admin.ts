@@ -469,6 +469,7 @@ export const adminClubsPl = {
         reply: "Odpowiedź",
         member: "Członek",
         group: "Dział",
+        club: "Klub",
       },
 
       bansTitle: "Blokady w klubie",
@@ -526,6 +527,10 @@ export const adminClubsPl = {
         move: "Przeniesienie tematu",
         edit: "Redakcja wpisu",
         group_delete: "Usunięcie działu",
+        report: "Zgłoszenie treści",
+        invite_segment: "Kampania segmentowa",
+        club_proposed: "Zgłoszenie klubu",
+        club_updated: "Zmiana danych klubu",
       },
 
       edit: "Popraw",
@@ -1012,6 +1017,7 @@ export const adminClubsEn = {
         reply: "Reply",
         member: "Member",
         group: "Section",
+        club: "Club",
       },
 
       bansTitle: "Club bans",
@@ -1069,6 +1075,10 @@ export const adminClubsEn = {
         move: "Topic moved",
         edit: "Entry edited",
         group_delete: "Section deleted",
+        report: "Content reported",
+        invite_segment: "Segment campaign",
+        club_proposed: "Club proposed",
+        club_updated: "Club details changed",
       },
 
       edit: "Edit",
