@@ -96,3 +96,8 @@
 - [x] Ujednolicić typografię, rozmiary, odstępy i geometrię widgetów między jasnym i ciemnym trybem.
 - [x] Zsynchronizować istniejące zapisane wartości oraz zablokować ponowne tworzenie rozbieżności w edytorze.
 - [x] Dodać testy kontraktowe i zweryfikować reprezentatywne strony w obu trybach.
+
+## Tło zgodne z kartą autora
+
+- [ ] Ustawić domyślne i zapisane jasne tło #F8F7F3, zachowując ciemny motyw.
+- [ ] Zweryfikować kolor strony w podglądzie i testy kolorów globalnych.
