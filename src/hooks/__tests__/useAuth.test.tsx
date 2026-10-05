@@ -816,6 +816,22 @@ describe("AuthProvider - szybka ścieżka gościa", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["public", "resolved"] });
   });
 
+  it("INITIAL_SESSION z sesją u gościa to zmiana tożsamości: inwalidacja jak przy logowaniu", async () => {
+    // Prawdziwe SDK może wysłać INITIAL_SESSION, zanim `getSession()` wróci
+    // (klient utworzony po logowaniu w innej karcie). Gość od startu ustalił
+    // już tożsamość „gość", więc sesja w INITIAL_SESSION nie może zostać
+    // potraktowana jako startowa - inaczej treść zablokowana zostaje w cache.
+    const { qc } = renderProbe();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    act(() => markSupabaseClientCreated());
+    await act(async () => {
+      h.authCb!("INITIAL_SESSION", makeSession("u-x"));
+    });
+    await waitFor(() => expect(screen.getByTestId("uid")).toHaveTextContent("u-x"));
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["unlocked-body"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["public", "resolved"] });
+  });
+
   it("INITIAL_SESSION bez sesji od klienta utworzonego przez zapytanie nie renderuje konsumentów", async () => {
     let renders = 0;
     function Counter() {

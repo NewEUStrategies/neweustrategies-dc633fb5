@@ -112,7 +112,9 @@
 // `ThemeProvider` (`readStored` w przejściu). Dopóki providery nad wyspami
 // zmieniają wartość kontekstu przy boocie, wyspy otwierają się zaraz po nim
 // (podział na klatki zostaje, odroczenia poza okno TBT nie ma) - wymóg dla
-// P1.7 i P2.2: stała wartość kontekstu przy boocie gościa.
+// P2.2: stała wartość kontekstu przy boocie gościa. P1.7 zmierzyła ją bez
+// wysp i wycofała (regres TBT po commicie) - patrz `useAuth.tsx`, blok
+// „DLACZEGO NIE STAŁA WARTOŚĆ KONTEKSTU…"; wraca razem z wyspami P2.2.
 //
 // `data-island-state` (kontrakt P0.6, `@/lib/webVitals`): DOKŁADNIE
 // `pending` (w HTML serwera i do commitu granicy) i `hydrated` (po commicie).

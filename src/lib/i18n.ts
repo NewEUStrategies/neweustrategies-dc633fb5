@@ -86,18 +86,20 @@ const sharedCore = new Map<string, CoreBundle>();
  * rdzenia, zamienia na własną kopię (ta sama kopia JSON, co `storeCopy`,
  * tylko dla jednego poddrzewa). Także przy scaleniu płytkim - tam kopia jest
  * zbędna, ale nieszkodliwa, a nakładki i tak scalają głęboko. Obsługuje formę
- * ścieżkową i18next (`addResourceBundle("pl.translation", zasoby, deep)`).
+ * ścieżkową i18next (`addResourceBundle("pl.translation", zasoby, deep)`);
+ * ścieżka 3+ segmentów (`"pl.translation.admin"`) scala i zapisuje WEWNĄTRZ
+ * poddrzewa `admin`, więc kopię dostaje właśnie ono.
  */
 function installCopyOnWrite(): void {
   const original = i18n.addResourceBundle.bind(i18n);
   i18n.addResourceBundle = ((...args: Parameters<typeof i18n.addResourceBundle>) => {
     // Forma ścieżkowa przesuwa argumenty: (ścieżka, zasoby, deep).
-    const [lang, dottedNs] = args[0].split(".");
+    const [lang, dottedNs, top] = args[0].split(".");
     const resources: unknown = dottedNs ? args[1] : args[2];
     const core = sharedCore.get(lang);
     const bundle = i18n.store.data[lang]?.translation as Record<string, unknown> | undefined;
     if ((dottedNs ?? args[1]) === "translation" && core && bundle && resources) {
-      for (const key of Object.keys(resources)) {
+      for (const key of top === undefined ? Object.keys(resources) : [top]) {
         const shared = core[key];
         if (shared && typeof shared === "object" && bundle[key] === shared) {
           bundle[key] = JSON.parse(JSON.stringify(shared));
