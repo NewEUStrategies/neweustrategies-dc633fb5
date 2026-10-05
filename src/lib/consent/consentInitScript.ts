@@ -44,6 +44,18 @@
 // stary silnik zostawiają powłokę widoczną i baner do obsłużenia po boocie
 // (= zachowanie sprzed P1.3, tylko z wcześniejszym malowaniem).
 //
+// ODSŁONIĘCIE PO DOMKNIĘCIU W PARSERZE (P1.3b). Powłoka leży w HTML-u za
+// stopką (ok. 200 KB od początku dokumentu, w jednej długiej linii), a jest
+// `fixed` i zakotwiczona od DOŁU. Gdy parser odda wątek w jej środku, klatka
+// maluje uciętą kartę, a dopisanie reszty powiększa ją w górę - przesunięcie
+// układu (bramka fali 1, kryterium (d): CLS 0,066 i 0,039 na mobile, 0,016 na
+// desktopie). Dlatego karta jest ukryta, dopóki statyczny skrypt
+// `CONSENT_SHELL_REVEAL_SCRIPT` (niżej), stojący w gnieździe TUŻ ZA nią, nie
+// ustawi `html[data-consent-parsed]`: parser wykonuje go dopiero po wstawieniu
+// całej karty, więc ucięta karta nigdy się nie maluje, a pojawienie się
+// gotowej nie jest przesunięciem (Layout Instability liczy ruch węzłów
+// widocznych w poprzedniej klatce).
+//
 // PARTNER SKRYPTU PO BOOCIE (`startConsentTakeover` na dole pliku): odbiera
 // zdarzenia skryptu (decyzja, intencja), domyka decyzję sprzed bootu, zgłasza
 // stan powłoki koordynatorowi nakładek i planuje montaż interaktywnego banera
@@ -95,6 +107,15 @@ export const CONSENT_GPC_ATTR = `${ATTR}gpc`;
  * migotania nie ma, bo skrypt stoi w `<head>`, przed powłoką.
  */
 export const CONSENT_JS_ATTR = `${ATTR}js`;
+/**
+ * Atrybut na `<html>`: parser domknął gniazdo powłoki (P1.3b) - ustawia go
+ * `CONSENT_SHELL_REVEAL_SCRIPT`, stojący w gnieździe za kartą. BEZ niego powłoka
+ * jest ukryta, więc klatka malowana w trakcie parsowania karty nie pokazuje
+ * jej uciętej wersji (nagłówek pliku, „ODSŁONIĘCIE PO DOMKNIĘCIU W PARSERZE").
+ * Atrybut stoi także wtedy, gdy baner jest wyłączony (gniazdo bez karty) -
+ * znaczy „parser minął gniazdo", nie „karta jest w DOM-ie".
+ */
+export const CONSENT_PARSED_ATTR = `${ATTR}parsed`;
 /** Atrybut na `<html>`: intencja kliknięta w powłoce przed bootem (np. `customize`). */
 export const CONSENT_INTENT_ATTR = `${ATTR}intent`;
 /** Atrybut korzenia powłoki - zakres delegowanego `click`. */
@@ -179,6 +200,17 @@ function buildConsentInitScript(): string {
  * (zachowanie sprzed P1.3).
  */
 export const CONSENT_INIT_SCRIPT = /* @__PURE__ */ buildConsentInitScript();
+
+/**
+ * Skrypt odsłonięcia powłoki (P1.3b): ostatnie dziecko gniazda powłoki
+ * (`ConsentShellSlot` w `__root.tsx`, wyłącznie render serwera), więc parser
+ * wykonuje go DOPIERO po wstawieniu całej karty. Ustawia
+ * `html[data-consent-parsed]`, bez którego karta ma `display: none` (wariant
+ * w `ConsentShell.tsx`). Literał bez logiki i bez wstawek z bazy (każdy bajt
+ * stoi w HTML-u każdej strony); bez JavaScriptu powłoka i tak jest ukryta
+ * (`data-consent-js`), więc nie potrzebuje `<noscript>`.
+ */
+export const CONSENT_SHELL_REVEAL_SCRIPT = `document.documentElement.setAttribute('${CONSENT_PARSED_ATTR}','')`;
 
 /** Akcja kontrolki z atrybutu/zdarzenia albo `null`, gdy to nie jest znana akcja. */
 export function parseShellAction(value: string | null | undefined): ConsentShellAction | null {
@@ -278,8 +310,11 @@ function onSeededSettingsReplaced(
  *       `shell`, cel = gniazdo; strażnik gestu trzyma krok do `click`),
  *       w ostateczności punkt ciszy (klasa `shell`);
  *     - brak decyzji, ale powłoka UKRYTA (sygnał GPC - karta banera ma notę,
- *       której powłoka nie ma; albo skrypt inline nie zadziałał): od razu po
- *       boocie (`release: "immediate"`) - jak przed P1.3, baner z notą;
+ *       której powłoka nie ma; skrypt inline nie zadziałał; skrypt
+ *       odsłonięcia za gniazdem się nie wykonał albo gniazda nie było w HTML-u):
+ *       od razu po boocie (`release: "immediate"`) - jak przed P1.3, baner
+ *       z notą. Boot startuje z modułu stojącego w dokumencie ZA gniazdem,
+ *       więc brak `data-consent-parsed` w tej chwili jest ostateczny;
  *     - powłoka z ZASIEWU ustawień, gdy dojadą prawdziwe (D5): od razu;
  *     - intencja z powłoki albo `requestConsentPreferences()`: tor pilny
  *       (start importu w pierwszym mikrozadaniu);
@@ -325,9 +360,15 @@ export function startConsentTakeover({ mount, slot, settings }: ConsentTakeoverH
   const mountSoon = () => {
     cancels.push(enqueue(mountOnce, { priority: "shell", release: "immediate" }));
   };
-  /** Karta zgód należy się odwiedzającemu, ale powłoki nie widać (GPC, brak skryptu). */
+  /**
+   * Karta zgód należy się odwiedzającemu, ale powłoki nie widać (GPC, brak
+   * skryptu inline, brak odsłonięcia za gniazdem) - te same warunki co warianty
+   * ukrywania w `ConsentShell.tsx`.
+   */
   const shellHidden = () =>
-    html.hasAttribute(CONSENT_GPC_ATTR) || !html.hasAttribute(CONSENT_JS_ATTR);
+    html.hasAttribute(CONSENT_GPC_ATTR) ||
+    !html.hasAttribute(CONSENT_JS_ATTR) ||
+    !html.hasAttribute(CONSENT_PARSED_ATTR);
 
   const onDecision = (event: Event) => {
     const action = event instanceof CustomEvent ? parseShellAction(String(event.detail)) : null;

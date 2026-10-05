@@ -21,10 +21,13 @@
 //  5. Decyzja sprzed bootu zostawia znacznik, który domyka
 //     `finalizePendingShellDecision()` (profil i rejestr RODO zalogowanego).
 //  6. Powłoka widoczna WYŁĄCZNIE z działającym skryptem (`data-consent-js`),
-//     bez decyzji i bez GPC (`data-consent-gpc`, odczyt = `readGpcSignal`).
+//     po domknięciu w parserze (`data-consent-parsed` ze skryptu odsłonięcia
+//     za kartą, P1.3b), bez decyzji i bez GPC (`data-consent-gpc`, odczyt =
+//     `readGpcSignal`).
 //  7. Partner po boocie montuje baner we właściwym momencie: przy ukrytej
-//     powłoce bez decyzji (GPC, brak skryptu) od razu, przy decyzji - bez wpisu
-//     w pierwszym zadaniu po interakcji, przy zasiewie ustawień - po refetchu.
+//     powłoce bez decyzji (GPC, brak skryptu, brak odsłonięcia) od razu, przy
+//     decyzji - bez wpisu w pierwszym zadaniu po interakcji, przy zasiewie
+//     ustawień - po refetchu.
 //
 // Skrypt URUCHAMIAMY przez `new Function` na dokumencie happy-dom, a decyzję
 // banera liczy PRAWDZIWY `consent.ts` i PRAWDZIWY `ConsentBanner`. Atrapy
@@ -101,8 +104,10 @@ import {
   CONSENT_INIT_SCRIPT,
   CONSENT_INTENT_ATTR,
   CONSENT_JS_ATTR,
+  CONSENT_PARSED_ATTR,
   CONSENT_SHELL_DECISION_EVENT,
   CONSENT_SHELL_INTENT_EVENT,
+  CONSENT_SHELL_REVEAL_SCRIPT,
   isShellDecision,
   parseShellAction,
   startConsentTakeover,
@@ -189,8 +194,12 @@ function decidedAttr(): boolean {
   return document.documentElement.hasAttribute(CONSENT_DECIDED_ATTR);
 }
 
-/** Powłoka w DOM-ie z kontrolkami jak w `ConsentCompactCard`. */
-function mountShell(): HTMLElement {
+/**
+ * Powłoka w DOM-ie z kontrolkami jak w `ConsentCompactCard`. Domyślnie parser
+ * „mija gniazdo" - wykonuje skrypt odsłonięcia stojący za kartą (P1.3b);
+ * `revealed: false` = skrypt odsłonięcia się nie wykonał.
+ */
+function mountShell({ revealed = true }: { revealed?: boolean } = {}): HTMLElement {
   const root = document.createElement("div");
   root.setAttribute("data-consent-shell", "");
   root.innerHTML = [
@@ -201,6 +210,7 @@ function mountShell(): HTMLElement {
     '<button type="button" data-consent-action="lang-en">EN</button>',
   ].join("");
   document.body.append(root);
+  if (revealed) new Function(CONSENT_SHELL_REVEAL_SCRIPT)();
   return root;
 }
 
@@ -238,6 +248,7 @@ function resetDocument(): void {
   document.documentElement.removeAttribute(CONSENT_INTENT_ATTR);
   document.documentElement.removeAttribute(CONSENT_GPC_ATTR);
   document.documentElement.removeAttribute(CONSENT_JS_ATTR);
+  document.documentElement.removeAttribute(CONSENT_PARSED_ATTR);
   document.body.innerHTML = "";
   window.localStorage.clear();
   window.sessionStorage.clear();
@@ -371,6 +382,25 @@ describe("widoczność powłoki: działający skrypt i sygnał GPC", () => {
       spy.mockRestore();
     }
     expect(html().hasAttribute(CONSENT_JS_ATTR)).toBe(false);
+  });
+
+  it("skrypt odsłonięcia (P1.3b) ustawia `data-consent-parsed` i nic poza tym", () => {
+    expect(html().hasAttribute(CONSENT_PARSED_ATTR)).toBe(false);
+    const before = [...html().attributes].map((a) => a.name);
+    new Function(CONSENT_SHELL_REVEAL_SCRIPT)();
+    expect(html().getAttribute(CONSENT_PARSED_ATTR)).toBe("");
+    expect([...html().attributes].map((a) => a.name)).toEqual([...before, CONSENT_PARSED_ATTR]);
+    // Drugie wykonanie (np. ten sam węzeł przepisany przez `innerHTML`) - bez wyjątku i zmian.
+    expect(() => new Function(CONSENT_SHELL_REVEAL_SCRIPT)()).not.toThrow();
+    expect(html().getAttribute(CONSENT_PARSED_ATTR)).toBe("");
+  });
+
+  it("skrypt odsłonięcia to statyczny literał bez znaków domykających `<script>` (bajty HTML-a każdej strony)", () => {
+    expect(CONSENT_PARSED_ATTR).toBe("data-consent-parsed");
+    expect(CONSENT_SHELL_REVEAL_SCRIPT).toBe(
+      "document.documentElement.setAttribute('data-consent-parsed','')",
+    );
+    expect(CONSENT_SHELL_REVEAL_SCRIPT).not.toMatch(/[<>]/);
   });
 
   it("PARYTET z `readGpcSignal`: `data-consent-gpc` dokładnie przy aktywnym sygnale", () => {
@@ -1018,6 +1048,23 @@ describe("startConsentTakeover (partner skryptu po boocie)", () => {
     const root = mountShell();
     stop = startConsentTakeover(host(root));
     await vi.waitFor(() => expect(mounts).toHaveLength(1));
+  });
+
+  it("skrypt odsłonięcia się nie wykonał (brak `data-consent-parsed`, powłoka ukryta): baner od razu", async () => {
+    const root = mountShell({ revealed: false });
+    runScript();
+    expect(document.documentElement.hasAttribute(CONSENT_JS_ATTR)).toBe(true);
+    stop = startConsentTakeover(host(root));
+    await vi.waitFor(() => expect(mounts).toHaveLength(1));
+  });
+
+  it("kontrola negatywna: ten sam stan PO odsłonięciu czeka na interakcję", async () => {
+    const root = mountShell({ revealed: false });
+    runScript();
+    new Function(CONSENT_SHELL_REVEAL_SCRIPT)();
+    stop = startConsentTakeover(host(root));
+    await frames();
+    expect(mounts).toEqual([]);
   });
 
   describe("powłoka z zasiewu ustawień (D5)", () => {

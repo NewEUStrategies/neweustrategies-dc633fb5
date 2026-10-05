@@ -60,11 +60,11 @@ import {
   isClientOnlyDocument,
 } from "../lib/routing/clientOnlyDocument";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
-// Skrypt zgód i powłoka banera - WYŁĄCZNIE w gałęziach `.server()` niżej
+// Skrypty zgód i powłoka banera - WYŁĄCZNIE w gałęziach `.server()` niżej
 // (`RootShell`, `ConsentShellSlot`): kompilator Start wycina je z bundla
 // przeglądarki razem z tymi importami. W przeglądarce `consentInitScript` to
 // leniwy chunk partnera skryptu (`ConsentSurface`).
-import { CONSENT_INIT_SCRIPT } from "../lib/consent/consentInitScript";
+import { CONSENT_INIT_SCRIPT, CONSENT_SHELL_REVEAL_SCRIPT } from "../lib/consent/consentInitScript";
 import type { ConsentTakeover } from "../lib/consent/consentInitScript";
 import { ConsentShell } from "../components/consent/ConsentShell";
 import type { ConsentBannerProps } from "../components/ConsentBanner";
@@ -285,6 +285,15 @@ function useOverlayGates(): { overlaysReady: boolean } {
 // leży w przeglądarce, i zapisuje decyzję klikniętą w powłoce (także przed
 // bootem) - patrz `lib/consent/consentInitScript.ts`.
 //
+// ODSŁONIĘCIE (P1.3b). Ostatnim dzieckiem gniazda jest statyczny skrypt
+// `CONSENT_SHELL_REVEAL_SCRIPT` (`html[data-consent-parsed]`); do jego
+// wykonania karta ma `display: none`. Gniazdo leży za stopką, a karta jest
+// `fixed` od dołu - parser oddający wątek w środku karty malował uciętą kartę,
+// która przy dopisaniu reszty rosła w górę (przesunięcie układu, bramka fali
+// 1, kryterium (d)). Skrypt stoi w gnieździe także przy wyłączonym banerze
+// (karty brak), bo partner skryptu czyta brak atrybutu po boocie jako
+// „powłoki nie widać" i montowałby baner od razu (zbędny import chunku).
+//
 // HYDRATACJA. Przeglądarka NIE ma kodu powłoki (gałąź `.server()` wycina
 // kompilator Start). Gniazdo renderuje się z `dangerouslySetInnerHTML` równym
 // migawce własnego HTML-a odczytanej z DOM-u w pierwszym renderze: React przy
@@ -305,8 +314,8 @@ function useOverlayGates(): { overlaysReady: boolean } {
 //    kolejki (`release: "urgent"` - start importu banera);
 //  - od razu po boocie (`release: "immediate"`), gdy karta zgód należy się
 //    odwiedzającemu, ale powłoki nie widać (sygnał GPC - karta banera ma notę;
-//    skrypt inline nie zadziałał) albo gdy powłoka powstała z zasiewu
-//    ustawień, a prawdziwe właśnie dojechały;
+//    skrypt inline albo skrypt odsłonięcia się nie wykonał) albo gdy powłoka
+//    powstała z zasiewu ustawień, a prawdziwe właśnie dojechały;
 //  - w ostateczności w punkcie ciszy P0.3 (`onQuiescent`, klasa `shell`);
 //    przy zapisanej decyzji (powłoka ukryta) WYŁĄCZNIE tam (klasa `overlays`) -
 //    bez wpisu w pierwszym zadaniu po interakcji.
@@ -330,6 +339,13 @@ const getServerConsentShell = createIsomorphicFn()
   .client((): ComponentType | null => null);
 const ServerConsentShell = getServerConsentShell();
 
+// Skrypt odsłonięcia powłoki (P1.3b) - render serwera; przeglądarka ma go
+// w migawce `innerHTML` gniazda, więc stała nie wchodzi do bundla klienta.
+const getServerShellRevealScript = createIsomorphicFn()
+  .server((): string => CONSENT_SHELL_REVEAL_SCRIPT)
+  .client((): string => "");
+const SERVER_SHELL_REVEAL_SCRIPT = getServerShellRevealScript();
+
 /** Migawka HTML-a powłoki z DOM-u - to, co wyrenderował serwer (pusty napis bez SSR). */
 function readShellSlotHtml(): string {
   const slot =
@@ -343,7 +359,8 @@ function readShellSlotHtml(): string {
  * przepisuje `innerHTML` (nowy obiekt `{__html}` przy re-renderze odtworzyłby
  * węzły i zgubił fokus). `server` - komponent powłoki (serwer) albo `null`
  * (przeglądarka); domyślnie wynik `createIsomorphicFn` wyżej, prop jest
- * wyłącznie dla testu hydratacji.
+ * wyłącznie dla testu hydratacji. Skrypt odsłonięcia stoi ZA powłoką
+ * (ostatnie dziecko gniazda) - patrz „ODSŁONIĘCIE" wyżej.
  */
 export const ConsentShellSlot = memo(function ConsentShellSlot({
   server: Server = ServerConsentShell,
@@ -355,6 +372,7 @@ export const ConsentShellSlot = memo(function ConsentShellSlot({
     return (
       <div data-consent-shell-slot="" className="contents">
         <Server />
+        <script dangerouslySetInnerHTML={{ __html: SERVER_SHELL_REVEAL_SCRIPT }} />
       </div>
     );
   }

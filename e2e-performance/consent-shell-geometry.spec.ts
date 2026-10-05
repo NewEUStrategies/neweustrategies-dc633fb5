@@ -1,3 +1,5 @@
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { AddressInfo } from "node:net";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import {
   fixtureImageFor,
@@ -22,6 +24,13 @@ import {
 //  5. BEZ JAVASCRIPTU nie ma martwej karty (powłoka ukryta bez
 //     `html[data-consent-js]`), a przy SYGNALE GPC powłoka jest ukryta od
 //     pierwszego malowania i po boocie od razu wchodzi baner z notą GPC.
+//  6. DOKUMENT W DWÓCH PORCJACH ROZCIĘTYCH W ŚRODKU KARTY (P1.3b, bramka fali
+//     1, kryterium (d)): pośrednik HTTP wysyła HTML do połowy powłoki, czeka
+//     `SPLIT_PAUSE_MS`, potem resztę. W przerwie karta jest ukryta (nie ma
+//     uciętej wersji do namalowania), a `PerformanceObserver('layout-shift')`
+//     nie widzi ŻADNEGO przesunięcia, którego źródło leży w powłoce. Kontrola
+//     negatywna: na drzewie bez skryptu odsłonięcia (baza `67c87e16`) ten sam
+//     przypadek wykrywa przesunięcie karty rosnącej w górę.
 //
 // Uruchomienie: `playwright test --config playwright.performance.config.ts
 // e2e-performance/consent-shell-geometry.spec.ts` na zbudowanym artefakcie
@@ -97,14 +106,29 @@ interface LcpSample {
   tag: string;
   candidate: boolean;
 }
+/** Źródło przesunięcia z wpisu `layout-shift`, policzone w chwili wpisu (węzeł może potem zniknąć). */
+interface ShiftSourceSample {
+  node: string;
+  /** Węzeł leży w `[data-consent-shell]`. */
+  shell: boolean;
+  previous: number[];
+  current: number[];
+}
+interface ShiftSample {
+  value: number;
+  startTime: number;
+  hadRecentInput: boolean;
+  sources: ShiftSourceSample[];
+}
 declare global {
   interface Window {
     __lcp: LcpSample[];
+    __shifts: ShiftSample[];
     __nesAppReady?: boolean;
   }
 }
 
-for (const device of [
+const DEVICES = [
   {
     name: "mobile 412x823 @1,75",
     viewport: { width: 412, height: 823 },
@@ -112,7 +136,9 @@ for (const device of [
     mobile: true,
   },
   { name: "desktop 1350x940 @1", viewport: { width: 1350, height: 940 }, scale: 1, mobile: false },
-]) {
+];
+
+for (const device of DEVICES) {
   test.describe(`powłoka zgód - ${device.name}`, () => {
     test.use({
       viewport: device.viewport,
@@ -204,6 +230,252 @@ for (const device of [
       expect(scripts.filter((path) => /\/ConsentBanner-/.test(path))).toEqual([]);
       await page.screenshot({ path: testInfo.outputPath("shell.png") });
       expect(errors).toEqual([]);
+    });
+  });
+}
+
+// ---------- Dokument w dwóch porcjach rozciętych w środku karty (P1.3b) ----------
+
+/**
+ * Przerwa między porcjami dokumentu. Z zapasem ponad przykład z planu
+ * (300-500 ms): w przerwie przeglądarka musi pobrać arkusz, sparsować ok.
+ * 200 KB i namalować klatkę także na obciążonej maszynie pomiarowej. Że
+ * próbka padła W PRZERWIE (po FCP, przed resztą karty), pilnuje sam test.
+ */
+const SPLIT_PAUSE_MS = 800;
+
+/** Nagłówki żądania, których pośrednik nie przekazuje (`fetch` z undici ich nie przyjmuje albo liczy sam). */
+const DROPPED_REQUEST_HEADERS = new Set([
+  "host",
+  "connection",
+  "keep-alive",
+  "upgrade",
+  "expect",
+  "transfer-encoding",
+  "accept-encoding",
+  "content-length",
+]);
+/** Nagłówki odpowiedzi, których pośrednik nie przepisuje (`fetch` zdekodował treść). */
+const DROPPED_RESPONSE_HEADERS = new Set([
+  "connection",
+  "keep-alive",
+  "transfer-encoding",
+  "content-encoding",
+  "content-length",
+  "set-cookie",
+]);
+
+interface SplitPoint {
+  /** Bajt cięcia w dokumencie (porcja 1 = `[0, at)`). */
+  at: number;
+  total: number;
+}
+
+interface SplitProxy {
+  origin: string;
+  /** Rozstrzyga się, gdy pierwsza porcja dokumentu jest wysłana. */
+  firstPart: Promise<SplitPoint>;
+  close: () => Promise<void>;
+}
+
+/**
+ * Bajt cięcia: tuż za `</h2>` tytułu karty powłoki. Porcja 1 niesie korzeń
+ * karty i wiersz nagłówka, porcja 2 - akapit, przyciski, koniec gniazda
+ * (i na drzewie z P1.3b skrypt odsłonięcia). `-1`, gdy powłoki nie ma.
+ */
+function splitInsideShell(html: Buffer): number {
+  const shell = html.indexOf('data-consent-shell=""');
+  if (shell < 0) return -1;
+  const title = html.indexOf("</h2>", shell);
+  return title < 0 ? -1 : title + "</h2>".length;
+}
+
+/**
+ * Pośrednik HTTP przed serwerem artefaktu: każde żądanie przekazuje bez zmian,
+ * a PIERWSZY dokument HTML wysyła w dwóch porcjach z przerwą `pauseMs`
+ * (kodowanie `chunked`). Osobny port zamiast `page.route`: `route.fulfill`
+ * oddaje treść w całości, więc parser nigdy nie czekałby na dane w środku karty.
+ */
+async function startSplitProxy(upstream: string, pauseMs: number): Promise<SplitProxy> {
+  let resolveFirst!: (point: SplitPoint) => void;
+  let rejectFirst!: (reason: Error) => void;
+  const firstPart = new Promise<SplitPoint>((resolve, reject) => {
+    resolveFirst = resolve;
+    rejectFirst = reject;
+  });
+  let documentSent = false;
+
+  const forward = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    const body: Buffer[] = [];
+    for await (const chunk of req) body.push(chunk as Buffer);
+    const headers = new Headers();
+    for (const [name, value] of Object.entries(req.headers)) {
+      if (value === undefined || DROPPED_REQUEST_HEADERS.has(name)) continue;
+      headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+    }
+    const reply = await fetch(new URL(req.url ?? "/", upstream), {
+      method: req.method,
+      headers,
+      body: body.length > 0 ? Buffer.concat(body) : undefined,
+      redirect: "manual",
+    });
+    const out: Record<string, string | string[]> = {};
+    reply.headers.forEach((value, name) => {
+      if (!DROPPED_RESPONSE_HEADERS.has(name)) out[name] = value;
+    });
+    const cookies = reply.headers.getSetCookie();
+    if (cookies.length > 0) out["set-cookie"] = cookies;
+    const payload = Buffer.from(await reply.arrayBuffer());
+    const isDocument =
+      req.method === "GET" && (reply.headers.get("content-type") ?? "").includes("text/html");
+    res.writeHead(reply.status, out);
+    if (!isDocument || documentSent) {
+      res.end(payload);
+      return;
+    }
+    documentSent = true;
+    const at = splitInsideShell(payload);
+    if (at < 0) {
+      rejectFirst(new Error("w dokumencie nie ma karty powłoki zgód - nie ma czego rozciąć"));
+      res.end(payload);
+      return;
+    }
+    res.write(payload.subarray(0, at));
+    resolveFirst({ at, total: payload.length });
+    await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    res.end(payload.subarray(at));
+  };
+
+  const server = createServer({ noDelay: true }, (req, res) => {
+    forward(req, res).catch((error: unknown) => {
+      if (!res.headersSent) res.writeHead(502);
+      res.end(String(error));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  return {
+    origin: `http://127.0.0.1:${port}`,
+    firstPart,
+    close: () =>
+      new Promise<void>((resolve) => {
+        server.closeAllConnections();
+        server.close(() => resolve());
+      }),
+  };
+}
+
+/** Rejestrator wpisów `layout-shift` od początku dokumentu (z węzłami źródeł policzonymi od razu). */
+async function recordLayoutShifts(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    interface Source {
+      node?: Node | null;
+      previousRect: DOMRectReadOnly;
+      currentRect: DOMRectReadOnly;
+    }
+    interface Entry extends PerformanceEntry {
+      value: number;
+      hadRecentInput: boolean;
+      sources?: Source[];
+    }
+    const rect = (r: DOMRectReadOnly) => [r.x, r.y, r.width, r.height].map(Math.round);
+    window.__shifts = [];
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as Entry[]) {
+        window.__shifts.push({
+          value: entry.value,
+          startTime: Math.round(entry.startTime),
+          hadRecentInput: entry.hadRecentInput,
+          sources: (entry.sources ?? []).map((source) => {
+            const node = source.node ?? null;
+            const element = node instanceof Element ? node : (node?.parentElement ?? null);
+            const role = element?.getAttribute("role");
+            return {
+              node: element
+                ? `${element.tagName.toLowerCase()}${role ? `[role=${role}]` : ""}`
+                : "",
+              shell: !!element?.closest("[data-consent-shell]"),
+              previous: rect(source.previousRect),
+              current: rect(source.currentRect),
+            };
+          }),
+        });
+      }
+    }).observe({ type: "layout-shift", buffered: true });
+  });
+}
+
+for (const device of DEVICES) {
+  test.describe(`powłoka zgód w dwóch porcjach HTML - ${device.name}`, () => {
+    test.use({
+      viewport: device.viewport,
+      deviceScaleFactor: device.scale,
+      isMobile: device.mobile,
+      hasTouch: device.mobile,
+    });
+
+    let proxy: SplitProxy | null = null;
+    test.afterEach(async () => {
+      await proxy?.close();
+      proxy = null;
+    });
+
+    test("przerwa parsera w środku karty: brak uciętej karty i brak przesunięcia z powłoki", async ({
+      page,
+      baseURL,
+    }, testInfo) => {
+      proxy = await startSplitProxy(baseURL ?? "", SPLIT_PAUSE_MS);
+      await recordLayoutShifts(page);
+      await maskUserActivation(page);
+      await routeFixture(page);
+      const navigation = page.goto(`${proxy.origin}/`, { waitUntil: "load" });
+      const split = await proxy.firstPart;
+
+      // W PRZERWIE: pierwsza klatka treści jest, korzeń karty jest w DOM-ie,
+      // a jej końca (panel preferencji) jeszcze nie ma.
+      await page.waitForFunction(
+        () =>
+          performance.getEntriesByName("first-contentful-paint").length > 0 &&
+          document.querySelector("[data-consent-shell]") !== null,
+        undefined,
+        { timeout: SPLIT_PAUSE_MS },
+      );
+      const during = await page.evaluate((selector) => {
+        const shell = document.querySelector(selector);
+        return {
+          inPause: document.getElementById("cookie-preferences-inline") === null,
+          display: shell ? getComputedStyle(shell).display : "",
+          height: shell ? Math.round(shell.getBoundingClientRect().height) : 0,
+        };
+      }, SHELL);
+
+      const response = await navigation;
+      expect(response?.status()).toBe(200);
+      const shell = page.locator(SHELL);
+      await expect(shell).toBeVisible();
+      // Wpisy `layout-shift` przychodzą po klatce - dwie klatki i chwila zapasu.
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 100))),
+          ),
+      );
+      const shifts = await page.evaluate(() => window.__shifts);
+      const final = await shell.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+      const shellShifts = shifts.filter((shift) => shift.sources.some((source) => source.shell));
+      await testInfo.attach("przesuniecia.json", {
+        body: JSON.stringify({ split, during, final, shifts }, null, 2),
+        contentType: "application/json",
+      });
+
+      // Strażnik: próbka padła w przerwie - inaczej przypadek niczego nie sprawdza.
+      expect(during.inPause, "próbka po drugiej porcji - zwiększ SPLIT_PAUSE_MS").toBe(true);
+      expect(split.at).toBeLessThan(split.total);
+      // Właściwe asercje (miękkie: kontrola negatywna ma pokazać obie).
+      expect.soft(shellShifts, JSON.stringify(shellShifts)).toEqual([]);
+      expect
+        .soft(during.display, `ucięta karta widoczna w przerwie (${during.height} z ${final} px)`)
+        .toBe("none");
     });
   });
 }
