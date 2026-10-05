@@ -7,8 +7,15 @@
 // Precedencja: override z konfiguracji widgetu → globalna etykieta pola →
 // wbudowany fallback PL/EN.
 import { useMemo } from "react";
-import { useRegistrationFields, type RegistrationLang } from "@/lib/auth/registrationFields";
+import {
+  buildRegistrationFieldsApi,
+  useRegistrationFields,
+  type RegistrationFieldsApi,
+  type RegistrationLang,
+} from "@/lib/auth/registrationFields";
 import { popupFieldDefaultLabels } from "@/lib/newsletter/popupFields";
+// Sam typ - import znika w kompilacji, graf modułów i chunków bez zmian.
+import type { NewsletterInlineLabelKey } from "@/hooks/useNewsletterSettings";
 
 export type NewsletterFieldKey =
   | "firstName"
@@ -59,13 +66,13 @@ export function topicsTriggerText(count: number, lang: RegistrationLang): string
   return lang === "en" ? `${count} selected` : `Wybrano: ${count}`;
 }
 
-/** Mapowanie kluczy newslettera na klucze globalnej konfiguracji rejestracji. */
-const REGISTRATION_KEY: Partial<
-  Record<
-    NewsletterFieldKey,
-    "first_name" | "last_name" | "email" | "job" | "linkedin" | "phone" | "company"
-  >
-> = {
+/**
+ * Mapowanie kluczy newslettera na klucze globalnej konfiguracji rejestracji.
+ * Typ wartości = pola niesione przez projekcję formularzy inline
+ * (`NEWSLETTER_INLINE_LABEL_KEYS`, `field_labels`), więc nowe mapowanie poza
+ * projekcją wymaga świadomego rozszerzenia tej listy (inaczej błąd typu).
+ */
+const REGISTRATION_KEY: Partial<Record<NewsletterFieldKey, NewsletterInlineLabelKey>> = {
   firstName: "first_name",
   lastName: "last_name",
   email: "email",
@@ -82,35 +89,57 @@ export interface NewsletterFieldLabels {
   topics: (key: keyof typeof NEWSLETTER_TOPIC_LABELS, override?: string | null) => string;
 }
 
-/** Hook: wspólne etykiety pól dla widgetów newslettera. */
+/** Etykiety pól z gotowego API rejestracji (bez React - używalne w testach). */
+export function buildNewsletterFieldLabels(
+  registration: RegistrationFieldsApi,
+  lang: RegistrationLang,
+): NewsletterFieldLabels {
+  const label = (key: NewsletterFieldKey, override?: string | null) => {
+    const regKey = REGISTRATION_KEY[key];
+    const global = regKey ? registration.label(regKey, "").trim() : "";
+    const trimmed = typeof override === "string" ? override.trim() : "";
+    // Override widgetu liczy się tylko wtedy, gdy operator naprawdę wpisał
+    // własne brzmienie. Zapisane kopie fabrycznych etykiet (tak powstawały
+    // configi widgetów) ustępują globalnej konfiguracji rejestracji, dzięki
+    // czemu "Dołącz do nas" ma te same etykiety co zapis do newslettera i
+    // zakładanie konta.
+    const isFactoryCopy =
+      trimmed !== "" &&
+      (Object.values(NEWSLETTER_FIELD_FALLBACKS[key]).some(
+        (v) => v.toLowerCase() === trimmed.toLowerCase(),
+      ) ||
+        (regKey
+          ? popupFieldDefaultLabels(regKey).some((v) => v.toLowerCase() === trimmed.toLowerCase())
+          : false));
+    if (trimmed && !isFactoryCopy) return trimmed;
+    return global || NEWSLETTER_FIELD_FALLBACKS[key][lang];
+  };
+
+  const topics = (key: keyof typeof NEWSLETTER_TOPIC_LABELS, override?: string | null) => {
+    const trimmed = typeof override === "string" ? override.trim() : "";
+    return trimmed || topicLabel(key, lang);
+  };
+  return { label, topics };
+}
+
+/** Hook: wspólne etykiety pól dla widgetów newslettera (pełny klucz ustawień). */
 export function useNewsletterFieldLabels(lang: RegistrationLang): NewsletterFieldLabels {
   const registration = useRegistrationFields(lang);
-  return useMemo<NewsletterFieldLabels>(() => {
-    const label = (key: NewsletterFieldKey, override?: string | null) => {
-      const regKey = REGISTRATION_KEY[key];
-      const global = regKey ? registration.label(regKey, "").trim() : "";
-      const trimmed = typeof override === "string" ? override.trim() : "";
-      // Override widgetu liczy się tylko wtedy, gdy operator naprawdę wpisał
-      // własne brzmienie. Zapisane kopie fabrycznych etykiet (tak powstawały
-      // configi widgetów) ustępują globalnej konfiguracji rejestracji, dzięki
-      // czemu "Dołącz do nas" ma te same etykiety co zapis do newslettera i
-      // zakładanie konta.
-      const isFactoryCopy =
-        trimmed !== "" &&
-        (Object.values(NEWSLETTER_FIELD_FALLBACKS[key]).some(
-          (v) => v.toLowerCase() === trimmed.toLowerCase(),
-        ) ||
-          (regKey
-            ? popupFieldDefaultLabels(regKey).some((v) => v.toLowerCase() === trimmed.toLowerCase())
-            : false));
-      if (trimmed && !isFactoryCopy) return trimmed;
-      return global || NEWSLETTER_FIELD_FALLBACKS[key][lang];
-    };
+  return useMemo(() => buildNewsletterFieldLabels(registration, lang), [registration, lang]);
+}
 
-    const topics = (key: keyof typeof NEWSLETTER_TOPIC_LABELS, override?: string | null) => {
-      const trimmed = typeof override === "string" ? override.trim() : "";
-      return trimmed || topicLabel(key, lang);
-    };
-    return { label, topics };
-  }, [registration, lang]);
+/**
+ * Hook formularzy INLINE (`NewsletterForm`, `JoinUsForm`): te same etykiety,
+ * ale z `field_labels` projekcji `useNewsletterInlineSettings` zamiast z
+ * pełnego klucza `["newsletter-settings"]` - formularz w pierwszym renderze
+ * nie czyta wtedy pełnych ustawień (P2.5, dieta stanu odwodnionego).
+ */
+export function useNewsletterFieldLabelsFrom(
+  rawFields: unknown,
+  lang: RegistrationLang,
+): NewsletterFieldLabels {
+  return useMemo(
+    () => buildNewsletterFieldLabels(buildRegistrationFieldsApi(rawFields, lang), lang),
+    [rawFields, lang],
+  );
 }
