@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/useAuth";
+import "@/lib/i18n-chat";
 import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENT_BYTES,

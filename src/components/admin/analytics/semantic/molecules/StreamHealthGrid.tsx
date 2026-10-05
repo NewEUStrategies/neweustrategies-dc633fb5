@@ -48,12 +48,11 @@ function statusKeyOf(health: SemanticStreamHealth, consentGate: ConsentGate): St
 
 function StatusIcon({ status }: { status: StatusKey }) {
   if (status === "available") return <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />;
-  if (status === "read_failed")
-    return <TriangleAlert className="h-4 w-4 shrink-0 text-brand0" />;
+  if (status === "read_failed") return <TriangleAlert className="h-4 w-4 shrink-0 text-brand" />;
   if (status === "not_configured")
     return <XCircle className="h-4 w-4 shrink-0 text-muted-foreground" />;
   // Bramka zgody to stan WYMAGAJĄCY reakcji (baner), nie spokojna pustka.
-  if (status === "gated") return <ShieldAlert className="h-4 w-4 shrink-0 text-brand0" />;
+  if (status === "gated") return <ShieldAlert className="h-4 w-4 shrink-0 text-brand" />;
   return <CircleSlash className="h-4 w-4 shrink-0 text-muted-foreground" />;
 }
 

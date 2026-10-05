@@ -19,7 +19,7 @@ afterEach(() => cleanup());
 describe("PodcastStatusBadge", () => {
   it.each([
     ["published", "adminPodcasts.status.published", "green"],
-    ["draft", "adminPodcasts.status.draft", "amber"],
+    ["draft", "adminPodcasts.status.draft", "brand"],
     ["archived", "adminPodcasts.status.archived", "muted"],
   ])("stan %s dostaje etykiete ze slownika i wlasna tonacje", (status, key, tone) => {
     render(<PodcastStatusBadge status={status as PodcastStatus} />);

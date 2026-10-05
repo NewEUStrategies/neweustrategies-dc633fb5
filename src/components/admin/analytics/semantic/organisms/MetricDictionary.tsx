@@ -89,7 +89,7 @@ export function MetricDictionary() {
                     <ul className="space-y-1">
                       {metric.guards.map((g, idx) => (
                         <li key={idx} className="flex gap-1.5">
-                          <span aria-hidden className="leading-4 text-brand0">
+                          <span aria-hidden className="leading-4 text-brand">
                             !
                           </span>
                           <span className="leading-4">{g}</span>

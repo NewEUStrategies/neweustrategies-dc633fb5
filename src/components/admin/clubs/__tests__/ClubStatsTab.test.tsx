@@ -180,7 +180,7 @@ describe("ClubStatsTab - dane pełne", () => {
 describe("ClubStatsTab - ton koloru dojeżdża do DOM-u", () => {
   it.each([
     [5, "text-emerald"],
-    [25, "text-amber"],
+    [25, "text-brand"],
     [55, "text-destructive"],
   ])("odsetek %i bez odpowiedzi maluje wartość klasą %s", (pct, expected) => {
     h.data = statsRow({ unanswered_pct: pct });
@@ -204,7 +204,7 @@ describe("ClubStatsTab - ton koloru dojeżdża do DOM-u", () => {
     panel();
     const tone = tile("adminClubs.stats.pending").tone;
     expect(tone).not.toContain("text-destructive");
-    expect(tone).not.toContain("text-amber");
+    expect(tone).not.toContain("text-brand");
     expect(tone).not.toContain("text-emerald");
   });
 });

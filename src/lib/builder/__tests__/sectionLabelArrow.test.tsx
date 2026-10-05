@@ -24,10 +24,7 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
   };
 });
 
-import {
-  SectionLabelRender,
-  SECTION_LABEL_ARROWS,
-} from "@/lib/builder/sectionLabelVariants";
+import { SectionLabelRender, SECTION_LABEL_ARROWS } from "@/lib/builder/sectionLabelVariants";
 
 type VariantProps = Omit<
   ComponentProps<typeof SectionLabelRender>,

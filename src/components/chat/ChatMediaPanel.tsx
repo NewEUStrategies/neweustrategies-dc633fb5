@@ -113,7 +113,7 @@ function StarredRow({ entry, lang }: { entry: StarredEntry; lang: ChatLang }) {
         {label}
       </p>
       <p className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
-        <Star className="h-2.5 w-2.5 fill-current text-brand0" aria-hidden />
+        <Star className="h-2.5 w-2.5 fill-current text-brand" aria-hidden />
         {clockTime(message.created_at, lang)}
       </p>
     </div>

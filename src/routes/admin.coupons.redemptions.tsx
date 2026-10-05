@@ -264,10 +264,7 @@ function RedemptionsPage() {
                                 {L("nadano", "granted")}
                               </Badge>
                             ) : (
-                              <Badge
-                                variant="outline"
-                                className="text-brand-ink border-brand/50"
-                              >
+                              <Badge variant="outline" className="text-brand-ink border-brand/50">
                                 {L("czeka na płatność", "awaiting payment")}
                               </Badge>
                             )}

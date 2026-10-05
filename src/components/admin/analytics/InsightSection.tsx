@@ -46,7 +46,7 @@ const STYLE: Record<InsightSeverity, { ring: string; badge: string; icon: ReactN
   warn: {
     ring: "border-brand/30",
     badge: "bg-brand/15 text-brand-ink dark:text-brand border-brand/30",
-    icon: <AlertTriangle className="w-4 h-4 text-brand0" />,
+    icon: <AlertTriangle className="w-4 h-4 text-brand" />,
   },
   critical: {
     ring: "border-red-500/30",

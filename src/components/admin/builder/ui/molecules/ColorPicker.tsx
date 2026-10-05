@@ -29,7 +29,6 @@ const DEFAULT_PRESETS = [
   "#94a3b8",
   "#ef4444",
   "#FA9346",
-  "#FA9346",
   "#eab308",
   "#84cc16",
   "#22c55e",

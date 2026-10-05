@@ -31,11 +31,7 @@ const HEAD = css.slice(0, css.indexOf(".dark {"));
 /** Blok `.dark` cięty identycznie jak bramka halacji tekstu (`darkForeground`). */
 const DARK = css.slice(css.indexOf(".dark {"), css.indexOf("@layer base"));
 
-const TOKENS = [
-  "--audio-control-border",
-  "--audio-icon-border",
-  "--voice-stop-border",
-] as const;
+const TOKENS = ["--audio-control-border", "--audio-icon-border", "--voice-stop-border"] as const;
 
 function token(block: string, name: string, where: string): string {
   const m = block.match(new RegExp(`${name}:\\s*([^;]+);`));
@@ -44,7 +40,7 @@ function token(block: string, name: string, where: string): string {
 }
 
 describe("tokeny krawędzi kontrolek odsłuchu", () => {
-  it("jasny motyw miesza każdą krawędź z atramentem, w granicach \"delikatnie\"", () => {
+  it('jasny motyw miesza każdą krawędź z atramentem, w granicach "delikatnie"', () => {
     for (const name of TOKENS) {
       const value = token(HEAD, name, "bloku :root/.light");
       expect(value).toContain("color-mix(in oklab");
@@ -86,7 +82,7 @@ describe("reguły czytające te krawędzie", () => {
     expect(width).toBeLessThanOrEqual(1.5);
   });
 
-  it("kwadrat \"stop\" dostaje pierścień z tokenu", () => {
+  it('kwadrat "stop" dostaje pierścień z tokenu', () => {
     expect(css).toMatch(
       /\.voice-stop-square \{[^}]*box-shadow: 0 0 0 1px var\(--voice-stop-border\)/,
     );

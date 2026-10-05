@@ -145,7 +145,7 @@ export function WindowProvenance({
                   className={
                     "h-3.5 w-3.5 shrink-0 " +
                     (warn
-                      ? "text-brand0"
+                      ? "text-brand"
                       : note === "excludes_open_day"
                         ? "text-emerald-500"
                         : "text-sky-500")

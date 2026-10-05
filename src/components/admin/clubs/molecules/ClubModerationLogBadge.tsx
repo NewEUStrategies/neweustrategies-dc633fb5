@@ -22,9 +22,7 @@ export function ClubModerationLogBadge({ action, label }: { action: string; labe
       variant="outline"
       data-reveal={reveal ? "true" : "false"}
       className={
-        reveal
-          ? "border-brand/40 text-[11px] text-brand-ink dark:text-brand"
-          : "text-[11px]"
+        reveal ? "border-brand/40 text-[11px] text-brand-ink dark:text-brand" : "text-[11px]"
       }
     >
       {label}

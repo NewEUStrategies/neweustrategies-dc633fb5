@@ -69,8 +69,7 @@ export const styleToCSS = (
   const borderStyle = pickShared(s.borderStyle);
   if (borderStyle && borderStyle !== "none") {
     css.borderStyle = borderStyle;
-    css.borderWidth =
-      pickShared(s.borderWidth) || "1px";
+    css.borderWidth = pickShared(s.borderWidth) || "1px";
     const borderColor = resolveColorForMode(s.borderColor, mode);
     if (borderColor) css.borderColor = borderColor;
   }

@@ -98,13 +98,13 @@ export function MetricDefinitionPopover({
         {metric.guards.length > 0 ? (
           <div className="space-y-1 border-t border-border pt-2">
             <div className="flex items-center gap-1.5 text-[11px] font-semibold">
-              <ShieldAlert className="h-3.5 w-3.5 text-brand0" />
+              <ShieldAlert className="h-3.5 w-3.5 text-brand" />
               {t("adminAnalytics.semantic.dictionary.colGuards")}
             </div>
             <ul className="space-y-1">
               {metric.guards.map((g, idx) => (
                 <li key={idx} className="flex gap-1.5 text-[11px] text-muted-foreground">
-                  <span aria-hidden className="text-brand0 leading-4">
+                  <span aria-hidden className="text-brand leading-4">
                     !
                   </span>
                   <span className="leading-4">{g}</span>

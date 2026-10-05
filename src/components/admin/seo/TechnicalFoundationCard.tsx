@@ -91,7 +91,7 @@ async function probe(
 
 const TONE: Record<FoundationState, string> = {
   ok: "text-emerald-500",
-  warn: "text-brand0",
+  warn: "text-brand",
   fail: "text-destructive",
   unknown: "text-muted-foreground",
 };
@@ -178,7 +178,7 @@ export function TechnicalFoundationCard() {
       <h2 className="text-sm font-semibold">{t("adminSeoHub.sectionFoundation")}</h2>
       <p className="text-xs text-muted-foreground">{t("adminSeoHub.foundationIntro")}</p>
       {!isPending && !sameSite ? (
-        <p className="text-xs text-brand0" data-seo-foundation-cross-host>
+        <p className="text-xs text-brand" data-seo-foundation-cross-host>
           {t("adminSeoHub.foundationCrossHostNote", { value: publicHost })}
         </p>
       ) : null}

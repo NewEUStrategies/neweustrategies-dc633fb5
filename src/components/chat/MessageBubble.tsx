@@ -331,7 +331,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
           className={cn(
             "flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-muted",
             starred
-              ? "text-brand0 hover:text-brand-ink"
+              ? "text-brand hover:text-brand-ink"
               : "text-muted-foreground hover:text-foreground",
           )}
           aria-label={starred ? t("chat.star.remove") : t("chat.star.add")}
@@ -595,7 +595,7 @@ export const MessageBubble = memo(function MessageBubble(props: MessageBubblePro
               {onToggleStar && (
                 <ContextMenuItem onSelect={() => onToggleStar(message, starred)}>
                   <Star
-                    className={cn("h-3.5 w-3.5", starred && "fill-current text-brand0")}
+                    className={cn("h-3.5 w-3.5", starred && "fill-current text-brand")}
                     aria-hidden
                   />
                   {starred ? t("chat.star.remove") : t("chat.star.add")}

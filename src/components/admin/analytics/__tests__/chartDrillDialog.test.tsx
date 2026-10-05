@@ -256,7 +256,7 @@ describe("ChartDrillDialog - metryki", () => {
     const w = within(okno());
     const klasa = (v: string) => w.getByText(v).className;
     expect(klasa("1")).toContain("emerald");
-    expect(klasa("2")).toContain("amber");
+    expect(klasa("2")).toContain("brand");
     expect(klasa("3")).toContain("rose");
     expect(klasa("4")).toContain("text-foreground");
     // Brak tonu MUSI dać dokładnie to samo co ton `neutral` - inaczej metryka

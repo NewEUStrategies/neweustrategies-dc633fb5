@@ -36,11 +36,11 @@ describe("EventPill - znane typy", () => {
     expect(screen.getByText("otwarty").className).not.toBe(created);
   });
 
-  it("odbicie od wyczerpanego budzetu ma tonacje ostrzegawcza (amber)", () => {
+  it("odbicie od wyczerpanego budzetu ma tonacje ostrzegawcza (kolor marki)", () => {
     // "exhausted" to jedyne zdarzenie, ktore mowi adminowi, ze ktos NIE
     // dostal tresci - nie moze wygladac jak zdarzenie neutralne.
     render(<EventPill type="exhausted" label="odbicie" />);
-    expect(screen.getByText("odbicie").className).toContain("amber");
+    expect(screen.getByText("odbicie").className).toContain("brand");
   });
 });
 
