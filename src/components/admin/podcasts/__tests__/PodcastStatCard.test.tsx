@@ -29,7 +29,7 @@ describe("PodcastStatCard", () => {
   it.each([
     ["default", "primary"],
     ["success", "green"],
-    ["warning", "amber"],
+    ["warning", "brand"],
   ])("tonacja %s maluje ikone wlasnym kolorem", (tone, expected) => {
     const view = render(
       <PodcastStatCard

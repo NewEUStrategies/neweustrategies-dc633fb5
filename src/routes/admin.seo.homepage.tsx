@@ -333,9 +333,7 @@ function SeoHomepageTab() {
                 <h3 className="text-xs font-medium text-muted-foreground">{t(headingKey)}</h3>
                 {overriding && (
                   <div className="rounded-lg border border-brand/40 bg-card p-3">
-                    <p className="text-xs text-brand0">
-                      {t("adminSeoHub.staticHomepageNotice")}
-                    </p>
+                    <p className="text-xs text-brand">{t("adminSeoHub.staticHomepageNotice")}</p>
                     <Link
                       to="/admin/pages/$slug"
                       params={{ slug: overriding.slug }}

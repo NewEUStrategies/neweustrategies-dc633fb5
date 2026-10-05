@@ -2,12 +2,11 @@
 
 # PLIK GENEROWANY - nie edytuj ręcznie.
 # Źródło: governance/ownership.json  |  Generator: bun run generate:codeowners
-# Bramka spójności: bun run check:codeowners
 #
 # 79 wzorców tras administracyjnych w 9 domenach.
 # Domyślny właściciel obejmuje repozytorium; poniżej przypisania tras.
-# Atrybucję domenową migracji bazy (znaczniki czasu i UUID-y) egzekwuje bramka
-# `bun run check:ownership` na podstawie tego samego rejestru.
+# Atrybucja domenowa migracji bazy (znaczniki czasu i UUID-y) jest zapisana
+# w tym samym rejestrze.
 #
 # UWAGA NA KOLEJNOŚĆ: GitHub stosuje regułę OSTATNIEGO trafienia, a rejestr
 # regułę PIERWSZEGO, więc domeny są tu wypisane w kolejności ODWROTNEJ niż

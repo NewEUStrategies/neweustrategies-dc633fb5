@@ -354,10 +354,7 @@ function DraftEditor({
         </dl>
       </section>
       {mismatch ? (
-        <p
-          role="status"
-          className="rounded-md border border-brand/50 bg-brand/10 p-3 text-sm"
-        >
+        <p role="status" className="rounded-md border border-brand/50 bg-brand/10 p-3 text-sm">
           {t("adminEventInvoices.draft.sourcesMismatch", {
             lines: money(preview.totals.grossCents),
             sources: money(sourcesGross),

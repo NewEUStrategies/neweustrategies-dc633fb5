@@ -361,15 +361,15 @@ describe("GlobalColorsEditor - stany wejściowe", () => {
     renderEditor();
     openTab("Button");
 
-    const withoutDefaults = slotBlock("Primary Color (Background)");
+    const withoutDefaults = slotBlock("Hover - Accent Color");
     expect(
       within(withoutDefaults).queryByRole("button", { name: "adminGCEditor.defaultBtn" }),
     ).toBeNull();
 
-    const withDefaults = slotBlock("Accent Color (Text)");
+    const withDefaults = slotBlock("Primary Color (Background)");
     expect(
-      within(withDefaults).queryByRole("button", { name: "adminGCEditor.defaultBtn" }),
-    ).toBeNull();
+      within(withDefaults).getByRole("button", { name: "adminGCEditor.defaultBtn" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -1080,15 +1080,16 @@ describe("GlobalColorsEditor - zakładki i podgląd slotów", () => {
     renderEditor();
     openTab("Button");
 
+    // `btn-hover-text` nie ma ani wartości, ani defaultLight/defaultDark, więc
+    // kolor tekstu przycisku Hover to ostatnie ogniwo łańcucha getColor.
     const preview = asElement(
-      slotBlock("Primary Color (Background)").querySelector("div.grid.grid-cols-2"),
-      "podgląd slotu btn-bg",
+      slotBlock("Hover - Accent Color").querySelector("div.grid.grid-cols-2"),
+      "podgląd slotu btn-hover-text",
     );
-    const buttons = within(preview).getAllByText("adminGCEditor.preview.normal");
-    // Panel jasny bierze #374151, ciemny #e5e7eb - to ostatnie ogniwo łańcucha
-    // getColor (brak wartości, brak defaultLight, brak defaultDark).
-    expect(buttons[0].getAttribute("style")).toContain("background: #374151");
-    expect(buttons[1].getAttribute("style")).toContain("background: #e5e7eb");
+    const buttons = within(preview).getAllByText("Hover");
+    // Panel jasny bierze #374151, ciemny #e5e7eb.
+    expect(buttons[0].getAttribute("style")).toContain("color: #374151");
+    expect(buttons[1].getAttribute("style")).toContain("color: #e5e7eb");
   });
 
   it("wartość light przecieka do podglądu ciemnego, gdy slot nie ma własnego dark", () => {

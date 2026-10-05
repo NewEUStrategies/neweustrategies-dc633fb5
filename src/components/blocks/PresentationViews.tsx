@@ -241,7 +241,7 @@ function TestimonialCard({ t }: { t: TestimonialLite }) {
     <figure className="h-full rounded-2xl border border-border bg-card p-6 flex flex-col">
       {t.rating > 0 ? (
         <div
-          className="flex items-center gap-0.5 mb-3 text-brand0"
+          className="flex items-center gap-0.5 mb-3 text-brand"
           aria-label={`Ocena: ${t.rating}/5`}
         >
           {Array.from({ length: 5 }).map((_, i) => (

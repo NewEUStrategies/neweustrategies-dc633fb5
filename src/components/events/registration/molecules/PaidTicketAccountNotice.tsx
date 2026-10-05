@@ -23,10 +23,7 @@ ensureEventRegistrationI18n();
 export function PaidTicketAccountNotice() {
   const { t } = useTranslation();
   return (
-    <div
-      role="status"
-      className="space-y-2 rounded-[6px] border border-brand/50 bg-brand/5 p-4"
-    >
+    <div role="status" className="space-y-2 rounded-[6px] border border-brand/50 bg-brand/5 p-4">
       <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <KeyRound className="h-4 w-4" aria-hidden="true" />
         {t("eventRegistration.payment.accountRequiredTitle")}

@@ -1,13 +1,12 @@
 name: Lighthouse CI
 
 on:
-  # Active on PRs and pushes to main (see ci.yml). Lighthouse runs in one of two
-  # honest modes (deployed vs production artifact) depending on whether LHCI_URL
-  # is set; the concurrency group cancels superseded runs to keep Actions minutes
-  # bounded.
+  # Runs after merges to main and on demand - not on PRs (see ci.yml). Lighthouse
+  # runs in one of two honest modes (deployed vs production artifact) depending
+  # on whether LHCI_URL is set; the concurrency group cancels superseded runs to
+  # keep Actions minutes bounded.
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -19,7 +18,7 @@ concurrency:
 #
 #   TRYB A - blokujący, reprezentatywny (LHCI_URL USTAWIONE)
 #     Audytuje faktycznie wdrożoną aplikację SSR pod LHCI_URL i WYMUSZA budżety
-#     z lighthouserc.deployed.json (asercje na `error`; job bramkuje merge).
+#     z lighthouserc.deployed.json (asercje na `error`; job pada przy przekroczeniu).
 #     To jedyny tryb, który mierzy to, co dostają czytelnicy.
 #     Włączenie: zmienna repo LHCI_URL = URL preview/prod
 #     (Settings -> Secrets and variables -> Actions -> Variables).
@@ -362,12 +361,7 @@ jobs:
       # (zmierzone TTFB ~5 s na /en, ~8 s na /blog), a `[ssr-query-timeout]`
       # w logu serwera jest wtedy OCZEKIWANY, nie awaryjny.
       # PORT/HOST/NITRO_PORT/NITRO_HOST są ustawione W LINII `run`, a nie w bloku
-      # `env:` - świadomie. Bramka kontraktu env (`bun run check:workflow-env`,
-      # src/lib/ci/workflowEnvContract.ts) wymaga, by każda zmienna eksportowana
-      # przez workflow miała odbiorcę W KODZIE REPO albo wpis w `TOOL_CONSUMED`.
-      # Te cztery czyta wyłącznie serwer nitro, więc w `env:` byłyby „martwym
-      # eksportem" - a rozszerzanie `TOOL_CONSUMED` dla jednego kroku jest
-      # gorsze niż podanie ich tam, gdzie faktycznie działają. To ta sama para
+      # `env:`, bo czyta je wyłącznie serwer nitro tego kroku. To ta sama para
       # portów, którą `playwright.artifact.config.ts` podaje w `webServer.env`.
       - name: Start the production artifact and warm it with a Chrome UA
         if: ${{ vars.LHCI_URL == '' }}

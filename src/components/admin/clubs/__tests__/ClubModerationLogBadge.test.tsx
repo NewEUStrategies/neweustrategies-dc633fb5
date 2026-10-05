@@ -25,7 +25,7 @@ describe("plakietka dziennika moderacji", () => {
 
     const badge = screen.getByText("Ujawnienie autora");
     expect(badge.getAttribute("data-reveal")).toBe("true");
-    expect(badge.className).toContain("amber");
+    expect(badge.className).toContain("brand");
   });
 
   it("każda inna akcja idzie bez wyróżnienia", () => {
@@ -33,7 +33,7 @@ describe("plakietka dziennika moderacji", () => {
 
     const badge = screen.getByText("Usunięcie");
     expect(badge.getAttribute("data-reveal")).toBe("false");
-    expect(badge.className).not.toContain("amber");
+    expect(badge.className).not.toContain("brand");
   });
 
   it("etykieta spoza słownika pokazuje się taka, jaka przyszła", () => {

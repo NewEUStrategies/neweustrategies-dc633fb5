@@ -237,9 +237,7 @@ export function WidgetProperties({
 
   // Typography is shared: light/dark can change colors, never text geometry.
   const getThemedTypography = (): WidgetTypography | undefined =>
-    pickShared<WidgetTypography>(
-      widget.style?.typography as Themed<WidgetTypography> | undefined,
-    );
+    pickShared<WidgetTypography>(widget.style?.typography as Themed<WidgetTypography> | undefined);
   const setThemedTypography = (t: WidgetTypography | undefined) => {
     const next = t && Object.keys(t).length ? t : undefined;
     broadcastWidgetTypography(widget.id, next);

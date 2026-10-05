@@ -24,8 +24,7 @@ function Equalizer({ active }: { active: boolean }) {
   );
 }
 
-const iconBtn =
-  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors";
+const iconBtn = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors";
 
 export function VoiceRecordingBar({
   elapsed,
@@ -132,7 +131,11 @@ export function VoiceReview({
         aria-label={labels.review}
         title={labels.review}
       >
-        {playing ? <Pause className="h-4 w-4" aria-hidden /> : <Play className="h-4 w-4" aria-hidden />}
+        {playing ? (
+          <Pause className="h-4 w-4" aria-hidden />
+        ) : (
+          <Play className="h-4 w-4" aria-hidden />
+        )}
       </button>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <div className="relative h-1 flex-1 overflow-hidden rounded-full bg-muted">
@@ -142,7 +145,9 @@ export function VoiceReview({
           />
         </div>
         <span className="w-10 text-center text-xs tabular-nums text-muted-foreground">
-          {formatVoiceDuration(playing || position > 0 ? Math.floor(position) : voice.durationSeconds)}
+          {formatVoiceDuration(
+            playing || position > 0 ? Math.floor(position) : voice.durationSeconds,
+          )}
         </span>
       </div>
       <button

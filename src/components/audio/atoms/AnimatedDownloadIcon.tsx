@@ -14,10 +14,7 @@ export const DOWNLOAD_DONE_VISIBLE_MS = 1600;
  * Download → Done: strzałka opada do tacki w trakcie pobierania, a po
  * zakończeniu rysuje się „ptaszek”, po czym ikona wraca do stanu spoczynku.
  */
-export function AnimatedDownloadIcon({
-  downloading,
-  className,
-}: AnimatedDownloadIconProps) {
+export function AnimatedDownloadIcon({ downloading, className }: AnimatedDownloadIconProps) {
   const [done, setDone] = useState(false);
   const wasDownloading = useRef(downloading);
 
@@ -51,11 +48,7 @@ export function AnimatedDownloadIcon({
         <path d="M12 4v11" />
         <path d="m7.75 11 4.25 4.25L16.25 11" />
       </g>
-      <path
-        className="audio-download-icon__check"
-        d="M8 12.5l3 3 5-6"
-        pathLength={1}
-      />
+      <path className="audio-download-icon__check" d="M8 12.5l3 3 5-6" pathLength={1} />
     </svg>
   );
 }

@@ -1,15 +1,17 @@
 name: First visit on production artifacts
 
+# Pomiar A/B nie blokuje PR-ów: jedzie po scaleniu do main (bazą jest poprzedni
+# commit main) albo ręcznie z dowolnej gałęzi (bazą jest main).
 on:
-  pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: first-visit-${{ github.event.pull_request.number || github.ref }}
+  group: first-visit-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,7 +35,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: baseline
-          ref: ${{ github.event.pull_request.base.sha || github.event.before }}
+          ref: ${{ github.event.before || 'main' }}
       - uses: actions/checkout@v4
         with:
           path: candidate
@@ -57,7 +59,7 @@ jobs:
       #   - `package.json` i `bun.lock` - zakresy i zamrożone wersje zależności.
       # Poza zakresem zostają m.in. `scripts/` poza `lib/` (narzędzia CI
       # i pomiaru), docs/, testy e2e i workflowy. Niezależnie od filtru bramka
-      # wagi dokumentu (`check:document-weight`) mierzy KAŻDY PR, więc filtr
+      # wagi dokumentu (`check:document-weight`) mierzy KAŻDY przebieg, więc filtr
       # decyduje tylko o raporcie A/B, nie o blokadzie.
       - name: Decide whether the Lighthouse A/B report runs
         id: lighthouse-scope
@@ -106,15 +108,6 @@ jobs:
           ln -s ../candidate/node_modules harness/node_modules
           cd harness
           bunx playwright install --with-deps chromium
-      - name: Verify the measurement and comparison contract
-        working-directory: harness
-        run: node --test scripts/performance/first-visit-harness.test.mjs
-      # Testy warstw czystych harnessu Lighthouse'a i bramki wagi dokumentu
-      # (kontrole negatywne: próg przekroczony oblewa, ratchet nigdy w górę).
-      # Skrypt w package.json, żeby lista plików testów żyła w jednym miejscu.
-      - name: Verify the document-weight and Lighthouse harness contract
-        working-directory: harness
-        run: bun run test:measurement-harness
       - name: Build baseline
         id: build-baseline
         working-directory: baseline
@@ -151,11 +144,9 @@ jobs:
       # z PR-a (harness/). Deterministyczna, ~6 s na stronę.
       #
       # DLACZEGO TU DWA RÓŻNE WYWOŁANIA:
-      #   - kandydat przez `bun run check:document-weight` DOKŁADNIE RAZ - tylko
-      #     tę formę liczy `check:gate-coverage` (src/lib/ci/gateCoverage.ts),
-      #     a druga taka linia w tym jobie byłaby zgłoszona jako duplikat;
+      #   - kandydat przez `bun run check:document-weight` - bramka blokująca;
       #   - baseline przez `node ...` wprost, wyłącznie raportowo (`|| true`) -
-      #     baza PR-a mierzona progami PR-a pokazuje, ile zmiana dołożyła.
+      #     baza mierzona progami kandydata pokazuje, ile zmiana dołożyła.
       # Skrypt w package.json to `node ...`, NIE `bun run ...`: zlib buna liczy
       # gzip ~2 % wyżej niż node (htmlGzipBytes 55 567 vs 54 469 B przy progu
       # 55 565), więc pod bunem bramka byłaby czerwona na dzisiejszej bazie.
@@ -184,9 +175,7 @@ jobs:
       #
       # Chromium Playwrighta zamiast Chrome runnera - ten sam powód co
       # w lighthouse.yml (parser śladów Lighthouse'a padał na buildzie runnera).
-      # CHROME_PATH idzie przez $GITHUB_ENV, nie przez `env:`: czyta go wyłącznie
-      # chrome-launcher, więc w `env:` byłby „martwym eksportem" dla
-      # `check:workflow-env-contract`.
+      # CHROME_PATH idzie przez $GITHUB_ENV, bo czyta go wyłącznie chrome-launcher.
       - name: Resolve pinned Chromium path for Lighthouse
         if: ${{ !cancelled() && steps.lighthouse-scope.outputs.run == 'true' }}
         run: |

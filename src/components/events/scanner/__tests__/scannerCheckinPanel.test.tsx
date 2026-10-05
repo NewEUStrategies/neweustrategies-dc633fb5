@@ -270,7 +270,7 @@ describe("ScannerCheckinPanel - kolor wyniku niesie decyzje", () => {
     scan("QR-REPEAT");
 
     await screen.findByText("eventScanner.outcomes.repeat");
-    expect(pas().className).toContain("amber");
+    expect(pas().className).toContain("brand");
     expect(pas().className).not.toContain("emerald");
   });
 
@@ -303,7 +303,7 @@ describe("ScannerCheckinPanel - kolor wyniku niesie decyzje", () => {
     scan("QR-NIEZNANY");
 
     await screen.findByText("eventScanner.outcomes.unknownCode");
-    expect(pas().className).toContain("amber");
+    expect(pas().className).toContain("brand");
   });
 
   it("wynik BEZ wlasnej podpowiedzi w slowniku pokazuje sam naglowek, a nie surowy klucz", async () => {
@@ -552,13 +552,13 @@ describe("ScannerCheckinPanel - decyzja bez sieci", () => {
   it("powtórzenie z listy jest BURSZTYNOWE, ale nadal wpuszcza", async () => {
     offlinePanel(local({ outcome: "repeat" }));
     await screen.findByText("eventScanner.outcomes.repeat");
-    expect(banner().className).toContain("amber");
+    expect(banner().className).toContain("brand");
   });
 
   it("kod spoza listy jest ostrzeżeniem bez karty osoby", async () => {
     offlinePanel(local({ outcome: "unknown_code", admit: false, entry: null }));
     await screen.findByText("eventScanner.outcomes.unknownCode");
-    expect(banner().className).toContain("amber");
+    expect(banner().className).toContain("brand");
     expect(screen.queryByText("eventScanner.offline.personFromRoster")).toBeNull();
   });
 

@@ -205,9 +205,7 @@ describe("Kinetic Signal Notch", () => {
       // wyraźnie cieńsza niż pasek sygnału; stroke-width liczy się w pikselach
       // ekranu (vector-effect), więc skalowanie viewBoxa jej nie pogrubia.
       expect(svg.getAttribute("stroke-width")).toBe("1");
-      expect(svg.querySelector("path")?.getAttribute("vector-effect")).toBe(
-        "non-scaling-stroke",
-      );
+      expect(svg.querySelector("path")?.getAttribute("vector-effect")).toBe("non-scaling-stroke");
     }
     // Hover rozpycha ">" na zewnątrz - w prawo.
     expect(svgs[0]?.getAttribute("class")).toContain("group-hover/link:translate-x-px");
@@ -281,9 +279,9 @@ describe("Kinetic Signal Notch", () => {
     expect(readSectionLabelProps(base, "pl").showRule).toBe(false);
     expect(readSectionLabelProps({ ...base, showRule: true }, "pl").showRule).toBe(true);
     // Pozostałe warianty nie zmieniają zachowania.
-    expect(
-      readSectionLabelProps({ variant: "left-bar", label_pl: "Sekcja" }, "pl").showRule,
-    ).toBe(true);
+    expect(readSectionLabelProps({ variant: "left-bar", label_pl: "Sekcja" }, "pl").showRule).toBe(
+      true,
+    );
   });
 
   it("jest domyślnym stylem etykiety również bez zapisanego wariantu", () => {

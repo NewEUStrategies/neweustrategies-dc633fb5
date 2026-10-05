@@ -836,9 +836,7 @@ function ClubThreadView() {
                 className="mt-0.5 h-4 w-4 shrink-0 text-brand-ink dark:text-brand"
                 aria-hidden="true"
               />
-              <p className="text-sm text-brand-ink dark:text-brand">
-                {t("club.replyQueuedHint")}
-              </p>
+              <p className="text-sm text-brand-ink dark:text-brand">{t("club.replyQueuedHint")}</p>
             </div>
           ) : null}
 

@@ -146,7 +146,7 @@ const SEVERITY_STYLE: Record<
   "needs-improvement": {
     badge: "bg-brand/15 text-brand-ink dark:text-brand border-brand/30",
     ring: "border-brand/30",
-    icon: <AlertTriangle className="w-4 h-4 text-brand0" />,
+    icon: <AlertTriangle className="w-4 h-4 text-brand" />,
   },
 };
 

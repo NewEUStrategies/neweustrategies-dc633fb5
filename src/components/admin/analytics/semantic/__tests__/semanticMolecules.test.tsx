@@ -429,8 +429,8 @@ describe("ReconciliationRow - jedna liczba, potem werdykt", () => {
 
     expect(divergent.verdict).toBe("divergent");
     expect(drift.verdict).toBe("expected_drift");
-    expect(hotClass).toContain("amber");
-    expect(calm.container.querySelector("li")?.className).not.toContain("amber");
+    expect(hotClass).toContain("brand");
+    expect(calm.container.querySelector("li")?.className).not.toContain("brand");
   });
 
   it("odwrócona relacja strumieni jest podpisana jako odwrócenie, nie jako rozjazd", () => {
@@ -587,7 +587,7 @@ describe("StreamHealthGrid - czego w liczbach NIE MA", () => {
     const icons = statusIconClasses(container);
     expect(new Set(icons.slice(0, 4)).size).toBe(4);
     expect(icons[0]).toContain("emerald");
-    expect(icons[2]).toContain("amber");
+    expect(icons[2]).toContain("brand");
   });
 
   it("strumień pominięty w odpowiedzi czyta się jako nieudany odczyt, nie jako pustka", () => {
@@ -782,7 +782,7 @@ describe("WindowProvenance - z jakiego okna pochodzą liczby", () => {
     expect(SAFE.crossStreamSafe).toBe(true);
     expect(OPEN.crossStreamSafe).toBe(false);
     expect(safeBadge).toContain("emerald");
-    expect(unsafeBadge).toContain("amber");
+    expect(unsafeBadge).toContain("brand");
     expect(safeBadge).not.toBe(unsafeBadge);
   });
 
@@ -820,8 +820,8 @@ describe("WindowProvenance - z jakiego okna pochodzą liczby", () => {
       (el) => el.getAttribute("class") ?? "",
     );
     expect(noteIcons).toHaveLength(4);
-    expect(noteIcons[0]).toContain("amber");
-    expect(noteIcons[1]).toContain("amber");
+    expect(noteIcons[0]).toContain("brand");
+    expect(noteIcons[1]).toContain("brand");
     expect(noteIcons[2]).toContain("sky");
     expect(noteIcons[3]).toContain("emerald");
     expect(new Set(noteIcons).size).toBe(3);

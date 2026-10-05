@@ -277,8 +277,8 @@ body {
 
   /* Widget form-field interaction tokens - shared across every widget input.
      Override per-widget by setting these vars on the widget shell. */
-  --gc-input-hover-border: #FA9346; /* light-orange hover ring, per brand */
-  --gc-input-focus-border: #FA9346; /* focus uses the same orange for continuity */
+  --gc-input-hover-border: #fa9346; /* light-orange hover ring, per brand */
+  --gc-input-focus-border: #fa9346; /* focus uses the same orange for continuity */
   /* TABELA ROZMIARÓW CZCIONEK (admin → Wygląd → Rozmiary czcionek).
      Jedyne źródło prawdy dla globalnych reguł typografii UI - katalog tokenów
      żyje w `src/lib/theme/fontScale.ts`, nadpisania tenanta wstrzykuje
@@ -320,9 +320,9 @@ body {
   --border: oklch(0.9 0.005 80);
   --input: oklch(0.9 0.005 80);
   --ring: oklch(0.18 0 0);
-  --brand: #FA9346;
+  --brand: #fa9346;
   --brand-foreground: #141414;
-  --widget-orange-accent: #FA9346;
+  --widget-orange-accent: #fa9346;
   /* Orange fills keep the brand color. Text on light surfaces needs the
      darker ink; the foreground on orange buttons is dark for WCAG AA. */
   --brand-ink: #a94e0b;
@@ -349,18 +349,18 @@ body {
   --cat-military: oklch(0.62 0.22 25);
   --cat-finance: oklch(0.7 0.18 145);
   --cat-transport: oklch(0.8 0.15 75);
-  --cat-diplomacy: #FA9346;
+  --cat-diplomacy: #fa9346;
   --cat-cyber: oklch(0.6 0.18 320);
-  --hot: #FA9346;
+  --hot: #fa9346;
 
   /* ---- Semantyczne gradienty marki (light) ----
      Używane przez nagłówki/CTA/przyciski z variant="gradient".
      Light: jasny brand -> głęboki brand-ink (WCAG AA na tekście, brak
      mętnego przejścia w czerń). */
-  --gradient-brand: linear-gradient(90deg, #fbaa6d 0%, #FA9346 100%);
-  --gradient-brand-soft: linear-gradient(135deg, #fed7b5 0%, #FA9346 100%);
+  --gradient-brand: linear-gradient(90deg, #fbaa6d 0%, #fa9346 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #fed7b5 0%, #fa9346 100%);
   --gradient-heading-stop-1: #ed6d1f;
-  --gradient-heading-stop-2: #FA9346;
+  --gradient-heading-stop-2: #fa9346;
 
   /* ============================================================
      WYKRESY - MOTYW JASNY (silnik SVG src/components/charts, także pod
@@ -411,7 +411,7 @@ body {
      w komentarzu przy każdym tokenie; tam, gdzie jest poniżej 3,0:1, kształt
      niesie obwódka (patrz nagłówek sekcji). */
   --chart-1: #03346e; /* granat           12,21:1 */
-  --chart-2: #FA9346; /* ochra            2,25:1 */
+  --chart-2: #fa9346; /* ochra            2,25:1 */
   --chart-3: #58a537; /* szalwia [bezp.]  3,06:1 */
   --chart-4: #8c56d4; /* sliwka [bezp.]   4,78:1 */
   --chart-5: #2bbbd7; /* lazur            2,28:1 */
@@ -555,9 +555,9 @@ body {
      13,50, czyli pod podłogą palety. Przed zmiękczeniem kolidował z ochrą
      (1,62 przy deuteranopii) - lista jest liczona z palety, a nie pamiętana,
      więc przesunęła się razem z nią (patrz SLOTS_CLASHING_WITH_ACCENT). */
-  --chart-accent: #FA9346;
+  --chart-accent: #fa9346;
   --chart-accent-text: #ed751a;
-  --chart-accent-fill: #FA9346;
+  --chart-accent-fill: #fa9346;
   --chart-accent-bg: #fff4ed;
   --chart-accent-audit: #ab5517;
   --chart-accent-audit-graphic: #cb7032;
@@ -928,10 +928,10 @@ body {
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 10%);
   --ring: oklch(0.98 0 0);
-  --brand: #FA9346;
+  --brand: #fa9346;
   --brand-foreground: #141414;
   /* Na ciemnym tle oryginalny pomarańcz ma ~7.6:1 - atrament wraca do brandu. */
-  --brand-ink: #FA9346;
+  --brand-ink: #fa9346;
   /* Ciemna płyta nie potrzebuje dopracowania krawędzi: dopisana linia byłaby
      tu jasną ramką wokół przycisku, trójkąta i "stopa", a nie detalem. */
   --audio-control-border: transparent;
@@ -948,15 +948,15 @@ body {
   --cat-military: oklch(0.68 0.22 25);
   --cat-finance: oklch(0.7 0.18 145);
   --cat-transport: oklch(0.8 0.15 75);
-  --cat-diplomacy: #FA9346;
+  --cat-diplomacy: #fa9346;
   --cat-cyber: oklch(0.65 0.18 320);
-  --hot: #FA9346;
+  --hot: #fa9346;
 
   /* ---- Semantyczne gradienty marki (dark) ----
      Ciemny motyw: cieplejszy, bardziej świetlisty przebieg tak, by na tle
      #141414 zachować żywość i kontrast >= 4.5:1. */
   --gradient-brand: linear-gradient(90deg, #ffc79a 0%, #f8934a 100%);
-  --gradient-brand-soft: linear-gradient(135deg, #7a3410 0%, #FA9346 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #7a3410 0%, #fa9346 100%);
   --gradient-heading-stop-1: #ffc79a;
   --gradient-heading-stop-2: #f8934a;
 
@@ -983,7 +983,7 @@ body {
      wypełnienia i markera.
      ============================================================ */
   --chart-1: #2196f3; /* granat           6,14:1 */
-  --chart-2: #FA9346; /* ochra            10,64:1 */
+  --chart-2: #fa9346; /* ochra            10,64:1 */
   --chart-3: #76c457; /* szalwia [bezp.]  8,95:1 */
   --chart-4: #e7bcde; /* sliwka [bezp.]   11,54:1 */
   --chart-5: #92eeff; /* lazur            14,51:1 */
@@ -1015,7 +1015,7 @@ body {
      przeoczenie, to konsekwencja tego, że na ciemnym tle rozjaśnianie
      PODNOSI kontrast, a zmiękczenie rozjaśniło całą paletę. */
   --chart-1t: #2196f3; /* 6,14:1 - bez zmiany */
-  --chart-2t: #FA9346; /* 10,64:1 - bez zmiany */
+  --chart-2t: #fa9346; /* 10,64:1 - bez zmiany */
   --chart-3t: #76c457; /* 8,95:1 - bez zmiany */
   --chart-4t: #e7bcde; /* 11,54:1 - bez zmiany */
   --chart-5t: #92eeff; /* 14,51:1 - bez zmiany */
@@ -1095,17 +1095,17 @@ body {
      z ciepłego #fff4ed na PODNIESIONĄ POWIERZCHNIĘ, bo pomarańczowy podkład
      na ciemnym tle miałby ~16:1 i przestałby być podkładem - stałby się
      plamą. */
-  --chart-accent: #FA9346;
+  --chart-accent: #fa9346;
   --chart-accent-text: #ed751a;
-  --chart-accent-fill: #FA9346;
+  --chart-accent-fill: #fa9346;
   --chart-accent-bg: #262424;
-  --chart-accent-audit: #FA9346;
+  --chart-accent-audit: #fa9346;
   /* Warianty audytowe SĄ TU RÓWNE TOKENOWI, i to nie jest przeoczenie:
      w trybie ciemnym akcent przechodzi próg tekstowy sam (8,51:1), więc nie
      ma czego przyciemniać. Przyciemniony #ab5517 miałby na płycie 2,50:1,
      czyli byłby GORSZY od tokena - furtka audytowa ma tu wartość tokena
      właśnie dlatego, że jest niepotrzebna. */
-  --chart-accent-audit-graphic: #FA9346;
+  --chart-accent-audit-graphic: #fa9346;
 
   /* ---- Druga powierzchnia sekcyjna: W CIEMNYM JEJ NIE MA ----
      Ciemne tło strony jest już samym #141313, a wprowadzanie pod nie jeszcze
@@ -1980,7 +1980,7 @@ span[data-unread-badge][data-unread-badge][data-unread-badge][data-unread-badge]
 }
 .cms-social a:hover,
 .cms-social__btn:hover {
-  color: var(--td-si-hover-color, #FA9346);
+  color: var(--td-si-hover-color, #fa9346);
   background: var(--td-si-hover-bg, transparent);
 }
 
@@ -3591,10 +3591,10 @@ textarea::placeholder {
   opacity: 1 !important;
 }
 .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #FA9346);
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, #FA9346);
+  border-color: var(--gc-input-focus-border, #fa9346);
   background: var(--gc-input-bg, var(--background));
 }
 .dark .cf-shell .cf-input {
@@ -3602,11 +3602,11 @@ textarea::placeholder {
   border-color: var(--gc-input-border, color-mix(in oklab, var(--foreground) 30%, transparent));
 }
 .dark .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #FA9346);
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 .dark .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, color-mix(in oklab, var(--background) 65%, var(--foreground) 14%));
-  border-color: var(--gc-input-focus-border, #FA9346);
+  border-color: var(--gc-input-focus-border, #fa9346);
 }
 
 /* Image background */
@@ -3743,7 +3743,7 @@ textarea::placeholder {
 /* Contact-form input focus: orange border only, no glow. */
 .cf-shell .cf-input:focus,
 .dark .cf-shell .cf-input:focus {
-  border-color: var(--gc-input-focus-border, #FA9346);
+  border-color: var(--gc-input-focus-border, #fa9346);
 }
 
 @layer components {
@@ -3785,10 +3785,10 @@ textarea::placeholder {
       ):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]),
     select
   ):hover {
-  border-color: var(--gc-input-hover-border, #FA9346);
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 :where([data-w-id]) :where(textarea):hover {
-  border-color: var(--gc-input-hover-border, #FA9346);
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 :where([data-w-id])
   :where(
@@ -3807,7 +3807,7 @@ textarea::placeholder {
     select
   ):focus-visible {
   outline: none;
-  border-color: var(--gc-input-focus-border, #FA9346);
+  border-color: var(--gc-input-focus-border, #fa9346);
   background: var(--gc-input-bg, var(--background));
   /* Kill Tailwind ring utilities (they'd stack an extra blue box-shadow). */
   --tw-ring-color: transparent;
@@ -4382,11 +4382,11 @@ input.icon-input-with-action {
   border-color: var(--gc-input-border, var(--cf-border, var(--border)));
 }
 .light .cf-shell .cf-input:hover {
-  border-color: var(--gc-input-hover-border, #FA9346);
+  border-color: var(--gc-input-hover-border, #fa9346);
 }
 .light .cf-shell .cf-input:focus {
   background: var(--gc-input-bg, var(--background));
-  border-color: var(--gc-input-focus-border, #FA9346);
+  border-color: var(--gc-input-focus-border, #fa9346);
 }
 .light
   :where([data-w-id])
@@ -4532,7 +4532,7 @@ input.icon-input-with-action {
 .key-takeaways__icon {
   width: 40px;
   height: 40px;
-  background: var(--kt-icon-bg, #FA9346);
+  background: var(--kt-icon-bg, #fa9346);
   color: var(--kt-icon, #ffffff);
 }
 .key-takeaways__title {
@@ -4549,17 +4549,17 @@ input.icon-input-with-action {
 }
 .key-takeaways__card .key-takeaways__list::marker,
 .key-takeaways__card .key-takeaways__list > li::marker {
-  color: var(--kt-accent, #FA9346);
+  color: var(--kt-accent, #fa9346);
 }
 .key-takeaways--heading .key-takeaways__list {
   color: var(--kt-text, #1f2937);
-  border-top-color: color-mix(in oklab, var(--kt-accent, #FA9346) 30%, transparent);
+  border-top-color: color-mix(in oklab, var(--kt-accent, #fa9346) 30%, transparent);
 }
 .dark .key-takeaways--heading .key-takeaways__list {
   color: var(--kt-text-dark, #e5e7eb);
 }
 .key-takeaways__bullet {
-  background: var(--kt-accent, #FA9346);
+  background: var(--kt-accent, #fa9346);
 }
 
 /* Wariant "ghost" - wielki, półprzezroczysty nagłówek renderowany ZA listą.
@@ -4603,7 +4603,7 @@ h2.key-takeaways__ghost-title > span {
 /* Podświetlone słowa - tylko kolor się zmienia, transparentność ta sama. */
 .key-takeaways .key-takeaways__ghost-title .key-takeaways__ghost-title-hl,
 h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
-  color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, #FA9346)) 22%, transparent);
+  color: color-mix(in oklab, var(--kt-highlight, var(--kt-accent, #fa9346)) 22%, transparent);
 }
 .key-takeaways--ghost .key-takeaways__list {
   color: var(--kt-text, #1f2937);
@@ -4612,7 +4612,7 @@ h2.key-takeaways__ghost-title .key-takeaways__ghost-title-hl {
   color: var(--kt-text-dark, #e5e7eb);
 }
 .key-takeaways__ghost-item + .key-takeaways__ghost-item {
-  border-top: 1px solid color-mix(in oklab, var(--kt-accent, #FA9346) 22%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--kt-accent, #fa9346) 22%, transparent);
 }
 
 /* -------------------------------------------------------------
@@ -8540,7 +8540,7 @@ sup.fn-ref {
 .cms-rich-content :is(ul, ol):not([data-footnotes-list]):not(.task-list):not(.contains-task-list) {
   --cms-list-marker-col: 1.65rem;
   --cms-list-lh: var(--lh-body, 1.65);
-  --cms-list-accent: #FA9346;
+  --cms-list-accent: #fa9346;
   margin-block: 0.85em;
   padding: 0 !important;
   list-style: none !important;
@@ -8599,7 +8599,7 @@ sup.fn-ref {
   margin-top: calc((1em * var(--cms-list-lh, 1.65) - 6px) / 2);
   margin-left: 0.3rem;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 55%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 55%, transparent);
   transition:
     transform 180ms ease,
     background-color 180ms ease;
@@ -8607,7 +8607,7 @@ sup.fn-ref {
 .cms-content-list--unordered > .cms-list-item:hover > .cms-list-bullet,
 .cms-block-list-editor--unordered > .cms-block-list-editor__item:hover > .cms-list-bullet {
   transform: scale(1.3);
-  background: var(--cms-list-accent, #FA9346);
+  background: var(--cms-list-accent, #fa9346);
 }
 .cms-content-list--unordered .cms-content-list--unordered .cms-list-bullet,
 .cms-block-list-editor--unordered
@@ -8617,7 +8617,7 @@ sup.fn-ref {
   height: 5px;
   margin-top: calc((1em * var(--cms-list-lh, 1.65) - 5px) / 2);
   border-radius: 1px;
-  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 32%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 32%, transparent);
   transform: none;
 }
 .cms-list-number {
@@ -8632,8 +8632,8 @@ sup.fn-ref {
   /* wyśrodkowanie plakietki względem wysokości pierwszej linii tekstu */
   margin-top: calc((1em * var(--cms-list-lh, 1.65) - 1.3rem) / 2);
   border-radius: 6px;
-  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 14%, transparent);
-  color: var(--cms-list-accent, #FA9346);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 14%, transparent);
+  color: var(--cms-list-accent, #fa9346);
   font-family: var(--font-heading);
   font-weight: 800;
   line-height: 1;
@@ -8679,8 +8679,8 @@ sup.fn-ref {
   justify-content: center;
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 1.3rem) / 2);
   border-radius: 6px;
-  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 14%, transparent);
-  color: var(--cms-list-accent, #FA9346);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 14%, transparent);
+  color: var(--cms-list-accent, #fa9346);
   font-family: var(--font-heading);
   font-size: 0.72rem;
   font-weight: 800;
@@ -8700,7 +8700,7 @@ sup.fn-ref {
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 6px) / 2);
   margin-left: 0.3rem;
   border-radius: 50%;
-  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 55%, transparent);
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 55%, transparent);
   transition:
     transform 180ms ease,
     background-color 180ms ease;
@@ -8709,7 +8709,7 @@ sup.fn-ref {
   ul:not([data-footnotes-list]):not(.task-list):not(.contains-task-list)
   > li:not(.task-list-item):hover::before {
   transform: scale(1.3);
-  background: var(--cms-list-accent, #FA9346);
+  background: var(--cms-list-accent, #fa9346);
 }
 .cms-rich-content li > :is(ul, ol):not(.task-list):not(.contains-task-list) {
   grid-column: 2;
@@ -8724,13 +8724,13 @@ sup.fn-ref {
   height: 5px !important;
   margin-top: calc((1rem * var(--cms-list-lh, 1.65) - 5px) / 2);
   border-radius: 1px !important;
-  background: color-mix(in oklab, var(--cms-list-accent, #FA9346) 32%, transparent) !important;
+  background: color-mix(in oklab, var(--cms-list-accent, #fa9346) 32%, transparent) !important;
   transform: none !important;
 }
 .cms-block-list-editor {
   --cms-list-marker-col: 1.65rem;
   --cms-list-lh: var(--lh-body, 1.65);
-  --cms-list-accent: #FA9346;
+  --cms-list-accent: #fa9346;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -9301,13 +9301,57 @@ input[type="reset"],
 }
 
 /* Wiadomości głosowe: pigułka nagrywania/odsłuchu */
-@keyframes voice-eq { 0%,100% { height: 2px } 35% { height: 13px } 65% { height: 6px } }
-@keyframes voice-stop-spin { 0% { transform: rotate(0) } 50% { transform: rotate(180deg) } 100% { transform: rotate(360deg) } }
-@keyframes voice-pill-in { from { opacity: 0; transform: scaleX(.6) } to { opacity: 1; transform: scaleX(1) } }
-.voice-eq-bar--active { animation: voice-eq 1s ease-in-out infinite; }
-.voice-stop-square { animation: voice-stop-spin 2s ease-in-out infinite; box-shadow: 0 0 0 1px var(--voice-stop-border); }
-.voice-pill-enter { animation: voice-pill-in .4s cubic-bezier(.22,1,.36,1) both; transform-origin: left center; }
+@keyframes voice-eq {
+  0%,
+  100% {
+    height: 2px;
+  }
+  35% {
+    height: 13px;
+  }
+  65% {
+    height: 6px;
+  }
+}
+@keyframes voice-stop-spin {
+  0% {
+    transform: rotate(0);
+  }
+  50% {
+    transform: rotate(180deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes voice-pill-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+.voice-eq-bar--active {
+  animation: voice-eq 1s ease-in-out infinite;
+}
+.voice-stop-square {
+  animation: voice-stop-spin 2s ease-in-out infinite;
+  box-shadow: 0 0 0 1px var(--voice-stop-border);
+}
+.voice-pill-enter {
+  animation: voice-pill-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: left center;
+}
 @media (prefers-reduced-motion: reduce) {
-  .voice-eq-bar--active, .voice-stop-square, .voice-pill-enter { animation: none; }
-  .voice-eq-bar--active { height: 6px; }
+  .voice-eq-bar--active,
+  .voice-stop-square,
+  .voice-pill-enter {
+    animation: none;
+  }
+  .voice-eq-bar--active {
+    height: 6px;
+  }
 }

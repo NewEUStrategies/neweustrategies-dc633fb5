@@ -44,7 +44,7 @@ describe("linia autora tematu", () => {
     render(<ClubModerationThreadAuthor row={adminThreadRow({ is_anonymous: true })} />);
 
     const line = screen.getByText((text) => text.includes(PROTECTED));
-    expect(line.className).toContain("amber");
+    expect(line.className).toContain("brand");
   });
 
   it("tryb Chatham chroni tożsamość przy wpisie podpisanym", () => {
