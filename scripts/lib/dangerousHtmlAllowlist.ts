@@ -52,6 +52,13 @@ export const DANGEROUS_HTML_ALLOWLIST: readonly DangerousHtmlAllowEntry[] = [
   },
   {
     file: "src/routes/__root.tsx",
+    sink: "script",
+    symbol: "SERVER_SHELL_REVEAL_SCRIPT",
+    reason:
+      "Skrypt odsłonięcia powłoki zgód (P1.3b): na serwerze stała CONSENT_SHELL_REVEAL_SCRIPT z lib/consent/consentInitScript - literał z jedną nazwą atrybutu modułu (`data-consent-parsed`), bez wstawek z bazy ani z żądania; w przeglądarce pusty napis, a gałąź serwerowa gniazda się nie renderuje (migawka `innerHTML`). MUSI stać w HTML-u tuż za kartą i wykonać się w trakcie parsowania: odsłania kartę dopiero po jej domknięciu w parserze, więc ucięta karta nie maluje się i nie rośnie w górę (CLS, bramka fali 1, kryterium (d)).",
+  },
+  {
+    file: "src/routes/__root.tsx",
     sink: "html",
     symbol: "shellHtml",
     reason:

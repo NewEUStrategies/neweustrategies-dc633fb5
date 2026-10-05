@@ -966,6 +966,10 @@ describe("__root loader -> tag Google w SSR", () => {
 //     zdejmuje nasłuchy i zapis ciszy.
 //  8. Powłoka UKRYTA bez decyzji (GPC) i powłoka z ZASIEWU ustawień: baner
 //     montuje się bez czekania na interakcję.
+//  9. ODSŁONIĘCIE (P1.3b): skrypt odsłonięcia to OSTATNIE dziecko gniazda
+//     serwera (za kartą, także przy wyłączonym banerze) i ustawia
+//     `html[data-consent-parsed]`; gniazdo, w którym się nie wykonał, daje
+//     baner bez czekania na interakcję.
 describe("__root - powłoka i baner zgód (P1.3)", () => {
   const consentMods = async () => ({
     init: await import("@/lib/consent/consentInitScript"),
@@ -1010,6 +1014,7 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
     document.documentElement.removeAttribute("data-consent-intent");
     document.documentElement.removeAttribute("data-consent-js");
     document.documentElement.removeAttribute("data-consent-gpc");
+    document.documentElement.removeAttribute("data-consent-parsed");
     Reflect.deleteProperty(navigator, "globalPrivacyControl");
     document.body.innerHTML = "";
     window.localStorage.clear();
@@ -1020,8 +1025,15 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
     h.bannerMounts = [];
   }
 
+  /**
+   * Render korzenia zgód. `parse: true` (domyślnie) odtwarza parser: wykonuje
+   * skrypt odsłonięcia z gniazda (React klienta wstawia `<script>` bez
+   * wykonania), zanim partner skryptu wystartuje - jak w przeglądarce, gdzie
+   * gniazdo stoi w HTML-u przed modułem bootu.
+   */
   async function mountSurface(
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+    { parse = true }: { parse?: boolean } = {},
   ) {
     const { rtl } = await consentMods();
     const { QueryClientProvider } = await import("@tanstack/react-query");
@@ -1030,6 +1042,8 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
         <ConsentSurface />
       </QueryClientProvider>,
     );
+    const reveal = document.querySelector("[data-consent-shell-slot] > script");
+    if (parse && reveal?.textContent) new Function(reveal.textContent)();
     // Efekt korzenia dociąga prymitywy P0.3 i koordynator `import()`.
     await rtl.act(async () => {
       await vi.dynamicImportSettled();
@@ -1114,6 +1128,32 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
     expect(container.querySelector("span")?.textContent).toBe("1");
     // TEN SAM węzeł - React nie przepisał `innerHTML` gniazda.
     expect(container.querySelector("[data-consent-shell]")).toBe(before);
+  });
+
+  it("gniazdo serwera: skrypt odsłonięcia stoi ZA kartą (ostatnie dziecko) i ustawia `data-consent-parsed`", async () => {
+    const { init } = await consentMods();
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const Server = () => <div data-consent-shell="">powłoka</div>;
+    const doc = new DOMParser().parseFromString(
+      renderToStaticMarkup(<ConsentShellSlot server={Server} />),
+      "text/html",
+    );
+    const slot = doc.querySelector("[data-consent-shell-slot]");
+    const children = [...(slot?.children ?? [])];
+    expect(children.map((el) => el.tagName)).toEqual(["DIV", "SCRIPT"]);
+    expect(children[0].hasAttribute("data-consent-shell")).toBe(true);
+    expect(children[1].textContent).toBe(init.CONSENT_SHELL_REVEAL_SCRIPT);
+    expect(document.documentElement.hasAttribute("data-consent-parsed")).toBe(false);
+    new Function(children[1].textContent ?? "")();
+    expect(document.documentElement.hasAttribute("data-consent-parsed")).toBe(true);
+
+    // Baner wyłączony (powłoka = `null`): skrypt zostaje - „parser minął gniazdo".
+    const empty = new DOMParser().parseFromString(
+      renderToStaticMarkup(<ConsentShellSlot server={() => null} />),
+      "text/html",
+    );
+    const emptySlot = empty.querySelector("[data-consent-shell-slot]");
+    expect([...(emptySlot?.children ?? [])].map((el) => el.tagName)).toEqual(["SCRIPT"]);
   });
 
   it("kontrola negatywna: gniazdo klienta bez migawki traci powłokę przy hydratacji", async () => {
@@ -1284,6 +1324,15 @@ describe("__root - powłoka i baner zgód (P1.3)", () => {
       Object.defineProperty(window, "location", { configurable: true, value: location });
       window.sessionStorage.clear();
     }
+  });
+
+  it("skrypt odsłonięcia się nie wykonał (powłoka ukryta): baner po boocie BEZ interakcji", async () => {
+    const { rtl } = await consentMods();
+    await runInitScript();
+    await mountSurface(undefined, { parse: false });
+    expect(document.documentElement.hasAttribute("data-consent-parsed")).toBe(false);
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    expect(h.bannerMounts.at(-1)).toEqual({ intent: null, focus: null });
   });
 
   it("GPC: powłoka ukryta, baner (z notą) montuje się po boocie BEZ interakcji", async () => {

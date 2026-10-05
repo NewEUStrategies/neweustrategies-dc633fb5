@@ -22,12 +22,18 @@
 //
 // UKRYWANIE (`SHELL_HIDE_CLASSES`). Powłoka jest widoczna WYŁĄCZNIE wtedy, gdy
 // skrypt inline zadziałał (`html[data-consent-js]` - bez JavaScriptu nie ma
-// martwej karty), w przeglądarce nie ma decyzji (`html[data-consent-decided]`,
-// ustawiany przed pierwszym malowaniem i po kliknięciu decyzji) i nie ma
-// sygnału GPC (`html[data-consent-gpc]` - karta banera ma wtedy notę, której
-// powłoka nie ma, więc baner wchodzi od razu po boocie). Bez `:has()` i bez
-// edycji `styles.css` (Tailwind generuje reguły `html[data-consent-decided]
-// .klasa{display:none}` itd.).
+// martwej karty), parser domknął gniazdo (`html[data-consent-parsed]` ze
+// skryptu odsłonięcia tuż za kartą, P1.3b - ucięta karta zakotwiczona od dołu
+// rosłaby w górę przy dopisaniu reszty, czyli przesunięcie układu), w
+// przeglądarce nie ma decyzji (`html[data-consent-decided]`, ustawiany przed
+// pierwszym malowaniem i po kliknięciu decyzji) i nie ma sygnału GPC
+// (`html[data-consent-gpc]` - karta banera ma wtedy notę, której powłoka nie
+// ma, więc baner wchodzi od razu po boocie). Bez `:has()` i bez edycji
+// `styles.css` (Tailwind generuje reguły `html[data-consent-decided]
+// .klasa{display:none}` itd.). Każdy warunek to osobny selektor prosty: złożone
+// `:not([a][b])` jednym wariantem wywróciłoby w starszym silniku całą wspólną
+// regułę `display:none` (lista selektorów bez przebaczania), razem z ukrywaniem
+// przy decyzji.
 // `data-nosnippet`: tekst cookies stoi w HTML każdej strony, nie może trafić
 // do fragmentów wyników wyszukiwania (krytyka planu m4a).
 //
@@ -54,10 +60,11 @@ import { cn } from "@/lib/utils";
 
 /**
  * Warianty ukrywania korzenia powłoki (nagłówek pliku, „UKRYWANIE"). Atrybuty
- * ustawia `CONSENT_INIT_SCRIPT` (`lib/consent/consentInitScript.ts`).
+ * ustawiają `CONSENT_INIT_SCRIPT` i `CONSENT_SHELL_REVEAL_SCRIPT`
+ * (`lib/consent/consentInitScript.ts`).
  */
 const SHELL_HIDE_CLASSES =
-  "[html:not([data-consent-js])_&]:hidden [html[data-consent-decided]_&]:hidden [html[data-consent-gpc]_&]:hidden";
+  "[html:not([data-consent-js])_&]:hidden [html:not([data-consent-parsed])_&]:hidden [html[data-consent-decided]_&]:hidden [html[data-consent-gpc]_&]:hidden";
 
 // ---------- Ustawienia prywatności (site_settings["privacy"]) ----------
 

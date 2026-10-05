@@ -3,13 +3,15 @@
 // CO TO DOWODZI:
 //  1. PARYTET: powłoka i karta banera w chwili przejęcia to TEN SAM markup -
 //     ten sam HTML co do bajtu po zdjęciu atrybutów wyłącznie powłoki
-//     (`data-consent-shell`, `data-nosnippet`, trzy klasy ukrywania). Podmiana
+//     (`data-consent-shell`, `data-nosnippet`, cztery klasy ukrywania). Podmiana
 //     powłoki na baner nie zmienia więc ani piksela, ani drzewa dostępności
 //     (te same role, etykiety, kolejność kontrolek).
 //  2. WIDOCZNOŚĆ: korzeń powłoki niesie warianty ukrywania (bez działającego
-//     skryptu `data-consent-js`, przy decyzji `data-consent-decided`, przy GPC
-//     `data-consent-gpc` - atrybuty `<html>` ze skryptu inline, bez `:has()`)
-//     i `data-nosnippet`; powłoka nie powstaje, gdy baner jest wyłączony.
+//     skryptu `data-consent-js`, przed domknięciem w parserze
+//     `data-consent-parsed` - P1.3b, przy decyzji `data-consent-decided`, przy
+//     GPC `data-consent-gpc` - atrybuty `<html>` ze skryptów inline, bez
+//     `:has()`, każdy osobnym selektorem prostym) i `data-nosnippet`; powłoka
+//     nie powstaje, gdy baner jest wyłączony.
 //  3. POKAZANIE BEZ ANIMACJI (P0.5, F8): żadnego `animate-in` w karcie.
 //  4. BEZ LUCIDE: ikony są inline SVG, `aria-hidden`, a moduł nie importuje
 //     `lucide-react` (powłoka nie może ciągnąć `vendor-lucide`).
@@ -88,6 +90,7 @@ const SHELL_ONLY = [
   / data-consent-shell=""/,
   / data-nosnippet=""/,
   / \[html:not\(\[data-consent-js\]\)_&amp;\]:hidden/,
+  / \[html:not\(\[data-consent-parsed\]\)_&amp;\]:hidden/,
   / \[html\[data-consent-decided\]_&amp;\]:hidden/,
   / \[html\[data-consent-gpc\]_&amp;\]:hidden/,
 ];
@@ -166,11 +169,16 @@ describe("powłoka: widoczność, SEO i pokazanie bez animacji", () => {
     expect(root?.getAttribute("aria-modal")).toBe("false");
     expect(root?.getAttribute("aria-label")).toBe(PL.title);
     expect(root?.hasAttribute("data-nosnippet")).toBe(true);
-    // Widoczna WYŁĄCZNIE przy działającym skrypcie, bez decyzji i bez GPC.
+    // Widoczna WYŁĄCZNIE przy działającym skrypcie, po domknięciu w parserze
+    // (P1.3b), bez decyzji i bez GPC.
     expect(root?.className).toContain("[html:not([data-consent-js])_&]:hidden");
+    expect(root?.className).toContain("[html:not([data-consent-parsed])_&]:hidden");
     expect(root?.className).toContain("[html[data-consent-decided]_&]:hidden");
     expect(root?.className).toContain("[html[data-consent-gpc]_&]:hidden");
     expect(root?.className).not.toMatch(/:has\(/);
+    // Każdy warunek osobnym selektorem prostym: złożone `:not([a][b])`
+    // wywróciłoby w starszym silniku całą wspólną regułę `display:none`.
+    expect(root?.className).not.toMatch(/:not\(\[[^\]]+\]\[/);
   });
 
   it("każda kontrolka niesie akcję dla delegowanego `click` i przeniesienia fokusu", () => {
@@ -293,7 +301,8 @@ describe("bajty HTML-a powłoki: aliasy kolorów karty (poprawka 9)", () => {
 
   it("powłoka mieści się w budżecie surowych bajtów, bez długich par kolorów, `xmlns` i separatorów", () => {
     const html = shellHtml();
-    // 6 206 B przed poprawką 9, 5 164 B po niej (domyślne treści PL, logo).
+    // 6 206 B przed poprawką 9, 5 164 B po niej (domyślne treści PL, logo),
+    // +47 B po P1.3b (czwarta klasa ukrywania, `data-consent-parsed`).
     // Zapas na drobne zmiany treści; większy przyrost = nowy pomiar
     // `check-document-weight` i decyzja o progach (plik P1.4).
     expect(Buffer.byteLength(html)).toBeLessThanOrEqual(5_400);
