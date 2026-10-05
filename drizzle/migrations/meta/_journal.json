@@ -1016,6 +1016,13 @@
       "when": 1791064635682,
       "tag": "0144_telemetry_retention_and_search_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1791173734219,
+      "tag": "0145_club_log_vocabulary_covers_writers",
+      "breakpoints": true
     }
   ]
 }
