@@ -274,8 +274,9 @@ const results = await pipeline(
   ITEMS,
   async (item) => {
     // Wznowienie po przerwie (restart kontenera): `start: "fix"` = runda poprawek z `item.findings`
-    // na istniejącym worktree, potem recenzja; `start: "prove-fix"` = poprawka po dowodzie i nowy dowód.
-    const resumed = item.start === "fix" || item.start === "prove-fix";
+    // na istniejącym worktree, potem recenzja; `start: "prove-fix"` = poprawka po dowodzie i nowy dowód;
+    // `start: "review"` = sama recenzja istniejącego commitu (np. po przerwanej rundzie recenzji).
+    const resumed = item.start === "fix" || item.start === "prove-fix" || item.start === "review";
     let impl = resumed
       ? {
           item_id: item.id,
@@ -293,7 +294,7 @@ const results = await pipeline(
     if (!impl) return { item, status: "no_impl" };
     if (item.start === "prove-fix")
       return { item, impl, reviews: [], proveFindings: item.findings };
-    const firstRound = item.start === "fix" ? item.fix_round || 1 : 0;
+    const firstRound = item.start === "fix" || item.start === "review" ? item.fix_round || 1 : 0;
     if (item.start === "fix") {
       const fixed = await agent(implPrompt(item, firstRound, item.findings), {
         label: `fix:${item.id}#${firstRound}`,
