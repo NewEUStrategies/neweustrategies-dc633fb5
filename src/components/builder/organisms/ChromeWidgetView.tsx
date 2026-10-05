@@ -25,7 +25,9 @@
 import {
   lazy,
   memo,
+  startTransition,
   Suspense,
+  use,
   useEffect,
   useMemo,
   useState,
@@ -41,22 +43,28 @@ import type { WidgetNode, Device, WidgetTypography } from "@/lib/builder/types";
 import { WidgetView as ServerWidgetView } from "./WidgetView";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
-import {
-  sanitizeHtmlId,
-  sanitizeCssClass,
-  scopeCustomCss,
-  safeUrl,
-  hardenStyleCss,
-} from "@/lib/sanitizePure";
+import { sanitizeHtmlId, sanitizeCssClass, scopeCustomCss, safeUrl } from "@/lib/sanitizePure";
 import { useInView } from "@/hooks/use-in-view";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { hoverCss } from "@/lib/builder/hoverCss";
-import { subscribeWidgetTypography } from "@/lib/builder/liveTypography";
 import {
-  buildWidgetTypographyCss,
+  cssAttributeValue,
   normalizeTypographyGapPx,
   resolveWidgetTypography,
+  subscribeWidgetTypography,
+  widgetTypographyTemplate,
+} from "@/lib/builder/liveTypography";
+// Generator reguł typografii - WYŁĄCZNIE referencja serwerowa (gałąź
+// `.server()` w `getServerLegacyTypography` niżej). Kompilator Start wycina tę
+// gałąź z bundla przeglądarki razem z importem; przeglądarka dociąga generator
+// przez `import()` tylko wtedy, gdy blok z HTML-a nie pasuje do danych
+// (strażnik `check:entry-purity`: generator nie wraca do chunku wejściowego).
+import {
+  buildLegacyWidgetTypographyCss as serverLegacyTypographyCss,
+  type LegacyWidgetTypographyInput,
 } from "@/lib/builder/typographyCss";
+import { StyleSink } from "@/components/theme/StyleSink";
+import { hashStyleInput, readStyleSnapshot } from "@/lib/theme/styleSnapshot";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
 import { useLcpImage } from "@/lib/builder/aboveFold";
 import { resolveGlobalWidgetInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
@@ -150,41 +158,129 @@ const EASING_MAP: Record<string, string> = {
 };
 
 /**
- * Wspólna RAMKA widgetu: identyfikatory, style, animacje wejścia, arkusz
- * instancji i funkcja `wrap()`, która opakowuje treść widgetu. Jeden hook,
- * wołany jako PIERWSZY w obu dyspozytorach - dzięki temu kolejność hooków jest
- * identyczna niezależnie od tego, który z nich renderuje dany widget.
+ * Nakładka WIDGETU GLOBALNEGO: żywy rekord (synchronizowany między stronami)
+ * zamiast migawki osadzonej w dokumencie, która zostaje fallbackiem SSR i
+ * pierwszej klatki.
+ *
+ * Wołana WYŁĄCZNIE w komponencie renderowanym dla węzła z `globalId`
+ * (`GlobalChromeWidgetView`, P2.4 - hydration:H10 a). Wcześniej każda ramka
+ * zakładała wyłączone zapytanie react-query (obserwator, subskrypcja,
+ * `#updateTimers`) tylko po to, żeby kolejność hooków była stała - na stronie
+ * z setką widgetów i kilkoma globalnymi to setka zbędnych subskrypcji w
+ * commicie hydratacji (księga P0.5, K12). Ramka (`useWidgetFrame`) dostaje
+ * już rozstrzygnięty węzeł.
  */
-export function useWidgetFrame({
-  node: instanceNode,
-  lang,
-  device,
-  editable = false,
-  onContentChange,
-}: WidgetViewProps) {
-  // Global-widget instances render the LIVE record (synchronized across pages);
-  // the embedded snapshot is only the SSR / first-paint fallback. The hook is a
-  // no-op (disabled query) for regular widgets, so hook order stays stable.
+function useGlobalWidgetOverlay(instanceNode: WidgetNode, lang: Lang, editable: boolean) {
   const globalData = useGlobalWidgetNode(instanceNode.globalId);
   // Inside the builder the document snapshot contains the optimistic edit and
   // must win immediately. Otherwise a still-stale global query overwrites the
   // new value for one render (or indefinitely if sync is delayed), making the
   // property control change while the canvas appears frozen. Read-only/public
   // rendering still prefers the live global record.
-  const overlaid = resolveGlobalWidgetInstance(instanceNode, globalData, editable);
+  //
   // Overlay stomps the pre-processed snapshot with the raw live record, więc
   // [fn]…[/fn] w globalnym widgecie znika po hydratacji jeśli tu nie
   // przepuścimy tego przez ten sam silnik przypisów, którego używa
   // prepareContentForRender. Numeracja jest per-widget (globalne widgety są
   // reużywalne między stronami, więc nie mogą uczestniczyć w licznikach
   // dokumentowych) - marker + tooltip w atrybucie title wystarczy do UX.
-  const node = useMemo(
-    () =>
-      instanceNode.globalId && globalData && !editable
-        ? processWidgetFootnotes(overlaid, lang).widget
-        : overlaid,
-    [overlaid, instanceNode.globalId, globalData, editable, lang],
+  // Jeden `useMemo` na całość: węzeł zachowuje tożsamość między renderami,
+  // więc `memo` leniwego dyspozytora niżej nie pęka przy każdym renderze.
+  return useMemo(() => {
+    const overlaid = resolveGlobalWidgetInstance(instanceNode, globalData, editable);
+    return globalData && !editable ? processWidgetFootnotes(overlaid, lang).widget : overlaid;
+  }, [instanceNode, globalData, editable, lang]);
+}
+
+/**
+ * Blok `<style>` GENERATORA typografii ramki (właściwości spoza szablonu
+ * HW-2: krój, grubość, interlinia... albo rozmiary spoza białej listy).
+ *
+ * Kontrakt jak w `useDeferredStyleCss` (arkusze korzenia, P1.2): serwer liczy
+ * CSS synchronicznie i dopisuje `data-css-hash` (skrót danych wejściowych),
+ * przeglądarka przy hydratacji czyta ten sam blok z DOM-u - bez generatora w
+ * chunku wejściowym. Generator dociąga się przez `import()` dopiero, gdy
+ * skrót danych różni się od migawki (podgląd na żywo, przełączenie urządzenia
+ * dla rozmiarów spoza listy) albo bloku nie ma (render czysto kliencki).
+ * Wtedy komponent ZAWIESZA się na tym samym, współdzielonym imporcie (jak
+ * leniwe widgety) zamiast malować widget bez typografii: przy przejściu w
+ * `startTransition` (urządzenie, nawigacja) zostaje poprzedni widok.
+ */
+type LegacyTypographyGenerator = (input: LegacyWidgetTypographyInput) => string;
+
+const getServerLegacyTypography = createIsomorphicFn()
+  .server((): LegacyTypographyGenerator | null => serverLegacyTypographyCss)
+  .client((): LegacyTypographyGenerator | null => null);
+const serverLegacyTypography = getServerLegacyTypography();
+
+// Jeden import na dokument, współdzielony przez wszystkie ramki. Po
+// rozwiązaniu generator jest dostępny synchronicznie (`legacyTypographyLoaded`).
+let legacyTypographyImport: Promise<LegacyTypographyGenerator | null> | null = null;
+let legacyTypographyLoaded: LegacyTypographyGenerator | null = null;
+function loadLegacyTypographyGenerator(): Promise<LegacyTypographyGenerator | null> {
+  legacyTypographyImport ??= import("@/lib/builder/typographyCss").then(
+    (m) => (legacyTypographyLoaded = m.buildLegacyWidgetTypographyCss),
+    // Chunk nie dojechał (sieć, stary deploy): zostaje blok z HTML-a albo nic -
+    // bez błędu renderu; rozmiary i tak niesie szablon HW-2.
+    () => null,
   );
+  return legacyTypographyImport;
+}
+
+const LegacyTypographyStyle = memo(function LegacyTypographyStyle({
+  input,
+}: {
+  input: LegacyWidgetTypographyInput;
+}) {
+  const hash = useMemo(() => hashStyleInput(input), [input]);
+  const [snapshot] = useState(() =>
+    serverLegacyTypography
+      ? null
+      : readStyleSnapshot(`data-wt-css="${cssAttributeValue(input.widgetId)}"`),
+  );
+  const fresh = snapshot !== null && snapshot.hash === hash;
+  const generate = serverLegacyTypography ?? legacyTypographyLoaded;
+  const generated = useMemo(
+    () => (!fresh && generate ? generate(input) : null),
+    [fresh, generate, input],
+  );
+  // Nieaktualna migawka zostaje na ekranie, dopóki generator nie dojedzie.
+  const [, setGeneratorReady] = useState(false);
+  useEffect(() => {
+    if (fresh || generate || !snapshot) return;
+    let active = true;
+    void loadLegacyTypographyGenerator().then((loaded) => {
+      if (active && loaded) setGeneratorReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [fresh, generate, snapshot]);
+  let css: string;
+  if (fresh && snapshot) css = snapshot.css;
+  else if (generated !== null) css = generated;
+  else if (snapshot) css = snapshot.css;
+  else css = use(loadLegacyTypographyGenerator())?.(input) ?? "";
+  if (!css) return null;
+  return <StyleSink data-wt-css={input.widgetId} data-css-hash={hash} css={css} />;
+});
+
+/**
+ * Wspólna RAMKA widgetu: identyfikatory, style, animacje wejścia, arkusz
+ * instancji i funkcja `wrap()`, która opakowuje treść widgetu. Jeden hook,
+ * wołany jako PIERWSZY w obu dyspozytorach - dzięki temu kolejność hooków jest
+ * identyczna niezależnie od tego, który z nich renderuje dany widget.
+ *
+ * Węzeł widgetu globalnego przychodzi tu JUŻ z nakładką żywego rekordu
+ * (`GlobalChromeWidgetView`); ramka sama nie subskrybuje rekordów globalnych.
+ */
+export function useWidgetFrame({
+  node,
+  lang,
+  device,
+  editable = false,
+  onContentChange,
+}: WidgetViewProps) {
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
   const effectiveMode = builderMode ?? theme;
@@ -193,8 +289,8 @@ export function useWidgetFrame({
   // fetchpriority=high + `data-lcp-candidate`; w renderze czysto klienckim
   // pierwsza sekcja dostaje samo eager (`LcpImage`), każdy inny obraz jest
   // leniwy. Klucz to identyfikator INSTANCJI z dokumentu (kandydat liczy się
-  // z dokumentu, a nakładka widgetu globalnego nie zmienia pozycji w drzewie).
-  const lcp = useLcpImage(instanceNode.id);
+  // z dokumentu, a nakładka widgetu globalnego nie zmienia identyfikatora).
+  const lcp = useLcpImage(node.id);
   const [liveTypography, setLiveTypography] = useState<WidgetTypography | undefined>(undefined);
   const baseStyle = styleToCSS(node.style, device, effectiveMode);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
@@ -238,7 +334,14 @@ export function useWidgetFrame({
   const scopedCss = scopeCustomCss(node.advanced?.customCss, node.id);
   const hover = hoverCss(node.id, node.style, device, effectiveMode);
 
-  useEffect(() => subscribeWidgetTypography(node.id, setLiveTypography), [node.id]);
+  // Podgląd na żywo w przejściu: blok generatora (właściwości spoza szablonu)
+  // może się zawiesić na leniwym imporcie, a wtedy zostaje poprzedni widok
+  // zamiast fallbacku sekcji.
+  useEffect(
+    () =>
+      subscribeWidgetTypography(node.id, (next) => startTransition(() => setLiveTypography(next))),
+    [node.id],
+  );
 
   // Widget-level color overrides win over any global/utility class colors
   // (text-foreground, text-muted-foreground, prose, etc.). When the user sets
@@ -291,9 +394,23 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     [effectiveMode, liveTypography, node.style?.typography],
   );
   const activeGapPx = normalizeTypographyGapPx(activeTypography?.titleDescriptionGapPx);
-  const typographyCss = useMemo(() => {
-    return buildWidgetTypographyCss(node.id, activeTypography, device, { specificity: 3 });
-  }, [activeTypography, device, node.id]);
+  // Szablon typografii HW-2 (P2.4): tokeny `data-wt` + zmienne `--wt-*` dla
+  // WSZYSTKICH urządzeń naraz - wynik nie zależy od `device`, więc
+  // przełączenie urządzenia po hydratacji nie zmienia ani stylu ramki, ani
+  // żadnego bloku `<style>` (reguły są raz, w `styles.css`). Blok generatora
+  // zostaje tylko dla właściwości spoza szablonu.
+  const typographyTemplate = useMemo(
+    () => widgetTypographyTemplate(activeTypography),
+    [activeTypography],
+  );
+  const legacyTypographyDevice = typographyTemplate.legacyFontSize ? device : null;
+  const legacyTypographyInput = useMemo<LegacyWidgetTypographyInput | null>(
+    () =>
+      typographyTemplate.legacy
+        ? { widgetId: node.id, typography: activeTypography, device: legacyTypographyDevice }
+        : null,
+    [typographyTemplate.legacy, node.id, activeTypography, legacyTypographyDevice],
+  );
 
   const isImage = node.type === "image";
   const isMedia =
@@ -306,11 +423,12 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   const fillsExplicitFrameHeight =
     resolvedFrameHeight !== undefined && resolvedFrameHeight !== "auto";
   const isCompactWidget = COMPACT_WIDGET_TYPES.has(node.type);
-  // Coalesce every per-widget CSS source (hover, typography, color override,
-  // user custom CSS) into a SINGLE <style> node instead of up to four. All four
-  // are already scoped to `[data-w-id="<id>"]`, so concatenation is order-safe
-  // and shrinks the per-widget DOM/style-node count on widget-heavy pages.
-  const widgetCss = [hover, typographyCss, overrideCss, scopedCss].filter(Boolean).join("\n");
+  // Coalesce the remaining per-widget CSS sources (hover, color override, user
+  // custom CSS) into a SINGLE <style> node instead of up to three. All are
+  // scoped to `[data-w-id="<id>"]`, so concatenation is order-safe. Typografia
+  // idzie szablonem (wyżej) albo blokiem generatora PRZED tym blokiem - jak
+  // dawniej przed nadpisaniem koloru i CSS-em autora.
+  const widgetCss = [hover, overrideCss, scopedCss].filter(Boolean).join("\n");
   // Inner content shell - pozwala wycentrować treść i zmniejszyć jej szerokość
   // wewnątrz widgetu (bez zmieniania szerokości samego widgetu), oraz sterować
   // odstępem między dziećmi. Brak wartości = zachowanie legacy (pełna szerokość).
@@ -391,12 +509,19 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
   // klatka szła bez typografii widgetu i przeskakiwała. Blok stoi OBOK ramki,
   // a nie w środku, bo `[data-w-id] > :first-child` w styles.css zeruje
   // margines pierwszego dziecka - <style> w środku przejąłby tę regułę.
+  //
+  // `StyleSink` (P1.2): memo po surowym napisie, więc re-render ramki z tym
+  // samym CSS-em (np. przełączenie urządzenia, commit hydratacji) nie robi
+  // `innerHTML =` - wcześniej każdy taki render parsował blok od nowa (zadanie
+  // K15 księgi P0.5).
   const wrap = (children: React.ReactNode) => (
     <>
-      {widgetCss && <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(widgetCss) }} />}
+      {legacyTypographyInput && <LegacyTypographyStyle input={legacyTypographyInput} />}
+      {widgetCss && <StyleSink css={widgetCss} />}
       <div
         id={htmlId}
         data-w-id={node.id}
+        data-wt={typographyTemplate.tokens}
         // Ramka wyszukiwarki przycina (`overflow: hidden` niżej) - znacznik z SSR
         // zdejmuje clip od pierwszej klatki (`@/lib/builder/searchOverflow`).
         data-search-overflow={searchOverflowAttr(isSearchButton)}
@@ -421,6 +546,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
           ...(typeof activeGapPx === "number"
             ? ({ "--cms-title-description-gap": `${activeGapPx}px` } as CSSProperties)
             : {}),
+          ...(typographyTemplate.vars as CSSProperties | undefined),
           ...baseStyle,
           marginTop: 0,
           marginBottom: 0,
@@ -1167,16 +1293,40 @@ function FramedChromeWidgetView(props: WidgetViewProps) {
   return <DeferredWidgetView {...props} />;
 }
 
-export const ChromeWidgetView = memo(function ChromeWidgetView(props: WidgetViewProps) {
+/**
+ * Wybór dyspozytora po typie INSTANCJI (`routeType`), a renderu po węźle
+ * rozstrzygniętym (po nakładce globalnej). Żywy rekord globalny innego typu
+ * niż migawka nie przełącza więc komponentu (nie remontuje poddrzewa):
+ * ramka chrome z typem treściowym oddaje render pełnemu dyspozytorowi, a
+ * `WidgetView` obsługuje też typy chrome.
+ */
+function routeChromeWidget(routeType: WidgetNode["type"], props: WidgetViewProps) {
   // The full dispatcher owns the frame for content widgets. Do not build a
-  // discarded frame here: it duplicates theme/global-widget/typography
-  // subscriptions, CSS generation and motion observers during hydration.
-  // Keep hooks in the separate chrome component so editor type changes stay
-  // valid. WidgetView also handles a live global changing to a chrome type.
-  return requiresFullWidgetView(props.node.type) ? (
+  // discarded frame here: it duplicates theme/typography subscriptions, CSS
+  // generation and motion observers during hydration. Keep hooks in the
+  // separate chrome component so editor type changes stay valid.
+  return requiresFullWidgetView(routeType) ? (
     <DeferredWidgetView {...props} />
   ) : (
     <FramedChromeWidgetView {...props} />
+  );
+}
+
+/** Instancja widgetu globalnego - jedyne miejsce z subskrypcją rekordu. */
+function GlobalChromeWidgetView(props: WidgetViewProps) {
+  const node = useGlobalWidgetOverlay(props.node, props.lang, props.editable === true);
+  return routeChromeWidget(props.node.type, { ...props, node });
+}
+
+export const ChromeWidgetView = memo(function ChromeWidgetView(props: WidgetViewProps) {
+  // hydration:H10 (a): zapytanie o rekord globalny tylko dla węzła z
+  // `globalId`. Węzeł, który go zyskuje albo traci (zapis jako globalny,
+  // odpięcie w edytorze), przechodzi między dwoma komponentami - to rzadka
+  // operacja edytora i remontuje wyłącznie ten widget.
+  return props.node.globalId ? (
+    <GlobalChromeWidgetView {...props} />
+  ) : (
+    routeChromeWidget(props.node.type, props)
   );
 });
 

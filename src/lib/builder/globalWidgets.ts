@@ -8,7 +8,8 @@
 //   insert: WidgetLibrary palette (click / drag) -> makeGlobalInstance()
 //   edit:   useGlobalWidgetSync (builder hook) pushes changed instance
 //           snapshots to the row (optimistic cache write + debounced upsert)
-//   render: useGlobalWidgetNode overlay in WidgetView
+//   render: useGlobalWidgetNode overlay in ChromeWidgetView
+//           (`GlobalChromeWidgetView` - rendered ONLY for nodes with globalId)
 //   detach: delete node.globalId (snapshot stays, widget becomes local)
 import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -122,7 +123,13 @@ const GLOBAL_WIDGET_GC = 10 * 60_000;
 /**
  * Live payload of a global widget for the render overlay. Returns null until
  * loaded (callers fall back to the instance snapshot) and when `globalId` is
- * absent, so it is safe to call unconditionally from WidgetView.
+ * absent.
+ *
+ * Wołaj WYŁĄCZNIE z komponentu renderowanego dla węzła z `globalId`
+ * (`GlobalChromeWidgetView` w `ChromeWidgetView.tsx`; Wydajność PSI 85/95,
+ * fala 2, P2.4 - hydration:H10 a). Wywołanie „na wszelki wypadek" w każdej
+ * ramce zakładało wyłączone zapytanie z obserwatorem i subskrypcją dla
+ * każdego widgetu strony - koszt w commicie hydratacji bez żadnego pożytku.
  */
 export function useGlobalWidgetNode(globalId: string | undefined): GlobalWidgetData | null {
   const q = useQuery({
