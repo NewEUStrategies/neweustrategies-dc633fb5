@@ -190,6 +190,32 @@ describe("content widget frame ownership", () => {
     expect(editor.container.textContent).not.toContain("Stale global heading");
   });
 
+  it("renders a content-type live record of a chrome instance through the full dispatcher", async () => {
+    // Ramka chrome z nakładką oddaje treść pełnemu dyspozytorowi z węzłem
+    // INSTANCJI - nakładkę robi on sam pod swoją granicą Suspense.
+    const instance: WidgetNode = {
+      id: "frame-owner",
+      kind: "widget",
+      type: "heading",
+      globalId: "shared-heading",
+      content: { text_pl: "Snapshot heading" },
+    };
+    const { container, client } = setup(instance);
+    expect(container.textContent).toContain("Snapshot heading");
+    await waitFor(() =>
+      expect(client.getQueryState(globalWidgetKey("shared-heading"))?.status).toBe("success"),
+    );
+    act(() => {
+      client.setQueryData(globalWidgetKey("shared-heading"), {
+        type: "dark-featured-card",
+        content: { title_pl: "Live card title" },
+      });
+    });
+    await waitFor(() => expect(container.textContent).toContain("Live card title"));
+    expect(container.textContent).not.toContain("Snapshot heading");
+    expect(container.querySelectorAll('[data-w-id="frame-owner"]')).toHaveLength(1);
+  });
+
   it("supports changing a widget between chrome and content types", async () => {
     const { container, update } = setup();
     await waitFor(() =>

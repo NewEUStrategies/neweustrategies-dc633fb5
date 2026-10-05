@@ -19,59 +19,18 @@
 // na `background-position` oblewa ten test.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { parseCssBlocks, type CssBlock } from "@/test/cssRules";
 
-const CSS = readFileSync("src/styles.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-
-interface Block {
-  /** Prelude: selektor albo at-reguła (np. `@media …`, `@keyframes x`). */
-  prelude: string;
-  declarations: string[];
-  children: Block[];
-}
-
-/** Parser blokowy CSS-a (zagnieżdżenia: @media, @layer, @utility, `&`). */
-function parse(source: string): Block[] {
-  let i = 0;
-  const readBody = (): { declarations: string[]; children: Block[] } => {
-    const declarations: string[] = [];
-    const children: Block[] = [];
-    let buffer = "";
-    const flush = () => {
-      const text = buffer.trim();
-      if (text) declarations.push(text);
-      buffer = "";
-    };
-    while (i < source.length) {
-      const ch = source[i++];
-      if (ch === "{") {
-        const prelude = buffer.trim();
-        buffer = "";
-        children.push({ prelude, ...readBody() });
-      } else if (ch === "}") {
-        flush();
-        return { declarations, children };
-      } else if (ch === ";") {
-        flush();
-      } else {
-        buffer += ch;
-      }
-    }
-    flush();
-    return { declarations, children };
-  };
-  return readBody().children;
-}
-
-const ROOT = parse(CSS);
+const ROOT = parseCssBlocks(readFileSync("src/styles.css", "utf8"));
 
 /** Nazwa klatek -> animowane właściwości. */
 const KEYFRAMES = new Map<string, Set<string>>();
-(function collect(blocks: Block[]) {
+(function collect(blocks: CssBlock[]) {
   for (const block of blocks) {
     const kf = /^@(?:-webkit-)?keyframes\s+([\w-]+)/.exec(block.prelude);
     if (kf) {
       const props = new Set<string>();
-      const walk = (frames: Block[]) =>
+      const walk = (frames: CssBlock[]) =>
         frames.forEach((frame) => {
           frame.declarations.forEach((d) => props.add(d.split(":")[0].trim()));
           walk(frame.children);
@@ -90,7 +49,7 @@ interface AnimationUse {
 }
 
 const USES: AnimationUse[] = [];
-(function collect(blocks: Block[], context: string[]) {
+(function collect(blocks: CssBlock[], context: string[]) {
   for (const block of blocks) {
     if (/^@(?:-webkit-)?keyframes/.test(block.prelude)) continue;
     const here = [...context, block.prelude];
@@ -110,9 +69,14 @@ const USES: AnimationUse[] = [];
 
 const COMPOSITOR = new Set(["opacity", "transform", "translate", "scale", "rotate", "offset"]);
 
-/** Stan interakcji w selektorze: animacja nie startuje przy ładowaniu. */
+/**
+ * Stan interakcji w selektorze: animacja nie startuje przy ładowaniu. Tylko
+ * stany, które ustawia działanie użytkownika - NIE atrybuty wariantu
+ * (`[data-entrance=…]` karty promocyjnej to animacja wejścia przy ładowaniu,
+ * recenzja P2.4 m2); wyjątek spoza tej listy idzie do `NOT_ON_LOAD` z powodem.
+ */
 const INTERACTION =
-  /:hover|:focus|:active|:checked|\[data-state|\[aria-expanded|\[aria-selected|\[open\]|\[data-downloading|\[data-entrance/;
+  /:hover|:focus|:active|:checked|\[data-state|\[aria-expanded|\[aria-selected|\[open\]/;
 
 /**
  * Wyjątki: animacje niekompozytorowe, które NIE startują przy ładowaniu
@@ -150,6 +114,14 @@ describe("animacje przy ładowaniu - tylko właściwości kompozytorowe", () => 
       offenders.push(`${chain} -> ${use.keyframes.join(",")} (${paint.join(", ")})`);
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("animacja wejścia z atrybutu wariantu podlega kontraktowi (nie jest stanem interakcji)", () => {
+    // `[data-promo-card][data-entrance=…]` startuje przy ładowaniu karty -
+    // test wyżej sprawdza jej klatki jak każdej animacji przy ładowaniu.
+    const entrance = USES.filter((use) => use.context.join(" ").includes("[data-entrance"));
+    expect(entrance.length).toBeGreaterThan(0);
+    for (const use of entrance) expect(INTERACTION.test(use.context.join(" "))).toBe(false);
   });
 
   it("lista wyjątków nie zawiera martwych wpisów", () => {

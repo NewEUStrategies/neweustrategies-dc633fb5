@@ -8,8 +8,10 @@
 //   insert: WidgetLibrary palette (click / drag) -> makeGlobalInstance()
 //   edit:   useGlobalWidgetSync (builder hook) pushes changed instance
 //           snapshots to the row (optimistic cache write + debounced upsert)
-//   render: useGlobalWidgetNode overlay in ChromeWidgetView
-//           (`GlobalChromeWidgetView` - rendered ONLY for nodes with globalId)
+//   render: useGlobalWidgetNode overlay in ChromeWidgetView, rendered ONLY for
+//           nodes with globalId: `GlobalChromeWidgetView` (chrome types, above
+//           the frame) and `GlobalFullWidgetView` (content types, BELOW the
+//           Suspense boundary of the lazy full dispatcher)
 //   detach: delete node.globalId (snapshot stays, widget becomes local)
 import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -126,10 +128,13 @@ const GLOBAL_WIDGET_GC = 10 * 60_000;
  * absent.
  *
  * Wołaj WYŁĄCZNIE z komponentu renderowanego dla węzła z `globalId`
- * (`GlobalChromeWidgetView` w `ChromeWidgetView.tsx`; Wydajność PSI 85/95,
- * fala 2, P2.4 - hydration:H10 a). Wywołanie „na wszelki wypadek" w każdej
- * ramce zakładało wyłączone zapytanie z obserwatorem i subskrypcją dla
- * każdego widgetu strony - koszt w commicie hydratacji bez żadnego pożytku.
+ * (`GlobalChromeWidgetView` / `GlobalFullWidgetView` w `ChromeWidgetView.tsx`;
+ * Wydajność PSI 85/95, fala 2, P2.4 - hydration:H10 a). Wywołanie „na
+ * wszelki wypadek" w każdej ramce zakładało wyłączone zapytanie z
+ * obserwatorem i subskrypcją dla każdego widgetu strony - koszt w commicie
+ * hydratacji bez żadnego pożytku. Rekord nie jest pobierany w SSR, więc dla
+ * typu treściowego wołaj go POD granicą Suspense leniwego dyspozytora:
+ * wynik nad nią byłby aktualizacją granicy, która jeszcze się nie uwodniła.
  */
 export function useGlobalWidgetNode(globalId: string | undefined): GlobalWidgetData | null {
   const q = useQuery({

@@ -8,8 +8,14 @@
 //   3. zmiana danych po hydratacji dociąga generator przez `import()`, a do
 //      tego czasu na ekranie zostaje blok z HTML-a;
 //   4. render czysto kliencki (bez bloku w DOM-ie) czeka na generator zamiast
-//      malować widget bez typografii.
+//      malować widget bez typografii;
+//   5. w edytorze (kanwa, `BuilderModeProvider`) ramka dociąga generator przy
+//      montażu, więc zapis dokumentu (aktualizacja synchroniczna) z pierwszą
+//      w sesji właściwością spoza szablonu NIE pokazuje fallbacku kanwy
+//      (recenzja P2.4 m3); kontrapunkt - ta sama sekwencja poza edytorem się
+//      zawiesza.
 // Gałąź `createIsomorphicFn` wybieramy sami (wzorzec: theme/__tests__/deferredStyleCss).
+import { Suspense, type ComponentType } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, waitFor } from "@testing-library/react";
 import { hydrateRoot } from "react-dom/client";
@@ -169,4 +175,57 @@ describe("blok generatora typografii ramki - hydratacja bez generatora", () => {
     // Ramka i blok pojawiają się razem - bez klatki z ramką bez typografii.
     expect(container.querySelector('[data-w-id="legacy-frame"]')).not.toBeNull();
   });
+
+  it.each([
+    ["edytor", true, false],
+    ["strona publiczna (kontrapunkt)", false, true],
+  ])(
+    "%s: zapis z pierwszą właściwością spoza szablonu (edytor: %s, fallback: %s)",
+    async (_label, editor, suspends) => {
+      const ChromeWidgetView = await clientModule();
+      const { BuilderModeProvider } = await import("@/lib/content-model/editorCanvas");
+      const qc = client();
+      const Frame = ChromeWidgetView as ComponentType<Parameters<typeof ChromeWidgetView>[0]>;
+      const ui = (typography: WidgetTypography) => {
+        const frame = (
+          <Suspense fallback={<p data-testid="canvas-fallback" />}>
+            <Frame node={node(typography)} lang="pl" device="desktop" editable={editor} />
+          </Suspense>
+        );
+        return (
+          <QueryClientProvider client={qc}>
+            {editor ? <BuilderModeProvider mode="light">{frame}</BuilderModeProvider> : frame}
+          </QueryClientProvider>
+        );
+      };
+      const view = render(ui({ fontSize: { desktop: "20px" } }));
+      expect(block(view.container)).toBeNull();
+      // Czas na efekty montażu i każdy rozpoczęty w nich import.
+      await act(async () => {
+        await import("@/lib/builder/typographyCss");
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      // Każde (także chwilowe) wstawienie fallbacku granicy kanwy.
+      let fallbackShown = 0;
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          for (const added of Array.from(record.addedNodes)) {
+            if (added instanceof HTMLElement && added.dataset.testid === "canvas-fallback") {
+              fallbackShown++;
+            }
+          }
+        }
+      });
+      observer.observe(view.container, { childList: true, subtree: true });
+      // Zapis dokumentu: zwykła aktualizacja, nie przejście.
+      await act(async () => {
+        view.rerender(ui({ fontSize: { desktop: "20px" }, fontWeight: "700" }));
+      });
+      await waitFor(() => expect(block(view.container)?.textContent).toContain("font-weight:700"));
+      observer.disconnect();
+      expect(fallbackShown > 0).toBe(suspends);
+      expect(view.queryByTestId("canvas-fallback")).toBeNull();
+      view.unmount();
+    },
+  );
 });

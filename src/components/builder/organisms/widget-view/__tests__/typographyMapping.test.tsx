@@ -10,11 +10,17 @@
 //     kolejności emisji generatora - więc wynik kaskady dla tego samego DOM-u
 //     jest ten sam. Zmiana list selektorów w generatorze bez szablonu (albo
 //     odwrotnie) oblewa ten test.
-//  2. Szablon jest NIEWARSTWOWY i stoi na końcu arkusza.
+//  2. Szablon jest NIEWARSTWOWY i stoi na końcu arkusza (po nim żadna reguła
+//     nie może przejąć remisu specyficzności), a jego reguły idą w kolejności
+//     emisji generatora (fs, tfs, dfs, g): element łapany przez dwie z nich
+//     dostaje tę samą wartość co dawniej.
 //  3. Akcja Kinetic Signal Notch (AGENTS.md) nadal wygrywa z szablonem
 //     specyficznością - tak jak wygrywała z generatorem.
 //  4. Ramka: dane szablonu nie zależą od urządzenia (przełączenie urządzenia nie
 //     zmienia HTML-a ramki - zadanie K15 księgi P0.5).
+//
+// Reguły czytamy jako DANE (`@/test/cssRules`: kontekst at-reguł, selektory,
+// deklaracje, specyficzność), nie jako fragmenty tekstu pliku.
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -22,6 +28,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Device, WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import { buildWidgetTypographyCss } from "@/lib/builder/typographyCss";
 import { ChromeWidgetView } from "@/components/builder/organisms/ChromeWidgetView";
+import { parseCssRules, specificity, specificityAbove, type CssRule } from "@/test/cssRules";
 
 vi.mock(
   "@/components/builder/organisms/widget-view/lazyWidgets",
@@ -34,44 +41,27 @@ vi.mock("@/integrations/supabase/client", () => {
   return { supabase: { from: () => b, rpc: async () => ({ data: [], error: null }) } };
 });
 
-const STYLES = readFileSync("src/styles.css", "utf8");
-const TEMPLATE_MARKER = "SZABLON TYPOGRAFII WIDGETU";
+const STYLE_RULES = parseCssRules(readFileSync("src/styles.css", "utf8"));
+
+/** Reguła szablonu HW-2: niewarstwowa, z bramką tokenu `[data-wt~=…]`. */
+const isTemplateRule = (rule: CssRule) =>
+  rule.context.length === 0 && rule.selectors.some((s) => s.includes("[data-wt~="));
+/** Cokolwiek, co czyta dane szablonu (bramki tokenów i reguły zmiennych urządzeń). */
+const usesTemplateData = (rule: CssRule) => rule.selectors.some((s) => /\[data-wt[~\]]/.test(s));
 
 interface Rule {
   selectors: string[];
   body: string;
 }
 
-/** Parser płaskich reguł (szablon nie ma zagnieżdżeń); komentarze wycięte. */
-function parseRules(css: string): Rule[] {
-  const out: Rule[] = [];
-  const clean = css.replace(/\/\*[\s\S]*?\*\//g, "");
-  for (const chunk of clean.split("}")) {
-    const [rawSelector, rawBody] = chunk.split("{");
-    if (!rawBody) continue;
-    out.push({
-      selectors: splitSelectors(rawSelector).map(normalizeSelector),
-      body: rawBody.replace(/\s+/g, ""),
-    });
-  }
-  return out;
-}
-
-/** Przecinki poza nawiasami rozdzielają selektory. */
-function splitSelectors(list: string): string[] {
-  const out: string[] = [];
-  let depth = 0;
-  let current = "";
-  for (const ch of list) {
-    if (ch === "(") depth++;
-    if (ch === ")") depth--;
-    if (ch === "," && depth === 0) {
-      out.push(current);
-      current = "";
-    } else current += ch;
-  }
-  if (current.trim()) out.push(current);
-  return out;
+/** Reguła do porównań: selektory po normalizacji zakresu, deklaracje bez białych znaków. */
+function toRule(rule: CssRule): Rule {
+  return {
+    selectors: rule.selectors.map(normalizeSelector),
+    body: [...rule.declarations]
+      .map(([property, value]) => `${property}:${value}`.replace(/\s+/g, "") + ";")
+      .join(""),
+  };
 }
 
 function normalizeSelector(selector: string): string {
@@ -90,24 +80,22 @@ function normalizeSelector(selector: string): string {
   return s;
 }
 
-function templateRules(): Rule[] {
-  const start = STYLES.indexOf(TEMPLATE_MARKER);
-  expect(start).toBeGreaterThan(0);
-  return parseRules(STYLES.slice(STYLES.lastIndexOf("/*", start)));
-}
+const TEMPLATE: Rule[] = STYLE_RULES.filter(isTemplateRule).map(toRule);
 
 function templateRule(token: string): Rule {
   const body =
     token === "g"
       ? "margin-top:var(--cms-title-description-gap)!important;"
       : `font-size:var(--wt-${token})!important;`;
-  const rules = templateRules().filter((r) => r.body === body);
+  const rules = TEMPLATE.filter((r) => r.body === body);
   if (rules.length !== 1) throw new Error(`reguła szablonu dla tokenu ${token}: ${rules.length}`);
   return rules[0];
 }
 
 function generatorRules(typography: WidgetTypography, device: Device = "desktop"): Rule[] {
-  return parseRules(buildWidgetTypographyCss("gen-id", typography, device, { specificity: 3 }));
+  return parseCssRules(
+    buildWidgetTypographyCss("gen-id", typography, device, { specificity: 3 }),
+  ).map(toRule);
 }
 
 const sorted = (list: string[]) => [...new Set(list)].sort();
@@ -124,8 +112,6 @@ describe("szablon HW-2 == generator (selektory i deklaracje)", () => {
     expect(sorted(templateRule("tfs").selectors)).toEqual(
       sorted([...titleClass.selectors, ...titleFallback.selectors]),
     );
-    expect(templateRule("fs").body).toBe("font-size:var(--wt-fs)!important;");
-    expect(templateRule("tfs").body).toBe("font-size:var(--wt-tfs)!important;");
   });
 
   it("tytuł i opis: reguły `tfs` i `dfs`", () => {
@@ -145,7 +131,6 @@ describe("szablon HW-2 == generator (selektory i deklaracje)", () => {
     expect(sorted(templateRule("dfs").selectors)).toEqual(
       sorted([...rules[2].selectors, ...rules[3].selectors]),
     );
-    expect(templateRule("dfs").body).toBe("font-size:var(--wt-dfs)!important;");
   });
 
   it("odstęp tytuł-opis: reguła `g` na zmiennej ze stylu ramki", () => {
@@ -155,69 +140,35 @@ describe("szablon HW-2 == generator (selektory i deklaracje)", () => {
     expect(sorted(templateRule("g").selectors)).toEqual(
       sorted(margins.flatMap((r) => r.selectors)),
     );
-    expect(templateRule("g").body).toBe("margin-top:var(--cms-title-description-gap)!important;");
   });
 
-  it("kolejność szablonu = kolejność emisji generatora (fs, tfs, dfs, g)", () => {
-    const order = ["fs", "tfs", "dfs", "g"].map((token) =>
-      STYLES.indexOf(`[data-wt~="${token}"][data-w-id][data-w-id]`),
-    );
-    expect(order.every((index) => index > 0)).toBe(true);
+  it("kolejność reguł szablonu = kolejność emisji generatora (fs, tfs, dfs, g)", () => {
+    // Remis specyficzności rozstrzyga kolejność: tytuł łapany przez `fs` i
+    // `tfs` ma dostać rozmiar tytułu, jak z bloku generatora.
+    const order = ["fs", "tfs", "dfs", "g"].map((token) => TEMPLATE.indexOf(templateRule(token)));
     expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
   it("szablon jest niewarstwowy i ostatni w arkuszu", () => {
-    const tail = STYLES.slice(STYLES.lastIndexOf("/*", STYLES.indexOf(TEMPLATE_MARKER))).replace(
-      /\/\*[\s\S]*?\*\//g,
-      "",
-    );
-    expect(tail).not.toMatch(/@layer|@media|@supports|@container/);
-    // Po szablonie nie ma już żadnej reguły spoza niego.
-    const lastRule = templateRules().at(-1);
-    expect(lastRule?.body).toBe("margin-top:var(--cms-title-description-gap)!important;");
-    expect(STYLES.trimEnd().endsWith("}")).toBe(true);
+    const template = STYLE_RULES.filter(usesTemplateData);
+    expect(template.length).toBeGreaterThan(4);
+    // Żadna reguła szablonu nie stoi w `@layer`/`@media`/`@supports`/`@container`.
+    expect(template.filter((rule) => rule.context.length > 0)).toEqual([]);
+    // Po pierwszej regule szablonu nie ma już reguł spoza niego (nic nie
+    // przejmie remisu, który dawniej wygrywał późniejszy blok generatora).
+    const first = STYLE_RULES.findIndex(usesTemplateData);
+    expect(STYLE_RULES.slice(first).filter((rule) => !usesTemplateData(rule))).toEqual([]);
   });
 });
 
-/** Specyficzność [a, b, c]; `:is()`/`:not()` biorą maksimum argumentów. */
-function specificity(selector: string): [number, number, number] {
-  let a = 0;
-  let b = 0;
-  let c = 0;
-  let rest = selector;
-  for (;;) {
-    const m = /:(is|not)\(/.exec(rest);
-    if (!m) break;
-    let depth = 1;
-    let i = m.index + m[0].length;
-    while (depth > 0 && i < rest.length) {
-      if (rest[i] === "(") depth++;
-      if (rest[i] === ")") depth--;
-      i++;
-    }
-    const inner = rest.slice(m.index + m[0].length, i - 1);
-    const best = splitSelectors(inner)
-      .map((s) => specificity(s.trim()))
-      .sort((x, y) => y[0] - x[0] || y[1] - x[1] || y[2] - x[2])[0] ?? [0, 0, 0];
-    a += best[0];
-    b += best[1];
-    c += best[2];
-    rest = rest.slice(0, m.index) + " " + rest.slice(i);
-  }
-  a += (rest.match(/#[\w-]+/g) ?? []).length;
-  b += (rest.match(/\.[\w-]+|\[[^\]]+\]|:(?!:)[\w-]+/g) ?? []).length;
-  c += (rest.match(/(^|[\s>+~])[a-z][\w-]*|::[\w-]+/gi) ?? []).length;
-  return [a, b, c];
-}
-
-const above = (x: number[], y: number[]) =>
-  x[0] !== y[0] ? x[0] > y[0] : x[1] !== y[1] ? x[1] > y[1] : x[2] > y[2];
+/** Selektor akcji, przez który AGENTS.md każe deklarować rozmiar i grubość. */
+const KINETIC_ACTION = "[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action";
 
 describe("Kinetic Signal Notch wygrywa z szablonem (AGENTS.md)", () => {
   it("reguła akcji ma wyższą specyficzność niż każdy selektor szablonu, który ją łapie", () => {
     document.body.innerHTML = `
       <div data-builder-renderer data-device="desktop">
-        <div data-w-id="sl" data-wt="tfs dfs">
+        <div data-w-id="sl" data-wt="fs tfs dfs g">
           <div class="nes-kinetic-shell">
             <div class="nes-kinetic-row"><span data-title-root>Etykieta</span></div>
             <a class="nes-kinetic-action" data-description-root data-typography-exempt href="#">
@@ -228,30 +179,26 @@ describe("Kinetic Signal Notch wygrywa z szablonem (AGENTS.md)", () => {
       </div>`;
     const action = document.querySelector(".nes-kinetic-action")!;
     const inner = action.querySelector("span")!;
-    const kinetic = specificity(
-      "[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action",
+    // Reguła akcji: niewarstwowa (jak szablon), rozmiar z `!important`.
+    const kinetic = STYLE_RULES.find(
+      (rule) =>
+        rule.context.length === 0 &&
+        rule.selectors.includes(KINETIC_ACTION) &&
+        rule.declarations.get("font-size")?.endsWith("!important"),
     );
-    const kineticSpan = specificity(
-      "[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action span",
-    );
-    expect(STYLES).toContain(
-      "[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action,",
-    );
+    expect(kinetic).toBeDefined();
     let matched = 0;
-    // Selektory szablonu z bramką zamienioną na sam atrybut (ten sam wkład w
-    // specyficzność: trzy atrybuty), żeby `matches` widział każdy token.
-    const fullSelectors = templateRules()
-      .filter((r) => r.body.startsWith("font-size:"))
-      .flatMap((r) => r.selectors.map((s) => s.replace(/^S/, "[data-wt][data-w-id][data-w-id]")));
-    for (const selector of fullSelectors) {
-      if (selector.includes("::")) continue;
-      for (const [node, winner] of [
-        [action, kinetic],
-        [inner, kineticSpan],
-      ] as const) {
-        if (!node.matches(selector)) continue;
-        matched++;
-        expect(above(winner, specificity(selector)), selector).toBe(true);
+    for (const node of [action, inner]) {
+      const own = kinetic!.selectors.filter((s) => node.matches(s));
+      expect(own.length, node.outerHTML).toBeGreaterThan(0);
+      const winner = specificity(own[0]);
+      for (const rule of STYLE_RULES.filter(isTemplateRule)) {
+        if (!rule.declarations.has("font-size")) continue;
+        for (const selector of rule.selectors) {
+          if (selector.includes("::") || !node.matches(selector)) continue;
+          matched++;
+          expect(specificityAbove(winner, specificity(selector)), selector).toBe(true);
+        }
       }
     }
     // Kontrapunkt: atrybut opisu akcji naprawdę łapie reguła szablonu `dfs`.

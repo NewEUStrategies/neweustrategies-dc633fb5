@@ -162,13 +162,15 @@ const EASING_MAP: Record<string, string> = {
  * zamiast migawki osadzonej w dokumencie, która zostaje fallbackiem SSR i
  * pierwszej klatki.
  *
- * Wołana WYŁĄCZNIE w komponencie renderowanym dla węzła z `globalId`
- * (`GlobalChromeWidgetView`, P2.4 - hydration:H10 a). Wcześniej każda ramka
- * zakładała wyłączone zapytanie react-query (obserwator, subskrypcja,
- * `#updateTimers`) tylko po to, żeby kolejność hooków była stała - na stronie
- * z setką widgetów i kilkoma globalnymi to setka zbędnych subskrypcji w
- * commicie hydratacji (księga P0.5, K12). Ramka (`useWidgetFrame`) dostaje
- * już rozstrzygnięty węzeł.
+ * Wołana WYŁĄCZNIE w komponentach renderowanych dla węzła z `globalId`
+ * (P2.4 - hydration:H10 a): `GlobalChromeWidgetView` (typy chrome, nad ramką)
+ * i `GlobalFullWidgetView` (typy treściowe, POD granicą Suspense leniwego
+ * dyspozytora - patrz `DeferredWidgetView`). Wcześniej każda ramka zakładała
+ * wyłączone zapytanie react-query (obserwator, subskrypcja, `#updateTimers`)
+ * tylko po to, żeby kolejność hooków była stała - na stronie z setką widgetów
+ * i kilkoma globalnymi to setka zbędnych subskrypcji w commicie hydratacji
+ * (księga P0.5, K12). Ramka (`useWidgetFrame`) dostaje już rozstrzygnięty
+ * węzeł.
  */
 function useGlobalWidgetOverlay(instanceNode: WidgetNode, lang: Lang, editable: boolean) {
   const globalData = useGlobalWidgetNode(instanceNode.globalId);
@@ -272,7 +274,8 @@ const LegacyTypographyStyle = memo(function LegacyTypographyStyle({
  * identyczna niezależnie od tego, który z nich renderuje dany widget.
  *
  * Węzeł widgetu globalnego przychodzi tu JUŻ z nakładką żywego rekordu
- * (`GlobalChromeWidgetView`); ramka sama nie subskrybuje rekordów globalnych.
+ * (`GlobalChromeWidgetView` / `GlobalFullWidgetView`); ramka sama nie
+ * subskrybuje rekordów globalnych.
  */
 export function useWidgetFrame({
   node,
@@ -342,6 +345,17 @@ export function useWidgetFrame({
       subscribeWidgetTypography(node.id, (next) => startTransition(() => setLiveTypography(next))),
     [node.id],
   );
+  // Edytor (kanwa, podgląd panelu): zapis dokumentu idzie aktualizacją
+  // synchroniczną (poza `startTransition`), więc pierwszy w sesji blok
+  // generatora (redaktor ustawia grubość, krój...) zawiesiłby się na
+  // `import()` i pokazał fallback najbliższej granicy - w kanwie dużą część
+  // edytora. Ramka edytora dociąga więc generator od razu przy montażu
+  // (recenzja P2.4 m3). Publiczny czytelnik nie płaci nic: tam efekt kończy
+  // się na warunku.
+  const preloadLegacyTypography = editable || builderMode !== null;
+  useEffect(() => {
+    if (preloadLegacyTypography) void loadLegacyTypographyGenerator();
+  }, [preloadLegacyTypography]);
 
   // Widget-level color overrides win over any global/utility class colors
   // (text-foreground, text-muted-foreground, prose, etc.). When the user sets
@@ -1255,6 +1269,15 @@ function fullWidgetView(): ComponentType<WidgetViewProps> {
 // Frame subscriptions (theme/global-widget/typography) can update before this
 // chunk hydrates. Keep the unchanged props behind a memo boundary so those
 // updates cannot replace already-painted server content with a 40 px fallback.
+//
+// Dlatego granica dostaje ZAWSZE propsy INSTANCJI (bez nakładki widgetu
+// globalnego), a nakładka dla `globalId` żyje POD nią
+// (`GlobalFullWidgetView`) - jak w bazie, gdzie wołał ją `WidgetView`. Rekord
+// globalny nie jest pobierany w SSR i przychodzi po montażu; nakładka NAD
+// granicą dawała jej nowy węzeł, zanim chunk się uwodnił, a React porzucał
+// HTML serwera na rzecz fallbacku (recenzja P2.4 M1, test
+// `__tests__/globalWidgetHydration.test.tsx`). Pod granicą zapytanie startuje
+// dopiero po uwodnieniu, a rekord podmienia treść zwykłą aktualizacją.
 const DeferredWidgetView = memo(function DeferredWidgetView(props: WidgetViewProps) {
   const FullWidgetView = fullWidgetView();
   return (
@@ -1266,12 +1289,28 @@ const DeferredWidgetView = memo(function DeferredWidgetView(props: WidgetViewPro
         />
       }
     >
-      <FullWidgetView {...props} />
+      {props.node.globalId ? <GlobalFullWidgetView {...props} /> : <FullWidgetView {...props} />}
     </Suspense>
   );
 });
 
-function FramedChromeWidgetView(props: WidgetViewProps) {
+/** Instancja widgetu globalnego w pełnym dyspozytorze: nakładka POD granicą Suspense. */
+function GlobalFullWidgetView(props: WidgetViewProps) {
+  const node = useGlobalWidgetOverlay(props.node, props.lang, props.editable === true);
+  const FullWidgetView = fullWidgetView();
+  return <FullWidgetView {...props} node={node} />;
+}
+
+interface FramedChromeWidgetViewProps extends WidgetViewProps {
+  /**
+   * Węzeł INSTANCJI, gdy `node` przyszedł już z nakładką widgetu globalnego
+   * (`GlobalChromeWidgetView`). Leniwy dyspozytor dostaje właśnie jego - patrz
+   * `DeferredWidgetView`.
+   */
+  instanceNode?: WidgetNode;
+}
+
+function FramedChromeWidgetView({ instanceNode, ...props }: FramedChromeWidgetViewProps) {
   const frame = useWidgetFrame(props);
   const { node, lang, effectiveMode, editable, onContentChange, activeTypography, lcp, wrap } =
     frame;
@@ -1290,43 +1329,40 @@ function FramedChromeWidgetView(props: WidgetViewProps) {
   const chrome = renderChromeWidget(frame);
   if (chrome !== undefined) return chrome;
 
-  return <DeferredWidgetView {...props} />;
+  // Żywy rekord typu treściowego w instancji chrome: pełny dyspozytor sam
+  // nakłada rekord pod swoją granicą, więc dostaje węzeł instancji (stabilne
+  // propsy - `memo` granicy nie pęka, gdy rekord przyjdzie).
+  return <DeferredWidgetView {...props} node={instanceNode ?? props.node} />;
 }
 
 /**
- * Wybór dyspozytora po typie INSTANCJI (`routeType`), a renderu po węźle
- * rozstrzygniętym (po nakładce globalnej). Żywy rekord globalny innego typu
- * niż migawka nie przełącza więc komponentu (nie remontuje poddrzewa):
- * ramka chrome z typem treściowym oddaje render pełnemu dyspozytorowi, a
- * `WidgetView` obsługuje też typy chrome.
+ * Instancja widgetu globalnego typu CHROME: nakładka nad ramką, jak w bazie
+ * (ramka chrome renderuje się z chunku wejściowego, bez granicy leniwego
+ * dyspozytora). Typ treściowy nakłada rekord pod tą granicą
+ * (`GlobalFullWidgetView`).
  */
-function routeChromeWidget(routeType: WidgetNode["type"], props: WidgetViewProps) {
+function GlobalChromeWidgetView(props: WidgetViewProps) {
+  const node = useGlobalWidgetOverlay(props.node, props.lang, props.editable === true);
+  return <FramedChromeWidgetView {...props} node={node} instanceNode={props.node} />;
+}
+
+export const ChromeWidgetView = memo(function ChromeWidgetView(props: WidgetViewProps) {
   // The full dispatcher owns the frame for content widgets. Do not build a
   // discarded frame here: it duplicates theme/typography subscriptions, CSS
   // generation and motion observers during hydration. Keep hooks in the
   // separate chrome component so editor type changes stay valid.
-  return requiresFullWidgetView(routeType) ? (
-    <DeferredWidgetView {...props} />
-  ) : (
-    <FramedChromeWidgetView {...props} />
-  );
-}
-
-/** Instancja widgetu globalnego - jedyne miejsce z subskrypcją rekordu. */
-function GlobalChromeWidgetView(props: WidgetViewProps) {
-  const node = useGlobalWidgetOverlay(props.node, props.lang, props.editable === true);
-  return routeChromeWidget(props.node.type, { ...props, node });
-}
-
-export const ChromeWidgetView = memo(function ChromeWidgetView(props: WidgetViewProps) {
-  // hydration:H10 (a): zapytanie o rekord globalny tylko dla węzła z
-  // `globalId`. Węzeł, który go zyskuje albo traci (zapis jako globalny,
-  // odpięcie w edytorze), przechodzi między dwoma komponentami - to rzadka
-  // operacja edytora i remontuje wyłącznie ten widget.
+  //
+  // Wybór dyspozytora po typie INSTANCJI. hydration:H10 (a): zapytanie o
+  // rekord globalny tylko dla węzła z `globalId` (`GlobalChromeWidgetView`
+  // albo `GlobalFullWidgetView`). Węzeł, który go zyskuje albo traci (zapis
+  // jako globalny, odpięcie w edytorze), przechodzi między dwoma
+  // komponentami - to rzadka operacja edytora i remontuje wyłącznie ten
+  // widget.
+  if (requiresFullWidgetView(props.node.type)) return <DeferredWidgetView {...props} />;
   return props.node.globalId ? (
     <GlobalChromeWidgetView {...props} />
   ) : (
-    routeChromeWidget(props.node.type, props)
+    <FramedChromeWidgetView {...props} />
   );
 });
 
