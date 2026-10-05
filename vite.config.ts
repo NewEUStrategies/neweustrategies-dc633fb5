@@ -16,6 +16,7 @@ import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
 import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
 import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";
+import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin";
 import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
 import { MACHINE_SURFACES } from "./src/lib/seo/machineSurfaces";
 
@@ -108,6 +109,10 @@ export default defineConfig({
       widgetChunkPlugin(),
       adminCssPlugin(),
       officeParserTrimPlugin(),
+      // P2.1: manifest TanStack Start bez preloadów i skryptu wejścia (zestaw bootu w
+      // BOOT_MANIFEST serwera). Tylko build, tylko środowisko `ssr`; ta sama wtyczka
+      // w vite.smoke.config.ts (parytet: viteChunkParity.test.ts).
+      bootAfterLcpPlugin(),
     ],
 
     // React Email ciągnie htmlparser2 -> entities. Wersje 5+ usunęły

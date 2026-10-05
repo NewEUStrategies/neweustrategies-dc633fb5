@@ -1128,8 +1128,54 @@ function consentInitScript(): string {
   return document.querySelector("script[data-consent-init]")?.textContent ?? "";
 }
 
+// ---------------------------------------------------------------------------------------------
+// SPIKE P2.1 (krok 0, dowód parytetu) - RUSZTOWANIE DO USUNIĘCIA. Manifest TanStack Start nie
+// niesie już preloadów ani skryptu wejścia (scripts/lib/bootAfterLcpPlugin.ts), więc dokument
+// musi wystartować aplikację sam. Serwer dopisuje POZA drzewem Reacta
+// (`router.serverSsr.injectHtml`, ta sama droga na ścieżce `allReady` botów) zestaw bootu
+// `#nes-boot-set` i jednorazowy loader: przy DOMContentLoaded usuwa oba węzły (zanim ruszy
+// hydratacja, więc ich miejsce w dokumencie jest obojętne), wstawia `modulepreload` całej listy
+// i `<script type="module" src=entry>`. Bez wyzwalacza LCP - to robi docelowy
+// BOOT_LOADER_SCRIPT, a zestaw per żądanie (słownik, widgety nad zgięciem) bootSet.server.ts.
+// Gałąź `.server()` kompilator Start wycina z bundla przeglądarki.
+const spikeInjectBootSet = createIsomorphicFn()
+  // `null` poza `RouterProvider` (render powłoki w testach jednostkowych) - wtedy nic.
+  .server((router: ReturnType<typeof useRouter> | null): void => {
+    const ssr = router?.serverSsr;
+    const injectedKey = Symbol.for("nes.spikeBootInjected");
+    if (!ssr || Reflect.get(ssr, injectedKey) === true) return;
+    Reflect.set(ssr, injectedKey, true);
+    const boot: unknown = Reflect.get(globalThis, Symbol.for("nes.bootManifest"));
+    const isUrlList = (value: unknown): value is string[] =>
+      Array.isArray(value) && value.every((url) => typeof url === "string");
+    // Brak mapy = dev albo build bez wtyczki: manifest frameworka ma wtedy skrypt wejścia.
+    if (typeof boot !== "object" || boot === null) return;
+    const entry: unknown = Reflect.get(boot, "entry");
+    const rootPreloads: unknown = Reflect.get(boot, "rootPreloads");
+    const routePreloads: unknown = Reflect.get(boot, "routePreloads");
+    if (typeof entry !== "string" || !isUrlList(rootPreloads)) return;
+    const urls = new Set<string>([entry, ...rootPreloads]);
+    for (const match of router?.state.matches ?? []) {
+      const list: unknown =
+        typeof routePreloads === "object" && routePreloads !== null
+          ? Reflect.get(routePreloads, match.routeId)
+          : undefined;
+      if (isUrlList(list)) for (const url of list) urls.add(url);
+    }
+    const json = JSON.stringify({ entry, preloads: [...urls] }).replace(/</g, "\\u003c");
+    const loader =
+      '(function(){var d=document,c=d.currentScript;if(c)c.remove();function b(){var n=d.getElementById("nes-boot-set");if(!n)return;var s;try{s=JSON.parse(n.textContent||"")}catch(e){return}n.remove();if(!s||typeof s.entry!=="string")return;var p=Array.isArray(s.preloads)?s.preloads:[];for(var i=0;i<p.length;i++){var l=d.createElement("link");l.rel="modulepreload";l.href=p[i];d.head.appendChild(l)}var e=d.createElement("script");e.type="module";e.src=s.entry;d.head.appendChild(e)}if(d.readyState==="loading")d.addEventListener("DOMContentLoaded",b,{once:true});else b()})();';
+    ssr.injectHtml(
+      `<script type="application/json" id="nes-boot-set">${json}</script><script>${loader}</script>`,
+    );
+  })
+  .client((): void => {});
+// --- koniec SPIKE P2.1 -----------------------------------------------------------------------
+
 function RootShell({ children }: { children: ReactNode }) {
   const lang = currentLang();
+  // SPIKE P2.1 - patrz `spikeInjectBootSet` (serwer: zestaw bootu poza drzewem; klient: nic).
+  spikeInjectBootSet(useRouter());
   // SSR -> browser handoff of the PUBLIC Supabase config (anon key + URL).
   // The publish build does not inline VITE_SUPABASE_* into client assets, so
   // without this script the browser Supabase client throws at first touch and

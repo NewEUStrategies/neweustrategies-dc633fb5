@@ -26,6 +26,7 @@ import { chunkInventoryPlugin } from "./scripts/lib/chunkInventoryPlugin";
 import { localeChunkPlugin } from "./scripts/lib/localeChunkPlugin";
 import { adminCssPlugin } from "./scripts/lib/adminCssPlugin";
 import { officeParserTrimPlugin } from "./scripts/lib/officeParserTrim";
+import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin";
 import { isBootLucideModule, isBootModule } from "./scripts/lib/bootVendorSplit";
 
 // `minify: true` jak w produkcyjnym vite.config.ts - smoke ma odwzorowywać
@@ -60,6 +61,8 @@ export default defineConfig({
       // Parytet z vite.config.ts: boot-test ma mierzyć ten sam bundel parsera
       // .docx, który jedzie na produkcję.
       officeParserTrimPlugin(),
+      // Parytet z vite.config.ts: manifest bez preloadów i skryptu wejścia (P2.1).
+      bootAfterLcpPlugin(),
     ],
 
     // These are only reached through TanStack Start's dev-time SSR/client
