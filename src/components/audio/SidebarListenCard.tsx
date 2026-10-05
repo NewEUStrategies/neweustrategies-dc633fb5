@@ -303,20 +303,23 @@ export function SidebarListenCard({
           </div>
 
           {/* Slider */}
-          <div className="relative h-3 flex items-center">
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 rounded-[6px] bg-muted" />
-            <div
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-1 rounded-[6px] bg-brand transition-[width] duration-150"
-              style={{ width: `${displayPct}%` }}
-            />
+          <div className="relative h-4 flex items-center">
+            {/* Subtelne fale audio: warstwa bazowa + warstwa postępu przycięta do % */}
+            <div aria-hidden className="absolute inset-0 flex items-center justify-between gap-px text-foreground/25">
+              {WAVE_BARS.map((h, i) => (
+                <span key={i} className="w-[2px] rounded-full bg-current" style={{ height: `${h}%` }} />
+              ))}
+            </div>
             <div
               aria-hidden
-              className={[
-                "absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-[6px] bg-brand transition-transform",
-                showProgress ? "scale-75 group-hover/card:scale-100" : "scale-0",
-              ].join(" ")}
-              style={{ left: `calc(${displayPct}% - 5px)` }}
-            />
+              className="absolute inset-0 flex items-center justify-between gap-px text-brand transition-[clip-path] duration-150"
+              style={{ clipPath: `inset(0 ${100 - displayPct}% 0 0)` }}
+            >
+              {WAVE_BARS.map((h, i) => (
+                <span key={i} className="w-[2px] rounded-full bg-current" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+
             <input
               type="range"
               min={0}
