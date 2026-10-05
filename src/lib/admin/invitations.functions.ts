@@ -37,6 +37,23 @@ import {
 type AppRole = Database["public"]["Enums"]["app_role"];
 type InviteMode = Database["public"]["Enums"]["invitation_mode"];
 
+/**
+ * Cel `ON CONFLICT` zapisu roli. MUSI być dokładnie zbiorem kolumn indeksu
+ * unikalnego `user_roles_unique_per_tenant` - `(tenant_id, user_id, role)`,
+ * migracja 20260531181120, linie 49-50. Pierwotne `UNIQUE (user_id, role)`
+ * z 20260531180217 zostało tam zdjęte (`DROP CONSTRAINT IF EXISTS
+ * user_roles_user_id_role_key`), a Postgres odrzuca cel konfliktu, któremu nie
+ * odpowiada żaden indeks unikalny, błędem 42P10 („there is no unique or
+ * exclusion constraint matching the ON CONFLICT specification"). Stary cel
+ * `user_id,role` wywracał więc KAŻDĄ wysyłkę zaproszenia na `role_write_failed`,
+ * a w provisioningu - gdzie wyniku nikt nie czytał - zostawiał konta bez roli.
+ * Test jednostkowy tego nie zobaczy (baza jest atrapą; jego asercja przez długi
+ * czas UTRWALAŁA zły cel) - zgodność z indeksami z migracji sprawdza bramka
+ * kontraktowa `check:on-conflict-arbiters` (`src/lib/ci/onConflictArbiters.ts`).
+ * Jedna stała dla obu zapisów roli, żeby cele nie rozjechały się ponownie.
+ */
+const USER_ROLES_CONFLICT_TARGET = "tenant_id,user_id,role";
+
 // ---------- utils ----------------------------------------------------------
 
 /**
@@ -478,7 +495,7 @@ async function performSend(
       .from("user_roles")
       .upsert(
         { user_id: authUserId, role: inv.role, tenant_id: inv.tenant_id },
-        { onConflict: "user_id,role", ignoreDuplicates: true },
+        { onConflict: USER_ROLES_CONFLICT_TARGET, ignoreDuplicates: true },
       );
     if (roleWriteError) throw new Error(`role_write_failed:${roleWriteError.message}`);
 
@@ -879,6 +896,25 @@ interface ProvisionResult {
   errors: { email: string; error: string }[];
 }
 
+/**
+ * Ile adresów idzie w JEDNYM odczycie istniejących zaproszeń provisioningu.
+ *
+ * `.in("email", [...])` jest filtrem w ADRESIE żądania GET, nie w jego treści,
+ * a strona zespołu nie ma górnego limitu osób. Zmierzone na postgrest-js
+ * 2.116 dla adresów w kształcie `imie.nazwisko123@neweuropeanstrategies.com`:
+ * każdy adres dokłada do URL-a ~52 znaki (50 osób = 2,7 tys. znaków, 150 =
+ * 7,8 tys., 200 = 10,4 tys.). Powyżej 8000 postgrest-js tylko dopisuje
+ * ostrzeżenie do błędu, ale bramka przed PostgREST-em (nginx/Kong: domyślny
+ * bufor wiersza żądania 8 KB) odpowiada wtedy 414 - a błąd tego odczytu
+ * przerywa CAŁY provisioning. Jedno zapytanie „na stronę" psuło się więc
+ * dokładnie na dużych zespołach, dla których ten import istnieje.
+ *
+ * 50 adresów to ~2,7 tys. znaków, jedna trzecia progu: zapas na adresy
+ * średnio trzykrotnie dłuższe od zmierzonych, a strona ze 150 osobami to
+ * nadal trzy zapytania, nie 150. Zmiana tej liczby wymaga ponownego pomiaru.
+ */
+const INVITATION_LOOKUP_CHUNK_SIZE = 50;
+
 export const provisionTeamMembers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input) =>
@@ -913,6 +949,42 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
       if (u.email) byEmail.set(u.email.toLowerCase(), u.id);
     }
 
+    // ISTNIEJĄCE ZAPROSZENIA: odczyt PORCJAMI przed pętlą, nie jeden na osobę.
+    //
+    // Wcześniej pętla pytała `user_invitations` osobno o KAŻDĄ osobę (N+1:
+    // strona z 40 widgetami to 40 zapytań). Teraz zapytania zawężone do
+    // najemcy i adresów ze strony, po `INVITATION_LOOKUP_CHUNK_SIZE` adresów
+    // (dlaczego porcje, a nie jedno zapytanie na stronę - przy stałej).
+    // Porównanie zostaje DOKŁADNE, jak przy dawnym `eq("email", d.email)`:
+    // kolumna jest `text`, `in` też porównuje dosłownie, a adresy ze strony
+    // `extractTeamMembers` sprowadził już do małych liter (i odsiał duplikaty,
+    // więc żaden adres nie trafia do dwóch porcji). Przy okazji znika cichy
+    // dubel: `maybeSingle()` na dwóch starych rekordach oddawał błąd i `data:
+    // null`, co czytało się jak „brak zaproszenia" i dopisywało kolejny.
+    //
+    // Awaria odczytu KTÓREJKOLWIEK porcji PRZERYWA całe wywołanie, ZANIM
+    // powstanie jakiekolwiek konto - wszystkie porcje idą przed pętlą osób.
+    // Dawny kod czytał tylko `data`, więc błąd bazy wyglądał jak „nie ma
+    // zaproszenia" i każda osoba dostawała drugi rekord audytowy. Odmowa
+    // całości jest bezpieczniejsza: nic się nie zmieniło i można ponowić, a
+    // fałszywego śladu po założeniu kont nikt już nie odkręci. Ten sam powód
+    // wyklucza „pomiń porcję, która padła": jej osoby dostałyby dubel śladu.
+    const draftEmails = drafts.map((d) => d.email);
+    const invitedEmails = new Set<string>();
+    for (let from = 0; from < draftEmails.length; from += INVITATION_LOOKUP_CHUNK_SIZE) {
+      const { data: existingInvites, error: existingInvitesErr } = await context.supabase
+        .from("user_invitations")
+        .select("email")
+        .eq("tenant_id", tenantId)
+        .in("email", draftEmails.slice(from, from + INVITATION_LOOKUP_CHUNK_SIZE));
+      if (existingInvitesErr) throw new Error(existingInvitesErr.message);
+      for (const inv of existingInvites ?? []) invitedEmails.add(inv.email);
+    }
+
+    // `created` / `skipped` opisują KONTO w warstwie auth (założone teraz albo
+    // zastane), a nie powodzenie hydracji. Konto założone przez `createUser`
+    // istnieje nieodwracalnie także wtedy, gdy zapis profilu czy roli niżej
+    // padnie - ta osoba trafia wtedy DODATKOWO do `errors`.
     let created = 0;
     let skipped = 0;
     const errors: { email: string; error: string }[] = [];
@@ -944,13 +1016,44 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
           skipped++;
         }
 
-        await supabaseAdmin.from("profiles").upsert(
+        // WYNIK KAŻDEGO ZAPISU JEST SPRAWDZANY - tak samo jak w `performSend`,
+        // z tymi samymi przedrostkami. Wcześniej trzy `upsert` niżej szły bez
+        // odczytu `error`, więc 42P10 z celu konfliktu roli (patrz
+        // `USER_ROLES_CONFLICT_TARGET`) był tu niewidoczny: provisioning
+        // raportował powodzenie, a konta zostawały bez roli. Rzut ląduje we
+        // wpisie TEJ osoby w `errors`, jej dalszych zapisów (ani śladu
+        // `accepted`) nie próbujemy, a pozostałe osoby idą dalej. Zapisy
+        // zostają sekwencyjne: wyzwalacze na tych tabelach zależą od kolejności.
+        //
+        // BEZ `slug` W ŁADUNKU - celowo, i to jest cała ochrona adresu autora.
+        // Dawniej szło tu `slug: slugify(d.name)` przy KAŻDYM przebiegu, a
+        // `profiles_slug_unique` jest indeksem GLOBALNYM (ponad najemcami).
+        // Skutki: (1) imiennik z dowolnego obszaru, który już ma `jan-kowalski`,
+        // dawał deterministyczne `profile_write_failed` - ponowienie nie
+        // pomagało nigdy; (2) ponowny provisioning po zmianie nazwy w widgetcie
+        // przepisywał opublikowany `/author/<slug>` istniejącego konta.
+        // `performSend` broni się odczytem sluga; tutaj wystarcza pominięcie,
+        // bo supabase-js wysyła upsert JEDNEGO obiektu z dokładnie jego
+        // kluczami, a PostgREST buduje z nich i listę kolumn INSERT-u, i `DO
+        // UPDATE SET` - kolumny spoza ładunku nie są ruszane. Sprawdzone na
+        // bazie z migracji (rola `service_role`, zapytanie w kształcie
+        // PostgREST-u, w transakcji wycofanej):
+        //   - nowe konto: `handle_new_user` zakłada profil ze slugiem z
+        //     `display_name` (unikalnym - przy imienniku z sufiksem
+        //     `-NNNN`), a ścieżka UPDATE tego upsertu go nie dotyka;
+        //   - konto istniejące o zmienionej nazwie: slug bez zmian;
+        //   - konto osierocone (auth bez profilu): ścieżka INSERT idzie z
+        //     `slug` NULL, więc `profiles_0_ensure_slug_trg` nadaje unikalny
+        //     slug z imienia i nazwiska (migracja 20261002110000).
+        // Ta sama migracja uzupełniła puste slugi, więc pominięcie nie zostawi
+        // profilu bez adresu. Zmiana adresu istniejącego profilu to osobna
+        // decyzja (przekierowania), nie skutek uboczny importu zespołu.
+        const { error: profileWriteError } = await supabaseAdmin.from("profiles").upsert(
           {
             id: authUserId,
             tenant_id: tenantId,
             email: d.email,
             display_name: d.name,
-            slug: slugify(d.name),
             avatar_url: d.photo,
             bio_pl: d.bio_pl,
             bio_en: d.bio_en,
@@ -963,6 +1066,7 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
           },
           { onConflict: "id", ignoreDuplicates: false },
         );
+        if (profileWriteError) throw new Error(`profile_write_failed:${profileWriteError.message}`);
 
         const orgFunctions: { pl: string; en: string }[] = [];
         if (d.programLabel_pl || d.programLabel_en) {
@@ -972,7 +1076,7 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
           });
         }
 
-        await supabaseAdmin.from("author_profiles").upsert(
+        const { error: authorWriteError } = await supabaseAdmin.from("author_profiles").upsert(
           {
             user_id: authUserId,
             tenant_id: tenantId,
@@ -990,22 +1094,18 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
           },
           { onConflict: "user_id" },
         );
+        if (authorWriteError) throw new Error(`author_write_failed:${authorWriteError.message}`);
 
-        await supabaseAdmin
+        const { error: roleWriteError } = await supabaseAdmin
           .from("user_roles")
           .upsert(
             { user_id: authUserId, role: data.role as AppRole, tenant_id: tenantId },
-            { onConflict: "user_id,role", ignoreDuplicates: true },
+            { onConflict: USER_ROLES_CONFLICT_TARGET, ignoreDuplicates: true },
           );
+        if (roleWriteError) throw new Error(`role_write_failed:${roleWriteError.message}`);
 
         // ślad audytowy - konto powstało w trybie provision (bez maila)
-        const { data: existingInv } = await context.supabase
-          .from("user_invitations")
-          .select("id")
-          .eq("tenant_id", tenantId)
-          .eq("email", d.email)
-          .maybeSingle();
-        if (!existingInv) {
+        if (!invitedEmails.has(d.email)) {
           await context.supabase.from("user_invitations").insert({
             tenant_id: tenantId,
             email: d.email,
@@ -1020,6 +1120,11 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
             sent_at: new Date().toISOString(),
             accepted_at: new Date().toISOString(),
           });
+          // Adres wchodzi do zbioru od razu - jak dawniej, gdy kolejne zapytanie
+          // widziało już wstawiony wiersz: drugi widget z tym samym adresem nie
+          // dostanie drugiego rekordu, nawet gdyby dedup w `extractTeamMembers`
+          // kiedyś zniknął.
+          invitedEmails.add(d.email);
         }
 
         byEmail.set(d.email, authUserId);
@@ -1032,19 +1137,29 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
     }
 
     // Powiązanie widgetów team-member z nowo utworzonymi profilami.
+    //
+    // Odczyt profili idzie tymi samymi PORCJAMI co odczyt zaproszeń wyżej i z tego
+    // samego powodu: `.in("email", …)` siedzi w adresie GET. Wcześniej był to
+    // jeden odczyt na całą stronę bez sprawdzenia `error` - strona dość duża,
+    // żeby bramka odpowiedziała 414, dostawała więc wszystkie konta, a potem
+    // `linked: 0` i `errors: []`, bez słowa o tym, że widgety nie są dowiązane.
+    // Awaria odczytu (i zapisu strony niżej) jest teraz JAWNYM błędem wywołania.
+    // Konta już istnieją, ale ponowienie jest bezpieczne: zastane konta idą do
+    // `skipped`, ślad audytowy nie dubluje się (`invitedEmails`), a dowiązanie
+    // liczy się od nowa.
     let linked = 0;
     if (data.autoLink) {
       const doc = JSON.parse(JSON.stringify(page.builder_data ?? {})) as unknown;
-      const { data: profs } = await supabaseAdmin
-        .from("profiles")
-        .select("id, email, slug")
-        .in(
-          "email",
-          drafts.map((d) => d.email),
-        );
       const mapByEmail = new Map<string, { id: string; slug: string | null }>();
-      for (const p of profs ?? []) {
-        if (p.email) mapByEmail.set(p.email.toLowerCase(), { id: p.id, slug: p.slug });
+      for (let from = 0; from < draftEmails.length; from += INVITATION_LOOKUP_CHUNK_SIZE) {
+        const { data: profs, error: profsErr } = await supabaseAdmin
+          .from("profiles")
+          .select("id, email, slug")
+          .in("email", draftEmails.slice(from, from + INVITATION_LOOKUP_CHUNK_SIZE));
+        if (profsErr) throw new Error(`link_lookup_failed:${profsErr.message}`);
+        for (const p of profs ?? []) {
+          if (p.email) mapByEmail.set(p.email.toLowerCase(), { id: p.id, slug: p.slug });
+        }
       }
       const walk = (n: unknown): void => {
         if (Array.isArray(n)) {
@@ -1067,10 +1182,11 @@ export const provisionTeamMembers = createServerFn({ method: "POST" })
       };
       walk(doc);
       if (linked > 0) {
-        await context.supabase
+        const { error: pageWriteErr } = await context.supabase
           .from("pages")
           .update({ builder_data: doc as never })
           .eq("id", page.id);
+        if (pageWriteErr) throw new Error(`link_write_failed:${pageWriteErr.message}`);
       }
     }
 
