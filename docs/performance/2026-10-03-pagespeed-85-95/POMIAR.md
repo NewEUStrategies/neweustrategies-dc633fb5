@@ -332,3 +332,116 @@ na desktop4x szum jest ok. 3,5 raza większy, więc tam rozstrzyga księga per z
 poniżej 50 ms sym. we wszystkich przebiegach ważnych B), a mediana ma tylko kierunek. Ta sama seria A/A na mobile dała
 medianę 1007-1032 ms wobec 832 ms w serii bazy (przeplot dwóch serwerów na jednej maszynie podnosi koszt głównego
 wątku), dlatego pozycje porównuje się wyłącznie w A/B z przeplotem, nigdy z liczbą bazy bezwzględnie.
+
+## 8. Bramka fali 1 (2026-10-05, W0 `ff719b9a6` → W1 `45eb5747c`)
+
+Werdykty bramki i przekazanie do fali 2: `faza2/STAN-FALI-1.md`; liczby per przebieg i statystyki par:
+`faza2/raporty/W1-wyniki.json`. Tutaj: komendy, tabele surowe i uwagi o ważności.
+
+Drzewa: A = W0 = `main` @ `ff719b9a6` (produkcja bez fali 1, worktree `$SCRATCH/base-w1gate`, build 2 min 42 s),
+B = W1 = gałąź PR @ `45eb5747c` (wszystkie pozycje fali 1, worktree `$SCRATCH/gate-w1`, build 3 min 1 s). Oba z
+`BUNDLE_INVENTORY=1 bun run build:smoke`; kopie `lighthouse-local.mjs` po obu stronach bajt w bajt te same. Kroki
+ciężkie szły przez mutex maszyny, lekkie (księgi, analiza śladów) przez `light.sh`. `$G` = `$SCRATCH/phase2/wave1/gate`.
+
+```sh
+export LIGHTHOUSE_CLI=$SCRATCH/tools/node_modules/lighthouse/cli/index.js   # Lighthouse 13.5.0
+export CHROME_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome
+# seria A/B z przeplotem (lh-ab), start 09:39:13 UTC, ok. 22 min
+node scripts/performance/lighthouse-local.mjs --compare $SCRATCH/base-w1gate $SCRATCH/gate-w1 \
+  --runs 5 --forms mobile,desktop4x --client-backend fixture --third-party fake-gtag \
+  --save-artifacts --label w1-gate --out $G/lh-ab
+# sprzężenie C3 na obu drzewach (lh-c3), start 09:53:10 UTC; --html-transform działa po obu stronach
+node scripts/performance/lighthouse-local.mjs --compare $SCRATCH/base-w1gate $SCRATCH/gate-w1 \
+  --runs 5 --forms mobile,desktop4x --client-backend fixture --third-party fake-gtag --save-artifacts \
+  --html-transform scripts/performance/whatif/c3-lcpobs.mjs --label w1-gate-c3 --out $G/lh-c3
+# księga per zadanie i różnice serii
+node scripts/performance/lanternTasks.ts --diff-series $G/lh-ab --form mobile     # i --form desktop4x
+node scripts/performance/lanternTasks.ts --min 0 --json $G/lh-ab/<przebieg>.artifacts
+# what-if deterministyczny C3 na artefaktach lh-ab (narzędzia P0.5 skopiowane do $G/whatif)
+python3 $G/whatif/run_c3wi.py      # whatif.py dropscripts-before-lcp + audit.mjs (klasy audytów Lighthouse 13.5)
+# waga dokumentu skryptem W1 na artefakcie W1 i (dla metryk P1.4) na artefakcie W0; 5 próbek HIT
+node scripts/performance/check-document-weight.ts --root <drzewo> --json <plik.json>
+```
+
+### 8.1 Seria A/B (`lh-ab`)
+
+| forma     | strona | perf | FCP    | LCP    | TBT (mediana, zakres)       | SI     | CLS   | TTI     | oSI    | żądania | JS        | High przed obrazem LCP |
+| --------- | ------ | ---- | ------ | ------ | --------------------------- | ------ | ----- | ------- | ------ | ------- | --------- | ---------------------- |
+| mobile    | A (W0) | 50   | 4,20 s | 4,90 s | **1203 ms** (966,6–1403,5)  | 4,20 s | 0,000 | 10,73 s | 709 ms | 113     | 1084,7 KB | 620,1 KB               |
+| mobile    | B (W1) | 65   | 4,17 s | 4,85 s | **374 ms** (284,6–547,0)    | 4,17 s | 0,000 | 6,25 s  | 497 ms | 99      | 705,6 KB  | 620,5 KB               |
+| desktop4x | A (W0) | 65   | 0,98 s | 1,03 s | **1979 ms** (1480,8–2499,0) | 1,45 s | 0,006 | 4,66 s  | 594 ms | 113     | 1084,7 KB | 620,1 KB               |
+| desktop4x | B (W1) | 69   | 0,95 s | 0,97 s | **1037 ms** (725,5–1356,0)  | 1,27 s | 0,011 | 3,41 s  | 569 ms | 99      | 705,6 KB  | 620,5 KB               |
+
+TBT per przebieg (księga = audyt, ms): mobile A 966,6 / 1054,0 / 1403,5 / 1363,5 / 1203,0, B 284,6 / 374,0 / 471,5 /
+340,0 / 547,0; desktop4x A 2212,0 / 1607,5 / 1480,8 / 2499,0 / 1978,9, B 987,2 / 1095,0 / 1356,0 / 1037,0 / 725,5.
+
+| forma / metryka | Δ mediany | pary: Δ̄   | σΔ    | MDE(t) | MDE(z) | t (df 4) | uwagi                                           |
+| --------------- | --------- | --------- | ----- | ------ | ------ | -------- | ----------------------------------------------- |
+| mobile TBT      | −829 ms   | −794,7 ms | 170,5 | 283    | 213    | −10,42   | p 0,0005; 5/5 par ujemnych, próbki rozdzielone  |
+| mobile oSI      | −212 ms   | −202,8 ms | 76,3  | 127    | 96     | −5,94    | p 0,004; 95 % CI −297,6…−108,0 ms               |
+| mobile FCP      | −28 ms    | −23,8 ms  | 82,6  | 137    | –      | −0,64    | w szumie                                        |
+| mobile LCP      | −44 ms    | −253,9 ms | 567,2 | 943    | –      | −1,00    | para 3 mieszana co do LCP (4,95 / 3,74 s)       |
+| desktop4x TBT   | −942 ms   | −915,5 ms | 569,2 | 946    | 713    | −3,60    | p 0,023; 5/5 par ujemnych; Mann–Whitney p 0,008 |
+| desktop4x FCP   | −31 ms    | +34,8 ms  | 226,0 | 376    | –      | +0,34    | para 5 mieszana (A „częściowy”, FCP 0,63 s)     |
+| desktop4x LCP   | −61 ms    | −48,1 ms  | 100,0 | 166    | –      | −1,08    | w szumie                                        |
+
+Pary trybu FCP „pełny” (n = 4): mobile TBT −760 ms (σΔ 176, MDE(t) 366), desktop4x −831 ms (σΔ 620, MDE(t) 1290).
+Obserwowane FCP: mobile 392 → 432 ms (t 0,67), desktop4x 425 → 496 ms (t 1,35); po połączeniu par obu serii (n = 10)
+desktop4x +71,9 ms (σΔ 99,8, t 2,28, 95 % CI +1…+143 ms), czyli granicznie istotne pogorszenie obserwowanego FCP
+przy niezmienionym FCP Lantern.
+
+### 8.2 Seria C3 (`lh-c3`) i what-if deterministyczny
+
+| forma     | strona    | perf | FCP    | LCP    | TBT (mediana, zakres)   | SI     | CLS   | TTI     |
+| --------- | --------- | ---- | ------ | ------ | ----------------------- | ------ | ----- | ------- |
+| mobile    | A (W0+C3) | 70   | 1,57 s | 2,34 s | **1846 ms** (1794–2210) | 2,22 s | 0,000 | 10,07 s |
+| mobile    | B (W1+C3) | 73   | 1,55 s | 2,32 s | **1288 ms** (789–1462)  | 1,89 s | 0,000 | 6,02 s  |
+| desktop4x | A (W0+C3) | 68   | 0,50 s | 0,63 s | **2335 ms** (1880–2370) | 1,57 s | 0,006 | 5,05 s  |
+| desktop4x | B (W1+C3) | 71   | 0,50 s | 0,66 s | **1113 ms** (945–1377)  | 1,11 s | 0,006 | 3,37 s  |
+
+- Pary: TBT mobile −748,1 ms (σΔ 300,1, MDE(t) 499), desktop4x −1061,7 ms (σΔ 328,5, MDE(t) 546); SI mobile
+  −290,0 ms (σΔ 253,2, MDE(t) 421, p 0,063); LCP mobile −23,9 ms (σΔ 13,8, p 0,018).
+- What-if deterministyczny `dropscripts-before-lcp` (usunięte 26 skryptów na W0, 25 na W1, 24 w B-mobile-3; audyty
+  zamiennika `audit.mjs` równe LHR w 20/20, suma księgi what-if = audyt w 20/20): TBT mobile 2056 → 1062 ms (pary
+  −989, σΔ 236, MDE(t) 393), desktop4x 2109 → 1179 ms (pary −911, σΔ 645, MDE(t) 1072).
+- Sprzężenie (W + C3) − W, tabela w `faza2/STAN-FALI-1.md` §5.1: W1 mobile +914 ms żywo (różnica median dwóch serii,
+  tylko kierunek) / +647 ms deterministycznie (mediana par, 507–733); W0 mobile +643 / +824 ms (652–1087).
+
+### 8.3 Uwagi o ważności
+
+- `lh-ab`: 20/20 przebiegów ważnych, `excluded` 0, load 0,33–2,31 (próg 2,4), dokument HIT 20/20, wariant stały po
+  każdej stronie (A `s-maxage=900`, 393 695 B; B `s-maxage=900`, 400 753 B), księga = audyt TBT w 20/20. Jeden błąd
+  wykonania `NO_NAVSTART` (A-desktop4x-4) harness powtórzył; powtórka jest ważna. Restart serwera po rozgrzewce: A/B
+  mobile 1/5, A/B desktop4x 2/5. Tryb FCP: A mobile pełny ×4 + pośredni ×1, A desktop4x pełny ×4 + częściowy ×1,
+  B pełny 10/10, czyli jedna para mieszana na formę.
+- `lh-c3`: 20/20 ważnych, load 0,2–2,2, HIT 20/20, te same warianty. Tryb FCP: `bez-js` w 18/20, B-desktop4x-2 i -3
+  `pełny` (42,4 i 146,5 KB skryptów przed obs. LCP), więc 2/5 par desktop mieszanych. Wszystkie żądania JS assetów
+  inicjowane skryptem (A 85/85, B 80/80) w 20/20 przebiegów.
+- **Atrapa gtag** w skali ×2,85 w `lh-ab` (benchmarkIndex 1298) i ×2,54 w `lh-c3` (1458), wobec ×2,29 w serii bazy z
+  §7. Dotyczy tylko strony A (na W1 nie ma zadań Google), więc różnice między seriami W0 są tylko kierunkowe.
+- **Linie `K` w trybie A/B** liczą k z mediany strony A (`lh-ab`: 0,50 / 0,37; `lh-c3`: 0,33 / 0,32). To nie jest
+  kalibracja; prognozy używają k z §7 (0,72 / 0,42).
+- **MDE z §7 – korekta definicji.** Kolumna „MDE(t) TBT, n = 5 (przeliczone)” w §7 (ok. 125 / ok. 448 ms) to
+  2,776·σΔ/√5, czyli próg istotności dla α = 0,05 (w przybliżeniu MDE(z) planu). MDE(t) w definicji harnessu,
+  (t₀,₉₇₅ + t₀,₈)·σΔ/√n, wynosi dla n = 5 **168 ms** (mobile) i **600 ms** (desktop4x). Werdyktów fali 1 to nie
+  zmienia.
+- **Reżim refetchu postów klienta.** W części przebiegów klient wysyła w oknie Lighthouse 8 dodatkowych
+  `GET /rest/v1/posts` (do tego `newsletter_settings` i drugie `ad_placements`) w 1,6–2,4 s obs.: `lh-ab` A-desktop4x-4,
+  B-mobile-5, B-desktop4x-3, B-desktop4x-4 (A 1/10, B 3/10); `lh-c3` 3/10 i 3/10. W 5 z 10 takich przebiegów TBT jest
+  maksimum grupy. Harness tego nie wykrywa ani nie balansuje; w `lh-ab` nierównowaga działa przeciw B.
+- **Transformacja C3** to rekonstrukcja z repo (`7b3a4c7dd`), bo plik z planu nie przetrwał. `load` (112–207 ms) jest
+  przed pierwszym malowaniem (225–382 ms) w 20/20 przebiegów, więc zapas `load` + `setTimeout(0)` jest uzbrojony przed
+  LCP; timer bootu zainstalowano przed kandydatem LCP w 8/20 przebiegów (3/5 B mobile). P2.1 planuje `load` + 500 ms.
+- **Licznik gtag harnessu** w B-desktop4x-4 pokazuje 1 skrypt i 6 pingów, ale w śladzie i devtoolsLog nie ma żadnego
+  żądania Google: padły poza oknem nagrania, księga ma 0 zadań Google.
+- **Przesunięcia powłoki zgód** (B-mobile-1 i -2) mają w śladzie `had_recent_input = true`. To artefakt emulacji:
+  Lighthouse liczy takie zdarzenia do 500 ms po zdarzeniu `viewport` (`cumulative-layout-shift.js`), a u użytkownika
+  bez emulacji flaga ma wartość `false`.
+- **Uwaga do §1 (stan po bramce).** Scalenie `main` do gałęzi fali (`61b6e7f43`, PR #475) usunęło z repo testy
+  uprzęży pomiarowej: `document-weight.test.mjs`, `harness-ext.test.mjs`, `psi-sample.test.mjs`, `cms-harness.test.mjs`
+  i skrypt `test:measurement-harness`. Wiersze tabeli §1 o tych testach opisują stan sprzed scalenia; bramka fali 1
+  mierzyła `45eb5747c`, w którym jeszcze istnieją.
+- **Incydent `/dev/null`** (od 10:36 UTC, po obu seriach): `/dev/null` jest dowiązaniem do `$G/lh-c3/summary.json`,
+  który przez to przepadł (każdy start powłoki go nadpisuje). LHR, artefakty, księgi i `c3.log` są nienaruszone,
+  a `lanternTasks --diff-series $G/lh-c3` nie zadziała bez odtworzenia `summary.json`. Kolejne pomiary dopiero po
+  odtworzeniu urządzenia (`rm /dev/null && mknod -m 666 /dev/null c 1 3`, jako root, decyzja człowieka).
