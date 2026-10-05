@@ -81,6 +81,48 @@ export function consentPolicyHrefs(
 // ---------- Tokeny wyglądu (jedna skala dla karty i modala) ----------
 // Kolory zawsze `--cb-*` (nadpisanie z panelu) z semantycznym tokenem motywu
 // jako zapasem - to trzyma jasny/ciemny motyw bez drugiej palety.
+//
+// ALIASY KOLORÓW (P1.3, poprawka 9). Karta stoi w HTML-u KAŻDEJ strony (powłoka
+// SSR), a każda klasa `text-[color:var(--cb-fg,var(--muted-foreground))]` to
+// ok. 50 bajtów surowego HTML-a - powtarzane łańcuchy z zapasami były większością
+// 6,3 KB powłoki (dowód P1.3, §3: `check-document-weight` czerwony). Dlatego
+// pary „nadpisanie + zapas" używane wielokrotnie są zdefiniowane RAZ, jako
+// krótkie zmienne na korzeniu karty i modala (`consentCardStyle`), a klasy
+// czytają alias skrótem Tailwinda `text-(--cbm)`. Wartość wyliczona jest ta sama:
+// zmienna z `var()` rozwiązuje się na korzeniu (tam też leżą `--cb-*`
+// z `bannerStyleVars`) i dziedziczy jako wartość obliczona, a w karcie nikt
+// nie nadpisuje ani `--cb-*`, ani tokenów motywu. Reguła wygenerowana przez
+// Tailwinda jest tej samej postaci (`color-mix(in oklab, var(--cbm) 85%, …)`
+// zamiast `color-mix(in oklab, var(--cb-fg,var(--muted-foreground)) 85%, …)`).
+// Pary użyte w karcie raz (`--cb-surface`, `--cb-muted`) zostają w pełnej
+// postaci - alias kosztowałby więcej, niż oszczędza.
+
+/** Aliasy kolorów karty (nagłówek sekcji). Kolejność = kolejność w atrybucie `style`. */
+const CARD_COLOR_VARS = {
+  /** Akcent (przyciski główne, pierścienie fokusu, podkreślenia). */
+  "--cba": "var(--cb-accent,var(--primary))",
+  /** Tekst na akcencie. */
+  "--cbo": "var(--cb-accent-fg,var(--primary-foreground))",
+  /** Tekst karty. */
+  "--cbf": "var(--cb-fg,var(--card-foreground))",
+  /** Tekst przygaszony (akapit, przyciski-duchy, „X"). */
+  "--cbm": "var(--cb-fg,var(--muted-foreground))",
+  /** Tekst mocny (przycisk obrysowany, najechanie). */
+  "--cbt": "var(--cb-fg,var(--foreground))",
+  /** Obramowanie. */
+  "--cbb": "var(--cb-border,var(--border))",
+} as const;
+
+/** Nazwy aliasów - test pilnuje, że każda klasa `-(--cb…)` czyta zdefiniowany alias. */
+export const CARD_COLOR_VAR_NAMES = Object.keys(CARD_COLOR_VARS);
+
+/**
+ * Styl korzenia karty i modala: aliasy kolorów + zmienne `--cb-*` z panelu
+ * (`bannerStyleVars`). Tokeny niżej działają WYŁĄCZNIE pod takim korzeniem.
+ */
+export function consentCardStyle(styleVars: CSSProperties): CSSProperties {
+  return { ...CARD_COLOR_VARS, ...styleVars } as CSSProperties;
+}
 
 export const TX = {
   body: "text-[12px] leading-[1.5]",
@@ -89,48 +131,42 @@ export const TX = {
   title: "text-[14px] sm:text-[15px] font-semibold leading-snug",
 } as const;
 
-export const CB_BORDER = "border-[color:var(--cb-border,var(--border))]";
+export const CB_BORDER = "border-(--cbb)";
 export const CB_SURFACE = "bg-[color:var(--cb-surface,var(--card))]";
-export const CB_FG = "text-[color:var(--cb-fg,var(--card-foreground))]";
-export const CB_DIM = "text-[color:var(--cb-fg,var(--muted-foreground))]/85";
-export const CB_ACCENT_BAR = "bg-[color:var(--cb-accent,var(--primary))]";
+export const CB_FG = "text-(--cbf)";
+export const CB_DIM = "text-(--cbm)/85";
+export const CB_ACCENT_BAR = "bg-(--cba)";
 
 export const LINK = cn(
   "font-medium underline underline-offset-4 transition-colors",
-  "text-[color:var(--cb-fg,var(--card-foreground))]",
-  "decoration-[color:var(--cb-accent,var(--primary))]/40 hover:decoration-[color:var(--cb-accent,var(--primary))]",
+  "text-(--cbf) decoration-(--cba)/40 hover:decoration-(--cba)",
 );
 
 const BTN_BASE = cn(
   "inline-flex items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium",
   "cursor-pointer whitespace-nowrap transition-colors",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--cb-accent,var(--primary))]/50",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--cba)/50",
 );
 export const BTN_MD = "h-9 px-3.5";
 export const BTN_SM = "h-8 px-2.5";
 
 export const BTN_PRIMARY = cn(
   BTN_BASE,
-  "border-transparent shadow-sm",
-  "bg-[color:var(--cb-accent,var(--primary))] text-[color:var(--cb-accent-fg,var(--primary-foreground))]",
-  "hover:bg-[color:var(--cb-accent,var(--primary))]/90",
+  "border-transparent shadow-sm bg-(--cba) text-(--cbo) hover:bg-(--cba)/90",
 );
 export const BTN_OUTLINE = cn(
   BTN_BASE,
-  "border-[color:var(--cb-border,var(--border))] text-[color:var(--cb-fg,var(--foreground))]",
-  "bg-transparent hover:bg-[color:var(--cb-accent,var(--primary))]/12 hover:border-[color:var(--cb-accent,var(--primary))]/40",
+  "border-(--cbb) text-(--cbt) bg-transparent hover:bg-(--cba)/12 hover:border-(--cba)/40",
 );
 export const BTN_GHOST = cn(
   BTN_BASE,
-  "border-transparent text-[color:var(--cb-fg,var(--muted-foreground))]",
-  "bg-transparent hover:bg-[color:var(--cb-accent,var(--primary))]/12 hover:text-[color:var(--cb-fg,var(--foreground))]",
+  "border-transparent text-(--cbm) bg-transparent hover:bg-(--cba)/12 hover:text-(--cbt)",
 );
 
 export const ICON_BTN = cn(
   "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors",
-  "text-[color:var(--cb-fg,var(--muted-foreground))] hover:bg-[color:var(--cb-accent,var(--primary))]/12",
-  "hover:text-[color:var(--cb-fg,var(--foreground))]",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--cb-accent,var(--primary))]/50",
+  "text-(--cbm) hover:bg-(--cba)/12 hover:text-(--cbt)",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--cba)/50",
 );
 
 // ---------- Ikony (inline SVG, ścieżki lucide 0.577) ----------
@@ -139,10 +175,12 @@ interface IconProps {
   className?: string;
 }
 
+// Bez `xmlns` (SVG w HTML-u dostaje przestrzeń nazw od parsera) i bez
+// `width`/`height` 24 (każda ikona ma klasę rozmiaru `size-*`, która i tak
+// nadpisuje atrybuty) - powłoka niesie te bajty w HTML-u każdej strony.
+// Ścieżki lucide złączone w jedną `<path>` z podścieżkami `M` tam, gdzie było ich
+// kilka: obrys każdej podścieżki rysuje się osobno, więc kształt jest ten sam.
 const SVG_PROPS = {
-  xmlns: "http://www.w3.org/2000/svg",
-  width: 24,
-  height: 24,
   viewBox: "0 0 24 24",
   fill: "none",
   stroke: "currentColor",
@@ -155,12 +193,7 @@ const SVG_PROPS = {
 export function CookieIcon({ className }: IconProps) {
   return (
     <svg {...SVG_PROPS} className={className}>
-      <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5" />
-      <path d="M8.5 8.5v.01" />
-      <path d="M16 15.5v.01" />
-      <path d="M12 12v.01" />
-      <path d="M11 17v.01" />
-      <path d="M7 14v.01" />
+      <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5M8.5 8.5v.01M16 15.5v.01M12 12v.01M11 17v.01M7 14v.01" />
     </svg>
   );
 }
@@ -168,8 +201,7 @@ export function CookieIcon({ className }: IconProps) {
 export function XIcon({ className }: IconProps) {
   return (
     <svg {...SVG_PROPS} className={className}>
-      <path d="M18 6 6 18" />
-      <path d="m6 6 12 12" />
+      <path d="M18 6 6 18M6 6l12 12" />
     </svg>
   );
 }
@@ -177,8 +209,7 @@ export function XIcon({ className }: IconProps) {
 export function SettingsIcon({ className }: IconProps) {
   return (
     <svg {...SVG_PROPS} className={className}>
-      <path d="M14 17H5" />
-      <path d="M19 7h-9" />
+      <path d="M14 17H5M19 7h-9" />
       <circle cx="17" cy="17" r="3" />
       <circle cx="7" cy="7" r="3" />
     </svg>
@@ -225,8 +256,7 @@ export function ConsentMarkFrame({ size, children }: { size: number; children: R
       style={{ width: px, height: px }}
       className={cn(
         "grid shrink-0 place-items-center overflow-hidden rounded-lg",
-        "bg-[color:var(--cb-accent,var(--primary))]/10 text-[color:var(--cb-fg,var(--card-foreground))]",
-        "ring-1 ring-[color:var(--cb-accent,var(--primary))]/20",
+        "bg-(--cba)/10 text-(--cbf) ring-1 ring-(--cba)/20",
       )}
     >
       {children}
@@ -325,11 +355,10 @@ export function ConsentPolicySentence({
           {policyLabel}
         </a>
       ) : (
-        <span className="font-medium text-[color:var(--cb-fg,var(--card-foreground))]">
-          {policyLabel}
-        </span>
-      )}{" "}
-      {andLabel}{" "}
+        <span className="font-medium text-(--cbf)">{policyLabel}</span>
+      )}
+      {/* Jeden węzeł tekstu zamiast trzech - bez separatorów `<!-- -->` w HTML-u powłoki. */}
+      {` ${andLabel} `}
       <a href={dataProcessingHref} className={LINK}>
         {dataProcessingLabel}
       </a>
@@ -390,9 +419,7 @@ export function ConsentLangSwitcher({
             aria-pressed={active}
             className={cn(
               "min-w-[1.75rem] cursor-pointer rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide transition-colors",
-              active
-                ? "bg-[color:var(--cb-accent,var(--primary))] text-[color:var(--cb-accent-fg,var(--primary-foreground))]"
-                : "text-[color:var(--cb-fg,var(--muted-foreground))]/70 hover:text-[color:var(--cb-fg,var(--foreground))]",
+              active ? "bg-(--cba) text-(--cbo)" : "text-(--cbm)/70 hover:text-(--cbt)",
             )}
           >
             {l.toUpperCase()}
@@ -464,7 +491,7 @@ export function ConsentCompactCard({
       role="dialog"
       aria-modal="false"
       aria-label={title}
-      style={styleVars}
+      style={consentCardStyle(styleVars)}
       data-consent-shell={shell ? "" : undefined}
       data-nosnippet={shell ? "" : undefined}
       className={cn(
@@ -480,7 +507,7 @@ export function ConsentCompactCard({
           "rounded-xl border p-4 shadow-2xl backdrop-blur-md",
           CB_SURFACE,
           CB_FG,
-          "border-[color:var(--cb-border,var(--border))]/70",
+          "border-(--cbb)/70",
           // Pokazanie BEZ `animate-in` (P0.5, F8): start animacji `enter` był
           // zadaniem w śladzie, a powłoka i baner mają się podmienić niewidocznie.
           dismissing && "animate-out fade-out slide-out-to-bottom-4 fill-mode-forwards",
@@ -606,7 +633,7 @@ export function ConsentShell() {
       }
       message={
         <>
-          {t.compactMessage}{" "}
+          {`${t.compactMessage} `}
           <ConsentPolicySentence
             privacyHref={privacyHref}
             dataProcessingHref={dataProcessingHref}

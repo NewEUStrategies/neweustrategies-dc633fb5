@@ -51,9 +51,12 @@
 // w przeglądarce ten moduł jest LENIWY: korzeń dociąga go `import()` po
 // hydratacji, a jedyny statyczny import (stała skryptu w `RootShell`) stoi w
 // gałęzi `.server()` `createIsomorphicFn`, którą kompilator Start wycina z
-// bundla klienta. Tekst skryptu, fragmenty z `consent.ts`, prymitywy P0.3 i
-// koordynator nie wchodzą więc do zamknięcia bootu (zmierzone: ~2,3 KB gzip
-// w wersji z kodem w korzeniu, PLAN §2: przyrost > 1 KB wymaga uzasadnienia).
+// bundla klienta. Prymitywy P0.3 i koordynator nie wchodzą więc do zamknięcia
+// bootu (zmierzone: ~2,3 KB gzip w wersji z kodem w korzeniu, PLAN §2:
+// przyrost > 1 KB wymaga uzasadnienia). Tekst skryptu i fragmenty z
+// `consent.ts` (moduł w zamknięciu bootu) wycina z klienta dopiero czyste
+// wywołanie `buildConsentInitScript` niżej - bez niego martwy szablon trzymał
+// fragmenty w chunku wejściowym (dowód P1.3, §2.2).
 import {
   CONSENT_CHANGE_EVENT,
   CONSENT_DECIDED_JS,
@@ -107,32 +110,61 @@ export const CONSENT_SHELL_INTENT_EVENT = "consent-shell-intent";
 export type ConsentShellAction =
   "accept" | "reject" | "close" | "customize" | "lang-pl" | "lang-en";
 
-/**
- * Sygnał GPC - ten sam warunek co `resolveClientGpc`: `navigator.globalPrivacyControl
- * === true` albo napis `"1"` (po `trim`), albo KTÓREKOLWIEK ciasteczko `nes_gpc`
- * o wartości `"1"` po zdekodowaniu (`readGpcCookie`; wyjątek dekodowania = brak
- * sygnału z tej części). Liczony RAZ, przed pierwszym malowaniem: steruje
- * widocznością powłoki i klamrą decyzji z powłoki.
- */
-const GPC_JS =
-  `N=navigator.globalPrivacyControl,g=N===!0||(typeof N=='string'&&N.trim()=='${GPC_COOKIE_VALUE}')||` +
-  `document.cookie.split(';').some(function(p){var i=p.indexOf('=');if(i<0||p.slice(0,i).trim()!='${GPC_COOKIE}')return;` +
-  `try{return decodeURIComponent(p.slice(i+1).trim()).trim()=='${GPC_COOKIE_VALUE}'}catch(e){}});`;
-
-/**
- * Consent Mode po decyzji - te same pola, kolejność i wartości co
- * `ga4ConsentUpdate` (`lib/analytics/ga4Client.ts`); parytet sprawdza test.
- * `window.gtag` istnieje tylko wtedy, gdy snippet SSR przeszedł bramkę hosta -
- * ta sama warunkowość co w `ga4Client.gtag`. `Z` - wartość kategorii
- * klamrowanych (analytics, marketing), `Y` - functional.
- */
-const CONSENT_MODE_JS =
-  `var G=w.gtag,Z=z?'granted':'denied',Y=y?'granted':'denied';` +
-  `if(typeof G=='function')G('consent','update',{ad_storage:Z,ad_user_data:Z,ad_personalization:Z,analytics_storage:Z,functionality_storage:Y,personalization_storage:Y,security_storage:'granted'});`;
-
 /** Wywołanie `A(…)` skryptu dla atrybutu `<html>` (przedrostek dokleja `A`). */
 const setAttr = (attr: string, value = ""): string =>
   `A('${attr.slice(ATTR.length)}'${value ? `,${value}` : ""})`;
+
+/**
+ * Składa treść skryptu (`CONSENT_INIT_SCRIPT` niżej). Funkcja, a nie literał na
+ * poziomie modułu, bo w przeglądarce ten moduł jest leniwym partnerem skryptu
+ * i stałej nikt tam nie czyta (serwer ma ją z gałęzi `.server()` korzenia).
+ * Szablon z interpolacjami importów Rollup uznaje za wyrażenie z efektami
+ * (`ToString`), więc nieużywana stała zostawała w bundlu klienta jako martwe
+ * wyrażenie i trzymała przy życiu fragmenty `CONSENT_READ_JS`/
+ * `CONSENT_DECIDED_JS`/`CONSENT_WRITE_JS` w chunku wejściowym (`consent.ts`
+ * leży w zamknięciu bootu) - dowód P1.3, §2.2: ok. 268 B gzip bootu. Wywołanie
+ * z adnotacją `@__PURE__` Rollup wycina razem z całym tekstem.
+ */
+function buildConsentInitScript(): string {
+  /**
+   * Sygnał GPC - ten sam warunek co `resolveClientGpc`: `navigator.globalPrivacyControl
+   * === true` albo napis `"1"` (po `trim`), albo KTÓREKOLWIEK ciasteczko `nes_gpc`
+   * o wartości `"1"` po zdekodowaniu (`readGpcCookie`; wyjątek dekodowania = brak
+   * sygnału z tej części). Liczony RAZ, przed pierwszym malowaniem: steruje
+   * widocznością powłoki i klamrą decyzji z powłoki.
+   */
+  const gpcJs =
+    `N=navigator.globalPrivacyControl,g=N===!0||(typeof N=='string'&&N.trim()=='${GPC_COOKIE_VALUE}')||` +
+    `document.cookie.split(';').some(function(p){var i=p.indexOf('=');if(i<0||p.slice(0,i).trim()!='${GPC_COOKIE}')return;` +
+    `try{return decodeURIComponent(p.slice(i+1).trim()).trim()=='${GPC_COOKIE_VALUE}'}catch(e){}});`;
+
+  /**
+   * Consent Mode po decyzji - te same pola, kolejność i wartości co
+   * `ga4ConsentUpdate` (`lib/analytics/ga4Client.ts`); parytet sprawdza test.
+   * `window.gtag` istnieje tylko wtedy, gdy snippet SSR przeszedł bramkę hosta -
+   * ta sama warunkowość co w `ga4Client.gtag`. `Z` - wartość kategorii
+   * klamrowanych (analytics, marketing), `Y` - functional.
+   */
+  const consentModeJs =
+    `var G=w.gtag,Z=z?'granted':'denied',Y=y?'granted':'denied';` +
+    `if(typeof G=='function')G('consent','update',{ad_storage:Z,ad_user_data:Z,ad_personalization:Z,analytics_storage:Z,functionality_storage:Y,personalization_storage:Y,security_storage:'granted'});`;
+
+  return (
+    `(function(){try{${CONSENT_READ_JS}var r=document.documentElement,w=window,` +
+    `A=function(n,v){r.setAttribute('${ATTR}'+n,v||'')},${gpcJs}` +
+    `if(g)${setAttr(CONSENT_GPC_ATTR)};if(${CONSENT_DECIDED_JS})${setAttr(CONSENT_DECIDED_ATTR)};` +
+    `document.addEventListener('click',function(e){try{` +
+    `var t=e.target,b=t.closest&&t.closest('[${CONSENT_SHELL_ATTR}] [${CONSENT_ACTION_ATTR}]');if(!b)return;` +
+    `var x=b.getAttribute('${CONSENT_ACTION_ATTR}');` +
+    `if(!/^(accept|reject|close)$/.test(x)){${setAttr(CONSENT_INTENT_ATTR, "x")};w.dispatchEvent(new CustomEvent('${CONSENT_SHELL_INTENT_EVENT}',{detail:x}));return}` +
+    `${setAttr(CONSENT_DECIDED_ATTR)};` +
+    `if(!w.dispatchEvent(new CustomEvent('${CONSENT_SHELL_DECISION_EVENT}',{detail:x,cancelable:!0})))return;` +
+    `var y=x=='accept',z=y&&!g;${CONSENT_WRITE_JS}W(y,z,z);` +
+    `try{localStorage.setItem('${SHELL_PENDING_KEY}','1')}catch(e){}` +
+    `${consentModeJs}w.dispatchEvent(new Event('${CONSENT_CHANGE_EVENT}'))` +
+    `}catch(e){}});${setAttr(CONSENT_JS_ATTR)}}catch(e){}})();`
+  );
+}
 
 /**
  * Treść skryptu. IIFE w jednej linii - wstrzykiwana inline do `<head>`, więc
@@ -146,20 +178,7 @@ const setAttr = (attr: string, value = ""): string =>
  * powłokę ukrytą, a partner skryptu montuje wtedy baner zaraz po boocie
  * (zachowanie sprzed P1.3).
  */
-export const CONSENT_INIT_SCRIPT =
-  `(function(){try{${CONSENT_READ_JS}var r=document.documentElement,w=window,` +
-  `A=function(n,v){r.setAttribute('${ATTR}'+n,v||'')},${GPC_JS}` +
-  `if(g)${setAttr(CONSENT_GPC_ATTR)};if(${CONSENT_DECIDED_JS})${setAttr(CONSENT_DECIDED_ATTR)};` +
-  `document.addEventListener('click',function(e){try{` +
-  `var t=e.target,b=t.closest&&t.closest('[${CONSENT_SHELL_ATTR}] [${CONSENT_ACTION_ATTR}]');if(!b)return;` +
-  `var x=b.getAttribute('${CONSENT_ACTION_ATTR}');` +
-  `if(!/^(accept|reject|close)$/.test(x)){${setAttr(CONSENT_INTENT_ATTR, "x")};w.dispatchEvent(new CustomEvent('${CONSENT_SHELL_INTENT_EVENT}',{detail:x}));return}` +
-  `${setAttr(CONSENT_DECIDED_ATTR)};` +
-  `if(!w.dispatchEvent(new CustomEvent('${CONSENT_SHELL_DECISION_EVENT}',{detail:x,cancelable:!0})))return;` +
-  `var y=x=='accept',z=y&&!g;${CONSENT_WRITE_JS}W(y,z,z);` +
-  `try{localStorage.setItem('${SHELL_PENDING_KEY}','1')}catch(e){}` +
-  `${CONSENT_MODE_JS}w.dispatchEvent(new Event('${CONSENT_CHANGE_EVENT}'))` +
-  `}catch(e){}});${setAttr(CONSENT_JS_ATTR)}}catch(e){}})();`;
+export const CONSENT_INIT_SCRIPT = /* @__PURE__ */ buildConsentInitScript();
 
 /** Akcja kontrolki z atrybutu/zdarzenia albo `null`, gdy to nie jest znana akcja. */
 export function parseShellAction(value: string | null | undefined): ConsentShellAction | null {

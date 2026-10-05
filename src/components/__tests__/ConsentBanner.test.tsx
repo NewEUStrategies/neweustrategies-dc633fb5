@@ -69,6 +69,7 @@ vi.mock("@/components/ThemeProvider", () => ({ useTheme: () => ({ theme: "light"
 
 import i18n from "@/lib/i18n";
 import { ConsentBanner } from "@/components/ConsentBanner";
+import { CARD_COLOR_VAR_NAMES } from "@/components/consent/ConsentShell";
 import { COOKIE_BANNER_DEFAULTS } from "@/lib/cookieBanner/config";
 import { REGISTRY_BY_CATEGORY } from "@/lib/cookieBanner/registry";
 
@@ -205,6 +206,11 @@ describe("ConsentBanner - panel preferencji", () => {
 
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveAttribute("aria-modal", "true");
+    // Korzeń modalu niesie aliasy kolorów karty - tokeny `text-(--cbf)` itd.
+    // działają wyłącznie pod nimi (P1.3, poprawka 9).
+    for (const name of CARD_COLOR_VAR_NAMES) {
+      expect(dialog.style.getPropertyValue(name), name).not.toBe("");
+    }
     // Jeden przycisk podmiotów na kategorię, w kolejności kart: niezbędne,
     // funkcjonalne, analityczne, marketingowe. Liczba w nazwie to liczba pozycji
     // rejestru kategorii - zapytanie po samej liczbie było dwuznaczne, odkąd

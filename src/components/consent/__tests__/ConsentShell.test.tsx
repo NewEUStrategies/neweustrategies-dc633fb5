@@ -14,10 +14,15 @@
 //  4. BEZ LUCIDE: ikony są inline SVG, `aria-hidden`, a moduł nie importuje
 //     `lucide-react` (powłoka nie może ciągnąć `vendor-lucide`).
 //  5. DOSTĘPNOŚĆ: axe bez naruszeń; `aria-controls` wskazuje istniejący panel.
+//  6. BAJTY HTML-A (poprawka 9): klasy kolorów czytają krótkie aliasy
+//     zdefiniowane na korzeniu karty (`consentCardStyle`), każdy użyty alias
+//     jest zdefiniowany, a powłoka mieści się w budżecie surowych bajtów
+//     (dowód P1.3, §3: `check-document-weight`).
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
+import type { CSSProperties } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 const h = vi.hoisted(() => ({
@@ -68,7 +73,11 @@ vi.mock("@/lib/overlayCoordinator", () => ({
 }));
 
 import i18n from "@/lib/i18n";
-import { ConsentShell } from "@/components/consent/ConsentShell";
+import {
+  CARD_COLOR_VAR_NAMES,
+  ConsentShell,
+  consentCardStyle,
+} from "@/components/consent/ConsentShell";
 import { ConsentBanner } from "@/components/ConsentBanner";
 import { COOKIE_BANNER_DEFAULTS } from "@/lib/cookieBanner/config";
 import { axeViolations, summarize } from "@/test/axe";
@@ -237,5 +246,59 @@ describe("dostępność powłoki", () => {
     const panelId = customize.getAttribute("aria-controls");
     expect(panelId).toBe("cookie-preferences-inline");
     expect(container.querySelector(`#${panelId}`)).not.toBeNull();
+  });
+});
+
+describe("bajty HTML-a powłoki: aliasy kolorów karty (poprawka 9)", () => {
+  /** Nazwy zmiennych czytanych skrótem Tailwinda `-(--nazwa)` w napisie. */
+  function aliasReads(text: string): string[] {
+    return [...new Set([...text.matchAll(/-\((--[\w-]+)\)/g)].map((m) => m[1]))].sort();
+  }
+
+  it("aliasy to dokładnie dawne pary „nadpisanie z panelu + token motywu”, przed zmiennymi `--cb-*`", () => {
+    expect(consentCardStyle({ "--cb-fg": "#111" } as CSSProperties)).toEqual({
+      "--cba": "var(--cb-accent,var(--primary))",
+      "--cbo": "var(--cb-accent-fg,var(--primary-foreground))",
+      "--cbf": "var(--cb-fg,var(--card-foreground))",
+      "--cbm": "var(--cb-fg,var(--muted-foreground))",
+      "--cbt": "var(--cb-fg,var(--foreground))",
+      "--cbb": "var(--cb-border,var(--border))",
+      "--cb-fg": "#111",
+    });
+  });
+
+  it("korzeń powłoki definiuje każdy alias czytany przez klasy karty", () => {
+    const { container } = render(<ConsentShell />);
+    const root = container.querySelector<HTMLElement>("[data-consent-shell]");
+    const classes = [...container.querySelectorAll("[class]")]
+      .map((el) => el.getAttribute("class") ?? "")
+      .join(" ");
+    const reads = aliasReads(classes);
+    expect(reads.length).toBeGreaterThan(0);
+    for (const name of reads) {
+      expect(CARD_COLOR_VAR_NAMES).toContain(name);
+      expect(root?.style.getPropertyValue(name), name).not.toBe("");
+    }
+  });
+
+  it("baner i modal czytają wyłącznie zdefiniowane aliasy (źródła obu modułów)", () => {
+    const shell = readFileSync(resolve(__dirname, "../ConsentShell.tsx"), "utf8");
+    const banner = readFileSync(resolve(__dirname, "../../ConsentBanner.tsx"), "utf8");
+    for (const name of aliasReads(`${shell}\n${banner}`)) {
+      expect(CARD_COLOR_VAR_NAMES).toContain(name);
+    }
+    // Modal ma własny korzeń - też musi nieść aliasy.
+    expect(banner).toMatch(/style=\{consentCardStyle\(styleVars\)\}/);
+  });
+
+  it("powłoka mieści się w budżecie surowych bajtów, bez długich par kolorów, `xmlns` i separatorów", () => {
+    const html = shellHtml();
+    // 6 206 B przed poprawką 9, 5 164 B po niej (domyślne treści PL, logo).
+    // Zapas na drobne zmiany treści; większy przyrost = nowy pomiar
+    // `check-document-weight` i decyzja o progach (plik P1.4).
+    expect(Buffer.byteLength(html)).toBeLessThanOrEqual(5_400);
+    expect(html).not.toMatch(/\[color:var\(--cb-(?:fg|accent|accent-fg|border),/);
+    expect(html).not.toContain("xmlns=");
+    expect(html).not.toContain("<!-- -->");
   });
 });

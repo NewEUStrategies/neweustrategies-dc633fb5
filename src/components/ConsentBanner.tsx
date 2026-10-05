@@ -30,6 +30,7 @@ import {
   ConsentMarkFrame,
   ConsentMarkImage,
   ConsentPolicySentence,
+  consentCardStyle,
   consentPolicyHrefs,
   CookieIcon,
   ICON_BTN,
@@ -487,7 +488,8 @@ export function ConsentBanner({
         mark={<ConsentMark src={logoSrc} size={logoSize} />}
         message={
           <>
-            {t.compactMessage} {policySentence}
+            {`${t.compactMessage} `}
+            {policySentence}
           </>
         }
         gpcNotice={
@@ -556,7 +558,7 @@ export function ConsentBanner({
       role="dialog"
       aria-modal="true"
       aria-labelledby="consent-title"
-      style={styleVars}
+      style={consentCardStyle(styleVars)}
       className="no-print fixed inset-0 z-[80] flex items-end justify-center bg-foreground/60 p-3 backdrop-blur-sm animate-in fade-in sm:items-center"
       onClick={() => {
         if (decided) setDetailsOpen(false);

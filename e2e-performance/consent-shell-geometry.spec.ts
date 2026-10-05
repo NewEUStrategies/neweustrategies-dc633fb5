@@ -1,8 +1,7 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import {
-  fixtureImage,
+  fixtureImageFor,
   fixtureResponse,
-  homeFixture,
   isAnalyticsScript,
   isFixtureBackend,
 } from "../scripts/performance/homeFixture";
@@ -53,8 +52,10 @@ async function routeFixture(page: Page, { holdScripts }: RouteOptions = {}): Pro
     }
     if (isAnalyticsScript(request.url()))
       return route.fulfill({ body: "", contentType: "application/javascript" });
-    if (request.resourceType() === "image")
-      return route.fulfill({ body: fixtureImage, contentType: homeFixture.fixture_image_type });
+    // Raster dla okładek `.jpg` (jak pozostałe spece): wektor fixture ma przy
+    // rozmiarze hero < 0,05 bpp i Chrome wyklucza go z LCP - wpisem zostawał
+    // wtedy nagłówek treści, a nie `img[data-lcp-candidate]` (dowód P1.3, §5).
+    if (request.resourceType() === "image") return route.fulfill(fixtureImageFor(request.url()));
     if (holdScripts && request.resourceType() === "script") await holdScripts;
     return route.continue();
   });

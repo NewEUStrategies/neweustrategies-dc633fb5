@@ -31,6 +31,8 @@
 // wyłącznie na granicach: klient Supabase, most rejestru, ustawienia witryny
 // (wartości domyślne), motyw i punkt ciszy P0.3 (rejestrator - punkt ciszy
 // wymaga `load` + 5 s, a test sprawdza tylko klasę i skutek zapisu).
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
@@ -746,6 +748,40 @@ describe("po boocie decyzję zapisuje aplikacja, intencja nic nie zapisuje", () 
     expect(parseShellAction(null)).toBeNull();
     expect(isShellDecision("close")).toBe(true);
     expect(isShellDecision("customize")).toBe(false);
+  });
+});
+
+// ---------- 4b. tekst skryptu poza bundlem klienta ----------
+
+describe("tekst skryptu powstaje w czystym wywołaniu (poza bundlem klienta)", () => {
+  // W przeglądarce stałej nikt nie czyta (serwer bierze ją z gałęzi `.server()`
+  // korzenia), ale szablon z interpolacjami importów Rollup traktuje jak
+  // wyrażenie z efektami: bez czystego wywołania martwy szablon trzymał
+  // fragmenty `consent.ts` w chunku wejściowym (dowód P1.3, §2.2). Pilnujemy
+  // kształtu źródła, który pozwala Rollupowi go wyciąć.
+  const source = readFileSync(resolve(__dirname, "../consentInitScript.ts"), "utf8");
+  const builderStart = source.indexOf("function buildConsentInitScript(");
+  const builderEnd = source.indexOf("\n}\n", builderStart);
+
+  it("stała = wywołanie z adnotacją `@__PURE__`", () => {
+    expect(builderStart).toBeGreaterThan(0);
+    expect(source).toMatch(
+      /export const CONSENT_INIT_SCRIPT = \/\* @__PURE__ \*\/ buildConsentInitScript\(\);/,
+    );
+  });
+
+  it("fragmenty `consent.ts` czyta WYŁĄCZNIE funkcja budująca (poza importem)", () => {
+    const outside =
+      source.slice(0, builderStart).replace(/^import[\s\S]*?from "@\/lib\/ads\/consent";$/m, "") +
+      source.slice(builderEnd);
+    expect(outside).not.toMatch(/\$\{CONSENT_(?:READ|DECIDED|WRITE)_JS\}/);
+    expect(source.slice(builderStart, builderEnd)).toMatch(/\$\{CONSENT_READ_JS\}/);
+  });
+
+  it("wynik wywołania jest stałym napisem (ten sam przy każdym imporcie)", () => {
+    expect(typeof CONSENT_INIT_SCRIPT).toBe("string");
+    expect(CONSENT_INIT_SCRIPT.startsWith("(function(){try{")).toBe(true);
+    expect(CONSENT_INIT_SCRIPT.endsWith("}catch(e){}})();")).toBe(true);
   });
 });
 
