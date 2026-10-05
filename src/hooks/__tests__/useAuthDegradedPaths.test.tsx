@@ -14,8 +14,11 @@
 //   2. ZABLOKOWANY MAGAZYN TO PEWNY GOŚĆ. Tryb prywatny / zablokowane ciasteczka
 //      (odczyt `localStorage` rzuca) kończą `loading` od razu, bez czekania na
 //      sieć - klient Supabase też nic z takiego magazynu nie odczyta.
-//   3. BEZ `window` SONDA NIE CZYTA MAGAZYNU. Zapisany token nie wstrzymuje
-//      wtedy odpowiedzi - odwiedzający od razu jest gościem.
+//   3. (Przeniesione w P1.7.) Sonda magazynu bez `window` ma test jednostkowy
+//      w `integrations/supabase/__tests__/sessionHint.test.ts`: decyzja „gość
+//      od startu" zapada w pierwszym przebiegu efektów klienta, gdzie `window`
+//      zawsze jest (nasłuch `storage` gościa i tak go wymaga), a render
+//      serwera pilnuje `useAuthWithoutWindow.node.test.tsx`.
 //   4. ODMOWA ODCZYTU RÓL TO NAJMNIEJSZE UPRAWNIENIA. `user_roles` z
 //      `data: null` (np. odmowa RLS) daje pusty zestaw ról i zamyka `loading`;
 //      sesja i tenant zostają.
@@ -25,7 +28,8 @@
 //      po odmontowaniu prowajdera, a nasłuch Supabase jest odpięty.
 //   7. SPÓŹNIONY TERMIN NIE PODNOSI FAŁSZYWEGO ALARMU. Gdy termin sesji odpali
 //      mimo udzielonej odpowiedzi (zegar nie anulował), nie ogłasza „sesja nie
-//      rozstrzygnęła się" i nie zmienia stanu.
+//      rozstrzygnęła się" i nie zmienia stanu. Termin istnieje tylko na ścieżce
+//      z SDK (sesja w magazynie) - gość od startu nie czeka na nic.
 //   8. BEZ PROWAJDERA KONTEKST MÓWI „NIE WIEMY". `useAuth()` poza
 //      `AuthProvider` zwraca `loading`, brak sesji i ról, a `signOut()` nie
 //      robi niczego - ani wylogowania w Supabase, ani nawigacji.
@@ -55,16 +59,15 @@
 // `window`) - to jest w `useAuthWithoutWindow.node.test.tsx`, bo wymaga
 // środowiska `node`.
 //
-// DLACZEGO TEZA 3 ZNIKA `window` TYLKO NA CZAS SONDY. React DOM sam czyta
-// `window.event` przy planowaniu aktualizacji, więc pełny render klienta bez
-// `window` jest niemożliwy w żadnym środowisku testowym. Efekt potomka (efekty
-// dzieci biegną przed efektem rodzica) chowa `window` tuż przed efektem
-// prowajdera, a pierwsze `clearTimeout` (domknięcie odpowiedzi zaraz po sondzie)
-// je przywraca - zanim React dostanie jakąkolwiek aktualizację.
+// ATRAPA KLIENTA ZACHOWUJE SIĘ JAK `client.ts` (P1.7): pierwszy dostęp do
+// `supabase` zgłasza utworzenie klienta do prawdziwego rejestru
+// (`sessionHint.ts`). Każdy przypadek startuje z istniejącym klientem (jak na
+// stronie, której zapytania o dane utworzyły go przy hydratacji), więc gość od
+// startu podpina nasłuch od razu, a `h.authCb` jest dostępne.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 type WynikRol = { data: { role: string }[] | null; error: { message: string } | null };
 type WynikProfilu = { data: { tenant_id: string } | null; error: null };
@@ -85,8 +88,9 @@ const h = vi.hoisted(() => ({
   pytania: [] as string[],
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
+vi.mock("@/integrations/supabase/client", async () => {
+  const { markSupabaseClientCreated } = await import("@/integrations/supabase/sessionHint");
+  const client = {
     rpc: h.rpc,
     auth: {
       onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
@@ -118,8 +122,16 @@ vi.mock("@/integrations/supabase/client", () => ({
       }
       throw new Error(`nieoczekiwana tabela ${table}`);
     },
-  },
-}));
+  };
+  return {
+    supabase: new Proxy(client, {
+      get(target, prop, receiver) {
+        markSupabaseClientCreated();
+        return Reflect.get(target, prop, receiver);
+      },
+    }),
+  };
+});
 
 vi.mock("@/lib/personalization/anonMerge", () => ({
   hasAnonPersonalization: () => false,
@@ -132,6 +144,10 @@ import {
   SESSION_SETTLE_TIMEOUT_MS,
   useAuth,
 } from "@/hooks/useAuth";
+import {
+  __resetSupabaseClientRegistryForTests,
+  markSupabaseClientCreated,
+} from "@/integrations/supabase/sessionHint";
 
 /** Klucz, pod którym klient Supabase trzyma sesję dla `placeholder.supabase.co`. */
 const KLUCZ_SESJI = "sb-placeholder-auth-token";
@@ -213,6 +229,8 @@ beforeEach(() => {
   h.rpc.mockReset().mockResolvedValue({ data: null, error: null });
   h.pytania = [];
   window.localStorage.clear();
+  __resetSupabaseClientRegistryForTests();
+  markSupabaseClientCreated();
 });
 
 afterEach(() => {
@@ -253,42 +271,6 @@ describe("sonda zapisanej sesji", () => {
     // terminie sesji (ten też zdjąłby `loading`, tylko 5 s później).
     expect(pole("loading")).toBe("false");
     expect(pole("uid")).toBe("anon");
-    expect(h.signOut).not.toHaveBeenCalled();
-  });
-
-  it("bez window sonda nie czyta magazynu - zapisany token nie wstrzymuje gościa", async () => {
-    // Ten sam zestaw co „sesja w magazynie + wiszący getSession()" w pliku
-    // obok, gdzie `loading` trwa aż do terminu. Bez `window` odpowiedź ma być
-    // natychmiastowa.
-    window.localStorage.setItem(KLUCZ_SESJI, JSON.stringify({ access_token: "stary" }));
-    h.sesja = wisi<WynikSesji>();
-
-    let oknoSchowane = false;
-    const prawdziweClearTimeout = globalThis.clearTimeout;
-    vi.spyOn(globalThis, "clearTimeout").mockImplementation((uchwyt) => {
-      if (oknoSchowane) {
-        oknoSchowane = false;
-        vi.unstubAllGlobals();
-      }
-      prawdziweClearTimeout(uchwyt);
-    });
-    function ChowaOkno() {
-      useEffect(() => {
-        oknoSchowane = true;
-        vi.stubGlobal("window", undefined);
-      }, []);
-      return null;
-    }
-
-    renderuj(<ChowaOkno />);
-    await act(async () => {});
-
-    expect(typeof window).toBe("object");
-    expect(oknoSchowane).toBe(false);
-    expect(pole("loading")).toBe("false");
-    expect(pole("uid")).toBe("anon");
-    // Magazyn nietknięty - sonda go nie czytała i nikt go nie czyścił.
-    expect(window.localStorage.getItem(KLUCZ_SESJI)).not.toBeNull();
     expect(h.signOut).not.toHaveBeenCalled();
   });
 });
@@ -384,6 +366,9 @@ describe("terminy na sesję i role", () => {
   it("termin sesji, który odpalił mimo odpowiedzi (zegar nie anulował), nie podnosi fałszywego alarmu", async () => {
     vi.useFakeTimers();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Termin istnieje tylko na ścieżce z SDK: sesja w magazynie, a odświeżenie
+    // tokenu kończy się „brak sesji" (`getSession()` -> `null`).
+    window.localStorage.setItem(KLUCZ_SESJI, JSON.stringify({ access_token: "stary" }));
     // Zegar, który nie anuluje: uchwyt z innej implementacji timerów (np.
     // podmiana zegara między ustawieniem a skasowaniem) - termin zostaje.
     const clear = vi.spyOn(globalThis, "clearTimeout").mockImplementation(() => {});
@@ -392,7 +377,7 @@ describe("terminy na sesję i role", () => {
       await przesuń(0);
       expect(pole("loading")).toBe("false");
       expect(pole("uid")).toBe("anon");
-      // Odpowiedź przyszła (pusty magazyn + `getSession()`), a termin wciąż czeka.
+      // Odpowiedź przyszła (`getSession()` z magazynu), a termin wciąż czeka.
       expect(clear).toHaveBeenCalled();
       expect(vi.getTimerCount()).toBe(1);
 

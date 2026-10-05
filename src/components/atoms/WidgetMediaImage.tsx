@@ -14,6 +14,13 @@ interface WidgetMediaImageProps {
   foregroundStyle?: CSSProperties;
   onError?: ReactEventHandler<HTMLImageElement>;
   hoverEffect?: HoverEffect;
+  /**
+   * Znacznik kandydata LCP strony (P1.4): `""` renderuje
+   * `data-lcp-candidate=""` na `<img>`, `undefined` - nic. Podaje go
+   * `PostListView` okładce wiodącej widgetu-kandydata; P1.3 i P2.1 szukają
+   * elementu LCP selektorem `img[data-lcp-candidate]`.
+   */
+  "data-lcp-candidate"?: string;
 }
 
 type WidgetMediaFrameStyle = CSSProperties & {
@@ -38,6 +45,7 @@ export function WidgetMediaImage({
   foregroundStyle,
   onError,
   hoverEffect = "none",
+  "data-lcp-candidate": lcpCandidate,
 }: WidgetMediaImageProps) {
   const frameStyle: WidgetMediaFrameStyle = {
     ...style,
@@ -65,6 +73,7 @@ export function WidgetMediaImage({
         style={foregroundStyle}
         onError={onError}
         hoverEffect={hoverEffect}
+        data-lcp-candidate={lcpCandidate}
       />
     </span>
   );

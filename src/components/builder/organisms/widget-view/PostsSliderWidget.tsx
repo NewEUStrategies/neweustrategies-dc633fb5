@@ -6,6 +6,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { WidgetNode, WidgetTypography } from "@/lib/builder/types";
 import { getStr, type Lang } from "./frame";
+import type { LcpImage } from "@/lib/builder/aboveFold";
 // UWAGA: importujemy z `sliderOptions` (czyste dane), NIE z `sliderVariants` -
 // renderer slidera ma zostać w leniwym chunku (lazyWidgets), a nie wpaść tu
 // przez import stałych.
@@ -36,10 +37,13 @@ export function PostsSliderWidget({
   c,
   lang,
   typography,
+  lcp = false,
 }: {
   c: WidgetNode["content"];
   lang: Lang;
   typography?: WidgetTypography;
+  /** Priorytet pierwszego slajdu (P1.4, `LcpImage`): kandydat albo pierwsza sekcja renderu klienckiego. */
+  lcp?: LcpImage;
 }) {
   const variant = asOneOf(c.variant, SLIDER_VARIANT_VALUES, "editorial-hero");
   const ratio = asOneOf(c.ratio, SLIDER_RATIOS, "16/9");
@@ -158,5 +162,7 @@ export function PostsSliderWidget({
       };
     }),
   };
-  return <SliderRender config={cfg} lang={lang} />;
+  // `lcp` zawsze jawnie: slider wewnątrz renderera buildera NIE dziedziczy
+  // historycznego „slajd 0 zawsze eager/high" (P1.4, werdykt LP-1).
+  return <SliderRender config={cfg} lang={lang} lcp={lcp} />;
 }

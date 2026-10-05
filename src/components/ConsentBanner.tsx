@@ -6,12 +6,39 @@
 // Consent state persists in localStorage + cookie and (when signed-in) syncs to
 // profiles.prefs.consent - refresh is automatic because useConsent() re-reads
 // on the consent-change event.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
-import { Cookie, ChevronDown, ChevronUp, Check, X, Settings2 } from "lucide-react";
 import { GpcCategoryBadgeSlot, GpcNoticeSlot } from "@/components/consent/GpcSurfaceSlots";
+import {
+  BTN_GHOST,
+  BTN_MD,
+  BTN_OUTLINE,
+  BTN_PRIMARY,
+  BTN_SM,
+  CB_ACCENT_BAR,
+  CB_BORDER,
+  CB_DIM,
+  CB_FG,
+  CB_SURFACE,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ConsentCompactCard,
+  ConsentLangSwitcher,
+  ConsentMarkFrame,
+  ConsentMarkImage,
+  ConsentPolicySentence,
+  consentCardStyle,
+  consentPolicyHrefs,
+  CookieIcon,
+  ICON_BTN,
+  PRIVACY_DEFAULTS,
+  TX,
+  XIcon,
+  type PrivacyConfig,
+} from "@/components/consent/ConsentShell";
 import { useTheme } from "@/components/ThemeProvider";
 import {
   useConsent,
@@ -20,15 +47,14 @@ import {
   consumeOpenPrefsRequest,
   type ConsentCategory,
 } from "@/lib/ads/consent";
+import type { ConsentShellAction } from "@/lib/consent/consentInitScript";
 import { isGpcClampedCategory, isGpcOverrideValid } from "@/lib/consent/gpc";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { useBrandMarkUrl } from "@/lib/brand/useBrandLogoUrl";
-import { setConsentOverlayVisible, setMarketingConsent } from "@/lib/overlayCoordinator";
+import { reportConsentSurface, setConsentOverlayVisible } from "@/lib/overlayCoordinator";
 import { useSiteSetting } from "@/lib/useSiteSetting";
-import { localizedPath } from "@/lib/i18n/localePath";
 import {
   useCookieBannerConfig,
-  bannerLinkHref,
   bannerStyleVars,
   resolveBannerCopy,
   clampCookieBannerLogoSize,
@@ -44,11 +70,6 @@ import { cn } from "@/lib/utils";
 
 type Cats = Record<ConsentCategory, boolean>;
 
-// Admin-controlled privacy settings (site_settings["privacy"]). Stable module-
-// level default so useSiteSetting memoization holds.
-type PrivacyConfig = { privacy_page_slug: string; cookie_banner: boolean };
-const PRIVACY_DEFAULTS: PrivacyConfig = { privacy_page_slug: "", cookie_banner: true };
-
 type Vendor = DataElement;
 
 const CATEGORY_ORDER: ConsentCategory[] = ["necessary", "functional", "analytics", "marketing"];
@@ -58,104 +79,25 @@ const CATEGORY_ORDER: ConsentCategory[] = ["necessary", "functional", "analytics
 // `duration-300` utility on the card itself.
 const EXIT_MS = 300;
 
-// Design tokens for the banner - one shared scale for the compact card and the
-// details modal, desktop and mobile. Change here to change everywhere.
-// Colors are always `--cb-*` first (admin override) with a semantic theme token
-// as fallback, which is what keeps light/dark working with zero extra config.
-const TX = {
-  body: "text-[12px] leading-[1.5]",
-  meta: "text-[11px] leading-[1.4]",
-  heading: "text-[13px] font-semibold leading-snug",
-  title: "text-[14px] sm:text-[15px] font-semibold leading-snug",
-} as const;
-
-const CB_BORDER = "border-[color:var(--cb-border,var(--border))]";
-const CB_SURFACE = "bg-[color:var(--cb-surface,var(--card))]";
-const CB_FG = "text-[color:var(--cb-fg,var(--card-foreground))]";
-const CB_DIM = "text-[color:var(--cb-fg,var(--muted-foreground))]/85";
-const CB_ACCENT_BAR = "bg-[color:var(--cb-accent,var(--primary))]";
-
-const LINK = cn(
-  "font-medium underline underline-offset-4 transition-colors",
-  "text-[color:var(--cb-fg,var(--card-foreground))]",
-  "decoration-[color:var(--cb-accent,var(--primary))]/40 hover:decoration-[color:var(--cb-accent,var(--primary))]",
-);
-
-const BTN_BASE = cn(
-  "inline-flex items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium",
-  "cursor-pointer whitespace-nowrap transition-colors",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--cb-accent,var(--primary))]/50",
-);
-const BTN_MD = "h-9 px-3.5";
-const BTN_SM = "h-8 px-2.5";
-
-const BTN_PRIMARY = cn(
-  BTN_BASE,
-  "border-transparent shadow-sm",
-  "bg-[color:var(--cb-accent,var(--primary))] text-[color:var(--cb-accent-fg,var(--primary-foreground))]",
-  "hover:bg-[color:var(--cb-accent,var(--primary))]/90",
-);
-const BTN_OUTLINE = cn(
-  BTN_BASE,
-  "border-[color:var(--cb-border,var(--border))] text-[color:var(--cb-fg,var(--foreground))]",
-  "bg-transparent hover:bg-[color:var(--cb-accent,var(--primary))]/12 hover:border-[color:var(--cb-accent,var(--primary))]/40",
-);
-const BTN_GHOST = cn(
-  BTN_BASE,
-  "border-transparent text-[color:var(--cb-fg,var(--muted-foreground))]",
-  "bg-transparent hover:bg-[color:var(--cb-accent,var(--primary))]/12 hover:text-[color:var(--cb-fg,var(--foreground))]",
-);
-
-const ICON_BTN = cn(
-  "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors",
-  "text-[color:var(--cb-fg,var(--muted-foreground))] hover:bg-[color:var(--cb-accent,var(--primary))]/12",
-  "hover:text-[color:var(--cb-fg,var(--foreground))]",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--cb-accent,var(--primary))]/50",
-);
+// Tokeny wyglądu (TX, CB_*, BTN_*, ICON_BTN, LINK), ikony i kompaktowa karta
+// żyją w `components/consent/ConsentShell.tsx` - TEN SAM markup renderuje
+// powłoka SSR (P1.3), więc karta powłoki i karta banera nie mogą się rozjechać.
 
 /**
  * Znak marki w kaflu ikony. Gdy logo nie jest skonfigurowane (albo plik nie
- * wstaje), zostaje ciasteczko z Lucide - baner nigdy nie pokazuje pustej ramki.
+ * wstaje), zostaje ciasteczko - baner nigdy nie pokazuje pustej ramki.
  */
-function ConsentMark({
-  src,
-  size = 36,
-  className,
-}: {
-  src: string | null;
-  size?: number;
-  className?: string;
-}) {
+function ConsentMark({ src, size = 36 }: { src: string | null; size?: number }) {
   const [failed, setFailed] = useState(false);
   const showLogo = !!src && !failed;
-  const px = Math.min(72, Math.max(24, Math.round(size)));
-
   return (
-    <span
-      aria-hidden
-      style={{ width: px, height: px }}
-      className={cn(
-        "grid shrink-0 place-items-center overflow-hidden rounded-lg",
-        "bg-[color:var(--cb-accent,var(--primary))]/10 text-[color:var(--cb-fg,var(--card-foreground))]",
-        "ring-1 ring-[color:var(--cb-accent,var(--primary))]/20",
-        className,
-      )}
-    >
+    <ConsentMarkFrame size={size}>
       {showLogo ? (
-        <img
-          src={src}
-          alt=""
-          width={px}
-          height={px}
-          loading="lazy"
-          decoding="async"
-          className="size-full object-contain p-1"
-          onError={() => setFailed(true)}
-        />
+        <ConsentMarkImage src={src} size={size} onError={() => setFailed(true)} />
       ) : (
-        <Cookie className="size-[18px]" />
+        <CookieIcon className="size-[18px]" />
       )}
-    </span>
+    </ConsentMarkFrame>
   );
 }
 
@@ -216,7 +158,7 @@ function CategoryRow({
                   ),
           )}
         >
-          {checked && <Check className="size-3.5" aria-hidden />}
+          {checked && <CheckIcon className="size-3.5" />}
         </button>
 
         <div className="min-w-0 flex-1">
@@ -238,6 +180,20 @@ function CategoryRow({
   );
 }
 
+/**
+ * Przejęcie powłoki SSR (P1.3): baner montowany po interakcji w miejsce
+ * `ConsentShell` (`__root.tsx`, `ConsentSurface`). Nigdy nie renderuje się na
+ * serwerze ani w hydratacji, więc od PIERWSZEGO renderu pokazuje kartę (bez
+ * przebiegu `mounted === false`, który dałby klatkę bez karty) i podmienia
+ * powłokę w jednym commicie.
+ */
+export interface ConsentBannerTakeover {
+  /** Intencja kliknięta w powłoce (`customize`, `lang-pl`, `lang-en`) - odtwarzana po montażu. */
+  intent: ConsentShellAction | null;
+  /** Akcja kontrolki powłoki, która miała fokus - fokus przechodzi na tę samą kontrolkę banera. */
+  focus: ConsentShellAction | null;
+}
+
 export interface ConsentBannerProps {
   /**
    * Podgląd w adminie: niezapisany szkic konfiguracji zamiast wartości z bazy.
@@ -245,9 +201,21 @@ export interface ConsentBannerProps {
   configOverride?: CookieBannerConfig;
   /** Podgląd wymusza motyw kafla logo (jasny/ciemny) niezależnie od strony. */
   themeOverride?: "light" | "dark";
+  /** Montaż w miejsce powłoki SSR (patrz `ConsentBannerTakeover`). */
+  takeover?: ConsentBannerTakeover;
+  /**
+   * Wołane po commicie montażu (efekt warstwy) - korzeń rozstrzyga nim promise
+   * zadania kolejki P0.3 (KONTRAKT ZADANIA: „P1.3 - po montażu banera").
+   */
+  onReady?: () => void;
 }
 
-export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerProps = {}) {
+export function ConsentBanner({
+  configOverride,
+  themeOverride,
+  takeover,
+  onReady,
+}: ConsentBannerProps = {}) {
   const { i18n, t: tr } = useTranslation();
   // Kod języka bierzemy z kanonicznego `uiLang` - ta sama normalizacja co
   // w `formatDate`/`uiLocale`, zamiast własnego `startsWith` w komponencie.
@@ -272,16 +240,18 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
     () => REGISTRY_BY_CATEGORY,
   );
 
-  const privacyHref = privacy.privacy_page_slug
-    ? localizedPath(`/${privacy.privacy_page_slug.replace(/^\/+/, "")}`, uiLanguage)
-    : null;
-  const dataProcessingHref = localizedPath("/privacy", uiLanguage);
+  const { privacyHref, dataProcessingHref } = consentPolicyHrefs(privacy, uiLanguage);
 
-  const { state, decided, mounted, save, acceptAll, rejectAll } = useConsent();
+  const consent = useConsent();
+  const { state, save, acceptAll, rejectAll } = consent;
+  // Przejęcie powłoki: komponent żyje wyłącznie w przeglądarce, więc „zamontowany"
+  // jest od pierwszego renderu, a decyzja to po prostu stan z magazynu.
+  const mounted = consent.mounted || !!takeover;
+  const decided = takeover ? !!state : consent.decided;
   // Sygnał GPC: `gpcActive` steruje widocznością noty (użytkownik musi wiedzieć,
   // że sygnał został zauważony - także gdy sam go nadpisał), `gpcHonored` steruje
   // klamrą na przełącznikach.
-  const gpc = useGpcSignal();
+  const gpc = useGpcSignal(!!takeover);
   const gpcOverridden = isGpcOverrideValid(state);
   const gpcHonored = gpc.active && !gpcOverridden;
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -383,15 +353,37 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
     return () => ro.disconnect();
   }, [prefsOpen, uiLanguage, gpcHonored, draft, t]);
 
+  // PRZEJĘCIE POWŁOKI (P1.3). Efekt warstwy, czyli w tym samym commicie, w którym
+  // baner zastąpił powłokę - przed malowaniem: intencja kliknięta w powłoce
+  // (`customize` rozwija panel, `lang-*` przełącza język) i fokus na tej samej
+  // kontrolce, którą miał w powłoce (klawiatura nie gubi miejsca, krytyka m4b).
+  // `onReady` rozstrzyga promise zadania kolejki P0.3 („po montażu banera").
+  const cardRef = useRef<HTMLDivElement>(null);
+  const handoff = useRef({ takeover, onReady, i18n, uiLanguage });
+  useLayoutEffect(() => {
+    const { takeover: shell, onReady: ready, i18n: lang, uiLanguage: current } = handoff.current;
+    if (shell?.intent === "customize") setPrefsOpen(true);
+    const wanted =
+      shell?.intent === "lang-pl" ? "pl" : shell?.intent === "lang-en" ? "en" : current;
+    if (wanted !== current) void lang.changeLanguage(wanted);
+    if (shell?.focus) {
+      cardRef.current
+        ?.querySelector<HTMLElement>(`[data-consent-action="${shell.focus}"]`)
+        ?.focus();
+    }
+    ready?.();
+  }, []);
+
   const consentSurfaceVisible = mounted && (!decided || detailsOpen || dismissing);
   useEffect(() => {
     if (!mounted) return;
     // Close the gate before applying consent; publish the decision before
-    // opening it again. Effect cleanup must not pump a queue using the OLD
-    // consent while React is committing a rejection.
-    if (consentSurfaceVisible) setConsentOverlayVisible(true);
-    setMarketingConsent(state ? state.categories.marketing && !gpcHonored : null);
-    if (!consentSurfaceVisible) setConsentOverlayVisible(false);
+    // opening it again (`reportConsentSurface`). Effect cleanup must not pump
+    // a queue using the OLD consent while React is committing a rejection.
+    reportConsentSurface(
+      consentSurfaceVisible,
+      state ? state.categories.marketing && !gpcHonored : null,
+    );
   }, [mounted, consentSurfaceVisible, state, gpcHonored]);
 
   useEffect(() => () => setConsentOverlayVisible(false), []);
@@ -448,73 +440,21 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
 
   const closeLabel = `${tr("common.close")} (${t.rejectAll})`;
 
-  const LangSwitcher = banner.languageSwitcher ? (
-    <div
-      role="group"
-      aria-label="PL / EN"
-      className={cn(
-        "inline-flex items-center rounded-full border p-0.5",
-        CB_BORDER,
-        "bg-[color:var(--cb-muted,var(--muted))]/40",
-      )}
-    >
-      {(["pl", "en"] as const).map((l) => {
-        const active = uiLanguage === l;
-        return (
-          <button
-            key={l}
-            type="button"
-            onClick={() => setLang(l)}
-            aria-pressed={active}
-            className={cn(
-              "min-w-[1.75rem] cursor-pointer rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide transition-colors",
-              active
-                ? "bg-[color:var(--cb-accent,var(--primary))] text-[color:var(--cb-accent-fg,var(--primary-foreground))]"
-                : "text-[color:var(--cb-fg,var(--muted-foreground))]/70 hover:text-[color:var(--cb-fg,var(--foreground))]",
-            )}
-          >
-            {l.toUpperCase()}
-          </button>
-        );
-      })}
-    </div>
+  const langSwitcher = banner.languageSwitcher ? (
+    <ConsentLangSwitcher lang={uiLanguage} onSelect={setLang} />
   ) : null;
 
-  // Zdanie o politykach - identyczne w karcie i w modalu, więc jedno miejsce.
+  // Zdanie o politykach - identyczne w karcie, w modalu i w powłoce SSR.
   const policySentence = (
-    <>
-      {privacyHref ? (
-        <a href={privacyHref} className={LINK}>
-          {t.policyLabel}
-        </a>
-      ) : (
-        <span className="font-medium text-[color:var(--cb-fg,var(--card-foreground))]">
-          {t.policyLabel}
-        </span>
-      )}{" "}
-      {tr("common.and")}{" "}
-      <a href={dataProcessingHref} className={LINK}>
-        {tr("common.dataProcessingTerms")}
-      </a>
-      .{/* Dodatkowe odnośniki z panelu admina (np. regulamin, RODO, kontakt). */}
-      {/* Adres idzie przez `bannerLinkHref`: ścieżka wewnętrzna dostaje prefiks
-          języka banera (jak polityka i zasady obok), niedozwolony schemat
-          wypada w całości. */}
-      {(banner.links ?? []).flatMap((l) => {
-        const href = bannerLinkHref(l.url, uiLanguage);
-        const label = pickLocalized(l, "label", uiLanguage);
-        if (!href || !label) return [];
-        return [
-          <span key={l.id}>
-            {" "}
-            <a href={href} className={LINK}>
-              {label}
-            </a>
-            .
-          </span>,
-        ];
-      })}
-    </>
+    <ConsentPolicySentence
+      privacyHref={privacyHref}
+      dataProcessingHref={dataProcessingHref}
+      policyLabel={t.policyLabel}
+      andLabel={tr("common.and")}
+      dataProcessingLabel={tr("common.dataProcessingTerms")}
+      links={banner.links}
+      lang={uiLanguage}
+    />
   );
 
   const categoryRows = (clampDesc: boolean) =>
@@ -533,58 +473,26 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
     ));
 
   // ---------- Compact floating card (bottom-right) ----------
+  // Markup wspólny z powłoką SSR (`ConsentCompactCard`), więc podmiana powłoki
+  // na baner nie zmienia ani piksela, ani drzewa dostępności.
   if (!detailsOpen) {
     return (
-      <div
-        role="dialog"
-        aria-modal="false"
-        aria-label={t.title}
-        style={styleVars}
-        className={cn(
-          "no-print fixed z-[60] right-3 bottom-3 left-3",
-          "sm:left-auto sm:right-5 sm:bottom-5 sm:w-[380px]",
-          "max-w-[calc(100vw-1.5rem)]",
-        )}
-      >
-        <div
-          className={cn(
-            "relative flex max-h-[calc(100svh-1.5rem)] flex-col gap-3 overflow-y-auto",
-            "rounded-xl border p-4 shadow-2xl backdrop-blur-md",
-            CB_SURFACE,
-            CB_FG,
-            "border-[color:var(--cb-border,var(--border))]/70",
-            dismissing
-              ? "animate-out fade-out slide-out-to-bottom-4 fill-mode-forwards"
-              : "animate-in fade-in slide-in-from-bottom-4",
-            "duration-300 ease-out",
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <ConsentMark src={logoSrc} size={logoSize} />
-            <h2 id="consent-title" className={cn(TX.title, "min-w-0 flex-1")}>
-              {t.title}
-            </h2>
-            {/* „X" = odmowa (tak jak wytyczne CNIL): zamknięcie nie może być
-                łatwiejsze niż odrzucenie, więc jest po prostu odrzuceniem.
-                Etykieta mówi to wprost - i jest inna niż na przycisku
-                odrzucenia, żeby czytnik ekranu nie ogłaszał dwóch identycznych. */}
-            <button
-              type="button"
-              onClick={() => decide(() => rejectAll())}
-              aria-label={closeLabel}
-              title={closeLabel}
-              className={cn(ICON_BTN, "-mt-1 -mr-1 self-start")}
-            >
-              <X className="size-4" aria-hidden />
-            </button>
-          </div>
-
-          <p className={cn(TX.body, CB_DIM)}>
-            {t.compactMessage} {policySentence}
-          </p>
-
-          {/* Sygnał GPC: nota pojawia się PRZED przyciskami, bo zmienia
-              znaczenie „Akceptuj wszystkie" (świadomy override sygnału). */}
+      <ConsentCompactCard
+        rootRef={cardRef}
+        title={t.title}
+        closeLabel={closeLabel}
+        rejectLabel={t.rejectAll}
+        acceptLabel={t.acceptAll}
+        customizeLabel={t.customize}
+        styleVars={styleVars}
+        mark={<ConsentMark src={logoSrc} size={logoSize} />}
+        message={
+          <>
+            {`${t.compactMessage} `}
+            {policySentence}
+          </>
+        }
+        gpcNotice={
           <GpcNoticeSlot
             active={gpc.active}
             source={gpc.source}
@@ -592,92 +500,55 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
             onRestore={restoreGpc}
             variant="compact"
           />
-
+        }
+        langSwitcher={langSwitcher}
+        dismissing={dismissing}
+        onClose={() => decide(() => rejectAll())}
+        onReject={() => decide(() => rejectAll())}
+        onAccept={() => decide(() => acceptAll())}
+        onCustomize={() => setPrefsOpen((p) => !p)}
+        prefsOpen={prefsOpen}
+        prefsRef={prefsRef}
+        prefsHeight={prefsHeight}
+        prefsPanel={
           <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => decide(() => rejectAll())}
-                className={cn(BTN_OUTLINE, BTN_MD, "flex-1")}
-              >
-                {t.rejectAll}
-              </button>
-              <button
-                type="button"
-                onClick={() => decide(() => acceptAll())}
-                className={cn(BTN_PRIMARY, BTN_MD, "flex-1")}
-              >
-                {t.acceptAll}
-              </button>
-            </div>
+            {categoryRows(true)}
 
-            <div className="flex items-center justify-between gap-2">
+            <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => setPrefsOpen((p) => !p)}
-                aria-expanded={prefsOpen}
-                aria-controls="cookie-preferences-inline"
+                onClick={() => {
+                  setPrefsOpen(false);
+                  setDetailsOpen(true);
+                }}
                 className={cn(BTN_GHOST, BTN_SM, "-ml-1")}
               >
-                <Settings2 className="size-3.5" aria-hidden />
-                {t.customize}
-                {prefsOpen ? (
-                  <ChevronUp className="size-3.5" aria-hidden />
-                ) : (
-                  <ChevronDown className="size-3.5" aria-hidden />
-                )}
+                {t.showDetails}
               </button>
-              {LangSwitcher}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetDraft();
+                    setPrefsOpen(false);
+                  }}
+                  className={cn(BTN_OUTLINE, BTN_SM)}
+                >
+                  {tr("common.cancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => decide(() => save(draft))}
+                  className={cn(BTN_PRIMARY, BTN_SM)}
+                >
+                  <CheckIcon className="size-3.5" />
+                  {t.saveSelection}
+                </button>
+              </div>
             </div>
           </div>
-
-          <div
-            id="cookie-preferences-inline"
-            ref={prefsRef}
-            style={{ height: prefsHeight ? `${prefsHeight}px` : 0 }}
-            className="overflow-hidden transition-[height] duration-300 ease-out will-change-[height] motion-reduce:transition-none"
-          >
-            {prefsOpen && (
-              <div className="flex flex-col gap-2">
-                {categoryRows(true)}
-
-                <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPrefsOpen(false);
-                      setDetailsOpen(true);
-                    }}
-                    className={cn(BTN_GHOST, BTN_SM, "-ml-1")}
-                  >
-                    {t.showDetails}
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        resetDraft();
-                        setPrefsOpen(false);
-                      }}
-                      className={cn(BTN_OUTLINE, BTN_SM)}
-                    >
-                      {tr("common.cancel")}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => decide(() => save(draft))}
-                      className={cn(BTN_PRIMARY, BTN_SM)}
-                    >
-                      <Check className="size-3.5" aria-hidden />
-                      {t.saveSelection}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+        }
+      />
     );
   }
 
@@ -687,7 +558,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
       role="dialog"
       aria-modal="true"
       aria-labelledby="consent-title"
-      style={styleVars}
+      style={consentCardStyle(styleVars)}
       className="no-print fixed inset-0 z-[80] flex items-end justify-center bg-foreground/60 p-3 backdrop-blur-sm animate-in fade-in sm:items-center"
       onClick={() => {
         if (decided) setDetailsOpen(false);
@@ -716,7 +587,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
               {t.title}
             </h2>
             <div className="flex shrink-0 items-center gap-1.5 self-start">
-              {LangSwitcher}
+              {langSwitcher}
               <button
                 type="button"
                 onClick={() => setDetailsOpen(false)}
@@ -724,7 +595,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
                 title={decided ? tr("common.close") : t.hideDetails}
                 className={cn(ICON_BTN, "-mt-1 -mr-1")}
               >
-                <X className="size-4" aria-hidden />
+                <XIcon className="size-4" />
               </button>
             </div>
           </div>
@@ -765,9 +636,9 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
                   {vendorsOpen ? t.hideVendors : t.showVendors}
                   <span className={cn(TX.meta, "font-mono opacity-70")}>{vendors.length}</span>
                   {vendorsOpen ? (
-                    <ChevronUp className="size-3.5" aria-hidden />
+                    <ChevronUpIcon className="size-3.5" />
                   ) : (
-                    <ChevronDown className="size-3.5" aria-hidden />
+                    <ChevronDownIcon className="size-3.5" />
                   )}
                 </button>
 
@@ -846,7 +717,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
               setDetailsOpen(false);
             }}
           >
-            <X className="size-3.5" aria-hidden />
+            <XIcon className="size-3.5" />
             {t.rejectAll}
           </button>
           <button
@@ -857,7 +728,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
               setDetailsOpen(false);
             }}
           >
-            <Check className="size-3.5" aria-hidden />
+            <CheckIcon className="size-3.5" />
             {t.saveSelection}
           </button>
           <button
@@ -868,7 +739,7 @@ export function ConsentBanner({ configOverride, themeOverride }: ConsentBannerPr
               setDetailsOpen(false);
             }}
           >
-            <Check className="size-3.5" aria-hidden />
+            <CheckIcon className="size-3.5" />
             {t.acceptAll}
           </button>
         </div>

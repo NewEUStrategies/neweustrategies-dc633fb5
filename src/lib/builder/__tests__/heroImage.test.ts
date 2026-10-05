@@ -4,7 +4,14 @@ import { imageSlotSizes } from "../imageSlot";
 // srcSet z buildImageSrcSet) oraz ostrożność - lepiej zero preloadu niż zły.
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { builderHeroPreload } from "@/lib/builder/heroImage";
+import {
+  builderContentHeroPreloads,
+  builderHeroPreloads,
+  lcpPreloadLinkHeaderValue,
+} from "@/lib/builder/heroImage";
+import { lcpCandidateIds as lcpCandidateIdsFor } from "@/lib/builder/lcpCandidate";
+import { GUEST_ACCESS_CONTEXT, evaluateAccess } from "@/lib/builder/accessControl";
+import { imagePreloadLinkHeaderValue } from "@/lib/seo/meta";
 import { sliderPostsQueryOptions } from "@/lib/builder/sliderPostsQuery";
 import { postListQueryOptions } from "@/lib/builder/postListQuery";
 import { sliderFallbackImagesQueryOptions } from "@/lib/builder/sliderFallbackQuery";
@@ -27,6 +34,19 @@ import type {
 } from "@/lib/builder/types";
 
 const COVER = "https://p.supabase.co/storage/v1/object/public/covers/hero.jpg";
+
+/**
+ * Pierwszy deskryptor (kandydat desktopowy, a gdy jego obrazu nie da się
+ * wyznaczyć - mobilny) albo null. Dawny eksport `builderHeroPreload` usunięty
+ * w rundzie 9 jako martwy kod (trasy wołają `builderHeroPreloads`); testy
+ * pojedynczego kandydata zostają na tym skrócie.
+ */
+const builderHeroPreload = (...args: Parameters<typeof builderHeroPreloads>) =>
+  builderHeroPreloads(...args)[0] ?? null;
+
+/** Kandydaci dla gościa - te same reguły dostępu, których używa loader trasy. */
+const lcpCandidateIds = (doc: BuilderDocument) =>
+  lcpCandidateIdsFor(doc, { isAccessible: (rule) => evaluateAccess(rule, GUEST_ACCESS_CONTEXT) });
 
 /** Pełne wiersze zapytań - setQueryData jest typowane kluczem (DataTag). */
 function sliderRow(cover: string) {
@@ -232,14 +252,25 @@ describe("builderHeroPreload", () => {
     expect(preload?.href).toBe(COVER);
   });
 
-  it("sekcja z eksperymentem A/B jest pomijana (wariant losuje się na kliencie)", () => {
+  it("A/B: wariant B (niemalowany w SSR) jest pomijany, wariant A bywa kandydatem", () => {
+    // PRZEPISANE ŚWIADOMIE (P1.4, werdykt LP-1 blokujące 3). Dawniej KAŻDA
+    // sekcja eksperymentu była pomijana („wariant losuje się na kliencie").
+    // Ale SSR i pierwszy render klienta malują deterministycznie wariant A,
+    // więc jego obraz JEST pierwszym malowaniem dla każdego - a przy jednym
+    // źródle preloadu (preload == obraz eager) pominięcie A zostawiało hero
+    // w eksperymencie leniwe. Wariant B nie istnieje w HTML-u SSR.
     const qc = new QueryClient();
-    const abSection = sectionWith([widget("image", { src: `${COVER}?ab=1`, alt_pl: "AB" })], {
+    const variantB = sectionWith([widget("image", { src: `${COVER}?b=1`, alt_pl: "B" })], {
+      advanced: { abTest: { experimentId: "e1", variant: "b" } },
+    });
+    const variantA = sectionWith([widget("image", { src: `${COVER}?a=1`, alt_pl: "A" })], {
       advanced: { abTest: { experimentId: "e1", variant: "a" } },
     });
     const plain = sectionWith([widget("image", { src: COVER, alt_pl: "X" })]);
-    const preload = builderHeroPreload(docWith([abSection, plain]), qc, "pl");
-    expect(preload?.href).toBe(COVER);
+    expect(builderHeroPreload(docWith([variantB, plain]), qc, "pl")?.href).toBe(COVER);
+    expect(builderHeroPreload(docWith([variantB, variantA, plain]), qc, "pl")?.href).toBe(
+      `${COVER}?a=1`,
+    );
   });
 
   it("obrazy poza sekcjami nad zgięciem nie są preloadowane", () => {
@@ -254,6 +285,142 @@ describe("builderHeroPreload", () => {
     const qc = new QueryClient();
     const broken = { version: 1, sections: [null] } as unknown as BuilderDocument;
     expect(builderHeroPreload(broken, qc, "pl")).toBeNull();
+    expect(builderHeroPreloads(broken, qc, "pl")).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JEDNO ŹRÓDŁO KANDYDATA (P1.4, werdykt LP-2). Preload wskazuje WYŁĄCZNIE obraz
+// kandydata z `lcpCandidates` - tego samego, któremu renderer daje priorytet
+// i `data-lcp-candidate`. Dawniej: pierwszy preloadowalny widget w kolejności
+// DOM, czyli na `/` karta listy 25vw zamiast hero.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function columnSpan(widgets: WidgetNode[], span: number, order?: number): ColumnNode {
+  return {
+    id: `c-${(nodeId += 1)}`,
+    kind: "column",
+    span: { desktop: span },
+    ...(order !== undefined ? { order: { mobile: order } } : {}),
+    children: widgets,
+  };
+}
+
+describe("builderHeroPreloads - delegacja do kandydatów LCP", () => {
+  it("strona główna: preload wskazuje hero (kandydat), a nie pierwszą w DOM kartę listy", () => {
+    const qc = new QueryClient();
+    const list: WidgetContent = { variant: "card" };
+    qc.setQueryData(postListQueryOptions(list, "pl").queryKey, [postListRow(`${COVER}?karta=1`)]);
+    const sliderContent: WidgetContent = { source: "posts" };
+    qc.setQueryData(sliderPostsQueryOptions(sliderContent, "pl").queryKey, [sliderRow(COVER)]);
+    const doc = docWith([
+      sectionOf([
+        columnSpan([widget("post-list", list)], 3, 2),
+        columnSpan([widget("slider", sliderContent)], 6, 1),
+        columnSpan([widget("heading", {})], 3, 3),
+      ]),
+    ]);
+    const preloads = builderHeroPreloads(doc, qc, "pl");
+    expect(preloads.map((p) => p.href)).toEqual([COVER]);
+  });
+
+  it("kandydat bez wyznaczalnego obrazu: brak preloadu, BEZ przejścia do kolejnego widgetu", () => {
+    // Slider (kandydat - remis slotu wygrywa slider) z pustym cache. Obraz obok
+    // jest po P1.4 leniwy, więc jego preload byłby priorytetem dla nie-LCP.
+    const qc = new QueryClient();
+    const doc = docWith([
+      sectionOf([
+        columnSpan([widget("slider", { source: "posts" })], 6),
+        columnSpan([widget("image", { src: COVER, alt_pl: "Obok" })], 6),
+      ]),
+    ]);
+    expect(lcpCandidateIds(doc)).toHaveLength(1);
+    expect(builderHeroPreloads(doc, qc, "pl")).toEqual([]);
+    expect(builderHeroPreload(doc, qc, "pl")).toBeNull();
+  });
+
+  it("dwóch kandydatów (desktop i telefon) = dwa deskryptory, desktopowy pierwszy", () => {
+    const qc = new QueryClient();
+    const big = `${COVER}?duzy=1`;
+    const small = `${COVER}?maly=1`;
+    const doc = docWith([
+      sectionOf([
+        columnSpan([widget("image", { src: small, alt_pl: "Mały" })], 4, 1),
+        columnSpan([widget("image", { src: big, alt_pl: "Duży" })], 8, 2),
+      ]),
+    ]);
+    expect(builderHeroPreloads(doc, qc, "pl").map((p) => p.href)).toEqual([big, small]);
+    expect(builderHeroPreload(doc, qc, "pl")?.href).toBe(big);
+    // Każdy kandydat jednego urządzenia niesie `media` (recenzja m2): telefon nie
+    // pobiera z High obrazu desktopowego i odwrotnie. Granica = reguła order.mobile.
+    expect(builderHeroPreloads(doc, qc, "pl").map((p) => p.media)).toEqual([
+      "(min-width: 768px)",
+      "(max-width: 767px)",
+    ]);
+  });
+
+  it("jeden kandydat dla obu urządzeń: preload BEZ `media`", () => {
+    const qc = new QueryClient();
+    const [preload, ...rest] = builderHeroPreloads(
+      docWith([sectionWith([widget("image", { src: COVER, alt_pl: "Hero" })])]),
+      qc,
+      "pl",
+    );
+    expect(rest).toEqual([]);
+    expect(preload).not.toHaveProperty("media");
+  });
+
+  it("dwóch kandydatów z TYM SAMYM kluczem zasobu daje jeden deskryptor", () => {
+    // Klucz to ten, którym React łączy preload z `<img>`: bez srcSet - `href`.
+    // (Ten sam plik w slotach o różnych `sizes` to DWA klucze - React też
+    // wyemitowałby wtedy dwa preloady, więc deskryptory zostają dwa.)
+    const qc = new QueryClient();
+    const external = "https://example.org/okladka.jpg";
+    const doc = docWith([
+      sectionOf([
+        columnSpan([widget("image", { src: external, alt_pl: "A" })], 4, 1),
+        columnSpan([widget("image", { src: external, alt_pl: "B" })], 8, 2),
+      ]),
+    ]);
+    expect(lcpCandidateIds(doc)).toHaveLength(2);
+    expect(builderHeroPreloads(doc, qc, "pl")).toEqual([
+      { href: external, imageSrcSet: "", imageSizes: expect.any(String) },
+    ]);
+    const sameStorageFile = docWith([
+      sectionOf([
+        columnSpan([widget("image", { src: COVER, alt_pl: "A" })], 4, 1),
+        columnSpan([widget("image", { src: COVER, alt_pl: "B" })], 8, 2),
+      ]),
+    ]);
+    // Dwa klucze (różne `sizes`) - dwa preloady, każdy ze swoim `media`.
+    expect(builderHeroPreloads(sameStorageFile, qc, "pl").map((p) => p.media)).toEqual([
+      "(min-width: 768px)",
+      "(max-width: 767px)",
+    ]);
+  });
+
+  it("reguły dostępu GOŚCIA (recenzja B1): sekcja „tylko dla zalogowanych” nie dostaje preloadu", () => {
+    // Ścieżka kliencka (nawigacja SPA): dokument w przeglądarce nie jest odarty
+    // z węzłów zamkniętych, więc predykat gościa musi je pominąć sam.
+    const qc = new QueryClient();
+    const gated = `${COVER}?zalogowani=1`;
+    const doc = docWith([
+      sectionWith([widget("image", { src: gated, alt_pl: "Tylko dla członków" })], {
+        advanced: { access: { auth: "user" } },
+      }),
+      sectionWith([widget("image", { src: COVER, alt_pl: "Dla wszystkich" })]),
+    ]);
+    expect(builderHeroPreloads(doc, qc, "pl").map((p) => p.href)).toEqual([COVER]);
+  });
+
+  it("widget schowany na telefonie nie jest preloadowany (hideOn.mobile)", () => {
+    const qc = new QueryClient();
+    const hidden: WidgetNode = {
+      ...widget("image", { src: `${COVER}?desktop=1`, alt_pl: "Tylko desktop" }),
+      advanced: { hideOn: { mobile: true } },
+    };
+    const doc = docWith([sectionWith([hidden, widget("image", { src: COVER, alt_pl: "Oba" })])]);
+    expect(builderHeroPreloads(doc, qc, "pl").map((p) => p.href)).toEqual([COVER]);
   });
 });
 
@@ -706,5 +873,49 @@ describe("builderHeroPreload - okno nad zgięciem i odporność", () => {
     const doc = docWith([sectionWith([widget("slider", content)])]);
     expect(builderHeroPreload(doc, qc, "pl")?.href).toBe(COVER);
     expect(builderHeroPreload(doc, qc, "en")).toBeNull();
+  });
+});
+
+describe("builderContentHeroPreloads - silnik treści strony (recenzja m7)", () => {
+  const heroDoc = () => docWith([sectionWith([widget("image", { src: COVER, alt_pl: "Hero" })])]);
+
+  it("treść malowana silnikiem buildera: preload kandydata", () => {
+    const qc = new QueryClient();
+    const preloads = builderContentHeroPreloads(
+      { editor: "builder", builderDoc: heroDoc() },
+      qc,
+      "pl",
+    );
+    expect(preloads.map((p) => p.href)).toEqual([COVER]);
+  });
+
+  it.each(["blocks", "richtext", "markdown", null])(
+    "edytor %s z pozostałym builder_data: brak preloadu (ContentRenderer tego nie maluje)",
+    (editor) => {
+      const qc = new QueryClient();
+      expect(builderContentHeroPreloads({ editor, builderDoc: heroDoc() }, qc, "pl")).toEqual([]);
+    },
+  );
+
+  it("edytor builder z pustym dokumentem: brak preloadu", () => {
+    const qc = new QueryClient();
+    expect(builderContentHeroPreloads({ editor: "builder", builderDoc: null }, qc, "pl")).toEqual(
+      [],
+    );
+  });
+});
+
+describe("lcpPreloadLinkHeaderValue - nagłówek Link kandydata", () => {
+  const input = { href: COVER, imageSrcSet: `${COVER}?w=480 480w`, imageSizes: "50vw" };
+
+  it("bez `media` = dotychczasowa wartość z warstwy SEO (imagesrcset + imagesizes)", () => {
+    expect(lcpPreloadLinkHeaderValue(input)).toBe(imagePreloadLinkHeaderValue(input));
+    expect(lcpPreloadLinkHeaderValue(input)).toContain('imagesizes="50vw"');
+  });
+
+  it("kandydat jednego urządzenia: parametr `media` jak w preloadzie dokumentu", () => {
+    expect(lcpPreloadLinkHeaderValue({ ...input, media: "(max-width: 767px)" })).toBe(
+      `${imagePreloadLinkHeaderValue(input)}; media="(max-width: 767px)"`,
+    );
   });
 });

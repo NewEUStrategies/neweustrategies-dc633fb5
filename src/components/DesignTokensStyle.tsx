@@ -17,13 +17,13 @@
 // Szczegóły i kontrakt hydratacji: `theme/useDeferredStyleCss`.
 import { useMemo } from "react";
 import { createIsomorphicFn } from "@tanstack/react-start";
-import { hardenStyleCss } from "@/lib/sanitizePure";
 import { useDesignTokens, EMPTY_TOKENS } from "@/lib/builder/designTokens";
 import { useGlobalColors } from "@/hooks/useGlobalColors";
 import { EMPTY_GLOBAL_COLORS } from "@/lib/builder/globalColorsValue";
 import { useFontScale } from "@/hooks/useFontScale";
 import { EMPTY_FONT_SCALE } from "@/lib/theme/fontScale";
 import { useDeferredStyleCss, type StyleGenerator } from "@/components/theme/useDeferredStyleCss";
+import { StyleSink } from "@/components/theme/StyleSink";
 import {
   designTokensStyleCss as serverDesignTokensStyleCss,
   type DesignTokensStyleInput,
@@ -62,17 +62,10 @@ export function DesignTokensStyle() {
     serverGenerate,
     loadGenerate,
   });
-  // `hardenStyleCss` jest idempotentne: na migawce z SSR (już utwardzonej
-  // przez generator) to no-op, więc HTML serwera i klienta pozostają
-  // identyczne - a bramka `check:dangerous-html` ma dowód w TYM pliku.
-  const html = useMemo(() => hardenStyleCss(css), [css]);
   // `data-css-hash` czyta `readStyleSnapshot` (STYLE_HASH_ATTR); bez skrótu
   // (render bez SSR) atrybutu nie ma, tak jak w starszym HTML-u z brzegu.
-  return (
-    <style
-      data-brand-tokens
-      data-css-hash={hash || undefined}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
+  // `StyleSink` (memo po surowym napisie, `hardenStyleCss` w miejscu renderu):
+  // re-render korzenia z tym samym CSS-em nie przepisuje 26,6 KB arkusza
+  // `:root` - React 19 porównuje obiekt `{__html}` po tożsamości (P1.2).
+  return <StyleSink data-brand-tokens data-css-hash={hash || undefined} css={css} />;
 }

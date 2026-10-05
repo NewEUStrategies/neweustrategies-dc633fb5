@@ -1,0 +1,2081 @@
+{
+  "schema": 1,
+  "kind": "wave-gate-results",
+  "wave": 1,
+  "date": "2026-10-05",
+  "description": "Liczby bramki fali 1 programu PSI 85/95 (A = W0, B = W1). Opis i werdykty: faza2/STAN-FALI-1.md, komendy i ważność: POMIAR.md §8. Czasy w ms, bajty w B (o ile klucz nie mówi inaczej), CLS bez jednostki. Statystyki par: Δ = B − A per para (para i = i-ty przebieg A z i-tym B), sd = odchylenie próbkowe różnic, MDE(t) = (t0,975 + t0,8)(df = n − 1)·sd/√n, MDE(z) = 2,8·sd/√n, t = średnia/(sd/√n).",
+  "scope": {
+    "W0": {
+      "commit": "ff719b9a6",
+      "what": "main bez fali 1 (produkcja); worktree $SCRATCH/base-w1gate, BUNDLE_INVENTORY=1 bun run build:smoke (2 min 42 s)",
+      "note": "main po ff719b9a6 to commity backendu i CI oraz commit Lovable 050c5d850 (renderowanie buildera); ff719b9a6 jest przodkiem 45eb5747c, więc para W0/W1 jest spójna"
+    },
+    "W1": {
+      "commit": "45eb5747c",
+      "what": "gałąź PR claude/zen-johnson-wpzoxv po scaleniu wszystkich pozycji fali 1; worktree $SCRATCH/gate-w1, BUNDLE_INVENTORY=1 bun run build:smoke (3 min 1 s)"
+    },
+    "prHeadAtReport": {
+      "commit": "61d4e56df",
+      "note": "61b6e7f43 (scalenie main, PR #475), potem 226e86dbc (.gitignore dla __pycache__) i 61d4e56df (test ConsentScriptInjector). Scalenie zmienia 71 plików w src/ (w tym publiczne renderowanie buildera: ChromeWidgetView.tsx, widget-view/frame.ts, hoverCss.ts, themeGeometry.ts, themed.ts, typographyCss.ts, parse.ts; styles.css) i usuwa 209 plików testów w src/, 21 modułów src/lib/ci, testy uprzęży pomiarowej (scripts/performance/*.test.mjs) oraz część skryptów bramek z package.json (m.in. check:i18n-overlay-imports, check:chunk-parity, test:measurement-harness). Na tym drzewie orkiestrator uruchomił tylko typecheck (exit 0) i vitest (437/437 plików, 12 345 testów zielonych, 125 oczekiwanych porażek). build:smoke, check:bundle, check:document-weight, e2e i Lighthouse NIE były uruchamiane: werdykty bramki dotyczą wyłącznie 45eb5747c."
+    },
+    "items": [
+      {
+        "id": "P1.0b",
+        "merge": "ddf82dbb8",
+        "followUps": ["2689a7a4b"]
+      },
+      {
+        "id": "P1.2",
+        "merge": "319ae93df",
+        "followUps": ["e1ef20b2b", "06a9600ac"]
+      },
+      {
+        "id": "P1.6",
+        "merge": "91354e924",
+        "followUps": ["80f225c37"]
+      },
+      {
+        "id": "P1.4",
+        "merge": "10262b979",
+        "followUps": ["91069f773", "3551c1077", "135e5cec3"]
+      },
+      {
+        "id": "P1.1",
+        "merge": "f2a010365",
+        "followUps": ["8bfd26dbe"]
+      },
+      {
+        "id": "P1.7",
+        "merge": "16d83fec7",
+        "followUps": ["8bfd26dbe", "ff3a4149c", "92887a899", "9866be8fc", "a24cf26a4"]
+      },
+      {
+        "id": "P1.3",
+        "merge": "05843a60f",
+        "followUps": ["e420a58d0", "11f49aed1", "45eb5747c"]
+      }
+    ],
+    "mainMerges": ["ebda61814", "79652420a", "054d3a92d", "9be723f6e", "61b6e7f43 (po bramce)"]
+  },
+  "harness": {
+    "lighthouse": "13.5.0",
+    "script": "scripts/performance/lighthouse-local.mjs (kopie W0 i W1 bajt w bajt te same)",
+    "flags": "client-backend=fixture,third-party=fake-gtag",
+    "forms": ["mobile", "desktop4x"],
+    "runsPerSide": 5,
+    "minValid": 5,
+    "maxLoad": 2.4,
+    "fakeGtagScale": {
+      "lh-ab": 2.85,
+      "lh-c3": 2.54,
+      "baseW1_POMIAR7": 2.29
+    },
+    "c3Transform": "scripts/performance/whatif/c3-lcpobs.mjs (rekonstrukcja z 7b3a4c7dd; plik z planu $SCRATCH/phase1/verdicts/boot-js-C3/c3-lcpobs.mjs nie istnieje), ta sama transformacja po obu stronach"
+  },
+  "aaNoise": {
+    "source": "POMIAR.md §7 (A/A n = 4, przeplot)",
+    "mobile": {
+      "sigmaDeltaTbtMs": 101,
+      "mdeTn4Ms": 210,
+      "mdeTn5Ms": 167.9,
+      "criticalValueN5Ms": 125.4
+    },
+    "desktop4x": {
+      "sigmaDeltaTbtMs": 361,
+      "mdeTn4Ms": 752,
+      "mdeTn5Ms": 600.1,
+      "criticalValueN5Ms": 448.2
+    },
+    "note": "Wartości „ok. 125 / ok. 448 ms” z POMIAR §7 to 2,776·σΔ/√5 (próg istotności, w przybliżeniu MDE(z) planu), a nie MDE(t) harnessu; MDE(t) A/A dla n = 5 wynosi 167,9 i 600,1 ms."
+  },
+  "series": {
+    "lh-ab": {
+      "label": "w1-gate",
+      "startedUtc": "2026-10-05T09:39:13Z",
+      "durationMin": 22,
+      "exitCode": 0,
+      "validity": {
+        "validRuns": "20/20 (A i B po 5/5 w obu formach), excluded 0",
+        "loadavg": "0,33–2,31 (próg 2,4)",
+        "document": "x-nes-cache HIT 20/20; wariant A s-maxage=900, 393695 B ×10, B s-maxage=900, 400753 B ×10",
+        "ledgerEqualsAudit": "20/20",
+        "fcpModes": {
+          "A-mobile": "pełny ×4, pośredni ×1 (przebieg 3)",
+          "A-desktop4x": "pełny ×4, częściowy ×1 (przebieg 5)",
+          "B-mobile": "pełny ×5",
+          "B-desktop4x": "pełny ×5"
+        },
+        "retries": "jeden błąd wykonania NO_NAVSTART (A-desktop4x-4), powtórzony automatycznie, powtórka ważna",
+        "restartsAfterRewarm": "A/B mobile 1/5, A/B desktop4x 2/5 (dwie rozgrzewki zaczęte od wpisu STALE)",
+        "clientRefetchRegime": "8 dodatkowych GET /rest/v1/posts (oraz newsletter_settings i drugie ad_placements) w oknie Lighthouse w 1,6–2,4 s obs.: A-desktop4x-4, B-mobile-5, B-desktop4x-3, B-desktop4x-4 (A 1/10, B 3/10); harness tego nie wykrywa; nierównowaga działa przeciw B"
+      },
+      "forms": {
+        "mobile": {
+          "runs": {
+            "A": {
+              "perfScore": [51, 50, 51, 45, 48],
+              "fcpMs": [4194, 4218, 2994, 4303, 4199],
+              "lcpMs": [4812, 4841, 4952, 5102, 4896],
+              "tbtMs": [966.6, 1054.0, 1403.5, 1363.5, 1203.0],
+              "siMs": [4194, 4218, 2994, 4303, 4199],
+              "ttiMs": [7930, 10399, 10779, 10732, 10726],
+              "cls": [0.0, 0.0, 0.0, 0.0, 0.0],
+              "observedFcpMs": [550, 386, 345, 403, 392],
+              "observedLcpMs": [550, 386, 536, 403, 545],
+              "observedSpeedIndexMs": [827, 633, 694, 709, 722],
+              "fcpMode": ["pełny", "pełny", "pośredni", "pełny", "pełny"],
+              "loadavg": [0.33, 1.58, 2.12, 1.83, 1.7],
+              "googleTasks": [2, 3, 3, 3, 3],
+              "googleBlockingMs": [94.0, 450.0, 457.0, 450.0, 459.0],
+              "lcpHasDataLcpCandidate": [false, false, false, false, false],
+              "benchmarkIndex": [1398, 1533, 1437, 1387.5, 1366.5]
+            },
+            "B": {
+              "perfScore": [66, 62, 72, 65, 58],
+              "fcpMs": [4122, 4267, 2965, 4171, 4265],
+              "lcpMs": [4852, 5056, 3743, 4788, 4894],
+              "tbtMs": [284.6, 374.0, 471.5, 340.0, 547.0],
+              "siMs": [4122, 4267, 2965, 4171, 4265],
+              "ttiMs": [5933, 6245, 6257, 6033, 6801],
+              "cls": [0.06628, 0.03872, 0.0, 0.0, 0.0],
+              "observedFcpMs": [432, 378, 428, 468, 512],
+              "observedLcpMs": [432, 378, 428, 468, 512],
+              "observedSpeedIndexMs": [495, 444, 497, 547, 588],
+              "fcpMode": ["pełny", "pełny", "pełny", "pełny", "pełny"],
+              "loadavg": [0.79, 1.48, 2.22, 1.84, 1.81],
+              "googleTasks": [0, 0, 0, 0, 0],
+              "googleBlockingMs": [0.0, 0.0, 0.0, 0.0, 0.0],
+              "lcpHasDataLcpCandidate": [true, true, true, true, true],
+              "benchmarkIndex": [1435, 1473, 1294, 1306, 1356.5]
+            }
+          },
+          "medians": {
+            "A": {
+              "perfScore": 50,
+              "fcpMs": 4199,
+              "lcpMs": 4896,
+              "tbtMs": 1203.0,
+              "siMs": 4199,
+              "ttiMs": 10726,
+              "cls": 0.0,
+              "observedFcpMs": 392,
+              "observedLcpMs": 536,
+              "observedSpeedIndexMs": 709,
+              "harness": "perf=50 FCP=4.20s LCP=4.90s TBT=1203ms SI=4.20s CLS=0.000 TTFB=18ms TTI=10.73s mainThread=10828ms bootup=5353ms longTasks=20 req=113 transfer=1387.5KB js=1084.7KB highBeforeLcpImg=620.1KB bench=1398"
+            },
+            "B": {
+              "perfScore": 65,
+              "fcpMs": 4171,
+              "lcpMs": 4852,
+              "tbtMs": 374.0,
+              "siMs": 4171,
+              "ttiMs": 6245,
+              "cls": 0.0,
+              "observedFcpMs": 432,
+              "observedLcpMs": 432,
+              "observedSpeedIndexMs": 497,
+              "harness": "perf=65 FCP=4.17s LCP=4.85s TBT=374ms SI=4.17s CLS=0.000 TTFB=17ms TTI=6.25s mainThread=8586ms bootup=4720ms longTasks=20 req=99 transfer=1010.4KB js=705.6KB highBeforeLcpImg=620.5KB bench=1357"
+            }
+          },
+          "deltaMedian": {
+            "perfScore": 15,
+            "fcpMs": -28,
+            "lcpMs": -44,
+            "tbtMs": -829.0,
+            "siMs": -28,
+            "ttiMs": -4480,
+            "cls": 0.0,
+            "observedFcpMs": 40,
+            "observedLcpMs": -104,
+            "observedSpeedIndexMs": -212
+          },
+          "pairs": {
+            "perfScore": {
+              "deltas": [15, 12, 21, 20, 10],
+              "mean": 16,
+              "sd": 5,
+              "mdeT": 8,
+              "mdeZ": 6,
+              "t": 7.23,
+              "allNegative": false
+            },
+            "fcpMs": {
+              "deltas": [-72, 49, -29, -132, 65],
+              "mean": -24,
+              "sd": 83,
+              "mdeT": 137,
+              "mdeZ": 103,
+              "t": -0.64,
+              "allNegative": false
+            },
+            "lcpMs": {
+              "deltas": [40, 215, -1209, -314, -1],
+              "mean": -254,
+              "sd": 567,
+              "mdeT": 943,
+              "mdeZ": 710,
+              "t": -1.0,
+              "allNegative": false
+            },
+            "tbtMs": {
+              "deltas": [-682.0, -680.0, -932.0, -1023.5, -656.0],
+              "mean": -794.7,
+              "sd": 170.5,
+              "mdeT": 283.4,
+              "mdeZ": 213.5,
+              "t": -10.42,
+              "allNegative": true
+            },
+            "siMs": {
+              "deltas": [-72, 49, -29, -132, 65],
+              "mean": -24,
+              "sd": 83,
+              "mdeT": 137,
+              "mdeZ": 103,
+              "t": -0.64,
+              "allNegative": false
+            },
+            "ttiMs": {
+              "deltas": [-1997, -4154, -4523, -4699, -3925],
+              "mean": -3860,
+              "sd": 1084,
+              "mdeT": 1803,
+              "mdeZ": 1358,
+              "t": -7.96,
+              "allNegative": true
+            },
+            "observedFcpMs": {
+              "deltas": [-118, -8, 83, 65, 120],
+              "mean": 28,
+              "sd": 94,
+              "mdeT": 157,
+              "mdeZ": 118,
+              "t": 0.67,
+              "allNegative": false
+            },
+            "observedLcpMs": {
+              "deltas": [-118, -8, -108, 65, -33],
+              "mean": -40,
+              "sd": 76,
+              "mdeT": 126,
+              "mdeZ": 95,
+              "t": -1.2,
+              "allNegative": false
+            },
+            "observedSpeedIndexMs": {
+              "deltas": [-332, -189, -197, -162, -134],
+              "mean": -203,
+              "sd": 76,
+              "mdeT": 127,
+              "mdeZ": 96,
+              "t": -5.94,
+              "allNegative": true
+            }
+          }
+        },
+        "desktop4x": {
+          "runs": {
+            "A": {
+              "perfScore": [64, 65, 67, 63, 67],
+              "fcpMs": [1010, 1117, 906, 984, 626],
+              "lcpMs": [1055, 1117, 951, 1030, 1021],
+              "tbtMs": [2212.0, 1607.5, 1480.8, 2499.0, 1978.9],
+              "siMs": [1676, 1446, 1365, 2049, 1444],
+              "ttiMs": [5484, 4522, 4468, 5896, 4657],
+              "cls": [0.00859, 0.00608, 0.01127, 0.00608, 0.00608],
+              "observedFcpMs": [395, 425, 450, 566, 243],
+              "observedLcpMs": [537, 425, 450, 566, 564],
+              "observedSpeedIndexMs": [634, 543, 594, 729, 577],
+              "fcpMode": ["pełny", "pełny", "pełny", "pełny", "częściowy"],
+              "loadavg": [1.51, 1.71, 1.5, 1.98, 2.31],
+              "googleTasks": [3, 3, 3, 3, 3],
+              "googleBlockingMs": [454.0, 447.0, 382.0, 315.0, 432.0],
+              "lcpHasDataLcpCandidate": [false, false, false, false, false],
+              "benchmarkIndex": [1352, 1464, 1351, 1368.5, 1513]
+            },
+            "B": {
+              "perfScore": [69, 68, 66, 69, 70],
+              "fcpMs": [897, 929, 1031, 952, 1007],
+              "lcpMs": [969, 952, 1053, 952, 1007],
+              "tbtMs": [987.2, 1095.0, 1356.0, 1037.0, 725.5],
+              "siMs": [1161, 1285, 1308, 1124, 1269],
+              "ttiMs": [3255, 3412, 4042, 3438, 3280],
+              "cls": [0.00608, 0.01127, 0.01127, 0.01127, 0.00608],
+              "observedFcpMs": [416, 483, 496, 526, 518],
+              "observedLcpMs": [416, 483, 496, 526, 601],
+              "observedSpeedIndexMs": [487, 564, 569, 584, 575],
+              "fcpMode": ["pełny", "pełny", "pełny", "pełny", "pełny"],
+              "loadavg": [2.12, 1.75, 1.98, 1.81, 2.28],
+              "googleTasks": [0, 0, 0, 0, 0],
+              "googleBlockingMs": [0.0, 0.0, 0.0, 0.0, 0.0],
+              "lcpHasDataLcpCandidate": [true, true, true, true, true],
+              "benchmarkIndex": [1396.5, 1398, 1518.5, 1526.5, 1238.5]
+            }
+          },
+          "medians": {
+            "A": {
+              "perfScore": 65,
+              "fcpMs": 984,
+              "lcpMs": 1030,
+              "tbtMs": 1978.9,
+              "siMs": 1446,
+              "ttiMs": 4657,
+              "cls": 0.00608,
+              "observedFcpMs": 425,
+              "observedLcpMs": 537,
+              "observedSpeedIndexMs": 594,
+              "harness": "perf=65 FCP=0.98s LCP=1.03s TBT=1979ms SI=1.45s CLS=0.006 TTFB=11ms TTI=4.66s mainThread=8983ms bootup=4418ms longTasks=20 req=113 transfer=1387.5KB js=1084.7KB highBeforeLcpImg=620.1KB bench=1369"
+            },
+            "B": {
+              "perfScore": 69,
+              "fcpMs": 952,
+              "lcpMs": 969,
+              "tbtMs": 1037.0,
+              "siMs": 1269,
+              "ttiMs": 3412,
+              "cls": 0.01127,
+              "observedFcpMs": 496,
+              "observedLcpMs": 496,
+              "observedSpeedIndexMs": 569,
+              "harness": "perf=69 FCP=0.95s LCP=0.97s TBT=1037ms SI=1.27s CLS=0.011 TTFB=17ms TTI=3.41s mainThread=7707ms bootup=3964ms longTasks=20 req=99 transfer=1010.3KB js=705.6KB highBeforeLcpImg=620.5KB bench=1398"
+            }
+          },
+          "deltaMedian": {
+            "perfScore": 4,
+            "fcpMs": -31,
+            "lcpMs": -61,
+            "tbtMs": -941.9,
+            "siMs": -177,
+            "ttiMs": -1245,
+            "cls": 0.0052,
+            "observedFcpMs": 71,
+            "observedLcpMs": -41,
+            "observedSpeedIndexMs": -25
+          },
+          "pairs": {
+            "perfScore": {
+              "deltas": [5, 3, -1, 6, 3],
+              "mean": 3,
+              "sd": 3,
+              "mdeT": 4,
+              "mdeZ": 3,
+              "t": 2.67,
+              "allNegative": false
+            },
+            "fcpMs": {
+              "deltas": [-113, -188, 125, -31, 382],
+              "mean": 35,
+              "sd": 226,
+              "mdeT": 376,
+              "mdeZ": 283,
+              "t": 0.34,
+              "allNegative": false
+            },
+            "lcpMs": {
+              "deltas": [-86, -165, 103, -78, -14],
+              "mean": -48,
+              "sd": 100,
+              "mdeT": 166,
+              "mdeZ": 125,
+              "t": -1.08,
+              "allNegative": false
+            },
+            "tbtMs": {
+              "deltas": [-1224.8, -512.5, -124.8, -1462.0, -1253.4],
+              "mean": -915.5,
+              "sd": 569.2,
+              "mdeT": 946.4,
+              "mdeZ": 712.8,
+              "t": -3.6,
+              "allNegative": true
+            },
+            "siMs": {
+              "deltas": [-515, -161, -57, -925, -175],
+              "mean": -366,
+              "sd": 356,
+              "mdeT": 593,
+              "mdeZ": 446,
+              "t": -2.3,
+              "allNegative": true
+            },
+            "ttiMs": {
+              "deltas": [-2229, -1110, -426, -2458, -1377],
+              "mean": -1520,
+              "sd": 832,
+              "mdeT": 1383,
+              "mdeZ": 1042,
+              "t": -4.09,
+              "allNegative": true
+            },
+            "observedFcpMs": {
+              "deltas": [21, 58, 46, -40, 275],
+              "mean": 72,
+              "sd": 120,
+              "mdeT": 199,
+              "mdeZ": 150,
+              "t": 1.35,
+              "allNegative": false
+            },
+            "observedLcpMs": {
+              "deltas": [-121, 58, 46, -40, 37],
+              "mean": -4,
+              "sd": 76,
+              "mdeT": 126,
+              "mdeZ": 95,
+              "t": -0.12,
+              "allNegative": false
+            },
+            "observedSpeedIndexMs": {
+              "deltas": [-147, 21, -25, -145, -2],
+              "mean": -60,
+              "sd": 81,
+              "mdeT": 134,
+              "mdeZ": 101,
+              "t": -1.65,
+              "allNegative": false
+            }
+          }
+        }
+      }
+    },
+    "lh-c3": {
+      "label": "w1-gate-c3",
+      "startedUtc": "2026-10-05T09:53:10Z",
+      "exitCode": 0,
+      "validity": {
+        "validRuns": "20/20, excluded 0",
+        "loadavg": "0,2–2,2 (z c3.log)",
+        "document": "HIT 20/20; warianty jak w lh-ab",
+        "ledgerEqualsAudit": "20/20",
+        "fcpModes": {
+          "A-mobile": "bez-js ×5",
+          "A-desktop4x": "bez-js ×5",
+          "B-mobile": "bez-js ×5",
+          "B-desktop4x": "bez-js ×3, pełny ×2"
+        },
+        "transformCheck": "wszystkie żądania JS z assetów inicjowane skryptem, żadne parserem (A 85/85, B 80/80) w 20/20 przebiegów; 0 błędów konsoli",
+        "reconstructionLimits": "load (112–207 ms) przed pierwszym malowaniem (225–382 ms) w 20/20, więc zapas load + setTimeout(0) jest uzbrojony przed LCP; timer bootu zainstalowany przed kandydatem LCP w 8/20 przebiegów (3/5 B mobile); P2.1 planuje load + 500 ms",
+        "clientRefetchRegime": "A-mobile-3, A-desktop4x-4, A-desktop4x-5, B-mobile-3, B-desktop4x-1, B-desktop4x-4 (3/10 i 3/10)",
+        "summaryJsonLost": "lh-c3/summary.json zniszczony przez incydent /dev/null (environment); LHR, artefakty, księgi i c3.log nienaruszone"
+      },
+      "forms": {
+        "mobile": {
+          "runs": {
+            "A": {
+              "perfScore": [71, 69, 70, 69, 70],
+              "fcpMs": [1564, 1670, 1563, 1570, 1571],
+              "lcpMs": [2336, 2337, 2334, 2354, 2342],
+              "tbtMs": [1793.5, 2089.3, 1846.0, 2210.0, 1810.7],
+              "siMs": [2215, 2333, 2292, 2153, 2172],
+              "ttiMs": [7725, 10045, 10410, 10329, 10071],
+              "cls": [0.0, 0.0, 0.0, 0.0, 0.0],
+              "observedFcpMs": [274, 283, 315, 258, 318],
+              "observedLcpMs": [274, 283, 315, 258, 318],
+              "observedSpeedIndexMs": [583, 618, 653, 554, 593],
+              "fcpMode": ["bez-js", "bez-js", "bez-js", "bez-js", "bez-js"],
+              "loadavg": [0.23, 1.6, 1.31, 1.46, 1.32],
+              "googleTasks": [2, 3, 3, 3, 3],
+              "googleBlockingMs": [90.0, 427.0, 387.0, 414.0, 346.0],
+              "lcpHasDataLcpCandidate": [false, false, false, false, false],
+              "benchmarkIndex": [1366, 1303, 1326.5, 1416.5, 1420]
+            },
+            "B": {
+              "perfScore": [79, 75, 72, 73, 73],
+              "fcpMs": [1544, 1536, 1656, 1558, 1548],
+              "lcpMs": [2304, 2295, 2328, 2332, 2325],
+              "tbtMs": [788.5, 1120.3, 1462.1, 1288.0, 1350.0],
+              "siMs": [1810, 1745, 1892, 2174, 2095],
+              "ttiMs": [5791, 6177, 6655, 5945, 6016],
+              "cls": [0.0, 0.0, 0.0, 0.0, 0.0],
+              "observedFcpMs": [301, 263, 291, 406, 437],
+              "observedLcpMs": [301, 263, 291, 406, 437],
+              "observedSpeedIndexMs": [379, 352, 367, 508, 564],
+              "fcpMode": ["bez-js", "bez-js", "bez-js", "bez-js", "bez-js"],
+              "loadavg": [0.71, 1.19, 1.54, 1.79, 1.64],
+              "googleTasks": [0, 0, 0, 0, 0],
+              "googleBlockingMs": [0.0, 0.0, 0.0, 0.0, 0.0],
+              "lcpHasDataLcpCandidate": [true, true, true, true, true],
+              "benchmarkIndex": [1435.5, 1318, 1584, 1460, 1333.5]
+            }
+          },
+          "medians": {
+            "A": {
+              "perfScore": 70,
+              "fcpMs": 1570,
+              "lcpMs": 2337,
+              "tbtMs": 1846.0,
+              "siMs": 2215,
+              "ttiMs": 10071,
+              "cls": 0.0,
+              "observedFcpMs": 283,
+              "observedLcpMs": 283,
+              "observedSpeedIndexMs": 593,
+              "harness": "perf=70 FCP=1.57s LCP=2.34s TBT=1846ms SI=2.22s CLS=0.000 TTFB=38ms TTI=10.07s mainThread=10985ms bootup=5298ms longTasks=20 req=113 transfer=1386.2KB js=1084.7KB highBeforeLcpImg=112.0KB bench=1366"
+            },
+            "B": {
+              "perfScore": 73,
+              "fcpMs": 1548,
+              "lcpMs": 2325,
+              "tbtMs": 1288.0,
+              "siMs": 1892,
+              "ttiMs": 6016,
+              "cls": 0.0,
+              "observedFcpMs": 301,
+              "observedLcpMs": 301,
+              "observedSpeedIndexMs": 379,
+              "harness": "perf=73 FCP=1.55s LCP=2.32s TBT=1288ms SI=1.89s CLS=0.000 TTFB=34ms TTI=6.02s mainThread=9584ms bootup=5172ms longTasks=20 req=103 transfer=1010.4KB js=705.6KB highBeforeLcpImg=112.2KB bench=1436"
+            }
+          },
+          "deltaMedian": {
+            "perfScore": 3,
+            "fcpMs": -22,
+            "lcpMs": -12,
+            "tbtMs": -558.0,
+            "siMs": -323,
+            "ttiMs": -4055,
+            "cls": 0.0,
+            "observedFcpMs": 18,
+            "observedLcpMs": 18,
+            "observedSpeedIndexMs": -214
+          },
+          "pairs": {
+            "perfScore": {
+              "deltas": [8, 6, 2, 4, 3],
+              "mean": 5,
+              "sd": 2,
+              "mdeT": 4,
+              "mdeZ": 3,
+              "t": 4.27,
+              "allNegative": false
+            },
+            "fcpMs": {
+              "deltas": [-20, -134, 93, -12, -23],
+              "mean": -19,
+              "sd": 81,
+              "mdeT": 134,
+              "mdeZ": 101,
+              "t": -0.53,
+              "allNegative": false
+            },
+            "lcpMs": {
+              "deltas": [-32, -42, -6, -22, -17],
+              "mean": -24,
+              "sd": 14,
+              "mdeT": 23,
+              "mdeZ": 17,
+              "t": -3.87,
+              "allNegative": true
+            },
+            "tbtMs": {
+              "deltas": [-1005.0, -969.0, -383.9, -922.0, -460.7],
+              "mean": -748.1,
+              "sd": 300.1,
+              "mdeT": 498.9,
+              "mdeZ": 375.8,
+              "t": -5.57,
+              "allNegative": true
+            },
+            "siMs": {
+              "deltas": [-406, -588, -400, 21, -77],
+              "mean": -290,
+              "sd": 253,
+              "mdeT": 421,
+              "mdeZ": 317,
+              "t": -2.56,
+              "allNegative": false
+            },
+            "ttiMs": {
+              "deltas": [-1934, -3868, -3755, -4384, -4055],
+              "mean": -3599,
+              "sd": 961,
+              "mdeT": 1597,
+              "mdeZ": 1203,
+              "t": -8.38,
+              "allNegative": true
+            },
+            "observedFcpMs": {
+              "deltas": [27, -20, -24, 148, 119],
+              "mean": 50,
+              "sd": 79,
+              "mdeT": 132,
+              "mdeZ": 100,
+              "t": 1.41,
+              "allNegative": false
+            },
+            "observedLcpMs": {
+              "deltas": [27, -20, -24, 148, 119],
+              "mean": 50,
+              "sd": 79,
+              "mdeT": 132,
+              "mdeZ": 100,
+              "t": 1.41,
+              "allNegative": false
+            },
+            "observedSpeedIndexMs": {
+              "deltas": [-204, -266, -286, -46, -29],
+              "mean": -166,
+              "sd": 121,
+              "mdeT": 202,
+              "mdeZ": 152,
+              "t": -3.06,
+              "allNegative": true
+            }
+          }
+        },
+        "desktop4x": {
+          "runs": {
+            "A": {
+              "perfScore": [68, 68, 69, 68, 69],
+              "fcpMs": [532, 505, 496, 528, 483],
+              "lcpMs": [634, 691, 550, 582, 732],
+              "tbtMs": [2054.5, 2337.5, 2334.5, 2369.5, 1879.5],
+              "siMs": [1570, 1601, 1320, 1635, 1340],
+              "ttiMs": [4887, 5109, 5049, 5291, 4828],
+              "cls": [0.00608, 0.00608, 0.00608, 0.00608, 0.00608],
+              "observedFcpMs": [328, 376, 334, 342, 315],
+              "observedLcpMs": [328, 376, 334, 342, 446],
+              "observedSpeedIndexMs": [502, 582, 501, 566, 534],
+              "fcpMode": ["bez-js", "bez-js", "bez-js", "bez-js", "bez-js"],
+              "loadavg": [1.31, 1.23, 1.57, 2.24, 1.96],
+              "googleTasks": [3, 3, 3, 3, 3],
+              "googleBlockingMs": [296.0, 352.0, 376.0, 349.0, 287.0],
+              "lcpHasDataLcpCandidate": [false, false, false, false, false],
+              "benchmarkIndex": [1461.5, 1419, 1476.5, 1265.5, 1271]
+            },
+            "B": {
+              "perfScore": [69, 71, 70, 71, 71],
+              "fcpMs": [572, 495, 511, 487, 475],
+              "lcpMs": [658, 661, 739, 598, 597],
+              "tbtMs": [1376.5, 945.0, 1213.9, 1018.0, 1113.5],
+              "siMs": [1123, 1114, 1118, 803, 1013],
+              "ttiMs": [3837, 2897, 3373, 3059, 3547],
+              "cls": [0.00608, 0.0, 0.0, 0.00608, 0.01586],
+              "observedFcpMs": [382, 436, 552, 312, 372],
+              "observedLcpMs": [382, 436, 552, 312, 372],
+              "observedSpeedIndexMs": [488, 487, 595, 377, 464],
+              "fcpMode": ["bez-js", "pełny", "pełny", "bez-js", "bez-js"],
+              "loadavg": [1.4, 1.52, 2.17, 1.76, 1.61],
+              "googleTasks": [0, 0, 0, 0, 0],
+              "googleBlockingMs": [0.0, 0.0, 0.0, 0.0, 0.0],
+              "lcpHasDataLcpCandidate": [true, true, true, true, true],
+              "benchmarkIndex": [1430.5, 1562, 1433, 1450.5, 1361.5]
+            }
+          },
+          "medians": {
+            "A": {
+              "perfScore": 68,
+              "fcpMs": 505,
+              "lcpMs": 634,
+              "tbtMs": 2334.5,
+              "siMs": 1570,
+              "ttiMs": 5049,
+              "cls": 0.00608,
+              "observedFcpMs": 334,
+              "observedLcpMs": 342,
+              "observedSpeedIndexMs": 534,
+              "harness": "perf=68 FCP=0.50s LCP=0.63s TBT=2335ms SI=1.57s CLS=0.006 TTFB=33ms TTI=5.05s mainThread=9513ms bootup=4575ms longTasks=20 req=117 transfer=1387.4KB js=1084.7KB highBeforeLcpImg=112.0KB bench=1419"
+            },
+            "B": {
+              "perfScore": 71,
+              "fcpMs": 495,
+              "lcpMs": 658,
+              "tbtMs": 1113.5,
+              "siMs": 1114,
+              "ttiMs": 3373,
+              "cls": 0.00608,
+              "observedFcpMs": 382,
+              "observedLcpMs": 382,
+              "observedSpeedIndexMs": 487,
+              "harness": "perf=71 FCP=0.50s LCP=0.66s TBT=1113ms SI=1.11s CLS=0.006 TTFB=38ms TTI=3.37s mainThread=7460ms bootup=4183ms longTasks=20 req=103 transfer=1010.3KB js=705.6KB highBeforeLcpImg=112.2KB bench=1433"
+            }
+          },
+          "deltaMedian": {
+            "perfScore": 3,
+            "fcpMs": -9,
+            "lcpMs": 24,
+            "tbtMs": -1221.0,
+            "siMs": -456,
+            "ttiMs": -1675,
+            "cls": 0.0,
+            "observedFcpMs": 48,
+            "observedLcpMs": 40,
+            "observedSpeedIndexMs": -47
+          },
+          "pairs": {
+            "perfScore": {
+              "deltas": [1, 3, 1, 3, 2],
+              "mean": 2,
+              "sd": 1,
+              "mdeT": 2,
+              "mdeZ": 1,
+              "t": 4.47,
+              "allNegative": false
+            },
+            "fcpMs": {
+              "deltas": [40, -9, 15, -41, -8],
+              "mean": -1,
+              "sd": 30,
+              "mdeT": 50,
+              "mdeZ": 38,
+              "t": -0.04,
+              "allNegative": false
+            },
+            "lcpMs": {
+              "deltas": [24, -30, 188, 15, -135],
+              "mean": 13,
+              "sd": 117,
+              "mdeT": 194,
+              "mdeZ": 146,
+              "t": 0.24,
+              "allNegative": false
+            },
+            "tbtMs": {
+              "deltas": [-678.0, -1392.5, -1120.6, -1351.5, -766.0],
+              "mean": -1061.7,
+              "sd": 328.5,
+              "mdeT": 546.1,
+              "mdeZ": 411.3,
+              "t": -7.23,
+              "allNegative": true
+            },
+            "siMs": {
+              "deltas": [-447, -486, -202, -833, -327],
+              "mean": -459,
+              "sd": 237,
+              "mdeT": 394,
+              "mdeZ": 296,
+              "t": -4.33,
+              "allNegative": true
+            },
+            "ttiMs": {
+              "deltas": [-1051, -2212, -1675, -2232, -1281],
+              "mean": -1690,
+              "sd": 534,
+              "mdeT": 888,
+              "mdeZ": 669,
+              "t": -7.07,
+              "allNegative": true
+            },
+            "observedFcpMs": {
+              "deltas": [54, 60, 218, -30, 57],
+              "mean": 72,
+              "sd": 90,
+              "mdeT": 150,
+              "mdeZ": 113,
+              "t": 1.78,
+              "allNegative": false
+            },
+            "observedLcpMs": {
+              "deltas": [54, 60, 218, -30, -74],
+              "mean": 46,
+              "sd": 112,
+              "mdeT": 186,
+              "mdeZ": 140,
+              "t": 0.91,
+              "allNegative": false
+            },
+            "observedSpeedIndexMs": {
+              "deltas": [-14, -95, 94, -189, -70],
+              "mean": -55,
+              "sd": 104,
+              "mdeT": 174,
+              "mdeZ": 131,
+              "t": -1.17,
+              "allNegative": false
+            }
+          }
+        }
+      }
+    },
+    "c3Deterministic": {
+      "method": "whatif.py dropscripts-before-lcp (narzędzia P0.5) na artefaktach lh-ab; usunięte 26 skryptów na W0, 25 na W1 (24 w B-mobile-3); audyty zamiennikiem audit.mjs (klasy Lighthouse 13.5), równe LHR w 20/20",
+      "forms": {
+        "mobile": {
+          "tbtMs": {
+            "A": [1791.0, 1751.0, 2055.6, 2192.5, 2289.9],
+            "B": [791.5, 1062.0, 1204.5, 883.0, 1193.9],
+            "medianA": 2055.6,
+            "medianB": 1062.0,
+            "deltaMedian": -993.6,
+            "pairs": {
+              "deltas": [-999.5, -689.0, -851.1, -1309.5, -1095.9],
+              "mean": -989.0,
+              "sd": 236.3,
+              "mdeT": 392.8,
+              "mdeZ": 295.9,
+              "t": -9.36,
+              "allNegative": true
+            }
+          },
+          "fcpMs": {
+            "A": [1553.2, 1561.4, 1853.8, 1793.5, 1551.1],
+            "B": [1522.7, 1798.8, 1560.3, 1538.5, 1567.8],
+            "medianA": 1561.4,
+            "medianB": 1560.3,
+            "deltaMedian": -1.2,
+            "pairs": {
+              "deltas": [-30.5, 237.4, -293.6, -255.0, 16.7],
+              "mean": -65.0,
+              "sd": 216.6,
+              "mdeT": 360.1,
+              "mdeZ": 271.2,
+              "t": -0.67,
+              "allNegative": false
+            }
+          },
+          "lcpMs": {
+            "A": [2325.8, 2339.5, 2320.4, 2381.7, 2324.7],
+            "B": [2278.3, 2368.0, 2338.3, 2308.7, 2354.6],
+            "medianA": 2325.8,
+            "medianB": 2338.3,
+            "deltaMedian": 12.5,
+            "pairs": {
+              "deltas": [-47.4, 28.5, 17.9, -73.0, 29.9],
+              "mean": -8.8,
+              "sd": 48.0,
+              "mdeT": 79.8,
+              "mdeZ": 60.1,
+              "t": -0.41,
+              "allNegative": false
+            }
+          },
+          "siMs": {
+            "A": [2409.3, 2068.1, 2256.3, 2333.8, 2297.6],
+            "B": [1665.8, 1798.8, 1975.0, 1799.8, 1894.2],
+            "medianA": 2297.6,
+            "medianB": 1799.8,
+            "deltaMedian": -497.9,
+            "pairs": {
+              "deltas": [-743.5, -269.2, -281.3, -534.0, -403.4],
+              "mean": -446.3,
+              "sd": 197.8,
+              "mdeT": 328.8,
+              "mdeZ": 247.7,
+              "t": -5.05,
+              "allNegative": true
+            }
+          }
+        },
+        "desktop4x": {
+          "tbtMs": {
+            "A": [2605.8, 1787.1, 1685.6, 2800.0, 2108.8],
+            "B": [1173.2, 1178.6, 1717.0, 1254.7, 1108.3],
+            "medianA": 2108.8,
+            "medianB": 1178.6,
+            "deltaMedian": -930.2,
+            "pairs": {
+              "deltas": [-1432.6, -608.5, 31.4, -1545.3, -1000.4],
+              "mean": -911.1,
+              "sd": 644.6,
+              "mdeT": 1071.6,
+              "mdeZ": 807.2,
+              "t": -3.16,
+              "allNegative": false
+            }
+          },
+          "fcpMs": {
+            "A": [412.3, 602.7, 408.8, 418.6, 403.9],
+            "B": [448.9, 403.3, 454.2, 437.5, 396.0],
+            "medianA": 412.3,
+            "medianB": 437.5,
+            "deltaMedian": 25.2,
+            "pairs": {
+              "deltas": [36.6, -199.3, 45.5, 18.9, -7.9],
+              "mean": -21.3,
+              "sd": 101.6,
+              "mdeT": 168.9,
+              "mdeZ": 127.2,
+              "t": -0.47,
+              "allNegative": false
+            }
+          },
+          "lcpMs": {
+            "A": [639.6, 644.7, 598.9, 604.8, 616.0],
+            "B": [594.1, 607.9, 582.5, 567.8, 526.8],
+            "medianA": 616.0,
+            "medianB": 582.5,
+            "deltaMedian": -33.4,
+            "pairs": {
+              "deltas": [-45.5, -36.8, -16.4, -37.0, -89.2],
+              "mean": -45.0,
+              "sd": 26.9,
+              "mdeT": 44.8,
+              "mdeZ": 33.7,
+              "t": -3.73,
+              "allNegative": true
+            }
+          },
+          "siMs": {
+            "A": [1655.6, 1415.1, 1333.6, 2019.9, 1423.2],
+            "B": [1147.3, 1260.0, 1303.2, 1105.1, 1258.9],
+            "medianA": 1423.2,
+            "medianB": 1258.9,
+            "deltaMedian": -164.3,
+            "pairs": {
+              "deltas": [-508.3, -155.1, -30.3, -914.8, -164.3],
+              "mean": -354.5,
+              "sd": 360.1,
+              "mdeT": 598.6,
+              "mdeZ": 450.9,
+              "t": -2.2,
+              "allNegative": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "criteria": [
+    {
+      "id": "a",
+      "name": "księga W0→W1 bez zadań gtag, przepisania arkusza marki, metryk nagłówka i z listy P0.5 we wszystkich przebiegach; mediana TBT mobile i desktop4x < baza (n = 5, wobec MDE)",
+      "verdict": "partial",
+      "tbtPart": "pass",
+      "ledgerPart": "partial",
+      "evidence": "TBT mobile 1203 → 374 ms (Δ mediany −829, pary −794,7, sd 170,5, MDE(t) 283,4, t −10,42, p 0,0005, 5/5 par ujemnych, próbki rozdzielone). TBT desktop4x 1978,9 → 1037,0 ms (Δ mediany −941,9, pary −915,5, sd 569,2, MDE(t) 946,2, MDE(z) 712,8, t −3,60, p 0,023, 5/5 par ujemnych, Mann–Whitney p 0,008): kierunek i istotność potwierdzone, |Δ| poniżej MDE(t) serii, powyżej MDE(z) i MDE A/A. Księga: zadania Google A 29 (10/10) → B 0 (10/10); BRAND A 10/10 → B 0/10; starty oi-fade-in i lv-shimmer A 7 + 40 na przebieg (20/20) → B 0 (20/20). Niespełnione: K13 (zapis --sticky-header-h) zostaje w 10/10 B, sym. mobile A 111/164/116/133/93 → B 98/139/134/83/155, desktop4x A 181/95/95/188/124 → B 178/152/188/122/125 ms (z założenia P1.2 na fixture: domyślna 123 px ≠ 107 px, desktop bez domyślnej); K9b1 (78–130 ms sym.) i K10 (B 64–108 ms sym.) ≥ 50 ms sym. w 10/10 B (właściciel P5.2); K11 ≥ 50 ms sym. A 10/10 → B 4/10 plus kawałek TIMER 2/10."
+    },
+    {
+      "id": "b",
+      "name": "FCP/LCP ±0,02 s",
+      "verdict": "pass_on_intent",
+      "evidence": "Dosłownie niespełnione wyłącznie po stronie poprawy: Δ median Lantern mobile FCP −28,0 ms, LCP −43,6 ms; desktop4x FCP −31,4 ms, LCP −60,9 ms. Pary: |t| ≤ 1,08, MDE(t) 137/943/376/166 ms, więc test nie ma mocy w skali 20 ms. Brak regresji opiera się na niezmienionej strukturze: skrypty zakończone przed obs. LCP 508,1 KB (26) → 508,2 KB (25), bajty High przed obrazem LCP 620,1 → 620,5 KB, ten sam obraz LCP."
+    },
+    {
+      "id": "c",
+      "name": "SI: observedSpeedIndex mobile ≤ baza − 0,1 s ALBO baner w pierwszej klatce treści ALBO Lantern SI W1+C3 ≤ W0+C3 − 0,1 s",
+      "verdict": "pass",
+      "evidence": "Wariant 1: observedSpeedIndex mobile 709 → 497 ms (próg ≤ 609), pary −202,8 (sd 76,3, MDE(t) 126,9, t −5,94, p 0,004), każda para ≤ −134 ms, górna granica 95 % CI −108 ms. Wariant 2: pełny baner w pierwszej klatce treści w 2/5 przebiegów B (częściowa powłoka 2/5, brak 1/5); na A baner w 2513–3195 ms. Wariant 3: tylko na medianach (2215,5 → 1892,2 ms; pary −290,0, sd 253,2, p 0,063; 2/5 par nie spełnia −100 ms)."
+    },
+    {
+      "id": "d",
+      "name": "CLS ≤ 0,001 i brak pojedynczego przesunięcia > 0,0005",
+      "verdict": "fail",
+      "evidence": "Nowe na W1 (P1.3): przesunięcie powłoki zgód w 3/20 przebiegów B, 0/20 A. lh-ab B-mobile-1 0,06628 ([12, 777, 388 × 34] → [12, 575, 388 × 236]), B-mobile-2 0,03872 ([12, 693, 388 × 118] → ten sam prostokąt); lh-c3 B-desktop4x-5 karta [936, 702, 380 × 218] → [936, 691, 380 × 230] w zdarzeniu 0,01586 (ten sam zestaw bez karty 0,01127). Istniejące na bazie: desktop4x w 10/10 przebiegów lh-ab obu stron (A 0,00859/0,00608/0,01127/0,00608/0,00608, B 0,00608/0,01127/0,01127/0,01127/0,00608) i lh-c3 (A 5/5 0,00608, B 0,00608/0/0/0,00608/0,01586): element wiersza nagłówka 136 → 402 px szerokości i sekcja …0029 +42 px. Przesunięcie kolumny …001b: 0/20 przebiegów mobile."
+    },
+    {
+      "id": "e",
+      "name": "imgFetchpriorityHigh ≤ 2 i element LCP = img[data-lcp-candidate] we wszystkich przebiegach",
+      "verdict": "pass",
+      "evidence": "imgFetchpriorityHigh 1 (W0 9); element LCP img.eh-img[data-lcp-candidate] (cover.jpg) w 20/20 przebiegów B (lh-ab i lh-c3), 0/20 A; dokładnie jeden kandydat LCP typu obraz w 40/40 śladach (68 121 px² mobile, 219 804 px² desktop)."
+    },
+    {
+      "id": "f",
+      "name": "sprzężenie C3 na drzewie W1, what-if dropscripts-before-lcp, tabela okna z właścicielami, projekcja W2 (> 340 ms TBT PSI mobile ⇒ P3.3 i P3.4 MUST)",
+      "verdict": "measured_p33_p34_must",
+      "evidence": "Seria lh-c3 20/20 ważnych; what-if deterministyczny na 20 artefaktach lh-ab. Projekcja W2 (reguła ×0,5, żywa seria W1+C3) 854 ms fixture × 0,72 = 615 ms PSI > 340; 5 z 6 kombinacji baz i wariantów > 340; przy regule ×0,5 każdy z 5 przebiegów na obu bazach > 340 (min 473 × 0,72 = 340,6; det. 543 × 0,72 = 391); odporne na k 0,50–0,72 i korektę przeplotu ×0,81 (498 / 411 ms). Warunki własne P3.4 (K7 w oknie 5/5) i P3.3 (K6 w oknie 4/5 mobile, sym. 114–190 ms) spełnione na W1+C3."
+    }
+  ],
+  "overallGateVerdict": {
+    "verdict": "not_passed",
+    "summary": "(a) częściowo, (b) zaliczone co do intencji, (c) zaliczone, (d) niezaliczone, (e) zaliczone, (f) zmierzone: P3.3 i P3.4 MUST przed wdrożeniem. Werdykt dotyczy 45eb5747c."
+  },
+  "dod": [
+    {
+      "id": "dod-tbt",
+      "verdict": "pass",
+      "evidence": "TBT Lantern z flagami: mobile 1203 → 374 ms (−68,9 %) wobec celu przeniesionego na bazę 737–872 ms; desktop4x 1978,9 → 1037,0 ms (−47,6 %) wobec 1752–1832 ms. Bez P1.1 (wskaźnik bez okna TTI, blokowanie w [FCP_sim, koniec śladu] bez Google): mobile 914 → 589 ms (−35,6 %, w paśmie −28…−39 %), desktop4x 1547 → 1192 ms (−22,9 %); pary nieistotne (mobile −237, sd 236, MDE(t) 393; desktop4x −338, sd 618, MDE(t) 1027). Większość zysku to P1.1 (zadania gtag i okno TTI)."
+    },
+    {
+      "id": "dod-fcp-lcp",
+      "verdict": "pass",
+      "evidence": "jak (b): bez zmiany struktury, różnice median na korzyść i w szumie"
+    },
+    {
+      "id": "dod-psi",
+      "verdict": "partial",
+      "evidence": "Prognoza punktowa mobile 63–67 (plan 64–68), desktop 77–79 (plan 77–79). Rozrzut przebiegów: mobile 58,5–67,5, desktop 70,7–85,6. Dolny skraj mobile o 1 pkt poniżej pasma planu."
+    },
+    {
+      "id": "dod-repo-gates",
+      "verdict": "fail",
+      "evidence": "check:bundle overall czerwone na main i gorsze na W1 o 6781 B gzip (4784,6 → 4791,2 KB), więc nie „wyłącznie w zakresie znanym z main”; format:check, check:i18n-overlay-imports i e2e popup-first-render czerwone (także na main); lint, vitest i progi pokrycia nie uruchomione na 45eb5747c."
+    }
+  ],
+  "dodOverall": "partial",
+  "psiForecast": {
+    "reference": "PSI 2026-10-03 18:58 CEST (hl=pl): mobile FCP 3,1 s, LCP 6,6 s, TBT 600 ms, SI 4,9 s, CLS 0 (53); desktop FCP 0,6 s, LCP 1,1 s, TBT 740 ms, SI 1,5 s, CLS 0 (70)",
+    "tool": "docs/performance/2026-10-03-pagespeed-85-95/narzedzia/score.py (odtwarza referencję: 53,1 i 69,8)",
+    "F1": {
+      "formula": "k (POMIAR §7) × mediana TBT B",
+      "mobileTbtMs": 269,
+      "desktopTbtMs": 435.5,
+      "mobileScore": {
+        "si4.9": 62.7,
+        "si4.2": 63.9
+      },
+      "desktopScore": {
+        "si1.5": 77.3,
+        "si1.45": 77.5
+      }
+    },
+    "F2": {
+      "formula": "TBT PSI W0 × mediana B / mediana A",
+      "mobileTbtMs": 187,
+      "desktopTbtMs": 388,
+      "mobileScore": {
+        "si4.9": 65.4,
+        "si4.2": 66.6
+      },
+      "desktopScore": {
+        "si1.5": 79.1,
+        "si1.45": 79.3
+      }
+    },
+    "pointRange": {
+      "mobile": "63–67",
+      "desktop": "77–79"
+    },
+    "samplingRange": {
+      "mobile": "58,5–67,5",
+      "desktop": "70,7–85,6"
+    },
+    "clsPenalty": "CLS 0,066 (przesunięcie powłoki) obniża wynik o ok. 0,75 pkt (62,70 → 61,95)",
+    "note": "F1 zawyża TBT PSI (przeplot), F2 zaniża (atrapa gtag ×2,85 wobec ×2,29 przy kalibracji); linie K harnessu (0,50 / 0,37) liczą k ze strony A i nie są kalibracją."
+  },
+  "c3": {
+    "windowAfterC3": {
+      "mobileLive": [
+        {
+          "class": "K16",
+          "medianMs": 229,
+          "rangeMs": "152–272",
+          "nSim50": "5/5",
+          "owner": "P2.4 + P2.2"
+        },
+        {
+          "class": "K14",
+          "medianMs": 187,
+          "rangeMs": "136–263",
+          "nSim50": "5/5",
+          "owner": "P2.2"
+        },
+        {
+          "class": "K7",
+          "medianMs": 156,
+          "rangeMs": "139–238",
+          "nSim50": "5/5",
+          "owner": "P3.4"
+        },
+        {
+          "class": "K-",
+          "medianMs": 145,
+          "rangeMs": "5–266",
+          "nSim50": "5/5",
+          "owner": "brak (kandydaci P3.1, P2.4 g)"
+        },
+        {
+          "class": "K15",
+          "medianMs": 108,
+          "rangeMs": "71–179",
+          "nSim50": "5/5",
+          "owner": "P2.4"
+        },
+        {
+          "class": "K6",
+          "medianMs": 82,
+          "rangeMs": "0–140",
+          "nSim50": "4/5",
+          "owner": "P2.2 + P3.3"
+        },
+        {
+          "class": "K13",
+          "medianMs": 64,
+          "rangeMs": "47–134",
+          "nSim50": "5/5",
+          "owner": "P1.2 F2 (zostaje na fixture), bez właściciela W2"
+        },
+        {
+          "class": "K9b1",
+          "medianMs": 48,
+          "rangeMs": "6–73",
+          "nSim50": "5/5",
+          "owner": "P5.2"
+        },
+        {
+          "class": "K12",
+          "medianMs": 46,
+          "rangeMs": "34–66",
+          "nSim50": "5/5",
+          "owner": "P2.2"
+        },
+        {
+          "class": "K10",
+          "medianMs": 30,
+          "rangeMs": "8–51",
+          "nSim50": "5/5",
+          "owner": "P5.2"
+        }
+      ],
+      "desktop4xLive": [
+        {
+          "class": "K14",
+          "medianMs": 230,
+          "owner": "P2.2"
+        },
+        {
+          "class": "K7",
+          "medianMs": 191,
+          "owner": "P3.4"
+        },
+        {
+          "class": "K6",
+          "medianMs": 97,
+          "owner": "P2.2 + P3.3"
+        },
+        {
+          "class": "K13",
+          "medianMs": 86,
+          "owner": "P1.2 F2"
+        },
+        {
+          "class": "K12",
+          "medianMs": 78,
+          "owner": "P2.2"
+        },
+        {
+          "class": "K5",
+          "medianMs": 53,
+          "owner": "P2.4 + P2.6, warunkowo P3.3"
+        },
+        {
+          "class": "C3BOOT",
+          "medianMs": 44,
+          "owner": "P2.1"
+        },
+        {
+          "class": "K9b1",
+          "medianMs": 29,
+          "owner": "P5.2"
+        },
+        {
+          "class": "K4",
+          "medianMs": 28,
+          "owner": "P2.5 + P2.6"
+        },
+        {
+          "class": "K-",
+          "medianMs": 28,
+          "owner": "brak"
+        },
+        {
+          "class": "K10",
+          "medianMs": 22,
+          "owner": "P5.2"
+        }
+      ],
+      "ownershipSplitMobileLiveMs": {
+        "W2": 727,
+        "P3.4": 156,
+        "P5.x": 106,
+        "K13": 64,
+        "unowned": 145,
+        "C3BOOT": 2
+      },
+      "ownershipSplitDesktop4xLiveMs": {
+        "W2": 586,
+        "P3.4": 191,
+        "K13": 86,
+        "P5.x": 75,
+        "C3BOOT": 44,
+        "unowned": 38
+      }
+    },
+    "projectionW2": {
+      "k": {
+        "mobile": 0.72,
+        "desktop4x": 0.42,
+        "source": "POMIAR.md §7"
+      },
+      "rows": [
+        {
+          "base": "live",
+          "form": "mobile",
+          "variant": "W1+C3 (bez spłaty)",
+          "runsMs": [788, 1120, 1462, 1288, 1350],
+          "medianMs": 1288,
+          "psiMs": 927
+        },
+        {
+          "base": "live",
+          "form": "mobile",
+          "variant": "W2 ×0,5",
+          "runsMs": [473, 675, 854, 864, 956],
+          "medianMs": 854,
+          "psiMs": 615
+        },
+        {
+          "base": "live",
+          "form": "mobile",
+          "variant": "W2 PLAN-FALE §1",
+          "runsMs": [354, 491, 705, 743, 770],
+          "medianMs": 705,
+          "psiMs": 508
+        },
+        {
+          "base": "live",
+          "form": "mobile",
+          "variant": "W2 pełne",
+          "runsMs": [330, 464, 663, 711, 737],
+          "medianMs": 663,
+          "psiMs": 477
+        },
+        {
+          "base": "live",
+          "form": "mobile",
+          "variant": "W3 ×0,5",
+          "runsMs": [435, 607, 788, 792, 861],
+          "medianMs": 788,
+          "psiMs": 567
+        },
+        {
+          "base": "live",
+          "form": "mobile",
+          "variant": "W3 pełne",
+          "runsMs": [205, 330, 533, 569, 550],
+          "medianMs": 533,
+          "psiMs": 384
+        },
+        {
+          "base": "det",
+          "form": "mobile",
+          "variant": "W1+C3 (bez spłaty)",
+          "runsMs": [791.5, 1062, 1204.5, 883, 1193.9],
+          "medianMs": 1062,
+          "psiMs": 765
+        },
+        {
+          "base": "det",
+          "form": "mobile",
+          "variant": "W2 ×0,5",
+          "runsMs": [543, 706, 771, 596, 763],
+          "medianMs": 706,
+          "psiMs": 508
+        },
+        {
+          "base": "det",
+          "form": "mobile",
+          "variant": "W2 PLAN-FALE §1",
+          "runsMs": [367, 525, 576, 452, 556],
+          "medianMs": 525,
+          "psiMs": 378
+        },
+        {
+          "base": "det",
+          "form": "mobile",
+          "variant": "W2 pełne",
+          "runsMs": [301, 420, 548, 433, 496],
+          "medianMs": 433,
+          "psiMs": 312
+        },
+        {
+          "base": "det",
+          "form": "mobile",
+          "variant": "W3 ×0,5",
+          "runsMs": [474, 643, 679, 527, 691],
+          "medianMs": 643,
+          "psiMs": 463
+        },
+        {
+          "base": "det",
+          "form": "mobile",
+          "variant": "W3 pełne",
+          "runsMs": [193, 410, 366, 296, 371],
+          "medianMs": 366,
+          "psiMs": 263
+        },
+        {
+          "base": "live",
+          "form": "desktop4x",
+          "variant": "W1+C3 (bez spłaty)",
+          "medianMs": 1113.5,
+          "psiMs": 468
+        },
+        {
+          "base": "live",
+          "form": "desktop4x",
+          "variant": "W2 ×0,5",
+          "medianMs": 754,
+          "psiMs": 317
+        },
+        {
+          "base": "live",
+          "form": "desktop4x",
+          "variant": "W2 PLAN-FALE §1",
+          "medianMs": 607,
+          "psiMs": 255
+        },
+        {
+          "base": "live",
+          "form": "desktop4x",
+          "variant": "W2 pełne",
+          "medianMs": 602,
+          "psiMs": 253
+        },
+        {
+          "base": "live",
+          "form": "desktop4x",
+          "variant": "W3 pełne",
+          "medianMs": 445,
+          "psiMs": 187
+        },
+        {
+          "base": "det",
+          "form": "desktop4x",
+          "variant": "W1+C3 (bez spłaty)",
+          "medianMs": 1179,
+          "psiMs": 495
+        },
+        {
+          "base": "det",
+          "form": "desktop4x",
+          "variant": "W2 ×0,5",
+          "medianMs": 793,
+          "psiMs": 333
+        },
+        {
+          "base": "det",
+          "form": "desktop4x",
+          "variant": "W2 PLAN-FALE §1",
+          "medianMs": 658,
+          "psiMs": 276
+        },
+        {
+          "base": "det",
+          "form": "desktop4x",
+          "variant": "W2 pełne",
+          "medianMs": 597,
+          "psiMs": 251
+        },
+        {
+          "base": "det",
+          "form": "desktop4x",
+          "variant": "W3 pełne",
+          "medianMs": 469,
+          "psiMs": 197
+        }
+      ],
+      "thresholdPsiMobileMs": 340,
+      "combinationsAboveThreshold": "5/6 (wszystkie poza det. W2 pełne, 312 ms)",
+      "interleaveCorrection": "×0,81: W2 ×0,5 żywo ok. 498 ms, det. ok. 411 ms; W2 pełne żywo ok. 387 ms",
+      "scorePy87Alternative": "TBT × 0,72 z FCP/LCP/SI fixture: żywo pełne 85,75, ×0,5 82,15, §1 84,85; det. pełne 90,6, §1 88,5, ×0,5 84,6. Z FCP/LCP/SI bliższymi PSI (1,8 / 2,85 / 3,8 s) maksimum 86,0 (przy 312 ms). Wniosek o alternatywie ≥ 87 zależy od przyjętych FCP/LCP; do rozstrzygnięcia w bramce W2.",
+      "liveVsDeterministic": "żywo minus det. +226 ms (mediany W1+C3 mobile, porównanie między seriami, Welch t 1,22, p ok. 0,26: wielkość niewykazana; kierunek wspiera tylko klasa K- 145 wobec 0 ms)"
+    },
+    "decision": {
+      "p33p34Must": true,
+      "projectionPsiMobileMs": 615,
+      "text": "Projekcja W2 TBT PSI mobile 615 ms > 340 ms, więc P3.3 i P3.4 są MUST przed wdrożeniem."
+    },
+    "coupling": {
+      "mobile": {
+        "W0": {
+          "tbtWithoutC3MedianMs": 1203.0,
+          "tbtC3LiveMedianMs": 1846.0,
+          "couplingLiveMs": 643.0,
+          "couplingLiveNote": "różnica median dwóch różnych serii (lh-c3 minus lh-ab), bez par: tylko kierunek",
+          "tbtC3DeterministicMedianMs": 2055.6,
+          "couplingDeterministicPairsMs": [824.4, 697.0, 652.1, 829.0, 1086.9],
+          "couplingDeterministicPairMedianMs": 824.4
+        },
+        "W1": {
+          "tbtWithoutC3MedianMs": 374.0,
+          "tbtC3LiveMedianMs": 1288.0,
+          "couplingLiveMs": 914.0,
+          "couplingLiveNote": "różnica median dwóch różnych serii (lh-c3 minus lh-ab), bez par: tylko kierunek",
+          "tbtC3DeterministicMedianMs": 1062.0,
+          "couplingDeterministicPairsMs": [506.9, 688.0, 733.0, 543.0, 646.9],
+          "couplingDeterministicPairMedianMs": 646.9
+        }
+      },
+      "desktop4x": {
+        "W0": {
+          "tbtWithoutC3MedianMs": 1978.9,
+          "tbtC3LiveMedianMs": 2334.5,
+          "couplingLiveMs": 355.6,
+          "couplingLiveNote": "różnica median dwóch różnych serii (lh-c3 minus lh-ab), bez par: tylko kierunek",
+          "tbtC3DeterministicMedianMs": 2108.8,
+          "couplingDeterministicPairsMs": [393.8, 179.6, 204.9, 301.0, 129.9],
+          "couplingDeterministicPairMedianMs": 204.9
+        },
+        "W1": {
+          "tbtWithoutC3MedianMs": 1037.0,
+          "tbtC3LiveMedianMs": 1113.5,
+          "couplingLiveMs": 76.5,
+          "couplingLiveNote": "różnica median dwóch różnych serii (lh-c3 minus lh-ab), bez par: tylko kierunek",
+          "tbtC3DeterministicMedianMs": 1178.6,
+          "couplingDeterministicPairsMs": [185.9, 83.6, 361.0, 217.7, 382.8],
+          "couplingDeterministicPairMedianMs": 217.7
+        }
+      }
+    }
+  },
+  "bundle": {
+    "source": "BUNDLE_INVENTORY=1 bun run build:smoke + bun run check:bundle na hoście (runner niezmierzony)",
+    "W0": {
+      "jsFiles": 889,
+      "overallKB": 4784.6,
+      "publicKB": 2731.3,
+      "adminOnlyKB": 2053.3,
+      "adminOnlyChunks": 304,
+      "largestChunkKB": 254.3,
+      "largestChunk": "index-Bf9uCWi0.js",
+      "cssKB": 95.1,
+      "publicCssKB": 80.9,
+      "bootGzipKB": 476.9,
+      "bootRawKB": 1568.9
+    },
+    "W1": {
+      "jsFiles": 891,
+      "overallKB": 4791.2,
+      "publicKB": 2842.3,
+      "adminOnlyKB": 1948.9,
+      "adminOnlyChunks": 299,
+      "largestChunkKB": 254.5,
+      "largestChunk": "index-Z9nrOuY_.js",
+      "cssKB": 95.3,
+      "publicCssKB": 81.1,
+      "bootGzipKB": 477.1,
+      "bootRawKB": 1570.3
+    },
+    "budgetsKB": {
+      "overall": 4772,
+      "public": 2877,
+      "largestChunk": 286,
+      "css": 96,
+      "publicCss": 83,
+      "bootGzip": 579
+    },
+    "verdict": "red_on_main_and_worse_on_W1",
+    "overallDeltaB": 6781,
+    "overshootKB": {
+      "W0": 12.6,
+      "W1": 19.2
+    },
+    "publicReclassificationB": 106902,
+    "publicReclassificationNote": "icons-0..3 (105 779 B, te same pliki i hashe) i window (1 123 B) przeszły z admin-only do public, bo leniwy loader ikon (< experimentalMinChunkSize 2048) Rollup dokleił na W0 do admin.settings-*, a na W1 do newsletter.confirm-*",
+    "attributionB": [
+      {
+        "group": "gtagLoadPolicy-* (nowy, leniwy; P1.1 + prymitywy P0.3, wspólny z P1.3)",
+        "overall": 3633
+      },
+      {
+        "group": "consentInitScript-* (nowy, leniwy; P1.3)",
+        "overall": 1140
+      },
+      {
+        "group": "ConsentBanner-* (P1.3, karta ConsentShell)",
+        "overall": 1070
+      },
+      {
+        "group": "P1.3 drobne: NewsletterPopup +88, useInFeedAds +18, cacheBusting/liveBlogs −44",
+        "overall": 62
+      },
+      {
+        "group": "P1.4 leniwe (sliderVariants +470, _, WidgetView, PostListView, ContentRenderer, PostsSliderWidget, category._slug, trasa /)",
+        "overall": 624
+      },
+      {
+        "group": "chunk wejściowy index-* (cały przyrost bootu)",
+        "overall": 213
+      },
+      {
+        "group": "przetasowanie Rollupa i kaskada hashy (window +65, reszta −26)",
+        "overall": 39
+      }
+    ],
+    "cssDeltaB": 244,
+    "cssHeadroomKB": 0.68,
+    "itemReportsSumKB": 11.1,
+    "itemReportsSumNote": "suma raportów pozycji (każda wobec własnej bazy) liczy prymitywy P0.3 dwa razy (P1.1 i P1.3)",
+    "chronicleEntry": "scripts/check-bundle-size.ts, wpis XXIII (2026-10-05), bez zmiany progów"
+  },
+  "documentWeight": {
+    "W1Verdict": "green (25/25)",
+    "W0Verdict": "red (4 metryki modulepreload skryptem bazy; ze skryptem W1 także 7 metryk P1.4)",
+    "ownerDecision": "e420a58d0: pięć progów podniesionych dokładnie o przyrost P1.3 zmierzony na artefakcie 20bbdab73 wobec 135e5cec3 – htmlRawBytes +7243 (406180), htmlGzipBytes +2145 (57710), headRawBytes +2024 (26625), inlineScriptBytes +1986 (98103), inlineExecutableScriptBytes +1986 (91725)",
+    "W0Note": "W0 zmierzone skryptem W1 (document-weight-base-w1script.json), żeby mieć metryki P1.4; serverOnlyLeaks na W0: src/lib/builder/heroImage.ts w assets/index-Bf9uCWi0.js (wywołanie w aboveFold.tsx), na W1 brak",
+    "preLcpTransferBytesDelta": "+2127 B = HTML gzip +2078 + CSS +236 − JS −187",
+    "metrics": [
+      {
+        "metric": "htmlRawBytes",
+        "W0": 393695,
+        "W1": 400753,
+        "delta": 7058,
+        "max": 406180,
+        "headroom": 5427,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "htmlGzipBytes",
+        "W0": 54720,
+        "W1": 56798,
+        "delta": 2078,
+        "max": 57710,
+        "headroom": 912,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "headRawBytes",
+        "W0": 24117,
+        "W1": 25860,
+        "delta": 1743,
+        "max": 26625,
+        "headroom": 765,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "inlineStyleCount",
+        "W0": 50,
+        "W1": 50,
+        "delta": 0,
+        "max": 50,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "inlineStyleBytes",
+        "W0": 133008,
+        "W1": 133008,
+        "delta": 0,
+        "max": 135546,
+        "headroom": 2538,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "inlineScriptBytes",
+        "W0": 94274,
+        "W1": 96203,
+        "delta": 1929,
+        "max": 98103,
+        "headroom": 1900,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "inlineExecutableScriptBytes",
+        "W0": 88021,
+        "W1": 89950,
+        "delta": 1929,
+        "max": 91725,
+        "headroom": 1775,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "dehydratedStateBytes",
+        "W0": 65224,
+        "W1": 65199,
+        "delta": -25,
+        "max": 66486,
+        "headroom": 1287,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "modulepreloadCount",
+        "W0": 26,
+        "W1": 25,
+        "delta": -1,
+        "max": 25,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "linkHeaderEntries",
+        "W0": 32,
+        "W1": 31,
+        "delta": -1,
+        "max": 31,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "preloadDuplicates",
+        "W0": 23,
+        "W1": 21,
+        "delta": -2,
+        "max": 22,
+        "headroom": 1,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "documentPreloadDuplicates",
+        "W0": 1,
+        "W1": 0,
+        "delta": -1,
+        "max": 0,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "imagePreloadCount",
+        "W0": 4,
+        "W1": 3,
+        "delta": -1,
+        "max": 3,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "imgFetchpriorityHigh",
+        "W0": 9,
+        "W1": 1,
+        "delta": -8,
+        "max": 2,
+        "headroom": 1,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "bootClosureRawBytes",
+        "W0": 1606593,
+        "W1": 1607940,
+        "delta": 1347,
+        "max": 1637758,
+        "headroom": 29818,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "bootClosureGzipBytes",
+        "W0": 485021,
+        "W1": 485273,
+        "delta": 252,
+        "max": 494985,
+        "headroom": 9712,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "preloadedJsCount",
+        "W0": 26,
+        "W1": 25,
+        "delta": -1,
+        "max": 25,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "preloadedJsGzipBytes",
+        "W0": 563556,
+        "W1": 563369,
+        "delta": -187,
+        "max": 572985,
+        "headroom": 9616,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "renderBlockingCssGzipBytes",
+        "W0": 80077,
+        "W1": 80313,
+        "delta": 236,
+        "max": 81399,
+        "headroom": 1086,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "lcpCandidateCount",
+        "W0": 0,
+        "W1": 1,
+        "delta": 1,
+        "max": 2,
+        "headroom": 1,
+        "okW1": true,
+        "okW0": true
+      },
+      {
+        "metric": "lcpCandidateMissing",
+        "W0": 1,
+        "W1": 0,
+        "delta": -1,
+        "max": 0,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "imgEagerNonCandidate",
+        "W0": 8,
+        "W1": 0,
+        "delta": -8,
+        "max": 0,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "imagePreloadNonCandidate",
+        "W0": 3,
+        "W1": 0,
+        "delta": -3,
+        "max": 0,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "linkHeaderDisallowed",
+        "W0": 1,
+        "W1": 0,
+        "delta": -1,
+        "max": 0,
+        "headroom": 0,
+        "okW1": true,
+        "okW0": false
+      },
+      {
+        "metric": "preLcpTransferBytes",
+        "W0": 743085,
+        "W1": 745212,
+        "delta": 2127,
+        "max": 756230,
+        "headroom": 11018,
+        "okW1": true,
+        "okW0": true
+      }
+    ]
+  },
+  "repoGates": [
+    {
+      "name": "build:smoke (BUNDLE_INVENTORY=1)",
+      "W1": "green",
+      "note": "exit 0, 3 min 1 s"
+    },
+    {
+      "name": "typecheck",
+      "W1": "green",
+      "note": "typecheck:tsc i typecheck:scripts exit 0 (dodatkowo, na checkout PR @ 45eb5747c)"
+    },
+    {
+      "name": "check:bundle",
+      "W1": "red",
+      "W0": "red",
+      "note": "overall 4784,6 → 4791,2 KB (+6781 B); pozostałe budżety zielone"
+    },
+    {
+      "name": "check:chunks",
+      "W1": "green",
+      "note": "889 chunków / 6910 krawędzi (W0 887 / 6961)"
+    },
+    {
+      "name": "check:entry-purity",
+      "W1": "green",
+      "note": "9 chunków osiągalnych z boot (W0 9)"
+    },
+    {
+      "name": "check:server-entry-purity",
+      "W1": "green",
+      "note": "1813 plików (W0 1791)"
+    },
+    {
+      "name": "check:document-weight",
+      "W1": "green",
+      "W0": "red",
+      "note": "25/25"
+    },
+    {
+      "name": "test:e2e:artifact",
+      "W1": "green",
+      "note": "8/8"
+    },
+    {
+      "name": "e2e-performance third-party-quiescence (P1.1)",
+      "W1": "green",
+      "note": "4/4"
+    },
+    {
+      "name": "e2e-performance consent-shell-geometry (P1.3)",
+      "W1": "green",
+      "note": "6/6"
+    },
+    {
+      "name": "e2e-performance on-demand-overlays (P1.3)",
+      "W1": "green",
+      "note": "1/1"
+    },
+    {
+      "name": "e2e-performance popup-first-render",
+      "W1": "red",
+      "W0": "red",
+      "note": "0/2 po obu stronach, ta sama asercja („popup content chunk requested”), spec bez zmian"
+    },
+    {
+      "name": "verify:static bez format:check (KEEP_GOING=1)",
+      "W1": "red",
+      "W0": "red",
+      "note": "32/33; czerwone tylko check:i18n-overlay-imports (ChatComposer.tsx 25 → 28, wejścia identyczne z W0)"
+    },
+    {
+      "name": "format:check",
+      "W1": "red",
+      "W0": "red",
+      "note": "W1 19 plików, podzbiór 22 plików W0; styles.css bez nowej niezgodnej linii"
+    },
+    {
+      "name": "check:on-conflict-arbiters",
+      "W1": "green",
+      "note": "84 cele w 86 wywołaniach .upsert"
+    },
+    {
+      "name": "check:authz-snapshot",
+      "W1": "green",
+      "note": "zgodny z migracjami"
+    },
+    {
+      "name": "lint, vitest, progi pokrycia",
+      "W1": "not_measured",
+      "note": "nie uruchomione na 45eb5747c"
+    },
+    {
+      "name": "e2e popup-registration (plik P1.3)",
+      "W1": "not_measured",
+      "note": "bramka go nie uruchomiła"
+    },
+    {
+      "name": "e2e user-paths ze stagingiem (P1.7, REVIEW-9 D-4)",
+      "W1": "not_measured",
+      "note": "fixture nie ma auth"
+    }
+  ],
+  "ledger": {
+    "source": "lanternTasks.ts --min 0 --json i --diff-series na lh-ab (przez light.sh); klasy K wg P0.5, ten sam klasyfikator dla obu stron",
+    "classesNSim50": [
+      {
+        "class": "Google (gtag)",
+        "owner": "P1.1",
+        "mobile": "5/5 → 0/5",
+        "desktop4x": "5/5 → 0/5",
+        "verdict": "zniknęło 10/10"
+      },
+      {
+        "class": "BRAND (arkusze korzenia)",
+        "owner": "P1.2 H2",
+        "mobile": "5/5 → 0/5",
+        "desktop4x": "5/5 → 0/5",
+        "verdict": "zniknęło 10/10"
+      },
+      {
+        "class": "K8a/K8b (oi-fade-in, lv-shimmer)",
+        "owner": "P1.2 F1/F1b",
+        "verdict": "0 startów w 20/20 B"
+      },
+      {
+        "class": "K13 (--sticky-header-h)",
+        "owner": "P1.2 F2",
+        "mobile": "5/5 → 5/5",
+        "desktop4x": "5/5 → 5/5",
+        "verdict": "zostaje (z założenia na fixture)"
+      },
+      {
+        "class": "K9 → K9a",
+        "owner": "P1.7",
+        "mobile": "5/5 → 4/5",
+        "desktop4x": "5/5 → 5/5",
+        "verdict": "podzielone"
+      },
+      {
+        "class": "K9b1 (drzewo tras)",
+        "owner": "P5.2",
+        "mobile": "0/5 → 5/5",
+        "desktop4x": "0/5 → 5/5",
+        "verdict": "kawałek K9 ≥ 50 ms sym. 10/10"
+      },
+      {
+        "class": "K10 (createRouter)",
+        "owner": "P5.2",
+        "mobile": "5/5 → 5/5",
+        "desktop4x": "5/5 → 5/5",
+        "verdict": "zostaje"
+      },
+      {
+        "class": "K11 (timer)",
+        "owner": "P1.7",
+        "mobile": "5/5 → 3/5",
+        "desktop4x": "5/5 → 1/5",
+        "verdict": "krótsze; TIMER 1/5 + 1/5"
+      },
+      {
+        "class": "ConsentBanner (chunk)",
+        "owner": "P1.3",
+        "verdict": "pobrany A 10/10 → B 0/10"
+      },
+      {
+        "class": "K12 (commit hydratacji)",
+        "owner": "P2.2",
+        "verdict": "krótsze: blok. mediana mobile 197 → 46, desktop4x 264 → 104 ms (efekt P1.2)"
+      },
+      {
+        "class": "K14 0–300 ms po K12",
+        "owner": "P2.2",
+        "mobile": "2/5 → 5/5",
+        "desktop4x": "1/5 → 5/5",
+        "verdict": "dłuższe: praca przeniesiona z K12 (P1.2)"
+      }
+    ],
+    "windowFreeIndicator": {
+      "definition": "blokowanie w [FCP_sim, koniec śladu] bez zadań Google",
+      "mobile": {
+        "A": [950, 604, 947, 914, 744],
+        "B": [435, 589, 702, 491, 755],
+        "medianA": 914,
+        "medianB": 589,
+        "pairsMean": -237,
+        "sd": 236,
+        "mdeT": 393
+      },
+      "desktop4x": {
+        "A": [1758, 1160, 1099, 2231, 1547],
+        "B": [1130, 1255, 1590, 1192, 936],
+        "medianA": 1547,
+        "medianB": 1192,
+        "pairsMean": -338,
+        "sd": 618,
+        "mdeT": 1027
+      }
+    },
+    "ttiSimMedianMs": {
+      "mobile": "opt/pes A 10 252 / 11 019 → B 5 509 / 6 798",
+      "desktop4x": "A 4 182 / 5 045 → B 2 808 / 3 907"
+    }
+  },
+  "handover": [
+    {
+      "topic": "I2: stabilność kontekstu rozruchu gościa",
+      "owner": "P2.2",
+      "note": "useAuth.tsx (z authHydration.test.tsx) przeniesiony z P1.7 do P2.2 (92887a899); test akceptacyjny: raporty/P1.7-i2-island-experiment.test.tsx.txt"
+    },
+    {
+      "topic": "K9b1 (drzewo tras) i K10 (createRouter) ≥ 50 ms sym. w 10/10 B",
+      "owner": "P5.2"
+    },
+    {
+      "topic": "e2e user-paths ze stagingiem (zalogowany reload z rolami, magic-link, cross-tab)",
+      "owner": "orkiestrator przed wydaniem",
+      "note": "P1.7 REVIEW-9 D-4, nie uruchomione"
+    },
+    {
+      "topic": "e2e-performance popup-first-render czerwone na W0 i W1",
+      "owner": "do przypisania",
+      "note": "ta sama asercja po obu stronach"
+    },
+    {
+      "topic": "przesunięcie kolumny data-col-id …001b na mobile",
+      "owner": "osobna pozycja",
+      "note": "P1.3-PROVE-2: A 1/10, B 2/10 (0,401 / 0,406); w bramce 0/20"
+    },
+    {
+      "topic": "obserwacja TBT mobile z dowodu P1.3 (+96 / +113 ms)",
+      "owner": "P2.2 (pomiar)",
+      "note": "na scalonym drzewie niewidoczne netto, prawdopodobnie zamaskowane przez P1.2; bez profilera nierozdzielne"
+    },
+    {
+      "topic": "playwright.performance.config.ts bez domyślnej ścieżki lokalnego Chromium",
+      "owner": "P0.1 / higiena",
+      "note": "spece trzeba uruchamiać z PLAYWRIGHT_CHROMIUM_EXECUTABLE"
+    },
+    {
+      "topic": "NOWE: przesunięcie powłoki zgód P1.3 (3/20 przebiegów B)",
+      "owner": "decyzja orkiestratora (poprawka plików P1.3 przed bramką W2)",
+      "note": "min-height karty, kotwica od góry albo odsłonięcie po zamknięciu powłoki"
+    },
+    {
+      "topic": "NOWE: CLS desktop nagłówka i sekcji …0029 (0,006–0,011, istniejące na W0)",
+      "owner": "do przypisania (kandydat P2.3)",
+      "note": "bramka W2 wymaga CLS ≤ 0,001"
+    },
+    {
+      "topic": "NOWE: K13 zostaje na fixture",
+      "owner": "decyzja: wyrównanie fixture (P0.1) albo domyślna desktopowa",
+      "note": "ślad K13b (invalidationTracking) na W1 nie powtórzony"
+    },
+    {
+      "topic": "NOWE: scalona głowa PR (od 61b6e7f43) bez bramek artefaktu i Lighthouse",
+      "owner": "orkiestrator",
+      "note": "po naprawie /dev/null; PR #475 usunął testy uprzęży pomiarowej (harness-ext, document-weight, psi-sample) i skrypt test:measurement-harness"
+    },
+    {
+      "topic": "NOWE: incydent /dev/null",
+      "owner": "człowiek (root)",
+      "note": "rm /dev/null && mknod -m 666 /dev/null c 1 3 przed kolejnym krokiem ciężkim"
+    },
+    {
+      "topic": "NOWE: check:bundle overall +6,6 KB (D10 niespełnione)",
+      "owner": "P6.1 (próg z runnera); P2.1 (przypięcie loadera ikon osobnym commitem) albo P9.1 C10"
+    },
+    {
+      "topic": "NOWE: zapas CSS 0,68 KB, wagi dokumentu htmlGzipBytes 912 B i headRawBytes 765 B",
+      "owner": "P2.4, P2.6 (pomiar przed scaleniem), P2.1"
+    },
+    {
+      "topic": "NOWE: efekt okna TTI po usunięciu gtag (TTI_sim mobile ok. 5,5 s)",
+      "owner": "fala 2 (pilnowanie)",
+      "note": "nowe długie zadanie po ok. 5,5 s sym. wciągnie K14/K15 z powrotem do okna"
+    },
+    {
+      "topic": "NOWE: plastry K14 po commicie przeniesione z K12 przez P1.2",
+      "owner": "P2.2",
+      "note": "cel „K12” jest dziś rozłożony na K12 + wczesne K14"
+    },
+    {
+      "topic": "NOWE: Kmod (ewaluacja leniwych modułów) i K- (kompozytor przed bootem w C3) bez właściciela",
+      "owner": "do przypisania (propozycje P5.1/P5.2, P3.1, P2.4 g)"
+    },
+    {
+      "topic": "NOWE: obserwowane FCP +40 ms mobile / +71 ms desktop (łącznie obu serii desktop +72 ms, 95 % CI +1…+143 ms)",
+      "owner": "P2.1 (wyzwalacz z obserwowanego LCP)"
+    },
+    {
+      "topic": "NOWE: reżim refetchu postów klienta (8 dodatkowych GET /rest/v1/posts)",
+      "owner": "P0.1 (harness)",
+      "note": "niewykrywany i niebalansowany źródłowy szum"
+    },
+    {
+      "topic": "NOWE: nakładki NewsletterPopup/PopupHost nadal w oknie (1,9–2,8 s w 10/10 B)",
+      "owner": "P1.3 TP-4 celowo bez zmian; decyzja orkiestratora"
+    },
+    {
+      "topic": "NOWE: realne PSI i RUM",
+      "owner": "człowiek",
+      "note": "JSON-y PSI z D13, linia bazowa page_view (kryterium wycofania P1.1)"
+    },
+    {
+      "topic": "NOWE: forma desktop x5 i runner check:bundle niezmierzone",
+      "owner": "orkiestrator / P6.1"
+    }
+  ],
+  "environment": {
+    "devNullIncident": {
+      "since": "2026-10-05T10:36Z",
+      "state": "/dev/null jest dowiązaniem symbolicznym do $G/lh-c3/summary.json; każdy start powłoki nadpisuje plik (48 B tekstu błędu powłoki)",
+      "impact": "lh-c3/summary.json stracony; procesy piszące do /dev/null lub czytające z niego działają w zmienionym środowisku; serie lh-ab (koniec 09:50) i lh-c3 (koniec 10:03) powstały wcześniej",
+      "fix": "decyzja człowieka, jako root: rm /dev/null && mknod -m 666 /dev/null c 1 3"
+    }
+  },
+  "correctionsApplied": [
+    "(a) całość: „zaliczone” → „częściowo” (K13 10/10 B, K9b1 i K10 ≥ 50 ms sym. 10/10 B)",
+    "MDE A/A n = 5: 167,9 / 600,1 ms (MDE(t)); 125,4 / 448,2 ms to próg istotności",
+    "(a) desktop4x: |Δ| poniżej MDE(t) serii (946,2 ms), powyżej MDE(z) (712,8 ms) i MDE A/A",
+    "(b): dosłownie niespełnione po stronie poprawy; jeden werdykt „zaliczone co do intencji” zamiast „zaliczone” (metryki) i „niejednoznaczne” (C3)",
+    "(c) wariant 3 tylko na medianach (p 0,063)",
+    "(d): przesunięcie powłoki także na desktopie (lh-c3 B-desktop4x-5), razem 3/20 B; flaga had_recent_input = true to artefakt emulacji viewportu (Lighthouse liczy zdarzenia do 500 ms po zdarzeniu viewport), więc w terenie przesunięcie liczyłoby się, gdy wystąpi",
+    "DoD TBT bez P1.1: wskaźnik bez okna mobile −35,6 %, desktop4x −22,9 % zamiast −57,1 % / −33,0 %",
+    "prognoza PSI: rozrzut przebiegów 58,5–67,5 / 70,7–85,6",
+    "alternatywa score.py ≥ 87 przeliczona przez k",
+    "whatif/w2proj-summary.txt: wiersze desktop4x mnożone przez 0,72 zamiast 0,42 (tu poprawione)",
+    "check:bundle: czerwone na main i gorsze na W1 o 6781 B; cacheBusting to zmiana nazwy liveBlogs (netto −44 B), entry +213 B",
+    "wyciek modułu serwerowego na W0: heroImage.ts (nie aboveFold.tsx)",
+    "zakres: werdykty dotyczą 45eb5747c, nie scalonej głowy 61b6e7f43"
+  ]
+}

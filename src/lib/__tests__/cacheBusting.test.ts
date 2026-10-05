@@ -21,7 +21,7 @@
 // w środowisku jsdom; jej rolę opisuje komentarz w kodzie.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { startCacheBusting, type SoftRefreshable } from "../cacheBusting";
+import { handleChunkLoadFailure, startCacheBusting, type SoftRefreshable } from "../cacheBusting";
 
 /** Router w kształcie, którego ten moduł faktycznie używa - bez rzutowań. */
 function fakeRouter() {
@@ -175,6 +175,28 @@ describe("chunk-load error -> twardy reload", () => {
     stop = startCacheBusting(fakeRouter());
     window.dispatchEvent(new ErrorEvent("error", { error: new Error("ChunkLoadError") }));
     expect(reloadedTo()).toHaveLength(1);
+  });
+});
+
+// P1.3 (TP-4): korzeń buforuje błędy sprzed importu modułu w punkcie ciszy
+// i oddaje je tu - ta sama reguła co nasłuch `startCacheBusting`.
+describe("błąd sprzed startu modułu (`handleChunkLoadFailure`)", () => {
+  it("chunk-load error -> jeden twardy reload z `_v`, inny błąd - nic", () => {
+    handleChunkLoadFailure(new Error("Something else"));
+    expect(reloadedTo()).toHaveLength(0);
+    handleChunkLoadFailure(new TypeError("Failed to fetch dynamically imported module: /x.js"));
+    expect(reloadedTo()).toHaveLength(1);
+    expect(new URL(reloadedTo()[0]).searchParams.get("_v")).toBeTruthy();
+  });
+
+  it("bez `window` (render serwera) jest no-opem", () => {
+    vi.stubGlobal("window", undefined);
+    try {
+      expect(() => handleChunkLoadFailure(new Error("ChunkLoadError"))).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(reloadedTo()).toHaveLength(0);
   });
 });
 

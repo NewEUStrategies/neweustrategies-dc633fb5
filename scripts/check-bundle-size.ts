@@ -1802,6 +1802,137 @@ const CLIENT_DIR =
 //   * duplikat zip między procesem a `vendor-jszip`: nie istnieje - proces to
 //     osobny build Rollupa, a jszip ciągnie mammoth (podgląd .docx/.pptx).
 
+// 2026-10-05 XXIII  FALA 1 PROGRAMU PSI 85/95 (P1.0b, P1.1, P1.2, P1.3, P1.4,
+//             P1.6, P1.7). ŻADEN PRÓG NIE RUSZONY. OVERALL zostaje czerwony
+//             i ten wpis zapisuje, o ile i dlaczego fala go pogorszyła.
+//
+// POMIAR OBU STRON (ten sam host, ten sam `node_modules`,
+// `BUNDLE_INVENTORY=1 bun run build:smoke`; ten plik i baseline bajt w bajt
+// te same po obu stronach):
+//                    W0 main ff719b9a6  W1 45eb5747c   różnica   próg
+//   overall                 4784,6          4791,2       +6,6    4772 (oba ✗)
+//   public                  2731,3          2842,3     +111,0    2877
+//   admin-only              2053,3          1948,9     -104,4       -
+//   chunk (entry)            254,3           254,5       +0,2     286
+//   CSS / public CSS    95,1 / 80,9     95,3 / 81,1  +0,2 / +0,2 96 / 83
+//   boot gz / raw     476,9 / 1568,9  477,1 / 1570,3 +0,2 / +1,4  579
+// Przekroczenie OVERALL rośnie z 12,6 do 19,2 KB. Runnera nie mierzyłem; żaden
+// ruch fali nie dotyka `xlsx` (wiadro `spreadsheet.worker` co do bajta to
+// samo), więc delta host-do-hosta przenosi się 1:1 (wpis XX). Pomiar dotyczy
+// 45eb5747c; późniejsze scalenie maina do gałęzi fali (61b6e7f43, PR #475)
+// nie było mierzone tą bramką.
+//
+// SKĄD +6,6 KB (6781 B gzip liczone tą bramką, per wiadro, suma do bajta):
+//   +3633  `gtagLoadPolicy-*` (NOWY, leniwy): polityka gtag P1.1 RAZEM
+//          z prymitywami P0.3 (`whenQuiescent`, `postInteractionQueue`,
+//          `firstInteraction`), które do tej fali nie miały konsumenta
+//          w kliencie. Korzysta z nich też P1.3 (partner `consentInitScript`
+//          importuje ten chunk statycznie), więc płacimy raz. Raporty pozycji
+//          liczyły je dwa razy: P1.1 jako `gtagLoadPolicy` (3405 B gzip -9),
+//          P1.3 jako `whenQuiescent` (3376 B).
+//   +1140  `consentInitScript-*` (NOWY, leniwy), partner skryptu zgód (P1.3).
+//   +1070  `ConsentBanner-*`: wspólna karta `ConsentShell` powłoki i banera
+//          (P1.3).
+//     +62  P1.3 drobne: `NewsletterPopup` +88, `useInFeedAds` +18,
+//          `cacheBusting`/`liveBlogs` -44 (bufor `armCacheBusting`; moduł
+//          zmienił tylko chunk-gospodarza, to nie jest nowy chunk 1,5 KB).
+//    +624  P1.4 w chunkach leniwych: `sliderVariants` +470 (wraca do niego
+//          `sliderSizes` z entry), `_`, `WidgetView`, `PostListView`,
+//          `ContentRenderer`, `PostsSliderWidget`, chunk trasy `/`.
+//    +213  chunk wejściowy, czyli CAŁY przyrost bootu (chunki `vendor-*`
+//          mają te same hashe po obu stronach) - rozkład niżej.
+//     +39  przetasowanie `experimentalMinChunkSize` i kaskada hashy
+//          w pozostałych wiadrach (w tym `window` +65, patrz PUBLIC).
+// P1.0b i P1.6 nie wnoszą nic: ich moduły nie występują w inwentarzu klienta.
+// PR #473 z maina (`invitations.functions.ts`) zostawia stub klienta tej samej
+// długości.
+//
+// PUBLIC +111,0 KB TO W 104,4 KB KSIĘGOWOŚĆ, NIE BAJTY. Pliki `icons-0..3`
+// (105 779 B gzip = 103,3 KB) mają po obu stronach TE SAME hashe. Zmienił się
+// tylko chunk, który je importuje. Leniwy loader ikon (`lazyNamedIcon.ts`,
+// `iconChunkIndex.js`, `DynamicIconChunk.tsx`, ~1,9 kB przed minifikacją) jest
+// mniejszy niż `experimentalMinChunkSize: 2048`, więc Rollup dokleja go do
+// cudzego chunku. Na W0 trafił do `admin.settings-*`, który `isAdminRoot`
+// uznaje po nazwie za korzeń /admin, więc ikony liczyły się jako admin-only.
+// Na W1 trafił do `newsletter.confirm-*` (trasa publiczna). Ikony pobiera
+// PUBLICZNY `DynamicIcon` z entry (`lazy(() => import("./DynamicIconChunk"))`,
+// używany w `MegaPanelView`, `NotificationsBell`, `EventMenuTiles`,
+// `KeyTakeaways`). Zaniżona przez przypadek sklejenia była więc liczba W0.
+// Ruch pojawił się w P1.4, runda 9: `heroImage.ts` i `sliderSizes.ts` wyszły
+// z entry i przestawiły decyzje sklejania. P1.1 i P1.7, mierzone na bazie bez
+// P1.4, go nie mają. Ten sam mechanizm przerzucił z admin-only do PUBLIC
+// `window-*` (1,1 KB: `semantic/window.ts` i `FormSelect` zamiast
+// `AdminMetricTile`; importują go teraz `NewsletterForm`, `zatrudniamy`,
+// `club.apply`). Bez obu przeklasyfikowań (106 902 B) PUBLIC rośnie o 6,6 KB,
+// tyle co OVERALL; admin-only poza nimi -67 B.
+// Do naprawy zostaje efekt uboczny: żeby narysować ikonę, publiczny
+// `DynamicIcon` dociąga przez `React.lazy` chunk CUDZEJ trasy (na W0
+// `admin.settings-*`, 1,3 KB; na W1 `newsletter.confirm-*`, 1,4 KB).
+//
+// CHUNK WEJŚCIOWY +213 B gzip / +1347 B raw. Rozkład z inwentarza (długość
+// renderowana PRZED minifikacją, więc tylko proporcje, bo gzip się nie sumuje):
+//   P1.3  +5661  `__root.tsx` +4307 (gniazdo powłoki, sklejka przejęcia,
+//                bufor `armCacheBusting`), `ads/consent.ts` +1354;
+//   P1.7  +4222  `sessionHint.ts` +1440 (NOWY), `useAuth.tsx` +1343,
+//                `i18n.ts` +872, `router.tsx` +518, `supabase/client.ts` +49;
+//   P1.4  -5366  `heroImage.ts` -5347 (już tylko na serwerze),
+//                `sliderSizes.ts` -1615 (do `sliderVariants`), `aboveFold.tsx`
+//                +1123, `BuilderRenderer.tsx` +548, reszta -75; do tego
+//                `logoAlt.ts` +199 (heurystyka logo dopięta po scaleniu);
+//   P1.1  -3290  `gtagLoadPolicy.ts` -3898 (do chunku leniwego),
+//                `ConsentScriptInjector.tsx` +421, `ga4Client.ts` +187;
+//   P1.2   +234  `Header.tsx` +528, `StyleSink.tsx` +209 (NOWY), pięć
+//                komponentów stylu korzenia -503;
+//   przetasowanie +462 (weszły m.in. `UnreadBadge`, `eventInvoiceEnums`,
+//                `seatingJson`; wyszły `eventVideoHeader`, loader `sitemap`,
+//                `logFilters`), ścieżki hashy i literały tras +117.
+// Ruch `index` w raporcie ruchów (-17,9 -> -16,6, czyli +1,3 KB) to NIE entry.
+// Wiadro sumuje wszystkie pliki `index-*`, a 1,15 KB z tego to NOWY mały chunk
+// `index-*` z przetasowania (`search/fuzzy.ts`, `HomeErrorNotice`,
+// `errorComponent` trasy `/`).
+//
+// CSS +244 B gzip (+234 B raw), w całości `styles-*.css`. Składa się z klas
+// karty zgód P1.3 (`--cba`/`--cbb`/`--cbm`/`--cbt` zamiast arbitralnych
+// `var(--cb-accent,...)`, wariant `html:not([data-consent-js])`) i reguł P1.2
+// (statyczny szkielet sekcji strumieniowanej, `--sticky-header-h: 123px`, bez
+// fade'u `.oi-fade-in`). Podziału gzipu na pozycje nie mierzyłem; raporty
+// pozycji: P1.2 +18 B, P1.3 ok. +0,2 KB. ZAPAS CSS: 0,68 KB (0,71%).
+//
+// DLACZEGO BEZ ZMIANY PROGU. OVERALL był czerwony na W0 (12,6 KB ponad) bez
+// udziału fali. Przyrost fali leży poza ścieżką bootu (boot +0,2 KB), a 3,6 KB
+// z niego to prymitywy P0.3 z polityką gtag, czyli koszt pierwszego konsumenta
+// infrastruktury fali 0, a nie nowa powierzchnia produktu. Plan programu (D10)
+// zakłada, że plan nie pogarsza OVERALL. Fala 1 tego NIE spełnia (+6,6 KB),
+// a ten wpis to zapisuje zamiast ukrywać: podniesienie progu o 19,2 KB
+// schowałoby w jednej liczbie dryf maina i koszt fali. Próg OVERALL ustali
+// P6.1 z pierwszego zielonego logu runnera (wpis V). Suma raportów pozycji
+// (+11,1 KB, każda wobec własnej bazy) jest wyższa od pomiaru, bo prymitywy
+// P0.3 liczyły się w P1.1 i w P1.3, a szum sklejania się nie sumuje.
+//
+// DLA FALI 2 (P2.1, właściciel `vite.config.ts` i `vite.smoke.config.ts`):
+//   1. PRZYPNIJ LOADER IKON. W `manualChunks` OBU presetów, obok reguły
+//      `vendor-sonner` (ta sama klasa problemu), zwróć stałą nazwę (np.
+//      `icons-lazy`) dla `src/lib/icons/lazyNamedIcon.ts`,
+//      `DynamicIconChunk.tsx` i `iconChunkIndex.js`. Ikony 0..3 zostają wtedy
+//      w PUBLIC na stałe (tam, gdzie są pobierane), znika skok ±103 KB między
+//      buildami, a publiczny `DynamicIcon` przestaje dociągać chunk cudzej
+//      trasy.
+//   2. ZMIERZ TO OSOBNYM COMMITEM, przed zmianą manifestu i zestawu bootu
+//      (bramka P2.1 to „graf chunków nietknięty", a te zmiany i tak przestawią
+//      sklejanie): A/B `check:bundle` W1 z przypięciem i bez, inwentarz
+//      z dokładnością do modułu. Nazwany chunk kodu aplikacji już raz
+//      PRZYCIĄGNĄŁ cudze moduły (notka 2026-07-25 przy `ADMIN_ROOT`: 19 -> 37
+//      KB i statyczne importy z tras publicznych), więc `icons-lazy` ma
+//      zawierać dokładnie te trzy moduły. Do tego `check:chunks`,
+//      `check:entry-purity` i test `viteChunkParity`.
+//   3. Ruchy fali 2 raportuj per moduł (inwentarz), nie tylko sumą. Sklejanie
+//      daje do ±4,5 KB OVERALL przy różnicy jednego modułu (P1.4, IMPL-fix9),
+//      a w tej bramce pozostałe wiadra złożyły się na +39 B.
+//   4. Zapas CSS wynosi 0,68 KB, a nie ~3 KB, jak zakłada bramka P2.4. P2.4
+//      i P2.6 (statyczne style -> klasy) mają go zmierzyć przed scaleniem.
+//   P9.1 (C10: `experimentalMinChunkSize` 2048 -> 1) usuwa przyczynę ogólnie;
+//   przypięcie z pkt 1 nie koliduje z tą zmianą.
+
 const FROZEN_BUDGET_KB = {
   // Największy pojedynczy chunk gzip. Zmierzone 2026-08-18: 266,8 (EChartClient,
   // admin-only) - entry po cięciu ścieżki bootowania ma 253,2. Ratchet

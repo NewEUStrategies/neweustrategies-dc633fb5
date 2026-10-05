@@ -343,6 +343,28 @@ describe("eksporty rdzenia (`@/lib/locale/*`) nie są mutowane przez nakładki",
     expect(i18n.t("common.retry")).toBe("Try again");
     expect(en).toEqual(pristine);
   });
+
+  it("forma ścieżkowa i18next (2 i 3 segmenty): scalenie trafia do store, eksport `pl` nietknięty", async () => {
+    const { default: i18n } = await loadI18n({ lang: "pl" });
+    const { pl } = await import("@/lib/locale/pl");
+    const pristine = structuredClone(pl);
+
+    // Forma ścieżkowa: (ścieżka, zasoby, deep) - i18next nie przesuwa `overwrite`,
+    // więc nakładka tu tylko dokłada klucze. Typy i18next jej nie opisują.
+    const addByPath = i18n.addResourceBundle.bind(i18n) as unknown as (
+      path: string,
+      resources: object,
+      deep: boolean,
+    ) => void;
+    addByPath("pl.translation", { auth: { pathOnly: "Ścieżka" } }, true);
+    // 3 segmenty: i18next scala WEWNĄTRZ `common`, nie na najwyższym poziomie.
+    addByPath("pl.translation.common", { pathNested: "Głębiej" }, true);
+
+    expect(i18n.t("auth.pathOnly")).toBe("Ścieżka");
+    expect(i18n.t("common.pathNested")).toBe("Głębiej");
+    expect(i18n.t("common.retry")).toBe("Spróbuj ponownie");
+    expect(pl).toEqual(pristine);
+  });
 });
 
 describe("syncI18nToRequest / getRenderI18n na kliencie", () => {

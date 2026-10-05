@@ -9,12 +9,11 @@
 // przepisuje gotowy blok z HTML-a i dociąga generator przez `import()` tylko
 // przy zmianie wiersza - patrz `useDeferredStyleCss` (audyt PSI 2026-10-02).
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { createIsomorphicFn } from "@tanstack/react-start";
-import { hardenStyleCss } from "@/lib/sanitizePure";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { FONT_SIZES_KEY } from "@/lib/theme/fontSizesKey";
 import { useDeferredStyleCss, type StyleGenerator } from "./useDeferredStyleCss";
+import { StyleSink } from "./StyleSink";
 import { themeFontSizesStyleCss as serverThemeFontSizesStyleCss } from "./css/themeFontSizesCss";
 
 const MARKER = "data-theme-font-sizes";
@@ -39,15 +38,6 @@ export function ThemeFontSizesStyle() {
     serverGenerate,
     loadGenerate,
   });
-  // `hardenStyleCss` jest idempotentne: na migawce z SSR (już utwardzonej
-  // przez generator) to no-op, więc HTML serwera i klienta pozostają
-  // identyczne - a bramka `check:dangerous-html` ma dowód w TYM pliku.
-  const html = useMemo(() => hardenStyleCss(css), [css]);
-  return (
-    <style
-      data-theme-font-sizes
-      data-css-hash={hash || undefined}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
+  // Utwardzenie i memo po surowym napisie: `StyleSink` (P1.2).
+  return <StyleSink data-theme-font-sizes data-css-hash={hash || undefined} css={css} />;
 }

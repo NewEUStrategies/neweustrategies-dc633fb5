@@ -204,6 +204,23 @@ export function setMarketingConsent(value: boolean | null): void {
   if (value !== false) pump();
 }
 
+/**
+ * Zgłoszenie stanu powierzchni zgód w JEDNEJ, bezpiecznej kolejności: przy
+ * widocznej powierzchni brama zamyka się PRZED publikacją zgody, przy
+ * niewidocznej zgoda jest publikowana PRZED otwarciem bramy - żadne `pump()`
+ * nie przydzieli slotu na podstawie STAREJ zgody. Woła to interaktywny baner
+ * (efekt po każdej zmianie) i - od hydratacji do montażu banera - korzeń
+ * w imieniu powłoki SSR (P1.3, `__root.tsx`): powłoka jest widoczna od
+ * pierwszego malowania, więc koordynator musi o niej wiedzieć od razu, a nie
+ * dopiero po montażu banera po pierwszej interakcji. `visible` = brak decyzji
+ * (ten sam warunek co `consentSurfaceVisible` banera przy montażu).
+ */
+export function reportConsentSurface(visible: boolean, marketing: boolean | null): void {
+  if (visible) setConsentOverlayVisible(true);
+  setMarketingConsent(marketing);
+  if (!visible) setConsentOverlayVisible(false);
+}
+
 export type OverlaySlotOptions = {
   /** Higher wins when several requests wait. Default 0. */
   priority?: number;

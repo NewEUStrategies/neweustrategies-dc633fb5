@@ -46,11 +46,13 @@ vi.mock("@/components/content/ContentRenderer", () => ({
     postId: string;
     html: string;
     blocksDoc: { meta?: Record<string, unknown> } | null;
+    lcpOwner?: boolean;
   }) => (
     <div
       data-testid={`content-${props.postId}`}
       data-html={props.html}
       data-blocks-doc={String(props.blocksDoc?.meta?.tag ?? "")}
+      data-lcp-owner={String(props.lcpOwner ?? true)}
     />
   ),
 }));
@@ -612,6 +614,12 @@ describe("AutoLoadNextPost - treść doładowanego wpisu", () => {
     await loadNext({ ...N2, content_pl: null, content_en: null });
     expect(screen.getByTestId("content-n1")).toHaveAttribute("data-html", "<p>Body</p>");
     expect(screen.getByTestId("content-n2")).toHaveAttribute("data-html", "");
+  });
+
+  it("doładowany wpis NIE jest właścicielem kandydata LCP (P1.4: jeden znacznik na stronę)", async () => {
+    mount();
+    await loadNext(N1);
+    expect(screen.getByTestId("content-n1")).toHaveAttribute("data-lcp-owner", "false");
   });
 
   it("okładka doładowanego wpisu ma tytuł jako tekst alternatywny", async () => {

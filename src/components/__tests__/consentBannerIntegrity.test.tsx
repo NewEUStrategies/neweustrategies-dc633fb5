@@ -78,6 +78,7 @@ vi.mock("@/components/ThemeProvider", () => ({ useTheme: () => ({ theme: "light"
 vi.mock("@/lib/overlayCoordinator", () => ({
   setConsentOverlayVisible: vi.fn(),
   setMarketingConsent: vi.fn(),
+  reportConsentSurface: vi.fn(),
 }));
 
 import i18n from "@/lib/i18n";

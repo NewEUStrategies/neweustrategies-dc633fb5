@@ -402,6 +402,7 @@ interface WynikLoadera {
   kind?: unknown;
   degraded?: unknown;
   coverPreload?: { href?: unknown; imageSrcSet?: unknown; imageSizes?: unknown } | null;
+  heroPreloads?: Array<{ href?: unknown; imageSrcSet?: unknown; imageSizes?: unknown }>;
 }
 
 /**
@@ -931,10 +932,75 @@ describe("loader trasy `/$` - preload okładki wpisu", () => {
       parentPageId: "page-1",
       access: null,
     });
-    // Ta sama kolumna `cover_image_url` jest wypełniona, a preloadu NIE MA:
-    // dla stron pierwszy malowany obraz wyznacza `builderHeroPreload`
-    // z dokumentu buildera (tu pustego), nie okładka wiersza.
+    // Ta sama kolumna `cover_image_url` jest wypełniona, a preloadu okładki NIE
+    // MA: obraz LCP strony wyznacza kandydat dokumentu buildera
+    // (`builderContentHeroPreloads` -> `heroPreloads`, emitowane przez
+    // `preload()` w komponencie trasy), nie okładka wiersza. Tu dokumentu brak.
     expect(jakoWynik(wynik).coverPreload).toBeNull();
+    expect(jakoWynik(wynik).heroPreloads).toEqual([]);
+  });
+
+  /** Dokument z jednym obrazem w sekcji 0 - kandydat LCP strony (P1.4). */
+  const HERO_URL = "https://media.example.com/storage/v1/object/public/media/hero.jpg";
+  const dokumentZHero = {
+    version: 1,
+    sections: [
+      {
+        id: "s-hero",
+        kind: "section",
+        children: [
+          {
+            id: "c-hero",
+            kind: "column",
+            span: { desktop: 12 },
+            children: [
+              {
+                id: "w-hero",
+                kind: "widget",
+                type: "image",
+                content: { src: HERO_URL, alt_pl: "Hero" },
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  const naglowkiObrazu = () => h.linkHeaders.filter((v) => v.includes('as="image"'));
+
+  it("STRONA z obrazem w sekcji 0 (silnik buildera): jeden deskryptor kandydata i nagłówek `Link` z imagesizes", async () => {
+    const { wynik } = await runLoader("o-nas", {
+      ...stronaZDokumentem(dokumentZHero),
+      item: postItem({ editor: "builder", builder_data: dokumentZHero, cover_image_url: null }),
+    });
+    const { heroPreloads, coverPreload } = jakoWynik(wynik);
+    expect(coverPreload).toBeNull();
+    expect(heroPreloads).toHaveLength(1);
+    expect(heroPreloads?.[0]?.href).toBe(HERO_URL);
+    expect(String(heroPreloads?.[0]?.imageSrcSet)).toContain("/storage/v1/render/image/public/");
+    // Nagłówek `Link` (103 Early Hints) karmiony TYM SAMYM kandydatem.
+    const [naglowek, ...reszta] = naglowkiObrazu();
+    expect(reszta).toEqual([]);
+    expect(naglowek).toContain(HERO_URL);
+    expect(naglowek).toContain(`imagesizes="${String(heroPreloads?.[0]?.imageSizes)}"`);
+  });
+
+  it("STRONA w edytorze html z pozostałym builder_data: bez kandydata i bez nagłówka obrazu", async () => {
+    // `ContentRenderer` maluje wtedy HTML (`resolveContentEngine`), więc preload
+    // obrazu z nieużywanego dokumentu buildera byłby pobraniem z High czegoś,
+    // czego nikt nie zobaczy.
+    const { wynik } = await runLoader("o-nas", {
+      ...stronaZDokumentem(dokumentZHero),
+      item: postItem({ editor: "richtext", builder_data: dokumentZHero, cover_image_url: null }),
+    });
+    expect(jakoWynik(wynik).heroPreloads).toEqual([]);
+    expect(naglowkiObrazu()).toEqual([]);
+  });
+
+  it("WPIS nie liczy kandydatów buildera - jego obrazem LCP jest okładka z `head()`", async () => {
+    const { wynik } = await runLoader("analizy/atom", resolvedPost());
+    expect(jakoWynik(wynik).heroPreloads).toEqual([]);
+    expect(jakoWynik(wynik).coverPreload?.href).toBe(COVER_URL);
   });
 });
 

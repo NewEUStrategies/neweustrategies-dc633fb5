@@ -10,10 +10,19 @@
 // bo atrapa zawsze grzecznie odpowiada.
 //
 // Dlatego ten plik montuje PRAWDZIWY `AuthProvider` i podstawia wyłącznie
-// granicę sieci (klient Supabase). Dowodzi dwóch rzeczy naraz:
-//   1. martwy backend -> CTA logowania w OGRANICZONYM czasie;
+// granicę sieci (klient Supabase). Dowodzi czterech rzeczy:
+//   1. martwy backend -> CTA logowania w OGRANICZONYM czasie (gość od startu:
+//      w pierwszym przebiegu efektów, bez dotknięcia klienta Supabase - P1.7);
 //   2. sesja w `localStorage` + błąd sieci -> NIE wylogowuje (token zostaje,
-//      `signOut()` nie idzie) - bo „nie wiemy" to nie to samo, co „brak sesji".
+//      `signOut()` nie idzie) - bo „nie wiemy" to nie to samo, co „brak sesji";
+//   3. logowanie w tej karcie (formularz tworzy klienta) odsłania treść, choć
+//      gość od startu nie podpinał nasłuchu sam;
+//   4. powrót z linku magicznego: spinner (SDK wymienia tokeny z adresu), nie
+//      CTA logowania, a potem treść.
+//
+// Atrapa klienta zachowuje się jak `client.ts`: pierwszy dostęp zgłasza
+// utworzenie klienta do prawdziwego rejestru (`sessionHint.ts`). Każdy
+// przypadek startuje BEZ klienta.
 //
 // Zaatrapowane, i nic ponadto: `@tanstack/react-router` (goły render
 // `FriendlyErrorPage` nie ma kontekstu routera - ten sam powód i ten sam
@@ -25,6 +34,7 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const h = vi.hoisted(() => ({
+  touches: 0,
   authCb: null as null | ((event: string, session: unknown) => void),
   /** Obietnica `getSession()`. Domyślnie wisi - czyli backend nie odpowiada. */
   getSessionPromise: null as Promise<{ data: { session: unknown } }> | null,
@@ -33,8 +43,9 @@ const h = vi.hoisted(() => ({
   profileRow: null as { tenant_id: string } | null,
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
+vi.mock("@/integrations/supabase/client", async () => {
+  const { markSupabaseClientCreated } = await import("@/integrations/supabase/sessionHint");
+  const client = {
     rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
     auth: {
       onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
@@ -54,8 +65,17 @@ vi.mock("@/integrations/supabase/client", () => ({
         }),
       };
     },
-  },
-}));
+  };
+  return {
+    supabase: new Proxy(client, {
+      get(target, prop, receiver) {
+        h.touches += 1;
+        markSupabaseClientCreated();
+        return Reflect.get(target, prop, receiver);
+      },
+    }),
+  };
+});
 
 vi.mock("@/lib/personalization/anonMerge", () => ({
   hasAnonPersonalization: () => false,
@@ -88,6 +108,10 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
 
 import { AuthGate } from "../AuthGate";
 import { AuthProvider, SESSION_SETTLE_TIMEOUT_MS } from "@/hooks/useAuth";
+import {
+  __resetSupabaseClientRegistryForTests,
+  markSupabaseClientCreated,
+} from "@/integrations/supabase/sessionHint";
 
 /** Klucz, pod którym klient Supabase trzyma sesję dla `placeholder.supabase.co`. */
 const STORED_SESSION_KEY = "sb-placeholder-auth-token";
@@ -110,6 +134,8 @@ const loginLink = () => document.querySelector('a[href*="/login"]');
 const spinner = () => document.querySelector('[aria-label="loading"]');
 
 beforeEach(() => {
+  h.touches = 0;
+  __resetSupabaseClientRegistryForTests();
   h.authCb = null;
   h.getSessionPromise = null;
   h.signOutMock.mockClear();
@@ -121,6 +147,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  window.history.replaceState(null, "", "/");
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -131,9 +158,12 @@ describe("AuthGate przy niedostępnym backendzie", () => {
     // znana od razu: sesja Supabase mieszka w `localStorage`, więc pusty
     // magazyn to pewne „to gość".
     renderGate();
-    await waitFor(() => expect(loginLink()).not.toBeNull());
+    // Gość od startu: CTA zaraz po pierwszym przebiegu efektów (render w `act`
+    // go opróżnia), bez czekania na klienta Supabase.
+    expect(loginLink()).not.toBeNull();
     expect(spinner()).toBeNull();
     expect(screen.queryByText("treść dla zalogowanych")).toBeNull();
+    expect(h.touches).toBe(0);
   });
 
   it("sesja w magazynie + wiszący getSession: spinner tylko do terminu, potem CTA", async () => {
@@ -159,12 +189,35 @@ describe("AuthGate przy niedostępnym backendzie", () => {
     expect(h.signOutMock).not.toHaveBeenCalled();
   });
 
-  it("sesja dostarczona przez listener odsłania treść, nawet gdy getSession wisi", async () => {
+  it("logowanie w tej karcie: formularz tworzy klienta, nasłuch odsłania treść, nawet gdy getSession wisi", async () => {
     renderGate();
-    await waitFor(() => expect(loginLink()).not.toBeNull());
+    expect(loginLink()).not.toBeNull();
+    expect(h.authCb).toBeNull();
 
+    // Formularz logowania dotyka `supabase` - klient powstaje, nasłuch się podpina.
+    act(() => markSupabaseClientCreated());
     await act(async () => {
       h.authCb!("SIGNED_IN", { user: { id: "u-1" }, access_token: "tok" });
+    });
+
+    await waitFor(() => expect(screen.getByText("treść dla zalogowanych")).toBeInTheDocument());
+    expect(loginLink()).toBeNull();
+  });
+
+  it("powrót z linku magicznego: spinner zamiast CTA, dopóki SDK nie odda sesji", async () => {
+    window.history.replaceState(null, "", "/profile#access_token=a&refresh_token=r&type=magiclink");
+    let answer!: (value: { data: { session: unknown } }) => void;
+    h.getSessionPromise = new Promise((resolve) => {
+      answer = resolve;
+    });
+
+    renderGate();
+    expect(spinner()).not.toBeNull();
+    expect(loginLink()).toBeNull();
+    expect(h.touches).toBeGreaterThan(0);
+
+    await act(async () => {
+      answer({ data: { session: { user: { id: "u-link" }, access_token: "tok" } } });
     });
 
     await waitFor(() => expect(screen.getByText("treść dla zalogowanych")).toBeInTheDocument());

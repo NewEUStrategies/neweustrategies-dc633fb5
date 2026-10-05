@@ -593,9 +593,11 @@ export const FEATURES_3 = [
     // WIERSZ NOWY. Obraz, który widz zobaczy pierwszy: preload LCP dla
     // dokumentów buildera (ich hero żyje w drzewie sekcji, więc kontrakt
     // loader->head() z wpisów ich nie obejmował), podmiana miniatury per wpis
-    // i wybór rozmiaru wariantu.
+    // i wybór rozmiaru wariantu. `lcpCandidate` (P1.4): czysta funkcja
+    // dokumentu wyznaczająca jedynego kandydata LCP strony - z niej renderer
+    // bierze priorytet i znacznik `data-lcp-candidate`, a `heroImage` preload.
     patterns: [
-      /^src\/lib\/builder\/(heroImage|thumbnailOverrides|widgetImageSizes|imageSlot|imageSlotContext)\.tsx?$/,
+      /^src\/lib\/builder\/(heroImage|lcpCandidate|logoAlt|thumbnailOverrides|widgetImageSizes|imageSlot|imageSlotContext)\.tsx?$/,
     ],
   },
   {

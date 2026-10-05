@@ -24,7 +24,10 @@
 //     pomyłka tutaj to albo migający ekran po hydracji, albo przejście
 //     zatrzymane na najwolniejszym zapytaniu spod zgięcia.
 //  6. PODPOWIEDŹ LCP JEST BAJTOWO ZGODNA z malowanym obrazem (ten sam srcSet
-//     i sizes), inaczej przeglądarka pobiera plik dwa razy.
+//     i sizes), inaczej przeglądarka pobiera plik dwa razy. Dla kanwy buildera
+//     (P1.4) preload jest JEDEN i pochodzi z `preload()` react-dom w komponencie
+//     trasy (klucz zasobu wspólny z `<img>` kandydata), a nie z `head()`; kanwa
+//     jest rendererem-właścicielem kandydata (`lcpOwner`).
 //
 // CZEGO ŚWIADOMIE NIE DUBLUJE:
 //  * CZYSTYCH DECYZJI ATOMÓW - `homeContent`/`homeBuilderSource`/
@@ -77,7 +80,42 @@ const h = vi.hoisted(() => ({
   linkHeaders: [] as string[],
   /** Wymuszona awaria RENDERU kanwy - osobna powierzchnia od awarii DANYCH. */
   builderThrows: false,
+  /** Sesja czytelnika (`null` = gość - wartość domyślna kontekstu `useAuth`). */
+  session: null as { user: { id: string } } | null,
+  /** Wywołania `builderHeroPreloads` - moduł tylko-serwerowy (P1.4, recenzja runda 3, m3). */
+  heroPreloadCalls: 0,
 }));
+
+// `heroImage.ts` jest TYLKO SERWEROWY: loader woła go pod `isServerRender()`,
+// więc bundler wycina go z grafu przeglądarki. Licznik dowodzi, że nawigacja
+// SPA (loader na kliencie) go nie wywołuje - sam brak preloadu i nagłówka
+// `Link` by tego nie wykazał, bo hook i nagłówek są bramkowane osobno.
+vi.mock("@/lib/builder/heroImage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/builder/heroImage")>();
+  return {
+    ...actual,
+    builderHeroPreloads: (...args: Parameters<typeof actual.builderHeroPreloads>) => {
+      h.heroPreloadCalls += 1;
+      return actual.builderHeroPreloads(...args);
+    },
+  };
+});
+
+// Sesja czytelnika: domyślnie prawdziwy `useAuth` (gość). Blok kandydata LCP
+// ustawia sesję, żeby dowieść, że preload liczony w loaderze DLA GOŚCIA nie
+// trafia do dokumentu zalogowanego (recenzja P1.4, B1).
+vi.mock("@/hooks/useAuth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useAuth")>();
+  return {
+    ...actual,
+    useAuth: () => {
+      const base = actual.useAuth();
+      return h.session
+        ? { ...base, session: h.session, user: h.session.user, loading: false }
+        : base;
+    },
+  };
+});
 
 vi.mock("react-i18next", async () =>
   (await import("@/test/i18nStub")).reactI18nextStub(() => h.lang),
@@ -156,9 +194,24 @@ vi.mock("@/lib/builder/prefetch", async (importOriginal) => ({
 }));
 
 vi.mock("@/components/builder/organisms/BuilderRenderer", () => ({
-  BuilderRenderer: ({ lang, stream }: { lang: string; stream?: boolean }) => {
+  BuilderRenderer: ({
+    lang,
+    stream,
+    lcpOwner,
+  }: {
+    lang: string;
+    stream?: boolean;
+    lcpOwner?: boolean;
+  }) => {
     if (h.builderThrows) throw new Error("kanwa nie umiała się wyrenderować");
-    return <div data-testid="kanwa" data-lang={lang} data-stream={stream ? "1" : "0"} />;
+    return (
+      <div
+        data-testid="kanwa"
+        data-lang={lang}
+        data-stream={stream ? "1" : "0"}
+        data-lcp-owner={lcpOwner ? "1" : "0"}
+      />
+    );
   },
 }));
 vi.mock("@/components/ads/FooterSlideup", () => ({ FooterSlideup: () => null }));
@@ -321,6 +374,7 @@ beforeEach(() => {
   h.linkHeaders = [];
   h.builderThrows = false;
   h.renderLang = "pl";
+  h.session = null;
 });
 
 afterEach(() => {
@@ -523,6 +577,178 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
     // Adres kanoniczny spada do postaci RELATYWNEJ - link pozostaje poprawny,
     // choć nie da się z niego zbudować absolutnego `@id` encji.
     expect(linkByRel(view.links(), "canonical")).toBe("/");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KANDYDAT LCP KANWY (P1.4) - PRZEPISANY KONTRAKT PRELOADU, ŚWIADOMIE.
+// Dawniej `head()` dokładał `<link rel=preload>` z `builderHeroPreload`
+// (pierwszy preloadowalny widget w DOM - na `/` karta listy 25vw), a React
+// drugi z `<img>` hero: dwa preloady, w tym jeden złego kandydata. Teraz obraz
+// kandydata (`lcpCandidates`) idzie przez `preload()` z react-dom w komponencie
+// trasy - jedyny preload tego obrazu - a nagłówek `Link` dalej z loadera.
+// Preloady kandydatów liczy WYŁĄCZNIE serwer (`isServer`; runda 9 - kod
+// `heroImage.ts`/`lcpCandidate.ts` poza bundlem klienta), więc blok działa na
+// ścieżce serwerowej (`h.server`); nawigację SPA sprawdza osobny test.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
+  /** Unikalny plik na test: `preload()` react-dom deduplikuje klucz na całą stronę. */
+  const hero = (name: string) =>
+    `https://przyklad.supabase.co/storage/v1/object/public/media/${name}.jpg`;
+
+  function heroDoc(src: string, extraSections: unknown[] = []): unknown {
+    return {
+      version: 1,
+      sections: [
+        ...extraSections,
+        {
+          id: "s-hero",
+          kind: "section",
+          children: [
+            {
+              id: "c-hero",
+              kind: "column",
+              span: { desktop: 12 },
+              children: [
+                { id: "w-hero", kind: "widget", type: "image", content: { src, alt_pl: "Hero" } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  const preloadInHead = (file: string) =>
+    document.head.querySelector<HTMLLinkElement>(
+      `link[rel="preload"][as="image"][imagesrcset*="${file}"]`,
+    );
+
+  beforeEach(() => {
+    h.homeMode = "static_page";
+    h.server = true;
+    h.heroPreloadCalls = 0;
+  });
+
+  it("kanwa jest rendererem-WŁAŚCICIELEM kandydata LCP strony", async () => {
+    h.homePage = homePageData();
+    await mountHome();
+    expect(screen.getByTestId("kanwa")).toHaveAttribute("data-lcp-owner", "1");
+  });
+
+  it("obraz kandydata: brak linku w `head()`, jeden `preload()` react-dom i nagłówek `Link`", async () => {
+    const src = hero("kandydat-1");
+    h.homePage = homePageData({ builder_data: heroDoc(src) });
+    const view = await mountHome();
+    // `head()` nie dubluje preloadu - to robił dawny `imagePreloadLink`.
+    expect(imagePreload(view.links())).toBeUndefined();
+    // `preload()` z react-dom: na kliencie wstawia link do <head>, w SSR
+    // trafia do preambuły pod kluczem `<img>` (dowód SSR:
+    // builderRenderer.streaming.test.tsx, „jedno źródło preloadu").
+    const link = preloadInHead("kandydat-1");
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute("fetchpriority")).toBe("high");
+    expect(link?.getAttribute("imagesrcset")).toContain("/storage/v1/render/image/public/");
+    expect(link?.getAttribute("imagesizes")).toBeTruthy();
+    expect(
+      document.head.querySelectorAll('link[as="image"][imagesrcset*="kandydat-1"]'),
+    ).toHaveLength(1);
+    // Nagłówek `Link` (103 Early Hints na brzegu) karmiony TYM SAMYM kandydatem.
+    const header = h.linkHeaders.find((value) => value.includes(src));
+    // Kontrola pozytywna licznika z testu nawigacji SPA niżej.
+    expect(h.heroPreloadCalls).toBeGreaterThan(0);
+    expect(header).toContain('rel="preload"');
+    expect(header).toContain("fetchpriority=high");
+    expect(header).toContain(`imagesizes="${link?.getAttribute("imagesizes")}"`);
+  });
+
+  it("ZALOGOWANY: preload loadera (dla gościa) nie trafia do <head>; nagłówek `Link` bez zmian", async () => {
+    // Loader nie zna sesji - liczy kandydata dla gościa (SSR jest anonimowy).
+    // Zalogowany może widzieć inną sekcję 0, więc hook trasy nie emituje
+    // preloadu; priorytet niesie `<img>` kandydata policzonego z jego kontekstem.
+    const src = hero("kandydat-zalogowany");
+    h.homePage = homePageData({ builder_data: heroDoc(src) });
+    h.session = { user: { id: "u-1" } };
+    await mountHome();
+    expect(preloadInHead("kandydat-zalogowany")).toBeNull();
+    expect(h.linkHeaders.some((value) => value.includes(src))).toBe(true);
+  });
+
+  it("kandydat jednego urządzenia: nagłówek `Link` i preload niosą `media`", async () => {
+    // Desktop: kolumna 8/12; telefon: kolumna 4/12 z order.mobile 1.
+    const big = hero("media-duzy");
+    const small = hero("media-maly");
+    const col = (id: string, src: string, span: number, mobile: number) => ({
+      id: `c-${id}`,
+      kind: "column",
+      span: { desktop: span },
+      order: { mobile },
+      children: [{ id: `w-${id}`, kind: "widget", type: "image", content: { src, alt_pl: id } }],
+    });
+    h.homePage = homePageData({
+      builder_data: {
+        version: 1,
+        sections: [
+          {
+            id: "s-media",
+            kind: "section",
+            children: [col("maly", small, 4, 1), col("duzy", big, 8, 2)],
+          },
+        ],
+      },
+    });
+    await mountHome();
+    expect(h.linkHeaders.find((value) => value.includes(big))).toContain(
+      'media="(min-width: 768px)"',
+    );
+    expect(h.linkHeaders.find((value) => value.includes(small))).toContain(
+      'media="(max-width: 767px)"',
+    );
+    expect(preloadInHead("media-duzy")?.getAttribute("media")).toBe("(min-width: 768px)");
+    expect(preloadInHead("media-maly")?.getAttribute("media")).toBe("(max-width: 767px)");
+  });
+
+  it("nawigacja SPA (loader na kliencie): ani preloadu, ani nagłówka `Link` - liczy tylko serwer", async () => {
+    // Render czysto kliencki nie ma kandydata (lib/builder/aboveFold.tsx), więc
+    // preload byłby priorytetem dla obrazu leniwego; kod preloadu i kandydata
+    // nie trafia do bundla klienta (PROVE P1.4: +1,1 KB gzip chunku wejściowego).
+    h.server = false;
+    const src = hero("kandydat-spa");
+    h.homePage = homePageData({ builder_data: heroDoc(src) });
+    const view = await mountHome();
+    expect(screen.getByTestId("kanwa")).toHaveAttribute("data-lcp-owner", "1");
+    expect(imagePreload(view.links())).toBeUndefined();
+    expect(preloadInHead("kandydat-spa")).toBeNull();
+    expect(h.linkHeaders.some((value) => value.includes(src))).toBe(false);
+    // Loader na kliencie nie liczy kandydata (moduł tylko-serwerowy, m3).
+    expect(h.heroPreloadCalls).toBe(0);
+  });
+
+  it("kanwa BEZ obrazu w oknie: ani linku, ani nagłówka `Link`, ani preloadu", async () => {
+    h.homePage = homePageData();
+    const view = await mountHome();
+    expect(imagePreload(view.links())).toBeUndefined();
+    expect(h.linkHeaders.some((value) => value.includes('as="image"'))).toBe(false);
+  });
+
+  it("obraz poza oknem trzech sekcji nie jest kandydatem i nie dostaje preloadu", async () => {
+    const src = hero("poza-oknem");
+    const text = (id: string) => ({
+      id,
+      kind: "section",
+      children: [
+        {
+          id: `${id}-c`,
+          kind: "column",
+          span: { desktop: 12 },
+          children: [{ id: `${id}-w`, kind: "widget", type: "text", content: { html: "Tekst" } }],
+        },
+      ],
+    });
+    h.homePage = homePageData({ builder_data: heroDoc(src, [text("t1"), text("t2"), text("t3")]) });
+    await mountHome();
+    expect(preloadInHead("poza-oknem")).toBeNull();
+    expect(h.linkHeaders.some((value) => value.includes(src))).toBe(false);
   });
 });
 

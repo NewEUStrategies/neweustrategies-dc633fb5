@@ -117,9 +117,12 @@ export function TaxonomyPage({
       {taxonomy.featured_section && (
         <section className="border-b border-border">
           <CurrentPostProvider value={buildArchiveCtx(kind, taxonomy, total, lang)}>
+            {/* Sekcja wyróżniona otwiera stronę archiwum - jej renderer jest
+                właścicielem kandydata LCP (P1.4), jak przed falą 1 sekcja 0. */}
             <BuilderRenderer
               doc={{ version: 1, sections: [taxonomy.featured_section] }}
               lang={lang}
+              lcpOwner
             />
           </CurrentPostProvider>
         </section>

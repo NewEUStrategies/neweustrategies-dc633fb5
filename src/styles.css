@@ -1622,30 +1622,16 @@ body {
   transform: translateX(-3%) scale(1.03);
 }
 
-/* Image entrance fade - pure CSS, NOT gated on JS hydration.
-   OptimizedImage used to render `opacity: loaded ? 1 : 0` from React state, so
-   every non-priority image was baked into the SSR HTML at opacity:0 and stayed
-   invisible until the JS bundle downloaded and hydration ran. On a hard refresh
-   that meant empty tiles, then a wave of fade-ins all at once. A CSS keyframe
-   runs on first paint instead, so images appear progressively as the browser
-   decodes them (and stay visible even with JS disabled or slow to load).
-   Priority/LCP images omit the class entirely for an instant first paint. */
-@keyframes oi-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-.oi-fade-in {
-  animation: oi-fade-in 240ms ease-out;
-}
-@media (prefers-reduced-motion: reduce) {
-  .oi-fade-in {
-    animation: none;
-  }
-}
+/* `.oi-fade-in` (OptimizedImage.tsx: każdy obraz bez `priority`) CELOWO bez
+   animacji wejścia (P1.2, F1; zgoda właściciela 2026-10-04). 240-milisekundowy
+   fade startował naraz dla ~7 obrazów z SSR, a Blink zgłaszał start animacji w
+   jednym zadaniu głównego wątku (`PendingAnimations::notifyCompositorAnimationStarted`,
+   zadanie K8 raportu P0.5: 14-40 ms obs, do 113 ms blokowania sym. w oknie TBT).
+   Ablacja samego fade usunęła to zadanie w 3/3 przebiegach (mobile TBT 214 -> 140 ms).
+   Obrazy z SSR malują się więc od razu, jak obraz LCP. Nie wracać do `opacity: 0`
+   z SSR zależnego od hydratacji (dawny OptimizedImage: puste kafle do bootu JS).
+   Fade wyłącznie dla obrazów montowanych po hydratacji wymaga zmiany w
+   OptimizedImage.tsx (właściciel P3.2) - klasa zostaje jako uchwyt. */
 
 /* Wejście karty profilu autora (`ProfileCard`) - odpowiednik `framer-motion`
    z wklejonego wzorca, ale bez biblioteki: sam ruch to jedno przejście przy
@@ -2438,6 +2424,17 @@ select option {
   .skeleton-shimmer {
     animation: none;
   }
+}
+/* Szkielet sekcji strumieniowanej (`SectionStreamSkeleton`, atrybut
+   `data-section-stream-skeleton` w lib/builder/sectionStreaming.tsx) jest
+   STATYCZNY (P1.2, F1b; zgoda właściciela 2026-10-04). Ok. 40 nieskończonych
+   animacji `lv-shimmer` na `background-position` (niekompozytowanych) startowało
+   z pierwszą klatką dokumentu, zanim `$RV` podmienił szkielety na treść: osobne
+   zadanie K8b (80-112 ms blokowania na desktopie x4) albo koszt w klatkach K5/K6
+   (raport P0.5 §2.5). Połysk szkieletów klienckich (dok, listy, wpisy) zostaje. */
+[data-section-stream-skeleton] .skeleton-shimmer {
+  animation: none;
+  will-change: auto;
 }
 
 /* ============================================================
@@ -6766,6 +6763,23 @@ html[data-reading-header-active] {
 @media (min-width: 1024px) {
   html[data-reading-header-active] {
     --reading-header-h: 48px;
+  }
+}
+/* Domyślna --sticky-header-h = ZMIERZONA wysokość nagłówka (P1.2, F2). Header.tsx
+   nie zapisuje zmiennej na <html> przy starcie, gdy pomiar różni się od tej
+   wartości o mniej niż 2 px - zapis stylu <html> w oknie TBT to przeliczenie
+   stylu całego dokumentu (~800-900 elementów, zadanie K13 raportu P0.5).
+   123 px = pasek "na czasie" 57 px + pasek mobilny 65 px + obramowanie 1 px,
+   zmierzone na HTML-u produkcji 2026-10-03 (Chromium, fonty załadowane, 360-768
+   px; zrzut PSI mobile daje tę samą geometrię). Fixture harnessu ma inny pasek
+   "na czasie" (41 px -> nagłówek 107 px), więc tam zapis zostaje.
+   TYLKO poniżej `lg`: ta reguła obowiązuje też na stronach bez publicznego
+   nagłówka (/admin, /login, /quiz), a duża wartość desktopowa (259 px przy
+   1350 px) przesuwałaby tam fokus klawiatury i kotwice o ~160 px. Wartość
+   desktopowa czeka na znacznik publicznego chrome'u na <html> (SSR). */
+@media (max-width: 1023px) {
+  :root {
+    --sticky-header-h: 123px;
   }
 }
 html {

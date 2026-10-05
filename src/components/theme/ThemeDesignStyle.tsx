@@ -28,7 +28,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createIsomorphicFn } from "@tanstack/react-start";
-import { hardenStyleCss } from "@/lib/sanitizePure";
 import { useTranslation } from "react-i18next";
 import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { useCachedQueryData } from "@/hooks/useCachedQueryData";
@@ -41,6 +40,7 @@ import {
   THEME_DESIGN_LANG_MODE_QUERY_KEY,
 } from "@/lib/theme/themeDesignKeys";
 import { useDeferredStyleCss, type StyleGenerator } from "./useDeferredStyleCss";
+import { StyleSink } from "./StyleSink";
 import {
   themeDesignStyleCss as serverThemeDesignStyleCss,
   type ThemeDesignStyleInput,
@@ -80,17 +80,14 @@ export function ThemeDesignStyle() {
     serverGenerate,
     loadGenerate,
   });
-  // `hardenStyleCss` jest idempotentne: na migawce z SSR (już utwardzonej
-  // przez generator) to no-op, więc HTML serwera i klienta pozostają
-  // identyczne - a bramka `check:dangerous-html` ma dowód w TYM pliku.
-  const html = useMemo(() => hardenStyleCss(css), [css]);
+  // Utwardzenie i memo po surowym napisie: `StyleSink` (P1.2).
   return (
-    <style
+    <StyleSink
       data-theme-design
       data-lang={lang}
       data-mode={mode}
       data-css-hash={hash || undefined}
-      dangerouslySetInnerHTML={{ __html: html }}
+      css={css}
     />
   );
 }

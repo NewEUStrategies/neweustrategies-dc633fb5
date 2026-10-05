@@ -54,6 +54,16 @@ export type HeaderSettings = {
 
 type GeneralSettings = { site_name?: string };
 
+/**
+ * Domyślna wysokość nagłówka z arkusza (`--sticky-header-h` w `styles.css`),
+ * gdy na <html> nie ma zapisu inline. `-1`, gdy arkusz jej nie definiuje albo
+ * wartość nie jest liczbą pikseli - wtedy pomiar publikujemy zawsze.
+ */
+function cssStickyHeaderHeight(root: HTMLElement): number {
+  const value = Number.parseFloat(getComputedStyle(root).getPropertyValue("--sticky-header-h"));
+  return Number.isFinite(value) ? value : -1;
+}
+
 interface HeaderProps {
   /**
    * Typ strony dla banera nagłówka (SiteChrome wylicza go z lokalizacji);
@@ -70,7 +80,13 @@ interface HeaderProps {
   contentKind?: ContentKind;
 }
 
-function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
+// `memo`: warstwa zewnętrzna przerenderowuje się przy każdej zmianie `scrolled`
+// i `settled` (zwijanie paska), a `HeaderInner` od nich nie zależy - bez bramki
+// każdy taki commit przechodził przez pasek "na czasie" i dokument buildera,
+// a ich bloki `<style>` z nowymi obiektami `{__html}` były przepisywane od nowa
+// (werdykt hydration:H2: dwa przepisania w commicie `data-settled`; P1.2).
+// Własne subskrypcje (zapytania, motyw, trasa, język) nadal go odświeżają.
+const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
   const { t } = useTranslation();
   // URL-seeded language (SSR-safe, no hydration flicker) - see useLang docs.
   const lang = useLang();
@@ -333,7 +349,7 @@ function HeaderInner({ adPageType = "all", isHome = false }: HeaderProps) {
       )}
     </>
   );
-}
+});
 
 export const Header = memo(function Header({ adPageType, contentKind = null }: HeaderProps) {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
@@ -364,13 +380,28 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // Transform zostaje TYLKO na czas animacji (płynny, bez przeliczania układu),
   // a po jej ustaniu przełączamy się na `zoom`, które skaluje układ - litery
   // wracają do pełnej rozdzielczości urządzenia i są idealnie ostre.
+  //
+  // Przełączenie tylko przy ZMIANIE `scrolled` po montażu (F2b, P1.2). Montaż
+  // nie ma czego animować, a dawny efekt i tak przełączał `data-settled`
+  // true -> false -> true: synchroniczny re-render w commicie hydratacji,
+  // inwalidacja stylu nagłówka (`styles.css`, reguły `[data-settled]`) i druga
+  // zmiana układu chrome'u 500 ms później - część zadania K13 z raportu P0.5.
   const [settled, setSettled] = useState(true);
+  const settledForScrolled = useRef(scrolled);
   useEffect(() => {
-    if (!stickyShrink || forceCompact) return;
+    const changed = settledForScrolled.current !== scrolled;
+    settledForScrolled.current = scrolled;
+    if (!changed || !stickyShrink || forceCompact) return;
     setSettled(false);
     const HDR_DURATION_MS = 460;
     const timer = window.setTimeout(() => setSettled(true), HDR_DURATION_MS + 40);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      // Przerwana animacja (kolejna zmiana `scrolled` albo zmiana trybu paska)
+      // nie zostawia nagłówka w `transform`: kolejny przebieg efektu w tym samym
+      // commicie albo ustawi `false` od nowa, albo nagłówek wraca do `zoom`.
+      setSettled(true);
+    };
   }, [scrolled, stickyShrink, forceCompact]);
   useEffect(() => {
     if (!stickyShrink || forceCompact) return;
@@ -546,6 +577,14 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
   // SETTLE_MS. Dla kotwic to bez znaczenia (liczy się stan spoczynkowy), a
   // animacja dostaje wolne klatki. Pierwszy pomiar leci od razu, żeby wartość
   // była gotowa zanim ktokolwiek kliknie link do kotwicy.
+  //
+  // BEZ ZAPISU, KTÓRY NICZEGO NIE ZMIENIA (F2, P1.2). `styles.css` niesie
+  // domyślną wartość per breakpoint, równą zmierzonej wysokości nagłówka.
+  // Dopóki na <html> nie ma zapisu inline, porównujemy pomiar z NIĄ: różnica
+  // < 2 px znaczy, że kotwice już widzą właściwą wysokość, a zapis kosztowałby
+  // przeliczenie stylu całego dokumentu w oknie TBT (~800-900 elementów,
+  // zadanie K13; werdykt H5: koszt daje sam zapis stylu <html> przy starcie).
+  // `measure()` i `document.fonts.ready` zostają nietknięte (reguła Layout).
   useEffect(() => {
     const root = document.documentElement;
     if (!stickyShrink) {
@@ -557,11 +596,16 @@ export const Header = memo(function Header({ adPageType, contentKind = null }: H
     const SETTLE_MS = 140;
     let frame = 0;
     let settle = 0;
+    // Ostatnia wartość OPUBLIKOWANA inline; -1 = brak zapisu (obowiązuje CSS).
     let last = -1;
     const apply = () => {
       frame = 0;
       const height = Math.round(el.getBoundingClientRect().height);
-      if (height <= 0 || Math.abs(height - last) < 2) return;
+      if (height <= 0) return;
+      // Odczyt po `getBoundingClientRect` - styl jest już policzony, więc
+      // `getComputedStyle` nie wymusza niczego nowego.
+      const current = last > 0 ? last : cssStickyHeaderHeight(root);
+      if (Math.abs(height - current) < 2) return;
       last = height;
       root.style.setProperty("--sticky-header-h", `${height}px`);
     };

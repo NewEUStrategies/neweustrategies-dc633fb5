@@ -41,7 +41,8 @@ import {
   siteDescription,
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
-import { builderHeroPreload } from "@/lib/builder/heroImage";
+import { builderHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
+import { isServerRender, usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import {
@@ -153,7 +154,21 @@ export const Route = createFileRoute("/")({
     // kontrakt od dawna ($.tsx); strona główna - najczęściej odwiedzana trasa
     // serwisu - emitowała dotąd zero hintów i przeglądarka odkrywała hero
     // dopiero po sparsowaniu body.
+    //
+    // DWA ŹRÓDŁA, DWIE DROGI (P1.4). `coverPreload` (tryb „najnowsze wpisy")
+    // idzie jak dotąd przez `head()` - pierwsza karta siatki nie jest
+    // dokumentem buildera i nie ma kandydata. `heroPreloads` (kanwa buildera)
+    // to obrazy kandydatów LCP z `lcpCandidates`; komponent trasy przekazuje je
+    // do `preload()` z react-dom, który dzieli klucz zasobu z automatycznym
+    // preloadem `<img>` - w dokumencie zostaje DOKŁADNIE jeden preload na
+    // kandydata (dawniej: link z `head()` + preload Reacta = duplikat).
+    // `heroPreloads` liczy WYŁĄCZNIE serwer (`isServerRender()` wycina
+    // `heroImage.ts` i `lcpCandidate.ts` z bundla klienta - PROVE P1.4,
+    // `check:bundle`; w `bun run dev` serwer rozpoznaje brak `document`);
+    // nawigacja SPA dostaje pustą listę, bo render czysto kliencki nie ma też
+    // kandydata ani preloadu (lib/builder/aboveFold.tsx).
     let coverPreload: ImagePreloadInput | null = null;
+    let heroPreloads: LcpImagePreload[] = [];
 
     if (!contentDegraded && homeMode === "latest_posts") {
       const pageSize = resolvePostsPerPage(settingsRes.data);
@@ -229,11 +244,11 @@ export const Route = createFileRoute("/")({
             );
         }
         // Rozgrzane okno (3 sekcje) to DOKŁADNIE okno skanowane przez
-        // `builderHeroPreload` (lib/seo/heroImage.ts - `aboveFoldSections`
-        // domyślnie `ABOVE_FOLD_SECTION_COUNT`), więc obraz LCP pozostaje
-        // w pełni wyznaczalny: head() wyemituje go jako `<link rel="preload">`,
-        // a loader jako nagłówek `Link`.
-        coverPreload = builderHeroPreload(doc, queryClient, lang);
+        // `lcpCandidates` (lib/builder/lcpCandidate.ts, przez
+        // `builderHeroPreloads`), więc obraz kandydata pozostaje w pełni
+        // wyznaczalny: komponent trasy wyemituje go przez `preload()` z
+        // react-dom, a loader jako nagłówek `Link`.
+        if (isServerRender()) heroPreloads = builderHeroPreloads(doc, queryClient, lang);
       }
     }
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
@@ -253,6 +268,9 @@ export const Route = createFileRoute("/")({
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
+    if (isServerRender()) {
+      for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
+    }
     // An unknown mode also means an unknown SEO document. Do not advertise
     // the static page's canonical/image while the UI intentionally shows a
     // recovery notice (the configured mode could actually be latest_posts).
@@ -261,6 +279,7 @@ export const Route = createFileRoute("/")({
       homePage: contentDegraded ? null : homePage,
       page: deps.page,
       coverPreload,
+      heroPreloads,
       degraded,
     };
   },
@@ -308,9 +327,10 @@ export const Route = createFileRoute("/")({
       robots: page > 1 ? "noindex, follow" : homePage ? resolveRobotsMeta(homePage) : null,
       canonicalOverride: homePage ? seoCanonicalOverride(homePage) : null,
     });
-    // Preload obrazu LCP (hero buildera / pierwsza karta trybu "najnowsze
-    // wpisy") - deskryptor policzony w loaderze, bajtowo zgodny z malowanym
-    // <img> (wspólne moduły sizes + buildImageSrcSet).
+    // Preload obrazu LCP pierwszej karty trybu "najnowsze wpisy" - deskryptor
+    // policzony w loaderze, bajtowo zgodny z malowanym <img> (wspólne moduły
+    // sizes + buildImageSrcSet). Hero kanwy buildera NIE idzie tędy: emituje go
+    // komponent trasy przez `preload()` (jedno źródło, patrz loader).
     const head = loaderData?.coverPreload
       ? { ...builtHead, links: [...builtHead.links, imagePreloadLink(loaderData.coverPreload)] }
       : builtHead;
@@ -358,6 +378,11 @@ function Index() {
   // awaryjnym), więc `useSuspenseQuery` rozwiązuje się synchronicznie i nie
   // dokłada ani round-tripu, ani granicy zawieszenia.
   const settingsQuery = useSuspenseQuery(siteSettingsQueryOptions);
+  // Obraz kandydata LCP kanwy (P1.4): `preload()` w renderze trasy trafia do
+  // preambuły SSR jako jedyny `<link rel=preload as=image fetchpriority=high>`
+  // dla tego obrazu (ten sam klucz co automatyczny preload `<img>`). Loader
+  // liczy kandydata dla gościa i tylko na serwerze; hook działa tylko w SSR.
+  usePreloadLcpImages(Route.useLoaderData({ select: (data) => data.heroPreloads }));
   const homePage = pageQuery.data;
   const homeMode = modeQuery.data;
   // Query state, not a latched loader flag: a successful browser refetch must

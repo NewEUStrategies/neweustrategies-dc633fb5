@@ -67,7 +67,9 @@ vi.mock("@/components/podcast/PodcastEpisodeStrip", () => ({
 }));
 
 vi.mock("@/components/builder/organisms/BuilderRenderer", () => ({
-  BuilderRenderer: () => <div data-testid="featured-section" />,
+  BuilderRenderer: ({ lcpOwner }: { lcpOwner?: boolean }) => (
+    <div data-testid="featured-section" data-lcp-owner={lcpOwner ? "1" : "0"} />
+  ),
 }));
 
 vi.mock("@/components/molecules/PublicNotFound", () => ({
@@ -193,7 +195,10 @@ describe("TaxonomyPage - wybór wariantu i dane", () => {
       taxonomy: { ...archive().taxonomy, featured_section: { type: "section", id: "s" } },
     });
     render(renderPage());
-    expect(await screen.findByTestId("featured-section")).toBeTruthy();
+    const featured = await screen.findByTestId("featured-section");
+    // Sekcja otwiera stronę archiwum: jej renderer jest właścicielem kandydata
+    // LCP (P1.4) - inaczej jej obrazy byłyby leniwe (przed falą 1: eager/high).
+    expect(featured).toHaveAttribute("data-lcp-owner", "1");
   });
 
   it("bez sekcji wyróżnionej nie ma pustego kontenera nad listą", async () => {

@@ -728,8 +728,21 @@ describe("trasa /qa/$slug - sesja, pytania i odpowiedzi", () => {
         queryKey: publicQaSessionQueryOptions(SLUG).queryKey,
         exact: true,
       });
+      // Powiadomienie react-query o resecie idzie przez `setTimeout(0)`
+      // (`notifyManager`), a asynchroniczne `act` kończy się jednym
+      // `setImmediate` - w Node PRZED tym timerem, gdy test wznawia się z fazy
+      // timerów. Bez tego kroku asercja niżej widziała STARY DOM z pełną sesją,
+      // chyba że w oknie `act` przypadkiem wpadło inne powiadomienie (sukces
+      // `site_settings` z montowania): lokalnie wpadało, w CI 37298945078 już
+      // nie. Własny `setTimeout(0)` jest zaplanowany PO timerze react-query, a
+      // timery o tym samym opóźnieniu odpalają w kolejności, więc pierwszy
+      // render po resecie zawsze trafia do `act`.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
     });
 
+    // Synchronicznie i celowo: liczy się PIERWSZY render po resecie. Czekanie
+    // (`findByText`) przepuściłoby regresję, w której czytelnik najpierw widzi
+    // fałszywe „Nie udało się pobrać danych.", a „Ładowanie..." dopiero później.
     expect(screen.getByText("Ładowanie...")).toBeInTheDocument();
     expect(screen.queryByText("Nie udało się pobrać danych.")).toBeNull();
 
