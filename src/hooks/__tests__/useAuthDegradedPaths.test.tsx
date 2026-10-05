@@ -16,8 +16,9 @@
 //      sieć - klient Supabase też nic z takiego magazynu nie odczyta.
 //   3. (Przeniesione w P1.7.) Sonda magazynu bez `window` ma test jednostkowy
 //      w `integrations/supabase/__tests__/sessionHint.test.ts`: decyzja „gość
-//      od startu" zapada teraz w PIERWSZYM renderze klienta, gdzie `window`
-//      zawsze jest, a render serwera pilnuje `useAuthWithoutWindow.node.test.tsx`.
+//      od startu" zapada w pierwszym przebiegu efektów klienta, gdzie `window`
+//      zawsze jest (nasłuch `storage` gościa i tak go wymaga), a render
+//      serwera pilnuje `useAuthWithoutWindow.node.test.tsx`.
 //   4. ODMOWA ODCZYTU RÓL TO NAJMNIEJSZE UPRAWNIENIA. `user_roles` z
 //      `data: null` (np. odmowa RLS) daje pusty zestaw ról i zamyka `loading`;
 //      sesja i tenant zostają.

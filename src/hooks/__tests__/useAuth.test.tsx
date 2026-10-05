@@ -770,9 +770,25 @@ describe("AuthProvider - szybka ścieżka gościa", () => {
     __resetSupabaseClientRegistryForTests();
   });
 
-  it("gość bez klienta: zero dotknięć supabase, loading=false od pierwszego renderu", () => {
-    renderProbe();
-    // Bez `waitFor`: świeży render klienta zna gościa od razu.
+  it("gość bez klienta: zero dotknięć supabase, loading=false po pierwszym przebiegu efektów", () => {
+    const seen: boolean[] = [];
+    function Seen() {
+      seen.push(useAuth().loading);
+      return null;
+    }
+    render(
+      <QueryClientProvider client={newQueryClient()}>
+        <AuthProvider>
+          <Probe />
+          <Seen />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+    // Bez `waitFor`: rozstrzygnięcie zapada w pierwszym przebiegu efektów
+    // (render w `act` je opróżnia, razem z przejściem), bez czekania na
+    // klienta. Pierwszy render to „nie wiemy" - parytet z HTML-em serwera.
+    expect(seen[0]).toBe(true);
+    expect(seen.at(-1)).toBe(false);
     expect(screen.getByTestId("loading")).toHaveTextContent("false");
     expect(screen.getByTestId("uid")).toHaveTextContent("anon");
     expect(h.touches).toBe(0);

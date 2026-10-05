@@ -145,6 +145,12 @@ describe("urlHasAuthParams()", () => {
     expect(urlHasAuthParams(parts)).toBe(expected);
   });
 
+  it("sprawdza `search` i `hash` razem - `type` przed fragmentem adresu też się liczy", () => {
+    expect(urlHasAuthParams({ search: "?type=recovery", hash: "#sekcja" })).toBe(true);
+    expect(urlHasAuthParams({ search: "?lang=pl", hash: "#access_token=a" })).toBe(true);
+    expect(urlHasAuthParams({ search: "?type=article", hash: "#type" })).toBe(false);
+  });
+
   it("bez argumentu czyta bieżący adres okna", () => {
     window.history.replaceState(null, "", "/powrot#access_token=a&type=magiclink");
     expect(urlHasAuthParams()).toBe(true);
@@ -187,6 +193,15 @@ describe("rejestr utworzenia klienta", () => {
     stop();
     markSupabaseClientCreated();
     expect(listener).not.toHaveBeenCalled();
+  });
+
+  it("słuchacz wypisany przez wcześniejszego słuchacza w trakcie zgłoszenia już nie biegnie", () => {
+    const second = vi.fn();
+    let stopSecond = () => {};
+    onSupabaseClientCreated(() => stopSecond());
+    stopSecond = onSupabaseClientCreated(second);
+    markSupabaseClientCreated();
+    expect(second).not.toHaveBeenCalled();
   });
 
   it("wyjątek słuchacza nie zatrzymuje pozostałych i jest zgłoszony głośno", () => {

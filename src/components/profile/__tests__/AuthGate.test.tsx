@@ -12,7 +12,7 @@
 // Dlatego ten plik montuje PRAWDZIWY `AuthProvider` i podstawia wyłącznie
 // granicę sieci (klient Supabase). Dowodzi czterech rzeczy:
 //   1. martwy backend -> CTA logowania w OGRANICZONYM czasie (gość od startu:
-//      od pierwszego renderu, bez dotknięcia klienta Supabase - P1.7);
+//      w pierwszym przebiegu efektów, bez dotknięcia klienta Supabase - P1.7);
 //   2. sesja w `localStorage` + błąd sieci -> NIE wylogowuje (token zostaje,
 //      `signOut()` nie idzie) - bo „nie wiemy" to nie to samo, co „brak sesji";
 //   3. logowanie w tej karcie (formularz tworzy klienta) odsłania treść, choć
@@ -158,7 +158,8 @@ describe("AuthGate przy niedostępnym backendzie", () => {
     // znana od razu: sesja Supabase mieszka w `localStorage`, więc pusty
     // magazyn to pewne „to gość".
     renderGate();
-    // Gość od startu: CTA już w pierwszym renderze, bez spinnera po drodze.
+    // Gość od startu: CTA zaraz po pierwszym przebiegu efektów (render w `act`
+    // go opróżnia), bez czekania na klienta Supabase.
     expect(loginLink()).not.toBeNull();
     expect(spinner()).toBeNull();
     expect(screen.queryByText("treść dla zalogowanych")).toBeNull();

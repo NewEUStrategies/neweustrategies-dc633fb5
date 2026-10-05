@@ -17,6 +17,20 @@ import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
 import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
 import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
 
+// USTĄPIENIE PO DRZEWIE TRAS (P1.7, runda 9; recenzja I-2). Moduły, które ten
+// plik importuje - przede wszystkim `./routeTree.gen` z top-levelem kilkuset
+// tras, schematami `validateSearch` (zod) i `createRoute` - ewaluują się PRZED
+// jego ciałem. Bez tego tyknięcia w tym samym zadaniu szła dalej reszta entry:
+// ciało tego modułu, entry TanStack Start i `hydrateRoot` (część B zadania K9
+// księgi Lantern, >= 50 ms sym. w 10/10 przebiegach dowodu). Top-level await
+// na kliencie dzieli to na ewaluację drzewa tras i start Reacta w następnym
+// makrozadaniu (`setTimeout(0)`, nie `scheduler.postTask` - Safari go nie ma).
+// Na serwerze `isServer` jest prawdą (w buildzie produkcyjnym stałą), więc
+// tyknięcie nie biegnie. Koszt na kliencie: jedno tyknięcie przed
+// `hydrateRoot` (zagnieżdżenie timerów < 5, bez zacisku 4 ms). Sama ewaluacja
+// drzewa tras zostaje jednym zadaniem - jej podział należy do P5.2.
+if (!isServer) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
 // World-class defaults for a content-heavy public site:
 //   - 5 min staleTime: settings/menus/posts rarely change; avoid wasted refetches.
 //   - 30 min gcTime: keep navigated-away routes warm for quick back-nav.
@@ -193,7 +207,8 @@ export const getRouter = () => {
     // blanks and every query refetches. Yielding one macrotask after the
     // integration's hydrate lets every already-delivered stream chunk settle
     // into the cache first; router-core awaits options.hydrate before React
-    // hydration begins, so this delays first paint by at most one tick.
+    // hydration begins, so this delays the hydration of the tree by a few
+    // ticks (see PODZIAŁ NA MAKROZADANIA below).
     //
     // PODZIAŁ NA MAKROZADANIA (P1.7, F6 z diagnozy P0.5). Hak biegnie
     // w renderze `StartClient` (zadanie K10: `createRouter` + skrypty `$_TSR`),

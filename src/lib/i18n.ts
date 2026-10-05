@@ -79,47 +79,31 @@ function storeCopy(core: CoreBundle): CoreBundle {
 /** Język -> eksport rdzenia, z którym store klienta dzieli poddrzewa. */
 const sharedCore = new Map<string, CoreBundle>();
 
-/** Bundle `translation` języka w store (ten sam obiekt, nie kopia). */
-function storeBundle(lang: string): Record<string, unknown> | undefined {
-  const bundle = i18n.store?.data?.[lang]?.translation;
-  return bundle !== null && typeof bundle === "object"
-    ? (bundle as Record<string, unknown>)
-    : undefined;
-}
-
 /**
- * Przed głębokim scaleniem `resources` w bundle `lang`: każde poddrzewo
- * najwyższego poziomu, które nakładka dotyka, a które store wciąż dzieli
- * z eksportem rdzenia, zamienia na własną kopię (ta sama kopia JSON, co
- * `storeCopy`, tylko dla jednego poddrzewa).
- */
-function detachSharedSubtrees(lang: string, resources: unknown): void {
-  const core = sharedCore.get(lang);
-  if (core === undefined || resources === null || typeof resources !== "object") return;
-  const bundle = storeBundle(lang);
-  if (bundle === undefined) return;
-  for (const key of Object.keys(resources)) {
-    const shared = core[key];
-    if (shared !== null && typeof shared === "object" && bundle[key] === shared) {
-      bundle[key] = JSON.parse(JSON.stringify(shared));
-    }
-  }
-}
-
-/**
- * Wpina kopię przy zapisie w `addResourceBundle` instancji (klient). Obsługuje
- * też formę ścieżkową i18next (`addResourceBundle("pl.translation", res, deep)`).
+ * Wpina kopię przy zapisie w `addResourceBundle` instancji (klient): przed
+ * scaleniem zasobów w bundle `translation` każde poddrzewo najwyższego
+ * poziomu, które nakładka dotyka, a które store wciąż dzieli z eksportem
+ * rdzenia, zamienia na własną kopię (ta sama kopia JSON, co `storeCopy`,
+ * tylko dla jednego poddrzewa). Także przy scaleniu płytkim - tam kopia jest
+ * zbędna, ale nieszkodliwa, a nakładki i tak scalają głęboko. Obsługuje formę
+ * ścieżkową i18next (`addResourceBundle("pl.translation", zasoby, deep)`).
  */
 function installCopyOnWrite(): void {
   const original = i18n.addResourceBundle.bind(i18n);
   i18n.addResourceBundle = ((...args: Parameters<typeof i18n.addResourceBundle>) => {
-    const [lng, ns, resources, deep] = args;
     // Forma ścieżkowa przesuwa argumenty: (ścieżka, zasoby, deep).
-    const dotted = lng.includes(".");
-    const [lang, namespace] = dotted ? lng.split(".") : [lng, ns];
-    const payload: unknown = dotted ? ns : resources;
-    const isDeep = dotted ? Boolean(resources) : Boolean(deep);
-    if (namespace === "translation" && isDeep) detachSharedSubtrees(lang, payload);
+    const [lang, dottedNs] = args[0].split(".");
+    const resources: unknown = dottedNs ? args[1] : args[2];
+    const core = sharedCore.get(lang);
+    const bundle = i18n.store.data[lang]?.translation as Record<string, unknown> | undefined;
+    if ((dottedNs ?? args[1]) === "translation" && core && bundle && resources) {
+      for (const key of Object.keys(resources)) {
+        const shared = core[key];
+        if (shared && typeof shared === "object" && bundle[key] === shared) {
+          bundle[key] = JSON.parse(JSON.stringify(shared));
+        }
+      }
+    }
     return original(...args);
   }) as typeof i18n.addResourceBundle;
 }

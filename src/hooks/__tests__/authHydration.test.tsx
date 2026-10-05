@@ -1,20 +1,19 @@
-// HYDRATACJA Z `AuthProvider` - HTML SERWERA, WYSPY I ROZRUCH GOŚCIA.
+// HYDRATACJA Z `AuthProvider` - HTML SERWERA, GRANICE SUSPENSE I ROZRUCH GOŚCIA.
 //
 // CO TEN PLIK DOWODZI.
 //   1. Treść serwera zostaje, gdy sesja gościa rozstrzyga się, zanim dojedzie
 //      chunk widgetu (kontrakt sprzed P1.7).
-//   2. ROZRUCH GOŚCIA NIE ZMIENIA WARTOŚCI KONTEKSTU (P1.7, wymóg I2 z recenzji
-//      P1.6). React 19 propaguje KAŻDĄ zmianę kontekstu do odwodnionych granic
-//      Suspense (nie wie, kto w nich czyta kontekst) i budzi je - tak wyspy
-//      hydratacji (P2.2/P2.3) otwierałyby się zaraz po boocie u każdego
-//      anonima. Kryterium: przez >= 1 s po boocie odwodniona granica nie jest
-//      ponawiana, jej HTML zostaje, wartości widziane przez konsumentów mają tę
-//      samą tożsamość, a liczba ich renderów stoi; konsument, który nie czyta
-//      `loading`, renderuje się raz (hydratacja), a odczyt po boocie (handler)
-//      widzi już gościa. KONTROLA NEGATYWNA: ten sam pomiar na prowajderze,
-//      który rozstrzyga gościa zmianą wartości kontekstu w `startTransition`
-//      (zachowanie sprzed P1.7), wykrywa przebudowę konsumentów i podmianę
-//      ich wartości (szczegóły przy pomiarze niżej).
+//   2. ROZRUCH GOŚCIA DZIELI HYDRATACJĘ GRANIC NA COMMITY (P1.7, runda 9 -
+//      test charakterystyki, nie dowód wymogu I2). Gość dostaje rozstrzygnięcie
+//      zmianą wartości kontekstu w przejściu, a React propaguje ją do każdej
+//      odwodnionej granicy i uwadnia je po jednej, każdą we własnym commicie.
+//      Stała wartość kontekstu przy boocie (wymóg I2 z recenzji P1.6, wariant
+//      zmierzony i wycofany z P1.7) skleja te same granice w JEDEN commit z
+//      jednym przebiegiem efektów pasywnych - na `/` dawało to dłuższe zadania
+//      po commicie hydratacji (+74 ms mobile, +241 ms desktop x4 blokowania
+//      skryptów w medianach dowodu). KONTROLA NEGATYWNA: prowajder ze stałą
+//      wartością oblewa tę samą asercję. Kto wprowadzi stałą wartość (P2.2,
+//      razem z wyspami), zmienia ten test świadomie i z pomiarem.
 //   3. Gość od startu nie dotyka klienta Supabase (szybka ścieżka F7).
 //   4. Konsument czytający `loading` (bramka typu `AuthGate`) hydratuje
 //      spinner serwera bez rozjazdu, a po boocie pokazuje gościa - nigdy
@@ -24,13 +23,11 @@
 import {
   createContext,
   lazy,
+  Profiler,
   startTransition,
   Suspense,
   useContext,
-  useEffect,
   useLayoutEffect,
-  useState,
-  useSyncExternalStore,
   type ComponentType,
   type ReactNode,
 } from "react";
@@ -147,25 +144,15 @@ it("retains server content when the initial anonymous session settles before a w
   }
 });
 
-// ── POMIAR ROZRUCHU (wspólny dla prowajdera produkcyjnego i kontroli negatywnej) ──
+// ── ROZRUCH GOŚCIA A PODZIAŁ HYDRATACJI GRANIC NA COMMITY ──────────────────────
 //
-// Wyspę udaje granica Suspense, której treść na kliencie zawiesza się na
-// bramce, która się nie otwiera. Treść liczy próby renderu osobno w trybie
-// HYDRATACJI i w trybie KLIENTA - tą samą sondą `useSyncExternalStore`
-// z identyczną migawką, którą `IslandGate` (P1.6) rozpoznaje „górną granicę":
-// render klienta czekającej treści = zmiana nad wyspą ją obudziła (a poza
-// przejściem porzuciłaby jej HTML). Rendery konsumentów liczymy jako COMMITY
-// (`useLayoutEffect` bez zależności), bo przerwany i ponowiony przebieg nie
-// jest renderem widocznym dla użytkownika.
-//
-// CO WIDAĆ W KONTROLI NEGATYWNEJ (react-dom 19.2, zmierzone): zmiana wartości
-// kontekstu w przejściu przy boocie NIE renderuje tu treści wyspy w trybie
-// klienta - React planuje jej hydratację na podbitym torze i zatwierdza
-// przejście - ale przebudowuje KAŻDEGO konsumenta i podmienia wartość, którą
-// widział w hydratacji. To jest kryterium I2 („tożsamość wartości i liczba
-// renderów konsumentów"). Otwarcie wysp przez górną granicę `IslandGate`
-// sprawdzi P2.2 tym samym pomiarem na `HydrationIsland` (P1.6 nie jest
-// w drzewie tej pozycji).
+// Strona w miniaturze: konsumenci w nagłówku (jeden czyta `loading`) i kilka
+// granic Suspense z leniwymi widgetami, których chunki są już pobrane, zanim
+// ruszy hydratacja (model `modulepreload`). Widget odnotowuje numer commitu,
+// w którym się uwodnił (`useLayoutEffect`), a `Profiler` na korzeniu numeruje
+// commity. Bez `act`: `act` opróżnia kolejkę Reacta synchronicznie i zaciera
+// dokładnie ten podział, więc pomiar idzie na prawdziwym harmonogramie
+// (start w `startTransition`, jak domyślne entry TanStack Start).
 
 interface AuthLike {
   loading: boolean;
@@ -176,173 +163,124 @@ interface BootHarness {
   useValue: () => AuthLike;
 }
 
-interface BootReport {
-  /** Próby renderu treści wyspy w trybie klienta (wyspa obudzona). */
-  islandClientAttempts: number;
-  islandHydrationAttempts: number;
-  /** Commity konsumenta, który NIE czyta `loading` (po boocie / po >= 1 s). */
-  quietCommitsAtBoot: number;
-  quietCommitsAfter: number;
-  /** Commity konsumenta, który czyta `loading` w renderze. */
-  readerCommitsAtBoot: number;
-  readerCommitsAfter: number;
-  quietValueStable: boolean;
-  /** Cichy konsument ma po >= 1 s TĘ SAMĄ wartość, którą dostał w hydratacji. */
-  quietValueSinceHydration: boolean;
-  readerValueStable: boolean;
-  islandHtmlKept: boolean;
+interface SplitReport {
+  boundaries: number;
+  /** Ile różnych commitów uwodniło granice. */
+  boundaryCommits: number;
   readerText: string | null;
-  /** `loading` przeczytane po boocie poza renderem (handler) przez cichego konsumenta. */
-  quietLoadingLater: boolean;
+  serverHtmlKept: boolean;
   errors: unknown[];
 }
 
-const subscribeNever = () => () => {};
-const snapshotZero = () => 0;
+const BOUNDARIES = 6;
 
-async function measureGuestBoot({ Provider, useValue }: BootHarness): Promise<BootReport> {
-  let islandClientAttempts = 0;
-  let islandHydrationAttempts = 0;
-  let quietCommits = 0;
-  let readerCommits = 0;
-  let quietValue: AuthLike | undefined;
-  let quietHydrationValue: AuthLike | undefined;
-  let readerValue: AuthLike | undefined;
-  const gate = new Promise<never>(() => {});
-
-  function IslandContent({ server }: { server: boolean }) {
-    let hydrating = false;
-    useSyncExternalStore(subscribeNever, snapshotZero, () => {
-      hydrating = true;
-      return 0;
-    });
-    if (!server) {
-      if (hydrating) islandHydrationAttempts += 1;
-      else islandClientAttempts += 1;
-      throw gate;
-    }
-    return <p id="wyspa">Treść wyspy z serwera</p>;
-  }
-  function Quiet() {
-    const value = useValue();
+async function measureBoundaryCommits({ Provider, useValue }: BootHarness): Promise<SplitReport> {
+  const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const actEnvironment = env.IS_REACT_ACT_ENVIRONMENT;
+  env.IS_REACT_ACT_ENVIRONMENT = false;
+  let commit = 0;
+  const hydratedAt: number[] = [];
+  function Widget({ i }: { i: number }) {
+    useValue();
     useLayoutEffect(() => {
-      quietCommits += 1;
-      quietValue = value;
-      quietHydrationValue ??= value;
-    });
-    return <span>cichy</span>;
+      hydratedAt[i] = commit;
+    }, [i]);
+    return <section data-widget={i}>widget {i}</section>;
   }
   function Reader() {
-    const value = useValue();
-    const text = value.loading ? "czekam" : "gość";
-    useLayoutEffect(() => {
-      readerCommits += 1;
-      readerValue = value;
-    });
-    return <span id="czytelnik">{text}</span>;
+    return <span id="czytelnik">{useValue().loading ? "czekam" : "gość"}</span>;
   }
+  function Quiet() {
+    useValue();
+    return <span>cichy</span>;
+  }
+  const chunks = Array.from({ length: BOUNDARIES }, () => {
+    const loaded = Promise.resolve({ default: Widget });
+    return lazy(() => loaded);
+  });
   const queryClient = new QueryClient();
   const view = (server: boolean) => (
-    <QueryClientProvider client={queryClient}>
-      <Provider>
-        <Quiet />
-        <Reader />
-        <Suspense fallback={<p>zasłona</p>}>
-          <IslandContent server={server} />
-        </Suspense>
-      </Provider>
-    </QueryClientProvider>
+    <Profiler id="korzeń" onRender={() => (commit += 1)}>
+      <QueryClientProvider client={queryClient}>
+        <Provider>
+          <Reader />
+          <Quiet />
+          {chunks.map((Chunk, i) => (
+            <Suspense key={i} fallback={null}>
+              {server ? <Widget i={i} /> : <Chunk i={i} />}
+            </Suspense>
+          ))}
+        </Provider>
+      </QueryClientProvider>
+    </Profiler>
   );
   const container = document.createElement("div");
   container.innerHTML = renderToString(view(true));
+  commit = 0;
   document.body.append(container);
-  const islandNode = container.querySelector("#wyspa");
+  const serverNodes = [...container.querySelectorAll("section")];
   const errors: unknown[] = [];
   let root: Root | undefined;
   try {
-    // Boot: hydratacja, efekty, przejścia, próba hydratacji wyspy (Offscreen).
-    await act(async () => {
+    startTransition(() => {
       root = hydrateRoot(container, view(false), {
         onRecoverableError: (error) => errors.push(error),
       });
-      await sleep(50);
     });
-    const atBoot = { quietCommits, readerCommits, quietValue, readerValue };
-    await act(async () => {
-      await sleep(1_050);
-    });
+    await sleep(150);
     return {
-      islandClientAttempts,
-      islandHydrationAttempts,
-      quietCommitsAtBoot: atBoot.quietCommits,
-      quietCommitsAfter: quietCommits,
-      readerCommitsAtBoot: atBoot.readerCommits,
-      readerCommitsAfter: readerCommits,
-      quietValueStable: quietValue === atBoot.quietValue,
-      quietValueSinceHydration: quietValue === quietHydrationValue,
-      readerValueStable: readerValue === atBoot.readerValue,
-      islandHtmlKept: container.querySelector("#wyspa") === islandNode && !!islandNode?.isConnected,
+      boundaries: hydratedAt.filter((at) => at !== undefined).length,
+      boundaryCommits: new Set(hydratedAt).size,
       readerText: container.querySelector("#czytelnik")?.textContent ?? null,
-      quietLoadingLater: quietValue!.loading,
+      serverHtmlKept: [...container.querySelectorAll("section")].every(
+        (node, i) => node === serverNodes[i],
+      ),
       errors,
     };
   } finally {
-    await act(async () => root?.unmount());
+    root?.unmount();
     queryClient.clear();
     container.remove();
+    env.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
   }
 }
 
-/**
- * Prowajder sprzed P1.7 w miniaturze: gość rozstrzygany w pierwszym przebiegu
- * efektów ZMIANĄ WARTOŚCI KONTEKSTU w `startTransition`.
- */
-const NaiveCtx = createContext<AuthLike>({ loading: true });
-function NaiveProvider({ children }: { children: ReactNode }) {
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    startTransition(() => setLoading(false));
-  }, []);
-  return <NaiveCtx.Provider value={{ loading }}>{children}</NaiveCtx.Provider>;
+/** Asercja główna: każda granica uwadnia się we własnym commicie. */
+function expectSplitHydration(report: SplitReport) {
+  expect(report.boundaries).toBe(BOUNDARIES);
+  expect(report.boundaryCommits).toBe(BOUNDARIES);
 }
 
-describe("rozruch gościa nie zmienia wartości kontekstu (I2)", () => {
-  it("AuthProvider: wyspa nieobudzona i HTML zostaje, wartości i commity konsumentów stoją >= 1 s", async () => {
-    const report = await measureGuestBoot({ Provider: AuthProvider, useValue: useAuth });
+/** Wymóg I2 w najczystszej postaci: wartość kontekstu nie zmienia się wcale. */
+const FrozenCtx = createContext<AuthLike>({ loading: true });
+const FROZEN: AuthLike = { loading: true };
+function FrozenProvider({ children }: { children: ReactNode }) {
+  return <FrozenCtx.Provider value={FROZEN}>{children}</FrozenCtx.Provider>;
+}
 
+describe("rozruch gościa a podział hydratacji granic (P1.7, runda 9)", () => {
+  it("AuthProvider: każda granica we własnym commicie, HTML serwera zostaje, zero dotknięć klienta", async () => {
+    const report = await measureBoundaryCommits({ Provider: AuthProvider, useValue: useAuth });
+
+    expectSplitHydration(report);
+    expect(report.serverHtmlKept).toBe(true);
     expect(report.errors).toEqual([]);
-    expect(report.islandHtmlKept).toBe(true);
-    // Hydratacja próbowała wyspy, ale nic nie wymusiło renderu klienta.
-    expect(report.islandHydrationAttempts).toBeGreaterThanOrEqual(1);
-    expect(report.islandClientAttempts).toBe(0);
-    // Cichy konsument: jeden commit (hydratacja), ta sama wartość do końca.
-    expect(report.quietCommitsAtBoot).toBe(1);
-    expect(report.quietCommitsAfter).toBe(1);
-    expect(report.quietValueStable).toBe(true);
-    expect(report.quietValueSinceHydration).toBe(true);
-    // ...a odczyt po boocie (np. w handlerze) widzi już gościa.
-    expect(report.quietLoadingLater).toBe(false);
-    // Konsument czytający `loading`: hydratacja z „czekam" (parytet serwera)
-    // i jedno przejście na gościa w trakcie bootu - po boocie nic.
-    expect(report.readerCommitsAtBoot).toBe(2);
-    expect(report.readerCommitsAfter).toBe(2);
-    expect(report.readerValueStable).toBe(true);
     expect(report.readerText).toBe("gość");
-    // Szybka ścieżka gościa: zero dotknięć klienta Supabase.
     expect(h.touches).toBe(0);
-  }, 10_000);
+  });
 
-  it("kontrola negatywna: zmiana wartości kontekstu przy boocie przebudowuje konsumentów i podmienia ich wartość", async () => {
-    const report = await measureGuestBoot({
-      Provider: NaiveProvider,
-      useValue: () => useContext(NaiveCtx),
+  it("kontrola negatywna: stała wartość kontekstu skleja granice w jeden commit", async () => {
+    const report = await measureBoundaryCommits({
+      Provider: FrozenProvider,
+      useValue: () => useContext(FrozenCtx),
     });
 
-    // Ten sam pomiar wykrywa zmianę wartości kontekstu przy boocie: konsument,
-    // który nawet nie czyta `loading`, jest przebudowany i dostaje nową wartość.
-    expect(report.quietCommitsAtBoot).toBeGreaterThan(1);
-    expect(report.quietValueSinceHydration).toBe(false);
-  }, 10_000);
+    expect(report.boundaries).toBe(BOUNDARIES);
+    expect(report.boundaryCommits).toBe(1);
+    expect(() => expectSplitHydration(report)).toThrow();
+    expect(report.serverHtmlKept).toBe(true);
+    expect(report.errors).toEqual([]);
+  });
 });
 
 describe("hydratacja konsumentów `loading`", () => {

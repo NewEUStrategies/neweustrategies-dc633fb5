@@ -42,10 +42,10 @@ export const STORED_SESSION_KEY_RE = /^(?:sb-.+-auth-token(?:\.\d+)?|supabase\.a
  * ruchu i bez czekania na klienta Supabase. Dopiero zapisana sesja wymaga
  * czekania, bo może być przeterminowana i wymagać odświeżenia w sieci.
  *
- * Na serwerze zwraca `false`. `AuthProvider` NIE zasiewa z tego wartości
- * kontekstu: serwer renderuje „nie wiemy" (`loading === true`), a pierwszy
- * render klienta musi wyjść identycznie - gość dostaje rozstrzygnięcie przez
- * warstwę per konsument w `useAuth()` (patrz `hooks/useAuth.tsx`).
+ * Na serwerze zwraca `false`. `AuthProvider` NIE zasiewa z tego stanu
+ * startowego: serwer renderuje „nie wiemy" (`loading === true`), a pierwszy
+ * render klienta musi wyjść identycznie - gość dostaje rozstrzygnięcie
+ * w pierwszym przebiegu efektów (patrz `hooks/useAuth.tsx`).
  *
  * W RAMCE POŚREDNIKA (podgląd Lovable) magazynem nie jest `localStorage`, tylko
  * broker `postMessage` do edytora (`previewAuthStorage.ts`) - pusty
@@ -97,10 +97,12 @@ export const STORED_SESSION_EXPR =
  *
  * Nazwa parametru musi stać na granicy (`?`, `#`, `&`), żeby `?promo_code=`
  * nie udawało `code=`. `token_hash` i typy `signup|invite|email_change` są
- * nadmiarem względem planu (bezpieczny kierunek: SDK od razu).
+ * nadmiarem względem planu (bezpieczny kierunek: SDK od razu). Wzorzec
+ * sprawdza `search` i `hash` sklejone, więc wartość `type` kończy się na `&`,
+ * `#` albo końcu napisu.
  */
 const AUTH_URL_PARAM_RE =
-  /(?:^|[?#&])(?:code|access_token|refresh_token|error_description|token_hash)=|(?:^|[?#&])type=(?:recovery|magiclink|signup|invite|email_change)(?:&|$)/;
+  /(?:^|[?#&])(?:(?:code|access_token|refresh_token|error_description|token_hash)=|type=(?:recovery|magiclink|signup|invite|email_change)(?:[&#]|$))/;
 
 /** Fragment adresu czytany przez `urlHasAuthParams` (podzbiór `Location`). */
 export interface AuthUrlParts {
@@ -112,11 +114,10 @@ export interface AuthUrlParts {
  * Czy adres niesie parametry przepływu auth (patrz `AUTH_URL_PARAM_RE`).
  * Bez `window` (serwer) - `false`.
  */
-export function urlHasAuthParams(location?: AuthUrlParts): boolean {
-  const parts: AuthUrlParts | undefined =
-    location ?? (typeof window === "undefined" ? undefined : window.location);
-  if (!parts) return false;
-  return AUTH_URL_PARAM_RE.test(parts.search ?? "") || AUTH_URL_PARAM_RE.test(parts.hash ?? "");
+export function urlHasAuthParams(
+  parts: AuthUrlParts | undefined = typeof window === "undefined" ? undefined : window.location,
+): boolean {
+  return !!parts && AUTH_URL_PARAM_RE.test(`${parts.search ?? ""}${parts.hash ?? ""}`);
 }
 
 // ── REJESTR UTWORZENIA KLIENTA ──────────────────────────────────────────────
@@ -146,23 +147,19 @@ function runListener(listener: ClientCreatedListener): void {
  * Zwraca funkcję wypisania (bez skutku po wywołaniu słuchacza).
  */
 export function onSupabaseClientCreated(listener: ClientCreatedListener): () => void {
-  if (clientCreated) {
-    runListener(listener);
-    return () => {};
-  }
-  createdListeners.add(listener);
-  return () => {
-    createdListeners.delete(listener);
-  };
+  if (clientCreated) runListener(listener);
+  else createdListeners.add(listener);
+  return () => void createdListeners.delete(listener);
 }
 
 /** Zgłoszenie z `client.ts`: klient właśnie powstał (idempotentne). */
 export function markSupabaseClientCreated(): void {
   if (clientCreated) return;
   clientCreated = true;
-  const pending = [...createdListeners];
+  // Słuchacz wypisany w trakcie pętli (przez innego słuchacza) już nie biegnie;
+  // zapisany w trakcie - biegnie od razu w `onSupabaseClientCreated`.
+  createdListeners.forEach(runListener);
   createdListeners.clear();
-  for (const listener of pending) runListener(listener);
 }
 
 /** Tylko testy: stan „klienta jeszcze nie ma", bez słuchaczy. */

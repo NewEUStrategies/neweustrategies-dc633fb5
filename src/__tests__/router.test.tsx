@@ -608,3 +608,72 @@ describe("getRouter - domyślne ekrany błędu", () => {
     expect(html.length).toBeGreaterThan(50);
   });
 });
+
+// USTĄPIENIE PO DRZEWIE TRAS (P1.7, runda 9). Na kliencie ciało `router.tsx`
+// - a za nim entry TanStack Start i `hydrateRoot` - rusza dopiero jedno
+// makrozadanie po ewaluacji wszystkich zależności modułu (drzewa tras
+// w pierwszej kolejności). Moduł ewaluujemy od nowa (`resetModules`; atrapy
+// z góry pliku zostają), a OSTATNI import pliku (`hydrateBudget`) zaznacza
+// chwilę, w której zależności są gotowe. Timery 0 ms trafiają do kolejki
+// testu i są zwalniane po jednym, więc widać, ile makrozadań dzieli
+// zależności od ciała modułu. Cofnięcie ustąpienia daje tu zero tyknięć.
+describe("ewaluacja modułu na kliencie", () => {
+  it("ciało modułu rusza jedno makrozadanie po ewaluacji drzewa tras i reszty zależności", async () => {
+    const order: string[] = [];
+    vi.resetModules();
+    vi.doMock("@/lib/ssr/hydrateBudget", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("@/lib/ssr/hydrateBudget")>();
+      order.push("zależności");
+      return actual;
+    });
+    const realSetTimeout = globalThis.setTimeout;
+    const tasks: (() => void)[] = [];
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(((
+      fn: () => void,
+      ms?: number,
+    ) => {
+      if (!ms) {
+        tasks.push(fn);
+        return 0;
+      }
+      return realSetTimeout(fn, ms);
+    }) as typeof setTimeout);
+    h.server = false;
+    try {
+      const loaded = import("@/router").then((mod) => {
+        order.push("moduł");
+        return mod;
+      });
+      for (let step = 0; step < 200 && !order.includes("moduł"); step += 1) {
+        await new Promise((resolve) => realSetTimeout(resolve, 0));
+        const task = tasks.shift();
+        if (task) {
+          order.push("tyknięcie");
+          task();
+        }
+      }
+      const mod = await loaded;
+      expect(typeof mod.getRouter).toBe("function");
+      const ready = order.indexOf("zależności");
+      expect(ready).toBeGreaterThan(-1);
+      expect(order.slice(ready)).toEqual(["zależności", "tyknięcie", "moduł"]);
+    } finally {
+      timeoutSpy.mockRestore();
+      vi.doUnmock("@/lib/ssr/hydrateBudget");
+    }
+  });
+
+  it("na serwerze moduł nie czeka na żadne tyknięcie", async () => {
+    vi.resetModules();
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    h.server = true;
+    try {
+      const mod = await import("@/router");
+      expect(typeof mod.getRouter).toBe("function");
+      expect(timeoutSpy.mock.calls.filter(([, ms]) => !ms)).toEqual([]);
+    } finally {
+      h.server = false;
+      timeoutSpy.mockRestore();
+    }
+  });
+});
