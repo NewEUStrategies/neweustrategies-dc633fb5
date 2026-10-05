@@ -21,9 +21,7 @@
 // `mega_config` w menu (wąski, jawny wyjątek: `mega_config` pozycji
 // najwyższego poziomu - zgodność z kartą sprzed wdrożenia), pola drugiego
 // języka w wierszach postów (`*_en` na stronie PL), pola paska, których pasek
-// nie renderuje, `popup_*` w newsletterze formularza inline. Ostatnie jest
-// dziś ZNANĄ LUKĄ (`it.fails` niżej): formularze czytają etykiety pól z
-// pełnego klucza (`useNewsletterFieldLabels` -> `useRegistrationFields`).
+// nie renderuje, `popup_*` w newsletterze formularza inline.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -124,13 +122,29 @@ const { prefetchBuilderDocumentQueries } = await import("@/lib/builder/prefetch"
 const { headerTickerQueryOptions } = await import("@/lib/views/headerTickerQuery");
 const { resolveActiveTickerConfig } = await import("@/lib/views/tickerVariants");
 const {
+  NEWSLETTER_INLINE_LABEL_KEYS,
   defaultNewsletterSettings,
   newsletterInlineSettingsQueryOptions,
   projectNewsletterInlineSettings,
 } = await import("@/hooks/useNewsletterSettings");
 const { buildRegistrationFieldsApi } = await import("@/lib/auth/registrationFields");
-const { POPUP_FIELD_KEYS, resolvePopupFields } = await import("@/lib/newsletter/popupFields");
+const { resolvePopupFields } = await import("@/lib/newsletter/popupFields");
 const { DEFAULT_MEGA_CONFIG } = await import("@/lib/menus/types");
+
+/**
+ * Pola, których etykiety niesie projekcja formularzy inline: 7 pól
+ * podpisywanych przez `NewsletterForm`/`JoinUsForm` - bez hasła, jego
+ * powtórzenia, listy i zgody newslettera (pola popupu/rejestracji).
+ */
+const INLINE_LABEL_KEYS = [
+  "company",
+  "email",
+  "first_name",
+  "job",
+  "last_name",
+  "linkedin",
+  "phone",
+];
 
 function setting(key: string): Row {
   return fixture.settings.find((s) => s.key === key)?.value ?? {};
@@ -262,8 +276,10 @@ describe("stan odwodniony `/` na fixture (P2.5)", () => {
     const inline = await qc.fetchQuery(newsletterInlineSettingsQueryOptions());
     expect(inline.heading_pl).toEqual(expect.any(String));
     expect(Object.keys(inline).filter((k) => k.startsWith("popup_"))).toEqual([]);
-    // Etykiety pól jadą (formularze ich potrzebują), reszta konfiguracji pól nie.
-    expect(inline.field_labels).toHaveLength(POPUP_FIELD_KEYS.length);
+    // Etykiety pól jadą (formularze ich potrzebują) - WYŁĄCZNIE pól, które
+    // formularze inline podpisują; reszta konfiguracji pól nie.
+    expect(inline.field_labels.map((r) => r.key).sort()).toEqual(INLINE_LABEL_KEYS);
+    expect([...NEWSLETTER_INLINE_LABEL_KEYS].sort()).toEqual(INLINE_LABEL_KEYS);
     for (const row of inline.field_labels) {
       expect(Object.keys(row).sort()).toEqual(["key", "label_en", "label_pl"]);
     }
@@ -294,7 +310,7 @@ describe("stan odwodniony `/` na fixture (P2.5)", () => {
     for (const lang of ["pl", "en"] as const) {
       const fromFull = buildRegistrationFieldsApi(full.popup_fields, lang);
       const fromInline = buildRegistrationFieldsApi(inline.field_labels, lang);
-      for (const key of POPUP_FIELD_KEYS) {
+      for (const key of NEWSLETTER_INLINE_LABEL_KEYS) {
         expect(fromInline.label(key), `${key}/${lang}`).toBe(fromFull.label(key));
       }
     }
@@ -303,33 +319,19 @@ describe("stan odwodniony `/` na fixture (P2.5)", () => {
     );
   });
 
-  // ZNANA LUKA (P2.5, część c - poprawka 1). Rejestr prefetchu grzeje dla
-  // widgetów `join-us`/`newsletter` nadal PEŁNY klucz, bo oba formularze
-  // czytają etykiety pól przez `useNewsletterFieldLabels` ->
-  // `useRegistrationFields` -> `useNewsletterSettings()` (pełny klucz).
-  // Przełączenie wymaga wariantu `useNewsletterFieldLabels` liczącego etykiety
-  // z `field_labels` projekcji (`newsletterFieldLabels.ts`, poza własnością
-  // P2.5). Po przełączeniu ten test zacznie przechodzić, więc `it.fails`
-  // zaczerwieni się i trzeba go zamienić na `it` (razem z kontrolą niżej).
-  it.fails("stan SSR `/`: newsletter bez pól popupu (poza listami przy `inline_doc`)", async () => {
+  it("stan SSR `/`: newsletter bez pól popupu (poza listami przy `inline_doc`)", async () => {
     const state = await homeState("pl");
     const entries = state.queries.filter((q) => q.queryKey[0] === "newsletter-settings");
-    expect(entries.length).toBeGreaterThan(0);
+    // Widget `join-us` fixture grzeje WYŁĄCZNIE klucz projekcji inline.
+    expect(entries.map((q) => q.queryKey)).toEqual([["newsletter-settings", "inline"]]);
     for (const entry of entries) {
       const data = entry.state.data as Row;
       const popup = Object.keys(data).filter(
         (k) => k.startsWith("popup_") && !(k === "popup_mailing_lists" && data.inline_doc),
       );
       expect(popup, JSON.stringify(entry.queryKey)).toEqual([]);
+      const labelKeys = (data.field_labels as Array<{ key: string }>).map((r) => r.key).sort();
+      expect(labelKeys).toEqual(INLINE_LABEL_KEYS);
     }
-  });
-
-  it("kontrola dodatnia luki: stan `/` niesie dziś JEDEN wpis newslettera, pełny klucz z `popup_*`", async () => {
-    // `it.fails` wyżej pada z właściwego powodu (pola popupu), a nie dlatego,
-    // że wpisu newslettera w stanie nie ma.
-    const state = await homeState("pl");
-    const entries = state.queries.filter((q) => q.queryKey[0] === "newsletter-settings");
-    expect(entries.map((q) => q.queryKey)).toEqual([["newsletter-settings"]]);
-    expect(entries[0].state.data).toHaveProperty("popup_fields");
   });
 });

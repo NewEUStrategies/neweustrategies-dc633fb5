@@ -55,6 +55,14 @@ vi.mock("@/hooks/useNewsletterSettings", async () => {
     useNewsletterSettings: () => ({
       data: { ...actual.defaultNewsletterSettings(), mode: "inline", inline_doc: null },
     }),
+    // Formularz czyta projekcję inline (P2.5) - z tego samego wiersza.
+    useNewsletterInlineSettings: () => ({
+      data: actual.projectNewsletterInlineSettings({
+        ...actual.defaultNewsletterSettings(),
+        mode: "inline",
+        inline_doc: null,
+      }),
+    }),
   };
 });
 

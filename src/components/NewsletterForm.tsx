@@ -13,7 +13,10 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import "@/lib/i18n-public";
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
-import { useNewsletterSettings, type NewsletterSettings } from "@/hooks/useNewsletterSettings";
+import {
+  useNewsletterInlineSettings,
+  type NewsletterInlineSettings,
+} from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import {
   subscribeErrorMessage,
@@ -30,7 +33,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FormSelect } from "@/components/atoms/FormSelect";
 import { floatingPlaceholder } from "@/components/ui/floating-input";
 import { TopicsDroplist, useInterestGroups } from "@/components/interests/TopicsDroplist";
-import { useNewsletterFieldLabels } from "@/lib/newsletter/newsletterFieldLabels";
+import { useNewsletterFieldLabelsFrom } from "@/lib/newsletter/newsletterFieldLabels";
 import {
   collectCustomValues,
   parseCustomFields,
@@ -47,7 +50,7 @@ function BuilderInlineWrapper({
   source,
   variant,
 }: {
-  settings: NewsletterSettings;
+  settings: NewsletterInlineSettings;
   lang: "pl" | "en";
   source: string;
   variant: "card" | "inline";
@@ -92,7 +95,8 @@ export function NewsletterForm({
   widgetConfig,
 }: Props) {
   const { t } = useTranslation();
-  const { data: s } = useNewsletterSettings();
+  // Projekcja formularza inline (P2.5): ten sam klucz grzeje SSR (`prefetch.ts`).
+  const { data: s } = useNewsletterInlineSettings();
   // Inside the CMS builder canvas the widget must stay visible even when the
   // newsletter is disabled - otherwise it silently vanishes mid-edit.
   const inBuilder = useBuilderMode() !== null;
@@ -122,7 +126,7 @@ export function NewsletterForm({
   );
 
   // Wspólne dla wszystkich widgetów newslettera: etykiety pól + droplista tematów.
-  const fieldLabels = useNewsletterFieldLabels(lang);
+  const fieldLabels = useNewsletterFieldLabelsFrom(s?.field_labels, lang);
   const { allItems, groups } = useInterestGroups(lang, null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const togglePick = (id: string) =>

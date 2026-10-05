@@ -624,6 +624,22 @@ describe("projekcja przesyłki menu (P2.5)", () => {
       label_en: "Contact",
       position: 3,
     });
+    // Wartości domyślne (`target: "_self"`, `visibility: "all"`, puste
+    // `icon`/`css_class`, `mega_enabled: false`) nie jadą - odtwarza je
+    // normalizacja po stronie odbiorcy. Niedomyślne zostają.
+    const a = cached!.items.find((row) => row.id === "a");
+    for (const field of ["target", "visibility", "icon", "css_class", "mega_enabled"]) {
+      expect(a, field).not.toHaveProperty(field);
+    }
+    expect(cached!.items.find((row) => row.id === "d")).toMatchObject({ target: "_blank" });
+    expect(cached!.items.find((row) => row.id === "d")).not.toHaveProperty("visibility");
+    expect(cached!.items.find((row) => row.id === "e")).toMatchObject({ visibility: "guest" });
+    expect(cached!.items.find((row) => row.id === "e")).not.toHaveProperty("target");
+    expect(cached!.items.find((row) => row.id === "b")).toMatchObject({
+      icon: "info",
+      css_class: "nav-wide",
+    });
+    expect(cached!.items.find((row) => row.id === "c")).toMatchObject({ mega_enabled: true });
   });
 
   it("karta sprzed wdrożenia czyta przesyłkę BEZ `select`: ta sama kolejność i działający panel mega", async () => {

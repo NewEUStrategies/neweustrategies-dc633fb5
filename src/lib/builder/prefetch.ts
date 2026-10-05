@@ -25,7 +25,7 @@ import { sliderAuthorIds, sliderAuthorsQueryOptions } from "@/lib/builder/slider
 import { eventByIdQueryOptions, eventsListQueryOptions } from "@/lib/builder/eventsQuery";
 import { clubCardQueryOptions, clubThreadsQueryOptions } from "@/lib/builder/clubsQuery";
 import { categoriesQueryOptions, tagsQueryOptions } from "@/lib/builder/taxonomyQuery";
-import { newsletterSettingsQueryOptions } from "@/hooks/useNewsletterSettings";
+import { newsletterInlineSettingsQueryOptions } from "@/hooks/useNewsletterSettings";
 import {
   podcastLatestQueryOptions,
   webStoriesCarouselQueryOptions,
@@ -154,7 +154,7 @@ export type BuilderSectionQuery =
   | ReturnType<typeof categoriesQueryOptions>
   | ReturnType<typeof tagsQueryOptions>
   | ReturnType<typeof podcastLatestQueryOptions>
-  | ReturnType<typeof newsletterSettingsQueryOptions>
+  | ReturnType<typeof newsletterInlineSettingsQueryOptions>
   | ReturnType<typeof webStoriesCarouselQueryOptions>
   | ReturnType<typeof activePlansQueryOptions>
   | ReturnType<typeof ratedListQueryOptions>
@@ -271,13 +271,15 @@ export function widgetQueryOptionsList(widget: WidgetNode, lang: Lang): BuilderS
   // zwraca `null` na serwerze - kolumna z zapisem wychodziła z SSR pusta,
   // a pola pojawiały się dopiero po hydratacji.
   // JoinUsForm reads the same settings, including its title and enabled flag.
+  // Oba formularze czytają PROJEKCJĘ inline (P2.5: bez pól popupu w stanie
+  // odwodnionym); popup, admin i `registrationFields` zostają na pełnym kluczu.
   // Without this entry, a late-hydrating widget can read client-fetched settings
   // that differ from its SSR defaults and force React to replace the form.
   if (
     widget.type === "join-us" ||
     (widget.type === "newsletter" && newsletterUsesForm(widget.content))
   ) {
-    out.push(newsletterSettingsQueryOptions());
+    out.push(newsletterInlineSettingsQueryOptions());
   }
 
   // Cennik zsynchronizowany z katalogiem: zapytanie ma WYŁĄCZNIE tryb "plans"
@@ -507,7 +509,7 @@ export function widgetCacheTargets(widget: WidgetNode, lang: Lang): WidgetCacheT
     widget.type === "join-us" ||
     (widget.type === "newsletter" && newsletterUsesForm(widget.content))
   ) {
-    const opts = newsletterSettingsQueryOptions();
+    const opts = newsletterInlineSettingsQueryOptions();
     out.push({ key: opts.queryKey, staleTime: coerceStaleTime(opts.staleTime) });
   }
   if (widget.type === "pricing" && pricingUsesPlansSource(widget.content)) {

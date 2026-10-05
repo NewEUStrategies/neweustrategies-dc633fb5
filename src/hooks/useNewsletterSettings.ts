@@ -1,7 +1,11 @@
 import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { NlDoc } from "@/lib/newsletter-builder/types";
-import { resolvePopupFields, type PopupFieldConfig } from "@/lib/newsletter/popupFields";
+import {
+  resolvePopupFields,
+  type PopupFieldConfig,
+  type PopupFieldKey,
+} from "@/lib/newsletter/popupFields";
 import {
   defaultPopupDesign,
   resolvePopupDesign,
@@ -232,16 +236,36 @@ export function useNewsletterSettings() {
 export type NewsletterFieldLabelRow = Pick<PopupFieldConfig, "key" | "label_pl" | "label_en">;
 
 /**
+ * Pola rejestracji, których etykiety czytają formularze inline (mapa
+ * `REGISTRATION_KEY` w `newsletterFieldLabels.ts` jest typowana tym zbiorem,
+ * więc mapowanie na pole spoza projekcji nie przejdzie typechecku). Hasło,
+ * powtórzenie hasła, lista i zgoda newslettera to pola popupu/rejestracji -
+ * w stanie odwodnionym formularza inline byłyby martwym balastem.
+ */
+export const NEWSLETTER_INLINE_LABEL_KEYS = [
+  "first_name",
+  "last_name",
+  "email",
+  "job",
+  "linkedin",
+  "phone",
+  "company",
+] as const satisfies readonly PopupFieldKey[];
+export type NewsletterInlineLabelKey = (typeof NEWSLETTER_INLINE_LABEL_KEYS)[number];
+const INLINE_LABEL_KEYS: ReadonlySet<PopupFieldKey> = new Set(NEWSLETTER_INLINE_LABEL_KEYS);
+
+/**
  * Ustawienia czytane przez formularze INLINE: `NewsletterForm` (tryb, zgoda,
  * nagłówek, opis, komunikat sukcesu, `inline_doc`), `NewsletterDocRenderer`
  * (te same teksty + listy mailingowe dokumentu inline) i `JoinUsForm`
  * (włącznik, nagłówek, opis). Listy mailingowe jadą WYŁĄCZNIE razem z
  * `inline_doc` - bez dokumentu nikt ich w formularzu nie renderuje.
  *
- * `field_labels`: oba formularze liczą etykiety pól przez
- * `useNewsletterFieldLabels` -> `useRegistrationFields`, czyli z
- * `popup_fields`. Projekcja niesie z nich wyłącznie etykiety (nazwa pola
- * odróżnia je od kolumny popupu), bo bez nich formularz inline musiałby nadal
+ * `field_labels`: etykiety pól liczone dotąd z `popup_fields` pełnego klucza
+ * (`useNewsletterFieldLabels` -> `useRegistrationFields`); formularze inline
+ * liczą je z projekcji (`useNewsletterFieldLabelsFrom`). Projekcja niesie
+ * wyłącznie klucz i dwie etykiety pól z `NEWSLETTER_INLINE_LABEL_KEYS` (nazwa
+ * pola odróżnia je od kolumny popupu) - bez nich formularz inline musiałby
  * czytać PEŁNY klucz w pierwszym renderze.
  */
 export type NewsletterInlineSettings = Pick<
@@ -261,6 +285,12 @@ export type NewsletterInlineSettings = Pick<
   Partial<Pick<NewsletterSettings, "popup_mailing_lists">> & {
     field_labels: NewsletterFieldLabelRow[];
   };
+
+/**
+ * Pola czytane przez `NewsletterDocRenderer` - spełnia je i projekcja inline,
+ * i pełny wiersz (popup renderuje ten sam dokumentowy formularz).
+ */
+export type NewsletterDocSettings = Omit<NewsletterInlineSettings, "field_labels">;
 
 /**
  * DIETA STANU ODWODNIONEGO (P2.5, HW-3c): projekcja ustawień newslettera dla
@@ -284,11 +314,9 @@ export function projectNewsletterInlineSettings(s: NewsletterSettings): Newslett
     policy_html_en: s.policy_html_en,
     success_message_pl: s.success_message_pl,
     success_message_en: s.success_message_en,
-    field_labels: s.popup_fields.map(({ key, label_pl, label_en }) => ({
-      key,
-      label_pl,
-      label_en,
-    })),
+    field_labels: s.popup_fields
+      .filter((f) => INLINE_LABEL_KEYS.has(f.key))
+      .map(({ key, label_pl, label_en }) => ({ key, label_pl, label_en })),
   };
   if (s.inline_doc) out.popup_mailing_lists = s.popup_mailing_lists;
   return out;
@@ -299,15 +327,10 @@ export function projectNewsletterInlineSettings(s: NewsletterSettings): Newslett
  * refetch mają ten sam kształt). Popup, admin i `registrationFields` zostają
  * na pełnym `newsletterSettingsQueryOptions`.
  *
- * KONSUMENCI JESZCZE NIEPRZEŁĄCZENI (P2.5, poprawka 1): `NewsletterForm` i
- * `JoinUsForm` czytają etykiety pól przez `useNewsletterFieldLabels`, który
- * woła `useRegistrationFields` -> `useNewsletterSettings()` (pełny klucz).
- * Przełączenie samych formularzy i prefetchu na ten klucz zostawiłoby więc
- * odczyt pełnego wpisu w pierwszym renderze - z prefetchem obu kluczy stan
- * by urósł, a bez prefetchu pełnego klucza etykiety SSR szłyby z wartości
- * domyślnych, a hydratacja dociągałaby pełne ustawienia i podmieniała tekst.
- * Warunek: wariant `useNewsletterFieldLabels` liczący etykiety z
- * `field_labels` (plik `newsletterFieldLabels.ts`, poza własnością P2.5).
+ * Odbiorcy: `NewsletterForm` i `JoinUsForm` (także etykiety pól -
+ * `useNewsletterFieldLabelsFrom(field_labels)`, nie `useNewsletterFieldLabels`,
+ * który czyta pełny klucz) oraz rejestr prefetchu widgetów `newsletter` i
+ * `join-us` (`lib/builder/prefetch.ts`) - SSR grzeje dokładnie ten klucz.
  */
 export function newsletterInlineSettingsQueryOptions() {
   return queryOptions({
