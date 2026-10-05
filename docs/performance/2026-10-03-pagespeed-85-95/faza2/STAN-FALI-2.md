@@ -37,14 +37,14 @@ c3-lcpobs.mjs --html-transform-b c3-lcpobs.mjs`; 16/16 przebiegów ważnych.
 
 ## 3. Pozycje
 
-| Id                                   | Partia | Stan                                                              | Raporty                 |
-| ------------------------------------ | ------ | ----------------------------------------------------------------- | ----------------------- |
-| P2.5 dieta dehydratacji              | 1a     | **scalone** (`9652d965`); dowód: struktura tak, rozmiar częściowo | `raporty/P2.5-*.md`     |
-| P2.6 dieta znaczników                | 1a     | **scalone** (`afcf927c`); dowód: struktura tak, czas w szumie     | `raporty/P2.6-*.md`     |
-| P2.4 hydratacja per widget, animacje | 1b     | recenzja i dowód w toku (implementacja `afa0421f`)                | –                       |
-| P2.3 nagłówek w oknie                | 1b     | implementacja wznowiona po przerwie                               | –                       |
-| P2.2 wyspy sekcji i stopki           | 2      | po partii 1                                                       | –                       |
-| P2.1 boot po LCP                     | 3      | spike (krok 0) zielony, plan A; reszta po partii 2                | `raporty/P2.1-SPIKE.md` |
+| Id                                   | Partia | Stan                                                                                   | Raporty                 |
+| ------------------------------------ | ------ | -------------------------------------------------------------------------------------- | ----------------------- |
+| P2.5 dieta dehydratacji              | 1a     | **scalone** (`9652d965`); dowód: struktura tak, rozmiar częściowo                      | `raporty/P2.5-*.md`     |
+| P2.6 dieta znaczników                | 1a     | **scalone** (`afcf927c`); dowód: struktura tak, czas w szumie                          | `raporty/P2.6-*.md`     |
+| P2.4 hydratacja per widget, animacje | 1b     | **scalone** (`48259396`); dowód: tak                                                   | `raporty/P2.4-*.md`     |
+| P2.3 nagłówek w oknie                | 1b     | **scalone** (`83d9cc80`); dowód: częściowo (kryteria zależne od I2 przechodzą do P2.2) | `raporty/P2.3-*.md`     |
+| P2.2 wyspy sekcji i stopki           | 2      | w toku (baza `3841521a`)                                                               | –                       |
+| P2.1 boot po LCP                     | 3      | spike (krok 0) zielony, plan A; reszta po partii 2                                     | `raporty/P2.1-SPIKE.md` |
 
 ## 4. Spike P2.1 (krok 0): parytet zielony, plan A
 
@@ -107,6 +107,43 @@ A/B wobec bazy W2 z transformacją C3 po obu stronach (n = 5). Liczby: `raporty/
 5. Przekazania: ticker z językiem w kluczu i `keepPreviousData` (wymaga języka żądania w `__root.tsx`, P2.1 lub
    później); fixture bez menu (`homeFixture.ts` ignoruje embed `menus→menu_items`, więc pomiary fixture nie widzą menu
    nagłówka) – poprawka uprzęży po fali 2, żeby nie psuć porównywalności A/B w trakcie fali.
+
+## 4c. Partia 1b (P2.4, P2.3): scalona
+
+| Miara (fixture `/`, C3 po obu stronach, n = 5) | P2.4                                                                                                                                                                                     | P2.3 (dowód 2, `8505be5c`)                                                                                |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| TBT mobile, mediana A → B                      | 339 → 195 ms (pary −129 ms, 5/5 ujemnych)                                                                                                                                                | 201 → 178 ms (pary −7 ms); dowód 1: 300 → 185 ms (−99 ms, 5/5); pula 10 par ok. −53 ms                    |
+| TBT desktop4x, mediana A → B                   | 373 → 266 ms (pary −95 ms)                                                                                                                                                               | 246 → 225 ms (pary −24 ms)                                                                                |
+| Księga                                         | K15 (50 × `innerHTML` w commicie przełączenia urządzenia) 5/5 → 0/5; „Parse HTML & CSS” krótsze w 5/5 parach (239 → 120 ms); K16 skrócone; `icons-3` + `newsletter.confirm` 10/10 → 0/10 | ScriptCatchup mobile przesunięty przed FCP_sim (blokowanie 69 → 32 ms); przebieg korzenia bez zmian do I2 |
+| HTML                                           | 400 880 → 356 740 B; `inlineStyleCount` 50 → 25                                                                                                                                          | −2,1 KB raw                                                                                               |
+| CLS                                            | 0 / 0,006 desktop (przesunięcie z A/A)                                                                                                                                                   | desktop 0,003 → 0,000 (przesunięcie wiersza nagłówka usunięte, 0/10 przebiegów)                           |
+| Boot (gz)                                      | +0,6 KB                                                                                                                                                                                  | +6,5 KB (prymityw wysp P1.6 w chunku wejściowym przez `Header.tsx`)                                       |
+
+- P2.4: szablon typografii HW-2 (`data-wt` + zmienne per urządzenie, reguły raz w `styles.css`), `StyleSink` per widget,
+  `useGlobalWidgetNode` tylko z `globalId`, `cn()` z pamięcią, `DynamicIcon` z SVG z DOM SSR, `CountryCombobox` leniwie,
+  test animacji przy ładowaniu, strażnik generatora typografii w `check:entry-purity`. Sonda `getComputedStyle` (390/820/1350
+  px, jasny/ciemny, z JS i bez): 0 różnic; akcja Kinetic Signal Notch 11 px/400 w 1332/1332 przypadków (AGENTS.md).
+- P2.3: ukryty nagłówek desktopowy jako wyspa `media`, konto i wyszukiwarka na intencję (Radix, powitania, dyktowanie i
+  model kubełków dopiero przy użyciu), ticker F9–F11 (bez wyspy: marquee nie jest czysto CSS), CLS wiersza nagłówka.
+  Dwa przypadki e2e `header-intent` oznaczone `test.fail` do czasu I2 (P2.2).
+- Przy scaleniu: `PostListView` importuje `normalizeTypographyGapPx` z lekkiego `liveTypography` (sugestia P2.4).
+
+**Regresja bootu po scaleniu z `main` (naprawiona w PR).** Scalona głowa miała domknięcie bootu 503,4 KB gzip (baza W2
+477,3) i 10 chunków: łączenie małych chunków (`experimentalMinChunkSize`) dokleiło do chunku wejściowego atom
+`ClubThreadKindIcon.tsx`, a z nim cały `vendor-lucide` (+18 KB gzip). Źródło: zmiana Lovable w `main` (`ClubHubRail.tsx`
+importuje `clubThreadKindIcon`, co rozbiło dawny wspólny chunk `threadIcons`). **Ta sama regresja jest na `origin/main`
+`824584d1`, czyli na produkcji: domknięcie bootu 493,0 KB gzip.** Poprawka (`57681ad3`, `7d865b47`, `3841521a`):
+
+- `manualChunks` obu presetów (identycznie, `viteChunkParity`): atom w chunku `club-thread-kind-icon`, `DynamicIcon` we
+  własnym chunku `dynamic-icon` (bez tego Rollup wciąga zależność do chunku atomu i wejście importuje go stamtąd);
+- `check:entry-purity`: leniwe chunki vendorowe (`vendor-lucide`, `vendor-radix` i grupy poza `-boot`, `vendor-sonner`,
+  `vendor-jszip`) w domknięciu bootu = naruszenie; kontrola negatywna na buildzie przed poprawką: czerwone;
+- wynik: boot 483,1 KiB gzip / 1593,3 KiB raw (próg 483,4 / 1599,4), 10 chunków (index + `dynamic-icon`); liczniki
+  `modulepreloadCount`, `linkHeaderEntries`, `preloadedJsCount` podniesione o dokładnie 1 z kroniką w pliku progów.
+
+Bramki scalonej głowy `3841521a`: `check:bundle` czerwone tylko overall 4799,8 KB (jak na `main`), `check:chunks`,
+`check:entry-purity`, `check:server-entry-purity` zielone, `check:document-weight` 25/25, vitest zmienionych testów 23 pliki
+zielone (213 + 1 oczekiwana porażka), `typecheck` zielony, `test:e2e:artifact` 8/8.
 
 ## 4b. Przerwa i wznowienie
 
