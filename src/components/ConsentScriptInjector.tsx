@@ -18,24 +18,46 @@ import {
 import { hasConsentDecision, subscribeConsentChange, useEffectiveConsent } from "@/lib/ads/consent";
 import {
   bootstrapGa4,
+  ga4ConfigureAds,
   ga4ConsentUpdate,
   GOOGLE_ADS_ID,
   resolveBrowserGa4Id,
 } from "@/lib/analytics/ga4Client";
-import { scheduleGtagLoad } from "@/lib/analytics/gtagLoadPolicy";
 
 type CleanupFn = () => void;
 
 const MARK_ATTR = "data-consent-owner";
 
 /**
+ * Polityka dociągania gtag.js ładowana LENIWIE - celowo bez statycznego
+ * importu (P1.1, poprawka po dowodzie A/B). Statyczna krawędź wciągała
+ * `gtagLoadPolicy.ts`, a z nim prymitywy P0.3 (`whenQuiescent`,
+ * `postInteractionQueue`, `firstInteraction`), do zamknięcia bootu
+ * (`__root.tsx` -> ten komponent): +2,4 KB gzip w chunku `index`, a na mobile
+ * fixture ten przyrost przekraczał próg rundy TCP w symulacji Lanterna
+ * (ok. +155 ms LCP). `import()` z efektu po hydratacji daje osobny chunk
+ * `gtagLoadPolicy-*.js`: nieosiągalny statycznie z wejścia, bez
+ * `modulepreload` w dokumencie, pobierany dopiero po montażu.
+ *
+ * NIC NIE GINIE (PÓŹNY IMPORT w `whenQuiescent.ts`): detektor ciszy czyta
+ * zbuforowane wpisy `PerformanceObserver` (`resource`, `longtask`) i liczy
+ * minimum od `loadEventStart`, a kliknięcie, klawisz albo dotknięcie sprzed
+ * importu łapie lepka aktywacja w `firstInteraction.ts`. Samo przewinięcie
+ * sprzed importu (bez aktywacji) czeka na kolejną interakcję albo na punkt
+ * ciszy; zapisana decyzja o zgodzie podjęta po imporcie idzie jak dotąd
+ * (`release: "immediate"`).
+ */
+const loadGtagLoadPolicy = () => import("@/lib/analytics/gtagLoadPolicy");
+
+/**
  * Jawna decyzja o zgodzie jako sygnał dla polityki dociągania gtag.js
- * (`scheduleGtagLoad`, sygnał (b)). `subscribeConsentChange` budzi się też przy
- * podglądzie, GPC i zmianie w innej karcie - filtrem jest `hasConsentDecision`:
- * liczy się wyłącznie ZAPISANA decyzja odwiedzającego (baner, panel preferencji,
- * ta sama decyzja z innej karty). Decyzja zastana przy montażu (powracający
- * odwiedzający) NIE jest sygnałem - inaczej skrypt wracałby do okna hydratacji
- * dokładnie dla tych, którzy zgodzili się już wcześniej.
+ * (`scheduleGtagLoad`, sygnał (b): wpis kolejki P0.3 z `release: "immediate"`).
+ * `subscribeConsentChange` budzi się też przy podglądzie, GPC i zmianie w innej
+ * karcie - filtrem jest `hasConsentDecision`: liczy się wyłącznie ZAPISANA
+ * decyzja odwiedzającego (baner, panel preferencji, ta sama decyzja z innej
+ * karty). Decyzja zastana przy montażu (powracający odwiedzający) NIE jest
+ * sygnałem - inaczej skrypt wracałby do okna hydratacji dokładnie dla tych,
+ * którzy zgodzili się już wcześniej.
  */
 function onConsentDecision(fire: () => void): () => void {
   return subscribeConsentChange(() => {
@@ -212,27 +234,58 @@ export function ConsentScriptInjector() {
   // ROZDZIELENIE POLECEŃ OD SKRYPTU. `bootstrapGa4` wypycha polecenia do
   // `window.dataLayer` SYNCHRONICZNIE (albo rozpoznaje, że zrobił to już snippet
   // SSR), a sam plik gtag.js czeka na sygnał polityki `scheduleGtagLoad`:
-  // pierwszą interakcję, jawną decyzję o zgodzie albo bezczynność po load bez
-  // długich zadań (z twardym limitem). Do 2026-10-02 było to `afterPageLoad(…,
-  // 2000)`, które na mobile wciąż trafiało w okno TBT/TTI. Semantyka zgody nie
-  // zmienia się ani o krok: `consent default`/`update` siedzą w warstwie danych,
-  // którą skrypt przetwarza od początku, gdy dojedzie. Kompromis (odwiedzający
-  // bez interakcji, który wychodzi przed progiem bezczynności, nie wysyła
+  // pierwszą interakcję (gtag ostatni w kolejce po interakcji), jawną decyzję o
+  // zgodzie albo globalny punkt ciszy strony (P0.3: ≥ 5 s po load i 5 s ciszy,
+  // limit 20 s). Do 2026-10-02 było to `afterPageLoad(…, 2000)`, do 2026-10-04
+  // bezczynność 2-8 s po load - oba trafiały w ślad Lighthouse'a, a Lantern liczy
+  // każde długie zadanie w śladzie. Semantyka zgody nie zmienia się ani o krok:
+  // `consent default`/`update` siedzą w warstwie danych, którą skrypt
+  // przetwarza od początku, gdy dojedzie. Kompromis (odwiedzający bez
+  // interakcji, który wychodzi przed punktem ciszy, ok. load + 10 s, nie wysyła
   // `page_view`) jest opisany w nagłówku `gtagLoadPolicy.ts`.
+  //
+  // Samą politykę (i prymitywy P0.3) ładuje `import()` dopiero tutaj, po
+  // hydratacji - patrz `loadGtagLoadPolicy`. Cleanup przed jego
+  // rozstrzygnięciem (odmontowanie, zmiana strumienia) nie zakłada już
+  // żadnego sygnału. Gdy chunk nie dojedzie (np. dokument z cache brzegowego
+  // po wdrożeniu z nowymi hashami) albo polityka rzuci, tag ładuje się od razu:
+  // utracony pomiar byłby trwały, a koszt wraca tylko w tym przypadku awarii;
+  // dociąganie jest idempotentne, więc spóźniony sygnał polityki nie
+  // wstrzyknie drugiego skryptu.
   useEffect(() => {
     if (!mounted || !ga4Id) return;
+    let active = true;
     let cancelLoad: (() => void) | null = null;
-    bootstrapGa4(ga4Id, GOOGLE_ADS_ID, {
+    bootstrapGa4(ga4Id, {
       scheduleScript: (load) => {
-        cancelLoad = scheduleGtagLoad(load, { onDecision: onConsentDecision });
+        void loadGtagLoadPolicy()
+          .then(({ scheduleGtagLoad }) => {
+            if (active) cancelLoad = scheduleGtagLoad(load, { onDecision: onConsentDecision });
+          })
+          .catch(() => {
+            if (active) void load();
+          });
       },
     });
-    return () => cancelLoad?.();
+    return () => {
+      active = false;
+      cancelLoad?.();
+    };
   }, [mounted, ga4Id]);
 
+  // ZGODA, POTEM GOOGLE ADS - w TYM SAMYM efekcie i w tej kolejności (P1.1,
+  // TP-2). Snippet SSR i bootstrap nie konfigurują już Ads: `config AW` kazałby
+  // gtag.js dociągnąć kontener Ads (~200 KB, ~185 ms CPU) każdemu, także bez
+  // zgody. `ga4ConfigureAds` biegnie wyłącznie przy `categories.marketing ===
+  // true` (GPC zdejmuje marketing już w `useEffectiveConsent`) i PO
+  // `ga4ConsentUpdate`: gtag.js przetwarza warstwę danych po kolei, więc
+  // `config AW` przed aktualizacją zgody wysłałby pierwsze trafienie Ads
+  // powracającego odwiedzającego w stanie `denied`. Idempotencja (flaga i skan
+  // warstwy danych na `config AW` z HTML-a z cache) jest po stronie `ga4Client`.
   useEffect(() => {
     if (!mounted || !ga4Id) return;
     ga4ConsentUpdate(categories);
+    if (categories.marketing === true) ga4ConfigureAds(GOOGLE_ADS_ID);
   }, [mounted, ga4Id, categories]);
 
   const analyticsCleanup = useRef<CleanupFn | null>(null);
