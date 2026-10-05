@@ -38,6 +38,21 @@ describe("AuthorBusinessCard", () => {
     expect(screen.getByText("Zobacz profil")).toHaveAttribute("href", "/author/anna-kowalska");
   });
 
+  it("oznacza link do profilu ikoną fast-forward dziedziczącą kolor tekstu", () => {
+    renderWithQueryClient(
+      <AuthorBusinessCard lang="pl" name="Anna Kowalska" href="/author/anna-kowalska" />,
+    );
+
+    const link = screen.getByText("Zobacz profil").closest("a");
+    expect(link).not.toBeNull();
+    // Ikona currentColor = kolor tekstu linku (brand) w motywie jasnym i ciemnym.
+    const icon = link?.querySelector("svg[fill='currentColor']");
+    expect(icon).not.toBeNull();
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+    // Strzałka tekstowa „→" została zastąpiona ikoną fast-forward.
+    expect(link?.textContent).not.toContain("→");
+  });
+
   it("fallbackuje do inicjałów, gdy brak avatara", () => {
     renderWithQueryClient(<AuthorBusinessCard lang="en" name="John Doe" />);
     expect(screen.getByText("JD")).toBeInTheDocument();
