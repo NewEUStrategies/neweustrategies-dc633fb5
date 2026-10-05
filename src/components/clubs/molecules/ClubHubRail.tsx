@@ -29,7 +29,6 @@ import { uiLang } from "@/lib/i18n/format";
 import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { useTranslation } from "react-i18next";
 import {
-  BarChart3,
   CalendarDays,
   FileText,
   Layers,
@@ -48,6 +47,8 @@ import { ClubTopicChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { useClubTopics } from "@/lib/clubs/useClubTopics";
 import { ClubGroupTree } from "@/components/clubs/molecules/ClubGroupTree";
 import type { ClubGroupRow, ClubViewRow } from "@/lib/clubs/types";
+import { CLUB_THREAD_KINDS } from "@/lib/clubs/threadKinds";
+import { clubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
 
 // DLACZEGO TRZY GRUPY, A NIE JEDNA SIATKA. Do A31 sekcji było sześć i płaska
 // siatka 2x3 czytała się jednym rzutem oka. Po A32/A33 jest ich dziewięć,
@@ -106,11 +107,10 @@ const SECTIONS = [
     exact: false,
     group: "work",
   },
-  { key: "insights", to: "/club/$clubSlug/insights", icon: BarChart3, exact: false, group: "work" },
 ] as const;
 
 /** Kolejność grup jest kolejnością pytań - patrz komentarz wyżej. */
-const SECTION_GROUPS = ["club", "people", "work"] as const;
+const SECTION_GROUPS = ["club", "people", "content", "work"] as const;
 type SectionGroup = (typeof SECTION_GROUPS)[number];
 
 /** Sekcje mówiące o LUDZIACH milkną tam, gdzie klub ukrywa skład. */
@@ -170,7 +170,8 @@ function SectionTile({
       // Sekcja "wątki" celuje w /club/$slug, który jest PREFIKSEM każdej
       // pozostałej trasy klubu - bez dopasowania dokładnego świeciłaby się
       // na wszystkich sześciu ekranach naraz.
-      activeOptions={{ exact }}
+       search={to === "/club/$clubSlug" ? { kind: undefined } : undefined}
+       activeOptions={{ exact, explicitUndefined: true }}
       className={TILE}
     >
       <span className={TILE_CHIP}>
@@ -213,6 +214,7 @@ function SectionTiles({
   return (
     <nav aria-label={t("club.hub.sectionsLabel")} className="space-y-2.5">
       {SECTION_GROUPS.map((group) => {
+        if (group === "content") return <ContentTiles key={group} clubSlug={clubSlug} />;
         const items = visible.filter((section) => section.group === group);
         // Grupa, z której nic nie zostało (klub ukrywa skład), znika razem
         // z nagłówkiem - pusty nagłówek jest gorszy niż jego brak.
@@ -239,6 +241,30 @@ function SectionTiles({
         );
       })}
     </nav>
+  );
+}
+
+/** Content kinds reuse the same thread icons and URL filter on every club surface. */
+function ContentTiles({ clubSlug }: { clubSlug: string }) {
+  const { t } = useTranslation();
+  const orderedKinds = ["announcement", "discussion", "question", "poll", "position", "resource"] as const;
+  return (
+    <div className="mb-2.5">
+      <h3 className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {t("club.hub.sectionGroups.content")}
+      </h3>
+      <div className="grid grid-cols-2 gap-1.5">
+        {orderedKinds.filter((kind) => CLUB_THREAD_KINDS.includes(kind)).map((kind) => {
+          const Icon = clubThreadKindIcon(kind);
+          return (
+            <Link key={kind} to="/club/$clubSlug" params={{ clubSlug }} search={{ kind }} activeOptions={{ exact: true }} className={TILE}>
+              <span className={TILE_CHIP}><Icon className="h-4 w-4" aria-hidden="true" /></span>
+              <span className="line-clamp-2 w-full px-0.5">{t(`club.hub.contentKinds.${kind}`)}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -269,7 +295,8 @@ export function ClubHubSectionBar({
             key={section.key}
             to={section.to}
             params={{ clubSlug }}
-            activeOptions={{ exact: section.exact }}
+            search={section.to === "/club/$clubSlug" ? { kind: undefined } : undefined}
+            activeOptions={{ exact: section.exact, explicitUndefined: true }}
             className={cn(
               ITEM,
               ITEM_LG,

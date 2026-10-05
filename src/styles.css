@@ -298,7 +298,7 @@ body {
 
   /* Zasięg poświaty wierszy Dossier - light: krótko, do ikony rodzaju. */
 
-  --background: oklch(0.99 0.003 80);
+  --background: #f8f7f3;
 
   --foreground: oklch(0.18 0 0);
   --card: oklch(1 0 0);
@@ -939,6 +939,7 @@ body {
   --voice-stop-border: transparent;
   /* Na ciemnej plycie ten sam szary ton, tylko wyrazniejszy od otoczenia. */
   --nes-kinetic-action: oklch(0.66 0.004 250);
+  --nes-kinetic-signal: oklch(0.76 0.004 250);
   --chat-user-from: #f8934a;
   --chat-user-to: #d95a12;
   --chat-user-foreground: #ffffff;

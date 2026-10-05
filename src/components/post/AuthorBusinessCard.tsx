@@ -3,6 +3,7 @@
 // w pełni responsywny i bilingualny (PL/EN).
 import { AppLink } from "@/components/atoms/AppLink";
 import { BrandIcon } from "@/components/atoms/BrandIcon";
+import { FastForwardIcon } from "@/components/atoms/FastForwardIcon";
 import { BRAND_TILE_CLASS, brandTileStyle } from "@/components/common/brandTile";
 import { XIcon } from "@/components/atoms/XIcon";
 import { Facebook, Linkedin, Globe, Mail, User as UserIcon, Check, Plus } from "@/lib/lucide-shim";
@@ -200,10 +201,13 @@ export function AuthorBusinessCard({
           {href && (
             <AppLink
               href={href}
-              className="cms-widget-kicker mt-1 inline-flex items-center gap-1 self-start font-medium text-[color:var(--brand)] hover:underline"
+              className="cms-widget-kicker group/link mt-1 inline-flex items-center gap-0.5 self-start font-medium text-[color:var(--brand)] hover:underline"
             >
               {t.viewProfile}
-              <span aria-hidden>→</span>
+              {/* Kolor ikony = currentColor linku (brand w obu motywach).
+                  text-inherit bije globalną regułę :where(... svg) ustawiającą
+                  var(--gc-icon) na ikonach wewnątrz kart. */}
+              <FastForwardIcon className="h-3 w-4 text-inherit transition-transform duration-200 group-hover/link:translate-x-0.5" />
             </AppLink>
           )}
         </div>

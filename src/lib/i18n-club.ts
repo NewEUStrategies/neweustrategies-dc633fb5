@@ -309,7 +309,16 @@ export const clubPl = {
       sectionGroups: {
         club: "Klub",
         people: "Ludzie",
+        content: "Treści",
         work: "Praca",
+      },
+      contentKinds: {
+        announcement: "Ogłoszenia",
+        discussion: "Dyskusje",
+        question: "Pytania",
+        poll: "Sondaże",
+        position: "Stanowiska",
+        resource: "Materiały",
       },
       sections: {
         threads: "Feed",
@@ -2230,6 +2239,7 @@ export const clubEn = {
       sectionGroups: {
         club: "Club",
         people: "People",
+        content: "Content",
         work: "Work",
       },
       sections: {
@@ -2242,6 +2252,14 @@ export const clubEn = {
         calendar: "Calendar",
         schedule: "Schedule",
         insights: "Activity",
+      },
+      contentKinds: {
+        announcement: "Announcements",
+        discussion: "Discussions",
+        question: "Questions",
+        poll: "Polls",
+        position: "Positions",
+        resource: "Resources",
       },
       identity: {
         members: "members",

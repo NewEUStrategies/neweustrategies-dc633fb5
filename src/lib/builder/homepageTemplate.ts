@@ -122,6 +122,7 @@ export function buildHomepageDocument(): BuilderDocument {
             widget("section-label", {
               label_pl: "Zdaniem ekspertów",
               label_en: "Expert opinions",
+              accentColorDark: "var(--nes-kinetic-signal)",
               color: "#0a0a0a",
               variant: "kinetic-signal-notch",
               action_pl: "Więcej",

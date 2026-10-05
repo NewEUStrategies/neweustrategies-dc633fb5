@@ -154,7 +154,7 @@ export const GLOBAL_COLOR_GROUPS: GlobalColorGroup[] = [
         label: "Body Background",
         description: "Główne tło strony (light / dark).",
         hasDark: true,
-        defaultLight: "#fcfcf9",
+        defaultLight: "#F8F7F3",
         defaultDark: "#141414",
         overrides: ["--background"],
       },
