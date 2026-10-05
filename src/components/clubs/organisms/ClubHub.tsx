@@ -102,6 +102,7 @@ import { pickLocalized } from "@/lib/i18n/pickLocalized";
 import { ClubSettingsDialog } from "@/components/clubs/molecules/ClubSettingsDialog";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
+import { parseClubThreadKind } from "@/lib/clubs/threadKinds";
 
 const FEED_ICONS = {
   all: LayoutList,
@@ -137,7 +138,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   // Segmentacja #tagami: tag z URL-a (klik w #tag w treści) zasiewa frazę
   // wyszukiwania, więc strumień zawęża się do wątków i wpisów z tym tagiem.
   const navigate = useNavigate();
-  const routeSearch = useSearch({ strict: false }) as { tag?: string };
+  const routeSearch = useSearch({ strict: false });
   const activeTag = typeof routeSearch.tag === "string" ? routeSearch.tag.trim() : "";
   useEffect(() => {
     if (activeTag !== "") setQuery(activeTag);
@@ -149,7 +150,14 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
     }
   };
   // Trzy zawężenia, które NIE są działem - patrz `ClubStreamFilters`.
-  const [kind, setKind] = useState<ClubThreadKind | null>(null);
+  const kind = parseClubThreadKind(routeSearch.kind);
+  const setKind = (next: ClubThreadKind | null) => {
+    void navigate({
+      to: "/club/$clubSlug",
+      params: { clubSlug },
+      search: (previous) => ({ ...previous, kind: next ?? undefined }),
+    });
+  };
   const [anchoredOnly, setAnchoredOnly] = useState(false);
   const [unreadOnly, setUnreadOnly] = useState(false);
   // Obszar tematyczny - oś PROSTOPADŁA do działu (poziom "wybór tematu" między
@@ -226,8 +234,8 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   const mediaUrls = useClubMediaUrls(mediaPaths);
 
   const feed = useMemo(
-    () => buildClubFeed({ mode, threads, documents, events, milestones, posts }),
-    [mode, threads, documents, events, milestones, posts],
+    () => buildClubFeed({ mode: kind !== null ? "threads" : mode, threads, documents, events, milestones, posts }),
+    [mode, kind, threads, documents, events, milestones, posts],
   );
 
   // Reakcje CAŁEJ widocznej partii wątków jednym zapytaniem - nigdy N+1.
@@ -534,9 +542,12 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
 
           {!searching ? (
             <ClubSegmented
-              value={mode}
+              value={kind !== null ? "threads" : mode}
               options={feedOptions}
-              onChange={setMode}
+              onChange={(next) => {
+                setMode(next);
+                if (kind !== null && next !== "threads") setKind(null);
+              }}
               ariaLabel={t("club.hub.feed.modeLabel")}
               className="mb-2"
             />
@@ -544,7 +555,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
 
           {/* Zawężenia dotyczą WĄTKÓW, więc nie stoją nad strumieniem
               dokumentów ani terminów - tam nie miałyby czego odsiać. */}
-          {!searching && (mode === "all" || mode === "threads") ? (
+          {!searching && (kind !== null || mode === "all" || mode === "threads") ? (
             <ClubStreamFilters
               kind={kind}
               onKindChange={(next) => applyThreadFilter(() => setKind(next), next !== null)}

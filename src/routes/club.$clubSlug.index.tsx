@@ -27,17 +27,20 @@ import { useClubBySlug } from "@/lib/clubs/useClubs";
 import { buildClubHead } from "@/lib/clubs/clubHead";
 import { clubHeadLoader } from "@/lib/clubs/clubHeadLoader";
 import { ensureClubI18n } from "@/lib/i18n-club";
+import { parseClubThreadKind, type ClubThreadKind } from "@/lib/clubs/threadKinds";
 
 // `?tag=` to segmentacja wątków przez #tagi w treści: klik w tag w dowolnym
 // wpisie zawęża strumień klubu do tej frazy. Trzymamy to w URL-u, bo taki
 // widok ma być linkowalny (i wracalny przyciskiem wstecz).
 interface ClubHubSearch {
   tag?: string;
+  kind?: ClubThreadKind;
 }
 
 export const Route = createFileRoute("/club/$clubSlug/")({
   validateSearch: (raw: Record<string, unknown>): ClubHubSearch => ({
     ...(typeof raw.tag === "string" && raw.tag !== "" ? { tag: raw.tag.slice(0, 50) } : {}),
+    ...(parseClubThreadKind(raw.kind) ? { kind: parseClubThreadKind(raw.kind) ?? undefined } : {}),
   }),
   // Indeksowalność liczy się z WIDOCZNOŚCI klubu, a head() jest synchroniczne -
   // stąd loader. Klub `public` jest jedyną powierzchnią modułu, która ma

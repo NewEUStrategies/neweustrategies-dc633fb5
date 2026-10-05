@@ -1,5 +1,7 @@
 # Architecture rules
 
+- Keep club content-kind navigation in the shared rail, reuse thread-kind icons, and resolve its filter from validated URL search so workspace links and browser history stay synchronized.
+
 - Resolve per-widget dark accents from CMS content `accentColorDark`, falling back to existing accent inversion, so instance-specific colors never override all section labels.
 
 - Treat widget typography, spacing, dimensions, borders, shadows and interaction geometry as shared across light/dark; only colors and theme-specific media may vary, so switching themes never changes layout.
