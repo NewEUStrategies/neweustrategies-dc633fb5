@@ -121,9 +121,8 @@ export function PostListView({
    * obrazem LCP (dawniej priorytet dostawał lead KAŻDEGO widgetu trzech
    * czołowych sekcji).
    *
-   * Znacznik idzie atrybutem `data-lcp-candidate` do `WidgetMediaImage`;
-   * atom przekazuje go na `<img>` dopiero po zmianie zgłoszonej poza
-   * własnością P1.4 (IMPL.md, out_of_ownership_needs).
+   * Znacznik idzie atrybutem `data-lcp-candidate` do `WidgetMediaImage`,
+   * który przekazuje go na `<img>` (test `mediaWidgetsBranches`).
    */
   lcp?: LcpImage;
 }) {

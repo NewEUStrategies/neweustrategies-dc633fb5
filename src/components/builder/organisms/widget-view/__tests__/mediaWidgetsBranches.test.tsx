@@ -443,15 +443,8 @@ describe("kandydat LCP - slider, dark-featured-card, post-lista", () => {
     expect(spa.container.querySelectorAll("[data-lcp-candidate]")).toHaveLength(0);
   });
 
-  // ZAREJESTROWANY DEFEKT (`it.fails`, recenzja P1.4 M1) - POZA WŁASNOŚCIĄ P1.4.
-  // `PostListView` podaje `data-lcp-candidate` okładce wiodącej, ale atom
-  // `WidgetMediaImage` (src/components/atoms/WidgetMediaImage.tsx) przekazuje do
-  // `OptimizedImage` tylko znane propsy - znacznik ginie, a priorytet zostaje.
-  // Strona, której hero jest post-listą albo karuzelą wpisów, nie ma wtedy
-  // `img[data-lcp-candidate]` (P1.3, P2.1). Łatka atomu czeka na decyzję
-  // orkiestratora (IMPL-fix1.md, out_of_ownership_needs); po niej ten test
-  // PRZEJDZIE, `it.fails` go wywali - zamienić na `it`.
-  it.fails("DEFEKT: okładka wiodąca post-listy-kandydata niesie data-lcp-candidate", async () => {
+  // Recenzja P1.4 M1: atom `WidgetMediaImage` przekazuje znacznik na `<img>`.
+  it("okładka wiodąca post-listy-kandydata niesie data-lcp-candidate, pozostałe nie", async () => {
     db.tables.posts = [1, 2].map((n) => ({
       id: `p${n}`,
       slug: `wpis-${n}`,

@@ -314,6 +314,9 @@ function AutoLoadNextPostChain({
               html={html}
               lang={lang}
               postId={c.post.id}
+              // Kolejny wpis doczytany po przewinięciu nie jest pierwszym
+              // ekranem: bez kandydata LCP (P1.4: jeden znacznik na stronę).
+              lcpOwner={false}
             />
           </article>
         );
