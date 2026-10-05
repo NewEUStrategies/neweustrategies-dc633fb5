@@ -900,18 +900,10 @@ describe("AuthProvider - szybka ścieżka gościa", () => {
   });
 
   it("zapis w innej karcie bez sesji albo z tym samym kontem nie loguje tej karty ponownie", async () => {
-    let renders = 0;
-    function Counter() {
-      renders += 1;
-      return <span data-testid="counter-uid">{useAuth().session?.user.id ?? "anon"}</span>;
-    }
-    render(
-      <QueryClientProvider client={newQueryClient()}>
-        <AuthProvider>
-          <Counter />
-        </AuthProvider>
-      </QueryClientProvider>,
-    );
+    // Licznik zdarzeń logowania: każde `onAuthEvent("SIGNED_IN", sesja)` pyta
+    // raz o personalizację anonima (licznik renderów łapał spóźnione
+    // aktualizacje ładowania ról).
+    renderProbe();
     const storage = () =>
       act(async () => {
         window.dispatchEvent(
@@ -921,20 +913,21 @@ describe("AuthProvider - szybka ścieżka gościa", () => {
           }),
         );
       });
-    await act(async () => {});
-    let before = renders;
     await storage();
-    expect(h.getSessionCalls).toBe(1);
-    expect(renders).toBe(before);
-    expect(screen.getByTestId("counter-uid")).toHaveTextContent("anon");
+    await waitFor(() => expect(h.getSessionCalls).toBe(1));
+    await act(async () => {});
+    expect(h.hasAnon).not.toHaveBeenCalled();
+    expect(screen.getByTestId("uid")).toHaveTextContent("anon");
 
     h.getSessionResult = { data: { session: makeSession("u-ta-sama") } };
     await storage();
-    await waitFor(() => expect(screen.getByTestId("counter-uid")).toHaveTextContent("u-ta-sama"));
-    before = renders;
+    await waitFor(() => expect(screen.getByTestId("uid")).toHaveTextContent("u-ta-sama"));
+    expect(h.hasAnon).toHaveBeenCalledTimes(1);
+
     await storage();
-    expect(h.getSessionCalls).toBe(3);
-    expect(renders).toBe(before);
+    await waitFor(() => expect(h.getSessionCalls).toBe(3));
+    await act(async () => {});
+    expect(h.hasAnon).toHaveBeenCalledTimes(1);
   });
 
   it("logowanie w innej karcie przy odrzuconym odczycie sesji: ostrzeżenie, karta zostaje gościem", async () => {
