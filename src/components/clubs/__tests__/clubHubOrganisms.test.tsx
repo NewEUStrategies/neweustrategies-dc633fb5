@@ -63,7 +63,7 @@ const h = vi.hoisted(() => ({
   lang: "pl" as string,
   session: { user: { id: "user-me" } } as { user: { id: string } } | null,
   /** Parametry adresu (`?tag=`) widziane przez hub. */
-  search: {} as { tag?: string },
+  search: {} as { tag?: string; kind?: ClubThreadKind },
   navigate: vi.fn(),
 
   // --- odpowiedzi zapytań (każde ma stan „w locie” przez `undefined`) -------
@@ -558,6 +558,14 @@ function fullData(): void {
 }
 
 function mount(overrides: Partial<ClubViewRow> = {}) {
+  h.navigate.mockImplementation((options: {
+    search?: { tag?: string; kind?: ClubThreadKind } | ((previous: typeof h.search) => typeof h.search);
+  }) => {
+    if (options.search) {
+      h.search = typeof options.search === "function" ? options.search(h.search) : options.search;
+    }
+    return Promise.resolve();
+  });
   return renderWithQueryClient(<ClubHub club={clubViewRow(overrides)} />);
 }
 
