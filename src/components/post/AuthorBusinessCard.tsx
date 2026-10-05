@@ -201,7 +201,7 @@ export function AuthorBusinessCard({
           {href && (
             <AppLink
               href={href}
-              className="cms-widget-kicker group/link mt-1 inline-flex items-center gap-1 self-start font-medium text-[color:var(--brand)] hover:underline"
+              className="cms-widget-kicker group/link mt-1 inline-flex items-center gap-0.5 self-start font-medium text-[color:var(--brand)] hover:underline"
             >
               {t.viewProfile}
               {/* Kolor ikony = currentColor (brand w obu motywach); hover
