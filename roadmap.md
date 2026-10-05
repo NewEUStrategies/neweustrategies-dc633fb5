@@ -90,3 +90,9 @@
 - [x] Zinwentaryzować wszystkie strony i etykiety sekcji w Builderze
 - [x] Podmienić wariant wszystkich etykiet sekcji na `kinetic-signal-notch` z zachowaniem treści PL/EN i ustawień
 - [x] Zweryfikować zapis, renderowanie mobilne i desktopowe oraz testy
+
+## Spójność geometrii light/dark
+
+- [ ] Ujednolicić typografię, rozmiary, odstępy i geometrię widgetów między jasnym i ciemnym trybem.
+- [ ] Zsynchronizować istniejące zapisane wartości oraz zablokować ponowne tworzenie rozbieżności w edytorze.
+- [ ] Dodać testy kontraktowe i zweryfikować reprezentatywne strony w obu trybach.
