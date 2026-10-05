@@ -5,7 +5,7 @@ import { ExpertRequestDialogHost } from "../components/chat/ExpertRequestDialogH
 import { widgetPreloadHeaders } from "../lib/seo/widgetPreloads";
 import { createBackgroundScope } from "@/lib/backgroundScope";
 import { RouteLoadingSkeleton } from "../lib/ssr/RouteLoadingSkeleton";
-import { QueryClient, type QueryKey } from "@tanstack/react-query";
+import { QueryClient, useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { isServer } from "@tanstack/router-core/isServer";
 import {
   Outlet,
@@ -75,6 +75,7 @@ import { ThemeDesignStyle } from "../components/theme/ThemeDesignStyle";
 import { ThemeFontSizesStyle } from "../components/theme/ThemeFontSizesStyle";
 import { ConsentScriptInjector } from "../components/ConsentScriptInjector";
 import { useEffectiveConsent } from "../lib/ads/consent";
+import { WIDGET_QUERY_ROOTS } from "../lib/builder/queryKeys";
 import { whenIdle } from "../lib/ads/idle";
 import { adPageTypeForLocation } from "../lib/ads/pageType";
 import { adPlacementsQueryOptions } from "../lib/ads/queries";
@@ -207,8 +208,8 @@ function AuthenticatedLiveSync() {
 
 /**
  * Ile czekamy z montażem nakładek „na później" (newsletter, popupy buildera,
- * Toaster). Te same 3 000 ms, co cache-busting i heartbeat niżej: nic z tego
- * nie ma prawa konkurować z LCP ani z pierwszą interakcją.
+ * Toaster). Te same 3 000 ms, co heartbeat niżej: nic z tego nie ma prawa
+ * konkurować z LCP ani z pierwszą interakcją.
  */
 const OVERLAY_IDLE_TIMEOUT_MS = 3_000;
 
@@ -277,6 +278,22 @@ function useOverlayGates(): { consentReady: boolean; overlaysReady: boolean } {
   }, []);
 
   return { consentReady, overlaysReady };
+}
+
+/**
+ * `PopupHost` nie montuje się tylko wtedy, gdy ISTNIEJĄCE dane SSR jednoznacznie
+ * mówią „brak aktywnych popupów" (P1.3, TP-4): odwodniony wpis zapytania
+ * `useActivePopups` z pustą listą. Bez nowego zapisu dehydratacji
+ * (`check:ssr-budgets`) - dziś żaden loader tego klucza nie grzeje, więc host
+ * montuje się jak dotąd; bramka zadziała sama, gdy wpis pojawi się w stanie SSR.
+ */
+export function useNoActivePopupsFromSsr(): boolean {
+  const queryClient = useQueryClient();
+  const [empty] = useState(() => {
+    const data = queryClient.getQueryData([WIDGET_QUERY_ROOTS.popupsActive]);
+    return Array.isArray(data) && data.length === 0;
+  });
+  return empty;
 }
 
 /**
@@ -995,6 +1012,7 @@ function DeferredRootOverlays() {
   const { consentReady, overlaysReady } = useOverlayGates();
   const toasterWanted = useToasterWanted();
   const consentPreviewRequested = useConsentPreviewRequested();
+  const noActivePopups = useNoActivePopupsFromSsr();
 
   return (
     <>
@@ -1008,7 +1026,7 @@ function DeferredRootOverlays() {
                 PRZED montażem - dla zwykłego czytelnika chunk nie powstaje. */}
         {consentPreviewRequested ? <ConsentPreviewPanel /> : null}
         {overlaysReady ? <NewsletterPopup /> : null}
-        {overlaysReady ? <PopupHost /> : null}
+        {overlaysReady && !noActivePopups ? <PopupHost /> : null}
       </Suspense>
       <Suspense fallback={null}>{toasterWanted ? <Toaster /> : null}</Suspense>
     </>
@@ -1066,15 +1084,51 @@ function RootComponent() {
     });
 
     // Cache-busting: chunk-load errors -> jednorazowy hard reload; polling
-    // /api/public/version -> reload przy najbliższej nawigacji, gdy pojawi
-    // się nowy deploy. Odroczone do bezczynności (whenIdle): setup pollingu
-    // nie ma żadnej pilności w pierwszych sekundach wizyty, a jego fetch+parse
-    // konkurował z dekodowaniem LCP i fontami tuż po hydratacji.
-    const cancelCacheBustingIdle = whenIdle(() => {
-      void background.run(import("../lib/cacheBusting"), (m) => {
-        return m.startCacheBusting(router);
+    // /api/public/version -> miękkie odświeżenie przy nowym wdrożeniu. Import
+    // modułu w PUNKCIE CISZY P0.3 (`onQuiescent`, klasa `overlays` - P1.3,
+    // TP-4): setup pollingu nie ma żadnej pilności, a jego chunk i fetch
+    // lądowały w śladzie Lighthouse'a; poll `/api/public/version` jest na
+    // liście ignorowanych detektora ciszy, więc nie przesuwa punktu innym
+    // konsumentom. SIATKA BEZPIECZEŃSTWA NIE CZEKA NA CISZĘ: błąd przed
+    // punktem ciszy (np. leniwy chunk usunięty przez wdrożenie przy dokumencie
+    // z cache brzegowego) ściąga moduł od razu i oddaje mu ten błąd
+    // (`handleChunkLoadFailure`) - przeładowanie po chunk-load error działa
+    // tak wcześnie jak dotąd. Prymityw ciszy dociągamy `import()` - poza
+    // zamknięciem bootu.
+    const earlyErrors: unknown[] = [];
+    let cacheBustingStart: Promise<void> | null = null;
+    const startCacheBusting = (): Promise<void> => {
+      cacheBustingStart ??= background.run(import("../lib/cacheBusting"), (m) => {
+        stopEarlyErrors();
+        const stop = m.startCacheBusting(router);
+        for (const reason of earlyErrors.splice(0)) m.handleChunkLoadFailure(reason);
+        return stop;
       });
-    }, 3000);
+      return cacheBustingStart;
+    };
+    const onEarlyError = (event: ErrorEvent) => {
+      earlyErrors.push(event.error ?? event.message);
+      void startCacheBusting();
+    };
+    const onEarlyRejection = (event: PromiseRejectionEvent) => {
+      earlyErrors.push(event.reason);
+      void startCacheBusting();
+    };
+    const stopEarlyErrors = () => {
+      window.removeEventListener("error", onEarlyError);
+      window.removeEventListener("unhandledrejection", onEarlyRejection);
+    };
+    window.addEventListener("error", onEarlyError);
+    window.addEventListener("unhandledrejection", onEarlyRejection);
+    let cacheBustingDisposed = false;
+    let cancelCacheBustingQuiet: () => void = () => {};
+    void import("../lib/performance/whenQuiescent").then(
+      ({ onQuiescent }) => {
+        if (cacheBustingDisposed) return;
+        cancelCacheBustingQuiet = onQuiescent(startCacheBusting, { priority: "overlays" });
+      },
+      () => void startCacheBusting(),
+    );
 
     // Heartbeat sesji podglądu: iframe podglądu potrafi stracić połączenie z
     // sandboxem (uśpienie, przebudowa po merge, restart dev servera) i zostaje
@@ -1102,7 +1156,9 @@ function RootComponent() {
     return () => {
       background.dispose();
       unsub();
-      cancelCacheBustingIdle();
+      cacheBustingDisposed = true;
+      stopEarlyErrors();
+      cancelCacheBustingQuiet();
       cancelHeartbeatIdle?.();
     };
   }, [router]);

@@ -241,7 +241,8 @@ vi.mock("@/lib/seo/brandDefaults", async (o) => ({
   rememberBrandDefaults: (...a: unknown[]) => void h.brand.push(a),
 }));
 
-const { Route, ROOT_WARM_BUDGET_MS, CHROME_WARM_BUDGET_MS } = await import("@/routes/__root");
+const { Route, ROOT_WARM_BUDGET_MS, CHROME_WARM_BUDGET_MS, useNoActivePopupsFromSsr } =
+  await import("@/routes/__root");
 
 type Loader = (a: {
   context: { queryClient: QueryClient };
@@ -898,5 +899,49 @@ describe("__root loader -> tag Google w SSR", () => {
     expect(r.scripts.some((s) => s.src?.includes("googletagmanager"))).toBe(false);
     expect(r.scripts.some((s) => s.children?.includes("gtag("))).toBe(false);
     expect(r.scripts.at(-1)?.type).toBe("speculationrules");
+  });
+});
+
+// ── P1.3, TP-4: nakładki poza oknem pomiaru ────────────────────────────────
+describe("__root - nakładki poza oknem pomiaru (P1.3, TP-4)", () => {
+  it("`PopupHost` bez montażu WYŁĄCZNIE przy odwodnionej pustej liście aktywnych popupów", async () => {
+    const rtl = await import("@testing-library/react");
+    const { QueryClientProvider } = await import("@tanstack/react-query");
+    const probe = (client: QueryClient) =>
+      rtl.renderHook(() => useNoActivePopupsFromSsr(), {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }).result.current;
+    const none = new QueryClient();
+    expect(probe(none)).toBe(false);
+    const empty = new QueryClient();
+    empty.setQueryData(["builder-popups-active"], []);
+    expect(probe(empty)).toBe(true);
+    const some = new QueryClient();
+    some.setQueryData(["builder-popups-active"], [{ id: "p1" }]);
+    expect(probe(some)).toBe(false);
+  });
+
+  it("siatka cache-bustingu: chunk-load error sprzed ciszy przeładowuje raz, inny błąd - nic", async () => {
+    const { handleChunkLoadFailure } = await import("@/lib/cacheBusting");
+    const replace = vi.fn();
+    const location = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { href: "https://neweuropeanstrategies.com/a", replace },
+    });
+    try {
+      window.sessionStorage.clear();
+      handleChunkLoadFailure(new Error("Something else"));
+      expect(replace).not.toHaveBeenCalled();
+      handleChunkLoadFailure(new TypeError("Failed to fetch dynamically imported module: /x.js"));
+      expect(replace).toHaveBeenCalledTimes(1);
+      handleChunkLoadFailure("ChunkLoadError: Loading chunk 7 failed");
+      expect(replace).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(window, "location", { configurable: true, value: location });
+      window.sessionStorage.clear();
+    }
   });
 });

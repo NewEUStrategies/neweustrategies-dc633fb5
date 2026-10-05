@@ -17,7 +17,10 @@
 //      moment "bezpieczny", bo użytkownik świadomie zmienia widok.
 //
 // Wszystko jest opt-in i uruchamiane po hydratacji: żadnego wpływu na SSR
-// ani na FCP.
+// ani na FCP. Od P1.3 (TP-4) korzeń importuje ten moduł w punkcie ciszy P0.3
+// (`onQuiescent`, klasa `overlays`), a błąd sprzed tego punktu ściąga moduł od
+// razu i trafia do `handleChunkLoadFailure` - siatka przeładowania po
+// chunk-load error działa więc tak wcześnie jak dotąd.
 
 /**
  * Ten moduł potrzebuje z routera DOKŁADNIE jednej rzeczy: miękkiego
@@ -72,6 +75,17 @@ function safeReloadOnce(reason: string): void {
     console.warn(`[cache-busting] hard reload: ${reason}`);
   }
   window.location.replace(url.toString());
+}
+
+/**
+ * Błąd złapany PRZED startem modułu (korzeń buforuje `error`/`unhandledrejection`
+ * do importu w punkcie ciszy, patrz `__root.tsx`). Ta sama reguła co nasłuch
+ * z `startCacheBusting`: chunk-load error -> jednorazowy twardy reload, każdy
+ * inny błąd - nic.
+ */
+export function handleChunkLoadFailure(reason: unknown): void {
+  if (typeof window === "undefined") return;
+  if (looksLikeChunkLoadError(reason)) safeReloadOnce("chunk-load-early");
 }
 
 async function fetchVersion(): Promise<string | null> {

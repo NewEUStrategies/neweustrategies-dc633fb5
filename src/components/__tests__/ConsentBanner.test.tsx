@@ -19,6 +19,9 @@ const h = vi.hoisted(() => ({
   acceptAll: vi.fn(),
   rejectAll: vi.fn(),
   logo: { current: "https://cdn.example.com/mark.svg" as string },
+  /** `useConsent().mounted` - przejęcie powłoki (P1.3) startuje z `false`. */
+  mounted: true,
+  gpc: { active: false, source: "none" as "none" | "navigator" },
 }));
 
 vi.mock("@/lib/ads/consent", () => ({
@@ -26,14 +29,14 @@ vi.mock("@/lib/ads/consent", () => ({
   consumeOpenPrefsRequest: () => false,
   useConsent: () => ({
     state: h.state,
-    decided: !!h.state,
-    mounted: true,
+    decided: h.mounted ? !!h.state : true,
+    mounted: h.mounted,
     save: h.save,
     acceptAll: h.acceptAll,
     rejectAll: h.rejectAll,
     clear: vi.fn(),
   }),
-  useGpcSignal: () => ({ active: false, source: "none" as const }),
+  useGpcSignal: () => h.gpc,
 }));
 
 // Ustawienia witryny: baner bierze domyślne wartości (klucz -> `defaults`),
@@ -74,6 +77,8 @@ const EN = COOKIE_BANNER_DEFAULTS.copy.en;
 
 beforeEach(async () => {
   h.state = null;
+  h.mounted = true;
+  h.gpc = { active: false, source: "none" };
   __resetOverlayCoordinator();
   h.logo.current = "https://cdn.example.com/mark.svg";
   h.save.mockClear();
@@ -478,5 +483,95 @@ describe("ConsentBanner - modal szczegółów: decyzje i podmioty", () => {
     fireEvent.error(img);
     expect(container.querySelector("img")).toBeNull();
     expect(container.querySelector("svg")).not.toBeNull();
+  });
+});
+
+// PRZEJĘCIE POWŁOKI SSR (P1.3). Korzeń montuje baner po pierwszej interakcji
+// w miejsce statycznej powłoki - ten sam markup (`ConsentCompactCard`), więc
+// podmiana ma być niewidoczna: karta od PIERWSZEGO renderu (bez przebiegu
+// `mounted === false`), bez animacji wejścia, z odtworzoną intencją i fokusem.
+describe("ConsentBanner - przejęcie powłoki SSR (P1.3)", () => {
+  it("pokazuje kartę od pierwszego renderu, choć `useConsent` jeszcze nie zamontowany", () => {
+    h.mounted = false;
+    const onReady = vi.fn();
+    render(<ConsentBanner takeover={{ intent: null, focus: null }} onReady={onReady} />);
+    expect(screen.getByRole("dialog", { name: PL.title })).toBeInTheDocument();
+    expect(onReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("kontrola: bez przejęcia pierwszy render przed montażem nadal nic nie rysuje", () => {
+    h.mounted = false;
+    const { container } = render(<ConsentBanner />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("decyzja zapisana już w powłoce: baner niczego nie rysuje, tylko zgłasza stan", async () => {
+    h.mounted = false;
+    h.state = {
+      version: 2,
+      ts: 1,
+      categories: { necessary: true, functional: false, analytics: false, marketing: false },
+    };
+    const opened = vi.fn();
+    void requestOverlaySlot("waiting", { marketing: false }).then(opened);
+    const { container } = render(<ConsentBanner takeover={{ intent: null, focus: null }} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(container).toBeEmptyDOMElement();
+    expect(opened).toHaveBeenCalledTimes(1);
+  });
+
+  it("intencja „Dostosuj” z powłoki rozwija panel preferencji od razu", () => {
+    h.mounted = false;
+    render(<ConsentBanner takeover={{ intent: "customize", focus: "customize" }} />);
+    const customize = screen.getByRole("button", { name: PL.customize });
+    expect(customize).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("checkbox")).toHaveLength(4);
+    expect(document.activeElement).toBe(customize);
+  });
+
+  it.each(["reject", "accept", "close"] as const)(
+    "fokus z kontrolki powłoki `%s` przechodzi na tę samą kontrolkę banera",
+    (action) => {
+      h.mounted = false;
+      render(<ConsentBanner takeover={{ intent: null, focus: action }} />);
+      const active = document.activeElement;
+      expect(active?.getAttribute("data-consent-action")).toBe(action);
+      expect(active?.closest('[role="dialog"]')).not.toBeNull();
+    },
+  );
+
+  it("intencja języka z powłoki przełącza język banera", async () => {
+    h.mounted = false;
+    render(<ConsentBanner takeover={{ intent: "lang-en", focus: null }} />);
+    expect(await screen.findByRole("dialog", { name: EN.title })).toBeInTheDocument();
+  });
+
+  it("pokazanie BEZ animacji wejścia (F8), wyjście po decyzji nadal animowane", () => {
+    h.mounted = false;
+    const { container } = render(<ConsentBanner takeover={{ intent: null, focus: null }} />);
+    expect(container.innerHTML).not.toMatch(/animate-in|slide-in-from/);
+    fireEvent.click(screen.getByRole("button", { name: PL.rejectAll }));
+    expect(container.innerHTML).toMatch(/animate-out/);
+  });
+
+  it("GPC przy przejęciu: zgłoszenie koordynatorowi zaklamrowane - marketing bez slotu", async () => {
+    h.mounted = false;
+    h.gpc = { active: true, source: "navigator" };
+    h.state = {
+      version: 2,
+      ts: 1,
+      categories: { necessary: true, functional: true, analytics: true, marketing: true },
+    };
+    const opened = vi.fn();
+    void requestOverlaySlot("marketing-popup", { marketing: true }).then(opened);
+    render(<ConsentBanner takeover={{ intent: null, focus: null }} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    // Zgoda marketingowa zapisana, ale sygnał GPC bez świadomego override'u:
+    // nakładka marketingowa NIE może dostać slotu.
+    expect(opened).not.toHaveBeenCalled();
   });
 });

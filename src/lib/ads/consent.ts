@@ -38,6 +38,89 @@ const PREVIEW_KEY = "consent:preview";
 const EVENT = "consent-change";
 const PREVIEW_EVENT = "consent-preview-change";
 export const OPEN_PREFS_EVENT = "consent-open-preferences";
+/** Zdarzenie okna po każdym zapisie decyzji (baner, powłoka, inna karta przez `storage`). */
+export const CONSENT_CHANGE_EVENT = EVENT;
+
+// -------------------- Fragmenty dla skryptu inline powłoki (P1.3) --------------------
+//
+// PO CO. Powłoka banera (SSR, `components/consent/ConsentShell.tsx`) jest widoczna
+// od pierwszego malowania, a interaktywny baner montuje się dopiero po pierwszej
+// interakcji. Dwie rzeczy muszą więc zadziałać BEZ Reacta, w skrypcie inline
+// `CONSENT_INIT_SCRIPT` (`lib/consent/consentInitScript.ts`): (1) przed
+// pierwszym malowaniem rozpoznać zapisaną decyzję, żeby odwiedzający z decyzją
+// nigdy nie zobaczył powłoki, (2) zapisać decyzję klikniętą w powłoce przed
+// bootem (nawigacja MPA przed bootem nie może jej zgubić). Obie reguły są TUTAJ,
+// obok `safeParse` i `setConsent`, jako fragmenty tekstu - wzorzec `themeChoice.ts`:
+// jedna reguła, dwa języki wykonania, bez kopii, która się rozjedzie. Równoważność
+// z TypeScriptem sprawdzają testy WYKONANIEM (`consentInitScript.test.ts`):
+// rekord z powłoki = rekord z banera bajt w bajt poza znacznikiem czasu.
+
+/**
+ * FRAGMENT JS: pomocnicze funkcje odczytu. `L(k)` - `localStorage` odporny na
+ * zablokowany magazyn (jak `readStored`), `Q(n)` - ciasteczko zdekodowane, z
+ * wartością fałszywą przy braku i przy uszkodzonym %-kodowaniu (jak
+ * `readConsentCookie`), `V(s)` - czy napis jest WAŻNYM rekordem, czyli dokładnie
+ * warunek, przy którym `safeParse` zwraca nie-`null` (JSON z `version ===
+ * CONSENT_VERSION`; prymityw i tablica nie mają `version`, więc odpadają tak jak
+ * w `safeParse`). Wyniki są prawdziwościowe, nie `boolean` - to bajty na ścieżce
+ * krytycznej, a czyta je wyłącznie `CONSENT_DECIDED_JS`.
+ */
+export const CONSENT_READ_JS =
+  `var L=function(k){try{return localStorage.getItem(k)}catch(e){}},` +
+  `V=function(s){try{var v=JSON.parse(s);return v&&v.version===${CONSENT_VERSION}}catch(e){}},` +
+  `Q=function(n){var m=document.cookie.match(new RegExp('(?:^|; )'+n+'=([^;]*)'));try{return m&&decodeURIComponent(m[1])}catch(e){}};`;
+
+/**
+ * FRAGMENT JS (wyrażenie): czy w przeglądarce leży decyzja - dokładnie wtedy,
+ * gdy `readLocal()` zwróciłby nie-`null`: ważny `localStorage`, ważne
+ * ciasteczko (przetrwa wyczyszczenie magazynu) albo stary klucz marketingowy,
+ * który `readLocal` migruje. Wymaga `CONSENT_READ_JS` przed sobą.
+ */
+export const CONSENT_DECIDED_JS = `(V(L('${STORAGE_KEY}'))||V(Q('${COOKIE_NAME}'))||/^(granted|denied)$/.test(L('${LEGACY_KEY}')))`;
+
+/**
+ * FRAGMENT JS: funkcja `W(f,a,m)` zapisująca rekord decyzji TAK, JAK robi to
+ * `setConsent` + `writeLocal`: ten sam kształt i kolejność kluczy JSON
+ * (`version`, `ts`, `categories` z `necessary: true`, `source: "local"`; bez
+ * `gpcOverrideAt`, bo powłoka nie pokazuje noty GPC, więc jej decyzja nigdy nie
+ * jest świadomym override'em), ten sam klucz magazynu i ten sam zapis
+ * ciasteczka (`writeConsentCookie`). Zwraca zapisany napis.
+ */
+export const CONSENT_WRITE_JS =
+  `var W=function(f,a,m){var s=JSON.stringify({version:${CONSENT_VERSION},ts:Date.now(),categories:{necessary:!0,functional:f,analytics:a,marketing:m},source:'local'});` +
+  `try{localStorage.setItem('${STORAGE_KEY}',s)}catch(e){}` +
+  `document.cookie='${COOKIE_NAME}='+encodeURIComponent(s)+'; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax'+(location.protocol==='https:'?'; Secure':'');` +
+  `return s};`;
+
+/**
+ * Znacznik „decyzja z powłoki zapisana przed bootem, skutki uboczne jeszcze nie
+ * wykonane". Ustawia go skrypt inline (ścieżka bez Reacta), zdejmuje
+ * `finalizePendingShellDecision()` przy pierwszym boocie. Nie jest częścią
+ * rekordu zgody - rekord zostaje bajt w bajt taki, jak z banera.
+ */
+export const SHELL_PENDING_KEY = "consent:shell-pending";
+
+/** Akcje powłoki, które SĄ decyzją (pozostałe to intencje dla banera). */
+export type ConsentShellDecision = "accept" | "reject" | "close";
+
+/**
+ * Kategorie decyzji klikniętej w powłoce. „X" (`close`) = odmowa, jak w banerze
+ * (wytyczne CNIL). Przy aktywnym sygnale GPC akceptacja NIE włącza kategorii
+ * klamrowanych (analytics, marketing): powłoka nie pokazuje noty GPC, więc to
+ * nie może być świadomy override - zapisujemy to, co GPC i tak by wymusił.
+ * To ten sam rekord, który daje w banerze „Zapisz wybrane" z szkicem
+ * zaklamrowanym przez GPC (functional włączone, klamrowane wyłączone).
+ */
+export function shellDecisionCategories(
+  action: ConsentShellDecision,
+  gpcActive: boolean,
+): Record<ConsentCategory, boolean> {
+  const granted = action === "accept";
+  return clampCategoriesForGpc(
+    { necessary: true, functional: granted, analytics: granted, marketing: granted },
+    gpcActive,
+  );
+}
 
 // Klik "ustawienia cookies" może paść, ZANIM leniwy chunk ConsentBanner
 // (React.lazy w __root) zdąży się pobrać i zarejestrować listener
@@ -285,6 +368,64 @@ function setConsent(
   return next;
 }
 
+/**
+ * Decyzja kliknięta w powłoce PO boocie (skrypt inline oddaje ją aplikacji
+ * zdarzeniem `consent-shell-decision`, patrz `consentInitScript.ts`). Idzie
+ * TĄ SAMĄ drogą co przycisk banera - `setConsent` ze źródłem `cmp_banner` - więc
+ * zapis, ciasteczko, sprzątanie atrybucji, profil zalogowanego, rejestr RODO
+ * i zdarzenie zmiany są identyczne z banerem z definicji, nie z testu.
+ */
+export function applyShellDecision(action: ConsentShellDecision): ConsentState {
+  return setConsent(shellDecisionCategories(action, readGpcSignal().active), "cmp_banner");
+}
+
+/**
+ * Domknięcie decyzji zapisanej przez skrypt inline PRZED bootem (bez Reacta):
+ * rekord, ciasteczko, Consent Mode i zdarzenie zmiany zrobił już skrypt, tu
+ * dochodzą skutki uboczne `setConsent`, których skrypt inline zrobić nie może -
+ * sprzątanie atrybucji kampanii, zapis do profilu i ślad w rejestrze RODO
+ * (oba tylko dla zalogowanych; dla anonima no-op jak w banerze). Poprzedni stan
+ * jest `null`: powłoka jest widoczna wyłącznie bez decyzji (`CONSENT_DECIDED_JS`
+ * = warunek `readLocal() !== null`). Wołane przy każdym boocie; bez znacznika -
+ * no-op. Znacznik żyje w `localStorage`, więc decyzja z poprzedniej strony
+ * (nawigacja MPA przed bootem) też zostaje domknięta.
+ */
+export function finalizePendingShellDecision(): void {
+  if (typeof window === "undefined" || readStored(SHELL_PENDING_KEY) === null) return;
+  try {
+    window.localStorage.removeItem(SHELL_PENDING_KEY);
+  } catch {
+    /* magazyn zablokowany - znacznik i tak nie mógł powstać */
+  }
+  const next = readLocal();
+  if (!next) return;
+  const signal = readGpcSignal();
+  pruneAdAttribution(next);
+  void syncConsentToProfile(next);
+  void import("@/lib/consent/registryBridge")
+    .then((m) => m.syncCmpDecisionToRegistry(null, next, "cmp_banner", signal.active))
+    .catch(() => {
+      /* offline / chunk load error */
+    });
+}
+
+/**
+ * Stan zgody w kształcie, który baner zgłasza koordynatorowi nakładek
+ * (`ConsentBanner`: `setMarketingConsent(state ? marketing && !gpcHonored : null)`).
+ * Czyta go korzeń, dopóki interaktywny baner się nie zamontuje - powłoka jest
+ * widoczna od pierwszego malowania, więc koordynator musi o niej wiedzieć
+ * od hydratacji (P1.3), a nie dopiero od montażu banera.
+ */
+export function readConsentOverlayReport(): { decided: boolean; marketing: boolean | null } {
+  if (typeof window === "undefined") return { decided: false, marketing: null };
+  const state = readLocal();
+  if (!state) return { decided: false, marketing: null };
+  return {
+    decided: true,
+    marketing: state.categories.marketing && !isGpcHonored(readGpcSignal(), state),
+  };
+}
+
 function clearConsent() {
   if (typeof window === "undefined") return;
   try {
@@ -452,9 +593,16 @@ export function isConsentPreviewRequested(): boolean {
  * `gpc.server.ts`), klient dociąga prawdę przy pierwszym efekcie, przed
  * jakimkolwiek wstrzyknięciem skryptu (ConsentScriptInjector też działa z
  * efektu). Zero migotania, zero rozjazdu hydratacji.
+ *
+ * `eager` - wyłącznie dla komponentu, który NIGDY nie renderuje się na serwerze
+ * ani w hydratacji (interaktywny baner montowany po interakcji w miejsce
+ * powłoki, P1.3): pierwszy render czyta sygnał od razu. Bez tego pierwszy efekt
+ * banera zgłaszał koordynatorowi zgodę marketingową NIEZAKLAMROWANĄ przez GPC
+ * (sygnał dochodził dopiero w drugim przebiegu), a w tej chwili koordynator
+ * mógł przydzielić slot nakładce marketingowej.
  */
-export function useGpcSignal(): GpcSignal {
-  const [signal, setSignal] = useState<GpcSignal>(GPC_INACTIVE);
+export function useGpcSignal(eager = false): GpcSignal {
+  const [signal, setSignal] = useState<GpcSignal>(() => (eager ? readGpcSignal() : GPC_INACTIVE));
   useEffect(() => {
     const sync = () => setSignal(readGpcSignal());
     sync();
