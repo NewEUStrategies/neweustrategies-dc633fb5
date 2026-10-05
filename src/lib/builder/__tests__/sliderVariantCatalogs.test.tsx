@@ -48,6 +48,8 @@
 //    pliki i własne atrapy routera.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderToString } from "react-dom/server";
 import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
 import type { SupabaseFromStub } from "@/test/supabase";
 
@@ -873,7 +875,13 @@ describe("SliderRender - rozstrzyganie treści slajdu", () => {
     const { container } = renderSlider({ variant: "multi-card" });
     const imgs = [...container.querySelectorAll<HTMLImageElement>("img[data-fill-image]")];
     expect(imgs).toHaveLength(ITEMS.length);
-    for (const img of imgs) expect(img.style.opacity).toBe("1");
+    // Karta widoczna nie niesie `style` w ogóle: krycie 1 to wartość
+    // początkowa, a przejście żyje w arkuszu wspólnym (P2.6). Wygaszenie
+    // wyglądałoby jak inline `opacity:0`.
+    for (const img of imgs) {
+      expect(img.style.opacity).not.toBe("0");
+      expect(img.getAttribute("style")).toBeNull();
+    }
   });
 
   it("prosi w wariancie multi-card o rozmiary właściwe dla liczby kolumn", () => {
@@ -980,4 +988,316 @@ describe("SliderRender - obraz zepsuty już w chwili montażu", () => {
       );
     });
   });
+});
+
+// ------------------------------------------------------------------
+// Dieta znaczników (P2.6): stałe deklaracje w arkuszu i klasach, kropki
+// paginacji animowane wyłącznie przez kompozytor
+// ------------------------------------------------------------------
+
+/** Wspólny arkusz slidera (React przenosi go do `<head>`). */
+function sharedSheetElement(): HTMLStyleElement {
+  const el = document.querySelector<HTMLStyleElement>('style[data-href="nes-slider-shared-v1"]');
+  if (!el) throw new Error("brak wspólnego arkusza slidera");
+  return el;
+}
+
+/** Selektor, którego happy-dom nie umie rozebrać, po prostu nie pasuje. */
+function matchesSafely(el: Element, selector: string): boolean {
+  try {
+    return el.matches(selector);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Wartość deklaracji `property` z reguł arkusza wspólnego, których selektor
+ * pasuje do `el`. CSSOM happy-dom odrzuca `calc()` ze zmiennymi (szerokość
+ * karty), więc reguły czytamy z tekstu - ale porównujemy WARTOŚĆ obliczoną
+ * (`evaluateCalc`), a nie zapis źródła.
+ */
+function sharedDeclarationFor(el: Element, property: string): string | undefined {
+  let found: string | undefined;
+  for (const [, selector, body] of (sharedSheetElement().textContent ?? "").matchAll(
+    /([^{}]+)\{([^{}]*)\}/g,
+  )) {
+    const sel = selector.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+    if (!sel || sel.startsWith("@") || !matchesSafely(el, sel)) continue;
+    const decl = new RegExp(`(?:^|;)\\s*${property}\\s*:([^;]+)`).exec(body);
+    if (decl) found = decl[1].trim();
+  }
+  return found;
+}
+
+/**
+ * Arytmetyka `calc()` po podstawieniu liczb: + - * / i nawiasy. Wystarczy do
+ * sprawdzenia, że karty z odstępami wypełniają tor co do piksela.
+ */
+function evaluateCalc(expression: string): number {
+  const tokens = expression.replace(/calc/g, "").match(/\d*\.?\d+|[-+*/()]/g) ?? [];
+  let i = 0;
+  const factor = (): number => {
+    const token = tokens[i++];
+    if (token === "(") {
+      const value = sum();
+      i++;
+      return value;
+    }
+    if (token === "-") return -factor();
+    return Number(token);
+  };
+  const product = (): number => {
+    let value = factor();
+    while (tokens[i] === "*" || tokens[i] === "/") {
+      const op = tokens[i++];
+      const right = factor();
+      value = op === "*" ? value * right : value / right;
+    }
+    return value;
+  };
+  const sum = (): number => {
+    let value = product();
+    while (tokens[i] === "+" || tokens[i] === "-") {
+      const op = tokens[i++];
+      const right = product();
+      value = op === "+" ? value + right : value - right;
+    }
+    return value;
+  };
+  return sum();
+}
+
+/** Ustawienia urządzenia happy-dom (media `prefers-reduced-motion`). */
+function deviceSettings(): { prefersReducedMotion: string } {
+  return (
+    window as unknown as { happyDOM: { settings: { device: { prefersReducedMotion: string } } } }
+  ).happyDOM.settings.device;
+}
+
+/**
+ * Kropki paginacji: kropka to `span[aria-hidden]` w przycisku „Slajd N".
+ * Miniatury minimal-strip też są przyciskami „Slajd N", ale bez kropki.
+ */
+function dotsOf(root: ParentNode): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLButtonElement>('button[aria-label^="Slajd "]')].flatMap(
+    (button) => {
+      const dot = button.querySelector<HTMLElement>("span[aria-hidden]");
+      return dot ? [dot] : [];
+    },
+  );
+}
+
+const tokens = (el: Element) => el.className.split(/\s+/).filter(Boolean);
+
+/** Przejście, które każdy obraz niósł dotąd inline (przed P2.6). */
+const PRE_P26_INLINE_TRANSITION =
+  "opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) var(--eh-scale-easing, ease-in-out)";
+
+/**
+ * Obraz-wzorzec: kopia aktywnego obrazu z dawnym przejściem inline, w tym
+ * samym miejscu drzewa (te same reguły arkusza i te same zmienne CSS).
+ */
+function preP26Reference(img: HTMLImageElement): HTMLImageElement {
+  const reference = img.cloneNode() as HTMLImageElement;
+  reference.style.transition = PRE_P26_INLINE_TRANSITION;
+  img.after(reference);
+  return reference;
+}
+
+/** Warianty z obrazami w stosie: widoczny jest tylko aktywny slajd. */
+const STACKED_VARIANTS = [
+  "editorial-hero",
+  "cinematic-overlay",
+  "split-feature",
+  "minimal-strip",
+] as const satisfies readonly SliderVariant[];
+
+/** Warianty z kropkami paginacji (multi-card przy jednej kolumnie ma krok na slajd). */
+const DOT_VARIANTS = [
+  ["editorial-hero", {}],
+  ["multi-card", { columns: 1 }],
+  ["cinematic-overlay", {}],
+  ["split-feature", {}],
+] as const satisfies ReadonlyArray<readonly [SliderVariant, Partial<SliderConfig>]>;
+
+describe("SliderRender - dieta znaczników obrazów i kart (P2.6)", () => {
+  it.each(STACKED_VARIANTS)(
+    "w wariancie %s aktywny obraz nie ma atrybutu style, a ukryte niosą wyłącznie opacity:0",
+    (variant) => {
+      const { container } = renderSlider({ variant });
+      const [active, ...hidden] = [
+        ...container.querySelectorAll<HTMLImageElement>("img[data-fill-image]"),
+      ];
+      expect(active.getAttribute("style")).toBeNull();
+      expect(hidden).toHaveLength(ITEMS.length - 1);
+      for (const img of hidden) {
+        expect(img.style.length).toBe(1);
+        expect(img.style.opacity).toBe("0");
+        expect(img.style.transition).toBe("");
+      }
+    },
+  );
+
+  it("obraz bez style dostaje z arkusza to samo wyliczone przejście co dawny inline", () => {
+    const { container } = renderSlider();
+    const active = container.querySelector<HTMLImageElement>("img[data-fill-image]")!;
+    const reference = preP26Reference(active);
+    const transition = getComputedStyle(active).transition;
+    expect(transition).toContain("opacity 700ms");
+    expect(transition).toBe(getComputedStyle(reference).transition);
+    // Najechanie przestawia `--eh-scale-easing` (ease-out na wjeździe); happy-dom
+    // nie ma `:hover`, więc zmienną stawiamy wprost na obu obrazach.
+    for (const img of [active, reference]) img.style.setProperty("--eh-scale-easing", "ease-out");
+    expect(getComputedStyle(active).transition).toContain("ease-out");
+    expect(getComputedStyle(active).transition).toBe(getComputedStyle(reference).transition);
+  });
+
+  it("przy prefers-reduced-motion zostawia przenikanie (jak dotąd, gdy wygrywał inline), bez skali", () => {
+    const device = deviceSettings();
+    const previous = device.prefersReducedMotion;
+    device.prefersReducedMotion = "reduce";
+    try {
+      const { container } = renderSlider();
+      const active = container.querySelector<HTMLImageElement>("img[data-fill-image]")!;
+      const transition = getComputedStyle(active).transition;
+      expect(transition).toContain("opacity 700ms");
+      expect(transition).not.toContain("scale");
+      // Powiększenie na najechaniu jest wyłączone (skala zostaje 1).
+      const reduced = [...sharedSheetElement().sheet!.cssRules].find(
+        (rule): rule is CSSMediaRule =>
+          rule instanceof CSSMediaRule && rule.conditionText.includes("prefers-reduced-motion"),
+      );
+      const hover = [...(reduced?.cssRules ?? [])].find(
+        (rule): rule is CSSStyleRule =>
+          rule instanceof CSSStyleRule && rule.selectorText.includes(":hover"),
+      );
+      expect(hover?.style.getPropertyValue("--eh-scale").trim()).toBe("1");
+    } finally {
+      device.prefersReducedMotion = previous;
+    }
+  });
+
+  it.each([1, 2, 3, 4])(
+    "karty multi-card bez style, liczba kolumn %i: szerokość z arkusza i odstępy wypełniają tor co do piksela",
+    (columns) => {
+      const { container } = renderSlider({ variant: "multi-card" });
+      const cards = [...container.querySelectorAll<HTMLElement>("article.eh-multi-card-item")];
+      expect(cards).toHaveLength(ITEMS.length);
+      for (const card of cards) expect(card.getAttribute("style")).toBeNull();
+      const track = container.querySelector<HTMLElement>(".eh-multi-track")!;
+      // Przesunięcie toru jest stanem (indeks, przeciąganie) - zostaje inline.
+      expect(track.style.transform).toContain("translateX(");
+      const gap = Number.parseFloat(track.style.gap);
+      const width = sharedDeclarationFor(cards[0], "width");
+      expect(width).toBeDefined();
+      const trackWidth = 1000;
+      const cardWidth = evaluateCalc(
+        width!
+          .replace(/var\(--eh-visible-columns\)/g, String(columns))
+          .replace(/100%/g, String(trackWidth))
+          .replace(/px/g, ""),
+      );
+      expect(columns * cardWidth + (columns - 1) * gap).toBeCloseTo(trackWidth, 6);
+      // Karta nie rośnie i nie kurczy się we flexie toru - szerokość trzyma.
+      const card = getComputedStyle(cards[0]);
+      expect(card.getPropertyValue("flex-grow")).toBe("0");
+      expect(card.getPropertyValue("flex-shrink")).toBe("0");
+    },
+  );
+});
+
+describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6, css:C9)", () => {
+  it.each(DOT_VARIANTS)(
+    "w wariancie %s każda kropka ma stałe pudełko 10 px i przejście wyłącznie transform/opacity",
+    (variant, extra) => {
+      const { container } = renderSlider({ variant, ...extra });
+      const dots = dotsOf(container);
+      expect(dots).toHaveLength(ITEMS.length);
+      for (const dot of dots) {
+        expect(tokens(dot)).toEqual(
+          expect.arrayContaining([
+            "rounded-full",
+            "w-2.5",
+            "h-2.5",
+            "transition-[transform,opacity]",
+          ]),
+        );
+        // Animowane właściwości układu i koloru znikają razem z transition-all.
+        for (const banned of ["transition-all", "w-2", "h-2"]) {
+          expect(tokens(dot)).not.toContain(banned);
+        }
+        expect(dot.className).not.toMatch(/\bbg-(foreground|white)\/\d+/);
+      }
+    },
+  );
+
+  it.each(DOT_VARIANTS)(
+    "w wariancie %s aktywna kropka jest pełna, a nieaktywne pomniejszone scale(.8) i przygaszone",
+    (variant, extra) => {
+      const { container } = renderSlider({ variant, ...extra });
+      const buttons = [...container.querySelectorAll('button[aria-label^="Slajd "]')];
+      const active = buttons.filter((b) => b.getAttribute("aria-current") === "true");
+      expect(active).toHaveLength(1);
+      for (const button of buttons) {
+        const dot = button.querySelector<HTMLElement>("span[aria-hidden]")!;
+        const dimmed = tokens(dot).filter((t) => /^opacity-\d+$/.test(t));
+        if (button === active[0]) {
+          expect(tokens(dot)).not.toContain("[transform:scale(.8)]");
+          expect(dimmed).toEqual([]);
+        } else {
+          expect(tokens(dot)).toContain("[transform:scale(.8)]");
+          expect(dimmed).toHaveLength(1);
+        }
+      }
+    },
+  );
+
+  it("zachowuje dawne krycie kropek: /25 → opacity-25 (hover 50) na tle, /50 → opacity-50 (hover 80) na obrazie", () => {
+    const hero = dotsOf(renderSlider({ variant: "editorial-hero" }).container);
+    expect(tokens(hero[1])).toEqual(
+      expect.arrayContaining(["bg-foreground", "opacity-25", "group-hover:opacity-50"]),
+    );
+    const cinema = dotsOf(renderSlider({ variant: "cinematic-overlay" }).container);
+    expect(tokens(cinema[1])).toEqual(
+      expect.arrayContaining(["bg-white", "opacity-50", "group-hover:opacity-80"]),
+    );
+  });
+});
+
+describe("SliderRender - parytet SSR i klienta znaczników P2.6", () => {
+  function serverRoot(config: Partial<SliderConfig>): HTMLElement {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const html = renderToString(
+      <QueryClientProvider client={client}>
+        <SliderRender config={{ items: ITEMS, autoplay: false, ...config }} lang="pl" />
+      </QueryClientProvider>,
+    );
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    return host;
+  }
+
+  it.each(SLIDER_VARIANT_VALUES)(
+    "wariant %s: te same klasy kropek i te same atrybuty style obrazów po obu stronach",
+    (variant) => {
+      const config: Partial<SliderConfig> =
+        variant === "multi-card" ? { variant, columns: 1 } : { variant };
+      const server = serverRoot(config);
+      const { container } = renderSlider(config);
+      expect(dotsOf(server).map((d) => d.className)).toEqual(
+        dotsOf(container).map((d) => d.className),
+      );
+      const imgStyles = (root: ParentNode) =>
+        [...root.querySelectorAll<HTMLImageElement>("img[data-fill-image]")].map((img) =>
+          img.hasAttribute("style") ? img.style.opacity : null,
+        );
+      expect(imgStyles(server)).toEqual(imgStyles(container));
+      const cardStyles = (root: ParentNode) =>
+        [...root.querySelectorAll("article.eh-multi-card-item")].map((a) =>
+          a.getAttribute("style"),
+        );
+      expect(cardStyles(server)).toEqual(cardStyles(container));
+    },
+  );
 });
