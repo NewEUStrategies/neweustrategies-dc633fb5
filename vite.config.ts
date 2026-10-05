@@ -324,6 +324,13 @@ export default defineConfig({
                 // Keep the lazy toaster with its SDK: automatic merging of
                 // tiny chunks must not pull Sonner back into the boot entry.
                 if (id.endsWith("/src/components/ui/sonner.tsx")) return "vendor-sonner";
+                // Ta sama klasa (fala 2, 2026-10-05): 1,5-kilobajtowy atom ikon rodzaju
+                // wątku klubu po scaleniu wpadł przez łączenie małych chunków do chunku
+                // wejściowego i pociągnął za sobą cały `vendor-lucide` (+18 KB gzip
+                // w domknięciu bootu każdej strony). Nazwany chunk nie podlega łączeniu.
+                if (id.endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx")) {
+                  return "club-thread-kind-icon";
+                }
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
                 // WEJŚCIOWEGO do nazwanego chunku. Gdy `manualChunks` przypisze
