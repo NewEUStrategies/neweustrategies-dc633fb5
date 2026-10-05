@@ -1,0 +1,56 @@
+// Szkic testu I2 z prawdziwą wyspą P1.6 (uruchomiony 2026-10-04 w wt/P1.7 z kopią
+// src/lib/performance/hydrationIsland.tsx z wt/P1.6 i bazowym useAuth z HEAD jako
+// src/hooks/useAuthBaseTmp.tsx; wynik: BASE state=hydrated (wyspa otwarta przez górną
+// granicę, ostrzeżenie "[hydration-island] s1: an update reached the pending island"),
+// P1.7 state=pending po 1,1 s, HTML zachowany, 0 błędów hydratacji). Do wpięcia po
+// scaleniu P1.6 (właściciel hydrationIsland.test.tsx / authHydration.test.tsx).
+import { renderToString } from "react-dom/server";
+import { hydrateRoot, type Root } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act } from "@testing-library/react";
+import { expect, it, vi } from "vitest";
+
+vi.mock("@/integrations/supabase/client", async () => {
+  const { markSupabaseClientCreated } = await import("@/integrations/supabase/sessionHint");
+  const client = {
+    auth: {
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
+      getSession: () => Promise.resolve({ data: { session: null } }),
+    },
+  };
+  return { supabase: new Proxy(client, { get(t, p, r) { markSupabaseClientCreated(); return Reflect.get(t, p, r); } }) };
+});
+vi.mock("@/lib/personalization/anonMerge", () => ({ hasAnonPersonalization: () => false, mergeAnonPersonalization: async () => {} }));
+
+import { HydrationIsland } from "@/lib/performance/hydrationIsland";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
+
+it("gość: wyspa P1.6 pod AuthProvider zostaje pending >= 1 s po boocie", async () => {
+  function Header() { const { session } = useAuth(); return <span>{session ? "konto" : "zaloguj"}</span>; }
+  function LiveSync() { const { user, loading } = useAuth(); return loading || !user ? null : <i />; }
+  const qc = new QueryClient();
+  const app = (
+    <QueryClientProvider client={qc}>
+      <AuthProvider>
+        <Header />
+        <LiveSync />
+        <HydrationIsland id="s1" trigger={{ quiescent: false }}>
+          <p data-probe="sekcja">sekcja</p>
+        </HydrationIsland>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+  const c = document.createElement("div");
+  c.innerHTML = renderToString(app);
+  document.body.append(c);
+  const node = c.querySelector('[data-probe="sekcja"]');
+  const errors: unknown[] = [];
+  let root!: Root;
+  await act(async () => { root = hydrateRoot(c, app, { onRecoverableError: (e) => errors.push(e) }); });
+  await act(async () => { await new Promise((r) => setTimeout(r, 1100)); });
+  expect(c.querySelector("[data-island-id]")?.getAttribute("data-island-state")).toBe("pending");
+  expect(c.querySelector('[data-probe="sekcja"]')).toBe(node);
+  expect(errors).toEqual([]);
+  await act(async () => root.unmount());
+  c.remove();
+}, 15000);
