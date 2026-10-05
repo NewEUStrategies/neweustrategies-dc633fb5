@@ -3,22 +3,36 @@
 //
 // CO JEST PRZYPINANE.
 //  1. Telefon (412 px): pełny nagłówek z buildera (`display: none` poniżej
-//     `lg`) zostaje odwodnioną wyspą `hdr-desktop` do końca obserwacji, a
-//     widoczna nawigacja telefonu (pasek mobilny) działa od razu.
-//  2. Obrót/rozszerzenie okna do 1350 px: wyspa uwadnia się na TYM SAMYM HTML
+//     `lg`) jest ukryty, a widoczna nawigacja telefonu (pasek mobilny, jego
+//     szuflada) działa od pierwszego dotknięcia.
+//  2. Telefon (412 px): wyspa `hdr-desktop` zostaje odwodniona do końca
+//     obserwacji (I2, niżej).
+//  3. Obrót/rozszerzenie okna do 1350 px: wyspa uwadnia się na TYM SAMYM HTML
 //     serwera (te same węzły), bez przesunięcia układu w nagłówku.
-//  3. Dotyk na desktopie (tablet w poziomie): pierwsze dotknięcie pola otwiera
-//     wyszukiwarkę (fokus, wpisywanie), pierwsze dotknięcie konta - menu konta.
-//  4. Gość na desktopie bez interakcji: wyspy wyszukiwarki i konta czekają.
-//  5. Zapisana sesja: awatar w nagłówku najpóźniej 1 s po starcie aplikacji.
+//  4. Dotyk na desktopie (tablet w poziomie): nagłówek desktopowy żyje od
+//     startu, pierwsze dotknięcie pola otwiera wyszukiwarkę (fokus,
+//     wpisywanie), pierwsze dotknięcie konta - menu konta.
+//  5. Gość na desktopie bez interakcji: wyspy wyszukiwarki i konta czekają
+//     (I2, niżej).
+//  6. Zapisana sesja: awatar w nagłówku najpóźniej 1 s po starcie aplikacji.
+//  7. Pasek „Na czasie" (F10): ruch ozdobny (płomień, puls `live`, gradient
+//     `ribbon`) rusza dopiero po pierwszej interakcji, a przy
+//     `prefers-reduced-motion: reduce` nie rusza wcale - sprawdzane na
+//     wyliczonym `animation-name`, czyli na kaskadzie arkusza paska w
+//     przeglądarce, nie na jego tekście.
 //
-// ZALEŻNOŚĆ OD P2.2 (I2). Przypadki 1 i 4 wymagają stałej wartości kontekstu
+// ZALEŻNOŚĆ OD P2.2 (I2). Przypadki 2 i 5 wymagają stałej wartości kontekstu
 // `AuthProvider` przy starcie gościa: dziś przejście `loading: false` w
 // pierwszym przebiegu efektów dociera do każdej czekającej wyspy i otwiera ją
 // przez kolejkę zaraz po starcie (GÓRNA GRANICA w `hydrationIsland.tsx`).
 // Stałą wartość wprowadza P2.2 razem z wyspami sekcji, więc do jej scalenia
 // oba przypadki są oznaczone `test.fail` - Playwright zgłosi je jako
 // niespodziewanie zielone, gdy I2 wejdzie, i wtedy oznaczenie trzeba zdjąć.
+// Warunki wstępne obu przypadków (pasek mobilny działa; na desktopie wyspa
+// `hdr-desktop` uwadnia się od razu) przypinają ZIELONE przypadki 1 i 4, a w
+// przypadkach `test.fail` jedynymi asercjami po obserwacji są stany
+// `pending` - bez I2 padają dokładnie na nich (przebieg kontrolny bez
+// `test.fail`: raport P2.3 IMPL-fix1).
 //
 // MASKA AKTYWACJI UŻYTKOWNIKA. Jak w `third-party-quiescence.spec.ts`:
 // ewaluacje CDP Playwrighta nadają dokumentowi lepką aktywację, którą
@@ -51,6 +65,8 @@ const OBSERVE_MS = 4_000;
 const DESKTOP_ISLAND = '[data-island-id="hdr-desktop"]';
 const SEARCH_ISLAND = '[data-island-id^="hdr-search"]';
 const ACCOUNT_ISLAND = '[data-island-id^="hdr-account"]';
+const TICKER = '[data-testid="trending-ticker"]';
+const I2 = "wymaga stałego kontekstu AuthProvider przy starcie gościa (I2, P2.2)";
 
 declare global {
   interface Window {
@@ -174,21 +190,80 @@ async function waitForHydrated(page: Page, selector: string): Promise<void> {
   await expect.poll(() => islandState(page, selector), { timeout: 10_000 }).toBe("hydrated");
 }
 
+interface TickerMotion {
+  readonly attribute: boolean;
+  readonly flame: string;
+  readonly ribbon: string;
+  readonly livePing: string;
+}
+
+/**
+ * Wyliczony `animation-name` ruchu ozdobnego paska. Płomień to prawdziwy
+ * element paska (fixture: układ `classic`, `flicker`); skórek `ribbon` i
+ * `live` fixture nie ma, więc sonda z ich klasami pod kopią atrybutu
+ * `data-tt-motion` korzenia sprawdza te same reguły arkusza paska (arkusz
+ * działa w całym dokumencie). Sonda znika po odczycie.
+ */
+async function tickerMotion(page: Page): Promise<TickerMotion> {
+  return page.evaluate((selector) => {
+    const root = document.querySelector(selector);
+    const flame = root?.querySelector(".tt-flame");
+    if (!root || !flame) throw new Error("brak paska „Na czasie” albo płomienia w fixture");
+    const attribute = root.hasAttribute("data-tt-motion");
+    const element = (tag: string, className: string, child?: Element): Element => {
+      const node = document.createElement(tag);
+      node.className = className;
+      if (child) node.append(child);
+      return node;
+    };
+    const probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;left:-9999px;top:0;visibility:hidden";
+    if (attribute) probe.setAttribute("data-tt-motion", "");
+    const track = element("div", "tt-glass-track");
+    const icon = element("span", "tt-chip-icon");
+    probe.append(element("div", "tt-skin--ribbon", track), element("div", "tt-skin--live", icon));
+    document.body.append(probe);
+    try {
+      return {
+        attribute,
+        flame: getComputedStyle(flame).animationName,
+        ribbon: getComputedStyle(track).animationName,
+        livePing: getComputedStyle(icon, "::before").animationName,
+      };
+    } finally {
+      probe.remove();
+    }
+  }, TICKER);
+}
+
+/** Pierwsza interakcja (klawisz bez skutków ubocznych) i czekanie na ruch paska. */
+async function interactAndWaitForMotion(page: Page): Promise<void> {
+  await page.keyboard.press("Shift");
+  await expect(page.locator(TICKER).first()).toHaveAttribute("data-tt-motion", "");
+}
+
 test.describe("nagłówek w oknie startu (P2.3)", () => {
-  test("412 px: nagłówek desktopowy odwodniony do końca obserwacji, pasek mobilny działa", async ({
+  test("412 px: nagłówek desktopowy ukryty, pasek mobilny działa od pierwszego dotknięcia", async ({
     page,
   }) => {
-    test.fail(true, "wymaga stałego kontekstu AuthProvider przy starcie gościa (I2, P2.2)");
     await page.setViewportSize(MOBILE);
     await prepare(page);
     await routeGuest(page);
     await open(page);
     await expect(page.locator(DESKTOP_ISLAND)).toBeHidden();
-    await page.waitForTimeout(OBSERVE_MS);
-    expect(await islandState(page, DESKTOP_ISLAND)).toBe("pending");
-    // Widoczna nawigacja telefonu: szuflada i wyszukiwarka od pierwszego dotknięcia.
+    // Widoczna nawigacja telefonu: szuflada od pierwszego dotknięcia.
     await page.locator('button[aria-controls="mobile-header-drawer"]').click();
     await expect(page.locator("#mobile-header-drawer")).toBeVisible();
+    await expect(page.locator(DESKTOP_ISLAND)).toBeHidden();
+  });
+
+  test("412 px: nagłówek desktopowy odwodniony do końca obserwacji", async ({ page }) => {
+    test.fail(true, I2);
+    await page.setViewportSize(MOBILE);
+    await prepare(page);
+    await routeGuest(page);
+    await open(page);
+    await page.waitForTimeout(OBSERVE_MS);
     expect(await islandState(page, DESKTOP_ISLAND)).toBe("pending");
   });
 
@@ -241,6 +316,8 @@ test.describe("nagłówek w oknie startu (P2.3)", () => {
       await prepare(page);
       await routeGuest(page);
       await open(page);
+      // Na desktopie nagłówek z buildera żyje od startu (media wyspy pasuje).
+      await waitForHydrated(page, DESKTOP_ISLAND);
       const input = page.locator(`${SEARCH_ISLAND} input[type="search"]`).first();
       await input.tap();
       await waitForHydrated(page, SEARCH_ISLAND);
@@ -256,12 +333,14 @@ test.describe("nagłówek w oknie startu (P2.3)", () => {
   });
 
   test("gość na desktopie bez interakcji: wyszukiwarka i konto czekają", async ({ page }) => {
-    test.fail(true, "wymaga stałego kontekstu AuthProvider przy starcie gościa (I2, P2.2)");
+    test.fail(true, I2);
     await page.setViewportSize(DESKTOP);
     await prepare(page);
     await routeGuest(page);
     await open(page);
-    expect(await islandState(page, DESKTOP_ISLAND)).toBe("hydrated");
+    // Granica wyspy hydratuje w odroczonym przebiegu Offscreen, więc na „app
+    // ready" bywa jeszcze `pending` - czekamy, zamiast sprawdzać od razu.
+    await waitForHydrated(page, DESKTOP_ISLAND);
     await page.waitForTimeout(OBSERVE_MS);
     expect(await islandState(page, SEARCH_ISLAND)).toBe("pending");
     expect(await islandState(page, ACCOUNT_ISLAND)).toBe("pending");
@@ -296,5 +375,41 @@ test.describe("nagłówek w oknie startu (P2.3)", () => {
     expect(readyAt).toBeGreaterThan(0);
     expect(avatarAt - readyAt).toBeLessThanOrEqual(1_000);
     expect(await islandState(page, ACCOUNT_ISLAND)).toBe("hydrated");
+  });
+
+  test("pasek „Na czasie”: ruch ozdobny dopiero po pierwszej interakcji", async ({ page }) => {
+    await page.setViewportSize(DESKTOP);
+    await prepare(page);
+    await routeGuest(page);
+    await open(page);
+    // Punkt ciszy (zapas bez interakcji) zapada najwcześniej 5 s po `load`.
+    expect(await tickerMotion(page)).toEqual({
+      attribute: false,
+      flame: "none",
+      ribbon: "none",
+      livePing: "none",
+    });
+    await interactAndWaitForMotion(page);
+    expect(await tickerMotion(page)).toEqual({
+      attribute: true,
+      flame: "tt-flame-flicker",
+      ribbon: "tt-ribbon-shift",
+      livePing: "tt-live-ping",
+    });
+  });
+
+  test("pasek „Na czasie”: prefers-reduced-motion wyłącza ruch ozdobny", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.setViewportSize(DESKTOP);
+    await prepare(page);
+    await routeGuest(page);
+    await open(page);
+    await interactAndWaitForMotion(page);
+    expect(await tickerMotion(page)).toEqual({
+      attribute: true,
+      flame: "none",
+      ribbon: "none",
+      livePing: "none",
+    });
   });
 });

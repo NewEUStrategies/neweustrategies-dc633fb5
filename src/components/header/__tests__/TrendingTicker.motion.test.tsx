@@ -7,10 +7,10 @@
 //        K12) i przeliczał style;
 //  F10 - nieskończony ruch ozdobny (płomień, `live`, `ribbon`) rusza dopiero po
 //        pierwszej interakcji albo w punkcie ciszy: przy starcie korzeń paska
-//        nie ma `data-tt-motion`, a płomień nie trzyma warstwy (`will-change`);
-//  F9  - klatki `tt-flip` animują wyłącznie `transform`/`opacity` (oś obrotu
-//        stoi w regule `.tt-anim-flip`), więc animacja wejścia może iść na
-//        kompozytorze.
+//        nie ma `data-tt-motion`.
+// Kaskadę arkusza (animacja płomienia dopiero pod `[data-tt-motion]`, ruch
+// ozdobny wyłączony przy `prefers-reduced-motion`) sprawdza prawdziwa
+// przeglądarka: `e2e-performance/header-intent.spec.ts` (computed style).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -140,23 +140,5 @@ describe("pasek „Na czasie” przy starcie strony (P2.3)", () => {
       for (const task of quiet.tasks.splice(0)) task();
     });
     expect(root.getAttribute("data-tt-motion")).toBe("");
-  });
-
-  it("F9/F10: klatki wejścia i płomień w arkuszu paska", async () => {
-    const { container } = render(ticker({ mode: "flip", iconAnimation: "flicker" }));
-    await screen.findByText("Wpis 1");
-    const css = Array.from(container.querySelectorAll("style"), (s) => s.textContent ?? "").join(
-      "\n",
-    );
-    const flip = /@keyframes tt-flip\s*\{([\s\S]*?\})\s*\}/.exec(css)?.[1] ?? "";
-    expect(flip).toContain("transform:");
-    // W klatkach tylko właściwości kompozytora.
-    const properties = Array.from(flip.matchAll(/([a-z-]+)\s*:/g), (m) => m[1]);
-    expect(new Set(properties)).toEqual(new Set(["opacity", "transform"]));
-    // Płomień nie trzyma warstwy kompozytora przez całe życie strony.
-    const flame = /\.tt-flame\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
-    expect(flame).not.toContain("will-change");
-    // Animacja płomienia tylko pod atrybutem ruchu.
-    expect(css).not.toMatch(/(^|\n)\s*\.tt-flame-flicker\s*\{/);
   });
 });

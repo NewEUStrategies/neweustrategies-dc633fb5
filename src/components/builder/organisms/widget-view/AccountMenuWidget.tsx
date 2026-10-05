@@ -421,6 +421,28 @@ function prefetchAccountMenuKit(): void {
 }
 
 /**
+ * Kliknięcie gościa przełącza drzewo widgetu dopiero, gdy zestaw jest
+ * ROZSTRZYGNIĘTY. Do tego czasu zostaje ten sam węzeł przycisku, który ma
+ * fokus: podmiana korzenia na granicę Suspense odmontowywała go, więc przy
+ * zimnym zestawie (Enter z klawiatury tuż po Tab) fokus leżał na `<body>`
+ * przez cały import `vendor-radix`, a czytnik ekranu tracił kontekst
+ * (recenzja P2.3, m2). Po rozstrzygnięciu panel czyta zestaw synchronicznie
+ * (`use()` bez zawieszenia), montuje się otwarty, a Radix przenosi fokus do
+ * treści menu i przy zamknięciu oddaje go wyzwalaczowi. Odrzucony import też
+ * przełącza drzewo - `use()` rzuca go do granicy błędu widgetu, jak dotąd.
+ * Nasłuch statusu zestawu jest zapisany wcześniej niż ten, więc `callback`
+ * widzi już `status` inny niż `pending`.
+ */
+function whenAccountMenuKitSettles(callback: () => void): void {
+  const kit = loadAccountMenuKit();
+  if (kit.status !== "pending") {
+    callback();
+    return;
+  }
+  kit.then(callback, callback);
+}
+
+/**
  * Rząd widgetu. Spójne odstępy dla rzędu ikon konta (mobile-first, unifikacja
  * z headerem): gap-x-2 na <480 px, gap-x-3 od sm; pr-1.5 przy dzwonku rezerwuje
  * miejsce na overflow badge powiadomień (badge = -right-2.5), żeby nie
@@ -516,7 +538,7 @@ export function AccountMenuWidget({
       <div className={ROW_CLASS}>
         {guestTrigger(labels, {
           ...CLOSED_TRIGGER,
-          onClick: () => setRequested(true),
+          onClick: () => whenAccountMenuKitSettles(() => setRequested(true)),
           onPointerEnter: prefetchAccountMenuKit,
           onPointerDown: prefetchAccountMenuKit,
           onFocus: prefetchAccountMenuKit,
@@ -526,7 +548,9 @@ export function AccountMenuWidget({
   }
   // Fallback na czas importu zestawu: ten sam przycisk gościa (dziś i tak
   // pierwszy render zalogowanego go pokazuje), więc rząd nagłówka nie zmienia
-  // szerokości. Gość, który kliknął, dostaje menu otwarte od razu po imporcie.
+  // szerokości. Gość, który kliknął, trafia tu dopiero z rozstrzygniętym
+  // zestawem (`whenAccountMenuKitSettles`), więc dostaje menu otwarte bez
+  // klatki fallbacku.
   return (
     <Suspense fallback={<div className={ROW_CLASS}>{guestTrigger(labels, CLOSED_TRIGGER)}</div>}>
       <AccountMenuPanel

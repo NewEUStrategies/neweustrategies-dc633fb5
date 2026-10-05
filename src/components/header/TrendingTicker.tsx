@@ -883,7 +883,10 @@ function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColo
  * F10: płomień etykiety bez `will-change` (warstwa kompozytora trzymana przez
  * całe życie strony, także gdy ikona stoi), a nieskończone animacje ozdobne
  * (płomień, pulsowanie `live`, gradient `ribbon`) tylko pod
- * `[data-tt-motion]` - patrz `useDecorativeMotion`.
+ * `[data-tt-motion]` - patrz `useDecorativeMotion`. Atrybut podnosi
+ * specyficzność tych reguł, więc wyłącza je dopiero ostatni blok
+ * `prefers-reduced-motion` (z `!important`, ten sam selektor z atrybutem) -
+ * zwykła reguła `.tt-skin--live .tt-chip-icon::before` już by nie wygrała.
  */
 const TICKER_CSS = `
         .cms-trending, .cms-trending *,
@@ -1105,8 +1108,6 @@ const TICKER_CSS = `
         .tt-skin--live .tt-glass-chip:hover::after { left: 100% }
         @media (prefers-reduced-motion: reduce) {
           .tt-skin--live .tt-glass-chip::after { transition: none }
-          .tt-skin--live .tt-chip-icon::before,
-          .tt-skin--live .tt-chip-icon::after { animation: none }
         }
         /* Wariant "Na czasie": badge jest samodzielny, bez ciemnego paska nachodzącego na niego */
         .tt-skin--live .tt-glass-track,
@@ -1204,6 +1205,9 @@ const TICKER_CSS = `
           .tt-caret, .tt-flame-pulse, .tt-flame-flicker, .tt-flame-spin, .tt-flame-wave {
             animation: none !important
           }
+          [data-tt-motion] .tt-skin--ribbon .tt-glass-track,
+          [data-tt-motion] .tt-skin--live .tt-chip-icon::before,
+          [data-tt-motion] .tt-skin--live .tt-chip-icon::after { animation: none !important }
         }
       `;
 
