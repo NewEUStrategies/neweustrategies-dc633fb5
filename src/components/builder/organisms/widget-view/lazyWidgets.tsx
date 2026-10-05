@@ -36,6 +36,11 @@
 // must hydrate first (header interactivity), and chunks of a few hundred bytes
 // do not compress - 45 takich plików kosztowało kiedyś ~22 KB samych nagłówków
 // (patrz kronika w scripts/check-bundle-size.ts, wpis 2026-08-06 (2)).
+// 2026-10-05 (P2.3): „nawigacja hydratuje pierwsza" dotyczy nawigacji
+// WIDOCZNEJ. Pełny nagłówek z buildera jest poniżej `lg` schowany
+// (`display: none`) i na telefonie zostaje odwodnioną wyspą (`Header.tsx`,
+// `DESKTOP_HEADER_TRIGGER`); widoczną nawigacją jest tam pasek mobilny, który
+// hydratuje jak dotąd. Wyszukiwarka i konto są wyspami na intencję (niżej).
 //
 // 2026-08-15: KONIEC „eager, bo tak wyszło". Ocena z 2026-08-14 zmierzyła, że
 // WidgetView ciągnął do chunku wejściowego KOMPLET widgetów (442,1 kB źródeł,
@@ -55,9 +60,22 @@
 // czytelnicze z `serverReadingWidgets` niżej są na serwerze statyczne, a
 // dyspozytor `WidgetView` jest statyczny w `ChromeWidgetView`. Odroczony jest
 // wyłącznie transfer JS na kliencie; reszta rejestru nadal strumieniuje.
-import { lazy, type ComponentProps, type ComponentType } from "react";
+import {
+  lazy,
+  memo,
+  useId,
+  type ComponentProps,
+  type ComponentType,
+  type NamedExoticComponent,
+} from "react";
 import { withSuspense } from "./lazySuspense";
 import { createIsomorphicFn } from "@tanstack/react-start";
+import {
+  HydrationIsland,
+  type IslandChunk,
+  type IslandTrigger,
+} from "@/lib/performance/hydrationIsland";
+import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
 
 import type { Editable as EditableImpl } from "../../molecules/Editable";
 
@@ -145,6 +163,17 @@ import { PostsSliderWidget as ServerPostsSliderWidget } from "./PostsSliderWidge
 import { RatedListView as ServerRatedListView } from "./RatedListView";
 import { SectionLabelWidgetView as ServerSectionLabelWidgetView } from "@/lib/builder/sectionLabelVariants";
 import { TailoredMustReadsView as ServerTailoredMustReadsView } from "./TailoredMustReadsView";
+// 2026-10-05 (P2.3, CLS desktop z bramki fali 1): widgety nagłówka i
+// animowany nagłówek sekcji też muszą być w PIERWSZEJ powłoce serwera. Jako
+// leniwe zawieszały się przy pierwszym renderze w procesie (zimny izolat,
+// którego dokument trafia do cache'u brzegowego), więc ich HTML dojeżdżał na
+// końcu dokumentu (`$RC`, ok. 280 KB za nagłówkiem): pierwsza klatka malowała
+// wiersz nagłówka bez wyszukiwarki i konta (136 px, potem 402 px - przesunięcie
+// wiersza), a sekcję `…0025` bez nagłówka `animated-heading` (42 px, które
+// potem spychały sekcję `…0029`). Przeglądarka nadal dostaje leniwe chunki.
+import { SearchButtonWidget as ServerSearchButtonWidget } from "./SearchButtonWidget";
+import { AccountMenuWidget as ServerAccountMenuWidget } from "./AccountMenuWidget";
+import { AnimatedHeadingRender as ServerAnimatedHeadingRender } from "@/lib/builder/animatedHeadingVariants";
 
 // Let the Start compiler erase server imports, including their side effects.
 // A plain SSR ternary left ~20 KiB of side-effect dependencies in browser boot.
@@ -157,6 +186,9 @@ const getServerReadingWidgets = createIsomorphicFn()
     RatedListView: ServerRatedListView,
     SectionLabelWidgetView: ServerSectionLabelWidgetView,
     TailoredMustReadsView: ServerTailoredMustReadsView,
+    SearchButtonWidget: ServerSearchButtonWidget,
+    AccountMenuWidget: ServerAccountMenuWidget,
+    AnimatedHeadingRender: ServerAnimatedHeadingRender,
   }))
   .client(() => null);
 const serverReadingWidgets = getServerReadingWidgets();
@@ -316,11 +348,13 @@ export const RichTextView = withSuspense(RichTextViewLazy);
 // rejestru zamykał tam cykl. Re-eksport trzyma kontrakt eksportów bez zmian.
 export { SliderRender } from "./lazySliderRender";
 
-const AnimatedHeadingRenderLazy = lazy(() =>
-  import("@/lib/builder/animatedHeadingVariants").then((m) => ({
-    default: m.AnimatedHeadingRender,
-  })),
-) as ComponentType<ComponentProps<typeof AnimatedHeadingRenderImpl>>;
+const AnimatedHeadingRenderLazy = serverReadingWidgets
+  ? serverReadingWidgets.AnimatedHeadingRender
+  : (lazy(() =>
+      import("@/lib/builder/animatedHeadingVariants").then((m) => ({
+        default: m.AnimatedHeadingRender,
+      })),
+    ) as ComponentType<ComponentProps<typeof AnimatedHeadingRenderImpl>>);
 export const AnimatedHeadingRender = withSuspense(AnimatedHeadingRenderLazy);
 
 // --- data-viz (shared chart engine) ---------------------------------------
@@ -450,20 +484,98 @@ const RichHtmlViewLazy = serverReadingWidgets
     ) as ComponentType<ComponentProps<typeof RichHtmlViewImpl>>);
 export const RichHtmlView = withSuspense(RichHtmlViewLazy);
 
-// --- chrome na żądanie: cięższe widgety nagłówka -----------------------------
-// SSR dostrumieniowuje przycisk/menu, a hydratacja dociąga chunk;
-// React odtwarza kliknięcia sprzed hydratacji na granicy Suspense, więc
-// interakcja nie ginie. W entry zostają tylko lekkie chromeWidgets
-// (lang-switcher, theme-toggle) i nawigacja (menu, mega-menu).
+// --- chrome na intencję: wyszukiwarka i konto (P2.3) --------------------------
+// Serwer renderuje oba widgety statycznie w pierwszej powłoce
+// (`serverReadingWidgets`), a przeglądarka trzyma ich HTML jako WYSPĘ
+// HYDRATACJI (P1.6): chunk widgetu (wyszukiwarka: dyktowanie, model faset ->
+// archiwa, słownik wyszukiwarki; konto: patrz `AccountMenuWidget.tsx`) i jego
+// hydratacja ruszają dopiero na INTENCJĘ odwiedzającego, poza oknem startu.
+// W entry zostają tylko lekkie chromeWidgets (lang-switcher, theme-toggle) i
+// nawigacja (menu, mega-menu).
+//
+// WYZWALACZE (`IslandTrigger`, wyłącznie API prymitywu):
+//  - `ownEvents` - najechanie (`pointerover`), fokus (`focusin`, także
+//    Tabem), dotknięcie (`touchstart`) i klawisz we wnętrzu widgetu. Każde z
+//    nich poprzedza `click`, a tor pilny kolejki P0.3 otwiera bramkę w tym
+//    samym zdarzeniu, gdy chunk już jest (`modulepreload` nagłówka), więc
+//    pierwsze dotknięcie trafia w uwodniony przycisk;
+//  - `globalKeys: ["/"]` (wyszukiwarka) - skrót wyszukiwania z dowolnego
+//    miejsca strony uwadnia pole, zanim odwiedzający do niego dojdzie;
+//  - `immediateWhen: hasStoredAuthSession` - zalogowany dostaje widget od
+//    razu, jak dotąd: HTML w cache'u jest anonimowy, a jego awatar ma się
+//    pojawić zaraz po starcie (krytyka planu M12);
+//  - zapas punktu ciszy (domyślny) - widget bez intencji uwadnia się poza
+//    oknem pomiaru; bez widoczności (`visible: false`): nagłówek jest zawsze
+//    w pierwszym ekranie, więc IO otwierałby wyspę od razu.
+// `chunks` = komponent `React.lazy` (kontrakt P1.6: gruntowany przed
+// otwarciem bramki, więc hydratacja przy zdarzeniu dyskretnym nie gubi
+// kliknięcia). Na serwerze wyspa renderuje dzieci wprost.
+const HEADER_INTENT_EVENTS = ["pointerover", "focusin", "touchstart", "keydown"] as const;
+
+const SEARCH_ISLAND_TRIGGER: IslandTrigger = {
+  visible: false,
+  ownEvents: HEADER_INTENT_EVENTS,
+  globalKeys: ["/"],
+  immediateWhen: hasStoredAuthSession,
+};
+
+const ACCOUNT_ISLAND_TRIGGER: IslandTrigger = {
+  visible: false,
+  ownEvents: HEADER_INTENT_EVENTS,
+  immediateWhen: hasStoredAuthSession,
+};
+
+/**
+ * Widget za wyspą na intencję. `id` z `useId()` - stały między serwerem a
+ * klientem i unikalny na stronie (widget może stać w nagłówku i w treści).
+ * Propsy widgetu to prymitywy i obiekt konfiguracji z dokumentu buildera
+ * (stabilna referencja), więc re-render rodzica kończy się na wyspie.
+ */
+function withIntentIsland<P extends object>(
+  name: string,
+  Boundary: ComponentType<P>,
+  trigger: IslandTrigger,
+  chunks: readonly IslandChunk[],
+): NamedExoticComponent<P> {
+  return memo(function IntentIsland(props: P) {
+    const id = `${name}${useId()}`;
+    return (
+      <HydrationIsland id={id} trigger={trigger} chunks={chunks}>
+        <Boundary {...props} />
+      </HydrationIsland>
+    );
+  });
+}
+
+// Komponent `lazy` istnieje także na serwerze, ale tam nic go nie renderuje
+// ani nie gruntuje (wyspa na serwerze pomija `chunks`) - import nie rusza.
 const SearchButtonWidgetLazy = lazy(() =>
   import("./SearchButtonWidget").then((m) => ({ default: m.SearchButtonWidget })),
-) as ComponentType<ComponentProps<typeof SearchButtonWidgetImpl>>;
-export const SearchButtonWidget = withSuspense(SearchButtonWidgetLazy);
+);
+export const SearchButtonWidget = withIntentIsland(
+  "hdr-search",
+  withSuspense(
+    (serverReadingWidgets
+      ? serverReadingWidgets.SearchButtonWidget
+      : SearchButtonWidgetLazy) as ComponentType<ComponentProps<typeof SearchButtonWidgetImpl>>,
+  ),
+  SEARCH_ISLAND_TRIGGER,
+  [SearchButtonWidgetLazy],
+);
 
 const AccountMenuWidgetLazy = lazy(() =>
   import("./AccountMenuWidget").then((m) => ({ default: m.AccountMenuWidget })),
-) as ComponentType<ComponentProps<typeof AccountMenuWidgetImpl>>;
-export const AccountMenuWidget = withSuspense(AccountMenuWidgetLazy);
+);
+export const AccountMenuWidget = withIntentIsland(
+  "hdr-account",
+  withSuspense(
+    (serverReadingWidgets
+      ? serverReadingWidgets.AccountMenuWidget
+      : AccountMenuWidgetLazy) as ComponentType<ComponentProps<typeof AccountMenuWidgetImpl>>,
+  ),
+  ACCOUNT_ISLAND_TRIGGER,
+  [AccountMenuWidgetLazy],
+);
 
 // --- widgety treści używane punktowo -----------------------------------------
 const SpeakersWidgetLazy = lazy(() =>

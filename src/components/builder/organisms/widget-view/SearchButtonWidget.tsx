@@ -5,6 +5,7 @@
 // recent searches, and a "view all results" link into /search.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter, useRouterState } from "@tanstack/react-router";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { supabase } from "@/integrations/supabase/client";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
@@ -24,25 +25,49 @@ import {
 } from "@/lib/search/facetModel";
 import type { AutosuggestItem } from "@/lib/queries/archives";
 import type { Lang } from "./frame";
-import { WidgetStyleSheet } from "./widgetStyleSheets";
+import { StyleSink } from "@/components/theme/StyleSink";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-search";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 
-// Arkusz STAŁY widgetu wyszukiwarki - nic w nim nie zależy od instancji,
-// a widget siedzi w nagłówku KAŻDEJ strony (i drugi raz w szufladzie
-// mobilnej). Jako zasób React 19 wypisuje się raz na dokument zamiast raz
-// na instancję i trafia do <head>, więc obowiązuje już przy pierwszej klatce.
+// Arkusz STAŁY widgetu wyszukiwarki - nic w nim nie zależy od instancji.
+//
+// W MIEJSCU, NIE W `<head>` (P2.3). Dotąd był zasobem React 19 (`<style href
+// precedence>`, `WidgetStyleSheet`): raz na dokument, hoistowany do `<head>`.
+// Na zimnym izolacie widget zawieszał się jednak przy pierwszym renderze
+// (leniwy chunk także na serwerze), więc w dokumencie z cache'u brzegowego
+// arkusz i sam widget dojeżdżały na końcu strumienia - to było źródło
+// przesunięcia wiersza nagłówka. Teraz serwer renderuje widget w pierwszej
+// powłoce (`lazyWidgets.tsx`), a zasób z powłoki trafiłby do `<head>`: +2,5 KB
+// blokującego parsowania przed `<body>` (`check:document-weight`,
+// `headRawBytes`). Arkusz jest więc zwykłym blokiem `<style>` (liść
+// `StyleSink`: `memo` po napisie, utwardzenie w miejscu renderu) PIERWSZYM
+// dzieckiem korzenia widgetu - parser czyta go przed znacznikami pola, więc
+// obowiązuje od pierwszej klatki, a `display: none` bloku nie zmienia układu
+// kolumny flex. Kaskada jak w dokumencie zimnego izolatu i jak przed F22
+// (arkusz w `<body>`, za `<head>`). Koszt: każda instancja niesie własną kopię
+// (pasek czytania wpisu, szuflada mobilna po otwarciu).
+//
+// Objaśnienia reguł stoją tutaj, w arkuszu same reguły (każdy bajt tekstu
+// jedzie w HTML każdej strony):
+//  - Wymuszamy overflow: visible na całym łańcuchu przodków widgetu, żeby chip
+//    floating-labela nie był przycinany przez kolumny/sekcje headera z
+//    overflow: hidden. Znacznik (data-search-overflow) wypisuje już SSR
+//    renderer buildera (lib/builder/searchOverflow), resztę przodków oznacza
+//    efekt w widgecie po hydratacji; ta sama reguła stoi w styles.css, bo ten
+//    arkusz przychodzi z leniwym chunkiem. Dawny selektor
+//    ":where(*):has(.builder-search-widget)" był jedną z reguł ":has()",
+//    których sama obecność w dokumencie mnożyła koszt każdego pełnego
+//    przeliczenia stylu ~70x (pomiar 2026-10-02). Wiersz paska czytania ([data-
+//    reading-row]) musi zachować poziomy clip.
+//  - Placeholder text w kolorze jasnoszarym, spójnym z ikonami. Transition
+//    dodany na transform, żeby unoszenie było animowane.
+//  - Ikony jasnoszare, hover -> foreground.
+//  - Builder/CMS typography has stronger inherited rules. These selectors
+//    intentionally lock compact metadata and operators.
+//  - Klasyczny floating label: unosi się na górną krawędź inputa.
+//  - Cieńsze obramowanie w spoczynku, brak drop shadowa na focus.
 const SEARCH_WIDGET_CSS = `
-/* Wymuszamy overflow: visible na całym łańcuchu przodków widgetu, żeby
-   chip floating-labela nie był przycinany przez kolumny/sekcje headera
-   z overflow: hidden. Znacznik (data-search-overflow) wypisuje już SSR
-   renderer buildera (lib/builder/searchOverflow), resztę przodków oznacza
-   efekt w widgecie po hydratacji; ta sama reguła stoi w styles.css, bo ten
-   arkusz przychodzi z leniwym chunkiem. Dawny selektor ":where(*):has(.builder-search-widget)"
-   był jedną z reguł ":has()", których sama obecność w dokumencie mnożyła
-   koszt każdego pełnego przeliczenia stylu ~70x (pomiar 2026-10-02).
-   Wiersz paska czytania ([data-reading-row]) musi zachować poziomy clip. */
 [data-search-overflow]:not([data-reading-row]) {
   overflow: visible !important;
 }
@@ -66,8 +91,6 @@ const SEARCH_WIDGET_CSS = `
   width: 0;
   height: 0;
 }
-/* Placeholder text w kolorze jasnoszarym, spójnym z ikonami.
-   Transition dodany na transform, żeby unoszenie było animowane. */
 .builder-search-widget .input-group > .user-label {
   color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
   font-size: 0.8125rem;
@@ -78,7 +101,6 @@ const SEARCH_WIDGET_CSS = `
               background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
               padding 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-/* Ikony jasnoszare, hover -> foreground. */
 .builder-search-widget button svg,
 .builder-search-widget .absolute svg {
   color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
@@ -86,8 +108,6 @@ const SEARCH_WIDGET_CSS = `
 .builder-search-widget button:hover svg {
   color: var(--foreground);
 }
-/* Builder/CMS typography has stronger inherited rules. These
-   selectors intentionally lock compact metadata and operators. */
 .builder-search-widget .search-kind-label {
   font-family: "Red Hat Display", system-ui, sans-serif !important;
   font-size: 9px !important;
@@ -107,7 +127,6 @@ const SEARCH_WIDGET_CSS = `
   letter-spacing: 0 !important;
   min-height: 12px !important;
 }
-/* Klasyczny floating label: unosi się na górną krawędź inputa. */
 .builder-search-widget .input-group > .input:focus ~ .user-label,
 .builder-search-widget .input-group > .input:not(:placeholder-shown) ~ .user-label {
   top: 0;
@@ -117,7 +136,6 @@ const SEARCH_WIDGET_CSS = `
   color: var(--ring);
   opacity: 1;
 }
-/* Cieńsze obramowanie w spoczynku, brak drop shadowa na focus. */
 .builder-search-widget .input-group > .input {
   border-width: 1px;
   border-color: color-mix(in oklab, var(--border) 80%, transparent);
@@ -129,7 +147,7 @@ const SEARCH_WIDGET_CSS = `
 `;
 
 function SearchWidgetSheet() {
-  return <WidgetStyleSheet name="nes-search-widget" css={SEARCH_WIDGET_CSS} />;
+  return <StyleSink css={SEARCH_WIDGET_CSS} data-search-sheet="" />;
 }
 
 interface BucketedItem {
@@ -418,6 +436,24 @@ export function SearchButtonWidget({
     setFocused(true);
   };
 
+  // STAN SPRZED HYDRATACJI (wyspa na intencję, P2.3). Na stronie publicznej
+  // widget jest wyspą: HTML serwera stoi, a hydratacja rusza dopiero na
+  // fokus/dotknięcie/najechanie (`lazyWidgets.tsx`). Natywne pole przyjmuje w
+  // tym czasie fokus i znaki, a React przy hydratacji NIE nadpisuje wartości
+  // pola (`initInput` z flagą hydratacji) - za to pierwszy re-render z `q`
+  // sprzed wpisania skasowałby wpisaną frazę, a `onFocus` sprzed hydratacji nie
+  // otworzył panelu ostatnich wyszukiwań. Efekt warstwy (przed malowaniem)
+  // przejmuje więc to, co odwiedzający już zrobił. Przy montażu bez HTML
+  // serwera (nawigacja SPA, szuflada) pole ma dokładnie `q`, a fokusu nie ma -
+  // nic się nie zmienia.
+  useIsomorphicLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    if (input.value !== q) setQ(input.value);
+    if (document.activeElement === input) openFocus();
+    // Wyłącznie przy montażu: późniejsze zmiany prowadzi już React.
+  }, []);
+
   const goToResult = () => {
     addRecentSearch(q);
     setFocused(false);
@@ -491,6 +527,8 @@ export function SearchButtonWidget({
         } as React.CSSProperties
       }
     >
+      {/* Arkusz przed znacznikami pola - patrz komentarz przy SEARCH_WIDGET_CSS. */}
+      <SearchWidgetSheet />
       {router?.state ? <SearchUrlQSync onUrlQ={setUrlQ} /> : null}
       <div
         className="input-group"
@@ -1001,8 +1039,6 @@ export function SearchButtonWidget({
           )}
         </div>
       )}
-
-      <SearchWidgetSheet />
     </div>
   );
 }

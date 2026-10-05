@@ -3,7 +3,7 @@ import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 // Sources: trending | latest | pinned | selected | mixed.
 // Modes: scroll (marquee) | fade | slide | flip | typewriter.
 // Colors and label overridable per light/dark via CSS custom properties.
-import { useEffect, useId, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
 import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
@@ -28,8 +28,10 @@ import {
   tickerPerView,
   type TickerGlassSkin,
 } from "@/components/header/headerGeometry";
-import { hardenStyleCss } from "@/lib/sanitizePure";
 import { prefersReducedMotion } from "@/lib/a11y/reducedMotion";
+import { StyleSink } from "@/components/theme/StyleSink";
+import { enqueue } from "@/lib/performance/postInteractionQueue";
+import { onQuiescent } from "@/lib/performance/whenQuiescent";
 
 export type { TickerMode };
 
@@ -79,6 +81,38 @@ export function safeAttr(id: string): string {
   return id.replace(/[^a-zA-Z0-9_-]/g, "_") || "default";
 }
 
+/**
+ * Ruch OZDOBNY paska (płomień etykiety, pulsowanie skórki `live`, przesuw
+ * gradientu skórki `ribbon`) rusza dopiero po pierwszej interakcji albo w
+ * punkcie ciszy strony (F10 z diagnozy P0.5, pozycja P2.3).
+ *
+ * PO CO. Start animacji CSS przy ładowaniu to osobne zadanie głównego wątku
+ * (K8 w księdze P0.5: powiadomienie o starcie animacji kompozytora), a
+ * nieskończone animacje ozdobne paska startowały razem z pierwszą klatką - w
+ * oknie TBT, bez żadnej korzyści dla czytelnika. Atrybut `data-tt-motion` na
+ * korzeniu paska włącza je w `TICKER_CSS`; do tego czasu ikona stoi w swojej
+ * pierwszej klatce (ten sam wygląd, bez ruchu). Animacje treści (marquee,
+ * wejście kolejnej porcji wpisów) nie są tu bramkowane - to funkcja paska.
+ *
+ * Kolejka P0.3 (`enqueue`, klasa `overlays`) puszcza zmianę po pierwszej
+ * interakcji, jedno zadanie na klatkę, a punkt ciszy jest zapasem dla
+ * odwiedzającego, który niczego nie dotknie. Serwer i pierwszy render klienta
+ * dają `false` - atrybutu nie ma w HTML, więc hydratacja go nie porównuje.
+ */
+function useDecorativeMotion(): boolean {
+  const [motion, setMotion] = useState(false);
+  useEffect(() => {
+    const allow = () => setMotion(true);
+    const cancelInteraction = enqueue(allow, { priority: "overlays" });
+    const cancelQuiet = onQuiescent(allow, { priority: "overlays" });
+    return () => {
+      cancelInteraction();
+      cancelQuiet();
+    };
+  }, []);
+  return motion;
+}
+
 export function TrendingTicker({
   source = "trending",
   mode = "scroll",
@@ -107,6 +141,8 @@ export function TrendingTicker({
   const palette = colors ?? DEFAULT_TICKER_COLORS;
   const vid = safeAttr(variantId);
   const isBadge = layoutStyle === "badge";
+  const motion = useDecorativeMotion();
+  const motionAttr = motion ? "" : undefined;
 
   const { data, isLoading } = useQuery(
     headerTickerQueryOptions({
@@ -175,6 +211,7 @@ export function TrendingTicker({
         data-testid="trending-ticker"
         data-tt-vid={vid}
         data-tt-layout={layoutStyle}
+        data-tt-motion={motionAttr}
         style={{ background: "var(--tt-bg)", borderColor: "var(--tt-border)" }}
       >
         <TickerPaletteStyle vid={vid} palette={palette} />
@@ -217,6 +254,7 @@ export function TrendingTicker({
       data-testid="trending-ticker"
       data-tt-vid={vid}
       data-tt-layout={layoutStyle}
+      data-tt-motion={motionAttr}
       style={{
         background: "var(--tt-bg)",
         borderColor: "var(--tt-border)",
@@ -600,6 +638,8 @@ function TickerGlassMarquee({
   const estimated = posts.length * 220;
   const durationSec = Math.max(4, (lapPx || estimated) / speed);
   const loop = [...posts, ...posts];
+  // Ten sam zwarty napis co przed `StyleSink` (F11): HTML paska bez zmian.
+  const marqueeKeyframes = `@keyframes ${anim}{0%{transform:translate3d(0,0,0)}100%{transform:translate3d(-50%,0,0)}}`;
   // "Items visible at once" caps each pill so exactly `perView` fit the viewport.
   const pillMax = perView > 1 ? `calc((100% - ${(perView - 1) * 12}px) / ${perView})` : undefined;
 
@@ -667,11 +707,7 @@ function TickerGlassMarquee({
           ))}
         </div>
       </div>
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `@keyframes ${anim}{0%{transform:translate3d(0,0,0)}100%{transform:translate3d(-50%,0,0)}}`,
-        }}
-      />
+      <StyleSink css={marqueeKeyframes} />
     </div>
   );
 }
@@ -758,10 +794,22 @@ function TickerGlassCards({
           ))}
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: keyframes }} />
+      <KeyframesStyle keyframes={keyframes} />
     </div>
   );
 }
+
+/**
+ * Klatki pionowej rotacji jako liść `memo` po napisie (F11, P2.3) - ta sama
+ * mechanika co `StyleSink`: re-render paska z identycznym tekstem (np. zmiana
+ * porcji wpisów co `intervalSec`) nie przepisuje `innerHTML` bloku. Osobny
+ * liść zamiast `StyleSink`, bo ten sink ma imienny wpis w allowliście
+ * `check:dangerous-html` (`keyframes` - liczby i nazwa z `useId()`), której
+ * w tej fali nie zmieniamy.
+ */
+const KeyframesStyle = memo(function KeyframesStyle({ keyframes }: { keyframes: string }) {
+  return <style dangerouslySetInnerHTML={{ __html: keyframes }} />;
+});
 
 /** Hold-then-advance vertical keyframes for `slots` stacked rows. */
 export function buildVerticalKeyframes(
@@ -814,14 +862,30 @@ function TickerPaletteStyle({ vid, palette }: { vid: string; palette: TickerColo
     }
     ${sel} .tt-item:hover { color: var(--tt-item-hover) !important; }
   `;
-  return <style dangerouslySetInnerHTML={{ __html: hardenStyleCss(css) }} />;
+  // `StyleSink` (P1.2): utwardzenie w miejscu renderu i `memo` po napisie -
+  // zmiana porcji wpisów nie przepisuje bloku (F11).
+  return <StyleSink css={css} />;
 }
 
-function TickerStyles() {
-  return (
-    <style
-      dangerouslySetInnerHTML={{
-        __html: `
+/**
+ * Arkusz paska - STAŁY tekst modułu (F11, P2.3). Dawniej literał w JSX:
+ * każdy re-render paska (zmiana porcji wpisów co `intervalSec`, efekty
+ * hydratacji) dawał nowy obiekt `{__html}`, więc React przepisywał `innerHTML`
+ * 300-liniowego bloku (`ParseHTML` w commicie hydratacji, K12 w P0.5) i
+ * przeliczał style. Przez `StyleSink` identyczny napis nie dochodzi do DOM-u.
+ *
+ * F9: `transform-origin` stoi w regule `.tt-anim-flip`, nie w klatkach
+ * kluczowych `tt-flip` - właściwość spoza transform/opacity w `@keyframes`
+ * zdejmowała animację z kompozytora (`unsupportedProperties:
+ * ["transform-origin"]` w śladzie P0.5). Oś obrotu jest teraz stała (dolna
+ * krawędź) przez cały obrót.
+ *
+ * F10: płomień etykiety bez `will-change` (warstwa kompozytora trzymana przez
+ * całe życie strony, także gdy ikona stoi), a nieskończone animacje ozdobne
+ * (płomień, pulsowanie `live`, gradient `ribbon`) tylko pod
+ * `[data-tt-motion]` - patrz `useDecorativeMotion`.
+ */
+const TICKER_CSS = `
         .cms-trending, .cms-trending *,
         .tt-glass, .tt-glass * {
           font-family: var(--font-display, "Red Hat Display", system-ui, sans-serif);
@@ -832,12 +896,12 @@ function TickerStyles() {
           to   { opacity: 1; transform: translateY(0) }
         }
         @keyframes tt-flip {
-          from { opacity: 0; transform: perspective(600px) rotateX(-85deg); transform-origin: 50% 100% }
+          from { opacity: 0; transform: perspective(600px) rotateX(-85deg) }
           to   { opacity: 1; transform: perspective(600px) rotateX(0deg) }
         }
         .tt-anim-fade  { animation: tt-fade  360ms ease both }
         .tt-anim-slide { animation: tt-slide 420ms cubic-bezier(.22,.61,.36,1) both }
-        .tt-anim-flip  { animation: tt-flip  520ms cubic-bezier(.22,.61,.36,1) both }
+        .tt-anim-flip  { transform-origin: 50% 100%; animation: tt-flip 520ms cubic-bezier(.22,.61,.36,1) both }
         .tt-caret { display:inline-block; margin-left:2px; opacity:.6; animation: tt-fade 800ms steps(2) infinite alternate }
 
         /* Flame animations */
@@ -859,11 +923,11 @@ function TickerStyles() {
           0%,100% { transform: translateY(0) scale(1) }
           50%     { transform: translateY(-2px) scale(1.06) }
         }
-        .tt-flame { transform-origin: 50% 90%; will-change: transform, opacity, filter }
-        .tt-flame-pulse    { animation: tt-flame-pulse    1.8s ease-in-out infinite }
-        .tt-flame-flicker  { animation: tt-flame-flicker  1.4s ease-in-out infinite }
-        .tt-flame-spin     { animation: tt-flame-spin     3.2s linear infinite }
-        .tt-flame-wave     { animation: tt-flame-wave     1.6s ease-in-out infinite }
+        .tt-flame { transform-origin: 50% 90% }
+        [data-tt-motion] .tt-flame-pulse   { animation: tt-flame-pulse    1.8s ease-in-out infinite }
+        [data-tt-motion] .tt-flame-flicker { animation: tt-flame-flicker  1.4s ease-in-out infinite }
+        [data-tt-motion] .tt-flame-spin    { animation: tt-flame-spin     3.2s linear infinite }
+        [data-tt-motion] .tt-flame-wave    { animation: tt-flame-wave     1.6s ease-in-out infinite }
 
         /* Glass marquee / cards (v7 / v5) */
         .tt-glass { position: relative; padding: 6px 0 }
@@ -932,9 +996,9 @@ function TickerStyles() {
             color-mix(in srgb, var(--tt-label) 4%, transparent),
             color-mix(in srgb, var(--tt-label) 22%, transparent));
           background-size: 200% 100%;
-          animation: tt-ribbon-shift 9s linear infinite;
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--tt-label) 26%, transparent) inset;
         }
+        [data-tt-motion] .tt-skin--ribbon .tt-glass-track { animation: tt-ribbon-shift 9s linear infinite }
         .tt-skin--ribbon .tt-glass-pill {
           background: none; border: none; box-shadow: none; backdrop-filter: none;
           -webkit-backdrop-filter: none; padding: 0 6px; letter-spacing: .02em;
@@ -1013,14 +1077,17 @@ function TickerStyles() {
           background: color-mix(in srgb, #fff 18%, transparent);
           opacity: .55;
           pointer-events: none;
+        }
+        [data-tt-motion] .tt-skin--live .tt-chip-icon::before,
+        [data-tt-motion] .tt-skin--live .tt-chip-icon::after {
           animation: tt-live-ping 2.6s cubic-bezier(0,0,.2,1) infinite;
         }
         .tt-skin--live .tt-chip-icon::before { width: 18px; height: 18px }
         .tt-skin--live .tt-chip-icon::after {
           width: 14px; height: 14px;
           background: color-mix(in srgb, #fff 10%, transparent);
-          animation-delay: .9s;
         }
+        [data-tt-motion] .tt-skin--live .tt-chip-icon::after { animation-delay: .9s }
         @keyframes tt-live-ping {
           75%, 100% { transform: scale(1.6); opacity: 0 }
         }
@@ -1138,8 +1205,8 @@ function TickerStyles() {
             animation: none !important
           }
         }
-      `,
-      }}
-    />
-  );
+      `;
+
+function TickerStyles() {
+  return <StyleSink css={TICKER_CSS} />;
 }
