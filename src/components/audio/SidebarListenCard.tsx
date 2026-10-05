@@ -186,7 +186,7 @@ export function SidebarListenCard({
   return (
     <aside
       aria-label={copy("label")}
-      className="group/card relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-b from-card to-card/50 p-4 shadow-sm transition-shadow duration-300 hover:shadow-md"
+      className="group/card relative overflow-hidden rounded-[6px] border border-border/70 bg-background p-4 shadow-sm transition-shadow duration-300 hover:shadow-md"
     >
       {/* Cienka linia akcentu u góry - sygnatura marki, rośnie podczas odtwarzania. */}
       <span
