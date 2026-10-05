@@ -8,7 +8,7 @@ import type { WidgetNode } from "@/lib/builder/types";
 import { safeImageUrl } from "@/lib/sanitizePure";
 import { getStr, type Lang } from "./frame";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
-import { useAboveFold } from "@/lib/builder/aboveFold";
+import { lcpCandidateAttr, type LcpImage } from "@/lib/builder/aboveFold";
 import { imageDimensionPx, imageWidgetSizes } from "@/lib/builder/widgetImageSizes";
 import { useBuilderImageSlot } from "@/lib/builder/imageSlotContext";
 import { OptimizedImage } from "@/components/atoms/OptimizedImage";
@@ -54,19 +54,25 @@ export function ImageWidget({
   theme,
   editable,
   onContentChange,
+  lcp = false,
 }: {
   c: WidgetNode["content"];
   lang: Lang;
   theme: string | undefined;
   editable: boolean;
   onContentChange?: (key: string, value: string | number) => void;
+  /**
+   * Kandydat LCP strony (P1.4, `lcpCandidates`): wyłącznie wtedy (`true`) obraz
+   * ładuje się eager z wysokim priorytetem i niesie `data-lcp-candidate`;
+   * `"eager"` (pierwsza sekcja renderu czysto klienckiego) daje sam priorytet,
+   * bez znacznika. Każdy inny obraz - także logo w nagłówku i stopce - jest
+   * leniwy. Para light/dark nie dostaje priorytetu nigdy (oba obrazy są w DOM,
+   * eager podwajałby transfer).
+   */
+  lcp?: LcpImage;
 }) {
   const rawSrc = safeImageUrl(getStr(c, "src"));
   const rawSrcDark = safeImageUrl(getStr(c, "srcDark"));
-  // Kandydat LCP: obraz w sekcji nad zgięciem ładuje się eager z wysokim
-  // priorytetem. Wyłącznie wariant jednoźródłowy - przy parze light/dark oba
-  // obrazy są w DOM (jeden schowany CSS-em), więc eager podwajałby transfer.
-  const aboveFold = useAboveFold();
   const sizes = imageWidgetSizes(c, useBuilderImageSlot());
   const alt = getStr(c, `alt_${lang}`) || getStr(c, "alt_pl");
   const caption = getStr(c, `caption_${lang}`) || getStr(c, "caption_pl");
@@ -208,7 +214,8 @@ export function ImageWidget({
       responsive
       sizes={sizes}
       autoSizes={isFramed}
-      priority={aboveFold}
+      priority={lcp !== false}
+      data-lcp-candidate={lcpCandidateAttr(lcp)}
       className={`${imgCls} widget-media-fg`}
       style={fgImgStyle}
       onError={applyLogoFallback}
@@ -222,7 +229,8 @@ export function ImageWidget({
       responsive
       sizes={sizes}
       autoSizes={isFramed}
-      priority={aboveFold}
+      priority={lcp !== false}
+      data-lcp-candidate={lcpCandidateAttr(lcp)}
       className={imgCls}
       style={imgStyle}
       onError={applyLogoFallback}

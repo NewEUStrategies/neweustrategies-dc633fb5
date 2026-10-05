@@ -87,6 +87,7 @@ import { DeferredFrame } from "@/components/atoms/DeferredFrame";
 // ImageWidget zostaje eager: renderuje logo w chrome i obrazy nad zgięciem
 // (kandydaci LCP) - leniwy chunk opóźniałby hydratację najważniejszego medium.
 import { ImageWidget } from "./mediaWidgets";
+import type { LcpImage } from "@/lib/builder/aboveFold";
 import { LangSwitcherDropdown, ThemeToggleWidget } from "./chromeWidgets";
 import type { AccountMenuConfig } from "./AccountMenuWidget";
 // Eager swiadomie - patrz nota "text-rotate" w ./lazyWidgets.
@@ -176,6 +177,13 @@ export function renderSimpleWidget(
   editable: boolean = false,
   onContentChange?: (key: string, value: string | number) => void,
   typography?: WidgetTypography,
+  /**
+   * Priorytet pierwszego obrazu widgetu (P1.4, `useLcpImage` w ramce):
+   * `true` - kandydat LCP strony (eager + fetchpriority=high +
+   * `data-lcp-candidate`), `"eager"` - pierwsza sekcja renderu czysto
+   * klienckiego (bez znacznika). Domyślnie `false` - obraz leniwy.
+   */
+  lcp: LcpImage = false,
 ): ReactNode | undefined {
   const c = node.content;
 
@@ -1097,6 +1105,7 @@ export function renderSimpleWidget(
           theme={theme}
           editable={editable}
           onContentChange={onContentChange}
+          lcp={lcp}
         />
       );
     }
@@ -1107,7 +1116,7 @@ export function renderSimpleWidget(
       // predicate is shared with the SSR prefetch registry so the server
       // warms exactly the query this branch will read.
       if (sliderUsesPostsSource(c)) {
-        return <PostsSliderWidget c={c} lang={lang} typography={typography} />;
+        return <PostsSliderWidget c={c} lang={lang} typography={typography} lcp={lcp} />;
       }
 
       const rawItems = Array.isArray(c.items)
@@ -1205,7 +1214,7 @@ export function renderSimpleWidget(
       if (!hasRealItems && editable) {
         return (
           <div className="relative w-full">
-            <SliderRender config={{ ...cfg, typography }} lang={lang} />
+            <SliderRender config={{ ...cfg, typography }} lang={lang} lcp={lcp} />
             <div className="pointer-events-none absolute top-2 left-2 z-10 rounded-md bg-background/85 backdrop-blur px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground border border-border">
               {lang === "pl"
                 ? "Podgląd · dodaj slajdy w panelu"
@@ -1214,7 +1223,7 @@ export function renderSimpleWidget(
           </div>
         );
       }
-      return <SliderRender config={{ ...cfg, typography }} lang={lang} />;
+      return <SliderRender config={{ ...cfg, typography }} lang={lang} lcp={lcp} />;
     }
     case "animated-heading": {
       const rotateRaw = c[`rotateWords_${lang}`] ?? c.rotateWords_pl;

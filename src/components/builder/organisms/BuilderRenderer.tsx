@@ -10,6 +10,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -59,7 +60,15 @@ import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
 import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
-import { AboveFoldProvider } from "@/lib/builder/aboveFold";
+import {
+  LcpCandidatesProvider,
+  LcpEagerSection,
+  NO_LCP_CANDIDATES,
+  isServerRender,
+  lcpRootAttributes,
+  readServerLcpCandidates,
+} from "@/lib/builder/aboveFold";
+import { lcpCandidateIds } from "@/lib/builder/lcpCandidate";
 import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
@@ -106,8 +115,22 @@ interface Props {
    * TTFB flat as documents grow. See lib/builder/sectionStreaming.
    */
   stream?: boolean;
-  /** Leading sections whose images receive above-fold loading priority. */
+  /**
+   * Okno sekcji skanowanych przez `lcpCandidates` (liczone po sekcjach
+   * malowanych w pierwszym renderze). Domyślnie `ABOVE_FOLD_SECTION_COUNT` -
+   * to samo okno, które rozgrzewa prefetch SSR i skanuje preload trasy.
+   */
   aboveFoldCount?: number;
+  /**
+   * WŁAŚCICIEL KANDYDATA LCP STRONY (P1.4). Tylko główny renderer treści
+   * (`HomeBuilderContent`, `ContentRenderer`) wyznacza kandydatów
+   * (`lcpCandidates`): ich pierwszy obraz dostaje `eager` +
+   * `fetchpriority=high` + `data-lcp-candidate`. Każdy inny renderer
+   * (nagłówek, stopka, menu mobilne, popup, kanwa) zostawia WSZYSTKIE obrazy
+   * leniwe - inaczej `data-lcp-candidate` nie byłby jedyny na stronie, a boot
+   * po LCP (P2.1) trafiałby w obraz z nagłówka (werdykt LP-1, blokujące 1).
+   */
+  lcpOwner?: boolean;
   /**
    * Builder-canvas mode: show every A/B variant side by side (with badges)
    * instead of bucketing the viewer, and never record experiment events.
@@ -225,6 +248,15 @@ const DEBUG_OVERLAY_CSS = `
 [data-builder-renderer][data-debug="1"] [data-widget-id]::after{content:attr(data-debug-type) " · " attr(data-debug-h) "px";position:absolute;bottom:0;left:0;background:rgba(234,179,8,.95);color:#111;font:600 10px/1.4 ui-monospace,monospace;padding:1px 5px;z-index:9999;pointer-events:none;}
 `;
 
+/**
+ * Odcisk dokumentu, z którym renderer utrwalił kandydatów LCP: identyfikatory
+ * sekcji w kolejności. Ten sam dokument zbudowany od nowa (nowy obiekt) daje
+ * ten sam odcisk, inny dokument - inny (recenzja P1.4 runda 3, m2).
+ */
+function sectionIdsKey(doc: BuilderDocument): string {
+  return (Array.isArray(doc.sections) ? doc.sections : []).map((s) => s?.id).join(" ");
+}
+
 export function BuilderRenderer({
   doc,
   lang,
@@ -233,6 +265,7 @@ export function BuilderRenderer({
   aboveFoldCount = ABOVE_FOLD_SECTION_COUNT,
   editorPreview = false,
   chrome = false,
+  lcpOwner = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   // Pierwszy render MUSI byc deterministyczny (desktop-first), inaczej SSR
@@ -246,6 +279,43 @@ export function BuilderRenderer({
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
   const { debug, isPrimary } = useBuilderDebug();
+  // Kandydaci LCP (P1.4) - czysta funkcja dokumentu i kontekstu dostępu,
+  // liczona WYŁĄCZNIE NA SERWERZE. Reguły `advanced.access` liczy TEN SAM
+  // kontekst, którym `SectionsList`/`RenderSection`/`RenderColumn` filtrują
+  // węzły (recenzja P1.4, B1). Serwer zapisuje wynik na korzeniu
+  // (`lcpRootAttributes`, także pustą listę), a pierwszy render kliencki
+  // (hydratacja) odczytuje go z DOM-u serwera po `useId()` - bez kodu
+  // `lcpCandidates` w bundlu klienta (`isServerRender()` wycina gałąź; PROVE
+  // P1.4: +1,1 KB gzip chunku wejściowego). `ids` = `null` to brak nośnika:
+  // renderer bez `lcpOwner` albo render czysto kliencki (nawigacja SPA).
+  // Lista jest utrwalona RAZEM Z DOKUMENTEM (recenzja P1.4 runda 3, m2): ta sama
+  // instancja z innym dokumentem (trasa `$` przy przejściu /a -> /b) nie
+  // przenosi kandydatów A na widget o tym samym id w B. Dokument rozpoznaje
+  // odcisk z identyfikatorów sekcji, NIE tożsamość obiektu: część właścicieli
+  // buduje dokument w każdym renderze (`parseBuilderDoc` w `support.tsx`,
+  // `checkout.success.tsx`, `EventModulePage`; literał w sekcji wyróżnionej
+  // archiwum), więc porównanie referencji zdejmowałoby znacznik przy pierwszym
+  // ponownym renderze po hydratacji. Kanwa (`editorPreview`) pokazuje oba
+  // warianty A/B i nie jest stroną dla czytelnika - bez kandydatów.
+  const lcpRootId = useId();
+  const access = useAccessContext();
+  const isLcpOwner = lcpOwner && !editorPreview;
+  const lcpDocKey = useMemo(() => sectionIdsKey(safeDoc), [safeDoc]);
+  const [ownedLcp] = useState(() => ({
+    docKey: lcpDocKey,
+    ids: !isLcpOwner
+      ? null
+      : isServerRender()
+        ? lcpCandidateIds(safeDoc, {
+            sections: aboveFoldCount,
+            isAccessible: (rule) => evaluateAccess(rule, access),
+          })
+        : readServerLcpCandidates(lcpRootId),
+  }));
+  const lcpIds = isLcpOwner && ownedLcp.docKey === lcpDocKey ? ownedLcp.ids : null;
+  // Właściciel bez nośnika (render czysto kliencki, nowy dokument): bez
+  // kandydata, ale pierwsza malowana sekcja ładuje obrazy eager (M1).
+  const lcpEagerFirst = isLcpOwner && !lcpIds;
 
   useEffect(() => {
     if (device) {
@@ -291,15 +361,18 @@ export function BuilderRenderer({
           data-builder-renderer
           data-debug={debug ? "1" : "0"}
           data-device={effectiveDevice}
+          {...lcpRootAttributes(lcpRootId, lcpIds)}
         >
-          <SectionsList
-            sections={safeDoc.sections}
-            lang={lang}
-            device={effectiveDevice}
-            stream={stream}
-            aboveFoldCount={aboveFoldCount}
-            editorPreview={editorPreview}
-          />
+          <LcpCandidatesProvider widgetIds={lcpIds ?? NO_LCP_CANDIDATES}>
+            <SectionsList
+              sections={safeDoc.sections}
+              lang={lang}
+              device={effectiveDevice}
+              stream={stream}
+              editorPreview={editorPreview}
+              lcpEagerFirst={lcpEagerFirst}
+            />
+          </LcpCandidatesProvider>
         </div>
       </ChromeReserveContext.Provider>
       {isPrimary && <BuilderDebugOverlay debug={debug} doc={safeDoc} />}
@@ -343,15 +416,16 @@ const SectionsList = memo(function SectionsList({
   lang,
   device,
   stream,
-  aboveFoldCount,
   editorPreview,
+  lcpEagerFirst,
 }: {
   sections: SectionNode[];
   lang: "pl" | "en";
   device: Device;
   stream: boolean;
-  aboveFoldCount: number;
   editorPreview: boolean;
+  /** Render czysto kliencki właściciela: pierwsza malowana sekcja ładuje obrazy eager (`LcpImage`). */
+  lcpEagerFirst: boolean;
 }) {
   const accessCtx = useAccessContext();
   const safeSections = Array.isArray(sections) ? sections : [];
@@ -369,26 +443,29 @@ const SectionsList = memo(function SectionsList({
     <>
       {visible.map((s, index) => {
         const abTag = s.advanced?.abTest;
+        // Priorytet obrazów NIE wynika już z indeksu sekcji: kandydatów LCP
+        // wyznacza renderer-właściciel (`lcpOwner`) i podaje kontekstem
+        // `LcpCandidatesProvider` nad listą sekcji. Indeks liczy się wyłącznie
+        // w renderze czysto klienckim właściciela (`lcpEagerFirst`, bez
+        // znacznika i preloadu); `LcpEagerSection` owija KAŻDĄ sekcję, więc
+        // drzewo jest identyczne w SSR i przy hydratacji.
         const rendered = (
           <RenderErrorBoundary label={`section:${s.id}`}>
-            <RenderSection section={s} lang={lang} device={device} />
+            <LcpEagerSection eager={lcpEagerFirst && index === 0}>
+              <RenderSection section={s} lang={lang} device={device} />
+            </LcpEagerSection>
           </RenderErrorBoundary>
         );
         return (
-          // Sekcje czołowe (index < aboveFoldCount - ten sam próg co prefetch
-          // SSR) oznaczają swoje widgety jako kandydatów LCP: pierwszy obraz
-          // widgetu dostaje eager + fetchpriority=high zamiast lazy.
-          <AboveFoldProvider key={s.id} aboveFold={index < aboveFoldCount}>
-            <StreamingSection section={s} lang={lang} device={device} enabled={stream}>
-              {abTag && !editorPreview && assignments ? (
-                <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
-                  {rendered}
-                </ExperimentSection>
-              ) : (
-                rendered
-              )}
-            </StreamingSection>
-          </AboveFoldProvider>
+          <StreamingSection key={s.id} section={s} lang={lang} device={device} enabled={stream}>
+            {abTag && !editorPreview && assignments ? (
+              <ExperimentSection experimentId={abTag.experimentId} variant={abTag.variant}>
+                {rendered}
+              </ExperimentSection>
+            ) : (
+              rendered
+            )}
+          </StreamingSection>
         );
       })}
     </>

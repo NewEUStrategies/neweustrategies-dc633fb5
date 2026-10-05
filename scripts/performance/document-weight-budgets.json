@@ -10,7 +10,15 @@
     "",
     "RATCHET - reguła identyczna jak FROZEN_BUDGET_KB w scripts/check-bundle-size.ts: progi wolno WYŁĄCZNIE obniżać. `--ratchet` przepisuje ten plik z nowego pomiaru i matematycznie nie umie podnieść progu (ratchetBudgets: min(stary, nowy)). Zmiana, która świadomie dokłada bajty (np. nowy widget nad zgięciem), musi to zrobić w osobnym commicie z pomiarem i uzasadnieniem tutaj - nie przez cichą edycję liczby.",
     "",
-    "CZEGO NIE MIERZY. Produkcyjny dokument jest cięższy (569 KB, 107 KB stanu, LCP preloadowany 6x - `--html` na zapisanym HTML-u produkcji) - fixture ma mniej menu i wpisów. Bramka łapie REGRESJĘ STRUKTURY (nowe inline style, nowe preloady, przyrost stanu), nie bezwzględny rozmiar produkcji. Czas parsowania i wynik Lighthouse mierzy scripts/performance/lighthouse-local.mjs."
+    "CZEGO NIE MIERZY. Produkcyjny dokument jest cięższy (569 KB, 107 KB stanu, LCP preloadowany 6x - `--html` na zapisanym HTML-u produkcji) - fixture ma mniej menu i wpisów. Bramka łapie REGRESJĘ STRUKTURY (nowe inline style, nowe preloady, przyrost stanu), nie bezwzględny rozmiar produkcji. Czas parsowania i wynik Lighthouse mierzy scripts/performance/lighthouse-local.mjs.",
+    "",
+    "P1.4 (fala 1, 2026-10-04) - ŚCIEŻKA KRYTYCZNA OBRAZU LCP (LP-10 + LA-C3). Kandydata LCP wyznacza czysta funkcja dokumentu `lcpCandidates` (src/lib/builder/lcpCandidate.ts, liczona wyłącznie na serwerze); priorytet i `data-lcp-candidate` dostaje WYŁĄCZNIE on, a preload obrazu emituje `preload()` z react-dom (jeden klucz zasobu z `<img>`). Progi:",
+    "  * SKĄD `measured` METRYK P1.4 (recenzja P1.4 runda 3, drobiazg: dawniej część była pomiarem bazy, część pomiarem P1.4). Dla WSZYSTKICH metryk dodanych albo zmienionych przez P1.4 (`imgFetchpriorityHigh`, `imagePreloadCount`, `documentPreloadDuplicates`, `lcpCandidateCount`, `lcpCandidateMissing`, `imgEagerNonCandidate`, `imagePreloadNonCandidate`, `linkHeaderDisallowed`, `preLcpTransferBytes`) `measured` = artefakt P1.4 rundy poprawek 10 (`BUNDLE_INVENTORY=1 build:smoke` gałęzi perf/w1-P1.4, 5 próbek HIT, bajtowo identycznych). Wartości bazy fali 1 (cc1a3767) podane są w punktach niżej. Pozostałe metryki mają `measured` z pomiaru fd94e61 (akapit SKĄD `max`).",
+    "  * `imgFetchpriorityHigh` 9 -> 2 (granica z planu: maks. dwóch kandydatów - największy slot desktopowy i pierwszy wg order.mobile; fixture `/` ma jednego, `measured` 1); próg zostaje 2, bo strona z dwoma kandydatami (desktop/telefon) jest poprawna.",
+    "  * RATCHET Z POMIARU P1.4 (PROVE P1.4 §5 pkt 3): `imagePreloadCount` 4 -> 3 (zniknął drugi preload obrazu hero z `head()`), `documentPreloadDuplicates` 1 -> 0 (ten sam duplikat w `<head>`). `preloadDuplicates` 22 = próg (na bazie 23). Liczniki są deterministyczne, więc próg = pomiar, jak w regule pliku.",
+    "  * NOWE: `lcpCandidateCount` <= 2, `lcpCandidateMissing` = 0 (`/` musi mieć znacznik - warunek P1.3 i P2.1), `imgEagerNonCandidate` = 0 (obraz nie-leniwy poza kandydatem i logo w nagłówku powłoki `<header data-site-header>`; inny `<header>` - karta, sekcja - nie zwalnia), `imagePreloadNonCandidate` = 0 (preload obrazu `fetchpriority=high` o kluczu `imagesrcset`+`imagesizes` / `href` innym niż `<img data-lcp-candidate>`), `linkHeaderDisallowed` = 0 (nagłówek `Link`: modulepreload, preconnect, dns-prefetch, preload stylu/fontu/skryptu i obrazu kandydata). Artefakt P1.4: 1 / 0 / 0 / 0 / 0. Na dokumencie bazy fali 1 (cc1a3767) te same metryki dają 0 / 1 / 8 / 3 / 1 - kontrola negatywna na prawdziwym HTML-u (IMPL.md P1.4).",
+    "  * NOWE: `preLcpTransferBytes` = HTML gzip + CSS blokujący gzip + pula JS High gzip + preloadowane fonty (raw woff2) + obraz kandydata z artefaktu (obraz z CDN/fixture nie jest liczony - wariant zależy od viewportu, werdykt LA-C3). Próg według reguły tego pliku dla bajtów (SKĄD `max`): ceil(741 401 x 1,02) = 756 230 B, gdzie 741 401 to `measured` artefaktu P1.4 (runda 10). Baza fali 1 (cc1a3767) mierzy 742 000 B (5 próbek, skrypt z P1.4) - zielona z zapasem; wcześniejszy próg 756 840 = ceil(742 000 x 1,02) obniżony ratchetem. Wersja rundy 2 miała próg równy jednemu pomiarowi bez zapasu (741 999) i była czerwona już na niezmienionej bazie: gzip HTML-u tego samego artefaktu waha się między seriami o ±16 B (54 471 / 54 487). Zasada fali („żadna metryka nie rośnie”) obowiązuje osobno: pomiar artefaktu P1.4 ma być <= pomiaru bazy (runda 9 usunęła z bundla klienta `lcpCandidate.ts` i `heroImage.ts`; runda 10 dokłada ~120 B gzip chunku wejściowego na `eager` renderu klienckiego, nośnik bez kandydatów i `isServerRender`). `--ratchet` może próg tylko obniżyć. Cel 300 KB z modelu wyniku (ORCHESTRATOR-NOTES: zbiór przed LCP <= ~300 KB).",
+    "  * Cztery czerwone metryki modulepreload na bazie fali 1 (zbłąkany spreadsheetWorker w manifeście trasy `/`) są POZA P1.4 - progi bez zmian."
   ],
   "path": "/",
   "measuredAt": "2026-10-03",
@@ -72,18 +80,18 @@
       "target": 0
     },
     "documentPreloadDuplicates": {
-      "max": 1,
-      "measured": 1,
+      "max": 0,
+      "measured": 0,
       "target": 0
     },
     "imagePreloadCount": {
-      "max": 4,
-      "measured": 4,
+      "max": 3,
+      "measured": 3,
       "target": 2
     },
     "imgFetchpriorityHigh": {
-      "max": 9,
-      "measured": 9,
+      "max": 2,
+      "measured": 1,
       "target": 1
     },
     "bootClosureRawBytes": {
@@ -110,6 +118,36 @@
       "max": 81399,
       "measured": 79802,
       "target": 30720
+    },
+    "lcpCandidateCount": {
+      "max": 2,
+      "measured": 1,
+      "target": 1
+    },
+    "lcpCandidateMissing": {
+      "max": 0,
+      "measured": 0,
+      "target": 0
+    },
+    "imgEagerNonCandidate": {
+      "max": 0,
+      "measured": 0,
+      "target": 0
+    },
+    "imagePreloadNonCandidate": {
+      "max": 0,
+      "measured": 0,
+      "target": 0
+    },
+    "linkHeaderDisallowed": {
+      "max": 0,
+      "measured": 0,
+      "target": 0
+    },
+    "preLcpTransferBytes": {
+      "max": 756230,
+      "measured": 741401,
+      "target": 307200
     }
   }
 }

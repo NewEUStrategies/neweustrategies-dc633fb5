@@ -11,6 +11,18 @@
  * pobieraną z priorytetem High przy starcie i CSS blokujący renderowanie.
  * Uzasadnienie metryk: nagłówek `documentWeight.ts`.
  *
+ * ŚCIEŻKA KRYTYCZNA OBRAZU LCP (P1.4, LP-10 + LA-C3): co najwyżej dwa
+ * `img[data-lcp-candidate]` (`lcpCandidateCount`), żadnego obrazu eager poza
+ * kandydatem i logo w nagłówku powłoki `<header data-site-header>`
+ * (`imgEagerNonCandidate`), preload obrazu
+ * `fetchpriority=high` wyłącznie dla kandydata - ten sam `imagesrcset` +
+ * `imagesizes` co `<img>` (`imagePreloadNonCandidate`), nagłówek `Link`
+ * wyłącznie z dozwolonych wpisów (`linkHeaderDisallowed`) i bajty przed LCP
+ * (`preLcpTransferBytes`). Kontrola negatywna: `document-weight.test.mjs`.
+ * Do tego moduły tylko-serwerowe (`lcpCandidate.ts`, `heroImage.ts`) nie mogą
+ * trafić do żadnego chunku klienta - sprawdzane z `reports/chunk-inventory.json`
+ * artefaktu, gdy inwentarz istnieje i pasuje do buildu (BUNDLE_INVENTORY=1).
+ *
  * Progi są RATCHETEM z pomiaru fixture: wolno je wyłącznie obniżać
  * (`--ratchet` przepisuje plik progów, ale nigdy w górę).
  *
@@ -38,12 +50,16 @@ import {
   GATED_METRICS,
   analyzeDocument,
   checkBudgets,
+  inventoryMatchesBuild,
   medianWeights,
   ratchetBudgets,
+  serverOnlyModulesInClient,
   type Budget,
   type Budgets,
+  type ChunkInventoryLike,
   type DocumentWeight,
   type GatedMetric,
+  type ServerOnlyLeak,
 } from "./documentWeight.ts";
 
 const BUDGETS_FILE = join(HARNESS_ROOT, "scripts/performance/document-weight-budgets.json");
@@ -161,6 +177,37 @@ function printWeight(w: DocumentWeight): void {
       `  CSS blokujący: ${w.renderBlockingCssCount} plik(ów), ${w.renderBlockingCssRawBytes} B raw / ${w.renderBlockingCssGzipBytes} B gzip`,
     );
   }
+  console.log(
+    `  ścieżka LCP: kandydaci ${w.lcpCandidateCount}${w.lcpCandidateMissing ? " (BRAK znacznika)" : ""}, eager poza kandydatem/logo ${w.imgEagerNonCandidate}, ` +
+      `preload obrazu High poza kandydatem ${w.imagePreloadNonCandidate}, Link spoza listy ${w.linkHeaderDisallowed}; ` +
+      `przed LCP ${w.preLcpTransferBytes} B (fonty ${w.fontPreloadBytes} B, obraz z artefaktu ${w.lcpImageBytes} B)`,
+  );
+}
+
+/**
+ * Moduły tylko-serwerowe w chunkach klienta (P1.4, m3). `null` = sprawdzenie
+ * pominięte (brak inwentarza albo inwentarz z innego buildu) - powód w logu.
+ */
+function serverOnlyLeaks(root: string): ServerOnlyLeak[] | null {
+  const file = join(root, "reports/chunk-inventory.json");
+  if (!existsSync(file)) {
+    console.log(
+      "  moduły tylko-serwerowe: pominięte (brak reports/chunk-inventory.json - build z BUNDLE_INVENTORY=1)",
+    );
+    return null;
+  }
+  const inventory = JSON.parse(readFileSync(file, "utf8")) as ChunkInventoryLike;
+  if (!inventoryMatchesBuild(inventory, join(root, ".output/public"))) {
+    console.log("  moduły tylko-serwerowe: pominięte (inwentarz z innego buildu niż .output)");
+    return null;
+  }
+  const leaks = serverOnlyModulesInClient(inventory);
+  console.log(
+    leaks.length
+      ? `  ✗ moduły tylko-serwerowe w bundlu klienta: ${leaks.map((l) => `${l.module} w ${l.chunk}`).join("; ")}`
+      : `  ✓ moduły tylko-serwerowe poza bundlem klienta (${inventory.chunks.length} chunków w inwentarzu)`,
+  );
+  return leaks;
 }
 
 async function main(): Promise<void> {
@@ -213,6 +260,7 @@ async function main(): Promise<void> {
 
   console.log(`Waga dokumentu: ${context}`);
   printWeight(representative);
+  const leaks = serverOnlyLeaks(root);
 
   const results = budgetsFile
     ? checkBudgets({ ...representative, ...medians }, budgetsFile.budgets)
@@ -237,7 +285,7 @@ async function main(): Promise<void> {
   mkdirSync(dirname(jsonPath), { recursive: true });
   writeFileSync(
     jsonPath,
-    `${JSON.stringify({ context, medians, stats, sample: representative, results }, null, 2)}\n`,
+    `${JSON.stringify({ context, medians, stats, sample: representative, results, serverOnlyLeaks: leaks }, null, 2)}\n`,
   );
   console.log(`\nraport: ${jsonPath}`);
 
@@ -264,6 +312,13 @@ async function main(): Promise<void> {
   }
 
   const failed = results.filter((r) => !r.ok);
+  if (gate && leaks?.length) {
+    console.error(
+      "\n✗ Moduły tylko-serwerowe w bundlu klienta - wywołanie poza gałęzią `isServerRender()` " +
+        "albo flaga `isServer`, której bundler nie zwija (src/lib/builder/aboveFold.tsx).",
+    );
+    process.exitCode = 1;
+  }
   if (gate && failed.length) {
     console.error(
       `\n✗ Waga dokumentu ponad progiem: ${failed.map((r) => `${r.metric} ${fmt(r.metric, r.value)} > ${fmt(r.metric, r.max)}`).join("; ")}`,
@@ -272,7 +327,7 @@ async function main(): Promise<void> {
       "  Progi wolno wyłącznie obniżać. Regresję naprawia się w kodzie; uzasadnienie progów: _comment w pliku progów.",
     );
     process.exitCode = 1;
-  } else if (gate && results.length) {
+  } else if (gate && results.length && !leaks?.length) {
     console.log("\n✓ Waga dokumentu w progach");
   }
 }

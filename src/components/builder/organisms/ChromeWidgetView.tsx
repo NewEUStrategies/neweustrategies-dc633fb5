@@ -58,7 +58,7 @@ import {
   resolveWidgetTypography,
 } from "@/lib/builder/typographyCss";
 import { resolveColorForMode } from "@/lib/builder/autoInvertColor";
-import { useAboveFold } from "@/lib/builder/aboveFold";
+import { useLcpImage } from "@/lib/builder/aboveFold";
 import { resolveGlobalWidgetInstance, useGlobalWidgetNode } from "@/lib/builder/globalWidgets";
 import { processWidgetFootnotes } from "@/lib/footnotes";
 import { useTheme } from "@/components/ThemeProvider";
@@ -188,9 +188,13 @@ export function useWidgetFrame({
   const { theme } = useTheme();
   const builderMode = useBuilderMode();
   const effectiveMode = builderMode ?? theme;
-  // Sekcja nad zgięciem: pierwszy obraz widgetu jest kandydatem LCP
-  // (eager + fetchpriority=high) - czytane w gałęziach z obrazami niżej.
-  const aboveFold = useAboveFold();
+  // Kandydat LCP strony (P1.4): wyłącznie widget wskazany przez renderer-
+  // właściciela (`lcpCandidates`) maluje pierwszy obraz eager +
+  // fetchpriority=high + `data-lcp-candidate`; w renderze czysto klienckim
+  // pierwsza sekcja dostaje samo eager (`LcpImage`), każdy inny obraz jest
+  // leniwy. Klucz to identyfikator INSTANCJI z dokumentu (kandydat liczy się
+  // z dokumentu, a nakładka widgetu globalnego nie zmienia pozycji w drzewie).
+  const lcp = useLcpImage(instanceNode.id);
   const [liveTypography, setLiveTypography] = useState<WidgetTypography | undefined>(undefined);
   const baseStyle = styleToCSS(node.style, device, effectiveMode);
   const cls = sanitizeCssClass(node.advanced?.cssClass) ?? "";
@@ -458,7 +462,7 @@ ${sel} :is(a,button):active :is(svg,.cms-icon):not([data-keep-color]){color:${ic
     onContentChange,
     effectiveMode,
     activeTypography,
-    aboveFold,
+    lcp,
     c,
     canEdit,
     commit,
@@ -1143,7 +1147,8 @@ const DeferredWidgetView = memo(function DeferredWidgetView(props: WidgetViewPro
 
 function FramedChromeWidgetView(props: WidgetViewProps) {
   const frame = useWidgetFrame(props);
-  const { node, lang, effectiveMode, editable, onContentChange, activeTypography, wrap } = frame;
+  const { node, lang, effectiveMode, editable, onContentChange, activeTypography, lcp, wrap } =
+    frame;
 
   const simple = renderSimpleWidget(
     node,
@@ -1152,6 +1157,7 @@ function FramedChromeWidgetView(props: WidgetViewProps) {
     editable,
     onContentChange,
     activeTypography,
+    lcp,
   );
   if (simple !== undefined) return wrap(simple);
 

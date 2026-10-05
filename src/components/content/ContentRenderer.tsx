@@ -50,6 +50,13 @@ interface Props {
    * nad treścią - wtedy pierwszy obraz artykułu bywa elementem LCP.
    */
   eagerFirstImage?: boolean;
+  /**
+   * Silnik buildera wyznacza kandydata LCP strony (P1.4, `BuilderRenderer`
+   * `lcpOwner`). Domyślnie TAK: ten komponent jest główną treścią swojej
+   * trasy. Trasa wyłącza to, gdy element LCP maluje kto inny - wpis z okładką
+   * nad treścią (`$.tsx`), bo okładka jest wtedy jedynym kandydatem.
+   */
+  lcpOwner?: boolean;
 }
 
 export function ContentRenderer({
@@ -62,6 +69,7 @@ export function ContentRenderer({
   currentPostCtx,
   stream = false,
   eagerFirstImage = false,
+  lcpOwner = true,
 }: Props) {
   const engine = resolveContentEngine({ editor, builderDoc, blocksDoc });
 
@@ -75,7 +83,9 @@ export function ContentRenderer({
   }
 
   if (engine === "builder") {
-    const tree = <BuilderRenderer doc={builderDoc} lang={lang} stream={stream} />;
+    const tree = (
+      <BuilderRenderer doc={builderDoc} lang={lang} stream={stream} lcpOwner={lcpOwner} />
+    );
     return currentPostCtx ? (
       <CurrentPostProvider value={currentPostCtx}>{tree}</CurrentPostProvider>
     ) : (

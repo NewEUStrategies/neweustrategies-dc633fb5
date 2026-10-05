@@ -38,6 +38,8 @@ export interface LinkEntry {
   readonly href: string;
   readonly as: string;
   readonly imagesrcset: string;
+  /** `imagesizes` - razem z `imagesrcset` tworzy klucz zasobu obrazu (P1.4). */
+  readonly imagesizes: string;
   readonly fetchpriority: string;
   readonly media: string;
 }
@@ -74,6 +76,7 @@ export function parseLinkHeader(value: string | null | undefined): LinkEntry[] {
         href: m[1],
         as: (params["as"] ?? "").toLowerCase(),
         imagesrcset: params["imagesrcset"] ?? "",
+        imagesizes: params["imagesizes"] ?? "",
         fetchpriority: (params["fetchpriority"] ?? "").toLowerCase(),
         media: params["media"] ?? "",
       },
@@ -100,6 +103,12 @@ const DATA_SCRIPT_TYPES = /^(application\/(ld\+)?json|speculationrules|importmap
 /** Sufiks ścieżki `/assets/x.js` -> nazwa pliku w `.output/public/assets`. */
 function assetName(href: string): string | null {
   const m = /\/assets\/([A-Za-z0-9._$~-]+\.(?:js|css))(?:[?#].*)?$/.exec(href);
+  return m ? m[1] : null;
+}
+
+/** Jak `assetName`, ale dla dowolnego pliku artefaktu (fonty, obrazy). */
+function anyAssetName(href: string): string | null {
+  const m = /\/assets\/([A-Za-z0-9._$~-]+\.[A-Za-z0-9]+)(?:[?#].*)?$/.exec(href);
   return m ? m[1] : null;
 }
 
@@ -249,6 +258,50 @@ export interface DocumentWeight {
   readonly renderBlockingCssCount: number;
   readonly renderBlockingCssRawBytes: number;
   readonly renderBlockingCssGzipBytes: number;
+  // ── ŚCIEŻKA KRYTYCZNA OBRAZU LCP (P1.4: LP-10 + LA-C3) ─────────────────
+  /** `<img data-lcp-candidate>` - kandydaci LCP wyznaczeni przez renderer (≤ 2). */
+  readonly lcpCandidateCount: number;
+  /**
+   * 1, gdy dokument NIE MA żadnego `img[data-lcp-candidate]`, inaczej 0. Na `/`
+   * (fixture z hero) brak znacznika to regresja: wyzwalacz bootu po LCP (P2.1)
+   * i test geometrii powłoki zgód (P1.3) szukają właśnie tego elementu.
+   */
+  readonly lcpCandidateMissing: number;
+  /**
+   * Obrazy NIE-leniwe (bez `loading="lazy"`, czyli eager albo domyślne) poza
+   * kandydatem LCP i poza nagłówkiem powłoki `<header data-site-header>` (logo
+   * `Header.tsx`). Każdy taki obraz konkuruje o pasmo z obrazem LCP.
+   */
+  readonly imgEagerNonCandidate: number;
+  /**
+   * Preloady obrazu z `fetchpriority=high` (dokument i nagłówek `Link`), których
+   * klucz zasobu (`imagesrcset` + `imagesizes`, bez srcset - `href`) NIE jest
+   * kluczem żadnego `img[data-lcp-candidate]`. Zero = preload to dokładnie
+   * kandydat (jedno źródło preloadu, werdykt LP-2).
+   */
+  readonly imagePreloadNonCandidate: number;
+  /**
+   * Wpisy nagłówka `Link` spoza listy dozwolonych: `modulepreload`,
+   * `preconnect`, `dns-prefetch`, `preload` stylu/fontu/skryptu oraz `preload`
+   * obrazu kandydata. Nagłówek odtwarza się jako 103 Early Hints - przypadkowy
+   * wpis to żądanie przed HTML-em.
+   */
+  readonly linkHeaderDisallowed: number;
+  /** Bajty preloadowanych fontów z artefaktu (woff2 jest już skompresowany: raw). */
+  readonly fontPreloadBytes: number;
+  /**
+   * Bajty obrazu kandydata, gdy jest plikiem artefaktu (`/assets/...`). Obraz
+   * z CDN/fixture nie jest liczony: jego wariant zależy od viewportu i DPR
+   * (werdykt LA-C3) - to mierzy runtime (`highPriorityBytesBeforeLcpImage`).
+   */
+  readonly lcpImageBytes: number;
+  /**
+   * Bajty, które przeglądarka MUSI przesłać przed malowaniem obrazu LCP (gzip,
+   * jak pozostałe metryki): HTML + CSS blokujący + pula JS z priorytetem High
+   * (domknięcie bootu ∪ modulepreload) + preloadowane fonty + obraz kandydata
+   * (gdy z artefaktu). Statyczny odpowiednik zbioru, który Lantern liczy do LCP.
+   */
+  readonly preLcpTransferBytes: number;
 }
 
 export interface AnalyzeInput {
@@ -270,6 +323,7 @@ function linkEntries(html: string): LinkEntry[] {
       href: a["href"] ?? "",
       as: (a["as"] ?? "").toLowerCase(),
       imagesrcset: a["imagesrcset"] ?? "",
+      imagesizes: a["imagesizes"] ?? "",
       fetchpriority: (a["fetchpriority"] ?? "").toLowerCase(),
       media: a["media"] ?? "",
     };
@@ -279,6 +333,49 @@ function linkEntries(html: string): LinkEntry[] {
 const isPreload = (l: LinkEntry) => l.rel === "preload" || l.rel === "modulepreload";
 /** Ten sam zasób: dla obrazów responsywnych liczy się `imagesrcset`, nie `href`. */
 const preloadKey = (l: LinkEntry) => (l.imagesrcset ? `srcset:${l.imagesrcset}` : l.href);
+
+/**
+ * Klucz zasobu obrazu - DOKŁADNIE ten, którym React łączy preload z `<img>`
+ * (`srcSet + "\n" + sizes`, bez srcset: `src`). Dla preloadu: `imagesrcset`
+ * + `imagesizes` albo `href`.
+ */
+export function imageResourceKey(srcset: string, sizes: string, src: string): string {
+  return srcset ? `srcset:${srcset}\n${sizes}` : `src:${src}`;
+}
+
+/** Wpisy `Link` dozwolone zawsze (obrazy - wyłącznie kandydat, osobno). */
+const LINK_ALLOWED_RELS = new Set(["modulepreload", "preconnect", "dns-prefetch"]);
+const LINK_ALLOWED_PRELOAD_AS = new Set(["style", "font", "script"]);
+
+/**
+ * Zakresy nagłówka POWŁOKI `<header data-site-header ...>...</header>` - tylko
+ * tam wolno ładować logo eager (`Header.tsx`). Dowolny inny `<header>` (karta,
+ * sekcja treści) nie zwalnia obrazu z bramki. Zagnieżdżone `<header>` są
+ * liczone (głębokość), a treść `<script>`/`<style>` maskowana spacjami tej samej
+ * długości (napis „<header>” w komentarzu CSS nie przesuwa zakresu; indeksy
+ * zostają indeksami oryginału) - recenzja P1.4, m5.
+ */
+function siteHeaderRanges(html: string): Array<[number, number]> {
+  const masked = html.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, (m) =>
+    " ".repeat(m.length),
+  );
+  const out: Array<[number, number]> = [];
+  let start = -1;
+  let depth = 0;
+  for (const m of masked.matchAll(/<(\/?)header\b([^>]*)>/gi)) {
+    const at = m.index ?? 0;
+    if (start < 0) {
+      if (!m[1] && /\sdata-site-header\b/i.test(m[2])) [start, depth] = [at, 1];
+      continue;
+    }
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) {
+      out.push([start, at + m[0].length]);
+      start = -1;
+    }
+  }
+  return out;
+}
 
 export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   const { html } = input;
@@ -304,7 +401,33 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   const moduleScripts = scripts.filter(
     (s) => (s.attrs["type"] ?? "").toLowerCase() === "module" && s.attrs["src"],
   );
-  const imgs = [...html.matchAll(/<img\b[^>]*>/gi)].map((m) => parseAttributes(m[0]));
+  const imgMatches = [...html.matchAll(/<img\b[^>]*>/gi)];
+  const imgs = imgMatches.map((m) => parseAttributes(m[0]));
+  const headers = siteHeaderRanges(html);
+  const inHeader = (index: number) => headers.some(([from, to]) => index >= from && index < to);
+  const candidates = imgs.filter((a) => "data-lcp-candidate" in a);
+  const candidateKeys = new Set(
+    candidates.map((a) => imageResourceKey(a["srcset"] ?? "", a["sizes"] ?? "", a["src"] ?? "")),
+  );
+  const linkImageKey = (l: LinkEntry) => imageResourceKey(l.imagesrcset, l.imagesizes, l.href);
+  const imgEagerNonCandidate = imgMatches.filter((m, i) => {
+    const a = imgs[i];
+    return (
+      (a["loading"] ?? "").toLowerCase() !== "lazy" &&
+      !("data-lcp-candidate" in a) &&
+      !inHeader(m.index ?? 0)
+    );
+  }).length;
+  const imagePreloadNonCandidate = preloads.filter(
+    (l) => l.as === "image" && l.fetchpriority === "high" && !candidateKeys.has(linkImageKey(l)),
+  ).length;
+  const linkHeaderDisallowed = links.filter((l) => {
+    if (l.source !== "header") return false;
+    if (LINK_ALLOWED_RELS.has(l.rel)) return false;
+    if (l.rel === "preload" && LINK_ALLOWED_PRELOAD_AS.has(l.as)) return false;
+    if (l.rel === "preload" && l.as === "image" && candidateKeys.has(linkImageKey(l))) return false;
+    return true;
+  }).length;
   const bodyStart = html.search(/<body\b/i);
   const body = bodyStart >= 0 ? html.slice(bodyStart) : html;
 
@@ -313,6 +436,8 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   let preloadedJs: FileWeight[] = [];
   let preloadOutsideBoot: FileWeight[] = [];
   let css: FileWeight[] = [];
+  let fontPreloadBytes = 0;
+  let lcpImageBytes = 0;
   if (assetsDir) {
     let roots = moduleScripts
       .map((s) => assetName(s.attrs["src"] ?? ""))
@@ -344,13 +469,29 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
         .filter((n): n is string => n !== null && n.endsWith(".css")),
     );
     css = [...cssNames].map((n) => weigh(assetsDir, n)).filter((f): f is FileWeight => f !== null);
+    const fontNames = new Set(
+      preloads
+        .filter((l) => l.as === "font")
+        .map((l) => anyAssetName(l.href))
+        .filter((n): n is string => n !== null),
+    );
+    fontPreloadBytes = [...fontNames]
+      .map((n) => weigh(assetsDir, n))
+      .reduce((sum, f) => sum + (f?.rawBytes ?? 0), 0);
+    const candidateFiles = new Set(
+      candidates.map((a) => anyAssetName(a["src"] ?? "")).filter((n): n is string => n !== null),
+    );
+    lcpImageBytes = [...candidateFiles]
+      .map((n) => weigh(assetsDir, n))
+      .reduce((sum, f) => sum + (f?.rawBytes ?? 0), 0);
   }
   const preloadedSum = sumWeights(preloadedJs);
   const cssSum = sumWeights(css);
+  const htmlGzipBytes = gzipSync(Buffer.from(html, "utf8"), { level: 6 }).length;
 
   return {
     htmlRawBytes: byteLength(html),
-    htmlGzipBytes: gzipSync(Buffer.from(html, "utf8"), { level: 6 }).length,
+    htmlGzipBytes,
     headRawBytes: headMatch ? byteLength(headMatch[0]) : 0,
     inlineStyleCount: styles.length,
     inlineStyleBytes: styles.reduce((s, b) => s + byteLength(b.content), 0),
@@ -392,6 +533,15 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     renderBlockingCssCount: css.length,
     renderBlockingCssRawBytes: cssSum.rawBytes,
     renderBlockingCssGzipBytes: cssSum.gzipBytes,
+    lcpCandidateCount: candidates.length,
+    lcpCandidateMissing: candidates.length === 0 ? 1 : 0,
+    imgEagerNonCandidate,
+    imagePreloadNonCandidate,
+    linkHeaderDisallowed,
+    fontPreloadBytes,
+    lcpImageBytes,
+    preLcpTransferBytes:
+      htmlGzipBytes + cssSum.gzipBytes + preloadedSum.gzipBytes + fontPreloadBytes + lcpImageBytes,
   };
 }
 
@@ -416,6 +566,13 @@ export const GATED_METRICS = [
   "preloadedJsCount",
   "preloadedJsGzipBytes",
   "renderBlockingCssGzipBytes",
+  // P1.4 - ścieżka krytyczna obrazu LCP (definicje: komentarze pól wyżej).
+  "lcpCandidateCount",
+  "lcpCandidateMissing",
+  "imgEagerNonCandidate",
+  "imagePreloadNonCandidate",
+  "linkHeaderDisallowed",
+  "preLcpTransferBytes",
 ] as const;
 
 export type GatedMetric = (typeof GATED_METRICS)[number];
@@ -486,4 +643,58 @@ export function medianWeights(
     out[metric] = { median, min: values[0], max: values[values.length - 1] };
   }
   return out;
+}
+
+/**
+ * MODUŁY TYLKO SERWEROWE (P1.4, recenzja runda 3, m3). Kandydata LCP
+ * (`lcpCandidate.ts`) i preload jego obrazu (`heroImage.ts`) liczy wyłącznie
+ * serwer; kod klienta woła je pod `isServerRender()`, a Rollup wycina tę gałąź,
+ * bo `isServer` router-core jest w buildzie przeglądarki literałem `false`.
+ * Powrót do bundla klienta (wywołanie poza gałęzią, niestała flaga w paczce,
+ * bundler, który przestał zwijać gałąź) nie przekracza żadnego progu bajtowego
+ * (+1,1 KB gzip w zapasie kilkunastu KB), więc sprawdza go osobny test
+ * inwentarza chunków (`reports/chunk-inventory.json`, build z BUNDLE_INVENTORY=1).
+ */
+export const SERVER_ONLY_CLIENT_MODULES = [
+  "src/lib/builder/lcpCandidate.ts",
+  "src/lib/builder/heroImage.ts",
+] as const;
+
+export interface ChunkInventoryLike {
+  readonly chunks: ReadonlyArray<{
+    readonly file: string;
+    readonly isEntry?: boolean;
+    readonly modules?: ReadonlyArray<{ readonly id: string }>;
+  }>;
+}
+
+export interface ServerOnlyLeak {
+  readonly chunk: string;
+  readonly module: string;
+}
+
+/** Moduły tylko-serwerowe znalezione w chunkach klienta (pusta lista = OK). */
+export function serverOnlyModulesInClient(
+  inventory: ChunkInventoryLike,
+  modules: readonly string[] = SERVER_ONLY_CLIENT_MODULES,
+): ServerOnlyLeak[] {
+  const leaks: ServerOnlyLeak[] = [];
+  for (const chunk of inventory.chunks) {
+    for (const { id } of chunk.modules ?? []) {
+      const path = id.split("?")[0];
+      const module = modules.find((m) => path === m || path.endsWith(`/${m}`));
+      if (module) leaks.push({ chunk: chunk.file, module });
+    }
+  }
+  return leaks;
+}
+
+/**
+ * Czy inwentarz opisuje TEN build: każdy chunk wejściowy z inwentarza istnieje
+ * w katalogu `.output/public`. Inwentarz z poprzedniego buildu (np. bez
+ * BUNDLE_INVENTORY=1) ma inne hashe - jego wynik nie mówi nic o artefakcie.
+ */
+export function inventoryMatchesBuild(inventory: ChunkInventoryLike, publicDir: string): boolean {
+  const entries = inventory.chunks.filter((chunk) => chunk.isEntry);
+  return entries.length > 0 && entries.every((chunk) => existsSync(join(publicDir, chunk.file)));
 }
