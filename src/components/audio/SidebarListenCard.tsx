@@ -273,9 +273,13 @@ export function SidebarListenCard({
             data-playing={playing ? "true" : "false"}
             className={[
               "listen-play-toggle shrink-0 h-11 w-11 rounded-[6px]",
-              "bg-brand text-background shadow-md transition-all duration-300",
-              "hover:brightness-110 hover:shadow-lg active:scale-95 disabled:opacity-70",
-              playing ? "ring-4 ring-brand/15" : "ring-0",
+              // Wariant "editorial outline": spokojny obrys marki, wypełnienie
+              // dopiero na najechaniu (albo gdy odtwarzanie trwa).
+              "border bg-background shadow-sm transition-all duration-300",
+              "hover:shadow-md active:scale-95 disabled:opacity-70",
+              playing
+                ? "bg-brand text-background ring-4 ring-brand/15 border-brand"
+                : "border-brand text-brand hover:bg-brand hover:text-background",
               FOCUS_RING,
             ].join(" ")}
           >
