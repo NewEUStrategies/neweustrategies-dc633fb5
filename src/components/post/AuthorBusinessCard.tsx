@@ -205,9 +205,9 @@ export function AuthorBusinessCard({
             >
               {t.viewProfile}
               {/* Kolor ikony = currentColor linku (brand w obu motywach).
-                  text-[color:inherit] bije globalną regułę :where(... svg)
-                  ustawiającą var(--gc-icon) na ikonach wewnątrz kart. */}
-              <FastForwardIcon className="h-3 w-4 text-[color:inherit] transition-transform duration-200 group-hover/link:translate-x-0.5" />
+                  text-inherit bije globalną regułę :where(... svg) ustawiającą
+                  var(--gc-icon) na ikonach wewnątrz kart. */}
+              <FastForwardIcon className="h-3 w-4 text-inherit transition-transform duration-200 group-hover/link:translate-x-0.5" />
             </AppLink>
           )}
         </div>
