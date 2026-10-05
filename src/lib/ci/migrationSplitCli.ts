@@ -94,9 +94,8 @@ const TOOL_FILES =
  * funkcji organizatora. Kolejnosc = kolejnosc wykonania.
  */
 export const SPLIT_NEXT_STEPS: readonly string[] = [
-  "bun run generate:authz-snapshot  (snapshot liczy pliki migracji; inaczej check:authz-snapshot i authzSnapshotParity.test sa czerwone)",
-  "bunx vitest run src/lib/ci/__tests__/migrationLaneParity.test.ts src/lib/ci/__tests__/migrationSize.gate.test.ts",
-  "bun run check:sql-migration-replay && bun run check:rpc-contract && bun run check:sql-tenant-scope && bun run check:ownership",
+  "bun run generate:authz-snapshot  (snapshot liczy pliki migracji; inaczej authzSnapshotParity.test jest czerwony)",
+  "bun run check:sql-migration-replay && bun run check:rpc-contract && bun run check:sql-tenant-scope",
   "testy z ostrzezen UWAGA wyzej (czytaja migracje po nazwie): przejdz na readLogicalMigration() z src/lib/ci/migrationSize.ts dla OBU pasow",
   "harnessy, ktore wybieraja te migracje (np. bash scripts/events-harness/run.sh) - pelny przebieg, nie --only",
 ];

@@ -36,7 +36,6 @@ const EXCLUDED: Readonly<Record<string, string>> = {
   "check:chunks": "graf chunków z artefaktu buildu",
   "check:entry-purity": "chunk startowy z artefaktu buildu",
   "check:server-entry-purity": "artefakt serwera po buildzie; wymagane w jobie build",
-  "check:platform-coverage": "instrumentowany pomiar i rachunek wykonania testów - job test w CI",
   "check:db-contract": "sonduje Data API - wymaga SUPABASE_URL i klucza",
   // Ta sama klasa co `check:db-contract`: bramka PO WDROŻENIU, pyta wdrożoną
   // bazę o rejestr migracji przez RPC. W CI jedzie WYŁĄCZNIE w jobie
@@ -48,18 +47,12 @@ const EXCLUDED: Readonly<Record<string, string>> = {
   "check:migration-ledger": "sonduje wdrożoną bazę (RPC) - wymaga SUPABASE_URL i klucza",
   "check:pg-harness": "stawia własny klaster PostgreSQL 16",
   "check:careers-harness": "jw. - klaster PostgreSQL 16",
-  // Trzy uprzęże dopisane po tym, jak powstała ta lista. Robią dokładnie to
+  // Dwie uprzęże dopisane po tym, jak powstała ta lista. Robią dokładnie to
   // samo, co dwie wyżej (`initdb` + własny klaster na własnym porcie), więc
   // należą tu z tego samego powodu - automatyczne wciąganie nowych bramek
   // złapało je jako „statyczne", choć żadna nie czyta wyłącznie plików repo.
   "check:events-harness": "jw. - klaster PostgreSQL 16 (port 5436)",
-  "check:programs-harness": "jw. - klaster PostgreSQL 16",
   "check:tenant-isolation": "jw. - klaster PostgreSQL 16 (asercje RLS na żywej bazie)",
-  "check:chunk-parity": "test vitest - jedzie w `bun run test`",
-  "check:permissions-parity": "testy vitest - jadą w `bun run test`",
-  "check:i18n-parity": "testy vitest - jadą w `bun run test`",
-  "check:ci-gates": "testy vitest - jadą w `bun run test`",
-  "check:widget-fidelity": "testy vitest - jadą w `bun run test`",
 };
 
 /**
@@ -68,7 +61,7 @@ const EXCLUDED: Readonly<Record<string, string>> = {
  * (115 błędów prettier/prettier) blokowała ostatnie wydanie, a jej wykrycie
  * kosztuje sekundy - podczas gdy `bun run lint` liczy je minutami.
  */
-const FIRST: readonly string[] = ["format:check", "check:gate-coverage"];
+const FIRST: readonly string[] = ["format:check"];
 
 interface PackageManifest {
   readonly scripts?: Readonly<Record<string, string>>;

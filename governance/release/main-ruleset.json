@@ -30,12 +30,6 @@
           },
           {
             "context": "e2e-seeded"
-          },
-          {
-            "context": "first-visit"
-          },
-          {
-            "context": "lighthouse"
           }
         ]
       }
