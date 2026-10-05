@@ -99,5 +99,5 @@
 
 ## Tło zgodne z kartą autora
 
-- [ ] Ustawić domyślne i zapisane jasne tło #F8F7F3, zachowując ciemny motyw.
-- [ ] Zweryfikować kolor strony w podglądzie i testy kolorów globalnych.
+- [x] Ustawić domyślne i zapisane jasne tło #F8F7F3, zachowując ciemny motyw.
+- [x] Zweryfikować kolor strony w podglądzie i testy kolorów globalnych (34/34); jasny rgb(248,247,243), ciemny bez zmian rgb(35,31,32).
