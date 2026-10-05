@@ -204,9 +204,10 @@ export function AuthorBusinessCard({
               className="cms-widget-kicker group/link mt-1 inline-flex items-center gap-0.5 self-start font-medium text-[color:var(--brand)] hover:underline"
             >
               {t.viewProfile}
-              {/* Kolor ikony = currentColor (brand w obu motywach); hover
-                  delikatnie dosuwa znak w prawo jak w akcjach nagłówkowych. */}
-              <FastForwardIcon className="h-3 w-4 transition-transform duration-200 group-hover/link:translate-x-0.5" />
+              {/* Kolor ikony = currentColor linku (brand w obu motywach).
+                  text-[color:inherit] bije globalną regułę :where(... svg)
+                  ustawiającą var(--gc-icon) na ikonach wewnątrz kart. */}
+              <FastForwardIcon className="h-3 w-4 text-[color:inherit] transition-transform duration-200 group-hover/link:translate-x-0.5" />
             </AppLink>
           )}
         </div>
