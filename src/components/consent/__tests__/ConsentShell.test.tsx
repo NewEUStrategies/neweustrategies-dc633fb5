@@ -2,12 +2,13 @@
 //
 // CO TO DOWODZI:
 //  1. PARYTET: powłoka i karta banera w chwili przejęcia to TEN SAM markup -
-//     ten sam HTML co do bajtu po zdjęciu trzech atrybutów wyłącznie powłoki
-//     (`data-consent-shell`, `data-nosnippet`, klasa ukrywania). Podmiana
+//     ten sam HTML co do bajtu po zdjęciu atrybutów wyłącznie powłoki
+//     (`data-consent-shell`, `data-nosnippet`, trzy klasy ukrywania). Podmiana
 //     powłoki na baner nie zmienia więc ani piksela, ani drzewa dostępności
 //     (te same role, etykiety, kolejność kontrolek).
-//  2. WIDOCZNOŚĆ: korzeń powłoki niesie wariant `[html[data-consent-decided]_&]:hidden`
-//     (ukrywanie przed pierwszym malowaniem przez skrypt inline, bez `:has()`)
+//  2. WIDOCZNOŚĆ: korzeń powłoki niesie warianty ukrywania (bez działającego
+//     skryptu `data-consent-js`, przy decyzji `data-consent-decided`, przy GPC
+//     `data-consent-gpc` - atrybuty `<html>` ze skryptu inline, bez `:has()`)
 //     i `data-nosnippet`; powłoka nie powstaje, gdy baner jest wyłączony.
 //  3. POKAZANIE BEZ ANIMACJI (P0.5, F8): żadnego `animate-in` w karcie.
 //  4. BEZ LUCIDE: ikony są inline SVG, `aria-hidden`, a moduł nie importuje
@@ -77,7 +78,9 @@ const EN = COOKIE_BANNER_DEFAULTS.copy.en;
 const SHELL_ONLY = [
   / data-consent-shell=""/,
   / data-nosnippet=""/,
+  / \[html:not\(\[data-consent-js\]\)_&amp;\]:hidden/,
   / \[html\[data-consent-decided\]_&amp;\]:hidden/,
+  / \[html\[data-consent-gpc\]_&amp;\]:hidden/,
 ];
 
 function shellHtml(): string {
@@ -154,7 +157,10 @@ describe("powłoka: widoczność, SEO i pokazanie bez animacji", () => {
     expect(root?.getAttribute("aria-modal")).toBe("false");
     expect(root?.getAttribute("aria-label")).toBe(PL.title);
     expect(root?.hasAttribute("data-nosnippet")).toBe(true);
+    // Widoczna WYŁĄCZNIE przy działającym skrypcie, bez decyzji i bez GPC.
+    expect(root?.className).toContain("[html:not([data-consent-js])_&]:hidden");
     expect(root?.className).toContain("[html[data-consent-decided]_&]:hidden");
+    expect(root?.className).toContain("[html[data-consent-gpc]_&]:hidden");
     expect(root?.className).not.toMatch(/:has\(/);
   });
 

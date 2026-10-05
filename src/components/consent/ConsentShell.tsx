@@ -20,10 +20,14 @@
 // `ConsentCompactCard`, ikon i klas. Dzięki temu karta powłoki i karta banera
 // mają jedno źródło markupu, a koszt bootu powłoki to zero bajtów JS.
 //
-// UKRYWANIE. Korzeń powłoki ma wariant `[html[data-consent-decided]_&]:hidden`:
-// skrypt inline ustawia atrybut przed pierwszym malowaniem, gdy w przeglądarce
-// leży decyzja, i po kliknięciu decyzji w powłoce. Bez `:has()` i bez edycji
-// `styles.css` (Tailwind generuje regułę `html[data-consent-decided] .klasa`).
+// UKRYWANIE (`SHELL_HIDE_CLASSES`). Powłoka jest widoczna WYŁĄCZNIE wtedy, gdy
+// skrypt inline zadziałał (`html[data-consent-js]` - bez JavaScriptu nie ma
+// martwej karty), w przeglądarce nie ma decyzji (`html[data-consent-decided]`,
+// ustawiany przed pierwszym malowaniem i po kliknięciu decyzji) i nie ma
+// sygnału GPC (`html[data-consent-gpc]` - karta banera ma wtedy notę, której
+// powłoka nie ma, więc baner wchodzi od razu po boocie). Bez `:has()` i bez
+// edycji `styles.css` (Tailwind generuje reguły `html[data-consent-decided]
+// .klasa{display:none}` itd.).
 // `data-nosnippet`: tekst cookies stoi w HTML każdej strony, nie może trafić
 // do fragmentów wyników wyszukiwania (krytyka planu m4a).
 //
@@ -47,6 +51,13 @@ import {
 } from "@/lib/cookieBanner/config";
 import type { ConsentShellAction } from "@/lib/consent/consentInitScript";
 import { cn } from "@/lib/utils";
+
+/**
+ * Warianty ukrywania korzenia powłoki (nagłówek pliku, „UKRYWANIE"). Atrybuty
+ * ustawia `CONSENT_INIT_SCRIPT` (`lib/consent/consentInitScript.ts`).
+ */
+const SHELL_HIDE_CLASSES =
+  "[html:not([data-consent-js])_&]:hidden [html[data-consent-decided]_&]:hidden [html[data-consent-gpc]_&]:hidden";
 
 // ---------- Ustawienia prywatności (site_settings["privacy"]) ----------
 
@@ -460,7 +471,7 @@ export function ConsentCompactCard({
         "no-print fixed z-[60] right-3 bottom-3 left-3",
         "sm:left-auto sm:right-5 sm:bottom-5 sm:w-[380px]",
         "max-w-[calc(100vw-1.5rem)]",
-        shell && "[html[data-consent-decided]_&]:hidden",
+        shell && SHELL_HIDE_CLASSES,
       )}
     >
       <div

@@ -36,7 +36,12 @@ const RELOAD_GUARD_KEY = "__lov_cb_reload";
 const RELOAD_GUARD_TTL_MS = 15_000;
 const POLL_INTERVAL_MS = 5 * 60_000;
 
-function looksLikeChunkLoadError(err: unknown): boolean {
+/**
+ * Czy błąd wygląda na chunk-load error. Eksport wyłącznie dla testu parytetu:
+ * korzeń (`__root.tsx`, `armCacheBusting`) trzyma kopię tych wzorców, bo filtruje
+ * wczesne błędy, ZANIM ten moduł się załaduje (P1.3, TP-4).
+ */
+export function looksLikeChunkLoadError(err: unknown): boolean {
   if (!err) return false;
   const msg =
     (typeof (err as { message?: unknown }).message === "string" &&

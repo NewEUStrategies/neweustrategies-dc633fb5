@@ -20,6 +20,9 @@ import {
 //     aplikacji wstrzymane), a nawigacja MPA przed bootem nie przywraca banera.
 //  4. Baner interaktywny (chunk `ConsentBanner`) NIE jest pobierany bez
 //     interakcji - powłoka wystarcza do końca pierwszego wejścia.
+//  5. BEZ JAVASCRIPTU nie ma martwej karty (powłoka ukryta bez
+//     `html[data-consent-js]`), a przy SYGNALE GPC powłoka jest ukryta od
+//     pierwszego malowania i po boocie od razu wchodzi baner z notą GPC.
 //
 // Uruchomienie: `playwright test --config playwright.performance.config.ts
 // e2e-performance/consent-shell-geometry.spec.ts` na zbudowanym artefakcie
@@ -286,17 +289,18 @@ test("klik w powłoce przed hydratacją zapisuje rekord; nawigacja MPA przed boo
       source: "local",
     });
 
-    // Nawigacja dokumentu (MPA) - skrypty aplikacji nadal wstrzymane.
+    // Nawigacja dokumentu (MPA) - skrypty aplikacji nadal wstrzymane. Powłoka
+    // stoi w HTML-u KAŻDEJ strony (po stopce), a wstrzymane skrypty modułowe
+    // nie blokują parsera - czekamy, aż parser do niej dojdzie, i dopiero wtedy
+    // sprawdzamy, że jest ukryta (recenzja P1.3, D4: „brak powłoki" nie może
+    // przechodzić tylko dlatego, że parser jeszcze do niej nie doszedł).
     await page.goto("/en", { waitUntil: "commit" });
-    await page.waitForSelector("body", { state: "attached" });
-    await page.waitForFunction(
-      () => document.readyState !== "loading" || !!document.querySelector("footer"),
+    await page.waitForSelector(SHELL, { state: "attached" });
+    const display = await page.evaluate(
+      (selector) => getComputedStyle(document.querySelector(selector) as Element).display,
+      SHELL,
     );
-    const display = await page.evaluate((selector) => {
-      const shell = document.querySelector(selector);
-      return shell ? getComputedStyle(shell).display : "absent";
-    }, SHELL);
-    expect(["none", "absent"]).toContain(display);
+    expect(display).toBe("none");
   } finally {
     releaseScripts();
   }
@@ -306,4 +310,56 @@ test("klik w powłoce przed hydratacją zapisuje rekord; nawigacja MPA przed boo
     .poll(() => page.evaluate(() => window.localStorage.getItem("consent:shell-pending")))
     .toBeNull();
   await expect(page.getByRole("dialog", { name: "Manage your privacy" })).toHaveCount(0);
+});
+
+test.describe("bez JavaScriptu", () => {
+  test.use({ javaScriptEnabled: false });
+
+  test("powłoka jest w HTML-u, ale ukryta - żadnej martwej karty bez działających przycisków", async ({
+    page,
+  }) => {
+    await routeFixture(page);
+    await page.goto("/", { waitUntil: "load" });
+    const shell = page.locator(SHELL);
+    await expect(shell).toHaveCount(1);
+    await expect(shell).toBeHidden();
+    expect(
+      await page.evaluate(() => document.documentElement.hasAttribute("data-consent-js")),
+    ).toBe(false);
+  });
+});
+
+test("GPC: powłoka ukryta od pierwszego malowania, po boocie baner z notą bez interakcji", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, "globalPrivacyControl", {
+      configurable: true,
+      get: () => true,
+    });
+  });
+  await maskUserActivation(page);
+  let releaseScripts!: () => void;
+  const holdScripts = new Promise<void>((resolve) => {
+    releaseScripts = resolve;
+  });
+  await routeFixture(page, { holdScripts });
+  try {
+    await page.goto("/", { waitUntil: "commit" });
+    await page.waitForSelector(SHELL, { state: "attached" });
+    const state = await page.evaluate(
+      (selector) => ({
+        gpc: document.documentElement.hasAttribute("data-consent-gpc"),
+        display: getComputedStyle(document.querySelector(selector) as Element).display,
+      }),
+      SHELL,
+    );
+    expect(state).toEqual({ gpc: true, display: "none" });
+  } finally {
+    releaseScripts();
+  }
+  await page.waitForFunction(() => window.__nesAppReady === true);
+  // Baner przejmuje gniazdo powłoki bez żadnego wejścia użytkownika.
+  await expect(page.getByRole("dialog", { name: "Zarządzaj swoją prywatnością" })).toBeVisible();
+  await expect(page.locator(SHELL)).toHaveCount(0);
 });

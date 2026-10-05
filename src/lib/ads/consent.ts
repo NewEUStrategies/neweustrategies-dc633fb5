@@ -84,13 +84,13 @@ export const CONSENT_DECIDED_JS = `(V(L('${STORAGE_KEY}'))||V(Q('${COOKIE_NAME}'
  * (`version`, `ts`, `categories` z `necessary: true`, `source: "local"`; bez
  * `gpcOverrideAt`, bo powłoka nie pokazuje noty GPC, więc jej decyzja nigdy nie
  * jest świadomym override'em), ten sam klucz magazynu i ten sam zapis
- * ciasteczka (`writeConsentCookie`). Zwraca zapisany napis.
+ * ciasteczka (`writeConsentCookie`). Porównania luźne (`==`) tam, gdzie obie
+ * strony są napisami - to bajty na ścieżce krytycznej.
  */
 export const CONSENT_WRITE_JS =
   `var W=function(f,a,m){var s=JSON.stringify({version:${CONSENT_VERSION},ts:Date.now(),categories:{necessary:!0,functional:f,analytics:a,marketing:m},source:'local'});` +
   `try{localStorage.setItem('${STORAGE_KEY}',s)}catch(e){}` +
-  `document.cookie='${COOKIE_NAME}='+encodeURIComponent(s)+'; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax'+(location.protocol==='https:'?'; Secure':'');` +
-  `return s};`;
+  `document.cookie='${COOKIE_NAME}='+encodeURIComponent(s)+'; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax'+(location.protocol=='https:'?'; Secure':'')};`;
 
 /**
  * Znacznik „decyzja z powłoki zapisana przed bootem, skutki uboczne jeszcze nie
@@ -108,8 +108,13 @@ export type ConsentShellDecision = "accept" | "reject" | "close";
  * (wytyczne CNIL). Przy aktywnym sygnale GPC akceptacja NIE włącza kategorii
  * klamrowanych (analytics, marketing): powłoka nie pokazuje noty GPC, więc to
  * nie może być świadomy override - zapisujemy to, co GPC i tak by wymusił.
- * To ten sam rekord, który daje w banerze „Zapisz wybrane" z szkicem
+ * To ten sam rekord, który daje w banerze „Zapisz wybrane" ze szkicem
  * zaklamrowanym przez GPC (functional włączone, klamrowane wyłączone).
+ * ŚWIADOMA RÓŻNICA wobec `acceptAll` banera: tam akceptacja przy GPC jest
+ * override'em (nota GPC widoczna, `gpcOverrideAt`), tu - nie. Od poprawki 1
+ * P1.3 powłoka i tak jest ukryta przy sygnale GPC (`html[data-consent-gpc]`,
+ * baner z notą montuje się od razu po boocie), więc ta klamra jest już tylko
+ * zabezpieczeniem na wypadek sygnału, który pojawił się po pierwszym malowaniu.
  */
 export function shellDecisionCategories(
   action: ConsentShellDecision,

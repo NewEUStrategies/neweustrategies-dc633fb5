@@ -7,19 +7,34 @@
 //     samego ciasteczka, uszkodzonego %-kodowania, zablokowanego magazynu
 //     i starego klucza marketingowego.
 //  2. REKORD Z POWŁOKI = REKORD Z BANERA bajt w bajt poza znacznikiem czasu:
-//     ten sam JSON w `localStorage`, ten sam surowy zapis ciasteczka, te same
-//     kategorie; GPC -> kategorie klamrowane wyłączone (bez `gpcOverrideAt`).
+//     ten sam napis JSON w `localStorage` (kolejność kluczy), ten sam surowy
+//     zapis ciasteczka, te same kategorie. Referencją jest PRAWDZIWA droga
+//     banera - wyrenderowany `ConsentBanner` z prawdziwym `useConsent`
+//     i kliknięcie jego `[data-consent-action]` (`acceptAll`/`rejectAll` ->
+//     `save` -> `setConsent`) - a nie funkcja tej pozycji. Przy GPC
+//     referencją jest „Zapisz wybrane" banera ze szkicem zaklamrowanym;
+//     różnica wobec `acceptAll` przy GPC (override z notą) jest przypięta
+//     jawnie jako świadoma.
 //  3. TEN SAM CONSENT MODE co `ga4ConsentUpdate` (pola, kolejność, wartości).
 //  4. PO BOOCIE decyzję zapisuje aplikacja (zdarzenie anulowalne), skrypt nie
 //     dubluje zapisu; intencja (`customize`) niczego nie zapisuje.
 //  5. Decyzja sprzed bootu zostawia znacznik, który domyka
 //     `finalizePendingShellDecision()` (profil i rejestr RODO zalogowanego).
+//  6. Powłoka widoczna WYŁĄCZNIE z działającym skryptem (`data-consent-js`),
+//     bez decyzji i bez GPC (`data-consent-gpc`, odczyt = `readGpcSignal`).
+//  7. Partner po boocie montuje baner we właściwym momencie: przy ukrytej
+//     powłoce bez decyzji (GPC, brak skryptu) od razu, przy decyzji - bez wpisu
+//     w pierwszym zadaniu po interakcji, przy zasiewie ustawień - po refetchu.
 //
 // Skrypt URUCHAMIAMY przez `new Function` na dokumencie happy-dom, a decyzję
-// banera liczy PRAWDZIWY `consent.ts` (`applyShellDecision` = `setConsent`
-// banera). Atrapy wyłącznie na granicach: klient Supabase i most rejestru.
+// banera liczy PRAWDZIWY `consent.ts` i PRAWDZIWY `ConsentBanner`. Atrapy
+// wyłącznie na granicach: klient Supabase, most rejestru, ustawienia witryny
+// (wartości domyślne), motyw i punkt ciszy P0.3 (rejestrator - punkt ciszy
+// wymaga `load` + 5 s, a test sprawdza tylko klasę i skutek zapisu).
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { renderHook } from "@testing-library/react";
+import { createElement } from "react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 
 const sb = vi.hoisted(() => ({
   userId: null as string | null,
@@ -47,10 +62,43 @@ vi.mock("@/lib/consent/registryBridge", () => ({
   },
 }));
 
+// Ustawienia witryny dla PRAWDZIWEGO banera: wartości domyślne (baner włączony,
+// domyślne teksty), jak w `ConsentBanner.test.tsx`. Reszta modułu - prawdziwa
+// (partner skryptu czyta klucz zapytania `site_settings`).
+vi.mock("@/lib/useSiteSetting", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/useSiteSetting")>("@/lib/useSiteSetting");
+  return {
+    ...actual,
+    useSiteSetting: <T extends object>(key: string, defaults: T): T =>
+      key === "privacy" ? { ...defaults, cookie_banner: true } : defaults,
+  };
+});
+vi.mock("@/components/ThemeProvider", () => ({ useTheme: () => ({ theme: "light" }) }));
+
+// Punkt ciszy P0.3 jako rejestrator: klasa zapisu i ręczne „nadejście” ciszy.
+const quiet = vi.hoisted(() => ({
+  entries: [] as Array<{ task: () => unknown; priority: string; cancelled: boolean }>,
+}));
+vi.mock("@/lib/performance/whenQuiescent", () => ({
+  onQuiescent: (task: () => unknown, options: { priority: string }) => {
+    const entry = { task, priority: options.priority, cancelled: false };
+    quiet.entries.push(entry);
+    return () => {
+      entry.cancelled = true;
+    };
+  },
+  __resetQuiescenceForTests: () => {
+    quiet.entries.length = 0;
+  },
+}));
+
 import {
   CONSENT_DECIDED_ATTR,
+  CONSENT_GPC_ATTR,
   CONSENT_INIT_SCRIPT,
   CONSENT_INTENT_ATTR,
+  CONSENT_JS_ATTR,
   CONSENT_SHELL_DECISION_EVENT,
   CONSENT_SHELL_INTENT_EVENT,
   isShellDecision,
@@ -75,6 +123,13 @@ import {
 } from "@/lib/ads/consent";
 import { ga4ConsentUpdate } from "@/lib/analytics/ga4Client";
 import { ANALYTICS_ANY_HOST_FLAG } from "@/lib/analytics/tagIds";
+import { readGpcSignal } from "@/lib/consent/gpcClient";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
+import i18n from "@/lib/i18n";
+import { ConsentBanner } from "@/components/ConsentBanner";
+import { COOKIE_BANNER_DEFAULTS } from "@/lib/cookieBanner/config";
+
+const PL = COOKIE_BANNER_DEFAULTS.copy.pl;
 
 const STORAGE_KEY = "consent:v2";
 const COOKIE_NAME = "nes_cookie_consent";
@@ -173,11 +228,14 @@ function consentCookieWrite(): string | undefined {
 }
 
 function resetDocument(): void {
+  cleanup();
   for (const listener of scriptListeners.splice(0)) {
     document.removeEventListener("click", listener);
   }
   document.documentElement.removeAttribute(CONSENT_DECIDED_ATTR);
   document.documentElement.removeAttribute(CONSENT_INTENT_ATTR);
+  document.documentElement.removeAttribute(CONSENT_GPC_ATTR);
+  document.documentElement.removeAttribute(CONSENT_JS_ATTR);
   document.body.innerHTML = "";
   window.localStorage.clear();
   window.sessionStorage.clear();
@@ -186,7 +244,8 @@ function resetDocument(): void {
   Reflect.deleteProperty(window, ANALYTICS_ANY_HOST_FLAG);
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await i18n.changeLanguage("pl");
   resetDocument();
   installCookieSpy();
   sb.userId = null;
@@ -291,53 +350,188 @@ describe("html[data-consent-decided] przed pierwszym malowaniem", () => {
   });
 });
 
+describe("widoczność powłoki: działający skrypt i sygnał GPC", () => {
+  const html = () => document.documentElement;
+
+  it("skrypt, który zadziałał, odsłania powłokę (`data-consent-js`); bez skryptu - brak atrybutu", () => {
+    expect(html().hasAttribute(CONSENT_JS_ATTR)).toBe(false);
+    runScript();
+    expect(html().hasAttribute(CONSENT_JS_ATTR)).toBe(true);
+  });
+
+  it("wyjątek przed założeniem nasłuchu kliknięć zostawia powłokę ukrytą", () => {
+    const spy = vi.spyOn(document, "addEventListener").mockImplementation(() => {
+      throw new Error("brak nasłuchu");
+    });
+    try {
+      expect(() => new Function(CONSENT_INIT_SCRIPT)()).not.toThrow();
+    } finally {
+      spy.mockRestore();
+    }
+    expect(html().hasAttribute(CONSENT_JS_ATTR)).toBe(false);
+  });
+
+  it("PARYTET z `readGpcSignal`: `data-consent-gpc` dokładnie przy aktywnym sygnale", () => {
+    const corpus: Array<{ nav?: unknown; cookies?: Record<string, string> }> = [
+      {},
+      { nav: true },
+      { nav: false },
+      { nav: "1" },
+      { nav: " 1 " },
+      { nav: "0" },
+      { nav: "true" },
+      { nav: 1 },
+      { cookies: { nes_gpc: "1" } },
+      { cookies: { nes_gpc: "%31" } },
+      { cookies: { nes_gpc: "%201%20" } },
+      { cookies: { nes_gpc: "0" } },
+      { cookies: { nes_gpc: "" } },
+      { cookies: { x_nes_gpc: "1" } },
+      { cookies: { other: "1", nes_gpc: "1" } },
+      { nav: false, cookies: { nes_gpc: "1" } },
+    ];
+    for (const state of corpus) {
+      resetDocument();
+      installCookieSpy();
+      if ("nav" in state) setGpcNavigator(state.nav);
+      for (const [k, v] of Object.entries(state.cookies ?? {})) setCookie(k, v);
+      runScript();
+      expect(html().hasAttribute(CONSENT_GPC_ATTR), JSON.stringify(state)).toBe(
+        readGpcSignal().active,
+      );
+    }
+  });
+
+  it("uszkodzone %-kodowanie ciasteczka GPC nie wywraca skryptu (brak sygnału z tej części)", () => {
+    setCookie("nes_gpc", "%E0%A4%A");
+    expect(() => runScript()).not.toThrow();
+    expect(html().hasAttribute(CONSENT_GPC_ATTR)).toBe(false);
+    expect(html().hasAttribute(CONSENT_JS_ATTR)).toBe(true);
+  });
+});
+
 // ---------- 2. zapis z kliknięcia = zapis banera ----------
 
-/** Zapis banera dla tej samej akcji: prawdziwy `setConsent` (przez `applyShellDecision`). */
-function bannerRecord(action: ConsentShellDecision): { ls: unknown; cookie: string | undefined } {
+interface Written {
+  /** Napis z `localStorage` ze znormalizowanym znacznikiem czasu - kolejność kluczy też się liczy. */
+  raw: string | null;
+  /** Ten sam rekord sparsowany (czytelny diff przy porażce). */
+  ls: unknown;
+  /** Surowy zapis `document.cookie` (z atrybutami), znacznik czasu znormalizowany. */
+  cookie: string | undefined;
+}
+
+function written(): Written {
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  return {
+    raw: raw === null ? null : raw.replace(/"ts":\d+/, '"ts":0'),
+    ls: withoutTs(raw),
+    cookie: consentCookieWrite(),
+  };
+}
+
+/** Kontrolka wyrenderowanego banera o danej akcji (ta sama, którą powłoka ma pod tym atrybutem). */
+function bannerControl(action: ConsentShellAction): HTMLElement {
+  const control = document.querySelector<HTMLElement>(
+    `[role="dialog"] [data-consent-action="${action}"]`,
+  );
+  if (!control) throw new Error(`brak kontrolki banera ${action}`);
+  return control;
+}
+
+/**
+ * Zapis PRAWDZIWEGO banera dla tej samej akcji: `ConsentBanner` z prawdziwym
+ * `useConsent`, klik w jego kontrolkę (`onAccept`/`onReject`/`onClose` ->
+ * `acceptAll()`/`rejectAll()` -> `save` -> `setConsent(…, "cmp_banner")`).
+ * `arm` - przygotowanie świata (np. sygnał GPC) po wyczyszczeniu.
+ */
+function bannerRecord(action: ConsentShellDecision, arm: () => void = () => {}): Written {
   resetDocument();
   installCookieSpy();
-  applyShellDecision(action);
-  return { ls: withoutTs(window.localStorage.getItem(STORAGE_KEY)), cookie: consentCookieWrite() };
+  arm();
+  render(createElement(ConsentBanner));
+  fireEvent.click(bannerControl(action));
+  const result = written();
+  cleanup();
+  return result;
+}
+
+/**
+ * „Zapisz wybrane" PRAWDZIWEGO banera ze szkicem zaklamrowanym przez GPC: panel
+ * „Dostosuj", włączona kategoria funkcjonalna, klamrowane zostają wyłączone
+ * (tak je pokazuje baner przy honorowanym sygnale) - `save(draft)`.
+ */
+function bannerClampedSaveRecord(arm: () => void): Written {
+  resetDocument();
+  installCookieSpy();
+  arm();
+  render(createElement(ConsentBanner));
+  fireEvent.click(bannerControl("customize"));
+  expect(screen.getByRole("checkbox", { name: PL.categoryAnalytics })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+  fireEvent.click(screen.getByRole("checkbox", { name: PL.categoryFunctional }));
+  fireEvent.click(screen.getByRole("button", { name: PL.saveSelection }));
+  const result = written();
+  cleanup();
+  return result;
 }
 
 /** Zapis powłoki przed bootem: nikt nie anuluje zdarzenia decyzji. */
 function shellRecord(
   action: ConsentShellDecision,
-  inner = false,
-): { ls: unknown; cookie: string | undefined } {
+  { inner = false, arm = () => {} }: { inner?: boolean; arm?: () => void } = {},
+): Written {
   resetDocument();
   installCookieSpy();
+  arm();
   const root = mountShell();
   runScript();
   clickAction(root, action, inner);
-  return { ls: withoutTs(window.localStorage.getItem(STORAGE_KEY)), cookie: consentCookieWrite() };
+  return written();
 }
 
-describe("klik w powłoce przed bootem zapisuje rekord bajt w bajt jak baner", () => {
-  it.each<ConsentShellDecision>(["accept", "reject", "close"])("%s", (action) => {
+/** Decyzja z powłoki PO boocie: partner skryptu woła `applyShellDecision`. */
+function afterBootRecord(action: ConsentShellDecision, arm: () => void = () => {}): Written {
+  resetDocument();
+  installCookieSpy();
+  arm();
+  applyShellDecision(action);
+  return written();
+}
+
+const GPC_ARMS: Array<[string, () => void]> = [
+  ["navigator.globalPrivacyControl === true", () => setGpcNavigator(true)],
+  ["navigator.globalPrivacyControl === ' 1 '", () => setGpcNavigator(" 1 ")],
+  ["ciasteczko nes_gpc=1", () => setCookie("nes_gpc", "1")],
+];
+
+describe("klik w powłoce zapisuje rekord bajt w bajt jak PRAWDZIWY baner", () => {
+  it.each<ConsentShellDecision>(["accept", "reject", "close"])("%s (przed bootem)", (action) => {
     const shell = shellRecord(action);
     const banner = bannerRecord(action);
-    expect(shell.ls).not.toBeNull();
+    expect(shell.raw).not.toBeNull();
     expect(shell.ls).toEqual(banner.ls);
+    // Porównanie NAPISÓW: ta sama kolejność kluczy JSON i ten sam zapis ciasteczka.
+    expect(shell.raw).toBe(banner.raw);
     expect(shell.cookie).toBeDefined();
     expect(shell.cookie).toBe(banner.cookie);
   });
 
-  it("klik w ikonę wewnątrz przycisku (SVG) też jest decyzją", () => {
-    expect(shellRecord("close", true).ls).toEqual(bannerRecord("close").ls);
+  it.each<ConsentShellDecision>(["accept", "reject", "close"])("%s (po boocie)", (action) => {
+    const banner = bannerRecord(action);
+    const afterBoot = afterBootRecord(action);
+    expect(afterBoot.raw).toBe(banner.raw);
+    expect(afterBoot.cookie).toBe(banner.cookie);
   });
 
-  it("kolejność kluczy JSON jest identyczna (porównanie napisów, nie obiektów)", () => {
-    const root = mountShell();
-    runScript();
-    clickAction(root, "accept");
-    const shellRaw = window.localStorage.getItem(STORAGE_KEY) ?? "";
-    resetDocument();
-    installCookieSpy();
-    applyShellDecision("accept");
-    const bannerRaw = window.localStorage.getItem(STORAGE_KEY) ?? "";
-    expect(shellRaw.replace(/"ts":\d+/, '"ts":0')).toBe(bannerRaw.replace(/"ts":\d+/, '"ts":0'));
+  it("klik w ikonę wewnątrz przycisku (SVG) też jest decyzją", () => {
+    expect(shellRecord("close", { inner: true }).raw).toBe(bannerRecord("close").raw);
+  });
+
+  it("kontrola negatywna: inna decyzja banera daje inny napis", () => {
+    expect(shellRecord("accept").raw).not.toBe(bannerRecord("reject").raw);
   });
 
   it("akceptacja: wszystkie kategorie, `source: local`, bez `gpcOverrideAt`", () => {
@@ -349,31 +543,48 @@ describe("klik w powłoce przed bootem zapisuje rekord bajt w bajt jak baner", (
     });
   });
 
-  it.each([
-    ["navigator.globalPrivacyControl === true", () => setGpcNavigator(true)],
-    ["navigator.globalPrivacyControl === '1'", () => setGpcNavigator(" 1 ")],
-    ["ciasteczko nes_gpc=1", () => setCookie("nes_gpc", "1")],
-  ])("GPC (%s): akceptacja NIE włącza kategorii klamrowanych - jak baner", (_name, arm) => {
-    resetDocument();
-    installCookieSpy();
-    arm();
-    const root = mountShell();
-    runScript();
-    clickAction(root, "accept");
-    const shell = withoutTs(window.localStorage.getItem(STORAGE_KEY));
-    const shellCookie = consentCookieWrite();
-    expect(shell).toEqual({
-      version: 2,
-      ts: "<ts>",
-      categories: { necessary: true, functional: true, analytics: false, marketing: false },
-      source: "local",
-    });
-    // Ta sama decyzja drogą aplikacji (sygnał nadal aktywny).
-    window.localStorage.clear();
-    cookieWrites.length = 0;
-    applyShellDecision("accept");
-    expect(withoutTs(window.localStorage.getItem(STORAGE_KEY))).toEqual(shell);
-    expect(consentCookieWrite()).toBe(shellCookie);
+  it.each(GPC_ARMS)(
+    "GPC (%s): akceptacja = „Zapisz wybrane” banera ze szkicem zaklamrowanym",
+    (_name, arm) => {
+      const shell = shellRecord("accept", { arm });
+      expect(shell.ls).toEqual({
+        version: 2,
+        ts: "<ts>",
+        categories: { necessary: true, functional: true, analytics: false, marketing: false },
+        source: "local",
+      });
+      const saved = bannerClampedSaveRecord(arm);
+      expect(shell.raw).toBe(saved.raw);
+      expect(shell.cookie).toBe(saved.cookie);
+      // Ta sama decyzja drogą aplikacji po boocie (sygnał nadal aktywny).
+      const afterBoot = afterBootRecord("accept", arm);
+      expect(afterBoot.raw).toBe(saved.raw);
+      expect(afterBoot.cookie).toBe(saved.cookie);
+    },
+  );
+
+  it.each(GPC_ARMS)(
+    "GPC (%s): ŚWIADOMA RÓŻNICA - `acceptAll` banera to override z notą, powłoka go nie robi",
+    (_name, arm) => {
+      const acceptAll = bannerRecord("accept", arm);
+      expect(acceptAll.ls).toMatchObject({
+        categories: { analytics: true, marketing: true },
+        gpcOverrideAt: expect.any(Number),
+      });
+      const shell = shellRecord("accept", { arm });
+      expect(shell.ls).not.toHaveProperty("gpcOverrideAt");
+      expect(shell.raw).not.toBe(acceptAll.raw);
+    },
+  );
+
+  it.each(GPC_ARMS)("GPC (%s): odmowa i „X” = `rejectAll` banera bajt w bajt", (_name, arm) => {
+    for (const action of ["reject", "close"] as const) {
+      const banner = bannerRecord(action, arm);
+      const shell = shellRecord(action, { arm });
+      expect(shell.raw, action).toBe(banner.raw);
+      expect(shell.cookie, action).toBe(banner.cookie);
+      expect(afterBootRecord(action, arm).raw, action).toBe(banner.raw);
+    }
   });
 
   it("GPC: ciasteczko z inną wartością NIE jest sygnałem (kontrola negatywna)", () => {
@@ -628,6 +839,15 @@ describe("startConsentTakeover (partner skryptu po boocie)", () => {
       mounts.push(takeover);
     },
   });
+  /** Kilka klatek kolejki P0.3 (rAF + zadanie) - dość, by wpis `immediate` się wykonał. */
+  const frames = () => new Promise((resolve) => setTimeout(resolve, 80));
+  /** Pełne dotknięcie: kolejka rusza na `pointerdown`, strażnik gestu puszcza po `click`. */
+  const tap = (target: Element) => {
+    fireEvent.pointerDown(target);
+    fireEvent.pointerUp(target);
+    fireEvent.click(target);
+  };
+  const quietPriorities = () => quiet.entries.filter((e) => !e.cancelled).map((e) => e.priority);
 
   beforeEach(() => {
     mounts.length = 0;
@@ -695,5 +915,128 @@ describe("startConsentTakeover (partner skryptu po boocie)", () => {
     clickAction(root, "accept");
     await vi.waitFor(() => expect(granted).toHaveBeenCalledTimes(1));
     expect(decidedAttr()).toBe(true);
+  });
+  it("brak decyzji, powłoka widoczna: montaż po pierwszej interakcji (klasa `shell`), cisza w klasie `shell`", async () => {
+    const root = mountShell();
+    runScript();
+    stop = startConsentTakeover(host(root));
+    expect(quietPriorities()).toEqual(["shell"]);
+    await frames();
+    expect(mounts).toEqual([]);
+    tap(root);
+    await vi.waitFor(() => expect(mounts).toHaveLength(1));
+  });
+
+  it("zapisana decyzja (D6): pierwsza interakcja NIE montuje banera; montaż w punkcie ciszy, klasa `overlays`", async () => {
+    window.localStorage.setItem(STORAGE_KEY, VALID);
+    const root = mountShell();
+    runScript();
+    stop = startConsentTakeover(host(root));
+    expect(quietPriorities()).toEqual(["overlays"]);
+    tap(document.body);
+    await frames();
+    expect(mounts).toEqual([]);
+    await act(async () => {
+      await quiet.entries[0].task();
+    });
+    expect(mounts).toHaveLength(1);
+  });
+
+  it("decyzja wycofana po starcie: powłoka wraca, a z nią wpis `shell` (montaż przy interakcji)", async () => {
+    window.localStorage.setItem(STORAGE_KEY, VALID);
+    const root = mountShell();
+    runScript();
+    stop = startConsentTakeover(host(root));
+    tap(document.body);
+    await frames();
+    expect(mounts).toEqual([]);
+    window.localStorage.clear();
+    window.dispatchEvent(new Event("consent-change"));
+    expect(decidedAttr()).toBe(false);
+    // Przeglądarka z lepką aktywacją (`navigator.userActivation`) zwolniłaby
+    // wpis od razu; happy-dom jej nie ma, więc zwalnia go kolejne dotknięcie.
+    await frames();
+    tap(root);
+    await vi.waitFor(() => expect(mounts).toHaveLength(1));
+  });
+
+  it("GPC (D3): powłoka ukryta, baner z notą montuje się od razu po starcie, bez interakcji", async () => {
+    setGpcNavigator(true);
+    const root = mountShell();
+    runScript();
+    expect(document.documentElement.hasAttribute(CONSENT_GPC_ATTR)).toBe(true);
+    stop = startConsentTakeover(host(root));
+    await vi.waitFor(() => expect(mounts).toHaveLength(1));
+  });
+
+  it("GPC przy zapisanej decyzji: nic od razu (baner i tak nie ma czego pokazać)", async () => {
+    setGpcNavigator(true);
+    window.localStorage.setItem(STORAGE_KEY, VALID);
+    runScript();
+    stop = startConsentTakeover(host());
+    await frames();
+    expect(mounts).toEqual([]);
+  });
+
+  it("skrypt inline nie zadziałał (brak `data-consent-js`, powłoka ukryta): baner od razu", async () => {
+    const root = mountShell();
+    stop = startConsentTakeover(host(root));
+    await vi.waitFor(() => expect(mounts).toHaveLength(1));
+  });
+
+  describe("powłoka z zasiewu ustawień (D5)", () => {
+    const key = siteSettingsQueryOptions.queryKey;
+    const seededClient = () => {
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(key, {}, { updatedAt: 0 });
+      return queryClient;
+    };
+
+    it("prawdziwe ustawienia po starcie: baner przejmuje widoczną powłokę od razu", async () => {
+      const queryClient = seededClient();
+      const root = mountShell();
+      runScript();
+      stop = startConsentTakeover({ ...host(root), settings: { queryClient, seeded: true } });
+      await frames();
+      expect(mounts).toEqual([]);
+      queryClient.setQueryData(key, { privacy: { cookie_banner: false } });
+      await vi.waitFor(() => expect(mounts).toHaveLength(1));
+    });
+
+    it("refetch skończony PRZED startem partnera też przekazuje powłokę", async () => {
+      const queryClient = seededClient();
+      queryClient.setQueryData(key, { privacy: { cookie_banner: false } });
+      const root = mountShell();
+      runScript();
+      stop = startConsentTakeover({ ...host(root), settings: { queryClient, seeded: true } });
+      await vi.waitFor(() => expect(mounts).toHaveLength(1));
+    });
+
+    it("bez zasiewu albo przy zapisanej decyzji refetch niczego nie montuje", async () => {
+      const fresh = new QueryClient();
+      fresh.setQueryData(key, {});
+      const root = mountShell();
+      runScript();
+      stop = startConsentTakeover({
+        ...host(root),
+        settings: { queryClient: fresh, seeded: false },
+      });
+      fresh.setQueryData(key, { privacy: { cookie_banner: false } });
+      await frames();
+      expect(mounts).toEqual([]);
+      stop();
+
+      resetDocument();
+      installCookieSpy();
+      __resetPostInteractionQueueForTests();
+      __resetFirstInteractionForTests();
+      window.localStorage.setItem(STORAGE_KEY, VALID);
+      const queryClient = seededClient();
+      runScript();
+      stop = startConsentTakeover({ ...host(), settings: { queryClient, seeded: true } });
+      queryClient.setQueryData(key, { privacy: { cookie_banner: false } });
+      await frames();
+      expect(mounts).toEqual([]);
+    });
   });
 });

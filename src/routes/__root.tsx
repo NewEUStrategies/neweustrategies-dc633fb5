@@ -241,10 +241,14 @@ const OVERLAY_IDLE_TIMEOUT_MS = 3_000;
  *
  * BANER ZGÓD MA OD P1.3 WŁASNĄ DROGĘ (`ConsentSurface` niżej, kontrakt
  * przepisany jawnie): baner jest WIDOCZNY bezwarunkowo od pierwszego malowania
- * (powłoka SSR), opóźniona jest wyłącznie jego interaktywność. Nadal obowiązuje:
- * montażu NIE WOLNO uzależnić od decyzji odwiedzającego (efekty banera są
- * pisarzem stanu zgody w `overlayCoordinator`), a do montażu ten sam stan
- * zgłasza korzeń w imieniu powłoki.
+ * (powłoka SSR), opóźniona jest wyłącznie jego interaktywność. Nadal obowiązuje
+ * istota dawnego kontraktu: stan zgody w `overlayCoordinator` musi być
+ * zgłaszany BEZ WZGLĘDU na decyzję - do montażu banera zgłasza go partner
+ * skryptu zgód w imieniu powłoki (od hydratacji), po montażu efekty banera.
+ * Dzięki temu MOMENT montażu może już zależeć od decyzji (poprawka 1 P1.3,
+ * D6): przy zapisanej decyzji baner (który i tak renderuje `null`) montuje się
+ * dopiero w punkcie ciszy, a nie w pierwszym zadaniu po interakcji - brama
+ * nakładek nie traci przez to ani jednego zgłoszenia.
  *
  * DLACZEGO `overlaysReady` NIE CZEKA NA BANER (recenzja Codex, PR #382).
  * Nakładki planują się niezależnie od baneru, więc przez chwilę - zanim jego
@@ -299,7 +303,13 @@ function useOverlayGates(): { overlaysReady: boolean } {
 //  - NATYCHMIAST przy intencji z powłoki („Dostosuj", PL/EN) i przy
 //    `requestConsentPreferences()` (link „Ustawienia cookies"): tor pilny
 //    kolejki (`release: "urgent"` - start importu banera);
-//  - w ostateczności w punkcie ciszy P0.3 (`onQuiescent`, klasa `shell`).
+//  - od razu po boocie (`release: "immediate"`), gdy karta zgód należy się
+//    odwiedzającemu, ale powłoki nie widać (sygnał GPC - karta banera ma notę;
+//    skrypt inline nie zadziałał) albo gdy powłoka powstała z zasiewu
+//    ustawień, a prawdziwe właśnie dojechały;
+//  - w ostateczności w punkcie ciszy P0.3 (`onQuiescent`, klasa `shell`);
+//    przy zapisanej decyzji (powłoka ukryta) WYŁĄCZNIE tam (klasa `overlays`) -
+//    bez wpisu w pierwszym zadaniu po interakcji.
 // Zadanie montażu zwraca promise rozstrzygany po commicie banera (`onReady`),
 // więc kolejka nie nakłada następnej pracy na jego montaż (KONTRAKT ZADANIA).
 // Harmonogram prowadzi partner skryptu (`startConsentTakeover`) z leniwego
@@ -374,6 +384,14 @@ function useConsentTakeover(): {
 } {
   const [mounted, setMounted] = useState<MountedConsentBanner | null>(null);
   const settle = useRef<(() => void) | null>(null);
+  // Czy powłoka powstała z ZASIEWU ustawień (SSR bez `site_settings` w terminie
+  // fali 1). Odczyt w PIERWSZYM renderze - zanim obserwatorzy zapytania
+  // wystartują refetch; partner przekazuje kartę banerowi, gdy dojadą
+  // prawdziwe ustawienia (`ConsentTakeoverHost.settings`).
+  const queryClient = useQueryClient();
+  const [settingsSeeded] = useState(
+    () => queryClient.getQueryState(siteSettingsQueryOptions.queryKey)?.dataUpdatedAt === 0,
+  );
   const onReady = useCallback(() => {
     settle.current?.();
     settle.current = null;
@@ -399,6 +417,7 @@ function useConsentTakeover(): {
         stop = startConsentTakeover({
           mount,
           slot: document.querySelector(`[${SHELL_SLOT_ATTR}]`),
+          settings: { queryClient, seeded: settingsSeeded },
         });
       },
       () => {
@@ -411,7 +430,7 @@ function useConsentTakeover(): {
       active = false;
       stop();
     };
-  }, []);
+  }, [queryClient, settingsSeeded]);
 
   return { mounted, onReady };
 }
@@ -433,6 +452,10 @@ export const ConsentSurface = memo(function ConsentSurface() {
  * `useActivePopups` z pustą listą. Bez nowego zapisu dehydratacji
  * (`check:ssr-budgets`) - dziś żaden loader tego klucza nie grzeje, więc host
  * montuje się jak dotąd; bramka zadziała sama, gdy wpis pojawi się w stanie SSR.
+ * UWAGA: wartość jest ZAMROŻONA na całą wizytę (odczyt raz, w pierwszym
+ * renderze) - popup aktywowany w trakcie tej samej sesji nie zamontuje hosta
+ * do następnego wejścia. Kto zacznie grzać ten klucz w SSR, musi to przyjąć
+ * albo zamienić odczyt na subskrypcję zapytania.
  */
 export function useNoActivePopupsFromSsr(): boolean {
   const queryClient = useQueryClient();
@@ -1203,6 +1226,93 @@ function DeferredRootOverlays() {
   );
 }
 
+/**
+ * Wczesny filtr chunk-load errors - NADZBIÓR `looksLikeChunkLoadError`
+ * z `lib/cacheBusting.ts` dla błędów, jakie zgłaszają przeglądarki i Vite
+ * (`Error` albo napis; dwa wzorce „…dynamically imported module" zwinięte
+ * w jeden). Kopia, bo moduł cache-bustingu NIE może wejść do zamknięcia bootu,
+ * a filtr działa, zanim ten moduł się załaduje; moduł i tak sprawdza błąd
+ * ponownie (`handleChunkLoadFailure`). Parytet: `rootRoute.test.tsx`.
+ */
+const EARLY_CHUNK_LOAD_ERROR =
+  /ChunkLoadError|Loading chunk [\w-]+ failed|dynamically imported module|Importing a module script failed/i;
+
+type CacheBustingModule = Pick<
+  typeof import("../lib/cacheBusting"),
+  "startCacheBusting" | "handleChunkLoadFailure"
+>;
+type QuiescenceModule = Pick<typeof import("../lib/performance/whenQuiescent"), "onQuiescent">;
+
+/**
+ * Cache-busting (P1.3, TP-4): import modułu w PUNKCIE CISZY P0.3 (`onQuiescent`,
+ * klasa `overlays`) - setup pollingu nie ma żadnej pilności, a jego chunk
+ * i fetch lądowały w śladzie Lighthouse'a; poll `/api/public/version` jest na
+ * liście ignorowanych detektora ciszy, więc nie przesuwa punktu innym
+ * konsumentom. Prymityw ciszy też dociągamy `import()` - poza zamknięciem
+ * bootu.
+ *
+ * SIATKA BEZPIECZEŃSTWA NIE CZEKA NA CISZĘ: chunk-load error przed punktem
+ * ciszy (np. leniwy chunk usunięty przez wdrożenie przy dokumencie z cache
+ * brzegowego) ściąga moduł od razu i oddaje mu ten błąd
+ * (`handleChunkLoadFailure`) - przeładowanie działa tak wcześnie jak dotąd.
+ * Każdy INNY błąd (pętla ResizeObserver, skrypt strony trzeciej, odrzucony
+ * fetch) jest pomijany: nie może wciągać chunku do śladu (recenzja P1.3, D1).
+ * Moduł po starcie zakłada własny nasłuch, więc późniejsze błędy obsługuje sam.
+ *
+ * `load`/`loadQuiet` - wyłącznie dla testu (atrapy modułów); domyślnie dosłowne
+ * `import()`, żeby bundler wydzielił oba moduły do leniwych chunków.
+ */
+export function armCacheBusting(
+  background: { run: ReturnType<typeof createBackgroundScope>["run"] },
+  router: Parameters<CacheBustingModule["startCacheBusting"]>[0],
+  load: () => Promise<CacheBustingModule> = () => import("../lib/cacheBusting"),
+  loadQuiet: () => Promise<QuiescenceModule> = () => import("../lib/performance/whenQuiescent"),
+): () => void {
+  const earlyErrors: unknown[] = [];
+  let disposed = false;
+  let started: Promise<void> | null = null;
+  let cancelQuiet: () => void = () => {};
+  const stopEarlyErrors = () => {
+    window.removeEventListener("error", onEarlyError);
+    window.removeEventListener("unhandledrejection", onEarlyRejection);
+  };
+  const start = (): Promise<void> => {
+    started ??= background.run(load(), (m) => {
+      stopEarlyErrors();
+      const stop = m.startCacheBusting(router);
+      for (const reason of earlyErrors.splice(0)) m.handleChunkLoadFailure(reason);
+      return stop;
+    });
+    return started;
+  };
+  const early = (reason: unknown) => {
+    const text =
+      typeof reason === "string" ? reason : reason instanceof Error ? reason.message : "";
+    if (!EARLY_CHUNK_LOAD_ERROR.test(text)) return;
+    earlyErrors.push(reason);
+    void start();
+  };
+  function onEarlyError(event: ErrorEvent) {
+    early(event.error ?? event.message);
+  }
+  function onEarlyRejection(event: PromiseRejectionEvent) {
+    early(event.reason);
+  }
+  window.addEventListener("error", onEarlyError);
+  window.addEventListener("unhandledrejection", onEarlyRejection);
+  void loadQuiet().then(
+    ({ onQuiescent }) => {
+      if (!disposed) cancelQuiet = onQuiescent(start, { priority: "overlays" });
+    },
+    () => void start(),
+  );
+  return () => {
+    disposed = true;
+    stopEarlyErrors();
+    cancelQuiet();
+  };
+}
+
 function RootComponent() {
   const router = useRouter();
 
@@ -1255,50 +1365,8 @@ function RootComponent() {
 
     // Cache-busting: chunk-load errors -> jednorazowy hard reload; polling
     // /api/public/version -> miękkie odświeżenie przy nowym wdrożeniu. Import
-    // modułu w PUNKCIE CISZY P0.3 (`onQuiescent`, klasa `overlays` - P1.3,
-    // TP-4): setup pollingu nie ma żadnej pilności, a jego chunk i fetch
-    // lądowały w śladzie Lighthouse'a; poll `/api/public/version` jest na
-    // liście ignorowanych detektora ciszy, więc nie przesuwa punktu innym
-    // konsumentom. SIATKA BEZPIECZEŃSTWA NIE CZEKA NA CISZĘ: błąd przed
-    // punktem ciszy (np. leniwy chunk usunięty przez wdrożenie przy dokumencie
-    // z cache brzegowego) ściąga moduł od razu i oddaje mu ten błąd
-    // (`handleChunkLoadFailure`) - przeładowanie po chunk-load error działa
-    // tak wcześnie jak dotąd. Prymityw ciszy dociągamy `import()` - poza
-    // zamknięciem bootu.
-    const earlyErrors: unknown[] = [];
-    let cacheBustingStart: Promise<void> | null = null;
-    const startCacheBusting = (): Promise<void> => {
-      cacheBustingStart ??= background.run(import("../lib/cacheBusting"), (m) => {
-        stopEarlyErrors();
-        const stop = m.startCacheBusting(router);
-        for (const reason of earlyErrors.splice(0)) m.handleChunkLoadFailure(reason);
-        return stop;
-      });
-      return cacheBustingStart;
-    };
-    const onEarlyError = (event: ErrorEvent) => {
-      earlyErrors.push(event.error ?? event.message);
-      void startCacheBusting();
-    };
-    const onEarlyRejection = (event: PromiseRejectionEvent) => {
-      earlyErrors.push(event.reason);
-      void startCacheBusting();
-    };
-    const stopEarlyErrors = () => {
-      window.removeEventListener("error", onEarlyError);
-      window.removeEventListener("unhandledrejection", onEarlyRejection);
-    };
-    window.addEventListener("error", onEarlyError);
-    window.addEventListener("unhandledrejection", onEarlyRejection);
-    let cacheBustingDisposed = false;
-    let cancelCacheBustingQuiet: () => void = () => {};
-    void import("../lib/performance/whenQuiescent").then(
-      ({ onQuiescent }) => {
-        if (cacheBustingDisposed) return;
-        cancelCacheBustingQuiet = onQuiescent(startCacheBusting, { priority: "overlays" });
-      },
-      () => void startCacheBusting(),
-    );
+    // w punkcie ciszy P0.3, siatka wczesnych błędów - `armCacheBusting` niżej.
+    const disarmCacheBusting = armCacheBusting(background, router);
 
     // Heartbeat sesji podglądu: iframe podglądu potrafi stracić połączenie z
     // sandboxem (uśpienie, przebudowa po merge, restart dev servera) i zostaje
@@ -1326,9 +1394,7 @@ function RootComponent() {
     return () => {
       background.dispose();
       unsub();
-      cacheBustingDisposed = true;
-      stopEarlyErrors();
-      cancelCacheBustingQuiet();
+      disarmCacheBusting();
       cancelHeartbeatIdle?.();
     };
   }, [router]);

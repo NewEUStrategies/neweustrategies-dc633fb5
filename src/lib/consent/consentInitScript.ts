@@ -66,15 +66,34 @@ import {
   readConsentOverlayReport,
   subscribeConsentChange,
 } from "@/lib/ads/consent";
+import type { QueryClient } from "@tanstack/react-query";
 import { GPC_COOKIE, GPC_COOKIE_VALUE } from "@/lib/consent/gpc";
 import { reportConsentSurface } from "@/lib/overlayCoordinator";
-import { enqueue, type CancelQueuedTask } from "@/lib/performance/postInteractionQueue";
+import { enqueue } from "@/lib/performance/postInteractionQueue";
 import { onQuiescent } from "@/lib/performance/whenQuiescent";
+import { siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 
+/** Wspólny przedrostek atrybutów `<html>` ustawianych przez skrypt (bajty skryptu). */
+const ATTR = "data-consent-";
 /** Atrybut na `<html>`: w przeglądarce leży decyzja (powłoka ukryta). */
-export const CONSENT_DECIDED_ATTR = "data-consent-decided";
-/** Atrybut na `<html>`: intencja klikniętą w powłoce przed bootem (np. `customize`). */
-export const CONSENT_INTENT_ATTR = "data-consent-intent";
+export const CONSENT_DECIDED_ATTR = `${ATTR}decided`;
+/**
+ * Atrybut na `<html>`: aktywny sygnał GPC (powłoka ukryta). Karta banera przy
+ * GPC ma notę, której powłoka nie ma (recenzja P1.3, D3): przejęcie powłoki
+ * przez baner zmieniałoby geometrię elementu `fixed`, a „Akceptuj wszystkie"
+ * w powłoce znaczyłoby co innego niż w banerze. Odwiedzający z GPC dostaje
+ * więc od razu po boocie interaktywny baner z notą (`startConsentTakeover`).
+ */
+export const CONSENT_GPC_ATTR = `${ATTR}gpc`;
+/**
+ * Atrybut na `<html>`: skrypt rozstrzygnął stan i nasłuchuje kliknięć - BEZ
+ * niego powłoka jest ukryta (recenzja P1.3, D2). Bez JavaScriptu (albo gdy
+ * skrypt nie zadziałał) nie ma więc martwej karty bez działających przycisków;
+ * migotania nie ma, bo skrypt stoi w `<head>`, przed powłoką.
+ */
+export const CONSENT_JS_ATTR = `${ATTR}js`;
+/** Atrybut na `<html>`: intencja kliknięta w powłoce przed bootem (np. `customize`). */
+export const CONSENT_INTENT_ATTR = `${ATTR}intent`;
 /** Atrybut korzenia powłoki - zakres delegowanego `click`. */
 export const CONSENT_SHELL_ATTR = "data-consent-shell";
 /** Atrybut kontrolki powłoki i banera: ta sama akcja = ta sama kontrolka (fokus przy podmianie). */
@@ -88,48 +107,59 @@ export const CONSENT_SHELL_INTENT_EVENT = "consent-shell-intent";
 export type ConsentShellAction =
   "accept" | "reject" | "close" | "customize" | "lang-pl" | "lang-en";
 
-const NOT_A_DECISION = "x!=='accept'&&x!=='reject'&&x!=='close'";
-
 /**
- * Sygnał GPC w chwili kliknięcia - ten sam warunek co `resolveClientGpc`:
- * `navigator.globalPrivacyControl === true` albo napis `"1"` (po `trim`), albo
- * ciasteczko `nes_gpc` o wartości `"1"` po zdekodowaniu (`readGpcCookie`).
+ * Sygnał GPC - ten sam warunek co `resolveClientGpc`: `navigator.globalPrivacyControl
+ * === true` albo napis `"1"` (po `trim`), albo KTÓREKOLWIEK ciasteczko `nes_gpc`
+ * o wartości `"1"` po zdekodowaniu (`readGpcCookie`; wyjątek dekodowania = brak
+ * sygnału z tej części). Liczony RAZ, przed pierwszym malowaniem: steruje
+ * widocznością powłoki i klamrą decyzji z powłoki.
  */
 const GPC_JS =
-  `var n=navigator.globalPrivacyControl,g=n===!0||(typeof n==='string'&&n.trim()==='${GPC_COOKIE_VALUE}')||` +
-  `document.cookie.split(';').some(function(p){var i=p.indexOf('=');if(i<0||p.slice(0,i).trim()!=='${GPC_COOKIE}')return;` +
-  `try{return decodeURIComponent(p.slice(i+1).trim()).trim()==='${GPC_COOKIE_VALUE}'}catch(e){}});`;
+  `N=navigator.globalPrivacyControl,g=N===!0||(typeof N=='string'&&N.trim()=='${GPC_COOKIE_VALUE}')||` +
+  `document.cookie.split(';').some(function(p){var i=p.indexOf('=');if(i<0||p.slice(0,i).trim()!='${GPC_COOKIE}')return;` +
+  `try{return decodeURIComponent(p.slice(i+1).trim()).trim()=='${GPC_COOKIE_VALUE}'}catch(e){}});`;
 
 /**
  * Consent Mode po decyzji - te same pola, kolejność i wartości co
  * `ga4ConsentUpdate` (`lib/analytics/ga4Client.ts`); parytet sprawdza test.
  * `window.gtag` istnieje tylko wtedy, gdy snippet SSR przeszedł bramkę hosta -
- * ta sama warunkowość co w `ga4Client.gtag`.
+ * ta sama warunkowość co w `ga4Client.gtag`. `Z` - wartość kategorii
+ * klamrowanych (analytics, marketing), `Y` - functional.
  */
 const CONSENT_MODE_JS =
-  `var G=w.gtag,d=function(v){return v?'granted':'denied'};` +
-  `if(typeof G==='function')G('consent','update',{ad_storage:d(z),ad_user_data:d(z),ad_personalization:d(z),analytics_storage:d(z),functionality_storage:d(y),personalization_storage:d(y),security_storage:'granted'});`;
+  `var G=w.gtag,Z=z?'granted':'denied',Y=y?'granted':'denied';` +
+  `if(typeof G=='function')G('consent','update',{ad_storage:Z,ad_user_data:Z,ad_personalization:Z,analytics_storage:Z,functionality_storage:Y,personalization_storage:Y,security_storage:'granted'});`;
+
+/** Wywołanie `A(…)` skryptu dla atrybutu `<html>` (przedrostek dokleja `A`). */
+const setAttr = (attr: string, value = ""): string =>
+  `A('${attr.slice(ATTR.length)}'${value ? `,${value}` : ""})`;
 
 /**
  * Treść skryptu. IIFE w jednej linii - wstrzykiwana inline do `<head>`, więc
  * każdy znak to bajt na krytycznej ścieżce (osobny commit z pomiarem
- * `check-document-weight`). Zmienne: `r` - `<html>`, `w` - `window`, `x` -
- * akcja, `y` - akceptacja (functional), `z` - akceptacja kategorii
- * klamrowanych przez GPC (analytics, marketing).
+ * `check-document-weight`). Zmienne: `r` - `<html>`, `w` - `window`, `A` -
+ * ustawienie atrybutu `data-consent-*` na `<html>`, `g` - sygnał GPC, `x` -
+ * akcja, `y` - akceptacja (functional), `z` - akceptacja kategorii klamrowanych
+ * przez GPC (analytics, marketing). `data-consent-js` stoi NA KOŃCU części
+ * synchronicznej: powłoka pokazuje się dopiero, gdy decyzja i GPC są
+ * rozstrzygnięte, a nasłuch kliknięć założony - wyjątek po drodze zostawia
+ * powłokę ukrytą, a partner skryptu montuje wtedy baner zaraz po boocie
+ * (zachowanie sprzed P1.3).
  */
 export const CONSENT_INIT_SCRIPT =
-  `(function(){try{${CONSENT_READ_JS}var r=document.documentElement,w=window;` +
-  `if(${CONSENT_DECIDED_JS})r.setAttribute('${CONSENT_DECIDED_ATTR}','');` +
+  `(function(){try{${CONSENT_READ_JS}var r=document.documentElement,w=window,` +
+  `A=function(n,v){r.setAttribute('${ATTR}'+n,v||'')},${GPC_JS}` +
+  `if(g)${setAttr(CONSENT_GPC_ATTR)};if(${CONSENT_DECIDED_JS})${setAttr(CONSENT_DECIDED_ATTR)};` +
   `document.addEventListener('click',function(e){try{` +
-  `var t=e.target,b=t&&t.closest?t.closest('[${CONSENT_SHELL_ATTR}] [${CONSENT_ACTION_ATTR}]'):null;if(!b)return;` +
+  `var t=e.target,b=t.closest&&t.closest('[${CONSENT_SHELL_ATTR}] [${CONSENT_ACTION_ATTR}]');if(!b)return;` +
   `var x=b.getAttribute('${CONSENT_ACTION_ATTR}');` +
-  `if(${NOT_A_DECISION}){r.setAttribute('${CONSENT_INTENT_ATTR}',x);w.dispatchEvent(new CustomEvent('${CONSENT_SHELL_INTENT_EVENT}',{detail:x}));return}` +
-  `r.setAttribute('${CONSENT_DECIDED_ATTR}','');` +
+  `if(!/^(accept|reject|close)$/.test(x)){${setAttr(CONSENT_INTENT_ATTR, "x")};w.dispatchEvent(new CustomEvent('${CONSENT_SHELL_INTENT_EVENT}',{detail:x}));return}` +
+  `${setAttr(CONSENT_DECIDED_ATTR)};` +
   `if(!w.dispatchEvent(new CustomEvent('${CONSENT_SHELL_DECISION_EVENT}',{detail:x,cancelable:!0})))return;` +
-  `${GPC_JS}var y=x==='accept',z=y&&!g;${CONSENT_WRITE_JS}W(y,z,z);` +
+  `var y=x=='accept',z=y&&!g;${CONSENT_WRITE_JS}W(y,z,z);` +
   `try{localStorage.setItem('${SHELL_PENDING_KEY}','1')}catch(e){}` +
   `${CONSENT_MODE_JS}w.dispatchEvent(new Event('${CONSENT_CHANGE_EVENT}'))` +
-  `}catch(e){}})}catch(e){}})();`;
+  `}catch(e){}});${setAttr(CONSENT_JS_ATTR)}}catch(e){}})();`;
 
 /** Akcja kontrolki z atrybutu/zdarzenia albo `null`, gdy to nie jest znana akcja. */
 export function parseShellAction(value: string | null | undefined): ConsentShellAction | null {
@@ -171,6 +201,16 @@ export interface ConsentTakeoverHost {
   mount: (takeover: ConsentTakeover) => Promise<void>;
   /** Gniazdo powłoki - cel promocji w kolejce (pierwsza interakcja w powłoce). */
   slot: Element | null;
+  /**
+   * Klient zapytań i to, czy powłoka powstała z ZASIEWU ustawień
+   * (`updatedAt: 0` - SSR nie zdążył pobrać `site_settings` w terminie fali 1
+   * i wyrenderował kartę z wartości domyślnych). Odczyt MUSI paść w pierwszym
+   * renderze korzenia (przed refetchem obserwatorów), dlatego robi go korzeń.
+   * Recenzja P1.3, D5: powłoka jest migawką HTML-a serwera, więc gdy prawdziwe
+   * ustawienia najemcy dojadą, a karta jest widoczna, baner przejmuje ją od
+   * razu (wyłączony baner -> brak karty, własne teksty -> te teksty).
+   */
+  settings?: { queryClient: QueryClient; seeded: boolean };
 }
 
 /** Akcja kontrolki powłoki, która ma teraz fokus. */
@@ -181,6 +221,30 @@ function focusedShellAction(): ConsentShellAction | null {
 }
 
 /**
+ * Subskrypcja „zasiane ustawienia zastąpione prawdziwymi" (patrz
+ * `ConsentTakeoverHost.settings`). Woła `listener` raz - od razu, jeśli refetch
+ * skończył się przed startem partnera.
+ */
+function onSeededSettingsReplaced(
+  { queryClient, seeded }: NonNullable<ConsentTakeoverHost["settings"]>,
+  listener: () => void,
+): () => void {
+  if (!seeded) return () => {};
+  const key = siteSettingsQueryOptions.queryKey;
+  const replaced = () => (queryClient.getQueryState(key)?.dataUpdatedAt ?? 0) > 0;
+  if (replaced()) {
+    listener();
+    return () => {};
+  }
+  const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+    if (!replaced()) return;
+    unsubscribe();
+    listener();
+  });
+  return unsubscribe;
+}
+
+/**
  * Uruchamia partnera skryptu inline po hydratacji. Zwraca sprzątanie (cleanup
  * efektu korzenia). Kolejność kroków jest częścią kontraktu:
  *  1. nasłuch decyzji z powłoki - od teraz decyzję zapisuje `applyShellDecision`
@@ -188,20 +252,36 @@ function focusedShellAction(): ConsentShellAction | null {
  *  2. domknięcie decyzji klikniętej PRZED tym momentem (znacznik
  *     `SHELL_PENDING_KEY`) i intencji czekającej w `html[data-consent-intent]`;
  *  3. stan powłoki dla koordynatora nakładek (do montażu banera, potem pisze
- *     baner): brak decyzji = powłoka widoczna = brama zamknięta;
- *  4. montaż banera: pierwsza interakcja (kolejka, klasa `shell`, cel = gniazdo;
- *     strażnik gestu trzyma krok do `click`), intencja z powłoki albo
- *     `requestConsentPreferences()` - tor pilny (start importu w pierwszym
- *     mikrozadaniu), w ostateczności punkt ciszy.
+ *     baner): brak decyzji = karta zgód (powłoka albo za chwilę baner) =
+ *     brama zamknięta;
+ *  4. montaż banera - KIEDY zależy od tego, co odwiedzający widzi:
+ *     - widoczna powłoka (brak decyzji): pierwsza interakcja (kolejka, klasa
+ *       `shell`, cel = gniazdo; strażnik gestu trzyma krok do `click`),
+ *       w ostateczności punkt ciszy (klasa `shell`);
+ *     - brak decyzji, ale powłoka UKRYTA (sygnał GPC - karta banera ma notę,
+ *       której powłoka nie ma; albo skrypt inline nie zadziałał): od razu po
+ *       boocie (`release: "immediate"`) - jak przed P1.3, baner z notą;
+ *     - powłoka z ZASIEWU ustawień, gdy dojadą prawdziwe (D5): od razu;
+ *     - intencja z powłoki albo `requestConsentPreferences()`: tor pilny
+ *       (start importu w pierwszym mikrozadaniu);
+ *     - decyzja zapisana (powłoka ukryta, baner i tak renderuje `null`): BEZ
+ *       wpisu `shell` - pierwsze zadanie po interakcji nie płaci za import
+ *       i render banera (recenzja P1.3, D6); montaż w punkcie ciszy, klasa
+ *       `overlays`. Gdy decyzja zniknie (wycofanie w innej karcie), powłoka
+ *       wraca, a z nią wpis `shell`. Stan zgody koordynatorowi zgłasza do
+ *       montażu partner, więc montażu nadal nie trzeba wiązać z decyzją, żeby
+ *       brama nakładek była poprawna.
  */
-export function startConsentTakeover({ mount, slot }: ConsentTakeoverHost): () => void {
+export function startConsentTakeover({ mount, slot, settings }: ConsentTakeoverHost): () => void {
   if (typeof window === "undefined") return () => {};
   const html = document.documentElement;
   let active = true;
   let intent: ConsentShellAction | null = null;
   let started: Promise<void> | null = null;
   let stopReporting: () => void = () => {};
-  const cancels: CancelQueuedTask[] = [];
+  let shellScheduled = false;
+  let staleShell = false;
+  const cancels: Array<() => void> = [];
 
   const takeIntent = () => {
     const pending = parseShellAction(html.getAttribute(CONSENT_INTENT_ATTR));
@@ -223,6 +303,12 @@ export function startConsentTakeover({ mount, slot }: ConsentTakeoverHost): () =
   const mountUrgently = () => {
     cancels.push(enqueue(mountOnce, { priority: "shell", release: "urgent" }));
   };
+  const mountSoon = () => {
+    cancels.push(enqueue(mountOnce, { priority: "shell", release: "immediate" }));
+  };
+  /** Karta zgód należy się odwiedzającemu, ale powłoki nie widać (GPC, brak skryptu). */
+  const shellHidden = () =>
+    html.hasAttribute(CONSENT_GPC_ATTR) || !html.hasAttribute(CONSENT_JS_ATTR);
 
   const onDecision = (event: Event) => {
     const action = event instanceof CustomEvent ? parseShellAction(String(event.detail)) : null;
@@ -241,17 +327,35 @@ export function startConsentTakeover({ mount, slot }: ConsentTakeoverHost): () =
   finalizePendingShellDecision();
   if (html.hasAttribute(CONSENT_INTENT_ATTR)) onIntent();
 
+  // Wpis montażu dla odwiedzającego BEZ decyzji - raz, przy pierwszym
+  // zgłoszeniu „brak decyzji" (od razu przy starcie albo po wycofaniu zgody).
+  const scheduleUndecided = () => {
+    if (staleShell && !shellHidden()) mountSoon();
+    if (shellScheduled) return;
+    shellScheduled = true;
+    if (shellHidden()) mountSoon();
+    else cancels.push(enqueue(mountOnce, { priority: "shell", target: slot }));
+  };
   // Do montażu banera (`mountOnce` zdejmuje ten nasłuch tuż przed montażem).
-  const report = () => {
+  const report = (): boolean => {
     const { decided, marketing } = readConsentOverlayReport();
     reportConsentSurface(!decided, marketing);
     html.toggleAttribute(CONSENT_DECIDED_ATTR, decided);
+    if (!decided) scheduleUndecided();
+    return decided;
   };
-  report();
+  const decidedAtStart = report();
   stopReporting = subscribeConsentChange(report);
 
-  cancels.push(enqueue(mountOnce, { priority: "shell", target: slot }));
-  cancels.push(onQuiescent(mountOnce, { priority: "shell" }));
+  if (settings) {
+    cancels.push(
+      onSeededSettingsReplaced(settings, () => {
+        staleShell = true;
+        if (!html.hasAttribute(CONSENT_DECIDED_ATTR) && !shellHidden()) mountSoon();
+      }),
+    );
+  }
+  cancels.push(onQuiescent(mountOnce, { priority: decidedAtStart ? "overlays" : "shell" }));
 
   return () => {
     active = false;
