@@ -487,9 +487,12 @@ export const RichHtmlView = withSuspense(RichHtmlViewLazy);
 // --- chrome na intencję: wyszukiwarka i konto (P2.3) --------------------------
 // Serwer renderuje oba widgety statycznie w pierwszej powłoce
 // (`serverReadingWidgets`), a przeglądarka trzyma ich HTML jako WYSPĘ
-// HYDRATACJI (P1.6): chunk widgetu (wyszukiwarka: dyktowanie, model faset ->
-// archiwa, słownik wyszukiwarki; konto: patrz `AccountMenuWidget.tsx`) i jego
-// hydratacja ruszają dopiero na INTENCJĘ odwiedzającego, poza oknem startu.
+// HYDRATACJI (P1.6): chunk widgetu i jego hydratacja ruszają dopiero na
+// INTENCJĘ odwiedzającego, poza oknem startu. Cięższe zależności czekają w
+// samych widgetach na intencję jeszcze węższą (wyszukiwarka: dyktowanie po
+// kliknięciu mikrofonu, model faset -> archiwa po otwarciu panelu; konto:
+// panel Radixa i powitania po otwarciu menu - patrz `SearchButtonWidget.tsx`
+// i `AccountMenuWidget.tsx`).
 // W entry zostają tylko lekkie chromeWidgets (lang-switcher, theme-toggle) i
 // nawigacja (menu, mega-menu).
 //

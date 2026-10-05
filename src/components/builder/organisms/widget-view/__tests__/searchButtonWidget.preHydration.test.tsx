@@ -64,7 +64,7 @@ function serverRendered(): Mounted {
       await act(async () => {
         root = hydrateRoot(container, widget, { onRecoverableError: (e) => errors.push(e) });
       });
-      // Efekty po hydratacji (dyktowanie: `setVoiceChecked`) dają re-render.
+      // Efekty po hydratacji (sonda dyktowania: `setVoiceProbe`) dają re-render.
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
