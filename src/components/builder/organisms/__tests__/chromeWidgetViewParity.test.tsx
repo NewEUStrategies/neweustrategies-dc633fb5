@@ -153,7 +153,11 @@ describe("ChromeWidgetView == WidgetView dla typów chrome", () => {
     expect(chrome).toBe(markup(WidgetView, node));
     // Kontrapunkt: gdyby ramka nie jechała, test wyżej porównywałby dwa pustostany.
     expect(chrome).toContain('data-w-id="chrome-parity-style"');
-    expect(chrome).toContain("22px !important");
+    // HW-2 (P2.4): rozmiar jedzie szablonem z `styles.css` - ramka niesie
+    // tokeny i zmienne wszystkich urządzeń, a nie blok reguł generatora.
+    expect(chrome).toContain('data-wt="fs tfs"');
+    expect(chrome).toContain("--wt-fs-d:22px;--wt-fs-t:22px;--wt-fs-m:22px");
+    expect(chrome).not.toContain("22px !important");
   });
 
   it("nieznany typ NIE jest renderowany w chrome na sztywno - idzie przez granicę leniwą", async () => {

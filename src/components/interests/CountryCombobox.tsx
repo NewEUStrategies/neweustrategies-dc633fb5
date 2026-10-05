@@ -55,11 +55,29 @@ const FLAG_WIDTH = "1.5em";
 const FLAG_HEIGHT = "1.125em";
 const TEXT_PADDING_WITH_FLAG = `calc(${FLAG_GUTTER} + 2.5em + 1px)`;
 
-function useCountryList(lang: "pl" | "en"): string[] {
-  return useMemo(() => {
-    const map = getNames(lang);
-    return Object.values(map).sort((a, b) => a.localeCompare(b, lang));
-  }, [lang]);
+// Posortowana lista krajów per język, liczona LENIWIE - przy pierwszym
+// otwarciu listy, nie przy montażu pola (Wydajność PSI 85/95, fala 2, P2.4 -
+// hydration:H10 f). Sortowanie ~250 nazw przez `localeCompare` z językiem
+// tworzy porównanie `Intl` przy każdej parze i trafiało do plastra Reacta po
+// commicie hydratacji (księga P0.5, K14) na każdej stronie z formularzem
+// „Dołącz do nas" albo newslettera, także gdy nikt pola nie dotknął. Wynik
+// zależy tylko od języka, więc liczymy go raz na dokument (`Intl.Collator`
+// daje tę samą kolejność co `localeCompare(b, lang)`).
+const sortedCountries = new Map<"pl" | "en", string[]>();
+const NO_COUNTRIES: string[] = [];
+
+function sortedCountryList(lang: "pl" | "en"): string[] {
+  let list = sortedCountries.get(lang);
+  if (!list) {
+    const collator = new Intl.Collator(lang);
+    list = Object.values(getNames(lang)).sort(collator.compare);
+    sortedCountries.set(lang, list);
+  }
+  return list;
+}
+
+function useCountryList(lang: "pl" | "en", enabled: boolean): string[] {
+  return useMemo(() => (enabled ? sortedCountryList(lang) : NO_COUNTRIES), [lang, enabled]);
 }
 
 function normalize(s: string): string {
@@ -81,8 +99,8 @@ export function CountryCombobox({
   name,
   labelEditTarget,
 }: CountryComboboxProps) {
-  const list = useCountryList(lang);
   const [open, setOpen] = useState(false);
+  const list = useCountryList(lang, open);
   const [highlight, setHighlight] = useState(0);
   const [popupStyle, setPopupStyle] = useState<CSSProperties>({});
   const rootRef = useRef<HTMLDivElement>(null);

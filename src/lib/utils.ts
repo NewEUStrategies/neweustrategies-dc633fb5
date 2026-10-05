@@ -2,8 +2,32 @@ import { clsx, type ClassValue } from "clsx";
 import { useRef } from "react";
 import { twMerge } from "tailwind-merge";
 
+// `cn()` Z OGRANICZONĄ PAMIĘCIĄ (Wydajność PSI 85/95, fala 2, P2.4 -
+// hydration:H10 d). W commicie hydratacji `cn` + `tailwind-merge` to 7-10 ms
+// (profile księgi P0.5, K12): ten sam zestaw klas przechodzi przez scalanie
+// przy pierwszym renderze i ponownie w synchronicznym re-renderze po efektach
+// pasywnych. Własna pamięć tailwind-merge ma 500 wpisów w dwóch pokoleniach,
+// a strona buildera produkuje więcej różnych napisów, więc drugi przebieg
+// trafiał w wypchnięte wpisy. Tu: mapa napis -> wynik z twardym limitem
+// (najstarszy wpis wylatuje pierwszy, O(1)), więc pamięć nie rośnie bez końca
+// na długo żyjącym kliencie ani w izolacie serwera (czysta funkcja - wspólna
+// pamięć między żądaniami nie przenosi żadnych danych poza nazwami klas).
+// Pojedyncza klasa (bez spacji) nie ma z czym się scalić i wraca od razu.
+const CN_CACHE_LIMIT = 2048;
+const cnCache = new Map<string, string>();
+
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  const joined = clsx(inputs);
+  if (!/\s/.test(joined)) return joined;
+  const cached = cnCache.get(joined);
+  if (cached !== undefined) return cached;
+  const merged = twMerge(joined);
+  if (cnCache.size >= CN_CACHE_LIMIT) {
+    const oldest = cnCache.keys().next().value;
+    if (oldest !== undefined) cnCache.delete(oldest);
+  }
+  cnCache.set(joined, merged);
+  return merged;
 }
 
 // Powrót ogniska po zamknięciu okna modalnego (Dialog, Sheet, AlertDialog).

@@ -310,6 +310,22 @@ const HEAVY_MODULES: readonly HeavyDictionary[] = [
       "klucz importuj z `lib/theme/fontSizesKey`; generator wyłącznie w " +
       "`theme/css/themeFontSizesCss.ts` (gałąź `.server()` + `import()`)",
   },
+  // 2026-10-05 (Wydajność PSI 85/95, fala 2, P2.4 - HW-2): rozmiary czcionek i
+  // odstęp tytuł-opis widgetów idą szablonem z `styles.css` i zmiennymi
+  // `--wt-*`, które liczy lekki `lib/builder/liveTypography.ts`. Generator
+  // reguł per widget (`lib/builder/typographyCss.ts`) obsługuje już tylko
+  // resztę właściwości i ma do przeglądarki wyłącznie `import()` (ramka:
+  // gałąź `.server()` + migawka bloku z HTML-a, jak arkusze korzenia).
+  // Znacznik: wykluczenie liczników list z selektorów generatora - szablon ma
+  // je wyłącznie w CSS, którego ta bramka nie czyta.
+  {
+    label: "lib/builder/typographyCss (generator reguł typografii widgetu)",
+    markers: [":not(.post-list-numbered-index)"],
+    remedy:
+      "ramka (`ChromeWidgetView`) i podgląd na żywo biorą tokeny i zmienne szablonu z " +
+      "`lib/builder/liveTypography`; generator wyłącznie w gałęzi `.server()` albo przez " +
+      "`import()` - nigdy statycznym importem z modułu ścieżki bootowania",
+  },
 ];
 
 const CLIENT_DIR =
