@@ -1,0 +1,70 @@
+# Zbiera dodatkowe zgloszenia do obalenia (weryfikatorzy torow, sledztwa i obalania Z oraz raportow)
+# i buduje skrot torow dla krytyka kompletnosci.
+import json, sys
+S='/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+sys.path.insert(0,S)
+import migawka13
+snap=migawka13.zbuduj()
+json.dump(snap,open(S+'/migawka.json','w'),ensure_ascii=False)
+poz=[]
+def dodaj(id_,zrodlo,tor,x):
+    poz.append({'id':id_,'zrodlo':zrodlo,'tor':tor,'tytul':x['tytul'],'waga':x['waga'],'miejsce':f"{x['plik']}:{x['linia']}",'dowod':str(x.get('dowod',''))[:2500]})
+brak=[]
+for g in [f'G{i}' for i in range(1,9)]:
+    for k,v in snap[g].items():
+        if not k.startswith('obal:'): continue
+        t=k[5:]
+        for i,x in enumerate(v.get('dodatkoweZnaleziska') or []):
+            dodaj(f'D-{t}-{i+1}','weryfikator toru',t,x)
+    for k in snap[g]:
+        if k.startswith('defekty:') and ('obal:'+k[8:]) not in snap[g]:
+            d=snap[g][k]
+            if (d.get('defekty') or d.get('statusDefektow')): brak.append(k[8:])
+for grp,pref in [('Z','Z'),('RAP','R')]:
+    for k,v in snap[grp].items():
+        if not v: continue
+        pid=k.split(':',1)[1]
+        if k.startswith('sledztwo:'):
+            for i,x in enumerate(v.get('noweDefekty') or []): dodaj(f'{pref}-{pid}-s{i+1}','sledztwo '+('znaleziska' if pref=='Z' else 'raportu'),pid,x)
+        if k.startswith('obal:'):
+            for i,x in enumerate(v.get('noweDefekty') or []): dodaj(f'{pref}-{pid}-o{i+1}','obalanie '+('znaleziska' if pref=='Z' else 'raportu'),pid,x)
+partie=[poz[i:i+5] for i in range(0,len(poz),5)]
+json.dump(partie,open(S+'/wznowienie/dodatkowe-partie.json','w'),ensure_ascii=False,indent=1)
+json.dump(poz,open(S+'/wznowienie/dodatkowe-pozycje.json','w'),ensure_ascii=False,indent=1)
+print('pozycji',len(poz),'partii',len(partie),'| tory bez obalania:',brak)
+import collections
+print(collections.Counter(p['zrodlo'] for p in poz), collections.Counter(p['waga'] for p in poz))
+# skrot torow dla krytyka
+o=[]
+for g in [f'G{i}' for i in range(1,9)]:
+    for k,v in snap[g].items():
+        if not (k.startswith('mapa:') or k.startswith('przekroj:')) or not v: continue
+        t=k.split(':',1)[1]
+        o.append(f'## Tor {t}')
+        if k.startswith('mapa:'):
+            o.append('Co przyszlo: '+v['coPrzyszloWOknie'][:700].replace('\n',' '))
+            d=snap[g].get('defekty:'+t) or {}
+        else:
+            o.append('Cel: '+v['cel'][:500])
+            o+= [f"- ustalenie: {u['punkt'][:120]} => {u['wynik'][:300]}" for u in v['ustalenia']]
+            d={'defekty':v['defekty'],'statusDefektow':v['statusDefektow']}
+        ob=snap[g].get('obal:'+t) or {}
+        wer={(x['typ'],x['id']):x for x in ob.get('werdykty',[])}
+        for i,x in enumerate(d.get('defekty') or []):
+            vv=wer.get(('nowy_defekt',f'N{i+1}'))
+            o.append(f"- NOWY [{x['waga']}] {x['tytul']} ({x['plik']}:{x['linia']}) - weryfikacja: {vv['werdykt'] if vv else 'brak'}")
+        for s in d.get('statusDefektow') or []:
+            vv=wer.get(('status',s['id']))
+            o.append(f"- STATUS {s['id']} {s['tytul'][:120]}: {s['status']} - weryfikacja: {vv['werdykt'] if vv else 'brak'}")
+        for x in ob.get('dodatkoweZnaleziska') or []:
+            o.append(f"- DODATKOWE [{x['waga']}] {x['tytul']} ({x['plik']}:{x['linia']})")
+        o.append('')
+for grp in ['Z','RAP']:
+    o.append(f'## {"Znaleziska Z i plan 16.15" if grp=="Z" else "Raporty wdrozen z okna"}')
+    for k,v in snap[grp].items():
+        if k.startswith('sledztwo:') and v:
+            o.append(f"- {k[9:]}: {v['status']} - {v['podsumowanie'][:400]}")
+            for x in v.get('noweDefekty') or []: o.append(f"  - NOWY [{x['waga']}] {x['tytul']} ({x['plik']}:{x['linia']})")
+    o.append('')
+open(S+'/wznowienie/skrot-torow13.md','w').write('\n'.join(o))
+print('skrot', len('\n'.join(o)))

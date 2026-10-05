@@ -1,0 +1,48 @@
+{
+  "klucz": "warsawinstitute",
+  "typ": "glowna",
+  "url": "https://warsawinstitute.org/",
+  "run": 1,
+  "ms": 48175,
+  "blad": null,
+  "finalUrl": "https://warsawinstitute.org/",
+  "fetchTime": "2026-10-04T15:04:15.830Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2361,
+  "runtimeError": null,
+  "warnings": [],
+  "kategorie": { "performance": 0.35, "accessibility": 0.8, "best-practices": 0.54, "seo": 0.85 },
+  "metryki": {
+    "first-contentful-paint": 6461.800899999999,
+    "largest-contentful-paint": 94228.85320000011,
+    "total-blocking-time": 897.0000000000146,
+    "cumulative-layout-shift": 0.008250586717068718,
+    "speed-index": 38249.952837491415,
+    "interactive": 129838.24674800012,
+    "server-response-time": 1147.7189999999998,
+    "total-byte-weight": 30213530,
+    "dom-size": 947,
+    "network-requests": null,
+    "mainthread-work-breakdown": 8727.45999999959,
+    "bootup-time": 2945.804000000001,
+    "third-party-summary": null
+  },
+  "a11yBledy": [
+    "aria-input-field-name",
+    "frame-title",
+    "heading-order",
+    "image-alt",
+    "link-name",
+    "meta-viewport"
+  ],
+  "bpBledy": [
+    "image-aspect-ratio",
+    "deprecations",
+    "third-party-cookies",
+    "errors-in-console",
+    "inspector-issues"
+  ],
+  "seoBledy": ["link-text", "image-alt"],
+  "lcpElement": "<div class=\"et_pb_slide et_pb_media_alignment_center et_pb_bg_layout_dark et-pb-active…\" style=\"background-image: url(&quot;https://warsawinstitute.org/wp-content/uploads/2025/1…&quot;);\">",
+  "tytul": true
+}

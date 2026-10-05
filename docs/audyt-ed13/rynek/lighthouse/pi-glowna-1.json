@@ -1,0 +1,48 @@
+{
+  "klucz": "pi",
+  "typ": "glowna",
+  "url": "https://politykainsight.pl/",
+  "run": 1,
+  "ms": 29409,
+  "blad": null,
+  "finalUrl": "https://www.politykainsight.pl/nowa?login_success=https%3A%2F%2Fwww.politykainsight.pl%2Fpolitykainsight%2Flogowanie-wybor",
+  "fetchTime": "2026-10-04T15:03:46.361Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2341.5,
+  "runtimeError": null,
+  "warnings": [
+    "The page may not be loading as expected because your test URL (https://politykainsight.pl/) was redirected to https://www.politykainsight.pl/nowa?login_success=https%3A%2F%2Fwww.politykainsight.pl%2Fpolitykainsight%2Flogowanie-wybor. Try testing the second URL directly."
+  ],
+  "kategorie": { "performance": 0.38, "accessibility": 0.69, "best-practices": 0.57, "seo": 0.92 },
+  "metryki": {
+    "first-contentful-paint": 6611.576500000003,
+    "largest-contentful-paint": 9141.763000000003,
+    "total-blocking-time": 725.5,
+    "cumulative-layout-shift": 0.00017057291298988272,
+    "speed-index": 12445.388707731976,
+    "interactive": 16464.074025000013,
+    "server-response-time": 715.5809999999999,
+    "total-byte-weight": 5079535,
+    "dom-size": 758,
+    "network-requests": null,
+    "mainthread-work-breakdown": 8909.02399999983,
+    "bootup-time": 3097.552000000007,
+    "third-party-summary": null
+  },
+  "a11yBledy": [
+    "aria-allowed-attr",
+    "aria-input-field-name",
+    "aria-required-children",
+    "aria-valid-attr-value",
+    "color-contrast",
+    "heading-order",
+    "image-alt",
+    "link-name",
+    "select-name",
+    "target-size"
+  ],
+  "bpBledy": ["is-on-https", "third-party-cookies", "errors-in-console", "inspector-issues"],
+  "seoBledy": ["image-alt"],
+  "lcpElement": "<span class=\"slick-slide\" data-slick-index=\"0\" aria-hidden=\"true\" tabindex=\"-1\" role=\"option\" aria-describedby=\"slick-slide00\" style=\"width: 372px; position: relative; left: 0px; top: 0px; z-index: 99",
+  "tytul": true
+}

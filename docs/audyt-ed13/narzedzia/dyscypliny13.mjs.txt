@@ -1,0 +1,33 @@
+import fs from "node:fs";
+import path from "node:path";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13";
+const TREES = { ed12: SP + "/old-full", teraz: "/home/user/neweustrategies-dc633fb5" };
+const isTest = (f) => /(^|\/)__tests__\/|\.test\.|\.spec\./.test(f);
+const walk = (d, out = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!/^(node_modules|\.git)$/.test(e.name)) walk(p, out); } else out.push(p); } return out; };
+const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/[^\n]*/g, "$1");
+const out = {};
+for (const [n, base] of Object.entries(TREES)) {
+  const files = walk(base + "/src").map((p) => path.relative(base, p)).filter((f) => /\.(ts|tsx)$/.test(f) && !/\.d\.ts$/.test(f));
+  const m = { anyProd: 0, anyProdFiles: [], asAnyProd: 0, anyTest: 0, tsIgnore: 0, tsExpectError: 0, eslintDisable: 0, atoms: 0, molecules: 0, organisms: 0, componentsTsx: 0, emDashProdLiterals: 0 };
+  for (const f of files) {
+    const raw = fs.readFileSync(path.join(base, f), "utf8");
+    const t = strip(raw);
+    const anyN = (t.match(/:\s*any\b|\bas\s+any\b|<any>|\bany\[\]/g) ?? []).length;
+    if (isTest(f)) m.anyTest += anyN;
+    else {
+      m.anyProd += anyN; if (anyN) m.anyProdFiles.push([f, anyN]);
+      m.asAnyProd += (t.match(/\bas\s+any\b/g) ?? []).length;
+      m.tsIgnore += (raw.match(/@ts-ignore/g) ?? []).length;
+      m.tsExpectError += (raw.match(/@ts-expect-error/g) ?? []).length;
+      m.eslintDisable += (raw.match(/eslint-disable/g) ?? []).length;
+      if (/^src\/components\//.test(f) && f.endsWith(".tsx")) m.componentsTsx++;
+      if (/\/atoms\//.test(f)) m.atoms++;
+      if (/\/molecules\//.test(f)) m.molecules++;
+      if (/\/organisms\//.test(f)) m.organisms++;
+    }
+  }
+  out[n] = m;
+}
+fs.writeFileSync(SP + "/dyscypliny13.json", JSON.stringify(out, null, 1));
+for (const k of Object.keys(out.teraz)) if (!Array.isArray(out.teraz[k])) console.log(k.padEnd(20), String(out.ed12[k]).padStart(7), String(out.teraz[k]).padStart(7));
+console.log("any w kodzie prod (teraz):", out.teraz.anyProdFiles);

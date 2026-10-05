@@ -1,0 +1,42 @@
+{
+  "klucz": "iseas",
+  "typ": "artykul",
+  "url": "https://www.iseas.edu.sg/articles-commentaries/iseas-perspective/2026-71-the-enduring-daw-aung-san-suu-kyi-factor-in-myanmar-politics-by-kyaw-yin-hlaing/",
+  "run": 2,
+  "ms": 23519,
+  "blad": null,
+  "finalUrl": "https://www.iseas.edu.sg/articles-commentaries/iseas-perspective/2026-71-the-enduring-daw-aung-san-suu-kyi-factor-in-myanmar-politics-by-kyaw-yin-hlaing/",
+  "fetchTime": "2026-10-04T15:41:54.443Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2398.5,
+  "runtimeError": null,
+  "warnings": [],
+  "kategorie": { "performance": 0.44, "accessibility": 0.61, "best-practices": 0.93, "seo": 0.69 },
+  "metryki": {
+    "first-contentful-paint": 4373.845800000002,
+    "largest-contentful-paint": 5561.923200000001,
+    "total-blocking-time": 782,
+    "cumulative-layout-shift": 0.0694893828941843,
+    "speed-index": 7841.983142732774,
+    "interactive": 19375.56564,
+    "server-response-time": 1444.975,
+    "total-byte-weight": 2556009,
+    "dom-size": 1026,
+    "network-requests": null,
+    "mainthread-work-breakdown": 4169.683999999904,
+    "bootup-time": 2312.007999999995,
+    "third-party-summary": null
+  },
+  "a11yBledy": [
+    "color-contrast",
+    "heading-order",
+    "image-alt",
+    "link-in-text-block",
+    "link-name",
+    "target-size"
+  ],
+  "bpBledy": ["image-size-responsive", "errors-in-console"],
+  "seoBledy": ["meta-description", "crawlable-anchors", "image-alt", "canonical"],
+  "lcpElement": "<img fetchpriority=\"high\" decoding=\"async\" width=\"718\" height=\"428\" src=\"/wp-content/uploads/2026/09/AFP__20260809__lamparski-nydemons260808_npI0T_…\" alt=\"\" class=\"wp-image-86775\" style=\"width:718px\" ",
+  "tytul": true
+}

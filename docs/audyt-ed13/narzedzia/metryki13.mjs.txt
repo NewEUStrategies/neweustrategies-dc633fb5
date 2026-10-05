@@ -1,0 +1,52 @@
+// Metryki wydania 13: JEDNA definicja na obu drzewach (ed12 = git archive b8b53ae5 (ed12), teraz = 5b8c77c01).
+import fs from "node:fs";
+import path from "node:path";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13";
+const TREES = { ed12: SP + "/old-full", teraz: "/home/user/neweustrategies-dc633fb5" };
+const isTest = (f) => /(^|\/)__tests__\/|\.test\.|\.spec\./.test(f);
+const isSrc = (f) => /\.(ts|tsx|js|jsx|mjs)$/.test(f) && !/\.d\.ts$/.test(f);
+const walk = (d, out = []) => {
+  if (!fs.existsSync(d)) return out;
+  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    const p = path.join(d, e.name);
+    if (e.isDirectory()) { if (!/^(node_modules|\.git|dist|coverage)$/.test(e.name)) walk(p, out); }
+    else out.push(p);
+  }
+  return out;
+};
+const lines = (t) => { const n = t.split("\n").length; return t.endsWith("\n") ? n - 1 : n; };
+const out = {};
+for (const [name, base] of Object.entries(TREES)) {
+  const rel = (p) => path.relative(base, p);
+  const src = walk(base + "/src").map(rel).filter(isSrc);
+  const m = { prodFiles: 0, prodLines: 0, testFiles: 0, testLines: 0, cases: 0, expects: 0, noMockTests: 0, routes: 0, uiComponents: 0 };
+  for (const f of src) {
+    const t = fs.readFileSync(path.join(base, f), "utf8");
+    if (isTest(f)) {
+      m.testFiles++; m.testLines += lines(t);
+      m.cases += (t.match(/^\s*(it|test)(\.\w+)*\s*\(/gm) ?? []).length;
+      m.expects += (t.match(/\bexpect\s*[.(]/g) ?? []).length;
+      if (!/\bvi\.(mock|fn|spyOn|stubGlobal|doMock|hoisted)\b/.test(t)) m.noMockTests++;
+    } else {
+      m.prodFiles++; m.prodLines += lines(t);
+      if (f.startsWith("src/routes/") && !f.endsWith("routeTree.gen.ts")) m.routes++;
+      if (/^src\/components\/ui\/[^/]+\.tsx$/.test(f)) m.uiComponents++;
+    }
+  }
+  const pkg = JSON.parse(fs.readFileSync(base + "/package.json", "utf8"));
+  const scripts = Object.keys(pkg.scripts ?? {});
+  m.scripts = scripts.length;
+  m.checkScripts = scripts.filter((s) => s.startsWith("check:")).length;
+  m.migrationsSupabase = fs.readdirSync(base + "/supabase/migrations").filter((f) => f.endsWith(".sql")).length;
+  m.migrationsDrizzle = fs.existsSync(base + "/drizzle/migrations") ? fs.readdirSync(base + "/drizzle/migrations").filter((f) => f.endsWith(".sql")).length : 0;
+  m.pgtapFiles = fs.readdirSync(base + "/supabase/tests").filter((f) => f.endsWith(".sql")).length;
+  m.workflows = fs.readdirSync(base + "/.github/workflows").filter((f) => /\.ya?ml$/.test(f)).length;
+  m.docs = fs.readdirSync(base + "/docs").filter((f) => f.endsWith(".md")).length;
+  m.gateTests = src.filter((f) => /\.gate\.test\.(ts|tsx)$/.test(f)).length;
+  m.ciModules = fs.readdirSync(base + "/src/lib/ci").filter((f) => f.endsWith(".ts")).length;
+  m.depsProd = Object.keys(pkg.dependencies ?? {}).length;
+  m.depsDev = Object.keys(pkg.devDependencies ?? {}).length;
+  out[name] = m;
+}
+fs.writeFileSync(SP + "/metryki13.json", JSON.stringify(out, null, 1));
+for (const k of Object.keys(out.teraz)) console.log(k.padEnd(20), String(out.ed12[k]).padStart(9), String(out.teraz[k]).padStart(9), String(out.teraz[k] - out.ed12[k]).padStart(8));

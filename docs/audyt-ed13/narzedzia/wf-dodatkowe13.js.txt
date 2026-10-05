@@ -1,0 +1,21 @@
+export const meta = {
+  name: 'audyt-ed13-dodatkowe',
+  description: 'Wydanie 13: proba obalenia dodatkowych zgloszen (weryfikatorzy torow, sledztwa Z i raportow, obserwacje wdrozenia), w partiach po 5',
+  phases: [{ title: 'Obalanie', detail: 'jedna partia = jeden agent, kazde zgloszenie z osobnym werdyktem' }],
+}
+const REPO = '/home/user/neweustrategies-dc633fb5'
+const SPD = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+const ZASADY = `ZASADY: repozytorium ${REPO}, HEAD 5b8c77c01 (drzewo robocze przypiete do tego commita - nie zmieniaj go, nie rob checkout); drzewo wydania 12 (b8b53ae5) rozpakowane w ${SPD}/old-full. TYLKO CZYTASZ: zadnych zmian w plikach, bez uruchamiania vitest/playwright/bun test/tsc. Kazde twierdzenie z cytatem sciezka:linia. Baza ma dwa pasy migracji (supabase/migrations i drizzle/migrations; produkcja wykonuje tylko wpisy z drizzle/migrations/meta/_journal.json); stan funkcji/polityki = ostatnia definicja po odtworzeniu po kolei, wiec zanim uznasz defekt w migracji, sprawdz grepem pozniejsze redefinicje w obu pasach. Po polsku, dywiz "-", nigdy dluga kreska ani polpauza, bez emoji, bez prawdziwych danych osobowych. BUDZET: najwyzej okolo 45 wywolan narzedzi na cala partie (okolo 9 na zgloszenie).`
+const WERDYKTY = { type: 'object', properties: { werdykty: { type: 'array', items: { type: 'object', properties: {
+  id: { type: 'string' },
+  werdykt: { type: 'string', enum: ['POTWIERDZONY', 'OBALONY', 'NIEROZSTRZYGNIETY'] },
+  waga: { type: 'string', enum: ['krytyczny', 'wysoki', 'sredni', 'niski', 'brak'] },
+  duplikat: { type: 'string', description: 'id innego zgloszenia z tej partii albo rejestru, jesli to ten sam defekt; inaczej pusty string' },
+  dowod: { type: 'string', description: 'cytaty sciezka:linia, ktore rozstrzygaja; przy OBALONY - co neutralizuje zgloszenie' },
+  skutek: { type: 'string', description: 'jedno zdanie: kto i co traci, gdy defekt jest prawdziwy' },
+}, required: ['id', 'werdykt', 'waga', 'duplikat', 'dowod', 'skutek'] } } }, required: ['werdykty'] }
+const idx = Array.from({ length: args.partie }, (_, i) => i).slice(args.od ?? 0, args.do ?? args.partie)
+const wyniki = await pipeline(idx, (k) => agent(`Jestes niezaleznym, sceptycznym weryfikatorem audytu platformy NES (wydanie 13). ${ZASADY}
+WEJSCIE: plik ${SPD}/wznowienie/dodatkowe-partie.json to tablica partii; Twoja partia ma indeks ${k} (liczac od 0). Wyciagnij ja poleceniem: python3 -c "import json;print(json.dumps(json.load(open('${SPD}/wznowienie/dodatkowe-partie.json'))[${k}],ensure_ascii=False,indent=1))". Kazda pozycja ma id, zrodlo (kto zglosil), tor, tytul, wage, miejsce (plik:linia) i dowod zebrany przez innego agenta.
+ZADANIE: dla KAZDEJ pozycji sprobuj ja OBALIC. Domyslnie zakladaj, ze zgloszenie jest bledne: sprawdz, czy wrapper, middleware, bramka wyzej w lancuchu wywolan, polityka RLS, pozniejsza migracja, walidacja schematu albo test nie neutralizuja problemu, i czy waga nie jest zawyzona. Czytaj kod sam, nie ufaj cytatom z pozycji. Werdykt POTWIERDZONY tylko wtedy, gdy mechanizm odtworzyles w kodzie HEAD. Jesli potwierdzasz, podaj wage po swojej ocenie (moze byc nizsza niz zgloszona). Gdy dwie pozycje opisuja ten sam defekt, potwierdz jedna, a drugiej wpisz duplikat. Zwroc werdykt dla kazdego id z partii.`, { label: `partia:${k}`, phase: 'Obalanie', schema: WERDYKTY, effort: 'high' }))
+return { werdykty: wyniki.filter(Boolean).flatMap((r) => r.werdykty) }

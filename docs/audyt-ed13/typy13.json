@@ -1,0 +1,467 @@
+{
+  "TERAZ": {
+    "1": {
+      "dostepnosci": 1,
+      "jednostkowy": 28,
+      "komponentowy": 18,
+      "SSR": 2,
+      "hooka": 6,
+      "inwariantu": 1
+    },
+    "2": {
+      "parytetu": 1,
+      "bramki": 1,
+      "komponentowy": 39,
+      "jednostkowy": 24,
+      "hooka": 7,
+      "warstwy danych": 6,
+      "funkcji serwerowej": 2,
+      "integracyjny": 1
+    },
+    "3": {
+      "dostepnosci": 11,
+      "komponentowy": 150,
+      "parytetu": 11,
+      "jednostkowy": 188,
+      "inwariantu": 2,
+      "hooka": 17,
+      "bramki": 3,
+      "funkcji serwerowej": 10,
+      "warstwy danych": 8,
+      "SSR": 16,
+      "integracyjny": 2
+    },
+    "4": {
+      "komponentowy": 33,
+      "jednostkowy": 31,
+      "hooka": 11,
+      "SSR": 1,
+      "parytetu": 1,
+      "funkcji serwerowej": 1
+    },
+    "5": {
+      "komponentowy": 14,
+      "jednostkowy": 11,
+      "SSR": 2,
+      "dostepnosci": 1,
+      "parytetu": 1,
+      "warstwy danych": 1,
+      "funkcji serwerowej": 1
+    },
+    "6": {
+      "komponentowy": 11,
+      "jednostkowy": 6,
+      "hooka": 3,
+      "warstwy danych": 1,
+      "funkcji serwerowej": 1
+    },
+    "7": {
+      "dostepnosci": 19,
+      "warstwy danych": 5,
+      "funkcji serwerowej": 2,
+      "komponentowy": 20,
+      "jednostkowy": 35,
+      "hooka": 1
+    },
+    "8": {
+      "komponentowy": 8,
+      "dostepnosci": 8,
+      "jednostkowy": 64,
+      "warstwy danych": 1,
+      "hooka": 1,
+      "inwariantu": 2,
+      "funkcji serwerowej": 2
+    },
+    "9": {
+      "komponentowy": 25,
+      "jednostkowy": 31,
+      "inwariantu": 1,
+      "dostepnosci": 1,
+      "SSR": 2,
+      "hooka": 18
+    },
+    "10": {
+      "komponentowy": 9,
+      "jednostkowy": 14,
+      "bramki": 1,
+      "hooka": 4
+    },
+    "11": {
+      "jednostkowy": 82,
+      "komponentowy": 17,
+      "warstwy danych": 5,
+      "dostepnosci": 1,
+      "funkcji serwerowej": 11,
+      "hooka": 2
+    },
+    "12": {
+      "dostepnosci": 4,
+      "jednostkowy": 28,
+      "funkcji serwerowej": 1,
+      "hooka": 4
+    },
+    "13": {
+      "komponentowy": 24,
+      "jednostkowy": 79,
+      "dostepnosci": 4,
+      "SSR": 1,
+      "funkcji serwerowej": 76,
+      "hooka": 1,
+      "warstwy danych": 2,
+      "parytetu": 1,
+      "inwariantu": 1
+    },
+    "14": {
+      "komponentowy": 12,
+      "dostepnosci": 4,
+      "warstwy danych": 6,
+      "jednostkowy": 11,
+      "hooka": 2,
+      "SSR": 1,
+      "parytetu": 1
+    },
+    "15": {
+      "komponentowy": 18,
+      "dostepnosci": 12,
+      "jednostkowy": 30,
+      "funkcji serwerowej": 5,
+      "hooka": 6,
+      "bramki": 5,
+      "warstwy danych": 1
+    },
+    "16": {
+      "komponentowy": 76,
+      "funkcji serwerowej": 8,
+      "bramki": 3,
+      "jednostkowy": 117,
+      "dostepnosci": 16,
+      "hooka": 7,
+      "parytetu": 1,
+      "warstwy danych": 2
+    },
+    "17": {
+      "dostepnosci": 21,
+      "jednostkowy": 80,
+      "komponentowy": 17,
+      "SSR": 1,
+      "funkcji serwerowej": 10,
+      "inwariantu": 1,
+      "parytetu": 1,
+      "hooka": 2
+    },
+    "18": {
+      "komponentowy": 4,
+      "jednostkowy": 28,
+      "dostepnosci": 1,
+      "parytetu": 1,
+      "hooka": 1,
+      "inwariantu": 1,
+      "funkcji serwerowej": 1
+    },
+    "19": {
+      "komponentowy": 6,
+      "jednostkowy": 57,
+      "dostepnosci": 1,
+      "funkcji serwerowej": 9,
+      "bramki": 1,
+      "hooka": 3,
+      "warstwy danych": 1,
+      "integracyjny": 2,
+      "parytetu": 1
+    },
+    "20": {
+      "komponentowy": 45,
+      "SSR": 10,
+      "jednostkowy": 282,
+      "bramki": 90,
+      "funkcji serwerowej": 62,
+      "warstwy danych": 16,
+      "hooka": 4,
+      "parytetu": 1,
+      "integracyjny": 2,
+      "inwariantu": 2,
+      "dostepnosci": 22
+    },
+    "21": {
+      "dostepnosci": 8,
+      "jednostkowy": 11,
+      "warstwy danych": 1
+    },
+    "22": {
+      "dostepnosci": 109,
+      "komponentowy": 100,
+      "jednostkowy": 237,
+      "bramki": 8,
+      "SSR": 13,
+      "funkcji serwerowej": 31,
+      "parytetu": 13,
+      "hooka": 14
+    },
+    "NULL": {
+      "inwariantu": 5,
+      "komponentowy": 2,
+      "integracyjny": 1,
+      "bramki": 2,
+      "parytetu": 1,
+      "jednostkowy": 3,
+      "SSR": 1,
+      "funkcji serwerowej": 1
+    },
+    "X-admin-shell": {
+      "komponentowy": 99,
+      "dostepnosci": 27,
+      "jednostkowy": 30,
+      "SSR": 8,
+      "hooka": 20,
+      "warstwy danych": 5,
+      "funkcji serwerowej": 3,
+      "bramki": 3,
+      "integracyjny": 1
+    },
+    "X-i18n": {
+      "dostepnosci": 1,
+      "jednostkowy": 14,
+      "funkcji serwerowej": 2,
+      "komponentowy": 3,
+      "SSR": 1,
+      "hooka": 1
+    },
+    "X-design-system": {
+      "dostepnosci": 9,
+      "komponentowy": 33,
+      "SSR": 4
+    }
+  },
+  "ED12": {
+    "1": {
+      "dostepnosci": 1,
+      "jednostkowy": 24,
+      "komponentowy": 11,
+      "hooka": 5,
+      "inwariantu": 1
+    },
+    "2": {
+      "parytetu": 1,
+      "bramki": 1,
+      "komponentowy": 39,
+      "jednostkowy": 24,
+      "hooka": 7,
+      "warstwy danych": 6,
+      "funkcji serwerowej": 2,
+      "integracyjny": 1
+    },
+    "3": {
+      "dostepnosci": 11,
+      "komponentowy": 150,
+      "parytetu": 11,
+      "jednostkowy": 185,
+      "inwariantu": 2,
+      "hooka": 17,
+      "bramki": 3,
+      "funkcji serwerowej": 10,
+      "warstwy danych": 8,
+      "SSR": 13,
+      "integracyjny": 1
+    },
+    "4": {
+      "komponentowy": 33,
+      "jednostkowy": 30,
+      "hooka": 11,
+      "parytetu": 1
+    },
+    "5": {
+      "komponentowy": 13,
+      "jednostkowy": 11,
+      "SSR": 2,
+      "dostepnosci": 1,
+      "parytetu": 1,
+      "warstwy danych": 1,
+      "funkcji serwerowej": 1
+    },
+    "6": {
+      "komponentowy": 11,
+      "jednostkowy": 6,
+      "hooka": 2,
+      "warstwy danych": 1,
+      "funkcji serwerowej": 1
+    },
+    "7": {
+      "dostepnosci": 19,
+      "warstwy danych": 5,
+      "funkcji serwerowej": 2,
+      "komponentowy": 20,
+      "jednostkowy": 33,
+      "hooka": 1
+    },
+    "8": {
+      "komponentowy": 7,
+      "dostepnosci": 8,
+      "jednostkowy": 58,
+      "warstwy danych": 1,
+      "hooka": 1,
+      "inwariantu": 2,
+      "funkcji serwerowej": 2
+    },
+    "9": {
+      "komponentowy": 24,
+      "jednostkowy": 28,
+      "inwariantu": 1,
+      "dostepnosci": 1,
+      "hooka": 14,
+      "SSR": 1
+    },
+    "10": {
+      "komponentowy": 9,
+      "jednostkowy": 13,
+      "bramki": 1,
+      "hooka": 4
+    },
+    "11": {
+      "jednostkowy": 80,
+      "komponentowy": 16,
+      "warstwy danych": 5,
+      "dostepnosci": 1,
+      "funkcji serwerowej": 11,
+      "hooka": 2
+    },
+    "12": {
+      "dostepnosci": 4,
+      "jednostkowy": 28,
+      "funkcji serwerowej": 1,
+      "hooka": 4
+    },
+    "13": {
+      "komponentowy": 16,
+      "dostepnosci": 4,
+      "jednostkowy": 56,
+      "funkcji serwerowej": 62,
+      "hooka": 1,
+      "warstwy danych": 2,
+      "parytetu": 1,
+      "inwariantu": 1
+    },
+    "14": {
+      "dostepnosci": 4,
+      "komponentowy": 7,
+      "warstwy danych": 5,
+      "jednostkowy": 10,
+      "hooka": 1,
+      "parytetu": 1
+    },
+    "15": {
+      "komponentowy": 18,
+      "dostepnosci": 12,
+      "jednostkowy": 30,
+      "funkcji serwerowej": 5,
+      "hooka": 6,
+      "bramki": 4,
+      "warstwy danych": 1
+    },
+    "16": {
+      "komponentowy": 75,
+      "funkcji serwerowej": 8,
+      "bramki": 3,
+      "jednostkowy": 117,
+      "dostepnosci": 16,
+      "hooka": 7,
+      "parytetu": 1,
+      "warstwy danych": 2
+    },
+    "17": {
+      "dostepnosci": 20,
+      "jednostkowy": 73,
+      "komponentowy": 17,
+      "SSR": 1,
+      "funkcji serwerowej": 10,
+      "inwariantu": 1,
+      "parytetu": 1,
+      "hooka": 2
+    },
+    "18": {
+      "komponentowy": 4,
+      "jednostkowy": 27,
+      "dostepnosci": 1,
+      "parytetu": 1,
+      "hooka": 1,
+      "inwariantu": 1,
+      "funkcji serwerowej": 1
+    },
+    "19": {
+      "komponentowy": 3,
+      "dostepnosci": 1,
+      "jednostkowy": 51,
+      "funkcji serwerowej": 6,
+      "bramki": 1,
+      "hooka": 3,
+      "integracyjny": 2,
+      "parytetu": 1
+    },
+    "20": {
+      "komponentowy": 37,
+      "jednostkowy": 250,
+      "bramki": 82,
+      "funkcji serwerowej": 58,
+      "warstwy danych": 18,
+      "hooka": 4,
+      "parytetu": 1,
+      "integracyjny": 2,
+      "SSR": 9,
+      "inwariantu": 2,
+      "dostepnosci": 21
+    },
+    "21": {
+      "dostepnosci": 8,
+      "jednostkowy": 11,
+      "warstwy danych": 1
+    },
+    "22": {
+      "dostepnosci": 109,
+      "komponentowy": 100,
+      "jednostkowy": 235,
+      "bramki": 8,
+      "SSR": 13,
+      "funkcji serwerowej": 27,
+      "parytetu": 13,
+      "hooka": 14
+    },
+    "NULL": {
+      "inwariantu": 5,
+      "komponentowy": 2,
+      "integracyjny": 1,
+      "bramki": 2,
+      "parytetu": 1,
+      "jednostkowy": 4,
+      "funkcji serwerowej": 1
+    },
+    "X-admin-shell": {
+      "komponentowy": 83,
+      "dostepnosci": 27,
+      "jednostkowy": 27,
+      "SSR": 8,
+      "hooka": 17,
+      "warstwy danych": 3,
+      "funkcji serwerowej": 3,
+      "bramki": 3
+    },
+    "X-design-system": {
+      "komponentowy": 8,
+      "SSR": 2
+    },
+    "X-i18n": {
+      "jednostkowy": 7
+    }
+  },
+  "kolumny": [
+    "bramki",
+    "parytetu",
+    "inwariantu",
+    "dostepnosci",
+    "SSR",
+    "hooka",
+    "komponentowy",
+    "funkcji serwerowej",
+    "warstwy danych",
+    "integracyjny",
+    "jednostkowy"
+  ]
+}

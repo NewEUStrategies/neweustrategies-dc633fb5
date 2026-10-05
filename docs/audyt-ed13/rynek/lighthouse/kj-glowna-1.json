@@ -1,0 +1,42 @@
+{
+  "klucz": "kj",
+  "typ": "glowna",
+  "url": "https://klubjagiellonski.pl/",
+  "run": 1,
+  "ms": 20887,
+  "blad": null,
+  "finalUrl": "https://klubjagiellonski.pl/",
+  "fetchTime": "2026-10-04T15:05:31.733Z",
+  "lhVersion": "12.8.2",
+  "benchmarkIndex": 2384.5,
+  "runtimeError": null,
+  "warnings": [],
+  "kategorie": { "performance": 0.62, "accessibility": 0.81, "best-practices": 0.79, "seo": 0.85 },
+  "metryki": {
+    "first-contentful-paint": 2269.8020000000006,
+    "largest-contentful-paint": 10984.648500000001,
+    "total-blocking-time": 336,
+    "cumulative-layout-shift": 0,
+    "speed-index": 4473.198203660668,
+    "interactive": 15978.771875,
+    "server-response-time": 1018.0169999999999,
+    "total-byte-weight": 2686169,
+    "dom-size": 1115,
+    "network-requests": null,
+    "mainthread-work-breakdown": 3633.6959999999694,
+    "bootup-time": 1759.9160000000047,
+    "third-party-summary": null
+  },
+  "a11yBledy": [
+    "color-contrast",
+    "frame-title",
+    "heading-order",
+    "label",
+    "link-name",
+    "target-size"
+  ],
+  "bpBledy": ["third-party-cookies", "inspector-issues"],
+  "seoBledy": ["crawlable-anchors", "robots-txt"],
+  "lcpElement": "<div class=\"pix\" style=\"background-image: url(&quot;https://klubjagiellonski.pl/wp-content/uploads/2026/…&quot;);\">",
+  "tytul": true
+}

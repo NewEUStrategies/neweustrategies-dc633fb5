@@ -1,0 +1,41 @@
+// Progi per sciezka i rejestr it.fails/skip - oba drzewa, jeden kod.
+import fs from "node:fs";
+import path from "node:path";
+const ROOT = "/home/user/neweustrategies-dc633fb5";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13";
+const { default: picomatch } = await import(ROOT + "/node_modules/picomatch/index.js");
+const isTest = (f) => /(^|\/)__tests__\/|\.test\.|\.spec\./.test(f);
+const walk = (base, d, out = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!/node_modules|\.git$|dist$|coverage/.test(e.name)) walk(base, p, out); } else out.push(path.relative(base, p)); } return out; };
+function progi(cfgPath) {
+  const cfg = fs.readFileSync(cfgPath, "utf8");
+  const i = cfg.indexOf("thresholds");
+  // blok thresholds: od "thresholds" do pierwszego zamkniecia na poziomie wciecia coverage
+  let depth = 0, j = cfg.indexOf("{", i), k = j;
+  for (; k < cfg.length; k++) { if (cfg[k] === "{") depth++; else if (cfg[k] === "}") { depth--; if (depth === 0) break; } }
+  const blok = cfg.slice(j, k + 1);
+  return [...blok.matchAll(/^\s*"((?:[^"\\]|\\.)+)":\s*\{/gm)].map((m) => JSON.parse(`"${m[1]}"`)).filter((x) => x.includes("/") || x.includes("*"));
+}
+function analiza(base, cfgPath) {
+  const all = walk(base, path.join(base, "src")).filter((f) => /\.(ts|tsx|js|jsx|mjs)$/.test(f) && !/\.d\.ts$/.test(f));
+  const prod = all.filter((f) => !isTest(f)), tests = all.filter(isTest);
+  const klucze = progi(cfgPath);
+  const matchers = klucze.map((k) => ({ k, m: picomatch(k, { dot: true }) }));
+  // NIE .filter(m): Array.filter podaje indeks jako drugi argument, a picomatch traktuje go jako returnState.
+  const martwe = matchers.filter(({ m }) => !prod.some((f) => m(f))).map((x) => x.k);
+  const objete = prod.filter((f) => matchers.some(({ m }) => m(f)));
+  let fails = 0, skip = 0, todo = 0, only = 0; const failsPliki = [];
+  for (const f of tests) {
+    const t = fs.readFileSync(path.join(base, f), "utf8");
+    const nf = (t.match(/\b(it|test)\.fails\s*\(/g) ?? []).length;
+    fails += nf; if (nf) failsPliki.push([f, nf]);
+    skip += (t.match(/\b(it|test|describe)\.skip(If)?\s*\(/g) ?? []).length;
+    todo += (t.match(/\b(it|test)\.todo\s*\(/g) ?? []).length;
+    only += (t.match(/\b(it|test|describe)\.only\s*\(/g) ?? []).length;
+  }
+  return { progow: klucze.length, martwe, objete: objete.length, prod: prod.length, pct: (100 * objete.length) / prod.length, fails, skip, todo, only, failsPliki };
+}
+const TERAZ = analiza(ROOT, ROOT + "/vitest.config.ts");
+const ED12 = analiza(SP + "/old-tree", SP + "/old-tree/vitest.config.ts");
+fs.writeFileSync(SP + "/progi13.json", JSON.stringify({ TERAZ, ED12 }, null, 1));
+for (const [n, a] of [["ED12 ", ED12], ["TERAZ", TERAZ]]) console.log(n, `progow ${a.progow} | martwych ${a.martwe.length} | plikow pod progiem ${a.objete}/${a.prod} (${a.pct.toFixed(1)}%) | it.fails ${a.fails} | skip ${a.skip} | todo ${a.todo} | only ${a.only}`);
+console.log("martwe progi teraz:", TERAZ.martwe);

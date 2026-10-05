@@ -1,0 +1,40 @@
+// Rodzaj testu per modul - jeden klasyfikator na oba drzewa (priorytet reguł: pierwsza pasujaca).
+import fs from "node:fs";
+import path from "node:path";
+const ROOT = "/home/user/neweustrategies-dc633fb5";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13";
+const mm = await import(ROOT + "/scripts/taxonomy/moduleMap.mjs");
+const isTest = (f) => /(^|\/)__tests__\/|\.test\.|\.spec\./.test(f);
+const walk = (base, d, out = []) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!/node_modules|\.git$|dist$|coverage/.test(e.name)) walk(base, p, out); } else out.push(path.relative(base, p)); } return out; };
+const key = (f) => { const c = mm.classifyPath(f); return c.module != null ? String(c.module) : c.crossCutting ? "X-" + c.crossCutting : "NULL"; };
+export const REGULY = [
+  ["bramki", (f, t) => /\.gate\.test\./.test(f) || /src\/lib\/ci\/__tests__\//.test(f)],
+  ["parytetu", (f) => /parity/i.test(path.basename(f))],
+  ["inwariantu", (f) => /invariant|contract|singleton|determinis/i.test(path.basename(f))],
+  ["dostepnosci", (f, t) => /\baxe\b|toHaveNoViolations|a11y/i.test(path.basename(f)) || /from ["']@\/test\/axe["']|vitest-axe|jest-axe/.test(t)],
+  ["SSR", (f, t) => /\.ssr\.test\./.test(f) || /renderToString|renderToPipeableStream|renderToReadableStream/.test(t)],
+  ["hooka", (f, t) => /\brenderHook\s*\(/.test(t)],
+  ["komponentowy", (f, t) => /\.tsx$/.test(f) && /\brender\s*\(/.test(t) && /@testing-library\/react/.test(t)],
+  ["funkcji serwerowej", (f, t) => /\.(functions|server)\b/.test(path.basename(f)) || /serverFnHarness|serverFnChain|\bhandler\s*\(|createServerFn/.test(t)],
+  ["warstwy danych", (f, t) => /supabaseChain|mockSupabase|\.from\(\s*["'][a-z_]+["']\s*\)/.test(t) && /queries|Query|query/.test(f + t.slice(0, 2000))],
+  ["integracyjny", (f) => /integration|flow/i.test(path.basename(f))],
+  ["jednostkowy", () => true],
+];
+function typy(base) {
+  const all = walk(base, path.join(base, "src")).filter((f) => isTest(f) && /\.(ts|tsx|js|mjs)$/.test(f));
+  const res = {};
+  for (const f of all) {
+    const t = fs.readFileSync(path.join(base, f), "utf8");
+    const typ = REGULY.find(([, fn]) => fn(f, t))[0];
+    const k = key(f);
+    (res[k] ??= {})[typ] = (res[k][typ] ?? 0) + 1;
+  }
+  return res;
+}
+const TERAZ = typy(ROOT), ED12 = typy(SP + "/old-tree");
+fs.writeFileSync(SP + "/typy13.json", JSON.stringify({ TERAZ, ED12, kolumny: REGULY.map(([n]) => n) }, null, 1));
+const K = REGULY.map(([n]) => n);
+const klucze = [...new Set([...Object.keys(TERAZ), ...Object.keys(ED12)])].sort((a, b) => (+a || 999) - (+b || 999) || a.localeCompare(b));
+console.log("klucz ".padEnd(8), K.map((k) => k.slice(0, 6).padStart(7)).join(""), "  rodz(ed12->teraz)");
+for (const k of klucze) { const n = TERAZ[k] ?? {}, o = ED12[k] ?? {}; const rn = K.filter((c) => n[c]).length, ro = K.filter((c) => o[c]).length;
+  console.log(k.padEnd(8).slice(0, 8), K.map((c) => String(n[c] ?? "-").padStart(7)).join(""), `   ${ro} -> ${rn}`); }

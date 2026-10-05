@@ -1,0 +1,33 @@
+# Migawka wynikow agentow wydania 13: pierwszy wynik kazdej etykiety (przebieg oryginalny),
+# plus obalanie torow dokonczone osobnym workflowem (wf-obal13.js) wpiete do grup torow.
+import json, sys
+S='/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+sys.path.insert(0,S)
+from journal import wyniki
+RUNS={'G1':'wf_db707daa-71c','G2':'wf_c49f2abd-ffe','G3':'wf_a5a83d38-d11','G4':'wf_62395b2a-740','G5':'wf_36078d88-651','G6':'wf_e5037968-10a','G7':'wf_83064bea-546','G8':'wf_d73f18cf-803','Z':'wf_674f144f-194','RAP':'wf_0187170d-476','PL':'wf_8a39e408-d0e','EU':'wf_8eaca63f-21f','USA':'wf_7a9be1a8-dc0','AZ':'wf_88184313-f3e','NESw':'wf_f1671459-888','NESk':'wf_a527dc5a-a56'}
+OBAL=['wf_9152a508-717','wf_959d8081-90e','wf_0dd51e8a-a8a','wf_5ec37670-120']
+DODATKOWE=['wf_181cc2ec-1cf','wf_76b93534-dde','wf_f9598016-527','wf_05c18391-ed0']
+KRYTYK=['wf_03d1b21e-0a6']
+def zbuduj():
+    snap={k:wyniki(r) for k,r in RUNS.items()}
+    gdzie={k[8:]:g for g in [f'G{i}' for i in range(1,9)] for k in snap[g] if k.startswith('defekty:') or k.startswith('przekroj:')}
+    gdzie.update({k[9:]:g for g in [f'G{i}' for i in range(1,9)] for k in snap[g] if k.startswith('przekroj:')})
+    for r in OBAL:
+        try: w=wyniki(r)
+        except FileNotFoundError: continue
+        for k,v in w.items():
+            if k.startswith('obal:') and v:
+                g=gdzie.get(k[5:])
+                if g and not snap[g].get(k): snap[g][k]=v
+    for r in DODATKOWE:
+        try: snap.setdefault('DOD',{}).update(wyniki(r))
+        except FileNotFoundError: pass
+    for r in KRYTYK:
+        try: snap.setdefault('KRY',{}).update(wyniki(r))
+        except FileNotFoundError: pass
+    return snap
+if __name__=='__main__':
+    snap=zbuduj()
+    json.dump(snap,open(S+'/migawka.json','w'),ensure_ascii=False)
+    for g,v in snap.items():
+        print(g, len(v), sorted(k for k in v if k.startswith('obal:')) if g.startswith('G') else '')

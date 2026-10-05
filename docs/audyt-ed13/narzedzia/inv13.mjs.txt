@@ -1,0 +1,46 @@
+// Inwentarz wydania 13: oba drzewa (ed12 i teraz) jednym klasyfikatorem - z NOWEJ taksonomii.
+import fs from "node:fs";
+import path from "node:path";
+const ROOT = "/home/user/neweustrategies-dc633fb5";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13";
+const mm = await import(ROOT + "/scripts/taxonomy/moduleMap.mjs");
+const isTest = (f) => /(^|\/)__tests__\/|\.test\.|\.spec\./.test(f);
+const isSrc = (f) => /\.(ts|tsx|js|jsx|mjs)$/.test(f) && !/\.d\.ts$/.test(f);
+const walk = (base, d, out = []) => {
+  for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    const p = path.join(d, e.name);
+    if (e.isDirectory()) { if (!/node_modules|\.git$|dist$|coverage/.test(e.name)) walk(base, p, out); }
+    else out.push(path.relative(base, p));
+  }
+  return out;
+};
+const key = (f) => { const c = mm.classifyPath(f); return c.module != null ? String(c.module) : c.crossCutting ? "X-" + c.crossCutting : "NULL"; };
+function inwentarz(base) {
+  const all = walk(base, path.join(base, "src")).filter(isSrc);
+  const res = {};
+  for (const f of all) {
+    const k = key(f);
+    const r = (res[k] ??= { prod: 0, test: 0, loc: 0, cases: 0, routes: 0, files: [] });
+    const txt = fs.readFileSync(path.join(base, f), "utf8");
+    if (isTest(f)) { r.test++; r.cases += (txt.match(/^\s*(it|test)(\.\w+)*\s*\(/gm) ?? []).length; }
+    else { r.prod++; r.loc += txt.split("\n").length; if (f.startsWith("src/routes/")) r.routes++; r.files.push(f); }
+  }
+  return { all, res };
+}
+const NOW = inwentarz(ROOT), OLD = inwentarz(SP + "/old-tree");
+const oldSet = new Set(OLD.all);
+const klucze = [...new Set([...Object.keys(NOW.res), ...Object.keys(OLD.res)])].sort((a, b) => (+a || 999) - (+b || 999) || a.localeCompare(b));
+const nm = (k) => /^\d+$/.test(k) ? mm.MODULE_NAMES.get(+k) : k;
+const rows = [];
+let T = { p: 0, po: 0, l: 0, lo: 0, t: 0, to: 0, c: 0, co: 0, r: 0, ro: 0, add: 0 };
+for (const k of klucze) {
+  const n = NOW.res[k] ?? { prod: 0, test: 0, loc: 0, cases: 0, routes: 0, files: [] }, o = OLD.res[k] ?? { prod: 0, test: 0, loc: 0, cases: 0, routes: 0, files: [] };
+  const added = n.files.filter((f) => !oldSet.has(f));
+  rows.push({ k, name: nm(k), prod: n.prod, prodOld: o.prod, loc: n.loc, locOld: o.loc, test: n.test, testOld: o.test, cases: n.cases, casesOld: o.cases, routes: n.routes, routesOld: o.routes, addedProd: added.length, added, files: n.files });
+  T.p += n.prod; T.po += o.prod; T.l += n.loc; T.lo += o.loc; T.t += n.test; T.to += o.test; T.c += n.cases; T.co += o.cases; T.r += n.routes; T.ro += o.routes; T.add += added.length;
+}
+fs.writeFileSync(SP + "/inwentarz13.json", JSON.stringify({ rows, T }, null, 1));
+const d = (a, b) => (a - b >= 0 ? "+" : "") + (a - b);
+console.log("klucz".padEnd(6), "prod(Δ)".padStart(12), "LOC(Δ)".padStart(18), "test(Δ)".padStart(11), "przyp.(Δ)".padStart(15), "trasy(Δ)".padStart(10), "nowe", " nazwa");
+for (const r of rows) console.log(r.k.padEnd(6).slice(0, 6), `${r.prod}(${d(r.prod, r.prodOld)})`.padStart(12), `${r.loc}(${d(r.loc, r.locOld)})`.padStart(18), `${r.test}(${d(r.test, r.testOld)})`.padStart(11), `${r.cases}(${d(r.cases, r.casesOld)})`.padStart(15), `${r.routes}(${d(r.routes, r.routesOld)})`.padStart(10), String(r.addedProd).padStart(4), " " + String(r.name).slice(0, 50));
+console.log("RAZEM ", `${T.p}(${d(T.p, T.po)})`.padStart(12), `${T.l}(${d(T.l, T.lo)})`.padStart(18), `${T.t}(${d(T.t, T.to)})`.padStart(11), `${T.c}(${d(T.c, T.co)})`.padStart(15), `${T.r}(${d(T.r, T.ro)})`.padStart(10), String(T.add).padStart(4));

@@ -1,0 +1,47 @@
+export const meta = {
+  name: 'audyt-ed13-obalanie-torow',
+  description: 'Wydanie 13: proba obalenia w torach, ktorych etap obalania przerwal limit sesji (mapa i defekty z przebiegu oryginalnego, bez powtarzania)',
+  phases: [{ title: 'Obalanie', detail: 'osobny agent probuje obalic kazdy nowy defekt i kazdy status toru' }],
+}
+
+const REPO = '/home/user/neweustrategies-dc633fb5'
+const SPD = '/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13'
+const DOC = REPO + '/docs/AUDYT_POKRYCIA_TESTAMI_MODULY_FUNKCJE_2026-08-18.md'
+
+const ZASADY = `
+ZASADY:
+- Repozytorium ${REPO}, HEAD 5b8c77c01 (main z 2026-10-04). Drzewo wydania 12 (stan sprzed okna, commit b8b53ae5): ${SPD}/old-full - porownuj "bylo / jest" przez: diff ${SPD}/old-full/<plik> ${REPO}/<plik> albo git -C ${REPO} diff b8b53ae5 HEAD -- <plik>.
+- TYLKO CZYTASZ. Nie zmieniasz plikow repo, nie commitujesz, NIE uruchamiasz vitest, playwright, tsc ani suity (trwa pomiar pokrycia). Wolno: grep/rg, cat/sed, diff, git log/show/diff, node one-liner czytajacy pliki.
+- Kazde twierdzenie o kodzie: sciezka:linia i cytat. Bez cytatu = nie zglaszasz.
+- Baza: stan = odtworzenie migracji po kolei (ostatnie CREATE OR REPLACE / DROP POLICY wygrywa); dwa pasy: supabase/migrations i drizzle/migrations (produkcja wykonuje tylko wpisy z drizzle/migrations/meta/_journal.json) - sprawdz oba.
+- Po polsku, dywiz "-", nigdy dluga kreska (U+2014) ani polpauza (U+2013), bez emoji. RODO: bez prawdziwych danych osobowych z kodu i fixture.
+- Waga: krytyczny = wyciek miedzy najemcami / obejscie autoryzacji / utrata pieniedzy lub danych; wysoki = realny blad na sciezce uzytkownika albo bezpieczenstwa; sredni = ograniczony zasieg; niski = higiena, martwy kod, rozjazd komentarza.
+- Kontekst poprzedniego wydania: rozdzial 16 dokumentu ${DOC} (wydanie 12). Nie przepisuj go - opisz ZMIANE.
+- BUDZET: najwyzej okolo 50 wywolan narzedzi. Czytaj fragmenty wskazane grepem, nie cale wielkie pliki. Gdy budzet sie konczy - zwroc to, co masz, i nazwij braki wprost (nie zgaduj).`
+
+const STR = { type: 'string' }
+const VERIFY_SCHEMA = { type: 'object', properties: {
+  werdykty: { type: 'array', items: { type: 'object', properties: {
+    typ: { type: 'string', enum: ['nowy_defekt', 'status'] }, id: { type: 'string', description: 'N<numer> dla nowego defektu albo id rejestru (R...) dla statusu' }, tytul: STR,
+    werdykt: { type: 'string', enum: ['POTWIERDZONY', 'OBALONY', 'NIEROZSTRZYGNIETY'] },
+    dowod: STR, korektaWagi: { type: 'string', description: 'poprawna waga i powod albo pusty string' },
+    poprawnyStatus: { type: 'string', description: 'dla typu status, gdy OBALONY: jaki status jest prawdziwy; inaczej pusty string' },
+  }, required: ['typ', 'id', 'tytul', 'werdykt', 'dowod', 'korektaWagi', 'poprawnyStatus'] } },
+  dodatkoweZnaleziska: { type: 'array', items: { type: 'object', properties: {
+    tytul: STR, waga: { type: 'string', enum: ['krytyczny', 'wysoki', 'sredni', 'niski'] }, plik: STR, linia: { type: 'integer' }, dowod: STR,
+  }, required: ['tytul', 'waga', 'plik', 'linia', 'dowod'] } },
+}, required: ['werdykty', 'dodatkoweZnaleziska'] }
+
+
+const WEJ = SPD + '/wznowienie/obal'
+function verifyPrompt(tor) {
+  return `Jestes niezaleznym weryfikatorem w torze ${tor} platformy NES. Twoim zadaniem jest OBALIC twierdzenia innego agenta - domyslnie zakladaj, ze sie pomylil: czy kod pod wskazana linia naprawde tak wyglada, czy wrapper / middleware / pozniejsza migracja / bramka wyzej w lancuchu neutralizuje defekt, czy waga jest zawyzona; dla "naprawiony" - czy naprawa jest kompletna (wszystkie sciezki, oba pasy migracji, test); dla "otwarty" - czy nic jej nie naprawilo. ${ZASADY}
+
+WEJSCIE: plik ${WEJ}/${tor}.txt zawiera dwie listy - NOWE DEFEKTY (id N1, N2, ...) i STATUSY OTWARTYCH DEFEKTOW Z REJESTRU (wydania 11 i 12, id R...), kazda pozycja z miejscem i dowodem zebranym przez innego agenta. Przeczytaj CALY plik (cat) na poczatku pracy.
+
+Dla kazdej pozycji: POTWIERDZONY / OBALONY / NIEROZSTRZYGNIETY z wlasnym dowodem (id: N1.. dla nowych, R... dla statusow). Rzeczy, ktorych agent nie zglosil, a ktore widzisz w kodzie nowym lub zmienionym w oknie - dodatkoweZnaleziska (z cytatem).`
+}
+
+const wyniki = await pipeline(args.tory, (tor) => agent(verifyPrompt(tor), { label: `obal:${tor}`, phase: 'Obalanie', schema: VERIFY_SCHEMA, effort: 'high' }).then((v) => ({ tor, weryfikacja: v })))
+const ok = wyniki.filter(Boolean)
+return { wyniki: ok, brak: args.tory.filter((t) => !ok.find((w) => w.tor === t)) }

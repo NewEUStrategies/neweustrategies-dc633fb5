@@ -1,0 +1,48 @@
+// Pliki produkcyjne src, ktorych nie importuje nic (graf: src + scripts + e2e + konfiguracje w katalogu glownym).
+// Cztery formy importu: statyczny, dynamiczny import(), re-eksport i import czysto efektowy (import "x";) + require.
+import fs from "node:fs";
+import path from "node:path";
+const SP = "/tmp/claude-0/-home-user-neweustrategies-dc633fb5/208e1cdf-815a-58dd-a5d7-27f309cbff9b/scratchpad/ed13";
+const isTest = (f) => /(^|\/)__tests__\/|\.test\.|\.spec\./.test(f);
+const EXT = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+const walk = (base, d, out = []) => { if (!fs.existsSync(d)) return out; for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) { if (!/node_modules|\.git$|dist$|coverage/.test(e.name)) walk(base, p, out); } else if (EXT.includes(path.extname(e.name))) out.push(path.relative(base, p)); } return out; };
+const RE = /(?:import|export)\s[^'"`;]*?\sfrom\s*["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)|^\s*import\s*["']([^"']+)["']|require\(\s*["']([^"']+)["']\s*\)|vi\.mock\(\s*["']([^"']+)["']/gm;
+function sieroty(base) {
+  const files = [...walk(base, path.join(base, "src")), ...walk(base, path.join(base, "scripts")), ...walk(base, path.join(base, "e2e"))];
+  for (const f of fs.readdirSync(base)) if (EXT.includes(path.extname(f))) files.push(f);
+  const set = new Set(files);
+  const resolve = (from, spec) => {
+    let p;
+    if (spec.startsWith("@/")) p = "src/" + spec.slice(2);
+    else if (spec.startsWith(".")) p = path.normalize(path.join(path.dirname(from), spec));
+    else return null;
+    if (set.has(p)) return p;
+    for (const e of EXT) if (set.has(p + e)) return p + e;
+    for (const e of EXT) if (set.has(p + "/index" + e)) return p + "/index" + e;
+    const noext = p.replace(/\.(js|mjs)$/, ""); for (const e of EXT) if (set.has(noext + e)) return noext + e;
+    return null;
+  };
+  const importers = new Map(); // tylko importy z plikow NIE-testowych licza sie jako "produkcyjny konsument"
+  const importersAny = new Map();
+  for (const f of files) {
+    const t = fs.readFileSync(path.join(base, f), "utf8");
+    for (const m of t.matchAll(RE)) {
+      const spec = m[1] ?? m[2] ?? m[3] ?? m[4] ?? m[5]; const r = resolve(f, spec); if (!r || r === f) continue;
+      (importersAny.get(r) ?? importersAny.set(r, new Set()).get(r)).add(f);
+      if (!isTest(f)) (importers.get(r) ?? importers.set(r, new Set()).get(r)).add(f);
+    }
+  }
+  const prod = files.filter((f) => f.startsWith("src/") && !isTest(f) && !/\.d\.ts$/.test(f));
+  const entry = (f) => f.startsWith("src/routes/") || /^src\/(router|start|client|server|entry|ssr|routeTree\.gen|serviceWorker|sw)\b/.test(f) || /\.worker\./.test(f) || f.startsWith("src/test/");
+  const orphan = prod.filter((f) => !entry(f) && !importersAny.has(f));
+  const onlyTests = prod.filter((f) => !entry(f) && importersAny.has(f) && !importers.has(f));
+  return { prod: prod.length, orphan, onlyTests };
+}
+const T = sieroty("/home/user/neweustrategies-dc633fb5"), O = sieroty(SP + "/old-tree");
+fs.writeFileSync(SP + "/sieroty13.json", JSON.stringify({ TERAZ: T, ED12: O }, null, 1));
+console.log(`ED12 : sierot (nikt nie importuje) ${O.orphan.length} | importowane WYLACZNIE przez testy ${O.onlyTests.length}`);
+console.log(`TERAZ: sierot (nikt nie importuje) ${T.orphan.length} | importowane WYLACZNIE przez testy ${T.onlyTests.length}`);
+const nowe = T.orphan.filter((f) => !O.orphan.includes(f)); const zniknely = O.orphan.filter((f) => !T.orphan.includes(f));
+console.log("nowe sieroty:", nowe.length); nowe.forEach((f) => console.log("   +", f));
+console.log("sieroty ed12, ktorych juz nie ma na liscie:", zniknely.length);
+const noweT = T.onlyTests.filter((f) => !O.onlyTests.includes(f)); console.log("nowe 'tylko testy':", noweT.length); noweT.slice(0, 25).forEach((f) => console.log("   +", f));
