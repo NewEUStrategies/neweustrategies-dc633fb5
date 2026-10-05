@@ -84,7 +84,7 @@ import {
   SITE_NAME,
 } from "@/lib/seo/meta";
 import { builderContentHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
-import { usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { isServerRender, usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
 import { citationMetaTags } from "@/lib/seo/citations";
 import type { CitationAuthor } from "@/lib/citations/format";
 import { CitationBox } from "@/components/post/CitationBox";
@@ -674,9 +674,10 @@ export const Route = createFileRoute("/$")({
     // treść maluje silnik buildera (`resolveContentEngine`, jak `ContentRenderer`)
     // - strona html/bloków z pozostałym `builder_data` nie preloaduje obrazu,
     // którego nikt nie namaluje. Preloady stron liczy WYŁĄCZNIE serwer
-    // (`isServer` wycina `heroImage.ts` i `lcpCandidate.ts` z bundla klienta -
-    // PROVE P1.4, `check:bundle`); nawigacja SPA dostaje pustą listę, bo
-    // render czysto kliencki nie ma też kandydata (lib/builder/aboveFold.tsx).
+    // (`isServerRender()` wycina `heroImage.ts` i `lcpCandidate.ts` z bundla
+    // klienta - PROVE P1.4, `check:bundle`); nawigacja SPA dostaje pustą listę,
+    // bo render czysto kliencki nie ma też kandydata ani preloadu
+    // (lib/builder/aboveFold.tsx).
     const coverPreload =
       data.kind === "post"
         ? buildCoverPreload(
@@ -687,7 +688,7 @@ export const Route = createFileRoute("/$")({
           )
         : null;
     const heroPreloads =
-      isServer && data.kind === "page"
+      isServerRender() && data.kind === "page"
         ? builderContentHeroPreloads(
             { editor: data.item.editor, builderDoc: doc },
             context.queryClient,
@@ -698,7 +699,7 @@ export const Route = createFileRoute("/$")({
     // hero z nagłówków (przed parsowaniem HTML), a NES Edge Cache odtwarza go
     // na HIT/STALE (droga do 103 Early Hints na Cloudflare).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    if (isServer) {
+    if (isServerRender()) {
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }
     return { ...data, seoSettings, coverPreload, heroPreloads };

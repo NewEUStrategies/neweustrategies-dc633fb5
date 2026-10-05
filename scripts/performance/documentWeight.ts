@@ -644,3 +644,57 @@ export function medianWeights(
   }
   return out;
 }
+
+/**
+ * MODUŁY TYLKO SERWEROWE (P1.4, recenzja runda 3, m3). Kandydata LCP
+ * (`lcpCandidate.ts`) i preload jego obrazu (`heroImage.ts`) liczy wyłącznie
+ * serwer; kod klienta woła je pod `isServerRender()`, a Rollup wycina tę gałąź,
+ * bo `isServer` router-core jest w buildzie przeglądarki literałem `false`.
+ * Powrót do bundla klienta (wywołanie poza gałęzią, niestała flaga w paczce,
+ * bundler, który przestał zwijać gałąź) nie przekracza żadnego progu bajtowego
+ * (+1,1 KB gzip w zapasie kilkunastu KB), więc sprawdza go osobny test
+ * inwentarza chunków (`reports/chunk-inventory.json`, build z BUNDLE_INVENTORY=1).
+ */
+export const SERVER_ONLY_CLIENT_MODULES = [
+  "src/lib/builder/lcpCandidate.ts",
+  "src/lib/builder/heroImage.ts",
+] as const;
+
+export interface ChunkInventoryLike {
+  readonly chunks: ReadonlyArray<{
+    readonly file: string;
+    readonly isEntry?: boolean;
+    readonly modules?: ReadonlyArray<{ readonly id: string }>;
+  }>;
+}
+
+export interface ServerOnlyLeak {
+  readonly chunk: string;
+  readonly module: string;
+}
+
+/** Moduły tylko-serwerowe znalezione w chunkach klienta (pusta lista = OK). */
+export function serverOnlyModulesInClient(
+  inventory: ChunkInventoryLike,
+  modules: readonly string[] = SERVER_ONLY_CLIENT_MODULES,
+): ServerOnlyLeak[] {
+  const leaks: ServerOnlyLeak[] = [];
+  for (const chunk of inventory.chunks) {
+    for (const { id } of chunk.modules ?? []) {
+      const path = id.split("?")[0];
+      const module = modules.find((m) => path === m || path.endsWith(`/${m}`));
+      if (module) leaks.push({ chunk: chunk.file, module });
+    }
+  }
+  return leaks;
+}
+
+/**
+ * Czy inwentarz opisuje TEN build: każdy chunk wejściowy z inwentarza istnieje
+ * w katalogu `.output/public`. Inwentarz z poprzedniego buildu (np. bez
+ * BUNDLE_INVENTORY=1) ma inne hashe - jego wynik nie mówi nic o artefakcie.
+ */
+export function inventoryMatchesBuild(inventory: ChunkInventoryLike, publicDir: string): boolean {
+  const entries = inventory.chunks.filter((chunk) => chunk.isEntry);
+  return entries.length > 0 && entries.every((chunk) => existsSync(join(publicDir, chunk.file)));
+}

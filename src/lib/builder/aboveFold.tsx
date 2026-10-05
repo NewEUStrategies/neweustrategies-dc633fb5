@@ -25,19 +25,40 @@
 // (`lcpRootAttributes`); klient przy hydratacji ODCZYTUJE te same identyfikatory
 // z DOM-u serwera (`readServerLcpCandidates`), więc renderuje identyczne
 // atrybuty i znaczniki - parytet bajtowy bez kodu `lcpCandidates` w bundlu
-// klienta (gałąź `isServer` wycina go z grafu przeglądarki). Render czysto
-// kliencki (nawigacja SPA, doładowany wpis) nie ma kandydata: każdy obraz jest
-// leniwy, a przeglądarka i tak odkrywa go dopiero z DOM-u wstawionego przez JS.
+// klienta (`isServerRender()` wycina go z grafu przeglądarki).
+//
+// RENDER CZYSTO KLIENCKI (nawigacja SPA, nowy dokument w tym samym rendererze;
+// recenzja P1.4 runda 3, M1) nie ma kandydata, znacznika ani preloadu, ale
+// pierwszy obraz widgetów PIERWSZEJ malowanej sekcji ładuje się `eager`
+// (`LcpImage` = "eager"): obraz leniwy czekałby na commit, layout i obserwację
+// IO nowej strony, a baza dawała tu priorytet obrazom trzech sekcji.
 import { createContext, useContext, type ReactNode } from "react";
 import { preload } from "react-dom";
 import { isServer } from "@tanstack/router-core/isServer";
 import type { ImagePreloadInput } from "@/lib/seo/meta";
 import { useAccessContext } from "@/lib/builder/accessControl";
+import { isSsrRequest } from "@/lib/ssr/isSsrRequest";
+
+/**
+ * Czy to render SERWEROWY. `isServer` z router-core jest stałą warunków
+ * eksportu: w buildzie przeglądarki `false` - Rollup zwija całe wyrażenie, więc
+ * gałęzie serwerowe (`lcpCandidates`, `heroImage.ts`, `preload()`) wypadają
+ * z bundla klienta - a w workerze `true`. W warunku `development` (`bun run dev`)
+ * i pod `NODE_ENV=test` ma jednak wartość `undefined` (src/lib/ssr/isSsrRequest.ts):
+ * wtedy rozstrzyga brak `document`, liczony przy każdym wywołaniu (recenzja P1.4
+ * runda 3, m1 - inaczej serwer dev nie miał ani kandydata, ani preloadu).
+ */
+export function isServerRender(): boolean {
+  return isServer ?? isSsrRequest();
+}
 
 /** Stała tożsamość pustej listy kandydatów (kontekst i `memo` jej nie zmieniają). */
 export const NO_LCP_CANDIDATES: readonly string[] = Object.freeze([]);
 
 const LcpCandidatesContext = createContext<readonly string[]>(NO_LCP_CANDIDATES);
+
+/** Sekcja jest PIERWSZĄ malowaną sekcją renderu czysto klienckiego właściciela. */
+const LcpEagerSectionContext = createContext(false);
 
 /**
  * Podaje identyfikatory widgetów-kandydatów LCP. KAŻDY renderer buildera
@@ -56,52 +77,80 @@ export function LcpCandidatesProvider({
   );
 }
 
-/** Czy widget o tym identyfikatorze jest kandydatem LCP strony. */
-export function useIsLcpWidget(widgetId: string): boolean {
-  return useContext(LcpCandidatesContext).includes(widgetId);
+/**
+ * Owija KAŻDĄ sekcję renderera (także z `eager` = fałsz), więc sekcje
+ * zagnieżdżonego renderera nie dziedziczą flagi sekcji rodzica.
+ */
+export function LcpEagerSection({ eager, children }: { eager: boolean; children: ReactNode }) {
+  return (
+    <LcpEagerSectionContext.Provider value={eager}>{children}</LcpEagerSectionContext.Provider>
+  );
+}
+
+/**
+ * Priorytet PIERWSZEGO obrazu widgetu (P1.4):
+ *  - `true`    - kandydat LCP strony (`lcpCandidates`; tylko SSR i hydratacja):
+ *                eager + fetchpriority=high + `data-lcp-candidate`,
+ *  - `"eager"` - pierwsza malowana sekcja renderu czysto klienckiego właściciela
+ *                (nawigacja SPA): `priority` atomu obrazu, czyli eager (atom
+ *                `OptimizedImage` wiąże je z fetchpriority=high), bez znacznika
+ *                i bez preloadu,
+ *  - `false`   - `loading=lazy` + `fetchpriority=auto`.
+ */
+export type LcpImage = boolean | "eager";
+
+/** Priorytet pierwszego obrazu widgetu o tym identyfikatorze (patrz `LcpImage`). */
+export function useLcpImage(widgetId: string): LcpImage {
+  const candidates = useContext(LcpCandidatesContext);
+  const eagerSection = useContext(LcpEagerSectionContext);
+  return candidates.includes(widgetId) || (eagerSection && "eager");
 }
 
 /**
  * NOŚNIK KANDYDATÓW Z SSR DO HYDRATACJI: atrybuty korzenia renderera-właściciela.
  * `data-lcp-root` to `useId()` renderera (ten sam na serwerze i przy
  * hydratacji), `data-lcp-ids` - identyfikatory po spacji (`lcpCandidateIds`
- * odrzuca identyfikatory z białymi znakami, więc podział jest odwracalny).
- * Bez kandydatów - brak atrybutów.
+ * odrzuca identyfikatory puste i z białymi znakami, więc podział jest
+ * odwracalny). Serwer emituje go ZAWSZE, także bez kandydatów
+ * (`data-lcp-ids=""`): klient odróżnia wtedy hydratację bez kandydata (wszystko
+ * leniwe, jak w HTML-u serwera) od renderu czysto klienckiego (`"eager"` w
+ * pierwszej sekcji). `null` (renderer bez nośnika) - brak atrybutów.
  */
 export function lcpRootAttributes(
   rootId: string,
-  widgetIds: readonly string[],
+  widgetIds: readonly string[] | null,
 ): { "data-lcp-root": string; "data-lcp-ids": string } | undefined {
-  return widgetIds.length > 0
-    ? { "data-lcp-root": rootId, "data-lcp-ids": widgetIds.join(" ") }
-    : undefined;
+  return widgetIds ? { "data-lcp-root": rootId, "data-lcp-ids": widgetIds.join(" ") } : undefined;
 }
 
 /**
  * Kandydaci zapisani przez SERWER na korzeniu renderera o tym `useId()`. Woła
  * go pierwszy render kliencki (hydratacja): DOM serwera już istnieje, a wynik
- * jest dokładnie listą, z której serwer wyrenderował atrybuty i znaczniki.
- * Render czysto kliencki nie znajdzie korzenia (identyfikatory `useId()`
- * klienta mają inny kształt niż serwerowe) - pusta lista. Dokument ma jeden
- * korzeń Reacta (`hydrateRoot` TanStack Start), więc `useId()` jest w nim
- * unikalne i dopasowanie jest jednoznaczne.
+ * jest dokładnie listą, z której serwer wyrenderował atrybuty i znaczniki
+ * (pusty atrybut = pusta lista). `null` = brak korzenia, czyli render czysto
+ * kliencki (identyfikatory `useId()` klienta mają inny kształt niż serwerowe).
+ * Dopasowanie idzie po wartości `useId()`, unikalnej w obrębie korzenia Reacta
+ * (`hydrateRoot` TanStack Start), więc każdy właściciel czyta tylko swój nośnik.
  */
-export function readServerLcpCandidates(rootId: string): readonly string[] {
-  if (typeof document === "undefined") return NO_LCP_CANDIDATES;
+export function readServerLcpCandidates(rootId: string): readonly string[] | null {
+  if (typeof document === "undefined") return null;
   for (const root of document.querySelectorAll("[data-lcp-root]")) {
-    if (root.getAttribute("data-lcp-root") === rootId)
-      return root.getAttribute("data-lcp-ids")?.split(" ") ?? NO_LCP_CANDIDATES;
+    if (root.getAttribute("data-lcp-root") === rootId) {
+      const ids = root.getAttribute("data-lcp-ids");
+      return ids ? ids.split(" ") : NO_LCP_CANDIDATES;
+    }
   }
-  return NO_LCP_CANDIDATES;
+  return null;
 }
 
 /**
- * Atrybut znacznika na `<img>` kandydata. Pusty string renderuje się jako
- * `data-lcp-candidate=""` (selektor `img[data-lcp-candidate]`), `undefined`
- * nie renderuje atrybutu. Ten sam wynik w SSR i na kliencie.
+ * Atrybut znacznika na `<img>` kandydata (`LcpImage` = `true`). Pusty string
+ * renderuje się jako `data-lcp-candidate=""` (selektor
+ * `img[data-lcp-candidate]`), `undefined` nie renderuje atrybutu - także dla
+ * `"eager"` renderu klienckiego. Ten sam wynik w SSR i na kliencie.
  */
-export function lcpCandidateAttr(isLcp: boolean): "" | undefined {
-  return isLcp ? "" : undefined;
+export function lcpCandidateAttr(lcp: LcpImage): "" | undefined {
+  return lcp === true ? "" : undefined;
 }
 
 /**
@@ -155,7 +204,7 @@ export function preloadLcpImages(preloads: readonly LcpImagePreload[] | null | u
 
 /**
  * Hook trasy: preload kandydatów policzonych przez loader DLA GOŚCIA
- * (`builderHeroPreloads`). Działa WYŁĄCZNIE w SSR (`isServer`): loader liczy
+ * (`builderHeroPreloads`). Działa WYŁĄCZNIE w SSR (`isServerRender`): loader liczy
  * preloady tylko na serwerze, a przy hydratacji link jest już w `<head>`, więc
  * kod preloadu nie trafia do bundla klienta. SSR jest anonimowy z konstrukcji
  * (`GUEST_ACCESS_CONTEXT`); warunek sesji pilnuje, żeby preload gościa nigdy
@@ -164,5 +213,5 @@ export function preloadLcpImages(preloads: readonly LcpImagePreload[] | null | u
  */
 export function usePreloadLcpImages(preloads: readonly LcpImagePreload[] | null | undefined): void {
   const { isAuthenticated } = useAccessContext();
-  if (isServer && !isAuthenticated) preloadLcpImages(preloads);
+  if (isServerRender() && !isAuthenticated) preloadLcpImages(preloads);
 }

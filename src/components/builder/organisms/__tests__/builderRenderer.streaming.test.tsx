@@ -16,11 +16,14 @@
 //   zawsze na obrazie, który renderer maluje, a preload loadera (liczony dla
 //   gościa) nie idzie do dokumentu renderowanego z innym kontekstem.
 //   KANDYDATÓW LICZY TYLKO SERWER (runda 9, `check:bundle`): SSR zapisuje ich
-//   na korzeniu (`data-lcp-root` + `data-lcp-ids`), hydratacja odczytuje je
-//   z DOM-u, a render czysto kliencki nie ma kandydata. Dowód: pełna ścieżka
-//   `renderToString` (atrapa `isServer` = prawda) -> `hydrateRoot` bez
-//   rozjazdu, licznik wywołań `lcpCandidateIds` (tylko serwer) i kontrola
-//   negatywna (HTML bez nośnika = rozjazd zgłoszony przez Reacta),
+//   na korzeniu (`data-lcp-root` + `data-lcp-ids`, także pustą listę),
+//   hydratacja odczytuje je z DOM-u, a render czysto kliencki nie ma
+//   kandydata, tylko eager w pierwszej malowanej sekcji (runda 10, M1). Dowód:
+//   pełna ścieżka `renderToString` (atrapa `isServer` = prawda) ->
+//   `hydrateRoot` bez rozjazdu, licznik wywołań `lcpCandidateIds` (tylko
+//   serwer), kontrole negatywne (HTML bez nośnika = rozjazd zgłoszony przez
+//   Reacta), dwa korzenie-właściciele, sekwencja zalogowanego, ponowne użycie
+//   instancji z nowym dokumentem (m2) i `isServer` nieokreślone (dev, m1),
 // * `stream` włączone i wyłączone dla sekcji ZALEŻNEJ OD DANYCH i dla statycznej
 //   - z dowodem, że na ścieżce KLIENCKIEJ treść jest identyczna,
 // * brak danych źródłowych: widget listy wpisów z pustą odpowiedzią Supabase
@@ -79,9 +82,10 @@ vi.mock(
 
 // ŚRODOWISKO RENDERU. `isServer` z router-core rozstrzyga gałąź kandydata LCP
 // (serwer liczy, klient czyta nośnik z DOM-u) i hooka preloadu. Pod vitestem
-// moduł daje `undefined` (klient); `ssr()` niżej przełącza na serwer na czas
-// `renderToString`.
-const env = vi.hoisted(() => ({ server: false }));
+// moduł daje `undefined`; atrapa podaje `false` (klient), a `ssr()` niżej
+// przełącza na serwer na czas `renderToString`. `undefined` (dev, NODE_ENV=test)
+// sprawdza osobny test: wtedy rozstrzyga brak `document` (`isServerRender`).
+const env = vi.hoisted(() => ({ server: false as boolean | undefined }));
 vi.mock("@tanstack/router-core/isServer", () => ({
   get isServer() {
     return env.server;
@@ -103,17 +107,35 @@ vi.mock("@/lib/builder/lcpCandidate", async (importOriginal) => {
 
 // SESJA CZYTELNIKA. Domyślnie `null` - prawdziwy `useAuth` (wartość domyślna
 // kontekstu = gość, czyli stan renderu publicznego). Testy kandydata dla
-// ZALOGOWANEGO ustawiają sesję; reszta pliku nie widzi żadnej zmiany.
-const auth = vi.hoisted(() => ({ session: null as { user: { id: string } } | null }));
+// ZALOGOWANEGO ustawiają sesję; reszta pliku nie widzi żadnej zmiany. Sesja
+// jest zewnętrznym magazynem (`useSyncExternalStore`), więc `auth.set()` po
+// hydratacji przerysowuje konsumentów - jak rozstrzygnięcie sesji w produkcji
+// (`useAuth` startuje z `session = null`).
+const auth = vi.hoisted(() => {
+  const listeners = new Set<() => void>();
+  const store = {
+    session: null as { user: { id: string } } | null,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    snapshot: () => store.session,
+    set(session: { user: { id: string } } | null) {
+      store.session = session;
+      for (const listener of listeners) listener();
+    },
+  };
+  return store;
+});
 vi.mock("@/hooks/useAuth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useAuth")>();
+  const { useSyncExternalStore } = await import("react");
   return {
     ...actual,
     useAuth: () => {
       const base = actual.useAuth();
-      return auth.session
-        ? { ...base, session: auth.session, user: auth.session.user, loading: false }
-        : base;
+      const session = useSyncExternalStore(auth.subscribe, auth.snapshot, auth.snapshot);
+      return session ? { ...base, session, user: session.user, loading: false } : base;
     },
   };
 });
@@ -233,6 +255,8 @@ interface Hydrated {
   readonly recoverable: unknown[];
   /** `console.error` o rozjeździe hydratacji (React 19 dev: atrybuty „didn't match"). */
   readonly mismatches: string[];
+  /** Ponowny render TEJ SAMEJ instancji drzewa (ten sam korzeń i klient zapytań). */
+  readonly rerender: (ui: ReactElement) => Promise<void>;
 }
 
 const hydratedRoots: Array<{ root: Root; host: HTMLElement }> = [];
@@ -267,18 +291,23 @@ async function hydrated(
     const text = args.map(String).join(" ");
     if (/hydrat|didn't match/i.test(text)) mismatches.push(text);
   });
+  const client = nowyKlient();
+  let root: Root;
   try {
-    const root = hydrateRoot(
-      host,
-      <QueryClientProvider client={nowyKlient()}>{ui}</QueryClientProvider>,
-      { onRecoverableError: (error) => recoverable.push(error) },
-    );
+    root = hydrateRoot(host, <QueryClientProvider client={client}>{ui}</QueryClientProvider>, {
+      onRecoverableError: (error) => recoverable.push(error),
+    });
     hydratedRoots.push({ root, host });
     await act(async () => {});
   } finally {
     spy.mockRestore();
   }
-  return { host, recoverable, mismatches };
+  const rerender = async (next: ReactElement) => {
+    await act(async () =>
+      root.render(<QueryClientProvider client={client}>{next}</QueryClientProvider>),
+    );
+  };
+  return { host, recoverable, mismatches, rerender };
 }
 
 /** Hydratacja bez rozjazdu: ani błędu odzyskiwalnego, ani ostrzeżenia o atrybutach. */
@@ -337,18 +366,210 @@ describe("kandydat LCP strony (lcpOwner, P1.4)", () => {
     expectCleanHydration(view);
   });
 
-  it("render czysto kliencki (nawigacja SPA): właściciel bez kandydata i bez nośnika", () => {
-    // Bez HTML-u serwera nie ma czego odczytać. Każdy obraz jest leniwy - obraz
-    // i tak powstaje dopiero z DOM-u wstawionego przez JS, więc preload ani
-    // `fetchpriority` nie wyprzedzą skanera (go tu nie ma).
+  it("render czysto kliencki (nawigacja SPA): pierwsza sekcja eager, bez znacznika, nośnika i preloadu (M1)", () => {
+    // Bez HTML-u serwera nie ma czego odczytać, a kodu `lcpCandidates` w
+    // przeglądarce nie ma. Obraz leniwy czekałby jednak na commit, layout i
+    // obserwację IO nowej strony, więc pierwszy obraz widgetu PIERWSZEJ
+    // malowanej sekcji idzie eager (recenzja P1.4 runda 3, M1). Bez
+    // `data-lcp-candidate` (jedyny znacznik na stronie należy do SSR) i bez
+    // preloadu - reszta zostaje leniwa.
     lcp.calls = 0;
     const { container } = renderWithQueryClient(
-      <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" lcpOwner />,
+      <BuilderRenderer
+        doc={doc([0, 1, 2].map((i) => sekcjaZObrazem(`s${i}`, `https://example.org/spa-${i}.png`)))}
+        lang="pl"
+        lcpOwner
+      />,
     );
+    expect(priorytety(container)).toEqual(["eager", "lazy", "lazy"]);
     expect(kandydaci(container)).toHaveLength(0);
-    expect(priorytety(container)).toEqual(["lazy"]);
+    expect(korzen(container)?.hasAttribute("data-lcp-root")).toBe(false);
     expect(korzen(container)?.hasAttribute("data-lcp-ids")).toBe(false);
+    expect(document.head.querySelector('link[rel="preload"][href*="spa-"]')).toBeNull();
     expect(lcp.calls).toBe(0);
+  });
+
+  it("render czysto kliencki renderera BEZ lcpOwner: wszystko leniwe (powłoka nie dostaje eager)", () => {
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0"), sekcjaZObrazem("s1")])} lang="pl" />,
+    );
+    expect(priorytety(container)).toEqual(["lazy", "lazy"]);
+  });
+
+  it("render czysto kliencki: sekcja niewidoczna dla czytelnika nie zajmuje „pierwszej sekcji”", () => {
+    // Pierwsza MALOWANA sekcja - po filtrze dostępu `SectionsList`, nie
+    // pierwsza w dokumencie.
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer
+        doc={doc([
+          section("dla-czlonkow", sekcjaZObrazem("dla-czlonkow").children, {
+            advanced: gate({ auth: "user" }),
+          }),
+          sekcjaZObrazem("hero"),
+          sekcjaZObrazem("dalej"),
+        ])}
+        lang="pl"
+        lcpOwner
+      />,
+    );
+    expect(container.querySelector('[data-sec-id="dla-czlonkow"]')).toBeNull();
+    expect(priorytety(container)).toEqual(["eager", "lazy"]);
+  });
+
+  it("hydratacja strony BEZ kandydata: pusty nośnik, wszystko leniwe jak w HTML-u serwera (M1)", async () => {
+    // Okno 0: serwer nie wyznacza kandydata, ale właściciel i tak zapisuje
+    // nośnik (`data-lcp-ids=""`). Bez niego klient uznałby hydratację za render
+    // czysto kliencki i dał obrazowi sekcji 0 eager - rozjazd z HTML-em serwera.
+    const view = await hydrated(
+      <BuilderRenderer
+        doc={doc([sekcjaZObrazem("s0"), sekcjaZObrazem("s1")])}
+        lang="pl"
+        lcpOwner
+        aboveFoldCount={0}
+      />,
+    );
+    expect(korzen(view.host)?.getAttribute("data-lcp-ids")).toBe("");
+    expect(korzen(view.host)?.getAttribute("data-lcp-root")).toBeTruthy();
+    expect(priorytety(view.host)).toEqual(["lazy", "lazy"]);
+    expect(kandydaci(view.host)).toHaveLength(0);
+    expectCleanHydration(view);
+  });
+
+  it("KONTROLA NEGATYWNA: strona bez kandydata, nośnik usunięty - klient bierze render za kliencki i React zgłasza rozjazd", async () => {
+    const view = await hydrated(
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" lcpOwner aboveFoldCount={0} />,
+      (host) => {
+        korzen(host)?.removeAttribute("data-lcp-ids");
+        korzen(host)?.removeAttribute("data-lcp-root");
+      },
+    );
+    expect(view.mismatches.length + view.recoverable.length).toBeGreaterThan(0);
+  });
+
+  it("dwa korzenie-właściciele w jednym dokumencie: każdy czyta WŁASNY nośnik po `useId()` (m4)", async () => {
+    // Dopasowanie po wartości `useId()`, nie „pierwszy korzeń w DOM-ie”:
+    // odczyt cudzego nośnika dałby drugiemu rendererowi znacznik na obcym id,
+    // czyli rozjazd z HTML-em serwera.
+    const view = await hydrated(
+      <>
+        <BuilderRenderer
+          doc={doc([sekcjaZObrazem("a0", "https://example.org/a.png")])}
+          lang="pl"
+          lcpOwner
+        />
+        <BuilderRenderer
+          doc={doc([sekcjaZObrazem("b0", "https://example.org/b.png")])}
+          lang="pl"
+          lcpOwner
+        />
+      </>,
+    );
+    const korzenie = [...view.host.querySelectorAll<HTMLElement>("[data-builder-renderer]")];
+    expect(korzenie.map((r) => r.getAttribute("data-lcp-ids"))).toEqual(["a0-img", "b0-img"]);
+    expect(new Set(korzenie.map((r) => r.getAttribute("data-lcp-root"))).size).toBe(2);
+    expect(korzenie.map((r) => kandydaci(r)[0]?.getAttribute("alt"))).toEqual([
+      "Obraz a0",
+      "Obraz b0",
+    ]);
+    expectCleanHydration(view);
+  });
+
+  it("ZALOGOWANY w produkcji: SSR gość -> hydratacja gość -> sesja -> sekcja „tylko dla gości” znika; znacznik nie przechodzi na inny obraz (m4)", async () => {
+    // `useAuth` startuje z `session = null`, więc hydratacja przebiega jako
+    // gość, zgodnie z HTML-em serwera. Lista kandydatów jest utrwalona: po
+    // rozstrzygnięciu sesji obraz członka nie dostaje ani znacznika, ani
+    // priorytetu (brak priorytetu zamiast złego), a `eager` renderu
+    // klienckiego się nie włącza, bo korzeń ma nośnik z SSR.
+    const dokument = doc([
+      section("promo", sekcjaZObrazem("promo").children, { advanced: gate({ auth: "guest" }) }),
+      sekcjaZObrazem("hero"),
+    ]);
+    const view = await hydrated(<BuilderRenderer doc={dokument} lang="pl" lcpOwner />);
+    expect(kandydaci(view.host)[0]?.getAttribute("alt")).toBe("Obraz promo");
+    expectCleanHydration(view);
+    await act(async () => auth.set({ user: { id: "u-1" } }));
+    expect(view.host.querySelector('[data-sec-id="promo"]')).toBeNull();
+    expect(view.host.querySelector('[data-sec-id="hero"]')).not.toBeNull();
+    expect(kandydaci(view.host)).toHaveLength(0);
+    expect(priorytety(view.host)).toEqual(["lazy"]);
+    expect(korzen(view.host)?.getAttribute("data-lcp-ids")).toBe("promo-img");
+    expectCleanHydration(view);
+  });
+
+  it("ta sama instancja z NOWYM dokumentem (trasa `$`, /a -> /b): kandydaci A nie przechodzą na widget o tym samym id w B (m2)", async () => {
+    const dokumentA = doc([sekcjaZObrazem("s0"), sekcjaZObrazem("s1")]);
+    const view = await hydrated(<BuilderRenderer doc={dokumentA} lang="pl" lcpOwner />);
+    expect(korzen(view.host)?.getAttribute("data-lcp-ids")).toBe("s0-img");
+    // Odświeżenie bez zmian (React Query zostawia referencję): znacznik zostaje.
+    await view.rerender(<BuilderRenderer doc={dokumentA} lang="pl" lcpOwner />);
+    expect(kandydaci(view.host)).toHaveLength(1);
+    // Ten sam dokument zbudowany od nowa (`parseBuilderDoc` w każdym renderze -
+    // `support.tsx`, `EventModulePage`, literał sekcji wyróżnionej archiwum):
+    // odcisk z identyfikatorów sekcji jest ten sam, więc znacznik zostaje.
+    await view.rerender(
+      <BuilderRenderer
+        doc={doc([sekcjaZObrazem("s0"), sekcjaZObrazem("s1")])}
+        lang="pl"
+        lcpOwner
+      />,
+    );
+    expect(kandydaci(view.host)).toHaveLength(1);
+    expect(priorytety(view.host)).toEqual(["eager", "lazy"]);
+    // B: widget `s0-img` leży w sekcji 2 - dawniej dostałby znacznik i eager/high.
+    const dokumentB = doc([
+      sekcjaZObrazem("b0", "https://example.org/b0.png"),
+      sekcjaZObrazem("b1", "https://example.org/b1.png"),
+      section("b2", sekcjaZObrazem("s0", "https://example.org/b2.png").children),
+    ]);
+    await view.rerender(<BuilderRenderer doc={dokumentB} lang="pl" lcpOwner />);
+    expect(kandydaci(view.host)).toHaveLength(0);
+    expect(korzen(view.host)?.hasAttribute("data-lcp-ids")).toBe(false);
+    expect(korzen(view.host)?.hasAttribute("data-lcp-root")).toBe(false);
+    // Nowy dokument to render kliencki: eager wyłącznie pierwsza sekcja B.
+    expect(priorytety(view.host)).toEqual(["eager", "lazy", "lazy"]);
+    expect(
+      view.host
+        .querySelector('img[src="https://example.org/b2.png"]')
+        ?.getAttribute("fetchpriority"),
+    ).toBe("auto");
+  });
+
+  it("`isServer` nieokreślone (`bun run dev`, NODE_ENV=test): render bez `document` liczy kandydata jak serwer (m1)", () => {
+    // Warunek eksportu `development` daje `isServer` = undefined - dawniej serwer
+    // dev wchodził w gałąź klienta: bez kandydata, nośnika i preloadu.
+    env.server = undefined;
+    vi.stubGlobal("document", undefined);
+    let html = "";
+    try {
+      const src = "https://example.org/dev-hero.png";
+      function Trasa() {
+        usePreloadLcpImages([{ href: src }]);
+        return <BuilderRenderer doc={doc([sekcjaZObrazem("s0", src)])} lang="pl" lcpOwner />;
+      }
+      html = renderToString(
+        <QueryClientProvider client={nowyKlient()}>
+          <Trasa />
+        </QueryClientProvider>,
+      );
+    } finally {
+      vi.unstubAllGlobals();
+      env.server = false;
+    }
+    expect(html).toContain('data-lcp-ids="s0-img"');
+    expect(html.match(/data-lcp-candidate/g)).toHaveLength(1);
+    expect(imagePreloadLinks(html)).toHaveLength(1);
+    // Ta sama atrapa z `document` (przeglądarka w dev): gałąź klienta.
+    env.server = undefined;
+    try {
+      lcp.calls = 0;
+      const { container } = renderWithQueryClient(
+        <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" lcpOwner />,
+      );
+      expect(lcp.calls).toBe(0);
+      expect(kandydaci(container)).toHaveLength(0);
+    } finally {
+      env.server = false;
+    }
   });
 
   it("KONTROLA NEGATYWNA: HTML serwera bez nośnika - klient gubi kandydata, a React zgłasza rozjazd", async () => {
@@ -536,13 +757,14 @@ describe("SSR: jedno źródło preloadu obrazu LCP (werdykt LP-2)", () => {
     expect(imagePreloadLinks(html)).toHaveLength(2);
   });
 
-  it("strona bez obrazu w oknie: ani kandydata, ani preloadu obrazu", () => {
+  it("strona bez obrazu w oknie: ani kandydata, ani preloadu obrazu (nośnik pusty)", () => {
     const html = ssrPage(
       [],
       <BuilderRenderer doc={doc([simpleSection("a"), simpleSection("b")])} lang="pl" lcpOwner />,
     );
     expect(html).not.toContain("data-lcp-candidate");
-    expect(html).not.toContain("data-lcp-ids");
+    // Pusty nośnik: hydratacja wie, że serwer nie miał kandydata (M1).
+    expect(html).toContain('data-lcp-ids=""');
     expect(imagePreloadLinks(html)).toHaveLength(0);
   });
 

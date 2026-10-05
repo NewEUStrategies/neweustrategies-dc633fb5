@@ -82,7 +82,24 @@ const h = vi.hoisted(() => ({
   builderThrows: false,
   /** Sesja czytelnika (`null` = gość - wartość domyślna kontekstu `useAuth`). */
   session: null as { user: { id: string } } | null,
+  /** Wywołania `builderHeroPreloads` - moduł tylko-serwerowy (P1.4, recenzja runda 3, m3). */
+  heroPreloadCalls: 0,
 }));
+
+// `heroImage.ts` jest TYLKO SERWEROWY: loader woła go pod `isServerRender()`,
+// więc bundler wycina go z grafu przeglądarki. Licznik dowodzi, że nawigacja
+// SPA (loader na kliencie) go nie wywołuje - sam brak preloadu i nagłówka
+// `Link` by tego nie wykazał, bo hook i nagłówek są bramkowane osobno.
+vi.mock("@/lib/builder/heroImage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/builder/heroImage")>();
+  return {
+    ...actual,
+    builderHeroPreloads: (...args: Parameters<typeof actual.builderHeroPreloads>) => {
+      h.heroPreloadCalls += 1;
+      return actual.builderHeroPreloads(...args);
+    },
+  };
+});
 
 // Sesja czytelnika: domyślnie prawdziwy `useAuth` (gość). Blok kandydata LCP
 // ustawia sesję, żeby dowieść, że preload liczony w loaderze DLA GOŚCIA nie
@@ -610,6 +627,7 @@ describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
   beforeEach(() => {
     h.homeMode = "static_page";
     h.server = true;
+    h.heroPreloadCalls = 0;
   });
 
   it("kanwa jest rendererem-WŁAŚCICIELEM kandydata LCP strony", async () => {
@@ -637,6 +655,8 @@ describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
     ).toHaveLength(1);
     // Nagłówek `Link` (103 Early Hints na brzegu) karmiony TYM SAMYM kandydatem.
     const header = h.linkHeaders.find((value) => value.includes(src));
+    // Kontrola pozytywna licznika z testu nawigacji SPA niżej.
+    expect(h.heroPreloadCalls).toBeGreaterThan(0);
     expect(header).toContain('rel="preload"');
     expect(header).toContain("fetchpriority=high");
     expect(header).toContain(`imagesizes="${link?.getAttribute("imagesizes")}"`);
@@ -700,6 +720,8 @@ describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
     expect(imagePreload(view.links())).toBeUndefined();
     expect(preloadInHead("kandydat-spa")).toBeNull();
     expect(h.linkHeaders.some((value) => value.includes(src))).toBe(false);
+    // Loader na kliencie nie liczy kandydata (moduł tylko-serwerowy, m3).
+    expect(h.heroPreloadCalls).toBe(0);
   });
 
   it("kanwa BEZ obrazu w oknie: ani linku, ani nagłówka `Link`, ani preloadu", async () => {

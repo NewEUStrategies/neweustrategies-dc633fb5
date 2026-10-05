@@ -5,18 +5,21 @@
 // Uruchomienie: node --test scripts/performance/document-weight.test.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import {
+  SERVER_ONLY_CLIENT_MODULES,
   analyzeDocument,
   checkBudgets,
   imageResourceKey,
+  inventoryMatchesBuild,
   medianWeights,
   parseLinkHeader,
   ratchetBudgets,
+  serverOnlyModulesInClient,
   staticClosure,
 } from "./documentWeight.ts";
 import { aggregate, deltaLine, extractMetrics, median } from "./lighthouseReport.ts";
@@ -311,7 +314,9 @@ test("ścieżka LCP: preLcpTransferBytes = HTML gz + CSS gz + JS High gz + fonty
 test("plik progów: preLcpTransferBytes ma zapas z reguły pliku, więc niezmieniona baza jest zielona", () => {
   // Reguła `SKĄD max` dla bajtów: ceil(największa z 5 próbek x 1,02). Próg
   // równy jednemu pomiarowi (741 999, runda 2) był czerwony na tej samej bazie,
-  // bo gzip HTML-u waha się między seriami o ±16 B (PROVE P1.4 §3).
+  // bo gzip HTML-u waha się między seriami o ±16 B (PROVE P1.4 §3). `measured`
+  // to artefakt P1.4 (runda 10); baza fali 1 (cc1a3767, 742 000 B) musi
+  // zostać zielona, bo ratchet z P1.4 nie może oblać niezmienionej bazy.
   const file = JSON.parse(
     readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "document-weight-budgets.json"),
@@ -323,9 +328,53 @@ test("plik progów: preLcpTransferBytes ma zapas z reguły pliku, więc niezmien
   const budgets = { preLcpTransferBytes: budget };
   const at = (value) => checkBudgets({ preLcpTransferBytes: value }, budgets)[0].ok;
   assert.ok(at(budget.measured + 16), "rozrzut gzip HTML-u bazy mieści się w progu");
+  assert.ok(at(742000 + 16), "baza fali 1 (cc1a3767) z rozrzutem gzip jest zielona");
   assert.ok(at(budget.max));
   // KONTROLA NEGATYWNA: bajt ponad próg jest czerwony.
   assert.equal(at(budget.max + 1), false);
+});
+
+test("moduły tylko-serwerowe: KONTROLA NEGATYWNA - lcpCandidate.ts w chunku klienta oblewa", () => {
+  // Inwentarz chunków (BUNDLE_INVENTORY=1) zna moduły każdego chunku. Kandydat
+  // LCP i preload hero liczy wyłącznie serwer (P1.4, recenzja runda 3, m3).
+  const chunk = (file, ids, isEntry = false) => ({
+    file,
+    isEntry,
+    modules: ids.map((id) => ({ id, bytes: 1 })),
+  });
+  const clean = {
+    chunks: [
+      chunk("assets/index-A.js", ["/w/src/lib/builder/aboveFold.tsx"], true),
+      // Inny moduł o tej samej nazwie pliku - nie jest wyciekiem.
+      chunk("assets/archive-B.js", ["/w/src/lib/archive/heroImage.ts"]),
+    ],
+  };
+  assert.deepEqual(serverOnlyModulesInClient(clean), []);
+  const leaked = {
+    chunks: [
+      ...clean.chunks,
+      chunk("assets/index-C.js", ["/w/src/lib/builder/lcpCandidate.ts?v=1"], true),
+      chunk("assets/route-D.js", ["/w/src/lib/builder/heroImage.ts"]),
+    ],
+  };
+  assert.deepEqual(serverOnlyModulesInClient(leaked), [
+    { chunk: "assets/index-C.js", module: "src/lib/builder/lcpCandidate.ts" },
+    { chunk: "assets/route-D.js", module: "src/lib/builder/heroImage.ts" },
+  ]);
+  assert.deepEqual([...SERVER_ONLY_CLIENT_MODULES].sort(), [
+    "src/lib/builder/heroImage.ts",
+    "src/lib/builder/lcpCandidate.ts",
+  ]);
+});
+
+test("moduły tylko-serwerowe: inwentarz z innego buildu (inne hashe) jest pomijany, nie zaliczany", () => {
+  const dir = mkdtempSync(join(tmpdir(), "nes-dw-inv-"));
+  mkdirSync(join(dir, "assets"));
+  writeFileSync(join(dir, "assets/index-A.js"), "");
+  const inventory = (file) => ({ chunks: [{ file, isEntry: true, modules: [] }] });
+  assert.equal(inventoryMatchesBuild(inventory("assets/index-A.js"), dir), true);
+  assert.equal(inventoryMatchesBuild(inventory("assets/index-STARY.js"), dir), false);
+  assert.equal(inventoryMatchesBuild({ chunks: [] }, dir), false);
 });
 
 test("Link: imagesizes jest parsowane razem z imagesrcset", () => {

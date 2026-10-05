@@ -34,7 +34,8 @@
 //  * wykluczenia jak w heroImage.ts: para jasny/ciemny, logo, brak źródła,
 //    `hideOn.mobile` i `hideOn.desktop` (preload obrazu, którego jedno
 //    z urządzeń nie maluje, byłby czystą stratą pasma) oraz identyfikator
-//    widgetu z białym znakiem (nośnik `data-lcp-ids` dzieli listę po spacji).
+//    widgetu pusty albo z białym znakiem (nośnik `data-lcp-ids` dzieli listę
+//    po spacji, a pusty atrybut znaczy „bez kandydatów”).
 //
 // A/B: sekcja wariantu B nie jest malowana w SSR, więc nie istnieje dla
 // kandydata. Sekcja wariantu A JEST malowana wszystkim (deterministycznie, do
@@ -45,7 +46,7 @@
 // (preload == obraz eager) pominięcie A dawało leniwy obraz pierwszego malowania.
 //
 // TYLKO SERWER (runda poprawek 9). Kandydatów liczy render SSR właściciela
-// (BuilderRenderer, gałąź `isServer`) i loader trasy na serwerze
+// (BuilderRenderer, gałąź `isServerRender()`) i loader trasy na serwerze
 // (heroImage.ts); klient czyta wynik z atrybutów korzenia renderera
 // (aboveFold.tsx, `readServerLcpCandidates`). Bundel przeglądarki nie zawiera
 // tego modułu - w chunku wejściowym kosztował +1,1 KB gzip (PROVE P1.4).
@@ -321,11 +322,12 @@ export function lcpCandidates(
       const scored: Scored[] = [];
       for (const entry of paintedWidgets(section, ok)) {
         const kind = lcpCandidateKind(entry.widget);
-        // Identyfikator z białym znakiem nie przejdzie przez `data-lcp-ids`
-        // (lista po spacji, którą hydratacja dzieli z powrotem): znacznik
-        // byłby tylko w HTML-u serwera, czyli rozjazd hydratacji. Taki widget
-        // nie jest kandydatem - ani dla renderera, ani dla preloadu.
-        if (!kind || /\s/.test(entry.widget.id)) continue;
+        // Identyfikator pusty albo z białym znakiem nie przejdzie przez
+        // `data-lcp-ids` (lista po spacji, którą hydratacja dzieli z powrotem;
+        // pusty atrybut to „bez kandydatów”): znacznik byłby tylko w HTML-u
+        // serwera, czyli rozjazd hydratacji. Taki widget nie jest kandydatem -
+        // ani dla renderera, ani dla preloadu.
+        if (!kind || !entry.widget.id || /\s/.test(entry.widget.id)) continue;
         scored.push({
           ...entry,
           kind,

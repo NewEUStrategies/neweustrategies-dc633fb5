@@ -37,6 +37,7 @@ import {
   type SliderVariant,
 } from "./sliderOptions";
 import type { WidgetTypography } from "./types";
+import type { LcpImage } from "./aboveFold";
 import { resolveAuthorDisplay, type AuthorDisplay } from "./authorDisplay";
 import { AuthorByline } from "@/components/molecules/AuthorByline";
 
@@ -295,17 +296,19 @@ interface RenderProps {
   lang: "pl" | "en";
   preview?: boolean;
   /**
-   * Kandydat LCP strony (P1.4). Trzy stany, celowo:
-   *  - `true`  - widget wskazany przez `lcpCandidates`: slajd 0 eager +
-   *              fetchpriority=high + `data-lcp-candidate`,
-   *  - `false` - każdy inny slider w rendererze buildera: wszystkie slajdy
-   *              leniwe (dawniej slajd 0 był High bezwarunkowo - 4 z 9 obrazów
-   *              High na fixture `/` to były slidery spod zgięcia),
-   *  - brak    - render poza rendererem buildera (podgląd w panelu slidera,
-   *              testy jednostkowe): zachowanie historyczne, slajd 0 eager/high
-   *              BEZ znacznika, bo tu nie ma właściciela strony.
+   * Kandydat LCP strony (P1.4, `LcpImage`). Cztery stany, celowo:
+   *  - `true`    - widget wskazany przez `lcpCandidates`: slajd 0 eager +
+   *                fetchpriority=high + `data-lcp-candidate`,
+   *  - `"eager"` - pierwsza sekcja renderu czysto klienckiego właściciela
+   *                (nawigacja SPA): slajd 0 eager/high BEZ znacznika,
+   *  - `false`   - każdy inny slider w rendererze buildera: wszystkie slajdy
+   *                leniwe (dawniej slajd 0 był High bezwarunkowo - 4 z 9 obrazów
+   *                High na fixture `/` to były slidery spod zgięcia),
+   *  - brak      - render poza rendererem buildera (podgląd w panelu slidera,
+   *                testy jednostkowe): zachowanie historyczne, slajd 0 eager/high
+   *                BEZ znacznika, bo tu nie ma właściciela strony.
    */
-  lcp?: boolean;
+  lcp?: LcpImage;
 }
 
 interface ResilientSliderImageProps {
@@ -1072,7 +1075,7 @@ export function SliderRender({ config, lang, preview = false, lcp }: RenderProps
   const authorStyle: CSSProperties = { fontSize: `${author.nameSizePx}px`, lineHeight: 1.35 };
 
   const sharedProps = {
-    // Patrz `RenderProps.lcp`: brak = historycznie slajd 0 High, `false` = leniwie.
+    // Patrz `RenderProps.lcp`: brak i "eager" = slajd 0 High bez znacznika, `false` = leniwie.
     firstSlidePriority: lcp !== false,
     firstSlideLcpCandidate: lcp === true,
     items,

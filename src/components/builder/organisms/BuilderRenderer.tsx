@@ -60,10 +60,11 @@ import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
 import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
-import { isServer } from "@tanstack/router-core/isServer";
 import {
   LcpCandidatesProvider,
+  LcpEagerSection,
   NO_LCP_CANDIDATES,
+  isServerRender,
   lcpRootAttributes,
   readServerLcpCandidates,
 } from "@/lib/builder/aboveFold";
@@ -247,6 +248,15 @@ const DEBUG_OVERLAY_CSS = `
 [data-builder-renderer][data-debug="1"] [data-widget-id]::after{content:attr(data-debug-type) " · " attr(data-debug-h) "px";position:absolute;bottom:0;left:0;background:rgba(234,179,8,.95);color:#111;font:600 10px/1.4 ui-monospace,monospace;padding:1px 5px;z-index:9999;pointer-events:none;}
 `;
 
+/**
+ * Odcisk dokumentu, z którym renderer utrwalił kandydatów LCP: identyfikatory
+ * sekcji w kolejności. Ten sam dokument zbudowany od nowa (nowy obiekt) daje
+ * ten sam odcisk, inny dokument - inny (recenzja P1.4 runda 3, m2).
+ */
+function sectionIdsKey(doc: BuilderDocument): string {
+  return (Array.isArray(doc.sections) ? doc.sections : []).map((s) => s?.id).join(" ");
+}
+
 export function BuilderRenderer({
   doc,
   lang,
@@ -273,28 +283,39 @@ export function BuilderRenderer({
   // liczona WYŁĄCZNIE NA SERWERZE. Reguły `advanced.access` liczy TEN SAM
   // kontekst, którym `SectionsList`/`RenderSection`/`RenderColumn` filtrują
   // węzły (recenzja P1.4, B1). Serwer zapisuje wynik na korzeniu
-  // (`lcpRootAttributes`), a pierwszy render kliencki (hydratacja) odczytuje go
-  // z DOM-u serwera po `useId()` - bez kodu `lcpCandidates` w bundlu klienta
-  // (`isServer` wycina gałąź; PROVE P1.4: +1,1 KB gzip chunku wejściowego).
-  // Render czysto kliencki (nawigacja SPA) nie ma kandydata. Lista jest
-  // utrwalona na czas życia renderera: po zmianie dokumentu jej identyfikatory
-  // nie trafiają w nowe widgety, więc nie ma priorytetu zamiast złego.
-  // Kanwa (`editorPreview`) pokazuje oba warianty A/B i nie jest stroną dla
-  // czytelnika - bez kandydatów.
+  // (`lcpRootAttributes`, także pustą listę), a pierwszy render kliencki
+  // (hydratacja) odczytuje go z DOM-u serwera po `useId()` - bez kodu
+  // `lcpCandidates` w bundlu klienta (`isServerRender()` wycina gałąź; PROVE
+  // P1.4: +1,1 KB gzip chunku wejściowego). `ids` = `null` to brak nośnika:
+  // renderer bez `lcpOwner` albo render czysto kliencki (nawigacja SPA).
+  // Lista jest utrwalona RAZEM Z DOKUMENTEM (recenzja P1.4 runda 3, m2): ta sama
+  // instancja z innym dokumentem (trasa `$` przy przejściu /a -> /b) nie
+  // przenosi kandydatów A na widget o tym samym id w B. Dokument rozpoznaje
+  // odcisk z identyfikatorów sekcji, NIE tożsamość obiektu: część właścicieli
+  // buduje dokument w każdym renderze (`parseBuilderDoc` w `support.tsx`,
+  // `checkout.success.tsx`, `EventModulePage`; literał w sekcji wyróżnionej
+  // archiwum), więc porównanie referencji zdejmowałoby znacznik przy pierwszym
+  // ponownym renderze po hydratacji. Kanwa (`editorPreview`) pokazuje oba
+  // warianty A/B i nie jest stroną dla czytelnika - bez kandydatów.
   const lcpRootId = useId();
   const access = useAccessContext();
   const isLcpOwner = lcpOwner && !editorPreview;
-  const [ownedLcpIds] = useState<readonly string[]>(() =>
-    !isLcpOwner
-      ? NO_LCP_CANDIDATES
-      : isServer
+  const lcpDocKey = useMemo(() => sectionIdsKey(safeDoc), [safeDoc]);
+  const [ownedLcp] = useState(() => ({
+    docKey: lcpDocKey,
+    ids: !isLcpOwner
+      ? null
+      : isServerRender()
         ? lcpCandidateIds(safeDoc, {
             sections: aboveFoldCount,
             isAccessible: (rule) => evaluateAccess(rule, access),
           })
         : readServerLcpCandidates(lcpRootId),
-  );
-  const lcpWidgetIds = isLcpOwner ? ownedLcpIds : NO_LCP_CANDIDATES;
+  }));
+  const lcpIds = isLcpOwner && ownedLcp.docKey === lcpDocKey ? ownedLcp.ids : null;
+  // Właściciel bez nośnika (render czysto kliencki, nowy dokument): bez
+  // kandydata, ale pierwsza malowana sekcja ładuje obrazy eager (M1).
+  const lcpEagerFirst = isLcpOwner && !lcpIds;
 
   useEffect(() => {
     if (device) {
@@ -340,15 +361,16 @@ export function BuilderRenderer({
           data-builder-renderer
           data-debug={debug ? "1" : "0"}
           data-device={effectiveDevice}
-          {...lcpRootAttributes(lcpRootId, lcpWidgetIds)}
+          {...lcpRootAttributes(lcpRootId, lcpIds)}
         >
-          <LcpCandidatesProvider widgetIds={lcpWidgetIds}>
+          <LcpCandidatesProvider widgetIds={lcpIds ?? NO_LCP_CANDIDATES}>
             <SectionsList
               sections={safeDoc.sections}
               lang={lang}
               device={effectiveDevice}
               stream={stream}
               editorPreview={editorPreview}
+              lcpEagerFirst={lcpEagerFirst}
             />
           </LcpCandidatesProvider>
         </div>
@@ -395,12 +417,15 @@ const SectionsList = memo(function SectionsList({
   device,
   stream,
   editorPreview,
+  lcpEagerFirst,
 }: {
   sections: SectionNode[];
   lang: "pl" | "en";
   device: Device;
   stream: boolean;
   editorPreview: boolean;
+  /** Render czysto kliencki właściciela: pierwsza malowana sekcja ładuje obrazy eager (`LcpImage`). */
+  lcpEagerFirst: boolean;
 }) {
   const accessCtx = useAccessContext();
   const safeSections = Array.isArray(sections) ? sections : [];
@@ -416,16 +441,21 @@ const SectionsList = memo(function SectionsList({
   );
   return (
     <>
-      {visible.map((s) => {
+      {visible.map((s, index) => {
         const abTag = s.advanced?.abTest;
-        const rendered = (
-          <RenderErrorBoundary label={`section:${s.id}`}>
-            <RenderSection section={s} lang={lang} device={device} />
-          </RenderErrorBoundary>
-        );
         // Priorytet obrazów NIE wynika już z indeksu sekcji: kandydatów LCP
         // wyznacza renderer-właściciel (`lcpOwner`) i podaje kontekstem
-        // `LcpCandidatesProvider` nad listą sekcji.
+        // `LcpCandidatesProvider` nad listą sekcji. Indeks liczy się wyłącznie
+        // w renderze czysto klienckim właściciela (`lcpEagerFirst`, bez
+        // znacznika i preloadu); `LcpEagerSection` owija KAŻDĄ sekcję, więc
+        // drzewo jest identyczne w SSR i przy hydratacji.
+        const rendered = (
+          <RenderErrorBoundary label={`section:${s.id}`}>
+            <LcpEagerSection eager={lcpEagerFirst && index === 0}>
+              <RenderSection section={s} lang={lang} device={device} />
+            </LcpEagerSection>
+          </RenderErrorBoundary>
+        );
         return (
           <StreamingSection key={s.id} section={s} lang={lang} device={device} enabled={stream}>
             {abTag && !editorPreview && assignments ? (

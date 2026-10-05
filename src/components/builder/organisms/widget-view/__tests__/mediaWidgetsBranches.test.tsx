@@ -9,7 +9,7 @@ import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WidgetView } from "@/components/builder/organisms/WidgetView";
 import type { WidgetNode, WidgetType, WidgetContent } from "@/lib/builder/types";
-import { LcpCandidatesProvider } from "@/lib/builder/aboveFold";
+import { LcpCandidatesProvider, LcpEagerSection } from "@/lib/builder/aboveFold";
 import { BuilderImageSlotContext } from "@/lib/builder/imageSlotContext";
 import { imageWidgetSizes } from "@/lib/builder/widgetImageSizes";
 import type { ImageSlot } from "@/lib/builder/imageSlot";
@@ -62,22 +62,31 @@ let nextId = 0;
 function renderNode(
   type: WidgetType,
   content: WidgetContent,
-  opts: { lang?: "pl" | "en"; editable?: boolean; lcpCandidate?: boolean; slot?: ImageSlot } = {},
+  opts: {
+    lang?: "pl" | "en";
+    editable?: boolean;
+    lcpCandidate?: boolean;
+    /** Pierwsza sekcja renderu czysto klienckiego właściciela (`LcpImage` = "eager"). */
+    eagerSection?: boolean;
+    slot?: ImageSlot;
+  } = {},
 ) {
   const node: WidgetNode = { id: `mw-${nextId++}`, kind: "widget", type, content };
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <LcpCandidatesProvider widgetIds={opts.lcpCandidate ? [node.id] : []}>
-        <BuilderImageSlotContext.Provider value={opts.slot}>
-          <WidgetView
-            node={node}
-            lang={opts.lang ?? "pl"}
-            device="desktop"
-            editable={opts.editable ?? false}
-            onContentChange={opts.editable ? () => {} : undefined}
-          />
-        </BuilderImageSlotContext.Provider>
+        <LcpEagerSection eager={opts.eagerSection ?? false}>
+          <BuilderImageSlotContext.Provider value={opts.slot}>
+            <WidgetView
+              node={node}
+              lang={opts.lang ?? "pl"}
+              device="desktop"
+              editable={opts.editable ?? false}
+              onContentChange={opts.editable ? () => {} : undefined}
+            />
+          </BuilderImageSlotContext.Provider>
+        </LcpEagerSection>
       </LcpCandidatesProvider>
     </QueryClientProvider>,
   );
@@ -186,6 +195,26 @@ describe("ImageWidget - logo strony i fallbacki", () => {
       expect(container.querySelector("a")?.parentElement?.style.width).toBe("100%");
     },
   );
+
+  it("first section of a pure client render (`eager`): priority WITHOUT the marker; the candidate still wins", () => {
+    // Recenzja P1.4 runda 3, M1: nawigacja SPA nie ma kandydata (kod
+    // `lcpCandidates` jest tylko na serwerze), ale obraz pierwszej sekcji nie
+    // może czekać na obserwację IO. `data-lcp-candidate` zostaje jedyny na
+    // stronie - należy wyłącznie do kandydata z SSR.
+    const content = { src: "https://p.supabase.co/storage/v1/object/public/covers/spa.jpg" };
+    const eager = renderNode("image", content, { eagerSection: true }).container.querySelector(
+      "img",
+    )!;
+    expect(eager).toHaveAttribute("loading", "eager");
+    expect(eager.hasAttribute("data-lcp-candidate")).toBe(false);
+    cleanup();
+    const both = renderNode("image", content, {
+      eagerSection: true,
+      lcpCandidate: true,
+    }).container.querySelector("img")!;
+    expect(both).toHaveAttribute("data-lcp-candidate", "");
+    expect(both).toHaveAttribute("fetchpriority", "high");
+  });
 
   it("framed image candidate: priority and marker land on the visible foreground img", () => {
     const { container } = renderNode(
@@ -346,6 +375,15 @@ describe("kandydat LCP - slider, dark-featured-card, post-lista", () => {
     expect(container.querySelectorAll("[data-lcp-candidate]")).toHaveLength(1);
   });
 
+  it("slider w pierwszej sekcji renderu klienckiego (`eager`): slajd 0 eager BEZ znacznika", async () => {
+    const { container } = renderNode("slider", slides, { eagerSection: true });
+    await waitFor(() => expect(container.querySelector("img.eh-img")).not.toBeNull());
+    const imgs = container.querySelectorAll("img.eh-img");
+    expect(imgs[0]).toHaveAttribute("loading", "eager");
+    expect(imgs[1]).toHaveAttribute("loading", "lazy");
+    expect(container.querySelectorAll("[data-lcp-candidate]")).toHaveLength(0);
+  });
+
   it("slider spoza kandydata NIE dziedziczy historycznego „slajd 0 zawsze High”", async () => {
     // 4 z 9 obrazów High na fixture `/` to były slidery multi-card spod zgięcia.
     const { container } = renderNode("slider", slides);
@@ -395,6 +433,14 @@ describe("kandydat LCP - slider, dark-featured-card, post-lista", () => {
     expect(
       [...other.container.querySelectorAll("img")].map((i) => i.getAttribute("loading")),
     ).toEqual(["lazy", "lazy", "lazy"]);
+    cleanup();
+    // Pierwsza sekcja renderu klienckiego: lead eager, bez znacznika.
+    const spa = renderNode("post-list", { variant: "card" }, { eagerSection: true });
+    await waitFor(() => expect(spa.container.querySelectorAll("img")).toHaveLength(3));
+    expect(
+      [...spa.container.querySelectorAll("img")].map((i) => i.getAttribute("loading")),
+    ).toEqual(["eager", "lazy", "lazy"]);
+    expect(spa.container.querySelectorAll("[data-lcp-candidate]")).toHaveLength(0);
   });
 
   // ZAREJESTROWANY DEFEKT (`it.fails`, recenzja P1.4 M1) - POZA WŁASNOŚCIĄ P1.4.

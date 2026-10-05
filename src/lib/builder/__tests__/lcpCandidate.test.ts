@@ -15,8 +15,13 @@
 //     inner-sekcja, kolumna inner-sekcji i widget z regułą `advanced.access`,
 //     której czytelnik nie spełnia, nie dają kandydata - ani nie zajmują okna,
 //     ani nie zmieniają podziału slotu rodzeństwa.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+//  6. MODUŁ (i heroImage.ts) JEST TYLKO SERWEROWY (recenzja P1.4 runda 3, m3):
+//     każde użycie w kodzie klienta stoi w gałęzi `isServerRender()`, a stała
+//     `isServer` router-core w buildzie przeglądarki to literał `false` - inaczej
+//     bundler nie wytnie gałęzi i moduły po cichu wrócą do chunku wejściowego.
+import { readFileSync, readdirSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
 import {
@@ -475,6 +480,16 @@ describe("lcpCandidateKind - wykluczenia jak w heroImage.ts", () => {
     expect(lcpCandidates(doc).map((c) => c.widget.id)).toEqual([next.id]);
   });
 
+  it("pusty identyfikator nie jest kandydatem - pusty `data-lcp-ids` znaczy „bez kandydatów”", () => {
+    // Serwer emituje nośnik także bez kandydatów (`data-lcp-ids=""`, recenzja
+    // P1.4 runda 3, M1), a hydratacja czyta pusty atrybut jako pustą listę.
+    // Kandydat o id "" dałby ten sam atrybut - znacznik tylko w HTML-u serwera.
+    const empty = image(`${COVER}?pusty=1`, {});
+    empty.id = "";
+    const next = image();
+    expect(lcpCandidateIds(docWith([section([column([empty, next])])]))).toEqual([next.id]);
+  });
+
   it("katalog wariantów wiodących post-listy jest strażnikiem typu", () => {
     for (const variant of POST_LIST_LEAD_VARIANTS)
       expect(isPostListLeadVariant(variant)).toBe(true);
@@ -498,5 +513,186 @@ describe("lcpCandidate.ts - czystość modułu (check:entry-purity)", () => {
       const leafSource = readFileSync(join(process.cwd(), leaf), "utf8");
       expect(leafSource, leaf).not.toMatch(/^import\s/m);
     }
+  });
+});
+
+describe("lcpCandidate.ts i heroImage.ts - moduły TYLKO SERWEROWE (recenzja P1.4 runda 3, m3)", () => {
+  const ROOT = process.cwd();
+  const SERVER_ONLY = ["src/lib/builder/lcpCandidate.ts", "src/lib/builder/heroImage.ts"];
+
+  function sourceFiles(dir: string): string[] {
+    return readdirSync(join(ROOT, dir), { recursive: true, encoding: "utf8" })
+      .map((file) => join(dir, file))
+      .filter(
+        (file) =>
+          /\.(ts|tsx)$/.test(file) &&
+          !/(^|\/)__tests__\//.test(file) &&
+          !/\.(test|spec)\.tsx?$/.test(file) &&
+          !file.endsWith(".d.ts"),
+      );
+  }
+
+  /** Ścieżka modułu tylko-serwerowego, do którego prowadzi specyfikator (albo `null`). */
+  function serverOnlyTarget(fromFile: string, specifier: string): string | null {
+    const base = specifier.startsWith("@/")
+      ? join("src", specifier.slice(2))
+      : specifier.startsWith(".")
+        ? relative(ROOT, resolve(ROOT, dirname(fromFile), specifier))
+        : null;
+    if (!base) return null;
+    return SERVER_ONLY.find((file) => file === base || file === `${base}.ts`) ?? null;
+  }
+
+  /** Warunek POTWIERDZA serwer: `isServerRender()` albo koniunkcja z nim. */
+  function assertsServer(expr: ts.Expression): boolean {
+    const node = ts.isParenthesizedExpression(expr) ? expr.expression : expr;
+    if (ts.isCallExpression(node))
+      return (
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "isServerRender" &&
+        node.arguments.length === 0
+      );
+    return (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
+      (assertsServer(node.left) || assertsServer(node.right))
+    );
+  }
+
+  /** Czy węzeł leży w gałęzi wykonywanej WYŁĄCZNIE na serwerze. */
+  function underServerBranch(node: ts.Node): boolean {
+    for (let child = node, parent = node.parent; parent; child = parent, parent = parent.parent) {
+      if (ts.isConditionalExpression(parent) && child === parent.whenTrue)
+        if (assertsServer(parent.condition)) return true;
+      if (ts.isIfStatement(parent) && child === parent.thenStatement)
+        if (assertsServer(parent.expression)) return true;
+      if (
+        ts.isBinaryExpression(parent) &&
+        parent.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken &&
+        child === parent.right &&
+        assertsServer(parent.left)
+      )
+        return true;
+    }
+    return false;
+  }
+
+  function inTypePosition(node: ts.Node): boolean {
+    for (let p = node.parent; p; p = p.parent) if (ts.isTypeNode(p)) return true;
+    return false;
+  }
+
+  /** Użycia modułów tylko-serwerowych w pliku: importer, nazwa, linia, czy pod `isServerRender()`. */
+  function serverOnlyUses(file: string) {
+    const text = readFileSync(join(ROOT, file), "utf8");
+    const uses: Array<{ file: string; name: string; line: number; guarded: boolean }> = [];
+    // Szybkie sito: drzewo składni tylko dla plików, które w ogóle wymieniają moduł.
+    if (!/lcpCandidate|heroImage/.test(text)) return uses;
+    const kind = file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
+    const bindings = new Set<string>();
+    const record = (node: ts.Node, name: string) =>
+      uses.push({
+        file,
+        name,
+        line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+        guarded: underServerBranch(node),
+      });
+    for (const statement of sf.statements) {
+      if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
+        continue;
+      if (!serverOnlyTarget(file, statement.moduleSpecifier.text)) continue;
+      const clause = statement.importClause;
+      if (!clause || clause.isTypeOnly) continue;
+      if (clause.name) bindings.add(clause.name.text);
+      const named = clause.namedBindings;
+      if (named && ts.isNamespaceImport(named)) bindings.add(named.name.text);
+      if (named && ts.isNamedImports(named))
+        for (const el of named.elements) if (!el.isTypeOnly) bindings.add(el.name.text);
+    }
+    const visit = (node: ts.Node) => {
+      if (ts.isImportDeclaration(node)) return;
+      if (
+        ts.isCallExpression(node) &&
+        node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        node.arguments[0] &&
+        ts.isStringLiteral(node.arguments[0]) &&
+        serverOnlyTarget(file, node.arguments[0].text)
+      )
+        record(node, `import("${node.arguments[0].text}")`);
+      if (
+        ts.isIdentifier(node) &&
+        bindings.has(node.text) &&
+        !inTypePosition(node) &&
+        !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node) &&
+        !(ts.isPropertyAssignment(node.parent) && node.parent.name === node)
+      )
+        record(node, node.text);
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+    return uses;
+  }
+
+  const uses = sourceFiles("src")
+    .filter((file) => !SERVER_ONLY.includes(file))
+    .flatMap(serverOnlyUses);
+
+  it("importują je wyłącznie renderer-właściciel i dwie trasy z preloadem", () => {
+    // Nowy importer wymaga świadomej decyzji: kod klienta musi wołać te moduły
+    // pod `isServerRender()` (test niżej), inaczej wracają do bundla klienta.
+    expect([...new Set(uses.map((use) => use.file))].sort()).toEqual(
+      [
+        "src/components/builder/organisms/BuilderRenderer.tsx",
+        "src/routes/$.tsx",
+        "src/routes/index.tsx",
+      ].sort(),
+    );
+  });
+
+  it("każde użycie w kodzie klienta stoi w gałęzi `isServerRender()`", () => {
+    expect(uses.length).toBeGreaterThanOrEqual(5);
+    expect(uses.filter((use) => !use.guarded)).toEqual([]);
+  });
+
+  it("KONTROLA NEGATYWNA: detektor widzi wywołanie poza gałęzią i warunek zanegowany", () => {
+    const probe = (code: string) => {
+      const sf = ts.createSourceFile("probe.ts", code, ts.ScriptTarget.Latest, true);
+      let guarded: boolean | undefined;
+      const visit = (node: ts.Node) => {
+        if (ts.isIdentifier(node) && node.text === "builderHeroPreloads" && !guarded)
+          guarded = underServerBranch(node);
+        ts.forEachChild(node, visit);
+      };
+      visit(sf);
+      return guarded;
+    };
+    expect(probe("const a = isServerRender() ? builderHeroPreloads(d) : [];")).toBe(true);
+    expect(probe("if (isServerRender() && x) builderHeroPreloads(d);")).toBe(true);
+    expect(probe("const a = builderHeroPreloads(d);")).toBe(false);
+    expect(probe("const a = !isServerRender() ? builderHeroPreloads(d) : [];")).toBe(false);
+    expect(probe("const a = isServerRender() || builderHeroPreloads(d);")).toBe(false);
+    expect(probe("const a = isServerRender() ? [] : builderHeroPreloads(d);")).toBe(false);
+  });
+
+  it("`isServer` router-core w buildzie przeglądarki to literał `false` (bundler zwija gałąź)", () => {
+    // Warunki eksportu klienta Vite w buildzie: browser/module/import/production.
+    // Pierwszy pasujący klucz mapy `exports` musi wskazywać plik ze STAŁĄ
+    // `false` - `undefined` (warunek `development`) albo wyrażenie
+    // przywróciłoby `lcpCandidate.ts` i `heroImage.ts` do chunku wejściowego.
+    const pkgDir = join(ROOT, "node_modules/@tanstack/router-core");
+    const pkg = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8")) as {
+      exports: Record<string, unknown>;
+    };
+    const active = new Set(["browser", "module", "import", "production", "default"]);
+    let entry: unknown = pkg.exports["./isServer"];
+    while (entry && typeof entry === "object") {
+      const key = Object.keys(entry).find((k) => active.has(k));
+      expect(key, "warunek eksportu klienta dla ./isServer").toBeDefined();
+      entry = (entry as Record<string, unknown>)[key as string];
+    }
+    expect(typeof entry).toBe("string");
+    const clientFile = readFileSync(join(pkgDir, entry as string), "utf8");
+    expect(clientFile).toMatch(/\bconst isServer = false;/);
   });
 });

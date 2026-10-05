@@ -100,7 +100,7 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
     onContentChange,
     effectiveMode,
     activeTypography,
-    isLcp,
+    lcp,
     c,
     canEdit,
     commit,
@@ -115,7 +115,7 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
     editable,
     onContentChange,
     activeTypography,
-    isLcp,
+    lcp,
   );
   if (simple !== undefined) return wrap(simple);
 
@@ -147,7 +147,7 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
     }
     case "post-list": {
       return wrap(
-        <PostListView c={c} lang={lang} typography={activeTypography ?? undefined} isLcp={isLcp} />,
+        <PostListView c={c} lang={lang} typography={activeTypography ?? undefined} lcp={lcp} />,
       );
     }
     case "carousel": {
@@ -157,7 +157,7 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
           lang={lang}
           carousel
           typography={activeTypography ?? undefined}
-          isLcp={isLcp}
+          lcp={lcp}
         />,
       );
     }
@@ -499,8 +499,8 @@ export const WidgetView = memo(function WidgetView(props: ViewProps) {
                 alt=""
                 responsive
                 sizes={WIDGET_MEDIA_SPLIT_SIZES}
-                priority={isLcp}
-                data-lcp-candidate={lcpCandidateAttr(isLcp)}
+                priority={lcp !== false}
+                data-lcp-candidate={lcpCandidateAttr(lcp)}
                 className={`absolute block h-full w-full object-contain ${imgAnimCls}`}
               />
             </div>

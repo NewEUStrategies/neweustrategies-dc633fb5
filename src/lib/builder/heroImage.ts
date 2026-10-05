@@ -38,7 +38,8 @@ import {
 // w chunku wejściowym - recenzja P1.4, M3).
 //
 // TYLKO SERWER (runda poprawek 9). Trasy (`index.tsx`, `$.tsx`) wołają ten
-// moduł wyłącznie w gałęzi `isServer` loadera, więc bundel przeglądarki go nie
+// moduł wyłącznie w gałęzi `isServerRender()` loadera (pilnuje tego test
+// źródeł w `lcpCandidate.test.ts`), więc bundel przeglądarki go nie
 // zawiera (PROVE P1.4: moduł razem z `lcpCandidate.ts` kosztował chunk
 // wejściowy +1,1 KB gzip). Nawigacja SPA nie preloaduje obrazu: render czysto
 // kliencki nie ma też kandydata (aboveFold.tsx), więc preload byłby

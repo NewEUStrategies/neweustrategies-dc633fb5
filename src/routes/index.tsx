@@ -42,7 +42,7 @@ import {
   type ImagePreloadInput,
 } from "@/lib/seo/meta";
 import { builderHeroPreloads, lcpPreloadLinkHeaderValue } from "@/lib/builder/heroImage";
-import { usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
+import { isServerRender, usePreloadLcpImages, type LcpImagePreload } from "@/lib/builder/aboveFold";
 import { buildImageSrcSet } from "@/lib/cropSizes";
 import { CARD_IMAGE_SIZES } from "@/lib/cardImageSizes";
 import {
@@ -162,10 +162,11 @@ export const Route = createFileRoute("/")({
     // do `preload()` z react-dom, który dzieli klucz zasobu z automatycznym
     // preloadem `<img>` - w dokumencie zostaje DOKŁADNIE jeden preload na
     // kandydata (dawniej: link z `head()` + preload Reacta = duplikat).
-    // `heroPreloads` liczy WYŁĄCZNIE serwer (`isServer` wycina `heroImage.ts`
-    // i `lcpCandidate.ts` z bundla klienta - PROVE P1.4, `check:bundle`);
+    // `heroPreloads` liczy WYŁĄCZNIE serwer (`isServerRender()` wycina
+    // `heroImage.ts` i `lcpCandidate.ts` z bundla klienta - PROVE P1.4,
+    // `check:bundle`; w `bun run dev` serwer rozpoznaje brak `document`);
     // nawigacja SPA dostaje pustą listę, bo render czysto kliencki nie ma też
-    // kandydata (lib/builder/aboveFold.tsx).
+    // kandydata ani preloadu (lib/builder/aboveFold.tsx).
     let coverPreload: ImagePreloadInput | null = null;
     let heroPreloads: LcpImagePreload[] = [];
 
@@ -247,7 +248,7 @@ export const Route = createFileRoute("/")({
         // `builderHeroPreloads`), więc obraz kandydata pozostaje w pełni
         // wyznaczalny: komponent trasy wyemituje go przez `preload()` z
         // react-dom, a loader jako nagłówek `Link`.
-        if (isServer) heroPreloads = builderHeroPreloads(doc, queryClient, lang);
+        if (isServerRender()) heroPreloads = builderHeroPreloads(doc, queryClient, lang);
       }
     }
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
@@ -267,7 +268,7 @@ export const Route = createFileRoute("/")({
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    if (isServer) {
+    if (isServerRender()) {
       for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
     }
     // An unknown mode also means an unknown SEO document. Do not advertise
