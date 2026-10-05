@@ -50,6 +50,65 @@ function shallowEqual(a: unknown, b: unknown): boolean {
   return true;
 }
 
+/**
+ * DIETA ZNACZNIKÓW RAMKI (P2.6, HW-6). Domyślna ramka blokowego widgetu
+ * niosła ten sam `style=""` u każdego widgetu strony (137 B × 23 na
+ * produkcji): parser dokumentu rozbierał go jako CSS przy każdym elemencie
+ * w zadaniu ParseHTML, które po boocie za LCP (C3) wchodzi do okna TBT.
+ *
+ * Deklaracja zdejmowana z inline style ma tu klasę z IDENTYCZNĄ deklaracją
+ * i trafia do `className` tego samego elementu. Wartości per instancja
+ * (szerokość inna niż 100 %, marginesy `auto`, jawna wysokość, `flex`)
+ * zostają inline i - jak dotąd - wygrywają z klasą (np. `width:50%` z
+ * `w-full`). Kaskada się nie zmienia, bo jedyne niewarstwowe reguły trafiające
+ * w `[data-widget-id]` (`styles.css`, gałęzie mobilne) mają `!important`
+ * albo tę samą wartość, a własny CSS widgetu jest scopowany POD `[data-w-id]`
+ * (potomek ramki), więc ramki nie dosięga. Geometria jest wspólna dla trybu
+ * jasnego i ciemnego (AGENTS.md) - tabela nie zależy od motywu.
+ */
+const FRAME_DECLARATION_CLASSES: ReadonlyArray<
+  readonly [property: keyof CSSProperties, value: string | number, className: string]
+> = [
+  ["width", "100%", "w-full"],
+  ["minWidth", 0, "min-w-0"],
+  ["maxWidth", "100%", "max-w-full"],
+  ["boxSizing", "border-box", "box-border"],
+  ["alignSelf", "stretch", "self-stretch"],
+  ["justifySelf", "stretch", "justify-self-stretch"],
+  ["marginTop", 0, "mt-0"],
+  ["marginBottom", 0, "mb-0"],
+];
+
+/**
+ * Rozdziela styl ramki na klasy (stałe deklaracje z tabeli wyżej) i resztę
+ * inline. Czysta funkcja wejścia, więc SSR i klient liczą ten sam wynik
+ * (parytet hydratacji). Pusty styl daje `undefined` - bez atrybutu `style`.
+ */
+function splitFrameStyle(
+  baseClass: string,
+  style: CSSProperties,
+): { className: string; style: CSSProperties | undefined } {
+  const rest: Record<string, unknown> = { ...style };
+  const classes = baseClass.split(" ");
+  for (const [property, value, className] of FRAME_DECLARATION_CLASSES) {
+    if (rest[property] !== value) continue;
+    delete rest[property];
+    if (!classes.includes(className)) classes.push(className);
+  }
+  // `mt-0 mb-0` → `my-0` (`margin-block: 0`): ta sama para deklaracji w
+  // poziomym trybie pisma, 5 B mniej na widget.
+  const mt = classes.indexOf("mt-0");
+  const mb = classes.indexOf("mb-0");
+  if (mt >= 0 && mb >= 0) {
+    classes.splice(Math.max(mt, mb), 1);
+    classes.splice(Math.min(mt, mb), 1, "my-0");
+  }
+  return {
+    className: classes.join(" "),
+    style: Object.keys(rest).length > 0 ? (rest as CSSProperties) : undefined,
+  };
+}
+
 function widgetsEqual(prev: WidgetNode, next: WidgetNode): boolean {
   if (prev === next) return true;
   if (prev.id !== next.id || prev.type !== next.type) return false;
@@ -129,7 +188,8 @@ export const BuilderWidgetNode = memo(
           : null),
         boxSizing: "border-box",
       };
-      return { itemClass: computedItemClass, style: computedStyle };
+      const split = splitFrameStyle(computedItemClass, computedStyle);
+      return { itemClass: split.className, style: split.style };
     }, [w, device, inRow, onlyOneBlock]);
 
     const adv = w.advanced as

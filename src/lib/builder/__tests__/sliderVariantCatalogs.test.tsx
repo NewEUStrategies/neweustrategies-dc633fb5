@@ -48,6 +48,8 @@
 //    pliki i własne atrapy routera.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderToString } from "react-dom/server";
 import { renderWithQueryClient as render } from "@/test/renderWithQueryClient";
 import type { SupabaseFromStub } from "@/test/supabase";
 
@@ -873,7 +875,13 @@ describe("SliderRender - rozstrzyganie treści slajdu", () => {
     const { container } = renderSlider({ variant: "multi-card" });
     const imgs = [...container.querySelectorAll<HTMLImageElement>("img[data-fill-image]")];
     expect(imgs).toHaveLength(ITEMS.length);
-    for (const img of imgs) expect(img.style.opacity).toBe("1");
+    // Karta widoczna nie niesie `style` w ogóle: krycie 1 to wartość
+    // początkowa, a przejście żyje w arkuszu wspólnym (P2.6). Wygaszenie
+    // wyglądałoby jak inline `opacity:0`.
+    for (const img of imgs) {
+      expect(img.style.opacity).not.toBe("0");
+      expect(img.getAttribute("style")).toBeNull();
+    }
   });
 
   it("prosi w wariancie multi-card o rozmiary właściwe dla liczby kolumn", () => {
@@ -980,4 +988,202 @@ describe("SliderRender - obraz zepsuty już w chwili montażu", () => {
       );
     });
   });
+});
+
+// ------------------------------------------------------------------
+// Dieta znaczników (P2.6): stałe deklaracje w arkuszu i klasach, kropki
+// paginacji animowane wyłącznie przez kompozytor
+// ------------------------------------------------------------------
+
+/** Tekst wspólnego arkusza slidera (React przenosi go do `<head>`). */
+function sharedSheet(): string {
+  return document.querySelector('style[data-href="nes-slider-shared-v1"]')?.textContent ?? "";
+}
+
+/**
+ * Kropki paginacji: kropka to `span[aria-hidden]` w przycisku „Slajd N".
+ * Miniatury minimal-strip też są przyciskami „Slajd N", ale bez kropki.
+ */
+function dotsOf(root: ParentNode): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLButtonElement>('button[aria-label^="Slajd "]')].flatMap(
+    (button) => {
+      const dot = button.querySelector<HTMLElement>("span[aria-hidden]");
+      return dot ? [dot] : [];
+    },
+  );
+}
+
+const tokens = (el: Element) => el.className.split(/\s+/).filter(Boolean);
+
+/** Przejście, które każdy obraz niósł dotąd inline - teraz deklaracja arkusza. */
+const FILL_IMAGE_TRANSITION =
+  "transition: opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) var(--eh-scale-easing, ease-in-out);";
+
+/** Warianty z obrazami w stosie: widoczny jest tylko aktywny slajd. */
+const STACKED_VARIANTS = [
+  "editorial-hero",
+  "cinematic-overlay",
+  "split-feature",
+  "minimal-strip",
+] as const satisfies readonly SliderVariant[];
+
+/** Warianty z kropkami paginacji (multi-card przy jednej kolumnie ma krok na slajd). */
+const DOT_VARIANTS = [
+  ["editorial-hero", {}],
+  ["multi-card", { columns: 1 }],
+  ["cinematic-overlay", {}],
+  ["split-feature", {}],
+] as const satisfies ReadonlyArray<readonly [SliderVariant, Partial<SliderConfig>]>;
+
+describe("SliderRender - dieta znaczników obrazów i kart (P2.6)", () => {
+  it.each(STACKED_VARIANTS)(
+    "w wariancie %s aktywny obraz nie ma atrybutu style, a ukryte niosą wyłącznie opacity:0",
+    (variant) => {
+      const { container } = renderSlider({ variant });
+      const [active, ...hidden] = [
+        ...container.querySelectorAll<HTMLImageElement>("img[data-fill-image]"),
+      ];
+      expect(active.getAttribute("style")).toBeNull();
+      expect(hidden).toHaveLength(ITEMS.length - 1);
+      for (const img of hidden) {
+        expect(img.style.length).toBe(1);
+        expect(img.style.opacity).toBe("0");
+        expect(img.style.transition).toBe("");
+      }
+    },
+  );
+
+  it("trzyma przejście obrazu w arkuszu wspólnym z tą samą deklaracją co dawny inline", () => {
+    renderSlider();
+    const sheet = sharedSheet();
+    const rule = /\.eh-slider \[data-fill-image\] \{[^}]*\}/.exec(sheet)?.[0] ?? "";
+    expect(rule).toContain(FILL_IMAGE_TRANSITION);
+    expect(rule).toContain("--eh-scale-easing: ease-in;");
+  });
+
+  it("przy prefers-reduced-motion zostawia przenikanie (jak dotąd, gdy wygrywał inline), bez skali", () => {
+    renderSlider();
+    const reduced = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(
+      sharedSheet(),
+    )?.[1];
+    expect(reduced).toBeDefined();
+    expect(reduced).toContain(
+      ".eh-slider [data-fill-image] { transition: opacity 700ms cubic-bezier(.22,.61,.36,1); }",
+    );
+    expect(reduced).toContain(".eh-slider *:hover > [data-fill-image] { --eh-scale: 1; }");
+    expect(reduced).not.toContain("transition: none");
+  });
+
+  it("karty multi-card nie niosą style, a szerokość daje reguła arkusza na ich klasie", () => {
+    const { container } = renderSlider({ variant: "multi-card" });
+    const cards = [...container.querySelectorAll<HTMLElement>("article.eh-multi-card-item")];
+    expect(cards).toHaveLength(ITEMS.length);
+    for (const card of cards) {
+      expect(card.getAttribute("style")).toBeNull();
+      expect(tokens(card)).toContain("eh-card");
+    }
+    const sheet = sharedSheet();
+    expect(sheet).toContain(
+      ".eh-slider .eh-multi-card-item { width: calc((100% - (var(--eh-visible-columns) - 1) * 16px) / var(--eh-visible-columns)); }",
+    );
+    expect(sheet).toContain(".eh-slider .eh-card { flex: 0 0 auto; }");
+    // Przesunięcie toru jest stanem (indeks, przeciąganie) - zostaje inline.
+    const track = container.querySelector<HTMLElement>(".eh-multi-track");
+    expect(track?.style.transform).toContain("translateX(");
+  });
+});
+
+describe("SliderRender - kropki paginacji tylko przez transform i opacity (P2.6, css:C9)", () => {
+  it.each(DOT_VARIANTS)(
+    "w wariancie %s każda kropka ma stałe pudełko 10 px i przejście wyłącznie transform/opacity",
+    (variant, extra) => {
+      const { container } = renderSlider({ variant, ...extra });
+      const dots = dotsOf(container);
+      expect(dots).toHaveLength(ITEMS.length);
+      for (const dot of dots) {
+        expect(tokens(dot)).toEqual(
+          expect.arrayContaining([
+            "rounded-full",
+            "w-2.5",
+            "h-2.5",
+            "transition-[transform,opacity]",
+          ]),
+        );
+        // Animowane właściwości układu i koloru znikają razem z transition-all.
+        for (const banned of ["transition-all", "w-2", "h-2"]) {
+          expect(tokens(dot)).not.toContain(banned);
+        }
+        expect(dot.className).not.toMatch(/\bbg-(foreground|white)\/\d+/);
+      }
+    },
+  );
+
+  it.each(DOT_VARIANTS)(
+    "w wariancie %s aktywna kropka jest pełna, a nieaktywne pomniejszone scale(.8) i przygaszone",
+    (variant, extra) => {
+      const { container } = renderSlider({ variant, ...extra });
+      const buttons = [...container.querySelectorAll('button[aria-label^="Slajd "]')];
+      const active = buttons.filter((b) => b.getAttribute("aria-current") === "true");
+      expect(active).toHaveLength(1);
+      for (const button of buttons) {
+        const dot = button.querySelector<HTMLElement>("span[aria-hidden]")!;
+        const dimmed = tokens(dot).filter((t) => /^opacity-\d+$/.test(t));
+        if (button === active[0]) {
+          expect(tokens(dot)).not.toContain("[transform:scale(.8)]");
+          expect(dimmed).toEqual([]);
+        } else {
+          expect(tokens(dot)).toContain("[transform:scale(.8)]");
+          expect(dimmed).toHaveLength(1);
+        }
+      }
+    },
+  );
+
+  it("zachowuje dawne krycie kropek: /25 → opacity-25 (hover 50) na tle, /50 → opacity-50 (hover 80) na obrazie", () => {
+    const hero = dotsOf(renderSlider({ variant: "editorial-hero" }).container);
+    expect(tokens(hero[1])).toEqual(
+      expect.arrayContaining(["bg-foreground", "opacity-25", "group-hover:opacity-50"]),
+    );
+    const cinema = dotsOf(renderSlider({ variant: "cinematic-overlay" }).container);
+    expect(tokens(cinema[1])).toEqual(
+      expect.arrayContaining(["bg-white", "opacity-50", "group-hover:opacity-80"]),
+    );
+  });
+});
+
+describe("SliderRender - parytet SSR i klienta znaczników P2.6", () => {
+  function serverRoot(config: Partial<SliderConfig>): HTMLElement {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const html = renderToString(
+      <QueryClientProvider client={client}>
+        <SliderRender config={{ items: ITEMS, autoplay: false, ...config }} lang="pl" />
+      </QueryClientProvider>,
+    );
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    return host;
+  }
+
+  it.each(SLIDER_VARIANT_VALUES)(
+    "wariant %s: te same klasy kropek i te same atrybuty style obrazów po obu stronach",
+    (variant) => {
+      const config: Partial<SliderConfig> =
+        variant === "multi-card" ? { variant, columns: 1 } : { variant };
+      const server = serverRoot(config);
+      const { container } = renderSlider(config);
+      expect(dotsOf(server).map((d) => d.className)).toEqual(
+        dotsOf(container).map((d) => d.className),
+      );
+      const imgStyles = (root: ParentNode) =>
+        [...root.querySelectorAll<HTMLImageElement>("img[data-fill-image]")].map((img) =>
+          img.hasAttribute("style") ? img.style.opacity : null,
+        );
+      expect(imgStyles(server)).toEqual(imgStyles(container));
+      const cardStyles = (root: ParentNode) =>
+        [...root.querySelectorAll("article.eh-multi-card-item")].map((a) =>
+          a.getAttribute("style"),
+        );
+      expect(cardStyles(server)).toEqual(cardStyles(container));
+    },
+  );
 });
