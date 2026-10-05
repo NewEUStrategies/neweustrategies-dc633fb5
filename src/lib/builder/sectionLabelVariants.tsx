@@ -1307,7 +1307,7 @@ export function SectionLabelRender({
                 <span
                   key={bar.id}
                   className={`nes-kinetic-bar rounded-full ${barW} ${bar.grow}`}
-                  style={{ height: barH, background: accent, transitionDelay: bar.delay }}
+                  style={{ height: barH, background: `var(--nes-kinetic-signal, ${accent})`, transitionDelay: bar.delay }}
                 />
               ))}
             </span>

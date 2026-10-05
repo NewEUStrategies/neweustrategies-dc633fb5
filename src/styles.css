@@ -939,6 +939,7 @@ body {
   --voice-stop-border: transparent;
   /* Na ciemnej plycie ten sam szary ton, tylko wyrazniejszy od otoczenia. */
   --nes-kinetic-action: oklch(0.66 0.004 250);
+  --nes-kinetic-signal: oklch(0.76 0.004 250);
   --chat-user-from: #f8934a;
   --chat-user-to: #d95a12;
   --chat-user-foreground: #ffffff;
