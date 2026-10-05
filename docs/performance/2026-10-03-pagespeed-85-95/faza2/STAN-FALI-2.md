@@ -37,14 +37,14 @@ c3-lcpobs.mjs --html-transform-b c3-lcpobs.mjs`; 16/16 przebiegów ważnych.
 
 ## 3. Pozycje
 
-| Id                                   | Partia | Stan                                               | Raporty                 |
-| ------------------------------------ | ------ | -------------------------------------------------- | ----------------------- |
-| P2.5 dieta dehydratacji              | 1a     | w toku (implementacja, recenzja, dowód)            | –                       |
-| P2.6 dieta znaczników                | 1a     | w toku                                             | –                       |
-| P2.4 hydratacja per widget, animacje | 1b     | w toku                                             | –                       |
-| P2.3 nagłówek w oknie                | 1b     | w toku                                             | –                       |
-| P2.2 wyspy sekcji i stopki           | 2      | po partii 1                                        | –                       |
-| P2.1 boot po LCP                     | 3      | spike (krok 0) zielony, plan A; reszta po partii 2 | `raporty/P2.1-SPIKE.md` |
+| Id                                   | Partia | Stan                                                              | Raporty                 |
+| ------------------------------------ | ------ | ----------------------------------------------------------------- | ----------------------- |
+| P2.5 dieta dehydratacji              | 1a     | **scalone** (`9652d965`); dowód: struktura tak, rozmiar częściowo | `raporty/P2.5-*.md`     |
+| P2.6 dieta znaczników                | 1a     | **scalone** (`afcf927c`); dowód: struktura tak, czas w szumie     | `raporty/P2.6-*.md`     |
+| P2.4 hydratacja per widget, animacje | 1b     | recenzja i dowód w toku (implementacja `afa0421f`)                | –                       |
+| P2.3 nagłówek w oknie                | 1b     | implementacja wznowiona po przerwie                               | –                       |
+| P2.2 wyspy sekcji i stopki           | 2      | po partii 1                                                       | –                       |
+| P2.1 boot po LCP                     | 3      | spike (krok 0) zielony, plan A; reszta po partii 2                | `raporty/P2.1-SPIKE.md` |
 
 ## 4. Spike P2.1 (krok 0): parytet zielony, plan A
 
@@ -61,9 +61,59 @@ Commit `fe6ccfce` na gałęzi roboczej `perf/w2-P2.1`, jeszcze nie w gałęzi PR
   locie, łańcuch wrażliwy na tożsamość odpowiedzi albo koszt CPU workera przy każdym HIT.
 - **Decyzje orkiestratora:** wykrywanie chunku wejścia w `scripts/check-entry-purity.ts` i
   `scripts/check-bundle-size.ts` (dziś regex na `scripts` manifestu, po spike'u czerwone) przechodzi do P2.1 jako
-  uzupełnienie zakresu, bo P2.4 będzie wtedy scalone; rusztowanie spike'u w `__root.tsx` zastępuje `bootManifest.ts`
-  - `bootSet.server.ts` (wstrzyknięcie w wrapperze `router.options.dehydrate`) + `BOOT_LOADER_SCRIPT` w `<head>`.
+  uzupełnienie zakresu, bo P2.4 będzie wtedy scalone; rusztowanie spike'u w `__root.tsx` zastąpią: `bootManifest.ts`,
+  `bootSet.server.ts` (wstrzyknięcie w wrapperze `router.options.dehydrate`) i `BOOT_LOADER_SCRIPT` w `<head>`.
 - Do P3.4: zestaw bootu `/$` ma 62 URL-e (sama trasa 53 preloady, w tym chunk komponentu błędu).
+
+## 4a. Partia 1a (P2.5, P2.6): scalona
+
+Obie pozycje przeszły implementację, recenzję kontradyktoryjną (P2.5: trzy rundy, P2.6: dwie), rundy poprawek i dowód
+A/B wobec bazy W2 z transformacją C3 po obu stronach (n = 5). Liczby: `raporty/P2.5-PROVE.md`, `raporty/P2.6-PROVE.md`.
+
+| Miara (fixture `/`)                     |                  Baza |                                   P2.5 |                                                  P2.6 |
+| --------------------------------------- | --------------------: | -------------------------------------: | ----------------------------------------------------: |
+| `htmlRawBytes`                          |             400 880 B |                    389 642 B (−11 238) |                                    392 282 B (−8 598) |
+| `htmlGzipBytes`                         |              57 039 B |                      54 983 B (−2 056) |                                       56 618 B (−232) |
+| `dehydratedStateBytes` (bariera `$tsr`) |              65 199 B |     61 115 B (−4 084 raw, −0,12 KB gz) |                                             bez zmian |
+| TBT mobile, mediana A → B               |                     – | 371 → 263 ms (pary −53 ms, MDE(t) 380) |                323 → 396 ms (pary +56 ms, MDE(t) 173) |
+| TBT desktop4x, mediana A → B            |                     – |      nie mierzone (forma tylko mobile) |                525 → 419 ms (pary −71 ms, MDE(t) 311) |
+| boot closure (gz)                       |              477,3 KB |                        478,2 KB (+0,9) |                                       477,6 KB (+0,3) |
+| CLS                                     | 0,000 / 0,006 desktop |                                  0,000 | 0,000 / 0,006 desktop (to samo przesunięcie co w A/A) |
+
+- P2.5: klucze `popup_*` znikają ze stanu SSR `/` (48 → 0); formularze inline (newsletter, join-us) i prefetch czytają
+  projekcję, popup, admin i `registrationFields` zostają na pełnym kluczu; `carouselDefaults` nie idzie już ścieżką
+  błędu dla poprawnych danych; ticker nie zapada się przy miękkiej zmianie języka (e2e 2/2). Estymata produkcyjna
+  −3,5…−3,8 KB gz (plan: −8,4) przez przyjęte odchylenia: menu zachowuje oba języki etykiet i `ref_id` (MenuManager
+  zapisuje całe drzewo z tego samego klucza), ticker bez języka w kluczu.
+- P2.6: ramka widgetu, przejście obrazów slidera i szerokość kart multi-card bez powtarzanego `style=""`; kropki
+  paginacji animują tylko `transform`/`opacity` (sonda CDP: A – szerokość, wysokość i kolor; B – tylko kompozytor);
+  sonda `getComputedStyle` 390/820/1350 px, jasny i ciemny: 0 różnic dla 48 ramek, 25 obrazów i 20 kart. Efekt
+  rozmiaru ok. 1/4 planu (pozycja obejmuje 3 z 19 powtarzalnych wartości `style`).
+- Zadania ParseHTML/EvaluateScript dokumentu: kryterium „krótsze we wszystkich przebiegach” niespełnione w obu
+  pozycjach; oczekiwany efekt (1–2 ms sym.) jest poniżej rozrzutu przebiegów. Rozliczenie pakietu dokumentu łącznie
+  (P2.4 + P2.5 + P2.6) w bramce fali.
+- Na scalonej głowie: vitest zmienionych testów 11 plików, 345 zielonych + 2 oczekiwane porażki; `typecheck` (tsc + scripts) zielony.
+
+**Decyzje orkiestratora (partia 1a):**
+
+1. P2.5: rozszerzenie własności o `NewsletterForm.tsx`, `JoinUsForm.tsx`, `prefetch.ts`, `NewsletterDocRenderer.tsx`
+   (typ propsa), `newsletterFieldLabels.ts` i pięć plików testów – przyjęte (żadna inna pozycja fali ich nie dotyka).
+2. Reguła „`check:bundle` nie gorzej niż baza”: przyjęte +0,9 KB gz bootu (P2.5, projekcje w `queryFn` są wymagane, by
+   SSR, hydratacja i refetch miały jeden kształt) i +0,3 KB gz (P2.6, tabela klas ramki); progi bez zmian, overall
+   czerwony jak na bazie.
+3. P2.5: dodatkowe żądanie pełnych ustawień newslettera przez popup po `overlaysReady` (poza ścieżką LCP) – przyjęte.
+4. P2.6: nowy test `builderWidgetNodeFrame.test.tsx` poza listą i reguła `prefers-reduced-motion` z 700 ms
+   przenikaniem `opacity` (bez zmiany widocznej) – przyjęte.
+5. Przekazania: ticker z językiem w kluczu i `keepPreviousData` (wymaga języka żądania w `__root.tsx`, P2.1 lub
+   później); fixture bez menu (`homeFixture.ts` ignoruje embed `menus→menu_items`, więc pomiary fixture nie widzą menu
+   nagłówka) – poprawka uprzęży po fali 2, żeby nie psuć porównywalności A/B w trakcie fali.
+
+## 4b. Przerwa i wznowienie
+
+Limit użycia sesji przerwał oba workflowy partii 1 (ok. 16:07–19:44 UTC). Wznowienie od miejsca przerwania: P2.4 od
+recenzji (implementacja była zacommitowana; orkiestrator nałożył przygotowaną poprawkę testu `joinUsWidgetSizes` spoza
+listy), P2.3 od przerwanej implementacji, P2.5 od rundy poprawek, P2.6 od dokończenia dowodu bez powtarzania buildu i
+A/B na tym samym commicie. `main` (39 commitów Lovable) scalony do gałęzi PR bez konfliktów (`e129ca33`).
 
 ## 5. Zmiany procesu względem dokumentów fali
 
