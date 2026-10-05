@@ -1,5 +1,10 @@
 # Roadmap
 
+## Kafelki typów treści w klubie
+
+- [x] Umieścić kafelki typów treści pod Ludzie i nad Praca w lewym panelu klubu.
+- [x] Usunąć skrót Dynamika z Praca i sprawdzić działanie filtrów oraz testy.
+
 ## Moduł powiadomień
 
 - [x] Klik w belce powiadomień prowadzi do właściwego miejsca (w tym `/messages?c=<id>`)

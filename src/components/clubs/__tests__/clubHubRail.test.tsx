@@ -135,11 +135,11 @@ afterEach(() => {
 });
 
 describe("Spis treści klubu - widoczność sekcji", () => {
-  it("kolumna pokazuje wszystkie dziewięć sekcji w trzech grupach, gdy skład jest widoczny", () => {
+  it("kolumna pokazuje sekcje i sześć typów treści, gdy skład jest widoczny", () => {
     render(<ClubHubRail {...railProps({ canSeeMembers: true })} />);
 
-    expect(sectionLinkNames()).toHaveLength(9);
-    for (const group of ["club", "people", "work"]) {
+    expect(sectionLinkNames()).toHaveLength(14);
+    for (const group of ["club", "people", "content", "work"]) {
       expect(screen.getByText(`club.hub.sectionGroups.${group}`)).toBeInTheDocument();
     }
   });
@@ -148,7 +148,7 @@ describe("Spis treści klubu - widoczność sekcji", () => {
     render(<ClubHubRail {...railProps({ canSeeMembers: false })} />);
 
     const names = sectionLinkNames();
-    expect(names).toHaveLength(6);
+    expect(names).toHaveLength(11);
     for (const key of PEOPLE) {
       expect(names.some((name) => name.includes(`club.hub.sections.${key}`))).toBe(false);
     }
@@ -163,7 +163,7 @@ describe("Spis treści klubu - widoczność sekcji", () => {
     );
 
     const names = sectionLinkNames();
-    expect(names).toHaveLength(6);
+    expect(names).toHaveLength(5);
     for (const key of PEOPLE) {
       expect(names.some((name) => name.includes(`club.hub.sections.${key}`))).toBe(false);
     }
@@ -172,7 +172,7 @@ describe("Spis treści klubu - widoczność sekcji", () => {
 
   it("poziomy pasek przy widocznym składzie pokazuje pełną dziewiątkę", () => {
     render(<ClubHubSectionBar clubSlug={SLUG} canSeeMembers />);
-    expect(sectionLinkNames()).toHaveLength(9);
+    expect(sectionLinkNames()).toHaveLength(8);
   });
 });
 
@@ -183,7 +183,7 @@ describe("Spis treści klubu - który link jest aktywny", () => {
     expect(h.exactByTo.get("/club/$clubSlug")).toBe(true);
     expect(h.exactByTo.get("/club/$clubSlug/documents")).toBe(false);
     expect(h.exactByTo.get("/club/$clubSlug/members")).toBe(false);
-    expect(h.exactByTo.get("/club/$clubSlug/insights")).toBe(false);
+    expect(h.exactByTo.has("/club/$clubSlug/insights")).toBe(false);
   });
 
   it("poziomy pasek niesie tę samą regułę dopasowania", () => {
@@ -305,7 +305,7 @@ describe("ClubWorkspaceRail - ta sama kolumna na podstronach", () => {
     mountWorkspace({ can_see_members: false });
 
     const names = sectionLinkNames();
-    expect(names).toHaveLength(6);
+    expect(names).toHaveLength(11);
     for (const key of PEOPLE) {
       expect(names.some((name) => name.includes(`club.hub.sections.${key}`))).toBe(false);
     }

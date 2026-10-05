@@ -14,3 +14,7 @@ export const CLUB_THREAD_KINDS = [
   "poll",
 ] as const;
 export type ClubThreadKind = (typeof CLUB_THREAD_KINDS)[number];
+
+export function parseClubThreadKind(value: unknown): ClubThreadKind | null {
+  return CLUB_THREAD_KINDS.find((kind) => kind === value) ?? null;
+}
