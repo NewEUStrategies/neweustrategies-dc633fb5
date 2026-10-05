@@ -354,7 +354,7 @@ async function poInterakcji(): Promise<void> {
     for (const type of ["pointerdown", "pointerup", "click"]) {
       window.dispatchEvent(new Event(type));
     }
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await poKrokachKolejki();
   });
 }
 
@@ -364,8 +364,26 @@ async function poDecyzjiZgody(): Promise<void> {
   await act(async () => {
     harness.decided = true;
     for (const listener of harness.consentListeners) listener();
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await poKrokachKolejki();
   });
+}
+
+/**
+ * Kroki kolejki P0.3 zamiast stałego zapasu czasu. Kolejka opróżnia się po
+ * JEDNYM zadaniu na klatkę (`requestAnimationFrame` -> makrozadanie), a wpis
+ * `analytics` jest w niej ostatni. Stałe 80 ms przegrywało z obciążonym
+ * runnerem CI (2026-10-05: tag jeszcze nie wstawiony w chwili asercji). Każdy
+ * krok tutaj to ta sama para co krok kolejki - klatka, potem makrozadanie -
+ * zaplanowana PO kroku kolejki, więc odpala się po nim niezależnie od
+ * obciążenia; przed każdym krokiem domykają się leniwe importy.
+ */
+async function poKrokachKolejki(steps = 8): Promise<void> {
+  for (let i = 0; i < steps; i += 1) {
+    await vi.dynamicImportSettled();
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => window.setTimeout(resolve, 0));
+    });
+  }
 }
 
 /**
@@ -376,7 +394,7 @@ async function poSamymLoad(): Promise<void> {
   await poZaladowaniuPolityki();
   await act(async () => {
     window.dispatchEvent(new Event("load"));
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    await poKrokachKolejki();
   });
 }
 
@@ -663,7 +681,7 @@ describe("ConsentScriptInjector - loadery analityki", () => {
     await act(async () => {
       // `subscribeConsentChange` budzi się, ale `hasConsentDecision()` zostaje false.
       for (const listener of harness.consentListeners) listener();
-      await new Promise((resolve) => setTimeout(resolve, 80));
+      await poKrokachKolejki();
     });
     expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
   });
@@ -688,7 +706,7 @@ describe("ConsentScriptInjector - loadery analityki", () => {
       grant({ analytics: true });
       renderInjector();
       await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 80));
+        await poKrokachKolejki();
       });
       expect(consentUpdate()).toMatchObject({ analytics_storage: "granted" });
       expect(document.head.querySelectorAll(`script[src^="${GTAG_PREFIX}"]`)).toHaveLength(0);
@@ -982,7 +1000,7 @@ describe("ConsentScriptInjector - leniwy import polityki gtag.js (poza zamknięc
     try {
       await poZaladowaniuPolityki();
       await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 80));
+        await poKrokachKolejki();
       });
       expect(document.head.querySelectorAll("script[data-ga4-tag]")).toHaveLength(1);
     } finally {
