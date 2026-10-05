@@ -274,6 +274,19 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:sql-migration-replay
 
+      # Blokujący kontrakt kod ⇄ schemat: każdy `onConflict` w `.upsert(...)`
+      # musi mieć arbitra - PK/UNIQUE/UNIQUE INDEX bez WHERE i bez wyrażeń,
+      # o DOKŁADNIE tym zbiorze kolumn - w stanie końcowym migracji. Inaczej
+      # KAŻDE wywołanie kończy się 42P10. Tak padała każda wysyłka zaproszenia:
+      # `user_roles` celował w `user_id,role`, a 20260531181120 (linie 49-50)
+      # zamieniła ten klucz na `(tenant_id, user_id, role)`; test na atrapie
+      # bazy zamroził zły cel. Model kluczy zgadza się z `pg_index` bazy
+      # odtworzonej z migracji co do tabeli, nazwy i flag. Czyta wyłącznie
+      # pliki repo (~3 s): src/lib/ci/onConflictArbiters.ts.
+      - name: Arbitrzy onConflict (upsert ⇄ klucze unikalne migracji)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:on-conflict-arbiters
+
       # Blocking tenant-isolation gate: fails if any SECURITY DEFINER function
       # scopes data by public_tenant_id() (client-forgeable x-tenant-host header)
       # while authorizing by has_role()/is_staff() (home tenant). That mismatch
