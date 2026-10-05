@@ -162,6 +162,10 @@ export const Route = createFileRoute("/")({
     // do `preload()` z react-dom, który dzieli klucz zasobu z automatycznym
     // preloadem `<img>` - w dokumencie zostaje DOKŁADNIE jeden preload na
     // kandydata (dawniej: link z `head()` + preload Reacta = duplikat).
+    // `heroPreloads` liczy WYŁĄCZNIE serwer (`isServer` wycina `heroImage.ts`
+    // i `lcpCandidate.ts` z bundla klienta - PROVE P1.4, `check:bundle`);
+    // nawigacja SPA dostaje pustą listę, bo render czysto kliencki nie ma też
+    // kandydata (lib/builder/aboveFold.tsx).
     let coverPreload: ImagePreloadInput | null = null;
     let heroPreloads: LcpImagePreload[] = [];
 
@@ -243,7 +247,7 @@ export const Route = createFileRoute("/")({
         // `builderHeroPreloads`), więc obraz kandydata pozostaje w pełni
         // wyznaczalny: komponent trasy wyemituje go przez `preload()` z
         // react-dom, a loader jako nagłówek `Link`.
-        heroPreloads = builderHeroPreloads(doc, queryClient, lang);
+        if (isServer) heroPreloads = builderHeroPreloads(doc, queryClient, lang);
       }
     }
     // SEO settings (Organization sameAs / logo) for the homepage JSON-LD; the
@@ -263,7 +267,9 @@ export const Route = createFileRoute("/")({
     // pobieranie hero z nagłówków odpowiedzi (przed pierwszym bajtem HTML),
     // a NES Edge Cache utrwala go na HIT/STALE (droga do 103 Early Hints).
     if (coverPreload) appendLinkHeader(imagePreloadLinkHeaderValue(coverPreload));
-    for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
+    if (isServer) {
+      for (const hero of heroPreloads) appendLinkHeader(lcpPreloadLinkHeaderValue(hero));
+    }
     // An unknown mode also means an unknown SEO document. Do not advertise
     // the static page's canonical/image while the UI intentionally shows a
     // recovery notice (the configured mode could actually be latest_posts).
@@ -374,7 +380,7 @@ function Index() {
   // Obraz kandydata LCP kanwy (P1.4): `preload()` w renderze trasy trafia do
   // preambuły SSR jako jedyny `<link rel=preload as=image fetchpriority=high>`
   // dla tego obrazu (ten sam klucz co automatyczny preload `<img>`). Loader
-  // liczy kandydata dla gościa - zalogowanemu hook preloadu nie emituje.
+  // liczy kandydata dla gościa i tylko na serwerze; hook działa tylko w SSR.
   usePreloadLcpImages(Route.useLoaderData({ select: (data) => data.heroPreloads }));
   const homePage = pageQuery.data;
   const homeMode = modeQuery.data;

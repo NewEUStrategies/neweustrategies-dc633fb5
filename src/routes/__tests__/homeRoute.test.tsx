@@ -570,6 +570,9 @@ describe("/ - strona statyczna z kanwy CMS-u", () => {
 // drugi z `<img>` hero: dwa preloady, w tym jeden złego kandydata. Teraz obraz
 // kandydata (`lcpCandidates`) idzie przez `preload()` z react-dom w komponencie
 // trasy - jedyny preload tego obrazu - a nagłówek `Link` dalej z loadera.
+// Preloady kandydatów liczy WYŁĄCZNIE serwer (`isServer`; runda 9 - kod
+// `heroImage.ts`/`lcpCandidate.ts` poza bundlem klienta), więc blok działa na
+// ścieżce serwerowej (`h.server`); nawigację SPA sprawdza osobny test.
 // ─────────────────────────────────────────────────────────────────────────────
 describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
   /** Unikalny plik na test: `preload()` react-dom deduplikuje klucz na całą stronę. */
@@ -606,6 +609,7 @@ describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
 
   beforeEach(() => {
     h.homeMode = "static_page";
+    h.server = true;
   });
 
   it("kanwa jest rendererem-WŁAŚCICIELEM kandydata LCP strony", async () => {
@@ -682,6 +686,20 @@ describe("/ - kandydat LCP kanwy: jedno źródło preloadu", () => {
     );
     expect(preloadInHead("media-duzy")?.getAttribute("media")).toBe("(min-width: 768px)");
     expect(preloadInHead("media-maly")?.getAttribute("media")).toBe("(max-width: 767px)");
+  });
+
+  it("nawigacja SPA (loader na kliencie): ani preloadu, ani nagłówka `Link` - liczy tylko serwer", async () => {
+    // Render czysto kliencki nie ma kandydata (lib/builder/aboveFold.tsx), więc
+    // preload byłby priorytetem dla obrazu leniwego; kod preloadu i kandydata
+    // nie trafia do bundla klienta (PROVE P1.4: +1,1 KB gzip chunku wejściowego).
+    h.server = false;
+    const src = hero("kandydat-spa");
+    h.homePage = homePageData({ builder_data: heroDoc(src) });
+    const view = await mountHome();
+    expect(screen.getByTestId("kanwa")).toHaveAttribute("data-lcp-owner", "1");
+    expect(imagePreload(view.links())).toBeUndefined();
+    expect(preloadInHead("kandydat-spa")).toBeNull();
+    expect(h.linkHeaders.some((value) => value.includes(src))).toBe(false);
   });
 
   it("kanwa BEZ obrazu w oknie: ani linku, ani nagłówka `Link`, ani preloadu", async () => {

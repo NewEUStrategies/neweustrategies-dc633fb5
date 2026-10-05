@@ -37,10 +37,17 @@ import {
 // kandydat, więc te reguły nie są powtarzane (jedno miejsce, mniej kodu
 // w chunku wejściowym - recenzja P1.4, M3).
 //
+// TYLKO SERWER (runda poprawek 9). Trasy (`index.tsx`, `$.tsx`) wołają ten
+// moduł wyłącznie w gałęzi `isServer` loadera, więc bundel przeglądarki go nie
+// zawiera (PROVE P1.4: moduł razem z `lcpCandidate.ts` kosztował chunk
+// wejściowy +1,1 KB gzip). Nawigacja SPA nie preloaduje obrazu: render czysto
+// kliencki nie ma też kandydata (aboveFold.tsx), więc preload byłby
+// priorytetem dla obrazu leniwego.
+//
 // DOSTĘP: loader liczy kandydatów DLA GOŚCIA (`GUEST_ACCESS_CONTEXT`). Na
-// serwerze dokument jest już odarty z węzłów zamkniętych dla gościa (no-op),
-// w przeglądarce (nawigacja SPA) nie jest - bez predykatu preload mógłby
-// wskazać obraz sekcji „tylko dla zalogowanych" (recenzja P1.4, B1).
+// serwerze dokument jest już odarty z węzłów zamkniętych dla gościa, więc
+// predykat jest tu bezpiecznikiem: preload nie może wskazać obrazu sekcji
+// „tylko dla zalogowanych" (recenzja P1.4, B1).
 import type { QueryClient } from "@tanstack/react-query";
 import type { BuilderDocument, WidgetContent, WidgetNode } from "@/lib/builder/types";
 import type { Lang } from "@/lib/builder/postListQuery";
@@ -234,19 +241,6 @@ export function builderHeroPreloads(
     // wywrócić loadera trasy.
     return [];
   }
-}
-
-/**
- * Pierwszy deskryptor z `builderHeroPreloads` (kandydat desktopowy, a gdy jego
- * obrazu nie da się wyznaczyć - mobilny) albo null. Nigdy nie rzuca.
- */
-export function builderHeroPreload(
-  doc: BuilderDocument,
-  queryClient: QueryClient,
-  lang: Lang,
-  aboveFoldSections: number = ABOVE_FOLD_SECTION_COUNT,
-): LcpImagePreload | null {
-  return builderHeroPreloads(doc, queryClient, lang, aboveFoldSections)[0] ?? null;
 }
 
 /**

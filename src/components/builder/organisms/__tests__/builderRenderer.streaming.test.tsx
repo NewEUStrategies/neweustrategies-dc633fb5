@@ -12,9 +12,15 @@
 //   `ABOVE_FOLD_SECTION_COUNT`) zawęża skan kandydata. Dowód SSR: preload
 //   z trasy (`usePreloadLcpImages`) i `<img>` kandydata dają JEDEN `<link>`.
 //   Kandydat liczy reguły `advanced.access` TYM SAMYM kontekstem co renderer
-//   (zalogowany - atrapa `useAuth` niżej; recenzja P1.4, B1): znacznik jest
+//   (sesja - atrapa `useAuth` niżej; recenzja P1.4, B1): znacznik jest
 //   zawsze na obrazie, który renderer maluje, a preload loadera (liczony dla
-//   gościa) nie idzie do dokumentu zalogowanego,
+//   gościa) nie idzie do dokumentu renderowanego z innym kontekstem.
+//   KANDYDATÓW LICZY TYLKO SERWER (runda 9, `check:bundle`): SSR zapisuje ich
+//   na korzeniu (`data-lcp-root` + `data-lcp-ids`), hydratacja odczytuje je
+//   z DOM-u, a render czysto kliencki nie ma kandydata. Dowód: pełna ścieżka
+//   `renderToString` (atrapa `isServer` = prawda) -> `hydrateRoot` bez
+//   rozjazdu, licznik wywołań `lcpCandidateIds` (tylko serwer) i kontrola
+//   negatywna (HTML bez nośnika = rozjazd zgłoszony przez Reacta),
 // * `stream` włączone i wyłączone dla sekcji ZALEŻNEJ OD DANYCH i dla statycznej
 //   - z dowodem, że na ścieżce KLIENCKIEJ treść jest identyczna,
 // * brak danych źródłowych: widget listy wpisów z pustą odpowiedzią Supabase
@@ -40,6 +46,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Suspense, lazy, type ReactElement } from "react";
 import { renderToString } from "react-dom/server";
+import { hydrateRoot, type Root } from "react-dom/client";
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
@@ -69,6 +76,30 @@ vi.mock(
   "@/components/builder/organisms/widget-view/lazyWidgets",
   () => import("@/test/eagerWidgetChunks"),
 );
+
+// ŚRODOWISKO RENDERU. `isServer` z router-core rozstrzyga gałąź kandydata LCP
+// (serwer liczy, klient czyta nośnik z DOM-u) i hooka preloadu. Pod vitestem
+// moduł daje `undefined` (klient); `ssr()` niżej przełącza na serwer na czas
+// `renderToString`.
+const env = vi.hoisted(() => ({ server: false }));
+vi.mock("@tanstack/router-core/isServer", () => ({
+  get isServer() {
+    return env.server;
+  },
+}));
+
+// Licznik wywołań `lcpCandidateIds` - dowód, że liczy wyłącznie serwer.
+const lcp = vi.hoisted(() => ({ calls: 0 }));
+vi.mock("@/lib/builder/lcpCandidate", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/builder/lcpCandidate")>();
+  return {
+    ...actual,
+    lcpCandidateIds: (...args: Parameters<typeof actual.lcpCandidateIds>) => {
+      lcp.calls += 1;
+      return actual.lcpCandidateIds(...args);
+    },
+  };
+});
 
 // SESJA CZYTELNIKA. Domyślnie `null` - prawdziwy `useAuth` (wartość domyślna
 // kontekstu = gość, czyli stan renderu publicznego). Testy kandydata dla
@@ -171,20 +202,107 @@ const priorytety = (container: HTMLElement) =>
 
 const kandydaci = (root: ParentNode) => root.querySelectorAll("img[data-lcp-candidate]");
 
+/** Świeży klient react-query - SSR i hydratacja mają osobne, jak w przeglądarce. */
+const nowyKlient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+/**
+ * Render SERWEROWY: `isServer` = prawda (gałąź serwerowa renderera i hooka
+ * preloadu, jak w workerze), `renderToString` jak Fizz bez strumienia.
+ */
+function ssr(ui: ReactElement): string {
+  env.server = true;
+  try {
+    return renderToString(<QueryClientProvider client={nowyKlient()}>{ui}</QueryClientProvider>);
+  } finally {
+    env.server = false;
+  }
+}
+
+/** HTML serwera jako odłączony DOM - do asercji bez hydratacji. */
+function ssrDom(ui: ReactElement): HTMLElement {
+  const host = document.createElement("div");
+  host.innerHTML = ssr(ui);
+  return host;
+}
+
+const korzen = (root: ParentNode) => root.querySelector<HTMLElement>("[data-builder-renderer]");
+
+interface Hydrated {
+  readonly host: HTMLElement;
+  /** Błędy odzyskiwalne hydratacji (`onRecoverableError`) - rozjazd treści. */
+  readonly recoverable: unknown[];
+  /** `console.error` o rozjeździe hydratacji (React 19 dev: atrybuty „didn't match"). */
+  readonly mismatches: string[];
+}
+
+const hydratedRoots: Array<{ root: Root; host: HTMLElement }> = [];
+
+/** Jeden dokument naraz, jak w przeglądarce: `useId()` jest unikalne w obrębie korzenia. */
+async function unmountHydrated() {
+  for (const { root, host } of hydratedRoots.splice(0)) {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+}
+
+afterEach(unmountHydrated);
+
+/**
+ * Pierwsza wizyta: HTML serwera w DOM-ie, potem `hydrateRoot` po stronie
+ * klienta (`isServer` = fałsz). `przedHydratacja` psuje HTML serwera
+ * (kontrola negatywna).
+ */
+async function hydrated(
+  ui: ReactElement,
+  przedHydratacja?: (host: HTMLElement) => void,
+): Promise<Hydrated> {
+  await unmountHydrated();
+  const host = document.createElement("div");
+  host.innerHTML = ssr(ui);
+  document.body.append(host);
+  przedHydratacja?.(host);
+  const recoverable: unknown[] = [];
+  const mismatches: string[] = [];
+  const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+    const text = args.map(String).join(" ");
+    if (/hydrat|didn't match/i.test(text)) mismatches.push(text);
+  });
+  try {
+    const root = hydrateRoot(
+      host,
+      <QueryClientProvider client={nowyKlient()}>{ui}</QueryClientProvider>,
+      { onRecoverableError: (error) => recoverable.push(error) },
+    );
+    hydratedRoots.push({ root, host });
+    await act(async () => {});
+  } finally {
+    spy.mockRestore();
+  }
+  return { host, recoverable, mismatches };
+}
+
+/** Hydratacja bez rozjazdu: ani błędu odzyskiwalnego, ani ostrzeżenia o atrybutach. */
+function expectCleanHydration(view: Hydrated) {
+  expect(view.recoverable).toEqual([]);
+  expect(view.mismatches).toEqual([]);
+}
+
 describe("kandydat LCP strony (lcpOwner, P1.4)", () => {
-  it("renderer BEZ lcpOwner (nagłówek, stopka, popup) nie ma kandydata - każdy obraz leniwy", () => {
-    const { container } = renderWithQueryClient(
+  it("renderer BEZ lcpOwner (nagłówek, stopka, popup) nie ma kandydata - każdy obraz leniwy", async () => {
+    const view = await hydrated(
       <BuilderRenderer doc={doc([0, 1, 2].map((i) => sekcjaZObrazem(`s${i}`)))} lang="pl" />,
     );
-    expect(priorytety(container)).toEqual(["lazy", "lazy", "lazy"]);
-    expect(kandydaci(container)).toHaveLength(0);
-    for (const img of container.querySelectorAll("img"))
+    expect(priorytety(view.host)).toEqual(["lazy", "lazy", "lazy"]);
+    expect(kandydaci(view.host)).toHaveLength(0);
+    for (const img of view.host.querySelectorAll("img"))
       expect(img.getAttribute("fetchpriority")).toBe("auto");
+    expect(korzen(view.host)?.hasAttribute("data-lcp-ids")).toBe(false);
+    expectCleanHydration(view);
   });
 
-  it("renderer-właściciel: DOKŁADNIE jeden obraz eager + high + data-lcp-candidate", () => {
+  it("renderer-właściciel: DOKŁADNIE jeden obraz eager + high + data-lcp-candidate, także po hydratacji", async () => {
     expect(ABOVE_FOLD_SECTION_COUNT).toBe(3);
-    const { container } = renderWithQueryClient(
+    const view = await hydrated(
       <BuilderRenderer
         doc={doc([0, 1, 2, 3, 4].map((i) => sekcjaZObrazem(`s${i}`)))}
         lang="pl"
@@ -192,33 +310,81 @@ describe("kandydat LCP strony (lcpOwner, P1.4)", () => {
       />,
     );
     // Dawniej: ["eager","eager","eager","lazy","lazy"] - trzy obrazy High.
-    expect(priorytety(container)).toEqual(["eager", "lazy", "lazy", "lazy", "lazy"]);
-    const [kandydat] = kandydaci(container);
-    expect(kandydaci(container)).toHaveLength(1);
+    expect(priorytety(view.host)).toEqual(["eager", "lazy", "lazy", "lazy", "lazy"]);
+    const [kandydat] = kandydaci(view.host);
+    expect(kandydaci(view.host)).toHaveLength(1);
     expect(kandydat.getAttribute("fetchpriority")).toBe("high");
     expect(kandydat.getAttribute("alt")).toBe("Obraz s0");
+    expectCleanHydration(view);
   });
 
-  it("cienka sekcja tekstowa nad hero: kandydatem jest obraz sekcji 1", () => {
+  it("SSR zapisuje kandydatów na korzeniu, hydratacja czyta je z DOM-u - klient NIE liczy `lcpCandidates`", async () => {
+    // Dowód celu rundy 9: kod `lcpCandidates` nie jest potrzebny w przeglądarce.
+    // Serwer liczy raz, klient odtwarza wynik z `data-lcp-ids` po `useId()`.
+    lcp.calls = 0;
+    const view = await hydrated(
+      <BuilderRenderer
+        doc={doc([sekcjaZObrazem("s0"), sekcjaZObrazem("s1")])}
+        lang="pl"
+        lcpOwner
+      />,
+    );
+    expect(lcp.calls).toBe(1);
+    const root = korzen(view.host);
+    expect(root?.getAttribute("data-lcp-ids")).toBe("s0-img");
+    expect(root?.getAttribute("data-lcp-root")).toBeTruthy();
+    expect(kandydaci(view.host)).toHaveLength(1);
+    expectCleanHydration(view);
+  });
+
+  it("render czysto kliencki (nawigacja SPA): właściciel bez kandydata i bez nośnika", () => {
+    // Bez HTML-u serwera nie ma czego odczytać. Każdy obraz jest leniwy - obraz
+    // i tak powstaje dopiero z DOM-u wstawionego przez JS, więc preload ani
+    // `fetchpriority` nie wyprzedzą skanera (go tu nie ma).
+    lcp.calls = 0;
     const { container } = renderWithQueryClient(
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" lcpOwner />,
+    );
+    expect(kandydaci(container)).toHaveLength(0);
+    expect(priorytety(container)).toEqual(["lazy"]);
+    expect(korzen(container)?.hasAttribute("data-lcp-ids")).toBe(false);
+    expect(lcp.calls).toBe(0);
+  });
+
+  it("KONTROLA NEGATYWNA: HTML serwera bez nośnika - klient gubi kandydata, a React zgłasza rozjazd", async () => {
+    // Parytet trzyma WYŁĄCZNIE nośnik: bez `data-lcp-ids` klient renderuje
+    // obraz leniwy bez znacznika, a serwer namalował eager/high ze znacznikiem.
+    // Ten sam detektor, który w testach wyżej milczy, tu musi zadziałać.
+    const view = await hydrated(
+      <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" lcpOwner />,
+      (host) => {
+        korzen(host)?.removeAttribute("data-lcp-ids");
+        korzen(host)?.removeAttribute("data-lcp-root");
+      },
+    );
+    expect(view.mismatches.length + view.recoverable.length).toBeGreaterThan(0);
+  });
+
+  it("cienka sekcja tekstowa nad hero: kandydatem jest obraz sekcji 1", async () => {
+    const view = await hydrated(
       <BuilderRenderer
         doc={doc([simpleSection("tytul"), sekcjaZObrazem("hero"), sekcjaZObrazem("dalej")])}
         lang="pl"
         lcpOwner
       />,
     );
-    expect(priorytety(container)).toEqual(["eager", "lazy"]);
-    expect(kandydaci(container)[0]?.getAttribute("alt")).toBe("Obraz hero");
+    expect(priorytety(view.host)).toEqual(["eager", "lazy"]);
+    expect(kandydaci(view.host)[0]?.getAttribute("alt")).toBe("Obraz hero");
+    expectCleanHydration(view);
   });
 
   it("okno skanu: domyślnie 3 sekcje, `aboveFoldCount` je zawęża, 0 wyłącza", () => {
     const tekst = [0, 1, 2].map((i) => simpleSection(`t${i}`));
-    const poza = renderWithQueryClient(
+    const poza = ssrDom(
       <BuilderRenderer doc={doc([...tekst, sekcjaZObrazem("s3")])} lang="pl" lcpOwner />,
     );
-    expect(kandydaci(poza.container)).toHaveLength(0);
-    cleanup();
-    const waskie = renderWithQueryClient(
+    expect(kandydaci(poza)).toHaveLength(0);
+    const waskie = ssrDom(
       <BuilderRenderer
         doc={doc([simpleSection("t"), sekcjaZObrazem("s1")])}
         lang="pl"
@@ -226,66 +392,62 @@ describe("kandydat LCP strony (lcpOwner, P1.4)", () => {
         aboveFoldCount={1}
       />,
     );
-    expect(priorytety(waskie.container)).toEqual(["lazy"]);
-    cleanup();
-    const zerowe = renderWithQueryClient(
+    expect(priorytety(waskie)).toEqual(["lazy"]);
+    const zerowe = ssrDom(
       <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" lcpOwner aboveFoldCount={0} />,
     );
-    expect(priorytety(zerowe.container)).toEqual(["lazy"]);
-    expect(zerowe.container.querySelector("img")?.getAttribute("fetchpriority")).toBe("auto");
+    expect(priorytety(zerowe)).toEqual(["lazy"]);
+    expect(zerowe.querySelector("img")?.getAttribute("fetchpriority")).toBe("auto");
   });
 
   it("zagnieżdżony renderer BEZ lcpOwner nie dziedziczy kandydatów rodzica", () => {
     // Kandydaci renderera-właściciela wiszą w kontekście. Renderer powłoki
     // (np. popup otwarty nad treścią) ustawia własną, pustą listę - inaczej
     // widget o tym samym id dostałby priorytet i drugi znacznik na stronie.
-    const { container } = renderWithQueryClient(
+    const html = ssrDom(
       <LcpCandidatesProvider widgetIds={["s0-img"]}>
         <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" />
       </LcpCandidatesProvider>,
     );
-    expect(kandydaci(container)).toHaveLength(0);
-    expect(priorytety(container)).toEqual(["lazy"]);
+    expect(kandydaci(html)).toHaveLength(0);
+    expect(priorytety(html)).toEqual(["lazy"]);
   });
 
-  it("ZALOGOWANY, sekcja 0 „tylko dla gości”: znacznik na obrazie, który renderer MALUJE (B1)", () => {
-    // Dokument w przeglądarce nie jest odzierany. Bez filtra dostępu kandydatem
-    // zostawał widget niemalowanej sekcji promo: hero sekcji 1 był leniwy,
-    // a na stronie nie było ŻADNEGO `img[data-lcp-candidate]`.
+  it("sesja z regułą „tylko dla gości” w sekcji 0: znacznik na obrazie, który renderer MALUJE (B1)", async () => {
+    // Kandydat liczy reguły dostępu kontekstem renderu - tym samym, którym
+    // `SectionsList` filtruje sekcje. W produkcji SSR jest anonimowy; atrapa
+    // sesji dowodzi, że kandydat nie rozjedzie się z malowanym drzewem przy
+    // żadnym kontekście (dawniej: kandydat w niemalowanej sekcji promo).
     const dokument = doc([
       section("promo", sekcjaZObrazem("promo").children, { advanced: gate({ auth: "guest" }) }),
       sekcjaZObrazem("hero"),
     ]);
-    const gosc = renderWithQueryClient(<BuilderRenderer doc={dokument} lang="pl" lcpOwner />);
-    expect(kandydaci(gosc.container)[0]?.getAttribute("alt")).toBe("Obraz promo");
-    cleanup();
+    const gosc = await hydrated(<BuilderRenderer doc={dokument} lang="pl" lcpOwner />);
+    expect(kandydaci(gosc.host)[0]?.getAttribute("alt")).toBe("Obraz promo");
+    expectCleanHydration(gosc);
     auth.session = { user: { id: "u-1" } };
-    const { container } = renderWithQueryClient(
-      <BuilderRenderer doc={dokument} lang="pl" lcpOwner />,
-    );
-    expect(container.querySelector('[data-sec-id="promo"]')).toBeNull();
-    expect(kandydaci(container)).toHaveLength(1);
-    expect(kandydaci(container)[0].getAttribute("alt")).toBe("Obraz hero");
-    expect(priorytety(container)).toEqual(["eager"]);
+    const view = await hydrated(<BuilderRenderer doc={dokument} lang="pl" lcpOwner />);
+    expect(view.host.querySelector('[data-sec-id="promo"]')).toBeNull();
+    expect(kandydaci(view.host)).toHaveLength(1);
+    expect(kandydaci(view.host)[0].getAttribute("alt")).toBe("Obraz hero");
+    expect(priorytety(view.host)).toEqual(["eager"]);
+    expectCleanHydration(view);
   });
 
-  it("ZALOGOWANY widzi hero „tylko dla zalogowanych” i to on jest kandydatem; gość - następna sekcja", () => {
+  it("sesja widzi hero „tylko dla zalogowanych” i to on jest kandydatem; gość - następna sekcja", () => {
     const dokument = doc([
       section("dla-czlonkow", sekcjaZObrazem("dla-czlonkow").children, {
         advanced: gate({ auth: "user" }),
       }),
       sekcjaZObrazem("dla-wszystkich"),
     ]);
-    const gosc = renderWithQueryClient(<BuilderRenderer doc={dokument} lang="pl" lcpOwner />);
-    expect(kandydaci(gosc.container)[0]?.getAttribute("alt")).toBe("Obraz dla-wszystkich");
-    cleanup();
+    const gosc = ssrDom(<BuilderRenderer doc={dokument} lang="pl" lcpOwner />);
+    expect(kandydaci(gosc)[0]?.getAttribute("alt")).toBe("Obraz dla-wszystkich");
     auth.session = { user: { id: "u-1" } };
-    const { container } = renderWithQueryClient(
-      <BuilderRenderer doc={dokument} lang="pl" lcpOwner />,
-    );
-    expect(priorytety(container)).toEqual(["eager", "lazy"]);
+    const zalogowany = ssrDom(<BuilderRenderer doc={dokument} lang="pl" lcpOwner />);
+    expect(priorytety(zalogowany)).toEqual(["eager", "lazy"]);
     // (Nie „dla-zalogowanych”: alt z „logo” wyklucza obraz heurystyką logo.)
-    expect(kandydaci(container)[0]?.getAttribute("alt")).toBe("Obraz dla-czlonkow");
+    expect(kandydaci(zalogowany)[0]?.getAttribute("alt")).toBe("Obraz dla-czlonkow");
   });
 
   it("widget z regułą dostępu nie jest kandydatem - priorytet dostaje malowany sąsiad", () => {
@@ -302,18 +464,17 @@ describe("kandydat LCP strony (lcpOwner, P1.4)", () => {
         ]),
       ]),
     ]);
-    const { container } = renderWithQueryClient(
-      <BuilderRenderer doc={dokument} lang="pl" lcpOwner />,
-    );
-    expect(kandydaci(container)).toHaveLength(1);
-    expect(kandydaci(container)[0].getAttribute("alt")).toBe("Widoczny");
+    const html = ssrDom(<BuilderRenderer doc={dokument} lang="pl" lcpOwner />);
+    expect(kandydaci(html)).toHaveLength(1);
+    expect(kandydaci(html)[0].getAttribute("alt")).toBe("Widoczny");
   });
 
   it("kanwa buildera (editorPreview) nie wyznacza kandydata nawet z lcpOwner", () => {
-    const { container } = renderWithQueryClient(
+    const html = ssrDom(
       <BuilderRenderer doc={doc([sekcjaZObrazem("s0")])} lang="pl" lcpOwner editorPreview />,
     );
-    expect(kandydaci(container)).toHaveLength(0);
+    expect(kandydaci(html)).toHaveLength(0);
+    expect(korzen(html)?.hasAttribute("data-lcp-ids")).toBe(false);
   });
 });
 
@@ -322,16 +483,11 @@ describe("kandydat LCP strony (lcpOwner, P1.4)", () => {
  * i `$.tsx`), a pod nią renderuje się kanwa z kandydatem.
  */
 function ssrPage(preloads: LcpImagePreload[], content: ReactElement): string {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Trasa() {
     usePreloadLcpImages(preloads);
     return content;
   }
-  return renderToString(
-    <QueryClientProvider client={qc}>
-      <Trasa />
-    </QueryClientProvider>,
-  );
+  return ssr(<Trasa />);
 }
 
 const imagePreloadLinks = (html: string) =>
@@ -386,6 +542,7 @@ describe("SSR: jedno źródło preloadu obrazu LCP (werdykt LP-2)", () => {
       <BuilderRenderer doc={doc([simpleSection("a"), simpleSection("b")])} lang="pl" lcpOwner />,
     );
     expect(html).not.toContain("data-lcp-candidate");
+    expect(html).not.toContain("data-lcp-ids");
     expect(imagePreloadLinks(html)).toHaveLength(0);
   });
 
@@ -418,12 +575,14 @@ describe("SSR: jedno źródło preloadu obrazu LCP (werdykt LP-2)", () => {
     expect(links.find((l) => l.includes(duzy))).toContain('media="(min-width: 768px)"');
     expect(links.find((l) => l.includes(maly))).toContain('media="(max-width: 767px)"');
     expect(html.match(/data-lcp-candidate/g)).toHaveLength(2);
+    // Nośnik do hydratacji: obaj kandydaci, najpierw desktopowy.
+    expect(html).toContain('data-lcp-ids="w-duzy w-maly"');
   });
 
-  it("ZALOGOWANY: preload loadera (liczony dla gościa) nie trafia do dokumentu - tylko `<img>` jego kandydata", () => {
-    // Loader nie zna sesji (SSR jest anonimowy, nawigacja SPA liczy dla gościa).
-    // Sekcja promo jest „tylko dla gości”: dla zalogowanego preload jej obrazu
-    // byłby pobraniem z High czegoś, czego renderer nie maluje.
+  it("sesja w renderze: preload loadera (liczony dla gościa) nie trafia do dokumentu - tylko `<img>` kandydata", () => {
+    // Loader nie zna sesji (SSR jest anonimowy z konstrukcji). Sekcja promo
+    // jest „tylko dla gości”: gdyby render miał inny kontekst niż gość, preload
+    // jej obrazu byłby pobraniem z High czegoś, czego renderer nie maluje.
     const promo = "https://example.org/promo.png";
     const hero = "https://example.org/hero.png";
     const dokument = doc([
@@ -447,6 +606,18 @@ describe("SSR: jedno źródło preloadu obrazu LCP (werdykt LP-2)", () => {
     );
     expect(imagePreloadLinks(html)).toHaveLength(0);
     expect(html).toContain('loading="lazy"');
+  });
+
+  it("na kliencie hook trasy nie emituje preloadu - link przyszedł w HTML-u serwera", () => {
+    // Loader liczy preloady tylko na serwerze, a przy hydratacji link już stoi
+    // w `<head>`; gałąź `isServer` wycina kod preloadu z bundla klienta.
+    const href = "https://example.org/tylko-serwer.png";
+    function Trasa() {
+      usePreloadLcpImages([{ href }]);
+      return null;
+    }
+    renderWithQueryClient(<Trasa />);
+    expect(document.head.querySelector(`link[rel="preload"][href="${href}"]`)).toBeNull();
   });
 });
 

@@ -10,6 +10,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -59,7 +60,13 @@ import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
 import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
-import { LcpCandidatesProvider } from "@/lib/builder/aboveFold";
+import { isServer } from "@tanstack/router-core/isServer";
+import {
+  LcpCandidatesProvider,
+  NO_LCP_CANDIDATES,
+  lcpRootAttributes,
+  readServerLcpCandidates,
+} from "@/lib/builder/aboveFold";
 import { lcpCandidateIds } from "@/lib/builder/lcpCandidate";
 import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
@@ -217,9 +224,6 @@ export function BuilderEmptyPickerProvider({
  */
 const ChromeReserveContext = createContext(false);
 
-/** Stała tożsamość pustej listy - `SectionsList` jest `memo`. */
-const NO_LCP_CANDIDATES: readonly string[] = Object.freeze([]);
-
 const MOBILE_BREAKPOINT = 768;
 const TABLET_BREAKPOINT = 1024;
 
@@ -265,23 +269,32 @@ export function BuilderRenderer({
   // Debug state is shared across every BuilderRenderer on the page; only the
   // "primary" instance renders the overlay (toggle + debug CSS) - see builderDebug.
   const { debug, isPrimary } = useBuilderDebug();
-  // Kandydaci LCP - czysta funkcja dokumentu i kontekstu dostępu (ten sam wynik
-  // w SSR i przy hydratacji). Reguły `advanced.access` liczy TEN SAM kontekst,
-  // którym `SectionsList`/`RenderSection`/`RenderColumn` filtrują węzły - inaczej
-  // kandydatem bywał widget, którego renderer nie maluje (zalogowany, nawigacja
-  // SPA: dokument w przeglądarce nie jest odzierany). Kanwa (`editorPreview`)
-  // pokazuje oba warianty A/B i nie jest stroną dla czytelnika - bez kandydatów.
-  const { isAuthenticated, roles } = useAccessContext();
-  const lcpWidgetIds = useMemo(
-    () =>
-      lcpOwner && !editorPreview
+  // Kandydaci LCP (P1.4) - czysta funkcja dokumentu i kontekstu dostępu,
+  // liczona WYŁĄCZNIE NA SERWERZE. Reguły `advanced.access` liczy TEN SAM
+  // kontekst, którym `SectionsList`/`RenderSection`/`RenderColumn` filtrują
+  // węzły (recenzja P1.4, B1). Serwer zapisuje wynik na korzeniu
+  // (`lcpRootAttributes`), a pierwszy render kliencki (hydratacja) odczytuje go
+  // z DOM-u serwera po `useId()` - bez kodu `lcpCandidates` w bundlu klienta
+  // (`isServer` wycina gałąź; PROVE P1.4: +1,1 KB gzip chunku wejściowego).
+  // Render czysto kliencki (nawigacja SPA) nie ma kandydata. Lista jest
+  // utrwalona na czas życia renderera: po zmianie dokumentu jej identyfikatory
+  // nie trafiają w nowe widgety, więc nie ma priorytetu zamiast złego.
+  // Kanwa (`editorPreview`) pokazuje oba warianty A/B i nie jest stroną dla
+  // czytelnika - bez kandydatów.
+  const lcpRootId = useId();
+  const access = useAccessContext();
+  const isLcpOwner = lcpOwner && !editorPreview;
+  const [ownedLcpIds] = useState<readonly string[]>(() =>
+    !isLcpOwner
+      ? NO_LCP_CANDIDATES
+      : isServer
         ? lcpCandidateIds(safeDoc, {
             sections: aboveFoldCount,
-            isAccessible: (rule) => evaluateAccess(rule, { isAuthenticated, roles }),
+            isAccessible: (rule) => evaluateAccess(rule, access),
           })
-        : NO_LCP_CANDIDATES,
-    [aboveFoldCount, editorPreview, isAuthenticated, lcpOwner, roles, safeDoc],
+        : readServerLcpCandidates(lcpRootId),
   );
+  const lcpWidgetIds = isLcpOwner ? ownedLcpIds : NO_LCP_CANDIDATES;
 
   useEffect(() => {
     if (device) {
@@ -327,6 +340,7 @@ export function BuilderRenderer({
           data-builder-renderer
           data-debug={debug ? "1" : "0"}
           data-device={effectiveDevice}
+          {...lcpRootAttributes(lcpRootId, lcpWidgetIds)}
         >
           <LcpCandidatesProvider widgetIds={lcpWidgetIds}>
             <SectionsList

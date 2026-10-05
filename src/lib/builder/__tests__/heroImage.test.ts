@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import {
   builderContentHeroPreloads,
-  builderHeroPreload,
   builderHeroPreloads,
   lcpPreloadLinkHeaderValue,
 } from "@/lib/builder/heroImage";
@@ -35,6 +34,15 @@ import type {
 } from "@/lib/builder/types";
 
 const COVER = "https://p.supabase.co/storage/v1/object/public/covers/hero.jpg";
+
+/**
+ * Pierwszy deskryptor (kandydat desktopowy, a gdy jego obrazu nie da się
+ * wyznaczyć - mobilny) albo null. Dawny eksport `builderHeroPreload` usunięty
+ * w rundzie 9 jako martwy kod (trasy wołają `builderHeroPreloads`); testy
+ * pojedynczego kandydata zostają na tym skrócie.
+ */
+const builderHeroPreload = (...args: Parameters<typeof builderHeroPreloads>) =>
+  builderHeroPreloads(...args)[0] ?? null;
 
 /** Kandydaci dla gościa - te same reguły dostępu, których używa loader trasy. */
 const lcpCandidateIds = (doc: BuilderDocument) =>

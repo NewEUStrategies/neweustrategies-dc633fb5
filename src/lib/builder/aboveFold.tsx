@@ -8,25 +8,36 @@
 // okładkach leadów każdy z nich dokłada się do zbioru przed LCP (werdykt LP-1).
 //
 // Teraz renderer-WŁAŚCICIEL (główna treść strony: `lcpOwner` w
-// `HomeBuilderContent` i `ContentRenderer`) liczy czystą funkcją dokumentu
-// `lcpCandidates` (src/lib/builder/lcpCandidate.ts) co najwyżej dwa widgety
-// i podaje ich identyfikatory w dół drzewa. Priorytet i znacznik
-// `data-lcp-candidate` dostaje wyłącznie pierwszy obraz tych widgetów; każdy
-// inny obraz jest `loading=lazy` + `fetchpriority=auto`, więc React nie
-// emituje dla niego automatycznego preloadu. Renderery powłoki (nagłówek,
-// stopka, menu mobilne, popupy) nie są właścicielami - podają pustą listę.
+// `HomeBuilderContent` i `ContentRenderer`) dostaje co najwyżej dwa widgety
+// wyznaczone czystą funkcją dokumentu `lcpCandidates`
+// (src/lib/builder/lcpCandidate.ts) i podaje ich identyfikatory w dół drzewa.
+// Priorytet i znacznik `data-lcp-candidate` dostaje wyłącznie pierwszy obraz
+// tych widgetów; każdy inny obraz jest `loading=lazy` + `fetchpriority=auto`,
+// więc React nie emituje dla niego automatycznego preloadu. Renderery powłoki
+// (nagłówek, stopka, menu mobilne, popupy) nie są właścicielami - podają pustą
+// listę.
 //
-// Wartość jest czystą pochodną dokumentu i kontekstu dostępu czytelnika (tego
-// samego, którym `SectionsList` filtruje sekcje), identyczną w SSR i pierwszym
-// renderze klienta - parytet hydratacji taki sam jak samych sekcji.
+// KANDYDATÓW LICZY WYŁĄCZNIE SERWER (runda poprawek 9, PROVE: `check:bundle`).
+// `lcpCandidates` + preload z `heroImage.ts` w chunku wejściowym kosztowały
+// +1,1 KB gzip na ścieżce bootu, a zasada fali zabrania wzrostu. Serwer liczy
+// kandydatów w renderze właściciela (kontekst dostępu renderu - ten sam, którym
+// `SectionsList` filtruje sekcje) i zapisuje ich na korzeniu renderera
+// (`lcpRootAttributes`); klient przy hydratacji ODCZYTUJE te same identyfikatory
+// z DOM-u serwera (`readServerLcpCandidates`), więc renderuje identyczne
+// atrybuty i znaczniki - parytet bajtowy bez kodu `lcpCandidates` w bundlu
+// klienta (gałąź `isServer` wycina go z grafu przeglądarki). Render czysto
+// kliencki (nawigacja SPA, doładowany wpis) nie ma kandydata: każdy obraz jest
+// leniwy, a przeglądarka i tak odkrywa go dopiero z DOM-u wstawionego przez JS.
 import { createContext, useContext, type ReactNode } from "react";
 import { preload } from "react-dom";
+import { isServer } from "@tanstack/router-core/isServer";
 import type { ImagePreloadInput } from "@/lib/seo/meta";
 import { useAccessContext } from "@/lib/builder/accessControl";
 
-const NO_CANDIDATES: readonly string[] = Object.freeze([]);
+/** Stała tożsamość pustej listy kandydatów (kontekst i `memo` jej nie zmieniają). */
+export const NO_LCP_CANDIDATES: readonly string[] = Object.freeze([]);
 
-const LcpCandidatesContext = createContext<readonly string[]>(NO_CANDIDATES);
+const LcpCandidatesContext = createContext<readonly string[]>(NO_LCP_CANDIDATES);
 
 /**
  * Podaje identyfikatory widgetów-kandydatów LCP. KAŻDY renderer buildera
@@ -48,6 +59,40 @@ export function LcpCandidatesProvider({
 /** Czy widget o tym identyfikatorze jest kandydatem LCP strony. */
 export function useIsLcpWidget(widgetId: string): boolean {
   return useContext(LcpCandidatesContext).includes(widgetId);
+}
+
+/**
+ * NOŚNIK KANDYDATÓW Z SSR DO HYDRATACJI: atrybuty korzenia renderera-właściciela.
+ * `data-lcp-root` to `useId()` renderera (ten sam na serwerze i przy
+ * hydratacji), `data-lcp-ids` - identyfikatory po spacji (`lcpCandidateIds`
+ * odrzuca identyfikatory z białymi znakami, więc podział jest odwracalny).
+ * Bez kandydatów - brak atrybutów.
+ */
+export function lcpRootAttributes(
+  rootId: string,
+  widgetIds: readonly string[],
+): { "data-lcp-root": string; "data-lcp-ids": string } | undefined {
+  return widgetIds.length > 0
+    ? { "data-lcp-root": rootId, "data-lcp-ids": widgetIds.join(" ") }
+    : undefined;
+}
+
+/**
+ * Kandydaci zapisani przez SERWER na korzeniu renderera o tym `useId()`. Woła
+ * go pierwszy render kliencki (hydratacja): DOM serwera już istnieje, a wynik
+ * jest dokładnie listą, z której serwer wyrenderował atrybuty i znaczniki.
+ * Render czysto kliencki nie znajdzie korzenia (identyfikatory `useId()`
+ * klienta mają inny kształt niż serwerowe) - pusta lista. Dokument ma jeden
+ * korzeń Reacta (`hydrateRoot` TanStack Start), więc `useId()` jest w nim
+ * unikalne i dopasowanie jest jednoznaczne.
+ */
+export function readServerLcpCandidates(rootId: string): readonly string[] {
+  if (typeof document === "undefined") return NO_LCP_CANDIDATES;
+  for (const root of document.querySelectorAll("[data-lcp-root]")) {
+    if (root.getAttribute("data-lcp-root") === rootId)
+      return root.getAttribute("data-lcp-ids")?.split(" ") ?? NO_LCP_CANDIDATES;
+  }
+  return NO_LCP_CANDIDATES;
 }
 
 /**
@@ -100,7 +145,7 @@ function lcpImagePreloadOptions(input: LcpImagePreload) {
  * srcSet - `href`), który sprawdza automatyczny preload `<img>` w SSR, więc
  * React emituje dokładnie jeden `<link rel=preload as=image fetchpriority=high>`
  * w preambule - także wtedy, gdy sekcja z obrazem dostrumieniowuje się później.
- * Na kliencie (nawigacja SPA) wstawia ten sam link do `<head>`, gdy go nie ma.
+ * Trasy wołają go przez `usePreloadLcpImages`, czyli tylko w SSR.
  */
 export function preloadLcpImages(preloads: readonly LcpImagePreload[] | null | undefined): void {
   for (const input of preloads ?? []) {
@@ -110,12 +155,14 @@ export function preloadLcpImages(preloads: readonly LcpImagePreload[] | null | u
 
 /**
  * Hook trasy: preload kandydatów policzonych przez loader DLA GOŚCIA
- * (`builderHeroPreloads` - SSR jest zawsze anonimowy). Zalogowany czytelnik może
- * widzieć inną sekcję 0 (reguły `advanced.access`), a renderer liczy jego
- * kandydata z jego kontekstem - preload gościa byłby wtedy pobraniem z High
- * obrazu, którego nikt nie maluje (recenzja P1.4, B1). Dla zalogowanego
- * priorytet niesie sam `<img>` kandydata. SSR i hydratacja gościa - bez zmian.
+ * (`builderHeroPreloads`). Działa WYŁĄCZNIE w SSR (`isServer`): loader liczy
+ * preloady tylko na serwerze, a przy hydratacji link jest już w `<head>`, więc
+ * kod preloadu nie trafia do bundla klienta. SSR jest anonimowy z konstrukcji
+ * (`GUEST_ACCESS_CONTEXT`); warunek sesji pilnuje, żeby preload gościa nigdy
+ * nie poszedł do dokumentu renderowanego z innym kontekstem dostępu niż
+ * kandydat renderera (recenzja P1.4, B1).
  */
 export function usePreloadLcpImages(preloads: readonly LcpImagePreload[] | null | undefined): void {
-  if (!useAccessContext().isAuthenticated) preloadLcpImages(preloads);
+  const { isAuthenticated } = useAccessContext();
+  if (isServer && !isAuthenticated) preloadLcpImages(preloads);
 }

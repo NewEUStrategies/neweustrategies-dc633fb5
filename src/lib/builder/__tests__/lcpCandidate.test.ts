@@ -462,6 +462,19 @@ describe("lcpCandidateKind - wykluczenia jak w heroImage.ts", () => {
     },
   );
 
+  it("identyfikator z białym znakiem nie jest kandydatem - nośnik `data-lcp-ids` dzieli listę po spacji", () => {
+    // Serwer zapisuje kandydatów po spacji na korzeniu renderera, hydratacja
+    // dzieli atrybut z powrotem (aboveFold.tsx). „w a” rozcięte na „w”, „a”
+    // dałoby znacznik tylko w HTML-u serwera (rozjazd hydratacji), więc taki
+    // widget ustępuje następnemu - i dla renderera, i dla preloadu.
+    const spaced = image(`${COVER}?spacja=1`, {});
+    spaced.id = "w z\tspacją";
+    const next = image();
+    const doc = docWith([section([column([spaced, next])])]);
+    expect(lcpCandidateIds(doc)).toEqual([next.id]);
+    expect(lcpCandidates(doc).map((c) => c.widget.id)).toEqual([next.id]);
+  });
+
   it("katalog wariantów wiodących post-listy jest strażnikiem typu", () => {
     for (const variant of POST_LIST_LEAD_VARIANTS)
       expect(isPostListLeadVariant(variant)).toBe(true);
@@ -471,8 +484,9 @@ describe("lcpCandidateKind - wykluczenia jak w heroImage.ts", () => {
 
 describe("lcpCandidate.ts - czystość modułu (check:entry-purity)", () => {
   it("importuje WYŁĄCZNIE imageSlot, typy i dwa liście bez własnych importów", () => {
-    // BuilderRenderer jest w chunku wejściowym. Import heroImage.ts albo
-    // jakiegokolwiek modułu zapytań ciągnąłby warstwę danych do entry
+    // BuilderRenderer jest w chunku wejściowym i importuje ten moduł statycznie
+    // (gałąź `isServer` wycina go dopiero bundler). Import heroImage.ts albo
+    // jakiegokolwiek modułu zapytań ciągnąłby warstwę danych do grafu entry
     // (heroImage.ts:36-47) - dokładnie to, przed czym chroni ten moduł.
     const source = readFileSync(join(process.cwd(), "src/lib/builder/lcpCandidate.ts"), "utf8");
     const specifiers = [...source.matchAll(/^import\s[^;]*?from\s+"([^"]+)";/gms)].map((m) => m[1]);

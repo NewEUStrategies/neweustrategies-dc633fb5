@@ -33,7 +33,8 @@
 //    telefonie (kolumny ustawione wg `order.mobile`, jak reguła CSS rendera),
 //  * wykluczenia jak w heroImage.ts: para jasny/ciemny, logo, brak źródła,
 //    `hideOn.mobile` i `hideOn.desktop` (preload obrazu, którego jedno
-//    z urządzeń nie maluje, byłby czystą stratą pasma).
+//    z urządzeń nie maluje, byłby czystą stratą pasma) oraz identyfikator
+//    widgetu z białym znakiem (nośnik `data-lcp-ids` dzieli listę po spacji).
 //
 // A/B: sekcja wariantu B nie jest malowana w SSR, więc nie istnieje dla
 // kandydata. Sekcja wariantu A JEST malowana wszystkim (deterministycznie, do
@@ -43,12 +44,19 @@
 // heroImage.ts („wariant losuje się na kliencie"): przy jednym źródle preloadu
 // (preload == obraz eager) pominięcie A dawało leniwy obraz pierwszego malowania.
 //
-// CZYSTOŚĆ (check:entry-purity, krytyka M4a). Moduł jest importowany przez
-// BuilderRenderer (chunk wejściowy), więc NIE MOŻE ciągnąć warstwy zapytań
-// (heroImage.ts:36-47). Dozwolone importy: `./imageSlot`, typy oraz dwa liście
-// bez własnych importów (`contentValue`, `sanitizePure`) - te same koercje, co
-// renderery i heroImage, żeby kandydat nie rozjechał się z malowanym obrazem.
-// Pilnuje tego test `lcpCandidate.test.ts` (lista importów źródła).
+// TYLKO SERWER (runda poprawek 9). Kandydatów liczy render SSR właściciela
+// (BuilderRenderer, gałąź `isServer`) i loader trasy na serwerze
+// (heroImage.ts); klient czyta wynik z atrybutów korzenia renderera
+// (aboveFold.tsx, `readServerLcpCandidates`). Bundel przeglądarki nie zawiera
+// tego modułu - w chunku wejściowym kosztował +1,1 KB gzip (PROVE P1.4).
+//
+// CZYSTOŚĆ (check:entry-purity, krytyka M4a). Import statyczny z BuilderRenderer
+// zostaje w grafie źródeł chunku wejściowego (gałąź wycina dopiero bundler),
+// więc moduł NADAL NIE MOŻE ciągnąć warstwy zapytań (heroImage.ts:36-47).
+// Dozwolone importy: `./imageSlot`, typy oraz dwa liście bez własnych importów
+// (`contentValue`, `sanitizePure`) - te same koercje, co renderery i heroImage,
+// żeby kandydat nie rozjechał się z malowanym obrazem. Pilnuje tego test
+// `lcpCandidate.test.ts` (lista importów źródła).
 import { columnImageSlot, type ImageSlot } from "./imageSlot";
 import type {
   AccessControlSettings,
@@ -313,7 +321,11 @@ export function lcpCandidates(
       const scored: Scored[] = [];
       for (const entry of paintedWidgets(section, ok)) {
         const kind = lcpCandidateKind(entry.widget);
-        if (!kind) continue;
+        // Identyfikator z białym znakiem nie przejdzie przez `data-lcp-ids`
+        // (lista po spacji, którą hydratacja dzieli z powrotem): znacznik
+        // byłby tylko w HTML-u serwera, czyli rozjazd hydratacji. Taki widget
+        // nie jest kandydatem - ani dla renderera, ani dla preloadu.
+        if (!kind || /\s/.test(entry.widget.id)) continue;
         scored.push({
           ...entry,
           kind,
@@ -348,7 +360,10 @@ export function lcpCandidates(
   }
 }
 
-/** Identyfikatory widgetów-kandydatów (dla kontekstu renderera). */
+/**
+ * Identyfikatory widgetów-kandydatów (dla kontekstu renderera). Serwer zapisuje
+ * je po spacji w `data-lcp-ids` korzenia renderera (aboveFold.tsx).
+ */
 export function lcpCandidateIds(
   doc: BuilderDocument | null | undefined,
   options: LcpCandidatesOptions,

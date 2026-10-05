@@ -308,6 +308,26 @@ test("ścieżka LCP: preLcpTransferBytes = HTML gz + CSS gz + JS High gz + fonty
   assert.ok(gate(remote, "preLcpTransferBytes").ok);
 });
 
+test("plik progów: preLcpTransferBytes ma zapas z reguły pliku, więc niezmieniona baza jest zielona", () => {
+  // Reguła `SKĄD max` dla bajtów: ceil(największa z 5 próbek x 1,02). Próg
+  // równy jednemu pomiarowi (741 999, runda 2) był czerwony na tej samej bazie,
+  // bo gzip HTML-u waha się między seriami o ±16 B (PROVE P1.4 §3).
+  const file = JSON.parse(
+    readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "document-weight-budgets.json"),
+      "utf8",
+    ),
+  );
+  const budget = file.budgets.preLcpTransferBytes;
+  assert.equal(budget.max, Math.ceil(budget.measured * 1.02));
+  const budgets = { preLcpTransferBytes: budget };
+  const at = (value) => checkBudgets({ preLcpTransferBytes: value }, budgets)[0].ok;
+  assert.ok(at(budget.measured + 16), "rozrzut gzip HTML-u bazy mieści się w progu");
+  assert.ok(at(budget.max));
+  // KONTROLA NEGATYWNA: bajt ponad próg jest czerwony.
+  assert.equal(at(budget.max + 1), false);
+});
+
 test("Link: imagesizes jest parsowane razem z imagesrcset", () => {
   const [hero] = parseLinkHeader(LCP_LINK);
   assert.equal(hero.imagesrcset, LCP_SRCSET);
