@@ -46,6 +46,11 @@ interface SidebarListenCardProps {
 // widoczność fokusu klawiatury w całym odtwarzaczu.
 const FOCUS_RING = AUDIO_FOCUS_RING;
 
+/** Deterministyczny kształt fali (procent wysokości) - stabilny w SSR i obu motywach. */
+const WAVE_BARS: readonly number[] = Array.from({ length: 48 }, (_, i) =>
+  Math.round(28 + 52 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21))),
+);
+
 export function SidebarListenCard({
   postId,
   lang,
