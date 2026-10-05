@@ -15,7 +15,19 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  lazy,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
+import { createIsomorphicFn } from "@tanstack/react-start";
 import { I18nextProvider } from "react-i18next";
 
 import appCss from "../styles.css?url";
@@ -48,6 +60,14 @@ import {
   isClientOnlyDocument,
 } from "../lib/routing/clientOnlyDocument";
 import { THEME_INIT_SCRIPT } from "../lib/theme/themeInitScript";
+// Skrypt zgód i powłoka banera - WYŁĄCZNIE w gałęziach `.server()` niżej
+// (`RootShell`, `ConsentShellSlot`): kompilator Start wycina je z bundla
+// przeglądarki razem z tymi importami. W przeglądarce `consentInitScript` to
+// leniwy chunk partnera skryptu (`ConsentSurface`).
+import { CONSENT_INIT_SCRIPT } from "../lib/consent/consentInitScript";
+import type { ConsentTakeover } from "../lib/consent/consentInitScript";
+import { ConsentShell } from "../components/consent/ConsentShell";
+import type { ConsentBannerProps } from "../components/ConsentBanner";
 import { DOCK_RESERVE_INIT_SCRIPT } from "../lib/dock/reservedSpace";
 import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
 import { markAppReady } from "../lib/watchdog/appReady";
@@ -134,17 +154,13 @@ const PopupHost = lazy(() =>
 const GlobalAudioBar = lazy(() =>
   import("../components/audio/GlobalAudioBar").then((m) => ({ default: m.GlobalAudioBar })),
 );
-// Baner zgód renderuje null zarówno w SSR, jak i w pierwszym renderze klienta
-// (`mounted` przestawia się dopiero w useEffect), więc React.lazy nie zmienia
-// tu ANI JEDNEGO bajtu HTML-a - a wynosi ~1400 linii źródeł (banner 859 +
-// cookieBanner/config 170 + registry 402) poza chunk wejściowy. Musi pozostać
-// zamontowany bezwarunkowo: jego efekty są jedynym pisarzem
-// setMarketingConsent/setConsentOverlayVisible w overlayCoordinator - bramka
-// "tylko dopóki nie zdecydowano" odblokowałaby popupy marketingowe u osób,
-// które marketing odrzuciły.
-const ConsentBanner = lazy(() =>
-  import("../components/ConsentBanner").then((m) => ({ default: m.ConsentBanner })),
-);
+// Baner zgód NIE jest tu `React.lazy`: przejmuje miejsce powłoki SSR (P1.3,
+// `ConsentSurface` niżej), a `lazy` przy pierwszym renderze zawiesza się na
+// własnej fabryce nawet przy załadowanym module - granica pokazałaby wtedy
+// fallback, czyli klatkę bez karty. `ConsentSurface` dociąga moduł `import()`
+// i renderuje gotowy komponent, więc podmiana powłoki na baner to JEDEN commit.
+// Chunk banera (~1400 linii: baner, cookieBanner/config, registry) nadal jest
+// poza zamknięciem bootu.
 // Panel podglądu zgód (aktywny tylko przy ?consent-preview=1) - ta sama
 // doktryna lazy-overlay co wyżej.
 const ConsentPreviewPanel = lazy(() =>
@@ -214,15 +230,6 @@ function AuthenticatedLiveSync() {
 const OVERLAY_IDLE_TIMEOUT_MS = 3_000;
 
 /**
- * Baner zgód czeka KRÓCEJ (i dodatkowo na jedną klatkę, patrz `useOverlayGates`).
- * To jedyna z pięciu nakładek, którą odwiedzający ma zobaczyć z własnej woli
- * ustawodawcy, a nie z własnej - a przy okazji (audyt CWV, F30) to jej akapit
- * bywał elementem LCP w laboratorium, bo wskakiwał jako duży blok tekstu
- * w nakładce `position: fixed`.
- */
-const CONSENT_IDLE_TIMEOUT_MS = 1_000;
-
-/**
  * Kiedy montować leniwe nakładki korzenia (audyt CWV 2026-09-20, F19).
  *
  * PROBLEM. Pięć nakładek (`ConsentBanner`, `ConsentPreviewPanel`,
@@ -232,53 +239,193 @@ const CONSENT_IDLE_TIMEOUT_MS = 1_000;
  * interakcji KAŻDEJ strony. „Leniwy" znaczyło tu tylko „w osobnym pliku",
  * nigdy „później".
  *
- * KONTRAKT, KTÓREGO NIE WOLNO ZŁAMAĆ. Baner zgód wolno WYŁĄCZNIE OPÓŹNIĆ,
- * nigdy uzależnić od czegokolwiek, co zależy od decyzji odwiedzającego: jego
- * efekty są jedynym pisarzem `setMarketingConsent`/`setConsentOverlayVisible`
- * w `overlayCoordinator`, więc bramka „tylko dopóki nie zdecydowano"
- * odblokowałaby popupy marketingowe u osób, które marketing ODRZUCIŁY.
- * Dlatego `consentReady` nie ma ANI JEDNEGO warunku poza upływem czasu.
- *
- * `requestAnimationFrame` PRZED `whenIdle`: pierwsza klatka po hydratacji ma
- * należeć do treści. `whenIdle` sam w sobie potrafi wystrzelić jeszcze w tym
- * samym zadaniu (fallback `setTimeout` 32 ms), więc bez rAF baner wracałby do
- * okna, z którego go wyjmujemy.
+ * BANER ZGÓD MA OD P1.3 WŁASNĄ DROGĘ (`ConsentSurface` niżej, kontrakt
+ * przepisany jawnie): baner jest WIDOCZNY bezwarunkowo od pierwszego malowania
+ * (powłoka SSR), opóźniona jest wyłącznie jego interaktywność. Nadal obowiązuje:
+ * montażu NIE WOLNO uzależnić od decyzji odwiedzającego (efekty banera są
+ * pisarzem stanu zgody w `overlayCoordinator`), a do montażu ten sam stan
+ * zgłasza korzeń w imieniu powłoki.
  *
  * DLACZEGO `overlaysReady` NIE CZEKA NA BANER (recenzja Codex, PR #382).
  * Nakładki planują się niezależnie od baneru, więc przez chwilę - zanim jego
  * leniwy chunk dojedzie - popup buildera z wyzwalaczem „immediate" mógł
  * poprosić o slot, gdy koordynator nie wiedział jeszcze NIC o zgodzie.
  * Bramę trzyma dziś `overlayCoordinator` (flaga `consentReported`): żaden wpis
- * `marketing: true` nie dostanie slotu przed pierwszym zgłoszeniem baneru.
- * Drugiej warstwy tutaj świadomie NIE dokładamy: montaż `NewsletterPopup`
- * i `PopupHost` to samo pobranie chunku i uzbrojenie wyzwalaczy (nic nie
- * widać), więc wiązanie go ze zgodami przesunęłoby tę pracę z okna
- * bezczynności w gorszy moment, a nakładka spoza tego drzewa (pasek reklamowy
- * w stopce) i tak omijałaby bramkę z `__root`. Kontrakt `consentReady` zostaje
- * nietknięty - to nadal wyłącznie upływ czasu.
+ * `marketing: true` nie dostanie slotu przed pierwszym zgłoszeniem stanu zgody
+ * (od P1.3 zgłasza go korzeń zaraz po hydratacji, potem baner). Drugiej
+ * warstwy tutaj świadomie NIE dokładamy: montaż `NewsletterPopup` i
+ * `PopupHost` to samo pobranie chunku i uzbrojenie wyzwalaczy (nic nie widać),
+ * więc wiązanie go ze zgodami przesunęłoby tę pracę z okna bezczynności w
+ * gorszy moment, a nakładka spoza tego drzewa (pasek reklamowy w stopce) i tak
+ * omijałaby bramkę z `__root`. Czas montażu nakładek jest celowo BEZ ZMIAN
+ * (P1.3, TP-4 „tylko części niewidoczne"): od niego liczą się wyzwalacze
+ * `delay`/`immediate`, więc późniejszy montaż byłby widocznie późniejszym
+ * popupem.
  */
-function useOverlayGates(): { consentReady: boolean; overlaysReady: boolean } {
-  const [consentReady, setConsentReady] = useState(false);
+function useOverlayGates(): { overlaysReady: boolean } {
   const [overlaysReady, setOverlaysReady] = useState(false);
-
-  useEffect(() => {
-    let cancelIdle: (() => void) | null = null;
-    const frame = requestAnimationFrame(() => {
-      cancelIdle = whenIdle(() => setConsentReady(true), CONSENT_IDLE_TIMEOUT_MS);
-    });
-    return () => {
-      cancelAnimationFrame(frame);
-      cancelIdle?.();
-    };
-  }, []);
 
   useEffect(() => {
     const cancel = afterPageLoad(() => setOverlaysReady(true), OVERLAY_IDLE_TIMEOUT_MS);
     return cancel;
   }, []);
 
-  return { consentReady, overlaysReady };
+  return { overlaysReady };
 }
+
+// ── POWŁOKA I BANER ZGÓD (P1.3) ───────────────────────────────────────────
+//
+// PIERWSZE MALOWANIE. Serwer renderuje statyczną powłokę kompaktowej karty
+// (`ConsentShell`) w gnieździe `[data-consent-shell-slot]`; skrypt inline
+// `CONSENT_INIT_SCRIPT` w `<head>` ukrywa ją przed malowaniem, gdy decyzja już
+// leży w przeglądarce, i zapisuje decyzję klikniętą w powłoce (także przed
+// bootem) - patrz `lib/consent/consentInitScript.ts`.
+//
+// HYDRATACJA. Przeglądarka NIE ma kodu powłoki (gałąź `.server()` wycina
+// kompilator Start). Gniazdo renderuje się z `dangerouslySetInnerHTML` równym
+// migawce własnego HTML-a odczytanej z DOM-u w pierwszym renderze: React przy
+// hydratacji nie dotyka `innerHTML` (produkcja), a w DEV porównuje ten sam
+// napis, więc rozjazdu nie ma; gniazdo jest `memo` bez zmiennych propsów, więc
+// żaden re-render nie przepisuje węzłów. Koszt powłoki w zamknięciu bootu:
+// zero bajtów JS i zero elementów do hydratacji.
+//
+// INTERAKTYWNOŚĆ. Baner (leniwy chunk) zastępuje gniazdo w jednym commicie
+// (bez `animate-in`, ta sama karta - `ConsentCompactCard`):
+//  - po pierwszej interakcji: kolejka P0.3, klasa `shell`, `target` = gniazdo
+//    (pierwsze zadanie po interakcji). Kolejka rusza na `pointerdown`, ale
+//    strażnik gestu (P0.3-FIX) trzyma krok do `click`/`pointerup`, a decyzję
+//    i tak utrwala delegowany `click` skryptu inline - podmiana w trakcie
+//    dotknięcia niczego nie gubi;
+//  - NATYCHMIAST przy intencji z powłoki („Dostosuj", PL/EN) i przy
+//    `requestConsentPreferences()` (link „Ustawienia cookies"): tor pilny
+//    kolejki (`release: "urgent"` - start importu banera);
+//  - w ostateczności w punkcie ciszy P0.3 (`onQuiescent`, klasa `shell`).
+// Zadanie montażu zwraca promise rozstrzygany po commicie banera (`onReady`),
+// więc kolejka nie nakłada następnej pracy na jego montaż (KONTRAKT ZADANIA).
+// Harmonogram prowadzi partner skryptu (`startConsentTakeover`) z leniwego
+// chunku `lib/consent/consentInitScript`, dociąganego `import()` po
+// hydratacji - prymitywy P0.3 i koordynator nie wchodzą do zamknięcia bootu
+// (ten sam wybór co P1.1; PÓŹNY IMPORT w `whenQuiescent.ts`: kliknięcie sprzed
+// importu łapie lepka aktywacja, a decyzję i tak zapisał skrypt inline, który
+// zostawia znacznik do domknięcia).
+//
+// KOORDYNATOR NAKŁADEK. Do montażu banera stan zgody zgłasza partner skryptu
+// w imieniu powłoki (`reportConsentSurface`, ten sam warunek co efekt banera):
+// powłoka widoczna = brak decyzji = brama zamknięta. Po montażu pisze baner.
+
+const SHELL_SLOT_ATTR = "data-consent-shell-slot";
+
+const getServerConsentShell = createIsomorphicFn()
+  .server((): ComponentType | null => ConsentShell)
+  .client((): ComponentType | null => null);
+const ServerConsentShell = getServerConsentShell();
+
+/** Migawka HTML-a powłoki z DOM-u - to, co wyrenderował serwer (pusty napis bez SSR). */
+function readShellSlotHtml(): string {
+  const slot =
+    typeof document === "undefined" ? null : document.querySelector(`[${SHELL_SLOT_ATTR}]`);
+  return slot?.innerHTML ?? "";
+}
+
+/**
+ * Gniazdo powłoki: serwer renderuje powłokę, przeglądarka zostawia jej HTML.
+ * `memo` + stan = gniazdo nie renderuje się drugi raz, więc React nigdy nie
+ * przepisuje `innerHTML` (nowy obiekt `{__html}` przy re-renderze odtworzyłby
+ * węzły i zgubił fokus). `server` - komponent powłoki (serwer) albo `null`
+ * (przeglądarka); domyślnie wynik `createIsomorphicFn` wyżej, prop jest
+ * wyłącznie dla testu hydratacji.
+ */
+export const ConsentShellSlot = memo(function ConsentShellSlot({
+  server: Server = ServerConsentShell,
+}: {
+  server?: ComponentType | null;
+}) {
+  const [shellHtml] = useState(readShellSlotHtml);
+  if (Server) {
+    return (
+      <div data-consent-shell-slot="" className="contents">
+        <Server />
+      </div>
+    );
+  }
+  return (
+    <div
+      data-consent-shell-slot=""
+      className="contents"
+      dangerouslySetInnerHTML={{ __html: shellHtml }}
+    />
+  );
+});
+
+interface MountedConsentBanner {
+  Banner: ComponentType<ConsentBannerProps>;
+  takeover: ConsentTakeover;
+}
+
+/**
+ * Przejęcie powłoki przez baner. Harmonogram (kolejka P0.3, tor pilny, punkt
+ * ciszy), decyzje i intencje z powłoki oraz zgłoszenia do koordynatora
+ * prowadzi partner skryptu `startConsentTakeover` z leniwego chunku
+ * `lib/consent/consentInitScript` - tutaj zostaje tylko stan i montaż.
+ */
+function useConsentTakeover(): {
+  mounted: MountedConsentBanner | null;
+  onReady: () => void;
+} {
+  const [mounted, setMounted] = useState<MountedConsentBanner | null>(null);
+  const settle = useRef<(() => void) | null>(null);
+  const onReady = useCallback(() => {
+    settle.current?.();
+    settle.current = null;
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    let stop: () => void = () => {};
+    // Import banera, potem JEDEN commit podmiany; promise rozstrzyga `onReady`
+    // z efektu warstwy banera (albo limit kolejki P0.3).
+    const mount = (takeover: ConsentTakeover): Promise<void> =>
+      import("../components/ConsentBanner").then(
+        (m) =>
+          new Promise<void>((resolve) => {
+            if (!active) return resolve();
+            settle.current = resolve;
+            setMounted({ Banner: m.ConsentBanner, takeover });
+          }),
+      );
+    void import("../lib/consent/consentInitScript").then(
+      ({ startConsentTakeover }) => {
+        if (!active) return;
+        stop = startConsentTakeover({
+          mount,
+          slot: document.querySelector(`[${SHELL_SLOT_ATTR}]`),
+        });
+      },
+      () => {
+        // Chunk partnera nie dojechał (np. dokument sprzed wdrożenia): baner
+        // od razu - interaktywność ważniejsza niż odroczenie.
+        if (active) void mount({ intent: null, focus: null }).catch(() => undefined);
+      },
+    );
+    return () => {
+      active = false;
+      stop();
+    };
+  }, []);
+
+  return { mounted, onReady };
+}
+
+/**
+ * Powłoka zgód z SSR, po interakcji interaktywny baner w jej miejscu. Poza
+ * granicą `Suspense` nakładek: zawieszenie sąsiada (np. `NewsletterPopup`)
+ * pokazałoby fallback całej granicy, a więc ukryło powłokę.
+ */
+export const ConsentSurface = memo(function ConsentSurface() {
+  const { mounted, onReady } = useConsentTakeover();
+  if (mounted) return <mounted.Banner takeover={mounted.takeover} onReady={onReady} />;
+  return <ConsentShellSlot />;
+});
 
 /**
  * `PopupHost` nie montuje się tylko wtedy, gdy ISTNIEJĄCE dane SSR jednoznacznie
@@ -924,6 +1071,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+// Tekst skryptu zgód w bundlu przeglądarki byłby martwym ciężarem (~1 KB
+// gzip): skrypt wykonał się z HTML-a, zanim wystartował jakikolwiek moduł.
+// Serwer ma stałą, przeglądarka przepisuje TEN SAM napis z wykonanego już
+// węzła - hydratacja widzi identyczną treść, a stała (z fragmentami
+// `consent.ts`) zostaje poza zamknięciem bootu.
+const getServerConsentInitScript = createIsomorphicFn()
+  .server((): string | null => CONSENT_INIT_SCRIPT)
+  .client((): string | null => null);
+const SERVER_CONSENT_INIT_SCRIPT = getServerConsentInitScript();
+
+function consentInitScript(): string {
+  if (SERVER_CONSENT_INIT_SCRIPT !== null) return SERVER_CONSENT_INIT_SCRIPT;
+  if (typeof document === "undefined") return "";
+  return document.querySelector("script[data-consent-init]")?.textContent ?? "";
+}
+
 function RootShell({ children }: { children: ReactNode }) {
   const lang = currentLang();
   // SSR -> browser handoff of the PUBLIC Supabase config (anon key + URL).
@@ -950,6 +1113,12 @@ function RootShell({ children }: { children: ReactNode }) {
           <script dangerouslySetInnerHTML={{ __html: supabaseConfigScript }} />
         ) : null}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Zgody PRZED pierwszym malowaniem (P1.3): `html[data-consent-decided]`
+            ukrywa powłokę banera odwiedzającemu z zapisaną decyzją, a
+            delegowany `click` utrwala decyzję klikniętą w powłoce - także
+            przed bootem. Reguła ważności i serializator rekordu pochodzą z
+            `lib/ads/consent.ts`; kontrakt w `lib/consent/consentInitScript.ts`. */}
+        <script data-consent-init="" dangerouslySetInnerHTML={{ __html: consentInitScript() }} />
         {/* Rezerwacja dolnej krawędzi PRZED pierwszym malowaniem.
             Pasek przestrzeni roboczej członka jest `position: fixed` przy
             dolnej krawędzi, a pojawia się PÓŹNO: sesja Supabase rozstrzyga
@@ -1009,17 +1178,18 @@ function DeferredRootOverlays() {
   // Wszystkie startują na `false`, czyli SSR i pierwszy render klienta emitują
   // dokładnie to samo (null), a `React.lazy` nie startuje `import()` w commicie
   // hydratacji.
-  const { consentReady, overlaysReady } = useOverlayGates();
+  const { overlaysReady } = useOverlayGates();
   const toasterWanted = useToasterWanted();
   const consentPreviewRequested = useConsentPreviewRequested();
   const noActivePopups = useNoActivePopupsFromSsr();
 
   return (
     <>
+      {/* Baner zgód: powłoka SSR od pierwszego malowania, interaktywny baner
+          po interakcji - nigdy WARUNKOWY (patrz `ConsentSurface`). Poza
+          granicą `Suspense` niżej, żeby zawieszenie sąsiada nie ukryło powłoki. */}
+      <ConsentSurface />
       <Suspense fallback={null}>
-        {/* Baner zgód: OPÓŹNIONY (rAF + bezczynność), nigdy WARUNKOWY -
-                patrz kontrakt w `useOverlayGates`. */}
-        {consentReady ? <ConsentBanner /> : null}
         {/* Panel podglądu zgód dociągał swój chunk na KAŻDEJ stronie, choć
                 renderuje cokolwiek wyłącznie przy `?consent-preview=1`
                 (`isConsentPreviewRequested`). Ten sam warunek, tylko

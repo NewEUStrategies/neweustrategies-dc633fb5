@@ -1,10 +1,39 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   fixtureImage,
   fixtureResponse,
   homeFixture,
   isFixtureBackend,
 } from "../scripts/performance/homeFixture";
+
+/**
+ * MASKA AKTYWACJI (wzorzec `third-party-quiescence.spec.ts`, P1.1). Ewaluacje
+ * Playwrighta idą przez CDP z `userGesture: true` i nadają dokumentowi lepką
+ * aktywację bez żadnego wejścia; `firstInteraction.ts` (P0.3) czyta ją jako
+ * kliknięcie sprzed subskrypcji i zwolniłby kolejkę - baner zgód montowałby się
+ * „bez interakcji" wyłącznie w tym harnessie. Maska podmienia
+ * `navigator.userActivation` na wartość, która staje się `true` dopiero po
+ * pierwszym ZAUFANYM zdarzeniu aktywującym (jak w prawdziwej przeglądarce i w
+ * Lighthouse).
+ */
+async function maskUserActivation(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    let activated = false;
+    for (const type of ["keydown", "mousedown", "pointerdown", "pointerup", "touchend"]) {
+      window.addEventListener(
+        type,
+        (event) => {
+          if (event.isTrusted) activated = true;
+        },
+        { capture: true, passive: true },
+      );
+    }
+    Object.defineProperty(Navigator.prototype, "userActivation", {
+      configurable: true,
+      get: () => ({ hasBeenActive: activated, isActive: activated }),
+    });
+  });
+}
 
 test("first-use overlays stay out of startup and respond to the first request", async ({
   page,
@@ -15,6 +44,9 @@ test("first-use overlays stay out of startup and respond to the first request", 
     if (request.resourceType() === "script") scripts.push(new URL(request.url()).pathname);
   });
   page.on("pageerror", (error) => errors.push(error.message));
+  // Chunk banera zgód ma przyjść PO pierwszej interakcji - bez maski fałszywa
+  // aktywacja z CDP zwolniłaby kolejkę wcześniej.
+  await maskUserActivation(page);
   await page.route(
     (url) => url.hostname !== "127.0.0.1" || isFixtureBackend(url.href),
     async (route) => {
@@ -42,8 +74,19 @@ test("first-use overlays stay out of startup and respond to the first request", 
   );
   const response = await page.goto("/", { waitUntil: "domcontentloaded" });
   expect(response?.status()).toBe(200);
+  // P1.3: baner zgód jest w HTML-u jako statyczna powłoka (widoczna od FCP),
+  // a interaktywny chunk `ConsentBanner` dociąga się dopiero po interakcji.
+  expect(await response?.text()).toContain("data-consent-shell");
   await page.waitForFunction(() => window.__nesAppReady === true);
+  const shell = page.locator("[data-consent-shell]");
+  await expect(shell).toBeVisible();
+  const beforeFirstInteraction = await page.evaluate(() => performance.now());
   await page.getByRole("button", { name: "Tylko niezbędne", exact: true }).click();
+  // Decyzja z powłoki: rekord zapisany od razu, powłoka ukryta.
+  await expect(shell).toBeHidden();
+  expect(
+    JSON.parse((await page.evaluate(() => localStorage.getItem("consent:v2"))) ?? "null"),
+  ).toMatchObject({ version: 2, categories: { marketing: false }, source: "local" });
   // These are HTTP hints for the widgets present in this fixture, including
   // the nested renderer that previously waited for PostsSliderWidget to run.
   const hints = response!.headers()["link"] ?? "";
@@ -119,13 +162,16 @@ test("first-use overlays stay out of startup and respond to the first request", 
 
   // KONTROLA POZYTYWNA dla banera zgód: „poza commitem hydratacji" ma znaczyć
   // PÓŹNIEJ, nie NIGDY. Baner MUSI się montować bezwarunkowo - jego efekty są
-  // jedynym pisarzem stanu zgody w `overlayCoordinator`, więc bramka
-  // „tylko dopóki nie zdecydowano" odblokowałaby popupy marketingowe u osób,
-  // które marketing odrzuciły. Klik w „Tylko niezbędne" wyżej dowodzi, że
-  // baner się pojawił; tu domykamy to dowodem na pobrany chunk.
-  expect(
-    overlayTimings.nakladki.filter((entry) => /\/ConsentBanner-/.test(entry.path)).length,
-  ).toBeGreaterThan(0);
+  // pisarzem stanu zgody w `overlayCoordinator`, więc bramka „tylko dopóki nie
+  // zdecydowano" odblokowałaby popupy marketingowe u osób, które marketing
+  // odrzuciły. Od P1.3 widoczna jest od FCP powłoka z SSR, a chunk banera
+  // przychodzi PO PIERWSZEJ INTERAKCJI (kolejka P0.3, klasa `shell`) - nigdy
+  // przed nią, ale zawsze po niej, także gdy decyzja padła już w powłoce.
+  const consentChunks = overlayTimings.nakladki.filter((entry) =>
+    /\/ConsentBanner-/.test(entry.path),
+  );
+  expect(consentChunks.length).toBeGreaterThan(0);
+  expect(consentChunks.every((entry) => entry.startTime >= beforeFirstInteraction)).toBe(true);
   // Panel podglądu zgód jest jedyną z piątki bramkowaną ADRESEM, nie czasem:
   // bez `?consent-preview=1` renderuje `null` przez całe życie strony, więc
   // jego chunk nie ma prawa dojechać NIGDY.

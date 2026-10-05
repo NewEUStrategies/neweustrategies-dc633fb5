@@ -46,6 +46,20 @@ export const DANGEROUS_HTML_ALLOWLIST: readonly DangerousHtmlAllowEntry[] = [
   {
     file: "src/routes/__root.tsx",
     sink: "script",
+    symbol: "consentInitScript",
+    reason:
+      "Skrypt zgód (P1.3): na serwerze stała CONSENT_INIT_SCRIPT z lib/consent/consentInitScript - literał złożony wyłącznie ze stałych modułów (klucze magazynu, nazwy atrybutów i zdarzeń, fragmenty CONSENT_*_JS z lib/ads/consent.ts), bez wstawek z bazy ani z żądania; w przeglądarce ten sam napis przepisany z już wykonanego węzła `script[data-consent-init]`. MUSI wykonać się przed pierwszym malowaniem: ukrywa powłokę banera odwiedzającemu z decyzją i utrwala decyzję klikniętą przed bootem.",
+  },
+  {
+    file: "src/routes/__root.tsx",
+    sink: "html",
+    symbol: "shellHtml",
+    reason:
+      "Gniazdo powłoki zgód (P1.3, `ConsentShellSlot`): w przeglądarce `__html` to migawka `innerHTML` TEGO SAMEGO węzła, który wyrenderował serwer (React escapuje teksty powłoki z ustawień i słownika). Nic z zewnątrz nie trafia do sinka - zapis odtwarza bajty już obecne w DOM-ie, żeby hydratacja ich nie ruszała.",
+  },
+  {
+    file: "src/routes/__root.tsx",
+    sink: "script",
     symbol: "DOCK_RESERVE_INIT_SCRIPT",
     reason:
       "Stała z lib/dock/reservedSpace - rezerwuje dolną krawędź przed pierwszym malowaniem z liczby pikseli zapisanej przy poprzednim wejściu. Nie czyta stanu uwierzytelnienia ani treści z bazy; opóźnienie go naliczałoby CLS przez całe życie strony.",

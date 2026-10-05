@@ -71,6 +71,8 @@ const h = vi.hoisted(() => ({
   dictionaryChunk: null as string | null,
   /** Hinty chunków widgetów, które build podstawia w `WIDGET_CHUNK_URLS`. */
   widgetHints: [] as string[],
+  /** Montaże atrapy banera zgód (P1.3): props `takeover` z każdego renderu. */
+  bannerMounts: [] as unknown[],
 }));
 
 vi.mock("@/lib/i18n/localeRuntime", async (o) => ({
@@ -112,6 +114,29 @@ vi.mock("@/lib/seo/widgetPreloads", () => ({
 vi.mock("@/lib/http/responseHeaders", () => ({
   appendLinkHeader: (v: string) => h.linkHeaders.push(v),
   setCacheControlHeader: (v: string) => h.cacheControl.push(v),
+}));
+// Atrapa interaktywnego banera zgód (P1.3): dowodem jest MOMENT i SPOSÓB
+// montażu przez `ConsentSurface` (kolejka P0.3, tor pilny, zapis decyzji), a nie
+// wygląd banera - ten ma własne testy (`ConsentBanner.test.tsx`). Atrapa woła
+// `onReady` z efektu warstwy, jak prawdziwy baner.
+vi.mock("@/components/ConsentBanner", async () => {
+  const { useLayoutEffect } = await import("react");
+  return {
+    ConsentBanner: (props: { takeover?: unknown; onReady?: () => void }) => {
+      useLayoutEffect(() => {
+        props.onReady?.();
+      }, [props]);
+      h.bannerMounts.push(props.takeover);
+      return <div data-testid="consent-banner-stub" />;
+    },
+  };
+});
+// Most rejestru RODO: zapis decyzji zalogowanego idzie do funkcji serwerowej -
+// poza tym plikiem (testy mostu w `lib/consent/__tests__`).
+vi.mock("@/lib/consent/registryBridge", () => ({
+  syncCmpDecisionToRegistry: async () => undefined,
+  backfillRegistryOnLogin: async () => undefined,
+  syncGpcSignalToRegistry: async () => undefined,
 }));
 vi.mock("@tanstack/router-core/isServer", () => ({
   get isServer() {
@@ -241,8 +266,14 @@ vi.mock("@/lib/seo/brandDefaults", async (o) => ({
   rememberBrandDefaults: (...a: unknown[]) => void h.brand.push(a),
 }));
 
-const { Route, ROOT_WARM_BUDGET_MS, CHROME_WARM_BUDGET_MS, useNoActivePopupsFromSsr } =
-  await import("@/routes/__root");
+const {
+  Route,
+  ROOT_WARM_BUDGET_MS,
+  CHROME_WARM_BUDGET_MS,
+  ConsentShellSlot,
+  ConsentSurface,
+  useNoActivePopupsFromSsr,
+} = await import("@/routes/__root");
 
 type Loader = (a: {
   context: { queryClient: QueryClient };
@@ -902,10 +933,291 @@ describe("__root loader -> tag Google w SSR", () => {
   });
 });
 
-// ── P1.3, TP-4: nakładki poza oknem pomiaru ────────────────────────────────
-describe("__root - nakładki poza oknem pomiaru (P1.3, TP-4)", () => {
+// ── POWŁOKA I BANER ZGÓD (P1.3) ─────────────────────────────────────────────
+//
+// CO TO DOWODZI:
+//  1. `CONSENT_INIT_SCRIPT` stoi w `<head>` ZARAZ PO `THEME_INIT_SCRIPT`, przed
+//     `<body>` - decyzja jest rozstrzygnięta przed pierwszym malowaniem.
+//  2. HYDRATACJA GNIAZDA: przeglądarka bez kodu powłoki zostawia HTML serwera
+//     nietknięty (bez błędu hydratacji, te same węzły po re-renderze rodzica);
+//     kontrola negatywna - gniazdo bez migawki traci powłokę.
+//  3. MOMENT MONTAŻU BANERA: nie przed interakcją; po `pointerdown` czeka do
+//     `click` (strażnik gestu P0.3), potem podmienia powłokę w jednym commicie;
+//     intencja „Dostosuj” i `requestConsentPreferences()` - od razu (tor
+//     pilny); fokus z kontrolki powłoki przechodzi do banera.
+//  4. DECYZJA Z POWŁOKI PO BOOCIE idzie drogą banera (`applyShellDecision`),
+//     bez znacznika „do domknięcia".
+//  5. KOORDYNATOR NAKŁADEK zna stan powłoki od hydratacji: widoczna powłoka =
+//     brama zamknięta; decyzja w powłoce ją otwiera.
+//  6. `PopupHost` bez montażu wyłącznie przy odwodnionej PUSTEJ liście popupów.
+//  7. Siatka cache-bustingu: chunk-load error sprzed punktu ciszy przeładowuje.
+describe("__root - powłoka i baner zgód (P1.3)", () => {
+  const consentMods = async () => ({
+    init: await import("@/lib/consent/consentInitScript"),
+    consent: await import("@/lib/ads/consent"),
+    queue: await import("@/lib/performance/postInteractionQueue"),
+    first: await import("@/lib/performance/firstInteraction"),
+    quiet: await import("@/lib/performance/whenQuiescent"),
+    coordinator: await import("@/lib/overlayCoordinator"),
+    rtl: await import("@testing-library/react"),
+  });
+
+  const scriptClicks: EventListener[] = [];
+
+  /** Uruchamia skrypt inline jak przeglądarka w `<head>` (nasłuch `click` na dokumencie). */
+  async function runInitScript(): Promise<void> {
+    const { init } = await consentMods();
+    const realAdd = document.addEventListener.bind(document);
+    const spy = vi.spyOn(document, "addEventListener").mockImplementation(((
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: boolean | AddEventListenerOptions,
+    ) => {
+      if (type === "click" && typeof listener === "function") scriptClicks.push(listener);
+      realAdd(type, listener, options);
+    }) as typeof document.addEventListener);
+    try {
+      new Function(init.CONSENT_INIT_SCRIPT)();
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  async function resetConsentWorld(): Promise<void> {
+    const { queue, first, quiet, coordinator, rtl } = await consentMods();
+    rtl.cleanup();
+    for (const listener of scriptClicks.splice(0)) document.removeEventListener("click", listener);
+    queue.__resetPostInteractionQueueForTests();
+    first.__resetFirstInteractionForTests();
+    quiet.__resetQuiescenceForTests();
+    coordinator.__resetOverlayCoordinator();
+    document.documentElement.removeAttribute("data-consent-decided");
+    document.documentElement.removeAttribute("data-consent-intent");
+    document.body.innerHTML = "";
+    window.localStorage.clear();
+    // Ciasteczko decyzji przeżywa `localStorage.clear()` - a `readLocal` z niego
+    // odtwarza decyzję. Bez tego test „przed decyzją" widziałby decyzję
+    // poprzedniego przypadku.
+    document.cookie = "nes_cookie_consent=; path=/; max-age=0";
+    h.bannerMounts = [];
+  }
+
+  async function mountSurface() {
+    const { rtl } = await consentMods();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { QueryClientProvider } = await import("@tanstack/react-query");
+    const view = rtl.render(
+      <QueryClientProvider client={client}>
+        <ConsentSurface />
+      </QueryClientProvider>,
+    );
+    // Efekt korzenia dociąga prymitywy P0.3 i koordynator `import()`.
+    await rtl.act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    return view;
+  }
+
+  const shellButton = (action: string) =>
+    document.querySelector<HTMLElement>(`[data-consent-shell] [data-consent-action="${action}"]`);
+  const banner = () => document.querySelector('[data-testid="consent-banner-stub"]');
+
+  beforeEach(async () => {
+    await resetConsentWorld();
+  });
+  afterEach(async () => {
+    await resetConsentWorld();
+  });
+
+  it("`CONSENT_INIT_SCRIPT` stoi w `<head>` zaraz po `THEME_INIT_SCRIPT`", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const source = readFileSync(resolve(__dirname, "../__root.tsx"), "utf8");
+    const shell = source.slice(source.indexOf("function RootShell("));
+    const theme = shell.indexOf("{{ __html: THEME_INIT_SCRIPT }}");
+    const consent = shell.indexOf("{{ __html: consentInitScript() }}");
+    const dock = shell.indexOf("{{ __html: DOCK_RESERVE_INIT_SCRIPT }}");
+    expect(theme).toBeGreaterThan(0);
+    expect(consent).toBeGreaterThan(theme);
+    expect(consent).toBeLessThan(dock);
+    expect(consent).toBeLessThan(shell.indexOf("<body>"));
+    // Między skryptem motywu a skryptem zgód nie ma innego skryptu.
+    expect(shell.slice(theme, consent).match(/<script/g) ?? []).toHaveLength(1);
+  });
+
+  it("hydratacja gniazda: HTML serwera zostaje, bez błędu, te same węzły po re-renderze", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const { hydrateRoot } = await import("react-dom/client");
+    const { act, useState } = await import("react");
+    const Server = () => (
+      <div role="dialog" aria-label="Powłoka" data-consent-shell="">
+        <button type="button" data-consent-action="accept">
+          Akceptuj
+        </button>
+      </div>
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(
+      <>
+        <span>0</span>
+        <ConsentShellSlot server={Server} />
+      </>,
+    );
+    document.body.append(container);
+    const before = container.querySelector("[data-consent-shell]");
+    expect(before).not.toBeNull();
+
+    let bump: (n: number) => void = () => {};
+    function ClientTree() {
+      const [n, setN] = useState(0);
+      bump = setN;
+      return (
+        <>
+          <span>{n}</span>
+          <ConsentShellSlot server={null} />
+        </>
+      );
+    }
+    const errors: unknown[] = [];
+    await act(async () => {
+      hydrateRoot(container, <ClientTree />, { onRecoverableError: (e) => errors.push(e) });
+    });
+    await act(async () => bump(1));
+    expect(errors).toEqual([]);
+    expect(container.querySelector("span")?.textContent).toBe("1");
+    // TEN SAM węzeł - React nie przepisał `innerHTML` gniazda.
+    expect(container.querySelector("[data-consent-shell]")).toBe(before);
+  });
+
+  it("kontrola negatywna: gniazdo klienta bez migawki traci powłokę przy hydratacji", async () => {
+    const { renderToString } = await import("react-dom/server");
+    const { hydrateRoot } = await import("react-dom/client");
+    const { act } = await import("react");
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(
+      <div data-consent-shell-slot="" className="contents">
+        <div data-consent-shell="">powłoka</div>
+      </div>,
+    );
+    document.body.append(container);
+    const errors: unknown[] = [];
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await act(async () => {
+      hydrateRoot(container, <div data-consent-shell-slot="" className="contents" />, {
+        onRecoverableError: (e) => errors.push(e),
+      });
+    });
+    consoleError.mockRestore();
+    expect(container.querySelector("[data-consent-shell]")).toBeNull();
+  });
+
+  it("baner NIE montuje się bez interakcji; po `pointerdown` czeka na `click`, potem zastępuje powłokę", async () => {
+    const { rtl } = await consentMods();
+    await mountSurface();
+    expect(shellButton("accept")).not.toBeNull();
+    expect(banner()).toBeNull();
+
+    rtl.fireEvent.pointerDown(document.body);
+    await rtl.act(async () => {
+      await new Promise((r) => setTimeout(r, 120));
+    });
+    // Strażnik gestu: w trakcie dotknięcia powłoka zostaje (klik nie zgubi celu).
+    expect(banner()).toBeNull();
+    expect(shellButton("accept")).not.toBeNull();
+
+    rtl.fireEvent.pointerUp(document.body);
+    rtl.fireEvent.click(document.body);
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    // Jeden commit: powłoki już nie ma, baner jest.
+    expect(document.querySelector("[data-consent-shell]")).toBeNull();
+    expect(h.bannerMounts.at(-1)).toEqual({ intent: null, focus: null });
+  });
+
+  it("„Dostosuj” w powłoce montuje baner OD RAZU (tor pilny) i przekazuje intencję", async () => {
+    const { rtl } = await consentMods();
+    await runInitScript();
+    await mountSurface();
+    const customize = shellButton("customize");
+    customize?.focus();
+    rtl.fireEvent.click(customize as HTMLElement);
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    expect(h.bannerMounts.at(-1)).toEqual({ intent: "customize", focus: "customize" });
+    expect(document.documentElement.hasAttribute("data-consent-intent")).toBe(false);
+    // Intencja to nie decyzja.
+    expect(window.localStorage.getItem("consent:v2")).toBeNull();
+  });
+
+  it("intencja kliknięta PRZED bootem (atrybut na `<html>`) montuje baner przy starcie", async () => {
+    const { rtl } = await consentMods();
+    document.documentElement.setAttribute("data-consent-intent", "lang-en");
+    await mountSurface();
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    expect(h.bannerMounts.at(-1)).toEqual({ intent: "lang-en", focus: null });
+  });
+
+  it("`requestConsentPreferences()` (link w stopce) montuje baner od razu; fokus z powłoki idzie za nim", async () => {
+    const { rtl, consent } = await consentMods();
+    await mountSurface();
+    shellButton("reject")?.focus();
+    rtl.act(() => consent.requestConsentPreferences());
+    await rtl.waitFor(() => expect(banner()).not.toBeNull());
+    expect(h.bannerMounts.at(-1)).toEqual({ intent: null, focus: "reject" });
+  });
+
+  it("decyzja w powłoce PO boocie idzie drogą banera: rekord, brak znacznika, powłoka ukryta", async () => {
+    const { rtl, consent } = await consentMods();
+    await runInitScript();
+    await mountSurface();
+    rtl.fireEvent.click(shellButton("reject") as HTMLElement);
+    const stored = JSON.parse(window.localStorage.getItem("consent:v2") ?? "null") as {
+      categories: Record<string, boolean>;
+      source: string;
+    } | null;
+    expect(stored?.categories).toEqual({
+      necessary: true,
+      functional: false,
+      analytics: false,
+      marketing: false,
+    });
+    expect(stored?.source).toBe("local");
+    expect(window.localStorage.getItem(consent.SHELL_PENDING_KEY)).toBeNull();
+    expect(document.documentElement.hasAttribute("data-consent-decided")).toBe(true);
+  });
+
+  it("koordynator nakładek: widoczna powłoka zamyka bramę od hydratacji, decyzja w powłoce ją otwiera", async () => {
+    const { rtl, coordinator } = await consentMods();
+    await runInitScript();
+    await mountSurface();
+    const granted = vi.fn();
+    void coordinator.requestOverlaySlot("dialog", { marketing: false }).then(granted);
+    await rtl.act(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+    });
+    expect(granted).not.toHaveBeenCalled();
+    rtl.fireEvent.click(shellButton("accept") as HTMLElement);
+    await rtl.waitFor(() => expect(granted).toHaveBeenCalledTimes(1));
+  });
+
+  it("decyzja zapisana przed wejściem: brama nakładek otwarta od hydratacji, bez montażu banera", async () => {
+    const { rtl, coordinator } = await consentMods();
+    window.localStorage.setItem(
+      "consent:v2",
+      JSON.stringify({
+        version: 2,
+        ts: 1,
+        categories: { necessary: true, functional: true, analytics: true, marketing: true },
+      }),
+    );
+    await mountSurface();
+    const granted = vi.fn();
+    void coordinator.requestOverlaySlot("popup", { marketing: true }).then(granted);
+    await rtl.waitFor(() => expect(granted).toHaveBeenCalledTimes(1));
+    expect(banner()).toBeNull();
+    expect(document.documentElement.hasAttribute("data-consent-decided")).toBe(true);
+  });
+
   it("`PopupHost` bez montażu WYŁĄCZNIE przy odwodnionej pustej liście aktywnych popupów", async () => {
-    const rtl = await import("@testing-library/react");
+    const { rtl } = await consentMods();
     const { QueryClientProvider } = await import("@tanstack/react-query");
     const probe = (client: QueryClient) =>
       rtl.renderHook(() => useNoActivePopupsFromSsr(), {
