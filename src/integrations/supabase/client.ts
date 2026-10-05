@@ -11,11 +11,22 @@
 //      publish build does not inline VITE_* into the client bundle, so the
 //      browser needs the SSR window.__SUPABASE_CONFIG__ handoff or the whole
 //      published site crashes into the root error boundary at first touch.
+//   3. (zob. sessionHint.ts, P1.7) Proxy niżej woła
+//      `markSupabaseClientCreated()` zaraz po utworzeniu klienta, a moduł
+//      reeksportuje `onSupabaseClientCreated`. `AuthProvider` NIE dotyka
+//      `supabase` u gościa (pusty magazyn, adres bez parametrów auth) - nasłuch
+//      `onAuthStateChange` podpina z tego haka w chwili, gdy klienta utworzy
+//      ktokolwiek inny (formularz logowania, zapytanie o dane). Bez tego
+//      wywołania gość, który zaloguje się w tej karcie, zostaje w UI
+//      wylogowany do przeładowania strony.
 import { createClient } from "@supabase/supabase-js";
 import { fetchWithTenantHostAndCorrelation } from "./correlation-fetch";
 import { resolveSupabasePublicConfig } from "@/lib/supabasePublicConfig";
 import type { Database } from "./types";
 import { brokeredPreviewStorage } from "./previewAuthStorage";
+import { markSupabaseClientCreated } from "./sessionHint";
+
+export { onSupabaseClientCreated } from "./sessionHint";
 
 function createSupabaseClient() {
   // Build-time VITE_* -> SSR-injected window config -> server process.env.
@@ -51,7 +62,13 @@ let _supabase: ReturnType<typeof createSupabaseClient> | undefined;
 // import { supabase } from "@/integrations/supabase/client";
 export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
   get(_, prop, receiver) {
-    if (!_supabase) _supabase = createSupabaseClient();
+    if (!_supabase) {
+      _supabase = createSupabaseClient();
+      // Po przypisaniu, przed zwrotem dostępu: słuchacz (nasłuch auth
+      // w `AuthProvider`) dostaje klienta, zanim SDK wyemituje pierwsze
+      // zdarzenie. Wyjątek z `createSupabaseClient()` nie dochodzi tutaj.
+      markSupabaseClientCreated();
+    }
     return Reflect.get(_supabase, prop, receiver);
   },
 });

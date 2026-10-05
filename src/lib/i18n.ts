@@ -44,7 +44,8 @@ async function importCore(lang: AppLang): Promise<CoreBundle> {
  * Własna kopia rdzenia dla `init({ resources })`. i18next trzyma zasoby z init
  * PRZEZ REFERENCJĘ, a każda nakładka (`addResourceBundle(..., deep=true)`)
  * scala się W MIEJSCU w obiekt ze store - bez kopii dopisywała się do eksportu
- * `pl`/`en` z `@/lib/locale/*` (klient: aktywny język, serwer: oba). Ten eksport
+ * `pl`/`en` z `@/lib/locale/*`. Dziś tylko SERWER (oba języki) - klient ma
+ * tańszą kopię przy zapisie (blok niżej). Ten eksport
  * bramki i testy słowników czytają jako CZYSTY rdzeń (ratchet podmian w
  * nakładkach był przez to ślepy na PL). Kopia JSON - ta sama, którą i18next
  * robi sam w `addResourceBundle`, więc `ensureCoreLanguage` jej nie potrzebuje;
@@ -53,6 +54,58 @@ async function importCore(lang: AppLang): Promise<CoreBundle> {
  */
 function storeCopy(core: CoreBundle): CoreBundle {
   return JSON.parse(JSON.stringify(core));
+}
+
+// ---------------------------------------------------------------------------
+// KLIENT: rdzeń w store BEZ głębokiej kopii (P1.7, F5 z diagnozy P0.5).
+//
+// `storeCopy` na kliencie biegł we wznowieniu po top-level await niżej (zadanie
+// K9 księgi Lantern: 1,1-4,0 ms obs na samą kopię ~65 KB słownika), zanim
+// ewaluowała się reszta grafu entry. Kopia chroni jedno: eksport `pl`/`en`
+// z `@/lib/locale/*` przed scalaniem nakładek W MIEJSCU. Ta sama ochrona
+// wychodzi taniej jako KOPIA PRZY ZAPISIE:
+//   * store dostaje PŁYTKĄ kopię rdzenia (nowe klucze najwyższego poziomu
+//     z nakładek lądują w niej, nie w eksporcie);
+//   * przed głębokim scaleniem (`addResourceBundle(..., deep=true)` - jedyna
+//     droga nakładek) poddrzewa najwyższego poziomu, które nakładka dotyka,
+//     a które store nadal dzieli z eksportem, dostają własną kopię.
+// Kopiujemy więc tylko to, co nakładki naprawdę ruszają, i dopiero wtedy, gdy
+// je ruszają. Dowód czystości eksportu: `i18nClientRuntime.test.ts`
+// („eksporty rdzenia nie są mutowane przez nakładki") i
+// `i18nCoreExportsPristine.test.ts` (wszystkie nakładki, oba języki).
+// Serwer zostaje przy `storeCopy` (raz na izolat, poza przeglądarką).
+// ---------------------------------------------------------------------------
+
+/** Język -> eksport rdzenia, z którym store klienta dzieli poddrzewa. */
+const sharedCore = new Map<string, CoreBundle>();
+
+/**
+ * Wpina kopię przy zapisie w `addResourceBundle` instancji (klient): przed
+ * scaleniem zasobów w bundle `translation` każde poddrzewo najwyższego
+ * poziomu, które nakładka dotyka, a które store wciąż dzieli z eksportem
+ * rdzenia, zamienia na własną kopię (ta sama kopia JSON, co `storeCopy`,
+ * tylko dla jednego poddrzewa). Także przy scaleniu płytkim - tam kopia jest
+ * zbędna, ale nieszkodliwa, a nakładki i tak scalają głęboko. Obsługuje formę
+ * ścieżkową i18next (`addResourceBundle("pl.translation", zasoby, deep)`).
+ */
+function installCopyOnWrite(): void {
+  const original = i18n.addResourceBundle.bind(i18n);
+  i18n.addResourceBundle = ((...args: Parameters<typeof i18n.addResourceBundle>) => {
+    // Forma ścieżkowa przesuwa argumenty: (ścieżka, zasoby, deep).
+    const [lang, dottedNs] = args[0].split(".");
+    const resources: unknown = dottedNs ? args[1] : args[2];
+    const core = sharedCore.get(lang);
+    const bundle = i18n.store.data[lang]?.translation as Record<string, unknown> | undefined;
+    if ((dottedNs ?? args[1]) === "translation" && core && bundle && resources) {
+      for (const key of Object.keys(resources)) {
+        const shared = core[key];
+        if (shared && typeof shared === "object" && bundle[key] === shared) {
+          bundle[key] = JSON.parse(JSON.stringify(shared));
+        }
+      }
+    }
+    return original(...args);
+  }) as typeof i18n.addResourceBundle;
 }
 
 /**
@@ -128,7 +181,11 @@ if (!i18n.isInitialized) {
     coreLoaded.add("en");
   } else {
     const lang = currentLang();
-    initialResources[lang] = { translation: storeCopy(await importCore(lang)) };
+    const core = await importCore(lang);
+    // Płytka kopia + kopia przy zapisie (patrz `installCopyOnWrite`) zamiast
+    // `storeCopy`: wznowienie po top-level await nie kopiuje całego słownika.
+    initialResources[lang] = { translation: { ...core } };
+    sharedCore.set(lang, core);
     coreLoaded.add(lang);
   }
 
@@ -144,6 +201,7 @@ if (!i18n.isInitialized) {
   });
 
   if (typeof window !== "undefined") {
+    if (sharedCore.size > 0) installCopyOnWrite();
     // Każda zmiana języka przechodzi przez changeLanguage (przełącznik w
     // headerze, LocalePreferenceRedirect, syncI18nToRequest po nawigacji).
     // Wrapper dociąga rdzenny słownik ZANIM i18next wyemituje languageChanged,
@@ -199,6 +257,18 @@ if (!i18n.isInitialized) {
         (window as Window).setTimeout(idle, 3000);
       }
     }
+
+    // JEDNO TYKNIĘCIE PRZED MODUŁAMI ZALEŻNYMI (P1.7, F5). Moduły, które
+    // importują ten plik (w praktyce cały graf entry: drzewo tras ze schematami
+    // `validateSearch`, komponenty korzenia), ewaluują się dopiero, gdy ten
+    // moduł skończy. Bez tego tyknięcia robiły to w TYM SAMYM zadaniu, co
+    // wznowienie po top-level await (słownik, `init`, ciasteczko) - zadanie K9
+    // księgi Lantern, 18-24 ms obs na mobile x4 (próg długiego zadania to
+    // 12,5 ms obs przy x4). Makrozadanie dzieli je na dwa: rozruch i18n tutaj,
+    // ewaluacja zależnych (i `hydrateRoot` na końcu entry) w następnym.
+    // Hydratacja i tak czeka na cały graf, więc start Reacta przesuwa się
+    // najwyżej o jedno tyknięcie timera.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
   }
 }
 

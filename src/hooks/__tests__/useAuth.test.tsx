@@ -2,6 +2,14 @@
 // role/tenant, re-gating cache'u po zmianie tożsamości i merge personalizacji
 // anonima. Wszystko za route guard'ami i nagłówkiem - stąd nacisk na dedupe
 // startowego ładowania kontekstu i na to, że signOut() nigdy nie wywala się.
+//
+// ATRAPA KLIENTA ZACHOWUJE SIĘ JAK `client.ts` (P1.7): pierwszy dostęp do
+// `supabase` zgłasza utworzenie klienta do PRAWDZIWEGO rejestru
+// (`sessionHint.ts`), a `h.touches` liczy dostępy. Domyślnie klient już
+// istnieje (jak na stronie, której zapytania o dane utworzyły go przy
+// hydratacji) - gość od startu podpina wtedy nasłuch od razu. Blok
+// „szybka ścieżka gościa" zaczyna od stanu „klienta jeszcze nie ma".
+import { StrictMode } from "react";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -24,18 +32,27 @@ const h = vi.hoisted(() => ({
   settingsShouldReject: false,
   throwOnSubscribe: false,
   fromCalls: [] as string[],
+  /** Dostępy do `supabase` (każdy tworzyłby klienta, gdyby go nie było). */
+  touches: 0,
+  getSessionCalls: 0,
+  subscribeCalls: 0,
 }));
 
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
+vi.mock("@/integrations/supabase/client", async () => {
+  const { markSupabaseClientCreated } = await import("@/integrations/supabase/sessionHint");
+  const client = {
     rpc: h.rpc,
     auth: {
       onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
         if (h.throwOnSubscribe) throw new Error("subscribe unavailable");
+        h.subscribeCalls += 1;
         h.authCb = cb;
         return { data: { subscription: { unsubscribe: h.unsub } } };
       },
-      getSession: () => h.getSessionPromise ?? Promise.resolve(h.getSessionResult),
+      getSession: () => {
+        h.getSessionCalls += 1;
+        return h.getSessionPromise ?? Promise.resolve(h.getSessionResult);
+      },
       signOut: h.signOutMock,
     },
     from: (table: string) => {
@@ -58,8 +75,18 @@ vi.mock("@/integrations/supabase/client", () => ({
       }
       throw new Error(`unexpected table ${table}`);
     },
-  },
-}));
+  };
+  return {
+    // Jak `client.ts`: klient powstaje przy pierwszym dostępie i zgłasza to.
+    supabase: new Proxy(client, {
+      get(target, prop, receiver) {
+        h.touches += 1;
+        markSupabaseClientCreated();
+        return Reflect.get(target, prop, receiver);
+      },
+    }),
+  };
+});
 
 vi.mock("@/lib/personalization/anonMerge", () => ({
   hasAnonPersonalization: () => h.hasAnon(),
@@ -87,6 +114,10 @@ import {
   useAuth,
   useRequiredTenant,
 } from "@/hooks/useAuth";
+import {
+  __resetSupabaseClientRegistryForTests,
+  markSupabaseClientCreated,
+} from "@/integrations/supabase/sessionHint";
 
 /** Klucz, pod którym klient Supabase trzyma sesję dla `placeholder.supabase.co`. */
 const STORED_SESSION_KEY = "sb-placeholder-auth-token";
@@ -171,6 +202,13 @@ beforeEach(() => {
   h.settingsShouldReject = false;
   h.throwOnSubscribe = false;
   h.fromCalls = [];
+  h.touches = 0;
+  h.getSessionCalls = 0;
+  h.subscribeCalls = 0;
+  window.localStorage.clear();
+  // Domyślnie klient już istnieje (patrz nagłówek pliku).
+  __resetSupabaseClientRegistryForTests();
+  markSupabaseClientCreated();
 
   originalLocation = window.location;
   Object.defineProperty(window, "location", {
@@ -186,8 +224,14 @@ afterEach(() => {
     value: originalLocation,
     writable: true,
   });
+  window.localStorage.clear();
   vi.restoreAllMocks();
 });
+
+/** Sesja zapisana w magazynie: AuthProvider idzie ścieżką z SDK (nie gościa). */
+function storeSession() {
+  window.localStorage.setItem(STORED_SESSION_KEY, JSON.stringify({ access_token: "tok" }));
+}
 
 describe("AuthProvider - montaż i sesja startowa", () => {
   it("czysty montaż bez sesji: loading kończy się na false, brak ról, zero from()", async () => {
@@ -200,6 +244,7 @@ describe("AuthProvider - montaż i sesja startowa", () => {
   });
 
   it("INITIAL_SESSION + zgodne getSession(): jedno wczytanie kontekstu (dedupe)", async () => {
+    storeSession();
     const session = makeSession("u1");
     h.getSessionResult = { data: { session } };
     h.rolesRows = [{ role: "editor" }];
@@ -293,6 +338,7 @@ describe("AuthProvider - re-gating przy zmianie tożsamości", () => {
     expect(screen.getByTestId("token")).toHaveTextContent("new-token");
   });
   it("TOKEN_REFRESHED z sesją innego konta po starcie: inwalidacja cache'u i kontekst nowego konta", async () => {
+    storeSession();
     const { qc } = renderProbe();
     await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
 
@@ -318,6 +364,8 @@ describe("AuthProvider - re-gating przy zmianie tożsamości", () => {
   });
 
   it("TOKEN_REFRESHED przed INITIAL_SESSION ustala tożsamość startową - bez inwalidacji i bez drugiego wczytania", async () => {
+    // Przeterminowany token LEŻY w magazynie - to nie jest gość od startu.
+    storeSession();
     const { qc } = renderProbe();
     await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
     const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
@@ -530,6 +578,7 @@ describe("useRequiredTenant()", () => {
 });
 
 it("keeps the signed-in context when invitation acceptance returns an error", async () => {
+  storeSession();
   const session = makeSession("u1");
   h.getSessionResult = { data: { session } };
   h.rpc.mockResolvedValue({ data: null, error: { message: "temporarily unavailable" } });
@@ -707,5 +756,178 @@ describe("AuthProvider - termin na role i tenanta", () => {
       expect.any(Error),
     );
     expect(screen.getByTestId("uid")).toHaveTextContent("u-role-err");
+  });
+});
+
+// SZYBKA ŚCIEŻKA GOŚCIA (P1.7, F7).
+//
+// Pusty magazyn i adres bez parametrów auth = pewny gość: AuthProvider nie
+// dotyka `supabase` wcale (bez inicjalizacji GoTrue, bez `getSession()`, bez
+// żądań `/auth/v1`), a nasłuch sesji podpina się dopiero, gdy klienta utworzy
+// ktoś inny. Każdy przypadek startuje bez klienta.
+describe("AuthProvider - szybka ścieżka gościa", () => {
+  beforeEach(() => {
+    __resetSupabaseClientRegistryForTests();
+  });
+
+  it("gość bez klienta: zero dotknięć supabase, loading=false po pierwszym przebiegu efektów", () => {
+    const seen: boolean[] = [];
+    function Seen() {
+      seen.push(useAuth().loading);
+      return null;
+    }
+    render(
+      <QueryClientProvider client={newQueryClient()}>
+        <AuthProvider>
+          <Probe />
+          <Seen />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+    // Bez `waitFor`: rozstrzygnięcie zapada w pierwszym przebiegu efektów
+    // (render w `act` je opróżnia, razem z przejściem), bez czekania na
+    // klienta. Pierwszy render to „nie wiemy" - parytet z HTML-em serwera.
+    expect(seen[0]).toBe(true);
+    expect(seen.at(-1)).toBe(false);
+    expect(screen.getByTestId("loading")).toHaveTextContent("false");
+    expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+    expect(h.touches).toBe(0);
+    expect(h.getSessionCalls).toBe(0);
+    expect(h.authCb).toBeNull();
+  });
+
+  it("klient utworzony później przez kogokolwiek: nasłuch się podpina, SIGNED_IN loguje", async () => {
+    const { qc } = renderProbe();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    expect(h.authCb).toBeNull();
+
+    // Formularz logowania albo zapytanie o dane tworzy klienta.
+    act(() => markSupabaseClientCreated());
+    expect(h.authCb).not.toBeNull();
+    expect(h.getSessionCalls).toBe(0);
+
+    h.rolesRows = [{ role: "author" }];
+    await act(async () => {
+      h.authCb!("SIGNED_IN", makeSession("u-formularz"));
+    });
+    await waitFor(() => expect(screen.getByTestId("roles")).toHaveTextContent("author"));
+    expect(screen.getByTestId("uid")).toHaveTextContent("u-formularz");
+    expect(screen.getByTestId("loading")).toHaveTextContent("false");
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["public", "resolved"] });
+  });
+
+  it("INITIAL_SESSION bez sesji od klienta utworzonego przez zapytanie nie renderuje konsumentów", async () => {
+    let renders = 0;
+    function Counter() {
+      renders += 1;
+      const { loading } = useAuth();
+      return <span data-testid="counter-loading">{String(loading)}</span>;
+    }
+    const qc = newQueryClient();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    render(
+      <QueryClientProvider client={qc}>
+        <AuthProvider>
+          <Counter />
+        </AuthProvider>
+      </QueryClientProvider>,
+    );
+    await act(async () => {});
+    const before = renders;
+    act(() => markSupabaseClientCreated());
+    await act(async () => {
+      h.authCb!("INITIAL_SESSION", null);
+      h.authCb!("SIGNED_OUT", null);
+    });
+    expect(renders).toBe(before);
+    expect(screen.getByTestId("counter-loading")).toHaveTextContent("false");
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    expect(h.fromCalls).toEqual([]);
+  });
+
+  it("logowanie w innej karcie: zapis sesji w magazynie budzi klienta i loguje tę kartę", async () => {
+    const { qc } = renderProbe();
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
+    h.getSessionResult = { data: { session: makeSession("u-inna-karta") } };
+    h.rolesRows = [{ role: "editor" }];
+
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: STORED_SESSION_KEY, newValue: '{"access_token":"t"}' }),
+      );
+    });
+
+    await waitFor(() => expect(screen.getByTestId("uid")).toHaveTextContent("u-inna-karta"));
+    await waitFor(() => expect(screen.getByTestId("roles")).toHaveTextContent("editor"));
+    expect(h.getSessionCalls).toBe(1);
+    // Klient powstał przy odczycie, a nasłuch podpiął się przed nim.
+    expect(h.authCb).not.toBeNull();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["unlocked-body"] });
+  });
+
+  it("obcy klucz i usunięcie sesji w innej karcie nie budzą klienta", async () => {
+    renderProbe();
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", { key: "theme", newValue: "dark" }));
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: STORED_SESSION_KEY, newValue: null }),
+      );
+      window.dispatchEvent(new StorageEvent("storage", { key: null }));
+    });
+    expect(h.touches).toBe(0);
+    expect(screen.getByTestId("uid")).toHaveTextContent("anon");
+  });
+
+  it("powrót z linku magicznego: SDK od razu, loading czeka na SDK, a nie zgaduje gościa", async () => {
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      writable: true,
+      value: {
+        ...window.location,
+        search: "",
+        hash: "#access_token=a&refresh_token=r&type=magiclink",
+        assign: vi.fn(),
+      },
+    });
+    const late = createDeferred<{ data: { session: unknown } }>();
+    h.getSessionPromise = late.promise;
+    renderProbe();
+    expect(screen.getByTestId("loading")).toHaveTextContent("true");
+    expect(h.getSessionCalls).toBe(1);
+    expect(h.authCb).not.toBeNull();
+
+    await act(async () => {
+      late.resolve({ data: { session: makeSession("u-link") } });
+    });
+    await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"));
+    expect(screen.getByTestId("uid")).toHaveTextContent("u-link");
+  });
+
+  it("StrictMode: podwójny montaż efektu nie dubluje nasłuchu po utworzeniu klienta", () => {
+    render(
+      <StrictMode>
+        <QueryClientProvider client={newQueryClient()}>
+          <AuthProvider>
+            <Probe />
+          </AuthProvider>
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+    expect(h.subscribeCalls).toBe(0);
+    act(() => markSupabaseClientCreated());
+    expect(h.subscribeCalls).toBe(1);
+  });
+
+  it("odmontowanie gościa wypisuje słuchacza utworzenia klienta i nasłuch magazynu", async () => {
+    const { unmount } = renderProbe();
+    unmount();
+    act(() => markSupabaseClientCreated());
+    expect(h.authCb).toBeNull();
+    __resetSupabaseClientRegistryForTests();
+    h.touches = 0;
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: STORED_SESSION_KEY, newValue: '{"access_token":"t"}' }),
+    );
+    expect(h.touches).toBe(0);
   });
 });
