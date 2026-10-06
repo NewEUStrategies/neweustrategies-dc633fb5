@@ -37,14 +37,14 @@ c3-lcpobs.mjs --html-transform-b c3-lcpobs.mjs`; 16/16 przebiegów ważnych.
 
 ## 3. Pozycje
 
-| Id                                   | Partia | Stan                                                                                   | Raporty                 |
-| ------------------------------------ | ------ | -------------------------------------------------------------------------------------- | ----------------------- |
-| P2.5 dieta dehydratacji              | 1a     | **scalone** (`9652d965`); dowód: struktura tak, rozmiar częściowo                      | `raporty/P2.5-*.md`     |
-| P2.6 dieta znaczników                | 1a     | **scalone** (`afcf927c`); dowód: struktura tak, czas w szumie                          | `raporty/P2.6-*.md`     |
-| P2.4 hydratacja per widget, animacje | 1b     | **scalone** (`48259396`); dowód: tak                                                   | `raporty/P2.4-*.md`     |
-| P2.3 nagłówek w oknie                | 1b     | **scalone** (`83d9cc80`); dowód: częściowo (kryteria zależne od I2 przechodzą do P2.2) | `raporty/P2.3-*.md`     |
-| P2.2 wyspy sekcji i stopki           | 2      | **scalone** (`ae602a97`); dowód: struktura tak, TBT w szumie                           | `raporty/P2.2-*.md`     |
-| P2.1 boot po LCP                     | 3      | w toku na gałęzi spike'u (scalona z bazą `8a26b3eb`)                                   | `raporty/P2.1-SPIKE.md` |
+| Id                                   | Partia | Stan                                                                                   | Raporty             |
+| ------------------------------------ | ------ | -------------------------------------------------------------------------------------- | ------------------- |
+| P2.5 dieta dehydratacji              | 1a     | **scalone** (`9652d965`); dowód: struktura tak, rozmiar częściowo                      | `raporty/P2.5-*.md` |
+| P2.6 dieta znaczników                | 1a     | **scalone** (`afcf927c`); dowód: struktura tak, czas w szumie                          | `raporty/P2.6-*.md` |
+| P2.4 hydratacja per widget, animacje | 1b     | **scalone** (`48259396`); dowód: tak                                                   | `raporty/P2.4-*.md` |
+| P2.3 nagłówek w oknie                | 1b     | **scalone** (`83d9cc80`); dowód: częściowo (kryteria zależne od I2 przechodzą do P2.2) | `raporty/P2.3-*.md` |
+| P2.2 wyspy sekcji i stopki           | 2      | **scalone** (`ae602a97`); dowód: struktura tak, TBT w szumie                           | `raporty/P2.2-*.md` |
+| P2.1 boot po LCP                     | 3      | **scalone** (`7ea62fe7`); dowód: tak (oba ramiona rozgrzewki)                          | `raporty/P2.1-*.md` |
 
 ## 4. Spike P2.1 (krok 0): parytet zielony, plan A
 
@@ -176,6 +176,38 @@ domknęła straż kliku wysp (pierwsze dotknięcie zimnej wyspy nie ginie) i reg
 - Scalona głowa `8a26b3eb`: `check:bundle` czerwone tylko overall 4801,9 KB, `check:chunks`, `check:entry-purity`,
   `check:server-entry-purity` zielone, `check:document-weight` 25/25, `typecheck` zielony, vitest zmienionych testów 9
   plików / 225 zielonych, `test:e2e:artifact` 8/8.
+
+## 4e. Partia 3 (P2.1, boot po LCP): scalona
+
+Spike parytetu (krok 0, plan A) → kroki 1–5 → recenzja (zatwierdzona) → dowód 1 (błąd blokujący: wejście bootu wstawiane
+przed końcem parsowania dawało `Invariant failed` na dokumencie w porcjach) → poprawka → dowód 2. A = scalone P2.2–P2.6
+(`8a26b3eb`), B = P2.1 (`cad29e86`), bez transformacji C3, fixture + `fake-gtag`, n = 5 na formę i stronę
+(`raporty/P2.1-PROVE-2.md`).
+
+| Forma (ramię browser / bot) | perf A → B                | FCP A → B                             | LCP A → B                             | TBT A → B (pary, MDE)                                    |
+| --------------------------- | ------------------------- | ------------------------------------- | ------------------------------------- | -------------------------------------------------------- |
+| mobile                      | 72 → **97** / 71 → **96** | 4,14 → **1,54 s** / 4,19 → **1,54 s** | 4,91 → **2,31 s** / 4,96 → **2,33 s** | 33 → 100 / 66 → 109 ms (+79 / +65, MDE 109 / 155 – szum) |
+| desktop                     | 98 → 100                  | 0,80 → 0,39 s / 0,82 → 0,42 s         | 0,92 → 0,54 s                         | 0 → 0                                                    |
+| desktop4x                   | 94 → 92 / 92 → 87         | 0,96 → 0,42 s                         | 1,00 → 0,56 s                         | 169 → 226 / 193 → 308 ms (szum)                          |
+| desktop5x                   | 80 → 79 / 82 → 80         | 0,91 → 0,45 s                         | 0,93 → 0,56 s                         | 396 → 479 / 371 → 463 ms (szum)                          |
+
+- Struktura: `scriptBytesEndedBeforeObsLcp` = 0 w 50/50 przebiegach B (A: 26 skryptów, 517,9 KB); seria bootu startuje
+  +44…+101 ms po obserwowanym LCP w 50/50; pula High przed obrazem LCP 630,6 → 112,6 KB; nagłówek `Link`: 0
+  modulepreload (baza 27); zestaw bootu `#nes-boot-set` także w dokumencie bota (ścieżka `allReady`); zalogowany,
+  ramka podglądu i trasy bez kandydata bootują od razu; CLS maks. 0,0007.
+- Sprzężenie TBT (Style, ScriptCatchup, na desktop4x/5x także ParseHTML dokumentu w oknie [FCP, TTI]) jest
+  przewidziane planem i mniejsze od prognozy (+154 ms); rozlicza je bramka fali (§6).
+- Bramki: `check:bundle` B lepsze od bazy o 0,2–0,4 KB (overall czerwony jak na `main`), `check:entry-purity` i
+  `check:bundle` czytają wejście z serwerowej mapy bootu, `test:e2e:artifact` 9/9, `consent-shell-geometry` +
+  `on-demand-overlays` 9/9, `check:document-weight` 28/28 (nowe metryki zestawu bootu; progi modulepreload w dół).
+- **Decyzja orkiestratora – favicon** (`3a40c23c`): `public/favicon.ico` miał jeden PNG 256 px (26 KB) pobierany z
+  priorytetem High przed obserwowanym LCP; Lantern dokładał go szeregowo za obrazem kandydata (+152 ms LCP mobile w 4/15
+  przebiegów, tryb górny 2,44–2,60 s; wariant okładek leadów 2,44 s > 2,4). Teraz 16 + 32 px (2,5 KB), ten sam obraz
+  pomniejszony; `apple-touch-icon` jako osobny PNG 180 px.
+- Formatowanie prettier sześciu plików z `main` (commity Lovable), żeby `format:check` w CI był zielony (`ca34249c`).
+- Przekazania: ticker nagłówka z językiem w kluczu (P2.5) nie zrobiony – wymaga `headerTickerQuery.ts` i
+  `TrendingTicker.tsx`; druga okładka leada przed obserwowanym LCP w 1/5 przebiegów wariantu okładek (ryzyko P1.4);
+  opcjonalny ratchet w dół `bootClosure*` o ok. 0,3–0,4 KB.
 
 ## 4b. Przerwa i wznowienie
 
