@@ -310,9 +310,16 @@ export function SidebarListenCard({
           {/* Slider */}
           <div className="relative h-4 flex items-center">
             {/* Subtelne fale audio: warstwa bazowa + warstwa postępu przycięta do % */}
-            <div aria-hidden className="absolute inset-0 flex items-center justify-between gap-px text-foreground/25">
+            <div
+              aria-hidden
+              className="absolute inset-0 flex items-center justify-between gap-px text-foreground/25"
+            >
               {WAVE_BARS.map((h, i) => (
-                <span key={i} className="w-[2px] rounded-full bg-current" style={{ height: `${h}%` }} />
+                <span
+                  key={i}
+                  className="w-[2px] rounded-full bg-current"
+                  style={{ height: `${h}%` }}
+                />
               ))}
             </div>
             <div
@@ -321,7 +328,11 @@ export function SidebarListenCard({
               style={{ clipPath: `inset(0 ${100 - displayPct}% 0 0)` }}
             >
               {WAVE_BARS.map((h, i) => (
-                <span key={i} className="w-[2px] rounded-full bg-current" style={{ height: `${h}%` }} />
+                <span
+                  key={i}
+                  className="w-[2px] rounded-full bg-current"
+                  style={{ height: `${h}%` }}
+                />
               ))}
             </div>
 

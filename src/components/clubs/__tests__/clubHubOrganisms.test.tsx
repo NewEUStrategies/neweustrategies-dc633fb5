@@ -558,14 +558,17 @@ function fullData(): void {
 }
 
 function mount(overrides: Partial<ClubViewRow> = {}) {
-  h.navigate.mockImplementation((options: {
-    search?: { tag?: string; kind?: ClubThreadKind } | ((previous: typeof h.search) => typeof h.search);
-  }) => {
-    if (options.search) {
-      h.search = typeof options.search === "function" ? options.search(h.search) : options.search;
-    }
-    return Promise.resolve();
-  });
+  h.navigate.mockImplementation(
+    (options: {
+      search?:
+        { tag?: string; kind?: ClubThreadKind } | ((previous: typeof h.search) => typeof h.search);
+    }) => {
+      if (options.search) {
+        h.search = typeof options.search === "function" ? options.search(h.search) : options.search;
+      }
+      return Promise.resolve();
+    },
+  );
   return renderWithQueryClient(<ClubHub club={clubViewRow(overrides)} />);
 }
 
