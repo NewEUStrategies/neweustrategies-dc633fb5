@@ -107,6 +107,8 @@ vi.mock("@/hooks/useAuth", () => ({
 }));
 vi.mock("@/hooks/useNewsletterSettings", () => ({
   useNewsletterSettings: () => ({ data: { enabled: h.newsletterEnabled } }),
+  // Formularz czyta projekcję inline (P2.5); bez `field_labels` = etykiety domyślne.
+  useNewsletterInlineSettings: () => ({ data: { enabled: h.newsletterEnabled } }),
 }));
 vi.mock("@/lib/content-model/editorCanvas", () => ({ useBuilderMode: () => null }));
 // Atrapa `useServerFn` zwraca samą server fn - dzięki temu atrapy modułów

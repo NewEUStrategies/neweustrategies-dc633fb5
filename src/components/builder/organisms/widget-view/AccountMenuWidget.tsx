@@ -6,18 +6,46 @@ import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 //   - style panelu: tło, kolor tekstu, akcent, zaokrąglenie, szerokość
 //   - presety profilu (/profile, /profile/bookmarks, ...) + strony z DB pages + URL custom
 // Atomic design: AccountMenu = molecule (Popover + lista). i18n: PL/EN.
-import { lazy, Suspense, useMemo, useState, type CSSProperties } from "react";
-import { useGreeting } from "@/lib/greetings/useGreeting";
+//
+// GOŚĆ STATYCZNIE, PANEL NA ŻĄDANIE (P2.3). Gość widzi wyłącznie przycisk
+// „Zaloguj | Zarejestruj" - ten sam znacznik, który dotąd składał wyzwalacz
+// Radixa (atrybuty `aria-haspopup`/`aria-expanded`/`data-state` w tej samej
+// kolejności, więc HTML serwera jest bajt w bajt taki jak przed zmianą).
+// Panel (Popover i Avatar Radixa - chunk `vendor-radix`, silnik powitań, jego
+// zapytania) to osobny ZESTAW ładowany dynamicznym importem: przy otwarciu
+// menu przez gościa (z rozgrzewką na najechaniu/fokusie), a dla zalogowanego
+// od razu po starcie (`hasStoredAuthSession`), żeby jego awatar pojawił się
+// jak dotąd. Widget sam jest wyspą hydratacji na intencję (`lazyWidgets.tsx`).
+import {
+  lazy,
+  Suspense,
+  use,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+} from "react";
+import type { useGreeting as UseGreeting } from "@/lib/greetings/useGreeting";
 import { useHasMounted } from "@/hooks/useHasMounted";
 import { useHeaderProfile } from "@/lib/profile/useHeaderProfile";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { LogIn, ChevronRight } from "lucide-react";
 import { DynamicIcon } from "@/lib/icons/DynamicIcon";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type {
+  Popover as PopoverRoot,
+  PopoverContent as PopoverContentPart,
+  PopoverTrigger as PopoverTriggerPart,
+} from "@/components/ui/popover";
+import type {
+  Avatar as AvatarRoot,
+  AvatarFallback as AvatarFallbackPart,
+  AvatarImage as AvatarImagePart,
+} from "@/components/ui/avatar";
 import { AppLink } from "@/components/atoms/AppLink";
 import { useAuth } from "@/hooks/useAuth";
+import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
 
 import { supabase } from "@/integrations/supabase/client";
 const NotificationsBell = lazy(() =>
@@ -319,16 +347,244 @@ function IconByName({ name, className }: { name: string | undefined; className?:
   return <DynamicIcon name={name} className={className} />;
 }
 
-export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig; lang: Lang }) {
+/**
+ * ZESTAW PANELU (P2.3): wszystko, czego potrzebuje rozwinięte menu i wariant
+ * zalogowanego, a czego NIE potrzebuje przycisk gościa. Popover i Avatar to
+ * Radix (`vendor-radix`, ok. 112 KB surowego JS), a `useGreeting` ciągnie
+ * słownik powitań i własne zapytania - dotąd wszystko przychodziło z chunkiem
+ * widgetu do każdego gościa, w oknie startu strony.
+ */
+interface AccountMenuKit {
+  readonly Popover: typeof PopoverRoot;
+  readonly PopoverTrigger: typeof PopoverTriggerPart;
+  readonly PopoverContent: typeof PopoverContentPart;
+  readonly Avatar: typeof AvatarRoot;
+  readonly AvatarImage: typeof AvatarImagePart;
+  readonly AvatarFallback: typeof AvatarFallbackPart;
+  readonly useGreeting: typeof UseGreeting;
+}
+
+/**
+ * Promise zestawu z polami `status`/`value` w konwencji `use()` Reacta.
+ * Status ustawiamy SAMI w pierwszym `.then` (przed nasłuchem Reacta), więc
+ * zestaw rozgrzany wcześniej (najechanie, start zalogowanego) jest gotowy
+ * synchronicznie - panel montuje się bez zawieszenia i bez klatki fallbacku.
+ */
+type AccountMenuKitThenable = Promise<AccountMenuKit> & {
+  status: "pending" | "fulfilled" | "rejected";
+  value?: AccountMenuKit;
+  reason?: unknown;
+};
+
+/** Jeden zestaw na dokument (import i tak jest buforowany przez mapę modułów). */
+let kitThenable: AccountMenuKitThenable | null = null;
+
+/**
+ * Ładuje zestaw panelu (idempotentne). Odrzucenie (chunk nie przyszedł) zostaje
+ * w obiekcie jak przy `React.lazy` - `use()` rzuca je do granicy błędu widgetu.
+ */
+function loadAccountMenuKit(): AccountMenuKitThenable {
+  if (kitThenable) return kitThenable;
+  const promise = Promise.all([
+    import("@/components/ui/popover"),
+    import("@/components/ui/avatar"),
+    import("@/lib/greetings/useGreeting"),
+  ]).then(([popover, avatar, greeting]): AccountMenuKit => ({
+    Popover: popover.Popover,
+    PopoverTrigger: popover.PopoverTrigger,
+    PopoverContent: popover.PopoverContent,
+    Avatar: avatar.Avatar,
+    AvatarImage: avatar.AvatarImage,
+    AvatarFallback: avatar.AvatarFallback,
+    useGreeting: greeting.useGreeting,
+  }));
+  const thenable: AccountMenuKitThenable = Object.assign(promise, {
+    status: "pending" as const,
+  });
+  promise.then(
+    (value) => {
+      thenable.status = "fulfilled";
+      thenable.value = value;
+    },
+    (reason: unknown) => {
+      thenable.status = "rejected";
+      thenable.reason = reason;
+    },
+  );
+  kitThenable = thenable;
+  return thenable;
+}
+
+/** Rozgrzewka zestawu na intencję (najechanie, fokus, wciśnięcie). */
+function prefetchAccountMenuKit(): void {
+  void loadAccountMenuKit();
+}
+
+/**
+ * Kliknięcie gościa przełącza drzewo widgetu dopiero, gdy zestaw jest
+ * ROZSTRZYGNIĘTY. Do tego czasu zostaje ten sam węzeł przycisku, który ma
+ * fokus: podmiana korzenia na granicę Suspense odmontowywała go, więc przy
+ * zimnym zestawie (Enter z klawiatury tuż po Tab) fokus leżał na `<body>`
+ * przez cały import `vendor-radix`, a czytnik ekranu tracił kontekst
+ * (recenzja P2.3, m2). Po rozstrzygnięciu panel czyta zestaw synchronicznie
+ * (`use()` bez zawieszenia), montuje się otwarty, a Radix przenosi fokus do
+ * treści menu i przy zamknięciu oddaje go wyzwalaczowi. Odrzucony import też
+ * przełącza drzewo - `use()` rzuca go do granicy błędu widgetu, jak dotąd.
+ * Nasłuch statusu zestawu jest zapisany wcześniej niż ten, więc `callback`
+ * widzi już `status` inny niż `pending`.
+ */
+function whenAccountMenuKitSettles(callback: () => void): void {
+  const kit = loadAccountMenuKit();
+  if (kit.status !== "pending") {
+    callback();
+    return;
+  }
+  kit.then(callback, callback);
+}
+
+/**
+ * Rząd widgetu. Spójne odstępy dla rzędu ikon konta (mobile-first, unifikacja
+ * z headerem): gap-x-2 na <480 px, gap-x-3 od sm; pr-1.5 przy dzwonku rezerwuje
+ * miejsce na overflow badge powiadomień (badge = -right-2.5), żeby nie
+ * nachodził na sąsiedni widget.
+ */
+const ROW_CLASS = "relative inline-flex items-center gap-x-2 sm:gap-x-3 overflow-visible";
+
+interface GuestLabels {
+  readonly signInLabel: string;
+  readonly signUpLabel: string;
+}
+
+function guestLabels(config: AccountMenuConfig, lang: Lang): GuestLabels {
+  return {
+    signInLabel:
+      (lang === "pl" ? config.signin_pl : config.signin_en) ||
+      (lang === "pl" ? "Zaloguj" : "Sign in"),
+    signUpLabel:
+      (lang === "pl" ? config.signup_pl : config.signup_en) ||
+      (lang === "pl" ? "Zarejestruj" : "Sign up"),
+  };
+}
+
+/** Atrybuty wyzwalacza zamkniętego menu - te same, które dokłada Radix. */
+type GuestTriggerAttributes = {
+  readonly "aria-haspopup"?: "dialog";
+  readonly "aria-expanded"?: boolean;
+  readonly "data-state"?: "closed";
+  readonly onClick?: () => void;
+  readonly onPointerEnter?: () => void;
+  readonly onPointerDown?: () => void;
+  readonly onFocus?: () => void;
+};
+
+/**
+ * Przycisk gościa. JEDEN znacznik dla wariantu statycznego (tu atrybuty
+ * podaje wołający, w tej samej kolejności co `PopoverTrigger asChild`, czyli
+ * za `aria-label`) i dla wyzwalacza Radixa (bez atrybutów - dokleja je Radix).
+ */
+function guestTrigger(
+  { signInLabel, signUpLabel }: GuestLabels,
+  attributes: GuestTriggerAttributes,
+) {
+  return (
+    <button
+      type="button"
+      className="inline-flex h-7 shrink-0 items-center gap-2 text-[11px] font-medium leading-none whitespace-nowrap hover:opacity-80 cursor-pointer"
+      aria-label={`${signInLabel} / ${signUpLabel}`}
+      {...attributes}
+    >
+      <LogIn className="w-3.5 h-3.5" />
+      <span>{signInLabel}</span>
+      <span className="text-muted-foreground/40" aria-hidden>
+        |
+      </span>
+      {/* To dekoracyjny akcent widgetu, więc także w jasnym motywie zachowuje
+          właściwy pomarańcz marki zamiast ciemniejszego koloru tekstowego. */}
+      <span style={{ color: "var(--widget-orange-accent)" }}>{signUpLabel}</span>
+    </button>
+  );
+}
+
+const CLOSED_TRIGGER: GuestTriggerAttributes = {
+  "aria-haspopup": "dialog",
+  "aria-expanded": false,
+  "data-state": "closed",
+};
+
+export function AccountMenuWidget({
+  config,
+  lang,
+}: {
+  config: AccountMenuConfig;
+  lang: Lang;
+}): ReactElement {
   // SAMA SESJA bez bramki hydratacji: SSR i pierwszy client render renderują
-  // ten sam guest-trigger (sesja przychodzi asynchronicznie z useAuth), więc
-  // header nie miga pustką i nie czeka jednego dodatkowego renderu, zanim
-  // NotificationsBell zamontuje swoje zapytania. Gdy sesja
-  // zhydratyzuje się z localStorage, trigger płynnie zamienia się na wariant
-  // zalogowany, a dzwonki startują queries od razu. Bramkowany jest wyłącznie
-  // TEKST POWITANIA (niżej) - to on zależy od pory dnia, a nie od sesji.
+  // ten sam przycisk gościa (sesja przychodzi asynchronicznie z useAuth), więc
+  // header nie miga pustką. Gdy sesja zhydratyzuje się z localStorage, przycisk
+  // płynnie zamienia się na wariant zalogowany (panel z zestawem), a dzwonki
+  // startują queries od razu.
+  const { session } = useAuth();
+  const [requested, setRequested] = useState(false);
+  const labels = guestLabels(config, lang);
+
+  // Zalogowany (zapisana sesja, P1.7) dostanie panel zaraz po `getSession()` -
+  // zestaw rusza od razu, równolegle z odczytem sesji (krytyka planu M12).
+  useEffect(() => {
+    if (hasStoredAuthSession()) prefetchAccountMenuKit();
+  }, []);
+
+  if (!session && !requested) {
+    return (
+      <div className={ROW_CLASS}>
+        {guestTrigger(labels, {
+          ...CLOSED_TRIGGER,
+          onClick: () => whenAccountMenuKitSettles(() => setRequested(true)),
+          onPointerEnter: prefetchAccountMenuKit,
+          onPointerDown: prefetchAccountMenuKit,
+          onFocus: prefetchAccountMenuKit,
+        })}
+      </div>
+    );
+  }
+  // Fallback na czas importu zestawu: ten sam przycisk gościa (dziś i tak
+  // pierwszy render zalogowanego go pokazuje), więc rząd nagłówka nie zmienia
+  // szerokości. Gość, który kliknął, trafia tu dopiero z rozstrzygniętym
+  // zestawem (`whenAccountMenuKitSettles`), więc dostaje menu otwarte bez
+  // klatki fallbacku.
+  return (
+    <Suspense fallback={<div className={ROW_CLASS}>{guestTrigger(labels, CLOSED_TRIGGER)}</div>}>
+      <AccountMenuPanel
+        config={config}
+        lang={lang}
+        kit={loadAccountMenuKit()}
+        defaultOpen={requested && !session}
+      />
+    </Suspense>
+  );
+}
+
+function AccountMenuPanel({
+  config,
+  lang,
+  kit: kitRequest,
+  defaultOpen,
+}: {
+  config: AccountMenuConfig;
+  lang: Lang;
+  kit: AccountMenuKitThenable;
+  defaultOpen: boolean;
+}) {
+  const {
+    Popover,
+    PopoverTrigger,
+    PopoverContent,
+    Avatar,
+    AvatarImage,
+    AvatarFallback,
+    useGreeting,
+  } = use(kitRequest);
   const { session, user, signOut, isStaff, isAdmin, isSuperAdmin } = useAuth();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const { t } = useTranslation();
 
   const items = useMemo(() => (Array.isArray(config.items) ? config.items : []), [config.items]);
@@ -342,12 +598,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
   const displayName = profile?.display_name ?? user?.email ?? "";
   const avatarUrl = profile?.avatar_url ?? null;
 
-  const signInLabel =
-    (lang === "pl" ? config.signin_pl : config.signin_en) ||
-    (lang === "pl" ? "Zaloguj" : "Sign in");
-  const signUpLabel =
-    (lang === "pl" ? config.signup_pl : config.signup_en) ||
-    (lang === "pl" ? "Zarejestruj" : "Sign up");
+  const { signInLabel, signUpLabel } = guestLabels(config, lang);
   const logoutLabel =
     (lang === "pl" ? config.logout_pl : config.logout_en) ||
     (lang === "pl" ? "Wyloguj" : "Sign out");
@@ -418,20 +669,7 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
       </span>
     </button>
   ) : (
-    <button
-      type="button"
-      className="inline-flex h-7 shrink-0 items-center gap-2 text-[11px] font-medium leading-none whitespace-nowrap hover:opacity-80 cursor-pointer"
-      aria-label={`${signInLabel} / ${signUpLabel}`}
-    >
-      <LogIn className="w-3.5 h-3.5" />
-      <span>{signInLabel}</span>
-      <span className="text-muted-foreground/40" aria-hidden>
-        |
-      </span>
-      {/* To dekoracyjny akcent widgetu, więc także w jasnym motywie zachowuje
-          właściwy pomarańcz marki zamiast ciemniejszego koloru tekstowego. */}
-      <span style={{ color: "var(--widget-orange-accent)" }}>{signUpLabel}</span>
-    </button>
+    guestTrigger({ signInLabel, signUpLabel }, {})
   );
 
   // Wspólna geometria pozycji: 6 px rounding (wytyczna platformy), pasek akcentu
@@ -645,11 +883,8 @@ export function AccountMenuWidget({ config, lang }: { config: AccountMenuConfig;
         },
       ];
 
-  // Spójne odstępy dla rzędu ikon konta (mobile-first, unifikacja z headerem).
-  // gap-x-2 na <480 px, gap-x-3 od sm; pr-1.5 rezerwuje miejsce na overflow badge
-  // powiadomień (badge = -right-2.5), żeby nie nachodził na sąsiedni widget.
   return (
-    <div className="relative inline-flex items-center gap-x-2 sm:gap-x-3 overflow-visible">
+    <div className={ROW_CLASS}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         <PopoverContent

@@ -1515,3 +1515,35 @@ describe("__root - armCacheBusting (P1.3, TP-4)", () => {
     t.background.dispose();
   });
 });
+
+// LOADER BOOTU W `<head>` (P2.1). Manifest TanStack Start nie startuje już JS-a, więc dokument
+// bez tego węzła nie ożyje nigdy (statyczny SSR, klasa incydentu 2026-07-20). Render powłoki
+// dokumentu w teście biegnie gałęzią SERWEROWĄ `createIsomorphicFn` (stała z modułu loadera),
+// a gałąź przeglądarki przepisuje tekst z węzła o tym samym atrybucie - stąd parytet nazwy.
+describe("RootShell - loader bootu (P2.1)", () => {
+  it("stoi w `<head>` ZARAZ PO sondzie bootu, z atrybutem i stałą z modułu loadera", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { BOOT_PROBE_SCRIPT } = await import("@/lib/observability/bootProbeScript");
+    const { BOOT_LOADER_ATTR, BOOT_LOADER_SCRIPT } = await import("@/lib/boot/bootLoaderScript");
+    const opts = Route.options as unknown as Record<string, unknown>;
+    const Shell = opts["shellComponent"] as (p: {
+      children: React.ReactNode;
+    }) => React.ReactElement;
+    const html = renderToStaticMarkup(<Shell>{null}</Shell>);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const scripts = [...doc.head.querySelectorAll("script")];
+    const probe = scripts.findIndex((el) => el.textContent === BOOT_PROBE_SCRIPT);
+    expect(probe).toBeGreaterThanOrEqual(0);
+    // Sonda też jest stałą tylko serwerową: przeglądarka przepisuje tekst z węzła o tym
+    // atrybucie (literał poza domknięciem bootu) - węzeł musi go nieść i być jedyny.
+    expect(scripts[probe]?.hasAttribute("data-nes-probe")).toBe(true);
+    expect(doc.querySelectorAll("script[data-nes-probe]")).toHaveLength(1);
+    const loader = scripts[probe + 1];
+    expect(loader?.hasAttribute(BOOT_LOADER_ATTR)).toBe(true);
+    expect(loader?.textContent).toBe(BOOT_LOADER_SCRIPT);
+    expect(doc.querySelectorAll(`script[${BOOT_LOADER_ATTR}]`)).toHaveLength(1);
+    // Spike P2.1 wstrzykiwał zestaw i loader w renderze powłoki - rusztowanie usunięte:
+    // zestaw wstrzykuje wyłącznie hak dehydratacji routera (`src/router.tsx`).
+    expect(doc.getElementById("nes-boot-set")).toBeNull();
+  });
+});

@@ -157,7 +157,7 @@ describe("zestaw `<link>` korzenia", () => {
     // Bez jawnej deklaracji podglądy linków i crawlery biorą znak generatora.
     const links = rootDocumentLinks("pl", ORIGIN, ASSETS);
     expect(hrefs(links, "icon")).toEqual(["/favicon.ico"]);
-    expect(hrefs(links, "apple-touch-icon")).toEqual(["/favicon.ico"]);
+    expect(hrefs(links, "apple-touch-icon")).toEqual(["/apple-touch-icon.png"]);
   });
 
   it("autodiscovery feedów dostaje origin żądania", () => {

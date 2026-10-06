@@ -74,9 +74,10 @@ test("first-use overlays stay out of startup and respond to the first request", 
   );
   const response = await page.goto("/", { waitUntil: "domcontentloaded" });
   expect(response?.status()).toBe(200);
+  const html = (await response?.text()) ?? "";
   // P1.3: baner zgód jest w HTML-u jako statyczna powłoka (widoczna od FCP),
   // a interaktywny chunk `ConsentBanner` dociąga się dopiero po interakcji.
-  expect(await response?.text()).toContain("data-consent-shell");
+  expect(html).toContain("data-consent-shell");
   await page.waitForFunction(() => window.__nesAppReady === true);
   const shell = page.locator("[data-consent-shell]");
   await expect(shell).toBeVisible();
@@ -87,11 +88,16 @@ test("first-use overlays stay out of startup and respond to the first request", 
   expect(
     JSON.parse((await page.evaluate(() => localStorage.getItem("consent:v2"))) ?? "null"),
   ).toMatchObject({ version: 2, categories: { marketing: false }, source: "local" });
-  // These are HTTP hints for the widgets present in this fixture, including
-  // the nested renderer that previously waited for PostsSliderWidget to run.
-  const hints = response!.headers()["link"] ?? "";
-  expect(hints).toMatch(/PostsSliderWidget[^>]*>; rel="modulepreload"/);
-  expect(hints).toMatch(/sliderVariants[^>]*>; rel="modulepreload"/);
+  // Chunki widgetów tej fixture nad zgięciem, łącznie z zagnieżdżonym rendererem, który
+  // dawniej czekał na wykonanie PostsSliderWidget. Od P2.1 (boot po LCP) jadą w zestawie bootu
+  // `#nes-boot-set` - w tym samym burście co wejście - a NIE w nagłówku `Link`: hint modułu
+  // w nagłówku pobrałby JS przed LCP.
+  const bootSet = /<script type="application\/json" id="nes-boot-set">([^<]*)<\/script>/.exec(html);
+  expect(bootSet, "dokument bez zestawu bootu").not.toBeNull();
+  const burst = (JSON.parse(bootSet![1]) as { u: string[] }).u;
+  expect(burst.some((url) => /PostsSliderWidget/.test(url))).toBe(true);
+  expect(burst.some((url) => /sliderVariants/.test(url))).toBe(true);
+  expect(response!.headers()["link"] ?? "").not.toMatch(/modulepreload/);
   expect(
     scripts.filter((url) =>
       /\/(?:LoginPopup-|CommandPalette-|ExpertRequestDialog-|SearchOverlay-|MobileDrawerBody-)/.test(

@@ -61,7 +61,8 @@
 //    `enqueue(open, {priority: "islands", target: korzeń})` (kolejka stawia
 //    wyspę pod palcem na początku, resztę puszcza po jednej na klatkę);
 //  - `interaction: "own"` (domyślnie) albo `"any"` + `ownEvents` (domyślnie
-//    `pointerdown`, `focusin`, `keydown` - przed `click`) - zdarzenie we
+//    `pointerdown`, `focusin`, `keydown` - przed `click`; `click` sam w sobie
+//    do wyboru, dla aktywacji bez wciśnięcia i fokusu) - zdarzenie we
 //    wnętrzu wyspy -> `enqueue(open, {priority: "island-target", target:
 //    korzeń, release: "urgent"})`. Nasłuch w fazie capture na `window`, nie na
 //    korzeniu wyspy: dokument jest korzeniem Reacta, a React w swoim
@@ -75,6 +76,8 @@
 //  - `media` - zapytanie, które ZACZYNA pasować -> `release: "immediate"`;
 //    zapytanie pasujące już przy montażu = otwarcie od razu (jak
 //    `immediateWhen`), np. ukryty nagłówek desktopowy na desktopie (P2.3);
+//    pasujące dopiero przy zakładaniu wyzwalaczy (zmiana między renderem a
+//    efektem, `change` przed nasłuchem) - też kolejka, `immediate`;
 //  - `immediateWhen()` (np. `hasStoredAuthSession` z P1.7) - `true` przy
 //    montażu: bramka otwarta od razu, bez kolejki. Chunki startują już w
 //    renderze otoczki (przed jej commitem i efektami); gotowe synchronicznie
@@ -83,6 +86,30 @@
 //  - `quiescent` (domyślnie `true`) - zapas `onQuiescent(open, {priority:
 //    "islands"})`.
 // Pierwszy wyzwalacz, który dojdzie do skutku, zdejmuje pozostałe.
+//
+// STRAŻ KLIKU (P2.2, dowód: pierwszy klik w zimną wyspę `hdr-account`
+// przepadał). Gdy granica przy dyskretnym zdarzeniu nadal czeka (bramka
+// zamknięta, bo chunk wyspy jest w drodze - wyzwalacz intencji ruszył import
+// tuż przed `click`; albo zagnieżdżony `lazy` widgetu bez statusu, np. w
+// wyspie sekcji), react-dom woła `stopPropagation()` i zdarzenia NIE
+// dispatchuje - ani teraz, ani po hydratacji (brak powtórki zdarzeń
+// dyskretnych od React 18). Dlatego każda wyspa trzyma, dopóki jest
+// zamontowana, wpis w JEDNYM nasłuchu `click` w fazie capture na `window`
+// (przed nasłuchem Reacta na dokumencie): zaufany klik głównym przyciskiem,
+// bez modyfikatorów (Ctrl/Cmd/Shift/Alt - nowa karta, zaznaczanie - zostają
+// przeglądarce), w węzeł, którego React jeszcze nie uwodnił (`isDehydrated`
+// niżej), jest zatrzymany (`preventDefault` - link nie przeładuje strony;
+// `stopImmediatePropagation` - React i telemetria nie zobaczą go dwa razy),
+// wyspa otwiera się wprost torem pilnym (pozostałe wyzwalacze zdjęte, bez
+// wpisu w kolejce - klik jest intencją pod palcem), a po hydratacji celu klik
+// jest ODTWORZONY na tym samym węźle (`MouseEvent` z polami oryginału) - React
+// dispatchuje go zwykłą ścieżką (zagnieżdżoną granicę z rozwiązanym `lazy`
+// uwadnia synchronicznie).
+// Odtworzenie jest niezaufane (`isTrusted: false`), więc straż go nie łapie.
+// Zaufany klik poza wyspą unieważnia jej zapamiętany klik (odwiedzający
+// zmienił zamiar); po `CLICK_REPLAY_DEADLINE_MS` klik idzie bez czekania
+// (React uwodni granicę synchronicznie albo link pójdzie domyślną akcją).
+// Uwodniona treść - klik przechodzi nietknięty, bez opóźnienia.
 //
 // KONTRAKT ZADANIA (P0.3): zadanie otwarcia zwraca promise rozstrzygany PO
 // COMMICIE wyspy (efekt warstwy wewnątrz granicy), więc kolejka nie nakłada
@@ -105,16 +132,17 @@
 // (`island-target`, `immediate`): przejście czeka najwyżej na chunki i klatkę,
 // a fallback po renderze klienta znika równie szybko. W DEV - ostrzeżenie z
 // `id` wyspy (sygnał dla audytu providerów P2.2: taka wyspa nie jest odroczona).
-// UWAGA: na bazie cc1a3767 górną granicę wyzwala u KAŻDEGO gościa
-// `AuthProvider` (`useAuth.tsx`: `startTransition(() =>
-// setSessionLoading(false))` w pierwszym przebiegu efektów zmienia wartość
-// kontekstu), a przy zapisanym motywie innym niż `SERVER_THEME` także
-// `ThemeProvider` (`readStored` w przejściu). Dopóki providery nad wyspami
-// zmieniają wartość kontekstu przy boocie, wyspy otwierają się zaraz po nim
-// (podział na klatki zostaje, odroczenia poza okno TBT nie ma) - wymóg dla
-// P2.2: stała wartość kontekstu przy boocie gościa. P1.7 zmierzyła ją bez
-// wysp i wycofała (regres TBT po commicie) - patrz `useAuth.tsx`, blok
-// „DLACZEGO NIE STAŁA WARTOŚĆ KONTEKSTU…"; wraca razem z wyspami P2.2.
+// PROVIDERY PRZY BOOCIE (I2, P2.2). Do P2.2 górną granicę wyzwalał u KAŻDEGO
+// gościa `AuthProvider` (przejście `loading: false` w pierwszym przebiegu
+// efektów zmieniało wartość kontekstu), a przy zapisanym motywie innym niż
+// `SERVER_THEME` także `ThemeProvider` (`readStored` w przejściu): wyspy
+// otwierały się zaraz po boocie (podział na klatki zostawał, odroczenia poza
+// okno TBT nie było). Od P2.2 wartość obu kontekstów przy boocie gościa jest
+// STAŁA: `useAuth.tsx` (blok „ROZRUCH GOŚCIA") rozstrzyga gościa per
+// konsument, a `ThemeProvider.tsx` niesie motyw magazynem z lustrem w
+// konsumencie (blok „MOTYW BEZ ZMIANY KONTEKSTU"). Każdy nowy provider nad
+// wyspami musi trzymać ten sam warunek (test „I2" w `authHydration.test.tsx`
+// i `ThemeProvider.test.tsx`).
 //
 // `data-island-state` (kontrakt P0.6, `@/lib/webVitals`): DOKŁADNIE
 // `pending` (w HTML serwera i do commitu granicy) i `hydrated` (po commicie).
@@ -169,6 +197,7 @@
 import {
   isValidElement,
   memo,
+  startTransition,
   Suspense,
   use,
   useCallback,
@@ -185,13 +214,20 @@ import type { IslandState, IslandStateAttributes } from "@/lib/webVitals";
 import { enqueue, type EnqueueOptions, type QueuedTask } from "./postInteractionQueue";
 import { onQuiescent } from "./whenQuiescent";
 
-/** Zdarzenia we wnętrzu wyspy, które mogą ją otworzyć torem pilnym. */
+/**
+ * Zdarzenia we wnętrzu wyspy, które mogą ją otworzyć torem pilnym. `click`
+ * łapie aktywację BEZ wcześniejszego wciśnięcia i fokusu (akcja domyślna z
+ * drzewa dostępności: czytnik ekranu, sterowanie głosem - recenzja P2.3, m1):
+ * przy gotowych chunkach bramka otwiera się przed nasłuchem Reacta i klik
+ * dochodzi do uwodnionego przycisku.
+ */
 export const ISLAND_OWN_EVENTS = [
   "pointerdown",
   "pointerover",
   "touchstart",
   "focusin",
   "keydown",
+  "click",
 ] as const;
 
 export type IslandOwnEvent = (typeof ISLAND_OWN_EVENTS)[number];
@@ -248,6 +284,46 @@ export interface IslandLazyComponent {
 
 /** Wpis `chunks`: loader albo komponent `React.lazy`. */
 export type IslandChunk = IslandChunkLoader | IslandLazyComponent;
+
+// --- Rejestr chunków po kluczu (P2.2) ----------------------------------------
+//
+// Wyspa sekcji buildera nie zna modułów swoich widgetów: komponenty
+// `React.lazy` żyją w rejestrze widgetów (`lazyWidgets.tsx`, dyspozytor treści
+// w `ChromeWidgetView.tsx`). Rejestr odwraca tę zależność - moduł, który
+// tworzy komponent `lazy`, wpisuje go tu pod kluczem (typ widgetu), a wyspa
+// pyta o klucze swojej treści (`islandChunksFor`) i podaje wynik w `chunks`.
+// Bez wpisów lista jest pusta: bramka otwiera się po samym wyzwalaczu, a
+// zagnieżdżone granice leniwych widgetów uwadniają się po swoim chunku (jak
+// bez wyspy).
+
+const chunkRegistry = new Map<string, IslandChunk[]>();
+
+/**
+ * Wpisuje chunki potrzebne treści o kluczu `key` (np. typ widgetu). Ten sam
+ * wpis drugi raz niczego nie zmienia; wywołanie przy ewaluacji modułu, przed
+ * pierwszym renderem wysp (wyspa czyta `chunks` przy montażu).
+ */
+export function registerIslandChunks(key: string, chunks: readonly IslandChunk[]): void {
+  const listed = chunkRegistry.get(key) ?? [];
+  for (const chunk of chunks) if (!listed.includes(chunk)) listed.push(chunk);
+  chunkRegistry.set(key, listed);
+}
+
+/** Chunki zarejestrowane dla podanych kluczy, bez powtórzeń, w kolejności kluczy. */
+export function islandChunksFor(keys: Iterable<string>): IslandChunk[] {
+  const chunks: IslandChunk[] = [];
+  for (const key of keys) {
+    for (const chunk of chunkRegistry.get(key) ?? []) {
+      if (!chunks.includes(chunk)) chunks.push(chunk);
+    }
+  }
+  return chunks;
+}
+
+/** Tylko testy: czyści rejestr chunków. */
+export function __resetIslandChunksForTests(): void {
+  chunkRegistry.clear();
+}
 
 export interface HydrationIslandProps {
   /** Stały, unikalny na stronie identyfikator (`data-island-id`); używać też jako `key`. */
@@ -434,6 +510,55 @@ function subscribeGlobalKeys(subscription: GlobalKeySubscription): () => void {
   };
 }
 
+// --- Straż kliku (STRAŻ KLIKU w nagłówku) ------------------------------------
+
+/** Odstęp sprawdzania, czy cel zatrzymanego kliku jest już uwodniony. */
+const CLICK_REPLAY_POLL_MS = 16;
+/** Najdłużej tyle zatrzymany klik czeka na hydratację celu. */
+const CLICK_REPLAY_DEADLINE_MS = 3000;
+const REACT_FIBER_KEY = "__reactFiber$";
+
+const clickGuards = new Set<IslandController>();
+
+/**
+ * Czy węzeł `target` (w korzeniu wyspy `root`) czeka na hydratację. Idąc w
+ * górę: węzeł z włóknem Reacta (`__reactFiber$…` - React przypina je przy
+ * hydratacji i montażu każdego węzła) = uwodniony; węzeł bez włókna, przed
+ * którym stoi otwarty znacznik granicy serwera (`<!--$-->`, `<!--$?-->`,
+ * `<!--$!-->` bez domykającego `<!--/$-->`) = treść odwodnionej granicy (samej
+ * wyspy albo zagnieżdżonej). Treść spoza Reacta (`dangerouslySetInnerHTML`,
+ * wstawki skryptów) nie ma włókna ani znaczników - rozstrzyga jej rodzic.
+ */
+function isDehydrated(target: Node, root: Node): boolean {
+  for (let node: Node | null = target; node && node !== root; node = node.parentNode) {
+    if (Object.keys(node).some((key) => key.startsWith(REACT_FIBER_KEY))) return false;
+    let depth = 0;
+    for (let sibling = node.previousSibling; sibling; sibling = sibling.previousSibling) {
+      if (!(sibling instanceof Comment)) continue;
+      if (sibling.data === "/$") depth += 1;
+      else if (sibling.data[0] === "$" && depth-- === 0) return true;
+    }
+  }
+  return false;
+}
+
+function handleClick(event: MouseEvent): void {
+  const target = event.target;
+  if (
+    event.isTrusted !== true ||
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    event.altKey ||
+    !(target instanceof Element)
+  ) {
+    return;
+  }
+  for (const island of [...clickGuards]) island.guardClick(event, target);
+}
+
 /** Klasa `contents` w atrybucie `class` (także z wariantem, np. `md:contents`). */
 const CONTENTS_CLASS = /(?:^|[\s:])contents(?:\s|$)/;
 
@@ -477,6 +602,12 @@ class IslandController {
   private blocked = false;
   /** Otwarcie przez kolejkę po `blocked`; ustawiane przez `arm`, zdejmowane przez rozbrojenie. */
   private onBlocked: (() => void) | null = null;
+  /** Zdejmuje wyzwalacze założone przez `arm` (straż kliku otwiera wyspę wprost). */
+  private disarm: () => void = noop;
+  /** Korzeń wyspy pod strażą kliku (`guardClicks`). */
+  private root: Element | null = null;
+  /** Klik zatrzymany do hydratacji celu (STRAŻ KLIKU). */
+  private heldClick: MouseEvent | null = null;
   private readonly id: string;
 
   constructor(id: string, trigger: IslandTrigger, chunks: readonly IslandChunk[]) {
@@ -613,6 +744,50 @@ class IslandController {
     return this.requestOpen();
   }
 
+  /**
+   * Zakłada straż kliku na korzeniu wyspy (STRAŻ KLIKU w nagłówku) - na cały
+   * czas montażu, także po otwarciu (zagnieżdżone granice uwadniają się
+   * później); zwraca jej zdjęcie razem z zapamiętanym klikiem.
+   */
+  guardClicks(root: Element): () => void {
+    this.root = root;
+    if (clickGuards.size === 0) window.addEventListener("click", handleClick, true);
+    clickGuards.add(this);
+    return () => {
+      clickGuards.delete(this);
+      if (clickGuards.size === 0) window.removeEventListener("click", handleClick, true);
+      this.heldClick = null;
+    };
+  }
+
+  /** Zaufany klik na stronie (`handleClick`): zatrzymanie i odtworzenie albo nic. */
+  guardClick(event: MouseEvent, target: Element): void {
+    const root = this.root;
+    if (root === null) return;
+    if (!root.contains(target)) {
+      // Klik gdzie indziej: odwiedzający zmienił zamiar.
+      this.heldClick = null;
+      return;
+    }
+    if (!isDehydrated(target, root)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.disarm();
+    void this.openUrgent();
+    this.heldClick = event;
+    const deadline = performance.now() + CLICK_REPLAY_DEADLINE_MS;
+    const replay = () => {
+      if (this.heldClick !== event) return;
+      if (target.isConnected && isDehydrated(target, root) && performance.now() < deadline) {
+        setTimeout(replay, CLICK_REPLAY_POLL_MS);
+        return;
+      }
+      this.heldClick = null;
+      if (target.isConnected) target.dispatchEvent(new MouseEvent("click", event));
+    };
+    setTimeout(replay, CLICK_REPLAY_POLL_MS);
+  }
+
   /** Zakłada wyzwalacze na korzeniu wyspy; zwraca ich zdjęcie. */
   arm(root: HTMLElement): () => void {
     // `immediate`: otwarcie zlecone już w konstruktorze, bez wyzwalaczy.
@@ -625,6 +800,7 @@ class IslandController {
       armed = false;
       for (const cleanup of cleanups.splice(0)) cleanup();
     };
+    this.disarm = disarm;
     const schedule = (task: QueuedTask, options: EnqueueOptions) => {
       if (armed) cleanups.push(enqueue(task, options));
     };
@@ -696,6 +872,14 @@ class IslandController {
       };
       query.addEventListener("change", onChange);
       cleanups.push(() => query.removeEventListener("change", onChange));
+      // Zapytanie zaczęło pasować MIĘDZY renderem otoczki (odczyt w
+      // konstruktorze) a tym efektem - obrót tabletu, rozszerzenie okna w
+      // trakcie hydratacji. `change` przyszedł przed nasłuchem, więc bez tej
+      // kontroli wyspa bez innych wyzwalaczy (`hdr-desktop`: bez interakcji i
+      // ciszy) zostałaby odwodniona na stałe (recenzja P2.3, M1).
+      if (query.matches) {
+        schedule(open, { priority: "islands", target: root, release: "immediate" });
+      }
     }
 
     if (trigger.quiescent !== false) {
@@ -741,16 +925,61 @@ function IslandCommitMarker({
  * jest groźny - zob. `viewportDevice.ts`); który getter zadziałał, mówi tylko
  * zmienna robocza, czytana zaraz po wywołaniu haka.
  */
-let renderMode: "hydration" | "client" | null = null;
+let hydrating = false;
 const subscribeNothing = (): (() => void) => noop;
 const clientSnapshot = (): number => {
-  renderMode = "client";
+  hydrating = false;
   return 0;
 };
 const hydrationSnapshot = (): number => {
-  renderMode = "hydration";
+  hydrating = true;
   return 0;
 };
+
+/**
+ * `true`, gdy komponent renderuje się w hydratacji (albo na serwerze),
+ * `false` przy renderze klienta (świeży montaż, aktualizacja) - SONDA TRYBU
+ * RENDERU wyżej. Wspólna dla wyspy, luster urządzenia i motywu oraz
+ * rozruchu gościa w `useAuth`.
+ */
+export function useHydrating(): boolean {
+  useSyncExternalStore(subscribeNothing, clientSnapshot, hydrationSnapshot);
+  return hydrating;
+}
+
+/**
+ * LUSTRO MAGAZYNU dla treści wysp (urządzenie renderera, motyw): `useState`
+ * aktualizowany WYŁĄCZNIE w `startTransition` - przejście, które trafi na
+ * odwodnioną granicę, czeka na jej hydratację zamiast porzucać jej HTML
+ * (zob. `viewportDevice.ts`). Przy hydratacji (i na serwerze) pierwszy render
+ * zwraca `serverValue` (parytet z HTML serwera), świeży montaż - bieżącą
+ * wartość magazynu od razu (bez mignięcia). Po montażu i przy każdej zmianie
+ * lustro przechodzi na bieżącą wartość; ta sama wartość nie zleca przejścia
+ * (np. hydratacja na desktopie albo na jasnym motywie: zero renderów).
+ * `get` (`null` = magazyn jeszcze nie wie) i `subscribe` czytane przy montażu.
+ */
+export function useIslandMirror<T>(
+  serverValue: T,
+  get: () => T | null,
+  subscribe: (listener: () => void) => () => void,
+): T {
+  const fromServer = useHydrating();
+  const [value, setValue] = useState<T>(() => (fromServer ? serverValue : (get() ?? serverValue)));
+  useEffect(() => {
+    let mirrored = value;
+    const follow = () => {
+      const next = get();
+      if (next === null || next === mirrored) return;
+      mirrored = next;
+      startTransition(() => setValue(next));
+    };
+    follow();
+    return subscribe(follow);
+    // Montaż: magazyn i wartość początkowa lustra czytane raz.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return value;
+}
 
 /**
  * Brama treści: dzieci są jej wyjściem, więc przy zawieszeniu React nie
@@ -765,14 +994,12 @@ function IslandGate({
   onCommit: () => void;
   children: ReactNode;
 }): ReactElement {
-  renderMode = null;
-  useSyncExternalStore(subscribeNothing, clientSnapshot, hydrationSnapshot);
-  const mode = renderMode;
+  const fromServer = useHydrating();
   if (island !== null) {
     if (!island.wrapperCommitted) {
       island.openForClientRender();
     } else if (!island.isOpen()) {
-      if (mode === "client") island.noteClientRender();
+      if (!fromServer) island.noteClientRender();
       use(island.gate);
     }
   }
@@ -820,8 +1047,10 @@ function IslandBoundary(props: HydrationIslandProps): ReactElement {
     const root = rootRef.current;
     if (!island || !root) return;
     const disarm = island.arm(root);
+    const unguard = island.guardClicks(root);
     return () => {
       disarm();
+      unguard();
       island.abandon();
     };
   }, [island]);

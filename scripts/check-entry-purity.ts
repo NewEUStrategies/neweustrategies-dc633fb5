@@ -310,6 +310,22 @@ const HEAVY_MODULES: readonly HeavyDictionary[] = [
       "klucz importuj z `lib/theme/fontSizesKey`; generator wyłącznie w " +
       "`theme/css/themeFontSizesCss.ts` (gałąź `.server()` + `import()`)",
   },
+  // 2026-10-05 (Wydajność PSI 85/95, fala 2, P2.4 - HW-2): rozmiary czcionek i
+  // odstęp tytuł-opis widgetów idą szablonem z `styles.css` i zmiennymi
+  // `--wt-*`, które liczy lekki `lib/builder/liveTypography.ts`. Generator
+  // reguł per widget (`lib/builder/typographyCss.ts`) obsługuje już tylko
+  // resztę właściwości i ma do przeglądarki wyłącznie `import()` (ramka:
+  // gałąź `.server()` + migawka bloku z HTML-a, jak arkusze korzenia).
+  // Znacznik: wykluczenie liczników list z selektorów generatora - szablon ma
+  // je wyłącznie w CSS, którego ta bramka nie czyta.
+  {
+    label: "lib/builder/typographyCss (generator reguł typografii widgetu)",
+    markers: [":not(.post-list-numbered-index)"],
+    remedy:
+      "ramka (`ChromeWidgetView`) i podgląd na żywo biorą tokeny i zmienne szablonu z " +
+      "`lib/builder/liveTypography`; generator wyłącznie w gałęzi `.server()` albo przez " +
+      "`import()` - nigdy statycznym importem z modułu ścieżki bootowania",
+  },
 ];
 
 const CLIENT_DIR =
@@ -332,7 +348,8 @@ function listJs(dir: string): string[] {
  * Chunki startowe: to, co serwer wstrzykuje jako `<script type="module">` przy
  * renderze SSR. Czytamy je z manifestu TanStack Start zamiast zgadywać po
  * nazwie/rozmiarze - manifest jest jedynym miejscem, które NAPRAWDĘ mówi, co
- * pobiera przeglądarka. Override: ENTRY_CHUNKS="a.js,b.js" - CELOWO ta sama
+ * pobiera przeglądarka. Od P2.1 wejście wstawia loader bootu, więc źródłem jest
+ * serwerowa mapa `nesBootManifest` (pole `entry`) w tym samym module manifestu. Override: ENTRY_CHUNKS="a.js,b.js" - CELOWO ta sama
  * zmienna, co w `check-bundle-size.ts` (floor `boot`): jeden artefakt, jedna
  * pokrętka, żeby te dwie bramki nie mogły policzyć różnych korzeni.
  */
@@ -340,7 +357,13 @@ function findBootChunks(): string[] {
   const override = process.env["ENTRY_CHUNKS"];
   if (override) return override.split(",").map((s) => basename(s.trim()));
 
+  // Dwa kształty artefaktu: manifest TanStack Start ze skryptem wejścia
+  // (`scripts:[{attrs:{src:"/assets/*.js"}}]`) albo - od boot po LCP (P2.1) - manifest bez
+  // skryptu wejścia i serwerowa mapa bootu `nesBootManifest` (`scripts/lib/bootAfterLcpPlugin.ts`:
+  // `{entry:"/assets/*.js",rootPreloads:[...]}`, klucze w cudzysłowach albo po minifikacji bez).
   const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']/g;
+  const bootManifestRe =
+    /["']?entry["']?\s*:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']\s*,\s*["']?rootPreloads["']?\s*:/g;
   const found = new Set<string>();
   for (const dir of SERVER_DIRS) {
     let entries: string[];
@@ -353,6 +376,7 @@ function findBootChunks(): string[] {
       if (!file.endsWith(".mjs") && !file.endsWith(".js")) continue;
       const src = readFileSync(join(dir, file), "utf8");
       for (const m of src.matchAll(scriptRe)) found.add(m[1]);
+      for (const m of src.matchAll(bootManifestRe)) found.add(m[1]);
     }
     if (found.size > 0) break;
   }
@@ -406,7 +430,7 @@ function main(): void {
   if (boot.length === 0) {
     console.error(
       "✗ Nie udalo sie ustalic chunku startowego z manifestu TanStack Start.\n" +
-        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` w: ${SERVER_DIRS.join(", ")}.\n` +
+        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` i \`nesBootManifest\` ({entry:"/assets/*.js"}) w: ${SERVER_DIRS.join(", ")}.\n` +
         "  Jesli adapter zmienil uklad artefaktu, podaj chunk jawnie: ENTRY_CHUNKS=index-HASH.js",
     );
     process.exit(1);
@@ -457,6 +481,25 @@ function main(): void {
         `  • ${mod.label}\n` +
           hits.map((h) => `      w chunku startowym: ${h}`).join("\n") +
           `\n      naprawa: ${mod.remedy}`,
+      );
+    }
+  }
+
+  // Chunki vendorowe, które z definicji NIE należą do bootu (scripts/lib/bootVendorSplit.ts:
+  // część bootowa ma przyrostek `-boot`). Łączenie małych chunków (`experimentalMinChunkSize`)
+  // potrafi dokleić do chunku wejściowego mały moduł aplikacji, który importuje taki chunk -
+  // fala 2: atom ikon klubu wciągnął w ten sposób cały `vendor-lucide` (+18 KB gzip).
+  for (const chunk of bootGraph) {
+    const name = chunk.replace(/-[A-Za-z0-9_-]{8}\.js$/, "");
+    const lazyVendor =
+      ["vendor-lucide", "vendor-radix", "vendor-sonner", "vendor-jszip"].includes(name) ||
+      (name.startsWith("vendor-radix-") && name !== "vendor-radix-boot");
+    if (lazyVendor) {
+      violations.push(
+        `  • ${name} (chunk vendorowy spoza bootu)\n` +
+          `      w chunku startowym: ${chunk}\n` +
+          "      naprawa: znajdź moduł aplikacji w chunku wejściowym, który go importuje\n" +
+          "      (reports/chunk-inventory.json), i przypnij go w manualChunks obu presetów.",
       );
     }
   }

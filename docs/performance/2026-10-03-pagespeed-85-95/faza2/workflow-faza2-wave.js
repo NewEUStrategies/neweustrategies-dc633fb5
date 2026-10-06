@@ -20,7 +20,7 @@ export const meta = {
   ],
 };
 
-// Konfiguracja z `args` (fala 1: sesja 2026-10-04 wieczór). Wartości domyślne opisują sesję, w której skrypt
+// Konfiguracja z `args` (fala 1: sesja 2026-10-04 wieczór; fala 2: sesja 2026-10-05). Wartości domyślne opisują sesję, w której skrypt
 // uruchomiono ostatnio; każdą można nadpisać w `args`, bez edycji skryptu.
 const A = args || {};
 const SCRATCH =
@@ -37,10 +37,14 @@ const W0_REPORTS = DOCS + "/faza2/raporty";
 const NOTES = DOCS + "/faza1/ORCHESTRATOR-NOTES.md";
 const EVIDENCE = DOCS + "/EVIDENCE.md";
 const POMIAR = DOCS + "/POMIAR.md";
+const WAVE = A.wave == null ? 1 : A.wave;
+// Fala 2 czyta własne prompty, §3 planu fal i stan po bramce fali 1 (lista przekazania §7).
+const PROMPTS_WAVE = A.prompts || (WAVE === 2 ? DOCS + "/faza2/PROMPTY-FALA-2.md" : PROMPTS_W1);
+const PLAN_SEC = WAVE === 2 ? "§3" : "§2";
+const PREV_STATE = WAVE === 2 ? DOCS + "/faza2/STAN-FALI-1.md" : null;
 const BASE_REF = A.base_ref || "claude/zen-johnson-wpzoxv";
 const BASELINE_WT = A.baseline_wt || SCRATCH + "/base-w1";
 const BASE_STATE = A.base_state || "(orchestrator did not pass the base state)";
-const WAVE = A.wave == null ? 1 : A.wave;
 const ITEMS = A.items || []; // [{id, prove?, runs?, forms?, lh_flags?, notes?, resume?}]
 const OUT = SCRATCH + "/phase2/wave" + WAVE;
 const MAX_FIX_ROUNDS = 2;
@@ -53,18 +57,19 @@ const TRAILER =
 Claude-Session: https://claude.ai/code/session_016UV8PvuQeQ32sRo7fzGpmn`;
 
 const ENV = `
-ENVIRONMENT OF THIS SESSION (overrides older notes in EVIDENCE.md §0-cloud and wave-0 reports):
-  - Main checkout ${WT} is the PR branch ${BASE_REF} (= origin/main with wave 0 and PR #469). NEVER edit, build or commit there; the orchestrator merges item branches into it.
-  - Scratchpad: ${SCRATCH} (below $SCRATCH). Paths in older docs under /tmp/claude-0/.../8fd9e8e2-.../scratchpad belong to a previous session and DO NOT EXIST; production reference files live in ${DOCS}/lighthouse/ (gzipped) and ${DOCS}/faza1/measurement/.
+ENVIRONMENT OF THIS SESSION (overrides older notes in EVIDENCE.md §0-cloud and older reports):
+  - Main checkout ${WT} is the PR branch ${BASE_REF}${A.base_desc ? " (" + A.base_desc + ")" : ""}. NEVER edit, build or commit there; the orchestrator merges item branches into it.
+  - Scratchpad: ${SCRATCH} (below $SCRATCH). Paths in older docs under other /tmp/claude-0/.../scratchpad directories belong to previous sessions and DO NOT EXIST (their data is not available); production reference files live in ${DOCS}/lighthouse/ (gzipped) and ${DOCS}/faza1/measurement/. The C3 transform (boot after LCP, what-if) lives in the repo: scripts/performance/whatif/c3-lcpobs.mjs (older docs call it $SCRATCH/phase1/verdicts/boot-js-C3/c3-lcpobs.mjs).
   - Lighthouse 13.5.0 CLI: ${SCRATCH}/tools/node_modules/lighthouse/cli/index.js; Chromium: /opt/pw-browsers/chromium-1194/chrome-linux/chrome (Playwright finds it via PLAYWRIGHT_BROWSERS_PATH). Harness: node scripts/performance/lighthouse-local.mjs (P0.1; it serves fixture images itself).
   - Network: the npm registry works; production, Supabase and CDNs do not. Dependencies come from the lockfile (xlsx 0.20.3 is the real package, no substitution), so check:bundle numbers are comparable with CI.
   - Base state measured by the orchestrator before the wave: ${BASE_STATE}
-  - Owner decisions in force: everything in ${NOTES} "Owner decision"; on 2026-10-04 the owner additionally APPROVED F1 and F1b of the P0.5 report (visible micro-changes in styles.css) for P1.2.
+  - Owner decisions in force: everything in ${NOTES} "Owner decision"; on 2026-10-04 the owner additionally APPROVED F1 and F1b of the P0.5 report (visible micro-changes in styles.css) for P1.2.${A.env_extra ? "\n" + A.env_extra : ""}
+  - NEVER create, remove, move, link or redirect anything AT /dev/null itself (wave 1 lost the device to a mistyped command; redirecting output to /dev/null is fine).
 MACHINE (4 CPUs, 15 GB RAM, shared by up to 4 agents) - MUTEX DISCIPLINE, no exceptions (two overlapping tsc runs were OOM-killed in wave 0):
   - HEAVY steps = bun run typecheck (7-9 GB, ~6-7 min), bun run build:smoke (8 GB heap, ~4-5 min), any Lighthouse run, any Playwright/e2e run. Run them ONLY through the machine mutex helper, in the SAME command as the step:
       cd <worktree> && ${SCRATCH}/heavy.sh bun run typecheck > <log> 2>&1; echo exit=$?
     A tool call is killed after 10 minutes, and waiting for the mutex can take longer, so for typecheck/build/Lighthouse/e2e prefer the background form and then poll:
-      ${SCRATCH}/heavy-bg.sh <log> bash -c 'cd <worktree> && bun run typecheck'      (returns at once; exit code lands in <log>.exit)
+      cd <worktree> && ${SCRATCH}/heavy-bg.sh <log> bun run typecheck      (returns at once; runs in the CURRENT directory; exit code lands in <log>.exit; env vars as 'env K=V <cmd>'; avoid 'bash -c' wrappers - the session's safety checker may refuse them)
       ${SCRATCH}/wait-for.sh <log>.exit        (waits up to 9 min; exit 124 = still waiting, just call it again; meanwhile you may do other non-heavy work)
     Never take the mutex by hand and never leave a stale lock; the helpers handle traps and stale-lock recovery. The current holder is in ${SCRATCH}/.heavy-lock/what.
   - CPU-noticeable light steps (bunx vitest run <files>, bunx eslint <many files>, bun run verify:static) run OUTSIDE the mutex but through ${SCRATCH}/light.sh <command> (it waits while a Lighthouse/Playwright measurement holds the mutex; exit 75 = measurement still running, retry later). Never run the whole vitest suite; run targeted files.
@@ -74,11 +79,11 @@ MACHINE (4 CPUs, 15 GB RAM, shared by up to 4 agents) - MUTEX DISCIPLINE, no exc
 const COMMON = `
 You are a senior engineer implementing ONE item of a web-performance plan under an orchestrator, in a TanStack Start + React 19 + Vite 7 + Nitro (Cloudflare Workers) + Supabase content platform. Goal of the whole effort: Lighthouse/PSI mobile >= 85, desktop >= 95 on https://neweuropeanstrategies.com/.
 Read first, in this order:
-  (1) ${PLAN_W12} §0, §1, §2 (your item: goal, FILE LIST = the only files you may touch, mechanism after wave 0, run order, Definition of Done), §4 and §6 (corrections after the P0.5 report) - this document is AUTHORITATIVE where it differs from faza1/PLAN.*; and your item's block in ${PROMPTS_W1} (sections 2 and 3);
+  (1) ${PLAN_W12} §0, §1, ${PLAN_SEC} (your item: goal, FILE LIST = the only files you may touch, mechanism after wave 0, run order, Definition of Done), §4 and §6 (corrections after the P0.5 report) - this document is AUTHORITATIVE where it differs from faza1/PLAN.*; and your item's block in ${PROMPTS_WAVE} (sections 2 and 3);${PREV_STATE ? "\n  (1b) " + PREV_STATE + " (state after the wave-1 gate: §0, §5 and especially §7 = hand-off list; every entry addressed to your item id is a requirement);" : ""}
   (2) your item in ${PLAN_JSON} (waves[].items[] with your id: mechanism details, gates, verification) and the same item plus §1.3 Lantern invariants, §2 agent protocol and §4 file-ownership matrix in ${PLAN_MD} (large file: grep for your id and read those sections);
   (3) ${NOTES} (owner decision, verdict ledger, corrections);
   (4) ${P05} §0, §2.4, §2.5 and §8 (long-task ledger with file:line causes, the F-list per owner item);
-  (5) wave-0 reports in ${W0_REPORTS}/ that define the APIs you build on: P0.3-IMPL.md + P0.3-FIX.md (performance primitives: onQuiescent, onFirstInteraction, enqueue with release interaction|immediate|urgent, gesture guard), P0.6-IMPL.md + P0.6-FIX.md (RUM payload, data-island-state contract), P0.4-IMPL.md + P0.4-FIX.md (Server-Timing), P0.1-IMPL.md + P0.1-FIX.md (harness);
+  (5) wave-0 reports in ${W0_REPORTS}/ that define the APIs you build on: P0.3-IMPL.md + P0.3-FIX.md (performance primitives: onQuiescent, onFirstInteraction, enqueue with release interaction|immediate|urgent, gesture guard), P0.6-IMPL.md + P0.6-FIX.md (RUM payload, data-island-state contract), P0.4-IMPL.md + P0.4-FIX.md (Server-Timing), P0.1-IMPL.md + P0.1-FIX.md (harness);${WAVE === 2 ? " and the wave-1 reports in the same directory for the APIs merged in wave 1: P1.6-IMPL*.md + P1.6-REVIEW-3.md (HydrationIsland trigger API, useViewportDevice), P1.2-IMPL.md (StyleSink), P1.4-IMPL*.md (single LCP candidate, data-lcp-candidate), P1.7-IMPL*.md (sessionHint.ts, STORED_SESSION_EXPR, useAuth), P1.3-IMPL*.md + P1.3b-IMPL.md (consent shell), P1.1-IMPL*.md (gtag policy);" : ""}
   (6) the workstream reports and verdicts your item cites (${DOCS}/faza1/raporty/<workstream>.md, ${DOCS}/faza1/raporty/werdykty/<workstream>--<id>.md) - the verdicts' blocking issues are requirements;
   (7) ${EVIDENCE} section 0-cloud only for harness details (the environment below overrides it).
 Repository rules: Polish for comments, docs and commit messages (imperative, like the git log); TypeScript strict; no new dependencies; prettier formatting (bunx prettier --write on files you touch); keep SSR/hydration parity byte-for-byte for chrome; respect chunk-graph doctrine (no manualChunks/hoistTransitiveImports changes without check:chunks and the 2026-07-20 incident notes in scripts/lib/bootVendorSplit.ts); keep the setTimeout(0) literal before hydrate in src/router.tsx; i18n via dictionaries only; every behavioural change gets or updates a vitest test; AGENTS.md rules apply. Budget moves in scripts/check-bundle-size.ts only with measured numbers and a kronika entry.
@@ -106,8 +111,8 @@ IMPLEMENT the item exactly as its mechanism describes (if the code contradicts t
   bunx prettier --write <touched files>
   ${SCRATCH}/light.sh bunx eslint <touched files>
   bun run typecheck            (required; ONLY via the mutex helpers above; once per round)
-  ${SCRATCH}/light.sh bunx vitest run <test files of touched modules + the tests you added>  (plus src/lib/ci/__tests__/noHasSelectors.test.ts when you touch CSS, and bun run check:chunk-parity when you touch vite configs)
-  ${SCRATCH}/light.sh bun run verify:static        (format:check + every check:* gate outside EXCLUDED, incl. check:feature-taxonomy, check:dangerous-html, check:clock-freeze, check:unknown-casts, check:ssr-budgets, check:loader-policy, check:ownership; it skips artifact gates when no .output exists)
+  ${SCRATCH}/light.sh bunx vitest run <test files of touched modules + the tests you added>  (plus the vite-config parity test src/**/viteChunkParity* when you touch vite configs; CSS must not use :has() selectors - the old noHasSelectors test was removed in PR #475 but the rule stands)
+  ${SCRATCH}/light.sh bun run verify:static        (format:check + every check:* gate outside EXCLUDED, incl. check:dangerous-html and the SQL gates; artifact gates are excluded. format:check is GREEN on the wave base - keep it green; verify:static stops at the first red gate, so a red gate must be fixed or proven red on the base too)
   e2e specs you add or change: run them only via the mutex helpers (they need a build of the worktree; if the item has a Prove stage you may leave the build + e2e run to it and say so in the report).
 Do NOT run a production build or Lighthouse in this stage unless your item's mechanism itself is a measurement/diagnosis task (then follow the mechanism, under the mutex).
 Commit in ${wt} with a Polish message (summary line in the style of the repo log, e.g. "Wydajność PSI 85/95, fala ${WAVE}: ${item.id} ..."; body: mechanism, measured/expected effect, gates run) ending with EXACTLY this two-line trailer, verbatim (it is the attribution required by the session's harness; do not replace it and do not add other attribution lines):
@@ -155,7 +160,7 @@ const IMPL_SCHEMA = {
 };
 
 function reviewPrompt(item, impl, round) {
-  return `You are an adversarial code reviewer for a web-performance change in a TanStack Start + React 19 + Nitro + Supabase platform. Context: ${PLAN_W12} (§2 item ${item.id}: file list, mechanism after wave 0; §6 corrections), its block in ${PROMPTS_W1} (incl. the reviewer lens for this item in section 3), the item in ${PLAN_JSON} and ${PLAN_MD}, ${NOTES}, the verdict(s) it cites under ${DOCS}/faza1/raporty/werdykty/, the wave-0 reports it builds on in ${W0_REPORTS}/, and the implementer's report ${impl.report_path}.${item.notes ? "\nOrchestrator notes given to the implementer (binding scope): " + item.notes : ""}
+  return `You are an adversarial code reviewer for a web-performance change in a TanStack Start + React 19 + Nitro + Supabase platform. Context: ${PLAN_W12} (${PLAN_SEC} item ${item.id}: file list, mechanism after wave 0; §6 corrections), its block in ${PROMPTS_WAVE} (incl. the reviewer lens for this item in section 3), the item in ${PLAN_JSON} and ${PLAN_MD}, ${NOTES}, ${PREV_STATE ? PREV_STATE + " §7 (hand-off list), " : ""}the verdict(s) it cites under ${DOCS}/faza1/raporty/werdykty/, the earlier-wave reports it builds on in ${W0_REPORTS}/, and the implementer's report ${impl.report_path}.${item.notes ? "\nOrchestrator notes given to the implementer (binding scope): " + item.notes : ""}
 Review the diff in the worktree ${impl.worktree}: \`git -C ${impl.worktree} diff ${BASE_REF}...HEAD\` and read the touched files whole. Try hard to REFUTE that the change is correct, safe, complete and within scope:
 - files outside the item's list = blocking; mechanism deviating from the plan without a stated reason = blocking; a required part of the notes silently skipped = blocking;
 - SSR vs client HTML parity (hydration mismatch), streaming boundaries, document-cache identity, Suspense/lazy semantics, React 19 specifics (identity-compared props, dangerouslySetInnerHTML rewrites, startTransition vs useSyncExternalStore);
@@ -193,16 +198,16 @@ const REVIEW_SCHEMA = {
 
 function provePrompt(item, impl, attempt) {
   const dir = `${OUT}/${item.id}${attempt ? "/prove" + attempt : ""}`;
-  return `You are the measurement engineer proving ONE implemented change. Context: ${EVIDENCE} section 0-cloud ('Harness details'), ${POMIAR} (incl. the W1 baseline and A/A section written by the orchestrator), ${PLAN_W12} §2 (item ${item.id}: expected effect, Definition of Done) and the verification row for the item in the wave plan, the item in ${PLAN_JSON} (expected_effect, verification) and the implementer report ${impl.report_path}.${item.notes ? "\nOrchestrator notes for the item (they include the proof criteria): " + item.notes : ""}
+  return `You are the measurement engineer proving ONE implemented change. Context: ${EVIDENCE} section 0-cloud ('Harness details'), ${POMIAR} (harness usage; the current wave's base and A/A numbers are in the base state below), ${PLAN_W12} ${PLAN_SEC} (item ${item.id}: expected effect, Definition of Done) and the verification row for the item in the wave plan, the item in ${PLAN_JSON} (expected_effect, verification) and the implementer report ${impl.report_path}.${item.notes ? "\nOrchestrator notes for the item (they include the proof criteria): " + item.notes : ""}
 Worktree with the change: ${impl.worktree} (branch ${impl.branch}, commit ${impl.commit}). Wave base (already built, .output present, do not rebuild it): ${BASELINE_WT}.
 ${ENV}
 STEPS, in this order (mkdir -p ${dir}); every heavy step through the mutex helpers:
-  1. Build:  ${SCRATCH}/heavy-bg.sh ${dir}/build.log bash -c 'cd ${impl.worktree} && BUNDLE_INVENTORY=1 bun run build:smoke'  then wait-for.sh until it exits 0.
+  1. Build:  cd ${impl.worktree} && ${SCRATCH}/heavy-bg.sh ${dir}/build.log env BUNDLE_INVENTORY=1 bun run build:smoke   then wait-for.sh ${dir}/build.log.exit until it exits 0.
   2. Artifact gates in the worktree (light gates via light.sh, e2e via the mutex): bun run check:bundle (record the full output; compare with the base state above - this change must not make overall/public/entry/boot WORSE than the base; copy the 'Boot closure' line and the moves list), bun run check:chunks, bun run check:entry-purity, bun run check:server-entry-purity, bun run test:e2e:artifact (via heavy-bg.sh; it runs offline with the fixture), the item's own e2e specs if it added/changed any (via heavy-bg.sh, with the config the spec belongs to), node scripts/performance/check-document-weight.ts --json ${dir}/document-weight.json (ratchet: must stay green; if the change legitimately lowers a metric, only the item that owns the document-weight files may ratchet a threshold DOWN, never up) and the same gate on the base: cd ${BASELINE_WT} && node scripts/performance/check-document-weight.ts --json ${dir}/document-weight-base.json
   3. Lighthouse A/B (one command, via heavy-bg.sh; it takes 20-45 min, keep polling wait-for.sh):
-     ${SCRATCH}/heavy-bg.sh ${dir}/ab.log bash -c 'cd ${BASELINE_WT} && ${LH_ENV} node scripts/performance/lighthouse-local.mjs --compare ${BASELINE_WT} ${impl.worktree} --runs ${item.runs || 3} --forms ${item.forms || "mobile,desktop4x"} --label w${WAVE}-${item.id} --out ${dir}/lh ${item.lh_flags || "--client-backend fixture --save-artifacts"}'
+     cd ${BASELINE_WT} && ${SCRATCH}/heavy-bg.sh ${dir}/ab.log env ${LH_ENV} node scripts/performance/lighthouse-local.mjs --compare ${BASELINE_WT} ${impl.worktree} --runs ${item.runs || 3} --forms ${item.forms || "mobile,desktop4x"} --label w${WAVE}-${item.id} --out ${dir}/lh ${item.lh_flags || "--client-backend fixture --save-artifacts"}
 Read the MEDIAN and DELTA B-A lines per form, the VALID / PAIRS (σΔ, MDE) lines and the per-run spread; the per-task Lantern ledger of both sides (does the targeted task class disappear or split below 50 ms simulated in B in all valid runs?); compare the two document-weight JSONs (raw/gzip, inline style/script, modulepreload count, duplicates, boot closure, High JS pool, imgFetchpriorityHigh) and the audits dump of one mobile run per side (requests, transfer, LCP element and breakdown, CLS).
-Judge against the item's proof criteria: does the measured delta match the plan's expected effect (direction and rough size) relative to the A/A noise / MDE recorded in POMIAR.md? A result inside the noise with the targeted tasks gone from the ledger is 'yes' for structure + 'inconclusive' for size - say so explicitly. If a gate is red because of this change, say exactly which and why (the implementer gets one fix round); a gate that is red on the base too is 'red_on_main_too'.
+Judge against the item's proof criteria: does the measured delta match the plan's expected effect (direction and rough size) relative to the A/A noise / MDE (base state above; otherwise POMIAR.md)? A result inside the noise with the targeted tasks gone from the ledger is 'yes' for structure + 'inconclusive' for size - say so explicitly. If a gate is red because of this change, say exactly which and why (the implementer gets one fix round); a gate that is red on the base too is 'red_on_main_too'.
 Write ${dir}/PROVE.md (Polish) with all numbers (tables) and return the structured result.`;
 }
 

@@ -144,7 +144,20 @@ vi.mock("@/hooks/useNewsletterSettings", async () => {
   const actual = await vi.importActual<typeof import("@/hooks/useNewsletterSettings")>(
     "@/hooks/useNewsletterSettings",
   );
-  return { ...actual, useNewsletterSettings: () => ({ data: h.settings }) };
+  // Formularz czyta PROJEKCJĘ inline (P2.5) - atrapa oddaje ją z pełnego
+  // wiersza prawdziwą funkcją projekcji, więc każdy test renderuje formularz
+  // z tego kształtu, który niesie stan SSR (etykiety pól też: `field_labels`).
+  const inline = () =>
+    h.settings
+      ? actual.projectNewsletterInlineSettings(
+          h.settings as unknown as Parameters<typeof actual.projectNewsletterInlineSettings>[0],
+        )
+      : h.settings;
+  return {
+    ...actual,
+    useNewsletterSettings: () => ({ data: h.settings }),
+    useNewsletterInlineSettings: () => ({ data: inline() }),
+  };
 });
 
 vi.mock("@/hooks/useMyNewsletterStatus", () => ({

@@ -4,6 +4,11 @@
 // wariant `useSyncExternalStore` ze snapshotem serwer `desktop` / klient
 // `mobile` przy zagnieżdżonym `React.lazy` bez chunku MUSI zostać wykryty jako
 // render klienta, a lustro MUSI zachować HTML serwera do przyjścia chunku.
+//
+// P2.2: lustro startuje od urządzenia serwera WYŁĄCZNIE przy hydratacji
+// (świeży montaż bierze bieżące urządzenie od razu, bez mignięcia układu) i
+// czyta urządzenie ze źródła RENDERERA (`createViewportDeviceSource`), żeby
+// wąski renderer (popup, szuflada) nie przestawiał wysp treści strony.
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -26,10 +31,12 @@ import {
   VIEWPORT_DESKTOP_MIN_WIDTH,
   VIEWPORT_TABLET_MIN_WIDTH,
   __resetViewportDeviceForTests,
+  createViewportDeviceSource,
   getViewportDevice,
   publishViewportDevice,
   subscribeViewportDevice,
   useViewportDevice,
+  type ViewportDeviceSource,
 } from "../viewportDevice";
 
 vi.mock("react", async (importOriginal) => {
@@ -197,10 +204,42 @@ describe("magazyn urządzenia widoku", () => {
 // --- Hak-lustro ----------------------------------------------------------------
 
 describe("useViewportDevice - lustro useState + startTransition", () => {
-  function Probe({ serverDevice, log }: { serverDevice?: Device; log: Device[] }): ReactElement {
-    const device = useViewportDevice(serverDevice);
+  function Probe({
+    serverDevice,
+    log,
+    source,
+  }: {
+    serverDevice?: Device;
+    log: Device[];
+    source?: ViewportDeviceSource;
+  }): ReactElement {
+    const device = useViewportDevice(serverDevice, source);
     log.push(device);
     return h("p", { "data-probe": "device" }, device);
+  }
+
+  /** HTML serwera i `hydrateRoot` (pierwszy render klienta = hydratacja). */
+  async function hydrateProbe(
+    props: { serverDevice?: Device; source?: ViewportDeviceSource },
+    log: Device[],
+  ): Promise<{ container: HTMLDivElement; errors: unknown[] }> {
+    const container = document.createElement("div");
+    vi.stubEnv("SSR", true);
+    container.innerHTML = renderToString(h(Probe, { ...props, log: [] }));
+    vi.stubEnv("SSR", false);
+    document.body.append(container);
+    const errors: unknown[] = [];
+    let root!: Root;
+    await act(async () => {
+      root = hydrateRoot(container, h(Probe, { ...props, log }), {
+        onRecoverableError: (error) => errors.push(error),
+      });
+    });
+    cleanups.push(async () => {
+      await act(async () => root.unmount());
+      container.remove();
+    });
+    return { container, errors };
   }
 
   async function mount(element: ReactElement): Promise<HTMLDivElement> {
@@ -226,15 +265,38 @@ describe("useViewportDevice - lustro useState + startTransition", () => {
     expect(lists.size).toBe(0);
   });
 
-  it("pierwszy render = urządzenie serwera, potem urządzenie klienta WYŁĄCZNIE w przejściu", async () => {
+  it("hydratacja: pierwszy render = urządzenie serwera (bez rozjazdu), potem urządzenie klienta WYŁĄCZNIE w przejściu", async () => {
+    installMatchMedia(375);
+    const log: Device[] = [];
+
+    const { container, errors } = await hydrateProbe({}, log);
+
+    expect(log[0]).toBe("desktop");
+    expect(container.textContent).toBe("mobile");
+    expect(startTransition).toHaveBeenCalledTimes(1);
+    expect(errors).toEqual([]);
+  });
+
+  it("świeży montaż (bez HTML serwera): od razu bieżące urządzenie, bez renderu „desktop” i bez przejścia", async () => {
     installMatchMedia(375);
     const log: Device[] = [];
 
     const container = await mount(h(Probe, { log }));
 
-    expect(log[0]).toBe("desktop");
+    expect(log[0]).toBe("mobile");
     expect(container.textContent).toBe("mobile");
-    expect(startTransition).toHaveBeenCalledTimes(1);
+    expect(startTransition).not.toHaveBeenCalled();
+  });
+
+  it("hydratacja na desktopie: zero przejść i zero dodatkowych renderów", async () => {
+    installMatchMedia(1280);
+    const log: Device[] = [];
+
+    const { container } = await hydrateProbe({}, log);
+
+    expect(container.textContent).toBe("desktop");
+    expect(log).toEqual(["desktop"]);
+    expect(startTransition).not.toHaveBeenCalled();
   });
 
   it("zmiany magazynu (pomiar i ogłoszenie) też idą w przejściu; ta sama klasa nie renderuje", async () => {
@@ -268,6 +330,65 @@ describe("useViewportDevice - lustro useState + startTransition", () => {
     expect(seen).toEqual(["mobile"]);
     expect(startTransition).not.toHaveBeenCalled();
     expect(container.isConnected).toBe(false);
+  });
+
+  // Źródło renderera (P2.2).
+  describe("createViewportDeviceSource - urządzenie jednego renderera", () => {
+    it("do pierwszego ogłoszenia `null`; słuchacz dostaje tylko RÓŻNĄ klasę; odpięcie", () => {
+      const source = createViewportDeviceSource("desktop");
+      const seen: Device[] = [];
+      const stop = source.subscribe((device) => seen.push(device));
+
+      expect(source.serverDevice).toBe("desktop");
+      expect(source.get()).toBeNull();
+      source.publish("desktop");
+      source.publish("desktop");
+      source.publish("mobile");
+      stop();
+      source.publish("tablet");
+
+      expect(seen).toEqual(["desktop", "mobile"]);
+      expect(source.get()).toBe("tablet");
+    });
+
+    it("niezależne od magazynu strony: wąski renderer (popup) nie przestawia innego źródła ani magazynu", () => {
+      installMatchMedia(1280);
+      const content = createViewportDeviceSource();
+      const popup = createViewportDeviceSource();
+      content.publish("desktop");
+      popup.publish("mobile");
+
+      expect(content.get()).toBe("desktop");
+      expect(getViewportDevice()).toBe("desktop");
+    });
+
+    it("hak ze źródłem: hydratacja od `serverDevice` źródła, potem ogłoszenie renderera w przejściu; magazyn strony bez znaczenia", async () => {
+      installMatchMedia(375); // widok telefonu, ale renderer ogłosi desktop
+      const source = createViewportDeviceSource("desktop");
+      const log: Device[] = [];
+
+      const { container, errors } = await hydrateProbe({ source }, log);
+      expect(container.textContent).toBe("desktop");
+      expect(log).toEqual(["desktop"]);
+
+      await act(async () => source.publish("tablet"));
+      expect(container.textContent).toBe("tablet");
+      expect(startTransition).toHaveBeenCalledTimes(1);
+      expect(errors).toEqual([]);
+    });
+
+    it("hak ze źródłem: `serverDevice` źródła (renderer z `device`), świeży montaż po ogłoszeniu - od razu bieżąca klasa", async () => {
+      const source = createViewportDeviceSource("mobile");
+      vi.stubEnv("SSR", true);
+      expect(renderToString(h(Probe, { source, log: [] }))).toContain("mobile");
+      vi.stubEnv("SSR", false);
+
+      source.publish("tablet");
+      const log: Device[] = [];
+      const container = await mount(h(Probe, { source, log }));
+      expect(log[0]).toBe("tablet");
+      expect(container.textContent).toBe("tablet");
+    });
   });
 });
 

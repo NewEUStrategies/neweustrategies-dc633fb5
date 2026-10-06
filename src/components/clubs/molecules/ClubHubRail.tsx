@@ -170,8 +170,8 @@ function SectionTile({
       // Sekcja "wątki" celuje w /club/$slug, który jest PREFIKSEM każdej
       // pozostałej trasy klubu - bez dopasowania dokładnego świeciłaby się
       // na wszystkich sześciu ekranach naraz.
-       search={to === "/club/$clubSlug" ? { kind: undefined } : undefined}
-       activeOptions={{ exact, explicitUndefined: true }}
+      search={to === "/club/$clubSlug" ? { kind: undefined } : undefined}
+      activeOptions={{ exact, explicitUndefined: true }}
       className={TILE}
     >
       <span className={TILE_CHIP}>
@@ -247,22 +247,42 @@ function SectionTiles({
 /** Content kinds reuse the same thread icons and URL filter on every club surface. */
 function ContentTiles({ clubSlug }: { clubSlug: string }) {
   const { t } = useTranslation();
-  const orderedKinds = ["announcement", "discussion", "question", "poll", "position", "resource"] as const;
+  const orderedKinds = [
+    "announcement",
+    "discussion",
+    "question",
+    "poll",
+    "position",
+    "resource",
+  ] as const;
   return (
     <div className="mb-2.5">
       <h3 className="mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
         {t("club.hub.sectionGroups.content")}
       </h3>
       <div className="grid grid-cols-2 gap-1.5">
-        {orderedKinds.filter((kind) => CLUB_THREAD_KINDS.includes(kind)).map((kind) => {
-          const Icon = clubThreadKindIcon(kind);
-          return (
-            <Link key={kind} to="/club/$clubSlug" params={{ clubSlug }} search={{ kind }} activeOptions={{ exact: true }} className={TILE}>
-              <span className={TILE_CHIP}><Icon className="h-4 w-4" aria-hidden="true" /></span>
-              <span className="line-clamp-2 w-full px-0.5">{t(`club.hub.contentKinds.${kind}`)}</span>
-            </Link>
-          );
-        })}
+        {orderedKinds
+          .filter((kind) => CLUB_THREAD_KINDS.includes(kind))
+          .map((kind) => {
+            const Icon = clubThreadKindIcon(kind);
+            return (
+              <Link
+                key={kind}
+                to="/club/$clubSlug"
+                params={{ clubSlug }}
+                search={{ kind }}
+                activeOptions={{ exact: true }}
+                className={TILE}
+              >
+                <span className={TILE_CHIP}>
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <span className="line-clamp-2 w-full px-0.5">
+                  {t(`club.hub.contentKinds.${kind}`)}
+                </span>
+              </Link>
+            );
+          })}
       </div>
     </div>
   );

@@ -991,6 +991,13 @@ test("cache dokumentów oddaje drugie żądanie z HIT-a, a TTFB jest podany rozd
 // KONTROLA NEGATYWNA: podmiana `LOCALE_CHUNK_URLS` na `{ pl: null, en: null }`
 // (czyli dokładnie stan sprzed wtyczki) zeruje `dictionary` i oblewa pierwszą
 // asercję, nie ruszając pozostałych.
+//
+// OD P2.1 (BOOT PO LCP) graf klienta NIE przychodzi już z manifestu frameworka (manifest jest bez
+// preloadów - `scripts/lib/bootAfterLcpPlugin.ts`), tylko z zestawu bootu `#nes-boot-set`
+// wstrzykiwanego przez serwer (`src/lib/boot/bootSet.server.ts`). `/cookies` to dokument trybu
+// `now` (bez kandydata LCP), więc render dopisuje CAŁĄ serię bootu do `Link` (pobieranie od
+// nagłówków, jak dawniej preloady manifestu), a loader wstawia ją od razu. Dokumenty trybu `lcp`
+// (`/`, `/$`) mają `Link` bez żadnego `modulepreload` - pilnuje tego `boot-home.spec.ts`.
 const LOCALE_CHUNK_RE = /^\/assets\/(?:pl|en)-[A-Za-z0-9_-]{8}\.js$/;
 
 test("nagłówek Link niesie hint modulepreload chunku słownika", async ({ page }) => {
@@ -999,6 +1006,10 @@ test("nagłówek Link niesie hint modulepreload chunku słownika", async ({ page
   const linkHeader = response === null ? null : (response.headers()["link"] ?? null);
   const targets = modulepreloadTargets(linkHeader);
   const dictionary = targets.filter((target) => LOCALE_CHUNK_RE.test(target));
+  const html = response === null ? "" : await response.text();
+  const sets = [
+    ...html.matchAll(/<script type="application\/json" id="nes-boot-set">([^<]*)<\/script>/g),
+  ].map((m) => JSON.parse(m[1]) as { m: string; e: string; u: string[] });
 
   console.log(
     `[boot-timing] modulepreload n=${targets.length} slownik=${JSON.stringify(dictionary)}`,
@@ -1019,15 +1030,24 @@ test("nagłówek Link niesie hint modulepreload chunku słownika", async ({ page
   //    kształt nazwy sprawdzany wyżej).
   expect(dictionary[0].startsWith("/assets/pl-")).toBe(true);
 
-  // 3. GRAF KLIENTA Z MANIFESTU nadal jest wystawiany. To DRUGA połowa tej
-  //    samej reguły i osobna rzecz, którą da się zepsuć jednym argumentem:
-  //    `src/server.ts:197` woła `handler.fetch(request, env, ctx)`, a bez
-  //    czwartego pola (`responseLinkHeader`) te wpisy znikają bez śladu.
-  //    ZMIERZONE 2026-09-12: 13 wpisów. Próg jest DOLNY i luźny, bo liczba
-  //    zależy od podziału chunków; zero znaczy, że mechanizm umarł.
+  // 3. GRAF KLIENTA (seria bootu) nadal jest wystawiany w `Link` dokumentu `now`. Zero
+  //    znaczy, że render nie dopisał serii (`bootSet.server.ts`) albo filtr `Link`
+  //    (`frameworkPreloads.server.ts`) potraktował dokument jak `lcp`. Próg jest DOLNY
+  //    i luźny, bo liczba zależy od podziału chunków.
   const clientGraph = targets.filter((target) => !LOCALE_CHUNK_RE.test(target));
   expect(
     clientGraph.length,
-    `graf klienta z manifestu zniknął z nagłówka Link (cele = ${JSON.stringify(targets)})`,
+    `graf klienta zniknął z nagłówka Link (cele = ${JSON.stringify(targets)})`,
   ).toBeGreaterThan(0);
+
+  // 4. ZESTAW BOOTU (P2.1): jeden węzeł, tryb `now`, wejście na czele, ten sam jeden słownik
+  //    PL; każdy moduł serii jest w `Link` (pobieranie od nagłówków), a HTML nie startuje
+  //    JS-a sam (start należy do loadera).
+  expect(sets, "dokument bez zestawu bootu #nes-boot-set").toHaveLength(1);
+  const [set] = sets;
+  expect(set.m).toBe("now");
+  expect(set.u[0]).toBe(set.e);
+  expect(set.u.filter((url) => LOCALE_CHUNK_RE.test(url))).toEqual(dictionary);
+  expect(set.u.filter((url) => !targets.includes(url))).toEqual([]);
+  expect(html).not.toMatch(/<script\b[^>]*type=["']module["'][^>]*\bsrc=/i);
 });

@@ -445,3 +445,226 @@ przy niezmienionym FCP Lantern.
   który przez to przepadł (każdy start powłoki go nadpisuje). LHR, artefakty, księgi i `c3.log` są nienaruszone,
   a `lanternTasks --diff-series $G/lh-c3` nie zadziała bez odtworzenia `summary.json`. Kolejne pomiary dopiero po
   odtworzeniu urządzenia (`rm /dev/null && mknod -m 666 /dev/null c 1 3`, jako root, decyzja człowieka).
+
+## 9. Bramka fali 2 (2026-10-06, W1 `78356a7a` → W2 `ca34249c`)
+
+Werdykty bramki, Definition of Done, prognoza PSI i lista fali 3 są w `faza2/STAN-FALI-2.md` §6. Liczby per przebieg,
+statystyki par, księgi i rozstrzygnięcia arbitra: `faza2/raporty/W2-wyniki.json`. Tutaj są komendy, tabele surowe i
+uwagi o ważności.
+
+**Drzewa.** Oba zbudowano wcześniej `build:smoke` (`vite.smoke.config.ts`) i w bramce ich nie przebudowywano.
+`git status --short` był pusty przed seriami i po nich.
+
+| strona | drzewo                                                            | commit     | `.output/server/index.mjs`  |
+| ------ | ----------------------------------------------------------------- | ---------- | --------------------------- |
+| A = W1 | `main` na starcie fali 2, worktree `$SCRATCH/base-w2`             | `78356a7a` | 203 452 B, 2026-10-05 13:48 |
+| B = W2 | gałąź PR `claude/zen-ritchie-hzur21`, worktree `$SCRATCH/gate-w2` | `ca34249c` | 204 370 B, 2026-10-06 06:47 |
+
+`scripts/performance/lighthouse-local.mjs` jest po obu stronach bajt w bajt ten sam (sha256 `c4500159…6a7`); serie
+uruchomiono kopią B. Środowisko: Lighthouse 13.5.0, Chromium 1194, 4 CPU.
+
+Kroki ciężkie szły przez mutex maszyny (`heavy-bg.sh`), lekkie przez `light.sh`. `$G` = `$SCRATCH/phase2/wave2/gate`.
+
+```sh
+export LIGHTHOUSE_CLI=$SCRATCH/tools/node_modules/lighthouse/cli/index.js   # Lighthouse 13.5.0
+export CHROME_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome
+# ramię przeglądarkowe: 07:35:40–07:47:21 UTC, kod 0 (start po pełnym vitescie; load 1-min 2,51 o 07:35:35)
+cd $SCRATCH/gate-w2 && node scripts/performance/lighthouse-local.mjs --compare $SCRATCH/base-w2 $SCRATCH/gate-w2 \
+  --runs 5 --forms mobile,desktop4x,desktop5x --client-backend fixture --third-party fake-gtag --save-artifacts \
+  --warm-ua browser --label w2-gate-browser --out $G/lh-browser
+# ramię bota: 07:47:36–07:59:22 UTC, kod 0
+cd $SCRATCH/gate-w2 && node scripts/performance/lighthouse-local.mjs --compare $SCRATCH/base-w2 $SCRATCH/gate-w2 \
+  --runs 5 --forms mobile,desktop4x,desktop5x --client-backend fixture --third-party fake-gtag --save-artifacts \
+  --warm-ua bot --label w2-gate-bot --out $G/lh-bot
+# waga dokumentu, 5 próbek HIT, w każdym drzewie jego skryptem i progami
+cd $SCRATCH/base-w2 && node scripts/performance/check-document-weight.ts --json $G/document-weight-A.json
+cd $SCRATCH/gate-w2 && node scripts/performance/check-document-weight.ts --json $G/document-weight-B.json
+# księga per zadanie (60 przebiegów) i różnice serii (z drzewa B)
+node scripts/performance/lanternTasks.ts --min 0 --json $G/analiza/ledger-json/lh-browser.json $G/lh-browser/[AB]-*.artifacts
+node scripts/performance/lanternTasks.ts --diff-series $G/lh-browser --form mobile   # i desktop4x, desktop5x, lh-bot
+# wrażliwość na szybkość hosta: Lantern od nowa z m' = m × benchmarkIndex przebiegu / mediana LHR serii kalibracji k
+CAL_BENCH=1538.5 node $G/analiza/cpu-whatif.mjs $G/arbiter/whatif-browser-mobile-1538.json $G/lh-browser/[AB]-mobile-*.artifacts
+CAL_BENCH=1575   node $G/analiza/cpu-whatif.mjs $G/arbiter/whatif-browser-d4-1575.json $G/lh-browser/[AB]-desktop4x-*.artifacts
+CAL_BENCH=1538.5 node $G/arbiter/cpu-ledger-cal.mjs $G/arbiter/cpu-ledger-browser-mobile-1538.json $G/lh-browser/[AB]-mobile-*.artifacts
+# (to samo dla lh-bot); kontrola metody: A tej serii przeliczone do hosta bramki W1 (mediany B lh-ab: 1356,5 / 1398)
+CAL_BENCH=1398 node $G/analiza/cpu-whatif.mjs $G/arbiter/whatif-w1host-browser-d4-1398.json $G/lh-browser/A-desktop4x-*.artifacts
+# projekcja PSI: narzedzia/score.py (sha256 3e57f3e9…dbba), k z §7
+python3 $G/arbiter/proj.py
+```
+
+### 9.1 Serie A/B (`lh-browser`, `lh-bot`)
+
+Mediany z linii `MEDIAN` harnessu i z LHR. TBT = mediana i zakres pięciu przebiegów; księga = audyt w każdym
+przebiegu. Pozostałe kolumny:
+
+- CLS i TTI: mediany Lantern;
+- oSI: `observedSpeedIndex`;
+- główny wątek i bootup: `mainthread-work-breakdown` i `bootup-time`;
+- benchmarkIndex: mediana `environment.benchmarkIndex` z LHR.
+
+**Ramię browser** (`--warm-ua browser`)
+
+| forma     | strona | perf | FCP     | LCP     | TBT (mediana, zakres)      | SI      | CLS   | TTI    | oSI    | główny wątek | bootup  | żądania | transfer  | JS       | High przed obrazem LCP | benchmarkIndex |
+| --------- | ------ | ---- | ------- | ------- | -------------------------- | ------- | ----- | ------ | ------ | ------------ | ------- | ------- | --------- | -------- | ---------------------- | -------------- |
+| mobile    | A (W1) | 72   | 4,104 s | 4,812 s | **114,5 ms** (99,5–206,0)  | 4,104 s | 0,000 | 5,78 s | 275 ms | 4601 ms      | 2494 ms | 99      | 1010,7 KB | 705,9 KB | 620,8 KB               | 2460,0         |
+| mobile    | B (W2) | 98   | 1,554 s | 2,332 s | **40,8 ms** (28,0–55,5)    | 1,554 s | 0,000 | 5,46 s | 192 ms | 2575 ms      | 1129 ms | 73      | 916,2 KB  | 638,5 KB | 112,6 KB               | 2617,0         |
+| desktop4x | A (W1) | 95   | 0,851 s | 0,931 s | **156,6 ms** (132,3–351,5) | 0,851 s | 0,000 | 1,75 s | 368 ms | 4338 ms      | 2170 ms | 103     | 1011,9 KB | 705,9 KB | 620,8 KB               | 2426,0         |
+| desktop4x | B (W2) | 93   | 0,396 s | 0,548 s | **216,0 ms** (174,5–249,5) | 0,564 s | 0,000 | 1,25 s | 223 ms | 3063 ms      | 1406 ms | 77      | 922,2 KB  | 644,6 KB | 112,6 KB               | 2406,5         |
+| desktop5x | A (W1) | 74   | 0,906 s | 0,971 s | **606,0 ms** (442,2–679,0) | 0,940 s | 0,002 | 2,35 s | 366 ms | 5795 ms      | 3012 ms | 103     | 1011,8 KB | 705,9 KB | 620,8 KB               | 2335,5         |
+| desktop5x | B (W2) | 82   | 0,440 s | 0,549 s | **407,0 ms** (292,5–692,5) | 0,725 s | 0,000 | 1,56 s | 261 ms | 3982 ms      | 1919 ms | 77      | 922,2 KB  | 644,6 KB | 112,6 KB               | 2349,0         |
+
+TBT per przebieg (księga = audyt, ms):
+
+- mobile: A 99,5 / 114,5 / 135,5 / 206,0 / 108,0; B 35,5 / 28,0 / 40,8 / 55,5 / 55,0
+- desktop4x: A 132,3 / 351,5 / 160,0 / 149,5 / 156,6; B 216,0 / 249,5 / 174,5 / 203,5 / 222,5
+- desktop5x: A 654,3 / 442,2 / 606,0 / 679,0 / 448,0; B 692,5 / 407,0 / 338,5 / 292,5 / 481,5
+
+**Ramię bot** (`--warm-ua bot`)
+
+| forma     | strona | perf | FCP     | LCP     | TBT (mediana, zakres)      | SI      | CLS   | TTI    | oSI    | główny wątek | bootup  | żądania | transfer  | JS       | High przed obrazem LCP | benchmarkIndex |
+| --------- | ------ | ---- | ------- | ------- | -------------------------- | ------- | ----- | ------ | ------ | ------------ | ------- | ------- | --------- | -------- | ---------------------- | -------------- |
+| mobile    | A (W1) | 69   | 4,124 s | 4,885 s | **176,5 ms** (116,0–273,1) | 4,124 s | 0,000 | 5,88 s | 361 ms | 5286 ms      | 2847 ms | 99      | 1008,9 KB | 705,9 KB | 620,8 KB               | 2232,5         |
+| mobile    | B (W2) | 97   | 1,542 s | 2,307 s | **83,0 ms** (58,0–108,4)   | 1,629 s | 0,000 | 5,49 s | 209 ms | 2743 ms      | 1233 ms | 71      | 914,8 KB  | 638,5 KB | 112,6 KB               | 2367,0         |
+| desktop4x | A (W1) | 88   | 0,853 s | 0,934 s | **262,5 ms** (242,8–305,2) | 0,853 s | 0,000 | 1,87 s | 406 ms | 4564 ms      | 2407 ms | 103     | 1010,2 KB | 705,9 KB | 620,8 KB               | 2371,0         |
+| desktop4x | B (W2) | 89   | 0,489 s | 0,560 s | **268,0 ms** (185,5–301,5) | 0,663 s | 0,000 | 1,31 s | 270 ms | 2986 ms      | 1411 ms | 77      | 921,4 KB  | 644,6 KB | 112,6 KB               | 2266,0         |
+| desktop5x | A (W1) | 76   | 0,882 s | 0,969 s | **496,0 ms** (429,3–728,5) | 0,916 s | 0,000 | 2,31 s | 370 ms | 5621 ms      | 2852 ms | 99      | 1008,9 KB | 705,9 KB | 620,8 KB               | 2689,5         |
+| desktop5x | B (W2) | 84   | 0,397 s | 0,552 s | **358,1 ms** (282,4–461,8) | 0,625 s | 0,000 | 1,39 s | 233 ms | 3764 ms      | 1884 ms | 77      | 921,4 KB  | 644,6 KB | 112,6 KB               | 2394,0         |
+
+TBT per przebieg (księga = audyt, ms):
+
+- mobile: A 159,1 / 191,2 / 116,0 / 273,1 / 176,5; B 69,5 / 83,0 / 108,4 / 58,0 / 88,0
+- desktop4x: A 261,0 / 305,2 / 300,5 / 242,8 / 262,5; B 185,5 / 272,0 / 301,5 / 268,0 / 250,5
+- desktop5x: A 728,5 / 496,0 / 448,4 / 429,3 / 592,0; B 282,4 / 431,5 / 358,1 / 332,0 / 461,8
+
+### 9.2 Pary A-n/B-n
+
+Δ = B − A; MDE(t) = (t₀,₉₇₅ + t₀,₈)·σΔ/√5 = 3,717·σΔ/√5, MDE(z) = 2,8016·σΔ/√5. Harness w liniach `PAIRS` używa
+2,80, co różni się o ≤ 0,1 %. Liczby `W2-wyniki.json` `series.*.forms.*.pairs` są zgodne z liniami `PAIRS`. W każdej
+formie i ramieniu pary są mieszane co do trybu FCP w 5/5 (A pełny albo częściowy, B `bez-js`), więc warstwowanie par
+po trybie jest puste.
+
+| ramię   | forma     | metryka      | Δ median | pary Δ̄ |    σΔ | MDE(t) | MDE(z) | t (df 4) |
+| ------- | --------- | ------------ | -------: | -----: | ----: | -----: | -----: | -------: |
+| browser | mobile    | TBT [ms]     |    −73,7 |  −89,7 |  37,9 |   63,0 |   47,5 |    −5,30 |
+| browser | mobile    | FCP [s]      |   −2,550 | −2,099 | 1,023 |  1,701 |  1,282 |    −4,59 |
+| browser | mobile    | LCP [s]      |   −2,480 | −2,527 | 0,130 |  0,216 |  0,163 |   −43,44 |
+| browser | mobile    | SI [s]       |   −2,550 | −2,099 | 1,023 |  1,701 |  1,282 |    −4,59 |
+| browser | mobile    | TTI [s]      |   −0,319 | −0,374 | 0,168 |  0,279 |  0,210 |    −4,98 |
+| browser | mobile    | obs. SI [ms] |      −83 |   −121 |    50 |     84 |     63 |    −5,34 |
+| browser | desktop4x | TBT [ms]     |    +59,4 |  +23,2 |  74,5 |  123,8 |   93,3 |    +0,70 |
+| browser | desktop4x | FCP [s]      |   −0,455 | −0,461 | 0,106 |  0,177 |  0,133 |    −9,71 |
+| browser | desktop4x | LCP [s]      |   −0,383 | −0,404 | 0,046 |  0,077 |  0,058 |   −19,53 |
+| browser | desktop4x | SI [s]       |   −0,287 | −0,322 | 0,079 |  0,131 |  0,099 |    −9,13 |
+| browser | desktop4x | TTI [s]      |   −0,499 | −0,470 | 0,224 |  0,373 |  0,281 |    −4,69 |
+| browser | desktop4x | obs. SI [ms] |     −145 |   −150 |    91 |    152 |    114 |    −3,66 |
+| browser | desktop5x | TBT [ms]     |   −199,0 | −123,5 | 192,7 |  320,3 |  241,4 |    −1,43 |
+| browser | desktop5x | FCP [s]      |   −0,466 | −0,476 | 0,095 |  0,157 |  0,118 |   −11,25 |
+| browser | desktop5x | LCP [s]      |   −0,422 | −0,448 | 0,083 |  0,137 |  0,104 |   −12,10 |
+| browser | desktop5x | SI [s]       |   −0,215 | −0,228 | 0,111 |  0,184 |  0,139 |    −4,59 |
+| browser | desktop5x | TTI [s]      |   −0,787 | −0,792 | 0,276 |  0,459 |  0,346 |    −6,41 |
+| browser | desktop5x | obs. SI [ms] |     −105 |   −112 |    32 |     52 |     40 |    −7,97 |
+| bot     | mobile    | TBT [ms]     |    −93,5 | −101,8 |  74,3 |  123,5 |   93,1 |    −3,06 |
+| bot     | mobile    | FCP [s]      |   −2,582 | −2,551 | 0,056 |  0,093 |  0,070 |  −101,40 |
+| bot     | mobile    | LCP [s]      |   −2,578 | −2,541 | 0,069 |  0,114 |  0,086 |   −82,53 |
+| bot     | mobile    | SI [s]       |   −2,495 | −2,419 | 0,141 |  0,235 |  0,177 |   −38,24 |
+| bot     | mobile    | TTI [s]      |   −0,394 | −0,346 | 0,230 |  0,383 |  0,288 |    −3,36 |
+| bot     | mobile    | obs. SI [ms] |     −152 |   −157 |    32 |     54 |     40 |   −10,88 |
+| bot     | desktop4x | TBT [ms]     |     +5,5 |  −18,9 |  38,1 |   63,3 |   47,7 |    −1,11 |
+| bot     | desktop4x | FCP [s]      |   −0,364 | −0,377 | 0,051 |  0,086 |  0,065 |   −16,39 |
+| bot     | desktop4x | LCP [s]      |   −0,374 | −0,383 | 0,015 |  0,025 |  0,018 |   −58,10 |
+| bot     | desktop4x | SI [s]       |   −0,190 | −0,219 | 0,076 |  0,127 |  0,096 |    −6,43 |
+| bot     | desktop4x | TTI [s]      |   −0,565 | −0,583 | 0,127 |  0,211 |  0,159 |   −10,25 |
+| bot     | desktop4x | obs. SI [ms] |     −136 |   −137 |    64 |    106 |     80 |    −4,81 |
+| bot     | desktop5x | TBT [ms]     |   −137,9 | −165,7 | 158,5 |  263,5 |  198,6 |    −2,34 |
+| bot     | desktop5x | FCP [s]      |   −0,485 | −0,462 | 0,114 |  0,190 |  0,143 |    −9,06 |
+| bot     | desktop5x | LCP [s]      |   −0,417 | −0,398 | 0,051 |  0,085 |  0,064 |   −17,50 |
+| bot     | desktop5x | SI [s]       |   −0,291 | −0,270 | 0,099 |  0,165 |  0,124 |    −6,10 |
+| bot     | desktop5x | TTI [s]      |   −0,922 | −0,845 | 0,174 |  0,289 |  0,218 |   −10,87 |
+| bot     | desktop5x | obs. SI [ms] |     −137 |   −136 |    33 |     55 |     41 |    −9,25 |
+
+### 9.3 Wrażliwość na szybkość hosta (przeliczenie Lantern, bez nowego pomiaru)
+
+**Metoda.** m' = m × benchmarkIndex przebiegu / mediana LHR `environment.benchmarkIndex` serii kalibracji k (§7):
+
+- mianowniki: mobile 1538,5, desktop4x 1575 (`lighthouse-local-baseline-w1.json` `forms.*.median.benchmarkIndex`);
+- silnik: Lighthouse 13.5.0, ten sam co audyt (LoadSimulator + `LanternTotalBlockingTime`/`FirstContentfulPaint`/
+  `LargestContentfulPaint`/`Interactive`);
+- kontrola: przy m' = m TBT jest równe audytowi.
+
+Pierwsza wersja analizy dzieliła przez 1616,5, czyli benchmark atrapy gtag sprzed serii kalibracji. Licznik pochodził
+wtedy z LHR, a mianownik z innego pomiaru, więc ta wersja jest zastąpiona. Przeliczenie arbitra jest identyczne bajt w
+bajt z weryfikacją statystyki.
+
+| ramię   | forma     | benchmarkIndex B (przebiegi)           | m' B                              | TBT A: zmierzone → m' (mediana) [ms] | TBT B przy m': przebiegi; mediana (zmierzone) [ms]   | pary B−A przy m': Δ̄ / σΔ / MDE(t) / t |
+| ------- | --------- | -------------------------------------- | --------------------------------- | ------------------------------------ | ---------------------------------------------------- | ------------------------------------- |
+| browser | mobile    | 2778,5, 2637,0, 2553,0, 2445,5, 2617,0 | 7,224, 6,856, 6,638, 6,358, 6,804 | 114,5 → **374,5**                    | 503,2, 396,5, 483,3, 468,0, 381,5; **468,0** (40,8)  | −43,6 / 242,25 / 402,7 / −0,40        |
+| browser | desktop4x | 2406,5, 2689,0, 2352,0, 2423,0, 2367,5 | 6,112, 6,829, 5,973, 6,154, 6,013 | 156,6 → **672,0**                    | 499,5, 743,0, 432,7, 565,0, 540,4; **540,4** (216,0) | −145,7 / 51,9 / 86,3 / −6,28          |
+| bot     | mobile    | 2371,5, 2367,0, 2377,5, 2307,5, 2364,0 | 6,166, 6,154, 6,181, 5,999, 6,146 | 176,5 → **364,2**                    | 477,5, 506,2, 530,5, 182,5, 434,0; **477,5** (83,0)  | +38,3 / 227,1 / 377,6 / +0,38         |
+| bot     | desktop4x | 2464,0, 2454,0, 2202,5, 2000,0, 2266,0 | 6,258, 6,232, 5,594, 5,079, 5,755 | 262,5 → **857,2**                    | 491,5, 609,5, 642,0, 443,5, 512,0; **512,0** (268,0) | −305,5 / 113,9 / 189,3 / −6,00        |
+
+**Kontrola metody.** Stronę A tej serii (drzewo W1) przeliczyłem do szybkości hosta bramki W1, przyjmując mediany B
+`lh-ab` (mobile 1356,5, desktop4x 1398), i porównałem z TBT zmierzonym w bramce W1:
+
+| forma     | przeliczone | zmierzone w bramce W1 | błąd  |
+| --------- | ----------- | --------------------- | ----- |
+| mobile    | 515,5 ms    | 374 ms                | +38 % |
+| desktop4x | 885 ms      | 1037 ms               | −15 % |
+
+Metoda m' ma więc niepewność rzędu −15…+38 % TBT. Drzewo A ma też późniejsze scalenia `main` niż W1 z bramki W1.
+
+**FCP i LCP przy m'.** Mobile B, przebiegi:
+
+- browser: FCP 1525 / 1537 / 1639 / 1554 / 1570 ms, LCP bez zmian;
+- bot: FCP 1532 / 1555 / 1542 / 1670 / 1521 ms, LCP bez zmian.
+
+### 9.4 Uwagi o ważności
+
+- **Przebiegi:**
+  - 60/60 ważnych (5/5 na stronę, formę i ramię), `excludedAttempts` 0, `outcome.exitCode` 0, `failures` [];
+    dobierania nie było.
+  - Dokument Lighthouse'a HIT w każdym przebiegu. Wariant stały po każdej stronie: browser A `s-maxage=900`,
+    400 880 B, B 337 912 B; bot A 392 234 B, B 330 857 B.
+  - Księga = audyt TBT (±1 ms) w 60/60. Dwie niezależne regeneracje ksiąg weryfikatorów dały to samo.
+- **Load:** browser 1,00–1,98, bot 0,74–1,77 (próg 2,4).
+- **Restarty i powtórki:**
+  - Dwa `NO_NAVSTART` (browser A-mobile-1, bot B-desktop4x-4) harness powtórzył; powtórki są ważne.
+  - Restart serwera po rozgrzewce w 6 przebiegach na ramię (lista w `MEASURE.md` §3), gdy rozgrzewka zastała wpis
+    STALE.
+- **Tryb FCP:** A pełny (browser A-mobile-4 częściowy: FCP 1,83 s), B `bez-js` w 30/30.
+- **Szybkość hosta:**
+  - benchmarkIndex przebiegów 1759–2779; mediany B mobile 2617 / 2367, desktop4x 2406,5 / 2266.
+  - Dla porównania: seria kalibracji k (§7) 1538,5 / 1575, bramka W1 (§8, `lh-ab`) B 1356,5 / 1398.
+  - Atrapa gtag w skali ×1,65 (benchmark Chrome 2240) i ×1,74 (2126) wobec ×2,29 w §7 i ×2,85 / ×2,54 w §8.
+  - TBT bezwzględne nie jest porównywalne z §7 i §8 bez normalizacji (§9.3).
+- **Linie `K`** w trybie A/B (5,24 / 4,73 / 1,22 browser; 3,40 / 2,82 / 1,49 bot) liczą k z mediany strony A tej
+  serii. To nie jest kalibracja; prognozy używają k z §7 (0,72 / 0,42). Proporcjonalne mapowanie przez k przy TBT
+  40–80 ms nie ma podstawy empirycznej, bo k skalibrowano przy 832 ms.
+- **Reżim refetchu postów klienta.** W części przebiegów klient wysyła po boocie dodatkowe `GET /rest/v1/posts`. W
+  oknie Lighthouse (devtoolsLog) jest ich 8 na desktopie i 5 na mobile. Przebiegi z refetchem:
+
+  | ramię   | strona | w oknie Lighthouse                                                         | licznik backendu fixture                     |
+  | ------- | ------ | -------------------------------------------------------------------------- | -------------------------------------------- |
+  | browser | A      | 2/15 (A-desktop4x-2, A-desktop5x-1)                                        | 3/15 (dochodzi A-mobile-3: 4 GET poza oknem) |
+  | browser | B      | 5/15 (B-mobile-3, B-mobile-4, B-desktop4x-3, B-desktop4x-4, B-desktop5x-3) | 5/15                                         |
+  | bot     | A      | 1/15 (A-desktop4x-2)                                                       | 1/15                                         |
+  | bot     | B      | 4/15 (B-mobile-4, B-desktop4x-3, B-desktop5x-1, B-desktop5x-2)             | 5/15 (dochodzi B-mobile-3: 4 GET poza oknem) |
+
+  Harness tego nie wykrywa ani nie balansuje; nierównowaga działa przeciw B. Oba przekroczenia kryterium (a) wypadają
+  w przebiegach z refetchem w oknie (2/3 wobec 0/7, Fisher p ≈ 0,067). Refetch nie jest jednak przyczyną: GET-y ruszają
+  766 / 751 ms obs., po obs. LCP, a przyczyną jest wyścig arkusza z parserem nagłówka (`STAN-FALI-2.md` §6.1).
+
+- **CLS:**
+  - B: 0 we wszystkich 30 przebiegach (audyt i zdarzenia `LayoutShift` w śladzie).
+  - A: browser A-mobile-5 0,4014 (`had_recent_input = true`; Lighthouse liczy takie zdarzenia do 500 ms po
+    `viewport`, §8.3), A-desktop4x-3 0,0061, A-desktop5x-2 0,0113, A-desktop5x-3 0,0061, A-desktop5x-5 0,0016; bot
+    A-mobile-4 0,0006.
+- **Waga dokumentu:** oba drzewa mieszczą się w swoich progach. Mediany W1 → W2:
+  - `htmlRawBytes` 391,5 → 330,0 KB, `htmlGzipBytes` 55,5 → 51,4 KB, `headRawBytes` 25,3 → 28,3 KB;
+  - `modulepreloadCount` 25 → 0, `preLcpTransferBytes` 727,9 → 173,9 KB, `bootClosureGzipBytes` 474,0 → 484,5 KB;
+  - zestaw bootu W2: 26 URL-i, seria 26 plików / 574 001 B gzip; JS z priorytetem High przy starcie: W1 25 plików
+    (563 491 B gzip), W2 0.
+- **Klasy K** (heurystyka `kclass()` w `analiza/analyze.py`) nie zmieniają sum księgi.
+  - Korekta arbitra: dwa zadania `Timer:(dokument)` w bot B-desktop5x-1 i -3 to callback timera `boot()` loadera P2.1.
+    Należą do K4i, a nie do „Kmod”.
+  - Klatki Style z `$RV` (dominujący URL skryptu = dokument, udział skryptu ≤ 26 %) nie są liczone jako skrypt inline.
+- **`/dev/null` nie był dotykany;** serie i analizy zapisywały wyłącznie do `$G`.

@@ -186,17 +186,52 @@ export function staticClosure(assetsDir: string, roots: readonly string[]): Clos
 /**
  * Korzenie bootu z manifestu TanStack Start w `.output/server` - ta sama metoda
  * co `findBootChunks()` w scripts/check-bundle-size.ts (fallback, gdy dokument
- * nie ma `<script type="module" src>`).
+ * nie ma ani `<script type="module" src>`, ani zestawu bootu). Dwa kształty:
+ * skrypt wejścia w manifeście albo (P2.1) serwerowa mapa `nesBootManifest`.
  */
 export function manifestBootRoots(serverDir: string): string[] {
   const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']/g;
+  const bootManifestRe =
+    /["']?entry["']?\s*:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']\s*,\s*["']?rootPreloads["']?\s*:/g;
   const found = new Set<string>();
   if (!existsSync(serverDir)) return [];
   for (const file of readdirSync(serverDir)) {
     if (!file.endsWith(".mjs") && !file.endsWith(".js")) continue;
-    for (const m of readFileSync(join(serverDir, file), "utf8").matchAll(scriptRe)) found.add(m[1]);
+    const src = readFileSync(join(serverDir, file), "utf8");
+    for (const m of src.matchAll(scriptRe)) found.add(m[1]);
+    for (const m of src.matchAll(bootManifestRe)) found.add(m[1]);
   }
   return [...found];
+}
+
+/** Id węzła zestawu bootu (P2.1) - kontrakt z `src/lib/boot/bootLoaderScript.ts`. */
+export const BOOT_SET_ELEMENT_ID = "nes-boot-set";
+
+/**
+ * Zestaw bootu z dokumentu (P2.1, `src/lib/boot/bootSet.server.ts`): tryb (`lcp` - seria
+ * rusza po wpisie LCP, `now` - od razu), wejście i URL-e serii. `null`, gdy dokument go nie ma
+ * (dokument sprzed P2.1 albo dev) albo węzeł jest zepsuty.
+ */
+export interface DocumentBootSet {
+  readonly mode: "lcp" | "now";
+  readonly entry: string;
+  readonly urls: readonly string[];
+}
+
+export function documentBootSet(html: string): DocumentBootSet | null {
+  const node = blocks(html, "script").find(
+    (b) => b.attrs["id"] === BOOT_SET_ELEMENT_ID && b.attrs["type"] === "application/json",
+  );
+  if (!node) return null;
+  try {
+    const raw: unknown = JSON.parse(node.content);
+    if (typeof raw !== "object" || raw === null) return null;
+    const { m, e, u } = raw as { m?: unknown; e?: unknown; u?: unknown };
+    if ((m !== "lcp" && m !== "now") || typeof e !== "string" || !Array.isArray(u)) return null;
+    return { mode: m, entry: e, urls: u.filter((x): x is string => typeof x === "string") };
+  } catch {
+    return null;
+  }
 }
 
 export interface DuplicateEntry {
@@ -249,12 +284,30 @@ export interface DocumentWeight {
    * JS pobierany z priorytetem High przed/obok pierwszego malowania:
    * domknięcie bootu ∪ wszystkie `modulepreload` (head + `Link`). To jest
    * pula, która na 1,6 Mb/s rywalizuje z obrazem LCP (EVIDENCE §10).
+   * P2.1: dokument z zestawem w trybie `lcp` startuje serię dopiero po wpisie LCP, więc
+   * pula to wyłącznie `modulepreload` z dokumentu i `Link` (cel: 0); w trybie `now` dochodzą
+   * domknięcie wejścia i URL-e zestawu (loader wstawia je od razu).
    */
   readonly preloadedJsCount: number;
   readonly preloadedJsRawBytes: number;
   readonly preloadedJsGzipBytes: number;
   /** Preloady JS spoza domknięcia bootu (widgety + przypadkowe chunki tras). */
   readonly preloadOutsideBoot: readonly FileWeight[];
+  // ── ZESTAW BOOTU (P2.1: boot po LCP) ───────────────────────────────────
+  /** Zestaw `#nes-boot-set` z dokumentu (`null` - dokument startuje sam, sprzed P2.1). */
+  readonly bootSet: DocumentBootSet | null;
+  /**
+   * 1, gdy dokument nie ma ŻADNEJ drogi do JS-a: ani `<script type="module" src>`, ani zestawu
+   * bootu z wejściem. Taki dokument nigdy się nie hydratuje (klasa incydentu 2026-07-20).
+   */
+  readonly bootEntryMissing: number;
+  /**
+   * Seria bootu: domknięcie wejścia ∪ URL-e zestawu bootu ∪ `modulepreload` dokumentu - JS,
+   * który przeglądarka pobiera w chwili bootu (po LCP w trybie `lcp`). Bramka objętości, którą
+   * dawniej dawała pula „JS z priorytetem High przy starcie" (`preloadedJs*`).
+   */
+  readonly bootBurstCount: number;
+  readonly bootBurstGzipBytes: number;
   readonly renderBlockingCssCount: number;
   readonly renderBlockingCssRawBytes: number;
   readonly renderBlockingCssGzipBytes: number;
@@ -300,6 +353,7 @@ export interface DocumentWeight {
    * jak pozostałe metryki): HTML + CSS blokujący + pula JS z priorytetem High
    * (domknięcie bootu ∪ modulepreload) + preloadowane fonty + obraz kandydata
    * (gdy z artefaktu). Statyczny odpowiednik zbioru, który Lantern liczy do LCP.
+   * P2.1: w trybie `lcp` pula JS jest pusta (seria bootu rusza po wpisie LCP).
    */
   readonly preLcpTransferBytes: number;
 }
@@ -438,25 +492,46 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
   let css: FileWeight[] = [];
   let fontPreloadBytes = 0;
   let lcpImageBytes = 0;
+  const bootSet = documentBootSet(html);
+  const moduleRoots = moduleScripts
+    .map((s) => assetName(s.attrs["src"] ?? ""))
+    .filter((n): n is string => n !== null);
+  const bootSetEntry = bootSet ? assetName(bootSet.entry) : null;
+  const bootEntryMissing = moduleRoots.length === 0 && bootSetEntry === null ? 1 : 0;
+  let bootBurst: FileWeight[] = [];
   if (assetsDir) {
-    let roots = moduleScripts
-      .map((s) => assetName(s.attrs["src"] ?? ""))
-      .filter((n): n is string => n !== null);
+    let roots = moduleRoots;
+    if (roots.length === 0 && bootSetEntry !== null) roots = [bootSetEntry];
     if (roots.length === 0 && input.serverDir) roots = manifestBootRoots(input.serverDir);
     bootClosure = staticClosure(assetsDir, roots);
     const bootNames = new Set(bootClosure.files.map((f) => f.name));
+    const jsNames = (hrefs: readonly string[]) =>
+      hrefs.map(assetName).filter((n): n is string => n !== null && n.endsWith(".js"));
     const preloadNames = new Set(
-      preloads
-        .filter((l) => l.rel === "modulepreload" || l.as === "script")
-        .map((l) => assetName(l.href))
-        .filter((n): n is string => n !== null && n.endsWith(".js")),
+      jsNames(
+        preloads.filter((l) => l.rel === "modulepreload" || l.as === "script").map((l) => l.href),
+      ),
     );
-    preloadOutsideBoot = [...preloadNames]
-      .filter((n) => !bootNames.has(n))
-      .map((n) => weigh(assetsDir, n))
-      .filter((f): f is FileWeight => f !== null)
-      .sort((a, b) => b.gzipBytes - a.gzipBytes);
-    preloadedJs = [...bootClosure.files, ...preloadOutsideBoot];
+    const outside = (names: Iterable<string>) =>
+      [...new Set(names)]
+        .filter((n) => !bootNames.has(n))
+        .map((n) => weigh(assetsDir, n))
+        .filter((f): f is FileWeight => f !== null)
+        .sort((a, b) => b.gzipBytes - a.gzipBytes);
+    preloadOutsideBoot = outside(preloadNames);
+    // Seria bootu: domknięcie ∪ zestaw ∪ preloady dokumentu (definicja przy polu).
+    bootBurst = [
+      ...bootClosure.files,
+      ...outside([...preloadNames, ...jsNames(bootSet?.urls ?? [])]),
+    ];
+    if (bootSet?.mode === "lcp") {
+      // Seria rusza po wpisie LCP: przy starcie wyłącznie to, co dokument preloaduje sam.
+      preloadedJs = [...preloadNames]
+        .map((n) => weigh(assetsDir, n))
+        .filter((f): f is FileWeight => f !== null);
+    } else {
+      preloadedJs = bootSet ? bootBurst : [...bootClosure.files, ...preloadOutsideBoot];
+    }
     const cssNames = new Set(
       links
         .filter(
@@ -486,6 +561,7 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
       .reduce((sum, f) => sum + (f?.rawBytes ?? 0), 0);
   }
   const preloadedSum = sumWeights(preloadedJs);
+  const burstSum = sumWeights(bootBurst);
   const cssSum = sumWeights(css);
   const htmlGzipBytes = gzipSync(Buffer.from(html, "utf8"), { level: 6 }).length;
 
@@ -530,6 +606,10 @@ export function analyzeDocument(input: AnalyzeInput): DocumentWeight {
     preloadedJsRawBytes: preloadedSum.rawBytes,
     preloadedJsGzipBytes: preloadedSum.gzipBytes,
     preloadOutsideBoot,
+    bootSet,
+    bootEntryMissing,
+    bootBurstCount: bootBurst.length,
+    bootBurstGzipBytes: burstSum.gzipBytes,
     renderBlockingCssCount: css.length,
     renderBlockingCssRawBytes: cssSum.rawBytes,
     renderBlockingCssGzipBytes: cssSum.gzipBytes,
@@ -573,6 +653,10 @@ export const GATED_METRICS = [
   "imagePreloadNonCandidate",
   "linkHeaderDisallowed",
   "preLcpTransferBytes",
+  // P2.1 - zestaw bootu (definicje: komentarze pól wyżej).
+  "bootEntryMissing",
+  "bootBurstCount",
+  "bootBurstGzipBytes",
 ] as const;
 
 export type GatedMetric = (typeof GATED_METRICS)[number];

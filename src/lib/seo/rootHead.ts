@@ -59,7 +59,12 @@ export function rootDocumentLinks(
     // Favicon jawnie zadeklarowany, żeby crawlery i podglądy linków pobrały
     // znak marki, a nie domyślny znak generatora.
     { rel: "icon", href: "/favicon.ico", sizes: "any" },
-    { rel: "apple-touch-icon", href: "/favicon.ico" },
+    // Fala 2: `favicon.ico` niesie wyłącznie 16 i 32 px (2,5 KB zamiast jednego PNG
+    // 256 px, 26 KB) - po boocie po LCP przeglądarka pobiera go z priorytetem High
+    // przed obserwowanym LCP i Lantern dokładał go szeregowo za obrazem kandydata
+    // (+150 ms LCP mobile w 4/15 przebiegów, raport faza2 P2.1-PROVE-2 §4). Ekran
+    // początkowy iOS dostaje osobny PNG 180 px.
+    { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
     ...fontPreloadLinks(lang, { latin: assets.fontLatin, latinExt: assets.fontLatinExt }),
     { rel: "dns-prefetch", href: SUPABASE_PRECONNECT_ORIGIN },
     { rel: "preconnect", href: SUPABASE_PRECONNECT_ORIGIN, crossOrigin: "anonymous" },
@@ -90,6 +95,13 @@ export function rootDocumentLinks(
  * Nagłówek HTTP nie jest częścią DOM-u, więc problemu nie ma z konstrukcji,
  * a przy tym działa WCZEŚNIEJ niż `<link>` (przed sparsowaniem `<head>`)
  * i jest utrwalany w NES Edge Cache na HIT/STALE.
+ *
+ * OD P2.1 (BOOT PO LCP) wartość jest przede wszystkim WEJŚCIEM ZESTAWU BOOTU:
+ * `lib/boot/bootSet.server.ts` czyta `modulepreload` z akumulatora `Link`
+ * w dehydratacji i wkłada moduł do `#nes-boot-set`, a
+ * `lib/http/frameworkPreloads.server.ts` zdejmuje go z odpowiedzi dokumentu
+ * bootującego po LCP (`/`, `/$`) - JS nie może ruszyć przed wpisem LCP.
+ * Dokument `now` (reszta serwisu) niesie go nadal, razem z całą serią.
  */
 export function dictionaryPreloadLinkHeaderValue(chunkUrl: string | null): string | null {
   if (!chunkUrl) return null;

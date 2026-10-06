@@ -326,7 +326,7 @@ interface ResilientSliderImageProps {
   sizes?: string;
   /** Override layout className (default: absolute fill cover). */
   className?: string;
-  /** Optional inline style overrides merged after fade transition. */
+  /** Optional inline style overrides merged after the hidden-slide opacity. */
   style?: CSSProperties;
   /** Force visibility (skip the fade-via-opacity behaviour). */
   alwaysVisible?: boolean;
@@ -397,12 +397,12 @@ function ResilientSliderImage({
       fetchPriority={priority && active ? "high" : active ? "auto" : "low"}
       decoding="async"
       className={className ?? "eh-img absolute inset-0 w-full h-full object-cover widget-media-fg"}
-      style={{
-        opacity: visible ? 1 : 0,
-        transition:
-          "opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) var(--eh-scale-easing, ease-in-out)",
-        ...(style ?? {}),
-      }}
+      // Dieta znaczników (P2.6, HW-6): przejście siedzi w arkuszu wspólnym
+      // (`.eh-slider [data-fill-image]`, ta sama deklaracja), a inline zostaje
+      // wyłącznie stan per slajd - `opacity:0` slajdu ukrytego. Widoczny obraz
+      // nie ma atrybutu `style` (krycie 1 to wartość początkowa), więc
+      // 152 B × 21 obrazów znika z dokumentu.
+      style={visible ? style : { opacity: 0, ...style }}
       onError={(e) => {
         onBrokenSource(originalSrc);
         const nextSrc = displaySrc !== fallback ? fallback : placeholderSrc;
@@ -422,6 +422,23 @@ const EXCERPT_MAX = 160;
 const truncate = (s: string, max: number) =>
   s.length > max ? s.slice(0, Math.max(0, max - 1)).trimEnd() + "…" : s;
 
+/** Odstęp kart karuzeli multi-card: jedno źródło dla szerokości karty
+ * (arkusz wspólny) i przesunięcia toru (`MultiCardVariant`). */
+const MULTI_CARD_GAP_PX = 16;
+
+// DIETA ZNACZNIKÓW (P2.6, HW-6). Dwie deklaracje, które każdy slajd niósł
+// dotąd w `style=""`, żyją tu - w arkuszu wysyłanym RAZ na dokument:
+//  * przejście obrazu `[data-fill-image]` - ta sama deklaracja co dawny inline
+//    (z `--eh-scale-easing`, więc najechanie wjeżdża ease-out, a zjazd
+//    ease-in); arkusz jest niewarstwowy (0,2,0), więc klasa Tailwinda z
+//    `@layer utilities` przegrałaby z nim i po cichu zmieniła easing;
+//  * szerokość karty multi-card (110 B × 20 na produkcji) - klucz to istniejąca
+//    klasa `eh-multi-card-item`; zależność od arkusza już była
+//    (`--eh-visible-columns` i `flex` karty żyją tylko tutaj).
+// `prefers-reduced-motion`: inline wygrywał dotąd z `transition: none`, więc
+// użytkownik z ograniczonym ruchem widział przenikanie slajdów (skala i tak
+// stoi na 1). Reguła zachowuje to zachowanie co do deklaracji - zamiana
+// inline → arkusz nie zmienia niczego, co widać.
 const SHARED_STYLES = `
 .eh-slider[data-variant="multi-card"] { container-type: inline-size; }
 .eh-multi-track { --eh-visible-columns: var(--eh-columns, 3); }
@@ -576,7 +593,7 @@ const SHARED_STYLES = `
   --eh-transition-duration: 450ms;
   --eh-scale-easing: ease-in;
   scale: var(--eh-scale);
-  transition: opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration) ease-in;
+  transition: opacity 700ms cubic-bezier(.22,.61,.36,1), scale var(--eh-transition-duration, 1100ms) var(--eh-scale-easing, ease-in-out);
   transform-origin: center center;
   /* Bez stalego will-change/backface-visibility: trwale promowana warstwa
      jest rasteryzowana raz i skalowana, przez co zdjecia i tekst wygladaja
@@ -589,7 +606,7 @@ const SHARED_STYLES = `
   will-change: scale;
 }
 @media (prefers-reduced-motion: reduce) {
-  .eh-slider [data-fill-image] { transition: none; }
+  .eh-slider [data-fill-image] { transition: opacity 700ms cubic-bezier(.22,.61,.36,1); }
   .eh-slider *:hover > [data-fill-image] { --eh-scale: 1; }
 }
 
@@ -601,6 +618,7 @@ const SHARED_STYLES = `
 .eh-slider .eh-track.is-dragging, .eh-slider .eh-track.is-animating { will-change: transform; }
 .eh-slider .eh-track.is-dragging { transition: none; }
 .eh-slider .eh-card { flex: 0 0 auto; }
+.eh-slider .eh-multi-card-item { width: calc((100% - (var(--eh-visible-columns) - 1) * ${MULTI_CARD_GAP_PX}px) / var(--eh-visible-columns)); }
 /* A fixed builder height resizes the complete carousel rather than cropping it.
    The card copy and controls retain their intrinsic size while the media area
    grows/shrinks to consume the remaining height. */
@@ -685,6 +703,28 @@ function NavArrows({ prevLabel, nextLabel, onPrev, onNext, nav }: NavArrowsProps
   );
 }
 
+/**
+ * KROPKI PAGINACJI KOMPOZYTOROWO (P2.6, css:C9). Dawniej `transition-all` z
+ * przełączaniem `w-2 h-2` ↔ `w-2.5 h-2.5` i koloru tła: każda zmiana slajdu
+ * (także autoplay) animowała `width`/`height`/`background-color` na głównym
+ * wątku, a audyt `non-composited-animations` wskazywał kropki. Teraz kropka ma
+ * STAŁE pudełko 10 px, a nieaktywna jest pomniejszona `scale(.8)` (= 8 px, jak
+ * dawne `w-2`) i przygaszona `opacity` (= dawna alfa tła: `/25` → `opacity-25`,
+ * `/50` → `opacity-50`; pojedynczy pełny kolor bez dzieci daje ten sam piksel).
+ * Animują się wyłącznie `transform` i `opacity`, które kompozytor prowadzi sam.
+ *
+ * Pomniejszenie idzie właściwością `transform`, a nie klasą skali Tailwinda:
+ * w Tailwind 4 klasy skali piszą osobną właściwość `scale`, której
+ * `transition-[transform,opacity]` nie obejmuje (kropka przeskakiwałaby bez
+ * animacji). Klasa przejścia już jest w arkuszu; nowa jest tylko jedna krótka
+ * reguła `transform`. (Nazwy klasy skali z wartością arbitralną celowo nie ma
+ * w tym komentarzu: skaner Tailwinda czyta też komentarze i wygenerowałby ją.)
+ *
+ * Geometria poza kropką bez zmian: kropka siedzi wyśrodkowana w przycisku
+ * `h-8 w-8 shrink-0`, więc rozmiar jej pudełka nie wpływa na układ.
+ */
+const DOT_BASE = "rounded-full w-2.5 h-2.5 transition-[transform,opacity]";
+
 interface DotsNavProps {
   lang: "pl" | "en";
   count: number;
@@ -720,7 +760,7 @@ function DotsNav({ lang, count, active, onSelect, onPrev, onNext, compact = fals
           >
             <span
               aria-hidden="true"
-              className={`rounded-full transition-all ${i === active ? "w-2.5 h-2.5 bg-foreground" : "w-2 h-2 bg-foreground/25 group-hover:bg-foreground/50"}`}
+              className={`${DOT_BASE} ${i === active ? "bg-foreground" : "bg-foreground opacity-25 [transform:scale(.8)] group-hover:opacity-50"}`}
             />
           </button>
         ))}
@@ -1400,8 +1440,9 @@ function useContainerColumns(
 function MultiCardVariant(p: VariantProps) {
   // Card has its own ratio - use 4/3 visual ratio per slide image.
   const dragging = p.dragRef.current.active;
-  const gapPx = 16;
-  const cardWidth = `calc((100% - (var(--eh-visible-columns) - 1) * ${gapPx}px) / var(--eh-visible-columns))`;
+  const gapPx = MULTI_CARD_GAP_PX;
+  // Szerokość karty (100% - (cols - 1) * gap) / cols siedzi w arkuszu wspólnym
+  // pod `.eh-multi-card-item` (P2.6) - inline zostaje tylko przesunięcie toru.
   // Krok = szerokość karty + odstęp, czyli (100% + gap) / cols.
   const trackTransform = `translateX(calc(${-p.safeIdx} * (100% + ${gapPx}px) / var(--eh-visible-columns) + ${p.dragDx}px))`;
   return (
@@ -1420,11 +1461,7 @@ function MultiCardVariant(p: VariantProps) {
           {p.items.map((it, i) => {
             const { title, sub, cat, href, catColor } = pickSlideStrings(it, p.lang);
             return (
-              <article
-                key={i}
-                className="eh-card eh-multi-card-item group"
-                style={{ width: cardWidth, flex: "0 0 auto" }}
-              >
+              <article key={i} className="eh-card eh-multi-card-item group">
                 {(() => {
                   const media = (
                     <div
@@ -1680,7 +1717,7 @@ function CinematicOverlayVariant(p: VariantProps) {
               >
                 <span
                   aria-hidden="true"
-                  className={`rounded-full transition-all ${i === p.safeIdx ? "w-2.5 h-2.5 bg-white" : "w-2 h-2 bg-white/50 group-hover:bg-white/80"}`}
+                  className={`${DOT_BASE} ${i === p.safeIdx ? "bg-white" : "bg-white opacity-50 [transform:scale(.8)] group-hover:opacity-80"}`}
                 />
               </button>
             ))}

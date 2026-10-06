@@ -18,7 +18,10 @@
 //      bramką zgody analitycznej.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BOOT_HARD_CAP_MS } from "@/lib/boot/bootLoaderScript";
+
 import {
+  BOOT_ARM_FALLBACK_MS,
   BOOT_DEAD_TIMEOUT_MS,
   BOOT_ERROR_BUFFER_LIMIT,
   BOOT_PROBE_SCRIPT,
@@ -56,12 +59,20 @@ beforeEach(() => {
   delete w().__nesBootErrors;
   delete w().__nesBootT0;
   delete w().__nesBootDead;
+  delete w().__nesBootArm;
+  delete w().__nesBootS;
   delete w().__nesAppReady;
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  Reflect.deleteProperty(document, "readyState");
 });
+
+/** Stan parsowania widziany przez sondę (happy-dom ma dokument już wczytany). */
+function parsing(): void {
+  Object.defineProperty(document, "readyState", { configurable: true, get: () => "loading" });
+}
 
 describe("BOOT_PROBE_SCRIPT", () => {
   it("instaluje bufor i znacznik czasu, nie rzucając", () => {
@@ -101,22 +112,60 @@ describe("BOOT_PROBE_SCRIPT", () => {
     expect(w().__nesBootErrors).toHaveLength(BOOT_ERROR_BUFFER_LIMIT);
   });
 
-  it("oznacza MARTWY BOOT, gdy flaga gotowości nie przyjdzie w budżecie", () => {
-    // To jest sygnał POZYTYWNY: pozwala odróżnić „wolno" od „nie ożyło".
-    // Przed 2026-09-01 nie dawało się tego odróżnić niczym.
+  it("oznacza MARTWY BOOT 15 s od STARTU BOOTU (uzbrojenie przez loader)", () => {
+    // To jest sygnał POZYTYWNY: pozwala odróżnić „wolno" od „nie ożyło". Od P2.1 zegar liczy
+    // się od chwili, w której loader wstawia wejście (po wpisie LCP), nie od pierwszego bajtu -
+    // inaczej wolne łącze dawałoby fałszywe „martwe" boota zdrowych stron.
     vi.useFakeTimers();
+    parsing();
     runProbe();
+    vi.advanceTimersByTime(2_000);
+    w().__nesBootArm?.();
+    expect(typeof w().__nesBootS).toBe("number");
     vi.advanceTimersByTime(BOOT_DEAD_TIMEOUT_MS - 1);
+    expect(w().__nesBootDead).toBeUndefined();
+    vi.advanceTimersByTime(1);
+    // Wartość to ms od `__nesBootT0` (pierwszy bajt), jak dotąd.
+    expect(w().__nesBootDead).toBe(2_000 + BOOT_DEAD_TIMEOUT_MS);
+  });
+
+  it("zapasowe uzbrojenie przy DOMContentLoaded + 3 s, gdy loader nie ruszył (dev, awaria)", () => {
+    vi.useFakeTimers();
+    parsing();
+    runProbe();
+    vi.advanceTimersByTime(60_000);
+    // Bez DOMContentLoaded nie ma zapasu - dokument się jeszcze parsuje.
+    expect(w().__nesBootS).toBeUndefined();
+    document.dispatchEvent(new Event("DOMContentLoaded"));
+    vi.advanceTimersByTime(BOOT_ARM_FALLBACK_MS + BOOT_DEAD_TIMEOUT_MS - 1);
     expect(w().__nesBootDead).toBeUndefined();
     vi.advanceTimersByTime(2);
     expect(typeof w().__nesBootDead).toBe("number");
   });
 
+  it("uzbrojenie jest jednorazowe: późniejsze wywołania nie przesuwają zegara", () => {
+    vi.useFakeTimers();
+    parsing();
+    runProbe();
+    w().__nesBootArm?.();
+    const armedAt = w().__nesBootS;
+    vi.advanceTimersByTime(10_000);
+    w().__nesBootArm?.();
+    expect(w().__nesBootS).toBe(armedAt);
+    vi.advanceTimersByTime(BOOT_DEAD_TIMEOUT_MS - 10_000 + 1);
+    expect(typeof w().__nesBootDead).toBe("number");
+  });
+
+  it("zapas sondy jest równy twardemu limitowi loadera bootu", () => {
+    expect(BOOT_ARM_FALLBACK_MS).toBe(BOOT_HARD_CAP_MS);
+  });
+
   it("NIE oznacza martwego bootu, gdy aplikacja zgłosiła gotowość", () => {
     vi.useFakeTimers();
     runProbe();
+    w().__nesBootArm?.();
     w().__nesAppReady = true;
-    vi.advanceTimersByTime(BOOT_DEAD_TIMEOUT_MS + 100);
+    vi.advanceTimersByTime(BOOT_DEAD_TIMEOUT_MS + BOOT_ARM_FALLBACK_MS + 100);
     expect(w().__nesBootDead).toBeUndefined();
   });
 

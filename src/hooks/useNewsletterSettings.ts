@@ -1,7 +1,11 @@
 import { useQuery, useMutation, useQueryClient, queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { NlDoc } from "@/lib/newsletter-builder/types";
-import { resolvePopupFields, type PopupFieldConfig } from "@/lib/newsletter/popupFields";
+import {
+  resolvePopupFields,
+  type PopupFieldConfig,
+  type PopupFieldKey,
+} from "@/lib/newsletter/popupFields";
 import {
   defaultPopupDesign,
   resolvePopupDesign,
@@ -178,46 +182,167 @@ export function defaultNewsletterSettings(): NewsletterSettings {
 }
 
 /**
+ * Odczyt wiersza `newsletter_settings` scalonego z wartościami domyślnymi -
+ * wspólne ciało pełnego zapytania i projekcji formularza inline.
+ */
+async function fetchNewsletterSettings(): Promise<NewsletterSettings> {
+  const { data, error } = await supabase.from("newsletter_settings").select("*").maybeSingle();
+  if (error && error.code !== "PGRST116") throw error;
+  const def = defaultNewsletterSettings();
+  if (!data) return def;
+  const row = data as Record<string, unknown>;
+  const lists = row.popup_mailing_lists;
+  const showcase = row.popup_showcase_images;
+  return {
+    ...def,
+    ...(data as unknown as Partial<NewsletterSettings>),
+    popup_mailing_lists: Array.isArray(lists) ? (lists as unknown as NewsletterMailingList[]) : [],
+    popup_showcase_images: Array.isArray(showcase)
+      ? (showcase as unknown as NewsletterShowcaseImage[])
+      : [],
+    popup_fields: resolvePopupFields(row.popup_fields),
+    popup_design: resolvePopupDesign(row.popup_design),
+    popup_note_pl: typeof row.popup_note_pl === "string" ? row.popup_note_pl : def.popup_note_pl,
+    popup_note_en: typeof row.popup_note_en === "string" ? row.popup_note_en : def.popup_note_en,
+  };
+}
+
+/**
  * Fabryka zapytania o ustawienia newslettera - JEDNO źródło klucza dla hooka
  * i dla SSR-owego prefetchu widgetu (`lib/builder/prefetch`). Bez rozgrzania
  * formularz wychodził z serwera pusty (komponent zwraca `null`, dopóki
  * ustawienia się nie wczytają), więc czytelnik i crawler widzieli pustą kolumnę.
+ *
+ * PEŁNY kształt - czytają go popup rejestracji, panel admina i
+ * `registrationFields` (`popup_fields` dla `AuthPortal`/`ClubAccessGate`).
  */
 export function newsletterSettingsQueryOptions() {
   return queryOptions({
     queryKey: ["newsletter-settings"] as const,
-
-    queryFn: async (): Promise<NewsletterSettings> => {
-      const { data, error } = await supabase.from("newsletter_settings").select("*").maybeSingle();
-      if (error && error.code !== "PGRST116") throw error;
-      const def = defaultNewsletterSettings();
-      if (!data) return def;
-      const row = data as Record<string, unknown>;
-      const lists = row.popup_mailing_lists;
-      const showcase = row.popup_showcase_images;
-      return {
-        ...def,
-        ...(data as unknown as Partial<NewsletterSettings>),
-        popup_mailing_lists: Array.isArray(lists)
-          ? (lists as unknown as NewsletterMailingList[])
-          : [],
-        popup_showcase_images: Array.isArray(showcase)
-          ? (showcase as unknown as NewsletterShowcaseImage[])
-          : [],
-        popup_fields: resolvePopupFields(row.popup_fields),
-        popup_design: resolvePopupDesign(row.popup_design),
-        popup_note_pl:
-          typeof row.popup_note_pl === "string" ? row.popup_note_pl : def.popup_note_pl,
-        popup_note_en:
-          typeof row.popup_note_en === "string" ? row.popup_note_en : def.popup_note_en,
-      };
-    },
+    queryFn: fetchNewsletterSettings,
     staleTime: 60_000,
   });
 }
 
 export function useNewsletterSettings() {
   return useQuery(newsletterSettingsQueryOptions());
+}
+
+/**
+ * Etykieta pola rejestracji w kształcie, z którego `buildRegistrationFieldsApi`
+ * (`registrationFields.ts`) liczy `label()` - tylko klucz i dwie etykiety, bez
+ * `enabled`/`required`/placeholderów, których formularze inline nie czytają.
+ */
+export type NewsletterFieldLabelRow = Pick<PopupFieldConfig, "key" | "label_pl" | "label_en">;
+
+/**
+ * Pola rejestracji, których etykiety czytają formularze inline (mapa
+ * `REGISTRATION_KEY` w `newsletterFieldLabels.ts` jest typowana tym zbiorem,
+ * więc mapowanie na pole spoza projekcji nie przejdzie typechecku). Hasło,
+ * powtórzenie hasła, lista i zgoda newslettera to pola popupu/rejestracji -
+ * w stanie odwodnionym formularza inline byłyby martwym balastem.
+ */
+export const NEWSLETTER_INLINE_LABEL_KEYS = [
+  "first_name",
+  "last_name",
+  "email",
+  "job",
+  "linkedin",
+  "phone",
+  "company",
+] as const satisfies readonly PopupFieldKey[];
+export type NewsletterInlineLabelKey = (typeof NEWSLETTER_INLINE_LABEL_KEYS)[number];
+const INLINE_LABEL_KEYS: ReadonlySet<PopupFieldKey> = new Set(NEWSLETTER_INLINE_LABEL_KEYS);
+
+/**
+ * Ustawienia czytane przez formularze INLINE: `NewsletterForm` (tryb, zgoda,
+ * nagłówek, opis, komunikat sukcesu, `inline_doc`), `NewsletterDocRenderer`
+ * (te same teksty + listy mailingowe dokumentu inline) i `JoinUsForm`
+ * (włącznik, nagłówek, opis). Listy mailingowe jadą WYŁĄCZNIE razem z
+ * `inline_doc` - bez dokumentu nikt ich w formularzu nie renderuje.
+ *
+ * `field_labels`: etykiety pól liczone dotąd z `popup_fields` pełnego klucza
+ * (`useNewsletterFieldLabels` -> `useRegistrationFields`); formularze inline
+ * liczą je z projekcji (`useNewsletterFieldLabelsFrom`). Projekcja niesie
+ * wyłącznie klucz i dwie etykiety pól z `NEWSLETTER_INLINE_LABEL_KEYS` (nazwa
+ * pola odróżnia je od kolumny popupu) - bez nich formularz inline musiałby
+ * czytać PEŁNY klucz w pierwszym renderze.
+ */
+export type NewsletterInlineSettings = Pick<
+  NewsletterSettings,
+  | "enabled"
+  | "mode"
+  | "inline_doc"
+  | "heading_pl"
+  | "heading_en"
+  | "description_pl"
+  | "description_en"
+  | "policy_html_pl"
+  | "policy_html_en"
+  | "success_message_pl"
+  | "success_message_en"
+> &
+  Partial<Pick<NewsletterSettings, "popup_mailing_lists">> & {
+    field_labels: NewsletterFieldLabelRow[];
+  };
+
+/**
+ * Pola czytane przez `NewsletterDocRenderer` - spełnia je i projekcja inline,
+ * i pełny wiersz (popup renderuje ten sam dokumentowy formularz).
+ */
+export type NewsletterDocSettings = Omit<NewsletterInlineSettings, "field_labels">;
+
+/**
+ * DIETA STANU ODWODNIONEGO (P2.5, HW-3c): projekcja ustawień newslettera dla
+ * formularza inline. Pełny wiersz (`popup_doc`, `popup_fields`,
+ * `popup_design`, galeria, paleta popupu...) to ~8,9 KB surowych bajtów w
+ * strumieniu stanu każdej strony z formularzem, a popup czyta go dopiero po
+ * ~15 s, poza oknem pomiaru. Klucz `["newsletter-settings", "inline"]` leży
+ * pod prefiksem pełnego, więc zapis w adminie (`useSaveNewsletterSettings`)
+ * unieważnia oba wpisy.
+ */
+export function projectNewsletterInlineSettings(s: NewsletterSettings): NewsletterInlineSettings {
+  const out: NewsletterInlineSettings = {
+    enabled: s.enabled,
+    mode: s.mode,
+    inline_doc: s.inline_doc,
+    heading_pl: s.heading_pl,
+    heading_en: s.heading_en,
+    description_pl: s.description_pl,
+    description_en: s.description_en,
+    policy_html_pl: s.policy_html_pl,
+    policy_html_en: s.policy_html_en,
+    success_message_pl: s.success_message_pl,
+    success_message_en: s.success_message_en,
+    field_labels: s.popup_fields
+      .filter((f) => INLINE_LABEL_KEYS.has(f.key))
+      .map(({ key, label_pl, label_en }) => ({ key, label_pl, label_en })),
+  };
+  if (s.inline_doc) out.popup_mailing_lists = s.popup_mailing_lists;
+  return out;
+}
+
+/**
+ * Zapytanie formularza inline (projekcja w `queryFn`: SSR, hydratacja i
+ * refetch mają ten sam kształt). Popup, admin i `registrationFields` zostają
+ * na pełnym `newsletterSettingsQueryOptions`.
+ *
+ * Odbiorcy: `NewsletterForm` i `JoinUsForm` (także etykiety pól -
+ * `useNewsletterFieldLabelsFrom(field_labels)`, nie `useNewsletterFieldLabels`,
+ * który czyta pełny klucz) oraz rejestr prefetchu widgetów `newsletter` i
+ * `join-us` (`lib/builder/prefetch.ts`) - SSR grzeje dokładnie ten klucz.
+ */
+export function newsletterInlineSettingsQueryOptions() {
+  return queryOptions({
+    queryKey: ["newsletter-settings", "inline"] as const,
+    queryFn: async (): Promise<NewsletterInlineSettings> =>
+      projectNewsletterInlineSettings(await fetchNewsletterSettings()),
+    staleTime: 60_000,
+  });
+}
+
+export function useNewsletterInlineSettings() {
+  return useQuery(newsletterInlineSettingsQueryOptions());
 }
 
 export function useSaveNewsletterSettings() {

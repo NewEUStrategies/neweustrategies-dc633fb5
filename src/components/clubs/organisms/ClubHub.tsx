@@ -234,7 +234,15 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   const mediaUrls = useClubMediaUrls(mediaPaths);
 
   const feed = useMemo(
-    () => buildClubFeed({ mode: kind !== null ? "threads" : mode, threads, documents, events, milestones, posts }),
+    () =>
+      buildClubFeed({
+        mode: kind !== null ? "threads" : mode,
+        threads,
+        documents,
+        events,
+        milestones,
+        posts,
+      }),
     [mode, kind, threads, documents, events, milestones, posts],
   );
 

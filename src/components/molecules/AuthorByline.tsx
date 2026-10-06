@@ -64,6 +64,16 @@ const FALLBACK_DISPLAY: AuthorDisplay = {
   mode: "avatar",
 };
 
+/**
+ * Desktop (>= 768 px) kontraktu DOMYŚLNEGO: 16 px nazwiska i 24 px zdjęcia,
+ * inicjał 0,55 boku zdjęcia. Te same liczby są wartościami zastępczymi reguł
+ * `@media` w `src/styles.css` (HW-6: domyślny byline nie powtarza ich w stylu
+ * inline) - pilnuje tego `__tests__/AuthorByline.cascade.test.tsx`.
+ */
+export const AUTHOR_BYLINE_DESKTOP_NAME_PX = 16;
+export const AUTHOR_BYLINE_DESKTOP_AVATAR_PX = 24;
+export const AUTHOR_BYLINE_INITIAL_RATIO = 0.55;
+
 export function AuthorByline({
   name,
   avatarUrl,
@@ -102,12 +112,25 @@ export function AuthorByline({
   // Wartości jadą jako custom properties, bo media query nie istnieje w stylu
   // inline - reguły `@media` żyją w `src/styles.css` i mają `!important`,
   // żeby wygrać z warstwą typografii widgetu.
-  const nameSizeDesktop = Math.round((display.nameSizePx * 16) / AUTHOR_NAME_SIZE_PX_DEFAULT);
-  const avatarSizeDesktop = Math.round((display.avatarSizePx * 24) / AUTHOR_AVATAR_SIZE_PX_DEFAULT);
+  const nameSizeDesktop = Math.round(
+    (display.nameSizePx * AUTHOR_BYLINE_DESKTOP_NAME_PX) / AUTHOR_NAME_SIZE_PX_DEFAULT,
+  );
+  const avatarSizeDesktop = Math.round(
+    (display.avatarSizePx * AUTHOR_BYLINE_DESKTOP_AVATAR_PX) / AUTHOR_AVATAR_SIZE_PX_DEFAULT,
+  );
+  // HW-6 (Wydajność PSI 85/95, fala 2, P2.4): kontrakt domyślny (12 / 20 px)
+  // NIE powtarza zmiennych desktopowych w stylu inline - wartości 16 / 24 /
+  // 13 px są wartościami zastępczymi reguł `@media` w `styles.css`. Na
+  // stronie głównej to 33 awatary i ich nazwiska w każdym dokumencie.
+  // Domknięcie pudełka (wymiary, `min-*`/`max-*`, `flex`, promień) zostaje
+  // inline: to ono wygrywa z globalnymi regułami obrazów buildera (patrz
+  // komentarz wyżej) i pilnują go testy kontraktu bylinu.
   const textStyle: CSSProperties & Record<string, string | number> = {
     fontSize: `${display.nameSizePx}px`,
     lineHeight: 1.35,
-    "--abl-fs-desktop": `${nameSizeDesktop}px`,
+    ...(display.nameSizePx === AUTHOR_NAME_SIZE_PX_DEFAULT
+      ? null
+      : { "--abl-fs-desktop": `${nameSizeDesktop}px` }),
   };
   const avatarStyle: CSSProperties & Record<string, string | number> = {
     width: display.avatarSizePx,
@@ -118,8 +141,12 @@ export function AuthorByline({
     maxHeight: display.avatarSizePx,
     borderRadius: display.avatarRadiusPx,
     flex: "0 0 auto",
-    "--abl-av-desktop": `${avatarSizeDesktop}px`,
-    "--abl-av-fs-desktop": `${Math.round(avatarSizeDesktop * 0.55)}px`,
+    ...(display.avatarSizePx === AUTHOR_AVATAR_SIZE_PX_DEFAULT
+      ? null
+      : {
+          "--abl-av-desktop": `${avatarSizeDesktop}px`,
+          "--abl-av-fs-desktop": `${Math.round(avatarSizeDesktop * AUTHOR_BYLINE_INITIAL_RATIO)}px`,
+        }),
   };
 
   const avatar = display.showAvatar ? (
@@ -150,7 +177,10 @@ export function AuthorByline({
         aria-label={display.showName ? undefined : safeName}
         role={display.showName ? undefined : "img"}
         className="inline-flex shrink-0 items-center justify-center bg-muted font-semibold text-foreground/70"
-        style={{ ...avatarStyle, fontSize: `${Math.round(display.avatarSizePx * 0.55)}px` }}
+        style={{
+          ...avatarStyle,
+          fontSize: `${Math.round(display.avatarSizePx * AUTHOR_BYLINE_INITIAL_RATIO)}px`,
+        }}
         data-author-byline-avatar=""
         {...exempt}
       >

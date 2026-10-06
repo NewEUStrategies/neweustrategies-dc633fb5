@@ -12,13 +12,18 @@ import {
 
 export type Lang = "pl" | "en";
 
+/**
+ * Wiersz post-listy w cache. Pola językowe są OPCJONALNE, bo zapytanie oddaje
+ * wiersz zrzutowany na język klucza (`localizePostListRows`): wiersz PL nie
+ * niesie `title_en`/`excerpt_en`, wiersz EN - `title_pl`/`excerpt_pl`.
+ */
 export interface PostRow {
   id: string;
   slug: string;
-  title_pl: string | null;
-  title_en: string | null;
-  excerpt_pl: string | null;
-  excerpt_en: string | null;
+  title_pl?: string | null;
+  title_en?: string | null;
+  excerpt_pl?: string | null;
+  excerpt_en?: string | null;
   cover_image_url: string | null;
   published_at: string | null;
   post_format: string | null;
@@ -428,6 +433,30 @@ async function attachAuthorNames(rows: PostRow[], withAuthors: boolean): Promise
   });
 }
 
+/**
+ * DIETA STANU ODWODNIONEGO (P2.5, HW-3b): wiersze zrzutowane na język klucza.
+ *
+ * Klucz post-listy zawiera `lang`, a widok (`PostListView`) czyta wyłącznie:
+ * tytuł `(lang ? title_<lang>) || title_pl || title_en` i zajawkę
+ * `excerpt_<lang>` BEZ zejścia na drugi język. Projekcja wpieka DOKŁADNIE ten
+ * łańcuch w pole języka klucza i zdejmuje pola drugiego języka, więc widok
+ * liczy z wiersza zrzutowanego ten sam tekst co z pełnego - a stan `$tsr`
+ * strony PL nie niesie angielskich tytułów i zajawek (i odwrotnie).
+ *
+ * Zajawka NIE schodzi na drugi język (inaczej niż w sliderze): ogólne
+ * „język z fallbackiem" zmieniłoby angielskie strony bez zajawki EN.
+ * Projekcja żyje w `queryFn` (po cache brzegowym, w którym leży pełny wiersz),
+ * więc SSR, hydratacja i refetch klienta mają ten sam kształt.
+ */
+export function localizePostListRows(rows: readonly PostRow[], lang: Lang): PostRow[] {
+  return rows.map((row) => {
+    const { title_pl, title_en, excerpt_pl, excerpt_en, ...rest } = row;
+    return lang === "pl"
+      ? { ...rest, title_pl: title_pl || title_en || null, excerpt_pl: excerpt_pl ?? null }
+      : { ...rest, title_en: title_en || title_pl || null, excerpt_en: excerpt_en ?? null };
+  });
+}
+
 export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
   const input = postListInput(c, lang);
   return queryOptions({
@@ -436,17 +465,20 @@ export const postListQueryOptions = (c: WidgetContent, lang: Lang) => {
     // dehydrated rows instead of refetching under a divergent key. uniqueOnPage
     // de-dup happens client-side via dedupeAndSlice, not in this key.
     queryKey: [WIDGET_QUERY_ROOTS.postList, input] as const,
-    queryFn: () =>
-      // Per-isolate TTL: pojedynczy widget post-list to wewnętrznie do 5
-      // zapytań w 3 falach (słowniki taksonomii + ranking, wpisy, autorzy);
-      // chrome i strony builderowe prefetchują go na każdym
-      // renderze. Wariant "random" celowo POZA cache - zamrożenie kolejności
-      // na minutę zmieniłoby zachowanie widgetu (na kliencie przezroczyste).
-      input.orderByRaw === "random"
-        ? fetchPostListRows(input)
-        : edgeTtlCache(`builder:post-list:${JSON.stringify(input)}`, 60_000, () =>
-            fetchPostListRows(input),
-          ),
+    queryFn: async () =>
+      localizePostListRows(
+        // Per-isolate TTL: pojedynczy widget post-list to wewnętrznie do 5
+        // zapytań w 3 falach (słowniki taksonomii + ranking, wpisy, autorzy);
+        // chrome i strony builderowe prefetchują go na każdym
+        // renderze. Wariant "random" celowo POZA cache - zamrożenie kolejności
+        // na minutę zmieniłoby zachowanie widgetu (na kliencie przezroczyste).
+        input.orderByRaw === "random"
+          ? await fetchPostListRows(input)
+          : await edgeTtlCache(`builder:post-list:${JSON.stringify(input)}`, 60_000, () =>
+              fetchPostListRows(input),
+            ),
+        input.lang,
+      ),
     staleTime: 2 * 60_000,
     gcTime: 10 * 60_000,
   });

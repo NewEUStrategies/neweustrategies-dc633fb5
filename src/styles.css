@@ -2408,8 +2408,11 @@ select option {
   );
   background-size: 200% 100%;
   background-repeat: no-repeat;
+  /* Bez `will-change: background-position` (P2.4, atrybucja warstw P0.5):
+     `background-position` nie jest animowana na kompozytorze, więc wskazówka
+     niczego nie przyspieszała, a tylko rezerwowała zasoby dla każdego
+     szkieletu na stronie. */
   animation: lv-shimmer 1.4s linear infinite;
-  will-change: background-position;
 }
 .dark .skeleton-shimmer {
   background-image: linear-gradient(
@@ -7625,26 +7628,30 @@ html[data-mbb="on"] [data-site-shell] {
 /* Byline autora: mobile trzyma wartości z panelu, desktop (>= 768 px) skaluje
    proporcjonalnie - kontrakt domyślny 12/20 px daje 16/24 px.
    `!important` jest konieczne, bo warstwa typografii widgetu generuje reguły
-   z `!important`, które inaczej biją styl inline i te zmienne. */
+   z `!important`, które inaczej biją styl inline i te zmienne.
+   Wartości zastępcze to kontrakt domyślny: byline z domyślnymi rozmiarami nie
+   powtarza zmiennych desktopowych w stylu inline (HW-6, P2.4 - na stronie
+   głównej 33 awatary i ich nazwiska). Zmienne ustawia wyłącznie sam byline,
+   więc nie ma ich skąd odziedziczyć. */
 @media (min-width: 768px) {
   [data-author-byline],
   [data-author-byline] [data-author-byline-name],
   [data-author-byline] [data-author-byline-label],
   [data-author-byline] [data-author-byline-name] span {
-    font-size: var(--abl-fs-desktop) !important;
+    font-size: var(--abl-fs-desktop, 16px) !important;
   }
 
   [data-author-byline] [data-author-byline-avatar] {
-    width: var(--abl-av-desktop) !important;
-    height: var(--abl-av-desktop) !important;
-    min-width: var(--abl-av-desktop) !important;
-    min-height: var(--abl-av-desktop) !important;
-    max-width: var(--abl-av-desktop) !important;
-    max-height: var(--abl-av-desktop) !important;
+    width: var(--abl-av-desktop, 24px) !important;
+    height: var(--abl-av-desktop, 24px) !important;
+    min-width: var(--abl-av-desktop, 24px) !important;
+    min-height: var(--abl-av-desktop, 24px) !important;
+    max-width: var(--abl-av-desktop, 24px) !important;
+    max-height: var(--abl-av-desktop, 24px) !important;
   }
 
   [data-author-byline] span[data-author-byline-avatar] {
-    font-size: var(--abl-av-fs-desktop) !important;
+    font-size: var(--abl-av-fs-desktop, 13px) !important;
   }
 }
 
@@ -9369,4 +9376,134 @@ input[type="reset"],
   .voice-eq-bar--active {
     height: 6px;
   }
+}
+
+/* ============================================================
+   SZABLON TYPOGRAFII WIDGETU (HW-2; Wydajność PSI 85/95, fala 2, P2.4)
+   ------------------------------------------------------------
+   Te same selektory, ta sama specyficzność (0,3,0 przedrostka) i to samo
+   `!important` co reguły generatora per widget (`lib/builder/typographyCss.ts`),
+   ale raz na dokument zamiast bloku `<style>` ~1,5 KB przy każdym widgecie.
+   Instancja niesie wyłącznie dane: `data-wt="fs tfs"` (tokeny) i zmienne
+   `--wt-<token>-d|t|m` w stylu ramki (`lib/builder/liveTypography.ts`).
+
+   NIE PRZENOSIĆ DO `@layer` I NIE PRZESTAWIAĆ WYŻEJ. Reguły generatora są
+   niewarstwowe i późniejsze niż cały ten arkusz; warstwowe `!important` biłoby
+   niewarstwowe (odwrócona kaskada), a reguła wyżej w pliku przegrywałaby remisy
+   specyficzności, które dziś wygrywa widget. Reguły Kinetic Signal Notch
+   (`[data-w-id][data-w-id][data-w-id] .nes-kinetic-shell .nes-kinetic-action`,
+   0,5,0 + `data-typography-exempt`) wygrywają z szablonem specyficznością,
+   tak jak wygrywały z generatorem.
+
+   Bramka `data-wt~=` jest obowiązkowa: niezdefiniowana zmienna w deklaracji
+   `!important` dałaby `unset`. Urządzenie wybiera renderer
+   (`[data-builder-renderer][data-device]`, jak reszta układu buildera), nie
+   `@media`; zagnieżdżony renderer o innym urządzeniu wygrywa wyższą
+   specyficznością. Każdy token niesie wszystkie trzy wartości, więc
+   `[data-wt]` niżej nigdy nie dziedziczy urządzenia od cudzego widgetu.
+   ============================================================ */
+[data-wt] {
+  --wt-fs: var(--wt-fs-d);
+  --wt-tfs: var(--wt-tfs-d);
+  --wt-dfs: var(--wt-dfs-d);
+}
+[data-builder-renderer][data-device="tablet"] [data-wt] {
+  --wt-fs: var(--wt-fs-t);
+  --wt-tfs: var(--wt-tfs-t);
+  --wt-dfs: var(--wt-dfs-t);
+}
+[data-builder-renderer][data-device="mobile"] [data-wt] {
+  --wt-fs: var(--wt-fs-m);
+  --wt-tfs: var(--wt-tfs-m);
+  --wt-dfs: var(--wt-dfs-m);
+}
+[data-builder-renderer] [data-builder-renderer][data-device="desktop"] [data-wt] {
+  --wt-fs: var(--wt-fs-d);
+  --wt-tfs: var(--wt-tfs-d);
+  --wt-dfs: var(--wt-dfs-d);
+}
+[data-builder-renderer] [data-builder-renderer][data-device="tablet"] [data-wt] {
+  --wt-fs: var(--wt-fs-t);
+  --wt-tfs: var(--wt-tfs-t);
+  --wt-dfs: var(--wt-dfs-t);
+}
+[data-builder-renderer] [data-builder-renderer][data-device="mobile"] [data-wt] {
+  --wt-fs: var(--wt-fs-m);
+  --wt-tfs: var(--wt-tfs-m);
+  --wt-dfs: var(--wt-dfs-m);
+}
+/* `fs` - rozmiar ogólny (bez osobnego rozmiaru opisu): wszystkie teksty i
+   placeholdery. Tytuły bierze `tfs`, który instancja `fs` zawsze niesie. */
+[data-wt~="fs"][data-w-id][data-w-id],
+[data-wt~="fs"][data-w-id][data-w-id]
+  :is(
+    p,
+    span,
+    a,
+    strong,
+    em,
+    small,
+    li,
+    dt,
+    dd,
+    blockquote,
+    cite,
+    label,
+    button,
+    input,
+    textarea,
+    select,
+    option,
+    figcaption,
+    legend,
+    time,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6
+  ):not(.cms-post-title):not(.cms-post-excerpt):not([data-typography-exempt]):not(
+    .post-list-numbered-index
+  ):not(.rl-num),
+[data-wt~="fs"][data-w-id][data-w-id] .prose,
+[data-wt~="fs"][data-w-id][data-w-id]
+  .prose
+  *:not(.cms-post-title):not(.cms-post-excerpt):not(.post-list-numbered-index):not(.rl-num),
+[data-wt~="fs"][data-w-id][data-w-id] input::placeholder,
+[data-wt~="fs"][data-w-id][data-w-id] textarea::placeholder {
+  font-size: var(--wt-fs) !important;
+}
+/* `tfs` - tytuły. */
+[data-wt~="tfs"][data-w-id][data-w-id] .cms-post-title,
+[data-wt~="tfs"][data-w-id][data-w-id] [data-title-root],
+[data-wt~="tfs"][data-w-id][data-w-id][data-title-root],
+[data-wt~="tfs"][data-w-id][data-w-id] [data-typography-role="title"],
+[data-wt~="tfs"][data-w-id][data-w-id][data-typography-role="title"],
+[data-wt~="tfs"][data-w-id][data-w-id]
+  :is(h1, h2, h3, h4, h5, h6):not(.post-list-numbered-index):not(.rl-num) {
+  font-size: var(--wt-tfs) !important;
+}
+/* `dfs` - opisy. */
+[data-wt~="dfs"][data-w-id][data-w-id] .cms-post-excerpt,
+[data-wt~="dfs"][data-w-id][data-w-id] [data-description-root],
+[data-wt~="dfs"][data-w-id][data-w-id][data-description-root],
+[data-wt~="dfs"][data-w-id][data-w-id] [data-typography-role="description"],
+[data-wt~="dfs"][data-w-id][data-w-id][data-typography-role="description"],
+[data-wt~="dfs"][data-w-id][data-w-id]
+  :is(p, li, dd, blockquote, figcaption, small):not(.cms-post-title):not(
+    [data-typography-exempt]
+  ):not(.post-list-numbered-index):not(.rl-num),
+[data-wt~="dfs"][data-w-id][data-w-id] .prose p {
+  font-size: var(--wt-dfs) !important;
+}
+/* `g` - odstęp tytuł-opis; wartość niesie `--cms-title-description-gap`
+   w stylu ramki (ramka ustawia ją zawsze, gdy odstęp jest liczbą). */
+[data-wt~="g"][data-w-id][data-w-id] .cms-post-title + .cms-post-excerpt,
+[data-wt~="g"][data-w-id][data-w-id] .cms-post-title ~ .cms-post-excerpt,
+[data-wt~="g"][data-w-id][data-w-id] [data-title-root] + [data-description-root],
+[data-wt~="g"][data-w-id][data-w-id] [data-title-root] ~ [data-description-root],
+[data-wt~="g"][data-w-id][data-w-id] [data-typography-gap-target],
+[data-wt~="g"][data-w-id][data-w-id] a + .cms-post-excerpt {
+  margin-top: var(--cms-title-description-gap) !important;
 }

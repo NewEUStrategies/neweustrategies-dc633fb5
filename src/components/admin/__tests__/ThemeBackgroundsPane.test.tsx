@@ -135,14 +135,14 @@ describe("ThemeBackgroundsPane - wczytanie i wartości domyślne", () => {
     const inputs = colorPickerInputs(container);
     expect(inputs).toHaveLength(8);
     expect(inputs.map((input) => input.value)).toEqual(["", "", "", "", "", "", "", ""]);
-    expect(inputs[0].getAttribute("data-inherited")).toBe("#fcfcf9");
+    expect(inputs[0].getAttribute("data-inherited")).toBe("#F8F7F3");
     expect(inputs[1].getAttribute("data-inherited")).toBe("#141414");
 
     // Kafle podglądu spadają na wartości domyślne slotu, nie na biel.
     const tiles = [...container.querySelectorAll<HTMLElement>("div[style]")].filter((node) =>
       node.textContent?.startsWith("Light preview"),
     );
-    expect(tiles[0].style.background).toBe("#fcfcf9");
+    expect(tiles[0].style.background).toBe("#F8F7F3");
 
     // Nic nie zmienione => oba przyciski nieaktywne.
     expect(screen.getByRole("button", { name: /common.cancel/ })).toBeDisabled();
@@ -266,7 +266,7 @@ describe("ThemeBackgroundsPane - zapis", () => {
     fireEvent.click(resetSlot);
 
     const inputs = colorPickerInputs(container);
-    expect(inputs[0].value).toBe("#fcfcf9");
+    expect(inputs[0].value).toBe("#F8F7F3");
     expect(inputs[1].value).toBe("#141414");
   });
 

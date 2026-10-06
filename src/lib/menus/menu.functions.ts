@@ -15,8 +15,10 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { Database } from "@/integrations/supabase/types";
 import { normalizeMenuVisibility } from "./visibility";
 import {
+  DEFAULT_MEGA_CONFIG,
   parseMegaConfig,
   saveMenuInputSchema,
+  type MegaConfig,
   type SaveMenuInput,
   type MenuItemRow,
   type MenuItemType,
@@ -101,18 +103,124 @@ export function menuCacheKey(key: string): string {
   return `menu-with-items:${key}`;
 }
 
+/**
+ * Pozycja menu w KSZTAŁCIE PRZESYŁKI (stan odwodniony SSR i odpowiedź server
+ * fn): bez `menu_id` i bez pól o wartości domyślnej. `id`, `item_type`,
+ * `position` i `ref_id` są ZAWSZE; reszta tylko wtedy, gdy różni się od
+ * tego, co i tak podstawia normalizacja `fetchMenuWithItems` (wyjątek:
+ * `mega_config` pozycji najwyższego poziomu - patrz `compactMenuWithItems`).
+ */
+export type MenuItemWire = Pick<MenuItemRow, "id" | "item_type" | "position" | "ref_id"> &
+  Partial<Omit<MenuItemRow, "id" | "item_type" | "position" | "ref_id" | "menu_id">>;
+
+/** Menu w kształcie przesyłki - patrz {@link MenuItemWire}. */
+export interface MenuWithItemsWire {
+  id: string;
+  key: string;
+  name: string;
+  items: MenuItemWire[];
+}
+
+/**
+ * `mega_config` równe domyślnemu (`DEFAULT_MEGA_CONFIG`). Schemat zod zdejmuje
+ * nieznane klucze, więc porównanie czterech pól jest porównaniem całości.
+ */
+function isDefaultMegaConfig(config: MegaConfig): boolean {
+  return (
+    config.columns_per_row === DEFAULT_MEGA_CONFIG.columns_per_row &&
+    config.width === DEFAULT_MEGA_CONFIG.width &&
+    config.columns.length === 0 &&
+    config.featured_post_id === DEFAULT_MEGA_CONFIG.featured_post_id
+  );
+}
+
+/**
+ * DIETA STANU ODWODNIONEGO (P2.5, HW-3a): menu w kształcie przesyłki.
+ *
+ * Menu `main` i `footer` jedzie w stanie `$tsr` KAŻDEGO dokumentu z chrome,
+ * a pełny wiersz niesie dla każdej pozycji `menu_id` (zawsze równy `id` menu),
+ * domyślne `mega_config`, `target: "_self"`, puste `css_class`/`icon` itd. -
+ * na produkcji ~21,5 KB surowych bajtów w barierze dokumentu.
+ *
+ * Projekcja jest BEZSTRATNA: `expandMenuWithItems` (`queries.ts`, `select`)
+ * odtwarza dokładnie wiersz z `fetchMenuWithItems`, więc publiczna nawigacja
+ * i edytor menu (ten sam klucz `["menu-with-items", key]`, ta sama server fn)
+ * dostają po `select` identyczne dane. Dlatego zostają też `ref_id` i oba
+ * języki etykiety - edytor zapisuje całe drzewo z tego, co przeczytał, a pole
+ * zgubione tutaj zniknęłoby z bazy przy najbliższym „Zapisz".
+ *
+ * Projekcja żyje w server fn, NIE w `dehydrate` (`serializeData` nie zna
+ * klucza): SSR, hydratacja i refetch klienta widzą ten sam kształt.
+ *
+ * KLIENT SPRZED WDROŻENIA. Identyfikator server fn nie zależy od treści, więc
+ * karta otwarta przed wdrożeniem (stary JS bez `select`) przy refetchu menu
+ * dostaje przesyłkę i czyta ją wprost. Dlatego zostają pola, bez których stary
+ * kod działałby źle, a nie tylko inaczej: `position` (sortowanie drzewa -
+ * `undefined - undefined` to `NaN`), `ref_id` (stary edytor odsyła wiersz do
+ * `saveMenu`, a schemat wymaga `ref_id`) i `mega_config` KAŻDEJ pozycji
+ * najwyższego poziomu (tylko one otwierają panel, a stary `MegaPanel` czyta
+ * `mega_config.featured_post_id` bez `?.` - także przy automatycznej promocji
+ * do mega przez wnuki). Domyślne `mega_config` znika z pozycji zagnieżdżonych,
+ * czyli z większości wierszy.
+ */
+export function compactMenuWithItems(menu: MenuWithItems | null): MenuWithItemsWire | null {
+  if (!menu) return null;
+  const ids = new Set(menu.items.map((row) => row.id));
+  return {
+    id: menu.id,
+    key: menu.key,
+    name: menu.name,
+    items: menu.items.map((row) => {
+      const out: MenuItemWire = {
+        id: row.id,
+        item_type: row.item_type,
+        position: row.position,
+        ref_id: row.ref_id,
+      };
+      // Rodzic spoza wyniku = pozycja wraca na najwyższy poziom
+      // (`buildPublicMenuTree`), więc liczy się jak korzeń.
+      const topLevel = row.parent_id === null || !ids.has(row.parent_id);
+      if (row.parent_id !== null) out.parent_id = row.parent_id;
+      if (row.label_pl !== "") out.label_pl = row.label_pl;
+      if (row.label_en !== "") out.label_en = row.label_en;
+      if (row.href !== "") out.href = row.href;
+      if (row.target !== "_self") out.target = row.target;
+      if (row.css_class !== "") out.css_class = row.css_class;
+      if (row.visibility !== "all") out.visibility = row.visibility;
+      if (row.icon !== "") out.icon = row.icon;
+      if (row.mega_enabled) out.mega_enabled = true;
+      if (topLevel || !isDefaultMegaConfig(row.mega_config)) out.mega_config = row.mega_config;
+      return out;
+    }),
+  };
+}
+
+/**
+ * Ciało `getMenuWithItems`: migawka z TEGO SAMEGO wpisu
+ * `edgeTtlCache(menuCacheKey(key))` co dotąd (unieważnienie po zapisie i listy
+ * trwałe L2 bez zmian - w cache leży pełny wiersz), oddana w kształcie
+ * przesyłki. Funkcja zwykła, żeby test mógł ją wywołać bez kontekstu żądania.
+ */
+export async function readMenuWithItemsWire(
+  key: string,
+  supabase?: MenuReadClient,
+): Promise<MenuWithItemsWire | null> {
+  // Per-isolate TTL cache (wzorzec jak tenant-directory/ticker): menu jest
+  // od 2026-07-20 grzane w loaderze ROOTA na każdej trasie z chrome (SSR
+  // renderuje nawigację od pierwszego bajtu zamiast fallbacku "Menu jest
+  // puste"), więc bez cache każdy request płaciłby round-trip do bazy -
+  // i to w t0, o gniazdo współdzielone z resztą odczytów korzenia. 60 s
+  // świeżości = zmiany menu w adminie widoczne niemal od razu, a w stanie
+  // ustalonym koszt to zero dodatkowych zapytań.
+  const menu = await edgeTtlCache(menuCacheKey(key), 60_000, () =>
+    fetchMenuWithItems(key, supabase),
+  );
+  return compactMenuWithItems(menu);
+}
+
 export const getMenuWithItems = createServerFn({ method: "GET" })
   .validator((input: unknown) => getMenuInputSchema.parse(input))
-  .handler(async ({ data }): Promise<MenuWithItems | null> => {
-    // Per-isolate TTL cache (wzorzec jak tenant-directory/ticker): menu jest
-    // od 2026-07-20 grzane w loaderze ROOTA na każdej trasie z chrome (SSR
-    // renderuje nawigację od pierwszego bajtu zamiast fallbacku "Menu jest
-    // puste"), więc bez cache każdy request płaciłby round-trip do bazy -
-    // i to w t0, o gniazdo współdzielone z resztą odczytów korzenia. 60 s
-    // świeżości = zmiany menu w adminie widoczne niemal od razu, a w stanie
-    // ustalonym koszt to zero dodatkowych zapytań.
-    return edgeTtlCache(menuCacheKey(data.key), 60_000, () => fetchMenuWithItems(data.key));
-  });
+  .handler(async ({ data }): Promise<MenuWithItemsWire | null> => readMenuWithItemsWire(data.key));
 
 export async function fetchMenuWithItems(
   key: string,

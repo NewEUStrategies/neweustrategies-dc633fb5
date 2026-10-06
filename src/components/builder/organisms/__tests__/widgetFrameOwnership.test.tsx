@@ -26,13 +26,16 @@ vi.mock("@/lib/builder/liveTypography", async (importOriginal) => {
 });
 vi.mock("@/lib/builder/typographyCss", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/builder/typographyCss")>();
-  return { ...actual, buildWidgetTypographyCss: vi.fn(actual.buildWidgetTypographyCss) };
+  return {
+    ...actual,
+    buildLegacyWidgetTypographyCss: vi.fn(actual.buildLegacyWidgetTypographyCss),
+  };
 });
 
 import { ChromeWidgetView } from "../ChromeWidgetView";
 import { WidgetView } from "../WidgetView";
 import { broadcastWidgetTypography, subscribeWidgetTypography } from "@/lib/builder/liveTypography";
-import { buildWidgetTypographyCss } from "@/lib/builder/typographyCss";
+import { buildLegacyWidgetTypographyCss } from "@/lib/builder/typographyCss";
 import { globalWidgetKey } from "@/lib/builder/globalWidgets";
 
 const node: WidgetNode = {
@@ -80,23 +83,68 @@ describe("content widget frame ownership", () => {
     expect(frame().textContent).toContain("Visible");
   });
 
-  it("creates one frame subscription and one typography stylesheet per content widget", async () => {
+  it("creates one frame subscription and carries sizes as template variables, not a stylesheet", async () => {
     const { container, unmount } = setup();
     await waitFor(() =>
       expect(container.querySelector('[data-w-id="frame-owner"]')).not.toBeNull(),
     );
+    const frame = () => container.querySelector<HTMLElement>('[data-w-id="frame-owner"]')!;
     expect(container.querySelectorAll('[data-w-id="frame-owner"]')).toHaveLength(1);
     expect(subscribeWidgetTypography).toHaveBeenCalledTimes(1);
-    expect(buildWidgetTypographyCss).toHaveBeenCalledTimes(1);
-    expect(container.textContent).toContain("22px !important");
+    // HW-2 (P2.4): rozmiar to dane ramki (tokeny + zmienne), reguły są raz w
+    // `styles.css` - bez bloku `<style>` i bez generatora.
+    expect(frame().getAttribute("data-wt")).toBe("fs tfs");
+    expect(frame().style.getPropertyValue("--wt-fs-d")).toBe("22px");
+    expect(container.querySelector("style")).toBeNull();
+    expect(buildLegacyWidgetTypographyCss).not.toHaveBeenCalled();
 
     act(() => broadcastWidgetTypography(node.id, { fontSize: { desktop: "31px" } }));
-    expect(container.textContent).toContain("31px !important");
+    expect(frame().style.getPropertyValue("--wt-fs-d")).toBe("31px");
+    expect(frame().style.getPropertyValue("--wt-fs-m")).toBe("31px");
     expect(subscribeWidgetTypography).toHaveBeenCalledTimes(1);
+
+    // Właściwość spoza szablonu: blok generatora tylko z nią (bez rozmiarów).
+    act(() =>
+      broadcastWidgetTypography(node.id, { fontSize: { desktop: "31px" }, fontWeight: "700" }),
+    );
+    const legacy = container.querySelector('style[data-wt-css="frame-owner"]');
+    expect(legacy?.textContent).toContain("font-weight:700 !important");
+    expect(legacy?.textContent).not.toContain("font-size");
+    expect(legacy?.getAttribute("data-css-hash")).toBeTruthy();
     unmount();
-    const calls = vi.mocked(buildWidgetTypographyCss).mock.calls.length;
-    act(() => broadcastWidgetTypography(node.id, { fontSize: { desktop: "32px" } }));
-    expect(buildWidgetTypographyCss).toHaveBeenCalledTimes(calls);
+    const calls = vi.mocked(buildLegacyWidgetTypographyCss).mock.calls.length;
+    act(() =>
+      broadcastWidgetTypography(node.id, { fontSize: { desktop: "32px" }, fontWeight: "800" }),
+    );
+    expect(buildLegacyWidgetTypographyCss).toHaveBeenCalledTimes(calls);
+  });
+
+  it("does not subscribe to global widget records for regular widgets", async () => {
+    // hydration:H10 (a): zwykły widget nie zakłada nawet wyłączonego zapytania.
+    const { container, client } = setup();
+    await waitFor(() =>
+      expect(container.querySelector('[data-w-id="frame-owner"]')).not.toBeNull(),
+    );
+    const globalRoot = globalWidgetKey("")[0];
+    const globalQueries = () =>
+      client
+        .getQueryCache()
+        .getAll()
+        .filter((q) => q.queryKey[0] === globalRoot);
+    expect(globalQueries()).toHaveLength(0);
+    // Kontrapunkt: instancja globalna subskrybuje swój rekord.
+    cleanup();
+    const global = setup({ ...node, globalId: "shared-widget" });
+    await waitFor(() =>
+      expect(global.container.querySelector('[data-w-id="frame-owner"]')).not.toBeNull(),
+    );
+    expect(
+      global.client
+        .getQueryCache()
+        .getAll()
+        .filter((q) => q.queryKey[0] === globalRoot)
+        .map((q) => q.queryKey),
+    ).toEqual([globalWidgetKey("shared-widget")]);
   });
 
   it("keeps the same SSR markup as the full dispatcher", async () => {
@@ -140,6 +188,32 @@ describe("content widget frame ownership", () => {
       expect(editor.container.querySelector('[data-w-id="frame-owner"]')).not.toBeNull(),
     );
     expect(editor.container.textContent).not.toContain("Stale global heading");
+  });
+
+  it("renders a content-type live record of a chrome instance through the full dispatcher", async () => {
+    // Ramka chrome z nakładką oddaje treść pełnemu dyspozytorowi z węzłem
+    // INSTANCJI - nakładkę robi on sam pod swoją granicą Suspense.
+    const instance: WidgetNode = {
+      id: "frame-owner",
+      kind: "widget",
+      type: "heading",
+      globalId: "shared-heading",
+      content: { text_pl: "Snapshot heading" },
+    };
+    const { container, client } = setup(instance);
+    expect(container.textContent).toContain("Snapshot heading");
+    await waitFor(() =>
+      expect(client.getQueryState(globalWidgetKey("shared-heading"))?.status).toBe("success"),
+    );
+    act(() => {
+      client.setQueryData(globalWidgetKey("shared-heading"), {
+        type: "dark-featured-card",
+        content: { title_pl: "Live card title" },
+      });
+    });
+    await waitFor(() => expect(container.textContent).toContain("Live card title"));
+    expect(container.textContent).not.toContain("Snapshot heading");
+    expect(container.querySelectorAll('[data-w-id="frame-owner"]')).toHaveLength(1);
   });
 
   it("supports changing a widget between chrome and content types", async () => {

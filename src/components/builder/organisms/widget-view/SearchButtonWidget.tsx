@@ -3,9 +3,25 @@
 // four premium categories: Titles, Content types, Topics, People & orgs.
 // Exposes the WAI-ARIA combobox/listbox pattern with arrow-key navigation,
 // recent searches, and a "view all results" link into /search.
+//
+// ZALEŻNOŚCI NA INTENCJĘ (P2.3, runda poprawek po dowodzie). Chunk widgetu
+// jest gruntowany i hydratowany w oknie startu, więc każdy jego STATYCZNY
+// import gość pobiera i ewaluuje na każdej stronie (dowód: 10/10 przebiegów).
+// Dlatego dyktowanie (`useVoiceSearch` + wskaźnik nagrywania) przychodzi
+// dopiero po kliknięciu mikrofonu, a model kubełków (`facetModel` -> archiwa,
+// funkcje serwerowe wyszukiwania semantycznego, schemat zod parametrów)
+// dopiero po otwarciu panelu albo pierwszym wpisie - patrz `cachedKit` niżej.
+// Statycznie zostaje słownik `@/lib/i18n-search`: zamknięty widget renderuje
+// jego napisy już w HTML serwera (etykieta pola bez `label`/`heading`,
+// `aria-label` lupy, `aria-label`/`title` mikrofonu, „wyczyść" przy frazie z
+// `/search?q=`), a render hydratacji musi dać ten sam tekst - inaczej React 19
+// odrzuca HTML serwera wyspy i renderuje ją od nowa. Słownik i tak przychodzi
+// razem z chunkiem widgetu, czyli dokładnie wtedy, gdy wyspa ma się uwodnić.
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter, useRouterState } from "@tanstack/react-router";
+import { useIsomorphicLayoutEffect } from "@/lib/react/useIsomorphicLayoutEffect";
 import { supabase } from "@/integrations/supabase/client";
+import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
 import * as LucideIcons from "@/lib/lucide-shim";
 import { AppLink } from "@/components/atoms/AppLink";
 import {
@@ -13,36 +29,181 @@ import {
   clearRecentSearches,
   getRecentSearches,
 } from "@/lib/search/recentSearches";
-import { useVoiceSearch } from "@/lib/search/useVoiceSearch";
-import { VoiceListeningIndicator } from "@/components/voice/VoiceListeningIndicator";
-import {
-  suggestBucketOf,
-  suggestionHref,
-  SUGGEST_BUCKET_ORDER,
-  SUGGEST_BUCKET_LABELS,
-  type SuggestBucket,
+import type {
+  useVoiceSearch as UseVoiceSearch,
+  VoiceSearch,
+  VoiceSearchOptions,
+} from "@/lib/search/useVoiceSearch";
+import type { VoiceListeningIndicator as VoiceListeningIndicatorImpl } from "@/components/voice/VoiceListeningIndicator";
+import type {
+  suggestBucketOf as SuggestBucketOf,
+  suggestionHref as SuggestionHref,
+  SUGGEST_BUCKET_ORDER as SuggestBucketOrder,
+  SUGGEST_BUCKET_LABELS as SuggestBucketLabels,
+  SuggestBucket,
 } from "@/lib/search/facetModel";
 import type { AutosuggestItem } from "@/lib/queries/archives";
 import type { Lang } from "./frame";
-import { WidgetStyleSheet } from "./widgetStyleSheets";
+import { StyleSink } from "@/components/theme/StyleSink";
 import i18n from "@/lib/i18n";
 import "@/lib/i18n-search";
 import { buildAvatarSrc, buildAvatarSrcSet } from "@/lib/cropSizes";
 
-// Arkusz STAŁY widgetu wyszukiwarki - nic w nim nie zależy od instancji,
-// a widget siedzi w nagłówku KAŻDEJ strony (i drugi raz w szufladzie
-// mobilnej). Jako zasób React 19 wypisuje się raz na dokument zamiast raz
-// na instancję i trafia do <head>, więc obowiązuje już przy pierwszej klatce.
+/**
+ * Zestaw ładowany dynamicznym importem, raz na dokument (mapa modułów i tak
+ * buforuje import). Import, który nie przyszedł (sieć, nowe wdrożenie), nie
+ * zostaje w pamięci: następna intencja próbuje jeszcze raz. Wewnętrzny
+ * `catch` obsługuje odrzucenie, więc rozgrzewka (`void load()`) nie zostawia
+ * nieobsłużonego odrzucenia - błąd zobaczy dopiero właściwe użycie.
+ */
+function cachedKit<T>(importKit: () => Promise<T>): () => Promise<T> {
+  let request: Promise<T> | null = null;
+  return () => {
+    if (request) return request;
+    const next = importKit();
+    request = next;
+    next.catch(() => {
+      if (request === next) request = null;
+    });
+    return next;
+  };
+}
+
+/** Model kubełków podpowiedzi: tylko to, czego potrzebuje lista wyników. */
+interface SearchFacetKit {
+  readonly suggestBucketOf: typeof SuggestBucketOf;
+  readonly suggestionHref: typeof SuggestionHref;
+  readonly order: typeof SuggestBucketOrder;
+  readonly labels: typeof SuggestBucketLabels;
+}
+
+/** Otwarcie panelu albo pierwszy wpis; wynik czeka na niego razem z RPC. */
+const loadSearchFacetKit = cachedKit(() =>
+  import("@/lib/search/facetModel").then((m): SearchFacetKit => ({
+    suggestBucketOf: m.suggestBucketOf,
+    suggestionHref: m.suggestionHref,
+    order: m.SUGGEST_BUCKET_ORDER,
+    labels: m.SUGGEST_BUCKET_LABELS,
+  })),
+);
+
+/** Dyktowanie: hook i wskaźnik nagrywania (chunk `VoiceListeningIndicator`). */
+interface VoiceKit {
+  readonly useVoiceSearch: typeof UseVoiceSearch;
+  readonly VoiceListeningIndicator: typeof VoiceListeningIndicatorImpl;
+}
+
+/** Kliknięcie mikrofonu (rozgrzewka na najechaniu, fokusie i wciśnięciu). */
+const loadVoiceKit = cachedKit(() =>
+  Promise.all([
+    import("@/lib/search/useVoiceSearch"),
+    import("@/components/voice/VoiceListeningIndicator"),
+  ]).then(([hook, indicator]): VoiceKit => ({
+    useVoiceSearch: hook.useVoiceSearch,
+    VoiceListeningIndicator: indicator.VoiceListeningIndicator,
+  })),
+);
+
+/**
+ * Czy pokazać mikrofon, zanim przyjdzie zestaw dyktowania. Ten sam podział co
+ * efekt montażu `useVoiceSearch`: Web Speech wystarcza zawsze, a samo
+ * nagrywanie tylko z sesją (serwerowe STT odpowiada anonimowi 401, więc gość
+ * dostałby przycisk, który nic nie robi). Sesję rozstrzyga tu synchronicznie
+ * zapisany magazyn (`hasStoredAuthSession`) zamiast `getSession()`, żeby gość
+ * nie tworzył klienta SDK. Po kliknięciu rozstrzyga już sam hook.
+ * Wyłącznie w przeglądarce (efekt po hydratacji).
+ */
+function voiceCapabilityHint(): boolean {
+  const w = window as Window & {
+    SpeechRecognition?: unknown;
+    webkitSpeechRecognition?: unknown;
+  };
+  if (w.SpeechRecognition || w.webkitSpeechRecognition) return true;
+  const canRecord =
+    !!navigator.mediaDevices?.getUserMedia && typeof window.MediaRecorder !== "undefined";
+  return canRecord && hasStoredAuthSession();
+}
+
+/** Stan dyktowania widziany przez pasek ikon (podzbiór `VoiceSearch`). */
+type VoiceUi = Pick<VoiceSearch, "supported" | "listening" | "toggle">;
+
+/**
+ * Most do `useVoiceSearch`, montowany dopiero po pierwszym kliknięciu
+ * mikrofonu (hook przychodzi z zestawem). Nic nie renderuje: przycisk
+ * mikrofonu zostaje TYM SAMYM węzłem paska ikon, więc fokus z klawiatury się
+ * nie gubi, a most publikuje do niego stan hooka. Kliknięcie, które zamontowało
+ * most, startuje dyktowanie zaraz po montażu - jak dawny `toggle` w `onClick`.
+ */
+function VoiceSearchBridge({
+  kit,
+  lang,
+  onText,
+  onFinal,
+  onState,
+}: VoiceSearchOptions & {
+  kit: VoiceKit;
+  onState: (state: VoiceUi) => void;
+}): null {
+  const { useVoiceSearch } = kit;
+  const { supported, listening, toggle } = useVoiceSearch({ lang, onText, onFinal });
+  // `supported` rozstrzyga efekt montażu hooka; ten stan zmienia się w tym
+  // samym przebiegu efektów, więc stan trafia do paska dopiero rozstrzygnięty
+  // (bez klatki z mikrofonem schowanym przez początkowe `false` hooka).
+  const [checked, setChecked] = useState(false);
+  // Tryb ścisły powtarza efekty montażu - start ma być jeden.
+  const startedRef = useRef(false);
+  useEffect(() => {
+    setChecked(true);
+    if (startedRef.current) return;
+    startedRef.current = true;
+    toggle();
+    // Wyłącznie przy montażu: start z kliknięcia, które zamontowało most.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (checked) onState({ supported, listening, toggle });
+  }, [checked, supported, listening, toggle, onState]);
+  return null;
+}
+
+// Arkusz STAŁY widgetu wyszukiwarki - nic w nim nie zależy od instancji.
+//
+// W MIEJSCU, NIE W `<head>` (P2.3). Dotąd był zasobem React 19 (`<style href
+// precedence>`, `WidgetStyleSheet`): raz na dokument, hoistowany do `<head>`.
+// Na zimnym izolacie widget zawieszał się jednak przy pierwszym renderze
+// (leniwy chunk także na serwerze), więc w dokumencie z cache'u brzegowego
+// arkusz i sam widget dojeżdżały na końcu strumienia - to było źródło
+// przesunięcia wiersza nagłówka. Teraz serwer renderuje widget w pierwszej
+// powłoce (`lazyWidgets.tsx`), a zasób z powłoki trafiłby do `<head>`: +2,5 KB
+// blokującego parsowania przed `<body>` (`check:document-weight`,
+// `headRawBytes`). Arkusz jest więc zwykłym blokiem `<style>` (liść
+// `StyleSink`: `memo` po napisie, utwardzenie w miejscu renderu) PIERWSZYM
+// dzieckiem korzenia widgetu - parser czyta go przed znacznikami pola, więc
+// obowiązuje od pierwszej klatki, a `display: none` bloku nie zmienia układu
+// kolumny flex. Kaskada jak w dokumencie zimnego izolatu i jak przed F22
+// (arkusz w `<body>`, za `<head>`). Koszt: każda instancja niesie własną kopię
+// (pasek czytania wpisu, szuflada mobilna po otwarciu).
+//
+// Objaśnienia reguł stoją tutaj, w arkuszu same reguły (każdy bajt tekstu
+// jedzie w HTML każdej strony):
+//  - Wymuszamy overflow: visible na całym łańcuchu przodków widgetu, żeby chip
+//    floating-labela nie był przycinany przez kolumny/sekcje headera z
+//    overflow: hidden. Znacznik (data-search-overflow) wypisuje już SSR
+//    renderer buildera (lib/builder/searchOverflow), resztę przodków oznacza
+//    efekt w widgecie po hydratacji; ta sama reguła stoi w styles.css, bo ten
+//    arkusz przychodzi z leniwym chunkiem. Dawny selektor
+//    ":where(*):has(.builder-search-widget)" był jedną z reguł ":has()",
+//    których sama obecność w dokumencie mnożyła koszt każdego pełnego
+//    przeliczenia stylu ~70x (pomiar 2026-10-02). Wiersz paska czytania ([data-
+//    reading-row]) musi zachować poziomy clip.
+//  - Placeholder text w kolorze jasnoszarym, spójnym z ikonami. Transition
+//    dodany na transform, żeby unoszenie było animowane.
+//  - Ikony jasnoszare, hover -> foreground.
+//  - Builder/CMS typography has stronger inherited rules. These selectors
+//    intentionally lock compact metadata and operators.
+//  - Klasyczny floating label: unosi się na górną krawędź inputa.
+//  - Cieńsze obramowanie w spoczynku, brak drop shadowa na focus.
 const SEARCH_WIDGET_CSS = `
-/* Wymuszamy overflow: visible na całym łańcuchu przodków widgetu, żeby
-   chip floating-labela nie był przycinany przez kolumny/sekcje headera
-   z overflow: hidden. Znacznik (data-search-overflow) wypisuje już SSR
-   renderer buildera (lib/builder/searchOverflow), resztę przodków oznacza
-   efekt w widgecie po hydratacji; ta sama reguła stoi w styles.css, bo ten
-   arkusz przychodzi z leniwym chunkiem. Dawny selektor ":where(*):has(.builder-search-widget)"
-   był jedną z reguł ":has()", których sama obecność w dokumencie mnożyła
-   koszt każdego pełnego przeliczenia stylu ~70x (pomiar 2026-10-02).
-   Wiersz paska czytania ([data-reading-row]) musi zachować poziomy clip. */
 [data-search-overflow]:not([data-reading-row]) {
   overflow: visible !important;
 }
@@ -66,8 +227,6 @@ const SEARCH_WIDGET_CSS = `
   width: 0;
   height: 0;
 }
-/* Placeholder text w kolorze jasnoszarym, spójnym z ikonami.
-   Transition dodany na transform, żeby unoszenie było animowane. */
 .builder-search-widget .input-group > .user-label {
   color: color-mix(in oklab, var(--muted-foreground) 65%, transparent);
   font-size: 0.8125rem;
@@ -78,7 +237,6 @@ const SEARCH_WIDGET_CSS = `
               background-color 180ms cubic-bezier(0.4, 0, 0.2, 1),
               padding 180ms cubic-bezier(0.4, 0, 0.2, 1);
 }
-/* Ikony jasnoszare, hover -> foreground. */
 .builder-search-widget button svg,
 .builder-search-widget .absolute svg {
   color: color-mix(in oklab, var(--muted-foreground) 60%, transparent);
@@ -86,8 +244,6 @@ const SEARCH_WIDGET_CSS = `
 .builder-search-widget button:hover svg {
   color: var(--foreground);
 }
-/* Builder/CMS typography has stronger inherited rules. These
-   selectors intentionally lock compact metadata and operators. */
 .builder-search-widget .search-kind-label {
   font-family: "Red Hat Display", system-ui, sans-serif !important;
   font-size: 9px !important;
@@ -107,7 +263,6 @@ const SEARCH_WIDGET_CSS = `
   letter-spacing: 0 !important;
   min-height: 12px !important;
 }
-/* Klasyczny floating label: unosi się na górną krawędź inputa. */
 .builder-search-widget .input-group > .input:focus ~ .user-label,
 .builder-search-widget .input-group > .input:not(:placeholder-shown) ~ .user-label {
   top: 0;
@@ -117,7 +272,6 @@ const SEARCH_WIDGET_CSS = `
   color: var(--ring);
   opacity: 1;
 }
-/* Cieńsze obramowanie w spoczynku, brak drop shadowa na focus. */
 .builder-search-widget .input-group > .input {
   border-width: 1px;
   border-color: color-mix(in oklab, var(--border) 80%, transparent);
@@ -129,14 +283,31 @@ const SEARCH_WIDGET_CSS = `
 `;
 
 function SearchWidgetSheet() {
-  return <WidgetStyleSheet name="nes-search-widget" css={SEARCH_WIDGET_CSS} />;
+  return <StyleSink css={SEARCH_WIDGET_CSS} data-search-sheet="" />;
 }
 
 interface BucketedItem {
   item: AutosuggestItem;
   bucket: SuggestBucket;
   index: number;
+  /** Cel podpowiedzi (`suggestionHref`), wyliczony razem z kubełkiem. */
+  href: string;
 }
+
+/** Podpowiedzi pogrupowane modelem kubełków; bez modelu - pusto. */
+interface SuggestionGroups {
+  readonly order: readonly SuggestBucket[];
+  readonly labels: Readonly<Record<SuggestBucket, string>> | null;
+  readonly grouped: ReadonlyMap<SuggestBucket, readonly BucketedItem[]>;
+  readonly flat: readonly BucketedItem[];
+}
+
+const NO_SUGGESTIONS: SuggestionGroups = {
+  order: [],
+  labels: null,
+  grouped: new Map(),
+  flat: [],
+};
 
 // Czysta projekcja lokalizacji routera -> fraza ?q= z /search (PL i /en).
 // Wydzielona, bo czyta ja zarowno inicjalizacja stanu (synchronicznie, bez
@@ -200,6 +371,9 @@ export function SearchButtonWidget({
   });
   const [q, setQ] = useState(urlQ);
   const [items, setItems] = useState<AutosuggestItem[]>([]);
+  // Model kubełków (zestaw na intencję) - ustawiany razem z pierwszymi
+  // wynikami, więc `items` nigdy nie czekają na niego w renderze.
+  const [facets, setFacets] = useState<SearchFacetKit | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -293,11 +467,25 @@ export function SearchButtonWidget({
     }
     const reqId = ++reqIdRef.current;
     setLoading(true);
+    // Model kubełków jedzie równolegle z RPC (zwykle jest już rozgrzany
+    // otwarciem panelu); wyniki trafiają do stanu dopiero razem z nim.
+    const facetRequest = loadSearchFacetKit();
     // Shared autosuggest RPC - splits posts, authors and taxonomy terms in
     // one round-trip; rendering groups them into 4 premium buckets below.
     const capped = Math.max(4, Math.min(limit * 2, 24));
     const { data } = await supabase.rpc("search_autosuggest", { _q: t, _limit: capped });
     if (reqId !== reqIdRef.current) return;
+    let kit: SearchFacetKit;
+    try {
+      kit = await facetRequest;
+    } catch (err) {
+      // Bez modelu nie ma kubełków; następne zapytanie spróbuje jeszcze raz.
+      console.warn("[search] facet model chunk failed", err);
+      if (reqId === reqIdRef.current) setLoading(false);
+      return;
+    }
+    if (reqId !== reqIdRef.current) return;
+    setFacets(kit);
     setItems(
       (data ?? []).map((r) => ({
         kind: r.kind as AutosuggestItem["kind"],
@@ -364,47 +552,67 @@ export function SearchButtonWidget({
 
   // Dyktowanie frazy: transkrypcja płynie do pola (live results reagują same
   // przez debounce wyżej); przy wyłączonych live results finał odpala search.
-  const [voiceChecked, setVoiceChecked] = useState(false);
-  useEffect(() => setVoiceChecked(true), []);
-  const voice = useVoiceSearch({
-    lang: lang === "en" ? "en" : "pl",
-    onText: (text) => {
-      setQ(text);
+  // Hook przychodzi zestawem po pierwszym kliknięciu mikrofonu (`loadVoiceKit`,
+  // most `VoiceSearchBridge`). Do tego czasu o pokazaniu mikrofonu decyduje
+  // sonda możliwości przeglądarki - w efekcie po hydratacji, jak dawny efekt
+  // hooka (serwer i pierwsza klatka klienta widzą „nie wiadomo").
+  const [voiceProbe, setVoiceProbe] = useState<boolean | null>(null);
+  useEffect(() => setVoiceProbe(voiceCapabilityHint()), []);
+  const [voiceKit, setVoiceKit] = useState<VoiceKit | null>(null);
+  const [voice, setVoice] = useState<VoiceUi | null>(null);
+  const voiceSupported = voice ? voice.supported : voiceProbe === true;
+  const voiceListening = voice?.listening ?? false;
+  const onVoiceText = (text: string) => {
+    setQ(text);
+    setFocused(true);
+  };
+  const onVoiceFinal = (text: string) => {
+    setQ(text);
+    if (!liveResults) {
       setFocused(true);
-    },
-    onFinal: (text) => {
-      setQ(text);
-      if (!liveResults) {
-        setFocused(true);
-        void runSearch(text);
-      }
-    },
-  });
+      void runSearch(text);
+    }
+  };
+  const warmVoice = () => {
+    void loadVoiceKit();
+  };
+  const toggleVoice = () => {
+    if (voice) {
+      voice.toggle();
+      return;
+    }
+    // Most już się montuje i sam wystartuje dyktowanie.
+    if (voiceKit) return;
+    loadVoiceKit().then(setVoiceKit, (err: unknown) => {
+      // Mikrofon zostaje; kolejne kliknięcie spróbuje jeszcze raz.
+      console.warn("[search] voice chunk failed", err);
+    });
+  };
 
   const placeholder = label || heading || t("search");
   const hasQuery = q.trim().length >= 2;
 
   // Group + flatten while keeping a stable index used by keyboard navigation
   // and aria-activedescendant. Empty buckets are skipped for a clean list.
-  const { grouped, flat } = useMemo(() => {
+  // Bez modelu kubełków (zestaw jeszcze nie przyszedł) nie ma też wyników.
+  const suggestions = useMemo((): SuggestionGroups => {
+    if (!facets) return NO_SUGGESTIONS;
     const g = new Map<SuggestBucket, BucketedItem[]>();
-    for (const bucket of SUGGEST_BUCKET_ORDER) g.set(bucket, []);
+    for (const bucket of facets.order) g.set(bucket, []);
     for (const it of items) {
-      g.get(suggestBucketOf(it.kind))!.push({
-        item: it,
-        bucket: suggestBucketOf(it.kind),
-        index: 0,
-      });
+      const bucket = facets.suggestBucketOf(it.kind);
+      g.get(bucket)!.push({ item: it, bucket, index: 0, href: facets.suggestionHref(it) });
     }
     const flatList: BucketedItem[] = [];
-    for (const bucket of SUGGEST_BUCKET_ORDER) {
+    for (const bucket of facets.order) {
       for (const entry of g.get(bucket)!) {
         entry.index = flatList.length;
         flatList.push(entry);
       }
     }
-    return { grouped: g, flat: flatList };
-  }, [items]);
+    return { order: facets.order, labels: facets.labels[lang], grouped: g, flat: flatList };
+  }, [items, facets, lang]);
+  const { order: bucketOrder, grouped, flat } = suggestions;
 
   const showEmpty = hasQuery && !loading && searched && flat.length === 0;
   // Puste pole + historia = panel ostatnich wyszukiwań (kontrakt z
@@ -413,17 +621,38 @@ export function SearchButtonWidget({
   const showPopover = focused && (hasQuery || showRecent);
   const searchAllHref = `/search?q=${encodeURIComponent(q.trim())}`;
 
+  // Otwarcie panelu to intencja wyszukiwania: rozgrzewa model kubełków, żeby
+  // pierwsze wyniki nie czekały na jego chunk dłużej niż na RPC.
   const openFocus = () => {
+    void loadSearchFacetKit();
     setRecent(getRecentSearches());
     setFocused(true);
   };
+
+  // STAN SPRZED HYDRATACJI (wyspa na intencję, P2.3). Na stronie publicznej
+  // widget jest wyspą: HTML serwera stoi, a hydratacja rusza dopiero na
+  // fokus/dotknięcie/najechanie (`lazyWidgets.tsx`). Natywne pole przyjmuje w
+  // tym czasie fokus i znaki, a React przy hydratacji NIE nadpisuje wartości
+  // pola (`initInput` z flagą hydratacji) - za to pierwszy re-render z `q`
+  // sprzed wpisania skasowałby wpisaną frazę, a `onFocus` sprzed hydratacji nie
+  // otworzył panelu ostatnich wyszukiwań. Efekt warstwy (przed malowaniem)
+  // przejmuje więc to, co odwiedzający już zrobił. Przy montażu bez HTML
+  // serwera (nawigacja SPA, szuflada) pole ma dokładnie `q`, a fokusu nie ma -
+  // nic się nie zmienia.
+  useIsomorphicLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    if (input.value !== q) setQ(input.value);
+    if (document.activeElement === input) openFocus();
+    // Wyłącznie przy montażu: późniejsze zmiany prowadzi już React.
+  }, []);
 
   const goToResult = () => {
     addRecentSearch(q);
     setFocused(false);
   };
 
-  const bucketLabel = (b: SuggestBucket) => SUGGEST_BUCKET_LABELS[lang][b];
+  const bucketLabel = (b: SuggestBucket) => suggestions.labels?.[b] ?? "";
 
   const iconFor = (b: SuggestBucket) => {
     if (b === "titles") return LucideIcons.FileText;
@@ -453,7 +682,7 @@ export function SearchButtonWidget({
       if (chosen) {
         addRecentSearch(q);
         setFocused(false);
-        navigateToHref(suggestionHref(chosen.item));
+        navigateToHref(chosen.href);
       } else if (hasQuery) {
         addRecentSearch(q);
         setFocused(false);
@@ -469,14 +698,15 @@ export function SearchButtonWidget({
   // Trailing icon cluster width (X + Search + divider + Mic). Reserved as
   // right padding so text never slides under the icons.
   // REGRESJA CLS: rezerwa jest STAŁA i liczona z KOMPLETEM ikon. Wcześniej
-  // odejmowała 27 px, gdy `voice.supported` było fałszem - a ta flaga jest
+  // odejmowała 27 px, gdy obsługa dyktowania była fałszem - a ta flaga jest
   // fałszem przy renderze serwerowym i w PIERWSZEJ klatce klienta, bo
-  // `useVoiceSearch` rozstrzyga możliwości przeglądarki dopiero w efekcie po
-  // hydratacji. Rezerwa zmieniała się więc pod już namalowanym polem.
+  // możliwości przeglądarki rozstrzyga dopiero efekt po hydratacji (sonda
+  // `voiceCapabilityHint`, po kliknięciu sam hook). Rezerwa zmieniała się
+  // więc pod już namalowanym polem.
   const trailingPad = q ? 108 : 84;
   // Mikrofon i separator są widoczne od pierwszej klatki; ukrywamy je dopiero,
   // gdy po hydratacji wiadomo, że przeglądarka nie obsługuje dyktowania.
-  const hideVoice = voiceChecked && !voice.supported;
+  const hideVoice = (voice !== null || voiceProbe !== null) && !voiceSupported;
 
   return (
     <div
@@ -491,7 +721,18 @@ export function SearchButtonWidget({
         } as React.CSSProperties
       }
     >
+      {/* Arkusz przed znacznikami pola - patrz komentarz przy SEARCH_WIDGET_CSS. */}
+      <SearchWidgetSheet />
       {router?.state ? <SearchUrlQSync onUrlQ={setUrlQ} /> : null}
+      {voiceKit ? (
+        <VoiceSearchBridge
+          kit={voiceKit}
+          lang={lang === "en" ? "en" : "pl"}
+          onText={onVoiceText}
+          onFinal={onVoiceFinal}
+          onState={setVoice}
+        />
+      ) : null}
       <div
         className="input-group"
         style={{ height: `${h}px`, minHeight: `${h}px`, overflow: "visible" }}
@@ -517,6 +758,8 @@ export function SearchButtonWidget({
           data-form-type="other"
           value={q}
           onChange={(e) => {
+            // Pierwszy wpis = intencja (także bez wcześniejszego `focus`).
+            void loadSearchFacetKit();
             setQ(e.target.value);
             // Typing must always reopen the popover — some parents (header
             // scroll shadows, click-outside handlers on rerender) can clear
@@ -591,7 +834,7 @@ export function SearchButtonWidget({
           </button>
           {/* REGRESJA CLS: separator i mikrofon SĄ W UKŁADZIE ZAWSZE, nawet
               zanim wiadomo, czy przeglądarka udźwignie dyktowanie. MECHANIZM:
-              `voice.supported` (MediaRecorder / Web Speech) rozstrzyga się
+              obsługa dyktowania (MediaRecorder / Web Speech) rozstrzyga się
               w efekcie PO hydratacji, a ten pasek ikon jest kotwiczony do
               PRAWEJ krawędzi pola (`right: pad`), więc doklejenie dwóch
               elementów poszerzało go W LEWO i przesuwało lupę (oraz „wyczyść")
@@ -606,19 +849,25 @@ export function SearchButtonWidget({
             className="h-6 w-px shrink-0 bg-border"
             style={hideVoice ? { visibility: "hidden" } : undefined}
           />
+          {/* Zestaw dyktowania rusza na intencję (najechanie, fokus,
+              wciśnięcie), a startuje po kliknięciu - ten sam węzeł przycisku
+              przez cały import, więc fokus z klawiatury zostaje na nim. */}
           <button
             type="button"
-            onClick={voice.toggle}
-            aria-pressed={voice.listening}
-            aria-label={voice.listening ? t("voice_stop") : t("voice")}
-            title={voice.listening ? t("voice_stop") : t("voice")}
-            data-voice-unsupported={voice.supported ? undefined : ""}
+            onClick={toggleVoice}
+            onPointerEnter={warmVoice}
+            onPointerDown={warmVoice}
+            onFocus={warmVoice}
+            aria-pressed={voiceListening}
+            aria-label={voiceListening ? t("voice_stop") : t("voice")}
+            title={voiceListening ? t("voice_stop") : t("voice")}
+            data-voice-unsupported={voiceSupported ? undefined : ""}
             inert={hideVoice}
             style={hideVoice ? { visibility: "hidden" } : undefined}
             className="flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:outline-none"
           >
-            {voice.listening ? (
-              <VoiceListeningIndicator />
+            {voiceListening && voiceKit ? (
+              <voiceKit.VoiceListeningIndicator />
             ) : (
               <LucideIcons.Mic className="w-[18px] h-[18px]" aria-hidden />
             )}
@@ -642,7 +891,7 @@ export function SearchButtonWidget({
               aria-label={t("categories")}
               className="flex items-center gap-1.5 border-b border-border/50 bg-muted/50 px-3 py-2"
             >
-              {(["all", ...SUGGEST_BUCKET_ORDER] as const).map((k) => {
+              {(["all", ...bucketOrder] as const).map((k) => {
                 const count =
                   k === "all" ? flat.length : (grouped.get(k as SuggestBucket)?.length ?? 0);
                 if (k !== "all" && count === 0) return null;
@@ -762,7 +1011,7 @@ export function SearchButtonWidget({
 
             {focused && hasQuery && !loading && flat.length > 0 && (
               <div id={listboxId} role="listbox" aria-label={t("results")} className="py-1">
-                {SUGGEST_BUCKET_ORDER.map((bucket) => {
+                {bucketOrder.map((bucket) => {
                   if (tab !== "all" && tab !== bucket) return null;
                   const entries = grouped.get(bucket) ?? [];
                   if (entries.length === 0) return null;
@@ -797,7 +1046,7 @@ export function SearchButtonWidget({
                           return (
                             <li key={`${it.kind}:${it.id ?? it.slug ?? i}`} role="presentation">
                               <AppLink
-                                href={suggestionHref(it)}
+                                href={entry.href}
                                 id={optionId(i)}
                                 role="option"
                                 aria-selected={isActive}
@@ -1001,8 +1250,6 @@ export function SearchButtonWidget({
           )}
         </div>
       )}
-
-      <SearchWidgetSheet />
     </div>
   );
 }

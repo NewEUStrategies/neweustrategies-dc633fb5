@@ -6,6 +6,7 @@
 // samego widgetu emituje `[data-w-id]×3 p:not(…)×4 {font-size:… !important}`
 // → (0,7,1). Efekt: zmiana rozmiaru nie robiła nic ani w podglądzie, ani na
 // stronie publicznej. Ikony w ogóle nie reagowały (twarde `w-4 h-4`).
+import { readFileSync } from "node:fs";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -128,12 +129,21 @@ describe("widget join-us - rozmiary czcionek i ikon", () => {
     } as WidgetNode["style"];
     const { container } = await renderJoinUs({ perkSize: 22 }, typographyStyle);
     const css = widgetCss(container);
-    // Obie warstwy są obecne...
-    expect(css).toContain("font-size:11px !important");
+    // Obie warstwy są obecne: typografia widgetu jako szablon HW-2 (P2.4) -
+    // tokeny i zmienne na ramce, reguły raz w `styles.css` - i per-elementowa
+    // reguła rozmiaru join-us w bloku widgetu...
+    const frame = container.querySelector<HTMLElement>("[data-wt]");
+    expect(frame?.getAttribute("data-wt")).toContain("fs");
+    expect(frame?.style.getPropertyValue("--wt-fs-d")).toBe("11px");
     expect(css).toContain('[data-edit-target="perkSize"]{font-size:22px !important;}');
-    // ...ale per-elementowa wygrywa specyficznością.
+    // ...ale per-elementowa wygrywa specyficznością z szablonem.
+    const styles = readFileSync("src/styles.css", "utf8");
+    const template = styles
+      .slice(styles.indexOf("SZABLON TYPOGRAFII WIDGETU"))
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\s+/g, " ");
     const perk = ruleWeight(css, "font-size:22px");
-    const typography = ruleWeight(css, "font-size:11px");
+    const typography = ruleWeight(template, "font-size: var(--wt-fs)");
     expect(typography).toBeGreaterThan(0);
     expect(perk).toBeGreaterThan(typography);
   });
