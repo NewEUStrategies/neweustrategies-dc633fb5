@@ -7,6 +7,13 @@
 //
 // Punkt ciszy jest atrapą (zadanie uruchamiane ręcznie), kolejka P0.3 -
 // prawdziwa (`enqueue` tylko podsłuchiwany), klatki sterowane ręcznie.
+//
+// P2.2 (właściciel prymitywu w fali 2): zapytanie mediów, które zaczyna
+// pasować między renderem otoczki a jej efektem (recenzja P2.3, M1), `click`
+// jako własne zdarzenie (aktywacja bez wciśnięcia i fokusu, recenzja P2.3, m1),
+// rejestr chunków po kluczu oraz dopowiedzenia recenzji P1.6 (runda 4, m-1 i
+// m-2: skutek zmienionego `fallbackMinHeight` poza przejściem, tor przejścia
+// przy zmianie samej klasy otoczki).
 import {
   createContext,
   lazy,
@@ -34,7 +41,14 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 
 import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
 import { ISLAND_STATE_ATTR, ISLAND_STATES } from "@/lib/webVitals";
-import { HydrationIsland, type IslandChunk, type IslandTrigger } from "../hydrationIsland";
+import {
+  HydrationIsland,
+  __resetIslandChunksForTests,
+  islandChunksFor,
+  registerIslandChunks,
+  type IslandChunk,
+  type IslandTrigger,
+} from "../hydrationIsland";
 import { __resetFirstInteractionForTests } from "../firstInteraction";
 import { __resetPostInteractionQueueForTests, enqueue } from "../postInteractionQueue";
 import { onQuiescent } from "../whenQuiescent";
@@ -362,6 +376,7 @@ afterEach(async () => {
   __resetPostInteractionQueueForTests();
   __resetFirstInteractionForTests();
   __resetViewportDeviceForTests();
+  __resetIslandChunksForTests();
   Reflect.deleteProperty(window, "matchMedia");
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -689,7 +704,7 @@ describe("HTML serwera zachowany przy aktualizacjach przed otwarciem bramki", ()
     expect(t.errors).toEqual([]);
   });
 
-  it.each(["Default", "Sync"] as const)(
+  it.each(["Default", "Sync", "Transition"] as const)(
     "zmiana samej klasy otoczki czekającej wyspy (%s): do granicy nie dociera - HTML zachowany, bez ostrzeżenia i bez górnej granicy",
     async (lane) => {
       let setClassName: (value: string) => void = () => {};
@@ -708,6 +723,7 @@ describe("HTML serwera zachowany przy aktualizacjach przed otwarciem bramki", ()
       const t = await hydrate(<App />);
       await act(async () => {
         if (lane === "Sync") flushSync(() => setClassName("block"));
+        else if (lane === "Transition") startTransition(() => setClassName("block"));
         else setClassName("block");
       });
 
@@ -960,7 +976,7 @@ describe("komparator `memo`: nierówne propsy docierają do treści wyspy", () =
     expect(t.errors).toEqual([]);
   });
 
-  it("czekająca wyspa i zmieniony `fallbackMinHeight`: dociera do granicy jak zmiana danych - ostrzeżenie DEV z `id`, górna granica otwiera wyspę", async () => {
+  it("czekająca wyspa i zmieniony `fallbackMinHeight`: dociera do granicy jak zmiana danych - ostrzeżenie DEV z `id`, poza przejściem HTML porzucony (fallback do klatki, CLS), górna granica otwiera wyspę - konsument trzyma wartość stałą", async () => {
     let setMinHeight: (value: number) => void = () => {};
     function App(): ReactElement {
       const [minHeight, apply] = useState(120);
@@ -984,6 +1000,10 @@ describe("komparator `memo`: nierówne propsy docierają do treści wyspy", () =
       release: "immediate",
       target: t.island("fmh"),
     });
+    // Skutek widoczny dla konsumenta (Default, poza przejściem): HTML serwera
+    // porzucony, do klatki kolejki stoi fallback (recenzja P1.6, runda 4, m-1).
+    expect(t.lost()).toEqual(["f-article", "f-title", "f-button"]);
+    expect(t.fallbackShown()).toBe(true);
 
     await frame();
 
@@ -1358,6 +1378,25 @@ describe("leniwe widgety w wyspie: komponent `React.lazy` w `chunks` jest grunto
     expect(t.errors).toEqual([]);
   });
 
+  it("rejestr po kluczu (P2.2): komponent `lazy` wpisany pod typem widgetu trafia do `chunks` wyspy i jest gruntowany - pierwszy klik dochodzi", async () => {
+    const { Lazy, factory } = lazyWidget();
+    registerIslandChunks("join-us", [Lazy]);
+    const t = await hydrateWidget(
+      serverWidget,
+      <Suspense fallback={<i data-probe="widget-fallback" />}>
+        <Lazy />
+      </Suspense>,
+      islandChunksFor(["heading", "join-us"]),
+    );
+
+    await firstTap(t.probe("widget"), "all");
+
+    expect(clicks).toEqual(["widget"]);
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(t.state("w")).toBe("hydrated");
+    expect(t.lost()).toEqual([]);
+  });
+
   it("`lazy` wprost w wyspie (bez własnej granicy), komponent w `chunks`: bramka czeka na rozstrzygnięcie `lazy`, wyspa hydratuje w jednym przebiegu, pierwszy klik dochodzi", async () => {
     const module = deferred<{ default: () => ReactElement }>();
     const factory = vi.fn(() => module.promise);
@@ -1688,6 +1727,52 @@ describe("wyzwalacze i zwolnienie przez kolejkę P0.3", () => {
     expect(t.state()).toBe("hydrated");
   });
 
+  it("media, które zaczyna pasować MIĘDZY renderem otoczki a jej efektem (`change` przed nasłuchem): kolejka `islands`/`immediate`, potem hydratacja (recenzja P2.3, M1)", async () => {
+    const query = "(min-width: 1024px)";
+    installMatchMedia(() => false);
+    // Rodzeństwo za wyspą: efekt warstwy biegnie po renderze otoczki (odczyt
+    // w konstruktorze), a przed jej efektem pasywnym (`arm`) - jak obrót
+    // tabletu w trakcie hydratacji. Atrapa nie wysyła `change` (nasłuchu
+    // jeszcze nie ma), więc tylko kontrola `matches` w `arm` widzi zmianę.
+    function Rotate(): null {
+      useLayoutEffect(() => {
+        if (typeof window.matchMedia === "function") media(query).matches = true;
+      }, []);
+      return null;
+    }
+    const trigger: IslandTrigger = { media: query, interaction: false, quiescent: false };
+    const t = await hydrate(
+      <>
+        <Island trigger={trigger} />
+        <Rotate />
+      </>,
+    );
+
+    expect(enqueueCalls()).toEqual([
+      { priority: "islands", release: "immediate", target: t.island() },
+    ]);
+    expect(t.state()).toBe("pending");
+    await frame();
+    expect(t.state()).toBe("hydrated");
+    expect(t.lost()).toEqual([]);
+    expect(t.errors).toEqual([]);
+  });
+
+  it("`ownEvents` click (aktywacja bez wciśnięcia i fokusu, np. z drzewa dostępności): tor pilny, wyspa uwodniona przed następną aktywacją", async () => {
+    const t = await hydrate(<Island trigger={{ ownEvents: ["click"], quiescent: false }} />);
+    const button = t.probe("a-button");
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(enqueueCalls()).toEqual([
+      { priority: "island-target", release: "urgent", target: t.island() },
+    ]);
+    expect(t.state()).toBe("hydrated");
+    clickNow(button);
+    expect(clicks).toContain("a");
+    expect(t.lost()).toEqual([]);
+  });
+
   it("immediateWhen: `true` = otwarcie od razu; z chunkami - po chunkach, bez kolejki", async () => {
     const t = await hydrate(<Island id="now" trigger={{ immediateWhen: () => true }} />);
     expect(t.state("now")).toBe("hydrated");
@@ -2002,5 +2087,21 @@ describe("StrictMode i kontrakty Reacta", () => {
     expect(t.errors.length).toBeGreaterThan(0);
     expect(t.lost()).toContain("label");
     expect(t.container.querySelector('[data-probe="label"]')?.textContent).toBe("Menu EN");
+  });
+});
+
+describe("rejestr chunków po kluczu (P2.2)", () => {
+  it("klucze -> chunki bez powtórzeń, w kolejności kluczy; ten sam wpis drugi raz niczego nie zmienia; nieznany klucz - nic", () => {
+    const shared = () => Promise.resolve();
+    const form = () => Promise.resolve();
+    const list = () => Promise.resolve();
+    registerIslandChunks("join-us", [form, shared]);
+    registerIslandChunks("post-list", [list, shared]);
+    registerIslandChunks("join-us", [form]);
+
+    expect(islandChunksFor(["post-list", "join-us", "heading"])).toEqual([list, shared, form]);
+    expect(islandChunksFor(["join-us"])).toEqual([form, shared]);
+    expect(islandChunksFor([])).toEqual([]);
+    expect(islandChunksFor(["heading"])).toEqual([]);
   });
 });

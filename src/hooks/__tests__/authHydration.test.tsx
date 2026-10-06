@@ -3,17 +3,25 @@
 // CO TEN PLIK DOWODZI.
 //   1. Treść serwera zostaje, gdy sesja gościa rozstrzyga się, zanim dojedzie
 //      chunk widgetu (kontrakt sprzed P1.7).
-//   2. ROZRUCH GOŚCIA DZIELI HYDRATACJĘ GRANIC NA COMMITY (P1.7, runda 9 -
-//      test charakterystyki, nie dowód wymogu I2). Gość dostaje rozstrzygnięcie
-//      zmianą wartości kontekstu w przejściu, a React propaguje ją do każdej
-//      odwodnionej granicy i uwadnia je po jednej, każdą we własnym commicie.
-//      Stała wartość kontekstu przy boocie (wymóg I2 z recenzji P1.6, wariant
-//      zmierzony i wycofany z P1.7) skleja te same granice w JEDEN commit z
-//      jednym przebiegiem efektów pasywnych - na `/` dawało to dłuższe zadania
-//      po commicie hydratacji (+74 ms mobile, +241 ms desktop x4 blokowania
-//      skryptów w medianach dowodu). KONTROLA NEGATYWNA: prowajder ze stałą
-//      wartością oblewa tę samą asercję. Kto wprowadzi stałą wartość (P2.2,
-//      razem z wyspami), zmienia ten test świadomie i z pomiarem.
+//   2. STAŁA WARTOŚĆ KONTEKSTU PRZY BOOCIE GOŚCIA (wymóg I2, P2.2 - zmienione
+//      świadomie). Do P2.2 gość dostawał rozstrzygnięcie zmianą wartości
+//      kontekstu w przejściu, a React propagował ją do każdej odwodnionej
+//      granicy: uwadniał je po jednej (osobne commity) i budził każdą wyspę
+//      hydratacji zaraz po boocie (górna granica w `hydrationIsland.tsx`).
+//      Teraz wartość stoi, a gościa rozstrzyga każdy konsument osobno:
+//       - test akceptacyjny I2 (szkic `faza2/raporty/P1.7-i2-island-experiment`):
+//         wyspa P1.6 pod `AuthProvider` zostaje `pending` > 1 s po boocie,
+//         HTML serwera i zero błędów; KONTROLA NEGATYWNA: dostawca ze zmianą
+//         wartości przy boocie (jak przed P2.2) budzi tę samą wyspę;
+//       - test charakterystyki: granice POZA wyspami uwadniają się jednym
+//         commitem, tak jak przy gołej stałej wartości (P1.7 zmierzyła to bez
+//         wysp: +74 ms mobile, +241 ms desktop x4 blokowania po commicie
+//         hydratacji). Z wyspami w tym commicie zostają tylko granice nad
+//         zgięciem - ile to kosztuje, rozstrzyga księga dowodu P2.2;
+//       - semantyka konsumenta: czytający `loading` w hydratacji widzi
+//         „czekam" (parytet), potem „gość" we własnym przejściu; nieczytający
+//         renderuje się raz; świeży montaż po boocie - od razu „gość";
+//         pierwsza sesja (logowanie w innej karcie) kończy zamrożenie.
 //   3. Gość od startu nie dotyka klienta Supabase (szybka ścieżka F7).
 //   4. Konsument czytający `loading` (bramka typu `AuthGate`) hydratuje
 //      spinner serwera bez rozjazdu, a po boocie pokazuje gościa - nigdy
@@ -27,7 +35,9 @@ import {
   startTransition,
   Suspense,
   useContext,
+  useEffect,
   useLayoutEffect,
+  useState,
   type ComponentType,
   type ReactNode,
 } from "react";
@@ -77,6 +87,9 @@ vi.mock("@/lib/personalization/anonMerge", () => ({
 
 import { AuthProvider, useAuth } from "../useAuth";
 import { __resetSupabaseClientRegistryForTests } from "@/integrations/supabase/sessionHint";
+import { HydrationIsland } from "@/lib/performance/hydrationIsland";
+import { __resetFirstInteractionForTests } from "@/lib/performance/firstInteraction";
+import { __resetPostInteractionQueueForTests } from "@/lib/performance/postInteractionQueue";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -258,28 +271,250 @@ function FrozenProvider({ children }: { children: ReactNode }) {
   return <FrozenCtx.Provider value={FROZEN}>{children}</FrozenCtx.Provider>;
 }
 
-describe("rozruch gościa a podział hydratacji granic (P1.7, runda 9)", () => {
-  it("AuthProvider: każda granica we własnym commicie, HTML serwera zostaje, zero dotknięć klienta", async () => {
-    const report = await measureBoundaryCommits({ Provider: AuthProvider, useValue: useAuth });
+/** Dostawca jak przed P2.2: gość rozstrzygany ZMIANĄ wartości kontekstu w przejściu. */
+const LegacyCtx = createContext<AuthLike>({ loading: true });
+function LegacyProvider({ children }: { children: ReactNode }) {
+  const [value, setValue] = useState<AuthLike>({ loading: true });
+  useEffect(() => {
+    startTransition(() => setValue({ loading: false }));
+  }, []);
+  return <LegacyCtx.Provider value={value}>{children}</LegacyCtx.Provider>;
+}
 
-    expectSplitHydration(report);
+describe("rozruch gościa a hydratacja granic poza wyspami (I2, P2.2)", () => {
+  it("AuthProvider: wartość stała przy boocie - granice uwadniają się jednym commitem (jak goła stała wartość), HTML serwera zostaje, czytelnik „gość”, zero dotknięć klienta", async () => {
+    const report = await measureBoundaryCommits({ Provider: AuthProvider, useValue: useAuth });
+    const frozen = await measureBoundaryCommits({
+      Provider: FrozenProvider,
+      useValue: () => useContext(FrozenCtx),
+    });
+
+    expect(report.boundaries).toBe(BOUNDARIES);
+    expect(report.boundaryCommits).toBe(frozen.boundaryCommits);
+    expect(report.boundaryCommits).toBe(1);
     expect(report.serverHtmlKept).toBe(true);
     expect(report.errors).toEqual([]);
     expect(report.readerText).toBe("gość");
     expect(h.touches).toBe(0);
   });
 
-  it("kontrola negatywna: stała wartość kontekstu skleja granice w jeden commit", async () => {
+  it("kontrola negatywna: dostawca ze zmianą wartości przy boocie (jak przed P2.2) dzieli granice na osobne commity", async () => {
     const report = await measureBoundaryCommits({
-      Provider: FrozenProvider,
-      useValue: () => useContext(FrozenCtx),
+      Provider: LegacyProvider,
+      useValue: () => useContext(LegacyCtx),
     });
 
-    expect(report.boundaries).toBe(BOUNDARIES);
-    expect(report.boundaryCommits).toBe(1);
-    expect(() => expectSplitHydration(report)).toThrow();
+    expectSplitHydration(report);
     expect(report.serverHtmlKept).toBe(true);
     expect(report.errors).toEqual([]);
+  });
+});
+
+// ── I2 Z PRAWDZIWĄ WYSPĄ P1.6 (test akceptacyjny P2.2) ─────────────────────────
+//
+// Szkic: `faza2/raporty/P1.7-i2-island-experiment.test.tsx.txt` (baza: wyspa
+// `hydrated` przez górną granicę, ostrzeżenie „an update reached the pending
+// island"; I2: `pending` po 1,1 s, HTML zachowany, 0 błędów hydratacji).
+describe("I2: wyspa hydratacji pod AuthProvider przy boocie gościa", () => {
+  beforeEach(() => {
+    __resetFirstInteractionForTests();
+    __resetPostInteractionQueueForTests();
+  });
+
+  afterEach(() => {
+    __resetPostInteractionQueueForTests();
+    __resetFirstInteractionForTests();
+    vi.unstubAllEnvs();
+  });
+
+  async function hydrateWithIsland(Provider: ComponentType<{ children: ReactNode }>) {
+    function Header() {
+      const { session } = useAuth();
+      return <span>{session ? "konto" : "zaloguj"}</span>;
+    }
+    function LiveSync() {
+      const { user, loading } = useAuth();
+      return loading || !user ? null : <i />;
+    }
+    const qc = new QueryClient();
+    const app = (
+      <QueryClientProvider client={qc}>
+        <Provider>
+          <Header />
+          <LiveSync />
+          <HydrationIsland id="s1" trigger={{ quiescent: false }}>
+            <p data-probe="sekcja">sekcja</p>
+          </HydrationIsland>
+        </Provider>
+      </QueryClientProvider>
+    );
+    const c = document.createElement("div");
+    vi.stubEnv("SSR", true);
+    c.innerHTML = renderToString(app);
+    vi.stubEnv("SSR", false);
+    document.body.append(c);
+    const node = c.querySelector('[data-probe="sekcja"]');
+    const errors: unknown[] = [];
+    let root!: Root;
+    await act(async () => {
+      root = hydrateRoot(c, app, { onRecoverableError: (e) => errors.push(e) });
+    });
+    await act(async () => {
+      await sleep(1100);
+    });
+    const result = {
+      state: c.querySelector("[data-island-id]")?.getAttribute("data-island-state"),
+      nodeKept: c.querySelector('[data-probe="sekcja"]') === node,
+      errors,
+    };
+    await act(async () => root.unmount());
+    qc.clear();
+    c.remove();
+    return result;
+  }
+
+  it("gość: wyspa zostaje `pending` > 1 s po boocie, HTML serwera zachowany, zero błędów i dotknięć klienta", async () => {
+    const result = await hydrateWithIsland(AuthProvider);
+
+    expect(result.state).toBe("pending");
+    expect(result.nodeKept).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(h.touches).toBe(0);
+  }, 15_000);
+
+  it("kontrola negatywna: dostawca ze zmianą wartości przy boocie budzi wyspę przez górną granicę", async () => {
+    function LegacyAuth({ children }: { children: ReactNode }) {
+      return (
+        <LegacyProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </LegacyProvider>
+      );
+    }
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = await hydrateWithIsland(LegacyAuth);
+
+    expect(result.state).toBe("hydrated");
+    expect(warn.mock.calls.map(([message]) => String(message))).toContainEqual(
+      expect.stringContaining('"s1": an update reached the pending island'),
+    );
+  }, 15_000);
+});
+
+describe("I2: rozstrzygnięcie gościa per konsument", () => {
+  it("hydratacja: czytający `loading` widzi „czekam”, potem „gość”; nieczytający renderuje się raz; świeży montaż po boocie - od razu „gość”", async () => {
+    const reader: boolean[] = [];
+    let quietRenders = 0;
+    const late: boolean[] = [];
+    let showLate: () => void = () => {};
+    function Reader() {
+      const { loading } = useAuth();
+      reader.push(loading);
+      return <span id="czytelnik">{loading ? "czekam" : "gość"}</span>;
+    }
+    function Quiet() {
+      useAuth();
+      quietRenders += 1;
+      return <span>cichy</span>;
+    }
+    function Late() {
+      const { loading } = useAuth();
+      late.push(loading);
+      return null;
+    }
+    function Shell({ withLate }: { withLate: boolean }) {
+      const [show, setShow] = useState(false);
+      showLate = () => setShow(true);
+      return (
+        <>
+          <Reader />
+          <Quiet />
+          {withLate && show ? <Late /> : null}
+        </>
+      );
+    }
+    const queryClient = new QueryClient();
+    const view = (
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Shell withLate />
+        </AuthProvider>
+      </QueryClientProvider>
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(view);
+    document.body.append(container);
+    reader.length = 0;
+    quietRenders = 0;
+    const errors: unknown[] = [];
+    let root!: Root;
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, view, { onRecoverableError: (e) => errors.push(e) });
+      });
+      await act(async () => {
+        await sleep(20);
+      });
+      expect(reader[0]).toBe(true);
+      expect(reader.at(-1)).toBe(false);
+      expect(container.querySelector("#czytelnik")?.textContent).toBe("gość");
+      expect(quietRenders).toBe(1);
+
+      await act(async () => showLate());
+      expect(late).toEqual([false]);
+      expect(errors).toEqual([]);
+      expect(h.touches).toBe(0);
+    } finally {
+      await act(async () => root.unmount());
+      queryClient.clear();
+      container.remove();
+    }
+  });
+
+  it("pierwsza sesja (logowanie w innej karcie) kończy zamrożenie: kontekst zmienia się normalnie, konsument widzi użytkownika", async () => {
+    h.getSession = () =>
+      Promise.resolve({ data: { session: { user: { id: "u-9" }, access_token: "t" } } });
+    function Who() {
+      const { user, loading } = useAuth();
+      return <span id="kto">{loading ? "czekam" : (user?.id ?? "gość")}</span>;
+    }
+    const queryClient = new QueryClient();
+    const view = (
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <Who />
+        </AuthProvider>
+      </QueryClientProvider>
+    );
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(view);
+    document.body.append(container);
+    const errors: unknown[] = [];
+    let root!: Root;
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, view, { onRecoverableError: (e) => errors.push(e) });
+      });
+      await act(async () => {
+        await sleep(20);
+      });
+      expect(container.querySelector("#kto")?.textContent).toBe("gość");
+      await act(async () => {
+        window.localStorage.setItem("sb-placeholder-auth-token", '{"access_token":"t"}');
+        window.dispatchEvent(
+          new StorageEvent("storage", {
+            key: "sb-placeholder-auth-token",
+            newValue: '{"access_token":"t"}',
+          }),
+        );
+        await sleep(50);
+      });
+      expect(container.querySelector("#kto")?.textContent).toBe("u-9");
+      expect(errors).toEqual([]);
+    } finally {
+      await act(async () => root.unmount());
+      queryClient.clear();
+      container.remove();
+    }
   });
 });
 

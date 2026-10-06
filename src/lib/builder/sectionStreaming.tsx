@@ -20,6 +20,8 @@ import {
   SECTION_STREAM_MIN_HEIGHT,
 } from "@/lib/builder/sectionHeightEstimate";
 import { RenderErrorBoundary } from "@/components/error/RenderErrorBoundary";
+import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
+import type { IslandTrigger } from "@/lib/performance/hydrationIsland";
 
 /**
  * True while the server streams HTML, false in the browser. Vite replaces
@@ -208,11 +210,30 @@ interface StreamingSectionProps {
   children: ReactNode;
 }
 
+/**
+ * Decyzja „sekcja ma zapytania" per obiekt sekcji i język (H10(c), P2.2).
+ * `sectionQueryOptionsList` przechodzi całe drzewo sekcji i buduje opcje
+ * zapytań każdego widgetu - a `StreamingSection` pyta o to przy KAŻDYM renderze
+ * listy sekcji (zmiana urządzenia, dostępu, przydziału A/B). Dokument jest
+ * niemutowalny (edytor podmienia obiekt sekcji przy zmianie), więc wynik dla
+ * tego samego obiektu się nie zmienia; WeakMap nie trzyma sekcji przy życiu.
+ */
+const sectionHasQueries = new WeakMap<SectionNode, Partial<Record<Lang, boolean>>>();
+
+function hasSectionQueries(section: SectionNode, lang: Lang): boolean {
+  const known = sectionHasQueries.get(section);
+  const cached = known?.[lang];
+  if (cached !== undefined) return cached;
+  const result = sectionQueryOptionsList(section, lang).length > 0;
+  sectionHasQueries.set(section, { ...known, [lang]: result });
+  return result;
+}
+
 /** Static sections need no data gate. Warm data sections never suspend. */
 export function shouldStreamSection(section: SectionNode, lang: Lang, enabled: boolean): boolean {
   // Keep the boundary stable across viewport/auth/tab changes during hydration.
   // Only ServerSectionGate filters the queries by the current render context.
-  return enabled && sectionQueryOptionsList(section, lang).length > 0;
+  return enabled && hasSectionQueries(section, lang);
 }
 
 /**
@@ -250,4 +271,84 @@ export function StreamingSection({
       </Suspense>
     </RenderErrorBoundary>
   );
+}
+
+// ── WYSPY SEKCJI (P2.2): wspólne dla renderera treści i stopki ───────────────
+
+/**
+ * Wyzwalacze wyspy sekcji treści i stopki (P2.2; czytane raz, przy montażu
+ * wyspy): widoczność z ekranem zapasu w dół, pierwsza interakcja (kolejka P0.3,
+ * po jednej wyspie na klatkę), dotknięcie/fokus/klawisz/klik we wnętrzu (tor
+ * pilny), zapisana sesja - od razu, zapas punktu ciszy (domyślny). Opis
+ * mechanizmu: blok „WYSPY SEKCJI" w `BuilderRenderer.tsx`.
+ */
+export const SECTION_ISLAND_TRIGGER: IslandTrigger = {
+  visible: { rootMargin: "0px 0px 100% 0px" },
+  interaction: "any",
+  ownEvents: ["pointerdown", "focusin", "keydown", "click"],
+  immediateWhen: hasStoredAuthSession,
+};
+
+export interface SectionIslandInfo {
+  /** Sekcja ma spis treści (widget albo blok `toc`) - wyłącza wyspy całego renderera. */
+  readonly toc: boolean;
+  /** Sekcja może być wyspą (bez testu A/B). */
+  readonly eligible: boolean;
+  /** Typy widgetów sekcji - klucze rejestru chunków wysp (`islandChunksFor`). */
+  readonly widgetTypes: readonly string[];
+  /** Rezerwa fallbacku wyspy (render klienta w awarii), stała dla sekcji. */
+  readonly fallbackMinHeight: number;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** Blok `toc` w treści widgetu `rich-text` (dokument blokowy per język). */
+function richTextHasToc(content: unknown): boolean {
+  if (!isRecord(content) || !isRecord(content.doc)) return false;
+  return Object.values(content.doc).some(
+    (localized) =>
+      isRecord(localized) &&
+      Array.isArray(localized.blocks) &&
+      localized.blocks.some((block) => isRecord(block) && block.type === "toc"),
+  );
+}
+
+/**
+ * Informacja o wyspie per obiekt sekcji (dokument jest niemutowalny - jak
+ * `shouldStreamSection`). Węzły czytane defensywnie: dokument z bazy (jsonb)
+ * nie zawsze trzyma się typu.
+ */
+const sectionIslands = new WeakMap<SectionNode, SectionIslandInfo>();
+
+export function sectionIslandInfo(section: SectionNode): SectionIslandInfo {
+  const known = sectionIslands.get(section);
+  if (known) return known;
+  const types = new Set<string>();
+  let toc = false;
+  const visitColumn = (column: unknown) => {
+    if (!isRecord(column) || !Array.isArray(column.children)) return;
+    for (const widget of column.children) {
+      if (!isRecord(widget) || typeof widget.type !== "string") continue;
+      types.add(widget.type);
+      if (widget.type === "toc" || (widget.type === "rich-text" && richTextHasToc(widget.content)))
+        toc = true;
+    }
+  };
+  for (const child of Array.isArray(section.children) ? section.children : []) {
+    if (!isRecord(child)) continue;
+    if (child.kind === "inner-section") {
+      for (const column of Array.isArray(child.columns) ? child.columns : []) visitColumn(column);
+    } else {
+      visitColumn(child);
+    }
+  }
+  const info: SectionIslandInfo = {
+    toc,
+    eligible: !section.advanced?.abTest,
+    widgetTypes: [...types],
+    fallbackMinHeight: estimateSectionHeight(section),
+  };
+  sectionIslands.set(section, info);
+  return info;
 }

@@ -61,7 +61,8 @@
 //    `enqueue(open, {priority: "islands", target: korzeń})` (kolejka stawia
 //    wyspę pod palcem na początku, resztę puszcza po jednej na klatkę);
 //  - `interaction: "own"` (domyślnie) albo `"any"` + `ownEvents` (domyślnie
-//    `pointerdown`, `focusin`, `keydown` - przed `click`) - zdarzenie we
+//    `pointerdown`, `focusin`, `keydown` - przed `click`; `click` sam w sobie
+//    do wyboru, dla aktywacji bez wciśnięcia i fokusu) - zdarzenie we
 //    wnętrzu wyspy -> `enqueue(open, {priority: "island-target", target:
 //    korzeń, release: "urgent"})`. Nasłuch w fazie capture na `window`, nie na
 //    korzeniu wyspy: dokument jest korzeniem Reacta, a React w swoim
@@ -75,6 +76,8 @@
 //  - `media` - zapytanie, które ZACZYNA pasować -> `release: "immediate"`;
 //    zapytanie pasujące już przy montażu = otwarcie od razu (jak
 //    `immediateWhen`), np. ukryty nagłówek desktopowy na desktopie (P2.3);
+//    pasujące dopiero przy zakładaniu wyzwalaczy (zmiana między renderem a
+//    efektem, `change` przed nasłuchem) - też kolejka, `immediate`;
 //  - `immediateWhen()` (np. `hasStoredAuthSession` z P1.7) - `true` przy
 //    montażu: bramka otwarta od razu, bez kolejki. Chunki startują już w
 //    renderze otoczki (przed jej commitem i efektami); gotowe synchronicznie
@@ -105,16 +108,17 @@
 // (`island-target`, `immediate`): przejście czeka najwyżej na chunki i klatkę,
 // a fallback po renderze klienta znika równie szybko. W DEV - ostrzeżenie z
 // `id` wyspy (sygnał dla audytu providerów P2.2: taka wyspa nie jest odroczona).
-// UWAGA: na bazie cc1a3767 górną granicę wyzwala u KAŻDEGO gościa
-// `AuthProvider` (`useAuth.tsx`: `startTransition(() =>
-// setSessionLoading(false))` w pierwszym przebiegu efektów zmienia wartość
-// kontekstu), a przy zapisanym motywie innym niż `SERVER_THEME` także
-// `ThemeProvider` (`readStored` w przejściu). Dopóki providery nad wyspami
-// zmieniają wartość kontekstu przy boocie, wyspy otwierają się zaraz po nim
-// (podział na klatki zostaje, odroczenia poza okno TBT nie ma) - wymóg dla
-// P2.2: stała wartość kontekstu przy boocie gościa. P1.7 zmierzyła ją bez
-// wysp i wycofała (regres TBT po commicie) - patrz `useAuth.tsx`, blok
-// „DLACZEGO NIE STAŁA WARTOŚĆ KONTEKSTU…"; wraca razem z wyspami P2.2.
+// PROVIDERY PRZY BOOCIE (I2, P2.2). Do P2.2 górną granicę wyzwalał u KAŻDEGO
+// gościa `AuthProvider` (przejście `loading: false` w pierwszym przebiegu
+// efektów zmieniało wartość kontekstu), a przy zapisanym motywie innym niż
+// `SERVER_THEME` także `ThemeProvider` (`readStored` w przejściu): wyspy
+// otwierały się zaraz po boocie (podział na klatki zostawał, odroczenia poza
+// okno TBT nie było). Od P2.2 wartość obu kontekstów przy boocie gościa jest
+// STAŁA: `useAuth.tsx` (blok „ROZRUCH GOŚCIA") rozstrzyga gościa per
+// konsument, a `ThemeProvider.tsx` niesie motyw magazynem z lustrem w
+// konsumencie (blok „MOTYW BEZ ZMIANY KONTEKSTU"). Każdy nowy provider nad
+// wyspami musi trzymać ten sam warunek (test „I2" w `authHydration.test.tsx`
+// i `ThemeProvider.test.tsx`).
 //
 // `data-island-state` (kontrakt P0.6, `@/lib/webVitals`): DOKŁADNIE
 // `pending` (w HTML serwera i do commitu granicy) i `hydrated` (po commicie).
@@ -185,13 +189,20 @@ import type { IslandState, IslandStateAttributes } from "@/lib/webVitals";
 import { enqueue, type EnqueueOptions, type QueuedTask } from "./postInteractionQueue";
 import { onQuiescent } from "./whenQuiescent";
 
-/** Zdarzenia we wnętrzu wyspy, które mogą ją otworzyć torem pilnym. */
+/**
+ * Zdarzenia we wnętrzu wyspy, które mogą ją otworzyć torem pilnym. `click`
+ * łapie aktywację BEZ wcześniejszego wciśnięcia i fokusu (akcja domyślna z
+ * drzewa dostępności: czytnik ekranu, sterowanie głosem - recenzja P2.3, m1):
+ * przy gotowych chunkach bramka otwiera się przed nasłuchem Reacta i klik
+ * dochodzi do uwodnionego przycisku.
+ */
 export const ISLAND_OWN_EVENTS = [
   "pointerdown",
   "pointerover",
   "touchstart",
   "focusin",
   "keydown",
+  "click",
 ] as const;
 
 export type IslandOwnEvent = (typeof ISLAND_OWN_EVENTS)[number];
@@ -248,6 +259,46 @@ export interface IslandLazyComponent {
 
 /** Wpis `chunks`: loader albo komponent `React.lazy`. */
 export type IslandChunk = IslandChunkLoader | IslandLazyComponent;
+
+// --- Rejestr chunków po kluczu (P2.2) ----------------------------------------
+//
+// Wyspa sekcji buildera nie zna modułów swoich widgetów: komponenty
+// `React.lazy` żyją w rejestrze widgetów (`lazyWidgets.tsx`, dyspozytor treści
+// w `ChromeWidgetView.tsx`). Rejestr odwraca tę zależność - moduł, który
+// tworzy komponent `lazy`, wpisuje go tu pod kluczem (typ widgetu), a wyspa
+// pyta o klucze swojej treści (`islandChunksFor`) i podaje wynik w `chunks`.
+// Bez wpisów lista jest pusta: bramka otwiera się po samym wyzwalaczu, a
+// zagnieżdżone granice leniwych widgetów uwadniają się po swoim chunku (jak
+// bez wyspy).
+
+const chunkRegistry = new Map<string, IslandChunk[]>();
+
+/**
+ * Wpisuje chunki potrzebne treści o kluczu `key` (np. typ widgetu). Ten sam
+ * wpis drugi raz niczego nie zmienia; wywołanie przy ewaluacji modułu, przed
+ * pierwszym renderem wysp (wyspa czyta `chunks` przy montażu).
+ */
+export function registerIslandChunks(key: string, chunks: readonly IslandChunk[]): void {
+  const listed = chunkRegistry.get(key) ?? [];
+  for (const chunk of chunks) if (!listed.includes(chunk)) listed.push(chunk);
+  chunkRegistry.set(key, listed);
+}
+
+/** Chunki zarejestrowane dla podanych kluczy, bez powtórzeń, w kolejności kluczy. */
+export function islandChunksFor(keys: Iterable<string>): IslandChunk[] {
+  const chunks: IslandChunk[] = [];
+  for (const key of keys) {
+    for (const chunk of chunkRegistry.get(key) ?? []) {
+      if (!chunks.includes(chunk)) chunks.push(chunk);
+    }
+  }
+  return chunks;
+}
+
+/** Tylko testy: czyści rejestr chunków. */
+export function __resetIslandChunksForTests(): void {
+  chunkRegistry.clear();
+}
 
 export interface HydrationIslandProps {
   /** Stały, unikalny na stronie identyfikator (`data-island-id`); używać też jako `key`. */
@@ -696,6 +747,14 @@ class IslandController {
       };
       query.addEventListener("change", onChange);
       cleanups.push(() => query.removeEventListener("change", onChange));
+      // Zapytanie zaczęło pasować MIĘDZY renderem otoczki (odczyt w
+      // konstruktorze) a tym efektem - obrót tabletu, rozszerzenie okna w
+      // trakcie hydratacji. `change` przyszedł przed nasłuchem, więc bez tej
+      // kontroli wyspa bez innych wyzwalaczy (`hdr-desktop`: bez interakcji i
+      // ciszy) zostałaby odwodniona na stałe (recenzja P2.3, M1).
+      if (query.matches) {
+        schedule(open, { priority: "islands", target: root, release: "immediate" });
+      }
     }
 
     if (trigger.quiescent !== false) {

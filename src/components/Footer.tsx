@@ -14,6 +14,25 @@ import { BackToTop } from "@/components/footer/BackToTop";
 import { trackFooterLink, trackFooterNewsletterSubmit } from "@/lib/analytics/footerTracking";
 import { FOOTER_LINKS, type FooterLinkGroup } from "@/lib/seo/footerNavigation";
 import { useLang } from "@/lib/i18n/useLang";
+import { HydrationIsland, islandChunksFor } from "@/lib/performance/hydrationIsland";
+import { SECTION_ISLAND_TRIGGER, sectionIslandInfo } from "@/lib/builder/sectionStreaming";
+
+/**
+ * STOPKA JEDNĄ WYSPĄ HYDRATACJI (P2.2). Stopka to pełny dokument buildera na
+ * każdej stronie i zawsze poniżej zgięcia, a jej hydratacja (renderer,
+ * widgety, subskrypcje zapytań, leniwe formularze) szła dotąd w commicie
+ * hydratacji strony. Renderer stopki jest teraz wyspą (`hydrationIsland.tsx`):
+ * HTML serwera zostaje, a hydratacja rusza przy widoczności (ekran zapasu w
+ * dół), pierwszej interakcji (kolejka P0.3, po jednej wyspie na klatkę),
+ * dotknięciu lub fokusie we wnętrzu, w punkcie ciszy - albo od razu przy
+ * zapisanej sesji. `<footer>` z nasłuchem telemetrii linków i `BackToTop`
+ * (pływający przycisk) zostają POZA wyspą i hydratują jak dotąd: telemetria
+ * łapie klik w fazie capture na `<footer>`, także w nieuwodnionej treści.
+ * Dzieci wyspy to `doc` (stała referencja z ustawień, `useMemo` niżej) i
+ * język - re-render stopki kończy się na `memo` wyspy przed jej granicą.
+ * Wyzwalacze i typy widgetów (klucze rejestru chunków) - te same co w
+ * wyspach sekcji treści (`sectionStreaming.tsx`).
+ */
 
 type FooterSettings = {
   builder_data?: BuilderDocument | null;
@@ -29,7 +48,7 @@ function FooterInner({ compact }: FooterProps) {
   // language switch, without the i18n.language hydration-flicker window.
   const lang = useLang();
 
-  const { data: settingsMap, isLoading } = useQuery(siteSettingsQueryOptions);
+  const { data: settingsMap } = useQuery(siteSettingsQueryOptions);
   // `resolveSetting` robi głęboki merge, więc bez `useMemo` oddawałoby NOWY
   // obiekt przy każdym renderze stopki - a od jego tożsamości zależy zarówno
   // walidacja chrome'u niżej, jak i dokument podawany `BuilderRenderer`owi.
@@ -42,12 +61,26 @@ function FooterInner({ compact }: FooterProps) {
   // ensureQueryData), render the built-in default footer instead of a blank
   // gap. This keeps SSR HTML stable and avoids a "no footer -> real footer"
   // layout shift after hydration.
-  const doc =
-    cfg.builder_data && cfg.builder_data.sections?.length
-      ? cfg.builder_data
-      : isLoading
-        ? defaultDocFor("footer")
-        : defaultDocFor("footer");
+  //
+  // `useMemo`: domyślny dokument powstaje od nowa przy każdym wywołaniu
+  // `defaultDocFor`, a dokument jest dzieckiem wyspy stopki - nowa referencja
+  // przy każdym renderze stopki docierałaby do jej odwodnionej granicy (P2.2).
+  const builderData = cfg.builder_data;
+  const doc = useMemo(
+    () => (builderData && builderData.sections?.length ? builderData : defaultDocFor("footer")),
+    [builderData],
+  );
+
+  // Chunki leniwych widgetów stopki dla bramki wyspy (czytane przy montażu).
+  const islandChunks = useMemo(
+    () =>
+      islandChunksFor(
+        (Array.isArray(doc.sections) ? doc.sections : []).flatMap((section) =>
+          section ? sectionIslandInfo(section).widgetTypes : [],
+        ),
+      ),
+    [doc],
+  );
 
   // Stopka jedzie na KAŻDEJ stronie, a ta walidacja Zodem biegła w każdym jej
   // renderze - także wtedy, gdy ustawienia się nie zmieniły. Parsowanie zależy
@@ -117,7 +150,9 @@ function FooterInner({ compact }: FooterProps) {
         className="cv-auto"
         style={{ viewTransitionName: "site-footer" }}
       >
-        <BuilderRenderer doc={doc} lang={lang} />
+        <HydrationIsland id="site-footer" trigger={SECTION_ISLAND_TRIGGER} chunks={islandChunks}>
+          <BuilderRenderer doc={doc} lang={lang} />
+        </HydrationIsland>
       </footer>
       {chromeCfg.back_to_top ? (
         <BackToTop thresholdPx={chromeCfg.back_to_top_threshold_px} />
