@@ -59,7 +59,12 @@ export function rootDocumentLinks(
     // Favicon jawnie zadeklarowany, żeby crawlery i podglądy linków pobrały
     // znak marki, a nie domyślny znak generatora.
     { rel: "icon", href: "/favicon.ico", sizes: "any" },
-    { rel: "apple-touch-icon", href: "/favicon.ico" },
+    // Fala 2: `favicon.ico` niesie wyłącznie 16 i 32 px (2,5 KB zamiast jednego PNG
+    // 256 px, 26 KB) - po boocie po LCP przeglądarka pobiera go z priorytetem High
+    // przed obserwowanym LCP i Lantern dokładał go szeregowo za obrazem kandydata
+    // (+150 ms LCP mobile w 4/15 przebiegów, raport faza2 P2.1-PROVE-2 §4). Ekran
+    // początkowy iOS dostaje osobny PNG 180 px.
+    { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
     ...fontPreloadLinks(lang, { latin: assets.fontLatin, latinExt: assets.fontLatinExt }),
     { rel: "dns-prefetch", href: SUPABASE_PRECONNECT_ORIGIN },
     { rel: "preconnect", href: SUPABASE_PRECONNECT_ORIGIN, crossOrigin: "anonymous" },
