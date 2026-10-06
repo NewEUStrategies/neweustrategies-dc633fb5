@@ -10,29 +10,18 @@
 // zwinięty do reakcji już postawionych plus jednego przycisku "dodaj" - sześć
 // pustych przycisków pod każdą z trzydziestu odpowiedzi to ściana szumu.
 import { useTranslation } from "react-i18next";
-import { BookOpenCheck, Heart, HelpCircle, Lightbulb, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ClubHoverActionBody,
   clubHoverActionClass,
 } from "@/components/clubs/atoms/ClubHoverAction";
+import { CLUB_REACTION_ICONS } from "@/components/clubs/atoms/ClubReactionGlyph";
 import {
   CLUB_QUALITY_REACTIONS,
   CLUB_STANCE_REACTIONS,
   type ClubReactionKind,
   type ClubReactionTally,
 } from "@/lib/clubs/types";
-
-type IconType = typeof Lightbulb;
-
-const ICONS: Record<ClubReactionKind, IconType> = {
-  insightful: Lightbulb,
-  evidence: BookOpenCheck,
-  question: HelpCircle,
-  thanks: Heart,
-  agree: ThumbsUp,
-  disagree: ThumbsDown,
-};
 
 interface ClubReactionBarProps {
   tallies: readonly ClubReactionTally[];
@@ -76,7 +65,7 @@ export function ClubReactionBar({
           const tally = find(kind);
           const active = tally?.mine === true;
           const total = tally?.total ?? 0;
-          const Icon = ICONS[kind];
+          const Icon = CLUB_REACTION_ICONS[kind];
           return (
             <Button
               key={kind}

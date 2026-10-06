@@ -26,7 +26,7 @@
 //  - UPRAWNIEŃ: `canPost` przychodzi z `club_capabilities`; tutaj sprawdzamy
 //    jedynie, że fałsz nie renderuje powierzchni pisania.
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ClubPostMediaAttachment } from "@/lib/clubs/postTypes";
 
 const h = vi.hoisted(() => ({
@@ -376,6 +376,72 @@ describe("ClubPostComposer - załączniki", () => {
     expect(screen.queryByText("raport.pdf")).toBeNull();
     await waitFor(() => expect(h.removeMedia).toHaveBeenCalledTimes(1));
     expect(h.toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe("ClubPostComposer - zdjęcia i zalecane formaty", () => {
+  it("szybkie wejścia zawężają wybór: zdjęcie do obrazów, wideo do nagrań, plik do wszystkiego", () => {
+    const { container } = renderWithQueryClient(
+      <ClubPostComposer clubId={CLUB_IDS.club} canPost />,
+    );
+    const input = fileField(container);
+    input.addEventListener("click", (event) => event.preventDefault());
+
+    fireEvent.click(screen.getByTestId("club-post-pick-image"));
+    expect(input.accept).toBe("image/jpeg,image/png,image/webp,image/gif,image/avif");
+    fireEvent.click(screen.getByTestId("club-post-pick-video"));
+    expect(input.accept).toBe("video/mp4,video/webm");
+    fireEvent.click(mediaButton());
+    expect(input.accept).toContain("application/pdf");
+    expect(input.accept).toContain(".docx");
+  });
+
+  it("zdjęcie w zalecanym formacie: miniatura w ramie strumienia, format i podpowiedź", async () => {
+    h.upload.mockResolvedValue(
+      attachment({
+        type: "image",
+        path: "p/wykres.png",
+        name: "wykres.png",
+        mime: "image/png",
+        width: 1200,
+        height: 627,
+      }),
+    );
+    const { container } = renderWithQueryClient(
+      <ClubPostComposer clubId={CLUB_IDS.club} canPost />,
+    );
+    chooseFiles(container, [new File(["a"], "wykres.png", { type: "image/png" })]);
+
+    await screen.findByText("wykres.png");
+    const images = screen.getByTestId("club-post-composer-images");
+    expect(within(images).getByText("1.91:1")).toBeInTheDocument();
+    expect(screen.queryByTestId("club-post-image-advice")).toBeNull();
+    // Podpowiedź z zalecanymi formatami pojawia się razem z pierwszym zdjęciem.
+    expect(within(images).getByText(/club\.post\.sizes\.hint/)).toBeInTheDocument();
+  });
+
+  it("za małe i za ciężkie zdjęcie dostaje uwagi, ale wpis da się wysłać", async () => {
+    h.upload.mockResolvedValue(
+      attachment({
+        type: "image",
+        path: "p/male.png",
+        name: "male.png",
+        mime: "image/png",
+        size: 6 * 1024 * 1024,
+        width: 640,
+        height: 640,
+      }),
+    );
+    const { container } = renderWithQueryClient(
+      <ClubPostComposer clubId={CLUB_IDS.club} canPost />,
+    );
+    chooseFiles(container, [new File(["a"], "male.png", { type: "image/png" })]);
+
+    const advice = await screen.findByTestId("club-post-image-advice");
+    expect(advice.querySelectorAll("li")).toHaveLength(2);
+    expect(within(advice).getByText(/club\.post\.sizes\.advice\.lowResolution/)).toBeTruthy();
+    expect(within(advice).getByText(/club\.post\.sizes\.advice\.heavy/)).toBeTruthy();
+    expect(publishButton()).toBeEnabled();
   });
 });
 

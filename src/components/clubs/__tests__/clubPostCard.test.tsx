@@ -32,8 +32,12 @@
 //     zarządzania wpisem I podana akcja usunięcia. Samo prawo bez akcji dałoby
 //     przycisk, który nic nie robi. Usunięcie zamyka menu i oddaje ID wpisu.
 // (8) POLUBIENIE BEZ PODANEJ AKCJI JEST WYŁĄCZONE, a nie ciche: `aria-pressed`
-//     mówi czytnikowi ekranu, czy wpis jest już polubiony, a licznik zastępuje
-//     etykietę dopiero od pierwszego polubienia.
+//     mówi czytnikowi ekranu, czy wpis jest już polubiony, a liczba docenień
+//     stoi w pasie liczników nad akcjami („Ty i N innych", gdy doceniłem).
+// (10) GALERIA UKŁADA SIĘ WEDŁUG PIERWSZEGO ZDJĘCIA (reguły w `feedMedia.ts`,
+//     tu ich skutek): jedno zdjęcie dostaje ramę z metadanych, dwa - parę,
+//     poziome pierwsze - górny rząd, a nadwyżka ponad cztery kafle idzie do
+//     licznika „+N" na ostatnim kaflu.
 // (9) PODGLĄD LINKU: nazwa hosta pochodzi z `siteName`, a gdy go nie ma -
 //     z adresu; adres NIE-URL nie może wywrócić karty (blok `try/catch`), a
 //     link bez opisu i bez obrazka nie dostaje dymka, bo dymek nie miałby czego
@@ -171,7 +175,7 @@ describe("ClubPostCard - autor i pochodzenie", () => {
       "/people/anna-nowak",
     );
     expect(card.querySelector("time")?.getAttribute("datetime")).toBe(CLUB_BASE_ISO);
-    expect(within(card).getByText("(club.post.edited)")).toBeTruthy();
+    expect(within(card).getByText("club.post.edited")).toBeTruthy();
 
     const chip = within(card).getByRole("button", { name: /Kuluary/ });
     expect(chip.getAttribute("aria-pressed")).toBe("true");
@@ -211,7 +215,7 @@ describe("ClubPostCard - autor i pochodzenie", () => {
 
     const card = screen.getByTestId("club-feed-post");
     expect(within(card).queryByText("Kuluary")).toBeNull();
-    expect(within(card).queryByText("(club.post.edited)")).toBeNull();
+    expect(within(card).queryByText("club.post.edited")).toBeNull();
   });
 });
 
@@ -355,8 +359,10 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
     );
 
     const grid = screen.getByTestId("club-post-images");
-    expect(grid.className).toContain("grid-cols-1");
+    expect(grid.getAttribute("data-layout")).toBe("single");
     const button = within(grid).getByRole("button", { name: "club.post.preview: a/1.png" });
+    // Rama pojedynczego zdjęcia z metadanych: 800 x 600 mieści się w 4:5..1.91:1.
+    expect(button.parentElement?.getAttribute("style")).toContain("aspect-ratio: 1.3333");
     fireEvent.click(button);
 
     expect(h.previewed).toEqual([
@@ -364,6 +370,24 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
     ]);
     expect(screen.getByTestId("club-post-viewer")).toBeTruthy();
     expect(screen.getByText("club.post.attachmentsCount(count=1)")).toBeTruthy();
+  });
+
+  it("pionowe zdjęcie 4:5 stoi na środku pasa z rozmytym tłem i sufitem szerokości", () => {
+    render(
+      <ClubPostCard
+        post={clubPostRow({
+          attachments: [imageAttachment("a/pion.png", { width: 1080, height: 1350 })],
+        })}
+        clubSlug={CLUB_SLUG}
+        mediaUrls={{ "a/pion.png": "https://podpis.example/pion.png" }}
+      />,
+    );
+
+    const grid = screen.getByTestId("club-post-images");
+    expect(grid.getAttribute("style")).toContain("max-width: calc(40rem * 0.8000)");
+    // Rozmyte tło to druga kopia tego samego pliku - ukryta przed czytnikiem.
+    const backdrop = grid.parentElement?.querySelector('img[aria-hidden="true"]');
+    expect(backdrop?.getAttribute("src")).toBe("https://podpis.example/pion.png");
   });
 
   it("zdjęcie BEZ podpisanego adresu jest zastępnikiem i nie da się go kliknąć", () => {
@@ -381,8 +405,8 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
     );
 
     const grid = screen.getByTestId("club-post-images");
-    // Dwa zdjęcia = dwie kolumny; oba bez adresu, więc oba wyłączone.
-    expect(grid.className).toContain("grid-cols-2");
+    // Dwa zdjęcia = para obok siebie; oba bez adresu, więc oba wyłączone.
+    expect(grid.getAttribute("data-layout")).toBe("pair");
     const buttons = within(grid).getAllByRole("button");
     expect(buttons.every((button) => button.hasAttribute("disabled"))).toBe(true);
     expect(grid.querySelector("img")).toBeNull();
@@ -391,12 +415,12 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
     expect(h.previewed).toEqual([]);
   });
 
-  it("trzy zdjęcia: pierwsze zajmuje dwie kolumny, proporcja idzie z metadanych", () => {
+  it("trzy zdjęcia z poziomym pierwszym: kafel główny u góry, dwa pod nim", () => {
     render(
       <ClubPostCard
         post={clubPostRow({
           attachments: [
-            imageAttachment("a/1.png"),
+            imageAttachment("a/1.png", { width: 1200, height: 627 }),
             imageAttachment("a/2.png"),
             imageAttachment("a/3.png", { width: null, height: null }),
           ],
@@ -410,12 +434,40 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
       />,
     );
 
-    const buttons = within(screen.getByTestId("club-post-images")).getAllByRole("button");
-    expect(buttons[0]?.className).toContain("first:col-span-2");
-    expect(buttons[0]?.getAttribute("style")).toContain("aspect-ratio: 800 / 600");
-    // Bez metadanych proporcji karta i tak rezerwuje miejsce - strumień nie skacze.
-    expect(buttons[2]?.getAttribute("style")).toContain("aspect-ratio: 16 / 9");
+    const grid = screen.getByTestId("club-post-images");
+    expect(grid.getAttribute("data-layout")).toBe("top");
+    const buttons = within(grid).getAllByRole("button");
+    expect(buttons).toHaveLength(3);
+    // Kafel główny ma ramę 1.91:1, miniatury dzielą rząd 3:1 po równo.
+    expect(buttons[0]?.parentElement?.getAttribute("style")).toContain("aspect-ratio: 1.91");
+    expect(buttons[1]?.parentElement?.getAttribute("style")).toContain(
+      "grid-template-columns: repeat(2, minmax(0, 1fr))",
+    );
     expect(screen.getByText("club.post.attachmentsCount(count=3)")).toBeTruthy();
+  });
+
+  it("kwadratowe pierwsze zdjęcie bierze lewą kolumnę, nadwyżka idzie do „+N”", () => {
+    const attachments = [
+      imageAttachment("a/1.png", { width: 1080, height: 1080 }),
+      ...Array.from({ length: 5 }, (_, i) => imageAttachment(`a/${i + 2}.png`)),
+    ];
+    render(
+      <ClubPostCard
+        post={clubPostRow({ attachments })}
+        clubSlug={CLUB_SLUG}
+        mediaUrls={{ "a/4.png": "https://podpis.example/4.png" }}
+      />,
+    );
+
+    const grid = screen.getByTestId("club-post-images");
+    expect(grid.getAttribute("data-layout")).toBe("left");
+    expect(grid.getAttribute("data-overflow")).toBe("2");
+    const buttons = within(grid).getAllByRole("button");
+    expect(buttons).toHaveLength(4);
+    expect(buttons[0]?.className).toContain("row-span-full");
+    // Ostatni widoczny kafel niesie licznik nadwyżki - także w nazwie dostępnej.
+    expect(buttons[3]?.getAttribute("aria-label")).toBe("club.post.preview: a/4.png (+2)");
+    expect(within(buttons[3] as HTMLElement).getByText("+2")).toBeTruthy();
   });
 
   it("nagranie: z adresem odtwarzacz, bez adresu sam zastępnik", () => {
@@ -556,9 +608,14 @@ describe("ClubPostCard - podgląd linku", () => {
     expect(card.getAttribute("href")).toBe("https://komisja.example/akt");
     expect(within(card).getByText("komisja.example")).toBeTruthy();
     expect(within(card).getByText("Akt delegowany")).toBeTruthy();
-    expect(within(card).getByText("Streszczenie aktu")).toBeTruthy();
+    // Opis nie mieści się na karcie - żyje w dymku, karta niesie tytuł i host.
+    expect(within(card).queryByText("Streszczenie aktu")).toBeNull();
     expect(card.querySelector("img")?.getAttribute("src")).toBe(
       "https://komisja.example/okladka.png",
+    );
+    // Obraz podglądu w formacie `og:image` - 1.91:1.
+    expect(card.querySelector("img")?.parentElement?.getAttribute("style")).toContain(
+      "aspect-ratio: 1.91",
     );
 
     const popup = screen.getByTestId("club-post-link-popup");
@@ -679,7 +736,7 @@ describe("ClubPostCard - podgląd linku", () => {
 });
 
 describe("ClubPostCard - polubienie i menu zarządzania", () => {
-  it("polubienie oddaje ID wpisu, a licznik zastępuje etykietę", () => {
+  it("polubienie oddaje ID wpisu, a liczba stoi w pasie liczników", () => {
     const onLike = vi.fn();
     render(
       <ClubPostCard
@@ -690,13 +747,17 @@ describe("ClubPostCard - polubienie i menu zarządzania", () => {
       />,
     );
 
-    const button = screen.getByRole("button", { name: "3" });
+    const button = screen.getByTestId("club-post-like");
     expect(button.getAttribute("aria-pressed")).toBe("true");
+    expect(button.getAttribute("aria-label")).toBe("club.hub.feed.likeWithCount(count=3)");
+    expect(screen.getByTestId("club-reaction-summary").textContent).toContain(
+      "club.hub.feed.reactors.youAndOthers(count=2)",
+    );
     fireEvent.click(button);
     expect(onLike).toHaveBeenCalledWith("post-1");
   });
 
-  it("bez podanej akcji polubienie jest WYŁĄCZONE, a zero polubień pokazuje etykietę", () => {
+  it("bez podanej akcji polubienie jest WYŁĄCZONE, a zero polubień nie rysuje licznika", () => {
     render(
       <ClubPostCard
         post={clubPostRow({ like_count: 0, liked_by_me: false })}
@@ -708,6 +769,35 @@ describe("ClubPostCard - polubienie i menu zarządzania", () => {
     const button = screen.getByRole("button", { name: "club.post.like" });
     expect(button.hasAttribute("disabled")).toBe(true);
     expect(button.getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByTestId("club-reaction-summary")).toBeNull();
+  });
+
+  it("cudze docenienie bez mojego pokazuje samą liczbę", () => {
+    render(
+      <ClubPostCard
+        post={clubPostRow({ like_count: 5, liked_by_me: false })}
+        clubSlug={CLUB_SLUG}
+        mediaUrls={{}}
+      />,
+    );
+
+    expect(screen.getByTestId("club-reaction-summary").textContent).toContain("5");
+  });
+
+  it("wpis podpięty pod wątek można udostępnić - adresem wątku", () => {
+    render(
+      <ClubPostCard
+        post={clubPostRow({ thread_slug: "temat-pierwszy", thread_title: "Temat pierwszy" })}
+        clubSlug={CLUB_SLUG}
+        mediaUrls={{}}
+      />,
+    );
+    expect(screen.getByTestId("club-feed-share")).toBeTruthy();
+
+    cleanup();
+    render(<ClubPostCard post={clubPostRow()} clubSlug={CLUB_SLUG} mediaUrls={{}} />);
+    // Wpis bez wątku nie ma własnego adresu - nie ma czego udostępnić.
+    expect(screen.queryByTestId("club-feed-share")).toBeNull();
   });
 
   it("menu zarządzania otwiera się, usuwa wpis i zamyka się po wyborze", () => {

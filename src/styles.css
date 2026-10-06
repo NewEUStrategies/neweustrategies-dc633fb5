@@ -7853,6 +7853,89 @@ html[data-mbb="on"] [data-site-shell] {
   --tt-heading-lh: var(--lh-h6, 1.45);
 }
 
+/* ── Strumień huba klubu: ruch kart ────────────────────────────────────────
+   Ręczne klatki (bez bibliotek JS - budżet bundle), ta sama krzywa co wejścia
+   dymków czatu, żeby ruch w module był jednym językiem:
+   - `club-feed-card-in`  - karta wchodzi krótkim uniesieniem, kaskadą po
+                            indeksie (`--feed-i`, ucięta w komponencie),
+   - `club-feed-picker-in`- paleta reakcji rośnie od przycisku,
+   - `club-reaction-pop`  - glify palety wskakują po kolei (`--pop-i`),
+   - `club-reaction-tap`  - odbicie piktogramu po postawieniu reakcji.
+   Wejścia kończą się na `transform: none`, więc po animacji karta nie tworzy
+   bloku zawierającego dla dzieci `position: fixed`. Reduced motion wyłącza
+   wszystko - stan końcowy jest stanem bez animacji. */
+@keyframes club-feed-card-in-kf {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.club-feed-card-in {
+  animation: club-feed-card-in-kf 320ms cubic-bezier(0.21, 1.02, 0.55, 1) both;
+  animation-delay: calc(var(--feed-i, 0) * 45ms);
+}
+@keyframes club-feed-picker-in-kf {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.club-feed-picker-in {
+  transform-origin: bottom left;
+  animation: club-feed-picker-in-kf 180ms cubic-bezier(0.21, 1.02, 0.55, 1) both;
+}
+@keyframes club-reaction-pop-kf {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) scale(0.4);
+  }
+  70% {
+    opacity: 1;
+    transform: translate3d(0, -1px, 0) scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+.club-reaction-pop {
+  animation: club-reaction-pop-kf 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(var(--pop-i, 0) * 30ms);
+}
+@keyframes club-reaction-tap-kf {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.35) rotate(-10deg);
+  }
+  70% {
+    transform: scale(0.92) rotate(0deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.club-reaction-tap {
+  animation: club-reaction-tap-kf 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .club-feed-card-in,
+  .club-feed-picker-in,
+  .club-reaction-pop,
+  .club-reaction-tap {
+    animation: none;
+  }
+}
+
 /* ── Okładka klubu ──────────────────────────────────────────────────────────
    Przejście okładka → karta było "skokowe", bo rysował je jeden gradient o
    dwóch przystankach (from-card → transparent). Liniowa interpolacja alfy

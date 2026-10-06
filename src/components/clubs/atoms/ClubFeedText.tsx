@@ -1,0 +1,105 @@
+// Atom: treść karty strumienia przycięta do trzech linii z „…więcej".
+//
+// DLACZEGO TRZY LINIE. Strumień jest skanowany, nie czytany: trzy linie to
+// tyle, ile mieści się w jednym spojrzeniu i wystarcza, żeby zdecydować, czy
+// wpis jest wart rozwinięcia. Dłuższy tekst pod każdą kartą zamienia kolumnę
+// w ścianę, a krótszy nie niesie tezy.
+//
+// JAK. Zamiast `line-clamp` - wysokość w jednostkach linii (`3lh`) i pomiar
+// przepełnienia. `line-clamp` nie daje się animować, a rozwinięcie ma płynnie
+// odsłonić resztę tekstu: `max-height` przechodzi z trzech linii do zmierzonej
+// wysokości całości, a po przejściu limit znika, żeby treść dociągnięta później
+// (np. podgląd wzmianki) nigdy nie została ucięta.
+//
+// „…więcej" pojawia się DOPIERO po pomiarze, czyli tylko wtedy, gdy tekst
+// faktycznie się nie mieści - krótki wpis nie dostaje martwej obietnicy.
+// Rozwinięcie przenosi fokus na treść, bo przycisk znika razem z przycięciem.
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
+
+const SETTLE_MS = 340;
+
+export function ClubFeedText({
+  children,
+  lines = 3,
+  className,
+}: {
+  children: ReactNode;
+  /** Ile linii widać przed rozwinięciem. */
+  lines?: number;
+  /** Typografia kontenera - `lh` liczy się z JEGO wysokości linii. */
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const id = useId();
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [overflowing, setOverflowing] = useState(false);
+  // `collapsed` -> `opening` (animowana wysokość w px) -> `open` (bez limitu).
+  const [phase, setPhase] = useState<"collapsed" | "opening" | "open">("collapsed");
+  const [target, setTarget] = useState(0);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (node === null || phase !== "collapsed") return;
+    const measure = (): void => setOverflowing(node.scrollHeight - node.clientHeight > 1);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [phase, children]);
+
+  useEffect(() => {
+    if (phase !== "opening") return;
+    const timer = setTimeout(() => setPhase("open"), SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [phase]);
+
+  const expand = (): void => {
+    setTarget(ref.current?.scrollHeight ?? 0);
+    setPhase("opening");
+    ref.current?.focus({ preventScroll: true });
+  };
+
+  return (
+    <div className="relative">
+      <div
+        ref={ref}
+        id={id}
+        tabIndex={-1}
+        data-feed-text={phase}
+        className={cn(
+          "overflow-hidden outline-none",
+          "transition-[max-height] duration-300 ease-out motion-reduce:transition-none",
+          className,
+        )}
+        style={
+          phase === "collapsed"
+            ? { maxHeight: `calc(${lines} * 1lh)` }
+            : phase === "opening"
+              ? { maxHeight: `${target}px` }
+              : undefined
+        }
+      >
+        {children}
+      </div>
+      {phase === "collapsed" && overflowing ? (
+        <button
+          type="button"
+          onClick={expand}
+          aria-expanded={false}
+          aria-controls={id}
+          data-testid="club-feed-more"
+          className={cn(
+            "absolute bottom-0 right-0 pl-14 text-sm font-medium leading-6 text-muted-foreground",
+            "bg-gradient-to-r from-transparent via-card via-50% to-card",
+            "transition-colors hover:text-primary hover:underline focus-visible:text-primary focus-visible:underline focus-visible:outline-none",
+          )}
+        >
+          {t("club.hub.feed.more")}
+        </button>
+      ) : null}
+    </div>
+  );
+}
