@@ -185,14 +185,29 @@ export function isClubFeedEmpty(entries: readonly ClubFeedEntry[]): boolean {
 
 /**
  * Długość zajawki wątku z `club_threads_list` (`left(body, 280)`). Zajawka
- * tej długości jest UCIĘTA przez bazę - zwykle w pół słowa - więc karta
+ * tej długości jest zwykle UCIĘTA przez bazę - w pół słowa - więc karta
  * dokłada wielokropek i odnośnik do całości zamiast udawać pełny tekst.
  */
 export const CLUB_THREAD_EXCERPT_LENGTH = 280;
 
-/** Zajawka do pokazania i informacja, czy baza ją ucięła. */
+/** Koniec zdania (z ewentualnym cudzysłowem lub nawiasem zamykającym). */
+const SENTENCE_END = /[.!?…]["”»')\]]*\s*$/u;
+
+/**
+ * Zajawka do pokazania i informacja, czy baza ją ucięła.
+ *
+ * DŁUGOŚĆ W ZNAKACH, NIE W JEDNOSTKACH UTF-16. `left()` w PostgreSQL liczy
+ * znaki (punkty kodowe), a `String.length` - jednostki UTF-16, więc zajawka
+ * z emoji wyglądałaby na dłuższą niż jest. Liczymy jak baza.
+ *
+ * GRANICA JEST NIEJEDNOZNACZNA. Wpis o długości DOKŁADNIE 280 znaków wraca
+ * w całości, a RPC nie mówi, czy coś ucięło. Zajawka na granicy, która
+ * kończy się zdaniem, zostaje więc pełna - urwane w pół słowa zdanie jest
+ * prawie pewnym cięciem, a zakończone kropką czyta się dobrze w obu razach.
+ */
 export function clubThreadExcerpt(excerpt: string): { text: string; clipped: boolean } {
-  const clipped = excerpt.length >= CLUB_THREAD_EXCERPT_LENGTH;
+  const atLimit = Array.from(excerpt).length >= CLUB_THREAD_EXCERPT_LENGTH;
+  const clipped = atLimit && !SENTENCE_END.test(excerpt);
   if (!clipped) return { text: excerpt.trim(), clipped };
   // Urwane ostatnie słowo nie niesie treści - tniemy do ostatniej spacji,
   // jeśli nie zjada to więcej niż kilkunastu znaków.

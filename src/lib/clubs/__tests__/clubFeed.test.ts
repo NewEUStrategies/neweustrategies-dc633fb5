@@ -372,6 +372,22 @@ describe("clubThreadExcerpt - zajawka ucięta przez bazę", () => {
     expect(result.text).not.toMatch(/\s…$/u);
   });
 
+  it("zajawka na granicy zakończona zdaniem zostaje pełna (wpis mógł mieć dokładnie 280 znaków)", () => {
+    const body = `${"a".repeat(CLUB_THREAD_EXCERPT_LENGTH - 2)} .`;
+    expect(Array.from(body).length).toBe(CLUB_THREAD_EXCERPT_LENGTH);
+    expect(clubThreadExcerpt(body)).toEqual({ text: body.trim(), clipped: false });
+    expect(clubThreadExcerpt(`${"a".repeat(CLUB_THREAD_EXCERPT_LENGTH - 2)}?”`).clipped).toBe(
+      false,
+    );
+  });
+
+  it("długość liczona w znakach jak `left()` w bazie - emoji nie robią z krótkiej zajawki uciętej", () => {
+    // 150 emoji = 150 znaków, ale 300 jednostek UTF-16.
+    const emoji = "📈".repeat(150);
+    expect(emoji.length).toBeGreaterThanOrEqual(CLUB_THREAD_EXCERPT_LENGTH);
+    expect(clubThreadExcerpt(emoji).clipped).toBe(false);
+  });
+
   it("długie ostatnie słowo bez spacji w pobliżu nie jest wycinane w całości", () => {
     const body = "x".repeat(CLUB_THREAD_EXCERPT_LENGTH);
     expect(clubThreadExcerpt(body)).toEqual({ text: `${body}…`, clipped: true });

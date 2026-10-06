@@ -70,11 +70,22 @@ describe("countDistinctReactors", () => {
     ).toBeNull();
   });
 
-  it("twarze spóźnione względem liczników - najliczniejszy rodzaj jest dolną granicą", () => {
+  it("nieświeże twarze (ktoś właśnie zareagował) - liczba niepewna, nie dolna granica", () => {
+    // Liczniki już z reakcją B, twarze jeszcze tylko z A.
     const tallies: ClubReactionTally[] = [
-      { kind: "insightful", total: 3, mine: false },
-      { kind: "agree", total: 1, mine: false },
+      { kind: "insightful", total: 1, mine: false },
+      { kind: "evidence", total: 1, mine: false },
     ];
-    expect(countDistinctReactors(tallies, [actor("u1", ["insightful"])])).toBe(3);
+    expect(countDistinctReactors(tallies, [actor("u1", ["insightful"])])).toBeNull();
+  });
+
+  it("nieświeże twarze w drugą stronę (ktoś cofnął reakcję) - liczba niepewna", () => {
+    // Twarze jeszcze z reakcją B, której liczniki już nie liczą.
+    const tallies: ClubReactionTally[] = [
+      { kind: "insightful", total: 1, mine: false },
+      { kind: "evidence", total: 1, mine: false },
+    ];
+    const actors = [actor("u1", ["insightful", "evidence"]), actor("u2", ["agree"])];
+    expect(countDistinctReactors(tallies, actors)).toBeNull();
   });
 });

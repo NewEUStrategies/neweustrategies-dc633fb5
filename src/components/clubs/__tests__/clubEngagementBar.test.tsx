@@ -229,9 +229,9 @@ describe("ClubEngagementBar - licznik", () => {
     renderBar({
       tallies: [
         { kind: "agree", total: 1, mine: true },
-        { kind: "insightful", total: 3, mine: false },
+        { kind: "insightful", total: 2, mine: false },
       ],
-      actors: [actor({ isMe: true, kinds: ["agree"] }), actor({ userId: "u2" })],
+      actors: [actor({ isMe: true, kinds: ["agree", "insightful"] }), actor({ userId: "u2" })],
     });
     const summary = screen.getByTestId("club-reaction-summary");
     expect(summary).toHaveTextContent("club.hub.feed.reactors.youAndOthers");
