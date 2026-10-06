@@ -196,15 +196,23 @@ describe("ClubFeedItem - karta wątku, dane pełne", () => {
     expect(card.querySelector('a[href="/club/klub-energetyczny/t/temat-pierwszy"]')).not.toBeNull();
   });
 
-  it("metryki: odpowiedzi, uczestnicy i - tylko przy niezerowym liczniku - `insightful`", () => {
+  it("liczniki: odpowiedzi i uczestnicy po prawej, reakcje z glifami po lewej", () => {
     render(
-      <ClubFeedItem entry={threadEntry(THREAD)} clubSlug={CLUB_SLUG} topicsCatalog={TOPICS} />,
+      <ClubFeedItem
+        entry={threadEntry(THREAD)}
+        clubSlug={CLUB_SLUG}
+        topicsCatalog={TOPICS}
+        threadReactions={new Map([[THREAD.id, [...TALLIES]]])}
+      />,
     );
 
     const card = screen.getByTestId("club-feed-thread");
     expect(within(card).getByText("club.repliesCount(count=3)")).toBeTruthy();
     expect(within(card).getByText("club.hub.feed.participantsCount(count=2)")).toBeTruthy();
-    expect(within(card).getByText("club.reaction.insightful")).toBeTruthy();
+    const summary = within(card).getByTestId("club-reaction-summary");
+    expect(summary.querySelector('[data-reaction-glyph="insightful"]')).not.toBeNull();
+    // Nagłówek autora niesie twarz 48 px, nie miniaturę z paska meta.
+    expect(card.querySelector('[data-feed-zone="actor"]')?.textContent).toContain("Anna Nowak");
   });
 
   it("kliknięcie reakcji oddaje ID TEGO wątku, rodzaj i poprzedni stan", () => {
@@ -219,7 +227,7 @@ describe("ClubFeedItem - karta wątku, dane pełne", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "club.reaction.insightful (2)" }));
+    fireEvent.click(screen.getByTestId("club-add-reaction"));
 
     expect(onThreadReact).toHaveBeenCalledWith(THREAD.id, "insightful", false);
   });
@@ -276,7 +284,7 @@ describe("ClubFeedItem - karta wątku, dane puste i częściowe", () => {
     const card = screen.getByTestId("club-feed-thread");
     expect(within(card).queryByText("club.threadStatus.resolved")).toBeNull();
     expect(within(card).queryByText("club.hub.feed.pinned")).toBeNull();
-    expect(within(card).queryByText("club.reaction.insightful")).toBeNull();
+    expect(within(card).queryByTestId("club-reaction-summary")).toBeNull();
     expect(within(card).queryByText("Kuluary")).toBeNull();
     expect(within(card).queryByText("Energetyka")).toBeNull();
     expect(card.textContent).not.toContain("undefined");

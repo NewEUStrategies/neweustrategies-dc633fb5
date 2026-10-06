@@ -616,10 +616,11 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
           ) : (
             <MentionDirectoryProvider slugs={feedAuthorSlugs} lang={lang}>
               <div className="flex flex-col gap-3">
-                {feed.map((entry) => (
+                {feed.map((entry, index) => (
                   <ClubFeedItem
                     key={entry.key}
                     entry={entry}
+                    index={index}
                     clubSlug={clubSlug}
                     mediaUrls={mediaUrls}
                     sourceIndex={sourceIndex}

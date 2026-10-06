@@ -2,41 +2,58 @@
 //
 // CZYM SIĘ RÓŻNI OD KARTY WĄTKU. Wątek sprzedaje TEMAT: tytuł jest największym
 // elementem, treść jest zajawką, a liczniki mówią, ile się dzieje. Wpis nie ma
-// tytułu, więc pierwszym elementem jest AUTOR, a treść i załącznik są całym
-// komunikatem. Dlatego ta karta jest cichsza typograficznie i szersza wizualnie:
-// zdjęcie i podgląd linku sięgają krawędzi treści, bo to one niosą informację.
+// tytułu, więc pierwszym elementem jest AUTOR (twarz, nazwisko z firmą,
+// stanowisko, czas), a treść i załącznik są całym komunikatem. Dlatego
+// zdjęcia, nagrania i podgląd linku sięgają krawędzi karty - to one niosą
+// informację (`ClubFeedGallery`, kadrowanie w `lib/clubs/feedMedia.ts`).
 //
-// PODPIĘCIE POD WĄTEK jest pokazane ZAWSZE, gdy istnieje - to jedyna rzecz,
-// która łączy krótką formę ze strukturą klubu, i bez widocznego oznaczenia
-// użytkownik nie ma jak się dowiedzieć, że jego wpis wylądował też w rozmowie.
+// PODPIĘCIE POD WĄTEK jest pokazane ZAWSZE, gdy istnieje - w linii kontekstu
+// nad kartą, bo to jedyna rzecz, która łączy krótką formę ze strukturą klubu,
+// i bez widocznego oznaczenia użytkownik nie ma jak się dowiedzieć, że jego
+// wpis wylądował też w rozmowie.
 //
 // ADRESY PLIKÓW SĄ WSTRZYKIWANE, nie pobierane tutaj. Kubełek jest prywatny,
 // więc każdy plik potrzebuje podpisu - a podpisywanie per karta znaczyłoby
 // tyle żądań, ile wpisów na ekranie. Mapa `mediaUrls` przychodzi z jednego
 // zbiorczego zapytania nad całym strumieniem.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
   ExternalLink,
   Eye,
-  Maximize2,
-  MessageSquarePlus,
+  MessageSquareText,
   MessagesSquare,
   MoreHorizontal,
   ThumbsUp,
   Trash2,
 } from "lucide-react";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubAuthorIdentity } from "@/components/clubs/atoms/ClubAuthorIdentity";
+import { ClubFeedText } from "@/components/clubs/atoms/ClubFeedText";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubProse } from "@/components/clubs/atoms/ClubProse";
+import { clubReactionInkClass } from "@/components/clubs/atoms/ClubReactionGlyph";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
+import {
+  CLUB_FEED_ACTION_ICON,
+  CLUB_FEED_PAD,
+  ClubFeedActionBar,
+  ClubFeedActor,
+  ClubFeedCard,
+  ClubFeedContext,
+  ClubFeedMedia,
+  ClubFeedSocialRow,
+  ClubFeedTime,
+  clubFeedActionClass,
+} from "@/components/clubs/molecules/ClubFeedCard";
+import { ClubFeedGallery, ClubFeedVideo } from "@/components/clubs/molecules/ClubFeedGallery";
+import { ClubFeedShareAction } from "@/components/clubs/molecules/ClubFeedShareAction";
+import { ClubReactionSummary } from "@/components/clubs/molecules/ClubEngagementBar";
+import { useMentionEntity } from "@/components/mentions/MentionDirectory";
 import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
 import { fileLabel, isPreviewable } from "@/lib/files/fileKinds";
 import { useDocumentViewer } from "@/components/files/useDocumentViewer";
@@ -49,7 +66,7 @@ import {
   type ClubPostMediaAttachment,
   type ClubPostRow,
 } from "@/lib/clubs/postTypes";
-import { formatDateShort, uiLang } from "@/lib/i18n/format";
+import { uiLang } from "@/lib/i18n/format";
 
 /** Stała pusta mapa - literał w domyślnej wartości propa tworzyłby NOWĄ mapę
  *  przy każdym renderze i psuł memoizację kart. */
@@ -67,7 +84,11 @@ function formatBytes(size: number): string {
   return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-/** Karta podglądu linku + popup po najechaniu (Radix HoverCard). */
+/**
+ * Podgląd linku: obraz 1.91:1 od krawędzi do krawędzi, pod nim tytuł i host na
+ * stonowanym pasie - kształt, w jakim serwisy podają `og:image` (1200 x 627).
+ * Opis nie mieści się na karcie, więc żyje w dymku po najechaniu.
+ */
 function LinkAttachmentCard({ attachment }: { attachment: ClubPostLinkAttachment }) {
   const { t } = useTranslation();
   let host = attachment.siteName;
@@ -82,29 +103,27 @@ function LinkAttachmentCard({ attachment }: { attachment: ClubPostLinkAttachment
       href={attachment.url}
       target="_blank"
       rel="noopener noreferrer nofollow"
-      className="mt-3 block overflow-hidden rounded-lg border border-border/70 transition-colors hover:border-primary/40"
+      className="group/link block bg-muted/50 transition-colors hover:bg-muted"
       data-testid="club-post-link"
     >
       {attachment.image !== null ? (
-        <img
-          src={attachment.image}
-          alt=""
-          loading="lazy"
-          className="h-40 w-full object-cover sm:h-48"
-        />
-      ) : null}
-      <span className="block px-3 py-2">
-        <span className="block text-[11px] uppercase tracking-wide text-muted-foreground">
-          {host ?? t("club.post.link")}
+        <span className="block overflow-hidden bg-muted" style={{ aspectRatio: 1.91 }}>
+          <img
+            src={attachment.image}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover/link:scale-[1.02] motion-reduce:transition-none"
+          />
         </span>
-        <span className="mt-0.5 block truncate text-sm font-medium text-foreground">
+      ) : null}
+      <span className={cn("block py-2.5", CLUB_FEED_PAD)}>
+        <span className="line-clamp-2 block text-sm font-semibold leading-5 text-foreground group-hover/link:underline">
           {attachment.title ?? attachment.url}
         </span>
-        {attachment.description !== null ? (
-          <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
-            {attachment.description}
-          </span>
-        ) : null}
+        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+          {host ?? t("club.post.link")}
+        </span>
       </span>
     </a>
   );
@@ -139,148 +158,115 @@ function LinkAttachmentCard({ attachment }: { attachment: ClubPostLinkAttachment
   );
 }
 
-function MediaGrid({
-  media,
-  mediaUrls,
+/** Dokument wpisu - kafel strony z rodzajem pliku, nazwą, wagą i akcjami. */
+function FileAttachmentRow({
+  item,
+  url,
   onPreview,
 }: {
-  media: readonly ClubPostMediaAttachment[];
-  mediaUrls: Record<string, string>;
+  item: ClubPostMediaAttachment;
+  url: string | undefined;
   onPreview: (file: DocumentViewerFile) => void;
 }) {
   const { t } = useTranslation();
-  const images = media.filter((item) => item.type === "image");
-  const videos = media.filter((item) => item.type === "video");
-  const files = media.filter((item) => item.type === "file");
+  const previewable = isPreviewable(item.mime, item.name);
+  const size = formatBytes(item.size);
+  return (
+    <div className="group/file flex items-center gap-3 rounded-lg border border-border/70 bg-muted/30 p-2.5 transition-colors hover:border-primary/40">
+      {/* Kafel strony z zagiętym rogiem - dokument rozpoznawalny bez czytania. */}
+      <span className="relative grid h-12 w-10 shrink-0 place-items-center rounded-md border border-primary/20 bg-primary/10 text-[10px] font-bold uppercase tracking-wider text-primary [clip-path:polygon(0_0,72%_0,100%_22%,100%_100%,0_100%)]">
+        {fileLabel(item.name, item.mime)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{item.name}</span>
+        <span className="block text-xs text-muted-foreground">
+          {size}
+          {previewable ? `${size !== "" ? " · " : ""}${t("club.post.preview")}` : ""}
+        </span>
+      </span>
+      {previewable ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-8 shrink-0 gap-1.5 rounded-lg px-2.5 text-xs"
+          disabled={url === undefined}
+          onClick={() => {
+            if (url !== undefined) {
+              onPreview({ url, name: item.name, mime: item.mime, size: item.size });
+            }
+          }}
+        >
+          <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+          {t("club.post.preview")}
+        </Button>
+      ) : null}
+      <a
+        href={url ?? "#"}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`${t("club.post.openFile")}: ${item.name}`}
+        className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+      </a>
+    </div>
+  );
+}
 
-  const open = (item: ClubPostMediaAttachment, url: string | undefined): void => {
-    if (url === undefined) return;
-    onPreview({ url, name: item.name, mime: item.mime, size: item.size });
-  };
+/** Menu zarządzania wpisem - zamyka się po wyborze, kliknięciu obok i Escape. */
+function PostMenu({ onDelete }: { onDelete: () => void }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (rootRef.current !== null && !rootRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   return (
-    <>
-      {images.length > 0 ? (
-        <div
-          className={cn(
-            "mt-3 grid gap-1.5 overflow-hidden rounded-lg",
-            images.length === 1 ? "grid-cols-1" : "grid-cols-2",
-          )}
-          data-testid="club-post-images"
-        >
-          {images.map((item) => {
-            const url = mediaUrls[item.path];
-            return (
-              // Zdjęcie otwiera podgląd W PLATFORMIE, nie nową kartę: wyjście
-              // do surowego podpisanego adresu gubi kontekst wpisu i pokazuje
-              // użytkownikowi techniczny URL magazynu.
-              <button
-                key={item.path}
-                type="button"
-                disabled={url === undefined}
-                onClick={() => open(item, url)}
-                aria-label={`${t("club.post.preview")}: ${item.name}`}
-                className={cn(
-                  "group/img relative block overflow-hidden rounded-lg bg-muted",
-                  images.length === 3 ? "first:col-span-2" : undefined,
-                )}
-                // Proporcja z metadanych: bez niej strumień skacze, gdy zdjęcia
-                // dojeżdżają po podpisaniu adresów.
-                style={
-                  item.width !== null && item.height !== null
-                    ? { aspectRatio: `${item.width} / ${item.height}` }
-                    : { aspectRatio: "16 / 9" }
-                }
-              >
-                {url === undefined ? (
-                  <span className="block h-full w-full animate-pulse bg-muted" />
-                ) : (
-                  <>
-                    <img
-                      src={url}
-                      alt={item.name}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-cover transition-transform duration-500 group-hover/img:scale-[1.02]"
-                    />
-                    <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/0 opacity-0 transition-opacity duration-200 group-hover/img:bg-background/25 group-hover/img:opacity-100">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3 py-1.5 text-xs font-medium shadow-sm">
-                        <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        {t("club.post.preview")}
-                      </span>
-                    </span>
-                  </>
-                )}
-              </button>
-            );
-          })}
+    <div ref={rootRef} className="relative">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+        aria-label={t("club.post.menu")}
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+      </Button>
+      {open ? (
+        <div className="club-feed-picker-in absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-lg [transform-origin:top_right]">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-destructive hover:bg-muted"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("club.post.delete")}
+          </button>
         </div>
       ) : null}
-
-      {videos.map((item) => {
-        const url = mediaUrls[item.path];
-        return (
-          <div key={item.path} className="mt-3 overflow-hidden rounded-lg bg-black">
-            {url === undefined ? (
-              <div className="aspect-video w-full animate-pulse bg-muted" />
-            ) : (
-              // DŁUG DOSTĘPNOŚCI: nagranie wgrane przez członka nie ma ścieżki
-              // napisów (`<track kind="captions">`), bo nie ma jej skąd wziąć -
-              // przesyłający podaje sam plik. Do domknięcia razem z transkrypcją
-              // po stronie serwera. Directive `eslint-disable` w tym miejscu był
-              // MARTWY: reguła `jsx-a11y/media-has-caption` nie jest w tym repo
-              // skonfigurowana, więc niczego nie wyciszał, a sam odwołaniem do
-              // nieistniejącej reguły wywracał bramkę lintu.
-              <video src={url} controls preload="metadata" className="aspect-video w-full" />
-            )}
-          </div>
-        );
-      })}
-
-      {files.map((item) => {
-        const url = mediaUrls[item.path];
-        const previewable = isPreviewable(item.mime, item.name);
-        return (
-          <div
-            key={item.path}
-            className="group/file mt-3 flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2.5 transition-colors hover:border-primary/40"
-          >
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-[10px] font-bold uppercase tracking-wider text-primary">
-              {fileLabel(item.name, item.mime)}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-medium">{item.name}</span>
-              <span className="block text-xs text-muted-foreground">
-                {formatBytes(item.size)}
-                {previewable ? ` · ${t("club.post.preview")}` : ""}
-              </span>
-            </span>
-            {previewable ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
-                disabled={url === undefined}
-                onClick={() => open(item, url)}
-              >
-                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                {t("club.post.preview")}
-              </Button>
-            ) : null}
-            <a
-              href={url ?? "#"}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`${t("club.post.openFile")}: ${item.name}`}
-              className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-            </a>
-          </div>
-        );
-      })}
-    </>
+    </div>
   );
 }
 
@@ -296,6 +282,7 @@ export function ClubPostCard({
   canComment = true,
   /** Ukrywa plakietkę wątku tam, gdzie wątek JEST kontekstem ekranu. */
   hideThreadLink = false,
+  index = 0,
   className,
 }: {
   post: ClubPostRow;
@@ -310,136 +297,204 @@ export function ClubPostCard({
   /** Wyłącza wejście w dyskusję dla użytkownika bez prawa głosu w klubie. */
   canComment?: boolean;
   hideThreadLink?: boolean;
+  /** Pozycja w strumieniu - kaskada wejścia. */
+  index?: number;
   className?: string;
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
-  const [menuOpen, setMenuOpen] = useState(false);
   const { openFile, viewer } = useDocumentViewer();
+  const entity = useMentionEntity(post.author_slug);
+  // Zmiana klucza restartuje odbicie piktogramu po docenieniu.
+  const [tapKey, setTapKey] = useState(0);
 
   const attachments: ClubPostAttachment[] = parseClubPostAttachments(post.attachments);
   const links = attachments.filter(isLinkAttachment);
   const media = attachments.filter(
     (item): item is ClubPostMediaAttachment => !isLinkAttachment(item),
   );
+  const images = media.filter((item) => item.type === "image");
+  const videos = media.filter((item) => item.type === "video");
+  const files = media.filter((item) => item.type === "file");
   const authorName = post.author_name ?? t("club.deletedAuthor");
   const source = clubSourceOf(post, sourceIndex, lang);
+  const jobTitle = entity !== null && entity.kind === "person" ? entity.jobTitle : null;
+  const showThread = !hideThreadLink && post.thread_slug !== null;
+  const threadPath = post.thread_slug !== null ? `/club/${clubSlug}/t/${post.thread_slug}` : null;
+
+  const openMedia = (item: ClubPostMediaAttachment, url: string): void =>
+    openFile({ url, name: item.name, mime: item.mime, size: item.size });
+
+  const likeOthers = post.like_count - (post.liked_by_me ? 1 : 0);
 
   return (
-    <article
-      className={cn(HUB_SURFACE, "p-3.5 sm:p-4", className)}
-      data-testid="club-feed-post"
-      data-post-id={post.id}
+    <ClubFeedCard
+      tone="post"
+      index={index}
+      testId="club-feed-post"
+      postId={post.id}
+      className={className}
     >
-      <div className="flex items-start gap-2.5">
-        <ClubAuthorAvatar
-          name={authorName}
-          avatarUrl={post.author_avatar}
-          size="sm"
-          muted={post.author_id === null}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-            <ClubAuthorIdentity
-              author={{
-                kind: post.author_id === null ? "unknown" : "named",
-                name: authorName,
-                avatarUrl: post.author_avatar,
-                profileSlug: post.author_slug,
-              }}
-              nameClassName="truncate font-medium text-foreground"
-            />
-            {/* Ten sam znacznik źródła, co na karcie wątku - wpis ze ściany
-                należy do działu dokładnie tak samo jak wątek i nie ma powodu,
-                żeby jego pochodzenie wyglądało inaczej. */}
-            {source !== null ? (
-              <ClubSourceChip
-                source={source}
-                active={source.id !== null && source.id === activeGroupId}
-                onSelect={onSourceSelect}
-              />
-            ) : null}
-            <span aria-hidden="true">·</span>
-            <time dateTime={post.created_at}>{formatDateShort(post.created_at, lang)}</time>
-            {post.edited_at !== null ? <span>({t("club.post.edited")})</span> : null}
-          </div>
-
-          {!hideThreadLink && post.thread_slug !== null ? (
-            <Link
-              to="/club/$clubSlug/t/$threadSlug"
-              params={{ clubSlug, threadSlug: post.thread_slug }}
-              className="mt-1.5 inline-flex max-w-full items-center gap-1.5"
-              data-testid="club-post-thread-link"
-            >
-              <MessagesSquare
-                className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <ClubInlineTitle tone="thread" size="sm" interactive>
-                {post.thread_title ?? t("club.post.inThread")}
-              </ClubInlineTitle>
-            </Link>
-          ) : null}
-        </div>
-
-        {post.can_manage && onDelete !== undefined ? (
-          <div className="relative">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg"
-              aria-label={t("club.post.menu")}
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-            </Button>
-            {menuOpen ? (
-              <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-lg border border-border bg-popover p-1 shadow-lg">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-destructive hover:bg-muted"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDelete(post.id);
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  {t("club.post.delete")}
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-
-      {post.body.trim() !== "" ? (
-        <ClubProse body={post.body} clubSlug={clubSlug} size="sm" className="mt-2 max-w-none" />
+      {showThread && post.thread_slug !== null ? (
+        <ClubFeedContext>
+          <MessagesSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span className="shrink-0">{t("club.hub.feed.postInThread")}</span>
+          <Link
+            to="/club/$clubSlug/t/$threadSlug"
+            params={{ clubSlug, threadSlug: post.thread_slug }}
+            className="inline-flex min-w-0 max-w-full items-center"
+            data-testid="club-post-thread-link"
+            // Długi tytuł wątku ma się przyciąć w jednej linii kontekstu.
+            data-feed-shrink=""
+          >
+            <ClubInlineTitle tone="thread" size="sm" interactive className="truncate">
+              {post.thread_title ?? t("club.post.inThread")}
+            </ClubInlineTitle>
+          </Link>
+        </ClubFeedContext>
       ) : null}
 
-      <MediaGrid media={media} mediaUrls={mediaUrls} onPreview={openFile} />
-      {viewer}
-      {links.map((link) => (
-        <LinkAttachmentCard key={link.url} attachment={link} />
+      <ClubFeedActor
+        avatar={
+          <ClubAuthorAvatar
+            name={authorName}
+            avatarUrl={post.author_avatar}
+            size="lg"
+            muted={post.author_id === null}
+          />
+        }
+        name={
+          <ClubAuthorIdentity
+            author={{
+              kind: post.author_id === null ? "unknown" : "named",
+              name: authorName,
+              avatarUrl: post.author_avatar,
+              profileSlug: post.author_slug,
+            }}
+            nameClassName="truncate text-sm font-semibold leading-5 text-foreground"
+          />
+        }
+        headline={jobTitle ?? undefined}
+        meta={
+          <>
+            <ClubFeedTime iso={post.created_at} lang={lang} />
+            {post.edited_at !== null ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{t("club.post.edited")}</span>
+              </>
+            ) : null}
+            {/* Ten sam znacznik źródła, co na karcie wątku - wpis ze ściany
+                należy do działu dokładnie tak samo jak wątek. */}
+            {source !== null ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <ClubSourceChip
+                  source={source}
+                  active={source.id !== null && source.id === activeGroupId}
+                  onSelect={onSourceSelect}
+                />
+              </>
+            ) : null}
+          </>
+        }
+        trailing={
+          post.can_manage && onDelete !== undefined ? (
+            <PostMenu onDelete={() => onDelete(post.id)} />
+          ) : undefined
+        }
+      />
+
+      {post.body.trim() !== "" ? (
+        <div className={cn("pt-2.5", CLUB_FEED_PAD)}>
+          <ClubFeedText className="text-sm leading-6">
+            <ClubProse body={post.body} clubSlug={clubSlug} size="sm" className="max-w-none" />
+          </ClubFeedText>
+        </div>
+      ) : null}
+
+      {images.length > 0 ? (
+        <ClubFeedMedia>
+          <ClubFeedGallery images={images} mediaUrls={mediaUrls} onOpen={openMedia} />
+        </ClubFeedMedia>
+      ) : null}
+
+      {videos.map((item) => (
+        <ClubFeedMedia key={item.path}>
+          <ClubFeedVideo item={item} url={mediaUrls[item.path]} />
+        </ClubFeedMedia>
       ))}
 
-      <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-2.5">
-        <Button
+      {files.length > 0 ? (
+        <div className={cn("mt-3 flex flex-col gap-2", CLUB_FEED_PAD)}>
+          {files.map((item) => (
+            <FileAttachmentRow
+              key={item.path}
+              item={item}
+              url={mediaUrls[item.path]}
+              onPreview={openFile}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      {links.map((link) => (
+        <ClubFeedMedia key={link.url}>
+          <LinkAttachmentCard attachment={link} />
+        </ClubFeedMedia>
+      ))}
+      {viewer}
+
+      <ClubFeedSocialRow
+        left={
+          post.like_count > 0 ? (
+            <ClubReactionSummary
+              kinds={["agree"]}
+              total={post.like_count}
+              mine={post.liked_by_me}
+            />
+          ) : null
+        }
+        right={
+          media.length > 0 ? (
+            <span>{t("club.post.attachmentsCount", { count: media.length })}</span>
+          ) : null
+        }
+      />
+
+      <ClubFeedActionBar label={t("club.hub.feed.actionsLabel")}>
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
-          className={cn(
-            "h-8 gap-1.5 rounded-lg px-2.5 text-xs",
-            post.liked_by_me && "text-primary",
-          )}
+          className={clubFeedActionClass({
+            className: post.liked_by_me ? clubReactionInkClass("agree") : undefined,
+          })}
           aria-pressed={post.liked_by_me}
-          onClick={onLike === undefined ? undefined : () => onLike(post.id)}
+          aria-label={
+            likeOthers > 0
+              ? t("club.hub.feed.likeWithCount", { count: post.like_count })
+              : t("club.post.like")
+          }
+          onClick={
+            onLike === undefined
+              ? undefined
+              : () => {
+                  if (!post.liked_by_me) setTapKey((key) => key + 1);
+                  onLike(post.id);
+                }
+          }
           disabled={onLike === undefined}
+          data-testid="club-post-like"
         >
-          <ThumbsUp className="h-3.5 w-3.5" aria-hidden="true" />
-          {post.like_count > 0 ? post.like_count : t("club.post.like")}
-        </Button>
+          <span key={tapKey} className={cn("inline-flex", tapKey > 0 && "club-reaction-tap")}>
+            <ThumbsUp
+              className={CLUB_FEED_ACTION_ICON}
+              strokeWidth={post.liked_by_me ? 2.4 : 2}
+              aria-hidden="true"
+            />
+          </span>
+          <span className="max-w-full truncate">{t("club.post.like")}</span>
+        </button>
+
         {/* KOMENTARZ PROWADZI DO WĄTKU. Wpis jest krótką formą i celowo nie ma
             własnej nitki komentarzy - pogłębiona dyskusja ma jedno miejsce.
             Gdy wpis jest już podpięty pod wątek, idziemy prosto do kompozytora
@@ -447,49 +502,35 @@ export function ClubPostCard({
             wątku, a nie martwy przycisk. */}
         {canComment && !hideThreadLink ? (
           post.thread_slug !== null ? (
-            <Button
-              asChild
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 gap-1.5 rounded-lg px-2.5 text-xs"
+            <Link
+              to="/club/$clubSlug/t/$threadSlug"
+              params={{ clubSlug, threadSlug: post.thread_slug }}
+              search={{ reply: true }}
+              className={clubFeedActionClass()}
+              data-testid="club-post-comment"
             >
-              <Link
-                to="/club/$clubSlug/t/$threadSlug"
-                params={{ clubSlug, threadSlug: post.thread_slug }}
-                search={{ reply: true }}
-                data-testid="club-post-comment"
-              >
-                <MessageSquarePlus className="h-3.5 w-3.5" aria-hidden="true" />
-                {t("club.post.comment")}
-              </Link>
-            </Button>
+              <MessageSquareText className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
+              <span className="max-w-full truncate">{t("club.hub.feed.comment")}</span>
+            </Link>
           ) : (
-            <Button
-              asChild
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 gap-1.5 rounded-lg px-2.5 text-xs"
+            <Link
+              to="/club/$clubSlug/new"
+              params={{ clubSlug }}
+              search={post.group_id === null ? {} : { groupId: post.group_id }}
+              className={clubFeedActionClass()}
+              data-testid="club-post-start-thread"
             >
-              <Link
-                to="/club/$clubSlug/new"
-                params={{ clubSlug }}
-                search={post.group_id === null ? {} : { groupId: post.group_id }}
-                data-testid="club-post-start-thread"
-              >
-                <MessagesSquare className="h-3.5 w-3.5" aria-hidden="true" />
-                {t("club.post.startThread")}
-              </Link>
-            </Button>
+              <MessagesSquare className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
+              <span className="max-w-full truncate">{t("club.post.startThread")}</span>
+            </Link>
           )
         ) : null}
-        {media.length > 0 ? (
-          <Badge variant="outline" className="rounded-lg text-[11px]">
-            {t("club.post.attachmentsCount", { count: media.length })}
-          </Badge>
+
+        {/* Wpis nie ma własnego adresu - udostępnia się rozmowę, w której stoi. */}
+        {threadPath !== null && !hideThreadLink ? (
+          <ClubFeedShareAction path={threadPath} title={post.thread_title ?? ""} />
         ) : null}
-      </div>
-    </article>
+      </ClubFeedActionBar>
+    </ClubFeedCard>
   );
 }

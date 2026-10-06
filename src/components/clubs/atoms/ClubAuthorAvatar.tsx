@@ -11,6 +11,8 @@
 const SIZES = {
   sm: "h-7 w-7 text-[11px]",
   md: "h-9 w-9 text-xs",
+  // Nagłówek karty strumienia: twarz autora jest pierwszym, co czyta oko.
+  lg: "h-12 w-12 text-sm",
 } as const;
 
 function initials(name: string): string {

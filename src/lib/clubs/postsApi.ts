@@ -136,7 +136,14 @@ export async function uploadClubPostMedia(file: File): Promise<ClubPostMediaAtta
     .upload(path, file, { contentType: file.type, upsert: false });
   if (error) throw new ClubMediaError("upload", error.message);
 
-  const dimensions = kind === "image" ? await readImageSize(file) : null;
+  // Wymiary nagrania też: pionowe wideo (4:5, 9:16) dostaje wtedy w strumieniu
+  // własną ramę zamiast pasów w ramie 16:9.
+  const dimensions =
+    kind === "image"
+      ? await readImageSize(file)
+      : kind === "video"
+        ? await readVideoSize(file)
+        : null;
 
   return {
     type: kind,
@@ -158,6 +165,41 @@ async function readImageSize(file: File): Promise<{ width: number; height: numbe
     return size;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Wymiary nagrania z jego metadanych. Odczyt ma limit czasu: kodek, którego
+ * przeglądarka nie rozumie, nigdy nie odpali `loadedmetadata`, a wysyłka nie
+ * może na to czekać - bez wymiarów karta po prostu użyje ramy 16:9.
+ */
+async function readVideoSize(file: File): Promise<{ width: number; height: number } | null> {
+  if (typeof document === "undefined" || typeof URL.createObjectURL !== "function") return null;
+  const probe = document.createElement("video");
+  // Format, którego przeglądarka nie odtworzy, nie odda też metadanych -
+  // nie ma na co czekać.
+  if (typeof probe.canPlayType !== "function" || probe.canPlayType(file.type) === "") return null;
+  const url = URL.createObjectURL(file);
+  try {
+    return await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), 4000);
+      probe.preload = "metadata";
+      probe.muted = true;
+      probe.onloadedmetadata = () => {
+        clearTimeout(timer);
+        const { videoWidth, videoHeight } = probe;
+        resolve(
+          videoWidth > 0 && videoHeight > 0 ? { width: videoWidth, height: videoHeight } : null,
+        );
+      };
+      probe.onerror = () => {
+        clearTimeout(timer);
+        resolve(null);
+      };
+      probe.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }
 
