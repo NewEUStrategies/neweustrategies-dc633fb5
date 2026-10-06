@@ -18,7 +18,10 @@
  * `fetchpriority=high` wyłącznie dla kandydata - ten sam `imagesrcset` +
  * `imagesizes` co `<img>` (`imagePreloadNonCandidate`), nagłówek `Link`
  * wyłącznie z dozwolonych wpisów (`linkHeaderDisallowed`) i bajty przed LCP
- * (`preLcpTransferBytes`). Kontrole negatywne tych reguł były w
+ * (`preLcpTransferBytes`). Od P2.1 (boot po LCP) zestaw bootu `#nes-boot-set`: domknięcie
+ * bootu liczone od jego wejścia, dokument bez żadnej drogi do JS-a (`bootEntryMissing`) i seria
+ * bootu (`bootBurst*`), czyli JS pobierany w chwili bootu - w trybie `lcp` poza pulą przed LCP.
+ * Kontrole negatywne tych reguł były w
  * `document-weight.test.mjs`, który usunął z repo PR #475 razem z resztą testów
  * uprzęży pomiarowej (`git log --diff-filter=D -- scripts/performance/`).
  * Do tego moduły tylko-serwerowe (`lcpCandidate.ts`, `heroImage.ts`) nie mogą
@@ -177,6 +180,12 @@ function printWeight(w: DocumentWeight): void {
     );
     console.log(
       `  CSS blokujący: ${w.renderBlockingCssCount} plik(ów), ${w.renderBlockingCssRawBytes} B raw / ${w.renderBlockingCssGzipBytes} B gzip`,
+    );
+    console.log(
+      w.bootSet
+        ? `  zestaw bootu (P2.1): tryb ${w.bootSet.mode}, wejście ${w.bootSet.entry}, ${w.bootSet.urls.length} URL-i; ` +
+            `seria bootu ${w.bootBurstCount} plików / ${w.bootBurstGzipBytes} B gzip`
+        : `  zestaw bootu (P2.1): brak${w.bootEntryMissing ? " - i brak skryptu wejścia (dokument bez JS-a)" : ""}`,
     );
   }
   console.log(
