@@ -227,6 +227,10 @@ export const Route = createFileRoute("/")({
     if (!contentDegraded && homePage && homePage.editor === "builder") {
       const doc = parseBuilderDoc(homePage.builder_data);
       if (doc.sections.length > 0) {
+        // Hinty modułów leniwych widgetów nad zgięciem. Od P2.1 nie wychodzą w odpowiedzi
+        // (strona główna bootuje po LCP): `lib/boot/bootSet.server.ts` przenosi je
+        // z akumulatora `Link` do zestawu bootu, więc chunki przychodzą w tym samym
+        // burście co wejście (warunek CLS 0, werdykt boot-js C3).
         for (const hint of widgetPreloadHeaders(doc, ABOVE_FOLD_SECTION_COUNT))
           appendLinkHeader(hint);
         const lang = activeLang(getRequestUrl() || "/") === "en" ? "en" : "pl";

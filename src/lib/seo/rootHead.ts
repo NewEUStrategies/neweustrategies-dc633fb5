@@ -90,6 +90,13 @@ export function rootDocumentLinks(
  * Nagłówek HTTP nie jest częścią DOM-u, więc problemu nie ma z konstrukcji,
  * a przy tym działa WCZEŚNIEJ niż `<link>` (przed sparsowaniem `<head>`)
  * i jest utrwalany w NES Edge Cache na HIT/STALE.
+ *
+ * OD P2.1 (BOOT PO LCP) wartość jest przede wszystkim WEJŚCIEM ZESTAWU BOOTU:
+ * `lib/boot/bootSet.server.ts` czyta `modulepreload` z akumulatora `Link`
+ * w dehydratacji i wkłada moduł do `#nes-boot-set`, a
+ * `lib/http/frameworkPreloads.server.ts` zdejmuje go z odpowiedzi dokumentu
+ * bootującego po LCP (`/`, `/$`) - JS nie może ruszyć przed wpisem LCP.
+ * Dokument `now` (reszta serwisu) niesie go nadal, razem z całą serią.
  */
 export function dictionaryPreloadLinkHeaderValue(chunkUrl: string | null): string | null {
   if (!chunkUrl) return null;

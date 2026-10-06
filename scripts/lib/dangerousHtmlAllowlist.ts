@@ -32,6 +32,13 @@ export const DANGEROUS_HTML_ALLOWLIST: readonly DangerousHtmlAllowEntry[] = [
   {
     file: "src/routes/__root.tsx",
     sink: "script",
+    symbol: "bootLoaderScript",
+    reason:
+      "Loader bootu (P2.1): na serwerze stała BOOT_LOADER_SCRIPT z lib/boot/bootLoaderScript - literał złożony wyłącznie ze stałych modułu (opóźnienia, id węzła zestawu, nazwy zdarzeń) i wyrażenia STORED_SESSION_EXPR z integrations/supabase/sessionHint (też stała), bez wstawek z bazy ani z żądania; w przeglądarce ten sam napis przepisany z już wykonanego węzła `script[data-nes-boot]`. MUSI być klasyczny i stać w `<head>`: manifest TanStack Start nie startuje już JS-a, więc to on wstawia serię modulepreload i wejście (po wpisie LCP albo od razu). Listę URL-i czyta z węzła danych `#nes-boot-set`, którego treść serwer escapuje (`<` jako \\u003c).",
+  },
+  {
+    file: "src/routes/__root.tsx",
+    sink: "script",
     symbol: "supabaseConfigScript",
     reason:
       "Serializacja publicznej konfiguracji Supabase (lib/supabasePublicConfig.ts:65) ucieka `<`, więc treść nie domknie `</script>`. Bez tego skryptu klient Supabase rzuca przy pierwszym użyciu i błąd zastępuje całą stronę (incydent 2026-07-16).",

@@ -43,6 +43,8 @@ const h = vi.hoisted(() => ({
   dehydrateImpl: undefined as undefined | (() => Promise<unknown>),
   /** Kolejność zdarzeń w gałęzi serwerowej - przedmiot dowodu nr 2. */
   order: [] as string[],
+  /** Routery, z którymi wstrzyknięto zestaw bootu (P2.1). */
+  bootRouters: [] as unknown[],
 }));
 
 vi.mock("@tanstack/router-core/isServer", () => ({
@@ -78,6 +80,16 @@ vi.mock("@/lib/ssr/postRenderSweep", () => ({
 }));
 
 vi.mock("@/lib/i18n/localeRuntime", () => ({ currentLang: () => h.lang }));
+
+// Zestaw bootu (P2.1): atrapa rejestruje wywołanie w tej samej osi kolejności, bo kontraktem
+// jest MIEJSCE wstrzyknięcia (hak dehydratacji, raz na dokument), a nie skład - ten ma własny
+// test (`lib/boot/__tests__/bootSet.server.test.ts`).
+vi.mock("@/lib/boot/bootSet.server", () => ({
+  injectBootSet: (router: unknown) => {
+    h.order.push("boot-set");
+    h.bootRouters.push(router);
+  },
+}));
 
 const { getRouter } = await import("@/router");
 const { HYDRATE_BUDGET_MS } = await import("@/lib/ssr/hydrateBudget");
@@ -215,7 +227,20 @@ describe("getRouter - gałąź SERWERA", () => {
     h.dehydrateImpl = async () => ({});
     const r = getRouter();
     await r.options.dehydrate!();
-    expect(h.order).toEqual(["sweep:dehydrate", "integration-dehydrate"]);
+    expect(h.order).toEqual(["boot-set", "sweep:dehydrate", "integration-dehydrate"]);
+    h.server = false;
+  });
+
+  it("ZESTAW BOOTU (P2.1): wstrzyknięcie w haku dehydratacji, z TYM routerem, raz na wywołanie", async () => {
+    // Hak biegnie po `router.load()` i przed renderem Reacta, tak samo na ścieżce strumieniowej
+    // i `allReady` botów - stąd ten punkt, a nie render powłoki ani `onRenderFinished`.
+    h.server = true;
+    h.order = [];
+    h.bootRouters = [];
+    h.dehydrateImpl = async () => ({});
+    const r = getRouter();
+    await r.options.dehydrate!();
+    expect(h.bootRouters).toEqual([r]);
     h.server = false;
   });
 

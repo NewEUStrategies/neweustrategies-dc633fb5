@@ -10,13 +10,15 @@
 // artefakcie (hydratacja, HIT/MISS, bot/przeglądarka): $SCRATCH/phase2/wave2/P2.1/SPIKE.md.
 //
 // i18n: brak treści dla użytkownika - narzędzie builda.
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  BOOT_MANIFEST_GLOBAL_KEY,
+  BOOT_MANIFEST_MODULE_SUFFIX,
   START_MANIFEST_MODULE_ID,
   bootAfterLcpPlugin,
   evaluateStartManifestModule,
+  rewriteBootManifestPlaceholder,
   rewriteStartManifestModule,
   splitStartManifest,
 } from "../../../../scripts/lib/bootAfterLcpPlugin";
@@ -79,22 +81,19 @@ describe("nes:boot-after-lcp - podział manifestu", () => {
   });
 
   it("emituje moduł JSON: nowy obiekt przy każdym wywołaniu i mapę dla serwera", () => {
-    const key = Symbol.for(BOOT_MANIFEST_GLOBAL_KEY);
-    try {
-      const { code, boot } = rewriteStartManifestModule(FRAMEWORK_MODULE);
-      expect(code).not.toMatch(/preloads/);
-      const loaded = loadEmitted(code);
-      expect(loaded.nesBootManifest).toEqual(boot);
-      expect(Reflect.get(globalThis, key)).toEqual(boot);
-      const first = loaded.tsrStartManifest();
-      expect(first).toEqual(loaded.tsrStartManifest());
-      expect(first).not.toBe(loaded.tsrStartManifest());
-      expect(frameworkView(first)).toEqual({
-        "/$": { css: ["/assets/RichTextView-DK8DYkTM.css"] },
-      });
-    } finally {
-      Reflect.deleteProperty(globalThis, key);
-    }
+    const { code, boot } = rewriteStartManifestModule(FRAMEWORK_MODULE);
+    expect(code).not.toMatch(/preloads/);
+    // Mapa jedzie WYŁĄCZNIE eksportem modułu (zaślepka `bootManifest.ts` go reeksportuje),
+    // bez globalnego przekazania z czasów spike'u.
+    expect(code).not.toMatch(/globalThis/);
+    const loaded = loadEmitted(code);
+    expect(loaded.nesBootManifest).toEqual(boot);
+    const first = loaded.tsrStartManifest();
+    expect(first).toEqual(loaded.tsrStartManifest());
+    expect(first).not.toBe(loaded.tsrStartManifest());
+    expect(frameworkView(first)).toEqual({
+      "/$": { css: ["/assets/RichTextView-DK8DYkTM.css"] },
+    });
   });
 
   it("odrzuca nieznane kształty zamiast przepisywać po cichu", () => {
@@ -153,23 +152,58 @@ describe("nes:boot-after-lcp - hook wtyczki", () => {
   });
 
   it("przepisuje manifest wyłącznie w środowisku serwera `ssr`", () => {
-    const key = Symbol.for(BOOT_MANIFEST_GLOBAL_KEY);
-    try {
-      expect(transform(context("ssr", "server"), FRAMEWORK_MODULE, "/repo/src/x.ts")).toBeNull();
-      expect(
-        transform(context("client", "client"), FRAMEWORK_MODULE, START_MANIFEST_MODULE_ID),
-      ).toBeNull();
-      const out = transform(context("ssr", "server"), FRAMEWORK_MODULE, START_MANIFEST_MODULE_ID);
-      expect(out?.code).toContain("export const nesBootManifest");
-      expect(out?.code).not.toMatch(/preloads|"async"/);
-    } finally {
-      Reflect.deleteProperty(globalThis, key);
-    }
+    expect(transform(context("ssr", "server"), FRAMEWORK_MODULE, "/repo/src/x.ts")).toBeNull();
+    expect(
+      transform(context("client", "client"), FRAMEWORK_MODULE, START_MANIFEST_MODULE_ID),
+    ).toBeNull();
+    const out = transform(context("ssr", "server"), FRAMEWORK_MODULE, START_MANIFEST_MODULE_ID);
+    expect(out?.code).toContain("export const nesBootManifest");
+    expect(out?.code).not.toMatch(/preloads|"async"/);
   });
 
   it("nieznany kształt w środowisku serwera przerywa build", () => {
     expect(() =>
       transform(context("ssr", "server"), "export default {}", START_MANIFEST_MODULE_ID),
     ).toThrow(/nieznany kształt manifestu/);
+  });
+});
+
+// ZAŚLEPKA MAPY. Serwer czyta `BOOT_MANIFEST` z `src/lib/boot/bootManifest.ts`; w `ssr`
+// wtyczka zamienia deklarację `null` na reeksport `nesBootManifest` z przepisanego manifestu.
+// Wejście jak w buildzie: kod PO transpilacji TS (wtyczka biegnie z `enforce: "post"`).
+const PLACEHOLDER_ID = `/repo${BOOT_MANIFEST_MODULE_SUFFIX}`;
+const TRANSPILED_PLACEHOLDER = "export const BOOT_MANIFEST = null;\n";
+
+describe("nes:boot-after-lcp - zaślepka BOOT_MANIFEST", () => {
+  it("zamienia deklarację `null` na reeksport mapy z modułu manifestu", () => {
+    const out = rewriteBootManifestPlaceholder(TRANSPILED_PLACEHOLDER);
+    expect(out).toBe(
+      'export { nesBootManifest as BOOT_MANIFEST } from "tanstack-start-manifest:v";\n',
+    );
+  });
+
+  it("deklaracja w źródle i w wejściu testu to ten sam kształt (bez cichego rozjazdu)", () => {
+    // Źródło ma adnotację typu, którą esbuild zdejmuje; wzorzec ma pasować do wyniku.
+    const source = readFileSync("src/lib/boot/bootManifest.ts", "utf8");
+    expect(source).toMatch(/export const BOOT_MANIFEST: BootManifest \| null = null;/);
+  });
+
+  it("brak deklaracji to `null` (wołający przerywa build), nie cicha podmiana", () => {
+    expect(rewriteBootManifestPlaceholder("export const BOOT_MANIFEST = {};")).toBeNull();
+  });
+
+  it("w `ssr` hook przepisuje zaślepkę, w kliencie zostawia `null`", () => {
+    expect(
+      transform(context("ssr", "server"), TRANSPILED_PLACEHOLDER, PLACEHOLDER_ID)?.code,
+    ).toContain("nesBootManifest as BOOT_MANIFEST");
+    expect(
+      transform(context("client", "client"), TRANSPILED_PLACEHOLDER, PLACEHOLDER_ID),
+    ).toBeNull();
+  });
+
+  it("zaślepka bez deklaracji w `ssr` przerywa build", () => {
+    expect(() =>
+      transform(context("ssr", "server"), "export const BOOT_MANIFEST = {};", PLACEHOLDER_ID),
+    ).toThrow(/brak deklaracji/);
   });
 });

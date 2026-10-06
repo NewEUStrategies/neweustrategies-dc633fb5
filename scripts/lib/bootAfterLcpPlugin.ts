@@ -1,13 +1,14 @@
-// Wtyczka: manifest TanStack Start BEZ preloadów i BEZ skryptu wejścia (P2.1, krok 0 - spike
-// parytetu). Plan: docs/performance/2026-10-03-pagespeed-85-95/faza2/PLAN-FALE-1-2.md §3.2.
+// Wtyczka: manifest TanStack Start BEZ preloadów i BEZ skryptu wejścia (P2.1, boot po LCP).
+// Plan: docs/performance/2026-10-03-pagespeed-85-95/faza2/PLAN-FALE-1-2.md §3.2; dowód parytetu
+// (krok 0): faza2/raporty/P2.1-SPIKE.md.
 //
-// PO CO. Boot po LCP wymaga, żeby dokument NIE startował JS-a sam: dziś `<HeadContent>` renderuje
-// z manifestu `<link rel="modulepreload">` korzenia i dopasowanych tras, `<Scripts>` renderuje
-// `<script type="module" async src="/assets/index-*.js">`, a `fetchWithFrameworkPreloads`
-// (`src/lib/http/frameworkPreloads.server.ts`) kopiuje te same preloady do nagłówka `Link`.
+// PO CO. Boot po LCP wymaga, żeby dokument NIE startował JS-a sam: bez tej wtyczki `<HeadContent>`
+// renderuje z manifestu `<link rel="modulepreload">` korzenia i dopasowanych tras, `<Scripts>`
+// renderuje `<script type="module" async src="/assets/index-*.js">`, a kolektor `onEarlyHints`
+// (`src/lib/http/frameworkPreloads.server.ts`) dawał te same preloady do nagłówka `Link`.
 // Lantern liczy każdy taki chunk zakończony przed obserwowanym LCP do grafu LCP (werdykt
 // boot-js C3), więc zestaw bootu ma ruszyć dopiero po LCP - a to umie tylko loader spoza
-// manifestu.
+// manifestu (`src/lib/boot/bootLoaderScript.ts` + zestaw `#nes-boot-set` z `bootSet.server.ts`).
 //
 // GDZIE. Wirtualny moduł `tanstack-start-manifest:v` w środowisku SERWERA (`ssr`), czyli JEDYNE
 // źródło manifestu: z niego `getStartManifest()` (start-server-core `router-manifest.js`) składa
@@ -25,20 +26,24 @@
 // `children`) - bez zmian. Znika WYŁĄCZNIE `preloads` każdej trasy i modułowy skrypt wejścia
 // korzenia; oba przechodzą do `BOOT_MANIFEST` (eksport `nesBootManifest` tego samego modułu).
 //
-// AWARIA JEST GŁOŚNA. Moduł w nieznanym kształcie (aktualizacja TanStack Start) przerywa build
-// (`this.error`): ciche pominięcie oznaczałoby dokument z loaderem bootu I skryptem wejścia,
-// a ciche częściowe przepisanie - dokument bez żadnej drogi do JS-a (martwa hydratacja na
-// każdej stronie, klasa incydentu 2026-07-20).
+// JAK SERWER CZYTA MAPĘ. Plik-zaślepka `src/lib/boot/bootManifest.ts` (`BOOT_MANIFEST = null`)
+// wtyczka zamienia w `ssr` na reeksport `nesBootManifest` z przepisanego modułu - ten sam wzorzec
+// co `localeChunks.ts`. Vitest i dev widzą jawne `null`. Słownika i mapy widgetów tu NIE MA:
+// serwer ma je w `LOCALE_CHUNK_URLS` i `WIDGET_CHUNK_URLS` (własne wtyczki), a duplikat byłby
+// drugim kontraktem bez zysku.
+//
+// AWARIA JEST GŁOŚNA. Moduł w nieznanym kształcie (aktualizacja TanStack Start) albo zaślepka bez
+// deklaracji do podmiany przerywa build (`this.error`): ciche pominięcie oznaczałoby dokument
+// z loaderem bootu I skryptem wejścia albo bez mapy, a ciche częściowe przepisanie - dokument bez
+// żadnej drogi do JS-a (martwa hydratacja na każdej stronie, klasa incydentu 2026-07-20).
 //
 // TYLKO BUILD. W dev manifest jest pusty z konstrukcji (TanStack zwraca wpis klienta deweloperskiego
 // `/@id/...`), a dev-server nie ma chunków - przepisywać nie ma czego.
-//
-// SPIKE: `BOOT_MANIFEST` trafia dodatkowo pod `globalThis[Symbol.for("nes.bootManifest")]` przy
-// ewaluacji modułu (moduł ładuje `getStartManifest()` przed `router.load()` każdego dokumentu).
-// To przekazanie istnieje wyłącznie dla rusztowania spike'u w `src/routes/__root.tsx`; docelowo
-// `bootSet.server.ts` czyta mapę z pliku-zaślepki podmienianego tą wtyczką (wzorzec
-// `localeChunks.ts`), a ten wpis znika.
 import type { Plugin } from "vite";
+
+import type { BootManifest } from "../../src/lib/boot/bootManifest";
+
+export type { BootManifest };
 
 /** Id wirtualnego modułu manifestu po rozwiązaniu (`resolveViteId` = prefiks `\0`). */
 export const START_MANIFEST_MODULE_ID = "\0tanstack-start-manifest:v";
@@ -46,8 +51,19 @@ export const START_MANIFEST_MODULE_ID = "\0tanstack-start-manifest:v";
 /** Nazwa środowiska serwera TanStack Start (`START_ENVIRONMENT_NAMES.server`). */
 const SERVER_ENVIRONMENT = "ssr";
 
-/** Klucz przekazania mapy rusztowaniu spike'u (patrz nagłówek). */
-export const BOOT_MANIFEST_GLOBAL_KEY = "nes.bootManifest";
+/** Zaślepka mapy w źródłach - podmieniana w `ssr` na reeksport `nesBootManifest`. */
+export const BOOT_MANIFEST_MODULE_SUFFIX = "/src/lib/boot/bootManifest.ts";
+
+/**
+ * Deklaracja zaślepki PO transpilacji TS (wtyczka biegnie z `enforce: "post"`, więc adnotacja
+ * typu jest już zdjęta). Wąsko: nazwa i `null`, bez flagi `g` (`lastIndex` współdzielonego
+ * wyrażenia fałszowałby kolejne wywołania).
+ */
+const BOOT_MANIFEST_PLACEHOLDER_RE = /export\s+const\s+BOOT_MANIFEST\s*=\s*null\s*;?/;
+
+/** Reeksport mapy z przepisanego modułu manifestu (rozwiązuje go `resolveId` frameworka). */
+const BOOT_MANIFEST_REEXPORT =
+  'export { nesBootManifest as BOOT_MANIFEST } from "tanstack-start-manifest:v";';
 
 /** Szablon `load()` z `start-plugin-core/vite/start-manifest-plugin/plugin.js`. */
 const MODULE_PREFIX = "export const tsrStartManifest = ";
@@ -63,16 +79,6 @@ interface StartManifest {
   routes: Record<string, StartManifestRoute>;
   scriptFormat?: unknown;
   [key: string]: unknown;
-}
-
-/** Serwerowa mapa zestawu bootu (BOOT_MANIFEST). */
-export interface BootManifest {
-  /** Moduł wejściowy klienta (dotąd `<script type="module" async>` z `<Scripts>`). */
-  readonly entry: string;
-  /** Preloady korzenia: entry + jego statyczne importy (jeden poziom, kolejność manifestu). */
-  readonly rootPreloads: readonly string[];
-  /** Preloady pozostałych tras: id trasy -> chunki trasy + ich bezpośrednie importy. */
-  readonly routePreloads: Readonly<Record<string, readonly string[]>>;
 }
 
 export interface SplitStartManifest {
@@ -196,8 +202,6 @@ export function rewriteStartManifestModule(code: string): {
     "// nes:boot-after-lcp (scripts/lib/bootAfterLcpPlugin.ts): preloady i skrypt wejścia",
     "// przeniesione z manifestu TanStack Start do BOOT_MANIFEST (P2.1).",
     `export const nesBootManifest = ${JSON.stringify(boot)};`,
-    "// SPIKE P2.1: przekazanie rusztowaniu w src/routes/__root.tsx (patrz nagłówek wtyczki).",
-    `globalThis[Symbol.for(${JSON.stringify(BOOT_MANIFEST_GLOBAL_KEY)})] = nesBootManifest;`,
     // Funkcja zwraca NOWY obiekt przy każdym wywołaniu, jak oryginał frameworka.
     `export const tsrStartManifest = () => (${JSON.stringify(manifest)});`,
     "",
@@ -213,17 +217,39 @@ function environmentOf(ctx: unknown): EnvironmentLike | undefined {
   return env && typeof env === "object" ? env : undefined;
 }
 
+/**
+ * Kod zaślepki `bootManifest.ts` z reeksportem mapy zamiast `null`, albo `null`, gdy deklaracji
+ * nie ma (wołający zamienia to na błąd builda). Funkcja czysta; zmienia WYŁĄCZNIE deklarację, więc
+ * ewentualne inne eksporty pliku zostają.
+ */
+export function rewriteBootManifestPlaceholder(code: string): string | null {
+  if (!BOOT_MANIFEST_PLACEHOLDER_RE.test(code)) return null;
+  return code.replace(BOOT_MANIFEST_PLACEHOLDER_RE, () => BOOT_MANIFEST_REEXPORT);
+}
+
 export function bootAfterLcpPlugin(): Plugin {
   return {
     name: "nes:boot-after-lcp",
     apply: "build",
-    // Po `load()` frameworka; kolejność transformów wirtualnego modułu nie ma innych chętnych.
+    // Po `load()` frameworka (kolejność transformów wirtualnego modułu nie ma innych chętnych)
+    // i po transpilacji TS zaślepki (wzorzec deklaracji bez adnotacji typu).
     enforce: "post",
     transform(code, id) {
-      if (id !== START_MANIFEST_MODULE_ID) return null;
       const env = environmentOf(this);
-      // Klient i inne środowiska dostają od frameworka pusty manifest deweloperski - nie nasz.
+      // Klient i inne środowiska dostają od frameworka pusty manifest deweloperski - nie nasz;
+      // zaślepka w bundlu przeglądarki zostaje `null` (klient jej nie importuje).
       if (env?.name !== SERVER_ENVIRONMENT) return null;
+      if (id.replaceAll("\\", "/").endsWith(BOOT_MANIFEST_MODULE_SUFFIX)) {
+        const rewritten = rewriteBootManifestPlaceholder(code);
+        if (rewritten === null) {
+          this.error(
+            "nes:boot-after-lcp - brak deklaracji `export const BOOT_MANIFEST = null` w " +
+              `${BOOT_MANIFEST_MODULE_SUFFIX}; serwer nie dostałby mapy zestawu bootu`,
+          );
+        }
+        return { code: rewritten, map: null };
+      }
+      if (id !== START_MANIFEST_MODULE_ID) return null;
       try {
         const { code: rewritten, boot } = rewriteStartManifestModule(code);
         const routes = Object.keys(boot.routePreloads).length;
