@@ -1,12 +1,10 @@
 import {
   createContext,
-  startTransition,
   useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -20,6 +18,7 @@ import {
   THEME_STORAGE_KEY,
   type Theme,
 } from "@/lib/theme/themeChoice";
+import { useIslandMirror } from "@/lib/performance/hydrationIsland";
 
 const STORAGE_KEY = THEME_STORAGE_KEY;
 const SERVER_THEME: Theme = "light";
@@ -46,9 +45,9 @@ const SERVER_THEME: Theme = "light";
 //    widok zamiast fallbacku (jak dotąd).
 // Czekająca wyspa nie ma jeszcze zamontowanych konsumentów - zmiana motywu do
 // niej nie dociera; uwodniona dostaje motyw lustrem we własnym przejściu.
-// Tryb renderu rozpoznaje sonda `useSyncExternalStore` z identyczną migawką
-// (React woła `getServerSnapshot` wyłącznie przy hydratacji; ten sam chwyt co
-// `IslandGate` i `useViewportDevice`).
+// Lustro i sonda trybu renderu są wspólne z wyspą i urządzeniem renderera
+// (`useIslandMirror`/`useHydrating` w `hydrationIsland.tsx`: React woła
+// `getServerSnapshot` wyłącznie przy hydratacji).
 //
 // `setTheme` najpierw SYNCHRONICZNIE stosuje klasę na `<html>` (CSS reaguje w
 // tej samej klatce, niezależnie od wysp), dopiero potem ogłasza motyw w
@@ -195,42 +194,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
-/** Sonda trybu renderu: zmienna robocza czytana zaraz po haku (patrz nagłówek). */
-let probedHydration = false;
-const subscribeNothing = () => () => undefined;
-const clientSnapshot = () => {
-  probedHydration = false;
-  return 0;
-};
-const hydrationSnapshot = () => {
-  probedHydration = true;
-  return 0;
-};
-
 export function useTheme() {
   const { store, toggle, setTheme } = useContext(ThemeContext);
-  probedHydration = false;
-  useSyncExternalStore(subscribeNothing, clientSnapshot, hydrationSnapshot);
-  const hydrating = probedHydration;
   // A lazy widget can hydrate after an already interactive header changes the
   // theme. It still needs the server's theme for that first render; using the
   // live theme would add/remove its style nodes and discard the SSR tree.
-  const [theme, setMirror] = useState<Theme>(() => (hydrating ? SERVER_THEME : store.get()));
-  useEffect(() => {
-    // Ostatnia wartość podana lustru: ten sam motyw nie renderuje konsumenta
-    // (hydratacja na jasnym motywie - zero dodatkowych renderów).
-    let mirrored = theme;
-    const follow = () => {
-      const next = store.get();
-      if (next === mirrored) return;
-      mirrored = next;
-      startTransition(() => setMirror(next));
-    };
-    follow();
-    return store.subscribe(follow);
-    // Montaż: magazyn i wartość początkowa lustra czytane raz (magazyn dostawcy
-    // ma stałą tożsamość).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store]);
+  // Lustro (`useIslandMirror`): hydratacja - motyw serwera, świeży montaż -
+  // bieżący motyw magazynu, potem przejścia; ten sam motyw nie renderuje
+  // konsumenta (hydratacja na jasnym motywie - zero dodatkowych renderów).
+  const theme = useIslandMirror(SERVER_THEME, store.get, store.subscribe);
   return useMemo(() => ({ theme, toggle, setTheme }), [theme, toggle, setTheme]);
 }

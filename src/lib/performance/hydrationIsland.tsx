@@ -87,6 +87,30 @@
 //    "islands"})`.
 // Pierwszy wyzwalacz, który dojdzie do skutku, zdejmuje pozostałe.
 //
+// STRAŻ KLIKU (P2.2, dowód: pierwszy klik w zimną wyspę `hdr-account`
+// przepadał). Gdy granica przy dyskretnym zdarzeniu nadal czeka (bramka
+// zamknięta, bo chunk wyspy jest w drodze - wyzwalacz intencji ruszył import
+// tuż przed `click`; albo zagnieżdżony `lazy` widgetu bez statusu, np. w
+// wyspie sekcji), react-dom woła `stopPropagation()` i zdarzenia NIE
+// dispatchuje - ani teraz, ani po hydratacji (brak powtórki zdarzeń
+// dyskretnych od React 18). Dlatego każda wyspa trzyma, dopóki jest
+// zamontowana, wpis w JEDNYM nasłuchu `click` w fazie capture na `window`
+// (przed nasłuchem Reacta na dokumencie): zaufany klik głównym przyciskiem,
+// bez modyfikatorów (Ctrl/Cmd/Shift/Alt - nowa karta, zaznaczanie - zostają
+// przeglądarce), w węzeł, którego React jeszcze nie uwodnił (`isDehydrated`
+// niżej), jest zatrzymany (`preventDefault` - link nie przeładuje strony;
+// `stopImmediatePropagation` - React i telemetria nie zobaczą go dwa razy),
+// wyspa otwiera się wprost torem pilnym (pozostałe wyzwalacze zdjęte, bez
+// wpisu w kolejce - klik jest intencją pod palcem), a po hydratacji celu klik
+// jest ODTWORZONY na tym samym węźle (`MouseEvent` z polami oryginału) - React
+// dispatchuje go zwykłą ścieżką (zagnieżdżoną granicę z rozwiązanym `lazy`
+// uwadnia synchronicznie).
+// Odtworzenie jest niezaufane (`isTrusted: false`), więc straż go nie łapie.
+// Zaufany klik poza wyspą unieważnia jej zapamiętany klik (odwiedzający
+// zmienił zamiar); po `CLICK_REPLAY_DEADLINE_MS` klik idzie bez czekania
+// (React uwodni granicę synchronicznie albo link pójdzie domyślną akcją).
+// Uwodniona treść - klik przechodzi nietknięty, bez opóźnienia.
+//
 // KONTRAKT ZADANIA (P0.3): zadanie otwarcia zwraca promise rozstrzygany PO
 // COMMICIE wyspy (efekt warstwy wewnątrz granicy), więc kolejka nie nakłada
 // następnej pracy na hydratację tej wyspy. Zagnieżdżone granice (np. widgety
@@ -173,6 +197,7 @@
 import {
   isValidElement,
   memo,
+  startTransition,
   Suspense,
   use,
   useCallback,
@@ -485,6 +510,55 @@ function subscribeGlobalKeys(subscription: GlobalKeySubscription): () => void {
   };
 }
 
+// --- Straż kliku (STRAŻ KLIKU w nagłówku) ------------------------------------
+
+/** Odstęp sprawdzania, czy cel zatrzymanego kliku jest już uwodniony. */
+const CLICK_REPLAY_POLL_MS = 16;
+/** Najdłużej tyle zatrzymany klik czeka na hydratację celu. */
+const CLICK_REPLAY_DEADLINE_MS = 3000;
+const REACT_FIBER_KEY = "__reactFiber$";
+
+const clickGuards = new Set<IslandController>();
+
+/**
+ * Czy węzeł `target` (w korzeniu wyspy `root`) czeka na hydratację. Idąc w
+ * górę: węzeł z włóknem Reacta (`__reactFiber$…` - React przypina je przy
+ * hydratacji i montażu każdego węzła) = uwodniony; węzeł bez włókna, przed
+ * którym stoi otwarty znacznik granicy serwera (`<!--$-->`, `<!--$?-->`,
+ * `<!--$!-->` bez domykającego `<!--/$-->`) = treść odwodnionej granicy (samej
+ * wyspy albo zagnieżdżonej). Treść spoza Reacta (`dangerouslySetInnerHTML`,
+ * wstawki skryptów) nie ma włókna ani znaczników - rozstrzyga jej rodzic.
+ */
+function isDehydrated(target: Node, root: Node): boolean {
+  for (let node: Node | null = target; node && node !== root; node = node.parentNode) {
+    if (Object.keys(node).some((key) => key.startsWith(REACT_FIBER_KEY))) return false;
+    let depth = 0;
+    for (let sibling = node.previousSibling; sibling; sibling = sibling.previousSibling) {
+      if (!(sibling instanceof Comment)) continue;
+      if (sibling.data === "/$") depth += 1;
+      else if (sibling.data[0] === "$" && depth-- === 0) return true;
+    }
+  }
+  return false;
+}
+
+function handleClick(event: MouseEvent): void {
+  const target = event.target;
+  if (
+    event.isTrusted !== true ||
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    event.altKey ||
+    !(target instanceof Element)
+  ) {
+    return;
+  }
+  for (const island of [...clickGuards]) island.guardClick(event, target);
+}
+
 /** Klasa `contents` w atrybucie `class` (także z wariantem, np. `md:contents`). */
 const CONTENTS_CLASS = /(?:^|[\s:])contents(?:\s|$)/;
 
@@ -528,6 +602,12 @@ class IslandController {
   private blocked = false;
   /** Otwarcie przez kolejkę po `blocked`; ustawiane przez `arm`, zdejmowane przez rozbrojenie. */
   private onBlocked: (() => void) | null = null;
+  /** Zdejmuje wyzwalacze założone przez `arm` (straż kliku otwiera wyspę wprost). */
+  private disarm: () => void = noop;
+  /** Korzeń wyspy pod strażą kliku (`guardClicks`). */
+  private root: Element | null = null;
+  /** Klik zatrzymany do hydratacji celu (STRAŻ KLIKU). */
+  private heldClick: MouseEvent | null = null;
   private readonly id: string;
 
   constructor(id: string, trigger: IslandTrigger, chunks: readonly IslandChunk[]) {
@@ -664,6 +744,50 @@ class IslandController {
     return this.requestOpen();
   }
 
+  /**
+   * Zakłada straż kliku na korzeniu wyspy (STRAŻ KLIKU w nagłówku) - na cały
+   * czas montażu, także po otwarciu (zagnieżdżone granice uwadniają się
+   * później); zwraca jej zdjęcie razem z zapamiętanym klikiem.
+   */
+  guardClicks(root: Element): () => void {
+    this.root = root;
+    if (clickGuards.size === 0) window.addEventListener("click", handleClick, true);
+    clickGuards.add(this);
+    return () => {
+      clickGuards.delete(this);
+      if (clickGuards.size === 0) window.removeEventListener("click", handleClick, true);
+      this.heldClick = null;
+    };
+  }
+
+  /** Zaufany klik na stronie (`handleClick`): zatrzymanie i odtworzenie albo nic. */
+  guardClick(event: MouseEvent, target: Element): void {
+    const root = this.root;
+    if (root === null) return;
+    if (!root.contains(target)) {
+      // Klik gdzie indziej: odwiedzający zmienił zamiar.
+      this.heldClick = null;
+      return;
+    }
+    if (!isDehydrated(target, root)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.disarm();
+    void this.openUrgent();
+    this.heldClick = event;
+    const deadline = performance.now() + CLICK_REPLAY_DEADLINE_MS;
+    const replay = () => {
+      if (this.heldClick !== event) return;
+      if (target.isConnected && isDehydrated(target, root) && performance.now() < deadline) {
+        setTimeout(replay, CLICK_REPLAY_POLL_MS);
+        return;
+      }
+      this.heldClick = null;
+      if (target.isConnected) target.dispatchEvent(new MouseEvent("click", event));
+    };
+    setTimeout(replay, CLICK_REPLAY_POLL_MS);
+  }
+
   /** Zakłada wyzwalacze na korzeniu wyspy; zwraca ich zdjęcie. */
   arm(root: HTMLElement): () => void {
     // `immediate`: otwarcie zlecone już w konstruktorze, bez wyzwalaczy.
@@ -676,6 +800,7 @@ class IslandController {
       armed = false;
       for (const cleanup of cleanups.splice(0)) cleanup();
     };
+    this.disarm = disarm;
     const schedule = (task: QueuedTask, options: EnqueueOptions) => {
       if (armed) cleanups.push(enqueue(task, options));
     };
@@ -800,16 +925,61 @@ function IslandCommitMarker({
  * jest groźny - zob. `viewportDevice.ts`); który getter zadziałał, mówi tylko
  * zmienna robocza, czytana zaraz po wywołaniu haka.
  */
-let renderMode: "hydration" | "client" | null = null;
+let hydrating = false;
 const subscribeNothing = (): (() => void) => noop;
 const clientSnapshot = (): number => {
-  renderMode = "client";
+  hydrating = false;
   return 0;
 };
 const hydrationSnapshot = (): number => {
-  renderMode = "hydration";
+  hydrating = true;
   return 0;
 };
+
+/**
+ * `true`, gdy komponent renderuje się w hydratacji (albo na serwerze),
+ * `false` przy renderze klienta (świeży montaż, aktualizacja) - SONDA TRYBU
+ * RENDERU wyżej. Wspólna dla wyspy, luster urządzenia i motywu oraz
+ * rozruchu gościa w `useAuth`.
+ */
+export function useHydrating(): boolean {
+  useSyncExternalStore(subscribeNothing, clientSnapshot, hydrationSnapshot);
+  return hydrating;
+}
+
+/**
+ * LUSTRO MAGAZYNU dla treści wysp (urządzenie renderera, motyw): `useState`
+ * aktualizowany WYŁĄCZNIE w `startTransition` - przejście, które trafi na
+ * odwodnioną granicę, czeka na jej hydratację zamiast porzucać jej HTML
+ * (zob. `viewportDevice.ts`). Przy hydratacji (i na serwerze) pierwszy render
+ * zwraca `serverValue` (parytet z HTML serwera), świeży montaż - bieżącą
+ * wartość magazynu od razu (bez mignięcia). Po montażu i przy każdej zmianie
+ * lustro przechodzi na bieżącą wartość; ta sama wartość nie zleca przejścia
+ * (np. hydratacja na desktopie albo na jasnym motywie: zero renderów).
+ * `get` (`null` = magazyn jeszcze nie wie) i `subscribe` czytane przy montażu.
+ */
+export function useIslandMirror<T>(
+  serverValue: T,
+  get: () => T | null,
+  subscribe: (listener: () => void) => () => void,
+): T {
+  const fromServer = useHydrating();
+  const [value, setValue] = useState<T>(() => (fromServer ? serverValue : (get() ?? serverValue)));
+  useEffect(() => {
+    let mirrored = value;
+    const follow = () => {
+      const next = get();
+      if (next === null || next === mirrored) return;
+      mirrored = next;
+      startTransition(() => setValue(next));
+    };
+    follow();
+    return subscribe(follow);
+    // Montaż: magazyn i wartość początkowa lustra czytane raz.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return value;
+}
 
 /**
  * Brama treści: dzieci są jej wyjściem, więc przy zawieszeniu React nie
@@ -824,14 +994,12 @@ function IslandGate({
   onCommit: () => void;
   children: ReactNode;
 }): ReactElement {
-  renderMode = null;
-  useSyncExternalStore(subscribeNothing, clientSnapshot, hydrationSnapshot);
-  const mode = renderMode;
+  const fromServer = useHydrating();
   if (island !== null) {
     if (!island.wrapperCommitted) {
       island.openForClientRender();
     } else if (!island.isOpen()) {
-      if (mode === "client") island.noteClientRender();
+      if (!fromServer) island.noteClientRender();
       use(island.gate);
     }
   }
@@ -879,8 +1047,10 @@ function IslandBoundary(props: HydrationIslandProps): ReactElement {
     const root = rootRef.current;
     if (!island || !root) return;
     const disarm = island.arm(root);
+    const unguard = island.guardClicks(root);
     return () => {
       disarm();
+      unguard();
       island.abandon();
     };
   }, [island]);

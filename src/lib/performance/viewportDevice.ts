@@ -56,12 +56,12 @@
 // dołożona po zmianie dostępu, wyspa otwarta po renderze klienta) nie ma
 // HTML-a, z którym trzeba się zgadzać, więc bierze bieżące urządzenie źródła
 // od razu - bez renderu „desktop" i przejścia na właściwą klasę (mignięcie
-// układu). Tryb renderu rozpoznaje ta sama sonda `useSyncExternalStore` z
-// identyczną migawką co `IslandGate` (`hydrationIsland.tsx`): React woła
+// układu). Lustro i sonda trybu renderu są wspólne z wyspą i motywem
+// (`useIslandMirror`/`useHydrating` w `hydrationIsland.tsx`): React woła
 // `getServerSnapshot` wyłącznie przy hydratacji (i na serwerze).
 
-import { startTransition, useEffect, useState, useSyncExternalStore } from "react";
 import type { Device } from "@/lib/builder/types";
+import { useIslandMirror } from "./hydrationIsland";
 
 /** Szerokość (px), od której widok przestaje być `mobile` - jak `BuilderRenderer.tsx`. */
 export const VIEWPORT_TABLET_MIN_WIDTH = 768;
@@ -202,52 +202,15 @@ export function createViewportDeviceSource(
 }
 
 /**
- * SONDA TRYBU RENDERU (jak `IslandGate` w `hydrationIsland.tsx`): obie
- * migawki zwracają TĘ SAMĄ wartość, więc React nigdy nie wymusza renderu;
- * który getter zadziałał, mówi zmienna robocza czytana zaraz po haku.
- */
-let probedHydration = false;
-const subscribeNothing = (): (() => void) => noop;
-const clientSnapshot = (): number => {
-  probedHydration = false;
-  return 0;
-};
-const hydrationSnapshot = (): number => {
-  probedHydration = true;
-  return 0;
-};
-
-/**
- * Lustro `useState` urządzenia źródła, aktualizowane WYŁĄCZNIE w
- * `startTransition` - po montażu (bieżąca wartość źródła) i przy każdej jego
- * zmianie. Przy hydratacji (i na serwerze) pierwszy render zwraca
- * `serverDevice` (parytet z HTML serwera także na telefonie); świeży montaż
- * bierze bieżące urządzenie źródła od razu (HYDRATACJA A ŚWIEŻY MONTAŻ).
- * `serverDevice` i `source` czytane tylko przy montażu.
+ * Lustro urządzenia źródła (`useIslandMirror` z `hydrationIsland.tsx`):
+ * aktualizowane WYŁĄCZNIE w `startTransition` - po montażu (bieżąca wartość
+ * źródła) i przy każdej jego zmianie. Przy hydratacji (i na serwerze) pierwszy
+ * render zwraca `serverDevice` (parytet z HTML serwera także na telefonie);
+ * świeży montaż bierze bieżące urządzenie źródła od razu (HYDRATACJA A ŚWIEŻY
+ * MONTAŻ). `serverDevice` i `source` czytane tylko przy montażu.
  */
 function useDeviceMirror(serverDevice: Device, source: ViewportDeviceSource): Device {
-  probedHydration = false;
-  useSyncExternalStore(subscribeNothing, clientSnapshot, hydrationSnapshot);
-  const hydrating = probedHydration;
-  const [device, setDevice] = useState<Device>(() =>
-    hydrating ? serverDevice : (source.get() ?? serverDevice),
-  );
-  useEffect(() => {
-    // Ostatnia wartość podana lustru - ta sama klasa nie zleca przejścia
-    // (np. hydratacja na desktopie: zero dodatkowych renderów).
-    let mirrored: Device = device;
-    const follow = (next: Device) => {
-      if (next === mirrored) return;
-      mirrored = next;
-      startTransition(() => setDevice(next));
-    };
-    const now = source.get();
-    if (now !== null) follow(now);
-    return source.subscribe(follow);
-    // Montaż: `source` i wartość początkowa lustra czytane raz (jak `serverDevice`).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return device;
+  return useIslandMirror(serverDevice, source.get, source.subscribe);
 }
 
 /**

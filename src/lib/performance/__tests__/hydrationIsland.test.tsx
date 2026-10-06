@@ -2105,3 +2105,227 @@ describe("rejestr chunków po kluczu (P2.2)", () => {
     expect(islandChunksFor(["heading"])).toEqual([]);
   });
 });
+
+// --- Straż kliku (P2.2, dowód: pierwszy klik w zimną wyspę przepadał) ----------
+//
+// Sondy `clickNow`/`tap` wyżej to kliki ze skryptu (`isTrusted` nie jest
+// `true`), więc straż ich nie dotyka - przypinają zachowanie samego Reacta
+// (hydratacja synchroniczna albo klik zatrzymany). Klik odwiedzającego
+// udajemy niżej zdarzeniem z `isTrusted: true`.
+
+describe("straż kliku: klik w nieuwodnioną treść jest odtwarzany po hydratacji (P2.2)", () => {
+  function Widget(): ReactElement {
+    return (
+      <button type="button" data-probe="widget" onClick={() => clicks.push("widget")}>
+        Konto
+      </button>
+    );
+  }
+
+  /** Widget we własnej granicy, na serwerze statycznie (jak `serverReadingWidgets`). */
+  const serverWidget = (
+    <Suspense fallback={null}>
+      <Widget />
+    </Suspense>
+  );
+
+  /** Moduł widgetu w drodze: fabryka `lazy` czeka na `module.resolve`. */
+  function pendingLazyWidget() {
+    const module = deferred<{ default: () => ReactElement }>();
+    const factory = vi.fn(() => module.promise);
+    const Lazy = lazy(factory);
+    const client = (
+      <Suspense fallback={<i data-probe="widget-fallback" />}>
+        <Lazy />
+      </Suspense>
+    );
+    return { module, factory, Lazy, client };
+  }
+
+  /** Klik odwiedzającego (`isTrusted: true`), główny przycisk. */
+  function trustedClick(target: Element, init: MouseEventInit = {}): MouseEvent {
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0, ...init });
+    Object.defineProperty(event, "isTrusted", { value: true });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+    return event;
+  }
+
+  /** Czas na ponowienie Reacta i odtworzenie kliku (sprawdzanie co klatkę). */
+  async function settle(): Promise<void> {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+  }
+
+  it("pierwszy klik w zimną wyspę (wyzwalacz intencji ruszył chunk `lazy`, który jeszcze nie doszedł): zatrzymany i odtworzony po hydratacji - handler raz, HTML serwera zachowany", async () => {
+    const { module, factory, Lazy, client } = pendingLazyWidget();
+    const trigger: IslandTrigger = { ownEvents: ["pointerover"], quiescent: false };
+    const t = await hydrate(
+      <Island id="w" trigger={trigger}>
+        {serverWidget}
+      </Island>,
+      <Island id="w" trigger={trigger} chunks={[Lazy]}>
+        {client}
+      </Island>,
+    );
+    const button = t.probe("widget");
+
+    await act(async () => {
+      button.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+      await flushMicrotasks();
+    });
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(t.state("w")).toBe("pending");
+
+    const click = trustedClick(button);
+    expect(click.defaultPrevented).toBe(true);
+    expect(clicks).toEqual([]);
+
+    await act(async () => {
+      module.resolve({ default: Widget });
+      await flushMicrotasks();
+    });
+    await settle();
+
+    expect(t.state("w")).toBe("hydrated");
+    expect(clicks).toEqual(["widget"]);
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(t.lost()).toEqual([]);
+    expect(t.errors).toEqual([]);
+    expect(t.fallbackShown()).toBe(false);
+    await settle();
+    expect(clicks).toEqual(["widget"]);
+  });
+
+  it("kontrola negatywna: ten sam klik bez straży (ze skryptu) przepada także po hydratacji", async () => {
+    const { module, Lazy, client } = pendingLazyWidget();
+    const trigger: IslandTrigger = { ownEvents: ["pointerover"], quiescent: false };
+    const t = await hydrate(
+      <Island id="w" trigger={trigger}>
+        {serverWidget}
+      </Island>,
+      <Island id="w" trigger={trigger} chunks={[Lazy]}>
+        {client}
+      </Island>,
+    );
+    const button = t.probe("widget");
+    await act(async () => {
+      button.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
+      await flushMicrotasks();
+    });
+
+    clickNow(button);
+    await act(async () => {
+      module.resolve({ default: Widget });
+      await flushMicrotasks();
+    });
+    await settle();
+
+    expect(t.state("w")).toBe("hydrated");
+    expect(clicks).toEqual([]);
+  });
+
+  it("leniwy widget zagnieżdżony w otwartej wyspie, bez wpisu w `chunks` (wyspa sekcji, rejestr bez wpisów): klik czeka na hydratację granicy widgetu i dochodzi raz", async () => {
+    const { module, factory, client } = pendingLazyWidget();
+    const trigger: IslandTrigger = { quiescent: false };
+    const t = await hydrate(
+      <Island id="w" trigger={trigger}>
+        {serverWidget}
+      </Island>,
+      <Island id="w" trigger={trigger}>
+        {client}
+      </Island>,
+    );
+    const button = t.probe("widget");
+
+    // Dotknięcie otwiera wyspę torem pilnym; granica widgetu czeka na chunk.
+    await act(async () => {
+      button.dispatchEvent(pointer("pointerdown"));
+      await flushMicrotasks();
+    });
+    expect(t.state("w")).toBe("hydrated");
+    expect(factory).toHaveBeenCalledTimes(1);
+
+    const click = trustedClick(button);
+    expect(click.defaultPrevented).toBe(true);
+    expect(clicks).toEqual([]);
+
+    await act(async () => {
+      module.resolve({ default: Widget });
+      await flushMicrotasks();
+    });
+    await settle();
+
+    expect(clicks).toEqual(["widget"]);
+    expect(t.lost()).toEqual([]);
+    expect(t.fallbackShown()).toBe(false);
+    expect(t.container.querySelector('[data-probe="widget-fallback"]')).toBeNull();
+  });
+
+  it("uwodniona treść, HTML z `dangerouslySetInnerHTML` w niej, klik z modyfikatorem albo innym przyciskiem: straż nie zatrzymuje", async () => {
+    const raw = '<a href="#kotwica" data-probe="raw">link w treści</a>';
+    const t = await hydrate(
+      <Island id="r">
+        <Content name="r">
+          <div data-probe="rich" dangerouslySetInnerHTML={{ __html: raw }} />
+        </Content>
+      </Island>,
+    );
+
+    // Czekająca wyspa: Ctrl+klik (nowa karta) i środkowy przycisk - przeglądarce.
+    expect(trustedClick(t.probe("r-button"), { ctrlKey: true }).defaultPrevented).toBe(false);
+    expect(trustedClick(t.probe("r-button"), { button: 1 }).defaultPrevented).toBe(false);
+    expect(t.state("r")).toBe("pending");
+
+    await reachQuiescence();
+    expect(t.state("r")).toBe("hydrated");
+
+    const onButton = trustedClick(t.probe("r-button"));
+    expect(onButton.defaultPrevented).toBe(false);
+    expect(clicks).toEqual(["r"]);
+    const rawLink = t.container.querySelector('[data-probe="raw"]');
+    if (!rawLink) throw new Error("brak linku z treści HTML");
+    expect(trustedClick(rawLink).defaultPrevented).toBe(false);
+    await settle();
+    expect(clicks).toEqual(["r"]);
+  });
+
+  it("klik poza wyspą unieważnia zatrzymany klik (odwiedzający zmienił zamiar)", async () => {
+    const chunk = deferred();
+    const t = await hydrate(
+      <Island chunks={[() => chunk.promise]} trigger={{ quiescent: false }} />,
+    );
+
+    expect(trustedClick(t.probe("a-button")).defaultPrevented).toBe(true);
+    expect(trustedClick(document.body).defaultPrevented).toBe(false);
+
+    await act(async () => {
+      chunk.resolve();
+      await chunk.promise;
+    });
+    await settle();
+
+    expect(t.state()).toBe("hydrated");
+    expect(clicks).toEqual([]);
+  });
+
+  it("odmontowanie wyspy z zatrzymanym klikiem: bez odtworzenia i bez nasłuchu straży", async () => {
+    const chunk = deferred();
+    const t = await hydrate(
+      <Island chunks={[() => chunk.promise]} trigger={{ quiescent: false }} />,
+    );
+    const button = t.probe("a-button");
+    expect(trustedClick(button).defaultPrevented).toBe(true);
+    const removed = vi.spyOn(window, "removeEventListener");
+
+    await act(async () => t.root.unmount());
+    cleanups.length = 0;
+    await settle();
+
+    expect(clicks).toEqual([]);
+    expect(removed).toHaveBeenCalledWith("click", expect.any(Function), true);
+    t.container.remove();
+  });
+});

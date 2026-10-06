@@ -251,6 +251,11 @@ for (const { path, lang } of firstVisitPages) {
         await expect
           .poll(() => page.locator("html").evaluate((node) => node.classList.contains("dark")))
           .toBe(!darkBefore);
+        // Zegar interakcji ZARAZ po zmianie klasy motywu - tak samo jak na bazie
+        // bez wysp. Czekanie na wyspy niżej to osobna asercja (P2.2); odczyt po
+        // nim mierzyłby u kandydata hydratację wysp i interwały polla, a nie
+        // przełącznik (artefakt w `check:first-visit-regression`, dowód P2.2 §5).
+        const interactionCompleteMs = await page.evaluate(() => performance.now());
         // Pierwsza interakcja otwiera pozostałe wyspy po jednej na klatkę.
         await expect
           .poll(
@@ -285,7 +290,6 @@ for (const { path, lang } of firstVisitPages) {
             ttfbMs: nav.responseStart,
             fcpMs: performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? 0,
             readyMs: window.__firstVisit.readyAt,
-            interactionCompleteMs: performance.now(),
             cls: window.__firstVisit.cls,
             shifts: window.__firstVisit.shifts,
             serverTitleRetained: window.__firstVisit.serverTitle?.isConnected ?? false,
@@ -352,6 +356,7 @@ for (const { path, lang } of firstVisitPages) {
           beforeInteraction,
           islands: { ...islandsBefore, ...islands },
           ...browser,
+          interactionCompleteMs,
           ...scriptAccounting,
         };
         console.log("FIRST_VISIT " + JSON.stringify(result));

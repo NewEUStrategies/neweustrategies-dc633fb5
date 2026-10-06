@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
@@ -23,6 +22,7 @@ import { hasAnonPersonalization, mergeAnonPersonalization } from "@/lib/personal
 import { AUTH_DEFAULTS, AUTH_SETTINGS_KEY } from "@/lib/authSettings";
 import { resolveSetting, siteSettingsQueryOptions } from "@/lib/useSiteSetting";
 import { clearReservedSpace } from "@/lib/dock/reservedSpace";
+import { useHydrating } from "@/lib/performance/hydrationIsland";
 
 export type Role = "super_admin" | "admin" | "editor" | "author" | "user";
 
@@ -199,22 +199,6 @@ function heldView(value: AuthCtx, hold: GuestHold): AuthCtx {
   hold.viewOf = value;
   return view;
 }
-
-/**
- * SONDA TRYBU RENDERU: identyczna migawka (React woła `getServerSnapshot`
- * wyłącznie przy hydratacji; ten sam chwyt co `IslandGate`), zmienna robocza
- * czytana zaraz po haku.
- */
-let probedHydration = false;
-const subscribeNever = () => () => {};
-const clientSnapshot = () => {
-  probedHydration = false;
-  return 0;
-};
-const hydrationSnapshot = () => {
-  probedHydration = true;
-  return 0;
-};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
@@ -622,9 +606,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth(): AuthCtx {
   const value = useContext(Ctx);
   const resolution = guestResolution.get(value);
-  probedHydration = false;
-  useSyncExternalStore(subscribeNever, clientSnapshot, hydrationSnapshot);
-  const hydrating = probedHydration;
+  // Sonda trybu renderu (wspólna z wyspą): hydratacja albo render klienta.
+  const hydrating = useHydrating();
   const [hold, setHold] = useState<GuestHold | null>(() =>
     resolution !== undefined && (hydrating || !resolution.boot.settled)
       ? { read: false, released: false, view: null, viewOf: null }
