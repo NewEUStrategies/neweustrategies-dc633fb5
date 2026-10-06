@@ -43,8 +43,8 @@ c3-lcpobs.mjs --html-transform-b c3-lcpobs.mjs`; 16/16 przebiegów ważnych.
 | P2.6 dieta znaczników                | 1a     | **scalone** (`afcf927c`); dowód: struktura tak, czas w szumie                          | `raporty/P2.6-*.md`     |
 | P2.4 hydratacja per widget, animacje | 1b     | **scalone** (`48259396`); dowód: tak                                                   | `raporty/P2.4-*.md`     |
 | P2.3 nagłówek w oknie                | 1b     | **scalone** (`83d9cc80`); dowód: częściowo (kryteria zależne od I2 przechodzą do P2.2) | `raporty/P2.3-*.md`     |
-| P2.2 wyspy sekcji i stopki           | 2      | w toku (baza `3841521a`)                                                               | –                       |
-| P2.1 boot po LCP                     | 3      | spike (krok 0) zielony, plan A; reszta po partii 2                                     | `raporty/P2.1-SPIKE.md` |
+| P2.2 wyspy sekcji i stopki           | 2      | **scalone** (`ae602a97`); dowód: struktura tak, TBT w szumie                           | `raporty/P2.2-*.md`     |
+| P2.1 boot po LCP                     | 3      | w toku na gałęzi spike'u (scalona z bazą `8a26b3eb`)                                   | `raporty/P2.1-SPIKE.md` |
 
 ## 4. Spike P2.1 (krok 0): parytet zielony, plan A
 
@@ -144,6 +144,38 @@ importuje `clubThreadKindIcon`, co rozbiło dawny wspólny chunk `threadIcons`).
 Bramki scalonej głowy `3841521a`: `check:bundle` czerwone tylko overall 4799,8 KB (jak na `main`), `check:chunks`,
 `check:entry-purity`, `check:server-entry-purity` zielone, `check:document-weight` 25/25, vitest zmienionych testów 23 pliki
 zielone (213 + 1 oczekiwana porażka), `typecheck` zielony, `test:e2e:artifact` 8/8.
+
+## 4d. Partia 2 (P2.2): scalona
+
+Dowód wobec scalonej partii 1 (`3841521a`), C3 po obu stronach, n = 5 (`raporty/P2.2-PROVE-2.md`; runda 1 w
+`P2.2-PROVE.md`). Recenzja kontradyktoryjna zatwierdziła implementację w pierwszej rundzie; poprawka po dowodzie 1
+domknęła straż kliku wysp (pierwsze dotknięcie zimnej wyspy nie ginie) i regresję zegara interakcji first-visit.
+
+| Miara                                        | mobile A → B                                              | desktop4x A → B          |
+| -------------------------------------------- | --------------------------------------------------------- | ------------------------ |
+| TBT, mediana                                 | 127 → 93 ms (pary −47 ms, MDE 113 – w szumie)             | 182 → 181 ms (w szumie)  |
+| główny wątek                                 | 3927 → 2724 ms (pary −1168 ms, 5/5, poza MDE)             | 3209 → 2802 ms (−396 ms) |
+| bootup                                       | 2096 → 1231 ms (pary −886 ms, 5/5)                        | 1634 → 1321 ms           |
+| żądania / JS                                 | 94 → 70 / 673,7 → 637,9 KB                                | 91 → 76                  |
+| plastry hydratacji K14                       | 138 → 69 zadań (395 → 199 ms obs.)                        | 98 → 70                  |
+| późne zadania hydratacji sekcji ≥ 50 ms sym. | 8/10 → 0/10 przebiegów                                    |                          |
+| K12 (commit hydratacji)                      | 80 → 71 ms sym. – nadal jedno zadanie ≥ 50 ms, nierozbite | 75 → 64 ms sym.          |
+| CLS                                          | 0                                                         | 0 w 5/5                  |
+
+- I2 wdrożone (stała wartość kontekstu gościa w `useAuth`, lustro motywu, `applyTheme` synchronicznie na `<html>`);
+  dwa przypadki `header-intent` z P2.3 zdjęte z `test.fail` i zielone (10/10); poprawka wyzwalacza `media` w prymitywie
+  (zmiana zapytania między renderem a efektem nie ginie); `run-first-visit --compare`: CLS 0 w 28/28, 8/8 wysp zachowuje
+  węzły serwera; `check:first-visit-regression` 32/32.
+- **Decyzja orkiestratora:** progi `bootClosureGzipBytes` (+1 694 B) i `preloadedJsGzipBytes` (+1 688 B) podniesione
+  dokładnie o przyrost P2.2 z kroniką w pliku progów (`8a26b3eb`); jedyne cięcie w plikach P2.2 to ok. 150 B. P2.1
+  zdejmie modulepreload i obniży te progi ratchetem.
+- Otwarte (przekazanie): rejestr chunków wysp jest pusty (leniwe widgety są prywatne w `lazyWidgets.tsx`, poza plikami
+  P2.2) – wyspy otwierają się na wyzwalacz, a utratę pierwszego kliku łapie straż; `vendor-radix` u gościa zostaje przez
+  statyczny import `WidgetView → formFieldConfig` (`MessageComposerField`, `AdminSelect`); K16 (restyle po
+  `data-device`) bez zmian; K12 nierozbite. Kandydaci do fali 3 (P3.3, P3.4) albo higieny po fali.
+- Scalona głowa `8a26b3eb`: `check:bundle` czerwone tylko overall 4801,9 KB, `check:chunks`, `check:entry-purity`,
+  `check:server-entry-purity` zielone, `check:document-weight` 25/25, `typecheck` zielony, vitest zmienionych testów 9
+  plików / 225 zielonych, `test:e2e:artifact` 8/8.
 
 ## 4b. Przerwa i wznowienie
 
