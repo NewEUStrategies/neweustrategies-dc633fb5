@@ -311,6 +311,32 @@ describe("ClubFeedItem - karta wątku, dane puste i częściowe", () => {
     expect(within(card).queryByText("Fragment")).toBeNull();
   });
 
+  it("zajawka ucięta przez bazę dostaje wielokropek i odnośnik do całego wątku", () => {
+    const clipped = `${"Deklarowane cele wydatkowe regionu ".repeat(9)}bo mieszanie ich`.slice(
+      0,
+      280,
+    );
+    const { rerender } = render(
+      <ClubFeedItem
+        entry={threadEntry(clubThreadListRow({ excerpt: clipped }))}
+        clubSlug={CLUB_SLUG}
+      />,
+    );
+
+    const card = screen.getByTestId("club-feed-thread");
+    const link = within(card).getByTestId("club-thread-read-more");
+    expect(link.getAttribute("href")).toBe("/club/klub-energetyczny/t/temat-pierwszy");
+    expect(card.textContent).toContain("…");
+
+    rerender(
+      <ClubFeedItem
+        entry={threadEntry(clubThreadListRow({ excerpt: "Krótka, pełna zajawka." }))}
+        clubSlug={CLUB_SLUG}
+      />,
+    );
+    expect(screen.queryByTestId("club-thread-read-more")).toBeNull();
+  });
+
   it("dział spoza indeksu kolorów pokazuje się BEZ akcentu i nigdy jako aktywny filtr", () => {
     render(
       <ClubFeedItem

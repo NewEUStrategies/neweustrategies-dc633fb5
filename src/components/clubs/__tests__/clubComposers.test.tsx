@@ -445,6 +445,26 @@ describe("ClubPostComposer - zdjęcia i zalecane formaty", () => {
   });
 });
 
+describe("ClubPostComposer - wklejanie ze schowka", () => {
+  it("wklejony zrzut ekranu wgrywa się jak wybrany plik, sam tekst wkleja się normalnie", async () => {
+    h.upload.mockResolvedValue(
+      attachment({ type: "image", path: "p/zrzut.png", name: "zrzut.png", mime: "image/png" }),
+    );
+    renderWithQueryClient(<ClubPostComposer clubId={CLUB_IDS.club} canPost />);
+    const shot = new File(["a"], "zrzut.png", { type: "image/png" });
+
+    const textOnly = fireEvent.paste(bodyField(), { clipboardData: { files: [] } });
+    expect(textOnly).toBe(true);
+    expect(h.upload).not.toHaveBeenCalled();
+
+    const withFile = fireEvent.paste(bodyField(), { clipboardData: { files: [shot] } });
+    // Plik przechwycony - przeglądarka nie wkleja jego nazwy do pola.
+    expect(withFile).toBe(false);
+    await screen.findByText("zrzut.png");
+    expect(h.upload).toHaveBeenCalledWith(shot);
+  });
+});
+
 describe("ClubPostComposer - klawiatura", () => {
   it("Cmd+Enter i Ctrl+Enter wysyłają wpis", async () => {
     renderWithQueryClient(<ClubPostComposer clubId={CLUB_IDS.club} canPost />);

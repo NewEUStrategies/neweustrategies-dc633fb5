@@ -180,6 +180,33 @@ describe("ClubEngagementBar - licznik", () => {
     expect(glyphs).toEqual(["insightful", "agree"]);
   });
 
+  it("jedna osoba z dwiema reakcjami to „Ty”, a nie „Ty i 1 inna osoba”", () => {
+    renderBar({
+      tallies: [
+        { kind: "insightful", total: 1, mine: true },
+        { kind: "evidence", total: 1, mine: true },
+      ],
+      actors: [actor({ isMe: true, kinds: ["insightful", "evidence"] })],
+    });
+    expect(screen.getByTestId("club-reaction-summary").textContent).toContain(
+      "club.reactionActors.you",
+    );
+    expect(screen.getByTestId("club-reaction-summary").textContent).not.toContain("youAndOthers");
+  });
+
+  it("niepewna liczba osób (lista twarzy niekompletna) to „i inni”, bez zmyślonej liczby", () => {
+    renderBar({
+      tallies: [
+        { kind: "insightful", total: 9, mine: false },
+        { kind: "agree", total: 2, mine: false },
+      ],
+      actors: [actor({}), actor({ userId: "u2", name: "Piotr" })],
+    });
+    expect(screen.getByTestId("club-reaction-summary").textContent).toContain(
+      "club.hub.feed.reactors.nameAndMore",
+    );
+  });
+
   it("tryb poufny (bez nazwisk) pokazuje samą liczbę", () => {
     renderBar({
       tallies: [{ kind: "thanks", total: 4, mine: false }],

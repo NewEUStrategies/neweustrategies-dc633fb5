@@ -79,7 +79,7 @@ import {
 } from "@/lib/clubs/workspaceTypes";
 import { registerClubDocumentDownload } from "@/lib/clubs/workspaceApi";
 import { ClubPostCard } from "@/components/clubs/organisms/ClubPostCard";
-import type { ClubFeedEntry } from "@/lib/clubs/clubFeed";
+import { clubThreadExcerpt, type ClubFeedEntry } from "@/lib/clubs/clubFeed";
 import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
 import type { ClubTopicOption } from "@/lib/clubs/topicCatalog";
 import { formatDate, formatDateTime, uiLang } from "@/lib/i18n/format";
@@ -145,6 +145,7 @@ function ThreadCard({
   // spoza zestawu kurowanego, a taka dociągałaby pełny rejestr lucide do
   // chunku strumienia - degradujemy ją do braku ikony.
   const threadIcon = normalizeClubThreadIcon(thread.icon);
+  const excerpt = hasText(thread.excerpt) ? clubThreadExcerpt(thread.excerpt) : null;
 
   return (
     <ClubFeedCard
@@ -243,10 +244,27 @@ function ThreadCard({
             <span className="[overflow-wrap:anywhere]">{thread.title}</span>
           </Link>
         </h3>
-        {hasText(thread.excerpt) ? (
+        {excerpt !== null ? (
           <div className="mt-1.5">
             <ClubFeedText className={BODY}>
-              <p className="whitespace-pre-line [overflow-wrap:anywhere]">{thread.excerpt}</p>
+              <p className="whitespace-pre-line [overflow-wrap:anywhere]">
+                {excerpt.text}
+                {/* Zajawka ucięta przez bazę prowadzi do całości - po
+                    rozwinięciu „…więcej" czytelnik nie trafia na urwane zdanie. */}
+                {excerpt.clipped ? (
+                  <>
+                    {" "}
+                    <Link
+                      to="/club/$clubSlug/t/$threadSlug"
+                      params={{ clubSlug, threadSlug: thread.slug }}
+                      className="font-medium text-primary underline-offset-2 hover:underline"
+                      data-testid="club-thread-read-more"
+                    >
+                      {t("club.hub.feed.readThread")}
+                    </Link>
+                  </>
+                ) : null}
+              </p>
             </ClubFeedText>
           </div>
         ) : null}

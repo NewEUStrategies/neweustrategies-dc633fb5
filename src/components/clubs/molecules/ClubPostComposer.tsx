@@ -14,6 +14,10 @@
 // (poziome 1.91:1, kwadrat 1:1, pionowe 4:5) i uwagi jakości: za mała
 // rozdzielczość, waga ponad 5 MB, proporcja spoza kadru. To są podpowiedzi,
 // nie blokady - wpis z każdą z nich da się opublikować.
+//
+// TRZY DROGI DO PLIKU: przyciski (zdjęcie / wideo / plik), upuszczenie na
+// kompozytor i wklejenie ze schowka (zrzut ekranu wykresu to najczęstszy
+// załącznik w think tanku).
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -209,6 +213,14 @@ export function ClubPostComposer({
         placeholder={t("club.post.placeholder")}
         aria-label={t("club.post.placeholder")}
         className="min-h-[72px] resize-none rounded-lg border-border/70 text-sm"
+        onPaste={(event) => {
+          // Zrzut ekranu wklejony skrótem trafia tym samym torem, co wybór
+          // z dysku. Sam tekst wkleja się normalnie - przechwytujemy tylko pliki.
+          const pasted = Array.from(event.clipboardData.files);
+          if (pasted.length === 0 || busy) return;
+          event.preventDefault();
+          void handleFiles(pasted);
+        }}
         onKeyDown={(event) => {
           if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
             submit();

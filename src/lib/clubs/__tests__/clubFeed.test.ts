@@ -6,7 +6,14 @@
 // jest czystą funkcją i ma tu opisane WSZYSTKIE swoje przypadki brzegowe -
 // łącznie z tym najważniejszym, czyli klubem, który dopiero powstał.
 import { describe, expect, it } from "vitest";
-import { buildClubFeed, CLUB_FEED_MODES, isClubFeedEmpty, type ClubFeedMode } from "../clubFeed";
+import {
+  buildClubFeed,
+  CLUB_FEED_MODES,
+  CLUB_THREAD_EXCERPT_LENGTH,
+  clubThreadExcerpt,
+  isClubFeedEmpty,
+  type ClubFeedMode,
+} from "../clubFeed";
 import { clubIsoOffset, clubThreadListRow } from "@/test/clubs/fixtures";
 import { clubPostRow } from "@/test/clubs/hubFixtures";
 import type { ClubPostRow } from "../postTypes";
@@ -348,5 +355,25 @@ describe("isClubFeedEmpty - pusto NA POZIOMIE TREŚCI", () => {
   it("klub z samym wpisem ściany też nie jest pusty", () => {
     const feed = buildClubFeed({ ...EMPTY, mode: "all", posts: [clubPostRow({ id: "p1" })] });
     expect(isClubFeedEmpty(feed)).toBe(false);
+  });
+});
+
+describe("clubThreadExcerpt - zajawka ucięta przez bazę", () => {
+  it("krótka zajawka zostaje bez zmian i nie jest oznaczona jako ucięta", () => {
+    expect(clubThreadExcerpt("Całe zdanie.  ")).toEqual({ text: "Całe zdanie.", clipped: false });
+  });
+
+  it("zajawka o długości limitu traci urwane słowo i dostaje wielokropek", () => {
+    const body = `${"słowo ".repeat(46)}mieszanie ich`.slice(0, CLUB_THREAD_EXCERPT_LENGTH);
+    const result = clubThreadExcerpt(body);
+    expect(result.clipped).toBe(true);
+    expect(result.text.endsWith("…")).toBe(true);
+    expect(result.text.length).toBeLessThan(body.length + 1);
+    expect(result.text).not.toMatch(/\s…$/u);
+  });
+
+  it("długie ostatnie słowo bez spacji w pobliżu nie jest wycinane w całości", () => {
+    const body = "x".repeat(CLUB_THREAD_EXCERPT_LENGTH);
+    expect(clubThreadExcerpt(body)).toEqual({ text: `${body}…`, clipped: true });
   });
 });

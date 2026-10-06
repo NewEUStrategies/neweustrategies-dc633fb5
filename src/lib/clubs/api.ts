@@ -6,6 +6,7 @@
 // SECURITY DEFINER, a nie w tym pliku.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { CLUB_REACTION_ACTOR_LIMIT } from "@/lib/clubs/reactionSummary";
 
 /**
  * Argumenty RPC z DEFAULT NULL: generator typów Supabase opisuje je jako
@@ -794,7 +795,7 @@ export async function fetchClubReactionActors(params: {
   const { data, error } = await supabase.rpc("club_reaction_actors", {
     p_target_type: params.targetType,
     p_target_ids: params.targetIds,
-    p_limit: params.limit ?? 6,
+    p_limit: params.limit ?? CLUB_REACTION_ACTOR_LIMIT,
   });
   if (error) throw error;
   return groupReactionActors(data ?? []);

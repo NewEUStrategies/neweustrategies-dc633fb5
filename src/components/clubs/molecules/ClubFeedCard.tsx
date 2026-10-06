@@ -23,7 +23,7 @@
 // RUCH. Karta wchodzi krótkim uniesieniem (`club-feed-card-in`, kaskada po
 // indeksie), krawędź przy najeździe przyjmuje kolor rodzaju - jak dawny
 // wiersz dossier - a `prefers-reduced-motion` wyłącza wszystko poza kolorem.
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import {
@@ -32,6 +32,11 @@ import {
   type ClubDossierTone,
 } from "@/components/clubs/atoms/ClubDossierRow";
 import { relTime } from "@/lib/notifications/notificationText";
+import {
+  feedClockServerSnapshot,
+  feedClockSnapshot,
+  subscribeFeedClock,
+} from "@/lib/clubs/feedClock";
 import { formatDateShort, formatDateTime, type UiLang } from "@/lib/i18n/format";
 
 /** Poziomy oddech wszystkich stref - jedna wartość, żeby krawędzie się zgadzały. */
@@ -182,17 +187,15 @@ export function ClubFeedKindAvatar({
 
 /**
  * Czas publikacji. Na serwerze i w pierwszym renderze klienta - data (ten sam
- * tekst po obu stronach, zero rozjazdu hydracji); po zamontowaniu - czas
- * względny („2 dni temu"), który w strumieniu czyta się szybciej niż data.
+ * tekst po obu stronach, zero rozjazdu hydracji); po hydracji - czas względny
+ * („2 dni temu"), który w strumieniu czyta się szybciej niż data i który
+ * odświeża się ze wspólnego zegara strumienia (`feedClock`).
  */
 export function ClubFeedTime({ iso, lang }: { iso: string; lang: UiLang }) {
-  const [relative, setRelative] = useState<string | null>(null);
-  useEffect(() => {
-    setRelative(relTime(iso, lang));
-  }, [iso, lang]);
+  const now = useSyncExternalStore(subscribeFeedClock, feedClockSnapshot, feedClockServerSnapshot);
   return (
     <time dateTime={iso} title={formatDateTime(iso, lang)}>
-      {relative ?? formatDateShort(iso, lang)}
+      {now === 0 ? formatDateShort(iso, lang) : relTime(iso, lang, now)}
     </time>
   );
 }

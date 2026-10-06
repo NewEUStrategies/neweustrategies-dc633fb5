@@ -419,6 +419,7 @@ export const clubPl = {
         participantsCount_many: "{{count}} uczestników",
         participantsCount_other: "{{count}} uczestników",
         more: "…więcej",
+        readThread: "Czytaj cały wątek",
         postInThread: "Wpis w wątku",
         toCalendar: "Zobacz kalendarz",
         documentsCount_one: "{{count}} materiał",
@@ -448,6 +449,8 @@ export const clubPl = {
           nameAndOthers_few: "{{name}} i {{count}} inne osoby",
           nameAndOthers_many: "{{name}} i {{count}} innych osób",
           nameAndOthers_other: "{{name}} i {{count}} innej osoby",
+          youAndMore: "Ty i inni",
+          nameAndMore: "{{name}} i inni",
         },
       },
       pulse: {
@@ -906,6 +909,8 @@ export const clubPl = {
       openFile: "Otwórz plik",
       preview: "Podgląd",
       attachmentsCount: "{{count}} zał.",
+      showAllImages: "Pokaż wszystkie zdjęcia ({{count}})",
+      showFewerImages: "Zwiń zdjęcia",
       media: {
         photo: "Zdjęcie",
         video: "Wideo",
@@ -2397,6 +2402,7 @@ export const clubEn = {
         participantsCount_one: "{{count}} participant",
         participantsCount_other: "{{count}} participants",
         more: "…more",
+        readThread: "Read the whole topic",
         postInThread: "Posted in",
         toCalendar: "See the calendar",
         documentsCount_one: "{{count}} material",
@@ -2417,6 +2423,8 @@ export const clubEn = {
           youAndOthers_other: "You and {{count}} others",
           nameAndOthers_one: "{{name}} and {{count}} other",
           nameAndOthers_other: "{{name}} and {{count}} others",
+          youAndMore: "You and others",
+          nameAndMore: "{{name}} and others",
         },
       },
       pulse: {
@@ -2836,6 +2844,8 @@ export const clubEn = {
       openFile: "Open file",
       preview: "Preview",
       attachmentsCount: "{{count}} att.",
+      showAllImages: "Show all photos ({{count}})",
+      showFewerImages: "Collapse photos",
       media: {
         photo: "Photo",
         video: "Video",

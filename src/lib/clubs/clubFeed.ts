@@ -182,3 +182,22 @@ export function buildClubFeed(input: ClubFeedInput): ClubFeedEntry[] {
 export function isClubFeedEmpty(entries: readonly ClubFeedEntry[]): boolean {
   return entries.length === 0;
 }
+
+/**
+ * Długość zajawki wątku z `club_threads_list` (`left(body, 280)`). Zajawka
+ * tej długości jest UCIĘTA przez bazę - zwykle w pół słowa - więc karta
+ * dokłada wielokropek i odnośnik do całości zamiast udawać pełny tekst.
+ */
+export const CLUB_THREAD_EXCERPT_LENGTH = 280;
+
+/** Zajawka do pokazania i informacja, czy baza ją ucięła. */
+export function clubThreadExcerpt(excerpt: string): { text: string; clipped: boolean } {
+  const clipped = excerpt.length >= CLUB_THREAD_EXCERPT_LENGTH;
+  if (!clipped) return { text: excerpt.trim(), clipped };
+  // Urwane ostatnie słowo nie niesie treści - tniemy do ostatniej spacji,
+  // jeśli nie zjada to więcej niż kilkunastu znaków.
+  const trimmed = excerpt.trimEnd();
+  const lastSpace = trimmed.lastIndexOf(" ");
+  const cut = lastSpace >= trimmed.length - 24 ? trimmed.slice(0, lastSpace) : trimmed;
+  return { text: `${cut.replace(/[\s.,;:–-]+$/u, "")}…`, clipped };
+}
