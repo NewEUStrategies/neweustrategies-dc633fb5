@@ -2,6 +2,7 @@ import { RouteLoadingSkeleton } from "./lib/ssr/RouteLoadingSkeleton";
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { setupRouterSsrQueryIntegration } from "@tanstack/react-router-ssr-query";
+import { createIsomorphicFn } from "@tanstack/react-start";
 import { isServer } from "@tanstack/router-core/isServer";
 
 import { routeTree } from "./routeTree.gen";
@@ -16,6 +17,7 @@ import { installSsrQueryTimeout } from "./lib/ssr/queryTimeout";
 import { guardQueryStream } from "./lib/ssr/queryStreamGuard";
 import { sweepQueryCacheForSerialization } from "./lib/ssr/postRenderSweep";
 import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
+import { injectBootSet, type BootRouterLike } from "./lib/boot/bootSet.server";
 
 // USTĄPIENIE PO DRZEWIE TRAS (P1.7, runda 9; recenzja I-2). Moduły, które ten
 // plik importuje - przede wszystkim `./routeTree.gen` z top-levelem kilkuset
@@ -30,6 +32,15 @@ import { withHydrateBudget } from "./lib/ssr/hydrateBudget";
 // `hydrateRoot` (zagnieżdżenie timerów < 5, bez zacisku 4 ms). Sama ewaluacja
 // drzewa tras zostaje jednym zadaniem - jej podział należy do P5.2.
 if (!isServer) await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+// ZESTAW BOOTU (P2.1). Serwer wstrzykuje `#nes-boot-set` (lista modułów serii bootu i tryb)
+// poza drzewem Reacta - skład i uzasadnienie w `lib/boot/bootSet.server.ts`. Owijka
+// `createIsomorphicFn`, bo moduł `.server` nie może wejść do grafu przeglądarki (ochrona
+// importów TanStack Start): kompilator wycina gałąź serwerową z bundla klienta razem
+// z importem, a klient dostaje no-op.
+const injectBootSetOnServer = createIsomorphicFn()
+  .server((router: BootRouterLike): void => injectBootSet(router))
+  .client((): void => {});
 
 // World-class defaults for a content-heavy public site:
 //   - 5 min staleTime: settings/menus/posts rarely change; avoid wasted refetches.
@@ -166,6 +177,11 @@ export const getRouter = () => {
     // See lib/ssr/queryStreamGuard.
     const integrationDehydrate = router.options.dehydrate;
     router.options.dehydrate = async () => {
+      // ZESTAW BOOTU (P2.1) - pierwszy, bo zależy wyłącznie od dopasowań i hintów loaderów
+      // (oba gotowe po `router.load()`), a ten hak biegnie raz na dokument, przed renderem
+      // Reacta, tak samo na ścieżce strumieniowej i `allReady` botów. Wstrzyknięty HTML czeka
+      // w buforze routera na pierwszą granicę strumienia (`lib/boot/bootSet.server.ts`).
+      injectBootSetOnServer(router);
       // KOLEJNOŚĆ, SPROSTOWANA 2026-09-01. Stało tu „Render się zakończył",
       // a to jest odwrotnie: `createStartHandler` woła
       // `routerInstance.load()` (wszystkie loadery), potem

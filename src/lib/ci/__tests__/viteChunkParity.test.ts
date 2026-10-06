@@ -87,6 +87,19 @@ describe("parytet podziału chunków: vite.config.ts vs vite.smoke.config.ts", (
     }
   });
 
+  it("oba presety przepisują manifest Start TĄ SAMĄ wtyczką bootu po LCP (P2.1)", () => {
+    // Smoke bez `bootAfterLcpPlugin` budowałby dokument z preloadami i skryptem wejścia
+    // z manifestu, czyli boot-test i pomiar badałyby inny start aplikacji niż produkcja.
+    const helperImport = 'import { bootAfterLcpPlugin } from "./scripts/lib/bootAfterLcpPlugin";';
+    for (const [file, source] of [
+      ["vite.config.ts", main],
+      ["vite.smoke.config.ts", smoke],
+    ] as const) {
+      expect(source, file).toContain(helperImport);
+      expect(source, file).toMatch(/plugins: \[[^\]]*bootAfterLcpPlugin\(\)/);
+    }
+  });
+
   it("reguła vendorowa pomija moduł WEJŚCIOWY (pułapka zapadania się chunku)", () => {
     // Bez tej linii `manualChunks` może przypisać entry do nazwanego chunku,
     // a wtedy Rollup wciąga cały ten chunk z powrotem do entry - bez ostrzeżenia.

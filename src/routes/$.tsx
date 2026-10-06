@@ -460,10 +460,11 @@ export const Route = createFileRoute("/$")({
     const doc = parseBuilderDoc(data.item.builder_data);
     // HINTY MODUŁÓW WIDGETÓW TREŚCI (audyt CWV F21 / §8 wiersz 3.8). Dokładnie
     // ta sama droga, którą korzeń emituje hinty widgetów NAGŁÓWKA
-    // (`__root.tsx`): chunki widgetów sekcji nad zgięciem zaczynają się
-    // pobierać z NAGŁÓWKÓW odpowiedzi, zanim przeglądarka sparsuje HTML,
-    // a NES Edge Cache odtwarza je na HIT/STALE. Bez tego moduł widgetu
-    // wchodzi do kolejki dopiero po pobraniu i wykonaniu chunku trasy.
+    // (`__root.tsx`). Od P2.1 (boot po LCP) hinty nie wychodzą w odpowiedzi:
+    // `lib/boot/bootSet.server.ts` przenosi je z akumulatora `Link` do zestawu
+    // bootu (`#nes-boot-set`), więc chunki widgetów sekcji nad zgięciem
+    // przychodzą w tym samym burście co wejście i chunk trasy (warunek CLS 0,
+    // werdykt boot-js C3), a nie dopiero po wykonaniu chunku trasy.
     //
     // Duplikatów z nagłówkiem nie trzeba filtrować: `appendLinkHeader` trzyma
     // wartości w zbiorze per żądanie, a `widgetPreloadHeaders` produkuje dla

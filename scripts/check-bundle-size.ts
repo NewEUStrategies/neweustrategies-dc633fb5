@@ -2456,7 +2456,8 @@ function gzipKb(file: string): number {
  *
  * Czytane z manifestu TanStack Start, nie zgadywane po nazwie ani po rozmiarze -
  * manifest jest jedynym miejscem, które NAPRAWDĘ mówi, co serwer wstrzykuje jako
- * `<script type="module">`. Override `ENTRY_CHUNKS` jest CELOWO tą samą zmienną,
+ * `<script type="module">`. Od P2.1 (boot po LCP) wejście wstawia loader bootu, a jego
+ * adres niesie serwerowa mapa `nesBootManifest` (pole `entry`) w module manifestu. Override `ENTRY_CHUNKS` jest CELOWO tą samą zmienną,
  * co w `check-entry-purity.ts`: jeden artefakt, jedna pokrętka, żeby te dwie
  * bramki nie mogły policzyć różnych korzeni.
  */
@@ -2466,7 +2467,13 @@ function findBootChunks(): string[] {
   const override = process.env["ENTRY_CHUNKS"];
   if (override) return override.split(",").map((s) => basename(s.trim()));
 
+  // Dwa kształty artefaktu: manifest TanStack Start ze skryptem wejścia
+  // (`scripts:[{attrs:{src:"/assets/*.js"}}]`) albo - od boot po LCP (P2.1) - manifest bez
+  // skryptu wejścia i serwerowa mapa bootu `nesBootManifest` (`scripts/lib/bootAfterLcpPlugin.ts`:
+  // `{entry:"/assets/*.js",rootPreloads:[...]}`, klucze w cudzysłowach albo po minifikacji bez).
   const scriptRe = /scripts:\s*\[[^\]]*?src:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']/g;
+  const bootManifestRe =
+    /["']?entry["']?\s*:\s*["']\/assets\/([A-Za-z0-9._$-]+\.js)["']\s*,\s*["']?rootPreloads["']?\s*:/g;
   const found = new Set<string>();
   for (const dir of SERVER_DIRS) {
     let entries: string[];
@@ -2477,7 +2484,9 @@ function findBootChunks(): string[] {
     }
     for (const file of entries) {
       if (!file.endsWith(".mjs") && !file.endsWith(".js")) continue;
-      for (const m of readFileSync(join(dir, file), "utf8").matchAll(scriptRe)) found.add(m[1]);
+      const src = readFileSync(join(dir, file), "utf8");
+      for (const m of src.matchAll(scriptRe)) found.add(m[1]);
+      for (const m of src.matchAll(bootManifestRe)) found.add(m[1]);
     }
     if (found.size > 0) break;
   }
@@ -2505,7 +2514,7 @@ function bootClosure(paths: readonly string[]): Set<string> {
   if (roots.length === 0) {
     console.error(
       "✗ Nie udalo sie ustalic chunku startowego z manifestu TanStack Start.\n" +
-        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` w: ${SERVER_DIRS.join(", ")}.\n` +
+        `  Szukano \`scripts:[{attrs:{src:"/assets/*.js"}}]\` i \`nesBootManifest\` ({entry:"/assets/*.js"}) w: ${SERVER_DIRS.join(", ")}.\n` +
         "  Jesli adapter zmienil uklad artefaktu, podaj chunk jawnie: ENTRY_CHUNKS=index-HASH.js",
     );
     process.exit(1);

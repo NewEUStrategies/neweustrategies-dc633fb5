@@ -25,9 +25,16 @@ export const DANGEROUS_HTML_ALLOWLIST: readonly DangerousHtmlAllowEntry[] = [
   {
     file: "src/routes/__root.tsx",
     sink: "script",
-    symbol: "BOOT_PROBE_SCRIPT",
+    symbol: "bootProbeScript",
     reason:
-      "Stała z lib/observability/bootProbeScript - literał pisany przez zespół, bez wstawek z bazy. To PIERWSZY skrypt dokumentu: musi być klasyczny i wykonać się przed bundlem, więc żaden sanitizer nie ma tu czego poprawić.",
+      "Sonda bootu: na serwerze stała BOOT_PROBE_SCRIPT z lib/observability/bootProbeScript - literał pisany przez zespół, bez wstawek z bazy ani z żądania; w przeglądarce ten sam napis przepisany z już wykonanego węzła `script[data-nes-probe]` (literał poza domknięciem bootu, P2.1). To PIERWSZY skrypt dokumentu: musi być klasyczny i wykonać się przed bundlem, więc żaden sanitizer nie ma tu czego poprawić.",
+  },
+  {
+    file: "src/routes/__root.tsx",
+    sink: "script",
+    symbol: "bootLoaderScript",
+    reason:
+      "Loader bootu (P2.1): na serwerze stała BOOT_LOADER_SCRIPT z lib/boot/bootLoaderScript - literał złożony wyłącznie ze stałych modułu (opóźnienia, id węzła zestawu, nazwy zdarzeń) i wyrażenia STORED_SESSION_EXPR z integrations/supabase/sessionHint (też stała), bez wstawek z bazy ani z żądania; w przeglądarce ten sam napis przepisany z już wykonanego węzła `script[data-nes-boot]`. MUSI być klasyczny i stać w `<head>`: manifest TanStack Start nie startuje już JS-a, więc to on wstawia serię modulepreload i wejście (po wpisie LCP albo od razu). Listę URL-i czyta z węzła danych `#nes-boot-set`, którego treść serwer escapuje (`<` jako \\u003c).",
   },
   {
     file: "src/routes/__root.tsx",

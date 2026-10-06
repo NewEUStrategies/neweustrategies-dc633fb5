@@ -3,6 +3,10 @@ import type { BuilderDocument, SectionNode, WidgetNode } from "@/lib/builder/typ
 
 // Replaced only in the server build, after browser chunk names are known.
 // HTTP Link hints avoid introducing server-only nodes into the hydrated head.
+// P2.1: hinty z loaderów są wejściem zestawu bootu - `lib/boot/bootSet.server.ts`
+// przenosi je z akumulatora `Link` do `#nes-boot-set` (ten sam burst co wejście),
+// a dokument bootujący po LCP nie niesie ich w odpowiedzi
+// (`lib/http/frameworkPreloads.server.ts`).
 export const WIDGET_CHUNK_URLS: Readonly<Record<string, readonly string[]>> = {};
 
 type VisitedNode = SectionNode | SectionNode["children"][number] | WidgetNode;
