@@ -69,9 +69,9 @@ import type { ConsentTakeover } from "../lib/consent/consentInitScript";
 import { ConsentShell } from "../components/consent/ConsentShell";
 import type { ConsentBannerProps } from "../components/ConsentBanner";
 import { DOCK_RESERVE_INIT_SCRIPT } from "../lib/dock/reservedSpace";
+// Teksty sondy i loadera bootu - WYŁĄCZNIE w gałęziach `.server()` niżej (`bootProbeScript`,
+// `bootLoaderScript`): kompilator Start wycina je z bundla przeglądarki razem z tymi importami.
 import { BOOT_PROBE_SCRIPT } from "../lib/observability/bootProbeScript";
-// Tekst loadera bootu - WYŁĄCZNIE w gałęzi `.server()` niżej (`bootLoaderScript`): kompilator
-// Start wycina ją z bundla przeglądarki razem z tym importem.
 import { BOOT_LOADER_SCRIPT } from "../lib/boot/bootLoaderScript";
 import { markAppReady } from "../lib/watchdog/appReady";
 import { speculationRulesJson } from "../lib/seo/speculationRules";
@@ -1138,6 +1138,21 @@ function consentInitScript(): string {
   return document.querySelector("script[data-consent-init]")?.textContent ?? "";
 }
 
+// Sonda bootu - ta sama doktryna co skrypt zgód wyżej (poprawka po Prove P2.1: sonda urosła
+// o `__nesBootArm`, a jej literał siedział w chunku wejściowym, czyli w domknięciu bootu):
+// wykonała się z HTML-a jako PIERWSZY skrypt dokumentu, więc przeglądarka przepisuje TEN SAM
+// napis z węzła `script[data-nes-probe]`, a stała zostaje wyłącznie na serwerze.
+const getServerBootProbeScript = createIsomorphicFn()
+  .server((): string | null => BOOT_PROBE_SCRIPT)
+  .client((): string | null => null);
+const SERVER_BOOT_PROBE_SCRIPT = getServerBootProbeScript();
+
+function bootProbeScript(): string {
+  if (SERVER_BOOT_PROBE_SCRIPT !== null) return SERVER_BOOT_PROBE_SCRIPT;
+  if (typeof document === "undefined") return "";
+  return document.querySelector("script[data-nes-probe]")?.textContent ?? "";
+}
+
 // Loader bootu (P2.1) - ta sama doktryna co skrypt zgód wyżej: serwer ma stałą, przeglądarka
 // przepisuje TEN SAM napis z wykonanego już węzła `script[data-nes-boot]`. Loader wykonał się
 // z HTML-a, zanim wystartował jakikolwiek moduł (to on wstawia wejście), więc literał w bundlu
@@ -1178,7 +1193,7 @@ function RootShell({ children }: { children: ReactNode }) {
             z modułu ani z efektu Reacta nie zobaczy. Wyłącznie buforuje
             w pamięci strony - wysyłka jest w lib/observability, za bramką
             zgody analitycznej. */}
-        <script dangerouslySetInnerHTML={{ __html: BOOT_PROBE_SCRIPT }} />
+        <script data-nes-probe="" dangerouslySetInnerHTML={{ __html: bootProbeScript() }} />
         {/* Loader bootu (P2.1) zaraz po sondzie: manifest Start nie startuje już JS-a, więc to
             ten skrypt wstawia serię `modulepreload` i wejście - po wpisie LCP kandydata na
             stronach z kandydatem, od razu wszędzie indziej (zestaw `#nes-boot-set` wstrzykuje

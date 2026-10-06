@@ -33,14 +33,19 @@
 // skrajnym razie po DOMContentLoaded + 3 s; na wolnym łączu zegar liczony od
 // tego skryptu zgłaszałby martwy boot zdrowym stronom (werdykt boot-js C3,
 // pkt 5). Dlatego zegar uzbraja `window.__nesBootArm()` - woła ją loader
-// w chwili bootu - a zapasowo sama sonda przy DOMContentLoaded + 3 s (twardy
-// limit loadera), żeby dokument bez loadera (dev) albo z loaderem, który nie
-// ruszył, nadal dostał sygnał. Uzbrojenie jest jednorazowe; `__nesBootS` to
-// chwila uzbrojenia.
+// w chwili wstawienia wejścia (zawsze po sparsowaniu dokumentu) - a zapasowo
+// sama sonda przy DOMContentLoaded + 3 s (twardy limit loadera), żeby dokument
+// bez loadera (dev) albo z loaderem, który nie ruszył, nadal dostał sygnał.
+// Uzbrojenie jest jednorazowe; `__nesBootS` to chwila uzbrojenia.
 //
 // Kształt (jedno IIFE, wszystko w `try`) jest kopią doktryny
 // `lib/theme/themeInitScript.ts`: skrypt w `<head>` nie ma prawa wywrócić
 // dokumentu, cokolwiek się w nim stanie.
+//
+// TYLKO SERWER (P2.1). Stałą renderuje `__root.tsx` w gałęzi `.server()`;
+// przeglądarka przepisuje ten sam tekst z wykonanego już węzła
+// `script[data-nes-probe]`, więc literał nie wchodzi do chunku wejściowego
+// (domknięcie bootu), a hydratacja widzi identyczną treść.
 
 /** Ile milisekund bez flagi gotowości uznajemy za martwy boot. */
 /**

@@ -1,6 +1,7 @@
 // LOADER BOOTU (P2.1, krok 2) - klasyczny, inline'owy skrypt w `<head>`, zaraz po sondzie bootu
 // (`lib/observability/bootProbeScript.ts`). Startuje aplikację: wstawia `<link rel=modulepreload>`
-// całej listy z `#nes-boot-set` (`bootSet.server.ts`) i `<script type="module" src=wejście>`.
+// całej listy z `#nes-boot-set` (`bootSet.server.ts`) i `<script type="module" src=wejście>` -
+// to drugie NIGDY przed końcem parsowania dokumentu (niżej, „WEJŚCIE PO PARSOWANIU”).
 //
 // PO CO. Manifest TanStack Start nie startuje już JS-a (`scripts/lib/bootAfterLcpPlugin.ts`).
 // Lantern liczy do grafu FCP/LCP każdy skrypt zakończony przed OBSERWOWANYM LCP (PLAN §1.3,
@@ -25,6 +26,18 @@
 //     `setTimeout(0)`; `load` + 500 ms (czeka jeszcze na przyjęty wpis; samo `load` bywa PRZED
 //     obserwowanym LCP - werdykt C3, przebieg B1); twardy limit DOMContentLoaded + 3 s.
 //
+// WEJŚCIE PO PARSOWANIU (poprawka po Prove P2.1). Na bazie wejście było skryptem parserowym
+// (`type=module` = `defer`): wykonywało się dopiero po sparsowaniu CAŁEGO dokumentu. Moduł
+// wstawiony skryptem jest `async` - wykonuje się zaraz po pobraniu. Wyzwalacze `now`, `lcp`
+// (reguła (i)), `input` i `nocand` (błąd obrazu) nie czekają na DOMContentLoaded, więc przy
+// dokumencie w porcjach (wolne łącze z obrazem i modułami z cache, zalogowany albo podgląd
+// edytora z `now` w `<head>`, tapnięcie w trakcie ładowania, strumieniowy MISS) `hydrate()`
+// TanStack startował bez ogona dokumentu (`window.$_TSR`) i rzucał `Invariant failed` - martwy
+// SSR. Dlatego boot ma dwie fazy: seria `modulepreload` od razu (pobieranie bez wykonania),
+// wejście dopiero przy `readyState != "loading"`, inaczej z handlera DOMContentLoaded - dokładnie
+// semantyka `defer`. Przy dokumencie HIT nic się nie zmienia: DCL przychodzi przed obserwowanym
+// LCP + 50 ms.
+//
 // ZESTAW CZYTANY LENIWIE. `#nes-boot-set` przychodzi z buforem routera przy pierwszej granicy
 // strumienia - przed albo po tym skrypcie. Brak przy starcie: `MutationObserver` do pierwszego
 // pojawienia się albo do DOMContentLoaded. Brak przy DOMContentLoaded (dev: `<Scripts>`
@@ -33,8 +46,10 @@
 // niedopasowaniem hydratacji (React 19 pomija obce węzły tylko w `html`/`head`/`body`).
 //
 // OBSERWOWALNOŚĆ. `window.__nesBootWhy` = `now` | `lcp` | `input` | `nocand` | `load` | `cap`
-// (co wyzwoliło boot - e2e i pomiar), a `window.__nesBootArm()` z sondy bootu uzbraja watchdog
-// martwej hydratacji od startu bootu (krok 4), nie od pierwszego bajtu dokumentu.
+// (co wyzwoliło boot - e2e i pomiar; ustawiane przy wyzwoleniu, przed DCL też), a
+// `window.__nesBootArm()` z sondy bootu uzbraja watchdog martwej hydratacji w chwili wstawienia
+// wejścia (krok 4), nie od pierwszego bajtu dokumentu ani od serii `modulepreload` (długi ogon
+// strumienia nie jest martwym bootem).
 //
 // DOKTRYNA. Jedno IIFE, ES5, bez sieci i bez zapisu do storage (sesję tylko CZYTA wyrażenie
 // z `sessionHint.ts`). Funkcje są deklarowane poza `try`, a start w `try` ma zapas: wyjątek
@@ -67,21 +82,27 @@ declare global {
 }
 
 // Nazwy w skrypcie (jednoliterowe, bo tekst stoi w `<head>` każdego dokumentu - budżet
-// `headRawBytes`): B boot, T opóźniony boot, L rAF + `setTimeout(0)`, G interakcja, Q odczyt
-// zestawu, O przyjęcie wpisu LCP, Z widoczne pole elementu, C decyzja trybu, Y DOMContentLoaded,
-// I kandydaci; S zestaw, R zestaw odczytany, D decyzja zapadła, F boot wykonany, W powód sprzed
-// odczytu, M MutationObserver, P PerformanceObserver, V ostatni wpis LCP, A pole kandydata.
+// `headRawBytes`): B boot, H wstawienie wejścia (po parsowaniu), T opóźniony boot, L rAF +
+// `setTimeout(0)`, G interakcja, Q odczyt zestawu, O przyjęcie wpisu LCP, Z widoczne pole
+// elementu, C decyzja trybu, Y DOMContentLoaded, I kandydaci; S zestaw, R zestaw odczytany,
+// D decyzja zapadła, F boot wykonany, W powód sprzed odczytu, M MutationObserver,
+// P PerformanceObserver, V ostatni wpis LCP, A pole kandydata.
 export const BOOT_LOADER_SCRIPT = [
   "(function(){",
   'var w=window,d=document,S,R,D,F,W,M,P,V,A=0,N="largest-contentful-paint",',
   'E=["pointerdown","keydown","touchstart","focusin"],K="data-lcp-candidate";',
-  // Boot: seria `modulepreload` + wejście; bez zestawu zapamiętuje powód do chwili odczytu.
+  // Boot: seria `modulepreload` od razu, wejście dopiero po sparsowaniu dokumentu (H); bez
+  // zestawu zapamiętuje powód do chwili odczytu.
   "function B(y){if(F)return;if(!S){W=W||y;return}F=1;w.__nesBootWhy=y;",
   "for(var i=0;i<E.length;i++)w.removeEventListener(E[i],G,!0);",
-  "try{P&&P.disconnect()}catch(x){}w.__nesBootArm&&w.__nesBootArm();",
+  "try{P&&P.disconnect()}catch(x){}",
   'for(i=0;i<S.u.length;i++){var l=d.createElement("link");l.rel="modulepreload";',
   "l.href=S.u[i];d.head.appendChild(l)}",
-  'l=d.createElement("script");l.type="module";l.src=S.e;d.head.appendChild(l)}',
+  'd.readyState=="loading"?d.addEventListener("DOMContentLoaded",H):H()}',
+  // Wejście (semantyka `defer` z bazy): moduł wstawiony skryptem jest `async`, a hydratacja
+  // TanStack wymaga ogona dokumentu (`$_TSR`); watchdog sondy liczy od tej chwili.
+  'function H(){w.__nesBootArm&&w.__nesBootArm();var l=d.createElement("script");',
+  'l.type="module";l.src=S.e;d.head.appendChild(l)}',
   "function T(t,y){setTimeout(function(){B(y)},t)}",
   "function L(y){d.hidden?T(0,y):requestAnimationFrame(function(){T(0,y)})}",
   'function G(){B("input")}',

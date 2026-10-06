@@ -1534,6 +1534,10 @@ describe("RootShell - loader bootu (P2.1)", () => {
     const scripts = [...doc.head.querySelectorAll("script")];
     const probe = scripts.findIndex((el) => el.textContent === BOOT_PROBE_SCRIPT);
     expect(probe).toBeGreaterThanOrEqual(0);
+    // Sonda też jest stałą tylko serwerową: przeglądarka przepisuje tekst z węzła o tym
+    // atrybucie (literał poza domknięciem bootu) - węzeł musi go nieść i być jedyny.
+    expect(scripts[probe]?.hasAttribute("data-nes-probe")).toBe(true);
+    expect(doc.querySelectorAll("script[data-nes-probe]")).toHaveLength(1);
     const loader = scripts[probe + 1];
     expect(loader?.hasAttribute(BOOT_LOADER_ATTR)).toBe(true);
     expect(loader?.textContent).toBe(BOOT_LOADER_SCRIPT);

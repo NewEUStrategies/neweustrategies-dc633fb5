@@ -25,9 +25,9 @@ export const DANGEROUS_HTML_ALLOWLIST: readonly DangerousHtmlAllowEntry[] = [
   {
     file: "src/routes/__root.tsx",
     sink: "script",
-    symbol: "BOOT_PROBE_SCRIPT",
+    symbol: "bootProbeScript",
     reason:
-      "Stała z lib/observability/bootProbeScript - literał pisany przez zespół, bez wstawek z bazy. To PIERWSZY skrypt dokumentu: musi być klasyczny i wykonać się przed bundlem, więc żaden sanitizer nie ma tu czego poprawić.",
+      "Sonda bootu: na serwerze stała BOOT_PROBE_SCRIPT z lib/observability/bootProbeScript - literał pisany przez zespół, bez wstawek z bazy ani z żądania; w przeglądarce ten sam napis przepisany z już wykonanego węzła `script[data-nes-probe]` (literał poza domknięciem bootu, P2.1). To PIERWSZY skrypt dokumentu: musi być klasyczny i wykonać się przed bundlem, więc żaden sanitizer nie ma tu czego poprawić.",
   },
   {
     file: "src/routes/__root.tsx",

@@ -9,7 +9,9 @@
 //
 // Przedmiot dowodu (bootLoaderScript.ts, nagłówek): wyzwalacze `now`/`lcp` i zapasy, reguły
 // (i)/(ii) przyjęcia wpisu LCP, leniwy odczyt `#nes-boot-set` (także po skrypcie), usunięcie węzła
-// przed wstawieniem wejścia, idempotencja, watchdog sondy i doktryna skryptu inline.
+// przed wstawieniem wejścia, wejście NIGDY przed końcem parsowania dokumentu (poprawka po Prove:
+// moduł wstawiony skryptem jest `async`, a `hydrate()` bez ogona dokumentu rzuca), idempotencja,
+// watchdog sondy i doktryna skryptu inline.
 import { Window } from "happy-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -155,15 +157,29 @@ afterEach(() => {
 });
 
 describe("BOOT_LOADER_SCRIPT - tryb `now`", () => {
-  it("zestaw `now` bootuje od razu: seria modulepreload, wejście, węzeł zestawu usunięty", () => {
+  it("zestaw `now` bootuje od razu: seria modulepreload, węzeł zestawu usunięty, wejście po DCL", () => {
     const h = runLoader({
       before: (doc) => doc.head.appendChild(bootSetNode(doc, { ...LCP_SET, m: "now" })),
     });
     expect(h.preloads()).toEqual(LCP_SET.u);
-    expect(h.modules()).toEqual([ENTRY]);
     expect(h.doc.getElementById(BOOT_SET_ELEMENT_ID)).toBeNull();
     expect(h.why()).toBe("now");
-    // Watchdog sondy uzbrojony w chwili bootu (krok 4).
+    // Loader stoi w `<head>`, dokument dopiero się parsuje: wejście i watchdog czekają na DCL.
+    expect(h.modules()).toEqual([]);
+    expect(h.arm).not.toHaveBeenCalled();
+    h.dcl();
+    expect(h.modules()).toEqual([ENTRY]);
+    // Watchdog sondy uzbrojony w chwili wstawienia wejścia (krok 4).
+    expect(h.arm).toHaveBeenCalledTimes(1);
+  });
+
+  it("dokument już sparsowany (`interactive`): `now` wstawia wejście od razu", () => {
+    const h = runLoader({
+      readyState: "interactive",
+      before: (doc) => doc.head.appendChild(bootSetNode(doc, { ...LCP_SET, m: "now" })),
+    });
+    expect(h.preloads()).toEqual(LCP_SET.u);
+    expect(h.modules()).toEqual([ENTRY]);
     expect(h.arm).toHaveBeenCalledTimes(1);
   });
 
@@ -174,8 +190,10 @@ describe("BOOT_LOADER_SCRIPT - tryb `now`", () => {
         doc.head.appendChild(bootSetNode(doc));
       },
     });
-    expect(h.modules()).toEqual([ENTRY]);
     expect(h.why()).toBe("now");
+    expect(h.preloads()).toEqual(LCP_SET.u);
+    h.dcl();
+    expect(h.modules()).toEqual([ENTRY]);
   });
 
   it("`document.prerendering` bootuje od razu", () => {
@@ -199,10 +217,13 @@ describe("BOOT_LOADER_SCRIPT - tryb `now`", () => {
   it("zestaw PO skrypcie (bufor routera za loaderem) - boot w chwili pojawienia się węzła", async () => {
     vi.useRealTimers();
     const h = runLoader();
-    expect(h.modules()).toEqual([]);
+    expect(h.preloads()).toEqual([]);
     h.doc.head.appendChild(bootSetNode(h.doc, { ...LCP_SET, m: "now" }));
-    await vi.waitFor(() => expect(h.modules()).toEqual([ENTRY]));
+    await vi.waitFor(() => expect(h.preloads()).toEqual(LCP_SET.u));
     expect(h.doc.getElementById(BOOT_SET_ELEMENT_ID)).toBeNull();
+    expect(h.modules()).toEqual([]);
+    h.dcl();
+    expect(h.modules()).toEqual([ENTRY]);
   });
 
   it("brak zestawu przy DOMContentLoaded (dev: `<Scripts>` startuje sam) - nic nie wstawia", () => {
@@ -252,6 +273,8 @@ describe("BOOT_LOADER_SCRIPT - tryb `lcp`", () => {
 
   it("(i) wpis kandydata po elemencie: boot po 50 ms, obserwator odłączony", () => {
     const h = lcpPage();
+    // Dokument HIT: DCL przed wpisem LCP (obsDCL 140-190 ms wobec obsLCP 185-263 ms w Prove).
+    h.dcl();
     FakeObserver.last?.emit({ element: h.img, url: "https://media.test/hero.avif", size: 40_000 });
     vi.advanceTimersByTime(BOOT_AFTER_LCP_DELAY_MS - 1);
     expect(h.modules()).toEqual([]);
@@ -348,6 +371,7 @@ describe("BOOT_LOADER_SCRIPT - tryb `lcp`", () => {
 
   it("pierwsza interakcja (capture) bootuje natychmiast", () => {
     const h = lcpPage();
+    h.dcl();
     h.win.dispatchEvent(new h.win.Event("pointerdown"));
     expect(h.modules()).toEqual([ENTRY]);
     expect(h.why()).toBe("input");
@@ -391,6 +415,94 @@ describe("BOOT_LOADER_SCRIPT - tryb `lcp`", () => {
     h.dcl();
     expect(h.modules()).toEqual([ENTRY]);
     expect(h.why()).toBe("input");
+  });
+});
+
+// DOKUMENT W PORCJACH (poprawka po Prove P2.1). Wejście wstawione przed końcem parsowania
+// wykonuje się od razu po pobraniu (moduł wstawiony skryptem jest `async`), a `hydrate()` TanStack
+// bez ogona dokumentu (`window.$_TSR`) rzuca `Invariant failed` - odtworzone w e2e
+// `consent-shell-geometry` („przerwa parsera w środku karty”) i sondą dokumentu w dwóch porcjach.
+// Dla KAŻDEGO wyzwalacza, który może paść przed DOMContentLoaded: seria `modulepreload` rusza od
+// razu (pobieranie bez wykonania), wejście i watchdog dopiero przy DCL, dokładnie raz.
+describe("BOOT_LOADER_SCRIPT - wejście nigdy przed końcem parsowania", () => {
+  const NOW_SET = { ...LCP_SET, m: "now" };
+  const cases: ReadonlyArray<{
+    name: string;
+    why: string;
+    set?: unknown;
+    session?: boolean;
+    fire?: (h: Harness, img: Element) => void;
+  }> = [
+    { name: "tryb serwera `now`", why: "now", set: NOW_SET },
+    { name: "zapisana sesja (zalogowany, podgląd edytora)", why: "now", session: true },
+    {
+      name: "wpis LCP kandydata po elemencie (reguła (i))",
+      why: "lcp",
+      fire: (_h, img) => FakeObserver.last?.emit({ element: img, size: 90_000 }),
+    },
+    {
+      name: "wpis LCP kandydata po URL-u (reguła (i))",
+      why: "lcp",
+      fire: () => FakeObserver.last?.emit({ url: "https://media.test/hero.avif", size: 1 }),
+    },
+    {
+      name: "interakcja w trakcie ładowania",
+      why: "input",
+      fire: (h) => h.win.dispatchEvent(new h.win.Event("touchstart")),
+    },
+    {
+      name: "błąd obrazu kandydata",
+      why: "nocand",
+      fire: (h, img) => img.dispatchEvent(new h.win.Event("error") as unknown as Event),
+    },
+  ];
+
+  for (const c of cases) {
+    it(`${c.name}: seria od razu, wejście dopiero przy DOMContentLoaded`, () => {
+      let img: Element | null = null;
+      const h = runLoader({
+        before: (doc, win) => {
+          if (c.session) win.localStorage.setItem("sb-abc-auth-token", '{"access_token":"x"}');
+          doc.head.appendChild(bootSetNode(doc, c.set ?? LCP_SET));
+          img = candidate(doc);
+        },
+      });
+      c.fire?.(h, img as unknown as Element);
+      // Najdłuższe opóźnienie wyzwalacza sprzed DCL to 50 ms (`lcp`) albo rAF + 0 (`nocand`);
+      // dziesięć sekund bez DCL nie może wstawić wejścia - ogon dokumentu wciąż w drodze.
+      vi.advanceTimersByTime(10_000);
+      expect(h.why()).toBe(c.why);
+      expect(h.preloads()).toEqual(LCP_SET.u);
+      expect(h.modules()).toEqual([]);
+      expect(h.arm).not.toHaveBeenCalled();
+      h.dcl();
+      expect(h.modules()).toEqual([ENTRY]);
+      expect(h.arm).toHaveBeenCalledTimes(1);
+      // Późniejsze zdarzenia nie dublują wejścia ani serii.
+      h.win.dispatchEvent(new h.win.Event("load"));
+      h.win.dispatchEvent(new h.win.Event("keydown"));
+      vi.advanceTimersByTime(BOOT_HARD_CAP_MS + BOOT_AFTER_LOAD_DELAY_MS);
+      expect(h.modules()).toEqual([ENTRY]);
+      expect(h.preloads()).toEqual(LCP_SET.u);
+      expect(h.arm).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it("parsowanie skończone, DCL jeszcze nie wysłany (`interactive`): wejście od razu", () => {
+    let img: Element | null = null;
+    const h = runLoader({
+      before: (doc) => {
+        doc.head.appendChild(bootSetNode(doc));
+        img = candidate(doc);
+      },
+    });
+    // Między `readyState = "interactive"` a zdarzeniem DCL pętla zdarzeń może wykonać timer
+    // wyzwalacza; dokument jest już sparsowany, więc czekanie na DCL nie jest potrzebne.
+    h.setReadyState("interactive");
+    FakeObserver.last?.emit({ element: img, size: 90_000 });
+    vi.advanceTimersByTime(BOOT_AFTER_LCP_DELAY_MS);
+    expect(h.modules()).toEqual([ENTRY]);
+    expect(h.why()).toBe("lcp");
   });
 });
 
