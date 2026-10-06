@@ -10,7 +10,10 @@
 //     samym HTML (bez porzucenia węzłów, bez błędów hydratacji);
 //  3. desktop przy starcie i zapisana sesja: hydratacja od razu, jak bez wyspy;
 //  4. otoczka wyspy JEST dawnym `div.hidden.lg:block` (te same klasy, dzieci
-//     bez dodatkowego poziomu - selektory `.home-header-grow > div > section`).
+//     bez dodatkowego poziomu - selektory `.home-header-grow > div > section`);
+//  5. (P2.2, recenzja P2.3 M1) obrót/rozszerzenie okna W TRAKCIE hydratacji:
+//     zapytanie zaczyna pasować po renderze wyspy, a jego `change` przychodzi
+//     tuż przed założeniem nasłuchu - wyspa i tak się uwadnia.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import { hydrateRoot, type Root } from "react-dom/client";
@@ -77,6 +80,9 @@ const DESKTOP_QUERY = "(min-width: 64rem)";
 
 type MediaListener = (event: { matches: boolean; media: string }) => void;
 
+/** Zapytanie, które zacznie pasować w chwili zakładania nasłuchu (bez `change`). */
+let rotateWhenListening: string | null = null;
+
 class FakeMediaQueryList {
   readonly listeners = new Set<MediaListener>();
   constructor(
@@ -84,6 +90,9 @@ class FakeMediaQueryList {
     public matches: boolean,
   ) {}
   addEventListener(_type: string, listener: MediaListener): void {
+    // Obrót między renderem wyspy (odczyt w konstruktorze) a jej efektem:
+    // `change` poszedł do nikogo, zostaje tylko nowy wynik `matches`.
+    if (rotateWhenListening === this.media) this.matches = true;
     this.listeners.add(listener);
   }
   removeEventListener(_type: string, listener: MediaListener): void {
@@ -178,6 +187,7 @@ async function hydrateHeader(): Promise<Mounted> {
 }
 
 beforeEach(() => {
+  rotateWhenListening = null;
   frames = [];
   h.clientBuilderRenders = 0;
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
@@ -262,6 +272,24 @@ describe("Header - ukryty nagłówek desktopowy jako wyspa (P2.3)", () => {
     window.localStorage.setItem("sb-fixture-auth-token", JSON.stringify({ access_token: "x" }));
     const page = await hydrateHeader();
     expect(page.island().getAttribute("data-island-state")).toBe("hydrated");
+    expect(page.container.querySelector('[data-probe="desktop-section"]')).toBe(page.serverSection);
+    expect(page.errors).toEqual([]);
+  });
+
+  it("obrót do lg W TRAKCIE hydratacji (`change` przed nasłuchem wyspy): wyspa uwadnia się po kilku klatkach na tym samym HTML (P2.2, M1)", async () => {
+    installMatchMedia(false);
+    rotateWhenListening = DESKTOP_QUERY;
+    const page = await hydrateHeader();
+    for (
+      let i = 0;
+      i < 4 && page.island().getAttribute("data-island-state") !== "hydrated";
+      i += 1
+    ) {
+      await frame();
+    }
+    expect(mediaLists.get(DESKTOP_QUERY)?.matches).toBe(true);
+    expect(page.island().getAttribute("data-island-state")).toBe("hydrated");
+    expect(h.clientBuilderRenders).toBeGreaterThan(0);
     expect(page.container.querySelector('[data-probe="desktop-section"]')).toBe(page.serverSection);
     expect(page.errors).toEqual([]);
   });

@@ -15,24 +15,25 @@
 //  5. Gość na desktopie bez interakcji: wyspy wyszukiwarki i konta czekają
 //     (I2, niżej).
 //  6. Zapisana sesja: awatar w nagłówku najpóźniej 1 s po starcie aplikacji.
+//  6a. (P2.2) Zapisana sesja: wyspy sekcji treści i stopki uwodnione zaraz po
+//     starcie (`immediateWhen`), bez odroczenia - bloki zależne od roli od razu.
 //  7. Pasek „Na czasie" (F10): ruch ozdobny (płomień, puls `live`, gradient
 //     `ribbon`) rusza dopiero po pierwszej interakcji, a przy
 //     `prefers-reduced-motion: reduce` nie rusza wcale - sprawdzane na
 //     wyliczonym `animation-name`, czyli na kaskadzie arkusza paska w
 //     przeglądarce, nie na jego tekście.
 //
-// ZALEŻNOŚĆ OD P2.2 (I2). Przypadki 2 i 5 wymagają stałej wartości kontekstu
-// `AuthProvider` przy starcie gościa: dziś przejście `loading: false` w
-// pierwszym przebiegu efektów dociera do każdej czekającej wyspy i otwiera ją
-// przez kolejkę zaraz po starcie (GÓRNA GRANICA w `hydrationIsland.tsx`).
-// Stałą wartość wprowadza P2.2 razem z wyspami sekcji, więc do jej scalenia
-// oba przypadki są oznaczone `test.fail` - Playwright zgłosi je jako
-// niespodziewanie zielone, gdy I2 wejdzie, i wtedy oznaczenie trzeba zdjąć.
-// Warunki wstępne obu przypadków (pasek mobilny działa; na desktopie wyspa
-// `hdr-desktop` uwadnia się od razu) przypinają ZIELONE przypadki 1 i 4, a w
-// przypadkach `test.fail` jedynymi asercjami po obserwacji są stany
-// `pending` - bez I2 padają dokładnie na nich (przebieg kontrolny bez
-// `test.fail`: raport P2.3 IMPL-fix1).
+// ZALEŻNOŚĆ OD P2.2 (I2) - SPEŁNIONA. Przypadki 2 i 5 wymagają stałej wartości
+// kontekstu `AuthProvider` (i `ThemeProvider`) przy starcie gościa; do P2.2
+// przejście `loading: false` w pierwszym przebiegu efektów docierało do każdej
+// czekającej wyspy i otwierało ją przez kolejkę zaraz po starcie (GÓRNA
+// GRANICA w `hydrationIsland.tsx`), więc oba przypadki były oznaczone
+// `test.fail`. P2.2 wprowadziła stałą wartość (rozstrzygnięcie gościa per
+// konsument, motyw magazynem) i oznaczenia zdjęła. Warunki wstępne (pasek
+// mobilny działa; na desktopie wyspa `hdr-desktop` uwadnia się od razu)
+// przypinają przypadki 1 i 4. Przypadek 4 sprawdza też, że przed pierwszym
+// dotknięciem wyspy wyszukiwarki i konta są ZIMNE (`pending`) - dotknięcie
+// ćwiczy więc ścieżkę intencji, nie uwodniony już widget (recenzja P2.3, M2).
 //
 // MASKA AKTYWACJI UŻYTKOWNIKA. Jak w `third-party-quiescence.spec.ts`:
 // ewaluacje CDP Playwrighta nadają dokumentowi lepką aktywację, którą
@@ -66,7 +67,8 @@ const DESKTOP_ISLAND = '[data-island-id="hdr-desktop"]';
 const SEARCH_ISLAND = '[data-island-id^="hdr-search"]';
 const ACCOUNT_ISLAND = '[data-island-id^="hdr-account"]';
 const TICKER = '[data-testid="trending-ticker"]';
-const I2 = "wymaga stałego kontekstu AuthProvider przy starcie gościa (I2, P2.2)";
+/** Wyspy sekcji treści (P2.2) i stopki. */
+const CONTENT_ISLANDS = '[data-island-id^="sec-"], [data-island-id="site-footer"]';
 
 declare global {
   interface Window {
@@ -258,7 +260,6 @@ test.describe("nagłówek w oknie startu (P2.3)", () => {
   });
 
   test("412 px: nagłówek desktopowy odwodniony do końca obserwacji", async ({ page }) => {
-    test.fail(true, I2);
     await page.setViewportSize(MOBILE);
     await prepare(page);
     await routeGuest(page);
@@ -318,6 +319,9 @@ test.describe("nagłówek w oknie startu (P2.3)", () => {
       await open(page);
       // Na desktopie nagłówek z buildera żyje od startu (media wyspy pasuje).
       await waitForHydrated(page, DESKTOP_ISLAND);
+      // Zimne wyspy przed dotknięciem (M2): dotknięcie ćwiczy ścieżkę intencji.
+      expect(await islandState(page, SEARCH_ISLAND)).toBe("pending");
+      expect(await islandState(page, ACCOUNT_ISLAND)).toBe("pending");
       const input = page.locator(`${SEARCH_ISLAND} input[type="search"]`).first();
       await input.tap();
       await waitForHydrated(page, SEARCH_ISLAND);
@@ -325,6 +329,8 @@ test.describe("nagłówek w oknie startu (P2.3)", () => {
       await page.keyboard.type("eu");
       await expect(input).toHaveValue("eu");
 
+      // Wyspa konta nie ma wyzwalacza „dowolna interakcja": nadal zimna.
+      expect(await islandState(page, ACCOUNT_ISLAND)).toBe("pending");
       await page.locator(`${ACCOUNT_ISLAND} button`).first().tap();
       await expect(page.locator("[data-account-menu]")).toBeVisible({ timeout: 10_000 });
     } finally {
@@ -333,7 +339,6 @@ test.describe("nagłówek w oknie startu (P2.3)", () => {
   });
 
   test("gość na desktopie bez interakcji: wyszukiwarka i konto czekają", async ({ page }) => {
-    test.fail(true, I2);
     await page.setViewportSize(DESKTOP);
     await prepare(page);
     await routeGuest(page);
@@ -375,6 +380,61 @@ test.describe("nagłówek w oknie startu (P2.3)", () => {
     expect(readyAt).toBeGreaterThan(0);
     expect(avatarAt - readyAt).toBeLessThanOrEqual(1_000);
     expect(await islandState(page, ACCOUNT_ISLAND)).toBe("hydrated");
+  });
+
+  test("zapisana sesja: wyspy sekcji i stopki uwodnione zaraz po starcie, bez odroczenia (P2.2)", async ({
+    page,
+  }) => {
+    await page.setViewportSize(MOBILE);
+    await prepare(page);
+    await page.addInitScript(
+      ([key, value]) => {
+        try {
+          window.localStorage.setItem(key, value);
+        } catch {
+          /* bez magazynu wyspy zostaną odroczone i test to pokaże */
+        }
+      },
+      [authStorageKey(SUPABASE_URL), JSON.stringify(dockSession())] as const,
+    );
+    await routeMember(page);
+    await open(page);
+    const total = await page.locator(CONTENT_ISLANDS).count();
+    expect(total).toBeGreaterThan(0);
+    // Bez interakcji i bez widoczności (telefon: sekcje >= 1 i stopka daleko
+    // poniżej zgięcia) - gość czekałby do punktu ciszy (>= 5 s po `load`).
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            (selector) =>
+              [...document.querySelectorAll(selector)].filter(
+                (island) => island.getAttribute("data-island-state") !== "hydrated",
+              ).length,
+            CONTENT_ISLANDS,
+          ),
+        { timeout: 2_000 },
+      )
+      .toBe(0);
+  });
+
+  test("gość na telefonie bez interakcji: wyspy sekcji poniżej zgięcia i stopki czekają do końca obserwacji (P2.2)", async ({
+    page,
+  }) => {
+    await page.setViewportSize(MOBILE);
+    await prepare(page);
+    await routeGuest(page);
+    await open(page);
+    await page.waitForTimeout(OBSERVE_MS);
+    expect(await islandState(page, '[data-island-id="site-footer"]')).toBe("pending");
+    const pending = await page.evaluate(
+      (selector) =>
+        [...document.querySelectorAll(selector)].filter(
+          (island) => island.getAttribute("data-island-state") === "pending",
+        ).length,
+      CONTENT_ISLANDS,
+    );
+    expect(pending).toBeGreaterThan(0);
   });
 
   test("pasek „Na czasie”: ruch ozdobny dopiero po pierwszej interakcji", async ({ page }) => {

@@ -12,10 +12,33 @@
 //
 // ŚRODOWISKO. `matchMedia` jest atrapą sterowaną z testu (stan + słuchacze
 // `change`), bo happy-dom nie ma preferencji systemu.
+//
+// STAŁA WARTOŚĆ KONTEKSTU (I2, P2.2). Motyw jedzie magazynem z lustrem w
+// konsumencie, nie wartością kontekstu: przyjęcie zapisanego ciemnego motywu
+// przy boocie i przełączenie motywu nie docierają do czekającej wyspy
+// hydratacji (HTML serwera zostaje, wyspa nie otwiera się przez górną
+// granicę), a klasa na `<html>` zmienia się synchronicznie w handlerze.
+// Kontrola negatywna: dostawca, który przyjmuje motyw ZMIANĄ wartości
+// kontekstu (jak przed P2.2), budzi tę samą wyspę.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  createContext,
+  startTransition,
+  useContext,
+  useEffect,
+  useState,
+  type ComponentType,
+  type ReactElement,
+  type ReactNode,
+} from "react";
+import { renderToString } from "react-dom/server";
+import { hydrateRoot, type Root } from "react-dom/client";
 
 import { ThemeProvider, useTheme } from "../ThemeProvider";
+import { HydrationIsland } from "@/lib/performance/hydrationIsland";
+import { __resetFirstInteractionForTests } from "@/lib/performance/firstInteraction";
+import { __resetPostInteractionQueueForTests } from "@/lib/performance/postInteractionQueue";
 
 const system = {
   dark: false,
@@ -203,5 +226,183 @@ describe("ThemeProvider - synchronizacja między kartami", () => {
     await mount();
     storageEvent(null, null);
     expect(shown()).toBe("dark");
+  });
+});
+
+describe("ThemeProvider - stała wartość kontekstu przy boocie (I2, P2.2)", () => {
+  const roots: Array<{ root: Root; host: HTMLElement }> = [];
+
+  beforeEach(() => {
+    __resetFirstInteractionForTests();
+    __resetPostInteractionQueueForTests();
+  });
+
+  afterEach(async () => {
+    for (const { root, host } of roots.splice(0)) {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+    __resetPostInteractionQueueForTests();
+    __resetFirstInteractionForTests();
+    vi.unstubAllEnvs();
+  });
+
+  function Outside(): ReactElement {
+    const { theme, toggle } = useTheme();
+    return (
+      <button type="button" data-testid="outside" data-theme={theme} onClick={toggle}>
+        motyw
+      </button>
+    );
+  }
+
+  function Inside(): ReactElement {
+    const { theme } = useTheme();
+    return (
+      <article data-testid="inside" data-theme={theme}>
+        Sekcja poniżej zgięcia
+      </article>
+    );
+  }
+
+  function page(Provider: ComponentType<{ children: ReactNode }>): ReactElement {
+    return (
+      <Provider>
+        <Outside />
+        <HydrationIsland id="sec" trigger={{ quiescent: false }}>
+          <Inside />
+        </HydrationIsland>
+      </Provider>
+    );
+  }
+
+  async function hydratePage(Provider: ComponentType<{ children: ReactNode }>) {
+    const host = document.createElement("div");
+    vi.stubEnv("SSR", true);
+    host.innerHTML = renderToString(page(Provider));
+    vi.stubEnv("SSR", false);
+    document.body.append(host);
+    const serverInside = host.querySelector('[data-testid="inside"]');
+    const errors: unknown[] = [];
+    let root!: Root;
+    await act(async () => {
+      root = hydrateRoot(host, page(Provider), { onRecoverableError: (e) => errors.push(e) });
+    });
+    roots.push({ root, host });
+    // Kilka klatek i makrozadań: kolejka P0.3 zdążyłaby otworzyć wyspę.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    });
+    const state = () =>
+      host.querySelector('[data-island-id="sec"]')?.getAttribute("data-island-state");
+    const inside = () => host.querySelector<HTMLElement>('[data-testid="inside"]');
+    const outside = () => host.querySelector<HTMLElement>('[data-testid="outside"]');
+    return { host, serverInside, errors, state, inside, outside };
+  }
+
+  /** Dostawca jak przed P2.2: motyw w wartości kontekstu, przyjęcie w przejściu. */
+  const LegacyCtx = createContext("light");
+  function LegacyProvider({ children }: { children: ReactNode }): ReactElement {
+    const [theme, setTheme] = useState("light");
+    useEffect(() => {
+      startTransition(() => setTheme(window.localStorage.getItem("theme") ?? "light"));
+    }, []);
+    return <LegacyCtx.Provider value={theme}>{children}</LegacyCtx.Provider>;
+  }
+  function LegacyRoot({ children }: { children: ReactNode }): ReactElement {
+    // `useTheme` poza dostawcą (motyw serwera) + kontekst starego dostawcy nad wyspą.
+    useContext(LegacyCtx);
+    return <LegacyProvider>{children}</LegacyProvider>;
+  }
+
+  it("zapisany ciemny motyw: konsument poza wyspą przechodzi na „dark”, czekająca wyspa zostaje pending z HTML serwera", async () => {
+    window.localStorage.setItem("theme", "dark");
+    const t = await hydratePage(ThemeProvider);
+
+    expect(t.outside()?.getAttribute("data-theme")).toBe("dark");
+    expect(t.state()).toBe("pending");
+    expect(t.inside()).toBe(t.serverInside);
+    expect(t.inside()?.getAttribute("data-theme")).toBe("light");
+    expect(t.errors).toEqual([]);
+
+    // Otwarcie wyspy (dotknięcie we wnętrzu): hydratacja z motywem serwera
+    // (bez rozjazdu), potem lustro przechodzi na bieżący motyw.
+    await act(async () => {
+      t.inside()?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(t.state()).toBe("hydrated");
+    expect(t.inside()).toBe(t.serverInside);
+    expect(t.inside()?.getAttribute("data-theme")).toBe("dark");
+    expect(t.errors).toEqual([]);
+  });
+
+  it("kontrola negatywna: dostawca ze zmianą wartości kontekstu przy boocie budzi czekającą wyspę (górna granica)", async () => {
+    window.localStorage.setItem("theme", "dark");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const t = await hydratePage(LegacyRoot);
+
+    expect(t.state()).toBe("hydrated");
+    expect(warn.mock.calls.map(([message]) => String(message))).toContainEqual(
+      expect.stringContaining('"sec": an update reached the pending island'),
+    );
+    warn.mockRestore();
+  });
+
+  it("przełączenie przed hydratacją wyspy: klasa na <html> w tym samym handlerze, wyspa zostaje pending", async () => {
+    const t = await hydratePage(ThemeProvider);
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+
+    act(() => {
+      t.outside()?.click();
+      // Synchronicznie, przed jakąkolwiek klatką i przejściem.
+      expect(document.documentElement.classList.contains("dark")).toBe(true);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+
+    expect(t.outside()?.getAttribute("data-theme")).toBe("dark");
+    expect(t.state()).toBe("pending");
+    expect(t.inside()).toBe(t.serverInside);
+    expect(window.localStorage.getItem("theme")).toBe("dark");
+    expect(t.errors).toEqual([]);
+  });
+
+  it("świeży montaż po zmianie motywu dostaje bieżący motyw od pierwszego renderu (bez mignięcia jasnym)", async () => {
+    const seen: string[] = [];
+    function Late(): ReactElement {
+      const { theme } = useTheme();
+      seen.push(theme);
+      return <output aria-label="późny">{theme}</output>;
+    }
+    function Shell(): ReactElement {
+      const [show, setShow] = useState(false);
+      return (
+        <>
+          <Probe />
+          <button type="button" onClick={() => setShow(true)}>
+            pokaż
+          </button>
+          {show ? <Late /> : null}
+        </>
+      );
+    }
+    await act(async () => {
+      render(
+        <ThemeProvider>
+          <Shell />
+        </ThemeProvider>,
+      );
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "ciemny" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "pokaż" }));
+    });
+
+    expect(seen[0]).toBe("dark");
+    expect(screen.getByRole("status", { name: "późny" }).textContent).toBe("dark");
   });
 });
