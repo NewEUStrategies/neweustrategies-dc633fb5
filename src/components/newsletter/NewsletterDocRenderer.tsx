@@ -22,11 +22,11 @@ import { sanitizeHtml } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import type { NlDoc, NlWidget, NlLang, NlSection } from "@/lib/newsletter-builder/types";
-import type { NewsletterSettings, NewsletterMailingList } from "@/hooks/useNewsletterSettings";
+import type { NewsletterDocSettings, NewsletterMailingList } from "@/hooks/useNewsletterSettings";
 
 interface Props {
   doc: NlDoc;
-  settings: NewsletterSettings;
+  settings: NewsletterDocSettings;
   lang: NlLang;
   source?: string;
 }

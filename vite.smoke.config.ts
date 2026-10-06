@@ -136,6 +136,20 @@ export default defineConfig({
                 // Keep the lazy toaster with its SDK: automatic merging of
                 // tiny chunks must not pull Sonner back into the boot entry.
                 if (id.endsWith("/src/components/ui/sonner.tsx")) return "vendor-sonner";
+                // Ta sama klasa (fala 2, 2026-10-05): 1,5-kilobajtowy atom ikon rodzaju
+                // wątku klubu po zmianie importów w main wpadł przez łączenie małych
+                // chunków do chunku wejściowego i pociągnął za sobą cały `vendor-lucide`
+                // (+18 KB gzip w domknięciu bootu każdej strony). Nazwany chunk nie
+                // podlega łączeniu, ale Rollup dokłada do niego każdą statyczną
+                // zależność spoza INNYCH nazwanych chunków - bez osobnego chunku
+                // `DynamicIcon` (zależność atomu, używana też przez chrome) zostałby
+                // wciągnięty do chunku atomu i wejście importowałoby go stamtąd.
+                // `dynamic-icon` jest w boocie jak dotąd `DynamicIcon` w `index-*`
+                // (wraz z helperem preloadu Vite, który ten moduł wnosi).
+                if (id.endsWith("/src/lib/icons/DynamicIcon.tsx")) return "dynamic-icon";
+                if (id.endsWith("/src/components/clubs/atoms/ClubThreadKindIcon.tsx")) {
+                  return "club-thread-kind-icon";
+                }
                 if (!id.includes("/node_modules/")) return undefined;
                 // PUŁAPKA (2026-08-06): Rollup NIE POTRAFI przenieść modułu
                 // WEJŚCIOWEGO do nazwanego chunku. Gdy `manualChunks` przypisze

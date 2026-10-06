@@ -60,6 +60,14 @@ import { useInlineWidgetEdit } from "@/components/builder/inlineEditContext";
 
 import { estimateChromeColumnHeight } from "@/lib/builder/sectionHeightEstimate";
 import { useSectionPreload } from "@/lib/builder/useSectionPreload";
+import { useBuilderMode } from "@/lib/content-model/editorCanvas";
+import { useCurrentPostCtx } from "@/lib/content-model/postContext";
+import { HydrationIsland, islandChunksFor } from "@/lib/performance/hydrationIsland";
+import {
+  createViewportDeviceSource,
+  useRendererDevice,
+  type ViewportDeviceSource,
+} from "@/lib/performance/viewportDevice";
 import {
   LcpCandidatesProvider,
   LcpEagerSection,
@@ -72,7 +80,11 @@ import { lcpCandidateIds } from "@/lib/builder/lcpCandidate";
 import { useBuilderDebug } from "@/lib/builder/builderDebug";
 import { safeParseBuilderDoc } from "@/lib/builder/schema";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
-import { StreamingSection } from "@/lib/builder/sectionStreaming";
+import {
+  SECTION_ISLAND_TRIGGER,
+  StreamingSection,
+  sectionIslandInfo,
+} from "@/lib/builder/sectionStreaming";
 import { initialSectionTabId, isRenderedWidget } from "@/lib/builder/sectionVisibility";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import {
@@ -99,6 +111,25 @@ function resolveOrder(
   if (device === "mobile") return order.mobile ?? undefined;
   if (device === "tablet") return order.tablet ?? order.desktop ?? undefined;
   return order.desktop ?? undefined;
+}
+
+/**
+ * Urządzenie INLINE geometrii siatki kolumn (F13 z diagnozy P0.5, K16).
+ *
+ * Telefon nie ma tu własnych wartości: układ jednej kolumny (i trzy kolumny
+ * kart osób) narzucają reguły `!important` z `styles.css` - zarówno
+ * `@media (max-width: 767px)`, jak i `[data-builder-renderer][data-device=
+ * "mobile"]` - dla KAŻDEGO `[data-columns-row]` i `[data-column-slot]`, więc
+ * inline `grid-template-columns`/`grid-column` na telefonie nigdy nie
+ * wygrywa. Dawniej przełączenie desktop -> telefon po hydratacji przepisywało
+ * mimo to inline styl każdej kolumny (25 mutacji „Inline CSS style
+ * declaration" i przeliczenie stylu ~700 elementów na fixture). Na telefonie
+ * inline zostaje więc desktopowe - to samo, co w HTML serwera - i React nie
+ * dotyka stylu kolumn. Tablet ma własne spany (bez reguły w CSS), więc liczy
+ * się jak dotąd. Kolejność (`order`) zależy od urządzenia naprawdę i zostaje.
+ */
+function gridDevice(device: Device): Device {
+  return device === "mobile" ? "desktop" : device;
 }
 
 import { isPeopleSectionKind } from "@/lib/builder/sectionKind";
@@ -273,6 +304,11 @@ export function BuilderRenderer({
   // "mobile" (rozjazd hydratacji). CSS ustala pierwszy mobilny układ,
   // a pomiar kontenera aktualizuje stan po hydratacji.
   const [viewportDevice, setViewportDevice] = useState<Device>(() => device ?? "desktop");
+  // Źródło urządzenia dla WYSP sekcji (P2.2): ta sama klasa, którą renderer
+  // renderuje resztę sekcji, ale bez propsa przez odwodnioną granicę - wyspa
+  // czyta ją lustrem (`useRendererDevice`). Stała tożsamość obiektu, więc
+  // przekazanie go propsem nie porzuca HTML-u czekającej wyspy.
+  const [deviceSource] = useState(() => createViewportDeviceSource(device ?? "desktop"));
   // Keep normalized node identities stable through viewport/context updates.
   // Editors replace the document immutably when its content changes.
   const safeDoc = useMemo(() => safeParseBuilderDoc(doc), [doc]);
@@ -320,12 +356,17 @@ export function BuilderRenderer({
   useEffect(() => {
     if (device) {
       setViewportDevice(device);
+      deviceSource.publish(device);
       return;
     }
     const el = rootRef.current;
     const updateWidth = (width: number) => {
+      const next = deviceForWidth(width);
+      // Wyspy sekcji dostają tę samą klasę z tego samego pomiaru; ich lustro
+      // też idzie w przejściu, więc oba przejścia zatwierdzają się razem.
+      deviceSource.publish(next);
       // Preserve pending SSR widget boundaries during viewport corrections.
-      startTransition(() => setViewportDevice(deviceForWidth(width)));
+      startTransition(() => setViewportDevice(next));
     };
     // CSS handles the first responsive paint. Reading clientWidth after
     // React's DOM writes forced layout in every nested renderer. Observe the
@@ -348,7 +389,7 @@ export function BuilderRenderer({
       window.removeEventListener("resize", onWindowResize);
       ro?.disconnect();
     };
-  }, [device]);
+  }, [device, deviceSource]);
 
   const effectiveDevice = device ?? viewportDevice;
 
@@ -368,6 +409,7 @@ export function BuilderRenderer({
               sections={safeDoc.sections}
               lang={lang}
               device={effectiveDevice}
+              deviceSource={deviceSource}
               stream={stream}
               editorPreview={editorPreview}
               lcpEagerFirst={lcpEagerFirst}
@@ -411,10 +453,83 @@ function BuilderDebugOverlay({ debug, doc }: { debug: boolean; doc: BuilderDocum
   return debug ? <style dangerouslySetInnerHTML={{ __html: DEBUG_OVERLAY_CSS }} /> : null;
 }
 
+// ── WYSPY SEKCJI (P2.2) ────────────────────────────────────────────────────
+//
+// PO CO. Commit hydratacji (K12 w księdze P0.5) uwadniał całą stronę jednym
+// ciągiem: sekcje poniżej zgięcia, ich subskrypcje zapytań, efekty i leniwe
+// widgety. Sekcje od drugiej (indeks w dokumencie >= 1) są teraz WYSPAMI
+// HYDRATACJI (`hydrationIsland.tsx`): HTML serwera zostaje nietknięty, a
+// hydratacja rusza dopiero przy widoczności (ekran zapasu w dół), pierwszej
+// interakcji (potem po jednej wyspie na klatkę przez kolejkę P0.3), dotknięciu
+// albo fokusie we wnętrzu sekcji, w punkcie ciszy - albo od razu przy
+// zapisanej sesji (zalogowani i redaktorzy: bloki zależne od roli bez
+// odroczenia, krytyka planu m10).
+//
+// GDZIE. Tylko renderer treści strony (`stream`: strona główna, strony z
+// buildera, wsparcie, potwierdzenie zakupu). Powłoka (nagłówek ma własne
+// wyspy P2.3, stopka jest jedną wyspą), popupy i szuflada renderują się jak
+// dotąd. Kanwa buildera i podgląd edytora - bez wysp (dzieci wprost,
+// natychmiastowa reakcja na edycję). Bez wysp w CAŁYM rendererze:
+//  - dokument ze spisem treści (widget `toc` albo blok `toc` w `rich-text`,
+//    w dowolnej sekcji) - AGENTS.md: aktywność spisu z geometrii nagłówków w
+//    jednym nasłuchu przewijania, który ma żyć od startu; a skaner spisu
+//    (`lib/content/anchorScan.ts`) dopisuje nagłówkom WSZYSTKICH sekcji `id` i
+//    wstawia w nie kotwice aliasowe - HTML czekającej wyspy przestałby się
+//    zgadzać z jej renderem (rozjazd hydratacji, render klienta);
+//  - treść WPISU (kontekst bieżącego wpisu `kind: "post"`) - w `.article-body`
+//    wpisu pracują skrypty, które przed hydratacją wysp zmieniłyby ich HTML:
+//    pływający spis treści (`FloatingShareBar`, ten sam skaner), reklamy w
+//    treści (`MidPostAds`) i powiązane wpisy po akapicie (wstawiane węzły).
+// Sekcja bez wyspy: z testem A/B - przydział wariantu zmienia jej drzewo zaraz
+// po starcie (opakowanie `ExperimentSection`), co porzuciłoby HTML czekającej
+// wyspy.
+// Decyzja jest czystą funkcją dokumentu (indeks w `sections`, nie w liście
+// widocznych - zmiana dostępu albo wariantu nie przestawia wyspy na zwykłą
+// sekcję i odwrotnie, co przemontowałoby jej drzewo), więc serwer i
+// hydratacja wychodzą tak samo.
+//
+// KOLEJNOŚĆ: wyspa WEWNĄTRZ `StreamingSection`. Bramka danych sekcji
+// zawiesza się na serwerze w granicy strumienia, nie w granicy wyspy, więc
+// HTML serwera nie ma fallbacku wyspy, a kolejność strumienia jest taka jak
+// bez wysp (test `builderRenderer.streamingServer`).
+//
+// URZĄDZENIE: treść wyspy czyta je lustrem ze źródła renderera
+// (`useRendererDevice`), nie z propsów - przełączenie desktop -> telefon kończy
+// się na `memo` wyspy (bailout) przed odwodnioną granicą, a uwodniona wyspa
+// dostaje nową klasę we własnym przejściu.
+
+/**
+ * Treść sekcji-wyspy. Wszystkie propsy są niezależne od urządzenia i stałe
+ * między renderami listy (obiekt sekcji z dokumentu, język, źródło renderera,
+ * flaga eager), więc re-render listy kończy się na `memo` wyspy przed jej
+ * odwodnioną granicą. Urządzenie - lustrem ze źródła renderera.
+ */
+const IslandSectionContent = memo(function IslandSectionContent({
+  section,
+  lang,
+  deviceSource,
+  eager,
+}: {
+  section: SectionNode;
+  lang: "pl" | "en";
+  deviceSource: ViewportDeviceSource;
+  eager: boolean;
+}) {
+  const device = useRendererDevice(deviceSource);
+  return (
+    <RenderErrorBoundary label={`section:${section.id}`}>
+      <LcpEagerSection eager={eager}>
+        <RenderSection section={section} lang={lang} device={device} />
+      </LcpEagerSection>
+    </RenderErrorBoundary>
+  );
+});
+
 const SectionsList = memo(function SectionsList({
   sections,
   lang,
   device,
+  deviceSource,
   stream,
   editorPreview,
   lcpEagerFirst,
@@ -422,26 +537,39 @@ const SectionsList = memo(function SectionsList({
   sections: SectionNode[];
   lang: "pl" | "en";
   device: Device;
+  /** Źródło urządzenia renderera dla treści wysp (P2.2). */
+  deviceSource: ViewportDeviceSource;
   stream: boolean;
   editorPreview: boolean;
   /** Render czysto kliencki właściciela: pierwsza malowana sekcja ładuje obrazy eager (`LcpImage`). */
   lcpEagerFirst: boolean;
 }) {
   const accessCtx = useAccessContext();
+  const builderMode = useBuilderMode();
+  const post = useCurrentPostCtx();
   const safeSections = Array.isArray(sections) ? sections : [];
   // A/B: bucket the visitor deterministically per experiment (client-side, so
   // SSR + first client render always show variant A - no hydration mismatch).
   // The builder canvas keeps every variant visible instead.
   const assignments = useExperimentAssignments(safeSections, !editorPreview);
-  const visible = safeSections.filter(
-    (s): s is SectionNode =>
-      !!s &&
-      evaluateAccess(s.advanced?.access, accessCtx) &&
-      (editorPreview || isSectionVisibleForAssignments(s, assignments)),
+  // Wyspy (P2.2) tylko w rendererze treści strony, poza kanwą, podglądem,
+  // treścią wpisu i dokumentem ze spisem treści (WYSPY SEKCJI wyżej).
+  const islands =
+    stream &&
+    !editorPreview &&
+    builderMode === null &&
+    post?.kind !== "post" &&
+    !safeSections.some((s) => !!s && sectionIslandInfo(s).toc);
+  const visible = safeSections.flatMap((s, docIndex) =>
+    !!s &&
+    evaluateAccess(s.advanced?.access, accessCtx) &&
+    (editorPreview || isSectionVisibleForAssignments(s, assignments))
+      ? [{ s, docIndex }]
+      : [],
   );
   return (
     <>
-      {visible.map((s, index) => {
+      {visible.map(({ s, docIndex }, index) => {
         const abTag = s.advanced?.abTest;
         // Priorytet obrazów NIE wynika już z indeksu sekcji: kandydatów LCP
         // wyznacza renderer-właściciel (`lcpOwner`) i podaje kontekstem
@@ -449,9 +577,30 @@ const SectionsList = memo(function SectionsList({
         // w renderze czysto klienckim właściciela (`lcpEagerFirst`, bez
         // znacznika i preloadu); `LcpEagerSection` owija KAŻDĄ sekcję, więc
         // drzewo jest identyczne w SSR i przy hydratacji.
+        const eager = lcpEagerFirst && index === 0;
+        const island = islands && docIndex >= 1 ? sectionIslandInfo(s) : null;
+        if (island?.eligible) {
+          return (
+            <StreamingSection key={s.id} section={s} lang={lang} device={device} enabled={stream}>
+              <HydrationIsland
+                id={`sec-${s.id}`}
+                trigger={SECTION_ISLAND_TRIGGER}
+                chunks={islandChunksFor(island.widgetTypes)}
+                fallbackMinHeight={island.fallbackMinHeight}
+              >
+                <IslandSectionContent
+                  section={s}
+                  lang={lang}
+                  deviceSource={deviceSource}
+                  eager={eager}
+                />
+              </HydrationIsland>
+            </StreamingSection>
+          );
+        }
         const rendered = (
           <RenderErrorBoundary label={`section:${s.id}`}>
-            <LcpEagerSection eager={lcpEagerFirst && index === 0}>
+            <LcpEagerSection eager={eager}>
               <RenderSection section={s} lang={lang} device={device} />
             </LcpEagerSection>
           </RenderErrorBoundary>
@@ -621,9 +770,10 @@ const RenderSection = memo(function RenderSection({
     ? allChildren.filter((c) => !c.tabId || c.tabId === displayTabId)
     : allChildren;
   const showEmptyPicker = !!emptyPicker && visibleCols.length === 0;
+  const layoutDevice = gridDevice(device);
   const colsSum =
     visibleCols.reduce(
-      (a, c) => a + (c.kind === "column" ? resolveSpan(c.span, device, 12) : 12),
+      (a, c) => a + (c.kind === "column" ? resolveSpan(c.span, layoutDevice, 12) : 12),
       0,
     ) || 12;
   const Tag = (section.layout?.htmlTag ?? "section") as ElementType;
@@ -732,10 +882,6 @@ const RenderSection = memo(function RenderSection({
             className="min-w-0 max-w-full overflow-hidden"
             style={{
               ...columnsRowStyle(section, colsSum),
-              gridTemplateColumns:
-                device === "mobile"
-                  ? `repeat(${Math.min(Math.max(visibleCols.length, 1), 4)}, minmax(0, 1fr))`
-                  : columnsRowStyle(section, colsSum).gridTemplateColumns,
               flex:
                 tabsEnabled && (tabsCfg!.orientation ?? "horizontal") === "vertical"
                   ? 1
@@ -765,8 +911,8 @@ const RenderSection = memo(function RenderSection({
               </Suspense>
             ) : (
               visibleCols.map((c) => {
-                const span = c.kind === "column" ? resolveSpan(c.span, device, 12) : 12;
-                const gridColumn = device === "mobile" ? "auto" : `span ${span}`;
+                const span = c.kind === "column" ? resolveSpan(c.span, layoutDevice, 12) : 12;
+                const gridColumn = `span ${span}`;
                 const order = c.kind === "column" ? resolveOrder(c.order, device) : undefined;
                 return (
                   <div
@@ -820,7 +966,8 @@ const RenderInner = memo(function RenderInner({
   const columns = (Array.isArray(inner.columns) ? inner.columns : []).filter(
     (c): c is ColumnNode => !!c && evaluateAccess(c.advanced?.access, accessCtx),
   );
-  const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, device, 6), 0) || 12;
+  const layoutDevice = gridDevice(device);
+  const colsSum = columns.reduce((a, c) => a + resolveSpan(c.span, layoutDevice, 6), 0) || 12;
   const innerKind = isPeopleSectionKind(columns) ? "people" : "";
   const searchScope = { device, accessCtx };
   const hostsSearch = columns.some((c) => childHostsSearchWidget(c, searchScope));
@@ -847,13 +994,7 @@ const RenderInner = memo(function RenderInner({
           data-columns-row
           data-search-overflow={searchOverflowAttr(hostsSearch)}
           className="min-w-0 max-w-full overflow-hidden"
-          style={{
-            ...columnsRowStyle(inner, colsSum),
-            gridTemplateColumns:
-              device === "mobile"
-                ? `repeat(${Math.min(Math.max(columns.length, 1), 4)}, minmax(0, 1fr))`
-                : columnsRowStyle(inner, colsSum).gridTemplateColumns,
-          }}
+          style={columnsRowStyle(inner, colsSum)}
         >
           {columns.map((c) => (
             <div
@@ -861,9 +1002,7 @@ const RenderInner = memo(function RenderInner({
               data-column-slot
               data-search-overflow={searchOverflowAttr(childHostsSearchWidget(c, searchScope))}
               className="min-w-0 max-w-full overflow-hidden"
-              style={{
-                gridColumn: device === "mobile" ? "auto" : `span ${resolveSpan(c.span, device, 6)}`,
-              }}
+              style={{ gridColumn: `span ${resolveSpan(c.span, layoutDevice, 6)}` }}
             >
               <BuilderImageSlotContext.Provider
                 value={columnImageSlot(inner, c, columns, parentSlot)}

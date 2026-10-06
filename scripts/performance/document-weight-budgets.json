@@ -22,7 +22,11 @@
     "",
     "P1.3 (fala 1, 2026-10-05) - POWŁOKA BANERA ZGÓD W SSR (ŚWIADOMY PRZYROST, DECYZJA WŁAŚCICIELA 2026-10-05). Karta zgód renderuje się w HTML-u serwera (`src/components/consent/ConsentShell.tsx`, gniazdo za `</footer>`), a `CONSENT_INIT_SCRIPT` (`src/lib/consent/consentInitScript.ts`) stoi w `<head>` zaraz po `THEME_INIT_SCRIPT` i przed pierwszym malowaniem ustawia `html[data-consent-decided]` oraz utrwala decyzję klikniętą przed bootem. Zysk zmierzony A/B wobec bazy 135e5cec (raport faza2/raporty/P1.3-PROVE-2.md): observedSpeedIndex mobile -218 ms (n = 10, 10/10 par ujemnych, MDE 98 ms), baner w pierwszej klatce filmstripu, desktop -71 ms. Plan zapowiadał +2-3 KB HTML; gzip mieści się w zapowiedzi, raw jest 2,4 razy większy (klasy Tailwind karty). Pięć progów podniesionych DOKŁADNIE o przyrost P1.3 zmierzony na artefakcie 20bbdab73 wobec bazy (5 próbek HIT, bajtowo identycznych), więc zapas pozostałych pozycji się nie zmienia; `measured` zostaje z pomiaru fd94e61:",
     "  * `htmlRawBytes` 398 937 -> 406 180 (+7 243: gniazdo powłoki 5 253 B + skrypt 2 024 B, reszta to atrybuty korzenia); `htmlGzipBytes` 55 565 -> 57 710 (+2 145); `headRawBytes` 24 601 -> 26 625 (+2 024, sam skrypt); `inlineScriptBytes` 96 117 -> 98 103 i `inlineExecutableScriptBytes` 89 739 -> 91 725 (+1 986, treść skryptu).",
-    "  * Odrzucone alternatywy: skrócenie skryptu (ucina semantykę pilnowaną testem równoważności prawnej rekordu zgody z banerem), przeniesienie skryptu do `<body>` przed gniazdo powłoki (ratuje wyłącznie `headRawBytes`), powłoka poza HTML-em (traci zysk SI). Pozostałe metryki bez zmian progu: domknięcie bootu +719 B gzip, pula JS High +715 B, CSS blokujący +211 B gzip, `preLcpTransferBytes` - wszystkie w dotychczasowych progach. Wolno je dalej tylko obniżać (`--ratchet`)."
+    "  * Odrzucone alternatywy: skrócenie skryptu (ucina semantykę pilnowaną testem równoważności prawnej rekordu zgody z banerem), przeniesienie skryptu do `<body>` przed gniazdo powłoki (ratuje wyłącznie `headRawBytes`), powłoka poza HTML-em (traci zysk SI). Pozostałe metryki bez zmian progu: domknięcie bootu +719 B gzip, pula JS High +715 B, CSS blokujący +211 B gzip, `preLcpTransferBytes` - wszystkie w dotychczasowych progach. Wolno je dalej tylko obniżać (`--ratchet`).",
+    "",
+    "FALA 2 (2026-10-05) - +1 PRELOAD JS ZA OSOBNY CHUNK `dynamic-icon` (DECYZJA ORKIESTRATORA FALI 2, ŚWIADOMY PRZYROST). Po scaleniu main z partią 1 fali 2 łączenie małych chunków (`experimentalMinChunkSize`) dokleiło atom `ClubThreadKindIcon.tsx` do chunku wejściowego, a z nim cały `vendor-lucide` (+18 KB gzip w domknięciu bootu; ta sama regresja na origin/main 824584d1: 493,0 KB gzip). Naprawa w `manualChunks` obu presetów: atom w nazwanym chunku, a `DynamicIcon` (jego zależność używana też przez chrome) we własnym chunku `dynamic-icon` - inaczej Rollup wciąga zależność do chunku atomu. Skutek dla bootu: 10 chunków (index + dynamic-icon) zamiast 9, czyli jeden modulepreload więcej. Trzy liczniki podniesione DOKŁADNIE o 1, zmierzone na artefakcie gałęzi fali 2 (`BUNDLE_INVENTORY=1 build:smoke`, 5 próbek HIT): `modulepreloadCount` 25 -> 26, `linkHeaderEntries` 31 -> 32, `preloadedJsCount` 25 -> 26. Bajty bez zmiany progu: `bootClosureGzipBytes` 483,1 KiB (próg 483,4), `bootClosureRawBytes` 1593,3 KiB (próg 1599,4), `preloadedJsGzipBytes` 559,1 KiB (próg 559,6). Odrzucone: `DynamicIcon` w `vendor-lucide-boot` (kod aplikacji w chunku vendorowym, unieważnianie cache przy każdej zmianie ikon). P2.1 (boot po LCP) zdejmuje modulepreload z dokumentu i obniży te progi ratchetem.",
+    "",
+    "P2.2 (fala 2, 2026-10-06) - WYSPY HYDRATACJI SEKCJI I STOPKI ORAZ I2 (DECYZJA ORKIESTRATORA FALI 2, ŚWIADOMY PRZYROST). Kod wysp (`hydrationIsland`, `sectionStreaming`, straż kliku), stała wartość kontekstu gościa (`useAuth`, I2) i lustro motywu stoją w chunku wejściowym, bo decydują o hydratacji pierwszego renderu. Zysk zmierzony A/B wobec scalonej partii 1 (`3841521a`, C3 po obu stronach, n = 5, raport faza2/raporty/P2.2-PROVE-2.md): główny wątek mobile -1168 ms i bootup -886 ms w 5/5 parach (poza MDE), plastry hydratacji 138 -> 69 zadań, późne zadania hydratacji sekcji >= 50 ms sym. 8/10 -> 0/10, 24 żądania mniej, CLS 0. Dwa progi podniesione DOKŁADNIE o przyrost P2.2 zmierzony na artefakcie scalonej głowy `ae602a97` wobec `3841521a` (5 próbek HIT): `bootClosureGzipBytes` 494 985 -> 496 679 (+1 694), `preloadedJsGzipBytes` 572 985 -> 574 673 (+1 688). `bootClosureRawBytes` (+4 371 B) mieści się w dotychczasowym progu. Jedyny dostępny cięcie w plikach P2.2 to ok. 150 B gzip. P2.1 (boot po LCP) zdejmuje modulepreload z dokumentu, więc pula JS High i te progi spadną ratchetem."
   ],
   "path": "/",
   "measuredAt": "2026-10-03",
@@ -69,12 +73,12 @@
       "target": 30720
     },
     "modulepreloadCount": {
-      "max": 25,
+      "max": 26,
       "measured": 25,
       "target": 12
     },
     "linkHeaderEntries": {
-      "max": 31,
+      "max": 32,
       "measured": 31,
       "target": 16
     },
@@ -104,17 +108,17 @@
       "target": 1153434
     },
     "bootClosureGzipBytes": {
-      "max": 494985,
+      "max": 496679,
       "measured": 485279,
       "target": 358400
     },
     "preloadedJsCount": {
-      "max": 25,
+      "max": 26,
       "measured": 25,
       "target": 12
     },
     "preloadedJsGzipBytes": {
-      "max": 572985,
+      "max": 574673,
       "measured": 561750,
       "target": 153600
     },

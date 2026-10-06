@@ -46,6 +46,11 @@ interface SidebarListenCardProps {
 // widoczność fokusu klawiatury w całym odtwarzaczu.
 const FOCUS_RING = AUDIO_FOCUS_RING;
 
+/** Deterministyczny kształt fali (procent wysokości) - stabilny w SSR i obu motywach. */
+const WAVE_BARS: readonly number[] = Array.from({ length: 48 }, (_, i) =>
+  Math.round(28 + 52 * Math.abs(Math.sin(i * 0.55) * Math.cos(i * 0.21))),
+);
+
 export function SidebarListenCard({
   postId,
   lang,
@@ -186,7 +191,7 @@ export function SidebarListenCard({
   return (
     <aside
       aria-label={copy("label")}
-      className="group/card relative overflow-hidden rounded-[6px] border border-border/70 bg-gradient-to-b from-card to-card/50 p-4 shadow-sm transition-shadow duration-300 hover:shadow-md"
+      className="group/card relative overflow-hidden rounded-[6px] border border-border/70 bg-background p-4 shadow-sm transition-shadow duration-300 hover:shadow-md"
     >
       {/* Cienka linia akcentu u góry - sygnatura marki, rośnie podczas odtwarzania. */}
       <span
@@ -272,10 +277,15 @@ export function SidebarListenCard({
             aria-pressed={playing}
             data-playing={playing ? "true" : "false"}
             className={[
-              "listen-play-toggle shrink-0 h-11 w-11 rounded-[6px]",
-              "bg-brand text-background shadow-md transition-all duration-300",
-              "hover:brightness-110 hover:shadow-lg active:scale-95 disabled:opacity-70",
-              playing ? "ring-4 ring-brand/15" : "ring-0",
+              "listen-play-toggle shrink-0 h-11 w-11 rounded-[14px]",
+              // Wariant "soft rounding": kwadrat z miękkim zaokrągleniem,
+              // delikatne wypełnienie w tonie marki, ikona w kolorze marki;
+              // tint pogłębia się na najechaniu.
+              "border transition-all duration-300",
+              "shadow-sm hover:shadow-md active:scale-95 disabled:opacity-70",
+              playing
+                ? "bg-brand text-background ring-4 ring-brand/15 border-brand"
+                : "border-brand/20 bg-brand/[0.10] text-brand hover:bg-brand/[0.18] hover:border-brand/35",
               FOCUS_RING,
             ].join(" ")}
           >
@@ -298,20 +308,23 @@ export function SidebarListenCard({
           </div>
 
           {/* Slider */}
-          <div className="relative h-3 flex items-center">
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 rounded-[6px] bg-muted" />
-            <div
-              className="absolute left-0 top-1/2 -translate-y-1/2 h-1 rounded-[6px] bg-brand transition-[width] duration-150"
-              style={{ width: `${displayPct}%` }}
-            />
+          <div className="relative h-4 flex items-center">
+            {/* Subtelne fale audio: warstwa bazowa + warstwa postępu przycięta do % */}
+            <div aria-hidden className="absolute inset-0 flex items-center justify-between gap-px text-foreground/25">
+              {WAVE_BARS.map((h, i) => (
+                <span key={i} className="w-[2px] rounded-full bg-current" style={{ height: `${h}%` }} />
+              ))}
+            </div>
             <div
               aria-hidden
-              className={[
-                "absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-[6px] bg-brand transition-transform",
-                showProgress ? "scale-75 group-hover/card:scale-100" : "scale-0",
-              ].join(" ")}
-              style={{ left: `calc(${displayPct}% - 5px)` }}
-            />
+              className="absolute inset-0 flex items-center justify-between gap-px text-brand transition-[clip-path] duration-150"
+              style={{ clipPath: `inset(0 ${100 - displayPct}% 0 0)` }}
+            >
+              {WAVE_BARS.map((h, i) => (
+                <span key={i} className="w-[2px] rounded-full bg-current" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+
             <input
               type="range"
               min={0}

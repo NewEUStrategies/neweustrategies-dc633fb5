@@ -14,9 +14,16 @@
 //   w tym inna wartość domyślna kolumn sekcji (12) i kolumn sekcji
 //   zagnieżdżonej (6),
 // * `hiddenOnDevice` dla widgetów,
-// * kolumny na telefonie: siatka `repeat(n, 1fr)` z twardym limitem 4 i
-//   `grid-column: auto` zamiast `span N`,
-// * wstrzyknięty `@media (max-width: 767px)` z kolejnością kolumn.
+// * kolumny na telefonie (F13 z diagnozy P0.5, P2.2): inline `grid-template-
+//   columns`/`grid-column` zostają DESKTOPOWE - układ jednej kolumny (i trzy
+//   kolumny kart osób) narzucają reguły `!important` z `styles.css` dla
+//   `[data-device="mobile"]` i `@media (max-width: 767px)`, więc przełączenie
+//   desktop -> telefon po hydratacji nie przepisuje inline stylu ani jednej
+//   kolumny (K16: 25 mutacji stylu i przeliczenie ~700 elementów na fixture),
+// * wstrzyknięty `@media (max-width: 767px)` z kolejnością kolumn,
+// * wyspy sekcji (P2.2): przełączenie urządzenia kończy się przed czekającą
+//   wyspą (HTML serwera, bez renderu klienta), a po otwarciu treść wyspy idzie
+//   za urządzeniem SWOJEGO renderera (lustro ze źródła renderera).
 //
 // ── CZEGO TU ŚWIADOMIE NIE MA ──────────────────────────────────────────────
 // Korekta urządzenia siedzi w `useEffect`, więc synchroniczny `render()`
@@ -28,8 +35,11 @@ import { act, cleanup, fireEvent } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderWithQueryClient } from "@/test/renderWithQueryClient";
+import { hydrateRoot, type Root } from "react-dom/client";
 import "@/test/i18nReal";
 import { __resetBuilderDebugForTests } from "@/lib/builder/builderDebug";
+import { __resetFirstInteractionForTests } from "@/lib/performance/firstInteraction";
+import { __resetPostInteractionQueueForTests } from "@/lib/performance/postInteractionQueue";
 import { BuilderRenderer } from "../BuilderRenderer";
 import {
   column,
@@ -275,16 +285,18 @@ describe("resolveSpan - rezerwa responsywna szerokości kolumn", () => {
     expect(slot(container, "k-bez-span")?.style.gridColumn).toBe("span 12");
   });
 
-  it("telefon IGNORUJE rezerwę: bez `mobile` kolumna dostaje pełne 12", () => {
-    // Na telefonie `gridColumn` to zawsze "auto" (siatka jest jednorzędowa),
-    // ale `resolveSpan` nadal liczy sumę kolumn - dlatego mierzymy tu sam
-    // fakt jednolitej szerokości.
+  it("telefon: inline `grid-column` zostaje desktopowe (F13) - układ jednej kolumny narzuca CSS", () => {
+    // `span.mobile` nigdy nie wygrywał na telefonie: `[data-device="mobile"]
+    // [data-column-slot]{grid-column:1/-1!important}` (i `auto` dla kart osób).
+    // Inline zostaje więc takie jak w HTML serwera (desktop) i przełączenie
+    // urządzenia go nie przepisuje.
     const { container } = renderWithQueryClient(
       <BuilderRenderer doc={doc([section("s", kolumny)])} lang="pl" device="mobile" />,
     );
-    for (const id of ["k-pelna", "k-bez-mobile", "k-tylko-desktop", "k-bez-span"]) {
-      expect(slot(container, id)?.style.gridColumn).toBe("auto");
-    }
+    expect(slot(container, "k-pelna")?.style.gridColumn).toBe("span 8");
+    expect(slot(container, "k-bez-mobile")?.style.gridColumn).toBe("span 3");
+    expect(slot(container, "k-tylko-desktop")?.style.gridColumn).toBe("span 2");
+    expect(slot(container, "k-bez-span")?.style.gridColumn).toBe("span 12");
   });
 
   it("kolumny sekcji ZAGNIEŻDŻONEJ mają domyślny span 6, nie 12", () => {
@@ -387,28 +399,35 @@ describe("resolveOrder - kolejność kolumn", () => {
   });
 });
 
-describe("siatka kolumn na telefonie", () => {
+describe("siatka kolumn na telefonie (F13: inline desktopowe, układ z CSS)", () => {
   it.each([
-    [1, "repeat(1, minmax(0, 1fr))"],
-    [3, "repeat(3, minmax(0, 1fr))"],
-    [6, "repeat(4, minmax(0, 1fr))"],
-  ])("%i kolumn daje %s (twardy limit 4)", (ile, oczekiwane) => {
+    [1, "repeat(2, minmax(0, 1fr))"],
+    [3, "repeat(6, minmax(0, 1fr))"],
+    [6, "repeat(12, minmax(0, 1fr))"],
+  ])("%i kolumn po 2: na telefonie inline jak na desktopie - %s", (ile, oczekiwane) => {
     const kolumny = Array.from({ length: ile }, (_, i) =>
       column(`k${i}`, [widget(`w${i}`)], { span: { desktop: 2 } }),
     );
-    const { container } = renderWithQueryClient(
+    const mobile = renderWithQueryClient(
       <BuilderRenderer doc={doc([section("s", kolumny)])} lang="pl" device="mobile" />,
     );
-    const row = container.querySelector<HTMLElement>("[data-columns-row]");
+    const row = mobile.container.querySelector<HTMLElement>("[data-columns-row]");
     expect(row?.style.gridTemplateColumns).toBe(oczekiwane);
+    cleanup();
+    const desktop = renderWithQueryClient(
+      <BuilderRenderer doc={doc([section("s", kolumny)])} lang="pl" device="desktop" />,
+    );
+    expect(
+      desktop.container.querySelector<HTMLElement>("[data-columns-row]")?.style.gridTemplateColumns,
+    ).toBe(oczekiwane);
   });
 
-  it("sekcja bez kolumn nadal deklaruje jedną kolumnę siatki (brak dzielenia przez zero)", () => {
+  it("sekcja bez kolumn nadal deklaruje siatkę (brak dzielenia przez zero)", () => {
     const { container } = renderWithQueryClient(
       <BuilderRenderer doc={doc([section("pusta", [])])} lang="pl" device="mobile" />,
     );
     const row = container.querySelector<HTMLElement>("[data-columns-row]");
-    expect(row?.style.gridTemplateColumns).toBe("repeat(1, minmax(0, 1fr))");
+    expect(row?.style.gridTemplateColumns).toBe("repeat(12, minmax(0, 1fr))");
   });
 
   it("na desktopie siatka trzyma sumę spanów, nie liczbę kolumn", () => {
@@ -428,7 +447,7 @@ describe("siatka kolumn na telefonie", () => {
     expect(row?.style.gridTemplateColumns).toBe("repeat(12, minmax(0, 1fr))");
   });
 
-  it("sekcja ZAGNIEŻDŻONA też przechodzi na siatkę mobilną", () => {
+  it("sekcja ZAGNIEŻDŻONA na telefonie: inline jak na desktopie (domyślny span 6)", () => {
     const { container } = renderWithQueryClient(
       <BuilderRenderer
         doc={doc([
@@ -442,7 +461,119 @@ describe("siatka kolumn na telefonie", () => {
     );
     const wiersze = [...container.querySelectorAll<HTMLElement>("[data-columns-row]")];
     expect(wiersze).toHaveLength(2);
-    expect(wiersze[1].style.gridTemplateColumns).toBe("repeat(2, minmax(0, 1fr))");
+    expect(wiersze[1].style.gridTemplateColumns).toBe("repeat(24, minmax(0, 1fr))");
+  });
+
+  it("przełączenie desktop -> telefon (pomiar kontenera) nie przepisuje inline stylu wierszy ani kolumn (K16)", async () => {
+    setWindowWidth(1280);
+    const { container } = renderWithQueryClient(
+      <BuilderRenderer
+        doc={doc([
+          section("s", [
+            column("a", [widget("w1")], { span: { desktop: 4, mobile: 12 } }),
+            column("b", [widget("w2")], { span: { desktop: 8 } }),
+          ]),
+          section("t", [innerSection("i", [column("i1"), column("i2")])]),
+        ])}
+        lang="pl"
+      />,
+    );
+    expect(urzadzenie(container)).toBe("desktop");
+    const grid = () =>
+      [...container.querySelectorAll<HTMLElement>("[data-columns-row], [data-column-slot]")].map(
+        (el) => el.getAttribute("style"),
+      );
+    const before = grid();
+    const observer = new MutationObserver(() => {});
+    observer.observe(container, { attributes: true, attributeFilter: ["style"], subtree: true });
+
+    setWindowWidth(390);
+    await act(async () => observers.triggerResize());
+    const mutated = observer
+      .takeRecords()
+      .map((record) => record.target)
+      .filter(
+        (node): node is Element =>
+          node instanceof Element && node.matches("[data-columns-row], [data-column-slot]"),
+      );
+    observer.disconnect();
+
+    expect(urzadzenie(container)).toBe("mobile");
+    expect(grid()).toEqual(before);
+    expect(mutated).toEqual([]);
+  });
+});
+
+describe("wyspy sekcji a urządzenie (P2.2)", () => {
+  beforeEach(() => {
+    __resetFirstInteractionForTests();
+    __resetPostInteractionQueueForTests();
+  });
+
+  afterEach(() => {
+    __resetPostInteractionQueueForTests();
+    __resetFirstInteractionForTests();
+    vi.unstubAllEnvs();
+  });
+
+  it("przełączenie desktop -> telefon kończy się przed czekającą wyspą (HTML serwera); po otwarciu treść wyspy idzie za urządzeniem renderera", async () => {
+    setWindowWidth(1280);
+    const dokument = doc([
+      simpleSection("s0"),
+      section("s1", [
+        column("k1", [
+          widget("tylko-desktop", "heading", { advanced: hideOn({ mobile: true }) }),
+          widget("zawsze", "heading"),
+        ]),
+      ]),
+    ]);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = (
+      <QueryClientProvider client={qc}>
+        <BuilderRenderer doc={dokument} lang="pl" stream />
+      </QueryClientProvider>
+    );
+    const container = document.createElement("div");
+    vi.stubEnv("SSR", true);
+    container.innerHTML = renderToString(view);
+    vi.stubEnv("SSR", false);
+    document.body.append(container);
+    const serverOnlyDesktop = container.querySelector('[data-widget-id="tylko-desktop"]');
+    expect(serverOnlyDesktop).not.toBeNull();
+    const errors: unknown[] = [];
+    let root!: Root;
+    await act(async () => {
+      root = hydrateRoot(container, view, { onRecoverableError: (error) => errors.push(error) });
+    });
+    const island = () => container.querySelector('[data-island-id="sec-s1"]');
+    try {
+      expect(island()?.getAttribute("data-island-state")).toBe("pending");
+
+      setWindowWidth(390);
+      await act(async () => observers.triggerResize());
+
+      // Sekcja 0 (poza wyspą) jest już mobilna; wyspa nietknięta.
+      expect(urzadzenie(container)).toBe("mobile");
+      expect(island()?.getAttribute("data-island-state")).toBe("pending");
+      expect(container.querySelector('[data-widget-id="tylko-desktop"]')).toBe(serverOnlyDesktop);
+
+      // Dotknięcie we wnętrzu (tor pilny): hydratacja z urządzeniem serwera,
+      // potem lustro przechodzi na urządzenie renderera.
+      await act(async () => {
+        container
+          .querySelector('[data-widget-id="zawsze"]')
+          ?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      });
+      expect(island()?.getAttribute("data-island-state")).toBe("hydrated");
+      expect(container.querySelector('[data-widget-id="tylko-desktop"]')).toBeNull();
+      expect(container.querySelector('[data-widget-id="zawsze"]')).not.toBeNull();
+      expect(errors).toEqual([]);
+    } finally {
+      await act(async () => root.unmount());
+      qc.clear();
+      container.remove();
+    }
   });
 });
 

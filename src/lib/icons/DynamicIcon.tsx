@@ -11,7 +11,9 @@
 //      wspólnego dla generatora i `lazyNamedIcon.ts`).
 //      Pełny katalog pozostaje wyłącznie w pickerze administracyjnym.
 // Fallback Suspense rezerwuje dokładnie wymiar ikony (size), więc doładowanie
-// nie zmienia zarezerwowanego miejsca. SSR może poczekać na tę samą porcję danych.
+// nie zmienia zarezerwowanego miejsca. SSR może poczekać na tę samą porcję danych,
+// a przeglądarka przy hydratacji NIE pobiera porcji - odtwarza SVG z DOM-u
+// serwera (znacznik `data-dyn-icon`, P2.4; szczegóły przy `readSsrIcon`).
 import { lazy, Suspense } from "react";
 import {
   // - zestaw bazowy (nawigacja/UI) -
@@ -151,6 +153,8 @@ import {
   ShoppingCart,
   Ticket,
   UsersRound,
+  Icon,
+  type IconNode,
   type LucideProps,
 } from "lucide-react";
 
@@ -382,11 +386,104 @@ export function DynamicIcon({ name, allowFull = true, ...rest }: DynamicIconProp
       style={{ display: "inline-block", width: size, height: size, flexShrink: 0 }}
     />
   );
+  // Ta sama granica Suspense po obu stronach (struktura hydratacji). Serwer
+  // zawsze rysuje ikonę z porcji danych (`DynamicIconChunk`) i znakuje ją
+  // `data-dyn-icon`; przeglądarka najpierw szuka tego SVG w DOM-ie z SSR.
+  const ssr = readSsrIcon(key, rest.className);
   return (
     <Suspense fallback={fallback}>
-      <DynamicIconChunk iconKey={key} {...rest} />
+      {ssr ? (
+        <Icon
+          {...rest}
+          iconNode={ssr.iconNode}
+          className={[ssr.lucideClasses, rest.className].filter(Boolean).join(" ")}
+          data-dyn-icon={key}
+        />
+      ) : (
+        <DynamicIconChunk iconKey={key} {...rest} data-dyn-icon={key} />
+      )}
     </Suspense>
   );
+}
+
+// ---------- ikony spoza zestawu: SVG z DOM-u SSR (P2.4, hydration:H10 e) ----------
+//
+// PO CO. Nazwa spoza zestawu kuratorowanego (np. ikona `nav-link` z dokumentu
+// nagłówka) kosztowała przy hydratacji `/` porcję danych `icons-N` (23-25 KB
+// gzip, ~100 KB surowego JSON-a do sparsowania) - tylko po to, żeby klient
+// odtworzył SVG, który serwer już wysłał w HTML-u. Teraz klient czyta ten SVG
+// z DOM-u: węzły dzieci (ścieżki, okręgi, ...) stają się `IconNode` dla `Icon`
+// z lucide (ten sam komponent, którego używa `createLucideIcon`), a klasy
+// `lucide-*` przechodzą 1:1. Wynik renderu jest bajt w bajt tym, co
+// wyrenderował serwer, więc hydratacja nie widzi różnicy, a granica Suspense
+// się nie zawiesza. Porcja danych zostaje dla renderu czysto klienckiego
+// (nawigacja SPA do ikony, której nie było w dokumencie).
+//
+// Pamięć: kształt jest per NAZWA (ta sama nazwa = ten sam SVG), więc jeden
+// odczyt DOM-u wystarcza na cały dokument i późniejsze nawigacje.
+
+/** Atrybut, którym serwer znakuje SVG ikony spoza zestawu (wartość = klucz). */
+const SSR_ICON_ATTR = "data-dyn-icon";
+
+/** Elementy, z których składają się ikony lucide (jak `isIconNode` porcji). */
+const SSR_ICON_TAGS = new Set([
+  "circle",
+  "ellipse",
+  "g",
+  "line",
+  "path",
+  "polygon",
+  "polyline",
+  "rect",
+]);
+
+interface SsrIconShape {
+  readonly iconNode: IconNode;
+  /** Klasy `lucide-<nazwa>` z SVG serwera (bez `lucide` i bez klas wołającego). */
+  readonly lucideClasses: string;
+}
+
+// `globalThis.Map`: w tym module `Map` to zaimportowana ikona lucide.
+const ssrIconShapes = new globalThis.Map<string, SsrIconShape>();
+
+function cssAttrValue(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/[\n\r\f]/g, "\\a ");
+}
+
+/** `stroke-width` -> `strokeWidth`: nazwa propsa Reacta dla atrybutu SVG. */
+function svgPropName(attribute: string): string {
+  return attribute.replace(/-([a-z])/g, (_, ch: string) => ch.toUpperCase());
+}
+
+function readSsrIcon(key: string, className: string | undefined): SsrIconShape | undefined {
+  if (typeof document === "undefined") return undefined;
+  const known = ssrIconShapes.get(key);
+  if (known) return known;
+  const svg = document.querySelector(`svg[${SSR_ICON_ATTR}="${cssAttrValue(key)}"]`);
+  if (!svg) return undefined;
+  const iconNode: IconNode = [];
+  for (const [index, child] of Array.from(svg.children).entries()) {
+    const tag = child.localName;
+    if (!SSR_ICON_TAGS.has(tag) || child.children.length > 0) return undefined;
+    const attrs: Record<string, string> = { key: `ssr-${index}` };
+    for (const attribute of Array.from(child.attributes)) {
+      attrs[svgPropName(attribute.name)] = attribute.value;
+    }
+    iconNode.push([tag as IconNode[number][0], attrs]);
+  }
+  // Serwer: `class="lucide lucide-<a> lucide-<b> <className>"`. Klasy
+  // wołającego (te same przy hydratacji) odcinamy, zostają klasy ikony.
+  const own = new Set((className ?? "").split(/\s+/).filter(Boolean));
+  const lucideClasses = (svg.getAttribute("class") ?? "")
+    .split(/\s+/)
+    .filter((token) => token.startsWith("lucide-") && !own.has(token))
+    .join(" ");
+  const shape: SsrIconShape = { iconNode, lucideClasses };
+  ssrIconShapes.set(key, shape);
+  return shape;
 }
 
 /**

@@ -310,6 +310,22 @@ const HEAVY_MODULES: readonly HeavyDictionary[] = [
       "klucz importuj z `lib/theme/fontSizesKey`; generator wyłącznie w " +
       "`theme/css/themeFontSizesCss.ts` (gałąź `.server()` + `import()`)",
   },
+  // 2026-10-05 (Wydajność PSI 85/95, fala 2, P2.4 - HW-2): rozmiary czcionek i
+  // odstęp tytuł-opis widgetów idą szablonem z `styles.css` i zmiennymi
+  // `--wt-*`, które liczy lekki `lib/builder/liveTypography.ts`. Generator
+  // reguł per widget (`lib/builder/typographyCss.ts`) obsługuje już tylko
+  // resztę właściwości i ma do przeglądarki wyłącznie `import()` (ramka:
+  // gałąź `.server()` + migawka bloku z HTML-a, jak arkusze korzenia).
+  // Znacznik: wykluczenie liczników list z selektorów generatora - szablon ma
+  // je wyłącznie w CSS, którego ta bramka nie czyta.
+  {
+    label: "lib/builder/typographyCss (generator reguł typografii widgetu)",
+    markers: [":not(.post-list-numbered-index)"],
+    remedy:
+      "ramka (`ChromeWidgetView`) i podgląd na żywo biorą tokeny i zmienne szablonu z " +
+      "`lib/builder/liveTypography`; generator wyłącznie w gałęzi `.server()` albo przez " +
+      "`import()` - nigdy statycznym importem z modułu ścieżki bootowania",
+  },
 ];
 
 const CLIENT_DIR =
@@ -457,6 +473,25 @@ function main(): void {
         `  • ${mod.label}\n` +
           hits.map((h) => `      w chunku startowym: ${h}`).join("\n") +
           `\n      naprawa: ${mod.remedy}`,
+      );
+    }
+  }
+
+  // Chunki vendorowe, które z definicji NIE należą do bootu (scripts/lib/bootVendorSplit.ts:
+  // część bootowa ma przyrostek `-boot`). Łączenie małych chunków (`experimentalMinChunkSize`)
+  // potrafi dokleić do chunku wejściowego mały moduł aplikacji, który importuje taki chunk -
+  // fala 2: atom ikon klubu wciągnął w ten sposób cały `vendor-lucide` (+18 KB gzip).
+  for (const chunk of bootGraph) {
+    const name = chunk.replace(/-[A-Za-z0-9_-]{8}\.js$/, "");
+    const lazyVendor =
+      ["vendor-lucide", "vendor-radix", "vendor-sonner", "vendor-jszip"].includes(name) ||
+      (name.startsWith("vendor-radix-") && name !== "vendor-radix-boot");
+    if (lazyVendor) {
+      violations.push(
+        `  • ${name} (chunk vendorowy spoza bootu)\n` +
+          `      w chunku startowym: ${chunk}\n` +
+          "      naprawa: znajdź moduł aplikacji w chunku wejściowym, który go importuje\n" +
+          "      (reports/chunk-inventory.json), i przypnij go w manualChunks obu presetów.",
       );
     }
   }

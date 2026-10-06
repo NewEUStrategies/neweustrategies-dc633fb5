@@ -28,7 +28,7 @@ import {
   carouselAutoplayEnabled,
   carouselAutoplayIntervalMs,
 } from "@/lib/builder/postListCarousel";
-import { normalizeTypographyGapPx } from "@/lib/builder/typographyCss";
+import { normalizeTypographyGapPx } from "@/lib/builder/liveTypography";
 import {
   POST_LIST_CLASSIC_COVER_SIZES,
   POST_LIST_FLEX_LEAD_SIZES,

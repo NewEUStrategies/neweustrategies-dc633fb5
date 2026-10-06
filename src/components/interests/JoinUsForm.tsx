@@ -13,14 +13,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { Check, UserPlus } from "lucide-react";
 import { SubscribeButton } from "@/components/ui/subscribe-button";
 
-import { useNewsletterSettings } from "@/hooks/useNewsletterSettings";
+import { useNewsletterInlineSettings } from "@/hooks/useNewsletterSettings";
 import { subscribeToNewsletter } from "@/lib/newsletter.functions";
 import { getJoinUsPrefill, linkJoinUsAndBackfill } from "@/lib/joinUsSync.functions";
 import { setMyConsent } from "@/lib/consents.functions";
 import { getConsentDefinition } from "@/lib/notifications/consentCatalog";
 import { useMyInterests } from "@/hooks/useInterests";
 import { TopicsDroplist, useInterestGroups } from "@/components/interests/TopicsDroplist";
-import { useNewsletterFieldLabels } from "@/lib/newsletter/newsletterFieldLabels";
+import { useNewsletterFieldLabelsFrom } from "@/lib/newsletter/newsletterFieldLabels";
 import { useBuilderMode } from "@/lib/content-model/editorCanvas";
 import { cn } from "@/lib/utils";
 import {
@@ -225,9 +225,10 @@ export function JoinUsForm({
 
   const { t, i18n } = useTranslation();
   const lang = (i18n.language?.startsWith("en") ? "en" : "pl") as "pl" | "en";
-  const { data: nl } = useNewsletterSettings();
+  // Projekcja formularza inline (P2.5): ten sam klucz grzeje SSR (`prefetch.ts`).
+  const { data: nl } = useNewsletterInlineSettings();
   const interestGroups = useInterestGroups(lang, interestSlugs);
-  const fieldLabels = useNewsletterFieldLabels(lang);
+  const fieldLabels = useNewsletterFieldLabelsFrom(nl?.field_labels, lang);
   const catalog = interestGroups.catalog;
   const my = useMyInterests();
   const subscribe = useServerFn(subscribeToNewsletter);

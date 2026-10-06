@@ -40,7 +40,14 @@ vi.mock("@/lib/auth/registrationFields", async (importOriginal) => {
 import {
   NEWSLETTER_FIELD_FALLBACKS,
   useNewsletterFieldLabels,
+  useNewsletterFieldLabelsFrom,
+  type NewsletterFieldKey,
 } from "@/lib/newsletter/newsletterFieldLabels";
+import {
+  defaultNewsletterSettings,
+  projectNewsletterInlineSettings,
+} from "@/hooks/useNewsletterSettings";
+import { resolvePopupFields } from "@/lib/newsletter/popupFields";
 
 function labels(lang: "pl" | "en" = "pl") {
   return renderHook(() => useNewsletterFieldLabels(lang)).result.current;
@@ -124,5 +131,43 @@ describe("droplista tematów", () => {
       "Tematy, które Cię interesują (opcjonalnie)",
     );
     expect(labels("pl").topics("heading", null)).toBe("Tematy, które Cię interesują (opcjonalnie)");
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe("formularze inline: etykiety z projekcji (`field_labels`) = etykiety z pełnego klucza", () => {
+  it("każde pole, oba języki, bez override, z kopią fabryczną i z własnym brzmieniem", () => {
+    // P2.5: `NewsletterForm` i `JoinUsForm` liczą etykiety z `field_labels`
+    // projekcji inline, nie z pełnego klucza. `projected` idzie PRAWDZIWĄ
+    // drogą danych: wiersz z bazy -> `resolvePopupFields` (jak
+    // `fetchNewsletterSettings`) -> `projectNewsletterInlineSettings`, więc
+    // zmiana kształtu projekcji (np. zgubione pole) czerwieni ten test. Każde
+    // z 7 pól mapowanych przez `REGISTRATION_KEY` ma tu własne brzmienie, więc
+    // pole wycięte z projekcji spadłoby na etykietę domyślną.
+    h.rawFields = [
+      { key: "first_name", label_pl: "Imię (redakcja)", label_en: "Given name" },
+      { key: "last_name", label_pl: "Nazwisko (redakcja)", label_en: "Family name" },
+      { key: "email", label_pl: "Adres e-mail", label_en: "E-mail address", enabled: true },
+      { key: "company", label_pl: "Firma / organizacja", label_en: "" },
+      { key: "job", label_pl: "Stanowisko w firmie", placeholder_pl: "np. analityk" },
+      { key: "phone", label_pl: "Telefon służbowy", label_en: "Work phone" },
+      { key: "linkedin", label_pl: "", label_en: "LinkedIn" },
+    ];
+    const projected = projectNewsletterInlineSettings({
+      ...defaultNewsletterSettings(),
+      popup_fields: resolvePopupFields(h.rawFields),
+    }).field_labels;
+    const keys = Object.keys(NEWSLETTER_FIELD_FALLBACKS) as NewsletterFieldKey[];
+    for (const lang of ["pl", "en"] as const) {
+      const full = labels(lang);
+      const inline = renderHook(() => useNewsletterFieldLabelsFrom(projected, lang)).result.current;
+      for (const key of keys) {
+        for (const override of [undefined, NEWSLETTER_FIELD_FALLBACKS[key][lang], "Własne"]) {
+          expect(inline.label(key, override), `${key}/${lang}/${String(override)}`).toBe(
+            full.label(key, override),
+          );
+        }
+      }
+    }
   });
 });

@@ -31,7 +31,14 @@
 // * granica `Suspense` renderera (L655) w stanie OCZEKIWANIA i po rozwiązaniu
 //   - łącznie z tym, że jej `fallback={null}` NIE REZERWUJE ANI PIKSELA,
 // * granica błędu wokół sekcji: uszkodzony `layout.htmlTag` wywraca render
-//   JEDNEJ sekcji, a nie strony.
+//   JEDNEJ sekcji, a nie strony,
+// * WYSPY SEKCJI (P2.2): w strumieniowanym rendererze treści wyspą jest każda
+//   sekcja od drugiej W DOKUMENCIE (poza testem A/B), nigdy w powłoce,
+//   podglądzie, kanwie, treści wpisu i dokumencie ze spisem treści (skaner
+//   spisu zmienia nagłówki wszystkich sekcji); HTML serwera bez fallbacku; przy
+//   hydratacji wyspa czeka z HTML serwera, otwiera ją widoczność (kolejka
+//   P0.3), pierwsza interakcja (po jednej na klatkę) albo od razu zapisana
+//   sesja; zmiana przydziału A/B i dostępu nie przemontowuje wysp.
 //
 // ── TWARDE OGRANICZENIA ŚRODOWISKA (nie do obejścia, do udokumentowania) ───
 // 1. `import.meta.env.SSR` jest w vitest FAŁSZEM, więc `ServerSectionGate`
@@ -60,6 +67,10 @@ import {
 } from "@/lib/builder/aboveFold";
 import "@/test/i18nReal";
 import { ABOVE_FOLD_SECTION_COUNT } from "@/lib/builder/prefetch";
+import { BuilderModeProvider } from "@/lib/content-model/editorCanvas";
+import { CurrentPostProvider } from "@/lib/content-model/postContext";
+import { __resetFirstInteractionForTests } from "@/lib/performance/firstInteraction";
+import { __resetPostInteractionQueueForTests } from "@/lib/performance/postInteractionQueue";
 import { shouldStreamSection } from "@/lib/builder/sectionStreaming";
 import { __resetBuilderDebugForTests } from "@/lib/builder/builderDebug";
 import type { EmptyContainerPickerBoxProps } from "../BuilderRenderer";
@@ -1051,5 +1062,193 @@ describe("granica BŁĘDU wokół sekcji", () => {
     } finally {
       bledy.mockRestore();
     }
+  });
+});
+
+describe("wyspy sekcji (P2.2)", () => {
+  const sekcjaToc = (id: string) =>
+    section(id, [column(`${id}-c`, [widget(`${id}-toc`, "toc", { content: {} })])]);
+  const sekcjaRichToc = (id: string) =>
+    section(id, [
+      column(`${id}-c`, [
+        widget(`${id}-rt`, "rich-text", {
+          content: {
+            doc: {
+              pl: {
+                blocks: [
+                  {
+                    id: `${id}-b`,
+                    type: "toc",
+                    data: { title: "", maxLevel: 3, ordered: false, sticky: false },
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      ]),
+    ]);
+  const sekcjaAb = (id: string) =>
+    simpleSection(id, { advanced: { abTest: { experimentId: "e1", variant: "a" } } });
+  const wyspy = (root: ParentNode) =>
+    [...root.querySelectorAll("[data-island-id]")].map((el) => el.getAttribute("data-island-id"));
+  const stan = (root: ParentNode, id: string) =>
+    root.querySelector(`[data-island-id="${id}"]`)?.getAttribute("data-island-state");
+
+  let frames: FrameRequestCallback[] = [];
+  /** Jedna klatka kolejki P0.3: rAF, makrozadanie kroku, praca Reacta. */
+  async function frame(): Promise<void> {
+    await act(async () => {
+      const pending = frames.splice(0);
+      for (const callback of pending) callback(performance.now());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  beforeEach(() => {
+    frames = [];
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+    __resetFirstInteractionForTests();
+    __resetPostInteractionQueueForTests();
+  });
+
+  afterEach(() => {
+    __resetPostInteractionQueueForTests();
+    __resetFirstInteractionForTests();
+    window.localStorage.clear();
+  });
+
+  const strona = doc([
+    simpleSection("s0"),
+    simpleSection("s1"),
+    sekcjaAb("s4"),
+    sekcjaZDanymi("s5"),
+  ]);
+
+  it("renderer treści (`stream`): wyspą jest każda sekcja od drugiej w dokumencie poza testem A/B; HTML bez fallbacku wysp", () => {
+    const host = ssrDom(<BuilderRenderer doc={strona} lang="pl" stream />);
+
+    expect(wyspy(host)).toEqual(["sec-s1", "sec-s5"]);
+    expect(stan(host, "sec-s1")).toBe("pending");
+    expect(stan(host, "sec-s5")).toBe("pending");
+    expect(host.querySelector("[data-island-fallback]")).toBeNull();
+    // Treść wyspy jest w HTML serwera (wyspa nie zawiesza się na serwerze).
+    expect(
+      host.querySelector('[data-island-id="sec-s1"] [data-sec-id="s1"]')?.textContent,
+    ).toContain("T-s1-w");
+    // Sekcja 0 bez otoczki - bezpośrednio w korzeniu renderera.
+    expect(korzen(host)?.querySelector(':scope > [data-sec-id="s0"]')).not.toBeNull();
+  });
+
+  it.each([
+    [
+      "dokument z widgetem spisu treści (w dowolnej sekcji)",
+      <BuilderRenderer doc={doc([...strona.sections, sekcjaToc("s9")])} lang="pl" stream />,
+    ],
+    [
+      "dokument z blokiem `toc` w `rich-text` (sekcja 0)",
+      <BuilderRenderer doc={doc([sekcjaRichToc("s9"), ...strona.sections])} lang="pl" stream />,
+    ],
+    [
+      "treść wpisu (kontekst bieżącego wpisu `post`)",
+      <CurrentPostProvider value={{ kind: "post", id: "p-1" }}>
+        <BuilderRenderer doc={strona} lang="pl" stream />
+      </CurrentPostProvider>,
+    ],
+    ["renderer bez `stream` (powłoka, popup)", <BuilderRenderer doc={strona} lang="pl" />],
+    [
+      "podgląd edytora (`editorPreview`)",
+      <BuilderRenderer doc={strona} lang="pl" stream editorPreview />,
+    ],
+    [
+      "kanwa buildera",
+      <BuilderModeProvider mode="light">
+        <BuilderRenderer doc={strona} lang="pl" stream />
+      </BuilderModeProvider>,
+    ],
+  ] as const)("bez wysp: %s", (_, ui) => {
+    const host = ssrDom(ui);
+    expect(wyspy(host)).toEqual([]);
+    expect(host.querySelectorAll("[data-sec-id]").length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("strona z buildera (kontekst `page`): wyspy jak na stronie głównej", () => {
+    const host = ssrDom(
+      <CurrentPostProvider value={{ kind: "page", id: "pg-1" }}>
+        <BuilderRenderer doc={strona} lang="pl" stream />
+      </CurrentPostProvider>,
+    );
+    expect(wyspy(host)).toEqual(["sec-s1", "sec-s5"]);
+  });
+
+  it("hydratacja: wyspa czeka z HTML serwera; widoczność (IO) otwiera ją przez kolejkę P0.3 na tych samych węzłach", async () => {
+    const view = await hydrated(<BuilderRenderer doc={strona} lang="pl" stream />);
+    expectCleanHydration(view);
+    const serwerowa = view.host.querySelector('[data-sec-id="s1"]');
+    expect(stan(view.host, "sec-s1")).toBe("pending");
+
+    await frame();
+    expect(stan(view.host, "sec-s1")).toBe("pending");
+
+    await act(async () => observers.triggerIntersection(true));
+    expect(stan(view.host, "sec-s1")).toBe("pending"); // callback IO tylko zakłada wpis
+    for (let i = 0; i < 4; i += 1) await frame();
+
+    expect(stan(view.host, "sec-s1")).toBe("hydrated");
+    expect(stan(view.host, "sec-s5")).toBe("hydrated");
+    expect(view.host.querySelector('[data-sec-id="s1"]')).toBe(serwerowa);
+    expectCleanHydration(view);
+  });
+
+  it("pierwsza interakcja: wyspy otwierają się po jednej na klatkę (kolejka P0.3), bez utraty HTML", async () => {
+    const view = await hydrated(<BuilderRenderer doc={strona} lang="pl" stream />);
+    const serwerowe = ["s1", "s5"].map((id) => view.host.querySelector(`[data-sec-id="${id}"]`));
+
+    await act(async () => {
+      document.body.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      document.body.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+      document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await frame();
+    const poPierwszej = [stan(view.host, "sec-s1"), stan(view.host, "sec-s5")];
+    for (let i = 0; i < 4; i += 1) await frame();
+
+    expect(poPierwszej.filter((state) => state === "hydrated").length).toBeLessThanOrEqual(1);
+    expect(stan(view.host, "sec-s1")).toBe("hydrated");
+    expect(stan(view.host, "sec-s5")).toBe("hydrated");
+    expect(["s1", "s5"].map((id) => view.host.querySelector(`[data-sec-id="${id}"]`))).toEqual(
+      serwerowe,
+    );
+    expectCleanHydration(view);
+  });
+
+  it("zapisana sesja (zalogowany, redaktor): wyspy sekcji hydratują od razu, bez kolejki", async () => {
+    window.localStorage.setItem("sb-placeholder-auth-token", '{"access_token":"t"}');
+    const view = await hydrated(<BuilderRenderer doc={strona} lang="pl" stream />);
+
+    expect(stan(view.host, "sec-s1")).toBe("hydrated");
+    expect(stan(view.host, "sec-s5")).toBe("hydrated");
+    expectCleanHydration(view);
+  });
+
+  it("zmiana dostępu po hydratacji (sesja) nie przemontowuje czekającej wyspy: decyzja z indeksu w dokumencie", async () => {
+    const tylkoZalogowani = simpleSection("s-z", {
+      advanced: { access: { auth: "user" } },
+    } as never);
+    const dokument = doc([tylkoZalogowani, simpleSection("s0"), simpleSection("s1")]);
+    const view = await hydrated(<BuilderRenderer doc={dokument} lang="pl" stream />);
+    // Gość: pierwsza WIDOCZNA sekcja (s0) ma indeks 1 w dokumencie - jest wyspą.
+    expect(wyspy(view.host)).toEqual(["sec-s0", "sec-s1"]);
+    const serwerowa = view.host.querySelector('[data-sec-id="s1"]');
+
+    await act(async () => auth.set({ user: { id: "u-1" } }));
+
+    expect(view.host.querySelector('[data-sec-id="s-z"]')).not.toBeNull();
+    expect(view.host.querySelector('[data-sec-id="s1"]')).toBe(serwerowa);
+    expect(stan(view.host, "sec-s1")).toBe("pending");
   });
 });

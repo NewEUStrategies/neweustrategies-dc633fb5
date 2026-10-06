@@ -2,9 +2,15 @@
 // stan gościa (Zaloguj | Załóż konto), stan zalogowanego (powitanie + panel
 // z sekcjami auth/staff), rozwiązywanie pozycji (preset -> href, custom,
 // separator, strona z indeksu pages), wylogowanie przez signOut.
-import { describe, it, expect, vi, beforeEach } from "vitest";
+//
+// Panel (Popover, Avatar, powitanie) to ZESTAW ładowany dynamicznym importem
+// (P2.3, `accountMenuWidget.intent.test.tsx`). Te przypadki sprawdzają sam
+// panel, więc zestaw jest rozgrzany przed nimi (`warmKit`) - tak jak u
+// zalogowanego po starcie albo u gościa po najechaniu. Gotowy zestaw `use()`
+// czyta synchronicznie, więc pierwszy render jest pełnym panelem.
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, act } from "@testing-library/react";
 
 import { AccountMenuWidget, type AccountMenuConfig } from "../AccountMenuWidget";
 
@@ -81,7 +87,28 @@ function renderWidget() {
   );
 }
 
+/**
+ * Rozgrzewa zestaw panelu tak, jak robi to najechanie na przycisk gościa, i
+ * czeka na jego import (te same instancje modułów), po którym `use()` dostaje
+ * gotową wartość bez zawieszenia.
+ */
+async function warmKit(): Promise<void> {
+  const view = renderWidget();
+  fireEvent.pointerEnter(screen.getByRole("button", { name: "Zaloguj / Załóż konto" }));
+  await act(async () => {
+    await Promise.all([
+      import("@/components/ui/popover"),
+      import("@/components/ui/avatar"),
+      import("@/lib/greetings/useGreeting"),
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  view.unmount();
+}
+
 describe("AccountMenuWidget", () => {
+  beforeAll(warmKit);
+
   beforeEach(() => {
     cleanup();
     auth.session = null;

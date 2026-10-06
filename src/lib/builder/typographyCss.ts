@@ -1,77 +1,50 @@
-import type { Device, Mode, Themed, WidgetTypography } from "./types";
-import { pickShared } from "./themed";
+// GENERATOR reguł typografii per widget (`[data-w-id="…"][data-w-id][data-w-id] …`).
+//
+// Od fali 2 programu PSI 85/95 (P2.4, HW-2) ramka widgetu NIE woła tego
+// modułu dla rozmiarów czcionek ani odstępu tytuł-opis - te idą szablonem z
+// `styles.css` i zmiennymi `--wt-*` (patrz `liveTypography.ts`). Generator
+// zostaje dla reszty: krój, grubość, styl, interlinia, światło, transformacja,
+// dekoracja, wyrównanie oraz rozmiary spoza białej listy szablonu.
+//
+// GRANICA CHUNKÓW. Ten moduł NIE MOŻE być statycznie osiągalny z chunku
+// wejściowego przeglądarki (strażnik w `scripts/check-entry-purity.ts`,
+// znacznik `:not(.post-list-numbered-index)`): ramka bierze go statycznie
+// wyłącznie w gałęzi `.server()` funkcji izomorficznej, a w przeglądarce przez
+// `import()` - dopiero gdy dane typografii zmienią się po hydratacji. Lekkie
+// pomocniki wspólne z ramką żyją w `liveTypography.ts` i są stamtąd
+// re-eksportowane, żeby dotychczasowi importerzy (`PostListView`) nie musieli
+// się zmieniać.
+import type { Device, WidgetTypography } from "./types";
+import {
+  cleanCssValue,
+  cssAttributeValue,
+  hasTypographyKeys,
+  normalizeTypographyGapPx,
+  pickFontSize,
+  resolveWidgetTypography,
+  widgetTypographyTemplate,
+} from "./liveTypography";
+
+export { normalizeTypographyGapPx, resolveWidgetTypography };
 
 type Specificity = 1 | 2 | 3;
 
-// The id is interpolated into a quoted attribute value, where a leading digit
-// is already valid CSS and must not be escaped. Escape only characters that can
-// terminate that quoted value. Keeping this implementation independent from the
-// browser-only `CSS.escape` guarantees byte-identical SSR and hydration output.
-function cssAttributeValue(value: string): string {
-  return value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/[\n\r\f]/g, "\\a ");
+/** Grupy reguł generatora (wszystkie domyślnie włączone). */
+interface RuleGroups {
+  /** Rozmiary tytułu, opisu i ogólny (z placeholderami). */
+  readonly fontSize: boolean;
+  /** Odstęp tytuł-opis (`--cms-title-description-gap` i `margin-top`). */
+  readonly gap: boolean;
+  /** Krój, grubość, styl, interlinia, światło, transformacja, dekoracja, wyrównanie. */
+  readonly common: boolean;
 }
 
-/** Najmniejszy rozmiar, jaki ma sens dla realnego tekstu (px). */
-const MIN_READABLE_FONT_PX = 6;
+const ALL_GROUPS: RuleGroups = { fontSize: true, gap: true, common: true };
 
-/**
- * Rozmiar czcionki bywa zapisany per urządzenie z czasów, gdy panel pozwalał
- * ustawiać każdy breakpoint osobno - w danych zostały wartości typu `1px`
- * (przypadkowy klik w stepper), przez które etykieta sekcji na mobile była
- * praktycznie niewidoczna. Traktujemy taką wartość jak brak i schodzimy po
- * łańcuchu urządzeń do pierwszej czytelnej.
- */
-function isUnreadableFontSize(value: unknown): boolean {
-  if (typeof value !== "string") return false;
-  const match = value.trim().match(/^(-?[\d.]+)\s*px$/i);
-  if (!match) return false;
-  const px = Number(match[1]);
-  return Number.isFinite(px) && px < MIN_READABLE_FONT_PX;
-}
-
-function pickFontSize(
-  value: { desktop?: string; tablet?: string; mobile?: string } | undefined,
-  device: Device,
-): string | undefined {
-  if (!value) return undefined;
-  const chain = [value[device], value.desktop, value.tablet, value.mobile];
-  return chain.find((candidate) => candidate && !isUnreadableFontSize(candidate));
-}
-
-function cleanCssValue(value: string | undefined): string | undefined {
-  const next = value?.trim();
-  if (!next) return undefined;
-  // Keep authored CSS values usable (font stacks, calc(), var(), etc.) while
-  // preventing accidental rule breaks from panel text inputs. `{};` guard against
-  // declaration/rule breakout; `<>` guard against `</style>`-based HTML breakout
-  // (defence in depth - the `<style>` sink also runs hardenStyleCss). None of
-  // these characters are legitimate in a font/size/weight/line-height value.
-  return next.replace(/[{};<>]/g, "");
-}
-
-function hasKeys(value: WidgetTypography | undefined): value is WidgetTypography {
-  return !!value && Object.values(value).some((v) => v !== undefined && v !== "");
-}
-
-export function normalizeTypographyGapPx(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.min(200, value));
-  if (typeof value === "string") {
-    const n = Number(value.replace(/[^0-9.]/g, ""));
-    if (Number.isFinite(n)) return Math.max(0, Math.min(200, n));
-  }
-  return undefined;
-}
-
-export function resolveWidgetTypography(
-  stored: Themed<WidgetTypography> | undefined,
-  _mode: Mode,
-  live?: WidgetTypography,
-): WidgetTypography | undefined {
-  if (hasKeys(live)) return live;
-  return pickShared<WidgetTypography>(stored);
+interface RuleOptions {
+  ancestor?: string;
+  specificity?: Specificity;
+  groups?: RuleGroups;
 }
 
 export function buildWidgetTypographyCss(
@@ -80,19 +53,45 @@ export function buildWidgetTypographyCss(
   device: Device,
   options: { ancestor?: string; specificity?: Specificity } = {},
 ): string {
-  if (!hasKeys(typography)) return "";
+  if (!hasTypographyKeys(typography)) return "";
   return buildWidgetTypographyRules(widgetId, typography, device, options).join("\n");
+}
+
+/** Wejście bloku generatora ramki (dane deterministyczne - skrót `data-css-hash`). */
+export interface LegacyWidgetTypographyInput {
+  readonly widgetId: string;
+  readonly typography: WidgetTypography | undefined;
+  /** Urządzenie - tylko gdy rozmiary idą generatorem; inaczej `null`. */
+  readonly device: Device | null;
+}
+
+/**
+ * Blok `<style>` ramki dla tego, czego nie pokrywa szablon HW-2: rozmiary
+ * tylko wtedy, gdy szablon je odrzucił (wartość spoza białej listy), odstęp
+ * nigdy (zawsze szablon), reszta właściwości zawsze. Kolejność reguł jest ta
+ * sama co w pełnym generatorze.
+ */
+export function buildLegacyWidgetTypographyCss(input: LegacyWidgetTypographyInput): string {
+  const { widgetId, typography, device } = input;
+  if (!hasTypographyKeys(typography)) return "";
+  const template = widgetTypographyTemplate(typography);
+  if (!template.legacy) return "";
+  return buildWidgetTypographyRules(widgetId, typography, device ?? "desktop", {
+    specificity: 3,
+    groups: { fontSize: template.legacyFontSize, gap: false, common: true },
+  }).join("\n");
 }
 
 function buildWidgetTypographyRules(
   widgetId: string,
   typography: WidgetTypography,
   device: Device,
-  options: { ancestor?: string; specificity?: Specificity } = {},
+  options: RuleOptions = {},
 ): string[] {
   const id = cssAttributeValue(widgetId);
   const ancestor = options.ancestor ?? "";
   const specificity = options.specificity ?? 3;
+  const groups = options.groups ?? ALL_GROUPS;
   const repeat = "[data-w-id]".repeat(Math.max(0, specificity - 1));
   const sel = `${ancestor}[data-w-id="${id}"]${repeat}`;
   const notCounters = ":not(.post-list-numbered-index):not(.rl-num)";
@@ -175,14 +174,14 @@ function buildWidgetTypographyRules(
   // property added hundreds of KB of inline CSS to builder documents.
   const commonDeclarations: string[] = [];
 
-  if (fontFamily) {
+  if (fontFamily && groups.common) {
     commonDeclarations.push(`font-family:${fontFamily} !important;`);
     rules.push(
       `${sel} input::placeholder, ${sel} textarea::placeholder{font-family:${fontFamily} !important;}`,
     );
   }
 
-  if (fontSize) {
+  if (fontSize && groups.fontSize) {
     if (descriptionFontSize) {
       rules.push(`${titleClassSel}{font-size:${fontSize} !important;}`);
       if (titleFallbackSel) rules.push(`${titleFallbackSel}{font-size:${fontSize} !important;}`);
@@ -195,14 +194,14 @@ function buildWidgetTypographyRules(
       );
     }
   }
-  if (descriptionFontSize) {
+  if (descriptionFontSize && groups.fontSize) {
     rules.push(`${descriptionClassSel}{font-size:${descriptionFontSize} !important;}`);
     if (descriptionFallbackSel)
       rules.push(`${descriptionFallbackSel}{font-size:${descriptionFontSize} !important;}`);
   }
 
   const gapPx = normalizeTypographyGapPx(typography.titleDescriptionGapPx);
-  if (typeof gapPx === "number") {
+  if (typeof gapPx === "number" && groups.gap) {
     const gap = `${gapPx}px`;
     rules.push(`${sel}{--cms-title-description-gap:${gap};}`);
     rules.push(
@@ -215,50 +214,56 @@ function buildWidgetTypographyRules(
     rules.push(`${sel} a + .cms-post-excerpt{margin-top:${gap} !important;}`);
   }
 
-  if (fontWeight) commonDeclarations.push(`font-weight:${fontWeight} !important;`);
-  if (typography.fontStyle)
-    commonDeclarations.push(`font-style:${typography.fontStyle} !important;`);
-  if (lineHeight) commonDeclarations.push(`line-height:${lineHeight} !important;`);
-  if (letterSpacing) commonDeclarations.push(`letter-spacing:${letterSpacing} !important;`);
-  if (typography.textTransform)
-    commonDeclarations.push(`text-transform:${typography.textTransform} !important;`);
-  if (typography.textDecoration)
-    commonDeclarations.push(`text-decoration:${typography.textDecoration} !important;`);
-  if (typography.textAlign)
-    commonDeclarations.push(`text-align:${typography.textAlign} !important;`);
+  if (groups.common) {
+    if (fontWeight) commonDeclarations.push(`font-weight:${fontWeight} !important;`);
+    if (typography.fontStyle)
+      commonDeclarations.push(`font-style:${typography.fontStyle} !important;`);
+    if (lineHeight) commonDeclarations.push(`line-height:${lineHeight} !important;`);
+    if (letterSpacing) commonDeclarations.push(`letter-spacing:${letterSpacing} !important;`);
+    if (typography.textTransform)
+      commonDeclarations.push(`text-transform:${typography.textTransform} !important;`);
+    if (typography.textDecoration)
+      commonDeclarations.push(`text-decoration:${typography.textDecoration} !important;`);
+    if (typography.textAlign)
+      commonDeclarations.push(`text-align:${typography.textAlign} !important;`);
+  }
   if (commonDeclarations.length) rules.push(`${allText}{${commonDeclarations.join("")}}`);
 
   return rules;
 }
 
+/**
+ * CSS bloku podglądu na żywo w `<head>` (`liveTypography.ts`) - wyłącznie
+ * część generatora: zmienne szablonu dopisuje sam moduł podglądu. Urządzenie
+ * wybiera ten sam przodek co szablon (`[data-builder-renderer][data-device]`,
+ * a w kanwie edytora także `[data-visual-canvas][data-device]`), bez `@media`.
+ */
 export function buildLiveWidgetTypographyCss(
   widgetId: string,
   typography: WidgetTypography,
 ): string {
-  const base = buildWidgetTypographyCss(widgetId, typography, "desktop", { specificity: 3 });
-  const tablet = buildWidgetTypographyCss(widgetId, typography, "tablet", {
-    ancestor: `[data-builder-renderer][data-device="tablet"] `,
+  const template = widgetTypographyTemplate(typography);
+  if (!template.legacy) return "";
+  const groups: RuleGroups = { fontSize: template.legacyFontSize, gap: false, common: true };
+  const base = buildWidgetTypographyRules(widgetId, typography, "desktop", {
     specificity: 3,
-  });
-  const tabletCanvas = buildWidgetTypographyCss(widgetId, typography, "tablet", {
-    ancestor: `[data-visual-canvas][data-device="tablet"] `,
-    specificity: 3,
-  });
-  const mobile = buildWidgetTypographyCss(widgetId, typography, "mobile", {
-    ancestor: `[data-builder-renderer][data-device="mobile"] `,
-    specificity: 3,
-  });
-  const mobileCanvas = buildWidgetTypographyCss(widgetId, typography, "mobile", {
-    ancestor: `[data-visual-canvas][data-device="mobile"] `,
-    specificity: 3,
-  });
-  return [
-    base,
-    tablet ? `@media (max-width: 1023px) and (min-width: 768px){${tablet}}` : "",
-    tabletCanvas ? `@media (max-width: 1023px) and (min-width: 768px){${tabletCanvas}}` : "",
-    mobile ? `@media (max-width: 767px){${mobile}}` : "",
-    mobileCanvas ? `@media (max-width: 767px){${mobileCanvas}}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+    groups,
+  }).join("\n");
+  if (!template.legacyFontSize) return base;
+  // Rozmiary spoza białej listy zależą od urządzenia: tylko one dostają
+  // warianty z przodkiem urządzenia (wyższa specyficzność niż baza).
+  const sizesOnly: RuleGroups = { fontSize: true, gap: false, common: false };
+  const variants = (["tablet", "mobile"] as const).flatMap((device) =>
+    [
+      `[data-builder-renderer][data-device="${device}"] `,
+      `[data-visual-canvas][data-device="${device}"] `,
+    ].map((ancestor) =>
+      buildWidgetTypographyRules(widgetId, typography, device, {
+        ancestor,
+        specificity: 3,
+        groups: sizesOnly,
+      }).join("\n"),
+    ),
+  );
+  return [base, ...variants].filter(Boolean).join("\n");
 }

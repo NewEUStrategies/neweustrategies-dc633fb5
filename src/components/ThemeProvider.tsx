@@ -1,13 +1,10 @@
 import {
   createContext,
-  startTransition,
   useCallback,
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
-  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -21,22 +18,80 @@ import {
   THEME_STORAGE_KEY,
   type Theme,
 } from "@/lib/theme/themeChoice";
+import { useIslandMirror } from "@/lib/performance/hydrationIsland";
 
 const STORAGE_KEY = THEME_STORAGE_KEY;
 const SERVER_THEME: Theme = "light";
-// React selects the hydration snapshot per consumer; no external event is
-// needed. Keep this shared UI primitive independent of the router.
-const subscribeToHydration = () => () => undefined;
 
-const ThemeContext = createContext<{
-  theme: Theme;
+// ── MOTYW BEZ ZMIANY KONTEKSTU (P2.2, wymóg I2 z recenzji P1.6) ─────────────
+//
+// PROBLEM. Motyw jechał WARTOŚCIĄ kontekstu: start na `SERVER_THEME`, a po
+// montażu `startTransition(() => setThemeState(readStored()))`. Przy zapisanym
+// albo systemowym motywie ciemnym to ZMIANA WARTOŚCI KONTEKSTU nad całą
+// stroną, a React propaguje ją do każdej odwodnionej granicy Suspense (nie
+// wie, kto w środku czyta kontekst). Każda wyspa hydratacji (sekcje i stopka
+// P2.2, nagłówek P2.3) budziła się wtedy zaraz po boocie, a przejście czekało
+// na wszystkie - przełącznik motywu też (górna granica w `hydrationIsland.tsx`).
+//
+// ROZWIĄZANIE. Wartość kontekstu jest STAŁA (magazyn motywu i dwie akcje).
+// Motyw mieszka w magazynie dostawcy, a każdy konsument ma lustro `useState`:
+//  - przy hydratacji (i na serwerze) lustro startuje od `SERVER_THEME` -
+//    parytet z HTML serwera także u odwiedzającego z ciemnym motywem (klasę
+//    na `<html>` i tak ustawił skrypt anty-FOUC z `<head>`);
+//  - świeży montaż (nawigacja SPA, popup, widget doładowany po zmianie
+//    motywu) bierze bieżący motyw magazynu od razu - bez mignięcia jasnym;
+//  - po montażu i przy każdej zmianie magazynu lustro przechodzi na bieżący
+//    motyw w `startTransition`, więc zawieszony widget zostawia poprzedni
+//    widok zamiast fallbacku (jak dotąd).
+// Czekająca wyspa nie ma jeszcze zamontowanych konsumentów - zmiana motywu do
+// niej nie dociera; uwodniona dostaje motyw lustrem we własnym przejściu.
+// Lustro i sonda trybu renderu są wspólne z wyspą i urządzeniem renderera
+// (`useIslandMirror`/`useHydrating` w `hydrationIsland.tsx`: React woła
+// `getServerSnapshot` wyłącznie przy hydratacji).
+//
+// `setTheme` najpierw SYNCHRONICZNIE stosuje klasę na `<html>` (CSS reaguje w
+// tej samej klatce, niezależnie od wysp), dopiero potem ogłasza motyw w
+// magazynie - lustra przechodzą w przejściu.
+
+interface ThemeStore {
+  get(): Theme;
+  set(next: Theme): void;
+  subscribe(listener: () => void): () => void;
+}
+
+function createThemeStore(initial: Theme): ThemeStore {
+  let current = initial;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => current,
+    set(next) {
+      if (next === current) return;
+      current = next;
+      for (const listener of [...listeners]) listener();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+}
+
+interface ThemeContextValue {
+  store: ThemeStore;
   toggle: () => void;
   setTheme: (t: Theme) => void;
-}>({
-  theme: SERVER_THEME,
+}
+
+/** Poza dostawcą: motyw serwera, który się nie zmienia, i bezczynne akcje. */
+const DEFAULT_CONTEXT: ThemeContextValue = {
+  store: createThemeStore(SERVER_THEME),
   toggle: () => {},
   setTheme: () => {},
-});
+};
+
+const ThemeContext = createContext<ThemeContextValue>(DEFAULT_CONTEXT);
 
 function systemTheme(): Theme {
   return systemPrefersDark() ? "dark" : "light";
@@ -64,31 +119,29 @@ function apply(theme: Theme) {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Start as "light" on BOTH server and client. The server cannot know the
-  // visitor's stored preference, so reading localStorage in the state
-  // initializer made the first client render disagree with the SSR HTML for
-  // dark-mode visitors - React 19 then rebuilds the entire hydrated tree
-  // (blank flash, every query refetches). The inline script in __root.tsx
-  // already applies the stored class before first paint, so starting "light"
-  // causes no visual flash; state adopts the stored value right after
-  // hydration in the effect below.
-  const [theme, setThemeState] = useState<Theme>(SERVER_THEME);
+  // Magazyn startuje od "light" na serwerze i u klienta: serwer nie zna
+  // zapisanego wyboru, a lustra konsumentów przy hydratacji i tak zaczynają od
+  // motywu serwera (parytet HTML). Skrypt anty-FOUC z `__root.tsx` ustawił
+  // klasę przed pierwszym malowaniem, więc nic nie miga.
+  const [store] = useState(() => createThemeStore(SERVER_THEME));
 
-  useEffect(() => {
-    startTransition(() => setThemeState(readStored()));
-  }, []);
+  // Zmiana motywu po starcie (inna karta, system): klasa na `<html>`, potem
+  // magazyn (lustra konsumentów w przejściu). Ten sam motyw - bez niczego.
+  const adopt = useCallback(
+    (next: Theme) => {
+      if (next === store.get()) return;
+      apply(next);
+      store.set(next);
+    },
+    [store],
+  );
 
-  // Skip the first run: until state has adopted the stored preference, the
-  // pre-hydration script owns the <html> class - applying the transient
-  // "light" default here would flash a dark-mode visitor to light.
-  const appliedOnce = useRef(false);
+  // Przyjęcie zapisanego wyboru po montażu. Do tej chwili `<html>` należy do
+  // skryptu sprzed hydratacji (przy różnicy klasa jest stosowana ponownie,
+  // idempotentnie - jak dotąd w efekcie motywu).
   useEffect(() => {
-    if (!appliedOnce.current) {
-      appliedOnce.current = true;
-      return;
-    }
-    apply(theme);
-  }, [theme]);
+    adopt(readStored());
+  }, [adopt]);
 
   // Wybór z innej karty przechodzi przez TĘ SAMĄ regułę co start aplikacji.
   // Wcześniej stała tu jej kopia (`newValue === "dark" ? "dark" : "light"`):
@@ -98,13 +151,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY || e.key === null)
-        startTransition(() =>
-          setThemeState(resolveTheme(parseThemeChoice(e.newValue), systemPrefersDark())),
-        );
+        adopt(resolveTheme(parseThemeChoice(e.newValue), systemPrefersDark()));
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  }, [adopt]);
 
   // Podążaj za ŻYWĄ zmianą motywu systemu, ale tylko dopóki użytkownik nie
   // wybrał jawnie. Zapytanie `prefers-color-scheme` i odpięcie nasłuchu
@@ -113,19 +164,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       subscribeSystemTheme(() => {
-        if (readThemeChoice() === null) startTransition(() => setThemeState(systemTheme()));
+        if (readThemeChoice() === null) adopt(systemTheme());
       }),
-    [],
+    [adopt],
   );
 
-  const setTheme = useCallback((next: Theme) => {
-    localStorage.setItem(STORAGE_KEY, next);
-    apply(next);
-    // The CSS class responds immediately. Keep already visible content while
-    // a lazy descendant finishes hydrating under the new theme; an urgent
-    // context update can otherwise replace it with a null Suspense fallback.
-    startTransition(() => setThemeState(next));
-  }, []);
+  const setTheme = useCallback(
+    (next: Theme) => {
+      localStorage.setItem(STORAGE_KEY, next);
+      // Klasa CSS reaguje od razu, zanim jakakolwiek wyspa się uwodni; lustra
+      // konsumentów idą w przejściu (zawieszony widget zostawia widok).
+      apply(next);
+      store.set(next);
+    },
+    [store],
+  );
 
   // A second click may arrive while the React transition is pending. The DOM
   // class already reflects the last explicit choice, unlike the deferred state.
@@ -134,28 +187,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [setTheme],
   );
 
-  // Unrelated root updates must not broadcast a new context during hydration.
-  // A context update can discard a still-pending widget's SSR boundary even
-  // when that widget's props and the actual theme remain unchanged.
-  const value = useMemo(() => ({ theme, toggle, setTheme }), [theme, toggle, setTheme]);
+  // Wartość kontekstu nie zmienia się przez całe życie dostawcy (MOTYW BEZ
+  // ZMIANY KONTEKSTU): ani przy przyjęciu zapisanego wyboru, ani przy
+  // przełączeniu - żadna zmiana motywu nie dociera do odwodnionej granicy.
+  const value = useMemo(() => ({ store, toggle, setTheme }), [store, toggle, setTheme]);
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
-  const context = useContext(ThemeContext);
-  const theme = useSyncExternalStore(
-    subscribeToHydration,
-    () => context.theme,
-    () => SERVER_THEME,
-  );
+  const { store, toggle, setTheme } = useContext(ThemeContext);
   // A lazy widget can hydrate after an already interactive header changes the
-  // theme. It still needs the server's snapshot for that first render; using
-  // the live context can add/remove its style nodes and discard the SSR tree.
-  return useMemo(
-    // Subscribe to the value, not a false -> true hydration flag. On the
-    // default light theme there is nothing to update: forcing another render
-    // in every CMS widget adds synchronous work and can hide lazy content.
-    () => (theme === context.theme ? context : { ...context, theme }),
-    [context, theme],
-  );
+  // theme. It still needs the server's theme for that first render; using the
+  // live theme would add/remove its style nodes and discard the SSR tree.
+  // Lustro (`useIslandMirror`): hydratacja - motyw serwera, świeży montaż -
+  // bieżący motyw magazynu, potem przejścia; ten sam motyw nie renderuje
+  // konsumenta (hydratacja na jasnym motywie - zero dodatkowych renderów).
+  const theme = useIslandMirror(SERVER_THEME, store.get, store.subscribe);
+  return useMemo(() => ({ theme, toggle, setTheme }), [theme, toggle, setTheme]);
 }

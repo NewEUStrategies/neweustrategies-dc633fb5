@@ -1,5 +1,10 @@
 # Roadmap
 
+## Kafelki typów treści w klubie
+
+- [x] Umieścić kafelki typów treści pod Ludzie i nad Praca w lewym panelu klubu.
+- [x] Usunąć skrót Dynamika z Praca i sprawdzić działanie filtrów oraz testy.
+
 ## Moduł powiadomień
 
 - [x] Klik w belce powiadomień prowadzi do właściwego miejsca (w tym `/messages?c=<id>`)
@@ -96,3 +101,8 @@
 - [x] Ujednolicić typografię, rozmiary, odstępy i geometrię widgetów między jasnym i ciemnym trybem.
 - [x] Zsynchronizować istniejące zapisane wartości oraz zablokować ponowne tworzenie rozbieżności w edytorze.
 - [x] Dodać testy kontraktowe i zweryfikować reprezentatywne strony w obu trybach.
+
+## Tło zgodne z kartą autora
+
+- [x] Ustawić domyślne i zapisane jasne tło #F8F7F3, zachowując ciemny motyw.
+- [x] Zweryfikować kolor strony w podglądzie i testy kolorów globalnych (34/34); jasny rgb(248,247,243), ciemny bez zmian rgb(35,31,32).

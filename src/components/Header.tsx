@@ -29,12 +29,22 @@ const SearchOverlay = lazy(() =>
 );
 import { AppLink } from "@/components/atoms/AppLink";
 import { LangReelSwitcher } from "@/components/atoms/LangReelSwitcher";
+// `Skeleton` (fallback szuflady) z atomu UI, nie z własnego `<div>`: ten
+// moduł jest też w chunku trasy `/` (`HomeLoadingNotice`). Import z nagłówka
+// trzyma go w chunku wejściowym niezależnie od rozmiarów reszty bundla. Bez
+// tego (P2.3) dołączenie prymitywów wysp do wejścia przestawiło scalenia
+// mikrochunków `experimentalMinChunkSize` i `skeleton.tsx` trafił do chunku z
+// `seatingGeometry` - `/` dostawał przez to dodatkowy `modulepreload`
+// (`check:document-weight`, `modulepreloadCount` 26 > 25).
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { useRouterState } from "@tanstack/react-router";
 import { useTheme } from "@/components/ThemeProvider";
 import { useFocusTrap } from "@/lib/a11y/useFocusTrap";
 import { useLang } from "@/lib/i18n/useLang";
 import { resolveHeaderMode, type ContentKind } from "@/lib/layout/headerMode";
+import { HydrationIsland, type IslandTrigger } from "@/lib/performance/hydrationIsland";
+import { hasStoredAuthSession } from "@/integrations/supabase/sessionHint";
 
 type ThemeLogoCfg = {
   logo?: {
@@ -53,6 +63,44 @@ export type HeaderSettings = {
 };
 
 type GeneralSettings = { site_name?: string };
+
+/**
+ * Wyspa NAGŁÓWKA DESKTOPOWEGO (P2.3, krytyka planu M10b).
+ *
+ * PO CO. Pełny nagłówek z buildera (`BuilderRenderer chrome`: nawigacja,
+ * mega-menu, wyszukiwarka, konto - ok. 37 KB HTML) jest w dokumencie zawsze,
+ * także na telefonie, gdzie `hidden lg:block` daje mu `display: none`. Dotąd
+ * telefon go parsował I HYDRATOWAŁ: niewidoczne drzewo dokładało się do
+ * przebiegu korzenia i commitu hydratacji (K9/K12 w księdze P0.5). Na telefonie
+ * widoczną nawigacją jest pasek mobilny (wyżej) i on hydratuje jak dotąd.
+ *
+ * WYZWALACZE (API P1.6, bez zmian w prymitywie):
+ *  - `media` - to samo zapytanie co wariant Tailwinda `lg` (`64rem`, czyli
+ *    1024 px przy domyślnym rozmiarze czcionki; jednostka jak w arkuszu, więc
+ *    próg wyspy i próg `lg:block` są zawsze tym samym punktem). Pasujące przy
+ *    montażu (desktop) = otwarcie od razu, hydratacja jak bez wyspy; zaczynające
+ *    pasować (obrót, rozszerzenie okna) = otwarcie przez kolejkę P0.3 - CSS
+ *    odsłania HTML serwera natychmiast, hydratacja dochodzi klatkę później;
+ *  - `immediateWhen: hasStoredAuthSession` - zalogowany (P1.7, `sessionHint`)
+ *    dostaje wyspę od razu: jego kontekst sesji i tak zmieni się po starcie;
+ *  - bez widoczności, interakcji i zapasu ciszy: ukrytego drzewa nic na
+ *    telefonie nie dotknie, a uwodnienie go „na zapas" byłoby czystym kosztem.
+ *
+ * KONTRAKT WYSPY. Otoczka wyspy JEST dawnym `div.hidden.lg:block` (klasa przez
+ * `className`), więc w HTML przybywają tylko atrybuty `data-island-*` i
+ * znaczniki granicy Suspense - selektory `.home-header-grow > div > section`
+ * (`styles.css`) widzą to samo drzewo. Dziecko ma stabilne propsy (dokument z
+ * cache'a zapytania, język, flaga), więc re-render `HeaderInner` (motyw,
+ * trasa, szuflada) kończy się na wyspie. Urządzenie liczy `BuilderRenderer`
+ * we własnym stanie - nie dochodzi do wyspy z kontekstu ani z propsów.
+ */
+const DESKTOP_HEADER_TRIGGER: IslandTrigger = {
+  visible: false,
+  interaction: false,
+  quiescent: false,
+  media: "(min-width: 64rem)",
+  immediateWhen: hasStoredAuthSession,
+};
 
 /**
  * Domyślna wysokość nagłówka z arkusza (`--sticky-header-h` w `styles.css`),
@@ -279,13 +327,19 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
           </div>
         </div>
 
-        {/* Full builder-authored header - visible from lg up. */}
-        <div className={cn("hidden lg:block", isHome && "home-header-grow")}>
+        {/* Full builder-authored header - visible from lg up. Poniżej `lg` ma
+            `display: none`, więc zostaje tam odwodnioną wyspą
+            (`DESKTOP_HEADER_TRIGGER`). */}
+        <HydrationIsland
+          id="hdr-desktop"
+          trigger={DESKTOP_HEADER_TRIGGER}
+          className={cn("hidden lg:block", isHome && "home-header-grow")}
+        >
           {/* `chrome`: kolumny nagłówka dostają `min-height` z tego samego
               szacunku, którym `HeaderSkeleton` rezerwuje miejsce - pusta
               granica Suspense leniwego widgetu nie zapada wtedy paska. */}
           <BuilderRenderer doc={cfg.builder_data} lang={lang} chrome />
-        </div>
+        </HydrationIsland>
       </div>
 
       {/* Mobile/Tablet drawer: portalowany do <body>, żeby uciec ze stacking
@@ -326,7 +380,7 @@ const HeaderInner = memo(function HeaderInner({ adPageType = "all", isHome = fal
                 </button>
               </div>
               <Suspense
-                fallback={<div aria-busy="true" className="h-24 animate-pulse bg-muted/40" />}
+                fallback={<Skeleton aria-busy="true" className="h-24 rounded-none bg-muted/40" />}
               >
                 <MobileDrawerBody builderDoc={cfg.builder_data} onNavigate={() => setOpen(false)} />
               </Suspense>
