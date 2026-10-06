@@ -185,6 +185,9 @@ export function ClubEngagementBar({
               total={total}
               people={countDistinctReactors(tallies, actors)}
               actors={actors}
+              // „Ja" z liczników, nie z twarzy: liczniki zmieniają się
+              // optymistycznie od razu, twarze dopiero po odświeżeniu.
+              mine={tallies.some((tally) => tally.mine)}
             />
           ) : null
         }

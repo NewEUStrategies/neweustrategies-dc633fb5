@@ -7,7 +7,9 @@
 // zdjęcie 4:5 na pełną szerokość miałoby wtedy ponad metr wysokości ekranu.
 // Rama dostaje więc `max-width = sufit * proporcja` i staje na środku pasa;
 // boki pasa wypełnia rozmyta kopia tego samego zdjęcia, żeby pion nie stał
-// w szarej dziurze. Poziome zdjęcia sufitu nie dotykają.
+// w szarej dziurze. Najszerszy pas (~940 px) jest węższy niż sufit ramy 1.5:1,
+// więc tło ma sens tylko dla ram węższych niż 1.5:1 (pion, kwadrat, 4:3)
+// i dla zdjęcia wpisanego w całości, któremu tło wypełnia pasy po bokach.
 //
 // NADWYŻKA JEST OSIĄGALNA. Kafel „+N" nie otwiera czwartego zdjęcia, tylko
 // rozwija galerię do siatki WSZYSTKICH zdjęć wpisu (podgląd w platformie
@@ -17,7 +19,14 @@
 // KAFEL BEZ PODPISANEGO ADRESU jest zastępnikiem, którego nie da się kliknąć.
 // Proporcja ramy jest znana z metadanych, więc dojazd podpisu nie przesuwa
 // strumienia ani o piksel.
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,6 +41,8 @@ import type { ClubPostMediaAttachment } from "@/lib/clubs/postTypes";
 
 /** Sufit wysokości ramy mediów w rem (~640 px). */
 const MAX_FRAME_REM = 40;
+/** Rama co najmniej tak szeroka zawsze wypełnia pas (40rem * 1.5 > ~940 px). */
+const BACKDROP_RATIO_LIMIT = 1.5;
 
 /** Proporcja CAŁEJ galerii - z niej liczymy sufit szerokości. */
 function overallRatio(plan: ClubGalleryPlan): number {
@@ -92,6 +103,18 @@ export function ClubFeedGallery({
     ).find((node) => Number(node.dataset.galleryTile) >= firstRevealed && !node.disabled);
     (target ?? gridRef.current).focus({ preventScroll: true });
   }, [expanded, firstRevealed]);
+  // Zwinięcie oddaje fokus kaflowi „+N" i przewija do galerii - przycisk
+  // „Zwiń" znika razem z siatką, a strona pod nim skraca się o kilkaset px.
+  const collapsedRef = useRef<HTMLDivElement | null>(null);
+  const restoreFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (expanded || !restoreFocus.current || collapsedRef.current === null) return;
+    restoreFocus.current = false;
+    collapsedRef.current
+      .querySelector<HTMLButtonElement>('button[aria-expanded="false"]')
+      ?.focus({ preventScroll: true });
+    collapsedRef.current.scrollIntoView?.({ block: "nearest" });
+  }, [expanded]);
   const plan = planClubGallery(images);
   if (plan === null) return null;
   const shown = images.slice(0, plan.visible);
@@ -122,7 +145,10 @@ export function ClubFeedGallery({
         aria-expanded={more ? false : undefined}
         data-gallery-tile={index}
         className={cn(
-          "group/img relative block h-full min-h-0 w-full overflow-hidden bg-muted",
+          "group/img relative block h-full min-h-0 w-full overflow-hidden",
+          // Zdjęcie wpisane w całości ma pasy - przez przezroczysty kafel
+          // widać w nich rozmyte tło pasa zamiast szarego prostokąta.
+          contain && url !== undefined ? "bg-transparent" : "bg-muted",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
           className,
         )}
@@ -165,10 +191,12 @@ export function ClubFeedGallery({
 
   const firstUrl = mediaUrls[head.path];
   const ratio = overallRatio(plan);
-  // Rozmyte tło tylko tam, gdzie rama może być węższa niż pas: pion, kwadrat
-  // i zdjęcie wpisane w całości. Poziome zdjęcie wypełnia pas samo.
+  // Rozmyte tło tylko tam, gdzie je widać: rama węższa niż pas albo zdjęcie
+  // wpisane w całości (kafel jest wtedy przezroczysty - patrz `tile`).
   const backdrop =
-    plan.layout === "single" && (plan.ratio < 1.3 || plan.fit === "contain") ? firstUrl : undefined;
+    plan.layout === "single" && (plan.ratio < BACKDROP_RATIO_LIMIT || plan.fit === "contain")
+      ? firstUrl
+      : undefined;
 
   if (expanded) {
     // Siatka wszystkich zdjęć: kwadratowe kafle, bez sufitu - czytelnik sam
@@ -194,7 +222,10 @@ export function ClubFeedGallery({
         <div className="flex justify-center py-1.5">
           <button
             type="button"
-            onClick={() => setExpanded(false)}
+            onClick={() => {
+              restoreFocus.current = true;
+              setExpanded(false);
+            }}
             aria-expanded
             className="rounded-lg px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -207,7 +238,11 @@ export function ClubFeedGallery({
 
   let body: ReactNode;
   if (plan.layout === "single") {
-    body = <div style={{ aspectRatio: plan.ratio }}>{tile(head, 0)}</div>;
+    body = (
+      <div className="overflow-hidden" style={{ aspectRatio: plan.ratio }}>
+        {tile(head, 0)}
+      </div>
+    );
   } else if (plan.layout === "pair") {
     body = (
       <div className="grid grid-cols-2 gap-0.5" style={{ aspectRatio: plan.ratio }}>
@@ -217,9 +252,14 @@ export function ClubFeedGallery({
   } else if (plan.layout === "top") {
     body = (
       <div className="flex flex-col gap-0.5">
-        <div style={{ aspectRatio: plan.ratio }}>{tile(head, 0)}</div>
+        {/* `min-h-0`: element flex ma minimalną wysokość z treści, więc
+            załadowany obraz rozpychałby kafel ponad `aspect-ratio` - skok
+            układu o ~170 px po dojeździe zdjęć. */}
+        <div className="min-h-0 overflow-hidden" style={{ aspectRatio: plan.ratio }}>
+          {tile(head, 0)}
+        </div>
         <div
-          className="grid gap-0.5"
+          className="grid min-h-0 gap-0.5 overflow-hidden"
           style={{
             aspectRatio: CLUB_GALLERY_STRIP_RATIO,
             gridTemplateColumns: `repeat(${rest.length}, minmax(0, 1fr))`,
@@ -247,6 +287,7 @@ export function ClubFeedGallery({
   return (
     <Band backdrop={backdrop}>
       <div
+        ref={collapsedRef}
         className="relative mx-auto w-full"
         style={capStyle(ratio)}
         data-testid="club-post-images"

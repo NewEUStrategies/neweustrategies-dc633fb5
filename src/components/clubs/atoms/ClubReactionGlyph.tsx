@@ -31,10 +31,11 @@ export const CLUB_REACTION_ICONS: Record<ClubReactionKind, LucideIcon> = {
   disagree: ThumbsDown,
 };
 
-// Tło krążka: pełne nasycenie, biały znak - kontrast działa w obu motywach,
-// więc wariant ciemny nie potrzebuje osobnych odcieni.
+// Tło krążka: pełne nasycenie, biały znak (każde tło ma co najmniej 3:1
+// z bielą - próg dla grafiki), więc wariant ciemny nie potrzebuje osobnych
+// odcieni.
 const FILL: Record<ClubReactionKind, string> = {
-  insightful: "bg-amber-500",
+  insightful: "bg-amber-600",
   evidence: "bg-teal-600",
   question: "bg-sky-600",
   thanks: "bg-rose-500",
@@ -45,7 +46,7 @@ const FILL: Record<ClubReactionKind, string> = {
 // Kolor TEKSTU akcji, gdy reakcja jest postawiona - akcja przejmuje barwę
 // wybranej reakcji, tak jak przejmuje jej piktogram.
 const INK: Record<ClubReactionKind, string> = {
-  insightful: "text-amber-600 dark:text-amber-400",
+  insightful: "text-amber-700 dark:text-amber-400",
   evidence: "text-teal-700 dark:text-teal-300",
   question: "text-sky-700 dark:text-sky-300",
   thanks: "text-rose-600 dark:text-rose-400",

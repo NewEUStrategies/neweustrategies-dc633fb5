@@ -195,7 +195,10 @@ export function ClubFeedTime({ iso, lang }: { iso: string; lang: UiLang }) {
   const now = useSyncExternalStore(subscribeFeedClock, feedClockSnapshot, feedClockServerSnapshot);
   return (
     <time dateTime={iso} title={formatDateTime(iso, lang)}>
-      {now === 0 ? formatDateShort(iso, lang) : relTime(iso, lang, now)}
+      {/* Zegar tyka co 30 s, a wpis może być świeższy niż ostatnie tyknięcie
+          (albo zegar klienta spóźnia się względem serwera) - punkt odniesienia
+          nigdy nie jest wcześniejszy niż sam wpis, więc nie ma „za 20 sekund". */}
+      {now === 0 ? formatDateShort(iso, lang) : relTime(iso, lang, Math.max(now, Date.parse(iso)))}
     </time>
   );
 }
@@ -252,7 +255,7 @@ export function clubFeedActionClass(options?: { className?: string }): string {
   return cn(
     "group/feed-act relative inline-flex min-h-11 min-w-0 flex-1 select-none flex-col items-center justify-center gap-0.5 rounded-lg px-2",
     "text-[11px] font-semibold text-muted-foreground sm:min-h-10 sm:flex-row sm:gap-2 sm:text-sm",
-    "transition-[background-color,color,transform] duration-150 ease-out",
+    "transition-[background-color,color,scale] duration-150 ease-out",
     "hover:bg-muted/70 hover:text-foreground active:scale-[0.97] motion-reduce:active:scale-100",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
     "disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50",

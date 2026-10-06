@@ -68,6 +68,35 @@ describe("ClubFeedText", () => {
     expect(body?.style.maxHeight).toBe("");
   });
 
+  it("zwinięty tekst kładzie linie na siatce (bez odstępów) i nie jest przewijalnym pudełkiem", () => {
+    stubHeights(240, 72);
+    const { container } = render(<ClubFeedText>Tekst</ClubFeedText>);
+    const body = container.querySelector<HTMLElement>("[data-feed-text]");
+    expect(body?.className).toContain("[&_*]:my-0!");
+    expect(body?.className).toContain("overflow-clip");
+    fireEvent.click(screen.getByTestId("club-feed-more"));
+    // Po rozwinięciu odstępy wracają, a wysokość docelowa jest mierzona z nimi.
+    expect(body?.className).not.toContain("[&_*]:my-0!");
+  });
+
+  it("fokus na linku w ukrytej części rozwija tekst, nie zabierając fokusu", () => {
+    stubHeights(240, 72);
+    const { container } = render(
+      <ClubFeedText>
+        Długi tekst <a href="/watek">Czytaj cały wątek</a>
+      </ClubFeedText>,
+    );
+    const link = screen.getByRole("link", { name: "Czytaj cały wątek" });
+    link.focus();
+    // happy-dom nie emituje `focusin` przy `focus()` - przeglądarka tak, a na
+    // nim stoi `onFocus` Reacta.
+    fireEvent.focusIn(link);
+    expect(container.querySelector("[data-feed-text]")?.getAttribute("data-feed-text")).toBe(
+      "opening",
+    );
+    expect(document.activeElement).toBe(link);
+  });
+
   it("liczba linii jest parametrem", () => {
     stubHeights(10, 10);
     const { container } = render(<ClubFeedText lines={5}>Tekst</ClubFeedText>);

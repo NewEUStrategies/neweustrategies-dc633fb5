@@ -443,6 +443,9 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
     expect(buttons[1]?.parentElement?.getAttribute("style")).toContain(
       "grid-template-columns: repeat(2, minmax(0, 1fr))",
     );
+    // Oba wiersze mają `min-h-0` - załadowany obraz nie rozpycha ich ponad proporcję.
+    expect(buttons[0]?.parentElement?.className).toContain("min-h-0");
+    expect(buttons[1]?.parentElement?.className).toContain("min-h-0");
     expect(screen.getByText("club.post.attachmentsCount(count=3)")).toBeTruthy();
   });
 
@@ -489,7 +492,10 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
     ]);
 
     fireEvent.click(screen.getByRole("button", { name: "club.post.showFewerImages" }));
-    expect(screen.getByTestId("club-post-images").getAttribute("data-layout")).toBe("left");
+    const collapsed = screen.getByTestId("club-post-images");
+    expect(collapsed.getAttribute("data-layout")).toBe("left");
+    // Zwinięcie oddaje fokus kaflowi „+N" - nie ginie na <body>.
+    expect(document.activeElement).toBe(within(collapsed).getAllByRole("button")[3]);
   });
 
   it("po rozwinięciu fokus trafia na pierwsze odsłonięte zdjęcie, które da się otworzyć", () => {
