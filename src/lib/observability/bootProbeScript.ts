@@ -23,9 +23,20 @@
 // pamięci karty, którą ma zdiagnozować.
 //
 // `__nesBootDead` to sygnał POZYTYWNY dla martwej hydratacji: jeśli po 15 s od
-// wykonania tego skryptu flaga gotowości (`lib/watchdog/appReady`) nadal nie jest
-// ustawiona, zapisujemy czas. Tym jednym polem można odróżnić „wolno" od
-// „nie ożyło" - czego przed 2026-09-01 nie dawało się odróżnić niczym.
+// STARTU BOOTU flaga gotowości (`lib/watchdog/appReady`) nadal nie jest
+// ustawiona, zapisujemy czas (ms od `__nesBootT0`). Tym jednym polem można
+// odróżnić „wolno" od „nie ożyło" - czego przed 2026-09-01 nie dawało się
+// odróżnić niczym.
+//
+// START BOOTU, NIE PIERWSZY BAJT (P2.1, krok 4). Od boot po LCP loader
+// (`lib/boot/bootLoaderScript.ts`) wstawia wejście dopiero po wpisie LCP, a w
+// skrajnym razie po DOMContentLoaded + 3 s; na wolnym łączu zegar liczony od
+// tego skryptu zgłaszałby martwy boot zdrowym stronom (werdykt boot-js C3,
+// pkt 5). Dlatego zegar uzbraja `window.__nesBootArm()` - woła ją loader
+// w chwili bootu - a zapasowo sama sonda przy DOMContentLoaded + 3 s (twardy
+// limit loadera), żeby dokument bez loadera (dev) albo z loaderem, który nie
+// ruszył, nadal dostał sygnał. Uzbrojenie jest jednorazowe; `__nesBootS` to
+// chwila uzbrojenia.
 //
 // Kształt (jedno IIFE, wszystko w `try`) jest kopią doktryny
 // `lib/theme/themeInitScript.ts`: skrypt w `<head>` nie ma prawa wywrócić
@@ -62,10 +73,20 @@ declare global {
     __nesBootErrors?: BootProbeEntry[];
     __nesBootT0?: number;
     __nesBootDead?: number;
+    /** Uzbraja watchdog martwego bootu (woła loader bootu w chwili startu). */
+    __nesBootArm?: () => void;
+    /** Chwila uzbrojenia watchdoga (`Date.now()`). */
+    __nesBootS?: number;
   }
 }
 
 export const BOOT_DEAD_TIMEOUT_MS = 15_000;
+
+/**
+ * Zapasowe uzbrojenie watchdoga: DOMContentLoaded + tyle ms. Równe twardemu limitowi loadera
+ * bootu (`BOOT_HARD_CAP_MS` w `lib/boot/bootLoaderScript.ts`, parytet pilnuje test sondy).
+ */
+export const BOOT_ARM_FALLBACK_MS = 3_000;
 
 /** Maksymalna liczba zbuforowanych błędów - zapora przed pętlą rzucającą. */
 export const BOOT_ERROR_BUFFER_LIMIT = 20;
@@ -76,4 +97,4 @@ export const BOOT_ERROR_BUFFER_LIMIT = 20;
 // z anulowanych żądań i odrzuceń bez komunikatu. Teraz sonda:
 //   - milknie, gdy `__nesAppReady` jest ustawione (boot się udał),
 //   - odrzuca puste komunikaty i znany szum (aborty, ResizeObserver).
-export const BOOT_PROBE_SCRIPT = `(function(){try{var w=window;w.__nesBootErrors=[];w.__nesBootT0=Date.now();var bad=function(m){return !m||m==="undefined"||m==="null"||/aborted|resizeobserver loop|^script error/i.test(m)};var p=function(m,s,f){try{if(w.__nesAppReady)return;var t=m==null?"":String(m);if(bad(t))return;if(w.__nesBootErrors.length<${BOOT_ERROR_BUFFER_LIMIT})w.__nesBootErrors.push({m:t,s:String(s||""),f:f||""})}catch(_){}};w.addEventListener("error",function(e){p((e.error&&e.error.message)||e.message,e.error&&e.error.stack,e.filename)},true);w.addEventListener("unhandledrejection",function(e){p((e.reason&&e.reason.message)||e.reason,e.reason&&e.reason.stack)},true);w.setTimeout(function(){if(!w.__nesAppReady)w.__nesBootDead=Date.now()-w.__nesBootT0},${BOOT_DEAD_TIMEOUT_MS})}catch(_){}})();`;
+export const BOOT_PROBE_SCRIPT = `(function(){try{var w=window,d=document;w.__nesBootErrors=[];w.__nesBootT0=Date.now();var bad=function(m){return !m||m==="undefined"||m==="null"||/aborted|resizeobserver loop|^script error/i.test(m)};var p=function(m,s,f){try{if(w.__nesAppReady)return;var t=m==null?"":String(m);if(bad(t))return;if(w.__nesBootErrors.length<${BOOT_ERROR_BUFFER_LIMIT})w.__nesBootErrors.push({m:t,s:String(s||""),f:f||""})}catch(_){}};w.addEventListener("error",function(e){p((e.error&&e.error.message)||e.message,e.error&&e.error.stack,e.filename)},true);w.addEventListener("unhandledrejection",function(e){p((e.reason&&e.reason.message)||e.reason,e.reason&&e.reason.stack)},true);var a=w.__nesBootArm=function(){if(w.__nesBootS)return;w.__nesBootS=Date.now();w.setTimeout(function(){if(!w.__nesAppReady)w.__nesBootDead=Date.now()-w.__nesBootT0},${BOOT_DEAD_TIMEOUT_MS})};var z=function(){w.setTimeout(a,${BOOT_ARM_FALLBACK_MS})};d.readyState==="loading"?d.addEventListener("DOMContentLoaded",z):z()}catch(_){}})();`;
