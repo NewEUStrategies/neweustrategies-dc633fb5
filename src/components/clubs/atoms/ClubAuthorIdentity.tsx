@@ -29,10 +29,13 @@ const NAME_CLASS = "truncate text-sm font-semibold leading-tight";
 export function ClubAuthorIdentity({
   author,
   nameClassName = NAME_CLASS,
+  wrap = false,
 }: {
   author: ClubAuthorLabel;
   /** Typografia nazwiska - strona wątku i ściana klubu mają własną skalę. */
   nameClassName?: string;
+  /** Firma zawija się zamiast ucinać - wąska kolumna strumienia. */
+  wrap?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const lang = uiLang(i18n.language);
@@ -73,6 +76,7 @@ export function ClubAuthorIdentity({
         name={company}
         testId="club-company-preview"
         labels={{ website: t("club.inline.companyWebsite") }}
+        wrap={wrap}
       />
     </>
   );

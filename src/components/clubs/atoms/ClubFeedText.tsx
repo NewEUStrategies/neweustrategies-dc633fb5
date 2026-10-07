@@ -21,6 +21,10 @@
 // siatce `1lh`), a wysokość docelowa rozwinięcia jest mierzona dopiero PO
 // ich przywróceniu, w `useLayoutEffect` - przed pierwszym malowaniem.
 //
+// „…WIĘCEJ" MÓWI TYM SAMYM STOPNIEM CO TEKST. Typografia leży na opakowaniu,
+// a przycisk ją dziedziczy (`[font-size:inherit]!` - globalny atom przycisku
+// wymuszał 12 px pod tekstem 13 px, więc dopisek wyglądał na przyklejony).
+//
 // FOKUS W UKRYTEJ CZĘŚCI. Pudełko jest `overflow: clip`, nie `hidden`: Tab
 // na link poniżej trzeciej linii nie przewija go już w środku, a wejście
 // fokusu w treść rozwija ją - odnośnik nie może dostać fokusu niewidoczny.
@@ -38,7 +42,8 @@ export function ClubFeedText({
   children: ReactNode;
   /** Ile linii widać przed rozwinięciem. */
   lines?: number;
-  /** Typografia kontenera - `lh` liczy się z JEGO wysokości linii. */
+  /** Typografia kontenera - `lh` liczy się z JEGO wysokości linii, a „…więcej"
+   *  dziedziczy z niej rozmiar. */
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -79,7 +84,7 @@ export function ClubFeedText({
   };
 
   return (
-    <div className="relative">
+    <div className={cn("relative", className)}>
       <div
         ref={ref}
         id={id}
@@ -94,7 +99,6 @@ export function ClubFeedText({
           "overflow-clip outline-none",
           "transition-[max-height] duration-300 ease-out motion-reduce:transition-none",
           phase === "collapsed" && "[&_*]:my-0!",
-          className,
         )}
         style={
           phase === "collapsed" || (phase === "opening" && target === 0)
@@ -114,7 +118,7 @@ export function ClubFeedText({
           aria-controls={id}
           data-testid="club-feed-more"
           className={cn(
-            "absolute bottom-0 right-0 pl-14 text-sm font-medium leading-6 text-muted-foreground",
+            "absolute bottom-0 right-0 pl-14 font-medium text-muted-foreground [font-size:inherit]! [line-height:inherit]",
             "bg-gradient-to-r from-transparent via-card via-50% to-card",
             "transition-colors hover:text-primary hover:underline focus-visible:text-primary focus-visible:underline focus-visible:outline-none",
           )}

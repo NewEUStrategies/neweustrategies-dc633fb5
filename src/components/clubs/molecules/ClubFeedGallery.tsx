@@ -30,6 +30,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HUB_CONTROL } from "@/components/clubs/atoms/ClubHubPrimitives";
 import {
   CLUB_GALLERY_MAX_TILES,
   CLUB_GALLERY_STRIP_RATIO,
@@ -169,7 +170,12 @@ export function ClubFeedGallery({
             />
             {!more ? (
               <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition duration-200 group-hover/img:bg-black/15 group-hover/img:opacity-100">
-                <span className="inline-flex items-center gap-1.5 rounded-lg bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm">
+                <span
+                  className={cn(
+                    HUB_CONTROL,
+                    "border-transparent bg-background/90 text-foreground shadow-sm",
+                  )}
+                >
                   <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
                   {t("club.post.preview")}
                 </span>
@@ -227,7 +233,10 @@ export function ClubFeedGallery({
               setExpanded(false);
             }}
             aria-expanded
-            className="rounded-lg px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className={cn(
+              HUB_CONTROL,
+              "border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            )}
           >
             {t("club.post.showFewerImages")}
           </button>

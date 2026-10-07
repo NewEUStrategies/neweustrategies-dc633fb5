@@ -34,12 +34,14 @@ import { cn } from "@/lib/utils";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
 import { ClubAuthorIdentity } from "@/components/clubs/atoms/ClubAuthorIdentity";
 import { ClubFeedText } from "@/components/clubs/atoms/ClubFeedText";
+import { HUB_LABEL } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubProse } from "@/components/clubs/atoms/ClubProse";
 import { clubReactionInkClass } from "@/components/clubs/atoms/ClubReactionGlyph";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import {
   CLUB_FEED_ACTION_ICON,
+  CLUB_FEED_ACTION_LABEL,
   CLUB_FEED_PAD,
   ClubFeedActionBar,
   ClubFeedActor,
@@ -118,10 +120,12 @@ function LinkAttachmentCard({ attachment }: { attachment: ClubPostLinkAttachment
         </span>
       ) : null}
       <span className={cn("block py-2.5", CLUB_FEED_PAD)}>
-        <span className="line-clamp-2 block text-sm font-semibold leading-5 text-foreground group-hover/link:underline">
+        {/* Pełny tytuł i host - bez przycinania; goły adres (brak tytułu)
+            łamie się w dowolnym miejscu zamiast rozpychać kartę. */}
+        <span className="block text-sm font-semibold leading-5 text-foreground [overflow-wrap:anywhere] group-hover/link:underline">
           {attachment.title ?? attachment.url}
         </span>
-        <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+        <span className="mt-0.5 block text-xs text-muted-foreground [overflow-wrap:anywhere]">
           {host ?? t("club.post.link")}
         </span>
       </span>
@@ -178,7 +182,9 @@ function FileAttachmentRow({
         {fileLabel(item.name, item.mime)}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium">{item.name}</span>
+        {/* Nazwa pliku zawija się (także bez spacji) - rozszerzenie i numer
+            wersji na końcu nazwy to często jedyne, czym pliki się różnią. */}
+        <span className="block text-sm font-medium [overflow-wrap:anywhere]">{item.name}</span>
         <span className="block text-xs text-muted-foreground">
           {size}
           {previewable ? `${size !== "" ? " · " : ""}${t("club.post.preview")}` : ""}
@@ -337,17 +343,19 @@ export function ClubPostCard({
     >
       {showThread && post.thread_slug !== null ? (
         <ClubFeedContext>
-          <MessagesSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span className="shrink-0">{t("club.hub.feed.postInThread")}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <MessagesSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            {t("club.hub.feed.postInThread")}
+          </span>
+          {/* Tytuł wątku jest etykietą jak dział na karcie wątku - pełny,
+              zawinięty do kolejnej linii, a nie ucięty wielokropkiem. */}
           <Link
             to="/club/$clubSlug/t/$threadSlug"
             params={{ clubSlug, threadSlug: post.thread_slug }}
-            className="inline-flex min-w-0 max-w-full items-center"
+            className="inline-flex min-w-0 max-w-full items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             data-testid="club-post-thread-link"
-            // Długi tytuł wątku ma się przyciąć w jednej linii kontekstu.
-            data-feed-shrink=""
           >
-            <ClubInlineTitle tone="thread" size="sm" interactive className="truncate">
+            <ClubInlineTitle tone="thread" size="sm" interactive className={HUB_LABEL}>
               {post.thread_title ?? t("club.post.inThread")}
             </ClubInlineTitle>
           </Link>
@@ -371,7 +379,8 @@ export function ClubPostCard({
               avatarUrl: post.author_avatar,
               profileSlug: post.author_slug,
             }}
-            nameClassName="truncate text-sm font-semibold leading-5 text-foreground"
+            nameClassName="text-sm font-semibold leading-5 text-foreground [overflow-wrap:anywhere]"
+            wrap
           />
         }
         headline={jobTitle ?? undefined}
@@ -385,16 +394,15 @@ export function ClubPostCard({
               </>
             ) : null}
             {/* Ten sam znacznik źródła, co na karcie wątku - wpis ze ściany
-                należy do działu dokładnie tak samo jak wątek. */}
+                należy do działu dokładnie tak samo jak wątek. Bez kropki
+                przed nim: etykieta ma własną ramkę, a kropka zostawała sama
+                na końcu linii, gdy etykieta schodziła do następnej. */}
             {source !== null ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <ClubSourceChip
-                  source={source}
-                  active={source.id !== null && source.id === activeGroupId}
-                  onSelect={onSourceSelect}
-                />
-              </>
+              <ClubSourceChip
+                source={source}
+                active={source.id !== null && source.id === activeGroupId}
+                onSelect={onSourceSelect}
+              />
             ) : null}
           </>
         }
@@ -494,7 +502,7 @@ export function ClubPostCard({
               aria-hidden="true"
             />
           </span>
-          <span className="max-w-full truncate">{t("club.post.like")}</span>
+          <span className={CLUB_FEED_ACTION_LABEL}>{t("club.post.like")}</span>
         </button>
 
         {/* KOMENTARZ PROWADZI DO WĄTKU. Wpis jest krótką formą i celowo nie ma
@@ -512,7 +520,7 @@ export function ClubPostCard({
               data-testid="club-post-comment"
             >
               <MessageSquareText className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
-              <span className="max-w-full truncate">{t("club.hub.feed.comment")}</span>
+              <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.comment")}</span>
             </Link>
           ) : (
             <Link
@@ -523,7 +531,7 @@ export function ClubPostCard({
               data-testid="club-post-start-thread"
             >
               <MessagesSquare className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
-              <span className="max-w-full truncate">{t("club.post.startThread")}</span>
+              <span className={CLUB_FEED_ACTION_LABEL}>{t("club.post.startThread")}</span>
             </Link>
           )
         ) : null}

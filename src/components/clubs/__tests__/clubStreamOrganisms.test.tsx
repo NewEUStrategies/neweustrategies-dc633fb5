@@ -256,6 +256,105 @@ describe("ClubFeedItem - karta wątku, dane pełne", () => {
   });
 });
 
+describe("ClubFeedItem - etykiety bez przycinania, jedna skala", () => {
+  const LONG_ANCHOR =
+    "Rozporządzenie Parlamentu Europejskiego i Rady ustanawiające europejski program przemysłu obronnego";
+  const THREAD = clubThreadListRow({
+    status: "resolved",
+    topic: "energy",
+    anchor_label: LONG_ANCHOR,
+  });
+
+  /** Geometria i stopień pisma etykiety huba (`HUB_LABEL`). */
+  const LABEL_TOKENS = [
+    "min-h-6",
+    "px-2",
+    "py-1",
+    "rounded-lg",
+    "border",
+    "text-[length:var(--fs-button)]",
+    "leading-[1.2]",
+    "whitespace-normal",
+  ];
+
+  function renderThread() {
+    render(
+      <ClubFeedItem
+        entry={threadEntry(THREAD)}
+        clubSlug={CLUB_SLUG}
+        sourceIndex={SOURCES}
+        onSourceSelect={() => undefined}
+        topicsCatalog={TOPICS}
+        onTopicSelect={() => undefined}
+      />,
+    );
+    return screen.getByTestId("club-feed-thread");
+  }
+
+  it("linia kontekstu zawija etykiety, zamiast przewijać je za krawędź karty", () => {
+    const card = renderThread();
+    const zone = card.querySelector<HTMLElement>('[data-feed-zone="context"]');
+    expect(zone?.className).toContain("text-[length:var(--fs-button)]");
+    expect(zone?.firstElementChild?.className).toContain("flex-wrap");
+    expect(zone?.innerHTML).not.toContain("overflow-x-auto");
+    // Żadna etykieta linii nie ucina tekstu wielokropkiem.
+    expect(zone?.querySelector(".truncate")).toBeNull();
+  });
+
+  it("rodzaj, status, dział, obszar i kotwica mają jedną geometrię etykiety", () => {
+    const card = renderThread();
+    const labels = [
+      within(card).getByText("club.kind.discussion"),
+      within(card).getByTestId("club-feed-resolved"),
+      within(card).getByRole("button", { name: /Kuluary/ }),
+      within(card).getByRole("button", { name: /Energetyka/ }),
+      within(card).getByTestId("club-feed-anchor"),
+    ];
+    for (const label of labels) {
+      expect(label.className.split(" ")).toEqual(expect.arrayContaining(LABEL_TOKENS));
+    }
+    // Rodzaj bez wersalików - obok działu i obszaru waży tyle samo.
+    expect(labels[0]?.className).toContain("normal-case");
+    // Pełna nazwa aktu, a nie jej początek z wielokropkiem.
+    expect(within(card).getByTestId("club-feed-anchor").textContent).toBe(LONG_ANCHOR);
+  });
+
+  it("nazwisko autora i podpisy akcji nie są ucinane", () => {
+    const card = renderThread();
+    expect(within(card).getByText("Anna Nowak").className).not.toContain("truncate");
+    const actions = card.querySelector('[data-feed-zone="actions"]');
+    expect(actions?.querySelector(".truncate")).toBeNull();
+    // Akcja-link mówi tym samym stopniem pisma co akcja-przycisk obok.
+    const comment = within(card).getByTestId("club-comment-link");
+    expect(comment.className).toContain("text-[length:var(--fs-button)]");
+    expect(comment.className).not.toContain("sm:text-sm");
+  });
+
+  it("miejsce terminu i stan etapu zawijają się, a stan ma geometrię etykiety", () => {
+    const LONG_PLACE = "Bruksela, Parlament Europejski, budynek Paul-Henri Spaak, sala PHS 3C050";
+    render(
+      <>
+        <ClubFeedItem
+          entry={{ kind: "event", key: "e:long", event: clubEventRow({ location: LONG_PLACE }) }}
+          clubSlug={CLUB_SLUG}
+        />
+        <ClubFeedItem
+          entry={{ kind: "milestone", key: "m:long", milestone: clubMilestoneRow() }}
+          clubSlug={CLUB_SLUG}
+        />
+      </>,
+    );
+    const place = within(screen.getByTestId("club-feed-event")).getByText(LONG_PLACE);
+    expect(place.className).not.toContain("truncate");
+    expect(place.parentElement?.className).not.toContain("max-w-[16rem]");
+
+    const milestone = screen.getByTestId("club-feed-milestone");
+    const state = milestone.querySelector<HTMLElement>("[data-club-milestone-state]");
+    expect(state?.className.split(" ")).toEqual(expect.arrayContaining(LABEL_TOKENS));
+    expect(milestone.querySelector('[data-feed-zone="actions"] .truncate')).toBeNull();
+  });
+});
+
 describe("ClubFeedItem - karta wątku, dane puste i częściowe", () => {
   it("bez statusu, źródła, obszaru, kotwicy, przypięcia i zajawki karta zostaje kartą", () => {
     render(

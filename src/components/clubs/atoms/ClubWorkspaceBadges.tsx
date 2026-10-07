@@ -43,8 +43,10 @@ import type {
   ClubMilestoneState,
 } from "@/lib/clubs/workspaceTypes";
 
+// Stopień pisma przycisku (`--fs-button`): ten sam chip bywa statyczny
+// i klikalny (filtr), a globalny atom przycisku dawał wtedy inny rozmiar.
 const CHIP =
-  "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium leading-none sm:text-xs";
+  "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[length:var(--fs-button)] font-medium leading-none";
 
 // ---------------------------------------------------------------------------
 // Dokumenty

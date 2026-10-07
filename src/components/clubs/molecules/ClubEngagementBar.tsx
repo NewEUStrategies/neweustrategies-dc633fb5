@@ -20,6 +20,7 @@ import { MessageSquareText } from "lucide-react";
 import { ClubReactionGlyph } from "@/components/clubs/atoms/ClubReactionGlyph";
 import {
   CLUB_FEED_ACTION_ICON,
+  CLUB_FEED_ACTION_LABEL,
   ClubFeedActionBar,
   ClubFeedSocialRow,
   clubFeedActionClass,
@@ -133,7 +134,8 @@ export function ClubReactionSummary({
           />
         ))}
       </span>
-      <span className="truncate tabular-nums">{text}</span>
+      {/* Pełne zdanie - zawija się, a nie ucina na nazwisku. */}
+      <span className="min-w-0 tabular-nums [overflow-wrap:anywhere]">{text}</span>
       <span className="sr-only">{t("club.hub.feed.reactionsTotal", { count: total })}</span>
     </span>
   );
@@ -210,7 +212,7 @@ export function ClubEngagementBar({
           data-testid="club-comment-link"
         >
           <MessageSquareText className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
-          <span className="max-w-full truncate">{t("club.hub.feed.comment")}</span>
+          <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.comment")}</span>
         </Link>
         <ClubFeedShareAction path={threadPath} title={threadTitle} />
       </ClubFeedActionBar>

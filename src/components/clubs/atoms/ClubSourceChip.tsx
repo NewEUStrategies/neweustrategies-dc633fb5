@@ -20,10 +20,12 @@ import {
   ClubGroupIcon,
   clubGroupAccentVars,
 } from "@/components/clubs/atoms/ClubGroupAccent";
+import { HUB_LABEL } from "@/components/clubs/atoms/ClubHubPrimitives";
 import type { ClubSourceMark } from "@/lib/clubs/threadSources";
 
-const SHAPE =
-  "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-1.5 py-0.5 text-[11px] font-medium leading-none";
+// Kształt i stopień pisma etykiety huba (`HUB_LABEL`): ten sam co rodzaj,
+// obszar i kotwica obok, a długa nazwa działu zawija się zamiast ucinać.
+const SHAPE = HUB_LABEL;
 
 export function ClubSourceChip({
   source,
@@ -41,8 +43,8 @@ export function ClubSourceChip({
   const id = source.id;
   const body = (
     <>
-      <ClubGroupIcon icon={source.icon} className="h-3 w-3" />
-      <span className="truncate">{source.name}</span>
+      <ClubGroupIcon icon={source.icon} className="h-3 w-3 shrink-0" />
+      <span className="min-w-0">{source.name}</span>
     </>
   );
   const shape = cn(SHAPE, CLUB_GROUP_TINT, CLUB_GROUP_TEXT, className);

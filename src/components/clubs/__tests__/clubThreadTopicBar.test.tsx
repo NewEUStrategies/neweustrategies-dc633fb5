@@ -137,6 +137,25 @@ describe("ClubThreadTopicBar", () => {
     expect(screen.getByText(/obszar-poza-katalogiem/)).toBeInTheDocument();
   });
 
+  it("obszary zawijają się do kolejnych rzędów, a chip ma wysokość kontrolki huba", () => {
+    render(
+      <ClubThreadTopicBar
+        threads={[thread("energy"), thread("cybersecurity")]}
+        catalog={CATALOG}
+        value={null}
+        onChange={() => {}}
+      />,
+    );
+    const nav = screen.getByRole("navigation");
+    expect(nav.className).not.toContain("overflow-x-auto");
+    expect(nav.querySelector("ul")?.className).toContain("flex-wrap");
+    const chip = screen.getByRole("button", { name: /Energetyka/ });
+    expect(chip.className).toContain("min-h-7");
+    expect(chip.className).toContain("text-[length:var(--fs-button)]");
+    // Licznik ma stopień pisma chipu, nie mniejszy.
+    expect(chip.innerHTML).not.toContain("text-[10px]");
+  });
+
   it("`className` z zewnątrz ląduje na kontenerze, a jego brak nie dokłada atrybutu", () => {
     const { container, unmount } = render(
       <ClubThreadTopicBar

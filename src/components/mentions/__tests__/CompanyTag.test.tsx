@@ -102,6 +102,24 @@ describe("CompanyTag - wyzwalacz", () => {
     expect(trigger.classList.contains("truncate")).toBe(true);
   });
 
+  it("rozmiar siedzi na NAZWIE - globalny atom przycisku nie podnosi jej ponad `text-xs`", () => {
+    render(<CompanyTag name="ACME" labels={LABELS} />);
+
+    expect(screen.getByText("ACME")).toHaveClass("text-xs", "truncate");
+  });
+
+  it("`wrap` zawija długą nazwę zamiast ucinać ją wielokropkiem", () => {
+    const LONG = "Polski Instytut Spraw Międzynarodowych i Bezpieczeństwa Regionalnego";
+    render(<CompanyTag name={LONG} labels={LABELS} wrap />);
+    const trigger = triggerFor(LONG);
+
+    expect(trigger.classList.contains("truncate")).toBe(false);
+    expect(trigger.classList.contains("text-left")).toBe(true);
+    const name = screen.getByText(LONG);
+    expect(name.classList.contains("truncate")).toBe(false);
+    expect(name).toHaveClass("text-xs", "[overflow-wrap:anywhere]");
+  });
+
   it("ikona przy nazwie jest dekoracją - nie dubluje nazwy czytnikowi", () => {
     render(<CompanyTag name="ACME" labels={LABELS} />);
 

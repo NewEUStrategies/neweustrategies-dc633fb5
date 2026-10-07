@@ -31,6 +31,7 @@ import {
 } from "@/components/clubs/atoms/ClubReactionGlyph";
 import {
   CLUB_FEED_ACTION_ICON,
+  CLUB_FEED_ACTION_LABEL,
   clubFeedActionClass,
 } from "@/components/clubs/molecules/ClubFeedCard";
 import {
@@ -233,7 +234,7 @@ export function ClubFeedReactAction({
             aria-hidden="true"
           />
         </span>
-        <span className="max-w-full truncate">{label}</span>
+        <span className={CLUB_FEED_ACTION_LABEL}>{label}</span>
       </button>
       <span id={hintId} className="sr-only">
         {t("club.hub.feed.reactionHint")}

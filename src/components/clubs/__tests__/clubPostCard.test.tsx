@@ -231,7 +231,11 @@ describe("ClubPostCard - podpięcie pod wątek i wejście w dyskusję", () => {
 
     const plaque = screen.getByTestId("club-post-thread-link");
     expect(plaque.getAttribute("href")).toBe("/club/klub-energetyczny/t/temat-pierwszy");
-    expect(within(plaque).getByText("Temat pierwszy")).toBeTruthy();
+    // Tytuł wątku jest etykietą huba: pełny, zawinięty - nie ucięty.
+    const title = within(plaque).getByText("Temat pierwszy");
+    expect(title.className).not.toContain("truncate");
+    expect(title.className).toContain("min-h-6");
+    expect(title.className).toContain("text-[length:var(--fs-button)]");
 
     const comment = screen.getByTestId("club-post-comment");
     expect(comment.getAttribute("href")).toBe("/club/klub-energetyczny/t/temat-pierwszy");
@@ -598,6 +602,8 @@ describe("ClubPostCard - załączniki graficzne i pliki", () => {
     // Archiwum: bez podglądu, a rozmiar zerowy nie pokazuje „0 B”.
     expect(screen.getByText("ZIP")).toBeTruthy();
     expect(screen.getByText("paczka.zip")).toBeTruthy();
+    // Nazwa pliku zawija się zamiast ucinać - koniec nazwy to często wersja.
+    expect(screen.getByText("raport.pdf").className).not.toContain("truncate");
     const links = screen.getAllByRole("link", { name: /club.post.openFile/ });
     expect(links.length).toBe(2);
     // Plik bez podpisanego adresu nie prowadzi nigdzie poza zaślepkę.

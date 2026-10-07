@@ -18,15 +18,16 @@ import {
   ArrowRight,
   CalendarClock,
   CalendarDays,
+  CircleCheck,
   Clock,
   Download,
   ExternalLink,
+  Link2,
   ListChecks,
   MapPin,
   Pin,
 } from "lucide-react";
 import { ClubThreadKindIcon } from "@/components/clubs/atoms/ClubThreadKindIcon";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ClubAuthorAvatar } from "@/components/clubs/atoms/ClubAuthorAvatar";
@@ -37,6 +38,7 @@ import {
   clubThreadTone,
 } from "@/components/clubs/atoms/ClubDossierRow";
 import { ClubFeedText } from "@/components/clubs/atoms/ClubFeedText";
+import { HUB_LABEL, HUB_LABEL_QUIET } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubInlineTitle } from "@/components/clubs/atoms/ClubInlineTitle";
 import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import { ClubThreadHeat } from "@/components/clubs/atoms/ClubThreadHeat";
@@ -48,6 +50,7 @@ import {
 } from "@/components/clubs/atoms/ClubWorkspaceBadges";
 import {
   CLUB_FEED_ACTION_ICON,
+  CLUB_FEED_ACTION_LABEL,
   CLUB_FEED_PAD,
   ClubFeedActionBar,
   ClubFeedActor,
@@ -95,6 +98,11 @@ const EMPTY_TOPICS: readonly ClubTopicOption[] = [];
 const TITLE = "text-base font-semibold leading-snug tracking-tight text-foreground sm:text-lg";
 /** Treść karty - `lh` w `ClubFeedText` liczy się z tej wysokości linii. */
 const BODY = "text-sm leading-6 text-foreground/85";
+/** Nazwisko autora i podpis karty bez autora - pełne, bez wielokropka. */
+const NAME = "text-sm font-semibold leading-5 text-foreground [overflow-wrap:anywhere]";
+/** Etykieta rodzaju w linii kontekstu: kształt i stopień pisma etykiety huba,
+ *  bez wersalików - obok działu i obszaru ma ważyć tyle samo, nie więcej. */
+const KIND_LABEL = cn(HUB_LABEL, "normal-case tracking-normal");
 
 function hasText(value: string | null | undefined): value is string {
   return typeof value === "string" && value.trim() !== "";
@@ -176,20 +184,28 @@ function ThreadCard({
             <span className="sr-only">{t("club.hub.sources.unread")}</span>
           </span>
         ) : null}
+        {/* Kwadrat ikony ma wysokość etykiety obok (24 px) i ten sam promień. */}
         <span
           aria-hidden="true"
           className={cn(
-            "grid h-5 w-5 shrink-0 place-items-center rounded-md border [&_svg]:h-3 [&_svg]:w-3",
+            "grid h-6 w-6 shrink-0 place-items-center rounded-lg border [&_svg]:h-3.5 [&_svg]:w-3.5",
             clubDossierIconBoxClass(tone),
           )}
         >
           <ClubThreadKindIcon kind={thread.kind} icon={threadIcon} />
         </span>
-        <ClubDossierKind className="h-5">{t(`club.kind.${thread.kind}`)}</ClubDossierKind>
+        <ClubDossierKind className={KIND_LABEL}>{t(`club.kind.${thread.kind}`)}</ClubDossierKind>
         {thread.status === "resolved" ? (
-          <Badge className="h-5 rounded-md bg-emerald-600 px-1.5 py-0 text-[10px] hover:bg-emerald-600">
+          <span
+            className={cn(
+              HUB_LABEL,
+              "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+            )}
+            data-testid="club-feed-resolved"
+          >
+            <CircleCheck className="h-3 w-3 shrink-0" aria-hidden="true" />
             {t("club.threadStatus.resolved")}
-          </Badge>
+          </span>
         ) : null}
         {/* ŹRÓDŁO, a nie kolejne słowo w szarym pasku - chip niesie kolor
             i ikonę działu oraz zawęża strumień po kliknięciu. */}
@@ -205,12 +221,17 @@ function ThreadCard({
           lang={lang}
           catalog={topicsCatalog}
           size="sm"
+          wrap
+          className={HUB_LABEL}
           active={thread.topic !== "" && thread.topic === activeTopic}
           onSelect={onTopicSelect}
         />
+        {/* Kotwica (akt prawny, dokument) jest etykietą jak dział i obszar -
+            a pełna nazwa aktu zawija się, zamiast urywać w połowie tytułu. */}
         {hasText(thread.anchor_label) ? (
-          <span className="max-w-[14rem] truncate" title={thread.anchor_label}>
-            {thread.anchor_label}
+          <span className={cn(HUB_LABEL, HUB_LABEL_QUIET)} data-testid="club-feed-anchor">
+            <Link2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span className="min-w-0">{thread.anchor_label}</span>
           </span>
         ) : null}
       </ClubFeedContext>
@@ -224,12 +245,7 @@ function ThreadCard({
             muted={author.kind !== "named"}
           />
         }
-        name={
-          <ClubAuthorIdentity
-            author={author}
-            nameClassName="truncate text-sm font-semibold leading-5 text-foreground"
-          />
-        }
+        name={<ClubAuthorIdentity author={author} nameClassName={NAME} wrap />}
         headline={jobTitle ?? undefined}
         meta={<ClubFeedTime iso={stamp} lang={lang} />}
       />
@@ -310,11 +326,7 @@ function EventCard({
             <ClubEventKindIcon kind={kind} />
           </ClubFeedKindAvatar>
         }
-        name={
-          <span className="text-sm font-semibold leading-5 text-foreground">
-            {t("club.hub.feed.eventLabel")}
-          </span>
-        }
+        name={<span className={NAME}>{t("club.hub.feed.eventLabel")}</span>}
         meta={
           <>
             <span className="inline-flex items-center gap-1">
@@ -328,9 +340,9 @@ function EventCard({
                 : formatDateTime(event.starts_at, lang)}
             </span>
             {hasText(event.location) ? (
-              <span className="inline-flex min-w-0 max-w-[16rem] items-center gap-1">
+              <span className="inline-flex min-w-0 items-center gap-1">
                 <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span className="truncate">{event.location}</span>
+                <span className="min-w-0 [overflow-wrap:anywhere]">{event.location}</span>
               </span>
             ) : null}
           </>
@@ -349,7 +361,7 @@ function EventCard({
       <ClubFeedActionBar label={t("club.hub.feed.actionsLabel")}>
         <Link to="/club/$clubSlug/calendar" params={{ clubSlug }} className={clubFeedActionClass()}>
           <CalendarDays className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
-          <span className="max-w-full truncate">{t("club.hub.feed.toCalendar")}</span>
+          <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.toCalendar")}</span>
         </Link>
       </ClubFeedActionBar>
     </ClubFeedCard>
@@ -379,7 +391,7 @@ function DocumentsCard({
           </ClubFeedKindAvatar>
         }
         name={
-          <span className="text-sm font-semibold leading-5 text-foreground">
+          <span className={NAME}>
             {single ? t("club.hub.feed.documentLabel") : t("club.hub.feed.documentsLabel")}
           </span>
         }
@@ -464,10 +476,8 @@ function MilestoneCard({
         }
         name={
           <>
-            <span className="text-sm font-semibold leading-5 text-foreground">
-              {t("club.hub.feed.stageLabel")}
-            </span>
-            <ClubMilestoneStateChip state={state} />
+            <span className={NAME}>{t("club.hub.feed.stageLabel")}</span>
+            <ClubMilestoneStateChip state={state} className={HUB_LABEL} />
           </>
         }
         meta={
@@ -494,7 +504,7 @@ function MilestoneCard({
       <ClubFeedActionBar label={t("club.hub.feed.actionsLabel")}>
         <Link to="/club/$clubSlug/schedule" params={{ clubSlug }} className={clubFeedActionClass()}>
           <ArrowRight className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
-          <span className="max-w-full truncate">{t("club.hub.feed.toSchedule")}</span>
+          <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.toSchedule")}</span>
         </Link>
       </ClubFeedActionBar>
     </ClubFeedCard>
