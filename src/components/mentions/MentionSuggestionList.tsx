@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 import { Building2, UserRound } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { nameInitials } from "@/lib/mentions/directory";
-import { useMentionProfile } from "@/lib/mentions/useMentionProfile";
+import { useMentionProfile, type MentionProfilePreview } from "@/lib/mentions/useMentionProfile";
 import type { MentionSuggestion } from "@/lib/mentions/useMentionSuggestions";
 import { ensureI18n } from "@/lib/i18n-mentions";
 import { uiLang } from "@/lib/i18n/format";
@@ -34,14 +34,46 @@ export interface MentionSuggestionListProps {
   onChoose: (s: MentionSuggestion) => void;
 }
 
+/**
+ * Wizytówka z danych SAMEJ podpowiedzi - gdy pełny profil nie przychodzi.
+ *
+ * DLACZEGO. Członkowie klubu przychodzą z `club_mention_members` (za bramką
+ * `can_see_members`), a pełna wizytówka (`get_mention_target`) rozwiązuje
+ * wyłącznie osoby redakcji. Bez tego zapasu najechanie na zwykłego członka
+ * mówiło „nie znaleziono profilu" o osobie, którą lista właśnie podpowiedziała.
+ * Zapas niczego nie odsłania: to te same pola, które wiersz już pokazuje.
+ */
+function previewFromSuggestion(suggestion: MentionSuggestion): MentionProfilePreview {
+  return {
+    kind: suggestion.kind,
+    id: suggestion.slug,
+    slug: suggestion.slug,
+    name: suggestion.name,
+    avatarUrl: suggestion.avatarUrl,
+    logoUrl: suggestion.logoUrl,
+    jobTitle: suggestion.kind === "person" ? suggestion.subtitle : null,
+    company: suggestion.kind === "organization" ? suggestion.subtitle : null,
+    website: suggestion.website,
+    bio: null,
+    verified: suggestion.verified,
+  };
+}
+
 /** Wizytówka celu pod pozycją listy - podgląd PRZED wstawieniem wzmianki. */
-function SuggestionPreview({ slug, lang }: { slug: string; lang: "pl" | "en" }) {
+function SuggestionPreview({
+  suggestion,
+  lang,
+}: {
+  suggestion: MentionSuggestion;
+  lang: "pl" | "en";
+}) {
   const { t } = useTranslation();
-  const { data, isPending } = useMentionProfile(slug, lang, true);
+  const { data: fetched, isPending } = useMentionProfile(suggestion.slug, lang, true);
   if (isPending) return <p className="text-xs text-muted-foreground">...</p>;
-  // Nierozwiązany cel mówi to wprost. Wcześniej wchodził tu `@slug` - czyli
-  // identyfikator techniczny; przy firmach byłoby to dosłowne `@org-<uuid>`.
-  if (!data) return <p className="text-xs text-muted-foreground">{t("mentions.noProfile")}</p>;
+  // Nierozwiązany profil nie jest „brakiem profilu": podpowiedź przyszła
+  // z bramkowanego RPC i ma nazwę, podpis i twarz. Nigdy natomiast nie
+  // pokazujemy sluga - przy firmach byłoby to dosłowne `@org-<uuid>`.
+  const data = fetched ?? previewFromSuggestion(suggestion);
   const imageUrl = data.kind === "organization" ? data.logoUrl : data.avatarUrl;
   const fallbackIcon =
     data.kind === "organization" ? (
@@ -166,7 +198,7 @@ export function MentionSuggestionList({
                 </span>
               </HoverCardTrigger>
               <HoverCardContent side="right" align="start" className="w-72">
-                <SuggestionPreview slug={s.slug} lang={lang} />
+                <SuggestionPreview suggestion={s} lang={lang} />
               </HoverCardContent>
             </HoverCard>
           </li>

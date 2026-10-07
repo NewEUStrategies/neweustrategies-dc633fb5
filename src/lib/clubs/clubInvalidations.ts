@@ -178,20 +178,20 @@ export function replyEditedKeys(threadId: string): readonly QueryKey[] {
 }
 
 /**
- * Nowy albo usuniety komentarz wpisu sciany. JEDEN klucz - prefiks sciany:
- * licznik komentarzy jest kolumna `club_posts_list`, a komentarze wpisu wisza
- * POD `postsAll`, wiec to jedno uniewaznienie odswieza i licznik w karcie,
- * i rozwinieta liste. Dopisanie obok `postComments(...)` byloby para
- * (prefiks, potomek), czyli zbednym drugim wywolaniem.
+ * Nowy, usuniety albo zmoderowany komentarz wpisu sciany. JEDEN klucz -
+ * komentarze TEGO wpisu, nie sciana.
  *
- * Kolejnosc sciany nie zalezy od komentarzy (wpisy ida po `created_at`), wiec
- * - inaczej niz przy watkach - odswiezenie sciany nie przestawia kart.
- *
- * `postId` zostaje w sygnaturze: nazywa intencje i pozwala kiedys zawezic
- * skutek do jednego wpisu bez zmiany hookow.
+ * DLACZEGO NIE SCIANA. Odswiezenie sciany NIE jest niewinne, choc jej
+ * kolejnosc nie zalezy od komentarzy. Hub wczytuje pierwsza strone wpisow, a
+ * nowy wpis innego czlonka (bez zdarzenia realtime - te trafiaja tylko do
+ * aktora) wypycha z niej najstarszy - czesto ten, pod ktorym czytelnik wlasnie
+ * pisze. Karta znika razem z polem komentarza, a na gorze pojawiaja sie wpisy,
+ * o ktore nikt nie prosil. Z tego samego powodu nic nie przeladowuje sciany po
+ * polubieniu. Licznik `comment_count` w karcie poprawiaja hooki W MIEJSCU
+ * (`useClubPosts.ts`), a komentarze innych wpisow zostaja nietkniete.
  */
-export function postCommentKeys(clubId: string, _postId: string): readonly QueryKey[] {
-  return [clubKeys.postsAll(clubId)];
+export function postCommentKeys(clubId: string, postId: string): readonly QueryKey[] {
+  return [clubKeys.postComments(clubId, postId)];
 }
 
 /**

@@ -13,7 +13,13 @@
 //      autor nie ma jak zrozumieć.
 //   3. KOMUNIKAT ODMOWY. PostgREST gubi SQLSTATE, więc powód jedzie w treści
 //      wyjątku. Zła kolejność dopasowań („rate limit" przed „burst limit")
-//      pokazałaby limit dobowy komuś, kto po prostu pisze za szybko.
+//      pokazałaby limit dobowy komuś, kto po prostu pisze za szybko. To samo
+//      dla kompozytora wpisu (`clubPostErrorKey`), który dotąd pokazywał
+//      surowy napis bazy.
+//   4. ZNAKI STERUJĄCE w migawce. Bajt NUL z `og:title` strony to `\u0000`,
+//      którego jsonb nie przyjmie - komentarz padałby przez dodatek.
+//   5. LICZNIK KOMENTARZY liczy wyłącznie widoczne - zmiana statusu rusza go
+//      tylko przy wejściu do widocznych albo wyjściu z nich.
 //
 // GRANICA DOWODU: zero bazy, zero sieci, zero komponentów.
 import { describe, expect, it } from "vitest";
@@ -24,8 +30,11 @@ import {
   CLUB_POST_COMMENT_MAX,
   CLUB_POST_COMMENT_PAGE_SIZE,
   CLUB_POST_COMMENT_STATUSES,
+  CLUB_POST_ERROR_KEYS,
   canSubmitClubComment,
+  clubCommentCountDelta,
   clubCommentErrorKey,
+  clubPostErrorKey,
   clubLinkSnapshotFromPreview,
   clubLinkSnapshotToAttachment,
   isClubPostCommentStatus,
@@ -218,6 +227,60 @@ describe("clubLinkSnapshotFromPreview - normalizacja PRZED wysyłką", () => {
   });
 });
 
+describe("znaki sterujące w migawce - jsonb odrzuca `\\u0000`", () => {
+  it("NUL i pozostałe znaki sterujące znikają z pól tekstowych", () => {
+    expect(
+      clubLinkSnapshotFromPreview({
+        url: "https://energia.example",
+        title: "A\u0000B",
+        description: "\u0000",
+        siteName: "X\u0007\u009b",
+      }),
+    ).toEqual({
+      url: "https://energia.example",
+      title: "AB",
+      description: null,
+      image: null,
+      siteName: "X",
+    });
+  });
+
+  it("koniec linii i tabulator stają się JEDNĄ spacją, a nie zlepiają słów", () => {
+    expect(
+      clubLinkSnapshotFromPreview({
+        url: "https://energia.example",
+        title: "Raport\nroczny",
+        description: "Rynek \r\n\tmocy\n",
+      }),
+    ).toMatchObject({ title: "Raport roczny", description: "Rynek mocy" });
+  });
+
+  it("serializacja oczyszczonej migawki nie niesie escape'u, którego baza nie przyjmie", () => {
+    const snapshot = clubLinkSnapshotFromPreview({
+      url: "https://energia.example",
+      title: "Tytu\u0000ł",
+      description: "Opis\u001f",
+      siteName: "\u0000Serwis",
+    });
+    expect(JSON.stringify(snapshot)).not.toMatch(/\\u00[01][0-9a-f]/i);
+    // Ten sam wynik przy odczycie wiersza zapisanego z pominięciem RPC.
+    expect(
+      parseClubLinkSnapshot({ url: "https://energia.example", title: "A\u0000" }),
+    ).toMatchObject({ title: "A" });
+  });
+
+  it("to samo trafia do załącznika `link` wpisu ściany", () => {
+    const snapshot = clubLinkSnapshotFromPreview({
+      url: "https://energia.example",
+      title: "\u0000Raport\u0000",
+    });
+    expect(snapshot && clubLinkSnapshotToAttachment(snapshot)).toMatchObject({
+      type: "link",
+      title: "Raport",
+    });
+  });
+});
+
 describe("clubLinkSnapshotToAttachment - element `link` nowego wpisu", () => {
   it("daje załącznik rozpoznawany przez parser załączników wpisu", () => {
     const attachment = clubLinkSnapshotToAttachment({
@@ -277,8 +340,11 @@ describe("clubCommentErrorKey - odmowa bazy na komunikat", () => {
   });
 
   it("wartość bez komunikatu daje komunikat ogólny, nie wyjątek", () => {
-    for (const value of [null, undefined, 42, {}, { message: 7 }, "clubs: thread locked"]) {
-      expect(CLUB_COMMENT_ERROR_KEYS).toContain(clubCommentErrorKey(value));
+    // Asercja na KONKRETNY klucz: sam typ wyniku gwarantuje już przynależność
+    // do katalogu, więc `toContain` przepuściłby „brak prawa" dla błędu sieci.
+    for (const value of [null, undefined, 42, {}, { message: 7 }, { message: null }, new Error()]) {
+      expect(() => clubCommentErrorKey(value)).not.toThrow();
+      expect(clubCommentErrorKey(value)).toBe("club.comments.error.generic");
     }
     expect(clubCommentErrorKey("clubs: thread locked")).toBe("club.comments.error.locked");
   });
@@ -295,5 +361,71 @@ describe("clubCommentErrorKey - odmowa bazy na komunikat", () => {
         "club.comments.error.rateLimit",
       ].sort(),
     );
+  });
+});
+
+describe("clubPostErrorKey - odmowa publikacji wpisu na komunikat", () => {
+  it.each([
+    ["clubs: post rate limit", "club.post.error.rateLimit"],
+    ["clubs: post burst limit", "club.post.error.burstLimit"],
+    ["clubs: invalid link attachment", "club.post.error.invalidLink"],
+    ["club_post_create: unauthenticated", "club.post.error.forbidden"],
+    ["club_post_create: forbidden", "club.post.error.forbidden"],
+    ["clubs: authentication required", "club.post.error.forbidden"],
+    ["club_post_create: too many attachments", "club.post.error.invalid"],
+    ["club_post_create: empty post", "club.post.error.invalid"],
+    ["club_post_create: body too long", "club.post.error.invalid"],
+    ["club_post_create: thread not in club", "club.post.error.invalid"],
+    ["club_post_create: group not in club", "club.post.error.invalid"],
+    ["Failed to fetch", "club.post.error.generic"],
+    ["", "club.post.error.generic"],
+  ])("%j -> %s", (message, key) => {
+    expect(clubPostErrorKey({ message, code: "P0001" })).toBe(key);
+    expect(clubPostErrorKey(new Error(message))).toBe(key);
+  });
+
+  it("„burst limit” wygrywa z „rate limit”, a karta linku z ogólnym „invalid”", () => {
+    expect(clubPostErrorKey({ message: "clubs: post burst limit (rate limit)" })).toBe(
+      "club.post.error.burstLimit",
+    );
+    expect(clubPostErrorKey({ message: "CLUBS: INVALID LINK ATTACHMENT" })).toBe(
+      "club.post.error.invalidLink",
+    );
+  });
+
+  it("wartość bez komunikatu daje komunikat ogólny, nie wyjątek", () => {
+    for (const value of [null, undefined, 42, {}, { message: 7 }, new Error()]) {
+      expect(() => clubPostErrorKey(value)).not.toThrow();
+      expect(clubPostErrorKey(value)).toBe("club.post.error.generic");
+    }
+  });
+
+  it("katalog kluczy jest kompletny - każdy wynik funkcji jest w nim wymieniony", () => {
+    expect([...CLUB_POST_ERROR_KEYS].sort()).toEqual(
+      [
+        "club.post.error.burstLimit",
+        "club.post.error.forbidden",
+        "club.post.error.generic",
+        "club.post.error.invalid",
+        "club.post.error.invalidLink",
+        "club.post.error.rateLimit",
+      ].sort(),
+    );
+  });
+});
+
+describe("clubCommentCountDelta - licznik liczy wyłącznie widoczne", () => {
+  it.each([
+    ["pending", "visible", 1],
+    ["hidden", "visible", 1],
+    ["visible", "hidden", -1],
+    ["visible", "deleted", -1],
+    ["pending", "hidden", 0],
+    ["pending", "deleted", 0],
+    ["hidden", "deleted", 0],
+    ["visible", "visible", 0],
+    ["deleted", "deleted", 0],
+  ] as const)("%s -> %s: %d", (from, to, delta) => {
+    expect(clubCommentCountDelta(from, to)).toBe(delta);
   });
 });

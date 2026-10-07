@@ -49,6 +49,8 @@ import { ClubSourceChip } from "@/components/clubs/atoms/ClubSourceChip";
 import {
   CLUB_FEED_ACTION_ICON,
   CLUB_FEED_ACTION_LABEL,
+  CLUB_FEED_COUNTER,
+  CLUB_FEED_COUNTER_LABEL,
   CLUB_FEED_PAD,
   ClubFeedActionBar,
   ClubFeedActor,
@@ -65,6 +67,7 @@ import { ClubFeedShareAction } from "@/components/clubs/molecules/ClubFeedShareA
 import { ClubReactionSummary } from "@/components/clubs/molecules/ClubEngagementBar";
 import { ClubFeedComments } from "@/components/clubs/molecules/ClubFeedComments";
 import { clubFeedDiscussionMode } from "@/components/clubs/molecules/feedDiscussion";
+import { hasFeedDraft, postDraftKey } from "@/components/clubs/molecules/feedDrafts";
 import { useMentionEntity } from "@/components/mentions/MentionDirectory";
 import { clubSourceOf, type ClubSourceMark } from "@/lib/clubs/threadSources";
 import { fileLabel, isPreviewable } from "@/lib/files/fileKinds";
@@ -353,11 +356,12 @@ export function ClubPostCard({
   const likeOthers = post.like_count - (post.liked_by_me ? 1 : 0);
 
   const commentsId = useId();
-  // `mounted` zostaje po zwinięciu - niewysłany szkic komentarza nie przepada.
-  const [comments, setComments] = useState({
-    open: focusComments,
-    mounted: focusComments,
-    focusKey: 0,
+  // `mounted` zostaje po zwinięciu, a szkic żyje w rejestrze poza kartą
+  // (`feedDrafts`): karta, która wraca do strumienia z niewysłanym
+  // komentarzem, sama rozwija rozmowę, w której ten szkic czeka.
+  const [comments, setComments] = useState(() => {
+    const open = focusComments || hasFeedDraft(postDraftKey(post.id));
+    return { open, mounted: open, focusKey: 0 };
   });
   const openComments = (focus: boolean): void =>
     setComments((current) => ({
@@ -519,10 +523,12 @@ export function ClubPostCard({
                   onClick={() => openComments(true)}
                   aria-expanded={comments.open}
                   aria-controls={commentsId}
-                  className="rounded-sm transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={CLUB_FEED_COUNTER}
                   data-testid="club-post-comment-count"
                 >
-                  {t("club.comments.count", { count: commentCount })}
+                  <span className={CLUB_FEED_COUNTER_LABEL}>
+                    {t("club.comments.count", { count: commentCount })}
+                  </span>
                 </button>
               ) : null}
               {commentCount > 0 && media.length > 0 ? <span aria-hidden="true">·</span> : null}

@@ -295,12 +295,17 @@ describe("udokumentowane wyjątki od hierarchii", () => {
 });
 
 describe("komentarze z karty strumienia", () => {
-  // Dwie gałęzie dopisane dla komentowania wprost ze strumienia. Obie stoją pod
-  // prefiksem, który JUŻ unieważniają istniejące mutacje - to jest cała umowa:
-  // usunięcie wpisu i realtime odpowiedzi trafiają w nowe widoki bez zmian
-  // w swoich regułach.
-  it("komentarze wpisu wiszą pod prefiksem ściany - usunięcie wpisu je czyści", () => {
-    expect(startsWith(clubKeys.postComments(CLUB, "post-1"), clubKeys.postsAll(CLUB))).toBe(true);
+  // Dwie gałęzie dopisane dla komentowania wprost ze strumienia. Podgląd
+  // odpowiedzi stoi pod prefiksem odpowiedzi wątku, więc realtime trafia w niego
+  // bez zmian w regułach. Komentarze wpisu stoją pod klubem, ale OBOK ściany:
+  // jej unieważnienie (usunięcie wpisu, komentarz pod innym wpisem) nie może
+  // przeładowywać każdej rozwiniętej dotąd rozmowy.
+  it("komentarze wpisu wiszą pod klubem, ale NIE pod prefiksem ściany", () => {
+    expect(startsWith(clubKeys.postComments(CLUB, "post-1"), clubKeys.club(CLUB))).toBe(true);
+    expect(startsWith(clubKeys.postComments(CLUB, "post-1"), clubKeys.postsAll(CLUB))).toBe(false);
+    expect(startsWith(clubKeys.postCommentsPage(CLUB, "post-1", 3), clubKeys.postsAll(CLUB))).toBe(
+      false,
+    );
     expect(
       startsWith(
         clubKeys.postCommentsPage(CLUB, "post-1", 3),

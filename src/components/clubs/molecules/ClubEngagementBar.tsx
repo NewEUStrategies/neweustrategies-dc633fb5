@@ -25,6 +25,8 @@ import { ClubReactionGlyph } from "@/components/clubs/atoms/ClubReactionGlyph";
 import {
   CLUB_FEED_ACTION_ICON,
   CLUB_FEED_ACTION_LABEL,
+  CLUB_FEED_COUNTER,
+  CLUB_FEED_COUNTER_LABEL,
   ClubFeedActionBar,
   ClubFeedSocialRow,
   clubFeedActionClass,
@@ -64,10 +66,6 @@ export interface ClubEngagementComments {
   /** Licznik odpowiedzi: zawsze ROZWIJA (drugie kliknięcie nie zwija). */
   onOpen: () => void;
 }
-
-/** Licznik w pasie rozmowy - link do wątku albo przełącznik sekcji w karcie. */
-const COUNTER =
-  "rounded-sm transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** Najczęstsze reakcje - najwyżej trzy glify, jak w liczniku pod wpisem. */
 function topKinds(tallies: readonly ClubReactionTally[]): ClubReactionKind[] {
@@ -194,18 +192,22 @@ export function ClubEngagementBar({
               onClick={comments.onOpen}
               aria-expanded={comments.open}
               aria-controls={comments.id}
-              className={COUNTER}
+              className={CLUB_FEED_COUNTER}
               data-testid="club-replies-count"
             >
-              {t("club.repliesCount", { count: replyCount })}
+              <span className={CLUB_FEED_COUNTER_LABEL}>
+                {t("club.repliesCount", { count: replyCount })}
+              </span>
             </button>
           ) : (
             <Link
               to="/club/$clubSlug/t/$threadSlug"
               params={{ clubSlug, threadSlug }}
-              className={COUNTER}
+              className={CLUB_FEED_COUNTER}
             >
-              {t("club.repliesCount", { count: replyCount })}
+              <span className={CLUB_FEED_COUNTER_LABEL}>
+                {t("club.repliesCount", { count: replyCount })}
+              </span>
             </Link>
           )
         ) : null}

@@ -221,13 +221,20 @@ describe("ClubPostComposer - payload wysyłki", () => {
     await waitFor(() => expect(screen.queryByText("raport.pdf")).toBeNull());
   });
 
-  it("odmowa bazy pokazuje jej komunikat i ZOSTAWIA napisaną treść", async () => {
-    clubRpc.setError(CREATE_RPC, "club_post_denied");
+  // Odmowa bazy mówi ZDANIEM ze słownika (`clubPostErrorKey`), nie surowym
+  // komunikatem RPC - a napisana treść zostaje w polu.
+  it.each([
+    ["club_post_denied", "club.post.error.generic"],
+    ["clubs: post rate limit", "club.post.error.rateLimit"],
+    ["club_post_create: forbidden", "club.post.error.forbidden"],
+  ])("odmowa bazy „%s” mówi zdaniem %s i ZOSTAWIA napisaną treść", async (message, key) => {
+    clubRpc.setError(CREATE_RPC, message);
     renderWithQueryClient(<ClubPostComposer clubId={CLUB_IDS.club} canPost />);
     typeBody("Treść do zachowania");
     fireEvent.click(publishButton());
 
-    await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith("club_post_denied"));
+    await waitFor(() => expect(h.toast.error).toHaveBeenCalledWith(key));
+    expect(h.toast.error).not.toHaveBeenCalledWith(message);
     expect(bodyField()).toHaveValue("Treść do zachowania");
     expect(h.toast.success).not.toHaveBeenCalled();
   });

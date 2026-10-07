@@ -156,6 +156,11 @@ import {
   clubPostRow,
 } from "@/test/clubs/hubFixtures";
 import { workspaceApiMock, resetWorkspaceApiMock } from "@/test/clubs/workspaceApiMock";
+import {
+  clearFeedDrafts,
+  threadDraftKey,
+  writeFeedDraft,
+} from "@/components/clubs/molecules/feedDrafts";
 
 const CLUB_SLUG = "klub-energetyczny";
 
@@ -176,6 +181,7 @@ function threadEntry(thread: ClubThreadListRow): ClubFeedEntry {
 beforeEach(() => {
   resetWorkspaceApiMock();
   cleanup();
+  clearFeedDrafts();
 });
 
 describe("ClubFeedItem - karta wątku, dane pełne", () => {
@@ -653,6 +659,8 @@ describe("ClubFeedItem - rozmowa w karcie wątku", () => {
 
   it.each([
     ["gość", { signedIn: false, canReact: false }, "open", "guest"],
+    // Zalogowanie nic tu nie zmieni - gość nie dostaje zachęty do logowania.
+    ["gość na zamkniętym wątku", { signedIn: false, canReact: false }, "locked", "locked"],
     ["bez prawa głosu", { signedIn: true, canReact: false }, "open", "readOnly"],
     ["zamknięty wątek", { signedIn: true, canReact: true }, "locked", "locked"],
     ["ukryty wątek", { signedIn: true, canReact: true }, "hidden", "locked"],
@@ -668,6 +676,29 @@ describe("ClubFeedItem - rozmowa w karcie wątku", () => {
     expect(within(card).getByTestId("club-thread-replies-stub").getAttribute("data-mode")).toBe(
       expected,
     );
+  });
+});
+
+describe("ClubFeedItem - szkic odpowiedzi przeżywa kartę", () => {
+  it("karta wątku z niewysłaną odpowiedzią w rejestrze wraca z rozwiniętą rozmową", () => {
+    const thread = clubThreadListRow({ reply_count: 2 });
+    writeFeedDraft(threadDraftKey(thread.id), "Dorzucam źródło");
+    render(
+      <ClubFeedItem
+        entry={threadEntry(thread)}
+        clubSlug={CLUB_SLUG}
+        clubId={CLUB_IDS.club}
+        signedIn
+      />,
+    );
+    const card = screen.getByTestId("club-feed-thread");
+    expect(within(card).getByTestId("club-comment-toggle").getAttribute("aria-expanded")).toBe(
+      "true",
+    );
+    // Rozwinięcie bez prośby o fokus - nikt nie kliknął „Komentuj".
+    expect(
+      within(card).getByTestId("club-thread-replies-stub").getAttribute("data-focus-key"),
+    ).toBe("0");
   });
 });
 

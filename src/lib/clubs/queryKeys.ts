@@ -252,13 +252,16 @@ export const clubKeys = {
     [...clubKeys.club(clubId), "posts", groupId ?? "all", threadId ?? "all"] as const,
   /** Prefiks wszystkich wariantow sciany - mutacja nie zna otwartych filtrow. */
   postsAll: (clubId: string) => [...clubKeys.club(clubId), "posts"] as const,
-  /** Komentarze JEDNEGO wpisu - prefiks wszystkich rozmiarow strony. Wisi pod
-   *  `postsAll`, bo licznik komentarzy jest kolumna listy wpisow: jedno
-   *  uniewaznienie sciany odswieza i licznik w karcie, i rozwiniete komentarze.
-   *  Czlon "comments" stoi tam, gdzie `posts()` ma dzial - identyfikator dzialu
-   *  jest uuid, wiec literal nie zderzy sie z zadnym filtrem sciany. */
+  /** Komentarze JEDNEGO wpisu - prefiks wszystkich rozmiarow strony.
+   *
+   *  Wisi pod `club(clubId)` (wyrzucenie z klubu i moderacja dalej je czyszcza),
+   *  ale OBOK `postsAll`, nie pod nim. Pod sciana kazde jej uniewaznienie
+   *  (usuniecie wpisu, komentarz pod innym wpisem) przeladowywaloby wszystkie
+   *  rozwiniete dotad rozmowy - kazda karta to osobne zapytanie nieskonczone,
+   *  wiec dziesiec otwartych sekcji to dziesiec serii zadan naraz. Licznik
+   *  komentarzy w karcie poprawiaja mutacje w miejscu (`useClubPosts.ts`). */
   postComments: (clubId: string, postId: string) =>
-    [...clubKeys.postsAll(clubId), "comments", postId] as const,
+    [...clubKeys.club(clubId), "postComments", postId] as const,
   /** Strony komentarzy wpisu. ROZMIAR STRONY JEST CZESCIA KLUCZA - ten sam blad,
    *  co przy `board` i `eventAttendees`: dwa widoki z roznym rozmiarem na
    *  jednym wpisie cache licza `hasOlder` z cudzych stron. */

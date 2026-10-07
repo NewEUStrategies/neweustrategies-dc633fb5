@@ -7,6 +7,8 @@ const { rpcMock } = vi.hoisted(() => ({ rpcMock: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { rpc: rpcMock } }));
 
 import {
+  CLUB_MENTION_PUBLIC_SLOTS,
+  mergeClubMentionSuggestions,
   mergeMentionSuggestions,
   useMentionSuggestions,
   MENTION_SUGGESTION_LIMIT,
@@ -232,7 +234,7 @@ describe("useMentionSuggestions - zakres klubu", () => {
     expect(result.current.data?.[0].name).toBe("Jan Kowalski (klub)");
   });
 
-  it("scalona lista nie przekracza limitu", async () => {
+  it("scalona lista nie przekracza limitu, a katalog publiczny zachowuje dwa miejsca", async () => {
     const members = Array.from({ length: 5 }, (_, i) => memberRow({ id: `m${i}`, slug: `m-${i}` }));
     const targets = Array.from({ length: 5 }, (_, i) => personRow({ id: `p${i}`, slug: `p-${i}` }));
     respond({
@@ -248,7 +250,32 @@ describe("useMentionSuggestions - zakres klubu", () => {
       "m-1",
       "m-2",
       "m-3",
-      "m-4",
+      "p-0",
+      "p-1",
+    ]);
+  });
+
+  it("firma z katalogu publicznego zostaje, gdy pasuje sześciu członków", async () => {
+    // Goły `@` albo krótka fraza dopasowana W ŚRODKU imion (Urban, Albano dla
+    // „@ba”) zapełniała całą listę członkami - firmy nie dało się wzmiankować.
+    const members = Array.from({ length: 6 }, (_, i) => memberRow({ id: `m${i}`, slug: `m-${i}` }));
+    respond({
+      club_mention_members: { data: members, error: null },
+      search_mention_targets: {
+        data: [personRow({ slug: "p-0" }), personRow({ slug: "p-1" }), organizationRow()],
+        error: null,
+      },
+    });
+    const { result } = renderHook(() => useMentionSuggestions("ba", "pl", { clubId: "club-1" }), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.data?.length).toBe(MENTION_SUGGESTION_LIMIT));
+    expect(result.current.data?.map((s) => s.slug)).toEqual([
+      "m-0",
+      "m-1",
+      "m-2",
+      "m-3",
+      "org-123e4567-e89b-12d3-a456-426614174000",
       "p-0",
     ]);
   });
@@ -344,5 +371,96 @@ describe("mergeMentionSuggestions", () => {
 
   it("puste źródła dają pustą listę", () => {
     expect(mergeMentionSuggestions([[], []])).toEqual([]);
+  });
+});
+
+describe("mergeClubMentionSuggestions - członkowie klubu i katalog publiczny", () => {
+  const members = (n: number) => Array.from({ length: n }, (_, i) => suggestion(`m-${i}`));
+  const slugs = (list: readonly MentionSuggestion[]) => list.map((s) => s.slug);
+
+  it("katalog publiczny ma zarezerwowane DWA miejsca", () => {
+    expect(CLUB_MENTION_PUBLIC_SLOTS).toBe(2);
+  });
+
+  it("gdy wszystko się mieści - kolejność jak dotąd: członkowie, potem katalog", () => {
+    const targets = [suggestion("p-0"), suggestion("org-a", "organization"), suggestion("p-1")];
+    expect(slugs(mergeClubMentionSuggestions(members(2), targets))).toEqual([
+      "m-0",
+      "m-1",
+      "p-0",
+      "org-a",
+      "p-1",
+    ]);
+  });
+
+  it("sześciu członków i jedna firma: pięciu członków i firma", () => {
+    const targets = [suggestion("org-a", "organization")];
+    expect(slugs(mergeClubMentionSuggestions(members(6), targets))).toEqual([
+      "m-0",
+      "m-1",
+      "m-2",
+      "m-3",
+      "m-4",
+      "org-a",
+    ]);
+  });
+
+  it("sześciu członków i trzy firmy: czterech członków i dwie PIERWSZE firmy", () => {
+    const targets = [
+      suggestion("org-a", "organization"),
+      suggestion("org-b", "organization"),
+      suggestion("org-c", "organization"),
+    ];
+    expect(slugs(mergeClubMentionSuggestions(members(6), targets))).toEqual([
+      "m-0",
+      "m-1",
+      "m-2",
+      "m-3",
+      "org-a",
+      "org-b",
+    ]);
+  });
+
+  it("gdy lista się nie mieści, firmy idą przed osobami z katalogu", () => {
+    const targets = [
+      suggestion("p-0"),
+      suggestion("p-1"),
+      suggestion("p-2"),
+      suggestion("org-a", "organization"),
+    ];
+    expect(slugs(mergeClubMentionSuggestions(members(3), targets))).toEqual([
+      "m-0",
+      "m-1",
+      "m-2",
+      "org-a",
+      "p-0",
+      "p-1",
+    ]);
+  });
+
+  it("bez członków katalog publiczny zostaje w SWOJEJ kolejności", () => {
+    const targets = [
+      ...Array.from({ length: 6 }, (_, i) => suggestion(`p-${i}`)),
+      suggestion("org-a", "organization"),
+    ];
+    expect(slugs(mergeClubMentionSuggestions([], targets))).toEqual([
+      "p-0",
+      "p-1",
+      "p-2",
+      "p-3",
+      "p-4",
+      "p-5",
+    ]);
+  });
+
+  it("bez katalogu członkowie dostają całą listę", () => {
+    expect(slugs(mergeClubMentionSuggestions(members(8), []))).toEqual(slugs(members(6)));
+  });
+
+  it("osoba w obu źródłach liczy się RAZ (jako członek) i nie zabiera miejsca katalogu", () => {
+    const targets = [suggestion("M-0"), suggestion("org-a", "organization"), suggestion("p-0")];
+    const merged = mergeClubMentionSuggestions(members(6), targets);
+    expect(slugs(merged)).toEqual(["m-0", "m-1", "m-2", "m-3", "org-a", "p-0"]);
+    expect(new Set(slugs(merged).map((slug) => slug.toLowerCase())).size).toBe(merged.length);
   });
 });

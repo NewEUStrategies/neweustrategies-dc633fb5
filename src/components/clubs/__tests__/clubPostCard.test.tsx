@@ -158,6 +158,11 @@ vi.mock("@/components/clubs/molecules/ClubFeedComments", () => ({
 }));
 
 import { ClubPostCard } from "@/components/clubs/organisms/ClubPostCard";
+import {
+  clearFeedDrafts,
+  postDraftKey,
+  writeFeedDraft,
+} from "@/components/clubs/molecules/feedDrafts";
 import { CLUB_BASE_ISO, CLUB_IDS, clubIsoOffset } from "@/test/clubs/fixtures";
 import { clubPostRow } from "@/test/clubs/hubFixtures";
 
@@ -184,6 +189,7 @@ function imageAttachment(path: string, extra: Record<string, Json> = {}): Json {
 beforeEach(() => {
   h.previewed = [];
   cleanup();
+  clearFeedDrafts();
 });
 
 describe("ClubPostCard - autor i pochodzenie", () => {
@@ -355,6 +361,10 @@ describe("ClubPostCard - komentarze w karcie", () => {
     const counter = screen.getByTestId("club-post-comment-count");
     expect(counter.textContent).toBe("club.comments.count(count=4)");
     expect(counter.closest('[data-feed-zone="social"]')).not.toBeNull();
+    // Rozmiar na PODPISIE, nie na przycisku: atom przycisku wymusza
+    // `--fs-button`, a sąsiedzi w pasie liczników mają 11 px (`text-xs`).
+    expect(counter.firstElementChild).toHaveClass("text-xs");
+    expect(counter.className).not.toContain("text-xs");
     // Akcja niesie liczbę w nazwie dostępnej.
     expect(screen.getByTestId("club-post-comment").getAttribute("aria-label")).toBe(
       "club.hub.feed.commentWithCount(n=4)",
@@ -365,6 +375,23 @@ describe("ClubPostCard - komentarze w karcie", () => {
     fireEvent.click(counter);
     expect(counter.getAttribute("aria-expanded")).toBe("true");
     expect(screen.getByTestId("club-feed-comments-stub").getAttribute("data-focus-key")).toBe("2");
+  });
+
+  it("karta wracająca do strumienia z niewysłanym komentarzem sama rozwija rozmowę", () => {
+    // Hub podmienił strumień (wyszukiwanie, szkielet) i karta się odmontowała -
+    // szkic przeżył w rejestrze, więc po powrocie czeka w otwartej sekcji.
+    writeFeedDraft(postDraftKey("post-1"), "Pół zdania");
+    render(<ClubPostCard post={clubPostRow()} clubSlug={CLUB_SLUG} mediaUrls={{}} signedIn />);
+
+    expect(screen.getByTestId("club-post-comment").getAttribute("aria-expanded")).toBe("true");
+    // Bez kradzieży fokusu - czytelnik nie prosił o pole.
+    expect(screen.getByTestId("club-feed-comments-stub").getAttribute("data-focus-key")).toBe("0");
+
+    cleanup();
+    // Sam biały znak to nie szkic.
+    writeFeedDraft(postDraftKey("post-1"), "   ");
+    render(<ClubPostCard post={clubPostRow()} clubSlug={CLUB_SLUG} mediaUrls={{}} signedIn />);
+    expect(screen.getByTestId("club-post-comment").getAttribute("aria-expanded")).toBe("false");
   });
 
   it("bez komentarzy licznik nie istnieje, a etykieta akcji nie ma liczby", () => {

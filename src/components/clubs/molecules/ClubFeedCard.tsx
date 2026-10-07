@@ -25,6 +25,14 @@
 // RUCH. Karta wchodzi krótkim uniesieniem (`club-feed-card-in`, kaskada po
 // indeksie), krawędź przy najeździe przyjmuje kolor rodzaju - jak dawny
 // wiersz dossier - a `prefers-reduced-motion` wyłącza wszystko poza kolorem.
+//
+// KARTA Z FOKUSEM STOI NAD SĄSIADKĄ (`focus-within:z-10`). Lista podpowiedzi
+// @wzmianek nie jest portalem i przy kompozytorze na dole karty wystaje poza
+// jej krawędź. Po animacji wejścia karta nie tworzy już kontekstu nakładania
+// (patrz `styles.css`), ale przez pierwsze 320 ms po rozwinięciu rozmowy
+// tworzy - podniesienie karty z fokusem zamyka to okno. Lista otwiera się
+// tylko przy fokusie w polu, a wybór idzie `onMouseDown` z `preventDefault`,
+// więc fokus (i podniesienie) trwa aż do wyboru osoby.
 import { useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { HUB_LABEL_TEXT, HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
@@ -82,7 +90,7 @@ export function ClubFeedCard({
       style={style}
       className={cn(
         HUB_SURFACE,
-        "club-feed-card-in relative",
+        "club-feed-card-in relative focus-within:z-10",
         "transition-colors duration-300 ease-out",
         "hover:border-[color-mix(in_oklab,var(--dossier-tone)_40%,transparent)]",
         "focus-within:border-[color-mix(in_oklab,var(--dossier-tone)_40%,transparent)]",
@@ -230,6 +238,19 @@ export function ClubFeedSocialRow({ left, right }: { left?: ReactNode; right?: R
     </div>
   );
 }
+
+/**
+ * Licznik w pasie rozmowy („5 odpowiedzi", „3 komentarze") - link do wątku
+ * albo przełącznik sekcji w karcie. ROZMIAR SIEDZI NA PODPISIE
+ * (`CLUB_FEED_COUNTER_LABEL`), nie na elemencie: globalny atom przycisku
+ * wymusza na `<button>` `--fs-button` (`!important`), więc licznik-przycisk
+ * miał 12 px obok 11 px kropki i „3 uczestników" w tym samym rzędzie.
+ */
+export const CLUB_FEED_COUNTER =
+  "rounded-sm transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/** Podpis licznika - stopień pisma pasa liczników (11 px w skali klubu). */
+export const CLUB_FEED_COUNTER_LABEL = "text-xs";
 
 /** Pas akcji: włos wcięty jak treść, pod nim równe kolumny przycisków. */
 export function ClubFeedActionBar({

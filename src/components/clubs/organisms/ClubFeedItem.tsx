@@ -74,6 +74,7 @@ import {
   clubFeedActionClass,
 } from "@/components/clubs/molecules/ClubFeedCard";
 import { ClubFeedThreadReplies } from "@/components/clubs/molecules/ClubFeedThreadReplies";
+import { hasFeedDraft, threadDraftKey } from "@/components/clubs/molecules/feedDrafts";
 import {
   clubFeedDiscussionMode,
   isClubThreadClosed,
@@ -168,8 +169,13 @@ function ThreadCard({
   const lang = uiLang(i18n.language);
   const author = toAuthorLabel(thread, t("club.anonymousAuthor"), t("club.deletedAuthor"));
   const repliesId = useId();
-  // `mounted` zostaje po zwinięciu - szkic odpowiedzi nie przepada.
-  const [replies, setReplies] = useState({ open: false, mounted: false, focusKey: 0 });
+  // `mounted` zostaje po zwinięciu, a szkic żyje w rejestrze poza kartą
+  // (`feedDrafts`): karta, która wraca do strumienia z niewysłaną odpowiedzią,
+  // sama rozwija rozmowę, w której ten szkic czeka.
+  const [replies, setReplies] = useState(() => {
+    const draft = hasFeedDraft(threadDraftKey(thread.id));
+    return { open: draft, mounted: draft, focusKey: 0 };
+  });
   const openReplies = (focus: boolean): void =>
     setReplies((current) => ({
       open: true,

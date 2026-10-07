@@ -15,6 +15,11 @@
 //   4. SKUTEK ODPOWIEDZI Z KARTY. Ma odświeżyć podgląd i kartę wątku, ale NIE
 //      przeładować list wątków - inaczej strumień przetasowuje karty pod
 //      kursorem czytelnika. Licznik na liście poprawia się w miejscu.
+//   5. SKUTEK KOMENTARZA. Ten sam wzorzec dla ściany: odświeżają się komentarze
+//      TEGO wpisu, a `comment_count` w karcie zmienia się w miejscu - ściana
+//      nie przeładowuje się (wypchnęłaby kartę spod pola komentarza).
+//   6. NIC, CO CZYTELNIK JUŻ WIDZI, NIE ZNIKA: ani najstarszy doczytany
+//      komentarz po odświeżeniu, ani cała lista po nieudanym doczytaniu.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -30,6 +35,7 @@ const { postsApiMock } = vi.hoisted(() => ({
     fetchClubPostComments: vi.fn(),
     createClubPostComment: vi.fn(),
     deleteClubPostComment: vi.fn(),
+    moderateClubPostComment: vi.fn(),
   },
 }));
 
@@ -38,17 +44,22 @@ vi.mock("@/lib/clubs/api", () => clubApiMock);
 
 import { clubApiMock, resetClubApiMock } from "@/test/clubs/apiMock";
 import { clubIsoOffset, clubThreadListRow } from "@/test/clubs/fixtures";
-import { clubPostCommentRow, clubReplyRow } from "@/test/clubs/hubFixtures";
+import { clubPostCommentRow, clubPostRow, clubReplyRow } from "@/test/clubs/hubFixtures";
 import { clubKeys } from "@/lib/clubs/queryKeys";
 import { feedReplyKeys, postCommentKeys } from "@/lib/clubs/clubInvalidations";
 import type { ClubPostCommentRow } from "@/lib/clubs/postTypes";
-import type { ClubPostCommentsCursor, ClubPostCommentsPage } from "@/lib/clubs/postsApi";
+import type {
+  ClubPostCommentsCursor,
+  ClubPostCommentsPage,
+  ClubPostsPage,
+} from "@/lib/clubs/postsApi";
 import type { ClubRepliesPage, ClubThreadsPage } from "@/lib/clubs/api";
 import type { ClubReplyRow } from "@/lib/clubs/types";
 import {
   useClubPostComments,
   useCreateClubPostComment,
   useDeleteClubPostComment,
+  useModerateClubPostComment,
 } from "@/lib/clubs/useClubPosts";
 import { useClubReplyPreview, useReplyFromFeed } from "@/lib/clubs/useClubThreadsData";
 
@@ -271,6 +282,126 @@ describe("useClubPostComments - kolejność i doczytywanie", () => {
   });
 });
 
+describe("useClubPostComments - odświeżenie i błędy nie zabierają tego, co widać", () => {
+  const ids = (rows: readonly ClubPostCommentRow[]) => rows.map((row) => row.id);
+
+  /** Nowy komentarz dopisany „na serwerze” przez mutację, jak RPC. */
+  function addOnCreate(server: ClubPostCommentRow[], id: string, minute: number) {
+    postsApiMock.createClubPostComment.mockImplementation(async () => {
+      server.push(clubPostCommentRow({ id, created_at: clubIsoOffset(minute) }));
+      return { id, queued: false };
+    });
+  }
+
+  it("lista rozwinięta do końca: nowy komentarz NIE wypycha najstarszego doczytanego", async () => {
+    // Odświeżenie listy nieskończonej pobiera tyle samo stron od nowej
+    // pierwszej - bez granicy c1 spadałby z dołu łańcucha i nad listą wracało
+    // „Wczytaj wcześniejsze (1)”.
+    const { wrapper } = harness();
+    const server = commentsOnServer(6);
+    serveComments(server);
+    const list = renderHook(() => useClubPostComments({ clubId: CLUB, postId: POST }), {
+      wrapper,
+    });
+    await waitFor(() => expect(list.result.current.comments).toHaveLength(3));
+    act(() => list.result.current.loadOlder());
+    await waitFor(() => expect(list.result.current.comments).toHaveLength(6));
+    expect(list.result.current.hasOlder).toBe(false);
+
+    addOnCreate(server, "c7", 6);
+    const create = renderHook(() => useCreateClubPostComment(CLUB), { wrapper });
+    await act(() => create.result.current.mutateAsync({ postId: POST, body: "Siódmy" }));
+
+    await waitFor(() =>
+      expect(ids(list.result.current.comments)).toEqual(["c1", "c2", "c3", "c4", "c5", "c6", "c7"]),
+    );
+    expect(list.result.current.hasOlder).toBe(false);
+    expect(list.result.current.olderCount).toBe(0);
+  });
+
+  it("sama pierwsza strona to okno najnowszych - przesuwa się bez doczytywania", async () => {
+    // Doczytanie całej strony po każdym komentarzu powiększałoby kartę o trzy
+    // wiersze, o które nikt nie prosił.
+    const { wrapper } = harness();
+    const server = commentsOnServer(7);
+    serveComments(server);
+    const list = renderHook(() => useClubPostComments({ clubId: CLUB, postId: POST }), {
+      wrapper,
+    });
+    await waitFor(() => expect(list.result.current.comments).toHaveLength(3));
+
+    addOnCreate(server, "c8", 7);
+    const create = renderHook(() => useCreateClubPostComment(CLUB), { wrapper });
+    await act(() => create.result.current.mutateAsync({ postId: POST, body: "Ósmy" }));
+
+    await waitFor(() => expect(ids(list.result.current.comments)).toEqual(["c6", "c7", "c8"]));
+    await tick();
+    expect(postsApiMock.fetchClubPostComments).toHaveBeenCalledTimes(2);
+    expect(list.result.current.olderCount).toBe(5);
+  });
+
+  it("komentarz dopisany MIĘDZY stronami nie daje „Wczytaj wcześniejsze (0)” z pustą stroną", async () => {
+    const { wrapper } = harness();
+    const server = commentsOnServer(6);
+    serveComments(server);
+    const { result } = renderHook(() => useClubPostComments({ clubId: CLUB, postId: POST }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.comments).toHaveLength(3));
+
+    // Serwer liczy już siedem, ale nowy jest NOWSZY od całego łańcucha kursorów.
+    server.push(clubPostCommentRow({ id: "c7", created_at: clubIsoOffset(6) }));
+    act(() => result.current.loadOlder());
+    await waitFor(() => expect(result.current.comments).toHaveLength(6));
+
+    expect(result.current.hasOlder).toBe(false);
+    expect(result.current.olderCount).toBe(0);
+    act(() => result.current.loadOlder());
+    await tick();
+    expect(postsApiMock.fetchClubPostComments).toHaveBeenCalledTimes(2);
+  });
+
+  it("nieudane „wcześniejsze” zostawiają listę; błąd dotyczy tylko doczytania i da się ponowić", async () => {
+    const { wrapper } = harness();
+    serveComments(commentsOnServer(7));
+    const { result } = renderHook(() => useClubPostComments({ clubId: CLUB, postId: POST }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.comments).toHaveLength(3));
+
+    postsApiMock.fetchClubPostComments.mockRejectedValueOnce(new Error("network down"));
+    act(() => result.current.loadOlder());
+    await waitFor(() => expect(result.current.olderError).toBe(true));
+
+    expect(result.current.isError).toBe(false);
+    expect(ids(result.current.comments)).toEqual(["c5", "c6", "c7"]);
+    // „Wczytaj wcześniejsze” zostaje - to ono jest ponowieniem.
+    expect(result.current.hasOlder).toBe(true);
+
+    act(() => result.current.retryOlder());
+    await waitFor(() => expect(result.current.comments).toHaveLength(6));
+    expect(result.current.olderError).toBe(false);
+    expect(result.current.isError).toBe(false);
+  });
+
+  it("nieudane odświeżenie w tle też nie kasuje pokazanych komentarzy", async () => {
+    const { wrapper, queryClient } = harness();
+    serveComments(commentsOnServer(2));
+    const { result } = renderHook(() => useClubPostComments({ clubId: CLUB, postId: POST }), {
+      wrapper,
+    });
+    await waitFor(() => expect(result.current.comments).toHaveLength(2));
+
+    postsApiMock.fetchClubPostComments.mockRejectedValue(new Error("network down"));
+    await act(() => queryClient.invalidateQueries({ queryKey: clubKeys.postComments(CLUB, POST) }));
+    await waitFor(() => expect(result.current.query.isRefetchError).toBe(true));
+
+    expect(result.current.isError).toBe(false);
+    expect(result.current.olderError).toBe(false);
+    expect(ids(result.current.comments)).toEqual(["c1", "c2"]);
+  });
+});
+
 describe("useCreateClubPostComment / useDeleteClubPostComment", () => {
   it("dodanie przekazuje wpis, treść i migawkę; wynik wraca do widoku", async () => {
     const { wrapper } = harness();
@@ -298,7 +429,7 @@ describe("useCreateClubPostComment / useDeleteClubPostComment", () => {
     });
   });
 
-  it("dodanie unieważnia skutek `postCommentKeys` - licznik ściany i komentarze", async () => {
+  it("dodanie unieważnia WYŁĄCZNIE komentarze tego wpisu - nie ścianę", async () => {
     const { wrapper, invalidated } = harness();
     postsApiMock.createClubPostComment.mockResolvedValue({ id: "c9", queued: false });
     const { result } = renderHook(() => useCreateClubPostComment(CLUB), { wrapper });
@@ -306,6 +437,8 @@ describe("useCreateClubPostComment / useDeleteClubPostComment", () => {
     await result.current.mutateAsync({ postId: POST, body: "x" });
 
     expect(invalidated).toEqual([...postCommentKeys(CLUB, POST)]);
+    expect(invalidated).toEqual([clubKeys.postComments(CLUB, POST)]);
+    expect(invalidated).not.toContainEqual(clubKeys.postsAll(CLUB));
   });
 
   it("po dodaniu rozwinięta lista komentarzy pyta bazę ponownie", async () => {
@@ -334,7 +467,9 @@ describe("useCreateClubPostComment / useDeleteClubPostComment", () => {
     postsApiMock.deleteClubPostComment.mockResolvedValue(true);
     const { result } = renderHook(() => useDeleteClubPostComment(CLUB), { wrapper });
 
-    await expect(result.current.mutateAsync({ postId: POST, commentId: "c2" })).resolves.toBe(true);
+    await expect(
+      result.current.mutateAsync({ postId: POST, commentId: "c2", status: "visible" }),
+    ).resolves.toBe(true);
 
     expect(postsApiMock.deleteClubPostComment).toHaveBeenCalledWith("c2");
     expect(invalidated).toEqual([...postCommentKeys(CLUB, POST)]);
@@ -349,6 +484,199 @@ describe("useCreateClubPostComment / useDeleteClubPostComment", () => {
       "clubs: comment burst limit",
     );
     expect(invalidated).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Licznik komentarzy w karcie ściany - w miejscu, bez przeładowania ściany
+// ---------------------------------------------------------------------------
+
+type PostsData = InfiniteData<ClubPostsPage>;
+
+const WALL = clubKeys.posts(CLUB, null, null);
+const THREAD_WALL = clubKeys.posts(CLUB, null, THREAD);
+
+function seedWall(queryClient: QueryClient, key: readonly unknown[] = WALL): PostsData {
+  const data: PostsData = {
+    pages: [
+      {
+        rows: [
+          clubPostRow({ id: POST, comment_count: 2 }),
+          clubPostRow({ id: "post-2", comment_count: 5 }),
+        ],
+        total: 3,
+      },
+      { rows: [clubPostRow({ id: "post-3", comment_count: 1 })], total: 3 },
+    ],
+    pageParams: [null, clubIsoOffset(1)],
+  };
+  queryClient.setQueryData(key, data);
+  return data;
+}
+
+function countOf(queryClient: QueryClient, postId: string, key: readonly unknown[] = WALL) {
+  const data = queryClient.getQueryData<PostsData>(key);
+  return data?.pages.flatMap((page) => page.rows).find((row) => row.id === postId)?.comment_count;
+}
+
+describe("komentarz a licznik w karcie ściany", () => {
+  it("widoczny komentarz: +1 na KAŻDYM wariancie ściany, bez unieważnienia ściany", async () => {
+    const { wrapper, queryClient, invalidated } = harness();
+    const before = seedWall(queryClient);
+    seedWall(queryClient, THREAD_WALL);
+    postsApiMock.createClubPostComment.mockResolvedValue({ id: "c9", queued: false });
+    const { result } = renderHook(() => useCreateClubPostComment(CLUB), { wrapper });
+
+    await result.current.mutateAsync({ postId: POST, body: "x" });
+
+    expect(countOf(queryClient, POST)).toBe(3);
+    expect(countOf(queryClient, POST, THREAD_WALL)).toBe(3);
+    expect(countOf(queryClient, "post-2")).toBe(5);
+    const after = queryClient.getQueryData<PostsData>(WALL);
+    // Strona bez tego wpisu zostaje TĄ SAMĄ referencją; kursory nietknięte.
+    expect(after?.pages[1]).toBe(before.pages[1]);
+    expect(after?.pageParams).toEqual(before.pageParams);
+    expect(invalidated).not.toContainEqual(clubKeys.postsAll(CLUB));
+    expect(invalidated).not.toContainEqual(WALL);
+  });
+
+  it("komentarz w kolejce premoderacji nie podbija licznika (liczy tylko widoczne)", async () => {
+    const { wrapper, queryClient } = harness();
+    const before = seedWall(queryClient);
+    postsApiMock.createClubPostComment.mockResolvedValue({ id: "c9", queued: true });
+    const { result } = renderHook(() => useCreateClubPostComment(CLUB), { wrapper });
+
+    await result.current.mutateAsync({ postId: POST, body: "x" });
+
+    expect(queryClient.getQueryData(WALL)).toBe(before);
+  });
+
+  it("ściana INNEGO klubu zostaje nietknięta", async () => {
+    const { wrapper, queryClient } = harness();
+    const foreign = seedWall(queryClient, clubKeys.posts("club-2", null, null));
+    postsApiMock.createClubPostComment.mockResolvedValue({ id: "c9", queued: false });
+    const { result } = renderHook(() => useCreateClubPostComment(CLUB), { wrapper });
+
+    await result.current.mutateAsync({ postId: POST, body: "x" });
+
+    expect(queryClient.getQueryData(clubKeys.posts("club-2", null, null))).toBe(foreign);
+  });
+
+  it("usunięcie WIDOCZNEGO: -1; usunięcie z kolejki albo już usuniętego: bez zmiany", async () => {
+    const { wrapper, queryClient } = harness();
+    seedWall(queryClient);
+    postsApiMock.deleteClubPostComment.mockResolvedValue(true);
+    const { result } = renderHook(() => useDeleteClubPostComment(CLUB), { wrapper });
+
+    await result.current.mutateAsync({ postId: POST, commentId: "c1", status: "visible" });
+    expect(countOf(queryClient, POST)).toBe(1);
+
+    const afterVisible = queryClient.getQueryData(WALL);
+    await result.current.mutateAsync({ postId: POST, commentId: "c2", status: "pending" });
+    expect(queryClient.getQueryData(WALL)).toBe(afterVisible);
+
+    // `false` = komentarza już nie było - licznika nie zgadujemy.
+    postsApiMock.deleteClubPostComment.mockResolvedValue(false);
+    await result.current.mutateAsync({ postId: POST, commentId: "c3", status: "visible" });
+    expect(countOf(queryClient, POST)).toBe(1);
+  });
+
+  it("licznik nie schodzi poniżej zera", async () => {
+    const { wrapper, queryClient } = harness();
+    queryClient.setQueryData<PostsData>(WALL, {
+      pages: [{ rows: [clubPostRow({ id: POST, comment_count: 0 })], total: 1 }],
+      pageParams: [null],
+    });
+    postsApiMock.deleteClubPostComment.mockResolvedValue(true);
+    const { result } = renderHook(() => useDeleteClubPostComment(CLUB), { wrapper });
+
+    await result.current.mutateAsync({ postId: POST, commentId: "c1", status: "visible" });
+
+    expect(countOf(queryClient, POST)).toBe(0);
+  });
+});
+
+describe("useModerateClubPostComment - decyzja moderatora z karty", () => {
+  it("zatwierdzenie z kolejki: RPC po samym id i akcji, licznik +1, odświeżone komentarze wpisu", async () => {
+    const { wrapper, queryClient, invalidated } = harness();
+    seedWall(queryClient);
+    postsApiMock.moderateClubPostComment.mockResolvedValue(true);
+    const { result } = renderHook(() => useModerateClubPostComment(CLUB), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({
+        postId: POST,
+        commentId: "c5",
+        action: "approve",
+        status: "pending",
+      }),
+    ).resolves.toBe(true);
+
+    expect(postsApiMock.moderateClubPostComment).toHaveBeenCalledWith({
+      commentId: "c5",
+      action: "approve",
+    });
+    expect(countOf(queryClient, POST)).toBe(3);
+    expect(invalidated).toEqual([...postCommentKeys(CLUB, POST)]);
+  });
+
+  it("ukrycie widocznego: -1; ukrycie z kolejki: licznik bez zmian", async () => {
+    const { wrapper, queryClient } = harness();
+    seedWall(queryClient);
+    postsApiMock.moderateClubPostComment.mockResolvedValue(true);
+    const { result } = renderHook(() => useModerateClubPostComment(CLUB), { wrapper });
+
+    await result.current.mutateAsync({
+      postId: POST,
+      commentId: "c1",
+      action: "hide",
+      status: "visible",
+    });
+    expect(countOf(queryClient, POST)).toBe(1);
+
+    const afterHide = queryClient.getQueryData(WALL);
+    await result.current.mutateAsync({
+      postId: POST,
+      commentId: "c2",
+      action: "hide",
+      status: "pending",
+    });
+    expect(queryClient.getQueryData(WALL)).toBe(afterHide);
+  });
+
+  it("`false` (komentarza już nie ma) nie rusza licznika, ale odświeża listę", async () => {
+    const { wrapper, queryClient, invalidated } = harness();
+    const before = seedWall(queryClient);
+    postsApiMock.moderateClubPostComment.mockResolvedValue(false);
+    const { result } = renderHook(() => useModerateClubPostComment(CLUB), { wrapper });
+
+    await result.current.mutateAsync({
+      postId: POST,
+      commentId: "c5",
+      action: "approve",
+      status: "pending",
+    });
+
+    expect(queryClient.getQueryData(WALL)).toBe(before);
+    expect(invalidated).toEqual([...postCommentKeys(CLUB, POST)]);
+  });
+
+  it("odmowa bazy (brak prawa moderacji) nie dotyka cache", async () => {
+    const { wrapper, queryClient, invalidated } = harness();
+    const before = seedWall(queryClient);
+    postsApiMock.moderateClubPostComment.mockRejectedValue(new Error("clubs: forbidden"));
+    const { result } = renderHook(() => useModerateClubPostComment(CLUB), { wrapper });
+
+    await expect(
+      result.current.mutateAsync({
+        postId: POST,
+        commentId: "c5",
+        action: "approve",
+        status: "pending",
+      }),
+    ).rejects.toThrow("clubs: forbidden");
+    expect(invalidated).toEqual([]);
+    expect(queryClient.getQueryData(WALL)).toBe(before);
   });
 });
 
@@ -470,6 +798,88 @@ describe("useClubReplyPreview - najnowsze odpowiedzi w karcie", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.rows.map((r) => r.id)).toEqual(["early", "late"]);
+  });
+
+  it("moderator: ukryte i usunięte na końcu nie dają pustego podglądu - cofamy się po żywe", async () => {
+    // Moderator dostaje z RPC także ukryte i usunięte, a `total` je liczy -
+    // ostatnie dwa wiersze mogą nie mieć ani jednej żywej odpowiedzi.
+    const { wrapper } = harness();
+    const all = repliesOnServer(7).map((row, index) =>
+      index === 5
+        ? { ...row, status: "hidden" }
+        : index === 6
+          ? { ...row, status: "deleted" }
+          : row,
+    );
+    serveReplies(all);
+    const { result } = renderHook(() => useClubReplyPreview({ threadId: THREAD, replyCount: 5 }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.rows.map((r) => r.id)).toEqual(["r4", "r5"]);
+    expect(result.current.data?.total).toBe(7);
+    // Podpowiedź (3), właściwy koniec (5), jedno okno wstecz od początku.
+    expect(offsetsAsked()).toEqual([3, 5, 0]);
+  });
+
+  it("dwie najnowsze ukryte: podgląd pokazuje dwie wcześniejsze żywe, `total` z serwera", async () => {
+    const { wrapper } = harness();
+    const all = repliesOnServer(5).map((row, index) =>
+      index >= 3 ? { ...row, status: "hidden" } : row,
+    );
+    serveReplies(all);
+    const { result } = renderHook(() => useClubReplyPreview({ threadId: THREAD, replyCount: 3 }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.rows.map((r) => r.id)).toEqual(["r2", "r3"]);
+    expect(result.current.data?.total).toBe(5);
+  });
+
+  it("same ukryte: cofanie kończy się na początku listy, podgląd pusty", async () => {
+    const { wrapper } = harness();
+    serveReplies(repliesOnServer(40).map((row) => ({ ...row, status: "hidden" })));
+    const { result } = renderHook(() => useClubReplyPreview({ threadId: THREAD, replyCount: 40 }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({ rows: [], total: 40 });
+    // Okna rosną: 8 wierszy wstecz, potem reszta do początku.
+    expect(offsetsAsked()).toEqual([38, 30, 0]);
+  });
+
+  it("cofanie ma limit kroków - ogromny ukryty ogon nie zasypuje bazy żądaniami", async () => {
+    const { wrapper } = harness();
+    serveReplies(repliesOnServer(2000).map((row) => ({ ...row, status: "deleted" })));
+    const { result } = renderHook(
+      () => useClubReplyPreview({ threadId: THREAD, replyCount: 2000 }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(offsetsAsked()).toEqual([1998, 1990, 1958, 1830, 1330]);
+    expect(result.current.data?.rows).toEqual([]);
+  });
+
+  it("okna, które się zazębiły (nowa odpowiedź między żądaniami), nie dublują wiersza", async () => {
+    const { wrapper } = harness();
+    // Atrapa oddaje te same wiersze na każde pytanie - najgorszy przypadek zazębienia.
+    clubApiMock.fetchClubReplies.mockResolvedValue({
+      rows: [
+        clubReplyRow({ id: "a", created_at: clubIsoOffset(1) }),
+        clubReplyRow({ id: "x", created_at: clubIsoOffset(2), status: "hidden" }),
+      ],
+      total: 6,
+    });
+    const { result } = renderHook(() => useClubReplyPreview({ threadId: THREAD, replyCount: 6 }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.rows.map((r) => r.id)).toEqual(["a"]);
   });
 
   it("bez wątku albo wyłączony NIE pyta bazy", async () => {

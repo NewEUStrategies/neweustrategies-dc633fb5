@@ -25,6 +25,10 @@
 // podglądu (`useComposerLinkPreview`); nieodrzucona karta jedzie z wpisem
 // jako element `type: "link"` w `attachments` - ten sam kształt, który karta
 // wpisu rysuje od krawędzi do krawędzi (`LinkAttachmentCard`).
+//
+// ODMOWA PUBLIKACJI MÓWI ZDANIEM (`clubPostErrorKey`): limit wpisów, zbyt
+// szybkie publikowanie, karta linku odrzucona przez bazę, brak prawa - a nie
+// surowy komunikat bazy w dymku. Szkic zostaje.
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -44,7 +48,10 @@ import { cn } from "@/lib/utils";
 import { applyListAutoformat } from "@/lib/text/listAutoformat";
 import { HUB_LABEL, HUB_LABEL_TEXT, HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubMentionField } from "@/components/clubs/atoms/ClubMentionField";
-import { ClubComposerLinkCard } from "@/components/clubs/molecules/ClubComposerLinkCard";
+import {
+  ClubComposerLinkCard,
+  ClubComposerLinkStatus,
+} from "@/components/clubs/molecules/ClubComposerLinkCard";
 import { useComposerLinkPreview } from "@/components/clubs/molecules/useComposerLinkPreview";
 import { useCreateClubPost } from "@/lib/clubs/useClubPosts";
 import { removeClubPostMedia, uploadClubPostMedia } from "@/lib/clubs/postsApi";
@@ -55,6 +62,7 @@ import {
   CLUB_POST_MAX_BODY,
   CLUB_POST_VIDEO_MIME,
   clubLinkSnapshotToAttachment,
+  clubPostErrorKey,
   type ClubPostAttachment,
   type ClubPostMediaAttachment,
 } from "@/lib/clubs/postTypes";
@@ -201,7 +209,7 @@ export function ClubPostComposer({
           link.reset();
           toast.success(t("club.post.published"));
         },
-        onError: (error) => toast.error(error.message),
+        onError: (error) => toast.error(t(clubPostErrorKey(error))),
       },
     );
   };
@@ -285,6 +293,7 @@ export function ClubPostComposer({
           className="mt-2.5"
         />
       ) : null}
+      <ClubComposerLinkStatus link={link} />
 
       {images.length > 0 ? (
         <div className="mt-2.5" data-testid="club-post-composer-images">

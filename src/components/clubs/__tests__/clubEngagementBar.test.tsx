@@ -306,6 +306,7 @@ describe("ClubEngagementBar - rozmowa i udostępnienie", () => {
 
     const replies = screen.getByRole("link", { name: "club.repliesCount" });
     expect(replies).toHaveAttribute("href", "/club/transport/t/korytarz-baltyk-adriatyk");
+    expect(replies.firstElementChild).toHaveClass("text-xs");
     expect(screen.getByText("club.hub.feed.participantsCount")).toBeInTheDocument();
   });
 
@@ -382,6 +383,10 @@ describe("ClubEngagementBar - sekcja rozmowy w karcie", () => {
     expect(screen.queryByRole("link", { name: "club.repliesCount" })).not.toBeInTheDocument();
     const counter = screen.getByTestId("club-replies-count");
     expect(counter).toHaveAttribute("aria-controls", "replies-zone");
+    // Rozmiar na PODPISIE: `<button>` dostaje od globalnego atomu 12 px
+    // (`--fs-button`, `!important`), a kropka i „3 uczestników" obok - 11 px.
+    expect(counter.firstElementChild).toHaveClass("text-xs");
+    expect(counter.className).not.toContain("text-xs");
     fireEvent.click(counter);
     expect(control.onOpen).toHaveBeenCalledTimes(1);
     expect(control.onToggle).not.toHaveBeenCalled();

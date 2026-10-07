@@ -160,6 +160,7 @@ export function clubPostCommentRow(
     created_at: CLUB_BASE_ISO,
     edited_at: null,
     can_manage: false,
+    can_approve: false,
     total_count: 1,
     ...overrides,
   };

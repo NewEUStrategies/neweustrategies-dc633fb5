@@ -298,8 +298,36 @@ export interface ClubPostCommentRow {
   edited_at: string | null;
   /** Autor komentarza albo moderator klubu/działu - może usunąć. */
   can_manage: boolean;
+  /**
+   * Komentarz czeka w kolejce, a WOŁAJĄCY moderuje klub/dział wpisu - może go
+   * zatwierdzić (`club_post_comment_moderate`). Nie da się tego wyprowadzić
+   * z `can_manage`: ten jest prawdziwy także dla autora, a w trybie Chatham
+   * House `author_id` jest NULL-em, więc widok nie odróżniłby jednego od drugiego.
+   */
+  can_approve: boolean;
   /** Komentarze widoczne dla WOŁAJĄCEGO (bez kursora) - licznik „wcześniejszych". */
   total_count: number;
+}
+
+/**
+ * Decyzja moderatora o komentarzu (`club_post_comment_moderate`):
+ * `approve` - z kolejki albo z ukrycia do widocznych, `hide` - z widocznych
+ * albo z kolejki do ukrytych.
+ */
+export type ClubPostCommentModerationAction = "approve" | "hide";
+
+/**
+ * O ile zmienia się `comment_count` wpisu, gdy komentarz przechodzi ze statusu
+ * `from` do `to`. Licznik liczy WYŁĄCZNIE komentarze `visible`, więc zmiana
+ * między kolejką, ukryciem i usunięciem nie rusza go wcale.
+ */
+export function clubCommentCountDelta(
+  from: ClubPostCommentStatus,
+  to: ClubPostCommentStatus,
+): -1 | 0 | 1 {
+  if (from === to) return 0;
+  if (to === "visible") return 1;
+  return from === "visible" ? -1 : 0;
 }
 
 /**
@@ -354,17 +382,30 @@ function isLoneSurrogate(char: string): boolean {
 }
 
 /**
- * Tekst przycięty do `max` PUNKTÓW KODOWYCH, bez osieroconych surogatów.
+ * Tekst przycięty do `max` PUNKTÓW KODOWYCH, bez osieroconych surogatów
+ * i bez znaków sterujących.
  *
  * DLACZEGO NIE `slice`. `slice(0, 300)` tnie po jednostkach UTF-16, więc emoji
  * na granicy zostawia połówkę pary. `JSON.stringify` zapisuje ją jako `\ud83d`,
  * a `jsonb` w Postgresie odrzuca taki escape - komentarz z podglądem padałby
  * błędem bazy, którego autor nie ma jak zrozumieć.
+ *
+ * ZNAKI STERUJĄCE z tego samego powodu: surowy bajt NUL w `og:title` strony
+ * dojeżdża jako U+0000, a `jsonb` odrzuca `\u0000` (22P05) - cały komentarz
+ * albo wpis padałby przez dodatek, który z założenia nigdy go nie blokuje.
+ * Reszta C0/DEL/C1 nie ma czego szukać w tytule, a baza i tak odrzuca ją
+ * jako `[:cntrl:]`. Biały znak sterujący (koniec linii, tabulator) staje się
+ * spacją, żeby „Raport\nroczny" nie zlepił się w jedno słowo.
  */
 function clampText(value: unknown, max: number): string | null {
   if (typeof value !== "string") return null;
-  const chars = Array.from(value.trim()).filter((char) => !isLoneSurrogate(char));
-  const text = chars.slice(0, max).join("").trim();
+  let cleaned = "";
+  for (const char of Array.from(value)) {
+    if (isLoneSurrogate(char)) continue;
+    if (!hasControlChar(char)) cleaned += char;
+    else if (/\s/.test(char) && !cleaned.endsWith(" ")) cleaned += " ";
+  }
+  const text = Array.from(cleaned.trim()).slice(0, max).join("").trim();
   return text === "" ? null : text;
 }
 
@@ -498,4 +539,56 @@ export function clubCommentErrorKey(error: unknown): ClubCommentErrorKey {
   if (message.includes("not found")) return "club.comments.error.notFound";
   if (message.includes("invalid")) return "club.comments.error.invalid";
   return "club.comments.error.generic";
+}
+
+// ---------------------------------------------------------------------------
+// Błędy publikacji wpisu ściany (`club_post_create`)
+// ---------------------------------------------------------------------------
+
+/**
+ * Klucze i18n odmowy publikacji wpisu. Lista JAWNA z tego samego powodu, co
+ * `CLUB_COMMENT_ERROR_KEYS`: test słowników sprawdza po niej PL i EN.
+ */
+export const CLUB_POST_ERROR_KEYS = [
+  "club.post.error.rateLimit",
+  "club.post.error.burstLimit",
+  "club.post.error.invalidLink",
+  "club.post.error.forbidden",
+  "club.post.error.invalid",
+  "club.post.error.generic",
+] as const;
+export type ClubPostErrorKey = (typeof CLUB_POST_ERROR_KEYS)[number];
+
+/**
+ * Komunikat odmowy dla kompozytora wpisu - zamiast surowego `error.message`
+ * z bazy w dymku.
+ *
+ * Napisy RPC: `clubs: post burst limit` / `clubs: post rate limit` (limity
+ * autora, 42901), `clubs: invalid link attachment` (karta linku nie przeszła
+ * walidacji) oraz `club_post_create: …` dla braku sesji, braku prawa i treści
+ * nie do przyjęcia. Kolejność jak w `clubCommentErrorKey`: „burst limit"
+ * PRZED „rate limit", karta linku PRZED ogólnym „invalid".
+ */
+export function clubPostErrorKey(error: unknown): ClubPostErrorKey {
+  const message = errorMessage(error).toLowerCase();
+  if (message.includes("burst limit")) return "club.post.error.burstLimit";
+  if (message.includes("rate limit")) return "club.post.error.rateLimit";
+  if (message.includes("invalid link attachment")) return "club.post.error.invalidLink";
+  if (
+    message.includes("forbidden") ||
+    message.includes("unauthenticated") ||
+    message.includes("authentication required")
+  ) {
+    return "club.post.error.forbidden";
+  }
+  if (
+    message.includes("invalid") ||
+    message.includes("empty post") ||
+    message.includes("body too long") ||
+    message.includes("too many attachments") ||
+    message.includes("not in club")
+  ) {
+    return "club.post.error.invalid";
+  }
+  return "club.post.error.generic";
 }

@@ -98,6 +98,7 @@ import {
   deleteClubPostComment,
   fetchClubPostComments,
   fetchClubPosts,
+  moderateClubPostComment,
   removeClubPostMedia,
   signClubMediaUrls,
   toggleClubPostLike,
@@ -520,6 +521,7 @@ function commentRpcRow(overrides: Record<string, unknown> = {}) {
     created_at: "2026-08-14T08:00:00.000Z",
     edited_at: null,
     can_manage: false,
+    can_approve: false,
     total_count: 7,
     ...overrides,
   };
@@ -591,6 +593,20 @@ describe("fetchClubPostComments - kontrakt argumentów", () => {
       author_slug: null,
       author_alias: "K7Q2M",
     });
+  });
+
+  it("`can_approve` przechodzi tylko jako prawdziwe `true` (brak kolumny = brak przycisku)", async () => {
+    sb.state.rpcData = [
+      commentRpcRow({ id: "c1", status: "pending", can_approve: true }),
+      commentRpcRow({ id: "c2", status: "pending", can_approve: "true" }),
+      commentRpcRow({ id: "c3", status: "pending", can_approve: undefined }),
+    ];
+    const page = await fetchClubPostComments({ postId: "post-9" });
+    expect(page.rows.map((row) => [row.id, row.can_approve])).toEqual([
+      ["c1", true],
+      ["c2", false],
+      ["c3", false],
+    ]);
   });
 
   it("pusta odpowiedź daje zero, nie `NaN`", async () => {
@@ -721,5 +737,39 @@ describe("deleteClubPostComment", () => {
     await expect(deleteClubPostComment("c9")).rejects.toMatchObject({
       message: "clubs: forbidden",
     });
+  });
+});
+
+describe("moderateClubPostComment", () => {
+  it("idzie po SAMYM identyfikatorze i akcji - wpis, klub i prawo ustala serwer", async () => {
+    sb.state.rpcData = true;
+    await expect(moderateClubPostComment({ commentId: "c9", action: "approve" })).resolves.toBe(
+      true,
+    );
+    expect(lastRpc()).toEqual({
+      name: "club_post_comment_moderate",
+      args: { p_comment_id: "c9", p_action: "approve" },
+    });
+
+    await moderateClubPostComment({ commentId: "c9", action: "hide" });
+    expect(lastRpc().args).toEqual({ p_comment_id: "c9", p_action: "hide" });
+  });
+
+  it("cokolwiek innego niż `true` to brak zmiany (komentarza nie ma albo usunięty)", async () => {
+    sb.state.rpcData = false;
+    await expect(moderateClubPostComment({ commentId: "c9", action: "approve" })).resolves.toBe(
+      false,
+    );
+    sb.state.rpcData = null;
+    await expect(moderateClubPostComment({ commentId: "c9", action: "approve" })).resolves.toBe(
+      false,
+    );
+  });
+
+  it("brak prawa moderacji jest rzucany z komunikatem bazy", async () => {
+    sb.state.rpcError = { message: "clubs: forbidden" };
+    await expect(
+      moderateClubPostComment({ commentId: "c9", action: "approve" }),
+    ).rejects.toMatchObject({ message: "clubs: forbidden" });
   });
 });

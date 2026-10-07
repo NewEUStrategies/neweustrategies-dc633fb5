@@ -17,6 +17,17 @@
 // odpowiedzi tego wątku i jego kartę (`feedReplyKeys`), a licznik na liście
 // poprawia w miejscu - pełne unieważnienie klubu przestawiłoby karty pod
 // kursorem w porządku „najgorętsze".
+//
+// PRAWO GŁOSU Z WIDOKU WĄTKU. Wiersz listy nie zna prawa w DZIALE wątku, więc
+// rozwinięta sekcja pyta o widok wątku (`useClubThread` - ten sam klucz cache,
+// co strona wątku, więc przejście do „Zobacz całą dyskusję" nie pyta drugi
+// raz) i dopiero z niego rysuje kompozytor albo powód odmowy
+// (`clubThreadReplyMode`). Odmowa bazy przy wysyłce (`forbidden`, `locked`)
+// też przełącza sekcję w tryb bez kompozytora - martwe pole nie zostaje.
+//
+// PUSTKA TYLKO PRZY ZERZE. Moderator dostaje z bazy także odpowiedzi ukryte
+// i usunięte (i liczy je w `total`), więc pusta lista żywych odpowiedzi nie
+// znaczy „nikt nie odpowiedział" - wtedy zostaje sam link do całej dyskusji.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -31,13 +42,20 @@ import {
 } from "@/components/clubs/molecules/ClubFeedDiscussion";
 import {
   appendMentionToDraft,
+  clubThreadReplyMode,
   discussionDirectorySlugs,
   type ClubFeedDiscussionMode,
+  type ClubThreadReplyRejection,
 } from "@/components/clubs/molecules/feedDiscussion";
+import { threadDraftKey, useFeedDraft } from "@/components/clubs/molecules/feedDrafts";
 import { clubCommentErrorKey } from "@/lib/clubs/postTypes";
-import { CLUB_REPLY_BODY_MAX, canSubmitClubReply } from "@/lib/clubs/threadComposer";
+import {
+  CLUB_REPLY_BODY_MAX,
+  canSubmitClubReply,
+  clubBlockedReplyKey,
+} from "@/lib/clubs/threadComposer";
 import { toAuthorLabel, type ClubThreadListRow } from "@/lib/clubs/types";
-import { useClubReplyPreview, useReplyFromFeed } from "@/lib/clubs/useClubs";
+import { useClubReplyPreview, useClubThread, useReplyFromFeed } from "@/lib/clubs/useClubs";
 import { uiLang } from "@/lib/i18n/format";
 
 /** Ile najnowszych odpowiedzi pokazuje karta. */
@@ -53,6 +71,7 @@ export function ClubFeedThreadReplies({
   clubId: string;
   clubSlug: string;
   thread: Pick<ClubThreadListRow, "id" | "slug" | "reply_count">;
+  /** Tryb z wiersza listy (sesja, prawo klubu, status) - widok go doprecyzowuje. */
   mode: ClubFeedDiscussionMode;
   /** Każda zmiana (> 0) przenosi fokus do pola - rozwinięcie „Komentuj". */
   focusKey?: number;
@@ -64,15 +83,32 @@ export function ClubFeedThreadReplies({
     replyCount: thread.reply_count,
     limit: CLUB_FEED_REPLY_PREVIEW,
   });
+  const view = useClubThread({ clubId, slug: thread.slug });
   const send = useReplyFromFeed(clubId);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useFeedDraft(threadDraftKey(thread.id));
+  const [rejected, setRejected] = useState<ClubThreadReplyRejection | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement | null>(null);
-  const writable = mode === "write";
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const gate = clubThreadReplyMode({ mode, view: view.data ?? null, rejected });
+  const writable = gate.mode === "write";
   const canSubmit = writable && canSubmitClubReply(draft, send.isPending);
 
   useEffect(() => {
     if (focusKey > 0) fieldRef.current?.focus();
   }, [focusKey]);
+
+  // Kompozytor znika, gdy widok albo odmowa bazy odbierze głos - a fokus był
+  // zwykle właśnie w nim („Komentuj" go tam stawia). Bez tego ląduje na <body>.
+  const wasWritable = useRef(writable);
+  useEffect(() => {
+    if (wasWritable.current && !writable) {
+      const active = document.activeElement;
+      if (active === null || active === document.body) {
+        rootRef.current?.focus({ preventScroll: true });
+      }
+    }
+    wasWritable.current = writable;
+  }, [writable]);
 
   const rows = useMemo(() => preview.data?.rows ?? [], [preview.data]);
   const total = Math.max(preview.data?.total ?? 0, rows.length);
@@ -88,7 +124,14 @@ export function ClubFeedThreadReplies({
           setDraft((current) => (current === sent ? "" : current));
           toast.success(outcome.queued ? t("club.replyQueued") : t("club.replyPosted"));
         },
-        onError: (error) => toast.error(t(clubCommentErrorKey(error))),
+        onError: (error) => {
+          const key = clubCommentErrorKey(error);
+          // Baza wie lepiej niż widok sprzed chwili: zamknięty wątek albo brak
+          // prawa głosu zdejmuje kompozytor (szkic zostaje w rejestrze).
+          if (key === "club.comments.error.locked") setRejected("locked");
+          else if (key === "club.comments.error.forbidden") setRejected("readOnly");
+          toast.error(t(key));
+        },
       },
     );
   };
@@ -105,8 +148,13 @@ export function ClubFeedThreadReplies({
 
   return (
     <MentionDirectoryProvider slugs={slugs} lang={lang}>
-      <div className="flex flex-col gap-3" data-testid="club-feed-thread-replies">
-        {writable ? (
+      <div
+        ref={rootRef}
+        tabIndex={-1}
+        className="flex flex-col gap-3 focus:outline-none"
+        data-testid="club-feed-thread-replies"
+      >
+        {gate.mode === "write" ? (
           <ClubFeedDiscussionComposer
             clubId={clubId}
             value={draft}
@@ -121,7 +169,11 @@ export function ClubFeedThreadReplies({
             testId="club-feed-replies-composer"
           />
         ) : (
-          <ClubFeedDiscussionNotice mode={mode} />
+          <ClubFeedDiscussionNotice
+            mode={gate.mode}
+            context="thread"
+            reasonKey={gate.reason !== null ? clubBlockedReplyKey(gate.reason) : null}
+          />
         )}
 
         {preview.isPending ? (
@@ -132,7 +184,9 @@ export function ClubFeedThreadReplies({
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
             {t("club.comments.loading")}
           </p>
-        ) : preview.isError ? (
+        ) : preview.isLoadingError ? (
+          // Tylko gdy nie ma czego pokazać - nieudane odświeżenie w tle
+          // zostawia pokazane odpowiedzi.
           <p className="flex flex-wrap items-center gap-x-1.5 text-xs leading-4 text-muted-foreground">
             <span>{t("club.comments.loadFailed")}</span>
             <button
@@ -143,7 +197,7 @@ export function ClubFeedThreadReplies({
               {t("club.comments.retry")}
             </button>
           </p>
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && total === 0 ? (
           <p className="text-xs leading-4 text-muted-foreground">
             {t("club.comments.threadEmpty")}
           </p>
@@ -162,31 +216,33 @@ export function ClubFeedThreadReplies({
                 <ArrowUpRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               </Link>
             ) : null}
-            <ul
-              className="flex flex-col gap-2.5"
-              aria-label={t("club.comments.threadSectionLabel")}
-            >
-              {rows.map((row) => {
-                const author = toAuthorLabel(
-                  row,
-                  t("club.anonymousAuthor"),
-                  t("club.deletedAuthor"),
-                );
-                const slug = author.profileSlug;
-                return (
-                  <ClubFeedDiscussionItem
-                    key={row.id}
-                    testId="club-feed-reply"
-                    author={author}
-                    createdAt={row.created_at}
-                    body={row.body}
-                    clubSlug={clubSlug}
-                    pending={row.status === "pending"}
-                    onReply={writable && slug !== null ? () => reply(slug) : undefined}
-                  />
-                );
-              })}
-            </ul>
+            {rows.length > 0 ? (
+              <ul
+                className="flex flex-col gap-2.5"
+                aria-label={t("club.comments.threadSectionLabel")}
+              >
+                {rows.map((row) => {
+                  const author = toAuthorLabel(
+                    row,
+                    t("club.anonymousAuthor"),
+                    t("club.deletedAuthor"),
+                  );
+                  const slug = author.profileSlug;
+                  return (
+                    <ClubFeedDiscussionItem
+                      key={row.id}
+                      testId="club-feed-reply"
+                      author={author}
+                      createdAt={row.created_at}
+                      body={row.body}
+                      clubSlug={clubSlug}
+                      pending={row.status === "pending"}
+                      onReply={writable && slug !== null ? () => reply(slug) : undefined}
+                    />
+                  );
+                })}
+              </ul>
+            ) : null}
           </div>
         )}
       </div>

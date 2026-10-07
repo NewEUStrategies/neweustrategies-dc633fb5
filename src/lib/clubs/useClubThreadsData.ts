@@ -232,6 +232,17 @@ export function useResolveClubThread(
 // bez przechodzenia na stronę wątku.
 // ---------------------------------------------------------------------------
 
+/** Górna granica `p_limit` w `club_replies_list` - większe okno RPC i tak przytnie. */
+const REPLY_WINDOW_MAX = 500;
+
+/**
+ * Ile DODATKOWYCH żądań wolno wykonać, cofając się po żywe odpowiedzi. Okna
+ * rosną (4×, 16×, 64× limitu, potem po 500), więc cztery kroki sięgają ~670
+ * odpowiedzi wstecz - dalej podgląd poddaje się z tym, co znalazł, a link
+ * „Zobacz całą dyskusję" i tak prowadzi do pełnej listy.
+ */
+const REPLY_LOOKBACK_STEPS = 4;
+
 /**
  * Ostatnie `limit` odpowiedzi w kolejności czytania.
  *
@@ -243,33 +254,60 @@ export function useResolveClubThread(
  * czytelnikowi także jego odpowiedzi w premoderacji. Dlatego po pierwszej
  * stronie sprawdzamy `total` z RPC i - gdy podpowiedź chybiła - pytamy drugi
  * raz o właściwy offset. W zwykłym przypadku to jedno żądanie.
+ *
+ * MODERATOR DOSTAJE TEŻ UKRYTE I USUNIĘTE (i `total` je liczy), więc ostatnie
+ * `limit` wierszy może nie mieć ani jednej żywej odpowiedzi - podgląd mówiłby
+ * „nikt nie odpowiedział" pod wątkiem z odpowiedziami. Filtrujemy więc PRZED
+ * przycięciem i cofamy się coraz szerszym oknem, aż zbierzemy `limit` żywych
+ * albo dojdziemy do początku. Zwykły członek dostaje same żywe wiersze, więc
+ * pętla u niego nigdy nie rusza.
  */
 async function fetchLatestReplies(
   threadId: string,
   replyCount: number,
   limit: number,
 ): Promise<ClubRepliesPage> {
-  const fetchAt = (offset: number) =>
-    fetchClubReplies({ threadId, sort: "chronological", limit, offset });
+  const fetchRange = (offset: number, size: number) =>
+    fetchClubReplies({ threadId, sort: "chronological", limit: size, offset });
 
   const hinted = Math.max(0, Math.floor(replyCount) - limit);
-  let page = await fetchAt(hinted);
+  let start = hinted;
+  let page = await fetchRange(start, limit);
   if (page.rows.length === 0 && hinted > 0) {
     // Offset za końcem listy (część odpowiedzi ukryła moderacja): pusta strona
     // nie niesie `total`, więc pytamy od początku, żeby go poznać.
-    page = await fetchAt(0);
-    if (page.total > limit) page = await fetchAt(page.total - limit);
+    start = 0;
+    page = await fetchRange(start, limit);
+    if (page.total > limit) {
+      start = page.total - limit;
+      page = await fetchRange(start, limit);
+    }
   } else {
     const exact = Math.max(0, page.total - limit);
-    if (page.rows.length > 0 && exact !== hinted) page = await fetchAt(exact);
+    if (page.rows.length > 0 && exact !== hinted) {
+      start = exact;
+      page = await fetchRange(start, limit);
+    }
+  }
+
+  // `start` to offset wierszy, które już mamy; wszystko przed nim jest starsze.
+  let live = page.rows.filter((row) => isClubReplyLive(row.status));
+  let windowSize = limit * 4;
+  for (let step = 0; live.length < limit && start > 0 && step < REPLY_LOOKBACK_STEPS; step += 1) {
+    const from = Math.max(0, start - windowSize);
+    const chunk = await fetchRange(from, start - from);
+    // Nowa odpowiedź między żądaniami przesuwa offsety - okna mogą się
+    // zazębić, więc wiersz już zebrany nie wchodzi drugi raz.
+    const seen = new Set(live.map((row) => row.id));
+    const older = chunk.rows.filter((row) => isClubReplyLive(row.status) && !seen.has(row.id));
+    live = [...older, ...live];
+    start = from;
+    windowSize = Math.min(windowSize * 4, REPLY_WINDOW_MAX);
   }
 
   // Sort chronologiczny wynosi rozstrzygnięcie na GÓRĘ listy, więc przy końcu
   // listy porządek bywa nie po czasie - podgląd czyta się po czasie.
-  const rows = page.rows
-    .filter((row) => isClubReplyLive(row.status))
-    .sort((a, b) => a.created_at.localeCompare(b.created_at))
-    .slice(-limit);
+  const rows = live.sort((a, b) => a.created_at.localeCompare(b.created_at)).slice(-limit);
   return { rows, total: page.total };
 }
 

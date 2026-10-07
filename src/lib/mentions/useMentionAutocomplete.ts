@@ -130,6 +130,11 @@ export function useMentionAutocomplete({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      // Klawisz należy do edytora IME (japoński, chiński, koreański): Enter
+      // zatwierdza konwersję, a nie podpowiedź. Przejęcie go wstawiałoby
+      // podświetloną osobę w środek niezatwierdzonego tekstu. `keyCode` 229
+      // to ten sam stan w przeglądarkach, które nie ustawiają `isComposing`.
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return;
       if (!open || suggestions.length === 0) {
         if (e.key === "Escape" && open) {
           e.preventDefault();

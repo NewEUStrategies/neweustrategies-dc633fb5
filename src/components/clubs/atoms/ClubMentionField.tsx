@@ -18,12 +18,16 @@
 // `threadComposer.ts`). Ctrl/Cmd+Enter wysyła, ale TYLKO przy zamkniętej
 // liście podpowiedzi: przy otwartej Enter wybiera osobę, a Escape zamyka
 // listę (to robi hook). Własny `onKeyDown` wołającego (np. autoformat list)
-// dostaje zdarzenie dopiero wtedy, gdy lista go nie skonsumowała.
+// dostaje zdarzenie dopiero wtedy, gdy lista go nie skonsumowała. W trakcie
+// kompozycji IME (japoński, chiński, koreański) klawisz należy do IME: Enter
+// zatwierdza konwersję, więc nie wybiera osoby z listy i nie wysyła
+// niezatwierdzonego tekstu skrótem.
 //
 // LISTA PODPOWIEDZI nie jest portalem - stoi pod polem w `relative`. Dlatego
 // to pole NIGDY nie może stać w `ClubFeedText` (`overflow: clip` ucięłoby listę).
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -127,7 +131,11 @@ export function ClubMentionField({
   // wcięcia i obramowanie; powyżej pole przewija się w środku. Gdy element
   // jest ukryty (`scrollHeight` = 0, np. zwinięta sekcja), zostawiamy wysokość
   // przeglądarce - inaczej po rozwinięciu pole miałoby zero pikseli.
-  useLayoutEffect(() => {
+  //
+  // Puste pole ma wysokość `rows` linii, NIE `scrollHeight`: przeglądarka
+  // wlicza do niego zawinięty placeholder, więc dłuższa podpowiedź na wąskim
+  // ekranie robiła z pustego pola dwie linie obok jednoliniowego „Wyślij".
+  const measure = useCallback(() => {
     const node = ownRef.current;
     if (node === null || typeof window === "undefined") return;
     node.style.height = "auto";
@@ -140,12 +148,38 @@ export function ClubMentionField({
     const padding = px(style.paddingTop) + px(style.paddingBottom);
     const line = px(style.lineHeight) || 20;
     const ceiling = line * maxRows + padding + border;
-    const natural = node.scrollHeight + border;
+    const natural = node.value === "" ? line * rows + padding + border : node.scrollHeight + border;
     node.style.height = `${Math.min(natural, ceiling)}px`;
     node.style.overflowY = natural > ceiling ? "auto" : "hidden";
-  }, [value, maxRows]);
+  }, [maxRows, rows]);
+
+  useLayoutEffect(() => {
+    measure();
+  }, [value, measure]);
+
+  // PONOWNY POMIAR PO ZMIANIE SZEROKOŚCI. Obrót telefonu, zwężenie okna albo
+  // inny próg siatki zawija tekst na więcej linii, a wysokość ze starego
+  // pomiaru (z `overflow: hidden`) ucinała dolne linie szkicu bez paska
+  // przewijania. Obserwator reaguje TYLKO na szerokość - własne zapisy
+  // wysokości go nie budzą - a przejście z 0 do N px mierzy też pole, które
+  // pierwszy pomiar zastał ukryte.
+  useEffect(() => {
+    const node = ownRef.current;
+    if (node === null || typeof ResizeObserver === "undefined") return;
+    let lastWidth = node.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (node.clientWidth === lastWidth) return;
+      lastWidth = node.clientWidth;
+      measure();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [measure]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    // Klawisz kompozycji IME (`isComposing`, a w starszym Safari kod 229)
+    // należy do IME - ani wysyłka, ani wybór z listy, ani autoformat wołającego.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (!mention.open && onSubmit !== undefined) {
       if (clubComposerKeyIntent(event, false) === "submit") {
         event.preventDefault();

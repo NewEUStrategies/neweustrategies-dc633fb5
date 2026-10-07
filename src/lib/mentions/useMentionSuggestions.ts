@@ -14,7 +14,9 @@
 // `club_mention_members`, który oddaje aktywnych, odnajdywalnych członków
 // TEGO klubu - za bramką `can_see_members`, więc osoba spoza klubu nie
 // wyliczy nim składu. Członkowie idą PIERWSI (w rozmowie w klubie to oni są
-// najczęstszym adresatem), duplikaty odpadają po slugu.
+// najczęstszym adresatem), duplikaty odpadają po slugu - ale zajmują najwyżej
+// cztery miejsca, gdy katalog publiczny ma coś do dodania (patrz
+// `mergeClubMentionSuggestions`): firmy przychodzą WYŁĄCZNIE z katalogu.
 //
 // Zapytanie jest debounce'owane u wołającego; przy braku funkcji w bazie albo
 // błędzie sieci KAŻDE źródło degraduje się osobno do pustej listy - awaria
@@ -96,6 +98,56 @@ export function mergeMentionSuggestions(
   return out;
 }
 
+/**
+ * Ile miejsc listy katalog publiczny dostaje na pewno, gdy pytamy w klubie.
+ * Dwa - lista zostaje rozmową z członkami, a firma da się wzmiankować.
+ */
+export const CLUB_MENTION_PUBLIC_SLOTS = 2;
+
+/**
+ * Scalenie podpowiedzi w klubie: członkowie pierwsi, katalog publiczny dalej.
+ *
+ * DLACZEGO NIE ZWYKŁE `mergeMentionSuggestions([members, targets])`.
+ * `club_mention_members` dopasowuje frazę W DOWOLNYM miejscu imienia, a pusta
+ * fraza oddaje sześciu najaktywniejszych - w klubie z sześcioma członkami samo
+ * „@" albo „@ba" (Urban, Albano) zajmowało całą listę i firma, którą katalog
+ * postawił na pierwszym miejscu, nie miała jak się pokazać. Firm nie zna
+ * żadne inne źródło, więc użytkownik nie mógł jej wzmiankować, dopóki nie
+ * dopisał tylu liter, żeby odsiać członków.
+ *
+ * Gdy wszystko się mieści, kolejność jest ta sama co dotąd. Gdy nie, członkowie
+ * zajmują najwyżej `limit - CLUB_MENTION_PUBLIC_SLOTS` miejsc (więcej, gdy
+ * katalog ma mniej do dodania), a pierwsze miejsca katalogu dostają FIRMY - to
+ * ich brak był problemem; osoby z katalogu idą dalej w jego kolejności.
+ */
+export function mergeClubMentionSuggestions(
+  members: readonly MentionSuggestion[],
+  targets: readonly MentionSuggestion[],
+  limit: number = MENTION_SUGGESTION_LIMIT,
+): MentionSuggestion[] {
+  // Najpierw same duplikaty (bez limitu), żeby policzyć, ile naprawdę jest czego.
+  const uniqueMembers = mergeMentionSuggestions([members], Number.POSITIVE_INFINITY);
+  const memberSlugs = new Set(uniqueMembers.map((item) => item.slug.toLowerCase()));
+  const others = mergeMentionSuggestions([targets], Number.POSITIVE_INFINITY).filter(
+    (item) => !memberSlugs.has(item.slug.toLowerCase()),
+  );
+  // Wszystko się mieści albo nie ma członków: kolejność jak dotąd - członkowie,
+  // potem katalog w swojej kolejności.
+  if (uniqueMembers.length === 0 || uniqueMembers.length + others.length <= limit) {
+    return mergeMentionSuggestions([uniqueMembers, others], limit);
+  }
+  const reserved = Math.min(CLUB_MENTION_PUBLIC_SLOTS, others.length, limit);
+  const memberCount = Math.min(uniqueMembers.length, limit - reserved);
+  // Lista się nie mieści, więc katalog i tak traci miejsca: zarezerwowane idą
+  // najpierw do firm, dalej katalog w swojej kolejności (duplikaty odpadają
+  // w scaleniu).
+  const organizations = others.filter((item) => item.kind === "organization");
+  return mergeMentionSuggestions(
+    [uniqueMembers.slice(0, memberCount), organizations.slice(0, reserved), others],
+    limit,
+  );
+}
+
 async function searchPublicTargets(q: string): Promise<MentionSuggestion[]> {
   try {
     const { data, error } = await supabase.rpc("search_mention_targets", {
@@ -149,7 +201,7 @@ export function useMentionSuggestions(
           searchClubMembers(clubId, q),
           searchPublicTargets(q),
         ]);
-        return mergeMentionSuggestions([members, targets]);
+        return mergeClubMentionSuggestions(members, targets);
       },
     },
     client,

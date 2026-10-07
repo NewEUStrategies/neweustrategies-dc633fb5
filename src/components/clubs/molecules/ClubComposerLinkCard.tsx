@@ -11,6 +11,12 @@
 // po wysyłce zobaczą czytelnicy - migawka zapisana przy komentarzu ma te same
 // pięć pól, z których rysuje się podgląd.
 //
+// OGŁOSZENIE DLA CZYTNIKA EKRANU stoi OSOBNO (`ClubComposerLinkStatus`) i jest
+// zamontowane zawsze. Region `aria-live` wstawiony do DOM-u razem ze swoją
+// treścią nie jest odczytywany, a karta pojawia się dopiero, gdy autor wpisze
+// adres - więc region w samej karcie milczał przy wczytywaniu i znikał razem
+// ze szkieletem, zanim przyszła gotowa migawka.
+//
 // BEZPIECZEŃSTWO. Migawka przychodzi już znormalizowana (`parseClubLinkSnapshot`
 // / `clubLinkSnapshotFromPreview`: tylko https, długości jak w RPC), a link
 // wychodzący dostaje `rel="nofollow ugc noopener noreferrer"` - to treść
@@ -102,7 +108,7 @@ export function ClubLinkSnapshotCard({
 
 /**
  * Karta linku w kompozytorze: wczytywanie (szkielet) albo gotowa migawka,
- * zawsze z „×". Region `aria-live`, bo karta pojawia się sama, gdy autor pisze.
+ * zawsze z „×". Ogłoszenie dla czytnika ekranu - `ClubComposerLinkStatus`.
  */
 export function ClubComposerLinkCard({
   url,
@@ -131,7 +137,7 @@ export function ClubComposerLinkCard({
         <span className="flex min-h-[4.5rem] min-w-0 flex-1 items-center gap-3 px-3 py-2">
           <Skeleton className="h-12 w-12 shrink-0 rounded-md" />
           <span className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <span className="text-xs leading-4 text-muted-foreground" aria-live="polite">
+            <span className="text-xs leading-4 text-muted-foreground">
               {t("club.comments.link.loading")}
             </span>
             <Skeleton className="h-3.5 w-3/4" />
@@ -153,5 +159,44 @@ export function ClubComposerLinkCard({
         <X className="h-3.5 w-3.5" aria-hidden="true" />
       </button>
     </div>
+  );
+}
+
+/** Stan podglądu linku w kompozytorze - tyle, ile potrzebuje ogłoszenie. */
+export interface ClubComposerLinkState {
+  url: string | null;
+  loading: boolean;
+  snapshot: ClubLinkSnapshot | null;
+}
+
+/**
+ * Region statusu podglądu linku - ZAWSZE zamontowany obok kompozytora.
+ *
+ * Czytnik ekranu słyszy, że podgląd się wczytuje, a potem - że jest gotowy
+ * i co pojedzie z treścią (serwis i tytuł). Bez adresu w szkicu region jest
+ * pusty, ale stoi w DOM-ie: dopiero zmiana treści ISTNIEJĄCEGO regionu jest
+ * ogłaszana.
+ */
+export function ClubComposerLinkStatus({ link }: { link: ClubComposerLinkState | null }) {
+  const { t } = useTranslation();
+  const message =
+    link === null || link.url === null
+      ? ""
+      : link.loading || link.snapshot === null
+        ? t("club.comments.link.loading")
+        : t("club.comments.link.ready", {
+            site: link.snapshot.siteName ?? hostOf(link.snapshot.url),
+            title: link.snapshot.title ?? link.snapshot.url,
+          });
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="sr-only"
+      data-testid="club-composer-link-status"
+    >
+      {message}
+    </span>
   );
 }

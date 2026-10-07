@@ -13,6 +13,8 @@
 // (4) WYŁĄCZONY hak nie wykrywa wzmianek i nie pyta o podpowiedzi.
 // (5) ZAKRES KLUBU (`scope`) dojeżdża do zapytania o podpowiedzi bez zmian -
 //     bez niego kompozytor w klubie nie podpowiadałby członków klubu.
+// (6) IME: klawisz w trakcie konwersji (japoński, chiński) należy do edytora -
+//     Enter zatwierdza tekst, a nie wstawia podświetlonej osoby.
 //
 // Zapytanie RPC (`useMentionSuggestions`) i opóźnienie są atrapami - mają
 // własne testy; tu liczy się stan i klawiatura.
@@ -60,10 +62,19 @@ const JAN = person("jan-kowalski", "Jan Kowalski");
 const ANNA = person("anna-nowak", "Anna Nowak");
 const OLA = person("ola-lis", "Ola Lis");
 
-/** Zdarzenie klawiatury w kształcie, którego używa hak. */
-function key(name: string): KeyboardEvent<HTMLTextAreaElement> & { prevented: boolean } {
+/**
+ * Zdarzenie klawiatury w kształcie, którego używa hak. `composing` udaje
+ * edytor IME w trakcie konwersji (`isComposing`), `keyCode` 229 - przeglądarkę,
+ * która zgłasza ten stan wyłącznie kodem klawisza.
+ */
+function key(
+  name: string,
+  ime: { composing?: boolean; keyCode?: number } = {},
+): KeyboardEvent<HTMLTextAreaElement> & { prevented: boolean } {
   const event = {
     key: name,
+    keyCode: ime.keyCode ?? 0,
+    nativeEvent: { isComposing: ime.composing === true },
     prevented: false,
     preventDefault() {
       event.prevented = true;
@@ -213,6 +224,30 @@ describe("useMentionAutocomplete - klawiatura", () => {
 
     expect(event.prevented).toBe(true);
     expect(onChange).toHaveBeenCalledWith("cc @anna-nowak ");
+  });
+
+  it.each([
+    ["isComposing", { composing: true }],
+    ["keyCode 229", { keyCode: 229 }],
+  ])("w trakcie konwersji IME (%s) Enter, Tab i strzałki należą do edytora", (_label, ime) => {
+    const { result, type, onChange } = setup();
+    // Fraza w trakcie konwersji (romaji, zanim edytor zamieni ją na kana).
+    type("@ja");
+
+    for (const name of ["Enter", "Tab", "ArrowDown", "Escape"]) {
+      const event = key(name, ime);
+      act(() => result.current.textareaProps.onKeyDown(event));
+      expect(event.prevented, name).toBe(false);
+    }
+    expect(onChange).not.toHaveBeenCalled();
+    expect(result.current.highlight).toBe(0);
+    expect(result.current.open).toBe(true);
+
+    // Po zatwierdzeniu konwersji ten sam Enter znów wybiera osobę.
+    const event = key("Enter");
+    act(() => result.current.textareaProps.onKeyDown(event));
+    expect(event.prevented).toBe(true);
+    expect(onChange).toHaveBeenCalledTimes(1);
   });
 
   it("Esc chowa listę do następnej zmiany treści", () => {

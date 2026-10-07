@@ -27,8 +27,11 @@
 //  6. ROZMOWA W KARTACH I WEJŚCIE Z POWIADOMIENIA. Hub podaje kartom klub
 //     i sesję (rozmowa w karcie, gość z drogą do logowania), katalog wzmianek
 //     dostaje autorów ORAZ @wzmianki z treści wpisów (autorzy pierwsi),
-//     a `?post=<uuid>` przewija JEDNORAZOWO do wczytanej karty wpisu
-//     i rozwija jej komentarze - śmieć zamiast uuid nie przewija niczego.
+//     a `?post=<uuid>` przewija RAZ NA WIZYTĘ do karty wpisu i rozwija jej
+//     komentarze: parametr znika z adresu (`replace`), wejście zdejmuje
+//     lokalne zawężenia, wpis spoza pierwszej strony jest doczytywany, a gdy
+//     go nie ma - czytelnik słyszy to zdaniem. Śmieć zamiast uuid nie
+//     przewija niczego. Awaria odświeżenia w tle NIE zdejmuje strumienia.
 //  5. UPRAWNIENIA SĄ ILOCZYNEM SESJI I ZDOLNOŚCI. `can_see_members`
 //     przepuszcza anonima w klubie publicznym, a RPC z nazwiskami jest dla
 //     niego zamknięte - dlatego panel spotkania dostaje `signedIn && can_*`,
@@ -72,6 +75,7 @@ const h = vi.hoisted(() => ({
   /** Slugi oddane katalogowi wzmianek strumienia. */
   directorySlugs: [] as readonly string[],
   navigate: vi.fn(),
+  toastInfo: vi.fn(),
 
   // --- odpowiedzi zapytań (każde ma stan „w locie” przez `undefined`) -------
   groups: [] as unknown[] | undefined,
@@ -85,6 +89,9 @@ const h = vi.hoisted(() => ({
   events: undefined as unknown[] | undefined,
   milestones: undefined as unknown[] | undefined,
   postPages: undefined as { rows: unknown[]; total: number }[] | undefined,
+  postsHasNextPage: false,
+  postsFetchingNextPage: false,
+  postsError: false,
   searchHits: undefined as unknown[] | undefined,
   searchPending: false,
   searchError: false,
@@ -104,6 +111,7 @@ const h = vi.hoisted(() => ({
   refetchThreads: vi.fn(),
   refetchSearch: vi.fn(),
   refetchPosts: vi.fn(),
+  fetchNextPosts: vi.fn(),
   fetchNextPage: vi.fn(),
   likeMutate: vi.fn(),
   deleteMutate: vi.fn(),
@@ -119,6 +127,8 @@ const h = vi.hoisted(() => ({
   board: null as Record<string, unknown> | null,
   roster: null as Record<string, unknown> | null,
   feedItem: null as Record<string, unknown> | null,
+  /** Wpisy, których karta DOSTAŁA wskazanie `?post=` (rozwija wtedy komentarze). */
+  focusedPosts: [] as string[],
   searchPanel: null as Record<string, unknown> | null,
   /** Identyfikator działu, którym sterują atrapy list. */
   groupId: "group-1",
@@ -140,6 +150,8 @@ vi.mock("@tanstack/react-router", async (importOriginal) => {
     useSearch: () => h.search,
   };
 });
+
+vi.mock("sonner", () => ({ toast: { info: h.toastInfo, success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({
@@ -228,6 +240,11 @@ vi.mock("@/lib/clubs/useClubPosts", () => ({
     h.postArgs = args;
     return {
       data: h.postPages === undefined ? undefined : { pages: h.postPages },
+      isPending: h.postPages === undefined && !h.postsError,
+      isError: h.postsError,
+      hasNextPage: h.postsHasNextPage,
+      isFetchingNextPage: h.postsFetchingNextPage,
+      fetchNextPage: h.fetchNextPosts,
       refetch: h.refetchPosts,
     };
   },
@@ -473,6 +490,9 @@ vi.mock("@/components/clubs/organisms/ClubFeedItem", () => ({
       signedIn: props.signedIn,
       focusPostId: props.focusPostId ?? null,
     };
+    if (props.entry.post !== undefined && props.entry.post.id === props.focusPostId) {
+      h.focusedPosts.push(props.entry.post.id);
+    }
     return (
       <div
         data-testid="feed-item"
@@ -664,6 +684,10 @@ afterEach(() => {
   h.board = null;
   h.roster = null;
   h.feedItem = null;
+  h.focusedPosts = [];
+  h.postsHasNextPage = false;
+  h.postsFetchingNextPage = false;
+  h.postsError = false;
   h.searchPanel = null;
   h.directorySlugs = [];
 });
@@ -1342,6 +1366,10 @@ describe("ClubHub - rozmowa w kartach i wejście z powiadomienia", () => {
     expect(scroll.mock.calls[0]?.[0]).toEqual({ block: "center", behavior: "smooth" });
     const card = document.querySelector(`[data-post-id="${POST_ID}"]`);
     expect(card).not.toBeNull();
+    // Hub PODAŁ wskazanie karcie TEGO wpisu (to ono rozwija komentarze),
+    // zanim je wygasił - i żadnej innej.
+    expect(h.focusedPosts).toContain(POST_ID);
+    expect(new Set(h.focusedPosts)).toEqual(new Set([POST_ID]));
     // Po obsłużeniu wskazanie gaśnie - karta zostaje rozwinięta własnym stanem,
     // a odświeżenie listy nie szarpie widoku z powrotem.
     expect(h.feedItem?.focusPostId).toBeNull();
@@ -1352,6 +1380,115 @@ describe("ClubHub - rozmowa w kartach i wejście z powiadomienia", () => {
       </QueryClientProvider>,
     );
     expect(scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it("`?post=` jest obsługiwany RAZ NA WIZYTĘ: parametr znika z adresu (`replace`), powrót nie przewija drugi raz", () => {
+    const scroll = stubScroll();
+    fullData();
+    h.postPages = [{ rows: [clubPostRow({ id: POST_ID })], total: 1 }];
+    h.search = { post: POST_ID };
+    mount();
+
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(h.navigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "/club/$clubSlug",
+        replace: true,
+        // Bez tego router przewinąłby na górę i skasował `scrollIntoView`.
+        resetScroll: false,
+      }),
+    );
+    // Parametr zdjęty z BIEŻĄCEGO wpisu historii.
+    expect(h.search.post).toBeUndefined();
+
+    // „Wstecz" / przeładowanie: hub montuje się od nowa z adresem bez `post`.
+    cleanup();
+    mount();
+    expect(scroll).toHaveBeenCalledTimes(1);
+  });
+
+  it("wejście z powiadomienia zdejmuje lokalne zawężenia (tryb, dział, fraza), pod którymi wpisu nie ma", () => {
+    stubScroll();
+    fullData();
+    h.postPages = [{ rows: [clubPostRow({ id: POST_ID })], total: 1 }];
+    const { rerender, queryClient } = mount();
+    fireEvent.click(modeButton("documents"));
+    fireEvent.click(screen.getByTestId("tree-pick"));
+    expect(h.postArgs?.groupId).toBe(CLUB_IDS.group);
+
+    // Hub już stał; adres zmienia się na `?post=<id>` (klik w powiadomienie).
+    h.search = { post: POST_ID };
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ClubHub club={clubViewRow()} />
+      </QueryClientProvider>,
+    );
+    expect(modeButton("all").getAttribute("aria-checked")).toBe("true");
+    expect(h.postArgs?.groupId).toBeNull();
+    expect(h.focusedPosts).toContain(POST_ID);
+  });
+
+  it("wpis spoza pierwszej strony ściany: hub doczytuje kolejną stronę, zamiast czekać w ciszy", () => {
+    const scroll = stubScroll();
+    fullData();
+    h.postsHasNextPage = true;
+    h.search = { post: POST_ID };
+    const { rerender, queryClient } = mount();
+    expect(h.fetchNextPosts).toHaveBeenCalledTimes(1);
+    expect(scroll).not.toHaveBeenCalled();
+    expect(h.toastInfo).not.toHaveBeenCalled();
+
+    // Druga strona przyniosła wpis - karta staje w strumieniu i dostaje wskazanie.
+    h.postPages = [
+      { rows: [clubPostRow()], total: 21 },
+      { rows: [clubPostRow({ id: POST_ID })], total: 21 },
+    ];
+    h.postsHasNextPage = false;
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ClubHub club={clubViewRow()} />
+      </QueryClientProvider>,
+    );
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(h.focusedPosts).toContain(POST_ID);
+    expect(h.toastInfo).not.toHaveBeenCalled();
+  });
+
+  it("doczytywanie ma sufit: po pięciu stronach bez wpisu - zdanie i koniec wizyty", () => {
+    stubScroll();
+    fullData();
+    h.postsHasNextPage = true;
+    h.search = { post: POST_ID };
+    const { rerender, queryClient } = mount();
+    const render = () =>
+      rerender(
+        <QueryClientProvider client={queryClient}>
+          <ClubHub club={clubViewRow()} />
+        </QueryClientProvider>,
+      );
+    for (let page = 0; page < 6; page += 1) {
+      // Strona w drodze, potem przychodzi - bez wpisu, a kolejna nadal istnieje.
+      h.postsFetchingNextPage = true;
+      render();
+      h.postPages = [
+        ...(h.postPages ?? []),
+        { rows: [clubPostRow({ id: `p-${page}` })], total: 99 },
+      ];
+      h.postsFetchingNextPage = false;
+      render();
+    }
+    expect(h.fetchNextPosts).toHaveBeenCalledTimes(5);
+    expect(h.toastInfo).toHaveBeenCalledTimes(1);
+    expect(h.toastInfo).toHaveBeenCalledWith("club.hub.postFocus.unavailable");
+    expect(h.search.post).toBeUndefined();
+  });
+
+  it("awaria odświeżenia strumienia w tle zostawia karty (i rozwinięte rozmowy ze szkicami)", () => {
+    fullData();
+    h.threadsError = true;
+    mount();
+    expect(screen.queryByTestId("error-notice")).toBeNull();
+    expect(screen.getAllByTestId("feed-item").length).toBeGreaterThan(0);
   });
 
   it("wskazanie czeka, aż karta wpisu stanie w strumieniu (szkielet listy)", () => {
@@ -1398,14 +1535,20 @@ describe("ClubHub - rozmowa w kartach i wejście z powiadomienia", () => {
     mount();
     expect(scroll).not.toHaveBeenCalled();
     expect(h.feedItem?.focusPostId).toBeNull();
+    expect(h.focusedPosts).toEqual([]);
+    expect(h.toastInfo).not.toHaveBeenCalled();
   });
 
-  it("wpis spoza wczytanej partii nie przewija - nie ma dokąd", () => {
+  it("wpisu nie ma w ścianie (usunięty, poza zasięgiem): bez przewijania, ze zdaniem, parametr zdjęty", () => {
     const scroll = stubScroll();
     fullData();
     h.search = { post: POST_ID };
     mount();
     expect(scroll).not.toHaveBeenCalled();
+    expect(h.focusedPosts).toEqual([]);
+    expect(h.toastInfo).toHaveBeenCalledWith("club.hub.postFocus.unavailable");
+    expect(h.navigate).toHaveBeenCalledWith(expect.objectContaining({ replace: true }));
+    expect(h.search.post).toBeUndefined();
   });
 });
 

@@ -238,21 +238,39 @@ describe("skutki komentowania z karty strumienia", () => {
     );
   });
 
-  it("komentarz wpisu odświeża licznik na ścianie I rozwinięte komentarze - jednym kluczem", () => {
+  it("komentarz wpisu odświeża WYŁĄCZNIE komentarze tego wpisu (każdy rozmiar strony)", () => {
     const keys = postCommentKeys(CLUB, "post-1");
 
-    expect(keys).toEqual([clubKeys.postsAll(CLUB)]);
-    expect(covers(keys, clubKeys.posts(CLUB, null, null))).toBe(true);
-    expect(covers(keys, clubKeys.posts(CLUB, "group-1", null))).toBe(true);
+    expect(keys).toEqual([clubKeys.postComments(CLUB, "post-1")]);
     expect(covers(keys, clubKeys.postCommentsPage(CLUB, "post-1", 3))).toBe(true);
+    expect(covers(keys, clubKeys.postCommentsPage(CLUB, "post-1", 10))).toBe(true);
   });
 
-  it("komentarz wpisu nie rusza wątków ani innego klubu", () => {
+  it("komentarz wpisu NIE przeładowuje ściany - licznik poprawia hook w miejscu", () => {
+    // Przeładowana pierwsza strona ściany wypycha najstarszą kartę, gdy w
+    // międzyczasie ktoś opublikował wpis - często tę, pod którą się pisze.
     const keys = postCommentKeys(CLUB, "post-1");
 
+    expect(covers(keys, clubKeys.posts(CLUB, null, null))).toBe(false);
+    expect(covers(keys, clubKeys.posts(CLUB, "group-1", null))).toBe(false);
+    expect(covers(keys, clubKeys.postsAll(CLUB))).toBe(false);
+  });
+
+  it("komentarz wpisu nie rusza rozmów pod INNYMI wpisami, wątków ani innego klubu", () => {
+    const keys = postCommentKeys(CLUB, "post-1");
+
+    expect(covers(keys, clubKeys.postCommentsPage(CLUB, "post-2", 3))).toBe(false);
     expect(covers(keys, clubKeys.threadsAll(CLUB))).toBe(false);
     expect(covers(keys, clubKeys.thread(CLUB, SLUG))).toBe(false);
-    expect(covers(keys, clubKeys.postsAll("club-2"))).toBe(false);
+    expect(covers(keys, clubKeys.postCommentsPage("club-2", "post-1", 3))).toBe(false);
+  });
+
+  it("unieważnienie ściany (usunięcie wpisu) nie przeładowuje rozwiniętych rozmów", () => {
+    expect(covers([clubKeys.postsAll(CLUB)], clubKeys.postCommentsPage(CLUB, "post-1", 3))).toBe(
+      false,
+    );
+    // Wyrzucenie z klubu i moderacja (poddrzewo klubu) dalej je czyszczą.
+    expect(covers(clubOnlyKeys(CLUB), clubKeys.postCommentsPage(CLUB, "post-1", 3))).toBe(true);
   });
 
   it("oba skutki są w rejestrze - inaczej omijałyby inwarianty niżej", () => {

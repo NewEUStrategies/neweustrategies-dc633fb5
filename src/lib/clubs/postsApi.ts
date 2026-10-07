@@ -20,6 +20,7 @@ import {
   isClubPostCommentStatus,
   type ClubLinkSnapshot,
   type ClubPostAttachment,
+  type ClubPostCommentModerationAction,
   type ClubPostCommentRow,
   type ClubPostMediaAttachment,
   type ClubPostRow,
@@ -155,6 +156,9 @@ function toCommentRow(row: CommentRpcRow): ClubPostCommentRow | null {
     created_at: row.created_at,
     edited_at: row.edited_at ?? null,
     can_manage: row.can_manage === true,
+    // Tylko prawdziwe `true`: kolumna doszła z zatwierdzaniem, a jej brak
+    // (baza sprzed migracji) nie może pokazać przycisku, którego RPC odmówi.
+    can_approve: row.can_approve === true,
     total_count: Number(row.total_count ?? 0) || 0,
   };
 }
@@ -241,6 +245,29 @@ export async function createClubPostComment(
 export async function deleteClubPostComment(commentId: string): Promise<boolean> {
   const { data, error } = await supabase.rpc("club_post_comment_delete", {
     p_comment_id: commentId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+export interface ModerateClubPostCommentInput {
+  commentId: string;
+  action: ClubPostCommentModerationAction;
+}
+
+/**
+ * Decyzja moderatora: `approve` publikuje komentarz z kolejki (albo z ukrycia),
+ * `hide` go ukrywa. Tak jak usunięcie idzie po SAMYM identyfikatorze - wpis,
+ * klub i prawo (`can_moderate` klubu/działu wpisu) ustala RPC. Zatwierdzenie
+ * powiadamia autora wpisu (trigger statusu w bazie), więc klient nie wysyła
+ * nic więcej. `false` = komentarza już nie ma albo został usunięty.
+ */
+export async function moderateClubPostComment(
+  input: ModerateClubPostCommentInput,
+): Promise<boolean> {
+  const { data, error } = await supabase.rpc("club_post_comment_moderate", {
+    p_comment_id: input.commentId,
+    p_action: input.action,
   });
   if (error) throw error;
   return data === true;
