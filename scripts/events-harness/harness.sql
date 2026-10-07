@@ -718,14 +718,20 @@ CREATE TABLE IF NOT EXISTS public.verification_domains (
 -- Weryfikacja akademicka jako ATRAPA O ZEROWEJ LOGICE WLASNEJ: czyta prawdziwa
 -- tabele domen i prawdziwy adres wolajacego. Gdyby zwracala stala, kazda asercja
 -- o stawce akademickiej przechodzilaby zawsze i nie mierzylaby niczego.
+--
+-- KSZTALT JAK NA PRODUKCJI: `jsonb` z polem `automatic` (20260822171037).
+-- Do 2026-10-07 atrapa zwracala `boolean` - i dlatego harness nie widzial, ze
+-- `event_audience_qualifies` robila `AND` na jsonb (42804 dla KAZDEJ widowni
+-- akademickiej). Atrapa o innym typie niz oryginal ukrywa usterke, ktorej
+-- harness ma szukac.
 CREATE OR REPLACE FUNCTION public.my_academic_domain_verification()
-RETURNS boolean
+RETURNS jsonb
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $fn$
-  SELECT EXISTS (
+  SELECT jsonb_build_object('automatic', EXISTS (
     SELECT 1
     FROM auth.users u
     JOIN public.verification_domains d
@@ -734,7 +740,7 @@ AS $fn$
       AND d.active
       AND d.academic
       AND d.tenant_id = public._caller_tenant()
-  );
+  ));
 $fn$;
 
 -- POLITYKI `events` - ATRAPA, ale ATRAPA OBOWIAZKOWA (z 20260713093000).
