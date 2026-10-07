@@ -40,7 +40,10 @@
 //     testami. Tutaj asercje dotyczą tego, CO karta im podaje.
 // (b) `ClubPostCard` - jest tu ATRAPĄ. Karta wpisu ma własny plik testowy
 //     (`clubPostCard.test.tsx`); w strumieniu dowodzimy wyłącznie DELEGACJI
-//     (mapa podpisanych adresów, indeks działów, prawo głosu, akcje wpisu).
+//     (mapa podpisanych adresów, indeks działów, prawo głosu, sesja, wpis
+//     wskazany adresem, akcje wpisu). Tak samo `ClubFeedThreadReplies` -
+//     sekcja rozmowy karty wątku ma własny plik (`clubFeedComments.test.tsx`),
+//     a tu widać tylko, KIEDY karta ją montuje i z jakim trybem.
 // (c) `buildClubFeed` (kolejność i sloty kart kontekstowych) - czysta funkcja
 //     w `src/lib/clubs/clubFeed.ts`. Ten plik dostaje gotowe wpisy propsem.
 // (d) `toAuthorLabel`, `clubSourceOf`, `normalizeClubThreadIcon`,
@@ -83,6 +86,8 @@ vi.mock("@/components/clubs/organisms/ClubPostCard", () => ({
     mediaUrls,
     activeGroupId,
     canComment,
+    signedIn,
+    focusComments,
     onLike,
     onDelete,
   }: {
@@ -91,6 +96,8 @@ vi.mock("@/components/clubs/organisms/ClubPostCard", () => ({
     mediaUrls: Record<string, string>;
     activeGroupId: string | null;
     canComment?: boolean;
+    signedIn?: boolean;
+    focusComments?: boolean;
     onLike?: (postId: string) => void;
     onDelete?: (postId: string) => void;
   }) => (
@@ -101,6 +108,8 @@ vi.mock("@/components/clubs/organisms/ClubPostCard", () => ({
       data-media={Object.keys(mediaUrls).join(",")}
       data-active-group={activeGroupId ?? ""}
       data-can-comment={String(canComment)}
+      data-signed-in={String(signedIn)}
+      data-focus-comments={String(focusComments)}
     >
       <button type="button" onClick={() => onLike?.(post.id)}>
         polub
@@ -109,6 +118,31 @@ vi.mock("@/components/clubs/organisms/ClubPostCard", () => ({
         usun
       </button>
     </div>
+  ),
+}));
+
+vi.mock("@/components/clubs/molecules/ClubFeedThreadReplies", () => ({
+  ClubFeedThreadReplies: ({
+    clubId,
+    clubSlug,
+    thread,
+    mode,
+    focusKey,
+  }: {
+    clubId: string;
+    clubSlug: string;
+    thread: { id: string; slug: string };
+    mode: string;
+    focusKey?: number;
+  }) => (
+    <div
+      data-testid="club-thread-replies-stub"
+      data-club-id={clubId}
+      data-club-slug={clubSlug}
+      data-thread-id={thread.id}
+      data-mode={mode}
+      data-focus-key={String(focusKey ?? 0)}
+    />
   ),
 }));
 
@@ -122,6 +156,11 @@ import {
   clubPostRow,
 } from "@/test/clubs/hubFixtures";
 import { workspaceApiMock, resetWorkspaceApiMock } from "@/test/clubs/workspaceApiMock";
+import {
+  clearFeedDrafts,
+  threadDraftKey,
+  writeFeedDraft,
+} from "@/components/clubs/molecules/feedDrafts";
 
 const CLUB_SLUG = "klub-energetyczny";
 
@@ -142,6 +181,7 @@ function threadEntry(thread: ClubThreadListRow): ClubFeedEntry {
 beforeEach(() => {
   resetWorkspaceApiMock();
   cleanup();
+  clearFeedDrafts();
 });
 
 describe("ClubFeedItem - karta wątku, dane pełne", () => {
@@ -543,6 +583,122 @@ describe("ClubFeedItem - wpis ściany", () => {
     fireEvent.click(within(stub).getByRole("button", { name: "usun" }));
     expect(onPostLike).toHaveBeenCalledWith("post-1");
     expect(onPostDelete).toHaveBeenCalledWith("post-1");
+    // Bez podanej sesji karta zakłada gościa, a bez `?post=` nic się nie rozwija.
+    expect(stub.getAttribute("data-signed-in")).toBe("false");
+    expect(stub.getAttribute("data-focus-comments")).toBe("false");
+  });
+
+  it("sesja i wpis wskazany adresem (`?post=`) docierają do karty TEGO wpisu", () => {
+    render(
+      <>
+        <ClubFeedItem
+          entry={{ kind: "post", key: "p:post-1", post: clubPostRow() }}
+          clubSlug={CLUB_SLUG}
+          signedIn
+          focusPostId="post-1"
+        />
+        <ClubFeedItem
+          entry={{ kind: "post", key: "p:post-2", post: clubPostRow({ id: "post-2" }) }}
+          clubSlug={CLUB_SLUG}
+          signedIn
+          focusPostId="post-1"
+        />
+      </>,
+    );
+
+    const [focused, other] = screen.getAllByTestId("club-post-card-stub");
+    expect(focused?.getAttribute("data-signed-in")).toBe("true");
+    expect(focused?.getAttribute("data-focus-comments")).toBe("true");
+    expect(other?.getAttribute("data-focus-comments")).toBe("false");
+  });
+});
+
+describe("ClubFeedItem - rozmowa w karcie wątku", () => {
+  function renderWithClub(
+    thread: ClubThreadListRow,
+    props: { canReact?: boolean; signedIn?: boolean } = {},
+  ) {
+    render(
+      <ClubFeedItem
+        entry={threadEntry(thread)}
+        clubSlug={CLUB_SLUG}
+        clubId={CLUB_IDS.club}
+        canReact={props.canReact ?? true}
+        signedIn={props.signedIn ?? true}
+      />,
+    );
+    return screen.getByTestId("club-feed-thread");
+  }
+
+  it("„Komentuj” rozwija sekcję w karcie - montowaną dopiero przy pierwszym otwarciu", () => {
+    const card = renderWithClub(clubThreadListRow({ reply_count: 5 }));
+
+    expect(within(card).queryByTestId("club-comment-link")).toBeNull();
+    const toggle = within(card).getByTestId("club-comment-toggle");
+    const zone = document.getElementById(toggle.getAttribute("aria-controls") ?? "");
+    expect(zone?.hidden).toBe(true);
+    expect(zone?.getAttribute("aria-label")).toBe("club.comments.threadSectionLabel");
+    expect(within(card).queryByTestId("club-thread-replies-stub")).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(zone?.hidden).toBe(false);
+    const stub = within(card).getByTestId("club-thread-replies-stub");
+    expect(stub.getAttribute("data-club-id")).toBe(CLUB_IDS.club);
+    expect(stub.getAttribute("data-club-slug")).toBe(CLUB_SLUG);
+    expect(stub.getAttribute("data-mode")).toBe("write");
+    expect(stub.getAttribute("data-focus-key")).toBe("1");
+
+    // Licznik odpowiedzi rozwija tę samą sekcję i znów prosi o fokus.
+    fireEvent.click(toggle);
+    expect(zone?.hidden).toBe(true);
+    fireEvent.click(within(card).getByTestId("club-replies-count"));
+    expect(zone?.hidden).toBe(false);
+    expect(stub.getAttribute("data-focus-key")).toBe("2");
+  });
+
+  it.each([
+    ["gość", { signedIn: false, canReact: false }, "open", "guest"],
+    // Zalogowanie nic tu nie zmieni - gość nie dostaje zachęty do logowania.
+    ["gość na zamkniętym wątku", { signedIn: false, canReact: false }, "locked", "locked"],
+    ["bez prawa głosu", { signedIn: true, canReact: false }, "open", "readOnly"],
+    ["zamknięty wątek", { signedIn: true, canReact: true }, "locked", "locked"],
+    ["ukryty wątek", { signedIn: true, canReact: true }, "hidden", "locked"],
+    [
+      "rozstrzygnięty wątek przyjmuje odpowiedzi",
+      { signedIn: true, canReact: true },
+      "resolved",
+      "write",
+    ],
+  ])("tryb sekcji: %s", (_label, props, status, expected) => {
+    const card = renderWithClub(clubThreadListRow({ status }), props);
+    fireEvent.click(within(card).getByTestId("club-comment-toggle"));
+    expect(within(card).getByTestId("club-thread-replies-stub").getAttribute("data-mode")).toBe(
+      expected,
+    );
+  });
+});
+
+describe("ClubFeedItem - szkic odpowiedzi przeżywa kartę", () => {
+  it("karta wątku z niewysłaną odpowiedzią w rejestrze wraca z rozwiniętą rozmową", () => {
+    const thread = clubThreadListRow({ reply_count: 2 });
+    writeFeedDraft(threadDraftKey(thread.id), "Dorzucam źródło");
+    render(
+      <ClubFeedItem
+        entry={threadEntry(thread)}
+        clubSlug={CLUB_SLUG}
+        clubId={CLUB_IDS.club}
+        signedIn
+      />,
+    );
+    const card = screen.getByTestId("club-feed-thread");
+    expect(within(card).getByTestId("club-comment-toggle").getAttribute("aria-expanded")).toBe(
+      "true",
+    );
+    // Rozwinięcie bez prośby o fokus - nikt nie kliknął „Komentuj".
+    expect(
+      within(card).getByTestId("club-thread-replies-stub").getAttribute("data-focus-key"),
+    ).toBe("0");
   });
 });
 

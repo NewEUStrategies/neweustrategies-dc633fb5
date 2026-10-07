@@ -7,10 +7,14 @@
 // wcześniej: przyciski reakcji z licznikami obok linku komentarza) kazało
 // czytać każdą kartę, żeby odróżnić informację od akcji.
 //
-// REGUŁA PODZIAŁU zostaje: reakcja dzieje się NA MIEJSCU (jedno kliknięcie,
-// bez opuszczania strumienia), a komentarz PRZENOSI DO WĄTKU z `?reply`, bo
-// pogłębiona dyskusja ma jedno miejsce. Brak prawa głosu zdejmuje reakcję,
-// ale nie komentarz-link ani udostępnienie: czytanie jest szersze niż głos.
+// KOMENTARZ ZOSTAJE W STRUMIENIU. „Komentuj" jest PRZEŁĄCZNIKIEM sekcji
+// rozmowy pod kartą (`aria-expanded`/`aria-controls`): dwie najnowsze
+// odpowiedzi i kompozytor odpowiedzi - bez zmiany ekranu. Licznik odpowiedzi
+// w pasie wyżej rozwija tę samą sekcję. Pełna rozmowa jest o jedno kliknięcie
+// dalej („Zobacz całą dyskusję"). Gdy karta nie ma sekcji (powierzchnia bez
+// danych klubu), akcja degraduje się do linku do kompozytora wątku
+// (`?reply`) - nigdy do martwego przycisku. Brak prawa głosu zdejmuje
+// reakcję, ale nie komentarz ani udostępnienie: czytanie jest szersze niż głos.
 //
 // CHATHAM HOUSE. W trybie poufnym baza nie oddaje nazwisk, więc licznik mówi
 // samą liczbą - interfejs nie sugeruje tożsamości, której klub nie ujawnia.
@@ -21,6 +25,8 @@ import { ClubReactionGlyph } from "@/components/clubs/atoms/ClubReactionGlyph";
 import {
   CLUB_FEED_ACTION_ICON,
   CLUB_FEED_ACTION_LABEL,
+  CLUB_FEED_COUNTER,
+  CLUB_FEED_COUNTER_LABEL,
   ClubFeedActionBar,
   ClubFeedSocialRow,
   clubFeedActionClass,
@@ -46,6 +52,19 @@ export interface ClubEngagementBarProps {
   canReact?: boolean;
   pending?: boolean;
   onToggle?: (kind: ClubReactionKind, active: boolean) => void;
+  /** Sekcja rozmowy w karcie. Bez niej „Komentuj" jest linkiem do wątku. */
+  comments?: ClubEngagementComments;
+}
+
+/** Sterowanie sekcją rozmowy pod kartą - stan należy do karty. */
+export interface ClubEngagementComments {
+  /** Identyfikator sekcji (`aria-controls`). */
+  id: string;
+  open: boolean;
+  /** „Komentuj": rozwija z fokusem w polu albo zwija. */
+  onToggle: () => void;
+  /** Licznik odpowiedzi: zawsze ROZWIJA (drugie kliknięcie nie zwija). */
+  onOpen: () => void;
 }
 
 /** Najczęstsze reakcje - najwyżej trzy glify, jak w liczniku pod wpisem. */
@@ -152,23 +171,45 @@ export function ClubEngagementBar({
   canReact = true,
   pending = false,
   onToggle,
+  comments,
 }: ClubEngagementBarProps) {
   const { t } = useTranslation();
   const interactive = canReact && onToggle !== undefined;
   const total = tallies.reduce((sum, tally) => sum + tally.total, 0);
   const threadPath = `/club/${clubSlug}/t/${threadSlug}`;
+  const commentLabel =
+    replyCount > 0
+      ? t("club.hub.feed.commentWithCount", { n: replyCount })
+      : t("club.hub.feed.comment");
 
   const conversation =
     replyCount > 0 || participantCount > 0 ? (
       <>
         {replyCount > 0 ? (
-          <Link
-            to="/club/$clubSlug/t/$threadSlug"
-            params={{ clubSlug, threadSlug }}
-            className="rounded-sm transition-colors hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {t("club.repliesCount", { count: replyCount })}
-          </Link>
+          comments !== undefined ? (
+            <button
+              type="button"
+              onClick={comments.onOpen}
+              aria-expanded={comments.open}
+              aria-controls={comments.id}
+              className={CLUB_FEED_COUNTER}
+              data-testid="club-replies-count"
+            >
+              <span className={CLUB_FEED_COUNTER_LABEL}>
+                {t("club.repliesCount", { count: replyCount })}
+              </span>
+            </button>
+          ) : (
+            <Link
+              to="/club/$clubSlug/t/$threadSlug"
+              params={{ clubSlug, threadSlug }}
+              className={CLUB_FEED_COUNTER}
+            >
+              <span className={CLUB_FEED_COUNTER_LABEL}>
+                {t("club.repliesCount", { count: replyCount })}
+              </span>
+            </Link>
+          )
         ) : null}
         {replyCount > 0 && participantCount > 0 ? <span aria-hidden="true">·</span> : null}
         {participantCount > 0 ? (
@@ -199,21 +240,34 @@ export function ClubEngagementBar({
         {interactive ? (
           <ClubFeedReactAction tallies={tallies} disabled={pending} onToggle={onToggle} />
         ) : null}
-        <Link
-          to="/club/$clubSlug/t/$threadSlug"
-          params={{ clubSlug, threadSlug }}
-          search={{ reply: true }}
-          aria-label={
-            replyCount > 0
-              ? t("club.hub.feed.commentWithCount", { n: replyCount })
-              : t("club.hub.feed.comment")
-          }
-          className={clubFeedActionClass()}
-          data-testid="club-comment-link"
-        >
-          <MessageSquareText className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
-          <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.comment")}</span>
-        </Link>
+        {comments !== undefined ? (
+          <button
+            type="button"
+            onClick={comments.onToggle}
+            aria-expanded={comments.open}
+            aria-controls={comments.id}
+            aria-label={commentLabel}
+            className={clubFeedActionClass({
+              className: comments.open ? "bg-secondary text-foreground" : undefined,
+            })}
+            data-testid="club-comment-toggle"
+          >
+            <MessageSquareText className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
+            <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.comment")}</span>
+          </button>
+        ) : (
+          <Link
+            to="/club/$clubSlug/t/$threadSlug"
+            params={{ clubSlug, threadSlug }}
+            search={{ reply: true }}
+            aria-label={commentLabel}
+            className={clubFeedActionClass()}
+            data-testid="club-comment-link"
+          >
+            <MessageSquareText className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
+            <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.comment")}</span>
+          </Link>
+        )}
         <ClubFeedShareAction path={threadPath} title={threadTitle} />
       </ClubFeedActionBar>
     </div>

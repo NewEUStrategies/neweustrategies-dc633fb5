@@ -73,15 +73,17 @@ export type { UpdateClubSettingsVars } from "./useClubOwner";
 // watki i odpowiedzi
 export {
   useClubReplies,
+  useClubReplyPreview,
   useClubThread,
   useClubThreads,
   useCreateClubThread,
   useEditClubReply,
   useEditClubThread,
+  useReplyFromFeed,
   useReplyToThread,
   useResolveClubThread,
 } from "./useClubThreadsData";
-export type { CreateThreadVars, ReplyVars } from "./useClubThreadsData";
+export type { CreateThreadVars, FeedReplyVars, ReplyVars } from "./useClubThreadsData";
 
 // reakcje, stanowiska, subskrypcje
 export {

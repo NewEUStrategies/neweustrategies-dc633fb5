@@ -1175,8 +1175,16 @@ export const CLUB_LOG_ACTIONS = [
 ] as const;
 export type ClubLogAction = (typeof CLUB_LOG_ACTIONS)[number];
 
-/** Typy celu, jakie moga stac w dzienniku. */
-export const CLUB_LOG_TARGETS = ["thread", "reply", "member", "group", "club"] as const;
+/** Typy celu, jakie moga stac w dzienniku (`post_comment` - komentarz wpisu
+ *  sciany: zatwierdzenie, ukrycie i usuniecie przez moderacje). */
+export const CLUB_LOG_TARGETS = [
+  "thread",
+  "reply",
+  "member",
+  "group",
+  "club",
+  "post_comment",
+] as const;
 export type ClubLogTarget = (typeof CLUB_LOG_TARGETS)[number];
 
 export function isActionApplicable(

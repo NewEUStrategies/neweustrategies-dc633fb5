@@ -470,6 +470,7 @@ export const adminClubsPl = {
         member: "Członek",
         group: "Dział",
         club: "Klub",
+        post_comment: "Komentarz wpisu",
       },
 
       bansTitle: "Blokady w klubie",
@@ -1018,6 +1019,7 @@ export const adminClubsEn = {
         member: "Member",
         group: "Section",
         club: "Club",
+        post_comment: "Post comment",
       },
 
       bansTitle: "Club bans",

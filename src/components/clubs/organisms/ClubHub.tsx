@@ -24,10 +24,24 @@
 // DANE. Sześć zapytań, wszystkie już istniejące - hub niczego nie dokłada po
 // stronie bazy. Cztery z nich (dokumenty, kalendarz, harmonogram, pomiar) są
 // LEKKIE i mają krótkie limity, bo w hubie służą za kontekst, a pełne listy
-// mają własne ekrany.
-import { useEffect, useMemo, useRef, useState } from "react";
+// mają własne ekrany. Rozmowy w kartach (komentarze wpisów, podgląd odpowiedzi
+// wątków) pytają o siebie same - i dopiero po rozwinięciu.
+//
+// WEJŚCIE Z POWIADOMIENIA. `?post=<uuid>` (komentarz lub wzmianka we wpisie
+// ściany) przewija do karty tego wpisu i rozwija jej komentarze - RAZ NA
+// WIZYTĘ, nie raz na zamontowanie: po obsłużeniu parametr znika z adresu
+// (`replace`), więc „Wstecz", „Dalej" i przeładowanie nie szarpią widoku
+// z powrotem. Wejście zdejmuje lokalne zawężenia, które chowają wpisy (tryb,
+// dział, fraza), a wpis spoza pierwszej strony ściany jest doczytywany
+// (najwyżej `POST_FOCUS_MAX_PAGES` stron). Gdy go nie ma - zdanie, nie cisza.
+//
+// AWARIA W TLE NIE ZDEJMUJE STRUMIENIA. Pełny komunikat błędu stoi tylko
+// wtedy, gdy nie ma czego pokazać. Nieudane odświeżenie albo doładowanie
+// zostawia karty - a z nimi rozwinięte rozmowy i szkice komentarzy.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   CalendarDays,
   FileText,
@@ -94,7 +108,9 @@ import { ClubSpotlightPanel } from "@/components/clubs/molecules/ClubSpotlightPa
 import { ClubThreadTopicBar } from "@/components/clubs/molecules/ClubThreadTopicBar";
 import { ClubFeedItem } from "@/components/clubs/organisms/ClubFeedItem";
 import { MentionDirectoryProvider } from "@/components/mentions/MentionDirectory";
-import { withAuthorSlugs } from "@/lib/mentions/directory";
+import { collectMentionSlugs, withAuthorSlugs } from "@/lib/mentions/directory";
+import { splitInline } from "@/lib/clubs/inlineSegments";
+import { parseClubPostFocus } from "@/components/clubs/organisms/clubHubPostFocus";
 import { ClubGlobalSearchResults } from "@/components/clubs/organisms/ClubGlobalSearch";
 import { buildClubSourceIndex } from "@/lib/clubs/threadSources";
 import { uiLang, uiLocale } from "@/lib/i18n/format";
@@ -104,6 +120,9 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import type { BreadcrumbItem } from "@/lib/breadcrumbs";
 import { parseClubThreadKind } from "@/lib/clubs/threadKinds";
 
+/** Ile stron ściany (po 20 wpisów) doczytujemy w poszukiwaniu wpisu z `?post=`. */
+const POST_FOCUS_MAX_PAGES = 5;
+
 const FEED_ICONS = {
   all: LayoutList,
   posts: Newspaper,
@@ -111,6 +130,14 @@ const FEED_ICONS = {
   documents: FileText,
   calendar: CalendarDays,
 } as const;
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
 
 /** Dzisiaj jako `YYYY-MM-DD` w czasie LOKALNYM - `due_on` jest datą bez strefy. */
 function localToday(): string {
@@ -255,20 +282,141 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
   );
   // Autorzy CAŁEJ widocznej partii strumienia jednym zapytaniem - byline
   // dokłada firmę z profilu, a bez katalogu każda karta pytałaby osobno.
-  const feedAuthorSlugs = useMemo(
+  // Do tego @wzmianki z treści wpisów ściany (wpis renderuje treść z
+  // wizytówkami) - inaczej wzmianka pokazywała imię zgadnięte ze sluga i bez
+  // twarzy, a rozwiązywała się dopiero po najechaniu. Autorzy idą PIERWSI:
+  // katalog ma limit, a bylina każdej karty jest ważniejsza niż awatar
+  // w środku zdania. Zajawki wątków są czystym tekstem - nie mają wzmianek.
+  const feedDirectorySlugs = useMemo(
     () =>
       withAuthorSlugs(
-        [],
-        feed.flatMap((entry) =>
-          entry.kind === "thread"
-            ? [entry.thread.author_slug]
-            : entry.kind === "post"
-              ? [entry.post.author_slug]
-              : [],
+        withAuthorSlugs(
+          [],
+          feed.flatMap((entry) =>
+            entry.kind === "thread"
+              ? [entry.thread.author_slug]
+              : entry.kind === "post"
+                ? [entry.post.author_slug]
+                : [],
+          ),
+        ),
+        collectMentionSlugs(
+          feed.flatMap((entry) => (entry.kind === "post" ? [entry.post.body] : [])),
+          splitInline,
         ),
       ),
     [feed],
   );
+
+  // `?post=` - przewinięcie do karty wpisu RAZ NA WIZYTĘ. Lokalna straż
+  // (`focusHandled`) trzyma obsłużony identyfikator, dopóki zdjęcie parametru
+  // z adresu nie wejdzie w życie - odświeżenie listy w tym czasie nie szarpie
+  // widoku. Gdy parametr zniknie, straż się zeruje: kolejne wejście z tym
+  // samym `?post=` (nowe powiadomienie) jest nową wizytą.
+  const focusPostId = parseClubPostFocus(routeSearch.post);
+  const [focusHandled, setFocusHandled] = useState<string | null>(null);
+  const pendingFocus = focusPostId !== null && focusPostId !== focusHandled ? focusPostId : null;
+
+  // Wejście z powiadomienia zdejmuje LOKALNE zawężenia, pod którymi wpisu nie
+  // byłoby w strumieniu: tryb bez wpisów, dział, frazę wyszukiwania.
+  useEffect(() => {
+    if (focusPostId === null) {
+      setFocusHandled(null);
+      return;
+    }
+    setMode("all");
+    setGroupId(null);
+    setQuery("");
+  }, [focusPostId]);
+
+  /**
+   * Koniec wizyty: straż lokalna + parametr zdjęty z BIEŻĄCEGO wpisu historii.
+   * Pozostałe parametry huba (`tag`, `kind`) przechodzą bez zmian.
+   */
+  const routeTag = typeof routeSearch.tag === "string" ? routeSearch.tag : "";
+  const finishPostFocus = useCallback(
+    (postId: string): void => {
+      setFocusHandled(postId);
+      void navigate({
+        to: "/club/$clubSlug",
+        params: { clubSlug },
+        search: {
+          ...(routeTag !== "" ? { tag: routeTag } : {}),
+          ...(kind !== null ? { kind } : {}),
+        },
+        replace: true,
+        // Bez tego router przewija na górę strony i kasuje `scrollIntoView`.
+        resetScroll: false,
+      });
+    },
+    [navigate, clubSlug, routeTag, kind],
+  );
+
+  // Karta musi STAĆ w DOM-ie: wpisy bywają wczytane, zanim lista wątków
+  // zdejmie szkielet, a pod wyszukiwaniem strumienia nie ma wcale.
+  const focusReady =
+    pendingFocus !== null &&
+    !searching &&
+    !threadsQ.isPending &&
+    !(threadsQ.isError && threadsQ.data === undefined) &&
+    feed.some((entry) => entry.kind === "post" && entry.post.id === pendingFocus);
+  useEffect(() => {
+    if (!focusReady || pendingFocus === null) return;
+    // Klatka zwłoki: karta rozwija komentarze w tym samym commicie, a układ
+    // ma się ustalić, zanim policzymy, dokąd przewinąć.
+    const frame = requestAnimationFrame(() => {
+      const card = document.querySelector<HTMLElement>(`[data-post-id="${pendingFocus}"]`);
+      if (card === null) return;
+      card.scrollIntoView({
+        block: "center",
+        behavior: prefersReducedMotion() ? "auto" : "smooth",
+      });
+      finishPostFocus(pendingFocus);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusReady, pendingFocus, finishPostFocus]);
+
+  // WPIS SPOZA PIERWSZEJ STRONY. Ściana przychodzi po 20 wpisów, a hub sam
+  // jej nie doczytuje - wpis 25. nigdy nie stanąłby w strumieniu. Szukamy go
+  // kolejnymi stronami (z limitem), a gdy go nie ma (usunięty, poza zasięgiem
+  // czytelnika, awaria) - mówimy to i kończymy wizytę zamiast czekać w ciszy.
+  // Czekamy, aż zawężenia zejdą: inaczej pierwsza klatka szukałaby jeszcze
+  // w ścianie działu i ogłosiła brak wpisu, który leży w ścianie klubu.
+  const focusPagesRef = useRef<{ id: string | null; pages: number }>({ id: null, pages: 0 });
+  const focusLoaded = pendingFocus !== null && posts.some((post) => post.id === pendingFocus);
+  const focusUnfiltered = groupId === null && (mode === "all" || mode === "posts") && !searching;
+  const {
+    isPending: postsPending,
+    isError: postsError,
+    isFetchingNextPage: postsFetchingNext,
+    hasNextPage: postsHasNext,
+    fetchNextPage: fetchNextPosts,
+  } = postsQ;
+  useEffect(() => {
+    if (pendingFocus === null || focusLoaded || !focusUnfiltered) return;
+    if (postsPending || postsFetchingNext) return;
+    if (focusPagesRef.current.id !== pendingFocus) {
+      focusPagesRef.current = { id: pendingFocus, pages: 0 };
+    }
+    if (!postsError && postsHasNext && focusPagesRef.current.pages < POST_FOCUS_MAX_PAGES) {
+      focusPagesRef.current.pages += 1;
+      void fetchNextPosts();
+      return;
+    }
+    toast.info(t("club.hub.postFocus.unavailable"));
+    finishPostFocus(pendingFocus);
+  }, [
+    pendingFocus,
+    focusLoaded,
+    focusUnfiltered,
+    postsPending,
+    postsError,
+    postsFetchingNext,
+    postsHasNext,
+    fetchNextPosts,
+    finishPostFocus,
+    t,
+  ]);
 
   const threadReactionsQ = useClubReactions({ targetType: "thread", targetIds: feedThreadIds });
   const threadActorsQ = useClubReactionActors({
@@ -597,7 +745,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
               query={debouncedQuery}
               onRetry={() => void searchQ.refetch()}
             />
-          ) : threadsQ.isError ? (
+          ) : threadsQ.isError && threadsQ.data === undefined ? (
             <ClubErrorNotice onRetry={() => void threadsQ.refetch()} />
           ) : threadsQ.isPending ? (
             <ClubThreadListSkeleton />
@@ -614,7 +762,7 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
                   : t(`club.hub.feed.empty.${mode}`)}
             </p>
           ) : (
-            <MentionDirectoryProvider slugs={feedAuthorSlugs} lang={lang}>
+            <MentionDirectoryProvider slugs={feedDirectorySlugs} lang={lang}>
               <div className="flex flex-col gap-3">
                 {feed.map((entry, index) => (
                   <ClubFeedItem
@@ -642,6 +790,9 @@ export function ClubHub({ club }: { club: ClubViewRow }) {
                     onThreadReact={(threadId, kind, active) =>
                       toggleThreadReaction.mutate({ targetId: threadId, kind, active })
                     }
+                    clubId={club.id}
+                    signedIn={signedIn}
+                    focusPostId={pendingFocus}
                   />
                 ))}
               </div>

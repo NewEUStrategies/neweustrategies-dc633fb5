@@ -7863,7 +7863,15 @@ html[data-mbb="on"] [data-site-shell] {
    - `club-reaction-tap`  - odbicie piktogramu po postawieniu reakcji.
    Wejścia kończą się na `transform: none`, więc po animacji karta nie tworzy
    bloku zawierającego dla dzieci `position: fixed`. Reduced motion wyłącza
-   wszystko - stan końcowy jest stanem bez animacji. */
+   wszystko - stan końcowy jest stanem bez animacji.
+
+   WEJŚCIE KARTY WYPEŁNIA TYLKO WSTECZ (`backwards`), nie `both`. Klatka `to`
+   jest stanem spoczynku elementu, więc wypełnienie w przód niczego nie
+   dokłada - a wypełniająca animacja `opacity`/`transform` działa jak
+   `will-change` i trzyma kartę jako OSOBNY kontekst nakładania. Wtedy lista
+   podpowiedzi @wzmianek (`z-50`) liczyła się tylko wewnątrz własnej karty
+   i chowała pod następną, a `opacity-60` usuwanego wiersza nie działało.
+   `backwards` dalej ukrywa karty czekające na swoją kolej w kaskadzie. */
 @keyframes club-feed-card-in-kf {
   from {
     opacity: 0;
@@ -7875,7 +7883,7 @@ html[data-mbb="on"] [data-site-shell] {
   }
 }
 .club-feed-card-in {
-  animation: club-feed-card-in-kf 320ms cubic-bezier(0.21, 1.02, 0.55, 1) both;
+  animation: club-feed-card-in-kf 320ms cubic-bezier(0.21, 1.02, 0.55, 1) backwards;
   animation-delay: calc(var(--feed-i, 0) * 45ms);
 }
 @keyframes club-feed-picker-in-kf {

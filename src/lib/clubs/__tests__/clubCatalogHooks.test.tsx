@@ -47,6 +47,11 @@ const { topicsApiMock, specializationsApiMock, postsApiMock, communityModules, l
       deleteClubPost: vi.fn(),
       toggleClubPostLike: vi.fn(),
       signClubMediaUrls: vi.fn(),
+      // Komentarze wpisów - `useClubPosts` importuje je obok hooków ściany,
+      // a `vi.mock` zastępuje moduł w całości.
+      fetchClubPostComments: vi.fn(),
+      createClubPostComment: vi.fn(),
+      deleteClubPostComment: vi.fn(),
     },
     communityModules: { value: { clubs_enabled: true } as Record<string, boolean> },
     linkPreviewMock: { fetchPreview: vi.fn() },

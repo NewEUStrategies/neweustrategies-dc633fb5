@@ -12,7 +12,8 @@
 // zmiana kolumny w migracji wychodzi na typach w KAŻDYM teście, który wiersza
 // używa, a nie dopiero w przeglądarce.
 import { CLUB_BASE_ISO, CLUB_IDS } from "@/test/clubs/fixtures";
-import type { ClubPostRow } from "@/lib/clubs/postTypes";
+import type { ClubPostCommentRow, ClubPostRow } from "@/lib/clubs/postTypes";
+import type { ClubReplyRow } from "@/lib/clubs/types";
 import type { ClubDocumentRow, ClubEventRow, ClubMilestoneRow } from "@/lib/clubs/workspaceTypes";
 
 /** Data bez strefy (`YYYY-MM-DD`) wyliczona z `CLUB_BASE_ISO` - `due_on` nie ma godziny. */
@@ -134,6 +135,57 @@ export function clubPostRow(overrides: Partial<ClubPostRow> = {}): ClubPostRow {
     can_manage: false,
     created_at: CLUB_BASE_ISO,
     edited_at: null,
+    total_count: 1,
+    comment_count: 0,
+    can_comment: true,
+    ...overrides,
+  };
+}
+
+/** Wiersz `club_post_comments_list` - komentarz pod wpisem ściany. */
+export function clubPostCommentRow(
+  overrides: Partial<ClubPostCommentRow> = {},
+): ClubPostCommentRow {
+  return {
+    id: "comment-1",
+    post_id: "post-1",
+    body: "Dziękuję za notatkę.",
+    link_preview: null,
+    status: "visible",
+    author_id: CLUB_IDS.lead,
+    author_name: "Jan Kowalski",
+    author_avatar: null,
+    author_slug: "jan-kowalski",
+    author_alias: null,
+    created_at: CLUB_BASE_ISO,
+    edited_at: null,
+    can_manage: false,
+    can_approve: false,
+    total_count: 1,
+    ...overrides,
+  };
+}
+
+/** Wiersz `club_replies_list` - odpowiedź w wątku (podgląd w karcie strumienia). */
+export function clubReplyRow(overrides: Partial<ClubReplyRow> = {}): ClubReplyRow {
+  return {
+    id: CLUB_IDS.reply,
+    parent_id: null,
+    depth: 0,
+    body: "Zgadzam się z wnioskiem.",
+    status: "visible",
+    is_anonymous: false,
+    author_id: CLUB_IDS.member,
+    author_name: "Anna Nowak",
+    author_avatar: null,
+    author_slug: "anna-nowak",
+    author_alias: null,
+    author_stance: null,
+    posted_by_admin_name: null,
+    reaction_count: 0,
+    created_at: CLUB_BASE_ISO,
+    edited_at: null,
+    is_resolution: false,
     total_count: 1,
     ...overrides,
   };

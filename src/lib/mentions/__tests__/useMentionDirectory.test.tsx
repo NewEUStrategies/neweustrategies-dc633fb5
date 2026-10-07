@@ -11,6 +11,9 @@
 //     zapytania (katalog pusty, bez rzucania do widoku).
 // (4) KLUCZ CACHE nie zależy od kolejności slugów; limit chroni URL PostgREST.
 // (5) BEZ DOSTAWCY zapytań katalog jest pusty i NIC nie leci do bazy.
+// (6) NOWY ZESTAW SLUGÓW nie zeruje katalogu: nowy komentarz albo doczytana
+//     strona to nowy klucz, a podpisy już widoczne nie mogą mrugać do
+//     etykiet zastępczych na czas zapytania (w tym samym języku).
 //
 // Mapowanie wierszy na byty ma `directory.test.ts`; tu chodzi o zapytania.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,6 +24,8 @@ import type { ReactNode } from "react";
 const db = vi.hoisted(() => ({
   personRows: [] as Record<string, unknown>[],
   personError: null as Error | null,
+  /** Gdy ustawiona, zapytanie o osoby czeka na nią - stan „w drodze” w teście. */
+  personGate: null as Promise<void> | null,
   /** Odpowiedź RPC per slug firmy. */
   orgs: new Map<string, { data: unknown; error: Error | null }>(),
   fromCalls: [] as Array<{ table: string; columns: string; slugs: readonly string[] }>,
@@ -33,6 +38,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       select: (columns: string) => ({
         in: async (_column: string, slugs: readonly string[]) => {
           db.fromCalls.push({ table, columns, slugs });
+          if (db.personGate !== null) await db.personGate;
           return { data: db.personError ? null : db.personRows, error: db.personError };
         },
       }),
@@ -63,6 +69,7 @@ function freshClient(): QueryClient {
 beforeEach(() => {
   db.personRows = [];
   db.personError = null;
+  db.personGate = null;
   db.orgs = new Map();
   db.fromCalls = [];
   db.rpcCalls = [];
@@ -165,6 +172,58 @@ describe("useMentionDirectory", () => {
     await waitFor(() => expect(pl.result.current.directory.size).toBe(1));
     expect(pl.result.current.directory.get("a")).toMatchObject({ bio: "Polski" });
     expect(en.result.current.directory.get("a")).toMatchObject({ bio: "English" });
+  });
+
+  it("nowy zestaw slugów trzyma POPRZEDNI katalog, dopóki nie dojedzie nowy", async () => {
+    db.personRows = [{ slug: "a", display_name: "Anna", current_company: "ACME" }];
+    const { result, rerender } = renderHook(
+      (props: { slugs: string[] }) => useMentionDirectory(props.slugs, "pl"),
+      { wrapper: wrapperWith(freshClient()), initialProps: { slugs: ["a"] } },
+    );
+    await waitFor(() => expect(result.current.directory.get("a")).toBeDefined());
+
+    // Drugie zapytanie wisi, dopóki test go nie zwolni - widać stan „w drodze”.
+    let release: () => void = () => {};
+    db.personGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    db.personRows = [
+      { slug: "a", display_name: "Anna", current_company: "ACME" },
+      { slug: "b", display_name: "Bartek Nowy" },
+    ];
+    rerender({ slugs: ["a", "b"] });
+    await waitFor(() => expect(db.fromCalls).toHaveLength(2));
+
+    // W trakcie: znany wpis zostaje (podpis nie mruga), nowy jeszcze nieznany.
+    expect(result.current.directory.get("a")).toMatchObject({ name: "Anna", company: "ACME" });
+    expect(result.current.directory.get("b")).toBeUndefined();
+
+    release();
+    await waitFor(() =>
+      expect(result.current.directory.get("b")).toMatchObject({ name: "Bartek Nowy" }),
+    );
+  });
+
+  it("po zmianie JĘZYKA stary katalog nie służy za zastępczy (biogram w drugim języku)", async () => {
+    db.personRows = [{ slug: "a", display_name: "Anna", bio_pl: "Polski", bio_en: "English" }];
+    const { result, rerender } = renderHook(
+      (props: { lang: "pl" | "en" }) => useMentionDirectory(["a"], props.lang),
+      { wrapper: wrapperWith(freshClient()), initialProps: { lang: "pl" as "pl" | "en" } },
+    );
+    await waitFor(() => expect(result.current.directory.get("a")).toMatchObject({ bio: "Polski" }));
+
+    let release: () => void = () => {};
+    db.personGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    rerender({ lang: "en" });
+    await waitFor(() => expect(db.fromCalls).toHaveLength(2));
+
+    expect(result.current.directory.get("a")).toBeUndefined();
+    release();
+    await waitFor(() =>
+      expect(result.current.directory.get("a")).toMatchObject({ bio: "English" }),
+    );
   });
 
   it("ponad limit slugów idzie tylko pierwsze sześćdziesiąt", async () => {
