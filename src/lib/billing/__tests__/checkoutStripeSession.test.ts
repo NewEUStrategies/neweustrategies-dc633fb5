@@ -358,7 +358,7 @@ beforeEach(() => {
   );
   chain.setResponse("posts", ok({ title_pl: "Analiza CEE", title_en: "CEE analysis" }));
   rpcResponses.set("my_ticket_allowance", ok(null));
-  rpcResponses.set("event_ticket_checkout_quote", ok(ticketQuote()));
+  rpcResponses.set("event_ticket_checkout_quote_for_user", ok(ticketQuote()));
   rpcResponses.set(
     "event_registration_payment_context",
     ok({ ok: true, event_id: EVENT_ID, ticket_type_id: TICKET_ID }),
@@ -724,7 +724,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
     // Bez tego kupujący widzi samą kwotę końcową i nie ma jak sprawdzić, że
     // promocja („pierwsza fala") faktycznie zadziałała.
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000 })),
     );
 
@@ -742,7 +742,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
     ["cokolwiek_nowego", "Kupon Rabat"],
   ])("faza `%s` dostaje etykietę `%s`", async (source, expected) => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000, phase: { source } })),
     );
 
@@ -753,7 +753,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("własna etykieta fazy z bazy bije etykietę zastępczą", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(
         ticketQuote({
           amount_cents: 12000,
@@ -770,7 +770,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("etykieta fazy schodzi na angielską, gdy nie ma polskiej", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(
         ticketQuote({
           amount_cents: 12000,
@@ -787,7 +787,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("faza podana jako tablica jest ignorowana - etykietą zostaje `Rabat`", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000, phase: [] })),
     );
 
@@ -798,7 +798,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("nieliczbowa cena regularna nie tworzy rabatu fazy", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: "15000" })),
     );
 
@@ -819,7 +819,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
     // Rabat jest ozdobą podsumowania; kwota do zapłaty jest już policzona.
     // Awaria tworzenia kuponu nie może kosztować sprzedaży wejściówki.
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000 })),
     );
     h.state.couponError = new Error("coupon api down");
@@ -838,7 +838,7 @@ describe("createCheckoutOrder - rabat fazy sprzedaży widoczny w nakładce", () 
 
   it("odpowiedź bez identyfikatora kuponu zostawia cenę końcową na pozycji", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ amount_cents: 12000, list_price_cents: 15000 })),
     );
     h.state.coupon = {};

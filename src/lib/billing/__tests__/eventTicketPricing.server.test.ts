@@ -104,7 +104,7 @@ beforeEach(() => {
   rpcResponses = new Map();
   couponAdmin.forward = recordedRpc;
   rpcResponses.set(
-    "event_ticket_checkout_quote",
+    "event_ticket_checkout_quote_for_user",
     ok({
       event_id: EVENT_ID,
       amount_cents: 10000,
@@ -406,7 +406,7 @@ describe("quoteEventTicketOrder - podgląd bez zgłoszenia", () => {
       planRedemption: false,
     });
     expect(rpcCalls.map((c) => c.fn)).toEqual([
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       "event_ticket_public_options",
     ]);
   });
@@ -701,7 +701,7 @@ describe("benefit planu - tylko na miejscu wołającego", () => {
   it("bilet za zero złotych z gośćmi to nadal odmowa, a nie benefit", async () => {
     plan.allowance = POOL;
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok({ event_id: EVENT_ID, amount_cents: 0, currency: "PLN" }),
     );
     group(3);
@@ -720,7 +720,7 @@ describe("benefit planu - tylko na miejscu wołającego", () => {
     expect(price).toMatchObject({ leadUnitCents: 0, planBenefit: "included", amountCents: 20000 });
     expect(rpcCalls.map((c) => c.fn)).toEqual([
       "event_registration_payment_context",
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       "event_ticket_public_options",
       "event_registration_group_seats",
       "event_registration_claim_plan_seat",
@@ -790,5 +790,52 @@ describe("benefit planu - tylko na miejscu wołającego", () => {
       totalCents: 14000,
       coupon: { code: "MINUS30", kind: "fixed", perSeatCents: null },
     });
+  });
+});
+
+// Kod dostępu do wejściówki to sonda: od 20261007140400 wycena idzie rolą
+// serwisową z jawnym kontem, a pudło baza oddaje WARTOŚCIĄ (wyjątek wycofałby
+// jego zliczenie). Ekran ma dostać ten sam kod odmowy co wtedy, gdy baza rzucała.
+describe("priceEventTicket - kod dostępu jako sonda (20261007140400)", () => {
+  const priceInput = (over: Record<string, unknown> = {}) => ({
+    userId: USER_ID,
+    eventId: EVENT_ID,
+    ticketTypeId: TICKET_ID,
+    registrationId: null,
+    accessCode: "PRESS",
+    ...over,
+  });
+
+  it("wycena niesie konto z sesji i kod - rolą serwisową", async () => {
+    await quoteEventTicketOrder(client(), priceInput());
+
+    const call = rpcCalls.find((c) => c.fn === "event_ticket_checkout_quote_for_user");
+    expect(call?.args).toMatchObject({
+      _tenant_id: "tenant-alfa",
+      _user_id: USER_ID,
+      p_ticket_type_id: TICKET_ID,
+      p_access_code: "PRESS",
+    });
+    expect(call?.args._probe_subject).toMatch(/^ip:[0-9a-f]{32}$/);
+  });
+
+  it("pudło zwrócone wartością to ta sama odmowa co dawny wyjątek - i nic dalej", async () => {
+    rpcResponses.set(
+      "event_ticket_checkout_quote_for_user",
+      ok({ ok: false, error: "ticket_access_code_invalid" }),
+    );
+
+    await expect(priceEventTicket(client(), priceInput())).rejects.toThrow(
+      /^ticket_access_code_invalid$/,
+    );
+    expect(rpcCalls.map((c) => c.fn)).toEqual(["event_ticket_checkout_quote_for_user"]);
+  });
+
+  it("odmowa bez powodu nie jest ceną - `ticket_not_available`", async () => {
+    rpcResponses.set("event_ticket_checkout_quote_for_user", ok({ ok: false }));
+
+    await expect(priceEventTicket(client(), priceInput())).rejects.toThrow(
+      /^ticket_not_available$/,
+    );
   });
 });

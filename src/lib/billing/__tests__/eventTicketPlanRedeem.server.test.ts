@@ -34,6 +34,27 @@ vi.mock("@/lib/events/ticketCodeNotify.server", () => ({
   },
 }));
 
+// Wycena idzie rolą serwisową z jawnym najemcą, kontem i skrótem adresu
+// (`quoteTicketCheckoutForUser`, migracja 20261007140400). Atrapa kieruje
+// wywołania `*_for_user` do TEJ SAMEJ tabeli odpowiedzi co klient kupującego.
+const quoteAdmin = vi.hoisted(() => ({
+  forward: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
+}));
+
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-alfa",
+}));
+
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: {
+    rpc: (fn: string, args: Record<string, unknown>) => {
+      if (quoteAdmin.forward === null) throw new Error("test: brak przekierowania roli serwisowej");
+      return quoteAdmin.forward(fn, args);
+    },
+  },
+}));
+
 const { redeemPlanTicket, REDEEM_REFUSALS } =
   await import("@/lib/billing/eventTicketPlanRedeem.server");
 const { ticketCheckoutRefusal } = await import("@/lib/events/admissionApi");
@@ -43,16 +64,20 @@ type Client = Parameters<typeof redeemPlanTicket>[0];
 let rpcCalls: { fn: string; args: Record<string, unknown> }[];
 let rpcResponses: Map<string, unknown>;
 
-function client(): Client {
-  return {
-    rpc: (fn: string, args: Record<string, unknown> = {}) => {
-      rpcCalls.push({ fn, args });
-      return Promise.resolve(rpcResponses.get(fn) ?? fail(`test: brak odpowiedzi RPC "${fn}"`));
-    },
-  } as never;
+/** Jedna tabela odpowiedzi dla klienta kupującego i roli serwisowej. */
+function recordedRpc(fn: string, args: Record<string, unknown> = {}): Promise<unknown> {
+  rpcCalls.push({ fn, args });
+  return Promise.resolve(rpcResponses.get(fn) ?? fail(`test: brak odpowiedzi RPC "${fn}"`));
 }
 
+function client(): Client {
+  return { rpc: recordedRpc } as never;
+}
+
+const USER_ID = "aaaaaaaa-0000-4000-8000-000000000001";
+
 const input = (over: Record<string, unknown> = {}) => ({
+  userId: USER_ID,
   eventId: EVENT_ID,
   ticketTypeId: TICKET_ID,
   registrationId: REGISTRATION_ID,
@@ -65,12 +90,13 @@ beforeEach(() => {
   issued.sent = 1;
   rpcCalls = [];
   rpcResponses = new Map();
+  quoteAdmin.forward = recordedRpc;
   rpcResponses.set(
     "event_registration_payment_context",
     ok({ ok: true, event_id: EVENT_ID, ticket_type_id: TICKET_ID, holder_is_caller: true }),
   );
   rpcResponses.set(
-    "event_ticket_checkout_quote",
+    "event_ticket_checkout_quote_for_user",
     ok({ event_id: EVENT_ID, amount_cents: 10000, currency: "EUR", name_pl: "Bilet" }),
   );
   rpcResponses.set("event_ticket_public_options", ok({ tax_mode: "inclusive" }));
@@ -92,7 +118,7 @@ describe("redeemPlanTicket - odbiór biletu z puli", () => {
     expect(result).toEqual({ ok: true, registrationId: REGISTRATION_ID, ticketsSent: 1 });
     expect(rpcCalls.map((c) => c.fn)).toEqual([
       "event_registration_payment_context",
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       "event_ticket_public_options",
       "event_registration_group_seats",
       "event_registration_claim_plan_seat",
@@ -100,7 +126,11 @@ describe("redeemPlanTicket - odbiór biletu z puli", () => {
     ]);
     // Wycena NIGDY nie zajmuje puli - robi to baza razem z przyjęciem.
     expect(rpcCalls[4].args).toEqual({ p_registration_id: REGISTRATION_ID, p_dry_run: true });
-    expect(rpcCalls[1].args).toMatchObject({ p_access_code: "VIP" });
+    expect(rpcCalls[1].args).toMatchObject({
+      _tenant_id: "tenant-alfa",
+      _user_id: USER_ID,
+      p_access_code: "VIP",
+    });
     expect(rpcCalls[5].args).toEqual({ p_registration_id: REGISTRATION_ID });
     expect(issued.ids).toEqual([REGISTRATION_ID]);
   });

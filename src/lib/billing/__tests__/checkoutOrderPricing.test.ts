@@ -47,6 +47,7 @@ const PAGE_ID = "ffffffff-0000-4000-8000-000000000006";
 /** Rola serwisowa jest granicą - handler dotyka jej tylko awaryjnie. */
 const admin = vi.hoisted(() => ({
   rpcCalls: [] as { fn: string; args: unknown }[],
+  forward: null as null | ((fn: string, args: unknown) => Promise<unknown>),
 }));
 
 vi.mock("@tanstack/react-start", async () =>
@@ -68,9 +69,20 @@ vi.mock("@/integrations/supabase/auth-middleware", () => ({
   requireSupabaseAuth: { name: "requireSupabaseAuth" },
 }));
 
+// Wycena wejściówki idzie rolą serwisową z jawnym najemcą, kontem i skrótem
+// adresu (`quoteTicketCheckoutForUser`, migracja 20261007140400) - ta jedna
+// funkcja odpowiada z TEJ SAMEJ tabeli co klient kupującego.
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-alfa",
+}));
+
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
     rpc: (fn: string, args: unknown) => {
+      if (fn === "event_ticket_checkout_quote_for_user" && admin.forward !== null) {
+        return admin.forward(fn, args);
+      }
       admin.rpcCalls.push({ fn, args });
       return Promise.resolve({ data: true, error: null });
     },
@@ -249,6 +261,7 @@ beforeEach(() => {
   chain = supabaseFromStub();
   rpcCalls = [];
   rpcResponses = new Map<string, SupabaseResult>();
+  admin.forward = (fn, args) => client().rpc(fn, args as Record<string, unknown>);
 
   // Bramka płatności NIESKONFIGUROWANA - handler kończy w trybie mock.
   // Bramka adresu powrotu czyta konfigurację wdrożenia. Bez wyzerowania obu
@@ -279,7 +292,7 @@ beforeEach(() => {
     "event_seat_state",
     ok([{ event_id: EVENT_ID, capacity: null, seats_left: null, going: 0, waitlist: 0 }]),
   );
-  rpcResponses.set("event_ticket_checkout_quote", ok(ticketQuote()));
+  rpcResponses.set("event_ticket_checkout_quote_for_user", ok(ticketQuote()));
   rpcResponses.set("payment_order_mark_session", ok(true));
 });
 
@@ -526,26 +539,29 @@ describe("createCheckoutOrder - bilet z cennika wydarzenia", () => {
     ticketPayload({ ticket_type_id: TICKET_ID, ...over });
 
   it("BŁĄD wyceny biletu zatrzymuje zamówienie", async () => {
-    rpcResponses.set("event_ticket_checkout_quote", fail("ticket window closed"));
+    rpcResponses.set("event_ticket_checkout_quote_for_user", fail("ticket window closed"));
 
     await expect(call(withTicketType())).rejects.toThrow("ticket window closed");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
   });
 
   it("nieczytelna wycena (tablica zamiast obiektu) jest odmową, nie ceną zero", async () => {
-    rpcResponses.set("event_ticket_checkout_quote", ok([]));
+    rpcResponses.set("event_ticket_checkout_quote_for_user", ok([]));
 
     await expect(call(withTicketType())).rejects.toThrow("ticket_not_available");
   });
 
   it("wycena bez wydarzenia jest odmową", async () => {
-    rpcResponses.set("event_ticket_checkout_quote", ok(ticketQuote({ event_id: null })));
+    rpcResponses.set("event_ticket_checkout_quote_for_user", ok(ticketQuote({ event_id: null })));
 
     await expect(call(withTicketType())).rejects.toThrow("ticket_not_available");
   });
 
   it("wejściówka Z INNEGO wydarzenia jest odrzucana - webhook potwierdziłby cudze RSVP", async () => {
-    rpcResponses.set("event_ticket_checkout_quote", ok(ticketQuote({ event_id: OTHER_EVENT_ID })));
+    rpcResponses.set(
+      "event_ticket_checkout_quote_for_user",
+      ok(ticketQuote({ event_id: OTHER_EVENT_ID })),
+    );
 
     await expect(call(withTicketType())).rejects.toThrow("ticket_not_available");
     expect(chain.chainsFor("payment_orders")).toHaveLength(0);
@@ -561,7 +577,10 @@ describe("createCheckoutOrder - bilet z cennika wydarzenia", () => {
   });
 
   it("wycena bez liczbowej kwoty jest traktowana jak zero, a więc jako odmowa", async () => {
-    rpcResponses.set("event_ticket_checkout_quote", ok(ticketQuote({ amount_cents: "15000" })));
+    rpcResponses.set(
+      "event_ticket_checkout_quote_for_user",
+      ok(ticketQuote({ amount_cents: "15000" })),
+    );
 
     await expect(call(withTicketType())).rejects.toThrow("ticket_included_in_plan");
   });
@@ -579,20 +598,20 @@ describe("createCheckoutOrder - bilet z cennika wydarzenia", () => {
     // co dla wejściówki chronionej zaproszeniem jest inną ścieżką niż brak kodu.
     await call(withTicketType({ access_code: "" }));
 
-    const quoteCall = rpcCalls.find((c) => c.fn === "event_ticket_checkout_quote");
+    const quoteCall = rpcCalls.find((c) => c.fn === "event_ticket_checkout_quote_for_user");
     expect(quoteCall?.args.p_access_code).toBeUndefined();
   });
 
   it("podany kod dostępu jedzie do bazy - porównuje go ona, nie serwer aplikacji", async () => {
     await call(withTicketType({ access_code: "ZAPROSZENIE-1" }));
 
-    const quoteCall = rpcCalls.find((c) => c.fn === "event_ticket_checkout_quote");
+    const quoteCall = rpcCalls.find((c) => c.fn === "event_ticket_checkout_quote_for_user");
     expect(quoteCall?.args.p_access_code).toBe("ZAPROSZENIE-1");
   });
 
   it("waluta i etykieta pochodzą z wyceny bazy", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ currency: "EUR", amount_cents: 5000 })),
     );
 
@@ -603,7 +622,7 @@ describe("createCheckoutOrder - bilet z cennika wydarzenia", () => {
   });
 
   it("wycena bez waluty schodzi na złotówki, nie na pustkę", async () => {
-    rpcResponses.set("event_ticket_checkout_quote", ok(ticketQuote({ currency: null })));
+    rpcResponses.set("event_ticket_checkout_quote_for_user", ok(ticketQuote({ currency: null })));
 
     await call(withTicketType());
 
@@ -612,7 +631,7 @@ describe("createCheckoutOrder - bilet z cennika wydarzenia", () => {
 
   it("bez nazwy wejściówki etykietą jest sam tytuł wydarzenia", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ name_pl: null, name_en: null })),
     );
 
@@ -623,7 +642,7 @@ describe("createCheckoutOrder - bilet z cennika wydarzenia", () => {
 
   it("bez tytułu polskiego etykieta schodzi na angielski", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(ticketQuote({ event_title_pl: null, name_pl: null })),
     );
 
@@ -634,7 +653,7 @@ describe("createCheckoutOrder - bilet z cennika wydarzenia", () => {
 
   it("bez żadnego tytułu etykieta jest pusta, a zamówienie i tak powstaje", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(
         ticketQuote({
           event_title_pl: null,

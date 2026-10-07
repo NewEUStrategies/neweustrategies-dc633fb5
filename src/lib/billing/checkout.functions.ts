@@ -154,6 +154,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
       // miejsc fail-closed) opisuje tamten moduł.
       const { priceEventTicket } = await import("@/lib/billing/eventTicketPricing.server");
       const price = await priceEventTicket(supabase, {
+        userId,
         eventId: data.event_id as string,
         ticketTypeId: data.ticket_type_id,
         registrationId,

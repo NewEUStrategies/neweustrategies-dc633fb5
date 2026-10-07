@@ -29425,6 +29425,16 @@ export type Database = {
         Args: { p_access_code?: string; p_ticket_type_id: string }
         Returns: Json
       }
+      event_ticket_checkout_quote_for_user: {
+        Args: {
+          _probe_subject: string
+          _tenant_id: string
+          _user_id: string
+          p_access_code?: string
+          p_ticket_type_id: string
+        }
+        Returns: Json
+      }
       event_ticket_public_options: {
         Args: { p_ticket_type_id: string }
         Returns: Json

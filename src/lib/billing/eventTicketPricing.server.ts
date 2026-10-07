@@ -33,10 +33,12 @@
 // Teraz to odmowa z nazwą, którą ekran mapuje na zdanie.
 //
 // Moduł server-only: woła RPC klientem Z SESJĄ wołającego (RLS i `auth.uid()`).
-// Jedyny wyjątek to walidacja KODU (`validate_event_ticket_coupon_for_user`,
-// 20261007120600): rola serwisowa z jawnym kontem i skrótem adresu przez
-// `couponRpc.server.ts`, bo kubełek pudeł po adresie musi siedzieć w bazie,
-// a funkcja z JWT była dla zalogowanego osiągalna wprost przez PostgREST.
+// Wyjątki to dwie SONDY KODÓW: walidacja kodu rabatowego
+// (`validate_event_ticket_coupon_for_user`, 20261007120600) i wycena z kodem
+// dostępu (`event_ticket_checkout_quote_for_user`, 20261007140400) - rola
+// serwisowa z jawnym kontem i skrótem adresu, bo kubełek pudeł po adresie musi
+// siedzieć w bazie, a funkcje z JWT były dla zalogowanego osiągalne wprost
+// przez PostgREST.
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/integrations/supabase/types";
@@ -57,6 +59,11 @@ export const MIN_TICKET_TOTAL_CENTS = 50;
 const NO_TICKET_TYPE = "00000000-0000-0000-0000-000000000000";
 
 export interface EventTicketPriceInput {
+  /**
+   * Konto z sesji (`requireSupabaseAuth`) - wycena idzie rolą serwisową
+   * z jawnym kontem, a pudła kodu dostępu liczą się w jego kubełku.
+   */
+  userId: string;
   eventId: string;
   ticketTypeId: string;
   /** Zgłoszenie etapu 4, za które płacimy (`null` = kasa bez zgłoszenia). */
@@ -166,14 +173,25 @@ export async function priceEventTicket(
   // CENNIK WYDARZENIA. Kwotę, okno sprzedaży, miejsca, rangę członkostwa i kod
   // dostępu rozstrzyga JEDNA funkcja bazy - ta sama, z której czyta publiczna
   // karta biletu.
-  const { data: quote, error: quoteErr } = await supabase.rpc("event_ticket_checkout_quote", {
-    p_ticket_type_id: input.ticketTypeId,
-    // `undefined` = brak klucza w żądaniu; RPC ma wtedy własny default.
-    p_access_code: input.accessCode === "" ? undefined : input.accessCode,
-  });
+  // Kod dostępu to sonda - wycena idzie funkcją serwerową z kubełkiem pudeł
+  // konta, adresu i biletu (`quoteTicketCheckoutForUser`, 20261007140400).
+  const { quoteTicketCheckoutForUser } = await import("@/lib/events/admissionRpc.server");
+  const { data: quote, error: quoteErr } = await quoteTicketCheckoutForUser(
+    supabase,
+    input.userId,
+    {
+      ticketTypeId: input.ticketTypeId,
+      accessCode: input.accessCode,
+    },
+  );
   if (quoteErr) throw new Error(quoteErr.message);
   const parsed = objectOf(quote);
   if (parsed === null) throw new Error("ticket_not_available");
+  // Pudło kodu dostępu wraca WARTOŚCIĄ (wyjątek wycofałby jego zliczenie) -
+  // ekran dostaje ten sam kod co wtedy, gdy baza rzucała.
+  if (parsed.ok === false) {
+    throw new Error(typeof parsed.error === "string" ? parsed.error : "ticket_not_available");
+  }
   // Bilet MUSI należeć do wydarzenia wskazanego przez klienta - inaczej webhook
   // potwierdziłby RSVP na innym wydarzeniu niż opłacone.
   if (typeof parsed.event_id !== "string" || parsed.event_id !== input.eventId) {

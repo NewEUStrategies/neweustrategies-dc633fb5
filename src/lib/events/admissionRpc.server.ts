@@ -85,3 +85,40 @@ export async function purchasePackageForUser(
   const legacy = await userClient.rpc("event_package_purchase", { p_payload: payload });
   return { data: legacy.data, error: plainError(legacy.error) };
 }
+
+/**
+ * `event_ticket_checkout_quote_for_user` dla konta z sesji (skalar jsonb) -
+ * wycena wejściówki dla kasy, podglądu i odbioru biletu z planu.
+ *
+ * Kod dostępu do biletu (prasa, partnerzy) to też sonda „czy ten kod
+ * istnieje": od migracji 20261007140400 baza liczy jego pudła w kubełku
+ * biletu, konta i adresu, a pudło oddaje WARTOŚCIĄ (`{ ok: false, error }`),
+ * bo wyjątek wycofałby zliczenie. Stara funkcja z JWT kupującego była dla
+ * zalogowanego wyrocznią bez żadnego licznika.
+ */
+export async function quoteTicketCheckoutForUser(
+  userClient: UserClient,
+  userId: string,
+  input: { ticketTypeId: string; accessCode?: string },
+): Promise<AdmissionRpcResult> {
+  const { tenantId, probeSubject } = await requestProbeIdentity();
+  if (!tenantId) return TENANT_UNRESOLVED;
+
+  // `undefined` = brak klucza w żądaniu; RPC ma wtedy własny default.
+  const accessCode = input.accessCode === "" ? undefined : input.accessCode;
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.rpc("event_ticket_checkout_quote_for_user", {
+    _tenant_id: tenantId,
+    _user_id: userId,
+    _probe_subject: probeSubject,
+    p_ticket_type_id: input.ticketTypeId,
+    p_access_code: accessCode,
+  });
+  if (!isMigrationPending(error)) return { data, error: plainError(error) };
+
+  const legacy = await userClient.rpc("event_ticket_checkout_quote", {
+    p_ticket_type_id: input.ticketTypeId,
+    p_access_code: accessCode,
+  });
+  return { data: legacy.data, error: plainError(legacy.error) };
+}

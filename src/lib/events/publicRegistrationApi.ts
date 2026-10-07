@@ -175,6 +175,12 @@ export async function submitRegistration(input: RegisterInput): Promise<Registra
   if (error) throw error;
 
   const source = bag(data);
+  // Pudło kodu dostępu baza oddaje WARTOŚCIĄ (od 20261007140400 - wyjątek
+  // wycofywał zliczenie próby). Ekran mapuje odmowę po głowie komunikatu,
+  // więc rzucamy ten sam kształt, który dawał wyjątek bazy.
+  if (source !== null && source.ok === false && typeof source.error === "string") {
+    throw new Error(`${source.error}: registration refused`);
+  }
   const registrationId = source === null ? null : nullableText(source, "registration_id");
   if (source === null || registrationId === null) {
     // Zapis mógł się udać, ale bez identyfikatora nie umiemy go pokazać ani

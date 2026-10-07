@@ -302,7 +302,7 @@ beforeEach(() => {
     "event_registration_payment_context",
     ok({ ok: true, event_id: EVENT_ID, ticket_type_id: TICKET_ID }),
   );
-  rpcResponses.set("event_ticket_checkout_quote", ok(quote()));
+  rpcResponses.set("event_ticket_checkout_quote_for_user", ok(quote()));
   rpcResponses.set("my_ticket_allowance", ok(null));
   rpcResponses.set("event_ticket_public_options", ok({ tax_mode: "inclusive" }));
   rpcResponses.set("event_registration_group_seats", ok(3));
@@ -366,7 +366,7 @@ describe("createCheckoutOrder - kod kwotowy na zamówieniu grupowym", () => {
 
   it("early bird 80 zł (regularna 100 zł) i kod -20 zł na 3 miejscach: 180 zł, jeden kupon 120 zł", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(quote({ amount_cents: 8000, list_price_cents: 10000, phase: { source: "early_bird" } })),
     );
 
@@ -735,7 +735,7 @@ describe("createCheckoutOrder - pozycja w Stripe i pole kodu operatora", () => {
     // się przez 2.
     rpcResponses.set("event_registration_group_seats", ok(2));
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(quote({ amount_cents: 1003, list_price_cents: 1003 })),
     );
     rpcResponses.set("validate_event_ticket_coupon_for_user", percentCode(25));
@@ -765,7 +765,7 @@ describe("createCheckoutOrder - pozycja w Stripe i pole kodu operatora", () => {
 
   it("cena miejsca poniżej minimum operatora zostaje jedną linią za całość", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(quote({ amount_cents: 40, list_price_cents: 40 })),
     );
 
@@ -780,7 +780,7 @@ describe("createCheckoutOrder - pozycja w Stripe i pole kodu operatora", () => {
 
   it("pozycja bez żadnego tytułu dostaje nazwę zastępczą także jako „N × cena”", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(quote({ name_pl: null, event_title_pl: null })),
     );
 
@@ -794,7 +794,7 @@ describe("createCheckoutOrder - pozycja w Stripe i pole kodu operatora", () => {
 
   it("nazwa kuponu z długą fazą i kodem mieści się w limicie Stripe", async () => {
     rpcResponses.set(
-      "event_ticket_checkout_quote",
+      "event_ticket_checkout_quote_for_user",
       ok(
         quote({
           amount_cents: 8000,
