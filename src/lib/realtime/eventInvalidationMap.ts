@@ -175,6 +175,13 @@ export const eventInvalidationMap: Record<DomainEventType, InvalidationRule> = {
     ...clubEventKeys(event),
     clubKeys.repliesAll(eventPayloadText(event, "thread_id")),
   ],
+  // Komentarz pod wpisem: lista komentarzy wpisu i licznik na karcie zyja pod
+  // `postsAll(clubId)`, wiec jeden prefiks obejmuje oba - bez ruszania watkow.
+  "club_post_comment.created.v1": (event) => {
+    const clubId = eventPayloadText(event, "club_id");
+    // Uszkodzony payload bez klubu: jak `clubEventKeys` - caly modul klubow.
+    return clubId === "" ? [clubKeys.all] : [clubKeys.postsAll(clubId)];
+  },
   // Zmiana czlonkostwa rusza takze WLASNE czlonkostwa odbiorcy: lista "Moje
   // kluby" w naglowku produktu przestaje byc prawdziwa w tej samej chwili.
   "club_member.changed.v1": (event) => [...clubEventKeys(event), clubKeys.memberships()],

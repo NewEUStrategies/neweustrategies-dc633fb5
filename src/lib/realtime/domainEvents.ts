@@ -69,6 +69,9 @@ export const DOMAIN_EVENT_TYPES = [
   "club_thread.status_changed.v1",
   "club_reply.created.v1",
   "club_reply.status_changed.v1",
+  // Komentarz pod wpisem sciany (migracja 20261007100100) - emitowany
+  // z triggera, payload: club_id, post_id, status; w chatham bez aktora.
+  "club_post_comment.created.v1",
   "club_member.changed.v1",
   // Przestrzen robocza watku (migracja 20260808300000). Zrodlo i termin sa
   // TRESCIA PLATFORMY, nie prywatna notatka watku: strona aktu prawnego pyta
