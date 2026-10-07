@@ -22246,23 +22246,42 @@ export type Database = {
     }
     Functions: {
       _are_connected: { Args: { _a: string; _b: string }; Returns: boolean }
-      _b2b_coupon_evaluate: {
-        Args: {
-          _amount_cents: number
-          _currency: string
-          c: Database["public"]["Tables"]["b2b_coupons"]["Row"]
-        }
-        Returns: {
-          coupon_id: string
-          discount_cents: number
-          discount_kind: string
-          discount_percent: number
-          error: string
-          final_cents: number
-          label: string
-          ok: boolean
-        }[]
-      }
+      _b2b_coupon_evaluate:
+        | {
+            Args: {
+              _amount_cents: number
+              _currency: string
+              c: Database["public"]["Tables"]["b2b_coupons"]["Row"]
+            }
+            Returns: {
+              coupon_id: string
+              discount_cents: number
+              discount_kind: string
+              discount_percent: number
+              error: string
+              final_cents: number
+              label: string
+              ok: boolean
+            }[]
+          }
+        | {
+            Args: {
+              _amount_cents: number
+              _currency: string
+              c: Database["public"]["Tables"]["b2b_coupons"]["Row"]
+              p_uid: string
+            }
+            Returns: {
+              coupon_id: string
+              discount_cents: number
+              discount_kind: string
+              discount_percent: number
+              error: string
+              final_cents: number
+              label: string
+              ok: boolean
+            }[]
+          }
       _caller_tenant: { Args: never; Returns: string }
       _club_slugify: { Args: { p_text: string }; Returns: string }
       _club_unique_slug: {
@@ -22273,8 +22292,16 @@ export type Database = {
         Args: { p_uid: string }
         Returns: Record<string, unknown>
       }
-      _coupon_probe_guard: { Args: never; Returns: undefined }
-      _coupon_probe_miss: { Args: never; Returns: undefined }
+      _coupon_probe_guard:
+        | { Args: never; Returns: undefined }
+        | { Args: { p_ip_subject: string; p_uid: string }; Returns: undefined }
+      _coupon_probe_ip_bucket: {
+        Args: { p_subject: string }
+        Returns: Record<string, unknown>
+      }
+      _coupon_probe_miss:
+        | { Args: never; Returns: undefined }
+        | { Args: { p_ip_subject: string; p_uid: string }; Returns: undefined }
       _coupon_refusal: {
         Args: { p_amount_cents: number; p_error: string }
         Returns: Json
@@ -22282,6 +22309,10 @@ export type Database = {
       _crm_source_type_rank: {
         Args: { p_source_type: string }
         Returns: number
+      }
+      _event_admission_quote: {
+        Args: { p_ip_subject: string; p_payload: Json }
+        Returns: Json
       }
       _event_ads_clean: {
         Args: { p_max: number; p_value: string }
@@ -22878,6 +22909,10 @@ export type Database = {
         Returns: Json
       }
       _event_package_coupon_link_backfill: { Args: never; Returns: Json }
+      _event_package_purchase: {
+        Args: { p_ip_subject: string; p_payload: Json }
+        Returns: Json
+      }
       _event_page_chain_published: {
         Args: { _page_id: string }
         Returns: boolean
@@ -23300,9 +23335,70 @@ export type Database = {
         }[]
       }
       _profile_link_route: { Args: { p_profile_id: string }; Returns: string }
+      _redeem_b2b_coupon: {
+        Args: {
+          _applied_cents: number
+          _coupon_id: string
+          _currency: string
+          _order_id: string
+          _original_cents: number
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: boolean
+      }
+      _require_server_identity: {
+        Args: { p_probe_subject: string; p_tenant: string; p_uid: string }
+        Returns: undefined
+      }
+      _set_request_identity: {
+        Args: { p_claims: string; p_role: string; p_sub: string }
+        Returns: undefined
+      }
       _suggest_score: {
         Args: { _a: string; _b: string; _q: string }
         Returns: number
+      }
+      _validate_b2b_coupon: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _plan_id: string
+          p_ip_subject: string
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: Json
+      }
+      _validate_event_ticket_coupon: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _event_id: string
+          _ticket_type_id: string
+          p_ip_subject: string
+          p_tenant: string
+          p_uid: string
+        }
+        Returns: Json
+      }
+      _verify_content_password: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_hash: string
+          _password: string
+          p_tenant: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          content_en: string
+          content_pl: string
+          ok: boolean
+        }[]
       }
       accept_my_user_invitation: {
         Args: never
@@ -26232,6 +26328,34 @@ export type Database = {
         Args: { p_badge: string; p_note?: string; p_user_id: string }
         Returns: string
       }
+      admin_list_ad_slots: {
+        Args: never
+        Returns: {
+          created_at: string
+          height: number | null
+          html: string | null
+          id: string
+          image_alt: string | null
+          image_link: string | null
+          image_url: string | null
+          kind: Database["public"]["Enums"]["ad_slot_kind"]
+          name: string
+          notes: string | null
+          requires_consent: boolean
+          script: string | null
+          status: Database["public"]["Enums"]["ad_slot_status"]
+          targeting: Json
+          tenant_id: string
+          updated_at: string
+          width: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "ad_slots"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       admin_list_events: {
         Args: { p_q?: string; p_status?: string }
         Returns: {
@@ -28806,6 +28930,15 @@ export type Database = {
         Returns: string
       }
       event_admission_quote: { Args: { p_payload: Json }; Returns: Json }
+      event_admission_quote_for_user: {
+        Args: {
+          _probe_subject: string
+          _tenant_id: string
+          _user_id: string
+          p_payload: Json
+        }
+        Returns: Json
+      }
       event_ads_retention_prune: { Args: never; Returns: Json }
       event_agenda: {
         Args: { p_slug: string }
@@ -29128,6 +29261,15 @@ export type Database = {
         Returns: Json
       }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
+      event_package_purchase_for_user: {
+        Args: {
+          _probe_subject: string
+          _tenant_id: string
+          _user_id: string
+          p_payload: Json
+        }
+        Returns: Json
+      }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
       event_packages_offer: {
         Args: { p_slug: string }
@@ -31028,6 +31170,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      redeem_b2b_coupon_for_user: {
+        Args: {
+          _applied_cents: number
+          _coupon_id: string
+          _currency: string
+          _order_id: string
+          _original_cents: number
+          _tenant_id: string
+          _user_id: string
+        }
+        Returns: boolean
+      }
       redeem_b2b_coupon_with_effects: {
         Args: {
           _applied_cents: number
@@ -31566,6 +31720,18 @@ export type Database = {
         }
         Returns: Json
       }
+      validate_b2b_coupon_for_user: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _plan_id: string
+          _probe_subject: string
+          _tenant_id: string
+          _user_id: string
+        }
+        Returns: Json
+      }
       validate_event_ticket_coupon: {
         Args: {
           _amount_cents: number
@@ -31573,6 +31739,19 @@ export type Database = {
           _currency: string
           _event_id: string
           _ticket_type_id: string
+        }
+        Returns: Json
+      }
+      validate_event_ticket_coupon_for_user: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _event_id: string
+          _probe_subject: string
+          _tenant_id: string
+          _ticket_type_id: string
+          _user_id: string
         }
         Returns: Json
       }
@@ -31598,6 +31777,22 @@ export type Database = {
           _entity_type: Database["public"]["Enums"]["access_entity_type"]
           _ip_hash?: string
           _password: string
+        }
+        Returns: {
+          blocks_data: Json
+          builder_data: Json
+          content_en: string
+          content_pl: string
+          ok: boolean
+        }[]
+      }
+      verify_content_password_for_tenant: {
+        Args: {
+          _entity_id: string
+          _entity_type: Database["public"]["Enums"]["access_entity_type"]
+          _ip_hash: string
+          _password: string
+          _tenant_id: string
         }
         Returns: {
           blocks_data: Json
