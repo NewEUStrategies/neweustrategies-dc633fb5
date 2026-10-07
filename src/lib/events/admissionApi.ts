@@ -10,8 +10,14 @@
 // POWOD ODMOWY NIE JEST WYJATKIEM. Wycena zwraca `{ ok: false, reason }`, bo
 // „jeszcze nie w sprzedazy" albo „stawka wymaga potwierdzenia" to normalny stan
 // ekranu, a nie awaria - zdanie dla czlowieka sklada `admissionQuoteMessageKey`.
+//
+// WYCENA I ZAKUP IDA PRZEZ SERWER (`admission.functions.ts`). Kazde wywolanie
+// z kodem rabatowym to sonda kodu; z przegladarki omijala kubelek pudel po
+// adresie (migracja 20261007120600). Odpowiedz wraca w ksztalcie PostgREST,
+// wiec odmowy i bledy czyta ten sam slownik co dotad.
 import { supabase } from "@/integrations/supabase/client";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { purchaseEventPackage, quoteEventAdmission } from "@/lib/events/admission.functions";
 
 type Fns = Database["public"]["Functions"];
 
@@ -275,7 +281,9 @@ export async function quoteAdmission(input: AdmissionQuoteInput): Promise<Admiss
   const code = (input.couponCode ?? "").trim();
   if (code !== "") payload.coupon_code = code;
 
-  const { data, error } = await supabase.rpc("event_admission_quote", { p_payload: payload });
+  // Z serwera, nie z przegladarki: sonda kodu liczy sie w kubelku konta
+  // I adresu (migracja 20261007120600, `admission.functions.ts`).
+  const { data, error } = await quoteEventAdmission({ data: payload });
   if (error) throw rpcError(error);
   return parseAdmissionQuote(data);
 }
@@ -322,7 +330,7 @@ export async function purchasePackage(input: PackagePurchaseInput): Promise<Pack
   if (input.invoiceNote.trim() !== "") payload.invoice_note = input.invoiceNote.trim();
   if (input.couponCode.trim() !== "") payload.coupon_code = input.couponCode.trim();
 
-  const { data, error } = await supabase.rpc("event_package_purchase", { p_payload: payload });
+  const { data, error } = await purchaseEventPackage({ data: payload });
   if (error) throw rpcError(error);
   const row = record(data);
   // Odmowe `coupon_unknown` baza zwraca WARTOSCIA (20261001210000), bo wyjatek

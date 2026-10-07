@@ -12,8 +12,9 @@
 --
 -- CO PRZYPINA: klucz `company_id` (z identyfikatorem istniejacej firmy,
 -- nieistniejacej i pustym) to `forbidden_field` PRZED jakimkolwiek zapisem;
--- zakup bez klucza tworzy zamowienie z `company_id` NULL; funkcja zostaje
--- wykonywalna tylko dla authenticated i service_role.
+-- zakup bez klucza tworzy zamowienie z `company_id` NULL. Od 20261007120600
+-- zakup idzie WYLACZNIE z serwera (`event_package_purchase_for_user`, tylko
+-- service_role, konto z sesji jawnie) - zasada firmy zostaje ta sama.
 BEGIN;
 SELECT plan(7);
 
@@ -44,29 +45,34 @@ INSERT INTO public.event_ticket_packages
    'pkg_trojka', 'Pakiet 3', 'Pack of 3', 'public', 3, 54000, 'PLN');
 
 SELECT ok(
-  NOT has_function_privilege('anon', 'public.event_package_purchase(jsonb)', 'EXECUTE')
-  AND has_function_privilege('authenticated', 'public.event_package_purchase(jsonb)', 'EXECUTE'),
-  'zakup pakietu: authenticated tak, anon nie (uprawnienia bez zmian)');
+  NOT has_function_privilege('anon', 'public.event_package_purchase_for_user(uuid,uuid,text,jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_package_purchase_for_user(uuid,uuid,text,jsonb)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.event_package_purchase_for_user(uuid,uuid,text,jsonb)', 'EXECUTE'),
+  'zakup pakietu: tylko service_role (serwer z kontem z sesji), ani anon, ani authenticated');
 
-SELECT set_config('request.headers', '{"x-tenant-host":"pkg-company-a.example"}', true);
-SELECT set_config('request.jwt.claims',
-  '{"sub":"ac000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
-SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL ROLE service_role;
 
 SELECT throws_ok(
-  $$SELECT public.event_package_purchase(jsonb_build_object(
+  $$SELECT public.event_package_purchase_for_user('ac0a0000-0000-0000-0000-0000000000aa',
+      'ac000000-0000-0000-0000-0000000000b1', 'ip:acacacacacacacacacacacacacacacac',
+      jsonb_build_object(
       'package_id', 'ac500000-0000-0000-0000-0000000000a1',
       'company_id', 'ac700000-0000-0000-0000-0000000000c1'))$$,
   'P0001', 'forbidden_field: company_id is assigned by the organizer',
   'firma z kartoteki CRM wskazana przez kupujacego: odmowa (dawniej przypinala zamowienie)');
 SELECT throws_ok(
-  $$SELECT public.event_package_purchase(jsonb_build_object(
+  $$SELECT public.event_package_purchase_for_user('ac0a0000-0000-0000-0000-0000000000aa',
+      'ac000000-0000-0000-0000-0000000000b1', 'ip:acacacacacacacacacacacacacacacac',
+      jsonb_build_object(
       'package_id', 'ac500000-0000-0000-0000-0000000000a1',
       'company_id', 'ac700000-0000-0000-0000-0000000000ff'))$$,
   'P0001', 'forbidden_field: company_id is assigned by the organizer',
   'nieistniejaca firma: TA SAMA odmowa (bez wyroczni 23503 o identyfikatorach CRM)');
 SELECT throws_ok(
-  $$SELECT public.event_package_purchase(jsonb_build_object(
+  $$SELECT public.event_package_purchase_for_user('ac0a0000-0000-0000-0000-0000000000aa',
+      'ac000000-0000-0000-0000-0000000000b1', 'ip:acacacacacacacacacacacacacacacac',
+      jsonb_build_object(
       'package_id', 'ac500000-0000-0000-0000-0000000000a1', 'company_id', ''))$$,
   'P0001', 'forbidden_field: company_id is assigned by the organizer',
   'pusty klucz company_id to tez blad wolajacego, nie cicha zmiana znaczenia');
@@ -78,9 +84,11 @@ SELECT is(
   0,
   'odmowa zapada przed zapisem: ani zamowienia, ani miejsc');
 
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE service_role;
 SELECT ok(
-  (public.event_package_purchase(jsonb_build_object(
+  (public.event_package_purchase_for_user('ac0a0000-0000-0000-0000-0000000000aa',
+      'ac000000-0000-0000-0000-0000000000b1', 'ip:acacacacacacacacacacacacacacacac',
+      jsonb_build_object(
      'package_id', 'ac500000-0000-0000-0000-0000000000a1',
      'buyer_name', 'Zofia Wierzbicka'))->>'order_id') IS NOT NULL,
   'zakup bez klucza company_id przechodzi');

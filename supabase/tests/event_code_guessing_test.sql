@@ -3,7 +3,9 @@
 -- i 20261001210000_event_code_scalar_verdicts, blizniak drizzle 0118: wynik
 -- skalarny walidatorow i zakup pakietu bez wyjatku po pudle; dalej
 -- 20261007120200_plan_coupon_server_only: kod na plan i rezerwacja uzycia tylko
--- z serwera, z jawnym najemca, kontem i kubelkiem pudel po adresie).
+-- z serwera, z jawnym najemca, kontem i kubelkiem pudel po adresie;
+-- 20261007120600_event_codes_server_only: to samo dla kodow WYDARZEN -
+-- walidacja kodu na bilet, wycena i zakup pakietu tylko z serwera).
 --
 -- DEFEKT (audyt wydania 12, 16.8 i 16.15 pkt 6): `validate_b2b_coupon` byl
 -- wykonywalny dla PUBLIC i anon, `event_coupon_revealed_tickets` dla anon,
@@ -21,7 +23,9 @@
 -- AKCEPTACJA N-13-1 (audyt ed13): kod na plan zalogowany sprawdza WYLACZNIE
 -- przez serwer (`validate_b2b_coupon_for_user`, tylko service_role), a baza
 -- liczy pudla takze po adresie - farma kont za jednym adresem dostaje odmowe
--- po 120 pudlach, bez wzgledu na liczbe kont.
+-- po 120 pudlach, bez wzgledu na liczbe kont. To samo dla kodow wydarzen
+-- (zadanie „Close IP-bucket bypass for event ticket codes"): walidacja kodu na
+-- bilet, wycena i zakup pakietu licza pudla w TYM SAMYM kubelku adresu.
 --
 -- now() jest staly w transakcji, wiec cala proba siedzi w jednym oknie
 -- kubelka - granica okna nie moze rozjechac licznika w trakcie testu.
@@ -33,7 +37,7 @@
 -- Uruchamianie: patrz supabase/tests/README.md (`supabase test db`).
 
 BEGIN;
-SELECT plan(61);
+SELECT plan(78);
 
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 
@@ -57,7 +61,13 @@ INSERT INTO auth.users (id, email) VALUES
   ('ec000000-0000-0000-0000-0000000000f4', 'ecg-farm4@example.org'),
   ('ec000000-0000-0000-0000-0000000000f5', 'ecg-farm5@example.org'),
   ('ec000000-0000-0000-0000-0000000000f6', 'ecg-farm6@example.org'),
-  ('ec000000-0000-0000-0000-0000000000b1', 'ecg-buyer@example.org');
+  ('ec000000-0000-0000-0000-0000000000b1', 'ecg-buyer@example.org'),
+  ('ec000000-0000-0000-0000-0000000000c1', 'ecg-efarm1@example.org'),
+  ('ec000000-0000-0000-0000-0000000000c2', 'ecg-efarm2@example.org'),
+  ('ec000000-0000-0000-0000-0000000000c3', 'ecg-efarm3@example.org'),
+  ('ec000000-0000-0000-0000-0000000000c4', 'ecg-efarm4@example.org'),
+  ('ec000000-0000-0000-0000-0000000000c5', 'ecg-efarm5@example.org'),
+  ('ec000000-0000-0000-0000-0000000000c6', 'ecg-efarm6@example.org');
 
 INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
   ('ec000000-0000-0000-0000-0000000000a1', 'ecg-u1@example.org', 'ECG U1', 'ec0a0000-0000-0000-0000-0000000000aa'),
@@ -65,7 +75,14 @@ INSERT INTO public.profiles (id, email, display_name, tenant_id) VALUES
   ('ec000000-0000-0000-0000-0000000000a3', 'ecg-u3@example.org', 'ECG U3', 'ec0a0000-0000-0000-0000-0000000000aa'),
   ('ec000000-0000-0000-0000-0000000000a4', 'ecg-u4@example.org', 'ECG U4', 'ec0a0000-0000-0000-0000-0000000000aa'),
   ('ec000000-0000-0000-0000-0000000000a5', 'ecg-u5@example.org', 'ECG U5', 'ec0a0000-0000-0000-0000-0000000000aa'),
-  ('ec000000-0000-0000-0000-0000000000a6', 'ecg-u6@example.org', 'ECG U6', 'ec0a0000-0000-0000-0000-0000000000aa');
+  ('ec000000-0000-0000-0000-0000000000a6', 'ecg-u6@example.org', 'ECG U6', 'ec0a0000-0000-0000-0000-0000000000aa'),
+  -- konta farmy kodow wydarzen: wycena czyta najemce z PROFILU wolajacego
+  ('ec000000-0000-0000-0000-0000000000c1', 'ecg-efarm1@example.org', 'ECG C1', 'ec0a0000-0000-0000-0000-0000000000aa'),
+  ('ec000000-0000-0000-0000-0000000000c2', 'ecg-efarm2@example.org', 'ECG C2', 'ec0a0000-0000-0000-0000-0000000000aa'),
+  ('ec000000-0000-0000-0000-0000000000c3', 'ecg-efarm3@example.org', 'ECG C3', 'ec0a0000-0000-0000-0000-0000000000aa'),
+  ('ec000000-0000-0000-0000-0000000000c4', 'ecg-efarm4@example.org', 'ECG C4', 'ec0a0000-0000-0000-0000-0000000000aa'),
+  ('ec000000-0000-0000-0000-0000000000c5', 'ecg-efarm5@example.org', 'ECG C5', 'ec0a0000-0000-0000-0000-0000000000aa'),
+  ('ec000000-0000-0000-0000-0000000000c6', 'ecg-efarm6@example.org', 'ECG C6', 'ec0a0000-0000-0000-0000-0000000000aa');
 
 INSERT INTO public.events (id, tenant_id, slug, title_pl, title_en, starts_at, status) VALUES
   ('ec100000-0000-0000-0000-0000000000e1', 'ec0a0000-0000-0000-0000-0000000000aa',
@@ -180,6 +197,31 @@ SELECT ok(to_regprocedure('public.event_coupon_revealed_tickets(uuid,text)') IS 
 SELECT ok(NOT has_function_privilege('anon', 'public.event_admission_quote(jsonb)', 'EXECUTE'),
   'anon NIE ma EXECUTE na event_admission_quote');
 SELECT ok(
+  NOT has_function_privilege('authenticated', 'public.validate_event_ticket_coupon(text,uuid,uuid,integer,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_admission_quote(jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_package_purchase(jsonb)', 'EXECUTE'),
+  'authenticated NIE ma EXECUTE na walidacji kodu na bilet, wycenie i zakupie pakietu - PostgREST wprost omijal kubelek adresu');
+SELECT ok(
+  NOT has_function_privilege('anon', 'public.validate_event_ticket_coupon_for_user(uuid,uuid,text,text,uuid,uuid,integer,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.validate_event_ticket_coupon_for_user(uuid,uuid,text,text,uuid,uuid,integer,text)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.validate_event_ticket_coupon_for_user(uuid,uuid,text,text,uuid,uuid,integer,text)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.event_admission_quote_for_user(uuid,uuid,text,jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_admission_quote_for_user(uuid,uuid,text,jsonb)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.event_admission_quote_for_user(uuid,uuid,text,jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public.event_package_purchase_for_user(uuid,uuid,text,jsonb)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public.event_package_purchase_for_user(uuid,uuid,text,jsonb)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.event_package_purchase_for_user(uuid,uuid,text,jsonb)', 'EXECUTE'),
+  'wersje *_for_user kodow wydarzen wykonuje WYLACZNIE service_role (serwer zna adres i sesje)');
+SELECT ok(
+  NOT has_function_privilege('authenticated', 'public._set_request_identity(text,text,text)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public._set_request_identity(text,text,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._require_server_identity(uuid,uuid,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._validate_event_ticket_coupon(uuid,uuid,text,text,uuid,uuid,integer,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_admission_quote(jsonb,text)', 'EXECUTE')
+  AND NOT has_function_privilege('authenticated', 'public._event_package_purchase(jsonb,text)', 'EXECUTE')
+  AND NOT has_function_privilege('anon', 'public._event_package_purchase(jsonb,text)', 'EXECUTE'),
+  'rdzenie i ustawianie tozsamosci zadania sa niedostepne dla anon i authenticated');
+SELECT ok(
   NOT has_function_privilege('anon', 'public._coupon_probe_guard()', 'EXECUTE')
   AND NOT has_function_privilege('authenticated', 'public._coupon_probe_guard()', 'EXECUTE')
   AND NOT has_function_privilege('anon', 'public._coupon_probe_miss()', 'EXECUTE')
@@ -208,7 +250,16 @@ SELECT ok(
                                'public.validate_b2b_coupon_for_user(uuid,uuid,text,text,uuid,integer,text)'::regprocedure,
                                'public._redeem_b2b_coupon(uuid,uuid,uuid,uuid,integer,integer,text)'::regprocedure,
                                'public.redeem_b2b_coupon_for_user(uuid,uuid,uuid,uuid,integer,integer,text)'::regprocedure,
-                               'public.redeem_b2b_coupon(uuid,uuid,integer,integer,text)'::regprocedure)
+                               'public.redeem_b2b_coupon(uuid,uuid,integer,integer,text)'::regprocedure,
+                               'public._set_request_identity(text,text,text)'::regprocedure,
+                               'public._require_server_identity(uuid,uuid,text)'::regprocedure,
+                               'public._validate_event_ticket_coupon(uuid,uuid,text,text,uuid,uuid,integer,text)'::regprocedure,
+                               'public.validate_event_ticket_coupon_for_user(uuid,uuid,text,text,uuid,uuid,integer,text)'::regprocedure,
+                               'public._event_admission_quote(jsonb,text)'::regprocedure,
+                               'public.event_admission_quote_for_user(uuid,uuid,text,jsonb)'::regprocedure,
+                               'public._event_package_purchase(jsonb,text)'::regprocedure,
+                               'public.event_package_purchase(jsonb)'::regprocedure,
+                               'public.event_package_purchase_for_user(uuid,uuid,text,jsonb)'::regprocedure)
                  AND a.grantee = 0),
   'PUBLIC nie ma EXECUTE na zadnej funkcji sondy ani rezerwacji kodu');
 SELECT is(
@@ -217,8 +268,11 @@ SELECT is(
     WHERE p.oid IN ('public.validate_b2b_coupon(text,uuid,integer,text)'::regprocedure,
                     'public.validate_b2b_coupon_for_user(uuid,uuid,text,text,uuid,integer,text)'::regprocedure,
                     'public.validate_event_ticket_coupon(text,uuid,uuid,integer,text)'::regprocedure,
-                    'public.event_admission_quote(jsonb)'::regprocedure)),
-  'vvvv',
+                    'public.validate_event_ticket_coupon_for_user(uuid,uuid,text,text,uuid,uuid,integer,text)'::regprocedure,
+                    'public.event_admission_quote(jsonb)'::regprocedure,
+                    'public.event_admission_quote_for_user(uuid,uuid,text,jsonb)'::regprocedure,
+                    'public.event_package_purchase_for_user(uuid,uuid,text,jsonb)'::regprocedure)),
+  'vvvvvvv',
   'walidacja i wycena sa VOLATILE (PostgREST wykonuje STABLE tylko do odczytu, a pudlo jest zapisem)');
 SELECT is(
   (SELECT count(*)::int
@@ -227,10 +281,13 @@ SELECT is(
                     'public.validate_b2b_coupon_for_user(uuid,uuid,text,text,uuid,integer,text)'::regprocedure,
                     'public.validate_event_ticket_coupon(text,uuid,uuid,integer,text)'::regprocedure,
                     'public.event_admission_quote(jsonb)'::regprocedure,
-                    'public.event_package_purchase(jsonb)'::regprocedure)
+                    'public.event_package_purchase(jsonb)'::regprocedure,
+                    'public.validate_event_ticket_coupon_for_user(uuid,uuid,text,text,uuid,uuid,integer,text)'::regprocedure,
+                    'public.event_admission_quote_for_user(uuid,uuid,text,jsonb)'::regprocedure,
+                    'public.event_package_purchase_for_user(uuid,uuid,text,jsonb)'::regprocedure)
       AND NOT p.proretset
       AND p.prorettype = 'jsonb'::regtype),
-  5,
+  8,
   'funkcje zliczajace pudlo zwracaja skalar jsonb: PostgREST nie przefiltruje wyniku i nie wycofa zapisu pudla zaleznie od odpowiedzi');
 
 -- ── 15-22. Jedna odpowiedz dla pudla (a2) ───────────────────────────────────
@@ -284,31 +341,30 @@ SELECT is(
   'najemca z argumentu: kod najemcy A w najemcy B to pudlo (najemca nie przychodzi z naglowka)');
 RESET ROLE;
 
--- Kody wydarzen nadal woluje JWT uczestnika (wycena z przegladarki).
-SELECT set_config('request.jwt.claims',
-  '{"sub":"ec000000-0000-0000-0000-0000000000a2","role":"authenticated"}', true);
-SET LOCAL ROLE authenticated;
+-- Kod na bilet: tez tylko serwer z jawnym kontem i skrotem adresu (20261007120600).
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL ROLE service_role;
 SELECT is(
-  public.validate_event_ticket_coupon('ECG-E2',
+  public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a2', 'ip:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2', 'ECG-E2',
      'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN'),
-  public.validate_event_ticket_coupon('ECG-NIE-MA',
+  public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a2', 'ip:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2', 'ECG-NIE-MA',
      'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN'),
   'kod INNEGO wydarzenia jest nieodroznialny od pudla (akceptacja audytu)');
 SELECT is(
-  public.validate_event_ticket_coupon('ECG-PLANONLY',
+  public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a2', 'ip:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2', 'ECG-PLANONLY',
      'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN'),
-  public.validate_event_ticket_coupon('ECG-NIE-MA',
+  public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a2', 'ip:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2', 'ECG-NIE-MA',
      'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN'),
   'kod tylko planowy na bilecie jest nieodroznialny od pudla (bylo plan_not_eligible z id)');
 SELECT is(
-  public.validate_event_ticket_coupon('ECG-STDONLY',
+  public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a2', 'ip:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2', 'ECG-STDONLY',
      'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f1', 50000, 'PLN'),
   '{"ok":false,"error":"ticket_not_eligible","coupon_id":null,"discount_cents":0,"final_cents":50000,"label":null,"discount_kind":null,"discount_percent":null}'::jsonb,
   'kod tego wydarzenia na inny bilet: ticket_not_eligible bez danych kodu');
 SELECT is(
-  public.validate_event_ticket_coupon('ECG-E2-OLD',
+  public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a2', 'ip:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2', 'ECG-E2-OLD',
      'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN'),
-  public.validate_event_ticket_coupon('ECG-NIE-MA',
+  public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a2', 'ip:a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2', 'ECG-NIE-MA',
      'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN'),
   'WYGASLY kod innego wydarzenia tez wyglada jak pudlo, a nie jak expired');
 RESET ROLE;
@@ -337,16 +393,15 @@ SELECT throws_ok(
   'P0001', 'rate_limited: too many code attempts, try again later',
   'przy pelnym kubelku DOBRY kod tez dostaje odmowe - zablokowany nie ma wyroczni');
 RESET ROLE;
-SELECT set_config('request.jwt.claims',
-  '{"sub":"ec000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
-SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL ROLE service_role;
 SELECT throws_ok(
-  $$SELECT * FROM public.validate_event_ticket_coupon('ECG-E1',
+  $$SELECT * FROM public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a1', 'ip:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1', 'ECG-E1',
       'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN')$$,
   'P0001', 'rate_limited: too many code attempts, try again later',
   'kubelek jest wspolny dla planu i biletu - zmiana sciezki nie daje nowych prob');
 SELECT throws_ok(
-  $$SELECT public.event_admission_quote(jsonb_build_object(
+  $$SELECT public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a1', 'ip:a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1', jsonb_build_object(
       'ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-E1'))$$,
   'P0001', 'rate_limited: too many code attempts, try again later',
   'kubelek obejmuje tez wycene wejsciowki i pakietu');
@@ -394,24 +449,23 @@ SELECT is(
 RESET ROLE;
 
 -- ── 32-33. Wycena wejsciowki (a4) ───────────────────────────────────────────
-SELECT set_config('request.jwt.claims',
-  '{"sub":"ec000000-0000-0000-0000-0000000000a4","role":"authenticated"}', true);
-SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL ROLE service_role;
 SELECT is(
-  public.event_admission_quote(jsonb_build_object(
+  public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a4', 'ip:a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4', jsonb_build_object(
     'ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-E2')),
-  public.event_admission_quote(jsonb_build_object(
+  public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a4', 'ip:a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4', jsonb_build_object(
     'ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-NIE-MA')),
   'wycena: kod innego wydarzenia daje te sama odpowiedz co pudlo (bylo coupon_other_event)');
 SELECT is(
-  public.event_admission_quote(jsonb_build_object(
+  public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a4', 'ip:a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4', jsonb_build_object(
     'ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-E2'))->>'reason',
   'coupon_unknown',
   'wycena: ta odpowiedz to coupon_unknown');
 SELECT is(
-  public.event_admission_quote(jsonb_build_object(
+  public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a4', 'ip:a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4', jsonb_build_object(
     'ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-E2-OLD')),
-  public.event_admission_quote(jsonb_build_object(
+  public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a4', 'ip:a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4', jsonb_build_object(
     'ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-NIE-MA')),
   'wycena: WYGASLY kod innego wydarzenia to coupon_unknown, a nie coupon_expired');
 RESET ROLE;
@@ -420,13 +474,12 @@ RESET ROLE;
 -- Gdyby kod innego wydarzenia, tylko planowy, przypiety do wydarzen na planie
 -- albo wylaczony nie liczyl sie jako pudlo, bylby darmowa proba - i dalby sie
 -- odroznic od pudla momentem, w ktorym przychodzi odmowa limitu.
-SELECT set_config('request.jwt.claims',
-  '{"sub":"ec000000-0000-0000-0000-0000000000a5","role":"authenticated"}', true);
-SET LOCAL ROLE authenticated;
-SELECT public.validate_event_ticket_coupon(code,
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL ROLE service_role;
+SELECT public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a5', 'ip:a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5', code,
          'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN')
   FROM unnest(ARRAY['ECG-E2', 'ECG-PLANONLY', 'ECG-E2-OLD']) AS code;
-SELECT public.event_admission_quote(jsonb_build_object(
+SELECT public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a5', 'ip:a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5', jsonb_build_object(
     'ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-E2'));
 RESET ROLE;
 SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
@@ -442,33 +495,38 @@ SELECT is(
       AND subject_id = 'user:ec000000-0000-0000-0000-0000000000a5'),
   6,
   'szesc prob kodami spoza zakresu = szesc pudel w kubelku (jak szesc nieistniejacych kodow)');
+SELECT is(
+  (SELECT count FROM public.rate_limits
+    WHERE scope = 'coupon_probe_miss.ip'
+      AND subject_id = 'ip:a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5'),
+  6,
+  'te same szesc pudel w kubelku ADRESU - kod na bilet i wycena licza po adresie jak kod na plan');
 
 -- ── Zakup pakietu nie wycofuje pudla (a6) ───────────────────────────────────
 -- Dawniej zakup rzucal `refused_coupon_unknown` PO zapisaniu pudla przez
 -- wycene, wiec wyjatek wycofywal zapis i zakup byl nieograniczona wyrocznia.
-SELECT set_config('request.jwt.claims',
-  '{"sub":"ec000000-0000-0000-0000-0000000000a6","role":"authenticated"}', true);
-SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', true);
+SET LOCAL ROLE service_role;
 SELECT is(
-  public.event_package_purchase(jsonb_build_object(
+  public.event_package_purchase_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a6', 'ip:a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6', jsonb_build_object(
     'package_id', 'ec500000-0000-0000-0000-0000000000a1', 'coupon_code', 'ECG-PAKIET-1')),
   '{"ok": false, "reason": "coupon_unknown"}'::jsonb,
   'zakup z nieistniejacym kodem zwraca odmowe WARTOSCIA (transakcja zatwierdza pudlo)');
 SELECT is(
   (SELECT count(*)::int
      FROM generate_series(2, 30) g
-    WHERE public.event_package_purchase(jsonb_build_object(
+    WHERE public.event_package_purchase_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a6', 'ip:a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6', jsonb_build_object(
             'package_id', 'ec500000-0000-0000-0000-0000000000a1',
             'coupon_code', 'ECG-PAKIET-' || g))->>'reason' = 'coupon_unknown'),
   29,
   'kolejne 29 zakupow z pudlem - kazdy to zwykla odmowa coupon_unknown');
 SELECT throws_ok(
-  $$SELECT public.event_package_purchase(jsonb_build_object(
+  $$SELECT public.event_package_purchase_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a6', 'ip:a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6', jsonb_build_object(
       'package_id', 'ec500000-0000-0000-0000-0000000000a1', 'coupon_code', 'ECG-PAKIET-31'))$$,
   'P0001', 'rate_limited: too many code attempts, try again later',
   'trzydziesty pierwszy zakup z kodem w oknie konczy sie odmowa limitu');
 SELECT throws_ok(
-  $$SELECT public.event_package_purchase(jsonb_build_object(
+  $$SELECT public.event_package_purchase_for_user('ec0a0000-0000-0000-0000-0000000000aa', 'ec000000-0000-0000-0000-0000000000a6', 'ip:a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6', jsonb_build_object(
       'package_id', 'ec500000-0000-0000-0000-0000000000a1', 'coupon_code', 'ECG-E1'))$$,
   'P0001', 'rate_limited: too many code attempts, try again later',
   'przy pelnym kubelku zakup z ISTNIEJACYM kodem tez dostaje odmowe limitu');
@@ -479,6 +537,12 @@ SELECT is(
       AND subject_id = 'user:ec000000-0000-0000-0000-0000000000a6'),
   30,
   'pudla z zakupow zostaly w kubelku (30), a odmowy po zapelnieniu go nie podbijaja');
+SELECT is(
+  (SELECT count FROM public.rate_limits
+    WHERE scope = 'coupon_probe_miss.ip'
+      AND subject_id = 'ip:a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6'),
+  30,
+  'zakup pakietu liczy pudla takze w kubelku adresu');
 SELECT is(
   (SELECT count(*)::int FROM public.event_package_orders
     WHERE package_id = 'ec500000-0000-0000-0000-0000000000a1'),
@@ -514,6 +578,105 @@ SELECT ok(
      'ec000000-0000-0000-0000-0000000000f6', 'ip:f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6',
      'ECG-PLAN10', NULL, 10000, 'PLN')->>'ok')::boolean,
   'to samo konto z innego adresu dziala - limit dotyczy adresu, nie konta');
+
+-- ── Farma kont za jednym adresem: KODY WYDARZEN (20261007120600) ────────────
+-- Do tej migracji walidacja kodu na bilet, wycena i zakup pakietu byly
+-- wykonywalne dla `authenticated` z kubelkiem KONTA, a limit adresu zyl tylko
+-- w TS - PostgREST wprost go omijal. Piec kont (po 24 pudla, pod limitem konta
+-- 30) za jednym adresem: kazda z trzech sciezek liczy pudla w TYM SAMYM
+-- kubelku adresu, a szoste, swieze konto dostaje odmowe przy pierwszej probie.
+SELECT is(
+  (SELECT count(*)::int
+     FROM unnest(ARRAY['ec000000-0000-0000-0000-0000000000c1',
+                       'ec000000-0000-0000-0000-0000000000c2',
+                       'ec000000-0000-0000-0000-0000000000c3',
+                       'ec000000-0000-0000-0000-0000000000c4',
+                       'ec000000-0000-0000-0000-0000000000c5']::uuid[]) AS u(id),
+          generate_series(1, 8) g
+    WHERE public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa',
+            u.id, 'ip:ecececececececececececececececec',
+            'ECG-EFARMA-' || u.id || '-' || g, 'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN')->>'error' = 'not_found'),
+  40,
+  'kod na bilet: 40 pudel z pieciu kont za jednym adresem dostaje zwykla odpowiedz');
+SELECT is(
+  (SELECT count(*)::int
+     FROM unnest(ARRAY['ec000000-0000-0000-0000-0000000000c1',
+                       'ec000000-0000-0000-0000-0000000000c2',
+                       'ec000000-0000-0000-0000-0000000000c3',
+                       'ec000000-0000-0000-0000-0000000000c4',
+                       'ec000000-0000-0000-0000-0000000000c5']::uuid[]) AS u(id),
+          generate_series(1, 8) g
+    WHERE public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa',
+            u.id, 'ip:ecececececececececececececececec',
+            jsonb_build_object('ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2',
+                               'coupon_code', 'ECG-QFARMA-' || u.id || '-' || g))->>'reason' = 'coupon_unknown'),
+  40,
+  'wycena: kolejne 40 pudel z tych samych kont i adresu');
+SELECT is(
+  (SELECT count(*)::int
+     FROM unnest(ARRAY['ec000000-0000-0000-0000-0000000000c1',
+                       'ec000000-0000-0000-0000-0000000000c2',
+                       'ec000000-0000-0000-0000-0000000000c3',
+                       'ec000000-0000-0000-0000-0000000000c4',
+                       'ec000000-0000-0000-0000-0000000000c5']::uuid[]) AS u(id),
+          generate_series(1, 8) g
+    WHERE public.event_package_purchase_for_user('ec0a0000-0000-0000-0000-0000000000aa',
+            u.id, 'ip:ecececececececececececececececec',
+            jsonb_build_object('package_id', 'ec500000-0000-0000-0000-0000000000a1',
+                               'coupon_code', 'ECG-PFARMA-' || u.id || '-' || g))->>'reason' = 'coupon_unknown'),
+  40,
+  'zakup pakietu: kolejne 40 pudel - razem 120, po 24 na konto');
+SELECT is(
+  (SELECT count FROM public.rate_limits
+    WHERE scope = 'coupon_probe_miss.ip'
+      AND subject_id = 'ip:ecececececececececececececececec'),
+  120,
+  'kubelek adresu: 120 pudel z trzech sciezek kodow wydarzen');
+SELECT throws_ok(
+  $$SELECT public.validate_event_ticket_coupon_for_user('ec0a0000-0000-0000-0000-0000000000aa',
+      'ec000000-0000-0000-0000-0000000000c6', 'ip:ecececececececececececececececec',
+      'ECG-E1', 'ec100000-0000-0000-0000-0000000000e1', 'ec200000-0000-0000-0000-0000000000f2', 20000, 'PLN')$$,
+  'P0001', 'rate_limited: too many code attempts, try again later',
+  'SWIEZE szoste konto z tego adresu: kod na bilet odmawia przy pierwszej probie (takze DOBRY kod)');
+SELECT throws_ok(
+  $$SELECT public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa',
+      'ec000000-0000-0000-0000-0000000000c6', 'ip:ecececececececececececececececec',
+      jsonb_build_object('ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-E1'))$$,
+  'P0001', 'rate_limited: too many code attempts, try again later',
+  'swieze konto z tego adresu: wycena z kodem tez odmawia');
+SELECT throws_ok(
+  $$SELECT public.event_package_purchase_for_user('ec0a0000-0000-0000-0000-0000000000aa',
+      'ec000000-0000-0000-0000-0000000000c6', 'ip:ecececececececececececececececec',
+      jsonb_build_object('package_id', 'ec500000-0000-0000-0000-0000000000a1', 'coupon_code', 'ECG-E1'))$$,
+  'P0001', 'rate_limited: too many code attempts, try again later',
+  'swieze konto z tego adresu: zakup pakietu z kodem tez odmawia');
+SELECT is(
+  (public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa',
+     'ec000000-0000-0000-0000-0000000000c6', 'ip:c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6',
+     jsonb_build_object('ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-E1'))->>'discount_cents')::int,
+  4000,
+  'to samo konto z innego adresu dostaje wycene z rabatem kodu - konto z argumentu jest wolajacym wyceny');
+SELECT ok(
+  auth.uid() IS NULL AND auth.role() = 'service_role',
+  'po powrocie wersji serwerowej tozsamosc zadania wraca do roli serwisowej (request.jwt.claim* odtworzone)');
+SELECT is(
+  public.event_admission_quote_for_user('ec0b0000-0000-0000-0000-0000000000bb',
+    'ec000000-0000-0000-0000-0000000000c6', 'ip:c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6',
+    jsonb_build_object('ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2'))->>'reason',
+  'not_found',
+  'najemca hosta inny niz najemca profilu: wycena not_found (jak dotad dla pakietu spoza najemcy profilu)');
+SELECT throws_ok(
+  $$SELECT public.event_package_purchase_for_user('ec0b0000-0000-0000-0000-0000000000bb',
+      'ec000000-0000-0000-0000-0000000000c6', 'ip:c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6',
+      jsonb_build_object('package_id', 'ec500000-0000-0000-0000-0000000000a1'))$$,
+  'P0001', 'refused_not_found: not_found',
+  'najemca hosta inny niz najemca profilu: zakup pakietu odmawia jak wycena');
+SELECT throws_ok(
+  $$SELECT public.event_admission_quote_for_user('ec0a0000-0000-0000-0000-0000000000aa',
+      'ec000000-0000-0000-0000-0000000000c6', '203.0.113.7',
+      jsonb_build_object('ticket_type_id', 'ec200000-0000-0000-0000-0000000000f2', 'coupon_code', 'ECG-E1'))$$,
+  'P0001', 'invalid_payload: probe subject must be a salted address hash',
+  'wycena serwerowa: surowy adres zamiast solonego skrotu jest odrzucany');
 
 -- Wejscie funkcji serwerowej: bez konta i bez skrotu adresu to blad wolajacego.
 SELECT throws_ok(

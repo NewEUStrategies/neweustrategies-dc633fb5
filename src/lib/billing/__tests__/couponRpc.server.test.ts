@@ -33,7 +33,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: { rpc: (...args: unknown[]) => h.admin(...args) },
 }));
 
-const { redeemCouponForUser, validatePlanCouponForUser } =
+const { redeemCouponForUser, validateEventTicketCouponForUser, validatePlanCouponForUser } =
   await import("@/lib/billing/couponRpc.server");
 
 const USER = "dddddddd-0000-4000-8000-00000000000d";
@@ -45,6 +45,18 @@ const validation = {
   code: "PARTNER-CEE",
   planId: PLAN,
   amountCents: 4900,
+  currency: "PLN",
+};
+
+const EVENT = "abababab-0000-4000-8000-0000000000ab";
+const TICKET = "cdcdcdcd-0000-4000-8000-0000000000cd";
+
+const eventValidation = {
+  userId: USER,
+  code: "PARTNER-EVENT",
+  eventId: EVENT,
+  ticketTypeId: TICKET,
+  amountCents: 30000,
   currency: "PLN",
 };
 
@@ -127,6 +139,78 @@ describe("validatePlanCouponForUser", () => {
         error,
       });
     }
+    expect(h.user).not.toHaveBeenCalled();
+  });
+});
+
+describe("validateEventTicketCouponForUser (kod na bilet, 20261007120600)", () => {
+  it("woła funkcję serwerową z najemcą hosta, kontem i solonym skrótem adresu", async () => {
+    const result = await validateEventTicketCouponForUser(userClient, eventValidation);
+
+    expect(result).toEqual({ data: { ok: true }, error: null });
+    expect(h.admin).toHaveBeenCalledWith("validate_event_ticket_coupon_for_user", {
+      _tenant_id: "aaaaaaaa-0000-4000-8000-00000000000a",
+      _user_id: USER,
+      _probe_subject: expect.stringMatching(/^ip:[0-9a-f]{32}$/),
+      _code: "PARTNER-EVENT",
+      _event_id: EVENT,
+      _ticket_type_id: TICKET,
+      _amount_cents: 30000,
+      _currency: "PLN",
+    });
+    expect(JSON.stringify(h.admin.mock.lastCall)).not.toContain("198.51.100.23");
+    expect(h.user).not.toHaveBeenCalled();
+  });
+
+  it("ten sam adres = ten sam podmiot co kod planu (jeden kubełek adresu dla obu ścieżek)", async () => {
+    await validatePlanCouponForUser(userClient, validation);
+    await validateEventTicketCouponForUser(userClient, eventValidation);
+
+    const [plan, event] = h.admin.mock.calls.map(
+      (call) => (call[1] as { _probe_subject: string })._probe_subject,
+    );
+    expect(event).toBe(plan);
+  });
+
+  it("host bez najemcy: awaria bez pytania bazy", async () => {
+    h.tenant = null;
+    const result = await validateEventTicketCouponForUser(userClient, eventValidation);
+
+    expect(result.error?.message).toMatch(/^tenant_unresolved/);
+    expect(h.admin).not.toHaveBeenCalled();
+    expect(h.user).not.toHaveBeenCalled();
+  });
+
+  it.each(["PGRST202", "42883"])(
+    "OKNO WDROŻENIA (%s): stara funkcja klientem kupującego, te same argumenty kodu",
+    async (code) => {
+      h.admin.mockResolvedValue({ data: null, error: { code, message: "no function" } });
+      h.user.mockResolvedValue({ data: { ok: false, error: "not_found" }, error: null });
+
+      const result = await validateEventTicketCouponForUser(userClient, eventValidation);
+
+      expect(result).toEqual({ data: { ok: false, error: "not_found" }, error: null });
+      expect(h.user).toHaveBeenCalledWith("validate_event_ticket_coupon", {
+        _code: "PARTNER-EVENT",
+        _event_id: EVENT,
+        _ticket_type_id: TICKET,
+        _amount_cents: 30000,
+        _currency: "PLN",
+      });
+    },
+  );
+
+  it("limit prób z bazy idzie do wołającego bez starej ścieżki", async () => {
+    const error = {
+      code: "P0001",
+      message: "rate_limited: too many code attempts, try again later",
+    };
+    h.admin.mockResolvedValue({ data: null, error });
+
+    expect(await validateEventTicketCouponForUser(userClient, eventValidation)).toEqual({
+      data: null,
+      error,
+    });
     expect(h.user).not.toHaveBeenCalled();
   });
 });

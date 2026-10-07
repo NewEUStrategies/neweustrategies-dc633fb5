@@ -52,8 +52,8 @@
 --
 -- CZEGO NIE ZMIENIA: kody wydarzen (`validate_event_ticket_coupon`,
 -- `event_admission_quote`) zostaja wykonywalne dla `authenticated` z kubelkiem
--- konta - ekran zakupu wydarzenia woluje wycene z przegladarki. To osobna
--- decyzja produktowa, nie skutek uboczny tej migracji.
+-- konta - ekran zakupu wydarzenia woluje wycene z przegladarki. Domyka je
+-- osobna migracja 20261007120600_event_codes_server_only.
 --
 -- KOLEJNOSC WDROZENIA: NAJPIERW KOD, POTEM TA MIGRACJA. Kod z tej zmiany
 -- (`src/lib/billing/couponRpc.server.ts`) woluje `*_for_user` rola serwisowa,

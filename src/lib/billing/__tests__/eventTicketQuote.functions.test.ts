@@ -51,9 +51,14 @@ vi.mock("@/lib/billing/mockMode.server", () => ({
 
 vi.mock("@/lib/stripe.server", () => ({ resolveEnvironment: () => "sandbox" }));
 
-// Rezerwacja użycia kodu idzie rolą serwisową z jawnym najemcą i kontem
-// (`couponRpc.server.ts`, migracja 20261007120200) - atrapa przekazuje ją do
-// TEJ SAMEJ tabeli odpowiedzi co klient użytkownika.
+// Walidacja kodu na bilet (20261007120600) i rezerwacja jego użycia
+// (20261007120200) idą rolą serwisową z jawnym najemcą i kontem
+// (`couponRpc.server.ts`) - atrapa przekazuje je do TEJ SAMEJ tabeli
+// odpowiedzi co klient użytkownika.
+vi.mock("@/lib/server/tenant.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/server/tenant.server")>()),
+  resolveTenantIdForHost: async () => "tenant-alfa",
+}));
 const admin = vi.hoisted(() => ({
   rpc: null as null | ((fn: string, args: Record<string, unknown>) => Promise<unknown>),
 }));
@@ -137,7 +142,7 @@ beforeEach(() => {
   rpcResponses.set("my_ticket_allowance", ok(null));
   rpcResponses.set("event_ticket_public_options", ok({ tax_mode: "inclusive" }));
   rpcResponses.set("event_registration_group_seats", ok(3));
-  rpcResponses.set("validate_event_ticket_coupon", fixedCode(2000));
+  rpcResponses.set("validate_event_ticket_coupon_for_user", fixedCode(2000));
   rpcResponses.set("redeem_b2b_coupon_for_user", ok(true));
 });
 
@@ -180,8 +185,14 @@ describe("quoteEventTicketCheckout - obudowa", () => {
     expect(rpcCalls.find((c) => c.fn === "event_ticket_checkout_quote")?.args).toMatchObject({
       p_access_code: "ZAPROSZENIE-1",
     });
-    expect(rpcCalls.find((c) => c.fn === "validate_event_ticket_coupon")?.args).toMatchObject({
+    // Kod sprawdza rola serwisowa z kontem z SESJI podglądu i skrótem adresu.
+    expect(
+      rpcCalls.find((c) => c.fn === "validate_event_ticket_coupon_for_user")?.args,
+    ).toMatchObject({
       _code: "MINUS20",
+      _tenant_id: "tenant-alfa",
+      _user_id: "user-lead",
+      _probe_subject: expect.stringMatching(/^ip:[0-9a-f]{32}$/),
     });
   });
 });
@@ -246,7 +257,7 @@ describe("quoteEventTicketCheckout - ta sama liczba co kasa, bez skutku", () => 
 
   it("odmowa kodu nie jest błędem podglądu: suma bez kodu i powód odmowy", async () => {
     rpcResponses.set(
-      "validate_event_ticket_coupon",
+      "validate_event_ticket_coupon_for_user",
       ok([{ ok: false, error: "no_discount", coupon_id: COUPON_ID }]),
     );
 

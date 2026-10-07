@@ -55,15 +55,35 @@ const h = vi.hoisted(() => ({
   plainErrors: new Map<string, PlainPostgrestError>(),
 }));
 
+/** Wywolanie zapisuje zawsze wspolna atrapa - asercje ladunku dzialaja tak samo dla obu ksztaltow bledu. */
+async function recordedRpc(name: string, args?: Record<string, unknown>) {
+  if (h.rpc === null) throw new Error("test: atrapa RPC nie zostala ustawiona");
+  const result = await h.rpc.rpc(name, args);
+  const plain = h.plainErrors.get(name);
+  return plain === undefined ? result : { data: null, error: plain };
+}
+
+/**
+ * Wycena i zakup ida przez SERWER (migracja 20261007120600): przegladarka nie
+ * woluje juz tych RPC wprost, bo sonda kodu omijala kubelek pudel po adresie.
+ * Atrapa granicy funkcji serwerowej zapisuje ladunek pod nazwa RPC, ktorej
+ * kontrakt ten ladunek spelnia (`p_payload`), i oddaje odpowiedz w ksztalcie
+ * PostgREST - tak jak `admissionRpc.server.ts`.
+ */
+vi.mock("@/lib/events/admission.functions", () => ({
+  quoteEventAdmission: ({ data }: { data: Record<string, unknown> }) =>
+    recordedRpc("event_admission_quote", { p_payload: data }),
+  purchaseEventPackage: ({ data }: { data: Record<string, unknown> }) =>
+    recordedRpc("event_package_purchase", { p_payload: data }),
+}));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: async (name: string, args?: Record<string, unknown>) => {
-      if (h.rpc === null) throw new Error("test: atrapa RPC nie zostala ustawiona");
-      // Wywolanie zapisuje zawsze wspolna atrapa - asercje ladunku dzialaja
-      // tak samo dla obu ksztaltow bledu.
-      const result = await h.rpc.rpc(name, args);
-      const plain = h.plainErrors.get(name);
-      return plain === undefined ? result : { data: null, error: plain };
+      if (name === "event_admission_quote" || name === "event_package_purchase") {
+        throw new Error(`test: przegladarka nie woluje ${name} wprost - tylko przez serwer`);
+      }
+      return recordedRpc(name, args);
     },
   },
 }));

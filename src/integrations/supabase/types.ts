@@ -28692,6 +28692,15 @@ export type Database = {
         Returns: string
       }
       event_admission_quote: { Args: { p_payload: Json }; Returns: Json }
+      event_admission_quote_for_user: {
+        Args: {
+          _probe_subject: string
+          _tenant_id: string
+          _user_id: string
+          p_payload: Json
+        }
+        Returns: Json
+      }
       event_ads_retention_prune: { Args: never; Returns: Json }
       event_agenda: {
         Args: { p_slug: string }
@@ -29014,6 +29023,15 @@ export type Database = {
         Returns: Json
       }
       event_package_purchase: { Args: { p_payload: Json }; Returns: Json }
+      event_package_purchase_for_user: {
+        Args: {
+          _probe_subject: string
+          _tenant_id: string
+          _user_id: string
+          p_payload: Json
+        }
+        Returns: Json
+      }
       event_package_seat_invite: { Args: { p_payload: Json }; Returns: Json }
       event_packages_offer: {
         Args: { p_slug: string }
@@ -31483,6 +31501,19 @@ export type Database = {
           _currency: string
           _event_id: string
           _ticket_type_id: string
+        }
+        Returns: Json
+      }
+      validate_event_ticket_coupon_for_user: {
+        Args: {
+          _amount_cents: number
+          _code: string
+          _currency: string
+          _event_id: string
+          _probe_subject: string
+          _tenant_id: string
+          _ticket_type_id: string
+          _user_id: string
         }
         Returns: Json
       }

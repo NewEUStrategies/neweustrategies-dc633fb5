@@ -262,6 +262,7 @@ export const createCheckoutOrder = createServerFn({ method: "POST" })
         // miejsca - ta sama funkcja liczy podgląd kasy.
         const { applyEventTicketCoupon } = await import("@/lib/billing/eventTicketPricing.server");
         const applied = await applyEventTicketCoupon(supabase, {
+          userId,
           code: normalizedCode,
           eventId: data.event_id,
           ticketTypeId: data.ticket_type_id ?? null,
