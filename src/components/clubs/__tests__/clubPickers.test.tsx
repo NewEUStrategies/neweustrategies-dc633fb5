@@ -554,6 +554,19 @@ describe("ClubStreamFilters", () => {
     expect(group).toHaveClass("mt-4");
   });
 
+  it("rząd ZAWIJA się (nic nie chowa się za krawędzią), a chipy mają wysokość kontrolki", () => {
+    renderFilters({ kind: "question" });
+
+    const group = screen.getByRole("group", { name: "club.kind.label" });
+    expect(group).toHaveClass("flex-wrap");
+    expect(group.className).not.toContain("overflow-x-auto");
+    for (const name of ["club.allKinds", "club.kind.question", "club.filters.moreLabel"]) {
+      const chip = screen.getByRole("button", { name });
+      expect(chip).toHaveClass("min-h-7", "text-[length:var(--fs-button)]");
+      expect(chip.innerHTML).not.toContain("whitespace-nowrap");
+    }
+  });
+
   it("bez zawężenia wciśnięty jest chip „wszystkie”, a przycisku czyszczenia nie ma", () => {
     renderFilters();
 

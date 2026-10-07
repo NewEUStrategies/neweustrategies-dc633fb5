@@ -59,6 +59,7 @@ export function ClubTopicChip({
   showIcon = true,
   onSelect,
   active = false,
+  wrap = false,
   className,
 }: {
   topic: string | null | undefined;
@@ -70,6 +71,8 @@ export function ClubTopicChip({
   /** Gdy podane - chip zawęża strumień do tego obszaru (ponowne kliknięcie zdejmuje). */
   onSelect?: (topic: string | null) => void;
   active?: boolean;
+  /** Długa nazwa zawija się zamiast ucinać - etykieta w karcie strumienia. */
+  wrap?: boolean;
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -81,7 +84,7 @@ export function ClubTopicChip({
   const body = (
     <>
       {showIcon ? <Tag className="h-3 w-3 shrink-0" aria-hidden="true" /> : null}
-      <span className="truncate">{label}</span>
+      <span className={wrap ? "min-w-0" : "truncate"}>{label}</span>
     </>
   );
 

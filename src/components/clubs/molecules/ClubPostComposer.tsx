@@ -36,7 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { applyListAutoformat } from "@/lib/text/listAutoformat";
-import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
+import { HUB_LABEL, HUB_LABEL_TEXT, HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { useCreateClubPost } from "@/lib/clubs/useClubPosts";
 import { removeClubPostMedia, uploadClubPostMedia } from "@/lib/clubs/postsApi";
 import {
@@ -286,7 +286,9 @@ export function ClubPostComposer({
                     {format !== null ? (
                       <span
                         className={cn(
-                          "absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                          "absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5",
+                          HUB_LABEL_TEXT,
+                          "font-semibold",
                           flagged ? "bg-amber-700 text-white" : "bg-background/90 text-foreground",
                         )}
                       >
@@ -295,8 +297,10 @@ export function ClubPostComposer({
                       </span>
                     ) : null}
                   </div>
+                  {/* Nazwa pliku pod miniaturą zawija się w jej szerokości -
+                      ucięta nie pozwalała odróżnić dwóch zdjęć z aparatu. */}
                   <span
-                    className="mt-1 block truncate text-[11px] text-muted-foreground"
+                    className="mt-1 block text-[11px] leading-4 text-muted-foreground [overflow-wrap:anywhere]"
                     style={{ maxWidth: Math.max(THUMB_PX, Math.round(THUMB_PX * frame.ratio)) }}
                   >
                     {item.name}
@@ -337,10 +341,7 @@ export function ClubPostComposer({
       {others.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-1.5">
           {others.map((item) => (
-            <li
-              key={item.path}
-              className="flex max-w-full items-center gap-1.5 rounded-lg border border-border/70 px-2 py-1 text-xs"
-            >
+            <li key={item.path} className={cn(HUB_LABEL, "gap-1.5 border-border/70")}>
               {item.type === "video" ? (
                 <Film className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
               ) : (
@@ -349,12 +350,12 @@ export function ClubPostComposer({
                   aria-hidden="true"
                 />
               )}
-              <span className="truncate">{item.name}</span>
+              <span className="min-w-0">{item.name}</span>
               <button
                 type="button"
                 aria-label={t("club.post.removeAttachment", { name: item.name })}
                 onClick={() => removeMedia(item.path)}
-                className="text-muted-foreground hover:text-destructive"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />
               </button>

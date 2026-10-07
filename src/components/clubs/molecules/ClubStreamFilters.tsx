@@ -27,11 +27,13 @@
 import { useTranslation } from "react-i18next";
 import { Check, Link2, MailOpen, SlidersHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HUB_CONTROL, HUB_COUNT } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CLUB_THREAD_KINDS, type ClubThreadKind } from "@/lib/clubs/types";
 
-const CHIP =
-  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium leading-none transition-colors";
+// Geometria i stopień pisma kontrolki huba - ta sama co przełącznik źródła
+// i obszary nad strumieniem, więc trzy rzędy kontrolek mają jedną wysokość.
+const CHIP = cn(HUB_CONTROL, "transition-colors");
 const CHIP_OFF =
   "border-border/60 bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground";
 const CHIP_ON = "border-primary/40 bg-primary/10 text-primary";
@@ -72,10 +74,9 @@ export function ClubStreamFilters({
     <div
       role="group"
       aria-label={t("club.kind.label")}
-      className={cn(
-        "-mx-3 flex items-center gap-1 overflow-x-auto px-3 [scrollbar-width:none] sm:mx-0 sm:px-0",
-        className,
-      )}
+      // Zawijanie zamiast przewijania w bok: „Więcej" i czyszczenie filtrów
+      // nie mogą chować się za krawędzią ekranu telefonu.
+      className={cn("flex flex-wrap items-center gap-1", className)}
     >
       <button
         type="button"
@@ -83,7 +84,7 @@ export function ClubStreamFilters({
         onClick={() => onKindChange(null)}
         className={cn(CHIP, kind === null ? CHIP_ON : CHIP_OFF)}
       >
-        <span className="whitespace-nowrap">{t("club.allKinds")}</span>
+        <span>{t("club.allKinds")}</span>
       </button>
       {PRIMARY_KINDS.map((value) => {
         const active = kind === value;
@@ -98,7 +99,7 @@ export function ClubStreamFilters({
             onClick={() => onKindChange(active ? null : value)}
             className={cn(CHIP, active ? CHIP_ON : CHIP_OFF)}
           >
-            <span className="whitespace-nowrap">{t(`club.kind.${value}`)}</span>
+            <span>{t(`club.kind.${value}`)}</span>
           </button>
         );
       })}
@@ -109,9 +110,9 @@ export function ClubStreamFilters({
           aria-label={t("club.filters.moreLabel")}
         >
           <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span className="whitespace-nowrap">{t("club.filters.more")}</span>
+          <span>{t("club.filters.more")}</span>
           {hiddenCount > 0 ? (
-            <span className="rounded bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">
+            <span className={cn(HUB_COUNT, "bg-primary font-semibold text-primary-foreground")}>
               {hiddenCount}
             </span>
           ) : null}
@@ -194,7 +195,7 @@ export function ClubStreamFilters({
             onUnreadOnlyChange(false);
           }}
           aria-label={t("club.filters.clear")}
-          className={cn(CHIP, CHIP_OFF, "w-7 justify-center px-0")}
+          className={cn(CHIP, CHIP_OFF, "w-7 justify-center px-0 py-0")}
         >
           <X className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         </button>

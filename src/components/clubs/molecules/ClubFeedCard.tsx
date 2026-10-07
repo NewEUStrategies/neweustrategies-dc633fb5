@@ -25,7 +25,7 @@
 // wiersz dossier - a `prefers-reduced-motion` wyłącza wszystko poza kolorem.
 import { useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
+import { HUB_LABEL_TEXT, HUB_SURFACE } from "@/components/clubs/atoms/ClubHubPrimitives";
 import {
   clubDossierIconBoxClass,
   clubDossierToneColor,
@@ -96,6 +96,11 @@ export function ClubFeedCard({
 /**
  * Linia kontekstu nad kartą: rodzaj, miejsce, statusy. Po prawej drobne
  * sygnały (przypięcie, dynamika). Włos pod spodem jest wcięty jak treść.
+ *
+ * Etykiety ZAWIJAJĄ SIĘ do kolejnego rzędu. Wcześniej linia na telefonie
+ * była jednym rzędem przewijanym w bok - dział i obszar wychodziły poza
+ * krawędź karty, a nic nie mówiło, że tam są. Cały tekst linii (także
+ * „Wpis w wątku" i „Przypięty") ma stopień pisma etykiet (`HUB_LABEL_TEXT`).
  */
 export function ClubFeedContext({
   children,
@@ -107,21 +112,15 @@ export function ClubFeedContext({
   return (
     <div className={CLUB_FEED_PAD}>
       <div
-        className="flex min-h-10 items-center gap-2 border-b border-border/50 py-2 text-xs text-muted-foreground"
+        className={cn(
+          "flex min-h-10 items-center gap-2 border-b border-border/50 py-2 text-muted-foreground",
+          HUB_LABEL_TEXT,
+        )}
         data-feed-zone="context"
       >
-        {/* Na telefonie linia kontekstu zostaje JEDNĄ linią (przewijaną w bok),
-            zamiast rozlewać rodzaj, dział i temat na trzy rzędy nad autorem. */}
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 items-center gap-x-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*:not([data-feed-shrink])]:shrink-0",
-            "sm:flex-wrap sm:gap-y-1 sm:overflow-visible",
-          )}
-        >
-          {children}
-        </div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{children}</div>
         {trailing !== undefined ? (
-          <div className="flex shrink-0 items-center gap-2.5">{trailing}</div>
+          <div className="flex shrink-0 items-center gap-2.5 self-start pt-1">{trailing}</div>
         ) : null}
       </div>
     </div>
@@ -148,7 +147,11 @@ export function ClubFeedActor({
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">{name}</div>
         {headline !== undefined && headline !== null && headline !== "" ? (
-          <p className="mt-0.5 truncate text-xs leading-4 text-muted-foreground">{headline}</p>
+          // Stanowisko zawija się zamiast ucinać - to ono mówi, z jakiej
+          // pozycji ktoś zabiera głos, więc nie może zniknąć pod wielokropkiem.
+          <p className="mt-0.5 text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]">
+            {headline}
+          </p>
         ) : null}
         {meta !== undefined ? (
           <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs leading-4 text-muted-foreground">
@@ -211,13 +214,17 @@ export function ClubFeedSocialRow({ left, right }: { left?: ReactNode; right?: R
   return (
     <div
       className={cn(
-        "flex min-h-9 items-center justify-between gap-3 pt-2.5 text-xs text-muted-foreground",
+        // Zawija się: na wąskiej karcie rozmowa schodzi pod reakcje (dalej
+        // przy prawej krawędzi), zamiast ucinać nazwisko po lewej.
+        "flex min-h-9 flex-wrap items-center justify-between gap-x-3 gap-y-1 pt-2.5 text-xs text-muted-foreground",
         CLUB_FEED_PAD,
       )}
       data-feed-zone="social"
     >
       <div className="flex min-w-0 items-center gap-1.5">{hasLeft ? left : null}</div>
-      <div className="flex shrink-0 items-center gap-1.5">{hasRight ? right : null}</div>
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+        {hasRight ? right : null}
+      </div>
     </div>
   );
 }
@@ -238,7 +245,13 @@ export function ClubFeedActionBar({
       <div className={CLUB_FEED_PAD}>
         <div className="border-t border-border/60" />
       </div>
-      <div role="group" aria-label={label} className="flex items-stretch gap-1 px-1.5 py-1 sm:px-2">
+      {/* Siatka równych kolumn (`auto-cols-fr`), nie `flex-1`: kolumna reakcji
+          z opakowaniem palety była węższa od pozostałych. */}
+      <div
+        role="group"
+        aria-label={label}
+        className="grid auto-cols-fr grid-flow-col gap-1 px-1.5 py-1 sm:px-2"
+      >
         {children}
       </div>
     </div>
@@ -250,11 +263,18 @@ export function ClubFeedActionBar({
  * zostaje na miejscu, a komentarz prowadzi do wątku - a obie mają wyglądać
  * i reagować tak samo. Na telefonie piktogram stoi nad podpisem, żeby trzy
  * akcje zmieściły się bez ucinania słów.
+ *
+ * Rozmiar podpisu to rozmiar przycisku (`--fs-button`) na KAŻDEJ szerokości:
+ * globalny atom przycisku i tak go wymusza, więc `text-sm` działało tylko
+ * na akcji-linku („Komentuj" było większe niż „Zareaguj" obok).
  */
 export function clubFeedActionClass(options?: { className?: string }): string {
   return cn(
-    "group/feed-act relative inline-flex min-h-11 min-w-0 flex-1 select-none flex-col items-center justify-center gap-0.5 rounded-lg px-2",
-    "text-[11px] font-semibold text-muted-foreground sm:min-h-10 sm:flex-row sm:gap-2 sm:text-sm",
+    // Na telefonie (piktogram nad podpisem) treść stoi od góry: gdy jeden
+    // podpis zawinie się do dwóch linii, piktogramy wszystkich kolumn zostają
+    // w jednym rzędzie, zamiast rozjechać się przez centrowanie w pionie.
+    "group/feed-act relative inline-flex min-h-11 min-w-0 flex-1 select-none flex-col items-center justify-start gap-0.5 rounded-lg px-2 py-1 sm:justify-center",
+    "text-[length:var(--fs-button)] font-semibold leading-tight text-muted-foreground sm:min-h-10 sm:flex-row sm:gap-2",
     "transition-[background-color,color,scale] duration-150 ease-out",
     "hover:bg-muted/70 hover:text-foreground active:scale-[0.97] motion-reduce:active:scale-100",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -265,6 +285,9 @@ export function clubFeedActionClass(options?: { className?: string }): string {
 
 /** Piktogram akcji - jeden rozmiar dla wszystkich kolumn. */
 export const CLUB_FEED_ACTION_ICON = "h-[18px] w-[18px] shrink-0";
+
+/** Podpis akcji - zawija się między słowami, nigdy nie znika pod wielokropkiem. */
+export const CLUB_FEED_ACTION_LABEL = "min-w-0 max-w-full text-center [overflow-wrap:break-word]";
 
 /**
  * Pas mediów od krawędzi do krawędzi karty. Bez wcięcia - zdjęcie, wykres

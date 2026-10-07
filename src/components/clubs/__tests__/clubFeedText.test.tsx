@@ -87,7 +87,7 @@ describe("ClubFeedText", () => {
       </ClubFeedText>,
     );
     const link = screen.getByRole("link", { name: "Czytaj cały wątek" });
-    link.focus();
+    act(() => link.focus());
     // happy-dom nie emituje `focusin` przy `focus()` - przeglądarka tak, a na
     // nim stoi `onFocus` Reacta.
     fireEvent.focusIn(link);
@@ -95,6 +95,20 @@ describe("ClubFeedText", () => {
       "opening",
     );
     expect(document.activeElement).toBe(link);
+  });
+
+  it("„…więcej” dziedziczy stopień pisma tekstu, a typografia leży na opakowaniu", () => {
+    stubHeights(240, 72);
+    const { container } = render(
+      <ClubFeedText className="text-sm leading-6">Bardzo długi tekst…</ClubFeedText>,
+    );
+    const body = container.querySelector<HTMLElement>("[data-feed-text]");
+    // `lh` w limicie liczy się z wysokości linii odziedziczonej po opakowaniu.
+    expect(body?.parentElement?.className).toContain("text-sm");
+    const more = screen.getByTestId("club-feed-more");
+    // Globalny atom przycisku wymuszał 12 px pod tekstem 13 px.
+    expect(more.className).toContain("[font-size:inherit]!");
+    expect(more.className).not.toContain("text-sm");
   });
 
   it("liczba linii jest parametrem", () => {

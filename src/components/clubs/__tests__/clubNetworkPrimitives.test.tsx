@@ -411,7 +411,7 @@ describe("ClubSegmented - kontrakt grupy radiowej", () => {
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
 
-  it("`className` dokłada się do rzędu, który przewija się w poziomie", () => {
+  it("`className` dokłada się do rzędu, który ZAWIJA się zamiast przewijać w bok", () => {
     render(
       <ClubSegmented
         value="threads"
@@ -423,7 +423,14 @@ describe("ClubSegmented - kontrakt grupy radiowej", () => {
     );
     const group = screen.getByRole("radiogroup");
     expect(group.className).toContain("mb-3");
-    expect(group.className).toContain("overflow-x-auto");
+    // Przewijany pasek chował ostatnie segmenty za krawędzią telefonu.
+    expect(group.className).toContain("flex-wrap");
+    expect(group.className).not.toContain("overflow-x-auto");
+    // Segment ma geometrię i stopień pisma kontrolki huba (28 px, `--fs-button`).
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio.className).toContain("min-h-7");
+      expect(radio.className).toContain("text-[length:var(--fs-button)]");
+    }
   });
 
   it("nie wnosi naruszeń dostępności (radiogroup + radio + licznik)", async () => {

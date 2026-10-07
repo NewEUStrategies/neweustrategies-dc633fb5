@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   CLUB_FEED_ACTION_ICON,
+  CLUB_FEED_ACTION_LABEL,
   clubFeedActionClass,
 } from "@/components/clubs/molecules/ClubFeedCard";
 
@@ -73,7 +74,7 @@ export function ClubFeedShareAction({ path, title }: { path: string; title: stri
       >
         <Icon className={CLUB_FEED_ACTION_ICON} aria-hidden="true" />
       </span>
-      <span className="max-w-full truncate">{t("club.hub.feed.share")}</span>
+      <span className={CLUB_FEED_ACTION_LABEL}>{t("club.hub.feed.share")}</span>
     </button>
   );
 }

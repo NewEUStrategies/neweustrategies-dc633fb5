@@ -7,6 +7,11 @@
 // Dymek dociąga markę leniwie (`useCompanyBrand`), a gdy kartoteka nie zna tej
 // nazwy - pokazuje samą nazwę. Nazwa firmy z profilu jest snapshotem tekstowym,
 // więc „nie znaleziono marki" to normalny stan, nie awaria.
+//
+// ROZMIAR SIEDZI NA NAZWIE, NIE NA PRZYCISKU. Globalny atom przycisku
+// (`--fs-button`, z `!important`) nadpisywał `text-xs` wyzwalacza, więc firma
+// była o stopień większa niż stanowisko i czas pod nią. Nazwa niesie rozmiar
+// sama - a w lokalnej skali typografii przechodzi z nią.
 import { useState } from "react";
 import { Building2, ExternalLink } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -24,11 +29,14 @@ export function CompanyTag({
   labels,
   className,
   testId = "company-preview",
+  wrap = false,
 }: {
   name: string | null | undefined;
   labels: CompanyTagLabels;
   className?: string;
   testId?: string;
+  /** Długa nazwa zawija się zamiast ucinać (wąska kolumna strumienia). */
+  wrap?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const brand = useCompanyBrand(name ?? null, open);
@@ -42,13 +50,16 @@ export function CompanyTag({
           type="button"
           data-company={name}
           className={cn(
-            "inline-flex max-w-full items-center gap-1 truncate text-xs text-muted-foreground",
+            "inline-flex max-w-full items-center gap-1 text-xs text-muted-foreground",
+            wrap ? "text-left" : "truncate",
             "transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             className,
           )}
         >
           <Building2 className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span className="truncate">{name}</span>
+          <span className={cn("text-xs", wrap ? "min-w-0 [overflow-wrap:anywhere]" : "truncate")}>
+            {name}
+          </span>
         </button>
       </HoverCardTrigger>
       <HoverCardContent className="w-64" data-testid={testId}>

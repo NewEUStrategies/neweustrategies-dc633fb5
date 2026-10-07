@@ -26,14 +26,15 @@
 import { useMemo } from "react";
 import { uiLang } from "@/lib/i18n/format";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
+import { HUB_CONTROL, HUB_COUNT } from "@/components/clubs/atoms/ClubHubPrimitives";
 import { ClubTopicFilterChip } from "@/components/clubs/atoms/ClubTopicChip";
 import { countThreadTopics } from "@/lib/clubs/threadTopics";
 import { topicLabel, type ClubTopicOption } from "@/lib/clubs/topicCatalog";
 import type { ClubThreadListRow } from "@/lib/clubs/types";
 
+/** Licznik ma stopień pisma chipu - mniejszą wagę daje mu krycie, nie rozmiar. */
 function Count({ n }: { n: number }) {
-  return <span className="text-[10px] opacity-70">{n}</span>;
+  return <span className={`${HUB_COUNT} opacity-70`}>{n}</span>;
 }
 
 export function ClubThreadTopicBar({
@@ -61,23 +62,29 @@ export function ClubThreadTopicBar({
       <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {t("club.topic.label")}
       </p>
-      <nav
-        aria-label={t("club.topic.label")}
-        className={cn("-mx-3 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0 [scrollbar-width:none]")}
-      >
-        <ul className="flex w-max min-w-full gap-1.5">
-          <li>
-            <ClubTopicFilterChip active={value === null} onClick={() => onChange(null)} size="sm">
+      {/* Obszary zawijają się do kolejnych rzędów - przewijany pasek chował
+          część katalogu za krawędzią ekranu. Chip ma wysokość kontrolki huba
+          (28 px), tę samą co przełącznik źródła i filtry rodzaju obok. */}
+      <nav aria-label={t("club.topic.label")}>
+        <ul className="flex flex-wrap gap-1">
+          <li className="max-w-full">
+            <ClubTopicFilterChip
+              active={value === null}
+              onClick={() => onChange(null)}
+              size="sm"
+              className={HUB_CONTROL}
+            >
               {t("club.hub.allTopics")}
               <Count n={threads.length} />
             </ClubTopicFilterChip>
           </li>
           {topics.map((topic) => (
-            <li key={topic.area}>
+            <li key={topic.area} className="max-w-full">
               <ClubTopicFilterChip
                 active={value === topic.area}
                 onClick={() => onChange(value === topic.area ? null : topic.area)}
                 size="sm"
+                className={HUB_CONTROL}
               >
                 {topicLabel(topic.area, lang, catalog)}
                 <Count n={topic.count} />

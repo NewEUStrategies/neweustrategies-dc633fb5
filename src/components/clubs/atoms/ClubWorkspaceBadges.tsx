@@ -43,8 +43,12 @@ import type {
   ClubMilestoneState,
 } from "@/lib/clubs/workspaceTypes";
 
+// Skala małego tekstu klubu (`text-[11px]` -> `--tt-fs-xs`), ta sama co
+// plakietki obok chipu w bibliotece, kalendarzu i harmonogramie. Dawne
+// `sm:text-xs` nigdy nie działało pod przemapowaniem typografii klubu,
+// a przetrwałoby `cn` w strumieniu i nadpisało tam stopień etykiety huba.
 const CHIP =
-  "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium leading-none sm:text-xs";
+  "inline-flex max-w-full shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium leading-none";
 
 // ---------------------------------------------------------------------------
 // Dokumenty
@@ -193,16 +197,19 @@ const MILESTONE_TONES: Record<ClubMilestoneState, string> = {
 
 export function ClubMilestoneStateChip({
   state,
+  wrap = false,
   className,
 }: {
   state: ClubMilestoneState;
+  /** Długa nazwa stanu zawija się zamiast ucinać - etykieta w karcie strumienia. */
+  wrap?: boolean;
   className?: string;
 }) {
   const { t } = useTranslation();
   return (
     <span className={cn(CHIP, MILESTONE_TONES[state], className)} data-club-milestone-state={state}>
       <CircleDot className="h-3 w-3 shrink-0" aria-hidden="true" />
-      <span className="truncate">{t(`club.schedule.state.${state}`)}</span>
+      <span className={wrap ? "min-w-0" : "truncate"}>{t(`club.schedule.state.${state}`)}</span>
     </span>
   );
 }
